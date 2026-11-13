@@ -37,7 +37,9 @@ export interface CallObservation {
 export type CallObserved = (context: CallContext, action: CallDescription, observation: CallObservation) => void;
 /** Who is told how a call ended: the diagnostic log, and the collection exit. */
 export interface CallReports {
+  /** When a call is over, once, refusals included: which action, for whom, and how it ended. Never the input or result. */
   readonly settled?: CallSettled;
+  /** The collection exit: the same once-per-call report, with the input, the result and the call's timing (observation-collection). */
   readonly observed?: CallObserved;
 }
 

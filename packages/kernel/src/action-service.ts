@@ -12,7 +12,7 @@ import {
 import type { HostCapabilityDescriptor } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { CapabilityRegistry } from "./index.js";
 import { assertCallerProvenance } from "./action-authorship.js";
-import { assertCurrentAuthority, bindCall, describeCall, settleCall, settleCallSync, runActionHandler, type CallContext, type CallObserved, type CallSettled } from "./action-settlement.js";
+import { assertCurrentAuthority, bindCall, describeCall, settleCall, settleCallSync, runActionHandler, type CallContext, type CallReports } from "./action-settlement.js";
 import { actionSchemaAccepts, createActionSchemaCompiler, validateActionValue, type ActionValidator } from "./action-schema.js";
 import { validateActionInput } from "./version-precondition.js";
 import { subjectOfferCompatibilityReason } from "./subject-offer-choices.js";
@@ -38,16 +38,12 @@ export class ActionService implements ActionClient, ActionRegistryPort {
   private readonly checkingDependencies = new WeakMap<ActionCallContext, Set<string>>(); // per context: a delegated caller's authority check reads its original's own, which is not a cycle
 
   constructor(readonly registry = new CapabilityRegistry<ActionCallContext>(),
-    private readonly effects: {
+    private readonly effects: CallReports & {
       beforeEffect?(context: ActionCallContext, reference: ActionReference): void | Promise<void>;
       /** The Host's live runtime check, without yielding after the final authority check. */
       assertCurrent?(context: ActionCallContext, reference: ActionReference): void;
       /** Host policy, before anything is resolved or dispatched. Asynchronous, so a synchronous call is never offered to it. */
       admit?(context: CallContext, reference: ActionReference): void | Promise<void>;
-      /** When a call is over, once, refusals included: which action, for whom, and how it ended. Never the input or result. */
-      settled?: CallSettled;
-      /** The collection exit: the same once-per-call report, with the input, the result and the call's timing (observation-collection). */
-      observed?: CallObserved;
     } = {}) {}
 
   registerProvider(registration: ActionProviderRegistration): () => void {

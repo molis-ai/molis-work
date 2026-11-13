@@ -62,7 +62,7 @@
 
 - **单次**：至多 100 条、内容合计至多 1 MiB，超出整次拒收（`observation.report_too_large`）。
 - **每分钟**：声明 `execution.max_calls_per_minute: 60`（按 actor＋项目＋安装计，平台已有）。这一层在处理器之前就拒（`actions.rate_limited`），看不到输入，所以只按次数记，不按条数。
-- **每天**：每个上报方（一个插件安装，或外壳）一个 UTC 日至多收 20,000 条、64 MiB 内容，所有项目合计；计数存在库里（`report_quota`），重启不清零。到了任一项，当日余下的上报整次拒收（`observation.report_quota_exceeded`）。所以一个第三方插件一天最多写进约 64 MiB 正文（压缩加密前），写不满磁盘。
+- **每天**：每个上报方各算各的（每个插件安装一份，外壳单独一份，不共用）；一个 UTC 日至多收 20,000 条、64 MiB 内容，所有项目合计；计数存在库里（`report_quota`），重启不清零。到了任一项，当日余下的上报整次拒收（`observation.report_quota_exceeded`）。所以一个第三方插件一天最多写进约 64 MiB 正文（压缩加密前），写不满磁盘。
 - **超限怎样记**：拒收的次数与条数只按上报方记一段覆盖缺口（`lost`，原因键 `report_quota`），覆盖登记里这一行的 `fact` 固定写 `observation.report`，不按插件给的事实名展开，所以覆盖登记的行数也刷不大。
 
 受众不给 `agent`、`mcp`、`workflow`：它们做的事由出口与服务在发生处记，不能自报。
@@ -96,7 +96,7 @@
 
 写入方只能给前五种（合同 `OBSERVATION_WRITER_MISSING_REASONS`），后两种只由采集层写。
 
-- **加密存放**：快照正文先脱敏（与 SDK 的 `redactSecrets` 同一份规则，脱敏过的标 `redacted`），再 gzip，再用平台已有的本机正文保护（`createLocalPayloadProtection`，AES-GCM，密钥引用 `system:observation:evidence:v1` 存在 Home 的密钥库）加密后入库。这样主人那边是密文的内容（如 Feed 的证据正文）在采集层也不会是明文；密钥取不到时这批证据记 `missing: not_obtained` 并在覆盖登记计一段「暂不可用」，记录本身照写。
+- **加密存放**：快照正文先脱敏（与 SDK 的 `redactSecrets` 同一份规则；替换过的，快照上标 `redacted: true`——这是快照自己的标记，不是缺失原因 `redacted`），再 gzip，再用平台已有的本机正文保护（`createLocalPayloadProtection`，AES-GCM，密钥引用 `system:observation:evidence:v1` 存在 Home 的密钥库）加密后入库。这样主人那边是密文的内容（如 Feed 的证据正文）在采集层也不会是明文；密钥取不到时这批证据记 `missing: not_obtained` 并在覆盖登记计一段「暂不可用」，记录本身照写。
 - **去重**：摘要用带密钥的 HMAC-SHA256（密钥引用 `system:observation:digest:v1`，与证据密钥放在同一个密钥库），按它存一份；`record_evidence(seq, digest)` 记引用。拿到库的人不能用猜出的短内容去验证（反推 Feed 正文、页面输入）。
 - **上限**：一份快照至多 4 MiB；超出只记摘要与长度（`missing: truncated`），覆盖登记该事实下计一次截断。
 - **调用路径上只做一次拷贝**：出口与端口只把内容序列化成字符串入队；脱敏、摘要、压缩、加密都在落盘的那一批里做。
@@ -211,3 +211,4 @@
 | 建议 | `webEntryDoor.define` 写死受众与 `concurrent` | §4：动作自己定义、不声明 `concurrent`，门加只读 `entryOf` 给 `user` 一条核对；拒绝测试加「插件页面拿自己的凭据调外壳路由」 |
 | 建议 | 插件作为调用方发出的调用记录也带它的数据 | §6：清除时一起去掉 `install_id` 是它的调用记录的证据 |
 | 建议 | 限流在处理器前，看不到条数 | §4：每分钟一层只按次数记 |
+| 第 3 版复核 | 快照的 `redacted` 标记与缺失原因同名易混；外壳会不会和插件共用每天的额度 | §6 写明是快照标记；§4 写明外壳单独一份额度。20,000 条够不够，接完回放实测后再定（§9） |

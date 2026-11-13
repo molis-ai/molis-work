@@ -229,8 +229,9 @@ test("VUX-33: the Assistant sends a large block as its text and a map of its pie
 });
 
 test("VUX-33: the Assistant's large block streams in place, reopens as text at once and is coloured a slice a frame to the whole colouring", { timeout: 240_000 }, async (t) => {
-  // A literal CR ends the body. The CRLF after it separates the closing fence.
-  const code = textOf(90_000).replace(/\n$/, "\r");
+  // A CRLF ends the body and another separates the closing fence. Not a lone CR: a block with one is sent with its colours and
+  // no paint map, as it needs a <br> for that line (assistantCodeHtml; tests/assistant-text-html.e2e.test.ts), so it has no slices.
+  const code = textOf(90_000).replace(/\n$/, "\r\n");
   let model!: Awaited<ReturnType<typeof assistantTextModel>>;
   const browser = await openGoalBrowser(t, true, undefined, undefined, undefined, undefined, {
     prepareHome: async homeDirectory => { model = await assistantTextModel(t, homeDirectory, "下面是代码：\n\n```ts\n" + code + "\r\n```\n\n写完了。", { pieces: 8, pause: 300 }); },

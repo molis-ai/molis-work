@@ -13,6 +13,7 @@ import { homePluginsOutsideBuild } from "./home-registration.js";
 import { PersonalProjectProvisioner } from './personal-project-provisioner.js';
 import {preflightProjectCatalog,projectPluginRequirements} from './project-catalog-replication.js';
 import { ManagedProjectDeletion } from "./managed-project-deletion.js";
+import { advanceReadCheckGeneration } from "@molis-ai/molis-work-plugin-runtime";
 import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
 import { DemoProjectLifecycle } from "./demo-project-lifecycle.js";
 import { exists } from "./project-file-paths.js";
@@ -472,5 +473,6 @@ function bumpProjectPluginEpoch(catalog: MolisWorkProjectCatalog): void {
 function bumpAnd<T>(catalog: MolisWorkProjectCatalog, run: () => T): T {
   const result = run();
   bumpProjectPluginEpoch(catalog);
+  advanceReadCheckGeneration();
   return result;
 }

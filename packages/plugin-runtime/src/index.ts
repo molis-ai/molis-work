@@ -14,7 +14,7 @@ import { recordInstallConsents, type PluginConsentLedger } from "./consent-ledge
 import { leaveRefusal } from "./always-on-rules.js";
 import { pluginActionProvider, type PluginRuntimeActions } from "./action-provider.js";
 export { PROJECT_REACH_PERMISSION, type PluginProjectReach } from "./action-provider.js";
-import { outsidePluginAction } from "./action-scope.js";
+import { advanceReadCheckGeneration, outsidePluginAction } from "./action-scope.js";
 import { OfferedContributions } from "./offered-contributions.js";
 import { MemoryPluginRuntimeRepository } from "./memory-repository.js";
 import { NativePluginExecutor } from "./native-executor.js";
@@ -379,6 +379,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     }
     const updated = { ...current, grants, updated_at: this.now() };
     this.repository.save(updated);
+    advanceReadCheckGeneration();
     return this.receipt("grant", updated, false);
   }
 
@@ -386,7 +387,8 @@ export class PluginRuntime implements PluginRuntimeApi {
   regrant(installId: string, permission: string, granted: boolean): Promise<PluginLifecycleReceipt> {
     return regrantInstall({ install: id => requireInstall(this.repository, id), manifest: record => grantCeiling(this.options, requireDefinition(this.definitions, record)), save: record => this.repository.save(record), now: () => this.now(),
       revoke: id => this.revokeContext(id, true), locked: (id, run) => this.locks.run(id, run), stop: id => this.stopOnce(id, true), start: id => this.startOnce(id),
-      receipt: (record, replayed) => this.receipt("grant", record, replayed) }, installId, permission, granted);
+      receipt: (record, replayed) => this.receipt("grant", record, replayed) }, installId, permission, granted)
+      .then(receipt => { advanceReadCheckGeneration(); return receipt; });
   }
 
   start(installId: string, control?: Parameters<PluginRuntimeApi["start"]>[1]): Promise<PluginLifecycleReceipt> {

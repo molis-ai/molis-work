@@ -378,8 +378,7 @@ export class PluginRuntime implements PluginRuntimeApi {
       throw pluginErrors.state_invalid("运行中的 Plugin 必须先停止，不能静默改变 grant");
     }
     const updated = { ...current, grants, updated_at: this.now() };
-    this.repository.save(updated);
-    advanceReadCheckGeneration();
+    this.repository.save(updated); advanceReadCheckGeneration();
     return this.receipt("grant", updated, false);
   }
 
@@ -387,8 +386,7 @@ export class PluginRuntime implements PluginRuntimeApi {
   regrant(installId: string, permission: string, granted: boolean): Promise<PluginLifecycleReceipt> {
     return regrantInstall({ install: id => requireInstall(this.repository, id), manifest: record => grantCeiling(this.options, requireDefinition(this.definitions, record)), save: record => this.repository.save(record), now: () => this.now(),
       revoke: id => this.revokeContext(id, true), locked: (id, run) => this.locks.run(id, run), stop: id => this.stopOnce(id, true), start: id => this.startOnce(id),
-      receipt: (record, replayed) => this.receipt("grant", record, replayed) }, installId, permission, granted)
-      .then(receipt => { advanceReadCheckGeneration(); return receipt; });
+      receipt: (record, replayed) => this.receipt("grant", record, replayed) }, installId, permission, granted).then(receipt => { advanceReadCheckGeneration(); return receipt; });
   }
 
   start(installId: string, control?: Parameters<PluginRuntimeApi["start"]>[1]): Promise<PluginLifecycleReceipt> {

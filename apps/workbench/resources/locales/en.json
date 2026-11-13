@@ -2280,7 +2280,7 @@
     "workbench.catalog-composer.finally-list-the-files-this-turn-changed-largest": "Finally, list the files this turn changed, largest change first, and mark which are new and which only touch tests.",
     "workbench.catalog-composer.focus": "Focus",
     "workbench.catalog-composer.for-attachments-a-file-over-the-limit-says": "For attachments, a file over the limit says why on the attachment strip right away and can be removed, instead of failing only at send; one cancelled halfway through can be picked again.",
-    "workbench.catalog-composer.holds-the-place-only-voice-input-is-not": "Holds the place only: voice input is not connected yet (batch 53). It sits on the right of the input’s bottom row, before Stop and Send.",
+    "workbench.catalog-composer.holds-the-place-only-voice-input-is-not": "Holds the place only: voice input is not connected yet (batch 54). It sits on the right of the input’s bottom row, before Stop and Send.",
     "workbench.catalog-composer.how-it-is-delivered": "How it is delivered",
     "workbench.catalog-composer.if-anything-along-the-way-needs-my": "If anything along the way needs my decision, stop and ask me; don’t choose for me.",
     "workbench.catalog-composer.if-anything-along-the-way-needs-my-decision": "If anything along the way needs my decision, stop and ask me; don’t choose for me. Put what you’re unsure of at the end and I’ll go through it all.",

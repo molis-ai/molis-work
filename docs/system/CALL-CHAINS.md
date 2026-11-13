@@ -332,7 +332,7 @@
 | `POST /builds` | 创作台创建构建记录并启动设计作业 | 固定项目、现有模型检查与任务归属 |
 | `POST /builds/<id>/action` | 创作台处理范围、选择、意见、组件、检查、暂停、续跑、撤销和删除。启用依赖插件交项目目录，发布交创作台发布流程，安装、升级、回滚、启停和卸载交现有插件生命周期 | 区分草稿、项目登记和安装效果。保持所见 revision、同一构建的执行令牌、权限确认、安装失败回滚和密钥封存 |
 | `POST /builds/<id>/call` | 按界面组件的 `read` 或 `submit` 绑定，把操作交给创作台试用或验收沙箱 | 构建、试用身份、操作声明与取消沿现行核对 |
-| `POST /api/plugins/<generated>/call` | 当前已装生成插件的请求交现有安装平台路由，由已装插件执行其声明操作 | HTTP 传输沿原安装和页面授权，另见 [46 批的迁移边界](../../specs/post-anticorruption-roadmap/reference/batches/46.md#batch-46-item-1) |
+| `POST /api/plugins/<generated>/call` | 当前已装生成插件的请求交现有安装平台路由，由已装插件执行其声明操作 | HTTP 传输沿原安装和页面授权，另见 [46 批的迁移边界](../../specs/post-anticorruption-roadmap/reference/batches/47.md#batch-47-item-1) |
 | 首次读取创作台 | `ensureStudio` 初次打开时，创作台初始化会恢复已持久化的构建，先把旧活动阶段标记暂停，再从原检查点续跑 | 把初始化恢复与普通状态、预览、下载及事件流分开盘点，避免一次读取另起一轮恢复 |
 
 ### 10.2 已定要修的偏离

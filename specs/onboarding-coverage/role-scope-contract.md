@@ -33,7 +33,7 @@ type CharacterRole =
 
 - `character_id` 沿现有个人身份，`member_id` 标识当前项目的成员绑定。同名无身份意义。本人、项目和执行权限从可信调用上下文取。项目成员读、写和按版本读都在该项目内查归属。成员跟随的原件由 Characters 确认，持有引用本身没有跨项目读取权。已解除的成员和已删除的原件在当前角色读回中为缺失。
 - 原件确认保存时得到不可变的 `version`。新成员两节都跟随。项目保存只覆盖本次编辑的节，未编辑的节保留已有模式及覆盖值；只有仍为 `follow` 的节读取最新已保存的原件。先覆盖做事方式，再只改能用什么时，前一个覆盖不会被清掉。别的项目和原件不受影响。项目本地保存得到不可变的 `member_version`。任务固定当时的成员版本及原件版本。两者足以重建当时的内容，原件发布后无需逐项目补写成员。成员的 `revision` 是针对成员配置及采用复用保护的写入凭据，原件单独更新只改变读到的 `current.original`，不会改掉场景采用存下的成员 revision。
-- 「做事方式」复用 `instructions`。「能用什么」复用 `host_tools` 和 `action_tools`，保留原合同中 `null`、省略、空列表各自的意义。节的 `follow` 由节状态表达。标题沿个人原件。角色和模板只能收窄本次授权，任务启动和后续实际调用仍查现行许可。材料和输出说明、解析后的 Skill 引用由 P-2b 与后续角色服务接内容字段。材料说明没有授权效力，Skill 解析走现有 `SkillRef`，`works_with` 的场景部分 id 由第 44 批解析成实际成员。
+- 「做事方式」复用 `instructions`。「能用什么」复用 `host_tools` 和 `action_tools`，保留原合同中 `null`、省略、空列表各自的意义。节的 `follow` 由节状态表达。标题沿个人原件。角色和模板只能收窄本次授权，任务启动和后续实际调用仍查现行许可。材料和输出说明、解析后的 Skill 引用由 P-2b 与后续角色服务接内容字段。材料说明没有授权效力，Skill 解析走现有 `SkillRef`，`works_with` 的场景部分 id 由第 45 批解析成实际成员。
 - `based_on_original_version` 指覆盖所依据的原件版本。`original_changed` 只在原件的对应节变化时提示。「保持本项目的」确认此次差异，下次这节再变才重新提示。项目覆盖和原件各自保留可读的固定版本，允许看差异。具体比较和确认记录由后续服务实现。
 
 ## 2. 默认、一次选择和恢复
@@ -118,7 +118,7 @@ type CharacterRoleReadOutput = { results: CharacterRoleReadResult[] };
 | RSC-C03 | 模板采用结果区分个人原件和项目成员、创建和复用。接受内容包／草稿两种来源，拒绝跨分支字段、伪造安装／操作者。批量读接受 1～128 项，拒绝空批与超限；按角色和按请求是互斥的查询分支。回执存在且角色已解除与未找到回执可分别返回。保序、等长和查询分支对应关系由接入片验证。 |
 | RSC-C04 | [原型] 个人默认已有角色时进入「项目默认的角色已停用」状态，任务选择器和项目设置都显示新任务由助理自己做，个人默认配置保留，进行中的任务继续显示原固定版本。原型说明同样记录用户确认的行为。 |
 
-测试以现有公开 `modules/characters` 及 Kernel 的 `compileActionSchema`／`assertActionInput` 运行真实 schema。正例用公开类型作 `satisfies` 约束，负例经公开 validator 检查。构建后，用 `pnpm exec tsc --noEmit --module NodeNext --target ES2022 --strict --skipLibCheck tests/character-role-scope-contract.test.ts` 检查测试里的类型例，再跑 `node scripts/run-tests.mjs tests/character-role-scope-contract.test.ts`，并核对公开 API 快照和健康门禁。实际继承、授权拒绝、并发冲突、原子回执、重启后恢复、冻结执行和产品 UI 由第 36／20／44 批各接入片运行时验收。本片的结构测试只证明形状。
+测试以现有公开 `modules/characters` 及 Kernel 的 `compileActionSchema`／`assertActionInput` 运行真实 schema。正例用公开类型作 `satisfies` 约束，负例经公开 validator 检查。构建后，用 `pnpm exec tsc --noEmit --module NodeNext --target ES2022 --strict --skipLibCheck tests/character-role-scope-contract.test.ts` 检查测试里的类型例，再跑 `node scripts/run-tests.mjs tests/character-role-scope-contract.test.ts`，并核对公开 API 快照和健康门禁。实际继承、授权拒绝、并发冲突、原子回执、重启后恢复、冻结执行和产品 UI 由第 36／20／45 批各接入片运行时验收。本片的结构测试只证明形状。
 
 ## 5. 开工前检查
 
@@ -138,7 +138,7 @@ type CharacterRoleReadOutput = { results: CharacterRoleReadResult[] };
 | 12 页面、外壳与文字 | 已定方案 C 原型仅校正上述停用状态。产品页面、资源和事件不涉及，文本键解析留实际采用入口。 |
 | 13 错误 | 本片复用 Kernel schema 诊断，owner 错误码留给实际接入。 |
 | 14 冲突面 | 只改 Characters 出口、纯叶、独立测试、本片文档和该原型状态。主台安排与 20 P-2a 的同出口顺序，08 共享出口不用改。 |
-| 15 全局最优 | **插件**共用角色合同，第 20 批场景包无专属内置路径。**平台**沿 Characters 与成果库分工，Coding 继续消费现有发布。**助理**由 36 接固定引用启动。**平台能力**沿用精确 Skill 引用与现有授权。**后续**第 20 批 P-2b 和第 44 批共用成员身份、来源与回执。个人草稿只表达原件，整份复制也无法逐节跟随。这里固定原件与成员两份引用，由后续 36 组合并接实际执行。 |
+| 15 全局最优 | **插件**共用角色合同，第 20 批场景包无专属内置路径。**平台**沿 Characters 与成果库分工，Coding 继续消费现有发布。**助理**由 36 接固定引用启动。**平台能力**沿用精确 Skill 引用与现有授权。**后续**第 20 批 P-2b 和第 45 批共用成员身份、来源与回执。个人草稿只表达原件，整份复制也无法逐节跟随。这里固定原件与成员两份引用，由后续 36 组合并接实际执行。 |
 
 ## 6. 本提前片验证与保留边界
 

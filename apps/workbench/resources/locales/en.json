@@ -7205,12 +7205,24 @@
     "workbench.settings-sync.take-over-all": "Take over all",
     "workbench.settings-sync.take-q": "Take over the kept process items?",
     "workbench.settings-sync.take-result": "Result: {same} identical · {queued} queued · {conflict} conflicts (resolve them under “Sync conflicts” below)",
-    "workbench.settings-sync.to-do-n": "To do · {count} projects",
+    "workbench.settings-sync.to-do-n": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "To do · {count} project",
+        "other": "To do · {count} projects"
+      }
+    },
     "workbench.settings-sync.trash": "Trash",
     "workbench.settings-sync.trash-empty": "Trash is empty",
     "workbench.settings-sync.unavailable-collections": "Unavailable collections",
     "workbench.settings-sync.use-cloud-version": "Use cloud version",
-    "workbench.settings-sync.versions": "{count} versions on this device",
+    "workbench.settings-sync.versions": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "{count} version on this device",
+        "other": "{count} versions on this device"
+      }
+    },
     "workbench.settings-sync.view-restore": "View and restore",
     "workbench.settings-sync.wait-step-1": "Waiting for ①",
     "workbench.settings-sync.wait-step-2": "Waiting for ②",
@@ -8005,14 +8017,26 @@
     "workbench.context-onboarding.continue-after-connecting": "Continue after connecting",
     "workbench.context-onboarding.project-name-required": "Enter a project name",
     "workbench.global-search.search-personal": "Search personal content",
-    "workbench.materials-picker.unread-n": "{count} pieces were not added: this plugin cannot read them.",
+    "workbench.materials-picker.unread-n": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "{count} piece was not added: this plugin cannot read it.",
+        "other": "{count} pieces were not added: this plugin cannot read them."
+      }
+    },
     "workbench.materials-reader.add-task": "Add to task",
     "workbench.materials-reader.after": "after",
     "workbench.materials-reader.as-after": "As the version after (Diff)",
     "workbench.materials-reader.as-before": "As the version before (Diff)",
     "workbench.materials-reader.before": "before",
     "workbench.materials-reader.choose": "Choose a passage",
-    "workbench.materials-reader.excerpt": "Excerpt · {n} characters",
+    "workbench.materials-reader.excerpt": {
+      "plural_arg": "n",
+      "forms": {
+        "one": "Excerpt · {n} character",
+        "other": "Excerpt · {n} characters"
+      }
+    },
     "workbench.materials-reader.lines-b": "Lines {a}–{b}",
     "workbench.materials-reader.pin-one": "Fix this version only",
     "workbench.materials-reader.read": "Read on",

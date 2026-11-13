@@ -56,15 +56,17 @@ interface OwnerSpec {
   readonly removed: readonly string[];
 }
 
+// Batch 06 (N12): pinning commits in one transaction with the Home artifact row, so no interrupted publication waits for its owner to
+// resume it and `publication_owner` is gone from the four document plugins; each answers `unavailable` where no Home can pin.
 const SPECS: Readonly<Record<Owner, OwnerSpec>> = {
   pages: { pkg: "@molis-ai/molis-work-plugin-pages", declarations: "pagesErrors", removed: ["PagesError", "pagesRouteErrorResponse"],
-    status: { invalid: 400, body_too_large: 400, not_found: 404, conflict: 409, unavailable: 409, publication_pending: 409, publication_conflict: 409, publication_owner: 403, unsupported: 400 } },
+    status: { invalid: 400, body_too_large: 400, not_found: 404, conflict: 409, unavailable: 409, publication_pending: 409, publication_conflict: 409, unsupported: 400 } },
   ppt: { pkg: "@molis-ai/molis-work-plugin-ppt", declarations: "pptErrors", removed: ["PptError", "pptRouteErrorResponse"],
-    status: { invalid: 400, not_found: 404, conflict: 409, publication_pending: 409, publication_conflict: 409, publication_owner: 403 } },
+    status: { invalid: 400, not_found: 404, conflict: 409, unavailable: 409, publication_pending: 409, publication_conflict: 409 } },
   dataset: { pkg: "@molis-ai/molis-work-plugin-dataset", declarations: "datasetErrors", removed: ["DatasetError", "datasetRouteErrorResponse"],
-    status: { invalid: 400, not_found: 404, conflict: 409, publication_pending: 409, publication_conflict: 409, publication_owner: 403 } },
+    status: { invalid: 400, not_found: 404, conflict: 409, unavailable: 409, publication_pending: 409, publication_conflict: 409 } },
   form: { pkg: "@molis-ai/molis-work-plugin-form", declarations: "formErrors", removed: ["FormError", "formRouteErrorResponse"],
-    status: { invalid: 400, not_found: 404, conflict: 409, closed: 409, request_conflict: 409, publication_pending: 409, publication_conflict: 409, publication_owner: 403, answer_invalid: 400 } },
+    status: { invalid: 400, not_found: 404, conflict: 409, unavailable: 409, closed: 409, request_conflict: 409, publication_pending: 409, publication_conflict: 409, answer_invalid: 400 } },
   lingguang: { pkg: "@molis-ai/molis-work-plugin-lingguang", declarations: "lingguangErrors", removed: ["LingguangError", "lingguangRouteErrorResponse"],
     status: { invalid: 400, not_found: 404, conflict: 409, request_conflict: 409, context_too_large: 400, empty_reply: 400 } },
   workflows: { pkg: "@molis-ai/molis-work-plugin-workflows", declarations: "workflowsErrors", removed: ["WorkflowError", "workflowsRouteErrorResponse"],

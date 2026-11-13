@@ -33,7 +33,9 @@ test("BRC-04 · one background search directory refreshes the two changed source
   assert.deepEqual((await search("heliotrope")).hits.map(hit => hit.plugin_id).sort(), [...plugins].sort());
   const index = openTextSearchIndex({ homeDirectory: home.home });
   t.after(() => index.close());
-  assert.equal(index.documents(project.project_id).length, 3);
+  /** The project's indexed documents with their bodies: the catalog lists them without content, `document` reads each one back. */
+  const indexed = () => index.catalog(project.project_id).entries.map(entry => index.document(entry.source_key, entry.kind, entry.object_id)!);
+  assert.equal(indexed().length, 3);
 
   const counts = { indexer: 0, discover: 0, lists: [0, 0, 0], bodies: [0, 0, 0] };
   const lists = [pagesActions.searchEntries, formActions.searchEntries, goalsActions.searchEntries];
@@ -66,7 +68,7 @@ test("BRC-04 · one background search directory refreshes the two changed source
     // Fire search's 800ms timer. The independent Knowledge timer is due at 2s and stays pending.
     t.mock.timers.tick(800);
     const deadline = performance.now() + 10_000;
-    while (index.documents(project.project_id).filter(row => row.content.includes("vermillion")).length !== 2) {
+    while (indexed().filter(row => row.content.includes("vermillion")).length !== 2) {
       assert.ok(performance.now() < deadline, "both new bodies reach the background index before any further query");
       await setImmediate();
     }

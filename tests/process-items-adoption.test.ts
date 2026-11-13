@@ -33,8 +33,12 @@ async function home(t: test.TestContext) {
   return { directory, owner, projectId: project.project_id, path, backups: join(directory, "adoption-backups") };
 }
 
-/** Turn a current library back into the layout every project had before adoption: the original journal triggers, no adopted journal. */
+/**
+ * Turn a current library back into the layout every project had before adoption: version 2 (the 2 → 3 step's surface corrections table
+ * not there yet, batch 15), the original journal triggers, no adopted journal.
+ */
 function toOriginalLayout(db: Db): void {
+  db.exec("DROP TABLE surface_corrections; PRAGMA user_version = 2");
   const triggers = db.prepare("SELECT name, sql FROM sqlite_schema WHERE type='trigger' AND name LIKE 'process_items_sync_%'").all() as { name: string; sql: string }[];
   assert.equal(triggers.length, 6);
   for (const { name, sql } of triggers) { db.exec(`DROP TRIGGER ${name}`); db.exec(sql.replaceAll("process_items_adopted_replica_", "process_items_replica_")); }
@@ -82,8 +86,8 @@ test("BSH-14-F an original library is adopted once: lines, outputs and default b
   const originalJournal = journal(db, "process_items");
   assert.ok((originalJournal.changes as unknown[]).length >= 4, "the original journal recorded the Files-era writes");
   db.close();
-  // An ordinary open refuses the old layout; it never repairs it in place.
-  assert.throws(() => new LocalProjectDatabase(h.path), /结构与当前完整基线不符|SQLITE_BASELINE_TRIGGER_MISMATCH/u);
+  // An ordinary open refuses the old layout (version 2 before this build's 3, batch 15); it never repairs it in place.
+  assert.throws(() => new LocalProjectDatabase(h.path), /的结构版本是 2，这个版本的 Molis Work 用 3，升级完成之前不能打开/u);
   const unsent = /process item change\(s\) not yet uploaded from the original journal/u;
   const inspected = inspectProjectAdoption(h.path);
   assert.deepEqual({ ...inspected, refused: [], unsettled: [] }, { layout: "original", items: 3, versions: 4, outputs: 2, bindings: 1, private_values: 0, positions: 0, installs: 0, cursors: 0, carried: 0, refused: [], unsettled: [] });
@@ -127,7 +131,8 @@ test("BSH-14-F an original library is adopted once: lines, outputs and default b
   assert.deepEqual(journal(db, "process_items"), originalJournal, "the original journal is kept as it was, as recovery evidence");
   const adopted = journal(db, "process_items_adopted");
   assert.deepEqual([adopted.changes, adopted.heads, adopted.outbox, adopted.conflicts], [[], [], [], []], "the adopted journal starts empty: the move is no new business write");
-  assert.equal((db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version, 2);
+  // Adoption also takes the project upgrade's later steps (upgradeAdoptedOriginal), so the library ends current: 3 since batch 15.
+  assert.equal((db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version, 3);
   // Later writes mark the adopted journal only.
   db.prepare("UPDATE process_item_versions SET lifecycle_state='archived', archived_at='2026-11-03T00:00:00Z', archived_by='user' WHERE artifact_id='files-selection'").run();
   assert.deepEqual(rows(db, "SELECT key FROM process_items_adopted_replica_changes"), [{ key: JSON.stringify([h.projectId, "process_item", "files-selection"]) }]);

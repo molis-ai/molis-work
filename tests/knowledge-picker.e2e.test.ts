@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { setProjectOutputFolder } from "./fixtures/project-directories-http.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
+import { CODING_COMPOSER, CODING_OPEN } from "./fixtures/coding-composer.js";
 
 interface Picked { request_id: string; outcome: string; items: Array<{ ref: { subject: { kind: string; id: string }; pin: { mode: string; read_revision?: string }; range?: unknown }; title: string; hint?: string }> }
 
@@ -129,7 +130,8 @@ test("WMD-05 BSH-08 the materials picker answers once with exact references, pre
 
 // The same picker for a plugin page (materials-ui-contract §3): Coding asks from its frame as it would on any page. The page opens the
 // picker only for a press the person just made in a view they can see, hands back only what that plugin page can read, answers a close
-// as cancelled with the input's choice kept, and ends the request without an answer when the view goes away.
+// as cancelled with the input's choice kept, and ends the request without an answer when the view goes away. Since batch 11 Coding's
+// input is the workbench bar's (fixtures/coding-composer.ts): the press is on the bar's ＋ → /materials, and Coding asks from its frame.
 test("WMD-05 BSH-08 a plugin frame (Coding) shares the page's picker: a real press, exact references, cancel keeps the choice, leaving ends it", { timeout: 150_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded");
   if (!browser) return;
@@ -143,9 +145,18 @@ test("WMD-05 BSH-08 a plugin frame (Coding) shares the page's picker: a real pre
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await hostClick('[data-plugin-strip] [data-plugin-id="coding"]');
-  await waitFor("document.querySelector('[data-coding-model] option')");
+  await waitFor("document.querySelector('[data-coding-new]')");
   await click("[data-coding-new]");
-  await waitFor("document.querySelector('[data-coding-session]') && !document.querySelector('[data-coding-task]').disabled");
+  await waitFor("document.querySelector('[data-coding-session]')");
+  await hostWaitFor(CODING_OPEN, 15_000);
+  /** A real press on the bar's ＋, then on its /materials command. */
+  const openMaterials = async () => {
+    await hostClick(`${CODING_COMPOSER} [data-composer-add]`);
+    const at = await hostEvaluate<string>(`[...document.querySelectorAll(${JSON.stringify(`${CODING_COMPOSER} [data-composer-command]`)})]
+      .find(row => row.textContent.includes('/materials'))?.dataset.composerCommand ?? ''`);
+    assert.ok(at, "＋ offers /materials");
+    await hostClick(`${CODING_COMPOSER} [data-composer-command="${at}"]`);
+  };
   const id = await evaluate<string>("document.querySelector('[data-coding-session]').dataset.codingSession");
   const saved = async () => (await web.get<{ materials: Picked["items"] }>(`/projects/${projectId}/api/plugins/io.molis.work.coding/sessions/${id}`)).materials;
   await evaluate("window.__picked = []; document.addEventListener('molis-work:knowledge-picked', event => window.__picked.push(event.detail))");
@@ -160,7 +171,7 @@ test("WMD-05 BSH-08 a plugin frame (Coding) shares the page's picker: a real pre
   assert.equal(await hostEvaluate(pickerOpen), false);
 
   // Coding's 材料: the page's picker opens; the confirmed file reaches Coding by its exact reference and is saved for the next round.
-  await click("[data-coding-attach-toggle]"); await click("[data-coding-material-open]");
+  await openMaterials();
   await hostWaitFor(pickerOpen, 10_000);
   await hostEvaluate("(() => { const kind = document.querySelector('[data-knowledge-picker-kind]'); kind.value = 'files'; kind.dispatchEvent(new Event('change')); })()");
   await hostWaitFor(`Boolean(document.querySelector(${JSON.stringify(filesRow)})) && document.querySelector('[data-knowledge-picker-status]').textContent === ''`, 15_000);
@@ -177,7 +188,7 @@ test("WMD-05 BSH-08 a plugin frame (Coding) shares the page's picker: a real pre
   assert.deepEqual((await saved()).map(item => [item.ref.subject.id, item.ref.pin.read_revision]), [[fileId, confirmed!.items[0]!.ref.pin.read_revision]]);
 
   // Closed without 添加: cancelled, and the choice Coding had stays.
-  await click("[data-coding-attach-toggle]"); await click("[data-coding-material-open]");
+  await openMaterials();
   await hostWaitFor(pickerOpen, 10_000);
   assert.equal(await hostEvaluate("document.querySelectorAll('[data-knowledge-picker-chosen] li').length"), 1, "the picker opens with what Coding had chosen");
   await hostEvaluate("document.querySelector('.knowledge-picker').close()");
@@ -186,7 +197,7 @@ test("WMD-05 BSH-08 a plugin frame (Coding) shares the page's picker: a real pre
   assert.equal((await saved()).length, 1);
 
   // The view goes away while the picker is open: the request ends, the picker closes, and the frame hears nothing late.
-  await click("[data-coding-attach-toggle]"); await click("[data-coding-material-open]");
+  await openMaterials();
   await hostWaitFor(pickerOpen, 10_000);
   await hostEvaluate(`document.querySelector('[data-plugin-strip] [data-plugin-id]:not([data-plugin-id="coding"])').click()`);
   await hostWaitFor("document.querySelector('.knowledge-picker')?.open === false", 10_000);

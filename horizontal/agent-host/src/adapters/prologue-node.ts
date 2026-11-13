@@ -240,6 +240,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     }) },
     modelConfiguration: options.modelConfiguration,
     ...(options.memoryUsage ? { memoryUsage: options.memoryUsage } : {}),
+    ...(options.observeRun ? { observeRun: options.observeRun } : {}),
     stopHeld: runId => { const queue = state.heldLabels.get(runId); const next = queue?.shift(); if (queue && !queue.length) state.heldLabels.delete(runId); return next; },
     // Judged when the run ends, from its facts: held for only announcing, and nothing called after that.
     endedOnPromise: (runId, sessionId) => endedOnPromise(state, runId, sessionId),

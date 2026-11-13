@@ -66,6 +66,9 @@ export function ensureSystemAgentService(localHost: MolisWorkLocalHost, homeDire
         memory: memoryRuntime(localHost, storageHome, () => service.agentHost.adapter("prologue"), async projectId => owner.withCatalog
           ? owner.withCatalog({ homeDirectory: storageHome }, catalog => projectOrNull(catalog, projectId)?.database_path) : undefined),
         memoryUsage: receipt => recordMemoryUsage(localHost, receipt),
+        // Each round's work records, bound to its session's owner and the call that started it (observation-collection contract-design §4).
+        observeRun: ({ owner, call_id }) => localHost.observation?.sink("agent").bind({ kind: "background", entry: "agent", actor_id: owner.actor_id,
+          project_id: owner.project_id, install_id: owner.install_id, ...(call_id ? { call_id } : {}) }),
         storageOwner,
         // The question types every surface that shows a run's questions can draw (specs/ai-interaction-experience D8).
         questionTypes: hostQuestionTypes(),

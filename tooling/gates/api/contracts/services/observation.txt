@@ -55,6 +55,8 @@ export interface ObservationBackgroundOrigin {
     readonly actor_id: string;
     readonly project_id: string | null;
     readonly entry: Extract<ObservationEntry, "background" | "schedule" | "agent" | "host">;
+    readonly call_id?: string;
+    readonly install_id?: string;
 }
 
 export interface ObservationConditions extends ObservationConditionsInput {

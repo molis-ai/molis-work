@@ -4,6 +4,7 @@ import { agentErrors } from "../errors.js";
 import type { AgentRunRef, AgentRunView, AgentSessionView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { PrologueApprovalBridge } from "./prologue-approvals.js";
 import type { PrologueAdapterPorts, PrologueControlPort, PrologueModelConfiguration, PrologueRunPort, PrologueRunTiming, PrologueRuntimePort } from "./prologue-ports.js";
+import { observeRun, type RunObservationStart } from "./prologue-run-observation.js";
 import {
   applyRunEvent,
   prologuePhaseOf,
@@ -134,17 +135,23 @@ export class PrologueRunStore {
    * Follow a live round: each event the runtime sends is projected into its view and published, an effect it stops on goes
    * in front of the person, and a control change is published too.
    */
-  follow(record: RunRecord, task: string, run: PrologueRunPort, ports: PrologueAdapterPorts): void {
-    const ref = record.view.ref;
+  follow(record: RunRecord, start: RunObservationStart, run: PrologueRunPort, ports: PrologueAdapterPorts): void {
+    const ref = record.view.ref, frozen = record.view.frozen;
+    let observe: ((event: PrologueEvent) => void) | undefined;
+    try {
+      const recorder = ports.observeRun?.({ owner: this.requireSession(ref.session_id).owner, ...(frozen.call_id ? { call_id: frozen.call_id } : {}) });
+      observe = recorder && observeRun(recorder, ref, frozen, start, record.model);
+    } catch { /* No recorder for this round: it runs unrecorded, never held back by the records. */ }
     let initialPromptPending = true;
     const unsubscribeEvents = run.subscribe((event) => {
       // The Host already displays the submitted task before SDK replay starts.
       if (event.type === "prompt" && event.role === "user" && initialPromptPending) {
         initialPromptPending = false;
-        if (event.text === task) return;
+        if (event.text === start.task) return;
       }
       const at = this.now().toISOString();
       if (!applyRunEvent(record.state, event, at, waiting => this.#runtime.unexecutedApprovalCall?.(ref, waiting))) return;
+      try { observe?.(event); } catch { /* A record that cannot be made never stops or slows the round it describes. */ }
       // A held ending reads as what was wrong with it; one that ended still only announcing says nothing was done.
       if (event.type === "model-response-repair" && event.reason === "stop-held") {
         const label = ports.stopHeld?.(ref.run_id), held = [...record.state.activity].reverse().find(item => item.call_id.startsWith("model-held-"));

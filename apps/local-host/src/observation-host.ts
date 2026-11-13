@@ -1,5 +1,5 @@
 import { refusalExpected, type CallObserved } from "@molis-ai/molis-work-kernel";
-import type { ActionRegistryPort } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import { OBSERVATION_PROVIDER_ID, type ObservationService } from "@molis-ai/molis-work-contracts/services/observation";
 import { createLazyFileSecretStore } from "@molis-ai/molis-work-storage";
 import { ObservationLayer, observationKeys, purgeObservationPluginFile, type ObservationEnvironment, type PluginPurge } from "@molis-ai/molis-work-service-observation";
@@ -18,6 +18,8 @@ import { observationShellDoor } from "./observation-shell-entry.js";
  */
 export interface HostObservation {
   readonly layer: ObservationLayer;
+  /** `system.observation` with `observation.report@1`, for the Host's one list of its own providers. */
+  readonly provider: ActionProviderRegistration;
   /** The kernel's collection exit, for `CallReports.observed`. */
   readonly observed: CallObserved;
   sink(service: ObservationService): ReturnType<ObservationLayer["sink"]>;
@@ -45,19 +47,18 @@ export function observationPluginDataCleared(home: string, record: Pick<PluginIn
   catch (error) { hostLog.warn("observation", "plugin_purge_failed", error); }
 }
 
-export function createHostObservation(home: string, registry: ActionRegistryPort): HostObservation {
+export function createHostObservation(home: string): HostObservation {
   const projects = new Map<string, "user" | "regenerable_demo">();
   const env: ObservationEnvironment = { platformVersion: PRODUCT_VERSION, now: () => new Date(), projectClass: id => projects.get(id) };
   const secrets = createLazyFileSecretStore(home);
   const layer = new ObservationLayer({ home, env, keys: hasEvidence => observationKeys(secrets, hasEvidence) });
   const report = layer.reportAction(caller => { observationShellDoor.entryOf(caller); });
-  const disposeProvider = registry.registerProvider({ provider: { provider_id: OBSERVATION_PROVIDER_ID, title: "工作记录", kind: "system" },
-    definitions: [report.definition], handlers: [report.handler] });
   let closed = false;
   const disposeOwner = projectDeletedHooksFor(home).register({ ...OBSERVATION_OWNER, survivesRebuild: false, alive: () => !closed,
     clear: projectId => { projects.delete(projectId); layer.clearProject(projectId); } });
   const host: HostObservation = {
     layer,
+    provider: { provider: { provider_id: OBSERVATION_PROVIDER_ID, title: "工作记录", kind: "system" }, definitions: [report.definition], handlers: [report.handler] },
     // A refusal its caller was looking for is not the person's work (the diagnostic log leaves it out the same way, §4).
     observed: (caller, action, observation) => {
       if (!observation.outcome.ok && observation.outcome.refused && refusalExpected(observation.outcome.code)) return;
@@ -77,7 +78,6 @@ export function createHostObservation(home: string, registry: ActionRegistryPort
       closed = true;
       if (running.get(home) === host) running.delete(home);
       disposeOwner();
-      disposeProvider();
       layer.close();
     },
   };

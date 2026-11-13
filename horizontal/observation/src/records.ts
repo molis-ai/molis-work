@@ -148,9 +148,9 @@ export function pendingRecord(env: ObservationEnvironment, owner: ObservationOwn
     record_id: randomUUID(), owner_kind: owner.kind, owner_id: owner.kind === "shell" ? null : owner.id, fact: input.fact, provider_id: call.provider_id ?? null,
     stage: input.stage ?? null, outcome: input.outcome,
     actor_id: background?.actor_id ?? context!.actor_id, actor_kind: context?.actor_kind ?? null, audience: context?.audience ?? "background",
-    delegated_by: context?.delegated_by ?? null, entry, project_id: projectId, install_id: context?.plugin_install_id ?? context?.host_plugin?.install_id ?? null,
+    delegated_by: context?.delegated_by ?? null, entry, project_id: projectId, install_id: context?.plugin_install_id ?? context?.host_plugin?.install_id ?? background?.install_id ?? null,
     occurred_at: occurredAt, received_at: receivedAt, clock_adjusted: late ? 1 : 0,
-    call_id: context?.call_id ?? null, invocation_id: call.invocation_id ?? null, parent_invocation_id: call.parent_invocation_id ?? null,
+    call_id: context?.call_id ?? background?.call_id ?? null, invocation_id: call.invocation_id ?? null, parent_invocation_id: call.parent_invocation_id ?? null,
     runtime_session_id: context?.runtime_session_id ?? null, run_id: input.work?.run_id ?? null, work_ref: input.work?.work_ref ?? null,
     source_class: source, subjects: JSON.stringify(subjects), conditions: JSON.stringify(conditions), detail: JSON.stringify(detail.value),
   };

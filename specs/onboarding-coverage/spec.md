@@ -336,7 +336,7 @@ Molis Work 自己提供几套做好、试过的场景包（下称**官方场景�
 - 设置事实：[全局目录](../../apps/workbench/src/settings-sections.ts)、[插件设置声明](../../apps/workbench/src/plugin-settings-catalog.ts)、[项目设置](../../apps/workbench/src/project-settings-pages.ts)、[项目设置分组](../../apps/workbench/src/project-settings-folds.ts)。引导只持有准备草稿和进度，采用后的正式值仍归原主人。
 - [技能包](../skill-packs/spec.md)拥有内容做法与共同目录；[主动助理](../proactive-assistant/spec.md)拥有持续理解、委托和主动行为；本书组织初次与按需配置，不复制这些能力。
 - [视觉体验 VUX-51～59](../visual-ui-experience/spec.md#copy-guidance)拥有全产品文案、下一步和帮助的呈现要求；本书拥有这些入口触发后的提问、准备、配置采用和返回。两处共同验同一条真实路径，不各建一套文案目录、配置或进度。
-- [自动化建议](../automation-recommender/spec.md)提供有依据的只读推荐，不自动安装的原边界保留；用户选择后的场景采用由本书承接。[快速创建](../quick-create/spec.md)继续拥有创建对象的动线，本书补齐准备过程。
+- [自动化建议](../automation-recommender/spec.md)提供有依据的只读推荐，不自动安装的原边界保留；用户选择后的场景采用由本书承接。[快速创建](../context-program/quick-create.md)继续拥有创建对象的动线，本书补齐准备过程。
 - 生成页面遵循[工作台挂载边界](../shell-page-exceptions/spec.md)、[唯一事实归属](../../docs/SSOT-MATRIX.md)、[安全不变量](../../docs/system/SECURITY-INVARIANTS.md)和[字体皮肤语言合同](../font-and-skin-system/spec.md)。本书不新增整页例外或绕过平台授权。
 
 ## 6. 实现设计时仍需确定

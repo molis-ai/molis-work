@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
-// W2'-3 (specs/context-program §21.6, specs/side-shelf §6): the desktop's Shelf entries after Shelf moved into the side panel.
+// W2'-3 (specs/context-program §21.6, specs/context-program/side-shelf.md §6): the desktop's Shelf entries after Shelf moved into the side panel.
 // The page runs the shell's real bootstrap (`NATIVE_DESKTOP_BOOTSTRAP_SCRIPT`, inlined in every page) against a stand-in Tauri
 // bridge that records what the shell would be told. Opening Shelf names the plugin and lands where its declarations put it;
 // the shell is told the Shelf tab's box while that tab shows, and nothing otherwise — from the top page only, never a frame.

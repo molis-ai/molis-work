@@ -89,7 +89,7 @@
 | [ai-input-receipts](../../ai-input-receipts/spec.md) | Goal 页「来自对话的输入」BL-314；交付说明入口 BL-315、步骤板 BL-316；有效要求的评测 BL-317；浏览器实走 BL-319；跨轮 BL-148；补充改了哪些文件 BL-162；阶段 5、6（BL-318） | 2·A；阶段 5 并进主动助理（3·A），阶段 6 各场景各写小 spec |
 | [prologue-adoption](../../prologue-adoption/spec.md) | A5 重核（原 BL-309，第 24 批做完）；写后检查进时间线与截图（原 BL-301、BL-303，第 24 批做完）、子任务写后检查 BL-302；P5 协作 BL-307；P6 旧路径退出 BL-308；结构化生成 BL-306 | BL-302 在 1·C；BL-307、BL-308 进换包窗口一（2·C）；BL-306 随工作台升级的 Alchemist 场景（阶段 4） |
 | [ai-interaction-experience](../../ai-interaction-experience/spec.md) | 第二批入口 BL-341（PPT、Pages、Cognia）；卡片撤销 BL-343（合同改动）；同排推荐 BL-344（你看实物）；验证 BL-345；键盘多选 BL-340；Coding 目标芯片 BL-342 | BL-343、BL-344 在 2·A；BL-341、BL-340 在 2·E；BL-342 在 2·B（用新输入框） |
-| [context-program](../../context-program/spec.md) 及 [context-toolbar](../../context-toolbar/spec.md)、[quick-create](../../quick-create/spec.md)、[side-shelf](../../side-shelf/spec.md) | W4：一句话新建 BL-330、`attach` 的 `find` BL-331、批量创建 BL-332、内容站与「放进 Inbox」BL-333、无模型去处 BL-174、覆盖率门禁 BL-334；W5 拖放 BL-335；W6 Shelf 动作与材料篮 BL-336；W7 起 BL-337；实走与收尾 BL-338、BL-339 | W4 在 2·E；W5、W6 在 3·E；W7 起在阶段 4 |
+| [context-program](../../context-program/spec.md) 及 [context-toolbar](../../context-program/context-toolbar.md)、[quick-create](../../context-program/quick-create.md)、[side-shelf](../../context-program/side-shelf.md) | W4：一句话新建 BL-330、`attach` 的 `find` BL-331、批量创建 BL-332、内容站与「放进 Inbox」BL-333、无模型去处 BL-174、覆盖率门禁 BL-334；W5 拖放 BL-335；W6 Shelf 动作与材料篮 BL-336；W7 起 BL-337；实走与收尾 BL-338、BL-339 | W4 在 2·E；W5、W6 在 3·E；W7 起在阶段 4 |
 | [assistant-service-connections](../../assistant-service-connections/spec.md)（产品建议 A3） | 37 项整体验收、ASC-38～44、真实账号 BL-060、正式 OAuth BL-062、发起者核对 BL-180、loader 名单 BL-181、导入方式核对 BL-690 | BL-062 在 1·F 先送审（审核慢）；其余 3·C |
 | [coding-plugin 下一阶段](../../coding-plugin/next-requirements.md) | 保留范围见 BL-050；C5 多模型对比取消、页面沿 Character 选择；Q1 已定公开查询默认、项目/任务关闭及平台公共搜索、统一默认来源，Q2 命令默认受限且沿用项目目录、长期规则经用户明确同意保存、获准开发任务下载所需公开依赖已定，可选 AI 低风险自动审批已定，Q3 钩子首次确认、变更重新确认及停用已定，Q4 记忆沿原方案接入已定，Q5 代码分析工具按需隔离下载已定，Q6 已收口：取消多模型对比，语音沿既有本地输入方案；Q7 GitHub 复用连接与按任务授权已定，Q8 已定本阶段不做 VS Code 扩展／Tab 补全／行内编辑，ACP 仍未排期；Q1～Q8 已收口，各项只等实际依赖 | A 期 2·B；B 期 3·B；C、D 期阶段 4；E1 语音并进 53 统一输入，E6 有界迭代与 E8 代码简化／安全专科评审并进 65，E7 交互计划页在 83；E2～E5 与 ACP 仍按[暂缓项](deferred.md#section-8)暂缓或不在本期 |
 | 个人云同步（`personal` 分支上的 `specs/personal-cloud-sync/`、`plugin-sync-foundation/`、`personal-plugin-replication/` 等六份） | 账号、同步 Worker（D1、R2）、双 Home 同步与撤销，以及 Todo、Pages、Goals、Images、Alchemist、Cognia、Feed、Shelf 等的适配，已在隔离环境分项验证；整体没交付、没部署、没在两台真电脑上验过，整项目复制与项目级回收的闭环没完。下一阶段的范围你 10-17 定了：设备间自动与手动同步、全部插件、每个账号 100 MB、保留 30 天 | 移到[服务端批](server-batch.md#server-batch)（用户 2026-11-03 定）：SRV-1 对账、定合入方式与合同，SRV-2 核心插件，SRV-5 其余插件与真机；见[需求来源](requirements.md)里的「个人云同步怎样接进来」 |
@@ -115,10 +115,10 @@
 | [onboarding-coverage](../../onboarding-coverage/spec.md) | 先修顺多位置/真实文件支持、步骤与恢复、材料采用及 Coding 接续；再扩场景包、动态引导、全局/项目/任务设置、项目助理团与新交互首页 | 本轮完成需求整合；1·F 贯穿设计与设置映射，1～2·F 沿原主人完成材料基础路径；1～2·C/D/E 场景公共能力，2·F 场景闭环及任务复用；持续工作与完整导入导出随阶段 3 |
 | [font-and-skin-system](../../font-and-skin-system/spec.md) | 字体、皮肤、语言三套系统 | 分五段，跨阶段 1～3 的 D 轨，见表后 |
 | [risk-plugin](../../risk-plugin/spec.md) | 专门记风险的插件 | 1·E（收尾后第一个按新标准从零写的插件） |
-| [prologue-skill-strategy](../../prologue-skill-strategy/spec.md) | Skill 的选择、唤起、组合与观测 | 评审后 2·C，紧跟技能包 |
-| [prologue-context-strategy](../../prologue-context-strategy/spec.md) | 来源预算、trace、新鲜度、压缩 | 评审后 3·C，配合主动助理 |
-| [prologue-mcp-strategy](../../prologue-mcp-strategy/spec.md) | MCP 服务器信任、发现、健康、认证 | 评审后 3·C，配合服务接入收尾 |
-| [prologue-tool-strategy](../../prologue-tool-strategy/spec.md) | 工具面、搜索、结果预算 | 评审后 3·C |
+| [prologue-skill-strategy](../../prologue-strategies/skill.md) | Skill 的选择、唤起、组合与观测 | 评审后 2·C，紧跟技能包 |
+| [prologue-context-strategy](../../prologue-strategies/context.md) | 来源预算、trace、新鲜度、压缩 | 评审后 3·C，配合主动助理 |
+| [prologue-mcp-strategy](../../prologue-strategies/mcp.md) | MCP 服务器信任、发现、健康、认证 | 评审后 3·C，配合服务接入收尾 |
+| [prologue-tool-strategy](../../prologue-strategies/tool.md) | 工具面、搜索、结果预算 | 评审后 3·C |
 | [intelligent-surfaces](../../intelligent-surfaces/spec.md) | 智能呈现与操作层（11-02 新增）：插件声明对象能怎样展示、能做什么、别人能放在它哪里；平台先做确定组合，助理再把插件内容、平台内容与 MCP、Skill 组合成此刻的操作面，注入插件内外、对话、项目讨论、等你与首页 | 分四片，跨阶段 1～4，见表后 |
 | [work-mainline](../../work-mainline/spec.md) | 主线（11-02 新增）：用户把手头的事项（平台的轻量容器，Goal、待办等可以变成事项）按自己的分组和顺序排好，从顶部像切换项目那样切到一件事，主区、标签、右侧、助理范围和等你一起换；事项容器与排列归新的主线服务，插件对象的内容仍归插件 | 1·D 与 PFG 的工作台统一一起设计；2·C1 合同（M1 之前）、2·C3 主线服务包、2·D 切换器与按事项的工作台状态、2·E/B Goals 与 Coding 来源；整理视图与助理范围 2～3·A/D/E；助理建议 3·A，跨设备随服务端批（SRV-2、SRV-5） |
 

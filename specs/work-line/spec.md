@@ -252,7 +252,7 @@
 | [Prologue 采用](../prologue-adoption/spec.md) | 任务板：任务、世代、等待、结果引用 | 只读，不另存进度；拆解画的就是任务板 |
 | [逐项交付与返工](../proactive-assistant/spec.md)（PWA-144～147，第 32 批第 2 项） | 逐项产物、认可、返工、复核 | 已办节点的卡里逐项看、逐项认可或退回 |
 | [子代理交互](../subagent-interaction/spec.md) | 父子关系、直接对话、输入归属 | 子代理是工作节点拆解里的一步；直接对话就是聚焦那一步 |
-| [side-shelf](../side-shelf/spec.md)、[情境动作](../context-program/spec.md) | Shelf 的拿起放下、浮条、快速创建 | 手边是 Shelf 在输入框旁的入口；侧边保留 |
+| [side-shelf](../context-program/side-shelf.md)、[情境动作](../context-program/spec.md) | Shelf 的拿起放下、浮条、快速创建 | 手边是 Shelf 在输入框旁的入口；侧边保留 |
 | [显式人审](../agent-approval/spec.md) | 授权复用、人审、谁能批 | 等你节点上的同意照它的规则，线不放宽 |
 | [状态机平台能力](../state-machine-platform/spec.md) | 状态家族与词表 | 节点的状态词与颜色取自家族，不自造 |
 | [观测和采集层](../observation-collection/spec.md) | 工作记录 | 「整条线」读它；线上的操作写给它 |

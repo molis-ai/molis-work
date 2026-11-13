@@ -1,8 +1,8 @@
 # 防腐后路线书 · 执行目录
 
-状态：规划（2026-11-03 整理；统筹与排期维护：Claude（本机）统筹会话，2026-11-04 起（用户定，此前 Codex）；实施由各批主会话一个会话做完（[决定 26](reference/decisions.md#decision-26)、[决定 34](reference/decisions.md#decision-34)），谁在做哪一项看[认领板 #1743](https://github.com/molis-ai/molis-work/issues/1743)）。01 已按最终 main 核准，当前交付是核账、归档和本人试用单；其余批次尚未由本批启动。
+状态：执行中（2026-11-13）。统筹与排期维护：Claude（本机）统筹会话，2026-11-04 起（用户定，此前 Codex）；实施由各批主会话一个会话做完（[决定 26](reference/decisions.md#decision-26)、[决定 34](reference/decisions.md#decision-34)），谁在做哪一项看[认领板 #1743](https://github.com/molis-ai/molis-work/issues/1743)。01 已交单；02～27 中至少 18 个批次已有合入记录，最近合入包括 15 #2017（`b819373250`）、16 #2031、22 #2038、25 #2034、27 #2010；06 等仍有在途 PR，未结算项以批次文件与认领板为准。
 
-**当前入口：[01 主线核账](reference/batches/01.md#baseline-01) · [本人试用单](reference/acceptance-01.md)。** 01 已按主线核实并交单；实际试用、真实 Home 和后续批次另计。
+**当前入口：[批次 01～27 的结算与剩余](reference/batches/) · [认领板 #1743](https://github.com/molis-ai/molis-work/issues/1743) · [本人试用单](reference/acceptance-01.md)。** 批次文件记排期与合入结果，实时认领、分支和状态以认领板最新正文/评论为准。
 
 **从 01 往下做。** 同一批次下，每个独立交付各占一行；点内容看该项产出和前置，点批次号看共同约束、来源、并行和 UI 要求。批次号保持不变；同批无关的子项不互相等待，有先后的写在该项前置里。每批一个文件：开头「给人讲清楚」用大白话说这批做什么、为什么做，末尾「Goal Prompt」可整段交给执行会话。每项开始前按[需求开发流程](reference/development-workflow.md#kickoff-brief)先用大白话讲清要做什么，再给技术说明。
 

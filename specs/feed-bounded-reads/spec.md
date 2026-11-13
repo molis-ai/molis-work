@@ -1,6 +1,7 @@
+
 # Feed 有界读取
 
-状态：2026-11-11 已批准范围的实现与本地定向验收完成，待 CI Full 和合入；不以本地通过标记已上线。
+状态：已实现并合入 main（2026-11-11，[#2026](https://github.com/molis-ai/molis-work/pull/2026)，合入提交 `96a1c70c37`）；后续补修 PR [#2045](https://github.com/molis-ai/molis-work/pull/2045) 进行中，FBR 补修待验收，不归档。
 
 ## 批准范围
 
@@ -42,4 +43,4 @@ D0195、D0205、D0229、D0238：页面分页、来源按需读取、后台同步
 
 ## 验收与交付
 
-逐编号测试及公开合同影响记录于[11月11日日评记录](../../docs/reviews/daily-quality/2026-11-11-feed-closure.md)。FBR-01～07均有测试引用；核心规模场景含407条消息、406份单项材料和405个重复收据引用。没有改真实Home。独立工作树 `/private/tmp/molis-1111-feed`、分支 `codex/daily-quality-1111-feed`；共享核心改动的CI Full已执行并持续修复发现的遗漏，最终头完整结果见PR task list，因此保留本规范为待验收，不归档或标为已合入。
+逐编号测试及公开合同影响记录于[11月11日日评记录](../../docs/reviews/daily-quality/2026-11-11-feed-closure.md)。FBR-01～07均有测试引用；核心规模场景含407条消息、406份单项材料和405个重复收据引用。没有改真实Home。独立工作树 `/private/tmp/molis-1111-feed`、分支 `codex/daily-quality-1111-feed`；共享核心改动的CI Full已执行并持续修复发现的遗漏，最终头完整结果见PR task list；本规范已随 #2026 合入；#2045 的补修待合入与验收，不归档，未执行真实 Home 操作。

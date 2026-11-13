@@ -22,7 +22,7 @@ test("Shelf opens as the side panel's first tab, extracts the sample PDF, and ke
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "light" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await browser.waitFor("document.documentElement.dataset.resolvedTheme === 'light'");
-  // 常开插件 (specs/side-shelf §3.2): Shelf is not in the plugin switcher and never opens in the work area. It is the side
+  // 常开插件 (specs/context-program/side-shelf.md §3.2): Shelf is not in the plugin switcher and never opens in the work area. It is the side
   // panel's first tab, where the panel opens when this browser remembers no tab.
   await browser.waitFor("document.querySelector('[data-side-tabs] [data-side-tab][aria-selected=true]')");
   assert.equal(await browser.evaluate("document.querySelector('[data-plugin-strip] [data-plugin-id=shelf], [data-plugin-section=shelf], [data-directory-panel=shelf], [data-work-surface=shelf]')?.outerHTML ?? null"), null);

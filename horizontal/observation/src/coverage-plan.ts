@@ -46,6 +46,14 @@ export const OBSERVATION_COVERAGE_PLAN: readonly CoveragePlanEntry[] = [
   // inside the Host is in the class's scope; a sandboxed provider's callbacks run outside the Host's async context and are not.
   { owner: "service:connections", fact: "connections.pull", entries: ["background"], state: "complete" },
   { owner: "service:connections", fact: "connections.pull.sandbox_scope", entries: ["background"], state: "unavailable", reason: "sandbox_callbacks_outside_scope" },
+  // The shell's own stages (apps/workbench work-records.ts), through its route: what the focused pane shows, the lists it presents (search
+  // results, the context toolbar, the Assistant's starters, a Home item's offers) in the order shown, and how finding a chosen result went.
+  // Choosing, taking or putting away an action is the Host call it makes, the exit's record; clicking is never adopting or reading.
+  ...["open", "dwell", "candidates", "locate"].map(name => ({ owner: "shell", fact: `ui.${name}`, entries: ["workbench"], state: "complete" } as const)),
+  // Time on an object and scrolling are summed per object per minute (design §9 D3): one look's own seconds are not kept.
+  { owner: "shell", fact: "ui.dwell.single_look", entries: ["workbench"], state: "by_rule", reason: "dwell_summed_per_minute" },
+  // A plugin's page is an isolated document: the shell does not see it scroll, and the plugin reports its own stages if it has any.
+  { owner: "shell", fact: "ui.dwell.plugin_page_scroll", entries: ["workbench"], state: "unavailable", reason: "isolated_page_scroll_not_seen" },
   // Each handoff of a run, reported by Workflows as itself: the handoff's text stays in the run and is named, the action a station ran is
   // the exit's record under the same call. An action result over 20,000 characters is kept by the run as its size only.
   { owner: "plugin:io.molis.work.native.workflows", fact: "io.molis.work.native.workflows.step", entries: ["plugin"], state: "complete" },

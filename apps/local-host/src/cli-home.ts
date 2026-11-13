@@ -1,3 +1,4 @@
+import { basename, dirname, join } from "node:path";
 import { printCliJson, printCliLine } from "@molis-ai/molis-work-app-cli";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { acquireStorageOwner, readStorageSpace } from "@molis-ai/molis-work-storage";
@@ -78,10 +79,10 @@ export async function runLocalHomeCli(args: string[], inspectCatalog?: HomeResto
       try {
         const space = readStorageSpace(target);
         if (!space) throw new ActionError("actions.missing", "这个 Home 还没有账号空间");
-        const backupDirectory = `${target}/sync/process-items-adoption-backups/${new Date().toISOString().replaceAll(":", "-")}`;
+        const backupDirectory = join(target, "sync", "process-items-adoption-backups", new Date().toISOString().replaceAll(":", "-"));
         const reports: ProjectAdoptionReport[] = [];
         for (const relative of projectDatabases(target, space)) {
-          const projectId = relative.split("/").at(-2)!;
+          const projectId = basename(dirname(relative));
           reports.push(adoptProjectDatabase({ home: target, owner, projectId, backupDirectory }));
         }
         if (reports.some(report => report.state === "refused")) {

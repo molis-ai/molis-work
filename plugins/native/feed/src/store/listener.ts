@@ -1,4 +1,5 @@
 import type { FeedSql } from "./sql.js";
+import { SOURCE_RUN_HISTORY } from "../source-presentation.js";
 import { createHash } from "node:crypto";
 import { parseJson } from "@molis-ai/molis-work-plugin-sdk";
 
@@ -145,9 +146,6 @@ export function getListenerRunByOperationId(
   `, projectId, operationId) as Row | undefined;
   return row ? mapRun(row) : null;
 }
-
-/** How many of a source's latest runs its settings show as pull history (`stage-ui.ts` lists the same number). */
-export const SOURCE_RUN_HISTORY = 8;
 
 export function listListenerRuns(
   db: FeedSql,

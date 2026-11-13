@@ -17,10 +17,13 @@ function sources(directory: string): string[] {
     return path.endsWith(".ts") && !path.endsWith(".d.ts") ? [path] : [];
   });
 }
-const code = [join(root, "apps/local-host/src"), ...readdirSync(join(root, "horizontal")).map(name => join(root, "horizontal", name, "src"))]
+const code = [join(root, "apps/local-host/src"), ...readdirSync(join(root, "horizontal")).map(name => join(root, "horizontal", name, "src")),
+  ...readdirSync(join(root, "plugins/native")).map(name => join(root, "plugins/native", name, "src"))]
   .filter(path => { try { return statSync(path).isDirectory(); } catch { return false; } }).flatMap(sources).map(path => readFileSync(path, "utf8")).join("\n");
 
-const prefixOf = (owner: string) => owner === "observation" ? "observation" : OBSERVATION_SERVICE_PREFIXES[owner.slice("service:".length) as keyof typeof OBSERVATION_SERVICE_PREFIXES];
+// A plugin's prefix is its own `plugin_id`; a service's is the one the contract gives it.
+const prefixOf = (owner: string) => owner === "observation" ? "observation" : owner.startsWith("plugin:") ? owner.slice("plugin:".length)
+  : OBSERVATION_SERVICE_PREFIXES[owner.slice("service:".length) as keyof typeof OBSERVATION_SERVICE_PREFIXES];
 
 test("OCL-09 OCL-16: each kind of fact in the plan is its owner's, named once, with a reason exactly when it is not complete", () => {
   const seen = new Set<string>();

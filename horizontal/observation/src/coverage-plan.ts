@@ -46,5 +46,9 @@ export const OBSERVATION_COVERAGE_PLAN: readonly CoveragePlanEntry[] = [
   // inside the Host is in the class's scope; a sandboxed provider's callbacks run outside the Host's async context and are not.
   { owner: "service:connections", fact: "connections.pull", entries: ["background"], state: "complete" },
   { owner: "service:connections", fact: "connections.pull.sandbox_scope", entries: ["background"], state: "unavailable", reason: "sandbox_callbacks_outside_scope" },
+  // Each handoff of a run, reported by Workflows as itself: the handoff's text stays in the run and is named, the action a station ran is
+  // the exit's record under the same call. An action result over 20,000 characters is kept by the run as its size only.
+  { owner: "plugin:io.molis.work.native.workflows", fact: "io.molis.work.native.workflows.step", entries: ["plugin"], state: "complete" },
+  { owner: "plugin:io.molis.work.native.workflows", fact: "io.molis.work.native.workflows.step.action_result", entries: ["plugin"], state: "by_rule", reason: "large_action_result_size_only" },
   { owner: "observation", fact: "observation.report", entries: ["workbench", "plugin"], state: "not_applicable", reason: "report_channel_itself" },
 ];

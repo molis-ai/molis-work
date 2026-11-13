@@ -4,6 +4,7 @@ import fs from "node:fs";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
+import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import { computerErrors, helperFailure, markHelper } from "./computer-errors.js";
 import { eachListener } from "../host-log.js";
 
@@ -221,9 +222,10 @@ export class HelperConnection {
     eachListener("computer", "helper_events", this.listeners, listener => listener(event));
   }
 
-  /** One request; starts the helper first when needed. */
-  async call<T>(op: string, params: Record<string, unknown> = {}, timeoutMs?: number): Promise<T> {
+  /** One request; the original caller's optional synchronous fence runs after ensure, before any request is registered or sent. */
+  async call<T>(op: string, params: Record<string, unknown> = {}, timeoutMs?: number, assertCurrent?: () => void): Promise<T> {
     await this.ensure();
+    requireSynchronous(assertCurrent?.());
     const socket = this.socket;
     if (!socket) throw markHelper(computerErrors.crashed("电脑助手不在运行"));
     const id = this.nextId++;

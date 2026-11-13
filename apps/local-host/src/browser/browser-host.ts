@@ -1,4 +1,5 @@
 import { browserErrors, isBrowserError } from "./errors.js";
+import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { spawn, execFileSync, type ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
@@ -294,6 +295,7 @@ export class BrowserPage {
   private connection: CdpConnection | null = null;
   /** The address to return to after the browser or the page had to be started again. */
   private resumeUrl = "";
+  private navigation = 0;
 
   constructor(readonly projectId: string, private readonly host: BrowserHost) {}
 
@@ -350,12 +352,17 @@ export class BrowserPage {
     void this.refreshScreencast();
   }
 
-  /** The page exists and is shown; the browser is started first if it is not running. */
-  async ensure(): Promise<Layer> {
-    const top = this.top;
-    if (top && this.connection && !this.connection.closed) return top;
-    this.starting ??= this.start().finally(() => { this.starting = null; });
-    return this.starting;
+  /** The page exists; a retained address on restart uses the same caller fence as the requested navigation. */
+  async ensure(assertCurrent?: () => void): Promise<Layer> {
+    requireSynchronous(assertCurrent?.());
+    let top = this.top;
+    if (!top || !this.connection || this.connection.closed) {
+      this.starting ??= this.start().finally(() => { this.starting = null; });
+      top = await this.starting;
+    }
+    requireSynchronous(assertCurrent?.());
+    if (this.resumeUrl) await this.navigateTo(this.resumeUrl, assertCurrent);
+    return top;
   }
 
   private async start(): Promise<Layer> {
@@ -369,7 +376,6 @@ export class BrowserPage {
     this.stack = [layer];
     this.status = "ready";
     this.listenTo(running.cdp);
-    if (this.resumeUrl) await this.navigateTo(this.resumeUrl);
     this.emit();
     return layer;
   }
@@ -547,23 +553,25 @@ export class BrowserPage {
     this.emit();
   }
 
-  /** Go where the person (or the assistant's `navigate`) asked; other schemes than web addresses are refused. */
-  async navigate(input: string): Promise<void> {
+  /** Go where the person or Assistant asked; an original caller fence is checked after startup and before changing the destination. */
+  async navigate(input: string, assertCurrent?: () => void): Promise<void> {
+    requireSynchronous(assertCurrent?.());
     const address = browserAddress(input);
     if ("blocked" in address) {
       this.problem = { code: "browser.blocked_scheme", message: `侧栏浏览器只打开网页地址，不打开「${address.blocked}:」这类地址。` };
       this.emit();
       return;
     }
-    await this.ensure();
-    await this.navigateTo(address.url);
+    await this.ensure(assertCurrent);
+    await this.navigateTo(address.url, assertCurrent);
   }
 
-  private async navigateTo(url: string): Promise<void> {
-    const top = this.top!;
+  private async navigateTo(url: string, assertCurrent?: () => void): Promise<void> {
+    requireSynchronous(assertCurrent?.());
+    const top = this.top!, connection = this.connection!, navigation = ++this.navigation;
     this.problem = null; this.resumeUrl = ""; this.loading = true; this.url = url; this.emit();
-    const result = await this.connection!.send("Page.navigate", { url }, top.sessionId).catch(error => ({ errorText: error instanceof Error ? error.message : String(error) })) as { errorText?: string };
-    if (result.errorText) {
+    const result = await connection.send("Page.navigate", { url }, top.sessionId).catch(error => ({ errorText: error instanceof Error ? error.message : String(error) })) as { errorText?: string };
+    if (result.errorText && this.connection === connection && this.top === top && this.navigation === navigation) {
       this.loading = false;
       this.problem = { code: "browser.load_failed", message: loadFailure(result.errorText) };
       this.emit();
@@ -629,10 +637,11 @@ export class BrowserPage {
     await this.connection!.send("Page.handleJavaScriptDialog", { accept, ...(promptText !== undefined ? { promptText } : {}) }, this.top.sessionId).catch(() => undefined);
   }
 
-  /** Give the page the files the person chose for its file chooser. Paths are under the Host's upload directory. */
-  async chooseFiles(id: string, files: readonly string[]): Promise<void> {
+  /** The caller fence runs before consuming the chooser or handing files to CDP; rejection leaves the chooser available. */
+  async chooseFiles(id: string, files: readonly string[], assertCurrent?: () => void): Promise<void> {
     const chooser = this.fileChooser;
     if (!chooser || chooser.id !== id || !this.connection) throw browserErrors.load_failed("页面已经不再等待选择文件");
+    requireSynchronous(assertCurrent?.());
     this.fileChooser = null; this.emit();
     await this.connection.send("DOM.setFileInputFiles", { files: [...files], backendNodeId: chooser.backendNodeId }, chooser.sessionId);
   }

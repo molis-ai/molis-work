@@ -124,6 +124,8 @@ Runtime 原调用者查询委托由 `plugin-action-query.ts` 持有：只接受�
 
 侧栏浏览器的 node 点击由浏览器 owner 保存观察到的 DOM 对象，给模型的 token 只在当前观察内有效。审批通过 `HostSurfaceDriver.describeNode` 读同一对象的名字；注入前重新检查对象、文档、可见性和命中位置，失效时拒绝，不使用备用坐标。已经派出的按压只在原会话视口外解除，保留原拒绝，不点击替代对象。新观察、轮次释放和关闭清理 CDP 对象；桌面 selector 与现有坐标点击不变。回归见 `tests/side-panel-browser.e2e.test.ts` 的 T405-S4-02/03 和 `tests/side-panel-assistant-surface.test.ts` 的 T405-S4-01。
 
+底层派发支持原调用的同步检查：`HelperConnection.call` 在连接建立后、登记等待及发送前检查；`BrowserHost.page()` 的 ensure/navigate 将检查传到冷启动恢复地址和最终导航，chooseFiles 在清选择器与交付文件前检查。异步函数被拒绝；没有检查的直接用户操作仍走原入口。根入口显式导出这两项已有 Host 传输实现，未转入插件 SDK。改这里跑 `tests/security-invariants-surface-transport.test.ts`，其协议夹具不操作真实电脑；完整 Agent 与 Driver 绑定仍须独立验证。
+
 ## 开发要求
 
 本机内容包签名由 `plugin-install` 的 `plugins.local_packages.sign@1` 持有。本人从发起项目确认导入后，宿主在接触发布身份前核对内容，再返回普通安装预览 ID。安装服务按原项目、操作者和有效期回取视图，沿同一次明确同意确认安装。发布者未被固定时，确认才会固定。隔离 Home 的回归在 [安装](../../tests/security-invariants-plugin-install.test.ts) 与 [导入](../../tests/security-invariants-skill-import.test.ts) 用例中。

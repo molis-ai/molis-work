@@ -1,0 +1,8 @@
+{
+  "reason": "第 14、27 批收口：组件板标本默认外边距收进共用 .mw-catalog__specimen（到达页样式 +9，设置与工作台样式各 -121）；助理过程没有专属动词的步骤显示「处理一步」而不露出工具原名，卸载结果「知道了」后焦点回到列表（工作台脚本 +270）。对独立构建的 main b66112d0d7 实测，均远低于 10 KB，无新增资源。",
+  "review": "specs/post-anticorruption-roadmap/reference/batches/27.md「合后收口（2026-11-13）」与 14.md 合入记录；随 14／27 收口 PR 评审。",
+  "assets": {
+    "/assets/molis-work-arrival.css": 9,
+    "/assets/molis-work-workbench.js": 270
+  }
+}

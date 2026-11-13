@@ -3710,6 +3710,8 @@
     "workbench.context-onboarding.no-limit-how-many-how-large-large-folder": "No limit on how many or how large. A large folder is counted file by file first; PDFs are read from their text layer and Word files from their body.",
     "workbench.context-onboarding.no-supported-files-found": "No supported files found.",
     "workbench.context-onboarding.no-supported-files-time-range-widen-skip": "No supported files in this time range. Widen it or skip.",
+    "workbench.context-onboarding.hand-folder-to-coding": "Also hand to Coding: write code in “{folder}”",
+    "workbench.context-onboarding.hand-folder-to-coding-hint": "It becomes the project’s output folder: Coding reads and writes there and follows its AGENTS.md. You can change it later in project settings.",
     "workbench.context-onboarding.no-todo-drafts": "No todo drafts.",
     "workbench.context-onboarding.not-chosen-yet": "Not chosen yet",
     "workbench.context-onboarding.not-now": "Not now",

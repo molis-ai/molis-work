@@ -3461,6 +3461,8 @@
     "workbench.context-onboarding.no-limit-how-many-how-large-large-folder": "不限份数和大小。文件夹很大时会先逐项清点；PDF 读取文本层，Word 读取正文。",
     "workbench.context-onboarding.no-supported-files-found": "没有找到支持的文件。",
     "workbench.context-onboarding.no-supported-files-time-range-widen-skip": "这个时间范围没有支持的文件。可扩大范围或跳过。",
+    "workbench.context-onboarding.hand-folder-to-coding": "也交给 Coding：在「{folder}」里写代码",
+    "workbench.context-onboarding.hand-folder-to-coding-hint": "这个文件夹会成为项目的输出目录：Coding 在里面读写，也读它的 AGENTS.md。以后可以在项目设置里换。",
     "workbench.context-onboarding.no-todo-drafts": "没有待办草稿。",
     "workbench.context-onboarding.not-chosen-yet": "尚未选择",
     "workbench.context-onboarding.not-now": "稍后再说",

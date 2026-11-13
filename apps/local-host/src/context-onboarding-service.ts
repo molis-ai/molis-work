@@ -5,7 +5,7 @@ import { fencedMaterials, instructed, type InstructionPrompt } from "@molis-ai/m
 import { ONBOARDING_NOTES, ONBOARDING_OWNER, ONBOARDING_PROPOSAL } from "./agent-definitions/system-prompts.js";
 import { createHash, randomUUID } from "node:crypto";
 import { withContextJourneys, type CallTiming, type ContextJourney, type ContextReference, type ImportFile, type OnboardingTodoBatch } from "./context-onboarding-store.js";
-import { contextFilePath, contextSources, readContextSource } from "./context-onboarding-sources.js";
+import { codingRoot, contextFilePath, contextSources, readContextSource } from "./context-onboarding-sources.js";
 import { diskFull, dropStagedNotes, readStagedNote, readStagedText, removeJourneyStaging, stageContextUpload, stageNote, stagedFilePath, stagedFileSize, stagedJourneyIds, isStagedDigest } from "./context-onboarding-staging.js";
 import type { PeriodicTasks } from "./periodic-tasks.js";
 import { configuredTextPort, type TextModelPort } from "./configured-text-port.js";
@@ -354,6 +354,8 @@ function partTitle(title: string, part: number, parts: number, max: number): str
  * `capability_id@version` and declares the fields it uses below; it imports neither plugin's contract (PG-111).
  */
 const TODO_PLUGIN_ID = "io.molis.work.todo", PAGES_PLUGIN_ID = "io.molis.work.pages";
+/** Coding's id in a project's plugin list, as Pages' is "pages" above. */
+const CODING_PLUGIN = "coding";
 /** A ProseMirror document as the `pages.documents.*` actions carry it; the journey passes it on without reading into it. */
 type ProseDocument = { readonly type: "doc"; readonly content?: readonly unknown[] };
 /** What Todo's organizer reads of one material (`todo.organize.extract` cuts a longer one), so longer text goes in parts of this many characters (a 🟢 is one character, two UTF-16 units); pinned to Todo's own number by `tests/context-onboarding-todo.test.ts`. */
@@ -457,7 +459,10 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
   // Only drafts this round made can be kept, however many batches there were.
   const drafted = new Set(journey.todo?.batches.flatMap(batch => batch.candidates.map(candidate => candidate.candidate_id)) ?? []);
   const todoSelected = Array.isArray(input.todo_selected) ? [...new Set(input.todo_selected.filter((value): value is string => typeof value === "string" && drafted.has(value)))] : [];
-  journey.adoption ??= { title, body, blank: input.blank === true, todo_selected: todoSelected }; journey.phase = "adopting"; journey.error = null;
+  // The folder Coding works in is the person's own chosen folder as this round read it, never a path from the request (ONB-44).
+  const coding = input.coding_root === true && input.blank !== true ? codingRoot(journey) : null;
+  if (input.coding_root === true && !journey.adoption && !coding) throw new Error("这个文件夹不能交给 Coding：只有你自己选的、顶层有项目文件的文件夹可以");
+  journey.adoption ??= { title, body, blank: input.blank === true, todo_selected: todoSelected, ...(coding ? { coding_root: coding } : {}) }; journey.phase = "adopting"; journey.error = null;
   withContextJourneys(home, store => store.save(journey));
   const job = Promise.resolve().then(async () => {
     try {
@@ -465,6 +470,14 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
         await catalog.createProject({ display_name: journey.adoption!.title, actor_id: LOCAL_PERSON_ACTOR_ID, project_id: journey.project_id });
         catalog.addProjectPlugin({ project_id: journey.project_id, plugin_id: "pages", actor_id: LOCAL_PERSON_ACTOR_ID });
         // Artifact imports use the platform service in every project.
+        const root = journey.adoption!.coding_root;
+        if (root) {
+          catalog.addProjectPlugin({ project_id: journey.project_id, plugin_id: CODING_PLUGIN, actor_id: LOCAL_PERSON_ACTOR_ID });
+          // The person's code folder becomes the project's output, where Coding works (and, with it, the project is trusted:
+          // coding-harness-optimization §11, 2026-11-13). A retry finds it already the output, which the change leaves as it is.
+          await catalog.commit(() => catalog.changeDirectories({ project_id: journey.project_id, actor_id: LOCAL_PERSON_ACTOR_ID,
+            change: { kind: "set_output", target: { workspace_path: root } }, expected_revision: catalog.projectDirectories(journey.project_id).revision }));
+        }
       });
       // The chooser introduces the new project in the words the person accepted (a blank start has none). Safe to repeat.
       if (!journey.adoption!.blank) setProjectDescription(home, journey.project_id, descriptionFromSummary(journey.adoption!.body));

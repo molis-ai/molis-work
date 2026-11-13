@@ -49,7 +49,8 @@ export interface ContextJourney {
   sources: ContextSource[]; model: string | null; error: string | null;
   summary: { title: string; body: string; references: ContextReference[] } | null;
   project_id: string; document_id: string | null; updated_at: string;
-  adoption?: { title: string; body: string; blank: boolean; todo_selected?: string[] };
+  /** `coding_root`: the person's own folder, handed to Coding as the project's output when they ticked it (ONB-44). */
+  adoption?: { title: string; body: string; blank: boolean; todo_selected?: string[]; coding_root?: string };
   /** Todo drafts organized from the same materials; applied into the new project's todos on adoption. */
   /** Todo drafts, one organizer batch per 50 materials (or parts of long ones); `total` is how many the round needs. */
   /** `key` names the material set the batches came from: another set (the person went back and chose again) starts over. */

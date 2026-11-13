@@ -5,7 +5,7 @@ import { MolisWorkLocalHost, homeAgentDefinitions, molisWorkHostProjectReference
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
-import { mkdtemp, mkdir, writeFile, symlink, rm, stat } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, symlink, rm, stat, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
@@ -19,7 +19,7 @@ import { TODO_ORGANIZE_BASIC } from "@molis-ai/molis-work-plugin-todo";
 import { withContextJourneys } from "../apps/local-host/dist/context-onboarding-store.js";
 import { readProjectArrival } from "../apps/local-host/dist/project-arrival.js";
 import { contextReferenceText, selectContextSources, stageContextFile, startContextJourney, waitContextJourney, adoptContextJourney, parseContextSummary, readContextJourney, removeIdleJourneyStaging, reopenContextJourney, updateContextDraft } from "../apps/local-host/dist/context-onboarding-service.js";
-import { contextSources, readContextSource, readOnboardingGmail } from "../apps/local-host/dist/context-onboarding-sources.js";
+import { codingRoot, contextSources, readContextSource, readOnboardingGmail } from "../apps/local-host/dist/context-onboarding-sources.js";
 import { createContextOnboardingHttp } from "../apps/local-host/dist/web-context-onboarding.js";
 import { handleConnectorApiMethodsHttp, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { handleLocalConnectorsSettingsHttp } from "../apps/local-host/dist/web-connectors-settings.js";
@@ -843,4 +843,40 @@ test('ONB-37 a code folder\'s source, config, scripts, docs and files with no or
   const metadata = (paths: string[]) => ({ files: paths.map(path => ({ path, size: 1, modified_ms: 1, identity: 'upload' })), skipped: 0, truncated: false });
   assert.equal(contextSources([{ kind: 'custom', selected: true, metadata: metadata(['src/main.ts', 'README', '.gitignore']) }])[0]!.metadata!.files.length, 3);
   assert.throws(() => contextSources([{ kind: 'custom', selected: true, metadata: metadata(['.env']) }]), /文件元数据无效/);
+});
+
+test('ONB-44 only the person\'s own folder with a build file at its top is offered to Coding, and only when ticked does it become the output', async t => {
+  const meta = (paths: string[]) => ({ files: paths.map(path => ({ path, size: 1, modified_ms: 1, identity: 'x' })), skipped: 0, truncated: false });
+  assert.equal(codingRoot({ sources: [{ kind: 'custom', selected: true, path: '/code/app', metadata: meta(['package.json', 'src/a.ts']) }] }), '/code/app');
+  assert.equal(codingRoot({ sources: [{ kind: 'custom', selected: true, path: '/code/app', metadata: meta(['notes.md', 'sub/package.json']) }] }), null, 'a build file deeper down does not make the folder a root');
+  assert.equal(codingRoot({ sources: [{ kind: 'custom', selected: false, path: '/code/app', metadata: meta(['package.json']) }] }), null);
+  for (const kind of ['downloads', 'documents', 'desktop'] as const)
+    assert.equal(codingRoot({ sources: [{ kind, selected: true, path: '/Users/x/' + kind, metadata: meta(['package.json']) }] }), null, kind + ' is never handed to Coding');
+
+  const dir = await home(t), folder = join(dir, 'my-app');
+  await new MolisWorkLocalHost({ homeDirectory: dir, completeText: null }).close();
+  await mkdir(folder); await writeFile(join(folder, 'package.json'), '{"name":"my-app"}'); await writeFile(join(folder, 'README.md'), '# My app\nShip the login page');
+  const ports = { ...pagesPorts(dir), model: async () => ({ completeText: async () => '# My app\nShip the login page. [S1]' }) };
+  const journeyOf = async (tick: boolean) => {
+    const id = randomUUID(); withContextJourneys(dir, s => s.create(id));
+    selectContextSources(dir, id, { sources: [{ kind: 'custom', selected: true, path: folder, metadata: meta(['package.json', 'README.md']),
+      files: [await staged(dir, id, 'package.json', '{"name":"my-app"}'), await staged(dir, id, 'README.md', '# My app\nShip the login page')] }] });
+    startContextJourney(dir, id, ports); const ready = await waitContextJourney(dir, id); assert.equal(ready.phase, 'review', ready.error ?? '');
+    return adoptContextJourney(dir, id, { title: tick ? 'Ticked' : 'Not ticked', body: ready.summary!.body, coding_root: tick }, ports);
+  };
+  const unticked = await journeyOf(false), ticked = await journeyOf(true);
+  assert.equal(ticked.phase, 'complete', ticked.error ?? ''); assert.equal(ticked.adoption?.coding_root, folder);
+  await pagesPorts(dir).withCatalog({ homeDirectory: dir }, async catalog => {
+    assert.ok(catalog.projectPluginMembership(ticked.project_id).plugins.includes('coding'), 'Coding is in the project');
+    const output = catalog.projectDirectories(ticked.project_id).directories.find(d => d.roles.includes('output'))!;
+    assert.equal(output.canonical_path, await realpath(folder), 'the folder is where Coding works');
+    assert.ok(!catalog.projectPluginMembership(unticked.project_id).plugins.includes('coding'), 'not ticked: Coding is not added');
+    assert.notEqual(catalog.projectDirectories(unticked.project_id).directories.find(d => d.roles.includes('output'))!.canonical_path, await realpath(folder), 'a material folder is not made the output');
+  });
+  // A repeat keeps it as it was; a round with no such folder cannot ask for one.
+  assert.equal((await adoptContextJourney(dir, ticked.id, { coding_root: true }, ports)).phase, 'complete');
+  const plain = randomUUID(); withContextJourneys(dir, s => s.create(plain));
+  selectContextSources(dir, plain, { sources: [{ kind: 'directory', selected: true, files: [await staged(dir, plain, 'brief.md', '# Brief\nLaunch')] }] });
+  startContextJourney(dir, plain, ports); const ready = await waitContextJourney(dir, plain);
+  await assert.rejects(adoptContextJourney(dir, plain, { title: 'x', body: ready.summary!.body, coding_root: true }, ports), /不能交给 Coding/);
 });

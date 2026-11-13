@@ -49,7 +49,8 @@ export interface ContextualHttpPorts {
   readonly confirmReferences?: ConfirmReferences;
 }
 
-type Caller = { readonly scope: string; readonly actions: ContextualActions };
+/** `directory` names whose directory this is: the Home, the project and the person (BCC-11). A project id alone is not unique across Homes. */
+type Caller = { readonly directory: string; readonly actions: ContextualActions };
 
 const DIRECTORY_TTL_MS = 3_000;
 const services = new Map<string, ContextualJudgmentService<Caller>>();
@@ -57,11 +58,11 @@ const directories = new Map<string, { at: number; views: Promise<readonly Action
 
 // A selection change asks twice (rules at once, the judgment shortly after) and may recall and report: one discovery serves all.
 const directory = (caller: Caller): Promise<readonly ActionView[]> => {
-  const cached = directories.get(caller.scope);
+  const cached = directories.get(caller.directory);
   if (cached && Date.now() - cached.at < DIRECTORY_TTL_MS) return cached.views;
   const views = caller.actions.discover();
-  directories.set(caller.scope, { at: Date.now(), views });
-  views.catch(() => { if (directories.get(caller.scope)?.views === views) directories.delete(caller.scope); });
+  directories.set(caller.directory, { at: Date.now(), views });
+  views.catch(() => { if (directories.get(caller.directory)?.views === views) directories.delete(caller.directory); });
   return views;
 };
 
@@ -215,7 +216,7 @@ export async function handleContextualHttp(request: IncomingMessage, response: S
     }
     const pane = `${ports.scope}\u0000${readString(body.pane_id, "pane_id", 80)}`;
     if (route === "cancel") { service.cancel(pane); sendJson(response, 200, { ok: true }); return true; }
-    const caller: Caller = { scope: ports.scope, actions: ports.actions() };
+    const caller: Caller = { directory: JSON.stringify([ports.homeDirectory ?? null, ports.scope, ports.actor_id]), actions: ports.actions() };
     const judgeRequest: ContextualJudgeRequest = { ...readJudgeRequest(body), pane_id: pane };
     if (route === "candidates") { sendJson(response, 200, await service.candidates(judgeRequest, caller)); return true; }
     if (route === "judge") {

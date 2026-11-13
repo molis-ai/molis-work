@@ -5,8 +5,13 @@ import { withConnectorConnections } from "./connector-connection-store.js";
 /** The binding is stored once per Home under the plugin-slot id `functions`, which the judgment-rules service (modules/judgment-rules) reads; every caller uses that one binding. */
 const CONSUMER = "functions";
 
+type ConnectionStore = Parameters<Parameters<typeof withConnectorConnections>[1]>[0];
+
+/** The Functions binding as an already open store holds it, for a caller that reads the connection it names in the same opening. */
+export const typeSafeBinding = (store: ConnectionStore) => store.binding("home", CONSUMER, "typesafe");
+
 export function selectedTypeSafeConnection(home: string) {
-  return withConnectorConnections(home, (store) => store.binding("home", CONSUMER, "typesafe"), true) ?? null;
+  return withConnectorConnections(home, typeSafeBinding, true) ?? null;
 }
 
 export function bindTypeSafeConnection(home: string, connectionId: string): void {

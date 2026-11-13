@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
+import { zonedParts } from "@molis-ai/molis-work-plugin-sdk";
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import type { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentScheduleCapability, AgentScheduledTask } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -327,10 +329,11 @@ export class AssistantFollowUps<W extends FollowUpWork> {
           const due = Date.parse(reminder.due_at);
           if (!(due >= from.getTime() && due <= now.getTime())) continue;
           const late = now.getTime() - due > REMINDER_LATE_MS;
+          const title = cutHead(reminder.title, 120);
           const told = ports.notify({ kind: "reminder", work_id: "", work_title: collection.source.title,
             text: assistantWords(late ? "workbench.assistant-notice.reminder-missed" : "workbench.assistant-notice.reminder",
-              { source: collection.source.title, at: dateArg(reminder.due_at, "time", { time_zone }), title: reminder.title }),
-            ...(reminder.open ? { open: { surface: reminder.open.surface, id: reminder.open.id, title: reminder.title, project_id: reminder.project_id } } : {}) },
+              { source: collection.source.title, at: dateArg(reminder.due_at, "time", { time_zone }), title }),
+            ...(reminder.open ? { open: { surface: reminder.open.surface, id: reminder.open.id, title, project_id: reminder.project_id } } : {}) },
             `reminder:${provider.provider.provider_id}:${reminder.reminder_id}`);
           if (told) raised += 1;
         }
@@ -394,8 +397,11 @@ export class AssistantFollowUps<W extends FollowUpWork> {
 export function sameLocalTimeLater(at: number, days: number, timeZone: string | undefined): number {
   let wall: (ms: number) => number;
   try {
-    const format = new Intl.DateTimeFormat("en-US", { timeZone, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" });
-    wall = ms => { const part = Object.fromEntries(format.formatToParts(new Date(ms)).map(item => [item.type, item.value])); return Date.UTC(+part.year!, +part.month! - 1, +part.day!, +part.hour!, +part.minute!, +part.second!) + ms % 1000; };
+    const parts = zonedParts(timeZone, { seconds: true });
+    wall = ms => {
+      const part = parts(ms);
+      return Date.UTC(+part.year!, +part.month! - 1, +part.day!, +part.hour!, +part.minute!, +part.second!) + ms % 1000;
+    };
   } catch { return at + days * 86_400_000; }
   const target = wall(at) + days * 86_400_000;
   const guess = target - (wall(at) - at);

@@ -657,6 +657,7 @@ export interface ActionSceneBinding {
 
 export interface ActionSceneClient {
     discoverScenes(context: ActionCallContext, judgment?: ActionReference): readonly ActionSceneView[] | Promise<readonly ActionSceneView[]>;
+    discoverScenesFor(context: ActionCallContext, judgments: readonly ExactActionReference[], selection?: ActionSceneSelection): readonly (readonly ActionSceneView[])[] | Promise<readonly (readonly ActionSceneView[])[]>;
     usages(context: ActionCallContext, judgment?: ActionReference): Promise<readonly ActionSceneUsage[]>;
     targets(context: ActionCallContext, judgment?: ActionReference, scene?: Pick<ActionSceneTarget, "scene_id" | "scene_version" | "provider_id">): Promise<readonly ActionSceneTarget[]>;
     bind(context: ActionCallContext, binding: ActionSceneBinding, options?: ActionSceneConfigureOptions): Promise<void>;
@@ -737,6 +738,14 @@ export interface ActionSceneReference {
     readonly scene_id: string;
     readonly version: number;
     readonly provider_id: string;
+}
+
+export interface ActionSceneSelection {
+    readonly plugin_id: string;
+    readonly scenes: readonly {
+        readonly scene_id: string;
+        readonly version: number;
+    }[];
 }
 
 export interface ActionSceneTarget extends ActionSceneTargetDefinition {

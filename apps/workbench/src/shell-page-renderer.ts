@@ -1,6 +1,7 @@
 import type { PreparedStageView } from "./page-view.js";
 import { escapeHtml, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderPluginFrameSurface } from "./plugin-frame.js";
+import { renderMaterialsStage } from "./materials-stage.js";
 import { renderUnavailablePluginStage, type UnavailablePluginStage } from "./unavailable-plugin-stage.js";
 import { pluginSurfaceClients, deferredSurfaceClients } from "./plugin-workbench.js";
 import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
@@ -244,6 +245,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
             ${renderProjectHome(view.project?.display_name || title, primitives)}
             ${page?.html ?? ""}
             <section class="desktop-work-surface immersive-artifact-surface plugin-stage-shell" data-work-surface="artifacts" data-work-surface-label="${uiText("workbench.artifacts.navigation-name")}" data-artifact-stage-shell data-expanded="false" hidden><div class="plugin-stage-list feed-stage-tree" data-artifact-directory></div><div class="plugin-stage-workspace" data-artifact-stage-workspace hidden><div data-artifact-detail></div></div></section>
+            ${view.project ? renderMaterialsStage() : ""}
             <section class="desktop-work-surface immersive-market" data-work-surface="market" data-work-surface-label="${uiText("workbench.shell-page-renderer.plugin-market")}" hidden>${renderPluginMarket(primitives, { developerMode: view.developer_mode, marksFromHost: Boolean(view.plugin_directory) }, directory)}</section>
             ${settingsSurfaces}
             ${(view.unavailable_plugin_stages ?? []).map(stage => renderUnavailablePluginStage(stage, readText)).join("")}${(view.plugin_stages ?? []).map(defer).join("")}

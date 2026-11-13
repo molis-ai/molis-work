@@ -59,10 +59,30 @@ export const KNOWLEDGE_SETTINGS_STYLES = `
   }
 `;
 
-/** The project knowledge picker (browser/knowledge/picker.ts): a form dialog, one checkbox row per piece, the count by the buttons. */
+/** The project materials picker (browser/knowledge/picker.ts): a form dialog, one checkbox row per piece, a file read beside the list
+ * on a wide screen and one step at a time on a narrow one (design A), what is chosen above the buttons. */
 export const KNOWLEDGE_PICKER_STYLES = `
   dialog.mw-dialog.knowledge-picker { width: min(560px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); padding: 20px; display: none; }
-  dialog.mw-dialog.knowledge-picker[open] { display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto auto; gap: 12px; }
+  dialog.mw-dialog.knowledge-picker[open] { display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto auto auto; gap: 12px; }
+  dialog.mw-dialog.knowledge-picker.has-preview { width: min(1080px, calc(100vw - 32px)); }
+  .knowledge-picker-stage { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; min-height: 0; }
+  .knowledge-picker.has-preview .knowledge-picker-stage { grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); }
+  .knowledge-picker-preview { display: flex; flex-direction: column; min-height: 0; height: min(50dvh, 420px); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .knowledge-picker-preview[hidden] { display: none; }
+  .knowledge-picker-preview-head { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  .knowledge-picker-preview-head strong { font-size: 13px; overflow-wrap: anywhere; }
+  .knowledge-picker-preview .side-materials-tools { padding: 6px 8px; }
+  .knowledge-picker-preview-body { flex: 1; overflow: auto; }
+  .knowledge-picker-row { display: flex; align-items: start; gap: 4px; }
+  .knowledge-picker-row label { flex: 1; min-width: 0; }
+  .knowledge-picker-chosen { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; max-height: 96px; overflow: auto; }
+  .knowledge-picker-chosen li { display: flex; align-items: center; gap: 2px; padding: 2px 4px 2px 8px; border: 1px solid var(--line); border-radius: 999px; font-size: 12px; max-width: 100%; }
+  .knowledge-picker-chosen span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  @media (max-width: 760px) {
+    .knowledge-picker.has-preview .knowledge-picker-stage { grid-template-columns: minmax(0, 1fr); }
+    .knowledge-picker.has-preview .knowledge-picker-list, .knowledge-picker.has-preview .knowledge-picker-tools { display: none; }
+  }
+  @media (min-width: 761px) { .knowledge-picker .knowledge-picker-preview-head [data-knowledge-picker-back] { display: none; } }
   .knowledge-picker header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
   .knowledge-picker h2 { margin: 0; font-size: 15px; font-weight: var(--weight-title, 600); }
   .knowledge-picker-tools { display: flex; flex-wrap: wrap; gap: 8px; }

@@ -80,6 +80,21 @@ export interface PluginPortsDeclaration {
   input_groups?: PluginInputGroupDeclaration[];
 }
 
+/**
+ * A producer of process items that is the platform itself, not an installed plugin (specs/batch-06-shared-tools §3, "一个平台登记"):
+ * the one place its id, title, stable signature, process item types and output ports are declared. It is never installed, started or
+ * listed among plugins; bindings, default consents, writes and reads name it by `plugin_id` exactly as they name a plugin's output,
+ * and check `signature` where they would check a publisher's.
+ */
+export interface SystemOutputSource {
+  readonly plugin_id: string;
+  readonly name: string;
+  /** Stable across restarts and product upgrades; recorded as `producer_binding_signature` on every version it writes. */
+  readonly signature: string;
+  readonly process_items: readonly { readonly artifact_type_id: string; readonly schema_version: number }[];
+  readonly outputs: readonly PluginPortDeclaration[];
+}
+
 export type PluginPortBindingOrigin = "user" | "default" | "unique";
 
 export interface PluginPortBindingRecord {

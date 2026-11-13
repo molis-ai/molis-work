@@ -134,14 +134,16 @@ export class PlacementService {
   }
 
   /** Goals records the binding; an object living elsewhere is also used in the Goal's project so the project lists it. */
-  async bindGoal(input: PlacedObject, projectId: string, goalId: string): Promise<{ key: string }> {
+  async bindGoal(input: PlacedObject, projectId: string, goalId: string, readRevision?: string): Promise<{ key: string }> {
     const object = this.locate(input).object;
     const read = await this.read(object);
     if (read.state !== "ok") throw new ActionError(`placement.${read.state}`, read.reason ?? placementText(this.ports, "workbench.index.can-t-read-item-right-now"));
     const scope = await this.ports.scope(projectId);
     const { bind } = await placementRelationOf(this.ports, scope);
     if (!bind) throw new ActionError("placement.target_unavailable", placementText(this.ports, "workbench.index.goals-isn-t-enabled-here-so-can-t"));
-    const result = await scope.client.invoke(scope.caller, bind, { goal_id: goalId, subject: { kind: object.kind, id: object.id }, title: read.context!.title || placementText(this.ports, "workbench.index.untitled") }) as { binding: { binding_id: string } };
+    // What the person saw when they took it goes with it: Goals keeps its digest so the Goal can say later whether the original changed.
+    const result = await scope.client.invoke(scope.caller, bind, { goal_id: goalId, subject: { kind: object.kind, id: object.id }, title: read.context!.title || placementText(this.ports, "workbench.index.untitled"),
+      ...(readRevision ? { read_revision: readRevision } : {}) }) as { binding: { binding_id: string } };
     await this.ports.beforeEffect?.();
     this.remember(object);
     this.ports.ledger.commands.put(ACCESS, { key: key("goal_in", object.kind, object.id, projectId), type: TYPES.goal, source: identity(object.kind, object.id),

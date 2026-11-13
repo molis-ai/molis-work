@@ -5,7 +5,7 @@ import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform
 import { hostLog } from "./host-log.js";
 import type { HomePluginHost } from "./home-plugins.js";
 import { readOnlyAlwaysOnProjectPlugins } from "./always-on-plugins.js";
-import { BUILTIN_PLUGIN_REGISTRY, PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
+import { BUILTIN_PLUGIN_REGISTRY, PLATFORM_PLUGIN_REGISTRATIONS, builtinPluginByManifestId } from "./plugin-registry.js";
 
 /** What the directory reads of a Runtime's supervisor: which plugins it holds enabled, how each one is doing, and its Manifest. */
 export interface DirectorySource {
@@ -34,8 +34,8 @@ export function runningPluginDirectory(source: DirectorySource, home?: string): 
     const producer = running?.manifest.plugin_id === pluginId ? running : null;
     const manifest = producer ? producer.manifest : source.manifest(pluginId);
     if (!manifest || !state || state.status === "blocked") return [];
-    const builtin = PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.manifest.plugin_id === manifest.plugin_id
-      && entry.manifest.publisher.signature === manifest.publisher.signature);
+    const registration = builtinPluginByManifestId(manifest.plugin_id);
+    const builtin = registration?.manifest.publisher.signature === manifest.publisher.signature ? registration : undefined;
     return [{ id: builtin?.project_plugin_id ?? manifest.plugin_id, plugin_id: manifest.plugin_id,
       chosen: builtin !== undefined, ...(builtin ? builtinMarks(builtin, alwaysOn) : {}), ...projectDirectoryWords(manifest, directoryWordResolver(producer ? pluginTextReader(producer.activation) : null)) }];
   });

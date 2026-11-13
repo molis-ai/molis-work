@@ -1,3 +1,4 @@
+import { zonedParts } from "@molis-ai/molis-work-plugin-sdk";
 import type { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 
 type DatabaseSync = ReturnType<typeof openHomeSqliteDatabase>;
@@ -35,8 +36,7 @@ export class AssistantUsageLedger {
 
 /** Midnight of `now`'s day in `zone`, as an instant: where today's usage starts. */
 export function startOfToday(now: Date, zone: string): string {
-  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: zone, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" })
-    .formatToParts(now).map(part => [part.type, part.value]));
+  const parts = zonedParts(zone, { seconds: true })(now);
   const wall = Date.UTC(+parts.year!, +parts.month! - 1, +parts.day!, +parts.hour!, +parts.minute!, +parts.second!);
   return new Date(now.getTime() - (wall - Date.UTC(+parts.year!, +parts.month! - 1, +parts.day!))).toISOString();
 }

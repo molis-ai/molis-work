@@ -1,5 +1,6 @@
 export type { AgentOriginalInputRef, AgentOriginalInputDraft, AgentOriginalInput } from "./agent-inputs.js";
 import type { ContractDescriptor } from "../platform/package.js";
+import { MATERIAL_REF_SCHEMA } from "../platform/project-materials.js";
 import type { AgentRuntimeAdapter, AgentRuntimeDescriptor, AgentRuntimeCapabilityMatrix, AgentSessionRef, AgentRunRef } from "./agent-host-runtime.js";
 import type { AgentReviewQueueApi, AgentReviewRequest, AgentReviewReceipt } from "./agent-host-reviews.js";
 import type { ActionDefinition, ActionView } from "../platform/actions.js";
@@ -31,6 +32,7 @@ export type {
   AgentWorkingDirectory,
   AgentWorkspace,
   AgentTextMaterial,
+  AgentMaterialOrigin,
   AgentImageMaterial,
   AgentFrozenSkill,
   AgentRoundSkill,
@@ -314,7 +316,8 @@ const stepBoardOutput = shape(["project_id", "version", "terminal", "nodes"], { 
   owner: shape(["kind", "label"], { kind: { enum: ["session", "subtask", "person", "none", "other"] }, label: string, title: string, subagent_id: string, actor_id: string, expired: { const: true } }),
   title: string, depends_on: strings, inserted: { type: "boolean" }, origins: objects })) });
 const memoryRef = shape(["memory_id", "version"], { memory_id: string, version: number });
-const materialFields = { material_id: { type: "string", minLength: 1, maxLength: 240 }, title: { type: "string", maxLength: 2000 } } as const;
+const materialFields = { material_id: { type: "string", minLength: 1, maxLength: 240 }, title: { type: "string", maxLength: 2000 },
+  material_ref: MATERIAL_REF_SCHEMA, read_revision: { type: "string", minLength: 1, maxLength: 200 } } as const;
 const materialSource = { source_artifact_id: { type: "string", minLength: 1, maxLength: 200 },
   source_version: { type: "integer", minimum: 1, maximum: Number.MAX_SAFE_INTEGER } } as const;
 const frozenOutput = shape(["role_id", "role_version", "execution", "model_id", "prompts", "skills", "mcp_tools", "host_tools", "text_materials", "budget"], {

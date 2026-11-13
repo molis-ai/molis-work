@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalActionGatewayClient, LocalProjectDatabase, MolisWorkLocalHost, openProjectVersionStores, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
 import { createActionMcpPorts, handleMcpMessage } from "@molis-ai/molis-work-app-mcp";
 import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -20,7 +20,7 @@ test("Form standard MCP preserves submissions and publications across tool proce
   const start = async () => {
     host = new MolisWorkLocalHost({ homeDirectory: home, actionAvailability: projectActionAvailability((options, operation) => withCatalog(options, operation), home),
       completeText: async () => JSON.stringify({ status: "done", questions: [{ title: "MCP 题目", type: "text" }] }) });
-    const withCatalog = host.configurePersonalPlanning(home, withMolisWorkProjectCatalog);
+    const withCatalog = host.configurePersonalPlanning(home, host.ensureWebCatalog(home, openMolisWorkProjectCatalog).withCatalog);
     web = await serveTestHost(null, { home, host });
   };
   const stop = async () => { await web?.close(); await host?.close(); web = undefined; host = undefined; };
@@ -89,11 +89,14 @@ test("Form standard MCP preserves submissions and publications across tool proce
   const share = form.share_id; assert.ok(share);
   const db = openHomeSqliteDatabase(home,"form");
   try {
-    db.exec("CREATE TRIGGER fail_form_mcp BEFORE UPDATE OF artifact_version ON forms WHEN NEW.artifact_version > OLD.artifact_version BEGIN SELECT RAISE(ABORT, 'fixture association failed'); END");
+    const sentinel = (await call(writer, "create", { title: "Constraint fixture" })).form;
+    const fixedSentinel = (await call(writer, "promote", { id: sentinel.id, expected_version: sentinel.version })).form;
+    db.exec("CREATE UNIQUE INDEX fail_form_mcp ON forms ((1)) WHERE artifact_version > 0");
     assert.equal((await answer(writer,"promote",{id,expected_version:form.version})).isError,true);
-    assert.equal((await call(reader,"get",{id})).form.publication_pending.version,1);
+    assert.deepEqual((await call(reader,"get",{id})).form, form);
     form = (await call(writer,"update",{id,title:"Later edit",expected_version:form.version})).form;
-    db.exec("DROP TRIGGER fail_form_mcp");
+    db.exec("DROP INDEX fail_form_mcp");
+    await call(writer, "delete", { id: fixedSentinel.id, expected_version: fixedSentinel.version });
   } finally {db.close();}
 
   // The Host restarts; the tools reconnect to the new one.
@@ -102,14 +105,14 @@ test("Form standard MCP preserves submissions and publications across tool proce
   assert.deepEqual((await call(restarted,"submit",input)).submission,submission);
   assert.equal((await call(reader,"results",{id})).analysis.submission_count,1);
   const recovered = await call(restarted,"promote",{id,expected_version:form.version});
-  assert.equal(recovered.recovered,true); assert.equal(recovered.artifact.version,1);
+  assert.equal(recovered.recovered,false); assert.equal(recovered.artifact.version,1);
   assert.equal(recovered.form.title,"Later edit"); assert.equal(recovered.form.share_id,share);
   const project = new LocalProjectDatabase(a.database_path);
   try {
     const library = openProjectVersionStores(project);
     const artifact = library.artifacts.query.getArtifactVersion(a.project_id,recovered.artifact)!;
     const payload = artifact.payload as { title: string; questions: Array<{ title: string }>; answers?: unknown };
-    assert.equal(payload.title,"MCP 问卷"); assert.equal(payload.questions[0]!.title,"MCP 题目");
+    assert.equal(payload.title,"Later edit"); assert.equal(payload.questions[0]!.title,"MCP 题目");
     assert.equal(payload.answers,undefined);
     assert.equal(library.artifacts.query.getArtifactVersion(a.project_id,{...recovered.artifact,version:2}),null);
   } finally {project.close();}

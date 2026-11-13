@@ -654,6 +654,7 @@
     "goals.inputs.couldn-t-accept": "没能认可",
     "goals.inputs.couldn-t-remove": "没能移除",
     "goals.inputs.create-goal": "或为这个 Goal 新建",
+    "goals.inputs.fixed-this-version": "固定的这一版",
     "goals.inputs.fixed-version-version": "固定的第 {version} 版",
     "goals.inputs.follow-original": "跟着原文",
     "goals.inputs.follow-original-goal-sees-now-fix-version-goal": "「跟着原文」：目标看到的是它现在的样子；「固定这一版」：目标认的是加入时存下的那一版，原文之后再改也不变。",

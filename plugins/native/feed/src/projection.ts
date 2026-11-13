@@ -1,3 +1,4 @@
+import { cutWithEllipsis } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { redactSecrets } from "@molis-ai/molis-work-plugin-sdk";
 import type { FeedUiPreset } from "./ui.js";
 import type { FeedItemRecord as CanonicalFeedItem, FeedMaterialRecord as CanonicalFeedMaterial } from "./contract/feed.js";
@@ -67,7 +68,7 @@ export interface FeedSnapshot {
 
 function bounded(value: string, maximum: number): string {
   const normalized = value.trim();
-  return normalized.length > maximum ? `${normalized.slice(0, maximum - 1)}…` : normalized;
+  return cutWithEllipsis(normalized, maximum);
 }
 
 export function feedItemContext(item: FeedItemRecord): string {

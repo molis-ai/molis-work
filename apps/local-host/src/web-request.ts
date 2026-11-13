@@ -37,7 +37,7 @@ import { handleSurfaceAttentionHttp } from "./surface-position-http.js";
 import { handleSurfaceSlotHttp } from "./surface-slot-http.js";
 import { UI_LANGUAGE_PREVIEW_HEADER } from "./web-ui-preference.js";
 import { homeStageHalves } from "./home-plugin-http.js";
-import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
+import { builtinPluginByProjectKey } from "./plugin-registry.js";
 import { readRuntimeStageData, runtimeStageOwner, shownRuntimeOwners, type RuntimeStageOwner } from "./project-plugin-stages.js";
 import type { InboxStageData } from "@molis-ai/molis-work-plugin-inbox";
 import { handlePluginStageFragmentHttp } from "./plugin-stage-fragment-http.js";
@@ -247,7 +247,7 @@ const pageOwnerRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
       bind: (action, owner, signal) => bindLocalWebAction(localHost, hostReference, action, { signal, stage_read: ownerRead(owner) }),
       owner: async key => {
         const state = await ensureProjectPlugins(pluginPorts), home = await homeStageHalves(localHost.homePlugins);
-        const entry = PLATFORM_PLUGIN_REGISTRATIONS.find(item => item.project_plugin_id === key) ?? home?.entries.find(item => item.project_plugin_id === key);
+        const entry = builtinPluginByProjectKey(key) ?? home?.entries.find(item => item.project_plugin_id === key);
         return entry ? runtimeStageOwner(state, entry, home).owner : undefined;
       } }) },
   { id: "subject-context", handle: ({ request, response, url, options, shownPlugins, localHost, hostReference, pluginPorts }) =>

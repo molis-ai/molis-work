@@ -1,14 +1,27 @@
 import assert from "node:assert/strict";
-import test from "node:test";
-import { pagesActions as actions, pagesContentActions as content } from "@molis-ai/molis-work-plugin-pages";
+import test, { type TestContext } from "node:test";
+import { pagesActions as actions, pagesContentActions as content, PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-pages";
 import { body, fixture, selection } from "./fixtures/pages-action-host.js";
-import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
 import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import { openTestHome, type TestHome, type TestProject } from "./fixtures/test-home.js";
 
-test("Pages auto-registers all business contracts; HTTP and workflow use the same persisted operations", async () => {
-  await fixture(async ({ home, client, caller, bound, host, ref }) => {
+/** A project the Home's catalog holds: since the atomic pin (batch 06, N12) only such a project's library takes a Pages publication. */
+async function catalogFixture(t: TestContext, run: (f: { home: string; host: TestHome["host"]; caller: ActionCallContext; client: ReturnType<TestHome["host"]["actionClient"]>;
+  bound: ReturnType<typeof bindActionClient>; ref: TestProject["reference"]; reopen: () => Promise<void> }) => Promise<void>) {
+  const f = await openTestHome(t), project = await f.createProject("Pages actions", ["pages"]);
+  const ref = project.reference, client = f.host.actionClient(ref);
+  const person = async (): Promise<ActionCallContext> => ({ ...await f.host.localPersonContext(ref), actor_id: "owner", permissions: PAGES_ACTION_PERMISSIONS });
+  let caller = await person();
+  // The person's context names the open project's runtime; after the project closes, the next call carries a fresh one.
+  const reopen = async () => { caller = await person(); };
+  await run({ home: f.home, host: f.host, caller, client, ref, reopen, bound: bindActionClient(client, () => caller) });
+}
+
+test("Pages auto-registers all business contracts; HTTP and workflow use the same persisted operations", async t => {
+  await catalogFixture(t, async ({ home, client, caller, bound, host, ref, reopen }) => {
     const discovered = await client.discover(caller);
     for (const action of Object.values(actions)) assert.ok(discovered.some(row => row.capability_id === action.capability_id));
     assert.equal(discovered.find(row => row.capability_id === actions.ai.capability_id)!.availability.available, false);
@@ -43,6 +56,7 @@ test("Pages auto-registers all business contracts; HTTP and workflow use the sam
     assert.equal((await bound.invoke(actions.get, { id: document.id })).document.folder_id, "");
     assert.equal((await bound.invoke(actions.get, { id: document.id })).document.body.content?.length, updated.body.content?.length);
     await host.closeProject(ref);
+    await reopen();
     assert.equal((await bound.invoke(actions.get, { id: document.id })).document.artifact_id, promoted.artifact.artifact_id);
     await bound.invoke(actions.delete, { id: received.item_id });
     assert.deepEqual((await bound.invoke(actions.list, {})).documents.map(row => row.id), [document.id]);

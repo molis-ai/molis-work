@@ -666,6 +666,7 @@
     "goals.inputs.couldn-t-accept": "Couldn’t accept it",
     "goals.inputs.couldn-t-remove": "Couldn’t remove it",
     "goals.inputs.create-goal": "or create for this goal",
+    "goals.inputs.fixed-this-version": "Fixed version",
     "goals.inputs.fixed-version-version": "Fixed version {version}",
     "goals.inputs.follow-original": "Follow the original",
     "goals.inputs.follow-original-goal-sees-now-fix-version-goal": "“Follow the original”: the goal sees it as it is now. “Fix this version”: the goal uses the version saved when it was added; later edits don’t change it.",

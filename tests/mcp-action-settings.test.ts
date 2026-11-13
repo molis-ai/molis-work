@@ -120,6 +120,8 @@ test("local management discovers an unknown plugin, authorizes its exact contrac
     // The route cannot enable a grant for a provider that is gone, so the state below is the one the product leaves behind: a grant
     // that was never revoked, whose provider left and whose project is then deleted.
     assert.equal(entry(await read(never.client_id)).can_revoke, true);
+    // As the Host's deletion service does (project-deletion-service.ts): the open project is released before its row and files go.
+    await host.closeProject(project.database_path);
     await catalog.deleteProject({ project_id: project.project_id, actor_id: "test", delete_confirmed: true, idempotency_key: "delete-grant-scope" });
     const orphan = await read(never.client_id);
     assert.equal(entry(orphan).status, "missing");

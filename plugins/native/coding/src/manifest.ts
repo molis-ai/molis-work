@@ -8,6 +8,7 @@ import { agentInputActions } from "@molis-ai/molis-work-contracts/services/agent
 import { projectDirectoryActions, projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { GOALS_ACTIONS } from "./goals-actions.js";
 import { KNOWLEDGE_READ_PERMISSION, knowledgeActions } from "@molis-ai/molis-work-contracts/services/knowledge";
+import { materialsActions } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import { SKILLS_READ_PERMISSION, skillCatalogActions } from "@molis-ai/molis-work-contracts/services/skills";
 import { CODING_GOAL_CONTEXT_TYPE, CODING_PLAN_TYPE } from "./artifacts.js";
 import {
@@ -84,7 +85,8 @@ export const codingManifest: PluginManifest = {
     provides: [],
     consumes: [
       searchActions.references.capability_id, "goals.subject.read", "goals.search.entries",
-      "files.state", "files.directory", "files.open", "files.capture", "diff.state", "text-stats.state",
+      // The embedded Git shows a file's changes through Diff, under this page.
+      "diff.state",
       "git.state", "git.select-diff", "git.prepare-index", "git.results", "git.summary", "git.pr-support", "git.conflict", "git.operations", "git.prepare-operation", "git.save-result",
       ...Object.values(agentHostCapabilities).map((entry) => entry.capability_id),
       ...Object.values(agentCollaborationActions).map((entry) => entry.capability_id),
@@ -95,6 +97,10 @@ export const codingManifest: PluginManifest = {
       ...Object.values(characterPluginActions).map(entry => entry.capability_id),
       knowledgeActions.read.capability_id,
       knowledgeActions.list.capability_id,
+      // A folder file, a quote or a snapshot chosen as a round's material is read through the platform's materials service.
+      materialsActions.read.capability_id,
+      // The files face opens a folder file as the platform's 「打开资料」, then shows it in the side panel's reader.
+      materialsActions.open.capability_id,
       skillCatalogActions.list.capability_id,
       skillCatalogActions.readBodies.capability_id,
       projectDirectoryActions.get.capability_id,
@@ -217,7 +223,7 @@ export const codingManifest: PluginManifest = {
     { route_id: "coding.card-dismiss", method: "POST", path: "/sessions/:sessionId/cards/:cardId/dismiss" },
   ],
   ui: { locales: { default: "zh", available: ["zh", "en"] },
-    embedded_plugins: ["io.molis.work.files", "io.molis.work.git", "io.molis.work.diff", "io.molis.work.text-stats"],
+    embedded_plugins: ["io.molis.work.git", "io.molis.work.diff"],
     contributions: [CODING_UI_CONTRIBUTION_ID, CODING_SETTINGS_UI_CONTRIBUTION_ID],
     views: [
       { view_id: "conversation", slot: "stage", title: "Coding", contribution_id: CODING_UI_CONTRIBUTION_ID, accepts_objects: true },

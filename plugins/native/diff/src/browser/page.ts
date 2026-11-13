@@ -1,10 +1,12 @@
+import { requiredQuery } from "@molis-ai/molis-work-plugin-sdk/browser";
 import type {} from "@molis-ai/molis-work-plugin-sdk";
-import { required } from "./dom.js";
 import type { Host, StateAnswer } from "./types.js";
 
 const uiText = globalThis.t;
 const { molisWorkRetitleRegion: retitle } = globalThis as typeof globalThis & { molisWorkRetitleRegion?: (root: ParentNode, before: string, after: string) => void };
 type DrawnComparison = { index: number; view: unknown; html: string };
+
+const required = requiredQuery(selector => `Diff page: ${selector} is missing`);
 
 /**
  * Diff's page: the comparison of the change being looked at, drawn by the Host. It is read when the page is shown, when

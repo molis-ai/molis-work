@@ -65,7 +65,10 @@ test("W2-18-WF-STOP-01: stop reaches Form's final effect after its model wait an
     { plugin: "action", action: { ref: generate.ref, title: generate.title, mapping: { id: { value: form.id }, prompt: { from: "body" }, expected_version: { value: form.version } } } },
     { plugin: "action", action: { ref: local.ref, title: local.title, mapping: { id: { value: later.id }, prompt: { from: "body" } } } }], links: [f.pass, f.pass] } });
   const { instance } = await f.actions.invoke(w.start, { id: workflow.workflow_id, item_id: f.pageId });
-  const pending = f.actions.invoke(w.continue, { id: instance.instance_id }); const rejected = assert.rejects(pending);
+  // S-plugin-read-original-caller: the nested call's fence asks the Workflows run, so the stop refuses it as a cancellation; it is not
+  // mistaken for a read from another plugin instance.
+  const pending = f.actions.invoke(w.continue, { id: instance.instance_id });
+  const rejected = assert.rejects(pending, (error: { code?: string }) => { assert.equal(error.code, "actions.cancelled"); return true; });
   await entered.promise;
   const stopped = (await f.actions.invoke(w.stop, { id: instance.instance_id })).instance;
   assert.equal(stopped.status, "stopped"); finish.resolve(); await rejected; await childFinished.promise;

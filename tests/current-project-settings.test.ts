@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { DatabaseSync } from "node:sqlite";
 import { LocalProjectDatabase, MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { filesManifest } from "@molis-ai/molis-work-plugin-files";
+import { diffManifest } from "@molis-ai/molis-work-plugin-diff";
 import { codingManifest } from "@molis-ai/molis-work-plugin-coding";
 import { projectDirectoryActions, projectSettingsCapabilities as settings } from "@molis-ai/molis-work-contracts/modules/projects";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
@@ -49,8 +49,8 @@ test("Manifest gates the project's directories; host scopes them to the call's p
     for (const id of ["projects.workspaces.list", "projects.settings.workspaces.read", "projects.settings.browsing-workspace.read", "projects.settings.browsing-workspace.select"]) {
       assert.ok(!registered.some(row => row.capability_id === id || row.capability_id === id + ".v1"), `${id} is not registered`);
     }
-    // Files and Coding read the folders with their roles; neither declares a browsing setting.
-    for (const manifest of [filesManifest, codingManifest]) {
+    // Coding reads the folders with their roles; it declares no browsing setting.
+    for (const manifest of [codingManifest]) {
       assert.ok(manifest.capabilities.consumes.includes(get.capability_id), manifest.plugin_id);
       assert.ok(!manifest.capabilities.consumes.some(id => id.startsWith("projects.settings.workspaces") || id.startsWith("projects.settings.browsing-workspace")), manifest.plugin_id);
     }
@@ -100,7 +100,7 @@ test("RAC-454 the project's Runtime pick is the person's own setting: Coding rea
     assert.equal(await coding.invoke(settings.runtime, [], control), "engine-b");
     assert.equal(hasTable("a"), true);
     assert.equal(await codingOfB.invoke(settings.runtime, [], control), null, "another project does not see it");
-    await assert.rejects((await consumer("files", filesManifest, "a")).invoke(settings.runtime, [], control), /没有声明/);
+    await assert.rejects((await consumer("diff", diffManifest, "a")).invoke(settings.runtime, [], control), /没有声明/);
     await assert.rejects(coding.invoke(settings.selectRuntime, ["engine-c"], control), { code: "plugin.grant_denied" }, "Coding has no grant to choose the person's Runtime");
     const granted = await consumer("granted-unconsumed", codingManifest, "a", { "projects:settings": true });
     await assert.rejects(granted.invoke(settings.selectRuntime, ["engine-c"], control), { code: "actions.forbidden", message: /没有声明/ }, "a granted plugin must still declare the specific action");

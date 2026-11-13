@@ -6,6 +6,14 @@
 
 ## 在做的
 
+- [batch-06-runtime-cost](batch-06-runtime-cost/spec.md)：第 06 批各包调用成本；N47 最终回调按需复制与 N51 注册表共用，保留权限隔离与前后实测。
+
+- [batch-06-shared-tools](batch-06-shared-tools/spec.md)：第 06 批成果固定、平台资料产生者与 SDK 公用工具；合同设计复核通过，N12 待隔离验证，Files 界面定样与实现按本批顺序推进。
+
+- [batch-06-call-cost](batch-06-call-cost/spec.md)：第 06 批调用成本整治；先建立 N56 静态与运行时预算及当前基线，再验证宿主重复调用的定向修复。
+
+- [workbench-experience-upgrade](workbench-experience-upgrade/spec.md) 工作台体验走查与升级方案。含现状截图、界面样稿、交互动效和六项待评审决定。2026-11-13 方案整理，需求维护 Codex，实施待分配。
+
 - [daily-quality-d0038](daily-quality-d0038/spec.md)：用户已选择 D 方案，工作台改用可撤销会话，宿主控制凭据不进入页面；执行中。
 
 - [state-machine-platform](state-machine-platform/spec.md)：状态与状态机的平台能力——平台能力状态统一登记、插件声明状态与迁移、启动兑现、只读登记、统一家族显示、可选的插件自管流水账；内置先强制、第三方先提示、对外开放后的阶段二第三方也强制，创作台生成必须申报，公开家族照搬现有 21 类。2026-11-08 需求已整理、用户就十二项方向拍板，并确认按 §13 并入路线书 26-7／27-6／47-2／48-5、迁移进统一待办；尚未实现。

@@ -41,13 +41,14 @@ test("a Shelf file and a project reference open inside the workbench, not in a n
   assert.deepEqual(await evaluate("window.__opened"), [], "no new browser page was opened");
 });
 
-test("RAC-84 PG-060 side-panel open selects the exact Files object on cold and already open views", { timeout: 90_000 }, async t => {
+// Files retirement S4: a project-folder file the side panel lists opens in the main area's reader (design A「展开到主区」), not in
+// the Files plugin's page; the person's open still keeps where they were reading.
+test("RAC-84 PG-060 side-panel open selects the exact project-folder file on cold and already open readers", { timeout: 90_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded");
   if (!browser) {
-    t.skip("RAC-84 not verified: test Chrome is unavailable; the Files selection journey did not run.");
+    t.skip("RAC-84 not verified: test Chrome is unavailable; the project-folder selection journey did not run.");
     return;
   }
-  const files = await pluginFrameBrowser(t, browser, "files");
   const { web, origin, projectId, homeDirectory, command, sessionId, navigate, evaluate, waitFor, click } = browser;
   const prefix = `/projects/${projectId}`;
   const directory = join(homeDirectory, "object-open");
@@ -62,17 +63,17 @@ test("RAC-84 PG-060 side-panel open selects the exact Files object on cold and a
   // The folder is the project's output, set in its settings as the person does: the side panel lists the output's files (SSC-17).
   const workspaceId = (await setProjectOutputFolder(web, projectId, directory)).workspace_id;
   assert.equal((await readProjectDirectories(web, projectId)).directories.length, 1, "the output is the project's one folder");
-  const filesState = () => web.get<{ position: { workspace_id: string; path: string[] } | null }>(`${prefix}/api/plugins/io.molis.work.files/state`);
-  assert.equal((await filesState()).position, null);
+  const position = () => web.get<{ position: { workspace_id: string; path: string[] } | null }>(`${prefix}/api/materials/position`);
+  assert.equal((await position()).position, null);
 
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + prefix + "/" }, sessionId));
   await click("[data-side-tabs] [data-side-tab][aria-selected=true]");
   await click("[data-side-tab=files]");
-  // Only the output, which Files browses when the page names no folder, is listed. Equal basenames at distinct paths must retain their full IDs.
-  // Files has never been opened in this page; the second iteration uses the Files view the first one opened.
+  // Only the output is listed. Equal basenames at distinct paths must retain their full IDs.
+  // The reader has never been opened in this page; the second iteration uses the reader the first one opened.
   for (const [index, target] of targets.entries()) {
-    t.diagnostic(index === 0 ? "cold Files object open" : "already open Files changes to another same-name object");
+    t.diagnostic(index === 0 ? "cold reader open" : "already open reader changes to another same-name file");
     const objectId = `${workspaceId}:${target.path.join("/")}`;
     const row = `[data-side-file][data-kind="workspace_file"][data-id=${JSON.stringify(objectId)}]`;
     await waitFor(`Boolean(document.querySelector(${JSON.stringify(row)}))`);
@@ -81,12 +82,13 @@ test("RAC-84 PG-060 side-panel open selects the exact Files object on cold and a
     assert.equal(await evaluate("document.querySelector('[data-side-files-action=open]').dataset.id"), objectId);
     await click('[data-side-files-action="open"]');
 
-    await waitFor(`document.querySelector('[data-tab-kind=item][data-plugin=files][aria-current=page]')?.dataset.itemId === ${JSON.stringify(objectId)}`);
-    await files.waitFor(`!document.querySelector('[data-files-text]').hidden && document.querySelector('[data-files-text]').value === ${JSON.stringify(target.text)}`);
-    assert.equal(await files.evaluate("document.querySelector('[data-files-title]').textContent"), target.path.join("/"));
-    assert.deepEqual((await filesState()).position, { workspace_id: workspaceId, path: target.path });
+    await waitFor(`document.querySelector('[data-tab-kind=item][data-plugin=materials][aria-current=page]')?.dataset.itemId === ${JSON.stringify(objectId)}`);
+    await waitFor(`document.querySelector('[data-stage-materials-window]')?.textContent === ${JSON.stringify(target.text)} && !document.querySelector('[data-work-surface=materials]').closest('[hidden]')`);
+    assert.deepEqual(await evaluate("[document.querySelector('[data-materials-stage-title]').textContent, document.querySelector('[data-materials-stage-meta]').textContent]"),
+      [target.path.at(-1), target.path.slice(0, -1).join(" / ")]);
+    assert.deepEqual((await position()).position, { workspace_id: workspaceId, path: target.path });
     if (index === 0) await click('[data-side-files-action="back"]');
   }
-  assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-tab-kind=item][data-plugin=files]')].map(tab => tab.dataset.itemId)"),
+  assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-tab-kind=item][data-plugin=materials]')].map(tab => tab.dataset.itemId)"),
     targets.map(target => `${workspaceId}:${target.path.join("/")}`));
 });

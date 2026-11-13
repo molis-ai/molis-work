@@ -1,5 +1,6 @@
+import { isTimeZone } from "@molis-ai/molis-work-plugin-sdk";
 import type { JellyCategory, JellyItem, JellySchedule, JellySeries, JellyWorkspace } from "./contract.js";
-import { jellyAssert, jellyErrors } from "./error.js";
+import { jellyAssert } from "./error.js";
 
 export const JELLY_UNCATEGORIZED_ID = "uncategorized";
 export function jellyDate(value: unknown): string {
@@ -32,8 +33,7 @@ export function validateJellyItem(item: JellyItem, categoryIds: Set<string>): vo
   jellyAssert(typeof item.pinned === "boolean" && Number.isSafeInteger(item.untimed_rank), "事项排序无效");
   jellyAssert(stamp(item.completed_at) && stamp(item.created_at) && stamp(item.updated_at) && item.created_at !== null && item.updated_at !== null, "事项时间戳无效");
   jellyAssert(typeof item.notes === "string" && typeof item.completion_description === "string", "事项内容无效");
-  jellyAssert(typeof item.time_zone === "string", "时区无效");
-  try { new Intl.DateTimeFormat("en", { timeZone: item.time_zone }); } catch { throw jellyErrors.invalid("时区无效"); }
+  jellyAssert(typeof item.time_zone === "string" && isTimeZone(item.time_zone), "时区无效");
   validateJellySchedule(item);
 }
 export function jellyWithinSeries(series: JellySeries, date: string): boolean { return date >= series.start_date && (series.until === null || date <= series.until); }

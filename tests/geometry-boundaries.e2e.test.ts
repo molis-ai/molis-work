@@ -13,7 +13,7 @@ import { openBoardBrowser as openGoalBrowser } from "./fixtures/board-browser.js
 // Light at 1x lets motion run (transitions are switched off so a box is read where it rests); dark at 2x reads with
 // reduced motion, so the hairlines and rings are read on a high-density screen too.
 
-const PAGES = ["goals", "todo", "pages", "coding", "files", "issues", "workflows", "inbox"];
+const PAGES = ["goals", "todo", "pages", "coding", "issues", "workflows", "inbox"];
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** What moves when a control takes a state, and the frames drawn inside frames. */

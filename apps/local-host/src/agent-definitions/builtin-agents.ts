@@ -1,4 +1,4 @@
-import { PLATFORM_PLUGIN_REGISTRATIONS } from "../plugin-registry.js";
+import { builtinPluginByManifestId } from "../plugin-registry.js";
 import type { AgentDefinitionRegistration, AgentDefinitionSource } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import { ASSISTANT_AGENT, ASSISTANT_PROMPTS } from "../assistant/assistant-agent.js";
@@ -21,7 +21,7 @@ function sourceOf(ownerId: string): AgentDefinitionSource {
   if (system) return { kind: "system", ...system };
   // A platform owner shown as a plugin named by its id is an internal word in the settings (F-01): every one has a title here.
   if (ownerId.startsWith("system:")) throw new Error(`${ownerId} has no entry in SYSTEM_INSTRUCTION_SOURCES`);
-  const manifest = PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.manifest.plugin_id === ownerId)?.manifest;
+  const manifest = builtinPluginByManifestId(ownerId)?.manifest;
   return { kind: "plugin", plugin_id: ownerId, plugin_version: manifest?.version ?? "", title: manifest?.name ?? ownerId };
 }
 
@@ -36,7 +36,7 @@ export function builtinRegistrations(): AgentDefinitionRegistration[] {
   for (const inline of BUILTIN_INLINE_AGENT_ROLES) registrations.find(row => row.owner_id === inline.owner_id)?.roles.push(structuredClone(inline.role));
   registrations.forEach(assertInstructionRoles);
   return registrations.map(registration => {
-    const manifest = PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.manifest.plugin_id === registration.owner_id)?.manifest;
+    const manifest = builtinPluginByManifestId(registration.owner_id)?.manifest;
     const reader = manifest && registeredBuiltinText(manifest);
     if (reader) return bindAgentDisplayWords(registration, reader);
     // These are the Host's explicit instruction registrations even when their existing source descriptor says plugin.

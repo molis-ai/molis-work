@@ -1,6 +1,7 @@
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginConsentKind, PluginConsentRecord } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import { portTypeKey } from "@molis-ai/molis-work-contracts/platform/plugin-wiring";
+import { systemOutputSource } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import { consentStands, consentSubject } from "@molis-ai/molis-work-plugin-runtime";
 import type { PluginPlatform } from "./plugin-platform.js";
 
@@ -25,8 +26,15 @@ export function bindDeclaredDefaults(platform: PluginPlatform, projectId: string
     if (!rows.has(manifest.plugin_id)) rows.set(manifest.plugin_id, platform.consents?.consents(manifest.plugin_id) ?? []);
     return consentStands(rows.get(manifest.plugin_id)!, manifest.publisher.signature, kind, subject);
   };
+  // A source is a running plugin or one of the platform's producers (`system.materials`), each under the signature it holds now.
+  const sourceOf = (pluginId: string) => {
+    const system = systemOutputSource(pluginId);
+    if (system) return { signature: system.signature, outputs: system.outputs };
+    const manifest = platform.supervisor.manifest(pluginId);
+    return manifest ? { signature: manifest.publisher.signature, outputs: manifest.ports?.outputs ?? [] } : undefined;
+  };
   const wiring = (target: PluginManifest, port: string, source: { plugin_id: string; port: string }): boolean => {
-    const signature = platform.supervisor.manifest(source.plugin_id)?.publisher.signature;
+    const signature = sourceOf(source.plugin_id)?.signature;
     return signature !== undefined && agreed(target, "default_wiring", consentSubject.defaultWiring(port, source, signature));
   };
   for (const target of platform.wiring.view().plugins) {
@@ -40,7 +48,7 @@ export function bindDeclaredDefaults(platform: PluginPlatform, projectId: string
       }
       const source = input.default_source;
       if (!source || !wiring(manifest, input.port, source)) continue;
-      const output = platform.supervisor.manifest(source.plugin_id)?.ports?.outputs.find(port => port.port === source.port);
+      const output = sourceOf(source.plugin_id)?.outputs.find(port => port.port === source.port);
       if (!output || portTypeKey(output.artifact_type_id, output.schema_version) !== portTypeKey(input.artifact_type_id, input.schema_version)) continue;
       if (current?.source || current?.artifact) continue;
       platform.wiring.bind({ project_id: projectId, actor_id: actorId, target_plugin_id: target.plugin_id, target_port: input.port,

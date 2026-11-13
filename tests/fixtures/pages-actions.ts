@@ -23,7 +23,7 @@ export async function preparePagesFileImport(files: readonly PagesImportFile[], 
 }
 
 type CompleteOptions = Parameters<NonNullable<PagesActionPorts["complete"]>>[1];
-interface PagesTestOptions extends Pick<PagesActionPorts, "publishArtifact"> {
+interface PagesTestOptions {
   /** The model's text; a test that needs the whole result (or its commit guard) passes `complete` instead. */
   readonly completeText?: (prompt: Parameters<NonNullable<PagesActionPorts["complete"]>>[0], options: CompleteOptions) => Promise<string>;
   readonly complete?: PagesActionPorts["complete"];
@@ -39,7 +39,7 @@ export function pagesTestPorts(store: PagesStore, projectId: string, options: Pa
   const actions = bindActionClient(service, () => ({ actor_id: "test", project_id: projectId, audience: "user", permissions: PAGES_ACTION_PERMISSIONS }));
   service.registerProvider({ provider: { provider_id: pagesManifest.plugin_id, title: "Pages", kind: "plugin", project_id: projectId },
     definitions: pagesManifest.actions!, handlers: [...createPagesActionHandlers({ ...stores, prepareImport: (files, caller) => preparePagesFileImport(files, { signal: caller.signal }),
-      publishArtifact: rest.publishArtifact, ...(complete ? { complete } : {}),
+      ...(complete ? { complete } : {}),
       modelAvailability: () => complete ? { available: true } : { available: false, code: "actions.connection_required", reason: "请先配置文字模型" },
     }), ...createPagesContentHandlers(actions)] });
   return { projectId, actions };

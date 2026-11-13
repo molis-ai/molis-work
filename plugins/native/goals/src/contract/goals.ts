@@ -617,7 +617,7 @@ export interface GoalsApplicationApi {
   planning: GoalsPlanningApi;
 }
 export type { GoalInputBindingRecord, GoalInputBindingsApi } from "./goal-inputs.js";
-export { GOAL_PLUGIN_OBJECT_SOURCE, goalPluginObjectRef, parseGoalPluginObjectRef } from "./goal-inputs.js";
+export { GOAL_MATERIAL_SNAPSHOT_SOURCE, GOAL_PLUGIN_OBJECT_SOURCE, goalMaterialSnapshotRef, goalPluginObjectRef, parseGoalMaterialSnapshotRef, parseGoalPluginObjectRef } from "./goal-inputs.js";
 export type {
   ApplyGoalConcernInput,
   CiteGoalDecisionInput,

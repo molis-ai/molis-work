@@ -1,3 +1,4 @@
+import type {} from "@molis-ai/molis-work-plugin-sdk";
 import { blankLeaving, dropBlank } from "./blank.js";
 import { loadList, openDocument, save } from "./document.js";
 import { firstCharacters, required, said, statusOf } from "./dom.js";

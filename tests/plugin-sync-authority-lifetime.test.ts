@@ -111,3 +111,14 @@ test('context lookup results are refused if the owner revokes authority during t
     });
   }
 });
+
+test('a Home reached through a symlink is the same Home; another Home is still refused',async t=>{
+  const {mkdtempSync,mkdirSync,symlinkSync,realpathSync,rmSync}=await import('node:fs');const {join}=await import('node:path');const {tmpdir}=await import('node:os');
+  const root=mkdtempSync(join(tmpdir(),'sync-authority-home-'));t.after(()=>rmSync(root,{recursive:true,force:true}));
+  const real=join(root,'home'),other=join(root,'other'),link=join(root,'link');mkdirSync(real);mkdirSync(other);symlinkSync(real,link);
+  const f=fixture(),authority={...f.authority,home:link};
+  withPluginSyncAuthority(authority,()=>{
+    pluginSyncAuthority(realpathSync(real),identity).authorize();
+    forbidden(()=>pluginSyncAuthority(other,identity));
+  });
+});

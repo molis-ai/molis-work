@@ -7,7 +7,6 @@ import { EMPTY_PAGES_BODY, parsePagesBody } from "./document.js";
 import { pagesErrors } from "./error.js";
 import { PagesGenerationStore } from "./store-generations.js";
 import { pagesTemplateById } from "./templates.js";
-import type { PagesPublicationIntent, PagesPublicationSnapshot } from "./promote.js";
 import { PAGES_DATABASE } from "./database.js";
 export { PAGES_DATABASE };
 
@@ -192,42 +191,6 @@ export class PagesStore extends PagesGenerationStore {
     return next;
   }
 
-  beginPublication(id: string, projectId: string, actorId: string, goalId?: string, expectedVersion?: number, existing?: PagesPublicationSnapshot, version?: number): PagesPublicationIntent {
-    return this.atomically(() => {
-      const current = this.get(id, projectId);
-      const pending = this.publicationIntent(id);
-      if (expectedVersion !== undefined && current.version !== expectedVersion) throw pagesErrors.conflict("文档已改变，请重新读取后保存成果");
-      if (pending) {
-        if (pending.actor_id !== actorId) throw pagesErrors.publication_owner("请由上次保存的发起者恢复发布，原快照已保留");
-        if (goalId !== undefined && goalId !== pending.goal_id) throw pagesErrors.publication_pending("请先恢复上次保存的成果，再关联新的 Goal");
-        return pending;
-      }
-      const intent: PagesPublicationIntent = { title: existing?.title ?? current.title, body: existing?.body ?? current.body,
-        goal_id: existing?.goal_id ?? normalizeGoalId(goalId ?? current.goal_id), original_goal_id: existing?.goal_id ?? current.goal_id,
-        version: version ?? current.artifact_version + 1, source_version: current.version, actor_id: actorId };
-      this.db.run("UPDATE pages SET publication_pending_json = ? WHERE id = ?", [JSON.stringify(intent), id]);
-      return intent;
-    });
-  }
-
-  completePublication(id: string, projectId: string, intent: PagesPublicationIntent, artifact: { artifact_id: string; version: number }): PagesRecord {
-    return this.atomically(() => {
-      const current = this.get(id, projectId);
-      if (current.artifact_id === artifact.artifact_id && current.artifact_version >= intent.version) return current;
-      const pending = this.publicationIntent(id);
-      if (!pending || JSON.stringify(pending) !== JSON.stringify(intent)) throw pagesErrors.publication_conflict("保存记录已改变，请重新读取文稿");
-      this.update(id, { artifact_id: artifact.artifact_id, artifact_version: artifact.version,
-        ...(current.goal_id === intent.original_goal_id ? { goal_id: intent.goal_id } : {}), expected_version: current.version }, projectId);
-      this.db.run("UPDATE pages SET publication_pending_json = NULL WHERE id = ?", [id]);
-      return this.get(id, projectId);
-    });
-  }
-
-  private publicationIntent(id: string): PagesPublicationIntent | null {
-    const pending = this.db.get("SELECT publication_pending_json FROM pages WHERE id = ?", [id])?.publication_pending_json;
-    return typeof pending === "string" && pending ? JSON.parse(pending) as PagesPublicationIntent : null;
-  }
-
   /**
    * Move one document to another partition (the personal space or a project). Its id stays, so every link and
    * reference still finds it. What only meant something in the old project is let go: its folder, its Goal (Goals
@@ -345,8 +308,8 @@ function keepPagesChange(db: PagesSql, before: PagesRecord, after: PagesRecord):
   return changeId;
 }
 
-function fromPageRow(row: SqlRow): PagesRecord {
-  const pending = row.publication_pending_json ? JSON.parse(String(row.publication_pending_json)) as PagesPublicationIntent : null;
+export function fromPageRow(row: SqlRow): PagesRecord {
+  const pending = row.publication_pending_json ? JSON.parse(String(row.publication_pending_json)) as NonNullable<PagesRecord["publication_pending"]> : null;
   return {
     id: String(row.id),
     project_id: String(row.project_id ?? ""),
@@ -386,7 +349,7 @@ function normalizeFolderTitle(value: string): string {
   return title;
 }
 
-function normalizeGoalId(value: string | undefined): string {
+export function normalizeGoalId(value: string | undefined): string {
   if (value === undefined || value === null) return "";
   if (typeof value !== "string") throw pagesErrors.invalid("Goal 须为文字");
   const id = value.trim();

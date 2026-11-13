@@ -1,3 +1,4 @@
+import { cutWithEllipsis } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { randomUUID } from "node:crypto";
 import { createPrologueError, DEFAULT_TOOL_LIMITS, type ScenarioPack, type ToolRunner } from "@prologue/sdk";
 import { ActionError, actionEffect, actionFieldLabelSource, actionFieldValue, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -407,7 +408,7 @@ const booleanWords = (value: boolean) => [{ owner: "workbench", key: value ? "co
 
 function inputField(key: string, value: unknown, declared?: ReadableProperty): ToolReviewField {
   const label = actionFieldLabelSource(key, declared), words = actionFieldValue(key, value, declared);
-  return { label: label.label, value: words.length > 4000 ? words.slice(0, 4000) + "…" : words, presentation: {
+  return { label: label.label, value: cutWithEllipsis(words, 4000, { prefixLength: 4000 }), presentation: {
     ...(label.defaultKey ? { label: [reviewText("field." + label.defaultKey)] } : {}),
     ...(typeof value === "boolean" ? { value: booleanWords(value) } : {}),
     ...(typeof value === "string" ? { subject: true } : {}),

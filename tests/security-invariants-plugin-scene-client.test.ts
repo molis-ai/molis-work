@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
-import { ActionError, type ActionCallContext, type ActionDefinition, type ActionSceneBinding, type ActionSceneClient, type ActionSceneDefinition, type ActionSceneUsage, type StageSceneMetadataAuthority } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext, type ActionDefinition, type ActionSceneBinding, type ActionSceneClient, type ActionSceneDefinition, type ActionSceneUsage, type ActionSceneView, type ExactActionReference, type StageSceneMetadataAuthority } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginHostServices, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createPluginPlatform, DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
@@ -20,6 +20,7 @@ const decisionOutput = { type: "object", properties: { follow_up: { type: "boole
 const judgment: ActionDefinition = { capability_id: "judgments.scene-client", version: 1, operation: "command",
   action: { title: "判断", description: "判断一段文字", kind: "judgment", scope: "project", audiences: ["user", "workflow", "mcp", "agent"], permissions: [],
     subject_kinds: ["feedback"], input_schema: textInput, output_schema: decisionOutput } };
+const judgmentRef = { capability_id: judgment.capability_id, version: judgment.version, provider_id: "system-judgments" };
 
 interface StepInput { readonly step: string; readonly scene?: string; readonly version?: number; readonly binding?: string; readonly project?: string }
 interface ProbeOptions { readonly grants?: readonly string[]; readonly scene?: boolean; readonly sceneId?: string }
@@ -33,8 +34,9 @@ function probe(short: string, options: ProbeOptions = {}) {
   const scene: ActionSceneDefinition = { scene_id: options.sceneId ?? `${id}.arrived`, version: 1, title: "到达", description: "处理到达的文字", trigger: "arrived", scope: "project",
     subject_kinds: ["feedback"], input_schema: textInput, result_schema: decisionOutput, permissions: [], configuration_permissions: [] };
   const state = { services: undefined as PluginHostServices | undefined, value: undefined as unknown, error: undefined as unknown, hook: () => {}, consumed: [] as unknown[],
+    refs: [judgmentRef] as readonly ExactActionReference[],
     bindings: new Map<string, ActionSceneBinding>(), readViews: [] as ActionCallContext[], beforeBindings: undefined as (() => Promise<void>) | undefined,
-    duringAvailability: undefined as (() => void) | undefined };
+    duringAvailability: undefined as (() => void) | undefined, afterAttempt: undefined as (() => void) | undefined };
   const define = (name: string, operation: "command" | "query", scheduling?: "concurrent"): ActionDefinition<StepInput, boolean> => ({ capability_id: `${id}.${name}`, version: 1, operation,
     action: { scope: "project", audiences: ["user"], permissions: [], subject_kinds: [], title: name, description: name, kind: operation === "query" ? "query" : "operation",
       ...(scheduling ? { scheduling } : {}),
@@ -50,6 +52,7 @@ function probe(short: string, options: ProbeOptions = {}) {
     const scenes = state.services!.scenes!, sceneId = input.scene ?? scene.scene_id, version = input.version ?? 1;
     switch (input.step) {
       case "discover": return scenes.discoverScenes(judgment);
+      case "discover-batch": return scenes.discoverScenesFor(state.refs);
       case "usages": return scenes.usages();
       case "targets": return scenes.targets();
       case "targets-scene": return scenes.targets(undefined, { scene_id: sceneId, scene_version: version, provider_id: id });
@@ -64,6 +67,7 @@ function probe(short: string, options: ProbeOptions = {}) {
   const handler = (definition: ActionDefinition<StepInput, boolean>) => ({ ...definition, handle: async (_caller: ActionCallContext, raw: unknown) => {
     state.readViews.push(_caller);
     try { state.value = await attempt(raw as StepInput); state.error = undefined; } catch (error) { state.value = undefined; state.error = error; }
+    finally { state.afterAttempt?.(); }
     return true;
   }, availability: (caller: ActionCallContext) => { state.readViews.push(caller); state.duringAvailability?.(); return { available: true as const }; } });
   const definition: PluginDefinition = { manifest, async start(context) {
@@ -239,6 +243,11 @@ test("RAC-838 S-89 a second provider cannot register a scene id that is taken, s
 test("RAC-839 S-89 an id that the Manifest declares but another provider holds is refused by bind and runScene, though the kernel resolves it", async t => {
   const calls: string[] = [];
   const env = await platform(t, scenes => ({
+    discoverScenesFor: async (caller, refs, selection) => (await scenes.discoverScenesFor(caller, refs, selection))
+      .map(rows => rows.flatMap(view => [
+        { ...view, provider: { ...view.provider, plugin_id: "io.molis.work.someone-else" } },
+        { ...view, definition: { ...view.definition, version: view.definition.version + 1 } },
+      ])),
     discoverScenes: async (caller, judgment) => (await scenes.discoverScenes(caller, judgment)).map(view => ({ ...view, provider: { ...view.provider, plugin_id: "io.molis.work.someone-else" } })),
     usages: (caller, judgment) => scenes.usages(caller, judgment),
     targets: (caller, judgment, scene) => scenes.targets(caller, judgment, scene),
@@ -251,6 +260,9 @@ test("RAC-839 S-89 an id that the Manifest declares but another provider holds i
   }
   assert.deepEqual(calls, [], "the kernel was not asked to bind or run it");
   assert.deepEqual((await inAction(env, env.main, { step: "discover" })).value, [], "and a list shows none of them as the plugin's");
+  const batch = await inAction(env, env.main, { step: "discover-batch" }, "look");
+  assert.equal(batch.error, undefined, batch.error?.message);
+  assert.deepEqual(batch.value, [[]], "a batch filters even a trusted port's wrong provider and undeclared version");
 });
 
 for (const step of ["usages", "targets"] as const) test(`RAC-839 S-89 ${step} hides a declared id held by another provider or missing from the current directory`, async t => {
@@ -258,6 +270,7 @@ for (const step of ["usages", "targets"] as const) test(`RAC-839 S-89 ${step} hi
   let sceneClient: ActionSceneClient | undefined;
   // The same provider-view seam as RAC-839 above; binding and target rows still come from the real kernel and scene callbacks.
   const env = await platform(t, scenes => (sceneClient = {
+    discoverScenesFor: (caller, refs, selection) => scenes.discoverScenesFor(caller, refs, selection),
     discoverScenes: async (caller, judgment) => (await scenes.discoverScenes(caller, judgment)).flatMap(view => {
       if (view.definition.scene_id !== claimedScene || ownership === "own") return [view];
       return ownership === "missing" ? [] : [{ ...view, provider: { ...view.provider, plugin_id: "io.molis.work.someone-else" } }];
@@ -299,6 +312,7 @@ for (const step of ["usages", "targets"] as const) test(`RAC-839 S-89 ${step} hi
 test("RAC-833 S-89 a caller revoked while the kernel reads a list receives no result", async t => {
   let revoke = () => {};
   const env = await platform(t, scenes => ({
+    discoverScenesFor: (caller, refs, selection) => scenes.discoverScenesFor(caller, refs, selection),
     discoverScenes: (caller, judgment) => scenes.discoverScenes(caller, judgment),
     usages: async (caller, judgment) => { const value = await scenes.usages(caller, judgment); revoke(); return value; },
     targets: async (caller, judgment, scene) => { const value = await scenes.targets(caller, judgment, scene); revoke(); return value; },
@@ -315,6 +329,103 @@ test("RAC-833 S-89 a caller revoked while the kernel reads a list receives no re
   }
   assert.deepEqual([...env.main.state.bindings.values()], before);
 });
+
+test("BRC-05 S-89 exact scene batches preserve order and refuse wrong providers, versions, intent, schemas and workflow-only or unauthorized targets", async t => {
+  const env = await platform(t), who = caller();
+  const scoped = (name: string, over: Partial<ActionDefinition["action"]>): ActionDefinition => ({
+    ...judgment, capability_id: `judgments.scene-client.${name}`, action: { ...judgment.action, ...over },
+  });
+  const definitions = [
+    scoped("workflow-only", { audiences: ["workflow"] }),
+    scoped("restricted", { permissions: ["fixture:judgment"] }),
+    scoped("intent", { result_scene: { scene_id: env.main.scene.scene_id, version: env.main.scene.version + 1, provider_id: env.main.id } }),
+    scoped("schema", { input_schema: { type: "object", required: ["missing"], properties: { missing: { type: "string" } } } }),
+  ];
+  t.after(env.registry.registerProvider({
+    ...env.registration, definitions,
+    handlers: definitions.map(definition => ({ ...definition, handle: () => assert.fail("discovery must not run a candidate") })),
+  }));
+  const restricted: ActionSceneDefinition = { ...env.main.scene, scene_id: "fixture.restricted-scene", permissions: ["fixture:scene"] };
+  t.after(env.registry.registerProvider({
+    provider: { provider_id: "fixture-scenes", title: "Restricted scene", kind: "system" }, definitions: [], handlers: [], scenes: [restricted],
+    scene_handlers: [{ scene_id: restricted.scene_id, version: restricted.version, bindings: () => [],
+      bind: () => assert.fail("discovery must not bind a scene"), consume: () => assert.fail("discovery must not run a scene") }],
+  }));
+  const refs = [judgmentRef, { ...judgmentRef, provider_id: "different-provider" }, { ...judgmentRef, version: 2 },
+    ...definitions.map(definition => ({ ...judgmentRef, capability_id: definition.capability_id })), judgmentRef];
+  assert.ok(env.registry.discover({ ...who.context, audience: "workflow" }).some(row => row.capability_id === refs[3]!.capability_id));
+  assert.ok(env.registry.discover({ ...who.context, permissions: ["fixture:judgment"] }).some(row => row.capability_id === refs[4]!.capability_id));
+  env.main.state.refs = refs;
+  const batch = await inAction(env, env.main, { step: "discover-batch" }, "look", who);
+  assert.equal(batch.error, undefined, batch.error?.message);
+  const raw = env.registry.discoverScenesFor(who.context, refs);
+  assert.deepEqual(raw, refs.map(ref => env.registry.discoverScenes(who.context, ref)));
+  // An installation without scenes:use can still register a publicly visible scene. The private fixture really requires a caller grant.
+  assert.deepEqual(raw[0]!.map(row => row.definition.scene_id), [env.main.scene.scene_id, env.other.scene.scene_id, env.ungranted.scene.scene_id]);
+  assert.ok(env.registry.discoverScenesFor({ ...who.context, permissions: ["fixture:scene"] }, [judgmentRef])[0]!
+    .some(row => row.definition.scene_id === restricted.scene_id), "the private scene is registered and its absence is a permission refusal");
+  const own = batch.value as readonly (readonly ActionSceneView[])[];
+  assert.deepEqual(own, raw.map(rows => rows.filter(row => row.provider.plugin_id === env.main.id)));
+  assert.deepEqual(own.map(rows => rows[0]?.reason), [
+    undefined, "判断能力的提供方已变化，原引用不能自动替换", "判断能力不存在或不可访问", "判断能力不存在或不可访问",
+    "判断能力不存在或不可访问", "此规则仅适用于选定的场景版本和提供方", "场景上下文不能满足函数输入", undefined,
+  ]);
+  assert.deepEqual(own.map(rows => rows[0]?.compatible), [true, false, false, false, false, false, false, true]);
+  for (const ref of [{ ...judgmentRef, provider_id: undefined }, { ...judgmentRef, provider_id: " " }, { ...judgmentRef, version: 0 }]) {
+    env.main.state.refs = [judgmentRef, ref as ExactActionReference];
+    const invalid = await inAction(env, env.main, { step: "discover-batch" }, "look", who);
+    assert.ok(refused(invalid.error, "actions.reference_invalid"), invalid.error?.message);
+    assert.equal(invalid.value, undefined);
+  }
+  assert.deepEqual(env.evaluated, []);
+});
+
+test("BRC-05 S-89 an empty scene batch cannot bypass the installation or active action guard", async t => {
+  const env = await platform(t), kept = env.main.state.services!.scenes!;
+  await assert.rejects(kept.discoverScenesFor([]), { code: "actions.forbidden" });
+  env.main.state.refs = [];
+  const empty = await inAction(env, env.main, { step: "discover-batch" }, "look");
+  assert.equal(empty.error, undefined, empty.error?.message);
+  assert.deepEqual(empty.value, []);
+  env.other.state.services = { ...env.other.state.services, scenes: kept } as PluginHostServices;
+  env.other.state.refs = [];
+  const borrowed = await inAction(env, env.other, { step: "discover-batch" }, "look");
+  assert.ok(refused(borrowed.error, "actions.forbidden", /本插件正在执行的动作/), borrowed.error?.message);
+  assert.equal(borrowed.value, undefined);
+});
+
+for (const change of ["revoke", "cancel"] as const) {
+  test(`BRC-05 S-89 ${change} after real batch discovery refuses the completed view before it reaches the plugin`, async t => {
+    const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), completed = Promise.withResolvers<void>();
+    const abort = new AbortController();
+    const env = await platform(t, scenes => ({
+      discoverScenes: (caller, judgment) => scenes.discoverScenes(caller, judgment),
+      discoverScenesFor: async (caller, refs, selection) => {
+        const rows = await scenes.discoverScenesFor(caller, refs, selection);
+        assert.equal(caller.audience, "user");
+        assert.equal(rows[0]?.[0]?.compatible, true, "the real kernel produced a result before the revocation");
+        entered.resolve(); await release.promise; return rows;
+      },
+      usages: (caller, judgment) => scenes.usages(caller, judgment),
+      targets: (caller, judgment, scene) => scenes.targets(caller, judgment, scene),
+      bind: (caller, binding, options) => scenes.bind(caller, binding, options),
+      runScene: (caller, scene, id, event) => scenes.runScene(caller, scene, id, event),
+    }));
+    const who = caller(), cancel = new ActionError("actions.forbidden", "the caller cancelled");
+    env.main.state.afterAttempt = completed.resolve;
+    const pending = inAction(env, env.main, { step: "discover-batch" }, "look", { ...who, context: { ...who.context, signal: abort.signal } });
+    try {
+      await Promise.race([entered.promise, pending.then(() => assert.fail("missed real batch discovery"))]);
+      if (change === "revoke") who.revoke();
+      else abort.abort(cancel);
+    } finally { release.resolve(); }
+    await pending.catch(error => { if (change !== "cancel") throw error; assert.equal(error, cancel); });
+    await completed.promise;
+    assert.ok(refused(env.main.state.error as ActionError, "actions.forbidden", change === "revoke" ? /the caller was revoked/ : /the caller cancelled/));
+    assert.equal(env.main.state.value, undefined);
+    assert.deepEqual(env.evaluated, []);
+  });
+}
 
 /** The trusted Host's accepted refs and exact owner, separate from this entry's execution refs. */
 async function stageCaller(env: Env) {

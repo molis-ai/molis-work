@@ -14,7 +14,7 @@
 
 “按题目加题”只做本地追加；“AI 生成题目”（`form.questions.draft`）显式使用系统文字模型和连接，另需 `model:invoke`：要求说得不够时先返回 `needs_input` 和几道选择题（宿主把它画成共享问卷卡），回答按问过的题检查后再拟题，只追问一次；问过的题只存在插件进程里（至多 32 组、一天）。缺模型禁用 AI，保留本地操作。模型等待期间问卷被编辑、删除，或调用取消、连接撤销时不追加过期结果。
 
-“标记已发布”只保存本机状态和稳定 `share_id`，不产生外网填写链接。“存成 Artifact”保存问卷内容，不包含答卷；固定下来的版本归本机的人，固定它的行为者记在 `created_by`。发布中断后恢复上次固定快照；后续编辑保留，可另存一版。问卷移走又移回后，下一次固定接着项目成果库里已有的最高版号，不把旧版当作中断记录交回。
+“标记已发布”只保存本机状态和稳定 `share_id`，不产生外网填写链接。“存成 Artifact”保存问卷内容，不包含答卷；固定下来的版本归本机的人，固定它的行为者记在 `created_by`。问卷的固定引用与成果在同一事务提交。失败后可编辑问卷，再固定最新内容。问卷移走又移回后，下一次固定接着项目成果库里已有的最高版号。
 
 只有收集中（`published`）的问卷接受提交和答卷文件导入：草稿和已停止收集（`closed`）的问卷只收本人的试填和本人导入的答卷文件，助理、MCP、流程、插件的提交与导入被拒绝，规则见下面的不变量。
 
@@ -39,7 +39,7 @@
   - 答卷来源由调用方的 audience 决定：只有本机界面（user）的填写页和试填可以用输入里的 `source` 自称 `fill` 或 `preview`；助理、MCP、流程、插件的答卷记为各自的来源，输入的 `source` 对它们无效。导入答卷文件（`form.answers.import`）没有 `source` 可自称：导入进来的答卷来源恒为 `file`（答卷出自对方的文件），不论谁导入；调用方的 audience 只决定问卷不在收集中时能不能导入。
   - 只有收集中（`published`）的问卷接受提交和答卷文件导入。草稿和已停止收集的问卷只收本人的两样东西：试填（本机界面的 `preview`），以及本人导入的答卷文件（页面在停止收集后仍提供导入）。填写页（`fill`）的提交，和助理、MCP、流程、插件来源的提交与导入，以 `form.closed`（HTTP 409）拒绝，不写任何答卷，重新开始收集后恢复；导入是整次调用被拒，在读任何一个文件之前，已导入过的文件也一样。判断是 `FormStore.submit` 与 `FormStore.importAnswers` 事务里的同一个 `assertTakesAnswers`，入口不各写一份；动作层把这个拒绝作为 `ActionError` 交出，MCP 客户端才读得到代码和原因（其他错误对 MCP 只显示为「能力执行失败」）。
   - 流程交来的标题和题目列表按问卷的上限（标题 80 字、40 题）截取后再收，不因超限而整次拒收。
-  - 存成成果的每个副作用（intent、成果、完成记录）先等这次调用的授权，库与成果服务在写入的同一回合里再问原调用方（S-18），插件不手写这一步：被取消、撤权或提供方被替换的调用只留已经提交的阶段，不再多写成果（`tests/form-promote-authority.test.ts`）。
+  - 固定事务在更新根行、登记成果及最终提交时复查原调用授权（S-18）。提交前取消、撤权或提供方变化会回滚问卷引用、成果、事件及复制记录（`tests/form-promote-authority.test.ts`）。
   - 项目被删除时平台按 Manifest 里 Home 库的 `project_rows`（`src/database.ts`：确认框里的标签与要删的表）删掉问卷与收到的全部回答，连同复制回执；插件的代码不参与，平台在自己的连接上删，库不存在时不创建，重复运行没有副作用（PG-024）。
 - 改动后必跑：`node scripts/run-tests.mjs tests/form-actions.test.ts tests/form-fillpage-answer-length.test.ts tests/form-runtime-routes.test.ts tests/form-mcp.test.ts tests/form-client-bundle.test.ts tests/creative-tools-plugins.test.ts tests/document-pin-after-move.test.ts tests/artifact-compare-moved.test.ts tests/project-deletion-owners.test.ts tests/document-plugins-error-model.test.ts tests/form-promote-authority.test.ts`
 - 答卷边界、离线文件与 Form → Dataset 的定向回归：`node scripts/run-tests.mjs tests/content-owner-regressions.test.ts tests/content-portable-regressions.e2e.test.ts tests/work-placement-plugins.e2e.test.ts`（浏览器文件需要本机 Chrome；CSV 沿既有合同把回答中的换行显示为分号，源答卷保留换行）。

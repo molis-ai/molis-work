@@ -24,7 +24,7 @@ export async function retainConflict(options:{home:string;namespace:string;key:s
     channel.assert();
     if(receipt.accepted!==true||receipt.revision!==inspection.revision)throw syncError('invalid','保留版本回执无效，原件已保留');
   }else{
-    pinSyncProtection(home,namespace,()=>channel.assert(),registration.protection);
+    pinSyncProtection(home,channel.lane?.(namespace)??namespace,()=>channel.assert(),registration.protection);
     const encoded=registration.content&&inspection.local!==null?registration.content.encode(key,inspection.local):{value:inspection.local,blobs:[]};
     const operationId='conflict-'+createHash('sha256').update(JSON.stringify([namespace,key,inspection.revision,inspection.state,choice])).digest('hex');
     const transfer=blobTransfer(home,channel);

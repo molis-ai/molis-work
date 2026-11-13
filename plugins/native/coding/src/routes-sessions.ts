@@ -1,7 +1,7 @@
 import { readCodingSessions } from "./session-observation.js";
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { characterSelection, characterSkillSelection } from "./characters.js";
-import { materialSelection } from "./materials.js";
+import { materialSelection, savedMaterials } from "./materials.js";
 import { confirmedPlan } from "./plans.js";
 import { type Capabilities, type CodingActivation, selected } from "./route-activation.js";
 import { codingActions, codingActionControl, type CodingBeforeWrite } from "./route-entry.js";
@@ -244,7 +244,10 @@ const ROUTES: RouteMaker[] = [
           const task = typeof body.task === "string" && body.task.trim() ? body.task : "（按计划执行）";
           const title = record.title === DEFAULT_SESSION_TITLE ? codingSessionTitleFrom(task) : record.title;
           if (title !== record.title) await execution.sessions.rename(beforeWrite, projectId, record.session_id, title, new Date().toISOString());
-          const { wait_for: _dropped, ...rest } = body;
+          const { wait_for: _dropped, ...sent } = body;
+          // What the person chose goes with the queued round now (materials-ui-contract §2): an explicit choice as sent, else the draft as
+          // it is; each piece is read by its reference when the round starts.
+          const rest = { ...sent, materials: body.materials === undefined || body.materials === null ? savedMaterials(context, record.session_id) : materialSelection(body.materials) };
           // The session's step waits on that work; the send is kept here, by the wait, to start when the work is done.
           const item = await codingActions(context, beforeWrite).invoke(agent.queueProjectRound, [record.runtime_id, { session, directory, task, after: target.work_id, title }]);
           if (item.wait_id) a.waits.keepQueued(item.wait_id, rest, item.work_id);

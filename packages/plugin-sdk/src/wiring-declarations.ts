@@ -1,3 +1,4 @@
+import { systemOutputSource } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import {
   eventTypeKey, hostEventType, isReservedEventType, isValidEventTypeId, isValidEventTypeVersion, ownsEventType,
   type PluginEventsDeclaration,
@@ -32,9 +33,12 @@ export function inspectPortDeclarations(ports: PluginPortsDeclaration | undefine
       continue;
     }
     const source = input.default_source;
-    if (source !== undefined && (typeof source !== "object" || source === null || typeof source.plugin_id !== "string" || !PLUGIN_ID.test(source.plugin_id)
+    // A platform producer (`system.materials`) is named by its own id, and only with a port it offers; any other id must be a plugin's.
+    const system = typeof source?.plugin_id === "string" ? systemOutputSource(source.plugin_id) : undefined;
+    if (source !== undefined && (typeof source !== "object" || source === null || typeof source.plugin_id !== "string"
+      || (system ? !system.outputs.some(output => output.port === source.port) : !PLUGIN_ID.test(source.plugin_id))
       || source.plugin_id === pluginId || !isValidPortName(source.port))) {
-      problems.push(`输入端口 ${input.port} 的默认来源要写另一个插件的 plugin_id 与输出端口名`);
+      problems.push(`输入端口 ${input.port} 的默认来源要写另一个插件的 plugin_id 与输出端口名，或平台资料服务（system.materials）的输出端口`);
     }
     inputs.add(input.port);
   }

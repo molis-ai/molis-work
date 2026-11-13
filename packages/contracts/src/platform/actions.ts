@@ -526,8 +526,16 @@ export interface ActionSceneConfigureOptions {
   readonly before_write?: () => void | Promise<void>;
 }
 
+/** A Host filter limiting discovery to one plugin's declared scene identities. */
+export interface ActionSceneSelection {
+  readonly plugin_id: string;
+  readonly scenes: readonly { readonly scene_id: string; readonly version: number }[];
+}
+
 export interface ActionSceneClient {
   discoverScenes(context: ActionCallContext, judgment?: ActionReference): readonly ActionSceneView[] | Promise<readonly ActionSceneView[]>;
+  /** One view list per exact reference, in input order, including repeated references. */
+  discoverScenesFor(context: ActionCallContext, judgments: readonly ExactActionReference[], selection?: ActionSceneSelection): readonly (readonly ActionSceneView[])[] | Promise<readonly (readonly ActionSceneView[])[]>;
   usages(context: ActionCallContext, judgment?: ActionReference): Promise<readonly ActionSceneUsage[]>;
   targets(context: ActionCallContext, judgment?: ActionReference, scene?: Pick<ActionSceneTarget, "scene_id" | "scene_version" | "provider_id">): Promise<readonly ActionSceneTarget[]>;
   bind(context: ActionCallContext, binding: ActionSceneBinding, options?: ActionSceneConfigureOptions): Promise<void>;

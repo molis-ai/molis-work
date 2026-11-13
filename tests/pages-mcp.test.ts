@@ -10,7 +10,7 @@ import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { openTestHome } from "./fixtures/test-home.js";
 import { residentMcpGrants } from "./fixtures/resident-mcp-grants.js";
 
-// W5-01-PAGES-02 / -04: Pages' actions over the official MCP client on the project Runtime, including a promote that fails at the association and is recovered.
+// W5-01-PAGES-02 / -04: Pages' actions over the official MCP client on the project Runtime, including a failed promote that rolls back before the latest edit is pinned.
 // RAC-105-A-16: every MCP client starts a forwarding process, which takes several seconds on a loaded Linux CI runner (30–45 s for the
 // whole test at two files at once): the budget only stops a hang, it is not a speed check.
 test("official stdio MCP client queries, imports, edits and generates with actual Pages actions across isolated projects", { timeout: 120_000 }, async t => {
@@ -97,9 +97,9 @@ test("official stdio MCP client queries, imports, edits and generates with actua
       assert.equal(failed.isError, true);
       assert.match(JSON.stringify(failed.content), /UNIQUE constraint failed/);
       assert.notEqual(JSON.parse((failed.content as Array<{ text: string }>)[0]!.text).code, "actions.version_required", "the promote fails at the association, not for a missing version");
-      const pending = (await call(reader, "pages.get", { id: document.id })).document;
-      assert.equal(pending.publication_pending.version, 1); assert.equal(pending.artifact_version, 0);
-      await call(restarted, "pages.update", { id: document.id, title: "Edited during recovery", expected_version: pending.version });
+      const unchanged = (await call(reader, "pages.get", { id: document.id })).document;
+      assert.deepEqual(unchanged, before);
+      await call(restarted, "pages.update", { id: document.id, title: "Edited during recovery", expected_version: unchanged.version });
       db.exec("DROP INDEX fail_mcp_publication");
       await call(restarted, "pages.delete", { id: sentinel.id });
     } finally { db.close(); }
@@ -109,7 +109,7 @@ test("official stdio MCP client queries, imports, edits and generates with actua
     await call(recovering, "pages.list", {});
     const current = (await call(reader, "pages.get", { id: document.id })).document;
     const recovered = await call(recovering, "pages.promote", { id: document.id, expected_version: current.version });
-    assert.equal(recovered.recovered, true); assert.equal(recovered.artifact.version, 1);
+    assert.equal(recovered.recovered, false); assert.equal(recovered.artifact.version, 1);
     assert.equal(recovered.document.title, "Edited during recovery"); assert.equal(recovered.document.publication_pending, undefined);
     const saved = openPagesStore(home);
     try { assert.deepEqual(recovered.document, saved.get(document.id, projects.a.project_id)); } finally { saved.close(); }

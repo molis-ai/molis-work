@@ -7,11 +7,12 @@ import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openBoardBrowser as openGoalBrowser } from "./fixtures/board-browser.js";
 import { CODING_BOX, CODING_COMPOSER, CODING_TAKEN, codingAdd } from "./fixtures/coding-composer.js";
 
-// W5-02-REG-06: real generated-catalog startup, Files snapshots, Diff and Git readers, including Coding's embedded Files.
+// W5-02-REG-06: real generated-catalog startup, materials snapshots, Diff and Git readers, and Coding's files face (WMD-05: a file
+// opened there shows in the side panel's reader, whose 固定快照 menu hands Diff its versions before and after).
 test("Coding tools open real stages, preserve session tabs and read fixed workspace content", { timeout: 90000 }, async t => {
   const b = await openGoalBrowser(t, "seeded"); if (!b) return;
   const { command, sessionId } = b;
-  const views = Object.fromEntries(await Promise.all(["files", "git", "diff", "text-stats", "coding"].map(async id => [id, await pluginFrameBrowser(t, b, id)])));
+  const views = Object.fromEntries(await Promise.all(["git", "diff", "text-stats", "coding"].map(async id => [id, await pluginFrameBrowser(t, b, id)])));
   let active: Pick<typeof b, "evaluate" | "waitFor" | "click"> = b;
   const evaluate: typeof b.evaluate = (...args) => active.evaluate(...args);
   const waitFor: typeof b.waitFor = (...args) => active.waitFor(...args);
@@ -33,7 +34,6 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
     await b.waitFor(`document.querySelector('[data-work-surface="${plugin}"]').getBoundingClientRect().width > 100 && !document.querySelector('[data-work-surface="${plugin}"]').hidden`);
     active = views[plugin]!;
   };
-  const files = '[data-companion="files"]';
   const coding = '[data-coding-workbench]';
   const capture = async (name: string) => {
     const directory = join(process.cwd(), ".tmp/coding-component-board-v2"); await mkdir(directory, { recursive: true });
@@ -45,7 +45,7 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   await b.navigate(() => command("Page.navigate", { url: b.origin + "/__ui/catalog" }, sessionId));
   const boardFrame = await evaluate(`(()=>{const h=document.querySelector('.mw-catalog-shell .mw-frame__header'),title=h.querySelector('h2');return {padding:getComputedStyle(h).padding,font:getComputedStyle(title).fontSize,weight:getComputedStyle(title).fontWeight};})()`);
   await b.navigate(() => command("Page.navigate", { url: prefix + "/" }, sessionId));
-  // Folders are added in project settings (「输入与输出」); the output is the folder Files, Git and Coding use when none is named.
+  // Folders are added in project settings (「输入与输出」); the output is the folder Git and Coding use when none is named.
   const showWorkspaceSettings = async () => {
     active = b;
     await click('.navigator-project-settings');
@@ -60,35 +60,34 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   await click("[data-directories-inputs] [data-directory-row]:has([title$='/coding-fixture']) [data-act=set-output]");
   await waitFor("document.querySelector('[data-directories-output] [data-directory-row] [data-text=path]')?.title.endsWith('/coding-fixture')");
   await capture("workspace-desktop");
-  await open("files");
-  await waitFor(`document.querySelector('${files} [data-files-tree] [title="note.txt"]')`);
-  try { await click(`${files} [data-files-tree] [title="nested"]`); }
-  catch (error) { throw new Error(JSON.stringify(await evaluate(`({tree:document.querySelector('${files} [data-files-tree]').textContent,rows:[...document.querySelectorAll('${files} [data-files-tree] button')].map(b=>[b.title,b.dataset.filePath])})`)), {cause:error}); }
-  await waitFor(`document.querySelector('${files} [data-files-tree] [title="nested/empty.txt"]')`);
-  await click(`${files} [data-files-tree] [title="nested/empty.txt"]`);
-  await waitFor(`document.querySelector('${files} [data-files-notice]').textContent.includes('空的')`);
-  assert.equal(await evaluate(`document.querySelector('${files} [data-files-capture="before"]').disabled`), false);
-  await click(`${files} [data-files-tree] [title="note.txt"]`);
-  await waitFor(`document.querySelector('${files} [data-files-text]').value === 'first\\n中文🙂\\n'`);
-  await click(`${files} [data-files-capture="before"]`);
-  await waitFor(`!document.querySelector('${files} [data-files-capture="before"]').disabled`);
+  // Coding's files face reads the folder it works in through the platform; a file opens in the side panel's reader, and 固定快照
+  // there fixes it as Diff's version before or after (materials-ui-contract §2, §5).
+  const codingTree = `${coding} [data-coding-files-tree]`;
+  const showCodingFiles = async () => {
+    await open("coding");
+    await click(`${coding} [data-coding-face="files"]`);
+    await waitFor(`document.querySelector('${codingTree} [title="note.txt"]') && document.querySelector('${coding} [data-coding-files-role]').textContent === '工作目录'`).catch(async error => {
+      throw new Error(JSON.stringify(await evaluate(`({status:document.querySelector('[data-coding-files-status]')?.textContent,tree:document.querySelector('[data-coding-files-tree]')?.outerHTML,root:document.querySelector('[data-coding-workbench]')?.dataset})`)), { cause: error });
+    });
+  };
+  const fixFromCoding = async (port: "before" | "after", text: string) => {
+    await showCodingFiles();
+    await click(`${codingTree} [title="note.txt"]`);
+    await waitFor(`document.querySelector('${coding} [data-coding-files-status]').textContent.includes('note.txt')`);
+    active = b;
+    await waitFor(`!document.querySelector('[data-side-materials-tools]').hidden && (document.querySelector('[data-side-materials-window]')?.textContent ?? '').startsWith(${JSON.stringify(text)})`, 15_000);
+    await click('[data-side-materials="pin"]');
+    await click(`[data-side-materials-menu] [data-port="${port}"]`);
+    await waitFor(`(document.querySelector('[data-side-materials-held]:not([hidden]) span')?.textContent ?? '').includes(${JSON.stringify(port === "before" ? "对比前" : "对比后")})`, 10_000);
+    // Escape in the side panel puts it away, as the person would before going back to the page under it.
+    await evaluate("document.querySelector('[data-side-materials=pin]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))");
+    await waitFor("document.body.dataset.sideOpen === 'false'");
+  };
+  await fixFromCoding("before", "first");
   await writeFile(join(workspace, "note.txt"), "second\n中文🙂\n");
-  await click(`${files} [data-files-tree] [title="note.txt"]`);
-  await waitFor(`document.querySelector('${files} [data-files-text]').value.startsWith('second')`);
-  await click(`${files} [data-files-capture="after"]`);
-  await waitFor(`document.querySelector('${files} [data-files-diff] [data-phase="ready"]')`);
-  await capture("files-desktop");
+  // Since S1 Diff compares the versions fixed through the materials service, from the reader's 固定快照 menu.
+  await fixFromCoding("after", "second");
   await command("Network.enable", {}, sessionId);
-  await command("Network.setBlockedURLs", { urls: [prefix + "/api/plugins/io.molis.work.files/open"] }, sessionId);
-  try {
-    await click(`${files} [data-files-tree] [title="note.txt"]`);
-    // The shared request helper's localized failure is shown with Files' retry instruction (W3-10, FSS-36).
-    await waitFor(`document.querySelector('${files} [data-files-notice]').textContent === '不知道这次操作有没有完成，请刷新后核对。可点击重读重试。'`);
-    assert.equal(await evaluate(`document.querySelector('${files} [data-files-text]').hidden && document.querySelector('${files} [data-files-copy]').disabled`), true);
-    assert.equal(await evaluate(`document.querySelector('${files} [data-files-reload]').disabled`), false, 'failed reads expose a working retry');
-  } finally { await command("Network.setBlockedURLs", { urls: [] }, sessionId); }
-  await click(`${files} [data-files-reload]`);
-  await waitFor(`!document.querySelector('${files} [data-files-text]').hidden && document.querySelector('${files} [data-files-text]').value.startsWith('second')`);
   // Diff and Text Stats are laid out as plugin stages (E-14): the heading drawn by the stage, the page's actions at its right,
   // one centred column at most 960px wide, and the content inside it, not from the window's edge.
   const stage = (id: string) => evaluate<{ heading: string; actions: string[]; inset: number; column: number; contentLeft: number }>(`(() => {
@@ -99,15 +98,15 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   await open("diff");
   await waitFor("document.querySelector('[data-companion=" + '"diff"' + "] [data-phase=ready]')");
   const compared = await evaluate<string>("document.querySelector('[data-companion=diff] [data-companion-content]').textContent");
-  assert.match(compared, /first/); assert.match(compared, /second/, "Diff reads both snapshots captured by Files");
+  assert.match(compared, /first/); assert.match(compared, /second/, "Diff reads both versions fixed from the reader");
   const diffStage = await stage("diff");
-  assert.match(diffStage.heading, /Diff/); assert.deepEqual(diffStage.actions, ["刷新", "打开 Files"]);
+  assert.match(diffStage.heading, /Diff/); assert.deepEqual(diffStage.actions, ["刷新", "打开资料"]);
   assert.ok(diffStage.inset >= 32 && diffStage.column <= 960 && diffStage.contentLeft >= 32, JSON.stringify(diffStage));
   await capture("diff-desktop");
   await open("text-stats");
   await waitFor("document.querySelector('[data-companion=" + '"text-stats"' + "] [data-phase=ready]')");
   const statsStage = await stage("text-stats");
-  assert.match(statsStage.heading, /Text Stats/); assert.deepEqual(statsStage.actions, ["刷新", "打开 Files"]);
+  assert.match(statsStage.heading, /Text Stats/); assert.deepEqual(statsStage.actions, ["刷新", "打开资料"]);
   assert.ok(statsStage.inset >= 32 && statsStage.column <= 960 && statsStage.contentLeft >= 32, JSON.stringify(statsStage));
   await capture("stats-desktop");
   await writeFile(join(workspace, "note.txt"), "staged\n中文🙂\n");
@@ -133,17 +132,23 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   assert.equal(await evaluate("document.querySelectorAll('[data-companion=git] [data-git-list] .is-selected').length"), 1, "same path on two Git sides has only one selected row");
   await capture("git-desktop");
 
+  await showCodingFiles();
+  await waitFor(`!document.querySelector('${coding} [data-git-refresh]').disabled`);
+  // A folder opens in place the first time; its file is listed under it.
+  await click(`${codingTree} [title="nested"]`);
+  await waitFor(`document.querySelector('${codingTree} [title="nested/empty.txt"]') && document.querySelector('${codingTree} [title="nested"]').getAttribute('aria-expanded') === 'true'`);
+  // Layout can settle a frame after the rows arrive under a loaded suite; a face that never shows still fails here.
+  await waitFor(`document.querySelector('${codingTree}').getBoundingClientRect().width > 100`);
+  assert.equal(await evaluate(`document.querySelector('${codingTree}').getBoundingClientRect().width > 100`), true, "the files face is visible before a Coding session exists");
+  await capture("coding-files-desktop");
+  await click(`${codingTree} [title="note.txt"]`);
+  active = b;
+  await waitFor("document.body.dataset.sideOpen === 'true'", 15_000);
+  await waitFor(`(document.querySelector('[data-side-materials-window]')?.textContent ?? '').startsWith('second')`, 15_000);
+  // The reader can draw its window again once the read settles, so the key goes to the panel's body, which stays.
+  await evaluate("document.querySelector('[data-side-files-body]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))");
+  await waitFor("document.body.dataset.sideOpen === 'false'");
   await open("coding");
-  await click(`${coding} [data-coding-face="files"]`);
-  await waitFor(`document.querySelector('${coding} [data-files-tree] [title="note.txt"]')`).catch(async error => {
-    throw new Error(JSON.stringify(await evaluate(`({files:document.querySelector('[data-files-notice]')?.textContent,git:document.querySelector('[data-git-status]')?.textContent,tree:document.querySelector('[data-files-tree]')?.outerHTML,root:document.querySelector('[data-coding-workbench]')?.dataset})`)),{cause:error});
-  });
-  await waitFor(`!document.querySelector('${coding} [data-files-refresh]').disabled && !document.querySelector('${coding} [data-git-refresh]').disabled`);
-  await click(`${coding} [data-files-tree] [title="note.txt"]`);
-  await waitFor(`!document.querySelector('${coding} [data-files-text]').hidden && document.querySelector('${coding} [data-files-text]').value.startsWith('second')`);
-  // Layout can settle a frame after the text arrives under a loaded suite; a reader that never shows still fails here.
-  await waitFor(`document.querySelector('${coding} [data-files-text]').getBoundingClientRect().width > 100`);
-  assert.equal(await evaluate(`document.querySelector('${coding} [data-files-text]').getBoundingClientRect().width > 100`), true, "embedded file reads are visible before a Coding session exists");
   await click(`${coding} [data-coding-face="sessions"]`);
   await click(`${coding} [data-coding-new]`);
   await b.waitFor(`${CODING_TAKEN} && !document.querySelector('${CODING_COMPOSER} .mw-composer__input').disabled`);
@@ -246,27 +251,19 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   await click(`${coding} [data-coding-directory-back]`);
   await click(`${coding} [data-coding-session]`);
   await waitFor(`document.querySelector('${coding}').dataset.codingDetail === 'true'`);
-  await open("files");
-  await waitFor(`document.querySelector('${files} [data-files-tree] [title="note.txt"]')`);
+  // The drawer and the explicit main navigation, on a companion's page (Git's; Files', which this used, retired in batch 06).
+  await open("git");
+  await waitFor("!document.querySelector('[data-companion=git] [data-git-history]').disabled");
   await b.click('.navigator-directory-toggle');
   assert.equal(await b.evaluate(`document.querySelector('[data-workspace]').dataset.mobileView`), "document", "the real directory control closes the Dock's drawer");
   assert.equal(await b.evaluate(`document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')`), false);
   await b.click('[data-directory-show]');
   assert.equal(await b.evaluate(`document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')`), true);
-  await b.evaluate("molisWorkOpenPlugin('files')");
+  await b.evaluate("molisWorkOpenPlugin('git')");
   assert.equal(await b.evaluate(`document.querySelector('[data-workspace]').dataset.mobileView`), "document", "explicit main navigation dismisses the actual open drawer");
   assert.equal(await b.evaluate(`document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')`), false);
-  await click(`${files} [data-files-tree] [title="note.txt"]`);
-  await waitFor(`!document.querySelector('${files} [data-files-text]').hidden`);
   await b.evaluate("localStorage.setItem('molis-work:theme','dark');dispatchEvent(new StorageEvent('storage',{key:'molis-work:theme',newValue:'dark'}))");
-  await capture("files-mobile-dark");
-  await click(`${files} [data-files-close]`);
-  assert.equal(await evaluate(`document.activeElement?.getAttribute('title')`), 'note.txt', 'return restores the originating file row');
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
-  await click(`${files} [data-files-tree] [title="note.txt"]`);
-  assert.equal(await evaluate(`getComputedStyle(document.querySelector('${files} [data-files-results]')).animationName`), 'none');
-  await click(`${files} [data-files-close]`);
-  assert.equal(await evaluate(`document.querySelector('${files} [data-files-tree]').getBoundingClientRect().width > 100`), true);
   assert.equal(await evaluate("document.scrollingElement.scrollWidth <= innerWidth"), true);
   await open('git');
   await waitFor("!document.querySelector('[data-companion=git] [data-git-history]').disabled");

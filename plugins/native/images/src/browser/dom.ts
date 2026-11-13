@@ -1,14 +1,10 @@
+import { requiredQuery } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { dateArg } from "@molis-ai/molis-work-plugin-sdk/ui";
-import type { Failure } from "./types.js";
 
 const uiText = globalThis.t;
 
 /** An element the server drew; the page cannot work without it. */
-export const required = <T extends Element>(root: ParentNode, selector: string): T => {
-  const node = root.querySelector<T>(selector);
-  if (!node) throw new Error(`Images page is missing ${selector}`);
-  return node;
-};
+export const required = requiredQuery(selector => `Images page is missing ${selector}`);
 
 export function text<K extends keyof HTMLElementTagNameMap>(tag: K, value: unknown, className?: string): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag);
@@ -29,7 +25,7 @@ export function remembered(write: () => void): void {
   try { write(); } catch { return; }
 }
 
-export const statusOf = (error: unknown): number | undefined => (error as Failure | null)?.status;
+export { statusOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 
 export function dateLabel(value: string): string {
   const date = new Date(value);

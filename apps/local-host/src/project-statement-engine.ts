@@ -32,7 +32,7 @@ function projectConnections(path: string, record: PluginProjectDatabaseRecord): 
   const readStorage = new LocalSqliteStorage(path, { readonly: true });
   let writeStorage: LocalSqliteStorage | undefined;
   try {
-    writeStorage = new LocalSqliteStorage(path);
+    writeStorage = new LocalSqliteStorage(path, { fileMustExist: true, journalMode: "preserve" });
     const reader = readStorage.db, writer = writeStorage.db;
     const reads = pluginStatementGuard(reader, record), writes = pluginStatementGuard(writer, record);
     return { reader, writer, check: (connection, sql, parameters, mode) => (connection === reader ? reads : writes)(sql, parameters, mode),

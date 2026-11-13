@@ -6,6 +6,7 @@ export declare const PLUGIN_SCENES_PERMISSION = "scenes:use";
 
 export interface PluginSceneClient {
     discoverScenes(judgment?: ActionReference): Promise<readonly ActionSceneView[]>;
+    discoverScenesFor(judgments: readonly ExactActionReference[]): Promise<readonly (readonly ActionSceneView[])[]>;
     usages(judgment?: ActionReference): Promise<readonly ActionSceneUsage[]>;
     targets(judgment?: ActionReference, scene?: Pick<ActionSceneTarget, "scene_id" | "scene_version" | "provider_id">): Promise<readonly ActionSceneTarget[]>;
     bind(binding: ActionSceneBinding, options?: ActionSceneConfigureOptions): Promise<void>;

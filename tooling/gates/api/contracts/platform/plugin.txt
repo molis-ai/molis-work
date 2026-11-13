@@ -659,6 +659,7 @@ export interface ActionSceneBinding {
 
 export interface ActionSceneClient {
     discoverScenes(context: ActionCallContext, judgment?: ActionReference): readonly ActionSceneView[] | Promise<readonly ActionSceneView[]>;
+    discoverScenesFor(context: ActionCallContext, judgments: readonly ExactActionReference[], selection?: ActionSceneSelection): readonly (readonly ActionSceneView[])[] | Promise<readonly (readonly ActionSceneView[])[]>;
     usages(context: ActionCallContext, judgment?: ActionReference): Promise<readonly ActionSceneUsage[]>;
     targets(context: ActionCallContext, judgment?: ActionReference, scene?: Pick<ActionSceneTarget, "scene_id" | "scene_version" | "provider_id">): Promise<readonly ActionSceneTarget[]>;
     bind(context: ActionCallContext, binding: ActionSceneBinding, options?: ActionSceneConfigureOptions): Promise<void>;
@@ -739,6 +740,14 @@ export interface ActionSceneReference {
     readonly scene_id: string;
     readonly version: number;
     readonly provider_id: string;
+}
+
+export interface ActionSceneSelection {
+    readonly plugin_id: string;
+    readonly scenes: readonly {
+        readonly scene_id: string;
+        readonly version: number;
+    }[];
 }
 
 export interface ActionSceneTarget extends ActionSceneTargetDefinition {
@@ -2819,7 +2828,7 @@ export interface PluginArtifactClient {
     head(artifactId: string): ArtifactLineHead | null;
     readOwn(reference: ArtifactReference): ArtifactVersionRecord | null;
     listConsumable(): PluginConsumableVersion[];
-    join?<T>(transaction: PluginDatabaseTransaction, write: (writer: PluginArtifactWriter) => T): T;
+    join?<T>(transaction: PluginDatabaseTransaction | PluginProjectRowTransaction, write: (writer: PluginArtifactWriter) => T): T;
 }
 
 export interface PluginArtifactPublishInput extends PluginProcessItemInput {
@@ -2915,6 +2924,7 @@ export type PluginContribution = PluginIntegrationContribution | PluginAppContri
 
 export interface PluginDatabase extends PluginDatabaseReader {
     transaction<T>(beforeEffect: () => Promise<void>, write: (transaction: PluginDatabaseTransaction) => T): Promise<T>;
+    transactionProjectRow?<T>(id: string, write: (transaction: PluginProjectRowTransaction) => T): Promise<T>;
 }
 
 export interface PluginDatabaseDeclaration {
@@ -4073,10 +4083,24 @@ export interface PluginProjectDatabaseTransaction extends PluginDatabaseTransact
 
 export type PluginProjectRow = Record<string, null | number | string>;
 
+export interface PluginProjectRowTransaction {
+    read(): PluginSqlRow | null;
+    compareAndSet(expectedVersion: number, changes: Readonly<PluginSqlRow>): boolean;
+}
+
 export interface PluginProjectRowsDeclaration {
     readonly label: string | TextRef;
     readonly order?: number;
     readonly tables: readonly PluginProjectRowsTable[];
+    readonly artifact_join?: {
+        readonly table: string;
+        readonly id_column: string;
+        readonly version_column: string;
+        readonly artifact_id_column: string;
+        readonly artifact_version_column: string;
+        readonly write_columns: readonly string[];
+        readonly pending_column?: string;
+    };
     readonly files?: readonly PluginProjectRowsFiles[];
 }
 
@@ -4238,6 +4262,7 @@ export interface PluginRuntimeRepository {
 
 export interface PluginSceneClient {
     discoverScenes(judgment?: ActionReference): Promise<readonly ActionSceneView[]>;
+    discoverScenesFor(judgments: readonly ExactActionReference[]): Promise<readonly (readonly ActionSceneView[])[]>;
     usages(judgment?: ActionReference): Promise<readonly ActionSceneUsage[]>;
     targets(judgment?: ActionReference, scene?: Pick<ActionSceneTarget, "scene_id" | "scene_version" | "provider_id">): Promise<readonly ActionSceneTarget[]>;
     bind(binding: ActionSceneBinding, options?: ActionSceneConfigureOptions): Promise<void>;
@@ -5677,6 +5702,17 @@ export interface SyncTrackedTable {
         readonly column: string;
         readonly rowColumn: string;
     };
+}
+
+export interface SystemOutputSource {
+    readonly plugin_id: string;
+    readonly name: string;
+    readonly signature: string;
+    readonly process_items: readonly {
+        readonly artifact_type_id: string;
+        readonly schema_version: number;
+    }[];
+    readonly outputs: readonly PluginPortDeclaration[];
 }
 
 export declare const UI_SUBJECT_CONTEXT_KINDS: readonly ["goal"];

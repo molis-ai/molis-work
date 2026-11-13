@@ -1,5 +1,17 @@
 [
   {
+    "file": "apps/local-host/src/project-layout.ts",
+    "name": "version",
+    "values": { "2": 1 },
+    "reason": "Files 退役前每个项目库所在的第 2 版旧布局，是采用程序认的起点、一个固定的历史版本，不是现行版本；现行项目库版本仍只在 PROJECT_DATABASE_BASELINE（随用户 2026-11-13「例外改指第 3 版」：采用从第 2 版旧布局换日志后走完 2→3）。"
+  },
+  {
+    "file": "apps/local-host/src/system-materials-actions.ts",
+    "name": "version",
+    "values": { "1": 1 },
+    "reason": "资料服务新建过程项的第一个固定版本号：每个新过程项都从第 1 版开始，是数据里的版本序号，不是产品或合同声明的版本（用户 2026-11-12 批准登记）。"
+  },
+  {
     "file": "packages/design-system/src/primitives/catalog-skill-packs.ts",
     "name": "version",
     "values": { "1.4": 1 },
@@ -566,12 +578,6 @@
     "reason": "内置判断规则发布后的动作，版本是规则记录自身的发布修订号，运行时才有，不是自有版本。"
   },
   {
-    "file": "plugins/native/files/src/browser/request.ts",
-    "name": "version",
-    "values": { "1": 1 },
-    "reason": "Files 内嵌页按路由拼出动作 id，发一个共同的版本；一张逐动作的表放不进页面资源预算。这个字面量与它能到的动作条目相等，由 tests/version-source.test.ts 核对，其中一个动作升版本时那条测试失败，届时再改成逐动作传。"
-  },
-  {
     "file": "plugins/native/git/src/browser/request.ts",
     "name": "version",
     "values": { "1": 1 },
@@ -671,12 +677,6 @@
     "file": "plugins/native/feed/src/ui.ts",
     "name": "io.molis.work.native.feed.ui.v1",
     "values": { "io.molis.work.native.feed.ui.v1": 1 },
-    "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
-  },
-  {
-    "file": "plugins/native/files/src/ui.ts",
-    "name": "io.molis.work.native.files.ui.v1",
-    "values": { "io.molis.work.native.files.ui.v1": 1 },
     "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
   },
   {

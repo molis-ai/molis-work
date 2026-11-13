@@ -4,7 +4,7 @@ import type { RowTime } from "./taskboard-types.js";
 /** An icon of the page's sprite. */
 export const svg = (name: string) => `<svg aria-hidden="true"><use href="#icon-${name}"></use></svg>`;
 
-export const clip = (text: string, max: number) => text.length > max ? text.slice(0, max - 1) + "…" : text;
+export { cutWithEllipsis as clip } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 export const firstLine = (text: string | undefined) => (text || "").trim().split("\n")[0] ?? "";
 export const oneLine = (text: string | undefined) => (text || "").replace(/\s+/g, " ").trim();
 

@@ -71,16 +71,16 @@ test("W4-10-01 QA-022 a real Todo reminder that came due is in the Home page's a
 // QA-022: a delivery the market holds for the person is counted exactly; a cursor that has caught up is not.
 test("W4-10-01 QA-022 a project page's attention read counts exactly the plugin deliveries waiting on the person", async t => {
   const home = await openTestHome(t);
-  const project = await home.createProject("Attention", ["coding", "files"]);
+  const project = await home.createProject("Attention", ["coding", "git"]);
   const base = `/projects/${encodeURIComponent(project.project_id)}`;
   assert.equal((await home.web.get<Attention>(`${base}/api/attention`)).plugin_events_pending, 0, "nothing waits in a new project");
   // As a Host crash leaves it (tests/plugin-event-recovery.e2e.test.ts), through the owner's repository on the project's database:
-  // Coding published a file change, Files' delivery was cut off with its outcome unknown, and an earlier installation's cursor caught up.
+  // Coding published a file change, Git's delivery was cut off with its outcome unknown, and an earlier installation's cursor caught up.
   const db = openTestSqlite(project.database_path);
   try {
     const installs = new SqlitePluginRuntimeRepository(db).list();
-    const source = installs.find(record => record.plugin_id === "io.molis.work.coding"), subscriber = installs.find(record => record.plugin_id === "io.molis.work.files");
-    assert.ok(source && subscriber, "Coding and Files run in the project");
+    const source = installs.find(record => record.plugin_id === "io.molis.work.coding"), subscriber = installs.find(record => record.plugin_id === "io.molis.work.git");
+    assert.ok(source && subscriber, "Coding and Git run in the project");
     const events = new SqlitePluginEventsRepository(db), at = new Date().toISOString(), type = { event_type_id: CODING_FILE_CHANGED_EVENT, type_version: 1 };
     const event = events.append({ event_id: `qa022-${randomUUID()}`, project_id: project.project_id, source_plugin_id: source.plugin_id,
       source_install_id: source.install_id, ...type, payload: { project_id: project.project_id, path: ["example.txt"] }, correlation_id: null, occurred_at: at });
@@ -91,7 +91,7 @@ test("W4-10-01 QA-022 a project page's attention read counts exactly the plugin 
   } finally { db.close(); }
   const attention = await home.web.get<Attention>(`${base}/api/attention?surface=todo`);
   const { pending } = await home.web.get<{ pending: Array<{ cursor: { subscriber_plugin_id: string; state: string } }> }>(`${base}/api/plugins/runtime/events`);
-  assert.deepEqual(pending.map(view => [view.cursor.subscriber_plugin_id, view.cursor.state]), [["io.molis.work.files", "quarantined"]]);
+  assert.deepEqual(pending.map(view => [view.cursor.subscriber_plugin_id, view.cursor.state]), [["io.molis.work.git", "quarantined"]]);
   assert.equal(attention.plugin_events_pending, 1, "the held delivery, and only it");
   const { notices } = await home.web.get<{ notices: unknown[] }>(`${base}/api/assistant/notices?surface=todo`);
   assert.deepEqual(attention.notices, notices, "the surface's notices, as the Assistant tells them");

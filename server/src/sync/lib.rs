@@ -1,6 +1,7 @@
 mod blob_store;
 mod blobs;
 mod changes;
+mod cutover;
 mod history;
 mod identity;
 mod maintenance;
@@ -53,19 +54,26 @@ async fn handle(mut req: Request, env: Env) -> ApiResult<Response> {
     if url.path() == "/v1/maintenance" {
         rate_limit::admit(&db, &format!("maintenance:{space}"), 20).await?;
     }
+    if url.path().starts_with("/v1/process-items/cutover") {
+        return cutover::handle(&mut req, &env, &db, &space).await;
+    }
+    // Every other route sees the process-items collection through the request's scope (cutover::Scope).
+    let scope = cutover::Scope::load(&req, &db, &space).await?;
     if url.path().starts_with("/v1/blobs/") {
-        return blobs::handle(&mut req, &env, &db, &space).await;
+        return blobs::handle(&mut req, &env, &db, &space, &scope).await;
     }
     if url.path().starts_with("/v1/history") {
-        return history::handle(&mut req, &db, &space).await;
+        return history::handle(&mut req, &db, &space, &scope).await;
     }
     let value = match (req.method(), url.path()) {
-        (Method::Get, "/v1/round") => round::read(&db, &space).await,
-        (Method::Get, "/v1/policy") => policy(&db, &space).await,
+        (Method::Get, "/v1/round") => round::read(&db, &space, &scope).await,
+        (Method::Get, "/v1/policy") => Ok(scope.view(policy(&db, &space).await?)),
         (Method::Get, "/v1/quota") => quota::read(&db, &space).await,
-        (Method::Get, "/v1/trash") => retention::list(&req, &db, &space).await,
-        (Method::Post, "/v1/trash/restore") => retention::restore(&mut req, &db, &space).await,
-        (Method::Post, "/v1/trash/purge") => retention::purge(&mut req, &db, &space).await,
+        (Method::Get, "/v1/trash") => retention::list(&req, &db, &space, &scope).await,
+        (Method::Post, "/v1/trash/restore") => {
+            retention::restore(&mut req, &db, &space, &scope).await
+        }
+        (Method::Post, "/v1/trash/purge") => retention::purge(&mut req, &db, &space, &scope).await,
         (Method::Post, "/v1/maintenance") => {
             let value = body(&mut req).await?;
             fields(&value, &[])?;
@@ -100,6 +108,33 @@ async fn handle(mut req: Request, env: Env) -> ApiResult<Response> {
                 namespaces.push(n);
             }
             value["revision"] = json!(revision + 1);
+            if scope.sealed() {
+                // After the seal the stored selections never hold N; the private stream stays in the stored namespaces
+                // while seeding and, once complete, exactly while the scoped view selects it.
+                let listed = value["selections"].as_array().cloned().unwrap_or_default();
+                let (kept, stored, selected) = scope.place(&listed, &namespaces)?;
+                let mut saved = value.clone();
+                saved["selections"] = json!(kept);
+                let mut statements = scope.guard(&db, &space, revision)?;
+                statements.push(db.prepare("UPDATE sync_policy SET revision=?,json=?,namespaces=? WHERE space=? AND revision=?").bind(&[JsValue::from_f64((revision+1)as f64),saved.to_string().into(),serde_json::to_string(&stored)?.into(),space.clone().into(),JsValue::from_f64(revision as f64)])?);
+                statements.push(
+                    db.prepare("UPDATE sync_cutovers SET selected=? WHERE space=?")
+                        .bind(&[
+                            JsValue::from_f64(if selected { 1.0 } else { 0.0 }),
+                            space.clone().into(),
+                        ])?,
+                );
+                db.batch(statements)
+                    .await
+                    .map_err(|error| match cutover::refusal(&error) {
+                        Failure(503, code) => Failure(503, code),
+                        _ => Failure(409, "POLICY_CONFLICT"),
+                    })?;
+                return Ok(Response::from_json(&value)?);
+            }
+            for namespace in &namespaces {
+                require(!cutover::internal(namespace), 400, "INVALID_NAMESPACE")?;
+            }
             let empty = json!({"spaceId":space,"revision":0,"selections":[]}).to_string();
             db.prepare("INSERT OR IGNORE INTO sync_policy VALUES (?,0,?,'[]')")
                 .bind(&[space.clone().into(), empty.into()])?
@@ -122,21 +157,15 @@ async fn handle(mut req: Request, env: Env) -> ApiResult<Response> {
                 400,
                 "INVALID_NAMESPACE",
             )?;
-            let current = policy(&db, &space).await?;
-            require(
-                current["selections"]
-                    .as_array()
-                    .unwrap()
-                    .iter()
-                    .any(|s| self::namespace(s).ok().as_deref() == Some(&namespace)),
-                403,
-                "COLLECTION_DISABLED",
-            )?;
+            let namespace = scope.route(&namespace)?;
+            let selected = db.prepare("SELECT 1 AS selected FROM sync_policy p,json_each(p.namespaces) n WHERE p.space=? AND n.value=?").bind(&[space.clone().into(),namespace.clone().into()])?.first::<Value>(None).await?;
+            require(selected.is_some(), 403, "COLLECTION_DISABLED")?;
             let after = query("after")
                 .parse::<i64>()
                 .map_err(|_| Failure(400, "INVALID_CURSOR"))?;
             require(after >= 0, 400, "INVALID_CURSOR")?;
-            let rows=db.prepare("SELECT revision,operation,key,base,value,attachments FROM sync_events WHERE space=? AND namespace=? AND action<>'archive' AND revision>? ORDER BY revision LIMIT 5").bind(&[space.into(),namespace.into(),JsValue::from_f64(after as f64)])?.all().await?.results::<Value>()?;
+            // The selection is checked again by the read itself, so a seal or deselection racing this request returns nothing.
+            let rows=db.prepare("SELECT revision,operation,key,base,value,attachments FROM sync_events WHERE space=? AND namespace=? AND action<>'archive' AND revision>? AND EXISTS(SELECT 1 FROM sync_policy p,json_each(p.namespaces) n WHERE p.space=sync_events.space AND n.value=sync_events.namespace) ORDER BY revision LIMIT 5").bind(&[space.into(),namespace.into(),JsValue::from_f64(after as f64)])?.all().await?.results::<Value>()?;
             let more = rows.len() > 4;
             let events = rows
                 .iter()
@@ -145,7 +174,7 @@ async fn handle(mut req: Request, env: Env) -> ApiResult<Response> {
                 .collect::<ApiResult<Vec<_>>>()?;
             Ok(json!({"events":events,"more":more}))
         }
-        (Method::Post, "/v1/changes") => changes::upload(&mut req, &db, &space).await,
+        (Method::Post, "/v1/changes") => changes::upload(&mut req, &db, &space, &scope).await,
         _ => Err(Failure(404, "NOT_FOUND")),
     }?;
     Ok(Response::from_json(&value)?)

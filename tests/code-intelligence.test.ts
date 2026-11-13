@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { createCodeIntelligence, languageServersFrom } from "@molis-ai/molis-work-service-agent-host";
@@ -66,6 +66,8 @@ test("A4-1 只读本轮的目录；没有登记的服务器就明确拒绝", { t
   const home = workspace();
   try {
     const intelligence = createCodeIntelligence({ servers: servers(home.log), rootPath: home.root });
+    // A real file next to the round's root: the check is about where it resolves, not about it not existing.
+    writeFileSync(join(dirname(home.root), "outside.ts"), "export const leaked = 1;\n");
     await assert.rejects(intelligence.symbolIndex({ args: { path: "../outside.ts", symbol: "x" } } as never), /outside it/);
     // .py 没有登记服务器：说清楚没有登记，不是空结果，也不是去装一个。
     await assert.rejects(intelligence.symbolIndex({ args: { path: "src/b.py", symbol: "x" } } as never), /no language server is configured for \.py/);

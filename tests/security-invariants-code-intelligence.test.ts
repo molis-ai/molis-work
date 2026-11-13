@@ -8,7 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { createCodeIntelligence, languageServersFrom } from "@molis-ai/molis-work-service-agent-host";
+import { createCodeIntelligence, ensureTool, languageServerSettings, languageServersFrom } from "@molis-ai/molis-work-service-agent-host";
 
 const here = fileURLToPath(new URL(".", import.meta.url));
 const fake = join(here, "fixtures/fake-lsp-server.mjs");
@@ -51,4 +51,26 @@ test("S-code-intelligence: the language server never inherits MOLIS_WORK_* envir
     // The fake server writes a line when the platform key reached it; the client strips MOLIS_WORK_* before spawn.
     assert.doesNotMatch(log, /leaked-env/u);
   } finally { delete process.env.MOLIS_WORK_ENCRYPTION_KEY; delete process.env.FAKE_LSP_LOG; home.close(); }
+});
+
+test("S-code-intelligence: downloads are off by default, and an illegal install declaration is refused", async () => {
+  const home = workspace();
+  try {
+    // No explicit allow: the person has not opted in, so nothing is fetched.
+    await assert.rejects(ensureTool({ package: "fake-lsp", version: "1.0.0", bin: "fake-lsp" },
+      { toolsRoot: join(home.root, "tools"), allow: async () => (await languageServerSettings({ servers: [] })).downloads, install: async () => undefined }),
+    /downloads are off/u);
+    // An install spec that is not an exact package@version is refused when the file is read, before any round starts.
+    assert.throws(() => languageServerSettings({ servers: [{ extensions: [".ts"], command: "x", install: { package: "x", version: "latest", bin: "x" } }] }), /exact version/u);
+    // A half-installed package is not usable: the marker is what makes a directory complete.
+    const directory = join(home.root, "tools", "fake-lsp", "1.0.0");
+    mkdirSync(join(directory, "node_modules", ".bin"), { recursive: true });
+    writeFileSync(join(directory, "node_modules", ".bin", "fake-lsp"), "#!/bin/sh\nexit 1\n", { mode: 0o755 });
+    let installed = 0;
+    await ensureTool({ package: "fake-lsp", version: "1.0.0", bin: "fake-lsp" }, {
+      toolsRoot: join(home.root, "tools"), allow: () => true,
+      install: async ({ destination }) => { installed += 1; mkdirSync(join(destination, "node_modules", ".bin"), { recursive: true }); writeFileSync(join(destination, "node_modules", ".bin", "fake-lsp"), "#!/bin/sh\nexit 0\n", { mode: 0o755 }); },
+    });
+    assert.equal(installed, 1, "a directory without the marker is rebuilt");
+  } finally { home.close(); }
 });

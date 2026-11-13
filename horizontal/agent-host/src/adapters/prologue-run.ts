@@ -154,7 +154,9 @@ function roundGateway(deps: RunDeps, input: PrologueStartInput, none: boolean) {
    * language server configured gets a call that says so, not a tool that silently vanished from the model's list (the
    * Runtime's own rule for a tool whose executor is missing).
    */
-  const wantsSymbols = actionTools !== undefined && !none && input.root_path !== undefined && input.character.tools.includes(FIND_SYMBOL_HOST_TOOL);
+  // The gateway pack has a fixed id and the symbol tool is scoped per actions pack: the two never mix.
+  const wantsSymbols = actionTools !== undefined && !none && gatewayTools === undefined && input.root_path !== undefined
+    && input.character.tools.includes(FIND_SYMBOL_HOST_TOOL);
   const codeServers = deps.options.codeIntelligence;
   const codeIntelligence = wantsSymbols && codeServers !== undefined
     ? createCodeIntelligence({

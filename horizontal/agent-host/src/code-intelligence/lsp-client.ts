@@ -30,6 +30,8 @@ export interface LspClient {
   openDocument(input: { readonly path: string; readonly text: string; readonly languageId: string }): void;
   /** Tell the server the document changed; the version must go up. */
   changeDocument(input: { readonly path: string; readonly text: string; readonly version: number }): void;
+  /** Tell the server the document is no longer open (a bounded cache evicts the least recently used). */
+  closeDocument(input: { readonly path: string }): void;
   /** Shutdown, then exit; a server that will not go is killed. */
   close(): Promise<void>;
   /** Whether the process is still there. */
@@ -115,6 +117,10 @@ function connect(child: ChildProcess, spec: LanguageServerSpec & { readonly time
     changeDocument: ({ path, text, version }) => {
       if (!alive) throw new Error("the language server is not running");
       send({ method: "textDocument/didChange", params: { textDocument: { uri: fileUri(path), version }, contentChanges: [{ text }] } });
+    },
+    closeDocument: ({ path }) => {
+      if (!alive) return;
+      send({ method: "textDocument/didClose", params: { textDocument: { uri: fileUri(path) } } });
     },
     get alive() { return alive; },
     async close() {

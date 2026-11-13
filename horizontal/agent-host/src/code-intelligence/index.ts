@@ -7,7 +7,9 @@
  * the tool reports itself unavailable.
  */
 
+import { existsSync } from "node:fs";
 import { readFile, realpath } from "node:fs/promises";
+import { delimiter } from "node:path";
 import path from "node:path";
 import type { ToolRunner } from "@prologue/sdk";
 import { fileUri, startLanguageServer, type LanguageServerSpec, type LspClient } from "./lsp-client.js";
@@ -101,7 +103,9 @@ function serverFor(servers: readonly LanguageServerSpec[], file: string): { read
 async function insideRoot(rootPath: string, requested: string): Promise<string> {
   const refused = () => new Error(`coding.find-symbol only reads inside this round's directory; "${requested}" is outside it`);
   const root = await realpath(path.resolve(rootPath));
-  const real = await realpath(path.resolve(rootPath, requested)).catch(() => { throw refused(); });
+  const real = await realpath(path.resolve(rootPath, requested)).catch(() => {
+    throw new Error(`coding.find-symbol cannot read "${requested}": no such file in this round's directory`);
+  });
   const relative = path.relative(root, real);
   if (relative === "" || relative.startsWith("..") || path.isAbsolute(relative)) throw refused();
   return real;
@@ -180,14 +184,28 @@ export function createCodeIntelligence(input: {
       texts.delete(absolute); texts.set(absolute, text);
       for (const held of texts.keys()) {
         if (texts.size <= MAX_OPEN_DOCUMENTS) break;
+        client.closeDocument?.({ path: held });
         texts.delete(held); versions.delete(held);
       }
     }
     return { client, text };
   };
 
-  /** A server that is not installed yet comes from the isolated tools root (Q5); one that is uses its own command. */
+  /**
+   * Q5: an applicable local command is used first; only when it is not there is the tool fetched into the isolated root.
+   * `command` is either an absolute path or a name looked up on PATH.
+   */
+  const localCommand = (command: string): string | undefined => {
+    if (command.includes("/")) return existsSync(command) ? command : undefined;
+    for (const directory of (process.env.PATH ?? "").split(delimiter)) {
+      const candidate = path.join(directory, command);
+      if (candidate.length > directory.length && existsSync(candidate)) return candidate;
+    }
+    return undefined;
+  };
   const resolveSpec = async (spec: LanguageServerSpec, options: typeof input): Promise<LanguageServerSpec> => {
+    const local = localCommand(spec.command);
+    if (local !== undefined) return { ...spec, command: local };
     if (spec.install === undefined) return spec;
     if (options.tools === undefined) throw new Error(`no ${spec.install.package} is installed and this Host has no tools directory to fetch it into`);
     const tool = await ensureTool(spec.install, {
@@ -268,7 +286,10 @@ function describeLocation(one: LocationLike, rootPath: string): string {
   const range = one.range ?? one.targetSelectionRange ?? one.targetRange;
   const line = typeof range?.start?.line === "number" ? range.start.line + 1 : undefined;
   const character = typeof range?.start?.character === "number" ? range.start.character + 1 : undefined;
-  const decoded = uri.startsWith("file://") ? decodeURIComponent(uri.slice("file://".length)) : uri;
+  let decoded = uri;
+  if (uri.startsWith("file://")) {
+    try { decoded = decodeURIComponent(uri.slice("file://".length)); } catch { decoded = uri.slice("file://".length); }
+  }
   return `${decoded || "(nowhere)"}${line === undefined ? "" : `:${line}${character === undefined ? "" : `:${character}`}`}`
     + (decoded && path.isAbsolute(decoded) && path.relative(path.resolve(rootPath), decoded).startsWith("..") ? " (outside this round's directory)" : "");
 }

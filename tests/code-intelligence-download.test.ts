@@ -102,3 +102,73 @@ test("Q5: a downloaded server is actually started for a round and closed with it
     assert.match(readFileSync(process.env.FAKE_LSP_LOG, "utf8"), /exited/u);
   } finally { delete process.env.FAKE_LSP_LOG; home.close(); }
 });
+
+test("Q5: scoped packages and build versions can be installed; a local command is used before downloading", async () => {
+  const home = toolHome();
+  try {
+    // Scoped package and a build version survive the directory trip.
+    const scoped = { package: "@scope/fake-lsp", version: "1.2.3+build.7", bin: "fake-lsp" } as const;
+    let installs = 0;
+    const downloaded = await ensureTool(scoped, {
+      toolsRoot: home.tools, allow: () => true,
+      install: async ({ destination }: { readonly destination: string }) => { installs += 1; installFake(destination); },
+    });
+    assert.equal(downloaded.source, "downloaded");
+    assert.equal(installs, 1);
+    assert.ok(downloaded.command.includes("@scope__fake-lsp"));
+
+    // A local executable on PATH is used as is: no download (Q5 "prefer the local applicable version").
+    const bin = join(home.root, "bin");
+    mkdirSync(bin, { recursive: true });
+    const local = join(bin, "fake-lsp-local");
+    writeFileSync(local, `#!/bin/sh\nexec "${process.execPath}" "${fileURLToPath(new URL("./fixtures/fake-lsp-server.mjs", import.meta.url))}"\n`);
+    chmodSync(local, 0o755);
+    const saved = process.env.PATH;
+    process.env.PATH = `${bin}${process.env.PATH ? `:${process.env.PATH}` : ""}`;
+    try {
+      const workspace = join(home.root, "work");
+      mkdirSync(join(workspace, "src"), { recursive: true });
+      writeFileSync(join(workspace, "src/a.ts"), "export function greet(): string {\n  return 'hi';\n}\n");
+      process.env.FAKE_LSP_LOG = join(home.root, "local.log");
+      const intelligence = createCodeIntelligence({
+        servers: [{ extensions: [".ts"], command: "fake-lsp-local", languageId: "typescript",
+          install: { package: "not-downloaded", version: "9.9.9", bin: "not-downloaded" } }],
+        rootPath: workspace,
+        tools: { root: home.tools, allow: () => true },
+      });
+      const result = await intelligence.symbolIndex({ args: { path: "src/a.ts", symbol: "greet" } } as never);
+      assert.match(result, /a\.ts:3:10/u);
+      await intelligence.close();
+      assert.equal(existsSync(join(home.tools, "not-downloaded")), false);
+    } finally { process.env.PATH = saved; delete process.env.FAKE_LSP_LOG; }
+  } finally { home.close(); }
+});
+
+test("Q5: the real installer runs npm without scripts, with the registry, and without MOLIS_WORK_*", { timeout: 30_000 }, async () => {
+  const home = toolHome();
+  const bin = join(home.root, "bin");
+  mkdirSync(bin, { recursive: true });
+  const log = join(home.root, "npm.log");
+  // A stand-in `npm` on PATH: it records what it was asked to do and lays down the package the fetcher verifies.
+  writeFileSync(join(bin, "npm"), `#!/bin/sh
+printf '%s\\n' "$@" > "${log}"
+env | grep '^MOLIS_WORK_' >> "${log}" || true
+# install --prefix <dir> ... <pkg>@<version>
+while [ "$#" -gt 0 ]; do case "$1" in --prefix) shift; DEST="$1";; esac; shift; done
+mkdir -p "$DEST/node_modules/.bin"
+printf '#!/bin/sh\\nexec "%s" "%s"\\n' "${process.execPath}" "${fileURLToPath(new URL("./fixtures/fake-lsp-server.mjs", import.meta.url))}" > "$DEST/node_modules/.bin/fake-lsp"
+chmod +x "$DEST/node_modules/.bin/fake-lsp"
+`, { mode: 0o755 });
+  const saved = process.env.PATH;
+  process.env.PATH = `${bin}${process.env.PATH ? `:${process.env.PATH}` : ""}`;
+  process.env.MOLIS_WORK_ENCRYPTION_KEY = "must-not-reach-npm";
+  try {
+    const tool = await ensureTool(spec, { toolsRoot: home.tools, allow: () => true, registry: "https://registry.example.test" });
+    assert.equal(tool.source, "downloaded");
+    const recorded = readFileSync(log, "utf8").split("\n");
+    assert.ok(recorded.includes("--ignore-scripts"), recorded.join(" "));
+    assert.ok(recorded.includes("--registry") && recorded.includes("https://registry.example.test"));
+    assert.ok(recorded.includes("fake-lsp@1.2.3"));
+    assert.ok(!recorded.some(line => line.startsWith("MOLIS_WORK_")), "the platform environment does not reach npm");
+  } finally { process.env.PATH = saved; delete process.env.MOLIS_WORK_ENCRYPTION_KEY; home.close(); }
+});

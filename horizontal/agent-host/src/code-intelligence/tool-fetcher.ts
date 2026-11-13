@@ -1,5 +1,6 @@
 /**
- * Fetching a code-analysis tool on demand (Coding A4 的 Q5，用户 2026-11-28 定：缺少时自动下载到平台管理的隔离目录).
+ * Fetching a code-analysis tool on demand (Coding A4 的 Q5，用户 2026-10-28 定规则、第 31 批用户 2026-11-12 定本批实现：
+ * 缺少时自动下载到平台管理的隔离目录).
  *
  * What this deliberately does **not** do: run package install scripts (`--ignore-scripts`), write into the project, the
  * global npm prefix or the person's environment, or reuse a half-installed directory. Every download goes into one
@@ -28,12 +29,14 @@ export interface ToolFetcherOptions {
   readonly install?: (input: { readonly package: string; readonly version: string; readonly registry: string; readonly destination: string }) => Promise<void>;
   /** A download is bounded: a hung registry is a failure with a retry, not a wedged round. */
   readonly timeoutMs?: number;
-  readonly signal?: AbortSignal;
 }
 
 const DEFAULT_REGISTRY = "https://registry.npmjs.org";
 const DEFAULT_TIMEOUT_MS = 120_000;
-const SAFE_NAME = /^[a-z0-9][a-z0-9._-]*$/i;
+/** One path piece under the tools root: scoped package names and build versions must survive the trip. */
+const SAFE_NAME = /^[a-z0-9@+][a-z0-9@+._-]*$/i;
+const PACKAGE_NAME = /^(@[a-z0-9._-]+\/)?[a-z0-9._-]+$/iu;
+const EXACT_VERSION = /^[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$/u;
 
 /** A resolved tool: the absolute executable to start. */
 export interface ResolvedTool {
@@ -44,7 +47,8 @@ export interface ResolvedTool {
 const inFlight = new Map<string, Promise<ResolvedTool>>();
 
 function directoryFor(options: ToolFetcherOptions, spec: ToolInstallSpec): string {
-  if (!SAFE_NAME.test(spec.package.replace("/", "__")) || !SAFE_NAME.test(spec.version) || !SAFE_NAME.test(spec.bin)) {
+  if (!PACKAGE_NAME.test(spec.package) || !EXACT_VERSION.test(spec.version) || !SAFE_NAME.test(spec.bin)
+    || !SAFE_NAME.test(spec.package.replace("/", "__"))) {
     throw new Error(`"${spec.package}@${spec.version}" is not a shape this Host installs: package, version and bin must be plain names`);
   }
   return path.join(options.toolsRoot, spec.package.replace("/", "__"), spec.version);
@@ -52,10 +56,11 @@ function directoryFor(options: ToolFetcherOptions, spec: ToolInstallSpec): strin
 
 const binPath = (directory: string, bin: string) => path.join(directory, "node_modules", ".bin", bin);
 
-async function installedAlready(directory: string, spec: ToolInstallSpec): Promise<boolean> {
+async function installedAlready(directory: string, spec: ToolInstallSpec, options: ToolFetcherOptions): Promise<boolean> {
   try {
     const marker = JSON.parse(await readFile(path.join(directory, "installed.json"), "utf8")) as { readonly package?: unknown; readonly version?: unknown; readonly bin?: unknown };
-    if (marker.package !== spec.package || marker.version !== spec.version || marker.bin !== spec.bin) return false;
+    if (marker.package !== spec.package || marker.version !== spec.version || marker.bin !== spec.bin
+    || (marker as { readonly registry?: unknown }).registry !== (options.registry ?? DEFAULT_REGISTRY)) return false;
     await readFile(binPath(directory, spec.bin));
     return true;
   } catch { return false; }
@@ -69,7 +74,7 @@ async function installedAlready(directory: string, spec: ToolInstallSpec): Promi
  */
 export async function ensureTool(spec: ToolInstallSpec, options: ToolFetcherOptions): Promise<ResolvedTool> {
   const directory = directoryFor(options, spec);
-  if (await installedAlready(directory, spec)) return { command: binPath(directory, spec.bin), source: "installed" };
+  if (await installedAlready(directory, spec, options)) return { command: binPath(directory, spec.bin), source: "installed" };
   const key = `${directory}\u0000${spec.bin}`;
   const held = inFlight.get(key);
   if (held !== undefined) return held;
@@ -88,7 +93,7 @@ async function download(spec: ToolInstallSpec, options: ToolFetcherOptions, dire
     await mkdir(path.dirname(directory), { recursive: true });
     await rm(temporary, { recursive: true, force: true });
     await mkdir(temporary, { recursive: true });
-    await (options.install ?? npmInstall)({ package: spec.package, version: spec.version, registry, destination: temporary });
+    await (options.install ?? ((input) => npmInstall(input, options.timeoutMs)))({ package: spec.package, version: spec.version, registry, destination: temporary });
     // The marker is written **last**, so a directory that has one is complete; anything else is rebuilt.
     await writeFile(path.join(temporary, "installed.json"), JSON.stringify({ package: spec.package, version: spec.version, bin: spec.bin, registry }) + "\n", "utf8");
     await rm(directory, { recursive: true, force: true });
@@ -104,7 +109,7 @@ async function download(spec: ToolInstallSpec, options: ToolFetcherOptions, dire
  * `npm install` into the isolated directory only: **no scripts**, no audit, no fund, exact version, explicit registry.
  * The Home's own `MOLIS_WORK_*` environment never reaches the package manager either.
  */
-async function npmInstall(input: { readonly package: string; readonly version: string; readonly registry: string; readonly destination: string }): Promise<void> {
+async function npmInstall(input: { readonly package: string; readonly version: string; readonly registry: string; readonly destination: string }, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<void> {
   const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith("MOLIS_WORK_")));
   await new Promise<void>((resolve, reject) => {
     const child = spawn("npm", ["install", "--prefix", input.destination, "--no-save", "--ignore-scripts", "--no-audit", "--no-fund",
@@ -112,7 +117,7 @@ async function npmInstall(input: { readonly package: string; readonly version: s
       cwd: input.destination, stdio: ["ignore", "ignore", "pipe"], env, shell: false,
     });
     let stderr = "";
-    const timer = setTimeout(() => { child.kill("SIGKILL"); reject(new Error("the download did not finish in time")); }, DEFAULT_TIMEOUT_MS);
+    const timer = setTimeout(() => { child.kill("SIGKILL"); reject(new Error("the download did not finish in time")); }, timeoutMs);
     child.stderr.on("data", (chunk: Buffer) => { stderr = (stderr + chunk.toString("utf8")).slice(-2_000); });
     child.on("error", (error) => { clearTimeout(timer); reject(error); });
     child.on("exit", (code) => {

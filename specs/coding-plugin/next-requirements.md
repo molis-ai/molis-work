@@ -107,7 +107,7 @@
 - **参照**：OpenCode 的 `lsp` 工具（goToDefinition、findReferences、hover、documentSymbol、workspaceSymbol、goToImplementation、调用层级），写入后回传诊断，26 种格式化器。
 - **实现要点（第 31 批已落第一片，宿主侧；2026-11-12 用户定）**：**不进 SDK**，复用 SDK 官方编码包已经声明的 `coding.find-symbol` 与执行器缝 `coding.symbol-index`：Molis 在 `horizontal/agent-host/src/code-intelligence` 接语言服务器（JSON-RPC、按文件类型按需启动、回合结束关闭、只读本轮目录、平台 `MOLIS_WORK_*` 环境不进子进程），人配置写在 Home 的 `language-servers.json`。Coding 的阅读角色声明 `find-symbol`，工具在时间线里有自己的词。**仍待做**：写入/修改后回传该文件新增的错误、审查前格式化、先支持 Python/Rust/Go。
 - **工具获取（Q5，本批已实现第一片；用户 2026-11-12 定「本批补上自动下载」）**：`language-servers.json` 里每个服务器可以写 `install: { package, version, bin }`，人再把 `downloads` 设成 `"allow"`（**默认 `"deny"`**，不悄悄联网）。已装好的按 `package@version` 复用（隔离目录里有 `installed.json` 才算完），没有就 `npm install --ignore-scripts` 到 `<Home>/tools/language-servers/<package>/<version>`（项目、全局前缀和个人环境都不动），装完才原子改名，失败把临时目录删掉并给出原因。语言服务器进程仍剥掉 `MOLIS_WORK_*`。第三方插件暂时还不能在 Manifest 声明 `lsp_servers`（记 BL-lsp-servers-declaration）。
-- **工具获取（2026-10-28 用户已定）**：按项目版本要求、运行环境及已启用语言能力，优先使用项目或本机已有适用版本；缺少时自动下载本次任务所需的公开代码分析工具到平台管理的隔离工具目录，无须用户先手动安装或逐包确认。沿已有环境准备与 B2 的目录、执行和联网规则，来源与版本由有效配置及语言插件声明确定，不为每种语言在宿主写下载分支，不另配一套联网许可。
+- **工具获取的规则（Q5，2026-10-28 用户已定；本批实现第一片，见上一段「工具获取」）**：按项目版本要求、运行环境及已启用语言能力，优先使用项目或本机已有适用版本；缺少时自动下载本次任务所需的公开代码分析工具到平台管理的隔离工具目录，无须用户先手动安装或逐包确认。沿已有环境准备与 B2 的目录、执行和联网规则，来源与版本由有效配置及语言插件声明确定，不为每种语言在宿主写下载分支，不另配一套联网许可。
 - **安装与范围**：工具目录用于运行支撑，不成为项目第二个输出目录；保持项目依赖、版本约束、系统全局安装和个人环境设置。已准备的兼容版本可复用，不每轮重下或自动升级；只按任务实际需要获取工具，不因打开项目安装全部语言服务。工具进程及子进程沿当前项目／任务授权，下载许可不扩大代码读取、写入或外部上传权限；需要登录、付费、私有来源或系统级安装时仍按对应授权处理。
 - **失败与恢复**：遵守项目／任务／来源禁网与撤权；可用本地版本仍可在授权内工作。缺少兼容版本、下载中断、安装或启动失败时说明原因和修复／重试入口，未完成产物不被当作可用工具；恢复与重启核对实际安装状态。保留成果，允许已有文件搜索、阅读等独立工作继续，不能把语言服务不可用误报为“没有错误”；停用语言能力和会话结束沿原生命周期释放本次进程。
 - **验收**：保留真实跨文件改名、诊断回传与 `tsc` 验证，并增加以下编号；证明用例在测试名或注释引用编号。
@@ -302,7 +302,7 @@ CGH-01～03 当前未实现或验证；Q7 是产品规则决定，不代表账�
 
 | 编号 | 补充 | 参照 | 做法 | 验收 |
 | --- | --- | --- | --- | --- |
-| A4-1 | 代码理解（LSP）**放宿主侧**，不进 SDK（用户 2026-11-12 定，第 31 批） | `claude-plugins-official` 的 12 个 LSP 插件只在 marketplace 里写 `lspServers` | 复用 SDK 官方编码包已经声明的 `coding.find-symbol` 与执行器缝 `coding.symbol-index`：Molis 在 `horizontal/agent-host` 接语言服务器（JSON-RPC、按文件类型按需启动、会话结束关闭、只读本轮目录），人配置写在 Home 的 `language-servers.json`；不用 Manifest `lsp_servers`、不改 SDK。先支持人在配置里登记的语言（TS/JS 等）；按已定 Q5 优先复用本机版本，**工具不隐式下载**服务器 | 人配一个语言服务器后，Coding 能查到定义与引用；没有登记的扩展名明确报「没有配置服务器」；会话结束服务器进程退出 |
+| A4-1 | 代码理解（LSP）**放宿主侧**，不进 SDK（用户 2026-11-12 定，第 31 批） | `claude-plugins-official` 的 12 个 LSP 插件只在 marketplace 里写 `lspServers` | 复用 SDK 官方编码包已经声明的 `coding.find-symbol` 与执行器缝 `coding.symbol-index`：Molis 在 `horizontal/agent-host` 接语言服务器（JSON-RPC、按文件类型按需启动、会话结束关闭、只读本轮目录），人配置写在 Home 的 `language-servers.json`；不用 Manifest `lsp_servers`、不改 SDK。先支持人在配置里登记的语言（TS/JS 等）；按已定 Q5：先找本机/项目已有的可执行文件；没有且人把 `downloads` 设为 `"allow"` 时装进 `<Home>/tools/language-servers`（`npm install --ignore-scripts`，不动项目/全局/个人环境），默认 `"deny"` 就明确报「没有服务器、下载关着」 | 人配一个语言服务器后，Coding 能查到定义与引用；没有登记且不允许下载时明确报原因；会话结束服务器进程退出 |
 | A4-2 | 写后诊断 + 审查前格式化 | Claude Code 的 LSP diagnostics | 写入/修改后回传该文件新增诊断；格式化放在审查之前，审查卡显示最终内容 | 改名改全、诊断为零、`tsc` 通过；审查卡看到的是格式化后的内容 |
 | A6 | Coding 也消费**技能包**（与个人助理共用） | `knowledge-work-plugins` 的角色包 | 见 [skill-packs](../skill-packs/spec.md)：`applies_to` 含 `coding` 的包可安装为方法或在起跑时注入 `agent.skills`；不授予权限 | 安装一个工程方法包，Coding session 能选到并按精确版本用 |
 | B3-1 | 用户钩子用**Markdown 规则文件** | `claude-code/plugins/hookify` | `.molis/hooks/<name>.md`：frontmatter 的 event/matcher/conditions/action（warn/block/ask）；首次启用及修改后按 Q3 确认才生效；面板可启停；受限执行、超时与失败按 B3 的触发阶段处理 | 一条 `rm -rf` 规则挡住并告诉模型原因；一条 lint 钩子在写后跑 |

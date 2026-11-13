@@ -1,6 +1,6 @@
 # 06-3 N44 展示读取与 BL-943 逐操作授权
 
-状态：已随第 06 批 [#2009](https://github.com/molis-ai/molis-work/pull/2009) 合入 main `a720834a09`（2026-11-13）；读检查、委派作用域与 N44 在途合并已实施；2026-11-13 又补展示成员的 1 秒跨请求缓存（目录 epoch 失效）。剩余 BCC-09 直接证据与 BL-943 后续。需求见[第 06 批](../post-anticorruption-roadmap/reference/batches/06.md#batch-06-item-3)和 [BL-943](../backlog/BL-943.md)。
+状态：已随第 06 批 [#2009](https://github.com/molis-ai/molis-work/pull/2009) 合入 main `a720834a09`（2026-11-13）；读检查、委派作用域与 N44 在途合并已实施；2026-11-13 又补展示成员的 1 秒跨请求缓存（目录 epoch 失效）。BCC-09 的旧链接形状已由 `tests/goals-absent-project.e2e.test.ts` 直接覆盖，brief HTML 点击直测仍缺；BL-943 后续另列。需求见[第 06 批](../post-anticorruption-roadmap/reference/batches/06.md#batch-06-item-3)和 [BL-943](../backlog/BL-943.md)。
 
 隔离 Home 同项目并发读两份 Goal 文档，BCC-04 三次中位数为 70 次项目插件目录读取、68 次 SQLite 开库。`projectWebView` 为 Goals 可见性和展示名单分别读目录，`projectPluginStages` 在展示路径等待项目插件刷新。动作准备、回调后发现和执行还有各自的当前授权读取。
 

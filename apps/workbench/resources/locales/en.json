@@ -1596,6 +1596,9 @@
     "workbench.assistant-process.not-finished": "Not finished",
     "workbench.assistant-process.not-permitted-do": "Not permitted to do this",
     "workbench.assistant-process.original-message": "Original message",
+    "workbench.assistant-process.other.bare": "take a step",
+    "workbench.assistant-process.other.completed": "Took a step",
+    "workbench.assistant-process.other.started": "Taking a step",
     "workbench.assistant-process.personal": "Personal",
     "workbench.assistant-process.project": "This project",
     "workbench.assistant-process.provided-n-n": {

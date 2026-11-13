@@ -58,7 +58,7 @@ export const MEMORY_CLASS_SETTINGS_CLIENT_SCRIPT = String.raw`
     for (const row of rows) {
       const item = el("li", "memory-row"), copy = el("span", "memory-row-copy");
       copy.textContent = keys.map(key => text(key, row.selector[key])).join(" · ") + "：" + text("read", row.read) + " / " + text("form", row.form);
-      const edit = button(globalThis.t.text("workbench.settings-memory.edit"), null, globalThis.t.text("workbench.settings-memory.edit") + "：" + copy.textContent);
+      const edit = button(globalThis.t.text("workbench.settings-memory.edit"), null, globalThis.t.text("workbench.settings-memory.edit-named", { text: copy.textContent }));
       edit.addEventListener("click", () => { for (const key of keys) controls[key].value = row.selector[key] || ""; selectRule(); for (const key of keys) value(key, controls[key].value); controls.read.focus(); });
       item.append(copy, edit); list.append(item);
     }

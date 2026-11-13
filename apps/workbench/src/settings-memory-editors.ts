@@ -24,7 +24,7 @@ export const MEMORY_EDITORS_CLIENT_SCRIPT = String.raw`({ L, el, button, paint, 
 
   function classificationFields(item) {
     const host = el("details", "memory-origin"), scenes = el("div", "memory-editor-fields");
-    host.append(el("summary", "", globalThis.t.text("workbench.settings-memory.classification-expiry")), el("p", "settings-muted", globalThis.t.text("workbench.settings-memory.original-classification") + "：" + classificationText(item.classification)));
+    host.append(el("summary", "", globalThis.t.text("workbench.settings-memory.classification-expiry")), el("p", "settings-muted", globalThis.t.text("workbench.settings-memory.original-classification") + globalThis.t.text("common.punctuation.label-separator") + classificationText(item.classification)));
     const sceneNames = ["coding", "assistant", "common"];
     const initialScenes = sceneNames.filter(scene => item.classification?.scenes.includes(scene));
     scenes.setAttribute("role", "group"); scenes.setAttribute("aria-label", globalThis.t.text("workbench.settings-memory.applies-2"));
@@ -52,7 +52,7 @@ export const MEMORY_EDITORS_CLIENT_SCRIPT = String.raw`({ L, el, button, paint, 
     date.setAttribute("aria-label", globalThis.t.text("workbench.settings-memory.expiry-time-local-time")); date.dataset.memoryExpiresAt = "";
     expiry.addEventListener("change", () => { date.disabled = date.hidden = expiry.value !== "set"; date.required = expiry.value === "set"; });
     fields.append(lifecycle, expiry, date);
-    host.append(fields, el("p", "settings-muted", globalThis.t.text("workbench.settings-memory.original-expiry") + "：" + (item.expires_at === undefined ? globalThis.t.text("workbench.settings-memory.not-yet-decided") : expiryText(item.expires_at))),
+    host.append(fields, el("p", "settings-muted", globalThis.t.text("workbench.settings-memory.original-expiry") + globalThis.t.text("common.punctuation.label-separator") + (item.expires_at === undefined ? globalThis.t.text("workbench.settings-memory.not-yet-decided") : expiryText(item.expires_at))),
       el("p", "settings-muted", globalThis.t.text("workbench.settings-memory.long-term-does-not-remove-existing-expiry-short")));
     return { host, read: kindChanged => {
       const selected = Array.from(scenes.querySelectorAll("input:checked"), box => box.value);
@@ -75,9 +75,9 @@ export const MEMORY_EDITORS_CLIENT_SCRIPT = String.raw`({ L, el, button, paint, 
       const removed = (item.classification?.scenes || []).filter(scene => !sceneNames.includes(scene));
       if (item.classification && !["long-term", "short-term", "session"].includes(item.classification.lifecycle)) removed.push(item.classification.lifecycle);
       return { classification, ...(expiry.value !== "keep" ? { expires_at: expires } : {}),
-        confirmation: expanded || removed.length ? globalThis.t.text("workbench.settings-memory.applicable-scenes-retention") + "：" + classificationText(item.classification) + " → " + classificationText(classification)
-          + "；" + globalThis.t.text("workbench.settings-memory.valid-until") + "：" + expiryText(item.expires_at) + " → " + expiryText(expires)
-          + (removed.length ? "；" + globalThis.t.text("workbench.settings-memory.undeclared-classification-values-remove") + "：" + removed.join("、") : "") : "" };
+        confirmation: expanded || removed.length ? globalThis.t.text("workbench.settings-memory.applicable-scenes-retention") + globalThis.t.text("common.punctuation.label-separator") + classificationText(item.classification) + " → " + classificationText(classification)
+          + globalThis.t.text("common.punctuation.semicolon") + globalThis.t.text("workbench.settings-memory.valid-until") + globalThis.t.text("common.punctuation.label-separator") + expiryText(item.expires_at) + " → " + expiryText(expires)
+          + (removed.length ? globalThis.t.text("common.punctuation.semicolon") + globalThis.t.text("workbench.settings-memory.undeclared-classification-values-remove") + globalThis.t.text("common.punctuation.label-separator") + removed.join(globalThis.t.text("common.list.separator")) : "") : "" };
     } };
   }
 
@@ -87,7 +87,7 @@ export const MEMORY_EDITORS_CLIENT_SCRIPT = String.raw`({ L, el, button, paint, 
     date.setAttribute("aria-label", globalThis.t.text("workbench.settings-memory.new-expiry-time-local-time")); date.dataset.memoryRenewExpiry = "";
     const row = el("div", "memory-editor-actions"), ok = button(globalThis.t.text("workbench.settings-memory.confirm-renewal"), "mw-btn--primary"), cancel = button(globalThis.t.text("workbench.settings-memory.cancel"), "mw-btn--ghost");
     ok.type = "submit"; cancel.addEventListener("click", () => paint()); row.append(ok, cancel);
-    form.append(el("p", "settings-muted", globalThis.t.text("workbench.settings-memory.original-expiry") + "：" + expiryText(item.expires_at)),
+    form.append(el("p", "settings-muted", globalThis.t.text("workbench.settings-memory.original-expiry") + globalThis.t.text("common.punctuation.label-separator") + expiryText(item.expires_at)),
       el("p", "settings-muted", globalThis.t.text("workbench.settings-memory.renewal-only-changes-expiry-time-disabled-paused-memories")), date, row);
     form.addEventListener("submit", async event => {
       event.preventDefault(); if (busy() || ok.disabled) return;
@@ -97,8 +97,8 @@ export const MEMORY_EDITORS_CLIENT_SCRIPT = String.raw`({ L, el, button, paint, 
         if (!Number.isFinite(millis)) throw new Error(globalThis.t.text("workbench.settings-memory.choose-valid-expiry-time"));
         if (millis <= Date.now()) throw new Error(globalThis.t.text("workbench.settings-memory.expiry-must-future"));
         const expires_at = new Date(millis).toISOString();
-        if (!await ask(globalThis.t.text("workbench.settings-memory.confirm-renewal-2"), globalThis.t.text("workbench.settings-memory.valid-until") + "：" + expiryText(item.expires_at) + " → " + expiryText(expires_at)
-          + "；" + globalThis.t.text("workbench.settings-memory.renewal-only-changes-expiry-time-disabled-paused-memories"), globalThis.t.text("workbench.settings-memory.confirm-renewal"))) return;
+        if (!await ask(globalThis.t.text("workbench.settings-memory.confirm-renewal-2"), globalThis.t.text("workbench.settings-memory.valid-until") + globalThis.t.text("common.punctuation.label-separator") + expiryText(item.expires_at) + " → " + expiryText(expires_at)
+          + globalThis.t.text("common.punctuation.semicolon") + globalThis.t.text("workbench.settings-memory.renewal-only-changes-expiry-time-disabled-paused-memories"), globalThis.t.text("workbench.settings-memory.confirm-renewal"))) return;
         await run(() => onSave({ action: "renew", expires_at }), "workbench.settings-memory.expiry-updated");
       } catch (failure) { fail(failure); }
       finally { ok.disabled = false; }
@@ -153,7 +153,7 @@ export const MEMORY_EDITORS_CLIENT_SCRIPT = String.raw`({ L, el, button, paint, 
         entry.dataset.memoryHistoryVersion = revision.version;
         entry.append(el("span", "memory-history-version", globalThis.t.text("workbench.settings-memory.version-number", { version: revision.version }) + " · " + day(revision.at)), el("span", "", revision.text),
           el("span", "settings-muted", globalThis.t.text(FORMAL_KIND[revision.kind] || revision.kind) + " · " + appliesText(revision.applies, item.scope, revision.classification)),
-          el("span", "settings-muted", revision.classification ? classificationText(revision.classification) + " · " + globalThis.t.text("workbench.settings-memory.valid-until") + "：" + expiryText(revision.expires_at) : globalThis.t.text("workbench.settings-memory.historical-classification-expiry-unknown")),
+          el("span", "settings-muted", revision.classification ? classificationText(revision.classification) + " · " + globalThis.t.text("workbench.settings-memory.valid-until") + globalThis.t.text("common.punctuation.label-separator") + expiryText(revision.expires_at) : globalThis.t.text("workbench.settings-memory.historical-classification-expiry-unknown")),
           el("span", "settings-muted", globalThis.t.text(revision.snapshot_available ? "workbench.settings-memory.complete-historical-snapshot" : "workbench.settings-memory.incomplete-history-only-text-can-adopted")));
         if (revision.version !== item.version) {
           const complete = revision.snapshot_available, label = complete ? "workbench.settings-memory.go-back-version" : "workbench.settings-memory.use-old-text";
@@ -164,13 +164,13 @@ export const MEMORY_EDITORS_CLIENT_SCRIPT = String.raw`({ L, el, button, paint, 
             try {
               const classification = sessionMode || !complete ? item.classification : revision.classification;
               const expiry = sessionMode || !complete ? item.expires_at : revision.expires_at;
-              const description = globalThis.t.text("workbench.settings-memory.memory-2") + "：" + item.text + " → " + revision.text
-                + "；" + globalThis.t.text("workbench.settings-memory.applicable-scenes-retention") + "：" + classificationText(item.classification) + " → " + classificationText(classification)
-                + "；" + globalThis.t.text("workbench.settings-memory.valid-until") + "：" + expiryText(item.expires_at) + " → " + expiryText(expiry)
-                + "；" + globalThis.t.text(complete ? "workbench.settings-memory.use-version-s-category-conditions-source-enabled-paused" : "workbench.settings-memory.only-adopt-old-text-current-classification-expiry-source")
-                + (complete ? "；" + globalThis.t.text("workbench.settings-memory.kind") + "：" + globalThis.t.text(FORMAL_KIND[item.kind] || item.kind) + " → " + globalThis.t.text(FORMAL_KIND[revision.kind] || revision.kind)
-                  + "；" + globalThis.t.text("workbench.settings-memory.applies") + "：" + appliesText(item.applies, item.scope, item.classification) + " → " + appliesText(revision.applies, item.scope, classification) : "")
-                + (complete && sessionMode ? "；" + globalThis.t.text("workbench.settings-memory.session-restore-keeps-current-classification-session-binding-expiry") : "");
+              const description = globalThis.t.text("workbench.settings-memory.memory-2") + globalThis.t.text("common.punctuation.label-separator") + item.text + " → " + revision.text
+                + globalThis.t.text("common.punctuation.semicolon") + globalThis.t.text("workbench.settings-memory.applicable-scenes-retention") + globalThis.t.text("common.punctuation.label-separator") + classificationText(item.classification) + " → " + classificationText(classification)
+                + globalThis.t.text("common.punctuation.semicolon") + globalThis.t.text("workbench.settings-memory.valid-until") + globalThis.t.text("common.punctuation.label-separator") + expiryText(item.expires_at) + " → " + expiryText(expiry)
+                + globalThis.t.text("common.punctuation.semicolon") + globalThis.t.text(complete ? "workbench.settings-memory.use-version-s-category-conditions-source-enabled-paused" : "workbench.settings-memory.only-adopt-old-text-current-classification-expiry-source")
+                + (complete ? globalThis.t.text("common.punctuation.semicolon") + globalThis.t.text("workbench.settings-memory.kind") + globalThis.t.text("common.punctuation.label-separator") + globalThis.t.text(FORMAL_KIND[item.kind] || item.kind) + " → " + globalThis.t.text(FORMAL_KIND[revision.kind] || revision.kind)
+                  + globalThis.t.text("common.punctuation.semicolon") + globalThis.t.text("workbench.settings-memory.applies") + globalThis.t.text("common.punctuation.label-separator") + appliesText(item.applies, item.scope, item.classification) + " → " + appliesText(revision.applies, item.scope, classification) : "")
+                + (complete && sessionMode ? globalThis.t.text("common.punctuation.semicolon") + globalThis.t.text("workbench.settings-memory.session-restore-keeps-current-classification-session-binding-expiry") : "");
               if (!await ask(globalThis.t.text(label), description, globalThis.t.text(label))) return;
               await run(() => restore("/change", { memory_id: item.memory_id, expected_version: item.version,
                 ...(complete ? { action: "restore", version: revision.version } : { action: "update", text: revision.text }) }), complete ? "workbench.settings-memory.went-back-that-version" : "workbench.settings-memory.old-text-adopted");

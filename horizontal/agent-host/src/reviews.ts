@@ -13,6 +13,7 @@ import type {
 } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { PLUGIN_REVIEW_KINDS } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { clonePresentedReview } from "./review-presentation.js";
+import { ReviewDeadlines } from "./review-deadlines.js";
 
 /**
  * The installation that started a plugin's person-reviewed Host operation (PG-009). It must declare and hold `review:<kind>`
@@ -95,9 +96,29 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
   /** Only for a plugin's operation asked for in this process; a restored one has none, so it can never be approved. */
   readonly #authorities = new Map<string, ReviewAuthority>();
   readonly #now: () => Date;
+  readonly #deadlines: ReviewDeadlines;
+  #closed = false;
 
   constructor(options: { now?: () => Date } = {}) {
     this.#now = options.now ?? (() => new Date());
+    this.#deadlines = new ReviewDeadlines(this.#now, id => {
+      const row = this.#rows.get(id);
+      if (row) this.#status(row);
+    });
+  }
+
+  /** Only the final Host shutdown closes a shared queue, after execution owners finish settling. */
+  close(): void {
+    this.#closed = true;
+    this.#deadlines.close();
+    for (const row of this.#rows.values()) this.cancel(row.request.review_id, "宿主已关闭，原等待已结束");
+    this.#deciders.clear();
+    this.#authorities.clear();
+    this.#recoverers.clear();
+    this.#refreshers.clear();
+    this.#listeners.clear();
+    this.#settlements.clear();
+    this.#standing.clear();
   }
 
   /** Query execution owners before presenting receipts; this never dispatches work. */
@@ -144,6 +165,7 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
     if (!decision) return;
     const row = this.#rows.get(request.review_id)!;
     row.receipt = { ...row.receipt, ...structuredClone(decision) };
+    this.#release(request.review_id);
     // This authority has already been handed to the execution owner. Restoring
     // it only permits receipt projection, never consuming or dispatching again.
     if (decision.status === "approved") this.#consumed.add(request.review_id);
@@ -158,12 +180,11 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
     if (kind && (!authority || authority.plugin_id !== request.plugin_id || !authority.holds())) {
       throw agentErrors.review_not_permitted(`插件 ${request.plugin_id} 没有声明或没有获得 review:${kind}，不能发起这项需要人审查的操作`);
     }
-    const created = !this.#rows.has(request.review_id), stored = this.#admit(request);
-    if (kind && created) this.#authorities.set(request.review_id, authority!);
-    return stored;
+    return this.#admit(request, kind ? authority : undefined);
   }
 
-  #admit(request: AgentReviewRequest): AgentReviewRequest {
+  #admit(request: AgentReviewRequest, authority?: ReviewAuthority): AgentReviewRequest {
+    if (this.#closed) throw agentErrors.capability_unavailable("审查队列已关闭");
     assertOwned(request);
     const existing = this.#rows.get(request.review_id);
     if (existing) {
@@ -185,14 +206,15 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
         effect_error: null,
       },
     });
+    if (authority) this.#authorities.set(stored.review_id, authority);
+    this.#deadlines.add(stored.review_id, stored.expires_at);
     for (const listener of this.#listeners) listener(structuredClone(stored));
     return structuredClone(stored);
   }
 
   /** Host-only dispatch to the execution owner; never exposed as a Plugin capability. */
   registerDecisionHandler(reviewId: string, handler: (input: AgentReviewDecisionInput) => Promise<AgentReviewReceipt>): void {
-    const row = this.#rows.get(reviewId);
-    if (!row) throw agentErrors.review_unknown("找不到这条待审操作");
+    const row = this.#pending(reviewId);
     if (this.#deciders.has(reviewId)) throw agentErrors.review_already_decided("审查已有执行所有者，不能替换");
     this.#deciders.set(reviewId, handler);
     // An exact repeat of a command a person allowed for this session goes through the same decision path,
@@ -210,6 +232,7 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
   }
 
   async respond(input: AgentReviewDecisionInput): Promise<AgentReviewReceipt> {
+    this.#pending(input.review_id);
     const handler = this.#deciders.get(input.review_id);
     if (!handler) throw agentErrors.capability_unavailable("执行方未接通或已中断，不能只在页面记录一次假批准");
     const row = this.#rows.get(input.review_id);
@@ -234,6 +257,7 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
     const row = this.#rows.get(reviewId);
     if (!row || this.#status(row) !== "pending") return;
     row.receipt = { ...row.receipt, status: "cancelled", decided_at: this.#now().toISOString(), note: reason };
+    this.#release(reviewId);
   }
 
   list(projectId: string, status?: AgentReviewStatus): AgentReviewRequest[] {
@@ -250,17 +274,7 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
   }
 
   decide(input: AgentReviewDecisionInput): AgentReviewReceipt {
-    const row = this.#rows.get(input.review_id);
-    if (!row) {
-      throw agentErrors.review_unknown("找不到这条待审操作");
-    }
-    const current = this.#status(row);
-    if (current === "expired") {
-      throw agentErrors.review_expired("这条待审操作已过期，请重新发起");
-    }
-    if (current !== "pending") {
-      throw agentErrors.review_already_decided("这条待审操作已经有结论了");
-    }
+    const row = this.#pending(input.review_id);
     // Rejecting is always the person's to do; approving needs the installation that asked to still hold its kind.
     const kind = input.decision === "approve" ? pluginOperation(row.request) : null;
     if (kind && !this.#authorities.get(input.review_id)?.holds()) {
@@ -275,6 +289,7 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
       note: input.note ?? null,
       ...(automatic ? { standing_rule: { ...automatic } } : {}),
     };
+    this.#release(input.review_id, input.decision === "approve");
     return structuredClone(row.receipt);
   }
 
@@ -322,6 +337,15 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
 
   /** Record what really happened after an approved effect ran. */
   settle(reviewId: string, outcome: { ok: boolean; error?: string }, options?: { restored?: boolean }): AgentReviewReceipt {
+    return this.#settle(reviewId, outcome, !options?.restored);
+  }
+
+  /** The execution owner verified cancellation AND a not-dispatched receipt; no workspace change was possible. */
+  settleNotDispatched(reviewId: string, error: string): AgentReviewReceipt {
+    return this.#settle(reviewId, { ok: false, error }, false);
+  }
+
+  #settle(reviewId: string, outcome: { ok: boolean; error?: string }, notify: boolean): AgentReviewReceipt {
     const row = this.#rows.get(reviewId);
     if (!row) {
       throw agentErrors.review_unknown("找不到这条待审操作");
@@ -343,7 +367,8 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
       effect_settled: outcome.ok,
       effect_error: effectError,
     };
-    if (!options?.restored) this.#notifySettlement(row);
+    try { if (notify) this.#notifySettlement(row); }
+    finally { this.#release(reviewId); }
     return structuredClone(row.receipt);
   }
 
@@ -360,12 +385,7 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
     let cancelled = 0;
     for (const row of this.#rows.values()) {
       if (row.request.run?.run_id !== runId || this.#status(row) !== "pending") continue;
-      row.receipt = {
-        ...row.receipt,
-        status: "cancelled",
-        decided_at: this.#now().toISOString(),
-        note: reason,
-      };
+      this.cancel(row.request.review_id, reason);
       cancelled += 1;
     }
     return cancelled;
@@ -374,7 +394,25 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
   #status(row: ReviewRow): AgentReviewStatus {
     if (row.receipt.status !== "pending") return row.receipt.status;
     const expires = row.request.expires_at;
-    if (expires !== null && Date.parse(expires) <= this.#now().getTime()) return "expired";
-    return "pending";
+    if (expires !== null && Date.parse(expires) <= this.#now().getTime()) {
+      row.receipt.status = "expired";
+      this.#release(row.request.review_id);
+    }
+    return row.receipt.status;
+  }
+
+  #pending(reviewId: string): ReviewRow {
+    const row = this.#rows.get(reviewId);
+    if (!row) throw agentErrors.review_unknown("找不到这条待审操作");
+    const status = this.#status(row);
+    if (status === "expired") throw agentErrors.review_expired("这条待审操作已过期，请重新发起");
+    if (status !== "pending") throw agentErrors.review_already_decided("这条待审操作已经有结论了");
+    return row;
+  }
+
+  #release(reviewId: string, awaitingEffect = false): void {
+    this.#deadlines.delete(reviewId);
+    this.#deciders.delete(reviewId);
+    if (!awaitingEffect) this.#authorities.delete(reviewId);
   }
 }

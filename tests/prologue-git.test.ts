@@ -19,6 +19,7 @@ class StoredGitReviewPorts implements GitReviewPorts {
   reads = 0;
   failOnRead?: number;
   readFailure?: Error;
+  decisionFailure?: Error;
   constructor(readonly runtime: GitReviewPorts["runtime"], public queue: AgentReviewQueue) {}
   async publish(value: unknown) {
     const bytes = new TextEncoder().encode(JSON.stringify(value));
@@ -33,7 +34,10 @@ class StoredGitReviewPorts implements GitReviewPorts {
     assert.equal(chunk.done, true);
     return JSON.parse(new TextDecoder().decode(chunk.bytes));
   }
-  async saveDecision(key: string, value: StoredDecision) { this.decisions.set(key, structuredClone(value)); }
+  async saveDecision(key: string, value: StoredDecision) {
+    if (this.decisionFailure) throw this.decisionFailure;
+    this.decisions.set(key, structuredClone(value));
+  }
   async saveFailure(key: string, reason: string) {
     const decision = this.decisions.get(key); assert.ok(decision);
     this.decisions.set(key, { ...decision, failure_reason: reason });
@@ -115,6 +119,140 @@ test("R38-GIT-RECEIVER-03 production Git settlement propagates the original read
 
 /** The installation asking, as the Host passes it (PG-009): here one that holds its kind throughout. */
 const held = { plugin_id: "io.molis.work.git", install_id: "fixture", holds: () => true };
+
+async function liveGitDecision(t: import("node:test").TestContext) {
+  const root = await mkdtemp(path.join(tmpdir(), "git-decision-lifecycle-"));
+  const sdk: GitReviewPorts["runtime"] = await createRuntime({ app: { appId: "molis.git.lifecycle", appVersion: "1.0.0" },
+    host: createNodeHost({ storageRoot: path.join(root, "sdk") }), preset: "local-agent", posture: { sandbox: "workspace-write" } });
+  const ports = new StoredGitReviewPorts(sdk, new AgentReviewQueue()), reviews = createPrologueGitReviews(ports);
+  t.after(async () => { try { await reviews.close(); await sdk.shutdown(); } finally { ports.queue.close(); await rm(root, { recursive: true, force: true }); } });
+  const prepare = (operation_id: string, execute: () => Promise<void> = async () => { assert.fail("unapproved operation ran"); }) =>
+    reviews.prepare({ project_id: "board", workspace_id: "workspace", operation_id, document: { kind: "git-index", action: "stage", workspace_name: "fixture", files: [] } },
+      { authority: held, check: async () => {}, execute });
+  return { sdk, ports, reviews, prepare };
+}
+
+test("BL-359: a real Git decision storage failure cancels before dispatch, releases the workspace and sends no change event", async t => {
+  const { sdk, ports, prepare } = await liveGitDecision(t);
+  const events: string[] = [];
+  ports.queue.observeSettlement(review => events.push(review.review_id));
+  const first = await prepare("save-fails");
+  const effect = (await sdk.effects.readRecovery()).effects.find(item => item.pending?.ref.id === first.review_id.slice("prologue-git:".length));
+  assert.ok(effect);
+  ports.decisionFailure = new Error("decision storage unavailable");
+  await assert.rejects(ports.queue.respond({ review_id: first.review_id, decision: "approve", actor_id: "person" }), /decision storage unavailable/);
+  assert.equal(sdk.effects.get(effect.ref)?.state, "cancelled");
+  assert.equal((await sdk.effects.inspectDispatch(effect.ref)).state, "not-dispatched");
+  assert.equal(ports.decisions.size, 0);
+  assert.match(ports.queue.receipt(first.review_id)?.effect_error ?? "", /确认未执行/);
+  assert.equal(ports.queue.receipt(first.review_id)?.effect_uncertain, undefined);
+  assert.deepEqual(events, []);
+  ports.decisionFailure = undefined;
+  const next = await prepare("new-operation");
+  assert.equal(ports.queue.receipt(next.review_id)?.status, "pending", "the cancelled operation no longer blocks this workspace");
+  await ports.queue.respond({ review_id: next.review_id, decision: "reject", actor_id: "person" });
+});
+
+test("BL-359: a failed Git dispatch inspection cannot turn a delivery failure into a no-dispatch conclusion", async t => {
+  const { sdk, ports, prepare } = await liveGitDecision(t);
+  const first = await prepare("unreadable-dispatch");
+  ports.decisionFailure = new Error("decision storage unavailable");
+  const inspection = t.mock.method(sdk.effects, "inspectDispatch", async () => { throw new Error("dispatch ledger unavailable"); });
+  await assert.rejects(ports.queue.respond({ review_id: first.review_id, decision: "approve", actor_id: "person" }), /dispatch ledger unavailable/);
+  assert.equal(ports.queue.receipt(first.review_id)?.effect_error, null);
+  assert.match(ports.queue.receipt(first.review_id)?.delivery_error ?? "", /storage unavailable/);
+  await assert.rejects(prepare("not-allowed-yet"), /结果未知/);
+  inspection.mock.restore();
+});
+
+test("BL-359: closing while a Git decision is saving proves cancellation without dispatch or notification", async t => {
+  const { sdk, ports, reviews, prepare } = await liveGitDecision(t);
+  const saving = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), cancelled = Promise.withResolvers<void>();
+  const saveDecision = ports.saveDecision.bind(ports), cancel = sdk.effects.cancel.bind(sdk.effects);
+  t.mock.method(ports, "saveDecision", async (key: string, value: StoredDecision) => {
+    saving.resolve(); await release.promise; await saveDecision(key, value);
+  });
+  t.mock.method(sdk.effects, "cancel", async (ref: Parameters<typeof cancel>[0]) => {
+    const result = await cancel(ref); cancelled.resolve(); return result;
+  });
+  let executions = 0;
+  const events: string[] = [];
+  ports.queue.observeSettlement(review => events.push(review.review_id));
+  const request = await prepare("closing-before-dispatch", async () => { executions++; });
+  const decision = ports.queue.respond({ review_id: request.review_id, decision: "approve", actor_id: "person" });
+  const rejected = assert.rejects(decision);
+  await saving.promise;
+  const closing = reviews.close();
+  try { await cancelled.promise; } finally { release.resolve(); }
+  await rejected; await closing;
+  const effect = (await sdk.effects.readRecovery()).effects.find(item => item.pending?.ref.id === request.review_id.slice("prologue-git:".length));
+  assert.ok(effect);
+  assert.equal(sdk.effects.get(effect.ref)?.state, "cancelled");
+  assert.equal((await sdk.effects.inspectDispatch(effect.ref)).state, "not-dispatched");
+  assert.equal(executions, 0);
+  assert.equal(ports.decisions.size, 1, "saving finished before the original wait rejected the answer");
+  assert.match(ports.queue.receipt(request.review_id)?.effect_error ?? "", /确认未执行/);
+  assert.equal(ports.queue.receipt(request.review_id)?.delivery_error, undefined);
+  assert.deepEqual(events, []);
+});
+
+test("BL-359: Git close waits for an already-dispatched decision to publish its actual settlement", async t => {
+  const { ports, reviews, prepare } = await liveGitDecision(t);
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  const events: string[] = [];
+  ports.queue.observeSettlement(review => events.push(review.review_id));
+  const request = await prepare("in-flight", async () => { entered.resolve(); await release.promise; });
+  const decision = ports.queue.respond({ review_id: request.review_id, decision: "approve", actor_id: "person" });
+  await entered.promise;
+  let closed = false;
+  const closing = reviews.close().then(() => { closed = true; });
+  try {
+    await new Promise(resolve => setTimeout(resolve, 20));
+    assert.equal(closed, false, "storage and queue notifications remain available to the dispatched operation");
+  } finally { release.resolve(); }
+  await decision; await closing;
+  assert.equal(ports.queue.receipt(request.review_id)?.effect_settled, true);
+  assert.deepEqual(events, [request.review_id]);
+});
+
+test("BL-359: Git close waits for accepted recovery to save its result and rejects new recovery", async t => {
+  const { sdk, ports, reviews, prepare } = await liveGitDecision(t);
+  const request = await prepare("recovering-at-close", async () => {
+    throw Object.assign(new Error("lost dispatch receipt"), { code: "EFFECT_RECONCILE_REQUIRED" });
+  });
+  await ports.queue.respond({ review_id: request.review_id, decision: "approve", actor_id: "person" });
+  assert.ok(ports.queue.receipt(request.review_id)?.effect_uncertain);
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  const saveReconciliation = ports.saveReconciliation.bind(ports);
+  t.mock.method(ports, "saveReconciliation", async (key: string, value: NonNullable<StoredDecision["reconciliation"]>) => {
+    entered.resolve(); await release.promise; await saveReconciliation(key, value);
+  });
+  const observe = async () => ({ revision: "original-index", observed_at: new Date().toISOString(), files: [], matches_before: true, matches_after: false });
+  const events: string[] = [];
+  ports.queue.observeSettlement(review => events.push(review.review_id));
+  const input = { review_id: request.review_id, action: "not-happened" as const, actor_id: "person", revision: "original-index", reason: "The fixture stopped before applying an index change." };
+  const recovery = ports.queue.recover(input, observe);
+  await entered.promise;
+  const scanned = Promise.withResolvers<void>(), readRecovery = sdk.effects.readRecovery.bind(sdk.effects);
+  t.mock.method(sdk.effects, "readRecovery", async () => {
+    const report = await readRecovery(); scanned.resolve(); return report;
+  });
+  let closed = false;
+  const closing = reviews.close().then(() => { closed = true; });
+  try {
+    await assert.rejects(ports.queue.recover(input, observe), /仍在处理/);
+    await assert.rejects(ports.queue.inspectRecovery(request.review_id, observe), /正在关闭/);
+    await scanned.promise;
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(closed, false);
+  } finally { release.resolve(); }
+  const result = await recovery; await closing;
+  assert.equal(result.receipt.effect_uncertain, undefined);
+  assert.match(result.receipt.effect_error ?? "", /未发生/);
+  assert.equal(result.receipt.reconciliation?.reason, input.reason);
+  assert.equal((await sdk.effects.readRecovery()).effects.find(effect => effect.pending?.ref.id === request.review_id.slice("prologue-git:".length))?.state, "failed");
+  assert.deepEqual(events, [request.review_id]);
+});
 
 test("worktree creation with a missing dispatch receipt remains unknown after restart and cannot be retried as an index operation", async () => {
   const root=await mkdtemp(path.join(tmpdir(),"worktree-uncertain-"));let queue=new AgentReviewQueue(),calls=0;

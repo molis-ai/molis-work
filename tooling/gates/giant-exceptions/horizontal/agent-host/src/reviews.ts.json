@@ -1,0 +1,9 @@
+{
+  "exceptions": {
+    "class horizontal/agent-host/src/reviews.ts#AgentReviewQueue": {
+      "kind": "cohesive-unit",
+      "reason": "审查队列的单一状态机共同拥有请求、决定、一次消费与真实结算；终态释放必须与状态转换同处，拆开会分散批准和执行通知的不变量。定时器调度已经单独归 ReviewDeadlines。",
+      "size": { "lines": 334, "methods": 30 }
+    }
+  }
+}

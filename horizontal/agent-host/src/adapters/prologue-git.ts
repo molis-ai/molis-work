@@ -78,11 +78,16 @@ async function settleReview(ports: Ports, effect: Effect, request: AgentReviewRe
 export function createPrologueGitReviews(ports: Ports): PrologueGitReviewPort {
   const { runtime, queue } = ports;
   const live = new Set<string>(), restored = new Set<string>(), working = new Map<string, Promise<AgentReviewRequest>>();
+  const settling = new Set<Promise<unknown>>();
   const busy = new Set<string>();
   const recovering = new Set<string>();
   let closed = false;
+  const track = <T>(pending: Promise<T>): Promise<T> => {
+    settling.add(pending);
+    return pending.finally(() => settling.delete(pending));
+  };
   const settle = (effect: Effect, request: AgentReviewRequest, error?: unknown, restored = false) => settleReview(ports, effect, request, error, restored);
-  const bindRecovery = (effect: Effect, request: AgentReviewRequest) => bindGitRecovery({ runtime, queue, saveReconciliation: (key, value) => ports.saveReconciliation(key, value), live, recovering, closed: () => closed, settle }, effect, request);
+  const bindRecovery = (effect: Effect, request: AgentReviewRequest) => bindGitRecovery({ runtime, queue, saveReconciliation: (key, value) => ports.saveReconciliation(key, value), live, recovering, track, closed: () => closed, settle }, effect, request);
   // Git operations from before this process are brought back once per board; every later one is registered live here,
   // so rereading the whole execution ledger on each review refresh found nothing new and cost a disk read per record.
   const settledBoards = new Set<string>();
@@ -106,7 +111,7 @@ export function createPrologueGitReviews(ports: Ports): PrologueGitReviewPort {
     }
     settledBoards.add(projectId);
   };
-  const detach = queue.registerRefresh(restore);
+  const detach = queue.registerRefresh(projectId => closed ? Promise.resolve() : track(restore(projectId)));
   return { async prepare(input, execution) {
     if (closed) throw new Error("应用正在关闭"); assertHolds(execution.authority, input);
     const intent = structuredClone(input), key = fingerprint(intent);
@@ -139,7 +144,7 @@ export function createPrologueGitReviews(ports: Ports): PrologueGitReviewPort {
         if (closed || effect.state !== "awaiting-approval" || !effect.pending) { await runtime.effects.cancel(effect.ref); throw new Error("Git 操作没有进入可批准状态，未执行"); }
         const request = requestOf(effect, saved); live.add(effect.ref.id); queue.request(request, execution.authority);
         bindRecovery(effect, request);
-        queue.registerDecisionHandler(request.review_id, async decision => {
+        const decide = async (decision: Parameters<AgentReviewQueue["respond"]>[0]) => {
           if (closed || runtime.effects.get(effect.ref)?.state !== "awaiting-approval") throw new Error("原 Git 操作的等待已经结束，不能重新派出");
           const receipt = queue.decide(decision);
           try {
@@ -162,11 +167,21 @@ export function createPrologueGitReviews(ports: Ports): PrologueGitReviewPort {
             }
             await settle(effect, request); return queue.receipt(request.review_id)!;
           } catch (error) {
-            queue.deliveryFailed(request.review_id, error instanceof Error ? error.message : "决定未送达");
-            if (["prepared", "awaiting-approval", "authorized"].includes(runtime.effects.get(effect.ref)?.state ?? "")) await runtime.effects.cancel(effect.ref);
+            const reason = error instanceof Error ? error.message : "决定未送达";
+            queue.deliveryFailed(request.review_id, reason);
+            if (["prepared", "awaiting-approval", "authorized"].includes(runtime.effects.get(effect.ref)?.state ?? "")) {
+              await runtime.effects.cancel(effect.ref);
+            }
+            if (decision.decision === "approve" && runtime.effects.get(effect.ref)?.state === "cancelled") {
+              const dispatch = await runtime.effects.inspectDispatch(effect.ref);
+              if (dispatch.state === "not-dispatched") {
+                queue.settleNotDispatched(request.review_id, `${reason}（原操作已取消，确认未执行）`);
+              }
+            }
             throw error;
           } finally { live.delete(effect.ref.id); restored.add(effect.ref.id); }
-        });
+        };
+        queue.registerDecisionHandler(request.review_id, decision => track(decide(decision)));
         return request;
       } finally { busy.delete(workspaceKey); }
     })();
@@ -174,9 +189,12 @@ export function createPrologueGitReviews(ports: Ports): PrologueGitReviewPort {
     try { return await task; } finally { working.delete(key); }
   }, async close() {
     closed = true; detach();
+    await Promise.allSettled(working.values());
     const report = await runtime.effects.readRecovery();
     for (const effect of report.effects) if (live.has(effect.ref.id) && ["prepared", "awaiting-approval", "authorized"].includes(effect.state)) {
       await runtime.effects.cancel(effect.ref); if (effect.pending) queue.cancel(`prologue-git:${effect.pending.ref.id}`, "应用关闭，待审 Git 操作已撤回");
     }
+    // Decisions and recovery already in progress own their final receipts; keep storage and notification origins until they settle.
+    await Promise.allSettled(settling);
   } };
 }

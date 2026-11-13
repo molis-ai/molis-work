@@ -9,6 +9,7 @@ export interface GitRecoveryState {
   saveReconciliation(key: string, value: NonNullable<AgentReviewReceipt["reconciliation"]>): Promise<void>;
   live: ReadonlySet<string>;
   recovering: Set<string>;
+  track<T>(pending: Promise<T>): Promise<T>;
   closed(): boolean;
   settle(effect: Effect, request: AgentReviewRequest): Promise<void>;
 }
@@ -18,7 +19,7 @@ export interface GitRecoveryState {
  * execution record, or confirm it did not happen with a reason. What the index shows is evidence for the person, never
  * proof by itself.
  */
-export function bindGitRecovery({ runtime, queue, saveReconciliation, live, recovering, closed, settle }: GitRecoveryState, effect: Effect, request: AgentReviewRequest) {
+export function bindGitRecovery({ runtime, queue, saveReconciliation, live, recovering, track, closed, settle }: GitRecoveryState, effect: Effect, request: AgentReviewRequest) {
   // Index content reconciliation cannot establish whether a worktree was created.
   if (request.operation?.kind !== "git-index") return;
   const inspect = async (observe: () => Promise<AgentGitIndexObservation>): Promise<AgentReviewRecoveryView> => {
@@ -36,7 +37,7 @@ export function bindGitRecovery({ runtime, queue, saveReconciliation, live, reco
     return { review_id: request.review_id, receipt: queue.receipt(request.review_id)!, observation,
       can_confirm_not_happened: idle && uncertain && observation?.matches_before === true && observation.matches_after === false, message };
   };
-  queue.registerRecoveryHandler(request.review_id, { inspect, async resolve(input, observe) {
+  const resolve: Parameters<AgentReviewQueue["registerRecoveryHandler"]>[1]["resolve"] = async (input, observe) => {
     if (closed() || live.has(effect.ref.id) || recovering.has(effect.ref.id)) throw new Error("原操作仍在处理，请稍后重新核对");
     if (input.action !== "refresh" && input.action !== "not-happened") throw new Error("核对动作无效");
     recovering.add(effect.ref.id);
@@ -66,5 +67,11 @@ export function bindGitRecovery({ runtime, queue, saveReconciliation, live, reco
       await settle(effect, request);
       return inspect(observe);
     } finally { recovering.delete(effect.ref.id); }
+  };
+  queue.registerRecoveryHandler(request.review_id, { async inspect(observe) {
+    if (closed()) throw new Error("应用正在关闭，不能重新核对原操作");
+    return track(inspect(observe));
+  }, resolve(input, observe) {
+    return track(resolve(input, observe));
   } });
 }

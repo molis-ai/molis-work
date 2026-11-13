@@ -278,7 +278,7 @@ test("approval must be durably recorded before SDK answer; a storage failure nev
       const restored = new AgentReviewQueue();
       restored.restoreDecision(request, receipt);
       assert.throws(() => restored.consumeApproval(request.review_id), /没有可用的批准/);
-      await assert.rejects(restored.respond({ review_id: request.review_id, decision: "approve", actor_id: "tester" }), /执行|接通|注册/);
+      await assert.rejects(restored.respond({ review_id: request.review_id, decision: "approve", actor_id: "tester" }), { code: "agent.review_already_decided" });
       restored.settle(request.review_id, { ok: true });
       assert.equal(restored.receipt(request.review_id)?.effect_settled, true);
     }

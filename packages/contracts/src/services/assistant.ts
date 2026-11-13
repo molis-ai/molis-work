@@ -350,6 +350,7 @@ export interface AssistantRound {
 /** An effect held for the person's decision in this work, exactly as the Runtime will execute it. */
 export interface AssistantPendingReview {
   review_id: string;
+  version: string;
   /** The original execution owner determines which decisions this pending can still accept. */
   decisions: AgentReviewDecisions;
   /** What is held: a business change, a file edit, a command, an MCP call… The fields read accordingly. */

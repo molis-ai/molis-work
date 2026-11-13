@@ -29,6 +29,7 @@ function row(overrides: Partial<AgentReviewRow> = {}): AgentReviewRow {
     decisions: { approve: { available: true }, reject: { available: true } },
     request: {
       review_id: "r1",
+      reference: { owner: { kind: "agent-review", project_id: "board-a", plugin_id: "io.molis.work.coding", install_id: "fixture" }, id: "r1", version: "shown-version" },
       run: { run_id: "run-1", session_id: "s-1" },
       project_id: "board-a",
       plugin_id: "io.molis.work.coding",
@@ -59,6 +60,16 @@ function receipt(overrides: Partial<AgentReviewRow["receipt"] & object> = {}) {
     ...overrides,
   };
 }
+
+test("APR-12: persisted person and policy sources are distinct; historical actor text cannot invent a person source", () => {
+  const person = renderAgentReviewSurface({ rows: [row({ receipt: receipt({ source: { kind: "person", actor_id: "user" } }) })], primitives: p });
+  assert.match(person, /data-review-source="person"/); assert.match(person, /本人决定/);
+  const policy = renderAgentReviewSurface({ rows: [row({ receipt: receipt({ source: { kind: "policy", owner: "agent.session-rule", id: "rule", revision: 1, set_by: "user", set_at: "2026-09-19T14:00:00Z" } }) })], primitives: p });
+  assert.match(policy, /data-review-source="policy"/); assert.match(policy, /自动策略/); assert.doesNotMatch(policy, /本人决定/);
+  const history = renderAgentReviewSurface({ rows: [row({ receipt: receipt({ note: "approved by a human" }) })], primitives: p });
+  assert.match(history, /data-review-source="unrecorded"/); assert.match(history, /来源未记录/);
+  assert.match(person, /data-agent-review-version="shown-version"/);
+});
 
 test("批准之后、真实回执之前，是「已批准，执行结果待确认」，不是「已完成」", () => {
   const approved = row({ receipt: receipt() });

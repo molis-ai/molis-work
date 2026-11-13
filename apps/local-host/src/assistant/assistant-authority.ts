@@ -35,7 +35,7 @@ export function directEligible(view: ActionView, offered: readonly ActionView[],
  * default on 2026-09-28; each write still stops at a review of its exact parameters, and the grants are the Assistant's
  * own — separate from Coding's and external agents'.
  */
-export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectActions" | "inspectActionMetadata" | "actionClient" | "homeActionClient">, work: StoredWork, disabled: () => ReadonlySet<string>,
+export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectActions" | "inspectActionMetadata" | "actionClient" | "homeActionClient" | "prepareActionReview">, work: StoredWork, disabled: () => ReadonlySet<string>,
   /** Records a suggestion for the person, checked against the capabilities offered now. */
   offer?: (offer: AgentActionOffer, views: readonly ActionView[]) => Promise<{ offer_id: string }>,
   /** Told after a command succeeded, with the action as offered, so the work can keep a relation to what it changed. */
@@ -99,6 +99,14 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
     authorizedDirectories: [],
     actions: async (_runtimeId, validate) => ({
       discover: () => discover(validate),
+      prepareReview: async (view, input) => {
+        await validate?.();
+        const caller = base(work.session_id ?? undefined), action = { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id };
+        const assertEnabled = () => { if (accepted([view], caller).length !== 1) throw assistantErrors.action_revoked("这项能力已对助理关闭或不再可用，未执行"); };
+        assertEnabled();
+        const held = localHost.prepareActionReview({ ...caller, permissions: view.action.permissions, allowed_actions: [action], assert_authority_current: assertEnabled }, view, input, reference);
+        return { assertCurrent: held.assertCurrent, beforeEffect: async () => { await validate?.(); await held.beforeEffect(); } };
+      },
       ...(offer ? { offer: async (proposal: AgentActionOffer) => offer(proposal, await service().discover(await context(validate))) } : {}),
       ...(delegation ? { delegate: delegation } : {}),
       ...(memory ? { memory } : {}),
@@ -112,7 +120,7 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
         if (!view) throw assistantErrors.action_revoked("这项能力已对助理关闭或不再可用");
         assertActionCommandInput(view, base(), input);
       },
-      invoke: async (action, input, signal) => {
+      invoke: async (action, input, signal, review) => {
         const stoppedBeforeDispatch = (view: Omit<ActionView, "availability">) => {
           const refused = Promise.reject(new ActionError("actions.cancelled", "这一轮停止时它还没有发出，没有执行"));
           refused.catch(() => undefined);
@@ -140,8 +148,11 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
         if (signal?.aborted && view && view.operation === "command") {
           return await stoppedBeforeDispatch(view);
         }
+        review?.assertCurrent();
         if (view && view.operation === "command") dispatched?.(view);
-        const call = service().invoke(caller, action, input);
+        const call = service().invoke({ ...caller, assert_authority_current: (ref, required) => {
+          review?.assertCurrent(); caller.assert_authority_current?.(ref, required);
+        } }, action, input);
         // The round may stop while the owner is still changing things: the call goes on, and how it ends is kept for the work.
         if (view && view.operation === "command" && unsettled && signal && !signal.aborted) {
           const left = () => unsettled(view, call);

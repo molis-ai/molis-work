@@ -92,9 +92,11 @@ export const ASSISTANT_CONVERSATION_PART = String.raw`  /* ─── Showing a t
   };
   const renderReview = (card, work, review) => {
     const decisions=JSON.stringify(review.decisions);
-    if(card.dataset.painted&&card.dataset.reviewDecisions===decisions)return;
+    const sameVersion=card.dataset.reviewVersion===review.version;
+    if(card.dataset.painted&&sameVersion&&card.dataset.reviewDecisions===decisions)return;
     card.dataset.reviewDecisions=decisions;
-    if(card.dataset.painted){
+    card.dataset.reviewVersion=review.version;
+    if(card.dataset.painted&&sameVersion){
       const row=card.querySelector('.assistant-card-actions'),focused=row.contains(document.activeElement)?document.activeElement.dataset.assistantDecision:null;
       const updated=document.createElement('template');updated.innerHTML=review.html;
       row.innerHTML=updated.content.querySelector('.assistant-card-actions').innerHTML;
@@ -116,7 +118,7 @@ export const ASSISTANT_CONVERSATION_PART = String.raw`  /* ─── Showing a t
       row.ariaBusy = "true";
       buttons().forEach((button) => { button.ariaDisabled = "true"; });
       try {
-        const next = await api("/works/" + encodeURIComponent(work.work_id) + "/reviews/" + encodeURIComponent(review.review_id), "POST", { decision });
+        const next = await api("/works/" + encodeURIComponent(work.work_id) + "/reviews/" + encodeURIComponent(review.review_id), "POST", { decision, version: review.version });
         if (card.isConnected) { view = next; render(); poll(); }
       } catch (error) {
         row.removeAttribute("aria-busy");

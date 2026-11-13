@@ -78,7 +78,7 @@ test("a failed SDK background read preserves the last actual command observation
   t.mock.method(globalThis, "fetch", async () => ++turn === 1 ? codingToolResponse("start-command", { executable: process.execPath, argv: ["-e", "setTimeout(()=>{},30000)"] }) : cogniaModelResponse("The command is running in the background."));
   const started = body<Started>(await fixture.call("/sessions/A/runs", { ...configuration, task: "Start a controlled background command.", intent: "execute" }));
   await until("command approval did not appear", () => fixture.reviews.list(DEMO_PROJECT_ID, "pending").length > 0);
-  for (const review of fixture.reviews.list(DEMO_PROJECT_ID, "pending")) await fixture.reviews.respond({ review_id: review.review_id, actor_id: "web-user", decision: "approve" });
+  for (const review of fixture.reviews.list(DEMO_PROJECT_ID, "pending")) await fixture.reviews.respond({ review_id: review.review_id, version: review.reference.version, actor_id: "web-user", decision: "approve" });
   await settle(fixture, started.run.ref); body(await fixture.call("/state"));
   await until("SYS-15-Q2: the independent observer did not record the command", () => fixture.sessions.backgroundOf(DEMO_PROJECT_ID, "A")?.length === 1);
   const observed = fixture.sessions.backgroundOf(DEMO_PROJECT_ID, "A"); assert.equal(observed?.length, 1);
@@ -108,7 +108,7 @@ test("Coding activation resumes a persisted SDK wait without opening a page and 
   });
   const opened = body<Started>(await fixture.call("/sessions/A/runs", { ...configuration, task: "Start and park on a controlled command.", intent: "execute" }));
   await until("command approval did not appear", () => fixture.reviews.list(DEMO_PROJECT_ID, "pending").length > 0);
-  for (const review of fixture.reviews.list(DEMO_PROJECT_ID, "pending")) await fixture.reviews.respond({ review_id: review.review_id, actor_id: "web-user", decision: "approve" });
+  for (const review of fixture.reviews.list(DEMO_PROJECT_ID, "pending")) await fixture.reviews.respond({ review_id: review.review_id, version: review.reference.version, actor_id: "web-user", decision: "approve" });
   await settle(fixture, opened.run.ref); const parked = (await fixture.adapter.collaboration!.read(DEMO_PROJECT_ID)).flatMap(view => view.wait ?? []); assert.equal(parked.length, 1); assert.equal(parked[0]!.state, "waiting");
   const installation = fixture.platform.supervisor.state("io.molis.work.coding")!; await fixture.platform.runtime.stop(installation.install_id!);
   await until("the command did not end the wait", async () => (await fixture.adapter.collaboration!.read(DEMO_PROJECT_ID))[0]?.continuation?.state === "eligible", 15_000);

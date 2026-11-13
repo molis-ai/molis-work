@@ -55,8 +55,8 @@ const conflict = (error: unknown, fallback: string) => {
 export const agentReviewActions = {
   decide: door.define({ capability_id: "agent.reviews.decide", version: /* @version action.agent.reviews.decide */ 1, scope: "home",
     title: "决定一条待审操作", description: "本人批准或拒绝 Agent 请求的一项操作；批准不等于已经发生，回执另说。",
-    input_schema: { type: "object", properties: { review_id: reviewId, decision: { enum: ["approve", "reject"] }, note: { type: "string", maxLength: 2000 },
-      remember: { enum: ["session", "app-this-round"] } }, required: ["review_id", "decision"], additionalProperties: false } },
+    input_schema: { type: "object", properties: { review_id: reviewId, version: { type: "string", minLength: 1, maxLength: 200 }, decision: { enum: ["approve", "reject"] }, note: { type: "string", maxLength: 2000 },
+      remember: { enum: ["session", "app-this-round"] } }, required: ["review_id", "version", "decision"], additionalProperties: false } },
   async ({ ports, page }, input, caller) => {
     const review = ports.agentHost.reviews.get(input.review_id);
     const assertCurrent = () => {
@@ -73,7 +73,7 @@ export const agentReviewActions = {
     assertCurrent();
     await ports.agentHost.reviews.refresh(review!.project_id);
     try {
-      return { receipt: await ports.agentHost.reviews.respond({ review_id: input.review_id, decision: input.decision, actor_id: ports.actorId,
+      return { receipt: await ports.agentHost.reviews.respond({ review_id: input.review_id, version: input.version, decision: input.decision, actor_id: ports.actorId,
         ...(input.note ? { note: input.note } : {}), ...(input.remember ? { remember: input.remember } : {}) }, {
         beforeEffect: async () => { await caller.beforeEffect(); await page?.beforeEffect(); }, assertCurrent,
       }) };
@@ -192,7 +192,7 @@ export async function handleAgentReviewHttp(
     }
     try {
       // 200 carries the receipt, not a claim that the effect happened: that is `effect_settled`, and it stays false until a real result comes back.
-      sendLocalWebJson(response, 200, await door.invoke(asPerson(request, ports), agentReviewActions.decide.definition, { review_id: reviewId, decision,
+      sendLocalWebJson(response, 200, await door.invoke(asPerson(request, ports), agentReviewActions.decide.definition, { review_id: reviewId, version: typeof body.version === "string" ? body.version : "", decision,
         ...(typeof body.note === "string" && body.note !== "" ? { note: body.note } : {}),
         ...(body.remember === "session" || body.remember === "app-this-round" ? { remember: body.remember } : {}) }));
     } catch (error) { refuse(response, error); }

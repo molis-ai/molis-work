@@ -62,6 +62,8 @@ Run 的启动/读取/控制/等待、接续的等待。每一条只给插件、�
 **批准刻意不是插件可调的动作**：那是用户在宿主审查面里的动作；开成插件可调的能力，
 就等于让插件批准自己的副作用。
 
+审查决定只经异步 `AgentReviewQueue.respond`：输入带显示时的提案 `version`，可信入口创建来源，原执行 owner 先提交 `ReviewDecisionStore` 的原子决定，再回答 SDK。来源、决定和原请求快照同条保存，实际执行结果仍归 SDK；旧历史没有新记录就显示来源未记录。保存或读取未知时禁用决定，按原键重读；重启恢复只投影事实，不重新执行。Git 和 checkpoint 使用同一个存储入口。平台动作将原登记、整轮权限和所选 MCP 授权世代固定到 SDK 原调用，批准后也带到真实执行边界。见 [设计合同](../../specs/agent-approval/review-contract-design.md) 与 [安全不变量](../../docs/system/security-invariants/S-review-decision-provenance.md)。
+
 ## 从哪里读代码
 
 - `src/index.ts`：`AgentHost` 的注册、能力矩阵与启动授权。

@@ -56,7 +56,7 @@ async function bench(t: { mock: { method: Function } }, script: (side: "parent" 
       const view = await adapter.read(ref);
       if (["completed", "failed", "cancelled", "stopped"].includes(view.phase)) return view;
       if (Date.now() > deadline) throw new Error("timed out: " + JSON.stringify({ phase: view.phase, turns }));
-      for (const review of queue.list("b", "pending")) if (!decided.has(review.review_id)) { decided.add(review.review_id); await queue.respond({ review_id: review.review_id, decision: "approve", actor_id: "user" }); }
+      for (const review of queue.list("b", "pending")) if (!decided.has(review.review_id)) { decided.add(review.review_id); await queue.respond({ review_id: review.review_id, version: review.reference.version, decision: "approve", actor_id: "user" }); }
       await new Promise(resolve => setTimeout(resolve, 10));
     }
   };

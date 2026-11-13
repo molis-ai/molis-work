@@ -123,6 +123,14 @@ export class AssistantThreads {
     this.guards.get(work.work_id)?.assertCurrent();
   }
 
+  /** The retained comment owner, without the invocation that originally requested a reply. */
+  assertAuthority(work: StoredWork): void {
+    this.assertRoundCurrent(work);
+    const guard = this.guards.get(work.work_id);
+    if (!guard) throw assistantErrors.authority("原评论回复的持续授权不可读取");
+    guard.assertCurrent();
+  }
+
   private async dispatch(work: StoredWork, caller: ActionExecutionContext): Promise<ThreadReplyStatus> {
     const round = work.thread_round!;
     const previousRun = this.store.rounds(work.work_id).at(-1)?.run_id;

@@ -1,4 +1,5 @@
-import { actionExecutionContext, assertReadOnlyEffects, visibleAction } from "./action-execution-context.js";
+import { isDeepStrictEqual } from "node:util";
+import { actionExecutionContext, assertReadOnlyEffects, captureActionRegistration, visibleAction } from "./action-execution-context.js";
 import { assertSceneHandler, consumeScene, protectSceneReads, runSceneEffect } from "./action-scene-execution.js";
 import { inDirectoryPass, rememberInDirectoryPass } from "./directory-pass.js";
 import { registeredActionMetadata } from "./action-metadata.js";
@@ -197,6 +198,24 @@ export class ActionService implements ActionClient, ActionRegistryPort {
   /** Composition-only metadata inspection. Never grants execution or exposes handlers. */
   inspect(context: ActionCallContext): ActionView[] {
     return this.directory(context, true);
+  }
+
+  /** Host-only: pin one reviewed proposal without discovering the rest of the directory or invoking its handler. */
+  prepareReview(context: ActionCallContext, offered: ActionView, input: unknown) {
+    const saved = captureActionRegistration(this.registry, ref => this.registry.descriptor(ref, context.project_id),
+      { capability_id: offered.capability_id, version: offered.version, provider_id: offered.provider.provider_id }, context);
+    if (saved.definition.operation !== offered.operation || !isDeepStrictEqual(saved.definition.action, offered.action)) throw new ActionError("actions.definition_changed", "审查的能力合同已经变化");
+    assertReadOnlyEffects(context, offered); assertCallerProvenance(offered.action, context);
+    validateActionInput(createActionSchemaCompiler()(offered.action.input_schema), offered, context, input);
+    const assertCurrent = () => {
+      saved.assertCurrent(); this.effects.assertCurrent?.(context, saved.reference);
+      assertCurrentAuthority(context, saved.reference, saved.permissions);
+    };
+    assertCurrent();
+    return { assertCurrent, beforeEffect: async () => {
+      assertCurrent(); await context.validate_authority?.(saved.reference); await context.validate_permissions?.(saved.permissions);
+      await this.effects.beforeEffect?.(context, saved.reference); assertCurrent();
+    } };
   }
 
   private directory(context: ActionCallContext, inspection: boolean): ActionView[] {

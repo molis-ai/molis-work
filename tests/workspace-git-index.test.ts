@@ -3,15 +3,47 @@ import test from "node:test";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { mkdtemp, writeFile, readFile, rm, realpath, chmod } from "node:fs/promises";
+import { promises as fs } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { readWorkspaceGit } from "../apps/local-host/src/workspace-git.js";
 import { prepareGitIndex, inspectGitIndex } from "../apps/local-host/src/workspace-git-index.js";
-import { AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
+import { AgentReviewQueue, createPrologueNodeAdapter, reviewProposalVersion } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentReviewRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 const held = { plugin_id: "io.molis.work.git", install_id: "fixture", holds: () => true };
 const exec = promisify(execFile);
+
+for (const revokeAt of ["preflight", "publish"] as const) test(`APR-08: Git index ${revokeAt} revocation refuses the original write`, async t => {
+  const root = await realpath(await mkdtemp(path.join(tmpdir(), "review-index-tail-")));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const git = (...args: string[]) => exec("git", args, { cwd: root });
+  await git("init", "-q", "-b", "main"); await git("config", "user.name", "Fixture"); await git("config", "user.email", "fixture@example.invalid");
+  await writeFile(path.join(root, "note"), "original\n"); await git("add", "note"); await git("commit", "-qm", "base");
+  await writeFile(path.join(root, "note"), "reviewed\n");
+  const grants = [{ workspace_id: "w", canonical_path: root, realpath_verified: true }] as ProjectWorkspaceRef[];
+  const diff = await readWorkspaceGit({ workspace_id: "w", path: ["note"], kind: "diff", side: "worktree" }, grants);
+  assert.equal(diff.outcome, "diff"); if (diff.outcome !== "diff") throw new Error("diff unavailable");
+  let armed = false, current = true;
+  const prepared = await prepareGitIndex({ workspace_id: "w", path: ["note"], action: "stage", revision: diff.revision }, async () => {
+    await Promise.resolve(); if (armed && revokeAt === "preflight") current = false; return grants;
+  });
+  const original = await readFile(path.join(root, ".git/index"));
+  if (revokeAt === "publish") {
+    const originalRead = fs.readFile;
+    t.mock.method(fs, "readFile", async (...args: Parameters<typeof fs.readFile>) => {
+      const value = await originalRead(...args);
+      if (String(args[0]).includes("molis-index-")) current = false;
+      return value;
+    });
+  }
+  armed = true;
+  await assert.rejects(prepared.execute(() => assert.ok(current, "original approval revoked")), /original approval revoked/);
+  assert.deepEqual(await readFile(path.join(root, ".git/index")), original);
+  assert.equal((await git("show", ":note")).stdout, "original\n");
+  assert.equal(await readFile(path.join(root, "note"), "utf8"), "reviewed\n");
+  await assert.rejects(readFile(path.join(root, ".git/index.lock")), { code: "ENOENT" });
+});
 test("Git index preparation writes nothing, stages exact bytes/modes and refuses changed facts or another writer's lock", async () => {
   const root = await realpath(await mkdtemp(path.join(tmpdir(), "git-index-"))), index = path.join(root, ".git/index");
   const git = (...args: string[]) => exec("git", args, { cwd: root });
@@ -80,14 +112,14 @@ for (const applied of [false, true]) test(`Git recovery ${applied ? 'retains unc
     const diff = await readWorkspaceGit({ kind: 'diff', workspace_id: 'workspace', path: ['note'], side: 'worktree' }, grants);
     assert.equal(diff.outcome, 'diff'); if (diff.outcome !== 'diff') throw new Error('missing diff');
     const prepared = await prepareGitIndex({ workspace_id: 'workspace', path: ['note'], action: 'stage', revision: diff.revision }, async () => grants);
-    const intent = { project_id: 'board', workspace_id: 'workspace', operation_id: 'unknown-operation', document: { kind: 'git-index' as const, action: 'stage' as const, workspace_name: 'fixture', files: prepared.files } };
+    const intent = { project_id: 'board', workspace_id: 'workspace', operation_id: 'unknown-operation', proposal_fingerprint: reviewProposalVersion({ root, revision: diff.revision, files: prepared.files }), document: { kind: 'git-index' as const, action: 'stage' as const, workspace_name: 'fixture', files: prepared.files } };
     await start();
     const request = await adapter.gitReviews!.prepare(intent, { authority: held, check: prepared.check, execute: async () => {
       calls++; if (applied) await prepared.execute();
       throw Object.assign(new Error('lost original dispatch receipt'), { code: 'EFFECT_RECONCILE_REQUIRED' });
     } });
     const id = request.review_id;
-    await queue.respond({ review_id: id, decision: 'approve', actor_id: 'tester' });
+    await queue.respond({ review_id: id, version: request.reference.version, decision: 'approve', actor_id: 'tester' });
     await adapter.close(); await start(); await queue.refresh('board');
     const initial = await queue.inspectRecovery(id, observe);
     assert.equal(initial.observation?.matches_before, !applied);
@@ -132,12 +164,12 @@ for (const applied of [false, true]) test(`Git recovery ${applied ? 'retains unc
       assert.equal(resolved.receipt.reconciliation?.reason, input.reason); assert.match(resolved.receipt.effect_error!, /未发生/);
       assert.deepEqual(await readFile(path.join(root, '.git/index')), before);
       await assert.rejects(queue.recover(input, observe), /已经收口|已收口/);
-      await assert.rejects(queue.respond({ review_id: id, decision: 'approve', actor_id: 'tester' }));
+      await assert.rejects(queue.respond({ review_id: id, version: request.reference.version, decision: 'approve', actor_id: 'tester' }));
       await adapter.close(); await start(); await queue.refresh('board');
       assert.deepEqual(queue.receipt(id), resolved.receipt, 'SDK outcome and Host provenance survive restart');
       assert.equal((await adapter.gitReviews!.prepare(intent, { ...prepared, authority: held })).review_id, id);
       const next = await adapter.gitReviews!.prepare({ ...intent, operation_id: 'new-operation' }, { authority: held, check: async () => {}, execute: async () => { calls++; } });
-      await queue.respond({ review_id: next.review_id, decision: 'reject', actor_id: 'tester' });
+      await queue.respond({ review_id: next.review_id, version: next.reference.version, decision: 'reject', actor_id: 'tester' });
       assert.equal(calls, 1); assert.equal((await git('show', ':note')).stdout, 'base\n');
     }
   } finally { await adapter!?.close(); await rm(root, { recursive: true, force: true }); }

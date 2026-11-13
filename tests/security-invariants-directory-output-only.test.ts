@@ -97,9 +97,10 @@ test("S-directory-output-only SSC-15 Git does not commit in a folder that is onl
 test("S-directory-output-only SSC-15 a review prepared in the output is refused when it runs if the folder became only an input", { timeout: 60_000 }, async t => {
   const h = await openHost(t);
   const staged = await h.actions.invoke(prepareGitIndexCapability, stage("output", await h.diff("output"), "stage-then-input"));
+  const reviewed = h.reviews.get(staged.review_id)!;
   // The person makes the other folder the output; this one stays in the project as an input only. Then they approve.
   h.state.output = "input";
-  const receipt = await h.reviews.respond({ review_id: staged.review_id, decision: "approve", actor_id: "web-user" });
+  const receipt = await h.reviews.respond({ review_id: staged.review_id, version: reviewed.reference.version, decision: "approve", actor_id: "web-user" });
   assert.equal(receipt.status, "approved");
   assert.equal(receipt.effect_settled, false, "the approved staging did not run");
   assert.match(receipt.effect_error ?? "", /只作输入/u);

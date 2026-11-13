@@ -168,7 +168,7 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
       void memoryHostFor(ports.localHost)?.learnLater({ actor_id: WEB_ACTOR, work_id: work.work_id, run_id, session_id: work.session_id, sources })
         .catch(error => hostLog.warn("memory", "learning_not_queued", error));
     },
-    authority: async (work, origin, locale, namedSkills) => work.reply_target ? { manifest: ASSISTANT_AGENT, prompts: ASSISTANT_PROMPTS, authorizedDirectories: [], beforeDispatch: () => threads.authorize(work) } : ({ ...assistantAuthority(ports.localHost, work, () => store.disabledActions(WEB_ACTOR), (offer, views) => service.offers.recordOffer(work, offer, views),
+    authority: async (work, origin, locale, namedSkills) => work.reply_target ? { manifest: ASSISTANT_AGENT, prompts: ASSISTANT_PROMPTS, authorizedDirectories: [], beforeDispatch: () => threads.authorize(work), assertBeforeDispatch: () => threads.assertAuthority(work) } : ({ ...assistantAuthority(ports.localHost, work, () => store.disabledActions(WEB_ACTOR), (offer, views) => service.offers.recordOffer(work, offer, views),
       (view, input, output) => service.outcomes.recordResult(work, view, input, output, origin?.source !== "card"), service.delegation(work),
       (view, call) => service.dispatcher.trackUnsettled(work, `${view.provider.title} · ${view.action.title}`, call), service.memory.memoryTools(work), () => store.confirmAlways(WEB_ACTOR),
       view => service.dispatcher.noteDispatched(work, view), () => {
@@ -176,6 +176,7 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
         return snapshot ? { url: null, title: snapshot.source.title ?? snapshot.source.surface, provenance: "client_reported" } : undefined;
       }, locale, namedSkills),
       project_prompts: await assistantProjectPrompts(ports.localHost, work),
+      assertBeforeDispatch: () => { if (ports.localHost.lifecycle() !== "running") throw assistantErrors.state("运行环境已经关闭"); },
       // The platform memory, under the Assistant's switch: re-read and injected by the runtime as data.
       memory: task => service.memory.memoryForRound(work, task),
       // A Character published in the work's project, frozen at its exact version for the round (the Host checks it again at dispatch).
@@ -280,6 +281,9 @@ const pageId = { type: "string", minLength: 1, maxLength: 200 } as const, body =
 const ofPanel = { type: "object", properties: { body }, required: ["body"], additionalProperties: false } as const;
 const ofWork = { type: "object", properties: { work_id: pageId, body }, required: ["work_id", "body"], additionalProperties: false } as const;
 const ofItem = { type: "object", properties: { work_id: pageId, item: pageId, body }, required: ["work_id", "item", "body"], additionalProperties: false } as const;
+const ofReview = { ...ofItem, properties: { ...ofItem.properties, body: { type: "object", properties: {
+  decision: { enum: ["approve", "reject"] }, version: { type: "string", minLength: 1, maxLength: 200 }, note: { type: "string", maxLength: 2000 },
+}, required: ["decision", "version"], additionalProperties: false } } } as const;
 const scoped = (entry: AssistantPageEntry) => entry.ports.projectRef ? { project_ref: entry.ports.projectRef } : {};
 const panel = <const S extends ActionSchema, Output>(name: string, version: number, title: string, input_schema: S,
   handle: (entry: AssistantPageEntry, input: InferActionInput<S>, caller: ActionExecutionContext) => Output | Promise<Output>, metered = false) =>
@@ -320,8 +324,8 @@ export const assistantPanelActions = {
     ? of(entry).service.closeInterrupted(input.work_id, { run_id: input.body.run_id, version: Number(input.body.version) }) : of(entry).service.recovery(input.work_id)),
   archive: panel("works.archive", /* @version action.assistant.panel.works.archive */ 1, "归档或恢复工作", ofWork,
     async (entry, input) => ({ work: await of(entry).service.archive(input.work_id, input.body.archived !== false) })),
-  review: panel("works.review", /* @version action.assistant.panel.works.review */ 1, "批准或拒绝工作里的待审操作", ofItem, (entry, input, caller) => of(entry).service.outcomes.decide(input.work_id,
-    { review_id: input.item, decision: pageBody<{ decision: "approve" | "reject" }>(input.body).decision, ...(typeof input.body.note === "string" ? { note: input.body.note } : {}) }, {
+  review: panel("works.review", /* @version action.assistant.panel.works.review */ 1, "批准或拒绝工作里的待审操作", ofReview, (entry, input, caller) => of(entry).service.outcomes.decide(input.work_id,
+    { review_id: input.item, version: input.body.version, decision: input.body.decision, ...(typeof input.body.note === "string" ? { note: input.body.note } : {}) }, {
       beforeEffect: async () => { await caller.beforeEffect(); await entry.page?.beforeEffect(); },
       assertCurrent: review => {
         caller.signal?.throwIfAborted(); requireSynchronous(caller.assert_authority_current?.()); entry.page?.assertCurrent();

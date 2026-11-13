@@ -21,6 +21,7 @@ import { agentErrors } from "../errors.js";
 import { MAX_COMPOSED_INSTRUCTION_CHARS, readResource, sameRef, stageTextResource, type CommandEvent, type NodeHost, type PrologueNodeAdapterOptions } from "./prologue-node-kit.js";
 import { SESSION_INDEX_SCHEMA, type SessionIndexStore } from "./prologue-session-index.js";
 import type { createPrologueMemoryAuthority } from "./prologue-memory-authority.js";
+import type { ReviewDecisionStore } from "../review-decisions.js";
 
 /**
  * The runtime the Node composition makes, and the port it hands the adapter (W4-06 split these out of
@@ -77,21 +78,24 @@ export function createNodeRuntime(options: PrologueNodeAdapterOptions, host: Nod
 }
 
 /** Git index reviews, their decisions kept encrypted in the Host's store. Only when the Host owns a review queue. */
-export function createNodeGitReviews(options: PrologueNodeAdapterOptions, host: NodeHost, runtime: Runtime) {
+export function createNodeGitReviews(options: PrologueNodeAdapterOptions, host: NodeHost, runtime: Runtime, decisions: ReviewDecisionStore) {
   if (!options.reviewQueue) return undefined;
   const kind = `molis-git-review-${createHash("sha256").update(options.app.appId).digest("hex").slice(0, 24)}`;
-  const update = async (id: string, patch: { failure_reason?: string; reconciliation?: NonNullable<AgentReviewReceipt["reconciliation"]> }) => {
+  const update = async (id: string, patch: { failure_reason?: string; reconciliation?: NonNullable<AgentReviewReceipt["reconciliation"]> },
+    decided?: Pick<AgentReviewReceipt, "status" | "decided_by" | "decided_at" | "note">) => {
     const record = await host.storage.get({ kind, id });
-    if (!record || record.tombstoned) throw new Error("原 Git 审查记录不可读取");
-    const original = await host.storage.readSecure({ kind, id });
+    if (record?.tombstoned || !record && !decided) throw new Error("原 Git 审查记录不可读取");
+    // An explicit reconciliation uses the already restored decision, including
+    // when the optional old projection never committed. No source is inferred here.
+    const original = decided ? undefined : await host.storage.readSecure({ kind, id });
     let bytes: Uint8Array | undefined;
     try {
-      const decision = JSON.parse(new TextDecoder().decode(original));
+      const decision = decided ?? JSON.parse(new TextDecoder().decode(original));
       bytes = new TextEncoder().encode(JSON.stringify({ ...decision, ...patch }));
-      await host.storage.commit({ kind, id, expectedVersion: record.version, metadata: { schema: 1 }, secureBody: bytes });
-    } finally { original.fill(0); bytes?.fill(0); }
+      await host.storage.commit({ kind, id, expectedVersion: record?.version ?? 0, metadata: { schema: 1 }, secureBody: bytes });
+    } finally { original?.fill(0); bytes?.fill(0); }
   };
-  return createPrologueGitReviews({ runtime, queue: options.reviewQueue,
+  return createPrologueGitReviews({ runtime, queue: options.reviewQueue, decisionStore: decisions,
     publish: value => stageTextResource(runtime, JSON.stringify(value), "git-index-review"), read: ref => readResource(runtime, ref),
     async saveDecision(id, value) {
       const bytes = new TextEncoder().encode(JSON.stringify(value));
@@ -101,7 +105,7 @@ export function createNodeGitReviews(options: PrologueNodeAdapterOptions, host: 
     async saveFailure(id, reason) {
       await update(id, { failure_reason: reason });
     },
-    saveReconciliation: (id, reconciliation) => update(id, { reconciliation }),
+    saveReconciliation: (id, reconciliation, decided) => update(id, { reconciliation }, decided),
     async readDecision(id) {
       const record = await host.storage.get({ kind, id });
       if (!record || record.tombstoned) return undefined;

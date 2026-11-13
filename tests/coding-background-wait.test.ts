@@ -73,7 +73,7 @@ test("a round leaves a long command running in the background and parks on it: n
   };
   let { adapter, host, queue } = await open();
   // The person approves each command; what the card says is kept to check.
-  const approve = async () => { for (const review of queue.list("b", "pending")) { reviews.push(review.document); await queue.respond({ review_id: review.review_id, decision: "approve", actor_id: "user" }); } };
+  const approve = async () => { for (const review of queue.list("b", "pending")) { reviews.push(review.document); await queue.respond({ review_id: review.review_id, version: review.reference.version, decision: "approve", actor_id: "user" }); } };
   const run = async (title: string, task: string, hold?: () => Promise<boolean>, again?: Awaited<ReturnType<typeof adapter.createSession>>) => {
     const session = again ?? await adapter.createSession({ ...owner, directory, title });
     const started = await host.start("prologue", { ...owner, session, directory, role_id: "builder", task, session_title: title } as never, authority);

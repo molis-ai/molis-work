@@ -50,9 +50,12 @@ try {
   await runtime.start(install.install_id);
   await actions.invoke(peek, {});
   const request = await actions.invoke(writerDirectoryCapabilities.prepare, { workspace_id: "main", operation_id: "gc-operation" });
-  queue.decide({ review_id: request.review_id, decision: "approve", actor_id: "person" });
-  queue.consumeApproval(request.review_id);
-  queue.uncertain(request.review_id, "Execution owner will reconcile");
+  const presented = queue.get(request.review_id);
+  // Block only provenance registration after Git has created the actual worktree.
+  await writeFile(join(repo, ".git", "config.lock"), "held by fixture");
+  await queue.respond({ review_id: request.review_id, version: presented.reference.version, decision: "approve", actor_id: "person" });
+  assert.ok(queue.receipt(request.review_id).effect_uncertain, "a partial Git effect retains its original settlement provenance");
+  await rm(join(repo, ".git", "config.lock"));
   assert.equal(events.at(-1).recipient.install_id, install.install_id);
   await runtime.stop(install.install_id, { preserve_enabled: true });
   actions = undefined;
@@ -67,7 +70,7 @@ try {
   assert.equal(events.at(-1).recipient, null, "the restarted installation does not inherit its old activation's notification");
   assert.equal(events.at(-1).payload.workspace_id, "main", "workspace invalidation still has its actual operation target");
   await composition.dispose();
-  assert.throws(() => queue.request({ review_id: "after-host-close", project_id: "project", plugin_id: "test", run: { session_id: "s", run_id: "r" },
+  assert.throws(() => queue.request({ reference: { owner: { kind: "agent-review", project_id: "project", plugin_id: "test", install_id: "install" }, id: "after-host-close", version: "proposal-1" }, review_id: "after-host-close", project_id: "project", plugin_id: "test", run: { session_id: "s", run_id: "r" },
     kind: "text-edit", document: { kind: "text-edit", target_path: "note", exists: false, before_text: null, after_text: "new" },
     requested_at: new Date().toISOString(), expires_at: null }), { code: "agent.capability_unavailable" }, "final Host disposal closes its shared review queue");
 } finally {

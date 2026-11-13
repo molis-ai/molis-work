@@ -192,12 +192,18 @@ export class AssistantDispatch {
     let base = await this.ports.authority(work, undefined, replyLocale, namedSkills);
     const original_input = !work.delegated_by && !work.reply_target ? intent?.original_input : undefined;
 
+    const assertDispatchCurrent = () => {
+      requireSynchronous(base.assertBeforeDispatch?.(), "最终授权检查必须同步完成");
+      const current = this.store.get(this.actorId, work.work_id);
+      if (current.archived || current.executor.kind !== "assistant" || current.session_id !== work.session_id
+        || ownerOf(current) !== ownerOf(work)) throw assistantErrors.state("原工作的执行归属已经变化，不能继续批准");
+    };
     const startAuthority = () => ({ ...(stillCurrent || beforeStart || assertBeforeStart || sourceHandoff ? { ...base, beforeStart: async () => {
       await base.beforeStart?.(); await beforeStart?.(); assertSendCurrent(stillCurrent); handoff.assertCurrent();
     }, assertBeforeStart: () => {
       requireSynchronous(base.assertBeforeStart?.(), "最终授权检查必须同步完成");
       requireSynchronous(assertBeforeStart?.(), "最终授权检查必须同步完成"); assertSendCurrent(stillCurrent); handoff.assertCurrent();
-    } } : base), original_input, ...(replyLocale ? { reply_language: replyLanguage(replyLocale) } : {}) });
+    } } : base), assertBeforeDispatch: assertDispatchCurrent, original_input, ...(replyLocale ? { reply_language: replyLanguage(replyLocale) } : {}) });
     let authority = startAuthority();
     const role = work.reply_target ? "thread-reply" : work.delegated_by ? ASSISTANT_DELEGATED_ROLE_ID : ASSISTANT_ROLE_ID;
     if (!work.session_id) {

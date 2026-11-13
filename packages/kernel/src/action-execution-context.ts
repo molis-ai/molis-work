@@ -4,6 +4,22 @@ import type { CapabilityRegistry } from "./index.js";
 import { assertCurrentAuthority, effectGuard } from "./action-settlement.js";
 import { rememberInDirectoryPass } from "./directory-pass.js";
 
+/** The original exact registration, shared by retained replies and held Agent proposals. */
+export function captureActionRegistration(registry: CapabilityRegistry<ActionCallContext>, resolve: (reference: ActionReference) => HostCapabilityDescriptor | undefined,
+  source: ActionReference, context: ActionCallContext, additionalPermissions: readonly string[] = []) {
+  const definition = resolve(source);
+  if (!definition?.action || !definition.action_provider || !visibleAction(definition as ActionDefinition, definition.action_provider, context)
+    || source.provider_id && definition.action_provider.provider_id !== source.provider_id) throw new ActionError("actions.forbidden", "不能保留未获授权的能力");
+  const reference = { capability_id: source.capability_id, version: source.version, provider_id: definition.action_provider.provider_id };
+  const token = registry.registrationToken(definition), permissions = [...new Set([...definition.action.permissions, ...additionalPermissions])];
+  const assertCurrent = () => {
+    if (!token || registry.registrationToken(definition) !== token || resolve(reference) !== definition) throw new ActionError("actions.provider_changed", "原能力已停用或重新加载，旧回复不能继续写入");
+    const availability = registry.availability(context, definition);
+    if (!availability.available) throw new ActionError(availability.code ?? "actions.unavailable", availability.reason ?? "原能力已不可用", { kind: availability.kind });
+  };
+  return { reference, definition, permissions, assertCurrent };
+}
+
 /** A retained guard checks original registrations, without extending a finished handler's effect lifetime. */
 export function actionExecutionContext(context: ActionCallContext, reference: ExactActionReference, permissions: readonly string[],
   assertCurrent: () => void, effect: ((context: ActionCallContext, reference: ActionReference) => void | Promise<void>) | undefined,
@@ -25,22 +41,13 @@ export function actionExecutionContext(context: ActionCallContext, reference: Ex
       validate_authority: () => inherited() } : context;
     // `audience` changes only how a target is seen (visibility and availability); the authority checks stay with the original caller.
     const viewed = audience ? { ...retainedContext, audience } : retainedContext;
-    const snapshots = references.map(source => {
-      const definition = resolve(ownProvider(source));
-      if (!definition?.action || !definition.action_provider || !visibleAction(definition as ActionDefinition, definition.action_provider, viewed)
-        || source.provider_id && definition.action_provider.provider_id !== source.provider_id) throw new ActionError("actions.forbidden", "不能保留未获授权的能力");
-      // Every later check names the provider that was resolved here, so a grant per exact action (an MCP client's) matches it (BL-374).
-      const reference = { capability_id: source.capability_id, version: source.version, provider_id: definition.action_provider.provider_id };
-      return { reference, definition, permissions: [...new Set([...definition.action.permissions, ...required])], token: registry.registrationToken(definition) };
-    });
+    const snapshots = references.map(source => captureActionRegistration(registry, resolve, ownProvider(source), viewed, required));
     const check = () => {
         if (inherited) requireSynchronous(inherited.assertCurrent(), "最终后台授权检查必须同步完成");
         else context.signal?.throwIfAborted();
         for (const saved of snapshots) {
           if (background) requireSynchronous(assertEnvironment?.(retainedContext, saved.reference));
-          if (!saved.token || registry.registrationToken(saved.definition) !== saved.token || !resolve(saved.reference)) throw new ActionError("actions.provider_changed", "原能力已停用或重新加载，旧回复不能继续写入");
-          const availability = registry.availability(viewed, saved.definition);
-          if (!availability.available) throw new ActionError(availability.code ?? "actions.unavailable", availability.reason ?? "原能力已不可用", { kind: availability.kind });
+          saved.assertCurrent();
           if (!inherited) assertCurrentAuthority(context, saved.reference, saved.permissions);
         }
     };

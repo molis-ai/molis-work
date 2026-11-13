@@ -1,0 +1,9 @@
+{
+  "exceptions": {
+    "function apps/local-host/src/assistant/assistant-http.ts#assistantServiceFor": {
+      "kind": "cohesive-unit",
+      "reason": "同一助理服务的宿主装配入口，集中绑定工作归属、线程和原轮次权限，各项业务由已有服务负责；仅为行数拆成另一层转发会分散生命周期接线。",
+      "size": 151
+    }
+  }
+}

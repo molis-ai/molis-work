@@ -23,7 +23,7 @@ test("BL-360: an Assistant card updates same-id decisions without replacing expa
     originalId = request.review_id;
     const presented = queue.list(request.project_id).find(row => row.review_id === request.review_id);
     assert.ok(presented);
-    queue.request({ ...presented, review_id: id });
+    queue.request({ ...presented, review_id: id, reference: { ...presented.reference, id } });
     queue.registerDecisionHandler(id, async (_input, commit) => { calls++; return commit(); }, async () => () => live);
   });
   t.after(stop);
@@ -51,7 +51,7 @@ test("BL-360: the computer sidebar withdraws same-id choices and preserves keybo
   assert.ok(browser.localHost);
   const queue = ensureSystemAgentService(browser.localHost, browser.homeDirectory).agentHost.reviews;
   let live = true, calls = 0;
-  queue.request({ review_id: "computer-choices", project_id: browser.projectId!, plugin_id: "io.molis.work.coding", run: { session_id: "desktop-session", run_id: "desktop-run" },
+  queue.request({ reference: { owner: { kind: "agent-review" as const, project_id: browser.projectId!, plugin_id: "io.molis.work.coding", install_id: "install" }, id: "computer-choices", version: "proposal-1" }, review_id: "computer-choices", project_id: browser.projectId!, plugin_id: "io.molis.work.coding", run: { session_id: "desktop-session", run_id: "desktop-run" },
     kind: "tool-operation", document: { kind: "tool-operation", tool: "surface-act", summary: "在测试应用中填写内容", fields: [{ label: "应用", value: "Test App" }],
       round_allow: { app: "test.app", label: "Test App" } }, requested_at: new Date().toISOString(), expires_at: null });
   queue.registerDecisionHandler("computer-choices", async (_input, commit) => { calls++; return commit(); }, async () => () => live);

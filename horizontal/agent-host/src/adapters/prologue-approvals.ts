@@ -6,9 +6,12 @@ import type {
   AgentReviewReceipt,
   AgentReviewRequest,
   AgentRunRef,
+  AgentReviewDecisionInput,
+  ReviewReference,
+  AgentActionReviewControl,
 } from "@molis-ai/molis-work-contracts/services/agent-host";
 
-import { AgentReviewQueue } from "../reviews.js";
+import { AgentReviewQueue, type ReviewDecisionCommit } from "../reviews.js";
 
 /**
  * Bridges Prologue's pending effect approvals to the Host Review queue.
@@ -40,11 +43,15 @@ export interface ProloguePendingPort {
   read(ref: ProloguePendingRef): Promise<ProloguePending | undefined>;
   /** Read the immutable review published by the effect owner; fail if unavailable. */
   document(pending: ProloguePending): Promise<AgentReviewDocument>;
+  reference(pending: ProloguePending): Promise<ReviewReference>;
+  /** Persistent original-owner authority, independent of the completed start request. */
+  approvalAuthority(pending: ProloguePending): Promise<AgentActionReviewControl>;
   /** An open persisted pending without a live SDK waiter cannot resume execution. */
   canAnswer(ref: ProloguePendingRef): boolean;
   answer(
     ref: ProloguePendingRef,
     answer: { kind: "effect-approval"; answer: "allow" | "deny" | "later" },
+    assertBeforeAnswer: () => void,
   ): Promise<{ authorized: boolean }>;
 }
 
@@ -66,6 +73,8 @@ export interface MirrorPendingInput {
   run: AgentRunRef;
   kind: AgentReviewKind;
   document: AgentReviewDocument;
+  reference: ReviewReference;
+  approval: AgentActionReviewControl;
 }
 
 export class PrologueApprovalBridge {
@@ -77,6 +86,22 @@ export class PrologueApprovalBridge {
   readonly #recordRequest: PrologueApprovalBridgeOptions["recordRequest"];
   readonly #pendingByReview = new Map<string, ProloguePendingRef>();
   readonly #answered = new Set<(run: AgentRunRef, pendingId: string) => void>();
+  readonly #working = new Set<Promise<unknown>>();
+  #closed = false;
+
+  #assertOpen(): void { if (this.#closed) throw agentErrors.pending_not_open("审查执行方正在关闭"); }
+
+  #track<T>(operation: () => Promise<T>): Promise<T> {
+    if (this.#closed) return Promise.reject(agentErrors.pending_not_open("审查执行方正在关闭"));
+    const work = operation(); this.#working.add(work);
+    return work.finally(() => this.#working.delete(work));
+  }
+
+  async close(): Promise<void> {
+    this.#closed = true;
+    await Promise.allSettled(this.#working);
+    this.#pendingByReview.clear(); this.#answered.clear();
+  }
 
   /** Execution accepted a decision; this does not assert the effect happened. */
   subscribeAnswered(listener: (run: AgentRunRef, pendingId: string) => void): () => void {
@@ -98,6 +123,7 @@ export class PrologueApprovalBridge {
    * execution layer, which is the only place that knows what the effect is.
    */
   mirror(input: MirrorPendingInput): AgentReviewRequest {
+    this.#assertOpen();
     if (input.pending.state !== "open") {
       throw agentErrors.pending_not_open("这笔待批已经结束，不能再放到审查面上");
     }
@@ -112,6 +138,7 @@ export class PrologueApprovalBridge {
     }
     const request = this.#queue.request({
       review_id: reviewId,
+      reference: input.reference,
       run: { ...input.run },
       project_id: input.owner.project_id,
       plugin_id: input.owner.plugin_id,
@@ -123,15 +150,17 @@ export class PrologueApprovalBridge {
     if (!this.#pendingByReview.has(request.review_id)) {
       const pendingRef = { ...input.pending.ref };
       this.#queue.registerDecisionHandler(request.review_id, (decision, commit) => this.decide(decision, commit), async () => {
+        if (this.#closed) return () => false;
         const pending = await this.#pendings.read(pendingRef);
         return () => {
+          if (this.#closed) return false;
           if (!pending || pending.kind !== "effect-approval" || pending.ref.kind !== pendingRef.kind || pending.ref.id !== pendingRef.id || pending.ref.revision !== pendingRef.revision
             || pending.origin?.session !== request.run?.session_id || pending.origin?.run !== request.run?.run_id) return false;
           if (pending.state === "open" && this.#pendings.canAnswer(pendingRef)) return true;
           this.#queue.cancel(request.review_id, "原执行等待已结束");
           return false;
         };
-      });
+      }, input.approval.assertCurrent, input.approval.beforeEffect);
       this.#pendingByReview.set(request.review_id, pendingRef);
     }
     return request;
@@ -151,20 +180,28 @@ export class PrologueApprovalBridge {
     owner: MirrorPendingInput["owner"];
     run: AgentRunRef;
   }): Promise<AgentReviewRequest> {
-    const pending = await this.#pendings.read(input.pendingRef);
-    if (!pending) {
-      throw agentErrors.pending_unknown("执行主人那边找不到这笔待批");
-    }
-    const document = await this.#pendings.document(pending);
-    const request = this.mirror({
-      pending,
-      owner: input.owner,
-      run: input.run,
-      kind: document.kind,
-      document,
+    return this.#track(async () => {
+      const pending = await this.#pendings.read(input.pendingRef);
+      if (!pending) {
+        throw agentErrors.pending_unknown("执行主人那边找不到这笔待批");
+      }
+      const document = await this.#pendings.document(pending);
+      const reference = await this.#pendings.reference(pending);
+      let approval: AgentActionReviewControl;
+      try { approval = await this.#pendings.approvalAuthority(pending); }
+      catch (error) { approval = { assertCurrent: () => { throw error; }, beforeEffect: () => { throw error; } }; }
+      const request = this.mirror({
+        pending,
+        owner: input.owner,
+        run: input.run,
+        kind: document.kind,
+        document,
+        reference,
+        approval,
     });
     await this.#recordRequest?.(pending, request);
     return request;
+    });
   }
 
   /**
@@ -175,13 +212,12 @@ export class PrologueApprovalBridge {
    * authorized is read back from Prologue: if it disagrees, the receipt says
    * the effect did not settle rather than claiming success.
    */
-  async decide(input: {
-    review_id: string;
-    decision: "approve" | "reject";
-    actor_id: string;
-    note?: string;
-    remember?: "session" | "app-this-round";
-  }, commit?: () => AgentReviewReceipt): Promise<AgentReviewReceipt> {
+  decide(input: AgentReviewDecisionInput, commit?: ReviewDecisionCommit): Promise<AgentReviewReceipt> {
+    return this.#track(() => this.#decide(input, commit));
+  }
+
+  async #decide(input: AgentReviewDecisionInput, commit?: ReviewDecisionCommit): Promise<AgentReviewReceipt> {
+    if (!commit) return this.#queue.respond(input);
     const pendingRef = this.#pendingByReview.get(input.review_id);
     if (!pendingRef) {
       throw agentErrors.review_unknown("找不到这条待审操作");
@@ -207,21 +243,25 @@ export class PrologueApprovalBridge {
       this.#queue.cancel(input.review_id, "执行已中断，原待批没有活动等待方；需核对后继续");
       throw agentErrors.pending_not_open("原执行已中断，不能通过批准旧待批恢复它");
     }
-    const receipt = commit ? commit() : this.#queue.decide({
-      review_id: input.review_id,
-      decision: input.decision,
-      actor_id: input.actor_id,
-      ...(input.note === undefined ? {} : { note: input.note }),
-    });
+    const receipt = await commit(() => this.#assertOpen());
+    const assertCurrent = () => {
+      this.#assertOpen();
+      commit.assertCurrent();
+      if (!this.#pendings.canAnswer(pendingRef)) throw agentErrors.pending_not_open("原执行等待已结束，决定不会送达");
+    };
 
     try {
-      await this.#recordDecision?.(pending, receipt);
+      assertCurrent();
+      await commit.effect(async () => { await this.#recordDecision?.(pending, receipt); }, assertCurrent);
+      assertCurrent();
       if (input.decision === "approve") this.#queue.consumeApproval(input.review_id);
-      // "Allow in this app this round" rests on the same approval: applied only after it was accepted, never on a reject.
-      if (input.decision === "approve" && input.remember === "app-this-round") await this.#allowAppForRound?.(pending);
-      const result = await this.#pendings.answer(pendingRef, {
+      const result = await commit.effect(() => this.#pendings.answer(pendingRef, {
         kind: "effect-approval", answer: input.decision === "approve" ? "allow" : "deny",
-      });
+      }, assertCurrent));
+      if (input.decision === "approve" && result.authorized && input.remember === "app-this-round" && receipt.source?.kind === "person") {
+        try { this.#assertOpen(); commit.assertCurrent(); await this.#allowAppForRound?.(pending); }
+        catch { this.#queue.rememberFailed(input.review_id, "原决定已送达，但本轮应用许可未设置；后续操作仍按当前授权确认"); }
+      }
       for (const listener of this.#answered) {
         // A view observer cannot turn accepted delivery into a delivery error.
         try { listener(request.run, pendingRef.id); } catch { /* observation only */ }
@@ -245,11 +285,13 @@ export class PrologueApprovalBridge {
    * pending and creates a new exact reference, so it is not used as a UI defer.
    */
   async defer(reviewId: string): Promise<void> {
-    const pendingRef = this.#pendingByReview.get(reviewId);
-    if (!pendingRef) {
-      throw agentErrors.review_unknown("找不到这条待审操作");
-    }
-    const pending = await this.#pendings.read(pendingRef);
-    if (!pending || pending.state !== "open") throw agentErrors.pending_not_open("这笔待批已结束");
+    return this.#track(async () => {
+      const pendingRef = this.#pendingByReview.get(reviewId);
+      if (!pendingRef) {
+        throw agentErrors.review_unknown("找不到这条待审操作");
+      }
+      const pending = await this.#pendings.read(pendingRef);
+      if (!pending || pending.state !== "open") throw agentErrors.pending_not_open("这笔待批已结束");
+    });
   }
 }

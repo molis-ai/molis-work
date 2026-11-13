@@ -58,7 +58,7 @@ import { registerProjectCapabilities, type PrepareProjectDirectory } from "./pro
 import { refreshRunningProjectPlugins, releaseProjectPlugins } from "./project-plugins.js";
 import type { LocalHostProjectClient, LocalHostProjectReference, LocalHostStatus } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { ProjectDirectories, ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
-import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionProviderRegistration, type ActionReference, type ActionRegistryPort, type ActionSceneClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionProviderRegistration, type ActionReference, type ActionRegistryPort, type ActionSceneClient, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentHostComposition } from "./agent-host-composition.js";
 import { createSearchHost, type SearchHost } from "./search-actions.js";
 import { createPlacementHost, type PlacementHost, type PlacementProjectRecord } from "./placement-actions.js";
@@ -371,6 +371,8 @@ export class MolisWorkLocalHost {
 
   /** Registered declarations only: no Runtime preparation, availability policy or execution authority. */
   inspectActionMetadata(caller: ActionCallContext, reference?: LocalHostProjectReference) { return this.host.inspectActionMetadata(caller, reference); }
+
+  prepareActionReview(caller: ActionCallContext, view: ActionView, input: unknown, project?: LocalHostProjectReference) { return this.host.prepareActionReview(caller, view, input, project); }
 
   inspectSceneMetadata(caller: ActionCallContext, reference?: LocalHostProjectReference) { return this.host.inspectSceneMetadata(caller, reference); }
 

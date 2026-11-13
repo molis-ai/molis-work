@@ -17,6 +17,8 @@ export interface AgentStartExecution extends ActionCallOrigin {
   assertBeforeStart?(): void;
   /** Live owner authority, valid beyond the start invocation's lifetime. */
   beforeDispatch?(): void | Promise<void>;
+  /** Same owner check at the final write/answer boundary; must outlive the start invocation. */
+  assertBeforeDispatch?(): void;
 }
 
 /** An authorized directory. The Host resolves and verifies it; the Plugin never passes a raw path. */
@@ -302,6 +304,9 @@ export interface AgentMemoryTools {
   propose?(input: { text: string; scope: "personal" | "project"; why: string; applies: string }, control: AgentMemoryToolControl): Promise<{ candidate_id: string; note: string }>;
 }
 
+/** Original proposal authority; it never carries the later approver's transport lifetime. */
+export interface AgentActionReviewControl { beforeEffect(): void | Promise<void>; assertCurrent(): void }
+
 export interface AgentActionClient {
   discover(): Promise<readonly ActionView[]>;
   /** Who reads this round's replies: absent, the person; `work`, the work that handed this one over (a delegated work reports to it). */
@@ -314,12 +319,14 @@ export interface AgentActionClient {
   offer?(offer: AgentActionOffer): Promise<{ offer_id: string }>;
   /** Validate an input exactly as dispatch will, running nothing; throws the contract's own error. */
   check?(reference: ExactActionReference, input: unknown): Promise<void>;
+  /** Pin the selected original registration and grant while forming a review, before waiting for a decision. */
+  prepareReview?(view: ActionView, input: unknown): Promise<AgentActionReviewControl>;
   /**
    * Whether this change may run without the person's confirmation: it declares how it is undone, its undo is offered
    * now, and the person has not set it to confirm each time. Absent: every change is confirmed.
    */
   direct?(view: ActionView): boolean;
-  invoke(reference: ExactActionReference, input: unknown, signal?: AbortSignal): Promise<unknown>;
+  invoke(reference: ExactActionReference, input: unknown, signal?: AbortSignal, review?: AgentActionReviewControl): Promise<unknown>;
 }
 
 export interface AgentFrozenRole {

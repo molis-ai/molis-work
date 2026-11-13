@@ -1,3 +1,5 @@
+import { reviewDecisionStorage } from "./fixtures/review-decision-storage.js";
+import { AgentReviewQueue } from "@molis-ai/molis-work-service-agent-host";
 import { UI_HOST_CLIENT_CODES } from "@molis-ai/molis-work-contracts/platform/ui";
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -81,7 +83,7 @@ test("a confirm opened from another project still resolves for the round that ho
 
 function pending(reviewId: string, projectId: string, sessionId: string): AgentReviewRequest {
   return {
-    review_id: reviewId,
+    reference: { owner: { kind: "agent-review" as const, project_id: projectId, plugin_id: "io.molis.work.coding", install_id: "install" }, id: reviewId, version: "proposal-1" }, review_id: reviewId,
     run: { run_id: `run-${reviewId}`, session_id: sessionId },
     project_id: projectId,
     plugin_id: "io.molis.work.coding",
@@ -93,7 +95,7 @@ function pending(reviewId: string, projectId: string, sessionId: string): AgentR
 }
 
 test("the review HTTP follows the holding round, and a fresh click cannot approve itself", async () => {
-  const agentHost = new AgentHost(), host = await hostForReviews();
+  const agentHost = new AgentHost({ reviews: new AgentReviewQueue({ decisions: reviewDecisionStorage().store }) }), host = await hostForReviews();
   let now = 5_000;
   const holder = { sessionId: "hold", projectId: "project-a", lastInjectAt: null as number | null };
   const server = createServer((request, response) => {
@@ -106,13 +108,13 @@ test("the review HTTP follows the holding round, and a fresh click cannot approv
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   const decide = (reviewId: string) => fetch(`${base}/api/agent/reviews/decide`, {
     method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ review_id: reviewId, decision: "approve" }),
+    body: JSON.stringify({ review_id: reviewId, version: "proposal-1", decision: "approve" }),
   });
   try {
     agentHost.reviews.request(pending("held", "project-a", "hold"));
-    agentHost.reviews.registerDecisionHandler("held", async input => agentHost.reviews.decide(input));
+    agentHost.reviews.registerDecisionHandler("held", async (input, commit) => await commit());
     agentHost.reviews.request(pending("other", "project-c", "other"));
-    agentHost.reviews.registerDecisionHandler("other", async input => agentHost.reviews.decide(input));
+    agentHost.reviews.registerDecisionHandler("other", async (input, commit) => await commit());
 
     const away = await (await fetch(`${base}/api/agent/reviews?status=pending`)).json() as { reviews: Array<{ request: { review_id: string } }> };
     assert.deepEqual(away.reviews.map(row => row.request.review_id), []);
@@ -143,7 +145,7 @@ test("switching a desktop app is asked about, not denied before a confirm card e
 });
 
 test("no project selected still lists and decides the personal round's confirm", async () => {
-  const agentHost = new AgentHost(), host = await hostForReviews();
+  const agentHost = new AgentHost({ reviews: new AgentReviewQueue({ decisions: reviewDecisionStorage().store }) }), host = await hostForReviews();
   let now = 10_000;
   const holder = { sessionId: "hold", projectId: null as string | null, lastInjectAt: null as number | null };
   const server = createServer((request, response) => {
@@ -156,13 +158,13 @@ test("no project selected still lists and decides the personal round's confirm",
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   const decide = (reviewId: string) => fetch(`${base}/api/agent/reviews/decide`, {
     method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ review_id: reviewId, decision: "approve", remember: "app-this-round" }),
+    body: JSON.stringify({ review_id: reviewId, version: "proposal-1", decision: "approve", remember: "app-this-round" }),
   });
   try {
     agentHost.reviews.request(pending("personal", "home", "hold"));
-    agentHost.reviews.registerDecisionHandler("personal", async input => agentHost.reviews.decide(input));
+    agentHost.reviews.registerDecisionHandler("personal", async (input, commit) => await commit());
     agentHost.reviews.request(pending("foreign", "project-a", "other"));
-    agentHost.reviews.registerDecisionHandler("foreign", async input => agentHost.reviews.decide(input));
+    agentHost.reviews.registerDecisionHandler("foreign", async (input, commit) => await commit());
     const listed = await (await fetch(`${base}/api/agent/reviews?status=pending&limit=20`)).json() as { reviews: Array<{ request: { review_id: string } }> };
     assert.deepEqual(listed.reviews.map(row => row.request.review_id), ["personal"]);
     assert.equal((await fetch(`${base}/api/agent/reviews/recovery`)).status, 404);

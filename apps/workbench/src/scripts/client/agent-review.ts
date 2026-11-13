@@ -102,12 +102,12 @@ export const AGENT_REVIEW_CLIENT_FACTORY_SCRIPT = `(host) => {
         if(!button || !container.contains(button)) return;
         const review_id=button.dataset.agentReviewApprove || button.dataset.agentReviewReject;
         if(busy.has(review_id)) return;
-        const row=button.closest('[data-agent-review-item]'),note=row.querySelector('[data-agent-review-feedback]')?.value.trim() || '';
+        const row=button.closest('[data-agent-review-item]'),version=row.dataset.agentReviewVersion,note=row.querySelector('[data-agent-review-feedback]')?.value.trim() || '';
         if(button.dataset.agentReviewApprove && note)return;
         busy.add(review_id); syncActions(row);
         const control=state.control,scopeKey=state.key,scope={workspaceId:state.workspaceId,sessionId:state.sessionId};let receipt=null,decisionError=null,attempted=false;
         const remember=Boolean(button.dataset.agentReviewApprove && row.querySelector('[data-agent-review-remember]')?.checked);
-        try { if(host.confirm && !await host.confirm(button.textContent+'\\n'+row.textContent))return;if(!current(state,control))return;attempted=true;({receipt}=await read('/api/agent/reviews/decide',{review_id,decision:button.dataset.agentReviewApprove ? 'approve' : 'reject',...(note?{note}: {}),...(remember?{remember:'session'}:{})},control));if(!receipt.delivery_error)saveFeedback(review_id,''); }
+        try { if(host.confirm && !await host.confirm(button.textContent+'\\n'+row.textContent))return;if(!current(state,control))return;attempted=true;({receipt}=await read('/api/agent/reviews/decide',{review_id,version,decision:button.dataset.agentReviewApprove ? 'approve' : 'reject',...(note?{note}: {}),...(remember?{remember:'session'}:{})},control));if(!receipt.delivery_error)saveFeedback(review_id,''); }
         catch(error) {
           decisionError=error.message;
           if(!current(state,control) || scopeKey!==state.key)return;

@@ -73,7 +73,7 @@ test("sessions in one project see each other's work: overlaps before a round sta
           assert.deepEqual(review.document.concurrent, ["会话「改标签格式」（进行中）"]);
           reviewed = true;
         }
-        await queue.respond({ review_id: review.review_id, decision: "approve", actor_id: "user" });
+        await queue.respond({ review_id: review.review_id, version: review.reference.version, decision: "approve", actor_id: "user" });
       }
       await new Promise(resolve => setTimeout(resolve, 20));
     }

@@ -5,7 +5,7 @@ import { pdfDocumentParser } from "./pdf-document-parser.js";
 import { hostErrors } from "./host-errors.js";
 import type { HostPluginCaller, LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { createExternalMcpDirectory } from "./external-mcp-actions.js";
-import { authorizeMcpActions } from "./mcp-action-client.js";
+import { authorizeMcpActions, prepareMcpActionReview } from "./mcp-action-client.js";
 import { taskReadableHost } from "./task-grant-actions.js";
 import { assertActionInput, currentCallId, newCallId } from "@molis-ai/molis-work-kernel";
 import {
@@ -304,6 +304,10 @@ async function startAuthority(
   return {
     call_id: callId,
     reply_language: replyLanguage(locale),
+    assertBeforeDispatch: () => {
+      caller?.assertActive();
+      if (localHost.lifecycle() !== "running") throw new ActionError("actions.host_closed", "能力所在运行环境已关闭");
+    },
     ...(original ? { original_input: original } : {}),
     manifest: declared?.manifest ?? { roles: [], prompts: [] },
     // A round works in the output or one of the Host's worktrees of it, never in an input folder (SSC-15).
@@ -343,7 +347,17 @@ async function startAuthority(
       };
       return {
         discover: async () => { const authorized = await current(); return authorized.service.discover(authorized.context); },
-        invoke: async (action, input, signal) => { const authorized = await current(signal, action); return authorized.service.invoke(authorized.context, action, input); },
+        prepareReview: (view, input) => prepareMcpActionReview(localHost, { actor_id: subject ?? `agent:${runtimeId}`, actor_kind: "runtime", call_id: callId,
+          project_id: runtime.project_id, audience: "agent", permissions: [], locale, ...(session ? { runtime_session_id: session.session_id, audit_actor_id: `agent:${runtimeId}:${session.session_id}` } : {}) }, homeDirectory, view, input, reference,
+          async () => { caller?.assertActive(); await validate?.(); caller?.assertActive(); }, () => {
+            caller?.assertActive(); if (localHost.lifecycle() !== "running") throw new ActionError("actions.host_closed", "能力所在运行环境已关闭");
+          }),
+        invoke: async (action, input, signal, review) => {
+          const authorized = await current(signal, action);
+          return authorized.service.invoke({ ...authorized.context, assert_authority_current: (ref, required) => {
+            review?.assertCurrent(); authorized.context.assert_authority_current?.(ref, required);
+          } }, action, input);
+        },
         check: async (action, input) => checkActionInput(await current(), action, input),
       };
     },

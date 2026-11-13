@@ -270,12 +270,12 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
     const focused=approval.contains(document.activeElement)?document.activeElement:null;
     if(!row){if(focused)focusBrowserTab();approval.hidden=true;approval.innerHTML='';reviewing=null;reviewMode=null;return;}
     const held=state?.control?.mode==='taken-over';
-    const mode=JSON.stringify([held,row.decisions]);
+    const mode=JSON.stringify([held,row.decisions,row.request.reference.version]);
     const same=reviewing===row.request.review_id;
     if(same&&reviewMode===mode)return;
     if(!same&&focused)focusBrowserTab();
     const scroll=same&&(!held||focused)?approval.querySelector('.side-browser-approval-copy').scrollTop:0;
-    reviewing=row.request.review_id;reviewMode=mode;
+    reviewing=row.request.review_id;reviewMode=mode;approval.dataset.reviewVersion=row.request.reference.version;
     const doc=row.request.document||{},fields=doc.fields||[],site=(fields.find(field=>field.label==='网站')||{}).value||state?.origin||'';
     // Uploads always ask; a blank page is no site to remember.
     const upload=/上传/.test(doc.summary||''),remember=!upload&&/^https?:\/\//.test(site);
@@ -301,10 +301,11 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
   };
   const decide=async(decision,id,site)=>{
     if(!id||deciding.has(id))return;
+    const version=approval.dataset.reviewVersion;
     deciding.add(id);paintApprovalBusy();
     try{
       if(site)await setSite(site,'allow');
-      await molisWorkRequest(routePrefix+'/api/agent/reviews/decide',{body:{review_id:id,decision},fallback:globalThis.t.text("workbench.side-panel-browser.answer-was-not-sent")});
+      await molisWorkRequest(routePrefix+'/api/agent/reviews/decide',{body:{review_id:id,version,decision},fallback:globalThis.t.text("workbench.side-panel-browser.answer-was-not-sent")});
       if(reviewing===id)renderApproval(null);
       void pollReviews();
     }catch(error){fail(error);}

@@ -1,3 +1,5 @@
+import { reviewDecisionStorage } from "./fixtures/review-decision-storage.js";
+import { AgentReviewQueue } from "@molis-ai/molis-work-service-agent-host";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -26,7 +28,7 @@ after(async () => { await (await reviewHost)?.close(); rmSync(reviewHome, { recu
 
 function pending(reviewId: string): AgentReviewRequest {
   return {
-    review_id: reviewId,
+    reference: { owner: { kind: "agent-review" as const, project_id: BOARD, plugin_id: "io.molis.work.coding", install_id: "install" }, id: reviewId, version: "proposal-1" }, review_id: reviewId,
     run: { run_id: "run-1", session_id: "s-1" },
     project_id: BOARD,
     plugin_id: "io.molis.work.coding",
@@ -42,7 +44,7 @@ function pending(reviewId: string): AgentReviewRequest {
 
 async function fixture(observeGitIndex?: import("@molis-ai/molis-work-app-local-host").AgentReviewHttpPorts["observeGitIndex"], entry: Pick<import("@molis-ai/molis-work-app-local-host").AgentReviewHttpPorts, "computerHolder" | "now"> = {}, sessions?: WebSessions) {
   const { AgentHost: Host } = await import("@molis-ai/molis-work-service-agent-host");
-  const agentHost = new Host(), host = await hostForReviews();
+  const agentHost = new Host({ reviews: new AgentReviewQueue({ decisions: reviewDecisionStorage().store }) }), host = await hostForReviews();
   const server = createServer((request, response) => {
     const url = new URL(request.url ?? "/", "http://127.0.0.1");
     sessions?.bind(request, "review-fixture-control", response);
@@ -62,7 +64,7 @@ test("待审列表读得到，批准之后回执说「还没发生」", async ()
   const item = await fixture();
   try {
     item.agentHost.reviews.request(pending("r1"));
-    item.agentHost.reviews.registerDecisionHandler("r1", async input => item.agentHost.reviews.decide(input));
+    item.agentHost.reviews.registerDecisionHandler("r1", async (input, commit) => await commit());
 
     const listed = await (await fetch(`${item.base}/api/agent/reviews?status=pending`)).json() as
       { reviews: Array<{ request: { review_id: string }; receipt: { status: string; decided_by: string | null; effect_settled: boolean } }> };
@@ -75,7 +77,7 @@ test("待审列表读得到，批准之后回执说「还没发生」", async ()
     const decided = await fetch(`${item.base}/api/agent/reviews/decide`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ review_id: "r1", decision: "approve" }),
+      body: JSON.stringify({ review_id: "r1", version: "proposal-1", decision: "approve" }),
     });
     assert.equal(decided.status, 200);
     const { receipt } = await decided.json() as { receipt: { status: string; effect_settled: boolean } };
@@ -91,8 +93,8 @@ test("同一条不能决定两次——换个入口重放也不行", async () =>
   const item = await fixture();
   try {
     item.agentHost.reviews.request(pending("r1"));
-    item.agentHost.reviews.registerDecisionHandler("r1", async input => item.agentHost.reviews.decide(input));
-    const body = JSON.stringify({ review_id: "r1", decision: "reject" });
+    item.agentHost.reviews.registerDecisionHandler("r1", async (input, commit) => await commit());
+    const body = JSON.stringify({ review_id: "r1", version: "proposal-1", decision: "reject" });
     const headers = { "content-type": "application/json" };
 
     const first = await fetch(`${item.base}/api/agent/reviews/decide`, { method: "POST", headers, body });
@@ -111,9 +113,9 @@ test("review feedback is bounded, scoped to the actual decision and cannot repla
   const item = await fixture();
   try {
     item.agentHost.reviews.request(pending("feedback"));
-    item.agentHost.reviews.registerDecisionHandler("feedback", async input => item.agentHost.reviews.decide(input));
+    item.agentHost.reviews.registerDecisionHandler("feedback", async (input, commit) => await commit());
     const decide = (note: unknown) => fetch(`${item.base}/api/agent/reviews/decide`, { method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ review_id: "feedback", decision: "reject", note, actor_id: "forged" }) });
+      body: JSON.stringify({ review_id: "feedback", version: "proposal-1", decision: "reject", note, actor_id: "forged" }) });
     for (const note of [42, "x".repeat(2001)]) assert.equal((await decide(note)).status, 400);
     assert.equal(item.agentHost.reviews.receipt("feedback")?.status, "pending");
     const result = await decide("第 2 行请保留原校验，不要删除。\n<script>原样反馈</script>");
@@ -132,7 +134,7 @@ test("不存在的待审返回 404，而不是假装决定成功", async () => {
     const response = await fetch(`${item.base}/api/agent/reviews/decide`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ review_id: "nope", decision: "approve" }),
+      body: JSON.stringify({ review_id: "nope", version: "proposal-1", decision: "approve" }),
     });
     assert.equal(response.status, 404);
   } finally {
@@ -143,7 +145,7 @@ test("不存在的待审返回 404，而不是假装决定成功", async () => {
 test("缺字段的请求被挡下", async () => {
   const item = await fixture();
   try {
-    for (const body of [{}, { review_id: "r1" }, { review_id: "r1", decision: "maybe" }]) {
+    for (const body of [{}, { review_id: "r1" }, { review_id: "r1", decision: "approve" }, { review_id: "r1", version: "proposal-1", decision: "maybe" }]) {
       const response = await fetch(`${item.base}/api/agent/reviews/decide`, {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -160,10 +162,10 @@ test("缺字段的请求被挡下", async () => {
 test("another project's review cannot be decided even with a known review id", async () => {
   const item = await fixture();
   try {
-    item.agentHost.reviews.request({ ...pending("foreign"), project_id: "board-b" });
+    item.agentHost.reviews.request({ ...pending("foreign"), project_id: "board-b", reference: { ...pending("foreign").reference, owner: { ...pending("foreign").reference.owner, project_id: "board-b" } } });
     let calls = 0;
-    item.agentHost.reviews.registerDecisionHandler("foreign", async input => { calls++; return item.agentHost.reviews.decide(input); });
-    const response = await fetch(`${item.base}/api/agent/reviews/decide`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ review_id: "foreign", decision: "approve" }) });
+    item.agentHost.reviews.registerDecisionHandler("foreign", async (input, commit) => { calls++; return await commit(); });
+    const response = await fetch(`${item.base}/api/agent/reviews/decide`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ review_id: "foreign", version: "proposal-1", decision: "approve" }) });
     assert.equal(response.status, 404);
     assert.equal(calls, 0);
     assert.equal(item.agentHost.reviews.receipt("foreign")?.status, "pending");
@@ -174,7 +176,7 @@ test("an unconnected review owner cannot turn an HTTP approval into a false succ
   const item = await fixture();
   try {
     item.agentHost.reviews.request(pending("orphan"));
-    const response = await fetch(`${item.base}/api/agent/reviews/decide`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ review_id: "orphan", decision: "approve" }) });
+    const response = await fetch(`${item.base}/api/agent/reviews/decide`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ review_id: "orphan", version: "proposal-1", decision: "approve" }) });
     assert.equal(response.status, 409);
     assert.equal(item.agentHost.reviews.receipt("orphan")?.status, "pending");
   } finally { item.server.close(); }
@@ -186,7 +188,8 @@ test("Host review refresh reads owner receipts and renders only the requested ru
     const first = pending("scoped"); first.document = { kind: "text-edit", target_path: "src/<unsafe>.js", exists: true, before_text: "old", after_text: "<script>attack()</script>" };
     item.agentHost.reviews.request(first);
     item.agentHost.reviews.request({ ...pending("other"), run: { session_id: "s-2", run_id: "run-2" } });
-    item.agentHost.reviews.decide({ review_id: "scoped", decision: "approve", actor_id: "user" });
+    item.agentHost.reviews.registerDecisionHandler("scoped", async (_input, commit) => commit());
+    await item.agentHost.reviews.respond({ review_id: "scoped", version: "proposal-1", decision: "approve", actor_id: "user" });
     item.agentHost.reviews.consumeApproval("scoped");
     const detach = item.agentHost.reviews.registerRefresh(async board => {
       assert.equal(board, BOARD);
@@ -258,13 +261,13 @@ test("BL-360: GET carries current decisions and POST rechecks an owner lost afte
   try {
     const queue = item.agentHost.reviews;
     queue.request(pending("availability"));
-    queue.registerDecisionHandler("availability", async input => { calls++; return queue.decide(input); }, async () => () => live);
+    queue.registerDecisionHandler("availability", async (input, commit) => { calls++; return await commit(); }, async () => () => live);
     const before = await (await fetch(`${item.base}/api/agent/reviews`)).json() as { reviews: Array<{ decisions: { approve: { available: boolean } } }>; html: string };
     assert.equal(before.reviews[0]?.decisions.approve.available, true);
     assert.match(before.html, /data-agent-review-approve/);
     live = false;
     const response = await fetch(`${item.base}/api/agent/reviews/decide`, { method: "POST", headers: { "content-type": "application/json", "accept-language": "en" },
-      body: JSON.stringify({ review_id: "availability", decision: "approve" }) });
+      body: JSON.stringify({ review_id: "availability", version: "proposal-1", decision: "approve" }) });
     assert.equal(response.status, 409);
     assert.match(await response.text(), /original wait has ended/);
     const after = await (await fetch(`${item.base}/api/agent/reviews`)).json() as { html: string };
@@ -300,7 +303,7 @@ test("BL-360: a computer injection during owner waiting cannot commit its own ap
     queue.request(pending("injected"));
     queue.registerDecisionHandler("injected", async (_input, commit) => { entered(); await waiting; const receipt = commit(); effects++; return receipt; });
     const response = fetch(`${item.base}/api/agent/reviews/decide`, { method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ review_id: "injected", decision: "approve" }) });
+      body: JSON.stringify({ review_id: "injected", version: "proposal-1", decision: "approve" }) });
     await read; holder.lastInjectAt = 5_000; release();
     const refused = await response;
     assert.equal(refused.status, 409); assert.match(await refused.text(), /computer.self_approval/);
@@ -323,7 +326,7 @@ for (const mode of ["expired", "closed"] as const) test(`BL-360: a Web session $
       try { const receipt = commit(); effects++; return receipt; } catch (error) { refusal = error; throw error; } finally { finish(); }
     });
     const response = fetch(`${item.base}/api/agent/reviews/decide`, { method: "POST", headers: { "content-type": "application/json", connection: "close", cookie, "x-molis-work-page-session": token },
-      body: JSON.stringify({ review_id: "session-closed", decision: "approve" }) })
+      body: JSON.stringify({ review_id: "session-closed", version: "proposal-1", decision: "approve" }) })
       .then(async value => ({ status: value.status, body: await value.text() }), error => ({ failure: error }));
     await Promise.race([entered, response.then(value => { throw new Error(`request ended before owner waiting: ${JSON.stringify(value)}`); })]);
     if (mode === "closed") sessions.close(); else now = 60_001;
@@ -369,7 +372,7 @@ for (const withdrawn of ["session", "computer", "work"] as const) test(`BL-360: 
   t.after(() => { release.resolve(); sessions.close(); });
   let lastInjectAt: number | null = null, effects = 0;
   t.mock.method(ComputerDesk.prototype, "holding", () => ({ sessionId, projectId: null, lastInjectAt }));
-  queue.request({ review_id: "original-review", project_id: ASSISTANT_PERSONAL_OWNER, plugin_id: ASSISTANT_PLUGIN_ID,
+  queue.request({ reference: { owner: { kind: "agent-review" as const, project_id: ASSISTANT_PERSONAL_OWNER, plugin_id: ASSISTANT_PLUGIN_ID, install_id: "install" }, id: "original-review", version: "proposal-1" }, review_id: "original-review", project_id: ASSISTANT_PERSONAL_OWNER, plugin_id: ASSISTANT_PLUGIN_ID,
     run: { session_id: sessionId, run_id: "original-run" }, kind: "text-edit",
     document: { kind: "text-edit", target_path: "note.md", exists: true, before_text: "before", after_text: "after" },
     requested_at: new Date().toISOString(), expires_at: null });

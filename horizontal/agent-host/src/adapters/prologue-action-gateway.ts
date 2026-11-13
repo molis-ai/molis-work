@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { createPrologueError, DEFAULT_TOOL_LIMITS, type ScenarioPack, type ToolRunner } from "@prologue/sdk";
+import { createPrologueError, DEFAULT_TOOL_LIMITS, type EffectOrigin, type ScenarioPack, type ToolRunner } from "@prologue/sdk";
 import { ActionError, actionEffect, actionFieldLabelSource, actionFieldValue, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { presentToolReview, reviewField, reviewText, type ToolReviewField } from "../review-presentation.js";
-import type { AgentActionClient, AgentActionOffer, AgentFrozenRole } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentActionClient, AgentActionOffer, AgentActionReviewControl, AgentFrozenRole } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { PrologueActionReviews } from "./prologue-action-reviews.js";
 import { CAPABILITY_PARAMETERS, declaredCapabilities, SUGGEST_PARAMETERS } from "./prologue-gateway-declared.js";
 
 export const GATEWAY_TOOLS = { find: "find-capabilities", read: "read-capability", change: "change-capability", suggest: "suggest-action", direct: "change-reversible" } as const;
@@ -40,7 +41,7 @@ const memoryToolOffered = (name: string, memory: AgentActionClient["memory"]): b
   || (!!memory && (name !== MEMORY_TOOLS.remember || !!memory.remember) && (name !== MEMORY_TOOLS.forget || !!memory.forget) && (name !== MEMORY_TOOLS.propose || !!memory.propose));
 
 /** The person's memory tools; each refuses when the round was not given memory, or not that tool. */
-type GatewayToolRun = (args: Record<string, unknown>, signal: AbortSignal, operationId: string) => Promise<string>;
+type GatewayToolRun = (args: Record<string, unknown>, signal: AbortSignal, operationId: string, callId?: string) => Promise<string>;
 function memoryExecutors(given: AgentActionClient["memory"], guarded: (run: GatewayToolRun) => ToolRunner): Record<string, ToolRunner> {
   const available = () => { if (!given) throw new ActionError("actions.forbidden", "Forming memories is switched off here; tell the person you did not keep it."); return given; };
   const without = (tool: string): never => { throw new ActionError("actions.forbidden", `This work has no ${tool} tool (a work handed to you by another work cannot keep or forget memories); tell the person or the work that handed it to you that nothing was kept or forgotten.`); };
@@ -147,7 +148,7 @@ function guardGatewayTool(run: GatewayToolRun, runSignal?: AbortSignal): ToolRun
     call.signal?.addEventListener("abort", stop, { once: true });
     runSignal?.addEventListener("abort", stop, { once: true });
     if (runSignal?.aborted || call.signal?.aborted || call.abort?.requested()) stop();
-    try { abort.signal.throwIfAborted(); return await run(call.args as Record<string, unknown>, abort.signal, randomUUID()); }
+    try { abort.signal.throwIfAborted(); return await run(call.args as Record<string, unknown>, abort.signal, randomUUID(), call.callId); }
     catch (error) {
       if (error instanceof ActionError && !abort.signal.aborted) {
         throw createPrologueError("HOST_RESPONSE_INVALID", `${error.code}: ${error.message}`);
@@ -165,7 +166,7 @@ function guardGatewayTool(run: GatewayToolRun, runSignal?: AbortSignal): ToolRun
  * uninstalled or changed since the round began is refused, and one installed since is found. Reads run at once;
  * a change is a separate tool whose every call is held for the person's review of its exact arguments.
  */
-export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL_LIMITS.maxTimeoutMs, runSignal?: AbortSignal) {
+export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL_LIMITS.maxTimeoutMs, runSignal?: AbortSignal, reviews?: PrologueActionReviews) {
   // Capability ids this round has seen offered (found or used), which the round's replies do not show the person.
   const known = new Set<string>();
   // Exact identities this round has seen offered: one missing later was taken away, not guessed.
@@ -183,7 +184,7 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
     if (!write && !reads) throw new ActionError("actions.gateway_mismatch", `This capability changes data; call it with ${GATEWAY_TOOLS.change}, which asks the person first.`);
     return view;
   };
-  const invoke = async (args: CapabilityArgs, view: ActionView, signal: AbortSignal, write = false) => {
+  const invoke = async (args: CapabilityArgs, view: ActionView, signal: AbortSignal, write = false, review?: AgentActionReviewControl) => {
     const schema = view.action.input_schema;
     // A change stops being waited on a little before the runtime's own deadline, so the round hears why in words.
     const local = new AbortController();
@@ -192,7 +193,7 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
     const deadline = write && timeoutMs > 10_000 ? setTimeout(() => local.abort(new ActionError("actions.timeout", "ran out of time")), timeoutMs - 5_000) : undefined;
     try {
       const call = gateway.client.invoke({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id },
-        gatewayInput(view, args), local.signal);
+        gatewayInput(view, args), local.signal, review);
       call.catch(() => undefined);
       // A change is not waited on past a stop or deadline: its owner may still finish it, so it ends as "not known".
       const result = write ? await Promise.race([call, abortedBy(local.signal)]) : await call;
@@ -240,11 +241,14 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
     }),
     ...delegationExecutors(gateway.client.delegate, guarded),
     ...memoryExecutors(gateway.client.memory, guarded),
-    [GATEWAY_TOOLS.change]: guarded(async (args, signal) => {
+    [GATEWAY_TOOLS.change]: guarded(async (args, signal, _operation, callId) => {
       if (!gateway.operate) throw new ActionError("actions.forbidden", "This role may only read.");
       const parsed = parseCapability(args);
-      const view = await current(parsed, true);
-      return invoke(parsed, view, signal, true);
+      const held = reviews?.forCall(callId, GATEWAY_TOOLS.change, args);
+      try {
+        held?.control.assertCurrent();
+        return await invoke(parsed, held?.view ?? await current(parsed, true), signal, true, held?.control);
+      } finally { reviews?.release(callId); }
     }),
     // A change that says how it is undone, which the person lets run without asking: it runs now and can be taken back.
     [GATEWAY_TOOLS.direct]: guarded(async (args, signal) => {
@@ -364,7 +368,7 @@ export function capabilityInput(view: ActionView, input: unknown): unknown {
  * Why a gateway call cannot go ahead, checked before any review: the capability is gone, switched off, unavailable,
  * or asked for through the wrong tool. Null when it may proceed (a change then still waits for the person).
  */
-export async function gatewayProblem(gateway: Gateway, toolName: string, input: unknown, known?: Set<string>, offered?: Set<string>): Promise<string | null> {
+export async function gatewayProblem(gateway: Gateway, toolName: string, input: unknown, known?: Set<string>, offered?: Set<string>, review?: { calls: PrologueActionReviews; origin?: EffectOrigin }): Promise<string | null> {
   if (toolName !== GATEWAY_TOOLS.read && toolName !== GATEWAY_TOOLS.change && toolName !== GATEWAY_TOOLS.direct) return null;
   if ((toolName === GATEWAY_TOOLS.change || toolName === GATEWAY_TOOLS.direct) && !gateway.operate) return "This role may only read.";
   let parsed: CapabilityArgs;
@@ -381,7 +385,10 @@ export async function gatewayProblem(gateway: Gateway, toolName: string, input: 
   if (toolName === GATEWAY_TOOLS.read && !reads) return `This capability changes data; call it with ${GATEWAY_TOOLS.change}, which asks the person first.`;
   // The same validation dispatch will do, before anyone is asked to approve an input that cannot run.
   const sent = capabilityInput(view, parsed.input);
-  try { await gateway.client.check?.({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }, gatewayInput(view, parsed)); }
+  try {
+    if (toolName === GATEWAY_TOOLS.change && review) await review.calls.prepare(review.origin, toolName, input, view, gatewayInput(view, parsed), gateway.client);
+    else await gateway.client.check?.({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }, gatewayInput(view, parsed));
+  }
   catch (error) {
     const kind = sent === null ? "null" : Array.isArray(sent) ? "array" : typeof sent;
     // What arrived, briefly, so the next attempt corrects the shape instead of repeating it.
@@ -431,11 +438,9 @@ function inputFields(schema: Record<string, unknown>, input: unknown): ToolRevie
 }
 
 /** The readable review for a requested change: which capability, from whom, what it does, with the exact input. */
-export async function gatewayReview(gateway: Gateway, input: string) {
+export function gatewayReview(input: string, view: ActionView) {
   const args = JSON.parse(input) as Record<string, unknown>;
   const parsed = parseCapability(args);
-  const view = (await gateway.client.discover()).find(row => row.capability_id === parsed.capability_id && row.version === parsed.version && row.provider.provider_id === parsed.provider_id);
-  if (!view) throw new Error("所请求的能力已不可用，不能批准");
   const effect = actionEffect(view.action, view.capability_id);
   const sent = gatewayInput(view, parsed);
   return presentToolReview({ kind: "tool-operation", tool: GATEWAY_TOOLS.change, summary: `${view.provider.title} · ${view.action.title}` }, [

@@ -4,6 +4,7 @@ import { lstat, mkdir, realpath } from "node:fs/promises";
 import path from "node:path";
 import { compareCodeUnits } from "@molis-ai/molis-work-plugin-sdk";
 import { runWorkspaceGit } from "./workspace-git.js";
+import { uncertainGitResult } from "./workspace-git-operations.js";
 
 import type { WriterFileTarget, WriterWorktree } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 
@@ -41,7 +42,7 @@ const gitWorktreeErrors = defineErrorCodes("workspace_git.worktree", {
 export interface GitWorktreePort {
   supported(): Promise<boolean>;
   preview(slotId: string): Promise<WriterWorktree>;
-  create(slotId: string, expectedBase?: string): Promise<WriterWorktree>;
+  create(slotId: string, expectedBase?: string, assertCurrent?: () => void): Promise<WriterWorktree>;
   list(): Promise<WriterWorktree[]>;
   /** The owned writers, and directories in the writers' folder that no longer qualify, each with the reason. */
   inspect(): Promise<{ owned: WriterWorktree[]; unavailable: Array<{ directory: string; branch: string | null; reason: string }> }>;
@@ -99,7 +100,8 @@ export function createGitWorktreePort(workspacePath: string): GitWorktreePort {
     return { root, head, container: path.dirname(directory), directory };
   }
 
-  async function ensureDirectory(directory: string) {
+  async function ensureDirectory(directory: string, assertCurrent?: () => void) {
+    assertCurrent?.();
     await mkdir(directory).catch(error => { if (error.code !== "EEXIST") throw error; });
     if (!(await lstat(directory)).isDirectory() || await realpath(directory) !== directory) {
       throw gitWorktreeErrors.not_owned("写入者目录来源不明确，不能跟随替换目录或符号链接");
@@ -160,16 +162,21 @@ export function createGitWorktreePort(workspacePath: string): GitWorktreePort {
       // The question is whether worktrees work here: a context that cannot be read is the answer "no", shown as such.
       try { await context(); return true; } catch { return false; }
     },
-    async create(slotId, expectedBase) {
+    async create(slotId, expectedBase, assertCurrent) {
       const proposed = await preview(slotId);
       if (expectedBase && expectedBase !== proposed.base_commit) throw gitWorktreeErrors.failed("审查后主仓库提交已改变，请重新准备工作树");
       const ctx = await context(), branch = BRANCH_PREFIX + slotId, directory = path.join(ctx.directory, slotId);
       if (ctx.head !== proposed.base_commit) throw gitWorktreeErrors.failed("准备期间仓库提交已改变，请重新预览");
-      await ensureDirectory(ctx.container);
-      await ensureDirectory(ctx.directory);
+      await ensureDirectory(ctx.container, assertCurrent);
+      await ensureDirectory(ctx.directory, assertCurrent);
+      assertCurrent?.();
       await git(ctx.root, ["worktree", "add", "-b", branch, directory, ctx.head]);
       // A metadata failure leaves the real worktree intact for reconciliation, never force-deletes it.
-      await git(ctx.root, ["config", "--local", metadataKey(branch), JSON.stringify({ version: /* @version format.workspace.git-worktree */ 1, owner: ctx.root, base: ctx.head })]);
+      try {
+        assertCurrent?.(); await git(ctx.root, ["config", "--local", metadataKey(branch), JSON.stringify({ version: /* @version format.workspace.git-worktree */ 1, owner: ctx.root, base: ctx.head })]);
+      } catch (error) {
+        throw uncertainGitResult(`独立工作树已建立，但来源登记未完成；请核对目录 ${directory} 和分支 ${branch}，不要重复创建：${error instanceof Error ? error.message : String(error)}`, error);
+      }
       return { worktree_id: slotId, branch, base_commit: ctx.head, directory: path.relative(ctx.root, directory) };
     },
     async list() {

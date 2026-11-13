@@ -59,7 +59,7 @@ test('packed SDK child dispatch uses Host review, frozen roles, actual reads and
       if(Date.now()>deadline)throw new Error('Timed out: '+JSON.stringify({view,requests,reviews:queue.list('b')}));
       for(const review of queue.list('b','pending'))if(!decided.has(review.review_id)){
         assert.equal(review.kind,'tool-operation');assert.equal(childCalls,0,'child provider must not run before dispatch approval');
-        decided.add(review.review_id);approved++;const receipt=await queue.respond({review_id:review.review_id,decision:'approve',actor_id:'user'});assert.equal(receipt.delivery_error,undefined);
+        decided.add(review.review_id);approved++;const receipt=await queue.respond({review_id:review.review_id, version: review.reference.version,decision:'approve',actor_id:'user'});assert.equal(receipt.delivery_error,undefined);
       }
       await new Promise(resolve=>setTimeout(resolve,10));
     }
@@ -105,7 +105,7 @@ for (const outcome of ['rejected','cancelled','failed','unknown-role'] as const)
       const view=await adapter.read(handle.ref);if(['completed','failed','cancelled'].includes(view.phase))break;
       if(Date.now()>deadline)throw new Error('Control timed out '+JSON.stringify(view));
       for(const review of queue.list('b','pending'))if(!decided.has(review.review_id)){
-        assert.equal(childCalls,0);decided.add(review.review_id);await queue.respond({review_id:review.review_id,decision:outcome==='rejected'?'reject':'approve',actor_id:'user'});
+        assert.equal(childCalls,0);decided.add(review.review_id);await queue.respond({review_id:review.review_id, version: review.reference.version,decision:outcome==='rejected'?'reject':'approve',actor_id:'user'});
       }
       if(outcome==='cancelled'&&childCalls&&!cancelled){const rows=await adapter.subagents!.list(handle.ref);assert.equal(rows.length,1);await adapter.subagents!.cancel(handle.ref,rows[0].subagent_id,'user');cancelled=true;}
       await new Promise(resolve=>setTimeout(resolve,10));
@@ -154,7 +154,7 @@ test('a named child role brings its own tools: an empty tools list still gives t
       view=await adapter.read(handle.ref);
       if(['completed','failed','cancelled'].includes(view.phase))break;
       if(Date.now()>deadline)throw new Error('Timed out: '+JSON.stringify({view,childTools}));
-      for(const review of queue.list('b','pending'))await queue.respond({review_id:review.review_id,decision:'approve',actor_id:'user'});
+      for(const review of queue.list('b','pending'))await queue.respond({review_id:review.review_id, version: review.reference.version,decision:'approve',actor_id:'user'});
       await new Promise(resolve=>setTimeout(resolve,10));
     }
     assert.equal(view.phase,'completed',view.stop_reason);

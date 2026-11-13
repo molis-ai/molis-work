@@ -143,6 +143,17 @@ export class LocalHost<Runtime> {
     return registeredActionMetadata(this.capabilities, this.metadataCaller(caller, reference));
   }
 
+  /** A proposal keeps the original registration and caller, independently of a later approval request. */
+  prepareActionReview(caller: ActionCallContext, view: ActionView, input: unknown, project?: LocalHostProjectReference) {
+    const bound = this.metadataCaller(caller, project), held = this.actionService.prepareReview(bound, view, input);
+    const assertCurrent = () => {
+      this.assertRunning();
+      if (project) { this.line.assertCompatibleReference(project); if (this.line.isClosing(project.storage_key)) throw new ActionError("actions.host_closed", "原项目正在关闭"); }
+      held.assertCurrent();
+    };
+    return { assertCurrent, beforeEffect: async () => { assertCurrent(); await held.beforeEffect(); assertCurrent(); } };
+  }
+
   /** The same registered scene declarations and visibility rules discovery uses; never an execution grant. */
   inspectSceneMetadata(caller: ActionCallContext, reference?: LocalHostProjectReference) {
     return this.actionService.inspectSceneMetadata(this.metadataCaller(caller, reference));

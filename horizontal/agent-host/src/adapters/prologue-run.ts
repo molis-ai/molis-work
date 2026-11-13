@@ -10,6 +10,7 @@ import { agentTextMaterialContent } from "@molis-ai/molis-work-contracts/service
 import { agentErrors } from "../errors.js";
 import { assertChildRoleTools } from "../child-role-tools.js";
 import { gatewayProblem, prologueActionGateway } from "./prologue-action-gateway.js";
+import { PrologueActionReviews } from "./prologue-action-reviews.js";
 import { prologueActionTools, SUGGEST_HOST_TOOL } from "./prologue-action-tools.js";
 import { AFTER_WRITE_EXECUTOR, afterWriteExecutor } from "./prologue-after-write.js";
 import type { PrologueApprovalBridge } from "./prologue-approvals.js";
@@ -106,9 +107,14 @@ const systemTools = (input: PrologueStartInput) => hostSystemTools(input).map(pr
  * The round's actions: the business gateway's three tools, or one tool per frozen action. What the round really keeps,
  * forgets and changes is counted for the stop check; a call to a capability that is gone is refused before review.
  */
-function roundGateway(deps: RunDeps, input: PrologueStartInput, none: boolean) {
+function roundGateway(deps: RunDeps, input: PrologueStartInput, none: boolean, stopping: () => boolean) {
   const { state, runtime } = deps;
   const actionController = new AbortController();
+  const reviews = new PrologueActionReviews(input.session_id, () => {
+    if (stopping()) throw new Error("原轮次正在停止");
+    actionController.signal.throwIfAborted(); requireSynchronous(input.assertBeforeDispatch?.(), "最终授权检查必须同步完成");
+  });
+  state.actionReviews.set(input.session_id, reviews);
   // A business round the person gave no memory (switched off) keeps nothing, so any claim of keeping is held too.
   const memory = input.action_gateway?.client.memory;
   const memoryDone: Memory = { keep: 0, forget: 0, off: !memory, without: { keep: !!memory && !memory.remember, forget: !!memory && !memory.forget } };
@@ -117,7 +123,7 @@ function roundGateway(deps: RunDeps, input: PrologueStartInput, none: boolean) {
   const changesDone = client ? { client, invoked: [] as ExactActionReference[] } : undefined;
   if (changesDone) state.changeRounds.set(input.session_id, changesDone); else state.changeRounds.delete(input.session_id);
   const gatewayForRun = input.action_gateway && client ? { ...input.action_gateway, client: { ...client,
-    invoke: async (reference: ExactActionReference, value: unknown, signal?: AbortSignal) => { const result = await client.invoke(reference, value, signal); changesDone!.invoked.push(reference); return result; },
+    invoke: async (...args: Parameters<typeof client.invoke>) => { const result = await client.invoke(...args); changesDone!.invoked.push(args[0]); return result; },
     ...(memory ? { memory: {
       ...(memory.remember ? { remember: async (...args: Parameters<NonNullable<typeof memory.remember>>) => { const kept = await memory.remember!(...args); memoryDone.keep += 1; return kept; } } : {}),
       list: memory.list.bind(memory),
@@ -125,23 +131,26 @@ function roundGateway(deps: RunDeps, input: PrologueStartInput, none: boolean) {
       ...(memory.propose ? { propose: memory.propose.bind(memory) } : {}),
     } } : {}),
   } } : input.action_gateway;
-  const gatewayTools = none || !gatewayForRun ? undefined : prologueActionGateway(gatewayForRun, Math.min(60_000, runtime.tools.limits.maxTimeoutMs), actionController.signal);
+  const gatewayTools = none || !gatewayForRun ? undefined : prologueActionGateway(gatewayForRun, Math.min(60_000, runtime.tools.limits.maxTimeoutMs), actionController.signal, reviews);
   const actionTools = none ? undefined : gatewayTools ? { ...gatewayTools, scope: "gateway" }
-    : prologueActionTools(input.actions, Math.min(60_000, runtime.tools.limits.maxTimeoutMs), actionController.signal, input.character.tools.includes(SUGGEST_HOST_TOOL));
+    : prologueActionTools(input.actions, Math.min(60_000, runtime.tools.limits.maxTimeoutMs), actionController.signal, input.character.tools.includes(SUGGEST_HOST_TOOL), reviews);
   if (input.action_gateway) {
     state.gatewayRuns.set(input.session_id, { ...input.action_gateway, declare: gatewayTools?.declare });
     if (gatewayTools) { state.gatewayKnown.set(input.session_id, gatewayTools.known); state.gatewayOffered.set(input.session_id, gatewayTools.offered); }
-    // Refused before any review: a call to a capability that is gone, switched off or asked through the wrong tool.
-    if (!state.gatewayHooks.has(input.session_id)) {
-      state.gatewayHooks.add(input.session_id);
-      const sessionId = input.session_id;
-      runtime.hooks.register({ id: `molis-action-gateway-${sessionId}`, event: "tool-before", forSession: sessionId, handler: async context => {
-        const gateway = state.gatewayRuns.get(sessionId);
-        if (!gateway || !context.toolName) return { kind: "allow" as const };
-        const problem = await gatewayProblem(gateway, context.toolName, context.input, state.gatewayKnown.get(sessionId), state.gatewayOffered.get(sessionId));
-        return problem ? { kind: "deny" as const, why: problem } : { kind: "allow" as const };
-      } });
-    }
+  }
+  if (input.action_gateway || input.actions) {
+    const sessionId = input.session_id, hookId = `molis-action-gateway-${sessionId}`;
+    if (state.gatewayHooks.has(sessionId)) runtime.hooks.unregister(hookId);
+    state.gatewayHooks.add(sessionId);
+    runtime.hooks.register({ id: hookId, event: "tool-before", forSession: sessionId, handler: async context => {
+      if (!context.toolName) return { kind: "allow" as const };
+      try {
+        const problem = gatewayForRun ? await gatewayProblem(gatewayForRun, context.toolName, context.input, gatewayTools?.known, gatewayTools?.offered, { calls: reviews, origin: context.origin }) : null;
+        if (problem) return { kind: "deny" as const, why: problem };
+        if (actionTools && "prepareReview" in actionTools) await actionTools.prepareReview(context.origin, context.toolName, context.input);
+        return { kind: "allow" as const };
+      } catch (error) { return { kind: "deny" as const, why: error instanceof Error ? error.message : "原能力审查授权不可读取" }; }
+    } });
   }
   return { actionController, actionTools, parameterBranches: gatewayTools?.parameterBranches };
 }
@@ -359,9 +368,15 @@ function watchChild(deps: RunDeps, input: PrologueStartInput, index: SessionInde
     const registered = runtime.subagents.list().find(child => child.run.id === observed.run.ref.id && child.session.id === observed.childSession.ref.id)!;
     const role = children.roles.get(exactCharacterKey(registered.character!))!;
     // Every child's run hears what its neighbours on the task graph send it (letters are handed over by the Host).
-    state.activeRuns.set(observed.run.ref.id, { live: () => ["prepared", "running"].includes(observed.run.state), steer: async text => { await observed.control.steer({ text, source: "app" }); } });
+    state.activeRuns.set(observed.run.ref.id, { live: () => ["prepared", "running"].includes(observed.run.state),
+      assertAuthority: () => { requireSynchronous(input.assertBeforeDispatch?.(), "最终授权检查必须同步完成"); },
+      steer: async text => { await observed.control.steer({ text, source: "app" }); } });
     state.liveSessions.set(observed.childSession.ref.id, observed.run.ref.id);
-    observed.run.subscribe(event => { if (["completed", "failed", "cancelled"].includes(event.type) && state.liveSessions.get(observed.childSession.ref.id) === observed.run.ref.id) state.liveSessions.delete(observed.childSession.ref.id); });
+    observed.run.subscribe(event => {
+      if (!["completed", "failed", "cancelled"].includes(event.type)) return;
+      state.activeRuns.delete(observed.run.ref.id);
+      if (state.liveSessions.get(observed.childSession.ref.id) === observed.run.ref.id) state.liveSessions.delete(observed.childSession.ref.id);
+    });
     // A child with operations to review is tracked by the Host: one in its own directory, or one in the main
     // workspace that may run commands. A read-only child in the main workspace has nothing to review.
     // Without its own directory or a main workspace (workspace:none) there is nothing the Host could review.
@@ -497,6 +512,7 @@ async function afterStart(deps: RunDeps, input: PrologueStartInput, index: Sessi
   // A round is live until it ends: before its first model event it is still "prepared", and it hears a steer then too.
   state.runSessions.set(started.run.ref.id, session.ref.id); state.runRefs.set(started.run.ref.id, started.run.ref); if (surfaceHost) surfaceHost.noteRun(session.ref.id, started.run.ref.id);
   state.activeRuns.set(started.run.ref.id, { live: () => ["prepared", "running"].includes(started.run.state) && !at.stopping(),
+    assertAuthority: () => { requireSynchronous(input.assertBeforeDispatch?.(), "最终授权检查必须同步完成"); },
     steer: async text => { await started.control.steer({ text, source: "app" }); } });
   if (at.stepBoard) deps.stepBoards.follow(at.stepBoard, { session_id: session.ref.id, run_id: started.run.ref.id });
   // A main round is work under way in its project until it ends; a subtask's work is its parent's.
@@ -516,6 +532,8 @@ function roundEnded(deps: RunDeps, started: Started, session: Session, stepBoard
   const { state } = deps;
   const surfaceHost = deps.surfaces();
   actionController.abort(); state.actionControllers.delete(started.run.ref.id); state.dispatchChecks.delete(started.run.ref.id);
+  state.activeRuns.delete(started.run.ref.id);
+  if (state.actionReviews.get(session.ref.id)?.releaseRun(started.run.ref.id)) state.actionReviews.delete(session.ref.id);
   if (stepBoard) deps.stepBoards.unfollow(started.run.ref.id);
   deps.workGraphs.ended(started.run.ref, session.ref, type);
   if (state.liveSessions.get(session.ref.id) === started.run.ref.id) state.liveSessions.delete(session.ref.id);
@@ -595,7 +613,8 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
   const index = await deps.index.read(input.session_id);
   assertWorkspace(input, index, state, mode);
   const ref = state.sessions.get(input.session_id);
-  const { actionController, actionTools, parameterBranches } = roundGateway(deps, input, mode.none);
+  const stopping: { current: Promise<void> | undefined } = { current: undefined };
+  const { actionController, actionTools, parameterBranches } = roundGateway(deps, input, mode.none, () => stopping.current !== undefined);
   ensureStopGuard(runtime, state, input.session_id);
   const attempted: { run_id?: string } = {}, afterWrite = await roundChecks(deps, input, index, mode, attempted, actionTools?.pack.tools);
   const bindActions = !mode.none && (!!input.actions || !!input.action_gateway || state.actionToolSessions.has(input.session_id) || !!afterWrite);
@@ -651,7 +670,6 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
   });
   attempted.run_id = started.run.ref.id;
   watchRoundFacts(state, started.run);
-  const stopping: { current: Promise<void> | undefined } = { current: undefined };
   // Every child this round dispatches is let out only after the round's own check passes again (the Runtime asks).
   state.dispatchChecks.set(started.run.ref.id, dispatchGuard);
   await afterStart(deps, input, index, { started, session, root, attemptIndex, actionController, hasActions: Boolean(actionTools?.names.length), none: mode.none,

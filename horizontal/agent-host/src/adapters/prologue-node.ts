@@ -22,6 +22,7 @@ import { createWorkGraphs } from "./prologue-work-graphs.js";
 import { answerPending, createNodeGitReviews, createNodePort, createNodeRuntime, directoriesIdle, questionReader } from "./prologue-node-port.js";
 import { createPrologueRecovery } from "./prologue-recovery.js";
 import { createApprovals, createPendingPort, createReviewMemory, restoreReviewHistory } from "./prologue-review-documents.js";
+import { createPrologueReviewDecisions } from "./prologue-review-decisions.js";
 import { createPrologueSchedule } from "./prologue-schedule.js";
 import { createSessionIndexStore } from "./prologue-session-index.js";
 import { createPrologueWriteCheckers } from "./prologue-write-checkers.js";
@@ -153,6 +154,8 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   });
   // Each invocation's SDK writes re-check its caller first (prologue-effects); accepted runs detach from the start call.
   const effects = prologueEffects(host);
+  const decisions = createPrologueReviewDecisions(effects, options.app.appId);
+  options.reviewQueue?.bindDecisionStore(decisions);
   const schedule = createPrologueSchedule();
   // Bound after the runtime exists; the redactor it is given reaches it only when a screenshot is taken.
   let surfaceHost: PrologueSurfaces | undefined;
@@ -186,7 +189,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   const closeMcp = onFailureClose(() => mcpLibrary.dispose());
   const surfaces = () => surfaceHost;
   const platformMemory = createPrologueMemory(runtime, effects, memoryAuthority.binding);
-  const gitReviews = createNodeGitReviews(options, host, runtime);
+  const gitReviews = createNodeGitReviews(options, effects.host, runtime, decisions);
   const closeGit = onFailureClose(() => gitReviews?.close());
   const projectWork = createNodeProjectWork(options, host, runtime, state);
   const workGraphs = createWorkGraphs(runtime, index);
@@ -196,13 +199,13 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   const closeWaits = onFailureClose(() => waitsPort.close());
   const closeMessages = onFailureClose(() => messages.close());
   const closeStepBoards = onFailureClose(() => stepBoards.close());
-  const reviews = { runtime, host, state, index, options, surfaces, projectWork };
+  const reviews = { runtime, host, state, index, options, surfaces, projectWork, decisions, mcpLibrary };
   const pendings = createPendingPort(reviews);
   const remember = createReviewMemory(reviews);
   const approvals = createApprovals(reviews, pendings, remember);
-  const detachReviews = restoreReviewHistory(reviews, pendings, remember);
-  const closeReviews = onFailureClose(() => detachReviews?.());
-  const checkpoints = options.reviewQueue ? createPrologueCheckpoints({ runtime, queue: options.reviewQueue, readIndex: index.read, readResource: ref => readResource(runtime, ref),
+  const closeReviewHistory = restoreReviewHistory(reviews, pendings, remember);
+  const closeReviews = onFailureClose(async () => { await Promise.all([approvals?.close(), closeReviewHistory?.()]); });
+  const checkpoints = options.reviewQueue ? createPrologueCheckpoints({ runtime, queue: options.reviewQueue, decisionStore: decisions, readIndex: index.read, readResource: ref => readResource(runtime, ref),
     remember: (id, intent) => index.update(id, saved => { (saved.rewinds ??= []).push(intent); }),
     decision: (id, pendingId, receipt) => index.update(id, saved => {
       (saved.review_decisions ??= {})[pendingId] = { status: receipt.status, decided_by: receipt.decided_by, decided_at: receipt.decided_at, note: receipt.note };

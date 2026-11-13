@@ -38,9 +38,9 @@ function attachReviewDocuments(browser: NonNullable<Awaited<ReturnType<typeof op
   const stop = queue.observe(request => {
     if (request.document.kind !== "tool-operation" || request.document.tool !== "change-capability") return;
     stop();
-    queue.request({ ...request, review_id: "language-command", kind: "command", document: { kind: "command", command: "printf", args: [rawCommandArg], cwd: "./当前目录",
+    queue.request({ ...request, review_id: "language-command", reference: { ...request.reference, id: "language-command" }, kind: "command", document: { kind: "command", command: "printf", args: [rawCommandArg], cwd: "./当前目录",
       timeout_ms: 1000, escalate: true, background: true, grants: { paths: [{ access: "write", path: rawGrant }], network: true } } });
-    queue.request({ ...request, review_id: "language-diff", kind: "text-edit", document: { kind: "text-edit", target_path: rawPath, exists: true,
+    queue.request({ ...request, review_id: "language-diff", reference: { ...request.reference, id: "language-diff" }, kind: "text-edit", document: { kind: "text-edit", target_path: rawPath, exists: true,
       before_text: diffBefore, after_text: diffAfter } });
   });
   return { stop, queue };

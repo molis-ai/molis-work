@@ -2,10 +2,13 @@ import { createHash } from "node:crypto";
 import type { Effect, ExactRef, Runtime } from "@prologue/sdk";
 import type { AgentGitIntegrationReviewDocument, AgentGitIndexReviewDocument, AgentToolOperationReviewDocument, AgentReviewReceipt, AgentReviewRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentErrors } from "../errors.js";
-import type { AgentReviewQueue, ReviewAuthority } from "../reviews.js";
+import type { AgentReviewQueue, ReviewAuthority, ReviewDecisionCommit } from "../reviews.js";
+import type { ReviewDecisionStore } from "../review-decisions.js";
+import { prologueReviewReference } from "./prologue-review-decisions.js";
+import { inspectReviewEffect } from "./prologue-review-effects.js";
 import { bindGitRecovery } from "./prologue-git-recovery.js";
 
-type GitReviewIntent = { project_id: string; workspace_id: string; operation_id: string } & (
+type GitReviewIntent = { project_id: string; workspace_id: string; operation_id: string; proposal_fingerprint: string } & (
   | { operation_kind?: "git-index"; document: AgentGitIndexReviewDocument }
   | { operation_kind: "git-integration"; document: AgentGitIntegrationReviewDocument }
   | { operation_kind: "git-worktree"; document: AgentToolOperationReviewDocument }
@@ -18,17 +21,18 @@ type StoredReview = GitReviewIntent & { kind: "molis-git-index-review"; requeste
 type Decision = Pick<AgentReviewReceipt, "status" | "decided_by" | "decided_at" | "note" | "reconciliation"> & { failure_reason?: string };
 export interface PrologueGitReviewPort {
   /** `authority` is the installation that asks; it must hold `review:<kind>` before anything is written and again before it runs. */
-  prepare(intent: GitReviewIntent, execution: { authority: ReviewAuthority; check(): Promise<void>; execute(): Promise<void> }): Promise<AgentReviewRequest>;
+  prepare(intent: GitReviewIntent, execution: { authority: ReviewAuthority; check(): Promise<void>; execute(assertCurrent: () => void): Promise<void> }): Promise<AgentReviewRequest>;
   close(): Promise<void>;
 }
 interface Ports {
   runtime: Runtime;
   queue: AgentReviewQueue;
+  decisionStore: ReviewDecisionStore;
   publish(value: unknown): Promise<ExactRef<"resource">>;
   read(ref: ExactRef<"resource">): Promise<unknown>;
   saveDecision(key: string, value: Decision): Promise<void>;
   saveFailure(key: string, reason: string): Promise<void>;
-  saveReconciliation(key: string, value: NonNullable<AgentReviewReceipt["reconciliation"]>): Promise<void>;
+  saveReconciliation(key: string, value: NonNullable<AgentReviewReceipt["reconciliation"]>, decision: Decision): Promise<void>;
   readDecision(key: string): Promise<Decision | undefined>;
 }
 const SUBJECT = "molis.git.index";
@@ -40,7 +44,8 @@ const fingerprint = (input: GitReviewIntent) => createHash("sha256").update(JSON
 
 function requestOf(effect: Effect, saved: StoredReview): AgentReviewRequest {
   if (!effect.pending) throw new Error("Git 操作缺少原审查等待");
-  return { review_id: `prologue-git:${effect.pending.ref.id}`, run: null,
+  const reviewId = `prologue-git:${effect.pending.ref.id}`;
+  return { review_id: reviewId, reference: prologueReviewReference(saved, reviewId, effect, { workspace_id: saved.workspace_id, operation_id: saved.operation_id, proposal_fingerprint: saved.proposal_fingerprint }), run: null,
     operation: { kind: saved.operation_kind ?? "git-index", operation_id: saved.operation_id, workspace_id: saved.workspace_id },
     project_id: saved.project_id, plugin_id: saved.plugin_id, kind: saved.document.kind, document: saved.document,
     requested_at: saved.requested_at, expires_at: new Date(Date.parse(saved.requested_at) + APPROVAL_TTL).toISOString() };
@@ -59,25 +64,43 @@ async function savedOf(ports: Ports, effect: Effect): Promise<StoredReview | nul
 /** Carry an effect's settled outcome onto its review; an outcome not yet known stays uncertain and is never retried. */
 async function settleReview(ports: Ports, effect: Effect, request: AgentReviewRequest, error?: unknown, restored = false) {
   const { runtime, queue } = ports;
-  const current = runtime.effects.get(effect.ref), dispatch = await runtime.effects.inspectDispatch(effect.ref);
-  if (!current || dispatch.state === "unknown" || ["dispatching", "reconcile-required"].includes(current.state)) {
-    queue.uncertain(request.review_id, "Git 操作结果尚未确定，请核对仓库；不会自动重复执行", { restored });
+  let { effect: current, dispatch } = await inspectReviewEffect(runtime, effect.ref);
+  const receipt = queue.receipt(request.review_id);
+  if ((restored || receipt?.delivery_error) && current && ["prepared", "awaiting-approval", "authorized"].includes(current.state) && dispatch.state === "not-dispatched") {
+    try { await runtime.effects.cancel(effect.ref); } catch (failure) { error ??= failure; }
+    current = runtime.effects.get(effect.ref);
+  }
+  // This diagnostic is not authority. A lost projection cannot undo the saved decision.
+  const saved = receipt?.status === "approved" ? await ports.readDecision(effect.proposal.inputFingerprint).catch(() => undefined) : undefined;
+  if (!current || dispatch.state === "unknown" || !["completed", "failed", "denied", "cancelled"].includes(current.state)) {
+    const reason = error instanceof Error ? error.message : saved?.failure_reason ?? receipt?.effect_uncertain;
+    const guidance = request.operation?.kind === "git-worktree"
+      ? "工作树准备结果尚待核对；请检查本次审查列出的目录、分支和来源登记，不要重复创建"
+      : "Git 操作结果尚未确定，请核对仓库；不会自动重复执行";
+    queue.uncertain(request.review_id, reason ?? guidance, { restored });
     return;
   }
-  if (queue.receipt(request.review_id)?.status === "approved") {
-    const saved = await ports.readDecision(effect.proposal.inputFingerprint);
+  if (receipt?.status === "approved") {
+    // The old projection contributes diagnostics only. Its absence or corruption
+    // cannot undo the atomic decision or hide the SDK's actual dispatch receipt.
     const reconciled = current.state === "failed" && dispatch.state === "not-dispatched" ? saved?.reconciliation : undefined;
-    queue.settle(request.review_id, current.state === "completed" && dispatch.state === "dispatched" && dispatch.ok === true
+    const outcome = current.state === "completed" && dispatch.state === "dispatched" && dispatch.ok === true
       ? { ok: true } : { ok: false, error: reconciled ? "经核对，原操作未发生；不会自动重试"
-        : error instanceof Error ? error.message : saved?.failure_reason ?? "这次 Git 操作没有完成；需要时重新预览，不会自动重试" }, { restored });
+        : error instanceof Error ? error.message : saved?.failure_reason ?? "这次 Git 操作没有完成；需要时重新预览，不会自动重试" };
+    if (dispatch.state === "not-dispatched") queue.settleNotDispatched(request.review_id, outcome.error ?? "原 Git 操作没有派出");
+    else queue.settle(request.review_id, outcome, { restored });
     if (reconciled) queue.recordReconciliation(request.review_id, reconciled);
-  } else if (["cancelled", "denied", "failed"].includes(current.state)) queue.cancel(request.review_id, "原操作未执行，已撤回");
+  } else if (["cancelled", "denied", "failed"].includes(current.state)) {
+    queue.cancel(request.review_id, "原操作未执行，已撤回"); queue.confirmDecisionClosed(request.review_id);
+  }
 }
 
 /** SDK Effects owns dispatch/recovery. The Host retains review provenance and diagnostic text, never execution state. */
 export function createPrologueGitReviews(ports: Ports): PrologueGitReviewPort {
   const { runtime, queue } = ports;
   const live = new Set<string>(), restored = new Set<string>(), working = new Map<string, Promise<AgentReviewRequest>>();
+  const checking = new Map<string, { effect: Effect; restored: boolean }>();
+  const refreshing = new Map<string, Promise<void>>();
   const settling = new Set<Promise<unknown>>();
   const busy = new Set<string>();
   const recovering = new Set<string>();
@@ -87,7 +110,10 @@ export function createPrologueGitReviews(ports: Ports): PrologueGitReviewPort {
     return pending.finally(() => settling.delete(pending));
   };
   const settle = (effect: Effect, request: AgentReviewRequest, error?: unknown, restored = false) => settleReview(ports, effect, request, error, restored);
-  const bindRecovery = (effect: Effect, request: AgentReviewRequest) => bindGitRecovery({ runtime, queue, saveReconciliation: (key, value) => ports.saveReconciliation(key, value), live, recovering, track, closed: () => closed, settle }, effect, request);
+  const bindRecovery = (effect: Effect, request: AgentReviewRequest): void => bindGitRecovery({ runtime, queue, saveReconciliation: (key, value) => {
+    const receipt = queue.receipt(request.review_id)!;
+    return ports.saveReconciliation(key, value, { status: receipt.status, decided_by: receipt.decided_by, decided_at: receipt.decided_at, note: receipt.note });
+  }, live, recovering, track, closed: () => closed, settle }, effect, request);
   // Git operations from before this process are brought back once per board; every later one is registered live here,
   // so rereading the whole execution ledger on each review refresh found nothing new and cost a disk read per record.
   const settledBoards = new Set<string>();
@@ -99,22 +125,48 @@ export function createPrologueGitReviews(ports: Ports): PrologueGitReviewPort {
       if (live.has(effect.ref.id) || restored.has(effect.ref.id)) continue;
       const saved = await savedOf(ports, effect);
       if (!saved || saved.project_id !== projectId) continue;
-      const request = requestOf(effect, saved), decision = await ports.readDecision(fingerprint(saved));
-      queue.restoreDecision(request, decision ? { status: decision.status, decided_by: decision.decided_by, decided_at: decision.decided_at, note: decision.note } : null);
-      bindRecovery(effect, request);
-      const dispatch = await runtime.effects.inspectDispatch(effect.ref);
-      if (["prepared", "awaiting-approval", "authorized"].includes(effect.state) && dispatch.state === "not-dispatched") {
-        await runtime.effects.cancel(effect.ref); queue.cancel(request.review_id, "应用已重启，原等待已撤回；原 Git 操作未执行，需要时重新预览");
+      const request = requestOf(effect, saved);
+      let recorded;
+      try { recorded = await ports.decisionStore.read(request.reference); }
+      catch {
+        queue.restoreUnreadableDecision(request, async () => ({ request, decision: await ports.readDecision(fingerprint(saved)) ?? null }));
+        checking.set(request.review_id, { effect, restored: true });
+        bindRecovery(effect, request); restored.add(effect.ref.id); continue;
       }
+      const decision = recorded ? undefined : await ports.readDecision(fingerprint(saved));
+      if (recorded) queue.restoreRecordedDecision(recorded);
+      else queue.restoreDecision(request, decision ? { status: decision.status, decided_by: decision.decided_by, decided_at: decision.decided_at, note: decision.note } : null);
+      bindRecovery(effect, request);
       await settle(effect, request, typeof decision?.failure_reason === "string" ? new Error(decision.failure_reason) : undefined, true);
+      if (queue.receipt(request.review_id)?.effect_uncertain) checking.set(request.review_id, { effect, restored: true });
       restored.add(effect.ref.id);
     }
     settledBoards.add(projectId);
   };
-  const detach = queue.registerRefresh(projectId => closed ? Promise.resolve() : track(restore(projectId)));
+  const refresh = async (projectId: string) => {
+    await restore(projectId);
+    // Only live requests whose committed decision lost its return need checking.
+    // They keep no execution authority after the store resolves the unknown save.
+    for (const [reviewId, original] of checking) {
+      const effect = runtime.effects.get(original.effect.ref);
+      if (!effect) continue;
+      const request = queue.get(reviewId);
+      const receipt = queue.receipt(reviewId);
+      if (!request || request.project_id !== projectId || queue.isDeciding(reviewId) || receipt?.decision_save_error || !original.restored && !receipt?.delivery_error && !receipt?.effect_uncertain) continue;
+      await settle(effect, request, undefined, original.restored); live.delete(effect.ref.id); restored.add(effect.ref.id);
+      if (!queue.receipt(reviewId)?.effect_uncertain && ["completed", "failed", "denied", "cancelled"].includes(runtime.effects.get(effect.ref)?.state ?? "")) checking.delete(reviewId);
+    }
+  };
+  const detach = queue.registerRefresh(projectId => {
+    if (closed) return Promise.resolve();
+    const previous = refreshing.get(projectId); if (previous) return previous;
+    const pending = track(refresh(projectId)).finally(() => refreshing.delete(projectId));
+    refreshing.set(projectId, pending); return pending;
+  });
   return { async prepare(input, execution) {
     if (closed) throw new Error("应用正在关闭"); assertHolds(execution.authority, input);
     const intent = structuredClone(input), key = fingerprint(intent);
+    if (!/^[a-f0-9]{64}$/.test(intent.proposal_fingerprint)) throw new Error("Git 操作缺少执行主人固定的参数与目标版本");
     if (!/^[a-zA-Z0-9-]{8,80}$/.test(intent.operation_id)) throw new Error("Git 操作标识无效");
     const pending = working.get(key); if (pending) return pending;
     const task = (async () => {
@@ -143,25 +195,34 @@ export function createPrologueGitReviews(ports: Ports): PrologueGitReviewPort {
           summary: intent.document.kind === "tool-operation" ? intent.document.summary : intent.document.kind === "git-integration" ? "将选定子任务成果整合到主工作区" : intent.document.action === "stage" ? "暂存已审查的文件版本" : "取消所选文件的暂存", inputFingerprint: key, reviewRef, approvalTtlMs: APPROVAL_TTL }, now, "ask");
         if (closed || effect.state !== "awaiting-approval" || !effect.pending) { await runtime.effects.cancel(effect.ref); throw new Error("Git 操作没有进入可批准状态，未执行"); }
         const request = requestOf(effect, saved); live.add(effect.ref.id); queue.request(request, execution.authority);
+        checking.set(request.review_id, { effect, restored: false });
         bindRecovery(effect, request);
         const answerable = () => !closed && live.has(effect.ref.id) && runtime.effects.get(effect.ref)?.state === "awaiting-approval"
           && runtime.effects.pendings.get(effect.pending!.ref)?.state === "open";
-        const decide = async (decision: Parameters<AgentReviewQueue["respond"]>[0], commit: () => AgentReviewReceipt) => {
+        const decide = async (decision: Parameters<AgentReviewQueue["respond"]>[0], commit: ReviewDecisionCommit) => {
           if (!answerable()) throw new Error("原 Git 操作的等待已经结束，不能重新派出");
-          const receipt = commit();
+          const receipt = await commit();
+          const assertCurrent = () => { commit.assertCurrent(); if (!answerable()) throw new Error("原 Git 等待已结束，决定不会送达"); };
           try {
-            if (decision.decision === "approve") queue.consumeApproval(request.review_id);
+            assertCurrent();
             const { status, decided_by, decided_at, note } = receipt;
-            await ports.saveDecision(key, { status, decided_by, decided_at, note });
-            const answered = await runtime.effects.pendings.answer(effect.pending!.ref, { kind: "effect-approval", answer: decision.decision === "approve" ? "allow" : "deny" }, await runtime.readClock());
+            await commit.effect(() => ports.saveDecision(key, { status, decided_by, decided_at, note }), assertCurrent);
+            assertCurrent();
+            if (decision.decision === "approve") queue.consumeApproval(request.review_id);
+            const answered = await commit.effect(async () => runtime.effects.pendings.answer(effect.pending!.ref, { kind: "effect-approval", answer: decision.decision === "approve" ? "allow" : "deny" }, await runtime.readClock(), { assertBeforeAnswer: assertCurrent }));
             if (decision.decision === "approve") {
               if (!answered.authorized) throw new Error("原执行方未接受批准，Git 操作未执行");
               let changed: unknown;
-              try { await runtime.effects.dispatch(effect.ref, { recheck: async () => { try { assertHolds(execution.authority, intent); await execution.check(); return true; } catch (error) { changed = error; return false; } }, run: execution.execute }); }
+              try { await runtime.effects.dispatch(effect.ref, { recheck: async () => { try { assertHolds(execution.authority, intent); await execution.check(); commit.assertCurrent(); return true; } catch (error) { changed = error; return false; } },
+                run: async () => {
+                  const assertExecutionCurrent = () => { commit.assertCurrent(); assertHolds(execution.authority, intent); };
+                  assertExecutionCurrent(); await execution.execute(assertExecutionCurrent);
+                } }); }
               catch (error) {
                 let failure = changed ?? error;
                 if (failure instanceof Error) {
-                  try { await ports.saveFailure(key, failure.message); }
+                  const message = failure.message;
+                  try { await commit.effect(() => ports.saveFailure(key, message)); }
                   catch { failure = new Error(`${failure.message}（详细原因未能保存，重启后可能无法显示）`); }
                 }
                 await settle(effect, request, failure); return queue.receipt(request.review_id)!;
@@ -171,17 +232,15 @@ export function createPrologueGitReviews(ports: Ports): PrologueGitReviewPort {
           } catch (error) {
             const reason = error instanceof Error ? error.message : "决定未送达";
             queue.deliveryFailed(request.review_id, reason);
-            if (["prepared", "awaiting-approval", "authorized"].includes(runtime.effects.get(effect.ref)?.state ?? "")) {
-              await runtime.effects.cancel(effect.ref);
-            }
-            if (decision.decision === "approve" && runtime.effects.get(effect.ref)?.state === "cancelled") {
-              const dispatch = await runtime.effects.inspectDispatch(effect.ref);
-              if (dispatch.state === "not-dispatched") {
-                queue.settleNotDispatched(request.review_id, `${reason}（原操作已取消，确认未执行）`);
-              }
-            }
+            try {
+              if (["prepared", "awaiting-approval", "authorized"].includes(runtime.effects.get(effect.ref)?.state ?? "")) await runtime.effects.cancel(effect.ref);
+            } finally { await settle(effect, request, error); }
             throw error;
-          } finally { live.delete(effect.ref.id); restored.add(effect.ref.id); }
+          } finally {
+            live.delete(effect.ref.id); restored.add(effect.ref.id);
+            const receipt = queue.receipt(request.review_id);
+            if (!receipt?.effect_uncertain && !receipt?.delivery_error && ["completed", "failed", "denied", "cancelled"].includes(runtime.effects.get(effect.ref)?.state ?? "")) checking.delete(request.review_id);
+          }
         };
         queue.registerDecisionHandler(request.review_id, (decision, commit) => track(decide(decision, commit)), async () => answerable);
         return request;

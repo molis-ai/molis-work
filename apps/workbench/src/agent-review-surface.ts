@@ -208,7 +208,7 @@ function renderRow(row: AgentReviewRow, p: AgentReviewPrimitives): string {
     : document.kind === "tool-operation" && GIT_TOOL_TITLES[document.tool] ? uiText.text("workbench.agent-review.tool-with-summary", { name: uiText.text(GIT_TOOL_TITLES[document.tool]!), summary: document.summary })
     : document.kind === "tool-operation" && document.tool === "git-worktree-create" ? uiText.text("workbench.agent-review.worktree") : uiText.text("workbench.agent-review.tool");
   const labelClass = document.kind === "command" || document.kind === "text-edit" ? "agent-review-title agent-review-title--code" : "agent-review-title";
-  return `<article class="agent-review-row" data-agent-review-item="${p.escape(row.request.review_id)}" data-agent-review-phase="${phase}">
+  return `<article class="agent-review-row" data-agent-review-item="${p.escape(row.request.review_id)}" data-agent-review-version="${p.escape(row.request.reference.version)}" data-agent-review-phase="${phase}">
     ${history ? '<details data-review-detail="history"><summary>' : ""}<header class="agent-review-head">
       <span class="mw-status" data-tone="${mark.tone}">${renderStateRing({ state: mark.state })}${p.escape(uiText.text(mark.label))}</span>
       <span class="${labelClass}"${document.kind === "command" || document.kind === "text-edit" ? ' translate="no"' : ""}>${p.escape(label)}</span><span class="agent-review-plugin">${p.escape(row.request.plugin_id)}</span>
@@ -244,8 +244,12 @@ function renderFooter(row: AgentReviewRow, decidable: boolean, p: AgentReviewPri
   // re-granted from another entry point.
   const note = row.receipt?.note;
   const error = row.receipt?.effect_error;
+  const source = row.receipt?.source;
+  const sourceLabel = row.receipt && ["approved", "rejected"].includes(row.receipt.status)
+    ? uiText.text(source ? `workbench.agent-review.source-${source.kind}` : "workbench.agent-review.source-unrecorded") : "";
   return `<footer class="agent-review-settled">
     ${blocked}
+    ${sourceLabel ? `<span data-review-source="${source?.kind ?? "unrecorded"}">${p.escape(sourceLabel)}</span> · ` : ""}
     ${row.receipt?.decided_by === null || row.receipt?.decided_by === undefined
       ? ""
       : `<span>${p.escape(row.receipt.decided_by)}</span>`}
@@ -255,6 +259,8 @@ function renderFooter(row: AgentReviewRow, decidable: boolean, p: AgentReviewPri
     ${row.receipt?.effect_uncertain && row.request.kind === "git-index" ? `<button class="mw-btn" type="button" data-agent-review-inspect="${p.escape(row.request.review_id)}">${uiText("workbench.agent-review.check-index")}</button><div data-review-recovery></div>` : ""}
     ${row.receipt?.reconciliation && !row.receipt.effect_uncertain ? `<p>${p.escape(row.receipt.reconciliation.actor_id)} · ${p.escape(p.formatDate(row.receipt.reconciliation.at))}</p><p>${p.escape(uiText.text("workbench.agent-review.evidence") + row.receipt.reconciliation.reason)}</p>` : ""}
     ${row.receipt?.delivery_error ? `<p class="agent-review-error">${p.escape(uiText.text("workbench.agent-review.not-delivered") + row.receipt.delivery_error)}</p>` : ""}
+    ${row.receipt?.decision_save_error ? `<p class="agent-review-error">${p.escape(row.receipt.decision_save_error)}</p>` : ""}
+    ${row.receipt?.remember_error ? `<p class="agent-review-error">${p.escape(row.receipt.remember_error)}</p>` : ""}
   </footer>`;
 }
 

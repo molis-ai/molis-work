@@ -151,7 +151,11 @@ function frozenActionClient(source: AgentActionClient, validateCharacter: (() =>
   return {
     discover: async () => { validateCharacter?.(); return source.discover(); },
     ...(source.check ? { check: async (ref: ExactActionReference, input: unknown) => { validateCharacter?.(); return source.check!(ref, input); } } : {}),
-    invoke: async (ref, input, signal) => { validateCharacter?.(); return source.invoke(ref, input, signal); },
+    ...(source.prepareReview ? { prepareReview: async (view: ActionView, input: unknown) => {
+      validateCharacter?.(); const held = await source.prepareReview!(view, input);
+      return { beforeEffect: () => held.beforeEffect(), assertCurrent: () => { validateCharacter?.(); held.assertCurrent(); } };
+    } } : {}),
+    invoke: async (ref, input, signal, review) => { validateCharacter?.(); return source.invoke(ref, input, signal, review); },
   };
 }
 
@@ -276,8 +280,9 @@ export function startGuards(authority: AgentStartAuthority, character: AgentFroz
   } : undefined;
   const assertBeforeStart = () => { requireSynchronous(authority.assertBeforeStart?.(), "最终授权检查必须同步完成"); validateCharacter?.(); };
   const beforeStart = async () => { await authority.beforeStart?.(); assertBeforeStart(); };
-  const beforeDispatch = async () => { await authority.beforeDispatch?.(); validateCharacter?.(); };
-  return { validateCharacter, assertBeforeStart, beforeStart, beforeDispatch };
+  const assertBeforeDispatch = () => { requireSynchronous(authority.assertBeforeDispatch?.(), "最终授权检查必须同步完成"); validateCharacter?.(); };
+  const beforeDispatch = async () => { await authority.beforeDispatch?.(); assertBeforeDispatch(); };
+  return { validateCharacter, assertBeforeStart, beforeStart, beforeDispatch, assertBeforeDispatch };
 }
 
 /** Where the round's actions come from: the runtime must take action tools, and the Host must grant this plugin some. */
@@ -328,14 +333,12 @@ export async function frozenGateway(source: ActionSource, workspace: string): Pr
   const { validateCharacter } = source;
   const granted = await grantedActions(source);
   return { operate: source.execution === "operate", client: {
-    discover: async () => { validateCharacter?.(); return granted.discover(); },
-    ...(granted.check ? { check: (ref: ExactActionReference, input: unknown) => granted.check!(ref, input) } : {}),
+    ...frozenActionClient(granted, validateCharacter),
     ...(granted.offer ? { offer: (offer: AgentActionOffer) => { validateCharacter?.(); return granted.offer!(offer); } } : {}),
     ...(granted.delegate ? { delegate: granted.delegate } : {}),
     ...(granted.memory ? { memory: granted.memory } : {}), ...(granted.reader ? { reader: granted.reader } : {}),
     // Which changes may run without a confirmation stays the caller's call (a declared undo, the person's setting).
     ...(granted.direct ? { direct: (view: ActionView) => granted.direct!(view) } : {}),
-    invoke: async (ref, input, signal) => { validateCharacter?.(); return granted.invoke(ref, input, signal); },
   } };
 }
 

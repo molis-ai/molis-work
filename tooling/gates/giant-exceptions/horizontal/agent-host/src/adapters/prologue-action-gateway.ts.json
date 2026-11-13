@@ -1,0 +1,9 @@
+{
+  "exceptions": {
+    "function horizontal/agent-host/src/adapters/prologue-action-gateway.ts#prologueActionGateway": {
+      "kind": "cohesive-unit",
+      "reason": "同一轮能力网关的声明及执行器工厂，共用本轮已发现能力、规范化输入与原调用审查记录；记忆和委派执行器已独立，不为单行超限复制或拆散工具声明。",
+      "size": 151
+    }
+  }
+}

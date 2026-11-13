@@ -2,6 +2,7 @@ export type { AgentOriginalInputRef, AgentOriginalInputDraft, AgentOriginalInput
 import type { ContractDescriptor } from "../platform/package.js";
 import type { AgentRuntimeAdapter, AgentRuntimeDescriptor, AgentRuntimeCapabilityMatrix, AgentSessionRef, AgentRunRef } from "./agent-host-runtime.js";
 import type { AgentReviewQueueApi, AgentReviewRequest, AgentReviewReceipt } from "./agent-host-reviews.js";
+export type { ReviewReference, ReviewDelegationReference, ReviewDecisionSource, ReviewDecisionRecord } from "../platform/reviews.js";
 import type { ActionDefinition, ActionView } from "../platform/actions.js";
 import type { AgentCreateSessionInput, AgentStartInput } from "./agent-host-start.js";
 import type { AgentSubagentView, AgentMcpServerView, AgentMcpServerInput, AgentRecoveryReport, AgentCheckpoint } from "./agent-host-ports.js";
@@ -28,6 +29,7 @@ export type {
 } from "./agent-host-runtime.js";
 export { agentTextMaterialContent, AGENT_REASONING_EFFORTS, parseAgentRunBudget } from "./agent-host-start.js";
 export type {
+  AgentActionReviewControl,
   AgentWorkingDirectory,
   AgentWorkspace,
   AgentTextMaterial,

@@ -56,7 +56,7 @@ export class AssistantOutcomes {
     return afterParkedAnswer(question.parked ? await roundAfterParkedAnswer(() => this.link.dispatch(this.store.get(this.actorId, workId), PARKED_ANSWER_TASK, [], null, undefined, "host", undefined, caller.beforeStart, caller.assertBeforeStart, { byHost: true, ...(caller.reply_locale ? { reply_locale: caller.reply_locale } : {}) }), async () => host.adapter(RUNTIME).recovery?.inspect(sessionRef(work))) : undefined, await this.link.read(workId));
   }
 
-  async decide(workId: string, input: { review_id: string; decision: "approve" | "reject"; note?: string }, boundary?: Parameters<AgentHost["reviews"]["respond"]>[1]): Promise<AssistantWorkView> {
+  async decide(workId: string, input: { review_id: string; version: string; decision: "approve" | "reject"; note?: string }, boundary?: Parameters<AgentHost["reviews"]["respond"]>[1]): Promise<AssistantWorkView> {
     const work = this.store.get(this.actorId, workId);
     const host = await this.ports.host();
     const review = host.reviews.get(String(input.review_id));
@@ -65,7 +65,7 @@ export class AssistantOutcomes {
       ? (await (await this.link.executorOf(work)).read(work.executor.session_id, 1)).runtime_session_id ?? null : work.session_id;
     if (!review || review.run?.session_id !== session || review.project_id !== ownerOf(work)) throw assistantErrors.scope("这项确认不属于这项工作");
     if (!["approve", "reject"].includes(input.decision)) throw assistantErrors.invalid("请选择允许或拒绝");
-    await host.reviews.respond({ review_id: review.review_id, decision: input.decision, actor_id: this.actorId, ...(input.note ? { note: String(input.note).slice(0, 2000) } : {}) }, {
+    await host.reviews.respond({ review_id: review.review_id, version: input.version, decision: input.decision, actor_id: this.actorId, ...(input.note ? { note: String(input.note).slice(0, 2000) } : {}) }, {
       beforeEffect: boundary?.beforeEffect,
       assertCurrent: request => {
         const current = this.store.get(this.actorId, workId);

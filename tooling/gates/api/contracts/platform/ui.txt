@@ -123,6 +123,58 @@ export type ReceiptWords = {
     MARK: Partial<Record<AgentStepState, string>>;
 };
 
+export interface ReviewDecisionRecord {
+    readonly reference: ReviewReference;
+    readonly decision: "approve" | "reject";
+    readonly actor_id: string;
+    readonly decided_at: string;
+    readonly note: string | null;
+    readonly source: ReviewDecisionSource;
+}
+
+export type ReviewDecisionSource = {
+    readonly kind: "person";
+    readonly actor_id: string;
+} | {
+    readonly kind: "delegation";
+    readonly delegation: ReviewDelegationReference;
+} | {
+    readonly kind: "ai";
+    readonly delegation: ReviewDelegationReference;
+    readonly assessment: {
+        readonly id: string;
+        readonly version: string;
+        readonly provider_id: string;
+        readonly model_id: string;
+    };
+    readonly reason: string;
+} | {
+    readonly kind: "policy";
+    readonly owner: string;
+    readonly id: string;
+    readonly revision: number;
+    readonly set_by: string;
+    readonly set_at: string;
+};
+
+export interface ReviewDelegationReference {
+    readonly id: string;
+    readonly revision: number;
+    readonly work_epoch: string;
+    readonly grantor_id: string;
+}
+
+export interface ReviewReference {
+    readonly owner: {
+        readonly kind: "agent-review" | "goal-acceptance";
+        readonly project_id: string;
+        readonly plugin_id: string;
+        readonly install_id: string;
+    };
+    readonly id: string;
+    readonly version: string;
+}
+
 export declare const STATE_RING_FAMILIES: readonly [{
     readonly key: "idle";
     readonly label: "未开始";

@@ -1,12 +1,13 @@
 import { createHash, randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
-import { DEFAULT_TOOL_LIMITS, type ScenarioPack, type ToolRunner } from "@prologue/sdk";
+import { DEFAULT_TOOL_LIMITS, type EffectOrigin, type ScenarioPack, type ToolRunner } from "@prologue/sdk";
 import { compareCodeUnits } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionError, actionEffect, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentFrozenRole, AgentRunOffer } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { capabilityInput, GATEWAY_TOOLS, offerWords } from "./prologue-action-gateway.js";
 import { actionDigest } from "../action-digest.js";
 import { afterWriteTool } from "./prologue-after-write.js";
+import type { PrologueActionReviews } from "./prologue-action-reviews.js";
 
 export const agentActionToolName = (ref: ExactActionReference, scope: string) => "molis-action-" + scope + "-" + createHash("sha256")
   .update(JSON.stringify([ref.capability_id, ref.version, ref.provider_id])).digest("hex").slice(0, 24);
@@ -28,7 +29,7 @@ const SUGGEST_RESULT_BYTES = 32 * 1024;
  * SDK session-scoped callbacks; declarations are a projection of the authorized action directory. With `suggest`, one
  * more tool offers the person one of these same actions as a button: only an action frozen here, checked as it is now.
  */
-export function prologueActionTools(actions: AgentFrozenRole["actions"], timeoutMs = DEFAULT_TOOL_LIMITS.maxTimeoutMs, runSignal?: AbortSignal, suggest = false) {
+export function prologueActionTools(actions: AgentFrozenRole["actions"], timeoutMs = DEFAULT_TOOL_LIMITS.maxTimeoutMs, runSignal?: AbortSignal, suggest = false, reviews?: PrologueActionReviews) {
   const tools = [...(actions?.tools ?? [])].sort((a, b) => compareCodeUnits(JSON.stringify([a.capability_id, a.version, a.provider.provider_id]),
     JSON.stringify([b.capability_id, b.version, b.provider.provider_id])));
   // A pack owns its tool names in the SDK's shared catalog, which keeps the first declaration under an id for the whole
@@ -54,12 +55,14 @@ export function prologueActionTools(actions: AgentFrozenRole["actions"], timeout
       if (runSignal?.aborted || call.signal?.aborted || call.abort?.requested()) stop();
       try {
         abort.signal.throwIfAborted();
-        await currentAction(actions!, view);
+        const held = reviews && (view.operation !== "query" || actionEffect(view.action, view.capability_id) !== "read")
+          ? reviews.forCall(call.callId, name, call.args) : undefined;
+        if (held) held.control.assertCurrent(); else await currentAction(actions!, view);
         abort.signal.throwIfAborted();
-        const result = await actions!.client.invoke(reference, wrapped ? call.args.input : call.args, abort.signal);
+        const result = await actions!.client.invoke(reference, wrapped ? call.args.input : call.args, abort.signal, held?.control);
         abort.signal.throwIfAborted();
         return JSON.stringify(result) ?? "null";
-      } finally { unsubscribe?.(); call.signal?.removeEventListener("abort", stop); runSignal?.removeEventListener("abort", stop); }
+      } finally { reviews?.release(call.callId); unsubscribe?.(); call.signal?.removeEventListener("abort", stop); runSignal?.removeEventListener("abort", stop); }
     };
     // Provider and effect lead the description: the name is a hash, and deferred tools are found by searching this text.
     const effect = actionEffect(view.action, view.capability_id);
@@ -80,7 +83,13 @@ export function prologueActionTools(actions: AgentFrozenRole["actions"], timeout
     permissions: { tools: [...names, check.registration.name], network: [], paths: [] }, memory: { scope: "session", write: "deny" },
     roster: [{ role: "action-user", skills: [], writes: contributions.some(row => row.registration.effectKind !== "safe-read") }],
     planning: { plannedBy: "action-user", planFirst: false }, config: {}, tools: [...contributions, check] };
-  return { pack, executors, names, scope };
+  const prepareReview = async (origin: EffectOrigin | undefined, name: string, args: unknown) => {
+    const view = tools.find(view => agentActionToolName({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }, scope) === name);
+    if (!view || !reviews || view.operation === "query" && actionEffect(view.action, view.capability_id) === "read") return;
+    const input = view.action.input_schema.type === "object" ? args : (args as Record<string, unknown>).input;
+    await reviews.prepare(origin, name, args, view, input, actions!.client);
+  };
+  return { pack, executors, names, scope, prepareReview };
 }
 
 /** The current view of a frozen action, or why it may not be used now: gone, not for agents, switched off, or changed since the round froze it. */

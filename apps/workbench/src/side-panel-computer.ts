@@ -80,7 +80,7 @@ export const SIDE_COMPUTER_SCRIPT = String.raw`(() => {
   const ctx=canvas.getContext('2d');
   const projectId=document.body.dataset.projectId||'';
   const routePrefix=document.body.dataset.routePrefix||(projectId?'/projects/'+encodeURIComponent(projectId):'');
-  let socket=null,ready=false,state=null,shown=false,panelOpen=false,retry=0,retryTimer=null,pending=null,drawing=false,lastMode='idle',lastWork=null,reviewTimer=null,reviewing=null,reviewMode=null;
+  let socket=null,ready=false,state=null,shown=false,panelOpen=false,retry=0,retryTimer=null,pending=null,drawing=false,lastMode='idle',lastWork=null,reviewTimer=null,reviewing=null,reviewMode=null,reviewVersion=null;
   const say=(text)=>{if(live)live.textContent=text||'';};
   const sayError=(error)=>{if(live)molisWorkRequest.show(live,error);};
   const sendRaw=(message)=>{if(socket&&socket.readyState===1&&ready)socket.send(JSON.stringify(message));};
@@ -168,10 +168,10 @@ export const SIDE_COMPUTER_SCRIPT = String.raw`(() => {
     const focused=approval.contains(document.activeElement)?document.activeElement:null;
     if(!row){if(focused)document.querySelector('[data-side-tab=computer][aria-selected=true]')?.focus({preventScroll:true});approval.hidden=true;approval.innerHTML='';reviewing=null;reviewMode=null;return;}
     const held=state?.control?.mode==='taken-over'||state?.control?.mode==='paused';
-    const mode=JSON.stringify([held,row.decisions]);
+    const mode=JSON.stringify([held,row.decisions,row.request.reference.version]);
     const same=reviewing===row.request.review_id;
     if(same&&reviewMode===mode)return;
-    reviewing=row.request.review_id;reviewMode=mode;
+    reviewing=row.request.review_id;reviewMode=mode;reviewVersion=row.request.reference.version;
     const doc=row.request.document||{},fields=doc.fields||[],roundAllow=doc.round_allow;
     const canApprove=!held&&row.decisions.approve.available;
     const note=held?globalThis.t.text("workbench.side-panel-computer.while-have-paused-taken-over-step-will-not"):!row.decisions.approve.available?globalThis.say.text(row.decisions.approve.reason):'';
@@ -185,7 +185,7 @@ export const SIDE_COMPUTER_SCRIPT = String.raw`(() => {
   const btn=(action,label,cls)=>'<button type="button" data-computer-review="'+action+'" class="'+(cls||'')+'">'+esc(label)+'</button>';
   const decide=async(decision,remember)=>{
     const id=reviewing;if(!id)return;
-    const body={review_id:id,decision};if(remember)body.remember=remember;
+    const body={review_id:id,version:reviewVersion,decision};if(remember)body.remember=remember;
     try{await molisWorkRequest(routePrefix+'/api/agent/reviews/decide',{body,fallback:globalThis.t.text("workbench.side-panel-computer.answer-was-not-sent")});}catch(error){sayError(error);}
     if(reviewing===id){approval.hidden=true;reviewing=null;reviewMode=null;}void pollReviews();
   };

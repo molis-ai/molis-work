@@ -142,7 +142,7 @@ test("W2-18-DIFF-FILE-01: a real Coding frozen output selects distinct files and
   await sessions.setRuntimeSession(noEffect, DEMO_PROJECT_ID, "coding-one", ref.session_id, at);
   let readable = true, reads = 0;
   const rows = [["empty.txt", "", ""], ["cart.mjs", "old\n", "new\n"], ["cart.mjs", "new\n", "latest <script>\n"]].map(([target, before, after], index) => ({
-    request: { review_id: "review-" + index, project_id: DEMO_PROJECT_ID, plugin_id: "io.molis.work.coding", run: ref, kind: "text-edit",
+    request: { reference: { owner: { kind: "agent-review" as const, project_id: DEMO_PROJECT_ID, plugin_id: "io.molis.work.coding", install_id: "install" }, id: "review-" + index, version: "proposal-1" }, review_id: "review-" + index, project_id: DEMO_PROJECT_ID, plugin_id: "io.molis.work.coding", run: ref, kind: "text-edit",
       document: { kind: "text-edit", target_path: target, exists: true, before_text: before, after_text: after } },
     receipt: { review_id: "review-" + index, status: "approved", effect_settled: true, effect_error: null },
   }));
@@ -284,7 +284,7 @@ for (const name of ["files", "git", "diff", "text-stats"]) {
 
 test("BL-360: the Host review surface keeps drafts, details and focus when current choices disappear", { timeout: 30_000 }, async t => {
   let available = true;
-  const row: AgentReviewRow = { request: { review_id: "current", project_id: "p", plugin_id: "plugin", run: { session_id: "s", run_id: "r" }, kind: "text-edit",
+  const row: AgentReviewRow = { request: { reference: { owner: { kind: "agent-review" as const, project_id: "p", plugin_id: "plugin", install_id: "install" }, id: "current", version: "proposal-1" }, review_id: "current", project_id: "p", plugin_id: "plugin", run: { session_id: "s", run_id: "r" }, kind: "text-edit",
     document: { kind: "text-edit", target_path: "note.md", exists: true, before_text: "before", after_text: "after" }, requested_at: new Date().toISOString(), expires_at: null },
     decisions: { approve: { available: true }, reject: { available: true } } };
   const f = await fixture(t, '<section id="owner"><section id="reviews"></section></section>', `

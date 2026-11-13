@@ -204,26 +204,28 @@ describe("the records of this repository", () => {
   const file = (relative: string) => readFileSync(path.join(repoRoot, relative), "utf8");
   const json = (relative: string) => JSON.parse(file(relative));
   const folder = "vendor/prologue-sdk";
-  const current = "prologue-sdk-0.0.0-rc.1-window31.tgz";
+  const current = "prologue-sdk-0.0.0-rc.1.tgz";
 
   test("every vendored archive matches its .sha256 and provenance", () => {
     assert.deepEqual(vendoredProvenanceProblems(repoRoot), []);
   });
 
-  test("the current Prologue package is the Slice-31 window: the previous package's merged source plus three commits", () => {
+  test("the current Prologue package is the official main build: PR #114 merged on 770a2e27", () => {
     const provenance = json(`${folder}/${current}.provenance.json`);
     assert.equal(provenance.artifact.file, current);
     assert.equal(json("horizontal/agent-host/package.json").dependencies["@prologue/sdk"], `file:../../${folder}/${current}`);
-    assert.equal(provenance.source.commit, "4537a570dcb4541f2dc68466f6886880c1b75007");
-    // Built on the previous package's merged source, carrying only the three window changes; the branch is not merged upstream yet.
-    assert.match(provenance.source.note, /1cc80b05253df798eeb34afff65d1bda06bee587/);
-    assert.match(provenance.source.note, /Not yet merged upstream/);
+    assert.equal(provenance.source.commit, "1c0654b749cf92c732603cc865638c6e532c4daa");
+    // The packed tree is the public main branch at the merge; no branch-only package and no vendor patch.
+    assert.match(provenance.source.note, /Official main build/);
+    assert.match(provenance.source.note, /770a2e27/);
     assert.equal(provenance.source.candidateUpstream, undefined);
     assert.deepEqual(provenance.source.patches, []);
     assert.equal(provenance.source.dirty, false);
-    // The package it replaced is recorded, not silently gone.
+    // The custom window package it replaced is recorded, not silently gone.
     const replaced = json(`${folder}/patch-history.json`).packagesWithoutPatch;
-    assert.ok(replaced.some((one: { file: string }) => one.file === "prologue-sdk-0.0.0-rc.1-memory-p0.tgz"));
+    const window = replaced.find((one: { file: string }) => one.file === "prologue-sdk-0.0.0-rc.1-window31.tgz");
+    assert.ok(window, "the Slice-31 window package is recorded after replacement");
+    assert.equal(window.gitBlob, "a1a3eda65c30cfe1723254ac0e69ee5cc4ae45fb");
   });
 
   test("RAC-109-S-09: the replaced LKG and the package before it are recorded in patch-history, not left in the folder", () => {
@@ -241,7 +243,7 @@ describe("the records of this repository", () => {
     assert.equal(existsSync(path.join(repoRoot, folder, previous.file)), false);
     // The upstream audit the record carries is unchanged by the replacement.
     const upstream = record.upstream;
-    assert.equal(upstream.mainHead, "f1753ec8fa2cbca45667e60e101b93702acc6640");
+    assert.equal(upstream.mainHead, "1c0654b749cf92c732603cc865638c6e532c4daa");
     assert.ok(upstream.commitsChecked.includes("ba75c9f8437018904b24dabeaaef6ded8054add5"));
     assert.ok(upstream.commitsChecked.includes("2c7feba5a6ea85e81e4a263671fb5e68f536d86a"));
   });
@@ -252,13 +254,14 @@ describe("the records of this repository", () => {
     assert.deepEqual(patches, named ? [named] : []);
   });
 
-  test("patch-history.json holds the 26 deleted patches and the 34 packages that never had one", () => {
+  test("patch-history.json holds the 26 deleted patches and the 35 packages that never had one", () => {
     const record = json(`${folder}/patch-history.json`);
     assert.equal(record.patches.length, 26);
-    assert.equal(record.packagesWithoutPatch.length, 34);
-    // The last two are the packages this window replaced; before them sit the earlier formal dependencies.
-    assert.equal(record.packagesWithoutPatch.at(-1).file, "prologue-sdk-0.0.0-rc.1-final103-bridge.tgz");
-    assert.equal(record.packagesWithoutPatch.at(-2).file, "prologue-sdk-0.0.0-rc.1-memory-p0.tgz");
+    assert.equal(record.packagesWithoutPatch.length, 35);
+    // The last three are the packages the official build replaced; before them sit the earlier formal dependencies.
+    assert.equal(record.packagesWithoutPatch.at(-1).file, "prologue-sdk-0.0.0-rc.1-window31.tgz");
+    assert.equal(record.packagesWithoutPatch.at(-2).file, "prologue-sdk-0.0.0-rc.1-final103-bridge.tgz");
+    assert.equal(record.packagesWithoutPatch.at(-3).file, "prologue-sdk-0.0.0-rc.1-memory-p0.tgz");
     assert.ok(record.packagesWithoutPatch.every((one: { gitBlob: string; sha256: string }) => /^[0-9a-f]{40}$/.test(one.gitBlob) && /^[0-9a-f]{64}$/.test(one.sha256)));
     assert.equal(record.patches.reduce((sum: number, patch: { bytes: number }) => sum + patch.bytes, 0), 2_791_897);
     const kinds = record.patches.reduce((count: Record<string, number>, patch: { sourceKind: string }) => ({ ...count, [patch.sourceKind]: (count[patch.sourceKind] ?? 0) + 1 }), {});
@@ -268,7 +271,7 @@ describe("the records of this repository", () => {
     const networkDispatch = record.patches.find((patch: { file: string }) => patch.file === "network-dispatch.patch");
     assert.equal(networkDispatch.package.sha256, "7ee09e00ef074b761c0d44a86a7d357e11485ea26868f3e77fb99ed757ae384e");
     assert.equal(networkDispatch.package.file, "prologue-sdk-0.0.0-rc.1-network-dispatch.tgz");
-    assert.equal(record.upstream.commitsChecked.length, 43);
+    assert.equal(record.upstream.commitsChecked.length, 45);
     // The commit named for retrieval is one that is known to hold every patch; it is not "the last one" (every later commit
     // on main up to the deletion holds them too), so the key must not say so.
     assert.deepEqual(Object.keys(record.retrieval).filter((key) => /^last/i.test(key)), []);

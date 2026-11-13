@@ -1,10 +1,11 @@
 import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import { AsyncLocalStorage } from "node:async_hooks";
-import type { PrologueHost, Session } from "@prologue/sdk";
+import type { Session } from "@prologue/sdk";
+import type { NodeHost } from "./prologue-node-kit.js";
 import type { AgentMemoryCapability, AgentMemoryExecutionControl, AgentStartExecution } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 export interface PrologueEffects {
-  readonly host: PrologueHost;
+  readonly host: NodeHost;
   call<T>(control: AgentMemoryExecutionControl, work: () => Promise<T>): Promise<T>;
   start<T>(execution: AgentStartExecution | undefined, work: () => Promise<T>): Promise<T>;
   session(target: Session): Session;
@@ -16,7 +17,7 @@ export interface PrologueEffects {
 }
 
 /** Per-invocation SDK commit checks; accepted runs detach from the start call before driving background work. */
-export function prologueEffects(host: PrologueHost): PrologueEffects {
+export function prologueEffects(host: NodeHost): PrologueEffects {
   const calls = new AsyncLocalStorage<{ control: AgentMemoryExecutionControl; active: boolean; accepted: boolean }>();
   const beforeEffect = async () => { const frame = calls.getStore(); if (frame?.active) await frame.control.beforeEffect(); };
   const assertCurrent = () => { const frame = calls.getStore(); if (frame?.active) requireSynchronous(frame.control.assert_current(), "最终授权检查必须同步完成"); };
@@ -24,7 +25,7 @@ export function prologueEffects(host: PrologueHost): PrologueEffects {
     if (!calls.getStore()?.active) return write();
     return (async () => { await beforeEffect(); assertCurrent(); return write(); })();
   };
-  const storage: PrologueHost["storage"] = {
+  const storage: NodeHost["storage"] = {
     get: input => host.storage.get(input), list: input => host.storage.list(input), readSecure: input => host.storage.readSecure(input),
     commit: input => commit(() => host.storage.commit(input)),
     commitBatch: inputs => commit(() => host.storage.commitBatch(inputs)),

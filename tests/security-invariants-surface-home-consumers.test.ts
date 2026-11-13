@@ -85,7 +85,7 @@ test("SCS-07 SCS-08 SCS-11 WBR-24: real Goals, Inbox, Coding and Feed supply one
   const snapshot = () => Object.fromEntries(["goals", "inbox", "coding", "feed"].flatMap(id =>
     ["overview", "values"].map(action => [id + ".presentation." + action, count(id + ".presentation." + action)])));
   const syncRuns = () => f.host.withProject(project.reference, runtime => createLocalFeedApplication(runtime.store.db).snapshot(project.project_id).runs);
-  // The whole Home read shares one second (surface-composition §8.1); on a loaded runner a cold round can pass it, and the cut owners
+  // The whole Home read shares three seconds (surface-composition §8.1); on a loaded runner a cold round can pass it, and the cut owners
   // then read as unreadable. Such a round proves nothing about batching, so it is read again; every round still must not pull Feed.
   let before = snapshot(), next: SurfaceHomeDisplay | undefined;
   for (let attempt = 0; attempt < 3; attempt++) {

@@ -5,6 +5,10 @@ import * as composer from "@molis-ai/molis-work-contracts/platform/composer";
 import { composerDraftKey } from "@molis-ai/molis-work-design-system";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { inspectActionCrossReferences, inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
+import { textKeyPrefix } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { runningProjectPlatform } from "@molis-ai/molis-work-app-local-host";
+import { pluginLocaleReader } from "@molis-ai/molis-work-plugin-runtime";
+import { registerPluginText } from "@molis-ai/molis-work-ui-host";
 import { declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
 import { NOTE_KIND, composerMountPlugin, composerSourcePlugin } from "./fixtures/composer-plugins.js";
 import { grantHomeProbe, homeProbe, serveHomeRuntime } from "./fixtures/home-runtime.js";
@@ -153,6 +157,35 @@ test("S-composer-source-call item 1 near: a source gets only query, limit and th
   assert.deepEqual(source.seen.at(-1), { query: "访谈", limit: 5 }, "another owner's object is not handed over");
   const wide = await ask({ query: "x".repeat(201) });
   assert.equal(wide.status, 400, "the platform's schema bounds the query");
+});
+
+// BL-composer-source-words-installed: a source's name and its plugin's name come from the running release's own language files,
+// read from the activation the plugin directory reads (not from the built-in registrations), so a plugin that is not built in, as
+// one run with `molis-work plugin dev`, shows in English too. A release with no language files keeps the words it declared.
+test("S-composer-source-call the source's words come from the running release's language files; without them the declared words stay", async (t) => {
+  const prefix = "wordnotes", owner = `io.molis.work.example.${prefix}`, key = textKeyPrefix(owner);
+  const source = composerSourcePlugin(prefix, { name_text: { key: `${key}.directory.name` }, title_text: { key: `${key}.source.title` } });
+  const f = await serveHomeRuntime(t, { pluginFixtures: { project: [source.definition] } });
+  const project = await f.project("来源的词");
+  const english = async () => {
+    const response = await f.request(`/projects/${encodeURIComponent(project.project_id)}/api/composer/sources`, { method: "POST", body: { layer: "plain" }, headers: { cookie: "molis_work_locale=en" } });
+    assert.equal(response.status, 200);
+    const sources = (await response.json() as { sources: Array<Record<string, unknown>> }).sources;
+    const entry = sources.find(one => one.capability_id === `${prefix}.pick`);
+    return entry && [entry.provider, entry.title];
+  };
+  assert.deepEqual(await english(), [prefix, "测试笔记"], "a release whose activation has no language files keeps the words it declared");
+  const platform = await f.host.withProject(project.reference, runtime => runningProjectPlatform(runtime.store, runtime.project_id));
+  const activation = platform?.supervisor.activeInstance(owner)?.source?.()?.activation;
+  assert.ok(activation, "the source runs in the project's Runtime");
+  const messages = (locale: string) => locale === "en" ? { [`${key}.directory.name`]: "Word notes", [`${key}.source.title`]: "Test notes" }
+    : { [`${key}.directory.name`]: "词笔记", [`${key}.source.title`]: "测试笔记" };
+  const reader = pluginLocaleReader(source.definition.manifest, path => {
+    const locale = path.endsWith("en.json") ? "en" : "zh";
+    return JSON.stringify({ format_version: 1, owner, locale, messages: messages(locale) });
+  });
+  t.after(registerPluginText(reader!, { activation, t: false }));
+  assert.deepEqual(await english(), ["Word notes", "Test notes"], "the running activation's English words, as the plugin directory shows them");
 });
 
 test("S-composer-source-call item 3: a source turned off is not listed, an open menu's next query is refused, a forged one too", async (t) => {

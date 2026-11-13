@@ -6,7 +6,7 @@ export interface HomeRowDriver {
 }
 
 /**
- * Waits until `selector` (inside the project home) is shown. The home reads every owner under one 1-second budget
+ * Waits until `selector` (inside the project home) is shown. The home reads every owner under one 3-second budget
  * (specs/surface-composition/spec.md §8.1); on a loaded machine an owner that is slow to answer misses it, and its card says it
  * could not be read and offers 重试 (`data-home-control="refresh"`). That retry is pressed, as a person would, until the
  * row shows or the time is up; the wait itself is not loosened.

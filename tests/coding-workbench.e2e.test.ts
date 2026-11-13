@@ -20,6 +20,7 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   const workspace = join(b.homeDirectory, "coding-fixture");
   await mkdir(join(workspace, "nested"), { recursive: true });
   await writeFile(join(workspace, "note.txt"), "first\n中文🙂\n");
+  await writeFile(join(workspace, "symbols.ts"), "export function greet(name: string): string {\n  return `hi ${name}`;\n}\n");
   await writeFile(join(workspace, "nested", "empty.txt"), "");
   const git = (...args: string[]) => execFileSync("git", args, { cwd: workspace, stdio: "pipe" });
   git("init", "-b", "main"); git("config", "user.name", "Fixture"); git("config", "user.email", "fixture@example.invalid");
@@ -146,6 +147,22 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   await click(`${coding} [data-coding-face="sessions"]`);
   await click(`${coding} [data-coding-new]`);
   await b.waitFor(`${CODING_TAKEN} && !document.querySelector('${CODING_COMPOSER} .mw-composer__input').disabled`);
+  // K4/UIV-18: @ names this session's workspace files and definitions, and the chosen name goes into the box.
+  // Type the `@` first (the composer opens its lookup on that keystroke), then the words after it.
+  const mention = (value: string) => b.evaluate(`(() => { const node = document.querySelector('${CODING_BOX}'); node.focus();
+    node.value = '@'; node.setSelectionRange(1, 1); node.dispatchEvent(new InputEvent('input', { bubbles: true, data: '@', inputType: 'insertText' }));
+    node.value = ${JSON.stringify(value)}; node.setSelectionRange(node.value.length, node.value.length);
+    node.dispatchEvent(new InputEvent('input', { bubbles: true, data: ${JSON.stringify(value.slice(-1))}, inputType: 'insertText' })); })()`);
+  const mentionRow = (text: string) => `[...document.querySelectorAll('${CODING_COMPOSER} [data-composer-mention]')].find(node => node.textContent.includes(${JSON.stringify(text)}))`;
+  await mention("@note");
+  await b.waitFor(`Boolean(${mentionRow("note.txt")})`, 15_000);
+  await b.evaluate(`${mentionRow("note.txt")}.click()`);
+  await b.waitFor(`document.querySelector('${CODING_BOX}').value.includes('@note.txt')`);
+  await mention("@symbols.ts#gre");
+  await b.waitFor(`Boolean(${mentionRow("greet")})`, 15_000);
+  await b.evaluate(`${mentionRow("greet")}.click()`);
+  await b.waitFor(`document.querySelector('${CODING_BOX}').value.includes('@symbols.ts#greet')`);
+  await b.evaluate(`(() => { const node = document.querySelector('${CODING_BOX}'); node.value = ''; node.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'deleteContentBackward' })); })()`);
   await waitFor(`document.querySelector('${coding} [data-coding-prompt]')`);
   await capture("coding-welcome-desktop");
   await click(`${coding} [data-coding-prompt][data-coding-prompt-intent="discuss"]`);

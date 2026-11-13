@@ -1,3 +1,4 @@
+// B27SRC-06: the Assistant/Diff consumers keep the original text, the prefix nodes and the patch copy through these existing regressions.
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";

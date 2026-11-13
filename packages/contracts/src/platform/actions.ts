@@ -3,9 +3,11 @@ export * from "./action-result.js";
 export * from "./action-input.js";
 export { actionFieldInput, actionFieldLabel, actionFieldLabelSource, actionFieldOptions, actionFieldValue } from "./action-field-presentation.js";
 export * from "./action-execution.js";
+export type { ActionDelegationTarget, ActionDelegationOperation, ActionDelegationDeclaration, ActionDelegationEffect, ActionDelegationExtraction } from "./action-delegation.js";
 import { ActionError, type ActionErrorKind } from "./action-errors.js";
 export * from "./action-errors.js";
 import type { ActionExecutionPolicy } from "./action-execution.js";
+import type { ActionDelegationDeclaration } from "./action-delegation.js";
 import type { ActionDelegationSource, ActionPersonEntry } from "./action-source.js";
 import type { UiLanguageTag } from "./ui-text.js";
 import type { ActionResultView } from "./action-result.js";
@@ -271,6 +273,8 @@ export interface ActionMetadata {
   readonly audiences: readonly ActionAudience[];
   readonly permissions: readonly string[];
   readonly subject_kinds: readonly string[];
+  /** Finite input targets and operations; the SDK validates them and the authority owner checks the actual call. */
+  readonly delegation?: ActionDelegationDeclaration;
   readonly input_schema: ActionSchema;
   readonly output_schema?: ActionSchema;
   /** Plain-language result and original-object link, declared by the provider for all consumers. */

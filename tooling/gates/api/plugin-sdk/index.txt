@@ -799,6 +799,8 @@ export declare function effectsFromContract(contract: SandboxPluginContract): Sa
 
 export declare function expandPluginSyncSelection(declaration: PluginSyncDeclaration, selected: readonly string[]): readonly string[];
 
+export declare function extractActionDelegation(action: Pick<ActionMetadata, "input_schema" | "delegation">, input: unknown): ActionDelegationExtraction;
+
 export { fileContentOf } from "@molis-ai/molis-work-contracts/platform/actions";
 export { fileEntriesPage } from "@molis-ai/molis-work-contracts/platform/actions";
 

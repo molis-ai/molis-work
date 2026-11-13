@@ -463,6 +463,42 @@ export interface ActionDefinition<Input = unknown, Output = unknown> extends Hos
     readonly action: ActionMetadata;
 }
 
+export interface ActionDelegationDeclaration {
+    readonly targets: readonly ActionDelegationTarget[];
+    readonly operations: readonly ActionDelegationOperation[];
+    readonly control_fields: readonly string[];
+}
+
+export interface ActionDelegationEffect {
+    readonly key: string;
+    readonly targets: Readonly<Record<string, string>>;
+}
+
+export type ActionDelegationExtraction = {
+    readonly state: "resolved";
+    readonly operations: readonly ActionDelegationEffect[];
+} | {
+    readonly state: "confirmation-required";
+    readonly reason: "undeclared" | "invalid-declaration" | "invalid-input" | "target-missing" | "target-unsupported" | "no-operation";
+};
+
+export interface ActionDelegationOperation {
+    readonly key: string;
+    readonly title: string;
+    readonly fields: readonly string[];
+    readonly targets: readonly string[];
+    readonly when: "always" | readonly string[];
+}
+
+export interface ActionDelegationTarget {
+    readonly key: string;
+    readonly title: string;
+    readonly kind: string;
+    readonly field: string;
+    readonly default_value?: string;
+    readonly allowed_values?: readonly string[];
+}
+
 export declare class ActionError extends Error {
     readonly code: string;
     readonly kind?: ActionErrorKind;
@@ -529,6 +565,7 @@ export interface ActionMetadata {
     readonly audiences: readonly ActionAudience[];
     readonly permissions: readonly string[];
     readonly subject_kinds: readonly string[];
+    readonly delegation?: ActionDelegationDeclaration;
     readonly input_schema: ActionSchema;
     readonly output_schema?: ActionSchema;
     readonly result_view?: ActionResultView;

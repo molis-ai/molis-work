@@ -15,6 +15,7 @@ import {
   placementRelationProblems, searchSourceDeclarationProblems,
 } from "./source-declarations.js";
 import { workExecutorDeclarationProblems } from "./work-executor-declarations.js";
+import { actionDelegationDeclarationProblems } from "./action-delegation-declarations.js";
 
 // The shape checks for a Manifest's `actions` and `action_scenes`, made when a Manifest is parsed, when a plugin registers its
 // actions with the Kernel, and when an author calls `defineAction`. Moved here from the contracts package (W3-03): they run code,
@@ -61,6 +62,7 @@ function definitionProblems(raw: unknown, seen: Set<string>): string[] {
     ...workflowContentProblems(key, raw.version, raw.operation, action),
     ...operationKindProblems(key, raw.operation, action),
     ...contextDeclarationProblems(key, raw.operation, action),
+    ...actionDelegationDeclarationProblems(key, action),
   ];
 }
 

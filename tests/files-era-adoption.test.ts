@@ -119,9 +119,16 @@ test("BSH-14-F/M3 a Home the Files-era build made is adopted project by project 
   assert.deepEqual([filesMembers(membershipBefore.active), filesMembers(membershipBefore.portable)], [[], []]);
 
   // The new build's Host upgrades what this Home's stores hold before any adoption step runs, as it does when it starts (the catalog
-  // went from 2 to 3 after this Home was made); adoption itself then needs the current catalog.
-  const upgrade = runHomeUpgrade(home);
-  assert.ok(upgrade.units.every(unit => unit.state !== "failed"), JSON.stringify(upgrade.units));
+  // went from 2 to 3 after this Home was made); adoption itself then needs the current catalog. An old-layout project library is not the
+  // second version its 2→3 step was written for, so that step rolls back on structure and only that project waits, its plugins' tables
+  // behind it (user 2026-11-13, current-version-adoption.md).
+  const libraries = manifest.projects.map(project => project.database);
+  const upgrade = runHomeUpgrade(home), failed = upgrade.units.filter(unit => unit.state === "failed");
+  assert.deepEqual(failed.filter(unit => unit.kind === "sqlite").map(unit => [unit.relative_path, unit.from, unit.error?.reason]).sort(),
+    libraries.map(file => [file, 2, "structure"]).sort(), JSON.stringify(upgrade.units));
+  assert.ok(failed.filter(unit => unit.kind !== "sqlite").every(unit => unit.kind === "plugin_tables" && unit.error?.reason === "prerequisite_failed"
+    && libraries.includes(unit.relative_path.slice(0, unit.relative_path.lastIndexOf("#")))), JSON.stringify(failed));
+  const waitingTables = failed.filter(unit => unit.kind === "plugin_tables").map(unit => unit.relative_path).sort();
   const owner = acquireStorageOwner(join(home, "agent-runtime"));
   try {
     // Each project on its own: an old-layout library of a Home that never synced, whose unsent lines are carried, nothing refused.
@@ -143,6 +150,10 @@ test("BSH-14-F/M3 a Home the Files-era build made is adopted project by project 
       assert.equal(adoptProjectDatabase({ home, owner, projectId: project.project_id, backupDirectory: join(root, "backups") }).state, "current", `${project.display_name}: nothing left to adopt`);
     }
   } finally { owner.release(); }
+  // The next start finds each adopted library at this build's version and brings the plugin tables that waited behind it up with it.
+  const restarted = runHomeUpgrade(home);
+  assert.deepEqual(restarted.units.filter(unit => unit.kind === "plugin_tables" && unit.state === "committed").map(unit => unit.relative_path).sort(), waitingTables);
+  assert.ok(restarted.stamped && restarted.units.every(unit => unit.state === "committed"), JSON.stringify(restarted.units));
   assert.deepEqual(membership(home), membershipBefore, "the catalog is as it was");
   assert.deepEqual(consents(home), consentsBefore, "the person's agreements are exactly as they were: the one taken back keeps its time, the rest stay current");
 

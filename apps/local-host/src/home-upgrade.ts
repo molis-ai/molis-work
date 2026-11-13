@@ -64,6 +64,21 @@ const lockLost = (error: unknown) => { const { code } = (error ?? {}) as ErrorFa
 /** Not having enough disk is not this fingerprint's verdict on the store, so the next start looks again (§5.2). Every other failure waits for a new version or U3. */
 const retriedNextStart = ({ error }: UpgradeUnit) => error?.code === "storage.upgrade_no_space" || error?.reason === "space_check_failed";
 
+/**
+ * A unit that failed only because a store it waits for had not gone through carries no verdict on itself (§2.4). Once every store it waits
+ * for is at this build's version, the next start runs it: the Files retirement's adoption takes an old-layout project library there between
+ * two starts, and that project's plugin tables follow (specs/batch-06-shared-tools/current-version-adoption.md). Until then it stays put.
+ */
+function prerequisiteNowMet(root: string, stores: ReadonlyMap<string, Store>, store: Store, before: UpgradeUnit, holdsLock: boolean): boolean {
+  if (before.error?.reason !== "prerequisite_failed") return false;
+  const { descriptor, relative_path } = store, file = "tables" in descriptor ? upgradeUnitFile(descriptor, relative_path) : undefined;
+  const waits = [...stores.values()].filter(other => other !== store && (other.relative_path === file || descriptor.after?.includes(other.descriptor.pattern)));
+  return waits.every(other => lookAt(root, other, holdsLock).kind === "current");
+}
+
+const settledFailure = (root: string, stores: ReadonlyMap<string, Store>, store: Store, before: UpgradeUnit | undefined, holdsLock: boolean) =>
+  before?.state === "failed" && !retriedNextStart(before) && !prerequisiteNowMet(root, stores, store, before, holdsLock);
+
 function listStores(descriptors: readonly HomeUpgradeDescriptor[], root: string): ReadonlyMap<string, Store> {
   const stores = new Map<string, Store>();
   const add = (store: Store) => { if (!stores.has(store.relative_path)) stores.set(store.relative_path, store); };
@@ -315,7 +330,7 @@ function scan(round: Round): Scan {
     else if (look.kind === "refused") settled.push(newUnit(store, 0, "failed", ownReason(look.reason)));
     else if (look.kind === "older") {
       const before = earlier.get(store.relative_path);
-      if (before?.state === "failed" && !retriedNextStart(before)) settled.push(before);
+      if (before && settledFailure(round.root, round.stores, store, before, true)) settled.push(before);
       else planned.push(newUnit(store, look.found, "planned"));
     }
   }
@@ -429,9 +444,9 @@ export function pendingUpgradeUnits(home: string): number {
     if (unfinished > 0) return unfinished;
     const earlier = new Map((ledger?.to === fingerprint ? ledger.units : []).map(unit => [unit.relative_path, unit]));
     let older = 0;
-    for (const store of listStores(descriptors, root).values()) {
-      const before = earlier.get(store.relative_path);
-      if (lookAt(root, store, false).kind === "older" && !(before?.state === "failed" && !retriedNextStart(before))) older += 1;
+    const stores = listStores(descriptors, root);
+    for (const store of stores.values()) {
+      if (lookAt(root, store, false).kind === "older" && !settledFailure(root, stores, store, earlier.get(store.relative_path), false)) older += 1;
     }
     return older;
   } catch { return 1; }

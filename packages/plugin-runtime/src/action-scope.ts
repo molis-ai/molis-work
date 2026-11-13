@@ -251,7 +251,27 @@ export function assertPluginActionCurrent(instance: PluginInstance): void {
  * as the write's check. Outside every action and job the installation's live grants, which each service checks itself, decide alone.
  */
 export function assertPluginReadCurrent(instance: PluginInstance): void {
-  assertCapturedPluginActionCurrent(currentPluginInvocation(), instance);
+  const scope = currentPluginInvocation(), turn = currentTurn();
+  // What the caller's checks look at (grants, the Home's catalog, a discussion's members) changes only from another request, which runs
+  // in a task of its own: within one turn the first read's answer holds for the rest, and only the call's own signal is asked again.
+  // A write still asks everything before every statement.
+  if (scope && readCheckedIn.get(scope) === turn && inPluginInstance(scope, instance)) { scope.caller.signal?.throwIfAborted(); return; }
+  assertCapturedPluginActionCurrent(scope, instance);
+  if (scope) readCheckedIn.set(scope, turn);
+}
+
+const readCheckedIn = new WeakMap<PluginInvocationScope, object>();
+let turn: object | undefined;
+
+/**
+ * The turn the code now running is in: the same object until the microtasks queued so far have run. Anything another request changes is
+ * changed in a later turn, so a check answered in this one holds until it ends.
+ */
+export function currentTurn(): object {
+  if (turn) return turn;
+  const started = turn = {};
+  queueMicrotask(() => { if (turn === started) turn = undefined; });
+  return started;
 }
 
 /**

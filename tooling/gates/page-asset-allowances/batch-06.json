@@ -1,12 +1,12 @@
 {
-  "reason": "第 06 批整批净增（对 main 3d844d493 的隔离构建）。Files 插件退役，资料改由平台资料服务给，files.js／files.css 两个包随之删掉；增长都在现有资源里，没有新资源。workbench.js +17364：侧栏原位阅读器与主区「资料」标签（引用选区、固定快照菜单带 Diff 对比端口、加入任务、长文分段）、侧栏与 Goal「加输入」一次取回各来源第一页（N52）、同步设置里过程项四步、插件设置「同意默认来源」，以及这些界面按 16 批写法新增的约 70 个键；已缩短本批新键名、给阅读器取词函数起别名（从 +18214 降下来；再次同步 main 后 +17364）。knowledge.js +5120（资料选择器按精确引用作答、固定版本列表与「跟着原文」）；workbench.css +3621（阅读器、固定快照菜单、主区资料标签与过程项四步的样式）；plugin-frame.js +2505（插件页资料选择器回传精确引用与未加入的说明）；coding.js +4048、coding.css +317（Coding 自己的文件面经平台读取，取代内嵌 Files）；各插件包几十到一千余字节（本批 SDK 共用的页面请求与 DOM 工具 pluginRequest／requiredQuery／textCell、四个 Home 插件原子固定成果）。",
+  "reason": "第 06 批整批净增（对 main 3d844d493 的隔离构建）。Files 插件退役，资料改由平台资料服务给，files.js／files.css 两个包随之删掉；增长都在现有资源里，没有新资源。workbench.js +17364：侧栏原位阅读器与主区「资料」标签（引用选区、固定快照菜单带 Diff 对比端口、加入任务、长文分段）、侧栏与 Goal「加输入」一次取回各来源第一页（N52）、同步设置里过程项四步、插件设置「同意默认来源」，以及这些界面按 16 批写法新增的约 70 个键；已缩短本批新键名、给阅读器取词函数起别名（从 +18214 降下来；再次同步 main 后 +17364）。knowledge.js +5120（资料选择器按精确引用作答、固定版本列表与「跟着原文」）；workbench.css +3621（阅读器、固定快照菜单、主区资料标签与过程项四步的样式）；plugin-frame.js +2506（插件页资料选择器回传精确引用与未加入的说明；同步第 15 批后对 main b81937325 实测多 1 字节）；coding.js +4048、coding.css +317（Coding 自己的文件面经平台读取，取代内嵌 Files）；各插件包几十到一千余字节（本批 SDK 共用的页面请求与 DOM 工具 pluginRequest／requiredQuery／textCell、四个 Home 插件原子固定成果）。",
   "review": "第 06 批 PR #2009「页面资源」节逐项列出；workbench.js 以外单项都在 10 KB 以下、无新资源。 首屏按 first-screen 门禁对 main 3d844d493 的隔离 Host 实测（两份构建各在自己的进程里量）：冷访净增来自 workbench.js、workbench.css 与工作台语言包；语言包随本批新增的键换了内容地址（未压缩中文约 +5.4 KB、英文约 +5.9 KB，只计冷访），门禁按新条目算。全部插件工作台热访因 Files 包删去而变小。",
   "userApproval": "workbench.js：用户 2026-11-11 弹窗选「本批 workbench.js 合计至多 +16 KB」；2026-11-12 同步 main 后实测超出，用户弹窗选「放行到 +17.4 KB」（记录见 specs/post-anticorruption-roadmap/reference/batches/06.md 同日两段）。 首屏：用户 2026-11-12 弹窗选「批准，写进许可」，批准工作台语言包换内容地址（新条目）、workbench.js 在首屏页的增长和下列各页净增。",
   "assets": {
     "/assets/molis-work-workbench.js": 17364,
     "/assets/molis-work-knowledge.js": 5120,
     "/assets/molis-work-workbench.css": 3621,
-    "/assets/molis-work-plugin-frame.js": 2505,
+    "/assets/molis-work-plugin-frame.js": 2506,
     "/assets/molis-work-pages-editor.js": 137,
     "/assets/molis-work-plugins/coding.js": 4048,
     "/assets/molis-work-plugins/coding.css": 317,

@@ -26,13 +26,14 @@ const action = (capability_id: string, permission: string, operation: "query" | 
 const origin = action("fixture.bl943.read", "bl943:read", "query");
 const peer = action("fixture.bl943.peer", "bl943:read", "query");
 const journalRead = action("fixture.bl943.journal", "bl943:read", "query");
+const reread = action("fixture.bl943.reread", "bl943:read", "query");
 const command = action("fixture.bl943.write", "bl943:write", "command");
 const grants = ["storage:private", "bl943:read", "bl943:write", "journal:project"];
 const PROBE = "bl943_probe_read";
 
 async function probeHome(t: TestContext) {
   const home = await openTestHome(t), project = await home.createProject("BL-943 original caller");
-  const parked = { read: false, journal: false, write: false };
+  const parked = { read: false, journal: false, write: false, reread: false };
   const enter = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   t.signal.addEventListener("abort", () => release.resolve(), { once: true });
   let nativeReads = 0;
@@ -48,7 +49,7 @@ async function probeHome(t: TestContext) {
       publisher: { publisher_id: "fixture", signature: "fixture-bl943" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
       permissions: grants.map(permission => ({ permission, required: true, reason: "Probe the library" })),
       capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
-      actions: [origin, peer, journalRead, command],
+      actions: [origin, peer, journalRead, command, reread],
       databases: { project: { store_name: "bl943", version: 1, read_permission: "bl943:read", write_permission: "bl943:write",
         schema: "CREATE TABLE bl943_notes (id INTEGER PRIMARY KEY)" } },
     },
@@ -59,6 +60,7 @@ async function probeHome(t: TestContext) {
       return { kind: "app", actions: [
         { ...origin, handle: async () => { await park("read"); return read(); } },
         { ...peer, handle: read },
+        { ...reread, handle: async () => { read(); await park("reread"); return read(); } },
         { ...journalRead, handle: async () => { await park("journal"); return { id: library.journal.eventCursor() }; } },
         { ...command, handle: async (caller: ActionExecutionContext, input: { id: number }) => {
           await library.transaction(async () => { await caller.beforeEffect(); await park("write"); }, tx => {
@@ -83,7 +85,7 @@ async function probeHome(t: TestContext) {
   await runtime.start(record.install_id);
   owner.store.db.exec("INSERT INTO bl943_notes(id) VALUES (1)");
   const clientId = "runtime:bl943-original-caller", otherId = "runtime:bl943-other-client";
-  await home.grant(clientId, project.project_id, [origin, peer, journalRead, command]);
+  await home.grant(clientId, project.project_id, [origin, peer, journalRead, command, reread]);
   await home.grant(otherId, project.project_id, [origin]);
   const mcp = await home.mcp(clientId, project.project_id), other = await home.mcp(otherId, project.project_id);
   const invoke = (client: typeof mcp, target: ActionDefinition, input: object = {}) => client.client.invoke(client.caller, target, input);
@@ -115,6 +117,19 @@ test("BCC-10 S-plugin-read-original-caller the original MCP caller revoked insid
   probe.release.resolve();
   const settled = await pending;
   assert.equal(probe.reads() - before, 0, "the revoked call's read must not reach SQLite");
+  assert.equal(settled.result, undefined);
+  assert.equal(code(settled.error), "mcp.action_revoked");
+});
+
+test("BCC-10 S-plugin-read-original-caller a read the call already passed answers only for its own turn: revoked after it, the next read runs no statement", { timeout: 60_000 }, async t => {
+  // A read's check is kept for the rest of the turn it ran in (assertPluginReadCurrent); the revoke comes from another request, in a later
+  // turn, so the read after it asks again.
+  const probe = await probeHome(t);
+  const { pending } = await probe.revokedWhileRunning("reread", reread);
+  assert.equal(probe.reads(), 1, "the read before the revoke ran");
+  probe.release.resolve();
+  const settled = await pending;
+  assert.equal(probe.reads(), 1, "the read after the revoke must not reach SQLite");
   assert.equal(settled.result, undefined);
   assert.equal(code(settled.error), "mcp.action_revoked");
 });

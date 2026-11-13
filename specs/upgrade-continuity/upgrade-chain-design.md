@@ -162,6 +162,7 @@ readonly upgrades?: readonly { readonly from: number; readonly sql: string; read
   - 插件升 `collection.schema_version`：`pluginSyncNamespace` 的哈希含它和发布者签名（`plugin-sync-database.ts:8-13`），一升技术表和触发器全部换名，第 3 层比不过，这个插件回滚并停用。
 
   三者都等第一次真要这样做时再定。
+- **插件的表等它所在的库，库到了就补上（2026-11-13，第 06 批）。** 库本身这一轮没升过去时，插件的表记 `prerequisite_failed`、不动。这不是对插件的表的结论：下一次启动见到它等的库已是这一版（例如 Files 退役的采用程序在两次启动之间把旧布局的项目库带到现行版本），就照常升它；库还没到，它照旧留在记录里，不算待升（`apps/local-host/src/home-upgrade.ts` 的 `prerequisiteNowMet`）。其余失败仍等新版本或 U3。用例 `tests/files-era-adoption.test.ts` 的 BSH-14-F／M3：第一次启动只拦旧布局的项目库与其中插件的表，采用后再启动，这些表全部升完并打上戳。
 - **第 2 层以后改用原生授权（结论）。** `nativeSqliteOwnerBoundary`（`node:sqlite` 的 `setAuthorizer`，S-112）现在只用在 Home 插件库。写这一节时项目库还在 `better-sqlite3` 上，它没有把 SQLite 的授权回调接出来；2026-11-08 起项目库也在 `node:sqlite` 上（[SQLite 第二步](../sqlite-driver-switch/spec.md)，#1959），连接里有 `setAuthorizer`，只是窄接口 `SqliteDatabase` 还没把它交出来，接的时候在 `packages/storage` 加。跑法和范围检查对所有插件同一份（用户 2026-11-06 定），所以**不能 Home 库先用授权、项目库继续按词读**，两边要一起换。逐层的结论：
   - **第 1 层留。** 声明时、安装时没有连接；第 2 层也靠它分清这句是结构语句还是增删改。
   - **第 3 层留。** 授权只管一句碰了什么，不知道段跑完之后对象集合和结构对不对。这是 UPG-03 判断放不放回的依据，和防越权无关也要有。

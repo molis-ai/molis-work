@@ -1,6 +1,6 @@
 {
-  "reason": "第 31 批把 coding.find-symbol 加进 Coding 主阅读者/协调者角色并升角色版本，构建后的 coding.js 相对 main b66112d0d7 多 77 字节；没有新资源，插件页其余资源不变。",
-  "review": "第 31 批 PR #2047 的 coding 角色/版本改动（tooling/versions.json 单源）；CI 对 main b66112d0d7 实测 coding.js 305256 → 305333（+77），低于 10 KB，按 change-owned allowance 记录。",
+  "reason": "第 31 批把 coding.find-symbol 加进 Coding 主阅读者/协调者角色并升角色版本，构建后的 coding.js 相对 main 838dfea7 多 77 字节；没有新资源，插件页其余资源不变。",
+  "review": "第 31 批 PR #2047 的 coding 角色/版本改动（tooling/versions.json 单源）；CI 对 main 838dfea7 实测 coding.js 305256 → 305333（+77），低于 10 KB，按 change-owned allowance 记录。",
   "assets": {
     "/assets/molis-work-plugins/coding.js": 77
   }

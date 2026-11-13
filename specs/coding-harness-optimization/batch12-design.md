@@ -1,6 +1,6 @@
 # 第 12 批合同设计稿：输入框上方的提示行、项目规则的信任与来源
 
-状态：设计稿第 3 版（2026-11-13）。第 2 版复核为「有条件通过」，新阻塞一条（「本人再选一次」在选择器里点不到、`trusted` 变了修订号不变），第 3 版改成规则菜单里的「确认」（§3.2、§3.4），并加外键、改文案、写明哈希来源与子任务继承。第 1 版经评审台兼公共合同台（C 轨）、D 轨合审为「有条件通过」：阻塞五条（冻结来源做不出来、「用户选的」判断有漏洞、存储与修订号、信任怎样交给一轮与安全登记、旧一轮与项目层提示），第 2 版逐条改在第 3 节，非阻塞的画法、读屏、验收与文字也一并改进；改完再复核一次后写合同代码。属[第 12 批](../post-anticorruption-roadmap/reference/batches/12.md)第 1 项；定样与用户决定见[需求书 §11](spec.md#11-决策记录)。验收编号：CHO-06、CHO-38、BCD-01～BCD-14（第 4 节）。
+状态：设计稿第 3 版（2026-11-13），合审通过（评审台兼公共合同台／D 轨，第 3 轮）。第 2 版复核为「有条件通过」，新阻塞一条（「本人再选一次」在选择器里点不到、`trusted` 变了修订号不变），第 3 版改成规则菜单里的「确认」（§3.2、§3.4），并加外键、改文案、写明哈希来源与子任务继承。第 1 版经评审台兼公共合同台（C 轨）、D 轨合审为「有条件通过」：阻塞五条（冻结来源做不出来、「用户选的」判断有漏洞、存储与修订号、信任怎样交给一轮与安全登记、旧一轮与项目层提示），第 2 版逐条改在第 3 节，非阻塞的画法、读屏、验收与文字也一并改进；改完再复核一次后写合同代码。属[第 12 批](../post-anticorruption-roadmap/reference/batches/12.md)第 1 项；定样与用户决定见[需求书 §11](spec.md#11-决策记录)。验收编号：CHO-06、CHO-38、BCD-01～BCD-14（第 4 节）。
 
 ## 1. 为什么要改平台
 
@@ -61,7 +61,7 @@ notice?: () => ComposerNotice | null;
 `trusted` 三条同时成立才为真，每次读、每一轮开始都按当前状态现算，不存：
 
 1. 输出不是项目的默认输出目录（`projectOutputId`）。改回默认，立刻不信任。
-2. 这个输出是本人选的：关联是本人建的（`isPersonMembership`，即 `bound_by` 为本人），或本人对**这一个**输出目录点过「确认」（存在设置行的 `confirmed_workspace_id`，等于当前输出的 `workspace_id`）。工具会话关联的（`binding:<actor>`）和目录库 1→2 升级时按「只有一个文件夹」自动设成输出的，`bound_by` 不是本人，要本人确认一次才算；输出换成别的文件夹，确认不跟过去。确认的入口在 Coding 的规则菜单（「规则没加载」那一段的「读取这个文件夹的说明文件」）和项目设置的同一个开关上，调的是 `set_instructions`，不改 `set_output`（选择器把当前输出排除在外，不为认领开第二条路）。
+2. 这个输出是本人选的：关联是本人建的（`isPersonMembership`，即 `bound_by` 为本人），或本人对**这一个**输出目录点过「确认」（存在设置行的 `confirmed_workspace_id`，等于当前输出的 `workspace_id`）。工具会话关联的（`binding:<actor>`）和目录库 1→2 升级时按「只有一个文件夹」自动设成输出的，`bound_by` 不是本人，要本人确认一次才算；输出换成别的文件夹，确认不跟过去。确认的入口在 Coding 的规则菜单（「规则没加载」那一段的「读取这个文件夹的说明文件」）和项目设置的同一个开关上，调的是 `set_instructions`，不改 `set_output`（选择器把当前输出排除在外，不为认领开第二条路）。Coding 里的按钮和 `set_output` 一样经工作台的插件框桥（`plugin-frame/workspaces.ts`）由本人点击发出，不走 Coding 后端，所以 §3.4「插件不能调」仍然成立。确认按文件夹记：输出换走再换回同一个文件夹，确认恢复。
 3. 这个项目的「读取仓库说明文件」没有关。关了以后换输出目录，仍然是关的（开关属于项目，不属于文件夹）。
 
 另外写明：只作输入的文件夹不会成为一轮的根，所以不会被读（`horizontal/agent-host/src/index.ts` 的 `authorizedDirectories` 只有输出）；Host 建的工作树按它所属的输出算。
@@ -77,7 +77,7 @@ notice?: () => ComposerNotice | null;
 ### 3.4 读写合同
 
 - 读：`ProjectDirectories` 加 `instructions: { off: boolean; trusted: boolean }`。`PROJECT_DIRECTORIES_SCHEMA` 带 `additionalProperties:false`、由 7 个目录动作共用，所以这 7 个动作的输出一起变（同一版本、阶段一原地改），跑 `pnpm actions:update`、`pnpm api:update`；读它的 Coding、Files、Git 不受影响。
-- 写：`DirectoryChange` 新增 `{ kind: "set_instructions"; off: boolean }`：`off: false` 同时把当前输出记为本人确认的（`confirmed_workspace_id`），`off: true` 只关；，走现成的 `directoryCommand`，新动作 `projects.directories.set_instructions@1`，`audiences: ["user"]`（Agent、MCP、工作流、插件都不能调），按 `expected_revision` 提交。
+- 写：`DirectoryChange` 新增 `{ kind: "set_instructions"; off: boolean }`：`off: false` 同时把当前输出记为本人确认的（`confirmed_workspace_id`），`off: true` 只关；走现成的 `directoryCommand`，新动作 `projects.directories.set_instructions@1`，`audiences: ["user"]`（Agent、MCP、工作流、插件都不能调），按 `expected_revision` 提交。
 
 ### 3.5 交给一轮（合审第 4 条）
 

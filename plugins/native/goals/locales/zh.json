@@ -536,6 +536,8 @@
     "goals.event-history-body.authorize-action": "授权动作",
     "goals.event-history-body.based-event": "依据事件",
     "goals.event-history-body.blocks-completion": "会挡住完成",
+    "goals.event-history-body.cited": "引用",
+    "goals.event-history-body.open-cited": "打开",
     "goals.event-history-body.cancel": "取消",
     "goals.event-history-body.capture": "记录",
     "goals.event-history-body.change-reason": "变更原因",

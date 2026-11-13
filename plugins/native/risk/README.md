@@ -28,7 +28,7 @@
   - 写按读到的 `revision` 提交：不对报 `risk.conflict`（`details.current` 带当前内容），已关闭的风险改字段或关联报 `risk.closed`。
   - 进展只存取值、字段名和人写的原话，不存译好的句子。
   - 失败都是 `ActionError`，码是 `risk.<原因>`（`riskErrors`）。
-- 改动后必跑：`node scripts/run-tests.mjs tests/risk-plugin.test.ts tests/schedule-one-off-tasks.test.ts`（复查委托 Schedule 的一次性对象任务）
+- 改动后必跑：`node scripts/run-tests.mjs tests/risk-plugin.test.ts tests/schedule-one-off-tasks.test.ts`（复查委托 Schedule 的一次性对象任务）；改页面（`src/browser/`、`src/styles.ts`、`src/ui.ts`）加跑 `tests/risk-page.e2e.test.ts`（需要本机 Chrome）
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 本地开发

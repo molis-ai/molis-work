@@ -90,7 +90,7 @@ function renderSystemPayload(
     case "progress_summary":
       return `${heading}${renderProgressSource(payload.source, escapeHtml)}<p>${escapeHtml(payload.summary)}</p>${payload.next_step ? `<p>${uiText("goals.event-history-body.next")}${uiText.text("common.punctuation.label-separator")}${escapeHtml(payload.next_step)}</p>` : ""}${payload.next_actor ? `<p>${uiText("goals.event-history-body.who-will-do")}${uiText.text("common.punctuation.label-separator")}${escapeHtml(payload.next_actor)}</p>` : ""}</article>`;
     case "concern_opened":
-      return `${heading}<p>${escapeHtml(payload.statement)}</p>${renderScope(payload.scope, readText, escapeHtml, requirementNames)}${payload.blocks_closure ? `<p>${uiText("goals.event-history-body.blocks-completion")}</p>` : ""}</article>`;
+      return `${heading}<p>${escapeHtml(payload.statement)}</p>${renderScope(payload.scope, readText, escapeHtml, requirementNames)}${renderCited(payload.cited_subjects ?? [], escapeHtml)}${payload.blocks_closure ? `<p>${uiText("goals.event-history-body.blocks-completion")}</p>` : ""}</article>`;
     case "concern_resolved":
     case "concern_accepted":
     case "concern_overturned":
@@ -181,4 +181,14 @@ export function formatEventTime(value: string): string {
   if (Number.isNaN(date.getTime())) return value;
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+/**
+ * The objects a concern cites (a risk, say): Goals keeps only kind and id, so each is an 「打开」 that the workbench resolves to the
+ * owner's surface (an item side view first, §4.3 of specs/risk-plugin/implementation.md); the owner's label is filled in on the page.
+ */
+function renderCited(subjects: readonly { kind: string; id: string }[], escapeHtml: (value: string) => string): string {
+  if (!subjects.length) return "";
+  return `<p class="goal-cited">${uiText("goals.event-history-body.cited")}${uiText.text("common.punctuation.label-separator")}${subjects.map((subject) =>
+    `<button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-goal-cited data-kind="${escapeHtml(subject.kind)}" data-id="${escapeHtml(subject.id)}"><span data-goal-cited-label>${escapeHtml(subject.kind)}</span> · ${uiText("goals.event-history-body.open-cited")}</button>`).join(" ")}</p>`;
 }

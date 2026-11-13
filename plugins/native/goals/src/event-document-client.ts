@@ -712,6 +712,29 @@ ${GOALS_DELIVERABLES_SCRIPT}
       if (event.target.matches?.("[data-goal-info]") && event.target.closest("[data-goal-event-document]") === root()) reading.infoOpen = event.target.open;
     }, true);
     window.addEventListener("resize", () => requestAnimationFrame(syncPanelPresence));
+    // The objects a concern cites carry only kind and id: each is named by the surface that opens its kind (the plugins' own
+    // declarations), and then opens through the workbench like any other item (an item side view first). A kind no surface opens stays text.
+    let citedSurfaces = null;
+    const nameCited = () => {
+      const pending = [...documentPane.querySelectorAll("[data-goal-cited]:not([data-goal-cited-ready])")];
+      if (!pending.length) return;
+      citedSurfaces ??= molisWorkRequest(route("/api/contextual/surfaces")).then((answer) => {
+        const by = new Map();
+        for (const [surface, { kind }] of Object.entries(answer?.surfaces ?? {})) by.set(kind, [...(by.get(kind) ?? []), surface]);
+        return new Map([...by].filter(([, surfaces]) => surfaces.length === 1).map(([kind, surfaces]) => [kind, surfaces[0]]));
+      }).catch(() => { citedSurfaces = null; return new Map(); });
+      void citedSurfaces.then((surfaces) => pending.forEach((button) => {
+        if (!button.isConnected) return;
+        button.dataset.goalCitedReady = "";
+        const surface = surfaces.get(button.dataset.kind);
+        const label = surface && document.querySelector('[data-work-surface="' + CSS.escape(surface) + '"]')?.dataset.workSurfaceLabel;
+        if (!surface) { button.disabled = true; return; }
+        button.dataset.workbenchItemPlugin = surface;
+        button.dataset.workbenchItemId = button.dataset.id;
+        if (label) button.querySelector("[data-goal-cited-label]").textContent = label;
+      }));
+    };
+    new MutationObserver(nameCited).observe(documentPane, { childList: true, subtree: true });
 
     return {
       openEventReader(name) { showForm(name); },

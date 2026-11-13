@@ -406,5 +406,5 @@ test("RISK-04 an item open lands in a plugin's opens_items side view; plugins wi
     entry("plain", ["workbench.main", "workbench.side"], [{ view_id: "side", slot: "side" }]),
     entry("side-only", ["workbench.side"], [{ view_id: "pad", slot: "side", opens_items: true }]),
   ]), { risk: "plugin:risk/detail" }, "a side-only plugin already opens everything in its side tab (sideOpenedPlugins)");
-  assert.deepEqual(sideOpenedItemPlugins(), {}, "no shipped plugin declares it before the Risk plugin");
+  assert.deepEqual(sideOpenedItemPlugins(), { risk: "plugin:risk/record" }, "the shipped Risk plugin opens one risk in its side view first");
 });

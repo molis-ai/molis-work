@@ -39,13 +39,15 @@ export const riskManifest: PluginManifest = {
     actions: [riskActions.list.capability_id, riskActions.get.capability_id, riskSearchActions.subject.capability_id, riskSearchActions.entries.capability_id] }],
   databases: { project: RISK_PROJECT_DATABASE },
   // A risk's review is a Schedule task (review.ts); called as the risk action's caller.
-  capabilities: { provides: [], consumes: Object.values(SCHEDULE_TASKS).map(reference => reference.capability_id) },
+  capabilities: { provides: [], consumes: [...Object.values(SCHEDULE_TASKS).map(reference => reference.capability_id), "search.references"] },
   artifacts: { produces: [], consumes: [] },
   ui: { locales: { default: "zh", available: ["zh", "en"] },
     contributions: [RISK_UI_CONTRIBUTION_ID],
     views: [
       { view_id: "overview", slot: "navigator", title: "风险", title_text: { key: "risk.view.overview" }, contribution_id: RISK_UI_CONTRIBUTION_ID, icon: "shield", hue: "orange",
         order: 44, accepts_objects: true },
+      // An open that names one risk (from a Goal's concern, the Assistant, search) lands here first (§4.3); 展开 opens it on the stage.
+      { view_id: "record", slot: "side", title: "风险", title_text: { key: "risk.view.record" }, contribution_id: RISK_UI_CONTRIBUTION_ID, icon: "shield", opens_items: true },
     ],
   },
 };

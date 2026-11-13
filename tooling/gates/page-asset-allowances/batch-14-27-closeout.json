@@ -1,8 +1,59 @@
 {
-  "reason": "第 14、27 批收口：组件板标本默认外边距收进共用 .mw-catalog__specimen（到达页样式 +9，设置与工作台样式各 -121）；助理过程没有专属动词的步骤显示「处理一步」而不露出工具原名，卸载结果「知道了」后焦点回到列表（工作台脚本 +270）。对独立构建的 main b66112d0d7 实测，均远低于 10 KB，无新增资源。",
+  "reason": "第 14、27 批收口：组件板标本默认外边距收进共用 .mw-catalog__specimen（到达页样式 +9，设置与工作台样式各 -121）；助理过程没有专属动词的步骤显示「处理一步」而不露出工具原名，卸载结果「知道了」后焦点回到列表（工作台脚本 +270）。对独立构建的 main b66112d0d7 实测，均远低于 10 KB，无新增资源。 首屏：A1 新增三句通用步骤词（中英各一组），工作台语言包随之换了内容地址，各页冷访约 +180～200 字节、项目列表热访 +250 字节。",
   "review": "specs/post-anticorruption-roadmap/reference/batches/27.md「合后收口（2026-11-13）」与 14.md 合入记录；随 14／27 收口 PR 评审。",
   "assets": {
     "/assets/molis-work-arrival.css": 9,
     "/assets/molis-work-workbench.js": 270
+  },
+  "userApproval": "用户 2026-11-13 在本会话弹窗选「批准」：同意 A1 通用步骤词带来的工作台语言包内容地址变化与首屏小幅增长（约 180～250 字节）。",
+  "entryApprovals": [
+    {
+      "pages": [
+        "arrival-empty",
+        "chooser",
+        "workbench-all-plugins",
+        "workbench-default"
+      ],
+      "locale": "zh",
+      "entry": "/assets/locale/workbench.zh.<digest>.js",
+      "change": "new"
+    },
+    {
+      "pages": [
+        "arrival-empty",
+        "chooser",
+        "workbench-all-plugins",
+        "workbench-default"
+      ],
+      "locale": "en",
+      "entry": "/assets/locale/workbench.en.<digest>.js",
+      "change": "new"
+    }
+  ],
+  "pages": {
+    "chooser/zh": {
+      "cold": 179,
+      "warm": 250
+    },
+    "chooser/en": {
+      "cold": 185,
+      "warm": 250
+    },
+    "workbench-default/zh": {
+      "cold": 190,
+      "warm": 0
+    },
+    "workbench-default/en": {
+      "cold": 196,
+      "warm": 0
+    },
+    "workbench-all-plugins/zh": {
+      "cold": 190,
+      "warm": 0
+    },
+    "workbench-all-plugins/en": {
+      "cold": 196,
+      "warm": 0
+    }
   }
 }

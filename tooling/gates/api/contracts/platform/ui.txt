@@ -1326,6 +1326,7 @@ export interface UiViewDeclaration {
     readonly accepts_objects?: boolean;
     readonly context_binding?: "focused-object";
     readonly objects?: readonly string[];
+    readonly opens_items?: boolean;
     readonly order?: number;
     readonly hue?: UiViewHue;
     readonly group?: UiViewGroup;

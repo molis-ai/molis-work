@@ -318,6 +318,11 @@ function inspectViewDeclarations(parsed: PluginManifest, ui: Record<string, unkn
     problems.push(...viewPlacementProblems(view, stations, readables));
   }
   problems.push(...stageDataPlacementProblems(views));
+  for (const view of views) {
+    if (view.opens_items !== undefined && typeof view.opens_items !== "boolean") problems.push(`视图 ${view.view_id} 的 opens_items 必须是布尔值`);
+    else if (view.opens_items === true && view.slot !== "side") problems.push(`视图 ${view.view_id} 的 opens_items 只能用在 side 视图上`);
+  }
+  if (views.filter((view) => view.opens_items === true).length > 1) problems.push("一个插件至多一个视图写 opens_items");
   return problems;
 }
 

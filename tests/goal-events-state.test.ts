@@ -3441,3 +3441,31 @@ test("D0193 decision JOIN and owner state remain isolated by project and Goal", 
     }
   } finally { close(data); }
 });
+
+test("RISK-03 a concern cites other plugins' objects (at most eight, each once) and keeps them when read back", () => {
+  const data = fixture();
+  try {
+    const created = data.app.goalEvents.createIntent({
+      project_id: BOARD, title: "引用风险", outcome: "可回读结果", actor_id: "runtime-1", actor_kind: "runtime", idempotency_key: "intent-cite",
+    });
+    const goalId = created.goal.goal_id;
+    configure(data.app, goalId, "cfg-cite", { new_requirements: [{ requirement_id: "cite-req", statement: "结果可回读" }] });
+    const open = (key: string, cited_subjects?: Array<{ kind: string; id: string }>) => attempt(() => data.app.goalEvents.applyConcern({
+      project_id: BOARD, goal_id: goalId, actor_id: "runtime-1", actor_kind: "runtime", idempotency_key: key,
+      action: "open", title: "供应商延期", statement: "交付可能晚两周", scope: { requirement_ids: ["cite-req"] }, blocks_closure: false, cited_subjects,
+    }));
+    const cited = open("con-cite", [{ kind: "risk", id: " r-1 " }, { kind: "risk", id: "r-1" }, { kind: "risk", id: "r-2" }]);
+    assert.equal(cited.accepted, true);
+    assert.deepEqual((cited as { result: { concern: { cited_subjects: unknown } } }).result.concern.cited_subjects, [{ kind: "risk", id: "r-1" }, { kind: "risk", id: "r-2" }], "trimmed, each once");
+    const plain = open("con-plain");
+    assert.deepEqual((plain as { result: { concern: { cited_subjects: unknown } } }).result.concern.cited_subjects, []);
+    const read = data.app.goalEvents.readState(BOARD, goalId).concerns;
+    assert.deepEqual(read.map((concern) => concern.cited_subjects).sort((a, b) => b.length - a.length), [[{ kind: "risk", id: "r-1" }, { kind: "risk", id: "r-2" }], []]);
+    const nine = Array.from({ length: 9 }, (_, at) => ({ kind: "risk", id: `r-${at}` }));
+    assert.equal((open("con-nine", nine) as { code?: string }).code, "goals.event_concern.cited_subject_invalid");
+    assert.equal((open("con-blank", [{ kind: "risk", id: " " }]) as { code?: string }).code, "goals.event_concern.cited_subject_invalid");
+    assert.equal(data.app.goalEvents.readState(BOARD, goalId).concerns.length, 2, "a refused concern writes nothing");
+  } finally {
+    close(data);
+  }
+});

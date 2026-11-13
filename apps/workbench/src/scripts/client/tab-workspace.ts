@@ -1,5 +1,5 @@
 import { SYSTEM_TABS_FACTORY, SCROLL_MEMORY_FACTORY } from "./system-tabs.js";
-import { sideOpenedTabs } from "./plugin-place.js";
+import { sideItemOpenedTabs, sideOpenedTabs } from "./plugin-place.js";
 import { SIDE_PANE_FACTORY } from "../../side-panel.js";
 import { recordRows, searchRows } from "../../search-rows.js";
 import { pluginTabGlyphs } from "../../plugin-catalog.js";
@@ -38,6 +38,14 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   const openInSide = (plugin, item, title) => {
     const key = Object.hasOwn(SIDE_OPENED, plugin) && SIDE_OPENED[plugin];
     if (key) sidePane?.open(key, item ? { item, title } : null);
+    return Boolean(key);
+  };
+  // An open that names an item of a plugin with an item side view (\`opens_items\`) lands in that view first, unless it comes from
+  // the plugin's own frames (its "open as a page" goes to the main area) (context-program §21.6).
+  const SIDE_ITEM_OPENED = ${sideItemOpenedTabs()};
+  const openItemInSide = (plugin, item, title, origin) => {
+    const key = item && origin !== plugin && Object.hasOwn(SIDE_ITEM_OPENED, plugin) && SIDE_ITEM_OPENED[plugin];
+    if (key) sidePane?.open(key, { item, title });
     return Boolean(key);
   };
   const readDirectory = ${readClientPluginDirectory.toString()};
@@ -187,7 +195,8 @@ ${TAB_WORKSPACE_DRAG_PART}
     const dropParams = (...names) => { const url = new URL(location.href); names.forEach(name => url.searchParams.delete(name)); history.replaceState(history.state, "", url); };
     let requestedPlugin = paneParams.get("openPlugin"), requestedItem = paneParams.get("openItem");
     // A side-panel plugin takes the link there (plugin-place).
-    if (requestedPlugin && openInSide(requestedPlugin, requestedItem || paneParams.get("openRecord"), paneParams.get("openTitle"))) { dropParams("openPlugin", "openItem", "openTitle", "openRecord"); requestedPlugin = null; }
+    if (requestedPlugin && (openInSide(requestedPlugin, requestedItem || paneParams.get("openRecord"), paneParams.get("openTitle"))
+      || openItemInSide(requestedPlugin, requestedItem, paneParams.get("openTitle")))) { dropParams("openPlugin", "openItem", "openTitle", "openRecord"); requestedPlugin = null; }
     if (requestedPlugin && Object.hasOwn(PLUGIN_TAB_ICON, requestedPlugin) && requestedItem && offeredPlugin(requestedPlugin)) {
       ops.setExclusive(state, null);
       const opened = !recall(requestedPlugin, requestedItem) && ops.openItem(state, requestedPlugin, requestedItem, paneParams.get("openTitle") || undefined);
@@ -630,7 +639,7 @@ ${TAB_WORKSPACE_DRAG_PART}
       const tab = state.side.tabs.find((candidate) => candidate.kind === "pane" && frame.closest("[data-side-body]")?.dataset.sideBody === candidate.itemId);
       if (event.data.type === "workbench-pane-focus") column = "side";
       else if (event.data.type === "workbench-pane-view" && tab) { if (event.data.view === undefined) delete tab.view; else tab.view = event.data.view; persist(); }
-      else if (event.data.type === "workbench-pane-open" && event.data.itemId) openItem(event.data.plugin, event.data.itemId, event.data.title, event.data.view);
+      else if (event.data.type === "workbench-pane-open" && event.data.itemId) openItem(event.data.plugin, event.data.itemId, event.data.title, event.data.view, { from: event.data.from });
       else if (event.data.type === "workbench-pane-open") openPlugin(event.data.plugin);
       // ⌘⇧↵ in the side's pane page: the side is the focused column, so it goes alone (or comes back).
       else if (event.data.type === "workbench-pane-solo") { column = "side"; toggleSolo(); apply(); persist(); }
@@ -660,7 +669,7 @@ ${TAB_WORKSPACE_DRAG_PART}
       state.focusedPaneId = pane.id;
       if (event.data.background === true && event.data.itemId) pluginGroups.openBehind(event.data.plugin, event.data.itemId, event.data.title);
       else if (typeof event.data.recordId === "string") openPluginRecord(event.data.plugin, event.data.recordId);
-      else if (event.data.itemId) openItem(event.data.plugin, event.data.itemId, event.data.title, event.data.view); else { openPlugin(event.data.plugin); if (Object.hasOwn(event.data, "view")) selectPluginView(pane, event.data.plugin, { id: event.data.view, panel: event.data.panel, surface: event.data.surface, intent: event.data.viewIntent || "open" }); }
+      else if (event.data.itemId) openItem(event.data.plugin, event.data.itemId, event.data.title, event.data.view, { from: event.data.from }); else { openPlugin(event.data.plugin); if (Object.hasOwn(event.data, "view")) selectPluginView(pane, event.data.plugin, { id: event.data.view, panel: event.data.panel, surface: event.data.surface, intent: event.data.viewIntent || "open" }); }
     }
   });
   document.addEventListener("click", (event) => {

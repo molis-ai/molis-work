@@ -1,4 +1,5 @@
 import type {
+  GoalCitedSubject,
   GoalEventConcernStatus,
   GoalEventConcernView,
   GoalEventScope,
@@ -22,16 +23,17 @@ export class GoalEventConcernRecords {
     statement: string;
     scope: GoalEventScope;
     blocksClosure: boolean;
+    citedSubjects: readonly GoalCitedSubject[];
     at: string;
   }): void {
     this.db.prepare(`
       INSERT INTO goal_event_concerns (
         concern_id, project_id, goal_id, event_id, title, statement, scope_json,
-        blocks_closure, status, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?)
+        blocks_closure, status, cited_subjects_json, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?)
     `).run(
       input.concernId, input.projectId, input.goalId, input.eventId, input.title, input.statement,
-      sqliteJson(input.scope), input.blocksClosure ? 1 : 0, input.at, input.at,
+      sqliteJson(input.scope), input.blocksClosure ? 1 : 0, sqliteJson(input.citedSubjects), input.at, input.at,
     );
   }
 
@@ -87,6 +89,7 @@ function mapConcern(row: Row): GoalEventConcernView {
     resolution_reason: row.resolution_reason == null ? null : rowText(row.resolution_reason),
     resolution_event_id: row.resolution_event_id == null ? null : rowText(row.resolution_event_id),
     cited_decision_id: row.cited_decision_id == null ? null : rowText(row.cited_decision_id),
+    cited_subjects: storedJson(row, "goal_event_concerns", "cited_subjects_json", [] as GoalCitedSubject[]),
     previous_status: row.previous_status == null ? null : rowText(row.previous_status) as GoalEventConcernStatus,
     created_at: rowText(row.created_at),
     updated_at: rowText(row.updated_at),

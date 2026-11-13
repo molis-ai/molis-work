@@ -8,12 +8,12 @@ const PAGE_SIZE = 100;
 
 export async function loadOverview(page: RiskPage, more = false): Promise<void> {
   const { state } = page;
-  const { status, impact, owner_name, unlinked } = state.filter;
+  const { status, impact, owner_name, linked } = state.filter;
   state.loading = !more;
   if (!more) page.render();
   try {
     const answer = await page.call<{ risks: RiskRow[]; owners: string[]; next_cursor: string | null }>("risk.list", {
-      status, limit: PAGE_SIZE, ...(impact ? { impact } : {}), ...(owner_name ? { owner_name } : {}), ...(unlinked ? { unlinked: true } : {}),
+      status, limit: PAGE_SIZE, ...(impact ? { impact } : {}), ...(owner_name ? { owner_name } : {}), ...(linked ? { unlinked: linked === "none" } : {}),
       ...(more && state.next ? { cursor: state.next } : {}) });
     state.rows = more ? [...state.rows, ...answer.risks] : answer.risks;
     state.owners = answer.owners;
@@ -28,8 +28,8 @@ export async function loadOverview(page: RiskPage, more = false): Promise<void> 
 }
 
 const filtered = (page: RiskPage) => {
-  const { impact, owner_name, unlinked } = page.state.filter;
-  return Boolean(impact || owner_name || unlinked);
+  const { impact, owner_name, linked } = page.state.filter;
+  return Boolean(impact || owner_name || linked);
 };
 
 function filterBar(page: RiskPage, count: number): string {
@@ -41,13 +41,12 @@ function filterBar(page: RiskPage, count: number): string {
     { value: "all", label: text("filter.all") }, { value: "closed", label: text("filter.closed") }], filter.status)}
     ${select(text("field.impact"), "impact", filter.impact, [["", text("filter.any")], ["high", text("level.high")], ["medium", text("level.medium")], ["low", text("level.low")]])}
     ${owners.length || filter.owner_name ? select(text("field.owner"), "owner_name", filter.owner_name, [["", text("filter.any")], ...owners.map(owner => [owner, owner] as [string, string])]) : ""}
-    ${select(text("filter.goal"), "unlinked", filter.unlinked ? "none" : "", [["", text("filter.any")], ["none", text("filter.no-goal")]])}
+    ${select(text("filter.linked"), "linked", filter.linked, [["", text("filter.any")], ["some", text("filter.some-links")], ["none", text("filter.no-links")]])}
     <span class="rk-count">${esc(text("overview.count", { count }))}</span></div>`;
 }
 
 function row(risk: RiskRow): string {
-  const goals = risk.links.filter(link => link.kind === "goal").length;
-  const sub = goals ? text("overview.goals", { count: goals }) : text("filter.no-goal");
+  const sub = risk.links.length ? text("overview.links", { count: risk.links.length }) : text("filter.no-links");
   const owner = risk.owner_name ? `<span class="rk-owner">${icon("user")}${esc(risk.owner_name)}</span>` : "";
   return `<li class="mw-item rk-row" role="button" tabindex="0" data-rk-open="${esc(risk.risk_id)}" data-risk-row data-risk-id="${esc(risk.risk_id)}">
     <span class="mw-mark rk-mark">${severityGrid(risk)}</span><span><strong>${esc(risk.title)}</strong><small>${esc(sub)}</small></span>

@@ -38,14 +38,14 @@ const define = <O>() => <const S extends ActionSchema>(name: string, version: nu
   return definition;
 };
 
-const listInput = object({ status: { enum: ["open", "closed", "all"] }, impact: level, owner_name: text(RISK_LIMITS.owner_name), goal_id: id, unlinked: { type: "boolean" },
+const listInput = object({ status: { enum: ["open", "closed", "all"] }, impact: level, owner_name: text(RISK_LIMITS.owner_name), linked: subject, unlinked: { type: "boolean" },
   limit: { type: "integer", minimum: 1, maximum: RISK_PAGE.max }, cursor: text(400) }, []);
 const editable = { title: text(RISK_LIMITS.title), statement: text(RISK_LIMITS.statement), impact: level, likelihood: level, treatment: text(RISK_LIMITS.treatment),
   owner_name: nullableSchema(text(RISK_LIMITS.owner_name)) } as const;
 
 export const riskActions = {
   list: define<{ risks: RiskRow[]; owners: string[]; next_cursor: string | null }>()("list", /* @version action.risk.list */ 1, "风险列表",
-    `读当前项目的风险，默认只列未关闭的（status: open 含缓解中与已接受），可按影响、负责人、关联的 Goal 或「没关联 Goal」筛；每页默认 ${RISK_PAGE.default} 条、最多 ${RISK_PAGE.max} 条，next_cursor 取下一页。`,
+    `读当前项目的风险，默认只列未关闭的（status: open 含缓解中与已接受），可按影响、负责人、关联的某个对象（linked：kind 与 id，如一个 Goal）、没关联任何对象（unlinked: true）或有关联（unlinked: false）筛；owners 是本项目可选的负责人。每页默认 ${RISK_PAGE.default} 条、最多 ${RISK_PAGE.max} 条，next_cursor 取下一页。`,
     "query", listInput, object({ risks: array(row), owners: array(text(RISK_LIMITS.owner_name)), next_cursor: nullableSchema(text(400)) })),
   get: define<{ risk: RiskRecord; links: RiskLink[]; events: RiskEvent[] }>()("get", /* @version action.risk.get */ 1, "读取风险",
     "读一条风险的内容、关联对象和进展时间线（新的在前）。", "query", object({ risk_id: id }), object({ risk, links: array(link), events: array(event) })),

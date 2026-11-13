@@ -60,6 +60,8 @@ for (const width of [1440, 1024, 390]) test(`RISK-04 RISK-05 RISK-06 risk page $
   await evaluate(`(() => { const select = document.querySelector('select[data-rk-filter=impact]'); select.value = ''; select.dispatchEvent(new Event('change', { bubbles: true })); })()`);
   await waitFor("document.querySelectorAll('[data-risk-row]').length === 2");
   await noOverflow();
+  // RISK-09: the overview names links generically; only the record's 关联 Goal (offered when Goals opens goals) names a Goal.
+  assert.doesNotMatch(await evaluate<string>("document.querySelector('[data-risk-body]').innerText"), /Goal/);
   await screenshot("overview");
 
   // The record: status to 处置中, a note, the review section answers (scheduled controls, or says Schedule is out of reach).

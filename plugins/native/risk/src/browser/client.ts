@@ -212,7 +212,7 @@ async function onAct(page: RiskPage, action: string, value: string, element: HTM
     case "new": setDraft(blankDraft()); state.view = "new"; page.render(); page.body.querySelector<HTMLInputElement>('input[name="title"]')?.focus(); return;
     case "reload": await loadOverview(page); return;
     case "more": await loadOverview(page, true); return;
-    case "clear-filter": state.filter = { ...state.filter, impact: "", owner_name: "", unlinked: false }; await loadOverview(page); return;
+    case "clear-filter": state.filter = { ...state.filter, impact: "", owner_name: "", linked: "" }; await loadOverview(page); return;
     case "filter-status": state.filter.status = value as typeof state.filter.status; await loadOverview(page); return;
     case "draft-impact": case "draft-likelihood": {
       const form = element.closest("form");
@@ -297,7 +297,7 @@ export function mountRisk(host: RiskHost): void {
     const filter = page.state.filter;
     if (select.dataset.rkFilter === "impact") filter.impact = select.value as RiskLevel | "";
     else if (select.dataset.rkFilter === "owner_name") filter.owner_name = select.value;
-    else if (select.dataset.rkFilter === "unlinked") filter.unlinked = select.value === "none";
+    else if (select.dataset.rkFilter === "linked") filter.linked = select.value === "some" || select.value === "none" ? select.value : "";
     page.run(() => loadOverview(page));
   });
   scope.listen(body, "input", event => {

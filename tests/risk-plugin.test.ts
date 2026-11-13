@@ -80,6 +80,12 @@ test("RISK-03 a risk links an object only through its owner's reader, and never 
   assert.deepEqual(linked.links.map(link => link.subject), [{ kind: "risk", id: b.risk_id }]);
   await call(riskActions.addLink, { risk_id: a.risk_id, subject: { kind: "risk", id: b.risk_id } });
   assert.equal((await call<{ links: unknown[] }>(riskActions.get, { risk_id: a.risk_id })).links.length, 1, "linking twice keeps one");
+  // RISK-04 RISK-09 the overview filters by any linked object, linked or not, whatever plugin owns it (no Goal needed).
+  type Titles = { risks: RiskRecord[] };
+  const titles = async (input: unknown) => (await call<Titles>(riskActions.list, input)).risks.map(risk => risk.title).sort();
+  assert.deepEqual(await titles({ linked: { kind: "risk", id: b.risk_id } }), ["甲"]);
+  assert.deepEqual(await titles({ unlinked: true }), ["乙"]);
+  assert.deepEqual(await titles({ unlinked: false }), ["甲"]);
   assert.equal(await code(call(riskActions.addLink, { risk_id: a.risk_id, subject: { kind: "risk", id: a.risk_id } })), "risk.invalid");
   assert.equal(await code(call(riskActions.addLink, { risk_id: a.risk_id, subject: { kind: "risk", id: "risk-gone" } })), "risk.invalid", "an object its reader does not find is not linked");
   const removed = await call<{ links: unknown[] }>(riskActions.removeLink, { risk_id: a.risk_id, subject: { kind: "risk", id: b.risk_id } });

@@ -47,7 +47,9 @@ export interface RiskListFilter {
   status?: "open" | "closed" | "all";
   impact?: RiskLevel;
   owner_name?: string;
-  goal_id?: string;
+  /** Risks linked to this one object (a Goal, a Coding session…). */
+  linked?: ActionSubject;
+  /** true: risks linked to nothing; false: risks linked to something. */
   unlinked?: boolean;
 }
 

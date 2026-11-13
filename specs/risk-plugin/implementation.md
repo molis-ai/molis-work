@@ -134,6 +134,7 @@ Manifest：`permissions` 含 `actions:delegate`（转调 Schedule、读取器核
 | RISK-06 | 风险一侧 | [人工] 风险详情、处置更新、返回总览；空数据、来源失败、未关联 Goal 的状态；「简报 → 风险 → 刷新简报」由第 19 批验 |
 | RISK-07 | 全做 | 安排、到期按授权读取（含未授权状态）、改期、暂停、取消、重启与重试不重复、停用撤权后无写入 |
 | RISK-08 | 风险一侧全做 | 无变化安静、重要变化按 Schedule 通知只一次、失败与无变化可区分、不自动接受／关闭；「并入简报」由第 19 批从 Schedule 按对象取用 |
+| RISK-09 | 风险一侧全做 | main 上 2026-11-13 新增（决定 42、43，同步 main 时并入）：关联与筛选用通用对象引用（`risk.list@1` 的 `linked`／`unlinked`，原 `goal_id` 去掉）；总览不出现 Goal；详情的「关联 Goal」只在有插件打开 Goal 时出现（`surfaceFor("goal")`）。没装 Goals 的界面路径要撤回 Goals 的常开同意才能造出来，浏览器用例未覆盖，PR 里列为人工核对 |
 
 ## 7. 用户决定
 
@@ -163,3 +164,4 @@ Manifest：`permissions` 含 `actions:delegate`（转调 Schedule、读取器核
 3. Goals 顾虑的引用对象：Goal 页面由外壳直接画，没有插件框，暂时画成「<主人插件名> · 打开」（IUI-02 的退路少了名字），点开经工作台 `[data-workbench-item-plugin]` 打开，于是风险先在侧栏开；名字片与表单里挑选引用记为 [BL-goals-cited-object-names](../backlog/BL-goals-cited-object-names.md)、[BL-goals-concern-cite-picker](../backlog/BL-goals-concern-cite-picker.md)。引用今天由助理与执行 AI 经 `goals.concern@1` 写入。
 4. 侧栏视图叫 `record`（设计稿写 `detail`）；没打开过东西时说「这里显示一条风险」。
 5. 加关联只找 Goal（`search.references` 的 `kinds: ["goal"]`），与设计的「关联 Goal」入口一致；别的种类由助理按动作加。
+6. 同步 main 时并入 RISK-09（没装 Goals 也完整）：`risk.list@1` 原版本内把 `goal_id` 换成通用的 `linked: { kind, id }`，`unlinked` 改为「true 没关联任何对象、false 有关联」，不再只看 Goal；总览筛选为「关联：不限／有关联／没有关联」，行里写「关联 N 个对象」。按种类筛（只列本项目确有关联的种类）没做：框里没有把种类说成人话的读法，原始种类名不进界面。

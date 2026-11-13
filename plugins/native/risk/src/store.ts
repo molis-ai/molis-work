@@ -66,8 +66,8 @@ export class RiskStore {
     else if (status === "closed") where.push("status = 'closed'");
     if (filter.impact) { where.push("impact = ?"); parameters.push(filter.impact); }
     if (filter.owner_name) { where.push("owner_name = ?"); parameters.push(filter.owner_name); }
-    if (filter.goal_id) { where.push("risk_id IN (SELECT risk_id FROM risk_links WHERE subject_kind = 'goal' AND subject_id = ?)"); parameters.push(filter.goal_id); }
-    if (filter.unlinked) where.push("NOT EXISTS (SELECT 1 FROM risk_links WHERE risk_links.risk_id = risk_items.risk_id AND subject_kind = 'goal')");
+    if (filter.linked) { where.push("risk_id IN (SELECT risk_id FROM risk_links WHERE subject_kind = ? AND subject_id = ?)"); parameters.push(filter.linked.kind, filter.linked.id); }
+    if (filter.unlinked !== undefined) where.push(`${filter.unlinked ? "NOT " : ""}EXISTS (SELECT 1 FROM risk_links WHERE risk_links.risk_id = risk_items.risk_id)`);
     if (page.cursor) {
       const [updatedAt, riskId] = cursorOf(page.cursor);
       where.push("(updated_at < ? OR (updated_at = ? AND risk_id > ?))"); parameters.push(updatedAt, updatedAt, riskId);

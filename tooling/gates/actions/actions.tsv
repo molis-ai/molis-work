@@ -520,7 +520,7 @@ risk.create	1	io.molis.work.risk	io.molis.work.risk	command	operation	project	wr
 risk.get	1	io.molis.work.risk	io.molis.work.risk	query	query	project	read	-	agent,mcp,plugin,user,workflow	risk:read	risk	-	-	81d392174fd8	6a8eb6a77bea	-
 risk.links.add	1	io.molis.work.risk	io.molis.work.risk	command	operation	project	write	concurrent	agent,mcp,plugin,user,workflow	risk:read,risk:write	risk	-	-	9a19016ab12a	5bd726b054a4	-
 risk.links.remove	1	io.molis.work.risk	io.molis.work.risk	command	operation	project	irreversible	concurrent	agent,mcp,plugin,user,workflow	risk:read,risk:write	risk	-	-	9a19016ab12a	5bd726b054a4	-
-risk.list	1	io.molis.work.risk	io.molis.work.risk	query	query	project	read	-	agent,mcp,plugin,user,workflow	risk:read	risk	-	-	99f56e92d262	fd9ad5d1c746	-
+risk.list	1	io.molis.work.risk	io.molis.work.risk	query	query	project	read	-	agent,mcp,plugin,user,workflow	risk:read	risk	-	-	9ce4a553353b	fd9ad5d1c746	-
 risk.notes.add	1	io.molis.work.risk	io.molis.work.risk	command	operation	project	write	-	agent,mcp,plugin,user,workflow	risk:read,risk:write	risk	-	-	e5e6fef6f745	7bdce814109a	-
 risk.presentation.overview	1	io.molis.work.risk	io.molis.work.risk	query	query	project	read	-	user	risk:read	-	-	molis.presentation.overview.v1	99334726611c	dc4bad5f208a	3cfff55e5308
 risk.presentation.values	1	io.molis.work.risk	io.molis.work.risk	query	query	project	read	concurrent	agent,mcp,plugin,user	risk:read	risk	molis.presentation.values.request.v1	molis.presentation.values.v1	b5a33e6cceef	051a8fb19d0f	3cfff55e5308

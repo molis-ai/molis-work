@@ -62,7 +62,8 @@ function linkSection(page: RiskPage, risk: RiskRecord): string {
   const rows = links.map(link => `<li class="rk-link"><span class="rk-link__slot" data-rk-link-slot data-kind="${esc(link.subject.kind)}" data-id="${esc(link.subject.id)}"></span>${
     writable ? renderButton({ label: text("action.unlink"), variant: "ghost", size: "sm", icon: "x", iconOnly: true,
       attrs: { "data-rk-act": "unlink", "data-rk-value": `${link.subject.kind}\n${link.subject.id}` } }) : ""}</li>`).join("");
-  const add = writable ? `<span class="rk-anchor">${act(text("action.link-goal"), "pop", { value: "link", variant: "ghost", icon: "link" })}${page.state.pop === "link" ? linkPicker() : ""}</span>` : "";
+  // Linking a Goal is offered only where a plugin opens Goals (a project without Goals shows no Goal entry, RISK-09).
+  const add = writable && page.host.surfaceFor("goal") ? `<span class="rk-anchor">${act(text("action.link-goal"), "pop", { value: "link", variant: "ghost", icon: "link" })}${page.state.pop === "link" ? linkPicker() : ""}</span>` : "";
   return section(text("record.links"), `${none}${rows ? `<ul class="rk-links">${rows}</ul>` : ""}`, add);
 }
 

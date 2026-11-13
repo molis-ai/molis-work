@@ -8,6 +8,7 @@ import { delegationScopesNarrow, validDelegationScope } from "./delegation-scope
 import { agentErrors } from "./errors.js";
 import { ongoingDelegationSubject, workDelegationPermission, type WorkDelegationPermission } from "./delegation-permissions.js";
 import { DelegationCancellations, type WorkDelegationCancellation } from "./delegation-cancellations.js";
+import { prepareActionDelegation, type WorkActionProposal } from "./delegation-actions.js";
 
 export interface WorkDelegationStorage {
   read(id: string): Promise<unknown | undefined>;
@@ -120,7 +121,7 @@ export class WorkDelegationStore {
     if (permission.automatic) this.assertCurrent(permission.automatic.state.subject, permission.automatic.state.epoch, permission.automatic.selection);
     const key = workDelegationKey(subject), ongoingKey = workDelegationKey(ongoingSubject);
     const fence = this.#fences.get(key) ?? 0, ongoingFence = this.#fences.get(ongoingKey) ?? 0;
-    return { ...permission, assertCurrent: () => {
+    return { ...permission, work_epoch: work.epoch, assertCurrent: () => {
       this.assertCurrent(subject, work.epoch); this.#executing(ongoingKey, this.#states.get(ongoingKey));
       const live = workDelegationPermission(this.#states.get(key)!, this.#states.get(ongoingKey), this.now());
       if ((this.#fences.get(key) ?? 0) !== fence || (this.#fences.get(ongoingKey) ?? 0) !== ongoingFence
@@ -128,6 +129,13 @@ export class WorkDelegationStore {
         || live.automatic?.selection.revision !== permission.automatic?.selection.revision) throw agentErrors.delegation_changed("工作或持续权限选择已变化");
       if (permission.automatic) this.assertCurrent(permission.automatic.state.subject, permission.automatic.state.epoch, permission.automatic.selection);
     } };
+  }
+  /** Host-only: the original action control validates schema and captures current provider/target identities. */
+  async actionDecision(subject: AgentDelegationSubject, proposal: WorkActionProposal, control: ReviewDecisionControl) {
+    const fixed = structuredClone(subject), prepared = prepareActionDelegation(proposal, control);
+    await prepared.beforeEffect();
+    const permission = await this.permission(fixed);
+    return prepared.decide(permission);
   }
   #open(key: string, state: StoredDelegationState | undefined): void {
     if (this.#closed || this.#blocked.has(key) || this.#unreadable.has(key) || state && state.lifecycle !== "open") throw agentErrors.delegation_ended("这项工作的授权已经结束或尚未核清");

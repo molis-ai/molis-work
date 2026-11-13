@@ -54,6 +54,10 @@ Pages 现状只把 Goal 关联当字符串，`normalizeGoalId` 没有 Goals owne
 
 身份、可用性、已有禁止及强制人审先检查，之后才用新选择判定。一次判定只处理本次真实 input，保留原登记、input 指纹与匹配到的委托 id/revision/epoch；不会改参数，不另派动作。普通重试如遇效果未知先走原 SDK 的核对；即使新一轮仍有委托，也不能借新 id 重发原未知效果。
 
+动作判定接缝细化（2026-11-13 同一代理设计及 C 合审通过）：在现有 `WorkDelegationStore` 增加 `actionDecision(subject, proposal, control)`，不另建权限服务。`proposal` 仅供可信 Host 适配器传入已通过原 schema 校验的 `view/input`、原动作提供方安装世代、按声明目标键解析的 `target_owners` 和已有更严格规则的 `confirmation_required`；它不是开放给模型或页面的动作输入。每个非空目标条目含 owner `identity` 及固定其原登记/安装世代的同步 `assertCurrent`，缺可信检查不匹配对象自动范围；实际空串常量不借用对象 owner。`control` 复用原 `prepareActionReview` 的异步检查与同步检查，须覆盖冻结登记、原安装／来源、用户开关与强制确认选择（现有 Assistant 的 `confirmAlways` 只用于 `direct`，适配器仍须补接）。方法在第一次 await 前复制事实并生成规范 JSON，拒绝 undefined、非有限数、函数等被 JSON 丢弃或转换的值，先核原控制，再读当前工作/持续权限，最后同步重核原控制与权限。目标检查只叠到已匹配对象委托的许可，原策略、普通读取和本人确认不依赖自动范围的目标登记；命中后失效仍拒绝原许可。先硬拒只读模式的写，再处理明确人审（含读取），最后放行普通读取。
+
+返回本次冻结参数的 `input_version` 哈希、判定（原策略／只读查询／必须确认／沿用委托）和同一个 `beforeEffect/assertCurrent` 控制；只读模式的写直接拒绝，不返回可批准状态。自动匹配只消费当前 permission 的唯一选择，不把多条历史选择并集；来源使用该选择的 id/revision/grantor 和实际工作 epoch（持续选择也不拿自己的 epoch 冒充当前工作），另保留实际选择的主体供原 Run 失效登记。`permission()` 从同一快照返回 `work_epoch`，必须与原 Run 接受时固定、由 proposal 携带的工作 epoch 相等，不能在 await 后补读新工作来拼来源。原策略只在没有新选择时保留，仍遵守原强制确认，不生成新的委托来源；只读查询仅指 `operation=query` 且公开 `actionEffect(view.action, view.capability_id)` 为 `read`；effect 省略沿合同现行默认，不新造推断。显式人审优先于自动范围。未声明才允许规范 JSON 精确匹配，`confirmation-only` 和有限声明的其他提取失败都要求本次确认；对象模式用同一 SDK 提取结果核每项操作及完整目标行。安装／声明摘要不同直接不命中；`provider.kind=mcp` 不经动作精确范围绕过连接身份，留给原 MCP 判定。摘要统一复用 `actionDigest`。返回的控制保留原许可，之后出现撤销、收窄、到期、工作结束或 owner 失效即拒绝，不能重新读一条新许可替换它。该方法不写来源、不回答 pending、不发业务动作；真实调用方仍须在原 SDK pending/effect 上记录一次来源和登记原 Run 后才执行，并在最后同一调用栈调用返回的同步检查。
+
 当前工作在聚合记录上保存一个权限选择 `mode`（未选、只读、确认、自动）及其 revision；它不是最后一轮状态。只读拒绝写、确认要求决定、自动仅在本次选定范围内自动，范围外回原确认。没有新增选择时保留原策略及有效持续委托。明确选择过自动后撤销全部范围，工作仍为确认，不能删除记录使旧可撤销策略或持续委托偷偷接管。普通再次 Send 不清除该选择或结束屏障。
 
 一项工作同时只有一份当前范围选择；同一可信 `(actor, executor, project, installation_generation)` 也只存一份当前持续选择，不从任意多条持续授权里挑赢家。新增差额展示原范围与增加项，由用户采用后产生新委托 id，`supersedes` 指原选择；收窄不换 id、递增 revision。已结束/撤销的旧选择只留历史，绝不重新加入候选并集。只有当前选择**未设置**才可取持续范围；当前自动选择的范围为空也只回确认，不等于未设置、不回退持续。持久记录缺必需字段是损坏，不当空选择。命中记实际使用的当前或持续委托来源，一次决定只有一份来源。

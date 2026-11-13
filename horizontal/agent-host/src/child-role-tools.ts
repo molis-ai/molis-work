@@ -23,7 +23,9 @@ export function childRoleTools(execution: AgentRoleExecution, hasOwnWorkspace: b
   return ["read-file", "list", "search", "context-remaining",
     ...(hasOwnWorkspace && execution !== "read-only" ? ["write", "edit-file"] : []),
     ...(execution === "workspace-write" ? ["run-command"] : []),
-    ...(parentTools.includes("await-commands") ? ["command-output", "await-commands"] : [])];
+    ...(parentTools.includes("await-commands") ? ["command-output", "await-commands"] : []),
+    // A read-only child reads code too: the coding pack's symbol lookup is a read, and only as far as its parent holds it.
+    ...(parentTools.includes("find-symbol") ? ["find-symbol"] : [])];
 }
 
 /** Refuse a child role that reaches past what its own workspace and its parent's tools allow (BL-305: one cap, one message). */

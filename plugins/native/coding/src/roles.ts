@@ -43,7 +43,7 @@ export const codingAgentManifest: AgentManifest = {
   // A named child role brings the tools it declares, as far as its parent holds them (the user's "just give the tools"):
   // a parent that leaves one out of its dispatch list no longer fails the dispatch, and a child never exceeds its parent.
   subagents: { parent_role_ids: ["coordinator", "writers"], roles: [
-    { role_id: "coding-reader", version: /* @version role.coding-reader */ 3, name: "代码调查", parent_role_ids: ["coordinator"], execution: "read-only", host_tools: ["read-file", "list", "search", "find-symbol"] },
+    { role_id: "coding-reader", version: /* @version role.coding-reader */ 2, name: "代码调查", parent_role_ids: ["coordinator"], execution: "read-only", host_tools: ["read-file", "list", "search"] },
     // The independent reviewer may run checks such as tests in the main workspace; each command is a Host review and it has no file-writing tool.
     // It may read and wait on a background command its parent started (a long test run, say), without asking again and again.
     { role_id: "coding-reviewer", version: /* @version role.coding-reviewer */ 2, name: "独立评审", parent_role_ids: ["coordinator"], execution: "workspace-write", host_tools: ["read-file", "list", "search", "run-command", "command-output", "await-commands"] },
@@ -84,7 +84,7 @@ export const codingAgentManifest: AgentManifest = {
     },
     {
       role_id: CODING_COORDINATOR_ROLE,
-      version: /* @version role.coordinator */ 1,
+      version: /* @version role.coordinator */ 2,
       name: "协作",
       // It holds run-command only so its independent reviewer can be given it: a subagent gets no tool its parent lacks.
       execution: "workspace-write",
@@ -92,7 +92,8 @@ export const codingAgentManifest: AgentManifest = {
       // session-send: it may ask another session of the project, or answer one (they are neighbours on the project's board), without a review each time (the person's decision).
       // Background commands: started and stopped under review like any command; reading and waiting on them are reads.
       // board-read / board-report: held so its children can report the steps handed to them (a child never holds a tool its parent lacks).
-      host_tools: ["suggest-action", "context-remaining", "find-tools", "ask-user", "acknowledge-inputs", "read-file", "list", "search", "run-command", "start-command", "command-output", "command-stop", "await-commands", "dispatch-subagent", "await-subagents", "steer-subagent", "board-read", "board-report", "session-send"],
+      // find-symbol: held so its read-only children can be given it (a child never holds a tool its parent lacks).
+      host_tools: ["suggest-action", "context-remaining", "find-tools", "ask-user", "acknowledge-inputs", "read-file", "list", "search", "find-symbol", "run-command", "start-command", "command-output", "command-stop", "await-commands", "dispatch-subagent", "await-subagents", "steer-subagent", "board-read", "board-report", "session-send"],
     },
     {
       role_id: CODING_WRITERS_ROLE,

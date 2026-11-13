@@ -13,6 +13,7 @@ import type { ToolRunner } from "@prologue/sdk";
 import { fileUri, startLanguageServer, type LanguageServerSpec, type LspClient } from "./lsp-client.js";
 
 export type { LanguageServerSpec } from "./lsp-client.js";
+export { unconfiguredSymbolIndex } from "./coding-tools.js";
 
 export interface CodeIntelligence {
   /** The `coding.symbol-index` executor; the official coding pack's `coding.find-symbol` calls it. */

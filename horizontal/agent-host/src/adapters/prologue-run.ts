@@ -11,7 +11,7 @@ import { agentErrors } from "../errors.js";
 import { assertChildRoleTools } from "../child-role-tools.js";
 import { gatewayProblem, prologueActionGateway } from "./prologue-action-gateway.js";
 import { prologueActionTools, SUGGEST_HOST_TOOL } from "./prologue-action-tools.js";
-import { createCodeIntelligence } from "../code-intelligence/index.js";
+import { createCodeIntelligence, unconfiguredSymbolIndex } from "../code-intelligence/index.js";
 import { FIND_SYMBOL_HOST_TOOL, FIND_SYMBOL_TOOL, withSymbolTool } from "../code-intelligence/coding-tools.js";
 import { AFTER_WRITE_EXECUTOR, afterWriteExecutor } from "./prologue-after-write.js";
 import type { PrologueApprovalBridge } from "./prologue-approvals.js";
@@ -103,7 +103,8 @@ function assertWorkspace(input: PrologueStartInput, index: SessionIndex | undefi
 /** The round's Prologue system tools. Suggesting is the round's own action pack tool (prologue-action-tools.ts), not one of them. */
 /** The role's own tools in the Host's words, and as Prologue names them. */
 const hostSystemTools = (input: PrologueStartInput) => input.character.tools.filter(tool => tool !== SUGGEST_HOST_TOOL);
-const systemTools = (input: PrologueStartInput) => hostSystemTools(input).map(prologueToolName);
+const systemTools = (input: PrologueStartInput, overrides?: ReadonlyMap<string, string>) =>
+  hostSystemTools(input).map(tool => overrides?.get(tool) ?? prologueToolName(tool));
 
 /**
  * The round's actions: the business gateway's three tools, or one tool per frozen action. What the round really keeps,
@@ -147,17 +148,25 @@ function roundGateway(deps: RunDeps, input: PrologueStartInput, none: boolean) {
     }
   }
   /*
-   * Code intelligence, only for a workspace round whose role names the tool and whose person configured a server. The
-   * servers start on first use and are closed when the round ends; nothing is downloaded.
+   * Code intelligence for a workspace round whose role names the tool. The servers start on first use and are closed when
+   * the round ends; nothing is downloaded. **The tool is always declared** to a role that names it: a person with no
+   * language server configured gets a call that says so, not a tool that silently vanished from the model's list (the
+   * Runtime's own rule for a tool whose executor is missing).
    */
-  const codeIntelligence = actionTools !== undefined && !none && input.root_path !== undefined
-    && input.character.tools.includes(FIND_SYMBOL_HOST_TOOL) && deps.options.codeIntelligence !== undefined
-    ? createCodeIntelligence({ servers: deps.options.codeIntelligence.servers, rootPath: input.root_path })
+  const wantsSymbols = actionTools !== undefined && !none && input.root_path !== undefined && input.character.tools.includes(FIND_SYMBOL_HOST_TOOL);
+  const codeIntelligence = wantsSymbols && deps.options.codeIntelligence !== undefined
+    ? createCodeIntelligence({ servers: deps.options.codeIntelligence.servers, rootPath: input.root_path! })
     : undefined;
-  const withCoding = actionTools === undefined || codeIntelligence === undefined ? actionTools
-    : { ...actionTools, ...withSymbolTool({ pack: actionTools.pack, executors: actionTools.executors, symbolIndex: codeIntelligence.symbolIndex }),
-      names: [...actionTools.names, FIND_SYMBOL_TOOL] };
-  return { actionController, actionTools: withCoding, parameterBranches: gatewayTools?.parameterBranches, codeIntelligence };
+  // Scoped like the action tools: the catalog keeps one registration per name for the Runtime's life.
+  const symbolToolName = `${FIND_SYMBOL_TOOL}-${actionTools?.scope ?? "app"}`;
+  const withCoding = !wantsSymbols ? actionTools
+    : { ...actionTools!, ...withSymbolTool({
+      pack: actionTools!.pack,
+      executors: actionTools!.executors,
+      symbolIndex: codeIntelligence === undefined ? unconfiguredSymbolIndex : codeIntelligence.symbolIndex,
+      name: symbolToolName,
+    }), names: [...actionTools!.names, symbolToolName] };
+  return { actionController, actionTools: withCoding, parameterBranches: gatewayTools?.parameterBranches, codeIntelligence, symbolTool: wantsSymbols, symbolToolName };
 }
 
 /**
@@ -300,6 +309,7 @@ async function roundCharacter(deps: RunDeps, input: PrologueStartInput, index: S
   readonly mode: Mode; readonly methods: readonly string[]; readonly childInstructions: string; readonly childRoles: Map<string, ChildRole>;
   readonly surface: Awaited<ReturnType<typeof roundSurface>>; readonly stepBoard: Awaited<ReturnType<typeof roundMaterials>>["stepBoard"];
   readonly actionTools: ReturnType<typeof roundGateway>["actionTools"];
+  readonly symbolToolName?: string;
 }) {
   const { runtime, stepBoards, mcpLibrary } = deps;
   const { mode: { none, business }, surface, stepBoard, childRoles } = parts;
@@ -319,7 +329,8 @@ async function roundCharacter(deps: RunDeps, input: PrologueStartInput, index: S
     if (at < 0 || !adopted[at]) throw new Error("MCP 工具已变化，请重新选择");
     mcpTools.push(adopted[at]!);
   }
-  const tools = [...systemTools(input), ...mcpTools, ...(parts.actionTools?.names ?? []), ...surface.tools];
+  const symbolOverrides = parts.symbolToolName === undefined ? undefined : new Map([[FIND_SYMBOL_HOST_TOOL, parts.symbolToolName]]);
+  const tools = [...systemTools(input, symbolOverrides), ...mcpTools, ...(parts.actionTools?.names ?? []), ...surface.tools];
   const runTools = [...new Set([...tools, ...[...childRoles.values()].flatMap(role => role.host_tools.map(prologueToolName))])];
   // The memories the Host chose for this run, as exact references (one deleted meanwhile is simply not given).
   const pinnedMemory = input.memory?.pinned.map(item => ({ scope: item.scope, owner: item.owner,
@@ -614,10 +625,10 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
   const index = await deps.index.read(input.session_id);
   assertWorkspace(input, index, state, mode);
   const ref = state.sessions.get(input.session_id);
-  const { actionController, actionTools, parameterBranches, codeIntelligence } = roundGateway(deps, input, mode.none);
+  const { actionController, actionTools, parameterBranches, codeIntelligence, symbolTool, symbolToolName } = roundGateway(deps, input, mode.none);
   ensureStopGuard(runtime, state, input.session_id);
   const attempted: { run_id?: string } = {}, afterWrite = await roundChecks(deps, input, index, mode, attempted, actionTools?.pack.tools);
-  const bindActions = !mode.none && (!!input.actions || !!input.action_gateway || state.actionToolSessions.has(input.session_id) || !!afterWrite || codeIntelligence !== undefined);
+  const bindActions = !mode.none && (!!input.actions || !!input.action_gateway || state.actionToolSessions.has(input.session_id) || !!afterWrite || symbolTool);
   // The gateway also declares, on its capability tools, the capabilities this round has found (prologue-gateway-declared.ts).
   const session = ref === undefined ? undefined : await runtime.sessions.open(ref, bindActions ? { pack: actionTools!.pack,
     executors: { ...actionTools!.executors, ...(afterWrite ? { [AFTER_WRITE_EXECUTOR]: afterWrite } : {}) }, ...(parameterBranches ? { parameterBranches } : {}) } : undefined);
@@ -632,7 +643,8 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
   const materials = await roundMaterials(deps, input, index, session, mode.none, plan, textResources);
   const surface = await roundSurface(deps, input, index, session, mode.business);
   const binding = await roundBinding(deps, input, index, session, materials.stepBoard);
-  const { character, runTools, pinnedMemory } = await roundCharacter(deps, input, index, { mode, methods, childInstructions, childRoles, surface, stepBoard: materials.stepBoard, actionTools });
+  const { character, runTools, pinnedMemory } = await roundCharacter(deps, input, index, { mode, methods, childInstructions, childRoles, surface, stepBoard: materials.stepBoard, actionTools,
+    ...(symbolToolName === undefined ? {} : { symbolToolName }) });
   const referenceKinds = await roundReferenceKinds(deps.options, index.owner);
   // Exchange our reference for one Prologue can resolve, before the Run is started rather than when it first calls out.
   const credentialRef = await deps.credentials.prologueRefFor(input.model.credential_ref);

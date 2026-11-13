@@ -288,8 +288,7 @@ export class MolisWorkLocalHost {
       { workspaceFor: options.workspaceFor, workspacesFor: options.workspacesFor, prepareDirectory: options.prepareDirectory },
     );
     if (home) {
-      const ownerContext = (ref: LocalHostProjectReference) => localWebActionContext(this, ref, LOCAL_OWNER_PERMISSIONS);
-      bindHomeSide(this, home, options, settingsVersionClaims);
+      const ownerContext = (ref: LocalHostProjectReference) => localWebActionContext(this, ref, LOCAL_OWNER_PERMISSIONS); bindHomeSide(this, home, options, settingsVersionClaims);
       this.search = createSearchHost({ homeDirectory: home, registry: this.host.actionRegistry(),
         project: projectId => this.host.projects().find(row => row.project_id === projectId && row.state !== "closing"),
         projectClient: reference => this.actionClient(reference), homeClient: () => this.homeActionClient(),

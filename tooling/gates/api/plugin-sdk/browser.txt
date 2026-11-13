@@ -71,8 +71,6 @@ export declare function scrollShouldFollow(target: EventTarget | null, panel: El
 
 export declare function setContentHtml(target: Element, markup: string): void;
 
-export declare function shortDateLabel(value: string | null | undefined, locale?: string): string;
-
 export declare const statusOf: (error: unknown) => number | undefined;
 
 export declare function textCell(className: string, text: string): HTMLSpanElement;

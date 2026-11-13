@@ -5,7 +5,6 @@ import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { isTimeZone, redactSecrets, wallClockIn, zonedParts } from "@molis-ai/molis-work-plugin-sdk";
-import { shortDateLabel } from "@molis-ai/molis-work-plugin-sdk/browser";
 import * as diffView from "@molis-ai/molis-work-plugin-sdk/diff-view";
 import * as highlight from "@molis-ai/molis-work-plugin-sdk/highlight";
 
@@ -36,17 +35,6 @@ test("BSH-09 zoned calendar parts keep midnight, seconds and short offsets acros
   assert.deepEqual(wallClockIn(Date.parse("2026-11-02T08:00:05.123Z"), "America/Los_Angeles"), {
     day: "2026-11-02", time: "00:00", offset: "GMT-8", utc: Date.parse("2026-11-02T00:00:00Z"),
   });
-});
-
-test("BSH-09 short document dates use local year and locale and omit bad values", () => {
-  const year = new Date().getFullYear();
-  const thisYear = new Date(year, 10, 9, 12).toISOString();
-  const lastYear = new Date(year - 1, 10, 9, 12).toISOString();
-  assert.equal(shortDateLabel(thisYear, "en-US"), "Nov 9");
-  assert.equal(shortDateLabel(thisYear, "zh-CN"), "11月9日");
-  assert.equal(shortDateLabel(lastYear, "en-US"), `Nov 9, ${year - 1}`);
-  assert.equal(shortDateLabel(lastYear, "zh-CN"), `${year - 1}年11月9日`);
-  for (const empty of ["", undefined, null, "bad date"]) assert.equal(shortDateLabel(empty, "en-US"), "");
 });
 
 test("W5-01-CODING-60: /highlight imports nothing and each function runs alone from its source, as a page script carries it", () => {

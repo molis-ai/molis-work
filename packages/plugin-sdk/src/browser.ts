@@ -162,15 +162,6 @@ export function textCell(className: string, text: string): HTMLSpanElement {
   return node;
 }
 
-/** A short local date, with the year shown for dates outside the current local year. */
-export function shortDateLabel(value: string | null | undefined, locale?: string): string {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  const sameYear = date.getFullYear() === new Date().getFullYear();
-  return date.toLocaleDateString(locale, { month: "short", day: "numeric", ...(sameYear ? {} : { year: "numeric" }) });
-}
-
 type PluginRequestHost = Pick<UiPluginClientHost, "pluginRoute"> & Partial<Pick<UiPluginClientHost, "route" | "readRefusal">>;
 
 interface PluginRequestOptions {

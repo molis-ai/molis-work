@@ -11,6 +11,7 @@ import { bindLocalWebActions, localWebActionContext, type LocalWebEntry } from "
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import type { bindGoalsWebActions } from "./goal-callers.js";
 import { molisWorkHostProjectReference, type MolisWorkProjectRuntime } from "./project-host.js";
+import { projectPluginEpoch } from "./project-catalog.js";
 import type { ProjectPluginSurfacePorts } from "./project-plugin-stages.js";
 import type { ContextualHttpPorts } from "./contextual/contextual-http.js";
 import type { ResolvedWebBoardOptions } from "./web-types.js";
@@ -113,9 +114,9 @@ function observeProjectPluginMembership(composition: WebRequestContext["composit
     let cache = membershipCache.get(catalog);
     if (!cache) membershipCache.set(catalog, cache = new Map());
     const cached = cache.get(key);
-    if (cached && cached.epoch === catalog.projectPluginEpoch && Date.now() - cached.at < MEMBERSHIP_CACHE_MS) return cached.membership;
+    if (cached && cached.epoch === projectPluginEpoch(catalog) && Date.now() - cached.at < MEMBERSHIP_CACHE_MS) return cached.membership;
     const membership = catalog.projectPluginMembership(projectId, directory);
-    cache.set(key, { epoch: catalog.projectPluginEpoch, at: Date.now(), membership });
+    cache.set(key, { epoch: projectPluginEpoch(catalog), at: Date.now(), membership });
     while (cache.size > 64) cache.delete(cache.keys().next().value!);
     return membership;
   }).finally(() => drop());

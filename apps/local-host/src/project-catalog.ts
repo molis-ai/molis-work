@@ -197,9 +197,6 @@ export class MolisWorkProjectCatalog {
   readonly models: ModelProviderStore;
 
   readonly commit: CatalogCommit;
-  /** Bumped after every successful project-plugin membership write; the display cache uses it as its version (N44). */
-  private membershipEpoch = 0;
-  get projectPluginEpoch(): number { return this.membershipEpoch; }
   private readonly personalProjects: PersonalProjectProvisioner;
   readonly wasProjectPluginRemoved:(projectId:string,pluginId:string)=>boolean;
   readonly ensureSyncedProject: PersonalProjectProvisioner['ensureSyncedProject'];
@@ -238,11 +235,7 @@ export class MolisWorkProjectCatalog {
     this.projectFiles = new ManagedProjectFiles(this.projects, this.projectsDirectory, contextBindingValidation, this.commit);
     this.personalProjects = new PersonalProjectProvisioner(homeDirectory, this.projectFiles, this.projects);
     this.recycle=this.projects.recycle;this.wasProjectPluginRemoved=this.projects.query.wasProjectPluginRemoved;
-    this.setProjectPlugin = (projectId, actorId, input) => {
-      const saved = this.projects.commands.setProjectPlugin(projectId, actorId, input);
-      this.membershipEpoch += 1;
-      return saved;
-    };
+    this.setProjectPlugin = (projectId, actorId, input) => bumpAnd(this, () => this.projects.commands.setProjectPlugin(projectId, actorId, input));
     this.ensureSyncedProject = this.personalProjects.ensureSyncedProject.bind(this.personalProjects);
     this.prepareSyncedProjectRestore = this.personalProjects.prepareSyncedProjectRestore.bind(this.personalProjects);
     this.projectPluginRequirements=id=>{this.projects.query.getProject(id);return projectPluginRequirements(db,id,p=>BUILTIN_PLUGIN_REGISTRY.has(p)||BUILTIN_PLUGIN_REGISTRY.isPersonal?.(p)===true);};
@@ -351,15 +344,11 @@ export class MolisWorkProjectCatalog {
   }
 
   addProjectPlugin(input: AddProjectPluginInput): ProjectPluginId[] {
-    const saved = this.projects.commands.addProjectPlugin(input);
-    this.membershipEpoch += 1;
-    return saved;
+    return bumpAnd(this, () => this.projects.commands.addProjectPlugin(input));
   }
 
   removeProjectPlugin(input: RemoveProjectPluginInput): ProjectPluginMembership {
-    const saved = this.projects.commands.removeProjectPlugin(input);
-    this.membershipEpoch += 1;
-    return saved;
+    return bumpAnd(this, () => this.projects.commands.removeProjectPlugin(input));
   }
 
   getProject(projectId: string): MolisWorkProjectRecord {
@@ -470,4 +459,18 @@ function terminalContextBinder(runtimeContexts: ReturnType<typeof createRuntimeC
       projectId: input.project_id, actorId: input.actor_id, rebindConfirmed: true, bindingScope: "session",
     });
   };
+}
+
+/** Display membership version per Catalog for the N44 short cache; successful membership writes bump it. */
+const membershipEpochs = new WeakMap<MolisWorkProjectCatalog, number>();
+export function projectPluginEpoch(catalog: MolisWorkProjectCatalog): number {
+  return membershipEpochs.get(catalog) ?? 0;
+}
+function bumpProjectPluginEpoch(catalog: MolisWorkProjectCatalog): void {
+  membershipEpochs.set(catalog, projectPluginEpoch(catalog) + 1);
+}
+function bumpAnd<T>(catalog: MolisWorkProjectCatalog, run: () => T): T {
+  const result = run();
+  bumpProjectPluginEpoch(catalog);
+  return result;
 }

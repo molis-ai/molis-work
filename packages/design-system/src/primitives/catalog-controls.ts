@@ -1,5 +1,5 @@
 // The catalog board's control specimens: buttons, fields, forms, feedback, overlays, menus and tabs.
-import { icon, renderAlert, renderAutocomplete, renderAvatar, renderBadge, renderButton, renderCalendar, renderCheckbox, renderCheckboxGroup, renderDatePicker, renderEmpty, renderField, renderFieldset, renderForm, renderInput, renderInputGroup, renderKbd, renderLabel, renderMeter, renderNumberField, renderOtpField, renderProgress, renderRadio, renderRadioGroup, renderSelect, renderSeparator, renderSkeleton, renderSlider, renderSpinner, renderStatusMark, renderSwitch, renderTextarea, renderToast, renderToggle } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { icon, renderAlert, renderAutocomplete, renderAvatar, renderBadge, renderButton, renderCalendar, renderCheckbox, renderCheckboxGroup, renderDatePicker, renderEmpty, renderField, renderFieldset, renderForm, renderInput, renderInputGroup, renderKbd, renderLabel, renderMeter, renderNumberField, renderOtpField, renderProgress, renderRadio, renderRadioGroup, renderSelect, renderSeparator, renderSeverityGrid, renderSkeleton, renderSlider, renderSpinner, renderStatusMark, renderSwitch, renderTextarea, renderToast, renderToggle } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderAccordion, renderBreadcrumb, renderCollapsible, renderCombobox, renderPagination, renderTabs, renderToggleGroup, renderToolbar } from "./navigation.js";
 import { renderAlertDialog, renderCommand, renderContextMenu, renderDialog, renderDrawer, renderMenu, renderMenuGroup, renderMenuItem, renderHint, renderPopover, renderPreviewCard, renderSheet, renderTooltip } from "./overlay.js";
 import type { Say } from "./catalog-composer.js";
@@ -145,6 +145,29 @@ export function badgeSection(): string {
       ${mark("alert", specimen("提示", alerts))}
       ${mark("empty", specimen("空态 · 一个首要动作", empty))}
       ${specimen("空态 · 几个起点", emptyStarts)}
+    </div>`);
+}
+
+/**
+ * The 3 × 3 position mark (risk plugin, batch 17): every place in both sizes, the tone the caller picks, the axis titles in
+ * Chinese and English, and how it sits in a 390-wide overview row. Light, dark and forced colours come from the board's switches.
+ */
+export function severityGridSection(): string {
+  const levels = ["低", "中", "高"], levelsEn = ["low", "medium", "high"];
+  const tone = (row: number, column: number) => row + column >= 5 ? "danger" as const : row + column === 4 ? "warning" as const : "neutral" as const;
+  const every = (size: "small" | "large") => [3, 2, 1].flatMap((row) => [1, 2, 3].map((column) => renderSeverityGrid({
+    row, column, tone: tone(row, column), size, label: `影响${levels[row - 1]}，可能性${levels[column - 1]}`,
+  }))).join("");
+  const axes = renderSeverityGrid({ row: 3, column: 2, tone: "danger", size: "large", label: "影响高，可能性中", rowLabel: "影响 高", columnLabel: "可能性 中" })
+    + renderSeverityGrid({ row: 3, column: 2, tone: "danger", size: "large", label: `Impact ${levelsEn[2]}, likelihood ${levelsEn[1]}`, rowLabel: "Impact high", columnLabel: "Likelihood medium" });
+  const row = `<div style="inline-size: min(390px, 100%); display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px">${
+    renderSeverityGrid({ row: 2, column: 3, tone: "danger", label: "影响中，可能性高" })}<span style="flex: 1; min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">供应商交付延期，影响上线</span>${
+    renderBadge({ label: "处理中", tone: "info" })}</div>`;
+  return section("severity-grid", "Severity Grid", `<div class="mw-catalog__specimens">
+      ${mark("severity-grid", specimen("九个位置 · 小号（总览行）", every("small")))}
+      ${specimen("九个位置 · 大号（详情要点）", every("large"))}
+      ${specimen("大号带轴标题 · 中文 / English；读屏读 label，例如「影响高，可能性中」", axes)}
+      ${specimen("390 宽总览行", row)}
     </div>`);
 }
 

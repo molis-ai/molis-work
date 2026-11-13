@@ -393,3 +393,18 @@ test("PG-060 RAC-606 the side panel's 打开 opens an object-tab plugin's item a
   // keeps it a no-op instead of throwing.
   assert.ok(CLIENT_SCRIPT.includes("? tabWorkspace?.openItem(plugin, id, title) : tabWorkspace?.openPluginRecord(plugin, id)"));
 });
+
+test("RISK-04 an item open lands in a plugin's opens_items side view; plugins without one, and side-only plugins, keep their place", async () => {
+  const { sideOpenedItemPlugins } = await import("@molis-ai/molis-work-app-workbench");
+  const entry = (id: string, slots: string[], views: Array<{ view_id: string; slot: string; opens_items?: boolean }>) => ({
+    project_plugin_id: id,
+    manifest: { ui: { views } },
+    workbench: { contributions: [{ descriptor: { surfaces: slots.map((target_slot_id) => ({ target_slot_id })) } }] },
+  });
+  assert.deepEqual(sideOpenedItemPlugins([
+    entry("risk", ["workbench.main", "workbench.side"], [{ view_id: "overview", slot: "stage" }, { view_id: "detail", slot: "side", opens_items: true }]),
+    entry("plain", ["workbench.main", "workbench.side"], [{ view_id: "side", slot: "side" }]),
+    entry("side-only", ["workbench.side"], [{ view_id: "pad", slot: "side", opens_items: true }]),
+  ]), { risk: "plugin:risk/detail" }, "a side-only plugin already opens everything in its side tab (sideOpenedPlugins)");
+  assert.deepEqual(sideOpenedItemPlugins(), {}, "no shipped plugin declares it before the Risk plugin");
+});

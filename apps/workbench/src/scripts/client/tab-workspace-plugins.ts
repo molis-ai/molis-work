@@ -209,9 +209,11 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
     }, quiet ? 8000 : 10000);
     frame?.addEventListener('load', loaded); watch();
   };
-  const openItem = (plugin, itemId, title, view) => {
-    if (embedded) { notifyParent("workbench-pane-open", { plugin, itemId, title: titleForItem(plugin, itemId, title), view }); return; }
-    if (openInSide(plugin, itemId, title) || recall(plugin, itemId)) return;
+  // \`opened.from\`: the plugin whose own frame asked (plugin-frame/parent), never read from the page's own words.
+  const openItem = (plugin, itemId, title, view, opened) => {
+    const from = opened && typeof opened === "object" && typeof opened.from === "string" ? opened.from : undefined;
+    if (embedded) { notifyParent("workbench-pane-open", { plugin, itemId, title: titleForItem(plugin, itemId, title), view, from }); return; }
+    if (openInSide(plugin, itemId, title) || openItemInSide(plugin, itemId, title, from) || recall(plugin, itemId)) return;
     column = "main";
     const tab = ops.openItem(state, plugin, itemId, titleForItem(plugin, itemId, title));
     if (view !== undefined) ops.writeView(state, ops.focused(state).id, plugin === "goals" && view === "frame" ? undefined : view, tab.id);

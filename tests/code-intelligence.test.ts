@@ -117,3 +117,15 @@ test("A4-1 服务器崩溃重启后重新打开同一份文档", { timeout: 30_0
     await intelligence.close();
   } finally { delete process.env.FAKE_LSP_EXIT_AFTER_DEFINITION; delete process.env.FAKE_LSP_LOG; home.close(); }
 });
+
+test("A4-1 打开的文档有上限：超过 64 个关闭最旧的", { timeout: 60_000 }, async () => {
+  const home = workspace();
+  process.env.FAKE_LSP_LOG = home.log;
+  try {
+    for (let index = 0; index < 66; index += 1) writeFileSync(join(home.root, "src", `f${index}.ts`), "export const greet = 1;\n");
+    const intelligence = createCodeIntelligence({ servers: servers(home.log), rootPath: home.root });
+    for (let index = 0; index < 66; index += 1) await intelligence.symbolIndex({ args: { path: `src/f${index}.ts`, symbol: "greet" } } as never);
+    assert.match(readFileSync(home.log, "utf8"), /textDocument\/didClose/, "the oldest open document must be closed past the cap");
+    await intelligence.close();
+  } finally { delete process.env.FAKE_LSP_LOG; home.close(); }
+});

@@ -180,18 +180,17 @@ export function createCodeIntelligence(input: {
       client.openDocument({ path: absolute, text, languageId });
       versions.set(absolute, 1);
       openWith.set(absolute, client);
-      texts.delete(absolute); texts.set(absolute, text);
     } else if (previous !== text) {
       const version = (versions.get(absolute) ?? 1) + 1;
       client.changeDocument({ path: absolute, text, version });
       versions.set(absolute, version);
-      texts.delete(absolute); texts.set(absolute, text);
-      for (const held of texts.keys()) {
-        if (texts.size <= MAX_OPEN_DOCUMENTS) break;
-        // The document may belong to another file type's server: close it on the client that opened it.
-        openWith.get(held)?.closeDocument?.({ path: held });
-        texts.delete(held); versions.delete(held); openWith.delete(held);
-      }
+    }
+    texts.delete(absolute); texts.set(absolute, text);
+    for (const held of texts.keys()) {
+      if (texts.size <= MAX_OPEN_DOCUMENTS) break;
+      // The document may belong to another file type's server: close it on the client that opened it.
+      openWith.get(held)?.closeDocument?.({ path: held });
+      texts.delete(held); versions.delete(held); openWith.delete(held);
     }
     return { client, text };
   };

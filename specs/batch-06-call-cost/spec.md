@@ -1,6 +1,6 @@
 # 06 批宿主调用成本
 
-状态：已随第 06 批 [#2009](https://github.com/molis-ai/molis-work/pull/2009) 合入 main `a720834a09`（2026-11-13）。对应 [06-3](../post-anticorruption-roadmap/reference/batches/06.md#batch-06-item-3) 的 N56、N42 首片、N43/46、N44、BL-943、N45（已在 main 的 #2033 实现）与 N55；实现与证据见下文，剩余 BCC-05/09 的直接证据、N42 首片范围与 BL-943 后续。
+状态：已随第 06 批 [#2009](https://github.com/molis-ai/molis-work/pull/2009) 合入 main `a720834a09`（2026-11-13）。对应 [06-3](../post-anticorruption-roadmap/reference/batches/06.md#batch-06-item-3) 的 N56、N42 首片、N43/46、N44、BL-943、N45（已在 main 的 #2033 实现）与 N55；实现与证据见下文，剩余 BCC-09 的直接证据、N42 首片范围与 BL-943 后续。
 
 项目目录和文件资料合同已经随第 05 批合入。起点为 `54a12642c`。#1932 后，建立调用上下文只准备动作元数据，按可用性遍历整个目录的旧路径已移走。侧栏文件请求仍在检查必填参数前准备上下文。先测出当前调用次数，再把缺少必填参数的请求挡在准备之前。目录中的来源是否可见、动作当前是否可执行，仍由现有发现和执行路径判断。
 

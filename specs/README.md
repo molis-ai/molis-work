@@ -9,7 +9,7 @@
 刚合入、等真实 Home 采用或本人验收的项也留在这里，状态写在条目上。
 
 - [batch-06-shared-tools](batch-06-shared-tools/spec.md)：第 06 批成果固定、平台资料产生者与 SDK 公用工具；已随 #2009 合入 `a720834a09`（2026-11-13），剩余真实 Home 采用与本人验收。
-- [batch-06-call-cost](batch-06-call-cost/spec.md)：第 06 批调用成本整治；已随 #2009 合入 `a720834a09`，剩余 BCC-05/09 的直接证据、N42 首片范围与 BL-943 后续。
+- [batch-06-call-cost](batch-06-call-cost/spec.md)：第 06 批调用成本整治；已随 #2009 合入 `a720834a09`，剩余 BCC-09 的直接证据、N42 首片范围与 BL-943 后续。
 - [batch-06-runtime-cost](batch-06-runtime-cost/spec.md)：第 06 批各包调用成本；已随 #2009 合入 `a720834a09`，N47/N48/N49/N50/N51 的实现与定向证据见文内，绝对计数为探针证据。
 
 - [workbench-experience-upgrade](workbench-experience-upgrade/spec.md) 工作台体验走查与升级方案。含现状截图、界面样稿、交互动效和六项待评审决定。2026-11-13 方案整理，需求维护 Codex，实施待分配。

@@ -237,6 +237,14 @@ test("BCC-02 to BCC-06 · Host requests stay within budget and incomplete previe
   assert.ok(extra.ownerResolutions > (committed.projectHome?.ownerResolutions ?? 0),
     `the extra ${extra.ownerResolutions} owner resolutions exceed the committed ${committed.projectHome?.ownerResolutions}`);
 
+  // BCC-05 (N43/46): the other controlled counterexample: extra full reads of the same production action directory in one window
+  // must go over the committed project-home row budget. Three real discoveries are enough to exceed it without touching business data.
+  const scan = await measure(async () => {
+    for (let index = 0; index < 3; index++) await home.host.actionClient(project.reference).discover({ actor_id: "web-user", project_id: project.project_id, audience: "user", permissions: [] });
+  });
+  assert.ok(scan.actionDirectoryRows > (committed.projectHome?.actionDirectoryRows ?? 0),
+    `the extra ${scan.actionDirectoryRows} directory rows exceed the committed ${committed.projectHome?.actionDirectoryRows}`);
+
   // Required fields are checked before the current source is looked up. A complete request still checks live membership.
   const unknownAndIncomplete = new URLSearchParams({ source: "absent", id: file.subject.id });
   const rejected = await measure(() => refusal(previewPath + unknownAndIncomplete, 400, /没有说明要预览哪个文件/u));

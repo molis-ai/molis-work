@@ -262,6 +262,7 @@ export { runLocalCli } from "./cli-host.js";
 export { runLocalHomeCli } from "./cli-home.js";
 export { startOfToday } from "./assistant/assistant-usage-ledger.js";
 export { PROJECT_DATABASE_VERSION_2_SCHEMA } from "./project-database-schema.js";
+export { adoptionRefusalText, type AdoptionRefusalCode, type AdoptionRefusalText } from "./process-items-refusal-text.js";
 export { ORIGINAL_PROJECT_REPLICATION_SCHEMA_SQL, PROJECT_REPLICATION_SCHEMA_SQL } from "./project-replication-schema.js";
 export type { LocalCliOptions } from "./cli-host.js";
 export { ModelProviderStore, createModelProviderTables, type ModelProviderSqlite, type ModelProviderStoreOptions, type ModelSecretPort } from "./model-provider-store.js";

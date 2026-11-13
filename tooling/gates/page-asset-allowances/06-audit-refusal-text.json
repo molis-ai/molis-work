@@ -1,0 +1,7 @@
+{
+  "reason": "第 06 批合后审计修复 BL-adoption-refusal-text：同步设置的过程项采用拒绝原因改为语言中性的 code + params，UI 按工作台语言文件说；工作台客户端多 92 B（workbench-client.js 1200805→1200897，a720 基准 1200650，本项 +92）。没有新增资源；语言文件的键只增长已有工作台语言包。",
+  "review": "本分支独立构建 + `page-assets --base a720834a09` 实测：workbench.js 1200650→1200897（+247），其中前一项许可 06-audit-object-link 覆盖 +155，本项只补剩余 +92；其余资源只有 issues.js −19 B。",
+  "assets": {
+    "/assets/molis-work-workbench.js": 92
+  }
+}

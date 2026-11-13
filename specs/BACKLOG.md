@@ -79,7 +79,7 @@
 
 ### 记忆误记与默认设置
 
-随第 24、31 批。Memory 原暂停已于 2026-11-11 解除（决定 36）：P0 收口见 [BL-memory-p0-closure](backlog/BL-memory-p0-closure.md) 与 #2020，P1 随第 31 批，P2 按触发条件登记。
+Memory P0 已随 [#2020](https://github.com/molis-ai/molis-work/pull/2020) 合入 main。暖读延迟 [BL-1072](backlog/BL-1072.md)、总 token [BL-1073](backlog/BL-1073.md) 与[本人走查](backlog/BL-memory-own-app-walkthrough.md)继续跟踪。P1 的[短合同](backlog/BL-memory-p1-contract.md)确认后进入第 31 批；P2 按触发条件登记。
 
 
 ### 模型本身的能力

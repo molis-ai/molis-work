@@ -36,7 +36,7 @@
       "warm": 250
     },
     "chooser/en": {
-      "cold": 185,
+      "cold": 205,
       "warm": 250
     },
     "workbench-default/zh": {
@@ -44,7 +44,7 @@
       "warm": 0
     },
     "workbench-default/en": {
-      "cold": 196,
+      "cold": 214,
       "warm": 0
     },
     "workbench-all-plugins/zh": {
@@ -52,7 +52,7 @@
       "warm": 0
     },
     "workbench-all-plugins/en": {
-      "cold": 196,
+      "cold": 214,
       "warm": 0
     }
   }

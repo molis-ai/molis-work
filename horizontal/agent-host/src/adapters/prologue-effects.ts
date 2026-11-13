@@ -1,11 +1,12 @@
 import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { agentErrors } from "../errors.js";
-import type { PrologueHost, Session } from "@prologue/sdk";
+import type { Session } from "@prologue/sdk";
+import type { NodeHost } from "./prologue-node-kit.js";
 import type { AgentSessionWriteObservation, AgentMemoryCapability, AgentMemoryExecutionControl, AgentStartExecution } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 export interface PrologueEffects {
-  readonly host: PrologueHost;
+  readonly host: NodeHost;
   call<T>(control: AgentMemoryExecutionControl, work: () => Promise<T>): Promise<T>;
   memory<T>(control: AgentMemoryExecutionControl | undefined, work: () => Promise<T>): Promise<T>;
   start<T>(execution: AgentStartExecution | undefined, work: () => Promise<T>): Promise<T>;
@@ -21,7 +22,7 @@ export interface PrologueEffects {
 }
 
 /** Per-invocation SDK commit checks; accepted runs detach from the start call before driving background work. */
-export function prologueEffects(host: PrologueHost, appId: string): PrologueEffects {
+export function prologueEffects(host: NodeHost, appId: string): PrologueEffects {
   const observers = new Set<{ keys: ReadonlySet<string>; invalid: boolean; closed: boolean }>();
   const pending = new Map<string, number>();
   const sessionKind = appId + "~sessions";
@@ -68,7 +69,7 @@ export function prologueEffects(host: PrologueHost, appId: string): PrologueEffe
     if (calls.getStore()?.active && calls.getStore()?.memory) { assertCurrent(); return trackedWrite(memory, write); }
     return commit(memory, write);
   };
-  const storage: PrologueHost["storage"] = {
+  const storage: NodeHost["storage"] = {
     ...(host.storage.mountMemory === undefined ? {} : { mountMemory: host.storage.mountMemory.bind(host.storage) }),
     ...(host.storage.observations === undefined ? {} : { observations: host.storage.observations.bind(host.storage) }),
     get: input => host.storage.get(input), list: input => host.storage.list(input), readSecure: input => host.storage.readSecure(input),

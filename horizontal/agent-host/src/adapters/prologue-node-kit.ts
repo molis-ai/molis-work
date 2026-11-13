@@ -1,5 +1,7 @@
 import type { AsyncLocalStorage } from "node:async_hooks";
-import { SYSTEM_TOOL_NAMES, type ExactRef, type ModelEvent, type Runtime, type Skill, type PrologueHost } from "@prologue/sdk";
+import { OFFICIAL_CODING_PACK, SYSTEM_TOOL_NAMES, type ExactRef, type ModelEvent, type Runtime, type Skill } from "@prologue/sdk";
+import type { createNodeHost } from "@prologue/sdk/node";
+import type { AgentStartExecution } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentActionClient } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { ActionView, ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PrologueAdapterPorts, PrologueStartInput } from "./prologue.js";
@@ -37,6 +39,19 @@ export interface PrologueNodeAdapterOptions extends PrologueAdapterPorts {
   surfaces?: PrologueSurfacePorts;
   /** What the Host answers when a step's wait on a file is looked at (prologue-checkers.ts). Absent: such a wait is refused. */
   checks?: import("./prologue-checkers.js").PrologueCheckPorts;
+  /**
+   * Language servers the person configured, for the official coding pack's `coding.find-symbol`. Absent or empty: a
+   * round that asks for the tool is told no server is configured for that file type; nothing is downloaded.
+   */
+  codeIntelligence?: {
+    readonly servers: readonly import("../code-intelligence/index.js").LanguageServerSpec[];
+    /** Q5: the person's download switch, the registry, and this Home's isolated tools root. */
+    readonly downloadsAllowed?: boolean;
+    readonly registry?: string;
+    readonly toolsRoot?: string;
+    /** The optional configuration file could not be read/validated; the symbol tool reports it instead of starting. */
+    readonly problem?: string;
+  };
   /** App identity Prologue records against this Runtime's work. */
   app: { readonly appId: string; readonly appVersion: string };
   /** Where the Node host keeps its own storage. A Host fact, never surfaced to Plugins. */
@@ -58,8 +73,8 @@ export interface PrologueNodeAdapterOptions extends PrologueAdapterPorts {
   subscribeMcpConnections?: (listener: (connectionId: string) => void) => () => void;
 }
 
-export type NodeHost = PrologueHost;
-export type DispatchGuard = NonNullable<import("@molis-ai/molis-work-contracts/services/agent-host").AgentStartExecution["beforeDispatch"]>;
+export type NodeHost = ReturnType<typeof createNodeHost>;
+export type DispatchGuard = NonNullable<AgentStartExecution["beforeDispatch"]>;
 export type DispatchGuards = AsyncLocalStorage<DispatchGuard>;
 export type CommandEvent = Extract<ModelEvent, { type: "command-receipt" }>;
 /** The kinds of ending a round's stop check holds once each. */
@@ -154,9 +169,13 @@ export async function readResource(runtime: Runtime, ref: ExactRef<"resource">) 
 }
 
 /** Translate the Host vocabulary at the SDK boundary; unknown tools fail before a Run. */
+/** The tools a scenario pack contributes: the round's pack provides them, so they are not in the SDK's system closed set. */
+const PACK_TOOL_NAMES: ReadonlySet<string> = new Set(OFFICIAL_CODING_PACK.tools.map(tool => tool.registration.name));
+
 export function prologueToolName(name: string): string {
   const translated = agentTool(name)?.runtime_name;
-  if (!translated || !(SYSTEM_TOOL_NAMES as readonly string[]).includes(translated)) {
+  const known = translated !== undefined && ((SYSTEM_TOOL_NAMES as readonly string[]).includes(translated) || PACK_TOOL_NAMES.has(translated));
+  if (!translated || !known) {
     throw new Error(`agent.capability_unavailable: Prologue 不认识工具 ${name}`);
   }
   return translated;

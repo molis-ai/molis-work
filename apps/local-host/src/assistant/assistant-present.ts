@@ -176,6 +176,10 @@ const ACTIVITY_VERBS: Readonly<Record<string, string>> = { ...TOOL_ACTIVITY_VERB
 export function presentActivity(activity: readonly AgentToolActivity[], titles: CapabilityTitles | undefined, ended = false): AssistantActivity[] {
   return activity.flatMap(item => {
     if (item.name === "reasoning" || item.name === "context-remaining" || item.name === "acknowledge-inputs" || item.name === "board-wait") return [];
+    // Sub-task traffic and task-board steps are not the assistant's own steps: the panel gets their words with the
+    // subagent / board surface (43-1), not as raw tool names.
+    if (item.name === "dispatch-subagent" || item.name === "await-subagents" || item.name === "steer-subagent"
+      || item.name === "board-read" || item.name === "board-report") return [];
     const verb = desktopVerb(item, ACTIVITY_VERBS[item.name] ?? item.name);
     const named = titles?.get(shownActivityTarget(item.target));
     const target = (verb === "read" || verb === "change" || verb === "suggest") && named ? `${named.provider} · ${named.title}` : shownActivityTarget(item.target);

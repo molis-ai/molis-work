@@ -68,8 +68,8 @@ export function createCodingTimeline(words: TimelineWords) {
   const TERMINAL = ["completed", "failed", "stopped", "cancelled", "reconcile-required"];
   const svg = (name: string) => `<svg aria-hidden="true"><use href="#icon-${name}"></use></svg>`;
   const escape = (value: unknown) => String(value ?? "").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char] as string));
-  const { KIND, FAILURES, toolHint: hintFor, other, tally } = words;
-  const kindOf = (item: TimelineActivity) => KIND[item.name] ?? other(item.name);
+  const { KIND, FAILURES, toolHint: hintFor, named, tally } = words;
+  const kindOf = (item: TimelineActivity) => KIND[item.name] ?? named(item.name);
   /** A command's own exit code is a fact from its receipt; "passed" is never inferred beyond it. */
   const exitCode = (item: TimelineActivity): number | null => {
     if (item.name !== "run-command" || item.state !== "completed") return null;

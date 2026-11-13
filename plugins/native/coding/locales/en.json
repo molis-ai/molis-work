@@ -1875,6 +1875,8 @@
     "coding.writers.task": "This directory’s task and done condition",
     "coding.writers.task-label": "Task and done condition: {path}",
     "coding.writers.turn": "This turn’s split · separate directories: {count}",
-    "coding.writers.use": "Use for the next turn"
+    "coding.writers.use": "Use for the next turn",
+    "coding.call.find-symbol": "Find symbol",
+    "coding.call.find-symbol.doing": "Finding a symbol"
   }
 }

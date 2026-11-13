@@ -137,7 +137,7 @@ for (const width of [1440, 390]) test(`Todo ${width}px: quick entry, views, comp
   await screenshot("after-delete");
 });
 
-test("Todo reminders and the project home: a due reminder shows once, later and got-it act on it, home lists today's todos", { timeout: 120_000 }, async t => {
+test("Todo reminders and the project home: a due reminder shows once, later and got-it act on it, the project home shows Todo's undeclared card", { timeout: 120_000 }, async t => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
@@ -163,10 +163,11 @@ test("Todo reminders and the project home: a due reminder shows once, later and 
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
 
-  // The project home lists what needs attention today, Todo among the other sources.
+  // The project home is composed from each plugin's presentation (batch 15). Todo declares none yet, so it has its card in the
+  // undeclared state and its items are not listed there (BL-todo-home-presentation); its reminders below stay in Todo itself.
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await browser.waitFor("document.querySelector('[data-home-list]') && document.querySelector('[data-home-list]').textContent.includes('交报销单')");
-  assert.match(String(await browser.evaluate("document.querySelector('[data-home-list]').textContent")), /逾期的方案/);
+  await browser.waitFor("document.querySelector('[data-home-card=\"io.molis.work.todo\"]')?.dataset.homeState === 'undeclared'");
+  assert.doesNotMatch(String(await browser.evaluate("document.querySelector('[data-home-card=\"io.molis.work.todo\"]').textContent")), /交报销单|逾期的方案/);
   await screenshot("home");
 
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=todo` }, sessionId));

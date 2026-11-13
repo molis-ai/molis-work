@@ -1,3 +1,5 @@
+import type { ActionSubject } from "../platform/action-subjects.js";
+
 /** Shared group chat DTOs. Runtime Sessions are a separate product. */
 export interface ImMember {
   id: string;
@@ -72,8 +74,9 @@ export interface ImCreateRoomInput extends ImMutation { title: string }
 export interface ImJoinInput extends ImMutation { token: string }
 /** One explicit generation/rotation intent. Reuse both fields after an uncertain response. */
 export interface ImRotateInviteInput extends ImMutation { token: string }
-export interface ImCreateThreadInput extends ImMutation { title: string; source_message_id?: string; body?: string }
-export interface ImSendInput extends ImMutation { body: string; quote_id?: string }
+export const IM_MESSAGE_SUBJECT_LIMIT = 8;
+export interface ImCreateThreadInput extends ImMutation { title: string; source_message_id?: string; body?: string; subjects?: ActionSubject[] }
+export interface ImSendInput extends ImMutation { body: string; quote_id?: string; subjects?: ActionSubject[] }
 export interface ImShareInput extends ImMutation { message_id: string; body?: string }
 
 /**
@@ -92,10 +95,14 @@ export interface ImShareInput extends ImMutation { message_id: string; body?: st
  * returns the current hash; it never reactivates a token superseded later.
  * GET /rooms/:room/messages?before=sequence&limit=50 -> ImMessagePage.
  * POST /rooms/:room/messages -> { message: ImMessage }.
- * POST /rooms/:room/threads -> ImThreadState. Optional body creates the first
- * reply in the same transaction; it is required when source_message_id is absent.
+ * POST /rooms/:room/threads -> ImThreadState. Optional body or object references
+ * create the first reply in the same transaction; one is required without a source.
  * A source supplies itself and at most three preceding group messages as context.
  * Message POSTs accept quote_id only for an existing message in the same room.
+ * A protected local project discussion can send up to eight object references
+ * with or without text. Duplicates keep their first position. Ordinary chat
+ * responses, quotes and shares carry message identity, not object references
+ * or display values. The workbench uses that identity to read current objects.
  * GET /rooms/:room/search?q=text -> { messages: ImMessage[] }, matching message
  * bodies or topic titles within this room (up to 80 newest results).
  * GET /rooms/:room/read -> { positions, unread }, keyed by thread id or an empty

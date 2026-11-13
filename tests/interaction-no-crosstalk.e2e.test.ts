@@ -131,6 +131,9 @@ async function openCoding(t: TestContext, asked: readonly Asked[]) {
   /** Starts a new session and sends `task` in it; resolves to the session's id once its question card is shown. */
   const ask = async (task: string) => {
     await click(`${coding} [data-coding-new]`);
+    // Making the session shuts the composer until its first read (composer-state.ts), and the New button stays disabled for that
+    // whole time; the shared bar mirrors the shut a moment later, so typing before New is back would be wiped by the session's own draft.
+    await waitFor(`!document.querySelector('${coding} [data-coding-new]').disabled`, 30_000);
     // The box is the workbench bar's one input (unified-input-voice §10.3): it is filled and sent in the top document.
     await b.waitFor(`${CODING_OPEN} && document.querySelector('${CODING_BOX}').value === '' && document.querySelector('${codingControl("model")}').options.length >= 1`);
     await fill(codingControl("model"), JSON.stringify(["local-only", "fixture-plain"]));

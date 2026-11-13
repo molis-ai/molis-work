@@ -431,7 +431,7 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     for (const [pop, close] of popovers()) if (pop && !pop.hidden) close(false);
   });
   island.addEventListener("keydown", (event) => {
-    if (event.key !== "Escape") return;
+    if (event.key !== "Escape" || event.target?.closest?.("dialog[data-position-dialog][open], .mw-presentation__more[open]")) return;
     const stop = () => { event.preventDefault(); event.stopPropagation(); }, put = ([pop, close, btnEl]) => pop && !pop.hidden && (stop(), close(false), (visible(btnEl) ? btnEl : input)?.focus(), true);
     const [worksOpen, notices] = popovers();
     if (put(worksOpen)) return;

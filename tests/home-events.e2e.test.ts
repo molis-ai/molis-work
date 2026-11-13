@@ -1,17 +1,15 @@
 import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdir, writeFile } from "node:fs/promises";
 import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { definePlugin, defineHomeEventsAction, defineSubjectContextAction, subjectContext, defineSubjectOffersAction } from "@molis-ai/molis-work-plugin-sdk";
-import type { ActionDefinition, SubjectOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionDefinition, ActionReference, HomeEventView, SubjectActionOffer, SubjectOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
-import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
-test("an unknown plugin owns its Home event, context and real action; failure and lifecycle refresh stay accurate", { timeout: 120_000 }, async t => {
+test("an unknown plugin keeps its Home Events and contextual actions while the visible Home no longer requests Events", { timeout: 120_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded", undefined, null); if (!browser) return;
-  const { localHost, store, projectId, command, sessionId, evaluate, waitFor, click, navigate, origin, reloadPage } = browser;
+  const { localHost, store, projectId, command, sessionId, evaluate, waitFor, navigate, origin, web } = browser;
   assert.ok(localHost); assert.ok(projectId);
   const reference = molisWorkHostProjectReference({ databasePath: browser.databasePath, projectId });
   store.db.exec("CREATE TABLE fixture_home_notes (id TEXT PRIMARY KEY, content TEXT, done INTEGER, revision INTEGER)");
@@ -45,61 +43,44 @@ test("an unknown plugin owns its Home event, context and real action; failure an
     ] }; } });
   const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: localHost.actionRegistry(reference), project_id: projectId } });
   const install = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: ["fixture:read", "fixture:write"] }).install;
-  const selector = '[data-home-subject-kind="fixture-note"][data-home-subject-id="own-note"]';
-  const captures = reviewEvidenceUrl("home-plugin-events/");
-  const capture = async (name: string) => { await mkdir(captures, { recursive: true }); const shot = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId); await writeFile(new URL(name + ".png", captures), Buffer.from(shot.data, "base64")); };
+  const prefix = "/projects/" + projectId;
+  const window = { from: new Date(Date.now() - 60_000).toISOString(), to: new Date(Date.now() + 60_000).toISOString(), now: new Date().toISOString() };
+  const eventRead = () => web.post<{ events: HomeEventView[]; issues: string[] }>(prefix + "/api/home/events", window);
+  const ownEvent = (reply: Awaited<ReturnType<typeof eventRead>>) => reply.events.find(event => event.subject.kind === subject.kind && event.subject.id === subject.id);
+  const request_id = crypto.randomUUID();
   try {
     await runtime.start(install.install_id);
-    await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
-    await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
-    await command("Page.addScriptToEvaluateOnNewDocument", { source: "window.__homeRequests=[];const previous=window.fetch;window.fetch=async(url,options)=>{const response=await previous(url,options);if(String(url).includes('/api/home/'))window.__homeRequests.push({url:String(url),status:response.status,body:await response.clone().text()});return response;}" }, sessionId);
-    await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
-    await waitFor(`!!document.querySelector(${JSON.stringify(selector)})`, 12000);
-    await click(selector);
-    try { await waitFor("document.querySelector('[data-home-offer]')?.textContent==='确认记录'", 12000); }
-    catch { await capture("failed-prepare"); throw new Error(await evaluate<string>("JSON.stringify({requests:window.__homeRequests.map(r=>({...r,body:r.body.slice(0,1200)})),offers:document.querySelector('[data-home-offers]')?.textContent,home:document.querySelector('[data-work-surface=home]')?.dataset,detail:document.querySelector('[data-home-detail-body]')?.textContent})")); }
-    assert.match(await evaluate<string>("document.querySelector('[data-home-detail-body]').textContent"), /插件自己的原始记录/);
-    assert.equal(await evaluate("!!document.querySelector('[data-home-open-target]')"), false, "no invented navigation when the plugin supplies none");
-    // Keep an old response in flight while a later refresh is requested. The later facts must win,
-    // without piling up concurrent requests or leaving Home permanently in its loading state.
-    await evaluate(`(() => {
-      const previous = window.fetch; window.__homeReadCount = 0;
-      const held = new Promise(resolve => { window.__releaseHomeRead = resolve; });
-      window.fetch = async (url, options) => {
-        const isEvents = String(url).endsWith('/api/home/events');
-        const first = isEvents && ++window.__homeReadCount === 1;
-        const response = await previous(url, options);
-        if (first) { window.__homeReadHeld = true; await held; }
-        return response;
-      };
-      document.dispatchEvent(new Event('visibilitychange'));
-    })()`);
-    await waitFor("window.__homeReadHeld === true", 12000);
-    store.db.prepare("UPDATE fixture_home_notes SET content = ?, revision = revision + 1 WHERE id = ?").run("刷新后的插件原文", subject.id);
-    await evaluate("document.dispatchEvent(new Event('visibilitychange'));document.dispatchEvent(new Event('visibilitychange'))");
-    assert.equal(await evaluate("window.__homeReadCount"), 1);
-    await evaluate("window.__releaseHomeRead()");
-    await waitFor("document.querySelector('[data-home-detail-body]')?.textContent.includes('刷新后的插件原文')", 12000);
-    assert.ok(await evaluate<number>("window.__homeReadCount") >= 2);
-    await capture("desktop-plugin-event");
-    await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
-    await command("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 }, sessionId);
-    assert.ok(await evaluate<number>("document.querySelector('[data-home-offer]').getBoundingClientRect().height") >= 44);
-    await capture("mobile-plugin-event");
-    assert.equal(await evaluate("document.documentElement.scrollWidth<=innerWidth"), true);
-    await waitFor("!!document.querySelector('[data-home-offer]:not(:disabled)')");
-    await click('[data-home-offer]'); await waitFor(`!document.querySelector(${JSON.stringify(selector)})`);
-    assert.equal(writes, 1); assert.equal(read().done, 1); assert.equal(read().revision, 3);
+    await command("Page.addScriptToEvaluateOnNewDocument", { source: `window.homeRequests=[];
+      const original=window.fetch;window.fetch=(url,options)=>{window.homeRequests.push(String(url));return original(url,options)}` }, sessionId);
+    await navigate(() => command("Page.navigate", { url: origin + prefix + "/" }, sessionId));
+    await waitFor("document.querySelector('[data-home-card]')");
+    assert.equal(await evaluate("homeRequests.some(path=>path.endsWith('/api/home/events'))"), false);
+    assert.equal(await evaluate("document.querySelector('[data-home-subject-kind=fixture-note]')"), null, "a separate Events declaration cannot invent a presentation");
+    const actual = ownEvent(await eventRead());
+    assert.ok(actual);
+    assert.equal(actual.content, "插件自己的原始记录");
+    assert.equal(actual.open, null);
+
+    const { offers: offered } = await web.post<{ offers: Array<SubjectActionOffer & { source: ActionReference; availability: { available: boolean } }> }>(
+      prefix + "/api/home/actions/prepare", { subject, request_id });
+    const picked = offered.find(offer => offer.offer_id === "complete");
+    assert.ok(picked?.availability.available);
+    const { availability: _availability, ...offer } = picked;
+    assert.deepEqual(await web.post(prefix + "/api/home/actions/execute", { subject, request_id, offer }), { title: "确认记录", result: { done: true } });
+    assert.equal(writes, 1);
+    assert.equal(read().revision, 2);
+    assert.equal(ownEvent(await eventRead()), undefined, "the owner withdraws the completed event");
+
     store.db.prepare("UPDATE fixture_home_notes SET done = 0, revision = revision + 1 WHERE id = ?").run(subject.id);
-    fail = true; await reloadPage(); await waitFor("document.querySelector('[data-home-event-status]')?.textContent.includes('笔记首页事项')", 12000);
-    assert.equal(await evaluate(`!!document.querySelector(${JSON.stringify(selector)})`), false);
-    assert.equal(await evaluate("document.querySelector('[data-home-event-status]').textContent.includes('private provider diagnostic')"), false);
-    assert.ok(await evaluate<number>("document.querySelector('[data-home-events-reload]').getBoundingClientRect().height") >= 44);
-    await capture("mobile-source-error");
-    fail = false; await click('[data-home-events-reload]'); await waitFor(`!!document.querySelector(${JSON.stringify(selector)})`, 12000);
-    await runtime.stop(install.install_id); await reloadPage();
-    await waitFor("!document.querySelector('[data-home-hero]')?.textContent.includes('正在读取事项')", 12000);
-    assert.equal(await evaluate(`!!document.querySelector(${JSON.stringify(selector)})`), false);
+    fail = true;
+    const failed = await eventRead();
+    assert.equal(ownEvent(failed), undefined);
+    assert.ok(failed.issues.some(issue => issue.includes("笔记首页事项")));
+    assert.ok(failed.issues.every(issue => !issue.includes("private provider diagnostic")));
+    fail = false;
+    assert.equal(ownEvent(await eventRead())?.event_id, "own-event");
+    await runtime.stop(install.install_id);
+    assert.equal(ownEvent(await eventRead()), undefined);
     assert.equal(writes, 1);
   } finally { await runtime.stop(install.install_id); }
 });

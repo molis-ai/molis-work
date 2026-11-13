@@ -22,7 +22,11 @@ writeFileSync(kit,compactClientScript(readFileSync(kit,'utf8')));
 // property names, public globals, event names and literal contents stay intact.
 const source=workbenchClientSource();
 if(!source.startsWith(UI_REQUEST_CLIENT_SCRIPT))throw new Error('Workbench request bootstrap must be first');
+// The project home view is its own bundle, placed before the shell scripts that call `molisWorkHomeView`.
+const home=buildSync({entryPoints:[new URL('../src/browser/project-home.ts',import.meta.url).pathname],
+  bundle:true,write:false,format:'iife',globalName:'molisWorkHomeView',platform:'browser',target:'es2022',charset:'utf8',
+  minify:true,legalComments:'none'}).outputFiles[0].text;
 const body=compactClientScript(source.slice(UI_REQUEST_CLIENT_SCRIPT.length));
 // Keep the account IIFE in the same asset, with its own short identifiers.
-writeFileSync(new URL('../dist/workbench-client.js',import.meta.url),UI_REQUEST_CLIENT_SCRIPT+body+compactClientScript(ACCOUNT_CLIENT_SCRIPT));
+writeFileSync(new URL('../dist/workbench-client.js',import.meta.url),UI_REQUEST_CLIENT_SCRIPT+home+body+compactClientScript(ACCOUNT_CLIENT_SCRIPT));
 buildSync({entryPoints:['src/browser/language-entry.ts'],bundle:true,platform:'browser',format:'iife',target:'es2022',minify:true,charset:'utf8',outfile:'dist/language-client.js'});

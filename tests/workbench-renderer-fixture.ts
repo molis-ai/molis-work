@@ -65,11 +65,11 @@ export function renderMolisWorkWeb(view: MolisWorkWebView, goalId?: string, arch
   const selection = trash ? "trash" : archive ? "archive" : "current";
   return renderer.renderMolisWorkWeb({ ...view, page_owner: "io.molis.work.goals", cli_availability: cli,
     stage_request: { ...view.stage_request, goals: { collection: selection, ...(goalId ? { goal_id: goalId } : {}) } },
-    stage_data: { ...view.stage_data, goals: { collection: view, selection, selected: null } },
+    stage_data: { ...view.stage_data, goals: { collection: view, selection, selected: null, presentation_states: [] } },
   }, token, desktop);
 }
 function fragment(surface: string, view: MolisWorkWebView, goalId: string | undefined, selection: "current" | "archive" | "trash"): string {
-  return renderer.declaredPageSurface("io.molis.work.goals", surface, view, { collection: view, selection, selected: null }, goalId ? { goal_id: goalId } : {});
+  return renderer.declaredPageSurface("io.molis.work.goals", surface, view, { collection: view, selection, selected: null, presentation_states: [] }, goalId ? { goal_id: goalId } : {});
 }
 export const renderMolisWorkRefreshFragment = (view: MolisWorkWebView, goalId?: string, archive = false, trash = false) => {
   const selection = trash ? "trash" : archive ? "archive" : "current";

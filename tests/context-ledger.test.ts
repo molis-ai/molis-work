@@ -70,6 +70,27 @@ test("Ledger keeps a reference to an input an agent run holds as given, without 
   } finally { db.close(); }
 });
 
+test("SCS-17 the Ledger batch returns only active edges between exact candidates in the authorized scope", () => {
+  const db = openTestSqlite(":memory:");
+  try {
+    const ledger = createContextLedger(db, { authorize: request => request.actor_id === access.actor_id && request.scope.id === access.scope.id });
+    const source = { ...reference("plugins", "same"), object_type: "note", project_id: "project-a" };
+    const target = { ...reference("plugins", "same"), object_type: "document", project_id: "project-a" };
+    const outside = { ...target, project_id: "project-b" };
+    const type = "example.derived";
+    const original = ledger.commands.put(access, { source, target, type, key: "between", cause: "test" });
+    ledger.commands.put(access, { source, target: outside, type, key: "outside", cause: "test" });
+    assert.deepEqual(ledger.activeBetween(access, [source, target], [type]), [original]);
+    assert.deepEqual(ledger.activeBetween(access, [source], [type]), []);
+    assert.deepEqual(ledger.activeBetween(access, [source, target], ["another.type"]), []);
+    assert.throws(() => ledger.activeBetween({ ...access, actor_id: "another" }, [source, target], [type]), { code: "context_ledger.access_denied" });
+    assert.throws(() => ledger.activeBetween(access, [source, { ...target, scope: { kind: "personal", id: "project-b" } }], [type]),
+      { code: "context_ledger.scope_mismatch" });
+    ledger.commands.remove(access, original.key, "removed");
+    assert.deepEqual(ledger.activeBetween(access, [source, target], [type]), [], "a removed latest edge cannot expose its history");
+  } finally { db.close(); }
+});
+
 function feedHarness() {
   const db = openTestSqlite(":memory:");
   db.pragma("foreign_keys = ON");

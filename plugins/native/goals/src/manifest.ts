@@ -6,6 +6,7 @@ import { GOALS_ACTIONS } from "./actions.js";
 import { PERSONAL_PLANNING_ACTIONS } from "./personal-planning-actions.js";
 import { GOALS_TERMINAL_ACTIONS } from "./terminal-actions.js";
 import { GOALS_PROJECT_DATABASE } from "./project-database.js";
+import { goalsPresentation, goalsPresentationActions } from "./presentation.js";
 import { GOALS_PAGE_ROUTES } from "./page-routes.js";
 import { GOALS_STAGE_CONTRIBUTION_ID } from "./page/workbench-stage.js";
 import { GOALS_HOME_DATABASE } from "./home-database.js";
@@ -99,7 +100,8 @@ export const goalsManifest: PluginManifest = {
     { permission: "workspace:read", required: true, reason: "工作终端开在项目已关联的工作目录里" },
   ],
   capabilities: { provides: [], consumes: [] },
-  actions: [...GOALS_ACTIONS, ...PERSONAL_PLANNING_ACTIONS, ...GOALS_TERMINAL_ACTIONS],
+  actions: [...GOALS_ACTIONS, ...PERSONAL_PLANNING_ACTIONS, ...GOALS_TERMINAL_ACTIONS, ...goalsPresentationActions],
+  presentation: goalsPresentation,
   // What another plugin's background task may be let read, one switch per group (specs/proactive-assistant/schedule-task-reads.md §3.2).
   read_groups: [{ group_id: "goals", title: "目标", description: "目标的状态、正文、进展记录、关系与资料",
     actions: ["goals.list", "goals.state.read", "goals.directory.read", "goals.document.read", "goals.collection.read", "goals.snapshot.read", "goals.subject.read",

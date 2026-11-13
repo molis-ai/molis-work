@@ -67,8 +67,9 @@ test("chooser, settings, and workbench keep titles pinned and scroll only the co
   assert.ok(workbench.includes("@media not (forced-colors:active){*{scrollbar-width:none}*::-webkit-scrollbar{display:none;width:0;height:0}}"));
   assert.ok(workbench.includes(":is(.tree-scroll, .feed-directory-list, .source-directory-list, .feed-item-scroll, .source-list) { flex: none; height: auto; min-height: 0; overflow: visible;"));
   assert.doesNotMatch(workbench, /\.directory-shortcuts/);
-  // Soft Workbench home: shortcuts are rows in the margin list, under 回到手边的内容.
-  assert.ok(workbench.includes(".immersive-home :is(.home-quick, .home-shortcuts) { list-style: none; margin: 0; padding: 0; }"));
+  // Project home (DESIGN.md → Home): the home column scrolls in its own box under fixed chrome; it has no shortcut margin any more.
+  assert.match(workbench, /\.immersive-home \.home-scroll \{ flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain;/);
+  assert.doesNotMatch(workbench, /\.home-shortcuts/);
   assert.doesNotMatch(workbench, /\.directory-list-stage > \.desktop-directory-root:not\(\[hidden\]\) \{ display: block;/);
   assert.match(workbench, /--dir-row-h: 28px;/);
   assert.match(workbench, /--plugin-rail-width: 48px;/);

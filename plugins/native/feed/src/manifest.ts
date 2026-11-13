@@ -6,6 +6,7 @@ import { FEED_PLUGIN_ID, FEED_CAPTURE_ARTIFACT_TYPE_ID, FEED_CAPTURE_SCHEMA_VERS
 import { FEED_HOME_DATABASE } from "./content-ledger.js";
 import { feedSync } from './replication.js';
 import { FEED_PROJECT_DATABASE } from "./database.js";
+import { feedPresentation } from "./presentation.js";
 import { feedReconcileJob } from "./runtime-reconcile.js";
 import { feedWakeJob } from "./runtime-wake.js";
 import { FEED_PERMISSIONS } from "./permissions.js";
@@ -37,6 +38,7 @@ export const feedManifest: PluginManifest = {
   permissions: FEED_PERMISSIONS,
   // A Goal's material is read after the Goal itself has been read, as the caller (`feed.goals.context`).
   capabilities: { provides: [], consumes: ["functions.authoring.create", "functions.authoring.list", "functions.authoring.get", "functions.authoring.update", "functions.authoring.preview", "functions.authoring.publish", GOAL_CONTRACT.capability_id, FEED_STAGE_INBOX_READ.capability_id, ...(feedItemActions.promote.action.required_actions ?? []).map(action => action.capability_id)] },
+  presentation: feedPresentation,
   actions: FEED_ACTIONS,
   demo_seed: { capability_id: feedDemoSeedAction.capability_id, version: feedDemoSeedAction.version },
   artifacts: { produces: [{ artifact_type_id: FEED_CAPTURE_ARTIFACT_TYPE_ID, schema_version: FEED_CAPTURE_SCHEMA_VERSION, title: "捕获的消息", title_text: { key: "feed.artifacts.type-title" },

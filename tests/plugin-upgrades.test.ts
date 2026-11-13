@@ -34,6 +34,10 @@ const provider: IntegrationProviderPort = {
   async sync() { return { ok: true, mode: "fixture", items: [], cursor: null }; },
 };
 
+// Coding declares a presentation; these tests seed its earlier installs straight into the runtime, where the Host's own
+// catalog check (assertSurfacePresentation) has nothing to read. They test the version follow, so the declaration is admitted.
+const admitPresentation = () => undefined;
+
 test("compatible code can restore an older install without changing its version until manual upgrade", async () => {
   const original = createGithubIntegrationPlugin({ providerFor: () => provider });
   const repository = new MemoryPluginRuntimeRepository();
@@ -145,7 +149,7 @@ test("a bundled plugin's older install moves up when the project starts, so the 
       ...currentDefinition,
       manifest: { ...currentDefinition.manifest, version: "0.9.0", upgrade_compatibility: undefined },
     };
-    const oldRuntime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS });
+    const oldRuntime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS, assertPresentation: admitPresentation });
     const oldInstall = oldRuntime.install({ trust: { level: "host" },
       definition: olderDefinition,
       deployment: "local",
@@ -194,7 +198,7 @@ for (const shape of ["above the build's version", "at the build's version with a
           : { ...currentDefinition.manifest, name: "An earlier build of the same version", upgrade_compatibility: undefined },
       };
       assert.notEqual(pluginManifestDigest(earlierDefinition.manifest), pluginManifestDigest(currentDefinition.manifest));
-      const earlier = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS }).install({ trust: { level: "host" },
+      const earlier = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS, assertPresentation: admitPresentation }).install({ trust: { level: "host" },
         definition: earlierDefinition,
         deployment: "local",
         grants: currentDefinition.manifest.permissions.filter(item => item.required).map(item => item.permission),

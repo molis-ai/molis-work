@@ -654,12 +654,12 @@ test("PG094-STAGE-01 RAC-1740 RAC-1743 a dual-instance plugin whose stage view i
   const page = async () => { const response = await request(`/projects/${one.project_id}`); assert.equal(response.status, 200); return response.text(); };
   const running = await page();
   // This existing fixture supplies a raw stage fragment, not one of the catalog's deferred opaque documents.
-  assert.ok(running.includes("<section>externalhomestage</section>"));
+  assert.equal(drawnStages(running, probe.id, "externalhomestage"), 1);
   const unavailable = async () => {
     const html = await page();
     const stage = html.match(new RegExp(`<section\\b[^>]*data-work-surface="${probe.id.replaceAll(".", "\\.")}"[^>]*data-home-plugin-unavailable[^>]*>[\\s\\S]*?<\\/section>`, "u"))?.[0];
     assert.ok(stage, "the non-catalog Home fixture owns its unavailable stage");
-    assert.ok(!html.includes("<section>externalhomestage</section>"));
+    assert.equal(drawnStages(html, probe.id, "externalhomestage"), 0);
     return stage;
   };
   await platform.runtime.stop(install.install_id);
@@ -668,13 +668,19 @@ test("PG094-STAGE-01 RAC-1740 RAC-1743 a dual-instance plugin whose stage view i
   const original = platform.runtime.contribution.bind(platform.runtime);
   const missing = t.mock.method(platform.runtime, "contribution", id => id === install.install_id ? null : original(id));
   try { assert.ok((await unavailable()).includes("插件页面未注册")); } finally { missing.mock.restore(); }
-  assert.ok((await page()).includes("<section>externalhomestage</section>"));
+  assert.equal(drawnStages(await page(), probe.id, "externalhomestage"), 1);
 });
+
+/** How many times the fixture's own stage fragment is drawn. Batch 15: its root carries the owner's mount (`data-plugin-owner` …), so the
+ * composition can find it; the fragment's text is still exactly the plugin's. */
+function drawnStages(page: string, pluginId: string, name: string): number {
+  return [...page.matchAll(new RegExp(`<section\\b[^>]*\\bdata-plugin-owner="${pluginId.replaceAll(".", "\\.")}"[^>]*\\bdata-plugin-slot="workbench\\.main"[^>]*>${name}</section>`, "gu"))].length;
+}
 
 /** T-127: what a project page draws for one dual-instance plugin's stage: how many times its view, and each scope's placeholders. */
 function dualStage(page: string, probe: ReturnType<typeof dualPlugin>, name: string) {
   const placeholders = (scope: "home" | "project") => [...page.matchAll(new RegExp(`<section\\b[^>]*data-work-surface="${probe.id.replaceAll(".", "\\.")}"[^>]*data-${scope}-plugin-unavailable[^>]*>[\\s\\S]*?<\\/section>`, "gu"))].map(match => match[0]);
-  return { views: page.split(`<section>${name}</section>`).length - 1, home: placeholders("home"), project: placeholders("project") };
+  return { views: drawnStages(page, probe.id, name), home: placeholders("home"), project: placeholders("project") };
 }
 
 async function dualStagePage(t: TestContext, name: string, viewIn: "home" | "project") {

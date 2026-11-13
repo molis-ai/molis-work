@@ -18,7 +18,7 @@ export function createImSync(base: ImBaseCtx, context: () => ImCtx): Pick<ImCtx,
         if (captured !== s.roomId)
           return; c.connection((uiText.text("im-ui.status.connected"))); scheduleRefresh();
       },
-      revoked() { s.authLost = true; c.connection((uiText.text("im-ui.status.access-expired")), true); c.syncError((uiText.text("im-ui.status.reconnect-expired"))); s.roomState = null; c.syncComposer('group'); c.syncComposer('thread'); },
+      revoked() { s.authLost = true; c.connection((uiText.text("im-ui.status.access-expired")), true); c.syncError((uiText.text("im-ui.status.reconnect-expired"))); s.roomState = null; c.syncComposer("group"); c.syncComposer("thread"); c.refreshObjects?.(); },
       offline() {
         if (captured === s.roomId) {
           c.connection((uiText.text("im-ui.status.reconnecting")), true);
@@ -79,6 +79,7 @@ export function createImSync(base: ImBaseCtx, context: () => ImCtx): Pick<ImCtx,
           s.events?.close();
           c.syncComposer('group');
           c.syncComposer('thread');
+          c.refreshObjects?.();
         }
         c.connection((uiText.text("im-ui.status.sync-interrupted")), true);
         c.syncError(error.status === 403 ? (uiText.text("im-ui.status.room-inaccessible")) : (uiText.text("im-ui.status.sync-keeps-draft")));

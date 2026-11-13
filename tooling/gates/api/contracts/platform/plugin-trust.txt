@@ -128,6 +128,11 @@ export interface PluginUninstallTarget {
     readonly manifest_digest: string;
 }
 
+export interface ProjectPluginInstalledView extends PluginInstalledView {
+    readonly installation_generation: string;
+    readonly manifest_digest: string;
+}
+
 export declare const localPackageSignAction: ActionDefinition<LocalPackageSignInput, LocalPackageSignResult>;
 
 export declare function platformPermissionMeaning(permission: string): string | null;

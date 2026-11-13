@@ -4,6 +4,7 @@
 import { wireCatalogKeepEdits } from "./catalog-keep-edits.js";
 import { wireCatalogAppearance } from "./catalog-appearance.js";
 import { wireCatalogPatterns } from "./catalog-patterns.js";
+import { wireCatalogPresentation } from "./catalog-presentation.js";
 import { wireCatalogSplit } from "./catalog-skill-packs.js";
 import { wireCatalogCapabilityPacks } from "./catalog-capability-packs.js";
 type Craft = { land(element: Element): void; celebrate(element: Element): void };
@@ -189,6 +190,7 @@ all(".mw-catalog .is-yield [data-slot=directory-row]").forEach((row) => {
   });
 });
 wireCatalogPatterns();
+wireCatalogPresentation();
 wireCatalogKeepEdits();
 wireCatalogAppearance();
 wireCatalogSplit();

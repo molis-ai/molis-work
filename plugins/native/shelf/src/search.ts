@@ -17,7 +17,7 @@ export const shelfClipboardSearchEntriesAction = defineSearchEntriesAction("shel
  * reaches as far as `shelf.items.read` (no plugins); a copy deleted from the shelf answers `shelf.not_found`.
  */
 const reader = defineSubjectContextAction("shelf.subject.read", /* @version action.shelf.subject.read */ 1, "shelf_item", "置物架材料", ["shelf:read"], "home");
-export const shelfSubjectAction: ActionDefinition<{ subject_id: string }, ActionSubjectContext> = { ...reader, action: { ...reader.action, audiences: ["user", "workflow", "agent", "mcp"] } };
+export const shelfSubjectAction: ActionDefinition<{ subject_id: string }, ActionSubjectContext> = { ...reader, action: { ...reader.action, execution: { cost: "none" }, audiences: ["user", "workflow", "agent", "mcp"] } };
 
 function shelfSubjectContext(snapshot: ShelfSnapshot, id: string): ActionSubjectContext {
   const item = [...snapshot.materials, ...snapshot.results].find(entry => entry.item_id === id);

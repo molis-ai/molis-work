@@ -76,6 +76,14 @@ export interface AttentionSubjectResolver {
 
 export type AttentionSubjectType = typeof ATTENTION_SUBJECT_TYPES[number];
 
+export interface AttentionSurfaceEntry {
+    owner_plugin_id: string;
+    subject: ActionSubject;
+    reason: AttentionReason;
+    revision: number;
+    entered_at: string;
+}
+
 export interface CreateAttentionEntryInput {
     project_id: string;
     owner_plugin_id?: string | null;

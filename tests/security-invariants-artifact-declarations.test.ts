@@ -257,8 +257,10 @@ test("RAC-415 the registry follows an installed Plugin's Manifest through enable
 test("RAC-415 a built-in Plugin that is not in effect declares nothing, and Goals disabled leaves no link kinds", async t => {
   const p = project(t, bareHome(t));
   // Goals' declarations (its link kinds, its actions) with the pages and routes it serves left out, so a bare start redeems all it declares.
+  // Its presentation goes too (batch 15): its overview opens a stage view, and with no views the Runtime rightly refuses that declaration.
   // Goals is the Host's own build, so it starts under Host trust, as the Host starts it.
-  const manifest = { ...structuredClone(goalsManifest), ui: { locales: goalsManifest.ui.locales, contributions: [], views: [] }, routes: [] } as typeof goalsManifest;
+  const { presentation: _shown, ...declared } = structuredClone(goalsManifest);
+  const manifest = { ...declared, ui: { locales: goalsManifest.ui.locales, contributions: [], views: [] }, routes: [] } as typeof goalsManifest;
   const report = await p.platform.start([entry({ manifest, async start() { return { kind: "app", views: [], actions: (manifest.actions ?? []).map(action => ({ ...action, async handle() { return {}; } })) }; } } as PluginDefinition, { level: "host" })]);
   assert.deepEqual(report.failed, []);
   assert.equal(artifactLinkKinds().has("goal.input"), true);

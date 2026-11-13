@@ -66,6 +66,8 @@
 | 各库的版本号与基线 | 一份当前 schema 加版本，版本不符就拒绝；可由权威事实重建的派生库按自身既有合同重建，不算兼容 | 各库 owner 及 [Home 数据表](HOME-DATA.md)；库移除时移除，不留已移除库的读取路径 |
 | Goal 事件历史、成果的固定版本 | 现行历史记录和固定版本功能，不是旧格式 | Goals 与成果事实 owner；按对应功能和留存合同处理，不因防腐清理删除用户历史 |
 | 库与带版本文件的升级链（`SqliteBaseline.upgrades`、`VersionedFile.upgrades`、`PluginDatabaseDeclaration.upgrades`、升级记录、升级快照） | 统一起点之后，让 `n → n+1` 的结构变更不再要求重建 Home。只在持存储主人锁的升级过程里执行（安装器自己的 `config/installation.json`、`release.json` 在安装器读它们时升，这时还没有宿主），读写路径只认现行版本，不做读时兼容、不做回写回退。比程序新的库只拒绝。起点：第 02 批的统一起点；段的跑法和范围检查对所有插件同一份，唯一的暂时例外是装上的插件写了段在安装时拒绝，移除条件是 U4（用户 2026-11-06 定） | `packages/storage` 负责机制，各库主人负责自己的段。某段在最早支持的金样都用不到时删段；机制随产品保留，不是过渡期 |
+| 第 15 批组合纠正表的项目库 2→3 升级（用户 2026-11-08 批准） | 沿用上一行升级链，新建空 `surface_corrections`；保留原项目数据和 1→2 段，不新增读取兼容。补存着 v2 的独立金样，在隔离 Home 验 1→2→3 与失败保留原数据；不升级真实 Home | 纠正事实归 `horizontal/surfaces`，项目库基线由宿主装配。该段随最早支持金样的规则保留；具体方案见[组合服务 §14.1](../../specs/surface-composition/spec.md#141-s-1-当前开工检查2026-11-08) |
+| 第 15 批 Builder 两种格式的限定同版扩展（用户 2026-11-09 批准） | 仅 `format.builder.saved-state`、`format.builder.portable` 保持 1，允许本次可选 `ui.slots`、组件 `surfaceSlot` 引用及 `surface-slot` kind。旧无挂载位数据仍是当前合法子集；原数据、历史发行物和签名包不改写，不迁移、不读时转换。未知字段、非法引用／组件、签名不符及错误版本严格拒绝且原内容不变。例外不涉及真实 Home，不扩大到其他格式或后续结构变化，也不放宽门禁 | Builder 持久化 owner 与 SDK 共用声明校验；具体接线和正反例见[公共来源与呈现 §7](../../specs/shared-sources-and-surfaces/spec.md#7-sdk-里共用的校验)。这是本次字段加法的准确授权记录，后续变更重新按第 3 节第 4 条处理 |
 
 第 02 批 N30/N36/N37 的 Feed 清理以[本片需求](../../specs/post-anticorruption-roadmap/reference/batches/02.md#origin-reset-preflight)为准：证据正文只用 `feed/evidence/` 和 `system:feed:evidence-content-key:v1`，搜索意图只用 `feed-intent-v1`；环境口令的派生盐为 `molis-work-secretstore-v1`。删除第二密钥、恢复目录和命名空间绕行；旧盐不参与解密，缺钥或认证失败保留错误与原密文，不补副本、不就地迁移。该构建只在隔离 Home 验证，真实 Home 的切换仍要求原可恢复备份和重建窗口；代码合入不表示现场维护完成。
 
@@ -158,6 +160,7 @@
 | `characters/characters.sqlite` | 1 → 4 | 2026-11-04 personal/main 集成（personal `e33e1ade4`、main `8de0b0740`；本次合并提交） | 将个人同步技术表合入现行 owner 完整基线，版本取两分支已用编号以上；只验证隔离新 Home 和旧库拒绝，未维护真实 Home。旧 Home 不自动升级，安装前须另行明确维护或新建方案；本轮只合代码，不更换运行中的应用。 |
 | `projects/<project_id>/molis-work.db` | 1 → 2 | 第 05 批 #1979（项目目录合同：去掉浏览目录设置、加材料最近使用） | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE#1→2` |
 | `projects/catalog.db` | 1 → 2 | 第 05 批 #1979（项目目录合同：工作目录的输入、输出两种角色取代 `is_default`，加来源链接表） | `apps/local-host/src/project-catalog-contract.ts#CATALOG_SCHEMA_VERSION#1→2` |
+| `projects/<project_id>/molis-work.db` | 2 → 3 | 第 15 批 S-1（2026-11-08 用户批准，实施中、尚未验证采用）。新建空 `surface_corrections`，保留 1→2；v2 金样 `0.1.1-dev.1` 已生成并复现，候选回放待本批验证；不操作真实 Home。 | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE#2→3` |
 | `projects/<project_id>/molis-work.db#goals` | 1 → 2 | 第 24 批（逐项依据合同：判断记下所核对的版本、依据与可信层级，结论记下它针对的版本；只加列，旧行按「自述」读） | `plugins/native/goals/src/project-database.ts#GOALS_PROJECT_DATABASE#1→2` |
 | `projects/catalog.db` | 2 → 3 | 2026-11-08 日报 A 类 D0057/D0273；删除退役空表，非空拒绝并保留原库 | `apps/local-host/src/project-catalog-contract.ts#CATALOG_SCHEMA_VERSION#2→3` |
 | `projects/<project_id>/molis-work.db#schedule` | 1 → 2 | 第 25 批第 1 项（错过的运行：晚过宽限的任务记一行错过、照常排下一次，加错过表） | `plugins/native/schedule/src/database.ts#SCHEDULE_PROJECT_DATABASE#1→2` |

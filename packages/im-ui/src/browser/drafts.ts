@@ -25,6 +25,13 @@ export function createDrafts(storage: BrowserStorage) {
     Object.assign(draft, value, { client_id: crypto.randomUUID() });
     save();
   }
+  function objects(target: string, subjects: MessageDraft["subjects"]) {
+    const draft = messages[target];
+    if (!draft) return;
+    draft.subjects = subjects;
+    draft.client_id = crypto.randomUUID();
+    save();
+  }
   function clearMessage(target: string, submittedId: string): boolean {
     if (messages[target]?.client_id !== submittedId)
       return false;
@@ -39,5 +46,5 @@ export function createDrafts(storage: BrowserStorage) {
     storage.write(key, null);
     return true;
   }
-  return { load, save, edit, quote, clearMessage, clearTopic, get: (target: string) => messages[target] };
+  return { load, save, edit, quote, objects, clearMessage, clearTopic, get: (target: string) => messages[target] };
 }

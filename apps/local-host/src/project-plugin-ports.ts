@@ -1,5 +1,5 @@
 import { inLanguagePreview, languagePreviewUnavailable } from "./web-locale.js";
-import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, LOCAL_PERSON_ACTOR_ID, requireSynchronous, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { AgentHostComposition } from "./agent-host-composition.js";
@@ -13,6 +13,8 @@ import type { MolisWorkLocalHostOptions, MolisWorkProjectRuntime } from "./proje
 import { ensureProjectPlugins, runningProjectPlatform } from "./project-plugins.js";
 import { hostDependencyCheck } from "./plugin-actions-client.js";
 import type { HomePluginHost } from "./home-plugins.js";
+import type { ProjectPackageControl } from "./plugin-install-service.js";
+import type { SurfaceInstallCatalog } from "./surface-installation.js";
 import type { PluginUninstallTarget } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import { controlOutcome, type PackageControlOutcome } from "./uninstall-retained.js";
 import { isPendingUninstall } from "./installed-plugin-lifecycle.js";
@@ -25,6 +27,7 @@ export interface ProjectPluginHost {
   readonly host: LocalHost<MolisWorkProjectRuntime>;
   readonly options: MolisWorkLocalHostOptions;
   agents(): AgentHostComposition | undefined;
+  ownerClosing?(): boolean;
   /** The Home's plugin host, which runs a package that asks for the Home (BL-628); none when the Host has no Home. */
   homePlugins(): HomePluginHost | undefined;
 }
@@ -72,6 +75,9 @@ function installedPluginsOf(source: ProjectPluginHost, reference: LocalHostProje
       inspect: caller => host.inspectActions(caller, reference) } });
 }
 
+const projectScopeOpen = (source: ProjectPluginHost, projectId: string) => !source.ownerClosing?.() && source.host.lifecycle() === "running"
+  && source.host.projects().some(row => row.project_id === projectId && row.state !== "closing");
+
 /** Installs a release read from a signed package in the project the person is in; the project's installed plugins are the ones that run it. */
 export async function installPackageInProject(source: ProjectPluginHost, projectId: string, release: InstalledRelease, assertCurrent?: () => void): Promise<void> {
   const reference = source.host.projects().find(row => row.project_id === projectId);
@@ -79,7 +85,8 @@ export async function installPackageInProject(source: ProjectPluginHost, project
   await source.host.withRuntime(reference, async runtime => {
     const installed = await installedPluginsOf(source, reference, runtime);
     assertCurrent?.();
-    await installed.installPackage(release, { consent: true, assertCurrent });
+    const scopeOpen = () => projectScopeOpen(source, projectId);
+    await installed.installPackage(release, { consent: true, assertCurrent, scopeOpen });
     await installed.refreshPublicActions();
   });
 }
@@ -89,23 +96,44 @@ export async function installPackageInProject(source: ProjectPluginHost, project
  * is reached here; the package is read back without asking whether its publisher is still trusted, so a publisher taken back does not stop the
  * person from taking its plugin off. Answers the state the installation is in afterwards.
  */
-export async function controlPackageInProject(source: ProjectPluginHost, projectId: string, pluginId: string, action: "disable" | "enable" | "uninstall",
-  input: { keep_data: boolean; target?: PluginUninstallTarget; assertCurrent?: () => void }): Promise<PackageControlOutcome> {
+export async function controlPackageInProject(source: ProjectPluginHost, projectId: string, input: ProjectPackageControl): Promise<PackageControlOutcome> {
   const reference = source.host.projects().find(row => row.project_id === projectId);
   if (!reference || !source.options.homeDirectory) throw new ActionError("actions.scope_mismatch", "需要一个打开的项目");
   return await source.host.withRuntime(reference, async runtime => {
-    const installed = await installedPluginsOf(source, reference, runtime);
+    const installed = await installedPluginsOf(source, reference, runtime), { plugin_id: pluginId, action } = input;
+    const read = () => installed.records().find(item => item.plugin_id === pluginId);
+    if (action === "enable") {
+      const { caller, expected_installation: expected } = input;
+      const current = () => {
+        caller.signal?.throwIfAborted();
+        requireSynchronous(caller.assert_authority_current?.());
+        if (!projectScopeOpen(source, projectId)) throw new ActionError("actions.host_closed", "项目运行环境已关闭");
+        const record = read();
+        if (expected.scope !== "project" || !record || record.publisher_trust !== "pinned" || record.install_id !== expected.install_id
+          || record.installation_generation !== expected.installation_generation || record.version !== expected.version
+          || record.manifest_digest !== expected.manifest_digest)
+          throw new ActionError("actions.provider_replaced", "原项目插件安装已变化，请重新查看");
+        return record;
+      };
+      await caller.beforeEffect();
+      const installation = current(), release = installed.packageOf(pluginId);
+      if (!release) throw pluginErrors.state_invalid("这个项目里没有从签名的包装进来的这个插件");
+      await installed.lifecycle(action, release, { enable: { installation, beforeEffect: caller.beforeEffect, assertCurrent: current } });
+      await caller.beforeEffect();
+      if (current().state !== "running") throw new ActionError("actions.provider_replaced", "原插件已退出运行，请重新查看");
+      return controlOutcome("running");
+    }
     // Taken off from its trusted row alone (BL-915): its package, gone or altered as it may be, is not read.
     if (action === "uninstall") {
       const retained = await installed.uninstall(pluginId, { keepData: input.keep_data, ...input.target ? { target: input.target } : {}, ...input.assertCurrent ? { assertCurrent: input.assertCurrent } : {} });
       await installed.refreshPublicActions();
-      return controlOutcome(installed.records().find(item => item.plugin_id === pluginId)?.state ?? "uninstalled", retained);
+      return controlOutcome(read()?.state ?? "uninstalled", retained);
     }
     const release = installed.packageOf(pluginId);
     if (!release) throw pluginErrors.state_invalid("这个项目里没有从签名的包装进来的这个插件");
     await installed.lifecycle(action, release, {});
     await installed.refreshPublicActions();
-    return controlOutcome(installed.records().find(item => item.plugin_id === pluginId)?.state ?? "uninstalled");
+    return controlOutcome(read()?.state ?? "uninstalled");
   });
 }
 
@@ -114,6 +142,18 @@ export async function installPackageInHome(source: ProjectPluginHost, release: I
   const home = source.homePlugins();
   if (!home) throw new ActionError("actions.scope_mismatch", "这个 Host 没有 Home，不能把插件装进 Home");
   await home.installPackage(release, assertCurrent);
+}
+
+/** A catalog only sees an open scope; this never starts its Runtime or asks what a caller may invoke. */
+export async function installationPresentationCatalog(source: ProjectPluginHost, projectId: string | null): Promise<SurfaceInstallCatalog> {
+  const home = source.homePlugins();
+  if (projectId === null && home) return home.installationScope.catalog();
+  const reference = source.host.projects().find(row => row.project_id === projectId);
+  const catalog = reference && await source.host.withExistingRuntime(reference, runtime => ({
+    projectId: runtime.project_id, home: source.options.homeDirectory, db: runtime.store.db, registry: source.host.actionRegistry(reference),
+  }));
+  if (!catalog) throw pluginErrors.declaration_invalid("呈现声明的安装范围不可读");
+  return catalog;
 }
 
 /** The plugins installed in a project, each with the Manifest it was installed with; the project's built-in plugins are started first so they are listed too. */
@@ -181,12 +221,13 @@ export async function installedHomePlugins(homePlugins: HomePluginHost | undefin
  * Switches a package installed in the Home off or on, or takes it off (BL-715), for the Host settings door: only an installation that came from
  * a signed package (a plugin of the Host's build or a fixture is not reached here). Answers the state it is in afterwards.
  */
-export async function controlHomePackage(homePlugins: HomePluginHost | undefined, pluginId: string, action: "disable" | "enable" | "uninstall", input: { keep_data: boolean; target?: PluginUninstallTarget; assertCurrent?: () => void }): Promise<PackageControlOutcome> {
+export async function controlHomePackage(homePlugins: HomePluginHost | undefined, pluginId: string, action: "disable" | "enable" | "uninstall",
+  input: { keep_data: boolean; target?: PluginUninstallTarget; assertCurrent?: () => void }, caller?: Partial<Pick<ActionExecutionContext, "beforeEffect" | "assert_authority_current" | "signal">>): Promise<PackageControlOutcome> {
   if (!homePlugins) throw pluginErrors.state_invalid("这个宿主没有个人空间");
   await homePlugins.ready();
   // An uninstall finds and checks its row itself, a finished one named again included (BL-915).
   if (action !== "uninstall" && !homePlugins.hasPackage(pluginId)) throw pluginErrors.state_invalid("个人空间里没有从签名的包装进来的这个插件");
-  const retained = await homePlugins.packageAction(pluginId, action, action === "uninstall" ? { keepData: input.keep_data, ...input.target ? { target: input.target } : {}, ...input.assertCurrent ? { assertCurrent: input.assertCurrent } : {} } : {});
+  const retained = await homePlugins.packageAction(pluginId, action, action === "uninstall" ? { keepData: input.keep_data, ...input.target ? { target: input.target } : {}, ...input.assertCurrent ? { assertCurrent: input.assertCurrent } : {} } : {}, caller);
   return controlOutcome(homePlugins.installation(pluginId)?.state ?? "uninstalled", retained);
 }
 

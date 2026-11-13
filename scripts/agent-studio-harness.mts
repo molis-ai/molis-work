@@ -31,9 +31,9 @@ export function studioHarnessPage(home: string, projectId: string, routePrefix: 
     lang: htmlLang(), project_id: projectId, route_prefix: routePrefix, page: {}, control_token: proof, authorization })));
 }
 
-export function studioHarnessRequests(home: string, projectId: string, token: string, languageMutations?: Map<string, LocalMutationState>) {
+/** `sessions` lets a test share the page sessions with a real Host gateway that answers some of the page's requests. */
+export function studioHarnessRequests(home: string, projectId: string, token: string, languageMutations?: Map<string, LocalMutationState>, sessions = new WebSessions(home)) {
   installHostUiText();
-  const sessions = new WebSessions(home);
   return { close: () => sessions.close(),
     handle(request: IncomingMessage, response: ServerResponse, url: URL, prefix: string, next: (local: URL, proof: string, locale: WebLocale, preview: boolean) => void | Promise<void>) {
       if (studioFrameAsset(response, url.pathname)) return;

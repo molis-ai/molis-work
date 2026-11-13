@@ -186,6 +186,12 @@ export interface PluginUninstallResult {
   readonly retained?: readonly PluginRetainedItem[];
 }
 
+/** The project settings row also carries the release the person can enable. */
+export interface ProjectPluginInstalledView extends PluginInstalledView {
+  readonly installation_generation: string;
+  readonly manifest_digest: string;
+}
+
 /** A background job a Manifest declares (`background.jobs`). */
 export interface PluginJobView {
   readonly job_id: string;

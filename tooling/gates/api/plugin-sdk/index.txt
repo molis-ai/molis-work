@@ -481,6 +481,8 @@ export interface SandboxManifestInput {
 
 export type SandboxSchemaFailure = (kind: "invalid_json" | "invalid_schema" | "schema_mismatch", reason: string) => never;
 
+export type SandboxUiContribution = Pick<UiContributionDeclaration, "slots">;
+
 export type { ScheduledRun } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SearchEntriesInput } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SearchEntriesPage } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -892,6 +894,8 @@ export declare function parsePluginSyncDeclaration(value: unknown): PluginSyncDe
 
 export declare function parsePorcelainStatus(input: PorcelainInput): GitStatus;
 
+export declare function parseSandboxUi(value: unknown): SandboxUiContribution | undefined;
+
 export declare function parseSyncAggregates(value: unknown): readonly SyncAggregateDeclaration[];
 
 export declare function parseSyncTracking(value: unknown): readonly SyncTrackedTable[];
@@ -1003,6 +1007,12 @@ export declare function sandboxRoleIdentity(pluginId: string, name: string): {
 };
 
 export declare const sandboxUiContribution: (pluginId: string) => string;
+
+export declare function sandboxUiDeclaration(input: {
+    pluginId: string;
+    name: string;
+    ui?: SandboxUiContribution;
+}): UiContributionDeclaration;
 
 export { sceneConfigurationActions } from "@molis-ai/molis-work-contracts/platform/actions";
 export { searchEntriesPage } from "@molis-ai/molis-work-contracts/platform/actions";

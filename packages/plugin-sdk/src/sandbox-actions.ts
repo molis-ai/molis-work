@@ -3,6 +3,7 @@ import type { ActionDefinition } from '@molis-ai/molis-work-contracts/platform/a
 import { pluginErrors } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxOperationContract, SandboxPluginContract, SandboxSchema, SandboxEffects } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { sandboxOperationPermissions } from './sandbox-manifest.js';
+import { sandboxReadProtocolAction } from './sandbox-read-protocol.js';
 
 /** The package identity already used for installed signed releases. It never depends on the running directory. */
 export const sandboxPackageBuildId = (pluginId: string, signature: string) => createHash('sha256').update(JSON.stringify([pluginId, signature])).digest('hex').slice(0, 32);
@@ -37,7 +38,8 @@ export function sandboxBackgroundProblems(contract: SandboxPluginContract): stri
     const job = raw as Record<string, unknown>;
     if (Object.keys(job).some(key => !['status', 'id', 'input', 'state', 'done', 'failed'].includes(key))) fail('unsupported metadata field');
     const status = typeof job.status === 'string' ? contract.operations.find(item => item.id === job.status) : undefined;
-    if (!status || status.kind !== 'query') { fail('status must name a query of this contract'); continue; }
+    if (!status || status.kind !== 'query' || status.read_protocol !== undefined) { fail('status must name a query of this contract'); continue; }
+    if (operation.read_protocol !== undefined) continue;
     const id = requiredPath(operation.output, job.id), input = requiredPath(status.input, job.input);
     const state = requiredPath(status.output, job.state), returnedState = requiredPath(operation.output, job.state);
     if (id?.type !== 'string' || input?.type !== 'string') fail('job id and status input must resolve to required string fields');
@@ -69,15 +71,24 @@ export function sandboxOperationEffects(contract: SandboxPluginContract, operati
 export function sandboxOperationActions(input: { contract: SandboxPluginContract; buildId: string; version: number; title: string; scope: 'home' | 'project' }): ActionDefinition[] {
   const problems = sandboxBackgroundProblems(input.contract);
   if (problems.length) throw pluginErrors.declaration_invalid(problems.join('; '));
-  return input.contract.operations.map(operation => ({
-    capability_id: sandboxActionId(input.buildId, operation.id), version: input.version, operation: operation.kind,
-    action: { local_id: operation.id, title: input.title + ' · ' + (operation.description || operation.id),
-      description: '插件「' + input.title + '」的功能：' + (operation.description || operation.id), kind: operation.kind === 'query' ? 'query' : 'operation',
-      scope: input.scope, scheduling: 'concurrent', audiences: ['user', 'agent', 'workflow', 'mcp', 'plugin'],
-      permissions: sandboxOperationPermissions(sandboxOperationEffects(input.contract, operation)), subject_kinds: [],
-      input_schema: { ...operation.input }, output_schema: { ...operation.output },
-      ...(operation.background_job ? { background_job: { ...operation.background_job,
-        status: { capability_id: sandboxActionId(input.buildId, operation.background_job.status), version: input.version } } } : {}),
-    },
-  }));
+  return input.contract.operations.map(operation => {
+    if (operation.read_protocol !== undefined) {
+      const definition = sandboxReadProtocolAction(operation, { capabilityId: sandboxActionId(input.buildId, operation.id), version: input.version,
+        title: input.title + ' · ' + (operation.description || operation.id), scope: input.scope,
+        permissions: sandboxOperationPermissions(operation.effects) });
+      return { ...definition, action: { ...definition.action, local_id: operation.id } };
+    }
+    return {
+      capability_id: sandboxActionId(input.buildId, operation.id), version: input.version, operation: operation.kind,
+      action: { local_id: operation.id, title: input.title + ' · ' + (operation.description || operation.id),
+        description: '插件「' + input.title + '」的功能：' + (operation.description || operation.id), kind: operation.kind === 'query' ? 'query' : 'operation',
+        scope: input.scope, scheduling: 'concurrent', audiences: ['user', 'agent', 'workflow', 'mcp', 'plugin'],
+        permissions: sandboxOperationPermissions(sandboxOperationEffects(input.contract, operation)), subject_kinds: [],
+        input_schema: { ...operation.input }, output_schema: { ...operation.output },
+        ...(operation.external === undefined ? {} : { external: operation.external }),
+        ...(operation.background_job ? { background_job: { ...operation.background_job,
+          status: { capability_id: sandboxActionId(input.buildId, operation.background_job.status), version: input.version } } } : {}),
+      },
+    };
+  });
 }

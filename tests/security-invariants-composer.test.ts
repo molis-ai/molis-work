@@ -89,6 +89,10 @@ test("S-composer-source-call UIC-02 item 2 a source on an action that is not a r
     ["a layer that is not one", source({ composer_source: { title: "笔记", layers: ["voice"] } })],
     ["no name", source({ composer_source: { title: " ", layers: ["ai"] } })],
     ["a field the declaration does not have", source({ composer_source: { title: "笔记", layers: ["ai"], draft: true } })],
+    // title_text is only a line of the plugin's own language files, by key; nothing else that a TextRef can carry.
+    ["a name line that is not a key", source({ composer_source: { title: "笔记", title_text: { literal: "Notes" }, layers: ["ai"] } })],
+    ["a name line with more than its key", source({ composer_source: { title: "笔记", title_text: { key: "notes.directory.name", args: {} }, layers: ["ai"] } })],
+    ["a name line whose key is not text", source({ composer_source: { title: "笔记", title_text: { key: 1 }, layers: ["ai"] } })],
   ];
   for (const [what, definition] of refusals) {
     assert.ok(inspectActionDeclarations([definition, reader], undefined).includes(NOT_A_SOURCE), what);

@@ -77,12 +77,14 @@ export interface MaterialSourceContent {
  * the reader says why a file it takes turns out not to be text (`decodeMaterialText`), so nothing readable disappears unseen.
  *
  * Self-contained on purpose: the onboarding page runs this same function as its source text, and the Host checks the selection
- * with it, so the page and the Host never keep two lists (as `platform/loopback` is the one test of a local address).
+ * with it, so the page and the Host never keep two lists (as `platform/loopback` is the one test of a local address). The desktop
+ * shell walks a granted folder natively with its own copy (`apps/desktop/adapters/tauri/src/context_directory_files.rs`), held to
+ * the same cases by its test `file_rule_matches_the_hosts`.
  */
 export function contextFileSkip(path: string): "ignored" | "secret" | "unreadable" | null {
   const parts = path.split("/"), name = (parts.at(-1) ?? "").toLowerCase();
-  const ignoredFolders = ["node_modules", "vendor", "dist", "build", "target", "out", "coverage", "__pycache__", "venv"];
-  if (parts.slice(0, -1).some(part => part.startsWith(".") || ignoredFolders.includes(part))) return "ignored";
+  const ignoredFolders = ["node_modules", "vendor", "dist", "build", "target", "out", "coverage", "__pycache__", "venv", "pods", "carthage"];
+  if (parts.slice(0, -1).some(part => part.startsWith(".") || ignoredFolders.includes(part.toLowerCase()))) return "ignored";
   // Hidden files that only say how a project is kept; any other hidden file may hold a credential and is not sent.
   const hiddenKept = [".gitignore", ".gitattributes", ".editorconfig", ".dockerignore", ".prettierrc", ".eslintrc", ".nvmrc", ".node-version", ".tool-versions"];
   if (/^\.env(\..*)?$/u.test(name) || /\.(pem|key|p12|pfx|keystore|jks)$/u.test(name) || /^id_(rsa|ed25519|ecdsa|dsa)(\.pub)?$/u.test(name)) return "secret";

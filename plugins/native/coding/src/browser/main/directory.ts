@@ -79,9 +79,9 @@ function drawRow(page: Page, row: HTMLElement, session: SessionRecord, visible: 
       restore.setAttribute("aria-label", uiText.text("coding.session.restore")); restore.title = uiText.text("coding.session.restore"); row.append(restore);
     }
   } else restore?.remove();
-  row.setAttribute("aria-current", String(s.current === session.session_id));
-  row.querySelector("[data-coding-session]")?.setAttribute("aria-current", String(s.current === session.session_id));
-  row.classList.toggle("is-selected", s.current === session.session_id);
+  const link = row.querySelector("[data-coding-session]"), selected = s.current === session.session_id;
+  link?.setAttribute("aria-current", String(selected));
+  link?.classList.toggle("is-selected", selected);
   const title = row.querySelector<HTMLElement>(".coding-session-title"), time = row.querySelector("time"), mark = row.querySelector<HTMLElement>(".coding-session-state");
   if (!title || !time || !mark) return;
   const shown = sessionTitle(session.title);

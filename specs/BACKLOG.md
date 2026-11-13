@@ -10,7 +10,7 @@
 - 做完一条就删掉对应条目文件，在提交说明里写编号。不改编号，不复用编号。
 - 只抽取与归并，不重新设计需求。几处说法冲突的，列在「待你决定」。
 
-新增条目使用 `BL-<语义名称>.md`，不争抢连续编号；旧编号不改、不复用。每个文件保留分组和原来的八列信息。统一查看：`node scripts/backlog-index.mjs`（摘要、分组计数、`--group/--type/--priority/--owner/--list` 筛选）或 `node scripts/gates/backlog-rows.mjs --report`（原始逐条）；不提交重复汇总表。以下各节保留分组说明，正文都在独立条目里。当前 503 条；计数由 `backlog-index` 现算。已删除、已并入或只在分支的历史编号见 [REMOVED.md](../docs/backlog-removed.md)。
+新增条目使用 `BL-<语义名称>.md`，不争抢连续编号；旧编号不改、不复用。每个文件保留分组和原来的八列信息。统一查看：`node scripts/backlog-index.mjs`（摘要、分组计数、`--group/--type/--priority/--owner/--list` 筛选）或 `node scripts/gates/backlog-rows.mjs --report`（原始逐条）；不提交重复汇总表。以下各节保留分组说明，正文都在独立条目里。当前 506 条；计数由 `backlog-index` 现算。已删除、已并入或只在分支的历史编号见 [REMOVED.md](../docs/backlog-removed.md)。
 
 类型：**待你验收**（做完了、等用户本人试用）、**待你决定**（要用户拍板）、**未实现**、**部分实现**、**明确后续做**（原 spec 写明了留到以后）、**已知缺口**（实现里如实标注的限制）。
 

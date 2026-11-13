@@ -300,6 +300,7 @@ test("a long-term memory learned in this Session is read-only on the Session pag
   })()` });
   await openCoding(j, own);
   assert.deepEqual(await ids(j.page), [learned, role, local].map(one => one.memory_id).sort());
+  assert.match(await j.page.evaluate<string>(`document.querySelector('${active} [data-memory-intro]').textContent`), /包括在此学到的长期记忆/);
   for (const item of [learned, role]) {
     const link = await j.page.evaluate<{ text: string; href: string } | null>(`(() => { const a = document.querySelector('${row(item.memory_id)} [data-memory-manage-elsewhere]');
       return a ? { text: a.textContent, href: a.getAttribute('href') } : null; })()`);
@@ -374,7 +375,8 @@ for (const kind of ["coding", "assistant"] as const) test(`${kind} fixed Session
     await j.page.click(active + " [data-memory-clear]"); await j.page.wait("document.querySelector('[data-memory-confirm-yes]')");
     const response = await lastReply<MemorySessionClearPreview>(j, base + "/clear/preview"); assert.equal(response.status, 200);
     assert.ok(response.value.preview_id); assert.equal(response.value.memory_count, 2); assert.equal(response.value.candidate_count, 0);
-    assert.match(await j.page.evaluate<string>("document.querySelector('dialog.memory-confirm').textContent"), /将清除这个会话的 2 条记忆和 0 条待认可建议/);
+    assert.match(await j.page.evaluate<string>("document.querySelector('dialog.memory-confirm').textContent"),
+      /将清除本会话的 2 条记忆和 0 条待认可建议，包括在此学到的长期记忆。对话和其他记忆会保留。/);
     return response.value.preview_id;
   };
   const cancelled = await preview();
@@ -600,7 +602,7 @@ for (const kind of ["coding", "assistant"] as const) test(`${kind} real Run leav
   await j.page.click(active + " [data-memory-clear]"); await j.page.wait("document.querySelector('[data-memory-confirm-yes]')");
   const preview = await lastReply<MemorySessionClearPreview>(j, base + "/clear/preview"); assert.equal(preview.status, 200);
   assert.equal(preview.value.memory_count, 0); assert.equal(preview.value.candidate_count, 1); assert.ok(preview.value.preview_id);
-  assert.match(await j.page.evaluate<string>("document.querySelector('dialog.memory-confirm').textContent"), /将清除这个会话的 0 条记忆和 1 条待认可建议/);
+  assert.match(await j.page.evaluate<string>("document.querySelector('dialog.memory-confirm').textContent"), /将清除本会话的 0 条记忆和 1 条待认可建议/);
   await j.page.click("[data-memory-confirm-yes]");
   await j.page.wait(`document.querySelector('${active} [data-memory-clear-status]')?.textContent.includes('本会话清理已完成')`); await ready(j.page);
   const result = await lastReply<MemorySessionClearResult>(j, base + "/clear/apply"); assert.equal(result.status, 200); assert.equal(result.value.complete, true);

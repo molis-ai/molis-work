@@ -6480,7 +6480,7 @@
     "workbench.settings-memory.main-switch-off-no-new-memories-no-suggestions": "The main switch. Off: no new memories and no suggestions; existing ones are still used.",
     "workbench.settings-memory.make-personal": "Make it personal",
     "workbench.settings-memory.make-project-memory": "Make it a project memory",
-    "workbench.settings-memory.manage-memories-candidates-belonging-session-clearing-keeps-conversati": "Manage memories and candidates belonging to this session. Clearing keeps the conversation, other sessions and long-term memories.",
+    "workbench.settings-memory.session-intro": "See this session’s memories and suggestions, including long-term memories learned here.",
     "workbench.settings-memory.may-conflict": "May conflict",
     "workbench.settings-memory.may-repeat": "May repeat",
     "workbench.settings-memory.memory": "Memory",
@@ -6648,7 +6648,7 @@
     "workbench.settings-memory.when-say-now-remember-kept-once-told-where": "When you say “from now on…” or “remember…”, it is kept at once and you are told where it applies.",
     "workbench.settings-memory.when-work-ends-suggest-what-worth-keeping-accept": "When a work ends, suggest what is worth keeping, for you to accept.",
     "workbench.settings-memory.who-can-use-them": "Who can use them",
-    "workbench.settings-memory.will-clear-memories-and-suggestions": "Clears this session’s memories ({memories}) and pending suggestions ({candidates}). The conversation and other memories stay.",
+    "workbench.settings-memory.will-clear-memories-and-suggestions": "Clear {memories} memories and {candidates} suggestions from this session, including long-term memories learned here. The conversation and other memories stay.",
     "workbench.settings-memory.will-delete-count-count-once-deleted-they-never": {
       "plural_arg": "count",
       "forms": {

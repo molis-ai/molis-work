@@ -238,7 +238,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     }
     if (sessionMode) {
       part("title").textContent = globalThis.t.text("workbench.settings-memory.session-memory");
-      part("intro").textContent = globalThis.t.text("workbench.settings-memory.manage-memories-candidates-belonging-session-clearing-keeps-conversati");
+      part("intro").textContent = globalThis.t.text("workbench.settings-memory.session-intro");
       part("clear-title").textContent = globalThis.t.text("workbench.settings-memory.clear-all-memories-candidates-session"); part("clear").textContent = globalThis.t.text("workbench.settings-memory.clear-3");
       root.querySelectorAll(".memory-prefs, [data-memory-classes], [data-memory-pairs-section], [data-memory-changes-section], .memory-rules-note").forEach(node => { node.hidden = true; });
       for (const name of ["upkeep-run", "export", "import"]) part(name).closest(".settings-setting-row").hidden = true;

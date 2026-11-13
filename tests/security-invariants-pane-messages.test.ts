@@ -259,7 +259,7 @@ test("S-30 RAC-916-L5: a known side owner relays the complete Assistant offer; f
 });
 
 /**
- * The page's context bus with what a side view has in hand (specs/context-program §21.4 W3-C, specs/side-shelf AC-S04): the
+ * The page's context bus with what a side view has in hand (specs/context-program §21.4 W3-C, specs/context-program/side-shelf.md AC-S04): the
  * shipped factory runs on a small page port. A `workbench-surface-focus` counts only from the window of a side panel plugin
  * frame (the same `SIDE_FRAME_FROM_SCRIPT` check as `molis:side-forward`) or of a split pane; from anywhere else it is dropped:
  * nothing is asked of the Host and no toolbar is drawn, here or in any frame.

@@ -536,7 +536,7 @@ test("RAC-2557 S-103 a sandboxed package that asks for terminal:run is stopped b
   assert.deepEqual(started, [], "no sandboxed package's code ran");
 });
 
-test("RAC-2564 S-103 a command is an absolute path or a bare name on the platform's PATH, anything else is refused and a missing name is unavailable; the terminal gets the platform's variables and, without a named workspace, the preferred one; a runtime resumes the session it names as one argument, and a session with a space or `;`, or with a command, is refused", { timeout: 60_000 }, async t => {
+test("RAC-2564 S-103 a command is an absolute path or a bare name on the platform's PATH, anything else is refused and a missing name is unavailable; the terminal gets the platform's variables and, without a named workspace, the output directory; a runtime resumes the session it names as one argument, and a session with a space or `;`, or with a command, is refused", { timeout: 60_000 }, async t => {
   const probe = launchProbe("launchprogram");
   const f = await open(t, [probe]), project = await f.project("程序");
   const { folder, workspace_id } = await linkWorkspace(t, f, project);
@@ -556,7 +556,7 @@ test("RAC-2564 S-103 a command is an absolute path or a bare name on the platfor
   const panelId = panelOf(install.install_id, project.project_id, "named");
   assert.deepEqual(answer.value, { panelId, started: true });
   const env = Object.fromEntries((await ranIn(marker)).split("\n").map(line => [line.slice(0, line.indexOf("=")), line.slice(line.indexOf("=") + 1)]));
-  assert.equal((await readFile(`${marker}.cwd`, "utf8")).trim(), folder, "the project's preferred linked workspace");
+  assert.equal((await readFile(`${marker}.cwd`, "utf8")).trim(), folder, "the project's output directory");
   assert.deepEqual({ MOLIS_WORK_HOME: env.MOLIS_WORK_HOME, MOLIS_WORK_MCP_AUDIENCE: env.MOLIS_WORK_MCP_AUDIENCE, MOLIS_WORK_RUNTIME_ID: env.MOLIS_WORK_RUNTIME_ID,
     MOLIS_WORK_WORK_CONTEXT_ID: env.MOLIS_WORK_WORK_CONTEXT_ID, MOLIS_WORK_WORK_CONTEXT_STABLE: env.MOLIS_WORK_WORK_CONTEXT_STABLE, MOLIS_WORK_PANEL_ID: env.MOLIS_WORK_PANEL_ID,
     MOLIS_WORK_FOCUS_ID: env.MOLIS_WORK_FOCUS_ID, MOLIS_WORK_WEB_URL: env.MOLIS_WORK_WEB_URL, TERM: env.TERM, COLORTERM: env.COLORTERM }, {

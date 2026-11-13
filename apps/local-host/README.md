@@ -143,7 +143,7 @@ Memory 恢复从当前可核验的唯一顶层 `memory-forgetting-v2.json` 取�
 独立文件登记于现 homeStoreRegistry：旧离线 snapshot / restore 拒绝未知顶层 store，旧 recover 在 journal 路径校验拒绝，早于任何 rollback / publish。旧正常 Host/Web/MCP 仍依赖当前完整偏好合同的初始化拒写，两部分必须一起交付，不能删除事实文件退版。仅记忆账本损坏且独立事实可核验时保证恢复；独立文件丢失/损坏不能补空，也不伪造机制出现前的历史事实。项目和 Session 删除恢复不据本片完成。回归：`tests/home-restore-memory-forgetting.test.ts`、`tests/home-restore-forgetting-old-cli.test.ts`。
 本机内容包签名由 `plugin-install` 的 `plugins.local_packages.sign@1` 持有。本人从发起项目确认导入后，宿主在接触发布身份前核对内容，再返回普通安装预览 ID。安装服务按原项目、操作者和有效期回取视图，沿同一次明确同意确认安装。发布者未被固定时，确认才会固定。隔离 Home 的回归在 [安装](../../tests/security-invariants-plugin-install.test.ts) 与 [导入](../../tests/security-invariants-skill-import.test.ts) 用例中。
 
-工作台页面由 `web-sessions.ts` 签发有界、精确 origin 和空间修订绑定的传输会话；HTML 与页面可读账号状态不返回宿主控制凭据。账号身份仍由既有账号会话独占，传输会话只拥有认证与 CSRF 证明。HTTP、三个 socket、插件页面和动作尾检查捕获原会话，撤销不借后继会话；受信进程认证独立，携带私有控制头的请求不签发浏览器会话。验证 `tests/security-invariants-web-sessions.test.ts`，完整范围见 [D0038 spec](../../specs/daily-quality-d0038/spec.md)。
+工作台页面由 `web-sessions.ts` 签发有界、精确 origin 和空间修订绑定的传输会话；HTML 与页面可读账号状态不返回宿主控制凭据。账号身份仍由既有账号会话独占，传输会话只拥有认证与 CSRF 证明。HTTP、三个 socket、插件页面和动作尾检查捕获原会话，撤销不借后继会话；受信进程认证独立，携带私有控制头的请求不签发浏览器会话。验证 `tests/security-invariants-web-sessions.test.ts`，完整范围见 [D0038 spec](../../specs/archive/daily-quality-d0038/spec.md)。
 
 首次 Host 或独立 Catalog 取得 Home 所有权前，先以只读检查拒绝非空且缺少 Memory ledger 的 Home，避免拒绝后新增 owner 目录。未完成恢复优先拒绝；已有 owner 的借用路径不变。早检查不授予初始化许可，取得锁后仍重新判定完整 Memory 状态。回归：`tests/cross-device-continuity.test.ts`、`tests/memory-initialization.test.ts`、`tests/security-invariants-home-storage-owner.test.ts`、`tests/security-invariants-home-restore-guard.test.ts`。
 

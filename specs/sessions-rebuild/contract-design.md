@@ -1174,7 +1174,7 @@ C-2、C-3 只有定义，宿主还没登记，所以不动 `tooling/gates/action
 | SRB-04 | 登记发送方式；不定动作 | 59 |
 | SRB-05 | 不涉及 | 59 |
 | SRB-06 | 范围、项目 AI 读取许可、再核、受众、不变量 S-sessions-read-roots、S-sessions-recheck-before-return、S-sessions-person-decides | 34 实现与拒绝测试；发送部分 59 |
-| SRB-07 | 入口分行、地区分行、`shares_sessions_with` 必须实测 | 34、59 逐入口验 |
+| SRB-07 | 入口分行、地区分行、`shares_sessions_with` 必须实测 | 34、60 逐入口验 |
 | SRB-08 | 列表与历史合同按定样写 | 34 高保真与实操，本人验收 |
 | SRB-09 | 只给读取能力，导入整理不在这里 | 35（Onboarding）；写入按各主人流程 |
 | SRB-10 | 第 10.3 节的分界与 `position` | 28 接入，59 持续跟进 |

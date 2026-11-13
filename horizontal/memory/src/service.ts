@@ -813,8 +813,7 @@ export class MemoryService {
       located = { scope: record.scope, owner: record.owner, entry, meta: { memory_id: entry.memory_id, scope: record.scope, owner: record.owner, ...facts, state: "active", state_reason: null, created_at: at, updated_at: at } };
       change = "accepted";
     }
-    const settledScope = await this.ports.backend.withCaller(holder).candidates.list(record.scope, record.owner);
-    const accepted = settledScope.find(item => item.candidate_id === candidateId);
+    const settledScope = await this.ports.backend.withCaller(holder).candidates.list(record.scope, record.owner), accepted = settledScope.find(item => item.candidate_id === candidateId);
     if (!accepted) throw memoryErrors.conflict("候选提交后的关联不可确认，请使用原操作对账");
     const kept: MemoryCandidateRecord = { ...record, version: accepted.version, text, state: "accepted", memory_id: located.entry.memory_id };
     this.ports.ledger.transaction(() => {

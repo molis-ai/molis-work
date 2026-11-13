@@ -30,6 +30,8 @@ const answer = (message) => {
   if (method === "textDocument/definition") {
     if (!initialized) { send({ id, error: { code: -32002, message: "not initialized" } }); return; }
     send({ id, result: [location(2, 9)] });
+    // A crash after the answer, so a test can see a restarted client open the same document again.
+    if (process.env.FAKE_LSP_EXIT_AFTER_DEFINITION) setTimeout(() => { note("exited-after-definition"); process.exit(0); }, 10);
     return;
   }
   if (method === "textDocument/references") {

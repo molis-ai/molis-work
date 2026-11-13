@@ -101,3 +101,19 @@ test("A4-1 可选的 language-servers.json 写坏了：只关代码智能并说�
     assert.equal(usable?.problem, undefined);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
+
+test("A4-1 服务器崩溃重启后重新打开同一份文档", { timeout: 30_000 }, async () => {
+  const home = workspace();
+  process.env.FAKE_LSP_EXIT_AFTER_DEFINITION = "1";
+  try {
+    const intelligence = createCodeIntelligence({ servers: servers(home.log), rootPath: home.root });
+    const first = await intelligence.symbolIndex({ args: { path: "src/a.ts", symbol: "greet" } } as never);
+    assert.match(first, /symbol greet in src\/a\.ts/);
+    for (let i = 0; i < 100 && !readFileSync(home.log, "utf8").includes("exited-after-definition"); i++) await new Promise((resolve) => setTimeout(resolve, 20));
+    const second = await intelligence.symbolIndex({ args: { path: "src/a.ts", symbol: "greet" } } as never);
+    assert.match(second, /symbol greet in src\/a\.ts/);
+    const opened = readFileSync(home.log, "utf8").split("\n").filter((line) => line.startsWith("opened:file://"));
+    assert.equal(opened.length, 2, "the restarted server must be told to open the unchanged document again");
+    await intelligence.close();
+  } finally { delete process.env.FAKE_LSP_EXIT_AFTER_DEFINITION; delete process.env.FAKE_LSP_LOG; home.close(); }
+});

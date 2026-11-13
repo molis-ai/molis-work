@@ -175,16 +175,16 @@ export function createCodeIntelligence(input: {
     const text = await readFile(absolute, "utf8");
     if (text.length > MAX_TEXT_CHARS) throw new Error("coding.find-symbol does not read files above 2,000,000 characters");
     const previous = texts.get(absolute);
-    if (previous !== text) {
-      if (previous === undefined) {
-        client.openDocument({ path: absolute, text, languageId });
-        versions.set(absolute, 1);
-        openWith.set(absolute, client);
-      } else {
-        const version = (versions.get(absolute) ?? 1) + 1;
-        client.changeDocument({ path: absolute, text, version });
-        versions.set(absolute, version);
-      }
+    // A restarted server has never seen the document, even when its text did not change while it was down.
+    if (previous === undefined || openWith.get(absolute) !== client) {
+      client.openDocument({ path: absolute, text, languageId });
+      versions.set(absolute, 1);
+      openWith.set(absolute, client);
+      texts.delete(absolute); texts.set(absolute, text);
+    } else if (previous !== text) {
+      const version = (versions.get(absolute) ?? 1) + 1;
+      client.changeDocument({ path: absolute, text, version });
+      versions.set(absolute, version);
       texts.delete(absolute); texts.set(absolute, text);
       for (const held of texts.keys()) {
         if (texts.size <= MAX_OPEN_DOCUMENTS) break;

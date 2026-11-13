@@ -35,6 +35,7 @@ export interface ToolFetcherOptions {
   readonly timeoutMs?: number;
 }
 
+// 生产配置必须显式 registry；这个默认值只给直接调用/测试。
 const DEFAULT_REGISTRY = "https://registry.npmjs.org";
 const DEFAULT_TIMEOUT_MS = 120_000;
 /** One path piece under the tools root: scoped package names and build versions must survive the trip. */

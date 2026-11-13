@@ -14,7 +14,7 @@ const catalogRouteIds = [...routeSource.matchAll(/^ {2}\{ id: "([a-z-]+)", handl
 // held version on again) each answer one address of their own, just before the project index.
 test("the catalog's addresses are tried in the order they always were, each entry under its own name", () => {
   assert.deepEqual(catalogRouteIds, [
-    "settings-address", "capabilities-redirect", "project-arrival", "search", "composer-sources", "composer-drafts", "placement", "functions", "onboarding", "desktop-capsule",
+    "settings-address", "capabilities-redirect", "project-arrival", "search", "composer-sources", "composer-drafts", "placement", "observation-ui", "functions", "onboarding", "desktop-capsule",
     "component-board", "settings-home", "personal-planning", "model-settings", "settings-page", "plugin-settings-page", "connector-connections",
     "connector-methods", "connectors-settings", "mcp-action-settings", "runtime-settings", "project-settings", "pty-client", "health", "runtime-overview", "upgrade-notice", "update-hold", "project-index",
   ]);

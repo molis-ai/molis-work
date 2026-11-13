@@ -222,9 +222,7 @@ export class ObservationWriter {
 
   /** The person cleared a plugin's data (contract-design §6): its own records go, and the content of the calls it answered or made. */
   purgePlugin(purge: PluginPurge): void {
-    const install = new Set(purge.install_ids), provider = new Set(purge.provider_ids);
-    this.queue = this.queue.filter(record => !(record.row.owner_kind === "plugin" && record.row.owner_id === purge.plugin_id)
-      && !(record.row.install_id && install.has(record.row.install_id)) && !(record.row.provider_id && provider.has(record.row.provider_id)));
+    // What waits is written first, so the clean-up below sees it: its calls keep their rows, their content goes like the rest.
     this.folds.clear();
     this.flush();
     const db = this.tryOpen();

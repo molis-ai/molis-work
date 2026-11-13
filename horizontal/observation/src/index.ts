@@ -1,10 +1,10 @@
-export { OBSERVATION_STORE, OBSERVATION_BASELINE } from "./schema.js";
+export { OBSERVATION_STORE, OBSERVATION_BASELINE, OBSERVATION_HOME_STORE } from "./schema.js";
 export { observationErrors } from "./errors.js";
 export { withObservationSource, currentObservationSource, type ObservationScopeClass } from "./source-scope.js";
 export { observationKeys, OBSERVATION_EVIDENCE_KEY_REF, OBSERVATION_DIGEST_KEY_REF, type ObservationKeys } from "./keys.js";
 export { entryOf, ownerName, ownerPrefix, type ObservationEnvironment, type CoverageKey } from "./records.js";
 export { exitSkips, type ExitAction, type ExitObservation } from "./exit.js";
-export type { PluginPurge } from "./lifecycle.js";
+export { clearObservationProjectFile, purgeObservationPluginFile, type PluginPurge } from "./lifecycle.js";
 export { ObservationLayer, type ObservationLayerOptions } from "./service.js";
 export { readRecords, readCoverage, readCoverageGaps, type RecordFilter, type CoverageRow, type CoverageGapRow } from "./queries.js";
 export { snapshotText } from "./evidence.js";

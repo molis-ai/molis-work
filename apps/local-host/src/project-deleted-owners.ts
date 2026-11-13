@@ -6,6 +6,7 @@ import { functionsProjectData } from "@molis-ai/molis-work-module-judgment-rules
 import { existsSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import { purgeProjectMemories } from "@molis-ai/molis-work-service-memory";
+import { clearObservationProjectFile } from "@molis-ai/molis-work-service-observation";
 import { MEMORY_LEDGER_STORE, TEXT_SEARCH_STORE, clearKnowledgeProject, hasStorageBusinessFiles, homeSqlitePartitionDirectory, homeSqlitePath, openMemoryLedger } from "@molis-ai/molis-work-storage";
 import type { ProjectDeletedOwner } from "./project-deleted-hooks.js";
 import { ProjectDeletedDeferred } from "./project-deleted-deferred.js";
@@ -25,6 +26,8 @@ import { forgetTaskGrantSubjects } from "./task-grant-subjects.js";
 /** The two owners whose data sits in a running service: what each says in the deletion receipt and, if it has one, in the dialog. */
 export const MEMORY_OWNER = { id: "memory", label: { key: "workbench.project-deletion.memory" } } as const;
 export const SEARCH_OWNER = { id: "search", label: null } as const;
+/** The work records of the project (observation-collection §6): a running Host's layer takes this id over, to drop its queue too. */
+export const OBSERVATION_OWNER = { id: "observation", label: { key: "workbench.project-deletion.observation" } } as const;
 
 /**
  * Memory is kept in the Agent runtime, which one process of the Home owns: the executor, the resident Web Host. A
@@ -120,6 +123,7 @@ export function homeProjectOwners(home: string): ProjectDeletedOwner[] {
     { id: "plugin-project-reach", label: null, clear: projectId => { new HomeConsentLedger(home).revokeProjectReach({ project_id: projectId }, new Date().toISOString()); } },
     // What the person let the project's background tasks read (task grant subjects of this project, in the Home's action grants).
     { id: "task-grants", label: null, clear: async projectId => { await forgetTaskGrantSubjects(home, subject => subject.project_id === projectId); } },
+    { ...OBSERVATION_OWNER, clear: projectId => { clearObservationProjectFile(home, projectId); } },
     // Their services exist only in a Host: here they wait for it (the Host's own owners take these ids over while it runs).
     memoryOwnerWithoutService(home),
     searchOwnerWithoutService(home),

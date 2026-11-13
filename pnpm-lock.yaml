@@ -467,6 +467,9 @@ importers:
       '@molis-ai/molis-work-service-memory':
         specifier: workspace:*
         version: link:../../horizontal/memory
+      '@molis-ai/molis-work-service-observation':
+        specifier: workspace:*
+        version: link:../../horizontal/observation
       '@molis-ai/molis-work-service-placement':
         specifier: workspace:*
         version: link:../../horizontal/placement

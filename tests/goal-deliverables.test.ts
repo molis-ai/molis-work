@@ -70,19 +70,21 @@ test("a Goal pins a bound document on the spot through Pages and hands in the ne
   const DEMO_PROJECT_ID = project.project_id;
   const databasePath = project.database_path;
   await seedDemoGoals(databasePath, DEMO_PROJECT_ID);
-  const store = new LocalProjectDatabase(databasePath);
-  const coordinator = new GoalProjectApplication(store), library = openProjectVersionStores(store);
   const origin = served.origin;
   const controlToken = served.controlToken;
   // Every request this test makes belongs to the project: its pages and its Runtime plugin routes are served under the project prefix.
   const projectOrigin = `${origin}/projects/${encodeURIComponent(DEMO_PROJECT_ID)}`;
   const fetchProject = (path: string, init?: RequestInit) => globalThis.fetch(path.startsWith(origin) ? projectOrigin + path.slice(origin.length) : path, init);
-  t.after(async () => { store.close(); });
   await (await fetchProject(origin + "/health")).text();
   const headers = () => ({ "content-type": "application/json", origin, "x-molis-work-control-token": controlToken, "x-molis-work-idempotency-key": randomUUID() });
   const created = await fetchProject(`${origin}/api/plugins/io.molis.work.pages/pages`, { method: "POST", headers: headers(), body: JSON.stringify({ title: "交付方案", markdown: "第一稿" }) });
   assert.equal(created.status, 200, await created.clone().text());
   const document = (await created.json() as { document: { id: string; version: number } }).document;
+  // The test's own connection opens once the Host has the project: while a second connection holds the file first, the Host cannot
+  // switch it to the rollback journal pinning commits in (batch 06 N12), and the pin answers service_unavailable.
+  const store = new LocalProjectDatabase(databasePath);
+  t.after(() => store.close());
+  const coordinator = new GoalProjectApplication(store), library = openProjectVersionStores(store);
   const subject = { kind: "pages_document", id: document.id };
   coordinator.goalInputs.register({ binding_id: "bind-plan", project_id: DEMO_PROJECT_ID, goal_id: "V1", input_name: "交付方案",
     source_type: GOAL_PLUGIN_OBJECT_SOURCE, source_ref: goalPluginObjectRef(subject), snapshot_digest: null, state: "confirmed",

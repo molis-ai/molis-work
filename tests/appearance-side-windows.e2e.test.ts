@@ -89,6 +89,7 @@ type OutputFile = Awaited<ReturnType<typeof seedOutputFile>>;
 /** The project's output file read in the side panel's Files tab, the shell's materials reader that took over from the Files plugin (batch 06). */
 async function readOutputFile(tab: Awaited<ReturnType<typeof openTab>>, { original, objectId }: OutputFile) {
   const row = JSON.stringify(`[data-side-file][data-kind="workspace_file"][data-id=${JSON.stringify(objectId)}]`);
+  // The same two presses as shell-file-preview and side-materials-reader: the tab now selected, then Files.
   await tab.evaluate("document.querySelector('[data-side-tabs] [data-side-tab][aria-selected=true]').click()");
   await tab.evaluate("document.querySelector('[data-side-tab=files]').click()");
   await tab.wait(`Boolean(document.querySelector(${row}))`);

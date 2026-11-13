@@ -108,7 +108,9 @@ async function stopProjectPlugins(platform: PluginPlatform, projectId: string): 
   // A project deleted with its runtime still open (MCP, the demo's remove and rebuild: project-deleted-runtime.ts) is closed after its
   // library was unlinked. The Runtime has stopped the plugin by then; only the record of that stop has nowhere to go. In the rollback
   // journal the project library uses for pinning (batch 06 N12) SQLite refuses that write as SQLITE_READONLY_DBMOVED, where WAL used to
-  // write it into the unlinked file. Either way nothing is kept, so it is not a failure of the close.
+  // write it into the unlinked file. Either way nothing is kept, so it is not a failure of the close. This holds on every close, not only
+  // a deletion's, on purpose: whatever moved the file, a record written now has nowhere to go. A plugin whose own stop failed there is
+  // recorded as crashed by the same write, so that report is dropped with it, which a library that is gone cannot keep anyway.
   const kept = failures.filter(failure => !libraryMoved(failure));
   if (kept.length) throw new AggregateError(kept, "项目插件停止失败");
 }

@@ -410,8 +410,12 @@ test("Memory receipts in a real failed Work show a pending candidate and no chan
   await manager.invoke(memoryActions.savePrefs, { scope: "project", prefs: { consumers: prefs.consumers } });
   assertRevokedWindow();
   atRecovery = requests; withdrawalClosed = true;
-  await click('[data-assistant-panel] .assistant-side-action[aria-label^="记住："]');
-  await untilSetup(async () => (await manager.invoke(memoryActions.list, {})).items.some(item => item.text === corrected && item.state === "active") ? true : undefined, "the actual pending card accepts through its owner");
+  const keepSuggestion = '[data-assistant-panel] .assistant-side-action[aria-label^="记住："]';
+  await click(keepSuggestion);
+  // The card refresh follows the completed owner write. Reading candidates during that write can see an SDK conflict.
+  await waitFor(`!document.querySelector(${JSON.stringify(keepSuggestion)})`);
+  const kept = await manager.invoke(memoryActions.page, { scope: "project", query: corrected });
+  assert.ok(kept.items.some(item => item.text === corrected && item.state === "active"), "the actual pending card accepts through its owner");
   steps.push(() => turn("", { name: "list-memories", input: {} }), () => turn("", change(guidance)),
     body => { assert.equal(toolField(body.messages, "replayed"), true); return turn("", { name: "forget-memory", input: { memory_id: wrongId } }); },
     body => { assert.equal(toolField(body.messages, "forgotten"), true); return turn("已停用旧记忆；规则在 Goals，背景已由你认可。"); });

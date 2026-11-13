@@ -1,8 +1,8 @@
 # Prologue 记忆策略与 Molis Work 接入
 
-状态：2026-11-13，Memory P0 通过 [#2020](https://github.com/molis-ai/molis-work/pull/2020) 交付，采用上游 Prologue `770a2e27`（#113）。合入前同步 main `a720834a0`（第 06 批），用户决定直接走合并队列，不再等待公共合同台；最终 CI 和合入状态见 #2020。BL-1072、BL-1073 按用户决定保留未达标结果和后续事项，BL-1076 按用户决定视作通过，完整本人走查留后续。
+状态：2026-11-14，Memory P0 经 [#2020](https://github.com/molis-ai/molis-work/pull/2020) 合入 main [`f972bc9e1`](https://github.com/molis-ai/molis-work/commit/f972bc9e1ea903dd929eb017a02a03675a3325b2)，采用上游 Prologue `770a2e27`（#113）。[Verify](https://github.com/molis-ai/molis-work/actions/runs/43467525137)、[Linux 全量 32/32](https://github.com/molis-ai/molis-work/actions/runs/43467505571) 与 [队列 Verify](https://github.com/molis-ai/molis-work/actions/runs/43476365580) 均通过。BL-1072、BL-1073 保留未达标结果；BL-1076 按用户决定视作通过，完整本人走查留后续。
 
-补充状态（2026-11-13）：用户同意补清 P2 的判断质量范围，并将「模型判断长期价值与不同表达的关系」归为 P2 的第一个具体改进方案（P2-01，见 §14）；阶段关系及后续范围见 §9.1.1–§9.1.2，进一步的质量审查见 §14.9。本次仅修改文档，未实施、未验证新行为，也未授权代码修改、真实模型评测或真实 Home 数据操作。V0 收口仍在 [PR #2020](https://github.com/molis-ai/molis-work/pull/2020)；本补充不把在途实现当成已合入，不改写其已有验收结论。
+补充状态（2026-11-13）：用户同意补清 P2 的判断质量范围，并将「模型判断长期价值与不同表达的关系」归为 P2 的第一个具体改进方案（P2-01，见 §14）；阶段关系及后续范围见 §9.1.1–§9.1.2，进一步的质量审查见 §14.9。本次仅修改文档，未实施、未验证新行为，也未授权代码修改、真实模型评测或真实 Home 数据操作。这项 P2 文档补充不改变 P0 的验收结论。
 
 交付范围：App 分支 `claude/memory-v0-adopt-6664-20261107` 通过 [#2020](https://github.com/molis-ai/molis-work/pull/2020) 交付。SDK 改动先合入上游 molis-prologue，再更新本仓库的采用包。下面各日期节保留当时的授权与结果，现状以本节和「收口执行记录」为准。
 
@@ -68,11 +68,12 @@ Assistant/Coding 跨主人回执与后续使用的本地接入已收束。人工
 
 ### P0 收尾与验收边界（2026-11-13）
 
+- **最终 CI。** 候选 `91f245873` 的 [Verify](https://github.com/molis-ai/molis-work/actions/runs/43467525137)、[Linux 全量 32/32](https://github.com/molis-ai/molis-work/actions/runs/43467505571) 与 [队列 Verify](https://github.com/molis-ai/molis-work/actions/runs/43476365580) 均通过，实际合入提交为 [`f972bc9e1`](https://github.com/molis-ai/molis-work/commit/f972bc9e1ea903dd929eb017a02a03675a3325b2)。上一轮在主干也已复现的 Feed 分页（FBR-07/FSS-35）和助理操作卡（AC-05）已修复；各自的 Linux 浏览器文件首轮 4/4、5/5 通过。
 - **助理和 Agent。** 记忆列表回执最多 40 条，记忆正文合计最多 6,000 字。Assistant 与 Coding 的结尾复核使用各自登记并随 Run 冻结的提示词，进度说明沿用统一的回复语言规则。网关按动作声明的 JSON Schema 校验参数。声明了数组或标量的动作可收到相应值，声明为对象的仍只接收对象。批准卡按用户决定隐藏 `idempotency_key` 和 `user_confirmed`，其余字段保留，包括显式空值。
 - **设置与清除。** 移动记录的浏览器回归断言原处显示目标范围。会话学到的长期条目只读展示，入口指向其归属的记忆设置。清除把会话记忆、来源指向该会话的长期记忆和待认可建议固定到同一个版本化预览。全部固定范围接受遗忘后才开始 SDK 清理。清除只处理预览中的条目。页面重开后按同一预览继续原操作。新的条目由下次预览处理。
 - **候选。** 三处共用 14 天期限。本人认可与去重共用当前范围的候选读取结果，固定精确同文候选和原版本。原认可重试可续做作废。设置页在收到变更时空闲重读，标签页离开满 30 秒后回到页面时重读一次。未登记的后台候选到期见 [BL-memory-session-residues](../backlog/BL-memory-session-residues.md)。
 - **本机验证。** 构建、动作及公开 API 快照、健康、包边界、密钥、64 项页面资源与双语首屏检查通过。合并后 17 个定向文件通过，另完成 Memory 包 18 个定向文件及独立的 SDK、外观与恢复验证。会话清除 13/13、记忆服务 28/28、会话管理浏览器 7/7、遗忘设置浏览器 9/9、Coding 问答卡 6/6、SDK 来源 79/79、Home 恢复后遗忘检查 14/14。Goals 66 张页面逐字核对，16 张只增加「本会话记忆」入口，严格复验通过。
-- **BL-1071～1077。** BL-1071 已采用 `770a2e27`，最终采用以 #2020 合入为准。BL-1072 暖读增量 +31.1 ms，超过 30 ms。BL-1073 的最后一轮正式对照总 token 高 2.6%，对应 11-12 的 `677038240`。11-13 提示词的后续改动按用户决定记录差异，以工程验证结算。BL-1074 在 [#2029](https://github.com/molis-ai/molis-work/pull/2029) 跟踪。P0 本机和最终候选的 Linux 首轮 Coding 问答卡均为 6/6。BL-1075 的 MEM-43/44 移至 V0 后。BL-1076 按用户决定视作通过，完整本人走查及第 9、10 行和第 12 行另一半保留在 [BL-memory-own-app-walkthrough](../backlog/BL-memory-own-app-walkthrough.md)。BL-1077 已关闭，历史真实 Home 影响中的未知部分保留。
+- **BL-1071～1077。** BL-1071 的 SDK `770a2e27` 已随 #2020 合入。BL-1072 暖读增量 +31.1 ms，超过 30 ms。BL-1073 的最后一轮正式对照总 token 高 2.6%，对应 11-12 的 `677038240`。11-13 提示词的后续改动按用户决定记录差异，以工程验证结算。BL-1074 在 [#2029](https://github.com/molis-ai/molis-work/pull/2029) 跟踪。P0 本机和最终候选的 Linux 首轮 Coding 问答卡均为 6/6。BL-1075 的 MEM-43/44 移至 V0 后。BL-1076 按用户决定视作通过，完整本人走查及第 9、10 行和第 12 行另一半保留在 [BL-memory-own-app-walkthrough](../backlog/BL-memory-own-app-walkthrough.md)。BL-1077 已关闭，历史真实 Home 影响中的未知部分保留。
 - **上轮 CI。** 代码与测试头 `33f774307` 的 Verify 通过，共 27 项通过、2 项按配置跳过。首轮 Skill 委派发生连接重置，仅重跑该安全分片及汇总后通过。macOS 签名金样回放通过。[Verify](https://github.com/molis-ai/molis-work/actions/runs/43376738539) · [首轮失败分片](https://github.com/molis-ai/molis-work/actions/runs/43376738539/job/131725226583)
 - **上轮 Linux 全量。** 代码与测试头 `33f774307` 的 32 个分片跑完，25 个通过、7 个失败。会话清除 13/13、会话管理 7/7、遗忘设置 9/9、助理候选卡 3/3、Coding 问答卡 6/6、SDK 来源 79/79、Home 恢复后遗忘检查 14/14 首轮通过。Goals 页面快照 70 项通过、2 项按原配置跳过。Golden Home 生成一致性 UPG2-02 首轮 41/42，自动重试通过。[候选全量](https://github.com/molis-ai/molis-work/actions/runs/43376728689)
   - 主干 `b81937325` 的 Linux 对照也复现 B27SRC-05（Coding 行高）、QA-033（Pages 查找）及跨位置呈现的 IUI-03、IUI-10（Inbox）。本机干净主干曾复现 Golden Home 的提示词使用记录差异。[主干全量](https://github.com/molis-ai/molis-work/actions/runs/43373326442)

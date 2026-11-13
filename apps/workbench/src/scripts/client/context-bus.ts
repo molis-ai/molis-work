@@ -200,6 +200,9 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
     },
     // Each answer names the request it answers, so the Assistant never shows one for what was open before.
     answer(newRequestId, objectKey, items) {
+      const records = host.records;
+      if (records && items.length) records.record({ fact: "ui.candidates", stage: "presented", work: { work_ref: "ui:starters:" + String(newRequestId).slice(0, 200) },
+        subjects: items.map((item) => records.subject("context_action", item.key)), detail: { list: "starters", count: items.length } });
       document.dispatchEvent(new CustomEvent("molis:assistant-starters", { detail: { request_id: newRequestId, object_key: objectKey, items } }));
     },
     request(context, newRequestId) {

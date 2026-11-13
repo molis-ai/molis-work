@@ -20,6 +20,8 @@
 - **来源类别**：插件或服务只能说自己批次的 `first_read`、`catch_up`、`imported`；宿主入口用 `withObservationSource` 包住它整件工作（首次同步、补读、导入、自检）。
 - **登记覆盖**：在 `OBSERVATION_COVERAGE_PLAN` 加一行（主人、事实、入口、状态）；没接上的写 `not_connected` 和原因键。`tests/observation-coverage-plan.test.ts` 核对这张表与真实装配一致：说完整的事实要有代码以字面量写它，宿主接上的每个 sink 都要在表里。
 - **草稿**：动作的输入是本人还没发出的草稿（输入框草稿、写到一半的回答），在定义上写 `draft: true`（沙箱包写在操作上）；出口只记存过，不留输入与结果。
+- **插件上报**：照工作流程插件（`plugins/native/workflows/src/observation.ts`）：Manifest 声明消费 `observation.report@1`，用 `context.services.actions.invoke` 以自己的安装身份调用，在业务写完之后 await、出错吞掉，从不让上报决定业务的成败；被取消或撤权的调用，上报也会被拒。
+- **外壳的界面阶段**：工作台页面脚本 `apps/workbench/src/scripts/client/work-records.ts` 是唯一的发送处（项目页发到 `/projects/<id>/api/observation/ui`，记在该项目下）；别的界面代码拿到它的 `record`、`subject`、`interaction(list)` 来记，不另开请求。高频的停留与滚动按对象每分钟汇总。
 - **宿主侧的记录器**：服务不在 Host 对象上时，用 `liveObservation(home)` 找到这个 Home 正在运行的采集层；授权变化走 `recordGrantChanges`，写在保存之后、从不抛错。
 
 ## 出了问题看哪里

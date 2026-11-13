@@ -17,10 +17,13 @@ function sources(directory: string): string[] {
     return path.endsWith(".ts") && !path.endsWith(".d.ts") ? [path] : [];
   });
 }
-const code = [join(root, "apps/local-host/src"), ...readdirSync(join(root, "horizontal")).map(name => join(root, "horizontal", name, "src"))]
+const code = [join(root, "apps/local-host/src"), ...readdirSync(join(root, "horizontal")).map(name => join(root, "horizontal", name, "src")),
+  ...readdirSync(join(root, "plugins/native")).map(name => join(root, "plugins/native", name, "src")), join(root, "apps/workbench/src")]
   .filter(path => { try { return statSync(path).isDirectory(); } catch { return false; } }).flatMap(sources).map(path => readFileSync(path, "utf8")).join("\n");
 
-const prefixOf = (owner: string) => owner === "observation" ? "observation" : OBSERVATION_SERVICE_PREFIXES[owner.slice("service:".length) as keyof typeof OBSERVATION_SERVICE_PREFIXES];
+// A plugin's prefix is its own `plugin_id`; a service's is the one the contract gives it.
+const prefixOf = (owner: string) => owner === "observation" ? "observation" : owner === "shell" ? OBSERVATION_SERVICE_PREFIXES.shell : owner.startsWith("plugin:") ? owner.slice("plugin:".length)
+  : OBSERVATION_SERVICE_PREFIXES[owner.slice("service:".length) as keyof typeof OBSERVATION_SERVICE_PREFIXES];
 
 test("OCL-09 OCL-16: each kind of fact in the plan is its owner's, named once, with a reason exactly when it is not complete", () => {
   const seen = new Set<string>();
@@ -38,7 +41,8 @@ test("OCL-09 OCL-16: every fact said to be complete is written by the code, and 
   for (const entry of OBSERVATION_COVERAGE_PLAN.filter(item => item.state === "complete")) {
     const name = entry.fact.slice(entry.fact.indexOf(".") + 1);
     // An Agent round's facts are written as `agent.<name>` by the run projection; every other fact's name is a literal where it is recorded.
-    assert.ok(code.includes(`"${entry.fact}"`) || (entry.owner === "service:agent" && code.includes(`"agent.${name}"`)), `${entry.fact} is recorded somewhere`);
+    // The shell's facts are named in its page script, in either quote.
+    assert.ok(code.includes(`"${entry.fact}"`) || code.includes(`'${entry.fact}'`) || (entry.owner === "service:agent" && code.includes(`"agent.${name}"`)), `${entry.fact} is recorded somewhere`);
   }
   const wired = new Set([...code.matchAll(/\bsink\("([a-z]+)"\)/gu)].map(match => match[1]!));
   assert.ok(wired.size >= 5, [...wired].join(" "));

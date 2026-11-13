@@ -4,6 +4,7 @@ import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { readNativePluginJsonBody } from "./native-plugin-http.js";
 import { sendLocalWebJson as json } from "./web-http.js";
 import { webEntryDoor } from "./web-entry-actions.js";
+import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { MolisWorkLocalHost } from "./project-host.js";
 
 /**
@@ -17,13 +18,14 @@ const ROUTE = "/api/observation/ui";
 /** The route reads at most one report's worth of body; the action's own limits still apply. */
 const MAX_BODY_BYTES = 1_200_000;
 
-export async function handleObservationShellHttp(request: IncomingMessage, response: ServerResponse, url: URL, host: MolisWorkLocalHost): Promise<boolean> {
+/** Under a project's address (`/projects/<id>/api/observation/ui`) the stages are that project's; under the Home's they belong to none. */
+export async function handleObservationShellHttp(request: IncomingMessage, response: ServerResponse, url: URL, host: MolisWorkLocalHost, reference?: LocalHostProjectReference): Promise<boolean> {
   if (url.pathname !== ROUTE) return false;
   if (request.method !== "POST") { json(response, 405, { error: "method_not_allowed" }); return true; }
   try {
     // The action checks the shape against its schema before its handler runs; only `facts` is taken from the body.
     const body = await readNativePluginJsonBody(request, MAX_BODY_BYTES), input = { facts: body.facts } as ObservationReportInput;
-    json(response, 200, await observationShellDoor.invoke({ host, request, entry: null }, observationActions.report, input));
+    json(response, 200, await observationShellDoor.invoke({ host, request, entry: null, ...(reference ? { reference } : {}) }, observationActions.report, input));
   } catch (error) {
     json(response, 400, { error: error instanceof Error ? error.message : "report_failed" });
   }

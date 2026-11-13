@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { startOfToday } from "../apps/local-host/src/assistant/assistant-usage-ledger.js";
+import { startOfToday } from "@molis-ai/molis-work-app-local-host";
 
 // BL-assistant-usage-dst-midnight: today's usage starts at local midnight, whose UTC offset can differ from the offset at the
 // query instant on a DST-change day.

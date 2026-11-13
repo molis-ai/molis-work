@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { openTestHome } from "./fixtures/test-home.js";
-import { runLocalHomeCli } from "../apps/local-host/src/cli-home.js";
+import { runLocalHomeCli } from "@molis-ai/molis-work-app-local-host";
 
 // BL-local-space-process-items-adoption: a Home without account sync gets the same explicit adoption through the offline CLI, after
 // the Host is stopped. The command takes the storage owner, adopts every project library, and only then retires Files' consents and

@@ -130,7 +130,7 @@ test("PRR-01 S-41 a plugin with knowledge:read but no workspace:read cannot read
     discover: async (caller: ActionCallContext) => caller.permissions.includes("workspace:read") ? views : [],
     invoke: async (caller: ActionCallContext, ref: { capability_id: string }, input: { kind?: string }) => {
       assert.ok(caller.permissions.includes("workspace:read"), "workspace files need the caller's own grant");
-      if (ref.capability_id === projectDirectoryActions.get.capability_id) return { project_id: "a", revision: "r1", source_links: [],
+      if (ref.capability_id === projectDirectoryActions.get.capability_id) return { project_id: "a", revision: "r1", source_links: [], instructions: { off: false, trusted: false },
         directories: [{ workspace_id: "ws1", canonical_path: "/ws1", display_name: "ws1", realpath_verified: true, roles: ["output"], state: "ok" }] };
       if (ref.capability_id === workspaceReadActions.file.capability_id) return input.kind === "directory"
         ? { outcome: "directory", entries: [{ name: "README.md", path: ["README.md"], kind: "file" }], truncated: false }

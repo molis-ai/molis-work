@@ -77,14 +77,12 @@ export class ProjectWorkspaceService {
   directories(projectId: string): ProjectDirectories {
     const id = this.requiredProjectId(projectId);
     const rows = this.repository.workspaces.projectDirectoryRows(id);
-    const sourceLinks = this.repository.workspaces.sourceLinks(id);
-    const instructions = this.instructions(id, rows);
+    const sourceLinks = this.repository.workspaces.sourceLinks(id), instructions = instructionsOf(this.repository, id, rows);
     return {
       project_id: id,
       directories: rows.map(row => ({ workspace_id: row.workspace_id, canonical_path: row.canonical_path, realpath_verified: row.realpath_verified,
         display_name: row.display_name, roles: row.roles, state: this.state(row) })),
-      source_links: sourceLinks,
-      instructions: { off: instructions.off, trusted: instructions.trusted },
+      source_links: sourceLinks, instructions: { off: instructions.off, trusted: instructions.trusted },
       revision: revisionOf(rows, sourceLinks, instructions),
     };
   }
@@ -124,7 +122,7 @@ export class ProjectWorkspaceService {
         case "repair": this.repair(current, change.workspace_id, change.workspace_path, actorId); break;
         case "map_source": this.mapSource(current, change.source_workspace_id, change.target, projectId, actorId); break;
         case "unmap_source": this.repository.workspaces.removeSourceLink(projectId, change.source_workspace_id); break;
-        case "set_instructions": this.setInstructions(current, projectId, change.off); break;
+        case "set_instructions": setInstructions(this.repository, current, projectId, change.off, this.now()); break;
       }
       return this.directories(projectId);
     });
@@ -259,28 +257,6 @@ export class ProjectWorkspaceService {
   }
 
   /** The row of this project's default output directory, written again under the same id when it went with an earlier change of output. */
-  /**
-   * Whether this project's rounds read the repository's instruction files (batch12-design §3.2), worked out from now's facts: the output is
-   * not the default location, the person chose it (linked it themself, or confirmed this very folder), and reading is not off. A tool's link
-   * and an output the catalog upgrade picked are not the person's until confirmed; a confirmation names one folder and does not follow a new output.
-   */
-  private instructions(projectId: string, rows: readonly ProjectDirectoryRow[]): { off: boolean; trusted: boolean; confirmed: string | null; chosen: boolean } {
-    const setting = this.repository.workspaces.instructionSetting(projectId);
-    const output = rows.find(row => row.roles.includes("output"));
-    const own = Boolean(output) && output!.workspace_id !== projectOutputId(this.repository.db, projectId);
-    const chosen = own && (this.repository.workspaces.isPersonMembership(output!.workspace_id, projectId) || setting?.confirmed_workspace_id === output!.workspace_id);
-    const off = setting?.off ?? false;
-    return { off, trusted: chosen && !off, confirmed: setting?.confirmed_workspace_id ?? null, chosen };
-  }
-
-  /** Off only turns reading off; on also confirms the current output as the person's, when it is not the default location. */
-  private setInstructions(current: ProjectDirectories, projectId: string, off: boolean): void {
-    const output = current.directories.find(item => item.roles.includes("output"));
-    const before = this.repository.workspaces.instructionSetting(projectId);
-    const confirmed = off || !output || output.workspace_id === projectOutputId(this.repository.db, projectId) ? before?.confirmed_workspace_id ?? null : output.workspace_id;
-    this.repository.workspaces.setInstructionSetting(projectId, { off, confirmed_workspace_id: confirmed }, this.now());
-  }
-
   private ownOutputRow(projectId: string): string {
     const workspaceId = projectOutputId(this.repository.db, projectId);
     if (!this.repository.workspaces.workspace(workspaceId)) {
@@ -379,6 +355,28 @@ export class ProjectWorkspaceService {
     if (!actorId) throw catalogErrors.user_confirmation_required("项目操作必须记录执行者");
     return actorId;
   }
+}
+
+/**
+ * Whether this project's rounds read the repository's instruction files (batch12-design §3.2), worked out from now's facts: the output is
+ * not the default location, the person chose it (linked it themself, or confirmed this very folder), and reading is not off. A tool's link
+ * and an output the catalog upgrade picked are not the person's until confirmed; a confirmation names one folder and does not follow a new output.
+ */
+function instructionsOf(repository: ProjectsRepository, projectId: string, rows: readonly ProjectDirectoryRow[]): { off: boolean; trusted: boolean; confirmed: string | null; chosen: boolean } {
+  const setting = repository.workspaces.instructionSetting(projectId);
+  const output = rows.find(row => row.roles.includes("output"));
+  const own = Boolean(output) && output!.workspace_id !== projectOutputId(repository.db, projectId);
+  const chosen = own && (repository.workspaces.isPersonMembership(output!.workspace_id, projectId) || setting?.confirmed_workspace_id === output!.workspace_id);
+  const off = setting?.off ?? false;
+  return { off, trusted: chosen && !off, confirmed: setting?.confirmed_workspace_id ?? null, chosen };
+}
+
+/** Off only turns reading off; on also confirms the current output as the person's, when it is not the default location. */
+function setInstructions(repository: ProjectsRepository, current: ProjectDirectories, projectId: string, off: boolean, now: string): void {
+  const output = current.directories.find(item => item.roles.includes("output"));
+  const before = repository.workspaces.instructionSetting(projectId);
+  const confirmed = off || !output || output.workspace_id === projectOutputId(repository.db, projectId) ? before?.confirmed_workspace_id ?? null : output.workspace_id;
+  repository.workspaces.setInstructionSetting(projectId, { off, confirmed_workspace_id: confirmed }, now);
 }
 
 /**

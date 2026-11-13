@@ -133,10 +133,10 @@ assistant.panel.works.cards.dismiss	1	system.assistant-panel	command	operation	h
 assistant.panel.works.cards.redo	1	system.assistant-panel	command	operation	home	write	concurrent	user	-	-	-	-	77f500e02234	a2c799262a3c	613063238287
 assistant.panel.works.cards.run	1	system.assistant-panel	command	operation	home	write	concurrent	user	-	-	-	-	77f500e02234	a2c799262a3c	3cfff55e5308
 assistant.panel.works.control	1	system.assistant-panel	command	operation	home	write	concurrent	user	-	-	-	-	55c2e9d410a1	a2c799262a3c	3cfff55e5308
-assistant.panel.works.draft	1	system.assistant-panel	command	operation	home	write	concurrent	user	-	-	-	-	55c2e9d410a1	a2c799262a3c	3cfff55e5308
+assistant.panel.works.draft	1	system.assistant-panel	command	operation	home	write	concurrent	user	-	-	-	-	55c2e9d410a1	a2c799262a3c	55a176bac504
 assistant.panel.works.handover	1	system.assistant-panel	command	operation	home	write	concurrent	user	-	-	-	-	55c2e9d410a1	a2c799262a3c	3cfff55e5308
 assistant.panel.works.mode	1	system.assistant-panel	command	operation	home	write	concurrent	user	-	-	-	-	55c2e9d410a1	a2c799262a3c	3cfff55e5308
-assistant.panel.works.question_draft	1	system.assistant-panel	command	operation	home	write	concurrent	user	-	-	-	-	55c2e9d410a1	a2c799262a3c	3cfff55e5308
+assistant.panel.works.question_draft	1	system.assistant-panel	command	operation	home	write	concurrent	user	-	-	-	-	55c2e9d410a1	a2c799262a3c	55a176bac504
 assistant.panel.works.recovery	1	system.assistant-panel	command	operation	home	write	concurrent	user	-	-	-	-	55c2e9d410a1	a2c799262a3c	3cfff55e5308
 assistant.panel.works.rename	1	system.assistant-panel	command	operation	home	write	concurrent	user	-	-	-	-	55c2e9d410a1	a2c799262a3c	3cfff55e5308
 assistant.panel.works.results	1	system.assistant-panel	command	operation	home	write	concurrent	user	-	-	-	-	55c2e9d410a1	a2c799262a3c	3cfff55e5308
@@ -277,7 +277,7 @@ models.connection.usages	1	system.connectors	query	query	home	read	-	agent,mcp,u
 observation.report	1	system.observation	command	operation	home	write	-	plugin,user	-	-	-	-	0dd034973bce	8cfd08f953ae	eeb2d5d6b907
 onboarding.context.adopt	1	system.onboarding	command	operation	home	write	concurrent	user	-	-	-	-	342147d6bd9d	a2c799262a3c	3cfff55e5308
 onboarding.context.create	1	system.onboarding	command	operation	home	write	concurrent	user	-	-	-	-	8566a0df14dc	a2c799262a3c	3cfff55e5308
-onboarding.context.draft	1	system.onboarding	command	operation	home	write	concurrent	user	-	-	-	-	342147d6bd9d	a2c799262a3c	3cfff55e5308
+onboarding.context.draft	1	system.onboarding	command	operation	home	write	concurrent	user	-	-	-	-	342147d6bd9d	a2c799262a3c	55a176bac504
 onboarding.context.reopen	1	system.onboarding	command	operation	home	write	concurrent	user	-	-	-	-	beab5193887d	a2c799262a3c	3cfff55e5308
 onboarding.context.select	1	system.onboarding	command	operation	home	write	concurrent	user	-	-	-	-	342147d6bd9d	a2c799262a3c	3cfff55e5308
 onboarding.context.stage_file	1	system.onboarding	command	operation	home	write	concurrent	user	-	-	-	-	0fadf42a7cb5	a2c799262a3c	3cfff55e5308

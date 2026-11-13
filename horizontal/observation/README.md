@@ -8,7 +8,7 @@
 
 一次动作调用结束时，kernel 的结算把这次调用告诉出口（`CallReports.observed`）。Host 把它交给 `ObservationLayer.observed`，这里按规则选出一行 `action.call` 记录放进内存队列：处理器开始前被拒的只留谁、什么动作、错误码；处理器开始后的失败一律不留内容；成功的留下输入与结果（本人页面的读取只留结果的摘要）。队列每 250 毫秒或攒够 200 条写一批：这一批里才做脱敏、带密钥的摘要、压缩和加密，同一份内容只存一次，同时更新覆盖登记。写不进去的那一批按覆盖行记一段「丢失」，被记录的调用照常完成。
 
-平台服务在一件事开始时用 `sink(service).bind(origin)` 拿一个记录器，之后随时 `record(fact)`；外壳和插件经系统动作 `observation.report@1` 上报自己前缀下的事实。
+平台服务在一件事开始时用 `sink(service).bind(origin)` 拿一个记录器，之后随时 `record(fact)`；外壳和插件经系统动作 `observation.report@1` 上报自己前缀下的事实。今天接上的服务：Agent 每一轮（agent-host 的运行投影）、定时唤醒、授权变化（目录授权、MCP 授权；同意自带历史，不另存）、连接器拉取（按游标分首次读取与补读）、助理面板对一项工作的每次写；Onboarding 采用整段在「用户导入」的来源范围里。声明 `draft: true` 的动作（本人没发出的草稿）只记存过，不留输入与结果。完整清单与缺口见 `coverage-plan.ts`，由 `tests/observation-coverage-plan.test.ts` 对照代码核对。
 
 ## 从哪里读代码
 
@@ -55,5 +55,6 @@ node scripts/run-tests.mjs tests/observation-layer.test.ts
   - 处理器开始前被拒的只留最小一行；处理器开始后任何失败都不存输入与结果（S-12、S-18）。
   - 证据先脱敏再存，摘要带密钥，正文加密；密钥只在 Home 的密钥库。
   - 缺失原因各管一件事：`expired` 与 `purged` 只由本包写。
-- 改动后必跑：`node scripts/run-tests.mjs tests/observation-layer.test.ts`
+  - 覆盖计划里说「完整」的每种事实都有代码在写，Host 接上的每个服务 sink 都在计划里（`tests/observation-coverage-plan.test.ts`）。
+- 改动后必跑：`node scripts/run-tests.mjs tests/observation-layer.test.ts tests/observation-coverage-plan.test.ts tests/security-invariants-observation-records.test.ts`
 - 相关手册：[docs/horizontal/observation.md](../../docs/horizontal/observation.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

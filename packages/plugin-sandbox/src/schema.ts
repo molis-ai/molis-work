@@ -80,6 +80,7 @@ export function checkSandboxContract(contract: unknown, proposal = false, snapsh
     if (!id(op.id)) throw new SandboxError('sandbox.invalid_contract', 'Invalid operation id');
     if (op.kind !== 'query' && op.kind !== 'command') throw new SandboxError('sandbox.invalid_contract', 'Operation kind must be query or command');
     if (op.external !== undefined && op.external !== true) throw new SandboxError('sandbox.invalid_contract', 'Operation external must be true when declared');
+    if (op.draft !== undefined && op.draft !== true) throw new SandboxError('sandbox.invalid_contract', 'Operation draft must be true when declared');
     assertEffects(op.effects);
     const validate = operationValidator(op);
     validators.set(op.id, validate);

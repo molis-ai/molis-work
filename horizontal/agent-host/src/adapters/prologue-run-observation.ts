@@ -1,5 +1,5 @@
-import type { AgentRoundSkill, AgentRunRef, AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
-import type { ObservationDetail, ObservationEvidenceInput, ObservationFactInput, ObservationOutcome, ObservationRecorder } from "@molis-ai/molis-work-contracts/services/observation";
+import type { AgentRoundSkill, AgentRunRef, AgentRunView, AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { ObservationDetail, ObservationEvidenceInput, ObservationSubject, ObservationFactInput, ObservationOutcome, ObservationRecorder } from "@molis-ai/molis-work-contracts/services/observation";
 import { MOLIS_ACTION_TOOL_PREFIX } from "./prologue-action-tools.js";
 import type { PrologueModelConfiguration } from "./prologue-ports.js";
 import type { PrologueEvent } from "./prologue-stream.js";
@@ -26,11 +26,12 @@ function usageDetail(receipt: PrologueUsageReceipt): ObservationDetail {
  * An action tool's input and result are the action exit's record of the same call; here it is only linked, never stored twice. The full
  * request as assembled for the model is not in the runtime's event stream, so the coverage register lists it as unavailable.
  */
-/** What the round was sent at its start, as the Host froze it: the task, each prompt body and each Skill's body. */
+/** What the round was sent at its start, as the Host froze it: the task, each prompt body, each Skill's body and each text material. */
 export interface RunObservationStart {
   readonly task: string;
   readonly prompts: readonly { readonly prompt_id: string; readonly body: string }[];
   readonly skills: readonly AgentRoundSkill[];
+  readonly materials: readonly AgentTextMaterial[];
 }
 
 export function observeRun(recorder: ObservationRecorder, ref: AgentRunRef, frozen: AgentRunView["frozen"], start: RunObservationStart, model: PrologueModelConfiguration | undefined): (event: PrologueEvent) => void {
@@ -56,6 +57,13 @@ export function observeRun(recorder: ObservationRecorder, ref: AgentRunRef, froz
     detail: { role_id: frozen.role_id, role_version: frozen.role_version, execution: frozen.execution, ...(frozen.history ? { history: frozen.history } : {}) } });
   // The bodies in force are kept here because their owners keep only the current one (D1): what the model was told, not what it says now.
   if (start.prompts.length) record("agent.instructions", "succeeded", { conditions: { prompts: conditions.prompts }, evidence: start.prompts.map(prompt => text(`prompt:${prompt.prompt_id}`, prompt.body)) });
+  // The materials the Host put into the round: the very text the model could read, and where each came from at the version read.
+  const sources = start.materials.flatMap((item): ObservationSubject[] => item.material_ref ? [{ kind: item.material_ref.subject.kind, id: item.material_ref.subject.id,
+    ...(item.read_revision !== undefined ? { version: item.read_revision } : {}) }] : item.source_artifact_id !== undefined ? [{ kind: "artifact", id: item.source_artifact_id, version: item.source_version }] : []);
+  const materials = [...start.materials.map(item => text(`material:${item.material_id}`, item.text)),
+    ...(frozen.image_materials ?? []).map((item): ObservationEvidenceInput => ({ role: `image:${item.material_id}`, ref: { kind: "missing", reason: "not_obtained" } }))];
+  if (materials.length) put({ fact: "agent.materials", outcome: "succeeded", work, subjects: [...subjects, ...sources], evidence: materials,
+    detail: { text: start.materials.length, images: frozen.image_materials?.length ?? 0 } });
   for (const skill of start.skills) put({ fact: "agent.skill", outcome: "succeeded", stage: "effective", work,
     subjects: [...subjects, { kind: "skill", id: skill.ref.skill_id, version: skill.ref.version }], detail: { origin: skill.origin, named: skill.named }, evidence: [text("body", skill.body)] });
   return event => {

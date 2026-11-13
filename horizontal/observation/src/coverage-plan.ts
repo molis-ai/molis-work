@@ -14,16 +14,37 @@ export interface CoveragePlanEntry {
  * checks it against the Host's real wiring. A kind of fact not here is not recorded by this build.
  */
 /** A round's own events, recorded by agent-host from the runtime's stream (`prologue-run-observation.ts`). */
-const AGENT_FACTS = ["run", "prompt", "reply", "tool", "usage", "compaction", "memory", "guard", "waiting", "retry", "model", "changes"];
+const AGENT_FACTS = ["run", "instructions", "skill", "materials", "prompt", "reply", "tool", "usage", "compaction", "memory", "guard", "waiting", "retry", "model", "changes"];
 
 export const OBSERVATION_COVERAGE_PLAN: readonly CoveragePlanEntry[] = [
   { owner: "service:gateway", fact: "action.call", entries: ["workbench", "cli", "mcp", "agent", "workflow", "plugin", "schedule", "host"], state: "complete" },
   { owner: "service:gateway", fact: "action.call.page_read_result", entries: ["workbench", "cli"], state: "by_rule", reason: "page_read_result_digest_only" },
+  // A command line with no Home runs in its own process and keeps nothing (design §9 D5); the desktop shell starts no work over IPC yet.
+  { owner: "service:gateway", fact: "action.call.cli_without_home", entries: ["cli"], state: "not_applicable", reason: "no_home_no_records" },
+  { owner: "service:gateway", fact: "action.call.desktop_ipc", entries: ["desktop"], state: "not_applicable", reason: "no_desktop_work_entry" },
+  // An action that declares its input an unsent draft: kept as saved, by whom and when, never its words (OCL-11).
+  { owner: "service:gateway", fact: "action.call.draft_content", entries: ["workbench", "cli", "mcp", "agent", "workflow", "plugin"], state: "by_rule", reason: "unsent_draft_not_kept" },
   { owner: "service:gateway", fact: "action.call.read_timing", entries: ["workbench", "cli", "mcp", "agent", "workflow", "plugin"], state: "by_rule", reason: "reads_coalesced_per_minute" },
   ...AGENT_FACTS.map(name => ({ owner: "service:agent", fact: `agent.${name}`, entries: ["agent"], state: "complete" } as const)),
   // An action tool's input and result are the action exit's record of that call; the round's record only links it.
   { owner: "service:agent", fact: "agent.tool.action_content", entries: ["agent"], state: "by_rule", reason: "kept_by_action_exit" },
   // The request as the runtime assembled it for the model (history, tools, materials together) is not in its event stream.
+  // Images shown to a round are runtime resources that do not outlive it; only that there was one, and which, is kept.
+  { owner: "service:agent", fact: "agent.materials.image", entries: ["agent"], state: "unavailable", reason: "image_resources_not_kept" },
   { owner: "service:agent", fact: "agent.model_request", entries: ["agent"], state: "unavailable", reason: "runtime_does_not_expose_request" },
+  // Every wakeup of a project clock, in its own operation; the action it fired is the exit's record under the same call number.
+  { owner: "service:scheduler", fact: "scheduler.wakeup", entries: ["schedule"], state: "complete" },
+  // Each panel write on an Assistant work, joined to that work; the call's content is the exit's, the rounds it started are the agent's.
+  { owner: "service:assistant", fact: "assistant.work", entries: ["workbench"], state: "complete" },
+  // Grants whose owner keeps no history: a folder grant's row is deleted, an MCP grant is written over. Given by the person (in Settings, at the
+  // folder chooser, through a task's categories) or taken by the Host after an uninstall or a folder that changed.
+  { owner: "service:grants", fact: "grants.directory", entries: ["workbench", "host"], state: "complete" },
+  { owner: "service:grants", fact: "grants.mcp", entries: ["workbench", "plugin", "host"], state: "complete" },
+  // Consents keep their own history (granted_at, revoked_at, never deleted); the call that changed one is the action exit's record.
+  { owner: "service:grants", fact: "grants.consent", entries: ["workbench", "host"], state: "by_rule", reason: "owner_keeps_history" },
+  // A pull from a bound account, classed by what it read (§5): first read without a cursor, catch-up on a rebuilt one. The provider's work
+  // inside the Host is in the class's scope; a sandboxed provider's callbacks run outside the Host's async context and are not.
+  { owner: "service:connections", fact: "connections.pull", entries: ["background"], state: "complete" },
+  { owner: "service:connections", fact: "connections.pull.sandbox_scope", entries: ["background"], state: "unavailable", reason: "sandbox_callbacks_outside_scope" },
   { owner: "observation", fact: "observation.report", entries: ["workbench", "plugin"], state: "not_applicable", reason: "report_channel_itself" },
 ];

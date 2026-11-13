@@ -48,9 +48,10 @@ export function parseTaskGrantSubject(clientId: string): TaskGrantSubjectIdentit
  * Takes every task grant of the subjects `match` picks out of the Home's action grants, in one write: a deleted project's, or an
  * uninstalled installation's. A grant left behind would read again for a project or installation that came back under the same id.
  */
-export async function forgetTaskGrantSubjects(homeDirectory: string, match: (subject: TaskGrantSubjectIdentity) => boolean): Promise<number> {
+export async function forgetTaskGrantSubjects(homeDirectory: string, match: (subject: TaskGrantSubjectIdentity) => boolean,
+  reason: "uninstalled" | "project_deleted"): Promise<number> {
   return removeMcpActionGrants(homeDirectory, grant => {
     const subject = parseTaskGrantSubject(grant.client_id);
     return subject !== null && match(subject);
-  });
+  }, { host_reason: reason });
 }

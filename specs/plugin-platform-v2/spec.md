@@ -240,7 +240,7 @@ hooks 的 allow/deny/rewrite 能放行、拒绝或改写工具调用，是信任
 
 ### S4 LSP 声明
 
-插件 Manifest 可以声明 `lsp_servers`：`command`、`args`、`extensionToLanguage`、启动/请求超时。宿主按扩展名懒启动、初始化、didOpen/didChange、definition/references/hover/documentSymbol/workspaceSymbol/diagnostics，会话结束关闭；只允许本机已安装的 server，不自动下载。语言支持因此是一个插件声明，不是宿主里每加一种语言就改一次代码。
+插件 Manifest 可以声明 `lsp_servers`：`command`、`args`、`extensionToLanguage`、启动/请求超时。**（第 31 批状态：用户 2026-11-12 定代码理解先走宿主侧、由人配置 `language-servers.json`；这份声明式合同还没做，记 BL-lsp-servers-declaration。）** 宿主按扩展名懒启动、初始化、didOpen/didChange、definition/references/hover/documentSymbol/workspaceSymbol/diagnostics，会话结束关闭；只允许本机已安装的 server，不自动下载。语言支持因此是一个插件声明，不是宿主里每加一种语言就改一次代码。
 
 ### S5 作者工具
 

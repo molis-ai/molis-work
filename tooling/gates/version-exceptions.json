@@ -1154,5 +1154,11 @@
     "name": "memory-forgetting-v2.json",
     "values": { "memory-forgetting-v2.json": 1 },
     "reason": "遗忘决定文件在 Home 里的文件名，v2 只标物理代（2026-11-06 更名片），是名字不是版本；文件里的格式版本由 format.memory.forgetting 管。"
+  },
+  {
+    "file": "horizontal/agent-host/src/code-intelligence/lsp-client.ts",
+    "name": "version",
+    "values": { "1": 1 },
+    "reason": "LSP 的 textDocument/didOpen 起始版本号，协议字段；不是产品、合同或库结构的版本，Molis 不比较它。"
   }
 ]

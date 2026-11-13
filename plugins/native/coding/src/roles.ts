@@ -65,11 +65,12 @@ export const codingAgentManifest: AgentManifest = {
     },
     {
       role_id: CODING_READER_ROLE,
-      version: /* @version role.coding.main-reader */ 1,
+      version: /* @version role.coding.main-reader */ 2,
       name: "阅读者",
       execution: "read-only",
       prompts: ["coding-base", "coding-reader"],
-      host_tools: ["context-remaining", "find-tools", "list-mcp-resources", "read-mcp-resource", "ask-user", "acknowledge-inputs", "read-file", "list", "search"],
+      // find-symbol: the official coding pack's symbol lookup, answered by the Host's language servers when the person configured one.
+      host_tools: ["context-remaining", "find-tools", "list-mcp-resources", "read-mcp-resource", "ask-user", "acknowledge-inputs", "read-file", "list", "search", "find-symbol"],
     },
     {
       role_id: CODING_REVIEWER_ROLE,
@@ -83,7 +84,7 @@ export const codingAgentManifest: AgentManifest = {
     },
     {
       role_id: CODING_COORDINATOR_ROLE,
-      version: /* @version role.coordinator */ 1,
+      version: /* @version role.coordinator */ 2,
       name: "协作",
       // It holds run-command only so its independent reviewer can be given it: a subagent gets no tool its parent lacks.
       execution: "workspace-write",
@@ -91,7 +92,8 @@ export const codingAgentManifest: AgentManifest = {
       // session-send: it may ask another session of the project, or answer one (they are neighbours on the project's board), without a review each time (the person's decision).
       // Background commands: started and stopped under review like any command; reading and waiting on them are reads.
       // board-read / board-report: held so its children can report the steps handed to them (a child never holds a tool its parent lacks).
-      host_tools: ["suggest-action", "context-remaining", "find-tools", "ask-user", "acknowledge-inputs", "read-file", "list", "search", "run-command", "start-command", "command-output", "command-stop", "await-commands", "dispatch-subagent", "await-subagents", "steer-subagent", "board-read", "board-report", "session-send"],
+      // find-symbol: held so its read-only children can be given it (a child never holds a tool its parent lacks).
+      host_tools: ["suggest-action", "context-remaining", "find-tools", "ask-user", "acknowledge-inputs", "read-file", "list", "search", "find-symbol", "run-command", "start-command", "command-output", "command-stop", "await-commands", "dispatch-subagent", "await-subagents", "steer-subagent", "board-read", "board-report", "session-send"],
     },
     {
       role_id: CODING_WRITERS_ROLE,

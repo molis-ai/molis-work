@@ -1,13 +1,13 @@
 # 第 12 批合同设计稿：输入框上方的提示行、项目规则的信任与来源
 
-状态：设计稿（2026-11-13），等评审台审过、公共合同台（C 轨）合审、组件板新增由 D 轨合审后再写合同代码。属[第 12 批](../post-anticorruption-roadmap/reference/batches/12.md)第 1 项；定样与用户决定见[需求书 §11](spec.md#11-决策记录)。验收编号：CHO-06、CHO-38、BCD-01～BCD-08（本稿新加，见第 4 节）。
+状态：设计稿第 2 版（2026-11-13）。第 1 版经评审台兼公共合同台（C 轨）、D 轨合审为「有条件通过」：阻塞五条（冻结来源做不出来、「用户选的」判断有漏洞、存储与修订号、信任怎样交给一轮与安全登记、旧一轮与项目层提示），第 2 版逐条改在第 3 节，非阻塞的画法、读屏、验收与文字也一并改进；改完再复核一次后写合同代码。属[第 12 批](../post-anticorruption-roadmap/reference/batches/12.md)第 1 项；定样与用户决定见[需求书 §11](spec.md#11-决策记录)。验收编号：CHO-06、CHO-38、BCD-01～BCD-14（第 4 节）。
 
 ## 1. 为什么要改平台
 
 两件事 Coding 自己做不了，按「插件缺什么就补进平台」补：
 
 1. **只读提示行（R3 定样 A）**：讨论、规划、评审下，输入框上方常显一行「『讨论』只读……」和「换成修改」，输入框描边换成只读色。自统一输入（O2、O3）以后 Coding 不画自己的输入框：前台页面是工作台底栏那一个输入框的接收方，页面里画的东西不在输入框旁边。所以「输入框上方一行、带一个按钮、能改描边」要由平台输入框提供。别的页面（助理的 Character 只读、表单的待补项）以后也会用同一处，不为 Coding 开私路。
-2. **项目规则（R3、CHO-06）**：SDK 只在 `projectTrusted === true` 时把仓库里的 `AGENTS.md`、`CLAUDE.md`、`.prologue/instructions.md` 放进每一轮，Molis 从来没传，所以这些文件现在没有进过任何一轮。信任由 Host 决定（R3「项目可信性由 Host 决定」），不由插件在输入里报。
+2. **项目规则（R3、CHO-06）**：SDK 只在 `projectTrusted === true` 时把仓库里的说明文件放进每一轮，Molis 从来没传，所以这些文件现在没有进过任何一轮。信任由 Host 决定（R3「项目可信性由 Host 决定」），不由插件在输入里报。
 
 ## 2. 输入框的提示行（`notice`）
 
@@ -27,8 +27,9 @@ notice?: () => ComposerNotice | null;
 ```
 
 - 只给一行、一个动作：多于一件事的说明不该挤在输入框上方。
-- 文字由页面按 `t()` 给，平台照原样画、转义。
+- 文字由页面给（Coding 今天用 `uiText`，第 16 批起换 `t()`），平台照原样画、转义。
 - 不碰发送：`notice` 不拦发送，拦发送仍是 `required`。
+- `page-globals.ts` 里「每次画时重读」的那份清单加上 `notice`。
 
 ### 2.2 跨框（`apps/workbench/src/browser/plugin-frame/composer-bridge.ts`）
 
@@ -38,10 +39,12 @@ notice?: () => ComposerNotice | null;
 
 ### 2.3 画法（`packages/design-system` 的 composer，组件板新增）
 
-- 位置：`.mw-composer__box` 正上方，在状态行之上；`role="status"`，进场用 `craft-rise`（时长 `--dur-move`、曲线 `--ease-quint`），减少动态效果时不动。
-- `tone="readonly"`：根上 `data-notice="readonly"`，输入框描边换成只读色（`--accent` 22% 混 `--line`，与定样一致），文字前一个锁图标。
-- 窄屏（≤600px）：说明换行，按钮另起一行；按钮高 36～44。
-- 组件板加一节「输入框提示行」：只读、普通、带按钮、窄屏四个标本（D 轨合审）。
+- 位置：`.mw-composer__box` 正上方，在状态行之上。静止单行状态（`data-rest`）下也常显，仍在框上方，不并进框里那一行。
+- 进场用 `craft-rise`（`--dur-move`、`--ease-quint`），写进组件现有的「减少动态效果」规则：减少时不做进场。
+- `tone="readonly"`：根上 `data-notice="readonly"`，描边用新语义变量 `--line-readonly`（基线文件里定为 `--accent` 22% 混 `--line`，与定样一致），同时盖住 `:focus-within` 的描边；失败状态的描边优先于只读。文字前一个锁图标（`aria-hidden`）。
+- 窄处：用组件已有的容器查询（480px），说明换行、按钮另起一行；按钮触控高度照组件现有规则 44。
+- 读屏：这一行是常显的条件，不是一次的消息，**不用 `role="status"`**（状态行已经是）。节点保持不变、文字变了才更新；输入框以 `aria-describedby` 指向它，聚焦输入框时读到。
+- 组件板加一节「输入框提示行」：只读、普通、带按钮、窄处、静止单行五个标本（D 轨合审）。
 
 ### 2.4 Coding 怎么用
 
@@ -51,36 +54,75 @@ notice?: () => ComposerNotice | null;
 
 ### 3.1 用户决定（2026-11-13）
 
-**选了输出目录就算信任**：项目的输出目录是用户自己选的文件夹（不是项目建好时的默认位置 `<Home>/outputs/<project_id>`）时，视为信任这个项目，每一轮读仓库里的说明文件；项目设置里可以关。信任只决定读不读，不加任何权限（定样 R3 A）。否掉「开关＋就地开启，默认关」（多一步）和「每个文件夹单独信任」（要另做按文件夹的设置与管理页）。
+**选了输出目录就算信任**：项目的输出目录是用户自己选的文件夹时，视为信任这个项目，每一轮读仓库里的说明文件；项目设置里可以关。信任只决定读不读，不加任何权限（定样 R3 A）。否掉「开关＋就地开启，默认关」（多一步）和「每个文件夹单独信任」（要另做按文件夹的设置与管理页）。
 
-### 3.2 事实主人与存储
+### 3.2 什么算「用户自己选的」（合审第 2 条）
 
-- 主人：项目（Host 的 `projects` 模块），和输出目录同一处。新增一项「读取仓库说明文件」：`instructions: "follow-output" | "off"`，默认 `follow-output`。
-- 存储：项目库目录表所在的那张设置表多一列；改了建库语句，按升级链规则升版本、写升级段、补金样（`upgrade-chain-design.md` §2）。
-- 读：`projects.directories.get@1` 的输出加 `instructions` 与派生的 `trusted: boolean`（输出是用户选的、且没关）。改的是同一版本的输出形状，按阶段一在原版本改，跑 `pnpm actions:update`、`pnpm api:update`。
-- 写：`projects.directories.set_instructions@1`（`audiences: ["user"]`、`permissions: ["projects:settings"]`、按 `expected_revision` 提交）。
+`trusted` 三条同时成立才为真，每次读、每一轮开始都按当前状态现算，不存：
 
-### 3.3 进到一轮
+1. 输出不是项目的默认输出目录（`projectOutputId`）。改回默认，立刻不信任。
+2. 这条输出关联是本人建的（`isPersonMembership`，即 `bound_by` 为本人）。工具会话关联的（`binding:<actor>`）和目录库 1→2 升级时按「只有一个文件夹」自动设成输出的，`bound_by` 不是本人的就不算；本人在项目设置里再选一次即成为本人的。
+3. 这个项目的「读取仓库说明文件」没有关。关了以后换输出目录，仍然是关的（开关属于项目，不属于文件夹）。
 
-- Agent Host 开始一轮时由 Host 从项目读 `trusted`，交给 SDK `context.projectTrusted`；Coding 的 `run.start` 输入里不能带它（可信身份从调用上下文来）。
-- 冻结记录加 `instructions: { trusted: boolean; files: { path; chars; truncated }[]; overridden: string[] }`：用 SDK `selectInstructions` 的结果写；不信任时 `files` 为空。写进冻结记录，旧轮次的来源不随文件变化而改（R3「不伪造旧运行的规则来源」）。
-- 页面：Coding 输入框底部「规则 N」（N = 本轮实际读到的份数），点开列文件、适用的目录层、字数与是否截断；不信任时写「规则没加载」和「这个项目的输出不是你选的文件夹，或你在项目设置里关了」，给「去项目设置」。
+另外写明：只作输入的文件夹不会成为一轮的根，所以不会被读（`horizontal/agent-host/src/index.ts` 的 `authorizedDirectories` 只有输出）；Host 建的工作树按它所属的输出算。
+
+**提示注入**：项目说明在上下文里排在用户消息之前；输出目录选成一个刚克隆的第三方仓库也会被信任（用户的决定就是如此）。兜底是：信任不放宽审查、联网、授权或执行模式，「规则 N」让人看得见本轮读了什么、读的是哪一版。
+
+### 3.3 存储（合审第 3 条）
+
+- 主人：项目（`modules/projects`），和输出目录同一处，是本机事实，跟着本机的输出目录走，不进项目的同步投影（`portable-project.ts`）。
+- 新表 `project_instruction_settings(project_id TEXT PRIMARY KEY, off INTEGER NOT NULL)`：没有行就是默认（读）。目录库（`projects/catalog.db`）从第 3 版升第 4 版，升级段只建表，不 `ALTER TABLE`、不补数据；补第 3 版的金样，跑 `pnpm schemas:update`。
+- `revisionOf` 把这个开关算进去，带 `expected_revision` 的提交才挡得住并发修改。
+
+### 3.4 读写合同
+
+- 读：`ProjectDirectories` 加 `instructions: { off: boolean; trusted: boolean }`。`PROJECT_DIRECTORIES_SCHEMA` 带 `additionalProperties:false`、由 7 个目录动作共用，所以这 7 个动作的输出一起变（同一版本、阶段一原地改），跑 `pnpm actions:update`、`pnpm api:update`；读它的 Coding、Files、Git 不受影响。
+- 写：`DirectoryChange` 新增 `{ kind: "set_instructions"; off: boolean }`，走现成的 `directoryCommand`，新动作 `projects.directories.set_instructions@1`，`audiences: ["user"]`（Agent、MCP、工作流、插件都不能调），按 `expected_revision` 提交。
+
+### 3.5 交给一轮（合审第 4 条）
+
+- 信任放进 `AgentStartAuthority.directories`，加 `instructions_trusted: boolean`，与 `reply_language` 同一个模式：只由 Host 从上下文给，`AgentStartRequest` 里没有这一项；请求里出现未知字段一律拒绝。适配器（`prologue-run.ts` 的 `sdkStart`）把它作为 SDK 上下文的 `projectTrusted` 传进去。
+- 说明文件名沿用 SDK 配置的默认（`AGENTS.md`、`CLAUDE.md`、`.prologue/instructions.md`），Molis 不另下发；Molis 不传 `homeInstructions`。
+- 安全不变量：在 `docs/system/SECURITY-INVARIANTS.md` 新登记一条语义 ID（`S-project-instructions-trust`），写明：信任只由 Host 从上下文给；`set_instructions` 只有用户能调；说明文件的文字不放宽审查、联网、授权或执行模式。每条有断言拒绝的测试。
+
+### 3.6 冻结记录里的来源（合审第 1、5 条）
+
+- SDK 打包上下文时自己读说明文件，宿主不调 `selectInstructions`；冻结记录在开跑之前就写了。所以来源取 `startAgentRun` 返回的 `pack` 里来源是项目说明的那几项，**开跑之后补记一次、只写一次**，写在冻结记录的 `instructions` 上：
+
+```ts
+instructions: { trusted: boolean; files: { path: string; chars: number; truncated: boolean; sha256: string }[] }
+```
+
+- 每份带内容哈希，R3 要的「本轮仍按 10:02 的版本」由它和这一轮的开始时间给出；文件之后改了，旧一轮显示的来源不变（不伪造旧运行的规则来源）。不信任时 `files` 为空。
+- 同时改 `packages/contracts/src/services/agent-host.ts` 的 `frozenOutput`（`instructions` 可选），跑 `pnpm actions:update`。
+- **旧一轮**：没有 `instructions` 的是这个改动之前的一轮，显示「这一轮没有记录规则来源」，不显示「规则没加载」。
+- **项目层提示 `project_prompts`**（冻结记录里 `layer: "project"` 的那几项）：是项目自己确认的说明，不是仓库文件，不算进「规则 N」。规则菜单里分两段：上面「项目说明」列 `project_prompts`，下面「仓库说明文件 N」列文件；上下文里的先后照 SDK 现有顺序（项目层提示在角色提示之后，仓库说明文件由 SDK 打包在上下文里），不改。
+
+### 3.7 页面
+
+Coding 输入框底部「规则 N」（N = 本轮实际读到的仓库说明文件份数），点开列项目说明与文件、字数、是否截断、读的是哪一版；不信任时写「规则没加载」和原因（「输出不是你选的文件夹」或「你在项目设置里关了」），给「去项目设置」。文字键：`coding.composer.readonly-notice`、`coding.composer.switch-to-edit`、`coding.rules.count`、`coding.rules.not-loaded`、`coding.rules.not-loaded-output`、`coding.rules.not-loaded-off`、`coding.rules.unrecorded`、`coding.rules.open-settings`，中英各一份。
 
 ## 4. 验收
 
 | 编号 | 条件 | 证明 |
 | --- | --- | --- |
-| BCD-01 | 页面给了 `notice` 时输入框上方出现这一行，`readonly` 时描边换色；`notice` 返回 null 后这一行消失 | design-system composer 用例 |
+| BCD-01 | 页面给了 `notice` 时输入框上方出现这一行，`readonly` 时描边换色且聚焦时仍是只读色；`notice` 返回 null 后这一行消失 | design-system composer 用例 |
 | BCD-02 | 框里的页面给的 `notice` 经桥画在底栏，按钮按下后页面的 `run` 被调一次；函数不过框 | 工作台 plugin-frame 用例 |
 | BCD-03 | Coding 在讨论、规划、评审下有只读行，修改、执行下没有；按「换成修改」后模式变成修改、只读行消失 | Coding 浏览器用例 |
-| BCD-04 | 输出是用户选的文件夹时 `trusted` 为真，默认输出或关掉时为假 | projects 模块用例 |
-| BCD-05 | 信任的项目，一轮的模型请求里带仓库的 `AGENTS.md`；不信任的不带 | agent-host 请求接缝用例（CHO-06） |
-| BCD-06 | `run.start` 输入里带 `projectTrusted` 或同义字段被拒 | 安全不变量用例（拒绝本身） |
-| BCD-07 | 冻结记录写本轮实际读到的文件；文件之后改了，旧一轮显示的来源不变 | agent-host 用例 |
-| BCD-08 | 「规则 N」与「规则没加载」按冻结记录显示，中英文、深浅色、三种宽度 | Coding 浏览器用例＋截图 |
+| BCD-04 | 本人选的输出 `trusted` 为真；默认输出、工具会话关联的、升级得来（非本人）的输出、关掉时为假；关掉后换输出仍为假 | projects 模块用例 |
+| BCD-05 | 信任的项目，一轮的模型请求里带仓库的 `AGENTS.md`；不信任的不带；只作输入的文件夹里的不带 | agent-host 请求接缝用例（CHO-06） |
+| BCD-06 | `AgentStartRequest` 里带 `projectTrusted`、`instructions_trusted` 或任何未知字段被拒；Agent、MCP 调 `set_instructions` 被拒 | 安全不变量用例（拒绝本身） |
+| BCD-07 | 冻结记录写本轮实际读到的文件与哈希；文件之后改了，旧一轮显示的来源不变 | agent-host 用例 |
+| BCD-08 | 「规则 N」「规则没加载」按冻结记录显示，中英文、深浅色、三种宽度 | Coding 浏览器用例＋截图 |
+| BCD-09 | `set_instructions` 用旧修订号提交被拒；开关进 `revision` | projects 模块用例 |
+| BCD-10 | 没有 `instructions` 的旧一轮显示「这一轮没有记录规则来源」 | Coding 浏览器用例 |
+| BCD-11 | 静止单行状态下提示行仍在框上方；减少动态效果时没有进场动画 | design-system composer 用例 |
+| BCD-12 | 提示行文字不变时重画不重新播报；输入框 `aria-describedby` 指向它 | design-system composer 用例 |
+| BCD-13 | 目录库 3→4 升级只建表，第 3 版金样回放通过 | golden-replay |
+| BCD-14 | 项目说明（`project_prompts`）与仓库说明文件在规则菜单里分开列，「规则 N」只数文件 | Coding 浏览器用例 |
 
 ## 5. 对别人的影响
 
 - 插件作者：`ComposerOptions` 多一个可选项，不给就和现在一样。
-- `projects.directories.get@1` 输出多两个字段；读它的插件（Coding、Files、Git）不受影响。
+- 7 个 `projects.directories.*` 动作的输出多 `instructions`；读它的插件不受影响。冻结记录多可选的 `instructions`。
 - 第 35 批 A1（说明文件、`/init`）与本节是同一件事（35 批文件已写明「应由同一片做」）：本批交信任、读入与来源显示，35 批只剩 `/init` 和「这一轮读到的说明」在规则菜单之外的入口。开 PR 时同步改 35 批文件。

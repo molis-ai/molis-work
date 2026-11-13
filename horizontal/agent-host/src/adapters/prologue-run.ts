@@ -103,7 +103,10 @@ function assertWorkspace(input: PrologueStartInput, index: SessionIndex | undefi
 /** The role's own tools in the Host's words, and as Prologue names them. */
 const hostSystemTools = (input: PrologueStartInput) => input.character.tools.filter(tool => tool !== SUGGEST_HOST_TOOL);
 const systemTools = (input: PrologueStartInput, overrides?: ReadonlyMap<string, string>) =>
-  hostSystemTools(input).map(tool => overrides?.get(tool) ?? prologueToolName(tool));
+  hostSystemTools(input)
+    // A round whose pack does not hold the symbol tool must not show a name the pack cannot resolve.
+    .filter(tool => tool !== FIND_SYMBOL_HOST_TOOL || overrides?.has(tool) === true)
+    .map(tool => overrides?.get(tool) ?? prologueToolName(tool));
 
 /**
  * The round's actions: the business gateway's three tools, or one tool per frozen action. What the round really keeps,

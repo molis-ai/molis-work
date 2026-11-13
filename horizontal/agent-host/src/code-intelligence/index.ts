@@ -51,6 +51,8 @@ export function languageServerSettings(value: unknown): LanguageServerSettings {
   if (input.registry !== undefined && (typeof input.registry !== "string" || !/^https:\/\/[^\s]+$/u.test(input.registry))) {
     throw new Error("language-servers.json registry must be an https URL");
   }
+  // A person who allows downloads must also say where they come from: no silent default registry in production config.
+  if (downloads && input.registry === undefined) throw new Error('language-servers.json needs an explicit registry (an https URL) when downloads is "allow"');
   return { downloads, servers, ...(input.registry === undefined ? {} : { registry: input.registry }) };
 }
 

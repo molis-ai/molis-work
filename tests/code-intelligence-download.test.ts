@@ -73,6 +73,8 @@ test("Q5: the configuration says where a missing server comes from, and defaults
   assert.deepEqual(languageServerSettings({ servers: [], downloads: "allow", registry: "https://registry.npmjs.org" }).downloads, true);
   assert.throws(() => languageServerSettings({ servers: [], downloads: "yes" }), /"allow" or "deny"/u);
   assert.throws(() => languageServerSettings({ servers: [], registry: "http://example.com" }), /https/u);
+  // Allowing downloads without saying where they come from is refused: no silent npmjs default in production config.
+  assert.throws(() => languageServerSettings({ servers: [], downloads: "allow" }), /explicit registry/u);
   const parsed = languageServerSettings({ servers: [{ extensions: [".ts"], command: "fake-lsp", install: { package: "@scope/fake-lsp", version: "1.2.3", bin: "fake-lsp" } }] });
   assert.deepEqual(parsed.servers[0]?.install, { package: "@scope/fake-lsp", version: "1.2.3", bin: "fake-lsp" });
   assert.throws(() => languageServerSettings({ servers: [{ extensions: [".ts"], command: "x", install: { package: "x", version: "latest", bin: "x" } }] }), /exact version/u);

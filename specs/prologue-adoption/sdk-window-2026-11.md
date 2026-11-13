@@ -78,8 +78,9 @@
 | 语言服务器客户端 | 放在 `horizontal/agent-host/src/code-intelligence/`（它是给 Agent 工具提供执行器的运行时件，不是独立动作服务）：按文件类型按需起停、JSON-RPC、只读查询（定义、引用、文件顶层符号）；回合结束关闭 | A4-1 |
 | 执行器 | Agent Host 只接 `coding.symbol-index`（`coding.find-symbol`）；`coding.formatter`、`coding.diagnostics` 留给后续片 | A4-1 的「查到定义与引用」 |
 | 配置与获取 | 人写在 Home 的 `language-servers.json`（示例见下）；允许时缺的工具装进 `<Home>/tools/language-servers`，先找本机版本、复用已装版本；**装完才认** | A4-1、Q5 |
-`downloads` 不写就是 `"deny"`：只找本机/项目已有的 `command`，缺了报「没有服务器、下载关着」，不联网。
 | 需求改写 | `next-requirements.md` A4／A4-1 改成宿主侧执行器写法，删掉「Manifest `lsp_servers`」与「SDK 加 LSP 客户端」 | 文档一致性 |
+
+`downloads` 不写就是 `"deny"`：先找配置里 `command` 指向的本机可执行文件（绝对路径或 PATH 上的名字），缺了报「没有服务器、下载关着」，不联网；写 `"allow"` 时还必须写 `registry`。
 
 配置示例（人写在 `<Home>/language-servers.json`）：
 
@@ -104,10 +105,10 @@
 
 | # | 回答 |
 | --- | --- |
-| 1 事实主人 | 子代理、技能、Run 的事实仍归 Prologue SDK（AI 运行时）；Molis 只存投影与会话索引。代码智能的服务器登记归平台（新包），不归 Coding 插件；Coding 插件只声明要用哪几样 |
+| 1 事实主人 | 子代理、技能、Run 的事实仍归 Prologue SDK（AI 运行时）；Molis 只存投影与会话索引。代码智能的服务器登记归平台（`agent-host` 的 code-intelligence），不归 Coding 插件；Coding 插件只声明要用哪几样 |
 | 2 插件同等待遇 | 官方编码包的声明式执行器是 SDK 的公共机制，第三方插件同样能用；不给 Coding 开宿主私路。App 模式子代理也走同一条 `startAgentRun` |
 | 3 能力注册 | 本批不新增动作；续跑的宿主动作与端口归 43-1（SDK 入口已可用） |
-| 4 合同 | 改 `packages/contracts`：新增续跑动作与端口、技能回执字段投影；`pnpm api:update` + `pnpm actions:update`；本批一个 PR，不切合同小 PR（无人排队） |
+| 4 合同 | 本批不改 `packages/contracts`；续跑动作与端口、技能回执投影归 43-1／Skill 消费者片；本批一个 PR |
 | 5 放在哪个包 | 代码智能是给 Agent 工具提供执行器的运行时件，放 `horizontal/agent-host/src/code-intelligence/`；SDK 仍只在 `horizontal/agent-host` 一处依赖 |
 | 6 表与存储 | 不新增表；续跑沿用 `taskboard-attempts` 的尝试记录；代码智能不落库（只在内存里按需起停） |
 | 7 兼容与迁移 | 不加兼容读取或迁移逻辑；换包后旧数据由金样回放证明可读 |

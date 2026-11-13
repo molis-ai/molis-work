@@ -466,7 +466,7 @@ function layout(stage){
   const lv=id=>mem[id]??(mem[id]=1+Math.max(-1,...byId[id].pre.filter(p=>set.has(p)).map(lv)));
   own.forEach(b=>lv(b.id));
   const max=Math.max(0,...Object.values(mem));
-  if(set.has('89'))mem['89']=max+(max>0&&own.some(b=>b.id!=='89'&&mem[b.id]===max)?1:0);
+  if(set.has(D.final))mem[D.final]=max+(max>0&&own.some(b=>b.id!==D.final&&mem[b.id]===max)?1:0);
   const cols=[];own.forEach(b=>(cols[mem[b.id]]=cols[mem[b.id]]||[]).push(b.id));
   const pos={};cols.forEach(c=>c.forEach((id,i)=>pos[id]=i));
   for(let pass=0;pass<6;pass++){
@@ -484,7 +484,7 @@ function buildCard(id){
   r.append(ids);const right=el('span','row');
   right.append(el('span','rel'));r.append(right);
   c.append(r,el('span','name',b.title));
-  const n=id==='89'?'全部做完才收口':[st!=='open'&&b.pending?`要等 ${b.pending}`:'',down[id].size?`放行 ${down[id].size}`:''].filter(Boolean).join(' · ');
+  const n=id===D.final?'全部做完才收口':[st!=='open'&&b.pending?`要等 ${b.pending}`:'',down[id].size?`放行 ${down[id].size}`:''].filter(Boolean).join(' · ');
   if(n&&st!=='doing'&&st!=='done'&&st!=='pause')c.append(el('span','meta',n));
   const lead=b.items.find(i=>ITEM_TONE[i.s]==='doing')||b.items.find(i=>i.s==='暂停');
   if(st==='doing'||st==='pause'||st==='done'||b.merged){
@@ -586,8 +586,8 @@ function renderDetail(id){
   if(b.split)iss.append(el('p','d-note','子项前置不同，可能先开放其中几项。'));
   const ch=el('div','d-sec chain');
   const u=el('div'),d=el('div');const nu=reach(id,up).size,nd=reach(id,down).size;
-  u.append(el('h4','u',id==='89'?'要先完成':`要先完成（上游共 ${nu} 批）`),id==='89'?el('div','none','除服务端批外的其余全部批次'):chipList(sorted(up[id]),'没有前置'));
-  d.append(el('h4','d',`它放行（下游共 ${nd} 批）`),chipList(sorted(down[id]),id==='89'?'这是整条路线的最后一批':'没有批次必须等它'));
+  u.append(el('h4','u',id===D.final?'要先完成':`要先完成（上游共 ${nu} 批）`),id===D.final?el('div','none','除服务端批外的其余全部批次'):chipList(sorted(up[id]),'没有前置'));
+  d.append(el('h4','d',`它放行（下游共 ${nd} 批）`),chipList(sorted(down[id]),id===D.final?'这是整条路线的最后一批':'没有批次必须等它'));
   ch.append(u,d);box.append(ch);
   if(b.cond.length||b.ask){const l=el('ul');b.cond.forEach(t=>l.append(el('li',null,t)));const c=sec('开工条件',l);
     if(b.ask){const a=el('div','callout warn');a.append(el('b',null,'需要负责人做的'),b.ask);c.append(a)}}

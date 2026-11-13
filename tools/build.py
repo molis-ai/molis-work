@@ -1,4 +1,6 @@
 import json,os,re,sys,collections
+sys.path.insert(0,os.path.dirname(os.path.abspath(__file__)))
+from data import FINAL,MAP
 DATA,BATCHES,TPL,OUT=sys.argv[1:5]
 d=json.load(open(DATA));N={n['id']:n for n in d['nodes']};T=d['batches']
 prog=json.load(open(sys.argv[5]))
@@ -13,13 +15,13 @@ for u,n in N.items():
         x=x.strip()
         if x and not x.startswith('决定') and '#1724' not in x and x not in ext[b]:ext[b].append(x)
     for c in n['decs']:decs[b][c['n']]=c['t']
-    if b=='89':continue
+    if b==FINAL:continue
     for t,k,_ in n['deps']:
         if bid(t)==b:continue
         if k=='h':par[b].add(bid(t))
 for u,n in N.items():
     b=bid(u)
-    if b=='89':continue
+    if b==FINAL:continue
     for t,k,_ in n['deps']:
         tb=bid(t)
         if k!='h' and tb!=b and tb not in par[b]:soft[b].setdefault(tb,k)
@@ -34,14 +36,13 @@ out=[]
 for b in B:
     fn=b.lower() if b.startswith('SRV') else b
     t=open(f'{BATCHES}/{fn}.md').read()
-    items=[{'t':clean(a),'d':clean(x)} for a,x in re.findall(r'^\| <a id="[^"]+"></a>(.*?) \| (.*) \| .*? \|$',t,re.M)]
+    items=[{'t':clean(a),'d':clean(x)} for _,a,x in sorted(re.findall(r'^\| <a id="[^"]+-item-(\d+)"></a>(.*?) \| (.*) \| .*? \|$',t,re.M),key=lambda r:int(r[0]))]
     cond=list(ext[b])+[f"决定 {k}（待定）：{v}" for k,v in sorted(decs[b].items(),key=lambda kv:int(kv[0]))]
     out.append(dict(id=b,title=T[b]['title'],stage=stage[b],intro=T[b]['intro'],ask=T[b]['ask'],
       url=f'https://github.com/molis-ai/molis-work/blob/main/specs/post-anticorruption-roadmap/reference/batches/{fn}.md',
       items=items,pre=sorted(par[b],key=B.index),soft=[{'id':k,'k':v} for k,v in soft[b].items()],cond=cond,
       split=len([u for u in N if bid(u)==b])>1))
 # 进展：认领板按交付项一行、顺序与批次文件相同，页面里解析；这里只给每个单元对应哪几项、硬依赖和部分依赖
-MAP={'54a':[3,4],'54b':[1,2,7],'54c':[5,6],'54d':[8],'65.1':[1,2],'65.3':[3],'69a':[1,4,5,6,7,8,9,10],'69b':[2,3]}
 by={x['id']:x for x in out}
 for x in out:x['nodes']=[]
 for u,n in N.items():
@@ -56,7 +57,7 @@ for x in out:
         if r and r['title']!=it['t']:print('轨道表对不上',x['id'],n,it['t'])
         it['track']=r['main'] if r else '';it['occ']=bool(r and r['occupy']);it['also']=r['also'] if r else [];it['kind']=r['kind'] if r else ''
 foot=f'依据路线书 {sys.argv[6]}；部分依赖待核实。'
-data=dict(batches=out,edges=edges,state={},order={b:i for i,b in enumerate(B)},foot=foot,board=prog['body'],boardAt=prog['updated_at'],claimers=json.load(open(sys.argv[7])))
+data=dict(final=FINAL,batches=out,edges=edges,state={},order={b:i for i,b in enumerate(B)},foot=foot,board=prog['body'],boardAt=prog['updated_at'],claimers=json.load(open(sys.argv[7])))
 html=open(TPL).read().replace('/*DATA*/null',json.dumps(data,ensure_ascii=False,separators=(',',':')).replace('</','<\\/'))
 open(OUT,'w').write(html)
 print('批次',len(out),'边',len(edges),'有子项拆分',sum(x['split'] for x in out),'有开工条件',sum(bool(x['cond']) for x in out),'字节',len(html.encode()))

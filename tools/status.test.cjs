@@ -78,11 +78,11 @@ test('RAR-04 generated contract dependencies separate partial prerequisites from
   const nodes = Object.fromEntries(snapshot.batches.flatMap(b => b.nodes.map(n => [n.id, n])));
   assert.deepEqual(nodes['08'].hard, ['02.2']);
   for (const id of ['05.1', '05.2', '05.3']) assert.ok(nodes['08'].partial.includes(id));
-  assert.deepEqual(nodes['14'].hard, ['03', '02.2']);
-  assert.ok(nodes['14'].partial.includes('05.2'));
-  assert.deepEqual(nodes['20'].hard, ['02.2', '04']);
-  for (const id of ['05.2', '08', '14', '36.1']) assert.ok(nodes['20'].partial.includes(id));
-  assert.ok(nodes['36.1'].partial.includes('20'));
+  assert.deepEqual(nodes['14.1'].hard, ['03', '02.2']);
+  assert.deepEqual(nodes['14.3'].hard, ['14.1', '14.2']);
+  assert.deepEqual(nodes['20.1'].hard, ['02.2', '04']);
+  for (const id of ['05.2', '08', '14.1', '36.1']) assert.ok(nodes['20.1'].partial.includes(id));
+  assert.ok(nodes['36.1'].partial.includes('20.1'));
   const finished = new Set();
   function visit(id, active = new Set()) {
     assert.ok(nodes[id], `unknown dependency ${id}`);
@@ -96,13 +96,13 @@ test('RAR-04 generated contract dependencies separate partial prerequisites from
   Object.keys(nodes).forEach(id => visit(id));
 });
 
-test('RAR-03 live-board snapshot releases batch 69 without marking it done or removing its hard blockers', () => {
+test('RAR-03 live-board snapshot releases batch 70 without marking it done or removing its hard blockers', () => {
   const D = apply(snapshot);
-  const batch69 = D.batches.find(b => b.id === '69');
-  assert.equal(D.state['69'], 'open');
-  assert.ok(batch69.ready.length > 0);
-  assert.ok(batch69.ready.length < batch69.items.length);
-  assert.equal(batch69.merged, 0);
+  const batch70 = D.batches.find(b => b.id === '70');
+  assert.equal(D.state['70'], 'open');
+  assert.ok(batch70.ready.length > 0);
+  assert.ok(batch70.ready.length < batch70.items.length);
+  assert.equal(batch70.merged, 0);
 });
 
 test('RAR-04 early contract work does not unlock consumers that need the complete batch', () => {
@@ -111,11 +111,13 @@ test('RAR-04 early contract work does not unlock consumers that need the complet
     snapshot.batches.find(b => b.id === id).items.forEach((_, i) => { statuses[`${id}-${i + 1}`] = '已合入'; });
   }
   const D = apply(snapshot, statuses);
-  for (const id of ['08', '14', '20']) {
+  for (const id of ['08', '20']) {
     assert.equal(D.state[id], 'open');
     assert.ok(D.batches.find(b => b.id === id).remainingParts.length > 0);
     assert.equal(D.batches.find(b => b.id === id).merged, 0);
   }
+  assert.equal(D.state['14'], 'open');
+  assert.equal(D.batches.find(b => b.id === '14').merged, 0);
   assert.equal(D.state['09'], 'wait');
   assert.equal(D.state['16'], 'wait');
 });
@@ -128,7 +130,7 @@ test('RAR-04 batch 12 remains unfinished until its added return capability is de
   assert.equal(returning.s, '待认领');
   assert.equal(batch12.merged, 2);
   assert.notEqual(D.state['12'], 'done');
-  assert.ok(D.batches.find(b => b.id === '13').remainingParts.includes('12'));
+  assert.equal(D.state['13'], 'wait');
 });
 
 test('RAR-05 generated page uses the tested template algorithm', () => {

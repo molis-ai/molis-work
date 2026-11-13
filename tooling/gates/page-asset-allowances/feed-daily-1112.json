@@ -1,0 +1,7 @@
+{
+  "reason": "N1201 退出页外定位时恢复分页查询，N1202 组字期间保留输入并在结束后刷新；现有 Feed 脚本净增288字节，无新增资源。",
+  "review": "specs/feed-bounded-reads/spec.md FBR-08/FBR-09；2026-11-13 用户授权日报工作清单第3、4、5项修复，实测增量随本轮实现提交评审，尚未合入。",
+  "assets": {
+    "/assets/molis-work-plugins/feed.js": 288
+  }
+}

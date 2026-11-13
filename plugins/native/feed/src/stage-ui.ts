@@ -187,7 +187,7 @@ function sourceModel(source: FeedSourceRecord, view: FeedStageView, readText: Fe
       : null,
     home_url: presentation?.home_url ?? null,
     editable_endpoint: source.kind === "custom_rss",
-    messages: view.data.snapshot.feed_items.filter((item) => item.source_id === source.source_id).slice(0, 3).map((item) => item.title),
+    messages: [...(view.data.source_messages[source.source_id] ?? [])],
     runs: runs.slice(0, SOURCE_RUN_HISTORY).map((run) => ({
       phase: run.phase,
       outcome: run.outcome,

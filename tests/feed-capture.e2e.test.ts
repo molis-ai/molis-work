@@ -264,6 +264,12 @@ test("FBR-07 FSS-35 the real Feed page reaches later messages and materials and 
     search.dispatchEvent(new Event('input',{bubbles:true}));
   })()`);
   await child.waitFor("pagingPending===0 && document.querySelectorAll('[data-feed-entry-id]').length===200");
+  // FBR-09 / N1202: unfinished IME input must not refresh the surface or replace its search control.
+  const beforeComposition = await child.evaluate<number>("pagingReads.length");
+  await child.evaluate(`(() => { const input=document.querySelector('[data-feed-search]'); input.dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true})); input.value='组字'; input.dispatchEvent(new InputEvent('input',{bubbles:true,isComposing:true})); })()`);
+  assert.equal(await child.evaluate("pagingReads.length"), beforeComposition);
+  await child.evaluate(`(() => { const input=document.querySelector('[data-feed-search]'); input.value='Page message'; input.dispatchEvent(new CompositionEvent('compositionend',{bubbles:true})); })()`);
+  await child.waitFor(`pagingReads.length>${beforeComposition} && pagingPending===0`);
   await child.click('[data-feed-page="200"]');
   await child.waitFor("document.querySelectorAll('[data-feed-entry-id]').length===5");
   assert.ok((await child.evaluate<string[]>("[...document.querySelectorAll('[data-feed-entry-id]')].map(row=>row.dataset.feedEntryId)")).includes(target.item_id));
@@ -340,9 +346,14 @@ test("FBR-07 FSS-35 the real Feed page reaches later messages and materials and 
   await child.waitFor("pagingPending===0 && document.querySelectorAll('[data-feed-entry-id]').length===1");
   await child.evaluate("(() => {const search=document.querySelector('[data-feed-search]'); search.value='';search.dispatchEvent(new Event('input',{bubbles:true}));})()");
   await child.waitFor("pagingPending===0 && document.querySelectorAll('[data-feed-entry-id]').length===200");
-  await child.evaluate(`pagingHost.root.dispatchEvent(new CustomEvent('molis-work:select-item',{detail:{view:'all',itemId:${JSON.stringify(target.item_id)}}}))`);
+  await child.evaluate(`pagingHost.root.dispatchEvent(new CustomEvent('molis-work:select-item',{detail:{view:${JSON.stringify(source.source_id)},itemId:${JSON.stringify(target.item_id)}}}))`);
   await child.waitFor(`JSON.parse(pagingHost.root.getAttribute('data-assistant-context')||'{}').object?.id===${JSON.stringify(target.item_id)}`);
   await child.waitFor("pagingPending===0 && document.querySelector('[data-feed-detail]')?.textContent.includes('Detail remains available')");
+  // FBR-08 / N1201: leaving a page-external detail restores the ordinary paged list.
+  await child.click('[data-feed-collapse]');
+  await child.waitFor("pagingPending===0 && document.querySelectorAll('[data-feed-entry-id]').length===200");
+  await child.click('[data-feed-page="200"]');
+  await child.waitFor("pagingPending===0 && document.querySelectorAll('[data-feed-entry-id]').length===5");
   await mkdir(reviewEvidenceUrl("feed-capture/"), { recursive: true });
   const screenshot = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId);
   await writeFile(reviewEvidenceUrl("feed-capture/bounded-pages.png"), Buffer.from(screenshot.data, "base64"));

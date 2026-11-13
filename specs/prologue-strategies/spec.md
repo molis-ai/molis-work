@@ -13,6 +13,6 @@
 
 共同边界：四份都消费 Prologue SDK，但各自是独立需求；不要按一份的完成度推断其他三份。来源、信任、打包与压缩沿用 [context-program](../context-program/spec.md)；连接、协议、调用与审查沿用 [plugin-platform-v2](../plugin-platform-v2/spec.md)；Skill 包装、安装与信任沿用 [skill-packs](../skill-packs/spec.md)；工具形状、副作用链与审批沿用 [action-architecture](../action-architecture/spec.md)。
 
-路线书去处：Prologue 上游与服务端批见[路线书](../post-anticorruption-roadmap/spec.md)第 61 批与 SRV 批；换 `vendor/prologue-sdk`、动真实 Home 仍逐项要用户批。
+路线书去处：Prologue 上游与服务端批见[路线书](../post-anticorruption-roadmap/spec.md)第 62 批与 SRV 批；换 `vendor/prologue-sdk`、动真实 Home 仍逐项要用户批。
 
 验收编号：不适用（四份子文档分别验收；合并前没有独立编号需要迁移）。

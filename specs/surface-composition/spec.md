@@ -520,7 +520,7 @@ Dock 的个人固定顺序目前只在浏览器，不在 Host 存储。首页请
 
 合并 Attention 与各概况给出的对象后，先按真实 reader 和来源 owner 核对，再对同一个对象去重；规则 values 按既有精确 provider／动作、50 个对象、32 个字段合最少批次。对象全部有当前读取结果后仅批查一次关系，两端可读才合并。先产出「等你」，插件卡再扣掉上方已经表示的对象，`hidden_above` 只计本次可读对象。工作记录还没有交付，本片省略「接着做」。页面一次 compose 后只补显示字段的合批 values，不再读一次概况。
 
-**Feed 的本批最小接入。** 真实 Attention 记录保留 Feed owner，条目和来源故障分别指向 `feed_item`、`source`；Inbox 的 `inbox_entry` 只是事项壳，不能代读。S-1 先匹配同主人声明再选同 scope 的唯一 values，因此只补 values 仍不会进入可读候选。本片在 Feed 项目 Runtime 同时声明这两种对象的行形态、实际使用的标题／状态／时间／来源／归属字段及一支共用只读 values，复用现有两支 subject reader；概况按固定协议提供本轮文字引用、至多五个可读对象和现有打开入口。无真实开始动作或表单绑定时不给 start；可选建议只读已有有效结果，不为首页启动模型或同步。第 52 批仍负责完整 Feed 卡片、跨位置挂载和研究呈现。
+**Feed 的本批最小接入。** 真实 Attention 记录保留 Feed owner，条目和来源故障分别指向 `feed_item`、`source`；Inbox 的 `inbox_entry` 只是事项壳，不能代读。S-1 先匹配同主人声明再选同 scope 的唯一 values，因此只补 values 仍不会进入可读候选。本片在 Feed 项目 Runtime 同时声明这两种对象的行形态、实际使用的标题／状态／时间／来源／归属字段及一支共用只读 values，复用现有两支 subject reader；概况按固定协议提供本轮文字引用、至多五个可读对象和现有打开入口。无真实开始动作或表单绑定时不给 start；可选建议只读已有有效结果，不为首页启动模型或同步。第 53 批仍负责完整 Feed 卡片、跨位置挂载和研究呈现。
 
 归属按授权分区内的条目 `source_id` 读取来源原记录，以 `SourceRecord.project_id` 与 `PERSONAL_SPACE_PROJECT_ID` 判定；来源对象用自己的项目，空来源或无法核实就省略，不能按 Gmail／RSS 类型猜。个人分区走同一个项目 Runtime；Feed 的 Home 实例是证据账本，不能借它跨分区聚合。只在同一可读组确有本项目／个人混合值时显示归属标签。Feed Item 的 `read_at` 是用户阅读时间，不能当作旧值的上次成功读取时间。同步材料不自动产生 Attention 或工作计数；同一可读对象在「等你」和概况之间去重，撤权后不留隐藏计数。WBR-24 验同项目 Gmail 与 RSS 同属项目、个人分区、缺源不猜、无 Attention 的同步资料不计工作、现有条目／来源故障可读与去重，以及撤权拒绝。
 

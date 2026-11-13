@@ -219,6 +219,19 @@ node scripts/run-tests.mjs <你这边失败的那几个文件>
 - 只在你这边失败的，才逐个看原因。负载下的偶发失败，在同一棵树上单独重跑几次来排除。
 - 基线工作树不改任何文件。比完删掉。
 
+### 8.1 只在 Linux CI 上红的用例
+
+全量（`full-suite.yml`）跑在 Ubuntu 上，比开发机慢约 3 倍，字体也不同。一个用例在 CI 上红、本机绿，先在本机的 Linux 容器里复现，不靠盲改：
+
+```sh
+node scripts/linux-repro.mjs tests/<文件>.e2e.test.ts [--test-name-pattern=…] [--rebuild]
+```
+
+- 要有 Docker（Colima、OrbStack 或 Docker Desktop）。镜像（`scripts/linux-repro/Dockerfile`）带 CI 装的那几种字体、Node 24.15 和 Debian 的 Chromium；第一次运行建镜像、克隆、装依赖、构建，十分钟上下，之后复用。
+- 容器测的是本工作树 `HEAD` 的提交，没提交的改动不在里面；改了包的 `src` 或锁文件加 `--rebuild`。
+- 字体与排版和 CI 一致（一行代码的行高、换行、`monospace` 落到哪种字体）；速度不一致（容器比 CI 快）。时序问题（抢先操作、等不到的状态）再加 `MOLIS_WORK_TEST_CPU_THROTTLE=3`，让页面慢三倍；它在 macOS 上直接跑也有效。抢先操作还可以在可疑的那一步前临时插一段等待，看用例是不是随之变红。
+- 用例里的时间门槛写成「开发机上的预算 × 本机的慢倍数」（`tests/fixtures/page-speed.ts`），尺寸门槛按页面里实测的值算，不写死开发机上的数字。
+
 ## 9. 共享 Agent 锁与真实 Home
 
 - 一个 Home 同一时刻只有一个执行进程。宿主在任何业务初始化之前就在 `<Home>/agent-runtime/.molis-runtime-owner.db` 上取独占事务（`apps/local-host/src/home-storage-lifetime.ts` 的 `ensureHomeStorageOwner`，底下是 `horizontal/agent-host/src/adapters/prologue-storage-owner.ts`），Agent 借用同一个 owner，关掉全部资源后才释放；空闲的宿主也一直占着。同一个 Home 再起一个宿主或离线操作会拿不到，得到 `storage.owner.busy`（Agent 侧是 `agent.storage_busy`，提示「Agent 执行服务正由另一个进程使用」）。

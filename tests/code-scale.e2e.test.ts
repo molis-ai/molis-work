@@ -10,6 +10,7 @@ import { openBoardBrowser as openGoalBrowser } from "./fixtures/board-browser.js
 import { assistantTextModel } from "./fixtures/assistant-text-model.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 import { codeColouringProjection } from "./fixtures/code-colouring.js";
+import { pageSlowdown } from "./fixtures/page-speed.js";
 import { assistantTextHtml } from "@molis-ai/molis-work-app-workbench";
 import { renderRichText } from "@molis-ai/molis-work-plugin-sdk/rich-text";
 
@@ -21,6 +22,8 @@ import { renderRichText } from "@molis-ai/molis-work-plugin-sdk/rich-text";
 const LINE = (index: number) => index % 7 === 0 ? `/** step ${index}: a note */` : `  const value${index} = compute(${index}, "text-${index}"); // ${index}`;
 const textOf = (size: number) => { let text = "", index = 0; while (text.length < size) text += LINE(index++) + "\n"; return text; };
 const FIRST_LAYOUT_MS = 150;
+// A frame's work on the development Mac the budgets were measured on; elsewhere times the measured slowdown (fixtures/page-speed.ts).
+const FRAME_MS = 50;
 const WHOLE = `(text) => { const code = document.createElement('code'); for (const [kind, value] of tokensOf(text, 'ts')) { if (!kind) code.append(value); else { const span = document.createElement('span'); span.className = 'tok-' + kind; span.textContent = value; code.append(span); } } return code.innerHTML; }`;
 
 test("VUX-36: putting a large coloured block into a product page costs in step with its size", { timeout: 120_000 }, async (t) => {
@@ -46,6 +49,7 @@ test("SYS-49/VUX-33: a large block reads at once and is coloured a slice a frame
   const { evaluate, waitFor, command, sessionId, navigate, origin } = browser;
   await navigate(() => command("Page.navigate", { url: `${origin}/__ui/catalog#foundation` }, sessionId));
   await waitFor("document.readyState === 'complete'");
+  const frameBudget = FRAME_MS * await pageSlowdown(evaluate, (message) => t.diagnostic(message));
   // SYS-49: scope the timer to the painter's callbacks; catalog animations keep the native scheduler.
   // Each timed slice still includes its forced layout and the page's observers of what it put in, in the original product page and with the same text.
   // The block's first layout is measured on its own (user 2026-10-29, T-281): putting 300,000 characters in and laying them out once is
@@ -68,7 +72,7 @@ test("SYS-49/VUX-33: a large block reads at once and is coloured a slice a frame
     return { coloured, reads: code.textContent === text, ms, laidOut: performance.now() - start, spans, frame: await firstFrame }; })()`);
   t.diagnostic("code-scale initial: " + JSON.stringify(first));
   assert.deepEqual([first.coloured, first.reads], [true, true], "past the old 40,000-character cap it is coloured, and reads whole from the start");
-  assert.ok(first.ms < 50, `putting the text in is a frame's work: ${first.ms} ms`);
+  assert.ok(first.ms < frameBudget, `putting the text in is a frame's work: ${first.ms} ms (budget ${frameBudget.toFixed(0)} ms)`);
   assert.equal(first.spans, 0, "SYS-49: large text reads immediately; the first colouring slice waits for its own frame");
   // RAC-2071: the first layout of the whole text (put in, the page's observers, laid out once; no idle time) has its own bound. Measured
   // (T-281, Chrome on an Apple-silicon dev machine): 16–20 ms; 55–57 ms at 4× CPU throttling, 74–95 ms at 6×. CI's Linux runners run the
@@ -87,7 +91,7 @@ test("SYS-49/VUX-33: a large block reads at once and is coloured a slice a frame
   const evidence = reviewEvidenceUrl("visual-ui-experience/"); await mkdir(evidence, { recursive: true });
   await writeFile(new URL("code-scale-slices.json", evidence), JSON.stringify({ first, steps, slices }, null, 2));
   // RAC-2072: every colouring frame, with its forced layout and the observers of what it put in, stays a frame's work.
-  assert.ok(steps.length >= 15 && Math.max(...steps) < 50, `${steps.length} frames, the longest ${Math.max(...steps).toFixed(1)} ms`);
+  assert.ok(steps.length >= 15 && Math.max(...steps) < frameBudget, `${steps.length} frames, the longest ${Math.max(...steps).toFixed(1)} ms (budget ${frameBudget.toFixed(0)} ms)`);
 
   // Growing while it is coloured: the job takes the longer text and goes on; nothing starts over.
   await evaluate("window.code = block(); window.grown = 0; paint.paintInto(code, text, 'ts')");
@@ -123,6 +127,17 @@ test("B27SRC-05: CR, CRLF and LF code read, show and colour alike: as rendered r
   await evaluate(`window.__name = (fn) => fn; window.tokensOf = ${codeTokens.toString()}; window.colourParts = ${codeColouringProjection};
     window.paint = (${createCodingCodePaint.toString()})(tokensOf, ${growCodeTokens.toString()}, (hint) => hint);
     window.block = (id) => { const pre = document.body.appendChild(document.createElement('pre')); pre.id = id; pre.style.cssText = 'font: 13px/20px monospace; white-space: pre; margin: 0'; return pre; };`);
+  // One line's height, measured with the same markup and styles as the blocks below rather than taken from the 20px line-height: on the
+  // Mac it is 20px, but on Linux the pre's generic monospace (DejaVu Sans Mono) and the page's code face (Liberation Mono) sit on different
+  // baselines and the line box is 21px. A CR shown as a doubled line still comes out near twice the lines.
+  const unitHtml = (text: string) => JSON.stringify(renderRichText("```ts\n" + text + "\n```"));
+  const units = await evaluate<{ html: number; paint: number }>(`(() => {
+    const measure = (make) => { const heights = ['a', 'a\\nb'].map((text) => { const pre = block('unit'), code = make(pre, text), height = code.getBoundingClientRect().height; pre.remove(); return height; }); return heights[1] - heights[0]; };
+    const texts = { 'a': ${unitHtml("a")}, 'a\\nb': ${unitHtml("a\nb")} };
+    return { html: measure((pre, text) => { pre.innerHTML = texts[text]; return pre.querySelector('code'); }),
+      paint: measure((pre, text) => { const code = pre.appendChild(document.createElement('code')); paint.paintInto(code, text, 'ts'); return code; }) }; })()`);
+  t.diagnostic("B27SRC-05 line heights " + JSON.stringify(units));
+  assert.ok(units.html >= 16 && units.html <= 24 && units.paint >= 16 && units.paint <= 24, "a 13px/20px code line measures about 20px");
   const lf = textOf(90_000).replace(/\n$/u, ""), lines = lf.split("\n").length;
   const shown: Record<string, { reads: boolean; height: number; coloured?: boolean }> = {};
   for (const [name, ending] of [["lf", "\n"], ["crlf", "\r\n"], ["cr", "\r"]] as const) {
@@ -138,7 +153,8 @@ test("B27SRC-05: CR, CRLF and LF code read, show and colour alike: as rendered r
   t.diagnostic("B27SRC-05 " + JSON.stringify(shown));
   for (const [name, value] of Object.entries(shown)) {
     assert.equal(value.reads, true, `${name} reads the exact code`);
-    assert.ok(Math.abs(value.height - lines * 20) <= 20, `${name} shows ${lines} lines: ${value.height}px`);
+    const unit = name.endsWith("-html") ? units.html : units.paint;
+    assert.ok(Math.abs(value.height - lines * unit) <= unit, `${name} shows ${lines} lines of ${unit}px: ${value.height}px`);
   }
   // A lone CR streamed first and its LF next: the block grows to the CRLF text and colours it whole, without a doubled line.
   const crlf = lf.slice(0, 4000).replaceAll("\n", "\r\n"), cut = crlf.indexOf("\r\n", 2000) + 1;
@@ -147,7 +163,7 @@ test("B27SRC-05: CR, CRLF and LF code read, show and colour alike: as rendered r
   await waitFor("grow.textContent === growText && JSON.stringify(colourParts(grow)) === JSON.stringify(tokensOf(growText, 'ts'))", 30_000);
   const grown = await evaluate<{ reads: boolean; coloured: boolean; height: number; lines: number }>("({ reads: true, coloured: true, height: grow.getBoundingClientRect().height, lines: growText.split('\\r\\n').length })");
   assert.deepEqual([grown.reads, grown.coloured], [true, true]);
-  assert.ok(Math.abs(grown.height - grown.lines * 20) <= 20, `no doubled line where the CR met its LF: ${grown.height}px for ${grown.lines} lines`);
+  assert.ok(Math.abs(grown.height - grown.lines * units.paint) <= units.paint, `no doubled line where the CR met its LF: ${grown.height}px for ${grown.lines} lines of ${units.paint}px`);
 });
 
 test("VUX-33: Coding reopens a turn with a large code block as text at once and coloured whole", { timeout: 240_000 }, async (t) => {
@@ -283,6 +299,7 @@ test("SYS-49 RAC-2422: a large block attached while display:none is coloured onl
   const { evaluate, waitFor, command, sessionId, navigate, origin } = browser;
   await navigate(() => command("Page.navigate", { url: `${origin}/__ui/catalog#foundation` }, sessionId));
   await waitFor("document.readyState === 'complete'");
+  const frameBudget = FRAME_MS * await pageSlowdown(evaluate, (message) => t.diagnostic(message));
   await evaluate(OBSERVER_SETUP);
   const text = textOf(120_000);
   const hidden = await evaluate<{ started: boolean; coloured: number; frames: number }>(`(async () => {
@@ -301,7 +318,7 @@ test("SYS-49 RAC-2422: a large block attached while display:none is coloured onl
   t.diagnostic("RAC-2422 shown: " + JSON.stringify({ frames: shown.steps.length, longest: Math.max(...shown.steps) }));
   assert.equal(shown.same, true, "shown: it reads whole from the start");
   assert.ok(shown.steps.length >= 8, `shown over ${shown.steps.length} colouring frames`);
-  assert.ok(Math.max(...shown.steps) < 50, `each colouring frame after it is shown stays a frame's work: the longest ${Math.max(...shown.steps).toFixed(1)} ms`);
+  assert.ok(Math.max(...shown.steps) < frameBudget, `each colouring frame after it is shown stays a frame's work: the longest ${Math.max(...shown.steps).toFixed(1)} ms (budget ${frameBudget.toFixed(0)} ms)`);
 });
 
 test("SYS-49 RAC-2423: a large block in a content-visibility:auto subtree is coloured only once scrolled near, a slice a frame", { timeout: 120_000 }, async (t) => {
@@ -309,6 +326,7 @@ test("SYS-49 RAC-2423: a large block in a content-visibility:auto subtree is col
   const { evaluate, waitFor, command, sessionId, navigate, origin } = browser;
   await navigate(() => command("Page.navigate", { url: `${origin}/__ui/catalog#foundation` }, sessionId));
   await waitFor("document.readyState === 'complete'");
+  const frameBudget = FRAME_MS * await pageSlowdown(evaluate, (message) => t.diagnostic(message));
   await evaluate(OBSERVER_SETUP);
   const text = textOf(120_000);
   const skipped = await evaluate<{ started: boolean; coloured: number; frames: number; top: number; viewport: number }>(`(async () => {
@@ -331,7 +349,7 @@ test("SYS-49 RAC-2423: a large block in a content-visibility:auto subtree is col
   assert.equal(shown.same, true, "scrolled near: it reads whole from the start");
   assert.ok(shown.spans > 0, "scrolled near: it is coloured");
   assert.ok(shown.steps.length >= 8, `coloured over ${shown.steps.length} frames after scrolled near`);
-  assert.ok(Math.max(...shown.steps) < 50, `each colouring frame after it is scrolled near stays a frame's work: the longest ${Math.max(...shown.steps).toFixed(1)} ms`);
+  assert.ok(Math.max(...shown.steps) < frameBudget, `each colouring frame after it is scrolled near stays a frame's work: the longest ${Math.max(...shown.steps).toFixed(1)} ms (budget ${frameBudget.toFixed(0)} ms)`);
 });
 
 // RAC-2729 (T-354) ②: a block that really is laid out and grows past the slice is coloured in the next frame, without asking a layout
@@ -342,6 +360,7 @@ test("SYS-49 RAC-2729: a laid-out block grown past the slice colours the next fr
   const { evaluate, waitFor, command, sessionId, navigate, origin } = browser;
   await navigate(() => command("Page.navigate", { url: `${origin}/__ui/catalog#foundation` }, sessionId));
   await waitFor("document.readyState === 'complete'");
+  const frameBudget = FRAME_MS * await pageSlowdown(evaluate, (message) => t.diagnostic(message));
   await evaluate(`window.__name = (fn) => fn; window.tokensOf = ${codeTokens.toString()}; window.colourParts = ${codeColouringProjection};
     const expected = new Map(); window.matchesColour = (code, text) => {
       if (!expected.has(text)) expected.set(text, JSON.stringify(tokensOf(text, "ts")));
@@ -378,7 +397,7 @@ test("SYS-49 RAC-2729: a laid-out block grown past the slice colours the next fr
   const frames = await evaluate<number[]>("frames.slice()");
   t.diagnostic("RAC-2729 grown frames: " + JSON.stringify({ frames: frames.length, longest: Math.max(...frames) }));
   assert.ok(frames.length >= 2, `coloured over ${frames.length} frames`);
-  assert.ok(Math.max(...frames) < 50, `each colouring frame stays a frame's work: the longest ${Math.max(...frames).toFixed(1)} ms`);
+  assert.ok(Math.max(...frames) < frameBudget, `each colouring frame stays a frame's work: the longest ${Math.max(...frames).toFixed(1)} ms (budget ${frameBudget.toFixed(0)} ms)`);
 });
 
 // RAC-2729 ③ (T-354 一审 P1): the shortcut may not take `framed` (fonts set on a connected node) for a layout. A small block that grows
@@ -389,6 +408,7 @@ test("SYS-49 RAC-2729: a hidden or render-skipped block grown past the slice wai
   const { evaluate, waitFor, command, sessionId, navigate, origin } = browser;
   await navigate(() => command("Page.navigate", { url: `${origin}/__ui/catalog#foundation` }, sessionId));
   await waitFor("document.readyState === 'complete'");
+  const frameBudget = FRAME_MS * await pageSlowdown(evaluate, (message) => t.diagnostic(message));
   await evaluate(OBSERVER_SETUP);
   const small = "const stable = 1;\nconst value = compute(1);\n";
   const hidden = await evaluate<{ afterSmall: number; frames: number; coloured: number; reads: boolean; height: number }>(`(async () => {
@@ -411,7 +431,7 @@ test("SYS-49 RAC-2729: a hidden or render-skipped block grown past the slice wai
   t.diagnostic("RAC-2729 hidden shown: " + JSON.stringify({ frames: shown.steps.length, longest: Math.max(...shown.steps) }));
   assert.equal(shown.same, true, "shown: the grown block reads whole");
   assert.ok(shown.steps.length >= 2, `shown over ${shown.steps.length} colouring frames`);
-  assert.ok(Math.max(...shown.steps) < 50, `each colouring frame after it is shown stays a frame's work: the longest ${Math.max(...shown.steps).toFixed(1)} ms`);
+  assert.ok(Math.max(...shown.steps) < frameBudget, `each colouring frame after it is shown stays a frame's work: the longest ${Math.max(...shown.steps).toFixed(1)} ms (budget ${frameBudget.toFixed(0)} ms)`);
 
   const skipped = await evaluate<{ afterSmall: number; frames: number; coloured: number; reads: boolean; visible: boolean; top: number; viewport: number }>(`(async () => {
     window.text = ${JSON.stringify(small)} + ${JSON.stringify(textOf(60_000))};
@@ -436,5 +456,5 @@ test("SYS-49 RAC-2729: a hidden or render-skipped block grown past the slice wai
   t.diagnostic("RAC-2729 skipped shown: " + JSON.stringify({ frames: near.steps.length, longest: Math.max(...near.steps) }));
   assert.equal(near.same, true, "scrolled near: the grown block reads whole");
   assert.ok(near.steps.length >= 2, `coloured over ${near.steps.length} frames after scrolled near`);
-  assert.ok(Math.max(...near.steps) < 50, `each colouring frame after it is scrolled near stays a frame's work: the longest ${Math.max(...near.steps).toFixed(1)} ms`);
+  assert.ok(Math.max(...near.steps) < frameBudget, `each colouring frame after it is scrolled near stays a frame's work: the longest ${Math.max(...near.steps).toFixed(1)} ms (budget ${frameBudget.toFixed(0)} ms)`);
 });

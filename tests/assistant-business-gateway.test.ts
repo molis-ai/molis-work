@@ -1572,3 +1572,56 @@ test("RAC-61/62: an unreadable work keeps its job waiting, storage recovery fini
     locker.close(); await f.close(); database.close(); await rm(directory, { recursive: true, force: true });
   }
 });
+
+// Seen 2026-11-13: with input allowed to be any JSON value, models sent a positional array (["kb36be7e"]); the refusal then read as
+// "not authorized", and the confirmation card showed the retry key and raw field names.
+test("capability inputs keep their declared shape, refusals explain bad input, and the card leaves out only bookkeeping", async () => {
+  const { pack, declare, parameterBranches } = prologueActionGateway({ client: { discover: async () => [], offer: async () => ({ offer_id: "o" }) }, operate: true } as never);
+  for (const name of ["read-capability", "change-capability", "change-reversible", "suggest-action"]) {
+    const registered = pack.tools.find(one => one.registration.name === name)!.registration.parameters as { properties: { input: { type?: unknown } } };
+    assert.deepEqual(registered.properties.input.type, ["object", "array", "string", "number", "boolean", "null"], `${name} supports the action's declared JSON type`);
+  }
+  // An empty tuple can omit input. A nonempty tuple keeps its own branch and its argument values.
+  const none = { capability_id: "fixture.settings.read", version: 1, operation: "query", provider: { provider_id: "fixture.settings", kind: "plugin", title: "Settings" },
+    action: { ...count.action, input_schema: { type: "array", maxItems: 0 } }, availability: { available: true } } as ActionView;
+  const tuple = { ...none, capability_id: "fixture.settings.by-id",
+    action: { ...none.action, input_schema: { type: "array", minItems: 1, maxItems: 1, items: [{ type: "string" }], additionalItems: false } } } as ActionView;
+  assert.deepEqual(capabilityInput(none, undefined), []);
+  assert.deepEqual(capabilityInput(tuple, ["note-1"]), ["note-1"]);
+  declare(none);
+  declare(tuple);
+  assert.deepEqual((parameterBranches("read-capability") as { input: Array<{ title: string; type: string }> }).input.map(one => [one.title, one.type]),
+    [["fixture.settings.read@1", "array"], ["fixture.settings.by-id@1", "array"]]);
+  const view = { ...write, provider: { provider_id: "fixture.notes", kind: "plugin", title: "Notes" }, availability: { available: true } } as ActionView;
+  declare(view);
+  assert.deepEqual((parameterBranches("change-capability") as { input: Array<{ title: string }> }).input.map(one => one.title), ["fixture.notes.write@1"]);
+  const client = { discover: async () => [view], check: async (_ref: unknown, input: unknown) => { if (typeof (input as { text?: unknown })?.text !== "string") throw new ActionError("actions.input_invalid", "输入不符合能力合同：/text type"); } };
+  assert.match(await gatewayProblem({ client, operate: true } as never, "change-capability", { capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes", input: ["会后发纪要"] }) ?? "",
+    /^Invalid input, not a permission problem; nothing ran\. .*you sent array/);
+  assert.match(await gatewayProblem({ client, operate: true } as never, "change-capability", { capability_id: "fixture.notes.write" }) ?? "", /^Invalid input, not a permission problem/);
+  // The card: the retry key and the confirmation flag stay in 完整参数 only; every other field is on the card, an unnamed one under its own key,
+  // so what the person approves is never hidden (user 2026-11-13, for every plugin's actions).
+  const card = readableInput({ type: "object", properties: { text: { type: "string", title: "内容" }, idempotency_key: { type: "string" }, user_confirmed: { type: "boolean" }, x_ref_9: { type: "string" } } },
+    { text: "会后发纪要", idempotency_key: "k-1", user_confirmed: true, x_ref_9: "abc", connection_id: null,
+      note: "", metadata: {}, recipients: [], settings: { alias: "", user_confirmed: false } });
+  assert.deepEqual(card.map(field => field.value), ["会后发纪要", "abc", "null", '""', "{}", "[]", '""']);
+  assert.equal(card[0]!.label, "内容");
+  assert.equal(card.some(field => field.value === "k-1" || field.value === "是"), false);
+});
+
+test("BL-1076 list-memories stops independently at the count and text limits and reports what was omitted", async () => {
+  const memories = Array.from({ length: 120 }, (_, index) => ({ memory_id: `m${index}`, scope: "personal" as const, text: `第 ${index} 条` }));
+  async function list(items: typeof memories) {
+    const { executors } = prologueActionGateway({ client: { discover: async () => [], memory: { list: async () => items } }, operate: true } as never);
+    return JSON.parse(String(await executors["list-memories"]!({ args: {} } as never))) as { memories: typeof memories; more?: number; note?: string };
+  }
+  const atCount = await list(memories);
+  assert.deepEqual(atCount.memories, memories.slice(0, 40));
+  assert.equal(atCount.more, 80);
+  assert.match(atCount.note ?? "", /还有 80 条没有列出/);
+  const long = memories.map(memory => ({ ...memory, text: "字".repeat(400) }));
+  const atSize = await list(long);
+  assert.deepEqual(atSize.memories, long.slice(0, 15), "exactly 6,000 characters of memory text fit");
+  assert.equal(atSize.more, 105);
+  assert.deepEqual(await list(memories.slice(0, 3)), { memories: memories.slice(0, 3) });
+});

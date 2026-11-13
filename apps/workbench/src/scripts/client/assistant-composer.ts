@@ -133,10 +133,16 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     const work = getWork();
     // With a page in front that takes words, the tag opens 「发给」 (O4), so the person can go back to it.
     const open = globalThis.molisBarReceivers?.front() ? openSendTo : openConversation;
-    if (!work) return { open, icon: "sparkles", label: nextExec !== "assistant" && executorOffer(nextExec) ? executorOffer(nextExec).title : readText("workbench.common.assistant") };
+    // A new work names where it will be put first (this project, or personal), so a personal request typed on a project page is not filed there unseen.
+    const place = scopeLabel(nextScope === "project" && project ? { kind: "project", project_id: project.id } : { kind: "personal" });
+    if (!work) return { open, icon: "sparkles", label: place + " · " + (nextExec !== "assistant" && executorOffer(nextExec) ? executorOffer(nextExec).title : readText("workbench.common.assistant")) };
     const where = work.scope?.project_id !== project?.id ? scopeLabel(work.scope, work.scope_title) : "";
-    return { open, icon: "sparkles", label: work.reply_target ? readText("workbench.assistant-composer.original-comment-title", { title: work.reply_target.title }) : (where ? where + " · " : "") + work.title,
-      reset: () => { void switchTo(null); input.focus(); }, resetLabel: readText("workbench.assistant-dock.start-new-work-instead") };
+    // With a page in front that takes words, say plainly that this Send goes to the Assistant, not to that page.
+    const to = globalThis.molisBarReceivers?.front() ? readText("workbench.common.assistant") + " · " : "";
+    return { open, icon: "sparkles", label: to + (work.reply_target ? readText("workbench.assistant-composer.original-comment-title", { title: work.reply_target.title }) : (where ? where + " · " : "") + work.title),
+      // Words carried from this work into a new one are no longer this work's draft: they would come back on returning to it.
+      reset: () => { const from = curId, carried = String(input.value || ""); void switchTo(null).then(() => {
+        if (from && carried.trim() && String(input.value || "") === carried) void draftFor(from).write("").catch(() => undefined); }); input.focus(); }, resetLabel: readText("workbench.assistant-dock.start-new-work-instead") };
   };
   /* The choices that are the next Send's, in the bar only once they differ from the default and while the side pane, where they
      are chosen, is not shown: who carries a new work, the plugin session's mode, the Character. What the next Send does while the
@@ -191,7 +197,8 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     if (declined && page !== declined) declined = null;
     return (panel && !panel.hidden) || !page || page === declined ? null : page;
   };
-  if (panel) new MutationObserver(() => syncComposer()).observe(panel, { attributes: true, attributeFilter: ["hidden"] });
+  // Closing the Assistant hands the bar back to the page in front, even one the person had chosen the Assistant over.
+  if (panel) new MutationObserver(() => { if (panel.hidden) declined = null; syncComposer(); }).observe(panel, { attributes: true, attributeFilter: ["hidden"] });
   let worksArrived; const worksIn = new Promise((resolve) => { worksArrived = resolve; });
   /* A work's Send (going), edits made meanwhile (later), and each pending draft's text + save promise (writing).
      Edits persist immediately; the Host settles only the draft generation captured before the Send (B10-R3). */

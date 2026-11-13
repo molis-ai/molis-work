@@ -41,7 +41,7 @@ async function generate(version, out) {
   const { assertGoldenVersionName, assertNoHomePath, captureHome, createTemporaryHome, GOLDEN_MANIFEST_VERSION, GOLDEN_TEST_KEY, writeManifest } = await import("./golden/layout.mjs");
   assertGoldenVersionName(version);
   const { refuseNetwork, refusedNetwork, enterHome, scriptModel } = await import("./golden/session.mjs");
-  const { populateHome, thirdPartySample } = await import("./golden/populate.mjs");
+  const { holdAutomaticKnowledgeOrganization, populateHome, thirdPartySample } = await import("./golden/populate.mjs");
   const { homeLibrarySample } = await import("./golden/home-library-sample.mjs");
   const local = await import("@molis-ai/molis-work-app-local-host");
   const storage = await import("@molis-ai/molis-work-storage");
@@ -49,6 +49,7 @@ async function generate(version, out) {
   scriptModel();
 
   const generated = createTemporaryHome("golden-home-"), { home } = generated;
+  const resumeKnowledgeOrganization = holdAutomaticKnowledgeOrganization();
   const local_space = { spaceId: "space_golden_root_home", kind: "local", ownerUserId: null, teamId: null, issuer: null, applicationId: null };
   const account_space = storage.personalStorageSpace("https://golden.invalid", "io.molis.work.golden", "golden-person");
   const accountHome = path.join(home, "spaces", account_space.spaceId);
@@ -83,7 +84,7 @@ async function generate(version, out) {
       ...tree,
     });
     writeFileSync(path.join(out, "README.md"), README(version));
-  } finally { generated.remove(); }
+  } finally { resumeKnowledgeOrganization(); generated.remove(); }
 }
 
 async function check(version, directory) {

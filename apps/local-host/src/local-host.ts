@@ -10,8 +10,9 @@ import type {
   LocalHostStatus,
 } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { ActionService, CapabilityRegistry, refuseCall, registeredActionMetadata, type CallSettled, type RetainedActionDirectory } from "@molis-ai/molis-work-kernel";
+import type { ActionSelection } from "@molis-ai/molis-work-kernel";
 import { projectCallCaller } from "./project-call-caller.js";
-import { ActionError, requireSynchronous, type SyncActionClient, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionExecutionContext, type ActionReference,
+import { ActionError, requireSynchronous, type SyncActionClient, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionReference,
   type ActionProviderRegistration, type ActionView, type ActionSceneClient, type ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { hostBoundSession } from "@molis-ai/molis-work-plugin-sdk";
 import { dependencyCaller, verifiedCaller } from "./plugin-callers.js";
@@ -20,7 +21,7 @@ import { callSignal, hostAuthorityContext, snapshotCaller } from "./local-host-c
 import { ProjectLine, normalizeReference } from "./local-host-project-line.js";
 import { createSceneClient, type SceneHost } from "./local-host-scenes.js";
 import { createSyncActionClient, type SyncClientHost } from "./local-host-sync-client.js";
-import type { HostCapabilityHandler, LocalHostOptions } from "./local-host-types.js";
+import type { HostActionClient, HostCapabilityHandler, LocalHostOptions } from "./local-host-types.js";
 import { isMcpToolCapability } from "./mcp-tool-actions.js";
 import type { SurfaceInstallRegistry } from "./surface-installation.js";
 
@@ -29,7 +30,7 @@ export type { ActionAvailabilityPolicy, HostCapabilityHandler, LocalHostOptions,
 /** The provider of the Host's own actions: a capability registered with an `action` and no provider of its own (the workspace reads, for one). */
 export const HOST_PROVIDER_ID = "platform";
 
-interface ProjectActionClient extends ActionClient {
+interface ProjectActionClient extends HostActionClient {
   discoverRetained(caller: ActionExecutionContext): Promise<RetainedActionDirectory>;
 }
 
@@ -169,7 +170,7 @@ export class LocalHost<Runtime> {
   }
 
   /** `step`: composition-only. The calls a scene run makes are part of that run and take its place on the line. */
-  homeActionClient(step = false): ActionClient {
+  homeActionClient(step = false): HostActionClient {
     const contextFor = (caller: ActionCallContext) => {
       this.assertRunning();
       if (caller.project_id) throw new ActionError("actions.scope_mismatch", "系统入口不能伪造项目上下文");
@@ -177,6 +178,7 @@ export class LocalHost<Runtime> {
     };
     return {
       discover: async caller => this.availability.discover(contextFor(caller)),
+      discoverMatching: async (caller, select) => this.availability.discover(contextFor(caller), select),
       invoke: async (caller, capability, input) => {
         let context: ActionCallContext;
         try { context = contextFor(caller); }
@@ -205,14 +207,16 @@ export class LocalHost<Runtime> {
       if (caller.project_id !== project.project_id) throw new ActionError("actions.scope_mismatch", "调用上下文与项目不一致");
       return verifiedCaller(snapshotCaller(caller));
     };
+    const discover = async (caller: ActionCallContext, select?: ActionSelection) => {
+      if (routing) throw new ActionError("actions.forbidden", "此入口只接受精确目录动作调用");
+      const bound = callerFor(caller);
+      await this.withRuntime(project, () => undefined);
+      caller.signal?.throwIfAborted();
+      return this.availability.discover(bound, select);
+    };
     return {
-      discover: async caller => {
-        if (routing) throw new ActionError("actions.forbidden", "此入口只接受精确目录动作调用");
-        const bound = callerFor(caller);
-        await this.withRuntime(project, () => undefined);
-        caller.signal?.throwIfAborted();
-        return this.availability.discover(bound);
-      },
+      discover: caller => discover(caller),
+      discoverMatching: discover,
       discoverRetained: async caller => {
         if (!caller.retainAuthority) throw new ActionError("actions.host_context_missing", "组合需要原调用的授权");
         const bound = callerFor(caller);

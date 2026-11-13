@@ -192,7 +192,7 @@ sample_not_found: "not_found",
 | Feed | `plugins/native/feed/src/browser/rule-authoring.ts`（`:21,55,80,87`）、`plugins/native/feed/src/manifest.ts:38`（消费 `get`，§2.7），**E 轨**。Inbox 没有直接消费者 |
 | 快照 | `tooling/gates/actions/host-actions.tsv`：`functions.authoring.*` 14 行里输入哈希变 6 行，`get` 一行的「谁能调」加 `plugin`，共变 7 行，`pnpm actions:update`，PR 里写明影响。公开 API 快照预计不变，开工时跑 `pnpm api:update` 确认 |
 | 测试 | `action-version-precondition`（`:23,26,59-64`）、`feed-capture.e2e`、`functions-authoring-actions`、`connector-consumer-usages`（`:70-72`）、`functions-draft-retention`（`:62` 的假服务要改字段名）、`functions-store-versions`（§2.4 的合同变化）、`functions-scene-configuration`、`functions-agent-references`、`functions-choice-validation`、`functions-plugin`、`functions-system-capability`、`home-action-scenes`、`home-offers.e2e`、`inbox-action-scenes`、`mcp-scene-effect-authority`、`scene-default-rule-lifecycle`、`scene-default-rule-same-scope`、`secret-store-keychain-retry`、`security-invariants-artifact-declarations`、`system-functions-actions`、`workflows-judgment-link`、`function-agent-authoring.e2e`、`personal-plugins-review-fixes`、`workbench-functions-late.e2e`、`functions-effect-boundaries`、`host-pages-error-model`（`:77`） |
-| 文档与 Skill | `docs/mcp.md:62`、`packages/kernel/README.md:106`、`skills/goal-advance/SKILL.md:17`（全量回归期间不能改 `skills/`，排好时段）、`docs/releases/CHANGELOG.md` 的升级须知一条（**F 轨独占**，由 F 落或经 F 同意：MCP 客户端的 `updated_at` 改成 `expected_updated_at`） |
+| 文档与 Skill | `docs/mcp.md:62`、`packages/kernel/README.md:106`、（原 `skills/goal-advance/SKILL.md:17` 随 44-7 删除，不再列入）、`docs/releases/CHANGELOG.md` 的升级须知一条（**F 轨独占**，由 F 落或经 F 同意：MCP 客户端的 `updated_at` 改成 `expected_updated_at`） |
 | 不用改 | `tests/fixtures/studio-replay/recorded.json` 只有动作 id，不带这个字段；开工时再 grep 一次 |
 
 `tests/action-version-precondition.test.ts` 的 W3-09-3-02 下半段（`updated_at: null` 被拒）改成断言 `expected_updated_at: null` 被拒，不删。
@@ -626,7 +626,7 @@ N22 只动 N12 第 ④ 块（`normalizeProjectId`）；①②③⑤（两段固�
 
 | 片 | 包（文件数） | 动作行 | `as` 处数 | 轨道 | 档位 | 排序依据与要注意的 |
 | --- | --- | --- | --- | --- | --- | --- |
-| T01 | Goals（18） | 76 | 63 | E | Sonnet 5.5 xhigh | 最大，最先开。它的写法是 `Input<"submitGoalTreeProposal">`，类型来自应用层接口，方向和别的包相反：推出来的类型要能赋给接口。排在 N22-02 之后：`goal-tree-action-schemas.ts:18` 的 `payload` 工具改之前推成 `unknown`，读字段编译报错，T 片又不许改 schema |
+| T01 | Goals（18） | 76 | 63 | E | Sonnet 5.5 xhigh | 最大，最先开。它的写法是 `Input<"submitGoalTreeProposal">`，类型来自应用层接口，方向和别的包相反：推出来的类型要能赋给接口。排在 N22-02 之后：`goal-tree-action-schemas.ts:18` 的 `payload` 工具改之前推成 `unknown`，读字段编译报错，T 片又不许改 schema。等 39-2 与 44-2、44-3、44-4 搬走相应动作（项目指导、可信决定、要求认可、终端）、胶囊投影也删之后再迁，免得为要离开 Goals 的动作白迁一次，也不与 44-1 要改的合同文件（如 `platform/placement.ts`）冲突（2026-11-13 按插件同等地位收口改，[决定 42](../post-anticorruption-roadmap/reference/decisions.md#decision-42)） |
 | T02 | Feed（9） | 48 | 12 | E | Sonnet 5.5 high | |
 | T03 | Todo、Schedule（9） | 44 | 12 | E | Sonnet 5.5 high | Schedule 的 `bind` 包了写入检查。排在 N22-02 之后：`todo.changes.revert`、`todo.items.link` 同时有 `properties` 和顶层 `anyOf`、`oneOf`，工具改之前推成 `unknown` |
 | T04 | Pages、PPT、Form（9） | 96 | 7 | E | Sonnet 5.5 high | |
@@ -651,7 +651,7 @@ N22 只动 N12 第 ④ 块（`normalizeProjectId`）；①②③⑤（两段固�
 | 片 | 包 | 轨道 | 快照 | 档位 | 前置 |
 | --- | --- | --- | --- | --- | --- |
 | S0 合同里的共享 schema 与接口（清单空就取消） | 工具报出、N22-02、N22-03 记下的（已知 7 个定义，§4.3）。接口宽的收紧接口，调用方照接口写的本来就被拒，行为不变，报错的调用方当场改；schema 松的把字段写全，只搬已有检查，写不全就进 §4.4 名单。**例外：用户选的文件和平台自己产出的记录，先看该不该写全**：写进 schema，处理器具体的错误话会变成通用的输入错误（`memory.import`）；封口之后记录多一个字段就运行时报错（`artifact` 帮手） | C1 | 两份都占，可能还有 api | Opus 5.5 high，全量 | 这两片之后；占两份，这一轮别的 S 片让开 |
-| S1 | Goals | E | `actions.tsv` | Opus 5.5 medium | T01 |
+| S1 | Goals | E | `actions.tsv` | Opus 5.5 medium | T01（等 39-2、44-2、44-3、44-4 搬走相应动作后再迁） |
 | S2 | Feed、Inbox、Issues | E | `actions.tsv` | Opus 5.5 medium | T02、T07 |
 | S3 | Todo、Schedule、Workflows | E | `actions.tsv` | Opus 5.5 medium | T03、T06 |
 | S4 | Pages、PPT、Form、Dataset、Lingguang | E | `actions.tsv` | Opus 5.5 medium | T04、T05 |

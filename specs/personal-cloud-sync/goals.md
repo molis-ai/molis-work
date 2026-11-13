@@ -8,6 +8,8 @@
 
 逐 Goal 独立恢复会暂时拆开关系图、用户决定和约定；原样复制数据库会复制运行状态、凭据及本机游标。本期采用项目内 Goals 事实的一致性聚合：Goals、Governance、Goal 相关 ContextLedger 与它们的 Journal/幂等回执，由各 owner 明确声明可移植字段，Host 只组合公开端口。
 
+第 44 批之后，项目指导、可信决定记录、要求—证据—认可分别归平台项目服务、平台决定服务、平台要求—认可能力，Goals 只声明 Goal 事实的集合；这些平台主人各自声明同步集合，跨主人引用用「缺依赖等待并重试」（PCSYNC-14），宿主不再按 Goals 名字找集合（`personal-sync.ts` 的 hasGoal、goal-context 分段、work-assets 的 goals 字段由 44-5 改掉）。下面的 GSYNC-01 里指导、规划、约定、要求、可信决定出处几项，随之移到对应平台主人的验收下（2026-11-13 按插件同等地位收口改，[决定 42](../post-anticorruption-roadmap/reference/decisions.md#decision-42)）。
+
 项目聚合作为冲突单元，不自动合并两端编辑。变更日志仍增量上传项目聚合，不全量扫描上传整个 Home。单项保留当前 512 KiB 限制，超限报错且保留源数据。运行中的 Session、Agent、Scheduler 不复制、不执行；缺失的跨插件对象保留精确引用，物化仍向真实 owner 查询。
 
 ## Acceptance

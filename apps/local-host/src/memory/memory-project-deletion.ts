@@ -31,10 +31,10 @@ export function registerMemoryProjectDeletion(ports: {
     check: () => executes() ? (runtimeExists() ? whileRuntimeIsOurs(() => ports.ready()) : undefined) : elsewhere.check?.(),
     clear: async (projectId, receipt) => {
       if (receipt && (receipt.project_id !== projectId || !receipt.deletion_id.trim())) throw memoryErrors.forbidden("项目删除回执不属于当前清理范围");
-      if (!executes()) return elsewhere.clear(projectId);
-      if (!runtimeExists()) { await purgeProjectMemories({ backend: null, ledger: ports.ledger }, projectId); return; }
+      if (!executes()) return elsewhere.clear(projectId, receipt);
       await whileRuntimeIsOurs(async () => {
-        await ports.ready();
+        const hasRuntime = runtimeExists();
+        if (hasRuntime) await ports.ready();
         const key = `memory-project-delete:${projectId}`;
         const marker = ports.ledger.marker(LOCAL_PERSON_ACTOR_ID, key)?.body as { operation_id?: string; complete?: boolean } | undefined;
         if (!receipt && await ports.projectExists?.(projectId) !== true) throw memoryErrors.forbidden("没有当前项目删除回执，不能清理记忆");
@@ -42,7 +42,7 @@ export function registerMemoryProjectDeletion(ports: {
         if (!receipt) ports.ledger.setMarker(LOCAL_PERSON_ACTOR_ID, key, { operation_id: operation, complete: false }, new Date().toISOString());
         const frame = { project: projectId, active: true };
         try {
-          await deleting.run(frame, () => purgeProjectMemories({ backend: ports.backend, ledger: ports.ledger,
+          await deleting.run(frame, () => purgeProjectMemories({ backend: hasRuntime ? ports.backend : null, ledger: ports.ledger,
             caller: { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: projectId, consumer: "ui", person: true,
               current_scene: "common", purpose: "management", operation_id: operation } }, projectId));
           if (!receipt) ports.ledger.setMarker(LOCAL_PERSON_ACTOR_ID, key, { operation_id: operation, complete: true }, new Date().toISOString());

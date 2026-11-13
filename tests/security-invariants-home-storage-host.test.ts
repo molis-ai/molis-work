@@ -7,6 +7,7 @@ import { Server } from "node:http";
 import { MolisWorkLocalHost, LocalHost, HomePluginHost, ensureSystemAgentService, captureHostLog, hostLog, type HomeInitializationFailure } from "@molis-ai/molis-work-app-local-host";
 import { createDesktopWebCore, openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ALCHEMIST_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/alchemist";
 import { PrologueAgentAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { deferred, homeProbe } from "./fixtures/home-runtime.js";
 import { storageOwnerProcesses } from "./fixtures/home-storage-owner.js";
@@ -134,10 +135,11 @@ function failedConstruction(t: TestContext, options: { mode: "host" | "web"; pen
   const gate = deferred(), entered = deferred();
   const originalHostClose = MolisWorkLocalHost.prototype.close, originalPluginsClose = HomePluginHost.prototype.close;
   const originalConfigure = MolisWorkLocalHost.prototype.configurePersonalPlanning;
+  const originalRegistry = LocalHost.prototype.actionRegistry;
   const originalKernelClose = LocalHost.prototype.close, originalOn = Server.prototype.on, originalServerClose = Server.prototype.close;
   const teardownOnly = new Set<MolisWorkLocalHost>();
   let failure: HomeInitializationFailure | undefined, borrowedHost: MolisWorkLocalHost | undefined;
-  const state = { pluginCloses: 0, kernelCloses: 0, serverCloses: 0, hostCloses: 0, upgradeRefused: false, rejectRemaining: pending ? 0 : 2 };
+  const state = { pluginCloses: 0, kernelCloses: 0, serverCloses: 0, hostCloses: 0, registrationFaults: 0, upgradeRefused: false, rejectRemaining: pending ? 0 : 2 };
   const cleanupFailure = new Error("temporary actual Home plugin cleanup refusal");
   t.after(async () => {
     state.rejectRemaining = 0; gate.resolve(); Server.prototype.on = originalOn;
@@ -149,6 +151,7 @@ function failedConstruction(t: TestContext, options: { mode: "host" | "web"; pen
     } finally {
       MolisWorkLocalHost.prototype.close = originalHostClose; HomePluginHost.prototype.close = originalPluginsClose;
       MolisWorkLocalHost.prototype.configurePersonalPlanning = originalConfigure;
+      LocalHost.prototype.actionRegistry = originalRegistry;
       LocalHost.prototype.close = originalKernelClose; Server.prototype.close = originalServerClose;
     }
   });
@@ -157,6 +160,16 @@ function failedConstruction(t: TestContext, options: { mode: "host" | "web"; pen
   MolisWorkLocalHost.prototype.close = function () { state.hostCloses++; teardownOnly.add(this); return originalHostClose.call(this); };
   MolisWorkLocalHost.prototype.configurePersonalPlanning = function (...args: Parameters<typeof originalConfigure>) { teardownOnly.add(this); if (configureFailure) throw reason; return originalConfigure.apply(this, args); };
   LocalHost.prototype.close = function () { state.kernelCloses++; return originalKernelClose.call(this); };
+  if (mode === "host") LocalHost.prototype.actionRegistry = function (...args: Parameters<typeof originalRegistry>) {
+    const registry = originalRegistry.apply(this, args);
+    return { ...registry, registerProvider: (registration: Parameters<typeof registry.registerProvider>[0]) => {
+      // This real registration follows construction of the Kernel, Home plugins and Alchemist resource.
+      if (registration.provider.provider_id === ALCHEMIST_PLUGIN_ID && state.registrationFaults === 0) {
+        state.registrationFaults++; throw reason;
+      }
+      return registry.registerProvider(registration);
+    } };
+  };
   HomePluginHost.prototype.close = async function () {
     state.pluginCloses++; entered.resolve();
     if (state.pluginCloses === 1) await gate.promise;
@@ -170,13 +183,14 @@ function failedConstruction(t: TestContext, options: { mode: "host" | "web"; pen
   };
   Server.prototype.close = function (...args: Parameters<typeof Server.prototype.close>) { state.serverCloses++; originalServerClose.apply(this, args); return this; };
   try {
-    if (mode === "host") new MolisWorkLocalHost({ homeDirectory: home, completeText: null, get functions(): never { throw reason; } });
+    if (mode === "host") new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
     else createDesktopWebCore({ ptyClientFilePath: () => join(home, "unused-pty.js") })({ homeDirectory: home, localHost: borrowedHost });
     assert.fail("the real initialization fault must be reached");
   } catch (error) {
     assert.ok(error instanceof Error && "close" in error && typeof error.close === "function", "the thrown public failure must retain its actual cleanup entry");
     failure = error as HomeInitializationFailure;
-  }
+  } finally { LocalHost.prototype.actionRegistry = originalRegistry; }
+  assert.equal(state.registrationFaults, mode === "host" ? 1 : 0, "the late Host registration fault must be reached exactly once");
   assert.ok(failure);
   return { home, root: join(home, "agent-runtime"), peers, failure, state, cleanupFailure, gate, entered,
     borrowedHost, restoreUpgrade: () => { Server.prototype.on = originalOn; } };

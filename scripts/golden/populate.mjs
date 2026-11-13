@@ -11,6 +11,7 @@ import { enterHome, goldenActions, loadGoldenWrites, openGoldenHost, root } from
 
 const local = await import("@molis-ai/molis-work-app-local-host");
 const { withMolisWorkProjectCatalog } = await import("@molis-ai/molis-work-app-desktop");
+const { KnowledgeOrganizer } = await import("@molis-ai/molis-work-service-knowledge");
 const { addProjectPlugin, createProject, LocalHostHttpClient } = await import("@molis-ai/molis-work-test-kit/local-host-http");
 const { verifyPluginPackageSignature } = await import("@molis-ai/molis-work-plugin-runtime");
 const { openBaselineHomeSqlite, bindDatabaseSpace, readStorageSpace } = await import("@molis-ai/molis-work-storage");
@@ -19,11 +20,17 @@ const { materializeGoalEventHistory } = await import(new URL("../../tests/goal-e
 const { registerProjectCopy } = await import(new URL("../../tests/fixtures/parameterless-reads.ts", import.meta.url).href);
 const { expectAnswer, installedPluginSession } = await import("../replay-plugins/signed-session.mjs");
 
-const BACKGROUND_SETTLE_MILLISECONDS = 4_000;
 const GOAL_HISTORY_KIND = "approved-completed";
 const GOAL_HISTORY_PROJECT = "goalboard-v1-demo";
 const CORPUS = path.join(root, "tests/fixtures/replay-plugins/corpus.json");
 const EMPTY_HOME_LIBRARIES = ["plugin-directories", "plugin-libraries", "plugin-originals"];
+
+/** A generation explicitly reconciles the cards once. Automatic model jobs would record uses and change the cards between steps. */
+export function holdAutomaticKnowledgeOrganization() {
+  const kick = KnowledgeOrganizer.prototype.kick;
+  KnowledgeOrganizer.prototype.kick = () => Promise.resolve();
+  return () => { KnowledgeOrganizer.prototype.kick = kick; };
+}
 
 /** The third-party sample: the one corpus entry that has a write, read back through its own action. */
 export function thirdPartySample() {
@@ -101,26 +108,31 @@ async function createEmptyLibraries(home, projects) {
 /**
  * A card's number is the order the organizer's timers happened to fire in, across projects, and a contentless index holds that number, so nothing
  * after the fact can make it stable. The cards hold nothing the catalog does not (no model, no edits), and with the search index complete the owner
- * rebuilds them in one pass, project by project: the library is removed and the Host lists each project that had cards. Recorded in the manifest's `imports`.
+ * rebuilds them in one pass, project by project, after the search index finishes. Recorded in the manifest's `imports`.
  * This runs after the owners' write cases, so the case that writes to this library says so and runs here, on the cards that stay.
  */
 async function cardsInOneOrder(home, account, projects, named, seed) {
-  const directory = path.join(home, "knowledge"), db = new DatabaseSync(path.join(directory, "knowledge.db"), { readOnly: true });
-  let holders;
-  try { holders = db.prepare("SELECT DISTINCT project_id FROM knowledge_cards ORDER BY project_id").all().map(row => row.project_id); } finally { db.close(); }
-  rmSync(directory, { recursive: true, force: true });
+  const personal = await withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => catalog.listProjects().find(project => project.project_id === "personal"));
+  const holders = Object.values({ ...projects, ...(personal ? { personal } : {}) }).sort((a, b) => a.project_id < b.project_id ? -1 : a.project_id > b.project_id ? 1 : 0);
+  rmSync(path.join(home, "knowledge"), { recursive: true, force: true });
   await named("knowledge-rebuild");
   const session = await openGoldenHost(home, { web: !account });
   try {
-    for (const project_id of holders) {
-      const known = Object.values(projects).find(project => project.project_id === project_id);
-      if (!known && project_id !== "personal") throw goldenFailure("golden.knowledge_project_unknown", project_id);
-      await goldenActions(session, known ?? { project_id, database_path: path.join(session.home, "projects", project_id, "molis-work.db") }, "seed").call("knowledge.list");
+    for (const project of holders) {
+      const { call } = goldenActions(session, project, "seed");
+      // A source can report the previous index as ready while catch-up runs. Rebuild once, then wait for the fresh listing.
+      await call("search.rebuild", { scope: "project" }, { project_owner: true });
+      for (let attempt = 0; ; attempt++) {
+        const { sources } = await call("search.status", { scope: "project" }, { project_owner: true });
+        if (sources.every(source => ["ready", "disabled", "unavailable"].includes(source.state))) break;
+        if (attempt === 119) throw goldenFailure("golden.knowledge_index_unsettled", project.project_id);
+        await new Promise(resolve => setTimeout(resolve, 250));
+      }
+      const { listing } = await call("knowledge.list", {}, { project_owner: true });
+      if (listing) throw goldenFailure("golden.knowledge_index_unsettled", project.project_id);
     }
-    await new Promise(resolve => setTimeout(resolve, BACKGROUND_SETTLE_MILLISECONDS));
     await named("knowledge-settle");
     await seed(session, projects, write => write.afterKnowledgeRebuild);
-    await new Promise(resolve => setTimeout(resolve, BACKGROUND_SETTLE_MILLISECONDS));
     await named("knowledge-edit-settle");
   } finally { await session.close(); }
 }
@@ -149,8 +161,6 @@ export async function populateHome(home, { step, label, withThirdParty, account 
       await installThirdParty(session, projects.primary, named);
       await installHomeLibrarySample(session, projects.primary, named);
     }
-    // The knowledge organizer runs a moment after a write, on a timer. Whether its cards made it in must not depend on how fast this machine is.
-    await new Promise(resolve => setTimeout(resolve, BACKGROUND_SETTLE_MILLISECONDS));
     await named("settle");
     await session.close();
     await cardsInOneOrder(home, account, projects, named, seed);

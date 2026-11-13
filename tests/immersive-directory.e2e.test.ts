@@ -325,11 +325,11 @@ test("底栏：Assistant 常驻居中，回答在上方先写问题；插件从�
       && start.right<=composer.left && (side ? composer.right<=side.left && side.right<=project.left : composer.right<=project.left)
       && project.right<=innerWidth && project.bottom<=innerHeight && project.width>=39;
   })()`), "the bar reads switcher and Dock · Assistant · the person's own · project, left to right, none covering another");
-  // At rest the bar is the input (K3, UIV-12): its receiver row says a new work goes to the Assistant, with nothing to reset
+  // At rest the bar is the input (K3, UIV-12): its receiver names the project and the Assistant, with nothing to reset
   // and no chooser nobody changed; “+” only adds (files, methods, capabilities) — who carries a new work and where it lives
   // are chosen in its tab.
   assert.ok(await evaluate(`(()=>{const shown=(sel)=>Boolean(document.querySelector(sel)?.getClientRects().length);
-    return document.querySelector('[data-assistant-composer] [data-composer-receiver]')?.textContent === '助理' && !shown('[data-assistant-composer] .mw-composer__to [data-tag-remove]') && !document.querySelector('[data-assistant-composer] [data-composer-control]');})()`), "a new work goes to the Assistant and shows no default chooser");
+    return document.querySelector('[data-assistant-composer] [data-composer-receiver]')?.textContent === '目录交互验证 · 助理' && !shown('[data-assistant-composer] .mw-composer__to [data-tag-remove]') && !document.querySelector('[data-assistant-composer] [data-composer-control]');})()`), "a new work goes to the Assistant and shows no default chooser");
   await click("[data-assistant-composer] [data-composer-add]");
   await waitFor("!document.querySelector('[data-assistant-composer] [data-compose-menu]').hidden && /添加文件/.test(document.querySelector('[data-assistant-composer] [data-compose-menu]').textContent)");
   assert.ok(await evaluate("(()=>{const t=document.querySelector('[data-assistant-composer] [data-compose-menu]').textContent;return /用一个技能或能力/.test(t) && !/由谁来做|新工作放在/.test(t);})()"), "“+” adds things; it holds no choices about the work");

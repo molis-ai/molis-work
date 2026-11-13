@@ -150,7 +150,7 @@ export const CRAFT_PAGES_STYLES = `  /* A phone: two rows at the foot, the Assis
       transform var(--dur-move) var(--ease-spring), opacity var(--dur-hover) var(--ease-quint);
     will-change: auto;
   }
-  ${PAGES} :is(.mw-btn, .mw-toggle, .tree-create, .home-shortcut-main, .plugin-market-project-trigger):active:not(:disabled, [aria-disabled="true"], [aria-expanded="true"], [aria-haspopup]) {
+  ${PAGES} :is(.mw-btn, .mw-toggle, .tree-create, .plugin-market-project-trigger):active:not(:disabled, [aria-disabled="true"], [aria-expanded="true"], [aria-haspopup]) {
     transform: scale(.97); filter: none; transition-duration: var(--dur-press);
   }
   /* Buttons: graphite primary with a small soft shadow; secondary is a wash with no outline; quiet is text. */

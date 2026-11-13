@@ -272,6 +272,9 @@
 - **事件**必须加限定：插件事件（运行中的插件经 `services.events.publish` 发，落项目库、按订阅者续投）；宿主事件（宿主自己发，如定向的 `host.review.settled@1`、广播的 `host.workspace.changed@1`，只投给收件安装、不落库，S-54）；领域事件（构建期插件与 Module 写进项目库事件流的事件，X-6 的另一种来源，还没有订阅口）；页面里的 DOM 事件（`CustomEvent`，登记在 `packages/contracts/src/platform/dom-events.ts`）。
 - **角色**在外观里另有两个意思：令牌角色（共同规格里的一个令牌，如 `ink`、`r-card`）和字体角色（`body`、`control`、`title`、`display`、`code` 这类用途）。它们是 `ui-spec.json` 的字段，和 Character、Agent role 无关；文档写全「令牌角色」「字体角色」，不裸写「角色」。
 - **Function**：在代码里同时指判断规则（`modules/judgment-rules`）和工作流程的模板转换（衔接类型 `function`）；文档写判断规则或模板转换。
+- **呈现形态（名字片、行、卡片、速览）**：智能呈现的四种公共展示形态。名字片只给图标、名字、主人与打开；行加字段与状态；卡片加色带与操作；速览是锚定浮层（窄屏或触屏为底部弹层）。声明归插件 Manifest，确定组合归 `horizontal/surfaces`，渲染入口是 SDK 的 `renderPresentationForm`；不要把首页的插件卡（plugin card）也叫「卡片」。
+- **挂载位（surface slot）**：插件在 Manifest 里声明的 `surfaceSlot`，别人经组合把对象放进这个位置；声明带 `accepts_forms`、`refuse_kinds`、`max`。它不是一个插件的整页，也不是第二套挂载协议。
+- **接着做**：基础首页三组中的第二组，从工作记录读最近在做的几件，最多三件；工作记录未交付前不出现（第 21／28 批），当前首页不画这一组，也不拿别的东西凑。
 
 ### 2.6 讨论（项目讨论）
 

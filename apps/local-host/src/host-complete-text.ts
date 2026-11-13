@@ -2,7 +2,7 @@ import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { createFileSecretStore, resolveMolisWorkHome, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { modelRequestShape, type ModelApiFormat, type ModelPromptCacheMode } from "@molis-ai/molis-work-contracts/modules/model-providers";
 import { resolvePrologueInference } from "./prologue-inference-host.js";
-import { prologueProtocolFor, inferenceServiceUnavailableReason, isDispatchRefusal, PrologueInferenceError, type PrologueTextResult, type PrologueInputImage, type PrologueTextProgress, type PrologueStructuredRequest } from "@molis-ai/molis-work-service-agent-host";
+import { prologueProtocolFor, promptIncludesCache, inferenceServiceUnavailableReason, isDispatchRefusal, PrologueInferenceError, type PrologueTextResult, type PrologueInputImage, type PrologueTextProgress, type PrologueStructuredRequest } from "@molis-ai/molis-work-service-agent-host";
 import { ActionError, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import { AGENT_PROMPT_MAX_CHARS } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { MODEL_DATA_MAX_CHARS } from "@molis-ai/molis-work-contracts/platform/model-prompts";
@@ -22,7 +22,8 @@ export interface HostTextRequestOptions {
   maxOutputTokens?: number;
 }
 export type HostCompleteText = (prompt: string, options?: HostTextRequestOptions) => Promise<string>;
-export type HostTextGenerationResult = PrologueTextResult & { validateResult(): void };
+/** `prompt_includes_cache` says how this call's protocol reports input (see `promptIncludesCache`); absent where no Host call stands behind it. */
+export type HostTextGenerationResult = PrologueTextResult & { validateResult(): void; prompt_includes_cache?: boolean };
 export type HostTextGenerationFailure = Error & { execution?: PrologueInferenceError["execution"]; validateResult?: () => void };
 export type HostTextGeneration = (prompt: string, options?: HostTextRequestOptions) => Promise<HostTextGenerationResult>;
 export interface HostTextOptions { homeDirectory?: string; selection?: TextModelSelection; resolveInference?: typeof resolvePrologueInference; env?: NodeJS.ProcessEnv }
@@ -189,7 +190,7 @@ function promptTooLong(prompt: string): boolean {
 
 async function completeTextRequest(config: TextConfiguration, credentialRef: string, credential: () => string, prompt: string,
   home: string, request: HostTextRequestOptions = {}, resolveInference: typeof resolvePrologueInference = resolvePrologueInference,
-  changed?: () => boolean): Promise<PrologueTextResult> {
+  changed?: () => boolean): Promise<PrologueTextResult & { prompt_includes_cache: boolean }> {
   const { signal, beforeDispatch } = request;
   const timeoutMs = request.timeoutMs ?? 120_000, maxOutputTokens = request.maxOutputTokens ?? 5000;
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0 || timeoutMs > 2_147_483_647 || !Number.isSafeInteger(maxOutputTokens) || maxOutputTokens <= 0) throw new Error("模型调用限制无效");
@@ -247,7 +248,7 @@ async function completeTextRequest(config: TextConfiguration, credentialRef: str
   }
   signal?.throwIfAborted();
   if (typeof result.value !== "string" || !result.value.trim()) throw Object.assign(new Error("模型没有返回正文，材料已保留，可重试"), { execution: { run_ref: result.run_ref, state: result.state, configuredModel: result.configuredModel, reportedModels: result.reportedModels, usage: result.usage } });
-  return { ...result, value: result.value.trim() };
+  return { ...result, value: result.value.trim(), prompt_includes_cache: promptIncludesCache(prologueProtocolFor(config.api_format)) };
 }
 
 /** Cancellation also covers lazy Runtime startup; it never dispatches a model after an aborted wait. */

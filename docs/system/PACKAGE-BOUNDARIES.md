@@ -293,7 +293,6 @@ Repository 仅内部可见是目标约束；当前 Goals/Artifacts 等 public en
 | `plugins/native/dataset` | 内置插件 | 33 | 2,535 | `store.ts` 423 | 3 | 2 | 2 | Runtime | 中 | 待审 |
 | `plugins/native/diff` | 内置插件 | 18 | 829 | `comparison.ts` 192 | 2 | 2 | 2 | Runtime | 浅 | 已审 |
 | `plugins/native/feed` | 内置插件 | 111 | 11,493 | `store/listener.ts` 776 | 4 | 2 | 2 | Runtime | 深 | 待审 |
-| `plugins/native/files` | 内置插件 | 31 | 1,740 | `actions.ts` 190 | 2 | 2 | 2 | Runtime | 中 | 已审 |
 | `plugins/native/form` | 内置插件 | 36 | 3,245 | `store.ts` 466 | 3 | 2 | 2 | Runtime | 中 | 已审 |
 | `plugins/native/git` | 内置插件 | 32 | 2,722 | `browser/source.ts` 276 | 2 | 2 | 2 | Runtime | 中 | 已审 |
 | `plugins/native/goals` | 内置插件 | 294 | 30,780 | `contract/goals.ts` 769 | 6 | 2 | 2 | Runtime | 深 | 待审 |

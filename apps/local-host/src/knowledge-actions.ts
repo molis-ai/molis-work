@@ -256,8 +256,10 @@ export function createKnowledgeHost(ports: KnowledgeHostPorts): KnowledgeHost {
       const selected = service.named(asked, subjects);
       return locateSections({ question, subjects: selected }, subject => service.outline(asked, { subject }), (ports.locator ?? (() => knowledgeModelLocator(ports.homeDirectory)))(),
         async () => { await caller.beforeEffect(); for (const subject of selected) await service.assertActive(asked, subject); }); } },
-    // A page past the first comes from the same catch-up as the first: paging through every card catches up once.
+    // A page past the first comes from the same catch-up as the first: paging through every card catches up once. Cards named by
+    // key are for a list that shows those pieces: the project is not caught up for them, and a piece with no card yet gets one.
     { ...knowledgeManageActions.cards, handle: async (caller, input) => { const asked = input as KnowledgeCardsRequest;
+      if (asked.subjects) { await known(caller.project_id, asked.subjects); return cards.list(caller, asked); }
       return cards.list(caller, asked, asked.offset ? false : await caughtUp(caller)); } },
     { ...knowledgeManageActions.receipts, handle: (caller, input) => cards.receipts(caller, input as KnowledgeReceiptsRequest) },
     { ...knowledgeManageActions.edit, handle: async (caller, input) => { await caller.beforeEffect(); return cards.edit(caller, input as KnowledgeEditRequest); } },

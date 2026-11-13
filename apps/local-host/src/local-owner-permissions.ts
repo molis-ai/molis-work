@@ -13,6 +13,7 @@ import { ASSISTANT_RULES_PROVIDER, ASSISTANT_RULE_ACTIONS, ASSISTANT_FOLLOW_UP_A
 import { assistantThreadActions } from "./assistant/assistant-thread-actions.js";
 import { FUNCTIONS_PROVIDER_ID, functionsActions, functionAuthoringActions, functionContextActions } from "@molis-ai/molis-work-module-judgment-rules";
 import { materialOriginActions, materialRecentActions, PROJECT_WORKSPACE_PROVIDER_ID, projectDirectoryActions, projectPluginActions } from "@molis-ai/molis-work-contracts/modules/projects";
+import { MATERIALS_PROVIDER_ID, materialsActions } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import { HOST_PROVIDER_ID } from "./local-host.js";
 import { EXTERNAL_MCP_PERMISSION } from "./mcp-tool-actions.js";
 import { NATIVE_CONTENT_PERMISSIONS } from "./native-content-permissions.js";
@@ -26,6 +27,13 @@ import { SKILLS_PROVIDER_ID, SKILLS_PERMISSIONS, skillImportActions } from "@mol
 import { TASK_GRANTS_PROVIDER_ID } from "./task-grant-actions.js";
 import { APPEARANCE_PROVIDER_ID, APPEARANCE_READ_PERMISSION, APPEARANCE_WRITE_PERMISSION } from "@molis-ai/molis-work-contracts/platform/ui";
 import { KIT_AGENT_DEFINITIONS_PROVIDER_ID, KIT_AGENT_MCP_PROVIDER_ID, KIT_AGENT_TOOLS_PROVIDER_ID, KIT_MCP_ACCESS_PROVIDER_ID, KIT_PROVIDER_ID, KIT_READ_PERMISSION } from "@molis-ai/molis-work-contracts/services/kit";
+
+/**
+ * What the person carries to read their project's folders through the materials service. Not in `LOCAL_OWNER_PERMISSIONS`: before
+ * Files retired, a folder read reached the person only through Files' installation grant, so no other route's cap held it, and it
+ * still does not. The routes that read folders (the side panel's file source, the reader) add it to their own cap.
+ */
+export const MATERIALS_OWNER_PERMISSIONS: readonly string[] = ["workspace:read"];
 
 const asks = (definitions: Iterable<{ readonly action?: { readonly permissions: readonly string[] } }>) =>
   [...definitions].flatMap(definition => definition.action?.permissions ?? []);
@@ -62,6 +70,10 @@ function ownerProviders(): ReadonlyMap<string, readonly string[]> {
     [INFORMATION_PROVIDER_ID, asks(Object.values(informationActions))],
     [FUNCTIONS_PROVIDER_ID, asks([...Object.values(functionsActions), ...Object.values(functionAuthoringActions), ...Object.values(functionContextActions)])],
     [PROJECT_WORKSPACE_PROVIDER_ID, asks([...Object.values(projectDirectoryActions), ...Object.values(projectPluginActions), ...Object.values(materialRecentActions), ...Object.values(materialOriginActions)])],
+    // The platform's materials service reads the person's own project folders, as Files did for them (Files retirement, BSH-08).
+    // Held over this provider only; a route carries it in its cap only when it reads folders (`MATERIALS_OWNER_PERMISSIONS`).
+    // Opening and fixing also ask what Files' open and capture asked (artifact read/write, private storage), held as Files held them.
+    [MATERIALS_PROVIDER_ID, [...MATERIALS_OWNER_PERMISSIONS, ...asks([materialsActions.open, materialsActions.capture])]],
     [CHARACTER_PLUGIN_ID, CHARACTER_ACTION_PERMISSIONS],
     [ASSISTANT_RULES_PROVIDER, asks([...Object.values(ASSISTANT_RULE_ACTIONS), ...Object.values(ASSISTANT_FOLLOW_UP_ACTIONS), ...Object.values(ASSISTANT_RUNS_ACTIONS), ...Object.values(assistantThreadActions)])],
     [SEARCH_PROVIDER_ID, SEARCH_PERMISSIONS],
@@ -96,5 +108,5 @@ export function localOwnerPermissionsOver(providerId: string, asked: readonly st
  * Host-registered action by itself; which provider it is held over is `localOwnerPermissionsOver`'s to say.
  */
 export const LOCAL_OWNER_PERMISSIONS: readonly string[] = [...new Set([
-  ...NATIVE_CONTENT_PERMISSIONS, EXTERNAL_MCP_PERMISSION, ...[...ownerProviders().values()].flat(),
+  ...NATIVE_CONTENT_PERMISSIONS, EXTERNAL_MCP_PERMISSION, ...[...ownerProviders()].flatMap(([provider, held]) => provider === MATERIALS_PROVIDER_ID ? [] : held),
 ])];

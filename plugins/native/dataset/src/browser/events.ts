@@ -5,7 +5,8 @@ interface PlacementChange { mode?: string; from?: { kind?: string; id?: string }
 
 /** What the rest of the workbench says to this page: a table moved or copied from the placement bar, a model becoming ready, the tab closing. */
 export function installEvents(page: DatasetPage): void {
-  const { s } = page;
+  const { s, scope } = page;
+  const options = { signal: scope.signal };
   const reload = () => void page.loadList().catch((error: unknown) => page.showNote(messageOf(error), true));
   // Moved or copied from the placement bar: this list changed; a table moved away is no longer here to edit.
   window.addEventListener("molis:placement-changed", (event) => {
@@ -13,12 +14,12 @@ export function installEvents(page: DatasetPage): void {
     if (![detail.from && detail.from.kind, detail.to && detail.to.kind].includes("dataset")) return;
     if (detail.mode === "move" && detail.from && s.selected && s.selected.id === detail.from.id) page.closeEditor();
     reload();
-  });
-  document.addEventListener("molis-work:model-ready", reload);
+  }, options);
+  document.addEventListener("molis-work:model-ready", reload, options);
   window.addEventListener("beforeunload", (event) => {
     if (s.selected && (s.saveError || s.editRev > s.savedRev)) {
       event.preventDefault();
       event.returnValue = "";
     }
-  });
+  }, options);
 }

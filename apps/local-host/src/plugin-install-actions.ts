@@ -49,11 +49,14 @@ const uninstallTarget = { type: "object", additionalProperties: false, required:
   properties: { install_id: { type: "string", minLength: 1, maxLength: 200 }, installation_generation: { type: "string", minLength: 1, maxLength: 200 }, version: { type: "string", minLength: 1, maxLength: 200 }, manifest_digest: { type: "string", minLength: 1, maxLength: 200 } } };
 const installedView = {
   type: "object", additionalProperties: false,
-  required: ["install_id", "plugin_id", "name", "version", "state", "trust", "publisher_signature", "publisher_label", "manifest_available", "permissions", "jobs", "consents", "recovery_error"],
+  required: ["install_id", "plugin_id", "name", "version", "state", "trust", "publisher_signature", "publisher_label", "manifest_available", "permissions", "jobs", "consents", "pending_defaults", "recovery_error"],
   properties: { install_id: text, plugin_id: text, name: text, version: text, state: text, trust: { enum: ["host", "pinned", "unsigned"] }, publisher_signature: text,
     publisher_label: { type: ["string", "null"] }, manifest_available: { type: "boolean" }, permissions: { type: "array", items: installedPermissionView },
     jobs: { type: "array", items: { type: "object", additionalProperties: false, required: ["job_id", "reason", "permissions"], properties: { job_id: text, reason: text, permissions: { type: "array", items: text } } } },
-    consents: { type: "array", items: consentRow }, recovery_error: { type: ["string", "null"] }, uninstall_target: uninstallTarget, pending_keep_data: { type: "boolean" } },
+    consents: { type: "array", items: consentRow },
+    pending_defaults: { type: "array", items: { type: "object", additionalProperties: false, required: ["port", "source_plugin_id", "source_name", "source_port"],
+      properties: { port: text, source_plugin_id: text, source_name: text, source_port: text } } },
+    recovery_error: { type: ["string", "null"] }, uninstall_target: uninstallTarget, pending_keep_data: { type: "boolean" } },
 };
 
 export const pluginInstallActions = {

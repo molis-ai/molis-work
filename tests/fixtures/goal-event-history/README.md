@@ -1,6 +1,6 @@
 # 当前结构中的 Goal 历史场景
 
-四份业务场景覆盖导入要求、批准、完成与混合历史，全部使用现行项目库第3版结构（第2版删去 `project_browsing_settings`、新增 `material_recent_uses`，第3版新增 `surface_corrections`，见 `apps/local-host/src/project-database-schema.ts` 的升级段）；内置插件声明账本为1（Goals 自 2026-11-11 起为 2，Schedule 与 Feed 自 2026-11-12 起为 2，见文末）。它们由 `tests/goal-event-history-fixture.ts` 载入，不包含升级链或启动转换。
+四份业务场景覆盖导入要求、批准、完成与混合历史，全部使用现行项目库第3版结构（第2版删去 `project_browsing_settings`、新增 `material_recent_uses`，并带采用后的过程项日志 `process_items_adopted_replica_*`、过程项触发器记到它；第3版新增 `surface_corrections`；2026-11-12 Files 退役按现行结构刷新，原 `process_items_replica_*` 表照旧保留，见 `apps/local-host/src/project-database-schema.ts` 的升级段）；内置插件声明账本为1（Goals 自 2026-11-11 起为 2，Schedule 与 Feed 自 2026-11-12 起为 2，见文末）。它们由 `tests/goal-event-history-fixture.ts` 载入，不包含升级链或启动转换。
 
 本次集成更新完整现行结构与插件声明账本；业务INSERT、Goal状态、授权完成决定、幂等回执和版本引用不改。授权决定固定整份约定的内容，继续按现行规则比较，不读取或补全旧形状。
 

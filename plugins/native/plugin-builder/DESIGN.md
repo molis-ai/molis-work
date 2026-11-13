@@ -135,7 +135,7 @@ components:
 
 ## Colors
 
-暖灰工作区托起白色作品；近白侧栏与细灰线保留连续感。`ground`、`panel`、`canvas` 是不同表面，不能全部映射到宿主同一个 paper token。2026-09-28 起它们分别取宿主的 `--rail`、`--surface-soft`、`--paper`，`ui-blue` 取铜色 `--accent`，写死的色值改为共享 token（见根目录 DESIGN.md）；下面的色名保留为角色名。
+暖灰工作区托起白色作品；近白侧栏与细灰线保留连续感。`ground`、`panel`、`canvas` 是不同表面，不能全部映射到宿主同一个 paper token。2026-09-28 起它们分别取宿主的 `--rail`、`--surface-soft`、`--paper`，`ui-blue` 取雾蓝 `--accent`，写死的色值改为共享 token（见根目录 DESIGN.md）；下面的色名保留为角色名。
 
 - `ink` 是正文；`muted` 用于解释和辅助信息，错误用 `error` 并附文字。
 - `primary` 用于确认与保存，`add-action` 用于作品内新增；筛选选中使用 `filter-selected`。

@@ -10,7 +10,7 @@ import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlu
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentCollaborationActions as collaboration, type AgentCollaborationWait, type AgentContinuationView } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
+import { SqlitePluginPrivateStorage, outsidePluginAction } from "@molis-ai/molis-work-plugin-runtime";
 import { projectDirectoryActions } from "@molis-ai/molis-work-contracts/modules/projects";
 import { ensureProjectPlugins } from "../apps/local-host/dist/project-plugins.js";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
@@ -54,7 +54,8 @@ for (const mode of ["normal", "stop", "cancel-receipt", "revoke-receipt"] as con
       if (stop) await new Promise<void>(resolve => { releaseWait = resolve; });
       // Each wait answers with the next phase, as the Host does when the run's view changes.
       await new Promise(resolve => setTimeout(resolve, 20));
-      seenStates.push(sessions.get(DEMO_PROJECT_ID, "s").state);
+      // The test looks at the record as itself, not as the Coding call this answer is for (each read is checked against its caller, BL-943).
+      seenStates.push(outsidePluginAction(() => sessions.get(DEMO_PROJECT_ID, "s").state));
       const phase = phases[Math.min(waits, phases.length - 1)]!; waits++;
       return { version: `v${waits}`, view: view(phase) } as Output;
     }
@@ -68,10 +69,10 @@ for (const mode of ["normal", "stop", "cancel-receipt", "revoke-receipt"] as con
   const address = server.address(); assert.ok(address && typeof address !== "string");
   try {
     const platform = (await ensureProjectPlugins(host())).platform!;
-    // The platform's first web route announces the project as opened (BL-521), which makes Files and Git read again once; open it
+    // The platform's first web route announces the project as opened (BL-521), which makes Git read again once; open it
     // before the revisions below are taken, so they measure what the follower does.
-    await fetch(`http://127.0.0.1:${address.port}/api/plugins/io.molis.work.files/state`);
-    const beforeFiles = platform.viewRevision("io.molis.work.files"), beforeGit = platform.viewRevision("io.molis.work.git");
+    await fetch(`http://127.0.0.1:${address.port}/api/plugins/io.molis.work.git/state`);
+    const beforeGit = platform.viewRevision("io.molis.work.git");
     const body = { task: "改一个文件", intent: "execute", workspace_id: "work", provider_id: "p", model_id: "m" };
     if (interruptedReceipt) {
       // R-CODING-RECEIPT-02: reject the original receipt at each post-start fence, while its accepted Run stays followed.
@@ -95,7 +96,7 @@ for (const mode of ["normal", "stop", "cancel-receipt", "revoke-receipt"] as con
       releaseWait();await new Promise(resolve=>setTimeout(resolve,80));
       assert.equal(sessions.get(DEMO_PROJECT_ID, "s").state,state,"late answer cannot write stopped session state");
       assert.equal(platform.events.log(DEMO_PROJECT_ID).filter(event=>event.event_type_id==="io.molis.work.coding.run-updated").length,0);
-      assert.equal(platform.viewRevision("io.molis.work.files"),beforeFiles);
+      assert.equal(platform.viewRevision("io.molis.work.git"),beforeGit);
       return;
     }
     const deadline = Date.now() + 10_000;
@@ -108,7 +109,6 @@ for (const mode of ["normal", "stop", "cancel-receipt", "revoke-receipt"] as con
     await new Promise(resolve => setTimeout(resolve, 200));
     assert.equal(waits, settled, "a settled round is no longer followed");
     await platform.events.drain();
-    assert.notEqual(platform.viewRevision("io.molis.work.files"), beforeFiles);
     assert.notEqual(platform.viewRevision("io.molis.work.git"), beforeGit);
     const events = platform.events.log(DEMO_PROJECT_ID).filter(event => event.event_type_id === "io.molis.work.coding.run-updated");
     assert.equal(events.length, 1);

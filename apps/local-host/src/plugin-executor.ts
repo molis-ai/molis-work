@@ -193,14 +193,14 @@ export class PluginHostExecutor implements PluginExecutor {
 
   async start(definition: PluginDefinition, context: PluginStartContext) {
     const execution = definition.execution;
-    const session = openHostSession(this.options, definition, context, this.stoppedCalls);
+    const session = await openHostSession(this.options, definition, context, this.stoppedCalls);
     try {
       const contribution = await runWithPluginText(context, () => session.starting(() => definition.start(session.context)));
       this.sessions.set(context.install_id, { session, definition });
       this.executions.set(context.install_id, execution);
       return { contribution: pluginTextViews(contribution, context) };
     } catch (error) {
-      session.dispose();
+      await session.dispose();
       throw error;
     }
   }
@@ -216,8 +216,7 @@ export class PluginHostExecutor implements PluginExecutor {
       await awaitPluginStopHook(definition, session?.context ?? context, "project", this.executions.get(context.install_id) ?? definition.execution);
     } finally {
       this.executions.delete(context.install_id);
-      session?.dispose();
-      this.sessions.delete(context.install_id);
+      try { await session?.dispose(); } finally { this.sessions.delete(context.install_id); }
     }
   }
 

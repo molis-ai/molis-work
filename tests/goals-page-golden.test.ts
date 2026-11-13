@@ -180,6 +180,12 @@ const pages: Record<string, Draw> = {
 // the home's lost Todo rows are BL-todo-home-presentation. Those 24 were then recorded with MOLIS_WORK_GOLDEN_RECORD=1; the other 42 match main's record.
 // After merging main f32d8f9d98, #2035 dropped the curly quotes around English input-receipt words; the 11 English records changed
 // by 5 bytes each and were re-recorded with MOLIS_WORK_GOLDEN_RECORD=1; no Chinese record moved.
+// Batch 06 (#2009, after merging main b819373250): the Files plugin package is retired and the side panel and work stage gained the
+// shell's materials tools. All 66 pages were drawn on an independently built b819373250 (each matched its record there) and on this branch,
+// and compared token by token: the 16 records of the 8 project pages differ only in the Files rail tile and market card gone, the
+// shell's materials toolbar and materials stage added, and the plugin-title model without Files (162 / 184 characters shorter in
+// zh / en); the other differences are in executable scripts, the plugin directory and the locale script's address, outside the hash.
+// No Goals markup or JSON changed. The 16 were then recorded with MOLIS_WORK_GOLDEN_RECORD=1; the other 50 records did not change.
 // The hashes below come from the checked draws with RECORD unset. The independent text and data assertions stay in place.
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }

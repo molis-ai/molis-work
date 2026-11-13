@@ -11,17 +11,18 @@ import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module
 import { MemoryPluginConsentLedger, consentSubject, type PluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { DEMO_PROJECT_ID, LocalProjectDatabase, bindDeclaredDefaults, createPluginPlatform, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
-import { createFilesPlugin } from "@molis-ai/molis-work-plugin-files";
 import { pluginActions } from "./fixtures/plugin-actions.js";
+import { SNAPSHOT_SOURCE, snapshotSourcePlugin } from "./fixtures/snapshot-source-plugin.js";
 
 // S-76 (ac-trust T4, PG-005): a default wiring or default input group binds only on a standing agreement in the Home's consent ledger.
 // The agreement is the declaring plugin's own publisher agreeing to this port reading that source, for the publisher the source runs
 // under now; a revoked one takes the bound default off and leaves what the person chose alone.
 
-const FILES = "io.molis.work.files";
+/** The source the defaults read: a plugin that hands on snapshots (the retired Files plugin was the one before). */
+const FILES = SNAPSHOT_SOURCE.plugin_id;
 const PROBE = "io.molis.work.example.wordcount";
 const SIGNATURE = "probe-wordcount";
-const filesSignature = createFilesPlugin().manifest.publisher.signature;
+const filesSignature = SNAPSHOT_SOURCE.signature;
 
 function probe(inputs: PluginInputPortDeclaration[], groups?: PluginInputGroupDeclaration[]): PluginDefinition {
   const manifest: PluginManifest = { schema_version: 1, host_api_version: 1, plugin_id: PROBE, version: "1.0.0", name: "字数", kind: "app",
@@ -79,7 +80,7 @@ const agree = (ledger: PluginConsentLedger, grants: Array<{ kind: "default_wirin
 const wiringOf = (port: string, signature = filesSignature) => ({ kind: "default_wiring" as const, subject: consentSubject.defaultWiring(port, { plugin_id: FILES, port: "before" }, signature) });
 
 test("RAC-388 S-76 a default of an unsigned plugin binds only once its publisher has agreed to it", project(async (platform, ledger) => {
-  await platform.start([{ definition: createFilesPlugin(), trust: { level: "host" } }, { definition: probe([snapshotPort("text", { plugin_id: FILES, port: "before" })], GROUP) }]);
+  await platform.start([{ definition: snapshotSourcePlugin(), trust: { level: "host" } }, { definition: probe([snapshotPort("text", { plugin_id: FILES, port: "before" })], GROUP) }]);
   bindDeclaredDefaults(platform, DEMO_PROJECT_ID, "tester");
   assert.equal(port(platform, "text")?.source, undefined, "no agreement, no default");
   assert.equal(platform.wiring.selectedGroup(PROBE), undefined, "nor its default group");
@@ -91,7 +92,7 @@ test("RAC-388 S-76 a default of an unsigned plugin binds only once its publisher
 
 test("RAC-388 S-76 the Host agrees for the plugins it ships, and only to read from the plugins it ships", project(async (platform, ledger) => {
   const reader = probe([snapshotPort("text", { plugin_id: FILES, port: "before" })], GROUP);
-  await platform.start([{ definition: createFilesPlugin(), trust: { level: "host" } }, { definition: reader, trust: { level: "host" } }]);
+  await platform.start([{ definition: snapshotSourcePlugin(), trust: { level: "host" } }, { definition: reader, trust: { level: "host" } }]);
   assert.deepEqual(ledger.consents(PROBE).map(row => [row.kind, row.subject, row.granted_by]), [
     ["default_wiring", consentSubject.defaultWiring("text", { plugin_id: FILES, port: "before" }, filesSignature), "host_build"],
     ["default_group", "one", "host_build"],
@@ -101,14 +102,14 @@ test("RAC-388 S-76 the Host agrees for the plugins it ships, and only to read fr
 }));
 
 test("RAC-388 S-76 a Host-built plugin is not agreed to read a default from a source the Host does not ship", project(async (platform, ledger) => {
-  await platform.start([{ definition: createFilesPlugin() }, { definition: probe([snapshotPort("text", { plugin_id: FILES, port: "before" })]), trust: { level: "host" } }]);
+  await platform.start([{ definition: snapshotSourcePlugin() }, { definition: probe([snapshotPort("text", { plugin_id: FILES, port: "before" })]), trust: { level: "host" } }]);
   assert.deepEqual(ledger.consents(PROBE), [], "the source runs as unsigned: there is nothing the Host's build can agree to");
   bindDeclaredDefaults(platform, DEMO_PROJECT_ID, "tester");
   assert.equal(port(platform, "text")?.source, undefined);
 }));
 
 test("RAC-388 S-76 a platform with no ledger binds no default, not even a Host-built plugin's", project(async platform => {
-  await platform.start([{ definition: createFilesPlugin(), trust: { level: "host" } }, { definition: probe([snapshotPort("text", { plugin_id: FILES, port: "before" })], GROUP), trust: { level: "host" } }]);
+  await platform.start([{ definition: snapshotSourcePlugin(), trust: { level: "host" } }, { definition: probe([snapshotPort("text", { plugin_id: FILES, port: "before" })], GROUP), trust: { level: "host" } }]);
   assert.equal(platform.consents, null);
   bindDeclaredDefaults(platform, DEMO_PROJECT_ID, "tester");
   assert.equal(port(platform, "text")?.source, undefined);
@@ -116,7 +117,7 @@ test("RAC-388 S-76 a platform with no ledger binds no default, not even a Host-b
 }, new RevokableLedger(), false));
 
 test("RAC-389 S-76 an agreement names the publisher the source ran under: another publisher's source with the same plugin_id is not read", project(async (platform, ledger) => {
-  await platform.start([{ definition: createFilesPlugin(), trust: { level: "host" } }, { definition: probe([snapshotPort("text", { plugin_id: FILES, port: "before" })]) }]);
+  await platform.start([{ definition: snapshotSourcePlugin(), trust: { level: "host" } }, { definition: probe([snapshotPort("text", { plugin_id: FILES, port: "before" })]) }]);
   agree(ledger, [wiringOf("text", "someone-elses-files")]);
   bindDeclaredDefaults(platform, DEMO_PROJECT_ID, "tester");
   assert.equal(port(platform, "text")?.source, undefined, "the agreement was given for another publisher of the source");
@@ -126,7 +127,7 @@ test("RAC-389 S-76 an agreement names the publisher the source ran under: anothe
 }));
 
 test("RAC-390 S-76 revoking an agreement takes off that default only: the person's own source stays, and the default is not bound again", project(async (platform, ledger) => {
-  await platform.start([{ definition: createFilesPlugin(), trust: { level: "host" } }, { definition: probe([
+  await platform.start([{ definition: snapshotSourcePlugin(), trust: { level: "host" } }, { definition: probe([
     snapshotPort("text", { plugin_id: FILES, port: "before" }), snapshotPort("chosen", { plugin_id: FILES, port: "before" })]) }]);
   platform.wiring.bind({ project_id: DEMO_PROJECT_ID, actor_id: "tester", target_plugin_id: PROBE, target_port: "chosen", source_plugin_id: FILES, source_port: "after", origin: "user" });
   agree(ledger, [wiringOf("text"), wiringOf("chosen")]);
@@ -142,7 +143,7 @@ test("RAC-390 S-76 revoking an agreement takes off that default only: the person
 }));
 
 test("RAC-389-T4-SWITCH S-78 a bound default is removed after its source changes publisher signature and stays removed on reevaluation and restart; the person's source stays", project(async (platform, ledger, restart) => {
-  const source = { definition: createFilesPlugin(), trust: { level: "host" as const } };
+  const source = { definition: snapshotSourcePlugin(), trust: { level: "host" as const } };
   const reader = { definition: probe([
     snapshotPort("text", { plugin_id: FILES, port: "before" }), snapshotPort("chosen", { plugin_id: FILES, port: "before" })]) };
   await platform.start([source, reader]);
@@ -153,7 +154,7 @@ test("RAC-389-T4-SWITCH S-78 a bound default is removed after its source changes
   bindDeclaredDefaults(platform, DEMO_PROJECT_ID, "tester");
   assert.deepEqual([port(platform, "text")?.source, port(platform, "text")?.origin], [{ source_plugin_id: FILES, source_port: "before" }, "default"]);
 
-  const replacement: PluginDefinition = { ...createFilesPlugin(), manifest: { ...source.definition.manifest,
+  const replacement: PluginDefinition = { ...snapshotSourcePlugin(), manifest: { ...source.definition.manifest,
     publisher: { ...source.definition.manifest.publisher, signature: "another-files-publisher" } } };
   // Same display labels, id, version and port declarations; only the signature in the consent subject changes.
   assert.deepEqual({ ...replacement.manifest, publisher: { ...replacement.manifest.publisher, signature: filesSignature } }, source.definition.manifest);
@@ -175,7 +176,7 @@ test("RAC-389-T4-SWITCH S-78 a bound default is removed after its source changes
 }));
 
 test("RAC-389-T4-RETURN S-78 a bound default is removed while its source is absent from the start list and restored when the same source returns under the standing agreement; the person's source stays", project(async (platform, ledger, restart) => {
-  const source = { definition: createFilesPlugin(), trust: { level: "host" as const } };
+  const source = { definition: snapshotSourcePlugin(), trust: { level: "host" as const } };
   const reader = { definition: probe([
     snapshotPort("text", { plugin_id: FILES, port: "before" }), snapshotPort("chosen", { plugin_id: FILES, port: "before" })]) };
   await platform.start([source, reader]);

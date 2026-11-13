@@ -5,7 +5,7 @@ import type { HomePluginHost, HomePluginPlatform } from "./home-plugins.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { declaredStageContributionId, renderHomePluginPage, sideOpenedPlugins, stageContributionId, renderStagePage, type RenderedStagePage, type UnavailablePluginStage, type WorkbenchAppearancePorts } from "@molis-ai/molis-work-app-workbench";
 import type { UiContribution, UiRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
-import { PLATFORM_PLUGIN_REGISTRATIONS, runsInHome } from "./plugin-registry.js";
+import { builtinPluginByManifestId, builtinPluginByProjectKey, runsInHome } from "./plugin-registry.js";
 import { describePluginTablesRefusal, rollbackHrefFor } from "./home-unavailable-owners.js";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
@@ -257,8 +257,8 @@ async function routeProject(segment: string, pluginId: string, projectPlugins: H
   try { projectId = decodeURIComponent(segment); } catch { return new ActionError("actions.missing", "找不到这个项目"); }
   const found = projectPlugins ? await projectPlugins(projectId) : null;
   if (!found) return new ActionError("actions.missing", "找不到这个项目");
-  const shipped = PLATFORM_PLUGIN_REGISTRATIONS.some(item => runsInHome(item) && item.manifest.plugin_id === pluginId);
-  if (!found.reaches(pluginId) && (shipped || !dualInstance)) return new ActionError("actions.plugin_disabled", "此项目未启用该插件");
+  const shipped = builtinPluginByManifestId(pluginId);
+  if (!found.reaches(pluginId) && (!dualInstance || (shipped && runsInHome(shipped)))) return new ActionError("actions.plugin_disabled", "此项目未启用该插件");
   return { ...molisWorkHostProjectReference({ databasePath: found.database_path, projectId }), display_name: found.display_name };
 }
 
@@ -346,7 +346,8 @@ export async function renderHomePluginStages(host?: HomePluginHost, options?: { 
   catch (error) { failure = { code: error instanceof ActionError ? error.code : "actions.plugin_unavailable", message: uiText.text("workbench.home-plugin-http.start-failed") }; }
   const registered = host.registered().flatMap(entry => {
     if (options?.shown && !options.shown.includes(entry.key)) return [];
-    const registration = PLATFORM_PLUGIN_REGISTRATIONS.find(item => item.project_plugin_id === entry.key && item.manifest.plugin_id === entry.manifest.plugin_id);
+    const byKey = builtinPluginByProjectKey(entry.key);
+    const registration = byKey?.manifest.plugin_id === entry.manifest.plugin_id ? byKey : undefined;
     if (registration && !declaredStageContributionId(registration)) return [];
     return [{ project_plugin_id: entry.key, manifest: entry.manifest, workbench: registration?.workbench }];
   });
@@ -426,7 +427,7 @@ export function currentHomeStageHalves(host?: HomePluginHost, platform = host?.s
   if (!host) return undefined;
   const entries = host.registered().map(entry => ({ project_plugin_id: entry.key, manifest: entry.manifest }));
   const outsideCatalog = entries.filter(entry => host.dualInstance(entry.manifest.plugin_id)
-    && !PLATFORM_PLUGIN_REGISTRATIONS.some(item => item.project_plugin_id === entry.project_plugin_id && item.manifest.plugin_id === entry.manifest.plugin_id));
+    && builtinPluginByProjectKey(entry.project_plugin_id)?.manifest.plugin_id !== entry.manifest.plugin_id);
   return { outsideCatalog, entries,
     owner: entry => captureRuntimeStageOwner(platform, "home", entry),
     hasPackage: pluginId => host.hasPackage(pluginId),

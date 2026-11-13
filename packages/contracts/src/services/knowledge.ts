@@ -312,7 +312,12 @@ export interface KnowledgeCardStorePort {
   close(): void;
 }
 
-export interface KnowledgeCardsRequest { subject?: ActionSubject; states?: KnowledgeCardState[]; limit?: number; offset?: number }
+/**
+ * `subject`: only that piece's card. `subjects`: only these pieces' cards, by their keys (at most `KNOWLEDGE_CARDS_SUBJECTS_MAX`), for a
+ * list that shows them: the project is not caught up for it, and a named piece with no card yet gets one first.
+ */
+export interface KnowledgeCardsRequest { subject?: ActionSubject; subjects?: ActionSubject[]; states?: KnowledgeCardState[]; limit?: number; offset?: number }
+export const KNOWLEDGE_CARDS_SUBJECTS_MAX = 500;
 /**
  * `model_ready`: whether the project has a text model now; without one, waiting cards stay waiting (and are found by title and
  * opening text). `listing`: some of the project's sources are still being listed for the first time, so more pieces may appear.
@@ -443,7 +448,8 @@ export const knowledgeManageActions = {
   cards: { capability_id: "knowledge.cards", version: /* @version action.knowledge.cards */ 1, operation: "query", action: { ...manage, kind: "query" as const, effect: "read" as const,
     title: "列出资料卡片", description: "列出当前项目每份资料的卡片、整理状态和今天的整理额度，供管理页使用。",
     input_schema: { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, states: { type: "array", maxItems: KNOWLEDGE_CARD_STATES.length, items: { enum: [...KNOWLEDGE_CARD_STATES] } },
-      limit: { type: "integer", minimum: 1, maximum: 200 }, offset: count }, additionalProperties: false },
+      subjects: { type: "array", maxItems: KNOWLEDGE_CARDS_SUBJECTS_MAX, items: ACTION_SUBJECT_SCHEMA },
+      limit: { type: "integer", minimum: 1, maximum: KNOWLEDGE_CARDS_SUBJECTS_MAX }, offset: count }, additionalProperties: false },
     output_schema: { type: "object", properties: { cards: { type: "array", items: cardRecord }, total: count, quota, model_ready: { type: "boolean" }, listing: { type: "boolean" } },
       required: ["cards", "total", "quota", "model_ready", "listing"], additionalProperties: false } } } as ActionDefinition<KnowledgeCardsRequest, KnowledgeCardsResponse>,
   edit: { capability_id: "knowledge.card.edit", version: /* @version action.knowledge.card.edit */ 1, operation: "command", action: { ...manage,

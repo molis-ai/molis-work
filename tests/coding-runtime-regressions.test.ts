@@ -163,9 +163,10 @@ test("a real inserted SDK step and its verdict are saved in a fixed report that 
   await fixture.reopenSdk(); assert.deepEqual(body(await fixture.call(path)), saved, "fixed report preserves its original graph, verdict, Markdown and version");
 });
 
-// Materials are pieces of project knowledge (specs/project-knowledge PMAT-18); a fixed report is named by its subject.
-type Piece = { kind: string; id: string; title: string };
-const pick = (reference: ArtifactReference, title: string): Piece => ({ kind: "artifact", id: artifactSubjectId(reference), title });
+// Materials are exact references (materials-ui-contract §2); a fixed report is named by its subject and pinned to its version.
+type Piece = { ref: { subject: { kind: string; id: string }; pin: { mode: string; version?: { artifact_id: string; version: number } } }; title: string };
+const pick = (reference: ArtifactReference, title: string): Piece => ({
+  ref: { subject: { kind: "artifact", id: artifactSubjectId(reference) }, pin: { mode: "fixed", version: { artifact_id: reference.artifact_id, version: reference.version } } }, title });
 
 // W2-18-CODING-DELIVERY-01: actual SDK letters, fixed reports and the next SDK Run's frozen material version.
 test("30 materials refuse a new delivery without committing receipts; removing one permits acceptance and actual consumption", { timeout: 120_000 }, async t => {
@@ -187,7 +188,7 @@ test("30 materials refuse a new delivery without committing receipts; removing o
   assert.deepEqual(body<{ materials: Piece[] }>(await fixture.call("/sessions/A")).materials, references);
   body(await fixture.call("/sessions/A", { materials: references.slice(1) }, "PATCH")); body(await fixture.call(path, { decision: "accept" }));
   const material = body<{ materials: Piece[] }>(await fixture.call("/sessions/A")).materials;
-  assert.equal(material.length, 30); assert.deepEqual([material.at(-1)!.kind, material.at(-1)!.id], ["artifact", artifactSubjectId(delivery.artifact)]);
+  assert.equal(material.length, 30); assert.deepEqual([material.at(-1)!.ref.subject.kind, material.at(-1)!.ref.subject.id], ["artifact", artifactSubjectId(delivery.artifact)]);
   const consumed = await start(fixture, "A", "Read all accepted materials.");
   const frozen = (await fixture.adapter.read(consumed)).frozen.text_materials;
   assert.ok(frozen.some(item => item.source_artifact_id === delivery.artifact.artifact_id && item.source_version === delivery.artifact.version));

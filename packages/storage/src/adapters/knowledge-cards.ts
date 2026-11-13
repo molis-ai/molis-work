@@ -2,7 +2,7 @@ import { rollbackPreservingError } from "../transaction-errors.js";
 import { prepareFtsStatement } from "./fts-statement.js";
 import type { DatabaseSync } from "node:sqlite";
 import type { ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
-import { KNOWLEDGE_RECEIPT_DAYS, KNOWLEDGE_RECEIPT_MAX, type KnowledgeCardsRequest, type KnowledgeCardMatch, type KnowledgeCardRecord, type KnowledgeCardStorePort, type KnowledgeReadReceipt } from "@molis-ai/molis-work-contracts/services/knowledge";
+import { KNOWLEDGE_CARDS_SUBJECTS_MAX, KNOWLEDGE_RECEIPT_DAYS, KNOWLEDGE_RECEIPT_MAX, type KnowledgeCardsRequest, type KnowledgeCardMatch, type KnowledgeCardRecord, type KnowledgeCardStorePort, type KnowledgeReadReceipt } from "@molis-ai/molis-work-contracts/services/knowledge";
 import type { HomeStoreDeclaration } from "../home-stores.js";
 import { clearInExistingHomeSqlite, openBaselineHomeSqlite, type SqliteBaseline } from "../sqlite-baseline.js";
 import { normalizeSearchText, relatedQueryPlan, searchQueryPlan, searchTokens } from "./text-search-index.js";
@@ -38,11 +38,16 @@ const cardText = (record: KnowledgeCardRecord) => [record.brief, record.keywords
 function cardPage(db: DatabaseSync, projectId: string, query: KnowledgeCardsRequest) {
   const clauses = ["project_id = ?"], values: Array<string | number> = [projectId];
   if (query.subject) { clauses.push("kind = ? AND object_id = ?"); values.push(query.subject.kind, query.subject.id); }
+  if (query.subjects) {
+    // An empty list names no piece: nothing matches, as `IN ()` would say.
+    clauses.push(query.subjects.length ? `(${query.subjects.map(() => "(kind = ? AND object_id = ?)").join(" OR ")})` : "0");
+    for (const subject of query.subjects) values.push(subject.kind, subject.id);
+  }
   if (query.states?.length) { clauses.push(`json_extract(body, '$.state') IN (${query.states.map(() => "?").join(",")})`); values.push(...query.states); }
   const where = clauses.join(" AND ");
   const total = Number((prepareFtsStatement(db, `SELECT COUNT(*) AS n FROM knowledge_cards WHERE ${where}`).get(...values) as Row).n);
   const rows = prepareFtsStatement(db, `SELECT body FROM knowledge_cards WHERE ${where} ORDER BY card_id LIMIT ? OFFSET ?`)
-    .all(...values, Math.min(200, Math.max(1, query.limit ?? 50)), Math.max(0, query.offset ?? 0)) as Row[];
+    .all(...values, Math.min(KNOWLEDGE_CARDS_SUBJECTS_MAX, Math.max(1, query.limit ?? 50)), Math.max(0, query.offset ?? 0)) as Row[];
   return { cards: rows.map(row => JSON.parse(String(row.body)) as KnowledgeCardRecord), total };
 }
 

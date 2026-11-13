@@ -123,6 +123,17 @@ export interface PluginRegistration {
   /** Short ids enabled together with this plugin in a project, whatever its ports say (Feed brings Inbox). Trusted, as above. */
   readonly companions?: readonly string[];
   /**
+   * This built-in plugin's own one-time conversion of its private values when a project library is adopted at the current version
+   * (specs/batch-06-shared-tools/current-version-adoption.md「Coding 私有值」). Plugin Runtime applies it to the values of this plugin's
+   * exact official install whose key starts with one of `prefixes`, in the adoption's transaction, each by its whole old value.
+   * `convert` returns the value in the current shape, or null when it already is; it throws to leave that project's library as it was.
+   * Deterministic and pure: it reads nothing else. Trusted: the Host reads it from this registration only, never from an installed package.
+   */
+  readonly private_value_adoption?: {
+    readonly prefixes: readonly string[];
+    convert(key: string, value: string): string | null;
+  };
+  /**
    * How the Host gets the code of a plugin that runs in the Home. Where a plugin runs is its Manifest's `runtime.scope` (PG-011),
    * which this entry has exactly when that says `"home"` (`catalogProblems`). Explicit Runtime activation;
    * personal visibility alone never migrates an existing plugin. Trusted: the Host reads it from this registration only, never from a

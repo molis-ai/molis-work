@@ -124,11 +124,8 @@ export function createInboxSceneRuntime(options: InboxSceneRuntimeOptions): {
   const ports: Pick<InboxActionPorts, "readJudgment" | "writeJudgment" | "evaluateJudgment" | "recommendations"> = {
     readJudgment: async () => {
       const candidates = (await options.judgmentActions()).filter(action => action.action.kind === "judgment");
-      const capabilities: ActionView[] = [];
-      for (const action of candidates) {
-        if ((await scenes.discoverScenes({ capability_id: action.capability_id, version: action.version, provider_id: action.provider.provider_id }))
-          .some(scene => scene.definition.scene_id === INBOX_NEXT_SCENE_ID && scene.compatible)) capabilities.push(action);
-      }
+      const views = await scenes.discoverScenesFor(candidates.map(action => ({ capability_id: action.capability_id, version: action.version, provider_id: action.provider.provider_id })));
+      const capabilities = candidates.filter((_, index) => views[index]!.some(scene => scene.definition.scene_id === INBOX_NEXT_SCENE_ID && scene.compatible));
       const current = bindings.get();
       const usage = (await scenes.usages()).find(usage => usage.scene_id === INBOX_NEXT_SCENE_ID && usage.binding_id === inboxSceneBindingId(projectId));
       const selected = capabilities.find(action => action.capability_id === current?.function.capability_id && action.version === current.function.version && action.provider.provider_id === current.function.provider_id);

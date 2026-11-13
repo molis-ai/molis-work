@@ -3,9 +3,8 @@ import { readCodingChangeSet } from "./changeset.js";
 import { DELEGATION_ENDED, DELEGATION_STATE_KEY, MAX_DELEGATION_HOPS, type DelegationState } from "./cooperation.js";
 import { dispatchCodingDelegation } from "./delegation-dispatch.js";
 import { asAttachment, isDelegation } from "./delegation-view.js";
-import { CODING_MATERIALS_MAX, materialArtifact, materialSelection, resolveMaterials, savedMaterials, type CodingMaterial } from "./materials.js";
+import { CODING_MATERIALS_MAX, artifactMaterial, materialArtifact, materialSelection, resolveMaterials, savedMaterials, type CodingMaterial } from "./materials.js";
 import { codingActions, codingActionControl, type CodingBeforeWrite } from "./route-entry.js";
-import { artifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { sessionOutputs } from "./outputs.js";
 import { type Capabilities, type CodingActivation, selected, delegationView } from "./route-activation.js";
 import { bodyOf } from "./route-selections.js";
@@ -199,15 +198,15 @@ const ROUTES: RouteMaker[] = [
         await on(letter.message_id, "record", { event: "delivery-rejected", note: reason, attachments: handed });
       } else {
         if (!delivery.artifact) throw codingFailure("coding.server.delivery-empty");
-        // The delivered fixed version, read the way every material is: through project knowledge.
-        const delivered: CodingMaterial = { kind: "artifact", id: artifactSubjectId(delivery.artifact), title: delivery.title || "交付的成果" };
+        // The delivered fixed version, read the way every material is, by its exact reference.
+        const delivered: CodingMaterial = artifactMaterial(delivery.artifact, delivery.title || "交付的成果");
         await resolveMaterials(context, [delivered], codingActionControl(beforeWrite));
         await beforeWrite(); beforeWrite.assert_current();
         if (busy.has(record.session_id)) throw codingFailure("coding.server.busy-delivery");
         busy.add(record.session_id);
         try {
         const saved = savedMaterials(context, record.session_id);
-        const included = saved.some(material => material.kind === delivered.kind && material.id === delivered.id);
+        const included = saved.some(material => "ref" in material && JSON.stringify(material.ref) === JSON.stringify(delivered.ref));
         if (!included && saved.length >= CODING_MATERIALS_MAX) throw codingFailure("coding.server.materials-full", { max: CODING_MATERIALS_MAX });
         await on(reply.message_id, "accept"); await on(reply.message_id, "complete");
         await on(letter.message_id, "complete", { event: "delivery-accepted", attachments: handed });

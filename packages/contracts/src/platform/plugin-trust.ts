@@ -135,6 +135,15 @@ export interface PluginInstalledPermissionView extends PluginPermissionView {
  * asked for and why, what it keeps doing in the background, and the agreements the person gave it. `manifest_available` is false when the
  * Manifest it was installed with cannot be read; its permissions and jobs are then empty because they are unknown, not because there are none.
  */
+/** One input port whose declared default reads one of the platform's producers, with no current agreement of the person's. */
+export interface PluginPendingDefaultSource {
+  readonly port: string;
+  readonly source_plugin_id: string;
+  /** The producer's name as the platform shows it (the materials service's is「资料」). */
+  readonly source_name: string;
+  readonly source_port: string;
+}
+
 export interface PluginInstalledView {
   readonly install_id: string;
   readonly plugin_id: string;
@@ -149,6 +158,11 @@ export interface PluginInstalledView {
   readonly permissions: readonly PluginInstalledPermissionView[];
   readonly jobs: readonly PluginJobView[];
   readonly consents: readonly PluginConsentRecord[];
+  /**
+   * The platform default sources this bundled plugin's Manifest declares that the person has not agreed to now (BSH-06): the Host never
+   * agrees to these on an upgrade, so the settings page offers the person's own agreement for each. Empty for any other install.
+   */
+  readonly pending_defaults: readonly PluginPendingDefaultSource[];
   /** Why the Host's plugin host could not start this installation when it last tried (its kept package missing, its start failing); null when nothing is wrong with it. The `state` is the record's own. */
   readonly recovery_error: string | null;
   /** A signed sandbox installation the person can take off in the settings (BL-915), even when its package is gone or altered: the exact installation

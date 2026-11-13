@@ -119,7 +119,7 @@ test("IUI-02 IUI-03 IUI-10 IUI-21 ordered discussion objects belong to the origi
     const quoted = await send({ client_id: randomUUID(), body: "Pages quote", quote_id: posted.message.id });
     const views = [{ message_id: posted.message.id, part: "message" }, { message_id: quoted.message.id, part: "quote" }];
     const read = await json<SurfaceHomeDisplay>(await post(surfaces, { views }));
-    assert.equal(pageReads, 2, "original and quote share one owner read");
+    assert.equal(pageReads, 2, "original and quote share one owner read: " + readSources.join(" || "));
     assert.deepEqual(read.groups.map(group => group.items.map(item => [item.subject, item.owner_plugin_id, item.fields, item.actions])),
       views.map(() => [[pageSubject, "io.molis.work.pages", [], [{ ref: "open", primary: false }]]]));
     assert.equal(read.display.rows.length, 1);

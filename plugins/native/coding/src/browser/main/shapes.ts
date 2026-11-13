@@ -122,7 +122,7 @@ export interface FrozenSetup {
   readonly mcp_sources?: readonly { readonly server: string; readonly server_label?: string; readonly configuration_version: number }[];
   readonly character?: { readonly title: string; readonly reference: { readonly version: number } };
   readonly host_tools?: readonly string[];
-  readonly text_materials: readonly { readonly material_id: string; readonly title?: string; readonly source_artifact_id?: string; readonly source_version?: number }[];
+  readonly text_materials: readonly { readonly material_id: string; readonly title?: string; readonly source_artifact_id?: string; readonly source_version?: number; readonly read_revision?: string }[];
   readonly compaction?: { readonly above_tokens: number; readonly version: number };
   readonly model_context?: { readonly window_tokens?: number };
 }

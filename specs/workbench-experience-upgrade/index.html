@@ -1,0 +1,702 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Molis Work 体验升级方案</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* 版式：一栏长文，样稿与截图占满栏宽；这一页本身用方案提出的新色阶和字阶排版，等于一张样张。 */
+:root{
+  --desk:#e6ecf2; --paper:#ffffff; --soft:#f3f6f9; --ink:#16202a; --ink2:#465361; --faint:#6b7885; --line:#dde5ec;
+  --action:#1b4b7a; --action-ink:#ffffff; --accent:#2a6ca8; --accent-soft:#e3eef8;
+  --warm:#8a5a00; --warm-fill:#d99a1c; --warm-soft:#fbf2dc;
+  --green:#2f7553; --green-soft:#e2f1e9; --red:#b2454c; --red-soft:#f9e9ea;
+  --shadow:0 1px 2px rgba(22,32,42,.05),0 10px 28px -14px rgba(22,32,42,.22);
+  --lift:0 2px 6px rgba(22,32,42,.06),0 16px 40px -14px rgba(22,32,42,.28);
+  --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Segoe UI","Microsoft YaHei UI","Noto Sans CJK SC",system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  /* 现行取值，只用于对比色块，两种主题下都显示原值 */
+  --cur-desk:#eef3f7; --cur-paper:#fcfdfe; --cur-soft:#f5f8fb; --cur-ink:#1f2b37; --cur-ink2:#45525f; --cur-muted:#586574; --cur-faint:#616d7a; --cur-action:#2d4f6c;
+  --new-desk:#e6ecf2; --new-paper:#ffffff; --new-soft:#f3f6f9; --new-ink:#16202a; --new-ink2:#465361; --new-faint:#6b7885; --new-action:#1b4b7a; --new-warm:#d99a1c;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --desk:#11161b; --paper:#1a2129; --soft:#212a33; --ink:#e9eef3; --ink2:#b5c1cc; --faint:#8d9aa7; --line:#2d3741;
+  --action:#d6e4f0; --action-ink:#13202c; --accent:#8fb8dc; --accent-soft:#1d2d3c;
+  --warm:#e3b867; --warm-fill:#e0a52e; --warm-soft:#33290f;
+  --green:#86c0a0; --green-soft:#173024; --red:#ec8a90; --red-soft:#3a1f22;
+  --shadow:0 0 0 1px rgba(255,255,255,.05),0 12px 30px -14px rgba(0,0,0,.6);
+  --lift:0 0 0 1px rgba(255,255,255,.06),0 18px 44px -14px rgba(0,0,0,.7); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --desk:#11161b; --paper:#1a2129; --soft:#212a33; --ink:#e9eef3; --ink2:#b5c1cc; --faint:#8d9aa7; --line:#2d3741;
+  --action:#d6e4f0; --action-ink:#13202c; --accent:#8fb8dc; --accent-soft:#1d2d3c;
+  --warm:#e3b867; --warm-fill:#e0a52e; --warm-soft:#33290f;
+  --green:#86c0a0; --green-soft:#173024; --red:#ec8a90; --red-soft:#3a1f22;
+  --shadow:0 0 0 1px rgba(255,255,255,.05),0 12px 30px -14px rgba(0,0,0,.6);
+  --lift:0 0 0 1px rgba(255,255,255,.06),0 18px 44px -14px rgba(0,0,0,.7); color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--desk);color:var(--ink);font:15px/1.75 var(--font);padding-block:28px 80px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));-webkit-font-smoothing:antialiased}
+.page{max-width:1040px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+.sheet{background:var(--paper);border-radius:16px;box-shadow:var(--shadow);padding:clamp(20px,4vw,44px)}
+.sheet>*{max-width:70ch}
+.sheet>.wide,.sheet>figure,.sheet>.mockwrap,.sheet>.tablewrap,.sheet>.cols,.sheet>.swrow,.sheet>.demo{max-width:none}
+h1{font-size:30px;line-height:1.25;font-weight:600;letter-spacing:0;margin:6px 0 10px;text-wrap:balance}
+h2{font-size:24px;line-height:1.3;font-weight:600;margin:0 0 6px;text-wrap:balance}
+h3{font-size:17px;line-height:1.45;font-weight:600;margin:30px 0 4px}
+h4{font-size:15px;font-weight:600;margin:18px 0 2px}
+p{margin:8px 0}
+.kicker{font-size:12px;color:var(--faint);font-weight:500}
+.lead{font-size:17px;line-height:1.7;color:var(--ink2)}
+.note{font-size:13px;color:var(--faint);line-height:1.65}
+small,.sm{font-size:13px;color:var(--ink2)}
+code{font:12.5px var(--mono);background:var(--soft);padding:1px 5px;border-radius:5px;overflow-wrap:anywhere}
+a{color:var(--accent)}
+ul,ol{padding-left:1.3em;margin:8px 0}
+li{margin:4px 0}
+strong{font-weight:600}
+.toc{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.toc a{font-size:13px;text-decoration:none;color:var(--ink2);background:var(--soft);padding:5px 11px;border-radius:8px}
+.toc a:hover{color:var(--ink)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+
+/* 标签 */
+.tag{display:inline-flex;align-items:center;gap:5px;font-size:12px;line-height:1;font-weight:500;padding:4px 7px;border-radius:6px;white-space:nowrap;background:var(--soft);color:var(--ink2)}
+.tag.warm{background:var(--warm-soft);color:var(--warm)} .tag.green{background:var(--green-soft);color:var(--green)}
+.tag.red{background:var(--red-soft);color:var(--red)} .tag.blue{background:var(--accent-soft);color:var(--accent)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--faint);flex:none;display:inline-block}
+.dot.warm{background:var(--warm-fill)} .dot.blue{background:var(--accent)} .dot.green{background:var(--green)} .dot.red{background:var(--red)} .dot.hollow{background:transparent;box-shadow:inset 0 0 0 1.5px var(--faint)}
+
+/* 表 */
+.tablewrap{overflow-x:auto;margin:12px 0}
+table{border-collapse:collapse;width:100%;font-size:13px;line-height:1.55}
+th{text-align:left;font-weight:500;color:var(--faint);font-size:12px;padding:6px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+td.c{text-align:center;white-space:nowrap}
+.g{color:var(--green);font-weight:600} .a{color:var(--warm);font-weight:600} .r{color:var(--red);font-weight:600}
+
+/* 截图 */
+figure{margin:14px 0 6px}
+.shot{position:relative;border-radius:12px;overflow:hidden;box-shadow:var(--shadow);background:var(--soft);line-height:0}
+.shot img{width:100%;height:auto;display:block}
+.pin{position:absolute;transform:translate(-50%,-50%);width:22px;height:22px;border-radius:50%;background:var(--new-warm);color:#16202a;font:600 12px/22px var(--font);text-align:center;box-shadow:0 0 0 3px rgba(255,255,255,.85),0 2px 6px rgba(0,0,0,.3)}
+figcaption{font-size:13px;color:var(--ink2);line-height:1.65;margin-top:10px}
+figcaption ol{margin:4px 0 0}
+.n{display:inline-block;min-width:18px;height:18px;border-radius:50%;background:var(--warm-soft);color:var(--warm);font:600 11px/18px var(--font);text-align:center;margin-right:4px}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin:12px 0}
+.cols>*{min-width:0}
+.box{background:var(--soft);border-radius:12px;padding:14px 16px}
+.box h4{margin-top:0}
+.principle{font-size:12px;color:var(--faint);margin-top:2px}
+
+/* 样稿 */
+.mockwrap{overflow-x:auto;margin:14px 0 6px;border-radius:14px}
+.mock{min-width:820px;background:var(--desk);border-radius:14px;padding:10px;font-size:12px;line-height:1.45;color:var(--ink);box-shadow:inset 0 0 0 1px var(--line)}
+.mock *{min-width:0}
+.m-row{display:flex;align-items:center;gap:8px}
+.m-top{height:34px;padding:0 4px 8px}
+.m-chip{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 9px;border-radius:8px;color:var(--ink2);white-space:nowrap}
+.m-chip.on{background:var(--paper);color:var(--ink);font-weight:500;box-shadow:0 1px 2px rgba(22,32,42,.08)}
+.m-chip.ctx{background:var(--paper);color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(22,32,42,.08)}
+.m-chip .sub{color:var(--faint);font-weight:400}
+.m-sep{width:1px;height:16px;background:var(--line);flex:none}
+.m-grow{flex:1}
+.m-sheet{background:var(--paper);border-radius:12px;box-shadow:var(--shadow);padding:22px 26px}
+.m-body{display:grid;grid-template-columns:minmax(0,1.9fr) minmax(0,1fr);gap:26px}
+.m-display{font-size:24px;font-weight:600;line-height:1.25;margin:2px 0 6px}
+.m-h{font-size:13px;font-weight:600;margin:18px 0 6px;display:flex;align-items:center;gap:6px}
+.m-h .cnt{font-weight:500;color:var(--faint)}
+.m-card{border-radius:10px;background:var(--warm-soft);padding:10px 12px;display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.m-card .t{font-weight:500;color:var(--ink)} .m-card .f{color:var(--ink2);font-size:11.5px}
+.m-line{display:flex;align-items:center;gap:10px;padding:8px 6px;border-radius:8px}
+.m-line+.m-line{box-shadow:0 -1px 0 var(--line)}
+.m-line .t{font-weight:500} .m-line .f{color:var(--faint);font-size:11.5px}
+.m-btn{display:inline-flex;align-items:center;height:26px;padding:0 10px;border-radius:8px;font-size:12px;font-weight:500;background:var(--soft);color:var(--ink);white-space:nowrap;flex:none}
+.m-btn.pri{background:var(--action);color:var(--action-ink)}
+.m-btn.ghost{background:transparent;box-shadow:inset 0 0 0 1px var(--line);color:var(--ink2)}
+.m-track{display:flex;gap:3px;margin:6px 0 2px}
+.m-track i{height:4px;flex:1;border-radius:2px;background:var(--line)} .m-track i.d{background:var(--green)} .m-track i.c{background:var(--accent)}
+.m-bar{height:4px;border-radius:2px;background:var(--line);width:64px;overflow:hidden;flex:none} .m-bar b{display:block;height:100%;background:var(--accent)}
+.m-side{background:var(--soft);border-radius:10px;padding:12px 14px}
+.m-side .m-h{margin-top:0}
+.m-kv{display:flex;justify-content:space-between;gap:8px;padding:5px 0;color:var(--ink2)} .m-kv b{font-weight:500;color:var(--ink)}
+.m-check{display:flex;gap:8px;align-items:center;padding:3px 0;color:var(--ink2)}
+.m-check i{width:14px;height:14px;border-radius:4px;box-shadow:inset 0 0 0 1.5px var(--faint);flex:none;display:inline-block}
+.m-check.done{color:var(--faint);text-decoration:line-through} .m-check.done i{background:var(--green);box-shadow:none}
+.m-linebar{display:flex;align-items:center;gap:6px;padding:10px 2px 2px}
+.m-node{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 10px;border-radius:15px;background:var(--paper);box-shadow:inset 0 0 0 1px var(--line);white-space:nowrap;color:var(--ink2)}
+.m-node.head{font-weight:600;color:var(--ink)} .m-node.you{background:var(--warm-soft);box-shadow:none;color:var(--warm);font-weight:500}
+.m-wire{height:1px;flex:1;background:var(--line);min-width:10px}
+.m-input{flex:3;height:38px;border-radius:13px;background:var(--paper);box-shadow:var(--lift);display:flex;align-items:center;gap:8px;padding:0 6px 0 12px;color:var(--faint)}
+.m-send{width:28px;height:28px;border-radius:9px;background:var(--action);color:var(--action-ink);display:grid;place-items:center;font-size:13px;margin-left:auto;flex:none}
+/* 列表样稿 */
+.m-thead{display:grid;grid-template-columns:minmax(0,1fr) 150px 86px 110px 64px;gap:12px;padding:6px 8px;color:var(--faint);font-size:11px;font-weight:500;border-bottom:1px solid var(--line)}
+.m-tr{display:grid;grid-template-columns:minmax(0,1fr) 150px 86px 110px 64px;gap:12px;align-items:center;padding:7px 8px;border-radius:8px}
+.m-tr:hover{background:var(--soft)}
+.m-tr .nm{display:flex;align-items:center;gap:8px;font-weight:500;overflow:hidden}
+.m-tr .nm span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.m-tr.q .nm{font-weight:400;color:var(--ink2)}
+.m-tr .q{color:var(--faint)} .m-tr .num{font-variant-numeric:tabular-nums;color:var(--ink2);display:flex;align-items:center;gap:6px}
+.ind1{padding-left:18px} .ind2{padding-left:36px} .ind3{padding-left:54px}
+.m-group{font-size:11px;font-weight:500;color:var(--faint);padding:12px 8px 4px}
+.m-hint{display:inline-flex;align-items:center;gap:8px;background:var(--action);color:var(--action-ink);border-radius:8px;padding:6px 10px;font-size:12px}
+.m-hint u{text-decoration:none;opacity:.75}
+
+/* 色块 */
+.swrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;margin:12px 0}
+.swset{border-radius:12px;padding:14px;box-shadow:inset 0 0 0 1px var(--line)}
+.swset h4{margin:0 0 10px}
+.sw{display:flex;gap:6px;flex-wrap:wrap}
+.sw span{flex:1 1 76px;border-radius:8px;padding:26px 8px 7px;font:11px/1.3 var(--mono);box-shadow:inset 0 0 0 1px rgba(22,32,42,.1)}
+.txt{display:flex;flex-direction:column;gap:2px;margin-top:10px;border-radius:8px;padding:10px 12px;font-size:13px}
+.txt b{font-weight:500}
+
+/* 动效演示 */
+.demo{background:var(--soft);border-radius:12px;padding:16px;margin:12px 0}
+.demo-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.btn{font:500 13px var(--font);height:32px;padding:0 12px;border-radius:8px;border:0;background:var(--paper);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line);cursor:pointer}
+.btn[aria-pressed="true"]{background:var(--action);color:var(--action-ink);box-shadow:none}
+.btn:active{transform:scale(.97)}
+.stage{background:var(--paper);border-radius:10px;box-shadow:var(--shadow);min-height:212px;padding:12px;position:relative;overflow:hidden}
+.d-row{display:flex;align-items:center;gap:10px;width:100%;padding:10px;border:0;background:transparent;border-radius:8px;font:500 13px var(--font);color:var(--ink);cursor:pointer;text-align:left}
+.d-row:hover{background:var(--soft)}
+.d-row .f{margin-left:auto;font-weight:400;color:var(--faint);font-size:12px}
+.d-detail .back{font:500 12px var(--font);color:var(--ink2);background:var(--soft);border:0;border-radius:8px;height:28px;padding:0 10px;cursor:pointer}
+.d-detail h5{font-size:20px;font-weight:600;margin:14px 0 6px;display:flex;align-items:center;gap:10px}
+.d-detail p{font-size:13px;color:var(--ink2);margin:0 0 12px}
+.pulse-node{display:inline-flex;align-items:center;gap:8px;height:34px;padding:0 12px;border-radius:17px;background:var(--paper);box-shadow:inset 0 0 0 1px var(--line);font-size:13px;color:var(--ink2)}
+.pulse-node.you{background:var(--warm-soft);box-shadow:none;color:var(--warm);font-weight:500;animation:callme 900ms cubic-bezier(.22,1,.36,1) 1}
+@keyframes callme{0%{box-shadow:0 0 0 0 var(--warm-fill)}60%{box-shadow:0 0 0 10px transparent}100%{box-shadow:0 0 0 0 transparent}}
+::view-transition-group(*){animation-duration:320ms;animation-timing-function:cubic-bezier(.22,1,.36,1)}
+@media (prefers-reduced-motion:reduce){::view-transition-group(*),::view-transition-old(*),::view-transition-new(*){animation-duration:0s}.pulse-node.you{animation:none}}
+
+/* 组件板样稿 */
+.cb{display:grid;grid-template-columns:190px minmax(0,1fr);gap:18px;align-items:start}
+.cb nav{display:flex;flex-direction:column;gap:2px}
+.cb nav b{font-size:11px;font-weight:500;color:var(--faint);margin:10px 0 2px}
+.cb nav b:first-child{margin-top:0}
+.cb nav span{display:flex;justify-content:space-between;padding:4px 8px;border-radius:7px;color:var(--ink2)}
+.cb nav span.on{background:var(--soft);color:var(--ink);font-weight:500}
+.cb nav span em{font-style:normal;color:var(--faint)}
+.spec{border-radius:10px;box-shadow:inset 0 0 0 1px var(--line);padding:14px}
+.spec-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.spec-h b{font-size:15px;font-weight:600}
+.spec-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.spec-states{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:6px}
+.spec-states div{background:var(--soft);border-radius:8px;padding:8px 6px;text-align:center;color:var(--faint);font-size:11px}
+.spec-states .m-btn{margin-bottom:5px}
+@media (max-width:640px){h1{font-size:24px}h2{font-size:20px}body{font-size:14px}.lead{font-size:15px}}
+</style>
+
+<div class="page">
+
+<header class="sheet">
+  <div class="kicker">2026-11-12 · 基于 main <code>1a3a3ae1f</code> · 给一骏的评估与方案</div>
+  <h1>Molis Work 体验升级方案</h1>
+  <p class="lead">工艺底子已经很好：字阶、圆角、触达尺寸、键盘路径、减少动效都守得住。短板在别处：界面很会回答「这是什么」，不太回答「我在哪」，几乎不回答「下一步做什么」。这份方案围绕这三问重排外壳、首页、列表、详情、引导、色阶、动效、组件板和文档。</p>
+  <p class="note">依据：DESIGN.md、PRODUCT.md、工作台品味、路线书 01–89、事项线／主线／智能呈现／Work Brief／Onboarding 需求；在隔离的示例 Home 里实看了选择页、首页、插件切换器、Goals 列表与详情、待办、助理面板、设置、侧边资料和组件板（1440／1024／390，浅深色）。Inbox 与 Feed 在走查用的测试宿主里没有加载出来，这两页只按规范文字评估，没看实物。</p>
+  <nav class="toc" aria-label="目录">
+    <a href="#verdict">1 结论</a><a href="#findings">2 发现</a><a href="#stance">3 设计主张</a><a href="#shell">4 外壳与首页</a><a href="#lists">5 列表与详情</a><a href="#guide">6 引导</a><a href="#look">7 视觉语言</a><a href="#motion">8 动效</a><a href="#board">9 组件板</a><a href="#docs">10 文档收口</a><a href="#plan">11 节奏与决定</a>
+  </nav>
+</header>
+
+<section class="sheet" id="verdict">
+  <h2>1 结论：三问里，第三问没人答</h2>
+  <p>工作台品味第 38 条写的主路径是「定位 → 看清事实 → 做下一步」。我按这三问给看到的每个界面打分：</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>界面</th><th class="c">我在哪</th><th class="c">现在怎样</th><th class="c">下一步</th><th>主要原因</th></tr></thead>
+    <tbody>
+      <tr><td>项目选择页</td><td class="c g">好</td><td class="c g">好</td><td class="c g">好</td><td>项目简报把在办的目标、进度条、接下来三件事放在一屏。它是现在最好的一页。</td></tr>
+      <tr><td>项目首页</td><td class="c a">一般</td><td class="c r">弱</td><td class="c r">弱</td><td>首屏三分之一是标题和说明文字；「等你 0」占着最好的位置；目标按最近更新排，已暂停和已完成排在最前。</td></tr>
+      <tr><td>工作台外壳</td><td class="c r">弱</td><td class="c a">一般</td><td class="c a">一般</td><td>屏幕上没有项目名，只有右下角一个字的头像；近 20 个不带文字的图标分在四个角。</td></tr>
+      <tr><td>插件切换器</td><td class="c g">好</td><td class="c a">一般</td><td class="c a">一般</td><td>二十多个插件一次全摊开，六个分组的分法不是同一个维度。</td></tr>
+      <tr><td>Goals 列表</td><td class="c g">好</td><td class="c r">弱</td><td class="c r">弱</td><td>17 行里 14 行写着「可记录」；真正要处理的 1 行「需要你决定」淹在里面。</td></tr>
+      <tr><td>Goal 详情</td><td class="c a">一般</td><td class="c a">一般</td><td class="c r">弱</td><td>状态是一句内部用语（「可记录，尚不可完成」），页面上没有主操作。</td></tr>
+      <tr><td>助理面板</td><td class="c a">一般</td><td class="c g">好</td><td class="c a">一般</td><td>盖住正在做的内容；开口前先要选「谁来做」「放在哪」。</td></tr>
+      <tr><td>待办、设置</td><td class="c g">好</td><td class="c g">好</td><td class="c g">好</td><td>入口即操作（一句话记下一件事），空态说得清楚。</td></tr>
+    </tbody>
+  </table></div>
+  <p>选择页的简报和项目里的首页是同一份事实，却是两种水准。把简报的做法带进项目里，是这份方案里最省力、收益最大的一步。</p>
+</section>
+
+<section class="sheet" id="findings">
+  <h2>2 发现</h2>
+  <p class="sm">每条写：看到了什么、违背了哪条规律。带编号的黄点标在现状截图上。</p>
+
+  <h3>2.1 首页把最好的位置给了说明文字和空状态</h3>
+  <figure>
+    <div class="shot"><img src="img/home.jpg" alt="项目首页现状，1440 宽浅色" width="1080" height="675">
+      <span class="pin" style="left:13%;top:12%">1</span><span class="pin" style="left:18%;top:25.5%">2</span><span class="pin" style="left:11%;top:33%">3</span><span class="pin" style="left:30%;top:66%">4</span><span class="pin" style="left:85%;top:1.8%">5</span><span class="pin" style="left:97.5%;top:96.5%">6</span>
+    </div>
+    <figcaption><ol>
+      <li><b>标题是页面类型，不是内容。</b>30px 的「项目首页」占了 Display 这一档。DESIGN.md 自己写着 Display 留给「内容本身」，这里最该大的是项目或事项的名字。</li>
+      <li><b>系统在解释自己的排法。</b>「按原插件分组，等你处理的事项放在上面。只改你在本项目首页的显示」是给设计者看的话。首屏 300px 里没有一条用户的事。</li>
+      <li><b>空状态占首位。</b>「等你 0 · 没有等你处理的事项」排在第一。没有要处理的事时，这一段应该退成一行，把位置让给「接着做」。</li>
+      <li><b>卡里套卡，行不成行。</b>Goals 卡里每条目标又是一张带边框的卡，70px 高只放一行字；标题在左上，状态和「打开」在右下，不在一条线上；「打开」重复五次。DESIGN.md 明确写了不嵌套卡片、一行一条线。</li>
+      <li><b>八个没有名字的图标。</b>右上角是侧边的八个视图，同样大小、同样颜色。图标单独出现时，人靠位置硬记，记不住就不点。</li>
+      <li><b>项目只剩一个字。</b>整屏唯一说明「这是哪个项目」的是右下角头像里的「目」。</li>
+    </ol></figcaption>
+  </figure>
+  <div class="cols">
+    <div class="box"><h4>排序没有按「要不要我」</h4><p class="sm">「本项目最近更新的目标」里，第一条已暂停，第二条已完成。人打开首页要找的是该自己处理的和做到一半的，最近改过不等于重要。</p><div class="principle">规律：显著性应当跟着任务相关性走；序列位置效应（最先看到的最容易被当成最重要的）。</div></div>
+    <div class="box"><h4>手机上一条目标 110px</h4><p class="sm">390 宽时每条目标占两行半，一屏只看得到两条，还是暂停和完成的那两条。</p><div class="principle">规律：信息密度。同一屏能比较的条目越少，越要靠滚动和记忆。</div></div>
+  </div>
+
+  <h3>2.2 Goals 列表：状态说了两遍，却没说重点</h3>
+  <figure>
+    <div class="shot"><img src="img/goals-list.jpg" alt="Goals 列表现状" width="1080" height="675">
+      <span class="pin" style="left:16%;top:22%">1</span><span class="pin" style="left:60%;top:30%">2</span><span class="pin" style="left:42%;top:40%">3</span><span class="pin" style="left:76%;top:11%">4</span><span class="pin" style="left:31%;top:7%">5</span>
+    </div>
+    <figcaption><ol>
+      <li><b>每个标题都框在胶囊里。</b>17 个描边胶囊，里面各带一个状态环。边框的作用是把一个东西从周围分出来，全都框上就等于没框，还多了 17 圈线。</li>
+      <li><b>状态重复，信号很弱。</b>胶囊里一个环，右边再一个环加文字。17 行里 14 行是「可记录」。一列里绝大多数格子写着同一个词，这一列就读不出东西；该跳出来的「需要你决定」只有颜色略不同。</li>
+      <li><b>名字和状态隔了半个屏幕。</b>标题到状态之间是 450–700px 的空白，没有引导线，也没有行悬停底色，眼睛容易串行。</li>
+      <li><b>列没有表头。</b>「0/3」是什么的三分之零、最右的「D」是谁，要靠猜。</li>
+      <li><b>工具条上五个控件四种样式。</b>实心主按钮、浅底按钮、只有图标的视图切换、两个描边按钮，并排在一起。</li>
+    </ol></figcaption>
+  </figure>
+  <p class="principle">规律：接近性与连续性（相关的东西要靠近、成线）；信噪比（重复的默认值是噪声）；识别优于回忆（没有表头就得记）。</p>
+
+  <h3>2.3 详情页有事实，没有「下一步」</h3>
+  <div class="cols">
+    <figure style="margin:0"><div class="shot"><img src="img/goal-detail.jpg" alt="Goal 详情现状" width="800" height="500"><span class="pin" style="left:30%;top:5.5%">1</span><span class="pin" style="left:10%;top:42%">2</span><span class="pin" style="left:86%;top:5.5%">3</span></div></figure>
+    <div>
+      <p class="sm"><span class="n">1</span><b>状态是内部用语。</b>「可记录，尚不可完成」需要先懂事件记录和收尾这套模型。用户想知道的是：还差什么。</p>
+      <p class="sm"><span class="n">2</span><b>左边的目标树挤坏了。</b>缩进加胶囊，标题只剩七八个字，每条两行；父目标和当前目标同时高亮，看不出选中的是谁。</p>
+      <p class="sm"><span class="n">3</span><b>没有主操作。</b>页面上最显眼的是「概览 / 终端」切换。读完事实之后该点什么，页面没有给出。</p>
+      <div class="principle">规律：Fogg 行为模型，行为 = 动机 × 能力 × 提示。这一页有动机（红色的未完成），没有提示。</div>
+    </div>
+  </div>
+
+  <h3>2.4 导航分在四个角，按插件分而不是按事情分</h3>
+  <div class="cols">
+    <figure style="margin:0"><div class="shot"><img src="img/plugin-picker.jpg" alt="插件切换器现状" width="1080" height="675"></div></figure>
+    <div>
+      <p class="sm"><b>四个角。</b>左上是标签，右上是侧边视图，左下是 Dock 和切换器，右下是项目。从 Dock 到侧边视图要横穿整个屏幕。</p>
+      <p class="sm"><b>切换器一次摊开二十多项。</b>六个分组里，「推进」「写与做」「研究」「编码」是按用途分，「个人」是按归属分，「更多」是放不进去的。同一层用了三种分法，人就没法预判某个插件在哪一组。</p>
+      <p class="sm"><b>名字要背。</b>Jelly 是日历和笔记，Cognia 是知识库，灵光是随手记。Dock 上只有图标，名字和用途都得靠记。</p>
+      <p class="sm"><b>人想的是事，界面给的是插件。</b>「发布 v2」散在 Goals、Pages、待办、Coding 四处。主线和事项线两份需求已经认了这一点，方向是对的。</p>
+      <div class="principle">规律：Hick 定律（选项越多、分类越乱，决定越慢）；Fitts 定律（常用目标之间的距离）；心智模型匹配。</div>
+    </div>
+  </div>
+
+  <h3>2.5 助理：先做选择题，再说话</h3>
+  <div class="cols">
+    <figure style="margin:0"><div class="shot"><img src="img/assistant.jpg" alt="助理面板现状" width="1080" height="675"></div></figure>
+    <div>
+      <p class="sm">面板浮在工作面上，盖住正在看的内容。左栏先问「谁来做」「放在哪」，右栏是两段使用说明，大片空白。</p>
+      <p class="sm">它知道我正开着哪个 Goal，却没有据此给出一句可以直接点的话。说明文字教的是语法（@、/），不是能办成什么。</p>
+      <p class="sm">事项线需求已经决定把面板拆进节点卡，这一条随它解决；方案在第 6 节补上「情境起手句」。</p>
+      <div class="principle">规律：默认值效应（先给默认，改不改随人）；空白画布焦虑（给起点比给说明有效）。</div>
+    </div>
+  </div>
+
+  <h3>2.6 美学：干净，但层次只有两档</h3>
+  <ul>
+    <li><b>三块近白分不开。</b>桌面 <code>#eef3f7</code>、工作面 <code>#fcfdfe</code>、内层 <code>#f5f8fb</code> 之间的对比度是 1.10 和 1.05。工作面靠一圈几乎看不见的阴影立着，目录列和工作面看上去是一块。</li>
+    <li><b>四档文字灰实际只有两档。</b><code>--muted</code> 对纸面 5.84:1，<code>--faint</code> 5.19:1，两者之间只差 1.12 倍，肉眼分不出。层级表里「事实」和「分组标签」两档因此落在同一个灰上。</li>
+    <li><b>主按钮和正文一样深。</b>主操作色 <code>#2d4f6c</code> 和正文墨色 <code>#1f2b37</code> 之间只有 1.68:1。主按钮靠「有底」被认出来，颜色本身不带「点我」的意思。</li>
+    <li><b>全屏一个色相。</b>桌面、文字、按钮、焦点都在同一段蓝灰里。安静是优点，代价是「该你了」这种最需要被看见的信号没有专属的颜色，只能和「注意」「剩余工作」共用琥珀。</li>
+    <li><b>负字距压在汉字上。</b>正文 <code>-.011em</code>、标题 <code>-.02em</code> 到 <code>-.03em</code> 是为拉丁字母调的，现在不分语言一起生效。汉字是满格字，收紧只会更挤。</li>
+  </ul>
+
+  <h3>2.7 动效：手感到位，空间感缺席</h3>
+  <p>按压、悬停、菜单、弹窗、分段滑块都有标本，时长和曲线只有一套，这部分不用动。缺的是「东西从哪来、到哪去」：切插件和切页面是 130ms 淡入；点一行打开详情，行和详情之间没有关系；从 Dock 打开和从搜索打开，到达的样子一样。全仓库没有用到 View Transitions。事项线要求「节点移到中间展开成卡」「结果飞到顶部成为标签」，现在的动效库里没有做这件事的零件。另外，规范写着插件不自己写关键帧，插件包里实际还有 16 个自写的关键帧名。</p>
+
+  <h3>2.8 引导：靠段落，不靠版面</h3>
+  <p>现在的引导是文字：首页三行说明、助理面板两段说明、各处空态一句话。没有「第一次做这件事」的提示，没有起步进度，没有「下一步」建议。Onboarding 需求（ONB-01 到 56）整项还没实现，在它落地之前，新用户进项目后面对的是 23 个插件名和一个输入框。</p>
+</section>
+
+<section class="sheet" id="stance">
+  <h2>3 设计主张</h2>
+  <p>五条。每条都能拿来验收一个界面，也都接得上已有的需求。</p>
+  <div class="cols">
+    <div class="box"><h4>① 每屏三秒答三问</h4><p class="sm">我在哪（项目、事项、对象）一直看得见；现在怎样用一句人话；下一步是一个按钮。答不上哪一问，这一屏就没做完。</p></div>
+    <div class="box"><h4>② 例外优先</h4><p class="sm">默认状态不占字、不占色。只有偏离默认的（等你、受阻、失败、在跑）才出标签。一屏里带颜色的标签不超过条目数的三分之一。</p></div>
+    <div class="box"><h4>③ 先给默认，再给选择</h4><p class="sm">能替人定的先定好，写出来，一步能改。不在动手之前要求做选择题（谁来做、放在哪、归哪类）。</p></div>
+    <div class="box"><h4>④ 版面就是引导</h4><p class="sm">左边过去、中间现在、右边接下来；上面是该你了，下面是可以等的。说明文字只在第一次出现，看过就走。</p></div>
+    <div class="box"><h4>⑤ 暖色只给人</h4><p class="sm">整套界面保持冷静的蓝灰，唯一的暖色留给「该你了」。它出现的地方就是需要你本人的地方，别的状态不许用。</p></div>
+  </div>
+</section>
+
+<section class="sheet" id="shell">
+  <h2>4 外壳与首页</h2>
+  <p>沿用你 11 月 12 日定下的事项线方向（顶部一条、底部一条线），在它上面补四件它没写的事：顶部说清我在哪，侧边视图带名字，首页改成「今天」，起始页取代大菜单。</p>
+  <div class="mockwrap"><div class="mock" role="img" aria-label="方案样稿：新外壳与今天首页">
+    <div class="m-row m-top">
+      <span class="m-chip ctx"><span class="dot blue"></span>官网改版 <span class="sub">/ 发布 v2 ▾</span></span>
+      <span class="m-sep"></span>
+      <span class="m-chip on">今天</span><span class="m-chip">公告页.md</span><span class="m-chip">发布公告页</span><span class="m-chip">＋</span>
+      <span class="m-grow"></span>
+      <span class="m-chip">资料</span><span class="m-chip">讨论</span><span class="m-chip">浏览器</span><span class="m-chip">任务 <b style="color:var(--accent)">2</b></span>
+    </div>
+    <div class="m-sheet">
+      <div class="m-body">
+        <div>
+          <div style="color:var(--faint)">11 月 12 日 周四 · 官网改版</div>
+          <div class="m-display">发布 v2</div>
+          <div class="m-row" style="color:var(--ink2)"><span>7 个目标完成 3 个</span><span class="m-grow"></span></div>
+          <div class="m-track" style="max-width:320px"><i class="d"></i><i class="d"></i><i class="d"></i><i class="c"></i><i></i><i></i><i></i></div>
+
+          <div class="m-h"><span class="dot warm"></span>该你了 <span class="cnt">2</span></div>
+          <div class="m-card"><div class="m-grow"><div class="t">验收：公告页初稿</div><div class="f">Coding 交回 · 10 分钟前 · 改了 2 个文件</div></div><span class="m-btn pri">验收</span><span class="m-btn">再改改</span></div>
+          <div class="m-card"><div class="m-grow"><div class="t">决定：首页先展示目标还是 Runtime</div><div class="f">两个下游目标在等这个决定</div></div><span class="m-btn">去决定</span></div>
+
+          <div class="m-h">接着做</div>
+          <div class="m-line"><span class="dot blue"></span><div class="m-grow"><span class="t">发布说明</span> <span class="f">· 写到第 3 节，还差两节 · 25 分钟前</span></div><span class="m-btn ghost">接着写</span></div>
+          <div class="m-line"><span class="dot blue"></span><div class="m-grow"><span class="t">修复登录跳转</span> <span class="f">· Coding 在跑第 3 步，共 5 步</span></div><span class="m-bar"><b style="width:60%"></b></span><span class="m-btn ghost">看进展</span></div>
+
+          <div class="m-h">接下来</div>
+          <div class="m-line"><span class="dot hollow"></span><div class="m-grow"><span class="t">设计评审会</span> <span class="f">· 14:00</span></div><span class="m-btn ghost">让助理准备材料</span></div>
+          <div class="m-line"><span class="dot hollow"></span><div class="m-grow"><span class="t">把评审意见整理成待办</span> <span class="f">· 建议，来自「整理设计评审反馈」</span></div><span class="m-btn ghost">开始办</span></div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div class="m-side"><div class="m-h">各处动态</div>
+            <div class="m-kv"><span>Goals</span><b>2 个在推进</b></div>
+            <div class="m-kv"><span>Inbox</span><b>今天 4 条，1 条紧要</b></div>
+            <div class="m-kv"><span>Files</span><b>3 个新文件</b></div>
+            <div class="m-kv"><span>待办</span><b>今天 2 件</b></div>
+          </div>
+          <div class="m-side"><div class="m-h">起步 <span class="cnt">3 / 5</span></div>
+            <div class="m-track"><i class="d"></i><i class="d"></i><i class="d"></i><i></i><i></i></div>
+            <div class="m-check done"><i></i>建好第一个目标</div>
+            <div class="m-check done"><i></i>接上模型</div>
+            <div class="m-check done"><i></i>交给助理一件事</div>
+            <div class="m-check"><i></i>接上一个消息来源</div>
+            <div class="m-check"><i></i>验收一次结果</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="m-linebar">
+      <span class="m-node head"><span class="dot blue"></span>发布 v2 <span class="tag warm" style="padding:2px 5px">2</span></span>
+      <span class="m-wire"></span><span class="m-node"><span class="dot green"></span>评审记录</span>
+      <span class="m-wire"></span><span class="m-node you"><span class="dot warm"></span>公告页初稿 · 等你验收</span>
+      <span class="m-input"><span>＋</span><span>说一件要办的事…</span><span class="m-send">↑</span></span>
+      <span class="m-node"><span class="dot hollow"></span>设计评审会 14:00</span>
+      <span class="m-wire"></span><span class="m-node">后台 1 在办</span>
+    </div>
+  </div></div>
+  <p class="note">样稿用的是示意数据；底部那条线照事项线需求的排法画，不是新设计。</p>
+
+  <h3>4.1 顶部：把「我在哪」写出来</h3>
+  <ul>
+    <li><b>项目 / 事项常驻左上。</b>一个带状态点的按钮写着「官网改版 / 发布 v2」，点开切项目或事项。事项线把事项按钮放在线头，那是「现在办哪件」；左上这个是「我在哪」，两处显示同一个事实，只有线头能切事项也可以，由定样定。</li>
+    <li><b>侧边视图带名字。</b>宽度够就是「资料 · 讨论 · 浏览器 · 任务 2」，不够再逐个收成图标，当前的那个始终带名字。八个里不常用的进「更多」。</li>
+    <li><b>数字只给要处理的。</b>「任务 2」是等你或在跑的件数，没有就不显示数字。</li>
+  </ul>
+
+  <h3>4.2 首页改成「今天」</h3>
+  <ul>
+    <li><b>大标题是事项名</b>（没选事项时是项目名），上面一行小字是日期和项目。「项目首页」四个字留给标签。</li>
+    <li><b>顺序固定为：该你了 → 接着做 → 接下来 → 各处动态。</b>前三段就是事项线的中、左、右三段摊开成页面，同一份读取，不另算。</li>
+    <li><b>空的段不画。</b>没有要你处理的事，「该你了」整段不出现，页头下面一行小字写「没有等你的事」。</li>
+    <li><b>每行一个动作，写成动词。</b>「验收」「接着写」「看进展」「开始办」，不再是五个「打开」。整行可点，点行是打开，点按钮是办。</li>
+    <li><b>插件卡降成一栏「各处动态」。</b>每个插件一行：名字加一句摘要。要看细的点进去。这样首页不再随插件数量变长。</li>
+    <li>这与 Work Brief 的首页定样、智能呈现的四形态不冲突：行和卡仍由组合服务按呈现声明给出，这里改的是分段、排序和每段的密度。</li>
+  </ul>
+
+  <h3>4.3 起始页取代大菜单</h3>
+  <p>事项线已定「＋」打开起始页。建议它分三层，而不是把二十多个插件平铺：</p>
+  <ol>
+    <li><b>最近和固定的</b>（最多 8 个）排第一行，带名字。</li>
+    <li><b>按「想做什么」找</b>：推进一件事、写点东西、看进来的消息、查资料、写代码、安排时间。一个插件可以出现在两个意图下。归属（个人 / 项目）改成每行右侧的小字，不再当分组。</li>
+    <li><b>搜索框默认聚焦</b>，输入即过滤；没匹配上就把这句话交给助理。</li>
+  </ol>
+  <p>插件名旁边始终带四到六个字的用途（「Jelly · 日历与笔记」）。Dock 和标签上放不下用途时，悬停提示里给。</p>
+</section>
+
+<section class="sheet" id="lists">
+  <h2>5 列表与详情</h2>
+  <h3>5.1 列表语法第二版</h3>
+  <div class="mockwrap"><div class="mock" role="img" aria-label="方案样稿：Goals 列表"><div class="m-sheet" style="padding:14px 16px">
+    <div class="m-row" style="margin-bottom:10px">
+      <span style="font-size:17px;font-weight:600">Goals</span>
+      <span class="m-chip on">全部 17</span><span class="m-chip">要我处理 1</span><span class="m-chip">进行中 2</span><span class="m-chip">受阻 1</span>
+      <span class="m-grow"></span><span class="m-btn">列表 · 画布 · 看板</span><span class="m-btn ghost">规划与规则 ▾</span><span class="m-btn pri">＋ 新建目标</span>
+    </div>
+    <div class="m-thead"><span>目标</span><span>状态</span><span>完成要求</span><span>前置</span><span>更新</span></div>
+    <div class="m-tr"><div class="nm"><span class="dot blue"></span><span>让第一次使用的人顺利完成一轮目标协作</span></div><span><span class="tag blue">进行中</span></span><span class="num">0 / 3</span><span class="q">—</span><span class="q">今天</span></div>
+    <div class="m-tr q"><div class="nm ind1"><span class="dot hollow"></span><span>让项目事实成为不同 Runtime 的共同底座</span></div><span class="q">可以开始</span><span class="num">1 / 3 <span class="m-bar" style="width:36px"><b style="width:33%"></b></span></span><span class="q">—</span><span class="q">今天</span></div>
+    <div class="m-tr"><div class="nm ind2"><span class="dot red"></span><span>安装文档和真实接入步骤对不上</span></div><span><span class="tag red">还差 1 项</span></span><span class="num">0 / 1</span><span style="color:var(--warm)">1 个未完成</span><span class="q">今天</span></div>
+    <div class="m-tr q"><div class="nm ind2"><span class="dot green"></span><span>让每项工作都有可信的完成依据</span></div><span class="q">已完成</span><span class="num">1 / 1</span><span class="q">—</span><span class="q">昨天</span></div>
+    <div class="m-tr q"><div class="nm ind1"><span class="dot hollow"></span><span>让人能在同一工作台看清并推进 Goal</span></div><span class="q">可以开始</span><span class="num">0 / 3</span><span class="q">—</span><span class="q">今天</span></div>
+    <div class="m-tr"><div class="nm ind2"><span class="dot warm"></span><span>决定首页先展示目标还是展示 Runtime</span></div><span><span class="tag warm">等你决定</span></span><span class="num">0 / 1</span><span style="color:var(--warm)">1 个未完成</span><span class="q">今天</span></div>
+    <div class="m-tr q"><div class="nm ind2"><span class="dot hollow"></span><span>把 Molis Work 作为不切窗口的主工作站</span></div><span class="q">可以开始</span><span class="num">0 / 1</span><span class="q">1 个已满足</span><span class="q">今天</span></div>
+  </div></div></div>
+  <ul>
+    <li><b>名字不加框。</b>状态点在名字前面，一行只出现一次状态。</li>
+    <li><b>默认状态写成灰字，例外才是标签。</b>「可以开始」「已完成」是安静的一行灰字；「等你决定」「还差 1 项」「进行中」才上色。扫一眼右边一列，有颜色的就是要看的。</li>
+    <li><b>有表头，数字等宽对齐。</b>行悬停有整行底色，解决长距离串行。</li>
+    <li><b>顶上一排筛选带数量。</b>「要我处理 1」本身就是一条信息，也是到达它最短的路。</li>
+    <li><b>工具条只留三种样式：</b>一个主按钮、一组视图切换、其余进一个「规划与规则」菜单。</li>
+    <li>详情旁边的窄目录不再是这张表的压缩版：只留名字和状态点，一行一条，缩进减半；当前目标一种高亮，祖先只加深字色。</li>
+  </ul>
+
+  <h3>5.2 详情页：状态句加下一步</h3>
+  <div class="mockwrap"><div class="mock" role="img" aria-label="方案样稿：Goal 详情页头"><div class="m-sheet">
+    <div style="color:var(--faint)">官网改版 / 让项目事实成为不同 Runtime 的共同底座</div>
+    <div class="m-display" style="font-size:22px">安装文档和真实接入步骤对不上</div>
+    <div class="m-row" style="background:var(--red-soft);border-radius:10px;padding:10px 12px;margin:10px 0">
+      <span class="dot red"></span>
+      <div class="m-grow"><b style="font-weight:600">还差 1 项才能完成。</b> README 还指向已经撤掉的启动命令。</div>
+      <span class="m-btn pri">处理这个问题</span><span class="m-btn">添加记录</span>
+    </div>
+    <div class="m-row" style="color:var(--ink2);gap:18px"><span>完成要求 <b style="color:var(--ink)">0 / 1</b></span><span>前置 <b style="color:var(--ink)">1 个，已满足</b></span><span>最近更新 <b style="color:var(--ink)">今天 23:26</b></span><span class="m-grow"></span><span class="m-chip on">概览</span><span class="m-chip">终端</span></div>
+  </div></div></div>
+  <ul>
+    <li><b>页头一句人话：</b>先说结论（还差几项、等谁、卡在哪），再说原因。句子由 Goals 按现有事实拼出来，不新增状态。</li>
+    <li><b>一个主操作，</b>由状态决定：有问题是「处理这个问题」，等决定是「去决定」，要求都满足了是「收尾」，没有什么要做时不出主按钮。</li>
+    <li><b>面包屑说明它属于谁，</b>替掉左上角那个孤零零的返回箭头。</li>
+  </ul>
+
+  <h3>5.3 用词：界面说结果，不说机制</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th>现在</th><th>建议</th><th>理由</th></tr></thead>
+    <tbody>
+      <tr><td>可记录</td><td>可以开始</td><td>用户关心能不能动手，不关心事件入口开没开。</td></tr>
+      <tr><td>可记录，尚不可完成</td><td>还差 N 项</td><td>直接给出距离完成还有多远。</td></tr>
+      <tr><td>记一笔</td><td>添加记录</td><td>按钮说人做的事。</td></tr>
+      <tr><td>Concern / 问题与风险</td><td>问题</td><td>一个词。</td></tr>
+      <tr><td>等你 / 需要你 / 需要你决定 / Needs your approval</td><td>统一成「该你了」这一类，下分：等你决定、等你验收、等你回答</td><td>同一件事现在有四种说法。</td></tr>
+      <tr><td>打开（首页每行）</td><td>验收、接着写、看进展…</td><td>动词说明点下去会发生什么。</td></tr>
+    </tbody>
+  </table></div>
+  <p class="note">这张表是提议。正式用词归 GLOSSARY 和文案需求（VUX-51 到 59）定，改之前要你点头。另外，选择页写示例项目「4 件等你」，进项目后底栏写「等你 3」，两处口径值得核对一次。</p>
+</section>
+
+<section class="sheet" id="guide">
+  <h2>6 引导：四层，由轻到重</h2>
+  <p>目标是让新用户不读说明也能完成第一件事，老用户不被打扰。四层按出现频率从高到低排：</p>
+  <div class="cols">
+    <div class="box"><h4>第一层 版面本身</h4><p class="sm">第 4、5 节做的事：位置有含义，例外才有颜色，每屏一个主操作。这一层做对了，下面三层的量可以很小。</p></div>
+    <div class="box"><h4>第二层 空态给起点</h4><p class="sm">空态除了一句话和一个按钮，再给一个「用示例试试」：填进一条标明是示例的内容，让人先看到这一页有东西时的样子，一键清掉。</p><div class="principle">规律：空白画布比错误更劝退；示例降低第一次的能力门槛。</div></div>
+    <div class="box"><h4>第三层 第一次提示</h4><p class="sm">只在第一次碰到某个能力时出现的一行小提示，贴着那个控件，点「知道了」或用过一次就永久消失。全产品同时最多一条。</p><div style="margin-top:8px"><span class="m-hint">按 ⌘K 可以搜到所有插件里的内容 <u>知道了</u></span></div></div>
+    <div class="box"><h4>第四层 起步清单</h4><p class="sm">首页右栏的「起步 3/5」。五件事都是真实操作，做完自动勾上，全勾完整块消失。创建项目时已经做过的直接算完成，开始就不是零。</p><div class="principle">规律：目标梯度效应（越接近完成越愿意做完）；赠予进度（起点不是零更容易开始）。</div></div>
+  </div>
+  <h3>助理的起手句</h3>
+  <p>输入框空着并且有焦点时，在它上方给最多三句和当前对象有关的话，点一下填进输入框，可以改了再发：</p>
+  <p><span class="tag">帮我看看这个目标还差什么</span> <span class="tag">把 README 的启动命令改对</span> <span class="tag">总结今天的进展</span></p>
+  <p>它们来自事项线里的「建议」和对象的「下一步」声明，不是写死的示例。「谁来做」「放在哪」收成输入框里的一个小标签，显示默认值，点了才展开。</p>
+  <h3>克制的三条线</h3>
+  <ul>
+    <li>不用连续签到、红点堆积、倒计时这类制造焦虑的做法。提示只说事实。</li>
+    <li>任何提示都能关，关了不再来；设置里有一处可以全部重新打开。</li>
+    <li>后台更新不抢焦点（沿用 PWA-139）。「该你了」的提醒只动一次。</li>
+  </ul>
+  <p class="note">这四层是 Onboarding 需求的版面与组件部分，可以先于场景包和访谈落地：第二、三、四层各是一个组件板零件加一处平台状态（看过没有）。</p>
+</section>
+
+<section class="sheet" id="look">
+  <h2>7 视觉语言：拉开层次，加一点暖</h2>
+  <p>不换方向。你 11 月 3 日选的雾蓝留着，长时间工作不刺眼这一条也留着。调四处：</p>
+  <div class="swrow">
+    <div class="swset"><h4>现在</h4>
+      <div class="sw"><span style="background:var(--cur-desk);color:#1f2b37">桌面<br>#eef3f7</span><span style="background:var(--cur-paper);color:#1f2b37">工作面<br>#fcfdfe</span><span style="background:var(--cur-soft);color:#1f2b37">内层<br>#f5f8fb</span><span style="background:var(--cur-action);color:#fff">主操作<br>#2d4f6c</span></div>
+      <div class="txt" style="background:var(--cur-paper)"><b style="color:var(--cur-ink)">条目名 ink · 14.1</b><span style="color:var(--cur-ink2)">次要文字 ink-soft · 7.9</span><span style="color:var(--cur-muted)">事实 muted · 5.8</span><span style="color:var(--cur-faint)">分组标签 faint · 5.2</span></div>
+      <p class="note">桌面对工作面 1.10。后两档灰分不开。主操作对正文 1.68。</p>
+    </div>
+    <div class="swset"><h4>方案</h4>
+      <div class="sw"><span style="background:var(--new-desk);color:#16202a">桌面<br>#e6ecf2</span><span style="background:var(--new-paper);color:#16202a">工作面<br>#ffffff</span><span style="background:var(--new-soft);color:#16202a">内层<br>#f3f6f9</span><span style="background:var(--new-action);color:#fff">主操作<br>#1b4b7a</span><span style="background:var(--new-warm);color:#16202a">该你了<br>#d99a1c</span></div>
+      <div class="txt" style="background:var(--new-paper)"><b style="color:var(--new-ink)">条目名 ink · 16.5</b><span style="color:var(--new-ink2)">次要文字 ink-soft · 7.9</span><span style="color:var(--new-faint)">事实与标签 faint · 4.5</span></div>
+      <p class="note">桌面对工作面 1.19。文字三档，档与档之间差 1.7 倍以上。主操作更蓝更饱和。</p>
+    </div>
+  </div>
+  <ol>
+    <li><b>桌面压深一点，工作面用纯白。</b>对比从 1.10 到 1.19，工作面不靠阴影也立得住，目录列的浅底能和工作面分开。</li>
+    <li><b>文字从四档并成三档。</b><code>--muted</code> 和 <code>--faint</code> 合并成一档，取 4.5:1 的下限值；正文墨色再深一点。三档之间都拉开到肉眼一眼可分。</li>
+    <li><b>主操作更像「可以按」。</b>同一色相，饱和度提高，和正文墨色拉开。一屏一个主按钮这条规则才有视觉上的支撑。</li>
+    <li><b>一个暖色，只给「该你了」。</b>蜂蜜黄的点和浅底，文字仍用深琥珀保证对比。它不是你否掉的棕红；「注意」「剩余工作」这些现在用琥珀的状态改用中性或蓝，让暖色只有一个含义。这一条需要你决定。</li>
+  </ol>
+  <h3>字</h3>
+  <ul>
+    <li><b>中文界面字距归零。</b>负字距只在英文界面生效，中文正文行高从 1.5 提到 1.6。这是一条 <code>:lang()</code> 规则的事。</li>
+    <li><b>Display 只给内容。</b>30px 这一档留给事项名、文档标题、Goal 标题；「项目首页」「设置」这类页面名降到 20px 或只留在标签上。</li>
+    <li><b>阅读面用 15px。</b>首页的行、详情的正文是读的，不是扫的，用规范里已有的 15px 档；目录、工具条、表格仍是 13px。</li>
+  </ul>
+  <h3>图标</h3>
+  <ul>
+    <li>不换图标库。改的是用法：外壳里的图标尽量带名字，带不下的保证当前项带名字。</li>
+    <li>起始页和「各处动态」里，插件图标可以用呈现形态里已经允许的那块浅色底，帮人在二十多个灰图标里找位置；Dock 和标签保持中性，不改现有决定。</li>
+  </ul>
+  <p class="note">这一页就是按方案的色阶、三档文字和中文字距排的，可以切系统深浅色看两套取值。Folio 皮肤按同样的阶梯关系各自取值。</p>
+</section>
+
+<section class="sheet" id="motion">
+  <h2>8 动效：补上「连续」这一层</h2>
+  <p>现有的四档时长和两条曲线不动。新增一类动效，只做一件事：让人看见东西从哪来、到哪去。</p>
+  <div class="demo">
+    <div class="demo-bar"><span class="sm">点一行打开详情：</span>
+      <button class="btn" id="mode-old" type="button" aria-pressed="false">现在：淡入</button>
+      <button class="btn" id="mode-new" type="button" aria-pressed="true">方案：标题走过去</button>
+    </div>
+    <div class="stage" id="stage"></div>
+    <p class="note" style="margin-bottom:0">方案模式用浏览器的 View Transitions：被点的那行的名字移动到详情标题的位置，其余内容淡入。不支持的环境和「减少动态效果」下直接切换。</p>
+  </div>
+  <div class="tablewrap"><table>
+    <thead><tr><th>新增</th><th>用在哪</th><th>规则</th></tr></thead>
+    <tbody>
+      <tr><td><b>走过去</b><br><code>--dur-travel</code> 320ms，<code>--ease-quint</code></td><td>列表行 → 详情标题；事项线节点 → 节点卡；结果 → 顶部标签；Dock 图标 → 标签</td><td>一次交互最多一个东西在走，其余淡入；走的是名字或图标，不是整块内容；返回时原路走回。</td></tr>
+      <tr><td><b>方向</b></td><td>切插件、切事项、前进后退</td><td>往前是从右进，往回是从左进，位移不超过 12px；同一处重新显示仍是 130ms 淡入。到达页已经在用这一条，推广到工作台。</td></tr>
+      <tr><td><b>叫你一次</b></td><td>节点或行变成「该你了」</td><td>暖色的一圈光扩散一次，900ms，不循环。同一时刻最多三处。</td></tr>
+      <tr><td><b>在办</b></td><td>进行中的节点、后台任务</td><td>当前步骤的文字换字时上下滑 4px；不用转圈表示「还活着」，读不到就写读不到。</td></tr>
+    </tbody>
+  </table></div>
+  <div class="demo">
+    <div class="demo-bar"><span class="sm">「该你了」的提醒：</span><button class="btn" id="call" type="button">让它办完一步</button></div>
+    <span class="pulse-node" id="pnode"><span class="dot blue"></span><span id="ptext">起草公告 · 查资料</span></span>
+  </div>
+  <ul>
+    <li><b>落地方式：</b>设计系统出一个 <code>molisTravel(from, to)</code>，内部用 View Transitions，退路是直接切换。插件只标「这是同一个东西」（一个属性），不写关键帧。</li>
+    <li><b>顺手收掉：</b>插件包里 16 个自写的关键帧名换成共用的，门禁加一条「插件样式里不许出现 <code>@keyframes</code>」。</li>
+    <li><b>要先验证：</b>桌面壳用的 WebKit 版本对同文档 View Transitions 的支持，以及和分屏、iframe 里的插件页面怎样配合。验证不过就用位置测量的做法（FLIP）实现同一个接口。</li>
+  </ul>
+</section>
+
+<section class="sheet" id="board">
+  <h2>9 组件板：从零件清单变成作者的工作台</h2>
+  <figure>
+    <div class="shot"><img src="img/catalog.jpg" alt="组件板现状" width="800" height="500"></div>
+    <figcaption>现状：左边 71 个条目平铺成一列，中英文名混排（色板、字体旁边是 Button Group、Number、Tag Input、Item Row、Data Table），没有分组、搜索和成熟度；标本只展示样子，不说什么时候用。只在开发者模式下能打开。</figcaption>
+  </figure>
+  <div class="mockwrap"><div class="mock" role="img" aria-label="方案样稿：组件板"><div class="m-sheet" style="padding:16px"><div class="cb">
+    <nav>
+      <div class="m-input" style="height:30px;box-shadow:inset 0 0 0 1px var(--line);border-radius:8px;margin-bottom:8px;flex:none">搜索零件、模式、变量…</div>
+      <b>基础</b><span>色与层次 <em>6</em></span><span>字 <em>3</em></span><span>图标与状态环 <em>4</em></span><span>动效 <em>5</em></span>
+      <b>控件</b><span class="on">按钮 <em>3</em></span><span>字段与选择 <em>9</em></span><span>菜单与浮层 <em>6</em></span><span>反馈 <em>7</em></span>
+      <b>模式</b><span>列表与行 <em>11</em></span><span>详情与阅读 <em>4</em></span><span>空、加载、失败 <em>3</em></span><span>引导 <em>3</em></span>
+      <b>平台区域</b><span>外壳与事项线 <em>5</em></span><span>助理与输入 <em>6</em></span><span>呈现形态 <em>4</em></span>
+      <b>页面样张</b><span>列表页 · 详情页 · 首页 · 设置页 <em>4</em></span>
+    </nav>
+    <div class="spec">
+      <div class="spec-h"><b>按钮</b><span class="tag green">稳定</span><span class="tag">用在 214 处</span><span class="m-grow"></span><span class="m-btn ghost">复制写法</span></div>
+      <div class="spec-grid">
+        <div><div style="font-weight:600">什么时候用</div><div style="color:var(--ink2)">一个决定一个主按钮。其余用浅底；带文字的按钮一定有边界。</div></div>
+        <div><div style="font-weight:600">什么时候不用</div><div style="color:var(--ink2)">句子里的跳转用链接。工具条里不放主按钮。</div></div>
+      </div>
+      <div class="spec-states">
+        <div><span class="m-btn pri">验收</span><br>默认</div><div><span class="m-btn pri" style="filter:brightness(1.15)">验收</span><br>悬停</div><div><span class="m-btn pri" style="outline:2px solid var(--accent);outline-offset:2px">验收</span><br>焦点</div><div><span class="m-btn pri" style="opacity:.45">验收</span><br>禁用</div><div><span class="m-btn pri">◌ 验收</span><br>进行中</div>
+      </div>
+      <div style="color:var(--faint);margin-top:10px">用到的变量：<code>--action</code> <code>--action-ink</code> <code>--r-control</code> <code>--dur-press</code> · 相关：按钮组、提示里的按钮 · 示例数字为示意</div>
+    </div>
+  </div></div></div></div>
+  <ul>
+    <li><b>五组，按作者找东西的顺序：</b>基础 → 控件 → 模式 → 平台区域 → 页面样张。71 个条目归并成不到 20 个入口，名字统一用界面语言。</li>
+    <li><b>每个标本固定五块：</b>什么时候用、什么时候不用、全部状态排成一排、用到的变量、可复制的写法。现在只有第三块的一部分。</li>
+    <li><b>成熟度和使用处。</b>稳定、试行、将移除三种标记；「用在几处」由脚本从源码数出来，改一个零件前知道会动到哪。</li>
+    <li><b>页面样张是新的一组。</b>插件作者最常做的是一整页：列表页、详情页、首页卡、设置页。给四张可以直接抄的整页，比给一百个零件有用，也是创作台生成插件时的参照。</li>
+    <li><b>条件开关提到页头：</b>语言、主题、皮肤之外，加密度、宽度（1440 / 1024 / 390）、减少动效，切了全板一起变。</li>
+    <li><b>和文档互相指：</b>每个标本链到插件开发 Skill 里对应的一节，Skill 里的每条界面规则链回标本。规则只在一边写全。</li>
+    <li>先上板、后进产品：第 4 到 8 节的新零件（今天首页的行、该你了卡、状态句页头、起步清单、第一次提示、<code>molisTravel</code>）都先在板上定样。</li>
+  </ul>
+</section>
+
+<section class="sheet" id="docs">
+  <h2>10 文档收口</h2>
+  <p>体验相关的规则现在分散在十多份文档里。读了一遍之后看到三类问题：</p>
+  <div class="cols">
+    <div class="box"><h4>说法已经漂移</h4><p class="sm">11 月 3 日配色从石墨、铜色换成墨蓝、雾蓝。组件板是新的；文字没跟上：DESIGN.md 里旧词还有 21 处（新词 8 处，同一份文件里两套说法），插件 UI 手册 7 处，工作台品味 5 处，设计系统 README 4 处，工艺底线 3 处，CLI 与开发、UI Platform 各 2 处，PRODUCT.md 1 处。插件作者照手册读到的是「主操作石墨、焦点铜色」。</p></div>
+    <div class="box"><h4>一份文档装了四种东西</h4><p class="sm">DESIGN.md 637 行，约 4.7 万 token：设计语言、每个页面的行为规定、各插件的现状描述、还有二十多条浏览器性能做法（<code>:has()</code> 怎么写、代码块怎么分帧着色）。找一条颜色规则要翻过 Feed 的阅读布局和 Goal 表单的页脚。</p></div>
+    <div class="box"><h4>同一条规则写在多处</h4><p class="sm">动效时长在 DESIGN.md、插件 UI 手册、CLI 与开发、工作台品味里各写一遍；「一屏一个主按钮」「不嵌套卡片」也是。写四遍就有四次改漏的机会，配色就是这样漂的。</p></div>
+    <div class="box"><h4>插件作者的路太长</h4><p class="sm">插件开发 Skill 30 个文件、约 2,800 行，手册 753 行，再加 DESIGN.md。英文版不齐：<code>ui.md</code> 224 行，<code>ui.en.md</code> 只有 31 行，多数章节没有英文版。</p></div>
+  </div>
+  <h3>收成什么样</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th>以后只在这里写</th><th>内容</th><th>从哪里并进来</th></tr></thead>
+    <tbody>
+      <tr><td><b>DESIGN.md</b>（设计语言，目标 250 行以内）</td><td>主张与验收问句、色与层次的角色、字阶与角色、形状、动效、版面语法、可访问性底线。取值不手写：色值、时长、圆角的表由 <code>ui-spec.json</code> 和皮肤文件生成。</td><td>工作台品味（并入「主张与验收」）、工艺底线、craft-finish 里仍然有效的条目。三份并完后归档。</td></tr>
+      <tr><td><b>组件板</b>（零件、模式、页面样张）</td><td>每个零件和模式怎么用、什么时候不用、状态。DESIGN.md 里「Components」「Components in the workbench」两大节的内容搬到对应标本的说明里。</td><td>DESIGN.md 后半部、设计系统 README 的硬规则。</td></tr>
+      <tr><td><b>docs/platform/UI-ENGINEERING.md</b>（新）</td><td>浏览器与性能做法：<code>:has()</code> 的写法、滚动跟随、代码着色、拖放、折叠高度、布局抖动。各条带它的测试名。</td><td>DESIGN.md 的 Do / Don't 里约 25 条工程条目；UI Platform 的相关段落。</td></tr>
+      <tr><td><b>docs/design/VOICE.md</b>（新）</td><td>界面用词：对用户说的词和内部用词的对照、状态词表、按钮与空态的写法、帮助与引导文字的规则。</td><td>PRODUCT.md 的 Brand Commitments、插件 UI 手册的文案一节、VUX-51 到 59 定下来的结果；与 GLOSSARY 互指。</td></tr>
+      <tr><td><b>插件开发 Skill</b></td><td>入口只留决策树和八步流程。<code>ui.md</code> 缩成「先看板上哪一页」加插件特有的接线；不再复述颜色、尺寸、时长。新增一页「30 分钟做出第一个列表页」。</td><td>现有 <code>ui.md</code> 的「质量线」「控件与视觉」两节改为指向 DESIGN.md 和组件板。</td></tr>
+      <tr><td><b>PLUGIN-DEVELOPMENT.md</b></td><td>保持参考手册的定位，开头加按任务的索引；与 Skill 重复的界面段落删掉留链接。</td><td>—</td></tr>
+    </tbody>
+  </table></div>
+  <h3>三条机制，防止再漂</h3>
+  <ol>
+    <li><b>一条规则一个家。</b>别处要提，只写一句加链接，不复述取值。SSOT 矩阵「文档各管什么」里给界面规则加这几行。</li>
+    <li><b>取值由文件生成。</b>加一个 <code>pnpm design:docs</code>，从基线文件生成 DESIGN.md 里的变量表；CI 比对，手改会红。</li>
+    <li><b>旧词门禁。</b>一份「已废弃用词」清单（石墨、铜色、珍珠灰、graphite、copper…），现行文档里出现就报。配色下次再换，清单加一行即可。</li>
+  </ol>
+  <p><b>英文版：</b>要么每个章节都有，要么只保留创作台真正挂载的那几份并在索引里写明。现在这种有的有、有的只有摘要的状态，对英文读者是误导。这一条要你定。</p>
+  <p class="note">第一步可以马上做而且不需要决定：把八份文档里的旧配色用词改成现行说法。它只是纠正文字，不改任何规则。</p>
+</section>
+
+<section class="sheet" id="plan">
+  <h2>11 节奏与要你定的事</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>阶段</th><th>做什么</th><th>性质</th><th>挂在哪一批</th></tr></thead>
+    <tbody>
+      <tr><td><b>一 现在就能做</b></td><td>首页去掉说明文字、空段不画、目标行改成一行并去掉卡中卡；Goals 列表去胶囊、加表头和行悬停；中文字距归零；八份文档的配色用词订正；组件板分五组（不改标本）。</td><td>都在现行规范之内，属于把已有规则做到位。</td><td>第 27 批「基础交互体验债」「首批文案与帮助」</td></tr>
+      <tr><td><b>二 要你看样定的</b></td><td>色阶与三档文字、暖色「该你了」、列表语法第二版、详情页状态句与主操作、用词表、引导三个零件、组件板标本的五块结构、文档收口。</td><td>改 DESIGN.md 和 GLOSSARY，按流程先出组件板实件给你看。</td><td>独立一批，或并进第 32 批开工前的定样</td></tr>
+      <tr><td><b>三 随大件一起</b></td><td>顶部「我在哪」与带名字的侧边视图、起始页、「今天」首页、<code>molisTravel</code> 与方向动效、起步清单接真实进度、助理起手句。</td><td>依赖事项线、主线、组合服务的合同。</td><td>第 32 批（事项线第一片）、36–37（主线）、44（首次场景闭环）、52（智能呈现第二片）</td></tr>
+    </tbody>
+  </table></div>
+  <h3>要你定的六件事</h3>
+  <ol>
+    <li><b>暖色只给「该你了」：</b>要不要这个专属信号色，以及现在用琥珀的其他状态改用什么。</li>
+    <li><b>外壳带文字：</b>顶部侧边视图带名字、左上常驻项目 / 事项，接受多占一些横向空间吗。</li>
+    <li><b>首页的大标题换成事项名，</b>插件卡降成「各处动态」一栏。这和 11 月 4 日定的首页顺序（等你、接着做、项目插件）是同一个方向，但把第三段压小了。</li>
+    <li><b>用词表：</b>「可记录」改「可以开始」这一类，改不改、哪些改。</li>
+    <li><b>View Transitions：</b>同意先做一次桌面壳上的验证，再决定用它还是用位置测量实现。</li>
+    <li><b>文档：</b>DESIGN.md 拆成设计语言、组件板说明、工程做法三处；英文版的取舍。</li>
+  </ol>
+  <h3>怎么验收</h3>
+  <ul>
+    <li><b>三问测试：</b>找没用过的人，每个界面看三秒，问他在哪、现在怎样、下一步点什么。目标是首页、Goals 列表、Goal 详情三页都能答对。</li>
+    <li><b>可以写成门禁的：</b>一屏带色标签占比不超过三分之一；首页首屏（1440×900）至少露出一条可操作的事；外壳里没有名字的图标数；现行文档里的旧词数为零。</li>
+    <li><b>沿用已有的：</b>视觉对比、版面秩序、触达尺寸、键盘路径这些用例继续跑，新零件各补一条。</li>
+  </ul>
+  <p class="note">没做的：没有改任何产品代码和仓库文档；Inbox、Feed、Coding、创作台和新手旅程没有实看；样稿是方向示意，不是组件板实件，数值以定样为准。</p>
+</section>
+
+</div>
+
+<script>
+(function(){
+  var stage=document.getElementById('stage'),mode='new',open=null;
+  var rows=[
+    {t:'安装文档和真实接入步骤对不上',f:'还差 1 项',c:'red',d:'README 还指向已经撤掉的启动命令。处理完这个问题就可以收尾。'},
+    {t:'决定首页先展示目标还是 Runtime',f:'等你决定',c:'warm',d:'两个下游目标在等这个决定。两种选择的影响写在决定卡里。'},
+    {t:'把 Molis Work 作为不切窗口的主工作站',f:'进行中',c:'blue',d:'Coding 在跑第 3 步，共 5 步。前置已经满足。'}
+  ];
+  function esc(s){return s.replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c]})}
+  function render(){
+    if(open===null){
+      stage.innerHTML=rows.map(function(r,i){return '<button class="d-row" type="button" data-i="'+i+'"><span class="dot '+r.c+'"></span><span class="ttl">'+esc(r.t)+'</span><span class="f">'+esc(r.f)+'</span></button>'}).join('');
+    }else{
+      var r=rows[open];
+      stage.innerHTML='<div class="d-detail"><button class="back" type="button">‹ 返回列表</button><h5><span class="dot '+r.c+'"></span><span class="ttl">'+esc(r.t)+'</span></h5><p>'+esc(r.d)+'</p><span class="m-btn pri">'+(r.c==='warm'?'去决定':r.c==='red'?'处理这个问题':'看进展')+'</span></div>';
+    }
+  }
+  function go(next,el){
+    var reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var apply=function(){open=next;render();var t=stage.querySelector(next===null?'[data-i="'+from+'"] .ttl':'.d-detail .ttl');if(t&&mode==='new')t.style.viewTransitionName='demo-title'};
+    var from=open;
+    if(mode==='new'&&document.startViewTransition&&!reduce){
+      var src=el&&el.querySelector?el.querySelector('.ttl'):stage.querySelector('.d-detail .ttl');
+      if(src)src.style.viewTransitionName='demo-title';
+      var vt=document.startViewTransition(apply);
+      vt.finished.then(function(){var t=stage.querySelector('.ttl[style]');if(t)t.style.viewTransitionName=''}).catch(function(){});
+    }else{
+      apply();
+      if(!reduce&&stage.firstElementChild&&stage.animate)stage.animate([{opacity:.4},{opacity:1}],{duration:130,easing:'ease-out'});
+    }
+  }
+  stage.addEventListener('click',function(e){
+    var row=e.target.closest('.d-row'),back=e.target.closest('.back');
+    if(row)go(Number(row.dataset.i),row);else if(back)go(null,null);
+  });
+  var bo=document.getElementById('mode-old'),bn=document.getElementById('mode-new');
+  function setMode(m){mode=m;bo.setAttribute('aria-pressed',String(m==='old'));bn.setAttribute('aria-pressed',String(m==='new'))}
+  bo.addEventListener('click',function(){setMode('old')});bn.addEventListener('click',function(){setMode('new')});
+  render();
+
+  var node=document.getElementById('pnode'),text=document.getElementById('ptext'),dot=node.querySelector('.dot'),step=0;
+  var steps=[['起草公告 · 查资料','blue',false],['起草公告 · 起草中','blue',false],['起草公告 · 等你验收','warm',true]];
+  document.getElementById('call').addEventListener('click',function(){
+    step=(step+1)%steps.length;var s=steps[step];
+    text.textContent=s[0];dot.className='dot '+s[1];
+    node.classList.remove('you');void node.offsetWidth;if(s[2])node.classList.add('you');
+  });
+})();
+</script>
+
+</body></html>

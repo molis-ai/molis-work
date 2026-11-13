@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoGoals } from "@molis-ai/molis-work-app-local-host";
 import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { GoalProjectApplication } from "./fixtures/goal-application.js";
+import { setProjectOutputFolder } from "./fixtures/project-directories-http.js";
 
 // A Goal's inputs have one entry (artifact-positioning 五.1, 「合成一种入口」): 「加输入…」 lists what the project holds, and
 // the person chooses whether the Goal follows the original or fixes this version.
@@ -97,4 +100,58 @@ test("a proposed input on a Goal reads 待确认 and is accepted or removed from
   const html = await evaluate<string>(`fetch('/projects/${projectId}/api/goals/V1/document').then(r => r.text())`);
   assert.match(html, /binding-item-accept"[\s\S]*?data-goal-input-state="confirmed">已确认</);
   assert.doesNotMatch(html, /binding-item-remove/);
+});
+
+// Files retirement S5 (specs/batch-06-shared-tools/materials-ui-contract §1, SSC-28): a file of the project's folders taken by a Goal.
+// Followed, the Goal keeps the digest of what was read and says so when the file changes; fixed, the platform's materials service fixes
+// that version and the Goal keeps only its version, listed with no path and taken off from the same list.
+test("BSH-08 SSC-28 a Goal follows a project-folder file with what was read, and keeps a version the materials service fixed", { timeout: 120_000 }, async t => {
+  const b = await openGoalBrowser(t, "seeded"); if (!b) return;
+  const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory, web } = b;
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
+  const directory = join(homeDirectory, "goal-folder");
+  await mkdir(directory, { recursive: true });
+  await writeFile(join(directory, "跟进.txt"), "第一版\n");
+  await writeFile(join(directory, "定稿.txt"), "定下来的话\n");
+  await setProjectOutputFolder(web, projectId!, directory);
+  const open = async () => {
+    await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=goals&openItem=V1&openGoalView=work` }, sessionId));
+    await waitFor("Boolean(document.querySelector('[data-goal-view=\"V1\"] [data-goal-materials-entry]'))", 15_000);
+    await click('[data-goal-view="V1"] [data-goal-materials-entry]');
+    await waitFor("[...document.querySelectorAll('[data-goal-inputs] [data-goal-input-add]')].some(button => button.getClientRects().length)", 10_000);
+  };
+  const add = async (title: string, mode: "live" | "fixed") => {
+    await evaluate("[...document.querySelectorAll('[data-goal-inputs] [data-goal-input-add]')].find(button => button.getClientRects().length).click()");
+    await waitFor(`[...document.querySelectorAll('dialog.placement-dialog .placement-choice strong')].some(item => item.textContent === ${JSON.stringify(title)})`, 15_000);
+    await evaluate(`(() => { const row = [...document.querySelectorAll('dialog.placement-dialog .placement-choice')].find(label => label.querySelector('strong')?.textContent === ${JSON.stringify(title)});
+      row.querySelector('input').checked = true;
+      document.querySelector('dialog.placement-dialog input[name=mode][value=${mode}]').checked = true; })()`);
+    await click("dialog.placement-dialog [data-placement-confirm]");
+    await waitFor("!document.querySelector('dialog.placement-dialog') || Boolean(document.querySelector('dialog.placement-dialog [role=alert], dialog.placement-dialog .placement-dialog-error')?.textContent)", 15_000);
+    assert.equal(await evaluate("document.querySelector('dialog.placement-dialog')?.innerText ?? ''"), "", "the dialog closes once the input is taken");
+  };
+
+  await open();
+  await add("跟进.txt", "live");
+  await add("定稿.txt", "fixed");
+  const goalPage = async () => evaluate<string>(`fetch('/projects/${projectId}/api/goals/V1/document').then(r => r.text())`);
+  // What was read is kept as the digest of the file's content; the fixed version is kept by its version alone, with no path on the page.
+  assert.match(await goalPage(), /data-goal-input-digest="sha256:[0-9a-f]{64}"/);
+  assert.match(await goalPage(), /data-goal-material-snapshot="\[&quot;[^&]+&quot;,1\]"[\s\S]*?<strong>定稿\.txt<\/strong><span class="goal-input-mode" data-goal-input-mode="fixed">固定的这一版/);
+  assert.doesNotMatch(await goalPage(), /goal-folder/, "no folder path reaches the Goal's page");
+
+  // The followed file changes: the Goal says so and still reads it; the fixed version is untouched and readable.
+  await writeFile(join(directory, "跟进.txt"), "第二版\n");
+  await writeFile(join(directory, "定稿.txt"), "后来又改了\n");
+  await open();
+  await waitFor("(document.querySelector('[data-goal-inputs] [data-placement-material][data-placement-kind=\"workspace_file\"] [data-placement-material-state]')?.textContent ?? '').includes('原文已改动')", 15_000);
+  await waitFor("document.querySelector('[data-goal-inputs] [data-goal-material-snapshot]')?.dataset.placementFilled === '1'", 10_000);
+  await waitFor("!document.querySelector('[data-goal-inputs] [data-goal-material-snapshot]').classList.contains('is-gone')", 10_000);
+  assert.equal(await evaluate("document.querySelector('[data-goal-inputs] [data-goal-material-snapshot] [data-goal-material-snapshot-state]').textContent"), "");
+  assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
+
+  // Taken off from the same list; the Goal no longer lists it after it is read again.
+  await click("[data-goal-inputs] [data-goal-material-snapshot] [data-goal-input-release]");
+  await waitFor("!document.querySelector('[data-goal-inputs] [data-goal-material-snapshot]')", 10_000);
+  assert.doesNotMatch(await goalPage(), /data-goal-material-snapshot=/);
 });

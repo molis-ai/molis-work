@@ -1,3 +1,4 @@
+import { cutWithEllipsis } from "./whole-units.js";
 import { actionEffect, actionFieldInput, actionFieldLabel, actionFieldOptions, actionFieldValue, type ActionSubjectContext, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { presentActionResult, type ActionResultPresentation } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentActionOffer } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -122,7 +123,7 @@ function summarizeResult(result: unknown): string {
     for (const key of ["item", "document", "record", "result", "created", "updated"]) { const inner = named(row[key]); if (inner) return inner; }
     return null;
   };
-  if (typeof result === "string") return result.length > 200 ? `${result.slice(0, 199)}…` : result || "已完成";
+  if (typeof result === "string") return cutWithEllipsis(result, 200) || "已完成";
   const name = named(result);
   return name ? `「${name.slice(0, 120)}」` : "";
 }

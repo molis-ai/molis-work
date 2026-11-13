@@ -14,15 +14,15 @@ import { availableProjectPluginIds, BUILTIN_PLUGIN_REGISTRY, PROJECT_SCOPED_PLUG
  * These assertions are about that, not about a particular list.
  */
 
-test("工作目录由项目系统服务提供，Files 和 Git 不安装旧 Workspace 插件", () => {
-  assert.deepEqual(BUILTIN_PLUGIN_REGISTRY.companions("files"), []);
+test("工作目录由项目系统服务提供，Git 不安装旧 Workspace 插件；Files 已退役，不再是可启用的插件", () => {
+  assert.equal(BUILTIN_PLUGIN_REGISTRY.has("files"), false);
   assert.deepEqual(BUILTIN_PLUGIN_REGISTRY.companions("git"), []);
   assert.equal(BUILTIN_PLUGIN_REGISTRY.has("workspace"), false);
 });
 
-test("传递依赖要一次带齐：Projects 只展开一层", () => {
-  const companions = BUILTIN_PLUGIN_REGISTRY.companions("text-stats");
-  assert.deepEqual([...companions].sort(), ["files"]);
+test("必选输入的默认来源是平台资料服务时不拉插件：Text stats 单独启用", () => {
+  // Its snapshot comes from the platform's materials (system.materials), which every project has; until batch 06 it brought Files.
+  assert.deepEqual(BUILTIN_PLUGIN_REGISTRY.companions("text-stats"), []);
 });
 
 test("输入全是可选的插件不拉人：单独开着也是能解释的状态", () => {
@@ -35,7 +35,7 @@ test("Feed 仍然带上 Inbox：手写的伴随关系没有被推导覆盖掉", 
 });
 
 test("新插件都能被项目启用，否则面板永远挂不上去", () => {
-  for (const id of ["files", "git", "diff", "text-stats", "coding"]) {
+  for (const id of ["git", "diff", "text-stats", "coding"]) {
     assert.equal(BUILTIN_PLUGIN_REGISTRY.has(id), true, `${id} 应当可以被项目启用`);
     assert.equal(PROJECT_SCOPED_PLUGIN_IDS.includes(id), true);
   }

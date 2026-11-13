@@ -1,3 +1,4 @@
+import { systemOutputSource } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import type { PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginTrust } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import type { PluginSupervisorEntry } from "./supervisor.js";
@@ -20,9 +21,14 @@ export async function persistReleaseArtifact(entry: PluginSupervisorEntry, repos
   repository.save(createPluginRuntimeReleaseArtifact(manifest, source));
 }
 
-/** The Host agrees to read a default wiring only from what the Host itself ships: a source of any other trust level has no signature to agree to. */
+/**
+ * The Host agrees to read a default wiring only from what the Host itself ships, the platform's own producers included: a source of any
+ * other trust level has no signature to agree to. Whether a platform source is agreed to on its own is the ledger's rule (`newRows`).
+ */
 const hostSourceSignature = (entries: ReadonlyMap<string, { readonly trust?: PluginTrust; readonly definition: { readonly manifest: { readonly publisher: { readonly signature: string } } } }>) =>
   (pluginId: string): string | undefined => {
+    const system = systemOutputSource(pluginId);
+    if (system) return system.signature;
     const source = entries.get(pluginId);
     return source && isHostTrust(source.trust ?? UNSIGNED_TRUST) ? source.definition.manifest.publisher.signature : undefined;
   };

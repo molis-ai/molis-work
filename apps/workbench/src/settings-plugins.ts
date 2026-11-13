@@ -66,6 +66,7 @@ const button = (text, variant) => { const node = el("button", "mw-btn " + varian
 const TRUST = { host: "workbench.settings-plugins.shipped-molis-work", pinned: "workbench.settings-plugins.publisher-pinned", unsigned: "workbench.settings-plugins.not-signed" };
 const STATE = { installed: "workbench.settings-plugins.installed", running: "workbench.settings-plugins.running", disabled: "workbench.settings-plugins.switched-off", uninstalled: "workbench.settings-plugins.uninstalled" };
 const KIND = { always_on: "workbench.settings-plugins.always", default_wiring: "workbench.settings-plugins.default-wiring", default_group: "workbench.settings-plugins.default-input-group", local_directory: "workbench.settings-plugins.local-folders" };
+const SYSTEM_SOURCES = { "system.materials": "workbench.settings-plugins.sys-materials" };
 // What an uninstall that deleted data left in place, and why (BL-915): each owner's own kind and reason, never a path, an id or a credential.
 const KEPT = { home_library: "workbench.settings-plugins.library", owner_files: "workbench.settings-plugins.files-saved", network_credential: "workbench.settings-plugins.network-credentials-used", installation_binding: "workbench.settings-plugins.account-connections", task_grant: "workbench.settings-plugins.task-permissions-given", declared_rule: "workbench.settings-plugins.judgment-rules-brought" };
 const WHY = { ownership_unverified: "workbench.settings-plugins.couldn-t-confirm-plugin-s-so-left", other_holder: "workbench.settings-plugins.same-plugin-elsewhere-another-project-personal-space", inventory_unavailable: "workbench.settings-plugins.some-data-couldn-t-read-check-whether" };
@@ -133,7 +134,20 @@ toggle.disabled = false; repaint();
 return line;
 }));
 const draw = (target, empty, nodes) => { target.replaceChildren(...(nodes.length ? nodes : [el("li", "settings-muted", empty)])); };
-const consents = (plugin, agreements) => group(readText("workbench.settings-plugins.agreements-gave"), readText("workbench.settings-plugins.no-agreements"), agreements.map((consent) => {
+// A bundled plugin's default that now reads the platform's materials is the person's to agree to; the Host never does it on an upgrade (BSH-06).
+const pending = (plugin, wait) => {
+const what = { plugin: plugin.name, port: wait.port, source: SYSTEM_SOURCES[wait.source_plugin_id] ? readText(SYSTEM_SOURCES[wait.source_plugin_id]) : wait.source_name, source_port: wait.source_port };
+const item = row(readText("workbench.settings-plugins.pending-wiring", what), readText("workbench.settings-plugins.not-agreed"));
+const agree = button(readText("workbench.settings-plugins.agree-source"), "mw-btn--secondary"); agree.dataset.pendingDefault = wait.port;
+agree.addEventListener("click", async () => {
+if (!await ask(readText("workbench.settings-plugins.agree-q", what), readText("workbench.settings-plugins.agree-detail"), readText("workbench.settings-plugins.agree"))) return;
+error.hidden = true; agree.disabled = true;
+try { await molisWorkRequest("/api/settings/plugin-consents/grant-default-source", { body: { plugin_id: plugin.plugin_id, port: wait.port } }); toast(readText("workbench.settings-plugins.source-agreed")); await load(); }
+catch (failure) { fail(failure); } finally { agree.disabled = false; }
+});
+item.append(agree); return item;
+};
+const consents = (plugin, agreements) => group(readText("workbench.settings-plugins.agreements-gave"), readText("workbench.settings-plugins.no-agreements"), (plugin.pending_defaults || []).map((wait) => pending(plugin, wait)).concat(agreements.map((consent) => {
 const item = row(readText(KIND[consent.kind] || consent.kind) + " · " + consent.subject,
 consent.revoked_at ? readText("workbench.settings-plugins.revoked-date", { date: day(consent.revoked_at) }) : readText(consent.granted_by === "user" ? "workbench.settings-plugins.agreed" : "workbench.settings-plugins.agreed-molis-work-plugin-ships") + " · " + day(consent.granted_at));
 if (!consent.revoked_at) {
@@ -146,7 +160,7 @@ try { await molisWorkRequest("/api/settings/plugin-consents/revoke", { body: { c
 item.append(revoke);
 }
 return item;
-}));
+})));
 const projectReach = (plugin, view) => {
 const box = el("div", "plugin-trust-group"); box.dataset.projectReach = plugin.plugin_id; box.style.overflowWrap = "anywhere";
 box.append(el("strong", "", readText("workbench.settings-plugins.read-write-project")), el("span", "settings-muted", projectName));
@@ -236,7 +250,7 @@ const work = el("div"), repaint = () => work.replaceChildren(jobs(plugin.jobs, p
 if (plugin.manifest_available) { body.append(grants(plugin, repaint, send, managed)); repaint(); body.append(work); } else if (!pending) body.append(el("span", "settings-muted", readText("workbench.settings-plugins.permissions-plugin-was-installed-cannot-be-read")));
 const reach = act === homeApi ? reachViews.get(plugin.plugin_id) : null;
 const agreements = plugin.consents.filter((consent) => consent.kind !== "project_reach");
-if (agreements.length || !reach) body.append(consents(plugin, agreements));
+if (agreements.length || plugin.pending_defaults?.length || !reach) body.append(consents(plugin, agreements));
 if (reach) body.append(projectReach(plugin, reach));
 if (plugin.trust === "pinned" && revoked) body.append(controls(plugin, revoked, act)); box.append(summary, body);
 const item = el("li"); item.append(box); return item;

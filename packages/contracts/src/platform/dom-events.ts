@@ -148,8 +148,8 @@ export const PAGE_STATE_OWNERS = {
     state: "Where something in hand would land in the Pages document open on the left, the preview there, and the brief flash that shows the place.",
   },
   "knowledge-picker": {
-    files: ["apps/workbench/src/browser/knowledge/picker.ts"],
-    state: "The one picker of project knowledge (specs/project-knowledge PMAT-17): what it was asked for, the person's query and their picks until they confirm.",
+    files: ["apps/workbench/src/browser/knowledge/picker.ts", "apps/workbench/src/browser/plugin-frame/materials-picker.ts"],
+    state: "The one picker of project materials (specs/project-knowledge PMAT-17, materials-ui-contract §3): what it was asked for, the person's query, the file read beside the list and their picks until they confirm; for a plugin frame, the page's own request on the frame's behalf and the answer it relays into the frame.",
   },
 } as const satisfies Readonly<Record<string, PageStateOwner>>;
 
@@ -260,13 +260,13 @@ export const DOM_EVENTS = [
   },
   {
     name: "molis-work:knowledge-pick", kind: "request", owner: "knowledge-picker", on: "document",
-    detail: "{ request_id, selected?: Array<{ kind, id, title }>, max? }",
-    summary: "Open the project knowledge picker with these pieces already chosen. Sent by an input that brings pieces into a round: the Assistant's ＋ and Coding's 材料.",
+    detail: "{ request_id, selected?: Array<{ ref: MaterialRef, title }>, max?, signal?: AbortSignal }",
+    summary: "Open the project materials picker with these pieces already chosen, by their exact references. Sent by an input that brings pieces into a round: the Assistant's ＋ and Coding's 材料. A request sent while another is open takes its place; the earlier one is answered cancelled; an aborted signal closes the picker and answers cancelled. A plugin frame sends it on its own document: the frame's port carries it to the page, which asks under an id of its own only for a visible view after a real press, ends it when the view goes away, and hands back only the references that plugin page can read (plugin-frame/materials-picker.ts).",
   },
   {
     name: "molis-work:knowledge-picked", kind: "announcement", owner: "knowledge-picker", on: "document",
-    detail: "{ request_id, picks: Array<{ kind, id, title, plugin_title }> }",
-    summary: "The person confirmed the picker opened for request_id; picks is the whole choice, replacing what was chosen before.",
+    detail: "{ request_id, outcome: 'confirmed' | 'cancelled' | 'unavailable', items: Array<{ ref: MaterialRef, title, hint? }> }",
+    summary: "The picker's one answer to request_id. confirmed: items is the person's whole choice, replacing what was chosen before (an empty one clears it); cancelled: they closed it, or another request took its place, and the asking input keeps what it had; unavailable: there is no project here to pick from. Each item is an exact reference: a 成果 version, a piece as its owner indexed it, a folder file as read when ticked, or a quote or snapshot the materials service fixed.",
   },
   {
     name: "molis-work:language-changed", kind: "announcement", owner: "document-language", on: "document",
@@ -398,8 +398,8 @@ export const DOM_EVENTS = [
   },
   {
     name: "molis:assistant-open", kind: "request", owner: "assistant", on: "document",
-    detail: "{ work_id?, new?, source?, materials? ({ title, text } or a piece of project knowledge { title, subject: { kind, id } }), object? }",
-    summary: "Open the Assistant panel on a Work, or a new one, with what is in hand (materials and the object they are from) put in its strip; no words are written and nothing is sent. A piece of project knowledge goes in by its subject (the knowledge picker sends these) and is read from its owner when the message is sent.",
+    detail: "{ work_id?, new?, source?, materials? ({ title, text }, a piece of project knowledge { title, subject: { kind, id } }, or a materials reference { title, ref: MaterialRef }), object? }",
+    summary: "Open the Assistant panel on a Work, or a new one, with what is in hand (materials and the object they are from) put in its strip; no words are written and nothing is sent. A piece of project knowledge goes in by its subject (the knowledge picker sends these), a quote or snapshot of the project's folders by its materials reference (the side panel's reader), and either is read from its owner when the message is sent.",
   },
   {
     name: "molis:assistant-starter-choose", kind: "request", owner: "context-actions", on: "document",

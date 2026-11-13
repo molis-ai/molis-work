@@ -1,27 +1,15 @@
-import type {} from "@molis-ai/molis-work-plugin-sdk";
-import type { UiRequestFailure } from "@molis-ai/molis-work-contracts/platform/ui";
-import type { DatasetHost, DatasetRequest, Translate } from "./types.js";
+import { pluginRequest } from "@molis-ai/molis-work-plugin-sdk/browser";
+import type { DatasetHost, DatasetRequest, Scope } from "./types.js";
 
 const uiText = globalThis.t;
 
-/**
- * Requests to Dataset's routes in the current project (`path` is under the plugin: `/datasets`). A failure is the helper's
- * plain Error with the Host's `code`; a conflict says so in the person's words and keeps what they typed.
- */
-export function datasetRequest(host: DatasetHost, _L: Translate): DatasetRequest {
-  const withProject = (path: string) => {
-    const id = host.projectId();
-    if (!id) throw new Error(uiText.text("dataset.error.no-project"));
-    return path + (path.includes("?") ? "&" : "?") + "project_id=" + encodeURIComponent(id);
-  };
-  return async <T>(method: "GET" | "POST", path: string, body?: Record<string, unknown>) => {
-    const url = withProject(host.pluginRoute(path));
-    try {
-      return await molisWorkRequest<T>(url, { method, ...(body === undefined || method === "GET" ? {} : { body: { ...body, project_id: host.projectId() } }), fallback: uiText.text("dataset.error.request") });
-    } catch (error) {
-      const failure = error as UiRequestFailure;
-      if (failure.code === "dataset.conflict") failure.message = uiText.text("dataset.error.conflict");
-      throw failure;
-    }
-  };
+/** Dataset's routes carry the current project in the query and each JSON write. */
+export function datasetRequest(host: DatasetHost, scope: Scope): DatasetRequest {
+  return pluginRequest(host, {
+    scope,
+    readRefusal: true,
+    project: { id: () => host.projectId(), missing: () => uiText.text("dataset.error.no-project"), includeInRequest: true },
+    fallback: () => uiText.text("dataset.error.request"),
+    codes: { "dataset.conflict": () => uiText.text("dataset.error.conflict") },
+  });
 }

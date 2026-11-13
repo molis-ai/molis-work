@@ -1,6 +1,6 @@
 {
   "reason": "PR #2042 调整账号文案导致中英文词包内容定址路径变化，头像 CSP 增加响应头字节；不增加其他资源或放宽门禁。",
-  "review": "CI https://github.com/molis-ai/molis-work/actions/runs/43368294863/job/131697963202 对照 58af6ece64 实测：到达页冷 zh +127/en +138，热 +140；默认/全部插件工作台热 +140；其他净增为零。",
+  "review": "CI https://github.com/molis-ai/molis-work/actions/runs/43368294863/job/131697963202 对照 58af6ece64 实测：到达页冷 zh +127/en +138，热 +140；默认/全部插件工作台热 +140；其他净增为零。 更新：CI https://github.com/molis-ai/molis-work/actions/runs/43371331143/job/131707658260 合入更新 main 后到达页中文冷载为 +131 B，压缩基线改变了差值；两种语言的到达页冷载按用户已批准的 140 B 上限记录，其余保持原值。",
   "entryApprovals": [
     {
       "pages": [
@@ -27,7 +27,7 @@
   ],
   "pages": {
     "arrival-empty/zh": {
-      "cold": 127,
+      "cold": 140,
       "warm": 140
     },
     "workbench-default/zh": {
@@ -39,7 +39,7 @@
       "warm": 140
     },
     "arrival-empty/en": {
-      "cold": 138,
+      "cold": 140,
       "warm": 140
     },
     "workbench-default/en": {

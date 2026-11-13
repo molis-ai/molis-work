@@ -128,7 +128,7 @@ export const codingAgentManifest: AgentManifest = {
   prompts: [
     { prompt_id: "coding-planner", version: /* @version prompt.coding-planner */ 2 },
     { prompt_id: "coding-compaction", version: /* @version prompt.coding-compaction */ 1 },
-    { prompt_id: "coding-ending-review", version: /* @version prompt.coding-ending-review */ 1 },
+    { prompt_id: "coding-ending-review", version: /* @version prompt.coding-ending-review */ 2 },
     // The product's own constraints, shared by every role. Its own layer so a
     // role's wording cannot quietly replace it.
     { prompt_id: "coding-base", version: /* @version prompt.coding-base */ 2, layer: "base" },
@@ -162,11 +162,13 @@ export const codingPrompts: readonly AgentPromptText[] = [
     ].join("\n"),
   },
   {
-    prompt_id: "coding-ending-review", version: /* @version prompt.coding-ending-review */ 1,
+    prompt_id: "coding-ending-review", version: /* @version prompt.coding-ending-review */ 2,
     body: [
       "你读一段编码助手在这一轮结束时对用户说的话（reply；earlier 是同一轮里在它之前说的话），对照宿主记的事实，回答两个问题。",
       "",
       "事实（facts）是宿主记的，不是助手说的：tools 是这一轮调用过的工具和每次的结果，空就是一次也没调用；materials 是这一轮随附了哪些材料。这一轮没有改动任何文件，也没有运行任何命令。",
+      "",
+      "request 是宿主记下的用户原话。用户要助手起草的内容是交给用户的正文。正文里说文件已改或测试已跑时，先区分那是在写用户要的内容，还是助手在报告自己这一轮做了这些操作。只把后者抄进 changed。",
       "",
       "问题一（last）：reply 的最后一段在做什么？只选一个。",
       "- next_step：说自己接下来要去做的一步，这一步这一轮还没有做。",

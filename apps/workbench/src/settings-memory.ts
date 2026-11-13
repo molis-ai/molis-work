@@ -573,8 +573,8 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
         const actions = el("div", "memory-actions");
         // A long-term memory learned in this session is shown here but belongs to its own page: the session cannot change it.
         if (sessionMode && item.classification?.lifecycle !== "session") {
-          const elsewhere = el("a", "mw-btn mw-btn--ghost mw-btn--sm", globalThis.t.text(item.scope === "project" ? "workbench.settings-memory.manage-in-project" : "workbench.settings-memory.manage-in-personal"));
-          elsewhere.href = item.scope === "project" ? "/projects/" + encodeURIComponent(item.owner) + "/settings/memory" : "/settings/memory";
+          const elsewhere = el("a", "mw-btn mw-btn--ghost mw-btn--sm", globalThis.t.text(item.project_id ? "workbench.settings-memory.manage-in-project" : "workbench.settings-memory.manage-in-personal"));
+          elsewhere.href = (item.project_id ? "/projects/" + encodeURIComponent(item.project_id) : "") + "/settings/memory";
           elsewhere.dataset.memoryManageElsewhere = "";
           actions.append(elsewhere); row.append(copy, actions); list.append(row);
           return;

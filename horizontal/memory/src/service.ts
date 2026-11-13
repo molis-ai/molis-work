@@ -813,7 +813,8 @@ export class MemoryService {
       located = { scope: record.scope, owner: record.owner, entry, meta: { memory_id: entry.memory_id, scope: record.scope, owner: record.owner, ...facts, state: "active", state_reason: null, created_at: at, updated_at: at } };
       change = "accepted";
     }
-    const accepted = (await this.ports.backend.withCaller(holder).candidates.list(record.scope, record.owner)).find(item => item.candidate_id === candidateId);
+    const settledScope = await this.ports.backend.withCaller(holder).candidates.list(record.scope, record.owner);
+    const accepted = settledScope.find(item => item.candidate_id === candidateId);
     if (!accepted) throw memoryErrors.conflict("候选提交后的关联不可确认，请使用原操作对账");
     const kept: MemoryCandidateRecord = { ...record, version: accepted.version, text, state: "accepted", memory_id: located.entry.memory_id };
     this.ports.ledger.transaction(() => {
@@ -826,7 +827,7 @@ export class MemoryService {
       this.ports.ledger.saveCandidate(kept);
     });
     // The same suggestion made again by another work (two runs, two identical candidates) is settled into what was just kept, not left waiting.
-    // The ledger names the twins without a backend read; only when there are some is the backend listed, once before and once after settling them.
+    // Reuse the canonical read of the accepted suggestion for any twins, then read back their versions together.
     const twinOf = (one: MemoryCandidateRecord) => one.candidate_id !== candidateId && one.state === "pending" && one.scope === record.scope && one.owner === record.owner
       && one.kind === record.kind && isDeepStrictEqual(one.applies, record.applies) && (sameText(one.text, record.text) || sameText(one.text, text));
     let current = located.entry;
@@ -834,7 +835,7 @@ export class MemoryService {
       const settledTwins: Array<{ twin: MemoryCandidateRecord; mark: ReturnType<MemoryOperations["begin"]>; entry: MemoryBackendEntry }> = [];
       // What settled is recorded even if a later twin fails; an in-doubt one stays an open operation, as any other.
       try {
-        for (const twin of (await this.candidateRecords(holder, record.scope, record.owner)).filter(twinOf)) {
+        for (const twin of (await this.candidateRecords(holder, record.scope, record.owner, undefined, settledScope)).filter(twinOf)) {
           const mark = this.operations.begin(caller, `accept-twin:${twin.candidate_id}`, { kind: "settleInto", scope: record.scope, owner: record.owner,
             candidate_id: twin.candidate_id, memory_id: current.memory_id, expected_version: current.version, candidate_expected_version: twin.version });
           current = await this.ports.backend.withCaller(holder).candidates.settleInto({ scope: record.scope, owner: record.owner, candidate_id: twin.candidate_id,
@@ -844,13 +845,16 @@ export class MemoryService {
         }
       } finally {
         if (settledTwins.length) {
-          const versions = new Map((await this.ports.backend.withCaller(holder).candidates.list(record.scope, record.owner)).map(item => [item.candidate_id, item.version]));
+          const results = new Map((await this.ports.backend.withCaller(holder).candidates.list(record.scope, record.owner)).map(item => [item.candidate_id, item]));
           this.ports.ledger.transaction(() => {
             for (const { twin, mark, entry } of settledTwins) {
+              const acceptedTwin = results.get(twin.candidate_id);
+              if (acceptedTwin?.state !== "accepted" || acceptedTwin.memory_id !== entry.memory_id)
+                throw memoryErrors.conflict("同文建议提交后的关联不可确认，请使用原操作对账");
               this.operations.committed(caller, mark, { memory_id: entry.memory_id, candidate_id: twin.candidate_id, version: entry.version });
               this.ports.ledger.addRevision(entry.memory_id, { version: entry.version, text: entry.text, kind: record.kind, applies: record.applies,
                 snapshot: { origin: entry.origin, meta: entry.meta }, change: "merged", by: "person", at });
-              this.ports.ledger.saveCandidate({ ...twin, version: versions.get(twin.candidate_id) ?? twin.version, state: "accepted", memory_id: entry.memory_id });
+              this.ports.ledger.saveCandidate({ ...twin, version: acceptedTwin.version, state: "accepted", memory_id: entry.memory_id });
             }
           });
         }
@@ -870,8 +874,9 @@ export class MemoryService {
   }
 
   /** Join the ledger's notes with the current candidate owner; reading never repairs missing facts. */
-  private async candidateRecords(caller: MemoryCaller, scope: MemoryScope, owner: string, canonical?: Map<string, MemoryBackendCandidate>): Promise<MemoryCandidateRecord[]> {
-    const held = new Map((await this.ports.backend.withCaller(caller).candidates.list(scope, owner)).map(item => [item.candidate_id, item]));
+  private async candidateRecords(caller: MemoryCaller, scope: MemoryScope, owner: string, canonical?: Map<string, MemoryBackendCandidate>,
+    listed?: readonly MemoryBackendCandidate[]): Promise<MemoryCandidateRecord[]> {
+    const held = new Map((listed ?? await this.ports.backend.withCaller(caller).candidates.list(scope, owner)).map(item => [item.candidate_id, item]));
     const out: MemoryCandidateRecord[] = [];
     for (const note of this.ports.ledger.candidates(caller.actor_id).filter(item => item.scope === scope && item.owner === owner)) {
       if (this.isForgotten(scope, owner, "memory-candidate", note.candidate_id)) continue;

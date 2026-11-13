@@ -1261,7 +1261,7 @@
     "prompt.coding-builder": 2,
     "prompt.coding-compaction": 1,
     "prompt.coding-coordinator": 2,
-    "prompt.coding-ending-review": 1,
+    "prompt.coding-ending-review": 2,
     "prompt.coding-planner": 2,
     "prompt.coding-reader": 2,
     "prompt.coding-reviewer": 2,

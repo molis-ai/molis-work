@@ -20,12 +20,18 @@ const PACK_ID = "molis-action-gateway";
 export const HOST_GOVERNED_TOOLS: readonly string[] = [GATEWAY_TOOLS.suggest, DELEGATION_TOOLS.start, DELEGATION_TOOLS.follow, DELEGATION_TOOLS.stop,
   MEMORY_TOOLS.remember, MEMORY_TOOLS.forget, MEMORY_TOOLS.propose];
 const FIND_LIMIT = 8;
-/** list-memories is a lookup, not a Context: it stops at whichever comes first, so a large memory never floods the round. */
-const LIST_LIMIT = 40, LIST_CHARS = 6_000;
+/** Bound the amount of stored memory returned to the model by an explicit lookup. */
+const LIST_LIMIT = 40;
+const LIST_CHARS = 6_000;
 
 function listed<T extends { text: string }>(memories: readonly T[]) {
+  const shown: T[] = [];
   let chars = 0;
-  const shown = memories.filter((memory, index) => index < LIST_LIMIT && (chars += memory.text.length) <= LIST_CHARS);
+  for (const memory of memories) {
+    if (shown.length === LIST_LIMIT || chars + memory.text.length > LIST_CHARS) break;
+    shown.push(memory);
+    chars += memory.text.length;
+  }
   const more = memories.length - shown.length;
   return { memories: shown, ...(more ? { more, note: `还有 ${more} 条没有列出：在设置的记忆页里看全部` } : {}) };
 }
@@ -373,7 +379,6 @@ export function offerWords(args: Record<string, unknown>): Pick<AgentActionOffer
  */
 export function capabilityInput(view: ActionView, input: unknown): unknown {
   const schema = view.action.input_schema;
-  // The tools take an object; a contract that takes no arguments at all (an empty array) is called by leaving input out.
   return input !== undefined ? input : schema.type === "object" ? {} : schema.type === "array" && schema.maxItems === 0 ? [] : input;
 }
 

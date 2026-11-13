@@ -1575,18 +1575,23 @@ test("RAC-61/62: an unreadable work keeps its job waiting, storage recovery fini
 
 // Seen 2026-11-13: with input allowed to be any JSON value, models sent a positional array (["kb36be7e"]); the refusal then read as
 // "not authorized", and the confirmation card showed the retry key and raw field names.
-test("a capability's input is an object with named fields; a shape refusal reads as invalid input; the card leaves out only bookkeeping", async () => {
+test("capability inputs keep their declared shape, refusals explain bad input, and the card leaves out only bookkeeping", async () => {
   const { pack, declare, parameterBranches } = prologueActionGateway({ client: { discover: async () => [], offer: async () => ({ offer_id: "o" }) }, operate: true } as never);
   for (const name of ["read-capability", "change-capability", "change-reversible", "suggest-action"]) {
     const registered = pack.tools.find(one => one.registration.name === name)!.registration.parameters as { properties: { input: { type?: unknown } } };
-    assert.equal(registered.properties.input.type, "object", `${name} takes input as an object`);
+    assert.deepEqual(registered.properties.input.type, ["object", "array", "string", "number", "boolean", "null"], `${name} supports the action's declared JSON type`);
   }
-  // A capability that takes no arguments (an empty array) is called by leaving input out; it is declared on no tool.
+  // An empty tuple can omit input. A nonempty tuple keeps its own branch and its argument values.
   const none = { capability_id: "fixture.settings.read", version: 1, operation: "query", provider: { provider_id: "fixture.settings", kind: "plugin", title: "Settings" },
     action: { ...count.action, input_schema: { type: "array", maxItems: 0 } }, availability: { available: true } } as ActionView;
+  const tuple = { ...none, capability_id: "fixture.settings.by-id",
+    action: { ...none.action, input_schema: { type: "array", minItems: 1, maxItems: 1, items: [{ type: "string" }], additionalItems: false } } } as ActionView;
   assert.deepEqual(capabilityInput(none, undefined), []);
+  assert.deepEqual(capabilityInput(tuple, ["note-1"]), ["note-1"]);
   declare(none);
-  assert.equal(parameterBranches("read-capability"), undefined);
+  declare(tuple);
+  assert.deepEqual((parameterBranches("read-capability") as { input: Array<{ title: string; type: string }> }).input.map(one => [one.title, one.type]),
+    [["fixture.settings.read@1", "array"], ["fixture.settings.by-id@1", "array"]]);
   const view = { ...write, provider: { provider_id: "fixture.notes", kind: "plugin", title: "Notes" }, availability: { available: true } } as ActionView;
   declare(view);
   assert.deepEqual((parameterBranches("change-capability") as { input: Array<{ title: string }> }).input.map(one => one.title), ["fixture.notes.write@1"]);
@@ -1603,15 +1608,19 @@ test("a capability's input is an object with named fields; a shape refusal reads
   assert.equal(card.some(field => /idempotency|confirmed/.test(field.label)), false);
 });
 
-test("list-memories is a lookup with a ceiling: a large memory stops early and says how many were left out (BL-1076 review)", async () => {
-  const memories = Array.from({ length: 120 }, (_, index) => ({ memory_id: `m${index}`, scope: "personal" as const, text: `第 ${index} 条：${"周报用要点列表".repeat(10)}` }));
-  const { executors } = prologueActionGateway({ client: { discover: async () => [], memory: { list: async () => memories } }, operate: true } as never);
-  const out = JSON.parse(String(await executors["list-memories"]!({ args: {} } as never))) as { memories: typeof memories; more?: number; note?: string };
-  assert.ok(out.memories.length > 0 && out.memories.length <= 40, "at most 40 are listed");
-  assert.ok(out.memories.reduce((sum, memory) => sum + memory.text.length, 0) <= 6_000, "and no more than 6,000 characters of their text");
-  assert.equal(out.more, memories.length - out.memories.length);
-  assert.match(out.note ?? "", /还有 \d+ 条没有列出/);
-  const few = JSON.parse(String(await prologueActionGateway({ client: { discover: async () => [], memory: { list: async () => memories.slice(0, 3) } }, operate: true } as never)
-    .executors["list-memories"]!({ args: {} } as never))) as { memories: unknown[]; more?: number };
-  assert.equal(few.memories.length, 3); assert.equal(few.more, undefined, "a short list says nothing more");
+test("BL-1076 list-memories stops independently at the count and text limits and reports what was omitted", async () => {
+  const memories = Array.from({ length: 120 }, (_, index) => ({ memory_id: `m${index}`, scope: "personal" as const, text: `第 ${index} 条` }));
+  async function list(items: typeof memories) {
+    const { executors } = prologueActionGateway({ client: { discover: async () => [], memory: { list: async () => items } }, operate: true } as never);
+    return JSON.parse(String(await executors["list-memories"]!({ args: {} } as never))) as { memories: typeof memories; more?: number; note?: string };
+  }
+  const atCount = await list(memories);
+  assert.deepEqual(atCount.memories, memories.slice(0, 40));
+  assert.equal(atCount.more, 80);
+  assert.match(atCount.note ?? "", /还有 80 条没有列出/);
+  const long = memories.map(memory => ({ ...memory, text: "字".repeat(400) }));
+  const atSize = await list(long);
+  assert.deepEqual(atSize.memories, long.slice(0, 15), "exactly 6,000 characters of memory text fit");
+  assert.equal(atSize.more, 105);
+  assert.deepEqual(await list(memories.slice(0, 3)), { memories: memories.slice(0, 3) });
 });

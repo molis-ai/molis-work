@@ -282,7 +282,8 @@ test("Coding's real Session-memory entry isolates scopes and other memories, con
 test("a long-term memory learned in this Session is read-only on the Session page and links to its own memory page", { timeout: 120_000 }, async t => {
   const registerChrome = closeChromeBeforeHost(t);
   const f = await product(t), own = await codingWork(f, "学到长期记忆的会话");
-  const learned = await write(f, own, "project", "此会话学到：评审先列风险"), local = await write(f, own, "project", "此会话内：先跑单测");
+  const learned = await write(f, own, "project", "此会话学到：评审先列风险"), role = await write(f, own, "project", "此会话学到：角色先核对范围");
+  const local = await write(f, own, "project", "此会话内：先跑单测");
   const j = await browserFor(t, f, registerChrome);
   await j.page.command("Page.enable"); await j.page.command("Page.addScriptToEvaluateOnNewDocument", { source: `(() => {
     const original = window.fetch;
@@ -291,16 +292,21 @@ test("a long-term memory learned in this Session is read-only on the Session pag
       if (!/\\/api\\/memory\\/sessions\\/[^?]+\\/(?:overview|page)\\?/.test(url) || !response.ok) return response;
       const body = await response.clone().json();
       for (const item of body.items || []) if (item.memory_id === ${JSON.stringify(learned.memory_id)}) item.classification = { ...item.classification, lifecycle: "long-term" };
+      for (const item of body.items || []) if (item.memory_id === ${JSON.stringify(role.memory_id)}) Object.assign(item, {
+        classification: { ...item.classification, lifecycle: "long-term" }, scope: "character", owner: "project-character-owner", character_title: "评审者"
+      });
       return new Response(JSON.stringify(body), { status: response.status, headers: response.headers });
     };
   })()` });
   await openCoding(j, own);
-  assert.deepEqual(await ids(j.page), [learned, local].map(one => one.memory_id).sort());
-  const link = await j.page.evaluate<{ text: string; href: string } | null>(`(() => { const a = document.querySelector('${row(learned.memory_id)} [data-memory-manage-elsewhere]');
-    return a ? { text: a.textContent, href: a.getAttribute('href') } : null; })()`);
-  assert.deepEqual(link, { text: "在项目记忆里管理", href: "/projects/" + encodeURIComponent(f.project.project_id) + "/settings/memory" });
-  assert.equal(await j.page.evaluate(`document.querySelectorAll('${row(learned.memory_id)} .memory-actions button, ${row(learned.memory_id)} .memory-more').length`), 0,
-    "no edit, switch-off or ⋯ on a memory the session cannot change");
+  assert.deepEqual(await ids(j.page), [learned, role, local].map(one => one.memory_id).sort());
+  for (const item of [learned, role]) {
+    const link = await j.page.evaluate<{ text: string; href: string } | null>(`(() => { const a = document.querySelector('${row(item.memory_id)} [data-memory-manage-elsewhere]');
+      return a ? { text: a.textContent, href: a.getAttribute('href') } : null; })()`);
+    assert.deepEqual(link, { text: "在项目记忆里管理", href: "/projects/" + encodeURIComponent(f.project.project_id) + "/settings/memory" });
+    assert.equal(await j.page.evaluate(`document.querySelectorAll('${row(item.memory_id)} .memory-actions button, ${row(item.memory_id)} .memory-more').length`), 0,
+      "no edit, switch-off or ⋯ on a memory the session cannot change");
+  }
   assert.equal(await j.page.evaluate(`Boolean(document.querySelector('${row(local.memory_id)} .memory-actions button[aria-label^=修改]'))`), true, "the session's own memory keeps its actions");
 });
 

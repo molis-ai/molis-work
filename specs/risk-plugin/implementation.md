@@ -1,6 +1,6 @@
 # 风险插件：实施方案、开工前检查与合同设计稿（第 17 批）
 
-状态：设计稿第 2 版（2026-11-13，第 17 批主会话写）。第 1 版经公共合同台与 D 轨合审退回（三项挡开工、六项建议），本版逐条改过（见 §8）。行为与验收以[原需求](spec.md)为准，界面以[定样决定](spec.md#design-decisions)与原型 [`docs/design/risk-plugin`](../../docs/design/risk-plugin/README.md) 为准。
+状态：设计稿第 2 版，公共合同台与 D 轨设计合审通过（2026-11-13，头 `0f622090ff`，见 §8）；实现中。行为与验收以[原需求](spec.md)为准，界面以[定样决定](spec.md#design-decisions)与原型 [`docs/design/risk-plugin`](../../docs/design/risk-plugin/README.md) 为准。
 
 ## 1. 这一片说什么（需求开发流程 §2.1）
 
@@ -91,12 +91,12 @@ Manifest：`permissions` 含 `actions:delegate`（转调 Schedule、读取器核
 
 - 顾虑（`concern`）加 `cited_subjects: ActionSubject[]`（默认空，最多 8 个）；`concern_opened` 可带它。Goals 只存 kind + id；页面按 15 的名字片画（读不到时照 IUI-02 只画图标、名字与「打开」），点开走工作台打开对象，于是风险按 §4.3 先在侧栏开。
 - 原合同的证据与授权规则不变：引用不让顾虑自动打开、接受或解除；风险状态变化不碰顾虑（RISK-02、RISK-03）。Goals 里只读不写的死路径 `blocking_risks`（`module/event-state-completion.ts`、`event-facts.ts` 恒为 `[]`）随本批删掉，确保风险不会接进 Goal 的收尾判断。
-- Goals 项目库 2→3：`goal_event_concerns` 加 `cited_subjects_json TEXT NOT NULL DEFAULT '[]'`，升级段只这一句；同步列清单（`module/replication.ts`）一起改，同步格式升一版；`stores.tsv` 刷新；金样存 v1、v2。
+- Goals 项目库 2→3：`goal_event_concerns` 加 `cited_subjects_json TEXT NOT NULL DEFAULT '[]'`，升级段只这一句；同步列清单（`module/replication.ts`）一起改，同步格式版本照 2026-11-11 v2 加列的先例不升；`stores.tsv` 刷新；金样存 v1、v2。
 
 ### 4.3 Manifest：侧栏视图 `opens_items`（扩展 `sideOpenedPlugins`）
 
-- 现行规则（context-program §21.6）：有主区的插件即使也有侧栏视图，仍在主区打开；只有侧栏的插件在侧栏打开。本批加一条：`slot: "side"` 的视图写 `opens_items: true`（一个插件至多一个）时，**带具体对象**的打开（`openItem`、`?openPlugin&openItem` 链接、`openBeside` 带 item）先在这个侧栏视图里打开，target 照现有的 `{ item, title }`；不带对象的打开（进插件）仍去主区。
-- 同一插件自己的帧（舞台或侧栏，`plugin-frame/parent.ts` 拿得到发起方 `pack.id`）发来的打开不改道：所以侧栏视图里的「展开成整页」就是同一插件发 `openItem`，直接进主区，不会被改回侧栏。
+- 现行规则（context-program §21.6）：有主区的插件即使也有侧栏视图，仍在主区打开；只有侧栏的插件在侧栏打开。本批加一条：`slot: "side"` 的视图写 `opens_items: true`（一个插件至多一个）时，**带具体对象**的打开（`openItem`、`?openPlugin&openItem` 链接）先在这个侧栏视图里打开；`openBeside` 是人明确选的分栏打开，照旧分栏，target 照现有的 `{ item, title }`；不带对象的打开（进插件）仍去主区。
+- 同一插件自己的帧（舞台或侧栏，`plugin-frame/parent.ts` 拿得到发起方 `pack.id`）发来的打开不改道：所以侧栏视图里的「展开成整页」就是同一插件发 `openItem`，直接进主区，不会被改回侧栏。`parent.ts` 调宿主时把发起方插件 id 作为工作台内部参数传给 `tab-workspace` 的 `openItem`（不改 SDK `UiHost` 合同）；动这个文件前先核 daily-quality D0124／D0335（G9）的统一校验器是否在途。
 - 推导写在 `sideOpenedPlugins` 旁（`sideOpenedItemPlugins`），工作台 `openInSide` 读它；`home-plugin-http.ts` 用同一推导。SDK Manifest 检查：`side` 以外的槽写了就拒绝，多于一个就拒绝。同步改 context-program §21.6 的规则原文。
 
 ### 4.4 组件板新增（D 轨补标本）
@@ -107,9 +107,9 @@ Manifest：`permissions` 含 `actions:delegate`（转调 Schedule、读取器核
 
 ### 4.5 Schedule：一次性的对象任务
 
-- 用词沿用提醒与定时操作的：`schedule.tasks.create@1`／`tasks.update@1` 加 `repeat: "daily" | "none"`（默认 daily）与 `at`（`repeat: "none"` 时必填，date-time）；加可选 `subject: { kind, id }`（这个任务关心的对象）。`tasks.list@1` 加可选输入 `subject` 按对象筛，输出每个任务带 `repeat`、`at`、`subject`。不加 `plugin` 受众。
+- 用词沿用提醒与定时操作的：`schedule.tasks.create@1`／`tasks.update@1` 加 `repeat: "daily" | "none"`（默认 daily）与 `at`（`repeat: "none"` 时必填，date-time）；加可选 `subject: { kind, id }`（这个任务关心的对象）。`tasks.list@1` 加可选输入 `subject` 按对象筛，输出每个任务带 `repeat`、`at`、`subject` 与 `reads`（`ScheduleTaskReads` 的计数：开了几类、已授权、待确认、不可用、已移除）；Schedule 每次请求读一次平台的授权列表，风险一侧不另调。不加 `plugin` 受众。
 - 库升一版：任务表加 `repeat`（默认 `daily`）、`run_at`、`subject_kind`、`subject_id`；一次性任务的 `hour`、`minute` 取 `at` 的本地时分（两列仍 NOT NULL，列表显示用），排期只看 `run_at`。升级段只加列；金样存每个旧版本。
-- 同步便携格式 `format.schedule.portable` 逐列校验任务列，加列即升格式版本（`tooling/versions.json`），回放金样一起刷新。
+- 同步便携格式 `format.schedule.portable` 逐列校验任务列，加列即升格式版本（`tooling/versions.json`；阶段一不留旧版本读取），回放金样一起刷新。
 - 一次性任务跑完一次就停（不再排期，`enabled` 置否，记录与结果保留）；错过的一次性运行按 `missed-runs.ts` 现行规则记给人看、不补跑，任务随之结束。
 - 带对象的任务，到点那一轮的说明里点名这个对象（kind + id）；读取仍只按人给这个任务（授权对象 `schedule_task`，键 task_id）的授权，没开授权就按 reader 角色跑、读不到风险，结果如实写「没有读取授权」。风险详情的复查段显示授权状态，并给入口去平台授权页（`task-grants-page`）；助理安排复查后也要说明这一步得人来做（RISK-07 的「到期读取」含这个状态）。
 - 动作 schema 原版本内改，刷新快照，PR 写对调用方的影响：只多可选字段与输出字段。
@@ -143,3 +143,4 @@ Manifest：`permissions` 含 `actions:delegate`（转调 Schedule、读取器核
 ## 8. 合审记录
 
 - 2026-11-13 第 1 版（`f9c1aaa077`）公共合同台／D 轨合审：退回。挡开工三项——侧栏优先要接现有 `sideOpenedPlugins`；Schedule 扩展不加 `plugin` 受众、沿用 `at`／`repeat`、写清库与同步格式与错过的运行、按任务授权的状态与入口；改版前的旧文字。建议六项：任务说明不拷正文；关闭与归档非原子的标记与重试；Goals 同步列与删 `blocking_risks`；取数口径与分页、状态环取值；同步要写明；矩阵小格用 `MwTone`、样式进 primitives、标签由调用方给、不只靠颜色、标本清单。第 2 版全部采纳。
+- 2026-11-13 第 2 版（`0f622090ff`）复审：通过。四条建议已补进第 2 版：`tasks.list` 输出 `reads`；`openBeside` 照旧分栏；发起方插件 id 作内部参数传下去；Goals 同步格式按先例不升。D 轨：标本先合进本批分支并过合审，再写用它的界面。

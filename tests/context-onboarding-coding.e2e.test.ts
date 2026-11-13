@@ -5,8 +5,11 @@ import { createHash, randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
-import { withContextJourneys, type ContextJourney, type ContextReference } from "../apps/local-host/dist/context-onboarding-store.js";
+import { withContextJourneys } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+
+type ContextJourney = ReturnType<Parameters<Parameters<typeof withContextJourneys>[1]>[0]["get"]>;
+type ContextReference = NonNullable<ContextJourney["summary"]>["references"][number];
 
 const README = "# Login\nShip the login page by Friday; the API is in src/api.ts.";
 const NOTE = "Design review: keep the login button on the left.";
@@ -36,7 +39,7 @@ test("ONB-44 ONB-46 a code folder ticked at review becomes Coding's working fold
   }
   const file = (path: string) => ({ path, size: 1, modified_ms: 1, identity: path });
   withContextJourneys(homeDirectory, store => {
-    const journey = store.create(id) as ContextJourney;
+    const journey = store.create(id);
     journey.sources = [{ kind: "custom", selected: true, path: folder, metadata: { files: [file("package.json"), file("README.md")], skipped: 0, truncated: false }, references: [readme] },
       { kind: "browser", selected: true, text: NOTE, references: [note] }];
     journey.phase = "review";

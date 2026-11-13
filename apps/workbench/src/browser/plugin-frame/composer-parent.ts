@@ -51,6 +51,13 @@ const MODES = ["next-boundary", "interrupt", "after-run"] as const;
 const want = (ok: boolean): void => { if (!ok) throw new Error("Malformed composer state"); };
 const text = (value: unknown, limit: number): string => { want(typeof value === "string"); return (value as string).slice(0, limit); };
 const maybe = (value: unknown, limit: number) => value === undefined ? undefined : text(value, limit);
+/** The line above the box as the page sent it: one of the two tones, its words and button label bounded. */
+function noticeOf(value: unknown): ComposerSnapshot["notice"] {
+  if (value === null || value === undefined) return null;
+  const raw = record(value), action = raw.action === null || raw.action === undefined ? null : record(raw.action);
+  want(raw.tone === "readonly" || raw.tone === "info");
+  return { text: text(raw.text, 400), tone: raw.tone as "readonly" | "info", ...optional("icon", maybe(raw.icon, 80)), action: action ? { label: text(action.label, 100) } : null };
+}
 const flag = (value: unknown) => { want(value === undefined || typeof value === "boolean"); return value === true; };
 const icon = (value: unknown) => { want(value === undefined || typeof value === "string"); return typeof value === "string" && ICONS.has(value) ? { icon: value as PluginIconName } : {}; };
 const list = (value: unknown, limit: number): unknown[] => { want(Array.isArray(value)); return (value as unknown[]).slice(0, limit); };
@@ -118,6 +125,7 @@ function bounded(snapshot: ComposerSnapshot): ComposerSnapshot | null {
       column: column && Number.isFinite(column.left) && Number.isFinite(column.width) && (column.width as number) > 0 ? { left: column.left as number, width: column.width as number } : null,
       near: near ? { kind: text(near.kind, 80), id: text(near.id, 200) } as ComposerSnapshot["near"] : null,
       required: raw.required === null ? null : text(raw.required, 400),
+      notice: noticeOf(raw.notice),
       hold: raw.hold === null ? null : text(raw.hold, 400),
       running: raw.running === true,
     };
@@ -190,7 +198,7 @@ export function pageComposer(port: MessagePort, scope: FrameScope, root: HTMLEle
       .filter(one => one && Number.isInteger(one.index) && typeof one.reason === "string").map(one => ({ index: one.index, reason: short(one.reason, 400) })) } : {}) }
     : value.state === "sent" ? { state: "sent", ...(value.receipt && typeof value.receipt === "object" ? { receipt: value.receipt as never } : {}) }
     : { state: "failed", message: "" };
-  const act = (mine: number, kind: "control" | "command" | "receiver", key: string, value?: string) => { if (mine === id) post({ type: "composer-act", id, act: kind, key, ...(value === undefined ? {} : { value }) }); };
+  const act = (mine: number, kind: "control" | "command" | "receiver" | "notice", key: string, value?: string) => { if (mine === id) post({ type: "composer-act", id, act: kind, key, ...(value === undefined ? {} : { value }) }); };
   const options = (): ComposerOptions => {
     // A mount let go keeps drawing what it last showed (the bar may read it once more while it unmounts); its calls are refused.
     const mine = id;
@@ -216,6 +224,7 @@ export function pageComposer(port: MessagePort, scope: FrameScope, root: HTMLEle
       onMaterials: () => { if (bound && mine === id) post({ type: "composer-materials", id, materials: [...bound.materials()] }); },
       near: () => { const near = now().near; return near ? { ...near, plugin_id: pack.plugin_id } : null; },
       required: () => now().required,
+      notice: () => { const line = now().notice; return line ? { text: line.text, tone: line.tone, ...(line.icon ? { icon: line.icon as PluginIconName } : {}), ...(line.action ? { action: { label: line.action.label, run: () => act(mine, "notice", "") } } : {}) } : null; },
       submit: (input, signal) => call(mine, "submit", input, signal).then(value => outcome(mine, value)),
     };
   };

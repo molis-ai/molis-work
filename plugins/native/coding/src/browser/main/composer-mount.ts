@@ -1,4 +1,4 @@
-import type { ComposerCommand, ComposerControl, ComposerDelivery, ComposerOutcome, ComposerPause, ComposerSubmission } from "@molis-ai/molis-work-plugin-sdk/page-globals";
+import type { ComposerCommand, ComposerControl, ComposerDelivery, ComposerNotice, ComposerOutcome, ComposerPause, ComposerSubmission } from "@molis-ai/molis-work-plugin-sdk/page-globals";
 import { sessionTitle } from "../session-title.js";
 import { codingComposerLabels } from "../../composer-labels.js";
 import { errorMessage } from "../dom.js";
@@ -92,6 +92,19 @@ function composerCommands(page: Page): ComposerCommand[] {
   }));
 }
 
+/** The ways of working whose round changes nothing (R3 定样 A): said above the box, never inferred from the words sent. */
+const READ_ONLY_INTENTS = ["discuss", "plan", "review"];
+
+/** The line above the box in a read-only way of working, with 换成修改 when this runtime offers editing and the way may change now. */
+function readOnlyNotice(page: Page): ComposerNotice | null {
+  const { readText, s } = page;
+  if (!s.current || !s.sessionOnShow || !READ_ONLY_INTENTS.includes(s.intent)) return null;
+  const mode = s.intents.find(option => option.value === s.intent)?.label || s.intent;
+  const editable = s.intents.some(option => option.value === "edit" && !option.disabled) && !(roundActive(page) || s.sending || unread(page));
+  return { tone: "readonly", icon: "lock", text: readText("coding.composer.readonly-notice", { mode }),
+    ...(editable ? { action: { label: readText("coding.composer.switch-to-edit"), run: () => chooseIntent(page, "edit") } } : {}) };
+}
+
 /** What stops a send before it goes, said in the composer's status line rather than by a send that does nothing. */
 function missing(page: Page): string | null {
   const { readText, s } = page;
@@ -163,6 +176,7 @@ export function mountCodingComposer(page: Page, id: string) {
     get commands() { return composerCommands(page); },
     mentions: (query, signal) => refs.mentions(query, signal),
     required: () => missing(page),
+    notice: () => readOnlyNotice(page),
     submit: input => submit(page, id, input),
   });
 }

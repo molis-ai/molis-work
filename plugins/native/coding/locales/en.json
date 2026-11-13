@@ -394,6 +394,8 @@
     "coding.common.close": "Close",
     "coding.common.reload": "Reload",
     "coding.common.unknown-reason": "reason unknown",
+    "coding.composer.readonly-notice": "“{mode}” is read-only: this turn changes no files and runs no command that changes anything",
+    "coding.composer.switch-to-edit": "Switch to editing",
     "coding.composer.adding": "Give the next turn",
     "coding.composer.blocked": "Remove what couldn’t be attached, then send",
     "coding.composer.busy": "Starting the next turn…",

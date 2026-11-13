@@ -382,6 +382,8 @@
     "coding.common.close": "关闭",
     "coding.common.reload": "重新读取",
     "coding.common.unknown-reason": "原因未知",
+    "coding.composer.readonly-notice": "「{mode}」只读：这一轮不改文件，也不跑会改东西的命令",
+    "coding.composer.switch-to-edit": "换成修改",
     "coding.composer.adding": "下一轮带上",
     "coding.composer.blocked": "移除附不上的那一项再发",
     "coding.composer.busy": "正在开始下一轮…",

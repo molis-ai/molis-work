@@ -1,6 +1,6 @@
 # 06-3 N44 展示读取与 BL-943 逐操作授权
 
-状态：已随第 06 批 [#2009](https://github.com/molis-ai/molis-work/pull/2009) 合入 main `a720834a09`（2026-11-13）；读检查、委派作用域与 N44 在途合并已实施。剩余 BCC-09 直接证据与 BL-943 后续。需求见[第 06 批](../post-anticorruption-roadmap/reference/batches/06.md#batch-06-item-3)和 [BL-943](../backlog/BL-943.md)。
+状态：已随第 06 批 [#2009](https://github.com/molis-ai/molis-work/pull/2009) 合入 main `a720834a09`（2026-11-13）；读检查、委派作用域与 N44 在途合并已实施；2026-11-13 又补展示成员的 1 秒跨请求缓存（目录 epoch 失效）。剩余 BCC-09 直接证据与 BL-943 后续。需求见[第 06 批](../post-anticorruption-roadmap/reference/batches/06.md#batch-06-item-3)和 [BL-943](../backlog/BL-943.md)。
 
 隔离 Home 同项目并发读两份 Goal 文档，BCC-04 三次中位数为 70 次项目插件目录读取、68 次 SQLite 开库。`projectWebView` 为 Goals 可见性和展示名单分别读目录，`projectPluginStages` 在展示路径等待项目插件刷新。动作准备、回调后发现和执行还有各自的当前授权读取。
 
@@ -33,3 +33,6 @@
 - **逐操作读检查（BCC-10）。** Runtime 新增 `assertPluginReadCurrent`：与写检查问同一个原调用（实例、取消、`assert_authority_current`、已持结果），但只读调用可以读，读也不算写检查。原生项目库与 Home 库的独立读、项目 journal 读每次执行前都问；沙箱的读在第一次检查、排到队后、语句进程刚起来之后各问一次，读回来交给插件前再问一次。不变量记为 [S-plugin-read-original-caller](../../docs/system/security-invariants/S-plugin-read-original-caller.md)。**2026-11-13 补（同步第 15 批后）：** 第 15 批的首页与讨论读取把呈现目录的比对（重读整份插件目录、开 Home 插件库）放进原调用的 `assert_authority_current`，逐句再问使 8 个对象的讨论读取从 33 ms 涨到约 600 ms、超过整次读取共用的 1 秒，IUI-02 每次都失败。现在一轮里读只问一次原调用（`currentTurn`，余下的读只问取消信号），首页目录的比对同样一轮一次；撤权来自另一个请求、在后一轮，用例「a read the call already passed answers only for its own turn」钉住：读过一次、被撤权后的下一次读不执行语句（让轮次永不结束时它失败）。同一读取降到约 20 ms。
 - **证据。** `tests/security-invariants-plugin-read-original-caller.test.ts`：真实 MCP 原调用在处理器中被撤精确授权，下一次原生读的匹配语句执行数为 0、不交结果、错误码 `mcp.action_revoked`，同安装另一获准 client 与同 client 另一动作照常读到；journal 读同样被拒；写在 `beforeEffect` 后被撤权不出现 BEGIN／COMMIT、目标行为 0。`tests/security-invariants-plugin-project-database.test.ts`「BCC-10 … sandboxed read」：排队中撤权的沙箱读没有发给语句进程（按 fork 出的子进程的 `send` 计数），不交结果。改前基线见上文两份 `/private/tmp/molis06-bl943-*` 日志（撤权后仍执行 1 次原生读并返回）。
 - **顺带修复（N12 回归）。** 本批 N12 让 `plugin-database.ts` 经 `plugin-project-rows.ts` 与 `artifact-row-storage-policy.ts` 引入整份内置插件登记，沙箱语句进程加载模块后常驻内存从 94 MB 升到 300 MB，超过 256 MB 上限，事务一开就被判 `statement_memory`（`PLIB-10` 两组用例在本批分支失败、合并基点通过）。把 `projectArtifactRoot` 移到不读登记的 `plugin-artifact-root.ts`，`artifactRowLibraryDeclarations` 移到 `artifact-row-library-declarations.ts`，进程回到 98 MB，相关用例通过。
+
+
+**N44 跨请求展示缓存（2026-11-13）。** `web-project-context.ts` 的普通展示读取（`shownPlugins`／`goalsHere`）按 `MolisWorkProjectCatalog` 实例和 `projectPluginEpoch` 复用 membership，窗口 1 秒；`setProjectPlugin`、`addProjectPlugin`、`removeProjectPlugin` 成功后 epoch 自增，下一次展示读取消费新代次。版本化 `shownPluginSelection` 仍读 revision，`refreshEnablement`、执行与动作目录仍现读。命中缓存不改变 Home 外部注册列表的处理，外部列表仍在每次展示时拼接。用例：`tests/project-plugin-enablement-refresh.test.ts` 10/10、`tests/security-invariants-hidden-personal-plugin.test.ts` 8/8、`tests/call-budget.test.ts` 1/1（2026-11-13）。

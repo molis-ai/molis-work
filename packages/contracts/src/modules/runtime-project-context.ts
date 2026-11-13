@@ -44,7 +44,7 @@ export interface UnbindRuntimeWorkContextInput {
   actor_id: string;
   /** The user explicitly asked to disconnect this current Runtime entry. */
   user_confirmed: boolean;
-  /** Session override by default; workspace removes one long-lived membership. */
+  /** Session override by default; workspace removes one long-lived membership that a tool brought in, never one the person made. */
   binding_scope?: "session" | "workspace";
   project_id?: string;
 }
@@ -53,6 +53,8 @@ export interface MolisWorkRuntimeContextUnbindResult {
   resolution: MolisWorkRuntimeContextResolution;
   unbound_project: MolisWorkProjectSelection | null;
   changed: boolean;
+  /** Only when nothing was unlinked because the person made this directory relation: a tool cannot undo it, the person does so in the project's settings. */
+  kept?: { code: "work.context.person_relation_kept"; message: string };
 }
 
 export interface RejectRuntimeContextSuggestionInput {

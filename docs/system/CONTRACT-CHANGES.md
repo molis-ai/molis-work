@@ -184,7 +184,7 @@
 
 起点一到就要能用，所以这些要在起点之前就位。进度以 `specs/archive/repository-anti-corruption/spec.md` §10 为准：
 
-- 公开 API 快照（`packages/contracts` 各子路径和 `packages/plugin-sdk`，以及别的工作区包的 `./contract`，BL-901 起）：**已就位**（路线图 W1-04，门禁见第 3 节第 6 条）。导出一变必须显式 `pnpm api:update`，PR 里写影响。
+- 公开 API 快照（`packages/contracts` 各子路径和 `packages/plugin-sdk`，以及别的工作区包的 `./contract`，第 27 批起）：**已就位**（路线图 W1-04，门禁见第 3 节第 6 条）。导出一变必须显式 `pnpm api:update`，PR 里写影响。
 - 动作合同快照（每个内置 Manifest 的 `capability@version`、提供方和 schema 哈希，进 `pnpm test:contracts`）：**已就位**（路线图 W2-15，门禁见第 3 节第 6 条）。阶段一形状变了而版本没变，检查仍逐条显示差异，PR 写清对已保存引用和调用方的影响。阶段二按第 4 节的规则升版本。
 - 插件回放工具与样本集（路线图 W4-01）。
 - **提议（未经用户确认，见第 4 节第 5 条）：** 兼容标记门禁改成允许「带窗口编号、登记表里有对应行」的标记，其余仍只许减少。现在的门禁一律只许减少，起点之后的第一段兼容会被它拦住；放宽门禁要另开 PR，改 `tooling/gates/` 与门禁脚本，请求 @yijunw0212 评审。
@@ -212,7 +212,7 @@ Casebook 已于 2026-10-10 按用户决定删除，不再有对外合同 id；�
 
 ## 8. 阶段一已做、对插件作者有影响的合同改动
 
-- 2026-11-08，D0038（用户选择 D）：工作台页面改为 `molis-work-page-session` meta 与 `x-molis-work-page-session` 请求头，只传 HttpOnly 会话配对的 CSRF 证明；账号状态从返回 `viewToken` 改为非授权的 `viewScope` 修订标识。页面不得依赖宿主控制令牌或把证明当作进程凭据；共用 UI 请求助手及 socket 消费者同期更新，旧页面须刷新。不新增读取兼容。CLI/MCP 的私有控制认证、独立客户端证明和原生身份保持各自检查；动作 id/schema、Manifest 与持久库版本不变。见 [实施及验收](../../specs/daily-quality-d0038/spec.md)。
+- 2026-11-08，D0038（用户选择 D）：工作台页面改为 `molis-work-page-session` meta 与 `x-molis-work-page-session` 请求头，只传 HttpOnly 会话配对的 CSRF 证明；账号状态从返回 `viewToken` 改为非授权的 `viewScope` 修订标识。页面不得依赖宿主控制令牌或把证明当作进程凭据；共用 UI 请求助手及 socket 消费者同期更新，旧页面须刷新。不新增读取兼容。CLI/MCP 的私有控制认证、独立客户端证明和原生身份保持各自检查；动作 id/schema、Manifest 与持久库版本不变。见 [实施及验收](../../specs/archive/daily-quality-d0038/spec.md)。
 
 只记插件作者要知道的改动（不是兼容窗口，阶段一不留兼容期）；新的写在最后。
 

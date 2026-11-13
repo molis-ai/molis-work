@@ -1,6 +1,6 @@
 # 智能呈现与操作层（Intelligent UI）
 
-状态：第一片在第 15 批实施中（2026-11-09）。确定组合服务、公共四形态与组件板、基础首页及跨位置消费者已合回 `batch/15`。证据见 §16–17。实际文字及页面授权切换、项目成员接入、整批验证和本人验收待完成，后续三片仍按路线书推进。一层横向的平台能力：插件声明自己的对象能怎样展示、能做什么，以及别人可以把东西放在它的哪里；平台和助理把插件允许的内容、平台里调用方有权看的全部内容、接进来的 MCP 工具与 Skill 合在一起，按此刻的位置、对象和任务组合出最合适的展示与操作面，注入插件允许的位置、对话、项目讨论和其他入口。四片已排进[路线书](../post-anticorruption-roadmap/reference/requirements.md#section-3-3)「智能呈现怎样接进来」（阶段 1～4，11-02 写入）；按轨道：合同归 C1，组合服务归 C3（新的 `horizontal/` 包，用户 11-01 定新的平台服务不进宿主），模型调用归 C2（只经 `horizontal/agent-host`），共享组件与组件板归 D，各插件自己的声明归各自轨道，助理与对话归 A，项目讨论归 `packages/im-ui` 与 `server/src/im` 的主人。设计参考了 Molis-Club 的 Work 产品页各版（附录 A），不复刻。
+状态：第一片已随第 15 批 #2017 合入 main（2026-11-13，`b819373250`）；确定组合服务、公共四形态与组件板、基础首页及跨位置消费者已交付。证据见 §16–17。实际文字、页面授权与项目成员接入已随本批接回；整批验证与本人验收待完成，后续三片仍按路线书推进。一层横向的平台能力：插件声明自己的对象能怎样展示、能做什么，以及别人可以把东西放在它的哪里；平台和助理把插件允许的内容、平台里调用方有权看的全部内容、接进来的 MCP 工具与 Skill 合在一起，按此刻的位置、对象和任务组合出最合适的展示与操作面，注入插件允许的位置、对话、项目讨论和其他入口。四片已排进[路线书](../post-anticorruption-roadmap/reference/requirements.md#section-3-3)「智能呈现怎样接进来」（阶段 1～4，11-02 写入）；按轨道：合同归 C1，组合服务归 C3（新的 `horizontal/` 包，用户 11-01 定新的平台服务不进宿主），模型调用归 C2（只经 `horizontal/agent-host`），共享组件与组件板归 D，各插件自己的声明归各自轨道，助理与对话归 A，项目讨论归 `packages/im-ui` 与 `server/src/im` 的主人。设计参考了 Molis-Club 的 Work 产品页各版（附录 A），不复刻。
 
 验收编号见 §14，前缀 `IUI`。
 
@@ -32,7 +32,7 @@ flowchart LR
   U --> F[结果回到主人，操作面跟着更新]
 ```
 
-- **三类输入**。一是插件声明的呈现与操作能力（§4）。二是平台里的内容：各插件的对象（经它们自己的读取动作）、对象间的引用（Context Ledger）、等你（Attention）、成果与过程项、搜索、工作记录（[观测和采集层](../observation-collection/spec.md)）、目标的要求与证据；只读调用方有权看的。三是接进来的能力：MCP 工具、技能包与 Skill、连接器、工作流程，都经同一个动作目录与授权（[Tool 策略](../prologue-tool-strategy/spec.md)、[MCP 策略](../prologue-mcp-strategy/spec.md)）。
+- **三类输入**。一是插件声明的呈现与操作能力（§4）。二是平台里的内容：各插件的对象（经它们自己的读取动作）、对象间的引用（Context Ledger）、等你（Attention）、成果与过程项、搜索、工作记录（[观测和采集层](../observation-collection/spec.md)）、目标的要求与证据；只读调用方有权看的。三是接进来的能力：MCP 工具、技能包与 Skill、连接器、工作流程，都经同一个动作目录与授权（[Tool 策略](../prologue-strategies/tool.md)、[MCP 策略](../prologue-strategies/mcp.md)）。
 - **两级组合**。确定组合不调模型：按声明和规则给出每个对象在这个位置的默认形态和操作，没有模型、离线、模型失败时都能用。助理组合经 agent-host：在确定组合给出的候选里挑选、排序，把几个插件的对象和外部能力拼成一个面，写一句为什么。
 - **输出是一份操作面描述**：结构化数据，不是 HTML 或代码。写的是放哪些对象（引用）、每个用什么形态、显示哪些字段、带哪些操作（每个是一个动作引用，加预备好的输入）、怎样分组、为什么。平台按 schema 和声明校验后用共享组件画；校验不过，退回确定组合。
 - **落点**：插件声明的挂载位、对话、项目讨论、首页与 Work Brief、侧栏与 Shelf、等你与通知、搜索、外部 Agent 读到的文本（§8）。插件没有开放的位置不注入。
@@ -209,7 +209,7 @@ flowchart LR
 - **侧栏与 Shelf**：
   - Shelf 里的东西按种类显示缩略（截图组、文档、图表、PDF），并写明来自哪里（来自 Coding、来自助理、你放的），可以拿起来放进任何接受它的位置；
   - 记录栏是时间线：谁在哪天做了什么。
-  - 拿起与放下的行为归 [side-shelf](../side-shelf/spec.md)。
+  - 拿起与放下的行为归 [side-shelf](../context-program/side-shelf.md)。
 - **首页与 Work Brief**：目标卡（进度、继续这个目标）、事件行（例如「夜里两次提交，都过了发布前检查台」「41 条反馈整理好了，3 条要你看」）、等你列表；内容与版本归 Work Brief。
 - **等你与通知**：底栏的「等你 N」、菜单栏的胶囊、系统通知用最短的形态，一句话加一个主操作，点进去到对应的卡。
 - **事项线**（[work-line](../work-line/spec.md)，2026-11-12 加）：线上的节点用名字片的字段（图标、名字、状态），聚焦后的节点卡按种类用活卡、决定请求、验收卡或卡片；线只是落点，节点卡由组合服务给出，不另画。
@@ -298,7 +298,7 @@ flowchart LR
 | --- | --- | --- |
 | [ai-interaction-experience](../ai-interaction-experience/spec.md) | 对话里交互卡的语义：Option、推荐行、补充信息、方案、确认、结果的生命周期 | 对象在对话里怎么呈现；跨插件、带 MCP 与 Skill 的操作面怎样拼 |
 | [context-program](../context-program/spec.md)、[情境动作](../archive/contextual-interaction/spec.md) | 浮条、快速创建、片段动作的声明与准备 | 片段动作出现在哪种形态里，以及和对象形态的组合 |
-| [side-shelf](../side-shelf/spec.md) | Shelf 的拿起、放下、材料篮 | Shelf 里东西的形态与出处 |
+| [side-shelf](../context-program/side-shelf.md) | Shelf 的拿起、放下、材料篮 | Shelf 里东西的形态与出处 |
 | [work-brief](../work-brief/spec.md) | 首页与简报的内容、版本、生成页面 | 首页上的对象卡与等你 |
 | [proactive-assistant](../proactive-assistant/spec.md) | 什么时候主动提出、做什么 | 提出来的东西长什么样、带什么操作 |
 | [项目讨论](../archive/molis-work-im/redesign-v2/spec.md) | 消息、话题、引用、草稿、成员权限 | 消息里对象卡的形态，@ 接走以后的活卡 |
@@ -309,7 +309,7 @@ flowchart LR
 | [字体、皮肤与语言](../font-and-skin-system/spec.md) | 文字与样式的格式和切换 | 不另定样式，用它的语义变量 |
 | [unified-input-voice](../unified-input-voice/spec.md) | 输入框、引用片与附件的行为 | 引用片里对象的形态 |
 | [plugin-builder-upgrade](../plugin-builder-upgrade/spec.md) | 生成插件、场景组装 | 生成插件同样写呈现声明；保存的操作面可以交给创作台 |
-| [Prologue 的 Tool、MCP、Skill 策略](../prologue-tool-strategy/spec.md) | 工具的发现、选择、授权与健康 | 工具与 Skill 的结果在操作面里怎么呈现 |
+| [Prologue 的 Tool、MCP、Skill 策略](../prologue-strategies/tool.md) | 工具的发现、选择、授权与健康 | 工具与 Skill 的结果在操作面里怎么呈现 |
 | [观测和采集层](../observation-collection/spec.md) | 工作记录 | 读它当组合依据；助理组合的记录交给它 |
 | [主线](../work-mainline/spec.md) | 事项的排列、切换与每件事项的工作台状态 | 切换器与列表里事项的形态、「设为事项」「放进事项」这一类操作的呈现 |
 | [事项线](../work-line/spec.md) | 线的排法、焦点、安放、后台任务列表 | 节点与节点卡的形态与操作；字段里的时间角色（发生于、排在）与「等你」的状态映射 |

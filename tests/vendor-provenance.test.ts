@@ -240,7 +240,7 @@ describe("the records of this repository", () => {
     assert.equal(lkg.gitBlob, "2015c18df41b95d2d7035ea2ca886bb765b57e3f");
     assert.equal(existsSync(path.join(repoRoot, folder, lkg.file)), false);
     assert.notEqual(json("horizontal/agent-host/package.json").dependencies["@prologue/sdk"], `file:../../${folder}/${lkg.file}`);
-    const previous = record.packagesWithoutPatch.find((one: { file: string }) => one.file === "prologue-sdk-0.0.0-rc.1-memory-p0.tgz");
+    const previous = record.packagesWithoutPatch.find((one: { file: string }) => one.file === "prologue-sdk-0.0.0-rc.1-memory-p0-107.tgz");
     assert.ok(previous, "the package replaced by the window is recorded too");
     assert.equal(previous.sha256, "6893801bb36df43630c0ea1cfe44eb08c2fcd0b57ae0b0abbffab42623ad5a78");
     assert.equal(previous.gitBlob, "0c7e8e75d8729017e415faba443e5f72118ddc99");
@@ -248,6 +248,7 @@ describe("the records of this repository", () => {
     // The upstream audit the record carries is unchanged by the replacement.
     const upstream = record.upstream;
     assert.equal(upstream.mainHead, "bdf80c6f684214e9aa18835662969f457e5db44c");
+    assert.equal(upstream.commitsChecked.length, 48);
     assert.ok(upstream.commitsChecked.includes("ba75c9f8437018904b24dabeaaef6ded8054add5"));
     assert.ok(upstream.commitsChecked.includes("2c7feba5a6ea85e81e4a263671fb5e68f536d86a"));
   });
@@ -258,14 +259,22 @@ describe("the records of this repository", () => {
     assert.deepEqual(patches, named ? [named] : []);
   });
 
-  test("patch-history.json holds the 26 deleted patches and the 35 packages that never had one", () => {
+  test("patch-history.json holds the 26 deleted patches and the 36 packages that never had one", () => {
     const record = json(`${folder}/patch-history.json`);
     assert.equal(record.patches.length, 26);
-    assert.equal(record.packagesWithoutPatch.length, 35);
+    assert.equal(record.packagesWithoutPatch.length, 36);
     // The last three are the packages the official build replaced; before them sit the earlier formal dependencies.
     assert.equal(record.packagesWithoutPatch.at(-1).file, "prologue-sdk-0.0.0-rc.1-window31.tgz");
     assert.equal(record.packagesWithoutPatch.at(-2).file, "prologue-sdk-0.0.0-rc.1-final103-bridge.tgz");
-    assert.equal(record.packagesWithoutPatch.at(-3).file, "prologue-sdk-0.0.0-rc.1-memory-p0.tgz");
+    assert.equal(record.packagesWithoutPatch.at(-3).file, "prologue-sdk-0.0.0-rc.1-memory-p0-107.tgz");
+    // main #2020 used the second artifact with the same file name; both versions are recorded, not just the older one.
+    const second = record.packagesWithoutPatch.find((one: { file: string; sha256: string }) => one.file === "prologue-sdk-0.0.0-rc.1-memory-p0.tgz");
+    assert.ok(second, "the memory-p0 second version (main #2020) is recorded after replacement");
+    assert.equal(second.bytes, 1_428_464);
+    assert.equal(second.sha256, "723b07ebf42d03150284352752951288e1ce0db2555c21653ffea4daca49f44c");
+    assert.equal(second.gitBlob, "236eb11f584e9b0f9e7e771a3b1a2ee168878494");
+    assert.equal(second.commit, "770a2e27bd96f51377842d289d18a0678c84e408");
+    assert.ok(record.upstream.commitsChecked.includes(second.commit), "the second version's upstream source is in the audit");
     assert.ok(record.packagesWithoutPatch.every((one: { gitBlob: string; sha256: string }) => /^[0-9a-f]{40}$/.test(one.gitBlob) && /^[0-9a-f]{64}$/.test(one.sha256)));
     assert.equal(record.patches.reduce((sum: number, patch: { bytes: number }) => sum + patch.bytes, 0), 2_791_897);
     const kinds = record.patches.reduce((count: Record<string, number>, patch: { sourceKind: string }) => ({ ...count, [patch.sourceKind]: (count[patch.sourceKind] ?? 0) + 1 }), {});
@@ -275,7 +284,7 @@ describe("the records of this repository", () => {
     const networkDispatch = record.patches.find((patch: { file: string }) => patch.file === "network-dispatch.patch");
     assert.equal(networkDispatch.package.sha256, "7ee09e00ef074b761c0d44a86a7d357e11485ea26868f3e77fb99ed757ae384e");
     assert.equal(networkDispatch.package.file, "prologue-sdk-0.0.0-rc.1-network-dispatch.tgz");
-    assert.equal(record.upstream.commitsChecked.length, 47);
+    assert.equal(record.upstream.commitsChecked.length, 48);
     // The commit named for retrieval is one that is known to hold every patch; it is not "the last one" (every later commit
     // on main up to the deletion holds them too), so the key must not say so.
     assert.deepEqual(Object.keys(record.retrieval).filter((key) => /^last/i.test(key)), []);

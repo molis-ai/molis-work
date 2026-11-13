@@ -11,7 +11,7 @@
     "repository": "https://github.com/molis-ai/molis-prologue",
     "checkedOn": "2026-11-13",
     "mainHead": "bdf80c6f684214e9aa18835662969f457e5db44c",
-    "statement": "2026-10-25 在当时的准确上游 main f1753ec8fa2cbca45667e60e101b93702acc6640 上对 42 个 commitsChecked 逐个执行 git merge-base --is-ancestor：除已换掉的 08b84296、923e5a40、4007a93c 三个历史过渡源及当时的 ba75c9f8 之外，其余均为 main 祖先。2026-11-12/13 又补入 1cc80b05（上一份正式源码）、4537a570（Slice-31 窗口的自建分支包来源）、1c0654b7（PR #114 的主线合并）、5cbf2601（PR #115：写后检查带 Session/Run）与 bdf80c6f（测试补充），commitsChecked 共 47 条，mainHead 为 bdf80c6f。当前包是 main 官方构建；35 个没有补丁的历史包记录与 26 份补丁保持，后续可按 Git blob 取回。当前 final103-bridge 依赖来自公开固定分支 feature/node-storage-final103-bridge 的 ba75c9f8437018904b24dabeaaef6ded8054add5，不是 main 祖先：基点 2c7feba5（PR60），只移植 PR103 定稿 6523abb47..513237d2 的功能；4e018e1a 保旧普通分页/读取及旧合同，ba75 只修导航。按 accepted WO #1267/6395049480 作为过渡包采用，不带 PR61–101、PR104 或旧 42。旧 42 只曾作为本 PR 候选验证、未正式合入，不将其伪记为已采用的历史包。",
+    "statement": "2026-10-25 在当时的准确上游 main f1753ec8fa2cbca45667e60e101b93702acc6640 上对 42 个 commitsChecked 逐个执行 git merge-base --is-ancestor：除已换掉的 08b84296、923e5a40、4007a93c 三个历史过渡源及当时的 ba75c9f8 之外，其余均为 main 祖先。2026-11-12/13 又补入 1cc80b05（上一份正式源码）、4537a570（Slice-31 窗口的自建分支包来源）、1c0654b7（PR #114 的主线合并）、5cbf2601（PR #115：写后检查带 Session/Run）、bdf80c6f（测试补充）与 770a2e27（PR #113：Memory V0 的 pause/disable 同问题重放；main #2020 采用的 memory-p0 第二版来源），commitsChecked 共 48 条，mainHead 为 bdf80c6f。当前包是 main 官方构建；35 个没有补丁的历史包记录与 26 份补丁保持，后续可按 Git blob 取回。当前 final103-bridge 依赖来自公开固定分支 feature/node-storage-final103-bridge 的 ba75c9f8437018904b24dabeaaef6ded8054add5，不是 main 祖先：基点 2c7feba5（PR60），只移植 PR103 定稿 6523abb47..513237d2 的功能；4e018e1a 保旧普通分页/读取及旧合同，ba75 只修导航。按 accepted WO #1267/6395049480 作为过渡包采用，不带 PR61–101、PR104 或旧 42。旧 42 只曾作为本 PR 候选验证、未正式合入，不将其伪记为已采用的历史包。",
     "commitsChecked": [
       "03c6ba0b24ddd46ff1cd0f604e3e2bcb134687c2",
       "07ad08a11e3b4a01b9fe877dedff1efba6f4833c",
@@ -59,7 +59,8 @@
       "4537a570dcb4541f2dc68466f6886880c1b75007",
       "1c0654b749cf92c732603cc865638c6e532c4daa",
       "5cbf26015895138c63f6a22e18bf6086a79223b3",
-      "bdf80c6f684214e9aa18835662969f457e5db44c"
+      "bdf80c6f684214e9aa18835662969f457e5db44c",
+      "770a2e27bd96f51377842d289d18a0678c84e408"
     ]
   },
   "patches": [
@@ -791,11 +792,19 @@
     },
     {
       "file": "prologue-sdk-0.0.0-rc.1-memory-p0.tgz",
+      "bytes": 1428464,
+      "sha256": "723b07ebf42d03150284352752951288e1ce0db2555c21653ffea4daca49f44c",
+      "gitBlob": "236eb11f584e9b0f9e7e771a3b1a2ee168878494",
+      "commit": "770a2e27bd96f51377842d289d18a0678c84e408",
+      "description": "main 在 #2020（Memory V0 收口 P0）采用的 memory-p0 第二版：上游 #113 合并 770a2e27（父 83bee7fc），2026-11-13 由官方包 prologue-sdk-0.0.0-rc.1.tgz 换下；tgz 实际 vendored 于 Molis 636a00d2，blob 可按 gitBlob 取回。官方包已包含 #113 的内容。"
+    },
+    {
+      "file": "prologue-sdk-0.0.0-rc.1-memory-p0-107.tgz",
       "bytes": 1397575,
       "sha256": "6893801bb36df43630c0ea1cfe44eb08c2fcd0b57ae0b0abbffab42623ad5a78",
       "gitBlob": "0c7e8e75d8729017e415faba443e5f72118ddc99",
       "commit": "1cc80b05253df798eeb34afff65d1bda06bee587",
-      "description": "上一份正式依赖，2026-11-12 由 window31 换下（第 31 批 SDK 窗口一）。来源为已合并 Prologue #107 的干净提交 1cc80b05；逐字节可从 Git 历史取回（本记录记 gitBlob），源码与重建步骤见当时同名 .provenance.json。"
+      "description": "上一份正式依赖（memory-p0 第一版），2026-11-12 由 window31 换下（第 31 批 SDK 窗口一）。来源为已合并 Prologue #107 的干净提交 1cc80b05；逐字节可从 Git 历史取回（本记录记 gitBlob），源码与重建步骤见当时同名 .provenance.json。 同一文件名后来在 main 上出现过第二版（见 prologue-sdk-0.0.0-rc.1-memory-p0.tgz），历史记录以 -107 区分第一版。"
     },
     {
       "file": "prologue-sdk-0.0.0-rc.1-final103-bridge.tgz",

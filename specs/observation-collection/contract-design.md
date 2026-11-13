@@ -1,6 +1,6 @@
 # 观测和采集层：合同设计稿（第 28 批第一片）
 
-状态：设计稿第 2 版（2026-11-13，第 28 批主会话）。第 1 版（`8e2e1e0f27`）经本批评审台兼公共合同台合审退回 11 处，本版逐条改过（见 §14）；改后再交同一评审复核，结论写在本批 PR 评论里。代码照本稿写，和本稿不一样的地方回来改本稿。依据：[需求](spec.md)、[设计](design.md)（第 21 批）、[盘点](inventory-2026-11.md)、[评测案例](eval-cases.md)；main `b66112d0d7`。
+状态：设计稿第 3 版（2026-11-13，第 28 批主会话）。第 1 版（`8e2e1e0f27`）经本批评审台兼公共合同台合审退回 11 处，第 2 版（`6284156165`）逐条改过；复核时其中两处（上报限额、缺失原因）还差一步，本版补上（见 §14、§15）；改后再交同一评审复核，结论写在本批 PR 评论里。代码照本稿写，和本稿不一样的地方回来改本稿。依据：[需求](spec.md)、[设计](design.md)（第 21 批）、[盘点](inventory-2026-11.md)、[评测案例](eval-cases.md)；main `b66112d0d7`。
 
 本稿回答 21 设计里留给第 28 批合同的几件事：包与库叫什么、一条记录长什么样、事实怎样写进来、证据快照怎样存与删（D1 的三个追问）、覆盖登记写什么、安全边界怎样守。**读取与管理**（按版本取回、权限与用途、增量、保留与清理、占用与提醒、界面）是第 29 批，本稿只给它留出位置，不定它的动作。
 
@@ -55,9 +55,17 @@
 **上报：`observation.report@1`。** 一个动作，两种调用方：
 
 - **插件**（受众 `plugin`）：`owner` 取宿主签发的 `host_plugin.plugin_id`（`calling_plugin_id` 只在 Plugin Runtime 交给插件处理器时才有，system 提供方拿不到）；只收以自己 `plugin_id` 开头的事实。插件要在 Manifest `capabilities.consumes` 声明它，内置与第三方同一条路。
-- **外壳**（受众 `user`）：只经宿主的「界面阶段」路由进来。路由每次请求签发一个冻结的入口凭据（照 `S-page-entry-actions` 的 `webEntryDoor` 写法），处理器只服务本人、没有 `host_plugin` 与 `delegated_by`、带着这次签发的凭据的调用；`owner = shell`，只收 `ui.*`。别的路由、插件页面、手写的 `user` 调用一律拒（新不变量 `S-observation-records` 配拒绝测试）。
+- **外壳**（受众 `user`）：只经宿主的「界面阶段」路由进来。路由每次请求签发一个冻结的入口凭据（照 `S-page-entry-actions` 的 `webEntryDoor` 写法），处理器只服务本人、没有 `host_plugin` 与 `delegated_by`、带着这次签发的凭据的调用；`owner = shell`，只收 `ui.*`。别的路由、插件页面（含插件页面拿自己的凭据调这条路由）、手写的 `user` 调用一律拒（新不变量 `S-observation-records` 配拒绝测试）。
+- **处理器按受众分两条**：`webEntryDoor.define` 写死了 `audiences: ["user"]` 与 `scheduling: "concurrent"`，一个动作服务两种调用方用不了它。所以动作自己定义（`audiences: ["user","plugin"]`，不声明 `concurrent`：只入内存队列、不等外部），门只用来签发和核对：给门加一个只读的 `entryOf(caller)`，`user` 这一条照门的规则检查（与 `define` 用同一个函数），`plugin` 这一条查 `host_plugin`。
 
-限额：一次至多 100 条、内容合计至多 1 MiB（超出整次拒收，`observation.report_too_large`）；声明 `execution.max_calls_per_minute: 60`（按 actor＋项目＋安装计，平台已有）。被拒的条数按调用方记进覆盖登记（`lost`，原因「超过上报限额」），第三方插件写不满磁盘。受众不给 `agent`、`mcp`、`workflow`：它们做的事由出口与服务在发生处记，不能自报。
+限额（数字都在合同的 `OBSERVATION_LIMITS`）：
+
+- **单次**：至多 100 条、内容合计至多 1 MiB，超出整次拒收（`observation.report_too_large`）。
+- **每分钟**：声明 `execution.max_calls_per_minute: 60`（按 actor＋项目＋安装计，平台已有）。这一层在处理器之前就拒（`actions.rate_limited`），看不到输入，所以只按次数记，不按条数。
+- **每天**：每个上报方（一个插件安装，或外壳）一个 UTC 日至多收 20,000 条、64 MiB 内容，所有项目合计；计数存在库里（`report_quota`），重启不清零。到了任一项，当日余下的上报整次拒收（`observation.report_quota_exceeded`）。所以一个第三方插件一天最多写进约 64 MiB 正文（压缩加密前），写不满磁盘。
+- **超限怎样记**：拒收的次数与条数只按上报方记一段覆盖缺口（`lost`，原因键 `report_quota`），覆盖登记里这一行的 `fact` 固定写 `observation.report`，不按插件给的事实名展开，所以覆盖登记的行数也刷不大。
+
+受众不给 `agent`、`mcp`、`workflow`：它们做的事由出口与服务在发生处记，不能自报。
 
 `observation.report@1` 自己的结算不进出口（否则每次上报又生一条），覆盖登记写「不适用：上报通道本身」。
 
@@ -74,10 +82,22 @@
 
 ## 6 证据与快照（D1 的落地）
 
-`evidence[].ref` 三种：`owner`（主人自己的固定版本，只放引用）、`snapshot`（主人留不住的内容，采集层存）、`missing`（`not_obtained`、`truncated`、`redacted`、`by_rule`、`forbidden`；`expired` 由 29 的清理写）。
+`evidence[].ref` 三种：`owner`（主人自己的固定版本，只放引用）、`snapshot`（主人留不住的内容，采集层存）、`missing`。缺失原因各管一件事，分得开（OCL-09）：
+
+| 原因 | 谁写 | 什么时候 |
+| --- | --- | --- |
+| `not_obtained` | 写入方或采集层 | 拿不到（密钥取不到、主人没给） |
+| `truncated` | 写入方或采集层 | 太大，只留摘要与长度 |
+| `redacted` | 写入方 | 内容是密钥一类，整份不留 |
+| `forbidden` | 写入方 | 调用方无权看到 |
+| `by_rule` | 写入方或采集层 | 规则就不存：处理器开始前的拒绝、本人页面读取的结果 |
+| `expired` | 采集层（29 的保留期清理） | 到期删掉 |
+| `purged` | 采集层 | 用户清除某个插件的数据时一起去掉 |
+
+写入方只能给前五种（合同 `OBSERVATION_WRITER_MISSING_REASONS`），后两种只由采集层写。
 
 - **加密存放**：快照正文先脱敏（与 SDK 的 `redactSecrets` 同一份规则，脱敏过的标 `redacted`），再 gzip，再用平台已有的本机正文保护（`createLocalPayloadProtection`，AES-GCM，密钥引用 `system:observation:evidence:v1` 存在 Home 的密钥库）加密后入库。这样主人那边是密文的内容（如 Feed 的证据正文）在采集层也不会是明文；密钥取不到时这批证据记 `missing: not_obtained` 并在覆盖登记计一段「暂不可用」，记录本身照写。
-- **去重**：按脱敏后明文的 sha256 存一份；`record_evidence(seq, digest)` 记引用。
+- **去重**：摘要用带密钥的 HMAC-SHA256（密钥引用 `system:observation:digest:v1`，与证据密钥放在同一个密钥库），按它存一份；`record_evidence(seq, digest)` 记引用。拿到库的人不能用猜出的短内容去验证（反推 Feed 正文、页面输入）。
 - **上限**：一份快照至多 4 MiB；超出只记摘要与长度（`missing: truncated`），覆盖登记该事实下计一次截断。
 - **调用路径上只做一次拷贝**：出口与端口只把内容序列化成字符串入队；脱敏、摘要、压缩、加密都在落盘的那一批里做。
 
@@ -87,7 +107,7 @@
 2. **评测样本**：本批不建留存表。30／63 批用升级段加「留存」：留住的是记录本身（连同它引用的快照），清理只删没被留存的；到期前提示用户的流程归 29／30。
 3. **删项目、清除插件数据、备份**：
    - **删项目**：采集层登记一个 `ProjectDeletedOwner`（`id: "observation"`），在目录提交之后由删除流程逐个 `clear(projectId)`，可重试、幂等：先丢掉队列里这个项目还没落盘的记录，再删库里这个项目的记录与覆盖行，回收无人引用的快照；`clear` 之后对这个项目 id 的写入一律丢弃，直到目录里再有同 id 的项目（演示项目重建）。`survivesRebuild` 为 `false`：演示项目重建时它的旧记录（都是 `demo`）一起清掉。
-   - **清除插件用户数据**（卸载时选了清除）：删掉 `owner` 是它的记录，以及 `provider_id` 是它的动作调用记录的证据引用（记录行保留谁在什么时候调了什么、结果怎样，内容去掉，证据改成 `missing: expired`），再回收快照。不选清除时照旧保留。
+   - **清除插件用户数据**（卸载时选了清除）：删掉 `owner` 是它的记录；去掉两类动作调用记录的证据——`provider_id` 是它的（别人调它），和调用方是它的（`install_id` 是它的安装，它调别的动作时发出的输入与拿到的结果）。记录行保留谁在什么时候调了什么、结果怎样，证据改成 `missing: purged`，覆盖登记计一段 `purged`；再回收无人引用的快照。不选清除时照旧保留。
    - **备份与恢复**：随 Home 普通快照，证据是密文；导出归 29 的用途开关（默认关）。
 
 ## 7 动作调用记什么（出口一行）
@@ -98,7 +118,7 @@
 | 处理器开始后以任何方式失败（报错、取消、撤权、停用、超时、被替换） | `outcome` 按错误类别：`cancelled` 类与 signal 已中止的为 `cancelled`，其余 `failed`；`detail.code`、`detail.duration_ms` | **无**：处理器开始后的失败一律不存输入与结果，也不存错误信息（中途撤权常以 `actions.forbidden`、`unauthenticated` 等抛出，按码列举会漏，所以不分码，一律不存；S-18） |
 | 成功的命令 | `outcome: succeeded`，`detail.duration_ms` | 输入与结果快照 |
 | 成功的读取，调用方是 agent、mcp、workflow、plugin | 同上 | 输入与结果快照（这是模型或流程实际拿到的材料，OCL-05） |
-| 成功的读取，调用方是本人的页面 | 同上 | 输入快照；结果只记摘要与长度（`missing: truncated`），覆盖登记声明「页面读取只留结果摘要」 |
+| 成功的读取，调用方是本人的页面 | 同上 | 输入快照；结果按规则不存，只记摘要与长度（`missing: by_rule`），覆盖登记计入「按规则不记」并声明「页面读取只留结果摘要」 |
 | 成功的读取的合并 | 同一 call_id、同一 runtime_session_id、同一 actor、同一动作、同一输入与结果摘要，一分钟内重复的合成一条（`coalesced`） | 覆盖登记声明「成功读取按一分钟合并相同的读：答不了一分钟内每次读取的精确时刻」（OCL-10） |
 | 预期中的拒绝（`refusalExpected`）、`observation.*` 自己的调用 | 不记 | — |
 
@@ -106,7 +126,7 @@
 
 ## 8 覆盖登记
 
-- 表 `coverage` 以 `(owner, fact, entry, project_id)` 为一行，记现在的状态、从何时起、起始的平台版本、截断／脱敏／按规则不记的计数；`coverage_gaps` 记时间段（状态、起止、条数、原因键）。九种状态：`complete`、`not_connected`、`unavailable`、`lost`、`truncated`、`redacted`、`expired`、`not_applicable`、`by_rule`。
+- 表 `coverage` 以 `(owner, fact, entry, project_id)` 为一行，记现在的状态、从何时起、起始的平台版本、截断／脱敏／按规则不记的计数；`coverage_gaps` 记时间段（状态、起止、条数、原因键）。十种状态：`complete`、`not_connected`、`unavailable`、`lost`、`truncated`、`redacted`、`expired`、`purged`、`not_applicable`、`by_rule`。
 - **接入清单**：observation 包里的 `OBSERVATION_COVERAGE_PLAN` 列出这一版每个入口、事实、主人与状态（没接上的写 `not_connected` 与原因键）；29 的页签照它显示，测试核它与真实装配一致。
 - **写失败**：批量落盘失败（磁盘满、库坏）时，那一批按行键计数，记一段 `lost`；登记本身也写不进去时留在内存，下次写成功时补上；进程没来得及写进去就退出的，下次启动记一段「原因未知的丢失」，从上次最后落盘时间到这次启动。业务调用照常完成，不因记录失败报错（OCL-15，EC-10）。
 - 原因存文字键，不存译好的句子。
@@ -174,9 +194,20 @@
 | 3 | 不变量引错（S-35 是放置移回） | §7、§11 改引 S-12、S-18；新增 `S-observation-records` |
 | 4 | 外壳可被冒充；插件身份取错字段 | §4：外壳只经签发入口凭据的宿主路由；插件身份取 `host_plugin.plugin_id` |
 | 5 | 证据明文落盘；清除插件数据后证据还在 | §6：证据加密存放；清除时去掉其动作调用记录的证据 |
-| 6 | 上报可写满磁盘 | §4：单次 100 条、1 MiB，每分钟 60 次，超限记进覆盖登记 |
+| 6 | 上报可写满磁盘 | §4：单次 100 条、1 MiB，每分钟 60 次，每个上报方每天 20,000 条、64 MiB，超限按上报方记一段缺口 |
 | 7 | 来源范围漏进后续定时器 | §5：结束即关、内层覆盖外层；范围移到 observation 包 |
 | 8 | 端口在 Prologue 回调里拿不到身份 | §4：`ObservationSink.bind(origin)`，一件事开始时绑定 |
 | 9 | 读取合并会把两项工作并成一条、没声明代价 | §7：键加 `call_id`、`runtime_session_id`，覆盖登记写明答不了什么 |
 | 10 | 删项目写法和代码不符 | §6：走 `ProjectDeletedOwner`，先丢队列再拒写，`survivesRebuild: false` |
 | 11 | 覆盖登记缺入口与版本 | §8：键加 `entry`，行上记起始平台版本 |
+
+## 15 第 2 版复核的改法
+
+| # | 复核的点 | 本版怎么改 |
+| --- | --- | --- |
+| 1 | 每次 1 MiB、每分钟 60 次仍能一天写进约 86 GB；插件自起事实名能刷大覆盖登记 | §4：加每个上报方每天 20,000 条、64 MiB 的总量上限（库里计数，重启不清零），超限当日整次拒收；缺口只按上报方记一行（`fact = observation.report`），数字进合同 `OBSERVATION_LIMITS` |
+| 2 | 缺失原因借错词：页面读取记成 `truncated`，清除插件数据记成 `expired` | §6 列出七种原因各管什么；页面读取改 `by_rule`，清除改新原因 `purged`（覆盖登记加同名状态，共十种）；写入方只能给前五种（`OBSERVATION_WRITER_MISSING_REASONS`） |
+| 建议 | 去重摘要可被猜测验证 | §6：改 HMAC-SHA256，密钥与证据密钥同库 |
+| 建议 | `webEntryDoor.define` 写死受众与 `concurrent` | §4：动作自己定义、不声明 `concurrent`，门加只读 `entryOf` 给 `user` 一条核对；拒绝测试加「插件页面拿自己的凭据调外壳路由」 |
+| 建议 | 插件作为调用方发出的调用记录也带它的数据 | §6：清除时一起去掉 `install_id` 是它的调用记录的证据 |
+| 建议 | 限流在处理器前，看不到条数 | §4：每分钟一层只按次数记 |

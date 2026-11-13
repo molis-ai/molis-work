@@ -21,7 +21,7 @@ import { projectSurfaceHome } from "./surface-home-http.js";
 import { projectSurfaceContext, projectSurfacePosition, projectSurfaceSearch } from "./surface-project-read.js";
 import type { SurfaceInstallRegistry } from "./surface-installation.js";
 import { openProjectSchedulers, closeProjectSchedulers } from "./project-schedulers.js";
-import { precompileActionSchemas, refuseCall, type CallSettled } from "@molis-ai/molis-work-kernel";
+import { precompileActionSchemas, refuseCall, type CallReports } from "@molis-ai/molis-work-kernel";
 import { createConnectorMcpDirectory, type ConnectorMcpDirectory } from "./connector-mcp-actions.js";
 import { projectPluginMembershipActionProvider, projectWorkspaceActionProvider, type ProjectCatalogOwner } from "./project-workspace-actions.js";
 import { announceWorkspaceSettingsChange } from "./workspace-settings-events.js";
@@ -178,7 +178,7 @@ export class MolisWorkLocalHost {
   readonly search?: SearchHost;
   readonly placement?: PlacementHost;
   readonly homePlugins?: HomePluginHost;
-  private readonly settleAction = hostCallSettled(this);
+  private readonly callReports = hostCallReports(this);
 
   constructor(private readonly options: MolisWorkLocalHostOptions = {}) {
     assertFixtureScopes(options.pluginFixtures, Boolean(options.homeDirectory));
@@ -192,7 +192,7 @@ export class MolisWorkLocalHost {
       instanceId: options.instanceId,
       assertProjectAvailable: projectId => { if (options.homeDirectory) assertPassiveProjectAvailable(options.homeDirectory, projectId); },
       retainSceneAuthority: (scene, project) => capturePluginSceneAuthority(this, scene, project),
-      actionSettled: this.settleAction,
+      actionSettled: this.callReports.settled,
       admitActionProvider: (provider, scenes) => admitProviderRules(options.homeDirectory, provider, scenes),
       actionProvidersChanged: (provider, scenes) => {
         this.search?.providerChanged(provider);
@@ -277,7 +277,7 @@ export class MolisWorkLocalHost {
         return project ? molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path }) : null;
       }) : Promise.resolve(null)), withConnectorsKitReport(connectorAccountActionProvider(options.homeDirectory, (...args) => this.connectorMcp!.remember(...args), { library: async () => this.agents?.service.mcpLibrary(), refresh: async owner => { if (!this.agents) throw new Error("项目 MCP 运行服务未装配"); await this.agents.service.refreshExternalMcp(owner); } }, caller => this.inspectActions(caller, this.host.projects().find(project => project.project_id === caller.project_id)), caller => caller.project_id ? this.actionClient(this.host.projects().find(project => project.project_id === caller.project_id)!) : this.homeActionClient(), { manifest: (installId, pluginId, projectId) => installedPluginManifestFor(installId, pluginId, this.homePlugins, reference => this.withProject(reference, runtime => installedPluginManifest(runtime.store.db, installId)), this.host.projects().find(project => project.project_id === projectId)), projectNames: async () => new Map(this.catalogRunner ? await this.catalogRunner({ homeDirectory: options.homeDirectory }, catalog => catalog.listProjects().map(project => [project.project_id, project.display_name] as const)) : []) }), options.homeDirectory, this.plugins)] : []),
     ];
-    this.projectCatalogActions = registerHostPlatformProviders(this.host, platform, catalogOwner, () => this.prepareHomeActions(), this.settleAction);
+    this.projectCatalogActions = registerHostPlatformProviders(this.host, platform, catalogOwner, () => this.prepareHomeActions(), this.callReports);
     if (options.homeDirectory) {
       // Remote MCP servers connected in 服务连接: what each last offered is back in the directory at start.
       this.connectorMcp = createConnectorMcpDirectory({ localHost: this, homeDirectory: options.homeDirectory });
@@ -370,14 +370,14 @@ export class MolisWorkLocalHost {
       if (preparePlugins) await this.prepareProjectPlugins(reference, caller);
       caller.signal?.throwIfAborted();
       await this.prepareHomeActions();
-    }, (caller, action, error) => refuseCall(this.settleAction, caller, action, error));
+    }, (caller, action, error) => refuseCall(this.callReports, caller, action, error));
   }
 
   syncActionClient(reference: LocalHostProjectReference) { return this.host.syncActionClient(reference); }
 
   homeActionClient(): ActionClient {
     return withPreparedActions(this.host.homeActionClient(), () => this.prepareHomeActions(),
-      (caller, action, error) => refuseCall(this.settleAction, caller, action, error));
+      (caller, action, error) => refuseCall(this.callReports, caller, action, error));
   }
 
   /**
@@ -494,20 +494,20 @@ function hostCatalogOwner(host: MolisWorkLocalHost, home: string) {
   return {canonicalHome, storageOwner: ensureHomeStorageOwner(host, canonicalHome, preflightMemoryHome)};
 }
 
-function hostCallSettled(host: Pick<MolisWorkLocalHost, "callLog" | "search" | "homePlugins">): CallSettled {
-  return (caller, action, outcome) => {
+function hostCallReports(host: Pick<MolisWorkLocalHost, "callLog" | "search" | "homePlugins">): CallReports & Required<Pick<CallReports, "settled">> {
+  return { settled: (caller, action, outcome) => {
     host.callLog?.record(caller, action, outcome);
     // Only a completed business command invalidates its views; a preparation refusal has no effect to refresh.
     if (outcome.ok && action.operation === "command" && action.provider_id) {
       host.search?.changed(action.provider_id, caller.project_id);
       host.homePlugins?.invalidateView(action.provider_id);
     }
-  };
+  } };
 }
 
 /** The Host's own providers are `system` and belong to no plugin; this is not a way to hand-register a plugin's actions. */
 function registerHostPlatformProviders(host: LocalHost<MolisWorkProjectRuntime>, providers: readonly ActionProviderRegistration[], catalogOwner: ProjectCatalogOwner,
-  prepareHome: () => Promise<void>, settle: CallSettled) {
+  prepareHome: () => Promise<void>, reports: CallReports) {
   const systemRegistry = host.actionRegistry(), catalogRegistry = host.actionRegistry(undefined, "project-catalog");
   const membership = projectPluginMembershipActionProvider(catalogOwner, async projectId => {
     const reference = host.projects().find(project => project.project_id === projectId);
@@ -522,7 +522,7 @@ function registerHostPlatformProviders(host: LocalHost<MolisWorkProjectRuntime>,
     descriptor: (reference: ActionReference) => host.projectCatalogActionDescriptor(reference),
     client: (reference: LocalHostProjectReference): ActionClient => {
       const client = host.actionClient(reference, false, "project-catalog");
-      const { invoke } = withPreparedActions(client, prepareHome, (caller, action, error) => refuseCall(settle, caller, action, error));
+      const { invoke } = withPreparedActions(client, prepareHome, (caller, action, error) => refuseCall(reports, caller, action, error));
       return { discover: client.discover, invoke };
     },
   };

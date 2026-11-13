@@ -156,4 +156,4 @@ export { registeredActionMetadata, sampleRetainedActionDirectory, type Registere
 export { assertActionInput, compileActionSchema, precompileActionSchemas } from "./action-schema.js";
 export { assertActionCommandInput } from "./version-precondition.js";
 export { newCallId, currentCallId, withCallId, withCallIdSync, markCallRecorded, recordedCallId, expectingRefusal, refusalExpected } from "./call-scope.js";
-export { bindCall, refuseCall, type CallContext, type CallDescription, type CallOutcome, type CallSettled } from "./action-settlement.js";
+export { bindCall, refuseCall, type CallContext, type CallDescription, type CallObservation, type CallObserved, type CallOutcome, type CallReports, type CallSettled } from "./action-settlement.js";

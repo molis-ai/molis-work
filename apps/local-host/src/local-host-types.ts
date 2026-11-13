@@ -1,5 +1,5 @@
 import type { HostCapabilityInvocation, LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
-import type { CallContext, CallDescription, CallOutcome, SubjectOfferChoiceView } from "@molis-ai/molis-work-kernel";
+import type { CallContext, CallDescription, CallObservation, CallOutcome, SubjectOfferChoiceView } from "@molis-ai/molis-work-kernel";
 import type { ActionAvailability, ActionCallContext, ActionProvider, ActionReference, ActionSceneDefinition, ActionSceneUsage, ActionSceneView, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export interface LocalHostRuntimeFactory<Runtime> {
@@ -37,4 +37,6 @@ export interface LocalHostOptions<Runtime> {
   actionProvidersChanged?(provider: ActionProvider, scenes?: readonly ActionSceneDefinition[]): void;
   /** Every call, once, as it ended (a handler's result or failure, or a refusal before any handler), with its caller and the operation's call id; never its input or result. */
   actionSettled?(caller: CallContext, action: CallDescription, outcome: CallOutcome): void;
+  /** The collection exit: every call, once, with its input, result and timing (specs/observation-collection/contract-design.md §4). Must not throw. */
+  actionObserved?(caller: CallContext, action: CallDescription, observation: CallObservation): void;
 }

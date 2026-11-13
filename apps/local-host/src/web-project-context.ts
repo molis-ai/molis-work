@@ -91,6 +91,10 @@ export function projectRequestContext(context: WebRequestContext, options: Resol
 /** Presentation reads still waiting for the catalog, per running catalog owner and project: one membership reading serves all of them. */
 const queuedMembership = new WeakMap<object, Map<string, Promise<ProjectPluginMembership>>>();
 
+/** A successful membership write bumps the Catalog's epoch; a display read inside the same epoch reuses the membership (N44). */
+const membershipCache = new WeakMap<object, Map<string, { epoch: number; at: number; membership: ProjectPluginMembership }>>();
+const MEMBERSHIP_CACHE_MS = 1_000;
+
 /**
  * The project's plugin membership for a page: the Goals branch and the shown list (N44). Reads that queue before one starts share it; the
  * entry is dropped as that read begins, so a later request reads afresh and nothing finished is kept. Execution and routes read on their own.
@@ -106,7 +110,14 @@ function observeProjectPluginMembership(composition: WebRequestContext["composit
   const drop = () => { if (pending && queued.get(key) === pending) queued.delete(key); };
   pending = composition.withCatalog({ homeDirectory: home }, catalog => {
     started = true; drop();
-    return catalog.projectPluginMembership(projectId, directory);
+    let cache = membershipCache.get(catalog);
+    if (!cache) membershipCache.set(catalog, cache = new Map());
+    const cached = cache.get(key);
+    if (cached && cached.epoch === catalog.projectPluginEpoch && Date.now() - cached.at < MEMBERSHIP_CACHE_MS) return cached.membership;
+    const membership = catalog.projectPluginMembership(projectId, directory);
+    cache.set(key, { epoch: catalog.projectPluginEpoch, at: Date.now(), membership });
+    while (cache.size > 64) cache.delete(cache.keys().next().value!);
+    return membership;
   }).finally(() => drop());
   if (!started) queued.set(key, pending);
   return pending;

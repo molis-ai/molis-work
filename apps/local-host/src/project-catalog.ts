@@ -197,6 +197,9 @@ export class MolisWorkProjectCatalog {
   readonly models: ModelProviderStore;
 
   readonly commit: CatalogCommit;
+  /** Bumped after every successful project-plugin membership write; the display cache uses it as its version (N44). */
+  private membershipEpoch = 0;
+  get projectPluginEpoch(): number { return this.membershipEpoch; }
   private readonly personalProjects: PersonalProjectProvisioner;
   readonly wasProjectPluginRemoved:(projectId:string,pluginId:string)=>boolean;
   readonly ensureSyncedProject: PersonalProjectProvisioner['ensureSyncedProject'];
@@ -235,7 +238,11 @@ export class MolisWorkProjectCatalog {
     this.projectFiles = new ManagedProjectFiles(this.projects, this.projectsDirectory, contextBindingValidation, this.commit);
     this.personalProjects = new PersonalProjectProvisioner(homeDirectory, this.projectFiles, this.projects);
     this.recycle=this.projects.recycle;this.wasProjectPluginRemoved=this.projects.query.wasProjectPluginRemoved;
-    this.setProjectPlugin = this.projects.commands.setProjectPlugin;
+    this.setProjectPlugin = (projectId, actorId, input) => {
+      const saved = this.projects.commands.setProjectPlugin(projectId, actorId, input);
+      this.membershipEpoch += 1;
+      return saved;
+    };
     this.ensureSyncedProject = this.personalProjects.ensureSyncedProject.bind(this.personalProjects);
     this.prepareSyncedProjectRestore = this.personalProjects.prepareSyncedProjectRestore.bind(this.personalProjects);
     this.projectPluginRequirements=id=>{this.projects.query.getProject(id);return projectPluginRequirements(db,id,p=>BUILTIN_PLUGIN_REGISTRY.has(p)||BUILTIN_PLUGIN_REGISTRY.isPersonal?.(p)===true);};
@@ -344,11 +351,15 @@ export class MolisWorkProjectCatalog {
   }
 
   addProjectPlugin(input: AddProjectPluginInput): ProjectPluginId[] {
-    return this.projects.commands.addProjectPlugin(input);
+    const saved = this.projects.commands.addProjectPlugin(input);
+    this.membershipEpoch += 1;
+    return saved;
   }
 
   removeProjectPlugin(input: RemoveProjectPluginInput): ProjectPluginMembership {
-    return this.projects.commands.removeProjectPlugin(input);
+    const saved = this.projects.commands.removeProjectPlugin(input);
+    this.membershipEpoch += 1;
+    return saved;
   }
 
   getProject(projectId: string): MolisWorkProjectRecord {

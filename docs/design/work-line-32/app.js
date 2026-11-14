@@ -190,7 +190,7 @@
     const from = say.from ? `<span class="wl-from">${ic("refresh", "sm")}${tx(["任务交回：", "Returned: "])}${esc(tx(tasks().find((x) => x.id === say.from).title))}</span>` : "";
     const dest = k && (!latest || beat >= 2) ? `<div class="wl-dest">${ic(k.dest.kind === "none" ? "list" : "pin", "sm")}<span>${tx(["放到：", "Placed: "])}</span><b>${esc(destLabel(k.dest))}${k.dest.kind === "new" ? " · " + esc(q(tx(k.title))) : ""}</b><span class="grow"></span>${btn(tx(["改", "Change"]), "menu", { id: "dest:" + k.id })}</div>` : "";
     const auto = say.auto ? `<div class="wl-auto">${ic("zap", "sm")}${tx(["在你交办的范围内自己接着做了 · 第 1 次，最多 3 次", "Carried on within your request · 1 of 3 automatic rounds"])}</div>` : "";
-    const act = i === 5 && latest && S.fault !== "fail" && !S.decided ? `<div class="cf">${btn(tx(["去定", "Decide"]), "focus", { v: "primary", id: "ev_k1" })}</div>` : "";
+    const act = i === 5 && latest && S.fault !== "fail" && !S.decided && S.focus !== "ev_k1" ? `<div class="cf">${btn(tx(["去定", "Decide"]), "focus", { v: "primary", id: "ev_k1" })}</div>` : "";
     const body = latest && beat === 0 ? `<span class="wl-dots"><i></i><i></i><i></i></span>` : `${from}<p>${esc(tx(text))}</p>${dest}${auto}${act}`;
     return `<div class="assistant-round">${say.u ? `<div class="assistant-msg assistant-msg--user">${esc(tx(say.u))}</div>` : ""}<div class="assistant-msg assistant-msg--assistant wl-amsg">${body}</div></div>`;
   }

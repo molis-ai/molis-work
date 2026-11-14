@@ -2,9 +2,9 @@ import { escapeHtml, icon, renderButton, renderComposer, t as uiText } from "@mo
 import { assistantComposerLabels } from "./assistant-composer-labels.js";
 import type { WebLocale } from "./i18n.js";
 import {
-  renderEventCard, renderLineEvent, renderLineHead, renderLineUnreadable, renderReplyCarried, renderReplyMini, renderReplyPeek, renderReplyPlaced,
-  renderReplyReturned, renderReplyWho, renderTabUnread, renderTaskCard, renderTaskMark, renderTaskPanel, renderTaskRow, renderWorkLine,
-  type LineEventView, type LineOwnerView, type TaskRowView,
+  renderEventCard, renderLineEvent, renderLineHead, renderLineUnreadable, renderOwnerMark, renderReplyCarried, renderReplyMini, renderReplyPeek, renderReplyPlaced,
+  renderReplyReturned, renderReplyWho, renderTabUnread, renderTaskCard, renderTaskFloat, renderTaskMark, renderTaskPanel, renderTaskRow, renderWorkLine,
+  type LineEventState, type LineEventView, type LineOwnerView, type TaskRowView,
 } from "./work-line-parts.js";
 
 /**
@@ -27,31 +27,39 @@ const OWNER = {
   jelly: { name: "Jelly", glyph: "calendar", hue: "mint" }, todo: { name: "Todo", glyph: "list", hue: "green" },
 } as const satisfies Record<string, LineOwnerView>;
 
-/** The sample line: what happened, what is being worked on or waits, what comes next. */
+/** The sample line: what happened, what is being worked on or waits, what comes next. One set of events and tasks for every specimen, so the counts agree. */
 function events() {
-  const fix: LineEventView = { id: "fix", title: nav("fix-first-screen-layout"), owner: OWNER.coding, state: "running", note: say("running-tests"), tasks: { count: 1, lead: "running" } };
-  const quote: LineEventView = { id: "quote", title: say("reply-vendor-quote"), owner: OWNER.todo, state: "wait", note: say("pick-vendor"), tasks: { count: 1, lead: "answer" } };
+  const event = (id: string, title: string, owner: LineOwnerView, kind: string, state: LineEventState, more: Partial<LineEventView> = {}): LineEventView =>
+    ({ id, title, owner, kind: say(`kind-${kind}`), state, stateLabel: say(`state-${state || "not-started"}`), ...more });
   return {
-    plan: { id: "plan", title: nav("revamp-plan"), owner: OWNER.pages, state: "done" } satisfies LineEventView,
-    weekly: { id: "weekly", title: nav("design-weekly-11-03"), owner: OWNER.feed, state: "stale", note: say("no-longer-there") } satisfies LineEventView,
-    goal: { id: "goal", title: nav("homepage-revamp-new-first-screen"), owner: OWNER.goals, state: "running", tasks: { count: 2, lead: "running" } } satisfies LineEventView,
-    fix, quote,
-    talk: { id: "talk", title: say("draft-review-talk"), owner: OWNER.pages, state: "failed", note: say("model-unreachable"), tasks: { count: 1, lead: "failed" } } satisfies LineEventView,
-    review: { id: "review", title: say("friday-review"), owner: OWNER.jelly, note: say("fri-15") } satisfies LineEventView,
-    brand: { id: "brand", title: nav("roll-out-brand-guide"), owner: OWNER.goals } satisfies LineEventView,
+    plan: event("plan", nav("revamp-plan"), OWNER.pages, "document", "done"),
+    weekly: event("weekly", nav("design-weekly-11-03"), OWNER.feed, "digest", "gone"),
+    exported: event("export", say("export-revamp-plan"), OWNER.pages, "document", "stopped"),
+    merge: event("merge", say("merge-first-screen-branch"), OWNER.coding, "change", "verify"),
+    upgrade: event("upgrade", say("upgrade-dependencies"), OWNER.coding, "change", "queued", { tasks: { count: 1, lead: "queued" } }),
+    hidden: event("hidden", "", OWNER.goals, "goal", "denied"),
+    goal: event("goal", nav("homepage-revamp-new-first-screen"), OWNER.goals, "goal", "running", { tasks: { count: 2, lead: "running" } }),
+    fix: event("fix", nav("fix-first-screen-layout"), OWNER.coding, "change", "running", { note: say("running-tests"), tasks: { count: 1, lead: "running" } }),
+    quote: event("quote", say("reply-vendor-quote"), OWNER.todo, "todo", "wait", { note: say("which-vendor"), tasks: { count: 1, lead: "answer" } }),
+    talk: event("talk", say("draft-review-talk"), OWNER.pages, "document", "failed", { note: say("model-unreachable"), tasks: { count: 1, lead: "failed" } }),
+    review: event("review", say("friday-review"), OWNER.jelly, "meeting", "", { note: say("fri-15") }),
+    brand: event("brand", nav("roll-out-brand-guide"), OWNER.goals, "goal", ""),
   };
 }
 
 function tasks() {
   const e = events();
   return {
-    fix: { id: "t-fix", title: e.fix.title, ring: "running", step: say("coding-step-3-of-4-running-tests"), serves: e.fix.title, control: "stop" } satisfies TaskRowView,
-    notes: { id: "t-notes", title: say("tidy-interview-notes"), ring: "queued", step: say("assistant-queued-one-ahead"), serves: null, control: "stop" } satisfies TaskRowView,
-    quote: { id: "t-quote", title: say("compare-three-quotes"), ring: "answer", step: say("waiting-pick-vendor"), serves: e.quote.title } satisfies TaskRowView,
-    talk: { id: "t-talk", title: e.talk.title, ring: "failed", step: say("failed-model-unreachable"), serves: e.review.title, control: "retry" } satisfies TaskRowView,
-    plan: { id: "t-plan", title: say("revamp-plan-second-draft"), ring: "done", step: say("linxia-handed-back-5m"), serves: e.plan.title, done: true } satisfies TaskRowView,
+    fix: { id: "t-fix", title: e.fix.title, ring: "running", step: say("step-running-tests"), serves: e.fix.title, control: "stop" } satisfies TaskRowView,
+    notes: { id: "t-notes", title: say("tidy-interview-notes"), ring: "queued", step: say("step-queued-one-ahead"), serves: null, control: "stop" } satisfies TaskRowView,
+    quote: { id: "t-quote", title: say("compare-three-quotes"), ring: "answer", step: say("step-waiting-pick-vendor"), serves: e.quote.title } satisfies TaskRowView,
+    talk: { id: "t-talk", title: say("write-talk-outline"), ring: "failed", step: say("step-failed-model-unreachable"), serves: e.talk.title, control: "retry" } satisfies TaskRowView,
+    plan: { id: "t-plan", title: say("revamp-plan-second-draft"), ring: "done", step: say("step-handed-back-5m"), serves: e.plan.title, done: true } satisfies TaskRowView,
   };
 }
+
+/** The four tasks that have not ended, in the list's order, and what the mark and the head's counts say about them. */
+const LIVE = { working: 2, needsYou: 1, failed: 1 } as const;
 
 const row = (body: string, end = false) => `<div class="mw-navs__row${end ? " mw-navs__row--end" : ""} mw-wls__row">${body}</div>`;
 const state = (key: string) => `<p class="mw-navs__state">${escapeHtml(say(key))}</p>`;
@@ -71,81 +79,94 @@ function line(kind: "ok" | "wait" | "empty" | "unreadable", above = ""): string 
   const slot = `${above ? `<div class="mw-wls__above">${above}</div>` : ""}${composer(assistant())}`;
   if (kind === "empty") return renderWorkLine({ head, past: [], active: [], next: [], slot });
   return renderWorkLine({
-    head, past: [e.plan, ...(kind === "unreadable" ? [] : [e.weekly])], active: waiting ? [e.fix, e.quote] : [e.goal, e.fix], next: [e.review, e.brand],
+    head, past: kind === "unreadable" ? [e.plan] : [e.weekly, e.plan, e.exported, e.merge], active: waiting ? [e.talk, e.fix, e.quote] : [e.fix], next: [e.upgrade, e.review, e.brand],
     unreadable: kind === "unreadable" ? ["Feed"] : [], slot,
   });
 }
 
 /** One round in the dialog's thread, in the product's markup: what the person said, then the reply with what stands above and under it. */
 function round(user: string, reply: string): string {
-  return `<section class="assistant-round">${user ? `<div class="assistant-msg assistant-msg--user">${escapeHtml(user)}</div>` : ""}<div class="assistant-msg assistant-msg--assistant"><div class="reply-body">${reply}</div></div></section>`;
+  return `<section class="assistant-round">${user ? `<div class="assistant-msg assistant-msg--user">${escapeHtml(user)}</div>` : ""}<div class="assistant-msg assistant-msg--assistant"><div class="work-reply-body">${reply}</div></div></section>`;
 }
 
 const p = (key: string) => `<p>${escapeHtml(say(key))}</p>`;
+const button = (variant: "primary" | "secondary", key: string, attrs: Record<string, string> = {}) => renderButton({ variant, size: "sm", label: say(key), attrs });
 
-function replies(): string {
+/** The rounds of a main conversation: work placed in each of the five ways, a task handing back, one that needs the person, one that failed. */
+function replies(all = true): string {
   const e = events();
   const placed = round(say("user-ask"), p("assistant-ack")
-    + renderReplyPlaced({ task: "t-fix", where: say("event-named", { name: e.fix.title }), kind: "event" })
-    + renderReplyPlaced({ task: "t-notes", where: say("not-on-line"), kind: "none" }));
+    + renderReplyPlaced({ task: "t-fix", where: { kind: "new-event", name: e.fix.title } }) + renderReplyPlaced({ task: "t-notes", where: { kind: "none" } }));
+  const more = round(say("user-ask-more"), p("assistant-ack-more")
+    + renderReplyPlaced({ task: "t-quote", where: { kind: "supplement", name: e.quote.title } }) + renderReplyPlaced({ task: "t-talk", where: { kind: "for-event", name: e.review.title } })
+    + renderReplyPlaced({ task: "t-list", where: { kind: "other-item", name: nav("roll-out-brand-guide") } }));
   const returned = round("", renderReplyReturned(e.fix.title) + p("returned-reply") + renderReplyCarried(1, 3));
-  const waiting = round("", renderReplyReturned(say("compare-three-quotes")) + p("needs-you-reply")
-    + `<div class="reply-actions">${renderButton({ variant: "primary", size: "sm", label: say("go-decide"), attrs: { "data-event-open": "quote" } })}</div>`);
-  return placed + returned + waiting;
+  const waiting = round("", renderReplyReturned(say("compare-three-quotes")) + p("needs-you-reply") + `<div class="work-reply-actions">${button("primary", "go-decide", { "data-event-open": "quote" })}</div>`);
+  const failed = round("", renderReplyReturned(say("write-talk-outline"), true) + p("failed-reply")
+    + `<div class="work-reply-actions">${button("secondary", "retry-this-step", { "data-task-control": "retry", "data-task": "t-talk" })}${button("secondary", "view-task", { "data-task-open": "t-talk" })}</div>`);
+  return all ? placed + more + returned + waiting + failed : placed + returned + waiting;
 }
 
 function eventCard(): string {
   const t = tasks();
   return renderEventCard({
     id: "quote", facts: say("registered-by-waiting", { plugin: OWNER.todo.name }),
-    body: `<div class="event-card-quote">${escapeHtml(say("quote-three-vendors"))}</div>`
-      + `<div class="event-card-section"><h4>${escapeHtml(say("tasks-behind"))}</h4>${renderTaskRow({ ...t.quote, serves: undefined })}</div>`
-      + `<div class="event-card-actions">${renderButton({ variant: "primary", size: "sm", label: say("pick-first") })}${renderButton({ variant: "secondary", size: "sm", label: say("pick-second") })}${renderButton({ variant: "secondary", size: "sm", label: say("ask-me-later") })}</div>`,
+    body: `<div class="work-card-quote">${escapeHtml(say("quote-three-vendors"))}</div>`
+      + `<div class="work-card-section"><h4>${escapeHtml(say("tasks-behind"))}</h4>${renderTaskRow({ id: t.quote.id, title: t.quote.title, ring: t.quote.ring, step: t.quote.step })}</div>`
+      + `<div class="work-card-actions">${button("primary", "pick-first")}${button("secondary", "pick-second")}${button("secondary", "ask-me-later")}</div>`,
   });
 }
 
 function taskCard(): string {
   const e = events();
   return renderTaskCard({
-    id: "t-fix", title: e.fix.title, owner: OWNER.coding, state: say("in-progress-step-3"), who: say("coding-in-sandbox"), serves: say("event-named", { name: e.fix.title }), returnsTo: say("assistant-main-conversation"),
+    id: "t-fix", title: e.fix.title, owner: OWNER.coding, ring: "running", state: say("in-progress-step-3"), who: say("coding-in-sandbox"),
+    serves: uiText.text("workbench.work-line.placed-new-event", { name: e.fix.title }), returnsTo: say("assistant-main-conversation"),
     steps: [{ name: say("read-code-reproduce"), at: "done" }, { name: say("change-styles"), at: "done" }, { name: say("run-tests"), at: "current" }, { name: say("hand-back-result"), at: "todo" }],
-    actions: renderButton({ variant: "secondary", size: "sm", label: uiText.text("workbench.work-line.stop") }) + renderButton({ variant: "secondary", size: "sm", label: say("add-note") }) + renderButton({ variant: "ghost", size: "sm", icon: "external", label: say("open-in-plugin", { plugin: OWNER.coding.name }) }),
+    actions: renderButton({ variant: "secondary", size: "sm", label: uiText.text("workbench.work-line.stop") }) + button("secondary", "add-note") + renderButton({ variant: "ghost", size: "sm", icon: "external", label: say("open-in-plugin", { plugin: OWNER.coding.name }) }),
   });
 }
 
+const panel = (id?: string, offline = false) => {
+  const t = tasks();
+  return renderTaskPanel({ ...(id ? { id } : {}), live: [t.quote, t.talk, t.fix, t.notes], returned: [t.plan], counts: LIVE, ...(offline ? { offlineSince: "14:32" } : {}) });
+};
+
 /** A tab of the dialog in the product's markup (scripts/client/assistant-tabs.ts): a main conversation with someone, or an event. */
 function dialogTab(o: { readonly title: string; readonly who?: { readonly name: string; readonly character?: boolean }; readonly owner?: LineOwnerView; readonly current?: boolean; readonly unread?: boolean }): string {
-  const lead = o.who ? renderReplyWho(o.who) : o.owner ? `<span class="work-event-mark" style="--event-hue:var(--hue-${o.owner.hue})" aria-hidden="true">${icon(o.owner.glyph)}</span>` : "";
+  const lead = o.who ? renderReplyWho(o.who) : o.owner ? renderOwnerMark(o.owner) : "";
   const close = o.who ? "" : `<button type="button" class="assistant-tab-close" tabindex="-1" aria-label="${escapeHtml(nav("close-tab"))}">×</button>`;
-  return `<div class="assistant-tab"${o.current ? ' data-current="true"' : ""}><button type="button" class="assistant-tab-main" role="tab" aria-selected="${Boolean(o.current)}" tabindex="${o.current ? 0 : -1}">${lead}<span class="assistant-tab-title">${escapeHtml(o.title)}</span>${o.unread ? renderTabUnread() : ""}</button>${close}</div>`;
+  return `<div class="assistant-tab"${o.current ? ' data-current="true"' : ""}><button type="button" class="assistant-tab-main" role="tab" aria-selected="${Boolean(o.current)}" tabindex="${o.current ? 0 : -1}" title="${escapeHtml(o.title)}">${lead}<span class="assistant-tab-title">${escapeHtml(o.title)}</span>${o.unread ? renderTabUnread() : ""}</button>${close}</div>`;
 }
 
-/** The dialog as the first slice leaves it: a tab per counterpart, events as tabs, the task mark at the top right, the panel floating beside it. */
-function dialog(kind: "main" | "event" | "offline"): string {
-  const e = events(), t = tasks(), offline = kind === "offline", onEvent = kind === "event";
+/**
+ * The dialog as the first slice leaves it: a tab per counterpart, events as tabs, the task mark at the top right, and the
+ * task panel placed by the product's own rule (beside the dialog, or over its right side in a stage too narrow for both).
+ */
+function dialog(kind: "main" | "narrow" | "event" | "offline"): string {
+  const e = events(), offline = kind === "offline", onEvent = kind === "event", id = `wl-dialog-${kind}`, panelId = `wl-panel-${kind}`;
   const tabs = dialogTab({ title: assistant().name, who: assistant(), current: !onEvent }) + dialogTab({ title: say("linxia"), who: linxia(), unread: true })
     + dialogTab({ title: e.quote.title, owner: e.quote.owner, current: onEvent }) + (onEvent ? "" : dialogTab({ title: e.fix.title, owner: e.fix.owner }));
-  const mark = renderTaskMark(offline ? { count: 3, offline: true, expanded: true } : { count: 3, lead: "answer", needsYou: true, expanded: !onEvent });
+  const mark = renderTaskMark(offline ? { count: 4, offline: true, expanded: true, panel: panelId } : { count: 4, lead: "answer", needsYou: true, expanded: !onEvent, ...(onEvent ? {} : { panel: panelId }) });
   const minimise = `<button type="button" class="dock-window-action" aria-label="${uiText("workbench.assistant-dock.minimize")}" title="${uiText("workbench.assistant-dock.minimize")}">${icon("chevron-down")}</button>`;
-  const thread = onEvent ? eventCard() + round(say("user-on-event"), p("assistant-on-event")) : replies();
-  const panel = onEvent ? "" : renderTaskPanel({ live: [t.quote, t.talk, t.fix, t.notes], returned: [t.plan], counts: { working: 2, needsYou: 1, failed: 1 }, ...(offline ? { offlineSince: "14:32" } : {}) });
-  return `<div class="mw-wls__dialog"><section class="assistant-panel" data-side="closed" aria-label="${uiText("workbench.assistant-dock.assistant")}"><header class="assistant-tabbar"><div class="assistant-tabs" data-work-line data-overflow-fade role="tablist" aria-label="${uiText("workbench.assistant-dock.open-work")}">${tabs}</div>`
-    + `<span class="assistant-tabbar-actions">${mark}${minimise}</span></header><div class="assistant-body"><div class="assistant-main"><div class="assistant-thread" role="log">${thread}</div></div></div></section>${panel ? `<div class="mw-wls__float">${panel}</div>` : ""}</div>`;
+  const thread = onEvent ? eventCard() + round(say("user-on-event"), p("assistant-on-event")) : replies(false);
+  return `<div class="mw-wls__stage" data-work-float-frame${kind === "narrow" ? " data-narrow" : ""}><section class="assistant-panel" id="${id}" data-side="closed" aria-label="${uiText("workbench.assistant-dock.assistant")}"><header class="assistant-tabbar"><div class="assistant-tabs" data-work-line data-overflow-fade role="tablist" aria-label="${uiText("workbench.assistant-dock.open-work")}">${tabs}</div>`
+    + `<span class="assistant-tabbar-actions">${mark}${minimise}</span></header><div class="assistant-body"><div class="assistant-main"><div class="assistant-thread" role="log">${thread}</div></div></div></section>${onEvent ? "" : renderTaskFloat(id, panel(panelId, offline))}</div>`;
 }
 
 /** The frame's body when the navigation frame is asked for `sheet=work-line`. `specimen` is that frame's own scaffolding. */
 export function renderWorkLineSpecimens(specimen: Specimen): string {
   const e = events(), t = tasks();
   const capsule = specimen("wl-event", "1", say("event-on-line"), say("event-on-line-note"),
-    row(renderLineEvent(e.review) + renderLineEvent(e.fix) + renderLineEvent(e.goal) + renderLineEvent(e.quote) + renderLineEvent(e.talk))
-    + row(renderLineEvent(e.plan) + renderLineEvent(e.weekly) + renderLineEvent({ ...e.fix, current: true }) + renderLineUnreadable("Feed")));
+    row(renderLineEvent(e.review) + renderLineEvent(e.upgrade) + renderLineEvent(e.fix) + renderLineEvent(e.goal) + renderLineEvent({ ...e.fix, id: "fix-current", current: true }) + renderLineEvent({ ...e.brand, id: "brand-fresh", fresh: true }))
+    + row(renderLineEvent(e.quote) + renderLineEvent(e.talk) + renderLineEvent(e.exported) + renderLineEvent(e.merge))
+    + row(renderLineEvent(e.plan) + renderLineEvent(e.weekly) + renderLineEvent(e.hidden) + renderLineUnreadable("Feed")));
   const head = specimen("wl-head", "2", say("line-head"), say("line-head-note"), row(renderLineHead({ name: nav("website-revamp"), waiting: 0 }) + renderLineHead({ name: nav("homepage-revamp-new-first-screen"), waiting: 0, ring: "running" }) + renderLineHead({ name: nav("homepage-revamp-new-first-screen"), waiting: 2, ring: "answer" })));
   const mark = specimen("wl-task-mark", "3", say("task-mark"), say("task-mark-note"),
     row(renderTaskMark({ count: 0 }) + renderTaskMark({ count: 2, lead: "running" }) + renderTaskMark({ count: 3, lead: "answer", needsYou: true }) + renderTaskMark({ count: 2, lead: "failed", failed: true })
       + renderTaskMark({ count: 2, offline: true }) + renderTaskMark({ count: 2, lead: "running", expanded: true })));
-  const panel = specimen("wl-task-panel", "4", say("task-panel"), say("task-panel-note"),
-    `<div class="mw-wls__panels">${renderTaskPanel({ live: [t.quote, t.talk, t.fix, t.notes], returned: [t.plan], counts: { working: 2, needsYou: 1, failed: 1 } })}${taskCard()}`
-    + `${renderTaskPanel({ live: [], returned: [] })}${renderTaskPanel({ live: [t.fix, t.notes], returned: [], counts: { working: 2, needsYou: 0, failed: 0 }, offlineSince: "14:32" })}</div>`);
+  const panels = specimen("wl-task-panel", "4", say("task-panel"), say("task-panel-note"),
+    `<div class="mw-wls__panels">${panel()}${taskCard()}${renderTaskPanel({ live: [], returned: [] })}${renderTaskPanel({ live: [t.fix, t.notes], returned: [], offlineSince: "14:32" })}</div>`);
   const reply = specimen("wl-reply", "5", say("under-reply"), say("under-reply-note"), `<div class="mw-wls__thread assistant-thread">${replies()}</div>`);
   const card = specimen("wl-event-card", "6", say("event-card"), say("event-card-note"), `<div class="mw-wls__thread assistant-thread">${eventCard()}</div>`);
   const peek = specimen("wl-peek", "7", say("dialog-closed"), say("dialog-closed-note"),
@@ -153,11 +174,11 @@ export function renderWorkLineSpecimens(specimen: Specimen): string {
     + `<div class="mw-wls__slot">${renderReplyPeek({ who: linxia(), body: p("peek-reply-character"), mark: renderTaskMark({ count: 3, lead: "answer", needsYou: true }) })}</div>`
     + `<div class="mw-wls__slot">${renderReplyMini(renderTaskMark({ count: 2, lead: "running" }))}</div>`);
   const whole = specimen("wl-line", "", say("whole-line"), say("whole-line-note"),
-    `${state("ok")}${line("ok", renderReplyMini(renderTaskMark({ count: 3, lead: "running" })))}${state("something-needs-you")}${line("wait", renderReplyPeek({ who: assistant(), returned: say("compare-three-quotes"), body: p("needs-you-reply"), mark: renderTaskMark({ count: 3, lead: "answer", needsYou: true }) }))}`
+    `${state("ok")}${line("ok", renderReplyMini(renderTaskMark({ count: 2, lead: "running" })))}${state("something-needs-you")}${line("wait", renderReplyPeek({ who: assistant(), returned: say("compare-three-quotes"), body: p("needs-you-reply"), mark: renderTaskMark({ count: 4, lead: "answer", needsYou: true }) }))}`
     + `${state("nothing-on-line-yet")}${line("empty")}${state("source-unreadable")}${line("unreadable")}`);
   const dialogs = specimen("wl-dialog", "", say("dialog-composed"), say("dialog-composed-note"),
-    `${state("main-conversation-panel-open")}${dialog("main")}${state("event-tab")}${dialog("event")}${state("disconnected")}${dialog("offline")}`);
-  return capsule + head + mark + panel + reply + card + peek + whole + dialogs;
+    `${state("main-conversation-panel-open")}${dialog("main")}${state("panel-over-dialog")}${dialog("narrow")}${state("event-tab")}${dialog("event")}${state("disconnected")}${dialog("offline")}`);
+  return capsule + head + mark + panels + reply + card + peek + whole + dialogs;
 }
 
 export const workLineSpecimenTitle = () => say("work-line");
@@ -166,22 +187,22 @@ export const workLineSpecimenTitle = () => say("work-line");
 export const renderWorkLineIndexLink = () => `<a href="#work-line" title="${escapeHtml(say("work-line"))}">${escapeHtml(say("work-line"))}</a>`;
 
 /**
- * Only the board's scaffolding for these specimens: rows that scroll instead of wrapping, the boxes that stand for the slot
- * above the composer and for the dialog's place (the product's dialog is fixed above the bar; here it stands in the flow).
+ * Only the board's scaffolding for these specimens: rows that scroll instead of wrapping, the box that stands for the slot
+ * above the composer, and the stage a dialog stands in. The product's dialog is fixed above the bar; here it stands in a
+ * stage that frames it (`data-work-float-frame`), and the task panel is placed in that stage by the product's own rule.
  */
-export const WORK_LINE_FRAME_STYLES = `.mw-wls__row{flex-wrap:nowrap;overflow-x:auto;padding:2px;scrollbar-width:none}
+export const WORK_LINE_FRAME_STYLES = `.mw-wls__row{flex-wrap:nowrap;overflow-x:auto;padding:4px 2px;scrollbar-width:none}
 .mw-wls__panels{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,340px));align-items:start;gap:16px;padding:4px}
 .mw-wls__thread{display:flex;flex-direction:column;gap:12px;max-width:560px;padding:4px!important;font-size:14px}
 .mw-wls__slot{display:flex;flex-direction:column;max-width:540px;padding:4px}
 .mw-wls__above{position:absolute;left:0;right:0;bottom:calc(100% + 8px);display:flex;flex-direction:column}
 .mw-navs .work-line{min-height:64px;padding:8px 0}
 .mw-navs .work-line:has(.mw-wls__above){margin-top:112px}
-.mw-navs .work-line:has(.reply-mini){margin-top:48px}
-.mw-wls__dialog{position:relative;display:flex;align-items:flex-end;gap:12px;min-width:0;padding:4px}
-html body.mw-navs-page .mw-wls__dialog .assistant-panel[data-side]{position:relative;inset:auto;flex:0 1 560px;min-width:0;width:auto;height:440px;animation:none}
-.mw-wls__float{position:relative;z-index:60;flex:none;display:flex}
-@media (max-width:980px){.mw-wls__dialog{display:block}.mw-wls__float{position:absolute;right:8px;bottom:8px;left:8px;justify-content:flex-end}html body.mw-navs-page .mw-wls__dialog .assistant-panel[data-side]{height:520px}}
-@media (max-width:760px){.mw-navs .work-line:has(.mw-wls__above),.mw-navs .work-line:has(.reply-mini){margin-top:0}.mw-wls__above{position:static}}`;
+.mw-navs .work-line:has(.work-reply-mini){margin-top:48px}
+.mw-wls__stage{position:relative;display:flex;align-items:flex-start;height:500px;min-width:0;padding:8px 4px;overflow:hidden;transform:translate(0)}
+.mw-wls__stage[data-narrow]{max-width:700px}
+html body.mw-navs-page .mw-wls__stage .assistant-panel[data-side]{position:relative;inset:auto;flex:0 1 560px;min-width:0;width:auto;height:480px;animation:none}
+@media (max-width:760px){.mw-navs .work-line:has(.mw-wls__above),.mw-navs .work-line:has(.work-reply-mini){margin-top:0}.mw-wls__above{position:static}.mw-wls__stage{height:560px}html body.mw-navs-page .mw-wls__stage .assistant-panel[data-side]{flex-basis:100%;height:540px}}`;
 
 /** The board's section: the frame above, in the board's language, at a fixed height that scrolls inside. */
 export function renderWorkLineSection(lang: WebLocale): string {

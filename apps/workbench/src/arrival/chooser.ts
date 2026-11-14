@@ -1,4 +1,3 @@
-import { readFileSync } from "node:fs";
 import { t as uiText, renderButton, renderDirectoryHeading, renderDirectoryRow, renderEmpty, renderKbd } from "@molis-ai/molis-work-plugin-sdk/ui";
 import {
   ARRIVAL_MOTION_CLIENT_SCRIPT,
@@ -11,6 +10,7 @@ import {
 } from "@molis-ai/molis-work-design-system";
 import { renderAssistantDock } from "../assistant-dock.js";
 import { AUTOMATION_RECOMMENDATIONS_LOADER, CAPABILITY_ASSET_LOADER } from "../scripts/client/automation-recommendations.js";
+import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "../scripts/client/assistant-island.js";
 import { ATTENTION_FACTORY_SCRIPT } from "../scripts/client/attention.js";
 import { CHOOSER_SEARCH_LOADER_SCRIPT } from "./chooser-search.js";
 import { renderGlobalSearchOverlay } from "../immersive-shell.js";
@@ -39,7 +39,9 @@ export interface ChooserArrival {
 }
 
 const PERSONAL = "personal";
-let arrivalAssistantFactory: string | undefined;
+const arrivalAssistantFactory = ASSISTANT_ISLAND_FACTORY_SCRIPT
+  .replace(/^[ \t]*(?:\/\/[^\n]*|\/\*(?:(?!\*\/)[\s\S])*\*\/[ \t]*)\n/gm, "")
+  .replace(/\n[ \t]+/g, "\n");
 
 export function createWorkbenchProjectChooserRenderer(p: ArrivalPrimitives) {
   const { readText, escapeHtml, icon } = p;
@@ -134,7 +136,6 @@ export function createWorkbenchProjectChooserRenderer(p: ArrivalPrimitives) {
       <template data-tpl="nobody"><article class="mw-brief brief-none">${nobody}</article></template>`;
     const data = JSON.stringify({ selected, projects: ordered.map(project => project.project_id), personalTitle: personal.display_name, firstName: last?.display_name ?? null, loadError: Boolean(arrival.load_error) })
       .replaceAll("<", "\\u003c");
-    arrivalAssistantFactory ??= readFileSync(new URL("../arrival-assistant-factory.js", import.meta.url), "utf8");
     const scripts = `${UI_REQUEST_CLIENT_SCRIPT}${p.visualFoundationClientScript}${ARRIVAL_MOTION_CLIENT_SCRIPT}${DROP_ZONE_CLIENT_SCRIPT}${COMPOSER_LOADER_CLIENT_SCRIPT}
 // The Assistant and what waits on the person speak for the project chosen here, or for the person outside any project.
 const chosenRoute = path => { const id = document.querySelector('.chooser')?.dataset.selected; return id && id !== 'personal' ? '/projects/' + encodeURIComponent(id) + path : path; };

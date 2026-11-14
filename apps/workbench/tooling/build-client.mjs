@@ -6,7 +6,6 @@ import {UI_REQUEST_CLIENT_SCRIPT} from '@molis-ai/molis-work-ui-host';
 import {workbenchClientSource} from '../dist/page-assets.js';
 import {ACCOUNT_CLIENT_SCRIPT} from '../dist/scripts/account.js';
 import {capabilitiesClientSource} from '../dist/scripts/capabilities-client.js';
-import {ASSISTANT_ISLAND_FACTORY_SCRIPT} from '../dist/scripts/client/assistant-island.js';
 const compactor=fileURLToPath(new URL('../../../scripts/client-literals.mjs',import.meta.url));
 const compactClientScript=source=>execFileSync(process.execPath,[compactor],{
   input:source,encoding:'utf8',maxBuffer:16*1024*1024,stdio:['pipe','pipe','inherit'],
@@ -20,10 +19,6 @@ writeFileSync(frame.path,compactClientScript(frame.text));
 const kit=new URL('../dist/kit-client.js',import.meta.url);
 writeFileSync(kit,compactClientScript(readFileSync(kit,'utf8')));
 writeFileSync(new URL('../dist/capabilities-client.js',import.meta.url),compactClientScript(capabilitiesClientSource()));
-const assistantAssignment = 'globalThis.molisWorkArrivalAssistantFactory=';
-const assistantFactory = compactClientScript(assistantAssignment + ASSISTANT_ISLAND_FACTORY_SCRIPT).trim();
-if (!assistantFactory.startsWith(assistantAssignment) || !assistantFactory.endsWith(';')) throw new Error('Unexpected Assistant factory output');
-writeFileSync(new URL('../dist/arrival-assistant-factory.js',import.meta.url),assistantFactory.slice(assistantAssignment.length,-1));
 
 // Keep the request bootstrap byte-for-byte first. Local bindings and equivalent syntax may be shortened;
 // property names, public globals, event names and literal contents stay intact.

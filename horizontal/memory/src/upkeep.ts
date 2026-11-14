@@ -1,6 +1,6 @@
 import { isDeepStrictEqual } from "node:util";
-import type { AgentMemoryPreviewMutation } from "@molis-ai/molis-work-contracts/services/agent-host";
-import type { MemoryChangeKind, MemoryChangeRecord, MemoryLedgerPort, MemoryRevision, MemoryScope, MemoryUndoPlan, MemoryUpkeepReport } from "@molis-ai/molis-work-contracts/services/memory";
+import type { AgentMemoryMeta, AgentMemoryPreviewMutation } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { MemoryApplies, MemoryChangeKind, MemoryChangeRecord, MemoryFormalKind, MemoryLedgerPort, MemoryRevision, MemoryScope, MemoryUndoPlan, MemoryUpkeepReport } from "@molis-ai/molis-work-contracts/services/memory";
 import type { MemoryBackendEntry, MemoryBackendPort } from "./backend.js";
 import type { MemoryCaller } from "./service.js";
 import type { Located } from "./scope-commands.js";
@@ -11,6 +11,13 @@ import { memoryErrors } from "./errors.js";
 
 type Count = "expired" | "unused" | "paused" | "resumed" | "merged";
 type StateAction = "pause" | "disable" | "resume";
+interface UpkeepSnapshot {
+  version: number;
+  text: string;
+  kind: MemoryFormalKind;
+  applies: MemoryApplies;
+  snapshot: { origin: string; meta: AgentMemoryMeta };
+}
 interface Step {
   operation_id: string;
   change_id: string;
@@ -26,6 +33,7 @@ interface Step {
   at: string;
   authority: ReturnType<typeof authority>;
   drop?: { memory_id: string; expected_version: number; operation_id: string };
+  merge?: { change: { text: string; meta: AgentMemoryMeta }; removed: UpkeepSnapshot };
   phase: "pending" | "committed" | "closed";
 }
 interface Ports {
@@ -69,7 +77,7 @@ export class MemoryUpkeep {
       at: this.ports.now().toISOString(), authority: authority(caller), phase: "pending" };
     if (!existing) {
       await this.ports.backend.withCaller(caller).previewMutation({ ...this.condition(step, caller), mutation: this.stateMutation(step) });
-      step = this.prepare(caller, step, this.revision(one));
+      step = this.prepare(caller, step, { version: one.entry.version, change: "restored", by: "maintenance", at: this.ports.now().toISOString() });
     }
     if (step.phase === "committed") return false;
     const result = await this.apply(caller, step);
@@ -89,12 +97,13 @@ export class MemoryUpkeep {
       drop: { memory_id: drop.entry.memory_id, expected_version: drop.entry.version, operation_id: this.ports.newId() } };
     if (!existing) {
       // Removal intentionally does not screen old contents. Never copy those contents into new App history under that permission.
-      this.snapshot(caller, step, drop.entry.memory_id, drop.entry.version, this.revision(drop));
-      const before = this.revision(keep), removed = this.revision(drop);
+      const before = await this.snapshot(caller, step, keep.entry.memory_id, keep.entry.version, this.revision(keep));
+      const removed = await this.snapshot(caller, step, drop.entry.memory_id, drop.entry.version, this.revision(drop));
+      const change = this.merged(step, before, removed);
       const backend = this.ports.backend.withCaller(caller);
-      await backend.previewMutation({ ...this.condition(step, caller), mutation: { kind: "update", change: this.merged(step, before, removed) } });
+      await backend.previewMutation({ ...this.condition(step, caller), mutation: { kind: "update", change } });
       await backend.previewMutation({ ...this.dropCondition(step, caller), mutation: { kind: "remove" } });
-      step = this.prepare(caller, step, before);
+      step = this.prepare(caller, { ...step, merge: { change, removed } }, { version: keep.entry.version, change: "restored", by: "maintenance", at: this.ports.now().toISOString() });
     }
     if (step.phase === "committed") return false;
     keep.entry = await this.apply(caller, step);
@@ -139,17 +148,23 @@ export class MemoryUpkeep {
     });
   }
 
-  private revision(one: Located): MemoryRevision {
+  private revision(one: Located): UpkeepSnapshot {
     return { version: one.entry.version, text: one.entry.text, kind: one.meta.kind, applies: one.meta.applies,
-      snapshot: { origin: one.entry.origin, meta: one.entry.meta }, change: "restored", by: "maintenance", at: this.ports.now().toISOString() };
+      snapshot: { origin: one.entry.origin, meta: one.entry.meta } };
   }
 
-  private snapshot(caller: MemoryCaller, step: Step, id = step.memory_id, version = step.expected_version, exact?: MemoryRevision): MemoryRevision {
+  private async snapshot(caller: MemoryCaller, step: Step, id = step.memory_id, version = step.expected_version, exact?: UpkeepSnapshot): Promise<UpkeepSnapshot> {
     this.assertOpen(caller, step);
-    const revision = this.ports.ledger.revisions(id).find(item => item.version === version);
-    if (!revision?.snapshot || exact && !isDeepStrictEqual([revision.text, revision.kind, revision.applies, revision.snapshot], [exact.text, exact.kind, exact.applies, exact.snapshot]))
+    const row = this.ports.ledger.revisions(id).find(item => item.version === version);
+    if (!row) throw memoryErrors.conflict("维护未执行：原版本没有可核对的安全历史快照");
+    const history = await this.ports.backend.withCaller(caller).history({ scope: step.scope, owner: step.owner, memory_id: id, ...(caller.signal ? { signal: caller.signal } : {}) });
+    const canonical = history.revisions.find(item => item.version === version);
+    const facts = canonical ? fromEntryMeta({ memory_id: id, scope: step.scope, owner: step.owner, meta: canonical.meta, created_at_ms: 0, updated_at_ms: 0 }) : null;
+    const loaded: UpkeepSnapshot | null = canonical && facts ? { version: canonical.version, text: canonical.text, kind: facts.kind, applies: facts.applies,
+      snapshot: { origin: canonical.origin, meta: canonical.meta } } : null;
+    if (!loaded || exact && !isDeepStrictEqual([loaded.text, loaded.kind, loaded.applies, loaded.snapshot], [exact.text, exact.kind, exact.applies, exact.snapshot]))
       throw memoryErrors.conflict("维护未执行：原版本没有可核对的安全历史快照");
-    return revision;
+    return loaded;
   }
 
   private facts(step: Step, entry: MemoryBackendEntry) {
@@ -158,8 +173,8 @@ export class MemoryUpkeep {
     return facts;
   }
 
-  private merged(step: Step, before: MemoryRevision, removed: MemoryRevision) {
-    const first = before.snapshot!, second = removed.snapshot!;
+  private merged(step: Step, before: UpkeepSnapshot, removed: UpkeepSnapshot) {
+    const first = before.snapshot, second = removed.snapshot;
     const facts = this.facts(step, { memory_id: step.memory_id, version: before.version, text: before.text, origin: first.origin,
       meta: first.meta, tags: [], tombstoned: false, created_at_ms: 0, updated_at_ms: 0 });
     const other = this.facts(step, { memory_id: step.drop!.memory_id, version: removed.version, text: removed.text, origin: second.origin,
@@ -184,11 +199,14 @@ export class MemoryUpkeep {
 
   private async apply(caller: MemoryCaller, step: Step): Promise<MemoryBackendEntry> {
     this.assertOpen(caller, step);
-    const before = this.snapshot(caller, step), backend = this.ports.backend.withCaller(caller), condition = this.condition(step, caller);
-    let entry: MemoryBackendEntry, removed: MemoryRevision | undefined;
+    const backend = this.ports.backend.withCaller(caller), condition = this.condition(step, caller);
+    let entry: MemoryBackendEntry, removed: UpkeepSnapshot | undefined;
     if (step.kind === "merge") {
-      removed = this.snapshot(caller, step, step.drop!.memory_id, step.drop!.expected_version);
-      const change = this.merged(step, before, removed);
+      await this.snapshot(caller, step);
+      if (!step.merge || !this.ports.ledger.revisions(step.drop!.memory_id).some(item => item.version === step.drop!.expected_version))
+        throw memoryErrors.conflict("维护未执行：原版本没有可核对的安全历史快照");
+      removed = step.merge.removed;
+      const change = step.merge.change;
       entry = await backend.update({ ...condition, change });
       this.ports.ledger.transaction(() => {
         this.assertOpen(caller, step);
@@ -197,19 +215,22 @@ export class MemoryUpkeep {
       await backend.tombstone(this.dropCondition(step, caller));
       // The target may have changed while removal awaited. Only the original SDK receipt can confirm it again.
       entry = await backend.update({ ...condition, change });
-    } else if (step.kind === "resume") entry = await backend.resume(condition);
-    else entry = await backend[step.kind]({ ...condition, reason: step.reason });
+    } else {
+      await this.snapshot(caller, step);
+      if (step.kind === "resume") entry = await backend.resume(condition);
+      else entry = await backend[step.kind]({ ...condition, reason: step.reason });
+    }
     this.record(caller, step, entry, removed);
     return entry;
   }
 
-  private record(caller: MemoryCaller, step: Step, entry: MemoryBackendEntry, removed?: MemoryRevision): void {
+  private record(caller: MemoryCaller, step: Step, entry: MemoryBackendEntry, removed?: UpkeepSnapshot): void {
     this.ports.ledger.transaction(() => {
       this.assertOpen(caller, step);
-      const facts = this.facts(step, entry);
+      this.facts(step, entry);
       let undo: MemoryUndoPlan | null = step.undo;
       if (removed) {
-        const meta = removed.snapshot!.meta;
+        const meta = removed.snapshot.meta;
         const original = fromEntryMeta({ memory_id: step.drop!.memory_id, scope: step.scope, owner: step.owner, meta, created_at_ms: 0, updated_at_ms: 0 });
         if (!original) throw memoryErrors.conflict("合并撤销缺少原记忆事实");
         undo = { action: "recreate", text: removed.text, kind: removed.kind, source: original.source, basis: original.basis, applies: removed.applies,
@@ -221,10 +242,10 @@ export class MemoryUpkeep {
         kind: step.change, memory_id: entry.memory_id, text: entry.text, by: "maintenance", rule: "整理",
         reason: removed ? `合并了意思相同的「${removed.text.slice(0, 60)}」` : step.reason,
         work: null, at: step.at, undoable: undo !== null, state: "active", undo };
-      this.ports.ledger.addRevision(entry.memory_id, { version: entry.version, text: entry.text, kind: facts.kind, applies: facts.applies,
-        snapshot: { origin: entry.origin, meta: entry.meta }, change: step.kind === "merge" ? "merged" : "restored", by: "maintenance", at: step.at });
+      this.ports.ledger.addRevision(entry.memory_id, { version: entry.version, change: step.kind === "merge" ? "merged" : "restored", by: "maintenance", at: step.at });
       this.ports.ledger.saveChange(change);
-      this.ports.ledger.setMarker(caller.actor_id, keyOf(step.operation_id), { ...step, phase: "committed" }, step.at);
+      const { merge: _merge, ...committed } = step;
+      this.ports.ledger.setMarker(caller.actor_id, keyOf(step.operation_id), { ...committed, phase: "committed" }, step.at);
       this.ports.ledger.setMarker(caller.actor_id, INDEX, { plans: this.pending(caller).filter(id => id !== step.operation_id) }, step.at);
       if (step.drop) this.ports.ledger.forget(step.drop.memory_id, "related");
     });

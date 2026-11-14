@@ -42,8 +42,13 @@ export function prologueMemoryBackend(source: () => Promise<AgentMemoryCapabilit
       const page = await (await store()).page({ ...input, scope: prologueScope(input.scope) });
       return { ...page, items: page.items.map(view) };
     },
+    history: async input => {
+      const page = await (await store()).history({ ...input, scope: prologueScope(input.scope) });
+      return { ...page, scope: page.scope === "user" ? "personal" : page.scope };
+    },
     write: async input => view(await (await store()).write({ ...input, scope: prologueScope(input.scope) })),
     update: async input => view(await (await store()).update({ ...input, scope: prologueScope(input.scope) })),
+    restore: async input => view(await (await store()).restore({ ...input, scope: prologueScope(input.scope) })),
     renew: async input => view(await (await store()).renew({ ...input, scope: prologueScope(input.scope) })),
     setMeta: async input => view(await (await store()).setMeta({ ...input, scope: prologueScope(input.scope) })),
     pause: async input => view(await (await store()).pause({ ...input, scope: prologueScope(input.scope) })),
@@ -57,6 +62,8 @@ export function prologueMemoryBackend(source: () => Promise<AgentMemoryCapabilit
     applyBatch: async input => (await store()).applyBatch(input),
     previewScope: async (scope, owner) => (await store()).previewScope(prologueScope(scope), owner),
     clearScope: async input => (await store()).clearScope({ ...input, scope: prologueScope(input.scope) }),
+    exportScope: async input => (await store()).exportScope?.({ ...input, scope: prologueScope(input.scope) }),
+    importScope: async input => (await store()).importScope?.({ ...input, scope: prologueScope(input.scope) }),
     candidates: {
       form: async ({ slots, context, ...input }) => (await store()).candidates.form({ ...input,
         ...(slots ? { slots: slots.map(slot => ({ ...slot, scope: prologueScope(slot.scope) })) } : {}),

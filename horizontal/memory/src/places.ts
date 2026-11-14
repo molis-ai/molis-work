@@ -49,7 +49,8 @@ export function applies(limit: MemoryApplies, situation: MemoryRecallRequest["si
   if (limit.until && Date.parse(limit.until) < now.getTime()) return false;
   if (limit.plugin_ids?.length && !(situation?.plugin_id && limit.plugin_ids.includes(situation.plugin_id))) return false;
   if (limit.object_kinds?.length && !(situation?.object_kind && limit.object_kinds.includes(situation.object_kind))) return false;
-  if (limit.goal_ids?.length && !(situation?.goal_id && limit.goal_ids.includes(situation.goal_id))) return false;
+  if (limit.objects?.length && !situation?.objects?.some(candidate => limit.objects!.some(target =>
+    target.plugin_id === candidate.plugin_id && target.kind === candidate.kind && target.id === candidate.id))) return false;
   return true;
 }
 

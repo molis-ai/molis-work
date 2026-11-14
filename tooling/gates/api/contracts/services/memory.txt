@@ -31,7 +31,7 @@ export declare const MEMORY_WRITE_PERMISSION = "memory:write";
 export interface MemoryApplies {
     plugin_ids?: string[];
     object_kinds?: string[];
-    goal_ids?: string[];
+    objects?: MemoryAssociatedObject[];
     task?: string;
     from?: string;
     until?: string;
@@ -44,6 +44,12 @@ export type MemoryApproval = {
     policy: string;
     version: number;
 };
+
+export interface MemoryAssociatedObject {
+    plugin_id: string;
+    kind: string;
+    id: string;
+}
 
 export type MemoryBasis = "explicit" | "repeated" | "inferred";
 
@@ -215,6 +221,16 @@ export interface MemoryExportPackage {
         classification?: import("services/agent-host-memory").AgentMemoryMeta["classification"];
         session_ref?: import("services/agent-host-memory").AgentMemoryMeta["session_ref"];
         namespace?: string;
+        state?: {
+            disabled?: {
+                reason?: string;
+                at: string | null;
+            };
+            paused?: {
+                reason?: string;
+                at: string | null;
+            };
+        };
     }>;
     redactions: Array<{
         kind: string;
@@ -257,6 +273,7 @@ export type MemoryFormalKind = MemoryKind | "habit" | "project-decision";
 
 export interface MemoryHistoryResponse {
     memory_id: string;
+    pruned_through_version?: number;
     revisions: MemoryRevisionView[];
 }
 
@@ -543,7 +560,7 @@ export interface MemoryRecallRequest {
     situation?: {
         plugin_id?: string;
         object_kind?: string;
-        goal_id?: string;
+        objects?: MemoryAssociatedObject[];
         task?: string;
     };
     scopes?: MemoryScope[];
@@ -640,20 +657,16 @@ export interface MemoryRestoreTarget extends MemoryRestoreIdentity {
 }
 
 export interface MemoryRevision {
-    snapshot?: {
-        origin: string;
-        meta: import("services/agent-host-memory").AgentMemoryMeta;
-    };
     version: number;
-    text: string;
-    kind: MemoryFormalKind;
-    applies: MemoryApplies;
     change: "created" | "edited" | "replaced" | "restored" | "merged";
     by: "person" | "policy" | "maintenance";
     at: string;
 }
 
-export interface MemoryRevisionView extends Omit<MemoryRevision, "snapshot"> {
+export interface MemoryRevisionView extends MemoryRevision {
+    text: string;
+    kind: MemoryFormalKind;
+    applies: MemoryApplies;
     classification: NonNullable<import("services/agent-host-memory").AgentMemoryMeta["classification"]> | null;
     expires_at: string | null;
     snapshot_available: boolean;
@@ -804,7 +817,10 @@ export type MemoryUndoPlan = {
     source: MemorySource;
     basis: MemoryBasis | null;
     applies: MemoryApplies;
-    snapshot?: MemoryRevision["snapshot"];
+    snapshot?: {
+        origin: string;
+        meta: import("services/agent-host-memory").AgentMemoryMeta;
+    };
     source_refs?: readonly {
         event_id: string;
         version: string;

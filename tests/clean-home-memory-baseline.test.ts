@@ -6,7 +6,7 @@ import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { MEMORY_LEDGER_BASELINE, describeSqliteSchema, openMemoryLedger, ensureStorageSpace, readDatabaseSpace } from "@molis-ai/molis-work-storage";
 
-// The ledger moved to version 2 when old Homes were upgraded to the new memory format (#2020); the schema itself is unchanged.
+// The ledger moved to version 2 when memories moved to Prologue's indexed store (#2020); the schema itself is unchanged.
 const current = MEMORY_LEDGER_BASELINE.version, newer = current + 1;
 
 const sql = readFileSync(new URL("./fixtures/home-store-schemas/memory.sql", import.meta.url), "utf8");

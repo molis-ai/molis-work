@@ -213,9 +213,14 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       const parts = classification?.lifecycle === "session" ? [globalThis.t.text("workbench.settings-memory.within-session")] : [];
       if (applies && applies.plugin_ids && applies.plugin_ids.length) parts.push(globalThis.t.text("workbench.settings-memory.plugins-list", { list: applies.plugin_ids.join(globalThis.t.text("common.list.separator")) }));
       if (applies && applies.object_kinds && applies.object_kinds.length) parts.push(globalThis.t.text("workbench.settings-memory.object-list", { list: applies.object_kinds.join(globalThis.t.text("common.list.separator")) }));
-      // Goals by name when their plugin can still read them; one it cannot is said so rather than shown as an id.
-      if (applies && applies.goal_ids && applies.goal_ids.length) parts.push("Goal " + applies.goal_ids.map((id) => {
-        const title = data && data.labels && data.labels.goals ? data.labels.goals[id] : null; return title ? globalThis.t.text("workbench.settings-memory.goal-title", { title }) : globalThis.t.text("workbench.settings-memory.goal-that-can-no-longer-be-read"); }).join(globalThis.t.text("common.list.separator")));
+      // Associated objects: Goals by name when their plugin can still read them; other objects by plugin/kind:id.
+      if (applies && applies.objects && applies.objects.length) {
+        const goals = applies.objects.filter(obj => obj.plugin_id === "io.molis.work.goals" && obj.kind === "goal");
+        const others = applies.objects.filter(obj => !(obj.plugin_id === "io.molis.work.goals" && obj.kind === "goal"));
+        if (goals.length) parts.push("Goal " + goals.map((obj) => {
+          const title = data && data.labels && data.labels.goals ? data.labels.goals[obj.id] : null; return title ? globalThis.t.text("workbench.settings-memory.goal-title", { title }) : globalThis.t.text("workbench.settings-memory.goal-that-can-no-longer-be-read"); }).join(globalThis.t.text("common.list.separator")));
+        if (others.length) parts.push(globalThis.t.text("workbench.settings-memory.object-list", { list: others.map(obj => obj.plugin_id + "/" + obj.kind + ":" + obj.id).join(globalThis.t.text("common.list.separator")) }));
+      }
       if (applies && applies.task) parts.push(applies.task);
       if (applies && applies.until) parts.push(globalThis.t.text("workbench.settings-memory.until-date", { date: applies.until.slice(0, 10) }));
       return parts.length ? parts.join(" · ") : globalThis.t.text(itemScope === "character" ? "workbench.settings-memory.work-character-does-project" : scope === "project" ? "workbench.settings-memory.all-work-project" : "workbench.settings-memory.all-work");

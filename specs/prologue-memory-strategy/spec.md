@@ -2,6 +2,8 @@
 
 状态：2026-11-14，Memory P0 经 [#2020](https://github.com/molis-ai/molis-work/pull/2020) 合入 main [`f972bc9e1`](https://github.com/molis-ai/molis-work/commit/f972bc9e1ea903dd929eb017a02a03675a3325b2)，采用上游 Prologue `770a2e27`（#113）。[Verify](https://github.com/molis-ai/molis-work/actions/runs/43467525137)、[Linux 全量 32/32](https://github.com/molis-ai/molis-work/actions/runs/43467505571) 与 [队列 Verify](https://github.com/molis-ai/molis-work/actions/runs/43476365580) 均通过。BL-1072、BL-1073 保留未达标结果；BL-1076 按用户决定视作通过，完整本人走查留后续。
 
+补充状态（2026-11-14，第 31 批 Memory P1）：按用户 2026-11-14 决定冻结 P1 短合同并在第 31 批落地 MEM-10、MEM-11、MEM-19（连同 MEM-22、23、34、40 的 P1 部分、决定 42 的通用关联对象引用 `objects`，以及上游 `molis-prologue#121` 的空 `resident` 零读取零授权回执），换入 Prologue `4a4d1d3c8cc5840f4abe522e748abaee588db7de`（基于公开 main `4493a5eb`）：① SDK 历史每条记忆默认保留最近 20 版（`config.memory.maxRevisionsPerEntry` 可配），盖住后续记忆整理（Dreaming）自动改动的可撤销期，被裁掉的版本（`version <= prunedThroughVersion`）明确以 `MEMORY_REVISION_PRUNED`（Molis 映射为 `memory.conflict`）拒绝恢复；② 记忆正文与历史正本快照只由 Prologue SDK 的单条密文记录唯一持有（`MEMORY_ROW_SHAPE = 9`），Molis `memory_revisions` 账本在阶段一保持基线版本 `2`（既有 `1 -> 2` 升级已清空旧版本行），写读两端只保留无正文变更事件元数据 `{ version, change, by, at }`；③ 导出包保持 Molis 信封（阶段一 `MEMORY_PACKAGE_VERSION = 1`），内嵌 SDK Export v2（`MEMORY_EXPORT_VERSION = 2`）完整元数据与 `state`（`disabled`/`paused`），适用条件由 `goal_ids` 切为通用对象引用 `objects: { plugin_id, kind, id }[]`，未知版本或旧 `goal_ids` 形状整包拒绝。
+
 补充状态（2026-11-14）：用户要求对照 Anthropic《The components of agent memory》补记忆整理（Dreaming）、按需原文、召回语境与常驻层的方案并并入后续批次，写在 §15（P2-02～P2-06，MEM-64～76，未实施）；批次落点为拟定，改变决定 36 等处待用户确认（§15.9）。本次只改文档。
 
 补充状态（2026-11-13）：用户同意补清 P2 的判断质量范围，并将「模型判断长期价值与不同表达的关系」归为 P2 的第一个具体改进方案（P2-01，见 §14）；阶段关系及后续范围见 §9.1.1–§9.1.2，进一步的质量审查见 §14.9。本次仅修改文档，未实施、未验证新行为，也未授权代码修改、真实模型评测或真实 Home 数据操作。这项 P2 文档补充不改变 P0 的验收结论。

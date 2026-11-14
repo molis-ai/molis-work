@@ -97,6 +97,33 @@ test("export has a version and no secrets or absolute paths; importing twice add
   // A package carrying a secret: that entry is refused, the rest still go in.
   const withSecret = { ...pack, entries: [{ text: "API key 是 sk-proj-abcdefghijklmnopqrstu12345", kind: "fact" as const, source: "manual" as const, basis: "explicit" as const, applies: {}, origin: "x", expires_at: null, classification: pack.entries[0]!.classification }] };
   assert.deepEqual(await memory.importScope(person(), "project", withSecret), { written: 0, skipped: 0, refused: 1 });
+
+  // MEM-11: disabled/paused state and generic applies.objects round-trip on export/import; legacy goal_ids is rejected whole.
+  const withObject = (await memory.write(person(), {
+    scope: "personal",
+    text: "文档评审先看结构",
+    kind: "convention",
+    applies: { objects: [{ plugin_id: "io.molis.work.pages", kind: "doc", id: "doc-42" }] },
+  })).memory!;
+  await memory.change(person(), { action: "disable", memory_id: withObject.memory_id, expected_version: withObject.version });
+  const exportedWithState = await memory.exportScope(person(), "personal");
+  const exportedDisabled = exportedWithState.entries.find(item => item.text === "文档评审先看结构")!;
+  assert.deepEqual(exportedDisabled.applies.objects, [{ plugin_id: "io.molis.work.pages", kind: "doc", id: "doc-42" }]);
+  assert.equal(exportedDisabled.state?.disabled?.reason, "你停用了");
+  await assert.rejects(
+    memory.importScope(person(), "project", {
+      ...exportedWithState,
+      entries: [{ ...exportedDisabled, text: "旧字段不兼容", applies: { goal_ids: ["g1"] } }],
+    }),
+    /第 1 条的适用情境损坏/,
+  );
+  assert.deepEqual(
+    await memory.importScope(person(), "project", { ...exportedWithState, entries: [exportedDisabled] }),
+    { written: 1, skipped: 0, refused: 0 },
+  );
+  const importedDisabled = (await memory.list(person(), { scope: "project" })).items.find(item => item.text === "文档评审先看结构")!;
+  assert.equal(importedDisabled.state, "disabled");
+  assert.deepEqual(importedDisabled.applies.objects, [{ plugin_id: "io.molis.work.pages", kind: "doc", id: "doc-42" }]);
 });
 
 test("upkeep switches off expired and long-unused automatic memories, merges automatic duplicates, hands the person's own to them, and every step is undoable", { timeout: 60_000 }, async t => {

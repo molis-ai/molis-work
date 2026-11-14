@@ -945,6 +945,7 @@ export interface UiPageWorkspaces {
         workspace_id: string;
     }>;
     setOutput(workspaceId: string): Promise<void>;
+    readInstructions(): Promise<void>;
 }
 
 export interface UiPluginClientHost<Element = unknown, Dialog = Element, Media = Element> extends UiPageFiles<Media>, UiPageDialogs, UiPageActions {

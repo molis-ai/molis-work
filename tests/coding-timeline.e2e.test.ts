@@ -40,9 +40,9 @@ test("时间线在等审查时只让要审批的操作显示“等你批准”�
     assert.deepEqual(result.running.rows, ["进行中", "进行中"]);
     assert.match(result.running.summary, /^正在/);
     assert.match(result.done.summary, /运行 1 条命令/);
-    assert.deepEqual(result.done.rows, ["exit 0", ""], "退出码只来自命令回执，其他操作不虚标");
-    assert.match(result.done.footer, /这一轮完成/);
-    assert.match(result.done.footer, /最后一条 ls -la → exit 0/);
+    assert.deepEqual(result.done.rows, ["成功", ""], "退出码只来自命令回执，其他操作不虚标");
+    assert.match(result.done.footer, /本轮结束/, "CHO §11 恢复：本轮收尾写「本轮结束」，不写「完成」");
+    assert.match(result.done.footer, /最后一条 ls -la → 成功/);
     assert.doesNotMatch(result.stopped.footer, /已停止.*已停止/, "只复述标题的停止原因不再重复一遍");
     assert.match(result.failed.footer, /模型请求超时/, "真正的失败原因保留");
     const thinking = await page.evaluate<{ live: string; done: string; rows: string[]; preview: string; body: string }>(`(()=>{
@@ -112,7 +112,7 @@ test("时间线在等审查时只让要审批的操作显示“等你批准”�
     assert.match(resume.interrupted, /^核对并继续\|/, "中断的轮次先核对再继续");
     assert.match(resume.done, /^none/, "完成的轮次没有继续按钮");
     assert.match(resume.stalled, /^让它继续\|这一轮只说了下一步就结束了\|模型说了要做什么，但没有调用任何工具就结束了/, "只宣布下一步就结束的一轮不算完成，由你一键让它继续");
-    assert.match(resume.answered, /^none\|这一轮完成/, "直接作答的讨论不被误判");
+    assert.match(resume.answered, /^none\|本轮结束/, "直接作答的讨论不被误判");
     assert.match(resume.thoughtOnly, /^让它继续\|这一轮只说了下一步就结束了/, "只思考了一下、没有调用任何工具的一轮同样算没做事");
     // A restart leaves an interrupted round without an end time: its duration stops at the last recorded moment, so
     // redrawing the card later changes nothing and the 核对并继续 button under the pointer is not replaced.
@@ -206,8 +206,8 @@ test("时间线在等审查时只让要审批的操作显示“等你批准”�
         footer:text(block.querySelector('.coding-run-footer')),failed:text(failed),quiet:text(live),han};
     })()`);
     assert.equal(english.summary, "Commands run: 1 · Files read: 1 · Files edited: 1 · Thought · 1 did not succeed");
-    assert.deepEqual(english.rows, ["exit 1", "", "", ""]);
-    assert.match(english.footer, /^This turn is done\s*Turn 2 Took 1m \d+s · Files edited: 1 · Commands run: 1 · Last: npm test → exit 1/);
+    assert.deepEqual(english.rows, ["Exited 1", "", "", ""]);
+    assert.match(english.footer, /^This turn ended\s*Turn 2 Took 1m \d+s · Files edited: 1 · Commands run: 1 · Last: npm test → Exited 1/);
     assert.match(english.footer, /View changes\s*Commit these changes…\s*Run report/);
     assert.match(english.failed, /This turn did not finish.*Can’t reach the model service: Check the network or proxy, then continue from where it stopped\.\s*MODEL_NETWORK_FAILED/);
     assert.match(english.quiet, /^Working\s*\d+m \d+s\s*The model has had no new output for 3\d seconds/);
@@ -267,4 +267,34 @@ test("VUX-43 a live round's time keeps one format per range and one box across 9
       assert.ok(rows.every((row) => row.text_width <= Number(row.box) + 0.5), `${name}: every value shows whole`);
     }
   } finally { await browser.close(); rmSync(directory, { recursive: true, force: true }); }
+});
+
+test("BL-222：没有退出码的命令不显示成功，只按回执写结局", { timeout: 30000 }, async t => {
+  const directory = mkdtempSync(join(tmpdir(), "coding-timeline-ends-"));
+  const browser = await openStudioChrome(directory);
+  if (!browser) { rmSync(directory, { recursive: true, force: true }); t.skip("没有可用的 Chrome"); return; }
+  try {
+    const page = await browser.page();
+    await page.evaluate(`(()=>{${pageTextScript("zh", "coding")}})()`);
+    await mountCodingTranscript(page);
+    const ends = await page.evaluate<Array<{ label: string; tone: string; footer: string }>>(`(()=>{
+      const timeline=globalThis.codingTranscript.timeline;
+      const outputs=['exit 0\\nok','exit 2','exit cancelled','exit timed-out','exit none (a signal ended it)','',undefined,'some text'];
+      return outputs.map((output,index)=>{
+        const block=document.createElement('section'),detail=document.createElement('details');detail.dataset.codingActivity='e'+index+':0';block.append(detail);document.body.append(block);
+        const run={ref:{run_id:'e'+index},phase:'completed',started_at:new Date(Date.now()-5000).toISOString(),ended_at:new Date().toISOString(),
+          activity:[{call_id:'c'+index,name:'run-command',target:'npm test',state:'completed',output}]};
+        timeline.renderGroup(detail,run.activity,run,true);timeline.renderFooter(block,run,0);
+        const state=detail.querySelector('.coding-tool-state');
+        return {label:state.textContent.trim(),tone:state.closest('[data-tone]')?.dataset.tone ?? '',footer:block.querySelector('.coding-run-footer').textContent.replace(/\\s+/g,' ').trim()};
+      });
+    })()`);
+    assert.deepEqual(ends.map(end => end.label), ["成功", "退出 2", "已取消", "超时", "被系统结束", "结果未知", "结果未知", "结果未知"],
+      "BL-222：取消、超时、被信号结束、没有输出或认不出的结局都不写成成功");
+    assert.ok(ends.slice(2).every(end => end.tone !== "ok"), "BL-222：这些行不按成功画");
+    assert.match(ends[5]!.footer, /最后一条 npm test → 结果未知/, "BL-222：本轮收尾的最后一条也写结果未知，不写 exit ?");
+  } finally {
+    await browser.close();
+    rmSync(directory, { recursive: true, force: true });
+  }
 });

@@ -64,9 +64,12 @@ test("OCL-03 OCL-08 EC-06: a failed step and its retry are two records of one ru
     assert.ok(step.install_id, "reported as the installation");
     assert.deepEqual(step.conditions.plugin, { id: WORKFLOWS_PLUGIN_ID, version: workflowsManifest.version });
     assert.deepEqual([step.detail.action, step.detail.action_provider, step.detail.actor], [`${STEP.capability_id}@1`, "platform", "function"]);
-    assert.ok(step.work.call_id && continues.some(record => record.work.call_id === step.work.call_id), "in the call of the person's continue");
-    assert.ok(all.some(record => record.fact === "action.call" && record.detail.action === `${STEP.capability_id}@1` && record.work.call_id === step.work.call_id),
-      "the action the station ran is the exit's record in the same call");
+    const continueCall = continues.find(record => record.work.call_id === step.work.call_id);
+    assert.ok(continueCall?.work.invocation_id, "in the call of the person's continue");
+    const stationCall = all.find(record => record.fact === "action.call" && record.detail.action === `${STEP.capability_id}@1` && record.work.call_id === step.work.call_id);
+    assert.ok(stationCall, "the action the station ran is the exit's record in the same call");
+    // OCL-03: a nested call names the call that made it, so the station's call is a child of the continue that dispatched it.
+    assert.equal(stationCall.work.parent_invocation_id, continueCall.work.invocation_id, "the station call names the continue call that made it");
   }
   assert.notEqual(steps[0]!.work.call_id, steps[1]!.work.call_id);
   assert.equal(steps[0]!.detail.error, "工单系统超时");

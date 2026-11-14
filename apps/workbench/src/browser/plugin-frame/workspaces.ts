@@ -12,7 +12,7 @@ export function childWorkspaces(port: MessagePort, scope: FrameScope): UiPageWor
     const entry = pending.get(message.id); pending.delete(message.id);
     if (message.error) entry?.reject(Object.assign(new Error(message.error), { status: message.status })); else entry?.resolve(message.workspace);
   });
-  const call = (operation: "add" | "set_output", value: string) => new Promise<{ workspace_id: string } | undefined>((resolve, reject) => {
+  const call = (operation: "add" | "set_output" | "read_instructions", value: string) => new Promise<{ workspace_id: string } | undefined>((resolve, reject) => {
     if (!scope.alive) { reject(new Error("View closed")); return; }
     const id = ++sequence; pending.set(id, { resolve, reject });
     port.postMessage({ type: "workspace", id, operation, value } satisfies FrameUp);
@@ -20,6 +20,7 @@ export function childWorkspaces(port: MessagePort, scope: FrameScope): UiPageWor
   return {
     add: async path => { const workspace = await call("add", path); if (!workspace) throw new Error("Workspace unavailable"); return workspace; },
     setOutput: async workspaceId => { await call("set_output", workspaceId); },
+    readInstructions: async () => { await call("read_instructions", "on"); },
   };
 }
 
@@ -50,7 +51,7 @@ export function pageWorkspaces(port: MessagePort, scope: FrameScope, pageId: str
     const visible = new AbortController();
     let stop = () => {};
     try {
-      if (!["add", "set_output"].includes(message.operation) || typeof message.value !== "string" || !message.value.trim() || message.value.length > 4096)
+      if (!["add", "set_output", "read_instructions"].includes(message.operation) || typeof message.value !== "string" || !message.value.trim() || message.value.length > 4096)
         throw new Error(uiText.text("common.workspaces.workspace-operation-failed"));
       scope.assertCurrent();
       if (adding || !scope.visible || !navigator.userActivation.isActive) throw new Error(uiText.text("common.workspaces.click-drag-file-again"));
@@ -63,6 +64,11 @@ export function pageWorkspaces(port: MessagePort, scope: FrameScope, pageId: str
         if (!folder) throw new Error(uiText.text("common.workspaces.folder-no-longer-one-project-s-folders"));
         if (folder.roles.includes("output")) { port.postMessage({ type: "workspace-result", id: message.id, workspace: { workspace_id: folder.workspace_id } } satisfies FrameDown); return; }
         if (!await dialogs.confirm(outputQuestion(readText, { plugin, project, folder }, read.directories.find(item => item.roles.includes("output"))))) throw new Error(uiText.text("common.workspaces.cancelled"));
+      } else if (message.operation === "read_instructions") {
+        if (message.value !== "on") throw new Error(uiText.text("common.workspaces.workspace-operation-failed"));
+        const read = await molisWorkRequest<{ directories: DirectoryRow[] }>(route("/api/project-settings/directories"), { method: "GET", scope, fallback: uiText.text("common.workspaces.couldn-t-read-project-s-folders") });
+        const output = read.directories.find(item => item.roles.includes("output"));
+        if (!output || !await dialogs.confirm(uiText.text("common.workspaces.allow-plugin-read-instructions", { plugin, project, folder: output.display_name }))) throw new Error(uiText.text("common.workspaces.cancelled"));
       } else if (!await dialogs.confirm(uiText.text("common.workspaces.allow-plugin-link-folder-project-project-path", { plugin, project, path: message.value }))) throw new Error(uiText.text("common.workspaces.cancelled"));
       scope.assertCurrent(); if (!scope.visible) throw new Error(uiText.text("common.workspaces.cancelled"));
       const result = await molisWorkRequest<{ workspace?: { workspace_id: string } }>(route("/api/host/plugin-page-workspaces"), {

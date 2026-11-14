@@ -66,6 +66,12 @@ export const COMPOSER_STYLES = `${COMPOSER_PATTERN_STYLES}
   .mw-composer__query { padding: 4px 4px 6px; }
   .mw-composer__query > .mw-input { width: 100%; }
   .mw-composer__line { margin: 0; padding: 6px 10px; color: var(--muted); font-size: 12px; line-height: 18px; }
+  /* The page's line above the box (\`notice\`): what holds for the next send. Read-only takes the box's outline too, focused or not; a failure's outline comes first. */
+  .mw-composer__notice { display: flex; align-items: center; gap: 8px; margin: 0 2px 6px; color: var(--muted); font-size: 12px; line-height: 18px; animation: craft-rise var(--dur-move, 250ms) var(--ease-quint); }
+  .mw-composer__notice > svg { flex: none; width: 14px; height: 14px; }
+  .mw-composer__notice-text { flex: 1; min-width: 0; }
+  .mw-composer__notice > .mw-btn { flex: none; }
+  .mw-composer[data-notice="readonly"]:not([data-state="failed"]) .mw-composer__box, .mw-composer[data-notice="readonly"]:not([data-state="failed"]) .mw-composer__box:focus-within { box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 22%, var(--line)), var(--lift-1); }
   .mw-composer[data-state="failed"] .mw-composer__box { box-shadow: 0 0 0 1px color-mix(in srgb, var(--red) 45%, transparent), var(--lift-1); }
   .mw-composer[data-state="disabled"] .mw-composer__box { background: var(--wash); box-shadow: 0 0 0 1px var(--line); }
   .mw-composer[data-state="disabled"] .mw-composer__input:not(#mw-composer) { color: var(--muted); cursor: not-allowed; }
@@ -78,13 +84,16 @@ export const COMPOSER_STYLES = `${COMPOSER_PATTERN_STYLES}
     .mw-composer__more { display: block; }
     .mw-composer__controls { position: absolute; bottom: calc(100% + 6px); left: 0; z-index: 5; display: none; flex-wrap: wrap; max-width: 100%; padding: 6px; border-radius: var(--r-card, 12px); background: var(--popover, var(--paper)); box-shadow: var(--lift-3); animation: craft-rise-from-bar var(--dur-move, 250ms) var(--ease-quint); }
     .mw-composer__more:has(> [aria-expanded="true"]) + .mw-composer__controls { display: flex; }
+    .mw-composer__notice { flex-wrap: wrap; }
+    .mw-composer__notice-text { flex-basis: calc(100% - 22px); }
+    .mw-composer__notice > .mw-btn { margin-inline-start: 22px; }
   }
-  @media (prefers-reduced-motion: reduce) { .mw-composer__box { transition: none; } .mw-composer__controls { animation: none; } }
+  @media (prefers-reduced-motion: reduce) { .mw-composer__box { transition: none; } .mw-composer__controls, .mw-composer__notice { animation: none; } }
   @media (max-width: 600px), (pointer: coarse) {
     .mw-composer__text > .mw-composer__input:not(#mw-composer) { font-size: 16px; line-height: 22px; }
     .mw-composer__foot .mw-btn--sm, .mw-composer__foot .mw-btn--icon { min-height: 44px; }
     .mw-composer__foot .mw-btn--icon-only { width: 44px; min-width: 44px; }
-    .mw-composer__status .mw-btn--link, .mw-composer__restore .mw-btn--link { min-height: 44px; min-width: 44px; }
+    .mw-composer__status .mw-btn--link, .mw-composer__restore .mw-btn--link, .mw-composer__notice > .mw-btn { min-height: 44px; min-width: 44px; }
     .mw-composer__to { gap: 12px; }
     .mw-composer__to .mw-tag:has([data-composer-receiver]) { height: 44px; padding: 0; gap: 0; }
     .mw-composer__to [data-composer-receiver] { min-height: 44px; min-width: 44px; padding-inline: 8px; }

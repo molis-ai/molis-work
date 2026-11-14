@@ -1,0 +1,7 @@
+# BL-observation-b28-audit-followups
+
+分组：7. 平台与架构
+
+| 编号 | 事项 | 来源 | 类型 | 为什么还没做 | 依赖 | 优先级 | 负责人 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| BL-observation-b28-audit-followups | 第 28 批合后复核新发现的留批项：⑦ 外壳定位阶段缺「加载」与「返回」，真实页面脚本的定位链路和 EC-13 的浏览器用例没跑（`apps/workbench/src/scripts/client/global-search.ts` 的 `locate`；`tests/observation-shell-stages.test.ts` 只验记录器 API；OCL-07、EC-13）；⑧ 「首次读取现有项目」没有入口，断线期间覆盖写「暂不可用」、重连条目带原发生时间也没有用例，EC-03/EC-04 只到连接器首读与 Onboarding 导入（OCL-02）；⑨ 决定 42 提到的 44-2 项目指导修订、39-2 可信决定记录、32-2 要求—证据—认可事件三个平台主人尚未建，采集层只预留了通用主人引用，随各自批次接入；⑩ `OBSERVATION_SERVICE_PREFIXES` 里的 `search`、`knowledge`、`memory`、`onboarding` 还没有 sink 与事实，不确定是否留给后续服务，未删；⑪ 没有运行层时（命令行卸载）`recordGrantChanges` 不写授权撤销记录，只删授权行（`apps/local-host/src/observation-grants.ts`、`plugin-directory-service.ts`）；⑫ Agent 的 `agent.tool`、`agent.guard`、`agent.waiting`、`agent.memory`、`agent.compaction`、`agent.prompt`、换模型与文件变化只有代码，没有逐事件用例；`agent.usage` 在换模型后仍写开轮模型（靠 `detail.model_call_id` 与 `agent.model_request` 对上），逐事件用例与用量口径一起在 29 的读取/评测面核（OCL-05、OCL-06、EC-09） | 第 28 批合后复核（2026-11-14，用户点名）；逐条证据见 `specs/post-anticorruption-roadmap/reference/batches/28.md#batch-28-audit-2026-11-14` | 已知缺口 | ⑦ 改它要动客户端脚本与页面资源（新增或增长先问用户），「返回」的语义还要产品确认；⑧ 没有这个入口，不能凭空造类别；⑨ 三个平台主人由 44-2、39-2、32-2 建；⑩ 删公开合同里的前缀要先确认没有后续服务在等，列候选不删；⑪ 要改文件层写入（命令行没有运行层），本轮不滚大；⑫ 逐事件用例要驱动真 Prologue 的等待/记忆/压缩，29 的读取面一起做更省 | 29 批读取面；44-2、39-2、32-2；30 批评测 | 低 | ⑦⑧⑫：第 29 批主会话（待分配）；⑨：44-2／39-2／32-2 各自主会话；⑩：平台服务维护人；⑪：宿主与插件生命周期维护人 |

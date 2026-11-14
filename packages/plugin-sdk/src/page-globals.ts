@@ -140,7 +140,7 @@ export interface InteractionClient {
  * and neither commands nor controls see them. ＋ is drawn only when something is behind it: `attachments`, registered sources
  * (`sources`), or `commands`. The words are `labels`, the same object the first screen (`renderComposer`) takes.
  *
- * `receiver`, `delivery`, `pause`, `controls` and `commands` are read again on every draw: a page whose choices change gives them
+ * `receiver`, `delivery`, `pause`, `controls`, `commands` and `notice` are read again on every draw: a page whose choices change gives them
  * as functions or getters and calls `refresh()` once they did, so the bar always shows the page's own state.
  */
 /** Another receiver of the page's that 「发给」 lists (another session), by its own id. */
@@ -202,6 +202,8 @@ export interface ComposerCommonOptions {
   voice?: string;
   /** The page's own required check: what is missing, or null. */
   required?: () => string | null;
+  /** A line above the box saying what holds for the next send (a read-only mode, say), with at most one way out; null draws none. Never stops a send: that is `required`. */
+  notice?: () => ComposerNotice | null;
   /** `signal` aborts when the instance is mounted again or let go; late outcomes settle only the original draft and sent selections. */
   submit(input: ComposerSubmission, signal: AbortSignal): Promise<ComposerOutcome>;
 }
@@ -238,6 +240,12 @@ export interface ComposerCommand { slash: string; label: string; hint?: string; 
 /** One thing `@` names (`mentions`): its name, a line saying where it is, and the text put in place of the `@words`. */
 export interface ComposerMention { title: string; hint?: string; insert: string }
 
+/**
+ * One line above the box: what holds for the next send, with at most one way out (specs/coding-harness-optimization/batch12-design.md §2).
+ * `readonly`: the next send changes nothing, and the box's outline takes the read-only colour; `info`: a plain line. The text is the
+ * page's own words; the platform escapes it.
+ */
+export interface ComposerNotice { text: string; tone: "readonly" | "info"; icon?: PluginIconName; action?: { label: string; run(): void } }
 /** Pause as the page has it now (`pause`): the button's name and tooltip, and what pressing it does. */
 export interface ComposerPause { label: string; title: string; busy?: boolean; run(signal: AbortSignal): Promise<void> }
 

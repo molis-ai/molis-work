@@ -1,5 +1,5 @@
 import type { ComposerMaterial } from "@molis-ai/molis-work-contracts/platform/composer";
-import type { ComposerCommand, ComposerControl, ComposerHandle, ComposerOutcome } from "@molis-ai/molis-work-plugin-sdk/page-globals";
+import type { ComposerCommand, ComposerControl, ComposerHandle, ComposerNotice, ComposerOutcome } from "@molis-ai/molis-work-plugin-sdk/page-globals";
 import type { BridgedCommand, BridgedControl, ComposerCalls, ComposerDown, ComposerSnapshot, ComposerUp } from "./composer-bridge.js";
 import type { FrameScope } from "./types.js";
 
@@ -11,6 +11,10 @@ function control(item: ComposerControl): BridgedControl {
   return { kind: "button", id: item.id, label: item.label, ...(item.title ? { title: item.title } : {}), ...(item.disabled ? { disabled: true } : {}) };
 }
 
+/** The line above the box as it crosses: words and tone, its button's label only (its press comes back as `composer-act` `notice`). */
+function bridgedNotice(notice: ComposerNotice | null): ComposerSnapshot["notice"] {
+  return notice ? { text: notice.text, tone: notice.tone, ...(notice.icon ? { icon: notice.icon } : {}), action: notice.action ? { label: notice.action.label } : null } : null;
+}
 function command(item: ComposerCommand): BridgedCommand {
   return { slash: item.slash, label: item.label, ...(item.hint ? { hint: item.hint } : {}), ...(item.keywords ? { keywords: [...item.keywords] } : {}),
     ...(item.icon ? { icon: item.icon } : {}), ...(item.add === false ? { add: false as const } : {}) };
@@ -91,7 +95,7 @@ export function childComposer(port: MessagePort, scope: FrameScope, bar: boolean
         stop: Boolean(ai.stop), controls: (ai.controls ?? []).map(control), commands: (ai.commands ?? []).map(command),
         mentions: Boolean(ai.mentions), attachments: ai.attachments ? { ...(ai.attachments.accept ? { accept: ai.attachments.accept } : {}) } : null,
         sources: ai.sources ?? true, near: ai.near?.() ?? null, ...(ai.voice ? { voice: ai.voice } : {}), required: ai.required?.() ?? null,
-        submitKeys: ai.submitKeys !== false, draft: Boolean(ai.draft), column: column(), running, hold,
+        notice: bridgedNotice(ai.notice?.() ?? null), submitKeys: ai.submitKeys !== false, draft: Boolean(ai.draft), column: column(), running, hold,
       };
     };
     // Every call of the handle may change what the bar shows: sent once per turn of the page's script, and only when it changed.
@@ -162,6 +166,7 @@ export function childComposer(port: MessagePort, scope: FrameScope, bar: boolean
       if (message.type === "composer-abort") { calls.get(message.call)?.abort(); calls.delete(message.call); return; }
       if (message.type === "composer-act") {
         if (message.act === "command") ai.commands?.find(item => item.slash === message.key)?.run();
+        else if (message.act === "notice") ai.notice?.()?.action?.run();
         else if (message.act === "receiver") {
           // Only one the page itself listed.
           const named = ai.receiver?.();

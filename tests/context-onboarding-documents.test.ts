@@ -96,3 +96,15 @@ for (const c of [{ name: "a short message", message: "No password given" }, { na
 for (const c of UNREADABLE) test(`RAC-2149 a file the Host could not hold keeps the reason of its code, not a cut of the message: ${c.code}`, async () => {
   assert.equal((await issueOf(Object.assign(new Error("x".repeat(700)), { code: c.code }))).reason, c.reason);
 });
+
+test("ONB-37 source code, config and files with no suffix are read for their text; a file that turns out binary says so and stops nothing", async t => {
+  const home = await mkdtemp(join(tmpdir(), "molis-context-code-")), id = randomUUID(); t.after(() => rm(home, { recursive: true, force: true }));
+  const files = [{ path: "src/main.ts", bytes: Buffer.from("export const answer = 42;\n") }, { path: "README", bytes: Buffer.from("# Demo\nRun it with make.\n") },
+    { path: "Cargo.toml", bytes: Buffer.from("[package]\nname = \"demo\"\n") }, { path: "data.weird", bytes: Buffer.from([0x00, 0x01, 0x02, 0xff, 0x10]) }];
+  const read = [];
+  for (const file of files) read.push(await prepareContextDocument(home, id, "custom", file));
+  const references = read.flatMap(r => "reference" in r ? [r.reference] : []), issues = read.flatMap(r => "issue" in r ? [r.issue] : []);
+  assert.deepEqual(references.map(r => r.path), ["src/main.ts", "README", "Cargo.toml"], "ONB-37: read by what they hold, not by a list of suffixes");
+  assert.deepEqual(issues.map(i => i.path), ["data.weird"]);
+  assert.match(issues[0]!.reason, /编码|二进制/, "ONB-38: a file that is not text says why, and is not counted as read");
+});

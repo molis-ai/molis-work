@@ -6,6 +6,8 @@ import test from "node:test";
 import { assertManifest, inspectActionDeclarations, parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { todoManifest } from "@molis-ai/molis-work-plugin-todo";
 import type { ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ONBOARDING_CODE_ROOT_TAKE_INPUT_SCHEMA, ONBOARDING_TAKE_RESULT_SCHEMA } from "@molis-ai/molis-work-contracts/platform/plugin-onboarding";
+import { codingManifest } from "@molis-ai/molis-work-plugin-coding";
 
 test("scene result labels belong to a finite recommendation contract", () => {
   const scene: ActionSceneDefinition = { scene_id: "example.review", version: 1, title: "Review", description: "Review the original note", trigger: "Note submitted",
@@ -292,4 +294,21 @@ test("D0041: demo_seed refuses missing, query, wrong audience and nonempty input
     assert.throws(() => parsePluginManifest({ ...base, actions: [action], demo_seed: declaration }), /demo_seed/);
   }
   assert.deepEqual(parsePluginManifest({ ...base, actions: [command], demo_seed: declaration }).demo_seed, declaration);
+});
+
+test("BCD-15: onboarding takes refuse a missing, query, Home-scoped, shared or reshaped action, and a second take of a kind", () => {
+  const base = currentManifest();
+  const command = { capability_id: "sample.onboarding.take", version: 1, operation: "command", action: { kind: "operation", scope: "project", subject_kinds: ["project"], title: "Take", description: "Sample", audiences: ["user"], permissions: [], input_schema: ONBOARDING_CODE_ROOT_TAKE_INPUT_SCHEMA, output_schema: ONBOARDING_TAKE_RESULT_SCHEMA } };
+  const declaration = { takes: [{ kind: "code_root", capability_id: command.capability_id, version: 1 }] };
+  assert.throws(() => parsePluginManifest({ ...base, onboarding: declaration }), /onboarding/);
+  for (const action of [{ ...command, action: { ...command.action, scope: "home" } }, { ...command, operation: "query" },
+    { ...command, action: { ...command.action, audiences: ["user", "agent"] } }, { ...command, action: { ...command.action, audiences: ["workflow"] } },
+    { ...command, action: { ...command.action, input_schema: { type: "object", properties: {}, additionalProperties: false } } },
+    { ...command, action: { ...command.action, output_schema: { type: "object", properties: {}, additionalProperties: false } } }])
+    assert.throws(() => parsePluginManifest({ ...base, actions: [action], onboarding: declaration }), /onboarding/);
+  for (const bad of [{}, { takes: [] }, { takes: [{ ...declaration.takes[0], kind: "folder" }] }, { takes: [declaration.takes[0], declaration.takes[0]] }, { ...declaration, extra: true }])
+    assert.throws(() => parsePluginManifest({ ...base, actions: [command], onboarding: bad }), /onboarding/);
+  assert.deepEqual(parsePluginManifest({ ...base, actions: [command], onboarding: declaration }).onboarding, declaration);
+  // Coding is the first plugin to declare one, and its Manifest passes the same check.
+  assert.deepEqual(parsePluginManifest(codingManifest).onboarding?.takes.map(take => take.kind), ["code_root"]);
 });

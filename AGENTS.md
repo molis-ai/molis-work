@@ -15,6 +15,7 @@ Molis Work：本地优先的插件基座加多插件工作平台。平台是一�
 | 写或改插件 | `skills/molis-plugin-dev/SKILL.md` |
 | 调模型、跑 Agent、提示词、模型设置 | `skills/molis-prologue-ai/SKILL.md`（手册 `docs/platform/PROLOGUE-AI.md`） |
 | 界面、文字与外观 | `DESIGN.md`、`specs/craft-finish/spec.md`、组件板 `/__ui/catalog`、`skills/molis-plugin-dev/text-and-appearance.md` |
+| 本机登录看真实界面（dev 模式起 Auth 与 Molis Work、测试账号） | `docs/cli-and-development.md`「本机登录测试」 |
 | 仓库里放什么 | `docs/system/REPOSITORY-HYGIENE.md` |
 | 开一项需求、什么要用户拍板、该不该落成平台能力（第 4.1 节） | `specs/post-anticorruption-roadmap/reference/development-workflow.md` |
 | 推进路线书的一批：主会话怎样开工、同步 main、评审、入队、收尾 | `specs/post-anticorruption-roadmap/reference/batch-runbook.md` |

@@ -19,7 +19,11 @@ const sectionOf = (html: string, id: string) => {
 
 test("UIC-04: the board has a composer section with every state on one attribute", () => {
   const composer = sectionOf(board(), "composer");
-  assert.equal(composer.match(/class="mw-composer" data-slot="composer"/g)?.length, 12, "ten states and the two at rest in one row");
+  assert.equal(composer.match(/class="mw-composer" data-slot="composer"/g)?.length, 17, "ten states, the two at rest in one row and the five lines above the box");
+  // BCD-01 BCD-11: the line above the box sits before the box, read-only marks the shell, and the narrow and at-rest boxes carry it too.
+  const notices = composer.match(/data-notice="(readonly|info)"[^]*?<div class="mw-composer__notice"[^>]*data-tone="\1"[^]*?<div class="mw-composer__box">/g) ?? [];
+  assert.equal(notices.length, 5);
+  assert.equal((composer.match(/data-composer-notice/g) ?? []).length, 3, "a way out where the page gives one");
   // At rest in one row (user 11-08): a phone's (a finger's targets) and a short window's, each the empty composer marked at rest.
   for (const mark of ['<div data-catalog-compact="touch">', "<div data-catalog-compact>"]) {
     assert.match(composer.slice(composer.indexOf(mark) + mark.length), /^<div class="mw-composer" data-slot="composer" data-rest[ >]/, mark);

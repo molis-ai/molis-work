@@ -1,4 +1,4 @@
-// SECURITY-INVARIANTS S-17, S-37: the session an Agent round's tool calls carry is the one the Host checked against the Runtime's own record
+// SECURITY-INVARIANTS S-17, S-37, S-project-instructions-trust (the start-request half): the session an Agent round's tool calls carry is the one the Host checked against the Runtime's own record
 // when it started the round, for every plugin; it is never read from the start request or from a tool's input, and it grants nothing.
 // Each refusal asserts the refusal itself and that nothing was written (specs/ai-input-receipts D42, RCPT-391..395).
 import assert from "node:assert/strict";
@@ -17,11 +17,12 @@ import {
   type AgentSessionRef, type AgentSessionView, type AgentStartInput,
 } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
+import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { actionDigest, emptyCapabilityMatrix } from "@molis-ai/molis-work-service-agent-host";
 import { revokeMcpAction } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
 import { serveTestHost, type TestHostServer } from "./fixtures/test-home.js";
-import { setProjectOutputFolder } from "./fixtures/project-directories-http.js";
+import { changeProjectDirectories, setProjectOutputFolder } from "./fixtures/project-directories-http.js";
 
 const RUNTIME = "probe";
 /** The grant's client id: what the Host calls the Runtime. Constant across rounds and sessions; the session is a separate fact. */
@@ -71,13 +72,16 @@ async function world(t: TestContext) {
     }
   });
   const composition = localHost.ensureAgentService(home, () => composeAgentHost({ localHost, homeDirectory: home,
-    workspaceFor: () => ({ workspace_id: "w", canonical_path: home, realpath_verified: true, display_name: "workspace" }) }));
+    workspaceFor: () => ({ workspace_id: "w", canonical_path: home, realpath_verified: true, display_name: "workspace" }),
+    directoriesFor: projectId => withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => catalog.projectDirectories(projectId)) }));
   served = await serveTestHost(null, { home, host: localHost });
   const project = await served.createProject("Round sessions");
   // The directory a round may write in is the project's output, as a person sets it in the project's settings; the Host holds no other.
   await setProjectOutputFolder(served.web, project.project_id, home);
   const handled: Array<{ actor_id: string; runtime_session_id: string | undefined; audit_actor_id: string | undefined }> = [];
   const rounds: Array<{ session_id: string; tools: AgentActionClient }> = [];
+  /** Whether the Host told each round the project's instruction files may be read (`role.instructions_trusted`). */
+  const trusted: Array<true | undefined> = [];
   /** Each round the Runtime started, with the suggestions its model made: what `read` answers for `agent.offers.run`. */
   const held: Array<{ ref: AgentRunRef; frozen: AgentRunHandle["frozen"]; offers: AgentRunOffer[] }> = [];
   // The project's plugins start when its actions are first looked at, as the workbench does when the person opens the project.
@@ -107,6 +111,7 @@ async function world(t: TestContext) {
     async start(given) {
       const role = given.role!;
       rounds.push({ session_id: given.session.session_id, tools: role.actions!.client });
+      trusted.push(role.instructions_trusted);
       const ref = { run_id: `r${rounds.length}`, session_id: given.session.session_id };
       const frozen = { role_id: role.role_id, role_version: role.version, execution: role.execution,
         model_id: "probe", prompts: role.prompts.map(prompt => ({ prompt_id: prompt.prompt_id, version: prompt.version, layer: promptLayerOf(prompt) })), host_tools: [...role.host_tools],
@@ -147,7 +152,7 @@ async function world(t: TestContext) {
   const click = (offered: { run: AgentRunRef; offer_id: string; reference: ExactActionReference }, input: unknown, extra: Record<string, unknown> = {}) =>
     actions.invoke(agentOfferActions.run, { runtime_id: RUNTIME, session_id: offered.run.session_id, run_id: offered.run.run_id, offer_id: offered.offer_id,
       reference: offered.reference, input, ...extra } as AgentOfferRunRequest);
-  return { home, served, project, answer, owner, handled, rounds, reference, start, tools, submit, proposals, last: () => rounds[rounds.length - 1]!.tools, holding, suggest, click };
+  return { home, served, project, answer, owner, handled, rounds, trusted, reference, start, tools, submit, proposals, last: () => rounds[rounds.length - 1]!.tools, holding, suggest, click };
 }
 
 test("S-17 a round's tool calls carry the session the Host verified (RCPT-391)", { timeout: 180_000 }, async t => {
@@ -217,6 +222,24 @@ test("S-ui-locale-memory a plugin's start of a round cannot name a reply languag
   assert.equal(w.rounds.length, 0, "no round was started");
   await w.start("s", w.tools);
   assert.equal(w.rounds.length, 1, "the same start without it goes through, so the refusals were about the field");
+});
+
+test("S-project-instructions-trust BCD-06 a plugin's start of a round cannot say the project is trusted: the schema refuses it and no round starts", { timeout: 180_000 }, async t => {
+  const w = await world(t);
+  for (const [field, value] of [["instructions_trusted", true], ["projectTrusted", true], ["project_trusted", true], ["instructions", { trusted: true, files: [] }],
+    ["directories", { revision: "r", output: { workspace_id: "w", canonical_path: w.home }, inputs: [], instructions_trusted: true }]] as const) {
+    await assert.rejects(w.start("s", w.tools, { [field]: value }), { code: "actions.input_invalid" }, field);
+  }
+  assert.equal(w.rounds.length, 0, "no round was started");
+  await w.start("s", w.tools);
+  assert.equal(w.rounds.length, 1, "the same start without it goes through, so the refusals were about the field");
+  assert.equal(w.trusted.at(-1), true, "trust is the Host's own reading: the person chose this project's output, so its rounds may read the rules");
+  // The person turns reading off in the project's settings: the next round is not trusted, whatever it asks.
+  await changeProjectDirectories(w.served.web, w.project.project_id, "set_instructions", { off: true });
+  await w.start("s", w.tools);
+  assert.equal(w.trusted.at(-1), undefined, "off: the Host no longer trusts the project");
+  await assert.rejects(w.start("s", w.tools, { instructions_trusted: true }), { code: "actions.input_invalid" });
+  assert.equal(w.rounds.length, 2);
 });
 
 test("S-17 a round's session grants nothing (RCPT-394)", { timeout: 180_000 }, async t => {

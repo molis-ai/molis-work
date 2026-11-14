@@ -23,6 +23,7 @@ import { codingAgentManifest } from "./roles.js";
 import { CODING_SETTINGS_UI_CONTRIBUTION_ID, CODING_UI_CONTRIBUTION_ID } from "./ui.js";
 import { CODING_ACTIONS } from "./route-actions.js";
 import { codingExecutorActions } from "./executor-actions.js";
+import { codingOnboardingTake } from "./onboarding-take.js";
 import { codingArtifactPreview } from "./artifact-preview.js";
 import { CODING_ARTIFACT_SCHEMA_VERSIONS } from "./artifacts.js";
 import { codingSync } from './session-replication.js';
@@ -154,7 +155,9 @@ export const codingManifest: PluginManifest = {
   ] },
   // Redeemed by this Runtime instance and bound to the person who owns the sessions; their routes forward to them.
   presentation: codingPresentation,
-  actions: [memoryLearningActions.run, ...CODING_ACTIONS, ...codingPresentationActions, ...Object.values(codingExecutorActions), codingArtifactPreview, codingResultDocument, codingHomeBackgroundTasks],
+  // 可承接上手材料 (batch12-design §7): onboarding hands Coding the person's code folder through this action, never by name.
+  onboarding: { takes: [{ kind: "code_root", capability_id: codingOnboardingTake.capability_id, version: codingOnboardingTake.version }] },
+  actions: [memoryLearningActions.run, ...CODING_ACTIONS, ...codingPresentationActions, ...Object.values(codingExecutorActions), codingOnboardingTake, codingArtifactPreview, codingResultDocument, codingHomeBackgroundTasks],
   routes: [
     { route_id: "coding.evaluate-step", method: "POST", path: "/sessions/:sessionId/runs/:runId/steps/:stepId" },
     { route_id: "coding.writer-directories", method: "GET", path: "/workspaces/:workspaceId/writers" },

@@ -9,7 +9,7 @@
 ## 三条写入路
 
 1. **动作调用出口。** kernel 结算每一次动作调用时，把输入、结果、起止时间、处理器是否已开始、调用层级（`invocation_id`、`parent_invocation_id`）交给 `CallReports.observed`。宿主把它转给 `ObservationLayer.observed`，记成一行 `action.call`。什么情况留什么内容，见[设计 §7](../../specs/observation-collection/contract-design.md)。
-2. **平台服务的 sink。** 宿主装配时给每个服务一个只认它前缀的 `ObservationSink`。服务在一件事开始时（一轮 Agent 运行、一次唤醒、一次检索）`bind(origin)`，之后在回调里随时 `record(fact)`：即使那时动作的异步上下文已经结束，身份也不会丢。
+2. **平台服务的 sink。** 宿主装配时给每个服务一个只认它前缀的 `ObservationSink`。服务在一件事开始时（一轮 Agent 运行、一次唤醒、一次连接器拉取）`bind(origin)`，之后在回调里随时 `record(fact)`：即使那时动作的异步上下文已经结束，身份也不会丢。检索、读取与记忆写入是动作调用，随出口记，不另设 sink。
 3. **上报动作。** 外壳只经宿主签发入口凭据的界面阶段路由上报 `ui.*`；插件在 Manifest `capabilities.consumes` 声明 `observation.report@1`，只能上报以自己 `plugin_id` 开头的事实。每次至多 100 条、1 MiB；每个上报方每天至多 20,000 条、64 MiB。
 
 ## 接入一种新事实

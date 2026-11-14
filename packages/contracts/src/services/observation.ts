@@ -559,7 +559,7 @@ export const observationActions = {
     version: /* @version action.observation.records.query */ 1,
     operation: "query",
     action: { title: "查询工作记录", description: "按工作、对象、时间、版本或增量游标查询工作记录，遵守用途开关与跨项目边界",
-      kind: "operation", scope: "home", effect: "read", audiences: ["user", "agent", "workflow", "plugin", "mcp"], permissions: [], subject_kinds: [],
+      kind: "query", scope: "home", effect: "read", audiences: ["user", "agent", "workflow", "plugin", "mcp"], permissions: [], subject_kinds: [],
       input_schema: inputSchemaFor<ObservationQueryInput>()(closedObjectSchema({
         use: { enum: OBSERVATION_USES },
         project_id: nullableToken,
@@ -600,7 +600,7 @@ export const observationActions = {
     version: /* @version action.observation.evidence.get */ 1,
     operation: "query",
     action: { title: "读取工作记录证据", description: "按记录编号读取证据快照或核对主人版本引用，遵守用途开关与跨项目边界",
-      kind: "operation", scope: "home", effect: "read", audiences: ["user", "agent", "workflow", "plugin", "mcp"], permissions: [], subject_kinds: [],
+      kind: "query", scope: "home", effect: "read", audiences: ["user", "agent", "workflow", "plugin", "mcp"], permissions: [], subject_kinds: [],
       input_schema: inputSchemaFor<ObservationEvidenceGetInput>()(closedObjectSchema({
         record_id: token,
         role: token,
@@ -618,7 +618,7 @@ export const observationActions = {
     version: /* @version action.observation.coverage.get */ 1,
     operation: "query",
     action: { title: "查看记录覆盖与缺口", description: "查看各入口、插件与后台任务的采集覆盖状态、截止时间与缺口，区分无活动与缺记录",
-      kind: "operation", scope: "home", effect: "read", audiences: ["user", "agent", "workflow", "plugin", "mcp"], permissions: [], subject_kinds: [],
+      kind: "query", scope: "home", effect: "read", audiences: ["user", "agent", "workflow", "plugin", "mcp"], permissions: [], subject_kinds: [],
       input_schema: inputSchemaFor<ObservationCoverageGetInput>()(closedObjectSchema({
         use: { enum: OBSERVATION_USES },
         project_id: nullableToken,
@@ -647,7 +647,7 @@ export const observationActions = {
     version: /* @version action.observation.settings.get */ 1,
     operation: "query",
     action: { title: "读取工作记录设置", description: "读取工作记录的暂停状态、用途开关、自动清理期限与容量提醒线",
-      kind: "operation", scope: "home", effect: "read", audiences: ["user"], permissions: [], subject_kinds: [],
+      kind: "query", scope: "home", effect: "read", audiences: ["user"], permissions: [], subject_kinds: [],
       input_schema: inputSchemaFor<Record<string, never>>()(closedObjectSchema({}, [])),
       output_schema: SETTINGS_VIEW_SCHEMA },
   } as ActionDefinition<Record<string, never>, ObservationSettingsView>,
@@ -678,7 +678,7 @@ export const observationActions = {
     version: /* @version action.observation.space.get */ 1,
     operation: "query",
     action: { title: "查看工作记录占用", description: "查看工作记录与证据快照的实际占用、按记录种类与项目的分布及容量提醒状态",
-      kind: "operation", scope: "home", effect: "read", audiences: ["user"], permissions: [], subject_kinds: [],
+      kind: "query", scope: "home", effect: "read", audiences: ["user"], permissions: [], subject_kinds: [],
       input_schema: inputSchemaFor<Record<string, never>>()(closedObjectSchema({}, [])),
       output_schema: closedObjectSchema({
         total_bytes: { type: "integer", minimum: 0 },
@@ -703,7 +703,7 @@ export const observationActions = {
     version: /* @version action.observation.cleanup.preview */ 1,
     operation: "query",
     action: { title: "预览清理工作记录", description: "按时间范围、项目与记录种类预览将清理的条数、空间大小与对报告及评测的影响",
-      kind: "operation", scope: "home", effect: "read", audiences: ["user"], permissions: [], subject_kinds: [],
+      kind: "query", scope: "home", effect: "read", audiences: ["user"], permissions: [], subject_kinds: [],
       input_schema: inputSchemaFor<ObservationCleanupScopeInput>()(CLEANUP_SCOPE_SCHEMA),
       output_schema: closedObjectSchema({
         scope: { type: "object" },

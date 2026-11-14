@@ -42,7 +42,7 @@ Host 注入各 Module 的公开端口，Goals 用 `createGoalsApplication` 在�
 - 关系与规则：`goals.relations.list`、`goals.relations.add`、`goals.relations.deactivate`、`goals.policy.history`、`goals.policy.resolve`、`goals.policy.save`。三项查询可按授权供 MCP 使用；建立/解除关系与保存项目默认规则是受保护的用户操作。模型需使用结构提案。
 - 项目长期说明：`goals.guidance.read`、`goals.guidance.add`、`goals.guidance.update`。读取完整修订与提示词；新增/编辑/停用/恢复保留明确确认、原因、确认摘要、原去重及幂等回执。
 - 工作记录与状态写入：`goals.events.configure`、`goals.events.report`、`goals.progress.record`、`goals.concerns.apply`、`goals.decisions.request`、`goals.decisions.cite`、`goals.agreement.set`、`goals.closure.submit`、`goals.work.resume`。
-- 项目规划：`goals.planning.catalog`（只读列出可用方法与已启用的组合，不含正文）、`goals.planning.read`、`goals.planning.save`、`goals.planning.apply`、`goals.planning.impact`、`goals.planning.graph.check`。方法与组合、版本、事件类型及默认要求沿用原 Planning Engine；保存/采用要求明确确认，每次保存生成新版本，不自动重试。
+- 项目规划：`goals.planning.impact`、`goals.planning.graph.check`。只剩关系图检查与影响分析；规划方法是技能目录里的技能，不归 Goals（第 41 批）。
 - 完整资料（`goals.snapshot.read`、`goals.contract.read` 与下面的 `goals.collection.read` 的看板不带 `title`，S8）：`goals.snapshot.read` 返回项目快照（目标、关系、项目指导与目标树提案），`goals.contract.read` 返回单个目标的约定、上级约定覆盖、关系、生效规则、项目指导与目标树提案。CLI/typed 快照均调用共同动作；网页 Session 交接同时读取授权约定与当前状态，失败不创建交接包。
 - 完整集合：`goals.collection.read` 返回当前/归档/回收站集合、历史、覆盖和输入/规则绑定；整页、Board JSON、fragment 和复用页面资料的消费者等待同一动作，缓存命中仍重新校验权限。
 - 目标正文：`goals.document.read`，组合当前状态、原始说明、混合历史首屏、关系、关注项与继续方式。网页完整页和正文 fragment 与标准 MCP 共同读取，归档/回收站历史保持。
@@ -88,7 +88,7 @@ W3-07 PR-5 删除了余下十个 Goals typed 桥及注册/出口：初始化、�
 
 关系和项目规则的 Web 写入、规则设置页、所选目标正文均消费共同动作；原领域事务、关系方向、规则合并及历史绑定保持不变。三项直接写入要求 user audience、goals:decide、Host 提供的真实用户与 web/management 出处，普通 MCP 无法授予这些权限。原 HTTP commands/query 端口和没有调用者的 Workbench/CLI/MCP GoalsApplicationApi 转发工厂已删除。整页目录的历史组合也通过集合动作读取。
 
-第 41 批（2026-11-14）起 Goals 没有方法库，也没有 Home 那一半：方法目录、读取、保存、个人方法和事件配置里的「采用」都已删除，`planning` 只剩关系图检查（`goals.planning.graph.check`）与影响分析（`goals.planning.impact`）。项目库 2→3 的升级段删掉 `planning_method_packs` 表和 `goal_event_config_versions.adopted_planning_json` 列；原 Home 库 `goals/goals.db` 在升级轮里连目录删除（宿主的 `REMOVED_HOME_STORES`）。
+第 41 批（2026-11-14）起 Goals 没有方法库，也没有 Home 那一半：方法目录、读取、保存、个人方法和事件配置里的「采用」都已删除，`planning` 只剩关系图检查（`goals.planning.graph.check`）与影响分析（`goals.planning.impact`）。项目库 3→4 的升级段删掉 `planning_method_packs` 表和 `goal_event_config_versions.adopted_planning_json` 列；原 Home 库 `goals/goals.db` 在升级轮里连目录删除（宿主的 `REMOVED_HOME_STORES`）。
 
 ## 开发要求
 

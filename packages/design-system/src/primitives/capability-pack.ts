@@ -203,13 +203,20 @@ export function renderUsage(options: { figure?: number; head: string; last?: str
     options.last ? `<span>${escapeHtml(options.last)}</span>` : ""}</span></div>${options.scope ? `<p class="mw-usage__scope">${escapeHtml(options.scope)}</p>` : ""}</div>`;
 }
 
-/** 9 · A text count: `hint` says how to write the field, `count` how much is written against its limit; `over` once past it. */
-export function renderTextCount(options: { hint: string; count: string; over?: boolean; attrs?: Record<string, AttrValue> }): string {
-  return `<p class="mw-text-count" data-slot="text-count"${renderAttrs(options.attrs)}><span class="mw-text-count__hint">${escapeHtml(options.hint)}</span><span class="mw-text-count__n"${options.over ? " data-over" : ""} aria-live="polite">${escapeHtml(options.count)}</span></p>`;
+/**
+ * 9 · A text count: `hint` says how to write the field (`hintId` lets the field name it as its description), `count` how much is
+ * written against its limit; `over` once past it. The count is not announced as it changes: the field's own error says it is over.
+ */
+export function renderTextCount(options: { hint: string; count: string; over?: boolean; hintId?: string; attrs?: Record<string, AttrValue> }): string {
+  return `<p class="mw-text-count" data-slot="text-count"${renderAttrs(options.attrs)}><span class="mw-text-count__hint"${options.hintId ? ` id="${escapeHtml(options.hintId)}"` : ""}>${escapeHtml(options.hint)}</span><span class="mw-text-count__n"${options.over ? " data-over" : ""}>${escapeHtml(options.count)}</span></p>`;
 }
 
-/** 10 · A leave bar: what is unsaved, then the ways on (`actions`: buttons, the one that keeps the work first). It takes the focus where it appears. */
-export function renderLeaveBar(options: { text: string; actions: string; attrs?: Record<string, AttrValue> }): string {
-  return `<div class="mw-leave-bar" data-slot="leave-bar" role="alertdialog" aria-label="${escapeHtml(options.text)}" tabindex="-1"${renderAttrs(options.attrs)}><p class="mw-leave-bar__text">${escapeHtml(options.text)}</p><div class="mw-leave-bar__actions">${options.actions}</div></div>`;
+/**
+ * 10 · A leave bar: what is unsaved, then the ways on (`actions`: buttons, the main one last, as in every row of actions). It takes the
+ * focus where it appears and is named by its own sentence (`id` when a page shows more than one).
+ */
+export function renderLeaveBar(options: { text: string; actions: string; id?: string; attrs?: Record<string, AttrValue> }): string {
+  const id = escapeHtml(options.id ?? "mw-leave-bar-text");
+  return `<div class="mw-leave-bar" data-slot="leave-bar" role="group" aria-labelledby="${id}" tabindex="-1"${renderAttrs(options.attrs)}><p class="mw-leave-bar__text" id="${id}">${escapeHtml(options.text)}</p><div class="mw-leave-bar__actions">${options.actions}</div></div>`;
 }
 export { renderMenuGroup, renderMenuItem } from "./overlay.js";

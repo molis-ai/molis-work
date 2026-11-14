@@ -6,7 +6,7 @@ Read when the task benefits from professional methods, decomposition, a tree cha
 
 Start from the intended result and its consumer. Identify the work type, professional domain, industry or operating constraints that change how a good result is produced and judged.
 
-The planning and breakdown methods are Skills of the Skill catalog, not part of Goals. When the user or the Runtime has them, read the catalog with skills.catalog.list and a chosen method's instructions with skills.body.read; a Skill that is switched off or manual-only is not yours to pick. Add only methods whose distinct checks materially apply, and do not load every body by default.
+The planning and breakdown methods are Skills of the Skill catalog, not part of Goals. Inside Molis Work the assistant and Coding pick them by the task, as they pick any Skill; an external Runtime connected over MCP cannot read the Skill catalog (skills.catalog.list and skills.body.read are not MCP tools), so use a method only when the user gives it to you or your own Runtime has it. Add only methods whose distinct checks materially apply, and do not load every body by default.
 
 Work type, domain, industry and situational overlays are complementary lenses, not serial phases or one Goal each. If a needed provider or professional check is missing, consult the relevant additional method. Do not turn an example method bundle into a mandatory product/software/data checklist.
 

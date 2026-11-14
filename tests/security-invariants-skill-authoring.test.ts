@@ -7,7 +7,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SKILL_LIMITS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
-import { SKILL_AUTHORED_PLUGIN_ID, SKILLS_PERMISSIONS, skillAuthoringActions, skillCatalogActions, type SkillAuthoredFields, type SkillAuthoredSaveResult, type SkillAuthoredSource,
+import { SKILL_AUTHORED_PLUGIN_IDS, SKILLS_PERMISSIONS, skillAuthoringActions, skillCatalogActions, type SkillAuthoredFields, type SkillAuthoredSaveResult, type SkillAuthoredSource,
   type SkillBodyReadResult, type SkillCatalogEntry } from "@molis-ai/molis-work-contracts/services/skills";
 import { DEMO_PROJECT_ID, MolisWorkLocalHost, PLUGIN_INSTALL_PERMISSIONS, handlePluginTrustHttp, molisWorkHostProjectReference, pluginInstallActions, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { signedContentPackage } from "./fixtures/content-package.js";
@@ -51,9 +51,9 @@ async function harness(completeText: ((prompt: unknown) => Promise<string>) | nu
     if (body && typeof body === "object" && "code" in body) throw new ActionError(body.code, body.error, { details: body.details as never });
     return body as Result;
   };
-  const mine = async () => (await client.invoke(person, ref(skillCatalogActions.list), {}) as { skills: SkillCatalogEntry[] }).skills.filter(skill => skill.pack.plugin_id === SKILL_AUTHORED_PLUGIN_ID);
+  const mine = async () => (await client.invoke(person, ref(skillCatalogActions.list), {}) as { skills: SkillCatalogEntry[] }).skills.filter(skill => skill.pack.plugin_id === SKILL_AUTHORED_PLUGIN_IDS.project);
   const source = (entry: SkillCatalogEntry) => client.invoke(person, ref(skillAuthoringActions.read), { ref: entry.ref }) as Promise<SkillAuthoredSource>;
-  const installed = async () => (await client.invoke(person, ref(pluginInstallActions.installed), {}) as { plugins: Array<{ plugin_id: string; version: string }> }).plugins.filter(row => row.plugin_id === SKILL_AUTHORED_PLUGIN_ID);
+  const installed = async () => (await client.invoke(person, ref(pluginInstallActions.installed), {}) as { plugins: Array<{ plugin_id: string; version: string }> }).plugins.filter(row => row.plugin_id === SKILL_AUTHORED_PLUGIN_IDS.project);
   return { client, person, post, mine, source, installed, reference, host,
     async close() { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); await host.close(); await rm(base, { recursive: true, force: true }); } };
 }
@@ -62,7 +62,7 @@ test("SKL-41-2-AU-01 a Skill the person writes is saved off, from this machine, 
   const h = await harness();
   try {
     const first = await h.post<SkillAuthoredSaveResult>("save", { ...fields("周报整理", { when_not_to_use: "只是闲聊时不用。", argument_hint: "哪一周" }), scope: "project" });
-    assert.deepEqual([first.plugin_id, first.version, first.skill_version], [SKILL_AUTHORED_PLUGIN_ID, "1.0.0", 1]);
+    assert.deepEqual([first.plugin_id, first.version, first.skill_version], [SKILL_AUTHORED_PLUGIN_IDS.project, "1.0.0", 1]);
     assert.match(first.skill_id, /^skill-[0-9a-f]{8}$/, "a name with no Latin letters gets a made id");
     const [entry] = await h.mine();
     assert.ok(entry);
@@ -141,7 +141,8 @@ test("SKL-41-2-AU-03 a draft is the text model's proposal cut to the form's limi
 test("SKL-41-2-AU-04 a package of the same id from another publisher is not the person's: it reads as not mine, and saving into it or removing from it is refused and leaves it installed", mac, async () => {
   const h = await harness();
   try {
-    const bundle = signedContentPackage(newPublisher(), { pluginId: SKILL_AUTHORED_PLUGIN_ID, skills: [{ id: "foreign", body: "# 别人的\n\n照做。\n" }] });
+    // Whose it is comes from the installed record's publisher, compared with this Home's key (not from a version this Home also signed).
+    const bundle = signedContentPackage(newPublisher(), { pluginId: SKILL_AUTHORED_PLUGIN_IDS.project, skills: [{ id: "foreign", body: "# 别人的\n\n照做。\n" }] });
     const preview = await h.client.invoke(h.person, ref(pluginInstallActions.preview), { bundle }) as { preview_id: string };
     await h.client.invoke(h.person, ref(pluginInstallActions.confirm), { preview_id: preview.preview_id, consent: true, pin_label: "Someone else" });
     const [entry] = await h.mine();
@@ -152,5 +153,19 @@ test("SKL-41-2-AU-04 a package of the same id from another publisher is not the 
     await assert.rejects(h.post("remove", { scope: "project", skill_id: "foreign", expected_version: entry.ref.version }), refused("skills.authored_unknown"));
     assert.deepEqual((await h.mine()).map(skill => skill.ref.skill_id), ["foreign"], "nothing was rewritten or taken off");
     assert.equal((await h.installed()).length, 1);
+  } finally { await h.close(); }
+});
+
+test("SKL-41-2-AU-05 the project's own Skills and the personal space's are two packages: writing in one scope does not shut the other out", mac, async () => {
+  const h = await harness();
+  try {
+    const inProject = await h.post<SkillAuthoredSaveResult>("save", { ...fields("项目里的"), scope: "project" });
+    const atHome = await h.post<SkillAuthoredSaveResult>("save", { ...fields("个人空间的"), scope: "home" });
+    assert.deepEqual([inProject.plugin_id, atHome.plugin_id], [SKILL_AUTHORED_PLUGIN_IDS.project, SKILL_AUTHORED_PLUGIN_IDS.home]);
+    const listed = (await h.client.invoke(h.person, ref(skillCatalogActions.list), {}) as { skills: SkillCatalogEntry[] }).skills.filter(skill => skill.pack.trust === "home_local");
+    assert.deepEqual(listed.map(skill => [skill.name, skill.pack.scope, skill.pack.plugin_id]).sort(), [["个人空间的", "home", SKILL_AUTHORED_PLUGIN_IDS.home], ["项目里的", "project", SKILL_AUTHORED_PLUGIN_IDS.project]]);
+    for (const entry of listed) assert.equal((await h.source(entry)).mine, true, entry.name);
+    await h.post("remove", { scope: "home", skill_id: atHome.skill_id, expected_version: 1 });
+    assert.deepEqual((await h.mine()).map(skill => skill.name), ["项目里的"], "taking the personal one off leaves the project's");
   } finally { await h.close(); }
 });

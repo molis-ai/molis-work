@@ -6796,6 +6796,7 @@
     "workbench.skill-authoring.no-changes": "没有改动",
     "workbench.skill-authoring.now-auto": "「{n}」改成自动",
     "workbench.skill-authoring.read-only": "这个技能不是你写的，不能直接改。可以改一份放进「我的技能」，原来那个不受影响。",
+    "workbench.skill-authoring.restore-failed": "「{n}」没能恢复：{m}",
     "workbench.skill-authoring.restored": "「{n}」恢复了",
     "workbench.skill-authoring.save-failed": "没能保存",
     "workbench.skill-authoring.save-failed-about": "你写的内容还在这里，什么都没丢；技能目录里没有变化。",

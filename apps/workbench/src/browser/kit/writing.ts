@@ -25,9 +25,9 @@ export interface WritingPage {
 
 export function skillWriting(page: WritingPage) {
   const { root, project, view, draw, load, say } = page;
-  const limits = JSON.parse(root.dataset.skillLimits ?? "{}") as SkillWritingLimits, ownPack = root.dataset.skillMine ?? "", pageScope: SkillScope = project ? "project" : "home";
+  const limits = JSON.parse(root.dataset.skillLimits ?? "{}") as SkillWritingLimits, ownPacks = new Set((root.dataset.skillMine ?? "").split(" ")), pageScope: SkillScope = project ? "project" : "home";
   const written = (key: string, values?: Record<string, string | number>) => readText(`workbench.skill-authoring.${key}`, values);
-  const isMine = (skill: SkillCatalogEntry) => skill.pack.plugin_id === ownPack && skill.pack.trust === "home_local";
+  const isMine = (skill: SkillCatalogEntry) => ownPacks.has(skill.pack.plugin_id) && skill.pack.trust === "home_local";
   const skillOf = (key?: string): SkillEntry | undefined => { const entry = key ? page.kit()?.byKey.get(key) : undefined; return entry?.kind === "skill" ? entry : undefined; };
   const ownSkills = (scope: SkillScope) => (page.kit()?.catalog.entries ?? []).flatMap(entry => entry.kind === "skill" && isMine(entry.skill) && entry.skill.pack.scope === scope ? [entry] : []);
   /** What the person leaves unsaved work for, kept until they answer the bar; and the Skill just deleted, for 撤销. */
@@ -63,8 +63,11 @@ export function skillWriting(page: WritingPage) {
     if (name === "au-undelete") {
       if (!removed) return true;
       const { source, state } = removed;
+      // Kept until it is back: a restore that fails leaves 撤销 in the notice to try again, and the deleted text is not lost.
+      let result: Awaited<ReturnType<typeof saveFields>>;
+      try { result = await saveFields(project, source.scope, fieldsOfSource(source)); }
+      catch (cause) { say(written("restore-failed", { n: source.name, m: (cause as Error)?.message || String(cause) }), "danger", { label: readText("common.control.retry"), attrs: act("au-undelete") }); return true; }
       removed = undefined;
-      const result = await saveFields(project, source.scope, fieldsOfSource(source));
       await load();
       const entry = showOwn(source.scope, result.skill_id);
       if (entry && state !== "off") { await setState(project, entry.skill, state); await load(); showOwn(source.scope, result.skill_id); }
@@ -144,9 +147,15 @@ export function skillWriting(page: WritingPage) {
     if (view.authoring && target.dataset?.auField) typed(view.authoring, target, root, limits);
   });
   root.addEventListener("submit", event => { if ((event.target as Element).matches("[data-au]")) event.preventDefault(); });
+  // Escape on the leave bar is 「接着写」.
+  root.addEventListener("keydown", event => {
+    if (event.key !== "Escape" || !view.authoring?.leave || !(event.target as Element).closest?.("[data-au-leave]")) return;
+    event.preventDefault(); event.stopPropagation();
+    void run("au-leave-stay", undefined, root);
+  });
   const beforeUnload = (event: BeforeUnloadEvent) => {
-    if (!root.isConnected) return removeEventListener("beforeunload", beforeUnload);
-    if (view.authoring && isDirty(view.authoring)) event.preventDefault();
+    // The settings keep a section's page while another is shown, with the form as it was; only the page on screen holds the window.
+    if (root.isConnected && view.authoring && isDirty(view.authoring)) event.preventDefault();
   };
   addEventListener("beforeunload", beforeUnload);
 

@@ -50,10 +50,10 @@ test("CPK-01 CPK-04: cells, trail, counts, state rows and usage carry their name
 
 test("SKL-41-2-AU-20: the text count and the leave bar (batch 41) are board parts with their own sections, English, and tokens only", () => {
   const count = renderTextCount({ hint: "写给 AI 的做法", count: "512 / 500 行", over: true });
-  assert.match(count, /^<p class="mw-text-count" data-slot="text-count"><span class="mw-text-count__hint">写给 AI 的做法<\/span><span class="mw-text-count__n" data-over aria-live="polite">512 \/ 500 行<\/span><\/p>$/);
+  assert.match(count, /^<p class="mw-text-count" data-slot="text-count"><span class="mw-text-count__hint">写给 AI 的做法<\/span><span class="mw-text-count__n" data-over>512 \/ 500 行<\/span><\/p>$/);
   assert.doesNotMatch(renderTextCount({ hint: "h", count: "1" }), /data-over/);
   const bar = renderLeaveBar({ text: "「周报」有没保存的改动。", actions: "<b>保存再走</b>" });
-  assert.match(bar, /^<div class="mw-leave-bar" data-slot="leave-bar" role="alertdialog" aria-label="「周报」有没保存的改动。" tabindex="-1"><p class="mw-leave-bar__text">「周报」有没保存的改动。<\/p><div class="mw-leave-bar__actions"><b>保存再走<\/b><\/div><\/div>$/);
+  assert.match(bar, /^<div class="mw-leave-bar" data-slot="leave-bar" role="group" aria-labelledby="mw-leave-bar-text" tabindex="-1"><p class="mw-leave-bar__text" id="mw-leave-bar-text">「周报」有没保存的改动。<\/p><div class="mw-leave-bar__actions"><b>保存再走<\/b><\/div><\/div>$/);
   const board = runWithLocale("zh", () => renderPrimitiveCatalog()), english = runWithLocale("en", () => renderPrimitiveCatalog());
   assert.ok(board.indexOf('id="sticky-detail"') < board.indexOf('id="text-count"') && board.indexOf('id="text-count"') < board.indexOf('id="leave-bar"'));
   assert.match(sectionOf(board, "text-count"), /data-over/);

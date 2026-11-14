@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { CHARACTER_IMPORT_RUNTIMES } from "@molis-ai/molis-work-contracts/modules/characters";
 import { externalTool } from "@molis-ai/molis-work-contracts/platform/external-tools";
 import { SKILL_LIMITS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
-import { SKILL_AUTHORED_PLUGIN_ID, SKILL_DRAFT_INTENT_CHARS } from "@molis-ai/molis-work-contracts/services/skills";
+import { SKILL_AUTHORED_PLUGIN_IDS, SKILL_DRAFT_INTENT_CHARS } from "@molis-ai/molis-work-contracts/services/skills";
 import { ANCHORED_MENU_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
 import { escapeHtml, icon, renderButton, t } from "@molis-ai/molis-work-plugin-sdk/ui";
 
@@ -16,7 +16,7 @@ const WRITING_LIMITS = { name: 80, description: SKILL_LIMITS.descriptionChars, w
 export function renderKitSettings({ projectId }: { projectId: string | null }): string {
   const readText = (key: string) => escapeHtml(t.text(key));
   const options = (pairs: [string, string][]) => pairs.map(([value, label]) => `<option value="${value}">${readText(label)}</option>`).join("");
-  return `<section class="settings-document kit-settings" data-kit-settings data-project="${escapeHtml(projectId ?? "")}" data-skill-mine="${SKILL_AUTHORED_PLUGIN_ID}" data-skill-limits="${escapeHtml(JSON.stringify(WRITING_LIMITS))}" aria-labelledby="kit-heading">
+  return `<section class="settings-document kit-settings" data-kit-settings data-project="${escapeHtml(projectId ?? "")}" data-skill-mine="${Object.values(SKILL_AUTHORED_PLUGIN_IDS).join(" ")}" data-skill-limits="${escapeHtml(JSON.stringify(WRITING_LIMITS))}" aria-labelledby="kit-heading">
   <template data-sk-import-sources>${CHARACTER_IMPORT_RUNTIMES.map(id => `<option value="${id}">${externalTool(id).display_name}</option>`).join("")}</template>
   <header class="settings-page-heading"><h1 id="kit-heading">${readText("workbench.kit.title")}</h1><p>${readText("workbench.kit.introduction")}</p></header>
   <div class="kit-toolbar">

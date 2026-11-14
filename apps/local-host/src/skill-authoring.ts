@@ -1,6 +1,6 @@
 /**
  * Writing Skills of one's own in settings (specs/prologue-strategies/skill.md §10, batch 41 item 2; 定样 docs/design/skill-authoring, scheme
- * B). A scope's own Skills are one content package (`SKILL_AUTHORED_PLUGIN_ID`), made by the packer an import uses, signed by
+ * B). A scope's own Skills are one content package (`SKILL_AUTHORED_PLUGIN_IDS`), made by the packer an import uses, signed by
  * `plugins.local_packages.sign` with this Home's publisher identity and installed through the install service's own preview and
  * confirmation: a Skill written here is treated exactly as one imported from this machine. Saving one makes the package's next version
  * with every other Skill as it was; taking the last one away takes the package off. Only text: no resources, no scripts.
@@ -10,7 +10,7 @@ import type { ActionExecutionContext } from '@molis-ai/molis-work-contracts/plat
 import { instructed, composeInstructedPrompt, type InstructedPrompt } from '@molis-ai/molis-work-contracts/platform/model-prompts';
 import { CONTENT_PACKAGE_FILES, type SandboxAgentBody } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { SKILL_APPLIES_TO, SKILL_LIMITS, type PluginMethodDeclaration, type SkillAppliesTo } from '@molis-ai/molis-work-contracts/platform/plugin-agent';
-import { SKILL_AUTHORED_PLUGIN_ID, SKILL_DRAFT_INTENT_CHARS, skillErrors, type SkillAuthoredFields, type SkillAuthoredRemoveRequest, type SkillAuthoredRemoveResult,
+import { SKILL_AUTHORED_PLUGIN_IDS, SKILL_DRAFT_INTENT_CHARS, skillErrors, type SkillAuthoredFields, type SkillAuthoredRemoveRequest, type SkillAuthoredRemoveResult,
   type SkillAuthoredSaveRequest, type SkillAuthoredSaveResult, type SkillScope } from '@molis-ai/molis-work-contracts/services/skills';
 import { contentPackageDraft, type FolderSkill } from '@molis-ai/molis-work-plugin-sdk';
 import { cutHead } from '@molis-ai/molis-work-plugin-sdk/whole-units';
@@ -31,6 +31,8 @@ interface Who { project_id: string; actor_id: string }
 export interface SkillAuthoringPorts extends Pick<SkillImportPorts, 'installed' | 'publisherKeyId' | 'readSealedPublisherKeyId' | 'retained' | 'retainedOf' | 'sign' | 'install'> {
   /** Takes the scope's package of own Skills off, as the settings door's uninstall does; the caller has asked that door's entry. */
   uninstall(scope: SkillScope, who: Who, caller: ActionExecutionContext): Promise<void>;
+  /** The publisher signature the scope's installed package of own Skills is recorded under; absent when none is installed. */
+  installedPublisher(scope: SkillScope, projectId: string): Promise<string | undefined>;
 }
 
 const bodyPath = (skillId: string) => `${CONTENT_PACKAGE_FILES.skills}/${skillId}/${CONTENT_PACKAGE_FILES.body}`;
@@ -89,16 +91,19 @@ export class SkillAuthoringService {
 
   /** The package holding `skills` at the scope's next version, as it would be signed. */
   private draftOf(skills: readonly FolderSkill[], scope: SkillScope, installed: Packaged | undefined) {
-    const retained = this.ports.retainedOf(SKILL_AUTHORED_PLUGIN_ID);
-    return contentPackageDraft({ plugin_id: SKILL_AUTHORED_PLUGIN_ID, name: PACKAGE_NAME, scope, ...(installed ? { compatible_from: [installed.manifest.version] } : {}),
+    const retained = this.ports.retainedOf(SKILL_AUTHORED_PLUGIN_IDS[scope]);
+    return contentPackageDraft({ plugin_id: SKILL_AUTHORED_PLUGIN_IDS[scope], name: PACKAGE_NAME, scope, ...(installed ? { compatible_from: [installed.manifest.version] } : {}),
       version: nextVersion(installed ? [...retained, installed] : retained), skills });
   }
 
-  /** Only a package this Home signed is the person's to rewrite or take off here: one of the same id from another publisher is an installed plugin like any other. */
-  private async assertOwn(installed: Packaged | undefined, draft: ReturnType<typeof contentPackageDraft>, caller: ActionExecutionContext): Promise<void> {
+  /**
+   * Only a package this Home signed is the person's to rewrite or take off here: one of the same id from another publisher is an
+   * installed plugin like any other. It is the installed record's publisher that is compared, not a version this Home also signed once.
+   */
+  private async assertOwn(installed: Packaged | undefined, scope: SkillScope, who: Who, draft: ReturnType<typeof contentPackageDraft>, caller: ActionExecutionContext): Promise<void> {
     if (!installed) return;
     const keyId = this.ports.publisherKeyId() ?? await this.ports.readSealedPublisherKeyId(draft, caller);
-    if (!(keyId && this.ports.retained(SKILL_AUTHORED_PLUGIN_ID, keyId).some(pkg => pkg.manifest.version === installed.manifest.version))) {
+    if (!keyId || await this.ports.installedPublisher(scope, who.project_id) !== keyId) {
       throw skillErrors.authored_unknown('这个范围里的「我的技能」包不是这台电脑签名的，不能在这里改；请到插件设置里处理它');
     }
   }
@@ -106,7 +111,7 @@ export class SkillAuthoringService {
   /** Signs the package holding `skills` at its next version and installs it over the installed one. */
   private async publish(skills: readonly FolderSkill[], scope: SkillScope, installed: Packaged | undefined, who: Who, caller: ActionExecutionContext) {
     const draft = this.draftOf(skills, scope, installed);
-    await this.assertOwn(installed, draft, caller);
+    await this.assertOwn(installed, scope, who, draft, caller);
     const { preview_id } = await this.ports.sign(draft, caller);
     const preview = this.ports.install.readPreview(preview_id, who);
     return this.ports.install.confirm({ preview_id, consent: true, ...(preview.publisher.pinned_label === null ? { pin_label: PIN_LABEL } : {}) }, who, caller);
@@ -115,7 +120,7 @@ export class SkillAuthoringService {
   /** A new Skill at version 1, or the next version of one of the person's own; every other Skill of the scope stays as it was. */
   async save(input: SkillAuthoredSaveRequest, who: Who, caller: ActionExecutionContext): Promise<SkillAuthoredSaveResult> {
     const fields = checkedFields(input);
-    const installed = await this.ports.installed(SKILL_AUTHORED_PLUGIN_ID, input.scope, who.project_id), held = this.held(installed);
+    const installed = await this.ports.installed(SKILL_AUTHORED_PLUGIN_IDS[input.scope], input.scope, who.project_id), held = this.held(installed);
     const others = held.filter(skill => skill.declaration.skill_id !== input.skill_id);
     if (others.some(skill => skill.declaration.name.trim() === fields.name)) throw skillErrors.authored_name_taken(`你已经有一个叫「${fields.name}」的技能，换个名称`, { field: 'name' });
     let declaration: PluginMethodDeclaration;
@@ -136,13 +141,13 @@ export class SkillAuthoringService {
 
   /** Takes one of the person's own Skills away: the package's next version without it, or the package itself when it was the last. */
   async remove(input: SkillAuthoredRemoveRequest, who: Who, caller: ActionExecutionContext): Promise<SkillAuthoredRemoveResult> {
-    const installed = await this.ports.installed(SKILL_AUTHORED_PLUGIN_ID, input.scope, who.project_id), held = this.held(installed);
+    const installed = await this.ports.installed(SKILL_AUTHORED_PLUGIN_IDS[input.scope], input.scope, who.project_id), held = this.held(installed);
     const current = held.find(skill => skill.declaration.skill_id === input.skill_id)?.declaration;
     if (!current) throw skillErrors.authored_unknown('这个范围里没有你写的这个技能');
     if (current.version !== input.expected_version) throw skillErrors.authored_conflict('这个技能已经有更新的版本，请重新打开再删', { version: current.version });
     const rest = held.filter(skill => skill.declaration.skill_id !== input.skill_id);
     if (rest.length) await this.publish(rest, input.scope, installed, who, caller);
-    else { await this.assertOwn(installed, this.draftOf(held, input.scope, installed), caller); await this.ports.uninstall(input.scope, who, caller); }
+    else { await this.assertOwn(installed, input.scope, who, this.draftOf(held, input.scope, installed), caller); await this.ports.uninstall(input.scope, who, caller); }
     return { skill_id: input.skill_id, remaining: rest.length };
   }
 }

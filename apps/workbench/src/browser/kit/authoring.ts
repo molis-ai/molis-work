@@ -111,10 +111,10 @@ const saveLabel = (a: Authoring) => a.origin === "edit" ? say("save-version", { 
 function field(a: Authoring, name: Field, label: string, hint: string, control: string): string {
   const error = a.errors[name];
   return `<div class="mw-field au-field"><label class="mw-field__label" for="au-${name}">${esc(label)}</label>${control}<small class="mw-field__hint" id="au-${name}-hint">${esc(hint)}</small>${
-    error ? `<p class="mw-field__error" role="alert" data-au-error="${name}">${esc(error)}</p>` : ""}</div>`;
+    error ? `<p class="mw-field__error" id="au-${name}-error" data-au-error="${name}">${esc(error)}</p>` : ""}</div>`;
 }
 const control = (a: Authoring, name: Field, rows: number, extra = "") => {
-  const common = `id="au-${name}" data-au-field="${name}" aria-describedby="au-${name}-hint"${a.errors[name] ? ' aria-invalid="true"' : ""}${a.busy ? " disabled" : ""}${extra}`;
+  const common = `id="au-${name}" data-au-field="${name}" aria-describedby="au-${name}-hint${a.errors[name] ? ` au-${name}-error" aria-invalid="true` : ""}"${a.busy ? " disabled" : ""}${extra}`;
   return rows ? `<textarea class="mw-textarea${name === "body" ? " au-body" : ""}" data-slot="textarea" rows="${rows}" ${common}>${esc(a.fields[name])}</textarea>`
     : `<input class="mw-input" data-slot="input" type="text" autocomplete="off" value="${esc(a.fields[name])}" ${common}>`;
 };
@@ -136,7 +136,7 @@ export function authoringMarkup(a: Authoring, limits: SkillWritingLimits, inProj
   const count = countOf(a, limits), saving = a.busy === "save", dirty = isDirty(a);
   const title = a.origin === "new" ? say("new-skill") : say(a.origin === "edit" ? "edit-title" : "copy-title", { n: a.from });
   const leave = a.leave ? renderLeaveBar({ text: say("leave-title", { n: a.fields.name.trim() || title }), attrs: { "data-au-leave": true },
-    actions: button(say("leave-save"), { variant: "primary", attrs: act("au-leave-save") }) + button(say("discard"), { attrs: act("au-leave-drop") }) + button(say("leave-stay"), { variant: "ghost", attrs: act("au-leave-stay") }) }) : "";
+    actions: button(say("leave-stay"), { variant: "ghost", attrs: act("au-leave-stay") }) + button(say("discard"), { attrs: act("au-leave-drop") }) + button(say("leave-save"), { variant: "primary", attrs: act("au-leave-save") }) }) : "";
   const drafted = a.drafted ? `<p class="au-drafted">${esc(say("drafted"))}${button(say("draft-again"), { variant: "link", attrs: act("au-redraft"), disabled: saving })}</p>` : "";
   const failure = a.failure ? renderAlert({ title: say("save-failed"), body: `${say("save-failed-about")} ${a.failure}`, tone: "danger", role: "alert", className: "au-failure", attrs: { tabindex: -1 },
     actions: [{ label: readText("common.control.retry"), variant: "secondary", size: "sm", attrs: act("au-save") }] }) : "";
@@ -147,9 +147,9 @@ export function authoringMarkup(a: Authoring, limits: SkillWritingLimits, inProj
     ${field(a, "when_not_to_use", say("when-not"), say("when-not-hint"), control(a, "when_not_to_use", 2))}
     ${toggles(say("for"), "applies", a.fields.applies_to, [["assistant", readText("workbench.common.assistant")], ["coding", readText("workbench.settings-skills.coding")], ["both", readText("workbench.settings-skills.assistant-and-coding")]], saving)}${scope}
     <div class="mw-field au-field"><label class="mw-field__label" for="au-body">${esc(say("body"))}</label>${control(a, "body", 14)}${
-      renderTextCount({ hint: say("body-hint"), count: count.text, over: count.over, attrs: { "data-au-count": true } })}${a.errors.body ? `<p class="mw-field__error" role="alert" data-au-error="body">${esc(a.errors.body)}</p>` : ""}</div>
+      renderTextCount({ hint: say("body-hint"), hintId: "au-body-hint", count: count.text, over: count.over, attrs: { "data-au-count": true } })}${a.errors.body ? `<p class="mw-field__error" id="au-body-error" data-au-error="body">${esc(a.errors.body)}</p>` : ""}</div>
     <details class="au-more"${a.fields.argument_hint || a.errors.argument_hint ? " open" : ""}><summary>${esc(say("more"))}</summary>${field(a, "argument_hint", say("hint"), say("hint-hint"), control(a, "argument_hint", 0))}</details>
-    <div class="au-foot"><span class="au-foot__state" data-au-dirty>${esc(say(dirty ? "unsaved" : "no-changes"))}</span>${button(a.origin === "edit" || dirty ? say("discard") : readText("common.control.cancel"), { variant: "ghost", attrs: act("au-drop"), disabled: saving })}${
+    <div class="au-foot"><span class="au-foot__state" data-au-dirty>${esc(say(dirty ? "unsaved" : "no-changes"))}</span>${button(dirty ? say("discard") : readText("common.control.cancel"), { variant: "ghost", attrs: act("au-drop"), disabled: saving })}${
       button(saveLabel(a), { variant: "primary", attrs: { ...act("au-save"), "data-au-save": true }, disabled: saving || (a.origin === "edit" && !dirty) })}</div></form>`;
 }
 

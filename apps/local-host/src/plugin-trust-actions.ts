@@ -3,7 +3,7 @@ import { homedir } from "node:os";
 import { ActionError, bindActionHandler, retainActionAuthority, type ActionExecutionContext, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { localPackageSignAction, type LocalPackageSignInput, type LocalPackageSignResult } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
-import { SKILL_AUTHORED_PLUGIN_ID, skillImportActions } from "@molis-ai/molis-work-contracts/services/skills";
+import { SKILL_AUTHORED_PLUGIN_IDS, skillImportActions } from "@molis-ai/molis-work-contracts/services/skills";
 import { completeContentPackagePayload } from "@molis-ai/molis-work-plugin-sdk";
 import { parsePluginPackage, signPluginPackage } from "@molis-ai/molis-work-plugin-runtime";
 import { pluginKitHeaders, pluginsKitReport } from "./kit-actions.js";
@@ -113,8 +113,12 @@ export function skillAuthoringFor(home: string, source: ProjectPluginHost, insta
   return {
     service: new SkillAuthoringService({ ...skillPackagePorts(home, source, install, resolveProject),
       uninstall: async (scope, who, caller) => {
-        if (scope === "home") await install.controlHome("uninstall", { plugin_id: SKILL_AUTHORED_PLUGIN_ID, keep_data: false }, caller);
-        else await install.control({ action: "uninstall", plugin_id: SKILL_AUTHORED_PLUGIN_ID, keep_data: false }, who, caller);
+        if (scope === "home") await install.controlHome("uninstall", { plugin_id: SKILL_AUTHORED_PLUGIN_IDS.home, keep_data: false }, caller);
+        else await install.control({ action: "uninstall", plugin_id: SKILL_AUTHORED_PLUGIN_IDS.project, keep_data: false }, who, caller);
+      },
+      installedPublisher: async (scope, projectId) => {
+        const rows = scope === "home" ? await installedHomePlugins(source.homePlugins()) : await installedPluginsInProject(source, projectId);
+        return rows.find(({ record }) => record.plugin_id === SKILL_AUTHORED_PLUGIN_IDS[scope] && record.state !== "uninstalled" && record.publisher_trust === "pinned")?.record.publisher_signature;
       } }),
     draft: (intent, caller) => draftSkill(intent, model(), { signal: caller.signal, beforeDispatch: caller.beforeEffect }, prompt => resolveModelPrompt(home, prompt, "system.skills")),
     draftAvailability: () => textModelAvailability(model, "起草技能"),

@@ -5,7 +5,7 @@ import type { ActionCallContext, ActionExecutionContext } from "@molis-ai/molis-
 import type { PluginMethodDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import type { PluginPublisherPin } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
-import { SKILL_AUTHORED_PLUGIN_ID, SKILL_EXCERPT_CHARS, SKILL_ROUND_AUTO_LIMIT, SKILL_SETTINGS_LOCKED_REASONS, skillErrors, type SkillAuthoredSource, type SkillAvailability, type SkillBodyReadResult,
+import { SKILL_AUTHORED_PLUGIN_IDS, SKILL_EXCERPT_CHARS, SKILL_ROUND_AUTO_LIMIT, SKILL_SETTINGS_LOCKED_REASONS, skillErrors, type SkillAuthoredSource, type SkillAvailability, type SkillBodyReadResult,
   type SkillCatalogEntry, type SkillCatalogListRequest, type SkillReadRefusal, type SkillResourceContent, type SkillSettingsSetRequest } from "@molis-ai/molis-work-contracts/services/skills";
 import type { AgentDefinitions } from "./agent-definitions.js";
 import { USES_KEPT, type SkillSetting } from "./skill-settings.js";
@@ -155,7 +155,7 @@ export class SkillCatalog {
       try { skill.assertCurrent(); } catch { throw skillErrors.authored_unknown("这个技能已经不是目录里的当前版本，请刷新后再试"); }
       const d = skill.declaration, words = skill.display ?? d;
       const body = skill.body.replace(/^\uFEFF?---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/u, "").replace(/\r\n?/gu, "\n").trim();
-      return { skill_id: ref.skill_id, version: ref.version, scope: skill.pack.scope, mine: skill.pack.plugin_id === SKILL_AUTHORED_PLUGIN_ID && skill.pack.trust === "home_local",
+      return { skill_id: ref.skill_id, version: ref.version, scope: skill.pack.scope, mine: skill.pack.plugin_id === SKILL_AUTHORED_PLUGIN_IDS[skill.pack.scope] && skill.pack.trust === "home_local",
         name: words.name, description: words.description ?? "", applies_to: d.applies_to, body,
         ...(words.when_not_to_use ? { when_not_to_use: words.when_not_to_use } : {}), ...(d.argument_hint ? { argument_hint: d.argument_hint } : {}) };
     });

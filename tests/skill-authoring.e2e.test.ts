@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { ChromeHarness } from "@molis-ai/molis-work-test-kit/browser";
-import { SKILL_AUTHORED_PLUGIN_ID, type SkillCatalogEntry } from "@molis-ai/molis-work-contracts/services/skills";
+import { SKILL_AUTHORED_PLUGIN_IDS, type SkillCatalogEntry } from "@molis-ai/molis-work-contracts/services/skills";
 import { requiredHeadlessTestBrowser } from "./fixtures/dedicated-headless-browser.js";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 
@@ -30,7 +30,7 @@ test("SKL-41-2-AU-10 writing, drafting, changing, leaving, deleting and copying 
     await writeFile(join(SHOTS, `${name}.png`), Buffer.from(image.data, "base64"));
   };
   const mine = async () => ((await (await f.request(`/projects/${project.project_id}/api/skills/list`, { method: "POST", body: {} })).json()) as { skills: SkillCatalogEntry[] }).skills
-    .filter(skill => skill.pack.plugin_id === SKILL_AUTHORED_PLUGIN_ID);
+    .filter(skill => skill.pack.plugin_id === SKILL_AUTHORED_PLUGIN_IDS.project);
   const text = (selector: string) => page.evaluate<string>(`document.querySelector(${JSON.stringify(selector)})?.innerText ?? ""`);
   const state = "JSON.stringify({ notice: document.querySelector('[data-kit-notice]')?.innerText, detail: document.querySelector('.kit-detail')?.innerText.slice(0, 400) })";
   const act = (name: string) => `[data-kit-settings] [data-kit-act="${name}"]`;

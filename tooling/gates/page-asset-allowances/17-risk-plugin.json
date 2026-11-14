@@ -3,7 +3,7 @@
   "review": "设计稿经公共合同台与 D 轨合审通过（specs/risk-plugin/implementation.md「合审记录」2026-11-13 第 2 版 0f622090ff）；实现随第 17 批 PR 由评审台审。",
   "userApproval": "用户 2026-11-13 在第 17 批主会话的弹窗里选「同意新增（推荐）」：风险插件新增页面客户端资源（risk.js，新增资源），见 specs/risk-plugin/implementation.md §2 第 12 行。",
   "assets": {
-    "/assets/molis-work-plugins/risk.js": 45186,
+    "/assets/molis-work-plugins/risk.js": 46312,
     "/assets/molis-work-arrival.css": 1257,
     "/assets/molis-work-settings.css": 1257,
     "/assets/molis-work-workbench.css": 1257,

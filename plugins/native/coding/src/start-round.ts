@@ -1,3 +1,5 @@
+import { memoryLearningActions } from "@molis-ai/molis-work-contracts/services/memory";
+import { codingMemorySources } from "./memory-learning.js";
 import { parseExactActionReferences, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -25,7 +27,7 @@ import { requireLocalPlanningRun } from "./plan-execution.js";
 import { limitsCharacters } from "./runtime-choice.js";
 import { CODING_HISTORY_SUMMARY } from "./prompts.js";
 import { type Capabilities, type CodingActivation, savedDigestUsage, sessionState } from "./route-activation.js";
-import { codingActions, codingActionControl, type CodingBeforeWrite } from "./route-entry.js";
+import { codingActions, codingActionControl, codingJobWrite, type CodingBeforeWrite } from "./route-entry.js";
 import { skillSelection, mcpSelection, mcpSources, savedActions } from "./route-selections.js";
 import type { CodingExecution } from "./routes.js";
 import { startDelegation } from "./routes-delegations.js";
@@ -75,6 +77,11 @@ const follow = (a: CodingActivation, execution: CodingExecution, sessionId: stri
         // A call refused after its Run was accepted has that Run's result recorded, and nothing set off in its name: the loop that
         // would start the next round is not asked for here (§12.10).
         if (round.receipted) a.waits.wakeLoop(api, execution, session.runtime_id);
+      }
+      if (round.receipted && view.phase === "completed") {
+        const beforeWrite = codingJobWrite(control);
+        await codingActions(context, beforeWrite).invoke(memoryLearningActions.enqueue, run,
+          { ...codingActionControl(beforeWrite), assert_memory_sources_current: codingMemorySources(execution, projectId, beforeWrite) });
       }
       return;
     }

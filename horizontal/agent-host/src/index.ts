@@ -65,6 +65,7 @@ export type {
 export { PrologueAgentAdapter, PROLOGUE_RUNTIME_ID } from "./adapters/prologue.js";
 export { createPrologueNodeAdapter, SUBAGENT_DEFAULT_TURNS } from "./adapters/prologue-node.js";
 export { verifyPrologueNodeStorageContents, type PrologueNodeStorageVerificationOptions } from "./adapters/prologue-storage-verification.js";
+export { openPrologueMemoryRestore } from "./adapters/prologue-memory-restore.js";
 export { surfaceRules } from "./adapters/prologue-surfaces.js";
 export { deliverDesktopAct } from "./adapters/desktop-act-delivery.js";
 export { screenModelMaterial } from "./adapters/prologue-screening.js";
@@ -96,6 +97,7 @@ export type {
   PrologueApprovalBridgeOptions,
 } from "./adapters/prologue-approvals.js";
 export type { PrologueNodeAdapterOptions } from "./adapters/prologue-node.js";
+export { createCodeIntelligence, ensureTool, languageServersFrom, languageServerSettings, type CodeIntelligence, type LanguageServerSettings, type LanguageServerSpec, type ToolInstallSpec } from "./code-intelligence/index.js";
 export type {
   PrologueAdapterOptions,
   PrologueAdapterPorts,
@@ -137,15 +139,19 @@ export interface AgentStartAuthority {
   /** Final check in the same synchronous segment as accepting a session or Run. */
   assertBeforeStart?(): void;
   /** Recheck installation/material authority at real dispatch, without retaining a completed invocation. */
-  beforeDispatch?(): void | Promise<void>;
+  beforeDispatch?(): void | (() => void) | Promise<void | (() => void)>;
+  /** Host-only lifetime transferred to the actual accepted Run. */
+  disposeDispatch?(): void;
   /** Current runtime grants, resolved by Host; selecting a tool grants nothing. */
   /** The trusted guard must run again at dispatch, including after the Host queue. */
   /**
    * The round's actions. `skillRound` is the round's frozen consumer and named list, written on the Host's own calls to `system.skills`
    * for this round (`ActionCallContext.skill_round`, specs/capability-pack/contract-design.md §2.3) — `frozenActions`/`frozenGateway`
-   * hand it on, and the Host must not write it on any other action's call.
+   * hand it on, and the Host must not write it on any other action's call. `memory` is the round's memory recipe: its scene and class
+   * restrictions travel with the round's tool calls so a memory action inside the round is held to the same scene.
    */
-  actions?(runtimeId: string, validate?: () => void | Promise<void>, session?: AgentSessionRef, skillRound?: ActionSkillRound): Promise<AgentActionClient>;
+  actions?(runtimeId: string, validate?: () => void | Promise<void>, session?: AgentSessionRef, skillRound?: ActionSkillRound,
+    memory?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecalledMemory | null): Promise<AgentActionClient>;
   /** Host-bound source resolver; browser/plugin-supplied bodies are never authority. */
   resolveCharacter?(reference: ArtifactReference, actorId: string): AgentFrozenCharacter;
   /** The Plugin's own Agent block. A role outside it can never start. */
@@ -322,6 +328,12 @@ export class AgentHost implements AgentHostApi {
     request: AgentStartRequest,
     authority: AgentStartAuthority,
   ): Promise<AgentRunHandle> {
+    const originalDispose = authority.disposeDispatch;
+    let disposed = false;
+    // The authority object stays the caller's own (its checks read live state, such as a Character switched off mid-start);
+    // only this once-only release is wrapped, and it is handed to the Runtime on its own.
+    const disposeDispatch = () => { if (!disposed) { disposed = true; originalDispose?.(); } };
+    try {
     request = { ...request, original_input: trustedOriginalInput(request, authority.original_input), continued_from: request.continued_from && structuredClone(request.continued_from), budget: parseAgentRunBudget(request.budget), execution_plan: freezeExecutionPlan(request) };
     // What runs is the registered prompt as the person left it: their version when they edited it, otherwise the
     // default. Same id and version either way — the frozen record says which, and no text widens what the role may do.
@@ -353,10 +365,11 @@ export class AgentHost implements AgentHostApi {
     const actionRefs = parseExactActionReferences(request.action_tools ?? []);
     if (request.action_gateway && actionRefs.length) throw agentErrors.capability_unavailable("能力网关与逐项能力不能同时使用");
     assertMaySuggest(hostTools, execution);
+    const memory = authority.memory ? await authority.memory(request.task, character ? { character: { artifact_id: character.reference.artifact_id, title: character.title } } : {}).catch(() => null) : null;
     // What the round's own tool calls to `system.skills` read as: the frozen consumer and named list (§2.3). Only the Host's calls carry it,
     // and only where the composition asks for `system.skills`; a tool call into any other plugin's action never does (§2.6, S-skill-delegation).
     const skillRound: ActionSkillRound = { consumer: workspace === "required" ? "coding" : "agent", named: structuredClone(authority.skillCatalog?.named ?? []) };
-    const source = { adapter, runtimeId, authority, session: session.session, validateCharacter, execution, skillRound };
+    const source = { adapter, runtimeId, authority, session: session.session, validateCharacter, execution, skillRound, memory };
     const actions = await frozenActions(source, actionRefs, character);
     const gateway = request.action_gateway ? await frozenGateway(source, workspace) : undefined;
     const { mcp, sources } = await frozenMcp(request, execution, character, hostTools, () => this.mcpLibrary(runtimeId, authority));
@@ -367,7 +380,6 @@ export class AgentHost implements AgentHostApi {
     if (characterSkillIds && !character?.import_snapshot && characterSkillIds.length) throw new Error("请先选择包含导入 Skills 的 Character");
     const prompts = composeRolePrompts(role, promptAuthority, character, character ? importedCharacterInstructions(character, request.directory?.canonical_path, characterSkillIds) : undefined);
     // The memories this run is given: the Host's recall for this consumer. A failed recall runs without memory, never stops the run.
-    const memory = authority.memory ? await authority.memory(request.task, character ? { character: { artifact_id: character.reference.artifact_id, title: character.title } } : {}).catch(() => null) : null;
     await beforeStart();
     // Everything was checked: a default output directory not made yet is made now, before the Runtime is asked to run in it.
     if (place?.kind === "output") await authority.prepareOutput?.();
@@ -397,16 +409,19 @@ export class AgentHost implements AgentHostApi {
         ...(compaction ? { compaction } : {}), ...(endingReview ? { ending_review: { prompt: endingReview } } : {}),
         host_tools: hostTools,
       },
-    }, { beforeStart, assertBeforeStart, beforeDispatch, ...(authority.call_id ? { call_id: authority.call_id } : {}) });
+    }, { beforeStart, assertBeforeStart, beforeDispatch, disposeDispatch, ...(authority.call_id ? { call_id: authority.call_id } : {}) });
     if (widensFrozen(handle, { request, role, execution, workspace, actionRefs, gateway, character, characterSkillIds, childWorkspaces, hostTools, mcp, sources, compaction, skills, replyLocale: authority.reply_language?.locale })) {
       await adapter.control(handle.ref, { kind: "cancel" });
       throw agentErrors.role_execution_exceeded(`Runtime 返回的角色权限与 Manifest 冻结的不一致，已取消该 Run`);
     }
     return handle;
+    } catch (error) { disposeDispatch(); throw error; }
   }
 }
 
 export { PrologueInferenceError, inferenceServiceUnavailableReason, isDispatchRefusal } from "./inference.js";
-export { reportedTokenTotal, decodePrologueJsonOutput } from "./inference.js";
+export { reportedTokenTotal, reportedPromptTotal, promptIncludesCache, decodePrologueJsonOutput } from "./inference.js";
 export type { PrologueCredentialInput, PrologueTextInput, PrologueInputImage, PrologueTextResult, PrologueExecutionReceipt, PrologueRunRef, PrologueStructuredRequest, PrologueTextProgress, PrologueImageInput, PrologueImageOutputLimits, PrologueTypeSafeInput, PrologueInferenceClient } from "./inference.js";
 export type { PrologueMemoryOptions } from "./adapters/prologue-memory-authority.js";
+export { readPrologueSessionTerminations, retainPrologueSessionTerminations } from "./adapters/prologue-session-restore.js";
+export type { SessionRestoreRef, SessionRestorePreview, SessionRestoreTermination } from "./adapters/prologue-session-restore.js";

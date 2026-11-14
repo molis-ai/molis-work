@@ -31,7 +31,7 @@
 **没做完、没开工的。** 每项一行，都在 `specs/BACKLOG.md`，负责人「未分配」：
 
 - 新写的：
-  - §5「插件」：BL-310（QA-009）、BL-311（QA-010，已随 T-026 做完）、BL-312（QA-011）、BL-313（QA-012）、BL-314（S3-2，Goal 页「来自对话的输入」）；
+  - §5「插件」：BL-310（QA-009）、BL-311（QA-010，已随 T-026 做完）、BL-312（QA-011）、BL-313（QA-012）、BL-314（S3-2，声明了这类关联的对象页的「来自对话的输入」，Goals 装着时即 Goal 页）；
   - §3「助理、记忆与动态交互」：BL-315（3e-2b）、BL-316（3e-2c）、BL-317（RCPT-103～107 与真实模型评测）、BL-318（阶段 5、6）、BL-319（§12.6 浏览器验证）；
 - 原有的：BL-148、BL-161、BL-162（Molis 一侧）、BL-164、BL-175。
 
@@ -39,27 +39,28 @@
 
 **阶段 4 余下的设计**（S3-2，BL-314；已定的不再讨论）：
 
-- **四个动作。**
-  - `goals.conversation_inputs.propose`（受众 agent、mcp，`plugin` 关）：AI 把**自己会话**里的一条输入提议关联到 Goal，可以顺带挂本 Goal 现有的约定变更请求或目标树提议。
+- **四个动作。**（2026-11-13 按插件同等地位收口改，[决定 42](../post-anticorruption-roadmap/reference/decisions.md#decision-42)）
+  - 登记成平台通用动作（归 agent-host 与上下文账本，如 `agent.inputs.relations.*`），不再有 `goals.conversation_inputs.*`；对象的主人插件在 Manifest 声明可关联的关联类型，和页面里「来自对话的输入」一节的贡献。Goals 只声明自己的关联类型，并在「约定变更请求」「目标树提议」上消费。
+  - `propose`（受众 agent、mcp，`plugin` 关）：AI 把**自己会话**里的一条输入提议关联到某个对象，可以顺带挂该对象主人声明的待决提议（Goals 装着时即 Goal 现有的约定变更请求或目标树提议）。
   - `list`（受众 user、agent、mcp）。
   - `accept`：只给本人。
   - `release`：本人拒绝或移除；AI 只能撤回自己会话的提议。
-  - 错误码 `defineErrorCodes("goals.conversation_input", …)`。
+  - 错误码由平台一侧的主人名登记（`defineErrorCodes("agent_inputs.relation", …)` 一类），不用 `goals.` 前缀。
   - 没有会话的 Agent 上下文报 `session_required`。S3-3 合入后 Coding 也有会话。
 - **边。**
-  - 类型是 `goal.conversation_input` 与 `goal.conversation_input.proposal`。
+  - 关联类型由对象的主人插件声明（Goals 的是 `goal.conversation_input` 与 `goal.conversation_input.proposal`）；平台不写死 `goal`。
   - 目标是 `{ module: "agent-host", object_type: "agent_input", id: "<会话>/<输入>", version: null }`。版本永远为 null：Ledger 把版本当作引用身份的一部分。
-  - 只经 `ContextLedgerApi` 写，复用宿主已经交给 Goals 的 `deliverables.ledger` 端口。
+  - 只经 `ContextLedgerApi` 写；账本的目标来源用声明的来源，不用宿主单给 Goals 的 `deliverables.ledger` 端口，也不写死 `agent-host` 枚举。
 - **信任边界**（用户 10-19 定 U1、U2）：
   - `input_id` 不核对，作为 AI 的说法存，页面标「AI 说」。
   - 外部 MCP 会话也能提议，页面标「AI 转述」。
   - 认可关联不等于批准变更：变更仍由本人在现有的决定界面里定。`goals.inputs.confirm` 不改（D12）。
 - **页面。**
-  - Goal 页「来自对话的输入」显示四样：待确认、AI 说、会话来源、挂着的提议「等你决定」。
+  - 声明了这类关联的对象页（Goals 装着时即 Goal 页）的「来自对话的输入」显示四样：待确认、AI 说、会话来源、挂着的提议「等你决定」。没有 Goals 的项目里，同一条输入仍可关联到待办等对象。
   - 新的页面请求用 `molisWorkRequest`（照 `plugins/native/goals/src/event-document-deliverables.ts`）。
   - S3-2 的新路由直接写成 PluginRouteBinding（`goalsRoutes` 的一条，照 `plugins/native/goals/src/http/inputs.ts`），并在 Manifest 里声明（`plugins/native/goals/src/manifest.ts` 的路由表），PR 里点名（① 10-23 定，不再等 S7b）。
 - **验收编号。**
-  - RCPT-384：提议写边、Goal 不变、同一条再提会回放。
+  - RCPT-384：提议写边、对象（例如 Goal）不变、同一条再提会回放。
   - RCPT-385：能挂的提议与被拒的几种。
   - RCPT-386：accept 只给本人。
   - RCPT-387：拒绝、撤回自己会话的。
@@ -175,11 +176,11 @@ AI 的说法和执行事实分开显示。AI 的说法标「AI 的理解」，�
 
 | 维度 | 可以观察的事实 |
 | --- | --- |
-| 目标 | Session objective 变更；Goal 提议（Candidate Goal、约定变更） |
+| 目标 | Session objective 变更；对象主人的提议（Goals 装着时是 Candidate Goal、约定变更） |
 | 范围 | TaskBoard 节点增删、跳过、取消；子任务派出或收回 |
 | 优先级 | 节点顺序、依赖重连 |
 | 实现方案 | 只有 AI 的声明；计划修订前后对比 |
-| 验收条件 | 计划步骤的验收改动；Session objective 的条件；Goal 要求提议 |
+| 验收条件 | 计划步骤的验收改动；Session objective 的条件；平台要求—认可能力里的要求提议与改动 |
 | 已有成果 | 已完成步骤的成果被改写（逐轮变更 `turn_changes`）、成果出新版本、撤销 |
 | 约束 | 只有 AI 的声明；违反时被审查或策略拦下的回执 |
 
@@ -318,7 +319,8 @@ AI 的说法和执行事实分开显示。AI 的说法标「AI 的理解」，�
 | 统一的输入视图、投影、恢复、版本，以及可信身份下的纠正与关联动作 | Molis `horizontal/agent-host` | 所有对话界面共用，不让 Coding 和助理各写一份状态机 |
 | 动作调用归因（这次调用是为哪条输入做的） | Molis agent-host 动作网关，加调用编号（W3-01） | 动作目录与调用记录归 Molis |
 | 输入与产品对象的关系 | Molis Context Ledger；对象 owner 只存引用 | 跨模块关系的唯一机制 |
-| Goal 层的目标与验收变更 | Goals，经提议与本人决定 | 业务 Goal 不被静默改写（`PRODUCT.md`） |
+| 目标与范围变更（对象主人的提议） | 对象主人（Goals 装着时是 Goals），经提议与本人决定 | 业务 Goal 不被静默改写（`PRODUCT.md`） |
+| 验收与要求变更 | 平台要求—认可能力（32-2），经提议与本人决定 | 要求、依据、认可归平台，回执只显示、不另存 |
 | 文案、组件、托盘、纠正菜单 | Molis 设计系统与各界面 | UI 归 App |
 | 场景语义：Coding 的计划提议、助理的工作计划、报告 | 各插件 / 助理 | 领域含义 |
 
@@ -335,7 +337,7 @@ AI 的说法和执行事实分开显示。AI 的说法标「AI 的理解」，�
 | AI 的处理说明 | 模型经系统工具声明，引擎落账 | 运行事件账 | `handling` | 同上 |
 | 本人的纠正、撤回、关联 | 本人经动作发起，agent-host 写 | 会话条目；纠正同时作为输入进账 | `override`、`targets[origin=person]` | 同上 |
 | 节点来源与报告引用 | Prologue TaskBoard | 板记录（registry `taskboards`） | `targets[kind=step]` | 读板 |
-| 产品对象关联 | 对象 owner / Context Ledger | 各自的库与 ledger 边 | `targets[kind=goal/todo/…]` | 读 owner |
+| 产品对象关联 | 对象 owner / Context Ledger | 各自的库与 ledger 边 | `targets[kind=object]` | 读 owner |
 | 生效依据 | 各回执的主人 | 事件账、调用记录、成果库 | `outcome.evidence` | 读 |
 | 派生状态 | 不落库 | — | `headline` | 计算 |
 
@@ -426,7 +428,7 @@ interface AgentInputView {
   };
   override?: { treatment?: AgentInputTreatment; note?: string; at: string; adopted: boolean };
   targets: Array<{
-    kind: "step" | "subtask" | "question" | "todo-step" | "goal" | "todo" | "schedule-task" | "artifact" | "input";
+    kind: "step" | "subtask" | "question" | "todo-step" | "object" | "input";   // 产品对象一支用 kind: "object"，ref 取 { plugin, type, id }，不再列 goal、todo、schedule-task 字面量
     ref: string;
     label: string;
     state?: string;
@@ -491,7 +493,7 @@ interface AgentInputView {
 
 **起点：**
 
-- 会话绑定 Goal「登录接口有失败路径测试」。
+- 会话绑定一个对象，例如 Goal「登录接口有失败路径测试」（没有绑定对象时，第 10、11 行的回执照常，只是没有「提议扩大范围」那一行）。
 - 用户发「给登录接口补失败路径测试」。计划轮给出三步：读代码 → 写测试 → 跑检查。
 - 用户确认后，执行轮建 TaskBoard v1。
 
@@ -510,7 +512,7 @@ interface AgentInputView {
 | 11 | 「核对并继续」 | 新一轮的回执：接续自上一轮 #2，步骤 4 开工 | 会话排队、板 |
 | 12 | 某一轮中途宿主重启 | 「这一轮被中断，1 条输入没读到」→ 带到下一轮 | `input-unread`、恢复报告 |
 
-**Goal 层：** 如果 #2 超出 Goal 原本的范围（Goal 只说了登录），回执里出现「已提议扩大 Goal 范围（待你决定）」，经 Goals 的提议与本人决定后才生效。这与 `PRODUCT.md`「执行发现的新需求先作为 Candidate Goal」一致。
+**Goal 层（会话绑定了某个对象，且对象主人声明了范围提议时才出现；Goals 装着时即 Goal）：** 如果 #2 超出 Goal 原本的范围（Goal 只说了登录），回执里出现「已提议扩大 Goal 范围（待你决定）」，经 Goals 的提议与本人决定后才生效。这与 `PRODUCT.md`「执行发现的新需求先作为 Candidate Goal」一致。
 
 **用户最终能做到：**
 
@@ -548,11 +550,11 @@ interface AgentInputView {
   - 两条快速补充一起送达。
 - **前提：** 专用适配器要接上补充与回答。现在它遇到等人就直接停下。
 
-### 8.4 外部 Runtime 经 Goals（Claude Code、Codex）
+### 8.4 外部 Runtime（Claude Code、Codex）
 
 - **现状：** 用户在 Goal 上写笔记、改要求、做决定，外部 Agent 要等下次读状态才知道，没有任何「读到 / 怎么处理」的事实。
 - **改后：**
-  - Goals 增加一个动作 `goals.events.acknowledge`（受众只有 agent、mcp，插件调用者不可用），让外部 Agent 对具体的笔记、要求、决定（`gevt-` 引用）声明「已读到，处理方式是…」，身份取 MCP 会话。
+  - 笔记仍由 Goals 拥有，其「读到 / 处理方式」是 Goals 的事实：Goals 增加一个动作 `goals.events.acknowledge`（受众只有 agent、mcp，插件调用者不可用），让外部 Agent 对具体的笔记（`gevt-` 引用）声明「已读到，处理方式是…」，身份取 MCP 会话。平台上的决定记录与要求的「读到 / 处理方式」，由平台决定入口（39-2）与要求—认可能力（32-2）给同形的 acknowledge，外部 Agent 经 MCP 通用决定入口与工具描述发现。已合入的 `goals.events.acknowledge` 拆去决定与要求两类引用的改动，由第 44 批片 3 与片 1 的 MCP 通用化（C7）一并做。（2026-11-13 按插件同等地位收口改，[决定 42](../post-anticorruption-roadmap/reference/decisions.md#decision-42)）
   - Goal 时间线显示「Claude Code 会话 X 在游标 N 读到了你的笔记 · 处理方式：…」。
   - 进展报告引用这些输入。
 - 这是 Goals 拥有的新事实，不经 Prologue。干预只能是提示性的：外部 Agent 下次拉取时才读到。Codex 可以经 `sessions.message` 推送。
@@ -586,7 +588,7 @@ interface AgentInputView {
 
 | 方向 | 用户能新做到的 | 机制 | 依赖 |
 | --- | --- | --- | --- |
-| 工作有目标与完成标准 | 说一次「帮我把 X 办成」，AI 使用已明确的目标与完成标准，缺必要决定时才询问；没做成前不自称完成 | 工作级目标，可绑 Goal 或待办；Prologue Session objective 只认回执 | 阶段 3；BL-034 |
+| 工作有目标与完成标准 | 说一次「帮我把 X 办成」，AI 使用已明确的目标与完成标准，缺必要决定时才询问；没做成前不自称完成 | 工作挂一组要求与完成标准，保存、认可、返工复核都走平台要求—认可能力（32-2）；Prologue Session objective 只认回执；工作可同时关联任意声明了可关联的对象（Goal、待办…） | 阶段 3；BL-034 |
 | 连续交办与后台执行 | A 未完成时仍可交代 B、问 C 或补充 A；先得到有效反馈，能查看和控制真实进展 | 消费同一输入回执、任务与执行事实；完整体验归个人助理需求，统一输入保持目标和原送达语义 | [演进计划](../post-anticorruption-roadmap/spec.md) 2·A/C 先做明确交办，3·A 由主动工作复用；不等待本文阶段 5 全量 |
 | 跨轮的工作计划 | 看得到、改得动这项工作的步骤：谁做（助理、委派给 Coding、你自己）、在等什么、何时跟进 | 复用统一 TaskBoard 中的工作节点、依赖与结果引用，委派和等待沿 [Prologue 采用合同](../prologue-adoption/spec.md)，不另建助理任务图 | 阶段 5；D9 的现行决定以采用合同为准 |
 | AI 记下的约定 | 随时看到 AI 说这项工作采纳了哪些约束和决定，每条能点回是哪句话说的；要改就从那条发更正 | 从回执里 AI 自称采纳为 constraint / objective / acceptance 的项派生：AI 自称、未核对、不可编辑，改它就是发一条更正（D41：Goals 的「当前约定」是 Goals 记下的事实，这里只是 AI 的自称，哪里都没有记，所以不叫这个名字） | 阶段 3 |
@@ -594,7 +596,7 @@ interface AgentInputView {
 | 结果归因与撤销 | 每个改动知道是为哪句话做的，可以按输入撤销相关改动 | 网关归因，加撤销记录 | 阶段 3；W3-01 |
 | 中途干预 | 暂停、补充、打断、调整步骤顺序、把一步收回自己做、停掉委派 | 现有控制，加 TaskBoard 人工修订 | 阶段 1、3 |
 | 失败与中断后接着做 | 重启后看到哪些做完了、哪些待核对、哪些话没读到；一键「核对并继续」 | 与 Coding 同一套续做：从板、回执和没读到的输入重建 | 阶段 5 |
-| 有界的主动推进 | 材料到了、委派完成、Goal 变化时，助理提出下一步并在当前有效委托内继续；缺决定或权限时只等待相应部分 | 事件与建议沿 ai-interaction-experience，执行授权以[个人助理 §7.1](../proactive-assistant/spec.md#71-行动范围与授权)为准 | 阶段 5；BL-030 |
+| 有界的主动推进 | 材料到了、委派完成、所关联对象发生它声明的变化（Goals 装着时包括 Goal 变化）时，助理提出下一步并在当前有效委托内继续；缺决定或权限时只等待相应部分 | 事件与建议沿 ai-interaction-experience，执行授权以[个人助理 §7.1](../proactive-assistant/spec.md#71-行动范围与授权)为准 | 阶段 5；BL-030 |
 | 交付 | 工作结束时拿到一份交付说明：做了什么、每句话的结论、成果链接、还差什么 | 回执、板、成果 | 阶段 3 |
 | 历史与跨工作上下文 | 搜得到以前的工作；新工作可以引用旧工作的约定 | Prologue 会话搜索（BL-034） | 阶段 5 |
 
@@ -621,7 +623,7 @@ interface AgentInputView {
   - 结果「用上了 / 没用上 + 理由」（参照 Todo 整理候选的 `decision` 与 `evidence`）。
 
   状态由插件 owner 存，展示复用同一套回执组件。
-- **C. 外部 Runtime 经 Goals**：Goals 层的「读到 / 处理方式」事实（§8.4）。
+- **C. 外部 Runtime**：笔记的「读到 / 处理方式」归 Goals，决定与要求的归平台（§8.4）。
 
 ### 10.2 适用性
 
@@ -629,7 +631,7 @@ interface AgentInputView {
 | --- | --- | --- | --- |
 | 插件创作台 | A | 调整后复用：消息加身份与「纳入哪次修订」；补充不再丢掉进行中的一轮 | 用户本来就在构建中途纠正；现在两句连发只认后一句 |
 | Schedule 对话任务 | A | 调整后复用：每轮保留 run 引用、改走 `agent.run.*`、补充排到下次运行、运行中可看可停、错过和中断的有重试 / 跳过 | 知道改过的指令有没有用在今早那次运行 |
-| 外部 Runtime 经 Goals | C | 新的 Goals 事实 | Goals 是权威来源，用户在 Goal 上写的每一句都能看到被哪个会话读到 |
+| 外部 Runtime | C | 笔记归 Goals，决定与要求归平台 | 各事实的主人是权威来源，用户写的每一句都能看到被哪个会话读到 |
 | 灵光 | B | 调整：加请求行、排队、流式；冲突改成「没用上 + 理由」 | 不丢话，回复时可以先写下一条 |
 | 炼金术士 | B | 调整：讨论关联到研究计划；所有作业都能取消 | 知道哪段讨论影响了哪份研究 |
 | Shelf 作业、开项目引导 | B | 调整：真实进度、中断后可继续、可取消 | 几分钟长的作业不再像卡死 |
@@ -648,7 +650,7 @@ interface AgentInputView {
 | --- | --- | --- |
 | 首批 | Coding、全局助理 | 本文阶段 1–3 |
 | P1 | 插件创作台 | 唯一一个用户已经在执行中途干预、而且当前会丢工作的地方 |
-| P2 | 外部 Runtime 经 Goals | 产品的核心承诺是 Goal 为权威真相源 |
+| P2 | 外部 Runtime | 产品的核心承诺是每项事实只有一个主人（Goals 装着时 Goal 事实归它） |
 | P3 | Schedule 对话任务 | 后台无人值守，最需要「有没有用上我的话」 |
 | P4 | 灵光、炼金术士（形态 B） | 对话型、单次调用 |
 | P5 | Shelf、开项目引导、Jelly、Images（形态 B 的反馈与恢复部分） | — |
@@ -753,14 +755,14 @@ BL-144 的实现与验证见[阶段 1 记录](stage-validation.md#阶段-1bl-144
 
 阶段 3 的逐项 RCPT 编号、运行结果与缺口见[平台投影与回答（3a–3b）](stage-validation.md#平台投影与回答3a3b)、[Coding 回执（3d）](stage-validation.md#coding-回执3d)与[助理约定和交付说明（3e）](stage-validation.md#助理约定和交付说明3e)。
 
-### 阶段 4：产品对象与 Goals 层
+### 阶段 4：产品对象层
 
 依赖已满足：#340 已合入；W3-01 调用编号已在 #421 落地。
 
-- 输入与 Goal、待办、定时任务、成果之间的 Context Ledger 边；Goal 页显示「来自对话的输入」。
-- 目标与验收类的影响走 Goals 提议（Candidate Goal、约定变更），本人决定后才生效。
-- 外部 Runtime：Goals 新动作让外部 Agent 对笔记、要求、决定说明「已读到 / 处理方式」（§8.4；`goals.events.acknowledge`，S2-2，见下面的实现记录）。
-- 验收：Goal 页能回答「这条要求被哪个会话读到、怎么处理、改了什么」。
+- 输入与 Goal、待办、定时任务、成果之间的 Context Ledger 边；声明了这类关联的对象页（Goals 装着时即 Goal 页）显示「来自对话的输入」。（2026-11-13 按插件同等地位收口改，[决定 42](../post-anticorruption-roadmap/reference/decisions.md#decision-42)）
+- 目标类的影响走对象主人的提议（Goals 装着时是 Candidate Goal、约定变更），验收与要求类的影响走平台要求—认可能力，都由本人决定后才生效。
+- 外部 Runtime：新动作让外部 Agent 对笔记（Goals）、要求与决定（平台）说明「已读到 / 处理方式」（§8.4；`goals.events.acknowledge`，S2-2，见下面的实现记录）。
+- 验收：Goals 页能回答「这条笔记被哪个会话读到、怎么处理」；决定与要求在各自的平台视图里能回答同样的问题；没有 Goals 的项目里同一条输入仍可关联到待办等对象。
 - 验收（插件 Agent 一轮的会话，S3-3，D42；`tests/security-invariants-agent-run-session.test.ts`）：
   - RCPT-391：一轮的工具调用带宿主核过的那条会话（`runtime_session_id`、`audit_actor_id` 为 `agent:<runtime_id>:<会话>`，`actor_id` 不变），启动请求里自带的会话或作者不算；人点一轮的建议（`agent.offers.run`）执行的动作也带这条会话（RCPT-395）；Goals 记的作者与幂等按会话分开，同一插件另一条会话准备的接入继续不了（S-37）。
   - RCPT-392：Runtime 自己的会话记录与请求不符（另一条会话、另一个插件、安装、人或项目）的启动被拒（`agent.session_unknown`），没有建出工具，没有写任何记录。

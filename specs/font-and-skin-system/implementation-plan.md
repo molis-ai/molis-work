@@ -60,7 +60,7 @@ flowchart TD
 | `packages/design-system` | 保留 render helper、组件行为、固定选择器/状态映射、一次结构样式；内置规格/皮肤/字体资源置于包的 `resources/`，由公开资源描述交给 Host；不读用户配置文件 |
 | `horizontal/` 下的新包（2026-11-07 改：用户 2026-11-01 定新的平台服务放 `horizontal/`，原写 `apps/local-host/src/interface/`，B 段照此落） | `files` 管版本文件与原子提交，`assets` 管导入/路径/实际字体，`selection` 管选择/撤销/幂等，`snapshots` 管可重建投影，`actions` 管授权接缝，`preview` 管可信验收。使用函数与小组合对象，文件 owner 不导出私人存储实现 |
 | `apps/workbench` | 设置与标准板入口、首屏快照、设备偏好、文字绑定、显示状态；不直接写 Home、SQL 或调用私有模型客户端 |
-| `apps/desktop` | WebView 与菜单栏胶囊接入同一展示客户端；原生菜单/连接提示接收可信文字投影。Rust 不另建皮肤引擎、译文表或模型入口 |
+| `apps/desktop` | WebView 接入同一展示客户端（菜单栏胶囊已于第 44 批删除，重做时再接入）；原生菜单/连接提示接收可信文字投影。Rust 不另建皮肤引擎、译文表或模型入口 |
 | `packages/ui-host` | 注入已准备的展示客户端/快照，挂载释放、嵌入的来源与版本校验；不解释皮肤业务或保存第二份选择 |
 | 现存插件与 Builder | 使用语义角色、消息引用与公开上下文，保留业务事实/数据绑定；不持有平台方案库，不烘焙一次预览的外观 |
 
@@ -260,9 +260,9 @@ Cookie 保存明确语言或“跟随系统”策略；后者按入口提供的�
 
 ### 6.1 macOS 原生接点
 
-桌面覆盖不能只检查主 WebView。[胶囊](../../apps/desktop/src/capsule-shell.ts)的 Web 外观已接入同一展示投影（2026-11-12 合后整改：`apps/local-host/src/capsule.ts`/`web-composition.ts` 把既有 `appearanceForHome`→`createWorkbenchAppearancePorts` 传给胶囊，`apps/workbench/src/capsule.ts` 用同一 `appearanceHead` + `renderSkinScope(BASELINE_SKIN, true)`；不再内联 `renderShellTokens`/`FONT_STACK`）。仍未做：[Tauri 入口](../../apps/desktop/adapters/tauri/src/main.rs)的 `CapsuleLocale` 写死中文/英文提示、`sync_capsule_locale` 重新 navigate 胶囊——这两项与原生菜单/托盘/剪贴板权限的实操验一起记 BL-b16-capsule-native-verification，待用户验收。
+桌面覆盖不能只检查主 WebView（胶囊已于第 44 批删除，重做时另验；2026-11-13 按插件同等地位收口改，[决定 43](../post-anticorruption-roadmap/reference/decisions.md#decision-43)）。[胶囊](../../apps/desktop/src/capsule-shell.ts)的 Web 外观已接入同一展示投影（2026-11-12 合后整改：`apps/local-host/src/capsule.ts`/`web-composition.ts` 把既有 `appearanceForHome`→`createWorkbenchAppearancePorts` 传给胶囊，`apps/workbench/src/capsule.ts` 用同一 `appearanceHead` + `renderSkinScope(BASELINE_SKIN, true)`；不再内联 `renderShellTokens`/`FONT_STACK`）。仍未做：[Tauri 入口](../../apps/desktop/adapters/tauri/src/main.rs)的 `CapsuleLocale` 写死中文/英文提示、`sync_capsule_locale` 重新 navigate 胶囊——这两项与原生菜单/托盘/剪贴板权限的实操验一起记 BL-b16-capsule-native-verification，待用户验收。
 
-主窗口、胶囊及内容窗口各自消费同一入口偏好和 Host 展示快照。原生菜单、托盘 tooltip 与断线提示经受信 IPC 获得已翻译的有限字段，原地更新菜单项；校验发送窗口、字段、长度与版本，不接收任意脚本、动作或模型自称的窗口身份。Rust 只做系统菜单装配与当前投影缓存，不维护另一份翻译规则。
+主窗口及内容窗口（胶囊重做时加入）各自消费同一入口偏好和 Host 展示快照。原生菜单、托盘 tooltip 与断线提示经受信 IPC 获得已翻译的有限字段，原地更新菜单项；校验发送窗口、字段、长度与版本，不接收任意脚本、动作或模型自称的窗口身份。Rust 只做系统菜单装配与当前投影缓存，不维护另一份翻译规则。
 
 Host 尚未启动时，原生启动/恢复提示读取随发行物从同一 owner 语言文件提取的最小资源；它是可重建发行投影，不是手写第二套词典。WebView 中的可定制字体/配色走共同控制器，系统绘制的菜单保留 macOS 的原生显示规则。新增或更新语言后，正常运行的原生文字也更新，不能再以两值枚举限制它。
 
@@ -425,7 +425,7 @@ Host 尚未启动时，原生启动/恢复提示读取随发行物从同一 owne
 | --- | --- |
 | 文件/SDK | 无效格式/引用/配方、重复 JSON/消息键、owner/参数冲突、同名导入误覆盖、字体策略被覆盖、伪路径；Node/浏览器解析一致，实际浏览器只装两包且无 Node polyfill（FSS-01/04/09/16/23/25/26/33/34/37/39） |
 | Host owner/动作 | 两个调用准备后同时提交只有一个覆盖成功；草稿保存不误使外观版本冲突；相同键重放/不同输入拒绝、提交后断开再查询、取消/撤权无提交、撤销不覆盖后改、重启保留（FSS-12–15/19/24/27/28/31/32） |
-| 浏览器/嵌入 | 实际字体/字重/缺字、明暗/密度/语言、长文/焦点/窄屏；拒绝陌生来源；旧准备/晚到片段不盖回新语言，嵌入/胶囊/原生文字更新，保留 DOM/状态且释放失效绑定（FSS-02/03/05–10/17/18/20/35/36/38） |
+| 浏览器/嵌入 | 实际字体/字重/缺字、明暗/密度/语言、长文/焦点/窄屏；拒绝陌生来源；旧准备/晚到片段不盖回新语言，嵌入/原生文字更新（胶囊重做时再验），保留 DOM/状态且释放失效绑定（FSS-02/03/05–10/17/18/20/35/36/38） |
 | Builder/助理 | 实际 Skill/Prompt 版本进入模型请求，生成语义/消息资源，新增及已安装渲染同源；未验证不能报告成功（FSS-10/11/21/22/29/30） |
 | 发行物/作者 | 干净安装资源/Skill 可读、手册真实插件、跨 Home 导入；发布转换保留业务并拒绝无发布权限/签名篡改，renderer 升级不复用旧必要校验；不以源文件存在自证（FSS-09/10/15/25/29/31） |
 
@@ -449,4 +449,4 @@ pnpm studio:replay smoke
 
 API/动作快照只为有意的合同变化刷新，不刷新健康阈值求绿。页面资源预算需符合 §12.2 后再跑；Builder 章节/设计校验变更须离线 replay 加隔离 Home smoke，Mock/录制数据只证明相应局部。实际产品、真实模型和视觉验收仍按需求书分别留证。
 
-第 16 批 B/C 已随 #2031 合入 main；阶段构建、定向工程验证、B2 真实浏览器定样、全量 32/32 与合并队列有记录。但真实模型（两份 MiniMax 结果）、胶囊原生窗口/菜单/剪贴板实操（Web 外观已接入）、四页逐页字节（artifact 不在树）与最终用户验收仍未完成；原生主窗只有 PR 自述。D/E 段及真实 Home 维护仍按各自批次与授权执行。
+第 16 批 B/C 已随 #2031 合入 main；阶段构建、定向工程验证、B2 真实浏览器定样、全量 32/32 与合并队列有记录。但真实模型（两份 MiniMax 结果）、胶囊原生窗口/菜单/剪贴板实操（Web 外观已接入；胶囊已于第 44 批删除，重做时另验）、四页逐页字节（artifact 不在树）与最终用户验收仍未完成；原生主窗只有 PR 自述。D/E 段及真实 Home 维护仍按各自批次与授权执行。

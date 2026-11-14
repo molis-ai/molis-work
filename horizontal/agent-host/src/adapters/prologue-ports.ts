@@ -84,6 +84,7 @@ export interface PrologueStartInput {
   beforeStart?: AgentStartExecution["beforeStart"];
   assertBeforeStart?: AgentStartExecution["assertBeforeStart"];
   beforeDispatch?: AgentStartExecution["beforeDispatch"];
+  disposeDispatch?: AgentStartExecution["disposeDispatch"];
   actions?: NonNullable<AgentStartRequest["role"]>["actions"];
   action_gateway?: NonNullable<AgentStartRequest["role"]>["action_gateway"];
   subagent_workspaces?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSubagentWorkspace[];
@@ -174,6 +175,7 @@ export interface PrologueRuntimePort {
   unexecutedApprovalCall?(run: AgentRunRef, waiting: import("./prologue-stream.js").PrologueApprovalWaiting): string | undefined;
   readCommandOutput?(sessionId: string, ref: AgentCommandOutputRef): Promise<AgentCommandOutput>;
   sessions: {
+    lifecycle?: AgentRuntimeAdapter["sessionLifecycle"];
     create(input: AgentCreateSessionRequest, execution?: AgentStartExecution): Promise<{ ref: { id: string } }>;
     originalInput?(sessionId: string, input: Pick<AgentStartRequest, "original_input" | "continued_from">): Promise<import("@molis-ai/molis-work-contracts/services/agent-host").AgentOriginalInput | undefined>;
     readOriginalInput?: AgentRuntimeAdapter["readOriginalInput"];
@@ -193,6 +195,7 @@ export interface PrologueRuntimePort {
     control: PrologueControlPort;
     /** The instruction files this round was given, as recorded in its index (`frozen.instructions`); absent when not recorded. */
     instructions?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRunInstructions;
+    memory?: import("@prologue/sdk").AgentMemoryControl;
   } & RoundDesk>;
   shutdown(): Promise<unknown>;
 }
@@ -208,7 +211,7 @@ export interface PrologueRestoredSession {
     started_at: string;
     task: string;
     original_input?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentOriginalInput;
-    memory_context?: Pick<AgentRecalledMemory, "consumer" | "usage">;
+    memory_context?: Pick<AgentRecalledMemory, "consumer" | "usage"> & Partial<Pick<AgentRecalledMemory, "class_restrictions" | "current_scene">>;
     stop_intent?: "stopped" | "cancelled";
     /** Why the Host stopped this run itself, when it did. */ stop_reason?: string;
     /** The runtime holds this run as finished (sealed), whatever its saved progress shows. */

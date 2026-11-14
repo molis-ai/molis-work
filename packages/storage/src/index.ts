@@ -5,7 +5,9 @@ export { LocalSqliteJournal, LocalSqliteStorage, LOCAL_JOURNAL_SCHEMA_SQL, type 
 export { LOCAL_OPAQUE_BLOB_SCHEMA_SQL } from "./schema.js";
 export { CATALOG_VERSION_ACCESS,LocalCatalogMetadata,catalogOwner,inspectCatalogFile } from "./catalog-metadata.js";
 
-export { atomicWriteFileSync } from "./adapters/atomic-write.js";
+export { atomicWriteFileSync, syncPath } from "./adapters/atomic-write.js";
+export { parseMemoryForgetting, serializeMemoryForgetting, mergeMemoryForgetting, inspectMemoryForgetting,
+  initializeMemoryForgetting, openMemoryForgetting, startMemoryForgettingGeneration, MEMORY_FORGETTING_HOME_STORE } from "./adapters/memory-forgetting.js";
 export { createAtomicFileDocument } from './adapters/file-document.js';
 export { ensureStorageSpace, readStorageSpace, personalStorageSpace, bindDatabaseSpace, readDatabaseSpace, spaceAssetRef, STORAGE_SPACE_SCHEMA_SQL, type StorageSpace, type SpaceAssetRef } from './space.js';
 export { snapshotFileStat, isSnapshotSqlite, readSnapshotFile, copySnapshotFile, snapshotFileDigest } from "./snapshot-files.js";
@@ -86,7 +88,8 @@ export { createLocalPayloadProtection } from './adapters/local-payload-protectio
 export { replicaSerialization as createSyncBodySerialization } from './replica-serialization.js';
 export { installReplicaTrigger, replicaTriggerDefinitions, shareReplicaTriggerDefinitions } from './replica-triggers.js';
 export {borrowedReplicaDatabase,hasReplicaBodies} from './borrowed-replica.js';
-export { openMemoryLedger, inspectMemoryLedger, type MemoryLedgerInspection, MEMORY_LEDGER_STORE, MEMORY_LEDGER_BASELINE, MEMORY_LEDGER_HOME_STORE } from "./adapters/memory-ledger.js";
+export { openMemoryLedger, inspectMemoryLedger, finishMemoryLedgerUpgrade, type MemoryLedgerInspection, MEMORY_LEDGER_STORE, MEMORY_LEDGER_BASELINE, MEMORY_LEDGER_HOME_STORE } from "./adapters/memory-ledger.js";
+export { readMemoryLedgerRestoreFacts, retainMemoryLedgerAfterRestore } from "./adapters/memory-ledger-recovery.js";
 export { openKnowledgeCards, clearKnowledgeProject, KNOWLEDGE_CARDS_STORE, KNOWLEDGE_CARDS_BASELINE, KNOWLEDGE_CARDS_HOME_STORE } from "./adapters/knowledge-cards.js";
 export { openTextSearchIndex, normalizeSearchText, searchTokens, searchQueryPlan, TEXT_SEARCH_STORE, TEXT_SEARCH_HOME_STORE, type TextSearchIndexOptions } from "./adapters/text-search-index.js";
 export { hasReplicaHistory,replicaApplyingSql, replicaSchemaSql, initializeReplica, replicaMarkSql, replicaMarkRowsSql, queueReplicaChange, replicaTransaction, createSqliteReplica, namespacedReplicaDatabase, type ReplicaInputValue,type ReplicaOutputValue,type ReplicaDatabase, type SqliteReplica, type ReplicaReceiveDisposition } from './replica.js';

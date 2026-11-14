@@ -23,13 +23,13 @@ export function createPrologueSchedule() {
   /** The schedule port, once the runtime and the session index exist. */
   const port = (runtime: Runtime, index: SessionIndexStore): NonNullable<PrologueRuntimePort["schedule"]> => ({
     claim: () => { const claim = runtime.queue.claim(); return { survives_window_close: claim.survivesWindowClose, why: claim.why }; },
-    enqueue: async input => {
+    enqueue: async (input, control) => {
       const session = await index.read(input.session_id);
       if (!session) throw agentErrors.session_unknown("会话不存在，不能安排定时");
       const due = Date.parse(input.due_at);
       if (!Number.isFinite(due)) throw agentErrors.capability_unavailable("定时的时间无效");
       return view(await runtime.queue.enqueue({ key: input.key, sessionRef: session.ref, work: { kind: input.kind, payload: { ...input.payload } }, dueAtMs: due,
-        ...(input.max_attempts ? { maxAttempts: input.max_attempts } : {}) }));
+        ...(input.max_attempts ? { maxAttempts: input.max_attempts } : {}) }, control));
     },
     cancel: async key => {
       const task = runtime.queue.find(key);

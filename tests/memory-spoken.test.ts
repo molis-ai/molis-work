@@ -27,8 +27,8 @@ test("only these differences are ignored: case, width, quotation marks, spacing 
     ["never send the client list to the consultant", "Never send the client list to the consultant."],
     ["以后回答都用要点列表。", "以后回答都用要点列表"],
     ["以后回答都用要点列表!", "以后回答都用要点列表。"],
-    ["记住:周报先写风险", "记住：周报先写风险"],
-    ["记住：周报先写风险（别放最后）", "记住：周报先写风险(别放最后)"],
+    ["周报:先写风险", "周报：先写风险"],
+    ["周报：先写风险（别放最后）", "周报：先写风险(别放最后)"],
     ["预算上限１００", "预算上限100"],
     ["预算上限 ￥500", "预算上限 ¥500"],
     ["NSM是北极星指标", "NSM 是北极星指标"],
@@ -211,4 +211,19 @@ test("a quote is a real stretch of what they said only when it is a whole messag
   assert.equal(quotedFrom("自动删除旧文件", []), false);
   // The quote may be a stretch of the message while the memory is not the message: the first is evidence, the second is the rule.
   assert.equal(said("自动删除旧文件", message), false);
+});
+
+test("a leading 记住 / remember that is the request to keep it, not what is kept: it is left off before comparing and off what comes back; the same words later in a message still count", () => {
+  assert.equal(theirWords("周报先写风险", ["记住：周报先写风险"]), "周报先写风险");
+  assert.equal(theirWords("周报先写风险", ["请记住，周报先写风险。"]), "周报先写风险。");
+  assert.equal(theirWords("周报先写风险", ["帮我记住周报先写风险"]), "周报先写风险");
+  assert.equal(theirWords("Reply in Chinese", ["Remember that reply in Chinese"]), "reply in Chinese");
+  assert.equal(theirWords("reply in Chinese", ["remember: Reply in Chinese"]), "Reply in Chinese");
+  // The text may carry the opening too: what is kept is still the message without it.
+  assert.equal(theirWords("记住：周报先写风险", ["记住：周报先写风险"]), "周报先写风险");
+  // Only one opening, and only at the very start: in the middle it is part of what they said, and words around it still count.
+  assert.equal(theirWords("周报先写风险", ["以后记住周报先写风险"]), null);
+  assert.equal(theirWords("周报先写风险", ["周报先写风险，记住"]), null);
+  assert.equal(theirWords("了吗", ["记住了吗"]), null, "记住了 is no request to keep anything");
+  assert.equal(theirWords("ing things", ["Remembering things"]), null, "a longer word is no opening");
 });

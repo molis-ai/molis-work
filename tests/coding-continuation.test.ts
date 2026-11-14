@@ -107,11 +107,11 @@ test("上一轮只宣布了下一步就结束时，继续会说明这一点并�
 
 test("并行和协作轮次也能一键继续：列出上一轮子任务的状态、改动和结论，已完成的不重派", () => {
   const child = (over: object) => ({ subagent_id: "a", parent_run: { session_id: "s", run_id: "r" }, role_id: "coding-builder", role_name: "独立实现",
-    task: "子任务 A：新增 src/export-json.ts 和测试", state: "completed", result: "两个文件已写好，5/5 通过", workspace_path: "/w/writer-08b7", ...over });
+    task: "子任务 A：新增 src/export-json.ts 和测试", continuation_task: { status: "available", text: "子任务 A：新增 src/export-json.ts 和测试" }, state: "completed", result: "两个文件已写好，5/5 通过", workspace_path: "/w/writer-08b7", ...over });
   const next = codingContinuation({ number: 3, run: run({ phase: "failed", stop_reason: "MODEL_NETWORK_FAILED: fetch failed", frozen: { role_id: "writers" } as never }), reviews: [], commands: [],
     subagents: [
       child({ activity: [{ call_id: "w1", name: "write", target: "src/export-json.ts", state: "completed" }, { call_id: "w2", name: "write", target: "test/export-json.test.ts", state: "completed" }] }),
-      child({ subagent_id: "b", task: "子任务 B：新增 src/weekly-rate.ts", state: "failed", result: null, error: "TOOL_FAILED", workspace_path: "/w/writer-d7ca" }),
+      child({ subagent_id: "b", task: "子任务 B：新增 src/weekly-rate.ts", continuation_task: { status: "available", text: "子任务 B：新增 src/weekly-rate.ts" }, state: "failed", result: null, error: "TOOL_FAILED", workspace_path: "/w/writer-d7ca" }),
     ] as never });
   assert.equal(next.intent, "parallel", "并行轮次按并行继续");
   assert.match(next.task, /子任务：\n- 「独立实现」（独立目录 writer-08b7）：已完成；任务：子任务 A：新增 src\/export-json\.ts 和测试；改动：src\/export-json\.ts、test\/export-json\.test\.ts；结论：两个文件已写好，5\/5 通过/);
@@ -132,4 +132,14 @@ test("问过几句话之后，最近一次计划轮仍可继续；后面还有�
   assert.equal(planContinuesAfterTalk(open, [planned]), false, "a later plan round is the one to continue");
   assert.equal(planContinuesAfterTalk({ step_board: { project_id: "b", version: 3, terminal: true, nodes: [] } } as never, [talk("completed")]), false);
   assert.equal(planContinuesAfterTalk({} as never, [talk("completed")]), false, "a round without a plan is only continued as the newest");
+});
+
+test("C3 continuation uses only the owner's exact child task; raw unknown opening remains display-only", () => {
+  const child = { subagent_id: "child", role_id: "reader", parent_run: { session_id: "s", run_id: "r" },
+    task: "RAW_UNKNOWN_OLD_OPENING", state: "completed", result: "ordinary assistant response", workspace_path: null } as const;
+  const missing = codingContinuation({ number: 1, run: run(), reviews: [], commands: [], subagents: [{ ...child, continuation_task: { status: "unavailable" } }] });
+  assert.doesNotMatch(missing.task, /RAW_UNKNOWN_OLD_OPENING/);
+  assert.match(missing.task, /无法核验|没有带入/); assert.match(missing.task, /ordinary assistant response/);
+  const exact = codingContinuation({ number: 1, run: run(), reviews: [], commands: [], subagents: [{ ...child, continuation_task: { status: "available", text: "EXACT_CHILD_TASK" } }] });
+  assert.match(exact.task, /EXACT_CHILD_TASK/); assert.doesNotMatch(exact.task, /RAW_UNKNOWN_OLD_OPENING/);
 });

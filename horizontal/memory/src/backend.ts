@@ -1,7 +1,7 @@
 import type {
   AgentMemoryEntry, AgentMemoryCandidateEntry, AgentMemoryCapability, AgentMemoryCandidateCapability,
-  AgentMemoryMutation, AgentMemoryChange, AgentMemoryMeta,
-  AgentMemoryDecisionReceipt, AgentMemoryScopePreview, AgentMemoryClearResult, AgentMemoryFormationInput, AgentMemoryFormationResult,
+  AgentMemoryMutation, AgentMemoryChange, AgentMemoryMeta, AgentMemoryPageQuery, AgentMemoryPage,
+  AgentMemoryDecisionReceipt, AgentMemoryScopePreview, AgentMemoryBatchPreview, AgentMemoryClearResult, AgentMemoryFormationInput, AgentMemoryFormationResult,
 } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { MemoryApproval, MemoryScope } from "@molis-ai/molis-work-contracts/services/memory";
 import type { MemoryCaller } from "./service.js";
@@ -19,10 +19,15 @@ export type MemoryFormationInput = Omit<AgentMemoryFormationInput, "slots" | "co
     pending: readonly Scoped<NonNullable<AgentMemoryFormationInput["context"]>["pending"][number]>[] };
 };
 export interface MemoryBackendPort {
+  previewSessionPurge?(input: Parameters<NonNullable<AgentMemoryCapability["previewSessionPurge"]>>[0]): Promise<import("@molis-ai/molis-work-contracts/services/memory").MemorySessionPurgePage<string>>;
+  purgeSessionTarget?(input: import("@molis-ai/molis-work-contracts/services/memory").MemorySessionPurgeTarget & { signal?: AbortSignal }): Promise<void>;
   withCaller(caller: MemoryCaller): MemoryBackendPort;
+  observeWrites(): Promise<() => void>;
   list(scope: MemoryScope, owner: string): Promise<MemoryBackendEntry[]>;
+  page(input: Scoped<AgentMemoryPageQuery>): Promise<Omit<AgentMemoryPage, "items"> & { items: MemoryBackendEntry[] }>;
   write(input: Scoped<Parameters<AgentMemoryCapability["write"]>[0]>): Promise<MemoryBackendEntry>;
   update(input: Formal & { change: AgentMemoryChange }): Promise<MemoryBackendEntry>;
+  renew(input: Formal & { expires_at_ms: number }): Promise<MemoryBackendEntry>;
   setMeta(input: Formal & { meta: AgentMemoryMeta }): Promise<MemoryBackendEntry>;
   pause(input: Formal & { reason: string }): Promise<MemoryBackendEntry>;
   disable(input: Formal & { reason: string }): Promise<MemoryBackendEntry>;
@@ -32,6 +37,8 @@ export interface MemoryBackendPort {
   remove(input: Formal): Promise<void>;
   candidates: MemoryCandidatePort;
   screen?(text: string): Promise<{ hold: boolean; reasons: string[]; redacted: string }>;
+  previewBatch(input: Scoped<Parameters<AgentMemoryCapability["previewBatch"]>[0]>): Promise<AgentMemoryBatchPreview>;
+  applyBatch(input: Parameters<AgentMemoryCapability["applyBatch"]>[0]): Promise<AgentMemoryClearResult>;
   previewScope(scope: MemoryScope, owner: string): Promise<AgentMemoryScopePreview>;
   clearScope(input: Scoped<Parameters<AgentMemoryCapability["clearScope"]>[0]>): Promise<AgentMemoryClearResult>;
 }
@@ -39,6 +46,7 @@ export interface MemoryCandidatePort {
   form(input: MemoryFormationInput): Promise<AgentMemoryFormationResult>;
   propose(input: Scoped<Parameters<AgentMemoryCandidateCapability["propose"]>[0]>): Promise<MemoryBackendCandidate>;
   list(scope: MemoryScope, owner: string): Promise<MemoryBackendCandidate[]>;
+  get(input: Scoped<Parameters<AgentMemoryCandidateCapability["get"]>[0]>): Promise<MemoryBackendCandidate | undefined>;
   accept(input: Candidate & { text?: string; origin?: string; meta?: AgentMemoryMeta }): Promise<MemoryBackendEntry>;
   promote(input: Candidate & { policy: string; version: number; origin?: string; meta?: AgentMemoryMeta }): Promise<MemoryBackendEntry>;
   settleInto(input: { scope: MemoryScope; owner: string; candidate_id: string; candidate_expected_version: number;

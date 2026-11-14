@@ -48,6 +48,9 @@ function choiceCommands(page: Page): CommandItem[] {
     { slash: "actions", label: counted(readText("coding.attach.actions"), held.actions), hint: readText("coding.actions.label"), keywords: ["action", "动作", "能力"], adds: "workflow", enabled: open, run: () => refs.openActions() },
     { slash: "mcp", label: counted("MCP", held.mcp), hint: readText("coding.mcp.title"), keywords: ["tool", "工具"], adds: "network", enabled: open, run: () => openMcp(page) },
     { slash: "delegate", label: readText("coding.delegate.title"), hint: readText("coding.palette.delegate-hint"), keywords: ["委派", "delegate"], adds: "share", enabled: open, run: () => refs.cooperationUi.openDialog() },
+    // This session's memory: what it has learned and can clear, one press away rather than under 工作区与目标.
+    { slash: "memory", label: readText("coding.memory.session"), hint: readText("coding.palette.memory-hint"), keywords: ["记忆", "memory", "清除"], adds: "sparkles", enabled: Boolean(s.current),
+      run: () => q<HTMLAnchorElement>("[data-coding-memory-open]").click() },
     { slash: "context", label: readText("coding.attach.context"), hint: context.hidden ? readText("coding.context.show") : readText("coding.context.hide"), keywords: ["workspace", "goal", "目录", "目标"], adds: "tune",
       run: () => { context.hidden = !context.hidden; } },
   ];

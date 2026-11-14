@@ -72,6 +72,10 @@ The project's folders come from the [current-project settings protocol](../../..
 
 ## 开发要求
 
+Coding 的 `coding.subject.state@1` 只读当前原记录的 active / archived / deleted，不读 Run、不启动 SDK。通用 subject reader 在读取前后核归档和原映射；已归档原件仍由本人原详情入口查看。Search 的更新版本保留原 updated_at/state；资料内容版本只由原有界 title/summary/content 生成 `content-v1:` token。下一轮方式改变时，配置与 updated_at 在当前项目同一 Host SQLite 写事务内提交，原 record guard 失败或写入失败不留下新的方式。直接回归：`tests/coding-subject-source.test.ts`、`tests/knowledge-source-retention.test.ts`。
+
+Coding 完成后，原 `follow` 作业仅对已成功回执的 completed Run 调用 `memory.learning.enqueue@1`。持久任务再次进入当前安装的 `memory.learning.run@1`，该调用内等待 `memory.learning.form@1`、SDK 形成、晋升与 ledger 完成。Coding 用自己的同步 SessionStore 核全部实际 Coding 来源 Session 的归档、项目与 runtime 映射；不把闭包存入队列。默认 reviewed 留待审候选，未装配来源主人或持久队列时不旁路提炼。补账仍沿原 SDK 合同：已成候选后 App 投影失败，原操作的有界重试可能再次调用提炼模型，再 replay 同一候选/版本；不能宣称模型 exactly-once。来源归档后的拒绝只挡后续派发和写入，先前已确认的 SDK 事实保留。直接回归：`tests/coding-memory-learning.test.ts`。
+
 Coding 通过原项目内容目录声明“编码会话与草稿”集合，元数据、完整计划、未发送文本与待答内容作为同一项目一致性单元；不读取 Runtime 的私有存储。源端目录、执行 Session、状态、命令/步骤缓存和确认权限不传输。新设备仅得到可编辑的未确认草稿；已有设备保留自己的 Runtime 绑定。活动执行、待核对状态或未结束后台命令期间拒绝替换及删除，稍后重试，不运行云端任务。计划与输入的编辑高水位由 Coding 的授权事务维护，删除后保留；恢复只提高目标版本，旧编辑不能覆盖。项目库和 Coding 声明都从第 1 版起，错版拒绝，不就地补表。真实 Host/Rust/WASM/临时 D1/R2 的大正文往返与 owner 负例已有验证；正常输入路由和浏览器防覆盖已接入并有定向验证，SDK 会话正文沿唯一 Agent Host 的公开导出接口保存为派生只读历史，保持每个原 SDK Session 的独立来源；SDK 仍拥有原执行账本，接收不导入执行授权。新的会话可以保留之前设备的历史段。归档校验、展示和双 Home 往返正在定向验证，不能称真实设备或公网验收完成。
 
 `CodingSessionStore.inputs` 是未发送输入的唯一业务 owner。读取会话返回 `input_revision`；写入文本或待答字段使用 `coding.sessions.update@1`，必须携带原 `expected_input_revision`。其他字段仍可独立编辑；动作仍仅 LOCAL，不新增 MCP 工具。窗口缓存保存原基线，后台刷新不能为旧编辑补上新版本。冲突在可见的提示中打开标准对比对话框，明确采用已保存内容或按所见版本保存当前输入；服务器在对比后又变化则再次拒绝。请求未返回时输入的新文本继续保留；已接受 Run 仅清除启动时捕获的同版本、同正文，不清除后来的输入与待答内容。验证：`tests/security-invariants-coding-inputs.test.ts`（真实 SDK、本机 HTTP 模型替身），`tests/coding-inputs.e2e.test.ts`（真实浏览器请求/ACK barrier、刷新和浅深色三宽度）。
@@ -119,5 +123,21 @@ Coding 的目标目录、当前约定/状态、进展保存和回执按 id 和�
 ## 补充原件边界
 
 `coding.runs.control` 的本人补充由受保护 HTTP 的 `original_input: {input_id,text,use:"supplement"}` 信封证明；Host 剥离信封并绑定当前安装/动作，`key` 必须为 `send.<input_id>`。业务 `source` 不授予作者身份，无证明按 Host 输入。原话与拼接模型正文分别沿现 SDK 输入主人保存，重试复用同一键，不另建正文记录；初始输入仍用原有无 use 信封。验收见 `specs/ai-input-receipts/spec.md` MIX-IN-01–03。
+
+
+从断点继续只复制 AgentHost `continuation_task` 中已证明的精确子任务说明；raw `task` 留给历史查看。未知开场明确提示没有带入，不隐去子任务身份、状态或普通 assistant 结果。主会话摘要仍以 App 已保存 task 与合法对话形成，不能因历史归因拒绝而改用 raw SDK 历史兜底。见 `tests/coding-continuation.test.ts`、`tests/prologue-subagents.test.ts`。
+
+本人归档/恢复继续使用 `coding.sessions.update` 的 archive 布尔值：原忙碌/恢复检查后先 SDK archive 再业务归档；恢复先业务位再原 SDK restore。草稿没有 Runtime 映射时只改业务位。两侧失败保留实际状态，由本人明确再选，不反向补偿。`coding.sessions.list@1`/`GET /sessions` 是本人严格分页目录，游标绑定项目、归档选择和原排序位置，不读取 Run 正文；原目录的已归档切换和恢复使用同一 owner 入口。
+
+原独立目录 surface 由同一 workbench client 挂载，沿既有 ui.invalidate/viewRevision 刷新，使用同一 bounded query、owner PATCH 和归档确认框；恢复保持原 Session 身份。行内链接与操作按钮为并列交互元素。定向回归为 tests/session-lifecycle.test.ts、tests/memory-source-owner.test.ts、tests/memory-learning.test.ts 与 tests/coding-memory-learning.test.ts。
+
+
+## 选中资料的派发边界
+
+subject-state 可向 Kernel 提供当前 owner 的同步 getter：每次读真实 sessions.get，区分明确缺失与权限/数据库失败，并报告原 runtime/session 映射。草稿同样受归档检查，不初始化 SDK；无 observer、epoch 或第二映射表。
+
+### 本会话记忆的绑定读
+
+`coding.sessions.binding.read@1` 为 user-only、artifact:read 的 `GET /sessions/:sessionId/binding`，严格输出业务 session_id/project_id、原 runtime 引用或 null、archived；只读原业务记录，零执行创建。runtime_session_id 在同一原事务中只能 null→实际 ID；同 ID 幂等且不改时间，改绑/清空返回 `coding.session_binding_conflict`。Memory 的受保护入口经此主人、当前唯一安装和 SDK 持久 owner 求交；业务 id 不是 SDK 身份或写许可。
 
 保存的跨设备会话历史以 SDK 官方导出包的完整事件记录为派生快照；源端在选中上传后通过同一 Prologue Runtime 读取，真实运行未结算时保留队列。目标端只读，不导入批准、执行身份或检查点。`coding.runs.list@1` 的 `history_before` 对保存历史单独分页，`before` 对本机执行分页；两者不能混用，页面仍使用原 GET 路径，旧动作版本明确拒绝。

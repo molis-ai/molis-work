@@ -109,7 +109,7 @@ test("W5-01-CODING-17 Coding builds its store from the service the platform lend
 /** What a Host hands `start`, with only the services a case names (the platform's `ui` is always there). */
 function startContext(services: Partial<PluginHostServices>): PluginStartContext {
   return { install_id: "coding-test", installation_generation: "1", plugin_id: "io.molis.work.coding", version: "0.0.0", deployment: "local", grants: [], project_id: "board",
-    requireGrant() {}, services: { ui: { register() {}, unregister() {} }, ...services } };
+    requireGrant() {}, services: { ui: { register() {}, unregister() {}, invalidate() {} }, ...services } };
 }
 const privateStorage = (): PluginPrivateStorage => {
   const rows = new Map<string, string>();
@@ -265,4 +265,42 @@ test("RAC-189 Coding message reads also carry their request control into the act
   assert.deepEqual(seen, []);
   assert.equal((await fixture.call("/sessions/app/messages"))?.status, 200);
   assert.deepEqual(seen, ["read"]);
+});
+
+test("Coding archive through the person's entry refuses a repeat; only a change left half done is let through to finish", async () => {
+  // The execution session's archive state, as the Agent Host keeps it; archiving it again is harmless there, so Coding must refuse the repeat itself.
+  let executionArchived = false;
+  const runtimes = directory();
+  const h = routesOver({ agent: { async invoke<Input, Output>(definition: { capability_id: string }, input: Input): Promise<Output> {
+    const [session] = input as unknown[];
+    if (definition.capability_id === agent.readSession.capability_id) return { session, latest_run: null, checkpoint_busy: false, recovery: null } as Output;
+    if (definition.capability_id === agent.readSessionLifecycle.capability_id) return { session, state: executionArchived ? "archived" : "active" } as Output;
+    if (definition.capability_id === agent.archiveSession.capability_id) { executionArchived = true; return { session, state: "archived" } as Output; }
+    if (definition.capability_id === agent.unarchiveSession.capability_id) { executionArchived = false; return { session, state: "active" } as Output; }
+    return runtimes.invoke(definition as never, input as never);
+  } } });
+  const update = (sessionId: string, archive: boolean) => h.call("coding.update-session", { method: "PATCH", params: { sessionId }, body: { archive }, execution: callControl().execution });
+  const refusedWith = (response: Awaited<ReturnType<typeof update>>, message: string) => {
+    assert.ok(response.status >= 400, JSON.stringify(response.body));
+    assert.equal((response.body as { code?: string }).code, "coding.session_unknown", JSON.stringify(response.body));
+    assert.match(JSON.stringify(response.body), new RegExp(message));
+  };
+  try {
+    // A session with no execution session: archive once, then the same request again is refused, not a silent success.
+    await h.sessions.create(noEffect, { project_id: "board", session_id: "plain", title: "没有执行会话", runtime_id: "prologue", at: AT });
+    { const first = await update("plain", true); assert.equal(first.status, 200, JSON.stringify(first.body)); }
+    refusedWith(await update("plain", true), "会话已归档");
+    assert.equal((await update("plain", false)).status, 200);
+    refusedWith(await update("plain", false), "会话没有归档");
+
+    // A change left half done: the execution session is archived, the business record is not. The same request finishes it.
+    await h.sessions.create(noEffect, { project_id: "board", session_id: "bound", title: "有执行会话", runtime_id: "prologue", at: AT });
+    await h.sessions.setRuntimeSession(noEffect, "board", "bound", "sdk-bound", AT);
+    executionArchived = true;
+    assert.equal((await update("bound", true)).status, 200);
+    assert.equal(h.sessions.get("board", "bound").archived, true);
+    // Both halves are there now: a repeat is refused and changes nothing.
+    refusedWith(await update("bound", true), "会话已归档");
+    assert.deepEqual([h.sessions.get("board", "bound").archived, executionArchived], [true, true]);
+  } finally { h.database.close(); }
 });

@@ -28,6 +28,9 @@ SQLite 冲突确认由可信组合根把 SDK 的 `createSyncConflictState` 通�
 
 内置插件的共同目录是 `apps/workbench/src/builtin-plugins.ts` 的 `BUILTIN_PLUGIN_CATALOG`，由 `node scripts/generate-plugin-registry.mjs` 从各包的 `src/registration.ts` 生成，不手改；同一批登记另生成宿主那份 `apps/local-host/src/plugin-registry.generated.ts`，平台事实（启动名单、个人插件、连带、项目显示哪些插件）只在 `apps/local-host/src/plugin-registry.ts` 由它派生，工作台读宿主写在页面上的 `shown_plugins` 与目录标记，不另算（W5-02 B1）。宿主加载时自检（`plugin-registry.ts` 的 `catalogProblems`）：重复的 id 与位置、悬空的 `companions` / `clientUses` 都让它起不来。每个条目绑定包导出的 Manifest、目录信息、Agent 正文及可选 `workbench` 资源。构建期装配只剩用户批过的两个例外 Alchemist、插件创作台（`tests/builtin-plugin-assembly-gate.test.ts` 的 `APPROVED_BUILD_TIME_EXCEPTIONS`）；Runtime 装配的插件在同一目录里也有条目，目录会随之增长。目录、Workbench UI 注册/样式/客户端从同一份 `registration` 派生；`workbench.order` 只控制原静态资源顺序，不覆盖导航声明。能力直接注册公共 actions。业务实现、真实 I/O 端口装配与权限仍由原 owner 负责，声明和可发现都不等于已授权。
 
+
+自动记忆形成的来源主人协议是 `memory.learning.enqueue/run/form@1`（定义经 contracts 的 services/memory 导出）。它仅面向 plugin，JSON 只传引用，不开放模型工具或 MCP。当前 Host executor 通过真实 session.context.services.actions.invoke 重新进入当前安装；不直调 handler，不自动 enable。owner 在尚未返回的嵌套 form 内提供 `assert_memory_sources_current` 同步收紧检查，Memory 选定实际来源并集后绑定。旧、新检查求交，Promise/thenable 拒绝；不把它放入 payload、后台作业或插件 callback view。原 beforeEffect、grant、issued 身份和最终 Storage/ledger 围栏仍全部成立。queued 重启用当前正常装配，running 未知结果不自动重放。
+
 ## 安装 Skill
 
 插件的 `sync` 集合声明、SDK 快照/增量合同、空间配置身份与未实现边界见 [同步接入规范](../../skills/molis-plugin-dev/sync.md)。当前 Pages 已有显式启用的本机 Rust/D1 同步试点，未部署公网，也不代表其他插件已接入。新增插件按同一合同提供 owner 适配并由可信 Host 注册，不向 Server 添加业务 payload 分支。

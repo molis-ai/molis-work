@@ -10,6 +10,8 @@ Coding 的「代码调查」「独立评审」「独立实现」子角色按 [�
 
 ## 方法候选
 
+其中 `method.goals.*` 各行：41-2 起规划方法是能力包里的技能，键与路径以能力包目录为准；E 段核「真实 Home 发布文案转换范围」时按搬走后的位置，不漏翻、也不重复翻一份（2026-11-13 按插件同等地位收口改，[决定 42](../post-anticorruption-roadmap/reference/decisions.md#decision-42)）。
+
 | 精确版本键 | 当前载体 |
 | --- | --- |
 | `method.coding-diagnose-fix`、`method.coding-git-delivery`、`method.coding-implement-change`、`method.coding-review-change` | [plugins/native/coding/src/skills.ts](../../plugins/native/coding/src/skills.ts) |

@@ -87,8 +87,14 @@ export function createCodingTimeline(words: TimelineWords) {
   const TERMINAL = ["completed", "failed", "stopped", "cancelled", "reconcile-required"];
   const svg = (name: string) => `<svg aria-hidden="true"><use href="#icon-${name}"></use></svg>`;
   const escape = (value: unknown) => String(value ?? "").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char] as string));
-  const { KIND, FAILURES, toolHint: hintFor, other, tally } = words;
-  const kindOf = (item: TimelineActivity) => KIND[item.name] ?? other(item.name);
+  const { KIND, FAILURES, toolHint: hintFor, named, tally } = words;
+  const kindOf = (item: TimelineActivity) => KIND[item.name] ?? named(item.name);
+  /** A command's own exit code is a fact from its receipt; "passed" is never inferred beyond it. */
+  const exitCode = (item: TimelineActivity): number | null => {
+    if (item.name !== "run-command" || item.state !== "completed") return null;
+    const match = /^exit (-?\d+)/.exec(item.output ?? "");
+    return match ? Number(match[1]) : null;
+  };
   /**
    * A board-report that fails with TASKBOARD_CONFLICT is a version-conflict retry, not a real failure, when a later
    * board-report in the same group lands successfully. The host records board-report's target as empty (it only

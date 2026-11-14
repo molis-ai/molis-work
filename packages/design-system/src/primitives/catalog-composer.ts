@@ -16,7 +16,6 @@ export type Say = (text: string, values?: Record<string, string | number>) => st
 
 /** The board's own layout for the three sections; the shell's look is `COMPOSER_STYLES` (composer-styles.ts), served to pages. */
 export const COMPOSER_BOARD_STYLES = `
-  .mw-catalog :is([data-primitive="composer"], [data-primitive="menu-desc"], [data-primitive="mic"]) .mw-catalog__specimen { margin: 0; }
   .mw-catalog [data-primitive="composer"] .mw-catalog__specimens { grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); align-items: start; }
   /* The specimen whose ▾ menu is open keeps room above itself for it (the menu hangs from the whole composer), so it stays in its cell. */
   .mw-catalog [data-catalog-menu-room] { margin-top: var(--catalog-menu-room, 240px); }

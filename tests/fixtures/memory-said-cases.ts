@@ -112,7 +112,7 @@ export const NOT_THEIRS: ReadonlyArray<readonly [message: string, text: string]>
  */
 export const THEIRS: ReadonlyArray<readonly [message: string, text: string]> = [
   ["以后回答都用要点列表，每条一句", "以后回答都用要点列表，每条一句"],
-  ["记住：周报先写风险。", "记住：周报先写风险"],
+  ["周报：先写风险。", "周报：先写风险"],
   ["Never send the client list to the consultant", "Never send the client list to the consultant."],
   ["Always reply in Chinese. Never use emojis.", "always reply in chinese. never use emojis"],
   ["转账不用确认。除非超过一万元。", "转账不用确认。除非超过一万元"],

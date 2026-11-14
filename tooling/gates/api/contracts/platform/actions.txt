@@ -395,10 +395,23 @@ export type ActionAvailability = {
 };
 
 export interface ActionCallContext extends ActionCallOrigin, ActionDelegationSource {
+    readonly subject_state_capture?: import("platform/action-subjects").SubjectStateCapture;
     readonly actor_id: string;
     readonly stage_scene_metadata?: StageSceneMetadataAuthority;
     readonly memory_read_mode?: "explicit" | "task";
     readonly memory_operation_id?: string;
+    readonly memory_context_selection?: {
+        assert_current(): void;
+    };
+    readonly memory_session?: import("services/memory-session").MemorySessionBinding & {
+        beforeEffect(): void | Promise<void>;
+        assertCurrent(): void;
+    };
+    readonly runtime_memory?: {
+        readonly plugin_id: string;
+        readonly current_scene: string;
+        readonly class_restrictions: import("services/agent-host-memory").AgentMemoryClassPolicy;
+    };
     readonly assistant_reply?: import("@molis-ai/molis-work-contracts/services/assistant").AssistantReplyDelivery;
     readonly page_context?: {
         readonly url: string | null;
@@ -430,6 +443,11 @@ export interface ActionCallContext extends ActionCallOrigin, ActionDelegationSou
     readonly allowed_actions?: readonly ActionReference[];
     readonly validate_authority?: (reference: ActionReference) => void | Promise<void>;
     readonly assert_authority_current?: (reference?: ActionReference, requiredPermissions?: readonly string[]) => void;
+    readonly assert_memory_sources_current?: (sources: readonly Readonly<{
+        event_id: string;
+        version: string;
+        session_id: string;
+    }>[]) => void;
     readonly validate_permissions?: (permissions: readonly string[]) => void | Promise<void>;
     readonly signal?: AbortSignal;
     readonly retain_background_authority?: (references: readonly ActionReference[], additionalPermissions?: readonly string[]) => RetainedActionAuthority;
@@ -479,6 +497,7 @@ export interface ActionErrorOptions {
 }
 
 export interface ActionExecutionContext extends ActionCallContext, ActionPersonEntry {
+    readonly provideSubjectState?: (current: () => import("platform/action-subjects").ActionSubjectCurrentState) => void;
     readonly beforeEffect: () => Promise<void>;
     readonly current_action?: ExactActionReference;
     readonly retainAuthority?: (references: readonly ActionReference[], options?: {
@@ -811,6 +830,18 @@ export interface ActionSubjectContext {
     length?: number;
 }
 
+export interface ActionSubjectCurrentState extends ActionSubjectState {
+    execution_session: Readonly<{
+        runtime_id: string;
+        session_id: string;
+    }> | null;
+}
+
+export interface ActionSubjectState {
+    subject: ActionSubject;
+    state: "active" | "archived" | "deleted";
+}
+
 export interface ActionUsage {
     usage_id: string;
     title: string;
@@ -917,7 +948,7 @@ export interface ArtifactReferrersResult {
 
 export interface BoundActionClient {
     discover(): Promise<readonly ActionView[]>;
-    invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "locale" | "assert_authority_current" | "retainBackgroundAuthority" | "query_only">, transport?: ActionInvokeTransport): Promise<Output>;
+    invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "locale" | "assert_authority_current" | "retainBackgroundAuthority" | "query_only" | "assert_memory_sources_current">, transport?: ActionInvokeTransport): Promise<Output>;
 }
 
 export declare const DUE_REMINDERS_INPUT_TYPE = "molis.reminders.window.v1";
@@ -2684,6 +2715,11 @@ export interface RetainedActionAuthority {
     readonly assertCurrent: () => void;
 }
 
+export interface RetainedSubjectState {
+    authority: RetainedActionAuthority;
+    current(): ActionSubjectCurrentState;
+}
+
 export interface RunDecided {
     state: "started" | "skipped" | "gone";
 }
@@ -3275,6 +3311,49 @@ export declare const SUBJECT_OFFER_SCHEMA: {
 
 export declare const SUBJECT_REFERENCE_TYPE = "molis.subject-reference.v1";
 
+export declare const SUBJECT_STATE_INPUT_SCHEMA: {
+    type: string;
+    properties: {
+        subject_id: {
+            type: string;
+            minLength: number;
+            maxLength: number;
+        };
+    };
+    required: string[];
+    additionalProperties: boolean;
+};
+
+export declare const SUBJECT_STATE_OUTPUT_SCHEMA: {
+    type: string;
+    properties: {
+        subject: {
+            type: string;
+            properties: {
+                kind: {
+                    type: string;
+                    minLength: number;
+                    maxLength: number;
+                };
+                id: {
+                    type: string;
+                    minLength: number;
+                    maxLength: number;
+                };
+            };
+            required: string[];
+            additionalProperties: boolean;
+        };
+        state: {
+            enum: string[];
+        };
+    };
+    required: string[];
+    additionalProperties: boolean;
+};
+
+export declare const SUBJECT_STATE_TYPE = "molis.subject-state.v1";
+
 export type SceneConfigurationInput = {
     binding_id: string;
     expected_revision: string | null;
@@ -3385,6 +3464,17 @@ export type SubjectReaderLookup = {
 } | {
     found: "none";
 };
+
+export interface SubjectStateCapture {
+    subject: ActionSubject;
+    reader: ExactActionReference;
+    source: ExactActionReference;
+    accept(control: RetainedSubjectState): void;
+}
+
+export interface SubjectStateRequest {
+    subject_id: string;
+}
 
 export interface SyncActionClient {
     invokeSync(context: ActionCallContext, reference: ActionReference, input: unknown): unknown;

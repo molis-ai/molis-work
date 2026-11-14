@@ -16,7 +16,7 @@ async function fixture(t: Parameters<typeof memoryServiceHome>[0]) {
   return { ...env, memory, originals, extraction };
 }
 
-test("MEM-FORM no standing signal reads no source and calls no extractor", async t => {
+test("MEM-31 MEM-FORM no standing signal reads no source and calls no extractor", async t => {
   const originals = originalMemorySources(["project-a"]);
   const resolve = t.mock.method(originals.port, "resolve");
   let calls = 0;
@@ -29,7 +29,7 @@ test("MEM-FORM no standing signal reads no source and calls no extractor", async
   assert.equal(resolve.mock.callCount(), 0);
   assert.equal(calls, 0);
   assert.deepEqual(env.ledger().candidates(person.actor_id), []);
-  assert.deepEqual(memory.changes(person), []);
+  assert.deepEqual((await memory.changes(person)), []);
 });
 
 test("MEM-FORM independent full originals form once then use v3 promotion and original-operation replay", { timeout: 30_000 }, async t => {
@@ -55,13 +55,44 @@ test("MEM-FORM independent full originals form once then use v3 promotion and or
   assert.equal(replay.recording_error, undefined);
   assert.equal(replay.formation.items[0]?.outcome, "replayed");
   assert.deepEqual((await env.raw(person).list("project", "project-a")).map(row => [row.memory_id, row.version]), [[memoryId, 1]]);
-  assert.equal(restarted.changes(person).filter(change => change.kind === "auto_kept").length, 1);
+  assert.equal((await restarted.changes(person)).filter(change => change.kind === "auto_kept").length, 1);
   const accepted = await restarted.accept({ ...person, operation_id: "accept-covered-original" }, pending[0]!.candidate_id, { expected_version: pending[0]!.version });
   assert.equal(accepted.memory!.memory_id, memoryId);
   assert.equal((await env.raw(person).list("project", "project-a")).length, 1, "accepting the covered original never adds a second formal memory");
 });
 
-test("MEM-FORM extraction excludes expired, disabled, paused and other-scene formal context without blocking new candidates", async t => {
+// Anthropic-style protocols report uncached input with cache reads and writes apart; OpenAI-compatible ones report the whole prompt
+// as input with cache reads inside it. Either way the SDK gets the whole prompt once, with the cache reads inside it.
+const reported = (tokens: number) => ({ source: "reported" as const, tokens });
+for (const shape of [
+  // The shape MiniMax returned in the BL-1073 run: 169 uncached input tokens, 640 read from cache, and "applies_when": { "task": "" }.
+  { name: "Anthropic-style", includes: false, input: 169, cacheWrite: { source: "unknown" as const }, expected: 809 },
+  { name: "Anthropic-style with a cache write", includes: false, input: 169, cacheWrite: reported(20), expected: 829 },
+  { name: "OpenAI-compatible", includes: true, input: 809, cacheWrite: { source: "unknown" as const }, expected: 809 },
+] as const) test(`MEM-FORM BL-1073 a cache-hit reply (${shape.name}) and a blank condition still form a candidate, with each cached token counted once inside input`, { timeout: 30_000 }, async t => {
+  const env = await fixture(t), text = "以后 Prism 恢复依赖统一用 uv sync --locked";
+  env.extraction.reply({ blankTask: true, promptIncludesCache: shape.includes, usage: [{ input: reported(shape.input), output: reported(75), cacheRead: reported(640),
+    cacheWrite: shape.cacheWrite, cost: { source: "unknown" as const } }] });
+  env.extraction.set([proposal(text)]);
+  const result = await env.memory.learnFromWork(caller("cache-hit-blank-task"), { said: [text], sources: [env.originals.add("cache-hit", text)] });
+  assert.equal(result.formation.outcome, "completed");
+  assert.equal(result.recording_error, undefined);
+  assert.equal(result.learned[0]?.outcome, "candidate");
+  assert.deepEqual(result.formation.extraction.usage, { input_tokens: shape.expected, output_tokens: 75, cached_input_tokens: 640 });
+  const pending = await env.memory.candidates(person, { scope: "project" });
+  assert.deepEqual(pending.map(candidate => candidate.applies ?? {}), [{}], "a blank condition is no condition, not an empty one");
+});
+
+test("MEM-FORM BL-1073 without the Host's rule for its protocol, a formation reports no input rather than a guess", { timeout: 30_000 }, async t => {
+  const env = await fixture(t), text = "以后 Prism 恢复依赖统一用 uv sync --locked";
+  env.extraction.reply({ usage: [{ input: reported(169), output: reported(75), cacheRead: reported(640), cacheWrite: { source: "unknown" as const }, cost: { source: "unknown" as const } }] });
+  env.extraction.set([proposal(text)]);
+  const result = await env.memory.learnFromWork(caller("no-protocol-rule"), { said: [text], sources: [env.originals.add("no-rule", text)] });
+  assert.equal(result.formation.outcome, "completed");
+  assert.deepEqual(result.formation.extraction.usage, { output_tokens: 75 });
+});
+
+test("MEM-31 MEM-FORM extraction excludes expired, disabled, paused and other-scene formal context without blocking new candidates", async t => {
   let now = new Date("2026-10-23T10:00:00Z");
   const originals = originalMemorySources(["project-a"]), extraction = scriptedMemoryExtraction();
   const contexts: Array<{ ids: string[]; targets: string[] }> = [];
@@ -203,7 +234,7 @@ test("MEM-FORM cancellation after SDK commit leaves no new App body projection a
   assert.equal(result.formation.items.length, 1);
   assert.ok(result.recording_error);
   assert.deepEqual(env.ledger().candidates(person.actor_id), []);
-  assert.deepEqual(memory.changes(person), []);
+  assert.deepEqual((await memory.changes(person)), []);
   assert.equal((await env.raw(person).candidates.list("project", "project-a")).length, 1);
 });
 
@@ -239,7 +270,7 @@ test("MEM-FORM a later source failure preserves partial candidates and usage for
   assert.equal((await env.raw(person).candidates.list("project", "project-a")).length, 2);
 });
 
-test("MEM-FORM pending review context cannot expose another scene, private namespace or expired candidate", async t => {
+test("MEM-31 MEM-FORM pending review context cannot expose another scene, private namespace or expired candidate", async t => {
   let now = new Date("2026-10-01T00:00:00Z");
   const originals = originalMemorySources(["project-a"]), extraction = scriptedMemoryExtraction();
   const env = await memoryServiceHome(t, { projects: ["project-a"], now: () => now, sources: originals.port, generate: extraction.generate });
@@ -265,12 +296,14 @@ test("MEM-FORM pending review context cannot expose another scene, private names
 });
 
 test("MEM-FORM all 144 fixed destinations fit a real invocation and same-kind drafts remain independent", { timeout: 30_000 }, async t => {
-  const originals = originalMemorySources(["project-a"]); let slots = 0, serialized = 0, offeredKinds: string[] = [];
+  const originals = originalMemorySources(["project-a"]); let slots = 0, serialized = 0, offeredKinds: string[] = [], runs = 0;
   const env = await memoryServiceHome(t, { projects: ["project-a"], sources: originals.port, extractor: { async extract(_caller, input) {
     slots = input.slots.length; serialized = JSON.stringify(input.slots).length;
     offeredKinds = [...new Set(input.slots.map(slot => slot.meta.kind!))].sort();
     const choices = input.slots.filter(slot => slot.scope === "project" && slot.meta.kind === "convention" && !slot.replacement).slice(0, 2);
-    return { drafts: choices.map((slot, index) => ({ slot_id: slot.id, text: `以后发布先完成步骤${index}`, suggested_basis: "inferred" as const,
+    // Each run drafts its own texts: a draft the same as a suggestion still waiting is not registered twice.
+    runs += 1;
+    return { drafts: choices.map((slot, index) => ({ slot_id: slot.id, text: `以后发布先完成第${runs}轮步骤${index}`, suggested_basis: "inferred" as const,
       evidence: [{ source: input.sources[0]!, quote: "以后" }] })) };
   } } });
   await env.open();

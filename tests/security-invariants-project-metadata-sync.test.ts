@@ -14,7 +14,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import {createProjectsSchema,ProjectsModule,projectReplicationOwner,validatePortableProject,projectPluginRequirements,installProjectReplicationJournal} from '@molis-ai/molis-work-module-projects';
-import {sqliteErrorName,replicaSchemaSql,replicaMarkSql,initializeReplica,borrowedReplicaDatabase,createSqliteReplica,ensureStorageSpace,personalStorageSpace,inspectCatalogFile,openMemoryLedger} from '@molis-ai/molis-work-storage';
+import {sqliteErrorName,replicaSchemaSql,replicaMarkSql,initializeReplica,borrowedReplicaDatabase,createSqliteReplica,ensureStorageSpace,personalStorageSpace,inspectCatalogFile,openMemoryLedger,acquireStorageOwner,initializeMemoryForgetting} from '@molis-ai/molis-work-storage';
 import {createSyncConflictState} from '@molis-ai/molis-work-plugin-sdk';
 import {createPersonalCatalogRegistration,CATALOG_SCHEMA_VERSION,ProjectDeletionService,handleProjectRecycleHttp} from '@molis-ai/molis-work-app-local-host';
 import {withMolisWorkProjectCatalog,openMolisWorkProjectCatalog} from '@molis-ai/molis-work-app-desktop';
@@ -208,6 +208,7 @@ test('PCSYNC-20 actual Host passive creation and fresh catalog journal round-tri
 
 for(const mode of ['DELETE','WAL'])test(`PCSYNC-20 frozen v22 ${mode} catalog is rejected byte-for-byte before writable PRAGMAs or new sidecars`,async t=>{
   const f=homes(t),home=f.make('old'),directory=join(home,'projects');
+  const owner=acquireStorageOwner(join(home,'agent-runtime'));try{initializeMemoryForgetting({homeDirectory:home,storageOwner:owner,assertCurrent(){}});}finally{owner.release();}
   const memory=openMemoryLedger({homeDirectory:home});
   try{memory.transaction(()=>{
     memory.savePrefs(LOCAL_PERSON_ACTOR_ID,'personal',defaultPrefs('personal','reviewed'));

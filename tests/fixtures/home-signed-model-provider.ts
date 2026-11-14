@@ -35,6 +35,27 @@ export function noisePng(bytes: number, seed: number): Buffer {
   return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk("IHDR", header), chunk("IDAT", deflateSync(raw, { level: 0 })), chunk("IEND", Buffer.alloc(0))]);
 }
 
+/** A decodable 1×1 baseline JPEG (JFIF, one quantisation and one Huffman table), the base `noiseJpeg` grows. */
+const TINY_JPEG = Buffer.from("/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=", "base64");
+
+/**
+ * A real JPEG of exactly `bytes` bytes (BL-918 B27-IMG-02): the 1×1 baseline picture above with comment segments (`FF FE`) of seeded noise put in after
+ * its start marker, so it still decodes as that picture while its size is what was asked for. Built here, never by the implementation under test.
+ */
+export function noiseJpeg(bytes: number, seed: number): Buffer {
+  const parts = [TINY_JPEG.subarray(0, 2)];
+  let size = TINY_JPEG.length, state = seed >>> 0 || 1;
+  while (size < bytes) {
+    const length = Math.min(65_533, bytes - size - 4);
+    if (length < 1) throw new Error(`noiseJpeg cannot make exactly ${bytes} bytes`);
+    const segment = Buffer.alloc(4 + length);
+    segment[0] = 0xff; segment[1] = 0xfe; segment.writeUInt16BE(length + 2, 2);
+    for (let i = 0; i < length; i++) { state ^= state << 13; state ^= state >>> 17; state ^= state << 5; segment[4 + i] = state & 0xff; }
+    parts.push(segment); size += segment.length;
+  }
+  return Buffer.concat([...parts, TINY_JPEG.subarray(2)]);
+}
+
 /** A real HTTPS image provider: process-local trust and exact DNS only. Fetch, TLS and Prologue remain production code. */
 export async function signedImageProvider(t: TestContext, certificate: "trusted" | "untrusted" | "wrong-san") {
   const directory = mkdtempSync(join(tmpdir(), "signed-model-tls-"));

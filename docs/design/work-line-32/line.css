@@ -187,7 +187,11 @@ body.immersive-workbench .wl-slot.bar-center .assistant-tab{flex:0 0 auto;width:
 .wl-reqc .rnote{line-height:1.55}
 .wl-reqc .evs{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}
 .wl-evref{flex:none;display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 8px;border-radius:7px;border:1px solid var(--line-strong);background:var(--soft);font-size:11.5px;color:var(--ink-soft);white-space:nowrap}.wl-evref:hover{background:var(--hover)}
-.wl-gap{display:flex;align-items:center;gap:6px;padding:5px 8px;border-radius:var(--r-control);background:var(--amber-soft);color:var(--amber);font-size:11.5px;line-height:1.5}
+.wl-gap>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.wl-gap>svg{flex:none}
+.wl-hist{font-size:11.5px;color:var(--muted)}.wl-hist>summary{display:inline-flex;align-items:center;gap:5px;min-height:24px;cursor:pointer;list-style:none;white-space:nowrap}.wl-hist>summary::-webkit-details-marker{display:none}
+.wl-hist>summary:hover{color:var(--ink-soft)}.wl-hist[open]{display:flex;flex-direction:column;gap:3px;padding:6px 8px;border:1px solid var(--line);border-radius:var(--r-control)}.wl-hist .fact{line-height:1.5}
+.wl-reqc .cf{display:flex;align-items:center;gap:6px}
+.wl-gap{display:flex;align-items:center;min-width:0;gap:6px;padding:5px 8px;border-radius:var(--r-control);background:var(--amber-soft);color:var(--amber);font-size:11.5px;line-height:1.5}
 .wl-reqc .cf{display:flex;gap:6px}.wl-why{width:100%;resize:none;font:inherit;line-height:1.5}
 .wl-dsec{border-radius:var(--r-card);padding:2px 0 8px;margin-top:14px;transition:background var(--dur-move) var(--ease),box-shadow var(--dur-move) var(--ease)}
 .wl-dsec h3{margin:0 0 2px;font-size:14px;font-weight:600}
@@ -216,6 +220,8 @@ body.immersive-workbench .wl-slot.bar-center .assistant-tab{flex:0 0 auto;width:
   .wl-deck{grid-template-columns:1fr}.wl-trow .main{min-height:48px}.wl-trow .mw-btn{display:none}.wl-serve{max-width:96px}
   .wl-to span{display:none}.wl-cbtn,.wl-to{height:44px}.wl-cbtn{width:44px}.wl-cap textarea{margin-bottom:4px}
   .wl-dock{max-height:60%}.wl-card{max-height:62vh}
+  /* 逐项对照在手机上：证据、各轮记录、收起都按得准（44px） */
+  .wl-evref{height:44px;padding:0 12px;font-size:13px}.wl-hist>summary{min-height:44px}.wl-reqs .rqh .mw-btn{min-width:44px;min-height:44px}.wl-reqc .cf .mw-btn{min-height:44px;min-width:44px}
   .wl-main>.pane.wl-rv{display:flex;flex-direction:column;overflow:auto}.wl-reqs{border-right:0;border-bottom:1px solid var(--line);overflow:visible;flex:none}.wl-rv .wl-doc{overflow:visible;flex:none;padding:16px}
   .wl-tico{height:36px;position:relative}.wl-tico:after{content:"";position:absolute;inset:-4px}.wl-slot.bar-center{width:100%;align-self:stretch}
   .wl-tfloat.dlg,.wl-tfloat.dlg.over{position:fixed;left:16px;right:16px;bottom:calc(var(--line-h,106px) + 8px);width:auto;z-index:52}

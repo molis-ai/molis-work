@@ -4,7 +4,7 @@
   document.getElementById("icons").innerHTML = window.mwKitSprite;
   const KEY = "molis-proto.work-line-32.v1";
   const fresh = () => ({ scheme: "E", dlg: false, tabs: [], lang: "zh", theme: "light", fault: "none", step: 0, side: null, focus: null, task: null, panel: false,
-    to: "assistant", dest: {}, by: {}, decided: null, accepted: false, online: false, stopped: {}, checks: {}, retried: false, att: [], sup: null, rv: {}, rv2: {}, rvOpen: false, rvSel: null, rvAsk: null, rvReason: null, peek: true });
+    to: "assistant", dest: {}, by: {}, decided: null, accepted: false, online: false, stopped: {}, checks: {}, retried: false, att: [], sup: null, rv: {}, rv2: {}, rvOpen: false, rvSel: null, rvAsk: null, rvReason: {}, rvChanged: {}, rvEdit: null, rvLog: {}, peek: true });
   let S = load(), draft = null, lastTab = null, menu = null, beat = 2, beatT = null, toastT = null, seen = new Set(), firstDraw = true;
   function load() { try { return { ...fresh(), ...JSON.parse(localStorage.getItem(KEY) || "{}") }; } catch { return fresh(); } }
   function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch { /* storage may be unavailable */ } }
@@ -50,13 +50,26 @@
   SAY.push({ from: "k4", a: ["退回的那一项改好了，在 v4 上重新核过；另外两项没动到，沿用上一轮。还差你看一眼这一项。", "The returned item is fixed and re-checked on v4. The other two were untouched and carry over. It just needs your look."] });
   // 32-2 逐项对照：沿用 2026-11-03 定样「要求与成果对照」（../assistant-proactive-paths/ 路径 3 方案 B），这里只是摆进新外壳
   const REQS = [
-    { id: "r1", n: ["三档并排，1440／1024／390 都不掉行", "Three tiers side by side at 1440 / 1024 / 390"], sec: ["三档价格表", "Three-tier table"], method: ["平台跑了三种宽度的截图核对", "The platform ran screenshot checks at three widths"], ev: [["截图 1440", "Shot 1440"], ["截图 1024", "Shot 1024"], ["截图 390", "Shot 390"]], tier: 0 },
-    { id: "r2", n: ["企业版写「联系我们」", "Enterprise says “Contact us”"], sec: ["企业版一栏", "Enterprise column"], method: ["只有执行者的一句「已按决定改」，没有可查的证据", "Only the executor's “done as decided”; nothing to check"], ev: [], tier: 1 },
+    { id: "r1", n: ["三档并排，1440／1024／390 都不掉行", "Three tiers side by side at 1440 / 1024 / 390"], sec: ["三档价格表", "Three-tier table"], method: ["工程检查：三种宽度的截图核对通过", "Engineering check: screenshots at three widths passed"],
+      op: ["产品实操：在预览里把三档逐个点开看过", "Hands-on: each tier opened and looked at in the preview"], ev: [["截图 1440", "Shot 1440"], ["截图 1024", "Shot 1024"], ["截图 390", "Shot 390"], ["实操录屏", "Hands-on recording"]], tier: 0 },
+    { id: "r2", n: ["企业版写「联系我们」", "Enterprise says “Contact us”"], sec: ["企业版一栏", "Enterprise column"], method: ["只有执行者的一句「已按决定改」，没有可查的证据", "Only the executor's “done as decided”; nothing to check"], ev: [], tier: 1, gap: "self" },
+    { id: "r4", n: ["价格与 11 月报价单一致", "Prices match the November quote"], sec: ["价格数字", "Price figures"], method: ["平台对过报价单，但核的是 v2；这一栏之后改过", "The platform compared it with the quote, but on v2; this part changed since"], ev: [["报价单比对 · v2", "Quote diff · v2"]], tier: 1, gap: "stale" },
+    { id: "r5", n: ["390 宽时按钮够大，点得准", "Buttons are easy to tap at 390"], sec: ["手机版按钮", "Mobile buttons"], method: ["交来的截图是首页的，不是定价页", "The screenshot handed in shows the home page, not the pricing page"], ev: [["截图 390 · 首页", "Shot 390 · Home"]], tier: 1, gap: "wrong" },
+    { id: "r6", n: ["页脚链接都能打开", "Footer links all open"], sec: ["页脚", "Footer"], method: ["链接检查没跑成，没有留下结果", "The link check did not run; nothing was recorded"], ev: [], tier: 1, gap: "missing" },
     { id: "r3", n: ["发布前给你看一眼", "You see it before launch"], sec: ["整页预览", "Whole-page preview"], method: ["这一项只认你本人的结论", "Only your own conclusion counts here"], ev: [["定价页 v3", "Pricing page v3"]], tier: 2 },
   ];
-  const returned = () => REQS.filter((r) => S.rv[r.id] === "returned").map((r) => r.id);
+  // 核验不算数的四种情形（PWA-144）：只有自述、证据过期、核错了对象、没有证据。徽标说是哪一种，下面一行说为什么不算、你能怎么办。
+  const GAPS = {
+    self: { badge: ["只有自述", "Self-reported only"], why: ["只有自述，不算通过：认可，或退回补证据", "Self-report only, so not passed: accept or return"] },
+    stale: { badge: ["证据过期", "Evidence out of date"], why: ["证据是 v2 的，不算通过：认可，或退回重新核", "Evidence is from v2, so not passed: accept or return"] },
+    wrong: { badge: ["核错了对象", "Wrong object checked"], why: ["证据不是这一页的，不算通过：认可，或退回重新核", "Evidence is of another page, so not passed: accept or return"] },
+    missing: { badge: ["没有证据", "No evidence"], why: ["没有证据，不算通过：认可，或退回补证据", "No evidence, so not passed: accept or return"] },
+  };
+  const nameOf = (r) => (S.rvChanged[r.id] ? [S.rvChanged[r.id], S.rvChanged[r.id]] : r.n);
+  const sentBack = (r) => S.rv[r.id] === "returned" || !!S.rvChanged[r.id]; // 退回的，和改了要求的：都回到任务那里再办
+  const returned = () => REQS.filter(sentBack).map((r) => r.id);
   const round2 = () => S.step >= 7 && returned().length > 0;
-  const reqDone = (r) => r.tier === 0 || S.rv[r.id] === "accepted" || (S.rv[r.id] === "returned" && round2() && S.rv2[r.id] === "accepted");
+  const reqDone = (r) => sentBack(r) ? round2() && S.rv2[r.id] === "accepted" : r.tier === 0 || S.rv[r.id] === "accepted";
   const accepted = () => REQS.every(reqDone);
   const STEPS = [["开始：线上只有插件登记的事件", "Start: only events plugins registered"], ["① 说一件值得跟的事", "① Something worth following"], ["② 随口问一件", "② A quick aside"],
     ["③ 为线上已有的事件办", "③ For an event already on the line"], ["④ 结果回到助理", "④ A result returns"], ["⑤ 任务要你定", "⑤ A task needs you"], ["⑥ 办完，助理接着推进", "⑥ Done, the assistant carries on"], ["⑦ 返工交回，再次复核", "⑦ Rework returns, review again"]];
@@ -279,36 +292,49 @@
   const TIER = [["机器核过", "Machine-checked"], ["只有自述", "Self-reported only"], ["要你认可", "Needs your OK"]];
   const ver = () => (round2() ? "v4" : "v3");
   function reqView(r) { // 这一项现在算什么：ring、徽标、说明
-    const c1 = S.rv[r.id], c2 = S.rv2[r.id], back = c1 === "returned";
-    if (round2() && back) return c2 === "accepted" ? { ring: "done", badge: ["你已认可 · v4", "You accepted · v4"], kind: "success", note: ["v4 上重新核过，你认可了", "Re-checked on v4; you accepted"] }
-      : { ring: "accept", badge: ["v4 重新核过 · 等你", "Re-checked on v4 · needs you"], kind: "warning", note: ["退回后改过，平台在 v4 上重新核了一遍", "Changed after your return; the platform re-checked it on v4"], ask: true };
-    if (round2()) return { ring: "done", badge: ["沿用 v3", "Carried from v3"], kind: "neutral", note: ["v4 没动到这一段，上一轮的核验和你的结论都留着", "v4 didn't touch this part; last round's check and your conclusion stand"] };
-    if (c1 === "accepted") return { ring: "done", badge: ["你已认可", "You accepted"], kind: "success", note: ["认可记在 v3 上", "Recorded against v3"] };
-    if (back) return { ring: "failed", badge: ["已退回", "Returned"], kind: "danger", note: [`你的原话：${S.rvReason ?? ""}`, `Your words: ${S.rvReason ?? ""}`] };
-    if (r.tier === 0) return { ring: "done", badge: TIER[0], kind: "success", note: r.method };
-    return { ring: "accept", badge: TIER[r.tier], kind: r.tier === 1 ? "neutral" : "warning", note: r.method, ask: true, gap: r.tier === 1 };
+    const c1 = S.rv[r.id], c2 = S.rv2[r.id], back = c1 === "returned", changed = !!S.rvChanged[r.id];
+    if (round2() && (back || changed)) return c2 === "accepted" ? { ring: "done", badge: ["你已认可 · v4", "You accepted · v4"], kind: "success", note: ["v4 上重新核过，你认可了", "Re-checked on v4; you accepted"] }
+      : { ring: "accept", badge: ["v4 重新核过 · 等你", "Re-checked on v4 · needs you"], kind: "warning", ask: true,
+          note: changed ? ["按你改过的要求，平台在 v4 上重新核了一遍", "The platform re-checked it on v4 against the requirement you changed"] : ["退回后改过，平台在 v4 上重新核了一遍", "Changed after your return; the platform re-checked it on v4"] };
+    // 沿用只沿用已经成立的结论：上一轮没通过核验、你也还没定的项，新一轮照样是缺口，不会因为「没动到」就算完成。
+    if (round2() && (r.tier === 0 || c1 === "accepted")) return { ring: "done", badge: ["沿用 v3", "Carried from v3"], kind: "neutral", note: ["v4 没动到这一段，上一轮的核验和你的结论都留着", "v4 didn't touch this part; last round's check and your conclusion stand"] };
+    if (changed) return { ring: "waiting", badge: ["要求改了 · 待重新核", "Requirement changed · to re-check"], kind: "warning", note: ["你改了这条要求。这是改要求，不算修好了：下一轮按新要求重新核，原来的要求和结论留在记录里", "You changed this requirement. That is a change of terms, not a fix: next round it is re-checked against the new one; the old one and its record are kept"] };
+    if (c1 === "accepted") return { ring: "done", badge: ["你已认可", "You accepted"], kind: "success", note: r.gap ? ["你认可了；记录里写着当时这一项没有通过核验", "You accepted; the record says the check had not passed at the time"] : ["认可记在 v3 上", "Recorded against v3"] };
+    if (back) return { ring: "waiting", badge: ["已退回 · 在返工", "Returned · being reworked"], kind: "warning", note: [`你的原话：${S.rvReason[r.id] ?? ""}`, `Your words: ${S.rvReason[r.id] ?? ""}`] };
+    if (r.tier === 0) return { ring: "done", badge: TIER[0], kind: "success", note: r.method, op: r.op };
+    return { ring: "accept", badge: r.gap ? GAPS[r.gap].badge : TIER[r.tier], kind: r.gap ? "neutral" : "warning", note: r.method, ask: true, gap: r.gap ? GAPS[r.gap].why : null };
   }
+  // 各轮记录：每一项的核验、你的决定、改要求都按轮留着，新的不盖旧的（PWA-146）。
+  const logOf = (r) => { const base = [[`v3 · ${tx(r.tier === 0 ? TIER[0] : r.gap ? GAPS[r.gap].badge : TIER[2])}`, `v3 · ${(r.tier === 0 ? TIER[0] : r.gap ? GAPS[r.gap].badge : TIER[2])[1]}`]];
+    const more = S.rvLog[r.id] ?? [], next = !round2() ? [] : sentBack(r) ? [["v4 · 平台重新核过", "v4 · the platform re-checked it"]] : r.tier === 0 || S.rv[r.id] === "accepted" ? [["v4 · 没动到这一段，沿用 v3 的结论", "v4 · untouched; the v3 conclusion carries over"]] : [["v4 · 没动到这一段，缺口还在", "v4 · untouched; the gap remains"]];
+    return [...base, ...more.filter((line) => !line[2]), ...next, ...more.filter((line) => line[2])]; };
+  const logAdd = (id, line, late = false) => { (S.rvLog[id] = S.rvLog[id] ?? []).push(late ? [...line, true] : line); };
   function reviewHtml() { // 事件卡里只给概况和入口；逐项看、认可、退回在主区的要求栏里
     const vs = REQS.map(reqView), left = vs.filter((v) => v.ask).length, back = returned().length && !round2();
-    const rows = REQS.map((r, i) => `<div class="wl-req">${ring(vs[i].ring)}<span class="nm">${tx(r.n)}</span><span class="mw-badge mw-badge--${vs[i].kind}" data-slot="badge">${tx(vs[i].badge)}</span></div>`).join("");
+    const rows = REQS.map((r, i) => `<div class="wl-req">${ring(vs[i].ring)}<span class="nm">${esc(tx(nameOf(r)))}</span><span class="mw-badge mw-badge--${vs[i].kind}" data-slot="badge">${tx(vs[i].badge)}</span></div>`).join("");
     const line = accepted() ? tx(["已验收 · 结论记在所核的版本上", "Accepted · recorded against the checked version"]) : back ? tx(["退回的在返工，其余不动", "The returned item is being reworked; the rest stays"]) : tx([`还有 ${left} 项等你`, `${left} still need you`]);
     return `<div class="wl-sec"><h4>${tx(["逐项对照 · 所核版本 ", "Item by item · checked version "])}${ver()}</h4>${rows}</div>
       <div class="cf">${btn(tx(["逐项审阅", "Review item by item"]), "rv", { v: accepted() ? "secondary" : "primary" })}<span class="fact">${line}</span></div>`;
   }
   function reqColHtml() { // 主区左边的要求栏（定样「要求与成果对照」）
-    const you = REQS.filter((r) => r.tier > 0), ok = you.filter(reqDone).length;
-    const card = (r) => { const v = reqView(r), on = S.rvSel === r.id, asking = S.rvAsk === r.id;
-      const ev = r.ev.length ? `<span class="evs">${r.ev.map((e) => `<button type="button" class="wl-evref" data-act="sim" data-label="${esc(tx(e))}">${ic("image", "sm")}<span>${esc(tx(e)).replace("v3", round2() && S.rv[r.id] !== "returned" ? "v3" : ver())}</span></button>`).join("")}</span>` : "";
-      const gap = v.gap ? `<span class="wl-gap">${ic("circle-alert", "sm")}${tx(["只有自述不算通过：你认可，或退回让它补证据", "A statement alone doesn't pass: accept it, or return it for evidence"])}</span>` : "";
-      const acts = asking ? `<textarea class="mw-input wl-why" id="why" rows="2" aria-label="${tx(["退回的原因", "Why you return it"])}">${esc(tx(["价格那一格还留着旧的数字，要整格换成「联系我们」。", "The price cell still shows the old number; replace the whole cell with “Contact us”."]))}</textarea><div class="cf">${btn(tx(["退回这一项", "Return this item"]), "rvback", { v: "primary", id: r.id })}${btn(tx(["取消", "Cancel"]), "rvask", { id: "" })}</div>`
-        : v.ask ? `<div class="cf">${btn(tx(["认可", "Accept"]), "rvok", { v: "primary", id: r.id })}${btn(tx(["退回", "Return"]), "rvask", { id: r.id })}</div>` : "";
-      return `<div class="wl-reqc${on ? " on" : ""}" data-act="rvsel" data-id="${r.id}" role="group" aria-label="${esc(tx(r.n))}"><div class="rh">${ring(v.ring)}<strong>${tx(r.n)}</strong></div>
-        <div class="rm"><span class="mw-badge mw-badge--${v.kind}" data-slot="badge">${tx(v.badge)}</span><span class="fact">${tx(["所核版本 ", "Checked "])}${round2() && S.rv[r.id] !== "returned" ? "v3" : ver()} · ${tx(r.sec)}</span></div>
-        <span class="fact rnote">${esc(tx(v.note))}</span>${ev}${gap}${acts}</div>`; };
-    const chg = round2() ? `<div class="wl-sec"><h4>${tx(["这一轮改了什么（v3 → v4）", "What changed this round (v3 → v4)"])}</h4><span class="fact">${tx(["只改了企业版一栏的价格格；三档布局和其余文案没动。", "Only the Enterprise price cell changed; the layout and the rest of the copy are untouched."])}</span></div>` : "";
+    const you = REQS.filter((r) => r.tier > 0 || sentBack(r)), ok = you.filter(reqDone).length, lead = REQS.find((r) => reqView(r).ask)?.id; // 主按钮只在第一条等你的项上
+    const card = (r) => { const v = reqView(r), on = S.rvSel === r.id, asking = S.rvAsk === r.id, editing = S.rvEdit === r.id, old = round2() && !sentBack(r) ? "v3" : ver();
+      const evs = round2() && sentBack(r) ? [["重新核的结果 · v4", "Re-check result · v4"]] : r.ev;
+      const ev = evs.length ? `<span class="evs">${evs.map((e) => `<button type="button" class="wl-evref" data-act="sim" data-label="${esc(tx(e))}">${ic("image", "sm")}<span>${esc(tx(e)).replace("v3", old)}</span></button>`).join("")}</span>` : "";
+      const gap = v.gap ? `<span class="wl-gap" title="${esc(tx(v.gap))}">${ic("circle-alert", "sm")}<span>${tx(v.gap)}</span></span>` : "";
+      const log = logOf(r), hist = log.length > 1 ? `<details class="wl-hist"><summary>${ic("history", "sm")}${tx(["各轮记录", "Record by round"])} · ${log.length}</summary>${log.map((line) => `<span class="fact">${esc(tx(line))}</span>`).join("")}</details>` : "";
+      const acts = editing ? `<textarea class="mw-input wl-why" id="reqtext" rows="2" aria-label="${tx(["这条要求改成", "Change this requirement to"])}">${esc(tx(nameOf(r)))}</textarea><span class="fact">${tx(["改要求和修好了分开记：改了以后按新要求重新核，原来的留在记录里。", "A changed requirement is recorded apart from a fix: it is re-checked against the new one, and the old one stays in the record."])}</span><div class="cf">${btn(tx(["改这条要求", "Change the requirement"]), "rvsave", { v: "primary", id: r.id })}${btn(tx(["取消", "Cancel"]), "rvedit", { id: "" })}</div>`
+        : asking ? `<textarea class="mw-input wl-why" id="why" rows="2" aria-label="${tx(["退回的原因", "Why you return it"])}">${esc(tx(r.id === "r2" ? ["价格那一格还留着旧的数字，要整格换成「联系我们」。", "The price cell still shows the old number; replace the whole cell with “Contact us”."] : ["在 v3 上重新核一遍，把结果附上。", "Re-check it on v3 and attach the result."]))}</textarea><div class="cf">${btn(tx(["退回这一项", "Return this item"]), "rvback", { v: "primary", id: r.id })}${btn(tx(["取消", "Cancel"]), "rvask", { id: "" })}</div>`
+        : v.ask ? `<div class="cf">${btn(tx(["认可", "Accept"]), "rvok", { v: lead === r.id ? "primary" : "secondary", id: r.id })}${btn(tx(["退回", "Return"]), "rvask", { id: r.id })}<span style="flex:1"></span>${round2() ? "" : iconBtn("edit", "rvedit", tx(["改这条要求", "Change this requirement"]), r.id)}</div>` : "";
+      return `<div class="wl-reqc${on ? " on" : ""}" data-act="rvsel" data-id="${r.id}" role="group" aria-label="${esc(tx(nameOf(r)))}"><div class="rh">${ring(v.ring)}<strong title="${esc(tx(nameOf(r)))}">${esc(tx(nameOf(r)))}</strong></div>
+        <div class="rm"><span class="mw-badge mw-badge--${v.kind}" data-slot="badge">${tx(v.badge)}</span><span class="fact">${tx(["所核版本 ", "Checked "])}${r.gap === "stale" && !sentBack(r) && S.rv[r.id] !== "accepted" && !round2() ? "v2" : old} · ${tx(r.sec)}</span></div>
+        <span class="fact rnote">${esc(tx(v.note))}</span>${v.op ? `<span class="fact rnote">${esc(tx(v.op))}</span>` : ""}${ev}${gap}${acts}${hist}</div>`; };
+    const moved = REQS.filter(sentBack);
+    const chg = round2() ? `<div class="wl-sec"><h4>${tx(["这一轮改了什么（v3 → v4）", "What changed this round (v3 → v4)"])}</h4><span class="fact">${tx([`只动了你退回或改过要求的 ${moved.length} 项：${moved.map((r) => tx(r.sec)).join("、")}；其余没动，沿用上一轮。`, `Only the ${moved.length} item(s) you returned or changed were touched: ${moved.map((r) => r.sec[1]).join(", ")}; the rest is untouched and carries over.`])}</span></div>` : "";
+    const checked = REQS.filter((r) => (r.tier === 0 && !sentBack(r)) || (round2() && sentBack(r))).length;
     return `<aside class="wl-reqs" aria-label="${tx(["逐项对照", "Item by item"])}"><div class="rqh"><strong>${tx(["逐项对照", "Item by item"])}</strong><span class="fact">${tx(["所核版本 ", "Checked version "])}${ver()}</span><span style="flex:1"></span>${iconBtn("x", "rv", tx(["收起要求栏", "Close the requirement column"]))}</div>
-      <div class="rqsum"><span>${tx(["执行", "Run"])} <b>${tx(["完成", "done"])}</b></span><span>${tx(["核验", "Checks"])} <b>${REQS.filter((r) => r.tier === 0 || (round2() && S.rv[r.id] === "returned")).length}/${REQS.length}</b></span><span class="${ok === you.length ? "" : "you"}">${tx(["你的认可", "Your OK"])} <b>${ok}/${you.length}</b></span></div>
-      ${REQS.map(card).join("")}${chg}${accepted() ? `<span class="fact">${tx(["都认可了。历史上的核验、退回和各轮版本都留着，可以回看。", "All accepted. Earlier checks, returns and versions are kept."])}</span>` : ""}</aside>`;
+      <div class="rqsum"><span>${tx(["执行", "Run"])} <b>${tx(["完成", "done"])}</b></span><span class="${checked === REQS.length ? "" : "you"}">${tx(["核验通过", "Checks passed"])} <b>${checked}/${REQS.length}</b></span><span class="${ok === you.length ? "" : "you"}">${tx(["你的认可", "Your OK"])} <b>${ok}/${you.length}</b></span></div>
+      ${REQS.map(card).join("")}${chg}${accepted() ? `<span class="fact">${tx(["都认可了。历史上的核验、退回、改过的要求和各轮版本都留着，可以回看。", "All accepted. Earlier checks, returns, changed requirements and versions are kept."])}</span>` : ""}</aside>`;
   }
   function eventBody(e) {
     if (e.made) {
@@ -498,9 +524,15 @@
       case "decide": S.decided = b.dataset.v; render(); return toast(tx(["收到，任务接着办", "Got it; the task continues"]));
       case "rv": S.rvOpen = !S.rvOpen; if (S.rvOpen) { S.dlg = false; S.rvSel = S.rvSel ?? REQS.find((r) => reqView(r).ask)?.id ?? "r1"; } return render();
       case "rvsel": if (e.target.closest("button,textarea")) return; S.rvSel = id; return render();
-      case "rvok": if (round2() && S.rv[id] === "returned") S.rv2[id] = "accepted"; else S.rv[id] = "accepted"; S.rvAsk = null; render(); return toast(tx(["认可记在 ", "Accepted against "]) + ver());
-      case "rvask": S.rvAsk = id || null; S.rvSel = id || S.rvSel; return render();
-      case "rvback": S.rvReason = document.getElementById("why")?.value.trim() || null; S.rv[id] = "returned"; S.rvAsk = null; render(); return toast(tx(["已退回这一项；其余两项不受影响", "Returned this item; the other two are unaffected"]));
+      case "rvok": { const r = REQS.find((x) => x.id === id), again = round2() && sentBack(r); if (again) S.rv2[id] = "accepted"; else S.rv[id] = "accepted"; S.rvAsk = null;
+        logAdd(id, [`${ver()} · 你认可${!again && r.gap ? "（当时没有通过核验）" : ""}`, `${ver()} · you accepted${!again && r.gap ? " (the check had not passed)" : ""}`], again); render(); return toast(tx(["认可记在 ", "Accepted against "]) + ver()); }
+      case "rvask": S.rvAsk = id || null; S.rvEdit = null; S.rvSel = id || S.rvSel; return render();
+      case "rvedit": S.rvEdit = id || null; S.rvAsk = null; S.rvSel = id || S.rvSel; return render();
+      case "rvsave": { const r = REQS.find((x) => x.id === id), to = document.getElementById("reqtext")?.value.trim(); if (!to || to === tx(nameOf(r))) { S.rvEdit = null; return render(); }
+        logAdd(id, [`v3 · 你改了要求：原为「${tx(nameOf(r))}」`, `v3 · you changed the requirement; it was “${tx(nameOf(r))}”`]); S.rvChanged[id] = to; S.rvEdit = null; render();
+        return toast(tx(["要求改了：下一轮按新要求重新核，其余各项不受影响", "Requirement changed: it is re-checked next round; the other items are unaffected"])); }
+      case "rvback": S.rvReason[id] = document.getElementById("why")?.value.trim() || ""; S.rv[id] = "returned"; S.rvAsk = null; logAdd(id, [`v3 · 你退回：${S.rvReason[id]}`, `v3 · you returned it: ${S.rvReason[id]}`]);
+        render(); return toast(tx(["已退回这一项；其余各项不受影响", "Returned this item; the others are unaffected"]));
       case "stop": S.stopped[id] = true; render(); return toast(tx(["已停止；停下之后才回来的结果不会再写入", "Stopped; results that arrive later are not applied"]));
       case "retry": S.retried = true; delete S.stopped[id]; return render();
       case "check": S.checks[id] = !S.checks[id]; return render();
@@ -515,7 +547,7 @@
     if ((e.key === "ArrowLeft" || e.key === "ArrowRight") && e.target.classList?.contains("wl-ev")) { const all = [...document.querySelectorAll(".wl-ev")], i = all.indexOf(e.target) + (e.key === "ArrowLeft" ? -1 : 1); all[i]?.focus(); }
   });
   document.getElementById("prev").addEventListener("click", () => goStep(S.step - 1, false));
-  document.getElementById("next").addEventListener("click", () => { if (S.step === 6 && !returned().length) return toast(tx(["第 ⑦ 步要先在「逐项审阅」里退回一项", "Step ⑦ needs one item returned in the item-by-item review first"])); goStep(S.step + 1); });
+  document.getElementById("next").addEventListener("click", () => { if (S.step === 6 && !returned().length) return toast(tx(["第 ⑦ 步要先在「逐项审阅」里退回一项，或改一条要求", "Step ⑦ needs an item returned, or a requirement changed, in the item-by-item review first"])); goStep(S.step + 1); });
   document.getElementById("fault").addEventListener("change", (e) => { S.fault = e.target.value; S.online = false; S.retried = false; render(); });
   document.getElementById("reset").addEventListener("click", () => { S = { ...fresh(), lang: S.lang, theme: S.theme, scheme: S.scheme }; draft = null; seen = new Set(); firstDraw = true; beat = 2; render(false); });
   render(false);

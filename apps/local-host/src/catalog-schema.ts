@@ -66,10 +66,6 @@ export function assertCatalogOwner(owner:string|null,databasePath:string):void {
 /** The catalog has one current schema: at another version it is refused by what that version is (upgrade-chain-design §2.1), and only the upgrade process changes it. */
 export function assertCurrentCatalog(storage: LocalSqliteStorage, databasePath: string): void {
   assertCatalogVersion(new LocalCatalogMetadata(storage.db).version(),databasePath);
-  // The current catalog has no personal planning table; accepting it would hide facts that belong to Goals' Home library.
-  if (storage.db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(PERSONAL_PLANNING_TABLE)) {
-    throw catalogErrors.unsupported_schema(`项目目录数据库包含当前结构不接受的个人规划方法表 ${PERSONAL_PLANNING_TABLE}（现行事实属于 Goals 的 Home 库），不会打开或就地维护: ${databasePath}`);
-  }
 }
 function assertCatalogVersion(version:number,databasePath:string):void {
   const expected = CATALOG_BASELINE.version;
@@ -83,9 +79,6 @@ function assertCatalogVersion(version:number,databasePath:string):void {
 export function assertCatalogMetadata(metadata:{owner:string|null;version:number},databasePath:string):void {
   assertCatalogOwner(metadata.owner,databasePath);assertCatalogVersion(metadata.version,databasePath);
 }
-
-/** The table Goals kept the person's planning methods in before they moved to its library in the Home (PG-094 S13). */
-const PERSONAL_PLANNING_TABLE = "personal_planning_method_packs";
 
 export function inspectCurrentCatalogSnapshot(database: SqliteDatabase): Readonly<Record<string,string|number>> {
     const current = new LocalSqliteStorage(":memory:");

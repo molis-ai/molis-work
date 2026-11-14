@@ -18,11 +18,10 @@ const stateProperties = goalStateSchema.properties as Record<string, ActionSchem
 
 /** Work operations retain the original domain's transaction and user-decision checks. */
 export const goalsEventActions = {
-  configure: action<BusinessInput<ConfigureGoalEventsApplicationInput>, ConfigureGoalEventsResult>("goals.events.configure", /* @version action.goals.events.configure */ 1, "配置目标记录", "登记当前目标的事件类型、规划及要求绑定；保留规划来源版本，按 expected_version 比较配置版本", "command",
-    object({ ...base, expected_version: count, expected_agreement_version: count,
+  configure: action<BusinessInput<ConfigureGoalEventsApplicationInput>, ConfigureGoalEventsResult>("goals.events.configure", /* @version action.goals.events.configure */ 1, "配置目标记录", "登记当前目标的事件类型及要求绑定；保留规划来源版本，按 expected_version 比较配置版本", "command",
+    object({ ...base, expected_version: count,
       types: array({ ...eventType, properties: { ...eventType.properties as Record<string, ActionSchema>, version }, required: ["type_id", "version", "name", "purpose", "fields"] }),
-      adopted_planning: array(object({ method_id: identifier, version, source: enumeration(["built_in", "personal", "project"]) }, ["method_id"])),
-      adopt_default_requirement_ids: array(text), requirement_bindings: array(binding) }, [...required, "expected_version"]),
+      requirement_bindings: array(binding) }, [...required, "expected_version"]),
     object({ config: goalConfigSchema, event_id: text, observed_event_cursor: count, replayed: boolean })),
   // Concurrent: before anything is saved, Goals asks the 成果库 and the platform about what a judgment's basis cites, as the caller.
   report: usingServices(action<BusinessInput<ReportGoalEventsInput>, ReportGoalEventsResult>("goals.events.report", /* @version action.goals.events.report */ 1, "报告目标工作", "按已登记类型一次保存多条工作事实，可附进展；整批校验后保存，报告不代替用户决定或收尾。判断可附依据（核对的确切交付版本、方法、观察、证据引用），可信层级由 Goals 核对后给出", "command",

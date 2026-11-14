@@ -97,9 +97,8 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
     const closeGoalOverlay = () => {
       const shell = document.querySelector("[data-goal-canvas-shell]");
       if (!shell) return;
-      shell.removeAttribute("data-goal-planning");
       shell.removeAttribute("data-goal-rules");
-      shell.querySelectorAll("[data-open-work-planning], [data-open-work-rules]").forEach((row) => {
+      shell.querySelectorAll("[data-open-work-rules]").forEach((row) => {
         row.classList.remove("is-selected");
         row.setAttribute("aria-pressed", "false");
         row.removeAttribute("aria-current");
@@ -130,36 +129,10 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
       const html = await molisWorkRequest(path,{as:"text",headers:{Accept:"text/html"},fallback:globalThis.t.text("workbench.events-primary.couldn-t-load-settings")});
       if(!pane.isConnected)return;
       const parsed = new DOMParser().parseFromString(html, "text/html");
-      const content = parsed.querySelector(".work-planning, .planning-detail, .planning-edit, .project-rules-document, .settings-document") || parsed.querySelector(".settings-content") || parsed.body;
+      const content = parsed.querySelector(".project-rules-document, .settings-document") || parsed.querySelector(".settings-content") || parsed.body;
       const node = content.classList?.contains("settings-content") ? (content.firstElementChild || content) : content;
       pane.replaceChildren(document.importNode(node, true));
       bind?.(pane);
-    };
-    const openGoalWorkPlanning = async (pathname) => {
-      const shell = document.querySelector("[data-goal-canvas-shell]");
-      const pane = shell?.querySelector("[data-goal-work-planning]");
-      if (!shell || !pane) return;
-      if (!pathname && shell.dataset.goalPlanning === "open") {
-        closeGoalOverlay();
-        return;
-      }
-      closeGoalOverlay();
-      shell.dataset.boardView = "list";
-      shell.dataset.goalPlanning = "open";
-      shell.querySelector("[data-open-work-planning]")?.setAttribute("aria-pressed", "true");
-      const prefix = document.body.dataset.routePrefix || "";
-      const path = pathname || (prefix + "/settings/planning?embed=1");
-      const run = async () => {
-        try {
-          await fillGoalOverlay(pane, path, (root) => {
-            globalThis.molisWorkBindPlanningSettings?.(root);
-            globalThis.molisWorkBindPlanningAdoption?.(root);
-          });
-        } catch (error) {
-          pane.replaceChildren(settingsLoadFailed(error,run));
-        }
-      };
-      await run();
     };
     const openGoalWorkRules = async () => {
       const shell = document.querySelector("[data-goal-canvas-shell]");
@@ -185,7 +158,6 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
       };
       await run();
     };
-    globalThis.molisWorkOpenGoalWorkPlanning = () => openGoalWorkPlanning();
     globalThis.molisWorkOpenGoalWorkRules = () => openGoalWorkRules();
     document.addEventListener("molis-work:goal-changed", closeGoalOverlay);
 

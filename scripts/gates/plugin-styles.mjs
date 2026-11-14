@@ -36,8 +36,8 @@
 //    `stylesheetPrefixes` measures 0 here (the splitter sees no rule of its own). Text Stats is such a plugin today; its rules
 //    stay shared because it has no frame, and its number is not part of this budget.
 //  - Rules a plugin keeps in a host module rather than its registration stylesheet are not seen: only the registered
-//    `stylesheet` and `settingsStylesheet` and, for Goals, the three constants named above are measured. Rules Goals' registered sheets newly take in
-//    beyond those three are not counted automatically: add it to measureFromBuild's goalsStyles and update the real-build gate test
+//    `stylesheet` and `settingsStylesheet` and, for Goals, the two constants named above are measured. Rules Goals' registered sheets newly take in
+//    beyond those two are not counted automatically: add it to measureFromBuild's goalsStyles and update the real-build gate test
 //    when adding the constant, then run plugin-styles-gate.test.ts and plugin-styles --base. No other Goals exports are scanned.
 //  - The splitter requires every selector in a list to name the plugin: `.feed-card,.other{color:red}` stays shared and is
 //    not counted. Names only inside `:is()` or `:where()` are stripped before that verdict, so `:is(.feed-card){color:red}`
@@ -208,7 +208,7 @@ async function measureFromBuild(knownPrefixes) {
 
   // Goals has no frame: its registered sheets stay whole in the shared sheets; the three constants it has always counted are measured by name.
   const goals = await distModule("plugins/native/goals/dist/index.js", "the shell-drawn Goals document styles");
-  const goalsStyles = ["GOALS_DOCUMENT_STYLES", "TRASH_GOAL_STYLES", "PLANNING_SETTINGS_STYLES"];
+  const goalsStyles = ["GOALS_DOCUMENT_STYLES", "TRASH_GOAL_STYLES"];
   for (const name of goalsStyles) if (typeof goals[name] !== "string") return fail(`plugins/native/goals/dist/index.js no longer exports ${name}, which Goals' registered sheets put in the shared sheets`);
   const goalsRules = countRules(goalsStyles.map((name) => goals[name]).join(""));
   if (goalsRules > 0) measured.goals = goalsRules;

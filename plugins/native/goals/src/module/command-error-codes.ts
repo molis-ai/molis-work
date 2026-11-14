@@ -34,10 +34,6 @@ const goals = defineErrorCodes("goals", {
   not_found: "invalid",
 });
 
-const goals_planning = defineErrorCodes("goals.planning", {
-  user_confirmation_required: "invalid",
-});
-
 const goals_policy = defineErrorCodes("goals.policy", {
   confirmation_required: "invalid",
   invalid: "invalid",
@@ -91,7 +87,6 @@ export const commandErrors = {
   "goals.goal_tree_proposal.relation_not_active": goals_goal_tree_proposal.relation_not_active,
   "goals.goal_tree_proposal.relation_type_invalid": goals_goal_tree_proposal.relation_type_invalid,
   "goals.not_found": goals.not_found,
-  "goals.planning.user_confirmation_required": goals_planning.user_confirmation_required,
   "goals.policy.confirmation_required": goals_policy.confirmation_required,
   "goals.policy.invalid": goals_policy.invalid,
   "goals.project_guidance.action_invalid": goals_project_guidance.action_invalid,

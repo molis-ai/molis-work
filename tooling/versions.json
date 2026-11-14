@@ -514,14 +514,8 @@
     "action.goals.inputs.release": 1,
     "action.goals.list": 1,
     "action.goals.note": 1,
-    "action.goals.planning.apply": 1,
-    "action.goals.planning.catalog": 1,
     "action.goals.planning.graph.check": 1,
     "action.goals.planning.impact": 1,
-    "action.goals.planning.personal.list": 1,
-    "action.goals.planning.personal.save": 1,
-    "action.goals.planning.read": 1,
-    "action.goals.planning.save": 1,
     "action.goals.policy.history": 1,
     "action.goals.policy.resolve": 1,
     "action.goals.policy.save": 1,
@@ -1058,8 +1052,7 @@
     "database.feed_project_database": 2,
     "database.form_database": 1,
     "database.functions_store_baseline": 1,
-    "database.goals_home_database": 1,
-    "database.goals_project_database": 2,
+    "database.goals_project_database": 3,
     "database.home.catalog": 3,
     "database.home_plugin_runtime_baseline": 1,
     "database.images_database": 1,
@@ -1202,43 +1195,6 @@
     "method.design-accessibility.design-handoff": 1,
     "method.design-accessibility.design-system": 1,
     "method.design-accessibility.ux-copy": 1,
-    "method.goals.domain-ai-data-product": 2,
-    "method.goals.domain-app-product": 2,
-    "method.goals.domain-brand-communication": 2,
-    "method.goals.domain-customer-success-service": 2,
-    "method.goals.domain-data-analysis": 2,
-    "method.goals.domain-game-design": 2,
-    "method.goals.domain-growth-distribution": 2,
-    "method.goals.domain-market-analysis": 2,
-    "method.goals.domain-operations-organization": 2,
-    "method.goals.domain-pricing-monetization": 2,
-    "method.goals.domain-product-ux": 2,
-    "method.goals.domain-reliability-release": 2,
-    "method.goals.domain-research-content": 2,
-    "method.goals.domain-security-privacy": 2,
-    "method.goals.domain-software-development": 2,
-    "method.goals.industry-banking-payments": 2,
-    "method.goals.industry-developer-tools": 2,
-    "method.goals.industry-ecommerce": 2,
-    "method.goals.industry-education": 2,
-    "method.goals.industry-enterprise-saas": 2,
-    "method.goals.industry-games": 2,
-    "method.goals.industry-healthcare": 2,
-    "method.goals.industry-investing-wealth": 2,
-    "method.goals.meta-domain-pack-builder": 2,
-    "method.goals.overlay-ai-human-review": 2,
-    "method.goals.overlay-marketplace": 2,
-    "method.goals.overlay-minors": 2,
-    "method.goals.overlay-payments-assets": 2,
-    "method.goals.overlay-sensitive-data-privacy": 2,
-    "method.goals.overlay-ugc-trust-safety": 2,
-    "method.goals.work-analyze-decide": 2,
-    "method.goals.work-build-change": 2,
-    "method.goals.work-content-communication": 2,
-    "method.goals.work-design-plan": 2,
-    "method.goals.work-diagnose-fix": 2,
-    "method.goals.work-migrate-refactor": 2,
-    "method.goals.work-operate-process": 2,
     "method.issues-capture": 2,
     "method.meeting-notes": 2,
     "method.todo-advance": 2,
@@ -2083,191 +2039,6 @@
     {
       "file": "plugins/content/planning-methods/skills/work-operate-process/SKILL.md",
       "key": "method.planning-methods.work-operate-process",
-      "pattern": "(^version: )\\d+()"
-    },
-    {
-      "file": "plugins/native/goals/methods/domains/domain-ai-data-product.md",
-      "key": "method.goals.domain-ai-data-product",
-      "pattern": "(^version: )\\d+()"
-    },
-    {
-      "file": "plugins/native/goals/methods/domains/domain-app-product.md",
-      "key": "method.goals.domain-app-product",
-      "pattern": "(^version: )\\d+()"
-    },
-    {
-      "file": "plugins/native/goals/methods/domains/domain-brand-communication.md",
-      "key": "method.goals.domain-brand-communication",
-      "pattern": "(^version: )\\d+()"
-    },
-    {
-      "file": "plugins/native/goals/methods/domains/domain-customer-success-service.md",
-      "key": "method.goals.domain-customer-success-service",
-      "pattern": "(^version: )\\d+()"
-    },
-    {
-      "file": "plugins/native/goals/methods/domains/domain-data-analysis.md",
-      "key": "method.goals.domain-data-analysis",
-      "pattern": "(^version: )\\d+()"
-    },
-    {
-      "file": "plugins/native/goals/methods/domains/domain-game-design.md",
-      "key": "method.goals.domain-game-design",
-      "pattern": "(^version: )\\d+()"
-    },
-    {
-      "file": "plugins/native/goals/methods/domains/domain-growth-distribution.md",
-      "key": "method.goals.domain-growth-distribution",
-      "pattern": "(^version: )\\d+()"
-    },
-    {
-      "file": "plugins/native/goals/methods/domains/domain-market-analysis.md",
-      "key": "method.goals.domain-market-analysis",
-      "pattern": "(^version: )\\d+()"
-    },
-    {
-      "file": "plugins/native/goals/methods/domains/domain-operations-organization.md",
-      "key": "method.goals.domain-operations-organization",
-      "pattern": "(^version: )\\d+()"
-    },
-    {
-      "file": "plugins/native/goals/methods/domains/domain-pricing-monetization.md",
-      "key": "method.goals.domain-pricing-monetization",
-      "pattern": "(^version: )\\d+()"
-    },
-    {
-      "file": "plugins/native/goals/methods/domains/domain-product-ux.md",
-      "key": "method.goals.domain-product-ux",
-      "pattern": "(^version: )\\d+()"
-    },
-    {
-      "file": "plugins/native/goals/methods/domains/domain-reliability-release.md",
-      "key": "method.goals.domain-reliability-release",
-      "pattern": "(^version: )\\d+()"
-    },
-    {
-      "file": "plugins/native/goals/methods/domains/domain-research-content.md",
-      "key": "method.goals.domain-research-content",
-      "pattern": "(^version: )\\d+()"
-    },
-    {
-      "file": "plugins/native/goals/methods/domains/domain-security-privacy.md",
-      "key": "method.goals.domain-security-privacy",
-      "pattern": "(^version: )\\d+()"
-    },
-    {
-      "file": "plugins/native/goals/methods/domains/domain-software-development.md",
-      "key": "method.goals.domain-software-development",
-      "pattern": "(^version: )\\d+()"
-    },
-    {
-      "file": "plugins/native/goals/methods/industries/industry-banking-payments.md",
-      "key": "method.goals.industry-banking-payments",
-      "pattern": "(^version: )\\d+()"
-    },
-    {
-      "file": "plugins/native/goals/methods/industries/industry-developer-tools.md",
-      "key": "method.goals.industry-developer-tools",
-      "pattern": "(^version: )\\d+()"
-    },
-    {
-      "file": "plugins/native/goals/methods/industries/industry-ecommerce.md",
-      "key": "method.goals.industry-ecommerce",
-      "pattern": "(^version: )\\d+()"
-    },
-    {
-      "file": "plugins/native/goals/methods/industries/industry-education.md",
-      "key": "method.goals.industry-education",
-      "pattern": "(^version: )\\d+()"
-    },
-    {
-      "file": "plugins/native/goals/methods/industries/industry-enterprise-saas.md",
-      "key": "method.goals.industry-enterprise-saas",
-      "pattern": "(^version: )\\d+()"
-    },
-    {
-      "file": "plugins/native/goals/methods/industries/industry-games.md",
-      "key": "method.goals.industry-games",
-      "pattern": "(^version: )\\d+()"
-    },
-    {
-      "file": "plugins/native/goals/methods/industries/industry-healthcare.md",
-      "key": "method.goals.industry-healthcare",
-      "pattern": "(^version: )\\d+()"
-    },
-    {
-      "file": "plugins/native/goals/methods/industries/industry-investing-wealth.md",
-      "key": "method.goals.industry-investing-wealth",
-      "pattern": "(^version: )\\d+()"
-    },
-    {
-      "file": "plugins/native/goals/methods/meta/meta-domain-pack-builder.md",
-      "key": "method.goals.meta-domain-pack-builder",
-      "pattern": "(^version: )\\d+()"
-    },
-    {
-      "file": "plugins/native/goals/methods/overlays/overlay-ai-human-review.md",
-      "key": "method.goals.overlay-ai-human-review",
-      "pattern": "(^version: )\\d+()"
-    },
-    {
-      "file": "plugins/native/goals/methods/overlays/overlay-marketplace.md",
-      "key": "method.goals.overlay-marketplace",
-      "pattern": "(^version: )\\d+()"
-    },
-    {
-      "file": "plugins/native/goals/methods/overlays/overlay-minors.md",
-      "key": "method.goals.overlay-minors",
-      "pattern": "(^version: )\\d+()"
-    },
-    {
-      "file": "plugins/native/goals/methods/overlays/overlay-payments-assets.md",
-      "key": "method.goals.overlay-payments-assets",
-      "pattern": "(^version: )\\d+()"
-    },
-    {
-      "file": "plugins/native/goals/methods/overlays/overlay-sensitive-data-privacy.md",
-      "key": "method.goals.overlay-sensitive-data-privacy",
-      "pattern": "(^version: )\\d+()"
-    },
-    {
-      "file": "plugins/native/goals/methods/overlays/overlay-ugc-trust-safety.md",
-      "key": "method.goals.overlay-ugc-trust-safety",
-      "pattern": "(^version: )\\d+()"
-    },
-    {
-      "file": "plugins/native/goals/methods/work-types/work-analyze-decide.md",
-      "key": "method.goals.work-analyze-decide",
-      "pattern": "(^version: )\\d+()"
-    },
-    {
-      "file": "plugins/native/goals/methods/work-types/work-build-change.md",
-      "key": "method.goals.work-build-change",
-      "pattern": "(^version: )\\d+()"
-    },
-    {
-      "file": "plugins/native/goals/methods/work-types/work-content-communication.md",
-      "key": "method.goals.work-content-communication",
-      "pattern": "(^version: )\\d+()"
-    },
-    {
-      "file": "plugins/native/goals/methods/work-types/work-design-plan.md",
-      "key": "method.goals.work-design-plan",
-      "pattern": "(^version: )\\d+()"
-    },
-    {
-      "file": "plugins/native/goals/methods/work-types/work-diagnose-fix.md",
-      "key": "method.goals.work-diagnose-fix",
-      "pattern": "(^version: )\\d+()"
-    },
-    {
-      "file": "plugins/native/goals/methods/work-types/work-migrate-refactor.md",
-      "key": "method.goals.work-migrate-refactor",
-      "pattern": "(^version: )\\d+()"
-    },
-    {
-      "file": "plugins/native/goals/methods/work-types/work-operate-process.md",
-      "key": "method.goals.work-operate-process",
       "pattern": "(^version: )\\d+()"
     },
     {

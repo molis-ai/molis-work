@@ -58,11 +58,9 @@ export function renderWorkEventBody(
   }
   if (event.kind === "configuration") {
     const types = event.payload.types.map((type) => `<li>${escapeHtml(type.name)} v${type.version}<small> · ${escapeHtml(type.type_id)}</small></li>`).join("");
-    const adopted = event.payload.adopted_planning.map((item) => `${item.source} · ${item.method_id} v${item.version}`).join(uiText.text("common.punctuation.semicolon"));
     const extras = event.payload.extra_requirements.map((item) => `<li>${escapeHtml(item.statement)}</li>`).join("");
     return `<article class="event"><h2>${escapeHtml(event.title)}</h2><p class="event-meta">${escapeHtml(meta)}</p>
       <p>${uiText("goals.event-history-body.configuration-version")} ${event.payload.config_version}</p>
-      ${adopted ? `<p>${uiText("goals.event-history-body.adopt-plan")}${uiText.text("common.punctuation.label-separator")}${escapeHtml(adopted)}</p>` : `<p>${uiText("goals.event-history-body.no-template-used")}</p>`}
       ${types ? `<h3>${uiText("goals.event-history-body.register-type")}</h3><ul>${types}</ul>` : ""}
       ${extras ? `<h3>${uiText("goals.event-history-body.new-completion-requirement")}</h3><ul>${extras}</ul>` : ""}
     </article>`;

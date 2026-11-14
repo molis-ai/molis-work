@@ -5,7 +5,6 @@ import type {
   GoalRecord,
   GoalRelationRecord,
   GoalsBoardRecord,
-  PlanningMethodPack,
   ProjectGuidanceEntryRecord,
   ProjectGuidanceRevisionRecord,
 } from "../contract/goals.js";
@@ -190,35 +189,6 @@ export class GoalsRepository {
       goal_id: nullableText(row.goal_id),
       policy: storedJson(row, "policy_bindings", "policy_json", {}),
     }));
-  }
-
-  listPlanningMethodPacks(projectId: string): PlanningMethodPack[] {
-    return (this.db
-      .prepare("SELECT pack_json, rowid AS stored_row FROM planning_method_packs WHERE project_id = ? ORDER BY method_id")
-      .all(projectId) as Row[])
-      .map((row) => storedJson<PlanningMethodPack | null>(row, "planning_method_packs", "pack_json", null))
-      .filter((pack): pack is PlanningMethodPack => pack != null);
-  }
-
-  putPlanningMethodPack(projectId: string, pack: PlanningMethodPack): void {
-    this.db.prepare(`
-      INSERT INTO planning_method_packs (
-        project_id, method_id, version, enabled, pack_json, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(project_id, method_id) DO UPDATE SET
-        version = excluded.version,
-        enabled = excluded.enabled,
-        pack_json = excluded.pack_json,
-        updated_at = excluded.updated_at
-    `).run(
-      projectId,
-      pack.method_id,
-      pack.version,
-      pack.enabled ? 1 : 0,
-      json(pack),
-      pack.created_at,
-      pack.updated_at,
-    );
   }
 
   getRelation(projectId: string, relationId: string): GoalRelationRecord | null {

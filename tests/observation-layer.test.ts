@@ -82,6 +82,11 @@ test("OCL-05: a successful command keeps its input and result, sealed and compre
   assert.equal(record!.work.call_id, "call-1");
   assert.equal(record!.work.runtime_session_id, "rs-1");
   assert.equal(record!.entry, "agent");
+  // The same content in a later call is one more record, not one more body: the digest addresses it once.
+  f.layer.observed(agent(), write, done({ title: "季度计划正文" }, { id: "n1" }));
+  const [, same] = f.records({ fact: "action.call" });
+  assert.equal((same!.evidence.find(item => item.role === "input")!.ref as { digest: string }).digest, input.digest);
+  assert.equal(f.db().prepare("SELECT COUNT(*) AS n FROM evidence_blobs").get()!.n, 2, "input and result, each stored once");
 });
 
 test("OCL-06: a person's page read keeps the result's digest only, by rule, and the register counts it; an Agent's read keeps both", t => {
@@ -253,11 +258,12 @@ test("OCL-15: a gap raised in a failed batch is retried, not dropped", t => {
   layer.observed(agent(), write, done({ secret: "second" }, {}));
   layer.flush();
   db.exec("DROP TRIGGER fail_gaps");
-  layer.observed(agent(), write, done({ secret: "third" }, {}));
+  // No new record: only the gaps the failed transaction carried are left to write. The first one was already kept;
+  // the second must come back with it, or this flush would write the lost stretch alone.
   layer.flush();
   const gaps = readCoverageGaps(db);
-  assert.ok(gaps.some(gap => gap.state === "unavailable" && gap.reason === "evidence_key" && gap.count > 0),
-    "the unavailable stretch the failed batch carried is written by the next batch");
+  assert.equal(gaps.filter(gap => gap.state === "unavailable" && gap.reason === "evidence_key").length, 2,
+    "both unavailable stretches are written, the one from before the failure and the one it carried");
   assert.ok(gaps.some(gap => gap.state === "lost" && gap.reason === "write_failed"));
 });
 

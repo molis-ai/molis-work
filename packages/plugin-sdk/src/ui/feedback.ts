@@ -147,3 +147,32 @@ export function renderAvatar(options: { label: string; className?: string }): st
   const initial = Array.from(options.label.trim())[0] || "?";
   return `<span class="${cx("mw-avatar", options.className)}" data-slot="avatar" aria-label="${escapeHtml(options.label)}">${escapeHtml(initial)}</span>`;
 }
+
+/**
+ * A 3 × 3 position mark: `row` counts up from the bottom row, `column` from the left (1 to 3 each; anything else is pulled into
+ * range). The one lit cell is filled in `tone` and the others are hollow outlines, so the place reads without colour. The words
+ * are the caller's: `label` is what a screen reader hears, `rowLabel`/`columnLabel` title the axes beside the large size. The SDK
+ * does not know what the axes mean (the Risk plugin uses impact × likelihood).
+ */
+export function renderSeverityGrid(options: {
+  row: number;
+  column: number;
+  tone?: Extract<MwTone, "neutral" | "warning" | "danger">;
+  size?: "small" | "large";
+  label: string;
+  rowLabel?: string;
+  columnLabel?: string;
+  className?: string;
+}): string {
+  const place = (value: number) => Math.min(3, Math.max(1, Math.round(Number.isFinite(value) ? value : 1)));
+  const row = place(options.row), column = place(options.column), size = options.size ?? "small";
+  let cells = "";
+  for (let r = 3; r >= 1; r -= 1) for (let c = 1; c <= 3; c += 1) cells += r === row && c === column ? '<i class="is-lit"></i>' : "<i></i>";
+  const grid = `<span class="mw-severity-grid__cells" aria-hidden="true">${cells}</span>`;
+  const axes = size === "large" && (options.rowLabel || options.columnLabel)
+    ? `<span class="mw-severity-grid__axes" aria-hidden="true">${options.rowLabel ? `<span class="mw-severity-grid__row-label">${escapeHtml(options.rowLabel)}</span>` : ""}${
+      options.columnLabel ? `<span class="mw-severity-grid__column-label">${escapeHtml(options.columnLabel)}</span>` : ""}</span>`
+    : "";
+  return `<span class="${cx("mw-severity-grid", `mw-severity-grid--${size}`, `mw-severity-grid--${options.tone ?? "neutral"}`, options.className)}" data-slot="severity-grid" role="img" aria-label="${
+    escapeHtml(options.label)}">${grid}${axes}</span>`;
+}

@@ -1,8 +1,11 @@
 import { currentCallId } from "@molis-ai/molis-work-kernel";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ObservationDetail, ObservationEvidenceInput, ObservationSubject } from "@molis-ai/molis-work-contracts/services/observation";
+import { ObservationLayer, observationKeys, type ObservationEnvironment } from "@molis-ai/molis-work-service-observation";
+import { createLazyFileSecretStore } from "@molis-ai/molis-work-storage";
 import { hostLog } from "./host-log.js";
 import { liveObservation } from "./observation-live.js";
+import { PRODUCT_VERSION } from "./product-version.js";
 
 /**
  * Who changed a grant: the call that did (the person in Settings or at the folder chooser, a task's categories set through its action),
@@ -29,10 +32,13 @@ export interface GrantChange {
  * change is never refused for not being recorded.
  */
 export function recordGrantChanges(home: string, by: GrantChangedBy, changes: readonly GrantChange[]): void {
+  if (!changes.length) return;
+  // A command-line uninstall has no running Host layer: it still keeps the grant change, in the same store and with the same
+  // record shape, so the person sees who took what back even when the Host was not running.
   const live = liveObservation(home);
-  if (!live || !changes.length) return;
+  const layer = live ? undefined : new ObservationLayer({ home, env: grantEnvironment(), keys: has => observationKeys(createLazyFileSecretStore(home), has) });
   try {
-    const sink = live.sink("grants"), call_id = currentCallId();
+    const sink = (live ?? layer!).sink("grants"), call_id = currentCallId();
     for (const change of changes) {
       const host = "host_reason" in by ? by.host_reason : undefined;
       const context = by as ActionCallContext;
@@ -42,4 +48,10 @@ export function recordGrantChanges(home: string, by: GrantChangedBy, changes: re
         ...(change.evidence ? { evidence: change.evidence } : {}), detail: host === undefined ? change.detail : { ...change.detail, reason: host } });
     }
   } catch (error) { hostLog.warn("observation", "grant_record_failed", error); }
+  finally { try { layer?.close(); } catch (error) { hostLog.warn("observation", "grant_store_close_failed", error); } }
+}
+
+/** The Home facts a standalone grant write needs: its product version, its clock, and no project catalog to ask. */
+function grantEnvironment(): ObservationEnvironment {
+  return { platformVersion: PRODUCT_VERSION, now: () => new Date(), projectClass: () => undefined };
 }

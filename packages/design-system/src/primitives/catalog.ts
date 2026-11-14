@@ -8,7 +8,7 @@ import { renderBarContext, renderBarStatus, renderBrief, renderBriefFocus, rende
 import { section, mark, specimen } from "./catalog-parts.js";
 import { CATALOG_CLIENT_SCRIPT } from "../page-clients.js";
 import { choiceSection, composeSection } from "./catalog-compose.js";
-import { advancedFieldSection, badgeSection, buttonSection, calendarSection, feedbackSection, fieldSection, formSection, groupsSection, menuSection, overlaySection, separatorSection, tabsSection } from "./catalog-controls.js";
+import { advancedFieldSection, badgeSection, buttonSection, severityGridSection, calendarSection, feedbackSection, fieldSection, formSection, groupsSection, menuSection, overlaySection, separatorSection, tabsSection } from "./catalog-controls.js";
 import { directorySection, layoutSection } from "./catalog-layout.js";
 import { COMPOSER_STYLES } from "../composer-styles.js";
 import { COMPOSER_BOARD_STYLES, composerSection, menuDescSection, micSection, type Say } from "./catalog-composer.js";
@@ -256,6 +256,7 @@ export function renderPrimitiveCatalog(options: {
     ${micSection(say)}
     ${iconInventorySection(options.plugins ?? [])}${renderStateRingCatalog()}
     ${badgeSection()}
+    ${severityGridSection()}
     ${statSection()}
     ${chapter("控件")}
     ${buttonSection(say)}

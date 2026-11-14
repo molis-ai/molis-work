@@ -305,6 +305,7 @@ Repository 仅内部可见是目标约束；当前 Goals/Artifacts 等 public en
 | `plugins/native/pages` | 内置插件 | 119 | 17,374 | `styles.ts` 771 | 5 | 2 | 2 | Runtime | 深 | 待审 |
 | `plugins/native/plugin-builder` | 内置插件 | 19 | 2,960 | `agent-authoring.ts` 800 | 2 | 2 | 2 | 构建期 | 中 | 已审 |
 | `plugins/native/ppt` | 内置插件 | 36 | 2,853 | `store.ts` 295 | 3 | 2 | 2 | Runtime | 中 | 待审 |
+| `plugins/native/risk` | 内置插件 | 14 | 686 | `store.ts` 207 | 2 | 2 | 2 | Runtime | 浅 | 待审 |
 | `plugins/native/schedule` | 内置插件 | 46 | 3,103 | `tasks.ts` 300 | 2 | 2 | 2 | Runtime | 中 | 待审 |
 | `plugins/native/shelf` | 内置插件 | 62 | 6,298 | `styles.ts` 647 | 2 | 3 | 2 | Runtime | 中 | 已审 |
 | `plugins/native/text-stats` | 内置插件 | 16 | 553 | `core.ts` 105 | 2 | 2 | 2 | Runtime | 浅 | 已审 |

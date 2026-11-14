@@ -48,6 +48,8 @@ export function workRecordsFactory(host: { readonly route: (path: string) => str
     ...(version !== undefined && version !== null && version !== "" ? { version: String(version).slice(0, 256) } : {}) });
   const keyOf = (shown: ShownObject | null) => shown ? shown.surface + "\u0000" + shown.id : "";
   let shown: ShownObject | null = null, minute: Minute | null = null, scrolled = false;
+  /** The last located interaction: its target and work, for the shell's own back step (the return stage). */
+  let located: { readonly work: { readonly work_ref: string }; readonly item: RecordedSubject; readonly list: string } | null = null;
   const closeMinute = () => {
     if (minute) record({ fact: "ui.dwell", stage: "minute", occurred_at: minute.at, subjects: [subject(minute.surface, minute.id)],
       detail: { seconds: minute.seconds, scrolled_seconds: minute.scrolled } });
@@ -73,16 +75,25 @@ export function workRecordsFactory(host: { readonly route: (path: string) => str
   /** One interaction (a list shown, what was chosen from it, finding it): its stages share one reference. */
   const interaction = (list: string) => {
     const work = { work_ref: "ui:" + list + ":" + crypto.randomUUID() };
+    located = null;
     return {
       presented: (items: readonly RecordedSubject[], detail: Readonly<Record<string, string | number | boolean>> = {}) =>
         record({ fact: "ui.candidates", stage: "presented", work, subjects: items.slice(0, 16), detail: { list, count: items.length, ...detail } }),
       chosen: (item: RecordedSubject, index: number) => record({ fact: "ui.candidates", stage: "chosen", work, subjects: [item], detail: { list, index } }),
       dismissed: () => record({ fact: "ui.candidates", stage: "dismissed", outcome: "no_action", work, detail: { list } }),
-      locate: (stage: string, item: RecordedSubject, outcome?: string, detail: Readonly<Record<string, string | number | boolean>> = {}) =>
-        record({ fact: "ui.locate", stage, work, subjects: [item], ...(outcome ? { outcome } : {}), detail: { list, ...detail } }),
+      locate: (stage: string, item: RecordedSubject, outcome?: string, detail: Readonly<Record<string, string | number | boolean>> = {}) => {
+        if (stage === "requested") located = { work, item, list };
+        return record({ fact: "ui.locate", stage, work, subjects: [item], ...(outcome ? { outcome } : {}), detail: { list, ...detail } });
+      },
     };
   };
-  return { record, subject, interaction };
+  /** The shell's back step after a locate: the person returned from the target to where they were. One record per locate. */
+  const returned = () => {
+    if (!located) return;
+    record({ fact: "ui.locate", stage: "returned", work: located.work, subjects: [located.item], detail: { list: located.list } });
+    located = null;
+  };
+  return { record, subject, interaction, returned };
 }
 
 export const WORK_RECORDS_FACTORY_SCRIPT = workRecordsFactory.toString();

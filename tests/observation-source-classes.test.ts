@@ -29,9 +29,10 @@ async function boundSource(t: test.TestContext) {
   withConnectorConnections(home, store => store.bind({ scopeId: pluginBindingScope({ install_id: INSTALL, project_id: "p-1", record_key: "src-1" }), pluginId: PLUGIN,
     slotId: "github", serviceId: "github", connectionId: account.connection_id }));
   const run = { signal: new AbortController().signal, current() {}, async beforeEffect() {}, retainProvider() {} };
-  const pull = (cursor: unknown, sync_mode?: string) => port.pull(target, { integration_id: "github", cursor, ...(sync_mode ? { intent: { sync_mode } } : {}) }, run);
+  const pullFor = (to: typeof target, cursor: unknown, sync_mode?: string) => port.pull(to, { integration_id: "github", cursor, ...(sync_mode ? { intent: { sync_mode } } : {}) }, run);
+  const pull = (cursor: unknown, sync_mode?: string) => pullFor(target, cursor, sync_mode);
   const records = () => { observation.layer.flush(); return readRecords(observation.layer.writer.database()!.db, { fact: "connections.pull" }); };
-  return { pull, records, seen, account };
+  return { pull, pullFor, records, seen, account, target };
 }
 
 test("OCL-02 OCL-13: a first pull is a first read, a rebuilt cursor a catch-up and any other pull real, during the provider's work and on its record", async t => {
@@ -47,4 +48,13 @@ test("OCL-02 OCL-13: a first pull is a first read, a rebuilt cursor a catch-up a
     assert.deepEqual(record.subjects, [{ kind: "source", id: "src-1" }, { kind: "connection", id: f.account.connection_id }]);
     assert.equal(record.detail.events, 1);
   }
+});
+
+test("OCL-02 EC-04: a pull from a source with no usable account is recorded as failed, not silence", async t => {
+  const f = await boundSource(t);
+  const unbound = await f.pullFor({ ...f.target, record_key: "src-unbound" }, null);
+  assert.deepEqual([unbound.result.ok, unbound.result.ok ? undefined : unbound.result.failure], [false, "needs_auth"]);
+  const records = f.records().filter(record => record.detail.failure === "needs_auth");
+  assert.equal(records.length, 1, "the attempt is kept even though no account was bound");
+  assert.deepEqual([records[0]!.outcome, records[0]!.subjects, records[0]!.source_class], ["failed", [{ kind: "source", id: "src-unbound" }], "first_read"]);
 });

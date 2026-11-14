@@ -89,8 +89,9 @@ function frameUi(host: FrameHost, pack: FramePack, message: Extract<FrameUp, { t
     if (!text(args[0], 101) || !/^[a-z][a-z0-9-]{0,100}$/u.test(args[0]) || !text(args[1]) || !args[1] || (args[2] !== undefined && !text(args[2]))) return;
     if (message.itemTabId !== undefined) {
       if (message.name !== "openItem" || message.itemTabId !== tabId) return;
-      host.openItem?.(pack.id, args[1], args[2]);
-    } else host[message.name]?.(args[0], args[1], args[2]);
+      host.openItem?.(pack.id, args[1], args[2], undefined, { from: pack.id });
+    } else if (message.name === "openItem") host.openItem?.(args[0], args[1], args[2], undefined, { from: pack.id });
+    else host.openBeside?.(args[0], args[1], args[2]);
   } else if (message.name === "hideDirectory" && !args.length) host.hideDirectory?.();
   else if (message.name === "status" && args.length === 1 && (args[0] === null || text(args[0], 4000))) host.status?.(args[0]);
 }

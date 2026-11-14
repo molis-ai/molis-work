@@ -20,6 +20,8 @@ export interface ScheduledTaskRunner {
     title: string;
     instructions: string;
     history: readonly { kind: string; text: string }[];
+    /** The object the task is about, named in the round's words. */
+    subject?: { kind: string; id: string } | null;
   }, control?: ScheduleWakeupControl): Promise<{ text: string; important: boolean }>;
 }
 
@@ -56,7 +58,9 @@ export async function handleScheduleTaskWakeup(
     const current = getScheduleConversationTask(db, objectRef);
     // Marking the conversation read changes updated_at but does not invalidate the work.
     if (!current || !current.enabled || current.archived || current.title !== task.title || current.instructions !== task.instructions
-      || current.hour !== task.hour || current.minute !== task.minute || current.notify_important !== task.notify_important) {
+      || current.hour !== task.hour || current.minute !== task.minute || current.notify_important !== task.notify_important
+      || current.repeat !== task.repeat || current.run_at !== task.run_at
+      || current.subject?.kind !== task.subject?.kind || current.subject?.id !== task.subject?.id) {
       throw new Error("定时任务已暂停或改变，本轮结果未保存");
     }
   };
@@ -67,6 +71,7 @@ export async function handleScheduleTaskWakeup(
       title: task.title,
       instructions: task.instructions,
       history,
+      subject: task.subject,
     }, control);
     const parsed = parseScheduledAgentReply(raw.text);
     const text = parsed.text || "这一轮没有写出正文。";
@@ -80,6 +85,8 @@ export async function handleScheduleTaskWakeup(
         important,
         mark_unread: important && task.notify_important,
       }, now);
+      // A one-off task has run its one time; it stops in the same write as its answer.
+      if (task.repeat === "none") setScheduleConversationTaskEnabled(db, task.task_id, false, now);
     });
     return { detail: important ? "important" : "ok" };
   } catch (error) {
@@ -112,6 +119,11 @@ export function rescheduleEnabledConversationTasks(
     const job = task.job_id ? schedule.get(task.job_id) : null;
     if (job && "authorization" in job && job.authorization === "needs_confirmation") { setScheduleConversationTaskEnabled(db, task.task_id, false, now); continue; }
     if (job && (job.enabled || schedule.isExecuting?.(job.job_id))) continue;
+    // A one-off task whose job is gone after its time has run (or was let go as missed): it stops instead of coming back.
+    if (task.repeat === "none" && Date.parse(task.run_at ?? "") <= now().getTime()) {
+      setScheduleConversationTaskEnabled(db, task.task_id, false, now);
+      continue;
+    }
     const registered = registerConversationJob(schedule, task, now());
     if (job?.job_id !== registered.job_id) bindScheduleConversationJob(db, task.task_id, registered.job_id, now);
   }
@@ -119,15 +131,16 @@ export function rescheduleEnabledConversationTasks(
 
 export function registerConversationJob(
   schedule: ScheduleJobPort,
-  task: Pick<ScheduleConversationTaskRecord, "task_id" | "title" | "hour" | "minute">,
+  task: Pick<ScheduleConversationTaskRecord, "task_id" | "title" | "hour" | "minute" | "repeat" | "run_at">,
   from: Date,
 ): ScheduleJobRecord {
+  const due = task.repeat === "none" && task.run_at ? new Date(task.run_at) : nextDailyLocalDue(task.hour, task.minute, from);
   return schedule.register({
     plugin_id: SCHEDULE_PLUGIN_ID,
     capability_id: SCHEDULE_TASK_WAKEUP_CAPABILITY,
     object_ref: task.task_id,
     title: task.title,
-    due_at: nextDailyLocalDue(task.hour, task.minute, from).toISOString(),
+    due_at: due.toISOString(),
     recurrence: { kind: "once" },
   });
 }

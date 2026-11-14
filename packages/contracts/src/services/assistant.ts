@@ -341,11 +341,7 @@ export interface AssistantRound {
   /** While a model call of this round waits to try again: when and why, as the runtime said (the page counts down to it). */
   retry_wait?: AgentRetryWait;
   ended_at: string | null;
-  /**
-   * The Skills this round used (SKL-11): the ones the person named for it, then the ones the Assistant read of its own choice, from
-   * the runtime's record of the round's catalog reads. Empty when it used none; absent for a round a plugin's Agent ran (its own page
-   * says what it used) or one the runtime has no record of.
-   */
+  /** The Skills this round used (SKL-11): the person's, then those it read by itself. Empty: none. Absent: a plugin's Agent ran it, or no record. */
   skills?: SkillPick[];
   /** The memories this round was given, and the ones that matched but did not fit (specs/archive/memory-system §7.3). Deleted ones are not listed. */
   memories_used?: { used: AssistantRoundMemory[]; omitted: Array<AssistantRoundMemory & { reason: "budget" | "limit" }>;
@@ -527,11 +523,7 @@ export interface AssistantSendInput extends Pick<AgentInputSend, "about"> {
    */
   delivery?: AgentSteerMode;
   reask?: AgentQuestionReask;
-  /**
-   * `false`: 「这次不用技能」 — the round this Send starts picks no automatic Skill; the ones named in `materials` are still used
-   * (SKL-11). It holds for that round only and changes no Skill's state. A Send that reaches a round under way starts none, so it
-   * changes nothing there.
-   */
+  /** `false`: 「这次不用技能」 (SKL-11) — the round this Send starts picks no Skill by itself; named ones still go. That round only; no setting changes. */
   auto_skills?: false;
   /** Identifies the content of this attempt when recovering a lost Send with the same request_id. Echoed only for the attempt that claimed it. */
   submission_id?: string;

@@ -4,7 +4,7 @@ import { agentErrors } from "../errors.js";
 import type { AgentRunRef, AgentRunView, AgentSessionView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { PrologueApprovalBridge } from "./prologue-approvals.js";
 import type { PrologueAdapterPorts, PrologueControlPort, PrologueModelConfiguration, PrologueRunPort, PrologueRunTiming, PrologueRuntimePort } from "./prologue-ports.js";
-import { observeRun, type RunObservationStart } from "./prologue-run-observation.js";
+import { observeRun, type RoundObserver, type RunObservationStart } from "./prologue-run-observation.js";
 import {
   applyRunEvent,
   prologuePhaseOf,
@@ -44,6 +44,8 @@ export interface RunRecord {
 export class PrologueRunStore {
   readonly #sessions = new Map<string, SessionRecord>();
   readonly #runs = new Map<string, RunRecord>();
+  /** Each followed round's way to record a model request it sent, by run id. */
+  readonly #requests = new Map<string, RoundObserver["request"]>();
   /** Sessions starting a round, closing an interrupted one or preparing a rewind: one at a time each. */
   readonly #startingSessions = new Set<string>();
   readonly #restoring = new Map<string, Promise<SessionRecord>>();
@@ -55,6 +57,8 @@ export class PrologueRunStore {
     this.#runtime = runtime;
     this.now = now;
     this.#approvals = approvals;
+    // A request the runtime reports for a round nobody follows here (or no longer) is not recorded.
+    runtime.listenModelRequests?.(request => { try { this.#requests.get(request.runId)?.(request); } catch { /* a record that cannot be made never touches the round */ } });
   }
 
   get sessions(): ReadonlyMap<string, SessionRecord> { return this.#sessions; }
@@ -138,10 +142,11 @@ export class PrologueRunStore {
    */
   follow(record: RunRecord, start: RunObservationStart, run: PrologueRunPort, ports: PrologueAdapterPorts): void {
     const ref = record.view.ref, frozen = record.view.frozen;
-    let observe: ((event: PrologueEvent) => void) | undefined;
+    let observe: RoundObserver | undefined;
     try {
       const recorder = ports.observeRun?.({ owner: this.requireSession(ref.session_id).owner, ...(frozen.call_id ? { call_id: frozen.call_id } : {}) });
       observe = recorder && observeRun(recorder, ref, frozen, start, record.model);
+      if (observe) this.#requests.set(ref.run_id, observe.request);
     } catch { /* No recorder for this round: it runs unrecorded, never held back by the records. */ }
     let initialPromptPending = true;
     const unsubscribeEvents = run.subscribe((event) => {
@@ -152,7 +157,7 @@ export class PrologueRunStore {
       }
       const at = this.now().toISOString();
       if (!applyRunEvent(record.state, event, at, waiting => this.#runtime.unexecutedApprovalCall?.(ref, waiting))) return;
-      try { observe?.(event); } catch { /* A record that cannot be made never stops or slows the round it describes. */ }
+      try { observe?.event(event); } catch { /* A record that cannot be made never stops or slows the round it describes. */ }
       // A held ending reads as what was wrong with it; one that ended still only announcing says nothing was done.
       if (event.type === "model-response-repair" && event.reason === "stop-held") {
         const label = ports.stopHeld?.(ref.run_id), held = [...record.state.activity].reverse().find(item => item.call_id.startsWith("model-held-"));
@@ -171,7 +176,7 @@ export class PrologueRunStore {
       if (event.type === "memory-context") void this.memoryUsage.record(record, this.requireSession(ref.session_id).owner).then(() => this.publish(ref.run_id));
     });
     const unsubscribeControl = record.control.subscribe(() => this.publish(ref.run_id));
-    record.unsubscribe = () => { record.memory_binding?.close(); unsubscribeEvents(); unsubscribeControl(); };
+    record.unsubscribe = () => { record.memory_binding?.close(); unsubscribeEvents(); unsubscribeControl(); this.#requests.delete(ref.run_id); };
   }
 
   /**

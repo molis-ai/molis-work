@@ -1,6 +1,7 @@
 import type { AgentRoundSkill, AgentRunRef, AgentRunView, AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { ObservationDetail, ObservationEvidenceInput, ObservationSubject, ObservationFactInput, ObservationOutcome, ObservationRecorder } from "@molis-ai/molis-work-contracts/services/observation";
 import { MOLIS_ACTION_TOOL_PREFIX } from "./prologue-action-tools.js";
+import type { ModelRequestObserved } from "@prologue/sdk";
 import type { PrologueModelConfiguration } from "./prologue-ports.js";
 import type { PrologueEvent } from "./prologue-stream.js";
 import type { PrologueUsageReceipt } from "../inference.js";
@@ -23,8 +24,9 @@ function usageDetail(receipt: PrologueUsageReceipt): ObservationDetail {
  * What one Agent round did, as work records (specs/observation-collection/contract-design.md §4, design §4「各类 AI」): the start with the
  * versions in force and the task, the prompt and Skill bodies it was sent, messages the person added while it ran, each model reply (its text and any reasoning the model
  * reported, folded per model call), the tools it used, usage with its model, compaction, memory recall, guardrails, waits and the end.
- * An action tool's input and result are the action exit's record of the same call; here it is only linked, never stored twice. The full
- * request as assembled for the model is not in the runtime's event stream, so the coverage register lists it as unavailable.
+ * An action tool's input and result are the action exit's record of the same call; here it is only linked, never stored twice. Each
+ * request the round's loop sent is kept as the runtime handed it to the Host (`request`): what the model actually received, joined to
+ * its usage by the model call's id. A compaction summary's request and an image a reply returned are not among them (by rule).
  */
 /** What the round was sent at its start, as the Host froze it: the task, each prompt body, each Skill's body and each text material. */
 export interface RunObservationStart {
@@ -34,7 +36,15 @@ export interface RunObservationStart {
   readonly materials: readonly AgentTextMaterial[];
 }
 
-export function observeRun(recorder: ObservationRecorder, ref: AgentRunRef, frozen: AgentRunView["frozen"], start: RunObservationStart, model: PrologueModelConfiguration | undefined): (event: PrologueEvent) => void {
+/** A round's two ways in: the events it streams, and each model request it sent. */
+export interface RoundObserver {
+  readonly event: (event: PrologueEvent) => void;
+  readonly request: (request: ModelRequestObserved) => void;
+}
+
+const REQUEST_OUTCOME: Readonly<Record<ModelRequestObserved["status"], ObservationOutcome>> = { "response-observed": "succeeded", "dispatched-or-unknown": "unknown", "not-dispatched": "no_action" };
+
+export function observeRun(recorder: ObservationRecorder, ref: AgentRunRef, frozen: AgentRunView["frozen"], start: RunObservationStart, model: PrologueModelConfiguration | undefined): RoundObserver {
   const work = { run_id: ref.run_id }, subjects = [{ kind: "agent_session", id: ref.session_id }];
   const conditions = {
     prompts: frozen.prompts.map(prompt => ({ key: prompt.prompt_id, version: prompt.user_revision === undefined ? prompt.version : `${prompt.version}+${prompt.user_revision}` })),
@@ -66,7 +76,12 @@ export function observeRun(recorder: ObservationRecorder, ref: AgentRunRef, froz
     detail: { text: start.materials.length, images: frozen.image_materials?.length ?? 0 } });
   for (const skill of start.skills) put({ fact: "agent.skill", outcome: "succeeded", stage: "effective", work,
     subjects: [...subjects, { kind: "skill", id: skill.ref.skill_id, version: skill.ref.version }], detail: { origin: skill.origin, named: skill.named }, evidence: [text("body", skill.body)] });
-  return event => {
+  // What was sent, byte for byte as text; a request that never left keeps no body (nothing reached the model).
+  const request = (sent: ModelRequestObserved) => record("agent.model_request", REQUEST_OUTCOME[sent.status], { stage: sent.status,
+    conditions: { model: { provider: sent.protocol ?? conditions.model.provider, model_id: sent.model ?? frozen.model_id } },
+    detail: { model_call_id: sent.callId, bytes: sent.body.byteLength, attachments: sent.attachments },
+    evidence: [sent.status === "not-dispatched" ? kept("request") : text("request", new TextDecoder().decode(sent.body), "application/json")] });
+  const event = (event: PrologueEvent) => {
     // The union ends in an open shape for frames this projection does not read, so fields are read by name as the stream defines them.
     const e: Record<string, unknown> = event;
     switch (event.type) {
@@ -83,7 +98,8 @@ export function observeRun(recorder: ObservationRecorder, ref: AgentRunRef, froz
         return;
       }
       case "usage-recorded": case "compaction-usage-recorded": flushReply();
-        record("agent.usage", "succeeded", { stage: event.type === "usage-recorded" ? "model" : "compaction", conditions: { model: conditions.model }, detail: usageDetail(e.receipt as PrologueUsageReceipt) }); return;
+        record("agent.usage", "succeeded", { stage: event.type === "usage-recorded" ? "model" : "compaction", conditions: { model: conditions.model },
+          detail: { ...usageDetail(e.receipt as PrologueUsageReceipt), ...(event.type === "usage-recorded" && e.callId ? { model_call_id: String(e.callId) } : {}) } }); return;
       case "compacted": record("agent.compaction", "succeeded", { detail: e.replaced === undefined ? {} : { replaced: Number(e.replaced) } }); return;
       case "compaction-failed": record("agent.compaction", "failed", { detail: e.why ? { why: String(e.why) } : {} }); return;
       case "compaction-cancelled": record("agent.compaction", "cancelled"); return;
@@ -111,4 +127,5 @@ export function observeRun(recorder: ObservationRecorder, ref: AgentRunRef, froz
       default: return;
     }
   };
+  return { event, request };
 }

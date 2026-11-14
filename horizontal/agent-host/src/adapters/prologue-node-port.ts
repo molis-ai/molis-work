@@ -19,7 +19,7 @@ import { codingExecutionRules } from "./prologue-taskboard.js";
 import type { PrologueAdapterOptions, PrologueRuntimePort } from "./prologue.js";
 import { PROLOGUE_RUNTIME_ID } from "./prologue-adapter-capabilities.js";
 import { agentErrors } from "../errors.js";
-import { MAX_COMPOSED_INSTRUCTION_CHARS, readResource, sameRef, stageTextResource, type CommandEvent, type NodeHost, type PrologueNodeAdapterOptions } from "./prologue-node-kit.js";
+import { MAX_COMPOSED_INSTRUCTION_CHARS, readResource, sameRef, stageTextResource, type CommandEvent, type NodeHost, type PrologueNodeAdapterOptions, type RoundState } from "./prologue-node-kit.js";
 import { SESSION_INDEX_SCHEMA, type SessionIndexStore } from "./prologue-session-index.js";
 import type { createPrologueMemoryAuthority } from "./prologue-memory-authority.js";
 
@@ -32,7 +32,7 @@ import type { createPrologueMemoryAuthority } from "./prologue-memory-authority.
 export const SUBAGENT_DEFAULT_TURNS = 20;
 
 /** The Prologue runtime on the Node host, with the Host's limits, posture and the rules every round runs under. */
-export function createNodeRuntime(options: PrologueNodeAdapterOptions, host: NodeHost, runScheduled: (task: QueuedTask) => Promise<void>, surfaceHost: () => PrologueSurfaces | undefined, dispatchChecks: DispatchChecks, conditionCheckers: ConditionCheckers, memoryAccess: ReturnType<typeof createPrologueMemoryAuthority>) {
+export function createNodeRuntime(options: PrologueNodeAdapterOptions, host: NodeHost, runScheduled: (task: QueuedTask) => Promise<void>, surfaceHost: () => PrologueSurfaces | undefined, dispatchChecks: DispatchChecks, conditionCheckers: ConditionCheckers, memoryAccess: ReturnType<typeof createPrologueMemoryAuthority>, modelRequests: RoundState["modelRequests"]) {
   return createRuntime({
     app: options.app,
     host,
@@ -48,6 +48,8 @@ export function createNodeRuntime(options: PrologueNodeAdapterOptions, host: Nod
       redactScreenshot: (bytes: Uint8Array) => { const bound = surfaceHost(); return bound ? bound.redact(bytes) : Promise.reject(new Error("界面控制尚未就绪")); } } } : {}),
     preset: "local-agent",
     onQueuedWork: runScheduled,
+    // Each request a round's loop sends, as the runtime handed it to the Host, for the round's work record (observation, batch 28).
+    onModelRequest: request => { for (const listen of modelRequests) { try { listen(request); } catch { /* a listener's fault stays its own */ } } },
     slots: {
       ...(options.documentParsers?.length ? { "document-parser": { implementation: "molis-host-document-parsers", version: /* @version protocol.prologue.implementation.node-port */ "1.0.0", impl: options.documentParsers } } : {}),
       ...(memoryAccess.extractor ? { "memory-extractor": { implementation: "molis-host-memory-extractor", version: /* @version protocol.prologue.implementation.node-port */ "1.0.0", impl: memoryAccess.extractor } } : {}),
@@ -300,6 +302,7 @@ export function createNodePort(deps: PortDeps): PrologueRuntimePort {
   const openSession = (sessionId: string, unreadable: string) => openSessionOf(deps, sessionId, unreadable);
   return {
     defaultContextWindowTokens: DEFAULT_CONTEXT_WINDOW_TOKENS,
+    listenModelRequests(listen) { state.modelRequests.add(listen); return () => { state.modelRequests.delete(listen); }; },
     unexecutedApprovalCall(run, waiting) {
       if (waiting.effect_revision === undefined || waiting.pending_revision === undefined) return undefined;
       const effectRef = { kind: "effect" as const, id: waiting.effect_id, revision: waiting.effect_revision };

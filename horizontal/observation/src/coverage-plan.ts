@@ -28,10 +28,12 @@ export const OBSERVATION_COVERAGE_PLAN: readonly CoveragePlanEntry[] = [
   ...AGENT_FACTS.map(name => ({ owner: "service:agent", fact: `agent.${name}`, entries: ["agent"], state: "complete" } as const)),
   // An action tool's input and result are the action exit's record of that call; the round's record only links it.
   { owner: "service:agent", fact: "agent.tool.action_content", entries: ["agent"], state: "by_rule", reason: "kept_by_action_exit" },
-  // The request as the runtime assembled it for the model (history, tools, materials together) is not in its event stream.
   // Images shown to a round are runtime resources that do not outlive it; only that there was one, and which, is kept.
   { owner: "service:agent", fact: "agent.materials.image", entries: ["agent"], state: "unavailable", reason: "image_resources_not_kept" },
-  { owner: "service:agent", fact: "agent.model_request", entries: ["agent"], state: "unavailable", reason: "runtime_does_not_expose_request" },
+  // Each request the round's loop sent, as the runtime handed it to the Host (Prologue `onModelRequest`, #119); attachment bytes stay
+  // placeholders there, and an image a round was shown is the row above. A compaction summary's request is not reported by the runtime.
+  { owner: "service:agent", fact: "agent.model_request", entries: ["agent"], state: "complete" },
+  { owner: "service:agent", fact: "agent.model_request.compaction", entries: ["agent"], state: "by_rule", reason: "runtime_reports_loop_turns_only" },
   // Every wakeup of a project clock, in its own operation; the action it fired is the exit's record under the same call number.
   { owner: "service:scheduler", fact: "scheduler.wakeup", entries: ["schedule"], state: "complete" },
   // Each panel write on an Assistant work, joined to that work; the call's content is the exit's, the rounds it started are the agent's.

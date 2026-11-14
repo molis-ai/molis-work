@@ -31,7 +31,7 @@ Node 适配器类型与运行时都要求明确的绝对 `storageRoot`；缺失�
 编码任务的业务含义、模型选择、凭据，以及批准决定本身——那是用户在宿主审查面里做的。
 adapter 只报告事实并执行已批准的工作。
 
-工作记录（第 28 批，`specs/observation-collection/contract-design.md` §4）由可选 `observeRun` Host 回调接上：每一轮开始时用会话的主人与起它的调用（`frozen.call_id`）绑定一个记录器，`src/adapters/prologue-run-observation.ts` 从运行时的事件流记 `agent.*`：开始（冻结版本与任务）、实际给出的各段提示词与 Skill 正文、人中途加的话、按一次模型调用合起来的回复与模型给出的推理、工具（动作工具只记关联，输入与结果归动作出口）、用量连同模型、整理、记忆召回、拦截、等待、重试、换模型、改动的文件和结束。重放的重复帧不记；记录器出错不影响这一轮。模型实际收到的完整请求不在事件流里，覆盖登记写「暂不可用」。回归：`tests/observation-agent-runs.test.ts`。
+工作记录（第 28 批，`specs/observation-collection/contract-design.md` §4）由可选 `observeRun` Host 回调接上：每一轮开始时用会话的主人与起它的调用（`frozen.call_id`）绑定一个记录器，`src/adapters/prologue-run-observation.ts` 从运行时的事件流记 `agent.*`：开始（冻结版本与任务）、实际给出的各段提示词与 Skill 正文、人中途加的话、按一次模型调用合起来的回复与模型给出的推理、工具（动作工具只记关联，输入与结果归动作出口）、用量连同模型、整理、记忆召回、拦截、等待、重试、换模型、改动的文件和结束。重放的重复帧不记；记录器出错不影响这一轮。模型实际收到的完整请求另经运行时的 `onModelRequest`（Prologue #119）交来：节点组装把听的人挂在一轮的状态上（`RoundState.modelRequests`），运行库按 run 交给跟着这一轮的记录器，记成 `agent.model_request`（交给 Host 的原字节，附件仍是占位；没发出去的不留正文），用 `model_call_id` 与同一次调用的 `agent.usage` 连起来；压缩摘要的请求运行时不交，覆盖登记写「按规则」。回归：`tests/observation-agent-runs.test.ts`。
 
 记忆使用投影由可选 `memoryUsage` Host 回调接收真实 SDK Context 回执，保留原 Session/Run、条目版本、retrieval receipt 与模型 call。`prepared` 不算派发；`dispatched-or-unknown` 与 `response-observed` 分开，后者也不证明模型采用。回调失败只报告 `memory.receipt_unrecorded`，不重发模型；读取原 Run 可再交同一事实，关闭 Runtime 时等待在途投影。历史事件到只读视图由 `prologue-restored-session.ts` 持有，SDK 存储读取与原不可恢复控制不变。验证：`tests/prologue-memory-run-context.test.ts` 使用真实 Node/SQLite/本机 HTTP 覆盖 ledger 故障、原 Run 重读和零网络补账；`tests/memory-use-receipts.test.ts` 覆盖单调摘要与遗忘屏障。
 

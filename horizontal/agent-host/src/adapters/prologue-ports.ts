@@ -177,6 +177,8 @@ export interface PrologueRuntimePort {
   readPendingQuestion?(run: AgentRunRef, pendingId: string, revision: number): Promise<AgentPendingQuestion | null>;
   /** Current original SDK approval facts, observed without answering or dispatching anything. */
   unexecutedApprovalCall?(run: AgentRunRef, waiting: import("./prologue-stream.js").PrologueApprovalWaiting): string | undefined;
+  /** Hear each model request a round sends, as the runtime handed it to the Host; returns how to stop hearing. */
+  listenModelRequests?(listen: (request: import("@prologue/sdk").ModelRequestObserved) => void): () => void;
   readCommandOutput?(sessionId: string, ref: AgentCommandOutputRef): Promise<AgentCommandOutput>;
   sessions: {
     lifecycle?: AgentRuntimeAdapter["sessionLifecycle"];

@@ -821,6 +821,14 @@
       "gitBlob": "a1a3eda65c30cfe1723254ac0e69ee5cc4ae45fb",
       "commit": "4537a570dcb4541f2dc68466f6886880c1b75007",
       "description": "第 31 批的 Slice-31 window 自定义包（基于 1cc80b05 加三项窗口改动，未合并上游），2026-11-13 由 main 合并后打出的官方包 prologue-sdk-0.0.0-rc.1.tgz 换下。"
+    },
+    {
+      "file": "prologue-sdk-0.0.0-rc.1-main-5cbf2601.tgz",
+      "bytes": 1448221,
+      "sha256": "2715d3c90530282fb7f8cc5cf0638a07a7b3b3ff90aeae0e6bde59b41d2d4cd5",
+      "gitBlob": "53551b18f610e40dba509295880e7a8435137d60",
+      "commit": "8cdd368a5f",
+      "description": "第 31 批换上的官方 main 构建（上游 5cbf2601，PR #115），文件名同为 prologue-sdk-0.0.0-rc.1.tgz，这里加提交号区分；2026-11-13 第 28 批由上游 main c764d970（PR #119）的官方构建换下。"
     }
   ],
   "notes": [

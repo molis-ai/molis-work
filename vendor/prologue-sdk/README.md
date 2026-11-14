@@ -1,8 +1,20 @@
 # Prologue SDK 构建来源
 
-本目录沿用 [AGENTS.md](../../AGENTS.md) 的受控包规则。当前唯一运行依赖为 `prologue-sdk-0.0.0-rc.1.tgz`（上游 main 的官方构建，第 31 批于 2026-11-13 换）；被它换下的 `window31` 自定义包、main 在 #2020 采用的 `memory-p0` 第二版（1,428,464 字节，上游 #113）与更早的 `memory-p0` 第一版、`final103-bridge` 已从本目录删除，记录与重建来源见 `patch-history.json` 与 Git 历史。
+本目录沿用 [AGENTS.md](../../AGENTS.md) 的受控包规则。当前唯一运行依赖为 `prologue-sdk-0.0.0-rc.1.tgz`（上游 main 的官方构建，第 28 批于 2026-11-13 换到 `c764d970`）；第 31 批换上的上一份官方构建（`5cbf2601`）与被它换下的 `window31` 自定义包、main 在 #2020 采用的 `memory-p0` 第二版（1,428,464 字节，上游 #113）与更早的 `memory-p0` 第一版、`final103-bridge` 已从本目录删除，记录与重建来源见 `patch-history.json` 与 Git 历史。
 
-## 当前包：official main（2026-11-13，第 31 批换）
+## 当前包：official main c764d970（2026-11-13，第 28 批换）
+
+当前包为 **1,450,940 字节**，SHA-256 `1cafead30e065c7e12d41dc7b684210b3021f3900e4cc8ce89351fff16ea8207`。来源为上游 `molis-ai/molis-prologue` 的 **main 合并提交 `c764d970b9ab934e9621bc5d38ae2471a440749a`**（PR [#119](https://github.com/molis-ai/molis-prologue/pull/119)），没有 vendor 补丁、没有脏文件。比上一份（`5cbf2601`）多三项，都在 main 上：
+
+- #119（第 28 批，用户批准改上游）：`CreateRuntimeInput.onModelRequest`。一轮 Agent 循环的每次模型请求在结局定下时交给 App 一次：交给 Host 的原字节（拷贝，附件仍是占位）、这一跑与会话、调用号（与 `usage-recorded`、`memory-context` 同一个）、目标的协议与模型、只含协议主机路径的地址、结局（与 `memory-context` 同三种）。观察方同步调用、不等、抛错被吞；不给就不复制。压缩摘要、循环外的单次调用、回复里图片的下载不交。Molis 的 agent-host 用它记 `agent.model_request`。
+- #117：`runtime.memory.listScopes` 一次读几个完整的授权集合；`memory.modelOrigin`（默认 `description`，与以前相同）只改模型看到的来源标签。Molis 没有设置它，默认行为不变。
+- #116：只加测试（写后检查的子 Run 身份）。
+
+重建：在该提交的两个独立检出里各自 `pnpm install --frozen-lockfile --offline --ignore-scripts`、`pnpm build`、`pnpm -C packages/sdk pack --pack-destination <外部目录>`；两份包逐字节相同。质量证据：`node scripts/public-api.mjs`、`node scripts/quality-ratchet.mjs`、`node scripts/check-doc-links.mjs` 通过；稳定套件（`quality.mjs` 的筛选加 `agent-`、`memory`）除 `memory-context-handles.live`（在不带 #119 的 main `14e13911` 上同样失败）外通过。上游 CI 未跑，不声称它已绿。
+
+上一份（`5cbf2601`，1,448,221 字节，SHA-256 `2715d3c90530282fb7f8cc5cf0638a07a7b3b3ff90aeae0e6bde59b41d2d4cd5`）在 `patch-history.json` 里记作 `prologue-sdk-0.0.0-rc.1-main-5cbf2601.tgz`，可从 Molis `8cdd368a5f` 取回；下面它那一节保留原样。
+
+## 上一份：official main 5cbf2601（2026-11-13，第 31 批换）
 
 当前包为 **1,448,221 字节**，SHA-256 `2715d3c90530282fb7f8cc5cf0638a07a7b3b3ff90aeae0e6bde59b41d2d4cd5`。来源为上游 `molis-ai/molis-prologue` 的 **main 合并提交 `5cbf26015895138c63f6a22e18bf6086a79223b3`**（PR [#115](https://github.com/molis-ai/molis-prologue/pull/115)；它接在 PR [#114](https://github.com/molis-ai/molis-prologue/pull/114) 的合并 `1c0654b7` 之后，补上写后检查的 Run/Session 身份；两次都在 main 上）。这份包就是**官方版本**：不再从自建分支打，源码就是公开 main 上的那棵树，没有 vendor 补丁、没有脏文件，任何人都能按 provenance 里的步骤重建。
 

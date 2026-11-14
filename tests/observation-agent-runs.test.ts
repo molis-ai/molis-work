@@ -28,9 +28,11 @@ async function finished(adapter: Awaited<ReturnType<typeof createPrologueNodeAda
 }
 
 async function round(t: test.TestContext, observeRun: (start: { owner: typeof owner; call_id?: string }) => ObservationRecorder | undefined) {
-  const home = await mkdtemp(join(tmpdir(), "observation-agent-runs-"));
+  const home = await mkdtemp(join(tmpdir(), "observation-agent-runs-")), received: string[] = [];
   const server = createServer(async (request, response) => {
-    for await (const chunk of request) void chunk;
+    const chunks: Buffer[] = [];
+    for await (const chunk of request) chunks.push(chunk as Buffer);
+    received.push(Buffer.concat(chunks).toString("utf8"));
     response.writeHead(200, { "content-type": "text/event-stream" });
     response.end('data: {"model":"scripted","choices":[{"index":0,"delta":{"content":"Ready to "},"finish_reason":null}]}\n\n'
       + 'data: {"model":"scripted","choices":[{"index":0,"delta":{"content":"help."},"finish_reason":null}]}\n\n'
@@ -53,16 +55,16 @@ async function round(t: test.TestContext, observeRun: (start: { owner: typeof ow
     role: { role_id: "reader", version: 3, workspace: "business", execution: "read-only", host_tools: [],
       prompts: [{ prompt_id: "reader.base", version: 4, body: "Read carefully; answer in one line." }],
       skills: [{ ref: skill, origin: "own", name: "Release notes", tools: [], named: true, body: "Group the notes by area." }] } }, { call_id: "call-start-1" });
-  return { home, handle, view: await finished(adapter, handle) };
+  return { home, handle, received, view: await finished(adapter, handle) };
 }
 
-test("OCL-01 OCL-03 OCL-05 OCL-06: an Agent round records its start, the prompt and Skill bodies it was sent, the reply, usage with its model and its end, joined to the starting call", async t => {
+test("OCL-01 OCL-03 OCL-05 OCL-06: an Agent round records its start, the prompt and Skill bodies it was sent, the full request the model received, the reply, usage with its model and its end, joined to the starting call", async t => {
   const secrets = new Map<string, string>(), layerHome = await mkdtemp(join(tmpdir(), "observation-agent-layer-"));
   const keys = observationKeys({ get: key => secrets.get(key) ?? null, createIfAbsent: (key, value) => { if (secrets.has(key)) return false; secrets.set(key, value); return true; } }, () => false);
   const layer = new ObservationLayer({ home: layerHome, env: { platformVersion: "0.test", now: () => new Date(), projectClass: () => "user" }, keys: () => keys, flushDelayMs: 5 });
   t.after(async () => { layer.close(); await rm(layerHome, { recursive: true, force: true }); });
   const starts: unknown[] = [];
-  const { handle } = await round(t, start => {
+  const { handle, received } = await round(t, start => {
     starts.push(start);
     return layer.sink("agent").bind({ kind: "background", entry: "agent", actor_id: start.owner.actor_id, project_id: start.owner.project_id,
       install_id: start.owner.install_id, ...(start.call_id ? { call_id: start.call_id } : {}) });
@@ -99,7 +101,18 @@ test("OCL-01 OCL-03 OCL-05 OCL-06: an Agent round records its start, the prompt 
   assert.equal(text("material:m1", find("agent.materials")), "v2: faster sync; fixed login", "the text the model could read, as it was");
   assert.deepEqual(find("agent.materials").subjects[1], { kind: "artifact", id: "artifact-7", version: 3 });
   assert.equal(text("reply", find("agent.reply")), "Ready to help.", "one reply per model call, its deltas joined");
-  assert.deepEqual(find("agent.usage").detail, { input_tokens: 20, output_tokens: 2 });
+  // The request the model received, byte for byte as the runtime sent it, one per model call and joined to that call's usage.
+  const requests = records.filter(record => record.fact === "agent.model_request"), usage = find("agent.usage");
+  assert.equal(requests.length, received.length, "one record per request the model server received");
+  assert.deepEqual([requests[0]!.stage, requests[0]!.outcome, requests[0]!.conditions.model], ["response-observed", "succeeded", { provider: "openai-compatible", model_id: "scripted" }]);
+  const sent = text("request", requests[0]!);
+  assert.equal(sent, received[0], "what was kept is what the model received");
+  assert.match(sent, /Summarise the release notes/u);
+  assert.match(sent, /Group the notes by area\./u);
+  assert.equal(requests[0]!.detail.bytes, Buffer.byteLength(received[0]!));
+  assert.ok(!sent.includes("test-only"), "the credential is not in the request body");
+  assert.equal(requests[0]!.detail.model_call_id, usage.detail.model_call_id, "the request and its usage are the same model call");
+  assert.deepEqual({ ...usage.detail, model_call_id: undefined }, { input_tokens: 20, output_tokens: 2, model_call_id: undefined });
 });
 
 test("OCL-15: a recorder that fails never stops or changes the round it records, and a round with no recorder runs as before", async t => {

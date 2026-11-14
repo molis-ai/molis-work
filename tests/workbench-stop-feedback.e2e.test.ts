@@ -54,7 +54,7 @@ async function backgroundCommand(browser: AuditBrowser, t: import("node:test").T
     assert.equal(response.status, 200);
     const attention = await response.json() as { background_tasks: HomeBackgroundTaskRow[] | null };
     assert.ok(Array.isArray(attention.background_tasks), "the owner background projection is readable");
-    const task = attention.background_tasks.find(row => row.project_id === projectId && row.surface === "coding" && row.id === sessionId);
+    const task = attention.background_tasks.find(row => row.project_id === projectId && row.origin.surface === "coding" && row.subject.id === sessionId);
     assert.ok(task, "the fixture Coding task remains in its project's background projection");
     assert.ok(Array.isArray(task.commands), "the owner projection supplies its commands");
     return task;
@@ -72,7 +72,7 @@ async function backgroundCommand(browser: AuditBrowser, t: import("node:test").T
         await delay(50, undefined, { signal });
       }
     } catch (error) {
-      t.diagnostic(JSON.stringify({ projectId, surface: "coding", sessionId, commands: task?.commands.map(command => command.task_id), ended: ended(), attempts }));
+      t.diagnostic(JSON.stringify({ projectId, surface: "coding", sessionId, commands: task?.commands.map(command => command.input.task_id), ended: ended(), attempts }));
       throw error;
     }
   };
@@ -89,7 +89,7 @@ test("W2-18-STOP-FEEDBACK-01: a refused stop retains the real process and its di
   await browser.click('[data-side-tab="tasks"]');
   await browser.waitFor("document.body.dataset.sideOpen === 'true' && !document.querySelector('[data-side-body=\"tasks\"]').hidden");
   const stop = ".background-task-command button", alert = "[data-background-tasks-list] [role=alert]";
-  await armResponse(browser, "stop-refused", "/stop", "POST");
+  await armResponse(browser, "stop-refused", "/api/mainline/tasks/command", "POST");
   await browser.click(stop); await waitHeld(browser, "stop-refused");
   await command.pause(); await browser.evaluate("document.dispatchEvent(new Event('visibilitychange'))");
   await browser.waitFor("!!document.querySelector('.background-task[data-state=paused]')");
@@ -98,7 +98,7 @@ test("W2-18-STOP-FEEDBACK-01: a refused stop retains the real process and its di
   assert.equal(command.ended(), false); assert.equal(command.attempts(), 1);
   assert.match(await browser.evaluate<string>(`[...document.querySelectorAll('${alert}')].find(node=>node.textContent.includes('The fixture Runtime refused this stop'))?.querySelector('[data-molis-call-id]')?.dataset.molisCallId || ''`), /^[a-f0-9-]{36}$/);
   command.allow();
-  const lost = await sendBarrier(browser, [{urlPattern:"*/stop",requestStage:"Response"}]);
+  const lost = await sendBarrier(browser, [{urlPattern:"*/api/mainline/tasks/command",requestStage:"Response"}]);
   await browser.click(stop);
   const stopped = await lost.next(); assert.equal(stopped.responseStatusCode, 200);
   await lost.drop(stopped); await lost.close();
@@ -111,7 +111,7 @@ test("W2-18-STOP-FEEDBACK-01: a refused stop retains the real process and its di
   await command.start();
   await browser.evaluate("document.dispatchEvent(new Event('visibilitychange'))");
   await browser.waitFor("document.querySelector('.background-task-command code')?.textContent.includes('audit-command-2')");
-  await armResponse(browser, "stop-success", "/stop", "POST");
+  await armResponse(browser, "stop-success", "/api/mainline/tasks/command", "POST");
   await browser.click(stop); await waitHeld(browser, "stop-success");
   assert.equal(command.ended(), true); assert.equal(command.attempts(), 3);
   // Wait for Coding's real observation job before the held success response prompts the page to read its projection.

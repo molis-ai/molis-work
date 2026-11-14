@@ -250,6 +250,10 @@
       "types": "./dist/services/kit.d.ts",
       "import": "./dist/services/kit.js"
     },
+    "./services/mainline": {
+      "types": "./dist/services/mainline.d.ts",
+      "import": "./dist/services/mainline.js"
+    },
     "./modules/characters": {
       "types": "./dist/modules/characters.d.ts",
       "import": "./dist/modules/characters.js"

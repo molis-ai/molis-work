@@ -187,6 +187,9 @@ importers:
       '@molis-ai/molis-work-service-knowledge':
         specifier: workspace:*
         version: link:horizontal/knowledge
+      '@molis-ai/molis-work-service-mainline':
+        specifier: workspace:*
+        version: link:horizontal/mainline
       '@molis-ai/molis-work-service-memory':
         specifier: workspace:*
         version: link:horizontal/memory
@@ -461,6 +464,9 @@ importers:
       '@molis-ai/molis-work-service-knowledge':
         specifier: workspace:*
         version: link:../../horizontal/knowledge
+      '@molis-ai/molis-work-service-mainline':
+        specifier: workspace:*
+        version: link:../../horizontal/mainline
       '@molis-ai/molis-work-service-memory':
         specifier: workspace:*
         version: link:../../horizontal/memory
@@ -689,6 +695,15 @@ importers:
         version: link:../../packages/contracts
 
   horizontal/knowledge:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../../packages/plugin-sdk
+
+  horizontal/mainline:
     dependencies:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*

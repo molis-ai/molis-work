@@ -5,7 +5,7 @@
  * comes back or moves to another plugin, and when a reader asks (`molis-work:attention-refresh`, after the person acted on something). The Assistant's bell, with the plugin
  * notification count, paints from `molis-work:attention`; this module paints the right side's background-tasks tab: its
  * badge counts the tasks not finished (running plus waiting on the person), and its view lists them, in this project and every
- * other open one, with the background commands they left running (stopping one is the task panel's, by the row's own action). It knows no plugin: each row names where it opens, the words under its title and whether
+ * other open one, with the background commands they left running and a button to stop each (the row's own command, through the mainline service). It knows no plugin: each row names where it opens, the words under its title and whether
  * it waits on the person, as the provider that owns the task said them (PG-043, specs/work-line §6). A task here
  * opens in place, one elsewhere opens its project on it.
  *
@@ -52,11 +52,21 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
         event.preventDefault(); openItem(task.open.surface, task.open.id, task.open.title);
       });
       list.append(row);
-      // Commands it left running are listed; stopping one moves to the task panel with the row's own action (specs/work-line §6).
+      // What the row offers to stop: the mainline service asks the provider again and runs the command only if it is still offered (specs/work-line §6).
       for (const command of task.commands || []) {
+        if (command.role !== "stop") continue;
         const line = node("div", undefined, "background-task-command");
-        line.append(node("span", globalThis.t.text("workbench.attention.background-command"), "background-task-command-label"), node("code", command.summary));
-        list.append(line);
+        const stop = node("button", globalThis.t.text("workbench.attention.stop"), "mw-btn mw-btn--ghost"); stop.type = "button";
+        const feedback = node("div", "", "background-task-detail"); feedback.setAttribute("role", "alert");
+        stop.addEventListener("click", async () => {
+          stop.disabled = true; feedback.replaceChildren();
+          try {
+            await molisWorkRequest("/projects/" + encodeURIComponent(task.project_id) + "/api/mainline/tasks/command", { body: { source: task.source, subject: task.subject, command } });
+            line.remove(); key = ""; void read();
+          } catch (error) { if (!list.contains(feedback)) list.append(feedback); molisWorkRequest.show(feedback, error); stop.disabled = false; }
+        });
+        line.append(node("span", globalThis.t.text("workbench.attention.background-command"), "background-task-command-label"), node("code", command.summary), stop);
+        list.append(line, feedback);
       }
     }
   };

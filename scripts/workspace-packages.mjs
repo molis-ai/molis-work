@@ -214,6 +214,7 @@ export const WORKSPACE_PACKAGES = [
       "@molis-ai/molis-work-service-search",
       "@molis-ai/molis-work-service-kit",
       "@molis-ai/molis-work-service-knowledge",
+      "@molis-ai/molis-work-service-mainline",
       "@molis-ai/molis-work-service-memory",
       "@molis-ai/molis-work-service-surfaces",
       "@molis-ai/molis-work-storage",
@@ -477,6 +478,15 @@ export const WORKSPACE_PACKAGES = [
     maturity: "production",
     capabilities: [
       "kit.catalog.v1"
+    ]
+  }),
+  entry("horizontal/mainline", "@molis-ai/molis-work-contracts/services/mainline", {
+    maturity: "slice",
+    capabilities: [
+      "background.tasks.v1"
+    ],
+    extraWorkspaceDependencies: [
+      "@molis-ai/molis-work-plugin-sdk"
     ]
   }),
   entry("horizontal/placement", "@molis-ai/molis-work-contracts/services/placement", {

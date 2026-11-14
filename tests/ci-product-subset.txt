@@ -124,6 +124,7 @@ tests/characters-prologue.test.ts
 # coding
 tests/coding-artifacts.test.ts
 tests/coding-background-tasks.test.ts
+tests/mainline-background-tasks.test.ts
 tests/coding-background-wait.test.ts
 tests/coding-changeset-http.test.ts
 tests/coding-checkers-settings.test.ts

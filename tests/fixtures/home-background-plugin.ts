@@ -19,18 +19,27 @@ export const BACKGROUND_PLUGIN_ID = "io.molis.work.example.homebg";
 const READ = "homebg:read";
 
 export function backgroundPlugin(answer: (projectId: string) => unknown) {
-  const state = { answer, calls: [] as Array<{ project: string | null; query_only: boolean }> };
+  const state = { answer, calls: [] as Array<{ project: string | null; query_only: boolean }>, stops: [] as Array<{ project: string | null; job: string }>,
+    stop: (async job => ({ stopped: job })) as (job: string) => Promise<unknown> };
   const query = defineBackgroundTasksAction("homebg.tasks", 1, ["homebg_task"], "示例后台任务", [READ]);
   // A third-party plugin may declare any schema for its answer; the page's rows are checked again by the Host.
   const declared = { ...query, action: { ...query.action, output_schema: { type: "object" as const } } };
+  // What a row's stop command names: the plugin's own action, called by the mainline service as the person (specs/work-line §6).
+  const stop = { capability_id: "homebg.stop", version: 1, operation: "command" as const, action: { title: "停止示例任务", description: "停止一个示例后台任务。", kind: "operation" as const, scope: "project" as const,
+    effect: "write" as const, audiences: ["user" as const], permissions: [READ], subject_kinds: [],
+    input_schema: { type: "object" as const, properties: { job: { type: "string" as const } }, required: ["job"], additionalProperties: false }, output_schema: { type: "object" as const } } };
   const definition: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: BACKGROUND_PLUGIN_ID, version: "1.0.0", name: "homebg", kind: "app",
     publisher: { publisher_id: "example", signature: "home-background" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [{ permission: READ, required: true, reason: "读自己的后台任务" }],
-    capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [declared] },
+    capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [declared, stop] },
   async start() {
     return { kind: "app", views: [], actions: [{ ...declared, async handle(caller: ActionExecutionContext) {
       state.calls.push({ project: caller.project_id ?? null, query_only: caller.query_only === true });
       return await state.answer(caller.project_id ?? "");
+    } }, { ...stop, async handle(caller: ActionExecutionContext, input: unknown) {
+      const job = (input as { job: string }).job;
+      state.stops.push({ project: caller.project_id ?? null, job });
+      return await state.stop(job);
     } }] };
   } };
   return { definition, state };

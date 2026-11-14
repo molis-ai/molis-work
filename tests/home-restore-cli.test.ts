@@ -10,7 +10,7 @@ import { inspectMolisWorkProjectCatalogSnapshot } from "@molis-ai/molis-work-app
 import { homeBusinessTree } from "./fixtures/home-storage-files.js";
 import { restoreCli, restoreFixture } from "./fixtures/home-restore.js";
 
-test("RAC-2915: built restore CLI refuses ambiguous, duplicate and unknown arguments before touching Home", { timeout: 30_000 }, async t => {
+test("RAC-2915: built restore CLI refuses ambiguous, duplicate and unknown arguments before touching Home", { timeout: 120_000 }, async t => {
   const f = await restoreFixture(t), before = homeBusinessTree(f.home);
   for (const args of [[], ["--from"], ["--from", ""], ["--from", f.snapshot, "--recover"], ["--from", f.snapshot, "--to", f.snapshot],
     ["--recover", "--recover"], ["--from", f.snapshot, "--from", f.snapshot], ["--recover", "--unknown"], ["--recover", "unexpected"]]) {

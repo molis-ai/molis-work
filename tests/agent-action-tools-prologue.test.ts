@@ -50,8 +50,8 @@ test("real SDK actions use original Host grants, write original SQLite, reject r
   const caller = { actor_id: "agent:prologue", actor_kind: "runtime" as const, audience: "agent" as const, project_id: project.project_id, permissions: [] };
   const catalog = await local.inspectActions(caller, project), view = catalog.find(row => row.capability_id === definition.capability_id)!;
   const grant = createMcpActionGrant(caller.actor_id, project.project_id, view, true);
-  await writeMcpActionGrant(home, grant);
-  await writeMcpActionGrant(home, createMcpActionGrant(caller.actor_id, project.project_id, catalog.find(row => row.capability_id === query.capability_id)!, true));
+  await writeMcpActionGrant(home, grant, { host_reason: "fixture" });
+  await writeMcpActionGrant(home, createMcpActionGrant(caller.actor_id, project.project_id, catalog.find(row => row.capability_id === query.capability_id)!, true), { host_reason: "fixture" });
   const selected: ExactActionReference[] = [{ capability_id: definition.capability_id, version: 1, provider_id: view.provider.provider_id }];
   const queryRef: ExactActionReference = { ...selected[0]!, capability_id: query.capability_id };
   const requests: any[] = []; let callNext = false, readNext = false, toolName = "", characterActive = true;
@@ -84,7 +84,7 @@ test("real SDK actions use original Host grants, write original SQLite, reject r
           invoke: async (ref, input, signal) => { const auth = await current(signal); return auth.service.invoke(auth.context, ref, input); } };
       } };
     for (const outcome of ["allowed", "revoked", "disabled"]) {
-      await writeMcpActionGrant(home, grant); characterActive = true;
+      await writeMcpActionGrant(home, grant, { host_reason: "fixture" }); characterActive = true;
       callNext = true;
       const handle = await host.start("prologue", { ...owner, session, directory, task: "Save a note", role_id: "writer", action_tools: selected, character: character.reference }, authority);
       const review = await until(async () => { const pending = queue.list("project", "pending")[0]; const run = await adapter.read(handle.ref);
@@ -92,7 +92,7 @@ test("real SDK actions use original Host grants, write original SQLite, reject r
       assert.equal(review.document.kind, "tool-operation");
       assert.ok(JSON.stringify(review.document).includes("unknown.notes.write"));
       assert.equal(db.prepare("SELECT COUNT(*) n FROM notes").get()!.n, outcome === "allowed" ? 0 : 1);
-      if (outcome === "revoked") await writeMcpActionGrant(home, { ...grant, enabled: false });
+      if (outcome === "revoked") await writeMcpActionGrant(home, { ...grant, enabled: false }, { host_reason: "fixture" });
       if (outcome === "disabled") characterActive = false;
       const requestsBeforeApproval = requests.length;
       await queue.respond({ review_id: review.review_id, decision: "approve", actor_id: "user" });
@@ -113,7 +113,7 @@ test("real SDK actions use original Host grants, write original SQLite, reject r
       assert.equal(db.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 1, "revoked pending action cannot reach original handler");
     }
     assert.deepEqual(JSON.parse(JSON.stringify(db.prepare("SELECT * FROM notes").all())), [{ body: "from the model", project: "project", actor: "agent:prologue" }]);
-    await writeMcpActionGrant(home, grant);
+    await writeMcpActionGrant(home, grant, { host_reason: "fixture" });
     let previousNames: string[] | undefined;
     for (const refs of [[...selected, queryRef], [queryRef, ...selected], [queryRef]]) {
       readNext = true;
@@ -166,7 +166,7 @@ test("real SDK binds identical tools to separate callers and cancellation reache
   const owner = { project_id: "p", plugin_id: "caller", install_id: "i", actor_id: "user" }, directory = { canonical_path: home, realpath_verified: true };
   const authority = async (actor: string): Promise<AgentStartAuthority> => {
     const caller = { actor_id: actor, audience: "agent" as const, project_id: "p", permissions: [] };
-    await writeMcpActionGrant(home, createMcpActionGrant(actor, "p", (await local.inspectActions(caller, project))[0]!, true));
+    await writeMcpActionGrant(home, createMcpActionGrant(actor, "p", (await local.inspectActions(caller, project))[0]!, true), { host_reason: "fixture" });
     return { authorizedDirectories: [home], manifest: { roles: [{ role_id: "reader", version: 1, name: "Reader", prompts: [], host_tools: [] }], prompts: [] },
       actions: async (_runtime, validate) => {
         const current = (signal?: AbortSignal) => authorizeMcpActions(local, { ...caller, signal }, home, project, validate);

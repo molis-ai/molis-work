@@ -542,6 +542,7 @@ export interface ActionMetadata {
     readonly scope: "home" | "project";
     readonly effect?: "read" | "write" | "irreversible";
     readonly external?: true;
+    readonly draft?: true;
     readonly plugin?: false;
     readonly scheduling?: "concurrent";
     readonly authorship?: "session";

@@ -47,7 +47,7 @@
 | 项目库里 Goals 的表 | `projects/<project_id>/molis-work.db#goals` | 2 | `plugin_project_databases.version` | `plugins/native/goals/src/project-database.ts#GOALS_PROJECT_DATABASE` | 低版本升级，高版本拒绝（只停 Goals） |
 | 项目库里 Inbox 的表 | `projects/<project_id>/molis-work.db#inbox` | 1 | `plugin_project_databases.version` | `plugins/native/inbox/src/database.ts#INBOX_PROJECT_DATABASE` | 低版本升级，高版本拒绝（只停 Inbox） |
 | 项目库里 Schedule 的表 | `projects/<project_id>/molis-work.db#schedule` | 2 | `plugin_project_databases.version` | `plugins/native/schedule/src/database.ts#SCHEDULE_PROJECT_DATABASE` | 低版本升级，高版本拒绝（只停 Schedule） |
-| 目录库 | `projects/catalog.db` | 3 | `catalog_meta.schema_version` | `apps/local-host/src/project-catalog-contract.ts#CATALOG_SCHEMA_VERSION` | 低版本升级，高版本拒绝 |
+| 目录库 | `projects/catalog.db` | 4 | `catalog_meta.schema_version` | `apps/local-host/src/project-catalog-contract.ts#CATALOG_SCHEMA_VERSION` | 低版本升级，高版本拒绝 |
 | Functions | `functions/functions.db` | 1 | `user_version` | `modules/judgment-rules/src/store-schema.ts#FUNCTIONS_STORE_BASELINE` | 低版本升级，高版本拒绝 |
 | 助理 | `assistant/assistant.db` | 1 | `user_version` | `apps/local-host/src/assistant/assistant-store.ts#ASSISTANT_STORE_BASELINE` | 低版本升级，高版本拒绝 |
 | 个人同步队列 | `spaces/<spaceId>/sync/sync.db` | 1 | `user_version` | `modules/sync-replication/src/database.ts#SYNC_STORE_BASELINE` | 低版本升级，高版本拒绝 |
@@ -60,6 +60,7 @@
 | Feed 的正文引用账 | `feed-content/feed-content.db` | 1 | `user_version` | `plugins/native/feed/src/content-ledger.ts#FEED_HOME_DATABASE` | 低版本升级，高版本拒绝 |
 | 记忆 | `memory/memory.db` | 2 | `user_version` | `packages/storage/src/adapters/memory-ledger.ts#MEMORY_LEDGER_BASELINE` | 低版本升级（1 → 2 清掉旧记忆的账本记录，保留开关并补空的按类别限制，下次启动永久删除两个旧布局记忆目录并建新的空遗忘文件；真实 Home 先备份），高版本拒绝；新Home创建完整reviewed偏好，不重设已有设置 |
 | 项目资料 | `knowledge/knowledge.db` | 1 | `user_version` | `packages/storage/src/adapters/knowledge-cards.ts#KNOWLEDGE_CARDS_BASELINE` | 低版本升级，高版本拒绝 |
+| 工作记录 | `observation/observation.db` | 1 | `user_version` | `horizontal/observation/src/schema.ts#OBSERVATION_BASELINE` | 低版本升级，高版本拒绝（第 28 批新建，从版本 1 起） |
 | Form | `form/form.db` | 1 | `user_version` | `plugins/native/form/src/database.ts#FORM_DATABASE` | 低版本升级，高版本拒绝 |
 | 放置 | `placement/placement.db` | 1 | `user_version` | `apps/local-host/src/placement-actions.ts#PLACEMENT_BASELINE` | 低版本升级，高版本拒绝 |
 | Agent 定义 | `agent-definitions/agent-definitions.db` | 2 | `user_version` | `apps/local-host/src/agent-definitions/agent-definitions.ts#AGENT_DEFINITIONS_BASELINE` | 低版本升级，高版本拒绝 |
@@ -189,6 +190,7 @@ Pages当前结构1保留 `page_comments`；原1→2维护及BL-157已被2026-10-
 使用现行结构直接创建每库第1版。项目/连接/授权不从旧Home继承；不运行旧迁移或残留清理。检查当前存储声明与版本表一致、没有按旧版本分支的启动建表；错版和已有owner合同覆盖的错结构仍拒绝；不推定同号旧形状全被识别。原维护八及其后候选已被2026-10-30干净重建取代：连接库、Pages、项目库/Runtime升级、角色运行表、Functions判断安装号、助理执行方转换、Shelf转换、Goals/Inbox/Feed搬迁与残留改写均取消，不能沿旧清单执行；取消项不保留待做勾选框。
 
 - **目录库 W5-17（原迁移已被干净重建取代；原写「真实重建未开始」，2026-11-08 审计更正：记录中的真实 Home 已于 2026-11-07 重建并登记统一起点，见第 4 节，本次审计／维修所在机器不是那台机器、本机不可核）。** 当前结构1没有projects.database_path，代码及S-102拒绝覆盖保留；catalog迁移脚本、旧结构夹具及演练删除。按统筹6517794305，旧Home整体搬开后新建当前Home，不逐库转换，具体执行等全部代码就绪后用户“开始”。
+- **Files 退役的旧布局项目库（第 06 批）**：已有 Home 里旧布局第 2 版的项目库不是本次干净重建的库；装新构建后普通打开会被拒绝（2→3 因结构不符回滚，只拦该项目）。先在可恢复备份后走同步设置里的过程项四步，或对没有账号同步的本地空间 Home 用 `molis-work home adopt-process-items --confirm`（同一采用程序；全部项目采用后才 `retireFilesConsents`）；采用程序换日志后在同一事务里落到第 3 版现行。不要把它当普通 2→3 升级处理；真实 Home 采用由用户另授权。
 
 ### 4.4 装新构建
 
@@ -213,7 +215,7 @@ for (const { manifest } of BUILTIN_PLUGIN_CATALOG) {
 
 在获准的只读拷贝中，分别对每个项目库和 `plugin-runtime/plugin-runtime.db` 执行：`SELECT json_extract(record_json,'$.plugin_id'), json_extract(record_json,'$.version'), json_extract(record_json,'$.manifest_digest'), json_extract(record_json,'$.state') FROM plugin_runtime_installs;`。只打开拷贝里的路径，不沿用目录库里指向真实 Home 的路径。项目监督器的名单以登记上的 `project_runtime` 为准，Home 监督器以 `runtime` 为准；逐条确认实际启动的内置插件记录与上面构建清单的版本、摘要一致，`state` 和监督器报告没有启动失败。重启后安装身份与私有数据仍在；本次新 Home 不继承旧安装记录。
 
-出现版本/结构不符、服务异常或核对失败就停，交统筹决定；不改PRAGMA绕过、不自动搬回旧Home或删除旧目录。产品发布版本和读取兼容起算策略不因本次存储起点改变。
+出现版本/结构不符、服务异常或核对失败就停，停下问用户；不改PRAGMA绕过、不自动搬回旧Home或删除旧目录。产品发布版本和读取兼容起算策略不因本次存储起点改变。
 
 ## 5. 发布后
 

@@ -52,7 +52,9 @@ async function scheduledAgent(t: TestContext, options: { hold?: boolean; workspa
   };
 }
 
-test("SYS-15-A1/S4: the real Schedule wakeup runs the Home Prologue reader with history, memory and the tick's call id", { timeout: 60_000 }, async t => {
+// Batch 28 (contract-design §13, user 2026-11-13): each wakeup is an operation of its own, so the round it starts carries the wakeup's own call id,
+// not the tick's; two jobs due in one tick are two operations.
+test("SYS-15-A1/S4: the real Schedule wakeup runs the Home Prologue reader with history, memory and its own wakeup's call id", { timeout: 60_000 }, async t => {
   const f = await scheduledAgent(t);
   let otherRuntimeCalls = 0;
   const unused = async () => { otherRuntimeCalls++; throw new Error("A different runtime must not receive scheduled work"); };
@@ -69,11 +71,13 @@ test("SYS-15-A1/S4: the real Schedule wakeup runs the Home Prologue reader with 
   assert.equal(f.task().unread, true); assert.equal(f.task().last_error, null); assert.equal(otherRuntimeCalls, 0);
   const first = f.starts.mock.calls[0]!;
   assert.equal(first.arguments[0], "prologue"); assert.equal(first.arguments[1].plugin_id, SCHEDULE_PLUGIN_ID);
-  assert.equal(first.arguments[1].role_id, "reader"); assert.equal(first.arguments[2].call_id, callId);
+  assert.equal(first.arguments[1].role_id, "reader");
+  assert.ok(first.arguments[2].call_id, "the round carries a call id"); assert.notEqual(first.arguments[2].call_id, callId, "the wakeup's own, not the tick's");
   assert.match(f.prompts[0]!, /汇总本周进展/); assert.match(f.prompts[0]!, /汇总工作进展时先列需要处理的工作/);
   await f.resume(); await f.tick();
   assert.equal(f.task().turns.length, 3); assert.match(f.prompts[1]!, /assistant: 有三项工作需要处理/);
   assert.ok(f.starts.mock.calls[1]!.arguments[2].call_id); assert.notEqual(f.starts.mock.calls[1]!.arguments[2].call_id, callId);
+  assert.notEqual(f.starts.mock.calls[1]!.arguments[2].call_id, first.arguments[2].call_id, "each wakeup is its own operation");
 });
 
 for (const missing of ["workspace", "model"] as const) test(`Schedule persists an actionable failure when its ${missing} is unavailable`, { timeout: 60_000 }, async t => {

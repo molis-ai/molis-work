@@ -51,8 +51,8 @@ Home 里有 31 种 SQLite 文件：权威库 27 种（Home 级 24 种，按项�
 
 | 路径 | owner 与打开它的代码 | 种类 · 版本 | 备份 | 卸载 |
 | --- | --- | --- | --- | --- |
-| `projects/catalog.db` | 宿主；`apps/local-host/src/project-catalog.ts:246-248` 打开，`apps/local-host/src/catalog-schema.ts:11-22` 建表，表归各模块（4.1） | SQLite 自带版本 · WAL · `catalog_meta.schema_version` = 2（`apps/local-host/src/project-catalog-contract.ts` 的 `CATALOG_SCHEMA_VERSION`；第 2 版起工作目录用输入、输出两种角色，加来源链接表），旧版本升级，新版本拒绝（`assertCurrentCatalog`，`apps/local-host/src/catalog-schema.ts:32`） | 必备份。不存项目库绝对路径：由当前 Home 与 project_id 推导（`modules/projects/src/project-paths.ts`）；完整恢复仍遵守原 Home 路径与原 key 绑定（`docs/installation.md`） | purge（`installer/uninstall.ts:46`） |
-| `projects/<project_id>/molis-work.db` | 宿主；`apps/local-host/src/project-database.ts` 的 `LocalProjectDatabase` 套基线（`apps/local-host/src/project-database-schema.ts` 拼 15 段建表），再为声明了表的插件按声明建表（4.2）；文件名 `packages/storage/src/adapters/local-security-paths.ts:8` | SQLite 带版本 · `user_version` = 2（第 2 版去掉浏览目录设置、加「最近用过」）。新建和未登记库使用 WAL，持匹配 Home 租约的 Host 打开登记项目时采用 DELETE／EXTRA，插件的表另记在 `plugin_project_databases.version` | 必备份。离线入口按 owner 检查 SQLite 侧车，待恢复日志使备份和目标恢复拒绝 | purge（`installer/uninstall.ts:46`，整个 `projects/`） |
+| `projects/catalog.db` | 宿主；`apps/local-host/src/project-catalog.ts:246-248` 打开，`apps/local-host/src/catalog-schema.ts:11-22` 建表，表归各模块（4.1） | SQLite 自带版本 · WAL · `catalog_meta.schema_version` = 3（`apps/local-host/src/project-catalog-contract.ts` 的 `CATALOG_SCHEMA_VERSION`；第 2 版起工作目录用输入、输出两种角色并加来源链接表，第 3 版移除退役的桌面面板表），旧版本升级，新版本拒绝（`assertCurrentCatalog`，`apps/local-host/src/catalog-schema.ts:32`） | 必备份。不存项目库绝对路径：由当前 Home 与 project_id 推导（`modules/projects/src/project-paths.ts`）；完整恢复仍遵守原 Home 路径与原 key 绑定（`docs/installation.md`） | purge（`installer/uninstall.ts:46`） |
+| `projects/<project_id>/molis-work.db` | 宿主；`apps/local-host/src/project-database.ts` 的 `LocalProjectDatabase` 套基线（`apps/local-host/src/project-database-schema.ts` 拼 19 段建表），再为声明了表的插件按声明建表（4.2）；文件名 `packages/storage/src/adapters/local-security-paths.ts:8` | SQLite 带版本 · `user_version` = 3（1→2 去掉浏览目录设置、加「最近用过」并把过程项触发器接到采用后日志；2→3 加 `surface_corrections`）。新建和未登记库使用 WAL，持匹配 Home 租约的 Host 打开登记项目时采用 DELETE／EXTRA，插件的表另记在 `plugin_project_databases.version`。旧布局第 2 版普通打开拒绝，只由显式采用程序换日志后在同一事务里走完 2→3；真实 Home 采用另授权 | 必备份。离线入口按 owner 检查 SQLite 侧车，待恢复日志使备份和目标恢复拒绝 | purge（`installer/uninstall.ts:46`，整个 `projects/`） |
 | `projects/.staging-<project_id>-<uuid>/` | `apps/local-host/src/managed-project-files.ts:42`：新建项目库时的暂存目录 | 目录 | 临时 | purge（在 `projects/` 内） |
 | `projects/.staging-<project_id>/` | `apps/local-host/src/demo-project-lifecycle.ts:56`：新建示例项目的暂存目录，建成后改名为 `projects/<project_id>/`，失败时删（`:69`） | 目录 | 临时 | purge（在 `projects/` 内） |
 | `projects/.resetting-<project_id>-<uuid>/`、`projects/.reset-backup-<project_id>-<uuid>/` | `apps/local-host/src/demo-project-lifecycle.ts:87-88`：重置示例项目时的新库暂存目录，和被换下的旧库。成功后 `.reset-backup-*` 被删（`:121`），失败时尝试改回（`:113`）；改回也失败就抛 `AggregateError`，消息里写出两个路径（`:116`） | 目录 | 临时（进程在中途被杀时 `.reset-backup-*` 是示例项目的旧库，示例项目可重建） | purge（在 `projects/` 内） |
@@ -143,7 +143,7 @@ server 库的表：`mw_server_identity`、`mw_members`、`mw_sessions`、`mw_pro
 | `apps/local-host` | `model_providers`（`src/model-provider-store.ts`）：模型供应商配置，只存 `credential_ref`；`plugin_terminal_panels`、`plugin_terminal_panel_aliases`（`src/plugin-terminal-panels.ts`）：插件经 `services.terminal` 起的终端记录与运行时会话别名（S-103） |
 
 ### 4.2 `projects/<id>/molis-work.db`
-当前个人版同步结构在主线平台／插件边界上维护空间归属与技术日志；业务字段和恢复校验仍归原 owner。旧格式不自动升级，本轮仅使用隔离测试 Home。
+当前个人版同步结构在主线平台／插件边界上维护空间归属与技术日志；业务字段和恢复校验仍归原 owner。统一起点之前的旧格式不自动升级；统一起点之后的 1→2、2→3 由升级过程自动升；旧布局第 2 版项目库普通打开拒绝，只走显式采用。真实 Home 采用另授权。
 
 
 基线由各 owner 提供的建表语句组成（`apps/local-host/src/project-database-schema.ts` 的 `PROJECT_DATABASE_BASELINE`）；项目的身份是 `project_root` 的那一行，引用项目的外键指向它。Goals、governance 和 Feed（含 Sources、Signals、Listener Host）的表不在基线里（S8、FI-5），由各自插件的声明建（见下）：

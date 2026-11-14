@@ -9,7 +9,7 @@
 
 文中引用的路径、能力 id、错误码都在代码里存在；行号不写，用符号名定位。
 
-2026-11-11 补：§11 记四条横切链（统一输入、能力包、账号身份、证据合同）；§2–§9 的八条主链路与 §10 的例外登记不变。
+2026-11-11 补：§11 记四条横切链（统一输入、能力包、账号身份、证据合同）；§2–§9 的八条主链路与 §10 的例外登记不变。2026-11-14 补：§12 记工作记录的三条写入路（第 28 批）。
 「现状与缺口」里的编号 `#n` 指 [平台逻辑复查](../../specs/archive/repository-anti-corruption/spec.md#11-平台逻辑复查2026-10-07补第一步按-goal-收窄的范围)，`W3-01` 这类编号指 [路线](../../specs/archive/repository-anti-corruption/roadmap-2026-10-07.md) 里的切片。
 
 ## 1. 先记住的五件事
@@ -292,7 +292,7 @@
 | 设置 › 助理：`POST /api/assistant/rules`、`/rules/remove` | 同一 HTTP 入口直接调 `AssistantFollowUps`，另有 `apps/local-host/src/assistant/assistant-rule-actions.ts` 的 `assistant.rules.add`／`assistant.rules.remove` 走现有写入动作和确认 | 规则由助理的 Home 存储持有。页面可按原 ID 修改，现有 `add` 动作只添加 | 接入时核对编辑与添加的区别，保持各入口的本人决策和现有确认边界 |
 | 侧栏浏览器的站点授权：`POST /api/browser/sites`（允许、拦截或忘记某个网站）、`POST /api/browser/assistant`（助理能否使用侧栏浏览器） | `apps/local-host/src/browser/browser-http.ts`，数据在 `{home}/browser/sites.json`（`BrowserSiteDecisions`，`apps/local-host/src/browser/browser-surfaces.ts`） | 这是助理在侧栏浏览器里用哪些网站的授权，与对外接入授权同类：必须是本人的决定，助理不能给自己授权 | 与对外接入授权一行相同 |
 | Runtime 插件的运维：`POST /api/plugins/<插件 id>/restart`、`/release-quarantine`、`/upgrade`，`POST /api/plugins/runtime/events/recover` | `apps/local-host/src/project-plugin-http.ts`（`handleProjectPluginHttp`，不认识任何插件）把请求交给 `apps/local-host/src/plugin-route-operations.ts` 的 `dispatchRuntimePluginRoute`（不认识任何插件：重启、解除隔离、升级、未运行的 503、视图版本号、已声明路由的分发；属于某个插件或项目输入图的部分经钩子由调用方给），它调 `PluginSupervisor.restart` 与 `PluginSupervisor.upgrade`（`packages/plugin-runtime/src/supervisor.ts`，经 `apps/local-host/src/plugin-platform.ts` 的平台对象）；`apps/local-host/src/plugin-event-http.ts`（`handlePluginEventHttp`）调 `PluginEventBus.recover`（`packages/plugin-runtime/src/events.ts`） | 重启、解除隔离和升级是人对已装插件的运维决定（升级换版本、解除隔离让被隔离的插件重新运行）；`recover` 是人对「结果未知」的事件投递选择重试或跳过。都要求 POST 确认，处理器在 Host 的监督器与事件总线里，不属于某个插件 | 插件运维成为只对 `user` 受众开放的系统动作（升级与重启带预览、确认配对），或助理需要代用户升级插件时；在此之前保持 |
-| typed 能力注册表 | 已删除：`packages/kernel/src/index.ts`（`CapabilityRegistry`）只收带 `action` 的定义，`apps/local-host/src/local-host.ts` 只有 `registerAction` 一个登记口 | 已定（N-12，决定 1）对外只走动作；`agent.*`（`packages/contracts/src/services/agent-host.ts`）、调度与工作区的宿主能力先后转成动作，R8「删 typed 通道」删掉了 `HostCapabilityDefinition`、`register` / `registerCapability` 与插件的 `services.capabilities`，门禁（`typedCapabilities`）数字为 0 且不许再加；`services.model`（W3-06 E）是插件服务（`PluginHostServices.model`），不经注册表 | Goals 的十四个 typed 桥已删除（PR-5/8）；注册表里没有 typed 条目由 `tests/typed-registry-inventory.test.ts` 核对（PR-9）。工作区读只剩动作 id（W2-09），Files、Git、Coding 经 `capabilities.consumes` 与 `workspace:read` 调它（见 [PLUGIN-PLATFORM §3](../platform/PLUGIN-PLATFORM.md)「插件调用宿主动作」） |
+| typed 能力注册表 | 已删除：`packages/kernel/src/index.ts`（`CapabilityRegistry`）只收带 `action` 的定义，`apps/local-host/src/local-host.ts` 只有 `registerAction` 一个登记口 | 已定（N-12，决定 1）对外只走动作；`agent.*`（`packages/contracts/src/services/agent-host.ts`）、调度与工作区的宿主能力先后转成动作，R8「删 typed 通道」删掉了 `HostCapabilityDefinition`、`register` / `registerCapability` 与插件的 `services.capabilities`，门禁（`typedCapabilities`）数字为 0 且不许再加；`services.model`（W3-06 E）是插件服务（`PluginHostServices.model`），不经注册表 | Goals 的十四个 typed 桥已删除（PR-5/8）；注册表里没有 typed 条目由 `tests/typed-registry-inventory.test.ts` 核对（PR-9）。工作区读只剩动作 id（W2-09），Git、Coding 经 `capabilities.consumes` 与 `workspace:read` 调它（见 [PLUGIN-PLATFORM §3](../platform/PLUGIN-PLATFORM.md)「插件调用宿主动作」） |
 | CLI 进程内宿主 | `apps/local-host/src/cli-project.ts` | 命令行在没有常驻服务的机器上也要能建项目、读快照 | 命令行已改走 Goals 的动作（W3-07 PR-3）；Home 已登记且连接的项目经受保护常驻管理网关执行；未连接或未登记时才保留进程内执行，明确拒绝、取消和结果未知不回退（W3-07 PR-7） |
 
 
@@ -398,3 +398,56 @@ B9 其余三组的写入已接入动作，见 §10.1.1；插件创作台一组�
 | 4 | 给事实 | 同一处理器：读这一轮的命令回执与执行记录，给「有没有回执、退出码、超时／取消、之后有没有再改文件」 | 回执 → 事实，不返回输出、不再跑命令 | 返回前再 `beforeEffect()` 与权限尾检 | 没有回执的引用答 `recorded: false`，不写成成功 | 无 |
 
 **守住它的用例**：`tests/security-invariants-agent-evidence.test.ts`、`tests/goal-event-evidence.test.ts`。
+
+### 11.5 链 E：项目资料（`system.materials`）
+
+第 06 批 Files 退役后，项目文件夹的浏览、阅读、固定快照和选区只有这一条路；工作台侧栏、主区「资料」、选择器、Coding 文件面、Diff/Text Stats 都从这里取。
+
+| # | 环节 | 归谁 | 输入 → 输出 | 身份与权限 | 失败时 | 事件与记录 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | 页面请求 | `apps/workbench/src/side-panel-files.ts`、`materials-reader-client.ts`、`browser/knowledge/picker.ts`、Coding 的 `browser/main/files-face.ts` | 打开来源／条目／正文、按引用读、固定全文或选区、把前后两版交给 Diff → `GET /api/side/files/sources?first_pages=1`、`/api/side/files/entries|content|raw`、`POST /api/materials/open|read|capture|pinned`、`GET /api/materials/content|position` | 页面会话凭据；项目由宿主按路径给，页面不带身份；本人调用的写动作仍走页面自己的权限 | 404 来源不在、400 预览参数缺失、`actions.subject_unavailable|subject_changed|forbidden|input_too_large` 按操作给；一个来源失败不遮住其余来源 | 无（读取）；调用记录按动作规则留行 |
+| 2 | Host 资料服务 | `apps/local-host/src/materials-http.ts`、`system-materials-actions.ts`、`materials.files.entries/content` | 上面的请求 → 调 `projects.directories.get`、`projects.workspace.files.read`；打开/固定走同一项目连接的事务 | 调用者由 `localWebActionContext` 造，资料服务只拿 `workspace:read` 加 open/capture 的 `artifact:read|write`、`storage:private`；文件读取按调用者当前可读的文件夹解析，个人固定版本还比 `owner_actor_id` | 文件夹不在、路径越界、指纹不符、选区失效、内容超过内联上限都拒绝；拒绝不写过程项/端口/事件 | 打开写阅读位置和 `files` 输出；固定写过程项、端口和两库复制日志，同事务提交 |
+| 3 | 知识来源 | `horizontal/knowledge` 的 `workspace_file` 来源与 `workspace.ts`；选择器用 `knowledge.glob` 列目录、`materials.read` 读 revision | 项目文件夹的相对路径 → `workspace_file` 引用；只存引用，不存正文 | 由调用者的目录权限决定可见条目；来源不借调用拿到别的目录 | 目录不在、引用脱钩、越权读取按 knowledge 与资料服务的拒绝 | 无第二份正文；`materials.recent`／`origins` 只记引用与现读出处处 |
+| 4 | 消费方 | Diff／Text Stats 的默认来源、Coding 的「打开资料」、Goal 的固定版本 | `{ plugin_id: "system.materials", port }` → 当前输出；或 `MaterialRef` → 固定快照/选区 | 默认绑定按当前完整 subject 的同意；旧 Files 同意撤销后不生效；`resolvePortInput` 核来源、类型/schema、输出引用、producer id/signature 与个人 owner | 来源不在、同意撤回、类型不符、版本不可读都拒绝，不交旧内容 | 端口投递与消费沿 Runtime；固定成果版本仍归成果库 |
+| 5 | 采用与删除 | `apps/local-host/src/process-items-adoption.ts`、`scripts/replay-golden-homes.mjs` | 旧布局项目库 → 改属过程项/端口/绑定，退役安装与 Files 游标，换日志并走完 2→3；全部项目采用后撤 Files 同意、移出项目成员 | 由持 Home 租约的维护入口执行；普通打开不采用 | 预检、备份、事务读回任一不符就拒绝并保留原件；真实 Home 另授权 | 采用报告逐项计数；金样回放只多放过还原后数出的 Files 独有行 |
+
+**守住它的用例**：`tests/system-materials-actions.test.ts`、`tests/files-era-adoption.test.ts`、`tests/process-items-adoption.test.ts`、`tests/side-panel-platform.test.ts`、`tests/side-materials-reader.e2e.test.ts`、`tests/coding-workbench.e2e.test.ts`；预算 `tests/call-budget.test.ts` 的 `sideFileFirstPages`。
+
+## 12. 工作记录写入链（2026-11-14 补，第 28 批）
+
+采集层（`horizontal/observation`，用户看到的名字是「工作记录」）只拥有观察记录、证据快照、覆盖登记与缺口；业务事实、对象身份和正式状态仍归原主人，记录里只放（主人、类型、id、版本）的引用。三条写入路最后都进同一个内存队列（`ObservationWriter.enqueue`，每 250 毫秒或满 200 条一个事务）和同一个 Home 库 `<Home>/observation/observation.db`，不各写一份。合同见 [observation-collection/contract-design.md](../../specs/observation-collection/contract-design.md)；读取动作在 29，本链只写。
+
+### 12.1 链 A：动作调用 → 结算出口 → 采集层
+
+| # | 环节 | 归谁 | 输入 → 输出 | 身份与权限 | 失败时 | 事件与记录 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | 结算 | `packages/kernel/src/action-settlement.ts` 的 `settleCall`／`settleCallSync`、`refuseCall`：处理器结果或失败、处理器之前的每一种拒绝都只报一次 | 调用上下文 → `CallReports.settled`（诊断，不含内容）和 `CallReports.observed`（采集出口，含输入、结果、起止、处理器是否已开始、`invocation_id` 与父调用） | `call_id` 来自入口打开的作用域；`invocation_id` 由 `withInvocation` 每次调用新给，父调用是进入这次调用前正在跑的那一个 | 出口抛错不改调用结果（`report` 的 catch）；被拒与处理器开始后的失败仍各有一条最小记录 | `observed` 钩子 |
+| 2 | 装配 | `apps/local-host/src/local-host.ts` 的 `reports`、`apps/local-host/src/project-host.ts` 的 `hostCallReports`、`apps/local-host/src/observation-host.ts` 的 `observed` | 钩子 → `ObservationLayer.observed` | 调用上下文；`refusalExpected` 判定的预期拒绝不记（标记由 `expectingRefusal` 给；页面找可选区域） | 记录失败只记缺口 | 无额外业务记录 |
+| 3 | 一行记录 | `horizontal/observation/src/exit.ts` 的 `exitRecord`、`horizontal/observation/src/records.ts` 的 `pendingRecord` | 调用事实 → `action.call`：处理器前拒绝只留动作、结果与错误码；处理器开始后的失败不留输入结果；成功留输入与结果快照，本人页面读取的结果只留摘要与长度；成功读取一分钟内按 `call_id`、运行会话、actor、动作和摘要合并 | 主人是 `service:gateway`；`actor`、`project_id`、`install_id`、入口来自调用上下文；来源类别按 §5 | `observation.*` 自己的调用不进出口（按提供方 `system.observation` 认，不按名字前缀） | `action.call` 进队列 |
+
+### 12.2 链 B：平台服务 → `ObservationSink` → 采集层
+
+| # | 环节 | 归谁 | 输入 → 输出 | 身份与权限 | 失败时 | 事件与记录 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | 绑定 | `horizontal/observation/src/service.ts` 的 `sink(service)`：一件事开始时（一轮运行、一次唤醒、一次连接器拉取）`bind(origin)` | 调用上下文或 `ObservationBackgroundOrigin` → 记录器 | 主人是 `service:<name>`，事实必须以该服务的前缀开头，否则按行记 `fact_not_owned`；服务没装配就什么也不记 | 绑定与记录不抛、不等、不读库 | 队列 |
+| 2 | 接入点 | `horizontal/agent-host` 的运行投影（`prologue-run-store`／`prologue-run-observation`）、`apps/local-host/src/observation-host.ts` 的 `scheduleWakeupRecords`、`apps/local-host/src/connector-source-pull.ts` 的 `recordPull`、`apps/local-host/src/assistant/assistant-work-records.ts`、`apps/local-host/src/observation-grants.ts` 的 `recordGrantChanges` | 运行事件、唤醒、拉取、面板写入、授权变化 → `agent.*`、`scheduler.wakeup`、`connections.pull`、`assistant.work`、`grants.*` | 身份在绑定时固定；Prologue 的事件晚于发起动作回来也不丢；来源范围只由宿主入口用 `withObservationSource` 给 | 记录器故障不回传业务；插件上报失败由插件吞掉，业务照常 | 见 `horizontal/observation/src/coverage-plan.ts` |
+
+### 12.3 链 C：外壳与插件 → `observation.report@1` → 采集层
+
+| # | 环节 | 归谁 | 输入 → 输出 | 身份与权限 | 失败时 | 事件与记录 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | 页面发送 | `apps/workbench/src/scripts/client/work-records.ts`（唯一发送处；全局搜索、情境条、开场建议、首页建议调它） | 界面阶段 → 队列；每 2 秒至多一次，页面隐藏／离开时立刻发；一批至多 100 条 | 页面不带身份；项目页经 `host.route` 加项目前缀 | 失败不改页面；离页只发前 100 条，已知限制见 BL-observation-b28-known-limits ① | `ui.open`、`ui.dwell`、`ui.candidates`、`ui.locate` |
+| 2 | 路由与门 | `apps/local-host/src/observation-shell-entry.ts`、`apps/local-host/src/web-entry-actions.ts` 的 `webEntryDoor.entryOf` | `POST /api/observation/ui` 或 `/projects/<id>/api/observation/ui` → 这次请求的入口凭据 → `observation.report@1` | 只服务本人、没有 `host_plugin` 与 `delegated_by`、项目与签发时一致；别的路由、插件页面、手写的 `user` 调用一律 `actions.forbidden`；`owner = shell`，只收 `ui.*` | 拒绝，不写记录；`S-observation-records` 有拒绝用例 | `ui.*` |
+| 3 | 插件上报 | `plugins/native/workflows/src/observation.ts`、`plugins/native/workflows/src/plugin.ts`；Manifest 声明 `capabilities.consumes` | 工作流每次交接 → `observation.report@1`，以自己的安装身份、业务写完之后 await | 插件主人取宿主签发的 `host_plugin.plugin_id`，只收自己前缀；受众只有 `user` 与 `plugin` | 上报被拒或失败不改业务；动作被取消或撤权后不再报失败步骤（S-35） | `io.molis.work.native.workflows.step` |
+| 4 | 上报处理器 | `horizontal/observation/src/report.ts` 的 `handleReport` | 一次上报 → 逐条前缀校验、入队；单次至多 100 条与 1 MiB；每个上报方每天 20,000 条与 64 MiB，超限整次拒 | 上报方从调用上下文取（插件安装或外壳），不从输入读；每天额度存在库里，重启不清零 | 上报超限、上报方未知、事实不属于自己前缀各自的 `observation.*` 错误码；超限按上报方记一段 `lost` | 合格事实进队列 |
+
+### 12.4 落盘、证据与清理
+
+| # | 环节 | 归谁 | 输入 → 输出 | 身份与权限 | 失败时 | 事件与记录 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | 写批 | `horizontal/observation/src/writer.ts` 的 `flush`、`horizontal/observation/src/evidence.ts` 的 `resolveEvidence` | 队列 → 一个事务：脱敏、带密钥的 HMAC 摘要、gzip、本机正文保护加密、按摘要只存一份；同时更新覆盖登记 | 密钥只在 Home 的密钥库（`system:observation:evidence:v1`、`system:observation:digest:v1`） | 写失败按覆盖行记一段 `lost`；密钥取不到记 `missing: not_obtained` 与一段 `unavailable`；上次进程没写完就退出的，下次启动记 `unknown_exit` | `records`、`evidence_blobs`、`record_evidence`、`coverage`、`coverage_gaps`、`report_quota`、`writer_state` |
+| 2 | 删项目 | `apps/local-host/src/project-deleted-owners.ts` 的 `OBSERVATION_OWNER`／`clearObservationProjectFile`、`horizontal/observation/src/lifecycle.ts` 的 `clearProjectRows` | 目录提交后的删除回执 → 丢掉这个项目还在队列里的记录，删库里的行与覆盖，回收无人引用的证据，并拒绝之后对这个 id 的写入直到目录里再有同 id 的项目 | 删除身份只来自目录提交的回执 | 库写不了就抛，删除步骤待重试；Idempotent | 项目的数据一并清掉 |
+| 3 | 清插件数据 | `apps/local-host/src/plugin-executor.ts`、`home-plugin-executor.ts` 的 `observationPluginDataCleared`、`horizontal/observation/src/lifecycle.ts` 的 `purgePluginRows` | 卸载时选了清除（或之后丢弃保留的数据）→ 删插件自己的记录；它答过或发出的调用记录保留「谁调了什么、结果」，证据改成 `missing: purged`，覆盖登记记一段 `purged` | 安装记录给出的 `plugin_id`、`install_id` 与提供方 id | 失败留给下次清理；不因清理失败改变卸载结果 | 行保留，正文去掉 |
+| 4 | 读取 | `horizontal/observation/src/queries.ts` | 本批只给测试用，没有对外读取动作或 Host 自查入口；第 29 批改成读取动作，定权限与用途 | 不对外 | — | — |
+
+**守住它的用例**：`tests/observation-layer.test.ts`、`tests/observation-agent-runs.test.ts`、`tests/observation-assistant-work.test.ts`、`tests/observation-coverage-plan.test.ts`、`tests/observation-grant-changes.test.ts`、`tests/observation-manual-work.test.ts`、`tests/observation-schedule-wakeups.test.ts`、`tests/observation-shell-stages.test.ts`、`tests/observation-source-classes.test.ts`、`tests/observation-workflow-steps.test.ts`、`tests/security-invariants-observation-records.test.ts`；预算与动作合同另见 `tests/call-budget.test.ts` 与 `tests/action-contract-snapshot.test.ts`。

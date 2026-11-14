@@ -41,6 +41,30 @@ test("sync and async dispatch share registration, schemas, grants and exact prov
   await new Promise(resolve => setImmediate(resolve));
 });
 
+// OCL-01 OCL-03: the two settlement paths (async `invoke` and `invokeSync`) tell the collection exit once each, with the call's own
+// number, input and result; a refusal before the handler is told too, and only the exit decides what content may be kept.
+test("both dispatch paths tell the collection exit once, with the input and result, refusals included", async () => {
+  const seen: { call_id: string; capability_id: string; invocation_id: string; parent?: string; started: boolean; ok: boolean; input: unknown; result: unknown }[] = [];
+  const service = new ActionService(undefined, { observed: (call, action, observation) => {
+    seen.push({ call_id: call.call_id, capability_id: action.capability_id, invocation_id: observation.invocation_id,
+      ...(observation.parent_invocation_id ? { parent: observation.parent_invocation_id } : {}), started: observation.handler_started,
+      ok: observation.outcome.ok, input: observation.input, result: observation.result });
+  } });
+  const dispose = service.registerProvider({ provider, definitions: [definition], handlers: [{ ...definition,
+    execution: "sync", handle: (_context, input) => input }] });
+  assert.equal(service.invokeSync({ ...caller, call_id: "sync-op" }, definition, 2), 2);
+  assert.equal(await service.invoke({ ...caller, call_id: "async-op" }, definition, 3), 3);
+  await assert.rejects(service.invoke({ ...caller, call_id: "refused-op", permissions: [] }, definition, 4), errorCode("actions.forbidden"));
+  assert.deepEqual(seen.map(entry => [entry.call_id, entry.capability_id, entry.started, entry.ok, entry.input, entry.result]), [
+    ["sync-op", "fixture.sync", true, true, 2, 2],
+    ["async-op", "fixture.sync", true, true, 3, 3],
+    ["refused-op", "fixture.sync", false, false, 4, undefined],
+  ]);
+  assert.equal(new Set(seen.map(entry => entry.invocation_id)).size, 3, "each call has its own invocation number");
+  assert.ok(seen.every(entry => entry.parent === undefined), "top-level calls name no parent");
+  dispose();
+});
+
 test("unmarked handlers never start synchronously; declared synchronous output is checked", async () => {
   const service = new ActionService(); let entered = 0;
   let dispose = service.registerProvider({ provider, definitions: [definition], handlers: [{ ...definition, handle: async () => { entered++; return 1; } }] });

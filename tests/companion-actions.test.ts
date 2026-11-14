@@ -60,11 +60,11 @@ test("headless runtime companions are discovered and called by the official MCP 
         const reader = await connect("reader"), stranger = await connect("stranger");
         const countName = molisWorkActionToolName(textStatsActions.count);
         assert.equal((await reader.listTools()).tools.some(tool => tool.name === countName), false, "discovery does not grant execution");
-        for (const row of rows) await writeMcpActionGrant(home, createMcpActionGrant(caller.actor_id, project.project_id, row, true));
+        for (const row of rows) await writeMcpActionGrant(home, createMcpActionGrant(caller.actor_id, project.project_id, row, true), { host_reason: "fixture" });
         assert.ok((await reader.listTools()).tools.some(tool => tool.name === countName));
         const fileAction = (await host.inspectActions(caller, reference)).find(row => row.capability_id === gitActions.selectDiff.capability_id)!;
         assert.equal(fileAction.availability.available, false, "legacy owner-bound actions must disclose their current identity limit");
-        await writeMcpActionGrant(home, createMcpActionGrant(caller.actor_id, project.project_id, fileAction, true));
+        await writeMcpActionGrant(home, createMcpActionGrant(caller.actor_id, project.project_id, fileAction, true), { host_reason: "fixture" });
         const foreignWrite = await reader.callTool({ name: molisWorkActionToolName(gitActions.selectDiff), arguments: { workspace_id: "unknown", path: ["note.txt"], side: "index" } });
         assert.equal(foreignWrite.isError, true, "an explicit action grant cannot impersonate the local Artifact owner");
         const counted = await reader.callTool({ name: countName, arguments: { text: "中🙂\r\nx\n" } });
@@ -81,9 +81,9 @@ test("headless runtime companions are discovered and called by the official MCP 
         assert.equal((await stranger.callTool({ name: countName, arguments: { text: "no" } })).isError, true);
         assert.equal((await reader.callTool({ name: countName, arguments: { text: "no", actor_id: "owner" } })).isError, true);
         const countGrant = createMcpActionGrant(caller.actor_id, project.project_id, rows.find(row => row.capability_id === textStatsActions.count.capability_id)!, true);
-        await writeMcpActionGrant(home, { ...countGrant, enabled: false });
+        await writeMcpActionGrant(home, { ...countGrant, enabled: false }, { host_reason: "fixture" });
         assert.equal((await reader.callTool({ name: countName, arguments: { text: "no" } })).isError, true);
-        await writeMcpActionGrant(home, countGrant);
+        await writeMcpActionGrant(home, countGrant, { host_reason: "fixture" });
         // Text stats is its own project plugin (batch 06): taking it out of the project withdraws its actions.
         catalog.removeProjectPlugin({ project_id: project.project_id, plugin_id: "text-stats", actor_id: "owner" });
         assert.equal((await reader.callTool({ name: countName, arguments: { text: "no" } })).isError, true);

@@ -4,6 +4,7 @@ import type { HostCapabilityDescriptor } from "@molis-ai/molis-work-contracts/pl
 import { currentCallId, insideHandler, newCallId, withCallId, withCallIdSync } from "./call-scope.js";
 import { inDirectoryPass } from "./directory-pass.js";
 import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
+import { currentInvocationId, withInvocation, withInvocationSync } from "./invocation-scope.js";
 
 /** One call as the host sees it: the caller's context, plus the number of the operation it belongs to. */
 export type CallContext = ActionCallContext & { readonly call_id: string };
@@ -12,11 +13,38 @@ export interface CallDescription extends ActionReference {
   readonly operation: string;
   readonly title: string;
   readonly provider_title: string;
+  /** The definition says its input is an unsent draft, whose words the exit does not keep. */
+  readonly draft?: true;
 }
 /** How a call ended. `refused`: it was turned away before its handler ran, so nothing was done. */
 export type CallOutcome = { readonly ok: true } | { readonly ok: false; readonly code?: string; readonly message: string; readonly refused?: true };
 /** Told once per call, never the input or the result. A failing hook never changes the call. */
 export type CallSettled = (context: CallContext, action: CallDescription, outcome: CallOutcome) => void;
+/**
+ * What the collection exit is told of one call (specs/observation-collection/contract-design.md §4, §7). Unlike `CallSettled`, which is
+ * the diagnostic log's and never sees them, it is given the input and the result: it decides by `outcome` and `handler_started` what it may
+ * keep (a refusal, and any failure once the handler began, keep no content: S-12, S-18). Absent `input`: turned away before any input reached it.
+ */
+export interface CallObservation {
+  readonly invocation_id: string;
+  readonly parent_invocation_id?: string;
+  readonly started_at: number;
+  readonly ended_at: number;
+  readonly handler_started: boolean;
+  readonly input?: unknown;
+  readonly result?: unknown;
+  readonly outcome: CallOutcome;
+  readonly aborted: boolean;
+}
+/** Told once per call, like `CallSettled`. A failing hook never changes the call. */
+export type CallObserved = (context: CallContext, action: CallDescription, observation: CallObservation) => void;
+/** Who is told how a call ended: the diagnostic log, and the collection exit. */
+export interface CallReports {
+  /** When a call is over, once, refusals included: which action, for whom, and how it ended. Never the input or result. */
+  readonly settled?: CallSettled;
+  /** The collection exit: the same once-per-call report, with the input, the result and the call's timing (observation-collection). */
+  readonly observed?: CallObserved;
+}
 
 /** No asynchronous policy may run after this check and before the owner's synchronous effect. */
 export function assertCurrentAuthority(context: ActionCallContext, reference?: ActionReference, requiredPermissions?: readonly string[]): void {
@@ -90,7 +118,8 @@ export function describeCall(source: { descriptor(reference: ActionReference, pr
   const found = resolved ?? source.descriptor(reference, call.project_id);
   const provider = found?.action_provider;
   if (!found?.action || !provider || (provider.project_id && provider.project_id !== call.project_id)) return describeUnknown(reference);
-  return { ...reference, provider_id: provider.provider_id, operation: found.operation, title: found.action.title, provider_title: provider.title };
+  return { ...reference, provider_id: provider.provider_id, operation: found.operation, title: found.action.title, provider_title: provider.title,
+    ...(found.action.draft ? { draft: true as const } : {}) };
 }
 
 /** How a call failed. The message is recorded to 200 UTF-16 units; a cut between the two halves of a character drops the lone half. */
@@ -101,40 +130,73 @@ function failure(error: unknown, call: object): CallOutcome {
     ...(started.has(call) ? {} : { refused: true as const }) };
 }
 
-function report(settled: CallSettled | undefined, call: CallContext, describe: (call: CallContext) => CallDescription, outcome: CallOutcome): void {
-  if (!settled) return;
-  try { settled(call, describe(call), outcome); }
-  catch { /* A failed record never changes the call. */ }
+/** One call being settled: the reports it owes, and what the exit is told besides the outcome. */
+interface Settling {
+  readonly reports: CallReports | undefined;
+  readonly call: CallContext;
+  readonly describe: (call: CallContext) => CallDescription;
+  readonly invocation_id: string;
+  readonly parent_invocation_id: string | undefined;
+  readonly started_at: number;
+  readonly input?: { readonly value: unknown };
+}
+
+function report(settling: Settling, outcome: CallOutcome, result?: unknown): void {
+  const { reports, call } = settling;
+  if (!reports?.settled && !reports?.observed) return;
+  let action: CallDescription;
+  try { action = settling.describe(call); } catch { return; /* A failed record never changes the call. */ }
+  try { reports.settled?.(call, action, outcome); } catch { /* A failed record never changes the call. */ }
+  if (!reports.observed) return;
+  try {
+    reports.observed(call, action, { invocation_id: settling.invocation_id, started_at: settling.started_at, ended_at: Date.now(),
+      handler_started: started.has(call), outcome, aborted: call.signal?.aborted === true,
+      ...(settling.parent_invocation_id ? { parent_invocation_id: settling.parent_invocation_id } : {}),
+      ...(settling.input ? { input: settling.input.value } : {}), ...(outcome.ok ? { result } : {}) });
+  } catch { /* The exit counts its own failures as lost records (contract-design §8); the call is not changed. */ }
+}
+
+/** Begin settling a call: read the running invocation before this call opens its own, which is its parent. */
+function begin(reports: CallReports | undefined, call: CallContext, describe: (call: CallContext) => CallDescription,
+  input: { readonly value: unknown } | undefined): (invocation_id: string) => Settling {
+  const parent_invocation_id = currentInvocationId(), started_at = Date.now();
+  return invocation_id => ({ reports, call, describe, invocation_id, parent_invocation_id, started_at, ...(input ? { input } : {}) });
 }
 
 /**
- * Run a call inside its operation's scope and tell `settled` exactly once how it ended: a handler's result or failure,
+ * Run a call inside its operation's scope and tell the reports exactly once how it ended: a handler's result or failure,
  * and every refusal before one (missing, not allowed, invalid input, rate limit, host policy). The report is made inside
- * the scope, so what it records can be told to the operation that is waiting for the answer.
+ * the scope, so what it records can be told to the operation that is waiting for the answer. `input` is what the caller passed,
+ * for the collection exit alone.
  */
-export async function settleCall<T>(settled: CallSettled | undefined, call: CallContext, describe: (call: CallContext) => CallDescription,
-  run: (call: CallContext) => Promise<T> | T): Promise<T> {
-  return withCallId(call.call_id, async () => {
+export async function settleCall<T>(reports: CallReports | undefined, call: CallContext, describe: (call: CallContext) => CallDescription,
+  run: (call: CallContext) => Promise<T> | T, input?: { readonly value: unknown }): Promise<T> {
+  const settling = begin(reports, call, describe, input);
+  return withCallId(call.call_id, () => withInvocation(async id => {
+    const current = settling(id);
     let value: T;
     try { value = await run(call); }
-    catch (error) { report(settled, call, describe, failure(error, call)); throw error; }
-    report(settled, call, describe, { ok: true });
+    catch (error) { report(current, failure(error, call)); throw error; }
+    report(current, { ok: true }, value);
     return value;
-  });
+  }));
 }
 
 /** The same for a call that must finish without yielding (a Plugin SDK transaction). */
-export function settleCallSync<T>(settled: CallSettled | undefined, call: CallContext, describe: (call: CallContext) => CallDescription, run: (call: CallContext) => T): T {
-  return withCallIdSync(call.call_id, () => {
+export function settleCallSync<T>(reports: CallReports | undefined, call: CallContext, describe: (call: CallContext) => CallDescription, run: (call: CallContext) => T,
+  input?: { readonly value: unknown }): T {
+  const settling = begin(reports, call, describe, input);
+  return withCallIdSync(call.call_id, () => withInvocationSync(id => {
+    const current = settling(id);
     let value: T;
     try { value = run(call); }
-    catch (error) { report(settled, call, describe, failure(error, call)); throw error; }
-    report(settled, call, describe, { ok: true });
+    catch (error) { report(current, failure(error, call)); throw error; }
+    report(current, { ok: true }, value);
     return value;
-  });
+  }));
 }
 
 /** A call turned away on the spot, before any dispatch, is settled like any other; it is named by the caller's reference alone. */
-export function refuseCall(settled: CallSettled | undefined, context: ActionCallContext, reference: ActionReference, error: unknown): Promise<never> {
-  return settleCall(settled, bindCall(context), () => describeUnknown(reference), () => Promise.reject(error));
+export function refuseCall(reports: CallReports | undefined, context: ActionCallContext, reference: ActionReference, error: unknown): Promise<never> {
+  return settleCall(reports, bindCall(context), () => describeUnknown(reference), () => Promise.reject(error));
 }

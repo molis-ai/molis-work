@@ -39,10 +39,15 @@ export class FeedRecords {
   get(projectId: string, itemId: string, page?: { offset: number; limit: number }): FeedItemRecord {
     const row = this.db.get("SELECT * FROM feed_items WHERE project_id = ? AND item_id = ?", projectId, itemId) as Row | undefined;
     if (!row) throw feedErrors.item_not_found("找不到这个 Feed Item");
-    const materials = page ? this.materials(projectId, itemId, page.offset, page.limit) : (this.db.all(`
-      SELECT * FROM feed_materials
-      WHERE project_id = ? AND item_id = ? ORDER BY updated_at DESC, material_id
-    `, projectId, itemId) as Row[]).map(mapFeedMaterial);
+    const materials: FeedMaterialRecord[] = [];
+    // Complete-content callers retain all materials, but every SQL read is bounded.
+    // Readers supply a page and never hydrate the remaining materials.
+    if (page) materials.push(...this.materials(projectId, itemId, page.offset, page.limit));
+    else for (let offset = 0;; offset += 200) {
+      const batch = (this.db.all("SELECT * FROM feed_materials WHERE project_id = ? AND item_id = ? ORDER BY updated_at DESC, material_id LIMIT ? OFFSET ?", projectId, itemId, 200, offset) as Row[]).map(mapFeedMaterial);
+      materials.push(...batch);
+      if (batch.length < 200) break;
+    }
     return mapFeedItem(row, materials, this.goalLinks.get(projectId, itemId));
   }
 

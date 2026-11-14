@@ -537,7 +537,7 @@ test("Feed draws only what its model holds: an inbox-bound entry keeps the stage
 test("A demo project whose Feed holds nothing is given no invented sources or messages (E-3)", () => {
   const built = buildFeedStageUiModel({ route_prefix: "/projects/demo", shown_plugins: ["feed"], primitives,
     context: { project: { project_id: "demo", display_name: "Demo" }, demo: true, cli_availability: {} },
-    data: { snapshot: { feed_items: [], sources: [], runs: [], out_rules: [], offset: 0, next_offset: null, facets: [] }, inbox_entries: [], source_catalog: [], source_presentations: {},
+    data: { snapshot: { feed_items: [], sources: [], runs: [], out_rules: [], offset: 0, next_offset: null, facets: [] }, inbox_entries: [], source_catalog: [], source_messages: {}, source_presentations: {},
       connector_auth: { github: { bound: false }, gmail: { bound: false } } } });
   assert.deepEqual(built.entries, []);
   assert.deepEqual(built.sources, []);
@@ -653,6 +653,11 @@ test("RAC-2507 RAC-2512 Feed stage and reader keep instance data, current sugges
   entries = entries.map(entry => ({ ...entry, status: "done" })); promote = false;
   const closed = await service.invoke(caller, feedQueryActions.reader, { object_id: item.item_id });
   assert.equal(closed.inbox_active, false); assert.equal(closed.promote_available, false);
+  // FBR-10 / N1204: source previews do not inherit the message page filter.
+  for (let n = 0; n < 4; n++) feed.ingestItem({ source, externalId: `preview-${n}`, title: `Preview ${n}`, summary: "preview", body: "body", occurredAt: `2026-11-0${n + 2}T00:00:00Z`, attention: false });
+  const filtered = await service.invoke(caller, feedQueryActions.stage, { filter: JSON.stringify({ search: "no-matching-message" }) });
+  assert.equal(filtered.snapshot.feed_items.length, 0);
+  assert.deepEqual(filtered.source_messages[source.source_id], ["Preview 3", "Preview 2", "Preview 1"]);
   const before = feed.getFeedItem(projectId, item.item_id);
   recommendationsFailure = new Error("the real recommendation service failed");
   await assert.rejects(service.invoke(caller, feedQueryActions.stage, {}), error => error === recommendationsFailure);

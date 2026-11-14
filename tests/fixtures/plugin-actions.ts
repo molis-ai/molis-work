@@ -127,7 +127,7 @@ export type ProjectFolderPorts = { dependencyCheck(reference: { capability_id: s
 export function fakeProjectSettings(actions: ReturnType<typeof pluginActions>, answer: (definition: ActionDefinition, caller: ActionCallContext) => unknown, settings: readonly ActionDefinition[] = PROJECT_FOLDER_READS): ProjectFolderPorts {
   const complete = (definition: ActionDefinition, value: unknown): unknown => definition.capability_id !== projectDirectoryActions.get.capability_id ? value
     : Array.isArray(value) ? projectDirectories(actions.project_id, value)
-    : isRecord(value) && Array.isArray(value.directories) ? { project_id: actions.project_id, source_links: [], revision: "directories-1", ...value, directories: (value.directories as FolderRow[]).map(directory) } : value;
+    : isRecord(value) && Array.isArray(value.directories) ? { project_id: actions.project_id, source_links: [], instructions: { off: false, trusted: false }, revision: "directories-1", ...value, directories: (value.directories as FolderRow[]).map(directory) } : value;
   if (!settingsServed.has(actions.registry)) {
     settingsServed.add(actions.registry);
     actions.registry.registerProvider({ provider: { provider_id: "project-settings-fixture", title: "项目设置", kind: "system" }, definitions: [...settings],
@@ -143,7 +143,7 @@ type FolderRow = Pick<ProjectWorkspaceRef, "workspace_id" | "canonical_path"> & 
 const directory = (folder: FolderRow): ProjectDirectory => ({ realpath_verified: true, display_name: folder.workspace_id, roles: ["input"], state: "ok", ...folder });
 /** A project's folders as `projects.directories.get@1` answers them: the first is the output, the others inputs, unless a row names its roles. */
 export function projectDirectories(project_id: string, rows: readonly FolderRow[]): ProjectDirectories {
-  return { project_id, directories: rows.map((row, i) => directory({ roles: [i === 0 ? "output" : "input"], ...row })), source_links: [], revision: "directories-1" };
+  return { project_id, directories: rows.map((row, i) => directory({ roles: [i === 0 ? "output" : "input"], ...row })), source_links: [], instructions: { off: false, trusted: false }, revision: "directories-1" };
 }
 
 /*

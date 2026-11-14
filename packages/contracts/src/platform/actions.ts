@@ -275,6 +275,11 @@ export interface ActionMetadata {
   readonly effect?: "read" | "write" | "irreversible";
   /** The provider declares that this action sends content outside the Home. */
   readonly external?: true;
+  /**
+   * Its input is a draft the person has not sent yet (a composer's text, an answer being written). The work records keep that the draft was
+   * saved, never its words: unsent drafts are not collected (observation-collection design §6, OCL-11).
+   */
+  readonly draft?: true;
   /** `false` keeps an agent-facing action away from generated plugins even when it is reversible. */
   readonly plugin?: false;
   /** Provider owns transaction/conflict safety across awaits; Host still tracks lifetime. Default is serial. */

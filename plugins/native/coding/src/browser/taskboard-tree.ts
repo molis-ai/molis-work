@@ -113,7 +113,7 @@ function stepRow(scope: StepScope, node: StepNode, position: number): BoardRow {
   const held = holder?.kind === "subtask" ? children.find(item => item.child.subagent_id === holder.subagent_id)?.child : undefined;
   const done = mine.length ? mine.filter(row => ["done", "accepted"].includes(row.state[2])).length : settled(node) || decided === "accepted" ? 1 : 0;
   return {
-    key: "step-" + id + "-" + node.id, label: node.inserted ? uiText.text("coding.board.inserted") : "S" + (Number(node.id.replace("step-", "")) || position + 1), title: step.title,
+    key: "step-" + id + "-" + node.id, label: node.inserted ? uiText.text("coding.board.inserted") : "S" + (position + 1), title: step.title,
     hint: stepHint(readText, step.acceptance, holder ? stepActorText(readText, holder) : "", last), state, progress: { done, total: mine.length || 1 }, deps,
     executor: doerOf(scope, holder, held), time: last ? when(last.at_ms) : null, target: { kind: "step", run_id: id, step_id: node.id }, children: mine, node,
     ...(editable ? { edit: { board, runId: id, position, live } } : {}),

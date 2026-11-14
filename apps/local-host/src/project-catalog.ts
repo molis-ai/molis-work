@@ -13,6 +13,7 @@ import { homePluginsOutsideBuild } from "./home-registration.js";
 import { PersonalProjectProvisioner } from './personal-project-provisioner.js';
 import {preflightProjectCatalog,projectPluginRequirements} from './project-catalog-replication.js';
 import { ManagedProjectDeletion } from "./managed-project-deletion.js";
+import { advanceReadCheckGeneration } from "@molis-ai/molis-work-plugin-runtime";
 import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
 import { DemoProjectLifecycle } from "./demo-project-lifecycle.js";
 import { exists } from "./project-file-paths.js";
@@ -235,7 +236,7 @@ export class MolisWorkProjectCatalog {
     this.projectFiles = new ManagedProjectFiles(this.projects, this.projectsDirectory, contextBindingValidation, this.commit);
     this.personalProjects = new PersonalProjectProvisioner(homeDirectory, this.projectFiles, this.projects);
     this.recycle=this.projects.recycle;this.wasProjectPluginRemoved=this.projects.query.wasProjectPluginRemoved;
-    this.setProjectPlugin = this.projects.commands.setProjectPlugin;
+    this.setProjectPlugin = (projectId, actorId, input) => bumpAnd(this, () => this.projects.commands.setProjectPlugin(projectId, actorId, input));
     this.ensureSyncedProject = this.personalProjects.ensureSyncedProject.bind(this.personalProjects);
     this.prepareSyncedProjectRestore = this.personalProjects.prepareSyncedProjectRestore.bind(this.personalProjects);
     this.projectPluginRequirements=id=>{this.projects.query.getProject(id);return projectPluginRequirements(db,id,p=>BUILTIN_PLUGIN_REGISTRY.has(p)||BUILTIN_PLUGIN_REGISTRY.isPersonal?.(p)===true);};
@@ -344,11 +345,11 @@ export class MolisWorkProjectCatalog {
   }
 
   addProjectPlugin(input: AddProjectPluginInput): ProjectPluginId[] {
-    return this.projects.commands.addProjectPlugin(input);
+    return bumpAnd(this, () => this.projects.commands.addProjectPlugin(input));
   }
 
   removeProjectPlugin(input: RemoveProjectPluginInput): ProjectPluginMembership {
-    return this.projects.commands.removeProjectPlugin(input);
+    return bumpAnd(this, () => this.projects.commands.removeProjectPlugin(input));
   }
 
   getProject(projectId: string): MolisWorkProjectRecord {
@@ -459,4 +460,21 @@ function terminalContextBinder(runtimeContexts: ReturnType<typeof createRuntimeC
       projectId: input.project_id, actorId: input.actor_id, rebindConfirmed: true, bindingScope: "session",
     });
   };
+}
+
+/** Display membership version per Home for the N44 short cache; a successful membership write bumps it for every catalog of that Home. */
+const membershipEpochs = new Map<string, number>();
+const membershipEpochKey = (catalog: MolisWorkProjectCatalog) => path.resolve(catalog.homeDirectory);
+export function projectPluginEpoch(catalog: MolisWorkProjectCatalog): number {
+  return membershipEpochs.get(membershipEpochKey(catalog)) ?? 0;
+}
+function bumpProjectPluginEpoch(catalog: MolisWorkProjectCatalog): void {
+  const key = membershipEpochKey(catalog);
+  membershipEpochs.set(key, (membershipEpochs.get(key) ?? 0) + 1);
+}
+function bumpAnd<T>(catalog: MolisWorkProjectCatalog, run: () => T): T {
+  const result = run();
+  bumpProjectPluginEpoch(catalog);
+  advanceReadCheckGeneration();
+  return result;
 }

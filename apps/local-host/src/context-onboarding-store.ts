@@ -49,7 +49,13 @@ export interface ContextJourney {
   sources: ContextSource[]; model: string | null; error: string | null;
   summary: { title: string; body: string; references: ContextReference[] } | null;
   project_id: string; document_id: string | null; updated_at: string;
-  adoption?: { title: string; body: string; blank: boolean; todo_selected?: string[] };
+  /**
+   * `take`: the person's own code folder, made the project's output and handed to the plugin they picked among those that declare they
+   * take one (ONB-44, batch12-design §7); `code_root` is the folder as this round read it, never a path from a request.
+   */
+  adoption?: { title: string; body: string; blank: boolean; todo_selected?: string[]; take?: { plugin_id: string; project_plugin_id: string; code_root: string; output_set?: true } };
+  /** What that plugin answered: where the person goes on, and how many of the round's materials went with the folder; `not_taken` when nothing was handed (the plugin gone, the output no longer the folder, or the plugin refused). */
+  take_result?: { open: { item_id: string; title: string } | null; materials: number; of: number; not_taken?: "unavailable" | "moved" | "refused" };
   /** Todo drafts organized from the same materials; applied into the new project's todos on adoption. */
   /** Todo drafts, one organizer batch per 50 materials (or parts of long ones); `total` is how many the round needs. */
   /** `key` names the material set the batches came from: another set (the person went back and chose again) starts over. */

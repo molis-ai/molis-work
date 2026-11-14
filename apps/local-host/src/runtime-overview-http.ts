@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { homeAggregatePorts } from "./home-aggregate.js";
 import { hostHasTextModel } from "./host-complete-text.js";
@@ -9,10 +10,14 @@ import type { MolisWorkLocalHost } from "./project-host.js";
 import { decideRuntimeRun, hasNetwork, runtimeOverview, runtimeRunDecisionRequest, type RunsClient, type RuntimeOverviewPorts } from "./runtime-overview.js";
 import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
 
-/** The person's own client in the Home or in one open project, each call with their local context there (as the Home page reads). */
+/**
+ * The person's own client in the Home or in one open project, one context per request (N42): its discovery and every answer it
+ * invokes share it, and each call still re-checks the person's authority, so a grant taken back meanwhile refuses.
+ */
 function personRuns(host: MolisWorkLocalHost, reference: LocalHostProjectReference | undefined): RunsClient {
   const client = reference ? host.actionClient(reference) : host.homeActionClient();
-  const context = () => localWebActionContext(host, reference, LOCAL_OWNER_PERMISSIONS);
+  let pending: Promise<ActionCallContext> | undefined;
+  const context = () => pending ??= localWebActionContext(host, reference, LOCAL_OWNER_PERMISSIONS);
   return { discover: async () => client.discover(await context()), invoke: async (action, input) => client.invoke(await context(), action, input) };
 }
 

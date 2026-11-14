@@ -4,6 +4,7 @@ import { sendLocalWebJson as json } from "./web-http.js";
 import { listConnectorConnectionViews } from "./connector-connection-views.js";
 import { connectorLoginReady } from "./connector-directory.js";
 import { withContextJourneys } from "./context-onboarding-store.js";
+import { codeRoot } from "./context-onboarding-sources.js";
 import { contextReferenceText, contextModel, readContextJourney, type ContextOnboardingPorts } from "./context-onboarding-service.js";
 import { contextOnboardingActions as actions, contextOnboardingDoor as door, type ContextOnboardingEntry } from "./context-onboarding-actions.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
@@ -29,7 +30,11 @@ export function createContextOnboardingHttp(ports: ContextOnboardingPorts, host:
       // One chosen file per request, as the raw body (no size limit, user 2026-10-22); the selection names it by the digest returned.
       if (req.method === "POST" && match[2] === "files") json(res, 201, await door.invoke(as({ body: req }), actions.stageFile.definition, { journey: id, path: url.searchParams.get("path") }));
       else if (req.method === "GET" && match[3]) { const text = await contextReferenceText(home, id, match[3]); json(res, 200, { text: text.slice(0, 200_000), chars: text.length }); }
-      else if (req.method === "GET" && !match[2]) json(res, 200, readContextJourney(home, id));
+      else if (req.method === "GET" && !match[2]) {
+        // The plugins that declare they take a code folder, by name, only while this round has one to hand over (batch12-design §7.3).
+        const journey = readContextJourney(home, id);
+        json(res, 200, { ...journey, takers: codeRoot(journey) ? (ports.takers?.() ?? []).map(({ plugin_id, name }) => ({ plugin_id, name })) : [] });
+      }
       else if (req.method === "POST" && match[2] === "reopen") json(res, 200, await door.invoke(as(), actions.reopen.definition, { journey: id }));
       else if (req.method === "POST" && match[2] === "selection") json(res, 200, await door.invoke(as(), actions.select.definition, { journey: id, body: await readNativePluginJsonBody(req, 72_000_000) }));
       else if (req.method === "POST" && match[2] === "start") json(res, 202, await door.invoke(as(), actions.start.definition, { journey: id }));

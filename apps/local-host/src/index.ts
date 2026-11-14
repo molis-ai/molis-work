@@ -1,5 +1,6 @@
 export { accountSessionForHost } from "./account-host.js";
 export {syncDocumentFiles} from './sync-document-files.js';
+export { onboardingTakers, type OnboardingTaker } from "./onboarding-takers.js";
 export { openRuntimeProjectCopyDirectory, type RuntimeProjectCopyDirectory, type RuntimeProjectCopyInput } from "./runtime-project-copy.js";
 export { installMolisWorkHome } from "./installer/home.js";
 export { keepPreviousRelease, readRollbackHold, readRollbackPoint, rollbackErrors, rollbackHome, type RollbackPoint, type RollbackResult } from "./installer/home-rollback.js";
@@ -235,7 +236,7 @@ export { createPresentationError } from "./mcp-v1-tool.js";
 export { assertMcpStartInput } from "./mcp-start-preflight.js";
 export { assertMcpToolAllowed, requireMcpRuntimeContextHost } from "./mcp-authority.js";
 export { runtimeConnectionIdentity } from "./mcp-event-identity.js";
-export { readMcpToolPreference } from "./mcp-settings-store.js";
+export { readMcpToolPreference, removeMcpActionGrants, writeMcpActionGrant } from "./mcp-settings-store.js";
 export { taskGrantActionProvider, type TaskGrantPorts } from "./task-grant-actions.js";
 export * from "./web-project-settings.js";
 export * from "./web-project-presentation.js";
@@ -259,6 +260,11 @@ export type { MolisWorkMcpAudience, MolisWorkMcpToolCallContext } from "./mcp-se
 export { runV1Cli } from "./cli-project.js";
 export type { V1CliOptions } from "./cli-project.js";
 export { runLocalCli } from "./cli-host.js";
+export { runLocalHomeCli } from "./cli-home.js";
+export { startOfToday } from "./assistant/assistant-usage-ledger.js";
+export { PROJECT_DATABASE_VERSION_2_SCHEMA } from "./project-database-schema.js";
+export { adoptionRefusalText, type AdoptionRefusalCode, type AdoptionRefusalText } from "./process-items-refusal-text.js";
+export { ORIGINAL_PROJECT_REPLICATION_SCHEMA_SQL, PROJECT_REPLICATION_SCHEMA_SQL } from "./project-replication-schema.js";
 export type { LocalCliOptions } from "./cli-host.js";
 export { ModelProviderStore, createModelProviderTables, type ModelProviderSqlite, type ModelProviderStoreOptions, type ModelSecretPort } from "./model-provider-store.js";
 export { MINIMAX_ANTHROPIC_BASE_URL, MODEL_PROVIDER_TEMPLATES, modelProviderTemplate } from "./model-provider-templates.js";
@@ -427,4 +433,7 @@ export { HostPresence, currentHostPresence, PRESENCE_HEARTBEAT_MS, PRESENCE_SLEE
 export { attachHostPresence, homeHostUrl, readHostEndpoint, removeHostEndpoint, writeHostEndpoint } from "./host-endpoint.js";
 export { residentHostAddress } from "./resident-host-request.js";
 export { webEntryDoor, webEntryProvider, type WebEntryDoor, type WebEntryCall } from "./web-entry-actions.js";
+export { createHostObservation, observationPluginDataCleared, scheduleWakeupRecords, type HostObservation } from "./observation-host.js";
+export type { GrantChangedBy } from "./observation-grants.js";
+export { observationShellDoor } from "./observation-shell-entry.js";
 export { contextOnboardingActions, contextOnboardingProvider } from "./context-onboarding-actions.js";

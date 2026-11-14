@@ -357,9 +357,19 @@ export async function handleMemoryHttp(request: IncomingMessage, response: Serve
       let parts = pathname.slice("/api/memory/".length).split("/").map(decodeURIComponent);
       const client = ports.projectRef ? ports.localHost.actionClient(ports.projectRef) : ports.localHost.homeActionClient();
       const { body, operation_id } = memoryCommandBody(rawBody);
-      let context: ActionCallContext = { ...await localWebActionContext(ports.localHost, ports.projectRef, LOCAL_OWNER_PERMISSIONS, abort.signal),
+      // N42: one person context serves this whole request, prepared when the route first really calls an action; a path this
+      // door does not answer prepares none. The session entry below needs the base caller to bind, so it prepares it itself.
+      // These two read the route as the door received it, before a session entry shortens `parts`.
+      const explicitRecall = method === "POST" && parts.length === 1 && parts[0] === "recall";
+      let pending: Promise<ActionCallContext> | undefined;
+      const baseContext = () => pending ??= localWebActionContext(ports.localHost, ports.projectRef, LOCAL_OWNER_PERMISSIONS, abort.signal).then(caller => ({ ...caller,
         ...(method === "POST" && operation_id ? { memory_operation_id: operation_id } : {}),
-        ...(method === "POST" && parts.length === 1 && parts[0] === "recall" ? { memory_read_mode: "explicit" as const } : {}) };
+        ...(explicitRecall ? { memory_read_mode: "explicit" as const } : {}) }));
+      let session: ActionCallContext["memory_session"];
+      const context = async (): Promise<ActionCallContext> => {
+        const caller = await baseContext();
+        return session ? { ...caller, memory_session: session } : caller;
+      };
       if (parts[0] === "sessions") {
         if (parts.length < 3) throw memoryErrors.invalid("会话记忆需要明确的业务会话入口");
         const kind = parts[1]!, id = parts[2]!;
@@ -367,18 +377,18 @@ export async function handleMemoryHttp(request: IncomingMessage, response: Serve
         if (!parts.length && method === "GET") parts = ["overview"];
         const reading = method === "GET" || parts[0] === "recall" || parts[0] === "clear" && parts[1] === "preview";
         const deleting = parts[0] === "clear" && parts[1] === "apply" || parts[0] === "change" && body.action === "remove";
-        const held = await memoryHostFor(ports.localHost)!.bindSession({ caller: context, kind, id, projectRef: ports.projectRef,
+        const held = await memoryHostFor(ports.localHost)!.bindSession({ caller: await baseContext(), kind, id, projectRef: ports.projectRef,
           mode: reading ? "read" : deleting ? "delete" : "write",
           ...(deleting && parts[0] === "clear" && typeof body.preview_id === "string" ? { preview_id: body.preview_id } : {}), ...(ports.assistantBinding ? { assistantBinding: ports.assistantBinding } : {}) });
-        context = { ...context, memory_session: held.context }; releaseSession = held.dispose;
+        session = held.context; releaseSession = held.dispose;
       }
-      const call = (definition: { capability_id: string; version: number }, input: unknown) =>
-        client.invoke(context, { capability_id: definition.capability_id, version: definition.version, provider_id: MEMORY_PROVIDER_ID }, input);
+      const call = async (definition: { capability_id: string; version: number }, input: unknown) =>
+        client.invoke(await context(), { capability_id: definition.capability_id, version: definition.version, provider_id: MEMORY_PROVIDER_ID }, input);
       const scope = (value: unknown): MemoryScope | undefined => value === "project" || value === "personal" ? value : undefined;
       const pageLabels = async (page: MemoryPageResponse) => ({ goals: await subjectTitles(ports.localHost, ports.projectRef, "goal",
-        page.items.flatMap(item => item.applies.goal_ids ?? [])).catch(() => ({})) });
+        page.items.flatMap(item => item.applies.goal_ids ?? []), await context()).catch(() => ({})) });
       if (method === "GET" && parts.length === 1 && parts[0] === "operations") {
-        if (context.memory_session && url.searchParams.has("scope")) throw memoryErrors.invalid("会话操作查询不能另选范围");
+        if (session && url.searchParams.has("scope")) throw memoryErrors.invalid("会话操作查询不能另选范围");
         const query = { ...(url.searchParams.has("scope") ? { scope: url.searchParams.get("scope")! } : {}),
           ...(url.searchParams.has("limit") ? { limit: Number(url.searchParams.get("limit")) } : {}),
           ...(url.searchParams.get("cursor") ? { cursor: url.searchParams.get("cursor")! } : {}) };
@@ -412,11 +422,11 @@ export async function handleMemoryHttp(request: IncomingMessage, response: Serve
       if (method === "GET" && parts.length === 3 && parts[0] === "items" && parts[2] === "history") return { status: 200, body: await call(memoryActions.history, { memory_id: parts[1] }) };
       if (method !== "POST") return null;
       if (parts.length === 2 && parts[0] === "clear" && parts[1] === "preview") {
-        if (!context.memory_session) throw memoryErrors.forbidden("清除本会话记忆需要原业务入口");
+        if (!session) throw memoryErrors.forbidden("清除本会话记忆需要原业务入口");
         return { status: 200, body: await call(memoryActions.sessionClearPreview, rawBody) };
       }
       if (parts.length === 2 && parts[0] === "clear" && parts[1] === "apply") {
-        if (!context.memory_session) throw memoryErrors.forbidden("清除本会话记忆需要原业务入口");
+        if (!session) throw memoryErrors.forbidden("清除本会话记忆需要原业务入口");
         return { status: 200, body: await call(memoryActions.sessionClearApply, rawBody) };
       }
       if (parts.length === 1 && parts[0] === "recall") return { status: 200, body: await call(memoryActions.recall, body) };

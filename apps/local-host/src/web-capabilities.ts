@@ -53,8 +53,9 @@ export async function capabilitiesView(options: {
   // The local owner's permissions come from the native manifests; Runtime plugins add their installed grants. Never from query parameters.
   const builtinPermissions = LOCAL_OWNER_PERMISSIONS;
   const model: CapabilitiesView = { section, actions: [], query: url.searchParams.get("q") ?? "", kind: url.searchParams.get("kind") ?? "" };
+  const callerFor = () => localWebActionContext(host, reference, builtinPermissions);
   if (section === "library") {
-    const caller = await localWebActionContext(host, reference, builtinPermissions);
+    const caller = await callerFor();
     const actions = await (reference ? host.actionClient(reference) : host.homeActionClient()).discover(caller);
     const selectedId = url.searchParams.get("action");
     const selected = actions.find(item => item.capability_id === selectedId && item.version === Number(url.searchParams.get("version")));
@@ -73,7 +74,7 @@ export async function capabilitiesView(options: {
   }
   if (section === "history") {
     model.calls = host.callLog?.list(project ? project.project_id : null) ?? [];
-    const caller = await localWebActionContext(host, reference, builtinPermissions);
+    const caller = await callerFor();
     const client = reference ? host.actionClient(reference) : host.homeActionClient();
     model.history = (await client.invoke(caller, functionContextActions.history, {}) as { judgments: NonNullable<CapabilitiesView["history"]> }).judgments;
   }

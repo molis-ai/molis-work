@@ -117,7 +117,8 @@ test("S-51 a follow-up scheduled before its executor plugin's grant is revoked, 
     await pending.ran();
     const last = service.followUps.list(sent.work.work_id).find(row => row.followup_id === pending.standing.followup_id)!.last!;
     assert.equal(last.outcome, "failed", "the round is refused when it comes due");
-    assert.match(savedText(last.detail ?? undefined) ?? "", /执行方现在找不到/u, "refused because the person's directory no longer offers the executor's actions, not by something else failing");
+    // CHO-04 (batch 12): the reason is told from what the person can see; withdrawn or stopped, the plugin is in the project and not offered.
+    assert.match(savedText(last.detail ?? undefined) ?? "", /执行方插件在项目里，但现在没有运行/u, "refused because the person's directory no longer offers the executor's actions, not by something else failing");
     assert.deepEqual(executor.handled.slice(handledBefore), [], "none of the executor's actions ran after its grant was withdrawn, reads included");
     assert.equal(executor.runs.length, 1, "no round started in the executor");
     assert.equal(store.rounds(sent.work.work_id).length, roundsBefore, "the work records no round for the refused follow-up");
@@ -132,7 +133,7 @@ test("S-51 a follow-up scheduled before its executor plugin's grant is revoked, 
     await stopping.ran();
     const stopped = service.followUps.list(sent.work.work_id).find(row => row.followup_id === stopping.standing.followup_id)!.last!;
     assert.equal(stopped.outcome, "failed", "the round is refused when it comes due");
-    assert.match(savedText(stopped.detail ?? undefined) ?? "", /执行方现在找不到/u, "refused because the stopped executor's actions are gone, not by something else failing");
+    assert.match(savedText(stopped.detail ?? undefined) ?? "", /执行方插件在项目里，但现在没有运行/u, "refused because the stopped executor's actions are gone, not by something else failing");
     assert.deepEqual(executor.handled.slice(handledBeforeStop), [], "none of the stopped executor's actions ran");
     assert.equal(executor.runs.length, 1, "no round started in the stopped executor");
     assert.equal(store.rounds(sent.work.work_id).length, roundsBefore, "the work records no round for either refused follow-up");

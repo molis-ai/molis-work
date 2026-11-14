@@ -12,6 +12,7 @@ import { createWorkflowsSearchHandlers, workflowsSearchActions } from "./search.
 import { workflowsErrors } from "./error.js";
 import { createWorkflowRunControls } from "./run-control.js";
 import { createWorkflowContinuation, handoffIndex } from "./continuation.js";
+import type { WorkflowStepReport } from "./observation.js";
 import { prepareHandoff, workflowJudgmentChoices, type WorkflowJudgmentChoice } from "./handoff.js";
 import { labelOf, readStep, reachFor, resolveStation, runActionStep, workflowActionChoices, type Reach, type WorkflowActionChoice } from "./step-runner.js";
 
@@ -60,6 +61,8 @@ export interface WorkflowsActionPorts extends WorkflowsStores {
   /** The full result, so the synchronous `validateResult()` can run inside the write transaction. */
   complete?(prompt: InstructedPrompt, options: { signal?: AbortSignal; beforeDispatch(): void | Promise<void> }): Promise<PluginModelResult>;
   changed?(): void;
+  /** Reports a handoff to the work records (`observation.report@1`, consumed as this installation); absent, nothing is reported. */
+  report?: WorkflowStepReport;
 }
 
 const text = { type: "string" };
@@ -213,7 +216,7 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
       const handed = await readStep(content, current, from);
       return { from, link, readiness, input: handed, output: link.kind === "function" && readiness.ready ? applyFunctionRule(link, handed) : null };
     }),
-    bind(workflowsActions.continue, createWorkflowContinuation<Reach>({ projectId, read: ports.read, write: ports.write, commit, live, changed,
+    bind(workflowsActions.continue, createWorkflowContinuation<Reach>({ projectId, read: ports.read, write: ports.write, commit, live, changed, report: ports.report,
       prepareHandoff: (caller, content, reach, current, from, input) => prepareHandoff(scope, caller, content, reach, current, from, input),
       runActionStep: (caller, reach, current, from, pending, target, retry) => runActionStep(scope, caller, reach, current, from, pending, target, retry) })),
     bind(workflowsActions.usages, async input => ({ usages: ports.read(store => store.list(projectId)).flatMap(flow => workflowUsages(flow, input.action)) })),

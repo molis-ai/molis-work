@@ -16,30 +16,69 @@ use std::time::{SystemTime, UNIX_EPOCH};
 const MAX_ENTRIES: usize = 10_000;
 const MAX_DEPTH: usize = 8;
 
-fn excluded(name: &str) -> bool {
-    name.starts_with('.')
-        || matches!(
-            name.to_ascii_lowercase().as_str(),
-            "node_modules"
-                | "vendor"
-                | "target"
-                | "dist"
-                | "build"
-                | "__pycache__"
-                | "pods"
-                | "carthage"
-        )
+// Which entries onboarding takes in: the same rule as `contextFileSkip` in the contracts' services/materials (the Host checks the
+// selection with that one; this is the shell's copy for its own walk, as the shell keeps its own loopback test). A folder that is
+// never material is not walked; a file is taken unless it is a secret by its name, a hidden file other than one that only says how
+// the project is kept, or a kind whose body cannot be read as text. Any other file, a stranger suffix or none, is read for what
+// it holds (ONB-37). `tests/context-onboarding.test.ts` and `file_rule_matches_the_hosts` below hold the same cases.
+const IGNORED_FOLDERS: [&str; 11] = [
+    "node_modules",
+    "vendor",
+    "dist",
+    "build",
+    "target",
+    "out",
+    "coverage",
+    "__pycache__",
+    "venv",
+    "pods",
+    "carthage",
+];
+const HIDDEN_KEPT: [&str; 9] = [
+    ".gitignore",
+    ".gitattributes",
+    ".editorconfig",
+    ".dockerignore",
+    ".prettierrc",
+    ".eslintrc",
+    ".nvmrc",
+    ".node-version",
+    ".tool-versions",
+];
+const UNREADABLE: [&str; 69] = [
+    "png", "jpg", "jpeg", "gif", "webp", "bmp", "tif", "tiff", "heic", "heif", "ico", "icns",
+    "psd", "sketch", "fig", "mp3", "wav", "m4a", "aac", "aiff", "aif", "flac", "ogg", "mp4", "mov",
+    "m4v", "webm", "avi", "mkv", "zip", "gz", "tgz", "bz2", "xz", "7z", "rar", "tar", "dmg", "pkg",
+    "iso", "jar", "war", "exe", "dll", "so", "dylib", "a", "o", "obj", "class", "pyc", "wasm",
+    "bin", "dat", "db", "sqlite", "sqlite3", "woff", "woff2", "ttf", "otf", "eot", "doc", "xls",
+    "xlsx", "ppt", "pptx", "numbers", "pages",
+];
+
+/// A folder that is never material: hidden, dependencies, build output.
+fn ignored_folder(name: &str) -> bool {
+    name.starts_with('.') || IGNORED_FOLDERS.contains(&name.to_ascii_lowercase().as_str())
 }
-fn supported(path: &str) -> bool {
-    let extension = Path::new(path)
+/// A file onboarding does not take in by its name alone.
+fn skipped_file(name: &str) -> bool {
+    let name = name.to_ascii_lowercase();
+    let extension = Path::new(&name)
         .extension()
         .and_then(|value| value.to_str())
-        .unwrap_or("")
-        .to_ascii_lowercase();
-    matches!(
-        extension.as_str(),
-        "md" | "markdown" | "txt" | "csv" | "json" | "html" | "htm" | "pdf" | "docx"
-    )
+        .unwrap_or("");
+    let secret = name == ".env"
+        || name.starts_with(".env.")
+        || matches!(
+            extension,
+            "pem" | "key" | "p12" | "pfx" | "keystore" | "jks"
+        )
+        || ["id_rsa", "id_ed25519", "id_ecdsa", "id_dsa"]
+            .iter()
+            .any(|key| name == *key || name == format!("{key}.pub"));
+    let hidden = name.starts_with('.')
+        && !HIDDEN_KEPT
+            .iter()
+            .any(|kept| name == *kept || name.starts_with(&format!("{kept}.")));
+    secret || hidden || UNREADABLE.contains(&extension)
 }
 fn modified_ms(seconds: i64, nanos: i64) -> u64 {
     (i128::from(seconds) * 1000 + i128::from(nanos) / 1_000_000).max(0) as u64
@@ -49,7 +88,7 @@ pub(crate) fn open_root(path: &Path) -> Result<File, String> {
     if path
         .file_name()
         .and_then(|name| name.to_str())
-        .is_some_and(excluded)
+        .is_some_and(ignored_folder)
     {
         return Err("请选择普通工作目录，隐藏目录和依赖目录不参与整理".into());
     }
@@ -147,7 +186,7 @@ fn scan(directory: &File, prefix: &str, depth: usize, output: &mut Scan) -> Resu
             output.skipped += 1;
             continue;
         };
-        if excluded(name) {
+        if name.starts_with('.') && skipped_file(name) {
             output.skipped += 1;
             continue;
         }
@@ -177,6 +216,11 @@ fn scan(directory: &File, prefix: &str, depth: usize, output: &mut Scan) -> Resu
         };
         match info.st_mode & libc::S_IFMT {
             libc::S_IFDIR => {
+                // Only a folder by these names is left out, as the host's rule does; a file named `build` or `out` is read.
+                if IGNORED_FOLDERS.contains(&name.to_ascii_lowercase().as_str()) {
+                    output.skipped += 1;
+                    continue;
+                }
                 if depth >= MAX_DEPTH {
                     output.skipped += 1;
                     output.truncated = true;
@@ -194,7 +238,7 @@ fn scan(directory: &File, prefix: &str, depth: usize, output: &mut Scan) -> Resu
                     break;
                 }
             }
-            libc::S_IFREG if supported(name) => {
+            libc::S_IFREG if !skipped_file(name) => {
                 let modified_ms = modified_ms(info.st_mtime, info.st_mtime_nsec);
                 if modified_ms < output.since_ms {
                     output.skipped += 1;
@@ -263,8 +307,11 @@ fn relative_components(path: &str) -> Result<Vec<&str>, String> {
     if components.len() > MAX_DEPTH + 1
         || components
             .iter()
-            .any(|part| part.is_empty() || *part == "." || *part == ".." || excluded(part))
-        || !supported(path)
+            .any(|part| part.is_empty() || *part == "." || *part == "..")
+        || components[..components.len() - 1]
+            .iter()
+            .any(|part| ignored_folder(part))
+        || skipped_file(components[components.len() - 1])
     {
         return Err("文件不在允许的预览范围内".into());
     }
@@ -412,6 +459,49 @@ mod tests {
         }
     }
     #[test]
+    fn file_rule_matches_the_hosts() {
+        // The same cases as `tests/context-onboarding.test.ts` (ONB-37): the shell walks with what the Host checks.
+        for path in [
+            "src/main.ts",
+            "lib/util.js",
+            "tool.py",
+            "src/lib.rs",
+            "cmd/main.go",
+            "View.swift",
+            "scripts/run.sh",
+            "config.yaml",
+            "Cargo.toml",
+            "README",
+            "LICENSE",
+            "Makefile",
+            ".gitignore",
+            "notes.weird-suffix",
+            "paper.pdf",
+            "brief.docx",
+            "yarn.lock",
+        ] {
+            assert!(relative_components(path).is_ok(), "{path} is taken");
+        }
+        for path in [
+            "node_modules/x/index.js",
+            "dist/app.js",
+            ".git/config",
+            "src/.cache/a.txt",
+            ".DS_Store",
+            ".env",
+            ".env.local",
+            "certs/server.pem",
+            "id_rsa",
+            "logo.png",
+            "demo.mp4",
+            "bundle.zip",
+            "app.wasm",
+            "old.xlsx",
+        ] {
+            assert!(relative_components(path).is_err(), "{path} is left out");
+        }
+    }
+    #[test]
     fn previews_supported_metadata_and_reads_only_selected_files() {
         let fixture = Fixture::new();
         std::fs::write(fixture.0.join("notes.txt"), "chosen content").unwrap();
@@ -430,6 +520,24 @@ mod tests {
             .unwrap();
         let result = read(&fixture.root(), vec![report]);
         assert_eq!(result[0].data.as_deref().unwrap(), [0, 1, 2, 255]);
+    }
+    #[test]
+    fn walk_leaves_out_only_folders_by_the_ignored_names() {
+        // The host's rule (`contextFileSkip`, ONB-37) leaves out folders called build/out/target, never a file of that name.
+        let fixture = Fixture::new();
+        std::fs::write(fixture.0.join("build"), "#!/bin/sh").unwrap();
+        std::fs::write(fixture.0.join("out"), "notes").unwrap();
+        std::fs::create_dir(fixture.0.join("target")).unwrap();
+        std::fs::write(fixture.0.join("target/app.rs"), "excluded").unwrap();
+        let preview = preview(&fixture.root(), 0).unwrap();
+        let mut paths: Vec<_> = preview
+            .files
+            .iter()
+            .map(|file| file.path.as_str())
+            .collect();
+        paths.sort();
+        assert_eq!(paths, ["build", "out"]);
+        assert_eq!(preview.skipped, 1);
     }
     #[test]
     fn previews_and_reads_any_number_of_files_of_any_size() {

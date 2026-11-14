@@ -26,7 +26,7 @@ function serving(answer: (capabilityId: string) => unknown = () => ({})) {
 const reference = (definition: unknown) => { const { capability_id, version } = definition as ActionDefinition; return { capability_id, version }; };
 const code = (expected: string) => (error: unknown) => (error as ActionError).code === expected;
 const invalid = code("actions.input_invalid");
-const noDirectories = { project_id: "p", directories: [], source_links: [], revision: "r2" };
+const noDirectories = { project_id: "p", directories: [], source_links: [], revision: "r2", instructions: { off: false, trusted: false } };
 
 const currentFile: MaterialRef = { subject: { kind: WORKSPACE_FILE_SUBJECT_KIND, id: "ws1:docs/plan.md" }, pin: { mode: "current", read_revision: "a".repeat(64) } };
 const fixedArtifact: MaterialRef = { subject: { kind: "artifact", id: "a1" }, pin: { mode: "fixed", version: { artifact_id: "a1", version: 3 } } };
@@ -121,6 +121,7 @@ test("the declarations are complete, version 1, and the ones the design names", 
     "projects.directories.set_output@1:command",
     "projects.directories.repair@1:command",
     "projects.directories.map_source@1:command",
+    "projects.directories.set_instructions@1:command",
     "projects.directories.unmap_source@1:command",
     "materials.recent@1:query",
     "materials.recent.record@1:command",
@@ -163,6 +164,7 @@ test("a plugin cannot change a project's directories, even with a legal input an
     [projectDirectoryActions.repair, { workspace_id: "w", workspace_path: "/w", expected_revision: "r" }],
     [projectDirectoryActions.mapSource, { source_workspace_id: "s", workspace_id: "w", expected_revision: "r" }],
     [projectDirectoryActions.unmapSource, { source_workspace_id: "s", expected_revision: "r" }],
+    [projectDirectoryActions.setInstructions, { off: false, expected_revision: "r" }],
   ];
   const { service, calls } = serving(() => noDirectories);
   for (const [definition, input] of changes) await assert.rejects(service.invoke(context("plugin", ["projects:settings"]), reference(definition), input), code("actions.forbidden"));
@@ -181,6 +183,16 @@ test("SSC-27: plugin, agent and mcp callers are refused map_source itself, whate
   assert.deepEqual(calls, []);
   await service.invoke(person, reference(projectDirectoryActions.mapSource), input);
   assert.deepEqual(calls, ["projects.directories.map_source"]);
+});
+
+test("BCD-06 S-project-instructions-trust: plugin, agent and mcp callers are refused turning on the repository's instruction files, whatever they hold", async () => {
+  const { service, calls } = serving(() => noDirectories);
+  for (const off of [false, true]) for (const audience of ["plugin", "agent", "mcp"] as const) {
+    await assert.rejects(service.invoke(context(audience, ["projects:settings"]), reference(projectDirectoryActions.setInstructions), { off, expected_revision: "r" }), code("actions.forbidden"), audience);
+  }
+  assert.deepEqual(calls, [], "the provider was never reached");
+  await service.invoke(person, reference(projectDirectoryActions.setInstructions), { off: false, expected_revision: "r" });
+  assert.deepEqual(calls, ["projects.directories.set_instructions"], "the person's own switch goes through, so the refusals were about who called");
 });
 
 test("WMD-02: removing an input or a mapping leaves the folder on disk, so neither is irreversible", () => {

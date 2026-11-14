@@ -772,15 +772,19 @@ jobs:
         run: pnpm build
 
       # The files `test-selection` chose on a pull request, or (empty: not a pull request) every file of `test:security`.
+      # A file that fails is run once more at once (`--retries 1`, as the full suite and the product subset do); one that then passes
+      # is listed as flaky in the runner's summary and does not fail the job, so a timing flake no longer drops a group out of the
+      # merge queue (user 2026-11-14, decision 44: about 10 of 39 failed merge-queue runs in a week were the IUI-02 Linux flake).
+      # A file that fails twice still fails; the flaky list is the evidence to fix it.
       - name: Security invariants
         env:
           SELECTED: ${{ github.event_name == 'pull_request' && needs.test-selection.result == 'success' && needs.test-selection.outputs.security_mode == 'some' && needs.test-selection.outputs.security_files || '' }}
         run: |
           if [ -n "$SELECTED" ]; then
             read -r -a files <<< "$SELECTED"
-            node scripts/run-tests.mjs --shard ${{ matrix.shard }}/${{ strategy.job-total }} "${files[@]}"
+            node scripts/run-tests.mjs --shard ${{ matrix.shard }}/${{ strategy.job-total }} --retries 1 "${files[@]}"
           else
-            pnpm test:security --shard ${{ matrix.shard }}/${{ strategy.job-total }}
+            pnpm test:security --shard ${{ matrix.shard }}/${{ strategy.job-total }} --retries 1
           fi
 
   # Decision #14 (specs/archive/repository-anti-corruption): which test files pass on Linux is not known yet (some touch macOS-only

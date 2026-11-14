@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { RISK_WRITE, riskActions, type RiskRecord } from "@molis-ai/molis-work-plugin-risk";
-import { WORK_BRIEF_WRITE, workBriefActions, type BriefRefreshed, type BriefSaved, type BriefVersion, type BriefView } from "@molis-ai/molis-work-plugin-work-brief";
+import { WORK_BRIEF_PLUGIN_ID, WORK_BRIEF_VIEW_ID, WORK_BRIEF_WRITE, workBriefActions, workBriefPersonalActions, workBriefPresentationActions, type PersonalView, type BriefRefreshed, type BriefSaved, type BriefVersion, type BriefView } from "@molis-ai/molis-work-plugin-work-brief";
+import type { PresentationOverview } from "@molis-ai/molis-work-contracts/platform/presentation";
+import { surfaceCompositionActions, type SurfaceDescription } from "@molis-ai/molis-work-contracts/services/surface-composition";
 import { takeBackGoals } from "./fixtures/goals-agreement.js";
 import { person, serveHomeRuntime } from "./fixtures/home-runtime.js";
 
@@ -14,26 +16,30 @@ const RISK_ID = "io.molis.work.risk";
 
 async function fixture(t: Parameters<typeof serveHomeRuntime>[0]) {
   const f = await serveHomeRuntime(t), { host } = f;
-  // Decision 42: the project carries no Goals. The person took back the agreement that keeps it in every project before making this one.
+  // Decision 42: the projects carry no Goals. The person took back the agreement that keeps it in every project before making them.
   takeBackGoals(f.home);
-  const here = await f.project("简报项目");
-  const revision = async () => {
-    const { projects } = await (await f.request("/api/settings/project-plugins")).json() as { projects: Array<{ project_id: string; revision: string; plugins: string[] }> };
-    const row = projects.find(entry => entry.project_id === here.project_id)!;
-    assert.equal(row.plugins.includes("goals"), false, "the project has no Goals");
-    return row.revision;
+  const open = async (name: string, plugins: readonly string[] = ["risk", "work-brief"]) => {
+    const here = await f.project(name);
+    const revision = async () => {
+      const { projects } = await (await f.request("/api/settings/project-plugins")).json() as { projects: Array<{ project_id: string; revision: string; plugins: string[] }> };
+      const row = projects.find(entry => entry.project_id === here.project_id)!;
+      assert.equal(row.plugins.includes("goals"), false, "the project has no Goals");
+      return row.revision;
+    };
+    const path = `/api/settings/projects/${encodeURIComponent(here.project_id)}/plugins`;
+    const change = async (method: "POST" | "DELETE", plugin_id: string) => {
+      const answer = await f.request(path, { method, body: { plugin_id, expected_revision: await revision() } });
+      assert.equal(answer.status, 200, await answer.clone().text());
+    };
+    for (const plugin_id of plugins) await change("POST", plugin_id);
+    const client = host.actionClient(here.reference);
+    const caller: ActionCallContext = person([...RISK_WRITE, ...WORK_BRIEF_WRITE, "artifact:write", "artifact:read"], here.project_id);
+    const call = <O>(definition: { capability_id: string; version: number }, input: unknown, who: ActionCallContext = caller) => client.invoke(who, ref(definition), input) as Promise<O>;
+    const risk = async (title: string) => (await call<{ risk: RiskRecord }>(riskActions.create, { title, statement: "s", impact: "high", likelihood: "medium" })).risk;
+    const riskNow = async (id: string) => (await call<{ risk: RiskRecord }>(riskActions.get, { risk_id: id })).risk;
+    return { here, call, caller, risk, riskNow, client, change };
   };
-  const path = `/api/settings/projects/${encodeURIComponent(here.project_id)}/plugins`;
-  for (const plugin_id of ["risk", "work-brief"]) {
-    const added = await f.request(path, { method: "POST", body: { plugin_id, expected_revision: await revision() } });
-    assert.equal(added.status, 200, await added.clone().text());
-  }
-  const client = host.actionClient(here.reference);
-  const caller: ActionCallContext = person([...RISK_WRITE, ...WORK_BRIEF_WRITE, "artifact:write", "artifact:read"], here.project_id);
-  const call = <O>(definition: { capability_id: string; version: number }, input: unknown, who: ActionCallContext = caller) => client.invoke(who, ref(definition), input) as Promise<O>;
-  const risk = async (title: string) => (await call<{ risk: RiskRecord }>(riskActions.create, { title, statement: "s", impact: "high", likelihood: "medium" })).risk;
-  const riskNow = async (id: string) => (await call<{ risk: RiskRecord }>(riskActions.get, { risk_id: id })).risk;
-  return { f, host, here, call, caller, risk, riskNow, client };
+  return { f, host, open, ...await open("简报项目") };
 }
 let request = 0;
 const once = () => "request-" + ++request;
@@ -228,4 +234,63 @@ test("WBR-06 WBR-07 a next step runs the prepared action once as the person; a c
   assert.equal(await code(call(workBriefActions.setNext, { brief_id: id, option_id: "gone", state: "later" })), "work_brief.option_stale");
   // Only the person runs a next step: the assistant cannot click for them.
   assert.notEqual(await code(call(workBriefActions.runNext, { brief_id: id, option_id: close }, { ...caller, audience: "agent" })), "accepted");
+});
+
+test("WBR-22 WBR-23 with Work Brief in the project the home names its main-area view first, beside every plugin's own card; taken out, the basic home is what is left", { timeout: 90_000 }, async t => {
+  const { call, caller, risk, change } = await fixture(t);
+  const made = await risk("供应商延期");
+  await call<BriefSaved>(workBriefActions.save, { request_id: once(), draft: { claims: [{ text: "交付有延期风险。", cites: [{ kind: "risk", id: made.risk_id }] }] } });
+  const home = () => call<SurfaceDescription>(surfaceCompositionActions.compose, { slot: { kind: "home" } }, person([...caller.permissions], caller.project_id));
+  const withBrief = await home();
+  assert.deepEqual(withBrief.groups.map(group => group.kind).filter(kind => kind === "lead"), ["lead"]);
+  const lead = withBrief.groups[0]!;
+  assert.deepEqual([lead.kind, lead.owner_plugin_id, lead.lead?.view_id, lead.items.length], ["lead", WORK_BRIEF_PLUGIN_ID, WORK_BRIEF_VIEW_ID, 0]);
+  const cards = (description: SurfaceDescription) => description.groups.filter(group => group.kind === "plugin").map(group => [group.owner_plugin_id, group.state]);
+  assert.ok(cards(withBrief).some(([owner, state]) => owner === RISK_ID && state === "ok"), "the source keeps its own card");
+  assert.ok(cards(withBrief).some(([owner, state]) => owner === WORK_BRIEF_PLUGIN_ID && state === "ok"), "Work Brief is a plugin like the others: it has a card too");
+  // Its overview is the same public read every plugin gives: a sentence and the brief as an object, no model.
+  const overview = await call<PresentationOverview>(workBriefPresentationActions.find(action => action.capability_id.endsWith("presentation.overview"))!, {});
+  assert.equal(overview.subjects.length, 1);
+  assert.equal(overview.subjects[0]!.kind, "brief");
+  // Taken out of the project: no lead, the other plugins' cards as before, and the source's facts untouched.
+  await change("DELETE", "work-brief");
+  const basic = await home();
+  assert.equal(basic.groups.some(group => group.kind === "lead"), false);
+  assert.ok(cards(basic).some(([owner, state]) => owner === RISK_ID && state === "ok"));
+  assert.deepEqual(cards(basic).find(([owner]) => owner === WORK_BRIEF_PLUGIN_ID), [WORK_BRIEF_PLUGIN_ID, "disabled"], "what is left of it is the card that offers to add it back");
+  // Put back: the brief is still there (its data follows the plugin's lifecycle, not the page's).
+  await change("POST", "work-brief");
+  assert.equal((await call<BriefView>(workBriefActions.get, {})).version!.claims.length, 1);
+  assert.equal((await home()).groups[0]!.kind, "lead");
+});
+
+test("WBR-24 the personal brief gathers what waits in the briefs of the projects the person reaches, each labelled with its project; deleting a project takes only its rows", { timeout: 120_000 }, async t => {
+  const { f, host, open, call, risk, here } = await fixture(t);
+  const second = await open("另一个项目");
+  const a = await risk("供应商延期"), b = await second.risk("汇率波动");
+  const save = (via: typeof call, cite: { kind: string; id: string }, why: string) => via<BriefSaved>(workBriefActions.save, { request_id: once(), draft: {
+    claims: [{ text: "有一件事要定。", cites: [cite] }], attention: [{ subject: cite, why }], next: [{ text: "让助理跟进", why: "还没人跟", act: { kind: "assistant" } }] } });
+  const first = await save(call, { kind: "risk", id: a.risk_id }, "要决定是否换供应商");
+  await save(second.call, { kind: "risk", id: b.risk_id }, "要决定是否对冲");
+  const me = person([...WORK_BRIEF_WRITE], null);
+  const personal = () => host.homeActionClient().invoke(me, ref(workBriefPersonalActions.get), {}) as Promise<PersonalView>;
+  const lines = (view: PersonalView) => view.items.map(item => [item.label, item.kind, item.project_id, item.text]).sort();
+  const before = await personal();
+  assert.equal(before.projects_complete, true);
+  assert.deepEqual(lines(before), [
+    ["project", "attention", here.project_id, "要决定是否换供应商"], ["project", "attention", second.here.project_id, "要决定是否对冲"],
+    ["project", "next", here.project_id, "让助理跟进"], ["project", "next", second.here.project_id, "让助理跟进"]].sort());
+  assert.ok(before.items.every(item => item.brief_id), "each line says which brief it is from, so the page can open it there");
+  // A next step the person dealt with is no longer waiting.
+  await call(workBriefActions.setNext, { brief_id: first.brief.brief_id, option_id: first.version!.next[0]!.option_id, state: "later" });
+  assert.equal((await personal()).items.filter(item => item.kind === "next").length, 1);
+  // Reading the personal brief starts nothing and saves nothing; a refresh reads the Home-level sources only.
+  const refreshed = await host.homeActionClient().invoke(me, ref(workBriefPersonalActions.refresh), {}) as PersonalView & { changed: boolean };
+  assert.equal(refreshed.items.filter(item => item.label === "project").length, 3);
+  // Deleting one project removes its briefs and nothing of the other's.
+  const deleted = await f.request(`/api/settings/projects/${here.project_id}/delete`, { method: "POST", body: { delete_confirmed: true, idempotency_key: "wb-delete" } });
+  assert.equal(deleted.status, 200, await deleted.clone().text());
+  const after = await personal();
+  assert.deepEqual(lines(after), [["project", "attention", second.here.project_id, "要决定是否对冲"], ["project", "next", second.here.project_id, "让助理跟进"]].sort());
+  assert.equal((await second.call<BriefView>(workBriefActions.get, {})).version!.claims.length, 1);
 });

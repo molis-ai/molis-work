@@ -318,6 +318,8 @@ export declare const STATE_RING_FAMILIES: readonly [{
     readonly states: readonly ["trashed"];
 }];
 
+export declare const SURFACE_SLOTS_MAX = 20;
+
 export interface SettingsPageContext {
     readonly projects: ReadonlyArray<{
         readonly project_id: string;

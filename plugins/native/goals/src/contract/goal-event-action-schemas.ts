@@ -105,7 +105,10 @@ const acknowledgementReference = object({ event_id: text, category: enumeration(
 const acknowledgementBy = object({ channel: enumeration(["mcp", "assistant", "agent"]), runtime_id: maybeText, session_id: maybeText });
 const systemPayload: ActionSchema = { anyOf: [
   operation("progress_summary", { ...progressFields, source: artifactSource }, Object.keys(progressFields)),
-  operation("concern_opened", { concern_id: text, title: text, statement: text, scope, blocks_closure: boolean, cited_subjects: citedSubjects }),
+  // `cited_subjects` is optional: an event written before batch 17 has no key and means "cites nothing", which is a current value,
+  // not a fallback for an old shape.
+  operation("concern_opened", { concern_id: text, title: text, statement: text, scope, blocks_closure: boolean, cited_subjects: citedSubjects },
+    ["concern_id", "title", "statement", "scope", "blocks_closure"]),
   operation(["concern_resolved", "concern_accepted", "concern_overturned"], { concern_id: text, status: concernStatus, reason: text,
     supporting_event_ids: strings, cited_decision_id: maybeText, previous_status: concernStatus }),
   operation("decision_requested", requestFields),

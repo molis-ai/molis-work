@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { RISK_READ, RISK_WRITE, riskActions, riskPresentationActions, riskReviewActions, riskSearchActions, toRiskReview, type RiskRecord, type RiskReview } from "@molis-ai/molis-work-plugin-risk";
+import { scheduleActions } from "@molis-ai/molis-work-plugin-schedule";
 import { person, serveHomeRuntime } from "./fixtures/home-runtime.js";
 
 const ref = (definition: { capability_id: string; version: number }) => ({ capability_id: definition.capability_id, version: definition.version });
@@ -41,6 +42,7 @@ test("RISK-01 RISK-02 a risk is recorded, read back with its history, changed at
   assert.equal(closed.risk.status, "closed");
   assert.ok(closed.risk.closed_at);
   assert.equal(await code(call(riskActions.update, { risk_id: risk.risk_id, expected_revision: 4, title: "改" })), "risk.closed");
+  assert.equal(await code(call(riskActions.addNote, { risk_id: risk.risk_id, text: "关掉之后又写一笔" })), "risk.closed", "a closed risk is read-only for notes too");
   const read = await call<{ events: Array<{ kind: string; detail: Record<string, unknown> }> }>(riskActions.get, { risk_id: risk.risk_id });
   assert.deepEqual(read.events.map(event => event.kind), ["status", "note", "updated", "created"]);
   assert.deepEqual(read.events[0]!.detail, { status: "closed", previous_status: "open", text: "已按期交付" }, "values and the person's words, no translated sentence");
@@ -68,6 +70,8 @@ test("RISK-02 the overview lists open risks by default, filters, and pages by cu
   assert.equal(second.risks.length, 1);
   assert.equal(second.next_cursor, null);
   assert.deepEqual(new Set([...first.risks, ...second.risks].map(risk => risk.title)), new Set(["一", "二", "三"]));
+  assert.deepEqual((await call<Page>(riskActions.list, { keyword: "一" })).risks.map(risk => risk.title), ["一"]);
+  assert.deepEqual((await call<Page>(riskActions.list, { keyword: "找不到" })).risks, []);
   assert.equal(await code(call(riskActions.list, { cursor: "not-a-cursor" })), "risk.invalid");
   assert.equal(await code(call(riskActions.list, { limit: 201 })), "actions.input_invalid");
 });
@@ -88,6 +92,12 @@ test("RISK-03 a risk links an object only through its owner's reader, and never 
   assert.deepEqual(await titles({ unlinked: false }), ["甲"]);
   assert.equal(await code(call(riskActions.addLink, { risk_id: a.risk_id, subject: { kind: "risk", id: a.risk_id } })), "risk.invalid");
   assert.equal(await code(call(riskActions.addLink, { risk_id: a.risk_id, subject: { kind: "risk", id: "risk-gone" } })), "risk.invalid", "an object its reader does not find is not linked");
+  const createdWithLink = await call<{ risk: RiskRecord }>(riskActions.create, { title: "丙", statement: "s", impact: "low", likelihood: "low",
+    links: [{ kind: "risk", id: b.risk_id }] });
+  assert.deepEqual((await call<{ links: Array<{ subject: unknown }> }>(riskActions.get, { risk_id: createdWithLink.risk.risk_id })).links.map(item => item.subject),
+    [{ kind: "risk", id: b.risk_id }], "create checks a readable link and stores it");
+  assert.equal(await code(call(riskActions.create, { title: "丁", statement: "s", impact: "low", likelihood: "low",
+    links: [{ kind: "risk", id: "risk-gone" }] })), "risk.invalid", "create refuses an unreadable link like links.add");
   const removed = await call<{ links: unknown[] }>(riskActions.removeLink, { risk_id: a.risk_id, subject: { kind: "risk", id: b.risk_id } });
   assert.deepEqual(removed.links, []);
 });
@@ -127,7 +137,7 @@ test("RISK-07 a risk's review is a one-off Schedule task about it: scheduled, mo
   assert.equal(review.at, at);
   assert.equal(review.focus, "看备选供应商回复了没有");
   assert.equal(review.result, null);
-  assert.deepEqual(review.reads, { categories: 0, granted: 0, needs_confirmation: 0, unavailable: 0, removed: 0 },
+  assert.deepEqual(review.reads, { categories: 0, granted: 0, needs_confirmation: 0, unavailable: 0, removed: 0, risk: "none" },
     "no read grant yet: the round would not read the risk, and the detail says so");
 
   const later = new Date(Date.now() + 7_200_000).toISOString();
@@ -155,6 +165,21 @@ test("RISK-07 a risk's review is a one-off Schedule task about it: scheduled, mo
   assert.equal(await code(as(riskReviewActions.schedule, { risk_id: risk.risk_id, at })), "risk.closed");
 });
 
+test("RISK-07 two concurrent schedule calls keep one task for the risk", { timeout: 60_000 }, async t => {
+  const { call, here } = await fixture(t);
+  const scheduler = person([...RISK_WRITE, "schedule:read", "schedule:write"], here.project_id);
+  const as = <O>(definition: { capability_id: string; version: number }, input: unknown) => call<O>(definition, input, scheduler);
+  const { risk } = await as<{ risk: RiskRecord }>(riskActions.create, { title: "并发", statement: "s", impact: "low", likelihood: "low" });
+  const at = new Date(Date.now() + 3_600_000).toISOString();
+  const [first, second] = await Promise.all([
+    as<{ review: RiskReview }>(riskReviewActions.schedule, { risk_id: risk.risk_id, at }),
+    as<{ review: RiskReview }>(riskReviewActions.schedule, { risk_id: risk.risk_id, at }),
+  ]);
+  assert.equal(first.review.task_id, second.review.task_id, "the second call updates the first task instead of creating one");
+  const listed = await as<{ tasks: Array<{ task_id: string }> }>(scheduleActions.list, { subject: { kind: "risk", id: risk.risk_id } });
+  assert.deepEqual(listed.tasks.map(task => task.task_id), [first.review.task_id]);
+});
+
 test("RISK-08 a review that found nothing new, one that failed, and one paused before its time read as three different states", () => {
   const base = { task_id: "t", title: "供应商延期", instructions: "看", run_at: "2026-11-01T01:00:00.000Z", last_error: null };
   const now = Date.parse("2026-11-02T00:00:00.000Z");
@@ -169,6 +194,14 @@ test("RISK-08 a review that found nothing new, one that failed, and one paused b
   assert.equal(failed.result, null);
   assert.match(failed.failure ?? "", /没跑成/);
   assert.equal(failed.reads, null, "the platform could not say what it may read: unknown, not none");
+  const otherGrant = toRiskReview({ ...base, run_at: "2026-11-03T01:00:00.000Z", enabled: true, last_run_at: null, turns: [] },
+    [{ task_id: "t", categories: 1, granted: 1, needs_confirmation: 0, unavailable: 0, removed: 0,
+      groups: [{ provider_id: "io.molis.work.feed", group_id: "feed", status: "granted" }] }], now);
+  assert.equal(otherGrant.reads?.risk, "none", "another plugin's grant does not read the risk");
+  const ownGrant = toRiskReview({ ...base, run_at: "2026-11-03T01:00:00.000Z", enabled: true, last_run_at: null, turns: [] },
+    [{ task_id: "t", categories: 1, granted: 1, needs_confirmation: 0, unavailable: 0, removed: 0,
+      groups: [{ provider_id: "io.molis.work.risk", group_id: "risk", status: "granted" }] }], now);
+  assert.equal(ownGrant.reads?.risk, "granted");
   const paused = toRiskReview({ ...base, run_at: "2026-11-03T01:00:00.000Z", enabled: false, last_run_at: null, turns: [] }, [], now);
   assert.equal(paused.state, "paused");
   // Ran once, rescheduled a week out, then paused: still paused (it can resume and be cancelled), not done.

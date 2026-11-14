@@ -16,7 +16,15 @@ export type RiskHost = Pick<UiPluginClientHost<HTMLElement, HTMLDialogElement>,
   mountPluginClient(root: HTMLElement): Scope | null;
 };
 
-interface OverviewFilter { status: "open" | "all" | "closed"; impact: RiskLevel | ""; owner_name: string; linked: "" | "some" | "none" }
+interface OverviewFilter {
+  status: "open" | "all" | "closed";
+  impact: RiskLevel | "";
+  owner_name: string;
+  linked: "" | "some" | "none";
+  /** One exact object chosen from the search source; takes precedence over `linked` when set. */
+  linkedSubject: ActionSubject | null;
+  linkedLabel: string;
+}
 
 export interface RiskPageState {
   /** `idle` is the side view before anything was opened in it. */
@@ -41,7 +49,7 @@ export interface RiskPageState {
   editing: boolean;
   /** A save refused because someone else changed the risk: theirs and the person's draft, side by side. */
   conflict: { current: RiskRecord; draft: RiskDraft } | null;
-  pop: "" | "status" | "review" | "link";
+  pop: "" | "status" | "review" | "link" | "linked";
   busy: boolean;
 }
 

@@ -277,8 +277,10 @@ test("PWA-151 the reconcile job reads the live tasks after the platform's list: 
 test("PWA-152 the page reads the grants once for the whole list, as counts by state (never another plugin's words)", async () => {
   const fake = platform([subject("sct_a", ["granted", "needs_confirmation"]), subject("sct_b", ["unavailable", "removed"]), subject("sct_c", [])]);
   assert.deepEqual(scheduleTaskReads(await fake.actions.invoke(agentTaskGrantActions.list, {})), [
-    { task_id: "sct_a", categories: 2, granted: 1, needs_confirmation: 1, unavailable: 0, removed: 0 },
-    { task_id: "sct_b", categories: 2, granted: 0, needs_confirmation: 0, unavailable: 1, removed: 1 },
+    { task_id: "sct_a", categories: 2, granted: 1, needs_confirmation: 1, unavailable: 0, removed: 0,
+      groups: [{ provider_id: "provider-0", group_id: null, status: "granted" }, { provider_id: "provider-1", group_id: null, status: "needs_confirmation" }] },
+    { task_id: "sct_b", categories: 2, granted: 0, needs_confirmation: 0, unavailable: 1, removed: 1,
+      groups: [{ provider_id: "provider-0", group_id: null, status: "unavailable" }, { provider_id: "provider-1", group_id: null, status: "removed" }] },
   ], "a subject without categories reads project files, like a task with none");
   const routes = new SchedulePluginRouteTable(createScheduleRouteHandlers({ actions: { discover: async () => [], invoke: fake.actions.invoke }, changed() {} }));
   const answer = await routes.handle({ method: "GET", pathname: "/api/plugins/io.molis.work.schedule/grants", query: new URLSearchParams(), body: {} });

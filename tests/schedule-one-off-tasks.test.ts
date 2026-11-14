@@ -35,7 +35,8 @@ function harness(run: (input: { subject?: { kind: string; id: string } | null })
   const schedule = installation.scheduler(db, { now: () => clock.now });
   installation.action(SCHEDULE_TASK_WAKEUP_CAPABILITY, (input, control) => handleScheduleTaskWakeup(db, input.object_ref, { run }, () => clock.now, control));
   const ports = createScheduleActionPorts({ db, schedule, now: () => clock.now,
-    taskReads: async () => [{ task_id: "sct_other", categories: 1, granted: 1, needs_confirmation: 0, unavailable: 0, removed: 0 }] });
+    taskReads: async () => [{ task_id: "sct_other", categories: 1, granted: 1, needs_confirmation: 0, unavailable: 0, removed: 0,
+      groups: [{ provider_id: "other", group_id: null, status: "granted" }] }] });
   return { db, clock, schedule, ports, actions: directScheduleActions(ports) };
 }
 

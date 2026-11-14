@@ -291,3 +291,11 @@ Casebook 已于 2026-10-10 按用户决定删除，不再有对外合同 id；�
   - **改形状**：`molis-work:knowledge-pick` 的 `selected` 从 `{ kind, id, title }` 改为 `{ ref: MaterialRef, title }`，`molis-work:knowledge-picked` 从 `picks` 改为 `outcome + items`；`knowledge.cards` 的 `limit` 上限 200→500 并新增 `subjects`；`PluginInstalledView.pending_defaults` 必填、由宿主给；`PluginArtifactClient.join` 接受 `PluginProjectRowTransaction`；新增 `PluginDatabase.transactionProjectRow` 与 `PluginProjectRowsDeclaration.artifact_join`；新增 `ActionSceneClient.discoverScenesFor`、`PluginSceneClient.discoverScenesFor`、`ActionSceneSelection`；`AgentMaterialOrigin`／`AgentTextMaterial` 扩展；Goals 合同新增 `material_snapshot` 引用。都在原版本 @1 上改，动作与 API 快照随之刷新。
   - **SDK 只增**：`/browser` 新增 `pluginRequest`、`requiredQuery`、`textCell`、`isAbort`、`codeOf`；index 新增 `zonedParts`、`isTimeZone`、`projectRouteFields`；`/whole-units` 新增 `cutWithEllipsis`。
   - **存储与采用**：项目库同版本采用（`process_items_adopted` 日志）只在 1→2 新布局与 2→3 现行库上；同版本例外只有 `tooling/gates/schemas/same-version-exceptions.json` 的一条（v3 那对哈希）；旧布局 v2 普通打开拒绝，采用程序换日志后在同一事务走完 2→3；真实 Home 采用另授权。见上文「当前保留机制」的 Files 退役一条。
+
+- **第 17 批：风险插件、Goals 顾虑引用任意对象、侧栏 `opens_items`、Schedule 一次性对象任务**（[#2058](https://github.com/molis-ai/molis-work/pull/2058)，`3b296a6337`，2026-11-14；阶段一在原版本改，不留兼容）：
+  - **新插件**：`io.molis.work.risk` 声明 16 个 `risk.*@1` 动作（记录、读取、列表、状态、关联、进展、复查、搜索、读取器、呈现），项目库 `risk` 第 1 版；插件不调 AI，复查只登记 Schedule 任务。
+  - **Goals 顾虑**：`goals.concerns.apply@1` 输入与 `concern_opened` 系统载荷多可选 `cited_subjects`（至多 8 个 `{kind,id}`，只在 open 时收）；`GoalEventConcernView` 多 `cited_subjects`；`GoalEventUnmetReason` 删 `risk_id`，Goals 里恒为空的 `blocking_risks` 死路径删除。Goals 项目库 2→3，加 `cited_subjects_json TEXT NOT NULL DEFAULT '[]'`；同步列清单和导入校验一起改，格式版本不升。
+  - **Manifest**：`UiViewDeclaration` 多可选 `opens_items`（只 `side` 视图、一个插件至多一个）；SDK Manifest 检查在 `packages/plugin-sdk/src/manifest.ts`。
+  - **SDK `/ui`**：新增 `renderSeverityGrid`，样式在 design-system `primitives.ts`。
+  - **Schedule**：`schedule.tasks.create@1`／`update@1` 多可选 `repeat`、`at`、`subject`；`tasks.list@1` 多可选 `subject`，按对象筛时输出 `reads`（含每个类别的 provider/group/state）；任务库 2→3 加四列；便携格式在原版本加列并校验；一次性任务跑完即停、错过的运行不补跑。
+  - **调用方影响**：`risk.list@1` 原版本内把 `goal_id` 换成 `linked`，`unlinked` 改为“没关联任何对象/有关联”；风险写动作的受众含 `plugin`；Goals/Schedule 库升级只由升级链做；没有读取兼容，旧 `concern_opened` 缺 `cited_subjects` 是可选字段的缺省，不是旧形状兜底。页面资源许可见 `tooling/gates/page-asset-allowances/17-risk-plugin.json`。

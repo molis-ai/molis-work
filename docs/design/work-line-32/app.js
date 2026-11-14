@@ -4,7 +4,7 @@
   document.getElementById("icons").innerHTML = window.mwKitSprite;
   const KEY = "molis-proto.work-line-32.v1";
   const fresh = () => ({ scheme: "E", dlg: false, tabs: [], lang: "zh", theme: "light", fault: "none", step: 0, side: null, focus: null, task: null, panel: false,
-    to: "assistant", dest: {}, by: {}, decided: null, accepted: false, online: false, stopped: {}, checks: {}, retried: false, att: [] });
+    to: "assistant", dest: {}, by: {}, decided: null, accepted: false, online: false, stopped: {}, checks: {}, retried: false, att: [], sup: null, rv: {}, rv2: {}, rvOpen: false, rvSel: null, rvAsk: null, rvReason: null, peek: true });
   let S = load(), draft = null, lastTab = null, menu = null, beat = 2, beatT = null, toastT = null, seen = new Set(), firstDraw = true;
   function load() { try { return { ...fresh(), ...JSON.parse(localStorage.getItem(KEY) || "{}") }; } catch { return fresh(); } }
   function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch { /* storage may be unavailable */ } }
@@ -47,8 +47,19 @@
       fail: ["定价页没改完：390 宽度下第三档还是掉到下一行。改动没有提交，前两步的结果留着。", "The pricing page didn't finish: at 390 the third tier still wraps. Nothing was committed; the first two steps are kept."] },
     { from: "k1", auto: true, a: ["定价页改好了，三种宽度都核对过。发布说明里的定价段我也照着改了。首页横幅不在这次交办里，要改的话你说一声。", "The pricing page is done and checked at all three widths. I also updated the pricing paragraph in the release notes. The home banner wasn't part of this request, so tell me if you want it changed."] },
   ];
+  SAY.push({ from: "k4", a: ["退回的那一项改好了，在 v4 上重新核过；另外两项没动到，沿用上一轮。还差你看一眼这一项。", "The returned item is fixed and re-checked on v4. The other two were untouched and carry over. It just needs your look."] });
+  // 32-2 逐项对照：沿用 2026-11-03 定样「要求与成果对照」（../assistant-proactive-paths/ 路径 3 方案 B），这里只是摆进新外壳
+  const REQS = [
+    { id: "r1", n: ["三档并排，1440／1024／390 都不掉行", "Three tiers side by side at 1440 / 1024 / 390"], sec: ["三档价格表", "Three-tier table"], method: ["平台跑了三种宽度的截图核对", "The platform ran screenshot checks at three widths"], ev: [["截图 1440", "Shot 1440"], ["截图 1024", "Shot 1024"], ["截图 390", "Shot 390"]], tier: 0 },
+    { id: "r2", n: ["企业版写「联系我们」", "Enterprise says “Contact us”"], sec: ["企业版一栏", "Enterprise column"], method: ["只有执行者的一句「已按决定改」，没有可查的证据", "Only the executor's “done as decided”; nothing to check"], ev: [], tier: 1 },
+    { id: "r3", n: ["发布前给你看一眼", "You see it before launch"], sec: ["整页预览", "Whole-page preview"], method: ["这一项只认你本人的结论", "Only your own conclusion counts here"], ev: [["定价页 v3", "Pricing page v3"]], tier: 2 },
+  ];
+  const returned = () => REQS.filter((r) => S.rv[r.id] === "returned").map((r) => r.id);
+  const round2 = () => S.step >= 7 && returned().length > 0;
+  const reqDone = (r) => r.tier === 0 || S.rv[r.id] === "accepted" || (S.rv[r.id] === "returned" && round2() && S.rv2[r.id] === "accepted");
+  const accepted = () => REQS.every(reqDone);
   const STEPS = [["开始：线上只有插件登记的事件", "Start: only events plugins registered"], ["① 说一件值得跟的事", "① Something worth following"], ["② 随口问一件", "② A quick aside"],
-    ["③ 为线上已有的事件办", "③ For an event already on the line"], ["④ 结果回到助理", "④ A result returns"], ["⑤ 任务要你定", "⑤ A task needs you"], ["⑥ 办完，助理接着推进", "⑥ Done, the assistant carries on"]];
+    ["③ 为线上已有的事件办", "③ For an event already on the line"], ["④ 结果回到助理", "④ A result returns"], ["⑤ 任务要你定", "⑤ A task needs you"], ["⑥ 办完，助理接着推进", "⑥ Done, the assistant carries on"], ["⑦ 返工交回，再次复核", "⑦ Rework returns, review again"]];
   const FAULTS = { none: ["正常", "Normal"], queue: ["排队（同时只跑 1 项）", "Queued (one at a time)"], fail: ["任务失败", "A task fails"], offline: ["断线后核对", "Disconnect and reconcile"], source: ["一个来源读不到", "One source unreadable"] };
   const offline = () => S.fault === "offline" && !S.online && S.step >= 2;
 
@@ -63,6 +74,8 @@
       cur: st >= 3 ? 1 : 0, state: st >= 4 ? "done" : queue ? "queued" : "running" });
     add("k3", 3, { title: ["把发布页链接点一遍", "Check every launch link"], who: "peer", steps: [["打开发布页", "Open the launch page"], ["逐个点链接", "Click each link"]],
       cur: st >= 5 ? 1 : 0, state: st >= 6 ? "done" : queue && st < 4 ? "queued" : "running" });
+    if (st >= 6 && returned().length) add("k4", 6, { title: ["返工：退回的那一项", "Rework: the returned item"], who: "coding", dest: { kind: "event", id: "ev_k1" },
+      steps: [["按退回意见改", "Apply the feedback"], ["只重核受影响的项", "Re-check only what's affected"], ["交回", "Hand back"]], cur: st >= 7 ? 2 : 0, state: st >= 7 ? "done" : "running" });
     for (const k of list) {
       if (S.stopped[k.id] && k.state !== "done") k.state = "stopped";
       if (offline() && ["running", "queued"].includes(k.state)) k.state = "unknown";
@@ -98,8 +111,9 @@
       const has = (s) => e.tasks.some((k) => k.state === s), live = e.tasks.filter((k) => k.state !== "done");
       if (e.tasks.length) {
         e.state = has("failed") ? "failed" : has("wait") ? "wait" : has("unknown") ? "stale" : has("running") ? "running" : has("queued") ? "queued" : has("stopped") ? "stale" : "done";
-        if (e.made) e.sum = live.length ? (e.state === "wait" ? ["等你决定", "Needs your decision"] : e.state === "failed" ? ["没办成", "Failed"] : [stepLine(live[0]), stepLine(live[0])]) : S.accepted ? ["已验收", "Accepted"] : ["办完了 · 等你验收", "Done · needs review"];
-        if (e.made && !live.length && !S.accepted) { e.state = "wait"; e.review = true; e.place = "active"; } // 等你的排在「现在」旁边，不沉到已办里
+        if (e.made) e.sum = live.length ? (e.state === "wait" ? ["等你决定", "Needs your decision"] : e.state === "failed" ? ["没办成", "Failed"] : [stepLine(live[0]), stepLine(live[0])]) : accepted() ? ["已验收", "Accepted"] : ["办完了 · 等你验收", "Done · needs review"];
+        if (e.made && live.length) e.place = "active";
+        if (e.made && !live.length && !accepted()) { e.state = "wait"; e.review = true; e.place = "active"; } // 等你的排在「现在」旁边，不沉到已办里
         if (!e.made && !live.length && e.id === "todo1") e.sum = ["12 个链接都通 · 今天截止", "All 12 links work · due today"];
       }
       if (e.wait) e.state = "wait";
@@ -136,7 +150,7 @@
   function capHtml() {
     const joined = S.scheme === "A" && panelShown() && !S.focus && !S.task;
     const cur = S.scheme === "E" && S.dlg && S.focus ? events().find((e) => e.id === S.focus) : null;
-    const line = draft ?? (S.step < 3 ? tx(SAY[S.step + 1].u) : "");
+    const line = draft ?? (!cur && S.step < 3 ? tx(SAY[S.step + 1].u) : "");
     const atts = S.att.length ? `<div class="wl-atts" role="list" aria-label="${tx(["附上的", "Attached"])}">${S.att.map((a, i) => `<span class="wl-att" role="listitem">${ic(a.icon, "sm")}<span>${esc(tx(a.n))}</span><button type="button" data-act="unatt" data-id="${i}" aria-label="${tx(["移除", "Remove"])}">${ic("x", "sm")}</button></span>`).join("")}</div>` : "";
     const ph = cur ? tx(["关于这件事，对", "About this event, tell "]) + esc(peerName(S.to)) + tx(["说…", "…"]) : tx(["对", "Say something to "]) + esc(peerName(S.to)) + tx(["说点什么…", "…"]);
     return `<div class="wl-cap${joined ? " joined" : ""}">${atts}
@@ -221,6 +235,8 @@
       if (cur ? !(cur.made === k || cur.tasks.some((x) => x.id === k)) : peerOf(i) !== S.to) continue;
       rounds.push(roundHtml(i));
     }
+    if (S.sup && cur?.id === "ev_k1") rounds.splice(1, 0, `<div class="assistant-round"><div class="assistant-msg assistant-msg--user">${esc(S.sup.text)}</div><div class="assistant-msg assistant-msg--assistant wl-amsg"><p>${tx(["收到，加进这次改动里。", "Got it; I'll fold it into this change."])}</p><div class="wl-dest">${ic("link", "sm")}<span>${tx(["补充给：", "Added to: "])}</span><b>${esc(tx(cur.title))}</b><span class="grow"></span><span class="mw-badge mw-badge--${S.step > S.sup.at ? "success" : "neutral"}" data-slot="badge">${S.step > S.sup.at ? tx(["已用上", "Applied"]) : tx(["已收到 · 下一步用上", "Received · applies next step"])}</span></div></div></div>`);
+    if (returned().length && S.step >= 6 && (cur ? cur.id === "ev_k1" : S.to === "assistant")) rounds.splice(rounds.length - (S.step >= 7 ? 1 : 0), 0, `<div class="assistant-round"><div class="assistant-msg assistant-msg--assistant wl-amsg"><span class="wl-from">${ic("refresh", "sm")}${tx(["你退回了一项", "You returned one item"])}</span><p>${tx(["收到。只返工退回的这一项，另外两项不动；改完在新版本上重新核，再请你看。", "Understood. Only the returned item is reworked; the other two stay. I'll re-check on the new version and ask you again."])}</p></div></div>`);
     const head = cur ? `<div class="wl-evcard"><div class="wl-evhd"><span class="fact">${esc(tx(SRC[cur.src].n))}${cur.sum ? " · " + esc(tx(cur.sum)) : ""}</span>${iconBtn("sidebar", "park", tx(["停到侧边", "Park in the side panel"]))}</div>${cardInner("focus").body}</div>` : "";
     const empty = !rounds.length && !cur ? `<div class="assistant-empty"><strong>${S.to === "assistant" ? tx(["个人工作助理", "Your work assistant"]) : esc(peerName(S.to))}</strong><p>${S.to === "assistant" ? tx(["说要办的事。能放到后台办的，我接下来就去办，办完回到这里。", "Say what needs doing. What can run in the background, I take away and bring back here."]) : tx(["和它的对话单独一条。交给它办的事，办完回到这里，不回到助理那边。", "This is its own conversation. What you hand to it comes back here, not to the assistant."])}</p></div>` : "";
     return `<section class="assistant-panel" data-side="closed" aria-label="${esc(peerName(S.to))}"><header class="assistant-tabbar"><div class="assistant-tabs" role="tablist">${tabs}</div><span class="assistant-tabbar-actions">${tasksIcon()}<button type="button" class="dock-window-action" data-act="dlg" aria-label="${tx(["收起", "Minimise"])}" title="${tx(["收起", "Minimise"])}">${ic("chevron-down")}</button></span></header>
@@ -234,7 +250,9 @@
       hdExtra = tasksIcon();
       const peek = replyHtml() || (tasks().length ? `<div class="wl-reply"><div class="hd"><span class="who ai">AI</span><span>${esc(peerName(S.to))}</span><span class="grow"></span>${hdExtra}${iconBtn("chevron-up", "dlg", tx(["展开对话", "Open the conversation"]))}</div></div>` : "");
       hdExtra = "";
-      return `<div class="wl-stack">${peek}${floatHtml()}</div>`;
+      // 点了别处以后那一句收起，只留任务图标和展开按钮，不挡工作面；有新的回应再出现
+      const mini = tasks().length || S.step ? `<div class="wl-mini">${tasksIcon()}${iconBtn("chevron-up", "dlg", tx(["展开对话", "Open the conversation"]))}</div>` : "";
+      return `<div class="wl-stack">${S.peek ? peek : mini}${floatHtml()}</div>`;
     }
     if (S.scheme === "D") {
       hdExtra = tasksIcon();
@@ -258,16 +276,44 @@
     if (S.decided) return `<div class="wl-decide answered"><span class="q">${tx(["企业版写价格，还是写「联系我们」？", "Enterprise: a price, or “Contact us”?"])}</span><span class="fact">${tx(["你定了：", "You chose: "])}${S.decided === "contact" ? tx(["写「联系我们」", "“Contact us”"]) : tx(["写价格", "Show a price"])} · ${tx(["只作用于这件事", "applies to this only"])}</span></div>`;
     return `<div class="wl-decide"><span class="q">${tx(["企业版写价格，还是写「联系我们」？", "Enterprise: a price, or “Contact us”?"])}</span><span class="fact">${tx(["旧版写的是「联系我们」；写价格要再等法务确认，晚半天左右。", "The old page says “Contact us”; a price needs legal sign-off, about half a day."])}</span><div class="cf">${btn(tx(["写「联系我们」", "“Contact us”"]), "decide", { v: "primary", val: "contact" })}${btn(tx(["写价格", "Show a price"]), "decide", { val: "price" })}</div></div>`;
   }
-  function reviewHtml() {
-    const tier = (k) => `<span class="mw-badge mw-badge--${k === 0 ? "success" : k === 1 ? "neutral" : "warning"}" data-slot="badge">${[tx(["机器核过", "Machine-checked"]), tx(["自述", "Self-reported"]), tx(["等你认可", "Needs your OK"])][k]}</span>`;
-    const req = (name, k) => `<div class="wl-req">${ring(k === 0 ? "done" : k === 2 && !S.accepted ? "accept" : "done")}<span class="nm">${name}</span>${S.accepted && k === 2 ? tier(0).replace(tx(["机器核过", "Machine-checked"]), tx(["你已认可", "You accepted"])) : tier(k)}</div>`;
-    return `<div class="wl-sec"><h4>${tx(["逐项对照 · 所核版本 v3", "Item by item · checked version v3"])}</h4>${req(tx(["三档并排，1440／1024／390 都不掉行", "Three tiers side by side at 1440 / 1024 / 390"]), 0)}${req(tx(["企业版写「联系我们」", "Enterprise says “Contact us”"]), 1)}${req(tx(["发布前给你看一眼", "You see it before launch"]), 2)}</div>
-      <div class="cf">${S.accepted ? `<span class="fact">${tx(["已验收 · 认可记在 v3 上", "Accepted · recorded against v3"])}</span>` : btn(tx(["认可", "Accept"]), "accept", { v: "primary" }) + btn(tx(["再改改", "Revise"]), "sim")}${btn(tx(["打开定价页", "Open the page"]), "sim", { icon: "external" })}</div>`;
+  const TIER = [["机器核过", "Machine-checked"], ["只有自述", "Self-reported only"], ["要你认可", "Needs your OK"]];
+  const ver = () => (round2() ? "v4" : "v3");
+  function reqView(r) { // 这一项现在算什么：ring、徽标、说明
+    const c1 = S.rv[r.id], c2 = S.rv2[r.id], back = c1 === "returned";
+    if (round2() && back) return c2 === "accepted" ? { ring: "done", badge: ["你已认可 · v4", "You accepted · v4"], kind: "success", note: ["v4 上重新核过，你认可了", "Re-checked on v4; you accepted"] }
+      : { ring: "accept", badge: ["v4 重新核过 · 等你", "Re-checked on v4 · needs you"], kind: "warning", note: ["退回后改过，平台在 v4 上重新核了一遍", "Changed after your return; the platform re-checked it on v4"], ask: true };
+    if (round2()) return { ring: "done", badge: ["沿用 v3", "Carried from v3"], kind: "neutral", note: ["v4 没动到这一段，上一轮的核验和你的结论都留着", "v4 didn't touch this part; last round's check and your conclusion stand"] };
+    if (c1 === "accepted") return { ring: "done", badge: ["你已认可", "You accepted"], kind: "success", note: ["认可记在 v3 上", "Recorded against v3"] };
+    if (back) return { ring: "failed", badge: ["已退回", "Returned"], kind: "danger", note: [`你的原话：${S.rvReason ?? ""}`, `Your words: ${S.rvReason ?? ""}`] };
+    if (r.tier === 0) return { ring: "done", badge: TIER[0], kind: "success", note: r.method };
+    return { ring: "accept", badge: TIER[r.tier], kind: r.tier === 1 ? "neutral" : "warning", note: r.method, ask: true, gap: r.tier === 1 };
+  }
+  function reviewHtml() { // 事件卡里只给概况和入口；逐项看、认可、退回在主区的要求栏里
+    const vs = REQS.map(reqView), left = vs.filter((v) => v.ask).length, back = returned().length && !round2();
+    const rows = REQS.map((r, i) => `<div class="wl-req">${ring(vs[i].ring)}<span class="nm">${tx(r.n)}</span><span class="mw-badge mw-badge--${vs[i].kind}" data-slot="badge">${tx(vs[i].badge)}</span></div>`).join("");
+    const line = accepted() ? tx(["已验收 · 结论记在所核的版本上", "Accepted · recorded against the checked version"]) : back ? tx(["退回的在返工，其余不动", "The returned item is being reworked; the rest stays"]) : tx([`还有 ${left} 项等你`, `${left} still need you`]);
+    return `<div class="wl-sec"><h4>${tx(["逐项对照 · 所核版本 ", "Item by item · checked version "])}${ver()}</h4>${rows}</div>
+      <div class="cf">${btn(tx(["逐项审阅", "Review item by item"]), "rv", { v: accepted() ? "secondary" : "primary" })}<span class="fact">${line}</span></div>`;
+  }
+  function reqColHtml() { // 主区左边的要求栏（定样「要求与成果对照」）
+    const you = REQS.filter((r) => r.tier > 0), ok = you.filter(reqDone).length;
+    const card = (r) => { const v = reqView(r), on = S.rvSel === r.id, asking = S.rvAsk === r.id;
+      const ev = r.ev.length ? `<span class="evs">${r.ev.map((e) => `<button type="button" class="wl-evref" data-act="sim" data-label="${esc(tx(e))}">${ic("image", "sm")}<span>${esc(tx(e)).replace("v3", round2() && S.rv[r.id] !== "returned" ? "v3" : ver())}</span></button>`).join("")}</span>` : "";
+      const gap = v.gap ? `<span class="wl-gap">${ic("circle-alert", "sm")}${tx(["只有自述不算通过：你认可，或退回让它补证据", "A statement alone doesn't pass: accept it, or return it for evidence"])}</span>` : "";
+      const acts = asking ? `<textarea class="mw-input wl-why" id="why" rows="2" aria-label="${tx(["退回的原因", "Why you return it"])}">${esc(tx(["价格那一格还留着旧的数字，要整格换成「联系我们」。", "The price cell still shows the old number; replace the whole cell with “Contact us”."]))}</textarea><div class="cf">${btn(tx(["退回这一项", "Return this item"]), "rvback", { v: "primary", id: r.id })}${btn(tx(["取消", "Cancel"]), "rvask", { id: "" })}</div>`
+        : v.ask ? `<div class="cf">${btn(tx(["认可", "Accept"]), "rvok", { v: "primary", id: r.id })}${btn(tx(["退回", "Return"]), "rvask", { id: r.id })}</div>` : "";
+      return `<div class="wl-reqc${on ? " on" : ""}" data-act="rvsel" data-id="${r.id}" role="group" aria-label="${esc(tx(r.n))}"><div class="rh">${ring(v.ring)}<strong>${tx(r.n)}</strong></div>
+        <div class="rm"><span class="mw-badge mw-badge--${v.kind}" data-slot="badge">${tx(v.badge)}</span><span class="fact">${tx(["所核版本 ", "Checked "])}${round2() && S.rv[r.id] !== "returned" ? "v3" : ver()} · ${tx(r.sec)}</span></div>
+        <span class="fact rnote">${esc(tx(v.note))}</span>${ev}${gap}${acts}</div>`; };
+    const chg = round2() ? `<div class="wl-sec"><h4>${tx(["这一轮改了什么（v3 → v4）", "What changed this round (v3 → v4)"])}</h4><span class="fact">${tx(["只改了企业版一栏的价格格；三档布局和其余文案没动。", "Only the Enterprise price cell changed; the layout and the rest of the copy are untouched."])}</span></div>` : "";
+    return `<aside class="wl-reqs" aria-label="${tx(["逐项对照", "Item by item"])}"><div class="rqh"><strong>${tx(["逐项对照", "Item by item"])}</strong><span class="fact">${tx(["所核版本 ", "Checked version "])}${ver()}</span><span style="flex:1"></span>${iconBtn("x", "rv", tx(["收起要求栏", "Close the requirement column"]))}</div>
+      <div class="rqsum"><span>${tx(["执行", "Run"])} <b>${tx(["完成", "done"])}</b></span><span>${tx(["核验", "Checks"])} <b>${REQS.filter((r) => r.tier === 0 || (round2() && S.rv[r.id] === "returned")).length}/${REQS.length}</b></span><span class="${ok === you.length ? "" : "you"}">${tx(["你的认可", "Your OK"])} <b>${ok}/${you.length}</b></span></div>
+      ${REQS.map(card).join("")}${chg}${accepted() ? `<span class="fact">${tx(["都认可了。历史上的核验、退回和各轮版本都留着，可以回看。", "All accepted. Earlier checks, returns and versions are kept."])}</span>` : ""}</aside>`;
   }
   function eventBody(e) {
     if (e.made) {
       const k = tasks().find((x) => x.id === e.made);
-      return `<div class="quote">${esc(tx(SAY[k.since].u))}</div>${k.state === "wait" || (S.decided && k.state !== "done") ? decideHtml() : ""}${k.state === "failed" ? `<div class="mw-alert mw-alert--danger" data-slot="alert" role="alert"><div>${esc(stepLine(k))}。${tx(["改动没有提交。", "Nothing was committed."])}</div></div>` : ""}${e.review || S.accepted ? reviewHtml() : ""}${taskRows(e)}`;
+      return `<div class="quote">${esc(tx(SAY[k.since].u))}</div>${k.state === "wait" || (S.decided && k.state !== "done") ? decideHtml() : ""}${k.state === "failed" ? `<div class="mw-alert mw-alert--danger" data-slot="alert" role="alert"><div>${esc(stepLine(k))}。${tx(["改动没有提交。", "Nothing was committed."])}</div></div>` : ""}${e.review || accepted() || (S.step >= 6 && returned().length) ? reviewHtml() : ""}${taskRows(e)}`;
     }
     if (e.id === "todo1") {
       const items = [["文案过一遍", "Proofread the copy"], ["定价页核对", "Check the pricing page"], ["发布页链接都能点", "Every launch link works"]];
@@ -335,7 +381,7 @@
     const threadAt = document.querySelector(".assistant-thread")?.scrollTop ?? 0;
     const hadDlg = !!document.querySelector(".assistant-panel"), hadFloat = !!document.querySelector(".wl-tfloat"), hadPeek = !!document.querySelector(".wl-stack .wl-reply");
     document.getElementById("app").innerHTML = `<header class="wl-top">${topHtml()}</header>
-      <div class="wl-stage"><div class="wl-main"><section class="pane"><div class="wl-doc"><h1>${tx(["定价页", "Pricing page"])}</h1><p class="fact">Pages · ${tx(["网站改版 v2", "Website v2"])}</p>${"<div class='ln'></div><div class='ln'></div><div class='ln s'></div>".repeat(4)}</div></section>${dock}</div>${sideHtml()}</div>
+      <div class="wl-stage"><div class="wl-main"><section class="pane${S.rvOpen && S.step >= 6 ? " wl-rv" : ""}">${S.rvOpen && S.step >= 6 ? reqColHtml() : ""}<div class="wl-doc"><h1>${tx(["定价页", "Pricing page"])}</h1><p class="fact">Pages · ${tx(["网站改版 v2", "Website v2"])}${S.step >= 6 ? " · " + ver() : ""}</p>${S.rvOpen && S.step >= 6 ? REQS.map((r) => `<div class="wl-dsec${S.rvSel === r.id ? " hl" : ""}"><h3>${tx(r.sec)}</h3><div class='ln'></div><div class='ln'></div><div class='ln s'></div></div>`).join("") : "<div class='ln'></div><div class='ln'></div><div class='ln s'></div>".repeat(4)}</div></section>${dock}</div>${sideHtml()}</div>
       <footer class="wl-line" aria-label="${tx(["事项线", "Work line"])}">${lineHtml()}</footer>`;
     const pl = document.querySelector(".wl-plist"); if (pl && keep) pl.scrollTop = scroll;
     const stack = document.querySelector(".wl-stack"), stage = document.querySelector(".wl-stage");
@@ -373,17 +419,17 @@
     if (S.scheme === "E" || S.scheme === "D") document.querySelector(".wl-stage").style.setProperty("--yield", `${wide ? Math.max(0, document.querySelector(".wl-cap").offsetHeight - 48) : 0}px`);
   }
   document.addEventListener("input", (e) => { if (e.target.id === "msg") { draft = e.target.value; grow(); } });
-  function toast(msg) { document.querySelector(".mw-toast")?.remove(); const el = document.createElement("div"); el.className = "mw-toast"; el.setAttribute("role", "status"); el.style.cssText = "position:fixed;left:50%;top:52px;transform:translateX(-50%);z-index:60"; el.textContent = msg; document.body.appendChild(el); clearTimeout(toastT); toastT = setTimeout(() => el.remove(), 2600); }
+  function toast(msg) { document.querySelector(".mw-toast")?.remove(); const el = document.createElement("div"); el.className = "mw-toast"; el.setAttribute("role", "status"); el.style.cssText = "position:fixed;left:50%;top:52px;bottom:auto;height:auto;width:max-content;max-width:calc(100vw - 32px);transform:translateX(-50%);z-index:60"; el.textContent = msg; document.body.appendChild(el); clearTimeout(toastT); toastT = setTimeout(() => el.remove(), 2600); }
   function goStep(n, animate = true) {
-    n = Math.max(0, Math.min(6, n));
-    if (n < S.step) { S = { ...fresh(), scheme: S.scheme, lang: S.lang, theme: S.theme, fault: S.fault, to: S.to }; seen = new Set(); firstDraw = true; }
+    n = Math.max(0, Math.min(returned().length ? 7 : 6, n));
+    if (n < S.step) { S = { ...fresh(), scheme: S.scheme, lang: S.lang, theme: S.theme, fault: S.fault, to: S.to, dlg: S.dlg }; seen = new Set(); firstDraw = true; }
     while (S.step < n) {
       S.step++; const say = SAY[S.step];
       if (say.task) S.by[say.task] = S.to;
       if (S.step === 6 && !S.decided && S.fault !== "fail") S.decided = "contact";
       if (S.step === 6 && S.fault === "fail") S.retried = true;
     }
-    S.focus = null; if (S.scheme !== "E") S.task = null; if (S.side === "card") S.side = null;
+    S.focus = null; if (S.scheme !== "E") S.task = null; if (S.side === "card") S.side = null; S.peek = true;
     clearTimeout(beatT);
     if (!animate || n === 0) { beat = 2; return render(); }
     beat = SAY[n].from ? 1 : 0; render();
@@ -419,6 +465,7 @@
   }
   document.addEventListener("click", (e) => {
     const b = e.target.closest("[data-act],[data-scheme],[data-lang],[data-theme-set]");
+    if (S.scheme === "E" && !S.dlg && S.peek && S.step && beat >= 2 && e.target.closest(".wl-stage")) { S.peek = false; if (!b) return render(); }
     if (!b) { if (!e.target.closest(".wl-menu")) { document.querySelector(".wl-menu")?.remove(); menu = null; } return; }
     if (b.dataset.scheme) { S.scheme = b.dataset.scheme; S.side = S.side === "card" ? null : S.side; return render(); }
     if (b.dataset.lang) { S.lang = b.dataset.lang; return render(); }
@@ -428,7 +475,10 @@
     if (act !== "menu") document.querySelector(".wl-menu")?.remove();
     switch (act) {
       case "menu": return openMenu(b, id);
-      case "send": draft = null; S.att = []; if (S.step < 3) return goStep(S.step + 1); return toast(tx(["（原型只演示剧本里的三句；后面用「下一步」）", "(The prototype plays three scripted lines; use Next after that)"]));
+      case "send": { const said = (document.getElementById("msg")?.value ?? "").trim(); const inEv = S.scheme === "E" && S.dlg && S.focus === "ev_k1" && tasks().some((k) => k.id === "k1" && k.state !== "done");
+        draft = null; S.att = [];
+        if (inEv) { S.sup = { text: said && said !== tx(SAY[Math.min(3, S.step + 1)].u) ? said : tx(["专业版那一档标成「推荐」。", "Mark the Pro tier as “Recommended”."]), at: S.step }; return render(); } // 在事件的标签里说的话是给这件事的补充
+        if (S.step < 3) return goStep(S.step + 1); return toast(tx(["（原型只演示剧本里的三句；后面用「下一步」）", "(The prototype plays three scripted lines; use Next after that)"])); }
       case "focus": if (S.scheme === "E") { S.focus = id; S.dlg = true; if (!S.tabs.includes(id)) S.tabs.push(id); return render(); }
         if (S.scheme !== "D") S.task = null; S.focus = S.focus === id ? null : id; if ((S.scheme === "A" || S.scheme === "D") && S.side === "card") S.side = null; return render();
       case "task": S.task = S.task === id ? null : id; if (S.scheme === "C") S.side = "card"; if (S.scheme === "D" || S.scheme === "E") S.panel = true; return render();
@@ -446,7 +496,11 @@
       case "to": S.to = b.dataset.v; return render();
       case "place": { const v = b.dataset.v; S.dest[id] = v === "new" ? { kind: "new" } : v === "none" ? { kind: "none" } : { kind: "event", id: v.split(":")[1] }; if (S.focus === "ev_" + id && v !== "new") S.focus = null; render(); return toast(tx(["已改：", "Changed: "]) + destLabel(S.dest[id])); }
       case "decide": S.decided = b.dataset.v; render(); return toast(tx(["收到，任务接着办", "Got it; the task continues"]));
-      case "accept": S.accepted = true; return render();
+      case "rv": S.rvOpen = !S.rvOpen; if (S.rvOpen) { S.dlg = false; S.rvSel = S.rvSel ?? REQS.find((r) => reqView(r).ask)?.id ?? "r1"; } return render();
+      case "rvsel": if (e.target.closest("button,textarea")) return; S.rvSel = id; return render();
+      case "rvok": if (round2() && S.rv[id] === "returned") S.rv2[id] = "accepted"; else S.rv[id] = "accepted"; S.rvAsk = null; render(); return toast(tx(["认可记在 ", "Accepted against "]) + ver());
+      case "rvask": S.rvAsk = id || null; S.rvSel = id || S.rvSel; return render();
+      case "rvback": S.rvReason = document.getElementById("why")?.value.trim() || null; S.rv[id] = "returned"; S.rvAsk = null; render(); return toast(tx(["已退回这一项；其余两项不受影响", "Returned this item; the other two are unaffected"]));
       case "stop": S.stopped[id] = true; render(); return toast(tx(["已停止；停下之后才回来的结果不会再写入", "Stopped; results that arrive later are not applied"]));
       case "retry": S.retried = true; delete S.stopped[id]; return render();
       case "check": S.checks[id] = !S.checks[id]; return render();
@@ -461,7 +515,7 @@
     if ((e.key === "ArrowLeft" || e.key === "ArrowRight") && e.target.classList?.contains("wl-ev")) { const all = [...document.querySelectorAll(".wl-ev")], i = all.indexOf(e.target) + (e.key === "ArrowLeft" ? -1 : 1); all[i]?.focus(); }
   });
   document.getElementById("prev").addEventListener("click", () => goStep(S.step - 1, false));
-  document.getElementById("next").addEventListener("click", () => goStep(S.step + 1));
+  document.getElementById("next").addEventListener("click", () => { if (S.step === 6 && !returned().length) return toast(tx(["第 ⑦ 步要先在「逐项审阅」里退回一项", "Step ⑦ needs one item returned in the item-by-item review first"])); goStep(S.step + 1); });
   document.getElementById("fault").addEventListener("change", (e) => { S.fault = e.target.value; S.online = false; S.retried = false; render(); });
   document.getElementById("reset").addEventListener("click", () => { S = { ...fresh(), lang: S.lang, theme: S.theme, scheme: S.scheme }; draft = null; seen = new Set(); firstDraw = true; beat = 2; render(false); });
   render(false);

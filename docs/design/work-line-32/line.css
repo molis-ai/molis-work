@@ -138,6 +138,7 @@ body.immersive-workbench .wl-slot.bar-center .assistant-tab{flex:0 0 auto;width:
 .wl-evhd{display:flex;align-items:center;gap:8px;min-width:0;margin:-4px -4px -6px 0}.wl-evhd .fact{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .wl-tfloat.dlg{left:calc(100% + 50px);bottom:calc(100% + 8px);z-index:51}
 .wl-tfloat.dlg.over{position:absolute;left:auto;right:-32px;width:340px;bottom:calc(100% + 16px);order:0;z-index:52}
+.wl-mini{align-self:flex-end;display:flex;align-items:center;gap:2px;padding:4px;border-radius:12px;background:var(--popover);box-shadow:var(--lift-2);animation:wl-pop var(--dur-hover) var(--ease)}
 .wl-still,.wl-still .assistant-thread{animation:none!important}
 /* 方案 B：一排任务片 */
 .wl-chips{display:flex;align-items:center;gap:6px;overflow-x:auto;scrollbar-width:none;padding:2px}
@@ -171,6 +172,26 @@ body.immersive-workbench .wl-slot.bar-center .assistant-tab{flex:0 0 auto;width:
 .wl-decide{border:1px solid color-mix(in srgb,var(--amber) 45%,var(--line));border-radius:var(--r-row);padding:10px 12px;display:flex;flex-direction:column;gap:8px}
 .wl-decide .q{font-weight:600}.wl-decide.answered{border-color:var(--line);background:var(--soft)}
 .wl-dock{flex:none;max-height:46%;display:flex}.wl-dock .wl-card{flex:1;max-height:none;box-shadow:var(--sheet-shadow);border-radius:var(--r-sheet)}
+/* 32-2 逐项对照：主区左边的要求栏（沿用 2026-11-03 定样「要求与成果对照」的版式） */
+.wl-main>.pane.wl-rv{display:grid;grid-template-columns:minmax(300px,360px) minmax(0,1fr);min-height:0}
+.wl-rv .wl-doc{padding:28px 36px;min-width:0}
+.wl-reqs{display:flex;flex-direction:column;gap:8px;padding:12px;border-right:1px solid var(--line);overflow:auto;min-height:0;animation:wl-rise var(--dur-move) var(--ease)}
+.wl-reqs .rqh{display:flex;align-items:center;gap:8px;min-width:0;white-space:nowrap}.wl-reqs .rqh strong{font-weight:600;font-size:14px}
+.wl-reqs .rqsum{display:flex;gap:12px;padding:8px 10px;border-radius:var(--r-row);background:var(--soft);font-size:12px;color:var(--ink-soft);white-space:nowrap;overflow-x:auto;scrollbar-width:none}
+.wl-reqs .rqsum b{font-weight:600;color:var(--ink)}.wl-reqs .rqsum .you,.wl-reqs .rqsum .you b{color:var(--amber)}
+.wl-reqc{display:flex;flex-direction:column;gap:6px;padding:10px 12px;border:1px solid var(--line-strong);border-radius:var(--r-card);background:var(--paper);cursor:pointer;transition:box-shadow var(--dur-hover) var(--ease),border-color var(--dur-hover) var(--ease)}
+.wl-reqc:hover{border-color:var(--muted)}
+.wl-reqc.on{border-color:color-mix(in srgb,var(--accent) 55%,var(--line));box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 14%,transparent)}
+.wl-reqc .rh{display:flex;align-items:center;gap:8px;min-width:0}.wl-reqc .rh strong{font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wl-reqc .rm{display:flex;align-items:center;gap:8px;min-width:0;white-space:nowrap}.wl-reqc .rm .fact{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.wl-reqc .rnote{line-height:1.55}
+.wl-reqc .evs{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}
+.wl-evref{flex:none;display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 8px;border-radius:7px;border:1px solid var(--line-strong);background:var(--soft);font-size:11.5px;color:var(--ink-soft);white-space:nowrap}.wl-evref:hover{background:var(--hover)}
+.wl-gap{display:flex;align-items:center;gap:6px;padding:5px 8px;border-radius:var(--r-control);background:var(--amber-soft);color:var(--amber);font-size:11.5px;line-height:1.5}
+.wl-reqc .cf{display:flex;gap:6px}.wl-why{width:100%;resize:none;font:inherit;line-height:1.5}
+.wl-dsec{border-radius:var(--r-card);padding:2px 0 8px;margin-top:14px;transition:background var(--dur-move) var(--ease),box-shadow var(--dur-move) var(--ease)}
+.wl-dsec h3{margin:0 0 2px;font-size:14px;font-weight:600}
+.wl-dsec.hl{background:color-mix(in srgb,var(--accent-soft) 55%,transparent);box-shadow:0 0 0 8px color-mix(in srgb,var(--accent-soft) 55%,transparent)}
 /* 菜单：用组件板的 .mw-menu，这里只管放在哪 */
 .wl-menu{position:absolute;z-index:40;min-width:240px;max-width:320px;animation:wl-pop var(--dur-hover) var(--ease)}
 .wl-menu .mw-menu__item[aria-disabled=true]{opacity:.55;cursor:default}
@@ -178,6 +199,7 @@ body.immersive-workbench .wl-slot.bar-center .assistant-tab{flex:0 0 auto;width:
 @media (max-width:1180px){
   .wl{--side-w:320px}.wl-ev small{display:none}.wl-ev[data-state=wait] small,.wl-ev[aria-current=true] small{display:inline}
   .wl-ev{max-width:170px}.wl-head .nm{display:none}.wl-wlabel{display:none}
+  .wl-main>.pane.wl-rv{grid-template-columns:minmax(260px,300px) minmax(0,1fr)}.wl-rv .wl-doc{padding:24px 20px}
   .wl-line{grid-template-columns:minmax(0,1fr) minmax(300px,440px) minmax(0,1fr)}
 }
 @media (max-width:760px){
@@ -194,6 +216,7 @@ body.immersive-workbench .wl-slot.bar-center .assistant-tab{flex:0 0 auto;width:
   .wl-deck{grid-template-columns:1fr}.wl-trow .main{min-height:48px}.wl-trow .mw-btn{display:none}.wl-serve{max-width:96px}
   .wl-to span{display:none}.wl-cbtn,.wl-to{height:44px}.wl-cbtn{width:44px}.wl-cap textarea{margin-bottom:4px}
   .wl-dock{max-height:60%}.wl-card{max-height:62vh}
+  .wl-main>.pane.wl-rv{display:flex;flex-direction:column;overflow:auto}.wl-reqs{border-right:0;border-bottom:1px solid var(--line);overflow:visible;flex:none}.wl-rv .wl-doc{overflow:visible;flex:none;padding:16px}
   .wl-tico{height:36px;position:relative}.wl-tico:after{content:"";position:absolute;inset:-4px}.wl-slot.bar-center{width:100%;align-self:stretch}
   .wl-tfloat.dlg,.wl-tfloat.dlg.over{position:fixed;left:16px;right:16px;bottom:calc(var(--line-h,106px) + 8px);width:auto;z-index:52}
   body.immersive-workbench:not([data-pane-embedded]) .wl-slot.bar-center .assistant-panel{bottom:calc(var(--line-h,106px) + 2px);height:min(560px,calc(100dvh - var(--line-h,106px) - 96px))}

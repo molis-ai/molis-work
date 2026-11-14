@@ -16,7 +16,7 @@ export type RiskHost = Pick<UiPluginClientHost<HTMLElement, HTMLDialogElement>,
   mountPluginClient(root: HTMLElement): Scope | null;
 };
 
-export interface OverviewFilter { status: "open" | "all" | "closed"; impact: RiskLevel | ""; owner_name: string; linked: "" | "some" | "none" }
+interface OverviewFilter { status: "open" | "all" | "closed"; impact: RiskLevel | ""; owner_name: string; linked: "" | "some" | "none" }
 
 export interface RiskPageState {
   /** `idle` is the side view before anything was opened in it. */

@@ -749,6 +749,8 @@ ${ASSISTANT_PAGE_MESSAGES_PART}
     ask: (text) => say(text, {}),
     /** The work line's press on an event: its tab in the dialog, opened and in front (specs/work-line §4.4). */
     openEvent,
+    /** Back to now (Esc on the line): the main conversation in front, the caret in the input. */
+    toNow: () => { fresh = false; void switchTo(null).then(() => input.focus()); },
     /** Where a new work goes, as the page changes what it is about: a project, or null for the person's own space. */
     setProject: (next) => {
       const chosen = next?.id ? next : null;

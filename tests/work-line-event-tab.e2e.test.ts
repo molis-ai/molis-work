@@ -82,8 +82,55 @@ test("WLN-03 WLN-07 WLN-08 WLN-12 WLN-13: an event of the line opens as a tab of
   assert.equal(await evaluate(`${EVENT}.hasAttribute('aria-current')`), false);
   assert.equal(await evaluate("document.documentElement.scrollWidth <= window.innerWidth"), true, "no sideways scroll");
 
+  // WLN-17: the keyboard reaches the line, moves along it, opens an event and comes back to now.
+  const key = (init: string) => `(document.activeElement && document.activeElement !== document.body ? document.activeElement : document).dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ${init} }))`;
+  await evaluate(`document.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, code: 'KeyL', key: 'l', altKey: true }))`);
+  assert.equal(await evaluate("document.activeElement?.matches('[data-work-line] [data-wing=\"past\"] [data-work-event]:last-child')"), true, "Alt+L lands on the event beside now");
+  const from = await evaluate<string>("document.activeElement.dataset.workEvent");
+  await evaluate(key("key: 'ArrowRight'"));
+  const to = await evaluate<string>("document.activeElement.dataset.workEvent");
+  assert.ok(to && to !== from, "→ moves to the next event of the line");
+  await evaluate(key("key: 'ArrowLeft'"));
+  assert.equal(await evaluate("document.activeElement.dataset.workEvent"), from, "← moves back");
+  await evaluate("document.activeElement.click()");
+  await waitFor(`${TAB}?.dataset.tab?.startsWith('event:') && document.querySelector('[data-work-line] [data-work-event][aria-current]')?.dataset.workEvent === ${JSON.stringify(from)}`);
+  await evaluate(`document.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, code: 'KeyL', key: 'l', altKey: true }))`);
+  assert.equal(await evaluate("document.activeElement?.getAttribute('aria-current')"), "true", "with an event's tab in front, Alt+L lands on that event");
+  await evaluate(key("key: 'Escape'"));
+  await waitFor(`${TAB}?.hasAttribute('data-main') && document.activeElement === ${INPUT}`);
+  assert.equal(await evaluate("document.querySelectorAll('[data-work-line] [data-work-event][aria-current]').length"), 0, "Esc on the line goes back to now");
+
   // The card route answers only for an event that is on the person's line.
   const refused = await evaluate<{ status: number; code?: string }>(`fetch(${JSON.stringify(`/projects/${projectId}/api/mainline/event/surfaces`)}, { method: 'POST', headers: { 'content-type': 'application/json', ...(globalThis.molisWorkControlHeaders?.() || {}) },
     body: JSON.stringify({ subject: { kind: 'todo_item', id: 'not-on-the-line' } }) }).then(async response => ({ status: response.status, code: (await response.json().catch(() => ({}))).error?.code }))`);
   assert.equal(refused.status >= 400, true, "an object that is not on the line gets no card");
+});
+
+test("WLN-18: at 390 the event's tab is a layer above the line's track and the one input, which stay in reach", { timeout: 120_000 }, async t => {
+  const browser = await openGoalBrowser(t, true, undefined, null);
+  if (!browser) return;
+  const { command, sessionId, navigate, origin, projectId, homeDirectory, evaluate, waitFor, click } = browser;
+  const store = openTodoStore(homeDirectory);
+  const item = store.create({ title: "给王总回电话", placement: "project", planned_date: today() }, { projectId, projectIds: [], actor: "user" as const, actorId: "test" }).item;
+  store.close();
+  const PRESS = `[data-work-line] [data-work-event*="todo-planned:${item.id}"]`;
+  await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
+  await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
+  await waitFor(`document.querySelector(${JSON.stringify(PRESS)})`, 20_000);
+  await evaluate(`document.querySelector(${JSON.stringify(PRESS)}).scrollIntoView({ inline: 'center', block: 'nearest' })`);
+  await click(PRESS);
+  await waitFor(`${TAB}?.dataset.tab === ${JSON.stringify(`event:todo_item:${item.id}`)}`);
+  await waitFor("(document.querySelector('[data-assistant-event-card]')?.textContent || '').includes('给王总回电话')", 15_000);
+  const shot = new URL("../.impeccable/qa/review/work-line/", import.meta.url);
+  await mkdir(shot, { recursive: true });
+  await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+  await writeFile(new URL("event-tab-390.png", shot), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
+  const box = await evaluate<{ panel: number; track: number; input: number; width: boolean; small: number }>(`(() => { const rect = (selector) => document.querySelector(selector).getBoundingClientRect();
+    return { panel: Math.round(rect('[data-assistant-panel]').bottom), track: Math.round(rect('[data-work-line-track]').top), input: Math.round(rect('[data-assistant-composer] .mw-composer__input').top),
+      width: document.documentElement.scrollWidth <= window.innerWidth,
+      small: [...document.querySelectorAll('[data-work-line] [data-work-event], .assistant-tab .assistant-tab-main, .assistant-tab .assistant-tab-close, [data-task-mark]')].filter(node => { const at = node.getBoundingClientRect(); return at.width > 0 && (at.height < 44 || at.width < 44); }).length }; })()`);
+  assert.equal(box.width, true, "no sideways scroll");
+  assert.ok(box.panel <= box.track + 1 && box.panel <= box.input + 1, `the dialog ends above the track and the input (${JSON.stringify(box)})`);
+  assert.equal(box.small, 0, "every target on the line and the tab strip is at least 44px");
 });

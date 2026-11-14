@@ -26,6 +26,8 @@ export interface WorkBarHost {
   route(path: string): string;
   /** A press on an event: its tab in the Assistant's dialog (specs/work-line §4.4). `mark` is its owner's mark as the line draws it. */
   openEvent(event: { subject: ActionSubject; title: string; mark: string }): void;
+  /** Back to now: the main conversation in front and the caret in the one input. */
+  toNow(): void;
   openItem(surface: string, id: string, title: string): void;
   openSurface(surface: string): void;
 }
@@ -168,6 +170,22 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
     if (target?.closest("[data-work-line-head]")) { host.openSurface("home"); return; }
     const pressed = events.get(target?.closest<HTMLElement>("[data-work-event]")?.dataset.workEvent ?? "");
     if (pressed) host.openEvent(press(pressed));
+  });
+  // Keyboard (WLN-17): Alt+L puts focus on the line — the event whose tab is in front, else the one beside now; ← and → move
+  // between events in the line's order, Enter is the button's own press, Esc goes back to now.
+  const stops = () => [...line.querySelectorAll<HTMLElement>("[data-work-event]")];
+  document.addEventListener("keydown", event => {
+    if (event.code !== "KeyL" || !event.altKey || event.metaKey || event.ctrlKey || event.shiftKey || (event.target instanceof Element && event.target.closest(".xterm"))) return;
+    event.preventDefault();
+    (line.querySelector<HTMLElement>("[data-work-event][aria-current]") ?? [...past.querySelectorAll<HTMLElement>("[data-work-event]")].pop() ?? stops()[0] ?? head).focus();
+  });
+  line.addEventListener("keydown", event => {
+    const at = event.target instanceof Element ? event.target.closest<HTMLElement>("[data-work-event]") : null;
+    if (!at || event.metaKey || event.ctrlKey || event.altKey) return;
+    if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+      const all = stops(), to = all[all.indexOf(at) + (event.key === "ArrowRight" ? 1 : -1)];
+      if (to) { event.preventDefault(); to.focus(); }
+    } else if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); host.toNow(); }
   });
   // A part the read could not get is null: the line and the mark keep what they showed.
   document.addEventListener("molis-work:attention", event => {

@@ -61,21 +61,24 @@ const tracked = (...directories: string[]) => execFileSync("git", ["ls-files", "
 
 // RAC-1770: the contract lives in the Goals plugin, with the runtime values it had; the platform contracts' three subpaths are gone.
 // Batch 06 (materials-ui-contract §1) added the receipt kind of a version the platform's materials service fixed and its locator.
-const CONTRACT_RUNTIME_EXPORTS = ["GOALS_TREE_INTAKE", "GOALS_TREE_SUBMIT_RESULT", "GOAL_EVENT_EVIDENCE_MAX", "GOAL_MATERIAL_SNAPSHOT_SOURCE", "GOAL_PLUGIN_OBJECT_SOURCE", "agreement", "array", "artifactSource", "binding",
-  "boardSnapshotSchema", "boolean", "change", "closure", "concern", "count", "decision", "decisionRequest", "effect", "enumeration", "eventType",
-  "goalAcceptanceCriterionSchema", "goalAction", "goalArchiveResultSchema", "goalConfigSchema", "goalConfirmedInputSchema", "goalContractSchema", "goalDecisionMethods",
+const CONTRACT_RUNTIME_EXPORTS = ["GOALS_TREE_INTAKE", "GOALS_TREE_SUBMIT_RESULT", "GOAL_CONCERN_CITED_SUBJECT_LIMIT", "GOAL_EVENT_EVIDENCE_MAX",
+  "GOAL_MATERIAL_SNAPSHOT_SOURCE", "GOAL_PLUGIN_OBJECT_SOURCE", "agreement", "array", "artifactSource", "binding", "boardSnapshotSchema", "boolean", "change",
+  "citedSubjects", "closure", "concern", "count", "decision", "decisionRequest", "effect", "enumeration", "eventType", "goalAcceptanceCriterionSchema",
+  "goalAction", "goalArchiveResultSchema", "goalConfigSchema", "goalConfirmedInputSchema", "goalContractSchema", "goalDecisionMethods",
   "goalDecompositionReviewSchema", "goalDecompositionReviewStatuses", "goalDirectoryItemSchema", "goalEntryActions", "goalEventAcknowledgementCategories",
-  "goalEventAcknowledgementTreatments", "goalEventAssessmentKey", "goalEventBasisGaps", "goalEventBasisTiers", "goalEventClosureKinds", "goalEventConcernActions", "goalEventConcernStatuses", "goalEventDecisionEffectKinds",
-  "goalEventDecisionPurposes", "goalEventEvidenceKinds", "goalEventFieldFormats", "goalEventJudgmentVerdicts", "goalEventPageSchema", "goalEventRequirementCurrentStatuses", "goalEventSatisfactionGrounds", "goalEventSchema",
-  "goalEventSemanticFamilies", "goalEventSystemOperations", "goalEventTrustedAuthoritySources", "goalEventTypeSourceKinds", "goalEventUserConclusionVerdicts",
-  "goalEventWorkStatuses", "goalHistoryItemSchema", "goalHistoryPageSchema", "goalIntentSourceKinds", "goalMaterialSnapshotRef", "goalPluginActions", "goalPluginObjectRef", "goalPolicyBindingSchema",
-  "goalPolicySchema", "goalProgressResultSchema", "goalRecordSchema", "goalRelationEndpoints", "goalRelationSchema", "goalRelationTypes", "goalReportEventSchema",
-  "goalStateSchema", "goalTimelineSchema", "goalTrashResultSchema", "guidanceCommonSchema", "guidanceKindSchema", "identifier", "inGoalRelation", "judgment", "judgmentInput",
-  "nullable", "object", "option", "parseGoalMaterialSnapshotRef", "parseGoalPluginObjectRef", "planningCompositionSchema", "planningGraphIssueSchema", "planningImpactSchema", "planningMethodInputSchema",
-  "planningMethodSchema", "planningMethodSummarySchema", "planningSavedSchema", "progress", "projectGuidanceEntrySchema", "projectGuidanceRevisionSchema",
-  "readGoalResumeFacts", "reason", "recordedDecisionMethod", "recordedReviewStatus", "scope", "text", "treeCheckInputSchema", "treeCheckResultSchema",
-  "treeDecideInputSchema", "treeDecisionResultSchema", "treeItemDecisionSchema", "treeItemInputSchema", "treeNarrativeSchema", "treeProposalSchema",
-  "treeReadInputSchema", "treeReadResultSchema", "treeSubmitInputSchema", "treeSubmitResultSchema"];
+  "goalEventAcknowledgementTreatments", "goalEventAssessmentKey", "goalEventBasisGaps", "goalEventBasisTiers", "goalEventClosureKinds",
+  "goalEventConcernActions", "goalEventConcernStatuses", "goalEventDecisionEffectKinds", "goalEventDecisionPurposes", "goalEventEvidenceKinds",
+  "goalEventFieldFormats", "goalEventJudgmentVerdicts", "goalEventPageSchema", "goalEventRequirementCurrentStatuses", "goalEventSatisfactionGrounds",
+  "goalEventSchema", "goalEventSemanticFamilies", "goalEventSystemOperations", "goalEventTrustedAuthoritySources", "goalEventTypeSourceKinds",
+  "goalEventUserConclusionVerdicts", "goalEventWorkStatuses", "goalHistoryItemSchema", "goalHistoryPageSchema", "goalIntentSourceKinds",
+  "goalMaterialSnapshotRef", "goalPluginActions", "goalPluginObjectRef", "goalPolicyBindingSchema", "goalPolicySchema", "goalProgressResultSchema",
+  "goalRecordSchema", "goalRelationEndpoints", "goalRelationSchema", "goalRelationTypes", "goalReportEventSchema", "goalStateSchema", "goalTimelineSchema",
+  "goalTrashResultSchema", "guidanceCommonSchema", "guidanceKindSchema", "identifier", "inGoalRelation", "judgment", "judgmentInput", "nullable", "object",
+  "option", "parseGoalMaterialSnapshotRef", "parseGoalPluginObjectRef", "planningCompositionSchema", "planningGraphIssueSchema", "planningImpactSchema",
+  "planningMethodInputSchema", "planningMethodSchema", "planningMethodSummarySchema", "planningSavedSchema", "progress", "projectGuidanceEntrySchema",
+  "projectGuidanceRevisionSchema", "readGoalResumeFacts", "reason", "recordedDecisionMethod", "recordedReviewStatus", "scope", "text", "treeCheckInputSchema",
+  "treeCheckResultSchema", "treeDecideInputSchema", "treeDecisionResultSchema", "treeItemDecisionSchema", "treeItemInputSchema", "treeNarrativeSchema",
+  "treeProposalSchema", "treeReadInputSchema", "treeReadResultSchema", "treeSubmitInputSchema", "treeSubmitResultSchema"];
 const PLUGIN_ACTIONS = { list: ["goals.list", 1, "query"], contract: ["goals.contract.read", 1, "query"], state: ["goals.state.read", 1, "query"],
   progress: ["goals.progress.record", 1, "command"], receipt: ["goals.progress.receipt", 1, "query"] };
 const ENTRY_ACTIONS = { initialize: ["goals.board.initialize", 1, "command"], treeSubmit: ["goals.tree.submit", 1, "command"], treeRead: ["goals.tree.read", 1, "query"],

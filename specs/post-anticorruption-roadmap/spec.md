@@ -65,14 +65,11 @@
 |  | [逐项交付与证据关联合同](reference/batches/24.md#batch-24-item-3) |
 | [25](reference/batches/25.md) | [常驻、休眠与单 Home 执行恢复](reference/batches/25.md#batch-25-item-1) |
 |  | [按主人隔离升级失败 U3](reference/batches/25.md#batch-25-item-2) |
-| [26](reference/batches/26.md) | [签名、公证与安装准备](reference/batches/26.md#batch-26-item-1) |
-|  | [正式 OAuth 应用](reference/batches/26.md#batch-26-item-2) |
-|  | [原生组件预置与自检](reference/batches/26.md#batch-26-item-3) |
-|  | [本机日志、崩溃恢复与诊断包](reference/batches/26.md#batch-26-item-4) |
-|  | [插件升级 U4 与合同过渡 U5](reference/batches/26.md#batch-26-item-5) |
-|  | [副本演练与回退 U6](reference/batches/26.md#batch-26-item-6) |
+| [26](reference/batches/26.md) | [插件升级 U4](reference/batches/26.md#batch-26-item-5) |
 |  | [状态与状态机合同与词表](reference/batches/26.md#batch-26-item-7) |
 |  | [状态词汇门禁与文档](reference/batches/26.md#batch-26-item-8)（原 27-6） |
+|  | [发行配置收拢](reference/batches/26.md#batch-26-item-9) |
+|  | 签名公证、正式 OAuth、原生组件预置、日志诊断、U5、U6 移到[发行批](#release-batch)（2026-11-14） |
 | [27](reference/batches/27.md) | [基础交互体验债](reference/batches/27.md#batch-27-item-1) |
 |  | [代码／Diff 及性能余项](reference/batches/27.md#batch-27-item-2) |
 |  | [首批文案与帮助](reference/batches/27.md#batch-27-item-3) |
@@ -144,7 +141,7 @@
 | [56](reference/batches/56.md) | [Attention 唤醒、角标与系统通知](reference/batches/56.md#batch-56-item-1) |
 |  | [切换后新入口文字与翻译复核](reference/batches/56.md#batch-56-item-2) |
 |  | [N22 全量迁移与收口](reference/batches/56.md#batch-56-item-3) |
-| [57](reference/batches/57.md) | [个人工作完整路径与 M1 交付](reference/batches/57.md#batch-57-item-1) |
+| [57](reference/batches/57.md) | [个人工作完整路径](reference/batches/57.md#batch-57-item-1)（M1 移到 [REL-5](#release-batch)） |
 | [58](reference/batches/58.md) | [子代理公共交互组件](reference/batches/58.md#batch-58-item-1) |
 | [59](reference/batches/59.md) | [子代理双入口接入](reference/batches/59.md#batch-59-item-1) |
 | [60](reference/batches/60.md) | [Sessions 控制与交接](reference/batches/60.md#batch-60-item-1) |
@@ -254,6 +251,26 @@
 |  | [在线备份与恢复](reference/batches/srv-8.md#srv-8-item-2) |
 |  | [可选崩溃上报](reference/batches/srv-8.md#srv-8-item-3) |
 
+<a id="release-batch"></a>
+
+## 发行批
+
+只为对外发行才要的事（2026-11-14 用户定，[决定 45](reference/decisions.md#decision-45)，[发行批总则](reference/release-batch.md)）：开工时间由用户定，01～90 不等它；发行用的值只填 [26-9](reference/batches/26.md#batch-26-item-9) 收拢的那份配置，不再改代码。
+
+| 批次 | 批次内内容 |
+| --- | --- |
+| [REL-1](reference/batches/rel-1.md) | [Apple 签名与公证凭据](reference/batches/rel-1.md#rel-1-item-1) |
+|  | [公开主页、隐私政策与服务条款](reference/batches/rel-1.md#rel-1-item-2) |
+|  | [正式 OAuth 应用](reference/batches/rel-1.md#rel-1-item-3) |
+|  | [Prologue SDK 再分发许可](reference/batches/rel-1.md#rel-1-item-4) |
+| [REL-2](reference/batches/rel-2.md) | [签名、公证与安装](reference/batches/rel-2.md#rel-2-item-1) |
+|  | [原生组件随包预置与首次自检](reference/batches/rel-2.md#rel-2-item-2) |
+|  | [官方包与字体的发行核对](reference/batches/rel-2.md#rel-2-item-3) |
+| [REL-3](reference/batches/rel-3.md) | [本机日志、崩溃恢复与诊断包](reference/batches/rel-3.md#rel-3-item-1) |
+| [REL-4](reference/batches/rel-4.md) | [合同过渡 U5](reference/batches/rel-4.md#rel-4-item-1) |
+|  | [副本演练 U6](reference/batches/rel-4.md#rel-4-item-2) |
+| [REL-5](reference/batches/rel-5.md) | [M1 发行与第二台 Mac 验收](reference/batches/rel-5.md#rel-5-item-1) |
+
 <a id="reference"></a>
 
 ## 参考
@@ -263,7 +280,7 @@
 | 执行边界、同批顺序、字体切换与升级窗口 | [执行规则](reference/execution-rules.md) |
 | 每项怎样开工、设计、实施、验证和收尾 | [需求开发流程](reference/development-workflow.md) |
 | 批次主会话从开工到合入、收尾逐步做什么（各批 Goal Prompt 的公共部分） | [批次执行手册](reference/batch-runbook.md) |
-| 批次完整交付、来源、前置、并行与 UI | 每批一个文件，从 [01](reference/batches/01.md) 起；[服务端批总则](reference/server-batch.md) |
+| 批次完整交付、来源、前置、并行与 UI | 每批一个文件，从 [01](reference/batches/01.md) 起；[服务端批总则](reference/server-batch.md)；[发行批总则](reference/release-batch.md) |
 | 原需求、类型、待决与批次映射 | [需求来源](reference/requirements.md) |
 | 近期需求 PR 的实际内容与批次去处 | [PR 来源对照](reference/requirement-prs.md) |
 | 为什么这样排序、谁依赖谁 | [排期原则与依赖](reference/dependencies.md) |

@@ -1,0 +1,181 @@
+# 风险插件：实施方案、开工前检查与合同设计稿（第 17 批）
+
+状态：设计稿第 2 版，公共合同台与 D 轨设计合审通过（2026-11-13，头 `0f622090ff`，见 §8）；实现中。行为与验收以[原需求](spec.md)为准，界面以[定样决定](spec.md#design-decisions)与原型 [`docs/design/risk-plugin`](../../docs/design/risk-plugin/README.md) 为准。
+
+## 1. 这一片说什么（需求开发流程 §2.1）
+
+- **做什么**：新的内置项目插件「风险」：风险记录（两栏整页 + 从别处点开先在右侧栏打开）、项目风险总览（按状态分组）、复查（详情里的复查段：按需安排，到期由后台助理看一轮、给建议，人采纳才改）；对外提供读取、搜索、呈现与概况，供 Goal、助理、首页和第 19 批的 Work Brief 引用。Goals 的顾虑可以引用风险（或任何对象）。
+- **为什么现在**：前置 06、14、15、16 都已合入；第 19 批 Work Brief 的「风险接续」以本批的风险来源为前置。
+- **不做**：Work Brief 本体与简报里的风险段（第 19 批，见 §6）；旧风险数据迁入（原需求「不做」）；团队成员目录（产品还没有，负责人先记名字）；风险进个人空间同步（§4.1 末，记 BL）。
+
+## 2. 开工前检查（需求开发流程 §4，15 项）
+
+| # | 项 | 回答 |
+| --- | --- | --- |
+| 1 | 事实主人 | 风险（说明、影响、可能性、处置、负责人、状态、进展、关联）只归风险插件，存在它自己的项目库表里。Goal、顾虑归 Goals；Goals 只存「这条顾虑引用了哪个对象」（kind + id），不复制风险字段。复查任务（时间、暂停、历次结果、通知）归 Schedule，按对象找回，风险库不存复查状态。读别人的对象只经对象读取器或呈现取值。 |
+| 2 | 插件同等待遇 | 经 Plugin Runtime 装配（`registration.project_runtime`），只用 SDK 与平台服务；不改 `project-plugins.ts`，不加宿主文件或构建期接线。「从别处点开先在侧栏」扩展工作台已有的 `sideOpenedPlugins` 推导，由侧栏视图的声明字段决定（§4.3），不写风险的分支。 |
+| 3 | 能力注册 | 全部能力在风险 Manifest 声明一次（§4.1），页面路由只转调动作，助理、工作流、MCP 用同一套。可信身份取自调用上下文。风险插件不调模型、不声明 Agent（用户 2026-11-13 定：插件只登记任务，到点由后台助理开一轮，解耦）。转调 Schedule 的动作等别的插件，声明 `scheduling: "concurrent"`。 |
+| 4 | 合同 | 现在处在 M1 之前，不留兼容期，都在原版本里改（阶段一）。四处：① 新插件的动作（快照新增）；② Goals 顾虑加可选 `cited_subjects`（Goals 动作 schema，库 2→3）；③ Manifest 侧栏视图加 `opens_items`（contracts `platform/plugin-manifest`、SDK 校验）；④ Schedule 对话任务加一次性与对象（§4.5，库 v+1）。另有 SDK `/ui` 新增 `renderSeverityGrid`（§4.4）。刷新 `actions:update`、`api:update`，PR 写对调用方的影响（都只多可选字段）。没有别的批在等，随本批 PR 走，公共合同台在最终头上合审。 |
+| 5 | 放在哪个包 | `plugins/native/risk`（`@molis-ai/molis-work-plugin-risk`），只依赖 contracts 与 plugin-sdk。侧栏优先在工作台 `plugin-catalog.ts` 的推导与 `tab-workspace` 的 `openInSide`；矩阵小格在 SDK `/ui`，样式在 `packages/design-system/src/styles/primitives.ts`。没有新的平台服务。 |
+| 6 | 表与存储 | 风险的三张表在 Manifest `databases.project`（store `risk`，第 1 版，`storage:private`），只由风险插件读写，不进共写名单；进 `tooling/gates/schemas/stores.tsv`。Goals 顾虑表加一列、Schedule 任务表加列：两个库各升一版，带升级段与旧版本金样（§4.2、§4.5）。 |
+| 7 | 兼容与迁移 | 不加兼容读取。风险从空开始（原需求已定）。Goals、Schedule 的加列走升级链的正式升级段；同步便携格式在原版本内加列（§4.2、§4.5），不留旧格式读取。 |
+| 8 | 安全边界 | 不碰回环、令牌、网关、MCP 授权等。风险插件转调 Schedule 用 `actions:delegate`：以原调用者身份、workflow 受众（S-43），调用者自己要有 `schedule:read`／`schedule:write`；不给 Schedule 加 `plugin` 受众，不开以安装身份调用的路。到点那一轮读什么只按人给这个任务的授权（第 18 批）；任务带的对象不带出任何读取权（`plugin-task-subjects` 的规则）。侧栏打开只把对象 id 交给同一插件已声明的侧栏视图。 |
+| 9 | 调用次数 | 总览一次请求：`risk.list@1` 两条 SQL（风险一条、关联一条，带分页与筛选），不按条目逐个请求。详情一次请求（`risk.get@1`）；关联对象的名字由页面按 15 的呈现取值批量读，每个主人一次（上限 50）。复查段一次请求：`risk.review.get@1` 委托一次 Schedule `tasks.list`（按对象筛）。加关联时用对象读取器核对一次（读取器一次一个对象，只读新加的这一个）。页面不在后台轮询；改完一条只回读这一条。 |
+| 10 | 升级与数据 | 新库第 1 版；以后改结构升版本带升级段。Goals 已有顾虑升级后 `cited_subjects` 为空，Schedule 已有任务升级后是每天任务、无对象，照常可用；两边的金样存每个旧版本。 |
+| 11 | 成果与过程项 | 风险是插件自己的活对象，不是固定版本的成果，不进成果库；不声明 `artifacts.produces`。 |
+| 12 | 页面、外壳与文字 | 插件只出舞台（总览与整页详情，`navigator` 视图）和一个侧栏视图（单条风险）；不出自己的整页、不开新标签。不新增 DOM 事件（用已登记的 `molis:side-open`、`molis-work:select-item`）。文字用 `risk.*` 稳定键，Manifest `ui.locales` 声明 `locales/zh.json`、`locales/en.json`；状态、影响等存英文枚举，不存译文；交给 Schedule 的任务说明只放人写的「要看什么」和对象引用，不放风险插件拼的句子。颜色、字体只用语义变量。新增页面资源（插件客户端）用户 2026-11-13 已同意，合入前按实测写许可。 |
+| 13 | 错误 | `defineErrorCodes("risk", …)`：`invalid`、`not_found`、`conflict`、`closed`、`review_unavailable`；Schedule 新增的码用它自己的前缀。主人表 `tooling/gates/error-owners.json` 加 `plugins/native/risk/`。 |
+| 14 | 冲突面 | 枢纽：`apps/workbench/src/builtin-plugins.ts` 与宿主生成登记（脚本生成）、根与两个应用的 `package.json`（生成器写）、`pnpm-lock.yaml`、`docs/SSOT-MATRIX.md`、`docs/system/PACKAGE-BOUNDARIES.md`、`.github/CODEOWNERS`、`tooling/gates/actions/`、`tooling/gates/api/`、`tooling/gates/schemas/stores.tsv`、`tests/fixtures/golden-homes/`。别的轨道的文件：Goals 包、Schedule 包、工作台 `plugin-catalog.ts` 与 `scripts/client/tab-workspace*.ts`、`plugin-frame/parent.ts`、`packages/design-system/src/styles/primitives.ts`、`specs/context-program`（§21.6 规则）。当前在途 PR（#2051、#2047、#2045 等）不碰这些。 |
+| 15 | 全局最优 | 见 §3。 |
+
+## 3. 全局最优（五个场景）
+
+| 场景 | 看法 |
+| --- | --- |
+| 插件 | 风险是普通的项目插件，用同一套 Manifest、项目库、呈现，复查交 Schedule。三处通用能力谁都能用：侧栏视图 `opens_items`（Todo、Issue 一类想从别处点开先在侧栏的，加一个字段）、顾虑 `cited_subjects`（不只认风险）、Schedule 一次性对象任务（Goal 跟进、Todo 复看同样能用）。第三方插件同样能声明，没有内置专用的路。 |
+| 平台 | 没有新的平台服务：Schedule、按任务授权、对象读取、呈现、搜索都是现成的。平台多两处小能力：侧栏优先打开（扩展已有推导）、组件板矩阵小格。 |
+| 助理 | 动作向 `user`、`agent`、`workflow`、`mcp` 开放（写要授权），助理能列、读、记、改状态、关联、安排复查。方法 `risk-review`（Skill）说明什么时候该记风险、什么时候只引用不新建、复查一轮怎样判断（先核风险是否已关闭）、不自动改风险、安排复查后要提醒人去给任务开读取授权。到点那一轮是 Schedule 的助理一轮，按人给的任务授权读风险与关联对象；读不到就如实写缺口。没有界面时经 MCP 也能完成全部操作（授权仍由人在平台页给）。 |
+| 各类平台能力 | 搜索（`risk.search.entries`）、对象读取（`risk.subject.read`）、公共呈现四形态与首页概况、按任务授权的读取分组（`read_groups`）、Schedule（一次性对象任务、通知、错过的运行）。不接成果库、端口、连接器；不重叠。 |
+| 后续开发 | 第 19 批 Work Brief 按风险的呈现与 `risk.list`／`risk.subject.read` 取材，复查结果从 Schedule 按对象取，并从这里打开同一条风险；第 37、64 批的主动助理用同一组动作和同一种任务。再加一种状态或字段：改风险自己的 schema 与库版本，一处。 |
+
+比较过的做法：
+
+- **复查到期谁来判断**（用户 2026-11-13 定）：风险插件只登记任务，到点由后台助理（Schedule 的助理任务）开一轮，插件本身不调 AI。比较过「插件调一次模型」（省，但插件和 AI 耦合）与「插件声明自己的 Agent 角色」（第二套任务状态）。结果留在 Schedule 的任务记录里，风险详情读出来；后台一轮只读，改风险由人点「采纳」后经风险动作完成。
+- **侧栏优先打开**：扩展 `sideOpenedPlugins`（合审第 1 条）。另一种是在 Goals 里写打开风险侧栏的事件——等于一个插件点名另一个插件，不取。
+- **负责人**：产品没有项目成员目录，先记一个名字（可空），筛选按已用过的名字；有了成员目录再换成成员引用（升库版本）。
+- **关联放在哪**：关联对象是风险的事实，存在风险库；Goals 那边只有「顾虑引用对象」。「关联 Goal」筛选查风险库自己的关联表。Context Ledger 只看得到各自写的边（S-68），顾虑的引用也应和顾虑存在一起，不用 Ledger。
+
+## 4. 合同设计稿
+
+### 4.1 风险插件（新包，`plugin_id: io.molis.work.risk`，`project_plugin_id: risk`，对象种类 `risk`）
+
+取值（存英文，界面经词表翻译）：
+
+- `status`: `open` | `mitigating` | `accepted` | `closed`（打开、缓解中、已接受、已关闭）。状态环：open → `answer`（要处理），mitigating → `running`，accepted → `paused`（搁置），closed → `done`，以 15 的状态环取值为准；有等人采纳的复查建议时呈现带 `needs_decision`。
+- `impact`、`likelihood`: `high` | `medium` | `low`。
+- 关联对象：`{ kind, id }`（`ActionSubject`），一条风险最多 20 个；任何有读取器的种类（Goal、Coding 会话、Feed 消息、成果…）。
+
+库（`databases.project`，store `risk`，第 1 版；复查不在这里，见 §4.5）：
+
+| 表 | 列（要点） |
+| --- | --- |
+| `risk_items` | `risk_id` PK、`project_id`→`project_root`、`title`、`statement`、`impact`、`likelihood`、`treatment`、`owner_name`（可空）、`status`、`revision`（整数，每次写 +1）、`created_by`、`created_at`、`updated_at`、`closed_at` |
+| `risk_links` | `risk_id`、`subject_kind`、`subject_id`、`added_by`、`added_at`；PK (risk_id, subject_kind, subject_id)；索引 (subject_kind, subject_id) |
+| `risk_events` | 进展时间线：`event_id`、`risk_id`、`kind`（`created`、`updated`、`status`、`note`、`linked`、`unlinked`）、`detail_json`（只存枚举、字段名与原话，不存译文）、`actor_id`、`at` |
+
+动作（权限 `risk:read`／`risk:write`；受众 `user`、`agent`、`workflow`、`mcp`、`plugin`）：
+
+| 动作 | 种类 | 输入 → 输出 |
+| --- | --- | --- |
+| `risk.list@1` | query | `{ status?: "open"\|"closed"\|"all"（默认 open）, impact?, owner_name?, goal_id?, unlinked?, limit?（默认 100，最多 200）, cursor? }` → `{ risks: RiskRow[], owners: string[], next_cursor }`；`RiskRow` = 风险字段 + `links` |
+| `risk.get@1` | query | `{ risk_id }` → `{ risk, links, events }` |
+| `risk.subject.read@1` | query | 标准对象读取器（`defineSubjectContextAction`），`open: { surface: "risk", id }` |
+| `risk.search.entries@1` | query | 标准搜索来源，未关闭与已关闭都列，摘要 |
+| `risk.presentation.values@1`、`risk.presentation.overview@1` | query | 15 的呈现取值与概况；概况给未关闭风险数与最该看的几条 |
+| `risk.create@1` | command | `{ title, statement, impact, likelihood, treatment?, owner_name?, links? }` → `{ risk }`；`result_subject` 指向新风险 |
+| `risk.update@1` | command | `{ risk_id, expected_revision, title?, statement?, impact?, likelihood?, treatment?, owner_name? }` → `{ risk }`；版本不对报 `risk.conflict` 附当前内容（页面两边对照，不覆盖）；已关闭报 `risk.closed` |
+| `risk.status.set@1` | command，`concurrent` | `{ risk_id, expected_revision, status, note? }` → `{ risk, review_left? }`；关闭提交后归档这条风险的复查任务（委托 Schedule）；归档没成功时返回 `review_left`，页面提示并可重试（`risk.review.cancel@1`）；重新打开不自动恢复复查 |
+| `risk.links.add@1`／`risk.links.remove@1` | command，`concurrent` | `{ risk_id, subject }` → `{ links }`（加之前用读取器核一次这个对象在、读得到） |
+| `risk.notes.add@1` | command | `{ risk_id, text }` → `{ event }` |
+| `risk.review.get@1` | query，`concurrent` | `{ risk_id }` → `{ state: "ok"\|"unavailable", review }`：委托 Schedule `tasks.list`（按对象 `{ kind: "risk", id }` 筛）；`review` 是这条风险的那一个复查（时间、`scheduled`／`paused`／`done`、focus、上一轮结果或没跑成的原因分开给、这个任务的读取授权计数，平台说不出时为 null），没安排过为 null；项目没启用 Schedule 或调用者够不到它时 `state: "unavailable"`（目录不区分这两种）。实现时改：一条风险只有一个复查，不返回任务列表（见 §9） |
+| `risk.review.schedule@1` | command，`concurrent` | `{ risk_id, at, focus? }` → `{ review }`：没有复查就新建、有就改到新时间并重新打开（同一个任务，不另建）；Schedule 的一次性对象任务，标题是风险标题、说明是人写的 `focus`（不写时用风险的描述，都是用户的原话，不存译文）、对象是这条风险；已关闭的风险以 `risk.closed` 拒绝，过去的时间以 Schedule 的 `schedule.task_invalid` 拒绝 |
+| `risk.review.enabled@1`、`risk.review.cancel@1` | command，`concurrent` | `{ risk_id, enabled }`／`{ risk_id }`：只动按对象筛出的这条风险的任务（不收 `task_id`，所以碰不到别的任务），再委托 Schedule 暂停／恢复、归档；过了时间的复查恢复被 Schedule 拒绝，要重新安排；没有复查时 cancel 返回 `cancelled: false` |
+
+Manifest：`permissions` 含 `actions:delegate`（转调 Schedule、读取器核对象），`capabilities.consumes` 写 Schedule 的 `tasks.list`、`tasks.create`、`tasks.update`、`tasks.enabled`、`tasks.archive`；`read_groups`：`{ group_id: "risk", actions: [risk.list, risk.get, risk.subject.read, risk.search.entries] }`，复查任务（与别的定时任务）经人勾选才读得到风险。
+
+方法 `risk-review`（Skill）：见 §3「助理」。风险插件不登记指令、不声明 Agent。
+
+同步：本批不进个人空间同步（风险是新对象，同步集合与便携格式要单独设计与验收）；记 BL「风险进同步」，主人风险插件。
+
+### 4.2 Goals：顾虑引用对象
+
+- 顾虑（`concern`）加 `cited_subjects: ActionSubject[]`（默认空，最多 8 个）；`concern_opened` 可带它。Goals 只存 kind + id；页面按 15 的名字片画（读不到时照 IUI-02 只画图标、名字与「打开」），点开走工作台打开对象，于是风险按 §4.3 先在侧栏开。
+- 原合同的证据与授权规则不变：引用不让顾虑自动打开、接受或解除；风险状态变化不碰顾虑（RISK-02、RISK-03）。Goals 里只读不写的死路径 `blocking_risks`（`module/event-state-completion.ts`、`event-facts.ts` 恒为 `[]`）随本批删掉，确保风险不会接进 Goal 的收尾判断。
+- Goals 项目库 2→3：`goal_event_concerns` 加 `cited_subjects_json TEXT NOT NULL DEFAULT '[]'`，升级段只这一句；同步列清单（`module/replication.ts`）一起改，同步格式版本照 2026-11-11 v2 加列的先例不升；`stores.tsv` 刷新；金样存 v1、v2。
+
+### 4.3 Manifest：侧栏视图 `opens_items`（扩展 `sideOpenedPlugins`）
+
+- 现行规则（context-program §21.6）：有主区的插件即使也有侧栏视图，仍在主区打开；只有侧栏的插件在侧栏打开。本批加一条：`slot: "side"` 的视图写 `opens_items: true`（一个插件至多一个）时，**带具体对象**的打开（`openItem`、`?openPlugin&openItem` 链接）先在这个侧栏视图里打开；`openBeside` 是人明确选的分栏打开，照旧分栏，target 照现有的 `{ item, title }`；不带对象的打开（进插件）仍去主区。
+- 同一插件自己的帧（舞台或侧栏，`plugin-frame/parent.ts` 拿得到发起方 `pack.id`）发来的打开不改道：所以侧栏视图里的「展开成整页」就是同一插件发 `openItem`，直接进主区，不会被改回侧栏。`parent.ts` 调宿主时把发起方插件 id 作为工作台内部参数传给 `tab-workspace` 的 `openItem`（不改 SDK `UiHost` 合同）；动这个文件前先核 daily-quality D0124／D0335（G9）的统一校验器是否在途。
+- 推导写在 `sideOpenedPlugins` 旁（`sideOpenedItemPlugins`），工作台 `openInSide` 读它；`home-plugin-http.ts` 用同一推导。SDK Manifest 检查：`side` 以外的槽写了就拒绝，多于一个就拒绝。同步改 context-program §21.6 的规则原文。
+
+### 4.4 组件板新增（D 轨补标本）
+
+- `renderSeverityGrid({ row, column, tone, size?: "small" | "large", label, rowLabel?, columnLabel? })`（SDK `/ui`）：3 × 3 小格；亮的一格按调用方给的 `MwTone`（`danger`／`warning`／`neutral`）上色，同时有描边与填充形状，不只靠颜色；读屏文字与两个轴标题由调用方传（SDK 不认识「风险」）。样式进 `packages/design-system/src/styles/primitives.ts`，类名 `mw-severity-grid`。
+- 标本：9 种组合 × 大小两号；中英文、深浅色、强制颜色；390 宽总览行里的样子；读屏文字示例。标本合入本批分支、D 轨合审过，才写风险界面里用它的部分。
+- 提示里的按钮：`renderAlert` 已有 `actions`，不新增。长链接按钮折行交 D 轨定，本批不加。
+
+### 4.5 Schedule：一次性的对象任务
+
+- 用词沿用提醒与定时操作的：`schedule.tasks.create@1`／`tasks.update@1` 加 `repeat: "daily" | "none"`（默认 daily）与 `at`（`repeat: "none"` 时必填，date-time）；加可选 `subject: { kind, id }`（这个任务关心的对象）。`tasks.list@1` 加可选输入 `subject` 按对象筛，输出每个任务带 `repeat`、`run_at`、`subject`；给了 `subject` 时另带 `reads`（`ScheduleTaskReads` 的计数：开了几类、已授权、待确认、不可用、已移除，只含列出的任务；平台说不出时不带，不当成「没开」），Schedule 这次请求读一次平台的授权列表，风险一侧不另调；不给 `subject` 时输出不变。不加 `plugin` 受众。
+- 库升一版：任务表加 `repeat`（默认 `daily`）、`run_at`、`subject_kind`、`subject_id`；一次性任务的 `hour`、`minute` 取 `at` 的本地时分（两列仍 NOT NULL，列表显示用），排期只看 `run_at`。升级段只加列；金样存每个旧版本。
+- 同步便携格式 `format.schedule.portable` 逐列校验任务列：加四列并校验（`repeat` 与 `run_at` 成对、对象两列同空同有）；格式版本照 Goals 2026-11-11 加列的先例不升（统一起点后只有登记了升级链的持久格式能高于 1，`initial-versions.mjs`；阶段一在原版本改）。
+- 一次性任务跑完一次就停（不再排期，`enabled` 置否，记录与结果保留）；错过的一次性运行按 `missed-runs.ts` 现行规则记给人看、不补跑，任务随之结束。
+- 带对象的任务，到点那一轮的说明里点名这个对象（kind + id）；读取仍只按人给这个任务（授权对象 `schedule_task`，键 task_id）的授权，没开授权就按 reader 角色跑、读不到风险，结果如实写「没有读取授权」。风险详情的复查段显示授权状态，并给入口去平台授权页（`task-grants-page`）；助理安排复查后也要说明这一步得人来做（RISK-07 的「到期读取」含这个状态）。
+- 动作 schema 原版本内改，刷新快照，PR 写对调用方的影响：只多可选字段与输出字段。
+
+## 5. 拆片（批内子分支，按依赖叠）
+
+1. `b17/contracts`：§4.2 Goals 顾虑引用（含升级、同步、删 `blocking_risks`）、§4.3 Manifest 字段与工作台推导、§4.4 SDK 矩阵小格与标本；快照刷新。
+2. `b17/risk-core`：插件包、库、动作（除复查）、搜索、读取器、呈现、方法、登记与清单。
+3. `b17/review`：§4.5 Schedule 一次性对象任务，与风险的复查动作（安排、改期、暂停、取消、读结果）。
+4. `b17/risk-ui`：舞台（总览、整页详情、复查段与授权入口）、侧栏视图、Goals 顾虑里的引用与选择。
+5. 收尾：同步 main、统一构建与测试、文档与批次记录。
+
+## 6. 验收归属
+
+| 编号 | 本批 | 说明 |
+| --- | --- | --- |
+| RISK-01 | 全做 | 一份风险事实，多个 Goal 引用；Goals 只存引用 |
+| RISK-02 | 全做 | 记录与关联不自动开顾虑；顾虑可选引用 |
+| RISK-03 | 全做 | 状态互不覆盖；`blocking_risks` 删除，风险不进收尾判断 |
+| RISK-04 | 全做 | 总览：未关联、默认未关闭、筛选、已关闭、普通读取不调模型 |
+| RISK-05 | 风险一侧全做 | 总览、Goal、侧栏打开同一条；公开动作更新后回读；简报一侧由第 19 批验（它以本批来源为前置） |
+| RISK-06 | 风险一侧 | [人工] 风险详情、处置更新、返回总览；空数据、来源失败、未关联 Goal 的状态；「简报 → 风险 → 刷新简报」由第 19 批验 |
+| RISK-07 | 全做 | 安排、到期按授权读取（含未授权状态）、改期、暂停、取消、重启与重试不重复、停用撤权后无写入 |
+| RISK-08 | 风险一侧全做 | 无变化安静、重要变化按 Schedule 通知只一次、失败与无变化可区分、不自动接受／关闭；「并入简报」由第 19 批从 Schedule 按对象取用 |
+| RISK-09 | 风险一侧全做 | main 上 2026-11-13 新增（决定 42、43，同步 main 时并入）：关联与筛选用通用对象引用（`risk.list@1` 的 `linked`／`unlinked`，原 `goal_id` 去掉）；总览不出现 Goal；详情的「关联 Goal」只在有插件打开 Goal 时出现（`surfaceFor("goal")`）。没装 Goals 的界面路径要撤回 Goals 的常开同意才能造出来，浏览器用例未覆盖，PR 里列为人工核对 |
+
+## 7. 用户决定
+
+1. 复查到期由后台助理开一轮（插件只登记 Schedule 任务，不调 AI，解耦）（2026-11-13）。
+2. 同意新增页面资源（风险插件的客户端脚本与样式），合入前按实测字节写许可（2026-11-13）。
+
+## 8. 合审记录
+
+- 2026-11-13 第 1 版（`f9c1aaa077`）公共合同台／D 轨合审：退回。挡开工三项——侧栏优先要接现有 `sideOpenedPlugins`；Schedule 扩展不加 `plugin` 受众、沿用 `at`／`repeat`、写清库与同步格式与错过的运行、按任务授权的状态与入口；改版前的旧文字。建议六项：任务说明不拷正文；关闭与归档非原子的标记与重试；Goals 同步列与删 `blocking_risks`；取数口径与分页、状态环取值；同步要写明；矩阵小格用 `MwTone`、样式进 primitives、标签由调用方给、不只靠颜色、标本清单。第 2 版全部采纳。
+- 2026-11-13 第 2 版（`0f622090ff`）复审：通过。四条建议已补进第 2 版：`tasks.list` 输出 `reads`；`openBeside` 照旧分栏；发起方插件 id 作内部参数传下去；Goals 同步格式按先例不升。D 轨：标本先合进本批分支并过合审，再写用它的界面。
+
+## 9. 实现中的调整（`b17/review`，2026-11-13）
+
+合同台合审时一并看；都只收窄或改名，不加新的权限或受众。
+
+1. 一条风险只有一个复查：`risk.review.schedule` 有就改期（同一个 Schedule 任务），`get` 返回 `review` 而不是任务列表，`enabled`／`cancel` 不收 `task_id`、只动按对象筛出的那一个。理由：设计里「改期带 `task_id`」与「先核对象」合起来就是这一条；少一个参数，就少一种碰到别的任务的可能。
+2. `focus` 可不写，缺省用风险的描述（同为用户原话，不存译文）。
+3. Schedule 任务的输出字段叫 `run_at`（与表列一致），输入仍叫 `at`；`reads` 只在按对象筛时带。
+4. 同步便携格式不升版本：统一起点后只有登记了升级链的持久格式能高于 1（`scripts/gates/initial-versions.mjs`），照 Goals 的先例在原版本内加列。
+5. 目录对「Schedule 没启用」与「调用者够不到 Schedule」给同一个 `actions.dependency_missing`：风险一侧统一说 `risk.review_unavailable`，文字两种都提。
+6. 复查一轮失败后不重试：一次性任务的唤醒没了、时间也过了，对账就把它停下，结果页写「没跑成」；要再跑由人重新安排（RISK-07「重试不重复」）。
+
+## 10. 实现中的调整（`b17/ui`，2026-11-13）
+
+1. 关联对象在风险详情里由外壳按主人呈现画（`host.view.surfaceSlot`，槽位 `risk.links`），不是页面自己按呈现取值读名字：读不到、已删除、够不到都由外壳说，页面只拿 kind 与 id，也不用自己批量读。
+2. 复查的读取授权入口：平台的授权区只能放在自己安装的任务上（`taskGrants.place`），复查任务是 Schedule 的，所以复查段在「没开读取授权」时给「去开授权」，用 `openItem("schedule", task_id)` 打开 Schedule 页面的这个任务，人在那里开。Schedule 页面为此加了按任务 id 打开详情（`molis-work:select-item`；不在本页的任务回 `molis-work:item-unreadable`）。
+3. Goals 顾虑的引用对象：Goal 页面由外壳直接画，没有插件框，暂时画成「<主人插件名> · 打开」（IUI-02 的退路少了名字），点开经工作台 `[data-workbench-item-plugin]` 打开，于是风险先在侧栏开；名字片与表单里挑选引用记为 [BL-goals-cited-object-names](../backlog/BL-goals-cited-object-names.md)、[BL-goals-concern-cite-picker](../backlog/BL-goals-concern-cite-picker.md)。引用今天由助理与执行 AI 经 `goals.concern@1` 写入。
+4. 侧栏视图叫 `record`（设计稿写 `detail`）；没打开过东西时说「这里显示一条风险」。
+5. 加关联只找 Goal（`search.references` 的 `kinds: ["goal"]`），与设计的「关联 Goal」入口一致；别的种类由助理按动作加。
+6. 同步 main 时并入 RISK-09（没装 Goals 也完整）：`risk.list@1` 原版本内把 `goal_id` 换成通用的 `linked: { kind, id }`，`unlinked` 改为「true 没关联任何对象、false 有关联」，不再只看 Goal；总览筛选为「关联：不限／有关联／没有关联」，行里写「关联 N 个对象」。按种类筛（只列本项目确有关联的种类）没做：框里没有把种类说成人话的读法，原始种类名不进界面。
+7. CI 收口（2026-11-14）：调用预算 `tooling/gates/call-budget.json` 的 `shippedRegistrationRows` 各请求按实测放行（项目首页 2992→3197，两个 Goal 窗格 4796→5060，其余各请求同比 4～7%）。宿主每次检查线性扫一遍内置插件登记，多一个内置插件就多一份；开库、发现、准备上下文等其余各项不变。用户 11-14 弹窗选「按实测一次性放行」；去掉线性扫描归已有的 N43／46。另：风险进入演示项目（它的项目库让它属于项目级插件；空的总览带「新记风险」，不是打不开的入口），release 版本表加风险一行、Goals 与 Schedule 改 3，界面贡献 id 去掉 `.v1`。
+8. 合审收口（2026-11-14，C 轨与 D 轨对 293e6c31d0 退回后改）：
+   - **复查结果与定样不同（D 轨第 3 条）**：定样是「下面是历次结果（助理带来的用 `mw-brought`），到期结果给建议，人采纳才改处置」，原型有「采纳／不采纳」。本批只显示 Schedule 任务最后一轮的结论（「需要你看」与「没有实质变化」分开）、没跑成的原因和读取授权。原因：SDK `/ui` 没有 brought 部件，一轮结果是一段文字、没有可采纳的结构化建议；现在的替代是人读结论后自己在详情里改处置。补齐记 [BL-risk-review-history-adopt](../backlog/BL-risk-review-history-adopt.md)，验收时请用户确认这一取舍。
+   - **侧栏视图照定样 C 排**：紧凑头（状态、小格、更新时间）→ 影响、可能性、负责人 → 描述 → 处置 → 关联 → 复查 → 进展；原型里的「关闭」由外壳侧栏自带的关闭承担，页面不另画。
+   - **页头**：插件根节点带 `mw-layout-primitives`（与 Coding 同），`renderFrame` 的页头按组件板排版；风险自己的外层滚动，所以页头和面板的内边距在 `styles.ts` 收窄。
+   - **Schedule 修改缺省沿用重复方式（C 轨第 1 条）**：`schedule.tasks.update@1` 不给 `repeat` 时沿用任务原来的，一次性任务不给 `at` 就保留原时间；Schedule 页面对一次性任务显示「单次」。
+   - **Goals 同步导入校验 `cited_subjects_json`（C 轨第 2 条）**：JSON 列表、至多 8 个、`kind`／`id` 非空，别的字段拒收。改前这类载荷在后面的应用步骤也会失败，现在在导入校验处就拒。
+   - **Goals 旧事件的 `cited_subjects`**：统一起点之后、本批之前写下的 `concern_opened` 事件没有这个字段，读成空列表，意思是「没有引用对象」，与新写入的空列表同义；日志不改写。
+9. 评审台复审小修（2026-11-14，头 b58f377d6a 审过、不挡合并，随本批修）：
+   - **Schedule 页面编辑一次性任务**：表单的「每天」时间对一次性任务藏起并不发送（详情的时间带 `data-schedule-task-once`），改了也不会被悄悄丢掉；一次性任务的时间只在安排它的地方改（风险的复查）。`tests/schedule-isolated-page.e2e.test.ts` 补了三种表单状态。
+   - **Goals 同步校验与写入侧一致**：`cited_subjects_json` 里 `kind`／`id` 前后带空格或重复的也拒收（写入侧 `citedSubjectsOf` 会去空格、去重）。
+   - **风险页面的只读判断**：只有动作的 forbidden 码（`actions.*` 的 403，不含未登录与非本 Home）才把记录变只读；宿主自己的 403（控制令牌、来源）不算。
+   - **调用预算许可**：许可只能点名真变大的计数；补了「删掉已采用的许可」与「点名没变大的计数」两种拒绝用例，`tooling/gates/README.md` 写上两份文件的规则。
+   - `updateTask` 为找一条任务读全部任务，记 [BL-schedule-update-task-lookup](../backlog/BL-schedule-update-task-lookup.md)。

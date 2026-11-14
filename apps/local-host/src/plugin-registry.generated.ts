@@ -18,6 +18,7 @@ import { registration as jellyRegistration } from "@molis-ai/molis-work-plugin-j
 import { registration as lingguangRegistration } from "@molis-ai/molis-work-plugin-lingguang/registration";
 import { registration as pagesRegistration } from "@molis-ai/molis-work-plugin-pages/registration";
 import { registration as pptRegistration } from "@molis-ai/molis-work-plugin-ppt/registration";
+import { registration as riskRegistration } from "@molis-ai/molis-work-plugin-risk/registration";
 import { registration as scheduleRegistration } from "@molis-ai/molis-work-plugin-schedule/registration";
 import { registration as shelfRegistration } from "@molis-ai/molis-work-plugin-shelf/registration";
 import { registration as textStatsRegistration } from "@molis-ai/molis-work-plugin-text-stats/registration";
@@ -48,4 +49,5 @@ export const PLATFORM_PLUGIN_REGISTRATIONS: readonly (PluginRegistration & { rea
   { ...gitRegistration, package_name: "@molis-ai/molis-work-plugin-git" },
   { ...diffRegistration, package_name: "@molis-ai/molis-work-plugin-diff" },
   { ...textStatsRegistration, package_name: "@molis-ai/molis-work-plugin-text-stats" },
+  { ...riskRegistration, package_name: "@molis-ai/molis-work-plugin-risk" },
 ];

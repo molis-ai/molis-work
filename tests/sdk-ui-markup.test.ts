@@ -214,3 +214,19 @@ test("the resume prompt's buttons are renderButton's secondary text buttons, and
   const gone = sdkUi.renderReturnBar({ title: "From Images", body: "The page is closed", back: "Close settings", label: "Where you came from", state: "gone" });
   assert.match(gone, /data-return-bar-back[^>]*><span data-slot="button-label">Close settings<\/span><\/button>/u, "closing the settings has no back arrow");
 });
+
+test("RISK-01 the severity grid lights one place, reads without colour, and carries only the caller's words", async () => {
+  const { renderSeverityGrid } = await import("@molis-ai/molis-work-plugin-sdk/ui");
+  const lit = (html: string) => [...html.matchAll(/<i( class="is-lit")?><\/i>/g)].map((cell) => Boolean(cell[1]));
+  const html = renderSeverityGrid({ row: 3, column: 2, tone: "danger", label: "影响高，可能性中" });
+  assert.deepEqual(lit(html), [false, true, false, false, false, false, false, false, false], "top row is row 3, left column is column 1");
+  assert.match(html, /role="img" aria-label="影响高，可能性中"/);
+  assert.match(html, /mw-severity-grid--small mw-severity-grid--danger/);
+  assert.doesNotMatch(html, /mw-severity-grid__axes/, "the small size has no axis titles");
+  assert.deepEqual(lit(renderSeverityGrid({ row: 1, column: 3, label: "x" })), [false, false, false, false, false, false, false, false, true]);
+  assert.deepEqual(lit(renderSeverityGrid({ row: 9, column: Number.NaN, label: "x" })), [true, false, false, false, false, false, false, false, false], "out of range is pulled in");
+  const large = renderSeverityGrid({ row: 2, column: 2, size: "large", label: "<b>", rowLabel: "Impact <medium>", columnLabel: "Likelihood" });
+  assert.match(large, /aria-label="&lt;b&gt;"/);
+  assert.match(large, /<span class="mw-severity-grid__row-label">Impact &lt;medium&gt;<\/span>/);
+  assert.match(large, /mw-severity-grid--neutral/);
+});

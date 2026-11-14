@@ -44,7 +44,7 @@ C1 管合同与快照，C2 管 AI 运行时与换包，C3 管独立平台服务�
 
 ### 批次与轨道对照
 
-认领前查这里：一项占哪条轨道，决定它要不要等别人。下面三张表覆盖全部 87 批、203 个交付项，由批次详情与需求记录推导，用户 2026-11-04 确认；2026-11-08 随状态机能力并入 26-7／27-6／47-2／48-5，交付项增到 203；2026-11-12 随事项线加 32-3，交付项增到 204，第 32 批不再整批在 A 轨；2026-11-13 随插件同等地位收口新增第 44 批（原 44～89 顺延为 45～90，上面的批次号已按新号写）并加 39-2、41-2，共 88 批、214 个交付项。[全景图](https://molis-ai.github.io/molis-work/)按它算「可领」。执行目录增删或改名交付行时，同一个改动里改这里。
+认领前查这里：一项占哪条轨道，决定它要不要等别人。下面三张表覆盖全部 87 批、203 个交付项，由批次详情与需求记录推导，用户 2026-11-04 确认；2026-11-08 随状态机能力并入 26-7／27-6／47-2／48-5，交付项增到 203；2026-11-12 随事项线加 32-3，交付项增到 204，第 32 批不再整批在 A 轨；2026-11-13 随插件同等地位收口新增第 44 批（原 44～89 顺延为 45～90，上面的批次号已按新号写）并加 39-2、41-2，共 88 批、214 个交付项；2026-11-14 发行拆成发行批（[决定 45](decisions.md#decision-45)）：26 由 8 项变 4 项（移走 26-1～26-4、26-6，新增 26-9），加 REL-1～REL-5 共 11 项，共 93 批、221 个交付项。[全景图](https://molis-ai.github.io/molis-work/)按它算「可领」。执行目录增删或改名交付行时，同一个改动里改这里。
 
 怎样算占用：
 
@@ -65,7 +65,7 @@ C1 管合同与快照，C2 管 AI 运行时与换包，C3 管独立平台服务�
 | C（同批细分不同或未细分） | [22](batches/22.md)、[24](batches/24.md)、[36](batches/36.md)、[39](batches/39.md)、[42](batches/42.md)、[61](batches/61.md)、[62](batches/62.md) | [24-1](batches/24.md#batch-24-item-1)、[24-3](batches/24.md#batch-24-item-3)、[61-3](batches/61.md#batch-61-item-3) |
 | D 外观与语言 | [07](batches/07.md)、[13](batches/13.md)、[14](batches/14.md)、[16](batches/16.md)、[40](batches/40.md)、[71](batches/71.md) | — |
 | E 插件 | [17](batches/17.md)、[18](batches/18.md)、[19](batches/19.md)、[38](batches/38.md)、[55](batches/55.md)、[68](batches/68.md)、[69](batches/69.md)、[70](batches/70.md)、[77](batches/77.md)、[78](batches/78.md)、[82](batches/82.md) | [55-3](batches/55.md#batch-55-item-3)、[55-8](batches/55.md#batch-55-item-8)、[68-3](batches/68.md#batch-68-item-3)、[68-6](batches/68.md#batch-68-item-6) |
-| F 场景引导与发布 | [45](batches/45.md)、[75](batches/75.md) | — |
+| F 场景引导与发布 | [45](batches/45.md)、[75](batches/75.md)、[REL-1](batches/rel-1.md)、[REL-2](batches/rel-2.md)、[REL-3](batches/rel-3.md)、[REL-5](batches/rel-5.md) | [REL-1](batches/rel-1.md)（外部资格与凭据，只核查和办理） |
 | G 服务端 | [SRV-2](batches/srv-2.md)、[SRV-5](batches/srv-5.md)、[SRV-6](batches/srv-6.md)、[SRV-7](batches/srv-7.md) | [SRV-5-3](batches/srv-5.md#srv-5-item-3)、[SRV-5-4](batches/srv-5.md#srv-5-item-4)、[SRV-5-5](batches/srv-5.md#srv-5-item-5) |
 
 **整批都不占用：**
@@ -105,14 +105,10 @@ C1 管合同与快照，C2 管 AI 运行时与换包，C3 管独立平台服务�
 | [25-1](batches/25.md#batch-25-item-1) | 常驻、休眠与单 Home 执行恢复 | F | 是 | C2 |
 | [25-2](batches/25.md#batch-25-item-2) | 按主人隔离升级失败 U3 | C1 | 是 | D |
 | [25-3](batches/25.md#batch-25-item-3) | 回到上一版（U6 的回退，从 26-6 提前） | F | 是 | — |
-| [26-1](batches/26.md#batch-26-item-1) | 签名、公证与安装准备 | F | 是 | — |
-| [26-2](batches/26.md#batch-26-item-2) | 正式 OAuth 应用 | F | 否 | — |
-| [26-3](batches/26.md#batch-26-item-3) | 原生组件预置与自检 | F | 是 | — |
-| [26-4](batches/26.md#batch-26-item-4) | 本机日志、崩溃恢复与诊断包 | F | 是 | D |
-| [26-5](batches/26.md#batch-26-item-5) | 插件升级 U4 与合同过渡 U5 | C1 | 是 | A、E |
-| [26-6](batches/26.md#batch-26-item-6) | 副本演练 U6 | F | 是 | — |
+| [26-5](batches/26.md#batch-26-item-5) | 插件升级 U4 | C1 | 是 | A、E |
 | [26-7](batches/26.md#batch-26-item-7) | 状态与状态机合同与词表 | C1 | 是 | D |
 | [26-8](batches/26.md#batch-26-item-8) | 状态词汇门禁与文档（原 27-6） | 不归轨道 | 否 | C1、D、E |
+| [26-9](batches/26.md#batch-26-item-9) | 发行配置收拢 | F | 是 | C1 |
 | [27-1](batches/27.md#batch-27-item-1) | 基础交互体验债 | E | 是 | A、D |
 | [27-2](batches/27.md#batch-27-item-2) | 代码／Diff 及性能余项 | D | 是 | B |
 | [27-3](batches/27.md#batch-27-item-3) | 首批文案与帮助 | D | 是 | A、B、E |
@@ -172,3 +168,5 @@ C1 管合同与快照，C2 管 AI 运行时与换包，C3 管独立平台服务�
 | [SRV-8-1](batches/srv-8.md#srv-8-item-1) | 自动更新与回退 | F | 是 | G |
 | [SRV-8-2](batches/srv-8.md#srv-8-item-2) | 在线备份与恢复 | G | 是 | D、F |
 | [SRV-8-3](batches/srv-8.md#srv-8-item-3) | 可选崩溃上报 | G | 是 | F |
+| [REL-4-1](batches/rel-4.md#rel-4-item-1) | 合同过渡 U5 | C1 | 是 | A、E |
+| [REL-4-2](batches/rel-4.md#rel-4-item-2) | 副本演练 U6 | F | 是 | — |

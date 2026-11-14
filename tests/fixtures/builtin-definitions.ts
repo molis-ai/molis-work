@@ -11,6 +11,7 @@ import { createJellyPlugin } from "@molis-ai/molis-work-plugin-jelly";
 import { createLingguangPlugin } from "@molis-ai/molis-work-plugin-lingguang";
 import { createPagesPlugin } from "@molis-ai/molis-work-plugin-pages";
 import { createPptPlugin } from "@molis-ai/molis-work-plugin-ppt";
+import { createRiskPlugin } from "@molis-ai/molis-work-plugin-risk";
 import { createSchedulePlugin } from "@molis-ai/molis-work-plugin-schedule";
 import { createHomeShelfPlugin, createShelfPlugin } from "@molis-ai/molis-work-plugin-shelf";
 import { createTextStatsPlugin } from "@molis-ai/molis-work-plugin-text-stats";
@@ -23,7 +24,7 @@ import { createWorkflowsPlugin } from "@molis-ai/molis-work-plugin-workflows";
  */
 export const BUILTIN_DEFINITIONS: readonly PluginDefinition[] = [createCogniaPlugin(), createCodingPlugin(), createDatasetPlugin(), createDiffPlugin(),
   createFormPlugin(), createGitPlugin(), createImagesPlugin(), createIssuesPlugin(), createJellyPlugin(), createLingguangPlugin(),
-  createPagesPlugin(), createPptPlugin(), createSchedulePlugin(), createShelfPlugin(), createHomeShelfPlugin(), createTextStatsPlugin(), createTodoPlugin(),
+  createPagesPlugin(), createPptPlugin(), createRiskPlugin(), createSchedulePlugin(), createShelfPlugin(), createHomeShelfPlugin(), createTextStatsPlugin(), createTodoPlugin(),
   createWorkflowsPlugin()];
 
 /** Catalog plugins with no runtime definition to carry Agent texts, and why; with BUILTIN_DEFINITIONS they are the whole catalog. */

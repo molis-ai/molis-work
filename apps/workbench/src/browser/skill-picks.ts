@@ -31,6 +31,8 @@ const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = "", text?: stri
 };
 const same = (a: SkillRef, b: SkillRef) => JSON.stringify(a) === JSON.stringify(b);
 const STATE = { off: "state-off", auto: "state-auto", manual: "state-manual" } as const;
+/** What the toast says once a Skill's state was changed: the title and the line under it. */
+const NOW = { off: ["now-off", "now-off-detail"], auto: ["now-auto", "now-auto-detail"], manual: ["now-manual", "now-manual-detail"] } as const;
 
 /**
  * The 「依据」 panel of a round's Skills (SKL-11): why one was used, and what the person can do about it — run the round again with
@@ -79,7 +81,7 @@ export function mountSkillPicks(ports: Ports): void {
       try {
         const next = await api<SkillCatalogEntry>(home, "set", { scope: home ? "home" : "project", install_id: entry.ref.install_id, skill_id: entry.ref.skill_id, state, expected_revision: entry.settings_revision });
         close();
-        ports.card(say(undo ? "restored" : state === "manual" ? "now-manual" : "now-off", { name: entry.name }), undo ? "" : say(state === "manual" ? "now-manual-detail" : "now-off-detail"),
+        ports.card(say(undo ? "restored" : NOW[state][0], { name: entry.name }), undo ? "" : say(NOW[state][1]),
           undo ? [] : [{ label: say("undo"), run: () => void setState({ ...next, enabled: entry.enabled }, was, true) }], "done");
       } catch (cause) {
         if (undo) ports.card(say("failed"), cause instanceof Error ? cause.message : "", [], "error"); else failed(cause, () => void setState(entry, state, false));
@@ -103,8 +105,11 @@ export function mountSkillPicks(ports: Ports): void {
       show({ title: pick.name, reason: say(pick.picked === "auto" ? "why-auto" : "why-named"), facts, ...(entry ? {} : { note: say("gone") }) }, [
         { label: say("this-round"), actions: [{ label: say("swap"), detail: say("swap-detail"), run: () => others(all, kept, () => draw(all)) }, { label: say("plain"), detail: say("plain-detail"), run: () => { close(); redo(request, []); } }] },
         ...(entry && entry.state !== "off" ? [{ label: say("from-now"), actions: [
-          ...(entry.state === "auto" ? [{ label: say("make-manual"), detail: say("make-manual-detail"), run: () => void setState(entry, "manual", false) }] : []),
-          { label: say("turn-off"), detail: say("turn-off-detail"), run: () => void setState(entry, "off", false) }] }] : [])]);
+          entry.state === "auto" ? { label: say("make-manual"), detail: say("make-manual-detail"), run: () => void setState(entry, "manual", false) }
+            : { label: say("make-auto"), detail: say("make-auto-detail"), run: () => void setState(entry, "auto", false) },
+          { label: say("turn-off"), detail: say("turn-off-detail"), run: () => void setState(entry, "off", false) },
+          // Everything else about the Skill (its text, its files, who published it) is on the 「能力包」 page, not copied here.
+          { label: say("details"), run: () => location.assign((ports.project ? "/projects/" + encodeURIComponent(ports.project) : "") + "/settings/kit") }] }] : [])]);
     };
     pop.addEventListener("toggle", event => { if ((event as ToggleEvent).newState === "closed") pop.remove(); });
     show({ note: say("loading") }, []); pop.showPopover(); place();

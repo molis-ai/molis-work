@@ -94,6 +94,14 @@ test("SKL-11 SKL-12 SKP-10: the shell's panel says why a Skill was used, changes
   await page.command("Input.dispatchKeyEvent", { type: "keyUp", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 });
   await page.wait("!document.querySelector('[data-skill-why]')");
 
+  // A Skill that is 仅手动 now offers the way back to 自动 instead, and where the rest about it is.
+  await open(0);
+  const manual = await panel();
+  assert.ok(manual.includes("仅手动") && manual.includes("恢复成自动") && manual.includes("在设置里查看这个技能") && !manual.includes("改成仅手动"), manual);
+  await press("恢复成自动");
+  await page.wait("[...document.querySelectorAll('.placement-toast')].some(toast => toast.innerText.includes('「会议纪要」已恢复成自动'))");
+  assert.equal(stateOf("meeting-notes"), "auto");
+
   // SKL-11 「这次不用技能」: the page hears a redo with nothing named.
   await open(0); await press("这次不用技能，重做");
   assert.deepEqual(await redos(), [{ reply: "round-1", named: [] }]);

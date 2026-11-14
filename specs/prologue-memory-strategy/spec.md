@@ -73,7 +73,7 @@ Assistant/Coding 跨主人回执与后续使用的本地接入已收束。人工
 - **设置与清除。** 移动记录的浏览器回归断言原处显示目标范围。会话学到的长期条目只读展示，入口指向其归属的记忆设置。清除把会话记忆、来源指向该会话的长期记忆和待认可建议固定到同一个版本化预览。全部固定范围接受遗忘后才开始 SDK 清理。清除只处理预览中的条目。页面重开后按同一预览继续原操作。新的条目由下次预览处理。
 - **候选。** 三处共用 14 天期限。本人认可与去重共用当前范围的候选读取结果，固定精确同文候选和原版本。原认可重试可续做作废。设置页在收到变更时空闲重读，标签页离开满 30 秒后回到页面时重读一次。未登记的后台候选到期见 [BL-memory-session-residues](../backlog/BL-memory-session-residues.md)。
 - **本机验证。** 构建、动作及公开 API 快照、健康、包边界、密钥、64 项页面资源与双语首屏检查通过。合并后 17 个定向文件通过，另完成 Memory 包 18 个定向文件及独立的 SDK、外观与恢复验证。会话清除 13/13、记忆服务 28/28、会话管理浏览器 7/7、遗忘设置浏览器 9/9、Coding 问答卡 6/6、SDK 来源 79/79、Home 恢复后遗忘检查 14/14。Goals 66 张页面逐字核对，16 张只增加「本会话记忆」入口，严格复验通过。
-- **BL-1071～1077。** BL-1071 的 SDK `770a2e27` 已随 #2020 合入。BL-1072 暖读增量 +31.1 ms，超过 30 ms。BL-1073 的最后一轮正式对照总 token 高 2.6%，对应 11-12 的 `677038240`。11-13 提示词的后续改动按用户决定记录差异，以工程验证结算。BL-1074 在 [#2029](https://github.com/molis-ai/molis-work/pull/2029) 跟踪。P0 本机和最终候选的 Linux 首轮 Coding 问答卡均为 6/6。BL-1075 的 MEM-43/44 移至 V0 后。BL-1076 按用户决定视作通过，完整本人走查及第 9、10 行和第 12 行另一半保留在 [BL-memory-own-app-walkthrough](../backlog/BL-memory-own-app-walkthrough.md)。BL-1077 已关闭，历史真实 Home 影响中的未知部分保留。
+- **BL-1071～1077。** BL-1071 的 SDK `770a2e27` 已随 #2020 合入。BL-1072 暖读增量 +31.1 ms，超过 30 ms。BL-1073 的最后一轮正式对照总 token 高 2.6%，对应 11-12 的 `677038240`。11-13 提示词的后续改动按用户决定记录差异，以工程验证结算。BL-1074 已由 [#2029](https://github.com/molis-ai/molis-work/pull/2029) 修复；原生 Linux no-fail-fast full suite [43546443501](https://github.com/molis-ai/molis-work/actions/runs/43546443501) 的 shard 21 首轮 `coding-question-card.e2e` 6/6，无 CDP 超时；2026-11-14 删除 BL。P0 本机和最终候选的 Linux 首轮 Coding 问答卡均为 6/6。BL-1075 的 MEM-43/44 移至 V0 后。BL-1076 按用户决定视作通过，完整本人走查及第 9、10 行和第 12 行另一半保留在 [BL-memory-own-app-walkthrough](../backlog/BL-memory-own-app-walkthrough.md)。BL-1077 已关闭，历史真实 Home 影响中的未知部分保留。
 - **上轮 CI。** 代码与测试头 `33f774307` 的 Verify 通过，共 27 项通过、2 项按配置跳过。首轮 Skill 委派发生连接重置，仅重跑该安全分片及汇总后通过。macOS 签名金样回放通过。[Verify](https://github.com/molis-ai/molis-work/actions/runs/43376738539) · [首轮失败分片](https://github.com/molis-ai/molis-work/actions/runs/43376738539/job/131725226583)
 - **上轮 Linux 全量。** 代码与测试头 `33f774307` 的 32 个分片跑完，25 个通过、7 个失败。会话清除 13/13、会话管理 7/7、遗忘设置 9/9、助理候选卡 3/3、Coding 问答卡 6/6、SDK 来源 79/79、Home 恢复后遗忘检查 14/14 首轮通过。Goals 页面快照 70 项通过、2 项按原配置跳过。Golden Home 生成一致性 UPG2-02 首轮 41/42，自动重试通过。[候选全量](https://github.com/molis-ai/molis-work/actions/runs/43376728689)
   - 主干 `b81937325` 的 Linux 对照也复现 B27SRC-05（Coding 行高）、QA-033（Pages 查找）及跨位置呈现的 IUI-03、IUI-10（Inbox）。本机干净主干曾复现 Golden Home 的提示词使用记录差异。[主干全量](https://github.com/molis-ai/molis-work/actions/runs/43373326442)
@@ -123,7 +123,7 @@ Assistant/Coding 跨主人回执与后续使用的本地接入已收束。人工
   - 所以那个时间段对真实 Home 有没有影响，从现在的 Home 已经查不出来，不能写成「没有影响」。
 - **已关闭（用户 2026-11-11 定）。** #111 已合入上游（`1128126d`），并随 BL-1071 换入。用户选「删目录，记未知后关闭」：删除前又列了一遍，仍是 28 个文件，全部是 11-03 的、没有更新的，分区名同上；随后永久删除了 `~/.prologue/store/darwin-node`，空的上层 `~/.prologue/store` 不在批准范围内，原样保留。11-04 runner 错误对真实 Home 的影响记为**未知**，这是用户定的去向，不写成「没有影响」。
 
-### BL-1074：原生 Linux 的 CDP 超时根因（2026-11-11）
+### BL-1074：原生 Linux 的 CDP 超时根因（2026-11-11，2026-11-14 已解决）
 
 只读核对原日志和代码，没有加重试，也没有延长超时。
 
@@ -138,7 +138,7 @@ Assistant/Coding 跨主人回执与后续使用的本地接入已收束。人工
   - 评审台在 Chrome 157 上实测：减少动效传不进跨进程框架，颜色方案能传进去。
   - 评审还查出 AC-27-5 的截图辅助函数改颜色方案时把静止冲掉了，已一并修好。评审台审过头 `607233a3`。
 - 本机通过的有 `coding-question-card.e2e`（6/6）和另外 6 个用这个辅助函数的浏览器文件。`home-package-project-reach.e2e` 本机缺专用测试浏览器，没跑起来。
-- 原生 Linux 的证据：已加 `full-suite` 标签，只看 `coding-question-card.e2e` 第一次跑的结果，重试后才过的不算。结果出来之前，BL-1074 不关闭。
+- 原生 Linux 的证据：已加 `full-suite` 标签，只看 `coding-question-card.e2e` 第一次跑的结果，重试后才过的不算。2026-11-14 原生 Linux no-fail-fast full suite 的 shard 21 首轮 `coding-question-card.e2e` 6/6，且无 CDP 超时；BL-1074 已删除，证据见 [#2029](https://github.com/molis-ai/molis-work/pull/2029) 与 [run 43546443501](https://github.com/molis-ai/molis-work/actions/runs/43546443501)。
 
 ### 本会话的用户决定（2026-11-11）
 

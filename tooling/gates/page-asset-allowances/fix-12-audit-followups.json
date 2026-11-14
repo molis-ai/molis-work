@@ -7,36 +7,61 @@
   },
   "pages": {
     "arrival-empty/zh": {
-      "cold": 359,
-      "warm": 199
+      "cold": 1598,
+      "warm": 1280
     },
     "arrival-empty/en": {
-      "cold": 359,
-      "warm": 199
+      "cold": 1607,
+      "warm": 1280
+    },
+    "chooser/zh": {
+      "cold": 318,
+      "warm": 0
     },
     "chooser/en": {
-      "cold": 160,
+      "cold": 327,
       "warm": 0
     },
     "workbench-default/zh": {
-      "cold": 160,
+      "cold": 318,
       "warm": 0
     },
     "workbench-default/en": {
-      "cold": 160,
+      "cold": 327,
       "warm": 0
     },
     "workbench-all-plugins/zh": {
-      "cold": 160,
+      "cold": 318,
       "warm": 0
     },
     "workbench-all-plugins/en": {
-      "cold": 160,
-      "warm": 0
-    },
-    "chooser/zh": {
-      "cold": 160,
+      "cold": 327,
       "warm": 0
     }
-  }
+  },
+  "userApproval": "用户 2026-11-14 要求修复第 12 批合后审计发现的问题；本项是修复中的 5 个提示词，只让工作台语言包内容地址变化，没有新增资源或页面。",
+  "entryApprovals": [
+    {
+      "pages": [
+        "arrival-empty",
+        "chooser",
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "zh",
+      "entry": "/assets/locale/workbench.zh.e701d175e0409adef72871f5.js",
+      "change": "new"
+    },
+    {
+      "pages": [
+        "arrival-empty",
+        "chooser",
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "en",
+      "entry": "/assets/locale/workbench.en.31fb2dbb24b7bcf31e6a3b4f.js",
+      "change": "new"
+    }
+  ]
 }

@@ -462,13 +462,15 @@ function terminalContextBinder(runtimeContexts: ReturnType<typeof createRuntimeC
   };
 }
 
-/** Display membership version per Catalog for the N44 short cache; successful membership writes bump it. */
-const membershipEpochs = new WeakMap<MolisWorkProjectCatalog, number>();
+/** Display membership version per Home for the N44 short cache; a successful membership write bumps it for every catalog of that Home. */
+const membershipEpochs = new Map<string, number>();
+const membershipEpochKey = (catalog: MolisWorkProjectCatalog) => path.resolve(catalog.homeDirectory);
 export function projectPluginEpoch(catalog: MolisWorkProjectCatalog): number {
-  return membershipEpochs.get(catalog) ?? 0;
+  return membershipEpochs.get(membershipEpochKey(catalog)) ?? 0;
 }
 function bumpProjectPluginEpoch(catalog: MolisWorkProjectCatalog): void {
-  membershipEpochs.set(catalog, projectPluginEpoch(catalog) + 1);
+  const key = membershipEpochKey(catalog);
+  membershipEpochs.set(key, (membershipEpochs.get(key) ?? 0) + 1);
 }
 function bumpAnd<T>(catalog: MolisWorkProjectCatalog, run: () => T): T {
   const result = run();

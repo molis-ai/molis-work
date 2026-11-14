@@ -34,6 +34,11 @@ export interface ProjectRequestContext extends WebRequestContext {
   readonly userActions: (permissions: readonly string[], entry?: LocalWebEntry) => BoundActionClient;
   /** The plugins this project's page shows: personal ones included unless the person hid them here. */
   readonly shownPlugins: (projectId: string) => Promise<string[]>;
+  /**
+   * The plugins this project shows, read from the Catalog now: the protected page projection reads this before handing out page words,
+   * so the short display reuse above never decides whose words a page may show (S-ui-text-page).
+   */
+  readonly shownPluginsFresh: (projectId: string) => Promise<string[]>;
   /** The rendered selector keeps the revision of the same membership it displays. */
   readonly shownPluginSelection: (projectId: string, withRevision: boolean) => Promise<{ shown: string[]; revision?: string }>;
   /**
@@ -64,7 +69,7 @@ export function projectRequestContext(context: WebRequestContext, options: Resol
   const directory = homeDirectory ? () => readOnlyAlwaysOnProjectPlugins(homeDirectory) : undefined;
   const hostReference = molisWorkHostProjectReference({ databasePath: options.databasePath, projectId: options.projectId });
   const userActions = (permissions: readonly string[], entry: LocalWebEntry = {}) => bindLocalWebActions(localHost, hostReference, permissions, entry);
-  const selection = async (projectId: string, versioned: boolean): Promise<{ shown: string[]; revision?: string }> => {
+  const selection = async (projectId: string, versioned: boolean, fresh = false): Promise<{ shown: string[]; revision?: string }> => {
     const home = localHost.homePlugins;
     try { await home?.ready(); } catch { /* A failed Home retains its registered unavailable stages. */ }
     const withExternal = (plugins: readonly string[], hidden: readonly string[]) => {
@@ -79,13 +84,17 @@ export function projectRequestContext(context: WebRequestContext, options: Resol
       const { plugins, hidden, revision } = catalog.projectPluginMembershipWithRevision(projectId, directory);
       return { shown: withExternal(plugins, hidden), revision };
     });
-    const { plugins, hidden } = await observeProjectPluginMembership(composition, homeDirectory, projectId, directory);
+    // The protected page projection asks for the live membership even when a display read was cached inside the short window.
+    const { plugins, hidden } = fresh
+      ? await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => catalog.projectPluginMembership(projectId, directory))
+      : await observeProjectPluginMembership(composition, homeDirectory, projectId, directory);
     return { shown: withExternal(plugins, hidden) };
   };
   const goalsHere = async () => !options.project
     || (await observeProjectPluginMembership(composition, homeDirectory, options.projectId, directory)).plugins.includes("goals");
   return { ...context, options, hostReference, userActions, goalsHere,
     shownPlugins: async projectId => (await selection(projectId, false)).shown,
+    shownPluginsFresh: async projectId => (await selection(projectId, false, true)).shown,
     shownPluginSelection: selection,
   };
 }

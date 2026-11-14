@@ -41,10 +41,15 @@ test("26-9 C-1: report identifies the unfilled production fields and a mismatche
     "connectors.brokerOrigin", "connectors.applicationRefs", "connectors.applications",
     "updateChannel", "symbolUploadTarget",
   ]);
-  assert.deepEqual(carrierIssues("dev", path => JSON.stringify(path.endsWith("tauri.conf.json") ? {
-    identifier: "ai.example.work", productName: "Molis Work", bundle: { macOS: { minimumSystemVersion: "13.0" } },
-  } : { bundle: { macOS: { signingIdentity: "-" } } })), [
+  assert.deepEqual(carrierIssues("dev", path => {
+    if (path.endsWith(".yml")) return "          node-version: 24.0.0\n";
+    return JSON.stringify(path.endsWith("tauri.conf.json") ? {
+      identifier: "ai.example.work", productName: "Molis Work", bundle: { macOS: { minimumSystemVersion: "13.0" } },
+    } : { bundle: { macOS: { signingIdentity: "-", entitlements: "custom.plist" } } });
+  }), [
     "apps/desktop/src-tauri/tauri.conf.json identifier differs from the developer profile (checking dev)",
+    "apps/desktop/src-tauri/tauri.macos.conf.json bundle.macOS.entitlements differs from the developer profile (checking dev)",
+    ".github/workflows/release-macos.yml node-version-file differs from the developer profile (checking dev)",
   ]);
 });
 
@@ -54,11 +59,14 @@ test("26-9 C-1: report finds duplicate application selectors and Mach-O paths ou
   execFileSync("git", ["init", "--quiet"], { cwd: directory });
   const config = "apps/local-host/src/release-profiles.json";
   await mkdir(join(directory, "apps/local-host/src"), { recursive: true });
-  await writeFile(join(directory, config), await readFile(join(root, config)));
-  await writeFile(join(directory, "apps/local-host/src/duplicate.ts"), 'const selector = "OAUTH_APP_TEST";\nconst path = "Contents/MacOS/*";\n');
+  const configuration = JSON.parse(await readFile(join(root, config), "utf8"));
+  configuration.profiles.release.updateChannel = "fixture-channel";
+  await writeFile(join(directory, config), JSON.stringify(configuration));
+  await writeFile(join(directory, "apps/local-host/src/duplicate.ts"), 'const selector = "OAUTH_APP_TEST";\nconst path = "Contents/MacOS/*";\nconst channel = "fixture-channel";\n');
   assert.deepEqual(misplacedValues(pathToFileURL(directory + "/")), [
     "apps/local-host/src/duplicate.ts:1 contains a release configuration value",
     "apps/local-host/src/duplicate.ts:2 contains a release configuration value",
+    "apps/local-host/src/duplicate.ts:3 contains a release configuration value",
   ]);
 });
 

@@ -213,7 +213,8 @@ export async function installedPluginStages(options: AgentStudioOptions): Promis
       const upgrade = describePluginTablesRefusal(home, item.plugin_id, options.store.path, { code });
       if (upgrade) return [{ pluginId: item.plugin_id, surface, label, directory, unavailable: {
         surface, label, scope: 'project', reason: failure ?? '', plugin_id: item.plugin_id, code,
-        upgrade: { title: label, reason: upgrade.reason, diagnostic_id: upgrade.diagnostic_id, rollback_href: rollbackHrefFor(home, upgrade.reason), reload_href: null },
+        upgrade: { title: label, reason: upgrade.reason, diagnostic_id: upgrade.diagnostic_id, rollback_href: rollbackHrefFor(home, upgrade.reason),
+          reload_href: upgrade.reason === 'upgrade_activation_failed' ? `${prefix}/settings/plugins` : null },
       } }];
     }
     if (item.state !== 'running' || installed.recoveryErrors.has(item.plugin_id)

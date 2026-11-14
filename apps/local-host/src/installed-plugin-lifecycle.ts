@@ -19,6 +19,7 @@ import type { PluginPlatform } from './plugin-platform.js';
 export type InstalledPluginPlatform = Pick<PluginPlatform, 'runtime' | 'supervisor' | 'start' | 'consents' | 'upgrade' | 'rollback'>;
 import type { PluginSecrets } from './plugin-builder/secrets.js';
 import { changeInstalledVersion } from './installed-plugin-version.js';
+import { installedHomeUpgradeBlocked } from './installed-home-upgrade-recovery.js';
 import type { RecoveryErrors } from './installed-recovery-errors.js';
 
 export const APPROVED_KEY = 'plugin-builder:agent-studio:approved:';
@@ -203,6 +204,9 @@ export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPo
       return install(release, grants);
     }
     if (!record) throw new Error('这个插件还没有安装');
+    if (c.project_id === null && action !== 'disable' && installedHomeUpgradeBlocked(c.home, record)) {
+      throw pluginErrors.upgrade_validation_failed('等待 Home 插件库完成恢复');
+    }
     if (action === 'upgrade' || action === 'rollback') {
       const verb = action === 'upgrade' ? '升级' : '回滚';
       if (record.publisher_trust === 'pinned' && action === 'rollback') throw pluginErrors.state_invalid('从签名的包装进来的插件还不能' + verb + '：先卸载，再装新的包');
@@ -266,6 +270,7 @@ export async function uninstallInstalledRecord(c: InstalledLifecycleContext, plu
   if (target && (target.install_id !== record.install_id || target.installation_generation !== record.installation_generation || target.version !== record.version || target.manifest_digest !== record.manifest_digest)) {
     throw pluginErrors.install_replaced('要卸载的已不是这次安装：它已经被重装或升级，请刷新后再试');
   }
+  if (c.project_id === null && installedHomeUpgradeBlocked(c.home, record)) throw pluginErrors.upgrade_validation_failed('等待 Home 插件库完成恢复');
   if (!live) return await removeInstallation(c, pluginId, record, undefined, target, input.assertCurrent);
   const refusal = leaveRefusal(c.platform.consents ?? undefined, record, '卸载');
   if (refusal) throw refusal;

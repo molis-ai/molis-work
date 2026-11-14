@@ -17,6 +17,7 @@ import { removeSandboxOwnerFiles, sandboxOwnerFilesFor } from "./plugin-sandbox-
 import { discardInstallationOwnerData, forgetInstallationRecords, forgetLeftoverInstallationBindings } from "./plugin-installation-cleanup.js";
 import { homeLibraryFor } from "./plugin-database-entries.js";
 import { commitInstalledDatabaseUpgrade, withInstalledHomeSnapshot } from "./plugin-sandbox-database-upgrade.js";
+import { installedHomeUpgradeBlocked } from "./installed-home-upgrade-recovery.js";
 import { openSandboxHomeLibrary } from "./plugin-sandbox-home-library.js";
 import { SandboxPackageStore } from "./sandbox-package-store.js";
 import { noteRetained } from "./uninstall-retained.js";
@@ -128,7 +129,9 @@ export class HomePluginExecutor implements PluginExecutor {
     try {
       withdrawText = pluginTextFor(this.options, definition, context);
       const home = pluginHomeFor(this.options.home);
-      const library = homeLibraryFor(definition, this.options.database(definition), this.options.record(context.install_id));
+      const record = this.options.record(context.install_id);
+      if (record && installedHomeUpgradeBlocked(this.options.home, record)) throw pluginErrors.upgrade_validation_failed("等待 Home 插件库完成恢复");
+      const library = homeLibraryFor(definition, this.options.database(definition), record);
       const declaration = library?.declaration;
       if (library && definition.execution === "sandbox") {
         // The package's code is not in this process: its statements run in a process the Host can kill, over a library the ledger made for it (BL-490).
@@ -267,8 +270,7 @@ export class HomePluginExecutor implements PluginExecutor {
     const { assertCurrent, ...expected } = change, home = pluginHomeFor(this.options.home);
     await this.libraryExits.get(change.current.install_id);
     this.libraryExits.delete(change.current.install_id);
-    await withInstalledHomeSnapshot(home, change, () => this.options.record(change.current.install_id),
-      () => commitInstalledDatabaseUpgrade({
+    await withInstalledHomeSnapshot(home, change, () => commitInstalledDatabaseUpgrade({
       op: "upgrade-home-database", home: home.directory, target: definition.manifest, change: expected,
       reserved: home.stores.stores.map(({ path, owner }) => ({ path, owner })),
     }, () => { assertCurrent(); home.assertStorageOwner(); }));

@@ -64,6 +64,7 @@ const MANIFEST_SCHEMA_VERSION = /* @version format.home.upgrade.snapshot */ 1;
 const MANIFEST_MAXIMUM_BYTES = 16 * 1024 * 1024;
 const RESTORE_SUFFIX = ".upgrade-restore";
 const RUN_ID = /^[A-Za-z0-9_-]{1,128}$/;
+const INSTALLED_RUN_ID = /^installed-plugin-[a-f0-9-]{36}$/u;
 const SHA256 = /^[0-9a-f]{64}$/;
 
 const sha256 = (text: string) => createHash("sha256").update(text).digest("hex");
@@ -350,7 +351,7 @@ export function pruneUpgradeSnapshots(lock: UpgradeHomeLock, keepRunId: string):
     const upgrade = join(realpathSync(home), UPGRADE_DIRECTORY), found = lstatSync(upgrade, { throwIfNoEntry: false });
     if (!found) return;
     if (!found.isDirectory()) throw fail("invalid_path", label);
-    for (const name of readdirSync(upgrade)) if (name !== keepRunId && RUN_ID.test(name)) rmSync(join(upgrade, name), { recursive: true, force: true });
+    for (const name of readdirSync(upgrade)) if (name !== keepRunId && RUN_ID.test(name) && !INSTALLED_RUN_ID.test(name)) rmSync(join(upgrade, name), { recursive: true, force: true });
     syncPath(upgrade);
   });
 }
@@ -367,4 +368,16 @@ export function discardUpgradeSnapshot(unit: UpgradeSnapshotUnit): void {
     rmSync(paths.run, { recursive: true, force: true });
     syncPath(paths.upgrade);
   });
+}
+
+/** A private, single-operation snapshot has a dedicated run name. A round that never armed may have stopped before writing its manifest. */
+export function discardUnarmedInstalledUpgradeSnapshot(lock: UpgradeHomeLock, runId: string): void {
+  assertHomeLock(lock);
+  if (!INSTALLED_RUN_ID.test(runId)) throw fail("invalid_path", UPGRADE_DIRECTORY);
+  const upgrade = join(realpathSync(lock.home), UPGRADE_DIRECTORY), run = join(upgrade, runId);
+  const directory = lstatSync(upgrade, { throwIfNoEntry: false }), found = lstatSync(run, { throwIfNoEntry: false });
+  if (!found) return;
+  if (!directory?.isDirectory() || !found.isDirectory()) throw fail("invalid_path", UPGRADE_DIRECTORY);
+  rmSync(run, { recursive: true, force: true });
+  syncPath(upgrade);
 }

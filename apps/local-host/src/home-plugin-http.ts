@@ -386,7 +386,7 @@ export async function renderHomePluginStages(host?: HomePluginHost, options?: { 
         html.push(installedStageSection({ pluginId, surface: release.pluginId, installation: installedStageIdentity("home", record), label: installedPluginWords(release).name, icon: entry.manifest.ui?.views?.find(view => view.slot === "stage")?.icon, prefix: options?.project_id ? `/projects/${encodeURIComponent(options.project_id)}` : "" }));
         surfaces.push({ contribution_id: actual.view.descriptor.contribution_id, surface: "workbench" });
       }
-      else unavailable.push(homeUnavailableStage(host, platform, failure, entry));
+      else unavailable.push(homeUnavailableStage(host, platform, failure, entry, options?.project_id));
       continue;
     }
     const view = options?.views ? options.views[key] : stage ? homeStageView(host, platform, pluginId, stage) : undefined;
@@ -404,13 +404,14 @@ export async function renderHomePluginStages(host?: HomePluginHost, options?: { 
  * supervisor's message, else what the instance's state says.
  */
 function homeUnavailableStage(host: HomePluginHost, platform: HomePluginPlatform | undefined, failure: { code: string; message: string } | undefined,
-  entry: { project_plugin_id: string; manifest: PluginManifest }): UnavailablePluginStage {
+  entry: { project_plugin_id: string; manifest: PluginManifest }, projectId?: string): UnavailablePluginStage {
   const install = platform ? host.installation(entry.manifest.plugin_id) : null;
   const state = platform?.supervisor.state(entry.manifest.plugin_id);
   // A Home plugin stopped because its tables were not upgraded draws the upgrade card (U3 §2.4); restarting cannot upgrade them.
-  const code = install?.last_error_code ?? state?.code, upgrade = code ? describePluginTablesRefusal(host.homeDirectory, entry.manifest.plugin_id, null, { code }) : undefined;
+  const code = install?.last_error_code ?? state?.code ?? host.packageError(entry.manifest.plugin_id, "code"), upgrade = code ? describePluginTablesRefusal(host.homeDirectory, entry.manifest.plugin_id, null, { code }) : undefined;
   return { ...(state ? { status: state.status === "running" ? undefined : state.status, code: state.code } : { code: failure?.code }), surface: entry.project_plugin_id, label: entry.manifest.name, scope: "home",
-    ...(upgrade ? { upgrade: { title: entry.manifest.name, reason: upgrade.reason, diagnostic_id: upgrade.diagnostic_id, rollback_href: rollbackHrefFor(host.homeDirectory, upgrade.reason), reload_href: null } } : {}),
+    ...(upgrade ? { upgrade: { title: entry.manifest.name, reason: upgrade.reason, diagnostic_id: upgrade.diagnostic_id, rollback_href: rollbackHrefFor(host.homeDirectory, upgrade.reason),
+      reload_href: upgrade.reason === "upgrade_activation_failed" ? `/projects/${encodeURIComponent(projectId ?? "personal")}/settings/plugins` : null } } : {}),
     reason: failure?.message ?? (state?.status === "starting" ? uiText.text("workbench.home-plugin-http.starting") : null) ?? host.packageError(entry.manifest.plugin_id) ?? state?.message
       ?? uiText.text(install?.state === "running" ? "workbench.home-plugin-http.plugin-page-not-registered" : "workbench.home-plugin-http.plugin-disabled") };
 }

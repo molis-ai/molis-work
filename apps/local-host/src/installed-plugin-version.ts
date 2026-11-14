@@ -12,11 +12,11 @@ import { logInstalledUpgradeRefusal } from './home-unavailable-owners.js';
 /** Runtime owns the version switch; this Host operation owns consent values and its exposure of the new release. */
 export async function changeInstalledVersion(c: InstalledLifecycleContext, action: 'upgrade' | 'rollback', release: AgentRelease,
   record: PluginInstanceRecord, nextApproval: SandboxEffects, inputs: Array<{ name: string; header: string; value: string }>, control?: { assertCurrent?: () => void; scopeOpen?: () => boolean }): Promise<void> {
-  const assertAuthority = () => {
-    control?.assertCurrent?.();
+  const assertStanding = () => {
     if (c.closed() || control?.scopeOpen?.() === false) throw new ActionError('actions.host_closed', '原插件安装范围已经关闭');
     if (record.publisher_trust === 'pinned' && !c.trusted(record)) throw pluginErrors.publisher_revoked('插件发布者已经被撤销');
   };
+  const assertAuthority = () => { control?.assertCurrent?.(); assertStanding(); };
   assertAuthority();
   const pluginId = release.pluginId, verb = action === 'upgrade' ? '升级' : '回滚', off = record.state === 'disabled';
   const earlier = c.releaseFor(pluginId), earlierApproval = c.approvedFor(pluginId), approval = c.storage.get(APPROVED_KEY + pluginId), next = c.definition(release, nextApproval);
@@ -39,13 +39,15 @@ export async function changeInstalledVersion(c: InstalledLifecycleContext, actio
     const previous = previousManifest?.databases?.[scope], nextDatabase = next.manifest.databases?.[scope];
     return previous && nextDatabase && previous.version !== nextDatabase.version;
   });
-  const assertCurrent = () => {
-    assertAuthority();
+  const assertScope = () => {
+    assertStanding();
     if (databaseVersionChanged && !ownsScope()) throw new ActionError('actions.provider_replaced', '原插件的启用状态已变更，请重新查看');
   };
+  const assertCurrent = () => { control?.assertCurrent?.(); assertScope(); };
   let moved: PluginInstanceRecord | undefined;
   try {
-    const state = action === 'upgrade' ? await c.platform.upgrade(pluginId, next, { assertCurrent, previousManifest, persistApproval }) : await c.platform.rollback(pluginId, next);
+    const state = action === 'upgrade' ? await c.platform.upgrade(pluginId, next, { assertCurrent, previousManifest, persistApproval,
+      assertCommitted: databaseVersionChanged ? assertScope : undefined }) : await c.platform.rollback(pluginId, next);
     const current = c.recordFor(pluginId);
     if (ownsScope() && current?.installation_generation === record.installation_generation && current.install_id === record.install_id
       && current.version === next.manifest.version && current.manifest_digest === pluginManifestDigest(next.manifest)) moved = current;
@@ -54,12 +56,12 @@ export async function changeInstalledVersion(c: InstalledLifecycleContext, actio
       throw new Error(verb + '没有完成：' + (state?.message ?? '插件未能启动'));
     }
     if (c.closed()) throw new Error('安装运行入口已关闭，不能保存切换结果');
-    assertCurrent?.();
+    if (databaseVersionChanged) assertScope(); else assertCurrent();
     changes?.apply();
     if (!databaseVersionChanged) c.storage.set(key, persistApproval.value);
     if (!off) await c.expose(release, 'caller');
     if (!same(moved)) throw new Error('插件安装已变化，不能继续采用旧切换结果');
-    assertCurrent?.();
+    if (databaseVersionChanged) assertScope(); else assertCurrent();
     c.registerPrompts(release, off ? 'disabled' : 'enabled', action === 'rollback'); c.recoveryErrors.delete(pluginId);
   } catch (error) {
     if ((error as { code?: unknown })?.code === 'actions.provider_replaced' && (!databaseVersionChanged || !ownsScope())) throw error;
@@ -79,9 +81,10 @@ export async function changeInstalledVersion(c: InstalledLifecycleContext, actio
     }
     // SQL, the edition and approval already share a commit. Do not return older code to this owner's new schema.
     if (databaseVersionChanged) {
+      assertScope();
       c.withdraw(pluginId);
       const refusal = pluginErrors.upgrade_activation_failed('插件库已升级，新版本暂时无法使用');
-      if (moved.state === 'running') await c.platform.runtime.pauseAfterUpgrade(moved.install_id, moved.manifest_digest, assertCurrent);
+      if (moved.state === 'running') await c.platform.runtime.pauseAfterUpgrade(moved.install_id, moved.manifest_digest, assertScope);
       c.registerPrompts(release, 'disabled');
       c.recoveryErrors.set(pluginId, refusal);
       logInstalledUpgradeRefusal(c.home, pluginId, c.library, refusal.code);

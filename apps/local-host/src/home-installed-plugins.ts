@@ -18,6 +18,7 @@ import { APPROVED_KEY, installedLifecycle, type InstalledPluginPlatform, isPendi
 import { HOME_INSTALL_SCOPE, installedVersion, type InstalledRelease } from './installed-release.js';
 import { assertHomePackageAllowed } from './home-package-admission.js';
 import { isPluginTableRefusal } from './home-unavailable-owners.js';
+import { installedHomeUpgradeBlocked } from './installed-home-upgrade-recovery.js';
 import { configuredModelChoices } from './configured-models.js';
 import { capabilityCatalog, catalogCapabilities, installedCapabilityCatalog, registerPlatformCapabilities, type CatalogCapability, type ProjectActions } from './plugin-builder/catalog.js';
 import { createPluginModelGeneration } from './plugin-builder/model.js';
@@ -210,7 +211,9 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
         if (!release) { if (!recoveryErrors.has(record.plugin_id)) recoveryErrors.set(record.plugin_id, '找不到已安装版本 ' + record.version + ' 的发布记录'); continue; }
         if (!approved) throw new Error('找不到此安装的批准记录，请先卸载并重新确认安装');
         assertHomePackageAllowed(release.packaged!.manifest);
-        registerPrompts(release, record.state === 'disabled' || record.state === 'quarantined' || holdsFailedDatabaseUpgrade(record) ? 'disabled' : 'enabled');
+        const blocked = installedHomeUpgradeBlocked(home, record);
+        registerPrompts(release, blocked || record.state === 'disabled' || record.state === 'quarantined' || holdsFailedDatabaseUpgrade(record) ? 'disabled' : 'enabled');
+        if (blocked) throw pluginErrors.upgrade_validation_failed('等待 Home 插件库完成恢复');
         if (record.state === 'disabled' || record.state === 'quarantined') {
           const restored = definition(release, approved); platform.runtime.register(restored);
           await platform.start([{ definition: restored, grants: record.grants, enabled: false, ...release.packaged ? { trust: release.packaged.trust } : {} }]); continue;

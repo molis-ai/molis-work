@@ -1,13 +1,16 @@
 import assert from "node:assert/strict";
-import { ChildProcess } from "node:child_process";
-import { existsSync, readFileSync, readdirSync, realpathSync } from "node:fs";
+import { ChildProcess, fork } from "node:child_process";
+import { once } from "node:events";
+import { existsSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SANDBOX_PACKAGE_FILES, type PluginPackageBundle } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { SandboxPluginContract } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
-import { PLUGIN_INSTALL_PERMISSIONS, pluginInstallActions, readSandboxPackage } from "@molis-ai/molis-work-app-local-host";
+import { createHomeSnapshot, MolisWorkLocalHost, PLUGIN_INSTALL_PERMISSIONS, pluginInstallActions, readSandboxPackage } from "@molis-ai/molis-work-app-local-host";
 import { SANDBOX_VALIDATE_UPGRADE, sandboxOperationActions, sandboxPluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { newPublisher, PACKAGE_PLUGIN_ID, signedPackage } from "./fixtures/sandbox-package.js";
 import { openTestHome, serveTestHost, type TestHome, type TestProject } from "./fixtures/test-home.js";
@@ -52,11 +55,11 @@ function person(project: TestProject) {
     user_action: { source: "management" as const, conversation_ref: "installed-upgrade", message_ref: "confirm" } };
 }
 
-async function install(home: TestHome, project: TestProject, bundle: PluginPackageBundle) {
+async function install(home: TestHome, project: TestProject, bundle: PluginPackageBundle, signal?: AbortSignal) {
   const client = home.host.actionClient(project.reference);
   const caller = person(project);
   const preview = await client.invoke(caller, pluginInstallActions.preview, { bundle }) as { preview_id: string };
-  return client.invoke(caller, pluginInstallActions.confirm, { preview_id: preview.preview_id, consent: true, pin_label: "Test publisher" });
+  return client.invoke({ ...caller, signal }, pluginInstallActions.confirm, { preview_id: preview.preview_id, consent: true, pin_label: "Test publisher" });
 }
 
 function readDatabase(home: TestHome, project: TestProject, scope: Scope, bundle: PluginPackageBundle, query: string) {
@@ -228,25 +231,122 @@ test("UPG-04 UPG-09 switching the Home plugin off before publish keeps the origi
   const publisher = newPublisher(), initial = packageAt(publisher, "home", "1.0.0");
   await install(home, project, initial);
   const host = home.host.homePlugins!, platform = await host.ready();
+  const installId = host.installation(PACKAGE_PLUGIN_ID)!.install_id;
   const prototype = ChildProcess.prototype as ChildProcess & { spawn(options: { args: readonly string[] }): void };
   const spawnChild = prototype.spawn;
-  let withdrew = false;
+  let stopped: Promise<unknown> | undefined;
   t.mock.method(prototype, "spawn", function(this: ChildProcess, options: { args: readonly string[] }) {
     const started = Reflect.apply(spawnChild, this, [options]);
     if (options.args.some(arg => arg.endsWith("/project-statement-worker.js"))) this.prependListener("message", message => {
       if (!(message as { prepared?: boolean }).prepared) return;
-      withdrew = true;
       platform.supervisor.revoke(PACKAGE_PLUGIN_ID);
+      stopped = platform.runtime.stop(installId);
     });
     return started;
   });
   await assert.rejects(install(home, project, packageAt(publisher, "home", "1.1.0")), { code: "actions.provider_replaced" });
-  assert.equal(withdrew, true);
+  assert.ok(stopped);
+  await stopped;
   assert.equal(host.installation(PACKAGE_PLUGIN_ID)?.version, "1.0.0");
   assert.equal(host.installation(PACKAGE_PLUGIN_ID)?.state, "disabled");
   const table = readDatabase(home, project, "home", initial, "PRAGMA table_info(upgrade_notes)");
   assert.deepEqual(table.map(row => row.name), ["id", "text"]);
 });
+
+test("UPG-06 UPG-09 cancellation after the SQL commit preserves the new installation and its action directory", mac, async t => {
+  const home = await openTestHome(t), project = await home.createProject("Cancel after commit");
+  const publisher = newPublisher(), initial = packageAt(publisher, "project", "1.0.0");
+  await install(home, project, initial);
+  const controller = new AbortController(), prototype = ChildProcess.prototype as ChildProcess & { spawn(options: { args: readonly string[] }): void };
+  const spawnChild = prototype.spawn;
+  let upgrade = false;
+  t.mock.method(prototype, "spawn", function(this: ChildProcess, options: { args: readonly string[] }) {
+    const started = Reflect.apply(spawnChild, this, [options]);
+    if (options.args.some(arg => arg.endsWith("/project-statement-worker.js"))) {
+      const send = this.send;
+      t.mock.method(this, "send", function(this: ChildProcess, ...args: Parameters<ChildProcess["send"]>) {
+        if ((args[0] as { op?: string })?.op === "upgrade-project-database") upgrade = true;
+        return Reflect.apply(send, this, args);
+      });
+      this.prependListener("message", message => {
+        if (upgrade && (message as { ok?: boolean }).ok) { upgrade = false; controller.abort(); }
+      });
+    }
+    return started;
+  });
+  await assert.rejects(install(home, project, packageAt(publisher, "project", "1.1.0"), controller.signal), { code: "actions.cancelled" });
+  const caller = { ...person(project), permissions: ["storage:private"] }, client = home.host.actionClient(project.reference);
+  const ready = (await client.discover(caller)).find(view => view.provider.plugin_id === PACKAGE_PLUGIN_ID && view.capability_id.endsWith(".notes.list"));
+  assert.ok(ready?.availability.available);
+  assert.deepEqual(await client.invoke(caller, { capability_id: ready.capability_id, version: ready.version, provider_id: ready.provider.provider_id }, {}), []);
+  assert.deepEqual(readDatabase(home, project, "project", initial, "PRAGMA table_info(upgrade_notes)").map(row => row.name), ["id", "text", "format"]);
+});
+
+test("UPG-03 UPG-06 a killed Host recovers the library, approval and enabled installation before normal startup", mac, async t => {
+  for (const phase of ["prepared", "committed"] as const) await t.test(phase, t => assertInterruptedHost(t, phase));
+});
+
+async function assertInterruptedHost(t: TestContext, phase: "prepared" | "committed") {
+  const home = await openTestHome(t), project = await home.createProject("Recover Home upgrade");
+  const publisher = newPublisher(), initial = packageAt(publisher, "home", "1.0.0");
+  await install(home, project, initial);
+  const original = home.host.homePlugins!.installation(PACKAGE_PLUGIN_ID)!;
+  const name = initial.payload.manifest.databases!.home!.store_name, file = join(home.home, name, name + ".db");
+  const writer = new DatabaseSync(file);
+  try {
+    writer.exec("INSERT INTO upgrade_notes (text) VALUES ('kept')");
+    writer.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+  } finally { writer.close(); }
+  await home.host.close();
+  await home.close();
+  const before = readFileSync(file), bundlePath = join(home.home, "fixture-bundle.json");
+  const upgradeSql = sql + " UPDATE upgrade_notes SET text = replace(hex(zeroblob(3000000)), '0', 'x');";
+  writeFileSync(bundlePath, JSON.stringify(packageAt(publisher, "home", "1.1.0", { upgradeSql })));
+  const fixture = fileURLToPath(new URL("./fixtures/installed-upgrade-interrupted-host.mjs", import.meta.url));
+  const child = fork(fixture, [home.home, project.project_id, project.database_path, bundlePath, phase], { silent: true });
+  const exited = once(child, "exit");
+  let stderr = "";
+  child.stderr!.on("data", data => { stderr += String(data); });
+  t.after(async () => { if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL"); await exited; });
+  const interrupted = await Promise.race([
+    once(child, "message").then(([message]) => message as { phase: string; worker: number }),
+    exited.then(() => assert.fail(stderr)),
+  ]);
+  assert.equal(interrupted.phase, phase);
+  const record = join(home.home, "upgrade", "installed-plugin.json");
+  assert.equal(existsSync(record), true);
+  if (phase === "prepared") child.kill("SIGKILL");
+  assert.deepEqual(await exited, [null, "SIGKILL"]);
+  const until = Date.now() + 5000;
+  while (true) {
+    try { process.kill(interrupted.worker, 0); }
+    catch (error) { if ((error as NodeJS.ErrnoException).code === "ESRCH") break; throw error; }
+    assert.ok(Date.now() < until, "the Worker releases the journal after losing its Host");
+    await new Promise(resolve => setTimeout(resolve, 20));
+  }
+  const scratch = mkdtempSync(join(tmpdir(), "molis-pending-upgrade-"));
+  t.after(() => rmSync(scratch, { recursive: true, force: true }));
+  await assert.rejects(createHomeSnapshot({ homeDirectory: home.home, destination: join(scratch, "blocked-snapshot") }), /上一轮升级还没有做完/u);
+  if (phase === "prepared") {
+    const native = new DatabaseSync(file, { readOnly: true });
+    try { assert.throws(() => native.prepare("SELECT text FROM upgrade_notes").get(), (error: unknown) => (error as { errcode?: number }).errcode === 776); }
+    finally { native.close(); }
+  }
+  const restarted = new MolisWorkLocalHost({ homeDirectory: home.home, completeText: null });
+  try {
+    await restarted.homePlugins!.ready();
+    const recovered = restarted.homePlugins!.installation(PACKAGE_PLUGIN_ID);
+    assert.deepEqual([recovered?.version, recovered?.state, recovered?.grants], [phase === "prepared" ? "1.0.0" : "1.1.0", "running", original.grants]);
+    if (phase === "prepared") {
+      assert.deepEqual(readFileSync(file), before, "the checkpointed file is restored byte for byte");
+      assert.deepEqual(readDatabase(home, project, "home", initial, "SELECT * FROM upgrade_notes"), [{ id: 1, text: "kept" }]);
+    } else {
+      assert.deepEqual(readDatabase(home, project, "home", initial, "SELECT length(text) AS size, format FROM upgrade_notes"), [{ size: 6000000, format: "plain" }]);
+    }
+    assert.equal(existsSync(record), false);
+    assert.equal(readdirSync(join(home.home, "upgrade")).some(path => path.startsWith("installed-plugin-")), false);
+  } finally { await restarted.close(); }
+}
 
 test("UPG-03 UPG-04 activation failure after a committed migration retains the exact new edition and a durable reason", mac, async t => {
   const home = await openTestHome(t), project = await home.createProject("Activation after commit");
@@ -268,6 +368,8 @@ test("UPG-03 UPG-04 activation failure after a committed migration retains the e
   assert.deepEqual(table.map(row => row.name), ["id", "text", "format"]);
   const path = `/projects/${project.project_id}/`;
   await assertUpgradeCard(home, path, "project", "upgrade_activation_failed");
+  const page = await fetch(home.origin + path, { headers: { accept: "text/html" } });
+  assert.ok((await page.text()).includes(`href="${path}settings/plugins"`));
   t.mock.restoreAll();
   await home.close();
   await home.host.close();

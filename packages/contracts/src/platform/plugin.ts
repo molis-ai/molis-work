@@ -260,7 +260,8 @@ export interface PluginRuntimeApi {
     retain_private_data?: boolean;
   }): PluginLifecycleReceipt;
   /** Explicit, user-triggered replacement after version, grant and private-data preflight. */
-  upgrade(input: { install_id: string; definition: PluginDefinition; deployment?: PluginDeployment; grants?: string[]; assertCurrent?: () => void; previousManifest?: PluginManifest; persistApproval?: PluginDatabaseApproval }): Promise<PluginLifecycleReceipt>;
+  upgrade(input: { install_id: string; definition: PluginDefinition; deployment?: PluginDeployment; grants?: string[]; assertCurrent?: () => void;
+    assertCommitted?: () => void; previousManifest?: PluginManifest; persistApproval?: PluginDatabaseApproval }): Promise<PluginLifecycleReceipt>;
   /** Generated plugins only: restore earlier code while retaining current private data. */
   rollback(input: { install_id: string; definition: PluginDefinition }): Promise<PluginLifecycleReceipt>;
   grant(installId: string, permissions: string[]): PluginLifecycleReceipt;

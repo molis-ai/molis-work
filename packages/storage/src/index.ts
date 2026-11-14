@@ -29,6 +29,7 @@ export {
   captureUpgradeFileSnapshot,
   captureUpgradeSnapshot,
   discardUpgradeSnapshot,
+  discardUnarmedInstalledUpgradeSnapshot,
   pruneUpgradeSnapshots,
   restoreUpgradeSnapshot,
   upgradeSnapshotListed,

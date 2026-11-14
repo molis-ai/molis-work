@@ -6,7 +6,7 @@ import { pluginErrors, type HomePluginDatabaseDeclaration, type HomeStoreDeclara
 import { reservedHomeName } from "./sandbox-home-names.js";
 import { openHomePluginDatabaseConnection } from "./plugin-database.js";
 import { inspectPluginHomeSchema, pluginProjectDatabaseErrors, type PluginProjectSchemaInspector } from "@molis-ai/molis-work-plugin-runtime";
-import { checkSqliteBaselineVersion, sqliteVersionRefusal, readStorageSpace, readDatabaseSpace, STORAGE_SPACE_SCHEMA_SQL, describeSqliteBaseline, describeSqliteSchema, homeSqlitePath, listSqliteObjects, snapshotFileStat, openBaselineHomeSqlite, openHomeSqliteFile, openReadOnlyHomeSqlite, type HomeStoreRegistry, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { checkSqliteBaselineVersion, sqliteVersionRefusal, readStorageSpace, readDatabaseSpace, STORAGE_SPACE_SCHEMA_SQL, describeSqliteBaseline, describeSqliteSchema, homeSqlitePath, listSqliteObjects, snapshotFileStat, openBaselineHomeSqlite, openHomeSqliteFile, openReadOnlyHomeSqlite, type HomeStoreRegistry, type SqliteBaseline, type SqliteBaselineDatabase, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 
 // A library in the Home for a plugin the Host did not ship (PG-022 P1b, specs/archive/repository-anti-corruption/slices/pg022-manifest-declarations.md).
 // The plugin declares it in its Manifest (`databases.home`), like a shipped one; what a shipped plugin has from the Host's store registry
@@ -63,7 +63,7 @@ export interface InstalledLibraryOwner {
 interface LedgerRow { plugin_id: string; publisher_signature: string; store_name: string; version: number; schema_digest: string }
 
 /** Actual installed library identities and versions, read by their owner for the Home registry's offline enumeration. */
-function matchesScopedLibrary(db: ReturnType<typeof openHomeSqliteFile>, baseline: SqliteBaseline, home: string): boolean {
+export function matchesScopedLibrary(db: SqliteBaselineDatabase, baseline: SqliteBaseline, home: string): boolean {
   const expected = readStorageSpace(home), actual = readDatabaseSpace(db);
   return expected !== null && JSON.stringify(expected) === JSON.stringify(actual)
     && JSON.stringify(describeSqliteSchema(db)) === JSON.stringify(describeSqliteBaseline({ ...baseline, schema: STORAGE_SPACE_SCHEMA_SQL + baseline.schema }));
@@ -104,6 +104,10 @@ function holderOf(name: string, reserved: HomeStoreRegistry): string | undefined
   const store = reserved.get(name) ?? reserved.stores.find(candidate => candidate.path.startsWith(`${name}/`));
   if (store) return `${store.owner} 的 ${store.path}`;
   return INSTALLER_DIRECTORIES.includes(name) ? "安装器的目录" : undefined;
+}
+
+export function installedHomeLibraryName(name: string, reserved: HomeStoreRegistry): boolean {
+  return INSTALLED_LIBRARY_NAME.test(name) && holderOf(name, reserved) === undefined;
 }
 
 const digestOf = (declaration: HomePluginDatabaseDeclaration) => createHash("sha256").update(declaration.schema).digest("hex");
@@ -259,18 +263,24 @@ export function installedLibraryLedgerFile(home: string): string {
 /** Checks the attached ledger and the original owned declaration before SQLite runs a migration. */
 export function checkInstalledLibraryUpgrade(home: string, owner: InstalledLibraryOwner, previous: HomePluginDatabaseDeclaration,
   reserved: HomeStoreRegistry, database: ReturnType<typeof openHomeSqliteFile>): void {
-  if (!INSTALLED_LIBRARY_NAME.test(previous.store_name) || holderOf(previous.store_name, reserved) || previous.partition !== undefined) {
+  if (!installedHomeLibraryName(previous.store_name, reserved) || previous.partition !== undefined) {
     throw installedLibraryErrors.object_taken("所选库名不属于此已安装插件");
   }
-  const row = database.prepare("SELECT plugin_id, publisher_signature, store_name, version, schema_digest FROM installed_library_ledger.plugin_home_libraries WHERE plugin_id = ?")
-    .get(owner.plugin_id) as LedgerRow | undefined;
-  if (row?.publisher_signature !== owner.publisher_signature) throw installedLibraryErrors.publisher_mismatch("原归属账本未记录此发布者");
-  if (row.store_name !== previous.store_name || row.version !== previous.version || row.schema_digest !== digestOf(previous)) {
-    throw installedLibraryErrors.shape_mismatch("库账本与已安装发行版的声明不一致");
-  }
+  checkInstalledLibraryEdition(database, owner, previous, INSTALLED_LIBRARY_UPGRADE_LEDGER);
   const actual = Number(database.prepare("PRAGMA main.user_version").get()?.user_version);
   if (actual !== previous.version) throw sqliteVersionRefusal(homeSqlitePath(home, previous.store_name), actual, previous.version, home);
   if (!matchesScopedLibrary(database, previous, home)) throw installedLibraryErrors.shape_mismatch("库结构或空间归属与已安装发行版不一致");
+}
+
+/** Compare an existing ledger row with the verified edition, in its own file or attached to the migration. */
+export function checkInstalledLibraryEdition(database: Pick<ReturnType<typeof openHomeSqliteFile>, "prepare"> | Pick<SqliteDatabase, "prepare">,
+  owner: InstalledLibraryOwner, declaration: HomePluginDatabaseDeclaration, alias: "main" | typeof INSTALLED_LIBRARY_UPGRADE_LEDGER = "main"): void {
+  const row = database.prepare(`SELECT publisher_signature, store_name, version, schema_digest FROM ${alias}.plugin_home_libraries WHERE plugin_id = ?`)
+    .get(owner.plugin_id) as Omit<LedgerRow, "plugin_id"> | undefined;
+  if (row?.publisher_signature !== owner.publisher_signature) throw installedLibraryErrors.publisher_mismatch("原归属账本未记录此发布者");
+  if (row.store_name !== declaration.store_name || row.version !== declaration.version || row.schema_digest !== digestOf(declaration)) {
+    throw installedLibraryErrors.shape_mismatch("库账本与已安装发行版的声明不一致");
+  }
 }
 
 /** Advances only the verified owner's ledger row within the transaction that runs its SQL. */

@@ -396,7 +396,7 @@ export class PluginSupervisor implements PluginHostLifecycle {
     return candidates.sort((left, right) => left.plugin_id.localeCompare(right.plugin_id));
   }
 
-  async upgrade(pluginId: string, definition?: PluginDefinition, options?: Pick<Parameters<PluginRuntimeApi["upgrade"]>[0], "grants" | "assertCurrent" | "previousManifest" | "persistApproval">): Promise<PluginSupervisorState> {
+  async upgrade(pluginId: string, definition?: PluginDefinition, options?: Omit<Parameters<PluginRuntimeApi["upgrade"]>[0], "install_id" | "definition" | "deployment">): Promise<PluginSupervisorState> {
     return this.#changeVersion(pluginId, definition, false, options);
   }
 
@@ -405,7 +405,7 @@ export class PluginSupervisor implements PluginHostLifecycle {
   }
 
   async #changeVersion(pluginId: string, definition: PluginDefinition | undefined, rollbackCode: boolean, options?: Parameters<PluginSupervisor["upgrade"]>[2]): Promise<PluginSupervisorState> {
-    const { grants, assertCurrent, previousManifest, persistApproval } = options ?? {};
+    const { grants, assertCurrent, assertCommitted, previousManifest, persistApproval } = options ?? {};
     assertCurrent?.();
     const prior = this.#entries.get(pluginId), entry = definition ? { ...prior, definition: platformDefinition(definition) } : prior;
     // A switched-off install is not registered after a Host restart: the target stands in for its entry, and an
@@ -443,9 +443,9 @@ export class PluginSupervisor implements PluginHostLifecycle {
         install_id: current.install_id,
         definition: entry.definition,
         deployment: entry.deployment ?? "local",
-        ...(grants ? { grants } : {}), assertCurrent, previousManifest, persistApproval,
+        ...(grants ? { grants } : {}), assertCurrent, assertCommitted, previousManifest, persistApproval,
       });
-      assertCurrent?.();
+      (assertCommitted ?? assertCurrent)?.();
       this.#activeEntries.set(pluginId, { ...entry, grants: receipt.install.grants });
       if (off) { this.revoke(pluginId); return this.#revokedState(pluginId, receipt.install.install_id); }
       return this.#running(pluginId, receipt.install.install_id);
@@ -456,7 +456,7 @@ export class PluginSupervisor implements PluginHostLifecycle {
       // event declarations; only the candidate entry stays registered for a retry.
       if (recovered.version === current.version) { if (activeContract) this.#contracts.set(pluginId, activeContract); else this.#contracts.delete(pluginId); }
       else this.#activeEntries.set(pluginId, { ...entry, grants: recovered.grants });
-      assertCurrent?.();
+      (recovered.version !== current.version ? assertCommitted ?? assertCurrent : assertCurrent)?.();
       if (off) { if (!prior) this.#entries.delete(pluginId); return failure; } // still switched off, as the person left it
       if (!this.#revoked.has(pluginId) && recovered.state === "running" && active?.status === "running" && active.install_id === current.install_id) {
         // Return the failed upgrade operation to its caller without marking the restored old implementation unhealthy.

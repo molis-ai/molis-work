@@ -4273,6 +4273,7 @@ export interface PluginRuntimeApi {
         deployment?: PluginDeployment;
         grants?: string[];
         assertCurrent?: () => void;
+        assertCommitted?: () => void;
         previousManifest?: PluginManifest;
         persistApproval?: PluginDatabaseApproval;
     }): Promise<PluginLifecycleReceipt>;

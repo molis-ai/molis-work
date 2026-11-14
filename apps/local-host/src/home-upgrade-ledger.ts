@@ -5,6 +5,9 @@ import { atomicWriteFileSync, readSnapshotFile, readStorageSpace, upgradeFailedR
 
 /** The upgrade's own directory in a Home: the record, the stamp, and one directory of snapshots per run. */
 export const UPGRADE_DIRECTORY = "upgrade";
+export const INSTALLED_PLUGIN_UPGRADE_FILE = "installed-plugin.json";
+export const hasInstalledPluginUpgrade = (home: string): boolean =>
+  !!lstatSync(join(home, UPGRADE_DIRECTORY, INSTALLED_PLUGIN_UPGRADE_FILE), { throwIfNoEntry: false });
 const LEDGER = "ledger.json";
 const STAMP = "state.json";
 const LEDGER_SCHEMA_VERSION = /* @version format.home.upgrade.ledger */ 1;
@@ -192,6 +195,10 @@ export function removeUpgradeTemporaries(root: string): void {
 
 /** For the offline maintenance operations: a round not done yet, or a record that cannot be read and so cannot say it is done (§6). */
 export function homeUpgradeUnfinished(home: string): boolean {
-  try { return readUpgradeLedger(realpathSync(home))?.units.some(unfinishedUnit) ?? false; }
+  try {
+    const root = realpathSync(home);
+    assertUpgradeDirectory(root);
+    return hasInstalledPluginUpgrade(root) || (readUpgradeLedger(root)?.units.some(unfinishedUnit) ?? false);
+  }
   catch { return true; }
 }

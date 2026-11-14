@@ -1,12 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { realpathSync } from "node:fs";
 import { relative } from "node:path";
-import { pluginErrors, type PluginDatabaseVersionSwitch, type PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { assertUpgradeDiskSpace, captureUpgradeSnapshot, discardUpgradeSnapshot, openHomeSqliteFile, restoreUpgradeSnapshot, retainStorageOwner } from "@molis-ai/molis-work-storage";
+import { pluginErrors, type PluginDatabaseVersionSwitch } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { assertUpgradeDiskSpace, captureUpgradeSnapshot, openHomeSqliteFile, retainStorageOwner } from "@molis-ai/molis-work-storage";
 import { hostLog } from "./host-log.js";
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
 import type { PluginPlatformHome } from "./home-side.js";
 import { checkUpgradeInput, installedLibraryUpgradeFile } from "./installed-plugin-libraries.js";
+import { assertNoInstalledHomeUpgrade, finishInstalledHomeUpgrade, installedUpgradeRunId, recoverArmedInstalledHomeUpgrade, recordInstalledHomeUpgrade } from "./installed-home-upgrade-recovery.js";
 import { ProjectStatementProcess, type StatementLimits } from "./project-statement-process.js";
 import type { DatabaseUpgradeCall } from "./project-statement-protocol.js";
 
@@ -23,34 +24,27 @@ export async function commitInstalledDatabaseUpgrade(request: DatabaseUpgradeCal
 }
 
 /** A Home library has its own file, so preserve its exact checkpointed bytes before a version switch. */
-export async function withInstalledHomeSnapshot(home: PluginPlatformHome, change: PluginDatabaseVersionSwitch,
-  read: () => PluginInstanceRecord | null, apply: () => Promise<void>): Promise<void> {
+export async function withInstalledHomeSnapshot(home: PluginPlatformHome, change: PluginDatabaseVersionSwitch, apply: () => Promise<void>): Promise<void> {
   change.assertCurrent();
   const root = realpathSync(home.directory), lockDirectory = agentRuntimeDirectory(root), owner = home.assertStorageOwner();
   const retained = retainStorageOwner(lockDirectory, owner);
   try {
+    assertNoInstalledHomeUpgrade(root);
     const previous = change.previous.databases?.home;
     if (!previous) throw pluginErrors.upgrade_validation_failed("缺少已装 Home 库的清单");
     const file = checkUpgradeInput(() => installedLibraryUpgradeFile(root, change.current, previous, home.stores));
     const relativePath = relative(root, file);
     assertUpgradeDiskSpace(root, [relativePath]);
-    const unit = { home: root, lockDirectory, owner, runId: randomUUID(), relativePath };
-    captureUpgradeSnapshot(unit, openHomeSqliteFile);
-    let settled = false;
-    try { await apply(); settled = true; }
+    const unit = { home: root, lockDirectory, owner, runId: installedUpgradeRunId(randomUUID()), relativePath };
+    const snapshot = captureUpgradeSnapshot(unit, openHomeSqliteFile);
+    recordInstalledHomeUpgrade(unit, snapshot.sha256, change);
+    try { await apply(); }
     catch (error) {
-      // The worker has exited. A lost reply after COMMIT has the target row; a rollback must never replace its committed file.
-      const current = read();
-      if (current?.installation_generation === change.current.installation_generation) {
-        if (current.manifest_digest === change.current.manifest_digest) restoreUpgradeSnapshot(unit);
-        settled = current.manifest_digest === change.current.manifest_digest || current.manifest_digest === change.next.manifest_digest;
-      }
+      // The worker has exited. A lost reply after COMMIT is decided by replaying the owned group, never by the IPC error.
+      recoverArmedInstalledHomeUpgrade(unit);
       throw error;
-    } finally {
-      if (settled) {
-        try { discardUpgradeSnapshot(unit); }
-        catch { hostLog.warn("host", "installed_plugin_upgrade_snapshot_retained", undefined, { owner: change.current.plugin_id }); }
-      }
     }
+    try { finishInstalledHomeUpgrade(unit); }
+    catch { hostLog.warn("host", "installed_plugin_upgrade_snapshot_retained", undefined, { owner: change.current.plugin_id }); }
   } finally { retained.release(); }
 }

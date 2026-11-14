@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { assertNoPendingArtifactRows, recoverHomeArtifactRows } from "./home-artifact-recovery.js";
+import { recoverInstalledHomeUpgrade } from "./installed-home-upgrade-recovery.js";
 import { lstatSync, realpathSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative } from "node:path";
 import {
@@ -11,7 +12,7 @@ import {
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
 import { hostLog } from "./host-log.js";
 import {
-  assertUpgradeDirectory, homeIdentity, newUpgradeLedger, readUpgradeLedger, readUpgradeStamp, removeUpgradeStamp, removeUpgradeTemporaries, unfinishedUnit, UPGRADE_DIRECTORY, writeUpgradeLedger, writeUpgradeNotice, writeUpgradeStamp,
+  assertUpgradeDirectory, hasInstalledPluginUpgrade, homeIdentity, newUpgradeLedger, readUpgradeLedger, readUpgradeStamp, removeUpgradeStamp, removeUpgradeTemporaries, unfinishedUnit, UPGRADE_DIRECTORY, writeUpgradeLedger, writeUpgradeNotice, writeUpgradeStamp,
   type UpgradeLedger, type UpgradeUnit, type UpgradeUnitError,
 } from "./home-upgrade-ledger.js";
 import { homeUpgradeDescriptors, upgradeFingerprint, upgradeTarget, upgradeUnitFile, type HomeUpgradeDescriptor } from "./home-upgrade-stores.js";
@@ -375,6 +376,7 @@ export function ensureHomeUpgraded(home: string, owner: StorageOwner, options: {
   assertStorageOwner(lockDirectory, owner);
   const root = realpathSync(home), descriptors = homeUpgradeDescriptors();
   assertUpgradeDirectory(root);
+  recoverInstalledHomeUpgrade(root, owner);
   recoverHomeArtifactRows(root, owner, options.expectedSpace);
   assertNoPendingArtifactRows(root, owner);
   const fingerprint = upgradeFingerprint(descriptors), identity = homeIdentity(root), stamp = readUpgradeStamp(root, identity);
@@ -501,7 +503,11 @@ export function upgradeRoundRestorable(home: string): { readonly kind: "none" } 
   | { readonly kind: "round"; readonly run_id: string; readonly from: string | null; readonly started_at: string; readonly restorable: boolean } {
   const root = realpathSync(home);
   let ledger: UpgradeLedger | undefined;
-  try { ledger = readUpgradeLedger(root); } catch { return { kind: "unfinished" }; }
+  try {
+    assertUpgradeDirectory(root);
+    if (hasInstalledPluginUpgrade(root)) return { kind: "unfinished" };
+    ledger = readUpgradeLedger(root);
+  } catch { return { kind: "unfinished" }; }
   if (!ledger) return { kind: "none" };
   if (ledger.units.some(unfinishedUnit)) return { kind: "unfinished" };
   const committed = ledger.units.filter(unit => unit.state === "committed");

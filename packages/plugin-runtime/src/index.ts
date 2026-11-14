@@ -233,6 +233,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     deployment?: PluginDeployment;
     grants?: string[];
     assertCurrent?: () => void;
+    assertCommitted?: () => void;
     previousManifest?: PluginManifest;
     persistApproval?: PluginDatabaseApproval;
   }): Promise<PluginLifecycleReceipt> {
@@ -242,7 +243,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     return this.changeVersion(input, true);
   }
 
-  private async changeVersion(given: { install_id: string; definition: PluginDefinition; deployment?: PluginDeployment; grants?: string[]; assertCurrent?: () => void; previousManifest?: PluginManifest; persistApproval?: PluginDatabaseApproval }, rollbackCode: boolean): Promise<PluginLifecycleReceipt> {
+  private async changeVersion(given: Parameters<PluginRuntimeApi["upgrade"]>[0], rollbackCode: boolean): Promise<PluginLifecycleReceipt> {
     const input = { ...given, definition: platformDefinition(given.definition) }; return this.locks.run(input.install_id, async () => {
       input.assertCurrent?.();
       const target = input.definition.manifest;
@@ -291,7 +292,7 @@ export class PluginRuntime implements PluginRuntimeApi {
       const databaseChange = installedDatabaseChange(current, target, originalManifest, rollbackCode, migratable);
       if (databaseChange && !this.executor.commitDatabaseUpgrade) throw pluginErrors.upgrade_required("此宿主未装配已安装插件库的升级过程");
 
-      if (current.state === "running") await this.stopOnce(input.install_id);
+      if (current.state === "running") await this.stopOnce(input.install_id, databaseChange !== undefined);
       restoration?.beforeCommit();
       const stopped = requireInstall(this.repository, input.install_id);
       const oldDefinition = this.definitions.get(definitionKey(stopped));
@@ -321,12 +322,12 @@ export class PluginRuntime implements PluginRuntimeApi {
         } else this.repository.save(upgraded);
         recoverable = upgraded;
         const receipt = current.state === "disabled" ? this.receipt("start", upgraded, false)
-          : await this.startOnce(input.install_id, { assertCurrent: restoration?.assertRestored ?? input.assertCurrent });
+          : await this.startOnce(input.install_id, { assertCurrent: restoration?.assertRestored ?? (databaseChange && input.assertCommitted || input.assertCurrent) });
         return { ...receipt, operation: rollbackCode ? "rollback" : "upgrade", replayed: false };
       } catch (error) {
         const currentInstall = () => this.repository.get(input.install_id);
         if (committedDatabase) {
-          input.assertCurrent?.();
+          (input.assertCommitted ?? input.assertCurrent)?.();
           const failure = pluginErrors.upgrade_activation_failed("插件库已升级，新版本暂时无法启动");
           recordUpgradeActivationFailure(this.repository, committedDatabase, this.now());
           throw failure;

@@ -8,6 +8,7 @@ const read = file => readFileSync(new URL(file, root), "utf8");
 const configurationFile = "apps/local-host/src/release-profiles.json";
 const tauriFile = "apps/desktop/src-tauri/tauri.conf.json";
 const tauriMacOSFile = "apps/desktop/src-tauri/tauri.macos.conf.json";
+const macOSWorkflow = ".github/workflows/release-macos.yml";
 
 export function nodeVersion(environment = process.env) {
   const version = environment.MOLIS_WORK_NODE_VERSION || read(releaseRuntime.nodeVersionFile).trim();
@@ -48,6 +49,8 @@ export function missingProfileValues(name, profile = releaseProfile(name)) {
 export function carrierIssues(name, rootRead = read) {
   const json = file => JSON.parse(rootRead(file));
   const tauri = json(tauriFile), macos = json(tauriMacOSFile);
+  const workflows = [...rootRead(macOSWorkflow).matchAll(/^\s*(node-version(?:-file)?):\s*([^#\r\n]+?)\s*$/gm)];
+  const nodeFile = workflows.length === 1 && workflows[0][1] === "node-version-file" ? workflows[0][2] : undefined;
   const expected = tauriSettings(releaseProfile("dev"));
   const { identifier, productName, bundle: { macOS } } = expected;
   const carried = [
@@ -55,6 +58,8 @@ export function carrierIssues(name, rootRead = read) {
     [tauriFile, "productName", tauri.productName, productName],
     [tauriFile, "bundle.macOS.minimumSystemVersion", tauri.bundle.macOS.minimumSystemVersion, macOS.minimumSystemVersion],
     [tauriMacOSFile, "bundle.macOS.signingIdentity", macos.bundle.macOS.signingIdentity, macOS.signingIdentity],
+    [tauriMacOSFile, "bundle.macOS.entitlements", macos.bundle.macOS.entitlements, macOS.entitlements],
+    [macOSWorkflow, "node-version-file", nodeFile, releaseRuntime.nodeVersionFile],
   ];
   return carried.filter(([, , actual, value]) => actual !== value)
     .map(([file, field]) => `${file} ${field} differs from the developer profile (checking ${name})`);
@@ -69,7 +74,7 @@ export function misplacedValues(repository = root) {
     ...accounts.flatMap(account => [account.authOrigin, account.applicationId, account.clientId]),
     ...Object.values(connectorApplications).flatMap(table => [table.secretPrefix, table.fallbackMapRef]),
     ...Object.values(configuration.profiles).flatMap(profile => [
-      profile.connectors.brokerOrigin, profile.publisherKeyRef, profile.entitlements, profile.symbolUploadTarget,
+      profile.connectors.brokerOrigin, profile.publisherKeyRef, profile.entitlements, profile.updateChannel, profile.symbolUploadTarget,
       ...Object.values(profile.connectors.applicationRefs),
     ]),
   ].filter(Boolean));
@@ -78,7 +83,7 @@ export function misplacedValues(repository = root) {
     "grep", "-n", "-F", "--untracked", ...[...values].flatMap(value => ["-e", value]),
     "-e", `"${application.identifier}"`, "-e", `'${application.identifier}'`,
     ...references.flatMap(value => ["-e", `secrets.${value}`, "-e", `secrets['${value}']`]),
-    "--", "apps/local-host", "apps/desktop", "scripts", "tooling", ".github/workflows/release-macos.yml",
+    "--", "apps/local-host", "apps/desktop", "scripts", "tooling", macOSWorkflow,
     `:(exclude)${configurationFile}`, `:(exclude)${tauriFile}`, `:(exclude)${tauriMacOSFile}`,
     ":(exclude)tooling/gates/api/**", ":(exclude)tooling/gates/version-exceptions.json",
     ":(exclude)**/*.md", ":(exclude)**/*.test.*", ":(exclude)**/test/**", ":(exclude)**/test.mjs",

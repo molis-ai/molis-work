@@ -20,7 +20,7 @@ export interface OwnerUnavailableCard {
 }
 
 /** A store from a newer version stays refused however often the page reloads, and its backup is no way back either. */
-const RELOADS: Readonly<Record<OwnerUnavailableReason, boolean>> = { upgrade_failed: true, upgrade_activation_failed: false, store_too_new: false, upgrade_no_space: true, snapshot_invalid: true, unreadable: true };
+const RELOADS: Readonly<Record<OwnerUnavailableReason, boolean>> = { upgrade_failed: true, upgrade_activation_failed: true, store_too_new: false, upgrade_no_space: true, snapshot_invalid: true, unreadable: true };
 const REASON_TEXT: Readonly<Record<OwnerUnavailableReason, string>> = {
   upgrade_failed: "workbench.owner-unavailable.upgrade-failed", store_too_new: "workbench.owner-unavailable.store-too-new",
   upgrade_activation_failed: "workbench.settings-plugins.retry-start",
@@ -37,7 +37,7 @@ export function renderOwnerUnavailableCard(card: OwnerUnavailableCard, announce 
   const rollback = card.rollback_href && ROLLS_BACK[card.reason]
     ? `<a class="mw-btn mw-btn--primary mw-btn--sm" href="${escapeHtml(card.rollback_href)}" data-owner-unavailable-rollback>${escapeHtml(uiText.text("workbench.owner-unavailable.rollback"))}</a>` : "";
   const reload = card.reload_href && RELOADS[card.reason]
-    ? `<a class="mw-btn mw-btn--secondary mw-btn--sm" href="${escapeHtml(card.reload_href)}">${escapeHtml(uiText.text("workbench.owner-unavailable.reload"))}</a>` : "";
+    ? `<a class="mw-btn mw-btn--secondary mw-btn--sm" href="${escapeHtml(card.reload_href)}">${escapeHtml(uiText.text(card.reason === "upgrade_activation_failed" ? "workbench.settings-plugins.install-plugin-package" : "workbench.owner-unavailable.reload"))}</a>` : "";
   const copy = `<button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-copy-value="${escapeHtml(card.diagnostic_id)}" aria-label="${escapeHtml(uiText.text("workbench.owner-unavailable.copy-diagnostic", { id: card.diagnostic_id }))}">${icon("copy")}<span>${escapeHtml(card.diagnostic_id)}</span></button>`;
   return `<div class="mw-empty" data-slot="empty" data-owner-unavailable="${card.reason}"${announce ? ' role="alert"' : ""}><span class="mw-empty__mark">${icon("circle-alert")}</span>`
     + `<h2 tabindex="-1">${escapeHtml(uiText.text("workbench.owner-unavailable.title", { part: card.title }))}</h2>`

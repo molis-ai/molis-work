@@ -138,7 +138,7 @@ BCC-03 的拒绝用例在旧构建上因缺来源仍准备一次上下文而失�
 | --- | --- |
 | `side-files-http.ts`（首片）、`plugin-trust-http.ts`（未知路由懒建）、`task-grants-settings-http.ts`、`plugin-consent-settings-http.ts`、`plugin-permission-settings-http.ts`、`plugin-page-task-grants-http.ts`、`plugin-connection-slots-http.ts`、`kit-settings-http.ts`、`skill-settings-http.ts`、`characters-http.ts` | 已先校验（方法、路由、页面、项目、必填项或 body 形状）再建，保留 |
 | `knowledge-http.ts` | 未知路径与缺 `kind`／`id` 的卡片改为定路由后建；动作参数仍由动作合同校验 |
-| `memory/memory-host.ts`、`memory/memory-upkeep.ts` | 首次真要调动作时建；overview 的目标名称读取复用同一 caller；未知路径不建 |
+| `memory/memory-host.ts`、`memory/memory-upkeep.ts` | 首次真要调动作时建；overview 的目标名称读取复用同一 caller，upkeep 一次维护里每条记忆的对象读取共用本轮每项目一份；未知路径不建 |
 | `runtime-overview-http.ts` | Home 或项目的 discovery 与各来源 invoke 共用一份请求 caller |
 | `plugin-install-gateway.ts` | preview 与 confirm 共用一份，仅按步骤改 `user_action` |
 | `web-project-context.ts`（contextual） | discover／prepare／invoke 按请求与 signal 共用一份；带中止信号的调用仍拿带该信号的上下文 |

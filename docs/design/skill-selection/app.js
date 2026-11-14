@@ -7,6 +7,7 @@
 //   A  one quiet line above the reply; each skill is a button that opens "why" with the actions
 //   B  a card under the reply that always shows the reason and the actions
 //   C  told before sending (above the input, removable); after sending, the same line as A
+// Decided by the user 2026-11-14: A (the default); B and C stay for comparison.
 // Every control is a component-board part from window.MW. Standalone review prototype: nothing is written anywhere.
 (() => {
   const M = window.MW;
@@ -15,7 +16,7 @@
   const STATES = ["auto", "named", "unavailable", "partial", "none", "failed"];
   const T = {
     zh: {
-      protoTitle: "技能选用 · 原型", tbd: "待定", opt: "方案", optA: "A 回复上方一行", optB: "B 回复下方的卡", optC: "C 发送前先告诉你",
+      protoTitle: "技能选用 · 原型", tbd: "已定：A", opt: "方案", optA: "A 回复上方一行", optB: "B 回复下方的卡", optC: "C 发送前先告诉你",
       area: "位置", a_assistant: "助理", a_coding: "Coding", state: "状态", lang: "语言", theme: "主题", light: "浅色", dark: "深色", reset: "重置",
       st_auto: "AI 自动选了一个", st_named: "你点名一个，AI 又补一个", st_unavailable: "你点名的用不了", st_partial: "几个里有一个失败", st_none: "没有合适的", st_failed: "改设置时保存失败",
       assistant: "助理", project: "项目：官网改版", used: "用了", willUse: "会用", noneUsed: "这一轮没用技能", pickOne: "选一个技能重做",
@@ -37,7 +38,7 @@
       c_auto: "给登录页补上表单校验的测试", c_named: "按代码评审的方式看一下这次改动，再补测试", c_unavailable: "按发布检查清单过一遍", c_partial: "补测试、跑一遍、更新变更记录，再通知评审人", c_none: "把这个变量改个名字",
     },
     en: {
-      protoTitle: "Skill selection · prototype", tbd: "Undecided", opt: "Option", optA: "A One line above the reply", optB: "B A card under the reply", optC: "C Told before sending",
+      protoTitle: "Skill selection · prototype", tbd: "Decided: A", opt: "Option", optA: "A One line above the reply", optB: "B A card under the reply", optC: "C Told before sending",
       area: "Where", a_assistant: "Assistant", a_coding: "Coding", state: "State", lang: "Language", theme: "Theme", light: "Light", dark: "Dark", reset: "Reset",
       st_auto: "AI picked one", st_named: "You named one, AI added one", st_unavailable: "The one you named can't be used", st_partial: "One of several failed", st_none: "Nothing fits", st_failed: "Saving a setting fails",
       assistant: "Assistant", project: "Project: Website redesign", used: "Used", willUse: "Will use", noneUsed: "No skill used this time", pickOne: "Pick a skill and redo",
@@ -210,7 +211,7 @@
   function renderStrip() {
     const tg = (label, key, values) => M.renderToggleGroup({ label, items: values.map(([v, text]) => ({ value: v, label: text, current: P[key] === v, attrs: { "data-set": key, "data-v": v } })) });
     const options = STATES.map((k) => `<option value="${k}"${P.st === k ? " selected" : ""}>${esc(t("st_" + k))}</option>`).join("");
-    document.getElementById("strip").innerHTML = `<b>${esc(t("protoTitle"))}</b>${M.renderBadge({ label: t("tbd"), tone: "warning" })}
+    document.getElementById("strip").innerHTML = `<b>${esc(t("protoTitle"))}</b>${M.renderBadge({ label: t("tbd"), tone: "success" })}
       <span class="proto-field">${esc(t("opt"))}${tg(t("opt"), "opt", [["A", t("optA")], ["B", t("optB")], ["C", t("optC")]])}</span>
       <span class="proto-field">${esc(t("area"))}${tg(t("area"), "area", [["assistant", t("a_assistant")], ["coding", t("a_coding")]])}</span>
       <label>${esc(t("state"))}<select class="mw-select" data-slot="select" id="state">${options}</select></label>

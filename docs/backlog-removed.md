@@ -14,6 +14,7 @@
 | BL-linux-ci-browser-reds | 已完成并删除 | 2026-11-13 #2044 放宽首页截止、#2046 修其余 Linux 浏览器用例；批次 15 已记「BL 已删」 |
 | BL-side-files-merged-reads | 已完成并删除 | 第 06 批 N52 已并入并完成；批次 06 与依赖表保留历史说明 |
 | BL-1074 | 已完成并删除 | [#2029](https://github.com/molis-ai/molis-work/pull/2029) 修复跨进程插件框架不跟随页面 reduced-motion；原生 Linux no-fail-fast full suite [43546443501](https://github.com/molis-ai/molis-work/actions/runs/43546443501) 的 shard 21 首轮 `coding-question-card.e2e` 6/6，无 CDP 超时；2026-11-14 删除 |
+| BL-golden-prompt-uses-flaky、BL-materials-object-link | 已完成并删除 | 第 06 批合后审计（2026-11-13）：golden-prompt 偶发由生成期屏蔽知识整理 2 秒定时器稳定（`tests/golden-home.test.ts` 42/42）；资料对象链接恢复（`tests/appearance-side-windows.e2e.test.ts` 3/3，页面资源许可 +155 B）；见 [06.md 合入记录](../specs/post-anticorruption-roadmap/reference/batches/06.md#batch-06-audit) |
 | BL-1071 | 已关闭；两个历史事项曾同号 | 2026-11-07 #1921 删除 S-102 的条目；Memory 的 SDK 采用随 [#2020](https://github.com/molis-ai/molis-work/pull/2020) 合入。编号不再复用 |
 | BL-memory-p0-closure | 已完成并删除 | Memory P0 经 [#2020](https://github.com/molis-ai/molis-work/pull/2020) 合入；继续跟踪的事项已列在 [BACKLOG](../specs/BACKLOG.md) |
 | BL-1076、BL-1077 | 已按用户决定关闭 | 随 [#2020](https://github.com/molis-ai/molis-work/pull/2020) 合入；[本人走查](../specs/backlog/BL-memory-own-app-walkthrough.md)另列，历史真实 Home 影响仍未知 |
@@ -28,7 +29,7 @@ BL-455、BL-456、BL-457、BL-459、BL-460、BL-461、BL-462、BL-463、BL-464�
 
 ## 缺失编号速查（2026-11-13）
 
-共 174 个编号在非归档文档里被引用，但 main 的 specs/backlog 没有对应文件。
+共 176 个编号在非归档文档里被引用，但 main 的 specs/backlog 没有对应文件。
 
 | 编号 | 引用文件数 | 处置 |
 | --- | ---: | --- |
@@ -146,6 +147,8 @@ BL-455、BL-456、BL-457、BL-459、BL-460、BL-461、BL-462、BL-463、BL-464�
 | BL-browser-site-decisions-unreadable | 3 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |
 | BL-composer-source-refresh | 3 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |
 | BL-linux-ci-browser-reds | 3 | 已完成/并入/验收条目；见上表 |
+| BL-golden-prompt-uses-flaky | 3 | 已完成/并入/验收条目；见上表 |
+| BL-materials-object-link | 1 | 已完成/并入/验收条目；见上表 |
 | BL-memory-p0-closure | 3 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |
 | BL-083 | 2 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |
 | BL-088 | 2 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |

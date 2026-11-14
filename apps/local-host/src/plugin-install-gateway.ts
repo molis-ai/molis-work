@@ -36,12 +36,14 @@ export async function handlePluginInstallHttp(request: IncomingMessage, response
     const reference = host.projects().find(row => row.project_id === body.project_id);
     if (!reference) throw new ActionError("actions.scope_mismatch", "这个 Home 里没有这个项目");
     const client = host.actionClient(reference, false);
-    // The person at this computer, by the command they ran: the Host fixes who acts and where it came from.
-    const person = async (step: string) => ({ ...(await host.localPersonContext(reference, controller.signal)),
+    // The person at this computer, by the command they ran: the Host fixes who acts and where it came from. One context serves the
+    // whole call (N42); the steps differ only in the provenance stamped on each, and every call still checks the authority it holds.
+    const context = await host.localPersonContext(reference, controller.signal);
+    const person = (step: string) => ({ ...context,
       user_action: { source: "management" as const, conversation_ref: `management:${reference.project_id}`, message_ref: `management:plugin-install:${step}` } });
-    const preview = await client.invoke(await person("preview"), ref(pluginInstallActions.preview), { bundle: body.bundle }) as PluginInstallPreviewResult;
+    const preview = await client.invoke(person("preview"), ref(pluginInstallActions.preview), { bundle: body.bundle }) as PluginInstallPreviewResult;
     if (body.confirm !== true) { sendJson(response, 200, { preview }); return true; }
-    const installed = await client.invoke(await person("confirm"), ref(pluginInstallActions.confirm),
+    const installed = await client.invoke(person("confirm"), ref(pluginInstallActions.confirm),
       { preview_id: preview.preview_id, consent: true, ...(typeof body.pin_label === "string" ? { pin_label: body.pin_label } : {}) });
     sendJson(response, 200, { preview, installed });
   } catch (error) { const refused = actionErrorResponse(error); if (!response.destroyed) sendJson(response, refused.status, refused.body); }

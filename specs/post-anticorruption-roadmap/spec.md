@@ -32,7 +32,7 @@
 |  | [SQLite 第二步切换](reference/batches/05.md#batch-05-item-3) |
 |  | [版本字段与 schema 输入类型](reference/batches/05.md#batch-05-item-4) |
 |  | [编辑器字段整理](reference/batches/05.md#batch-05-item-5) |
-| [06](reference/batches/06.md) | [公共资料与迁移清单](reference/batches/06.md#batch-06-item-1) |
+| [06](reference/batches/06.md) | [公共资料与 Files 退役](reference/batches/06.md#batch-06-item-1) |
 |  | [文档记录协议与 SDK 共用实现](reference/batches/06.md#batch-06-item-2) |
 |  | [宿主调用整治与缓存核查](reference/batches/06.md#batch-06-item-3) |
 |  | [各包调用成本补齐](reference/batches/06.md#batch-06-item-4) |

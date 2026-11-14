@@ -562,6 +562,9 @@ test("WBR-06 S-43 from the page's action gateway, a page opened in one project i
   const crossed = await elsewhere.post("/api/host/plugin-page-actions", { reference: ref(probe.action), input: { op: "invoke", reference: ref(held) } }, { "x-molis-plugin-page": page.page_id });
   assert.notEqual(crossed.status, 200, await crossed.clone().text());
   assert.deepEqual(ran, []); assert.equal(probe.delivered(), null);
+  // The same call with that project's own page goes through: the refusal was the page id, nothing else.
+  assert.equal((await elsewhere.run(held)).status, 200);
+  assert.deepEqual(ran, [other.project_id]);
 });
 
 test("WBR-06 S-43 from the page's action gateway, an installation that declares actions:delegate without being granted it gets nothing of the person's: the target needing the person's permission never runs", async t => {

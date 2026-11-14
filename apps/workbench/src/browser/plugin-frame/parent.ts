@@ -61,9 +61,20 @@ function directoryLayout(root: HTMLElement): void {
  * Whether the person may enter it is the server's answer to that address, as for an address they typed.
  */
 function otherProjectHome(url: URL, prefix: string): string | null {
-  return /^\/projects\/[A-Za-z0-9._~%-]{1,200}\/$/u.test(url.pathname) && !url.search && !url.hash && url.pathname !== prefix + "/" ? url.pathname : null;
+  if (!/^\/projects\/[A-Za-z0-9._~%-]{1,200}\/$/u.test(url.pathname) || url.search || url.hash) return null;
+  // The project this page is in, however its id is spelled, is not another project: a page cannot reload its own shell this way.
+  const id = (path: string) => { try { return decodeURIComponent(path.split("/")[2] ?? ""); } catch { return null; } };
+  const target = id(url.pathname);
+  return target && target !== id(prefix + "/") ? url.pathname : null;
 }
+const PROJECT_JUMP_KEY = "molis-work:page-project-jump", PROJECT_JUMP_COOLDOWN_MS = 5000;
 function openProjectHome(path: string): void {
+  // One jump per five seconds for the whole tab, kept across the load it causes: two pages cannot bounce the person between projects.
+  try {
+    const last = Number(sessionStorage.getItem(PROJECT_JUMP_KEY) ?? 0);
+    if (Date.now() - last < PROJECT_JUMP_COOLDOWN_MS) return;
+    sessionStorage.setItem(PROJECT_JUMP_KEY, String(Date.now()));
+  } catch { /* Without storage the jump still happens; the shell's own load is the limit. */ }
   let shell: Window = window;
   try { if (window.top && window.top.location.origin === location.origin) shell = window.top; } catch { /* A foreign embedder keeps its own document. */ }
   shell.location.assign(path);

@@ -128,7 +128,7 @@ test("WBR-24 S-47 a page link opens another project's home and nothing else of i
   await evaluate("window.__ownerMarker='owner-page'");
   const follow = (href: string) => child.evaluate(`(() => { const link = document.createElement("a"); link.setAttribute("href", ${JSON.stringify(href)}); document.body.append(link); link.click(); link.remove(); })()`);
   const before = await evaluate<string>("location.href");
-  for (const refused of [`/projects/${other}/?openSurface=settings`, `/projects/${other}/desk`, `/projects/${other}/#x`, `/projects/${other}`, `/projects/${browser.projectId}/`]) {
+  for (const refused of [`/projects/${other}/?openSurface=settings`, `/projects/${other}/desk`, `/projects/${other}/#x`, `/projects/${other}`, `/projects/${browser.projectId}/`, `/projects/%${browser.projectId.charCodeAt(0).toString(16)}${browser.projectId.slice(1)}/`]) {
     await follow(refused);
     await child.evaluate("new Promise(resolve=>setTimeout(resolve,100))");
     assert.deepEqual(await evaluate("[location.href, window.__ownerMarker]"), [before, "owner-page"], `${refused} moved nothing`);
@@ -137,6 +137,7 @@ test("WBR-24 S-47 a page link opens another project's home and nothing else of i
   await navigate(() => follow(`/projects/${other}/`).catch(() => undefined));
   await waitFor(`location.pathname === ${JSON.stringify(`/projects/${other}/`)} && window.__ownerMarker === undefined`, 15_000);
   assert.equal(await evaluate<string>("location.search"), "", "the home, with nothing named in it");
+  assert.ok(Date.now() - Number(await evaluate<string>("sessionStorage.getItem('molis-work:page-project-jump')")) < 60_000, "the jump is recorded, so a second one within five seconds is refused");
 });
 
 test("SYS-15-F1 SYS-15-F2 desktop search releases only the file selected by a trusted click, then opens its owned copy", { timeout: 60_000 }, async t => {

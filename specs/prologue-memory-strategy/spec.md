@@ -3142,14 +3142,14 @@ App真正采用增量仅lock、同名tgz及sha/provenance、vendor README五路�
 | 观察 | 已核实的代码事实 | 位置 |
 | --- | --- | --- |
 | 每日整理只看一小块、只在条目变了才重跑 | 每天本地 4 点排一次 `memory.upkeep`；模型整理只收 `active().slice(-60)`、每条前 200 字；按范围的条目 `id:version:state` 指纹没变就不再调模型。用户在新会话里纠正、旧条目还没改，这次纠正不会触发整理 | [memory-host.ts](../../apps/local-host/src/memory/memory-host.ts)（`scheduleUpkeep`）、[service.ts](../../horizontal/memory/src/service.ts)（`upkeep`） |
-| 整理只认字面重复，90 天没用就停用 | 规则合并只在相似度 ≥ 0.85；模型只给「重复/冲突」两类线索；自动条目 90 天没有「使用」就 `auto_disabled` | [service.ts](../../horizontal/memory/src/service.ts)（`upkeep`） |
+| 整理只认字面重复，90 天没用就停用 | 规则合并只认相似度 ≥ 0.85 的字面重复；模型给的重复线索还要过文本相似度 ≥ 0.3（`RELATED_TEXT`）才合并，冲突直接上报；自动条目 90 天没有「使用」就 `auto_disabled` | [service.ts](../../horizontal/memory/src/service.ts)（`upkeep`） |
 | 「使用」只是请求收到了响应 | `lastUse` 只取 `state='response-observed'` 的回执，不知道任务结果或用户反馈 | [memory-ledger.ts](../../packages/storage/src/adapters/memory-ledger.ts)（`lastUse`） |
 | 后台学习有词表前置门 | `worthLearning` 要求最新一句命中「以后／喜欢／always…」等 `STANDING_WISH`；P2-01 已计划去掉（MEM-45） | [learning.ts](../../horizontal/memory/src/learning.ts) |
 | 助理准备的召回语境没进开轮召回 | 助理调用 `forRun` 时带 `query: "${task} ${work.title}"`，但开轮配方里没有查询字段；SDK 开轮任务召回用的是开轮消息拼起来的文本 | [assistant-memory-bridge.ts](../../apps/local-host/src/assistant/assistant-memory-bridge.ts)、[run-recipe.ts](../../horizontal/memory/src/run-recipe.ts)、Prologue [agent-memory-context.ts](https://github.com/molis-ai/molis-prologue/blob/c764d970/packages/sdk/src/composition/core/agent-memory-context.ts) |
 | 空常驻也发一次召回 | 配方固定 `pinned: []`，Agent Host 照传 `resident: []`；SDK 见 `resident !== undefined` 就以空引用再走一次 resident 召回与授权读取 | [run-recipe.ts](../../horizontal/memory/src/run-recipe.ts)、[prologue-run.ts](../../horizontal/agent-host/src/adapters/prologue-run.ts)、Prologue `agent-memory-context.ts` |
 | 候选按范围顺序收 | 有存储时逐个 scope 扫，先扫的 scope 可先占满 `maxCandidates`；大个人库可能挤掉小项目库 | Prologue [recall-candidates.ts](https://github.com/molis-ai/molis-prologue/blob/c764d970/packages/sdk/src/memory/core/recall-candidates.ts) |
 | 会话原文检索已有、没人接 | Prologue `sessions.search` 能搜到压缩前的原文，回会话、Run 与事件序号；Agent Host 与 local-host 的助理、Coding 调用链里都没有接线 | Prologue [search.ts](https://github.com/molis-ai/molis-prologue/blob/c764d970/packages/sdk/src/session/core/search.ts) |
-| 会话检索的三个口子 | 点名会话仍先翻全部会话列表再过滤，且翻到 `SESSION_SEARCH_MAX_SESSIONS` 就停，超出的点名会话被静默跳过、`truncated` 不报；`text-delta`／`reasoning-delta` 逐片匹配，跨片的一句话搜不到；只报命中上限截断，不报扫描覆盖 | 同上 |
+| 会话检索的三个口子 | 点名会话仍先翻全部会话列表再过滤，且翻到 `SESSION_SEARCH_MAX_SESSIONS` 就停，超出的点名会话被静默跳过、`truncated` 不报；`text-delta`／`reasoning-delta` 逐片匹配，跨片的一句话搜不到；只报命中上限截断，不报扫描覆盖。基线 `c764d970`；上游 #121 已改点名直读、片段合并与扫描覆盖，换包含它的包后按 MEM-66 验 | 同上 |
 | 模型可见来源标签可缩短 | 上游 #117 已有 `MemoryModelOrigin = "label"`，随第 28 批换入 | Prologue `memory/core/memory.ts` |
 
 用户材料里另两条数字未在本次重算，照材料引用：2,000 条规模测试里显式召回每次仍列出约 1,500 条可见记录；P0 最后一轮正式对照任务达标 23/32 → 29/32、暖读 Context 组装增量 +31.1 ms（门 30 ms）、总 token +2.6%（见上文 BL-1072、BL-1073）。
@@ -3181,7 +3181,7 @@ Dreaming 是连接这四层的后台过程：拿原文核对笔记、补漏、�
 
 - **空常驻不发召回。** 已由上游 molis-ai/molis-prologue#121（`4493a5eb`，2026-11-14）在 SDK 里做掉：组合配方里空的 `resident` 零读取、零授权往返，照留 `outcome: "none"` 的回执。Molis 换到含它的包即生效；在 BL-1072 冻结的方法下记一次诊断值，不改门、不翻案。
 - **开轮召回收可信任务语境。**（上游已做：#121 的 `agent.memory.taskText` ≤ 2000 字、`retrieval.queryFrom`，Molis 待接）SDK 开轮配方增加一个由可信 App 提供、有长度上限的召回文本（例如工作标题、当前对象的标签、已选引用的标题与本轮原话），回执记录召回文本的来源；页面声明只能收窄不能扩大范围。Molis 把助理已准备的 `task + work.title` 与当前对象、已选引用接进去，Coding 同样给出当前任务标题。对「照上次那个格式」这类短请求，这一步通常比扩关键词更值得先试。
-- **候选按范围公平收。** 2026-11-14 在上游试做按 scope 轮转后撤回：所有 scope 的记忆行在同一份 kind 列表里，每个 scope 的游标都从头翻再过滤，30 条个人 + 2 条项目、候选上限 10 时项目两条仍一条没进，页数从 1 变成 7。要公平需 Host 能按 scope 区间列出记忆行（Host 存储窄口变化，另议）；现状还意味着查 `[个人, 项目]` 时第二个 scope 会重翻第一个已翻过的行，规模与时延问题归 BL-memory-p2-scale。
+- **候选按范围公平收。** 2026-11-14 在上游试做按 scope 轮转后撤回：所有 scope 的记忆行在同一份 kind 列表里，每个 scope 的游标都从头翻再过滤，30 条个人 + 2 条项目、候选上限 10 时项目两条仍一条没进，页数从 1 变成 7。要公平需 Host 能按 scope 区间列出记忆行（Host 存储窄口变化，归 64-9 实现时定）；现状还意味着查 `[个人, 项目]` 时第二个 scope 会重翻第一个已翻过的行，规模与时延问题归 BL-memory-p2-scale。
 - **两条召回路径分别测。** 显式召回（Service 关键词评分）与自动召回（SDK 开轮）评分不同，各自用同一样本集定位漏召回在哪一步：没进候选、被硬过滤、被预算裁掉、已注入未遵循。先查适用范围、有效期和明确纠正，再用中文换说法、中英缩写样本确认；只有定位到「没进候选」且是同义问题，才按 BL-memory-p2-semantic-recall 评估语义或混合检索。
 - **模型可见标签。** 评估用已有的 `modelOrigin: "label"` 缩短模型看到的来源标签与编号，回执保留完整身份；省下的 token 计入 BL-1073 口径的诊断。
 
@@ -3289,12 +3289,12 @@ Dreaming 是连接这四层的后台过程：拿原文核对笔记、补漏、�
 
 | 内容 | 落点 | 说明 |
 | --- | --- | --- |
-| P1 短合同补整理变更的撤销窗口；P2-02 的「空常驻不发召回」（上游 molis-ai/molis-prologue#121 已做，随这次换包生效、不改 Agent Host） | [31-2](../post-anticorruption-roadmap/reference/batches/31.md#batch-31-item-2) | 都在 Agent Host 记忆适配与 P1 历史这一处 |
-| 请 Prologue 补：开轮召回收可信任务语境、会话检索（上游 #121 已做）；候选按范围公平收（上游试做后撤回，要 Host 能按 scope 区间列行）；按 P2-01 合同需要的「提炼结果带关系与目标版本」 | [62](../post-anticorruption-roadmap/reference/batches/62.md)「请 Prologue 补的清单」 | 阶段 3 的换包窗口 |
+| P1 短合同补整理变更的撤销窗口；P2-02 的「空常驻不发召回」（上游 molis-ai/molis-prologue#121 已做，当前 vendor 不含它，随包含它的换包生效、不改 Agent Host） | [31-2](../post-anticorruption-roadmap/reference/batches/31.md#batch-31-item-2)（撤销窗口）；换包含它的包见 [62](../post-anticorruption-roadmap/reference/batches/62.md) | 同在 P1 历史与换包这一处 |
+| 请 Prologue 补：会话检索（上游 #121 已做）、按 P2-01 合同需要的「提炼结果带关系与目标版本」（视合同） | [62](../post-anticorruption-roadmap/reference/batches/62.md)「记忆与会话检索清单」 | 阶段 3 的换包窗口；候选公平的 Host 侧与开轮召回的 Molis 接入见 64-9 |
 | 记忆样本与逐段定位进评测平台 | [63](../post-anticorruption-roadmap/reference/batches/63.md) | 与 64 共同消费，到 76 汇合 |
 | P2-05 常驻层并进工作记忆 | [64-5](../post-anticorruption-roadmap/reference/batches/64.md#batch-64-item-5) | 热缓存即常驻层 |
 | P2-01 形成质量 | [64-8](../post-anticorruption-roadmap/reference/batches/64.md#batch-64-item-8)（新） | 与整理共用判断合同，先于 64-9 |
-| P2-02 的 Molis 消费、P2-03、P2-04、用户控制 | [64-9](../post-anticorruption-roadmap/reference/batches/64.md#batch-64-item-9)（新） | 等 62 的 SDK 项、32-2、44-2 |
+| P2-02 的 Molis 消费（含候选按 scope 公平收的 Host 侧）、P2-03、P2-04、用户控制 | [64-9](../post-anticorruption-roadmap/reference/batches/64.md#batch-64-item-9)（新） | 等 64-8、62 的清单、32-2、44-2 |
 | 整理与常驻的长期观察 | [76](../post-anticorruption-roadmap/reference/batches/76.md) | 观察期满再下结论 |
 | P2-06 主题导览 | [BL-memory-topic-guide](../backlog/BL-memory-topic-guide.md) | 条件触发，不排批 |
 | 语义／混合召回、规模与查询下推 | 仍按 BL-memory-p2-semantic-recall、BL-memory-p2-scale 触发 | 触发前先过 MEM-65 的逐段定位 |

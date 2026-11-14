@@ -173,3 +173,9 @@ Manifest：`permissions` 含 `actions:delegate`（转调 Schedule、读取器核
    - **Schedule 修改缺省沿用重复方式（C 轨第 1 条）**：`schedule.tasks.update@1` 不给 `repeat` 时沿用任务原来的，一次性任务不给 `at` 就保留原时间；Schedule 页面对一次性任务显示「单次」。
    - **Goals 同步导入校验 `cited_subjects_json`（C 轨第 2 条）**：JSON 列表、至多 8 个、`kind`／`id` 非空，别的字段拒收。改前这类载荷在后面的应用步骤也会失败，现在在导入校验处就拒。
    - **Goals 旧事件的 `cited_subjects`**：统一起点之后、本批之前写下的 `concern_opened` 事件没有这个字段，读成空列表，意思是「没有引用对象」，与新写入的空列表同义；日志不改写。
+9. 评审台复审小修（2026-11-14，头 b58f377d6a 审过、不挡合并，随本批修）：
+   - **Schedule 页面编辑一次性任务**：表单的「每天」时间对一次性任务藏起并不发送（详情的时间带 `data-schedule-task-once`），改了也不会被悄悄丢掉；一次性任务的时间只在安排它的地方改（风险的复查）。`tests/schedule-isolated-page.e2e.test.ts` 补了三种表单状态。
+   - **Goals 同步校验与写入侧一致**：`cited_subjects_json` 里 `kind`／`id` 前后带空格或重复的也拒收（写入侧 `citedSubjectsOf` 会去空格、去重）。
+   - **风险页面的只读判断**：只有动作的 forbidden 码（`actions.*` 的 403，不含未登录与非本 Home）才把记录变只读；宿主自己的 403（控制令牌、来源）不算。
+   - **调用预算许可**：许可只能点名真变大的计数；补了「删掉已采用的许可」与「点名没变大的计数」两种拒绝用例，`tooling/gates/README.md` 写上两份文件的规则。
+   - `updateTask` 为找一条任务读全部任务，记 [BL-schedule-update-task-lookup](../backlog/BL-schedule-update-task-lookup.md)。

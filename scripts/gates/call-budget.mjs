@@ -117,6 +117,10 @@ export function callBudgetProblems(head, base, required) {
   for (const key of Object.keys(allowed)) {
     const [scenario, counter] = key.split(".");
     if (!Object.hasOwn(after[scenario] ?? {}, counter)) errors.push(`${CALL_BUDGET_FILE}: an allowance names ${key}, which the budget does not have`);
+    // An allowance raises what grew and nothing else: a counter that did not grow (or is new, with no merge-base value) needs none.
+    else if (!Object.hasOwn(before[scenario] ?? {}, counter) || after[scenario][counter] <= before[scenario][counter]) {
+      errors.push(`${CALL_BUDGET_FILE}: an allowance names ${key}, which did not grow`);
+    }
   }
   for (const [scenario, counters] of Object.entries(before)) {
     if (!Object.hasOwn(after, scenario)) {

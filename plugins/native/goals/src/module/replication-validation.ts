@@ -54,15 +54,20 @@ function validateScope(row: ProjectReplicaRow, value: unknown, requirements: Map
   }
 }
 
-/** A concern's cited objects as Goals writes them: a JSON list of at most GOAL_CONCERN_CITED_SUBJECT_LIMIT `{kind, id}`, both nonempty text. */
+/** A concern's cited objects as Goals writes them (event-state-concerns.ts `citedSubjectsOf`): a JSON list of at most
+ * GOAL_CONCERN_CITED_SUBJECT_LIMIT distinct `{kind, id}`, both nonempty text with no space around it. */
 function validateCitedSubjects(value: ProjectReplicaRow[string]): void {
   let list: unknown;
   try { list = JSON.parse(String(value)); } catch { invalid(); }
   if (!Array.isArray(list) || list.length > GOAL_CONCERN_CITED_SUBJECT_LIMIT) invalid();
+  const seen = new Set<string>();
   for (const item of list) {
     if (!item || typeof item !== 'object' || Array.isArray(item) || Object.keys(item).some(key => key !== 'kind' && key !== 'id')) invalid();
     const { kind, id } = item as Record<string, unknown>;
-    if (typeof kind !== 'string' || !kind.trim() || typeof id !== 'string' || !id.trim()) invalid();
+    if (typeof kind !== 'string' || !kind || kind.trim() !== kind || typeof id !== 'string' || !id || id.trim() !== id) invalid();
+    const key = JSON.stringify([kind, id]);
+    if (seen.has(key)) invalid();
+    seen.add(key);
   }
 }
 

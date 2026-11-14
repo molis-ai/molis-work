@@ -26,8 +26,14 @@ const VERSIONS: Readonly<Record<string, number>> = {
 
 export const failureOf = (error: unknown) => error as Partial<UiRequestFailure> & { details?: Record<string, unknown> };
 export const isAbort = (error: unknown) => error instanceof Error && error.name === "AbortError";
-/** Refused for who may do it: the forbidden kind answers 403 (packages/contracts/src/platform/action-errors.ts). */
-export const isPermission = (error: unknown) => failureOf(error).status === 403;
+/** Refused for who may do it: an action's forbidden kind (packages/contracts/src/platform/action-errors.ts) answers 403 with an
+ * `actions.` code. A 403 of the Host's own (its control token, the page's origin) or a session that is not signed in or not this
+ * Home's is not about this person and this risk, so it does not turn the record read-only. */
+const SESSION_REFUSALS = new Set(["actions.unauthenticated", "actions.home_mismatch"]);
+export const isPermission = (error: unknown) => {
+  const { status, code } = failureOf(error);
+  return status === 403 && typeof code === "string" && code.startsWith("actions.") && !SESSION_REFUSALS.has(code);
+};
 
 function initialState(): RiskPageState {
   return { view: "overview", filter: { status: "open", impact: "", owner_name: "", linked: "" }, rows: [], anyClosed: false, owners: [], next: null, overviewError: "",

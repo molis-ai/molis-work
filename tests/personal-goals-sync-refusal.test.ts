@@ -18,9 +18,10 @@ test('GSYNC-05 invalid journal anchors, cross-project rows and decisions fail at
     w => { w.facts.governance!.goal_event_trusted_decisions![0]!.authority_source = 'runtime_dialogue'; },
     w => { w.facts.goals!.goal_event_applied_decisions![0]!.governance_decision_id = 'missing'; },
     w => { w.facts.goals!.goals![0]!.in_scope_json = '{invalid'; },
-    // RISK-01: a concern's cited objects arrive only as Goals writes them (a JSON list of at most 8 nonempty {kind, id}).
+    // RISK-01: a concern's cited objects arrive only as Goals writes them (a JSON list of at most 8 distinct, trimmed, nonempty {kind, id}).
     ...['not json', '{"kind":"risk","id":"r"}', JSON.stringify(Array.from({ length: 9 }, (_, i) => ({ kind: 'risk', id: `r${i}` }))),
-      '[{"kind":"","id":"r"}]', '[{"kind":"risk","id":"r","title":"copied"}]'].map(cited => (w: GoalWire) => { citeConcern(w, cited); }),
+      '[{"kind":"","id":"r"}]', '[{"kind":"risk","id":"r","title":"copied"}]', '[{"kind":" risk","id":"r"}]',
+      '[{"kind":"risk","id":"r "}]', '[{"kind":"risk","id":"r"},{"kind":"risk","id":"r"}]'].map(cited => (w: GoalWire) => { citeConcern(w, cited); }),
   ];
   let revision = f.events[0]!.revision;
   for (const edit of edits) {

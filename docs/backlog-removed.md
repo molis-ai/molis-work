@@ -13,7 +13,7 @@
 | BL-928 | 已完成并删除 | 真实 Home 干净重建，2026-11-07 #1914（`d125b36f5c`） |
 | BL-linux-ci-browser-reds | 已完成并删除 | 2026-11-13 #2044 放宽首页截止、#2046 修其余 Linux 浏览器用例；批次 15 已记「BL 已删」 |
 | BL-side-files-merged-reads | 已完成并删除 | 第 06 批 N52 已并入并完成；批次 06 与依赖表保留历史说明 |
-| BL-1074 | 已完成并删除 | [#2029](https://github.com/molis-ai/molis-work/pull/2029) 修复跨进程插件框架不跟随页面 reduced-motion；原生 Linux no-fail-fast full suite [43546443501](https://github.com/molis-ai/molis-work/actions/runs/43546443501) 的 shard 21 首轮 `coding-question-card.e2e` 6/6，无 CDP 超时；2026-11-14 删除 |
+| BL-1074 | 已完成并删除 | [#2029](https://github.com/molis-ai/molis-work/pull/2029) 修复跨进程插件框架不跟随页面 reduced-motion；原生 Linux no-fail-fast full suite [43546443501](https://github.com/molis-ai/molis-work/actions/runs/43546443501) 的 shard 21 首轮 `coding-question-card.e2e` 6/6，无 CDP 超时；该 run 整体仍红在 shard 7／17（合并基线既有）与 shard 26 的 `workbench-frame-container.e2e`（该用例没有设页面 reduce，新逻辑只多一次页面读取，重试仍红，需在合并后的 main 上另核）；2026-11-14 删除 |
 | BL-golden-prompt-uses-flaky、BL-materials-object-link | 已完成并删除 | 第 06 批合后审计（2026-11-13）：golden-prompt 偶发由生成期屏蔽知识整理 2 秒定时器稳定（`tests/golden-home.test.ts` 42/42）；资料对象链接恢复（`tests/appearance-side-windows.e2e.test.ts` 3/3，页面资源许可 +155 B）；见 [06.md 合入记录](../specs/post-anticorruption-roadmap/reference/batches/06.md#batch-06-audit) |
 | BL-1071 | 已关闭；两个历史事项曾同号 | 2026-11-07 #1921 删除 S-102 的条目；Memory 的 SDK 采用随 [#2020](https://github.com/molis-ai/molis-work/pull/2020) 合入。编号不再复用 |
 | BL-memory-p0-closure | 已完成并删除 | Memory P0 经 [#2020](https://github.com/molis-ai/molis-work/pull/2020) 合入；继续跟踪的事项已列在 [BACKLOG](../specs/BACKLOG.md) |

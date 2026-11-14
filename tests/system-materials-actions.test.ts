@@ -195,6 +195,13 @@ test("BSH-05 materials.read refuses what is not this person's, not the platform'
   const code = (expected: string) => (error: unknown) => (error as ActionError).code === expected;
   const someoneElse = { ...person(reading, m.project.project_id), actor_id: "someone-else" };
   await assert.rejects(m.call(materialsActions.read, { ref: captured.ref, mode: "text" }, someoneElse), code("actions.forbidden"));
+  // A fixed version is the 成果库's, so only workspace:read is not enough even for the person's own (the source owner asks artifact:read).
+  await assert.rejects(m.call(materialsActions.read, { ref: { ...captured.ref, pin: { mode: "fixed", version: { artifact_id: "absent", version: 1 } } }, mode: "head" },
+    person(reading, m.project.project_id)), code("actions.forbidden"));
+  // A caller that declares the artifacts service's own read (Goals does) gets past the permission; the missing version is then a
+  // different refusal, not `actions.forbidden`.
+  await assert.rejects(m.call(materialsActions.read, { ref: { ...captured.ref, pin: { mode: "fixed", version: { artifact_id: "absent", version: 1 } } }, mode: "head" },
+    person(["artifacts:read", "workspace:read"], m.project.project_id)), error => (error as ActionError).code !== "actions.forbidden");
   await assert.rejects(m.call(materialsActions.read, { ref: { ...captured.ref, subject: { kind: WORKSPACE_FILE_SUBJECT_KIND, id: workspaceFileSubjectId(m.output.workspace_id, ["other.md"]) } }, mode: "text" }),
     code("actions.subject_mismatch"));
   // A version under the platform's id but not its current signature (an old registration, a copy from elsewhere) is not read back.

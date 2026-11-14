@@ -2,7 +2,7 @@ import path from "node:path";
 import { assertCurrentHomeStorageOwner } from "./home-storage-lifetime.js";
 import { closeAssistantService } from "./assistant/assistant-http.js";
 import { pluginErrors, type PluginDefinition, type PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { homeStoreRegistry, type HomeStore, type HomeStoreRegistry } from "@molis-ai/molis-work-storage";
+import { homeStoreRegistry, type HomeStore, type HomeStoreRegistry, type StorageOwner } from "@molis-ai/molis-work-storage";
 import type { HostCompleteText } from "./host-complete-text.js";
 import { homeStores } from "./home-stores.js";
 import { HomeConsentLedger } from "./home-plugin-store.js";
@@ -34,7 +34,7 @@ export interface PluginPlatformHome {
   readonly settingsVersionClaims?: SettingsVersionClaims;
   /** Captures the matching Home activation's permission, never exposes that activation to a project. */
   capturePermission(project: PluginInstanceRecord, permission: string): () => void;
-  assertStorageOwner(): void;
+  assertStorageOwner(): StorageOwner;
 }
 
 type HomeSideOptions = Pick<MolisWorkLocalHostOptions, "completeText" | "pluginFixtures" | "workspaceFor" | "workspacesFor" | "directoriesFor" | "prepareDirectory">;
@@ -87,11 +87,11 @@ export function pluginHomeFor(homeDirectory: string): PluginPlatformHome {
     }, assertStorageOwner: homeStorageAssertion(directory) };
 }
 
-function homeStorageAssertion(directory: string): () => void {
+function homeStorageAssertion(directory: string): () => StorageOwner {
   const host = sides.get(directory)?.host;
   return () => {
     if (!host || sides.get(directory)?.host !== host) throw pluginErrors.grant_denied("插件原 Home 的存储所有权已失效");
-    assertCurrentHomeStorageOwner(host, directory);
+    return assertCurrentHomeStorageOwner(host, directory);
   };
 }
 

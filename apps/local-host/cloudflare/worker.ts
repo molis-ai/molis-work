@@ -1,13 +1,13 @@
+import { connectorApplicationReferences } from "../src/release-profile.js";
 import { API_OAUTH_PROVIDERS, apiOAuthProvider } from "./providers.js";
 
 export interface BrokerEnv {
   PUBLIC_ORIGIN: string;
+  MOLIS_WORK_RELEASE_PROFILE?: string;
   /** Worker Secret: base64url-encoded 32 random bytes. */
   ENVELOPE_KEY: string;
-  /** Worker Secret: JSON object keyed by service id. Never returned to clients. */
-  OAUTH_APPS?: string;
-  /** Independently managed Worker Secrets; each replaces one complete app entry. */
-  [secret: `OAUTH_APP_${string}`]: string | undefined;
+  /** Individually named app Secrets and the optional map are read through the release configuration. */
+  [binding: string]: unknown;
   AUTH_RATE_LIMITER: { limit(input: { key: string }): Promise<{ success: boolean }> };
 }
 interface App { clientId: string; clientSecret?: string; settings?: Record<string, string> }
@@ -53,10 +53,12 @@ function origin(env: BrokerEnv): string {
 }
 function application(env: BrokerEnv, service: string): App {
   if (!Object.hasOwn(API_OAUTH_PROVIDERS, service)) throw new Error("unsupported_service");
-  const secretName = `OAUTH_APP_${service.replaceAll("-", "_").toUpperCase()}` as const;
-  const raw = env[secretName] !== undefined
-    ? JSON.parse(env[secretName]!)
-    : object(JSON.parse(env.OAUTH_APPS || "{}"))[service];
+  const { primary, fallback } = connectorApplicationReferences(env.MOLIS_WORK_RELEASE_PROFILE ?? "dev", service);
+  if (!primary) throw new Error("not_configured");
+  const configured = env[primary], shared = fallback && env[fallback];
+  const raw = typeof configured === "string"
+    ? JSON.parse(configured)
+    : typeof shared === "string" ? object(JSON.parse(shared || "{}"))[service] : undefined;
   const app = object(raw) as unknown as App;
   const provider = apiOAuthProvider(service, app.settings);
   if (!app.clientId || (!provider.optionalSecret && !app.clientSecret) ||

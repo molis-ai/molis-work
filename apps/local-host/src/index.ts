@@ -286,6 +286,7 @@ export { collectRetained } from "./uninstall-retained.js";
 export { ensureProjectPlugins, projectPluginProblem, releaseProjectPlugins, runningProjectPlatform } from "./project-plugins.js";
 export { announceConnectionChanged } from "./connection-change-events.js";
 export { builtinMarketDirectory, homePluginDirectory, mergePluginDirectories, runningPluginDirectory, type DirectorySource } from "./plugin-directory.js";
+export { runningPluginText, type RunningPluginText, type RunningRelease } from "./running-plugin-text.js";
 export { observeReviewSettlements, reviewSettlementForwarder, type AgentWritePlaces, type ObserveReviewSettlements, type ReviewSettlement } from "./review-settlement-events.js";
 export { createGitWorktreePort, hostWriterId, type GitWorktreePort } from "./workspace-git-worktrees.js";
 export { readWriterIntegration, prepareWriterIntegration } from "./workspace-git-integration.js";

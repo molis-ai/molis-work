@@ -28,6 +28,7 @@ export const pluginProjectDatabaseErrors = defineErrorCodes("plugin.project_data
   object_taken: "conflict",
   publisher_mismatch: "forbidden",
   version_mismatch: "conflict",
+  store_too_new: "conflict",
   shape_mismatch: "conflict",
   /** A statement that reaches past the plugin's own tables, or does more than read or change rows (`project-database-statements.ts`). */
   statement_refused: "forbidden",

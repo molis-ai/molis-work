@@ -14,6 +14,9 @@ export function assertUpgradeOf(next: Pick<PluginManifest, 'version' | 'upgrade_
 /** The same rule, answered rather than thrown: undefined when the package is the installed one's upgrade. */
 export function upgradeRefusal(next: Pick<PluginManifest, 'version' | 'upgrade_compatibility'>, installedVersion: string): Error | undefined {
   if (comparePluginVersions(next.version, installedVersion) <= 0) return pluginErrors.upgrade_required('这个包的版本是 ' + next.version + '，不高于已装的 ' + installedVersion + '：不是升级');
-  if (!(next.upgrade_compatibility?.compatible_from_versions ?? []).includes(installedVersion)) return pluginErrors.upgrade_required('这个包的清单没有声明能从已装的 ' + installedVersion + ' 直接升级（upgrade_compatibility.compatible_from_versions）');
+  const { compatible_from_versions = [], migratable_from_versions = [] } = next.upgrade_compatibility ?? {};
+  if (!compatible_from_versions.includes(installedVersion) && !migratable_from_versions.includes(installedVersion)) {
+    return pluginErrors.upgrade_required('这个包的清单没有声明能从已装的 ' + installedVersion + ' 升级（upgrade_compatibility）');
+  }
   return undefined;
 }

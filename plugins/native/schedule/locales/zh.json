@@ -131,6 +131,7 @@
     "schedule.read-group.operations.description": "本项目的定时任务、提醒，以及其他插件登记的定时操作和它们的原输入",
     "schedule.read-group.operations.title": "定时操作",
     "schedule.read-group.reminders.description": "本项目的提醒：内容（含其他插件登记的提醒的文字）、来自哪个插件和下一次时间",
-    "schedule.read-group.reminders.title": "提醒"
+    "schedule.read-group.reminders.title": "提醒",
+    "schedule.runs.source-title": "定时任务"
   }
 }

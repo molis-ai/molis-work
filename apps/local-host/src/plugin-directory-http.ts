@@ -21,7 +21,8 @@ export async function handleDirectoryGrantHttp(context: WebRequestContext, proje
       if (request.method === "GET") { sendLocalWebJson(response, 200, { grants: await listGrants(context, await service.list()) }); return true; }
       const [kind, id] = url.pathname.slice(GRANTS.length + 1).split("/").map(decodeURIComponent);
       if (!id || !["grant", "plugin"].includes(kind!)) throw new ActionError("actions.input_invalid", "请指定要撤回的授权或插件");
-      sendLocalWebJson(response, 200, { revoked: service.revoke(kind === "grant" ? { grant_id: id } : { plugin_id: id }) });
+      sendLocalWebJson(response, 200, { revoked: service.revoke(kind === "grant" ? { grant_id: id } : { plugin_id: id },
+        { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user", permissions: [] }) });
     } catch (error) {
       const failure = actionErrorResponse(error); sendLocalWebJson(response, failure.status, failure.body);
     }

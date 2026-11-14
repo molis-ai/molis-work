@@ -8,6 +8,8 @@
 | --- | --- | --- |
 | 工作树 Git 元数据中的本地快查 | CI 不读，不入库；没有时默认对照 origin/main | `node scripts/check-health-gates.mjs --update --base origin/main` |
 | `page-asset-allowances/*.json` | 每项任务必要增长的独立一次性许可；不写绝对预算 | 经审阅后记录 reason、review、assets；大额或新资源加用户批准出处，见开发手册 |
+| `call-budget.json` | 宿主各请求场景的调用次数上限（`tests/call-budget.test.ts` 实测不许超过；门禁 `scripts/gates/call-budget.mjs` 对照 merge-base 只许变小，口径见 `specs/batch-06-call-cost/spec.md`） | 变小随改动写；变大只经下一行的许可 |
+| `call-budget-allowances/*.json` | 每项任务必要增长的独立一次性许可：`reason`、`review`、`userApproval`、`counters`（场景 → 计数 → 允许到的值） | 只认 merge-base 没有的文件；只能点名真变大的计数，预算必须正好等于许可值；已采用的不能改、不能删、不再放行 |
 | `giant-exceptions/**/*.json` | 按源码文件分开的巨大单元登记；重复 key 拒绝 | 保留 kind、reason、精确 size，仍须评审 |
 | `limits.json` | 巨大单元与 vendored SDK 的阈值，以及 `docs/` 下一个 `.json` 最多多少字节（`docsJsonBytes`，依据见 `scripts/gates/README.md`「文档里的原始数据」），只许收紧 | 人，过评审 |
 | `api/<包>/<subpath>.txt` | contracts 每个 subpath、插件 SDK，以及别的工作区包的 `./contract` 的公开 API 快照 | `pnpm api:update`（见下） |
@@ -316,3 +318,9 @@ W1-09。工具是 Biome（根 `biome.jsonc`，锁文件里一个精确版本的 
 工具缺失是退出码 2，不是通过。规则本身在 `tests/native-checks.test.mjs`（纯 `node:test`，不需要装依赖）里各被故意违反一次；本机没有的工具对应的用例会跳过并说明（shell 用例另有一个替身 shellcheck，验证“交了哪些文件、严重度参数、失败的退出码”）。
 
 本机的 Rust 测试 `cargo test` 不在 CI 里：有两个测试用纳秒时间戳给临时目录命名，并行时偶尔撞名（`shelf_http`、`context_directory_files`）。
+
+## 公开状态词汇与声明
+
+`pnpm health:check` 报告状态词汇的增量与声明问题。单独看明细用 `node scripts/gates/state-vocabulary.mjs --report --base origin/main`。按文件对照合并基点，统计仓库生产 TypeScript 的导出 `*Status`、`*State`、`*Phase` 字符串联合，以及 contracts/SDK 对外类型中以 state、status、phase 命名的内联联合。一个联合至少有两个字符串字面量。直接用公开词表派生的类型不再是裸联合。比较两棵树用同一口径，识别 Git 已跟踪的重命名。
+
+声明检查读仓内静态清单和 `--manifest <文件>` 指定的 JSON，用 SDK 的实际验证器，检查命名空间、上下限、家族和初始态/终态；无法静态解析的声明会在报告里标出。动态生成的清单可将产物交给同一条命令检查。登记与启动兑现见第 47 批。普通报告有发现时退出码仍为 0，健康门禁的放行条件维持原样。词表与现有家族生成文档用 `node scripts/gates/state-vocabulary.mjs --table`，报告会提示生成文件漂移。

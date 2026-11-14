@@ -8,7 +8,9 @@ import { capabilityInput, GATEWAY_TOOLS, offerWords } from "./prologue-action-ga
 import { actionDigest } from "../action-digest.js";
 import { afterWriteTool } from "./prologue-after-write.js";
 
-export const agentActionToolName = (ref: ExactActionReference, scope: string) => "molis-action-" + scope + "-" + createHash("sha256")
+/** Every action tool's name starts with this: what tells an action call (recorded at the action exit) from the runtime's own tools. */
+export const MOLIS_ACTION_TOOL_PREFIX = "molis-action-";
+export const agentActionToolName = (ref: ExactActionReference, scope: string) => MOLIS_ACTION_TOOL_PREFIX + scope + "-" + createHash("sha256")
   .update(JSON.stringify([ref.capability_id, ref.version, ref.provider_id])).digest("hex").slice(0, 24);
 /** A run's action tools by the name the model calls them: the naming above, for the actions it froze under its scope. */
 export const actionToolRefs = (refs: readonly ExactActionReference[], scope: string): ReadonlyMap<string, ExactActionReference> =>

@@ -169,7 +169,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   // Bound to the runtime once it exists; nothing is looked at before a wait is registered.
   const checks = createPrologueConditionCheckers({ runtime: () => runtime, ports: options.checks, project: async id => (await index.read(id).catch(() => undefined))?.owner.project_id,
     owner: async id => (await index.read(id).catch(() => undefined))?.owner });
-  const runtime = await createNodeRuntime(options, effects.host, schedule.run, () => surfaceHost, { forRun: runId => state.dispatchChecks.get(runId) }, checks.checkers, memoryAuthority);
+  const runtime = await createNodeRuntime(options, effects.host, schedule.run, () => surfaceHost, { forRun: runId => state.dispatchChecks.get(runId) }, checks.checkers, memoryAuthority, state.modelRequests);
   const closeRuntime = onFailureClose(() => runtime.shutdown());
   const closeChecks = onFailureClose(() => checks.close());
   checks.open();
@@ -252,6 +252,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     }) },
     modelConfiguration: options.modelConfiguration,
     ...(options.memoryUsage ? { memoryUsage: options.memoryUsage } : {}),
+    ...(options.observeRun ? { observeRun: options.observeRun } : {}),
     stopHeld: runId => { const queue = state.heldLabels.get(runId); const next = queue?.shift(); if (queue && !queue.length) state.heldLabels.delete(runId); return next; },
     // Judged when the run ends, from its facts: held for only announcing, and nothing called after that.
     endedOnPromise: (runId, sessionId) => endedOnPromise(state, runId, sessionId),

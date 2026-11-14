@@ -57,6 +57,7 @@ export interface ApplyGoalConcernInput {
     reason?: string;
     supporting_event_ids?: string[];
     cited_decision_id?: string;
+    cited_subjects?: GoalCitedSubject[];
 }
 
 export interface BoardSnapshot {
@@ -241,6 +242,8 @@ export declare const GOALS_TREE_INTAKE: ActionIntake;
 
 export declare const GOALS_TREE_SUBMIT_RESULT: ActionResultView;
 
+export declare const GOAL_CONCERN_CITED_SUBJECT_LIMIT = 8;
+
 export declare const GOAL_EVENT_EVIDENCE_MAX = 8;
 
 export declare const GOAL_MATERIAL_SNAPSHOT_SOURCE = "material_snapshot";
@@ -272,6 +275,11 @@ export interface GoalChangeImpact {
     reusable_open_goal_ids: string[];
     review_order: string[];
     graph_issues: PlanningGraphIssue[];
+}
+
+export interface GoalCitedSubject {
+    kind: string;
+    id: string;
 }
 
 export interface GoalConfigurationWorkEventRecord extends GoalWorkEventBase {
@@ -477,6 +485,7 @@ export interface GoalEventConcernView {
     resolution_reason: string | null;
     resolution_event_id: string | null;
     cited_decision_id: string | null;
+    cited_subjects: GoalCitedSubject[];
     previous_status: GoalEventConcernStatus | null;
     created_at: string;
     updated_at: string;
@@ -916,6 +925,7 @@ export type GoalEventSystemPayload = {
     statement: string;
     scope: GoalEventScope;
     blocks_closure: boolean;
+    cited_subjects: GoalCitedSubject[];
 } | {
     operation: "concern_resolved" | "concern_accepted" | "concern_overturned";
     concern_id: string;
@@ -1080,7 +1090,6 @@ export interface GoalEventUnmetReason {
     requirement_id?: string;
     concern_id?: string;
     goal_id?: string;
-    risk_id?: string;
     request_id?: string;
 }
 
@@ -2199,6 +2208,12 @@ export declare const boolean: {
 };
 
 export declare const change: Readonly<Record<string, unknown>>;
+
+export declare const citedSubjects: {
+    maxItems: number;
+    type: "array";
+    items: Readonly<Record<string, unknown>>;
+};
 
 export declare const closure: Readonly<Record<string, unknown>>;
 

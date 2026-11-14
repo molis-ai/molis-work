@@ -36,6 +36,8 @@
 
 2026-11-09 日报 A 类：Manifest 新增可选 `demo_seed` 动作引用，由通用 Runtime 启动后调用；新增 `feed.demo.seed@1`（仅 workflow）、`goals.states.read@1` 批量读取和 `contextual.draft_reference.issue/take@1` 项目动作。Goals 输出加入取消状态；列表合同增加 owner SQL 分页/筛选、情境账按键批量读取，SDK 新增统一 HTML 清理与事务错误保全。仓库内所有调用方同片更新，API 与动作快照随片更新；当前阶段一，不保留旧形状或旧命令兼容。Server 组合入口统一为 `molis-work server …`，本机恢复适配器仍归 Host，不新增插件恢复权限。完整消费影响与验证见[本批需求](../../specs/archive/daily-quality-medium-20261108/spec.md)。
 
+插件状态在 Manifest 可选字段 `state_machines`，阶段一在现行 Manifest 格式上添加。contracts 的 `/platform/state-vocabulary` 与 SDK 的 `/state-machine` 进入 API 快照；机器版本由插件作者维护。调用方继续使用现有状态取值和动作引用。声明随 Manifest 摘要，已装同版的声明变化适用同版摘要拒绝。状态集合变化沿插件升级合同，阶段二的读写主体与过渡期按第 4 节。
+
 ## 2. 版本号的编号方案
 
 产品只有一个版本，根包、桌面端、Tauri 和内置插件的 Manifest 同版，工作区包保持私有 0.0.0；每次发布有说明、CHANGELOG 和带各库版本表的检查单。2026-10-08 原定的下一版 0.3.0，已由用户 2026-11-02 的 N34 决定改为复位 0.1.0。2026-11-06 依追加授权删除旧 GoalBoard `v0.1.0` release 与同名 tag、核实名称释放后，现行产品载体及全部内置 Manifest 已复位 0.1.0；版本归属和发布流程见 [版本策略](../releases/POLICY.md)，候选范围见 [v0.1.0.md](../releases/v0.1.0.md)。这是未发布的开发候选，不登记首次外部安装或真实 Home 的统一起点日期。
@@ -75,7 +77,7 @@
 | 产品文案中的「回填」与规划方法说明 | 给人看的现行文字，不是数据转换逻辑 | 各文案的功能 owner；随文案修改或功能移除，不据词面保留旧读取代码 |
 | 各库的版本号与基线 | 一份当前 schema 加版本，版本不符就拒绝；可由权威事实重建的派生库按自身既有合同重建，不算兼容 | 各库 owner 及 [Home 数据表](HOME-DATA.md)；库移除时移除，不留已移除库的读取路径 |
 | Goal 事件历史、成果的固定版本 | 现行历史记录和固定版本功能，不是旧格式 | Goals 与成果事实 owner；按对应功能和留存合同处理，不因防腐清理删除用户历史 |
-| 库与带版本文件的升级链（`SqliteBaseline.upgrades`、`VersionedFile.upgrades`、`PluginDatabaseDeclaration.upgrades`、升级记录、升级快照） | 统一起点之后，让 `n → n+1` 的结构变更不再要求重建 Home。只在持存储主人锁的升级过程里执行（安装器自己的 `config/installation.json`、`release.json` 在安装器读它们时升，这时还没有宿主），读写路径只认现行版本，不做读时兼容、不做回写回退。比程序新的库只拒绝。起点：第 02 批的统一起点；段的跑法和范围检查对所有插件同一份，唯一的暂时例外是装上的插件写了段在安装时拒绝，移除条件是 U4（用户 2026-11-06 定） | `packages/storage` 负责机制，各库主人负责自己的段。某段在最早支持的金样都用不到时删段；机制随产品保留，不是过渡期 |
+| 库与带版本文件的升级链（`SqliteBaseline.upgrades`、`VersionedFile.upgrades`、`PluginDatabaseDeclaration.upgrades`、升级记录、升级快照） | 统一起点之后，让 `n → n+1` 的结构变更不再要求重建 Home。只在持存储主人锁的升级过程里执行（安装器自己的 `config/installation.json`、`release.json` 在安装器读它们时升，这时还没有宿主），读写路径只认现行版本，不做读时兼容、不做回写回退。比程序新的库只拒绝。起点：第 02 批的统一起点；段的跑法和范围检查对所有插件同一份。已装签名包由明确确认的版本切换驱动，读取旧库只供校验，SQL 由独立有界进程执行，库版本、归属账本、安装行和批准记录一起提交（第 26 批 U4） | `packages/storage` 负责机制，各库主人负责自己的段。某段在最早支持的金样都用不到时删段；机制随产品保留，不是过渡期 |
 | 第 15 批组合纠正表的项目库 2→3 升级（用户 2026-11-08 批准） | 沿用上一行升级链，新建空 `surface_corrections`；保留原项目数据和 1→2 段，不新增读取兼容。补存着 v2 的独立金样，在隔离 Home 验 1→2→3 与失败保留原数据；不升级真实 Home；已随 `b819373250` 合入 | 纠正事实归 `horizontal/surfaces`，项目库基线由宿主装配。该段随最早支持金样的规则保留；具体方案见[组合服务 §14.1](../../specs/surface-composition/spec.md#141-s-1-当前开工检查2026-11-08) |
 | 第 15 批 IM 消息 `subjects_json` 同版本例外（用户 2026-11-09 批准） | `server/server.sqlite` 保持 v1，仅在 `im_messages` 加 `subjects_json TEXT NOT NULL DEFAULT '[]'`；只允许旧结构 `626a2905680637a9` → 新结构 `2c4efaa24415de5e` 这一对准确差异，owner server、版本 1、无升级段。旧结构在可写连接前拒绝且保持原字节，不自动转换或修改真实 Home；`scripts/gates/store-schemas.mjs` 的 `DISCUSSION_V1_SUBJECTS_CHANGE` 只认这一对，其他库、反向变化和以后新增变化继续拒绝 | server/IM owner；删除条件：旧结构不再需要被拒绝，或该列随下一次正式版本升级进入升级链时移除此一次性例外。后续结构变化重新按第 3 节第 4 条处理；批准原文见[智能呈现 §17.2](../../specs/intelligent-surfaces/spec.md#172-保持版本-1-的-im-实施边界2026-11-09-用户批准) |
 | 第 15 批 Builder 两种格式的限定同版扩展（用户 2026-11-09 批准） | 仅 `format.builder.saved-state`、`format.builder.portable` 保持 1，允许本次可选 `ui.slots`、组件 `surfaceSlot` 引用及 `surface-slot` kind。旧无挂载位数据仍是当前合法子集；原数据、历史发行物和签名包不改写，不迁移、不读时转换。未知字段、非法引用／组件、签名不符及错误版本严格拒绝且原内容不变。例外不涉及真实 Home，不扩大到其他格式或后续结构变化，也不放宽门禁 | Builder 持久化 owner 与 SDK 共用声明校验；具体接线和正反例见[公共来源与呈现 §7](../../specs/shared-sources-and-surfaces/spec.md#7-sdk-里共用的校验)。这是本次字段加法的准确授权记录，后续变更重新按第 3 节第 4 条处理 |
@@ -174,9 +176,12 @@
 | `projects/<project_id>/molis-work.db` | 2 → 3 | 第 15 批 S-1（2026-11-08 用户批准，已随 `b819373250` 合入）。新建空 `surface_corrections`，保留 1→2；v2 金样 `0.1.1-dev.1` 已生成并复现，候选回放随本批验证；不操作真实 Home。 | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE#2→3` |
 | `projects/<project_id>/molis-work.db#goals` | 1 → 2 | 第 24 批（逐项依据合同：判断记下所核对的版本、依据与可信层级，结论记下它针对的版本；只加列，旧行按「自述」读） | `plugins/native/goals/src/project-database.ts#GOALS_PROJECT_DATABASE#1→2` |
 | `projects/catalog.db` | 2 → 3 | 2026-11-08 日报 A 类 D0057/D0273；删除退役空表，非空拒绝并保留原库 | `apps/local-host/src/project-catalog-contract.ts#CATALOG_SCHEMA_VERSION#2→3` |
+| `projects/catalog.db` | 3 → 4 | 第 12 批（项目规则的信任：新表 `project_instruction_settings` 记读取开关与本人确认的输出，外键随项目删除；只建表） | `apps/local-host/src/project-catalog-contract.ts#CATALOG_SCHEMA_VERSION#3→4` |
 | `memory/memory.db` | 1 → 2 | Memory V0 收口（#2020，BL-1071；用户 2026-11-07「不管旧的，不考虑迁移，只做新的」）：记忆改存 SDK 索引库，旧记忆不搬；账本里关于旧记忆的记录清空，归属标题和所有开关保留，新增的按类别限制补为空（用户 2026-11-11 定），下次启动删除两个旧布局记忆目录并建新的空遗忘文件 | `packages/storage/src/adapters/memory-ledger.ts#MEMORY_LEDGER_BASELINE#1→2` |
 | `projects/<project_id>/molis-work.db#schedule` | 1 → 2 | 第 25 批第 1 项（错过的运行：晚过宽限的任务记一行错过、照常排下一次，加错过表） | `plugins/native/schedule/src/database.ts#SCHEDULE_PROJECT_DATABASE#1→2` |
 | `projects/<project_id>/molis-work.db#feed` | 1 → 2 | 第 25 批第 1 项（错过的拉取：晚过宽限的来源不拉、记错过、推到下一时刻，加错过表） | `plugins/native/feed/src/database.ts#FEED_PROJECT_DATABASE#1→2` |
+| `projects/<project_id>/molis-work.db#goals` | 2 → 3 | 第 17 批 #2058（顾虑引用对象 `cited_subjects`，删 `blocking_risks`） | `plugins/native/goals/src/project-database.ts#GOALS_PROJECT_DATABASE#2→3` |
+| `projects/<project_id>/molis-work.db#schedule` | 2 → 3 | 第 17 批 #2058（一次性对象任务 `repeat`／`run_at`／`subject`） | `plugins/native/schedule/src/database.ts#SCHEDULE_PROJECT_DATABASE#2→3` |
 
 ## 4. 阶段二：起点之后，读取兼容
 
@@ -280,6 +285,9 @@ Casebook 已于 2026-10-10 按用户决定删除，不再有对外合同 id；�
   - **快照刷新**：`tooling/gates/actions/` 与 `tooling/gates/api/` 随本批更新（`skills.*`、`kit.*` 与 `plugins.package.export@1` 等动作，`services/skills`、`platform/action-named-skills`、`plugin-sdk/skill-ref` 等公开面）。仓库内调用方（助理、Coding、Agent Host、宿主组合）同批迁完，不留旧形状；没有读取兼容。
 
 - **按类型交出「接下来」与「错过」：`platform/actions` 新增 `scheduled-runs` 一组**（第 25 批第 1 项，`specs/proactive-assistant/resident-runtime-design.md` §2，2026-11-12）：四个类型 `molis.runs.window.v1`／`molis.runs.overview.v1`／`molis.runs.decision.v1`／`molis.runs.decided.v1`，声明助手 `defineRunsOverviewAction`、`defineRunDecisionAction`（作用域 `project` 或 `home`），宽限 `RUN_MISSED_GRACE_MS`（10 分钟）与上限 `RUNS_UPCOMING_LIMIT`、`RUNS_MISSED_LIMIT`。都是新增，已有的插件不用改；自己定时跑东西的插件同时声明这一对就会出现在菜单栏面板与首页的错过提示里，宿主按类型找到它、只调这两个动作，不读它的库。Schedule、Feed、助理定时三位主人同批接上（`schedule.runs.*`、`feed.runs.*`、`assistant.runs.*`，各 @1）。
+- **`materials.read` 的固定版本权限**（2026-11-14）：固定成果库版本除了 action 声明的 `workspace:read`，还要求调用者持有 `artifact:read`（插件持有 `artifacts:read` 也可以），与成果库其他读者一致；快照版本仍只要 `workspace:read`。页面/助理/已声明 `artifacts:read` 的插件不受影响；只有 `workspace:read` 的插件读固定版本会被 `actions.forbidden` 拒绝。
+- **运行视图与助理轮次新增可选 `stop_reason_code`**（2026-11-14）：`person` 是本人停止，`host` 是 Host、护栏或运行时停止；`stop_reason` 仍是给人看的理由。Host 与工作台用它判断是否显示停止原因，不再拿译文做判断。受影响的动作输出（`agent.run.read`、`agent.run.wait`、`agent.session.read`）与公开 API 快照同批更新；动作合同快照按 schema hash 更新。
+- **`/rich-text` 的 Markdown 解析器与 peer 依赖**（2026-11-13，第 27 批 #2010）：`renderRichText`／`richPlainText` 从 Marked 换成 Micromark + GFM；SDK 的 peer dependencies 从 `marked` 换成 `micromark`、`micromark-extension-gfm`、`sanitize-html`。用这个子路径的插件要在自己的 `package.json` 里改这三项；只写 `marked` 的插件在加载 `/rich-text` 时会找不到解析器。Coding 与 Feed 已改，`packages/plugin-sdk/README.md` 与插件开发 Skill 的 `ui.md`／`ui.en.md` 已同步；SDK 根入口与 `/highlight` 不受影响。
 - **Runtime 配置读地址的顺序**（同上 §6，BL-108）：启动器、命令行与桌面找本机宿主时按 `MOLIS_WORK_WEB_URL` > Home 里的地址文件 `run/endpoint.json` > `127.0.0.1:4173`。Runtime 配置本身的形状不变；地址文件只指路，读的人照旧核身份，核不过就当没有。插件不读这个文件。
 
 - **第 06 批：Files 插件退役、平台资料服务 `system.materials`、N12 Home 成果固定与 SDK 公共工具**（[#2009](https://github.com/molis-ai/molis-work/pull/2009)，`a720834a09`，2026-11-13；阶段一在原版本改，不留兼容）：

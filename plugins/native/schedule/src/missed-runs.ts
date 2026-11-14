@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import {
   ActionError, assertRunsWindow, bindActionHandler, defineRunDecisionAction, defineRunsOverviewAction, runIsMissed, withinRunsWindow,
   RUNS_MISSED_LIMIT, RUNS_UPCOMING_LIMIT,
@@ -124,7 +125,11 @@ export function scheduleRunsOverview(db: ScheduleTaskDatabase, jobs: readonly Sc
   const missed = (db.prepare("SELECT * FROM schedule_missed_runs WHERE project_id = ? AND decision IS NULL ORDER BY due_at DESC LIMIT ?")
     .all(projectId, RUNS_MISSED_LIMIT) as MissedRow[]).map((entry): MissedRun => ({ run_id: entry.run_id, title: entry.title, due_at: entry.due_at,
     project_id: projectId, open: open(entry.ref), needs: entry.kind === "task" ? ["model"] : [], missed_at: entry.missed_at }));
-  return { source: { surface: SCHEDULE_PROJECT_PLUGIN_ID, title: "定时任务" }, upcoming, missed };
+  // The host page shows this label; the plugin's own words follow the action caller's language, with the old Chinese as a fallback for
+  // direct calls that install no text context.
+  let title = "定时任务";
+  try { const word = uiText.text("schedule.runs.source-title"); if (word !== "schedule.runs.source-title") title = word; } catch { /* direct call has no text context */ }
+  return { source: { surface: SCHEDULE_PROJECT_PLUGIN_ID, title }, upcoming, missed };
 }
 
 export function createScheduleRunsHandlers(projectId: string, ports: {

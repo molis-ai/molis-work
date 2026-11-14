@@ -56,7 +56,8 @@ export const GOALS_EVENT_STATE_SQL = `
     cited_decision_id TEXT,
     previous_status TEXT,
     created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
+    updated_at TEXT NOT NULL,
+    cited_subjects_json TEXT NOT NULL DEFAULT '[]'
   );
   CREATE INDEX IF NOT EXISTS goal_event_concerns_goal_idx
     ON goal_event_concerns(project_id, goal_id, status);

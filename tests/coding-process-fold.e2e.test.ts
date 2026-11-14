@@ -73,7 +73,7 @@ test("VUX-13 the Coding timeline folds a round's steps like the Assistant's proc
     // Each line: operation, object, result; the exit code is read from the command's own receipt (BL-222 note), nothing else is marked.
     assert.deepEqual(settled.lines, [
       { verb: "读取", object: "src/login.ts", result: "", tone: "ok", control: true },
-      { verb: "运行", object: "npm test", result: "exit 2", tone: "failed", control: true },
+      { verb: "运行", object: "npm test", result: "退出 2", tone: "failed", control: true },
       { verb: "修改", object: "src/login.ts", result: "", tone: "ok", control: false },
     ], "a step with nothing behind it is a plain line, not a control that opens nothing");
     const technical = await page.evaluate<{ closed: number; behind: string }>(`({closed:Math.round(window.__a.querySelector('.coding-tool-body').getBoundingClientRect().height),behind:window.__a.querySelector('.coding-tool-output').textContent})`);

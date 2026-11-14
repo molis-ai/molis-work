@@ -1,7 +1,9 @@
 import { goalErrors } from "./errors.js";
 import { randomUUID } from "node:crypto";
+import { GOAL_CONCERN_CITED_SUBJECT_LIMIT } from "../contract/goals.js";
 import type {
   ApplyGoalConcernInput,
+  GoalCitedSubject,
   GoalEventAppliedDecisionView,
   GoalEventConcernResult,
   GoalEventConcernStatus,
@@ -42,6 +44,7 @@ export class GoalEventConcerns {
       reason: input.reason ?? null,
       supporting_event_ids: input.supporting_event_ids ?? [],
       cited_decision_id: input.cited_decision_id ?? null,
+      cited_subjects: input.cited_subjects ?? [],
     });
     return this.core.mutate(input, "apply_goal_concern", hash, (goal, actorKind) => {
       if (action === "open") return this.openConcern(goal, { ...input, action }, actorKind);
@@ -60,6 +63,7 @@ export class GoalEventConcerns {
     if (emptyScope(scope)) {
       throw goalErrors["goals.event_concern.scope_required"]("Concern 必须明确影响的要求、事件或动作，不能变成全局阻塞");
     }
+    const citedSubjects = citedSubjectsOf(input.cited_subjects);
     const concernId = `gcon-${randomUUID()}`;
     const event = this.core.insertSystem(goal, input.actor_id, actorKind, `提出 Concern：${title}`, {
       operation: "concern_opened",
@@ -68,6 +72,7 @@ export class GoalEventConcerns {
       statement,
       scope,
       blocks_closure: input.blocks_closure === true,
+      cited_subjects: citedSubjects,
     });
     this.records.concerns.insertConcern({
       concernId,
@@ -78,6 +83,7 @@ export class GoalEventConcerns {
       statement,
       scope,
       blocksClosure: input.blocks_closure === true,
+      citedSubjects,
       at: event.received_at,
     });
     return {
@@ -181,4 +187,21 @@ export class GoalEventConcerns {
 
 function unique(values: string[]): string[] {
   return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
+}
+
+/**
+ * The objects a new concern cites, as their owners name them; Goals checks only the shape and reads none of them. A concern that
+ * resolves, accepts or overturns cites nothing new: its sources are events and decisions, not objects.
+ */
+function citedSubjectsOf(subjects: readonly GoalCitedSubject[] | undefined): GoalCitedSubject[] {
+  const cited: GoalCitedSubject[] = [];
+  for (const subject of subjects ?? []) {
+    const kind = subject.kind?.trim(), id = subject.id?.trim();
+    if (!kind || !id) throw goalErrors["goals.event_concern.cited_subject_invalid"]("引用的对象要有种类和 id");
+    if (!cited.some((other) => other.kind === kind && other.id === id)) cited.push({ kind, id });
+  }
+  if (cited.length > GOAL_CONCERN_CITED_SUBJECT_LIMIT) {
+    throw goalErrors["goals.event_concern.cited_subject_invalid"](`一个问题最多引用 ${GOAL_CONCERN_CITED_SUBJECT_LIMIT} 个对象`);
+  }
+  return cited;
 }

@@ -21,25 +21,37 @@ export const PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL = `
 
 /** Read existing installation records without constructing a repository that creates the table. */
 export function readPluginRuntimeRecords(db: Pick<PluginRuntimeDatabase, "prepare">): PluginInstanceRecord[] {
-  return db.prepare("SELECT record_json FROM plugin_runtime_installs ORDER BY install_id").all()
+  return readRecords(db, "plugin_runtime_installs");
+}
+
+function readRecords(db: Pick<PluginRuntimeDatabase, "prepare">, table: string): PluginInstanceRecord[] {
+  return db.prepare(`SELECT record_json FROM ${table} ORDER BY install_id`).all()
     .map(row => JSON.parse((row as { record_json: string }).record_json) as PluginInstanceRecord);
+}
+
+/** Appends only a trusted caller's SQLite attached schema name to a fixed table name. */
+export function qualifyRuntimeTable(schema: string, table: string): string {
+  if (!schema) return table;
+  if (!/^[a-z][a-z0-9_]*$/u.test(schema)) throw pluginErrors.state_invalid("无效的运行库 schema");
+  return `"${schema}".${table}`;
 }
 
 /** Installation records owned by Plugin Runtime; no Goal/Artifact/Provider tables are read here. */
 export class SqlitePluginRuntimeRepository implements PluginRuntimeRepository {
   /** Every action's availability reads its installation's record: the statement is prepared once, the row read each time. */
   private byId?: ReturnType<PluginRuntimeDatabase["prepare"]>;
-  constructor(private readonly db: PluginRuntimeDatabase) {}
+  private readonly table: string;
+  constructor(private readonly db: PluginRuntimeDatabase, schema = "") { this.table = qualifyRuntimeTable(schema, "plugin_runtime_installs"); }
   get(installId: string): PluginInstanceRecord | null {
-    const row = (this.byId ??= this.db.prepare("SELECT record_json FROM plugin_runtime_installs WHERE install_id = ?")).get(installId) as { record_json: string } | undefined;
+    const row = (this.byId ??= this.db.prepare(`SELECT record_json FROM ${this.table} WHERE install_id = ?`)).get(installId) as { record_json: string } | undefined;
     return row ? JSON.parse(row.record_json) as PluginInstanceRecord : null;
   }
   list(): PluginInstanceRecord[] {
-    return readPluginRuntimeRecords(this.db);
+    return readRecords(this.db, this.table);
   }
   save(record: PluginInstanceRecord): void {
     if (!["host", "pinned", "unsigned"].includes(record.publisher_trust)) throw pluginErrors.state_invalid("安装记录需要宿主给出的信任等级（publisher_trust）");
-    this.db.prepare(`INSERT INTO plugin_runtime_installs (install_id, record_json, publisher_trust) VALUES (?, ?, ?)
+    this.db.prepare(`INSERT INTO ${this.table} (install_id, record_json, publisher_trust) VALUES (?, ?, ?)
       ON CONFLICT (install_id) DO UPDATE SET record_json = excluded.record_json, publisher_trust = excluded.publisher_trust`)
       .run(record.install_id, JSON.stringify(record), record.publisher_trust);
   }

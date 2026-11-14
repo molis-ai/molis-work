@@ -30,6 +30,13 @@
       ],
       "reason": "The independent author-only personal sync example owns its note validation and unavailable-storage failures."
     },
+    "state_machines": {
+      "paths": [
+        "packages/plugin-sdk/src/state-machine.ts",
+        "packages/plugin-sdk/src/state-machine-declaration.ts"
+      ],
+      "reason": "The shared state machine SDK owns invalid declarations and rejected transitions."
+    },
     "storage": {
       "paths": [
         "packages/storage/src/project-replica*.ts",
@@ -345,6 +352,13 @@
         "packages/plugin-sandbox/"
       ],
       "reason": "The plugin sandbox (SandboxError): its UPPER_CASE codes become sandbox.* (spec W3-02 J6)."
+    },
+    "observation": {
+      "paths": [
+        "horizontal/observation/",
+        "packages/contracts/src/services/observation.ts"
+      ],
+      "reason": "The observation layer (batch 28): records of the work, their evidence and the coverage register; observation.report@1 and its quotas."
     },
     "scheduler": {
       "paths": [

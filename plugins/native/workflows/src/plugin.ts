@@ -8,6 +8,8 @@ import { createWorkflowContentPorts } from "./content-client.js";
 import { WorkflowsStore, type WorkflowsStores } from "./store.js";
 import { workflowsUiContribution } from "./ui.js";
 import { WORKFLOWS_INSTRUCTIONS } from "./prompts.js";
+import { observationActions } from "@molis-ai/molis-work-contracts/services/observation";
+import type { WorkflowStepReport } from "./observation.js";
 
 /**
  * Workflows as a Plugin Runtime plugin, one instance per project (docs/system/RUNTIME-MIGRATION.md 5.3). Its library is the
@@ -34,6 +36,7 @@ export function createWorkflowsPlugin(): PluginDefinition {
       actions: caller => ({ discover: () => directory.discover(), invoke: (reference, input) => directory.invoke(reference, input, controlOf(caller)),
         check: (reference, input) => directory.check(reference, input) }),
       textModel: (): ActionAvailability => model?.availability() ?? { available: false, code: "actions.connection_required", reason: "请先配置可用的文字模型" },
+      ...(context.services?.actions ? { report: stepReport(context.services.actions) } : {}),
       ...(model ? { complete: async (prompt, options) => { await options.beforeDispatch(); return model.complete(prompt, { signal: options.signal }); } } : {}) };
     return { kind: "app", sync: syncBindings(context), views: [workflowsUiContribution], actions: createWorkflowsActionHandlers(projectId, ports), routes: workflowsRoutes(context) };
   } };
@@ -46,6 +49,18 @@ export function createWorkflowsPlugin(): PluginDefinition {
 function controlOf(caller: ActionExecutionContext): PluginExecutionControl {
   return { ...(caller.signal ? { signal: caller.signal } : {}), beforeEffect: caller.beforeEffect,
     ...(caller.assert_authority_current ? { assert_authority_current: caller.assert_authority_current } : {}) };
+}
+
+/**
+ * Reports a step as this installation (`observation.report@1`, consumed in the Manifest), with the plugin version the step ran under.
+ * Awaited so it rides the running call's authority, but never decides the step: a refused, full or failed report leaves it as it was.
+ */
+function stepReport(actions: BoundActionClient): WorkflowStepReport {
+  const plugin = { id: workflowsManifest.plugin_id, version: workflowsManifest.version };
+  return async fact => {
+    try { await actions.invoke(observationActions.report, { facts: [{ ...fact, conditions: { ...fact.conditions, plugin } }] }); }
+    catch { /* the work record is only lost here; the step it describes has already been written or refused on its own */ }
+  };
 }
 
 /** The directory as the client the content protocol reads: one running call's, so a station is reached with that call's authority. */

@@ -114,7 +114,7 @@ async function twoFolders(t: TestContext, prefix: string) {
     await mkdir(join(root, name));
     return { workspace_id: name, canonical_path: join(root, name), display_name: name, realpath_verified: true };
   }));
-  const directories: ProjectDirectories = { project_id: "project", revision: "directories-1", source_links: [],
+  const directories: ProjectDirectories = { project_id: "project", revision: "directories-1", source_links: [], instructions: { off: false, trusted: false },
     directories: [{ ...folders[0]!, roles: ["output"], state: "ok" }, { ...folders[1]!, roles: ["input"], state: "ok" }] };
   return { root, output: folders[0]!, input: folders[1]!, folders, directories };
 }

@@ -2,8 +2,9 @@ import { objectSchema as object, createActionDefinition } from "@molis-ai/molis-
 import { ActionError, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ScheduleJobRecord } from "@molis-ai/molis-work-contracts/services/scheduler";
 import { parseClockTime } from "./calendar.js";
-import { scheduleFailure } from "./error.js";
-import type { ScheduleConversationTaskView } from "./tasks.js";
+import { scheduleErrors, scheduleFailure } from "./error.js";
+import type { ScheduleConversationTaskView, ScheduleTaskFields, ScheduleTaskRepeat, ScheduleTaskSubject } from "./tasks.js";
+import type { ScheduleTaskReads } from "./task-grants.js";
 import type { RecoverScheduleReminderInput, ScheduleJobView } from "./reminder-management.js";
 import type { RecoverScheduledOperationInput, ScheduledOperationView } from "./operation-management.js";
 import { createScheduleSearchHandlers, scheduleSearchActions } from "./search.js";
@@ -14,7 +15,11 @@ const nullableText = { type: ["string", "null"] };
 const turn = object({ turn_id: id, task_id: id, kind: { enum: ["user", "assistant", "system"] }, text, important: { type: "boolean" }, created_at: text });
 const task = object({ task_id: id, title: text, instructions: text, hour: { type: "integer", minimum: 0, maximum: 23 }, minute: { type: "integer", minimum: 0, maximum: 59 },
   notify_important: { type: "boolean" }, enabled: { type: "boolean" }, archived: { type: "boolean" }, unread: { type: "boolean" }, job_id: nullableText,
-  last_run_at: nullableText, last_error: nullableText, created_at: text, updated_at: text, turns: { type: "array", items: turn }, clock_label: text, next_due_at: nullableText });
+  last_run_at: nullableText, last_error: nullableText, created_at: text, updated_at: text, turns: { type: "array", items: turn }, clock_label: text, next_due_at: nullableText,
+  repeat: { enum: ["daily", "none"] }, run_at: nullableText, subject: { anyOf: [{ type: "null" }, object({ kind: id, id })] } });
+const subject = object({ kind: { type: "string", minLength: 1, maxLength: 100 }, id: { type: "string", minLength: 1, maxLength: 400 } });
+const reads = object({ task_id: id, categories: { type: "integer" }, granted: { type: "integer" }, needs_confirmation: { type: "integer" },
+  unavailable: { type: "integer" }, removed: { type: "integer" } });
 const reminder = object({ text, plugin_id: id, plugin_title: text, needs_confirmation: { type: "boolean" },
   installation: { anyOf: [{ type: "null" }, object({ installation_id: id, generation: id, title: text, version: text, publisher: text })] } });
 // Jobs belong to other plugins' wakeups; their recurrence and last result stay owned by the scheduler service.
@@ -34,7 +39,10 @@ const operationView = object({ id, projectId: id, pluginId: id, installationId: 
   occurrences: { type: "array", items: occurrence } });
 // Blank or malformed values reach the task owner, whose validation explains what to fix.
 const fields = { title: { type: "string", maxLength: 200, description: "1 到 80 字" }, instructions: { type: "string", maxLength: 16000, description: "Agent 到点要做的说明，最多 8000 字" },
-  time: { type: "string", maxLength: 16, description: "每天运行的本地时间，HH:MM" },
+  time: { type: "string", maxLength: 16, description: "每天运行的本地时间，HH:MM；repeat 为 daily（缺省）时必填" },
+  repeat: { enum: ["daily", "none"], description: "daily 每天运行；none 只在 at 运行一次，跑完就停。新建缺省为 daily；修改时缺省沿用任务原来的（一次性任务不给 at 就保留原时间）" },
+  at: { type: "string", maxLength: 64, description: "一次性任务运行的时间，带时区，例如 2026-12-01T09:00:00+08:00；一年以内" },
+  subject: { ...subject, description: "任务关心的对象（如一条风险），只写进这一轮的说明，不给读它的权限" },
   notify_important: { type: "boolean", description: "重要结果是否标记未读；缺省为 true" } };
 const read = ["schedule:read"], write = ["schedule:write"];
 
@@ -48,13 +56,15 @@ function define<I, O>(name: string, version: number, title: string, description:
 
 /** A reminder of this project, without the operations other plugins scheduled or their input (`schedule.reminders.list`). */
 export interface ScheduleReminderItem { job_id: string; text: string; plugin_id: string; plugin_title: string; next_due_at: string; enabled: boolean; needs_confirmation: boolean }
-export interface ScheduleTaskInput { title: string; instructions: string; time: string; notify_important?: boolean }
+export interface ScheduleTaskInput { title: string; instructions: string; time?: string; notify_important?: boolean; repeat?: ScheduleTaskRepeat; at?: string; subject?: ScheduleTaskSubject }
 /** What a due task still needs from the Host: a configured text model, and a verified workspace bound to the project. */
 export interface ScheduleTaskReadiness { model: boolean; workspace: boolean }
 export const scheduleActions = {
-  list: define<Record<string, never>, { jobs: ScheduleJobView[]; tasks: ScheduleConversationTaskView[]; operations: ScheduledOperationView[] }>("tasks.list", /* @version action.schedule.tasks.list */ 1, "定时任务列表",
-    "读取当前项目的每日对话任务与其他插件登记的闹钟；已归档任务不在列表中", "query", object({}),
-    object({ jobs: { type: "array", items: job }, tasks: { type: "array", items: task }, operations: { type: "array", items: operationView } }), read),
+  list: define<{ subject?: ScheduleTaskSubject }, { jobs: ScheduleJobView[]; tasks: ScheduleConversationTaskView[]; operations: ScheduledOperationView[]; reads?: ScheduleTaskReads[] }>("tasks.list", /* @version action.schedule.tasks.list */ 1, "定时任务列表",
+    "读取当前项目的对话任务与其他插件登记的闹钟；已归档任务不在列表中。给了 subject 时只列关心这个对象的任务，并带每个任务能读什么（reads；读不到时不带）",
+    "query", object({ subject }, []),
+    object({ jobs: { type: "array", items: job }, tasks: { type: "array", items: task }, operations: { type: "array", items: operationView },
+      reads: { type: "array", items: reads } }, ["jobs", "tasks", "operations"]), read),
   reminders: define<Record<string, never>, { reminders: ScheduleReminderItem[] }>("reminders.list", /* @version action.schedule.reminders.list */ 1, "提醒列表",
     "只读取当前项目的提醒：内容、来自哪个插件、下一次时间与是否启用；不含定时任务与其他插件登记的定时操作", "query", object({}),
     object({ reminders: { type: "array", items: reminderItem } }), read),
@@ -63,10 +73,10 @@ export const scheduleActions = {
     object({ model: { type: "boolean" }, workspace: { type: "boolean" } }), read),
   createTask: define<ScheduleTaskInput, { task: ScheduleConversationTaskView }>("tasks.create", /* @version action.schedule.tasks.create */ 1, "新建定时任务",
     "新建每天定时运行的对话任务并登记下一次唤醒；到点后由项目 Agent 按说明执行", "command",
-    object(fields, ["title", "instructions", "time"]), object({ task }), write),
+    object(fields, ["title", "instructions"]), object({ task }), write),
   updateTask: define<ScheduleTaskInput & { task_id: string }, { task: ScheduleConversationTaskView }>("tasks.update", /* @version action.schedule.tasks.update */ 1, "修改定时任务",
     "修改任务标题、说明与时间；启用中的任务按新时间重新排期，保留原对话记录", "command",
-    object({ task_id: id, ...fields }, ["task_id", "title", "instructions", "time"]), object({ task }), write),
+    object({ task_id: id, ...fields }, ["task_id", "title", "instructions"]), object({ task }), write),
   archiveTask: define<{ task_id: string }, { archived: true }>("tasks.archive", /* @version action.schedule.tasks.archive */ 1, "归档定时任务",
     "停止任务并移出列表，取消尚未到点的唤醒；保留原对话记录", "command", object({ task_id: id }), object({ archived: { const: true } }), write),
   setTaskEnabled: define<{ task_id: string; enabled: boolean }, { task: ScheduleConversationTaskView }>("tasks.enabled", /* @version action.schedule.tasks.enabled */ 1, "暂停或恢复定时任务",
@@ -95,16 +105,30 @@ export interface ScheduleActionPorts {
   recoverReminder(input: RecoverScheduleReminderInput): ScheduleJobView;
   listOperations?(): ScheduledOperationView[];
   recoverOperation?(input: RecoverScheduledOperationInput): ScheduledOperationView;
-  listTasks(): readonly ScheduleConversationTaskView[];
+  listTasks(subject?: ScheduleTaskSubject): readonly ScheduleConversationTaskView[];
+  /** What each task may read beyond project files, from the platform's one list; a Host that cannot say leaves it out. */
+  taskReads?(): Promise<ScheduleTaskReads[]>;
   /** Whether the Host can run a due task right now; a Host that cannot say leaves it out. */
   readiness?(): ScheduleTaskReadiness | Promise<ScheduleTaskReadiness>;
-  createTask(input: { title: string; instructions: string; hour: number; minute: number; notify_important: boolean }): ScheduleConversationTaskView;
-  updateTask(taskId: string, input: { title: string; instructions: string; hour: number; minute: number; notify_important: boolean }): ScheduleConversationTaskView;
+  createTask(input: ScheduleTaskFields): ScheduleConversationTaskView;
+  updateTask(taskId: string, input: ScheduleTaskFields): ScheduleConversationTaskView;
   archiveTask(taskId: string): void;
   /** After an archive has committed: the task's read grants go with it (the platform's; Schedule only asks it to clear them). */
   archived?(taskId: string): Promise<void>;
   setTaskEnabled(taskId: string, enabled: boolean): ScheduleConversationTaskView;
   openTask(taskId: string): ScheduleConversationTaskView;
+}
+
+/** A one-off task's time, checked as a reminder's is: an instant with its time zone, not past, within a year. */
+function oneOffAt(value: string | undefined, now: number): Date {
+  const raw = value?.trim() ?? "";
+  const at = Date.parse(raw);
+  if (!raw || !Number.isFinite(at) || !/(?:Z|[+-]\d{2}:?\d{2})$/.test(raw)) {
+    throw scheduleErrors.task_invalid("一次性任务的时间要写成带时区的时间，例如 2026-12-01T09:00:00+08:00");
+  }
+  if (at <= now) throw scheduleErrors.task_invalid("一次性任务的时间已经过去了");
+  if (at > now + 366 * 86_400_000) throw scheduleErrors.task_invalid("一次性任务最多设在一年以内");
+  return new Date(at);
 }
 
 export type ScheduleActionWrite = <T>(caller: ActionExecutionContext, operation: () => T) => Promise<T>;
@@ -130,9 +154,31 @@ export function createScheduleActionHandlers(projectId: string, ports: ScheduleA
       return output;
     } catch (error) { throw scheduleFailure(error); } },
   });
-  const editable = (input: ScheduleTaskInput) => ({ title: input.title, instructions: input.instructions, ...parseClockTime(input.time), notify_important: input.notify_important !== false });
+  // A change that leaves out how the task repeats keeps it as it is, like its subject: editing a one-off task's title on Schedule's
+  // page (which sends only the title, instructions and time) does not turn it into a daily one.
+  const editable = (input: ScheduleTaskInput, current?: ScheduleConversationTaskView): ScheduleTaskFields => {
+    const common = { title: input.title, instructions: input.instructions, notify_important: input.notify_important !== false,
+      ...(input.subject ? { subject: input.subject } : {}) };
+    const repeat = input.repeat ?? (current?.repeat === "none" ? "none" : "daily");
+    if (repeat === "daily") return { ...common, ...parseClockTime(input.time), repeat: "daily" };
+    if (input.at === undefined && current?.repeat === "none" && current.run_at) {
+      const kept = new Date(current.run_at);
+      return { ...common, hour: kept.getHours(), minute: kept.getMinutes(), repeat: "none", run_at: current.run_at };
+    }
+    const at = oneOffAt(input.at, Date.now());
+    return { ...common, hour: at.getHours(), minute: at.getMinutes(), repeat: "none", run_at: at.toISOString() };
+  };
   return [
-    bind(scheduleActions.list, () => ({ jobs: [...ports.listJobs()], tasks: [...ports.listTasks()], operations: ports.listOperations?.() ?? [] })),
+    // With a subject, the list is that object's tasks and says what each may read (a plugin showing its object's review).
+    bind(scheduleActions.list, async input => {
+      // Without a subject the list is as before: jobs first, then tasks and operations.
+      if (!input.subject) return { jobs: [...ports.listJobs()], tasks: [...ports.listTasks()], operations: ports.listOperations?.() ?? [] };
+      const tasks = [...ports.listTasks(input.subject)];
+      const ids = new Set(tasks.map(item => item.task_id));
+      // The reads are the platform's; when it cannot say, the tasks still show and `reads` is left out rather than shown as none.
+      const reads = await ports.taskReads?.().then(all => all.filter(item => ids.has(item.task_id)), () => undefined);
+      return { jobs: [], tasks, operations: [], ...(reads ? { reads } : {}) };
+    }),
     bind(scheduleActions.reminders, () => ({ reminders: ports.listJobs().flatMap(job => job.reminder ? [{ job_id: job.job_id, text: job.reminder.text,
       plugin_id: job.reminder.plugin_id, plugin_title: job.reminder.plugin_title, next_due_at: job.next_due_at, enabled: job.enabled,
       needs_confirmation: job.reminder.needs_confirmation }] : []) })),
@@ -141,7 +187,7 @@ export function createScheduleActionHandlers(projectId: string, ports: ScheduleA
       return ports.readiness();
     }),
     bind(scheduleActions.createTask, input => ({ task: ports.createTask(editable(input)) })),
-    bind(scheduleActions.updateTask, input => ({ task: ports.updateTask(input.task_id, editable(input)) })),
+    bind(scheduleActions.updateTask, input => ({ task: ports.updateTask(input.task_id, editable(input, ports.listTasks().find(task => task.task_id === input.task_id))) })),
     bind(scheduleActions.archiveTask, input => { ports.archiveTask(input.task_id); return { archived: true as const }; },
       async input => { await ports.archived?.(input.task_id); }),
     bind(scheduleActions.setTaskEnabled, input => ({ task: ports.setTaskEnabled(input.task_id, input.enabled) })),

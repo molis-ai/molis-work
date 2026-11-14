@@ -64,6 +64,7 @@ export type {
 } from "./capability-registration.js";
 export { PrologueAgentAdapter, PROLOGUE_RUNTIME_ID } from "./adapters/prologue.js";
 export { createPrologueNodeAdapter, SUBAGENT_DEFAULT_TURNS } from "./adapters/prologue-node.js";
+export { observeRun, type RoundObserver, type RunObservationStart } from "./adapters/prologue-run-observation.js";
 export { verifyPrologueNodeStorageContents, type PrologueNodeStorageVerificationOptions } from "./adapters/prologue-storage-verification.js";
 export { openPrologueMemoryRestore } from "./adapters/prologue-memory-restore.js";
 export { surfaceRules } from "./adapters/prologue-surfaces.js";
@@ -166,6 +167,11 @@ export interface AgentStartAuthority {
     revision: string;
     output: { workspace_id: string; canonical_path: string };
     inputs: readonly { workspace_id: string; canonical_path: string }[];
+    /**
+     * The project is trusted to give a round its repository's instruction files (`ProjectDirectories.instructions.trusted`, read with
+     * the folders). Only the Host gives it, like `reply_language`: no start request carries it (S-project-instructions-trust).
+     */
+    instructions_trusted: boolean;
   };
   /** The Host's own worktrees of the output, verified now: the only other places a round (a writing child among them) may work in. */
   worktrees?(): Promise<readonly AgentHostWorktree[]>;
@@ -394,6 +400,7 @@ export class AgentHost implements AgentHostApi {
         ...(subagents ? { subagents } : {}),
         ...(childWorkspaces ? { subagent_workspaces: childWorkspaces } : {}),
         ...(directories ? { directories } : {}),
+        ...(directories && authority.directories?.instructions_trusted === true ? { instructions_trusted: true as const } : {}),
         ...(character ? { character } : {}),
         ...(characterSkillIds === undefined ? {} : { character_skill_ids: characterSkillIds }),
         prompts: prompts.map((prompt) => ({ ...prompt })),

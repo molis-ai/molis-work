@@ -77,13 +77,13 @@ export class ProjectWorkspaceService {
   directories(projectId: string): ProjectDirectories {
     const id = this.requiredProjectId(projectId);
     const rows = this.repository.workspaces.projectDirectoryRows(id);
-    const sourceLinks = this.repository.workspaces.sourceLinks(id);
+    const sourceLinks = this.repository.workspaces.sourceLinks(id), instructions = instructionsOf(this.repository, id, rows);
     return {
       project_id: id,
       directories: rows.map(row => ({ workspace_id: row.workspace_id, canonical_path: row.canonical_path, realpath_verified: row.realpath_verified,
         display_name: row.display_name, roles: row.roles, state: this.state(row) })),
-      source_links: sourceLinks,
-      revision: revisionOf(rows, sourceLinks),
+      source_links: sourceLinks, instructions: instructions.view,
+      revision: revisionOf(rows, sourceLinks, instructions.facts),
     };
   }
 
@@ -122,6 +122,7 @@ export class ProjectWorkspaceService {
         case "repair": this.repair(current, change.workspace_id, change.workspace_path, actorId); break;
         case "map_source": this.mapSource(current, change.source_workspace_id, change.target, projectId, actorId); break;
         case "unmap_source": this.repository.workspaces.removeSourceLink(projectId, change.source_workspace_id); break;
+        case "set_instructions": setInstructions(this.repository, current, projectId, change.off, this.now()); break;
       }
       return this.directories(projectId);
     });
@@ -356,8 +357,36 @@ export class ProjectWorkspaceService {
   }
 }
 
-/** A project's directories as a revision: the rows and links that make them up, never a folder's live state. */
-function revisionOf(rows: readonly ProjectDirectoryRow[], links: readonly { source_workspace_id: string; workspace_id: string }[]): string {
-  const facts = { rows: rows.map(row => [row.workspace_id, row.stored_path, row.display_name, row.roles]).sort(), links: links.map(link => [link.source_workspace_id, link.workspace_id]).sort() };
+/**
+ * Whether this project's rounds read the repository's instruction files (batch12-design §3.2), worked out from now's facts: the output is
+ * not the default location, the person chose it (linked it themself, or confirmed this very folder), and reading is not off. A tool's link
+ * and an output the catalog upgrade picked are not the person's until confirmed; a confirmation names one folder and does not follow a new output.
+ */
+function instructionsOf(repository: ProjectsRepository, projectId: string, rows: readonly ProjectDirectoryRow[]) {
+  const setting = repository.workspaces.instructionSetting(projectId);
+  const output = rows.find(row => row.roles.includes("output"));
+  const own = Boolean(output) && output!.workspace_id !== projectOutputId(repository.db, projectId);
+  const chosen = own && (repository.workspaces.isPersonMembership(output!.workspace_id, projectId) || setting?.confirmed_workspace_id === output!.workspace_id);
+  const off = setting?.off ?? false;
+  const whyNot = !own ? "default_output" as const : off ? "off" as const : !chosen ? "not_chosen" as const : undefined;
+  return { view: { off, trusted: chosen && !off, ...(whyNot ? { why_not: whyNot } : {}) }, facts: [off, setting?.confirmed_workspace_id ?? null, chosen] };
+}
+
+/** Off only turns reading off; on also confirms the current output as the person's, when it is not the default location. */
+function setInstructions(repository: ProjectsRepository, current: ProjectDirectories, projectId: string, off: boolean, now: string): void {
+  const output = current.directories.find(item => item.roles.includes("output"));
+  const before = repository.workspaces.instructionSetting(projectId);
+  const confirmed = off || !output || output.workspace_id === projectOutputId(repository.db, projectId) ? before?.confirmed_workspace_id ?? null : output.workspace_id;
+  repository.workspaces.setInstructionSetting(projectId, { off, confirmed_workspace_id: confirmed }, now);
+}
+
+/**
+ * A project's directories as a revision: the rows and links that make them up, and what decides reading the instruction files (the switch,
+ * the confirmed folder, whether the output is the person's), so a change of `trusted` is a new revision. Never a folder's live state.
+ */
+function revisionOf(rows: readonly ProjectDirectoryRow[], links: readonly { source_workspace_id: string; workspace_id: string }[],
+  instructions: readonly unknown[]): string {
+  const facts = { rows: rows.map(row => [row.workspace_id, row.stored_path, row.display_name, row.roles]).sort(), links: links.map(link => [link.source_workspace_id, link.workspace_id]).sort(),
+    instructions };
   return createHash("sha256").update(JSON.stringify(facts)).digest("hex").slice(0, 32);
 }

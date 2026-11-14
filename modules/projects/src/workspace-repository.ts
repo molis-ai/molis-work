@@ -324,6 +324,18 @@ export class WorkspaceRepository {
     return (this.db.prepare("SELECT project_id FROM workspace_project_memberships WHERE workspace_id = ? ORDER BY project_id").all(workspaceId) as Row[]).map(row => text(row.project_id));
   }
 
+  /** The project's switch for the repository's instruction files and the output the person confirmed; null is the default (read, none confirmed). */
+  instructionSetting(projectId: string): { off: boolean; confirmed_workspace_id: string | null } | null {
+    const row = this.db.prepare("SELECT off, confirmed_workspace_id FROM project_instruction_settings WHERE project_id = ?").get(projectId) as Row | undefined;
+    return row ? { off: Number(row.off) === 1, confirmed_workspace_id: row.confirmed_workspace_id === null ? null : text(row.confirmed_workspace_id) } : null;
+  }
+
+  setInstructionSetting(projectId: string, setting: { off: boolean; confirmed_workspace_id: string | null }, now: string): void {
+    this.db.prepare(`INSERT INTO project_instruction_settings (project_id, off, confirmed_workspace_id, updated_at) VALUES (?, ?, ?, ?)
+      ON CONFLICT(project_id) DO UPDATE SET off = excluded.off, confirmed_workspace_id = excluded.confirmed_workspace_id, updated_at = excluded.updated_at`)
+      .run(projectId, setting.off ? 1 : 0, setting.confirmed_workspace_id, now);
+  }
+
   hasSourceLinks(workspaceId: string): boolean {
     return this.db.prepare("SELECT 1 FROM workspace_source_links WHERE workspace_id = ? LIMIT 1").get(workspaceId) !== undefined;
   }

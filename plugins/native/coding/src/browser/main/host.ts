@@ -34,6 +34,8 @@ export interface CodingHost {
   /** An action this page declared, as the person (the files face reads folders and opens files through the platform). */
   invokeAction<Output = unknown>(reference: import("@molis-ai/molis-work-contracts/platform/actions").ActionReference, input: unknown): Promise<Output>;
   addWorkspace(path: string): Promise<{ readonly workspace_id: string }>;
+  /** Turns on reading the output's instruction files after the Host's own dialog (`UiPageWorkspaces.readInstructions`); refused when declined. */
+  readInstructions(): Promise<void>;
   confirm(question: string): Promise<boolean>;
   /** The platform's drafts and the way to the settings and back (specs/draft-and-return §2.4); main/returns.ts uses them. */
   readonly drafts: UiPageDrafts;

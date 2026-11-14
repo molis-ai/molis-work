@@ -11,6 +11,7 @@ export { PANE_MESSAGES_SCRIPT, SIDE_FORWARD_SCRIPT } from "./scripts/client/pane
 export { CONTEXT_ACTIONS_FACTORY_SCRIPT } from "./scripts/client/context-actions.js";
 export { CARD_TARGET_ASK_SCRIPT } from "./scripts/client/context-card-target.js";
 export { ASSISTANT_WORK_OBJECTS_FACTORY_SCRIPT } from "./scripts/client/assistant-work-objects.js";
+export { WORK_RECORDS_FACTORY_SCRIPT } from "./scripts/client/work-records.js";
 export { ASSISTANT_STEP_ROW_FACTORY_SCRIPT, ASSISTANT_THREAD_REPLY_SCRIPT } from "./scripts/client/assistant-step-row.js";
 export type { MolisWorkOnboardingRenderOptions } from "./onboarding-renderer.js";
 export { onboardingIntentFrame, onboardingPlanningHint, type OnboardingIntentFrame } from "./onboarding-intent.js";
@@ -48,7 +49,7 @@ export { assistantBoardSamples } from "./assistant-board-samples.js";
 export { renderAssistantNoticeText, renderAssistantSavedText } from "./assistant-text-html.js";
 export { readAssistantReviewWords } from "./assistant-review-html.js";
 export { createCapsuleWorkbench, type CapsuleRendererPorts } from "./capsule.js";
-export { BUILTIN_PLUGIN_CATALOG, OWN_DIRECTORY_SURFACES, manifestFor, pluginMarketCards, pluginTabGlyphs, pluginTabTitles, islandEntries, railEntries, settingsEntries, sideOpenedPlugins, creatableKinds, homeStarts, builtinPluginDirectory, pluginDirectoryFor, dockDefaultPins, extendPluginIds } from "./plugin-catalog.js";
+export { BUILTIN_PLUGIN_CATALOG, OWN_DIRECTORY_SURFACES, manifestFor, pluginMarketCards, pluginTabGlyphs, pluginTabTitles, islandEntries, railEntries, settingsEntries, sideOpenedPlugins, sideOpenedItemPlugins, creatableKinds, homeStarts, builtinPluginDirectory, pluginDirectoryFor, dockDefaultPins, extendPluginIds } from "./plugin-catalog.js";
 export { clientPluginDirectory, isPersonalPlugin, renderPluginDirectoryData, renderPluginTabTitlesData, sanitizePluginDirectory, scriptJson, type PluginDirectoryEntry } from "./plugin-directory.js";
 export { declaredStageContributionId, stageContributionId, stageOpeningView, stageDataAction, stageObjectAction, stageSurfaceDescriptors, stageDataInput, renderStagePage, withoutPagePublisher, type RenderedStagePage } from "./declared-stages.js";
 export { pluginWorkbenchPacks, pluginWorkbenchStyles } from "./plugin-workbench.js";

@@ -598,5 +598,6 @@ interface SandboxOperationFields {
     }>;
     effects: SandboxEffects;
     external?: true;
+    draft?: true;
     examples: SandboxOperationExample[];
 }

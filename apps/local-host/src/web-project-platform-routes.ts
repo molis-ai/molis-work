@@ -46,6 +46,7 @@ import { htmlLang } from "./web-locale.js";
 import { assistantPortsFor } from "./web-catalog-index-routes.js";
 import { contextualPorts, projectRoutePrefix, type ProjectRequestContext, type ProjectRuntimeContext } from "./web-project-context.js";
 import type { WebRoute } from "./web-route-table.js";
+import { handleObservationShellHttp } from "./observation-shell-entry.js";
 
 // The project's own platform routes (specs/archive/repository-anti-corruption W5-07). None names a plugin package; the plugin
 // surfaces' entries, and the order of the whole table, are in web-request.ts.
@@ -256,6 +257,8 @@ export const directoryRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
   // The task panel (specs/work-line §6): the project's background tasks and the commands their rows offer, as the person.
   { id: "mainline-event-surfaces", handle: ({ request, response, url, localHost, hostReference }) => handleMainlineEventSurfacesHttp(request, response, url, localHost, hostReference) },
   { id: "mainline", handle: ({ request, response, url, localHost, hostReference }) => handleMainlineHttp(request, response, url, localHost, hostReference) },
+  // The shell's UI stages in this project, through the same door as the Home's (observation-collection §4).
+  { id: "observation-ui", handle: ({ request, response, url, localHost, hostReference }) => handleObservationShellHttp(request, response, url, localHost, hostReference) },
   { id: "placement", handle: ({ request, response, url, localHost, hostReference }) =>
     handlePlacementHttp(request, response, url, () => bindLocalWebActions(localHost, hostReference, LOCAL_OWNER_PERMISSIONS)) },
   // What the person has in hand, ranked from the same directory under their own authority (specs/archive/contextual-interaction).

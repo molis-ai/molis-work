@@ -64,6 +64,7 @@ tests/fixtures/golden-homes/<版本>/
 | 设备号（`<命名空间>_replica_state.device`、`replica_state.device`） | 写在建库 SQL 的 `randomblob(16)` 里（`plugin-sync-database.ts:42`），另一处是 `randomUUID()`（`replica.ts:44`）。不该为了测试开注入口 | 转储器把这一列换成 `sha256("golden-device:" + 库的相对路径 + ":" + 表名)` 的前 32 位。值还是合法的十六进制，每个库各不相同，还原后 `initializeReplica` 照常认 |
 
 | 知识卡片的编号（`knowledge_cards` 的 rowid） | 卡片由组织器的定时器写，跨项目，谁先谁后取决于这台机器有多快；无内容 FTS 又记住了这个编号，事后归一不了 | 生成结束时删掉 `knowledge/knowledge.db`，由主人按目录逐项目重建（§3 第 2 步），一轮只有一种顺序。不是注入，是绕开：编号本身在真实 Home 里仍然取决于定时器，只是金样里不再出现这个不确定。重建之后才跑的用例写成 `afterKnowledgeRebuild`（§4 第 6 步） |
+| 工作记录的顺序与编号（`observation.db` 的 `records`：`seq`、`record_id`，以及证据加密取的随机数） | 第 28 批起宿主结算的每次调用都是一条记录，按并发调用结束的先后排号、取编号；搜索在变更 800 毫秒后并行刷新已知来源，结束先后由这台机器决定，同一组调用两次生成顺序不同，还会挪动下一个加密从种子流里取到的值（CI 上 `feed/secrets.json` 因此跟着变） | 生成时不写工作记录（`scripts/golden/populate.mjs` 的 `holdObservationRecords`，与知识组织的暂停同一做法）；库照样由主人打开、按现行结构建出，两个 Home 都如此，记在 `imports`。代价是金样里的观测库没有记录行；观测库第一次升结构之前，要有能按确定顺序生成的记录样本（[BL-observation-b28-known-limits](../backlog/BL-observation-b28-known-limits.md) ⑤） |
 
 要归一的列写成转储器里的一张短表（表名模式、列、规则），不做通配。新出现的随机列会让 `UPG2-02` 失败，要么注入，要么进这张表，看得见。另有一处归一在 capture 层、不进转储器短表：签过名的第三方样本在沙箱里按真实时钟产出的 `plugin_private_values` 那一行（`sandbox:entries` 的编号与 `created_at`），由 `scripts/golden/layout.mjs` 的 `withFixedSandboxEntries` 固定成 `i20260115090000000-golden` 与 `2026-01-15T09:00:00.000Z`；样本进程无法注入，只能在写进金样之前这一层固定，别的行一律照常。以后改归一规则时，这两处都要想到。同一个提交生成两次，`manifest.json` 与所有转储逐字节相同（`UPG2-02`），比的是归一之后的转储。
 
@@ -83,7 +84,7 @@ node scripts/golden-home.mjs check  --version <版本>     # 重新生成到临�
 步骤：
 
 1. 新建一个临时 Home，用脚本化的假模型启动常驻宿主（与 `replay-plugins.mjs` 相同的入口）。
-2. 建项目、启用全部内置插件，**经各主人自己的动作**写数据；不直接写 SQL，这样数据的形状就是主人真实会写出的形状。少数还没有写入动作的（如历史 Goal 事件），用已有的转储导入，并在清单里注明。知识库是另一种例外：卡片编号取决于后台定时器顺序，又被无内容 FTS 记住，事后无法归一，所以生成结束时删掉 `knowledge/knowledge.db`，由主人按目录逐项目重建，同样记在 `imports`；代价是金样里的知识库没有编辑过的卡（#1912）。生成时周期 10 秒以上的定时器不响：时钟停着，周期也停着，否则一轮到期多一行 `schedule_wakeups`，不是归一能解决的（#1946）。
+2. 建项目、启用全部内置插件，**经各主人自己的动作**写数据；不直接写 SQL，这样数据的形状就是主人真实会写出的形状。少数还没有写入动作的（如历史 Goal 事件），用已有的转储导入，并在清单里注明。知识库是另一种例外：卡片编号取决于后台定时器顺序，又被无内容 FTS 记住，事后无法归一，所以生成结束时删掉 `knowledge/knowledge.db`，由主人按目录逐项目重建，同样记在 `imports`；代价是金样里的知识库没有编辑过的卡（#1912）。观测库同样是例外：生成时不写工作记录，库只按现行结构建出，原因见 §2 的表，记在 `imports`（第 28 批）。生成时周期 10 秒以上的定时器不响：时钟停着，周期也停着，否则一轮到期多一行 `schedule_wakeups`，不是归一能解决的（#1946）。
 3. 装第三方插件样本，调一次写入动作；再装 Home 库样本（§2 第 9 条），给权限，写一行。
 4. 写带版本的文件：经各自的设置入口写，不手工拼 JSON。
 5. 对账号 Home 重复第 1～4 步（§2 第 8 条），根 Home 和账号 Home 各用各的固定 `storage-space.json`。

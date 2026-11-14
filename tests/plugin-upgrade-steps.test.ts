@@ -293,15 +293,15 @@ test("UPG1-14 a Home library's steps run through the same function, on their own
   } finally { after.close(); }
 });
 
-test("UPG1-14 only one place tells a plugin of the Host's own build from an installed one about steps, and it is called on install and on a version change", () => {
+test("UPG1-14 one declaration check covers install, package validation and version change", () => {
   const roots = [...["packages", "apps", "horizontal", "modules", join("plugins", "native")].flatMap(directory => readdirSync(join(REPOSITORY, directory)).map(name => join(directory, name, "src"))),
     join("server", "src")].filter(root => existsSync(join(REPOSITORY, root)));
   const files = roots.flatMap(root => readdirSync(join(REPOSITORY, root), { recursive: true, encoding: "utf8" }).filter(name => /\.(?:ts|tsx|mjs)$/u.test(name)).map(name => join(root, name)));
-  const calls = files.flatMap(name => [...readFileSync(join(REPOSITORY, name), "utf8").matchAll(/assertPluginUpgradeStepsAdmitted\(/gu)].map(() => name));
-  assert.deepEqual(calls.sort(), ["packages/plugin-runtime/src/index.ts", "packages/plugin-runtime/src/index.ts", "packages/plugin-runtime/src/plugin-upgrade-steps.ts"],
-    "its definition, and the install and the version change");
-  assert.deepEqual(files.filter(name => readFileSync(join(REPOSITORY, name), "utf8").includes(".upgrade_steps_unsupported(")), ["packages/plugin-runtime/src/plugin-upgrade-steps.ts"],
-    "and the refusal is raised there alone");
+  const calls = files.flatMap(name => [...readFileSync(join(REPOSITORY, name), "utf8").matchAll(/assertPluginUpgradeSteps\(/gu)].map(() => name));
+  assert.deepEqual(calls.sort(), ["apps/local-host/src/sandbox-package.ts", "packages/plugin-runtime/src/index.ts", "packages/plugin-runtime/src/index.ts", "packages/plugin-runtime/src/plugin-upgrade-steps.ts"],
+    "its definition and each admission path");
+  assert.deepEqual(files.filter(name => readFileSync(join(REPOSITORY, name), "utf8").includes(".upgrade_steps_unsupported(")), [],
+    "the temporary source switch is gone");
 });
 
 test("UPG1-14 the Manifest's steps are SQL and nothing else: their shape is read with the Manifest, for every plugin alike", () => {

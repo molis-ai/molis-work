@@ -140,7 +140,7 @@ export interface PlacementMoveResponse {
     open: PlacementOpen | null;
 }
 
-export type PlacementObjectState = "ok" | "missing" | "unavailable";
+export type PlacementObjectState = keyof typeof STATE_VOCABULARIES.placementObject.states;
 
 export interface PlacementOpen {
     project_id: string | null;

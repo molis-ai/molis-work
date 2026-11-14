@@ -77,6 +77,10 @@ Native Plugin 是一级产品入口，组合 Module API 和 UI；它不吸收 Mo
 
 Integration Plugin 把 Provider 的 Manifest、Local/Server entry、设置 UI、Connector/Listener/Signal/Action Adapter 放在一起。Host 只看 Contract 和 Receipt，不包含 GitHub/Gmail 等 provider 条件分支。
 
+### 状态机声明
+
+`state_machines` 与其他 Manifest 数据一起解析和计算摘要。内置与本地开发代码可用 SDK 定义状态转换；安装包按相同语法校验静态声明。解析拒绝越界 ID、字段、家族和数量。登记读取和运行时兑现由[第 47 批](../../specs/post-anticorruption-roadmap/reference/batches/47.md)接入；安装预演读取和展示见[第 48 批](../../specs/post-anticorruption-roadmap/reference/batches/48.md)。持久状态仍由插件自己的写动作与库管理。
+
 ## 6. 安全边界
 
 Plugin 只能在 Manifest 上限和用户实际 grant 的交集内调用；Secret 通过引用交给安全 Adapter；UI 与本地 entrypoint 通过 Host 提供的隔离通道通信。卸载停止代码和 binding，但已保存的 Goal、成果与 Signal 引用仍可安全显示。

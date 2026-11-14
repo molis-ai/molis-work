@@ -1,8 +1,9 @@
+import { observationPluginDataCleared } from "./observation-host.js";
 import { ActionError, requireSynchronous, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginExecutionControl } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { outsidePluginAction } from "@molis-ai/molis-work-plugin-runtime";
 import type { ArtifactsApplicationApi, ProcessItemsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import type { PluginDatabaseDeclaration, PluginDefinition, PluginExecutor, PluginInstanceRecord, PluginManifest, PluginPrivateStorage, PluginStartContext, PluginUpgradeContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginDatabaseDeclaration, PluginDatabaseVersionSwitch, PluginDefinition, PluginExecutor, PluginInstanceRecord, PluginManifest, PluginPrivateStorage, PluginStartContext, PluginUpgradeContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { UiHostApi } from "@molis-ai/molis-work-contracts/platform/ui";
 import { StoppedServiceCalls, type PluginEventBus, type PluginHostEvents, type PluginInputGraph, type PluginInstance } from "@molis-ai/molis-work-plugin-runtime";
 import type { PluginTextReader } from "@molis-ai/molis-work-ui-host";
@@ -16,6 +17,8 @@ import { discardInstallationOwnerData, forgetInstallationRecords, forgetLeftover
 import { directoryForHome } from "./plugin-directory-service.js";
 import type { SurfaceInstallRegistry } from "./surface-installation.js";
 import { awaitPluginStopHook, type PluginStopExecution } from "./plugin-stop-hook.js";
+
+import { commitInstalledDatabaseUpgrade } from "./plugin-sandbox-database-upgrade.js";
 
 export interface PluginHostExecutorOptions {
   project_id: string;
@@ -128,6 +131,8 @@ export class PluginHostExecutor implements PluginExecutor {
     if (this.options.home) directoryForHome(this.options.home.directory).forgetInstallation(record.install_id, this.options.project_id);
     // A sandboxed installation that keeps no data keeps no files either (S-64); one that keeps it leaves its folder to the same installation id.
     if (record.execution === "sandbox" && !record.retain_private_data) removeSandboxOwnerFiles({ home: this.options.home, project_id: this.options.project_id }, record.install_id);
+    // Its work records in this project, and the content of the calls it answered or made, go with its data (observation-collection §6).
+    if (this.options.home && !record.retain_private_data) observationPluginDataCleared(this.options.home.directory, record, this.options.project_id);
     // File registrations and record bindings are authorization, removed on every uninstall even when private data is kept (BL-356).
     forgetInstallationRecords({ home: this.options.home, project_id: this.options.project_id }, record);
   }
@@ -143,6 +148,7 @@ export class PluginHostExecutor implements PluginExecutor {
 
   keptDataDiscarded(record: PluginInstanceRecord): void {
     discardInstallationOwnerData({ home: this.options.home, project_id: this.options.project_id }, record, this.options.deleteInstallationData);
+    if (this.options.home) observationPluginDataCleared(this.options.home.directory, record, this.options.project_id);
   }
 
   /** How many service calls an instance's code made after it stopped, each doing nothing (BL-411); in memory, from this process. */
@@ -222,6 +228,15 @@ export class PluginHostExecutor implements PluginExecutor {
 
   async stopProjectJobs(projectId: string): Promise<void> {
     await Promise.all([...this.sessions.values()].map(held => held.session.stopProjectJobs(projectId)));
+  }
+
+  async commitDatabaseUpgrade(definition: PluginDefinition, change: PluginDatabaseVersionSwitch): Promise<void> {
+    const { home, projectLibrary, project_id: projectId } = this.options;
+    if (!home || !projectLibrary?.path) throw new ActionError("actions.service_unavailable", "项目库升级缺少当前 Home 或项目");
+    const { assertCurrent, ...expected } = change;
+    await commitInstalledDatabaseUpgrade({
+      op: "upgrade-project-database", home: home.directory, path: projectLibrary.path, projectId, target: definition.manifest, change: expected,
+    }, () => { assertCurrent(); home.assertStorageOwner(); });
   }
 
   async validateUpgrade(definition: PluginDefinition, context: PluginUpgradeContext, from: PluginInstanceRecord): Promise<void> {

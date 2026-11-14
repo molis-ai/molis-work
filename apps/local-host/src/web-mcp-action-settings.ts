@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { mcpErrors } from "./mcp-errors.js";
 import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
@@ -33,6 +33,8 @@ export async function handleMcpActionSettingsHttp(request: IncomingMessage, resp
     // A task's grant subject is given only what `agent.task_grants.set` records for the categories the person turned on; here it is no client.
     if (isTaskGrantSubject(clientId)) throw mcpErrors.grant_invalid("任务能读的数据在任务里设置，不在对外接入里");
     const preference = await readMcpToolPreference(homeDirectory);
+    // The person changes a client's grants here (behind the local Web gate); the client is what the grant is for, not who changed it.
+    const person: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: projectId, audience: "user", permissions: [] };
     if (request.method === "POST") {
       const keys = ["client_id", "project_id", "capability_id", "version", "provider_id", "enabled", "with"];
       if (Object.keys(input).some(key => !keys.includes(key)) || typeof input.capability_id !== "string"
@@ -44,7 +46,7 @@ export async function handleMcpActionSettingsHttp(request: IncomingMessage, resp
       const previous = preference.action_grants?.find(grant => actionGrantKey(grant) === actionGrantKey(identity));
       if (!input.enabled && previous) {
         const grant = { ...identity, permissions: previous.permissions, enabled: false };
-        await writeMcpActionGrant(homeDirectory, grant);
+        await writeMcpActionGrant(homeDirectory, grant, person);
         sendJson(response, 200, grant);
         return true;
       }
@@ -70,7 +72,7 @@ export async function handleMcpActionSettingsHttp(request: IncomingMessage, resp
     if (!selected) throw new ActionError("actions.missing", "能力、版本或提供方已失效，请刷新目录");
     if (!input.enabled && (selected.provider.kind !== "system" || selected.action.permissions.length)) throw mcpErrors.grant_missing("没有这项授权记录");
     const grant = createMcpActionGrant(clientId, projectId, selected, input.enabled as boolean);
-    if (!grant.enabled) { await writeMcpActionGrant(homeDirectory, grant); sendJson(response, 200, grant); return true; }
+    if (!grant.enabled) { await writeMcpActionGrant(homeDirectory, grant, person); sendJson(response, 200, grant); return true; }
     // An action that writes through other actions is granted together with them (`with`): the grants are checked as one proposed set and saved as one.
     const viewOf = (entry: GrantedTogether) => {
       const view = catalog.find(row => row.capability_id === entry.capability_id && row.version === entry.version && row.provider.provider_id === entry.provider_id);
@@ -92,7 +94,7 @@ export async function handleMcpActionSettingsHttp(request: IncomingMessage, resp
       throw new ActionError(state && !state.available ? state.code : "mcp.grant_unavailable", state && !state.available ? state.reason : "能力尚不可用，请检查权限和方法开关",
         state && !state.available && state.kind ? { kind: state.kind } : undefined);
     }
-    await writeMcpActionGrants(homeDirectory, grants);
+    await writeMcpActionGrants(homeDirectory, grants, person);
     sendJson(response, 200, grant);
   } catch (error) {
     respondLocalWebRefusal({ respond: (status, body) => sendJson(response, status, body) }, error);

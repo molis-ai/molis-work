@@ -167,7 +167,7 @@ test("SYS-15-S5: real process death after an action claim cannot consume an unpr
 test("PG-039 RAC-206: the Host's project clock has no handler of its own: it cannot register a job without an installation, and an unbound row left in the library is never woken", async () => {
   const db = openTestSqlite(":memory:");
   db.exec(SCHEDULER_SCHEMA_SQL);
-  const later = new Date("2026-01-02T00:00:00.000Z"), clock = scheduleServiceFor(db, () => later);
+  const later = new Date("2026-01-02T00:00:00.000Z"), clock = scheduleServiceFor(db, { now: () => later });
   try {
     // Before: the Host built its clock with an in-process index, which any code in the Host could register a handler on, and a `register()` for jobs without an installation.
     assert.equal("register" in clock, false, "the only way to register a job is an installation's own, with its binding");

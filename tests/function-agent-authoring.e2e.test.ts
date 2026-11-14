@@ -122,7 +122,7 @@ test("Agent authoring discovers runtime capabilities, preserves exact references
     await grant(write);
     await assert.rejects(grant(judgment), { status: 400, code: "mcp.grant_requires" });
     await revoke(write);
-    await writeMcpActionGrant(homeDirectory, createMcpActionGrant(caller.actor_id, null, viewOf(judgment), true));
+    await writeMcpActionGrant(homeDirectory, createMcpActionGrant(caller.actor_id, null, viewOf(judgment), true), { host_reason: "fixture" });
     await grant(read, functionsActions.invoke);
     changeMcpClientCredential(homeDirectory, caller.actor_id, "connect");
     external = new LocalMcpServer(withMolisWorkProjectCatalog, "runtime", { projectId, databasePath: browser.databasePath, webBaseUrl: origin },

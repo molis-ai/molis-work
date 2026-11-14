@@ -542,6 +542,7 @@ export interface ActionMetadata {
     readonly scope: "home" | "project";
     readonly effect?: "read" | "write" | "irreversible";
     readonly external?: true;
+    readonly draft?: true;
     readonly plugin?: false;
     readonly scheduling?: "concurrent";
     readonly authorship?: "session";
@@ -1000,7 +1001,7 @@ export declare const BACKGROUND_TASK_COLLECTION_SCHEMA: {
                         type: string;
                     };
                     state: {
-                        enum: readonly ("partial" | "archived" | "unavailable" | "failed" | "done" | "conflict" | "cancelled" | "idle" | "connected" | "ready" | "running" | "doing" | "starting" | "generating" | "saving" | "indexing" | "saved" | "round-ended" | "staged" | "waiting" | "queued" | "answer" | "approval" | "reauth" | "paused" | "stopped" | "disabled" | "blocked" | "quarantined" | "syncing" | "retrying" | "interrupted" | "verify" | "stale" | "disconnected" | "unsaved" | "draft" | "unstaged" | "untracked" | "unread" | "read" | "material" | "trashed")[];
+                        enum: readonly ("partial" | "idle" | "connected" | "ready" | "running" | "doing" | "starting" | "generating" | "saving" | "indexing" | "done" | "saved" | "round-ended" | "staged" | "waiting" | "queued" | "answer" | "approval" | "reauth" | "paused" | "stopped" | "cancelled" | "disabled" | "blocked" | "unavailable" | "quarantined" | "syncing" | "retrying" | "failed" | "interrupted" | "verify" | "conflict" | "stale" | "disconnected" | "unsaved" | "draft" | "unstaged" | "untracked" | "unread" | "read" | "archived" | "material" | "trashed")[];
                     };
                     step: {
                         type: string;
@@ -1383,7 +1384,7 @@ export declare const BACKGROUND_TASK_SCHEMA: {
             type: string;
         };
         state: {
-            enum: readonly ("partial" | "archived" | "unavailable" | "failed" | "done" | "conflict" | "cancelled" | "idle" | "connected" | "ready" | "running" | "doing" | "starting" | "generating" | "saving" | "indexing" | "saved" | "round-ended" | "staged" | "waiting" | "queued" | "answer" | "approval" | "reauth" | "paused" | "stopped" | "disabled" | "blocked" | "quarantined" | "syncing" | "retrying" | "interrupted" | "verify" | "stale" | "disconnected" | "unsaved" | "draft" | "unstaged" | "untracked" | "unread" | "read" | "material" | "trashed")[];
+            enum: readonly ("partial" | "idle" | "connected" | "ready" | "running" | "doing" | "starting" | "generating" | "saving" | "indexing" | "done" | "saved" | "round-ended" | "staged" | "waiting" | "queued" | "answer" | "approval" | "reauth" | "paused" | "stopped" | "cancelled" | "disabled" | "blocked" | "unavailable" | "quarantined" | "syncing" | "retrying" | "failed" | "interrupted" | "verify" | "conflict" | "stale" | "disconnected" | "unsaved" | "draft" | "unstaged" | "untracked" | "unread" | "read" | "archived" | "material" | "trashed")[];
         };
         step: {
             type: string;
@@ -3992,7 +3993,7 @@ export declare const WORK_EVENT_COLLECTION_SCHEMA: {
                         readonly type: "string";
                     };
                     state: {
-                        enum: readonly ("partial" | "archived" | "unavailable" | "failed" | "done" | "conflict" | "cancelled" | "idle" | "connected" | "ready" | "running" | "doing" | "starting" | "generating" | "saving" | "indexing" | "saved" | "round-ended" | "staged" | "waiting" | "queued" | "answer" | "approval" | "reauth" | "paused" | "stopped" | "disabled" | "blocked" | "quarantined" | "syncing" | "retrying" | "interrupted" | "verify" | "stale" | "disconnected" | "unsaved" | "draft" | "unstaged" | "untracked" | "unread" | "read" | "material" | "trashed")[];
+                        enum: readonly ("partial" | "idle" | "connected" | "ready" | "running" | "doing" | "starting" | "generating" | "saving" | "indexing" | "done" | "saved" | "round-ended" | "staged" | "waiting" | "queued" | "answer" | "approval" | "reauth" | "paused" | "stopped" | "cancelled" | "disabled" | "blocked" | "unavailable" | "quarantined" | "syncing" | "retrying" | "failed" | "interrupted" | "verify" | "conflict" | "stale" | "disconnected" | "unsaved" | "draft" | "unstaged" | "untracked" | "unread" | "read" | "archived" | "material" | "trashed")[];
                     };
                     placement: {
                         enum: string[];
@@ -4118,7 +4119,7 @@ export declare const WORK_EVENT_SCHEMA: {
             readonly type: "string";
         };
         state: {
-            enum: readonly ("partial" | "archived" | "unavailable" | "failed" | "done" | "conflict" | "cancelled" | "idle" | "connected" | "ready" | "running" | "doing" | "starting" | "generating" | "saving" | "indexing" | "saved" | "round-ended" | "staged" | "waiting" | "queued" | "answer" | "approval" | "reauth" | "paused" | "stopped" | "disabled" | "blocked" | "quarantined" | "syncing" | "retrying" | "interrupted" | "verify" | "stale" | "disconnected" | "unsaved" | "draft" | "unstaged" | "untracked" | "unread" | "read" | "material" | "trashed")[];
+            enum: readonly ("partial" | "idle" | "connected" | "ready" | "running" | "doing" | "starting" | "generating" | "saving" | "indexing" | "done" | "saved" | "round-ended" | "staged" | "waiting" | "queued" | "answer" | "approval" | "reauth" | "paused" | "stopped" | "cancelled" | "disabled" | "blocked" | "unavailable" | "quarantined" | "syncing" | "retrying" | "failed" | "interrupted" | "verify" | "conflict" | "stale" | "disconnected" | "unsaved" | "draft" | "unstaged" | "untracked" | "unread" | "read" | "archived" | "material" | "trashed")[];
         };
         placement: {
             enum: string[];

@@ -7,7 +7,7 @@ import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { LocalProjectDatabase, upgradePluginTables } from "@molis-ai/molis-work-app-local-host";
 import { describeSqliteSchema } from "@molis-ai/molis-work-storage";
-import { assessGoalReport, goalsManifest, hostEventDecisionAuthority, type GoalEvidencePorts } from "@molis-ai/molis-work-plugin-goals";
+import { assessGoalReport, GOALS_PROJECT_DATABASE, goalsManifest, hostEventDecisionAuthority, type GoalEvidencePorts } from "@molis-ai/molis-work-plugin-goals";
 import { goalEventAssessmentKey, type GoalEventJudgmentAssessment, type GoalEventJudgmentBasisInput } from "@molis-ai/molis-work-plugin-goals/contract";
 import { GoalProjectApplication } from "./fixtures/goal-application.js";
 
@@ -361,11 +361,14 @@ test("EVD-14: a cancelled call stops at the lookup instead of saving the report 
 
 // ---- The library's step from version 1 (EVD-20). ----
 
-test("EVD-20: a library at Goals' version 1 is taken to 2 with every judgment and conclusion kept, read as the reporter's own word, and equal to a new library", () => {
+test("EVD-20: a library at Goals' version 1 is taken to the current version with every judgment and conclusion kept, read as the reporter's own word, and equal to a new library", () => {
   const current = readFileSync(new URL("./fixtures/goal-event-history/approved-completed.sql", import.meta.url), "utf8");
-  // The same library as it was before the step: the six columns gone and the ledger at 1.
+  // The same library as it was at version 1: the six columns of the step to 2 and the concerns' cited objects of the step to 3 gone, the ledger at 1.
   const added = ["    basis_json TEXT,\n", "    tier TEXT NOT NULL DEFAULT 'self_reported',\n", "    gap TEXT,\n", "    reporter_session TEXT,\n", "    checked_artifact_id TEXT,\n", "    checked_version INTEGER,\n"];
-  let old = current.replace("VALUES ('io.molis.work.goals','official-goals-binding','goals',2,", "VALUES ('io.molis.work.goals','official-goals-binding','goals',1,");
+  let old = current.replace(`VALUES ('io.molis.work.goals','official-goals-binding','goals',${GOALS_PROJECT_DATABASE.version},`, "VALUES ('io.molis.work.goals','official-goals-binding','goals',1,");
+  const cited = "    updated_at TEXT NOT NULL,\n    cited_subjects_json TEXT NOT NULL DEFAULT '[]'\n";
+  assert.equal(old.split(cited).length, 2, cited);
+  old = old.replace(cited, "    updated_at TEXT NOT NULL\n");
   for (const line of added) { assert.equal(old.split(line).length, 2, line); old = old.replace(line, ""); }
   const before = new DatabaseSync(":memory:"), fresh = new DatabaseSync(":memory:");
   try {
@@ -374,12 +377,12 @@ test("EVD-20: a library at Goals' version 1 is taken to 2 with every judgment an
     const judgments = count(before, "goal_work_event_judgments"), conclusions = count(before, "goal_event_requirement_conclusions");
     assert.ok(judgments > 0);
     upgradePluginTables(before, "evidence-test", goalsManifest);
-    assert.equal((before.prepare("SELECT version FROM plugin_project_databases WHERE plugin_id = ?").get(goalsManifest.plugin_id) as { version: number }).version, 2);
+    assert.equal((before.prepare("SELECT version FROM plugin_project_databases WHERE plugin_id = ?").get(goalsManifest.plugin_id) as { version: number }).version, GOALS_PROJECT_DATABASE.version);
     assert.equal(count(before, "goal_work_event_judgments"), judgments);
     assert.equal(count(before, "goal_event_requirement_conclusions"), conclusions);
     assert.deepEqual(before.prepare("SELECT DISTINCT tier, gap, basis_json, reporter_session FROM goal_work_event_judgments").all().map(row => ({ ...row })),
       [{ tier: "self_reported", gap: null, basis_json: null, reporter_session: null }]);
-    for (const table of ["goal_work_event_judgments", "goal_event_requirement_conclusions"]) {
+    for (const table of ["goal_work_event_judgments", "goal_event_requirement_conclusions", "goal_event_concerns"]) {
       assert.deepEqual(describeSqliteSchema(before).tables[table], describeSqliteSchema(fresh).tables[table], table);
     }
   } finally { before.close(); fresh.close(); }

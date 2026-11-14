@@ -17,7 +17,7 @@ const imFrame = '[data-side-body="discussion"] iframe';
 const visible = (selector: string) => '!!document.querySelector(' + JSON.stringify(selector) + ')?.checkVisibility()';
 const quoted = (value: string) => JSON.stringify(value);
 
-test("IUI-03 IUI-06 IUI-07 IUI-08 IUI-13: the original Inbox and 等你 display current owner objects and the trusted Inbox area saves one", { timeout: 90_000 },
+test("IUI-03 IUI-06 IUI-07 IUI-08 IUI-09 IUI-13: the original Inbox and 等你 display current owner objects and the trusted Inbox area saves one", { timeout: 90_000 },
   t => nativeInboxSurface(t, false));
 test("S-surface-slots IUI-10: a native Inbox offer with a lost reply cannot execute again after reopening", { timeout: 90_000 },
   t => nativeInboxSurface(t, true));

@@ -15,7 +15,7 @@ import { seedConfiguredModels } from "./fixtures/configured-models.js";
 /** The project's folders as `projects.directories.get@1` answers them: the first is the output, the others inputs. */
 function folders(rows: ReadonlyArray<{ workspace_id: string; canonical_path: string }>): ProjectDirectories {
   const directories = rows.map((row, i): ProjectDirectory => ({ ...row, realpath_verified: true, display_name: row.workspace_id, roles: [i === 0 ? "output" : "input"], state: "ok" }));
-  return { project_id: DEMO_PROJECT_ID, directories, source_links: [], revision: "directories-1" };
+  return { project_id: DEMO_PROJECT_ID, directories, source_links: [], instructions: { off: false, trusted: false }, revision: "directories-1" };
 }
 
 test("parallel assignment routes retain drafts, freeze trusted roots and task bodies, and reject revoked or foreign directories before execution", async () => {

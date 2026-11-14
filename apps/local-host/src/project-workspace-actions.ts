@@ -97,6 +97,7 @@ export function projectWorkspaceActionProvider(projectId: string, catalogOwner: 
       return { kind: "map_source", source_workspace_id: String(source), target: target(rest) };
     }),
     change(a.unmapSource as ActionDefinition<unknown, ProjectDirectories>, input => ({ kind: "unmap_source", source_workspace_id: String(input.source_workspace_id) })),
+    change(a.setInstructions as ActionDefinition<unknown, ProjectDirectories>, input => ({ kind: "set_instructions", off: input.off === true })),
     ...materialHandlers(projectId, materials, withCatalog).map(handler => ({ ...handler, availability: needsCatalog })),
   ];
   return { provider: { ...workspaceProvider, project_id: projectId },

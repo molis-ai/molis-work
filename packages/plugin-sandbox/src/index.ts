@@ -6,7 +6,7 @@ export { OWNER_FILE_BYTES, OWNER_FILE_CALL_BYTES, OWNER_FILE_STEPS, OWNER_FILE_L
 export { BACKGROUND_EXECUTIONS, SANDBOX_BACKGROUND_LIMITS, createBackgroundLane, type SandboxBackground, type SandboxBackgroundLane } from './background.js';
 export { MODEL_DATA_CHARS, modelDeadlines, sandboxModel, type SandboxModel, type SandboxModelSettings } from './model.js';
 export { SandboxImageHolder, type SandboxImageGeneration, type SandboxImageLimits } from './image.js';
-export { sandboxServicesFor, storageTransactions, assertSandboxDeclarations, SANDBOX_NOT_GIVEN, SANDBOX_SERVICE_FATE, type NotGiven, type SandboxServiceFate, type SandboxHostServices, type SandboxHostExtras, type SandboxDeclarations } from './services.js';
+export { readOnlySandboxStorage, sandboxServicesFor, storageTransactions, assertSandboxDeclarations, SANDBOX_NOT_GIVEN, SANDBOX_SERVICE_FATE, type NotGiven, type SandboxServiceFate, type SandboxHostServices, type SandboxHostExtras, type SandboxDeclarations } from './services.js';
 export { createHttpsProxy, isPublicAddress, validateNetworkRequest } from './https-proxy.js';
 export type { HttpsProxyOptions, SandboxSecret } from './https-proxy.js';
 export { assertContract, assertProposalContract, assertSchema, assertMatches, assertEffects, assertJson, sandboxNotAuthorized, sandboxResponseTooLarge, SandboxError } from './schema.js';

@@ -15,7 +15,7 @@ import { GOALS_GOVERNANCE_SQL } from "./project-database-governance.js";
  */
 export const GOALS_PROJECT_DATABASE: PluginDatabaseDeclaration = {
   store_name: "goals",
-  version: /* @version database.goals_project_database */ 2,
+  version: /* @version database.goals_project_database */ 3,
   // 1 → 2 (2026-11-11, evidence contract): what a judgment checked and how far Goals found it backed, and the version a conclusion was about.
   // The new columns carry no CHECK: a step may not add a column with one (SQLite checks the whole library for it, which the platform's
   // authorizer over a plugin's step refuses), and the tables after the step must be exactly what `schema` makes. Goals alone writes them.
@@ -28,6 +28,12 @@ export const GOALS_PROJECT_DATABASE: PluginDatabaseDeclaration = {
       ALTER TABLE goal_work_event_judgments ADD COLUMN reporter_session TEXT;
       ALTER TABLE goal_event_requirement_conclusions ADD COLUMN checked_artifact_id TEXT;
       ALTER TABLE goal_event_requirement_conclusions ADD COLUMN checked_version INTEGER;
+    `,
+  }, {
+    // 2 → 3 (2026-11-13, risk plugin): the objects a concern cites, such as a risk record (`{kind, id}`, at most eight).
+    from: 2,
+    sql: `
+      ALTER TABLE goal_event_concerns ADD COLUMN cited_subjects_json TEXT NOT NULL DEFAULT '[]';
     `,
   }],
   schema: [GOALS_BOARDS_SQL, GOALS_TABLES_SQL, GOALS_INPUT_BINDINGS_SQL, GOALS_EVENT_FACTS_SQL, GOALS_EVENT_STATE_SQL, GOALS_GOVERNANCE_SQL].join("\n"),

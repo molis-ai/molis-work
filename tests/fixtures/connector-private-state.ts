@@ -5,6 +5,7 @@ import { join } from "node:path";
 import type { TestContext } from "node:test";
 import { connectorCliActions, connectorManagementActions, CONNECTOR_RECORDS_READ } from "@molis-ai/molis-work-app-local-host";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { OBSERVATION_DIGEST_KEY_REF, OBSERVATION_EVIDENCE_KEY_REF } from "@molis-ai/molis-work-service-observation";
 import { createCliPackageFixture } from "./connector-cli-package.js";
 import { openTestHome } from "./test-home.js";
 
@@ -47,7 +48,9 @@ export async function connectedPrivateCli(t: TestContext) {
   await f.close(); await f.host.close();
   const vault = JSON.parse(readFileSync(vaultPath, "utf8")) as { version: number; backend: string; entries: Record<string, string> };
   assert.equal(vault.version, 1); assert.equal(vault.backend, "aes-gcm-file");
-  assert.deepEqual(Object.keys(vault.entries), [], "finish must clear the last transient presentation");
+  // The work records' own Home keys stay (observation-collection contract-design §6); nothing of the connector's presentation does.
+  assert.deepEqual(Object.keys(vault.entries).sort(), [OBSERVATION_DIGEST_KEY_REF, OBSERVATION_EVIDENCE_KEY_REF, `${OBSERVATION_EVIDENCE_KEY_REF}:identity`].sort(),
+    "finish must clear the last transient presentation");
   assert.equal(readFileSync(keyPath).equals(key), true, "the original platform key was retained");
   const installations = join(home, "runtime", "connectors", "installs"), ids = readdirSync(installations);
   assert.equal(ids.length, 1);

@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "selection_revision": 1,
+  "selection": {
+    "skin": {
+      "id": "folio",
+      "revision": 1
+    },
+    "font": {
+      "policy": "follow-skin"
+    },
+    "mono": {
+      "id": "system-menlo",
+      "revision": 1
+    }
+  },
+  "last_recoverable": {
+    "skin": {
+      "id": "soft-workbench",
+      "revision": 1
+    },
+    "font": {
+      "policy": "follow-skin"
+    },
+    "mono": null
+  },
+  "undo_selection": {
+    "skin": {
+      "id": "soft-workbench",
+      "revision": 1
+    },
+    "font": {
+      "policy": "follow-skin"
+    },
+    "mono": null
+  },
+  "applications": [
+    {
+      "actor_id": "web-user",
+      "choice": {
+        "kind": "selection",
+        "selection": {
+          "skin": {
+            "id": "folio",
+            "revision": 1
+          },
+          "font": {
+            "policy": "follow-skin"
+          },
+          "mono": {
+            "id": "system-menlo",
+            "revision": 1
+          }
+        }
+      },
+      "applied": {
+        "request_id": "appearance-seed",
+        "selection_revision": 1,
+        "selection": {
+          "skin": {
+            "id": "folio",
+            "revision": 1
+          },
+          "font": {
+            "policy": "follow-skin"
+          },
+          "mono": {
+            "id": "system-menlo",
+            "revision": 1
+          }
+        }
+      }
+    }
+  ]
+}

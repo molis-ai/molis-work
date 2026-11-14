@@ -157,7 +157,7 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
     record.plugins = entries.map(entry => entry.definition.manifest.plugin_id);
     const storage = new SqlitePluginPrivateStorage(ports.store.db);
     // The only definitions that run in the Host's process without `host` trust are the Host's test fixtures, admitted as the objects they are (S-75 ⑥); a product Host is given none.
-    const platform = createPluginPlatform({ scheduler: scheduleServiceFor(ports.store.db), inProcess: fixtureAdmission(fixtures, ports.installedByHand ?? installedFixturesFor(ports.homeDirectory)),
+    const platform = createPluginPlatform({ scheduler: scheduleServiceFor(ports.store.db, { home: ports.homeDirectory, projectId: ports.projectId }), inProcess: fixtureAdmission(fixtures, ports.installedByHand ?? installedFixturesFor(ports.homeDirectory)),
       project_id: ports.projectId,
       actor_id: ports.actorId,
       db: ports.store.db,

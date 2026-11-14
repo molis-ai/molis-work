@@ -236,6 +236,8 @@ export interface PluginManifest {
   upgrade_compatibility?: PluginUpgradeCompatibilityDeclaration;
   /** The plugin's own tables, by scope (PG-020, specs/archive/plugin-project-database). */
   databases?: import("./plugin-database.js").PluginManifestDatabases;
+  /** Bounded state metadata. Transitions are defined in implementation code. */
+  state_machines?: readonly import("./plugin-state-machines.js").StateMachineDeclaration[];
   /** The plugin's own files in the Home (`services.ownerFiles`, PG-102): a root and its top-level entries, like `databases.home` declared here and nowhere else. */
   owner_files?: import("./plugin-owner-files.js").PluginOwnerFilesDeclaration;
   /** The settings of the model this plugin uses (`services.model.configuration`, PG-102): where its choice is kept and the two actions that read and save it. */
@@ -250,6 +252,8 @@ export interface PluginManifest {
   runtime?: PluginRuntimeDeclaration;
   /** The command-line tools this plugin looks for on this machine (`services.localTools`, PG-112): names and directories declared here, found by the platform, never run by it. */
   local_tools?: import("./plugin-local-tools.js").PluginLocalToolsDeclaration;
+  /** 可承接上手材料 (decision 43②): what this plugin takes from onboarding and its own action that takes it; the platform calls takers by this, naming none. */
+  onboarding?: import("./plugin-onboarding.js").PluginOnboardingDeclaration;
   /** the kinds of subject its objects are for Attention, with `attention:write` (`services.attention`, PG-087). */
   attention?: import("./plugin-attention.js").PluginAttentionDeclaration;
   /** places where the plugin may use an account the person binds, with `connections:use` (`services.connections`, S-57). */

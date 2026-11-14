@@ -82,7 +82,7 @@ test("RAC-2302 the project.created event records the project, not a path; the mo
 
 test("RAC-2303 the derived file name is the one the storage package names, and the catalog uses the declared current version", () => {
   assert.equal(projectDatabasePath("/home/projects", "p"), join("/home/projects", "p", PROJECT_DATABASE_FILENAME));
-  assert.equal(CATALOG_SCHEMA_VERSION, 3, "D0057/D0273: version 3 no longer includes retired desktop tables");
+  assert.equal(CATALOG_SCHEMA_VERSION, 4, "D0057/D0273: version 3 no longer includes retired desktop tables; 4 adds the instruction-file setting (batch12-design §3.3)");
 });
 
 test("RAC-2303 a current catalog reopens; another version is refused without changing its bytes or project facts", async () => {

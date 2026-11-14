@@ -82,6 +82,8 @@ const PLATFORM_LIBRARY_BLOCKS: Readonly<Record<string, UpgradeBlock>> = {
   functions: { kind: "setting", page: "library" },
   characters: { kind: "setting", page: "characters" },
   memory: { kind: "setting", page: "memory" },
+  // Work records are kept for the person's later review; an unusable library stops recording, never the Home (observation-collection §8).
+  observation: { kind: "setting", page: "diagnostics" },
 };
 
 const HOME_BLOCK: UpgradeBlock = { kind: "home" };

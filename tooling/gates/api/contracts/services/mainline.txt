@@ -69,7 +69,7 @@ export declare const BACKGROUND_TASK_ROW_SCHEMA: {
             type: string;
         };
         state: {
-            enum: readonly ("partial" | "archived" | "unavailable" | "failed" | "done" | "conflict" | "cancelled" | "idle" | "connected" | "ready" | "running" | "doing" | "starting" | "generating" | "saving" | "indexing" | "saved" | "round-ended" | "staged" | "waiting" | "queued" | "answer" | "approval" | "reauth" | "paused" | "stopped" | "disabled" | "blocked" | "quarantined" | "syncing" | "retrying" | "interrupted" | "verify" | "stale" | "disconnected" | "unsaved" | "draft" | "unstaged" | "untracked" | "unread" | "read" | "material" | "trashed")[];
+            enum: readonly ("partial" | "idle" | "connected" | "ready" | "running" | "doing" | "starting" | "generating" | "saving" | "indexing" | "done" | "saved" | "round-ended" | "staged" | "waiting" | "queued" | "answer" | "approval" | "reauth" | "paused" | "stopped" | "cancelled" | "disabled" | "blocked" | "unavailable" | "quarantined" | "syncing" | "retrying" | "failed" | "interrupted" | "verify" | "conflict" | "stale" | "disconnected" | "unsaved" | "draft" | "unstaged" | "untracked" | "unread" | "read" | "archived" | "material" | "trashed")[];
         };
         step: {
             type: string;
@@ -460,7 +460,7 @@ export declare const WORK_LINE_EVENT_SCHEMA: {
             readonly minimum: 0;
         };
         line_state: {
-            enum: readonly ("partial" | "archived" | "unavailable" | "failed" | "done" | "conflict" | "cancelled" | "idle" | "connected" | "ready" | "running" | "doing" | "starting" | "generating" | "saving" | "indexing" | "saved" | "round-ended" | "staged" | "waiting" | "queued" | "answer" | "approval" | "reauth" | "paused" | "stopped" | "disabled" | "blocked" | "quarantined" | "syncing" | "retrying" | "interrupted" | "verify" | "stale" | "disconnected" | "unsaved" | "draft" | "unstaged" | "untracked" | "unread" | "read" | "material" | "trashed")[];
+            enum: readonly ("partial" | "idle" | "connected" | "ready" | "running" | "doing" | "starting" | "generating" | "saving" | "indexing" | "done" | "saved" | "round-ended" | "staged" | "waiting" | "queued" | "answer" | "approval" | "reauth" | "paused" | "stopped" | "cancelled" | "disabled" | "blocked" | "unavailable" | "quarantined" | "syncing" | "retrying" | "failed" | "interrupted" | "verify" | "conflict" | "stale" | "disconnected" | "unsaved" | "draft" | "unstaged" | "untracked" | "unread" | "read" | "archived" | "material" | "trashed")[];
         };
         waiting: {
             type: string;
@@ -528,7 +528,7 @@ export declare const WORK_LINE_EVENT_SCHEMA: {
             readonly type: "string";
         };
         state: {
-            enum: readonly ("partial" | "archived" | "unavailable" | "failed" | "done" | "conflict" | "cancelled" | "idle" | "connected" | "ready" | "running" | "doing" | "starting" | "generating" | "saving" | "indexing" | "saved" | "round-ended" | "staged" | "waiting" | "queued" | "answer" | "approval" | "reauth" | "paused" | "stopped" | "disabled" | "blocked" | "quarantined" | "syncing" | "retrying" | "interrupted" | "verify" | "stale" | "disconnected" | "unsaved" | "draft" | "unstaged" | "untracked" | "unread" | "read" | "material" | "trashed")[];
+            enum: readonly ("partial" | "idle" | "connected" | "ready" | "running" | "doing" | "starting" | "generating" | "saving" | "indexing" | "done" | "saved" | "round-ended" | "staged" | "waiting" | "queued" | "answer" | "approval" | "reauth" | "paused" | "stopped" | "cancelled" | "disabled" | "blocked" | "unavailable" | "quarantined" | "syncing" | "retrying" | "failed" | "interrupted" | "verify" | "conflict" | "stale" | "disconnected" | "unsaved" | "draft" | "unstaged" | "untracked" | "unread" | "read" | "archived" | "material" | "trashed")[];
         };
         placement: {
             enum: string[];

@@ -115,6 +115,10 @@ AP3 已把稳定文档 Shell、命名 Slot、mount 校验、浏览器资产和�
 - 兼容 Facade 只能转发，必须记录 caller 和删除条件。
 - 任一迁移阶段都保持可构建、可测试、可回滚。
 
+### 状态与状态机
+
+平台能力的公开取值与家族由 contracts 的[词表](../platform/STATE-VOCABULARY.md)提供。转换表和写入由事实主人维护。插件在 Manifest 申报状态，SDK 检查声明并提供转换和带授权检查的 CAS 接口。内部状态、流水账和中断恢复记录归原包或插件库。Runtime 的兑现核对和安装登记投影由[第 47 批](../../specs/post-anticorruption-roadmap/reference/batches/47.md)实现。
+
 ## 9. 端到端例子
 
 以 Gmail 新邮件进入 Feed 为例：

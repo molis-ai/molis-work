@@ -1,3 +1,4 @@
+import { releaseApplication } from "../release-profile.js";
 /**
  * Which apps the Assistant may look at and how far it may act in them (specs/computer-use D04, D17, D18).
  *
@@ -18,7 +19,7 @@ export interface AppIdentity { readonly bundle_id: string; readonly name: string
 export interface AppTierVerdict { readonly tier: AppTier; readonly reason: string; readonly built_in: boolean }
 
 /** Molis Work's own desktop app and the helper: the Assistant must never reach its own approval cards. */
-const MOLIS_BUNDLE_PREFIX = "com.molis.work";
+const MOLIS_BUNDLE_PREFIX = releaseApplication.identifier;
 
 /** A browser window whose title carries this shows Molis Work (every workbench page title ends in " · Molis Work"). */
 const MOLIS_WINDOW_MARKER = "Molis Work";

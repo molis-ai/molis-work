@@ -544,6 +544,7 @@ export interface ActionMetadata {
     readonly scope: "home" | "project";
     readonly effect?: "read" | "write" | "irreversible";
     readonly external?: true;
+    readonly draft?: true;
     readonly plugin?: false;
     readonly scheduling?: "concurrent";
     readonly authorship?: "session";
@@ -1111,7 +1112,7 @@ export declare const BACKGROUND_TASK_COLLECTION_SCHEMA: {
                         type: string;
                     };
                     state: {
-                        enum: readonly ("partial" | "archived" | "unavailable" | "failed" | "done" | "conflict" | "cancelled" | "idle" | "connected" | "ready" | "running" | "doing" | "starting" | "generating" | "saving" | "indexing" | "saved" | "round-ended" | "staged" | "waiting" | "queued" | "answer" | "approval" | "reauth" | "paused" | "stopped" | "disabled" | "blocked" | "quarantined" | "syncing" | "retrying" | "interrupted" | "verify" | "stale" | "disconnected" | "unsaved" | "draft" | "unstaged" | "untracked" | "unread" | "read" | "material" | "trashed")[];
+                        enum: readonly ("partial" | "idle" | "connected" | "ready" | "running" | "doing" | "starting" | "generating" | "saving" | "indexing" | "done" | "saved" | "round-ended" | "staged" | "waiting" | "queued" | "answer" | "approval" | "reauth" | "paused" | "stopped" | "cancelled" | "disabled" | "blocked" | "unavailable" | "quarantined" | "syncing" | "retrying" | "failed" | "interrupted" | "verify" | "conflict" | "stale" | "disconnected" | "unsaved" | "draft" | "unstaged" | "untracked" | "unread" | "read" | "archived" | "material" | "trashed")[];
                     };
                     step: {
                         type: string;
@@ -1494,7 +1495,7 @@ export declare const BACKGROUND_TASK_SCHEMA: {
             type: string;
         };
         state: {
-            enum: readonly ("partial" | "archived" | "unavailable" | "failed" | "done" | "conflict" | "cancelled" | "idle" | "connected" | "ready" | "running" | "doing" | "starting" | "generating" | "saving" | "indexing" | "saved" | "round-ended" | "staged" | "waiting" | "queued" | "answer" | "approval" | "reauth" | "paused" | "stopped" | "disabled" | "blocked" | "quarantined" | "syncing" | "retrying" | "interrupted" | "verify" | "stale" | "disconnected" | "unsaved" | "draft" | "unstaged" | "untracked" | "unread" | "read" | "material" | "trashed")[];
+            enum: readonly ("partial" | "idle" | "connected" | "ready" | "running" | "doing" | "starting" | "generating" | "saving" | "indexing" | "done" | "saved" | "round-ended" | "staged" | "waiting" | "queued" | "answer" | "approval" | "reauth" | "paused" | "stopped" | "cancelled" | "disabled" | "blocked" | "unavailable" | "quarantined" | "syncing" | "retrying" | "failed" | "interrupted" | "verify" | "conflict" | "stale" | "disconnected" | "unsaved" | "draft" | "unstaged" | "untracked" | "unread" | "read" | "archived" | "material" | "trashed")[];
         };
         step: {
             type: string;
@@ -3354,6 +3355,12 @@ export interface PluginDatabase extends PluginDatabaseReader {
     transactionProjectRow?<T>(id: string, write: (transaction: PluginProjectRowTransaction) => T): Promise<T>;
 }
 
+export interface PluginDatabaseApproval {
+    readonly installId: string;
+    readonly key: string;
+    readonly value: string;
+}
+
 export interface PluginDatabaseDeclaration {
     readonly store_name: string;
     readonly version: number;
@@ -3382,6 +3389,14 @@ export interface PluginDatabaseUpgradeStep {
     readonly from: number;
     readonly sql: string;
     readonly reduces_rows?: readonly string[];
+}
+
+export interface PluginDatabaseVersionSwitch {
+    readonly previous: PluginManifest;
+    readonly current: PluginInstanceRecord;
+    readonly next: PluginInstanceRecord;
+    readonly approval?: PluginDatabaseApproval;
+    assertCurrent(): void;
 }
 
 export interface PluginDeclarationProblem {
@@ -3614,6 +3629,7 @@ export interface PluginExecutor {
     start(definition: PluginDefinition, context: PluginStartContext): Promise<PluginExecutorHandle>;
     stop(definition: PluginDefinition, context: PluginStartContext): Promise<void>;
     validateUpgrade?(definition: PluginDefinition, context: PluginUpgradeContext, from: PluginInstanceRecord): Promise<void>;
+    commitDatabaseUpgrade?(definition: PluginDefinition, change: PluginDatabaseVersionSwitch): Promise<void>;
     capturePrivateData?(installId: string): Promise<unknown> | unknown;
     restorePrivateData?(installId: string, snapshot: unknown): Promise<void> | void;
     uninstalled?(record: PluginInstanceRecord): Promise<void> | void;
@@ -3959,7 +3975,7 @@ export interface PluginLifecycleReceipt {
     replayed: boolean;
 }
 
-export type PluginLifecycleState = "installed" | "running" | "disabled" | "crashed" | "quarantined" | "uninstalled";
+export type PluginLifecycleState = keyof typeof STATE_VOCABULARIES.pluginLifecycle.states;
 
 export type PluginLocalPageRequest = Pick<MaterialExtractionOptions, "signal">;
 
@@ -4079,11 +4095,13 @@ export interface PluginManifest {
     methods?: import("@molis-ai/molis-work-contracts/platform/plugin-agent").PluginMethodDeclaration[];
     upgrade_compatibility?: PluginUpgradeCompatibilityDeclaration;
     databases?: import("platform/plugin-database").PluginManifestDatabases;
+    state_machines?: readonly import("platform/plugin-state-machines").StateMachineDeclaration[];
     owner_files?: import("platform/plugin-owner-files").PluginOwnerFilesDeclaration;
     model_configuration?: import("platform/plugin-model-configuration").PluginModelConfigurationDeclaration;
     image_generation?: import("platform/plugin-image-generation").PluginImageGenerationDeclaration;
     runtime?: PluginRuntimeDeclaration;
     local_tools?: import("platform/plugin-local-tools").PluginLocalToolsDeclaration;
+    onboarding?: import("@molis-ai/molis-work-contracts/platform/plugin-onboarding").PluginOnboardingDeclaration;
     attention?: import("@molis-ai/molis-work-contracts/platform/plugin-attention").PluginAttentionDeclaration;
     connections?: import("@molis-ai/molis-work-contracts/platform/plugin-connections").PluginConnectionsDeclaration;
     connection_services?: readonly import("@molis-ai/molis-work-contracts/platform/plugin-integrations").PluginConnectionServiceDeclaration[];
@@ -4651,6 +4669,9 @@ export interface PluginRuntimeApi {
         deployment?: PluginDeployment;
         grants?: string[];
         assertCurrent?: () => void;
+        assertCommitted?: () => void;
+        previousManifest?: PluginManifest;
+        persistApproval?: PluginDatabaseApproval;
     }): Promise<PluginLifecycleReceipt>;
     rollback(input: {
         install_id: string;
@@ -4924,6 +4945,7 @@ export interface PluginUpgradeCompatibilityDeclaration {
 }
 
 export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
+    readonly assertCurrent?: () => void;
     readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "project_statements" | "database_statements" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "localTools" | "materials" | "connections" | "directory" | "background" | "scheduler" | "agents" | "installations" | "projects" | "notifications" | "attention" | "contextLedger" | "interaction" | "savedHistory" | "sync"> & {
         readonly storage?: Pick<PluginPrivateStorage, "get">;
     };
@@ -5517,6 +5539,14 @@ export declare const SKILL_RESOURCE_FOLDERS: {
 
 export declare const SKILL_TOOLS: readonly ["find-capabilities", "read-capability", "change-capability", "suggest-action", "ask-user", "update-todo", "find-tools", "context-remaining", "board-wait", "acknowledge-inputs"];
 
+export declare const STATE_MACHINE_DECLARATION_LIMITS: {
+    readonly machines: 32;
+    readonly states: 64;
+    readonly transitions: 256;
+    readonly id: number;
+    readonly localId: 64;
+};
+
 export declare const SUBJECT_CONTEXT_INPUT_SCHEMA: {
     readonly type: "object";
     readonly properties: {
@@ -6003,6 +6033,14 @@ export interface StageSceneMetadataAuthority {
     readonly actions: readonly ExactActionReference[];
 }
 
+export interface StateMachineDeclaration<State extends string = string> {
+    readonly machine_id: string;
+    readonly version: number;
+    readonly states: Readonly<Record<State, StateRingFamily>>;
+    readonly initial: State;
+    readonly terminal: readonly State[];
+}
+
 export interface SubjectActionOffer {
     offer_id: string;
     title: string;
@@ -6330,7 +6368,7 @@ export declare const WORK_EVENT_COLLECTION_SCHEMA: {
                         readonly type: "string";
                     };
                     state: {
-                        enum: readonly ("partial" | "archived" | "unavailable" | "failed" | "done" | "conflict" | "cancelled" | "idle" | "connected" | "ready" | "running" | "doing" | "starting" | "generating" | "saving" | "indexing" | "saved" | "round-ended" | "staged" | "waiting" | "queued" | "answer" | "approval" | "reauth" | "paused" | "stopped" | "disabled" | "blocked" | "quarantined" | "syncing" | "retrying" | "interrupted" | "verify" | "stale" | "disconnected" | "unsaved" | "draft" | "unstaged" | "untracked" | "unread" | "read" | "material" | "trashed")[];
+                        enum: readonly ("partial" | "idle" | "connected" | "ready" | "running" | "doing" | "starting" | "generating" | "saving" | "indexing" | "done" | "saved" | "round-ended" | "staged" | "waiting" | "queued" | "answer" | "approval" | "reauth" | "paused" | "stopped" | "cancelled" | "disabled" | "blocked" | "unavailable" | "quarantined" | "syncing" | "retrying" | "failed" | "interrupted" | "verify" | "conflict" | "stale" | "disconnected" | "unsaved" | "draft" | "unstaged" | "untracked" | "unread" | "read" | "archived" | "material" | "trashed")[];
                     };
                     placement: {
                         enum: string[];
@@ -6456,7 +6494,7 @@ export declare const WORK_EVENT_SCHEMA: {
             readonly type: "string";
         };
         state: {
-            enum: readonly ("partial" | "archived" | "unavailable" | "failed" | "done" | "conflict" | "cancelled" | "idle" | "connected" | "ready" | "running" | "doing" | "starting" | "generating" | "saving" | "indexing" | "saved" | "round-ended" | "staged" | "waiting" | "queued" | "answer" | "approval" | "reauth" | "paused" | "stopped" | "disabled" | "blocked" | "quarantined" | "syncing" | "retrying" | "interrupted" | "verify" | "stale" | "disconnected" | "unsaved" | "draft" | "unstaged" | "untracked" | "unread" | "read" | "material" | "trashed")[];
+            enum: readonly ("partial" | "idle" | "connected" | "ready" | "running" | "doing" | "starting" | "generating" | "saving" | "indexing" | "done" | "saved" | "round-ended" | "staged" | "waiting" | "queued" | "answer" | "approval" | "reauth" | "paused" | "stopped" | "cancelled" | "disabled" | "blocked" | "unavailable" | "quarantined" | "syncing" | "retrying" | "failed" | "interrupted" | "verify" | "conflict" | "stale" | "disconnected" | "unsaved" | "draft" | "unstaged" | "untracked" | "unread" | "read" | "archived" | "material" | "trashed")[];
         };
         placement: {
             enum: string[];
@@ -7172,6 +7210,7 @@ export declare const pluginErrors: import("platform/action-errors").ErrorCodeRai
     readonly storage_denied: "invalid";
     readonly storage_input_invalid: "invalid";
     readonly uninstall_cleanup_pending: "unavailable";
+    readonly upgrade_activation_failed: "unavailable";
     readonly upgrade_required: "invalid";
     readonly upgrade_rollback_failed: "invalid";
     readonly upgrade_validation_failed: "invalid";

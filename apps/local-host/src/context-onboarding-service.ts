@@ -1,3 +1,4 @@
+import { realpath } from "node:fs/promises";
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { ActionError, type ActionDefinition, type BoundActionClient, type HostOfferedOriginalFile } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { Readable } from "node:stream";
@@ -5,7 +6,7 @@ import { fencedMaterials, instructed, type InstructionPrompt } from "@molis-ai/m
 import { ONBOARDING_NOTES, ONBOARDING_OWNER, ONBOARDING_PROPOSAL } from "./agent-definitions/system-prompts.js";
 import { createHash, randomUUID } from "node:crypto";
 import { withContextJourneys, type CallTiming, type ContextJourney, type ContextReference, type ImportFile, type OnboardingTodoBatch } from "./context-onboarding-store.js";
-import { contextFilePath, contextSources, readContextSource } from "./context-onboarding-sources.js";
+import { codeRoot, contextFilePath, contextSources, readContextSource } from "./context-onboarding-sources.js";
 import { diskFull, dropStagedNotes, readStagedNote, readStagedText, removeJourneyStaging, stageContextUpload, stageNote, stagedFilePath, stagedFileSize, stagedJourneyIds, isStagedDigest } from "./context-onboarding-staging.js";
 import type { PeriodicTasks } from "./periodic-tasks.js";
 import { configuredTextPort, type TextModelPort } from "./configured-text-port.js";
@@ -17,6 +18,10 @@ import { descriptionFromSummary, setProjectDescription } from "./project-arrival
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { hostLog } from "./host-log.js";
+import { artifactSubjectId, type ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import { ONBOARDING_TAKE_MATERIALS_MAX, type OnboardingCodeRootTake, type OnboardingTakeResult } from "@molis-ai/molis-work-contracts/platform/plugin-onboarding";
+import type { OnboardingTaker } from "./onboarding-takers.js";
+import { withObservationSource } from "@molis-ai/molis-work-service-observation";
 
 export interface ContextOnboardingPorts {
   withCatalog: LocalWebCatalogRunner;
@@ -26,6 +31,10 @@ export interface ContextOnboardingPorts {
   homeActions?: (home: string, signal: AbortSignal) => BoundActionClient;
   model?: (home: string) => Promise<TextModelPort>;
   readSource?: typeof readContextSource;
+  /** The plugins that declare they take a code folder (`onboardingTakers`, batch12-design §7.3); none offered without it. */
+  takers?: () => readonly OnboardingTaker[];
+  /** The person's call of one taker's own declared action in the new project, with that action's permissions only (§7.7 C1). */
+  take?: (home: string, projectId: string, definition: ActionDefinition) => Promise<BoundActionClient>;
 }
 // The local Host is the single writer. Persistent checkpoints survive restarts;
 // this map prevents two requests starting the same job in the current process.
@@ -457,14 +466,35 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
   // Only drafts this round made can be kept, however many batches there were.
   const drafted = new Set(journey.todo?.batches.flatMap(batch => batch.candidates.map(candidate => candidate.candidate_id)) ?? []);
   const todoSelected = Array.isArray(input.todo_selected) ? [...new Set(input.todo_selected.filter((value): value is string => typeof value === "string" && drafted.has(value)))] : [];
-  journey.adoption ??= { title, body, blank: input.blank === true, todo_selected: todoSelected }; journey.phase = "adopting"; journey.error = null;
+  // The folder goes to a plugin the person picked among those that declare they take one; the folder is their own chosen folder as this
+  // round read it, never a path from the request (ONB-44, batch12-design §7.3).
+  const wanted = typeof input.take === "string" && input.blank !== true ? input.take : null;
+  const taker = wanted ? ports.takers?.().find(one => one.plugin_id === wanted) : undefined, root = wanted ? codeRoot(journey) : null;
+  if (wanted && !journey.adoption && !(taker && root)) throw new Error("这个文件夹不能这样交出去：只有你自己选的、顶层有项目文件的文件夹，交给声明了能接手的插件");
+  journey.adoption ??= { title, body, blank: input.blank === true, todo_selected: todoSelected, ...(taker && root ? { take: { plugin_id: taker.plugin_id, project_plugin_id: taker.project_plugin_id, code_root: root } } : {}) };
+  journey.phase = "adopting"; journey.error = null;
   withContextJourneys(home, store => store.save(journey));
-  const job = Promise.resolve().then(async () => {
+  // The fixed versions this round brought, for the plugin the folder goes to.
+  const handed: { version: ArtifactReference; title: string }[] = [];
+  // The person brings their own materials in (design §3「用户导入」): everything this adoption records, the actions it calls included, is an
+  // import, kept apart from work done in the project later. The scope ends with the adoption.
+  const job = withObservationSource("imported", () => Promise.resolve().then(async () => {
     try {
       await ports.withCatalog({ homeDirectory: home }, async catalog => {
         await catalog.createProject({ display_name: journey.adoption!.title, actor_id: LOCAL_PERSON_ACTOR_ID, project_id: journey.project_id });
         catalog.addProjectPlugin({ project_id: journey.project_id, plugin_id: "pages", actor_id: LOCAL_PERSON_ACTOR_ID });
         // Artifact imports use the platform service in every project.
+        const take = journey.adoption!.take;
+        if (take) {
+          catalog.addProjectPlugin({ project_id: journey.project_id, plugin_id: take.project_plugin_id, actor_id: LOCAL_PERSON_ACTOR_ID });
+          // The person's code folder becomes the project's output: their choice, kept by Projects and written here, not by the plugin
+          // (and, with it, the project is trusted: batch12-design §3, user 2026-11-13). Once: a retry does not undo an output the person changed since.
+          if (!take.output_set) {
+            await catalog.commit(() => catalog.changeDirectories({ project_id: journey.project_id, actor_id: LOCAL_PERSON_ACTOR_ID,
+              change: { kind: "set_output", target: { workspace_path: take.code_root } }, expected_revision: catalog.projectDirectories(journey.project_id).revision }));
+            take.output_set = true; withContextJourneys(home, store => store.save(journey));
+          }
+        }
       });
       // The chooser introduces the new project in the words the person accepted (a blank start has none). Safe to repeat.
       if (!journey.adoption!.blank) setProjectDescription(home, journey.project_id, descriptionFromSummary(journey.adoption!.body));
@@ -477,6 +507,7 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
         const fromMarkdown = await shipped<{ markdown: string }, { body: ProseDocument }>(actions, "pages.documents.body_from_markdown", /* @version action.pages.documents.body_from_markdown */ 1, PAGES_PLUGIN_ID);
         const importDocuments = await shipped<PagesImport, { documents: { id: string }[] }>(actions, "pages.documents.import", /* @version action.pages.documents.import */ 1, PAGES_PLUGIN_ID);
         const pageBody: PageBody = async markdown => (await actions.invoke(fromMarkdown, { markdown })).body;
+        handed.length = 0;
         const refs = journey.adoption!.blank ? [] : journey.summary?.references ?? journey.sources.filter(s => s.selected).flatMap(s => s.references ?? []);
         if (!journey.summary) refs.forEach((ref, index) => { ref.label = "S" + (index + 1); });
         journey.artifact_references = refs.flatMap(ref => ref.artifact ? [ref.artifact] : []);
@@ -502,6 +533,7 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
             ref.documents = documents;
             withContextJourneys(home, store => store.save(journey));
           }
+          if (ref.artifact) handed.push({ version: ref.artifact, title: ref.title });
         }
         const sources = refs.map(r => `[${r.label}] [${r.title.replace(/[\[\]]/gu, "")}](/projects/${journey.project_id}/?openPlugin=pages&openItem=${r.documents![0]}&openTitle=${encodeURIComponent(r.title)}) · ${r.path} · 版本 ${r.version}`).join("\n\n");
         // The page is the person's, written in the interface language they made the project in (user decision 2026-10-15).
@@ -515,9 +547,11 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
           const artifact = await actions.invoke(artifactsActions.importFile, { source: "file", filename: "summary.md", title: summaryTitle.length <= 200 ? summaryTitle : cutHead(summaryTitle, 199) + "…",
             source_id: "onboarding:" + id + ":summary", content: text });
           journey.artifact_references.push({ artifact_id: artifact.artifact_id, version: artifact.version });
+          handed.push({ version: { artifact_id: artifact.artifact_id, version: artifact.version }, title: summaryTitle });
         }
       }
       await adoptTodoDrafts(journey, actions);
+      await handToTaker(home, journey, handed, ports);
       completeMolisWorkOnboarding(home, journey.project_id); journey.phase = "complete"; journey.error = null;
       // The project now holds the materials; what the round staged goes. The project is made either way: a staging that cannot be
       // removed now is only space, and must not turn a finished project back into a failure.
@@ -527,9 +561,34 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
       journey.error = diskFull(error) ? "磁盘空间不足，项目没有保存完；确认的内容仍在。腾出空间后可以继续保存。" : error instanceof Error ? error.message : "项目保存未完成，请重试";
     }
     withContextJourneys(home, store => store.save(journey));
-  }).finally(() => running.delete(key(home, id)));
+  })).finally(() => running.delete(key(home, id)));
   running.set(key(home, id), job); await job;
   return readContextJourney(home, id);
+}
+
+/**
+ * The folder goes to the plugin the person picked, by that plugin's own declared action, called as the person with its permissions
+ * only (batch12-design §7.3, §7.7 C1). Once it answered, a retry does not call it again. Only the folder the person picked goes: when
+ * the project's output is no longer it, nothing is handed. A plugin that is gone or refuses does not hold the round: the project and
+ * its materials are already made, so the round completes, `take_result.not_taken` says why, and the person lands on the plugin's page.
+ */
+async function handToTaker(home: string, journey: ContextJourney, handed: readonly { version: ArtifactReference; title: string }[], ports: ContextOnboardingPorts): Promise<void> {
+  const take = journey.adoption?.take;
+  if (!take || journey.take_result) return;
+  const done = (result: NonNullable<ContextJourney["take_result"]>) => { journey.take_result = result; withContextJourneys(home, store => store.save(journey)); };
+  const notTaken = (why: "unavailable" | "moved" | "refused") => done({ open: null, materials: 0, of: handed.length, not_taken: why });
+  const taker = ports.takers?.().find(one => one.plugin_id === take.plugin_id);
+  if (!taker || !ports.take) return notTaken("unavailable");
+  const output = await ports.withCatalog({ homeDirectory: home }, catalog => catalog.projectDirectories(journey.project_id).directories.find(folder => folder.roles.includes("output")));
+  if (!output || output.canonical_path !== await realpath(take.code_root).catch(() => null)) return notTaken("moved");
+  const materials = handed.slice(0, ONBOARDING_TAKE_MATERIALS_MAX).map(item => ({ ref: { subject: { kind: "artifact", id: artifactSubjectId(item.version) }, pin: { mode: "fixed" as const, version: item.version } }, title: item.title.slice(0, 500) }));
+  let answered: OnboardingTakeResult;
+  try {
+    const client = await ports.take(home, journey.project_id, taker.take);
+    answered = await client.invoke(taker.take as ActionDefinition<OnboardingCodeRootTake, OnboardingTakeResult>,
+      { request_id: `onboarding:${journey.id}:take`, code_root: { workspace_id: output.workspace_id }, materials });
+  } catch { return notTaken("refused"); }
+  done({ open: answered.open, materials: materials.length, of: handed.length });
 }
 
 /** The drafts the person kept, from every batch, become the new project's todos; the rest stay in Todo's “待你确认”. Safe to repeat. */

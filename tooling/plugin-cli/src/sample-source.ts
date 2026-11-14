@@ -1,4 +1,5 @@
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { StateMachineDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { defineArtifactPreviewAction } from "@molis-ai/molis-work-plugin-sdk";
 
 /** The 成果 type the sample pins, and the name and preview action every pinned type must declare (specs/artifact-positioning A1/A7). */
@@ -34,13 +35,23 @@ export function samplePluginActions(pluginId: string): ActionDefinition[] {
   ];
 }
 
+/** The counter is the sole stored fact; a first save moves it from empty to saved. */
+export function sampleStateMachine(pluginId: string): StateMachineDeclaration<"empty" | "saved"> {
+  return { machine_id: pluginId + ".result", version: 1, states: { empty: "idle", saved: "done" }, initial: "empty", terminal: [] };
+}
+
 /** Uses only the packed public SDK, never repository implementation paths. */
 export const samplePluginSource = `import { definePlugin, defineAction, definePollingIntegrationPlugin, bindOwnerPluginAction, bindArtifactPreview } from "@molis-ai/molis-work-plugin-sdk";
 import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { defineStateMachine } from "@molis-ai/molis-work-plugin-sdk/state-machine";
 import manifest from "./manifest.json" with { type: "json" };
 
 /** Where the sample says its results come from. */
 const SAMPLE_SOURCE = "Tom's R&D notes";
+const resultMachine = defineStateMachine({
+  ...manifest.state_machines[0],
+  transitions: { save: { from: ["empty", "saved"], to: "saved" } },
+});
 
 export default definePlugin({
   manifest,
@@ -63,7 +74,9 @@ export default definePlugin({
       return { artifact_id: artifactId, version, payload: result.payload };
     }
     function publishResult() {
-      const version = savedCount() + 1;
+      const count = savedCount();
+      resultMachine.assert(count === 0 ? "empty" : "saved", "save");
+      const version = count + 1;
       services.artifacts.publish({
         artifact_id: artifactId, version, artifact_type_id: "io.molis.work.example.note", schema_version: 1,
         content: { kind: "inline", payload: { title: "Local sample result", sequence: version } },

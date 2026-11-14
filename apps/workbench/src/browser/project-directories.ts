@@ -21,6 +21,7 @@ export function bindProjectDirectories(root: HTMLElement): void {
   const inputs = part("[data-directories-inputs]"), output = part("[data-directories-output]"), status = part("[data-directories-status]");
   const form = part<HTMLFormElement>("[data-directories-add]");
   const pathField = form.elements.namedItem("path") as HTMLInputElement;
+  const reading = part<HTMLInputElement>("[data-directories-read-instructions]"), readingNote = part("[data-instructions-note]");
   const clone = (name: string) => (part<HTMLTemplateElement>(`template[data-pd=${name}]`).content.firstElementChild as HTMLElement).cloneNode(true) as HTMLElement;
   const route = prefix + "/api/project-settings/directories";
   const checkers: WriteCheckersHost = { section: root.querySelector<HTMLElement>("[data-write-checkers]"), prefix, load: null };
@@ -39,7 +40,20 @@ export function bindProjectDirectories(root: HTMLElement): void {
     inputs.replaceChildren(...list("input"));
     output.replaceChildren(...list("output"));
     if (again) root.querySelector<HTMLElement>(again)?.focus({ preventScroll: true });
+    drawInstructions(state.instructions);
     void checkers.load?.(state.directories.filter(item => item.state === "ok"));
+  }
+
+  /**
+   * 「读取说明文件」 (batch12-design §3.4): on when the output's instruction files are read. The default output's are never read, so the
+   * switch waits for a folder of the person's own; an output not confirmed yet shows off, and turning it on confirms it.
+   */
+  function drawInstructions(instructions: Answer["instructions"]): void {
+    reading.checked = !instructions.off && instructions.why_not !== "not_chosen";
+    reading.disabled = instructions.why_not === "default_output";
+    const note = instructions.why_not === "default_output" ? say.instructions_default : instructions.why_not === "not_chosen" ? say.instructions_unconfirmed : "";
+    (readingNote.querySelector("[data-text=note]") as HTMLElement).textContent = note;
+    readingNote.hidden = !note;
   }
 
   async function read(): Promise<void> {
@@ -123,6 +137,11 @@ export function bindProjectDirectories(root: HTMLElement): void {
         return;
       }
     }
+  });
+  reading.addEventListener("change", async () => {
+    const on = reading.checked;
+    // A refused change draws the switch back as the project has it.
+    if (await change({ change: "set_instructions", input: { off: !on } }, () => on ? say.instructions_on : say.instructions_off) !== "done" && state) drawInstructions(state.instructions);
   });
   form.addEventListener("submit", async event => {
     event.preventDefault();

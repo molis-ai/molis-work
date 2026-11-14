@@ -11,6 +11,7 @@ import { createHash } from "node:crypto";
 export { createExecutionLifetime, type ExecutionLifetime, type ExecutionLifetimeOptions } from "./execution-lifetime.js";
 import { parsePluginManifest } from "./manifest.js";
 
+export { SANDBOX_VALIDATE_UPGRADE, assertSandboxUpgradeValidator, sandboxUpgradeOperation } from "./sandbox-actions.js";
 export { sandboxPluginManifest, sandboxIntegrationManifest, sandboxDerivedPermissions, sandboxRequestedPermissions, sandboxOperationPermissions, sandboxProjectedPermissions, sandboxOperationSwitches, SANDBOX_IMAGE_PERMISSIONS, effectsFromContract, type SandboxManifestInput, type SandboxIntegrationManifestInput } from "./sandbox-manifest.js";
 export { parseSandboxUi, sandboxUiContribution, sandboxUiDeclaration, type SandboxUiContribution } from "./sandbox-ui.js";
 export { sandboxOperationActions, sandboxActionId, sandboxPackageBuildId, sandboxOperationEffects, sandboxBackgroundProblems } from "./sandbox-actions.js";

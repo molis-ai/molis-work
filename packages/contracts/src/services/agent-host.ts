@@ -143,7 +143,7 @@ export type {
   InferenceTokenCount,
 } from "./agent-host-builder.js";
 
-export type { AgentStartExecution } from "./agent-host-start.js";
+export type { AgentStartExecution, AgentRunInstructions } from "./agent-host-start.js";
 export type { AgentMemoryFormationSlot, AgentMemoryFormationContext, AgentMemoryFormationInput, AgentMemoryExtractionUsage,
   AgentMemoryFormationResult, AgentMemoryExtractionDraft, AgentMemoryExtractionRequest, AgentMemoryExtractor } from "./agent-host-memory-formation.js";
 
@@ -332,7 +332,9 @@ const frozenOutput = shape(["role_id", "role_version", "execution", "model_id", 
   workspace: { enum: ["required", "none", "business"] }, directory: object, call_id: string,
   prompts: list(shape(["prompt_id", "version", "layer"], { prompt_id: string, version: number, layer: { enum: ["base", "role", "project", "task"] }, user_revision: number })),
   skills: list(shape(["ref", "origin", "name", "tools", "named"], { ref: object, origin: { enum: ["own", "catalog"] }, name: string, tools: strings, named: { type: "boolean" } })),
-  reply_locale: { enum: ["zh", "en"] }, mcp_tools: objects, mcp_sources: objects, host_tools: strings, action_tools: objects, character: object, character_skill_ids: strings, execution_plan: object, subagent_workspaces: objects,
+  reply_locale: { enum: ["zh", "en"] },
+  instructions: shape(["trusted", "files"], { trusted: { type: "boolean" }, files: list(shape(["path", "chars", "truncated", "sha256"], { path: string, chars: number, truncated: { type: "boolean" }, sha256: string })) }),
+  mcp_tools: objects, mcp_sources: objects, host_tools: strings, action_tools: objects, character: object, character_skill_ids: strings, execution_plan: object, subagent_workspaces: objects,
   directories: shape(["directories_revision", "output", "inputs", "execution"], { directories_revision: string, output: string, inputs: strings,
     execution: { anyOf: [shape(["kind"], { kind: { const: "output" } }), shape(["kind", "worktree_id"], { kind: { const: "worktree" }, worktree_id: string })] } }),
   text_materials: list({ anyOf: [
@@ -352,7 +354,7 @@ const runViewOutput = { type: "object", required: ["ref", "phase", "frozen", "tu
   command_outputs: { type: "array", items: { type: "object", required: ["call_id", "run_id"], properties: { call_id: { type: "string" }, run_id: { type: "string" } } } },
   class_restrictions: shape(["policy_version", "taxonomy_version", "personal", "project"], { policy_version: { const: CLASS_POLICY_VERSION }, taxonomy_version: { const: CLASS_TAXONOMY_VERSION },
     personal: memoryClassRestrictionsSchema, project: memoryClassRestrictionsSchema }), memory_scene: { enum: ["coding", "assistant", "common"] },
-  usage: usageOutput, awaiting_input: list(questionOutput), stop_reason: { type: "string" }, original_input: object,
+  usage: usageOutput, awaiting_input: list(questionOutput), stop_reason: { type: "string" }, stop_reason_code: { enum: ["person", "host"] }, original_input: object,
   memory_recalled: shape(["method", "omitted", "unavailable"], { method: { enum: ["pinned", "recall"] }, omitted: list(memoryRef), unavailable: strings }),
   todo: list(shape(["id", "text", "state"], { id: string, text: string, state: { enum: ["pending", "in-progress", "done", "abandoned"] } })),
   turn_changes: list(shape(["turn", "sequence", "at", "files"], { turn: number, sequence: number, at: { type: ["string", "null"] },

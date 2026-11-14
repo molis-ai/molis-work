@@ -9,17 +9,17 @@
   "source": {
     "repository": "git+https://github.com/molis-ai/molis-prologue.git",
     "path": "packages/sdk",
-    "commit": "5cbf26015895138c63f6a22e18bf6086a79223b3",
+    "commit": "c764d970b9ab934e9621bc5d38ae2471a440749a",
     "dirty": false,
     "dirtyPaths": [],
     "patches": [],
-    "note": "Official main build. 5cbf2601 is the merge of PR #115 (an after-write check now names its Session and Run) on top of 1c0654b7 (the Slice-31 window, PR #114) and 770a2e27; the packed tree is the repository's public main branch at that merge, with no vendor patch and no dirty files."
+    "note": "Official main build. c764d970 is the merge of PR #119 (an App can watch each model request an Agent run sends, CreateRuntimeInput.onModelRequest) on top of 14e13911 (PR #117, complete memory scope reads and the model memory origin label; PR #116, test only) and 5cbf2601; the packed tree is the repository's public main branch at that merge, with no vendor patch and no dirty files."
   },
   "artifact": {
     "file": "prologue-sdk-0.0.0-rc.1.tgz",
-    "bytes": 1448221,
-    "sha256": "2715d3c90530282fb7f8cc5cf0638a07a7b3b3ff90aeae0e6bde59b41d2d4cd5",
-    "integrity": "sha512-X/JtU8DPXIxPZITmxtuAo7SvBd7E6mNcX9IOsXUNVMoZIOLWLwIJe/zJqsnbFXWOwpe7OqfQtmxQ0w+mxHzAHA=="
+    "bytes": 1450940,
+    "sha256": "1cafead30e065c7e12d41dc7b684210b3021f3900e4cc8ce89351fff16ea8207",
+    "integrity": "sha512-abzPdvg1O8KT090R6FdbriXKHffbSgzFClBst7Wa3T1cR65a5abDnQiU2II725SYKC5jZVxXVVOc0okyMYI5sw=="
   },
   "build": {
     "node": "24.14.0",
@@ -27,13 +27,13 @@
     "platform": "darwin",
     "architecture": "arm64",
     "steps": [
-      "Use the public main commit 5cbf26015895138c63f6a22e18bf6086a79223b3 (the merge of PR #115 on 1c0654b7).",
-      "pnpm install --frozen-lockfile --offline (existing store).",
-      "node scripts/public-api.mjs and node scripts/quality-ratchet.mjs pass against that commit.",
-      "pnpm build; pnpm -C packages/sdk pack --pack-destination <isolated-directory>, run twice from two separate builds; the two archives are byte-for-byte identical.",
+      "Use the public main commit c764d970b9ab934e9621bc5d38ae2471a440749a (the merge of PR #119 on 14e13911).",
+      "pnpm install --frozen-lockfile --offline --ignore-scripts (existing store), in two separate detached checkouts.",
+      "node scripts/public-api.mjs and node scripts/quality-ratchet.mjs pass against that tree.",
+      "pnpm build; pnpm -C packages/sdk pack --pack-destination <isolated-directory>, in each checkout; the two archives are byte-for-byte identical.",
       "Molis Work installs this archive through horizontal/agent-host's file: dependency; the lockfile records the same integrity."
     ],
     "packedOn": "2026-11-13",
-    "note": "This is the official dependency: the package is built from main after the Slice-31 PR merged, so it can be rebuilt from a public commit as-is. The previous custom window package stays recorded in patch-history.json as replaced."
+    "note": "Official dependency, built from main after PR #119 merged (batch 28, observation collection: the user approved the upstream change). It replaces the 5cbf2601 official build, recorded in patch-history.json."
   }
 }

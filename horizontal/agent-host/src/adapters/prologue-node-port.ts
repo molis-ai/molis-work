@@ -1,6 +1,6 @@
 import { readOriginalInput, resolveOriginalInput } from "./prologue-original-inputs.js";
 import { createHash } from "node:crypto";
-import { DEFAULT_CONTEXT_WINDOW_TOKENS, WORKSPACE_COMMAND_RECEIPT_KIND, createRuntime, type ConditionCheckers, type ExactRef, type PendingAnswer, type QueuedTask, type Runtime } from "@prologue/sdk";
+import { DEFAULT_CONTEXT_WINDOW_TOKENS, WORKSPACE_COMMAND_RECEIPT_KIND, createRuntime, type ConditionCheckers, type ExactRef, type ModelRequestObserved, type PendingAnswer, type QueuedTask, type Runtime } from "@prologue/sdk";
 import type { AgentReviewReceipt, AgentRunRef, AgentWriteCheckNote } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { GATEWAY_TOOLS, HOST_GOVERNED_TOOLS } from "./prologue-action-gateway.js";
 import type { createPrologueCheckpoints } from "./prologue-checkpoints.js";
@@ -13,13 +13,13 @@ import { answerProblems, ownedReferences, projectQuestion, questionUnavailable }
 import { queuedInput, type createPrologueRecovery } from "./prologue-recovery.js";
 import { startPrologueRun, type RunDeps } from "./prologue-run.js";
 import type { createPrologueSchedule } from "./prologue-schedule.js";
-import { createPrologueSubagents } from "./prologue-subagents.js";
+import { createPrologueSubagents, runLineage } from "./prologue-subagents.js";
 import { surfaceRules, type PrologueSurfaces } from "./prologue-surfaces.js";
 import { codingExecutionRules } from "./prologue-taskboard.js";
 import type { PrologueAdapterOptions, PrologueRuntimePort } from "./prologue.js";
 import { PROLOGUE_RUNTIME_ID } from "./prologue-adapter-capabilities.js";
 import { agentErrors } from "../errors.js";
-import { MAX_COMPOSED_INSTRUCTION_CHARS, readResource, sameRef, stageTextResource, type CommandEvent, type NodeHost, type PrologueNodeAdapterOptions } from "./prologue-node-kit.js";
+import { MAX_COMPOSED_INSTRUCTION_CHARS, readResource, sameRef, stageTextResource, type CommandEvent, type NodeHost, type PrologueNodeAdapterOptions, type RoundState } from "./prologue-node-kit.js";
 import { SESSION_INDEX_SCHEMA, type SessionIndexStore } from "./prologue-session-index.js";
 import type { createPrologueMemoryAuthority } from "./prologue-memory-authority.js";
 
@@ -32,7 +32,7 @@ import type { createPrologueMemoryAuthority } from "./prologue-memory-authority.
 export const SUBAGENT_DEFAULT_TURNS = 20;
 
 /** The Prologue runtime on the Node host, with the Host's limits, posture and the rules every round runs under. */
-export function createNodeRuntime(options: PrologueNodeAdapterOptions, host: NodeHost, runScheduled: (task: QueuedTask) => Promise<void>, surfaceHost: () => PrologueSurfaces | undefined, dispatchChecks: DispatchChecks, conditionCheckers: ConditionCheckers, memoryAccess: ReturnType<typeof createPrologueMemoryAuthority>) {
+export function createNodeRuntime(options: PrologueNodeAdapterOptions, host: NodeHost, runScheduled: (task: QueuedTask) => Promise<void>, surfaceHost: () => PrologueSurfaces | undefined, dispatchChecks: DispatchChecks, conditionCheckers: ConditionCheckers, memoryAccess: ReturnType<typeof createPrologueMemoryAuthority>, modelRequests: RoundState["modelRequests"]) {
   return createRuntime({
     app: options.app,
     host,
@@ -48,6 +48,8 @@ export function createNodeRuntime(options: PrologueNodeAdapterOptions, host: Nod
       redactScreenshot: (bytes: Uint8Array) => { const bound = surfaceHost(); return bound ? bound.redact(bytes) : Promise.reject(new Error("界面控制尚未就绪")); } } } : {}),
     preset: "local-agent",
     onQueuedWork: runScheduled,
+    // Each request a round's loop sends, as the runtime handed it to the Host, for the round's work record (observation, batch 28).
+    onModelRequest: request => { for (const listen of modelRequests) { try { listen(request); } catch { /* a listener's fault stays its own */ } } },
     slots: {
       ...(options.documentParsers?.length ? { "document-parser": { implementation: "molis-host-document-parsers", version: /* @version protocol.prologue.implementation.node-port */ "1.0.0", impl: options.documentParsers } } : {}),
       ...(memoryAccess.extractor ? { "memory-extractor": { implementation: "molis-host-memory-extractor", version: /* @version protocol.prologue.implementation.node-port */ "1.0.0", impl: memoryAccess.extractor } } : {}),
@@ -300,6 +302,10 @@ export function createNodePort(deps: PortDeps): PrologueRuntimePort {
   const openSession = (sessionId: string, unreadable: string) => openSessionOf(deps, sessionId, unreadable);
   return {
     defaultContextWindowTokens: DEFAULT_CONTEXT_WINDOW_TOKENS,
+    listenModelRequests(listen) {
+      const heard = (request: ModelRequestObserved) => listen(request, () => runLineage(runtime, request.runId));
+      state.modelRequests.add(heard); return () => { state.modelRequests.delete(heard); };
+    },
     unexecutedApprovalCall(run, waiting) {
       if (waiting.effect_revision === undefined || waiting.pending_revision === undefined) return undefined;
       const effectRef = { kind: "effect" as const, id: waiting.effect_id, revision: waiting.effect_revision };

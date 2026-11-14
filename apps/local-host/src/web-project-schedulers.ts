@@ -19,7 +19,7 @@ export function startWebProjectSchedulers(options: {
 }) {
   const { localHost, homeDirectory, withCatalog, fixture, changed } = options;
   const runtimes = new Map<string, ProjectScheduleRuntime>();
-  const unbind = bindProjectSchedulers(localHost, { runtimes, changed });
+  const unbind = bindProjectSchedulers(localHost, { home: homeDirectory, runtimes, changed });
   let stopped = false, stopping: Promise<void> | undefined, opening: Promise<void> | undefined;
   // Every project with a database is opened before the first round, not at start: opening one compiles its contracts and starts its
   // plugins, and the first requests of a launch do not wait behind that. Its schedules only run on a round anyway.

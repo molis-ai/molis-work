@@ -292,6 +292,7 @@ export interface AgentFrozenRole {
     prompts: AgentPromptText[];
     skills?: AgentRoundSkill[];
     reply_locale?: UiLanguageTag;
+    instructions_trusted?: true;
     host_tools: string[];
 }
 
@@ -1482,13 +1483,23 @@ export interface AgentRunHandle {
     frozen: AgentFrozenStart;
 }
 
+export interface AgentRunInstructions {
+    trusted: boolean;
+    files: Array<{
+        path: string;
+        chars: number;
+        truncated: boolean;
+        sha256: string;
+    }>;
+}
+
 export interface AgentRunOffer extends AgentActionOffer {
     offer_id: string;
     offered_at: string;
     action_digest: string;
 }
 
-export type AgentRunPhase = "starting" | "running" | "awaiting-review" | "awaiting-input" | "paused" | "compacting" | "completed" | "failed" | "cancelled" | "stopped" | "reconcile-required";
+export type AgentRunPhase = keyof typeof STATE_VOCABULARIES.agentRun.states;
 
 export interface AgentRunRef {
     run_id: string;
@@ -1518,6 +1529,7 @@ export interface AgentRunView {
     step_board_error?: string;
     ref: AgentRunRef;
     phase: AgentRunPhase;
+    readonly stop_reason_code?: "person" | "host";
     frozen: AgentFrozenStart;
     turns: AgentTurnView[];
     activity: AgentToolActivity[];
@@ -2278,6 +2290,7 @@ interface AgentFrozenStartFields {
     }>;
     skills: AgentFrozenSkill[];
     reply_locale?: UiLanguageTag;
+    instructions?: AgentRunInstructions;
     mcp_tools: AgentMcpToolRef[];
     mcp_sources?: AgentMcpSourceRef[];
     host_tools: string[];

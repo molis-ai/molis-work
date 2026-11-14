@@ -24,7 +24,7 @@
 //
 // Goals is measured the same way in spirit, but by name: it has no frame, so its registration's `stylesheet` and
 // `settingsStylesheet` stay whole in the shared sheets, and the three style constants this gate has always counted there
-// (`GOALS_DOCUMENT_STYLES`, `TRASH_GOAL_STYLES`, `PLANNING_SETTINGS_STYLES`) are held and frozen in place of the generic count;
+// (`GOALS_DOCUMENT_STYLES`, `TRASH_GOAL_STYLES`; `PLANNING_SETTINGS_STYLES` went with the method library in batch 41) are held and frozen in place of the generic count;
 // this is not import discovery.
 //
 // A number may only fall. `--update` refuses when any plugin grew relative to the reference (with `--base`: the merge-base's
@@ -142,7 +142,7 @@ const NOTE = "Only decreases. For each plugin with a registered stylesheet, the 
   + "it that names the plugin, without discounting stylesheetShared (declaring a class shared cannot hide a rule, and a frame "
   + "does not make the number zero). stylesheetPrefixes are remembered per plugin and may only be added; the measurement uses "
   + "the reference/current/build prefix union only for counting the remainder, after splitting by current declarations. "
-  + "Goals counts only GOALS_DOCUMENT_STYLES, TRASH_GOAL_STYLES and PLANNING_SETTINGS_STYLES. Measured from "
+  + "Goals counts only GOALS_DOCUMENT_STYLES and TRASH_GOAL_STYLES. Measured from "
   + "the build by scripts/gates/plugin-styles.mjs; lower it with `node scripts/gates/plugin-styles.mjs --update --base "
   + "origin/main` in the PR that moves rules out. CI compares this file with the merge-base's copy, so raising a number or "
   + "adding a plugin here is refused.";

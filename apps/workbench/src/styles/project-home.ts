@@ -17,7 +17,8 @@ export const PROJECT_HOME_STYLES = PRESENTATION_FORM_STYLES + `
   .immersive-home .home-scroll { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; width: 100%; max-width: 1280px; margin: 0 auto; padding: clamp(1rem, 4cqi, 3.5rem); }
   /* A plugin's page as the home: it takes the whole surface, under one thin line that leads back to the groups. */
   .immersive-home[data-home-leading] .home-scroll { display: none; }
-  .immersive-home .home-lead { flex: 1; min-block-size: 0; display: flex; flex-direction: column; }
+  /* The adopted surface positions itself against its holder: this box is that holder, so the page never covers the line above it. */
+  .immersive-home .home-lead { position: relative; flex: 1; min-block-size: 0; display: flex; flex-direction: column; }
   .immersive-home .home-lead[hidden], .immersive-home .home-lead-bar[hidden] { display: none; }
   .immersive-home .home-lead > * { flex: 1; min-block-size: 0; inline-size: 100%; }
   .immersive-home .home-lead-bar { flex: none; display: flex; align-items: center; justify-content: flex-end; gap: .2rem .7rem; flex-wrap: wrap; min-block-size: 2rem; padding: .2rem clamp(.6rem, 2cqi, 1.2rem); color: var(--muted); font-size: var(--type-note-size, 12px); line-height: var(--type-note-line-height, 1.6); }

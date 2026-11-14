@@ -7,6 +7,7 @@ import { pluginActionView } from "./plugin-action-provider.js";
 import { projectRouteControl } from "./plugin-actions-client.js";
 import { routedPluginCaller } from "./plugin-callers.js";
 import { pluginRouteControl } from "./plugin-route-control.js";
+import { ACTIONS_DELEGATE_PERMISSION, declaresActionDelegation } from "./plugin-action-delegation.js";
 import { withPluginPermissionChecks } from "@molis-ai/molis-work-plugin-runtime";
 import type { installedComponentSubmit } from "./installed-action-registration.js";
 import { activeLocale } from "./web-locale.js";
@@ -25,6 +26,8 @@ export type PageActionRequest = ({
   assertCurrent(): void;
   beforeEffect(): Promise<void>;
   beforeBackgroundEffect(): Promise<void>;
+  /** The person whose page this is, as the Host's own local entry builds them. Read only for a plugin that holds `actions:delegate` (S-96). */
+  person?(): Promise<ActionCallContext>;
 };
 
 type PageActionOptions = {
@@ -89,8 +92,14 @@ export function pluginPageActions(manifest: PluginManifest, context: PluginStart
     await request.beforeEffect();
     check(undefined, view.action.permissions);
     if (request.mode === "availability") return view.availability;
+    // The page's call of this installation's own action is the person's, as it is on the plugin's own routes: what the action then
+    // reaches through its directory is checked against the person, never against the page. Only for an installation the person granted
+    // `actions:delegate` (user decision 2026-11-14, S-96); any other page keeps running with the installation's grants alone.
+    const person = own && request.person && declaresActionDelegation(manifest) && context.grants.includes(ACTIONS_DELEGATE_PERMISSION)
+      ? await request.person() : undefined;
+    if (person) { await request.beforeEffect(); check(undefined, view.action.permissions); }
     const route = projectRouteControl(pluginRouteControl(request.signal, options.caller.assertActive, request.assertCurrent),
-      request.project_id, options.client, request.beforeBackgroundEffect, undefined, { id: randomUUID() });
+      request.project_id, options.client, request.beforeBackgroundEffect, person, { id: randomUUID() });
     try {
       const result = await options.actions.invoke({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id,
         operation: view.operation, action: view.action }, request.input, route.control);

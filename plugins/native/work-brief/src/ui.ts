@@ -17,7 +17,7 @@ export const workBriefUiDescriptor: UiContributionDeclaration = {
   navigation_id: "work-brief",
   label: "Work Brief",
   surfaces: [{ surface_id: "workbench", target_slot_id: "workbench.main", format: "declarative-html" }],
-  slots: Object.values(WORK_BRIEF_SLOTS).map(slot_id => ({ slot_id, accepts: [], accepts_forms: ["chip", "row", "card"], max: slot_id === WORK_BRIEF_SLOTS.cite ? 8 : 12 })),
+  slots: Object.values(WORK_BRIEF_SLOTS).map(slot_id => ({ slot_id, accepts: [], accepts_forms: ["row"], max: slot_id === WORK_BRIEF_SLOTS.cite ? 8 : 12 })),
 };
 
 /** The page's frame. The client (src/browser, bundled into dist/work-brief-client.js) draws inside `[data-work-brief-body]`. */

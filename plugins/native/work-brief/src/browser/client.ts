@@ -185,7 +185,7 @@ async function onAct(page: BriefPage, action: string, value: string): Promise<vo
     case "edit-claim": state.editing = value; state.pop = ""; page.render(); return;
     case "cancel-edit": state.editing = ""; page.render(); return;
     case "remove-claim": await saveClaim(page, value, null); return;
-    case "pick": { const [claimId, take] = value.split("\u0000"); if (claimId && (take === "mine" || take === "theirs")) state.picks[claimId] = take; page.render(); return; }
+    case "pick": { const at = value.indexOf(":"), take = value.slice(0, at), claimId = value.slice(at + 1); if (claimId && (take === "mine" || take === "theirs")) state.picks[claimId] = take; page.render(); return; }
     case "resolve": await resolve(page, false); return;
     case "discard": await resolve(page, true); return;
     case "run-next": case "hand-next": case "skip-next": case "undo-next": await nextStep(page, action, value); return;

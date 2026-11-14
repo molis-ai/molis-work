@@ -6,7 +6,8 @@ export const WORK_BRIEF_STYLES = `
 [data-work-brief=workbench] [hidden]{display:none!important}
 .wb{position:absolute;inset:0;overflow:auto;overscroll-behavior:contain;padding:16px 20px 72px;background:var(--paper);color:var(--ink)}
 .wb-frame{min-width:0;max-width:960px;margin-inline:auto}
-.wb-frame .mw-frame__panel{display:grid;grid-template-columns:minmax(0,1fr);gap:28px}
+.wb-frame .mw-frame__panel{display:grid;grid-template-columns:minmax(0,1fr);align-content:start;gap:28px}
+.wb-frame .mw-items{width:100%;grid-template-columns:minmax(0,1fr);align-content:start}
 .wb-head-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 .wb-sec{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;min-width:0}
 .wb-sec .mw-items{width:100%;grid-template-columns:minmax(0,1fr)}
@@ -34,10 +35,11 @@ export const WORK_BRIEF_STYLES = `
 .wb-fn:hover,.wb-fn[aria-expanded=true]{background:color-mix(in srgb,var(--accent) 22%,transparent)}
 .wb-fn[data-stale]{background:var(--surface-soft);color:var(--muted);box-shadow:inset 0 0 0 1px var(--line-strong)}
 .wb-fn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.wb-pop{position:absolute;z-index:30;top:calc(100% + 6px);left:0;width:max-content;max-width:min(340px,calc(100vw - 32px));transform-origin:top left;animation:craft-drop var(--dur-move) var(--ease-quint,ease-out) both;display:grid;gap:10px}
-.wb-pop--end{left:auto;right:0;max-width:min(420px,calc(100vw - 32px));transform-origin:top right}
+.wb-pop{position:absolute;z-index:30;top:calc(100% + 6px);left:0;right:0;width:auto;max-width:360px;transform-origin:top left;animation:craft-drop var(--dur-move) var(--ease-quint,ease-out) both;display:grid;gap:10px;padding:12px}
+.wb-pop--end{left:auto;right:0;width:max-content;max-width:min(420px,calc(100vw - 32px));transform-origin:top right}
 .wb-pop .mw-preview-card{box-shadow:none;padding:0;background:none}
 .wb-pop-foot{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.wb-pop-foot>.wb-slot{flex:1 1 100%}
 .wb-pop-foot>.mw-btn{margin-inline-start:auto}
 .wb-pop-note{margin:0;max-width:280px;font-size:12px;color:var(--muted)}
 .wb-slot{min-width:0;max-width:100%}

@@ -101,8 +101,8 @@ function conflictBlock(page: BriefPage, claimId: string, mine: string | null, th
   const pick = page.state.picks[claimId], removed = text("proposal.removed");
   return `<div class="wb-conflict"><p class="wb-conflict__title">${icon("circle-alert")}<span>${esc(text("proposal.conflict"))}</span></p>
     <div class="wb-conflict__pair">${renderPreviewCard({ title: text("proposal.mine"), body: mine ?? removed })}${renderPreviewCard({ title: text("proposal.theirs"), body: theirs ?? removed })}</div>
-    <div class="wb-actions">${act(text("proposal.keep"), "pick", { variant: pick === "mine" ? "primary" : "secondary", value: `${claimId}\u0000mine`, attrs: { "aria-pressed": String(pick === "mine") } })}${
-      act(text("proposal.take"), "pick", { variant: pick === "theirs" ? "primary" : "secondary", value: `${claimId}\u0000theirs`, attrs: { "aria-pressed": String(pick === "theirs") } })}</div></div>`;
+    <div class="wb-actions">${act(text("proposal.keep"), "pick", { variant: pick === "mine" ? "primary" : "secondary", value: `mine:${claimId}`, attrs: { "aria-pressed": String(pick === "mine") } })}${
+      act(text("proposal.take"), "pick", { variant: pick === "theirs" ? "primary" : "secondary", value: `theirs:${claimId}`, attrs: { "aria-pressed": String(pick === "theirs") } })}</div></div>`;
 }
 
 /** Conflicts on sentences the current version no longer shows in place (a sentence the person added or took out), then the two ways to settle. */

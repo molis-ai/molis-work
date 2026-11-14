@@ -211,11 +211,12 @@ test("W3-07-6-01: nonempty and unsupported development state are refused before 
     const ordinary = join(directory, "ordinary"), marked = join(directory, "marked"); mkdirSync(ordinary); mkdirSync(marked);
     writeFileSync(join(ordinary, "keep.txt"), "preserve this ordinary directory");
     writeFileSync(join(marked, ".molis-work-plugin-development.json"), JSON.stringify({ kind: "foreign", schema_version: 1 }));
-    // #2053 reads the language files before it touches the state directory, so the door needs a plugin to read. The state
-    // directory is still refused before any plugin code is loaded (the copy's index.mjs is only there for the last case).
+    // #2053 reads the language files before it touches the state directory, so the door needs a plugin to read. This copy has no
+    // entrypoint yet: if the state-directory refusal ever moved after loading code, the load would fail first and the two
+    // refusals below would stop matching, so they still prove the state directory is checked before any plugin code runs.
     const plugin = join(directory, "plugin");
     mkdirSync(plugin);
-    for (const file of ["index.mjs", "manifest.json", "package.json", "locales"]) cpSync(join(root, "examples/plugin-sample", file), join(plugin, file), { recursive: true });
+    for (const file of ["manifest.json", "package.json", "locales"]) cpSync(join(root, "examples/plugin-sample", file), join(plugin, file), { recursive: true });
     mkdirSync(join(plugin, "node_modules/@molis-ai"), { recursive: true });
     symlinkSync(join(root, "packages/plugin-sdk"), join(plugin, "node_modules/@molis-ai/molis-work-plugin-sdk"), "dir");
     const input = { directory: plugin, grants: [], allow_unsigned_development: true as const };
@@ -223,6 +224,8 @@ test("W3-07-6-01: nonempty and unsupported development state are refused before 
     await assert.rejects(runLocalPluginDevelopment({ ...input, state_directory: marked }), /不是受支持/);
     assert.equal(readFileSync(join(ordinary, "keep.txt"), "utf8"), "preserve this ordinary directory");
     assert.equal(existsSync(join(ordinary, "development.db")), false); assert.equal(existsSync(join(marked, "development.db")), false);
+    // The valid-state case goes on to open the Host and may load the plugin, so it gets the entrypoint.
+    cpSync(join(root, "examples/plugin-sample/index.mjs"), join(plugin, "index.mjs"));
     // #1064: a valid developer-state marker does not adopt unknown pre-existing Home contents.
     const owned = join(directory, "owned"), home = join(owned, "home"); mkdirSync(home, { recursive: true });
     writeFileSync(join(owned, ".molis-work-plugin-development.json"), JSON.stringify({ kind: "molis-work-plugin-development", schema_version: 1 }));

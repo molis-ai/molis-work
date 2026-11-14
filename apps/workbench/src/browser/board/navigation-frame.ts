@@ -133,4 +133,22 @@ if (board) {
     const measure = () => button.toggleAttribute("data-nav-fits", scroll.scrollWidth <= scroll.clientWidth);
     new ResizeObserver(measure).observe(scroll);
   }
+  // The work line's left wing (sheet=work-line) rests at its end: what is being worked on and what waits sit next to the composer,
+  // so when the wing cannot hold its events it is the oldest that scroll out of sight. The product's line does the same on each draw.
+  for (const run of board.querySelectorAll<HTMLElement>('.work-line-wing[data-wing="past"] .work-line-run')) {
+    const rest = () => { run.scrollLeft = run.scrollWidth; };
+    rest(); new ResizeObserver(rest).observe(run);
+  }
+  // On a phone the line is one track that scrolls sideways; it opens resting on "now" (WLN-18).
+  for (const track of board.querySelectorAll<HTMLElement>("[data-work-line-track]")) {
+    const now = track.querySelector<HTMLElement>(".work-line-now");
+    const rest = () => { if (now?.offsetParent) track.scrollLeft += now.getBoundingClientRect().left - track.getBoundingClientRect().left - (track.clientWidth - now.offsetWidth) / 2; };
+    rest(); new ResizeObserver(rest).observe(track);
+  }
+  // The dialog's current tab stays in sight when the strip cannot hold its tabs.
+  for (const tabs of board.querySelectorAll<HTMLElement>(".assistant-tabs[data-work-line]")) {
+    const current = tabs.querySelector<HTMLElement>(".assistant-tab[data-current]");
+    const rest = () => { if (current) tabs.scrollLeft += current.getBoundingClientRect().right - tabs.getBoundingClientRect().right + 24; };
+    if (current && current.getBoundingClientRect().right > tabs.getBoundingClientRect().right) rest();
+  }
 }

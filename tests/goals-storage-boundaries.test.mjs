@@ -10,7 +10,7 @@ test("production Store/Web boundaries reject restored Goal schema and coverage S
     for (const sql of ["CREATE TABLE goals (goal_id TEXT)", "ALTER TABLE policy_bindings ADD COLUMN note TEXT",
       "CREATE TABLE IF NOT EXISTS project_guidance_revisions (revision INTEGER)",
       "CREATE UNIQUE INDEX history_idx ON goal_relations(from_goal_id)",
-      "INSERT INTO acceptance_criteria VALUES (?)", "SELECT * FROM planning_method_packs", "UPDATE goals SET title = ''"]) {
+      "INSERT INTO acceptance_criteria VALUES (?)", "SELECT * FROM goal_relations", "UPDATE goals SET title = ''"]) {
       assert.notDeepEqual(checkGoalStorageOwnership(source + `\nstore.db.exec(${JSON.stringify(sql)});`), [], sql);
     }
   }

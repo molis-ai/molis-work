@@ -193,13 +193,6 @@
       "sources"
     ]
   },
-  "GET /api/settings/planning-methods": {
-    "status": 200,
-    "type": "application/json",
-    "keys": [
-      "methods"
-    ]
-  },
   "POST /api/composer/sources": {
     "status": 200,
     "type": "application/json",
@@ -409,19 +402,6 @@
     "status": 200,
     "type": "text/html",
     "title": "项目设置 · 路由表 · Molis Work"
-  },
-  "GET <project>/settings/planning (page)": {
-    "status": 200,
-    "type": "text/html",
-    "title": "项目设置 · 路由表 · Molis Work"
-  },
-  "GET <project>/api/settings/planning-methods": {
-    "status": 200,
-    "type": "application/json",
-    "keys": [
-      "composition",
-      "methods"
-    ]
   },
   "GET <project>/health": {
     "status": 200,
@@ -938,7 +918,7 @@
   "GET <project>/api/plugins/io.molis.work.goals/goals": {
     "status": 404,
     "type": "application/json",
-    "error": "插件没有这个入口"
+    "error": "页面或接口不存在"
   },
   "POST <project>/api/plugins/io.molis.work.goals/goals": {
     "status": 400,

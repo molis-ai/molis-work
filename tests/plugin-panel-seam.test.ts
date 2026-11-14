@@ -24,7 +24,7 @@ function baseView(): MolisWorkWebView {
       goals: [],
       relations: [],
       goal_tree_proposals: [],
-      planning_method_packs: [],
+      
     },
     project: { project_id: "project-root-directory", display_name: "根目录一致性" },
     projects: [{ project_id: "project-root-directory", display_name: "根目录一致性" }],

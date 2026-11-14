@@ -112,15 +112,6 @@ test("event document writes planning, report, concern, decision and closure thro
   const typeId = app.goalEvents.readState(DEMO_PROJECT_ID, goalId).config.types.find((type) => type.name === "进展记录")?.type_id;
   assert.ok(typeId);
   await waitDom(`document.querySelector('[data-event-report="${typeId}"]')`);
-  await openNamedForm("adopt");
-  const methodId = await evaluate(`document.querySelector('[data-event-form="adopt"] [name="method_id"] option[value]:not([value=""])')?.value || ""`) as string;
-  assert.ok(methodId, "adopt form must list current effective planning methods");
-  await submitSuccess('[data-event-form="adopt"] button[type="submit"]');
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    if (app.goalEvents.readState(DEMO_PROJECT_ID, goalId).config.adopted_planning.length) break;
-    await evaluate("new Promise((resolve) => setTimeout(resolve, 250))");
-  }
-  assert.ok(app.goalEvents.readState(DEMO_PROJECT_ID, goalId).config.adopted_planning.length);
   await openNamedForm("agreement");
   await evaluate(`document.querySelector('[data-event-form="agreement"] [name="outcome"]').value='经页面修改后的约定'`);
   await submitSuccess('[data-event-form="agreement"] button[type="submit"]');

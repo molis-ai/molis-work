@@ -27,7 +27,7 @@ function typeErrors(source: string): string[] {
 }
 const EXACT = "type Exact<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;";
 
-const FACTS_API = ["configure", "configureRequested", "intent", "isEventStateOwner", "listEvents", "listLatestEvents", "listLatestReports",
+const FACTS_API = ["configure", "intent", "isEventStateOwner", "listEvents", "listLatestEvents", "listLatestReports",
   "listLatestTimeline", "readConfig", "readCurrentRequirements", "readEvent", "readIntentSourceKind", "readObservedEventCursor", "report",
   "reportRecorded", "runImmediate", "selfSupportingSessions", "state"];
 const STATE_API = ["adoptOwner", "applyConcern", "citeDecision", "readProgressReceipt", "readWorkState", "recordNote", "recordProgress",
@@ -71,8 +71,8 @@ const CONTRACT_RUNTIME_EXPORTS = ["GOALS_TREE_INTAKE", "GOALS_TREE_SUBMIT_RESULT
   "goalEventWorkStatuses", "goalHistoryItemSchema", "goalHistoryPageSchema", "goalIntentSourceKinds", "goalMaterialSnapshotRef", "goalPluginActions", "goalPluginObjectRef", "goalPolicyBindingSchema",
   "goalPolicySchema", "goalProgressResultSchema", "goalRecordSchema", "goalRelationEndpoints", "goalRelationSchema", "goalRelationTypes", "goalReportEventSchema",
   "goalStateSchema", "goalTimelineSchema", "goalTrashResultSchema", "guidanceCommonSchema", "guidanceKindSchema", "identifier", "inGoalRelation", "judgment", "judgmentInput",
-  "nullable", "object", "option", "parseGoalMaterialSnapshotRef", "parseGoalPluginObjectRef", "planningCompositionSchema", "planningGraphIssueSchema", "planningImpactSchema", "planningMethodInputSchema",
-  "planningMethodSchema", "planningMethodSummarySchema", "planningSavedSchema", "progress", "projectGuidanceEntrySchema", "projectGuidanceRevisionSchema",
+  "nullable", "object", "option", "parseGoalMaterialSnapshotRef", "parseGoalPluginObjectRef", "planningGraphIssueSchema", "planningImpactSchema",
+  "progress", "projectGuidanceEntrySchema", "projectGuidanceRevisionSchema",
   "readGoalResumeFacts", "reason", "recordedDecisionMethod", "recordedReviewStatus", "scope", "text", "treeCheckInputSchema", "treeCheckResultSchema",
   "treeDecideInputSchema", "treeDecisionResultSchema", "treeItemDecisionSchema", "treeItemInputSchema", "treeNarrativeSchema", "treeProposalSchema",
   "treeReadInputSchema", "treeReadResultSchema", "treeSubmitInputSchema", "treeSubmitResultSchema"];

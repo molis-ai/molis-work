@@ -667,7 +667,7 @@ test("protected Web user entry records a decision; Host-injected identity is req
       deliverables: { readArtifact: reference => openProjectVersionStores(data.store).artifacts.query.getArtifactVersion(BOARD, reference), ledger: createContextLedger(data.store.db, { authorize: () => true }) },
       history: {
         snapshot: () => boardSnapshot(data.store, BOARD), journalEvents: () => data.store.readEventsDescending(BOARD),
-      }, planning: { planning: data.app.goals.planning, baseMethods: () => [] }, guidance: { commands: data.app.goals.commands, read: projectId => data.app.goalQueries.readProjectGuidance(projectId) },
+      }, planning: { planning: data.app.goals.planning }, guidance: { commands: data.app.goals.commands, read: projectId => data.app.goalQueries.readProjectGuidance(projectId) },
       lifecycle: { lifecycle: data.app.goals.lifecycle, setActiveGoal: (...args) => data.app.setActiveGoal(...args), eventCursor: () => data.store.eventCursor(BOARD) },
       configuration: { commands: data.app.goals.commands, query: goalsQueryOf(data.store), eventCursor: () => data.store.eventCursor(BOARD) },
       tree: { submitGoalTreeProposal: input => data.app.goalTreeSubmission.submitGoalTreeProposal(input),

@@ -78,7 +78,7 @@ function captureOutput(t: TestContext): { text(): string } {
 // Read surfaces of the host that a person's page, a script on the machine or a support session could ask for.
 const READ_SURFACES = ["/", "/health", "/api/settings/connectors/connections", "/api/settings/connectors/connections?service_id=github", "/api/settings/connectors", "/api/settings/models",
   "/api/settings/diagnostics", "/api/settings/mcp/actions", "/api/settings/projects", "/api/settings/runtimes", "/api/settings/web-service", "/api/onboarding/status", "/api/browser/assistant",
-  "/api/browser/sites", "/api/plugins/runtime/updates", "/api/agent-definitions", "/api/memory", "/api/assistant", "/api/home/events", "/api/contextual/surfaces", "/api/settings/planning-methods"];
+  "/api/browser/sites", "/api/plugins/runtime/updates", "/api/agent-definitions", "/api/memory", "/api/assistant", "/api/home/events", "/api/contextual/surfaces"];
 
 test("S-12 a secret handed to the host once never comes back: not in an answer, a log, an error, a call record or any file of the Home", { timeout: 120_000 }, async t => {
   const home = await mkdtemp(join(os.tmpdir(), "security-invariants-secrets-"));

@@ -11,7 +11,6 @@ import { t as uiText, say } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { pageTextScript } from "./fixtures/page-text.js";
 import { ChromeHarness } from "@molis-ai/molis-work-test-kit/browser";
 import { assertGoalsDictionaryMove, expectedGoalsDictionaryMove } from "./fixtures/goals-dictionary-move.js";
-import { BUILTIN_PLANNING_METHOD_PACKS } from "@molis-ai/molis-work-plugin-goals/module";
 import * as renderers from "./workbench-renderer-fixture.js";
 import type { MolisWorkWebView } from "./workbench-renderer-fixture.js";
 
@@ -36,9 +35,8 @@ function viewFor(locale: "zh" | "en"): MolisWorkWebView {
   const localized = (goal: MolisWorkWebView["goals"][number]) => ({ ...goal, ...englishWords[goal.goal.goal_id] });
   return { ...view, goals: view.goals.map(localized), archived_goals: view.archived_goals.map(localized), trashed_goals: view.trashed_goals.map(localized) };
 }
-const methods = BUILTIN_PLANNING_METHOD_PACKS.map(pack => ({ ...pack }));
 const guidance = { entries: [], inactive_entries: [], revisions: [], virtual_document: "", runtime_prompt_prefix: "" };
-const SECTIONS = ["general", "guidance", "planning", "rules"] as const;
+const SECTIONS = ["general", "guidance", "rules"] as const;
 
 type Draw = (view: MolisWorkWebView) => string;
 const pages: Record<string, Draw> = {
@@ -62,13 +60,8 @@ const pages: Record<string, Draw> = {
   "document-archive": (view) => renderers.renderGoalDocumentFragment(view, "GRAPH", "archive") ?? "(none)",
   "document-trash": (view) => renderers.renderGoalDocumentFragment(view, "AUTO-CONNECT", "trash") ?? "(none)",
   "document-missing": (view) => renderers.renderGoalDocumentFragment(view, "NO-SUCH", "current") ?? "(none)",
-  "planning-library-personal": () => renderers.renderMolisWorkPlanningLibrary(methods, null, TOKEN, false, [PROJECT], ["goals"]),
-  "planning-library-project": (view) => renderers.renderMolisWorkPlanningSettings(view, methods, TOKEN, false),
-  "planning-method-detail": () => renderers.renderMolisWorkPlanningMethodPage(methods[0]!, "detail", "personal", null, TOKEN, false),
-  "planning-method-edit": () => renderers.renderMolisWorkPlanningMethodPage(methods[0]!, "edit", "project", PROJECT, TOKEN, false),
-  "planning-method-new": () => renderers.renderMolisWorkPlanningMethodPage(null, "new", "personal", null, TOKEN, false),
-  ...Object.fromEntries(SECTIONS.map(section => [`settings-${section}`, (view: MolisWorkWebView) => renderers.renderMolisWorkProjectSettingsHub(view, guidance, methods, TOKEN, false, section)])),
-  ...Object.fromEntries(SECTIONS.map(section => [`settings-${section}-embedded`, (view: MolisWorkWebView) => renderers.renderMolisWorkProjectSettingsHub(view, guidance, methods, TOKEN, false, section, section)])),
+  ...Object.fromEntries(SECTIONS.map(section => [`settings-${section}`, (view: MolisWorkWebView) => renderers.renderMolisWorkProjectSettingsHub(view, guidance, TOKEN, false, section)])),
+  ...Object.fromEntries(SECTIONS.map(section => [`settings-${section}-embedded`, (view: MolisWorkWebView) => renderers.renderMolisWorkProjectSettingsHub(view, guidance, TOKEN, false, section, section)])),
 };
 
 // A page is 0.4 to 1.4 MB with the shell's own styles and scripts in it, so what is recorded is a SHA-256 and a length, not the text, and of

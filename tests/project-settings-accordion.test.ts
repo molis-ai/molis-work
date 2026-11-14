@@ -73,7 +73,7 @@ test("workbench project gear links to the standalone settings path", () => {
       goals: [],
       relations: [],
       goal_tree_proposals: [],
-      planning_method_packs: [],
+      
     },
     project: { project_id: "project-1", display_name: "工作台" },
     projects: [{ project_id: "project-1", display_name: "工作台" }],

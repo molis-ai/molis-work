@@ -111,22 +111,6 @@ test("RAC-2303 a current catalog reopens; another version is refused without cha
   } finally { rmSync(home, { recursive: true, force: true }); }
 });
 
-// RAC-800 remains a current structural refusal, independent of the cancelled personal-method move tool.
-test("RAC-800 a current catalog has no personal planning table and refuses one without changing the file", async () => {
-  const home = scratch(), file = join(home, "projects", "catalog.db");
-  try {
-    const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home }); catalog.close();
-    const db = openTestSqlite(file);
-    assert.equal(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'personal_planning_method_packs'").get(), undefined);
-    db.exec("CREATE TABLE personal_planning_method_packs (method_id TEXT PRIMARY KEY, version INTEGER, enabled INTEGER, pack_json TEXT, created_at TEXT, updated_at TEXT)");
-    db.pragma("journal_mode = DELETE"); db.close();
-    const before = readFileSync(file);
-    await assert.rejects(() => openMolisWorkProjectCatalog({ homeDirectory: home }), (error: { code?: string; message?: string }) =>
-      error.code === "catalog.unsupported_schema" && /personal_planning_method_packs/.test(error.message ?? ""));
-    assert.deepEqual(readFileSync(file), before);
-  } finally { rmSync(home, { recursive: true, force: true }); }
-});
-
 test("D0057 D0273 new catalogs omit retired desktop tables; explicit upgrade refuses nonempty tables atomically", async () => {
   const home = scratch();
   try {

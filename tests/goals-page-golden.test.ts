@@ -125,6 +125,14 @@ const pages: Record<string, Draw> = {
 // it, the composer at rest carries ` data-rest` (+10 characters in every page-*), and the English placeholder is 「Ask the assistant…」
 // (16 fewer than 「…to do something…」): zh +10, en −6 on all 16, checked against the drawn pages. No Goals markup or JSON changed;
 // the 16 were recorded with MOLIS_WORK_GOLDEN_RECORD=1 and the other 50 records did not change.
+// Batch 41 (41-2, 用户 2026-11-14: the planning methods are Skills of the catalog and nothing of Goals): the 14 planning records
+// (library, method detail/new/edit, the settings planning page and its embedded form, in two languages) went with the pages. Of the
+// 52 left, 30 changed and 22 did not. Checked on the whole drawn pages against the checkout before the change: the six document-*
+// and the eight refresh-* lose the empty line the document template left where the adopted-method block was (−9 characters); the 16
+// page-* lose, besides that, the settings directory's planning entry, and the eight page-current*/page-archive ones the 「Work
+// planning」 button with its pane. The 24 page-* and refresh-* records were already stale on main 4417d2bcd3 (page-* +155 en / +166 zh,
+// refresh-* +169 en / +146 zh; this test fails there, and the pages it draws are the ones this branch drew before 41-2, line for
+// line), so their new records carry that difference as well. Recorded with MOLIS_WORK_GOLDEN_RECORD=1.
 // Batch 08 (Skills): all 66 normalized draws were checked against the old records before updating. Removing only the new
 // Skills navigation restores every old hash and length: 16 whole pages have two directory buttons (706 zh / 722 en characters),
 // six personal planning records one link (92 zh / 96 en), and twelve project planning/settings records one link with its line

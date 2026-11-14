@@ -51,6 +51,7 @@ function definitionProblems(raw: unknown, seen: Set<string>): string[] {
     ...homeAggregateProblems(key, raw.operation, action),
     ...projectReachProblems(key, action),
     ...backgroundJobProblems(key, raw.operation, action),
+    ...trustedDecisionProblems(key, raw.operation, action),
     ...undoProblems(key, raw.operation, action),
     ...searchSourceDeclarationProblems(key, action, raw.operation, canonicalSchema),
     ...composerSourceDeclarationProblems(key, action, raw.operation, canonicalSchema),
@@ -64,6 +65,14 @@ function definitionProblems(raw: unknown, seen: Set<string>): string[] {
     ...contextDeclarationProblems(key, raw.operation, action),
     ...actionDelegationDeclarationProblems(key, action),
   ];
+}
+
+function trustedDecisionProblems(key: string, operation: unknown, action: ActionBody): string[] {
+  if (action.requires_trusted_decision !== true) return [];
+  if (operation === "command" && action.scope === "project" && action.effect !== "read"
+    && action.kind === "operation" && action.audiences.includes("user")
+    && (action.delegation === undefined || action.delegation === "confirmation-only")) return [];
+  return [`能力 ${key} 只可为本人能使用的项目写入命令要求可信决定，不能同时声明自动委托`];
 }
 
 function threadProtocolProblems(key: string, operation: unknown, action: ActionBody): string[] {
@@ -95,6 +104,7 @@ function isCompleteBody(a: unknown): a is ActionBody {
   if (a.effect !== undefined && !ACTION_EFFECTS.includes(String(a.effect))) return false;
   if (a.external !== undefined && a.external !== true) return false;
   if (a.draft !== undefined && a.draft !== true) return false;
+  if (a.requires_trusted_decision !== undefined && a.requires_trusted_decision !== true) return false;
   if (a.plugin !== undefined && a.plugin !== false) return false;
   return isRecord(a.input_schema) && (a.output_schema === undefined || isRecord(a.output_schema));
 }

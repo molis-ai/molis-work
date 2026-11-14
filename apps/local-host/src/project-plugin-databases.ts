@@ -22,11 +22,12 @@ export type ProjectPluginDatabaseOutcome =
   | { readonly plugin_id: string; readonly error: Error };
 
 /** What the Host lends the open function: an empty in-memory database on the same SQLite as the library, and storage's descriptions. */
-const inspector: PluginProjectSchemaInspector = {
+export const projectPluginSchemaInspector: PluginProjectSchemaInspector = {
   scratch: () => new LocalSqliteStorage(":memory:").db,
   objects: db => listSqliteObjects(db),
   shape: db => describeSqliteSchema(db),
 };
+const inspector = projectPluginSchemaInspector;
 
 /**
  * The same, with SQLite's own authorizer over the tables in scope at each statement, for a plugin's upgrade steps (upgrade-chain-design §2.4,

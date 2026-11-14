@@ -2,7 +2,7 @@
 // GOALS_PROJECT_DATABASE (./project-database.ts) declares them. Moved here whole from modules/governance-collaboration (S8, PG-020);
 // the text of each statement is as it was.
 
-/** Goal tree proposals with their items and decisions, and trusted event decisions. */
+/** Goal tree proposals with their items. */
 export const GOALS_GOVERNANCE_SQL = `
   CREATE TABLE goal_tree_proposals (
     proposal_id TEXT PRIMARY KEY,
@@ -54,7 +54,10 @@ export const GOALS_GOVERNANCE_SQL = `
     ON goal_tree_proposal_items(proposal_id, ordinal, item_id);
   CREATE INDEX goal_tree_proposal_items_project_idx
     ON goal_tree_proposal_items(project_id, state, item_id);
+`;
 
+/** The v2 decision tables that explicit maintenance moves into the platform library. */
+export const GOALS_V2_DECISIONS_SQL = `
   CREATE TABLE goal_tree_proposal_decisions (
     decision_id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,

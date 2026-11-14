@@ -289,8 +289,28 @@ function inspectRecordedProjectDatabase(row: LedgerRow,
 /** Same existing-row validation as open, without a transaction or initialization. */
 export function inspectPluginProjectDatabase(connection: PluginRuntimeDatabase,
   owner: { readonly plugin_id: string; readonly publisher_signature: string; readonly declaration: PluginDatabaseDeclaration },
-  inspector: PluginProjectSchemaInspector, path: string): PluginProjectDatabaseRecord {
-  return inspectProjectLibrary(connection,owner,inspector,path).record;
+  inspector: PluginProjectSchemaInspector, path: string, extension?: { readonly platformSchema?: string; readonly platformPrelude?: string }): PluginProjectDatabaseRecord {
+  return inspectProjectLibrary(connection, owner, inspector, path, extension).record;
+}
+
+/** Update an already inspected owner ledger during a platform library upgrade. The same transaction checks the new shape. */
+export function transferPluginProjectDatabase(connection: PluginRuntimeDatabase, previous: PluginProjectDatabaseRecord,
+  declaration: PluginDatabaseDeclaration, inspector: PluginProjectSchemaInspector,
+  options: { readonly path: string; readonly platformSchema?: string; readonly platformPrelude?: string }): PluginProjectDatabaseRecord {
+  const inTransaction = "inTransaction" in connection ? connection.inTransaction : "isTransaction" in connection && connection.isTransaction;
+  if (inTransaction !== true) throw pluginProjectDatabaseErrors.shape_mismatch("项目库所有权交接需要正在升级的事务");
+  if (declaration.store_name !== previous.store_name || declaration.version !== previous.version + 1) {
+    throw pluginProjectDatabaseErrors.version_mismatch("项目库所有权交接必须移到同一插件库的下一版");
+  }
+  const target = platformDeclaration(declaration, inspector, options.platformSchema, options.platformPrelude);
+  const owner = { plugin_id: previous.plugin_id, publisher_signature: previous.publisher_signature, declaration };
+  const row = { ...previous, version: declaration.version, tables_json: JSON.stringify(target.objects) };
+  const current = connection.prepare(`
+    UPDATE plugin_project_databases SET version = ?, tables_json = ?
+     WHERE plugin_id = ? AND publisher_signature = ? AND store_name = ? AND version = ? AND created_at = ? AND tables_json = ? RETURNING plugin_id
+  `).get(row.version, row.tables_json, row.plugin_id, row.publisher_signature, row.store_name, previous.version, row.created_at, JSON.stringify(previous.objects));
+  if (!current) throw pluginProjectDatabaseErrors.shape_mismatch("项目库交接时原插件账本已经变化");
+  return inspectRecordedProjectDatabase(row, owner, target, connection, inspector, options.path);
 }
 
 /** Inspect the exact same Host-compiled schema used by the writable opener. */

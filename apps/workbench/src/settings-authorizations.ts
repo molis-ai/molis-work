@@ -95,7 +95,7 @@ globalThis.molisWorkBindAuthorizationSettings = (container = document) => {
       select.dataset.authorizationRow = id;
       if (active === id) select.focus({ preventScroll: true });
     }
-    if (!list.childElementCount) list.append(muted(text("empty")));
+    if (!list.children.length) list.append(muted(text("empty")));
   }
   function showDetail(current, feedback) {
     showFacts(current.title, [["mode", text(current.mode)], ["lifetime", text(current.lifetime)], ["status", text(current.status)],
@@ -185,7 +185,8 @@ globalThis.molisWorkBindAuthorizationSettings = (container = document) => {
     const next = ++detailGeneration;
     row = selected; paintList();
     detail.replaceChildren(muted(text("loading"))); detail.setAttribute("aria-busy", "true");
-    const params = query(); params.set("owner", selected.owner); params.set("id", selected.id);
+    const params = query();
+    for (const key of ["owner", "id"]) params.set(key, selected[key]);
     try {
       const current = await request(params);
       if (next !== detailGeneration || !live(selected)) return;
@@ -228,7 +229,7 @@ globalThis.molisWorkBindAuthorizationSettings = (container = document) => {
       if (needle && !item.title.toLocaleLowerCase().includes(needle)) continue;
       rowButton(item.title, item.phase, source?.id === item.id, () => { source = item; paintSources(); focusDetails(); });
     }
-    if (project.value && !list.childElementCount) list.append(muted(text("review-empty")));
+    if (project.value && !list.children.length) list.append(muted(text("review-empty")));
     if (!source) {
       detail.replaceChildren(muted(text(project.value ? "select-review" : "choose-review-project")));
       return;

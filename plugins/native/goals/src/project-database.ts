@@ -1,8 +1,16 @@
 import type { PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { GOALS_BOARDS_SQL, GOALS_INPUT_BINDINGS_SQL, GOALS_TABLES_SQL } from "./project-database-goals.js";
+import { GOALS_BOARDS_SQL, GOALS_INPUT_BINDINGS_SQL, GOALS_TABLES_SQL, GOALS_V2_POLICY_SQL } from "./project-database-goals.js";
 import { GOALS_EVENT_FACTS_SQL } from "./project-database-event-facts.js";
 import { GOALS_EVENT_STATE_SQL } from "./project-database-event-state.js";
-import { GOALS_GOVERNANCE_SQL } from "./project-database-governance.js";
+import { GOALS_GOVERNANCE_SQL, GOALS_V2_DECISIONS_SQL } from "./project-database-governance.js";
+
+const BUSINESS_SCHEMA = [GOALS_BOARDS_SQL, GOALS_TABLES_SQL, GOALS_INPUT_BINDINGS_SQL, GOALS_EVENT_FACTS_SQL, GOALS_EVENT_STATE_SQL, GOALS_GOVERNANCE_SQL].join("\n");
+
+/** Private library after the project baseline has moved approvals to the platform. */
+export const GOALS_PROJECT_DATABASE_AFTER_APPROVAL_TRANSFER: PluginDatabaseDeclaration = {
+  store_name: "goals", version: 3, schema: BUSINESS_SCHEMA,
+  read_permission: "storage:private", write_permission: "storage:private",
+};
 
 /**
  * Goals' own tables in a project's library, declared in the Manifest (`databases.project`, PG-020) like any plugin's: the Goal tree,
@@ -30,7 +38,7 @@ export const GOALS_PROJECT_DATABASE: PluginDatabaseDeclaration = {
       ALTER TABLE goal_event_requirement_conclusions ADD COLUMN checked_version INTEGER;
     `,
   }],
-  schema: [GOALS_BOARDS_SQL, GOALS_TABLES_SQL, GOALS_INPUT_BINDINGS_SQL, GOALS_EVENT_FACTS_SQL, GOALS_EVENT_STATE_SQL, GOALS_GOVERNANCE_SQL].join("\n"),
+  schema: [BUSINESS_SCHEMA, GOALS_V2_POLICY_SQL, GOALS_V2_DECISIONS_SQL].join("\n"),
   // A plugin's own tables in the project's library are its private storage (D23), not Goals' action permissions.
   read_permission: "storage:private",
   write_permission: "storage:private",

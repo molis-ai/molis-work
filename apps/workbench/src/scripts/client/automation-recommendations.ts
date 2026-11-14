@@ -85,7 +85,7 @@ globalThis.molisWorkOpenAutomation = (project, trigger) => {
     }
   }
   const showError = failure => { setStatus(); error.hidden = false; molisWorkRequest.show(error, failure); };
-  const route = at => prefix(at.project) + "/api/automation/recommendations";
+  const route = () => prefix(entry.project) + "/api/automation/recommendations";
   const begin = () => (request = new AbortController()).signal;
   const stale = (signal, at) => signal.aborted || at !== entry;
   async function load() {
@@ -95,7 +95,7 @@ globalThis.molisWorkOpenAutomation = (project, trigger) => {
     report = undefined; error.hidden = true; save.hidden = true; retry.hidden = true;
     setStatus("loading"); result.replaceChildren();
     try {
-      const loaded = await molisWorkRequest(route(at), { signal });
+      const loaded = await molisWorkRequest(route(), { signal });
       if (stale(signal, at)) return;
       report = loaded; draw(); setStatus();
       save.hidden = false; save.disabled = false;
@@ -112,7 +112,7 @@ globalThis.molisWorkOpenAutomation = (project, trigger) => {
     sending = true; controls.forEach(button => { button.disabled = true; });
     error.hidden = true; setStatus("saving");
     try {
-      const answer = await molisWorkRequest(route(at) + "/" + action, { body: { ...body, save_token: source.save_token }, signal });
+      const answer = await molisWorkRequest(route() + "/" + action, { body: { ...body, save_token: source.save_token }, signal });
       if (stale(signal, at)) return;
       await complete(answer);
     } catch (failure) {

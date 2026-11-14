@@ -199,6 +199,9 @@ importers:
       '@molis-ai/molis-work-service-placement':
         specifier: workspace:*
         version: link:horizontal/placement
+      '@molis-ai/molis-work-service-project-approvals':
+        specifier: workspace:*
+        version: link:horizontal/project-approvals
       '@molis-ai/molis-work-service-runtime-host':
         specifier: workspace:*
         version: link:horizontal/runtime-host
@@ -479,6 +482,9 @@ importers:
       '@molis-ai/molis-work-service-placement':
         specifier: workspace:*
         version: link:../../horizontal/placement
+      '@molis-ai/molis-work-service-project-approvals':
+        specifier: workspace:*
+        version: link:../../horizontal/project-approvals
       '@molis-ai/molis-work-service-runtime-host':
         specifier: workspace:*
         version: link:../../horizontal/runtime-host
@@ -747,6 +753,18 @@ importers:
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../packages/plugin-sdk
+
+  horizontal/project-approvals:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../../packages/plugin-sdk
+      '@molis-ai/molis-work-storage':
+        specifier: workspace:*
+        version: link:../../packages/storage
 
   horizontal/runtime-host:
     dependencies:

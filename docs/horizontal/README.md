@@ -23,6 +23,7 @@
 - [Surfaces](../../horizontal/surfaces/README.md)：按调用方、位置和对象排出确定呈现组合，并保存本人的位置纠正；合同见 [surface-composition](../../specs/surface-composition/spec.md) §2、§3、§14。
 - [Kit](../../horizontal/kit/README.md)：现算某个范围里的能力包，给条目盖来源与所属的包、读出包状态；不存注册表。
 - [项目自动化建议](automation-recommender.md)：只读扫描与推荐偏好，报告由 Pages 保存。
+- [项目审批](../../horizontal/project-approvals/README.md)：保存受保护入口的本人决定及项目审批规则。
 
 情境排序（`packages/kernel/src/contextual.ts`）同属平台产品服务，位置不变，合同与边界见 [action-architecture §3 的复核小节](../../specs/action-architecture/spec.md)。它是纯函数，只给工作台的选区条用，不登记成系统动作：只有工作台的 HTTP 传输（`/api/contextual/*`），准备输入与上报信号都经调用者自己的动作，判断只排序、不执行；删除条件是助理、工作流、MCP 或插件要用情境推荐时，把它做成只读的系统动作。与内核核心的边界见 [内核 README](../../packages/kernel/README.md)。
 

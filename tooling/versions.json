@@ -1052,6 +1052,7 @@
     "contract.io.molis.work.service.knowledge": 1,
     "contract.io.molis.work.service.memory": 1,
     "contract.io.molis.work.service.observation": 1,
+    "contract.io.molis.work.service.project-approvals": 1,
     "contract.io.molis.work.service.placement": 1,
     "contract.io.molis.work.service.runtime-host": 1,
     "contract.io.molis.work.service.scheduler": 1,

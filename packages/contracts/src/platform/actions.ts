@@ -297,6 +297,8 @@ export interface ActionMetadata {
   readonly subject_kinds: readonly string[];
   /** Finite input targets and operations, or an explicit refusal of reusable automatic delegation. Unset keeps the original policy. */
   readonly delegation?: ActionDelegationDeclaration | "confirmation-only";
+  /** This project command can execute only with the platform's proof for one original person decision. */
+  readonly requires_trusted_decision?: true;
   readonly input_schema: ActionSchema;
   readonly output_schema?: ActionSchema;
   /** Plain-language result and original-object link, declared by the provider for all consumers. */

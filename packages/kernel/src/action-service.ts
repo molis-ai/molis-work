@@ -16,6 +16,7 @@ import { assertCallerProvenance } from "./action-authorship.js";
 import { assertCurrentAuthority, bindCall, describeCall, settleCall, settleCallSync, runActionHandler, type CallContext, type CallReports } from "./action-settlement.js";
 import { actionSchemaAccepts, createActionSchemaCompiler, validateActionValue, type ActionValidator } from "./action-schema.js";
 import { validateActionInput } from "./version-precondition.js";
+import { consumeTrustedDecision } from "./action-trusted-decision.js";
 import { subjectOfferCompatibilityReason } from "./subject-offer-choices.js";
 import { createExecutionLifetime, inspectActionCrossReferences, inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk/execution";
 
@@ -110,6 +111,8 @@ export class ActionService implements ActionClient, ActionRegistryPort {
           assertReadOnlyEffects(context, definition);
           context.signal?.throwIfAborted(); assertCallerProvenance(definition.action, context);
           validateActionInput(validateInput, definition, context, input);
+          const reference = { capability_id: definition.capability_id, version: definition.version, provider_id: provider.provider_id };
+          const checkDecision = definition.action.requires_trusted_decision ? consumeTrustedDecision(context, reference, input) : undefined;
           const policy = definition.action.execution;
           if (policy?.max_calls_per_minute) {
             const now = Date.now();
@@ -125,12 +128,12 @@ export class ActionService implements ActionClient, ActionRegistryPort {
           const lifetime = policy?.timeout_ms === undefined ? undefined : createExecutionLifetime({ signal: context.signal,
             timeout: { milliseconds: policy.timeout_ms, reason: new ActionError("actions.timeout", "这项能力执行超时，已停止本机等待；请检查结果后决定是否重试") } });
           const registration = this.registry.registrationToken(registeredDefinition);
-          const reference = { capability_id: definition.capability_id, version: definition.version, provider_id: provider.provider_id };
           let executing = true;
           const assertCurrent = () => inDirectoryPass(() => {
             if (!executing) throw new ActionError("actions.expired", "原调用已经结束，不能继续产生副作用");
             lifetime?.assertActive();
             context.signal?.throwIfAborted();
+            checkDecision?.();
             if (this.registry.registrationToken(registeredDefinition) !== registration) throw new ActionError("actions.provider_changed", "能力已重新加载，不能继续原副作用");
             assertAvailable(availability(context));
             requireSynchronous(this.effects.assertCurrent?.(context, reference), "最终运行环境检查必须同步完成");

@@ -4,6 +4,7 @@ import { wireOperation } from "./operation.js";
 import { createPage } from "./page.js";
 import { wireReads } from "./reads.js";
 import { wireRecovery } from "./recovery.js";
+import { detailOf } from "./dom.js";
 import { select } from "./stage.js";
 import type { ScheduleHost } from "./types.js";
 
@@ -30,6 +31,14 @@ export function scheduleClient(host: ScheduleHost): void {
     select(page, kind === "task" ? row.dataset.scheduleTaskId : row.dataset.scheduleJobId, kind);
   });
   workbench.addEventListener("click", event => void onWorkbenchClick(page, event));
+  // Another page opens one task by its id (a risk's review sends the person here to grant its reads): its detail opens; a task this
+  // page does not hold (archived, or another project's) is told to the workbench, which neither names it nor carries it.
+  workbench.addEventListener("molis-work:select-item", event => {
+    const itemId = (event as CustomEvent<{ itemId?: unknown } | undefined>).detail?.itemId;
+    if (typeof itemId !== "string" || !itemId) return;
+    if (detailOf(workbench, itemId)) select(page, itemId, "task");
+    else workbench.dispatchEvent(new CustomEvent("molis-work:item-unreadable", { bubbles: true, detail: { itemId } }));
+  });
   const pending = sessionStorage.getItem(OPEN_KEY);
   if (pending) {
     sessionStorage.removeItem(OPEN_KEY);

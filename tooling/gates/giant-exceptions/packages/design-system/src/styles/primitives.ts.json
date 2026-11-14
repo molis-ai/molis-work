@@ -3,7 +3,7 @@
     "file packages/design-system/src/styles/primitives.ts": {
       "kind": "stylesheet",
       "reason": "基础控件（mw-* 原语）的样式表：PRIMITIVE_STYLES 一个模板字符串，纯 CSS，开头只有几个共用的 CSS 片段常量；样式表按行数拆不改善职责，只让同一个控件的规则散在几处。",
-      "size": 1161
+      "size": 1174
     }
   }
 }

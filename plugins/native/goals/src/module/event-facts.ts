@@ -145,7 +145,6 @@ export class GoalEventFacts implements GoalEventFactsApi {
         .filter((row) => row.fulfillment_state !== "satisfied")
         .map((row) => ({ goal_id: row.goal_id, title: row.title })),
       human_approval_required: resolveGoalPolicy(this.context.repository.listActivePolicyBindings(projectId, goalId)).human_approval,
-      blocking_risks: [],
     };
   }
 

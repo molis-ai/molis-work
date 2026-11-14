@@ -5,7 +5,7 @@ import type { ActionHandlerBinding, ActionSchema } from "@molis-ai/molis-work-co
 import { goalEventClosureKinds, goalEventConcernActions, goalEventDecisionPurposes, type ConfigureGoalEventsApplicationInput, type ConfigureGoalEventsResult, type ReportGoalEventsInput, type ReportGoalEventsResult, type RecordGoalProgressSummaryInput, type ApplyGoalConcernInput, type GoalEventConcernResult, type RequestGoalDecisionInput, type GoalEventDecisionRequestResult, type CiteGoalDecisionInput, type GoalEventDecisionResult, type SetGoalEventAgreementInput, type GoalEventAgreementResult, type SubmitGoalEventClosureInput, type GoalEventClosureResult, type ResumeGoalEventWorkInput, type GoalEventResumeResult } from "./contract/goals.js";
 import type { GoalEventApplication } from "./goal-event-application.js";
 import { goalAction as action, goalActor, usingServices } from "./action-contract.js";
-import { text, identifier, count, boolean, object, array, enumeration, nullable, goalConfigSchema, goalStateSchema, goalReportEventSchema, eventType, binding, scope, progress, concern, option, change, decisionRequest, decision, reason, closure, judgmentInput, agreement } from "./contract/goal-actions.js";
+import { text, identifier, count, boolean, object, array, enumeration, nullable, goalConfigSchema, goalStateSchema, goalReportEventSchema, eventType, binding, scope, progress, concern, option, change, decisionRequest, decision, reason, closure, judgmentInput, agreement, citedSubjects } from "./contract/goal-actions.js";
 
 type BusinessInput<Input> = Omit<Input, "project_id" | "actor_id" | "actor_kind">;
 const version = { type: "integer", minimum: 1 };
@@ -32,9 +32,9 @@ export const goalsEventActions = {
     object({ events: array(goalReportEventSchema), observed_event_cursor: count, replayed: boolean, goal_event_cursor: count,
       work_status: stateProperties.work_status!, gaps: stateProperties.gaps!, progress_summary: nullable(progress), completion_effect: boolean, can_record: boolean })), []),
   progress: goalPluginActions.progress,
-  concern: action<BusinessInput<ApplyGoalConcernInput>, GoalEventConcernResult>("goals.concerns.apply", /* @version action.goals.concerns.apply */ 1, "处理目标问题", "提出问题须填标题、说明和影响范围；解决/撤销须引用问题后的实际事件或用户决定，接受风险须引用适用的用户决定", "command",
+  concern: action<BusinessInput<ApplyGoalConcernInput>, GoalEventConcernResult>("goals.concerns.apply", /* @version action.goals.concerns.apply */ 1, "处理目标问题", "提出问题须填标题、说明和影响范围，可引用它所关于的对象（如一条风险，只记种类与 id）；解决/撤销须引用问题后的实际事件或用户决定，接受风险须引用适用的用户决定", "command",
     object({ ...base, action: enumeration(goalEventConcernActions), concern_id: text, title: text, statement: text, scope: partialScope,
-      blocks_closure: boolean, reason: text, supporting_event_ids: array(text), cited_decision_id: text }, [...required, "action"]),
+      blocks_closure: boolean, reason: text, supporting_event_ids: array(text), cited_decision_id: text, cited_subjects: citedSubjects }, [...required, "action"]),
     object({ ...mutation, concern })),
   requestDecision: action<BusinessInput<RequestGoalDecisionInput>, GoalEventDecisionRequestResult>("goals.decisions.request", /* @version action.goals.decisions.request */ 1, "请求目标决定", "提出问题、至少两个选项及各自影响，等待用户作出决定；请求本身不表示批准", "command",
     object({ ...base, question: identifier, options: { ...array(option), minItems: 2 }, purpose: enumeration(goalEventDecisionPurposes), proposed_change: change, scope: partialScope },

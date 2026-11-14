@@ -115,7 +115,7 @@ test("PLIB-14: a library this build made opens Goals' tables from its declaratio
     const outcome = store.pluginDatabases.get(GOALS_PLUGIN_ID);
     assert.ok(outcome && "record" in outcome, "Goals' tables were opened, not refused");
     assert.equal(outcome.record.store_name, "goals");
-    assert.equal(outcome.record.version, 2);
+    assert.equal(outcome.record.version, goalsManifest.databases!.project!.version);
   } finally { store.close(); }
   const open = await directory(home, projectId, databasePath);
   assert.deepEqual([...open.plugins].sort(), [GOALS_PLUGIN_ID, ...OTHERS].sort());
@@ -125,7 +125,7 @@ test("PLIB-14: a library this build made opens Goals' tables from its declaratio
 });
 
 const cases = [
-  { change: "its ledger row says another version", sql: `UPDATE plugin_project_databases SET version = 3 WHERE plugin_id = '${GOALS_PLUGIN_ID}'`, code: "plugin.project_database.version_mismatch" },
+  { change: "its ledger row says another version", sql: `UPDATE plugin_project_databases SET version = ${goalsManifest.databases!.project!.version + 1} WHERE plugin_id = '${GOALS_PLUGIN_ID}'`, code: "plugin.project_database.version_mismatch" },
   { change: "its ledger row names another publisher", sql: `UPDATE plugin_project_databases SET publisher_signature = 'someone-else' WHERE plugin_id = '${GOALS_PLUGIN_ID}'`, code: "plugin.project_database.publisher_mismatch" },
   { change: "one of its tables gained a column", sql: "ALTER TABLE goals ADD COLUMN added_by_hand TEXT", code: "plugin.project_database.shape_mismatch" },
   { change: "its board has the name column version 7 gave it", sql: "ALTER TABLE boards ADD COLUMN title TEXT", code: "plugin.project_database.shape_mismatch" },

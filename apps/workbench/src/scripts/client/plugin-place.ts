@@ -1,4 +1,4 @@
-import { sideOpenedPlugins } from "../../plugin-catalog.js";
+import { sideOpenedItemPlugins, sideOpenedPlugins } from "../../plugin-catalog.js";
 
 /**
  * Where opening a plugin lands (specs/context-program §21.6, W2'-2): the side view of each plugin whose only place is the right
@@ -7,3 +7,6 @@ import { sideOpenedPlugins } from "../../plugin-catalog.js";
  * it. A plugin not named here opens in the work area.
  */
 export const sideOpenedTabs = (): string => JSON.stringify(sideOpenedPlugins());
+
+/** The item side view (`opens_items`) of each plugin that also has a work-area place (`sideOpenedItemPlugins`), for the page. */
+export const sideItemOpenedTabs = (): string => JSON.stringify(sideOpenedItemPlugins());

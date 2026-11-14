@@ -145,6 +145,9 @@ importers:
       '@molis-ai/molis-work-plugin-ppt':
         specifier: workspace:*
         version: link:plugins/native/ppt
+      '@molis-ai/molis-work-plugin-risk':
+        specifier: workspace:*
+        version: link:plugins/native/risk
       '@molis-ai/molis-work-plugin-runtime':
         specifier: workspace:*
         version: link:packages/plugin-runtime
@@ -419,6 +422,9 @@ importers:
       '@molis-ai/molis-work-plugin-ppt':
         specifier: workspace:*
         version: link:../../plugins/native/ppt
+      '@molis-ai/molis-work-plugin-risk':
+        specifier: workspace:*
+        version: link:../../plugins/native/risk
       '@molis-ai/molis-work-plugin-runtime':
         specifier: workspace:*
         version: link:../../packages/plugin-runtime
@@ -606,6 +612,9 @@ importers:
       '@molis-ai/molis-work-plugin-ppt':
         specifier: workspace:*
         version: link:../../plugins/native/ppt
+      '@molis-ai/molis-work-plugin-risk':
+        specifier: workspace:*
+        version: link:../../plugins/native/risk
       '@molis-ai/molis-work-plugin-schedule':
         specifier: workspace:*
         version: link:../../plugins/native/schedule
@@ -1252,6 +1261,19 @@ importers:
       fflate:
         specifier: 0.8.2
         version: 0.8.2
+    devDependencies:
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
+
+  plugins/native/risk:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../../packages/contracts
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../../../packages/plugin-sdk
     devDependencies:
       esbuild:
         specifier: ^0.28.2

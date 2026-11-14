@@ -76,11 +76,52 @@ function readBudget(snapshot, label, errors, required = false) {
   return {};
 }
 
+// A budget may grow only through a new allowance of the change that needs it (like the page-asset allowances): a file under
+// CALL_BUDGET_ALLOWANCES with a reason, a review and the user's approval, naming the counters it raises and the value each may reach.
+// Allowances the merge-base already has are spent: they cannot be changed or removed, and they raise nothing again.
+export const CALL_BUDGET_ALLOWANCES = "tooling/gates/call-budget-allowances/";
+
+function allowanceTexts(snapshot) {
+  const texts = {};
+  for (const file of snapshot?.files ?? []) if (file.startsWith(CALL_BUDGET_ALLOWANCES)) texts[file] = snapshot.read(file);
+  return texts;
+}
+
+function newAllowances(head, base, errors) {
+  const current = allowanceTexts(head), previous = allowanceTexts(base), allowed = {};
+  for (const [file, text] of Object.entries(previous)) if (current[file] !== text) errors.push(`${file}: an adopted allowance cannot be changed or removed`);
+  for (const [file, text] of Object.entries(current)) {
+    if (Object.hasOwn(previous, file)) continue;
+    try {
+      if (!/^tooling\/gates\/call-budget-allowances\/[a-z0-9][a-z0-9-]*\.json$/u.test(file)) throw new Error("invalid allowance filename");
+      const record = JSON.parse(text ?? "");
+      if (!nonemptyRecord(record) || Object.keys(record).some(key => !["reason", "review", "userApproval", "counters"].includes(key))) throw new Error("unknown fields");
+      for (const field of ["reason", "review", "userApproval"]) if (typeof record[field] !== "string" || !record[field].trim()) throw new Error(`missing ${field}`);
+      if (!nonemptyRecord(record.counters) || !Object.values(record.counters).every(counters => nonemptyRecord(counters) && Object.values(counters).every(validCount))) {
+        throw new Error("counters must map scenarios to nonnegative integer call counts");
+      }
+      for (const [scenario, counters] of Object.entries(record.counters)) {
+        for (const [counter, limit] of Object.entries(counters)) allowed[`${scenario}.${counter}`] = Math.max(allowed[`${scenario}.${counter}`] ?? 0, limit);
+      }
+    } catch (error) { errors.push(`${file}: invalid allowance: ${error.message}`); }
+  }
+  return allowed;
+}
+
 export function callBudgetProblems(head, base, required) {
   const errors = [];
   const before = readBudget(base, `merge-base ${CALL_BUDGET_FILE}`, errors);
   const after = readBudget(head, CALL_BUDGET_FILE, errors, required || Object.keys(before).length > 0);
+  const allowed = newAllowances(head, base, errors);
   if (errors.length) return errors;
+  for (const key of Object.keys(allowed)) {
+    const [scenario, counter] = key.split(".");
+    if (!Object.hasOwn(after[scenario] ?? {}, counter)) errors.push(`${CALL_BUDGET_FILE}: an allowance names ${key}, which the budget does not have`);
+    // An allowance raises what grew and nothing else: a counter that did not grow (or is new, with no merge-base value) needs none.
+    else if (!Object.hasOwn(before[scenario] ?? {}, counter) || after[scenario][counter] <= before[scenario][counter]) {
+      errors.push(`${CALL_BUDGET_FILE}: an allowance names ${key}, which did not grow`);
+    }
+  }
   for (const [scenario, counters] of Object.entries(before)) {
     if (!Object.hasOwn(after, scenario)) {
       errors.push(`${CALL_BUDGET_FILE}: removed scenario ${scenario}`);
@@ -89,7 +130,10 @@ export function callBudgetProblems(head, base, required) {
     for (const [counter, limit] of Object.entries(counters)) {
       const next = after[scenario];
       if (!Object.hasOwn(next, counter)) errors.push(`${CALL_BUDGET_FILE}: removed counter ${scenario}.${counter}`);
-      else if (next[counter] > limit) errors.push(`${CALL_BUDGET_FILE}: ${scenario}.${counter} grew ${limit} → ${next[counter]}`);
+      else if (next[counter] > limit && next[counter] !== allowed[`${scenario}.${counter}`]) {
+        // The budget may reach exactly what a new allowance names: never past it, and never short of it (no headroom kept for later).
+        errors.push(`${CALL_BUDGET_FILE}: ${scenario}.${counter} grew ${limit} → ${next[counter]}${allowed[`${scenario}.${counter}`] ? `; new allowances name ${allowed[`${scenario}.${counter}`]}, and the budget must equal it` : ""}`);
+      }
     }
   }
   return errors;

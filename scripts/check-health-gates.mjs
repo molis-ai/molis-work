@@ -66,7 +66,7 @@ import { specCoverageLine } from "./gates/spec-coverage.mjs";
 import { createLintMetrics, isOwnRepository, lintWantsText } from "./gates/lint.mjs";
 import { createErrorMetrics } from "./gates/error-metrics.mjs";
 import { actionInputMetrics } from "./gates/action-input-counts.mjs";
-import { CALL_BUDGET_FILE, callBudgetProblems, contextCallMetric } from "./gates/call-budget.mjs";
+import { CALL_BUDGET_ALLOWANCES, CALL_BUDGET_FILE, callBudgetProblems, contextCallMetric } from "./gates/call-budget.mjs";
 import { errorOwnersWantsText } from "./gates/error-owners.mjs";
 import { pluginRegistryProblems } from "./generate-plugin-registry.mjs";
 
@@ -160,7 +160,7 @@ const isVendoredSdk = (file) => /^vendor\/prologue-sdk\/.*\.tgz$/.test(file);
 // cannot hide from them in a directory of that name. `tests/`, `dist/` and `node_modules/` are still skipped.
 const FIXTURES_DIR = /(^|\/)fixtures\//;
 const isStructureSource = (file) => isSource(file) || (FIXTURES_DIR.test(file) && isSource(file.replace(FIXTURES_DIR, "$1")));
-const needsText = (file) => file === CALL_BUDGET_FILE || file.startsWith(GIANT_REGISTRY) || isStructureSource(file) || schemaPatchesWantText(file) || schemaExecsWantText(file) || isTestFile(file) || structureWantsText(file) || docGateInputs(file) || lintWantsText(file) || splitsWantText(file) || errorOwnersWantsText(file) || browserWantsText(file) || hostLinesWantText(file);
+const needsText = (file) => file === CALL_BUDGET_FILE || file.startsWith(CALL_BUDGET_ALLOWANCES) || file.startsWith(GIANT_REGISTRY) || isStructureSource(file) || schemaPatchesWantText(file) || schemaExecsWantText(file) || isTestFile(file) || structureWantsText(file) || docGateInputs(file) || lintWantsText(file) || splitsWantText(file) || errorOwnersWantsText(file) || browserWantsText(file) || hostLinesWantText(file);
 
 // A snapshot is a file list plus a reader: the working tree for the head, a commit read from the object database for the
 // merge-base (no checkout, so it cannot disturb the working tree or another session's worktree).

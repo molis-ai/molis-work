@@ -133,6 +133,10 @@ const pages: Record<string, Draw> = {
 // planning」 button with its pane. The 24 page-* and refresh-* records were already stale on main 4417d2bcd3 (page-* +155 en / +166 zh,
 // refresh-* +169 en / +146 zh; this test fails there, and the pages it draws are the ones this branch drew before 41-2, line for
 // line), so their new records carry that difference as well. Recorded with MOLIS_WORK_GOLDEN_RECORD=1.
+// Batch 41 merged with main 7a4c7f982d (batches 12, 17 and 28 landed there): the 16 page-* records were stale again on that main (this
+// test fails there on those 16 and on the eight refresh-*, +2163 zh on page-current; this branch draws the same pages less the planning
+// entry 41-2 removed, +1997 zh / +2185 en against its own records). No Goals markup of this batch changed with the merge; the 16 were
+// recorded with MOLIS_WORK_GOLDEN_RECORD=1 and the other 36 records did not change.
 // Batch 08 (Skills): all 66 normalized draws were checked against the old records before updating. Removing only the new
 // Skills navigation restores every old hash and length: 16 whole pages have two directory buttons (706 zh / 722 en characters),
 // six personal planning records one link (92 zh / 96 en), and twelve project planning/settings records one link with its line

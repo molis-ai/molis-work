@@ -73,41 +73,45 @@ async function fixture(t: TestContext, name: string, children: string[], options
   return { service, store, adapter, hooks, open, root, nodes, parentId: sent.work.work_id, children: started.delegated!, release: (title: string) => releases.get(title)!.resolve(), later, rounds: () => store.rounds(sent.work.work_id) };
 }
 
-// specs/prologue-adoption §4.6 (item 14): a sub-task that finishes after its delegating work's round ended hands its
-// result back once, and the work goes on by itself in one round the Host writes — with the result as material,
-// started like any other round.
-test("sub-tasks that finish after their delegating work's round ended hand back once: the work goes on by itself in one Host-written round", { timeout: 90_000 }, async t => {
+// specs/prologue-adoption §4.6 (item 14), specs/work-line/contract-design.md §9 (PWA-156): each sub-task that finishes
+// after its delegating work's round ended hands its result back once, and the work goes on by itself in one round the
+// Host writes — with that result as material, started like any other round — while the others are still under way.
+test("WLN-RETURN-02: each sub-task that finishes hands back once: the work goes on by itself in one Host-written round per result, without waiting for the rest", { timeout: 90_000 }, async t => {
   const { service, parentId, children, release, later, rounds, root } = await fixture(t, "once", ["开头", "结尾"]);
   assert.equal((await root()).state, "waiting", "the work's root waits for its parts");
   assert.equal((await root()).continuation?.state, "armed");
+  // The first one back moves the work on at once; the other is still running and is not waited for.
   release("开头");
-  await until(async () => (await service.read(children[0]!.work_id)).work.state === "completed", "first sub-task done");
-  await pause(400);
-  assert.equal(rounds().length, 1, "one sub-task still running: the work waits for both");
-  assert.equal((await root()).continuation?.state, "armed", "a wait on every part: one back is not enough");
-  // The second settles 400 ms after the first: one round for both. (Both results and the person's own round arriving
-  // together is PA-08, the next test.)
-  release("结尾");
-  const done = await until(async () => { const view = await service.read(parentId); return view.rounds.length === 2 && view.work.state === "completed" ? view : undefined; }, "the hand-back round");
-  const handBack = rounds()[1]!;
-  assert.equal(handBack.written_by, "host", "the Host wrote it, not the person");
-  assert.match(handBack.text, /^（子任务都已交回）请核对「开头」「结尾」的结果/);
-  assert.equal(later.length, 1);
-  assert.match(roundParts(later[0]!).data, /子任务交回/, "the results come as the round's material");
+  await until(async () => { const view = await service.read(parentId); return view.rounds.length === 2 && view.work.state === "completed" ? view : undefined; }, "the first hand-back round");
+  const first = rounds()[1]!;
+  assert.equal(first.written_by, "host", "the Host wrote it, not the person");
+  assert.match(first.text, /^（子任务交回）「开头」有结果了，还有 1 个子任务在办/);
+  assert.equal((await service.read(children[1]!.work_id)).work.state, "running", "the other sub-task was not touched");
+  assert.match(roundParts(later[0]!).data, /子任务交回/, "the result comes as the round's material");
   assert.match(later[0]!, /「开头」的草稿：三句话/);
-  assert.match(later[0]!, /「结尾」的草稿：三句话/);
-  assert.match(done.rounds[1]!.turns.map(turn => turn.text).join("\n"), /汇总好了/);
+  assert.doesNotMatch(later[0]!, /「结尾」的草稿/, "only what came back");
+  // While that round ran, the work began to wait again, for the sub-task still under way only.
+  await until(async () => (await root()).continuation?.state === "armed", "the work waits for the rest");
+  const told = later.length;
+  release("结尾");
+  const done = await until(async () => { const view = await service.read(parentId); return view.rounds.length === 3 && view.work.state === "completed" ? view : undefined; }, "the second hand-back round");
+  const handBack = rounds()[2]!;
+  assert.equal(handBack.written_by, "host");
+  assert.match(handBack.text, /^（子任务都已交回）请核对「结尾」的结果/);
+  assert.match(later[told]!, /「结尾」的草稿：三句话/);
+  assert.doesNotMatch(roundParts(later[told]!).data, /「开头」：已完成/, "what was handed back before is not told again");
+  assert.match(done.rounds[2]!.turns.map(turn => turn.text).join("\n"), /汇总好了/);
   // The round took the root's continuation up, under its request key: the Host starting again (as after a restart) starts
   // nothing, and the work's next round is not told again.
   const taken = await root();
   assert.equal(taken.continuation?.state, "started");
   await service.notices.attachSchedule();
   await pause(500);
-  assert.equal(rounds().length, 2, "no second hand-back round");
+  assert.equal(rounds().length, 3, "no further hand-back round");
   await service.send({ work_id: parentId, text: "谢谢", request_id: "req-once-thanks" }, {});
-  await until(async () => (await service.read(parentId)).work.state === "completed" && rounds().length === 3, "the person's round");
+  await until(async () => (await service.read(parentId)).work.state === "completed" && rounds().length === 4, "the person's round");
   // The role names the section too (what reaches a round is data); what counts is whether the data carries it.
-  assert.doesNotMatch(roundParts(later.at(-1)!).data, /子任务交回/, "what was handed back is not told again");
+  assert.doesNotMatch(roundParts(later.at(-1)!).data, /下面这些子任务结束了/, "what was handed back is not told again");
 });
 
 // PA-08 (specs/prologue-adoption §5.3): both sub-tasks' results and the person's own round arrive together. Both results
@@ -153,13 +157,12 @@ test("PA-08: two sub-task results and the person's own round arriving together s
 // waits for their next round, which is told what happened.
 test("no hand-back round when the person stopped the delegating work; their next round is told what the sub-tasks did", { timeout: 90_000 }, async t => {
   const { service, parentId, children, release, later, rounds, root } = await fixture(t, "stopped", ["开头", "结尾"]);
-  release("开头");
-  await until(async () => (await service.read(children[0]!.work_id)).work.state === "completed", "first sub-task done");
-  // The person stops the work: its wait ends before the sub-task still running stops with it, so that stop is not what
-  // the work waited for, and the finished one does not move it on.
+  // The person stops the work: its wait ends before the sub-tasks still running stop with it, so their stop is not what
+  // the work waited for, and nothing moves it on.
   await service.control(parentId, { kind: "stop" });
   assert.equal((await root()).continuation?.state, "cancelled", "the person's stop ends the work's wait");
-  await until(async () => (await service.read(children[1]!.work_id)).work.state === "stopped", "second sub-task stopped");
+  await until(async () => (await service.read(children[0]!.work_id)).work.state === "stopped" && (await service.read(children[1]!.work_id)).work.state === "stopped", "both sub-tasks stopped");
+  release("开头"); release("结尾");
   await pause(600);
   assert.equal(rounds().length, 1, "nothing starts after the person stopped it");
   assert.equal(later.length, 0);
@@ -167,7 +170,7 @@ test("no hand-back round when the person stopped the delegating work; their next
   await service.send({ work_id: parentId, text: "子任务做得怎么样？", request_id: "req-stopped-ask" }, {});
   await until(async () => (await service.read(parentId)).work.state === "completed" && rounds().length === 2, "the person's round");
   assert.match(later[0]!, /子任务交回/);
-  assert.match(later[0]!, /「开头」：已完成/);
+  assert.match(later[0]!, /「开头」：被停止了/);
   assert.match(later[0]!, /「结尾」：被停止了/);
 });
 

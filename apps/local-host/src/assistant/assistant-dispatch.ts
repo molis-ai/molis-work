@@ -9,7 +9,7 @@ import type { AssistantDelegations } from "./assistant-delegation.js";
 import { ASSISTANT_INSTALL_ID, ASSISTANT_PLUGIN_ID, type AssistantUnsettledChange, type AssistantContextSnapshot, type AssistantMaterial, type AssistantRound, type AssistantSendResult, type AssistantWorkView, type AssistantHandover, type AssistantExecutorOffer } from "@molis-ai/molis-work-contracts/services/assistant";
 import { replyLanguage } from "../reply-language.js";
 import { runBackgroundWork } from "../web-locale.js";
-import { ASSISTANT_DELEGATED_ROLE_ID, ASSISTANT_ROLE_ID } from "./assistant-agent.js";
+import { ASSISTANT_DELEGATED_ROLE_ID, ASSISTANT_MAIN_ROLE_ID, ASSISTANT_ROLE_ID } from "./assistant-agent.js";
 import { agentActions } from "./assistant-directory.js";
 import { openSession } from "./assistant-executor-session.js";
 import { identity } from "./assistant-relations.js";
@@ -199,7 +199,7 @@ export class AssistantDispatch {
       requireSynchronous(assertBeforeStart?.(), "最终授权检查必须同步完成"); assertSendCurrent(stillCurrent); handoff.assertCurrent();
     } } : base), original_input, ...(replyLocale ? { reply_language: replyLanguage(replyLocale) } : {}) });
     let authority = startAuthority();
-    const role = work.reply_target ? "thread-reply" : work.delegated_by ? ASSISTANT_DELEGATED_ROLE_ID : ASSISTANT_ROLE_ID;
+    const role = work.reply_target ? "thread-reply" : work.delegated_by ? ASSISTANT_DELEGATED_ROLE_ID : work.main ? ASSISTANT_MAIN_ROLE_ID : ASSISTANT_ROLE_ID;
     if (!work.session_id) {
       const session = await host.createSession(RUNTIME, { project_id: ownerOf(work), plugin_id: ASSISTANT_PLUGIN_ID, install_id: ASSISTANT_INSTALL_ID,
         actor_id: this.actorId, title: work.title, workspace: "business", role_id: role }, authority);

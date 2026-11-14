@@ -331,6 +331,7 @@ export { registerMemoryProjectDeletion } from "./memory/memory-project-deletion.
 export { COMPUTER_RECORD_FILE, ComputerRecords } from "./computer/computer-records.js";
 export { handleComputerHttp, type ComputerShelf } from "./computer/computer-http.js";
 export { assistantRelatedAction, assistantRelatedRegistration, type RelatedWorksSource } from "./assistant/assistant-related-action.js";
+export { ASSISTANT_LINE_ACTIONS, ASSISTANT_WORK_KIND, assistantLineRegistration, type AssistantLineSource } from "./assistant/assistant-line-actions.js";
 export { assistantThreadActions } from "./assistant/assistant-thread-actions.js";
 export { ComputerDesk } from "./computer/computer-desk.js";
 export { ComputerSettings } from "./computer/computer-settings.js";

@@ -293,7 +293,7 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
           brief: { type: "string", description: "What to do, with the context it needs. It does not see this conversation." },
           acceptance: { type: "string", description: "How to tell it is done and right: what must exist and hold." },
           materials: { type: "array", items: { type: "object", properties: { title: { type: "string" }, text: { type: "string" } }, required: ["title", "text"] }, description: "Only the text it needs (at most 4)." },
-          character: { type: "string", description: "Optional: the id of one professional role from \"可委托的专业角色\" when this part needs that role; the sub-task then runs as exactly that role. Leave it out when none fits: the sub-task then runs as the Assistant." },
+          character: { type: "string", description: "Optional: the id of one professional role from \"可委托的专业角色\" when this part needs that role; the sub-task then runs as exactly that role. Leave it out when none fits: the sub-task then runs as the Assistant." }, ...DELEGATE_PLACEMENT,
         } }, "mutate-external"),
       tool(DELEGATION_TOOLS.check, "Read the delegated works (all, or given work_ids): state, latest reply, objects they produced. With wait_seconds (≤50) it waits for them to finish or to need the person. A work's own report is not proof: check its results against the acceptance bar before relying on them.",
         { type: "object", additionalProperties: false, properties: { work_ids: { type: "array", items: { type: "string" } }, wait_seconds: { type: "integer", minimum: 0, maximum: 50 } } }, "safe-read"),
@@ -336,6 +336,12 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
   return { pack, executors, names, known, offered, declare: declared.note, parameterBranches: declared.parameterBranches };
 }
 
+/** Where a sub-task belongs on the work line (specs/work-line §5): an event there, an event of its own, or neither. */
+const DELEGATE_PLACEMENT = {
+  for_event: { type: "object", additionalProperties: false, required: ["kind", "id"], properties: { kind: { type: "string" }, id: { type: "string" } }, description: "Optional: the event on the work line this sub-task is done for, exactly as the line read gave its subject. Leave it out when it belongs to no event on the line." },
+  track: { type: "boolean", description: "Optional: true puts this sub-task on the work line as an event of its own, for work the person will want to follow (it makes something, or they said to keep an eye on it). Not together with for_event; leave both out for a passing errand, which then shows only in the background task panel." },
+} as const;
+
 /** The delegation tools, each a thin call into the caller's delegation (which owns limits and the works themselves). */
 function delegationExecutors(given: Gateway["client"]["delegate"], guarded: (run: (args: Record<string, unknown>, signal: AbortSignal) => Promise<string>) => ToolRunner): Record<string, ToolRunner> {
   const available = () => { if (!given) throw new ActionError("actions.forbidden", "This work cannot hand out sub-tasks (a delegated work does not delegate further)."); return given; };
@@ -350,8 +356,12 @@ function delegationExecutors(given: Gateway["client"]["delegate"], guarded: (run
       const materials = Array.isArray(args.materials) ? args.materials.flatMap(item => item && typeof item === "object" && typeof (item as { title?: unknown }).title === "string" && typeof (item as { text?: unknown }).text === "string"
         ? [{ title: (item as { title: string }).title.slice(0, 200), text: (item as { text: string }).text.slice(0, 20_000) }] : []).slice(0, 4) : [];
       const character = typeof args.character === "string" && args.character.trim() ? args.character.trim().slice(0, 200) : undefined;
-      const started = await delegate.start({ title: text(args.title, "title", 80), brief: text(args.brief, "brief", 8000), acceptance: text(args.acceptance, "acceptance", 2000), ...(materials.length ? { materials } : {}), ...(character ? { character } : {}) });
-      return JSON.stringify({ delegated: started, note: "It runs on its own now. Use check-delegated-work to follow it; do not redo its part yourself meanwhile." });
+      const event = args.for_event as { kind?: unknown; id?: unknown } | undefined;
+      const for_event = event && typeof event === "object" ? { kind: text(event.kind, "for_event.kind", 120), id: text(event.id, "for_event.id", 256) } : undefined;
+      if (for_event && args.track === true) throw new ActionError("actions.reference_invalid", "Give for_event or track, not both.");
+      const started = await delegate.start({ title: text(args.title, "title", 80), brief: text(args.brief, "brief", 8000), acceptance: text(args.acceptance, "acceptance", 2000), ...(materials.length ? { materials } : {}), ...(character ? { character } : {}),
+        ...(for_event ? { for_event } : {}), ...(args.track === true ? { track: true } : {}) });
+      return JSON.stringify({ delegated: started, note: "It runs in the background now and you will be told when it ends or needs the person: answer the person now and end this round; do not wait for it with check-delegated-work, and do not redo its part yourself meanwhile." });
     }),
     [DELEGATION_TOOLS.check]: guarded(async (args, signal) => {
       const ids = Array.isArray(args.work_ids) ? args.work_ids.filter((id): id is string => typeof id === "string").slice(0, 20) : undefined;

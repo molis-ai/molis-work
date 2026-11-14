@@ -11,6 +11,8 @@ const promptBody = (id: string) => readLocalizedMarkdown(new URL("../../prompts/
 export const ASSISTANT_ROLE_ID = "assistant";
 /** A work another work delegated: it runs on the same base, with what being a part of another work means. */
 export const ASSISTANT_DELEGATED_ROLE_ID = "assistant-delegated";
+/** The Assistant in the standing main conversation of a scope. */
+export const ASSISTANT_MAIN_ROLE_ID = "assistant-main";
 
 /** How a long work's older history is trimmed: which original passages to keep, never a rewrite of them. */
 const ASSISTANT_COMPACTION = [
@@ -57,6 +59,7 @@ export const ASSISTANT_PROMPTS: AgentPromptText[] = [
   { prompt_id: "assistant-base", version: /* @version prompt.assistant-base */ 5, layer: "base", ...promptBody("assistant-base") },
   { prompt_id: "assistant-work", version: /* @version prompt.assistant-work */ 3, layer: "role", ...promptBody("assistant-work") },
   { prompt_id: "assistant-delegated", version: /* @version prompt.assistant-delegated */ 2, layer: "role", ...promptBody("assistant-delegated") },
+  { prompt_id: "assistant-main", version: /* @version prompt.assistant-main */ 1, layer: "role", ...promptBody("assistant-main") },
   { prompt_id: "assistant-compaction", version: /* @version prompt.assistant-compaction */ 1, body: ASSISTANT_COMPACTION },
   { prompt_id: "assistant-ending-review", version: /* @version prompt.assistant-ending-review */ 2, body: ASSISTANT_ENDING_REVIEW },
 ];
@@ -66,7 +69,7 @@ export const ASSISTANT_PROMPTS: AgentPromptText[] = [
  * work's scope, queries directly and commands under the effect policy.
  */
 export const ASSISTANT_AGENT: AgentManifest = {
-  prompts: [{ prompt_id: "assistant-thread", version: /* @version prompt.assistant-thread */ 2, layer: "base" }, { prompt_id: "assistant-base", version: /* @version prompt.assistant-base */ 5, layer: "base" }, { prompt_id: "assistant-work", version: /* @version prompt.assistant-work */ 3, layer: "role" }, { prompt_id: "assistant-delegated", version: /* @version prompt.assistant-delegated */ 2, layer: "role" }, { prompt_id: "assistant-compaction", version: /* @version prompt.assistant-compaction */ 1 }, { prompt_id: "assistant-ending-review", version: /* @version prompt.assistant-ending-review */ 2 }],
+  prompts: [{ prompt_id: "assistant-thread", version: /* @version prompt.assistant-thread */ 2, layer: "base" }, { prompt_id: "assistant-base", version: /* @version prompt.assistant-base */ 5, layer: "base" }, { prompt_id: "assistant-work", version: /* @version prompt.assistant-work */ 3, layer: "role" }, { prompt_id: "assistant-delegated", version: /* @version prompt.assistant-delegated */ 2, layer: "role" }, { prompt_id: "assistant-main", version: /* @version prompt.assistant-main */ 1, layer: "role" }, { prompt_id: "assistant-compaction", version: /* @version prompt.assistant-compaction */ 1 }, { prompt_id: "assistant-ending-review", version: /* @version prompt.assistant-ending-review */ 2 }],
   // A long work keeps what it needs when its history grows past the window: the runtime picks passages, it never rewrites them.
   // The runtime counts the whole context, this round's lookups and readings included: at 16,000 almost every first round
   // (25–33k with its capability lookups) paid for a compaction it did not need.
@@ -77,11 +80,16 @@ export const ASSISTANT_AGENT: AgentManifest = {
     role_id: ASSISTANT_ROLE_ID, version: /* @version role.assistant */ 1, name: "个人工作助理", workspace: "business", execution: "operate",
     prompts: ["assistant-base", "assistant-work"], host_tools: [...BUSINESS_HOST_TOOLS],
   }, {
+    // The standing conversation of a scope (specs/work-line §3.2): the same role, with how a main conversation answers first,
+    // puts long work in the background, says where it went and takes results back. Which work is one is the Host's record.
+    role_id: ASSISTANT_MAIN_ROLE_ID, version: /* @version role.assistant-main */ 1, name: "主对话里的个人助理", workspace: "business", execution: "operate",
+    prompts: ["assistant-base", "assistant-work", "assistant-main"], host_tools: [...BUSINESS_HOST_TOOLS],
+  }, {
     // Delegating one level deep, and keeping or forgetting on the person's words, are the Host's checks on the work itself
     // (`assistant-delegation.ts`, `assistant-memory-tools.ts`); this role carries only what being delegated means for the reply.
     role_id: ASSISTANT_DELEGATED_ROLE_ID, version: /* @version role.assistant-delegated */ 1, name: "委派的子任务", workspace: "business", execution: "operate",
     prompts: ["assistant-base", "assistant-delegated"], host_tools: [...BUSINESS_HOST_TOOLS],
   }],
   // A Character the person published in the work's project may carry a round: exact version, their own, this project only.
-  characters: { selection: "optional-exact-artifact", scope: "project-owner", role_ids: [ASSISTANT_ROLE_ID, ASSISTANT_DELEGATED_ROLE_ID] },
+  characters: { selection: "optional-exact-artifact", scope: "project-owner", role_ids: [ASSISTANT_ROLE_ID, ASSISTANT_MAIN_ROLE_ID, ASSISTANT_DELEGATED_ROLE_ID] },
 };

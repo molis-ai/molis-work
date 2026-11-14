@@ -152,9 +152,9 @@ export interface AgentWorkJobQuery {
  * stands on it, as that round ended; the root stays open while the work goes on. The graph owns states, holders and
  * generations; the work keeps only the graph's id, and a part only its step.
  *
- * Hand-back (§6.0n): the root waits, by the Host, for every unfinished part under it: a part is a step a session holds,
- * so a job the work follows (§6.0o) is not one. Once they have all ended the root's
- * continuation may go on: a round of the work running then takes it at its next model boundary; otherwise the work's next
+ * Hand-back (§6.0n, specs/work-line/contract-design.md §9): the root waits, by the Host, for every unfinished part under it:
+ * a part is a step a session holds, so a job the work follows (§6.0o) is not one. Each time one of them ends the root's
+ * continuation may go on, and the work's next round waits again for the rest: a round of the work running then takes it at its next model boundary; otherwise the work's next
  * round is started under the continuation's request key, which takes it up. One step has one continuation: the Host
  * changes only the waits it armed, and hands nothing out while the root waits on one its round armed.
  */

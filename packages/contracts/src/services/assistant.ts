@@ -298,6 +298,10 @@ export interface AssistantWork {
   delegated_by?: { work_id: string; title: string; acceptance: string; taken_back_at?: string };
   /** The person's cap on this work's tokens (input plus output, its sub-tasks included). Absent means no cap of its own. */
   budget_tokens?: number;
+  /** The standing conversation of its scope with one counterpart (the Assistant, or `character`): what is said at 「现在」 goes here and its background tasks report back to it (specs/work-line §3.2). */
+  main?: true;
+  /** On a background task: the events on the work line it is done for (the `serves` relation), and whether it is an event in its own right. */
+  serves?: Array<{ kind: string; id: string }>; line_event?: true;
 }
 
 /** An exact published Character version, as the person chose it. */
@@ -488,6 +492,7 @@ export type { AssistantRecovery } from "./assistant-recovery.js";
 export interface AssistantSendInput extends Pick<AgentInputSend, "about"> {
   /** Omitted starts a new work. */
   work_id?: string;
+  main?: true; // Without `work_id`: the main conversation of this scope with this counterpart (`character`, or the Assistant), opened on first use.
   /** For a new work: who carries it. An existing work keeps its executor. */
   executor?: AssistantExecutorChoice;
   /** For a new work carried by a plugin: the mode of its first round. Later rounds use the session's own setting. */

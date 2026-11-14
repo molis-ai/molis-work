@@ -188,14 +188,14 @@ export class AssistantStore {
   }
 
   create(input: { actor_id: string; title: string; scope: AssistantScope; scope_title?: string; origin: AssistantSurfaceRef | null; project_ref?: LocalHostProjectReference; executor?: AssistantExecutor;
-    delegated_by?: StoredWork["delegated_by"] }): StoredWork {
+    delegated_by?: StoredWork["delegated_by"]; main?: true; serves?: StoredWork["serves"]; line_event?: true }): StoredWork {
     const at = this.now().toISOString();
     const work: StoredWork = { work_id: `work-${randomUUID()}`, revision: 1, title: input.title, scope: structuredClone(input.scope), origin: input.origin ? structuredClone(input.origin) : null,
       ...(input.scope_title ? { scope_title: input.scope_title } : {}),
       executor: input.executor ?? { kind: "assistant" },
       session_id: null, draft: "", draft_revision: 1, created_at: at, updated_at: at, archived: false, actor_id: input.actor_id,
       ...(input.project_ref ? { project_ref: structuredClone(input.project_ref) } : {}),
-      ...(input.delegated_by ? { delegated_by: { ...input.delegated_by } } : {}) };
+      ...(input.delegated_by ? { delegated_by: { ...input.delegated_by } } : {}), ...(input.main ? { main: true as const } : {}), ...(input.serves?.length ? { serves: input.serves.map(one => ({ ...one })) } : {}), ...(input.line_event ? { line_event: true as const } : {}) };
     this.db.prepare("INSERT INTO assistant_works(work_id,actor_id,revision,updated_at,archived,body) VALUES (?,?,?,?,0,?)")
       .run(work.work_id, work.actor_id, work.revision, work.updated_at, JSON.stringify(work));
     return work;
@@ -216,7 +216,7 @@ export class AssistantStore {
   }
 
   /** Optimistic: a caller holding an older revision gets a conflict instead of overwriting a newer change. */
-  update(actorId: string, workId: string, expected: number | null, patch: Partial<Pick<StoredWork, "title" | "session_id" | "draft" | "archived" | "executor" | "handover_brief" | "character" | "graph_id" | "delegated_by" | "budget_tokens" | "question_drafts" | "reply_target" | "thread_round" | "continuation_hold">>, touch = true): StoredWork {
+  update(actorId: string, workId: string, expected: number | null, patch: Partial<Pick<StoredWork, "title" | "session_id" | "draft" | "archived" | "executor" | "handover_brief" | "character" | "graph_id" | "delegated_by" | "budget_tokens" | "question_drafts" | "reply_target" | "thread_round" | "continuation_hold" | "serves" | "line_event">>, touch = true): StoredWork {
     const current = this.get(actorId, workId);
     if (expected !== null && current.revision !== expected) throw assistantErrors.conflict("这项工作已在别处更新，请刷新后再改");
     if (Object.hasOwn(patch, "session_id")) {

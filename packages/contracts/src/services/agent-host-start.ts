@@ -283,8 +283,11 @@ export interface AgentDelegatedWork {
 }
 
 export interface AgentDelegation {
-  /** `character`: one of the professional roles offered this round (its id); the sub-task then runs as exactly that role. */
-  start(input: { title: string; brief: string; acceptance: string; materials?: Array<{ title: string; text: string }>; character?: string }): Promise<AgentDelegatedWork>;
+  /**
+   * `character`: one of the professional roles offered this round (its id); the sub-task then runs as exactly that role.
+   * `for_event`: the event on the work line it is done for; `track`: it becomes an event of its own (specs/work-line §5). Neither: it belongs to no event.
+   */
+  start(input: { title: string; brief: string; acceptance: string; materials?: Array<{ title: string; text: string }>; character?: string; for_event?: { kind: string; id: string }; track?: true }): Promise<AgentDelegatedWork>;
   /** The delegated works (all, or the given ones), waiting up to `wait_ms` for them to finish or need the person. */
   status(input: { work_ids?: string[]; wait_ms?: number }, signal?: AbortSignal): Promise<AgentDelegatedWork[]>;
   /** Tell a delegated work what to fix or add (its next round); bounded per work. */

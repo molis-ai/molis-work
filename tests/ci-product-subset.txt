@@ -90,6 +90,8 @@ tests/artifact-subject-context.test.ts
 tests/assistant-answers.test.ts
 tests/assistant-attachments.test.ts
 tests/assistant-attention.test.ts
+tests/assistant-line.test.ts
+tests/assistant-main-conversation.test.ts
 tests/assistant-character.test.ts
 tests/assistant-executor.test.ts
 tests/assistant-executor-product.test.ts

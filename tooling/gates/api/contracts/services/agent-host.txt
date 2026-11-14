@@ -156,6 +156,11 @@ export interface AgentDelegation {
             text: string;
         }>;
         character?: string;
+        for_event?: {
+            kind: string;
+            id: string;
+        };
+        track?: true;
     }): Promise<AgentDelegatedWork>;
     status(input: {
         work_ids?: string[];

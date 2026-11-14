@@ -11,10 +11,13 @@ import type { AssistantStore, StoredWork } from "./assistant-store.js";
 import { identity } from "./assistant-relations.js";
 
 /**
- * How much one work may hand out: the Assistant's own product rule, defined here and nowhere else. `parts` sub-tasks in
- * all (put away ones count), `active` of them going at once, `followUps` follow-ups on each.
+ * How much one work may hand out: the Assistant's own product rule, defined here and nowhere else. `active` sub-tasks
+ * going at once (the SDK's wait takes at most eight), `followUps` follow-ups on each, and `autoRounds` rounds the Host
+ * writes in a row before the work stops and reports to the person (specs/work-line/contract-design.md §9, §10). There is
+ * no cap on how many a work hands out in all: a main conversation stands for as long as its scope, and what it spends is
+ * bounded by the usage caps.
  */
-const DELEGATION_LIMITS = { parts: 6, active: 3, followUps: 2 } as const;
+const DELEGATION_LIMITS = { active: 5, followUps: 2, autoRounds: 8 } as const;
 const RUNTIME = "prologue";
 const ENDED: readonly string[] = ["succeeded", "failed", "cancelled"];
 /** A part's steps on its delegating work's graph: the one it was handed out as, and those under it (follow-ups, the person's rounds). */
@@ -23,7 +26,7 @@ const partSteps = (nodes: readonly AgentWorkNode[], child: StoredWork) => nodes.
 const open = (steps: readonly AgentWorkNode[]) => steps.filter(step => !ENDED.includes(step.state));
 const followUps = (steps: readonly AgentWorkNode[]) => steps.filter(step => /\.f\d+$/.test(step.node_id)).length;
 const TAKEN_BACK_NOTE = "用户把这个子任务收回到这项工作：它已停下，已产出的保留。";
-const WAITS_FOR_PARTS = "等交出去的子任务都结束，再接着做这项工作";
+const WAITS_FOR_PARTS = "等交出去的子任务有结果，再接着做这项工作";
 /** The latest-ended step of a part's steps. */
 const lastEnded = (steps: readonly AgentWorkNode[]) => steps.filter(step => step.ended_at).sort((a, b) => a.ended_at!.localeCompare(b.ended_at!)).at(-1);
 
@@ -38,6 +41,8 @@ interface DelegationPorts {
   /** The work's latest reply in its own words, if it gave one. */
   lastReply(work: StoredWork): Promise<string | undefined>;
   chooseCharacter(work: StoredWork, choice: AssistantCharacterRef): Promise<StoredWork>;
+  /** The events the work line shows to this work, read with the work's own authority; absent or refused, a sub-task cannot be hung on an event. */
+  lineEvents?(work: StoredWork): Promise<ReadonlyArray<{ kind: string; id: string }>>;
   /** Start (or add to) a round of this work; `host` marks words the Host wrote. `request` makes the start happen once. */
   dispatch(work: StoredWork, text: string, materials: AssistantMaterial[], writtenBy: "assistant" | "host", request?: string, stillCurrent?: () => boolean): Promise<unknown>;
   read(workId: string): Promise<AssistantWorkView>;
@@ -51,9 +56,10 @@ interface DelegationPorts {
  * by the part's session, and each follow-up a step under the part. A part's step ends with the round that stands on it;
  * whether a part still has something to do, how often it was followed up, and which work asked, are read from the graph.
  *
- * Hand-back (§6.0n): each time the work hands a step out, its root waits on every step under it not yet ended. Once
- * they all have, the SDK hands the result to the work's round still running, or the root's continuation may go on: the
- * work then goes on by itself in one round the Host writes ("子任务都已交回"), started under the continuation's request
+ * Hand-back (§6.0n, specs/work-line/contract-design.md §9): each time the work hands a step out, its root waits on every
+ * step under it not yet ended. Each time one of them ends (the others may still be under way), the SDK hands the result
+ * to the work's round still running, or the root's continuation may go on: the work then goes on by itself in one round
+ * the Host writes ("子任务交回"), started under the continuation's request
  * key like any other round (its current authority, the shared token cap, its reviews). It does not go on when the person
  * stopped it (the continuation is held for them), when its round failed or stopped, or when the only news is a sub-task
  * someone stopped; its next round takes the continuation up instead. A start that is refused tells the person why and
@@ -101,12 +107,19 @@ export class AssistantDelegations {
           if (!role.available) throw assistantErrors.character_unavailable(`角色「${role.title}」现在不能用：${role.reason ?? "不可用"}；没有换成别的角色`);
         }
         const children = store.delegatedBy(actorId, { graph_id }, "any"), nodes = await graphs.read(graph_id);
-        if (children.length >= DELEGATION_LIMITS.parts) throw assistantErrors.limit(`这项工作已经委托了 ${DELEGATION_LIMITS.parts} 个子任务，不能再多；请自己完成剩下的部分或告诉用户`);
-        if (children.filter(child => open(partSteps(nodes, child)).length).length >= DELEGATION_LIMITS.active) throw assistantErrors.limit(`已有 ${DELEGATION_LIMITS.active} 个子任务在进行，等其中一个结束再委托`);
+        if (children.filter(child => open(partSteps(nodes, child)).length).length >= DELEGATION_LIMITS.active) throw assistantErrors.limit(`已有 ${DELEGATION_LIMITS.active} 个子任务在办：这一件没有开始。告诉用户它在排队，等其中一个交回后再委托`);
+        // Which event it is done for is its owner's record (the `serves` relation): only an event the line shows to this work's project.
+        if (input.for_event) {
+          const wanted = input.for_event;
+          if (!parent.project_ref || !this.ports.lineEvents) throw assistantErrors.scope("个人工作没有事项线，子任务不能挂到事件上");
+          const events = await this.ports.lineEvents(parent);
+          if (!events.some(event => event.kind === wanted.kind && event.id === wanted.id)) throw assistantErrors.not_found("事项线上没有这个事件（或这项工作读不到它）：子任务没有开始。先读事项线，用它给出的事件对象；不属于任何事件就不要带 for_event");
+        }
         const node_id = `p-${randomUUID().slice(0, 12)}`;
         const child = store.create({ actor_id: actorId, title: input.title.slice(0, 80), scope: parent.scope, ...(parent.scope_title ? { scope_title: parent.scope_title } : {}),
           origin: { surface: "assistant", title: `「${parent.title}」委托` }, ...(parent.project_ref ? { project_ref: parent.project_ref } : {}),
-          delegated_by: { graph_id, node_id, title: parent.title, acceptance: input.acceptance.slice(0, 2000) } });
+          delegated_by: { graph_id, node_id, title: parent.title, acceptance: input.acceptance.slice(0, 2000) },
+          ...(input.for_event ? { serves: [{ kind: input.for_event.kind, id: input.for_event.id }] } : {}), ...(input.track && parent.project_ref ? { line_event: true as const } : {}) });
         const materials: AssistantMaterial[] = (input.materials ?? []).slice(0, 4).map((material, index) => ({ material_id: `delegated-${index + 1}`, kind: "text", title: material.title.slice(0, 200),
           text: material.text.slice(0, 20_000), explicit: true, source: { surface: "assistant", title: parent.title } }));
         try {
@@ -251,6 +264,16 @@ export class AssistantDelegations {
     if (work.graph_id && !work.delegated_by) await (await this.#graphs()).hold({ graph_id: work.graph_id, note: "用户停止了这项工作，子任务交回的结果等用户下一轮再看" });
   }
 
+  /**
+   * A round of the work ended: a part that came back while it ran, and that the round did not take up itself, goes on now.
+   * The graph says once more which roots may go on; only this work's is acted on.
+   */
+  async roundEnded(work: StoredWork): Promise<void> {
+    if (work.delegated_by || !work.graph_id) return;
+    const graphs = await this.#graphs();
+    graphs.onReady(ready => { if (ready.graph_id === work.graph_id) void this.#continue(ready).catch(() => undefined); })();
+  }
+
   /** A hand-back round of the work is being prepared: a stop may withdraw it. */
   isHandingBack(parentId: string): boolean { return this.#continuing.has(parentId); }
 
@@ -308,8 +331,22 @@ export class AssistantDelegations {
       };
       // Started once per continuation: the round's own start is under the continuation's request key (the binding's).
       const key = `hand-back-${ready.request_key.replace(/[^A-Za-z0-9-]/g, "-")}`.slice(0, 80);
+      // So many rounds in a row that no person wrote: the work stops here and says so; the person's next word starts the count again.
+      const rounds = store.rounds(parent.work_id);
+      let auto = 0;
+      while (auto < rounds.length && rounds[rounds.length - 1 - auto]!.written_by === "host") auto++;
+      if (auto >= DELEGATION_LIMITS.autoRounds) {
+        this.#refused.add(ready.request_key);
+        this.ports.notify(parent, { label: assistantWords("workbench.assistant-notice.handoff-blocked", { title: parent.title }), original: `已经连续自己接着做了 ${DELEGATION_LIMITS.autoRounds} 轮，先停下来等你看一眼；你再说一句，它就接着做` }, key);
+        return;
+      }
+      const nodes = await (await this.#graphs(host)).read(parent.graph_id!);
+      const under = store.delegatedBy(actorId, parent).filter(child => !child.delegated_by?.taken_back_at && open(partSteps(nodes, child)).length).length;
+      const names = back.map(item => `「${item.child.title}」`).join("");
       try {
-        await this.ports.dispatch(parent, `（子任务都已交回）请核对${back.map(item => `「${item.child.title}」`).join("")}的结果，把这项工作接着做完。`, [], "host", key, stillCurrent);
+        await this.ports.dispatch(parent, under
+          ? `（子任务交回）${names}有结果了，还有 ${under} 个子任务在办。请核对交回的结果，按用户最新的要求判断接下来怎么做，并告诉用户进展；不用等其余的，它们办完会再告诉你。`
+          : `（子任务都已交回）请核对${names}的结果，把这项工作接着做完。`, [], "host", key, stillCurrent);
       } catch (error) {
         this.#refused.add(ready.request_key);
         this.ports.notify(parent, { label: assistantWords("workbench.assistant-notice.handoff-blocked", { title: parent.title }), original: error instanceof Error ? error.message : String(error) }, key);

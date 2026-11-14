@@ -126,8 +126,9 @@ export function callBudgetProblems(head, base, required) {
     for (const [counter, limit] of Object.entries(counters)) {
       const next = after[scenario];
       if (!Object.hasOwn(next, counter)) errors.push(`${CALL_BUDGET_FILE}: removed counter ${scenario}.${counter}`);
-      else if (next[counter] > limit && next[counter] > (allowed[`${scenario}.${counter}`] ?? 0)) {
-        errors.push(`${CALL_BUDGET_FILE}: ${scenario}.${counter} grew ${limit} → ${next[counter]}${allowed[`${scenario}.${counter}`] ? `; new allowances cover ${allowed[`${scenario}.${counter}`]}` : ""}`);
+      else if (next[counter] > limit && next[counter] !== allowed[`${scenario}.${counter}`]) {
+        // The budget may reach exactly what a new allowance names: never past it, and never short of it (no headroom kept for later).
+        errors.push(`${CALL_BUDGET_FILE}: ${scenario}.${counter} grew ${limit} → ${next[counter]}${allowed[`${scenario}.${counter}`] ? `; new allowances name ${allowed[`${scenario}.${counter}`]}, and the budget must equal it` : ""}`);
       }
     }
   }

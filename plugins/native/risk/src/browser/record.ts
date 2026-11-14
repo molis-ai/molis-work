@@ -78,12 +78,22 @@ function facts(page: RiskPage, risk: RiskRecord): string {
     <dt>${esc(text("field.owner"))}</dt><dd>${risk.owner_name ? `<span class="rk-owner">${icon("user")}${esc(risk.owner_name)}</span>` : `<span class="rk-muted">${esc(text("record.no-owner"))}</span>`}</dd></dl>` });
 }
 
-function main(page: RiskPage, risk: RiskRecord): string {
+/** What the risk is and how it is handled; editing or a conflict takes their place. */
+function body(page: RiskPage, risk: RiskRecord): string {
   if (page.state.conflict) return conflictBlock(page);
   if (page.state.editing) return renderDraftForm(page, "edit");
   const edit = page.state.readOnly || risk.status === "closed" ? "" : act(text("action.edit"), "edit", { variant: "ghost", icon: "edit" });
   return `${section(text("field.statement"), prose(risk.statement), edit)}${section(text("field.treatment"), risk.treatment.trim() ? prose(risk.treatment)
-    : `<p class="rk-muted">${esc(text("record.no-plan"))}</p>`)}${activity(page, page.state.record!.events, risk)}`;
+    : `<p class="rk-muted">${esc(text("record.no-plan"))}</p>`)}`;
+}
+
+/** Design C: opened beside the Goal it came from, what the risk is comes first; the facts shrink to two lines above it. */
+function compact(page: RiskPage, risk: RiskRecord): string {
+  const head = `<div class="rk-chead">${statusControl(page, risk)}${severityGrid(risk)}<span class="rk-muted">${esc(text("record.updated", { when: when(risk.updated_at) }))}</span></div>
+    <div class="rk-kv">${levelBadge("impact", risk.impact)}${levelBadge("likelihood", risk.likelihood)}${risk.owner_name
+      ? `<span class="rk-owner">${icon("user")}${esc(risk.owner_name)}</span>` : `<span class="rk-muted">${esc(text("record.no-owner"))}</span>`}</div>`;
+  const rest = page.state.conflict || page.state.editing ? "" : `${linkSection(page, risk)}${renderReview(page, risk)}${activity(page, page.state.record!.events, risk)}`;
+  return `<div class="rk-compact">${head}${body(page, risk)}${rest}</div>`;
 }
 
 export function renderRecord(page: RiskPage): string {
@@ -95,11 +105,12 @@ export function renderRecord(page: RiskPage): string {
   }
   if (!state.record) return `${back}<p class="rk-muted" aria-busy="true">${esc(text("overview.loading"))}</p>`;
   const risk = state.record.risk;
-  const description = text("record.updated", { when: when(risk.updated_at) });
-  const tools = page.side ? renderButton({ label: text("action.expand"), variant: "ghost", size: "sm", icon: "maximize", iconOnly: true, attrs: { "data-rk-act": "expand" } }) : "";
+  if (page.side) {
+    const expand = renderButton({ label: text("action.expand"), variant: "ghost", size: "sm", icon: "maximize", iconOnly: true, attrs: { "data-rk-act": "expand" } });
+    return renderFrame({ title: risk.title, action: expand, panel: `${banner(page, risk)}${compact(page, risk)}`, className: "rk-frame rk-frame--side" });
+  }
+  const main = page.state.conflict || page.state.editing ? body(page, risk) : `${body(page, risk)}${activity(page, page.state.record!.events, risk)}`;
   const side = `${facts(page, risk)}${linkSection(page, risk)}${renderReview(page, risk)}`;
-  const panel = page.side
-    ? `${banner(page, risk)}<div class="rk-compact">${side}${main(page, risk)}</div>`
-    : `${banner(page, risk)}<div class="rk-two"><div class="rk-col">${main(page, risk)}</div><aside class="rk-col rk-side">${side}</aside></div>`;
-  return back + renderFrame({ title: risk.title, description, action: tools, panel, className: `rk-frame${page.side ? " rk-frame--side" : ""}` });
+  return back + renderFrame({ title: risk.title, description: text("record.updated", { when: when(risk.updated_at) }),
+    panel: `${banner(page, risk)}<div class="rk-two"><div class="rk-col">${main}</div><aside class="rk-col rk-side">${side}</aside></div>`, className: "rk-frame" });
 }

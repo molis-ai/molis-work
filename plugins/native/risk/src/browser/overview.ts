@@ -52,7 +52,7 @@ function row(risk: RiskRow): string {
   const sub = risk.links.length ? text("overview.links", { count: risk.links.length }) : text("filter.no-links");
   const owner = risk.owner_name ? `<span class="rk-owner">${icon("user")}${esc(risk.owner_name)}</span>` : "";
   return `<li class="mw-item rk-row" role="button" tabindex="0" data-rk-open="${esc(risk.risk_id)}" data-risk-row data-risk-id="${esc(risk.risk_id)}">
-    <span class="mw-mark rk-mark">${severityGrid(risk)}</span><span><strong>${esc(risk.title)}</strong><small>${esc(sub)}</small></span>
+    <span class="mw-mark rk-mark">${severityGrid(risk)}</span><span class="rk-row__text"><strong title="${esc(risk.title)}">${esc(risk.title)}</strong><small>${esc(sub)}</small></span>
     <span class="mw-item__end">${owner}</span></li>`;
 }
 

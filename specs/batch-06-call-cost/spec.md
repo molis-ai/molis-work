@@ -57,7 +57,7 @@
 
 以 `MOLIS_WORK_CALL_BUDGET_REPORT=1` 运行预算测试可重打报告，CI 始终比较 [预算](../../tooling/gates/call-budget.json)。
 
-预算对照 merge-base 只许下降；确需增长时（如新增内置插件让线性扫描的登记行变多），在 `tooling/gates/call-budget-allowances/` 放一份按任务的许可（`reason`、`review`、`userApproval` 与 `counters`：场景 → 计数 → 可到的值），只放行基点没有的新许可、只到写明的值；已采用的许可不能改、不能删，也不再放行（`scripts/gates/call-budget.mjs`，用例 `tests/call-budget-gate.test.mjs`；用户 2026-11-14 在第 17 批定）。
+预算对照 merge-base 只许下降；确需增长时（如新增内置插件让线性扫描的登记行变多），在 `tooling/gates/call-budget-allowances/` 放一份按任务的许可（`reason`、`review`、`userApproval` 与 `counters`：场景 → 计数 → 可到的值），只放行基点没有的新许可，变大的计数必须正好等于许可写的值（不留余量）；已采用的许可不能改、不能删，也不再放行（`scripts/gates/call-budget.mjs`，用例 `tests/call-budget-gate.test.mjs`；用户 2026-11-14 在第 17 批定）。
 
 ## 首片验证
 

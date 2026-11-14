@@ -100,6 +100,21 @@ test("RISK-07 a one-off task past its time cannot be resumed; given a new time i
   } finally { h.db.close(); }
 });
 
+test("RISK-07 editing a one-off task without saying how it repeats keeps it one-off at its time (Schedule's page sends only title, instructions and time)", async () => {
+  const h = harness(async () => ({ text: "IMPORTANT: no\n好", important: false }));
+  try {
+    const at = inAnHour();
+    const { task } = await h.actions.invoke(scheduleActions.createTask, { title: "复查", instructions: "看", repeat: "none", at, subject });
+    const edited = await h.actions.invoke(scheduleActions.updateTask, { task_id: task.task_id, title: "复查供应商", instructions: "看", time: task.clock_label });
+    assert.equal(edited.task.title, "复查供应商");
+    assert.equal(edited.task.repeat, "none");
+    assert.equal(edited.task.run_at, new Date(at).toISOString());
+    assert.deepEqual(edited.task.subject, subject);
+    const daily = await h.actions.invoke(scheduleActions.updateTask, { task_id: task.task_id, title: "复查供应商", instructions: "看", repeat: "daily", time: "09:00" });
+    assert.equal(daily.task.repeat, "daily", "asked for in words, it turns daily");
+  } finally { h.db.close(); }
+});
+
 test("RISK-07 a one-off time is checked as a reminder's: with a time zone, not past, within a year; a daily task still needs its clock", async () => {
   const h = harness(async () => ({ text: "", important: false }));
   try {

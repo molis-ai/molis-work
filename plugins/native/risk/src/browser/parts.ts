@@ -23,8 +23,8 @@ export function severityGrid(risk: Pick<RiskRecord, "impact" | "likelihood">, si
   const severity = riskSeverity(risk);
   return renderSeverityGrid({ row: LEVEL_INDEX[risk.impact], column: LEVEL_INDEX[risk.likelihood], size,
     tone: severity === "high" ? "danger" : severity === "medium" ? "warning" : "neutral",
-    label: text("grid.label", { impact: text(`level.${risk.impact}`), likelihood: text(`level.${risk.likelihood}`) }),
-    rowLabel: text("field.impact"), columnLabel: text("field.likelihood") });
+    // The badges beside it name both levels; axis titles would say the same a third time.
+    label: text("grid.label", { impact: text(`level.${risk.impact}`), likelihood: text(`level.${risk.likelihood}`) }) });
 }
 
 /** A button that names what it does in `data-rk-act` (and `data-rk-value`). */

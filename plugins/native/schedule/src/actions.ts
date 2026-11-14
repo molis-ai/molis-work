@@ -40,7 +40,7 @@ const operationView = object({ id, projectId: id, pluginId: id, installationId: 
 // Blank or malformed values reach the task owner, whose validation explains what to fix.
 const fields = { title: { type: "string", maxLength: 200, description: "1 到 80 字" }, instructions: { type: "string", maxLength: 16000, description: "Agent 到点要做的说明，最多 8000 字" },
   time: { type: "string", maxLength: 16, description: "每天运行的本地时间，HH:MM；repeat 为 daily（缺省）时必填" },
-  repeat: { enum: ["daily", "none"], description: "daily 每天运行；none 只在 at 运行一次，跑完就停" },
+  repeat: { enum: ["daily", "none"], description: "daily 每天运行；none 只在 at 运行一次，跑完就停。新建缺省为 daily；修改时缺省沿用任务原来的（一次性任务不给 at 就保留原时间）" },
   at: { type: "string", maxLength: 64, description: "一次性任务运行的时间，带时区，例如 2026-12-01T09:00:00+08:00；一年以内" },
   subject: { ...subject, description: "任务关心的对象（如一条风险），只写进这一轮的说明，不给读它的权限" },
   notify_important: { type: "boolean", description: "重要结果是否标记未读；缺省为 true" } };
@@ -154,10 +154,17 @@ export function createScheduleActionHandlers(projectId: string, ports: ScheduleA
       return output;
     } catch (error) { throw scheduleFailure(error); } },
   });
-  const editable = (input: ScheduleTaskInput): ScheduleTaskFields => {
+  // A change that leaves out how the task repeats keeps it as it is, like its subject: editing a one-off task's title on Schedule's
+  // page (which sends only the title, instructions and time) does not turn it into a daily one.
+  const editable = (input: ScheduleTaskInput, current?: ScheduleConversationTaskView): ScheduleTaskFields => {
     const common = { title: input.title, instructions: input.instructions, notify_important: input.notify_important !== false,
       ...(input.subject ? { subject: input.subject } : {}) };
-    if ((input.repeat ?? "daily") === "daily") return { ...common, ...parseClockTime(input.time), repeat: "daily" };
+    const repeat = input.repeat ?? (current?.repeat === "none" ? "none" : "daily");
+    if (repeat === "daily") return { ...common, ...parseClockTime(input.time), repeat: "daily" };
+    if (input.at === undefined && current?.repeat === "none" && current.run_at) {
+      const kept = new Date(current.run_at);
+      return { ...common, hour: kept.getHours(), minute: kept.getMinutes(), repeat: "none", run_at: current.run_at };
+    }
     const at = oneOffAt(input.at, Date.now());
     return { ...common, hour: at.getHours(), minute: at.getMinutes(), repeat: "none", run_at: at.toISOString() };
   };
@@ -179,7 +186,7 @@ export function createScheduleActionHandlers(projectId: string, ports: ScheduleA
       return ports.readiness();
     }),
     bind(scheduleActions.createTask, input => ({ task: ports.createTask(editable(input)) })),
-    bind(scheduleActions.updateTask, input => ({ task: ports.updateTask(input.task_id, editable(input)) })),
+    bind(scheduleActions.updateTask, input => ({ task: ports.updateTask(input.task_id, editable(input, ports.listTasks().find(task => task.task_id === input.task_id))) })),
     bind(scheduleActions.archiveTask, input => { ports.archiveTask(input.task_id); return { archived: true as const }; },
       async input => { await ports.archived?.(input.task_id); }),
     bind(scheduleActions.setTaskEnabled, input => ({ task: ports.setTaskEnabled(input.task_id, input.enabled) })),

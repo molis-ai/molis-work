@@ -3,6 +3,7 @@ import { goalEventBasisGaps, goalEventBasisTiers, goalRelationTypes, type GoalEv
 import { normalizeBasis } from './event-facts-validation.js';
 import { defineErrorCodes } from '@molis-ai/molis-work-contracts/platform/actions';
 import { validatePlanningGraph } from './planning/goal-graph.js';
+import { GOAL_CONCERN_CITED_SUBJECT_LIMIT } from '../contract/goal-event-state.js';
 
 const errors = defineErrorCodes('goals', { replica_invalid: 'invalid' });
 
@@ -25,6 +26,7 @@ export function validateGoalReplication(rows: ProjectReplicaRows, projectId: str
       || (row.checked_version != null && !(Number.isSafeInteger(row.checked_version) && Number(row.checked_version) >= 1)))) invalid();
     if (table === 'goal_event_requirement_conclusions' && (!decisions.has(row.decision_id) || decisions.get(row.decision_id)!.goal_id !== row.goal_id)) invalid();
     if (row.scope_json) validateScope(row, JSON.parse(String(row.scope_json)), requirements, events);
+    if (table === 'goal_event_concerns') validateCitedSubjects(row.cited_subjects_json);
   }
   for (const row of rows.goal_event_configs!) {
     if (!rows.goal_event_config_versions!.some(v => v.goal_id === row.goal_id && v.version === row.current_version)) invalid();
@@ -49,6 +51,18 @@ function validateScope(row: ProjectReplicaRow, value: unknown, requirements: Map
   for (const [field, map] of [['requirement_ids', requirements], ['event_ids', events]] as const) {
     if (scope[field] === undefined) continue;
     if (!Array.isArray(scope[field]) || (scope[field] as unknown[]).some(id => typeof id !== 'string' || !map.has(id) || map.get(id)!.goal_id !== row.goal_id)) invalid();
+  }
+}
+
+/** A concern's cited objects as Goals writes them: a JSON list of at most GOAL_CONCERN_CITED_SUBJECT_LIMIT `{kind, id}`, both nonempty text. */
+function validateCitedSubjects(value: ProjectReplicaRow[string]): void {
+  let list: unknown;
+  try { list = JSON.parse(String(value)); } catch { invalid(); }
+  if (!Array.isArray(list) || list.length > GOAL_CONCERN_CITED_SUBJECT_LIMIT) invalid();
+  for (const item of list) {
+    if (!item || typeof item !== 'object' || Array.isArray(item) || Object.keys(item).some(key => key !== 'kind' && key !== 'id')) invalid();
+    const { kind, id } = item as Record<string, unknown>;
+    if (typeof kind !== 'string' || !kind.trim() || typeof id !== 'string' || !id.trim()) invalid();
   }
 }
 

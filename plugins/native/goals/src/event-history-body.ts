@@ -185,10 +185,10 @@ export function formatEventTime(value: string): string {
 
 /**
  * The objects a concern cites (a risk, say): Goals keeps only kind and id, so each is an 「打开」 that the workbench resolves to the
- * owner's surface (an item side view first, §4.3 of specs/risk-plugin/implementation.md); the owner's label is filled in on the page.
+ * owner's surface (an item side view first, §4.3 of specs/risk-plugin/implementation.md); the owner's label is filled in on the page; until then, or with no owner to open it, it says 「对象」, never the raw kind.
  */
 function renderCited(subjects: readonly { kind: string; id: string }[], escapeHtml: (value: string) => string): string {
   if (!subjects.length) return "";
   return `<p class="goal-cited">${uiText("goals.event-history-body.cited")}${uiText.text("common.punctuation.label-separator")}${subjects.map((subject) =>
-    `<button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-goal-cited data-kind="${escapeHtml(subject.kind)}" data-id="${escapeHtml(subject.id)}"><span data-goal-cited-label>${escapeHtml(subject.kind)}</span> · ${uiText("goals.event-history-body.open-cited")}</button>`).join(" ")}</p>`;
+    `<button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-goal-cited data-kind="${escapeHtml(subject.kind)}" data-id="${escapeHtml(subject.id)}"><span data-goal-cited-label>${uiText("goals.event-history-body.cited-object")}</span> · ${uiText("goals.event-history-body.open-cited")}</button>`).join(" ")}</p>`;
 }

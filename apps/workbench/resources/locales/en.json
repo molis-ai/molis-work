@@ -4188,6 +4188,9 @@
       }
     },
     "workbench.home.hidden-above": "Also listed above: {count}",
+    "workbench.home.lead-back": "Back to {name}",
+    "workbench.home.lead-basic": "Show the basic home",
+    "workbench.home.lead-failed": "{name} can’t be opened right now. Showing the basic home.",
     "workbench.home.loading": "Loading the project home…",
     "workbench.home.navigation-failed": "Couldn’t open this. Refresh and try again.",
     "workbench.home.open": "Open",

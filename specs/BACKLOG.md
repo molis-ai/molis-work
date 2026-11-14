@@ -18,7 +18,7 @@
 
 ## 1. 待你验收
 
-按[第 01 批本人试用单](post-anticorruption-roadmap/reference/acceptance-01.md)逐项试：已有实现与前置条件分别写明。BL-010／013 尚待对应实现，BL-929 的真实 Home 已重建、待你试；BL-001 已委托，BL-017 已接受已有验证、个人账号路径未实测。第 16 批外观/首屏/组件板本人验收见 [BL-b16-appearance-acceptance](backlog/BL-b16-appearance-acceptance.md)。不要把本节整体当作可立即验收或已获认可。
+按[第 01 批本人试用单](post-anticorruption-roadmap/reference/acceptance-01.md)逐项试：已有实现与前置条件分别写明。BL-010／013 尚待对应实现，BL-929 的真实 Home 已重建、待你试；BL-001 已委托，BL-017 已接受已有验证、个人账号路径未实测。第 16 批外观/首屏/组件板本人验收见 [BL-b16-appearance-acceptance](backlog/BL-b16-appearance-acceptance.md)；第 19 批 Work Brief 本人验收见 [BL-b19-work-brief-acceptance](backlog/BL-b19-work-brief-acceptance.md)。不要把本节整体当作可立即验收或已获认可。
 
 
 ## 2. 待你决定
@@ -79,7 +79,7 @@
 
 ### 记忆误记与默认设置
 
-Memory P0 已随 [#2020](https://github.com/molis-ai/molis-work/pull/2020) 合入 main。暖读延迟 [BL-1072](backlog/BL-1072.md)、总 token [BL-1073](backlog/BL-1073.md) 与[本人走查](backlog/BL-memory-own-app-walkthrough.md)继续跟踪。P1 的[短合同](backlog/BL-memory-p1-contract.md)确认后进入第 31 批；P2 按触发条件登记。
+Memory P0 已随 [#2020](https://github.com/molis-ai/molis-work/pull/2020) 合入 main。暖读延迟 [BL-1072](backlog/BL-1072.md)、总 token [BL-1073](backlog/BL-1073.md) 与[本人走查](backlog/BL-memory-own-app-walkthrough.md)继续跟踪。P1 的[短合同](backlog/BL-memory-p1-contract.md)确认后进入第 31 批；P2 按触发条件登记，2026-11-14 起整理、去重、衰减拟由 64-9 承接（[决定 46](post-anticorruption-roadmap/reference/decisions.md#decision-46)，待用户确认），主题导览按 [BL-memory-topic-guide](backlog/BL-memory-topic-guide.md) 触发。
 
 
 ### 模型本身的能力

@@ -48,13 +48,13 @@ test("RAC-739 a Manifest says it runs in the Home with runtime.scope, and cannot
 test("RAC-740 the Home plugins the Host ships say so in their Manifests, and the Host's code for a Home instance goes with exactly those", () => {
   const home = BUILTIN_PLUGIN_CATALOG.filter(entry => entry.manifest.runtime?.scope === "home").map(entry => entry.project_plugin_id).sort();
   // Goals left this list in batch 41 (41-2): its Home half was the method library, which is a system Skill pack now.
-  assert.deepEqual(home, ["cognia", "feed", "images", "issues", "jelly", "shelf", "todo"]);
+  assert.deepEqual(home, ["cognia", "feed", "images", "issues", "jelly", "shelf", "todo", "work-brief"]);
   for (const entry of BUILTIN_PLUGIN_CATALOG) {
     assert.equal(entry.runtime !== undefined, entry.manifest.runtime?.scope === "home", `${entry.project_plugin_id}: the registration's runtime (the code) and the Manifest's runtime.scope go together`);
     assert.equal("scope" in (entry.runtime ?? {}), false, `${entry.project_plugin_id}: the registration no longer says where the plugin runs`);
   }
   // The dual-instance mark stays the Host's: on the registration, in no Manifest.
-  assert.deepEqual(BUILTIN_PLUGIN_CATALOG.filter(entry => entry.runtime?.dual_instance === true).map(entry => entry.project_plugin_id).sort(), ["feed", "shelf"]);
+  assert.deepEqual(BUILTIN_PLUGIN_CATALOG.filter(entry => entry.runtime?.dual_instance === true).map(entry => entry.project_plugin_id).sort(), ["feed", "shelf", "work-brief"]);
   for (const entry of BUILTIN_PLUGIN_CATALOG) assert.equal("dual_instance" in (entry.manifest.runtime ?? {}), false, entry.project_plugin_id);
   for (const entry of BUILTIN_PLUGIN_CATALOG) parsePluginManifest(entry.manifest);
 });

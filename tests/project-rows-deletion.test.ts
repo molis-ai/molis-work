@@ -24,9 +24,12 @@ import { pluginActions } from "./fixtures/plugin-actions.js";
 // running none of the plugin's code.
 
 const catalog: PluginRegistration[] = PLATFORM_PLUGIN_REGISTRATIONS as PluginRegistration[];
-const DECLARING = ["dataset", "form", "images", "lingguang", "pages", "ppt", "todo", "workflows"];
-/** The libraries all of whose tables are a project's. Images also keeps the person's connections, which belong to no project; RAC-577 is its. */
-const WHOLLY_PROJECT = DECLARING.filter(id => id !== "images");
+const DECLARING = ["dataset", "form", "images", "lingguang", "pages", "ppt", "todo", "work-brief", "workflows"];
+/**
+ * The libraries all of whose tables are a project's. Images also keeps the person's connections, which belong to no project; RAC-577 is
+ * its. Work Brief also keeps the person's own brief (no project); its deletion is proved on real rows in tests/work-brief-plugin.test.ts (WBR-24).
+ */
+const WHOLLY_PROJECT = DECLARING.filter(id => id !== "images" && id !== "work-brief");
 
 function withHome(t: TestContext): string {
   const directory = mkdtempSync(join(tmpdir(), "project-rows-"));

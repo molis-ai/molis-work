@@ -1,10 +1,10 @@
 {
   "reason": "第 19 批 Work Brief 首页与简报核心。work-brief.js 是新增资源：简报页面（各来源、句后依据角标与弹层、人工修改、提案冲突、版本与当时／现在、固定、下一步、个人简报），只在装了 Work Brief 的项目里加载。workbench.js 与 workbench.css 的增长是首页主区内容（presentation.overview.lead）：把插件主区页面收进首页、细栏「看基础首页／回到」、页面打不开时回到基础首页，以及主区盒子作为该页面的定位容器。 第一轮评审后的小增长：plugin-frame.js 是页面链接到另一个项目裸首页时由外壳跳转（S-47 的窄入口）；workbench.js 是首页不从正在显示的窗格里抢走页面；work-brief.js 是下一步的「结果未确认」状态。",
   "review": "specs/work-brief/spec.md WBR-22、WBR-23（首页主区与停用回退）与 WBR-02～WBR-27（页面）；随第 19 批的 PR 提交评审。",
-  "userApproval": "用户在 2026-11-14 的弹窗里放行新增页面资源 work-brief.js（约 37 KB，未压缩），见 specs/post-anticorruption-roadmap/reference/batches/19.md 的用户决定。实测 +37522。",
+  "userApproval": "用户在 2026-11-14 的弹窗里放行新增页面资源 work-brief.js（约 37 KB，未压缩），见 specs/post-anticorruption-roadmap/reference/batches/19.md 的用户决定。实测 +37601。",
   "assets": {
-    "/assets/molis-work-plugins/work-brief.js": 37522,
-    "/assets/molis-work-workbench.js": 1994,
+    "/assets/molis-work-plugins/work-brief.js": 37601,
+    "/assets/molis-work-workbench.js": 2002,
     "/assets/molis-work-workbench.css": 701,
     "/assets/molis-work-plugin-frame.js": 592
   }

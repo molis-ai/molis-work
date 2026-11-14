@@ -69,7 +69,7 @@ export const riskReviewActions = {
     object({ cancelled: { type: "boolean" } })),
 };
 
-export interface RiskReviewPorts {
+interface RiskReviewPorts {
   read<T>(run: (store: RiskStore) => T): T;
   /** Schedule's actions, as the risk action's own caller. */
   schedule<Output>(reference: ActionReference, input: unknown): Promise<Output>;

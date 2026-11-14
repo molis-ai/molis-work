@@ -5,9 +5,9 @@ export { RISK_STYLES } from "./styles.js";
 
 export const RISK_UI_CONTRIBUTION_ID = "io.molis.work.native.risk.ui";
 /** Where the record shows each linked object: the shell draws it as its owner presents it, outside the page. */
-export const RISK_LINKS_SLOT = "risk.links";
+const RISK_LINKS_SLOT = "risk.links";
 
-export const riskUiDescriptor: UiContributionDeclaration = {
+const riskUiDescriptor: UiContributionDeclaration = {
   contribution_id: RISK_UI_CONTRIBUTION_ID,
   kind: "primary-page",
   navigation_id: "risk",

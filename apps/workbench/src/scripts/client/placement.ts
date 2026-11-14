@@ -5,6 +5,7 @@
  * a plugin only declares its current object (`data-assistant-context`) and leaves a `data-placement-slot`.
  */
 import { pluginSearchRows } from "../../plugin-workbench.js";
+import { SIDE_FILE_SOURCES_CLIENT_SCRIPT } from "../../side-file-sources-client.js";
 
 export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
   const { translate: readText, route, headers, openItem, openPluginRecord, itemTabs: ITEM_TABS } = host;
@@ -14,6 +15,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
   const hereTitle = () => here() === "personal" ? globalThis.t.text("workbench.placement.personal-space") : (host.projectTitle ? globalThis.t.text("workbench.placement.project-name", { name: host.projectTitle }) : globalThis.t.text("workbench.placement.current-project"));
   const node = (tag, text, className) => { const value = document.createElement(tag); if (text !== undefined && text !== null) value.textContent = text; if (className) value.className = className; return value; };
   const ghost = (text) => { const value = node("button", text, "mw-btn mw-btn--ghost mw-btn--sm"); value.type = "button"; return value; };
+  ${SIDE_FILE_SOURCES_CLIENT_SCRIPT}
   const api=(path,body,page)=>molisWorkRequest(route("/api/placement/"+path),{body,...(page?{headers:{"x-molis-context-page":page}}:{}),fallback:globalThis.t.text("workbench.placement.couldn-t-do-that-right-now-try-again")});
   let spaces = null;
   const loadSpaces = async () => { if (!spaces) spaces = (await api("spaces")).spaces || []; return spaces; };
@@ -372,7 +374,17 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     return set;
   };
   const takeAsInput = async (projectId, goalId, object, fixed) => {
-    if (!fixed && object.kind !== "artifact") { await api("bind-goal", { object, project_id: projectId, goal_id: goalId }); return; }
+    const base = "/projects/" + encodeURIComponent(projectId), ask = (path, body) => molisWorkRequest(base + path, { body, fallback: globalThis.t.text("workbench.placement.input-was-not-recorded") });
+    // A file of the project's folders is read first: followed, the Goal keeps what was read so it can tell later that the original changed; fixed, that exact version is bound.
+    const seen = object.kind === "workspace_file" ? (await ask("/api/materials/read", { ref: { subject: { kind: object.kind, id: object.id }, pin: { mode: "current", read_revision: "size:0" } }, mode: "head" })).read_revision : "";
+    if (!fixed && object.kind !== "artifact") { await api("bind-goal", { object, project_id: projectId, goal_id: goalId, ...(seen ? { read_revision: seen } : {}) }); return; }
+    if (object.kind === "workspace_file") {
+      const at = object.id.indexOf(":");
+      if (!/^[0-9a-f]{64}$/.test(seen)) throw new Error(globalThis.t.text("workbench.placement.long-pin"));
+      const { ref } = await ask("/api/materials/capture", { workspace_id: object.id.slice(0, at), path: object.id.slice(at + 1).split("/"), fingerprint: seen });
+      await ask("/api/plugins/io.molis.work.goals/goals/" + encodeURIComponent(goalId) + "/inputs", { action: "bind", ref });
+      return;
+    }
     let body = { subject: { kind: object.kind, id: object.id }, used: true };
     if (object.kind === "artifact") { const [artifact_id, version] = JSON.parse(object.id); body = { reference: { artifact_id, version }, used: true }; }
     await molisWorkRequest("/projects/"+encodeURIComponent(projectId)+"/api/plugins/io.molis.work.goals/goals/"+encodeURIComponent(goalId)+"/artifact-inputs",{body,fallback:globalThis.t.text("workbench.placement.input-was-not-recorded")});
@@ -382,9 +394,11 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     const read=path=>molisWorkRequest(route(path),{fallback:globalThis.t.text("workbench.placement.couldn-t-read-project-s-items")});
     const entries = [];
     try {
-      for (const source of (await read("/api/side/files/sources")).sources || []) {
-        try { for (const entry of ((await read("/api/side/files/entries?source=" + encodeURIComponent(source.id))).page || {}).entries || []) if (entry.subject) entries.push({ ...entry, group: source.title }); } catch {}
-      }
+      // The same one request as the side panel (N52): every source with its first page.
+      const { sources, pages } = await readSideFileSources(read);
+      // Every source gets its share of the 80 rows, so one long source does not hide the others.
+      const share = Math.ceil(80 / Math.max(1, sources.length));
+      for (const source of sources) entries.push(...pages.get(source.id).items.filter((entry) => entry.subject).slice(0, share).map((entry) => ({ ...entry, group: source.title })));
     } catch (error) { card(globalThis.t.text("workbench.placement.couldn-t-read-project-s-items"), error, [], "error"); return; }
     if (!entries.length) { card(globalThis.t.text("workbench.placement.nothing-here-can-be-used-input-yet"), globalThis.t.text("workbench.placement.create-one-goal-first-import-into-results"), [], "error"); return; }
     const rows = entries.slice(0, 80).map((entry, index) => choice("object", JSON.stringify(entry.subject), entry.title, entry.group, index === 0));
@@ -496,6 +510,13 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
           ? (view.plugin ? view.plugin.title + " · " : "") + globalThis.t.text("workbench.placement.place", { place: where }) + (view.moved_from ? " · " + globalThis.t.text("workbench.placement.moved-place-2", { place: view.moved_from.title }) : "")
           : view.state === "missing" ? globalThis.t.text("workbench.placement.original-was-deleted") : (view.reason || globalThis.t.text("workbench.placement.can-t-read-right-now-2"));
         row.classList.toggle("is-gone", view.state !== "ok");
+        // A project-folder file the Goal follows: what was read when it was taken is compared with the file now (SSC-28).
+        const digest = row.dataset.goalInputDigest;
+        if (view.state === "ok" && object.kind === "workspace_file" && digest !== undefined) {
+          if (!digest) state.textContent += " · " + globalThis.t.text("workbench.placement.content-not-checked");
+          else void molisWorkRequest(route("/api/materials/read"), { body: { ref: { subject: { kind: object.kind, id: object.id }, pin: { mode: "current", read_revision: digest.slice(7) } }, mode: "head" }, fallback: "" })
+            .then((read) => { if (read.state === "changed") state.textContent += " · " + globalThis.t.text("workbench.placement.changed"); }).catch(() => {});
+        }
         if (view.state === "ok" && view.open) {
           const open = ghost(globalThis.t.text("common.control.open"));
           open.onclick = () => openObject(view.open, view.title); actions.append(open);
@@ -511,6 +532,19 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
         actions.append(remove);
       }).catch((error) => { molisWorkRequest.show(state,error); });
     });
+    // Versions the materials service fixed for a Goal: only whether the person can still read each is asked, never where it was.
+    const fixed = [...document.querySelectorAll("[data-goal-material-snapshot]:not([data-placement-filled])")];
+    if (!fixed.length) return;
+    fixed.forEach((row) => { row.dataset.placementFilled = "1"; });
+    const versions = fixed.map((row) => { try { const [artifact_id, version] = JSON.parse(row.dataset.goalMaterialSnapshot); return { artifact_id, version }; } catch { return null; } });
+    void molisWorkRequest(route("/api/materials/pinned"), { body: { versions: versions.filter(Boolean) }, fallback: globalThis.t.text("workbench.placement.can-t-read-right-now-2") }).then(({ items }) => {
+      let at = 0;
+      fixed.forEach((row, index) => {
+        const found = versions[index] ? items[at++] : null, gone = !found || !found.ref;
+        row.classList.toggle("is-gone", gone);
+        row.querySelector("[data-goal-material-snapshot-state]").textContent = gone ? globalThis.t.text("workbench.placement.unreadable") : "";
+      });
+    }).catch((error) => { fixed.forEach((row) => molisWorkRequest.show(row.querySelector("[data-goal-material-snapshot-state]"), error)); });
   };
   document.addEventListener("click", (event) => {
     const add = event.target.closest && event.target.closest("[data-goal-input-add]");
@@ -628,7 +662,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
   };
   new MutationObserver((records) => {
     for (const record of records) {
-      if (record.type === "attributes" || [...record.addedNodes].some(added => added.nodeType === 1 && (added.matches?.("[data-placement-slot],[data-placement-target],[data-placement-material]") || added.querySelector?.("[data-placement-slot],[data-placement-target],[data-placement-material]")))) { scheduleRepaint(); return; }
+      if (record.type === "attributes" || [...record.addedNodes].some(added => added.nodeType === 1 && (added.matches?.("[data-placement-slot],[data-placement-target],[data-placement-material],[data-goal-material-snapshot]") || added.querySelector?.("[data-placement-slot],[data-placement-target],[data-placement-material],[data-goal-material-snapshot]")))) { scheduleRepaint(); return; }
     }
   }).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ["data-assistant-context", "hidden", "data-expanded"] });
   // The workbench selects an item on a plugin's surface when a tab is applied; the plugin shows it a moment later.

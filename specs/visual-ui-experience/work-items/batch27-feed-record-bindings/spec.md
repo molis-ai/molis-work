@@ -55,7 +55,7 @@ node scripts/machine-slot.mjs run browser --label 'Feed live OAuth verification'
 | 12 页面、外壳与文字 | 不涉及 UI、资源、翻译或事件。 |
 | 13 错误 | 沿用 Feed 与连接 owner 的拒绝码。测试前置缺失直接报断言失败。 |
 | 14 冲突面 | 允许路径仅为测试及本说明，避开 06 的生产投影、公共合同快照和枢纽文件。 |
-| 15 全局最优 | Feed 使用 Connector 的公开绑定和 OAuth，插件作者无需新入口；平台保有账号事实，助理和 MCP 的目录及授权照常；连接器、Inbox 与同步继续用原链路。全部账号来源测试按真实 owner 准备，省去无绑定替身特判。第 60 批的目录连接器账号来源仍由 BL-917 接续。显式临时 Home 的准备由手动执行者承担，工程验证用合成响应，保留 GitHub 和 Gmail 的真实 OAuth 路径。 |
+| 15 全局最优 | Feed 使用 Connector 的公开绑定和 OAuth，插件作者无需新入口；平台保有账号事实，助理和 MCP 的目录及授权照常；连接器、Inbox 与同步继续用原链路。全部账号来源测试按真实 owner 准备，省去无绑定替身特判。第 61 批的目录连接器账号来源仍由 BL-917 接续。显式临时 Home 的准备由手动执行者承担，工程验证用合成响应，保留 GitHub 和 Gmail 的真实 OAuth 路径。 |
 
 ## 验收标准
 

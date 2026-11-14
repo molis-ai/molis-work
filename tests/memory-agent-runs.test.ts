@@ -57,7 +57,7 @@ test("an Agent run receives the Host memory recipe frozen into its role; no reci
   assert.equal(captured.at(-1), null);
 });
 
-test("Assistant and Agent recipes retain their own switches without claiming use before a real recall", { timeout: 60_000 }, async t => {
+test("MEM-14 Assistant and Agent recipes retain their own switches without claiming use before a real recall", { timeout: 60_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-memory-agent-runs-"));
   const local = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   t.after(async () => { await local.close(); await rm(home, { recursive: true, force: true }); });

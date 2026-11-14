@@ -84,6 +84,7 @@ function standingKey(request: AgentReviewRequest): string | null {
 interface ReviewRow {
   request: AgentReviewRequest;
   receipt: AgentReviewReceipt;
+  decision?: NonNullable<AgentReviewRow["decision"]>;
 }
 type HistoricalDecision = Pick<AgentReviewReceipt, "status" | "decided_by" | "decided_at" | "note">;
 interface DecisionClaim {
@@ -486,6 +487,7 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
   #projectDecision(record: ReviewDecisionRecord): void {
     const row = this.#rows.get(record.reference.id);
     if (!row || !isDeepStrictEqual(row.request.reference, record.reference)) throw agentErrors.review_version_changed("已保存的决定属于另一份提案，不能用于本次执行");
+    row.decision = { reference: structuredClone(record.reference), decision_id: record.reference.id };
     row.receipt = {
       ...row.receipt,
       status: record.decision === "approve" ? "approved" : "rejected",
@@ -511,7 +513,9 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
     const projections = await Promise.all(reviewIds.map(id => this.#decisionProjection(id)));
     return reviewIds.flatMap((id, index) => {
       const request = this.get(id);
-      return request ? [{ request, decisions: projections[index]!(), receipt: this.receipt(id) ?? undefined }] : [];
+      const decision = this.#rows.get(id)?.decision;
+      return request ? [{ request, decisions: projections[index]!(), receipt: this.receipt(id) ?? undefined,
+        ...(decision ? { decision: structuredClone(decision) } : {}) }] : [];
     });
   }
 

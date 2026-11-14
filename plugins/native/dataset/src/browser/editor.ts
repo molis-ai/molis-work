@@ -5,9 +5,11 @@ const uiText = globalThis.t;
 
 /** The open table: opening and closing the editor, and saving what has been typed. */
 export function installEditor(page: DatasetPage): void {
-  const { el, s } = page;
+  const { el, s, scope } = page;
+  scope.own(() => clearTimeout(s.saveTimer));
 
   page.fillEditor = async (record) => {
+    scope.assertCurrent();
     clearTimeout(s.saveTimer);
     s.editRev = s.savedRev = 0;
     s.saveError = null;
@@ -26,6 +28,7 @@ export function installEditor(page: DatasetPage): void {
   };
 
   page.closeEditor = () => {
+    if (!scope.alive) return;
     clearTimeout(s.saveTimer);
     s.editRev = s.savedRev = 0;
     s.saveError = null;
@@ -44,11 +47,12 @@ export function installEditor(page: DatasetPage): void {
       const draft = page.readDraft();
       try {
         const payload = await page.request<{ dataset: Dataset }>("POST", `${page.api}/${encodeURIComponent(s.selected.id)}`, { ...draft, expected_version: s.selected.version });
+        scope.assertCurrent();
         const laterDraft = s.editRev > revision ? page.readDraft() : null;
         s.savedRev = revision;
         page.remember(laterDraft ? { ...payload.dataset, ...laterDraft } : payload.dataset, false);
       } catch (error) {
-        s.saveError = error;
+        if (scope.alive) s.saveError = error;
         throw error;
       }
     }

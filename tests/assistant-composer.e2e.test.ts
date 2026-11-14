@@ -39,8 +39,8 @@ test("UIV-12 UIV-17 UIC-06 UIC-09 RC-03: the Assistant's composer names its rece
   const type = (text: string) => command("Input.insertText", { text }, sessionId);
   const settled = `!document.querySelector('[data-assistant-composer] .mw-composer')?.matches('[data-state=sending]')`;
 
-  // A new work: the receiver row names the Assistant.
-  assert.match(await to(), /^发给：\s*助理/, "UIV-12: the receiver row says who the next Send goes to");
+  // A new work: the receiver row names where it is put, then the Assistant (BL-1076: 「项目 · 助理」, 「个人 · 助理」).
+  assert.match(await to(), /^发给：\s*\S.* · 助理$/, "UIV-12: the receiver row says who the next Send goes to and where the new work is put");
 
   // UIC-06: Enter is a new line, nothing is sent, and the first time it says once how to send.
   await evaluate(`${field}.focus()`);

@@ -1,3 +1,5 @@
+import { childCallerTask } from "./prologue-session-opening.js";
+import type { ChildOpeningFact } from "./prologue-session-index.js";
 import type { Runtime, SubagentStartedObserver, ExactRef } from "@prologue/sdk";
 import type { AgentFrozenSubagentRole, AgentRunRef, AgentSubagentsCapability, AgentSubagentView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { applyRunEvent, emptyPrologueStreamState } from "./prologue-stream.js";
@@ -10,7 +12,7 @@ export interface PrologueSubagentRoot {
 const sameRoot = (a: ExactRef<"authorized-root">, b: ExactRef<"authorized-root">) => a.id === b.id && a.revision === b.revision;
 
 /** SDK owns parent/child identity and the event ledger. This is a read projection. */
-export function createPrologueSubagents(runtime: Runtime, provenanceOf: (run: AgentRunRef) => Promise<{ path: string; roles: Array<[string, AgentFrozenSubagentRole]>; roots?: PrologueSubagentRoot[]; errors?: Record<string, string> }>): AgentSubagentsCapability {
+export function createPrologueSubagents(runtime: Runtime, provenanceOf: (run: AgentRunRef) => Promise<{ path: string; roles: Array<[string, AgentFrozenSubagentRole]>; roots?: PrologueSubagentRoot[]; errors?: Record<string, string>; child_openings?: ChildOpeningFact[] }>): AgentSubagentsCapability {
   const owned = (run: AgentRunRef) => runtime.subagents.list().filter(child => child.parentSession.id === run.session_id && child.parentRun.id === run.run_id);
   return {
     async list(run) {
@@ -27,7 +29,8 @@ export function createPrologueSubagents(runtime: Runtime, provenanceOf: (run: Ag
         if (!role) throw new Error("原子角色来源不可读取，不能猜测其权限与身份");
         const root = child.workspace && provenance.roots?.find(root => root.id === child.workspace!.id && sameRoot(root.rootRef, child.workspace!.rootRef));
         if (child.workspace && !root || provenance.roots?.length && !root) throw new Error("子任务原目录来源不可读取，不能显示为主工作区");
-        result.push({ subagent_id: child.ref.id, parent_run: { ...run }, child_run: { session_id: child.session.id, run_id: child.run.id },
+        const task = childCallerTask(provenance.child_openings ?? [], run.run_id, child.session, child.run, events);
+        result.push({ continuation_task: task === undefined ? { status: "unavailable" } : { status: "available", text: task }, subagent_id: child.ref.id, parent_run: { ...run }, child_run: { session_id: child.session.id, run_id: child.run.id },
           role_id: role.role_id, role_name: role.name, task: stream.turns.filter(turn => turn.kind === "user" && !turn.steer).map(turn => turn.text).join("\n\n"),
           state: child.state, result: stream.turns.filter(turn => turn.kind === "assistant").map(turn => turn.text).join("\n\n") || null,
           workspace_path: root?.path ?? provenance.path, activity: stream.activity, usage: stream.usage, host_tools: [...role.host_tools],

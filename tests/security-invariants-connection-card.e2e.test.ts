@@ -38,9 +38,20 @@ const OBSERVE = `(() => {
 
 type Sent = { url: string; method: string; body: { operation?: string; connection_id?: string } | null };
 
+/** The least any wait in this file allows (see `open`). */
+const WAIT_MS = 30_000;
+
 async function open(t: TestContext) {
   const browser = await openGoalBrowser(t, true, undefined, null); if (!browser) return null;
   await browser.setViewport(1440, 960);
+  // A slower CI runner takes well over the shared 10 s for a card or a page to come up (the merge queue timed out at different steps
+  // each run): every wait in this file has at least WAIT_MS. What is waited for is unchanged.
+  const atLeast = <T extends { waitFor(expression: string, timeoutMs?: number): Promise<void> }>(target: T): T => {
+    const original = target.waitFor.bind(target);
+    target.waitFor = (expression: string, timeoutMs = WAIT_MS) => original(expression, Math.max(timeoutMs, WAIT_MS));
+    return target;
+  };
+  atLeast(browser);
   const { projectId, homeDirectory } = browser;
   assert.ok(projectId);
   const client = new LocalHostHttpClient({ origin: browser.origin, controlToken: browser.controlToken });
@@ -48,7 +59,7 @@ async function open(t: TestContext) {
   const api = `/projects/${projectId}/api/plugins/io.molis.work.feed`;
   const source = (await client.post<{ source: { source_id: string } }>(api + "/sources/accounts", { service: "github", name: "Card source" })).source.source_id;
   await pluginFrameInitScript(t, browser, `window.molisWorkbenchPluginFactories=new Proxy({}, {set(target,key,value){target[key]=key==='feed'?host=>{window.pageHost=host;return value(host)}:value;return true}});${OBSERVE}`);
-  const child = await pluginFrameBrowser(t, browser, "feed");
+  const child = atLeast(await pluginFrameBrowser(t, browser, "feed"));
   await browser.navigate(() => browser.command("Page.navigate", { url: browser.origin + `/projects/${projectId}/?openPlugin=feed` }, browser.sessionId));
   await child.waitFor("window.pageHost");
   const target = { kind: "slot", slot_id: "github", record_key: source };
@@ -290,8 +301,12 @@ test("DRT-13 S-plugin-connection-card 还不能一键连接 opens the connection
   p.account("Connected meanwhile");
   const reads = async () => (await p.sent()).filter(item => item.body?.operation === "read").length;
   const before = await reads();
-  await browser.evaluate(`document.querySelector('[data-settings-return-bar]').scrollIntoView({ behavior: 'instant', block: 'center' })`);
-  await browser.waitFor(`(() => { const box = document.querySelector('[data-return-bar-back]').getBoundingClientRect(); return box.top >= 0 && box.bottom <= innerHeight; })()`);
+  // The settings page may still be laying out below the bar: bring it back into view whenever it moved, and press only once it has
+  // stayed put, in view, for a moment.
+  await browser.waitFor(`(() => { const box = document.querySelector('[data-return-bar-back]').getBoundingClientRect(), place = box.top + "," + box.left;
+    if (box.top < 0 || box.bottom > innerHeight) document.querySelector('[data-settings-return-bar]').scrollIntoView({ behavior: 'instant', block: 'center' });
+    if (window.returnBarPlace?.place !== place) window.returnBarPlace = { place, since: performance.now() };
+    return box.top >= 0 && box.bottom <= innerHeight && performance.now() - window.returnBarPlace.since >= 300; })()`);
   await browser.click("[data-settings-return-bar] [data-return-bar-back]");
   await browser.waitFor("document.body.dataset.desktopSurface === 'feed'", 15_000);
   await browser.waitFor(`document.querySelector(${JSON.stringify(CARD)})?.dataset.stage === "choose"`, 15_000);

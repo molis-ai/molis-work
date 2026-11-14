@@ -8,7 +8,6 @@ import { registration as cogniaRegistration } from "@molis-ai/molis-work-plugin-
 import { registration as datasetRegistration } from "@molis-ai/molis-work-plugin-dataset/registration";
 import { registration as diffRegistration } from "@molis-ai/molis-work-plugin-diff/registration";
 import { registration as feedRegistration } from "@molis-ai/molis-work-plugin-feed/registration";
-import { registration as filesRegistration } from "@molis-ai/molis-work-plugin-files/registration";
 import { registration as formRegistration } from "@molis-ai/molis-work-plugin-form/registration";
 import { registration as gitRegistration } from "@molis-ai/molis-work-plugin-git/registration";
 import { registration as goalsRegistration } from "@molis-ai/molis-work-plugin-goals/registration";
@@ -46,7 +45,6 @@ export const PLATFORM_PLUGIN_REGISTRATIONS: readonly (PluginRegistration & { rea
   { ...alchemistRegistration, package_name: "@molis-ai/molis-work-plugin-alchemist" },
   { ...workflowsRegistration, package_name: "@molis-ai/molis-work-plugin-workflows" },
   { ...codingRegistration, package_name: "@molis-ai/molis-work-plugin-coding" },
-  { ...filesRegistration, package_name: "@molis-ai/molis-work-plugin-files" },
   { ...gitRegistration, package_name: "@molis-ai/molis-work-plugin-git" },
   { ...diffRegistration, package_name: "@molis-ai/molis-work-plugin-diff" },
   { ...textStatsRegistration, package_name: "@molis-ai/molis-work-plugin-text-stats" },

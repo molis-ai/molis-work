@@ -36,7 +36,7 @@
 | --- | --- | --- |
 | Pages `pages.update` | 修改内容：`title/body/markdown/starred`，目标 `id`；移动文件夹：仅存在 `folder_id` 时触发，目标 `id + folder_id`；改 Goal 关联：仅存在 `goal_id` 时触发，目标 `id + goal_id`；控制字段 `expected_version` | `written()` 不改变文稿 id，Pages 原项目范围检查和 store 的版本 CAS 保留。文件夹由 Pages 同一事务检查存在/所属项目；目标字符串要求已规范化。只有修改内容的委托不能混入移动或改关联。空串移到根／取消关联必须显式在对应范围中；非空 Goal 的限制见表后 |
 | Pages `pages.create` | 新建文稿，固定操作，目标文件夹与 Goal；`folder_id/goal_id` 的默认常量均为 `""`；正文、标题、markdown、starred、template_id 可变，request_id 只作原幂等键 | template_id 选原 owner 的静态正文／标题模板，不选择额外业务目标；同样过原模板检查。新建只在选定文件夹与明确 Goal 边界内；不把返回的新 id 自动追加到“修改已有文稿”的范围 |
-| Pages `pages.promote` | 保存固定成果 **并更新文稿的 Goal 关联**：两个 always 操作，都以 `id + goal_id` 为目标；控制字段 expected_version。**goal_id 无自动授权默认值**，即使原动作允许省略 | 省略时会从当前文稿或原 pending intent 取 Goal，不能用文稿 id 猜目标。`beginPublication` 的实际事务内统一比较明确 goal_id、pending 和 existing 固定成果目标，不同即拒绝且原 intent 保留。completePublication 条件更新关联也要求已允许关联操作。写前原 beforeEffect、同步 current、source_version/CAS 均保留；恢复只核原效果，不重发 |
+| Pages `pages.promote` | 保存固定成果 **并更新文稿的 Goal 关联**：两个 always 操作，都以 `id + goal_id` 为目标；控制字段 expected_version。**goal_id 无自动授权默认值**，即使原动作允许省略 | 主线已将发布与关联放在同一项目事务。事务锁定原文稿版本，在同一事务中将明确 Goal（省略则用当前文稿的 Goal）写入固定成果和文稿，随后一次提交；版本或来源失败整笔回滚。固定成果历史保持原值，允许本人明确将后续版本关联到别的 Goal。自动委托仍要求明确传入已批准的关联目标。恢复只核原效果，不重发 |
 | Pages `pages.delete`／`pages.discard` | 删除／丢弃是独立操作，目标 `id`；discard 的 expected_version 仍是原前置版本；名称明确一并删除评论 | 修改内容的委托不能授权删除。原 owner 决定可删除性，不能把副作用少的命名当作只读 |
 | 连接器业务动作 | 沿相同声明绑定实际连接字段与对象字段；额外固定 connector owner 提供的连接 id、账号／租户身份、授权世代及工具／声明摘要 | 原连接调用器在真实网络派发前核账号、来源和当前授权。刷新凭据且身份不变不自行扩大范围；身份或来源无法被当前 owner 证明时不得保存持续自动范围 |
 | 无可信声明的 MCP 工具 | 只保存完整 JSON 参数及实际工具身份的精确指纹；连接身份边界同上 | 参数有任何变化就不命中，包括省略和显式 null；工具 annotation 不证明只读。不显示数据库／目录宽范围的静态承诺；未改变原执行前授权和原 SDK effect 归属 |

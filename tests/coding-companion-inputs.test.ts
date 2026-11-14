@@ -8,7 +8,7 @@ import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { DEMO_PROJECT_ID, LocalProjectDatabase, createPluginPlatform, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
-import { createFilesPlugin } from "@molis-ai/molis-work-plugin-files";
+import { SNAPSHOT_SOURCE, snapshotSourcePlugin } from "./fixtures/snapshot-source-plugin.js";
 import { createGitPlugin } from "@molis-ai/molis-work-plugin-git";
 import { createDiffPlugin } from "@molis-ai/molis-work-plugin-diff";
 import { createTextStatsPlugin } from "@molis-ai/molis-work-plugin-text-stats";
@@ -28,16 +28,17 @@ async function fixture() {
     contexts.set(context.plugin_id, context);
     return definition.start(context);
   } });
-  const report = await platform.start([createFilesPlugin(), createGitPlugin(), createDiffPlugin(), createTextStatsPlugin()]
+  const report = await platform.start([snapshotSourcePlugin(), createGitPlugin(), createDiffPlugin(), createTextStatsPlugin()]
     .map(definition => ({ definition: capture(definition), trust: { level: "host" as const } })));
   assert.deepEqual(report.failed, []); assert.deepEqual(report.blocked, []);
+  const id = (name: string) => name.includes(".") ? name : `io.molis.work.${name}`;
   const bind = (target: string, targetPort: string, source: string, sourcePort: string) => platform.wiring.bind({
-    project_id: DEMO_PROJECT_ID, actor_id: "tester", target_plugin_id: `io.molis.work.${target}`, target_port: targetPort,
-    source_plugin_id: `io.molis.work.${source}`, source_port: sourcePort, origin: "user",
+    project_id: DEMO_PROJECT_ID, actor_id: "tester", target_plugin_id: id(target), target_port: targetPort,
+    source_plugin_id: id(source), source_port: sourcePort, origin: "user",
   });
   bind("diff", "git-changeset", "git", "changeset");
-  bind("text-stats", "text", "files", "before");
-  const outputs = (plugin: string) => contexts.get(`io.molis.work.${plugin}`)!.services!.outputs!;
+  bind("text-stats", "text", SNAPSHOT_SOURCE.plugin_id, "before");
+  const outputs = (plugin: string) => contexts.get(id(plugin))!.services!.outputs!;
   await platform.wiring.drain();
   const state = async (plugin: "diff" | "text-stats") => {
     const restore = installTextForTest({ locale: "zh", packs: [pagePack(plugin, "zh")] });
@@ -77,11 +78,11 @@ test("Text Stats never counts retained payload from an unavailable or archived A
   const host = await fixture();
   try {
     assert.equal((await host.state("text-stats")).phase, "waiting");
-    const publish = () => host.outputs("files").publish({ port: "before", content: { kind: "inline", payload: {
+    const publish = () => host.outputs(SNAPSHOT_SOURCE.plugin_id).publish({ port: "before", content: { kind: "inline", payload: {
       workspace: { workspace_id: "ws", name: "项目" }, path: ["note.txt"], text: "中文🙂\n",
     } } }).artifact;
     publish(); await host.platform.wiring.drain();
-    host.outputs("files").invalidate("before", "已切换工作区，请固定新快照");await host.platform.wiring.drain();
+    host.outputs(SNAPSHOT_SOURCE.plugin_id).invalidate("before", "已切换工作区，请固定新快照");await host.platform.wiring.drain();
     const reset = await host.state("text-stats");
     assert.equal(reset.phase, "waiting");assert.equal(reset.characters, undefined);assert.equal(reset.source, undefined);
     const first = publish(); await host.platform.wiring.drain();

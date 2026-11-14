@@ -24,7 +24,7 @@ export const IM_SCHEMA_SQL = `
       room_id TEXT NOT NULL REFERENCES im_rooms(id), thread_id TEXT REFERENCES im_threads(id),
       author_id TEXT NOT NULL REFERENCES mw_members(id), body TEXT NOT NULL,
       shared_message_id TEXT REFERENCES im_messages(id), created_at TEXT NOT NULL,
-      quote_id TEXT REFERENCES im_messages(id)
+      quote_id TEXT REFERENCES im_messages(id), subjects_json TEXT NOT NULL DEFAULT '[]'
     );
     CREATE INDEX IF NOT EXISTS im_messages_stream ON im_messages(room_id, thread_id, sequence);
     CREATE TABLE IF NOT EXISTS im_thread_context (

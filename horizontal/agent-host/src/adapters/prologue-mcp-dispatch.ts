@@ -3,6 +3,7 @@ import { createPrologueError, isPrologueError, type ExactRef } from "@prologue/s
 import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ReviewDecisionControl } from "../review-decisions.js";
 import type { DispatchGuards, NodeHost } from "./prologue-node-kit.js";
+import { prepareDispatchFence } from "./prologue-dispatch.js";
 
 export type McpTransport = {
   readonly source: string;
@@ -10,7 +11,8 @@ export type McpTransport = {
   readonly control: ReviewDecisionControl;
   readonly identity?: string;
   session?: string;
-} & ({ readonly kind: "stdio" } | { readonly kind: "http"; readonly endpoint: string; readonly credential?: ExactRef<"credential"> });
+} & ({ readonly kind: "stdio"; readonly responses: Map<number, () => void> }
+  | { readonly kind: "http"; readonly endpoint: string; readonly credential?: ExactRef<"credential"> });
 
 export interface HeldMcpTool extends ReviewDecisionControl {
   readonly transport: McpTransport;
@@ -76,19 +78,20 @@ type NetworkAuthorization = {
   readonly response?: NonNullable<Parameters<NodeHost["executeModelNetwork"]>[0]["onResponse"]>;
   readonly resultCurrent?: () => void;
   readonly cancellation?: Request;
+  readonly business?: boolean;
+  readonly confirmDispatch?: () => void;
   cancelling?: Promise<void>;
 };
 
 /** The existing Node Host maps App refusals to the dispatch contract and preserves cancellation. */
 function dispatchRefusal(error: unknown) {
-  if (isPrologueError(error) && (error.code === "CANCELLED" || error.code === "EFFECT_NOT_AUTHORIZED")) return error;
+  if (isPrologueError(error) && ["CANCELLED", "EFFECT_NOT_AUTHORIZED", "EFFECT_RECONCILE_REQUIRED"].includes(error.code)) return error;
   return denied();
 }
 
-/** Preserve the SDK's original transport and request handle. Business denials enter NodeNetwork's own dispatch bookkeeping. */
-export function guardMcpDispatch(host: NodeHost, guards: DispatchGuards): NodeHost {
+/** Keep business denials and the original request handle with the SDK's HTTP transport. */
+function guardMcpNetwork(host: NodeHost, guards: DispatchGuards): Pick<NodeHost, "prepareModelNetwork" | "executeModelNetwork" | "cancelModelNetwork"> {
   const network = new WeakMap<Awaited<ReturnType<NodeHost["prepareModelNetwork"]>>, NetworkAuthorization>();
-  const pipes = new Map<string, { transport: McpTransport; written: Set<number> }>();
   const cleanup = { beforeDispatch: async () => () => undefined };
 
   function authorizeNetwork(request: Request, guard: ReturnType<DispatchGuards["getStore"]>): NetworkAuthorization {
@@ -103,14 +106,19 @@ export function guardMcpDispatch(host: NodeHost, guards: DispatchGuards): NodeHo
     let sent = false;
     return {
       beforeDispatch: async () => {
-        try { await guard?.beforeEffect(); await control.beforeEffect(); }
+        let original: Awaited<ReturnType<typeof prepareDispatchFence>>;
+        try {
+          if (tool && sent) throw createPrologueError("EFFECT_RECONCILE_REQUIRED", "The original MCP request was already dispatched.");
+          original = await prepareDispatchFence(guard); await control.beforeEffect();
+        }
         catch (error) { throw dispatchRefusal(error); }
+        let marked = false;
         return () => {
           try {
+            requireSynchronous(original?.());
             assert();
-            if (tool && sent) throw denied();
-            sent = true;
-            tool?.onDispatch?.();
+            // Node checks at preparation and again before writing. A second hop asks for a new fence.
+            if (!marked) { marked = true; sent = true; }
           } catch (error) { throw dispatchRefusal(error); }
         };
       },
@@ -118,6 +126,8 @@ export function guardMcpDispatch(host: NodeHost, guards: DispatchGuards): NodeHo
         if (info.status >= 200 && info.status < 300) transport.session = info.mcpSessionId;
       } } : {}),
       ...(frame.method === "tools/call" ? { resultCurrent: assert } : {}),
+      business: Boolean(tool),
+      confirmDispatch: tool?.onDispatch,
       ...(frame.id === undefined || frame.method === "initialize" ? {} : {
         cancellation: { ...request, timeoutMs: Math.min(request.timeoutMs, 2_000),
           body: new TextEncoder().encode(JSON.stringify({ jsonrpc: "2.0", method: "notifications/cancelled", params: { requestId: frame.id } })) },
@@ -125,7 +135,7 @@ export function guardMcpDispatch(host: NodeHost, guards: DispatchGuards): NodeHo
     };
   }
 
-  return { ...host,
+  return {
     async prepareModelNetwork(request) {
       if (request.channel !== "mcp") return host.prepareModelNetwork(request);
       let authorization: NetworkAuthorization;
@@ -135,18 +145,40 @@ export function guardMcpDispatch(host: NodeHost, guards: DispatchGuards): NodeHo
       network.set(handle, authorization);
       return handle;
     },
-    executeModelNetwork(input) {
+    async executeModelNetwork(input) {
       const held = network.get(input.handle);
       if (!held) return host.executeModelNetwork(input);
-      return guards.exit(() => host.executeModelNetwork({ ...input,
-        beforeDispatch: async () => {
-          const original = await input.beforeDispatch?.();
-          const assert = await held.beforeDispatch();
-          return () => { requireSynchronous(original?.()); assert(); };
-        },
-        onResponse: info => { held.resultCurrent?.(); held.response?.(info); input.onResponse?.(info); },
-        onFrame: chunk => { held.resultCurrent?.(); input.onFrame(chunk); },
-      }));
+      const inspect = () => held.business ? host.inspectModelNetwork(input.handle).catch(() => undefined) : undefined;
+      let reported = false;
+      const observeDispatch = async () => {
+        const inspection = await inspect();
+        if (inspection?.dispatched && !reported) { reported = true; held.confirmDispatch?.(); }
+        return inspection;
+      };
+      let result: Awaited<ReturnType<NodeHost["executeModelNetwork"]>>;
+      try {
+        result = await guards.exit(() => host.executeModelNetwork({ ...input,
+          beforeDispatch: async () => {
+            const original = await input.beforeDispatch?.();
+            const assert = await held.beforeDispatch();
+            return () => {
+              requireSynchronous(original?.()); assert();
+              // Node records the actual send synchronously after this fence. A preflight check alone does not report a send.
+              if (held.business && !reported) queueMicrotask(() => void observeDispatch().catch(() => undefined));
+            };
+          },
+          onResponse: info => { held.resultCurrent?.(); held.response?.(info); input.onResponse?.(info); },
+          onFrame: chunk => { held.resultCurrent?.(); input.onFrame(chunk); },
+        }));
+      } catch (error) {
+        const inspection = await observeDispatch();
+        if (held.business && (!inspection || inspection.dispatched)) {
+          throw createPrologueError("EFFECT_RECONCILE_REQUIRED", "The original MCP request was dispatched but its result could not be verified.");
+        }
+        throw error;
+      }
+      await observeDispatch();
+      return result;
     },
     async cancelModelNetwork(handle) {
       const held = network.get(handle), request = held?.cancellation;
@@ -160,12 +192,23 @@ export function guardMcpDispatch(host: NodeHost, guards: DispatchGuards): NodeHo
       // An SDK cancellation frame by itself has no handle and is refused by resolveFrame.
       held.cancelling ??= guards.exit(async () => {
         const notice = await host.prepareModelNetwork(request);
-        let sent = false;
+        let prepared = false;
         await host.executeModelNetwork({ handle: notice, onFrame: () => undefined, onResponse: () => undefined,
-          beforeDispatch: async () => () => { if (sent) throw denied(); sent = true; } });
+          beforeDispatch: async () => {
+            if (prepared) throw denied();
+            prepared = true;
+            return () => undefined;
+          } });
       }).catch(() => undefined);
       await held.cancelling;
     },
+  };
+}
+
+/** Keep each original stdio request and its result check with the process that accepted it. */
+function guardMcpStdio(host: NodeHost, guards: DispatchGuards): Pick<NodeHost, "openInteractive" | "writeInteractive" | "closeInteractive"> {
+  const pipes = new Map<string, { transport: McpTransport; written: Set<number> }>();
+  return {
     async openInteractive(request) {
       const guard = guards.getStore(), transport = guard?.mcp?.maintenance;
       if (transport?.kind !== "stdio") return host.openInteractive(request);
@@ -179,8 +222,12 @@ export function guardMcpDispatch(host: NodeHost, guards: DispatchGuards): NodeHo
       const pipe = pipes.get(input.sessionId);
       if (!pipe) return host.writeInteractive(input);
       const frame = frameOf(input.text);
+      const transport = pipe.transport;
+      if (transport.kind !== "stdio") throw denied();
+      let resultCurrent: (() => void) | undefined;
       if (frame.method === "notifications/cancelled") {
         if (typeof frame.params?.requestId !== "number" || !pipe.written.delete(frame.params.requestId)) throw denied();
+        transport.responses.delete(frame.params.requestId);
       } else {
         const guard = guards.getStore();
         // The SDK answers unsupported elicitation with "decline". This cannot start a tool or submit user data.
@@ -190,15 +237,27 @@ export function guardMcpDispatch(host: NodeHost, guards: DispatchGuards): NodeHo
         } else {
           const selected = resolveFrame(guard, frame, transport => transport === pipe.transport);
           current(guard, selected.control);
-          selected.tool?.onDispatch?.();
+          if (selected.tool) {
+            if (transport.responses.size >= 256) throw denied();
+            selected.tool.onDispatch?.();
+            resultCurrent = () => current(guard, selected.control);
+          }
         }
         // The SDK has just checked this request's cancellation. Keep this check and stdin.write on that same stack.
       }
       const sent = host.writeInteractive(input);
-      await sent;
       if (frame.id !== undefined && frame.method && frame.method !== "initialize") {
         pipe.written.add(frame.id);
-        if (pipe.written.size > 256) pipe.written.delete(pipe.written.values().next().value!);
+        if (resultCurrent) transport.responses.set(frame.id, resultCurrent);
+        if (pipe.written.size > 256) {
+          const expired = [...pipe.written].find(id => !transport.responses.has(id));
+          if (expired !== undefined) pipe.written.delete(expired);
+        }
+      }
+      try { await sent; }
+      catch (error) {
+        if (frame.id !== undefined) { pipe.written.delete(frame.id); transport.responses.delete(frame.id); }
+        throw error;
       }
     },
     async closeInteractive(id) {
@@ -207,4 +266,8 @@ export function guardMcpDispatch(host: NodeHost, guards: DispatchGuards): NodeHo
       if (pipes.get(id) === pipe) pipes.delete(id);
     },
   };
+}
+
+export function guardMcpDispatch(host: NodeHost, guards: DispatchGuards): NodeHost {
+  return { ...host, ...guardMcpNetwork(host, guards), ...guardMcpStdio(host, guards) };
 }

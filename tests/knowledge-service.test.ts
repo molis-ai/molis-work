@@ -227,12 +227,12 @@ test("PMAT-36 a Coding round that carries 「列出项目资料」 gets the cata
 
   assert.equal(await knowledgeCatalogMaterial(actions(3), [], "仓库着火"), null, "a round without the list tool gets none");
   const small = await knowledgeCatalogMaterial(actions(3), list, "仓库着火");
-  assert.ok(small?.text.startsWith("这个项目的资料一共 3 份，都列在下面。") && small.text.includes("- k0000002「资料 2」（Pages）：第 2 份的简介"), small?.text);
+  assert.ok(small?.text.startsWith("这个项目的资料目录已收录 3 份，本次可用的都列在下面。") && small.text.includes("- k0000002「资料 2」（Pages）：第 2 份的简介"), small?.text);
   assert.deepEqual([small!.title, asked.length], ["项目资料目录", 1]);
 
   asked.length = 0;
   const large = await knowledgeCatalogMaterial(actions(50), list, "仓库着火");
-  assert.match(large!.text, /一共 50 份，下面是与这一轮最相关的 20 份/);
+  assert.match(large!.text, /已收录 50 份，下面是本次可用且与这一轮相关的 20 份/);
   assert.deepEqual(asked, [{ related_to: "仓库着火", limit: 40 }], "one listing, the related pieces first");
   assert.equal(await knowledgeCatalogMaterial(actions(0), list, "仓库着火"), null, "nothing listed, nothing given");
   assert.equal(await knowledgeCatalogMaterial(actions(3, true), list, "仓库着火"), null, "a listing that fails does not stop the round");

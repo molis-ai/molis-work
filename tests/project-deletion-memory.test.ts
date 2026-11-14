@@ -3,33 +3,40 @@ import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { MemoryService, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { MemoryWriteRequest } from "@molis-ai/molis-work-contracts/services/memory";
-import { openMemoryLedger } from "@molis-ai/molis-work-storage";
+import { acquireStorageOwner, initializeMemoryForgetting, openMemoryLedger } from "@molis-ai/molis-work-storage";
 import { memoryRuntimePolicy, prologueMemoryBackend, projectDeletedHooksFor, registerMemoryProjectDeletion, type MemoryRuntimePolicyOwner } from "@molis-ai/molis-work-app-local-host";
 import { observeMemoryBackend } from "./fixtures/memory-service-home.js";
 
 /** A real Prologue runtime (its Memory is the store) and the Host ledger, in a scratch Home. */
-async function memoryHome(t: { after(fn: () => Promise<void> | void): void }) {
+async function memoryHome(t: { after(fn: () => Promise<void> | void): void }, beforeCandidatePurge: (id: string) => void = () => {},
+  afterPreview?: (owner: string) => Promise<void>) {
   const home = await mkdtemp(join(tmpdir(), "molis-memory-purge-"));
-  const ledger = openMemoryLedger({ homeDirectory: home });
+  const storageOwner = acquireStorageOwner(join(home, "agent-runtime"));
+  initializeMemoryForgetting({ homeDirectory: home, storageOwner, assertCurrent() {} });
+  const ledger = openMemoryLedger({ homeDirectory: home, storageOwner });
   const projects = new Set(["project-gone", "project-kept"]);
   let service!: MemoryService, alive = true;
   const owner: MemoryRuntimePolicyOwner = { alive: () => alive,
+    forgettingPhase: () => service.forgettingPhase(),
     prefsFor: (scope, id) => service.prefsFor(LOCAL_PERSON_ACTOR_ID, scope, id),
     owners: id => ledger.owners(id), candidateOwners: id => ledger.candidateOwners(id),
     projectExists: async id => projects.has(id), deletingProject: () => undefined };
-  const open = () => createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "agent-runtime"),
+  const open = () => createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "agent-runtime"), storageOwner,
     memory: { ...memoryRuntimePolicy(() => owner), promotion: { policy: "memory.write-gate", version: 1,
       decide: (caller, request) => service.promotion.decide(caller, request),
       undo: { prepare: (caller, request) => service.promotion.undo.prepare(caller, request), record: (caller, request) => service.promotion.undo.record(caller, request) } } },
     modelConfiguration: async () => { throw new Error("Project deletion must not call a model"); } });
   let adapter = await open();
-  t.after(async () => { alive = false; await adapter.close(); ledger.close(); await rm(home, { recursive: true, force: true }); });
-  const cleared: string[] = [];
+  t.after(async () => { alive = false; await adapter.close(); ledger.close(); storageOwner.release(); await rm(home, { recursive: true, force: true }); });
+  const cleared: string[] = [], purgedCandidates: string[] = [];
   const backend = observeMemoryBackend(prologueMemoryBackend(async () => adapter.memory!), bound => ({ ...bound,
+    previewScope: async (scope, owner) => { const preview = await bound.previewScope(scope, owner); await afterPreview?.(owner); return preview; },
+    candidates: { ...bound.candidates, purge: async input => { beforeCandidatePurge(input.candidate_id); await bound.candidates.purge(input); purgedCandidates.push(input.candidate_id); } },
     clearScope: async input => {
       const result = await bound.clearScope(input);
       cleared.push(...result.items.filter(item => item.outcome === "completed").map(item => item.memory_id));
@@ -39,10 +46,10 @@ async function memoryHome(t: { after(fn: () => Promise<void> | void): void }) {
   const deletion = registerMemoryProjectDeletion({ homeDirectory: home, backend, ledger, alive: owner.alive,
     executes: () => true, ready: async () => undefined, projectExists: owner.projectExists });
   owner.deletingProject = deletion.deletingProject;
-  return { service, backend, ledger, reopen: async () => { await adapter.close(); adapter = await open(); },
-    purge: async (projectId: string) => {
+  return { service, backend, ledger, purgedCandidates, reopen: async () => { await adapter.close(); adapter = await open(); },
+    purge: async (projectId: string, deletionId?: string) => {
       const before = cleared.length;
-      assert.equal(await projectDeletedHooksFor(home).clear("memory", projectId), true);
+      assert.equal(await projectDeletedHooksFor(home).clear("memory", projectId, deletionId ? { project_id: projectId, deletion_id: deletionId } : undefined), true);
       return { removed: cleared.length - before };
     } };
 }
@@ -92,6 +99,50 @@ test("deleting a project clears its memories and its Characters' from the store 
   assert.deepEqual(await purge("project-gone"), { removed: 0 });
 });
 
+test("all SDK candidates can be purged before final ledger cleanup fails, then the original receipt completes after reopen", async t => {
+  const { service, ledger, purge, reopen, purgedCandidates } = await memoryHome(t);
+  await service.offer(work("project-gone"), { scope: "project", text: "项目中待确认的建议", kind: "convention", basis: "inferred", why: "一次观察", from: "extraction" });
+  await service.offer(work("project-gone", writer), { scope: "character", text: "角色中待确认的建议", kind: "preference", basis: "inferred", why: "角色观察", from: "extraction" });
+  const originals = ledger.candidates(LOCAL_PERSON_ACTOR_ID).map(one => one.candidate_id).sort();
+  let interrupted = false;
+  const prepare = DatabaseSync.prototype.prepare;
+  const fault = t.mock.method(DatabaseSync.prototype, "prepare", function(this: DatabaseSync, sql: string) {
+    if (sql === "DELETE FROM memory_owners WHERE scope=? AND owner=?") {
+      interrupted = true; throw new Error("final project ledger transaction interrupted");
+    }
+    return prepare.call(this, sql);
+  });
+  const receipt = "project-deletion-final-ledger";
+  await assert.rejects(purge("project-gone", receipt));
+  assert.equal(interrupted, true);
+  assert.deepEqual([...new Set(purgedCandidates)].sort(), originals, "every original SDK purge returned before the final transaction failed");
+  assert.deepEqual(ledger.candidates(LOCAL_PERSON_ACTOR_ID).map(one => one.candidate_id).sort(), originals, "the whole final ledger transaction rolled back");
+  const accepted = ledger.forgetting.read();
+  assert.deepEqual(accepted.decisions.flatMap(one => one.candidates.map(item => item.candidate_id)).sort(), originals);
+  fault.mock.restore(); await reopen(); await purge("project-gone", receipt);
+  assert.deepEqual(ledger.forgetting.read(), accepted, "replay retains the first independent decisions");
+  assert.deepEqual(ledger.candidateOwners("project-gone"), []);
+  assert.deepEqual(ledger.candidates(LOCAL_PERSON_ACTOR_ID), []);
+});
+
+test("a new Character scope appearing after SDK previews is refused before acceptance and is never added on retry", async t => {
+  let waitingOwner: string | undefined, enter!: () => void, release!: () => void;
+  const entered = new Promise<void>(done => { enter = done; }), gate = new Promise<void>(done => { release = done; });
+  const { service, ledger, purge } = await memoryHome(t, undefined, async owner => {
+    if (owner === waitingOwner) { waitingOwner = undefined; enter(); await gate; }
+  });
+  await service.offer(work("project-gone", writer), { scope: "character", text: "原有角色候选", kind: "preference", basis: "inferred", why: "原观察", from: "extraction" });
+  waitingOwner = ledger.candidateOwners("project-gone")[0]!.owner;
+  const pending = purge("project-gone", "project-deletion-new-character"), rejected = assert.rejects(pending);
+  await entered;
+  await service.offer(work("project-gone", { id: "new-reviewer", title: "新角色" }), { scope: "character", text: "后来角色候选不得被旧操作选入", kind: "preference", basis: "inferred", why: "后来观察", from: "extraction" });
+  release(); await rejected;
+  assert.deepEqual(ledger.forgetting.read().decisions, []);
+  await assert.rejects(purge("project-gone", "project-deletion-new-character"));
+  assert.equal(ledger.candidateOwners("project-gone").length, 2);
+  assert.equal(ledger.candidates(LOCAL_PERSON_ACTOR_ID).length, 2);
+});
+
 test("deleting a project also purges the suggestions waiting in its Characters' scopes, found from the notes on the candidates", { timeout: 90_000 }, async t => {
   const { service, backend, ledger, purge, reopen } = await memoryHome(t);
   // Nothing of this Character was written, so the ledger noted no owner for it: all it has in the project is a suggestion.
@@ -111,4 +162,30 @@ test("deleting a project also purges the suggestions waiting in its Characters' 
   assert.equal((await gone.candidates.list("character", goneNote.owner)).length, 0, "the suggestion's text is gone from Prologue's box");
   assert.deepEqual(notes().map(note => note.project_id), ["project-kept"], "and from the ledger");
   assert.equal((await kept.candidates.list("character", keptNote.owner)).length, 1, "another project's Character keeps its waiting suggestion");
+});
+
+test("candidate-only Character scopes survive a middle cleanup failure and the same completed receipt never clears later identities", { timeout: 90_000 }, async t => {
+  let blocked: string | undefined;
+  const { service, ledger, purge, reopen } = await memoryHome(t, id => { if (id === blocked) throw new Error("candidate cleanup interrupted"); });
+  const otherCharacter = { id: "character:project-gone:reviewer", title: "审稿顾问" };
+  const first = await service.offer(work("project-gone", writer), { scope: "character", text: "先列结论和风险", kind: "preference", basis: "inferred", why: "写作待审", from: "extraction" });
+  const second = await service.offer(work("project-gone", otherCharacter), { scope: "character", text: "先核对引文来源", kind: "preference", basis: "inferred", why: "审稿待审", from: "extraction" });
+  assert.equal(first.outcome, "candidate"); assert.equal(second.outcome, "candidate");
+  const notes = ledger.candidates(LOCAL_PERSON_ACTOR_ID), ordered = [...notes].sort((a, b) => a.owner.localeCompare(b.owner));
+  blocked = ordered[1]!.candidate_id;
+  const receipt = "project-deletion-candidate-only-fixed";
+  await assert.rejects(purge("project-gone", receipt), (error: { details?: { forgetting?: string; cleanup?: string } }) =>
+    error.details?.forgetting === "accepted" && error.details.cleanup === "pending");
+  assert.deepEqual(ledger.owners("project-gone"), [], "the scopes exist only in candidate projections");
+  assert.equal(ledger.candidateOwners("project-gone").length, 2, "a physical purge does not erase the retry's original scope relation");
+  assert.deepEqual(ledger.forgetting.read().decisions.flatMap(one => one.candidates.map(item => item.candidate_id)).sort(), notes.map(one => one.candidate_id).sort());
+  await reopen(); blocked = undefined;
+  await purge("project-gone", receipt);
+  assert.deepEqual(ledger.candidateOwners("project-gone"), []);
+  const later = await keep(service, work("project-gone"), { scope: "project", text: "后来新建身份的约定保留", said: "后来新建身份的约定保留" });
+  const held = await service.offer(work("project-gone"), { scope: "project", text: "后来新候选也保留", kind: "preference", basis: "inferred", why: "新的观察", from: "extraction" });
+  assert.equal(held.outcome, "candidate");
+  await purge("project-gone", receipt);
+  assert.equal((await service.list(person("project-gone"), { scope: "project" })).items.some(one => one.memory_id === later.memory!.memory_id), true);
+  assert.equal(ledger.candidates(LOCAL_PERSON_ACTOR_ID).length, 1, "the old completed request cannot clear a later candidate projection");
 });

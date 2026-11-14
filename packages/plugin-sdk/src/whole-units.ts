@@ -20,3 +20,20 @@ export const cutCharacters = (text: string, limit: number): string => [...text.s
 
 /** Whether `text` has more than `limit` characters (a schema's `maxLength`): a text of more than `2 * limit` units already has, so it is decided without spreading. `limit` is a non-negative integer. */
 export const exceedsCharacters = (text: string, limit: number): boolean => text.length > 2 * limit || [...text].length > limit;
+
+interface EllipsisCutOptions {
+  readonly unit?: "utf16" | "characters";
+  /** When supplied, keep up to this many units of text and then add the ellipsis outside that prefix. */
+  readonly prefixLength?: number;
+  readonly trimEnd?: boolean;
+}
+
+/** Cut text only when it exceeds limit. By default the ellipsis uses one unit of the limit. */
+export function cutWithEllipsis(text: string, limit: number, { unit, prefixLength, trimEnd }: EllipsisCutOptions = {}): string {
+  const characters = unit === "characters";
+  if (!(characters ? exceedsCharacters(text, limit) : text.length > limit)) return text;
+  const headLength = prefixLength ?? limit - 1;
+  if (headLength < 0) return "";
+  const head = characters ? cutCharacters(text, headLength) : cutHead(text, headLength);
+  return (trimEnd ? head.trimEnd() : head) + "…";
+}

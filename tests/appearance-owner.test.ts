@@ -194,7 +194,7 @@ test("FSS-24 FSS-27 refuse future or unreadable state and an interface directory
 test("FSS-27 read the real state after Storage fails before or after rename and signal only confirmed commits", async t => {
   const setup = await isolatedHome(t), client = setup.client(), revisions: number[] = [];
   setup.owner.subscribe(revision => revisions.push(revision));
-  const rename = fs.renameSync, chmod = fs.chmodSync;
+  const rename = fs.renameSync;
   const beforeRename = t.mock.method(fs, "renameSync", (from, to) => {
     if (to === setup.path) throw new Error("injected rename failure");
     return rename(from, to);
@@ -205,24 +205,32 @@ test("FSS-27 read the real state after Storage fails before or after rename and 
   assert.deepEqual(revisions, []);
   beforeRename.mock.restore();
 
-  const afterRename = t.mock.method(fs, "chmodSync", (file, mode) => {
-    if (file === setup.path) throw new Error("injected after rename");
-    return chmod(file, mode);
-  });
+  const sync = fs.fsyncSync;
+  const directory = fs.statSync(dirname(setup.path));
+  function failDirectorySync(onFailure: () => void) {
+    return t.mock.method(fs, "fsyncSync", descriptor => {
+      const target = fs.fstatSync(descriptor);
+      if (target.dev !== directory.dev || target.ino !== directory.ino) return sync(descriptor);
+      onFailure();
+      throw new Error("injected directory sync failure after rename");
+    });
+  }
+
+  let failedSyncs = 0;
+  const afterRename = failDirectorySync(() => { failedSyncs++; });
   const saved = await client.invoke(actions.apply, select("retry", 0));
   assert.deepEqual((await client.invoke(actions.get, { request_id: "retry" })).recovery, { applied: saved });
   const undone = await client.invoke(actions.undo, { applied_request_id: "retry", expected_revision: 1 });
   assert.deepEqual((await client.invoke(actions.get, { request_id: "retry" })).recovery, { applied: saved, undone });
   assert.deepEqual(undone, { request_id: "retry", selection_revision: 2, selection: baseline });
   assert.deepEqual(revisions, [1, 2]);
+  assert.equal(failedSyncs, 2);
   afterRename.mock.restore();
 
   let committed: Buffer | undefined;
-  const unreadableAfterRename = t.mock.method(fs, "chmodSync", (file, mode) => {
-    if (file !== setup.path) return chmod(file, mode);
+  const unreadableAfterRename = failDirectorySync(() => {
     committed = fs.readFileSync(setup.path);
     fs.writeFileSync(setup.path, "{cannot confirm the file while it is unreadable");
-    throw new Error("injected failure with unreadable destination");
   });
   await assert.rejects(client.invoke(actions.apply, restore("unknown", 2)), { code: "actions.outcome_unknown" });
   assert.deepEqual(revisions, [1, 2], "unconfirmed writes publish no invalidation");

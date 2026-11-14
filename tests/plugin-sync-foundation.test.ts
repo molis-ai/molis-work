@@ -92,7 +92,11 @@ test("cross-project collisions and unbound local replicas are rejected without c
 test("references, unfinished publication and local-only links block without discarding content",t=>{
  const f=fixture(t),page=f.a.create({project_id:'project',goal_id:'goal-1',title:'linked'}),event=f.source.next()!;
  const waiting=f.b.replica({...f.context,hasReference:()=>false});waiting.receive({...event,revision:1});assert.equal(waiting.conflicts().length,1);assert.equal(f.b.list('project').length,0);
- f.source.acknowledge(event.key,event.operationId,1);f.a.beginPublication(page.id,'project','actor');assert.throws(()=>f.source.next());f.a.delete(page.id);
+ f.source.acknowledge(event.key,event.operationId,1);
+ const original = new DatabaseSync(homeSqlitePath(f.aHome,'pages'));
+ try { original.prepare("UPDATE pages SET publication_pending_json=? WHERE id=?").run(JSON.stringify({ version: 1, source_version: page.version, goal_id: page.goal_id, actor_id: "actor" }), page.id); }
+ finally { original.close(); }
+ assert.throws(()=>f.source.next());f.a.delete(page.id);
  f.a.create({project_id:'project',body:{type:'doc',content:[{type:'image',attrs:{src:'blob:local-image'}}]}});assert.throws(()=>{for(let i=0;i<4;i++){const next=f.source.next();if(!next)break;f.source.acknowledge(next.key,next.operationId,2+i);}});
 });
 test("malformed remote records remain conflicts and never overwrite an existing draft",t=>{

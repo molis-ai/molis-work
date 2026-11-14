@@ -27,7 +27,8 @@ export async function handlePlacementHttp(request: IncomingMessage, response: Se
         : route === "unlink" ? await client.invoke(placementActions.unlink, { key: String(body.key ?? "") })
         : route === "move" ? await client.invoke(placementActions.move, { object: body.object as PlacedObject, to_project_id: String(body.to_project_id ?? "") })
         : route === "copy" ? await client.invoke(placementActions.copy, { object: body.object as PlacedObject, to_project_id: String(body.to_project_id ?? ""), request_id: String(body.request_id ?? "") })
-        : route === "bind-goal" ? await client.invoke(placementGoalActions.bindGoal, { object: body.object as PlacedObject, project_id: String(body.project_id ?? ""), goal_id: String(body.goal_id ?? "") })
+        : route === "bind-goal" ? await client.invoke(placementGoalActions.bindGoal, { object: body.object as PlacedObject, project_id: String(body.project_id ?? ""), goal_id: String(body.goal_id ?? ""),
+          ...(typeof body.read_revision === "string" && body.read_revision ? { read_revision: body.read_revision } : {}) })
         : route === "create" ? await client.invoke(placementGoalActions.create, body as unknown as PlacementCreateRequest)
         : await client.invoke(placementActions.convert, { ...body as unknown as PlacementConvertRequest, ...(page ? { source: page.ownedObject(body.source as PlacedObject) } : {}) }, control);
       page?.assertCurrent(); sendJson(response, 200, result);

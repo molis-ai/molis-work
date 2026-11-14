@@ -3,7 +3,7 @@
     "function horizontal/agent-host/src/capability-registration.ts#registerAgentHostCapabilities": {
       "kind": "cohesive-unit",
       "reason": "登记 Agent Host 的公开插件动作，所有分组共用一次创建的调用身份、会话归属、取消与作用控制；处理器按动作组已放在各自文件。",
-      "size": 153
+      "size": 161
     }
   }
 }

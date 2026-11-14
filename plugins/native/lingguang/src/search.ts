@@ -3,10 +3,12 @@ import { LINGGUANG_PROJECT_PLUGIN_ID, type LingguangSpark } from "./contract.js"
 import type { LingguangStore } from "./store.js";
 import { lingguangErrors } from "./error.js";
 
+const subjectReader = defineSubjectContextAction("lingguang.subject.read", /* @version action.lingguang.subject.read */ 1, "lingguang_spark", "灵光", ["lingguang:read"]);
+
 /** 灵光's part in the system search: sparks that are still kept. A discarded spark is no longer searchable or readable here. */
 export const lingguangSearchActions = {
   entries: defineSearchEntriesAction("lingguang.search.entries", /* @version action.lingguang.search.entries */ 1, [{ kind: "lingguang_spark", title: "灵光", surface: LINGGUANG_PROJECT_PLUGIN_ID }], "灵光", ["lingguang:read"]),
-  subject: defineSubjectContextAction("lingguang.subject.read", /* @version action.lingguang.subject.read */ 1, "lingguang_spark", "灵光", ["lingguang:read"]),
+  subject: { ...subjectReader, action: { ...subjectReader.action, execution: { cost: "none" as const } } },
 };
 /** A spark's version as every reader, result and page names it: a change of text or of status is a new version. */
 export const revisionOf = (spark: LingguangSpark) => `${spark.updated_at}:${spark.status}`;

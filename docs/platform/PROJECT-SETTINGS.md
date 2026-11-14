@@ -54,7 +54,7 @@ const output = directories.find(item => item.roles.includes('output'));
 
 Workspace 不再进入产品 catalog 或启动图，也没有 navigator view。旧安装数据和历史 Artifact 保留但不再更新，也不迁移。旧的 `projects.workspaces.*`、`projects.workspace.read`、`projects.settings.workspaces.read` 与 `projects.settings.browsing-workspace.*` 都已删除，不留兼容（`docs/system/CONTRACT-CHANGES.md` §8）；新消费者读 `projects.directories.get`。
 
-Files/Git 每次读取，先按页面说的目录（没说就是输出目录）向 `projects.directories.get` 核对，异步读取后再核对一次；目录已不属于项目时拒绝，Files 同时撤回它从原目录交出去的快照（历史固定版本保留）。工作面打开或点击刷新后重新读取。
+平台资料服务与 Git 每次读取，先按页面说的目录（没说就是输出目录）向 `projects.directories.get` 核对，异步读取后再核对一次；目录已不属于项目时拒绝，资料服务同时撤回它从原目录交出去的快照（历史固定版本保留）。工作面打开或点击刷新后重新读取。
 
 ## 设置归属清单
 
@@ -67,7 +67,7 @@ Files/Git 每次读取，先按页面说的目录（没说就是输出目录）�
 | 外观、模型、Runtime、MCP、Connector、诊断 | 全局设置 | 属于本机/用户，继续共用；不复制到每个项目 |
 | 插件专有长期偏好 | 插件 `settings` contribution / `storage:private` | 设置槽是呈现位置，私有存储不是跨插件配置接口 |
 | Coding 的执行位置、模型、材料、运行配置 | 会话 | 一轮在输出目录里跑，或在宿主为这个会话建的独立工作树里跑（开轮时冻结）；目录候选读项目的 `projects.directories.get` |
-| Files 阅读位置、Git 当前差异、固定内容 | 插件私有状态 / Artifact | 不属于项目设置，继续由插件管理 |
+| 资料阅读位置、Git 当前差异、固定内容 | 平台资料服务的私有值 / 插件私有状态 / Artifact | 不属于项目设置，由各自的主人管理 |
 | 插件启用、安装、权限、连接凭据 | 项目 catalog / Plugin Runtime / Connector owner | 保留管理契约，不暴露给全部插件 |
 
 新增设置先明确范围（项目/个人/会话）、唯一 owner、读者和写入入口；有实际跨插件需求时添加具名、定型、单独授权的 capability。不要把所有页面字段自动变成可读项目设置。

@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { realpathSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
 import type { AggregateReplicaContext } from '@molis-ai/molis-work-contracts/platform/plugin-registration';
@@ -38,10 +39,15 @@ export function withPluginSyncAuthority(authority: PluginSyncAuthority, run: () 
   });
 }
 
+/** One Home whether a caller holds its path or its real path (an artifact-row library opens the real path; macOS temp folders are symlinks). */
+function sameHome(held: string, used: string): boolean {
+  return resolve(held) === resolve(used) || realpathSync(held) === realpathSync(used);
+}
+
 /** Called again for every adapter operation; a retained adapter grants no account or collection authority. */
 export function pluginSyncAuthority(home: string, identity: PluginSyncCollectionIdentity): AggregateReplicaContext {
   const scope = current.getStore();
-  if (!scope?.live || resolve(scope.authority.home) !== resolve(home)) {
+  if (!scope?.live || !sameHome(scope.authority.home, home)) {
     throw new ActionError('actions.forbidden', '同步内容只能在当前已授权的同步或复制操作中访问');
   }
   const { authority } = scope;

@@ -1,16 +1,18 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import childProcess, { execFileSync } from "node:child_process";
+import { syncBuiltinESMExports } from "node:module";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test, { type TestContext } from "node:test";
+import type { ActionDefinition, ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDatabase, PluginDatabaseDeclaration, PluginDefinition, PluginHostServices, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { SandboxEffects, SandboxOperationContract, SandboxPluginContract } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
 import { pluginSyncDatabaseDeclaration, pluginSyncNamespace, createPluginPlatform, DEMO_PROJECT_ID, LocalProjectDatabase, openPluginProjectLibrary, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { createAlchemistStudioRuntime } from "@molis-ai/molis-work-plugin-alchemist";
 import { LocalSqliteStorage, sqliteErrorName } from "@molis-ai/molis-work-storage";
-import { PLUGIN_STATEMENT_SQLITE_VERSION, pluginStatementGuard, type PluginProjectDatabaseRecord } from "@molis-ai/molis-work-plugin-runtime";
+import { PLUGIN_STATEMENT_SQLITE_VERSION, pluginStatementGuard, runInPluginAction, type PluginProjectDatabaseRecord } from "@molis-ai/molis-work-plugin-runtime";
 import { assertContract, createSandboxRunner, sandboxDatabase } from "@molis-ai/molis-work-plugin-sandbox";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { pluginActions } from "./fixtures/plugin-actions.js";
@@ -437,4 +439,43 @@ test("PLIB-10 S-46 a sandboxed plugin reaches its own tables through the broker,
     assert.equal(count("libprobe_notes"), 1);
     assert.equal(count("libother_items"), 0);
   } finally { await runner.stop(); await readOnly.stop(); }
+});
+
+test("BCC-10 S-plugin-read-original-caller a sandboxed read whose original caller is revoked while it waits for its turn is never sent to the statement process", async t => {
+  const MARK = "bcc10_sandbox_read";
+  const sent: string[] = [];
+  // The statement process is forked by the Host; each child's own `send` carries the reads, so count those that name this test's read.
+  const fork = childProcess.fork;
+  t.mock.method(childProcess, "fork", (...args: Parameters<typeof childProcess.fork>) => {
+    const child = Reflect.apply(fork, childProcess, args);
+    const send = child.send;
+    Object.defineProperty(child, "send", { value: (...message: unknown[]) => {
+      const sql = (message[0] as { sql?: unknown } | undefined)?.sql;
+      if (typeof sql === "string" && sql.includes(MARK)) sent.push(sql);
+      return Reflect.apply(send, child, message);
+    } });
+    return child;
+  });
+  syncBuiltinESMExports();
+  t.after(() => { t.mock.restoreAll(); syncBuiltinESMExports(); });
+  const { mine, statements, running } = await platform(t, true);
+  const record = running.runtime.list().find(row => row.plugin_id === mine.id) ?? assert.fail("the probe is installed");
+  const library = statements(mine);
+  let revoked = false;
+  const caller: ActionExecutionContext = { actor_id: "mcp-client", project_id: DEMO_PROJECT_ID, audience: "mcp", permissions: [],
+    assert_authority_current: () => { if (revoked) throw Object.assign(new Error("revoked"), { code: "mcp.action_revoked" }); },
+    beforeEffect: async () => {} };
+  const definition = { capability_id: "fixture.bcc10.read", version: 1, operation: "query" } as ActionDefinition;
+  const read = () => runInPluginAction({ install_id: record.install_id, installation_generation: record.installation_generation, definition, caller },
+    () => library.get(`SELECT count(*) AS ${MARK} FROM libprobe_notes`, [], { bytes: 4096 }));
+  // Control: the same read for a current caller is sent and answered.
+  assert.deepEqual(await read(), { [MARK]: 0 });
+  assert.equal(sent.length, 1);
+  // The read passes its first check, then the caller is revoked before the read gets its turn in the process's queue.
+  const pending = read().then(row => ({ row, error: undefined }), (error: unknown) => ({ row: undefined, error }));
+  revoked = true;
+  const settled = await pending;
+  assert.equal(settled.row, undefined, "nothing is delivered to a revoked caller");
+  assert.equal((settled.error as { code?: unknown } | undefined)?.code, "mcp.action_revoked");
+  assert.equal(sent.length, 1, "the revoked read is not sent to the statement process");
 });

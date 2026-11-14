@@ -163,7 +163,7 @@ test("a sub-task whose session opened under the Assistant's own role carries its
     const parent = await service.send({ text: "主工作", request_id: "req-delegated-role-1" }, { project_ref: project });
     await until(async () => (await service.read(parent.work.work_id)).work.state === "completed", "parent completion");
     assert.doesNotMatch(requests[0]!.system, delegatedLayer, "the person's own work runs as the Assistant");
-    assert.match(requests[0]!.system, /## 分工[\s\S]*## 记忆/, "with its own layer on delegating and memory");
+    assert.match(requests[0]!.system, /## 分工[\s\S]*## 长期内容/, "with its own layer on delegating and memory");
     // A sub-task as works were handed out before the delegated role existed: its session was opened under the Assistant's role.
     const child = store.create({ actor_id: "web-user", title: "早先的子任务", scope: parent.work.scope, origin: { surface: "assistant", title: `「${parent.work.title}」委托` }, project_ref: project,
       delegated_by: { graph_id: store.get("web-user", parent.work.work_id).graph_id!, node_id: "p-earlier", title: parent.work.title, acceptance: "一段话" } });
@@ -311,10 +311,24 @@ async function delegationFixture(t: import("node:test").TestContext, parentScrip
       if (!work.delegated_by) await flags.beforeAuthority?.();
       return { ...base, beforeStart: async () => { await base.beforeStart?.(); await (work.delegated_by ? flags.partBeforeStart : flags.beforeStart)?.(); }, assertBeforeStart: () => { base.assertBeforeStart?.(); if(!work.delegated_by)flags.assertBeforeStart?.(); } };
     }, projectTitle: async () => "项目" }, "web-user");
-  return { service, store, project, flags, adapter, home, close: async () => { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); } };
+  // The fixture holds the work owner's port. The protected grant action is exercised separately by the Pages journey.
+  const grantAgain = async (workId: string) => {
+    const original = store.get("web-user", workId);
+    const subject = { kind: "work" as const, work: { owner_id: ASSISTANT_PLUGIN_ID, id: workId }, actor_id: original.actor_id,
+      project_id: project.project_id, executor: { plugin_id: ASSISTANT_PLUGIN_ID, install_id: ASSISTANT_INSTALL_ID,
+        installation_generation: ASSISTANT_INSTALL_ID, role_id: original.delegated_by ? "assistant-delegated" : "assistant" } };
+    const state = await adapter.delegations.read(subject);
+    assert.equal(state?.lifecycle, "ended");
+    const assertCurrent = () => assert.equal(store.get("web-user", workId).archived, false);
+    const fresh = await adapter.delegations.reopen(subject, { expected_version: state!.storage_version, mode: "confirm", scopes: [], expires_at: null }, {
+      beforeEffect: assertCurrent, assertCurrent,
+    });
+    assert.notEqual(fresh.epoch, state!.epoch);
+  };
+  return { service, store, project, flags, adapter, home, grantAgain, close: async () => { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); } };
 }
 
-test("a sub-task the person put away still counts for the work that handed it out: its tokens, its place among the limit, and the stop", { timeout: 60_000 }, async t => {
+test("a sub-task the person put away still counts for the work that handed it out: its tokens and its place among the limit; it takes no follow-up until the person restores it, then the stop reaches it", { timeout: 60_000 }, async t => {
   let release!: () => void;
   const held = new Promise<void>(resolve => { release = resolve; });
   const f = await delegationFixture(t, [() => reply({ name: "delegate-work", input: { title: "起草", brief: "起草一段话。", acceptance: "一段话" } }), () => reply(undefined, "已交给子任务。")],
@@ -349,7 +363,18 @@ test("a sub-task the person put away still counts for the work that handed it ou
     await assert.rejects(delegation.start({ title: "第七个", brief: "再来一个。", acceptance: "完成" }), (error: unknown) => error instanceof ActionError && error.code === "assistant.limit" && error.kind === "invalid"
       && error.message === "这项工作已经委托了 6 个子任务，不能再多；请自己完成剩下的部分或告诉用户");
 
-    // The parent's stop reaches a put-away sub-task that a follow-up has set going again.
+    // Put away is the person's decision and archives its execution session with it: the work that handed it out cannot set it going again.
+    const rounds = f.store.rounds(childId).length;
+    await assert.rejects(delegation.follow_up(childId, "再改改"), (error: unknown) => error instanceof ActionError && error.code === "assistant.invalid" && error.kind === "invalid"
+      && error.message === "用户已把这个子任务收起，不要再对它追加；还需要它时告诉用户，由用户先恢复它");
+    assert.equal(f.store.rounds(childId).length, rounds, "a refused follow-up starts no round");
+    assert.equal((await f.service.read(childId)).work.state, "completed");
+
+    // Putting it back does not grant a new lifetime. After a fresh grant, the parent's stop still reaches it.
+    await f.service.archive(childId, false);
+    await assert.rejects(delegation.follow_up(childId, "再改改"), { code: "agent.delegation_ended" });
+    assert.equal(f.store.rounds(childId).length, rounds);
+    await f.grantAgain(childId);
     await delegation.follow_up(childId, "再改改");
     await until(async () => (await f.service.read(childId)).work.state === "running", "the sub-task runs again");
     const stopped = await f.service.control(sent.work.work_id, { kind: "stop" });
@@ -487,7 +512,10 @@ for (const stage of ["authority", "before-start", "sdk-prepared-start"] as const
       const indexKind = "molis-agent-index-" + createHash("sha256").update("io.molis.work.assistant-delegation-fixture-test").digest("hex").slice(0, 24);
       let armed = false, held = false;
       f.flags.assertBeforeStart = () => {
-        if(!armed || !/[\\/]session[\\/]core[\\/]session\.js/.test(new Error().stack ?? ""))return;
+        // The SDK's commit frame can sit deeper than V8's default ten frames (the SDK's own run journal sits between), so read the whole stack.
+        const limit = Error.stackTraceLimit; Error.stackTraceLimit = Infinity;
+        const stack = new Error().stack ?? ""; Error.stackTraceLimit = limit;
+        if(!armed || !/[\\/]session[\\/]core[\\/]session\.js/.test(stack))return;
         armed=false;
         // The real SDK Session commit calls this original authority checker synchronously.
         // Archive in that checker; the hand-back's final guard must reject before SDK acceptance.
@@ -512,6 +540,11 @@ for (const stage of ["authority", "before-start", "sdk-prepared-start"] as const
     assert.equal((await rootOf(f, sent.work.work_id)).continuation?.state, "eligible", "a rejected hand-back leaves the continuation for the work's next round");
     f.flags.beforeAuthority = undefined; f.flags.beforeStart = undefined; f.flags.assertBeforeStart = undefined;
     await f.service.archive(sent.work.work_id, false);
+    if (stage !== "sdk-prepared-start") {
+      await assert.rejects(f.service.send({ work_id: sent.work.work_id, text: "尝试继续", request_id: "handback-without-grant-" + stage }, { project_ref: f.project }), { code: "agent.delegation_ended" });
+      assert.equal((await f.adapter.readSession({ session_id: before.session_id })).runs.length, 1);
+      await f.grantAgain(sent.work.work_id);
+    }
     await f.service.send({ work_id: sent.work.work_id, text: "恢复后核对子任务交回的结果", request_id: "handback-resume-" + stage }, { project_ref: f.project });
     await until(async () => (await f.service.read(sent.work.work_id)).work.state === "completed", "explicit resumed round completes");
     assert.equal(f.store.rounds(sent.work.work_id).length, 2);
@@ -546,6 +579,9 @@ for (const change of ["stop", "new-round"] as const) test(`W2-18-HANDBACK-CURREN
     assert.equal((await f.adapter.readSession({ session_id: parent.session_id })).runs.length, change === "stop" ? 1 : 2);
     if (change === "stop") {
       assert.equal((await rootOf(f, parent.work_id)).continuation?.state, "blocked", "the person's stop holds what came back for them");
+      await assert.rejects(f.service.send({ work_id: parent.work_id, text: "尝试继续", request_id: "stopped-handback-without-grant" }, { project_ref: f.project }), { code: "agent.delegation_ended" });
+      assert.equal((await f.adapter.readSession({ session_id: parent.session_id })).runs.length, 1);
+      await f.grantAgain(parent.work_id);
       await f.service.send({ work_id: parent.work_id, text: "现在由我明确要求继续核对交回结果", request_id: "resume-stopped-handback" }, { project_ref: f.project });
       await until(async () => (await f.service.read(parent.work_id)).work.state === "completed");
     }

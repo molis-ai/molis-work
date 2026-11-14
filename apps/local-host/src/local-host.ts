@@ -9,10 +9,11 @@ import type {
   LocalHostProjectReference,
   LocalHostStatus,
 } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { ActionService, CapabilityRegistry, refuseCall, registeredActionMetadata, type CallSettled } from "@molis-ai/molis-work-kernel";
+import { ActionService, CapabilityRegistry, refuseCall, registeredActionMetadata, type CallSettled, type RetainedActionDirectory } from "@molis-ai/molis-work-kernel";
+import type { ActionSelection } from "@molis-ai/molis-work-kernel";
 import { projectCallCaller } from "./project-call-caller.js";
-import { ActionError, requireSynchronous, type SyncActionClient, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionReference,
-  type ActionRegistryPort, type ActionProviderRegistration, type ActionView, type ActionSceneClient, type ActionSceneDefinition, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, requireSynchronous, type SyncActionClient, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionReference,
+  type ActionProviderRegistration, type ActionView, type ActionSceneClient, type ActionSceneDefinition, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { hostBoundSession } from "@molis-ai/molis-work-plugin-sdk";
 import { dependencyCaller, verifiedCaller } from "./plugin-callers.js";
 import { HostAvailability } from "./local-host-availability.js";
@@ -20,12 +21,18 @@ import { callSignal, hostAuthorityContext, snapshotCaller } from "./local-host-c
 import { ProjectLine, normalizeReference } from "./local-host-project-line.js";
 import { createSceneClient, type SceneHost } from "./local-host-scenes.js";
 import { createSyncActionClient, type SyncClientHost } from "./local-host-sync-client.js";
-import type { HostCapabilityHandler, LocalHostOptions } from "./local-host-types.js";
+import type { HostActionClient, HostCapabilityHandler, LocalHostOptions } from "./local-host-types.js";
+import { isMcpToolCapability } from "./mcp-tool-actions.js";
+import type { SurfaceInstallRegistry } from "./surface-installation.js";
 
 export type { ActionAvailabilityPolicy, HostCapabilityHandler, LocalHostOptions, LocalHostRuntimeFactory } from "./local-host-types.js";
 
 /** The provider of the Host's own actions: a capability registered with an `action` and no provider of its own (the workspace reads, for one). */
 export const HOST_PROVIDER_ID = "platform";
+
+interface ProjectActionClient extends HostActionClient {
+  discoverRetained(caller: ActionExecutionContext): Promise<RetainedActionDirectory>;
+}
 
 /**
  * One process-local composition owner. Each project's runtime is opened once and its queued action calls are serialized through
@@ -87,12 +94,12 @@ export class LocalHost<Runtime> {
     });
   }
 
-  /** Composition-only registration. Project Catalog actions keep project scope while the Home owns their lifetime. */
-  actionRegistry(reference?: LocalHostProjectReference, routing?: "project-catalog"): ActionRegistryPort {
+  /** Composition-only registration. Project authority comes from the owner, never the Plugin; project Catalog actions keep project scope while the Home owns their lifetime. */
+  actionRegistry(reference?: LocalHostProjectReference, routing?: "project-catalog"): SurfaceInstallRegistry {
     const project = reference ? normalizeReference(reference) : undefined;
     if (project && routing) throw new ActionError("actions.scope_mismatch", "项目目录动作由 Home 登记");
     const entry = project ? this.line.ensureEntry(project) : undefined;
-    return { registerProvider: (registration: ActionProviderRegistration) => {
+    const registerProvider = (registration: ActionProviderRegistration) => {
       this.assertRunning();
       if (entry && !this.line.isLive(entry)) {
         throw hostErrors.project_closing("能力来源所属项目已关闭");
@@ -121,7 +128,10 @@ export class LocalHost<Runtime> {
       const dispose = () => { remove(); owner.delete(dispose); announce(); };
       owner.add(dispose); announce(registration.scenes);
       return dispose;
-    } };
+    };
+    return { registerProvider, presentationSystemActions: () => this.capabilities.descriptors(descriptor => descriptor.action?.scope === (project ? "project" : "home")
+      && descriptor.action_provider?.kind === "system" && (!descriptor.action_provider.project_id || descriptor.action_provider.project_id === project?.project_id)
+      && !isMcpToolCapability(descriptor.capability_id)).map(({ capability_id, version }) => ({ capability_id, version })) };
   }
 
   /** The same registration instance that permits dispatch without a project runtime. */
@@ -189,7 +199,7 @@ export class LocalHost<Runtime> {
   }
 
   /** `step`: composition-only. The calls a scene run makes are part of that run and take its place on the line. */
-  homeActionClient(step = false): ActionClient {
+  homeActionClient(step = false): HostActionClient {
     const contextFor = (caller: ActionCallContext) => {
       this.assertRunning();
       if (caller.project_id) throw new ActionError("actions.scope_mismatch", "系统入口不能伪造项目上下文");
@@ -197,6 +207,7 @@ export class LocalHost<Runtime> {
     };
     return {
       discover: async caller => this.availability.discover(contextFor(caller)),
+      discoverMatching: async (caller, select) => this.availability.discover(contextFor(caller), select),
       invoke: async (caller, capability, input) => {
         let context: ActionCallContext;
         try { context = contextFor(caller); }
@@ -217,7 +228,7 @@ export class LocalHost<Runtime> {
   }
 
   /** A transport passes its authenticated caller on each request; arguments carry no authority. `step` as for `homeActionClient`. */
-  actionClient(reference: LocalHostProjectReference, step = false, routing?: "project-catalog"): ActionClient {
+  actionClient(reference: LocalHostProjectReference, step = false, routing?: "project-catalog"): ProjectActionClient {
     const project = normalizeReference(reference);
     const callerFor = (caller: ActionCallContext) => {
       this.line.assertCompatibleReference(project);
@@ -225,13 +236,22 @@ export class LocalHost<Runtime> {
       if (caller.project_id !== project.project_id) throw new ActionError("actions.scope_mismatch", "调用上下文与项目不一致");
       return verifiedCaller(snapshotCaller(caller));
     };
+    const discover = async (caller: ActionCallContext, select?: ActionSelection) => {
+      if (routing) throw new ActionError("actions.forbidden", "此入口只接受精确目录动作调用");
+      const bound = callerFor(caller);
+      await this.withRuntime(project, () => undefined);
+      caller.signal?.throwIfAborted();
+      return this.availability.discover(bound, select);
+    };
     return {
-      discover: async caller => {
-        if (routing) throw new ActionError("actions.forbidden", "此入口只接受精确目录动作调用");
+      discover: caller => discover(caller),
+      discoverMatching: discover,
+      discoverRetained: async caller => {
+        if (!caller.retainAuthority) throw new ActionError("actions.host_context_missing", "组合需要原调用的授权");
         const bound = callerFor(caller);
         await this.withRuntime(project, () => undefined);
         caller.signal?.throwIfAborted();
-        return this.availability.discover(bound);
+        return this.availability.discoverRetained(bound, caller.retainAuthority);
       },
       invoke: async (caller, capability, input) => {
         let bound = caller, dispatched = false;

@@ -3,13 +3,14 @@ import { bindActionClient, ActionError, requireSynchronous, type ActionNamedSkil
 import type { HostPluginCaller, LocalHostProjectClient } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { pluginErrors, type PluginActionClient, type PluginExecutionControl, type PluginManifest, type PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ACTIONS_DELEGATE_PERMISSION, declaresActionDelegation, pluginActionDirectory } from "./plugin-action-delegation.js";
-import { assertCapturedPluginActionCurrent, currentPluginInvocation, insideOpenPluginCall, markPluginActionChecked, pluginInvocationReadOnly, withPluginPermissionChecks } from "@molis-ai/molis-work-plugin-runtime";
+import { assertCapturedPluginActionCurrent, currentPluginInvocation, inPluginInstance, insideOpenPluginCall, markPluginActionChecked, pluginInvocationReadOnly, withPluginPermissionChecks } from "@molis-ai/molis-work-plugin-runtime";
 import { invokePluginQuery } from "./plugin-action-query.js";
 import { pluginActionProvider } from "./plugin-action-provider.js";
 import { routedPluginCaller } from "./plugin-callers.js";
 import { pluginActionDependencies } from "./plugin-action-dependencies.js";
 import { activeLocale } from "./web-locale.js";
 import { entryUserAction, type EntryMessage } from "./entry-user-action.js";
+import { matchingActions, type HostActionClient } from "./local-host-types.js";
 
 /**
  * The controls this Host made for a route it dispatched inside a project, each with that project's action client and whether its request
@@ -144,8 +145,10 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
     };
     return {
       actor_id: outer?.caller.actor_id ?? options.actor_id, project_id: projectId,
+      ...(outer ? { actor_kind: outer.caller.actor_kind, audit_actor_id: outer.caller.audit_actor_id, runtime_session_id: outer.caller.runtime_session_id, runtime_memory: outer.caller.runtime_memory } : {}),
       audience: outer?.caller.audience ?? "user", permissions: context.grants, query_only: pluginInvocationReadOnly(outer), signal: outer?.caller.signal, locale: activeLocale() ?? undefined,
       allowed_actions: [...(manifest.actions ?? []).map(action => ({ ...action, provider_id: ownProvider })), ...required],
+      assert_memory_sources_current: outer?.caller.assert_memory_sources_current,
       validate_authority: assertAuthority, assert_authority_current: assertAuthority,
     };
   };
@@ -170,6 +173,7 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
       // Mandatory dependencies remain limited to what this installation explicitly consumes.
       ...(consumed.has(definition.capability_id) ? { allowed_capability_ids: [...consumed] }
         : { allowed_actions: [{ capability_id: definition.capability_id, version: definition.version, ...(providerId ? { provider_id: providerId } : {}) }] }),
+      assert_memory_sources_current: outer?.caller.assert_memory_sources_current,
       validate_authority: assertAuthority, assert_authority_current: assertAuthority,
     };
   };
@@ -196,7 +200,9 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
   const ownAudience = (outer: ReturnType<typeof currentPluginInvocation>): ActionAudience =>
     outer ? outer.caller.audience : insideOpenPluginCall() ? "user" : "plugin";
   const ownActions = (scope: { project_id: string | null; client: ActionClient; original_file?: HostOfferedOriginalFile }, outer?: ReturnType<typeof currentPluginInvocation>) =>
-    bindActionClient(scope.client, () => ({ ...actionCaller(scope.project_id, outer), ...offered(scope) }));
+    bindActionClient(scope.client, () => ({ ...actionCaller(scope.project_id, outer), ...offered(scope),
+      ...(outer?.caller.audience === "plugin" && inPluginInstance(outer, context)
+        ? { host_plugin: routedPluginCaller(options.pluginCaller, scope.project_id), plugin_install_id: context.install_id } : {}) }));
   const routedActions = (scope: ReturnType<typeof callScope>, definition: ActionDefinition,
     outer: ReturnType<typeof currentPluginInvocation>) => {
     if (!scope.caller) return bindActionClient(scope.client, () => ({ ...actionCaller(scope.project_id, outer),
@@ -232,8 +238,12 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
       }
       return check(reference);
     },
-    discover: async () => (await ownActions({ project_id: options.project_id ?? null, client: options.client }).discover())
-      .filter(view => view.provider.plugin_install_id === context.install_id),
+    discover: async () => {
+      const outer = currentPluginInvocation();
+      const plugin = outer?.caller.audience === "plugin" && inPluginInstance(outer, context) ? outer : undefined;
+      return (await ownActions({ project_id: plugin?.caller.project_id ?? options.project_id ?? null, client: options.client }, plugin).discover())
+        .filter(view => view.provider.plugin_install_id === context.install_id);
+    },
     invokeQuery: (reference, input) => invokePluginQuery(context, manifest, options, reference, input),
     ...(declaresActionDelegation(manifest) ? { directory: pluginActionDirectory(context, manifest, options) } : {}),
     dependencies: pluginActionDependencies(context, manifest, options),
@@ -267,12 +277,14 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
 }
 
 /** Lazily prepare system providers before either read-only discovery or execution. */
-export function withPreparedActions(client: ActionClient, prepare: (caller: ActionCallContext) => Promise<void>,
-  refuse: (caller: ActionCallContext, reference: ActionReference, error: unknown) => Promise<never>): ActionClient {
+export function withPreparedActions(client: HostActionClient, prepare: (caller: ActionCallContext) => Promise<void>,
+  refuse: (caller: ActionCallContext, reference: ActionReference, error: unknown) => Promise<never>): HostActionClient {
+  const ready = async (caller: ActionCallContext) => { caller.signal?.throwIfAborted(); await prepare(caller); caller.signal?.throwIfAborted(); };
   return {
-    discover: async caller => { caller.signal?.throwIfAborted(); await prepare(caller); caller.signal?.throwIfAborted(); return client.discover(caller); },
+    discover: async caller => { await ready(caller); return client.discover(caller); },
+    discoverMatching: async (caller, select) => { await ready(caller); return matchingActions(client, caller, select); },
     invoke: async (caller, capability, input) => {
-      try { caller.signal?.throwIfAborted(); await prepare(caller); caller.signal?.throwIfAborted(); }
+      try { await ready(caller); }
       catch (error) { return refuse(caller, capability, error); }
       return client.invoke(caller, capability, input);
     },

@@ -2,7 +2,7 @@ import type { PluginDevelopmentInput, PluginDevelopmentResult } from "@molis-ai/
 import type { PluginManifest, PluginRuntimeRepository } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { inspectLocaleSet } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { definitionOrigin, loadDevelopmentLocalePacks, loadDevelopmentPlugin, PluginRuntime, refuseLocaleProblems, UNSIGNED_TRUST, type PluginLocaleReader } from "@molis-ai/molis-work-plugin-runtime";
+import { definitionOrigin, loadDevelopmentLocalePacks, loadDevelopmentPlugin, PluginRuntime, readDevelopmentManifest, refuseLocaleProblems, UNSIGNED_TRUST, type PluginLocaleReader } from "@molis-ai/molis-work-plugin-runtime";
 import { PluginHostExecutor, type PluginHostExecutorOptions } from "./plugin-executor.js";
 import { developmentDeclarationOwners } from "./declaration-owners.js";
 import { HOST_PLUGIN_IDS } from "./host-plugin-ids.js";
@@ -24,11 +24,24 @@ export async function runPluginDevelopment(input: PluginDevelopmentInput, option
 }): Promise<PluginDevelopmentResult> {
   if (input.allow_unsigned_development !== true) throw new Error("需要明确授权运行未签名本地开发代码");
   const definition = await loadDevelopmentPlugin(input.directory);
-  const locale = developmentLocale(definition.manifest, input.locale);
-  const words = await loadDevelopmentLocalePacks(input.directory, definition.manifest);
-  if (words !== null && locale !== null) refuseBrokenLocaleFiles(words, locale);
+  const { locale, words } = await developmentLanguages(input.directory, definition.manifest, input.locale);
   // A developer's run: the page renders in the chosen language, and a sentence anywhere with no language throws, so the mistake shows here (§5.2).
   return runDevelopmentText(null, () => developPlugin(input, options, definition, words, locale));
+}
+
+/**
+ * Whether the run could start in the language asked for, from the Manifest and the language files alone (no code of the project is loaded). The door asks this
+ * before it makes the state directory, so a wrong `--locale` or a broken language file leaves nothing behind.
+ */
+export async function refuseUnusableDevelopmentLanguage(directory: string, requested: string | undefined): Promise<void> {
+  await developmentLanguages(directory, await readDevelopmentManifest(directory), requested);
+}
+
+async function developmentLanguages(directory: string, manifest: PluginManifest, requested: string | undefined): Promise<{ locale: string | null; words: PluginLocaleReader | null }> {
+  const locale = developmentLocale(manifest, requested);
+  const words = await loadDevelopmentLocalePacks(directory, manifest);
+  if (words !== null && locale !== null) refuseBrokenLocaleFiles(words, locale);
+  return { locale, words };
 }
 
 /** The language the run renders in: `--locale`, or the plugin's default. One the plugin does not declare is refused, saying which it has. */

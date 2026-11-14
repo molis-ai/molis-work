@@ -4,6 +4,8 @@
 
 需求出处：[`specs/intelligent-surfaces/spec.md`](../../../specs/intelligent-surfaces/spec.md) 第一片（§13）：名字片、行、卡片、速览四种形态；Goals、Inbox、Coding 三个插件；落在插件内、对话、项目讨论、等你四处；只有确定组合。§13 写明这四种形态和 Work Brief、基础首页要用的公共呈现组件是同一套，所以这里定的也是那一套的样子。
 
+第 15 批已补 [B 方案四形态实件标本](specimens/README.md)（独立入口 `specimens/`）：复用真实状态环、行、预览卡与浮层／底部弹层，补三宽、中英文、深浅与异常。它仍是设计标本，不是产品完成或用户验收；下面的原始定样保留历史方案与模拟边界。
+
 ## 打开
 
 ```bash

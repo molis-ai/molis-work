@@ -1,4 +1,4 @@
-import { ActionError, type ActionClient, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext, type ActionClient, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PluginInstanceRecord, PluginManifest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { ScheduleActionOwner } from "@molis-ai/molis-work-service-scheduler";
@@ -8,6 +8,16 @@ export interface PluginSchedulerPorts {
   readonly plugin_caller: HostPluginCaller;
   readonly provider_id: string;
   readonly record: () => PluginInstanceRecord | null;
+}
+
+const pendingRefresh = new WeakMap<NonNullable<ActionCallContext["validate_authority"]>, { action: ActionReference; refresh?: () => void }>();
+
+/** Only the scheduler's own call can defer its refresh until the owner's receipt is checked. Nested commands keep theirs. */
+export function refreshAfterScheduledAction(caller: ActionCallContext, action: ActionReference, refresh: () => void): void {
+  const pending = caller.validate_authority && pendingRefresh.get(caller.validate_authority);
+  if (pending && pending.action.provider_id === action.provider_id && pending.action.capability_id === action.capability_id
+    && pending.action.version === action.version) pending.refresh = refresh;
+  else refresh();
 }
 
 /** The platform supplies identity and the action gateway; plugins only declare what may be woken. */
@@ -43,19 +53,29 @@ export function pluginSchedulerOwner(manifest: PluginManifest, context: PluginSt
       const definition = definitionFor(reference);
       const check = () => { control.beforeEffect(); assertAction(reference); };
       check();
-      const result = await ports.client.invoke({ actor_id: ports.plugin_caller.actor_id, project_id: ports.plugin_caller.project_id,
-        audience: "plugin", permissions: context.grants, host_plugin: ports.plugin_caller, plugin_install_id: context.install_id, signal: control.signal,
-        allowed_actions: [{ ...reference, provider_id: ports.provider_id }], validate_authority: check, assert_authority_current: check,
-      }, { ...definition, provider_id: ports.provider_id }, input);
-      check();
-      if (result === undefined) return;
-      if (!result || typeof result !== "object" || Array.isArray(result)) throw new ActionError("actions.output_invalid", "定时动作没有返回有效回执");
-      const reply = result as Record<string, unknown>, status = reply.status;
-      if ((reply.detail !== undefined && typeof reply.detail !== "string") || (status !== undefined && status !== "ok" && status !== "failed" && status !== "plugin_unavailable")) {
-        throw new ActionError("actions.output_invalid", "定时动作回执的内容或状态无效");
+      const action = { ...reference, provider_id: ports.provider_id };
+      const pending: { action: ActionReference; refresh?: () => void } = { action };
+      pendingRefresh.set(check, pending);
+      try {
+        const result = await ports.client.invoke({ actor_id: ports.plugin_caller.actor_id, project_id: ports.plugin_caller.project_id,
+          audience: "plugin", permissions: context.grants, host_plugin: ports.plugin_caller, plugin_install_id: context.install_id, signal: control.signal,
+          allowed_actions: [action], validate_authority: check, assert_authority_current: check,
+        }, { ...definition, provider_id: ports.provider_id }, input);
+        check();
+        if (result === undefined) return;
+        if (!result || typeof result !== "object" || Array.isArray(result)) throw new ActionError("actions.output_invalid", "定时动作没有返回有效回执");
+        const reply = result as Record<string, unknown>, status = reply.status;
+        if ((reply.detail !== undefined && typeof reply.detail !== "string") || (status !== undefined && status !== "ok" && status !== "failed" && status !== "plugin_unavailable")
+          || (reply.view_changed !== undefined && reply.view_changed !== false)) {
+          throw new ActionError("actions.output_invalid", "定时动作回执的内容或状态无效");
+        }
+        if (reply.view_changed === false && (status === "ok" || status === undefined)) pending.refresh = undefined;
+        return { ...(typeof reply.detail === "string" ? { detail: reply.detail } : {}),
+          ...(status ? { status } : {}) };
+      } finally {
+        pendingRefresh.delete(check);
+        try { pending.refresh?.(); } catch { /* A failed refresh hint does not change the wakeup receipt. */ }
       }
-      return { ...(typeof reply.detail === "string" ? { detail: reply.detail } : {}),
-        ...(status ? { status } : {}) };
     },
   };
   return { owner, current, definitionFor, generation, declares: declared };

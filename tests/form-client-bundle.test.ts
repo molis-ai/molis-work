@@ -34,7 +34,8 @@ test("RAC-155 the Form page's client is typed browser code bundled by esbuild, a
     assert.doesNotMatch(source, /window\.(confirm|alert|prompt)\(/u, `${file} opens a browser dialog`);
     assert.doesNotMatch(source, /io\.molis\.work\.|\/api\/plugins\//u, `${file} writes a plugin id or the plugin route prefix`);
   }
-  assert.match(readFileSync(join(BROWSER, "request.ts"), "utf8"), /molisWorkRequest/);
+  assert.match(readFileSync(join(BROWSER, "request.ts"), "utf8"), /pluginRequest/);
+  assert.match(FORM_CLIENT_FACTORY_SCRIPT, /molisWorkRequest/);
   const pkg = JSON.parse(readFileSync("plugins/native/form/package.json", "utf8")) as { scripts: Record<string, string>; devDependencies?: Record<string, string> };
   assert.match(pkg.scripts.build, /tsc -p tsconfig\.browser\.json/, "the build type-checks the browser code");
   assert.match(pkg.scripts.build, /esbuild src\/browser\/factory\.ts --bundle/, "and bundles it");

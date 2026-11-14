@@ -11,11 +11,11 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 // 「输入与输出」 in project settings (design workbench-shared-paths 03; 05-materials-directories B1 ④): inputs that can be added, removed and
 // made the output; the one output (SSC-03), the default one until another is chosen and not made before it is used (SSC-24); a change made
 // elsewhere meanwhile is refused and read again (SSC-03); what a folder stands in for, changed and unlinked here (SSC-26), a refused folder
-// said where it was chosen (SSC-27). Files and Git read the output; a Coding session keeps the folder it was given.
-test("SSC-03 SSC-24 SSC-26 SSC-27 inputs and output: add, make output, refuse a stale revision, change and unlink what a folder stands in for; Files/Git follow the output, Coding stays", { timeout: 150_000 }, async t => {
+// said where it was chosen (SSC-27). Git reads the output (Files did too until batch 06 retired it); a Coding session keeps the folder it was given.
+test("SSC-03 SSC-24 SSC-26 SSC-27 inputs and output: add, make output, refuse a stale revision, change and unlink what a folder stands in for; Git follows the output, Coding stays", { timeout: 150_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded");
   if (!browser) return;
-  const files = await pluginFrameBrowser(t, browser, "files"), git = await pluginFrameBrowser(t, browser, "git");
+  const git = await pluginFrameBrowser(t, browser, "git");
   const { command, sessionId, navigate, origin, projectId, homeDirectory, evaluate, click, waitFor, reloadPage } = browser;
   const prefix = `/projects/${projectId}`;
   for (const name of ["alpha", "beta"]) {
@@ -84,11 +84,7 @@ test("SSC-03 SSC-24 SSC-26 SSC-27 inputs and output: add, make output, refuse a 
   assert.equal(await evaluate(`!!${row("output", "beta")}?.querySelector('[data-if=input]') && !!${row("output", "beta")}?.querySelector('[data-if=output]')`), true);
   assert.equal(await evaluate(`!!${row("inputs", "beta")}?.querySelector('[data-if=same]') && !${row("inputs", "beta")}?.querySelector('[data-act=set-output]')`), true);
   assert.equal((await api(sessionPath)).body.configuration.workspace_id, ids.alpha);
-  t.diagnostic("Files and Git read the output");
-  await click("[data-plugin-strip] [data-plugin-id=files]");
-  await files.waitFor("document.querySelector('[data-companion=files] [data-files-tree]')?.textContent.includes('beta.txt')");
-  await files.click('[data-companion=files] [data-file-path*="beta.txt"]');
-  await files.waitFor("document.querySelector('[data-companion=files] [data-files-text]')?.value === 'beta content'");
+  t.diagnostic("Git reads the output");
   await click("[data-plugin-strip] [data-plugin-id=git]");
   await git.waitFor("document.querySelector('[data-companion=git]')?.textContent.includes('beta.txt')");
 

@@ -129,7 +129,8 @@ for (const width of [1440, 390]) test(`Cognia ${width}px uses configured HTTP Pr
     await waitFor("!document.querySelector('[data-cognia-rows]').textContent.includes('正在读取')");
   };
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=cognia` }, sessionId)); await open();
-  await waitFor("document.querySelector('[data-cognia-model]').textContent.includes('Prologue')");
+  // Batch 27 (F-01): a plugin shows the connection and model the person configured, not the runtime underneath.
+  await waitFor("document.querySelector('[data-cognia-model]').textContent.includes('本机 HTTP 模型 · fixture-model')");
   assert.equal(requests.length, 0);
   await click('[data-cognia-action=add]'); await waitFor("document.querySelector('[data-cognia-dialog]').open");
   await evaluate("document.querySelector('[data-cognia-form] [name=title]').value='本机资料';document.querySelector('[data-cognia-form] [name=body]').value='LOCAL_UI_EVIDENCE'");

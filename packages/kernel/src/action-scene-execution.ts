@@ -3,6 +3,7 @@ import {
   type ActionSceneBinding, type ActionSceneDefinition, type ActionSceneHandlerBinding,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import { assertCurrentAuthority } from "./action-settlement.js";
+import { inDirectoryPass } from "./directory-pass.js";
 import { validateActionValue, type ActionValidator } from "./action-schema.js";
 
 export function assertSceneHandler(definition: ActionSceneDefinition, handler: ActionSceneHandlerBinding): void {
@@ -20,12 +21,13 @@ export function assertSceneHandler(definition: ActionSceneDefinition, handler: A
 export function protectSceneReads(handler: ActionSceneHandlerBinding, registered: () => void): ActionSceneHandlerBinding {
   const read = <T>(caller: ActionCallContext, handle: (context: ActionCallContext) => T | Promise<T>): T | Promise<T> => {
     let active = true;
-    const check = (reference?: ActionReference, permissions?: readonly string[]) => {
+    // Synchronous, so one directory pass: each installation record its parts read is read once for the check.
+    const check = (reference?: ActionReference, permissions?: readonly string[]) => inDirectoryPass(() => {
       if (!active) throw new ActionError("actions.expired", "原场景回调已经结束");
       caller.signal?.throwIfAborted(); registered();
       assertCurrentAuthority(caller, reference, permissions);
       caller.signal?.throwIfAborted(); registered();
-    };
+    });
     const context: ActionCallContext = { ...caller, read_only_effects: true, retain_background_authority: undefined, assert_authority_current: check };
     try {
       check();
@@ -41,9 +43,9 @@ export function protectSceneReads(handler: ActionSceneHandlerBinding, registered
     bindings: caller => read(caller, context => handler.bindings(context)),
     ...(handler.targets ? { targets: (caller: ActionCallContext) => read(caller, context => handler.targets!(context)) } : {}),
     ...(handler.prepare ? { prepare: (caller: ActionCallContext, event: unknown) => read(caller, context => handler.prepare!(context, event)) } : {}),
-    ...(handler.availability ? { availability: (caller: ActionCallContext) => requireSynchronous(read(caller, context => handler.availability!(context))) } : {}),
+    ...(handler.availability ? { availability: (caller: ActionCallContext) => inDirectoryPass(() => requireSynchronous(read(caller, context => handler.availability!(context)))) } : {}),
     ...(handler.configuration_availability ? { configuration_availability: (caller: ActionCallContext) =>
-      requireSynchronous(read(caller, context => handler.configuration_availability!(context))) } : {}),
+      inDirectoryPass(() => requireSynchronous(read(caller, context => handler.configuration_availability!(context)))) } : {}),
   };
 }
 
@@ -54,14 +56,14 @@ interface SceneEffect {
 export async function runSceneEffect<T>(caller: ActionCallContext, options: SceneEffect,
   handle: (context: ActionSceneExecutionContext) => T | Promise<T>): Promise<T> {
   let active = true;
-  const check = (reference?: ActionReference, permissions: readonly string[] = []) => {
+  const check = (reference?: ActionReference, permissions: readonly string[] = []) => inDirectoryPass(() => {
     if (!active) throw new ActionError("actions.expired", "原场景回调已经结束");
     if (caller.query_only || caller.read_only_effects) throw new ActionError("actions.forbidden", "只读调用不能修改场景");
     caller.signal?.throwIfAborted(); options.assertCurrent();
     assertCurrentAuthority(caller, options.reference, options.permissions);
     if (reference || permissions.length) assertCurrentAuthority(caller, reference, permissions);
     caller.signal?.throwIfAborted(); options.assertCurrent();
-  };
+  });
   const context: ActionSceneExecutionContext = { ...caller, retain_background_authority: undefined, assert_authority_current: check,
     beforeEffect: async () => {
       check();

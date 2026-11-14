@@ -255,7 +255,8 @@ test("B27-UI-05/06 · F-01/F-02: both call views show local time and keep techni
         if (locale === "en") {
           assert.match(time?.[2] ?? "", /^11\/3\/2026, 10:19:43 PM$/);
           assert.match(folded!, /Same result 2 times in a row, first at 11\/3\/2026, 10:19:41 PM/);
-          assert.match(folded!, /Reason for failure：无法读取 &lt;目录&gt;/);
+          // English takes its label separator from common.punctuation.label-separator (": ") since #2035.
+          assert.match(folded!, /Reason for failure: 无法读取 &lt;目录&gt;/);
         } else {
           assert.match(time?.[2] ?? "", /^2026\/11\/3 22:19:43$/);
           assert.match(folded!, /连续 2 次相同结果，最早 2026\/11\/3 22:19:41/);

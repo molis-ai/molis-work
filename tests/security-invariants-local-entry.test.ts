@@ -492,6 +492,13 @@ test("S-21 no answer of the host can be shown in another origin's frame: every r
       assert.match(policy, /(?:^|;\s*)frame-ancestors 'self'(?:;|$)/, `${method} ${path}: the page's policy lets another site frame it`);
       // FRAME-WEBKIT-01: WebKit does not match 'self' inside a sandboxed srcdoc plugin frame, so the page also names its own origin.
       if (policy.includes("script-src 'self'") && !headers.host) {
+        const images = policy.split(";").map(part => part.trim()).find(part => part.startsWith("img-src "));
+        assert.ok(images, "the workbench page declares its image policy");
+        const sources = images.split(/\s+/).slice(1);
+        assert.ok(sources.includes("https://*.googleusercontent.com"));
+        assert.ok(sources.includes("https://avatars.githubusercontent.com"));
+        const allowed = new Set(["'self'", "data:", "blob:", `http://127.0.0.1:${host.port}`, "https://*.googleusercontent.com", "https://avatars.githubusercontent.com"]);
+        assert.ok(sources.every(source => allowed.has(source)), "image policy must reject arbitrary external origins, wildcard schemes and data-exfiltration hosts");
         const origin = `http://127.0.0.1:${host.port}`.replaceAll(".", "\\.");
         assert.match(policy, new RegExp(`script-src 'self' ${origin}`), `${method} ${path}: plugin frame scripts stay blocked in WebKit`);
         assert.match(policy, new RegExp(`style-src 'self' ${origin}`), `${method} ${path}: plugin frame styles stay blocked in WebKit`);

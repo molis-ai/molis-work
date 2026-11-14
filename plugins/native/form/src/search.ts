@@ -3,13 +3,15 @@ import { FORM_PROJECT_PLUGIN_ID, type FormRecord } from "./contract.js";
 import type { FormStore } from "./store.js";
 import { formErrors } from "./error.js";
 
+const subjectReader = defineSubjectContextAction("form.subject.read", /* @version action.form.subject.read */ 1, "form", "问卷", ["form:read"]);
+
 /**
  * Form's part in the system search: the questionnaire itself (title, description, questions and options).
  * Answers belong to the people who filled them in and stay in Form's results.
  */
 export const formSearchActions = {
   entries: defineSearchEntriesAction("form.search.entries", /* @version action.form.search.entries */ 1, [{ kind: "form", title: "问卷", surface: FORM_PROJECT_PLUGIN_ID }], "问卷", ["form:read"]),
-  subject: defineSubjectContextAction("form.subject.read", /* @version action.form.subject.read */ 1, "form", "问卷", ["form:read"]),
+  subject: { ...subjectReader, action: { ...subjectReader.action, execution: { cost: "none" as const } } },
 };
 
 function formSearchContent(form: FormRecord): string {

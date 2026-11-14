@@ -45,7 +45,7 @@ export type AssistantDispatchLinks = Pick<AssistantWorkReads, "assistantPart" | 
  * collaborators come through `link`.
  */
 export class AssistantDispatch {
-  constructor(private readonly store: Pick<AssistantStore, "addRound" | "assertWorkPermissionTransitionFree" | "get" | "holdWorkPermissions" | "markTold" | "relations" | "rounds" | "saveUnsettled" | "update">, private readonly ports: AssistantServicePorts, private readonly actorId: string, private readonly now: () => Date, private readonly starting: Map<string, string>, private readonly titles: Map<string, CapabilityTitles>, private readonly recalled: Map<string, string>, private readonly chosenMemory: Map<string, Awaited<ReturnType<MemoryService["forRun"]>>>, private readonly link: AssistantDispatchLinks) {}
+  constructor(private readonly store: Pick<AssistantStore, "addRound" | "get" | "permissionTransitions" | "markTold" | "relations" | "rounds" | "saveUnsettled" | "update">, private readonly ports: AssistantServicePorts, private readonly actorId: string, private readonly now: () => Date, private readonly starting: Map<string, string>, private readonly titles: Map<string, CapabilityTitles>, private readonly recalled: Map<string, string>, private readonly chosenMemory: Map<string, Awaited<ReturnType<MemoryService["forRun"]>>>, private readonly link: AssistantDispatchLinks) {}
 
   /** Where the person's words to a round under way go: its open question, or a supplement. */
   private readonly inputs = new AssistantInputs(MAX_TEXT);
@@ -73,7 +73,7 @@ export class AssistantDispatch {
     if (work.archived || work.delegated_by?.taken_back_at) throw assistantErrors.state("这项工作已经归档或收回");
     const to = input?.to;
     if (to?.kind !== "assistant" && !(to?.kind === "plugin" && typeof to.plugin_id === "string" && to.plugin_id)) throw assistantErrors.invalid("只能交给执行方插件或助理");
-    const release = this.store.holdWorkPermissions([workId]);
+    const release = this.store.permissionTransitions.holdWorkPermissions([workId]);
     try {
       const host = await this.ports.host();
       assertAssistantSessionSettled(host, work);
@@ -195,7 +195,7 @@ export class AssistantDispatch {
   }
 
   async dispatch(work: StoredWork, text: string, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, mode?: string, writtenBy?: StoredRound["written_by"], stillCurrent?: () => boolean, beforeStart?: () => Promise<void>, assertBeforeStart?: () => void, intent?: SendIntent, sourceHandoff?: MethodHandoff): Promise<AssistantSendResult> {
-    this.store.assertWorkPermissionTransitionFree(work.work_id);
+    this.store.permissionTransitions.assertWorkPermissionTransitionFree(work.work_id);
     let accepted = false;
     const handoff: MethodHandoff = { assertCurrent: () => { if (!accepted) sourceHandoff?.assertCurrent(); }, accepted: () => { if (!accepted) { accepted = true; sourceHandoff?.accepted(); } } };
     const replyLocale = intent?.reply_locale ?? this.ports.lastLocale?.();
@@ -220,7 +220,7 @@ export class AssistantDispatch {
         || ownerOf(current) !== ownerOf(work)) throw assistantErrors.state("原工作的执行归属已经变化，不能继续批准");
     };
     const assertStartCurrent = () => {
-      this.store.assertWorkPermissionTransitionFree(work.work_id);
+      this.store.permissionTransitions.assertWorkPermissionTransitionFree(work.work_id);
       assertLifetime?.();
       assertDispatchCurrent();
       requireSynchronous(base.assertBeforeStart?.(), "最终授权检查必须同步完成");
@@ -274,23 +274,37 @@ export class AssistantDispatch {
     }
     const left = spent.budget_tokens === null ? undefined : spent.budget_tokens - spent.tokens;
     if (writtenBy) this.starting.delete(work.work_id); else this.starting.set(work.work_id, text);
-    const { offered, unavailable } = await this.actionTools(authority);
-    this.titles.set(ownerOf(work), new Map(offered.map(view => [view.capability_id, { title: view.action.title, provider: view.provider.title }])));
     // The memories this round is given, chosen now so the round's materials can say how many did not fit.
     this.chosenMemory.delete(work.work_id); this.recalled.delete(work.work_id);
-    let prepared: RoundMaterials, handle: Awaited<ReturnType<AgentHost["start"]>>;
+    let prepared: RoundMaterials | undefined, dispatchHanded = false, handle: Awaited<ReturnType<AgentHost["start"]>>;
     // The round starts as of the moment its materials are read: what ends after that reaches the next round.
     const startedAt = this.now().toISOString();
     try {
       if (!work.reply_target) await this.link.memoryForRound(work, text, context);
+      // Build the round's tools from the same frozen recipe that its materials and Runtime receive.
+      base = await this.ports.authority(work); authority = startAuthority();
+      const { offered, unavailable } = await this.actionTools(authority);
+      this.titles.set(ownerOf(work), new Map(offered.map(view => [view.capability_id, { title: view.action.title, provider: view.provider.title }])));
       prepared = work.thread_round ? threadReplyMaterials(work.thread_round) : await this.link.roundMaterials(work, materials, context, offered, unavailable, previousWaitWithdrawn);
+      const ready = prepared;
+      const knowledge = ready.knowledgeDispatch;
+      if (knowledge) {
+        const original = authority.beforeDispatch;
+        authority = { ...authority, disposeDispatch: knowledge.dispose, beforeDispatch: async () => {
+          const callerFence = await original?.();
+          const sourceFence = await knowledge.beforeDispatch();
+          return () => { requireSynchronous(callerFence?.(), "最终派发检查必须同步完成"); requireSynchronous(sourceFence(), "资料派发检查必须同步完成"); };
+        } };
+      }
       handle = await this.link.delegations.startPlaced(work, adapter, inputEffect, async placed => {
         work = placed; assertSendCurrent(stillCurrent);
+        dispatchHanded = true;
         const delegation = host.workDelegations(RUNTIME) && assistantWorkPermission(work);
-        const started = await host.start(RUNTIME, roundStartInput(work, { actor_id: this.actorId, session: sessionRef(work), role_id: role, task: text, text_materials: prepared.materials, materials, tokens_left: left, original_input, continued_from: intent?.continued_from }), delegation ? { ...authority, delegation } : authority);
+        const started = await host.start(RUNTIME, roundStartInput(work, { actor_id: this.actorId, session: sessionRef(work), role_id: role, task: text, text_materials: ready.materials, materials, tokens_left: left, original_input, continued_from: intent?.continued_from }), delegation ? { ...authority, delegation } : authority);
         handoff.accepted(); return started;
       });
     } catch (error) {
+      if (!dispatchHanded) prepared?.knowledgeDispatch?.dispose();
       // A recipe alone has no usage effect. Only the Runtime can report actual Context dispatch.
       this.recalled.delete(work.work_id); this.chosenMemory.delete(work.work_id); this.starting.delete(work.work_id);
       throw error;

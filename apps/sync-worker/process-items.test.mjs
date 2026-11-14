@@ -38,7 +38,15 @@ test('PCSYNC-11/13/22/23 complete process versions use the actual Host collectio
   const selected = clients[0].status().collections.find(row => row.selection.collection_id === 'process_items');
   assert.ok(selected); assert.equal(clients[0].policy().selections.length, 0);
   await clients[0].save({ ...clients[0].policy(), selections: [selected.selection] });
+  // BSH-14-A/C: before the account's cutover is complete and adopted here, this Host moves no process item, old stream included.
+  await clients[0].run(); assert.match(clients[0].status().error, /采用/u);
+  assert.equal((await cloud.db.prepare('SELECT COUNT(*) AS n FROM sync_events').first()).n, 0, 'nothing went to the old stream');
+  // An empty old stream adopts through an empty plan; each Home then takes the adopted stream over as its own step.
+  const cutover = await clients[0].processItems.cutOver(); assert.equal(cutover.phase, 'complete');
+  for (const client of clients) await client.processItems.adopt(cutover.cutoverId);
   await clients[0].run(); await clients[1].run(); clients.forEach(client => assert.equal(client.status().error, null));
+  const streams = (await cloud.db.prepare('SELECT DISTINCT namespace FROM sync_events').all()).results.map(row => row.namespace);
+  assert.deepEqual(streams, [JSON.stringify(['process_items_adopted', cutover.cutoverId])], 'versions travel only in the adopted stream');
   const received = await clients[1].withCatalog({ homeDirectory: homes[1] }, catalog => ({
     project: catalog.listProjects().find(row => row.project_id === project.project_id),
     plugins: catalog.listProjectPlugins(project.project_id),

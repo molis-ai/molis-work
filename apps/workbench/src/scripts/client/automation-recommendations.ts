@@ -4,10 +4,9 @@ globalThis.molisWorkOpenAutomation = (project, trigger) => {
   if (!dialog) return;
   if (!dialog.openAutomation) dialog.openAutomation = (() => {
   const text = (key, args) => globalThis.t.text("workbench.automation." + key, args);
-  const status = dialog.querySelector("[data-automation-progress]");
-  const error = dialog.querySelector("[data-automation-error]");
-  const result = dialog.querySelector("[data-automation-result]");
-  const save = dialog.querySelector("[data-automation-save]"), retry = dialog.querySelector("[data-automation-retry]");
+  const part = name => dialog.querySelector("[data-automation-" + name + "]");
+  const status = part("progress"), error = part("error"), result = part("result");
+  const save = part("save"), retry = part("retry");
   let request, report, entry, sending = false, documentId;
   const node = (tag, content, className) => {
     const element = document.createElement(tag);
@@ -15,30 +14,29 @@ globalThis.molisWorkOpenAutomation = (project, trigger) => {
     if (className) element.className = className;
     return element;
   };
-  const link = (label, href) => {
-    const item = node("a", label, "mw-btn mw-btn--secondary mw-btn--sm");
-    item.href = href;
-    return item;
-  };
+  const actionClass = variant => "mw-btn mw-btn--" + variant + " mw-btn--sm";
+  const link = (label, path, fields) => Object.assign(node("a", text(label), actionClass("secondary")), {
+    href: path + "?" + new URLSearchParams(fields),
+  });
   const button = (label, call) => {
-    const item = node("button", label, "mw-btn mw-btn--ghost mw-btn--sm");
+    const item = node("button", label, actionClass("ghost"));
     item.type = "button";
     item.onclick = () => { void call(); };
     return item;
   };
   const prefix = id => "/projects/" + encodeURIComponent(id);
   function nextOf(next) {
-    const base = prefix(entry.project);
-    if (next.kind === "connection") return link(text("connect"), "/settings/connectors?" + new URLSearchParams({ connector: next.service_id }));
+    if (next.kind === "connection") return link("connect", "/settings/connectors", { connector: next.service_id });
+    const path = prefix(entry.project) + "/settings/kit";
     if (next.kind === "skill") {
       const ref = next.ref;
-      return link(text("open-skill"), base + "/settings/kit?" + new URLSearchParams({
+      return link("open-skill", path, {
         skill: ref.skill_id, install: ref.install_id, generation: ref.installation_generation, version: ref.version,
-      }));
+      });
     }
-    return link(text("open-role"), base + "/settings/kit?" + new URLSearchParams({
+    return link("open-role", path, {
       owner: next.owner_id, role: next.role_id, install: next.install_id, version: next.plugin_version,
-    }));
+    });
   }
   function suggestion(row) {
     const details = node("details"), summary = node("summary", row.title);
@@ -86,35 +84,37 @@ globalThis.molisWorkOpenAutomation = (project, trigger) => {
   }
   const showError = failure => { error.hidden = false; molisWorkRequest.show(error, failure); };
   const route = at => prefix(at.project) + "/api/automation/recommendations";
+  const begin = () => request = new AbortController();
+  const stale = (pending, at) => pending.signal.aborted || at !== entry;
   async function load() {
     const at = entry;
     request?.abort();
-    const pending = new AbortController(); request = pending;
+    const pending = begin();
     report = undefined; error.hidden = true; save.hidden = true; retry.hidden = true;
     status.textContent = text("loading"); result.replaceChildren();
     try {
       const loaded = await molisWorkRequest(route(at), { signal: pending.signal });
-      if (pending.signal.aborted || at !== entry) return;
+      if (stale(pending, at)) return;
       report = loaded; draw(); status.textContent = "";
       save.hidden = false; save.disabled = false;
     } catch (failure) {
-      if (pending.signal.aborted || at !== entry) return;
+      if (stale(pending, at)) return;
       status.textContent = ""; showError(failure); retry.hidden = false;
     }
   }
   async function change(action, body, complete) {
     if (sending || !report || !entry) return;
     const at = entry, source = report;
-    const pending = new AbortController(); request = pending;
+    const pending = begin();
     const controls = [...result.querySelectorAll("button"), save];
     sending = true; controls.forEach(button => { button.disabled = true; });
     error.hidden = true; status.textContent = text("saving");
     try {
       const answer = await molisWorkRequest(route(at) + "/" + action, { body: { ...body, save_token: source.save_token }, signal: pending.signal });
-      if (pending.signal.aborted || at !== entry) return;
+      if (stale(pending, at)) return;
       await complete(answer);
     } catch (failure) {
-      if (pending.signal.aborted || at !== entry) return;
+      if (stale(pending, at)) return;
       status.textContent = ""; showError(failure);
       if (failure?.status === 409) retry.hidden = false;
     } finally {

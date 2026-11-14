@@ -1,24 +1,19 @@
-import { pptTestPorts } from "./fixtures/ppt-actions.js";
-import { formTestPorts } from "./fixtures/form-actions.js";
-import { datasetTestPorts } from "./fixtures/dataset-actions.js";
 import { pageText, withPageText } from "./fixtures/page-text.js";
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { datasetActions, renderDatasetWorkbench } from "@molis-ai/molis-work-plugin-dataset";
-import { openDatasetStore } from "./fixtures/plugin-home-stores.js";
 import { FORM_CLIENT_FACTORY_SCRIPT, formActions, renderFormWorkbench } from "@molis-ai/molis-work-plugin-form";
-import { openFormStore } from "./fixtures/plugin-home-stores.js";
 import {
-  PAGES_CLIENT_FACTORY_SCRIPT,
+  pagesActions, PAGES_CLIENT_FACTORY_SCRIPT,
   renderPagesWorkbench,
 } from "@molis-ai/molis-work-plugin-pages";
 import { pptActions, renderPptWorkbench } from "@molis-ai/molis-work-plugin-ppt";
-import { openPptStore } from "./fixtures/plugin-home-stores.js";
+
+import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { openTestHome } from "./fixtures/test-home.js";
 
 const primitives = {
   escape: (value: unknown) => String(value ?? ""),
@@ -47,65 +42,39 @@ test("四个创作插件的列表和顶栏都有存为固定版本（放进 Arti
   assert.match(readFileSync(fileURLToPath(new URL("../plugins/native/ppt/src/browser/commands.ts", import.meta.url)), "utf8"), /data-ppt-artifact/);
 });
 
-test("问卷、数据表、演示稿可以连续存成两版 Artifact，编辑稿还在", async () => {
-  const home = mkdtempSync(join(tmpdir(), "creative-artifact-"));
-  const project_id = "project-1";
-  const query = new URLSearchParams({ project_id });
+test("BSH-01 四家运行实例的固定版进入项目成果库并保留编辑稿", async t => {
+  const h = await openTestHome(t), project = await h.createProject("Creative pins", ["form", "dataset", "ppt", "pages"]);
+  const person = await h.host.localPersonContext(project.reference);
+  const actions = bindActionClient(h.host.actionClient(project.reference), () => person);
+  const read = (artifact_id: string, version: number) => h.host.withProject(project.reference,
+    ({ artifacts }) => artifacts.query.getArtifactVersion(project.project_id, { artifact_id, version }));
 
-  const forms = openFormStore(home);
-  try {
-    // Form's routes are its Runtime plugin's now (tests/form-runtime-routes.test.ts); this is the same pair of pins through its actions.
-    const { actions } = formTestPorts(forms, project_id, {
-      publishArtifact: (input) => ({ artifact_id: "form-" + input.record_id, version: input.version }),
-    });
-    const id = (await actions.invoke(formActions.create, { title: "报名" })).form.id;
-    const first = await actions.invoke(formActions.promote, { id });
-    const { form } = await actions.invoke(formActions.promote, { id });
-    assert.equal(form.title, "报名");
-    assert.equal(form.artifact_id, "form-" + id);
-    assert.equal(form.artifact_version, 2);
-    assert.equal(first.artifact.version, 1);
-  } finally {
-    forms.close();
-  }
+  const { form } = await actions.invoke(formActions.create, { title: "报名" });
+  assert.equal((await actions.invoke(formActions.promote, { id: form.id })).artifact.version, 1);
+  const fixedForm = await actions.invoke(formActions.artifactPin, { subject_id: form.id });
+  assert.equal(fixedForm.artifact.version, 2);
+  assert.equal((await actions.invoke(formActions.get, { id: form.id })).form.title, "报名");
+  assert.equal((await read(fixedForm.artifact.artifact_id, 2))?.title, "报名");
 
-  const datasets = openDatasetStore(home);
-  try {
-    const { actions } = datasetTestPorts(datasets, query.get("project_id")!, {
-      publishArtifact: (input) => {
-        assert.equal(input.content.columns.length, 1);
-        return { artifact_id: "dataset-" + input.record_id, version: input.version };
-      },
-    });
-    const created = await actions.invoke(datasetActions.create, { title: "分数" });
-    const id = created.dataset.id;
-    await actions.invoke(datasetActions.update, { id, columns: [{ id: "c1", name: "姓名", type: "text", order: 1 }], rows: [] });
-    const promoted = await actions.invoke(datasetActions.snapshot, { id, note: "编辑历史" });
-    assert.equal(promoted.version.note, "编辑历史");
-    const artifact = await actions.invoke(datasetActions.promote, { id });
-    assert.equal(artifact.dataset.artifact_version, 1);
-    const again = await actions.invoke(datasetActions.promote, { id });
-    assert.equal(again.dataset.artifact_version, 2);
-  } finally {
-    datasets.close();
-  }
+  const { dataset } = await actions.invoke(datasetActions.create, { title: "分数" });
+  await actions.invoke(datasetActions.update, { id: dataset.id, columns: [{ id: "c1", name: "姓名", type: "text", order: 1 }], rows: [] });
+  assert.equal((await actions.invoke(datasetActions.snapshot, { id: dataset.id, note: "编辑历史" })).version.note, "编辑历史");
+  assert.equal((await actions.invoke(datasetActions.promote, { id: dataset.id })).dataset.artifact_version, 1);
+  const fixedTable = await actions.invoke(datasetActions.artifactPin, { subject_id: dataset.id });
+  const table = await read(fixedTable.artifact.artifact_id, 2);
+  assert.equal((table?.payload as { columns: readonly unknown[] }).columns.length, 1);
 
-  const decks = openPptStore(home);
-  try {
-    const { actions } = pptTestPorts(decks, query.get("project_id")!, {
-      publishArtifact: (input) => {
-        assert.ok(input.content.slides.length > 0);
-        return { artifact_id: "ppt-" + input.record_id, version: input.version };
-      },
-    });
-    const created = await actions.invoke(pptActions.create, { title: "发布会" });
-    const id = created.presentation.id;
-    const first = await actions.invoke(pptActions.promote, { id });
-    const second = await actions.invoke(pptActions.promote, { id });
-    assert.equal(first.artifact.version, 1);
-    assert.equal(second.presentation.title, "发布会");
-    assert.equal(second.presentation.artifact_version, 2);
-  } finally {
-    decks.close();
-  }
+  const { presentation } = await actions.invoke(pptActions.create, { title: "发布会" });
+  assert.equal((await actions.invoke(pptActions.promote, { id: presentation.id })).artifact.version, 1);
+  const fixedPpt = await actions.invoke(pptActions.artifactPin, { subject_id: presentation.id });
+  const deck = await read(fixedPpt.artifact.artifact_id, 2);
+  assert.equal(deck?.title, "发布会");
+  assert.ok((deck?.payload as { slides: readonly unknown[] }).slides.length > 0);
+
+  const { document } = await actions.invoke(pagesActions.create, { title: "发布记录", markdown: "原始正文" });
+  const fixedPage = await actions.invoke(pagesActions.promote, { id: document.id, goal_id: "goal-shipping" });
+  assert.equal(fixedPage.document.goal_id, "goal-shipping");
+  const nextPage = await actions.invoke(pagesActions.artifactPin, { subject_id: document.id });
+  assert.equal(nextPage.artifact.version, 2);
+  assert.equal((await read(nextPage.artifact.artifact_id, 2))?.metadata.goal_id, "goal-shipping");
 });

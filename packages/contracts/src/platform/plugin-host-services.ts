@@ -158,7 +158,7 @@ export interface PluginHostServices {
 
 /**
  * Where a plugin's terminal starts (S-103): a folder of a workspace linked to the project of the call (`workspace_id` from that project's
- * list, or the project's preferred linked workspace without it; this root also needs workspace:read), or of the plugin's own declared owner
+ * list, or the project's output directory without it; this root also needs workspace:read), or of the plugin's own declared owner
  * files. `path` is relative to that root, `/`-separated.
  */
 export type PluginTerminalDirectory =

@@ -15,7 +15,7 @@ export interface AccountUi {
 const names = { EMAIL: "workbench.account-management.email", PHONE: "workbench.account-management.phone", GOOGLE: "Google", GITHUB: "GitHub" };
 type MethodType = keyof typeof names;
 const methodName = (type: MethodType) => type === "EMAIL" || type === "PHONE" ? uiText.text(names[type]) : names[type];
-type Mutation = { kind: "bind" | "replace" | "unlink" | "password"; type?: MethodType; bindingId?: string; label?: string };
+type Mutation = { kind: "bind" | "unlink" | "password"; type?: MethodType; bindingId?: string; label?: string };
 const verification = (type: MethodType, current = false) => type === "EMAIL" ? current ? "EMAIL_PASSWORD" : "EMAIL_CODE" : type === "PHONE" ? "PHONE_OTP" : type;
 export function openAccountManagement(ui: AccountUi, user: UserView, back: () => Promise<void>) {
   const { form, dialog, message, node, field, button, request, perform } = ui;
@@ -50,7 +50,6 @@ export function openAccountManagement(ui: AccountUi, user: UserView, back: () =>
   async function methods() {
     discard(); const methods=await request<LoginMethodsView>('/login-methods');if(!current())return;reset("workbench.account-management.sign-methods-security");
     for(const method of methods.loginMethods){const row=node('div','','account-method'); row.append(node('strong',methodName(method.type)),node('p',method.maskedLabel),node('p',uiText.text(method.usableForLogin?"workbench.account-management.available-sign":method.verified?"workbench.account-management.verified-unavailable-sign":"workbench.account-management.not-verified"),'mw-muted'));
-      button('workbench.account.replace-method',()=>choose({kind:'replace',type:method.type,bindingId:method.bindingId,label:method.maskedLabel},methods),row);
       button('workbench.account.remove-method',()=>choose({kind:'unlink',type:method.type,bindingId:method.bindingId,label:method.maskedLabel},methods),row);form.append(row);}
     const additions=node('div','','account-modes');for(const type of ['EMAIL','PHONE','GOOGLE','GITHUB'] as const) button(({EMAIL:'workbench.account.link-email',PHONE:'workbench.account.link-phone',GOOGLE:'workbench.account.link-google',GITHUB:'workbench.account.link-github'} as const)[type],()=>choose({kind:'bind',type},methods),additions);form.append(additions);
     button('workbench.account.set-password',()=>choose({kind:'password'},methods));button('workbench.account.profile',profile);button('workbench.account.back-account',returnToAccount);
@@ -60,7 +59,7 @@ export function openAccountManagement(ui: AccountUi, user: UserView, back: () =>
     const select=node('select','','mw-input');select.setAttribute('aria-label',uiText.text("workbench.account-management.verification-method"));
     for(const method of new Set(methods.loginMethods.filter(m=>m.usableForLogin).map(m=>verification(m.type,true)))){const option=node('option', method==='EMAIL_PASSWORD' ? uiText.text("workbench.account-management.email-password") : method==='PHONE_OTP' ? uiText.text("workbench.account-management.phone-code") : method==='EMAIL_CODE' ? uiText.text("workbench.account-management.email") : methodName(method));option.value=method;select.append(option);}form.append(select);
     const start=button('workbench.account.start-verification',()=>perform(async()=>{
-      const operation={bind:'BIND_METHOD',replace:'REPLACE_METHOD',unlink:'UNLINK_METHOD',password:'CHANGE_PASSWORD'}[action.kind];
+      const operation={bind:'BIND_METHOD',unlink:'UNLINK_METHOD',password:'CHANGE_PASSWORD'}[action.kind];
       const target=action.kind==='bind'?{method:action.type}:action.kind==='password'?{kind:'PASSWORD'}:{bindingId:action.bindingId};
       const tx=await request('/reauthentications',{method:select.value,operation,target});if(!await keep(tx))return;
       disposeVerification=verifyAccountMethod(ui,tx,select.value,()=>void verified(tx.handle,action,methods),()=>void perform(reopenMethods));
@@ -72,7 +71,7 @@ export function openAccountManagement(ui: AccountUi, user: UserView, back: () =>
     if(!current())return;
     if(action.kind==='password'||action.kind==='unlink'){confirm(action,methods,reauth);return;}
     await perform(async()=>{
-      const method=verification(action.type!), tx=await request('/auth/transactions',{purpose:action.kind==='bind'?'BIND':'REPLACE',method,reauthHandle:reauth,...(action.bindingId?{bindingId:action.bindingId}:{})});
+      const method=verification(action.type!), tx=await request('/auth/transactions',{purpose:'BIND',method,reauthHandle:reauth,...(action.bindingId?{bindingId:action.bindingId}:{})});
       if(await keep(tx))disposeVerification=verifyAccountMethod(ui,tx,method,()=>{disposeVerification?.();disposeVerification=undefined;if(current())confirm(action,methods,reauth,tx.handle);},()=>void perform(reopenMethods));
     });
   }

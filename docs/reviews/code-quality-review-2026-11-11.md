@@ -166,7 +166,7 @@
 ### 6.3 文档与记账
 
 - 大多数批次文件按 §11.1 写了收尾五问：07（`batches/07.md:105-109`）、08、09、10、11、20、24；内容抽查属实（不虚报「已评审」的除 #1990 一处）。
-- 状态句过时（P2-11）：`specs/README.md:72` 能力包仍「尚未实现」而 spec 已「已实现（#2015）」；`specs/unified-input-voice/spec.md:3`、`implementation-plan.md`、`docs/design/unified-input/README.md:3` 仍写第 11 批「待合入/batch 分支」而 #2016 已合入；`specs/daily-quality-low-a1/spec.md:3` 与 `specs/README.md:54` 仍「实施中/PR 检查中」而 #1999 已合入且无合入记录；`specs/daily-quality-d0038/spec.md:3` 与 `specs/README.md:9` 仍「执行中」而 #1982 已合入。
+- 状态句过时（P2-11）：`specs/README.md:72` 能力包仍「尚未实现」而 spec 已「已实现（#2015）」；`specs/unified-input-voice/spec.md:3`、`implementation-plan.md`、`docs/design/unified-input/README.md:3` 仍写第 11 批「待合入/batch 分支」而 #2016 已合入；`specs/daily-quality-low-a1/spec.md:3` 与 `specs/README.md:54` 仍「实施中/PR 检查中」而 #1999 已合入且无合入记录；`specs/archive/daily-quality-d0038/spec.md:3` 与 `specs/README.md:9` 仍「执行中」而 #1982 已合入。
 - 纯文档 PR 仍单独开：窗口内有 #1983、#1985、#1986、#1988、#1992、#1993、#1996、#2005、#2007、#2018、#2027 共 11 个纯文档 PR，与决定 31「文档不单独开 PR，随本批 PR 合入；合入提交号随下一批 PR 补」的字面要求不一致（P2-12）。其中 #2027 是第 11 批收尾文档，也正好漏改了 6.3 的状态句。
 
 ## 7. 问题清单

@@ -1,0 +1,5 @@
+# S-protected-position-commands
+
+| 编号 | 被拒绝的行为 | 代码位置 | CI 里跑 | 只在本机跑 |
+| --- | --- | --- | --- | --- |
+| S-protected-position-commands | 助理、讨论与等你不能借首页通用入口执行当前对象的操作。受保护准备只保留原会话、实际位置来源、精确能力和 opaque 选择；关闭、重放、换会话、换消息关系或撤权后不能继续执行。卡片的放进和交给仍经原放置动作，原读者、接收者和权限保留到写点；新增竞争读者、同引用换登记、换真实后果或源分区变化均拒绝。准备和取消不记标题或归属；内层已提交而外层拒绝回执时不能自动重做。 | `apps/local-host/src/surface-position-offers.ts`、`apps/local-host/src/surface-offer-operation.ts`、`apps/local-host/src/surface-placement.ts`、`apps/local-host/src/placement-surface-call.ts`、`apps/local-host/src/im-discussion-surfaces.ts`、`horizontal/placement/src/index.ts` | `tests/security-invariants-position-offers.test.ts`「discussion confirms once with the original web and IM identities」「a discussion card links and converts through the original Placement and receiver」 | `tests/security-invariants-surface-home-signed.test.ts`「preparing and cancelling a real signed Home card does not write title or belonging」走实际签包（macOS Seatbelt）；`tests/surface-cross-positions.e2e.test.ts`「an Attention peek clears old content」 |

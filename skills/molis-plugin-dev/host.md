@@ -2,6 +2,9 @@
 
 Manifest 写完不等于底栏插件切换里有入口：内置插件还要在自己包里写 `registration`（目录条目）和 Plugin Runtime 监督器条目（见「内置插件：经 Plugin Runtime 装配」）；第三方插件看 [authoring.md](authoring.md)。不要抄两个构建期例外（Alchemist、插件创作台）的短名 HTTP。
 
+
+自动记忆形成的来源主人协议是 `memory.learning.enqueue/run/form@1`（定义经 contracts 的 services/memory 导出）。它仅面向 plugin，JSON 只传引用，不开放模型工具或 MCP。当前 Host executor 通过真实 session.context.services.actions.invoke 重新进入当前安装；不直调 handler，不自动 enable。owner 在尚未返回的嵌套 form 内提供 `assert_memory_sources_current` 同步收紧检查，Memory 选定实际来源并集后绑定。旧、新检查求交，Promise/thenable 拒绝；不把它放入 payload、后台作业或插件 callback view。原 beforeEffect、grant、issued 身份和最终 Storage/ledger 围栏仍全部成立。queued 重启用当前正常装配，running 未知结果不自动重放。
+
 ## 内置插件：经 Plugin Runtime 装配
 
 新的内置插件（任何 kind）只走 Plugin Runtime：由监督器启动，得到安装记录、升级检查、崩溃恢复和每个安装独立的私人存储。不再新增 `apps/local-host/src/<插件>-native-plugin-http.ts`，也不再往构建期名单加条目；构建期只剩用户批过的两个例外，见下面「构建期 Native」一节（门禁 `tests/builtin-plugin-assembly-gate.test.ts`）。
@@ -62,7 +65,7 @@ Home 或项目里宿主自己运行的插件要调模型：Manifest 声明 `mode
 
 ### 启动终端
 
-插件要在这台电脑上起一个交互终端（例如在工作目录里跑终端 Agent），在 Manifest 里声明 `terminal:run` 权限（S-103）。得到 `services.terminal`，Home 实例和项目实例都有。`open({ key, title?, program, subject?, directory })`：`program` 是平台认识的编程 Agent `{ runtime: "codex" }`（还有 `claude-code`、`opencode`、`pi-agent`、`grok-build`，命令与续接参数由平台定），或 `{ command, args? }`：`command` 是绝对路径（常和 `services.localTools.find()` 一起用）或命令名（平台在自己的 PATH 上找，找不到答 `actions.unavailable`），不经 shell，`args` 至多 32 项；`subject` 是这个终端属于的东西（Goals 写 Goal id），终端里的 `MOLIS_WORK_FOCUS_ID` 就是它；`directory` 是 `{ root: "workspace", workspace_id?, path? }`（本次调用所在项目已关联的工作目录，不写 `workspace_id` 就是首选的那个，另要 `workspace:read`）或 `{ root: "owner_files", path? }`（本插件声明的主人文件目录），`path` 是根下用 `/` 分隔的相对路径；程序和解析后的目录首尾都不能有空白（终端宿主会 trim 它们）。只能在本插件自己的、受众为 `user`、声明了 `terminal:run` 的 command 里调；安装、项目、人都取自这次调用，输入里多一个键就整个拒。回 `{ panelId, started }`：平台按安装、项目、人与 `key` 记下这个终端，同一 `key` 在跑就附着同一个进程（`started: false`），停了就按记下的程序重起，换了程序答 `actions.conflict`（先 `close`）。`list({ subject? })` 在查询里也能调，列出本人在这里的终端和是否在跑；`close({ key })` 结束并忘掉它，别人的 key 答 `actions.missing`。页面用页面终端（`molisPageTerminal`）附着、写入、改大小、结束。停用、撤权、卸载、项目实例停止时，这次激活起的进程全部结束。沙箱插件声明了会在启动时被拒（`sandbox.service_not_given`，BL-910）。
+插件要在这台电脑上起一个交互终端（例如在工作目录里跑终端 Agent），在 Manifest 里声明 `terminal:run` 权限（S-103）。得到 `services.terminal`，Home 实例和项目实例都有。`open({ key, title?, program, subject?, directory })`：`program` 是平台认识的编程 Agent `{ runtime: "codex" }`（还有 `claude-code`、`opencode`、`pi-agent`、`grok-build`，命令与续接参数由平台定），或 `{ command, args? }`：`command` 是绝对路径（常和 `services.localTools.find()` 一起用）或命令名（平台在自己的 PATH 上找，找不到答 `actions.unavailable`），不经 shell，`args` 至多 32 项；`subject` 是这个终端属于的东西（Goals 写 Goal id），终端里的 `MOLIS_WORK_FOCUS_ID` 就是它；`directory` 是 `{ root: "workspace", workspace_id?, path? }`（本次调用所在项目已关联的工作目录，不写 `workspace_id` 就是项目的输出目录，另要 `workspace:read`）或 `{ root: "owner_files", path? }`（本插件声明的主人文件目录），`path` 是根下用 `/` 分隔的相对路径；程序和解析后的目录首尾都不能有空白（终端宿主会 trim 它们）。只能在本插件自己的、受众为 `user`、声明了 `terminal:run` 的 command 里调；安装、项目、人都取自这次调用，输入里多一个键就整个拒。回 `{ panelId, started }`：平台按安装、项目、人与 `key` 记下这个终端，同一 `key` 在跑就附着同一个进程（`started: false`），停了就按记下的程序重起，换了程序答 `actions.conflict`（先 `close`）。`list({ subject? })` 在查询里也能调，列出本人在这里的终端和是否在跑；`close({ key })` 结束并忘掉它，别人的 key 答 `actions.missing`。页面用页面终端（`molisPageTerminal`）附着、写入、改大小、结束。停用、撤权、卸载、项目实例停止时，这次激活起的进程全部结束。沙箱插件声明了会在启动时被拒（`sandbox.service_not_given`，BL-910）。
 
 插件自己存了项目 id（例如副本的出处）、要知道那个项目还在不在，在 Manifest 里声明 `projects:exist` 权限（双实例插件的权限都要写 `required: true`；没问到就当「不知道」，不要当「已删除」），得到 `services.projects.exist(ids)`：只回你传进来的 id 的 `{id: boolean}`，不列项目、不返回名字（S-96，BL-680）；Home 实例和项目实例都有。沙箱操作声明 `effects.projects: ["exist"]`，由已校验合同派生这一项可选 Manifest 权限；操作效果批准与当前安装的 `projects:exist` 授权都要满足，仍走同一个客户端。
 
@@ -151,6 +154,8 @@ Home 或项目里宿主自己运行的插件要调模型：Manifest 声明 `mode
 
 Inbox 的显式判断与 Feed 入箱事件已这样接通，参考 `plugins/native/inbox/src/scenes.ts`、`plugins/native/inbox/src/scene-runtime.ts`（场景跑在插件里，经 `services.scenes` 与 `services.judgments`）、`plugins/native/inbox/src/judgment-trigger.ts` 及 `tests/inbox-automatic-scenes.test.ts`。Feed 各触发源通过组合根注入 `feedOptions.inboxJudgment`，它调 Inbox 自己的动作 `inbox.judgment.evaluate`，共享绑定但不共享待处理队列。
 
+一次展示多个候选时，用 `services.scenes.discoverScenesFor` 传各自的动作 id、版本和提供方。每个输入位置得到一组自己的声明场景，保留输入顺序和重复项；读取前后都检查原调用者和安装权限。展示结果不授予绑定、预览或执行权限，后续操作仍走各自的实时检查。
+
 要让用户在系统判断编辑器里直接启用，场景声明 `configuration_permissions` 并提供 `targets(caller)`，返回原配置位置、名称、链接和 revision。系统绑定会携带准确场景提供方及 `expected_revision`，原 `bind` 必须在同一存储中原子核对；null 只代表业务已提供但尚未绑定的固定位置。发现过程不新建规则，停用保留原引用。仅启用所需的额外权限用 `activation_permissions` 声明，详见 SDK。
 
 迁移边界：Home、Inbox、Feed、工作流、角色与内置 Agent 及系统规则编辑器都经同一目录和共同场景；Manifest 不再有 `behaviors`、`function_scenes`、`judgment_subjects`；不要用 `requires: functions.evaluate` 作为接入方法。各消费者的现状与证据见迁移清单。
@@ -194,7 +199,7 @@ Inbox 的 `GET/POST /api/plugins/io.molis.work.inbox/pages` 由 Plugin Runtime �
 
 已注册到当前项目 Runtime 的路由按 Manifest 和实际 contribution 自动分发，Web 外层和内部适配器均不再维护插件 ID 白名单。业务 HTTP 使用 `bindPluginActionRoute` 转调统一动作；生命周期仍由 supervisor 管理。新实例追加注册不应覆盖已有路由；停用后的请求不得重新启用实例。内置项目启用检查、控制令牌、origin 与一次性请求键继续生效。`/restart`、`/release-quarantine`、`/upgrade` 保留给 Host 生命周期，业务路由避开这些路径；不要在 Host 为新插件增加同名字段的结果加工。
 
-`kind: "app"` 必须真的经 Plugin Runtime `start()`。今天：Coding、Files、Git、Diff、Text stats（Shelf 是 `native`，同样由监督器启动）。启动按各自登记的 `project_runtime`；Coding 族的工作面由 `project-plugin-stages.ts` 按声明画（Shelf 的由 workbench 渲染）；`/api/plugins/<plugin_id>/` 由 `project-plugin-http.ts` 的 `handleProjectPluginHttp` 转给运行中的插件，它不认识任何插件，也不接受调用方塞进路由前后的步骤；工作区的变化（含项目设置里换目录）经 `host.workspace.changed@1` 广播给订阅的插件，Files 收到后重新确认要看的文件夹。插件跑没跑起来，按插件从监督器读（`projectPluginProblem`）。
+`kind: "app"` 必须真的经 Plugin Runtime `start()`。今天：Coding、Git、Diff、Text stats（Shelf 是 `native`，同样由监督器启动）。启动按各自登记的 `project_runtime`；Coding 族的工作面由 `project-plugin-stages.ts` 按声明画（Shelf 的由 workbench 渲染）；`/api/plugins/<plugin_id>/` 由 `project-plugin-http.ts` 的 `handleProjectPluginHttp` 转给运行中的插件，它不认识任何插件，也不接受调用方塞进路由前后的步骤；工作区的变化（含项目设置里换目录）经 `host.workspace.changed@1` 广播给订阅的插件，Git 收到后重新确认要看的文件夹。插件跑没跑起来，按插件从监督器读（`projectPluginProblem`）。
 
 `start(context)` 返回 `kind: "app"`，并且：
 

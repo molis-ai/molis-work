@@ -90,7 +90,7 @@ async function grant(ports: Ports, offered: AgentDelegationGrantInput, caller: A
     throw assistantErrors.invalid("请选择与权限方式对应的完整可用范围");
   }
   const next = { mode: input.mode, expected_version: input.expected_version, scopes: held.resolved.scopes, expires_at: input.expires_at };
-  const control = changeControl(caller, () => { held.assertCurrent(); held.access.owner.assertWorkPermissionTransitionFree(input.work_id); });
+  const control = changeControl(caller, () => { held.assertCurrent(); held.access.owner.permissionTransitions.assertWorkPermissionTransitionFree(input.work_id); });
   const saved = held.state?.lifecycle === "ended"
     ? await held.store.reopen(held.subject, next, control) : await held.store.grant(held.subject, next, control);
   return projection(held.store, held.subject, saved);
@@ -119,7 +119,7 @@ async function change(ports: Ports, offered: AgentDelegationUpdateInput | AgentD
   const input = structuredClone(offered), held = workAccess(ports, input, caller), store = await originalPermissions(ports);
   const state = await store.read(held.subject), row = currentSelection(state);
   const token = { expected_version: input.expected_version, id: input.id, revision: input.revision };
-  const control = changeControl(caller, () => { held.assertCurrent(); held.owner.assertWorkPermissionTransitionFree(input.work_id); });
+  const control = changeControl(caller, () => { held.assertCurrent(); held.owner.permissionTransitions.assertWorkPermissionTransitionFree(input.work_id); });
   if (!state || state.storage_version !== token.expected_version || !row || row.id !== token.id || row.revision !== token.revision) {
     throw new ActionError("actions.conflict", "工作权限已变化，请按当前权限重新决定", { details: { current: projection(store, held.subject, state) } });
   }

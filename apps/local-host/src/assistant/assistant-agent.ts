@@ -33,6 +33,8 @@ const ASSISTANT_ENDING_REVIEW = [
   "",
   "事实（facts）是宿主记的，不是助理说的：tools 是这一轮调用过的工具和每次的结果，空就是一次也没调用；memory 是记忆能不能用；materials 是这一轮随附了哪些材料。这一轮没有任何成功的改动：没有保存、新建、修改、删除或安排任何东西，没有记住或忘掉任何事，没有准备操作卡，没有交出子任务。",
   "",
+  "request 是用户这一轮的原话（宿主记的）。用户要助理起草、整理、列出或写出的内容，是交给用户的正文：正文里写着“已确定”“已完成”“已保存”之类，说的是正文里的事，不是助理说自己这一轮做成了什么，不要抄进 changed、kept、forgot 或 button。",
+  "",
   "问题一（last）：reply 的最后一段在做什么？只选一个。",
   "- next_step：说自己接下来要去做的一步，这一步这一轮还没有做。",
   "- question：问用户问题，或请用户选择、确认。",
@@ -52,11 +54,11 @@ const ASSISTANT_ENDING_REVIEW = [
 
 export const ASSISTANT_PROMPTS: AgentPromptText[] = [
   { prompt_id: "assistant-thread", version: /* @version prompt.assistant-thread */ 2, layer: "base", ...promptBody("assistant-thread") },
-  { prompt_id: "assistant-base", version: /* @version prompt.assistant-base */ 4, layer: "base", ...promptBody("assistant-base") },
-  { prompt_id: "assistant-work", version: /* @version prompt.assistant-work */ 2, layer: "role", ...promptBody("assistant-work") },
+  { prompt_id: "assistant-base", version: /* @version prompt.assistant-base */ 5, layer: "base", ...promptBody("assistant-base") },
+  { prompt_id: "assistant-work", version: /* @version prompt.assistant-work */ 3, layer: "role", ...promptBody("assistant-work") },
   { prompt_id: "assistant-delegated", version: /* @version prompt.assistant-delegated */ 2, layer: "role", ...promptBody("assistant-delegated") },
   { prompt_id: "assistant-compaction", version: /* @version prompt.assistant-compaction */ 1, body: ASSISTANT_COMPACTION },
-  { prompt_id: "assistant-ending-review", version: /* @version prompt.assistant-ending-review */ 1, body: ASSISTANT_ENDING_REVIEW },
+  { prompt_id: "assistant-ending-review", version: /* @version prompt.assistant-ending-review */ 2, body: ASSISTANT_ENDING_REVIEW },
 ];
 
 /**
@@ -64,7 +66,7 @@ export const ASSISTANT_PROMPTS: AgentPromptText[] = [
  * work's scope, queries directly and commands under the effect policy.
  */
 export const ASSISTANT_AGENT: AgentManifest = {
-  prompts: [{ prompt_id: "assistant-thread", version: /* @version prompt.assistant-thread */ 2, layer: "base" }, { prompt_id: "assistant-base", version: /* @version prompt.assistant-base */ 4, layer: "base" }, { prompt_id: "assistant-work", version: /* @version prompt.assistant-work */ 2, layer: "role" }, { prompt_id: "assistant-delegated", version: /* @version prompt.assistant-delegated */ 2, layer: "role" }, { prompt_id: "assistant-compaction", version: /* @version prompt.assistant-compaction */ 1 }, { prompt_id: "assistant-ending-review", version: /* @version prompt.assistant-ending-review */ 1 }],
+  prompts: [{ prompt_id: "assistant-thread", version: /* @version prompt.assistant-thread */ 2, layer: "base" }, { prompt_id: "assistant-base", version: /* @version prompt.assistant-base */ 5, layer: "base" }, { prompt_id: "assistant-work", version: /* @version prompt.assistant-work */ 3, layer: "role" }, { prompt_id: "assistant-delegated", version: /* @version prompt.assistant-delegated */ 2, layer: "role" }, { prompt_id: "assistant-compaction", version: /* @version prompt.assistant-compaction */ 1 }, { prompt_id: "assistant-ending-review", version: /* @version prompt.assistant-ending-review */ 2 }],
   // A long work keeps what it needs when its history grows past the window: the runtime picks passages, it never rewrites them.
   // The runtime counts the whole context, this round's lookups and readings included: at 16,000 almost every first round
   // (25–33k with its capability lookups) paid for a compaction it did not need.

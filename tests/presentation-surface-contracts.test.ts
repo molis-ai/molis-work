@@ -41,6 +41,8 @@ test("the values and overview helpers give declarations the SDK's action checks 
   assert.deepEqual(inspectActionDeclarations([values, overview], undefined), []);
   assert.equal(isPresentationValuesAction(values.action), true);
   assert.equal(isPresentationValuesAction(overview.action), false);
+  assert.equal(values.action.execution?.cost, "none");
+  for (const execution of [undefined, {}, { cost: "unknown" }, { cost: "metered" }]) assert.equal(isPresentationValuesAction({ ...values.action, execution }), false);
   assert.deepEqual([values.action.scheduling, values.action.effect, values.action.subject_kinds, values.action.audiences], ["concurrent", "read", ["note"], ["user", "plugin", "agent", "mcp"]]);
   const home = definePresentationOverviewAction("todo.presentation.overview", 1, "待办概况", [], "home");
   assert.deepEqual([home.action.scope, home.action.project_reach, home.action.effect, overview.action.project_reach], ["home", "person", "read", undefined]);
@@ -131,6 +133,31 @@ test("SSC-06: a right declaration parses for every plugin alike, and an author's
   assert.equal(manifestProblems(declarationManifest()), "");
 });
 
+test("SCS-15 notices use the object's own actions and text keys; external effects are explicit", () => {
+  const reason = { key: "declaration-rules.note.locked" };
+  const unavailable = { when: { status: ["draft"], codes: ["notes.locked"] }, reason, next: "goals.attach@1" };
+  const actions = [{ ...noteObject.actions[0], unavailable }, noteObject.actions[1]];
+  assert.equal(presenting(withObject({ actions })), "");
+  for (const invalid of [{ ...unavailable, when: {} }, { ...unavailable, when: { status: [] } },
+    { ...unavailable, when: { codes: [""] } }, { ...unavailable, reason: { literal: "locked" } },
+    { ...unavailable, reason: { key: "other.note.locked" } }, { ...unavailable, next: "notes.publish@1" },
+    { ...unavailable, next: "elsewhere.read@1" }]) {
+    assert.match(presenting(withObject({ actions: [{ ...actions[0], unavailable: invalid }, actions[1]] })), /\.unavailable/u);
+  }
+  const definition = command("notes.publish", ["note"]);
+  const sending = (external: unknown) => ({ ...definition, action: { ...definition.action, external } });
+  assert.deepEqual(inspectActionDeclarations([sending(true)], undefined), []);
+  for (const invalid of [false, "true", 1]) assert.ok(inspectActionDeclarations([sending(invalid)], undefined).length > 0);
+});
+
+test("SCS-09 values declarations refuse metered, external and model-backed reads", () => {
+  const manifest = (extra: Record<string, unknown>) => ({ actions: [search, { ...ownValues, action: { ...ownValues.action, ...extra } }],
+    presentation: withObject({ actions: [] }) });
+  for (const extra of [{ permissions: ["model:invoke"] }, { external: true }, { execution: undefined }, { execution: { cost: "unknown" } }, { execution: { cost: "metered" } }]) {
+    assert.match(validatePresentationDeclaration(manifest(extra)).join("\n"), /不调用模型、不外发或计费/u);
+  }
+});
+
 test("SSC-06: a wrong declaration is refused at install and the author is told which item is wrong", () => {
   const at = "presentation.objects[0]";
   const fields = noteObject.fields;
@@ -165,19 +192,19 @@ test("SSC-06: a wrong declaration is refused at install and the author is told w
 
 test("SSC-18 (install half): the overview names one of this Manifest's own actions with the platform's schemas, and offers only its own actions to start from", () => {
   const changed = { ...ownOverview, action: { ...ownOverview.action, output_schema: { ...ownOverview.action.output_schema, required: ["summary"] } } };
-  const fixedSchemas = (id: string) => `presentation.overview 指向的动作 ${id} 要用 definePresentationOverviewAction 定义：只读 query，输入输出 schema 与平台定的一字不差`;
+  const fixedSchemas = (id: string) => `presentation.overview 指向的动作 ${id} 要用 definePresentationOverviewAction 定义：只读 query，不调用模型、不外发或计费，输入输出 schema 与平台定的一样`;
   assert.equal(presenting(declaration, ownActions.map(action => action === ownOverview ? changed : action)), fixedSchemas("notes.presentation.overview"));
   assert.equal(presenting(withOverview({ capability_id: "notes.publish" })), fixedSchemas("notes.publish"));
   assert.equal(presenting(withOverview({ capability_id: "goals.overview" })), "presentation.overview 要指向本 Manifest 自己的一个动作（capability_id 和 version 都要对上）");
   assert.equal(presenting(withOverview({ version: 2 })), "presentation.overview 要指向本 Manifest 自己的一个动作（capability_id 和 version 都要对上）");
-  const notOwn = "presentation.overview.start[0] 要是本 Manifest 自己的一个动作，只写 capability_id 和 version";
+  const notOwn = "presentation.overview.start[0] 要是本 Manifest 自己的一个动作（capability_id 和 version 都要对上）";
   assert.equal(presenting(withOverview({ start: [{ capability_id: "goals.create", version: 1 }] })), notOwn);
   assert.equal(presenting(withOverview({ start: [{ ...ownStart, provider_id: "notes" }] })), notOwn);
   assert.equal(presenting(withOverview({ start: [ownStart, ownStart] })), "presentation.overview.start[1] 重复");
   assert.equal(presenting(withOverview({ start: Array.from({ length: 4 }, () => ownStart) })), "presentation.overview.start 要列 1 到 3 个入口");
   const changedValues = { ...ownValues, action: { ...ownValues.action, output_schema: { type: "object" } } };
   assert.equal(presenting(declaration, ownActions.map(action => action === ownValues ? changedValues : action)),
-    "给值的动作 notes.presentation.values 要用 definePresentationValuesAction 定义：只读 query，输入输出 schema 与平台定的一样");
+    "给值的动作 notes.presentation.values 要用 definePresentationValuesAction 定义：只读 query，不调用模型、不外发或计费，输入输出 schema 与平台定的一样");
 });
 
 test("the catalog answers present, absent or unknown: this Manifest's own actions at their versions, and the whole directory once S-1 passes it", () => {
@@ -277,7 +304,7 @@ test("a form the object does not declare steps down to the next simpler one it d
 
 const composeRequest = (slot: Record<string, unknown>) => ({ slot, subjects: [note] });
 const item = { subject: note, owner_plugin_id: "notes", form: "row", state: "ok", fields: [{ key: "title", role: "title" }],
-  actions: [{ ref: "notes.publish@1", primary: true, prepared_input: { note_id: "id" }, consequence: ["external"] }, { ref: "open", primary: false }] };
+  actions: [{ ref: "notes.publish@1", provider_id: "notes", primary: true, prepared_input: { note_id: "id" }, consequence: ["external"] }, { ref: "open", primary: false }] };
 const description = (groups: unknown[]): SurfaceDescription => ({ composed_by: "rules", revision: "d1", corrections_revision: "0", groups } as SurfaceDescription);
 const otherNote = { ...item, subject: { kind: "note", id: "n2" }, actions: [{ ref: "open", primary: true }] };
 const todo = { ...item, subject: { kind: "todo", id: "t1" }, owner_plugin_id: "todo", actions: [] };
@@ -293,6 +320,8 @@ test("surfaces.compose@1: a plugin-slot names the plugin and its slot and no oth
   const ask = (input: unknown, audience: ActionCallContext["audience"] = "user") => service.invoke(context(audience), reference(compose), input);
   await ask(composeRequest({ kind: "plugin-slot", plugin_id: "goals", slot_id: "goals.detail.evidence" }));
   await ask(composeRequest({ kind: "conversation" }), "plugin");
+  await ask({ ...composeRequest({ kind: "conversation" }), delivery_subjects: [note], expanded: true });
+  await ask({ ...composeRequest({ kind: "discussion" }), expanded: true });
   await ask({ slot: { kind: "attention" }, task: "reviewing" });
   for (const [what, input] of [
     ["a plugin-slot without its slot", composeRequest({ kind: "plugin-slot", plugin_id: "goals" })],
@@ -302,6 +331,11 @@ test("surfaces.compose@1: a plugin-slot names the plugin and its slot and no oth
     ["an unknown place", composeRequest({ kind: "page" })],
     ["an unknown task", { slot: { kind: "home" }, task: "playing" }],
     ["a caller named in the input", { slot: { kind: "home" }, actor_id: "someone-else" }],
+    ["deliveries in a discussion", { ...composeRequest({ kind: "discussion" }), delivery_subjects: [note] }],
+    ["deliveries without a requested list", { slot: { kind: "conversation" }, delivery_subjects: [note] }],
+    ["a repeated delivery", { ...composeRequest({ kind: "conversation" }), delivery_subjects: [note, { id: note.id, kind: note.kind }] }],
+    ["expanding a plugin slot", { ...composeRequest({ kind: "plugin-slot", plugin_id: "notes", slot_id: "notes.own" }), expanded: true }],
+    ["a false expansion flag", { ...composeRequest({ kind: "discussion" }), expanded: false }],
   ] as const) await assert.rejects(ask(input), code("actions.input_invalid"), what);
   for (const audience of ["agent", "mcp", "workflow"] as const) await assert.rejects(ask({ slot: { kind: "home" } }, audience), code("actions.forbidden"), audience);
 });
@@ -320,7 +354,10 @@ test("SSC-07 (contract half): a composed description holds references and forms,
   await ask();
   const refused: ReadonlyArray<readonly [string, unknown]> = [
     ["a field's value in an item", description([{ kind: "attention", state: "ok", items: [{ ...item, values: { title: "周报" } }] }])],
-    ["a prepared value instead of a field reference", description([{ kind: "attention", state: "ok", items: [{ ...item, actions: [{ ref: "notes.publish@1", primary: true, prepared_input: { note_id: 7 } }] }] }])],
+    ["a prepared value instead of a field reference", description([{ kind: "attention", state: "ok", items: [{ ...item, actions: [{ ref: "notes.publish@1", provider_id: "notes", primary: true, prepared_input: { note_id: 7 } }] }] }])],
+    ["a directory action without its provider", description([{ ...notesGroup, items: [{ ...item, actions: [{ ref: "notes.publish@1", primary: true }] }] }])],
+    ["a generic operation with a provider", description([{ ...notesGroup, items: [{ ...item, actions: [{ ref: "open", provider_id: "notes", primary: true }] }] }])],
+    ["an old timestamp on a current item", description([{ ...notesGroup, items: [{ ...item, read_at: "2026-11-08T09:00:00.000Z" }] }])],
     ["a relation type outside the table", description([{ kind: "attention", state: "ok", items: [{ ...item, merged: [{ ...merged[0], relation: "placement.used_in" }] }] }])],
     ["an unknown consequence", description([{ kind: "attention", state: "ok", items: [{ ...item, actions: [{ ref: "open", primary: false, consequence: ["slow"] }] }] }])],
     ["an unknown form", description([{ kind: "attention", state: "ok", items: [{ ...item, form: "page" }] }])],
@@ -360,7 +397,7 @@ test("SSC-10: the assistant's choice keeps only what the candidates have, record
     attentionGroup,
     { ...notesGroup, items: [
       // It may say which actions and which one leads; the prepared input and the consequences stay the candidate's.
-      { ...item, actions: [{ ref: "notes.publish@1", primary: false, prepared_input: { note_id: "summary" } }, { ref: "notes.delete@1", primary: true }] },
+      { ...item, actions: [{ ref: "notes.publish@1", provider_id: "notes", primary: false, prepared_input: { note_id: "summary" } }, { ref: "notes.delete@1", provider_id: "notes", primary: true }] },
       { ...item, subject: { kind: "note", id: "n9" } },
       { ...otherNote, form: "card" },
     ] },
@@ -390,6 +427,22 @@ test("SSC-10: the assistant's choice keeps only what the candidates have, record
     }
   };
   assert.equal(shown(malformed[0]?.[1]), candidates);
+});
+
+test("SCS-14 SCS-15 the assistant cannot redirect a provider, rewrite a notice or change the folded count", () => {
+  const notices = [{ reason: { owner: "notes", key: "notes.locked" }, next: { ref: "notes.read@1", provider_id: "notes", primary: false } }];
+  const candidate = { ...item, notices };
+  const group = { ...notesGroup, overflow: { count: 2 }, items: [candidate] };
+  const candidates = description([group]);
+  const [publish] = item.actions;
+  const forged = { ...candidates, groups: [{ ...group, overflow: { count: 7 }, items: [{ ...candidate,
+    actions: [{ ...publish, provider_id: "another" }], notices: [{ reason: { owner: "another", key: "another.fake" } }],
+  }] }] };
+  const checked = assertSurfaceDescription(forged, candidates);
+  assert.deepEqual(checked.description.groups, [{ ...group, items: [{ ...candidate, actions: [] }] }]);
+  assert.deepEqual(checked.dropped, [{ subject: note, action: "notes.publish@1" }]);
+  const self = description([{ ...group, items: [{ ...candidate, actions: [publish, { ...publish, provider_id: "another", primary: false }] }] }]);
+  assert.deepEqual(assertSurfaceDescription(self, self).dropped, []);
 });
 
 test("SSC-10 (IUI-05): a group's facts are the candidates'; the value's state, read_at, excluded and hidden_above do not take effect", () => {
@@ -424,7 +477,7 @@ test("SSC-10 (IUI-05): an object stays only in the group its candidate is in; pu
   assert.deepEqual(checked.dropped, [{ subject: note }, { subject: todo.subject }]);
 });
 
-test("surfaces.correct@1 commits from the corrections revision: a form, a removal or a pin, each with exactly what it needs, and only the person corrects", async () => {
+test("IUI-06 surfaces.correct@1 commits from the corrections revision: only the person can set a form, remove, pin or reset", async () => {
   const { correct } = surfaceCompositionActions;
   const service = serving(SURFACES_PROVIDER_ID, [correct], [answering(correct, () => ({ corrections_revision: "1" }))]);
   const ask = (input: Record<string, unknown>, audience: ActionCallContext["audience"] = "user") => service.invoke(context(audience), reference(correct), { slot: { kind: "attention" }, expected_revision: "0", ...input });
@@ -432,6 +485,8 @@ test("surfaces.correct@1 commits from the corrections revision: a form, a remova
   await ask({ correction: "form", form: "chip", subject: note });
   await ask({ correction: "remove", subject: note });
   await ask({ correction: "pin", subject: note, position: 0 });
+  await ask({ correction: "reset", subject: note });
+  await ask({ correction: "reset" });
   for (const [what, input] of [
     ["a form correction without its form", { correction: "form" }],
     ["a form correction with a position", { correction: "form", form: "card", position: 1 }],
@@ -439,6 +494,8 @@ test("surfaces.correct@1 commits from the corrections revision: a form, a remova
     ["a removal with a form", { correction: "remove", subject: note, form: "row" }],
     ["a pin without its position", { correction: "pin", subject: note }],
     ["a pin past the last position", { correction: "pin", subject: note, position: PRESENTATION_LIMITS.values_subjects }],
+    ["a reset with a form", { correction: "reset", form: "row" }],
+    ["a reset with a position", { correction: "reset", subject: note, position: 0 }],
     ["an unknown correction", { correction: "hide", subject: note }],
   ] as const) await assert.rejects(ask(input), code("actions.input_invalid"), what);
   await assert.rejects(service.invoke(context("user"), reference(correct), { slot: { kind: "attention" }, correction: "remove", subject: note }), code("actions.input_invalid"), "no expected revision");

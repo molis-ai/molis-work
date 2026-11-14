@@ -19,7 +19,8 @@ import { activeLocale, readText, pageLocale, type WebLocale } from "../web-local
 import { modelRoundLocale } from "../reply-language.js";
 import { lastUsedLocale, rememberUiLocale } from "../ui-locale-memory.js";
 import { bindLocalWebActions, localWebActionContext } from "../local-web-actions.js";
-import { LOCAL_OWNER_PERMISSIONS } from "../local-owner-permissions.js";
+import { LOCAL_OWNER_PERMISSIONS, MATERIALS_OWNER_PERMISSIONS } from "../local-owner-permissions.js";
+import { materialsActions } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import type { MolisWorkLocalHost } from "../project-host.js";
 import { ActionError, bindActionClient, requireSynchronous, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionSchema, type ActionView, type BoundActionClient, type InferActionInput, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MEMORY_WRITE_PERMISSION, memoryActions } from "@molis-ai/molis-work-contracts/services/memory";
@@ -28,7 +29,7 @@ import { assistantCandidate } from "./assistant-memory-tools.js";
 import { assistantAuthority, assistantProjectPrompts } from "./assistant-authority.js";
 import { registerWorkAuthority } from "../agent-work-authority.js";
 import { AssistantService, type AssistantServicePorts } from "./assistant-service.js";
-import type { SignedBinding } from "./assistant-service-shared.js";
+import { RUNTIME, type SignedBinding } from "./assistant-service-shared.js";
 import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { skillCatalogActions } from "@molis-ai/molis-work-contracts/services/skills";
 import { assistantSurroundings } from "./assistant-surroundings.js";
@@ -59,6 +60,9 @@ import { assistantConnectionCard } from "./assistant-connection-card.js";
 import { authorizationSettingsControl, webEffectControl } from "../authorization-settings-control.js";
 import { assistantActionPolicies, changeAssistantActionPolicy } from "./assistant-action-policy.js";
 import { workPermissionHttp } from "./assistant-work-permission-http.js";
+import { handleAssistantSurfaceHttp } from "./assistant-surface-http.js";
+import { hasStorageBusinessFiles } from "@molis-ai/molis-work-storage";
+import { agentRuntimeDirectory } from "../agent-runtime-paths.js";
 
 /** The works related to an object, and each one's objects, as `assistant.works.related@1` and its HTTP read them. */
 const relatedSource = (service: AssistantService): RelatedWorksSource => ({ related: (projectId, subject) => service.reads.related(projectId, subject), read: workId => service.read(workId) });
@@ -162,6 +166,13 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
     holdSetups: (sessionId, revision) => holdConnectorAuthorizationsForSession(ports.homeDirectory, sessionId, WEB_ACTOR, revision),
     setupMaterial: (work, offered, withdrawn) => assistantSetupMaterial(ports.homeDirectory, work, offered, withdrawn),
     host: async () => { await ports.agentReady(); return ports.agentHost; },
+    hostForDraftPermissions: async () => {
+      if (ports.agentHost.workDelegations(RUNTIME)) return ports.agentHost;
+      if (hasStorageBusinessFiles(agentRuntimeDirectory(ports.homeDirectory))) {
+        await ports.agentReady();
+        return ports.agentHost;
+      }
+    },
     pages: () => ports.pages(),
     // The platform memory, registered with this Home's Agent service (the Assistant is one of its consumers).
     memory: (...execution) => { const memory = memoryHostFor(ports.localHost); return execution.length ? memory?.withExecution(...execution) : memory?.service; },
@@ -229,13 +240,17 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
     },
     // The person's Home, for the reminders they set in Plugins.
     homeActions: async () => personClient(undefined),
-    // Reading related objects back from their owners, as the person: the work's project, or the Home for personal work.
-    scopeActions: async work => personClient(work.project_ref),
+    // Reading related objects back from their owners, as the person (the work's project, or the Home), and a material they handed in.
+    scopeActions: async work => personClient(work.project_ref), readMaterial: personMaterialReader(ports.localHost),
     // A landing's object, read again from its owner as the person before a round hears of it (H3's reader).
     readReferences: async (projectId, picked) => ports.localHost.search ? ports.localHost.search.readReferences(projectId, picked) : picked.map(() => null),
     // How many documents the round could list in the project, for 「本轮情况」 (specs/project-knowledge PMAT-33).
     knowledgeTally: (projectId, views) => ports.localHost.search?.knowledgeTally(projectId, views) ?? null,
-    knowledgeCatalog: (projectId, views, words) => ports.localHost.search?.knowledgeCatalog(projectId, views, words) ?? null,
+    knowledgeCatalog: async (projectId, views, words) => {
+      if (!ports.localHost.search || !ports.projectReference) return null;
+      const reference = await ports.projectReference(projectId), caller = await personContext(reference);
+      return ports.localHost.search.knowledgeCatalog(projectId, views, words, { caller, client: ports.localHost.actionClient(reference) });
+    },
   };
   const service: AssistantService = new AssistantService(store, servicePorts, WEB_ACTOR), surroundings = assistantSurroundings(store, servicePorts, WEB_ACTOR);
   threads = new AssistantThreads(store, service, {
@@ -257,6 +272,12 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
     { definitions: [...threadActions.definitions, ...relatedActions.definitions], handlers: [...threadActions.handlers, ...relatedActions.handlers] }); }
   catch (error) { hostLog.warn("assistant", "rule_actions_registration_failed", error); }
   return entry;
+}
+
+/** A material the person handed in, read through the platform's materials service as them, with the folder read their page has. */
+function personMaterialReader(host: MolisWorkLocalHost): NonNullable<AssistantServicePorts["readMaterial"]> {
+  return async (project, ref) => bindLocalWebActions(host, project, [...LOCAL_OWNER_PERMISSIONS, ...MATERIALS_OWNER_PERMISSIONS])
+    .invoke(materialsActions.read, { ref, mode: "text" });
 }
 
 /** One exact published Character of the work's project, frozen for a round: the Host checks the version again at dispatch. */
@@ -329,6 +350,7 @@ export const assistantPanelActions = {
     { to: pageBody<Pick<AssistantHandover, "to">>(input.body).to, ...(typeof input.body.mode === "string" ? { mode: input.body.mode } : {}) }, assistantPermissionCaller(caller, entry.page))),
   recovery: panel("works.recovery", /* @version action.assistant.panel.works.recovery */ 1, "关闭中断的一轮", ofWork, async (entry, input): Promise<object> => typeof input.body.run_id === "string"
     ? of(entry).service.closeInterrupted(input.work_id, { run_id: input.body.run_id, version: Number(input.body.version) }) : of(entry).service.recovery(input.work_id)),
+  // A closed archive request stops only its own remaining writes; committed facts stay with their original owners.
   archive: panel("works.archive", /* @version action.assistant.panel.works.archive */ 1, "归档或恢复工作", ofWork,
     async (entry, input, caller) => ({ work: await of(entry).service.archive(input.work_id, input.body.archived !== false, assistantPermissionCaller(caller, entry.page)) })),
   review: panel("works.review", /* @version action.assistant.panel.works.review */ 1, "批准或拒绝工作里的待审操作", ofReview, (entry, input, caller) => of(entry).service.outcomes.decide(input.work_id,
@@ -359,9 +381,15 @@ const named = <T>(table: Readonly<Record<string, T>>, key: string | undefined): 
 
 /** The panel's write a POST names, called as the person through the panel's door; undefined when the path is not one of them. */
 async function panelWrite(parts: readonly string[], body: Readonly<Record<string, unknown>>, ports: AssistantHttpPorts & { projectRef?: LocalHostProjectReference },
-  request: IncomingMessage, assertCurrent: () => void): Promise<{ result: unknown } | undefined> {
+  request: IncomingMessage, response: ServerResponse, assertCurrent: () => void): Promise<{ result: unknown } | undefined> {
   const call: WebEntryCall<AssistantPageEntry> = { host: ports.localHost, request, assertCurrent, entry: { ports, language: () => pageRoundLanguage(ports), page: pluginPageRequest(request) } };
-  const run = async <I>(definition: ActionDefinition<I, unknown>, input: I) => ({ result: await door.invoke(call, definition, input) });
+  const run = async <I>(definition: ActionDefinition<I, unknown>, input: I) => {
+    // Only archiving ends with the request: a closed archive request stops its own remaining writes (the other writes keep their behaviour).
+    if (definition !== assistantPanelActions.archive.definition) return { result: await door.invoke(call, definition, input) };
+    const ended = new AbortController(), stop = () => ended.abort(); response.once("close", stop);
+    try { return { result: await door.invoke({ ...call, signal: ended.signal }, definition, input) }; }
+    finally { response.off("close", stop); }
+  };
   const a = assistantPanelActions;
   if (parts.length === 1) {
     const top = named<Panel<typeof ofPanel>>({ send: a.send, cards: a.cards, attachments: a.attachments, notices: a.notices }, parts[0]);
@@ -389,6 +417,12 @@ async function panelWrite(parts: readonly string[], body: Readonly<Record<string
  * scope of a *new* work; an existing work keeps the scope it was started with.
  */
 export async function handleAssistantHttp(request: IncomingMessage, response: ServerResponse, url: URL,
+  ports: AssistantHttpPorts & { projectRef?: LocalHostProjectReference }, accountCurrent?: () => void): Promise<boolean> {
+  return handleAssistantSurfaceHttp(request, response, url, ports.localHost, ports.projectRef, () => assistantServiceFor(ports).store)
+    ?? handleAssistantActions(request, response, url, ports, accountCurrent);
+}
+
+function handleAssistantActions(request: IncomingMessage, response: ServerResponse, url: URL,
   ports: AssistantHttpPorts & { projectRef?: LocalHostProjectReference }, accountCurrent?: () => void): Promise<boolean> {
   const policyControl = authorizationSettingsControl(request, response, ports.localHost, accountCurrent);
   const requestControl = webEffectControl(request, response, ports.localHost, accountCurrent);
@@ -419,7 +453,7 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
         return { status: 200, body: { executors: await service.dispatcher.executors(ports.projectRef ? { project_ref: ports.projectRef } : {}) } };
       }
       // The panel's own writes (send, a card a page prepared, an attachment, notices, a follow-up) are actions behind its door (B9).
-      if (method === "POST" && parts[0] !== "works") { const written = await panelWrite(parts, body, ports, request, requestControl.assertCurrent); if (written) return { status: 200, body: written.result }; }
+      if (method === "POST" && parts[0] !== "works") { const written = await panelWrite(parts, body, ports, request, response, requestControl.assertCurrent); if (written) return { status: 200, body: written.result }; }
       if (method === "GET" && parts.length === 2 && parts[0] === "requests") return { status: 200, body: store.requests.read(WEB_ACTOR, parts[1]!) };
       // What the Assistant may use here, and what the person switched off for it.
       if (method === "GET" && parts.length === 1 && parts[0] === "capabilities") {
@@ -492,7 +526,7 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
       if (method !== "POST") return null;
       const threadWork = await threadWorkRoute(workId, parts, body, ports);
       if (threadWork) return threadWork;
-      const written = await panelWrite(parts, body, ports, request, requestControl.assertCurrent);
+      const written = await panelWrite(parts, body, ports, request, response, requestControl.assertCurrent);
       return written ? { status: 200, body: written.result } : null;
     },
     // Questions, cards and next steps are drawn by their Host owner; common refusals keep the shared error envelope.

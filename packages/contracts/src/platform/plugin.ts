@@ -256,7 +256,8 @@ export interface PluginRuntimeApi {
    * `plugin.grant_denied`.
    */
   regrant(installId: string, permission: string, granted: boolean): Promise<PluginLifecycleReceipt>;
-  start(installId: string, control?: { assertCurrent?: () => void }): Promise<PluginLifecycleReceipt>;
+  /** A controlled start rechecks the caller under the installation lock and after redemption before saving. */
+  start(installId: string, control?: { beforeEffect?: () => Promise<void>; assertCurrent?: () => void }): Promise<PluginLifecycleReceipt>;
   /**
    * Stop an installation without uninstalling it; restart goes back through `start`. A running one is stopped. A crashed or never-started
    * one is switched off (disabled) without calling its stop hook, and keeps its crash code. An already disabled one answers as it is.

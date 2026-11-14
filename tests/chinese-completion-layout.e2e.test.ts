@@ -48,34 +48,27 @@ test("a long Chinese project name leaves completion text and both actions on scr
   await waitFor("!document.querySelector('.placement-toast')");
 });
 
-test("the Home date strip reserves a footer for today in narrow and wide layouts", { timeout: 60_000 }, async t => {
-  const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
-  const { command, sessionId, evaluate, waitFor, navigate, origin, projectId } = browser;
-  await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
-  await navigate(() => command("Page.navigate", { url: origin + "/locale?lang=zh&next=%2F" }, sessionId));
-  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await waitFor("document.body.dataset.desktopSurface === 'home' && document.querySelectorAll('[data-home-day]').length === 7");
+test("IUI-21: a long Chinese goal keeps its title and status inside the Home row at both widths", { timeout: 60_000 }, async t => {
+  const b = await openGoalBrowser(t, "seeded", undefined, null);
+  if (!b) return;
+  const prefix = "/projects/" + b.projectId;
+  const { goal } = await b.web.post<{ goal: { goal_id: string } }>(prefix + "/api/plugins/io.molis.work.goals/goals",
+    { title: "一个中文名字很长的实际目标，仍然要看清现在的状态和可以执行的操作", idempotency_key: "long-chinese-home-row" });
+  const row = '[data-home-subject-id="' + goal.goal_id + '"]';
+  await b.command("Network.setCookie", { name: "molis_work_locale", value: "zh", url: b.origin }, b.sessionId);
+  await b.navigate(() => b.command("Page.navigate", { url: b.origin + prefix + "/" }, b.sessionId));
+  await b.waitFor(`document.querySelector(${JSON.stringify(row)})?.checkVisibility()`);
   for (const width of [390, 1440]) {
-    await command("Emulation.setDeviceMetricsOverride", { width, height: 900, deviceScaleFactor: 1, mobile: width === 390 }, sessionId);
+    await b.setViewport(width, 900, width === 390);
     for (const font of ["", "Arial, sans-serif", "sans-serif"]) {
-      await evaluate(`document.querySelectorAll('.home-day').forEach(day => day.style.fontFamily = ${JSON.stringify(font)})`);
-      const geometry = await evaluate<{overlap: number; weekdayOverlap: number; contained: boolean; aligned: boolean}>(`(() => {
-        const today = document.querySelector('.home-day__today'), day = today.closest('.home-day');
-        const textBox = element => { const range = document.createRange(); range.selectNodeContents(element); return range.getBoundingClientRect(); };
-        const box = day.getBoundingClientRect(), number = textBox(day.querySelector('.home-day__n')), label = textBox(today);
-        const tops = [...document.querySelectorAll('.home-day__n')].map(element => element.getBoundingClientRect().top);
-        return { overlap: number.bottom - label.top, weekdayOverlap: textBox(day.querySelector('.home-day__w')).bottom - number.top,
-          contained: [day.querySelector('.home-day__w'), day.querySelector('.home-day__n'), today].every(element => { const text = textBox(element); return text.top >= box.top && text.bottom <= box.bottom; }),
-          aligned: Math.max(...tops) - Math.min(...tops) < 1 };
+      const fits = await b.evaluate<boolean>(`(() => {
+        const row = document.querySelector(${JSON.stringify(row)}); row.style.fontFamily = ${JSON.stringify(font)};
+        const outer = row.getBoundingClientRect(), title = row.querySelector('.mw-presentation__row-title'), status = row.querySelector('.mw-status');
+        const inside = element => { const box = element.getBoundingClientRect(); return box.width>0 && box.height>0
+          && box.left>=outer.left-1 && box.right<=outer.right+1 && box.top>=outer.top-1 && box.bottom<=outer.bottom+1; };
+        return inside(title) && inside(status) && status.textContent.includes('进行中') && document.documentElement.scrollWidth<=innerWidth+1;
       })()`);
-      assert.ok(geometry.overlap <= 0, `${width}px ${font || "system"}: date and today overlap ${geometry.overlap}px`);
-      assert.ok(geometry.weekdayOverlap <= 0, `${width}px ${font || "system"}: weekday and date overlap ${geometry.weekdayOverlap}px`);
-      assert.ok(geometry.contained, `${width}px ${font || "system"}: every label stays inside its day`);
-      assert.ok(geometry.aligned, `${width}px ${font || "system"}: all dates keep the same baseline`);
+      assert.equal(fits, true, `${width}px ${font || "system"}: title and status remain in their row`);
     }
-    await evaluate("document.querySelectorAll('.home-day').forEach(day => day.style.fontFamily = '')");
-    const captures = reviewEvidenceUrl("chinese-completion-layout/");
-    await mkdir(captures, { recursive: true });
-    await writeFile(new URL(`home-${width}.png`, captures), Buffer.from((await command<{data: string}>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
   }
 });

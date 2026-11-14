@@ -239,6 +239,11 @@ ${ASSISTANT_SIDE_PATH_PART}
       jobs.map((j) => [j.job_id, j.state]), unsettled.map((u) => [u.change_id, u.state, u.detail]), kept.map((m) => [m.change_id, m.state, m.undoable, m.text])]);
     if (node.dataset.signature === signature) return;
     node.dataset.signature = signature;
+    // A memory kept, replaced or undone in this work changes what the memory settings show: tell them to read again.
+    const memorySignature = JSON.stringify([work && work.work_id, kept.map((m) => [m.change_id, m.state])]);
+    if (node.dataset.memorySignature && node.dataset.memorySignature !== memorySignature && JSON.parse(node.dataset.memorySignature)[0] === (work && work.work_id))
+      document.dispatchEvent(new CustomEvent("molis-work:memory-changed", { detail: { work_id: work.work_id } }));
+    node.dataset.memorySignature = memorySignature;
     keepFocus(node.parentNode, () => {
       const UNDO = { available: "workbench.assistant-island.can-be-undone", undone: "workbench.assistant-island.undone", failed: "workbench.assistant-island.could-not-undo" };
       const made = results.map((o) => pickable(objectCard(o, "done"), o, objectTitle(o))), fixed = made.filter((_, i) => results[i].subject.kind === ${JSON.stringify(ARTIFACT_SUBJECT_KIND)});
@@ -263,7 +268,7 @@ ${ASSISTANT_SIDE_PATH_PART}
         auto_disabled: "workbench.assistant-island.switched-off-its-own", disabled: "workbench.assistant-island.switched-off-assistant-asked" };
       // What undoing did depends on the kind: a memory kept on its own is deleted (its words go with it), a replacement
       // goes back to the earlier version, a memory switched off is on again. The last two keep the words they undid.
-      const UNDONE = { auto_replaced: "workbench.assistant-island.undone-back-earlier-one", auto_disabled: "workbench.assistant-island.undone-switched-again", disabled: "workbench.assistant-island.undone-switched-again" };
+      const UNDONE = { auto_replaced: "workbench.assistant-island.undone-back-earlier-one", replaced: "workbench.assistant-island.undone-back-earlier-one", auto_disabled: "workbench.assistant-island.undone-switched-again", disabled: "workbench.assistant-island.undone-switched-again" };
       const remembered = kept.map((change) => {
         const undone = change.state === "undone";
         const actions = [];
@@ -410,6 +415,24 @@ ${ASSISTANT_STRIP_PART}
   };
 
 ${ASSISTANT_TABS_PART}
+  const objectSurface = el("div", "assistant-conversation-objects"); objectSurface.dataset.assistantObjectSurface = "";
+  let surfaceWork = null, conversationObjects = null, conversationRevision = "";
+  const conversationSurface = (work, rounds, put) => {
+    const id = host.positions && work?.scope.kind === "project" && work.scope.project_id === project?.id ? work.work_id : null;
+    if (id !== surfaceWork) {
+      conversationObjects?.destroy(); conversationObjects = null; surfaceWork = id; conversationRevision = "";
+      if (id) {
+        const path = "/api/assistant/works/" + encodeURIComponent(id) + "/surfaces";
+        conversationObjects = host.positions.mount(objectSurface, (body, signal) => host.positionRead(path, body, signal), { source: () => ({}) });
+      }
+    }
+    if (!conversationObjects) { objectSurface.remove(); return; }
+    const signature = JSON.stringify([(view.objects || []).map(object => [object.subject, object.relation, object.current_revision]),
+      rounds.map(round => [round.run_id, (round.materials || []).filter(material => material.object).map(material => material.material_id)])]);
+    put(objectSurface);
+    if (signature !== conversationRevision) { conversationRevision = signature; void conversationObjects.update(); }
+    else void conversationObjects.update(false);
+  };
   const render = () => {
     const stick = nearBottom(), before = thread.scrollHeight;
     const work = view && view.work.work_id === curId ? view.work : null;
@@ -417,6 +440,13 @@ ${ASSISTANT_TABS_PART}
       const index = works.findIndex((row) => row.work_id === work.work_id);
       if (index >= 0) works[index] = Object.assign({}, works[index], work, { draft: works[index].draft, draft_revision: works[index].draft_revision });
       else works.unshift(work);
+    }
+    const memoryButton = island.querySelector("[data-assistant-memory]");
+    if (memoryButton) {
+      memoryButton.hidden = !work;
+      if (work) memoryButton.href = (work.scope.kind === "project" ? "/projects/" + encodeURIComponent(work.scope.project_id) : "")
+        + "/settings/memory?memory_session_kind=assistant&memory_session_id=" + encodeURIComponent(work.work_id);
+      else memoryButton.removeAttribute("href");
     }
     renderAttention(work); renderPath(work); surroundings.paint(work); sideContext.paint(); renderResults(work); renderUsage(work);
     if (empty) empty.hidden = Boolean(curId);
@@ -434,6 +464,7 @@ ${ASSISTANT_TABS_PART}
     };
     rounds.forEach((round) => { putPageCards(round.started_at); put(renderRound(work, round)); });
     putPageCards(null);
+    conversationSurface(work, rounds, put);
     receipts.after(thread, put, work && view);
     const reviews = work ? view.reviews : [];
     [...thread.children].forEach((card) => { if (card.dataset.review && !reviews.some((r) => r.review_id === card.dataset.review)) removeReview(card); });
@@ -616,6 +647,9 @@ ${ASSISTANT_PAGE_MESSAGES_PART}
   presentation = (${ASSISTANT_STAGE_FACTORY})({island,panel,input,current:getWork,switchTo,showProblem:showError,readText,el});
   /* ─── Head controls ────────────────────────────────────────────────────── */
   island.querySelector("[data-assistant-panel-close]")?.addEventListener("click", () => setPanel(false));
+  island.querySelector("[data-assistant-memory]")?.addEventListener("click", (event) => {
+    if (!event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey && event.button === 0) setPanel(false);
+  });
   /** Pause, resume or stop the work in front: the summary's and the strip's buttons, and the composer's stop. */
   async function control(kind, extra) {
     if (!curId) return;
@@ -665,7 +699,12 @@ ${ASSISTANT_PAGE_MESSAGES_PART}
     if (Number.isFinite(at) && Date.now() - at > RESTING_MS) void switchTo(null);
   };
   // Opening the panel shows the conversation first; a narrow panel's drawer waits to be asked for.
-  if (panel && "MutationObserver" in window) new MutationObserver(() => { if (!panel.hidden && !spacious()) drawerOpen = false; paintLayout(); if (panel.hidden) { setWorks(false); restIfStale(); } else { drawTabs(); paintJump(); } }).observe(panel, { attributes: true, attributeFilter: ["hidden"] });
+  if (panel && "MutationObserver" in window) new MutationObserver(() => {
+    if (!panel.hidden && !spacious()) drawerOpen = false;
+    paintLayout();
+    if (panel.hidden) { conversationObjects?.clear(); setWorks(false); restIfStale(); }
+    else { void conversationObjects?.update(false); drawTabs(); paintJump(); }
+  }).observe(panel, { attributes: true, attributeFilter: ["hidden"] });
   // The list of works is a dropdown under the tabs: a click anywhere else in the panel puts it away.
   panel?.addEventListener("pointerdown", (event) => {
     if (workNav && !workNav.hidden && event.target?.nodeType === 1 && !workNav.contains(event.target) && !worksToggle?.contains(event.target)) setWorks(false);

@@ -5,7 +5,7 @@ import { renderRichText, richPlainText } from "@molis-ai/molis-work-plugin-sdk/r
 import type { FeedItemRecord, FeedItemType, FeedSourceRecord } from "./projection.js";
 import type { FeedStageData, FeedReaderData } from "./query-actions.js";
 import type { FeedUiEntry, FeedUiItem, FeedUiModel, FeedUiPrimitives, FeedUiSource, PersistedFeedDetailModel } from "./ui.js";
-import { feedSourceUiKind } from "./source-presentation.js";
+import { feedSourceUiKind, SOURCE_RUN_HISTORY } from "./source-presentation.js";
 import { feedRunHttpStatus } from "./run-failure.js";
 
 type FeedText = { readText: FeedUiPrimitives["text"] };
@@ -188,7 +188,7 @@ function sourceModel(source: FeedSourceRecord, view: FeedStageView, readText: Fe
     home_url: presentation?.home_url ?? null,
     editable_endpoint: source.kind === "custom_rss",
     messages: view.data.snapshot.feed_items.filter((item) => item.source_id === source.source_id).slice(0, 3).map((item) => item.title),
-    runs: runs.slice(0, 8).map((run) => ({
+    runs: runs.slice(0, SOURCE_RUN_HISTORY).map((run) => ({
       phase: run.phase,
       outcome: run.outcome,
       error_code: run.error_code,

@@ -1,8 +1,10 @@
+import { MemoryBatch } from "./batch.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import {
   MEMORY_KINDS,
+  MEMORY_FORMAL_KINDS,
   memoryAppliesText,
   type MemoryApplies,
   type MemoryApproval,
@@ -21,7 +23,11 @@ import {
   type MemoryPair,
   type MemoryUpkeepReport,
   type MemoryKind,
+  type MemoryFormalKind,
+  type MemoryHistoryResponse,
   type MemoryLedgerPort,
+  type MemoryPageRequest,
+  type MemoryPageResponse,
   type MemoryListRequest,
   type MemoryListResponse,
   type MemoryMetaRecord,
@@ -42,22 +48,29 @@ import {
   type MemoryWriteResult,
 } from "@molis-ai/molis-work-contracts/services/memory";
 import { consumerAccess, CONSUMER_LABELS } from "./prefs.js";
+import { callerClassAllowed } from "./class-restrictions.js";
+import { memoryRunRecipe } from "./run-recipe.js";
+import { MemorySessionClear } from "./session-clear.js";
+import { learnedInSession, type MemorySourceSession } from "./session-links.js";
+import { MemoryForgetting, type MemoryForgettingPhase } from "./forgetting.js";
 import { MemoryPreferences } from "./preferences.js";
 import { MemoryOperations, type MemoryPurgeTarget } from "./operations.js";
 import { EXPLICIT_SOURCES, MemoryDuplicates } from "./duplicates.js";
+import { MemoryEdits } from "./edits.js";
+import { MemoryManagementPages, type MemoryPageLimits } from "./management-pages.js";
 import { MemoryMoves } from "./moves.js";
 import { MemoryUpkeep } from "./upkeep.js";
 import { memoryUses } from "./usage.js";
-import { assertFormationFacts, automaticMemoryHold, MEMORY_GATE_POLICY, MEMORY_GATE_VERSION, MEMORY_GATE_RULE } from "./policy.js";
+import { assertFormationFacts, automaticMemoryHold, CANDIDATE_TTL_MS, MEMORY_GATE_POLICY, MEMORY_GATE_VERSION, MEMORY_GATE_RULE } from "./policy.js";
 import { memoryErrors } from "./errors.js";
 import { applies, disownAutomatic, isExpired, personOnly, placeOf, visibleTo } from "./places.js";
 import { MAX_TEXT, candidateView, changeView, revisionView, pairKey, useTitle } from "./shapes.js";
 import { UNCHECKED, UNSAID, theirWords } from "./spoken.js";
 import { keywordScore, looksLikeInstruction, looksLikeSecret, recallKeywords, sameText, sameWords, similarity } from "./text.js";
 import { fromEntryMeta, restoredEntryFacts, toEntryMeta } from "./facts.js";
-import { newMemoryClassification } from "./classification.js";
+import { newMemoryClassification, requestedMemoryClassification, belongsToMemorySession, assertManagedMemorySession } from "./classification.js";
 import { MemoryScopeCommands, type Located } from "./scope-commands.js";
-import type { AgentMemoryMeta, AgentMemoryUseReceipt, AgentRecalledMemory, AgentMemorySourceRef } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentMemoryCaller, AgentMemoryClassPolicy, AgentMemoryMeta, AgentMemoryUseReceipt, AgentRecalledMemory, AgentMemorySourceRef } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 export { applies, characterOwner } from "./places.js";
 
@@ -71,7 +84,14 @@ export interface MemoryCaller {
   operation_id?: string;
   signal?: AbortSignal;
   session_id?: string;
+  /** Serializable identity from the protected person's business entry; active controls stay with the Host. */
+  memory_session?: import("@molis-ai/molis-work-contracts/services/memory").MemorySessionBinding;
   current_scene?: string;
+  class_restrictions?: AgentMemoryClassPolicy;
+  /** Local write-owner reconciliation/check only; never propagated into task reads. */
+  candidate_access?: AgentMemoryCaller["candidate_access"];
+  /** Host-only current Run explicit selection or addressed mutation; selection uses await Context dispatch. */
+  context_selection?: boolean;
   purpose?: "management" | "task";
   /** Trusted source-owner check mode; never Action input or an authority grant. */
   source_use?: "explicit" | "learning";
@@ -92,6 +112,9 @@ import { MemoryPromotion } from "./promotion.js";
 
 export interface MemoryServicePorts {
   backend: MemoryBackendPort;
+  managementPages?: Partial<MemoryPageLimits>;
+  /** Bind exactly the immutable canonical union selected by the original formation algorithm. */
+  bindFormationSources?(refs: readonly AgentMemorySourceRef[]): void | Promise<void>;
   ledger: MemoryLedgerPort;
   /** Bind the already-authorized change target to its Host invocation before any mutation or ledger write. */
   bindChangeTarget?(target: { scope: MemoryScope; owner: string; project: string | null }): void;
@@ -101,11 +124,13 @@ export interface MemoryServicePorts {
   newId?: () => string;
   timeZone?: string;
   projectTitle?(projectId: string): Promise<string | null>;
+  /** The Runtime session an original input came from (the Host owns that identity): a session's page and clear include what was learned there. */
+  sourceSession?: MemorySourceSession;
 }
 
 /** Validated product write intent, shared by admission and the one approved commit path. */
 interface MemoryCommitInput {
-  scope: MemoryScope; text: string; kind: MemoryKind; applies: MemoryApplies; expires_at: string | null; source: MemorySource; basis: MemoryBasis | null;
+  scope: MemoryScope; text: string; kind: MemoryFormalKind; applies: MemoryApplies; expires_at: string | null; source: MemorySource; basis: MemoryBasis | null;
   evidence: MemoryEvidence[]; approved_by: MemoryApproval | null; replaces?: string; said?: string; /** The messages the person typed, as the Host saved them. */ originals?: readonly string[]; why?: string; from?: MemoryCandidate["from"]; origin?: string;
   /** The waiting candidate this settles (an automatic write of something already suggested once). */
   candidate_id?: string;
@@ -119,7 +144,6 @@ interface MemoryCommitInput {
 
 /** Interface signals: at least this many, from at least this many different occasions, before a candidate is made. */
 export const SIGNAL_THRESHOLD = { count: 3, distinct: 2 } as const;
-const CANDIDATE_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 const PENDING_PER_WORK = 3;
 /** What Prologue's `redactText` puts where a credential was. */
 const REDACTED_CREDENTIAL = "[redacted]";
@@ -127,10 +151,10 @@ const REDACTED_CREDENTIAL = "[redacted]";
 const AUTOMATIC_SOURCES: readonly MemorySource[] = ["auto", "plugin"];
 /** Two memories at least this alike (character pairs) may be about the same thing: upkeep's bar for putting the pair to the person. */
 const RELATED_TEXT = 0.3;
-const KIND_WEIGHT: Record<MemoryKind, number> = { preference: 1, convention: 1, experience: 0.85, fact: 0.75 };
+const KIND_WEIGHT: Record<MemoryFormalKind, number> = { preference: 1, convention: 1, habit: 1, "project-decision": 1, experience: 0.85, fact: 0.75 };
 const SOURCE_WEIGHT: Record<MemorySource, number> = { said: 1, manual: 1, accepted: 0.95, imported: 0.9, auto: 0.85, plugin: 0.8 };
 /** How much a memory counts even when no keyword of the request is in it: ways of working apply to most work. */
-const STANDING: Record<MemoryKind, number> = { preference: 0.45, convention: 0.45, experience: 0.15, fact: 0.05 };
+const STANDING: Record<MemoryFormalKind, number> = { preference: 0.45, convention: 0.45, habit: 0.45, "project-decision": 0.45, experience: 0.15, fact: 0.05 };
 
 
 export class MemoryService {
@@ -141,10 +165,15 @@ export class MemoryService {
   private readonly scopeCommands: MemoryScopeCommands;
   private readonly learning: MemoryLearning;
   private readonly promotions: MemoryPromotion;
+  private readonly forgetting: MemoryForgetting;
   private readonly maintenance: MemoryUpkeep;
   private readonly moves: MemoryMoves;
   private readonly duplicates: MemoryDuplicates;
+  private readonly edits: MemoryEdits;
+  private readonly managementPages: MemoryManagementPages;
 
+  private readonly batch: MemoryBatch;
+  readonly sessionClear: MemorySessionClear;
   constructor(private readonly ports: MemoryServicePorts) {
     this.preferences = new MemoryPreferences(ports.ledger);
     this.now = ports.now ?? (() => new Date());
@@ -152,6 +181,7 @@ export class MemoryService {
     this.operations = new MemoryOperations(ports.ledger, this.newId, this.now);
     this.promotions = new MemoryPromotion({ ledger: ports.ledger, now: this.now, newId: this.newId,
       prefs: (actor, scope, project) => this.preferences.prefsFor(actor, scope, project) });
+    this.forgetting = new MemoryForgetting({ ...ports, operations: this.operations, promotions: this.promotions });
     this.maintenance = new MemoryUpkeep({ backend: ports.backend, ledger: ports.ledger, operations: this.operations,
       promotions: this.promotions, now: this.now, newId: this.newId });
     this.scopeCommands = new MemoryScopeCommands({ backend: ports.backend, ledger: ports.ledger, preferences: this.preferences, operations: this.operations,
@@ -159,24 +189,49 @@ export class MemoryService {
       importEntry: (caller, scope, item, origin) => this.commit(caller, { scope, text: item.text, kind: item.kind, applies: item.applies,
         expires_at: item.expires_at, source: "imported", basis: item.basis, evidence: [], approved_by: null, origin,
         retainedMeta: { classification: item.classification, session_ref: item.session_ref, namespace: item.namespace } }),
-      beforeForget: (caller, scope, owner, ids) => this.forgetSources(caller, { scope, owner }, ids),
+      beforeForget: (caller, scope, owner, memories) => this.forgetting.prepare(caller, { scope, owner }, memories),
+      acceptForget: async (caller, scope, owner, memories) => { await this.forgetting.accept(caller, { scope, owner }, memories); },
+      forgetFailed: (caller, error) => this.forgetting.failed(caller, error),
+      hidden: (scope, owner, id) => this.forgetting.hidden({ scope, owner }, "memory", id),
+      forgettingPhase: () => this.forgetting.readPhase(),
       recordClear: (caller, scope, owner, removed, complete) => { this.recordChange(caller, { kind: "cleared", scope, owner, memory_id: null,
         text: "", by: "person", rule: null, reason: `${complete ? "清空" : "部分清空"}了 ${removed} 条`, undo: null }); },
     });
+    this.sessionClear = new MemorySessionClear({ ...ports, scopes: this.scopeCommands, forgetting: this.forgetting, newId: this.newId, now: this.now,
+      recordRemoval: (caller, target) => { this.recordChange(caller, { kind: "removed", scope: target.scope, owner: target.owner,
+        memory_id: target.id, text: "", by: "person", rule: null, reason: null, undo: null }); } });
+    this.batch = new MemoryBatch({ ...ports, operations: this.operations, scopes: this.scopeCommands, forgetting: this.forgetting,
+      newId: this.newId, now: this.now, record: (caller, item) => { this.recordChange(caller, {
+        kind: item.action === "remove" ? "removed" : "disabled", scope: item.scope, owner: item.owner, memory_id: item.memory_id,
+        text: item.text, ...(item.version === undefined ? {} : { applied_version: item.version }), by: "person", rule: null, reason: item.action === "disable" ? "你停用了" : null, undo: null }); } });
+    this.edits = new MemoryEdits({ ...ports, operations: this.operations, scopes: this.scopeCommands, now: this.now, record: (caller, input) => this.recordChange(caller, input) });
+    this.managementPages = new MemoryManagementPages({ ...ports, scopes: this.scopeCommands, now: this.now, limits: ports.managementPages,
+      isForgotten: (scope, owner, kind, id) => this.isForgotten(scope, owner, kind, id) });
     this.duplicates = new MemoryDuplicates({ ledger: ports.ledger, operations: this.operations, scopes: this.scopeCommands,
       promotions: this.promotions, beforeEffect: ports.beforeEffect,
+      isForgotten: (scope, owner, kind, id) => this.isForgotten(scope, owner, kind, id),
       saveFacts: (caller, located, meta, before) => this.saveFacts(caller, located, meta, before) });
     this.moves = new MemoryMoves({ backend: ports.backend, ledger: ports.ledger, operations: this.operations, scopes: this.scopeCommands,
       preferences: this.preferences, date: at => this.date(at), bindTarget: ports.bindChangeTarget,
-      purge: (caller, target, version) => this.purge(caller, target, version),
+      purge: (caller, target, version, movedTo) => this.purge(caller, target, version, undefined, movedTo),
       record: (caller, target) => this.recordChange(caller, { kind: "moved", scope: target.scope, owner: target.owner,
         memory_id: target.entry.memory_id, text: target.entry.text, by: "person", rule: null,
         reason: target.scope === "personal" ? "改为个人记忆" : "改为项目记忆", undo: null }) });
     this.learning = new MemoryLearning({ backend: ports.backend, ledger: ports.ledger, scopes: this.scopeCommands, operations: this.operations,
+      beforeEffect: ports.beforeEffect, bindFormationSources: ports.bindFormationSources,
+      isForgotten: (scope, owner, kind, id) => this.isForgotten(scope, owner, kind, id),
       offer: (caller, input) => this.offer(caller, input) });
   }
 
   get promotion() { return this.promotions.capability; }
+  isForgotten(scope: MemoryScope, owner: string, kind: "memory" | "memory-candidate", id: string): boolean {
+    return this.forgetting.hidden({ scope, owner }, kind, id);
+  }
+  /** One synchronous read for a batch of decisions; `assertCurrent` re-reads and refuses a change. Never hold it across a wait. */
+  forgettingPhase(): MemoryForgettingPhase {
+    const phase = this.forgetting.readPhase();
+    return { isForgotten: (scope, owner, kind, id) => phase.hidden({ scope, owner }, kind, id), assertCurrent: phase.assertCurrent };
+  }
   sourceAllowed(actor: string, scope: MemoryScope, owner: string, refs: readonly AgentMemorySourceRef[]): boolean {
     return this.promotions.sourceAllowed(actor, scope, owner, refs);
   }
@@ -193,21 +248,24 @@ export class MemoryService {
 
   /* ---- reading ---- */
 
+  page(caller: MemoryCaller, request: MemoryPageRequest = {}): Promise<MemoryPageResponse> { return this.managementPages.page(caller, request); }
+
   async list(caller: MemoryCaller, request: MemoryListRequest = {}): Promise<MemoryListResponse> {
     const scopes = this.scopeCommands.scopesFor(caller, request.scope === "all" || !request.scope ? undefined : [request.scope]);
-    const items: MemoryItem[] = [], readScopes: typeof scopes = [];
+    const items: MemoryItem[] = [], readScopes: typeof scopes = [], readEntries: Located[] = [];
     let personal = 0, project = 0;
     for (const where of scopes) {
       if (!caller.person) {
-        const access = consumerAccess(this.scopeCommands.prefsAt(caller.actor_id, where), caller.consumer, caller.plugin_id);
+        const access = consumerAccess(this.scopeCommands.prefsAt(caller.actor_id, where), caller.consumer, caller.plugin_id, caller.context_selection ? "explicit" : undefined);
         if (!access.allowed) continue;
       }
       readScopes.push(where);
       for (const located of await this.scopeCommands.located(caller, where.scope, where.owner)) {
         if (!visibleTo(caller, located.meta)) continue;
         if (where.scope === "personal") personal += 1; else project += 1;
+        readEntries.push(located);
         const item = this.scopeCommands.item(located);
-        if (request.kinds?.length && !request.kinds.includes(item.kind)) continue;
+        if (request.kinds?.length && !request.kinds.some(kind => kind === item.kind)) continue;
         if (request.sources?.length && !request.sources.includes(item.source)) continue;
         if (request.states?.length && !request.states.includes(item.state)) continue;
         if (request.query?.trim() && !item.text.toLowerCase().includes(request.query.trim().toLowerCase())) continue;
@@ -221,12 +279,18 @@ export class MemoryService {
       && owners.has(`${change.scope}:${change.owner}`) && Date.parse(change.at) >= weekAgo).length;
     const pending = (await this.candidates(caller, { scope: request.scope ?? "all" })).length;
     caller.signal?.throwIfAborted();
-    if (!caller.person && readScopes.some(where => !consumerAccess(this.scopeCommands.prefsAt(caller.actor_id, where), caller.consumer, caller.plugin_id).allowed))
+    const finalForgetting = this.forgetting.readPhase(), finalPrefs = this.scopeCommands.prefsPhase();
+    if (!caller.person && readScopes.some(where => !consumerAccess(finalPrefs.at(caller.actor_id, where), caller.consumer, caller.plugin_id, caller.context_selection ? "explicit" : undefined).allowed))
       throw memoryErrors.forbidden("记忆读取权限已变化，请重新查看");
+    if (!caller.person && readEntries.some(row => !callerClassAllowed(finalPrefs.at(caller.actor_id, row), caller, row.scope,
+      row.entry.meta, caller.context_selection ? "explicit" : caller.purpose === "task" ? "task" : "explicit"))) throw memoryErrors.forbidden("记忆分类权限已变化，请重新查看");
+    if (items.some(item => scopes.some(where => where.scope === item.scope && finalForgetting.hidden(where, "memory", item.memory_id))))
+      throw memoryErrors.conflict("读取期间记忆已被遗忘，请按当前状态重新查看");
+    finalPrefs.assertCurrent(); finalForgetting.assertCurrent();
     return { items, counts: { personal, project, auto_this_week, pending } };
   }
 
-  async history(caller: MemoryCaller, memoryId: string): Promise<{ memory_id: string; revisions: MemoryRevision[] }> {
+  async history(caller: MemoryCaller, memoryId: string): Promise<MemoryHistoryResponse> {
     const located = await this.scopeCommands.find(caller, memoryId);
     return { memory_id: located.entry.memory_id, revisions: this.ports.ledger.revisions(located.entry.memory_id).map(revisionView) };
   }
@@ -238,6 +302,7 @@ export class MemoryService {
    */
   async recall(caller: MemoryCaller, request: MemoryRecallRequest = {}, options: { beforeEffect?: () => void | Promise<void>; readMode?: "explicit" | "task" } = {}): Promise<MemoryRecallResponse> {
     const receipt_id = `recall-${this.newId()}`;
+    if (caller.context_selection) options = { ...options, readMode: "explicit" };
     const limit = Math.max(1, Math.min(20, request.limit ?? 8)), budget = Math.max(100, Math.min(4000, request.budget_chars ?? 2000));
     const scopes = this.scopeCommands.scopesFor(caller, request.scopes);
     const keywords = recallKeywords([request.query ?? "", request.situation?.task ?? ""].join(" "));
@@ -245,13 +310,13 @@ export class MemoryService {
     const offScopes: string[] = [];
     const ranked: Array<{ located: Located; score: number }> = [];
     for (const where of scopes) {
-      const access = consumerAccess(this.scopeCommands.prefsAt(caller.actor_id, where), caller.consumer, caller.plugin_id, options.readMode);
+      const access = consumerAccess(this.scopeCommands.prefsAt(caller.actor_id, where), caller.consumer, caller.plugin_id, options.readMode, where.scope);
       if (!access.allowed) { offScopes.push(where.scope === "personal" ? "个人记忆" : where.scope === "character" ? "角色记忆" : "项目记忆"); continue; }
       for (const located of await this.scopeCommands.located(caller, where.scope, where.owner)) {
         const meta = located.meta;
         if (meta.state !== "active" || isExpired(meta, now) || !visibleTo(caller, meta)) continue;
-        if (access.kinds && !access.kinds.includes(meta.kind)) continue;
-        if (request.kinds?.length && !request.kinds.includes(meta.kind)) continue;
+        if (access.kinds && !access.kinds.some(kind => kind === meta.kind)) continue;
+        if (request.kinds?.length && !request.kinds.some(kind => kind === meta.kind)) continue;
         if (!applies(meta.applies, request.situation, now)) continue;
         const hits = keywordScore(keywords, `${located.entry.text} ${meta.applies.task ?? ""}`);
         if (keywords.length && hits === 0 && STANDING[meta.kind] < 0.2) continue;
@@ -288,9 +353,17 @@ export class MemoryService {
     const at = now.toISOString(), work_id = caller.work?.work_id ?? null;
     // The receipts are this call's only effect, and it waited for the store: a call stopped or revoked meanwhile records none.
     await options.beforeEffect?.();
-    if (ranked.some(({ located }) => !consumerAccess(this.scopeCommands.prefsAt(caller.actor_id, located), caller.consumer, caller.plugin_id, options.readMode).allowed))
+    const finalForgetting = this.forgetting.readPhase(), finalPrefs = this.scopeCommands.prefsPhase();
+    if (ranked.some(({ located }) => {
+      const prefs = finalPrefs.at(caller.actor_id, located);
+      return !consumerAccess(prefs, caller.consumer, caller.plugin_id, options.readMode).allowed
+        || !callerClassAllowed(prefs, caller, located.scope, located.entry.meta, options.readMode ?? "task");
+    }))
       throw memoryErrors.off("读取期间记忆开关已改变，请按当前设置重试");
-    this.ports.ledger.recordUses([
+    if (ranked.some(({ located }) => finalForgetting.hidden(located, "memory", located.entry.memory_id)))
+      throw memoryErrors.conflict("召回期间记忆已被遗忘，没有交付旧正文");
+    finalPrefs.assertCurrent(); finalForgetting.assertCurrent();
+    if (!caller.context_selection) this.ports.ledger.recordUses([
       ...items.map((item): MemoryUseRecord => ({ memory_id: item.memory_id, memory_version: item.version, receipt_id, at, consumer: caller.consumer, title, work_id, source: "recall", state: "returned" })),
       ...omitted.map((item): MemoryUseRecord => ({ memory_id: item.memory_id, receipt_id, at, consumer: caller.consumer, title, work_id, source: "recall", state: "omitted" })),
     ]);
@@ -312,18 +385,7 @@ export class MemoryService {
   async forRun(caller: MemoryCaller, request: MemoryRecallRequest, options: { skip?: boolean; budgetTokens?: number } = {}): Promise<(AgentRecalledMemory & {
     receipt_id: string; omitted: Array<{ memory_id: string; reason: "budget" | "limit" | "conflict" }>;
   }) | null> {
-    const places = this.scopeCommands.scopesFor(caller, request.scopes);
-    const automatic = !options.skip && places.some(where => consumerAccess(this.scopeCommands.prefsAt(caller.actor_id, where), caller.consumer, caller.plugin_id, "task").allowed);
-    const plugin = caller.plugin_id ?? request.situation?.plugin_id;
-    const facts = { ...(plugin ? { plugins: [plugin] } : {}),
-      ...(request.situation?.object_kind ? { object_kinds: [request.situation.object_kind] } : {}),
-      ...(request.situation?.goal_id ? { goals: [request.situation.goal_id] } : {}) };
-    return { pinned: [], consumer: caller.consumer, usage: { title: useTitle(caller, request.used_for), ...(caller.work ? { work_id: caller.work.work_id } : {}) },
-      current_scene: caller.current_scene ?? (caller.plugin_id === "io.molis.work.coding" ? "coding" : caller.consumer === "assistant" ? "assistant" : "common"),
-      scopes: places.map(where => ({ scope: where.scope === "personal" ? "user" : where.scope, owner: where.owner })),
-      task: automatic, skip: !automatic, budget_tokens: options.budgetTokens ?? 800,
-      budget_chars: Math.max(100, Math.min(4000, request.budget_chars ?? 3000)),
-      ...(Object.keys(facts).length ? { facts } : {}), receipt_id: `recall-${this.newId()}`, omitted: [] };
+    return memoryRunRecipe(caller, request, options, { scopes: this.scopeCommands, preferences: this.preferences, newId: this.newId });
   }
 
   /* ---- writing ---- */
@@ -344,13 +406,13 @@ export class MemoryService {
       const rule = prefs.plugins[caller.plugin_id];
       if (!prefs.consumers.plugin || rule?.allowed === false) throw memoryErrors.forbidden("用户没有允许这个插件使用记忆");
       return this.commit(caller, { scope: request.scope, text: request.text, kind: request.kind ?? "preference", applies: request.applies ?? {}, expires_at: request.expires_at ?? null,
-        classificationMeta: newMemoryClassification(caller, request.expires_at ?? null), source: "plugin", basis: "explicit", evidence: [],
+        classificationMeta: requestedMemoryClassification(caller, request.expires_at ?? null, request.classification), source: "plugin", basis: "explicit", evidence: [],
         approved_by: { by: "policy", policy: `plugin:${caller.plugin_id}`, version: /* @version policy.memory.plugin-write */ 1 }, ...(request.replaces ? { replaces: request.replaces } : {}) });
     }
     if (!caller.person && !said) throw memoryErrors.invalid("记住一件事要附上用户的原话（said）；用户没有明确要求时，用建议（等用户认可）而不是直接记");
     return this.commit(caller, {
       scope: request.scope, text: request.text, kind: request.kind ?? (request.scope === "project" ? "convention" : "preference"), applies: request.applies ?? {}, expires_at: request.expires_at ?? null,
-      classificationMeta: newMemoryClassification(caller, request.expires_at ?? null),
+      classificationMeta: requestedMemoryClassification(caller, request.expires_at ?? null, request.classification),
       source: caller.person ? "manual" : "said", basis: "explicit",
       evidence: [...(said ? [{ kind: "said" as const, text: said.slice(0, 200), at: stamp.at }] : []),
         ...(request.rests_on ? [{ kind: "object" as const, ref: { kind: String(request.rests_on.kind).slice(0, 200), id: String(request.rests_on.id).slice(0, 200), project_id: request.scope === "project" ? caller.project_id : null },
@@ -391,9 +453,10 @@ export class MemoryService {
     const claims = !!input.said && !caller.person, spoken = claims ? theirWords(input.text, input.originals ?? []) : null, text = spoken ?? input.text.trim();
     const unsaid = claims && spoken === null ? (input.originals ? UNSAID : UNCHECKED) : null;
     if (!text || text.length > MAX_TEXT) throw memoryErrors.invalid(`记忆内容要在 1–${MAX_TEXT} 字之间`);
-    if (!MEMORY_KINDS.includes(input.kind)) throw memoryErrors.invalid("记忆类别只能是偏好、约定、背景事实或经验");
+    const formationKind = MEMORY_KINDS.find(kind => kind === input.kind);
+    if (!MEMORY_FORMAL_KINDS.includes(input.kind) || (!formationKind && (!caller.person || !input.retainedMeta))) throw memoryErrors.invalid("新形成的记忆类别只能是偏好、约定、背景事实或经验");
     // 允许记住 off: nothing new is formed and no candidate is left. The person's own additions in the settings still count.
-    if (!prefs.form && !caller.person) return refused("你关掉了“允许记住”，这条没有记住，也没有留作建议");
+    if (!caller.person && !this.preferences.formAllowed(caller.actor_id, where)) return refused("你关掉了“允许记住”，这条没有记住，也没有留作建议");
     const screened = await this.ports.backend.withCaller(caller).screen?.(text).catch(() => null) ?? null;
     if (looksLikeSecret(text) || (input.said && looksLikeSecret(input.said)) || screened?.redacted.includes(REDACTED_CREDENTIAL)) return refused("这段内容看起来含有密码、密钥或令牌，秘密不会进入长期记忆");
     if (caller.consumer === "plugin" && !caller.plugin_id) throw memoryErrors.forbidden("插件写记忆必须由宿主确认插件身份");
@@ -402,7 +465,7 @@ export class MemoryService {
     const entries = await this.scopeCommands.located(caller, input.scope, where.owner);
     this.preferences.assertEnabled(caller.actor_id, where);
     prefs = this.scopeCommands.prefsAt(caller.actor_id, where);
-    if (!prefs.form && !caller.person) return refused("你关掉了“允许记住”，这条没有记住，也没有留作建议");
+    if (!caller.person && !this.preferences.formAllowed(caller.actor_id, where)) return refused("你关掉了“允许记住”，这条没有记住，也没有留作建议");
     const target = input.replaces ? entries.find(located => located.entry.memory_id === input.replaces) ?? null : null;
     if (spoken !== null) input = { ...input, said: spoken, evidence: input.evidence.map(item => item.kind === "said" ? { ...item, text: spoken.slice(0, 200) } : item) }; // their message, not a model's quote of it
     const hold = caller.person ? null : screened?.hold || screenedSaid?.hold || looksLikeInstruction(text) || (input.said ? looksLikeInstruction(input.said) : null)
@@ -412,6 +475,7 @@ export class MemoryService {
     if (duplicate) return duplicate;
     if (input.replaces && !target) throw memoryErrors.not_found("要替换的那条记忆不在这个范围里（可能已删除，或属于别的范围）");
     const asCandidate = async (why: string, basis: MemoryBasis | null = input.basis): Promise<MemoryWriteResult> => {
+      if (!formationKind) return refused("正式扩展类别不能自动形成候选");
       if (basis === null) return refused("原记忆依据未知，不能替它生成新的候选依据");
       const waiting = input.candidate_id ? (await this.candidateRecords(caller, input.scope, where.owner)).find(item => item.candidate_id === input.candidate_id) : undefined;
       await this.ports.beforeEffect?.();
@@ -419,7 +483,7 @@ export class MemoryService {
         const held = this.operations.holdCandidate(caller, waiting, input, why);
         return { outcome: "candidate", reason: held.hold_reason ?? why, applies_text: appliesText, memory: null, candidate: candidateView(held), change_id: null };
       }
-      const candidate = await this.propose(caller, { scope: input.scope, text, kind: input.kind, applies: input.applies, basis, why: input.why ?? why,
+      const candidate = await this.propose(caller, { scope: input.scope, text, kind: formationKind, applies: input.applies, basis, why: input.why ?? why,
         from: input.from ?? "gate", hold_reason: why, supersedes: target?.entry.memory_id ?? null }, { gate: true, classificationMeta: target?.entry.meta ?? input.retainedMeta ?? input.classificationMeta ?? {},
         formal_expires_at: input.expires_at ?? target?.meta.expires_at ?? null, ...(input.sources ? { sources: input.sources } : {}) });
       return { outcome: "candidate", reason: why, applies_text: appliesText, memory: null, candidate, change_id: null };
@@ -428,7 +492,8 @@ export class MemoryService {
     if (hold) return asCandidate(hold, hold === unsaid ? "inferred" : input.basis);
     if (target && input.basis === "inferred" && EXPLICIT_SOURCES.includes(target.meta.source)) return asCandidate("推断出来的内容不能覆盖你明确说过的，先请你看一下");
     if (input.source === "auto") {
-      const reason = automaticMemoryHold(input.kind, input.basis, prefs.auto);
+      if (!formationKind) return refused("这个正式类别不在自动形成清单中");
+      const reason = automaticMemoryHold(formationKind, input.basis, prefs.auto);
       if (reason) return asCandidate(reason);
       if (!input.candidate_id) return asCandidate("缺少绑定原始来源的候选，不能自动记住");
     }
@@ -444,6 +509,8 @@ export class MemoryService {
     // Approved by a policy rather than the person: the write gate's (automatic) or a plugin's install-time grant (its own namespace).
     const automatic = input.source === "auto" || input.source === "plugin";
     const requiresPromotion = input.source === "auto";
+    // What the person just said can be taken back from its receipt, the same as an automatic keep, until it is edited again.
+    const said = input.source === "said";
     const policy = input.approved_by?.by === "policy" ? input.approved_by : { by: "policy" as const, policy: MEMORY_GATE_POLICY, version: MEMORY_GATE_VERSION };
     const rule = input.source === "plugin" ? `插件「${caller.plugin_id ?? "?"}」记下` : MEMORY_GATE_RULE;
     if (where.scope === "character" && caller.character) this.ports.ledger.noteOwner({ scope: "character", owner: where.owner, project_id: where.project, title: caller.character.title, subject: caller.character.id });
@@ -468,9 +535,9 @@ export class MemoryService {
         if (!automatic) disownAutomatic(this.ports.ledger, updated.memory_id);
         return this.recordChange(caller, { kind: automatic ? "auto_replaced" : "replaced", scope: input.scope, owner: where.owner, memory_id: updated.memory_id, text,
           applied_version: updated.version, by: automatic ? "policy" : "person", rule: automatic ? rule : null, reason: input.why ? `依据：${input.why}` : null,
-          undo: automatic ? { action: "restore", version: before } : null });
+          undo: automatic || said ? { action: "restore", version: before } : null });
       });
-      return { outcome: "replaced", reason: "已替换旧的那条，旧版本保留在历史里", applies_text: appliesText,
+      return { outcome: "replaced", reason: said ? "已替换旧的那条，旧版本保留在历史里，可以撤销" : "已替换旧的那条，旧版本保留在历史里", applies_text: appliesText,
         memory: this.scopeCommands.item({ scope: input.scope, owner: where.owner, project: where.project, entry: updated, meta }), candidate: null, change_id: change.change_id };
     }
     const origin = input.origin ?? await this.originFor(caller, input.scope, input.source, { said: input.said, why: input.why, at });
@@ -510,9 +577,9 @@ export class MemoryService {
       if (automatic && input.candidate_id) this.markCandidateKept(caller.actor_id, input.candidate_id, entry.memory_id);
       return this.recordChange(caller, { kind, scope: input.scope, owner: where.owner, memory_id: entry.memory_id, text,
         applied_version: creation.result?.version ?? entry.version, by: automatic ? "policy" : "person", rule: automatic ? rule : null,
-        reason: input.why ? `依据：${input.why}` : input.said ? `你说：“${input.said.slice(0, 80)}”` : null, undo: automatic ? { action: "remove" } : null });
+        reason: input.why ? `依据：${input.why}` : input.said ? `你说：“${input.said.slice(0, 80)}”` : null, undo: automatic || said ? { action: "remove" } : null });
     });
-    return { outcome: "written", reason: automatic ? `${input.source === "plugin" ? rule : `自动记住（${rule}）`}，可以撤销` : "已记住", applies_text: appliesText,
+    return { outcome: "written", reason: automatic ? `${input.source === "plugin" ? rule : `自动记住（${rule}）`}，可以撤销` : said ? "已记住，可以撤销" : "已记住", applies_text: appliesText,
       memory: this.scopeCommands.item({ scope: input.scope, owner: where.owner, project: where.project, entry, meta }), candidate: null, change_id: change.change_id };
 
   }
@@ -523,12 +590,20 @@ export class MemoryService {
    * change back is not the person editing, so it leaves the automatic records alone.
    */
   async change(caller: MemoryCaller, request: MemoryChangeRequest, undoing = false): Promise<MemoryChangeResult> {
-    caller = this.operations.caller(caller);
+    const { signal, ...identity } = this.operations.caller(caller);
+    caller = Object.freeze({ ...structuredClone(identity), ...(signal ? { signal } : {}) });
+    request = structuredClone(request);
+    this.operations.changeRequest(caller, request);
     if (!caller.person && request.action !== "disable") throw memoryErrors.forbidden("助理只能停用记忆；修改和彻底删除只有本人能在记忆设置里做");
     if (request.action === "move") return this.moves.change(caller, request);
-    const located = await this.scopeCommands.find(caller, String(request.memory_id ?? "")).catch(async error => {
+    const located = await this.scopeCommands.find(caller, String(request.memory_id ?? ""), request.action === "reclassify" && request.classification?.lifecycle === "session").catch(async error => {
+      if ((error as { code?: string }).code === "memory.not_found") {
+        const recovered = await this.edits.recoverClassification(caller, request);
+        if (recovered) return recovered;
+      }
       const old = this.operations.find(caller, `purge:${request.memory_id}`);
       if (request.action !== "remove" || !old || (error as { code?: string }).code !== "memory.not_found") throw error;
+      if (caller.memory_session && !isDeepStrictEqual(this.operations.find(caller, "change-request")?.session_binding, caller.memory_session)) throw error;
       const target = this.operations.purgeRecovery(caller, request.memory_id, `change:${request.memory_id}`, "remove",
         this.scopeCommands.scopesFor(caller, undefined, true), request.expected_version);
       await this.purge(caller, target, target.entry.version);
@@ -540,35 +615,21 @@ export class MemoryService {
         text: "", by: "person", rule: null, reason: null, undo: null });
       return { memory: null, change: changeView(change) };
     }
+    if (request.action === "reclassify" && !caller.memory_session && located.entry.meta.session_ref) throw memoryErrors.invalid("会话记忆需要可信会话管理入口，本次没有修改");
+    if (request.action !== "remove") assertManagedMemorySession(caller, located.entry.meta);
     if (request.expected_version !== undefined && request.expected_version !== located.entry.version && !this.operations.find(caller, `change:${located.entry.memory_id}`)) throw memoryErrors.conflict("记忆已变化，请重新查看后再决定");
+    if (request.classification !== undefined && request.action !== "reclassify") throw memoryErrors.invalid("分类变更需要明确的分类纠正操作");
     const { scope, owner, project } = located;
     this.ports.bindChangeTarget?.({ scope, owner, project: project ?? null });
     if (request.action !== "remove") this.preferences.assertEnabled(caller.actor_id, located);
+    caller.signal?.throwIfAborted();
+    this.operations.changeRequest(caller, request, { scope: located.scope, owner: located.owner, version: located.entry.version });
     const stamp = this.operations.begin(caller, `change:${request.memory_id}`, { kind: request.action, scope, owner, memory_id: located.entry.memory_id, expected_version: request.expected_version ?? located.entry.version, original_state: located.meta.state });
     if (request.expected_version !== undefined && request.expected_version !== stamp.expected_version) throw memoryErrors.conflict("重试不能改变原先确认的记忆版本");
     const at = stamp.at;
     const by = "person" as const;
     switch (request.action) {
-      case "update": {
-        let entry = located.entry;
-        const text = typeof request.text === "string" ? request.text.trim() : null;
-        if (text !== null && (!text || text.length > MAX_TEXT)) throw memoryErrors.invalid(`记忆内容要在 1–${MAX_TEXT} 字之间`);
-        if (text && looksLikeSecret(text)) throw memoryErrors.invalid("这段内容看起来含有密码、密钥或令牌，秘密不会进入长期记忆");
-        if (request.kind && !MEMORY_KINDS.includes(request.kind)) throw memoryErrors.invalid("记忆类别只能是偏好、约定、背景事实或经验");
-        const meta: MemoryMetaRecord = { ...located.meta, ...(request.kind ? { kind: request.kind } : {}), ...(request.applies ? { applies: request.applies } : {}),
-          ...(request.expires_at !== undefined ? { expires_at: request.expires_at } : {}), updated_at: at };
-        entry = await this.ports.backend.withCaller(caller).update({ scope, owner, memory_id: entry.memory_id,
-          ...this.operations.formal(caller, located, "update"), change: { text: text ?? entry.text, meta: toEntryMeta(meta, entry.meta) } });
-        const mark = this.operations.find(caller, `update:${entry.memory_id}`)!;
-        const change = this.ports.ledger.transaction(() => {
-          this.operations.committed(caller, mark, { memory_id: entry.memory_id, version: entry.version });
-          this.ports.ledger.addRevision(entry.memory_id, { version: entry.version, text: entry.text, kind: meta.kind, applies: meta.applies,
-            snapshot: { origin: entry.origin, meta: entry.meta }, change: "edited", by, at });
-          if (!undoing) disownAutomatic(this.ports.ledger, entry.memory_id);
-          return this.recordChange(caller, { kind: "edited", scope, owner, memory_id: entry.memory_id, text: entry.text, by, rule: null, reason: null, undo: null });
-        });
-        return { memory: this.scopeCommands.item({ scope, owner, project, entry, meta: fromEntryMeta({ ...entry, scope, owner })! }), change: changeView(change) };
-      }
+      case "renew": case "reclassify": case "update": case "restore": return this.edits.apply(caller, located, request, at, undoing);
       case "disable": case "enable": {
         // Asked by the person through the Assistant: switched off in the Assistant's name, and the person can switch it back on.
         const assistant = !caller.person;
@@ -585,23 +646,6 @@ export class MemoryService {
         const change = this.recordChange(caller, { kind: "removed", scope, owner, memory_id: located.entry.memory_id, text: "", by, rule: null, reason: null, undo: null });
         return { memory: null, change: changeView(change) };
       }
-      case "restore": {
-        const revision = this.ports.ledger.revisions(located.entry.memory_id).find(one => one.version === request.version);
-        if (!revision) throw memoryErrors.not_found("没有这个历史版本");
-        const meta: MemoryMetaRecord = { ...located.meta, kind: revision.kind, applies: revision.applies, updated_at: at };
-        const entry = await this.ports.backend.withCaller(caller).update({ scope, owner, memory_id: located.entry.memory_id,
-          ...this.operations.formal(caller, located, "restore"), change: { text: revision.text,
-            ...(revision.snapshot ? { origin: revision.snapshot.origin } : {}), meta: revision.snapshot?.meta ?? toEntryMeta(meta, located.entry.meta) } });
-        const mark = this.operations.find(caller, `restore:${entry.memory_id}`)!;
-        const change = this.ports.ledger.transaction(() => {
-          this.operations.committed(caller, mark, { memory_id: entry.memory_id, version: entry.version });
-          this.ports.ledger.addRevision(entry.memory_id, { version: entry.version, text: entry.text, kind: revision.kind, applies: revision.applies,
-            snapshot: { origin: entry.origin, meta: entry.meta }, change: "restored", by, at });
-          if (!undoing) disownAutomatic(this.ports.ledger, entry.memory_id);
-          return this.recordChange(caller, { kind: "restored", scope, owner, memory_id: entry.memory_id, text: entry.text, by, rule: null, reason: `回到第 ${revision.version} 版`, undo: null });
-        });
-        return { memory: this.scopeCommands.item({ scope, owner, project, entry, meta: fromEntryMeta({ ...entry, scope, owner })! }), change: changeView(change) };
-      }
       default: throw memoryErrors.invalid("不支持的操作");
     }
   }
@@ -614,22 +658,32 @@ export class MemoryService {
    * why it was held back, what it would replace). Left alone for 14 days, a suggestion goes quietly: it was never in effect.
    */
   async candidates(caller: MemoryCaller, filter: { scope?: MemoryScope | "all"; work_id?: string; anywhere?: boolean } = {}): Promise<MemoryCandidate[]> {
+    if (!caller.person && caller.purpose === "task") caller = { ...caller, purpose: "management", source_use: undefined };
     const stale = this.now().getTime() - CANDIDATE_TTL_MS;
     const anywhere = filter.anywhere === true && caller.person === true;
     const owners = new Map(this.scopeCommands.scopesFor(caller, filter.scope && filter.scope !== "all" ? [filter.scope] : undefined, true).map(where => [`${where.scope}:${where.owner}`, where]));
     if (anywhere) for (const note of this.ports.ledger.candidates(caller.actor_id)) owners.set(`${note.scope}:${note.owner}`, { scope: note.scope, owner: note.owner, project: note.project_id });
-    const out: MemoryCandidate[] = [];
+    const out: MemoryCandidate[] = [], targets: Array<{ scope: MemoryScope; owner: string; project: string | null; entry: MemoryBackendCandidate }> = [];
     for (const where of owners.values()) {
       if (!caller.person && !consumerAccess(this.scopeCommands.prefsAt(caller.actor_id, where), caller.consumer, caller.plugin_id).allowed) continue;
       const holder = anywhere ? { ...caller, project_id: where.project } : caller;
-      for (const record of await this.candidateRecords(holder, where.scope, where.owner)) {
+      const canonical = new Map<string, MemoryBackendCandidate>();
+      for (const record of await this.candidateRecords(holder, where.scope, where.owner, canonical)) {
         if (record.state !== "pending") continue;
         if (filter.work_id && record.work?.work_id !== filter.work_id) continue;
         if (Date.parse(record.created_at) < stale) { await this.settleCandidate(holder,record, "expired"); continue; }
+        targets.push({ scope: where.scope, owner: where.owner, project: where.project ?? null, entry: canonical.get(record.candidate_id)! });
         out.push(candidateView(record));
       }
     }
-    return out.sort((a, b) => a.created_at.localeCompare(b.created_at));
+    caller.signal?.throwIfAborted();
+    if (!caller.person && targets.some(row => {
+      const prefs = this.scopeCommands.prefsAt(caller.actor_id, row);
+      return !consumerAccess(prefs, caller.consumer, caller.plugin_id).allowed
+        || !callerClassAllowed(prefs, caller, row.scope, row.entry.meta, caller.source_use ? "form" : "task");
+    })) throw memoryErrors.forbidden("候选读取期间分类权限已变化");
+    return out.filter(item => ![...owners.values()].some(where => this.isForgotten(where.scope, where.owner, "memory-candidate", item.candidate_id)))
+      .sort((a, b) => a.created_at.localeCompare(b.created_at));
   }
 
   /**
@@ -645,23 +699,29 @@ export class MemoryService {
     const text = input.text.trim();
     if (!text || text.length > MAX_TEXT) throw memoryErrors.invalid(`记忆内容要在 1–${MAX_TEXT} 字之间`);
     if (looksLikeSecret(text)) throw memoryErrors.invalid("这段内容看起来含有密码、密钥或令牌，秘密不会进入长期记忆");
-    const earlier = await this.candidateRecords(caller, input.scope, where.owner);
+    const candidateCaller: MemoryCaller = { ...caller, purpose: "management", source_use: caller.source_use ?? "explicit",
+      candidate_access: { purpose: "proposal-check", operation_id: caller.operation_id!, scope: input.scope === "personal" ? "user" : input.scope, owner: where.owner } };
+    const canonical = new Map<string, MemoryBackendCandidate>();
+    let earlier = await this.candidateRecords(candidateCaller, input.scope, where.owner, canonical);
     const work = caller.work ?? null;
     if (options.sources && !this.sourceAllowed(caller.actor_id, input.scope, where.owner, options.sources)) throw memoryErrors.forbidden("这份来源已遗忘，不能重新形成候选");
-    const prior = options.combines ? (await this.ports.backend.withCaller(caller).candidates.list(input.scope, where.owner)).find(item => item.candidate_id === options.combines) : undefined;
+    const prior = options.combines ? (await this.ports.backend.withCaller(candidateCaller).candidates.list(input.scope, where.owner)).find(item => item.candidate_id === options.combines) : undefined;
     const combines = prior?.state === "pending" && prior.sources?.length && options.sources
       && prior.sources.every(old => options.sources!.some(ref => ref.event_id === old.event_id && ref.version === old.version))
       && options.sources.some(ref => !prior.sources!.some(old => old.event_id === ref.event_id))
       && earlier.some(note => note.candidate_id === prior.candidate_id && sameText(note.text, text) && note.kind === input.kind && isDeepStrictEqual(note.applies, input.applies ?? {}));
     if (options.combines && !combines && !this.operations.find(caller, "propose")) throw memoryErrors.conflict("合并来源需要当前候选与另一份独立原件");
+    const formal = await this.scopeCommands.located(caller, input.scope, where.owner);
+    const prefs = this.scopeCommands.prefsAt(caller.actor_id, where);
+    earlier = earlier.filter(note => caller.person || callerClassAllowed(prefs, caller, input.scope, canonical.get(note.candidate_id)!.meta, "form"));
     // Source accumulation creates a new candidate; it never edits the old candidate's immutable source identities.
     if (!this.operations.find(caller, "propose") && earlier.some(item => !(combines && item.candidate_id === options.combines) && item.state !== "expired" && (sameText(item.text, text)
       || (item.state === "pending" && work !== null && item.work?.work_id === work.work_id && similarity(item.text, text) >= 0.6))))
       throw memoryErrors.invalid("这条已经建议过了（用户认可、拒绝或还在等），不要再提");
-    if (!this.operations.find(caller, "propose") && (await this.scopeCommands.located(caller, input.scope, where.owner)).some(located => sameWords(located.entry.text, text))) throw memoryErrors.invalid("已经记着这一条了");
+    if (!this.operations.find(caller, "propose") && formal.some(located => sameWords(located.entry.text, text))) throw memoryErrors.invalid("已经记着这一条了");
     if (!this.operations.find(caller, "propose") && work && earlier.filter(item => item.work?.work_id === work.work_id && item.state === "pending").length >= PENDING_PER_WORK)
       throw memoryErrors.limit(`这项工作已有 ${PENDING_PER_WORK} 条建议在等用户，先不要再提`);
-    const target = input.supersedes ? (await this.scopeCommands.located(caller, input.scope, where.owner)).find(item => item.entry.memory_id === input.supersedes) : undefined;
+    const target = input.supersedes ? formal.find(item => item.entry.memory_id === input.supersedes) : undefined;
     const formalExpiry = options.formal_expires_at === undefined ? target?.meta.expires_at ?? null : options.formal_expires_at;
     if (formalExpiry !== null && !Number.isFinite(Date.parse(formalExpiry))) throw memoryErrors.invalid("候选的正式期限不合格");
     const retained: AgentMemoryMeta = options.classificationMeta ?? target?.entry.meta ?? newMemoryClassification(caller, formalExpiry);
@@ -673,7 +733,7 @@ export class MemoryService {
       plugin_id: caller.consumer === "plugin" ? caller.plugin_id ?? null : null };
     this.preferences.assertFormation(caller.actor_id, where, input.from, options.gate === true);
     const classified = toEntryMeta({ ...facts, plugin_id: retained.namespace ?? facts.plugin_id }, retained);
-    const held = await this.ports.backend.withCaller(caller).candidates.propose({ scope: input.scope, owner: where.owner, text, origin: `建议 · ${input.from}`, tags: [input.from, input.kind], meta: { ...classified, expires_at_ms: Math.min(formalExpiry ? Date.parse(formalExpiry) : Infinity, Date.parse(at) + CANDIDATE_TTL_MS) },
+    const held = await this.ports.backend.withCaller(candidateCaller).candidates.propose({ scope: input.scope, owner: where.owner, text, origin: `建议 · ${input.from}`, tags: [input.from, input.kind], meta: { ...classified, expires_at_ms: Math.min(formalExpiry ? Date.parse(formalExpiry) : Infinity, Date.parse(at) + CANDIDATE_TTL_MS) },
       ...(options.sources?.length ? { sources: [...options.sources] } : {}),
       expected_version: 0, operation_id: mark.operation_id, ...(caller.signal ? { signal: caller.signal } : {}) });
     const record: MemoryCandidateRecord = { candidate_id: held.candidate_id, version: held.version,
@@ -692,18 +752,30 @@ export class MemoryService {
   async accept(caller: MemoryCaller, candidateId: string, input: { text?: string; expected_version?: number } = {}): Promise<{ candidate: MemoryCandidate; memory: MemoryItem | null }> {
     caller = this.operations.caller(caller);
     personOnly(caller, "只有本人能认可记忆建议");
-    const record = await this.ownCandidate(caller, candidateId);
+    const candidateScope = new Map<string, MemoryBackendCandidate>();
+    const record = await this.ownCandidate(caller, candidateId, candidateScope);
     this.preferences.assertEnabled(caller.actor_id, { ...record, project: record.project_id });
-    if (record.state !== "pending" && !this.operations.find(caller, `accept:${candidateId}`)) throw memoryErrors.invalid(record.state === "accepted" ? "这条已经记住了" : "这条建议已经不在了");
+    const original = this.operations.find(caller, `accept:${candidateId}`);
+    if (record.state !== "pending" && !original) throw memoryErrors.invalid(record.state === "accepted" ? "这条已经记住了" : "这条建议已经不在了");
     const text = typeof input.text === "string" && input.text.trim() ? input.text.trim() : record.text;
     if (text.length > MAX_TEXT) throw memoryErrors.invalid(`记忆内容要在 ${MAX_TEXT} 字以内`);
     if (looksLikeSecret(text)) throw memoryErrors.invalid("这段内容看起来含有密码、密钥或令牌，秘密不会进入长期记忆");
     const holder: MemoryCaller = { ...caller, project_id: record.project_id ?? caller.project_id, work: record.work };
-    const candidate = (await this.ports.backend.withCaller(holder).candidates.list(record.scope, record.owner)).find(item => item.candidate_id === candidateId);
-    if (!candidate) throw memoryErrors.conflict("候选原件已不可读，不能重建其分类或来源");
-    const original = this.operations.find(caller, `accept:${candidateId}`);
+    const candidate = candidateScope.get(candidateId)!;
+    const backend = this.ports.backend.withCaller(holder);
     const entries = await this.scopeCommands.located(holder, record.scope, record.owner);
     this.preferences.assertEnabled(caller.actor_id, { ...record, project: record.project_id });
+    if (original?.phase === "committed") {
+      const current = entries.find(one => one.entry.memory_id === original.result?.memory_id);
+      if (!current || current.entry.version !== original.result?.memory_version || current.entry.text !== text
+        || candidate.state !== "accepted" || candidate.memory_id !== current.entry.memory_id || candidate.version !== original.result?.version
+        || input.expected_version !== undefined && input.expected_version !== original.expected_version)
+        throw memoryErrors.conflict("原认可结果已变化，不能按原建议补账");
+      for (const twin of this.duplicateSuggestions(holder, record, candidate, candidateScope, text, true))
+        await this.settleCandidate(holder, twin, "discarded");
+      if (this.isForgotten(record.scope, record.owner, "memory", current.entry.memory_id)) throw memoryErrors.conflict("记忆已删除，不能交付原认可结果");
+      return { candidate: candidateView(record), memory: this.scopeCommands.item(current) };
+    }
     const target = candidate.replacement ? entries.find(located => located.entry.memory_id === candidate.replacement!.memory_id) : original
       ? (original.memory_id ? entries.find(located => located.entry.memory_id === original.memory_id) : undefined)
       : (record.supersedes ? entries.find(located => located.entry.memory_id === record.supersedes) : undefined)
@@ -727,35 +799,61 @@ export class MemoryService {
         evidence: [...new Map([...target.meta.evidence, ...facts.evidence].map(item => [JSON.stringify(item), item])).values()].slice(-6), updated_at: at };
       const targetCondition = candidate.replacement ? { expected_version: candidate.replacement.expected_version }
         : this.operations.formal(caller, target, `accept-target:${candidateId}`);
-      const entry = await this.ports.backend.withCaller(holder).candidates.settleInto({ scope: record.scope, owner: record.owner, candidate_id: candidateId,
+      const entry = await backend.candidates.settleInto({ scope: record.scope, owner: record.owner, candidate_id: candidateId,
         candidate_expected_version: decision.expected_version!, operation_id: decision.operation_id, ...(caller.signal ? { signal: caller.signal } : {}),
         target: { memory_id: target.entry.memory_id, expected_version: targetCondition.expected_version, change: { text, meta: toEntryMeta(meta, target.entry.meta) } }, by: { by: "person" } });
       revision = { version: entry.version, text: entry.text, kind: meta.kind, applies: meta.applies,
         snapshot: { origin: entry.origin, meta: entry.meta }, change: "replaced", by: "person", at };
-      located = { scope: record.scope, owner: record.owner, entry, meta };
+      located = { scope: record.scope, owner: record.owner, entry, meta: fromEntryMeta({ ...entry, scope: record.scope, owner: record.owner })! };
       change = "replaced";
     } else {
-      const entry = await this.ports.backend.withCaller(holder).candidates.accept({ scope: record.scope, owner: record.owner, candidate_id: candidateId,
+      const entry = await backend.candidates.accept({ scope: record.scope, owner: record.owner, candidate_id: candidateId,
         expected_version: decision.expected_version!, operation_id: decision.operation_id, ...(caller.signal ? { signal: caller.signal } : {}), text, origin, meta: toEntryMeta(facts, candidate.meta) });
       if (entry.version !== 1) throw memoryErrors.conflict("候选接受后的正式记忆已有后继版本，不能把当前正文补作原接受历史");
       revision = { version: entry.version, text: entry.text, kind: record.kind, applies: record.applies,
         snapshot: { origin: entry.origin, meta: entry.meta }, change: "created", by: "person", at };
-      located = { scope: record.scope, owner: record.owner, entry, meta: { memory_id: entry.memory_id, scope: record.scope, owner: record.owner, ...facts, state: "active", state_reason: null, created_at: at, updated_at: at } };
+      located = { scope: record.scope, owner: record.owner, entry, meta: fromEntryMeta({ ...entry, scope: record.scope, owner: record.owner })! };
       change = "accepted";
     }
-    const accepted = (await this.ports.backend.withCaller(holder).candidates.list(record.scope, record.owner)).find(item => item.candidate_id === candidateId);
-    if (!accepted) throw memoryErrors.conflict("候选提交后的关联不可确认，请使用原操作对账");
+    const accepted = await backend.candidates.get({ scope: record.scope, owner: record.owner, candidate_id: candidateId, signal: caller.signal });
+    if (accepted?.state !== "accepted" || accepted.memory_id !== located.entry.memory_id)
+      throw memoryErrors.conflict("候选提交后的关联不可确认，请使用原操作对账");
     const kept: MemoryCandidateRecord = { ...record, version: accepted.version, text, state: "accepted", memory_id: located.entry.memory_id };
+    const duplicates = this.duplicateSuggestions(holder, record, candidate, candidateScope, text, false);
     this.ports.ledger.transaction(() => {
-      this.operations.committed(caller, decision, { memory_id: located.entry.memory_id, candidate_id: candidateId, version: accepted.version });
+      this.operations.committed(caller, decision, { memory_id: located.entry.memory_id, candidate_id: candidateId, version: accepted.version,
+        memory_version: located.entry.version });
       this.promotions.link(caller.actor_id, located.entry.memory_id, candidate.sources ?? []);
       this.ports.ledger.addRevision(located.entry.memory_id, revision);
       if (change === "replaced") disownAutomatic(this.ports.ledger, located.entry.memory_id);
       this.recordChange(holder, { kind: change, scope: record.scope, owner: record.owner, memory_id: located.entry.memory_id, text: located.entry.text,
         applied_version: located.entry.version, by: "person", rule: null, reason: `依据：${record.why.slice(0, 120)}`, undo: null });
       this.ports.ledger.saveCandidate(kept);
+      for (const twin of duplicates) this.operations.candidate(holder, twin, "discarded");
     });
+    for (const twin of duplicates) await this.settleCandidate(holder, twin, "discarded");
+    if (this.isForgotten(record.scope, record.owner, "memory", located.entry.memory_id)) throw memoryErrors.conflict("记忆已删除，不能交付原认可结果");
     return { candidate: candidateView(kept), memory: this.scopeCommands.item(located) };
+  }
+
+  private duplicateSuggestions(caller: MemoryCaller, record: MemoryCandidateRecord, original: MemoryBackendCandidate,
+    candidates: ReadonlyMap<string, MemoryBackendCandidate>, text: string, resume: boolean): MemoryCandidateRecord[] {
+    const pending: MemoryCandidateRecord[] = [];
+    for (const note of this.ports.ledger.candidates(caller.actor_id)) {
+      if (note.candidate_id === record.candidate_id || note.state !== "pending" || note.scope !== record.scope || note.owner !== record.owner
+        || note.kind !== record.kind || note.formal_expires_at !== record.formal_expires_at || note.supersedes !== record.supersedes
+        || !isDeepStrictEqual(note.applies, record.applies) || !sameWords(note.text, text)) continue;
+      const twin = candidates.get(note.candidate_id);
+      if (!twin || this.isForgotten(note.scope, note.owner, "memory-candidate", note.candidate_id)
+        || !sameWords(twin.text, text) || !isDeepStrictEqual(twin.replacement, original.replacement)
+        || twin.meta.namespace !== original.meta.namespace || !isDeepStrictEqual(twin.meta.classification, original.meta.classification)
+        || !isDeepStrictEqual(twin.meta.session_ref, original.meta.session_ref)) continue;
+      const operation = this.operations.find(caller, `discarded:${note.candidate_id}`);
+      if (resume && !operation) continue;
+      if (twin.state === "pending" || twin.state === "discarded" && operation)
+        pending.push({ ...note, version: twin.version });
+    }
+    return pending;
   }
 
   async discard(caller: MemoryCaller, candidateId: string, expectedVersion?: number): Promise<{ candidate: MemoryCandidate }> {
@@ -769,12 +867,24 @@ export class MemoryService {
   }
 
   /** Join the ledger's notes with the current candidate owner; reading never repairs missing facts. */
-  private async candidateRecords(caller: MemoryCaller, scope: MemoryScope, owner: string): Promise<MemoryCandidateRecord[]> {
-    const held = new Map((await this.ports.backend.withCaller(caller).candidates.list(scope, owner)).map(item => [item.candidate_id, item]));
+  private async candidateRecords(caller: MemoryCaller, scope: MemoryScope, owner: string, canonical?: Map<string, MemoryBackendCandidate>,
+    listed?: readonly MemoryBackendCandidate[]): Promise<MemoryCandidateRecord[]> {
+    const held = new Map((listed ?? await this.ports.backend.withCaller(caller).candidates.list(scope, owner)).map(item => [item.candidate_id, item]));
     const out: MemoryCandidateRecord[] = [];
     for (const note of this.ports.ledger.candidates(caller.actor_id).filter(item => item.scope === scope && item.owner === owner)) {
-      const found = held.get(note.candidate_id);
+      if (this.isForgotten(scope, owner, "memory-candidate", note.candidate_id)) continue;
+      let found = held.get(note.candidate_id);
+      if (!found && (!caller.person || caller.memory_session)) {
+        try { found = await this.ports.backend.withCaller(caller).candidates.get({ scope, owner, candidate_id: note.candidate_id, ...(caller.signal ? { signal: caller.signal } : {}) }); }
+        catch (error) {
+          caller.signal?.throwIfAborted();
+          if (error instanceof Error && "code" in error && error.code === "MEMORY_SCOPE_DENIED") continue;
+          throw error;
+        }
+      }
       if (!found) throw memoryErrors.not_found("记忆建议的原记录不可读；请核对存储后继续");
+      if (!belongsToMemorySession(caller, found.meta) && !learnedInSession(caller, found.meta, found.sources ?? [], this.ports.sourceSession)) continue;
+      canonical?.set(found.candidate_id, found);
       const state: MemoryCandidateRecord["state"] = found.state === "promoted" ? "accepted" : found.state;
       out.push({ ...note, version: found.version, state, memory_id: found.memory_id ?? note.memory_id });
     }
@@ -792,11 +902,8 @@ export class MemoryService {
 
   /* ---- recent changes ---- */
 
-  changes(caller: MemoryCaller, filter: { scope?: MemoryScope | "all"; work_id?: string; limit?: number } = {}): MemoryChange[] {
-    const owners = new Set(this.scopeCommands.scopesFor(caller, filter.scope && filter.scope !== "all" ? [filter.scope] : undefined, true).map(where => `${where.scope}:${where.owner}`));
-    return this.ports.ledger.changes(caller.actor_id, Math.max(1, Math.min(200, filter.limit ?? 50)) * (filter.work_id ? 4 : 1))
-      .filter(change => owners.has(`${change.scope}:${change.owner}`) && (!filter.work_id || change.work?.work_id === filter.work_id))
-      .slice(0, filter.limit ?? 50).map(changeView);
+  async changes(caller: MemoryCaller, filter: { scope?: MemoryScope | "all"; work_id?: string; limit?: number } = {}): Promise<MemoryChange[]> {
+    return this.managementPages.changes(caller, filter);
   }
 
   /**
@@ -812,18 +919,32 @@ export class MemoryService {
     if (!this.scopeCommands.scopesFor(caller, undefined, true).some(scope => scope.scope === record.scope && scope.owner === record.owner))
       throw memoryErrors.scope("原变动不在本次调用的记忆范围内");
     if (record.state === "undone") return { change: changeView(record) };
-    if (!record.undoable || !record.undo || (!record.memory_id && record.undo.action !== "recreate")) throw memoryErrors.invalid("这次变动不能撤销");
     const holder: MemoryCaller = { ...caller, project_id: record.scope === "project" ? record.owner : caller.project_id };
+    const finish = (removing = false) => {
+      const undone: MemoryChangeRecord = { ...(this.ports.ledger.change(changeId) ?? record), state: "undone", undoable: false,
+        ...(removing ? { text: "", reason: null, undo: null } : {}) };
+      this.ports.ledger.saveChange(undone);
+      return { change: changeView(undone) };
+    };
+    if (!record.undoable && !record.undo && record.kind === "auto_kept" && record.memory_id
+      && Number.isSafeInteger(record.applied_version) && record.applied_version! > 0) {
+      const accepted = this.ports.ledger.forgetting.read().decisions.find(one => one.actor_id === holder.actor_id && one.operation_id === holder.operation_id
+        && one.scope === record.scope && one.owner === record.owner && one.selection_mode === "related" && one.memories.length === 1
+        && one.memories[0]!.memory_id === record.memory_id && one.memories[0]!.version === record.applied_version);
+      if (accepted) {
+        const target = this.operations.purgeRecovery(holder, record.memory_id, `undo:${changeId}`, "undo",
+          this.scopeCommands.scopesFor(caller, undefined, true), record.applied_version);
+        if (target.scope !== record.scope || target.owner !== record.owner || target.scope !== accepted.scope || target.owner !== accepted.owner)
+          throw memoryErrors.conflict("原撤销清理与已接受决定的范围不一致");
+        return (await this.purge(holder, target, record.applied_version!, () => finish(true)))!;
+      }
+    }
+    if (!record.undoable || !record.undo || (!record.memory_id && record.undo.action !== "recreate")) throw memoryErrors.invalid("这次变动不能撤销");
     const located = record.memory_id ? await this.scopeCommands.find(holder, record.memory_id).catch(error => {
       if ((error as { code?: string }).code !== "memory.not_found") throw error;
       return null;
     }) : null;
     const plan: MemoryUndoPlan = record.undo;
-    const finish = () => {
-      const undone: MemoryChangeRecord = { ...(this.ports.ledger.change(changeId) ?? record), state: "undone", undoable: false, ...(plan.action === "remove" ? { text: "" } : {}) };
-      this.ports.ledger.saveChange(undone);
-      return { change: changeView(undone) };
-    };
     if (plan.action === "enable" && (plan.clear_expiry || located?.meta.expires_at && Date.parse(located.meta.expires_at) <= this.now().getTime()))
       throw memoryErrors.invalid("记忆已到期，请先明确新的期限；撤销不会清除或延长原期限");
     const priorUndo = this.operations.find(holder, `undo:${changeId}`);
@@ -832,14 +953,15 @@ export class MemoryService {
     const undoMark = plan.action !== "recreate" && located ? this.operations.begin(holder, `undo:${changeId}`, { kind: "undo", scope: located.scope, owner: located.owner,
       memory_id: located.entry.memory_id, expected_version: record.applied_version ?? located.entry.version }) : undefined;
     if (plan.action !== "remove") this.preferences.assertEnabled(caller.actor_id, { ...record, project: holder.project_id });
-    if (located && (plan.action === "remove" || plan.action === "restore") && !AUTOMATIC_SOURCES.includes(located.meta.source)) {
+    const ownSaid = (record.kind === "kept" || record.kind === "replaced") && located?.meta.source === "said";
+    if (located && (plan.action === "remove" || plan.action === "restore") && !AUTOMATIC_SOURCES.includes(located.meta.source) && !ownSaid) {
       this.ports.ledger.saveChange({ ...record, undoable: false, undo: null });
       throw memoryErrors.invalid("这条现在是你自己的记忆（你说过、认可过或改过），不能再按自动记住撤销；要删除请到记忆设置里删");
     }
     if (plan.action === "remove") {
       const target = located ?? this.operations.purgeRecovery(holder, record.memory_id!, `undo:${changeId}`, "undo",
         this.scopeCommands.scopesFor(caller, undefined, true), record.applied_version);
-      return (await this.purge(holder, target, undoMark?.expected_version ?? target.entry.version, finish))!;
+      return (await this.purge(holder, target, undoMark?.expected_version ?? target.entry.version, () => finish(true)))!;
     } else if (plan.action === "recreate") {
       // Undoing a merge brings back the one merged away, as it was.
       await this.commit(this.operations.recreate({ ...holder, person: true }, record), { scope: record.scope, text: plan.text, kind: plan.kind, applies: plan.applies,
@@ -879,7 +1001,7 @@ export class MemoryService {
     const where = placeOf(caller, scope);
     const prefs = this.scopeCommands.prefsAt(caller.actor_id, where);
     const threshold = { ...SIGNAL_THRESHOLD };
-    if (!prefs.enabled || !prefs.form || !prefs.learn_from_ui) return { state: "off", count: 0, distinct: 0, candidate_id: null, threshold };
+    if (!prefs.enabled || !this.preferences.formAllowed(caller.actor_id, where) || !prefs.learn_from_ui) return { state: "off", count: 0, distinct: 0, candidate_id: null, threshold };
     const situation = report.situation ?? {};
     const key = [scope, where.owner, report.signal, report.subject.capability_id, situation.plugin_id ?? "", situation.object_kind ?? ""].join("|");
     const counted = this.ports.ledger.countSignal({ actor_id: caller.actor_id, key, event_id: report.event_id, occurrence: report.occurrence ?? report.event_id, at: this.now().toISOString() });
@@ -907,7 +1029,7 @@ export class MemoryService {
    * recent changes; nothing is ever deleted for good here.
    */
   async upkeep(caller: MemoryCaller, options: { projects: readonly string[];
-    tidy?: (entries: Array<{ memory_id: string; text: string; kind: MemoryKind; source: MemorySource }>) => Promise<{ duplicates: Array<[string, string]>; conflicts: Array<{ a: string; b: string; why: string }> } | null>;
+    tidy?: (entries: Array<{ memory_id: string; text: string; kind: MemoryFormalKind; source: MemorySource }>) => Promise<{ duplicates: Array<[string, string]>; conflicts: Array<{ a: string; b: string; why: string }> } | null>;
     objectState?: (ref: { kind: string; id: string; project_id: string | null }) => Promise<"ok" | "missing" | "unknown">;
   }): Promise<MemoryUpkeepReport> {
     caller = this.operations.caller(caller);
@@ -1027,6 +1149,17 @@ export class MemoryService {
     return { resolved: true };
   }
 
+  previewBatch(caller: MemoryCaller, request: import("@molis-ai/molis-work-contracts/services/memory").MemoryBatchRequest) { return this.batch.preview(caller, request); }
+  applyBatch(caller: MemoryCaller, preview_id: string) { return this.batch.apply(caller, preview_id); }
+
+  listOperations(caller: MemoryCaller, query: import("@molis-ai/molis-work-contracts/services/memory").MemoryOperationsQuery) {
+    personOnly(caller, "只有本人能查看待完成的记忆操作");
+    caller.signal?.throwIfAborted();
+    if (query.scope === undefined && !caller.memory_session) throw memoryErrors.invalid("全局待完成操作需要明确记忆范围");
+    const scopes = this.scopeCommands.scopesFor(caller, query.scope === undefined ? undefined : query.scope === "project" ? ["project", "character"] : [query.scope]);
+    return this.operations.list(caller, query, scopes);
+  }
+
   previewScope(caller: MemoryCaller, scope: MemoryScope) { return this.scopeCommands.previewScope(caller, scope); }
   clearScope(caller: MemoryCaller, scope: MemoryScope, fingerprint: string) { return this.scopeCommands.clearScope(caller, scope, fingerprint); }
   exportScope(caller: MemoryCaller, scope: MemoryScope) { return this.scopeCommands.exportScope(caller, scope); }
@@ -1041,7 +1174,7 @@ export class MemoryService {
   }
 
   /** Both the formal replacement and candidate association use the SDK's single conditional decision. */
-  private async settleByPolicy(caller: MemoryCaller, input: { candidate_id?: string; candidate_version?: number; kind: MemoryKind; source: MemorySource; policy: { policy: string; version: number } }, where: { scope: MemoryScope; owner: string },
+  private async settleByPolicy(caller: MemoryCaller, input: { candidate_id?: string; candidate_version?: number; policy: { policy: string; version: number } }, where: { scope: MemoryScope; owner: string },
     entry: MemoryBackendEntry, text: string, meta: MemoryMetaRecord): Promise<{ entry: MemoryBackendEntry; change_id: string }> {
     const candidate = await this.policyCandidate(caller, input.candidate_id, where);
     if (candidate.replacement && candidate.replacement.memory_id !== entry.memory_id) throw memoryErrors.conflict("形成时的替换目标不能改变");
@@ -1078,44 +1211,31 @@ export class MemoryService {
     return located.entry;
   }
 
-  /** Related candidate bodies are removed under the person's existing delete grant, after source suppression is durable. */
-  private async forgetSources(caller: MemoryCaller, where: { scope: MemoryScope; owner: string }, ids: readonly string[]): Promise<void> {
-    const backend = this.ports.backend.withCaller(caller), notes = this.ports.ledger.candidates(caller.actor_id);
-    const sources = ids.flatMap(id => this.promotions.linked(caller.actor_id, id));
-    const related = (await backend.candidates.list(where.scope, where.owner)).filter(item => item.memory_id && ids.includes(item.memory_id)
-      || item.sources?.some(source => sources.some(ref => ref.event_id === source.event_id))
-      || notes.some(note => note.candidate_id === item.candidate_id && note.supersedes && ids.includes(note.supersedes)));
-    await this.ports.beforeEffect?.();
-    caller.signal?.throwIfAborted();
-    this.promotions.suppress(caller.actor_id, where.scope, where.owner, ids, related.flatMap(item => item.sources ?? []));
-    for (const item of this.operations.candidatePurges(caller, where, related, notes)) {
-      await backend.candidates.purge({ ...where, ...item });
-      await this.ports.beforeEffect?.();
-      caller.signal?.throwIfAborted();
-      this.ports.ledger.dropCandidate(item.candidate_id);
-    }
-  }
-
-  private async purge<T = void>(caller: MemoryCaller, located: MemoryPurgeTarget, expectedVersion: number, afterForget?: () => T): Promise<T | undefined> {
+  private async purge<T = void>(caller: MemoryCaller, located: MemoryPurgeTarget, expectedVersion: number, afterForget?: () => T, movedTo?: "personal" | "project"): Promise<T | undefined> {
     caller = this.operations.caller(caller);
     const where = { scope: located.scope, owner: located.owner };
     const condition = located.condition ?? this.operations.formal(caller, located, "purge", expectedVersion);
     this.ports.bindChangeTarget?.({ ...where, project: where.scope === "project" ? where.owner : where.scope === "character" ? caller.project_id : null });
-    await this.forgetSources(caller, where, [located.entry.memory_id]);
+    let accepted = false;
+    try {
+    await this.forgetting.prepare(caller, where, [{ memory_id: located.entry.memory_id, version: expectedVersion }]);
+    accepted = true;
     await this.ports.backend.withCaller(caller).remove({ ...where, memory_id: located.entry.memory_id, ...condition });
     await this.ports.beforeEffect?.();
     caller.signal?.throwIfAborted();
     return this.ports.ledger.transaction(() => {
-      this.ports.ledger.forget(located.entry.memory_id); return afterForget?.();
+      this.ports.ledger.forget(located.entry.memory_id, "related", movedTo ? { moved_to: movedTo } : undefined); return afterForget?.();
     });
+    } catch (error) { return this.forgetting.failed(caller, error, accepted); }
   }
 
-  private async ownCandidate(caller: MemoryCaller, candidateId: string): Promise<MemoryCandidateRecord> {
+  private async ownCandidate(caller: MemoryCaller, candidateId: string, canonical = new Map<string, MemoryBackendCandidate>()): Promise<MemoryCandidateRecord> {
     const note = this.ports.ledger.candidates(caller.actor_id).find(item => item.candidate_id === candidateId);
     if (!note) throw memoryErrors.not_found("没有这条建议");
     const holder = caller.person && caller.project_id === null ? { ...caller, project_id: note.project_id } : caller;
-    const record = (await this.candidateRecords(holder, note.scope, note.owner)).find(item => item.candidate_id === candidateId);
+    const record = (await this.candidateRecords(holder, note.scope, note.owner, canonical)).find(item => item.candidate_id === candidateId);
     if (!record) throw memoryErrors.not_found("没有这条建议");
+    assertManagedMemorySession(caller, canonical.get(candidateId)!.meta);
     return record;
   }
 

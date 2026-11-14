@@ -32,7 +32,7 @@ export const CODING_STYLES = `
 [data-coding-detail=true] .coding-start { display:none; }
 /* Each face owns the directory column: the session list and its search only show on the sessions face. */
 .coding-directory:not([data-coding-current-face=sessions]) :is(.coding-query,[data-coding-sessions],[data-coding-new],[data-coding-search-toggle]) { display:none; }
-[data-coding-tools][data-companion-open=true]>:not([data-files-results]):not([data-git-results]):not(.coding-tool-tabs) { display:none; }
+[data-coding-tools][data-companion-open=true]>:not([data-git-results]):not(.coding-tool-tabs) { display:none; }
 .coding-face-panel { display:flex; flex-direction:column; gap:8px; min-height:0; padding:0 4px; }
 .coding-face-panel[hidden] { display:none; }
 .coding-face-meta, .coding-face-note { margin:0; padding:0 4px; font-size:11px; line-height:16px; }
@@ -40,6 +40,11 @@ export const CODING_STYLES = `
 .coding-face-note { color:var(--faint); }
 .coding-face-panel > .mw-btn { align-self:flex-start; height:28px; min-height:28px; padding:0 8px; font-size:12px; }
 .coding-face-panel > .mw-btn svg { width:14px; height:14px; }
+.coding-files-where { display:flex; align-items:center; gap:8px; padding:0 4px; min-width:0; }
+.coding-files-where .mw-select { flex:1; min-width:0; }
+.coding-files-tree ul { list-style:none; margin:0; padding:0; display:grid; gap:2px; }
+.coding-files-tree ul ul { padding-left:14px; }
+.coding-files-tree .mw-dir-row[aria-expanded=true] .mw-dir-row__icon { color:var(--ink); }
 .coding-outline { display:flex; flex-direction:column; gap:1px; min-height:0; overflow:auto; overscroll-behavior:contain; }
 .coding-outline-tree, .coding-outline-children { margin:0; padding:0; list-style:none; }
 .coding-outline .mw-dir__heading { display:flex; align-items:baseline; gap:6px; }

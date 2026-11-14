@@ -10,7 +10,7 @@
 
 JSON 导出由动作服务读取已保存的演示稿，返回文件名、MIME 类型与完整 JSON；浏览器下载同一结果。`ppt.pptx` 导出 PowerPoint 文件（标题、要点、讲者备注与配色，不含图片与图表）。不生成 SVG。
 
-编辑携带读取版本，保存排队；冲突保留当前输入并阻止发布、导出和离开，重新读取前确认丢弃。幻灯片 ID、顺序、要点、讲者备注和配色继续保存在原库。Artifact 发布保存固定快照，固定下来的版本归本机的人，固定它的行为者记在 `created_by`；演示稿移走又移回后下一次固定接着项目成果库里已有的最高版号，关联中断后可恢复原版本，保留后来编辑；下一次明确发布可另存一版。
+编辑携带读取版本，保存排队；冲突保留当前输入并阻止发布、导出和离开，重新读取前确认丢弃。幻灯片 ID、顺序、要点、讲者备注和配色继续保存在原库。固定成果和演示稿的固定引用在同一事务提交。固定下来的版本归本机的人，固定它的行为者记在 `created_by`。演示稿移走又移回后，下一次固定接着项目成果库里已有的最高版号。失败后可编辑演示稿，再固定最新内容。
 
 页面的客户端是 `src/browser/` 下的 TypeScript：`tsconfig.browser.json` 做类型检查，构建时 esbuild 从 `src/browser/factory.ts` 打成 `dist/ppt-client.js`（banner/footer 包成工作台要的 `(host) => {…}` 工厂），`src/client.ts` 只读这份包；请求经共同的 `molisWorkRequest`，路径来自 `host.pluginRoute`，浏览器代码里不写插件 id。
 
@@ -31,7 +31,7 @@ JSON 导出由动作服务读取已保存的演示稿，返回文件名、MIME �
   - 从 Pages 等待原文期间保留大纲原调用的授权和读取版本；返回后经共享动作控制复查执行资格，版本变化拒绝写入。只有标题、正文与备注都空的唯一初始页可被自动填充，只有标题的页按已有内容保留。
   - 大纲弹窗的一次请求只采用它开始时的演示稿、编辑版本与输入；关闭/Escape 中止该请求，迟到回包不能清空后来的输入或关掉重开的弹窗。
   - 冲突保留当前输入，并阻止发布、导出和离开。
-  - 发布保存固定快照；中断后恢复原版本并保留后来的编辑。
+  - 固定事务在更新根行、登记成果及最终提交时复查原调用授权（S-18）。提交前取消、撤权或提供方变化会回滚演示稿引用、成果、事件及复制记录（`tests/ppt-promote-authority.test.ts`）。
   - 项目被删除时平台按 Manifest 里 Home 库的 `project_rows`（`src/database.ts`：确认框里的标签与要删的表）删掉演示稿，连同复制回执；插件的代码不参与，平台在自己的连接上删，库不存在时不创建，重复运行没有副作用（PG-024）。
 - 改动后必跑：`node scripts/run-tests.mjs tests/ppt-actions.test.ts tests/ppt-mcp.test.ts tests/ppt-client-bundle.test.ts tests/creative-tools-plugins.test.ts tests/creative-artifact-promote.test.ts tests/document-pin-after-move.test.ts tests/artifact-compare-moved.test.ts tests/project-deletion-owners.test.ts tests/document-plugins-error-model.test.ts`
 - 大纲等待、标题页与弹窗定向回归：`node scripts/run-tests.mjs tests/content-owner-regressions.test.ts tests/content-editing-regressions.e2e.test.ts tests/ppt-outline-length.e2e.test.ts`（浏览器文件需要本机 Chrome；provider 停用由目录注册的 disposer 模拟，不代替真实 Host Catalog 停用）。

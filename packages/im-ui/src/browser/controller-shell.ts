@@ -16,7 +16,10 @@ export function createImShell(c: ImBaseCtx): Pick<ImCtx, 'key' | 'target' | 'for
   function syncComposer(kind: StreamKind) {
     const form = formFor(kind), busy = s.busyTargets.has(target(kind));
     const loaded = !s.authLost && s.roomState?.room.id === s.roomId && (kind === 'group' || s.threadState?.thread.id === s.threadId);
-    form.querySelector<HTMLButtonElement>('button[type=submit]')!.disabled = busy || !loaded || !inputFor(kind).value.trim() || !target(kind);
+    const hasObjects = Boolean(c.drafts.get(target(kind))?.subjects?.length);
+    form.querySelector<HTMLButtonElement>('button[type=submit]')!.disabled = busy || !loaded || !target(kind)
+      || (!inputFor(kind).value.trim() && !hasObjects);
+    inputFor(kind).required = !hasObjects;
     inputFor(kind).disabled = busy || !loaded;
   }
   // The field grows with what is written (data-fit, the shared intrinsic sizing); a value set here sends no input event.

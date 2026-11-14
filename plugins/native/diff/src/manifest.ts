@@ -1,3 +1,4 @@
+import { MATERIALS_PROVIDER_ID } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import {
   CODING_CHANGESET_TYPE,
@@ -71,14 +72,14 @@ export const diffManifest: PluginManifest = {
         artifact_type_id: FILE_SNAPSHOT_TYPE,
         schema_version: FILE_SNAPSHOT_SCHEMA_VERSION,
         optional: true,
-        default_source: { plugin_id: "io.molis.work.files", port: "before" },
+        default_source: { plugin_id: MATERIALS_PROVIDER_ID, port: "before" },
       },
       {
         port: DIFF_AFTER_INPUT_PORT,
         artifact_type_id: FILE_SNAPSHOT_TYPE,
         schema_version: FILE_SNAPSHOT_SCHEMA_VERSION,
         optional: true,
-        default_source: { plugin_id: "io.molis.work.files", port: "after" },
+        default_source: { plugin_id: MATERIALS_PROVIDER_ID, port: "after" },
       },
       {
         port: DIFF_CHANGESET_INPUT_PORT,

@@ -12,7 +12,7 @@ export const formErrors = defineErrorCodes("form", {
   /** Saving a 成果 was interrupted or conflicts with what the 成果库 holds; the form and the earlier record are kept. */
   publication_pending: "conflict",
   publication_conflict: "conflict",
-  publication_owner: "forbidden",
+  unavailable: "conflict",
   /** The form is not collecting answers; the refusal says why and how to open it again. */
   closed: "conflict",
   /** An answer to the questions 「AI 生成题目」 asked first does not fit them; `details.problems` names each field and why. */

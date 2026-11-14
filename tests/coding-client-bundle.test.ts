@@ -74,7 +74,7 @@ test("RAC-546 the Coding page is one bundle, a function of the host that mounts 
   // The test has no DOM: a document that finds nothing is a page whose root is gone, and the bundle then mounts nothing.
   Object.assign(globalThis, { document: { querySelector: () => null } });
   try {
-    assert.doesNotThrow(() => factory({ root: { matches: () => false }, clients: {}, translate: (key: string) => key, mountPluginClient: () => assert.fail("mounted without its root") }));
+    assert.doesNotThrow(() => factory({ root: { matches: () => false, querySelector: () => null }, clients: {}, translate: (key: string) => key, mountPluginClient: () => assert.fail("mounted without its root") }));
   } finally {
     Reflect.deleteProperty(globalThis, "document");
   }

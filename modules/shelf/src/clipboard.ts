@@ -1,3 +1,4 @@
+import { cutWithEllipsis } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { createHash } from "node:crypto";
 
 export function isConcealedClipboard(types: readonly string[] = []): boolean {
@@ -28,6 +29,5 @@ export function clipTitleFor(kind: "text" | "url", body: string): string {
   }
   const line = body.replace(/\s+/gu, " ").trim();
   if (!line) return "文本";
-  if (line.length <= 40) return line;
-  return `${line.slice(0, 40).trim()}…`;
+  return cutWithEllipsis(line, 40, { prefixLength: 40, trimEnd: true });
 }

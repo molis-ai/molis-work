@@ -4,6 +4,7 @@ import { dirname, join } from "node:path";
 import { pluginErrors, type HomePluginDatabaseDeclaration, type PluginDefinition, type PluginOwnerFilesDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { clearInExistingHomeSqlite, describeSqliteBaseline } from "@molis-ai/molis-work-storage";
 import { ownerFileHasCode, ownerFilePaths } from "./plugin-owner-files-paths.js";
+import { projectArtifactRoot } from "./plugin-artifact-root.js";
 
 // A project's rows in a plugin's library of the Home, as the plugin declares them (`databases.home.project_rows`, PG-024): the
 // platform writes the statements from the declaration and runs them on its own connection to that one library, so deleting a project
@@ -33,6 +34,7 @@ export function projectRowsStatements(library: HomePluginDatabaseDeclaration, pl
     return `DELETE FROM ${quoted(entry.table)} WHERE ${quoted(entry.column)} IN (SELECT ${quoted(key)} FROM ${quoted(parent.table)} WHERE ${quoted(parent.column)} = ?)`;
   });
 }
+
 
 /**
  * One declared file list as the deletion reads it: the statement that selects the column for the project, the one that selects it
@@ -125,6 +127,7 @@ export function assertProjectRowsEntries(entries: readonly { readonly definition
     }
     projectRowsStatements(library, definition.manifest.plugin_id);
     projectRowsFiles(library, definition.manifest.plugin_id, definition.manifest.owner_files);
+    projectArtifactRoot(library, definition.manifest.plugin_id);
   }
 }
 

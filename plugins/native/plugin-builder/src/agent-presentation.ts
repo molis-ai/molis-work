@@ -43,7 +43,7 @@ export function acceptPresentation(output: string, design: AgentDesign) {
   if (typeof value.summary !== 'string' || !value.summary.trim() || value.summary.length > 2000) throw new Error('需要简短的界面设计理由');
   const props = value.props ?? {};
   if (!props || typeof props !== 'object' || Array.isArray(props) || Object.keys(props).some(id => !design.parts.some(part => part.id === id))) throw new Error('props 只能引用已有组件');
-  const parts = validatePluginComponentPlans(design.parts.map(part => ({ ...part, props: (props as Record<string, typeof part.props>)[part.id] ?? part.props })), design.contract);
+  const parts = validatePluginComponentPlans(design.parts.map(part => ({ ...part, props: (props as Record<string, typeof part.props>)[part.id] ?? part.props })), design.contract, design.ui);
   if (design.localePacks) for (const [index, part] of parts.entries()) {
     const previous = design.parts[index]!.props;
     const columns = (props: typeof previous) => [...props.columns ?? []].sort((a, b) => a.field.localeCompare(b.field));

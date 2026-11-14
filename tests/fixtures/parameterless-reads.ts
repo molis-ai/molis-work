@@ -25,6 +25,12 @@ export const unavailableInFixture: Record<string, string> = {
   "git.results@1": "actions.dependency_missing",
   "git.state@1": "actions.dependency_missing",
   "git.summary@1": "actions.dependency_missing",
+  // The platform materials service reads the project's folders through the workspace file read, which these fixtures do not run.
+  "materials.position@1": "actions.dependency_missing",
+  // Memory V0: both answer for the memory session the caller's own entry is bound to, which comes from the call context and never from input
+  // (trusted identity, AGENTS.md); a person's read from no session must name a scope, and a session clear has nothing to clear.
+  "memory.operations.list@1": "memory.invalid",
+  "memory.session.clear.preview@1": "memory.forbidden",
 };
 
 // WUA-16 / WUA-26: local and restored fixtures lack central account configuration.

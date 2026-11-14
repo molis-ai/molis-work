@@ -5,7 +5,7 @@ import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contra
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { localWebActionContext } from "./local-web-actions.js";
-import { dispatchNativePluginJsonHttp } from "./native-plugin-http.js";
+import { dispatchNativePluginJsonHttp, matchesNativePluginPrefix } from "./native-plugin-http.js";
 import { withPluginPermissionSettingsEntry } from "./plugin-consent-settings-entry.js";
 import { PLUGIN_INSTALL_PERMISSIONS, PLUGIN_INSTALL_PROVIDER_ID, pluginControlActions, pluginInstallActions } from "./plugin-install-actions.js";
 import { pluginPageRequest } from "./plugin-page-authority.js";
@@ -25,11 +25,14 @@ const MAX_PACKAGE_BYTES = 24 * 1024 * 1024;
  */
 export async function handlePluginTrustHttp(request: IncomingMessage, response: ServerResponse, url: URL,
   ports: { localHost: MolisWorkLocalHost; projectRef: LocalHostProjectReference }): Promise<boolean> {
-  if (!url.pathname.startsWith("/api/plugin-trust/")) return false;
-  const controller = new AbortController(), cancel = () => controller.abort(new ActionError("actions.cancelled", "插件管理请求已经结束"));
+  const prefix = "/api/plugin-trust";
+  if (!matchesNativePluginPrefix(url.pathname, prefix)) return false;
+  const controller = new AbortController();
+  const cancel = () => controller.abort(new ActionError("actions.cancelled", "插件管理请求已经结束"));
   const disconnected = () => { if (!response.writableEnded) cancel(); };
-  request.once("aborted", cancel); response.once("close", disconnected);
-  try { return await dispatchNativePluginJsonHttp(request, response, url, { prefix: "/api/plugin-trust", maxBodyBytes: MAX_PACKAGE_BYTES,
+  request.once("aborted", cancel);
+  response.once("close", disconnected);
+  try { return await dispatchNativePluginJsonHttp(request, response, url, { prefix, maxBodyBytes: MAX_PACKAGE_BYTES,
     async handle({ method, pathname, body }) {
       const client = ports.localHost.actionClient(ports.projectRef);
       const route = pathname.slice("/api/plugin-trust/".length);
@@ -72,6 +75,8 @@ export async function handlePluginTrustHttp(request: IncomingMessage, response: 
       }
       return null;
     },
-  });
-  } finally { request.off("aborted", cancel); response.off("close", disconnected); }
+  }); } finally {
+    request.off("aborted", cancel);
+    response.off("close", disconnected);
+  }
 }

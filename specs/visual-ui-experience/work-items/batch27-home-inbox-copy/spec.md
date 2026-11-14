@@ -1,6 +1,6 @@
 # 第 27 批项目首页与 Inbox 文案
 
-状态：已实现，隔离实操通过，待整批回归和本人验收（2026-11-10）。对应[第 27 批第 3 项](../../../post-anticorruption-roadmap/reference/batches/27.md#batch-27-item-3)、[文案清点 F-11／F-12](../../copy-help-inventory.md#3-跨页面的问题)与[VUX-52／53／54／58](../../spec.md#全产品文案与按需帮助2026-11-02待实现)。本片由第 27 批 writer 实现，合回及整批评审由统筹负责。[认领板 #1743](https://github.com/molis-ai/molis-work/issues/1743)
+状态：已实现，隔离实操通过，待整批回归和本人验收（2026-11-10）；首页一半（BHI-01、BHI-02）已由第 15 批新首页取代（2026-11-12），旧首页客户端、`home-flow.ts` 与只测它们的用例随之删除，F-11 的否定检查改在 `tests/surface-home-workbench.e2e.test.ts` 里沿新首页核对，Inbox 一半（BHI-03、BHI-04）照旧。对应[第 27 批第 3 项](../../../post-anticorruption-roadmap/reference/batches/27.md#batch-27-item-3)、[文案清点 F-11／F-12](../../copy-help-inventory.md#3-跨页面的问题)与[VUX-52／53／54／58](../../spec.md#全产品文案与按需帮助2026-11-02待实现)。本片由第 27 批 writer 实现，合回及整批评审由统筹负责。[认领板 #1743](https://github.com/molis-ai/molis-work/issues/1743)
 
 ## 场景与改法
 
@@ -34,8 +34,8 @@ Inbox 在列表最上面放「整理材料到 Pages」，全空时容易读成�
 
 ## 验收
 
-1. **BHI-01**（F-11，VUX-53／58）空白今天与另一日期各只用一句自然的中英文状态摘要，动作区仍能开始已有的操作及回到今天，页面没有常驻口号和重复起步说明。有事项的日期保留真实来源、详情与处理提示。
-2. **BHI-02**（F-11，VUX-54）区分首次读取、空日和读取失败。键盘可到日期、回今天、起步及重试，重试成功恢复原列表或空日；选择日期不额外读。
+1. ~~**BHI-01**~~（第 15 批新首页取代，见状态句）（F-11，VUX-53／58）空白今天与另一日期各只用一句自然的中英文状态摘要，动作区仍能开始已有的操作及回到今天，页面没有常驻口号和重复起步说明。有事项的日期保留真实来源、详情与处理提示。
+2. ~~**BHI-02**~~（第 15 批新首页取代，见状态句）（F-11，VUX-54）区分首次读取、空日和读取失败。键盘可到日期、回今天、起步及重试，重试成功恢复原列表或空日；选择日期不额外读。
 3. **BHI-03**（F-12，VUX-52／54／58）Inbox 空态先说明有无待处理事项，文稿按钮以内容宽度沿列表起边独立出现在历史分组之后，保留触控高度。折叠历史仍可通过 Tab 到达。打开对话框可用可访问名称辨认，Esc 回原按钮。页面被动打开不读文稿、不生成。
 4. **BHI-04**（F-12，VUX-54）正常事项处置、仅有历史、旧文稿、失败恢复和草稿重开／刷新均可继续。同一生成重试沿原请求与 Pages 文稿，保留原拒绝和错误处理。
 
@@ -47,4 +47,4 @@ Inbox 在列表最上面放「整理材料到 Pages」，全空时容易读成�
 
 隔离 Chrome 在改前复现首页的摘要、起步说明和口号，以及 Inbox 在标题旁或列表前的文稿入口。改后探针按 BHI-01～04 覆盖三档宽度、中英文和明暗主题。首页切换日期、回到今天不发读取，首次读取和显式重试各一条请求。Inbox 空态无文稿请求，显式开对话框一次 GET、零生成，Tab 越过折叠历史后可按 Enter 打开，浏览器无障碍树中的对话框名称与可见标题一致，Esc 回入口。按钮中文 153px、英文 226px，贴列表起边，桌面高 32px，390px 高 44px。实测从仅有历史的 Inbox 打开同一份已编辑文稿，不增加模型调用。保留原先的失败隐私、重试幂等、未提交草稿与已处理状态断言。
 
-最终头还需统一跑 `tests/home-flow.test.ts`、`tests/home-events.e2e.test.ts`、`tests/project-home-start.e2e.test.ts` 全文件、`tests/inbox-current.e2e.test.ts` 与 [Workbench](../../../../apps/workbench/README.md#开发要求)、[Inbox](../../../../plugins/native/inbox/README.md#开发要求) 的适用必跑项，对照 origin/main 统一测页面资源，再随整批走 Full。单独断开旧文稿来源、真实账号、原生壳与读屏实听未实操。本人验收待进行。
+最终头还需统一跑 `tests/home-events.e2e.test.ts`、`tests/project-home-start.e2e.test.ts` 全文件（第 15 批删去了其中旧首页的 BHI-01 用例与 `tests/home-flow.test.ts`）、`tests/inbox-current.e2e.test.ts` 与 [Workbench](../../../../apps/workbench/README.md#开发要求)、[Inbox](../../../../plugins/native/inbox/README.md#开发要求) 的适用必跑项，对照 origin/main 统一测页面资源，再随整批走 Full。单独断开旧文稿来源、真实账号、原生壳与读屏实听未实操。本人验收待进行。

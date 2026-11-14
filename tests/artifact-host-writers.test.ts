@@ -14,6 +14,8 @@ const HOST_WRITERS: Readonly<Record<string, string>> = {
   "apps/local-host/src/characters-host.ts": "Characters is a Host producer, not a plugin (PG-085)",
   "apps/local-host/src/demo-deliverable.ts": "seeds the demo project",
   "apps/local-host/src/project-version-stores.ts": "the restore from a work-assets bundle (S-81)",
+  "apps/local-host/src/system-materials-actions.ts": "the platform materials service (system.materials) pins its own snapshots; it is a Host producer, not a plugin (batch 06)",
+  "apps/sync-worker/testing.mjs": "the Worker tests' fixture seeds Files-era process items as the previous Host wrote them (batch 06 adoption)",
   "server/tooling/continuity-demo.mts": "a demo script",
 };
 

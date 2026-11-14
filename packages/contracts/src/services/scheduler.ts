@@ -71,6 +71,8 @@ export interface ScheduleWakeupInput {
 export interface ScheduleWakeupReply {
   detail?: string;
   status?: ScheduleWakeupStatus;
+  /** An empty wakeup changed no view; by default, a successful command asks the Host to refresh. */
+  view_changed?: false;
 }
 
 /** Trusted execution controls supplied by Scheduler; never persisted as task input. */

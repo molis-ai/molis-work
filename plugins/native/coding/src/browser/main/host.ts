@@ -31,11 +31,13 @@ export interface CodingHost {
   receipts: HostReceipts;
   interaction(card: HTMLElement, options: InteractionClientHost): HostInteraction;
   selectWorkspace(id: string): Promise<void>;
+  /** An action this page declared, as the person (the files face reads folders and opens files through the platform). */
+  invokeAction<Output = unknown>(reference: import("@molis-ai/molis-work-contracts/platform/actions").ActionReference, input: unknown): Promise<Output>;
   addWorkspace(path: string): Promise<{ readonly workspace_id: string }>;
   confirm(question: string): Promise<boolean>;
   /** The platform's drafts and the way to the settings and back (specs/draft-and-return §2.4); main/returns.ts uses them. */
   readonly drafts: UiPageDrafts;
   readonly returns: UiPageReturns;
-  /** The directory column's face was chosen; true when the Host handled it. */
-  onDirectoryFace?(face: string): boolean;
+  /** The directory column's face was chosen; the embedded Git shows its changes under the files face. */
+  onDirectoryFace?(face: string): void;
 }

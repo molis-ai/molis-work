@@ -151,17 +151,17 @@ Manifest 里没有 `behaviors`、`function_scenes`、`judgment_subjects`（2026-
 - `events.publishes` / `subscribes`。订阅必须列出 `from_plugin_ids`。来源没装只是不匹配，不算激活失败。宿主事件（`host.review.settled@1`、`host.workspace.changed@1`）例外：不写来源，不落库；前者只投给发起审查的那个安装，后者广播给声明并持有 `workspace:read` 的订阅者，写法见 `host.md`。
 - 正文上限 16 KiB。更大的走 Artifact 引用。
 - 禁止发布 `molis.` / `host.` 命名空间的事件；订阅只能订宿主登记过的那几种。
-- **事件 id 放合同**，不放发布者插件包。Coding 的 `file-changed` 在 `workspace-artifacts` 合同里，Files 只点名 id，不 import Coding 实现。
+- **事件 id 放合同**，不放发布者插件包。Coding 的 `file-changed` 在 `workspace-artifacts` 合同里，Git 只点名 id，不 import Coding 实现。
 - `PluginDefinition.event_types` 的 `validate` 必须覆盖自己 publishes 的每一种；Host 只存校验通过的。
 - 发布：`context.services.events.publish({ event_type_id, type_version, payload })`。没声明 publishes 就没有 `services.events`。
-- 接收：`start()` 返回的 contribution 上写 `onEvent(event, delivery)`（Files/Git 用来刷工作区）。使用订阅安装自己的身份及 `delivery.signal`，每次异步等待后、写入前调用 `delivery.beforeEffect()`；传给 Host 端口时继续传该控制，不能长期保留原发布 Action 的临时授权。
+- 接收：`start()` 返回的 contribution 上写 `onEvent(event, delivery)`（Git 用来刷工作区）。使用订阅安装自己的身份及 `delivery.signal`，每次异步等待后、写入前调用 `delivery.beforeEffect()`；传给 Host 端口时继续传该控制，不能长期保留原发布 Action 的临时授权。
 - 落项目库，按 (订阅者, 来源) 串行，游标绑定 install_id 与安装世代。同一安装重启续接未派出的工作，重装建立新订阅，不继承旧游标或重放历史。
 - 处理前持久记录 delivering，确认前重查实例、版本和订阅。处理器已开始但崩溃或被撤销，结果未知则隔离，不能自动重试；启动失败且没有派出处理器时可以恢复。普通处理器异常记录后不自动重投，不能声称任意副作用 exactly-once。Host 关闭先 `await events.close()` 再关闭数据库。
 - 隔离事件由人从项目「插件 → 待核对的插件通知」核对，填写依据后明确 retry/skip。插件不能给自己恢复，普通启用不能补权。所见 revision、首条事件、安装世代与版本必须保持一致，决定及历史同事务保存；不替换原安装，不跳过后续事件。重试存在重复副作用的可能，必须在确认中说明。
 
 **总线只在 Plugin Runtime（`createPluginPlatform`）启动的插件里跑**：登记上有 `project_runtime` 或 `runtime` 的内置插件，以及已安装插件。构建期的两个例外（Alchemist、插件创作台）没有；给它们抄 Coding 的 `events:` 块，运行时不会投递。
 
-对照：Files 订阅 Coding/Git 的文件变更；Coding 发布 file-changed / workspace-invalidated。
+对照：Git 订阅 Coding 的文件变更；Coding 发布 file-changed / workspace-invalidated。
 
 ## agent 块
 

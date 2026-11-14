@@ -1,3 +1,4 @@
+import { requiredQuery } from "@molis-ai/molis-work-plugin-sdk/browser";
 /** A new element with the given text (none: empty) and class. */
 export function el<Tag extends keyof HTMLElementTagNameMap>(tag: Tag, text = "", className = ""): HTMLElementTagNameMap[Tag] {
   const node = document.createElement(tag);
@@ -15,8 +16,4 @@ export function errorMessage(error: unknown): string {
 }
 
 /** A part the page's markup always has under a node; a missing one is a bug in the page, so it throws. */
-export function part<Found extends HTMLElement = HTMLElement>(node: ParentNode, selector: string): Found {
-  const found = node.querySelector<Found>(selector);
-  if (!found) throw new Error("missing part: " + selector);
-  return found;
-}
+export const part = requiredQuery(selector => "missing part: " + selector);

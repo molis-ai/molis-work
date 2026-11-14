@@ -1,3 +1,4 @@
+import { systemOutputSource } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import { rollbackPreservingError } from "@molis-ai/molis-work-plugin-sdk";
 import { randomUUID } from "node:crypto";
 import { pluginErrors, type PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -129,6 +130,12 @@ const selectedReach = (row: PluginConsentRecord, selection: ProjectReachConsentS
   return "project_id" in selection ? subject.project_id === selection.project_id : subject.install_id === selection.install_id;
 };
 
+/** Whether a default wiring's subject (`<port><-<source>:<port>@<signature>`) names one of the platform's own producers as its source. */
+function defaultWiringReadsSystemSource(subject: string): boolean {
+  const from = subject.indexOf("<-");
+  return from >= 0 && systemOutputSource(subject.slice(from + 2).split(":", 1)[0] ?? "") !== undefined;
+}
+
 function newRows(entry: PluginConsentEntry, existing: readonly PluginConsentRecord[]): PluginConsentRecord[] {
   const rows: PluginConsentRecord[] = [];
   for (const grant of entry.grants) {
@@ -137,6 +144,10 @@ function newRows(entry: PluginConsentEntry, existing: readonly PluginConsentReco
     }
     const same = existing.filter(row => key(row) === key({ ...entry, ...grant }));
     if (same.some(row => row.revoked_at === null) || (entry.granted_by === "host_build" && same.length > 0)) continue;
+    // The Host agrees for its own build to read a platform source by default only when this Home has never recorded anything for the
+    // target (its true first install here). After an upgrade, a restart, or a revocation anywhere in the Home the person agrees
+    // through the protected settings entry (specs/batch-06-shared-tools §3, 默认同意的切换与恢复); a renamed source never inherits.
+    if (entry.granted_by === "host_build" && grant.kind === "default_wiring" && defaultWiringReadsSystemSource(grant.subject) && existing.length > 0) continue;
     if (rows.some(row => key(row) === key({ ...entry, ...grant }))) continue;
     rows.push({ consent_id: randomUUID(), plugin_id: entry.plugin_id, publisher_signature: entry.publisher_signature, kind: grant.kind, subject: grant.subject,
       manifest_digest: entry.manifest_digest, granted_at: entry.at, granted_by: entry.granted_by, revoked_at: null, approved_capability_ids: null });
@@ -253,6 +264,18 @@ export class SqlitePluginConsentLedger implements PluginConsentLedger {
         .map(consentFromRow).filter(row => selectedReach(row, selection));
       for (const row of rows) this.revoke(row.consent_id, at);
       return rows.length;
+    });
+  }
+  /**
+   * A retired plugin's own current consents taken back at once (the Files retirement, specs/batch-06-shared-tools/spec.md「项目库 v2 同版本采用与交接」):
+   * only rows of that exact plugin id and publisher, only ones still current, each with `revoked_at` like `revoke`. Running it again takes
+   * nothing more back. Another plugin's default wiring that named it stays as it was: its subject names a source that is gone, so it no
+   * longer counts, and whether the person had kept or revoked it is still there to read.
+   */
+  revokeRetiredPlugin(plugin: { readonly plugin_id: string; readonly publisher_signature: string }, at: string): PluginConsentRecord[] {
+    return this.transaction(() => {
+      const current = this.consents(plugin.plugin_id).filter(row => row.publisher_signature === plugin.publisher_signature && row.revoked_at === null);
+      return current.map(row => this.revoke(row.consent_id, at)!);
     });
   }
   publishers(): PluginPublisherPin[] {

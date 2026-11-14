@@ -27,6 +27,10 @@ pnpm --filter @molis-ai/molis-work-service-knowledge build
 
 ## 开发要求
 
+采用对象状态协议的来源归档后，两类卡均保留为 missing；只有当前主人明确 deleted 才清卡。缺状态、不可用、撤权或来源暂缺都不冒充删除。旧 opaque 整理版本无法证明与新材料相同时保留卡及原版本，显示失败，待本人沿原“重新整理”明确请求；不自动迁写或调用模型。状态标记不是授权或历史安装代事实。
+
+read/outline/grep/locate、显式 subject、旧 ref 及本次有界 list/search/Agent 开场目录均经当前来源状态门，原文仍走原主人和原调用授权。total/sources 是已授权索引目录快照，返回的有界资料再核当前状态；过滤后不称“全部列出”。当前实测覆盖各项查询返回时的状态核验；多个异步来源在共同交付时刻是否仍一致尚未证明，不能据此宣称完整归档读取验收通过。实际读取仍重新检查。没有逐次重读全项目正文。直接回归：`tests/knowledge-source-retention.test.ts`、`tests/knowledge-cards.test.ts`。
+
 - 负责：资料的查找结果（卡片）、按所属插件现在的正文给出分节、按分节或位置读原文、在指定资料里逐行查找；只在调用者自己的项目里。
 - 不负责：插件的表与正文（各插件的对象读取器）、索引（`horizontal/search`）、权限授予（动作服务与各入口）、模型调用（以后的整理经 `horizontal/agent-host`）。
 - 公开入口：`@molis-ai/molis-work-service-knowledge`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/services/knowledge`。

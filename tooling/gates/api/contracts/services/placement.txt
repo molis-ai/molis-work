@@ -253,6 +253,7 @@ export declare const placementGoalActions: {
         object: PlacedObject;
         project_id: string;
         goal_id: string;
+        read_revision?: string;
     }, {
         key: string;
     }>;

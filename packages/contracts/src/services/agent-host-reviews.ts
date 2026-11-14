@@ -1,6 +1,6 @@
 /** The agent-host contract (`services/agent-host`): what a run asks a person to review, and the review queue. */
 import type { OwnedTextRef } from "../platform/ui-text.js";
-import type { ReviewReference, ReviewDecisionSource } from "../platform/reviews.js";
+import type { ReviewReference, ReviewDecisionAvailability, ReviewDecisionReference, ReviewDecisionSource } from "../platform/reviews.js";
 import type { AgentRunRef } from "./agent-host-runtime.js";
 import type { AgentWriteCheckNote } from "./agent-host-write-checkers.js";
 
@@ -109,11 +109,7 @@ export type AgentReviewDocument =
 export type AgentReviewStatus = "pending" | "approved" | "rejected" | "cancelled" | "expired";
 
 /** A current owner projection, never permission to execute or a replacement for checking at decision time. */
-export type AgentReviewDecisionAvailability = { readonly available: true } | {
-  readonly available: false;
-  readonly code: string;
-  readonly reason: OwnedTextRef;
-};
+export type AgentReviewDecisionAvailability = ReviewDecisionAvailability;
 
 export interface AgentReviewDecisions {
   readonly approve: AgentReviewDecisionAvailability;
@@ -175,6 +171,8 @@ export interface AgentReviewReceipt {
 export interface AgentReviewRow {
   request: AgentReviewRequest;
   receipt?: AgentReviewReceipt;
+  /** Present when the queue read or committed the original immutable decision. */
+  decision?: ReviewDecisionReference;
   decisions: AgentReviewDecisions;
   /** The Host can offer a choice for later rounds from this exact live proposal. This does not approve it. */
   work_permission_available?: true;

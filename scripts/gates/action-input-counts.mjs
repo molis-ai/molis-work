@@ -1,5 +1,5 @@
 // Two interim counts for action inputs (specs/action-input-contracts AIC-20, roadmap decision 29). They may only fall while the N22
-// slices move handlers to input types read from the schema: the new and the old way live side by side until batch 55 ends, and
+// slices move handlers to input types read from the schema: the new and the old way live side by side until batch 56 ends, and
 // nothing in the types stops a new `input as X` or a new hand-written input type. N22-G replaces them with absolute rules and
 // deletes them; what to delete is listed in scripts/gates/README.md.
 //

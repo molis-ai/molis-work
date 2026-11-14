@@ -8,11 +8,11 @@ Goal 规则里原有「自检、交叉评审人数、对抗评审人数」三项
 
 ## 要做到
 
-- 自检：一轮写作完成后，由写作的角色按关联 Goal 的要求核对自己的改动，结论写进这一轮的报告。
+- 自检：一轮写作完成后，由写作的角色按所服务对象的要求（Goal 或助理后台任务等，没有要求可核时只核对任务本身）核对自己的改动，结论写进这一轮的报告。
 - 交叉评审：另外 N 个角色读同一组改动，各自给出通过、要改或说不清，意见回到会话里。
 - 对抗评审：N 个角色专门找漏洞（边界、回归、越权、数据丢失），找到的问题作为待处理项。
-- 结果写回关联 Goal：评审结论作为 Goal 的工作事件（进展或顾虑）记录，收尾时可被引用；不另建 Goal 状态。
-- 设置放在 Coding：按项目默认、可按会话或计划覆盖；关联 Goal 时可以带上 Goal 的「需要用户验收」作为最后一步。
+- 结果写回所服务对象的要求—证据（平台要求—认可能力）：评审结论作为依据记录，收尾时可被引用；Goals 装着时作为 Goal 的工作事件（进展或顾虑）显示，不另建 Goal 状态（2026-11-13 按插件同等地位收口改，[决定 42](../post-anticorruption-roadmap/reference/decisions.md#decision-42)）
+- 设置放在 Coding：按项目默认、可按会话或计划覆盖；所服务对象有「需要用户验收」要求时可以带上它作为最后一步（要求—认可归平台能力，不是 Goal 规则）。
 
 ## 2026-10-18 补充：把评审做成一条可执行的工作流
 
@@ -71,13 +71,13 @@ Goal 规则里原有「自检、交叉评审人数、对抗评审人数」三项
 - 评审触发点：每轮结束、计划步骤结束，还是提交前。
 - 评审不通过时：阻止提交、只提醒，还是开新一轮修改。
 - 用量与费用：评审轮次计入哪个用量表、怎样让用户事先看到。
-- 评审结果是否写回 Goal：现有方向是写工作事件；多代理评审的逐条意见是否也写，待定。
+- 评审结果写入要求—证据的粒度：现有方向是写成依据；多代理评审的逐条意见是否也写，待定。
 - 安全评审的 verifier 数量、patch 生成是否默认开。
 - 真人批准门的 N 默认值、哪些团队场景启用。
 
 ## 不做
 
-- 不在 Goal 规则里恢复这些字段；Goal 规则只保留「需要用户验收」。
+- 不在 Goal 规则里恢复这些字段。
 - 不让执行 Agent 自审取得权限、冒充真人批准或把失败说成通过；具备授权、所需批准与检查后，可执行已委托的合并。
 - 不为变绿放宽阈值；不把纯风格/构建错误/预存问题塞进评审。
 - 不做无界迭代；不做没有证据的“安全已通过”。
@@ -103,6 +103,6 @@ Goal 规则里原有「自检、交叉评审人数、对抗评审人数」三项
 
 - Coding 下一阶段：[coding-plugin/next-requirements](../coding-plugin/next-requirements.md) D2、E8
 - 真人批准门：[agent-approval](../agent-approval/spec.md)
-- Goal 完成/可信决定：[goal-closure-identity](../archive/goal-closure-identity/spec.md)
+- 要求与认可：平台要求—认可能力（32-2）；可信决定：平台决定服务（39-2）。Goals 的历史做法见 [goal-closure-identity](../archive/goal-closure-identity/spec.md)
 - 审查队列与动作授权：[action-architecture](../action-architecture/spec.md)
 - 代码：`horizontal/agent-host/src/reviews.ts`、`plugins/native/coding/src/roles.ts`、`apps/local-host/src/assistant/assistant-authority.ts`

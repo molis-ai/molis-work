@@ -3,7 +3,7 @@
     "function horizontal/agent-host/src/adapters/prologue-action-gateway.ts#prologueActionGateway": {
       "kind": "cohesive-unit",
       "reason": "能力网关的一份 SDK 工具包把登记、参数声明和原调用控制留在同一轮闭包中，各工具共享当前目录与原执行检查。",
-      "size": 156
+      "size": 157
     }
   }
 }

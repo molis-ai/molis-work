@@ -1,6 +1,7 @@
 import { t, tryOwnedTextRef } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { SandboxJson, SandboxPluginContract, SandboxSchema, SandboxVisibleText } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
-import type { TextRef, UiComponentIntent, UiComponentSpec } from '@molis-ai/molis-work-contracts/platform/ui';
+import type { TextRef, UiComponentIntent, UiComponentSpec, UiSlotDescriptor } from '@molis-ai/molis-work-contracts/platform/ui';
+import type { SandboxUiContribution } from '@molis-ai/molis-work-plugin-sdk';
 import { isDestructivePluginOperation, literalPluginWord } from './plugin-surface-text.js';
 import { BASELINE_SPEC } from './baseline.js';
 import { PLUGIN_PRESENTATION_STYLES } from './plugin-presentation-client.js';
@@ -39,6 +40,7 @@ export interface PluginComponentPlan {
   props: PluginComponentProps;
   read?: PluginOperationBinding;
   submit?: PluginOperationBinding;
+  surfaceSlot?: Pick<UiSlotDescriptor, 'slot_id'>;
 }
 export interface PluginComponentNode extends PluginComponentPlan { kind: PluginComponentKind }
 /** One catalog entry in the form consumed by the Builder and the standard board. */
@@ -70,7 +72,9 @@ const PREFERENCE: Record<PluginComponentIntent, string[]> = {
   evidence: ['table', 'accordion'], schedule: ['calendar', 'table', 'directory'], feedback: ['alert'],
 };
 const componentsByKind = new Map(PLUGIN_COMPONENTS.map(component => [component.kind, component]));
-const implementedParts = new Set(Object.values(PREFERENCE).flat());
+/** A declared object slot is placed where the page names it, never chosen for an intent (intelligent-surfaces §16). */
+const SURFACE_SLOT_PART = 'surface-slot';
+const implementedParts = new Set([...Object.values(PREFERENCE).flat(), SURFACE_SLOT_PART]);
 for (const component of PLUGIN_COMPONENTS) {
   if ((component.use === 'part') !== implementedParts.has(component.kind)) throw new Error('组件装配登记与实际实现不符：' + component.kind);
 }
@@ -102,7 +106,8 @@ export function pluginValueAt(value: unknown, path?: string): unknown {
 function checkBinding(binding: PluginOperationBinding, contract: SandboxPluginContract, reading: boolean) {
   if (!plain(binding) || Object.keys(binding).some(key => !['operationId', 'input', 'outputPath'].includes(key))) fail('操作绑定包含未知属性');
   const operation = contract.operations.find(item => item.id === binding.operationId);
-  if (!operation) fail('操作不存在：' + binding.operationId);
+  if (!operation) return fail('操作不存在：' + binding.operationId);
+  if (operation.read_protocol !== undefined) return fail('平台读取协议不能绑定到页面组件：' + binding.operationId);
   if (reading && operation!.kind !== 'query') fail('自动读取只能绑定查询操作');
   if (operation!.input.type !== 'object' || !plain(binding.input)) fail('界面操作的输入必须是对象');
   for (const [name, source] of Object.entries(binding.input)) {
@@ -127,11 +132,27 @@ function checkBinding(binding: PluginOperationBinding, contract: SandboxPluginCo
   if (binding.outputPath !== undefined && (typeof binding.outputPath !== 'string' || !pluginSchemaAt(operation!.output, binding.outputPath))) fail('输出字段路径无效');
   return operation!;
 }
-export function validatePluginComponentPlans(value: unknown, contract: SandboxPluginContract): PluginComponentPlan[] {
+function checkSurfaceSlot(part: PluginComponentPlan, contract: SandboxPluginContract, ui: SandboxUiContribution | undefined) {
+  const slot = part.surfaceSlot;
+  if (!plain(slot) || Object.keys(slot).length !== 1 || !ui?.slots.some(entry => entry.slot_id === slot.slot_id)
+    || part.intent !== 'reading' || !part.read || part.submit) return fail('对象挂载位必须引用本页已声明的 slot_id，只可绑定读取');
+  const operation = contract.operations.find(item => item.id === part.read!.operationId);
+  if (!operation || operation.kind !== 'query' || operation.read_protocol !== undefined || operation.external
+    || operation.effects.model?.includes('invoke') || operation.effects.imageGeneration?.includes('generate'))
+    return fail('对象挂载位只能读取本插件的普通查询');
+  const answer = pluginSchemaAt(operation.output, part.read.outputPath);
+  const item = answer?.type === 'array' ? answer.items : undefined;
+  if (item?.type !== 'object' || item.additionalProperties !== false || Object.keys(item.properties ?? {}).length !== 2
+    || !['kind', 'id'].every(key => item.properties?.[key]?.type === 'string' && item.required?.includes(key))) {
+    fail('对象挂载位的查询输出必须是 { kind, id } 引用数组');
+  }
+}
+
+export function validatePluginComponentPlans(value: unknown, contract: SandboxPluginContract, ui?: SandboxUiContribution): PluginComponentPlan[] {
   if (!Array.isArray(value) || value.length === 0 || value.length > 100) fail('需要 1–100 个界面零件');
   const seen = new Set<string>();
   for (const raw of value as unknown[]) try {
-    if (!plain(raw) || Object.keys(raw).some(key => !['id', 'pageId', 'regionId', 'intent', 'purpose', 'props', 'read', 'submit'].includes(key))) fail('未知零件属性');
+    if (!plain(raw) || Object.keys(raw).some(key => !['id', 'pageId', 'regionId', 'intent', 'purpose', 'props', 'read', 'submit', 'surfaceSlot'].includes(key))) fail('未知零件属性');
     const part = raw as unknown as PluginComponentPlan;
     if (!IDENTIFIER.test(part.id) || seen.has(part.id)) fail('零件标识重复或不合法'); seen.add(part.id);
     if (!contract.pages.some(page => page.id === part.pageId && page.regions.some(region => region.id === part.regionId))) fail('零件引用了不存在的页面或区域');
@@ -151,6 +172,7 @@ export function validatePluginComponentPlans(value: unknown, contract: SandboxPl
     for (const binding of [part.read, part.submit]) if (binding && !allowed.includes(binding.operationId)) fail('操作不属于这个区域');
     if (part.read) checkBinding(part.read, contract, true);
     if (part.submit) checkBinding(part.submit, contract, false);
+    if (part.surfaceSlot !== undefined) checkSurfaceSlot(part, contract, ui);
     if (['input', 'action', 'conversation'].includes(part.intent) && !part.submit) fail('交互零件需要提交操作');
     if (['collection', 'reading', 'conversation', 'evidence', 'schedule'].includes(part.intent) && !part.read) fail('内容零件需要读取操作');
     if (!pluginComponentChoices(part, contract).length) fail('组件池没有能表达这个需求的合法组件：' + part.id
@@ -161,14 +183,19 @@ export function validatePluginComponentPlans(value: unknown, contract: SandboxPl
     if (!id || !(error instanceof Error) || error.message.includes('组件 ' + id)) throw error;
     throw Object.assign(new Error(error.message.replace(/^(界面合同无效：)?/, (prefix: string) => prefix + '组件 ' + id + '：')), { code: (error as { code?: unknown }).code });
   }
+  const mounts = new Set((value as PluginComponentPlan[]).filter(part => part.surfaceSlot).map(part => part.id));
   for (const part of value as PluginComponentPlan[]) for (const binding of [part.read, part.submit]) for (const source of Object.values(binding?.input ?? {})) {
     const id = source.source === 'selection' ? source.componentId : source.source === 'form' ? source.prefill?.componentId : undefined;
     if (id && !seen.has(id)) fail('选择来源组件不存在：' + id);
+    if (id && mounts.has(id)) fail('对象挂载位不提供选中输出：' + id);
   }
   return structuredClone(value) as PluginComponentPlan[];
 }
 export function pluginComponentChoices(part: PluginComponentPlan, contract: SandboxPluginContract): UiComponentSpec[] {
-  const output = part.read ? pluginSchemaAt(contract.operations.find(item => item.id === part.read!.operationId)?.output ?? { type: 'null' }, part.read.outputPath) : undefined;
+  if (part.surfaceSlot) return PLUGIN_COMPONENTS.filter(item => item.kind === SURFACE_SLOT_PART);
+  const operation = contract.operations.find(item => item.id === part.read?.operationId);
+  const schema = operation?.read_protocol === undefined ? operation?.output : undefined;
+  const output = part.read ? pluginSchemaAt(schema ?? { type: 'null' }, part.read.outputPath) : undefined;
   const items = output?.type === 'array' ? output.items : undefined;
   // A calendar needs records that carry a date; a confirmation fits an action that cannot be undone.
   const dated = items?.type === 'object' && Object.entries(items.properties ?? {}).some(([name, spec]) => spec.type === 'string' && (spec.format === 'date' || spec.format === 'date-time' || /date|day|日期/i.test(name)));

@@ -6,6 +6,7 @@ import type {
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 import { codingEventTypes } from "./events.js";
+import { createCodingPresentationHandlers } from "./presentation.js";
 import { codingManifest } from "./manifest.js";
 import { codingSkills } from "./skills.js";
 import { codingPrompts } from "./roles.js";
@@ -62,7 +63,7 @@ export function createCodingPlugin(ports: CodingPluginPorts = {}): PluginDefinit
         // The page's session directory is read from this store at render, not by the Host from Coding's tables.
         views: [codingUiView(() => toDirectoryEntries(sessions.list(context.project_id ?? ""), goalTitles.known)), codingSettingsContribution],
         routes: surface.routes,
-        actions: [...surface.actions, codingArtifactPreviewHandler, codingResultDocumentHandler(context), codingHomeBackgroundTasksHandler(context, sessions, startedAt)],
+        actions: [...surface.actions, ...createCodingPresentationHandlers(context.project_id ?? "", sessions, context.actor_id), codingArtifactPreviewHandler, codingResultDocumentHandler(context), codingHomeBackgroundTasksHandler(context, sessions, startedAt)],
       };
     },
     // The rounds' followers and the wake loop are the activation's jobs: the platform stops them before this runs (PG-038).

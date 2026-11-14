@@ -56,15 +56,17 @@ interface OwnerSpec {
   readonly removed: readonly string[];
 }
 
+// Batch 06 (N12): pinning commits in one transaction with the Home artifact row, so no interrupted publication waits for its owner to
+// resume it and `publication_owner` is gone from the four document plugins; each answers `unavailable` where no Home can pin.
 const SPECS: Readonly<Record<Owner, OwnerSpec>> = {
   pages: { pkg: "@molis-ai/molis-work-plugin-pages", declarations: "pagesErrors", removed: ["PagesError", "pagesRouteErrorResponse"],
-    status: { invalid: 400, body_too_large: 400, not_found: 404, conflict: 409, unavailable: 409, publication_pending: 409, publication_conflict: 409, publication_owner: 403, unsupported: 400 } },
+    status: { invalid: 400, body_too_large: 400, not_found: 404, conflict: 409, unavailable: 409, publication_pending: 409, publication_conflict: 409, unsupported: 400 } },
   ppt: { pkg: "@molis-ai/molis-work-plugin-ppt", declarations: "pptErrors", removed: ["PptError", "pptRouteErrorResponse"],
-    status: { invalid: 400, not_found: 404, conflict: 409, publication_pending: 409, publication_conflict: 409, publication_owner: 403 } },
+    status: { invalid: 400, not_found: 404, conflict: 409, unavailable: 409, publication_pending: 409, publication_conflict: 409 } },
   dataset: { pkg: "@molis-ai/molis-work-plugin-dataset", declarations: "datasetErrors", removed: ["DatasetError", "datasetRouteErrorResponse"],
-    status: { invalid: 400, not_found: 404, conflict: 409, publication_pending: 409, publication_conflict: 409, publication_owner: 403 } },
+    status: { invalid: 400, not_found: 404, conflict: 409, unavailable: 409, publication_pending: 409, publication_conflict: 409 } },
   form: { pkg: "@molis-ai/molis-work-plugin-form", declarations: "formErrors", removed: ["FormError", "formRouteErrorResponse"],
-    status: { invalid: 400, not_found: 404, conflict: 409, closed: 409, request_conflict: 409, publication_pending: 409, publication_conflict: 409, publication_owner: 403, answer_invalid: 400 } },
+    status: { invalid: 400, not_found: 404, conflict: 409, unavailable: 409, closed: 409, request_conflict: 409, publication_pending: 409, publication_conflict: 409, answer_invalid: 400 } },
   lingguang: { pkg: "@molis-ai/molis-work-plugin-lingguang", declarations: "lingguangErrors", removed: ["LingguangError", "lingguangRouteErrorResponse"],
     status: { invalid: 400, not_found: 404, conflict: 409, request_conflict: 409, context_too_large: 400, empty_reply: 400 } },
   workflows: { pkg: "@molis-ai/molis-work-plugin-workflows", declarations: "workflowsErrors", removed: ["WorkflowError", "workflowsRouteErrorResponse"],
@@ -249,6 +251,27 @@ test("real routes: a record that is not there is 404 <owner>.not_found at Pages,
   const sparks = await serveLingguang(t);
   const missingSpark = await sparks.request(`/${MISSING}`, { title: "x" });
   assert.deepEqual([missingSpark.status, (await missingSpark.json() as { code: string }).code], [404, "lingguang.not_found"]);
+});
+
+test("BSH-09 Runtime document routes reject mismatching query or body project fields without writing", async t => {
+  const home = await openTestHome(t);
+  const project = await home.createProject("Document request project");
+  const other = await home.createProject("Other document project");
+  const owners = [
+    ["dataset", "datasets", "数据表"], ["form", "forms", "问卷"], ["pages", "pages", "文档"],
+    ["ppt", "ppt", "演示稿"], ["lingguang", "sparks", "请求"],
+  ];
+  for (const [owner, route, label] of owners) {
+    const path = `/projects/${project.project_id}/api/plugins/io.molis.work.${owner}/${route}`;
+    const otherPath = `/projects/${other.project_id}/api/plugins/io.molis.work.${owner}/${route}`;
+    const refusal = { status: 403, code: "actions.scope_mismatch", message: `${label}项目与当前项目不一致` };
+    const before = await home.web.get(path);
+    const beforeOther = await home.web.get(otherPath);
+    await assert.rejects(home.web.post(`${path}?project_id=${encodeURIComponent(other.project_id)}`, { title: "Forbidden query", project_id: project.project_id }), refusal);
+    await assert.rejects(home.web.post(`${path}?project_id=${encodeURIComponent(project.project_id)}`, { title: "Forbidden body", project_id: other.project_id }), refusal);
+    assert.deepEqual(await home.web.get(path), before, owner);
+    assert.deepEqual(await home.web.get(otherPath), beforeOther, owner);
+  }
 });
 
 test("real routes: a change made on a stale version is 409 <owner>.conflict at Pages, PPT, Dataset, Form and Workflows", async t => {

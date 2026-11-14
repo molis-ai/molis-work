@@ -12,5 +12,5 @@ export const datasetErrors = defineErrorCodes("dataset", {
   /** Saving a 成果 was interrupted or conflicts with what the 成果库 holds; the table and the earlier record are kept. */
   publication_pending: "conflict",
   publication_conflict: "conflict",
-  publication_owner: "forbidden",
+  unavailable: "conflict",
 });

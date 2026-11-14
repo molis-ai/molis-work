@@ -47,15 +47,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:
-      # On a pull request, nightly and by hand on another branch, a shard that fails cancels the others still running or waiting: a
+      # On a pull request and by hand on another branch, a shard that fails cancels the others still running or waiting: a
       # red run reports its first failing file and frees the runners (user 2026-10-18). On an integration branch (`integration/**`,
       # pushed or run by hand) every shard runs to the end, so one red run lists every file that fails twice and the batch's
       # failures can be fixed at once, not one run each (user 2026-10-20; batch-1020-2 went red nine times in a row, a different
-      # single file each time). A roadmap batch (`batch/**`: its one pull request, or the branch run by hand) runs the same way: the
+      # single file each time). The nightly run on main runs every shard to the end too, so the issue it opens when red lists every
+      # failing file, not the first (user 2026-11-12). A roadmap batch (`batch/**`: its one pull request, or the branch run by hand) runs the same way: the
       # whole batch is tested once, so one run should list all its failures (user 2026-11-07, decision 31). Pushing a `batch/**`
       # branch does not start a run; it is pushed as a backup. The same condition drops `--bail` in "Run this shard"; change both
       # together.
-      fail-fast: ${{ !(startsWith(github.ref, 'refs/heads/integration/') || startsWith(github.ref, 'refs/heads/batch/') || startsWith(github.head_ref, 'batch/')) }}
+      fail-fast: ${{ !(github.event_name == 'schedule' || startsWith(github.ref, 'refs/heads/integration/') || startsWith(github.ref, 'refs/heads/batch/') || startsWith(github.head_ref, 'batch/')) }}
       # CIP-06: Team capacity is shared across runs. Keep at most 16 runners for these 32 shards;
       # each runner still has only two workers, one browser worker. Queue settings are unchanged.
       max-parallel: 16
@@ -155,7 +156,7 @@ jobs:
       - name: Run this shard
         shell: bash
         env:
-          BAIL: ${{ !(startsWith(github.ref, 'refs/heads/integration/') || startsWith(github.ref, 'refs/heads/batch/') || startsWith(github.head_ref, 'batch/')) && '--bail' || '' }}
+          BAIL: ${{ !(github.event_name == 'schedule' || startsWith(github.ref, 'refs/heads/integration/') || startsWith(github.ref, 'refs/heads/batch/') || startsWith(github.head_ref, 'batch/')) && '--bail' || '' }}
         run: node scripts/run-tests.mjs --skip-macos-only --shard ${{ matrix.shard }}/32 --timeout-seconds 900 --retries 1 $BAIL 2>&1 | tee "$RUNNER_TEMP/full-suite.log"
 
       # The runner's closing lines: files passed, the slowest, the flaky files, the failed files and the command that reruns only them.
@@ -171,6 +172,24 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
+      # The nightly report (the job below) lists the files that failed twice: each shard hands over its own list.
+      - name: Failed files of this shard
+        if: ${{ always() && github.event_name == 'schedule' }}
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/failed"
+          sed -n '/^failed (/,/^again:/p' "$RUNNER_TEMP/full-suite.log" 2>/dev/null | awk '$1 == "fail" { print $2 }' > "$RUNNER_TEMP/failed/shard-${{ matrix.shard }}.txt" || true
+          grep -q '^run-tests: [0-9]* of [0-9]* files passed' "$RUNNER_TEMP/full-suite.log" 2>/dev/null || echo "(shard ${{ matrix.shard }} did not finish)" >> "$RUNNER_TEMP/failed/shard-${{ matrix.shard }}.txt"
+
+      - name: Hand the list to the report
+        if: ${{ always() && github.event_name == 'schedule' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-suite-failed-${{ matrix.shard }}
+          path: ${{ runner.temp }}/failed/
+          retention-days: 7
+          if-no-files-found: ignore
+
   # One check for the whole suite, for an integration branch or a labelled pull request to read.
   result:
     name: Full suite
@@ -184,3 +203,53 @@ jobs:
         run: |
           echo "shards: $SHARDS_RESULT (each shard's summary lists its failed files and the command that reruns them)"
           test "$SHARDS_RESULT" = "success"
+
+  # A red night on main is somebody's to fix (user 2026-11-12): one open issue, "main 的夜间全量红了", lists every file that failed
+  # twice, the run, and the pull requests merged since the last green night; the batches that merged them fix it. A later red night
+  # comments on the same issue; the first green night closes it. Branch protection is unchanged: Verify still decides a merge, and a
+  # roadmap batch shows a green full suite (or only the known reds in tests/quarantine.json) before it is queued
+  # (docs/system/PARALLEL-DEVELOPMENT.md §3).
+  nightly-report:
+    name: Open or close the red-night issue
+    needs: [shard]
+    if: ${{ always() && github.event_name == 'schedule' && needs.shard.result != 'skipped' && needs.shard.result != 'cancelled' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+      actions: read
+    steps:
+      - uses: actions/download-artifact@v4
+        if: ${{ needs.shard.result == 'failure' }}
+        with:
+          pattern: full-suite-failed-*
+          path: ${{ runner.temp }}/failed
+          merge-multiple: true
+
+      - name: Open, add to or close the issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RESULT: ${{ needs.shard.result }}
+          SHA: ${{ github.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        shell: bash
+        run: |
+          title="main 的夜间全量红了"
+          open="$(gh issue list --state open --search "in:title \"$title\"" --json number --jq '.[0].number // empty')"
+          if [ "$RESULT" = "success" ]; then
+            if [ -n "$open" ]; then gh issue close "$open" --comment "夜间全量已转绿（${SHA:0:10}）：$RUN_URL"; fi
+            exit 0
+          fi
+          files="$(cat "$RUNNER_TEMP"/failed/*.txt 2>/dev/null | sort -u | sed 's/^/- /' || true)"
+          [ -n "$files" ] || files="- （没拿到名单，看各分片的 Summary）"
+          green="$(gh run list --workflow full-suite.yml --event schedule --branch main --status success --limit 1 --json headSha --jq '.[0].headSha // empty')"
+          if [ -n "$green" ]; then
+            merged="$(gh api "repos/$GH_REPO/compare/$green...$SHA" --jq '.commits[].commit.message | split("\n")[0]' | grep -E '\(#[0-9]+\)$' | sed 's/^/- /' | tail -n 40 || true)"
+            since="上次夜间绿（${green:0:10}）以来合入的："
+          else
+            merged=""; since="没找到上一次绿的夜间全量。"
+          fi
+          body="$(printf '夜间全量（%s）两次都红的文件：\n\n%s\n\nrun：%s\n\n%s\n\n%s\n\n由合入这些改动的批次认领修复，修好后在这里回复；做法见 docs/system/PARALLEL-DEVELOPMENT.md §3 与 §8.1。下一次夜间全量全绿时自动关闭。' "${SHA:0:10}" "$files" "$RUN_URL" "$since" "$merged")"
+          if [ -n "$open" ]; then gh issue comment "$open" --body "$body"; else gh issue create --title "$title" --body "$body"; fi

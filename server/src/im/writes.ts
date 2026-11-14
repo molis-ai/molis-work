@@ -1,10 +1,12 @@
 import { createHash, randomUUID } from "node:crypto";
 import { compareCodeUnits } from "@molis-ai/molis-work-plugin-sdk";
 import type { ImReadState, ImMessage, ImRoom, ImThreadState } from "@molis-ai/molis-work-contracts/services/im";
+import type { ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ImDatabase, ImEvents, ImSession } from "./types.js";
 import { clientId, ImError, textInput } from "./errors.js";
 import { invitationTokenHash } from "./invites.js";
 import { ImReads } from "./reads.js";
+import { messageBody } from "./subjects.js";
 
 export class ImWrites {
   constructor(private readonly db: ImDatabase, private readonly reads: ImReads, private readonly events: ImEvents) {}
@@ -72,11 +74,11 @@ export class ImWrites {
     return { room: this.reads.room(roomId) };
   }
 
-  createThread(roomId: string, memberId: string, body: Record<string, unknown>): ImThreadState {
+  createThread(roomId: string, memberId: string, body: Record<string, unknown>, subjects: readonly ActionSubject[]): ImThreadState {
     const title = textInput(body.title, "Thread 标题", 120);
     const source = body.source_message_id ? this.reads.message(roomId, textInput(body.source_message_id, "原消息", 100)) : null;
-    const firstBody = body.body === undefined ? null : textInput(body.body, "首条消息", 12_000);
-    if (!source && !firstBody) throw new ImError("im.empty_thread", "写下第一条消息再创建话题");
+    const firstBody = body.body === undefined && !subjects.length ? null : messageBody(body.body === undefined ? "" : body.body, subjects, "首条消息");
+    if (!source && firstBody === null) throw new ImError("im.empty_thread", "写下第一条消息再创建话题");
     if (source && source.thread_id !== null) throw new ImError("im.invalid_source", "请从群聊里的原消息开 Thread");
     const id = randomUUID(), now = new Date().toISOString();
     this.db.prepare(`INSERT INTO im_threads(id, room_id, title, source_message_id, created_by, created_at, updated_at)
@@ -87,14 +89,14 @@ export class ImWrites {
       .run(id, String(message.id), position));
     this.touch(roomId, now);
     this.event(roomId, "thread", id, id);
-    if (firstBody) this.insertMessage(roomId, id, memberId, firstBody, null);
+    if (firstBody !== null) this.insertMessage(roomId, id, memberId, firstBody, null, subjects);
     return this.reads.threadState(roomId, id);
   }
 
-  send(roomId: string, threadId: string | null, memberId: string, value: unknown, quoteId?: unknown): { message: ImMessage } {
+  send(roomId: string, threadId: string | null, memberId: string, value: unknown, subjects: readonly ActionSubject[], quoteId?: unknown): { message: ImMessage } {
     if (threadId) this.reads.thread(roomId, threadId);
     const quote = quoteId ? this.reads.message(roomId, textInput(quoteId, "引用消息", 100)) : null;
-    return this.insertMessage(roomId, threadId, memberId, textInput(value, "消息", 12_000), null, quote?.id ?? null);
+    return this.insertMessage(roomId, threadId, memberId, messageBody(value, subjects, "消息"), null, subjects, quote?.id ?? null);
   }
 
   share(roomId: string, threadId: string, memberId: string, body: Record<string, unknown>): { message: ImMessage } {
@@ -102,13 +104,13 @@ export class ImWrites {
     const reply = this.reads.message(roomId, textInput(body.message_id, "回复", 100));
     if (reply.thread_id !== threadId) throw new ImError("im.invalid_reply", "这条回复不属于当前 Thread");
     const note = body.body === undefined || body.body === "" ? "" : textInput(body.body, "分享说明", 12_000);
-    return this.insertMessage(roomId, null, memberId, note, reply.id);
+    return this.insertMessage(roomId, null, memberId, note, reply.id, []);
   }
 
-  private insertMessage(roomId: string, threadId: string | null, memberId: string, body: string, sharedId: string | null, quoteId: string | null = null): { message: ImMessage } {
+  private insertMessage(roomId: string, threadId: string | null, memberId: string, body: string, sharedId: string | null, subjects: readonly ActionSubject[], quoteId: string | null = null): { message: ImMessage } {
     const id = randomUUID(), now = new Date().toISOString();
-    this.db.prepare(`INSERT INTO im_messages(id, room_id, thread_id, author_id, body, shared_message_id, created_at, quote_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(id, roomId, threadId, memberId, body, sharedId, now, quoteId);
+    this.db.prepare(`INSERT INTO im_messages(id, room_id, thread_id, author_id, body, shared_message_id, created_at, quote_id, subjects_json)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(id, roomId, threadId, memberId, body, sharedId, now, quoteId, JSON.stringify(subjects));
     this.touch(roomId, now);
     if (threadId) this.db.prepare("UPDATE im_threads SET updated_at = ? WHERE id = ?").run(now, threadId);
     this.event(roomId, "message", id, threadId);

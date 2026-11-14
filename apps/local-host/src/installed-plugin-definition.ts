@@ -19,6 +19,7 @@ export interface InstalledDefinitionPorts {
   network: NonNullable<SandboxServices['network']>;
   /** Throws when the installation this identity names is no longer the running one. */
   assertInstalled(identity: Readonly<SandboxIdentity>): void;
+  grantedCapabilities(identity: Readonly<SandboxIdentity>): readonly string[];
   /** The earlier versions of a studio release a later one is compatible with; none for a package. */
   earlier(release: InstalledRelease): readonly number[];
   /** A project package's executor has no Home services; hold only its verified Agent declarations while this definition runs. */
@@ -52,7 +53,7 @@ export function installedDefinitions(ports: InstalledDefinitionPorts) {
         await context.beforeEffect?.(); context.signal.throwIfAborted(); ports.assertInstalled(context.identity);
       } });
       const sandbox = sandboxedPluginDefinition(release, release.permissions, [...ports.earlier(release)], {
-        capabilities: ports.callCatalog ?? ports.catalog, assertLive: ports.assertInstalled,
+        capabilities: ports.callCatalog ?? ports.catalog, assertLive: ports.assertInstalled, grantedCapabilities: ports.grantedCapabilities,
         backgroundLocale: () => lastUsedLocale(ports.home),
         capability: { async call(context, id, input) { const guarded = guard(context); await guarded.beforeEffect(); return capability.call(guarded, id, input); } },
         network: { async request(context, input, authorization) { const guarded = guard(context); await guarded.beforeEffect(); return ports.network.request(guarded, input, authorization); } },
@@ -70,7 +71,7 @@ export function installedDefinitions(ports: InstalledDefinitionPorts) {
         },
       } : sandbox;
       // The wrapper is what the Runtime holds, so it carries the same release's action source and switches (BL-701).
-      if (value !== sandbox) { rememberInstalledActionSource(value, release); projectInstalledPermissions(value, release); }
+      if (value !== sandbox) { rememberInstalledActionSource(value, release, ports.grantedCapabilities); projectInstalledPermissions(value, release); }
       definitions.set(keyOf(release), { pluginId: release.pluginId, value });
       return value;
     },

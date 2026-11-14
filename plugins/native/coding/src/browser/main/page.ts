@@ -26,7 +26,7 @@ import type { WriterDirectories } from "../writers.js";
 import type { WriterIntegration } from "../writer-integration.js";
 import type { CodingHost } from "./host.js";
 import type {
-  ArtifactRow, GoalChoice, GoalSummary, McpSourceRef, McpToolRef, ProgressView, SkillRef, ReportOutput, RunView, SessionConfiguration, SessionData, StateRead,
+  ArtifactRow, SessionRecord, GoalChoice, GoalSummary, McpSourceRef, McpToolRef, ProgressView, SkillRef, ReportOutput, RunView, SessionConfiguration, SessionData, StateRead,
 } from "./shapes.js";
 
 /** Everything the page remembers between one event and the next. */
@@ -61,8 +61,9 @@ export interface State {
   current: string;
   dialogueOffset: number;
   directoryClaimed: boolean;
+  archivedDirectory?: { rows: SessionRecord[]; next_cursor: string | null; loading: boolean };
   directoryGroups: Map<string, HTMLElement>;
-  directoryRows: Map<string, HTMLAnchorElement>;
+  directoryRows: Map<string, HTMLElement>;
   earlierFingerprint: string;
   earlierRuns: RunView[];
   earlierWatch: IntersectionObserver;
@@ -145,6 +146,7 @@ export interface WorktreeChoice { readonly worktree_id: string; readonly canonic
 
 /** The pieces the page is made of, each built once when the page mounts. */
 export interface Refs {
+  filesFace: import("./files-face.js").FilesFace;
   changeReview: ChangesetClient;
   codeSource: ReturnType<typeof createCodingCodePaint>["source"];
   commandsUi: CommandsClient;

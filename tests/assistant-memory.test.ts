@@ -7,12 +7,12 @@ import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-a
 import { LocalHost, MolisWorkLocalHost, AssistantService, installHostUiText } from "@molis-ai/molis-work-app-local-host";
 import { AssistantStore } from "@molis-ai/molis-work-app-local-host";
 import { assistantAuthority } from "@molis-ai/molis-work-app-local-host";
-import { ASSISTANT_STORE_NAME, memoryRuntimePolicy, memorySources } from "@molis-ai/molis-work-app-local-host";
+import { ASSISTANT_STORE_NAME, homeAgentDefinitions, memoryRuntimePolicy, memorySources } from "@molis-ai/molis-work-app-local-host";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { registerMemoryHost } from "../apps/local-host/dist/memory/memory-host.js";
 import type { AgentMemoryExecutionControl, AgentMemoryTools } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { MemoryService, recallKeywords, type MemoryServicePorts } from "@molis-ai/molis-work-service-memory";
-import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import { acquireStorageOwner, initializeMemoryForgetting, openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { ASSISTANT_INSTALL_ID, ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import { NOT_THEIRS, THEIRS } from "./fixtures/memory-said-cases.js";
 import { scriptedModelServer } from "./fixtures/connector-assistant-model.js";
@@ -28,7 +28,7 @@ function sendAsPerson(service: AssistantService, input: Parameters<AssistantServ
 }
 
 /** These semantic-tool cases use real accepted Runtime originals, not display-row text as source proof. */
-async function originalWork(adapter: Awaited<ReturnType<typeof createPrologueNodeAdapter>>, store: AssistantStore, title: string, text: string, existing?: ReturnType<AssistantStore["create"]>) {
+async function originalWork(memory: MemoryService, adapter: Awaited<ReturnType<typeof createPrologueNodeAdapter>>, store: AssistantStore, title: string, text: string, existing?: ReturnType<AssistantStore["create"]>) {
   const owner = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-a", plugin_id: ASSISTANT_PLUGIN_ID, install_id: ASSISTANT_INSTALL_ID };
   let work = existing ?? store.create({ actor_id: owner.actor_id, title, scope: { kind: "project", project_id: owner.project_id }, origin: null, project_ref: { project_id: owner.project_id, storage_key: "memory:a" } });
   const session = work.session_id ? (await adapter.readSession({ session_id: work.session_id, runtime_id: adapter.descriptor.runtime_id })).session
@@ -36,10 +36,16 @@ async function originalWork(adapter: Awaited<ReturnType<typeof createPrologueNod
   work = store.update(owner.actor_id, work.work_id, null, { session_id: session.session_id });
   const original_input = { input_id: crypto.randomUUID(), text, written_by: "person" as const, occurred_at: new Date().toISOString() };
   const run = await adapter.start({ ...owner, session, workspace: "none", task: text, role_id: "assistant", original_input,
-    role: { role_id: "assistant", workspace: "none", version: 1, execution: "read-only", prompts: [], host_tools: [] } });
+    role: { role_id: "assistant", workspace: "none", version: 1, execution: "read-only", prompts: [], host_tools: [],
+      memory: await memory.forRun({ actor_id: owner.actor_id, project_id: owner.project_id, consumer: "assistant" }, { query: text }) } });
   await until(async () => (await adapter.read(run.ref)).phase === "completed", "accepted canonical original");
   store.addRound(work.work_id, { run_id: run.ref.run_id, text, materials: [], context: null, started_at: original_input.occurred_at });
   return work;
+}
+
+async function toolsFor(service: AssistantService, work: Parameters<AssistantService["memory"]["memoryTools"]>[0]) {
+  await service.memory.memoryForRound(work, work.title);
+  return service.memory.memoryTools(work)!;
 }
 
 /** The automatic-memory precondition comes from two actual originals and the production candidate/promotion gates. */
@@ -47,14 +53,14 @@ async function gateKept(memory: MemoryService, adapter: Awaited<ReturnType<typeo
   const sources: Array<{ event_id: string; version: string }> = [];
   let work: Awaited<ReturnType<typeof originalWork>> | undefined;
   for (let index = 0; index < 2; index++) {
-    work = await originalWork(adapter, store, `原始表态 ${index + 1}`, text);
+    work = await originalWork(memory, adapter, store, `原始表态 ${index + 1}`, text);
     const view = await adapter.readSession({ session_id: work.session_id!, runtime_id: adapter.descriptor.runtime_id });
     const original = view.latest_run!.original_input!;
     assert.equal(view.latest_run!.phase, "completed"); assert.equal(original.written_by, "person"); assert.equal(original.text, text);
     sources.push({ event_id: "molis-input:1:" + JSON.stringify([LOCAL_PERSON_ACTOR_ID, original.ref.session_id, "original", original.ref.input_id]), version: "1" });
   }
   const caller = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-a", consumer: "assistant" as const, session_id: work!.session_id!,
-    source_use: "learning" as const, work: { work_id: work!.work_id, title: work!.title } };
+    source_use: "learning" as const, class_restrictions: (await adapter.readSession({ session_id: work!.session_id!, runtime_id: adapter.descriptor.runtime_id })).latest_run!.class_restrictions, work: { work_id: work!.work_id, title: work!.title } };
   const input = { scope: "personal" as const, text, kind: "preference" as const, basis: "repeated" as const, why: "两份本人原件都这样要求", from: "extraction" as const };
   const candidate = await memory.propose(caller, input, { sources });
   const kept = await memory.offer(caller, { ...input, candidate_id: candidate.candidate_id });
@@ -88,13 +94,15 @@ async function suggestedCard(call: Promise<unknown>, message?: string) {
 }
 
 function platformMemory(host: AgentHost, home: string, t: { after(fn: () => void): void }) {
+  const storageOwner = acquireStorageOwner(join(home, "agent-runtime"));
+  initializeMemoryForgetting({ homeDirectory: home, storageOwner, assertCurrent() {} });
   const db = openHomeSqliteDatabase(home, ASSISTANT_STORE_NAME);
   const store = new AssistantStore(db);
   const localHost = new MolisWorkLocalHost({ completeText: null });
-  const registered = registerMemoryHost({ localHost, homeDirectory: home, agentHost: host, ready: async () => {}, executes: () => true,
+  const registered = registerMemoryHost({ localHost, homeDirectory: home, storageOwner, agentHost: host, ready: async () => {}, executes: () => true,
     projectExists: async projectId => projectId === "project-a" || projectId === "project-b",
     projectTitle: async id => id === "project-a" ? "项目甲" : "项目乙" });
-  t.after(async () => { registered.close(); db.close(); await localHost.close(); });
+  t.after(async () => { registered.close(); db.close(); await localHost.close(); storageOwner.release(); });
   const memory = registered.service, policy = registered.policy;
   const memoryPolicy = { ...memoryRuntimePolicy(() => policy), sources: memorySources(home, () => ({
     adapter: host.adapter("prologue"), policy, sourceAllowed: (actor, scope, owner, refs) => memory.sourceAllowed(actor, scope, owner, refs),
@@ -103,7 +111,7 @@ function platformMemory(host: AgentHost, home: string, t: { after(fn: () => void
       && owner.plugin_id === ASSISTANT_PLUGIN_ID && owner.install_id === ASSISTANT_INSTALL_ID,
   })), promotion: memory.promotion };
   const memoryForCall = (...execution: [] | [AgentMemoryExecutionControl, NonNullable<MemoryServicePorts["bindChangeTarget"]>]) => execution.length ? registered.withExecution(...execution) : memory;
-  return { memory, memoryPolicy, store, memoryForCall };
+  return { memory, memoryPolicy, store, memoryForCall, storageOwner };
 }
 
 async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<NonNullable<T>> {
@@ -139,8 +147,8 @@ test("what the person asks to keep is remembered in Prologue Memory, recalled on
     return (script.shift() ?? (() => reply()))(body);
   });
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
-  const { memory, memoryPolicy, store, memoryForCall } = platformMemory(host, home, t);
-  const adapter = await createPrologueNodeAdapter({ memory: memoryPolicy, app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+  const { storageOwner, memory, memoryPolicy, store, memoryForCall } = platformMemory(host, home, t);
+  const adapter = await createPrologueNodeAdapter({ memory: memoryPolicy, app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "agent-runtime"), storageOwner, reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
   const service: AssistantService = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
@@ -166,6 +174,14 @@ test("what the person asks to keep is remembered in Prologue Memory, recalled on
     assert.deepEqual(learned.find(item => item.work === first.work.work_id)!.said, ["项目甲里 NSM 指北极星指标"]);
     assert.deepEqual(learned.find(item => item.work === first.work.work_id)!.sources, [{ run_id: store.rounds(first.work.work_id)[0]!.run_id, input_id: null, version: "1", original: { session_id: first.work.session_id, input_id: "req-memory-001", version: 1 } }], "the Host hands off the immutable original identity beside the text");
     assert.ok(first.first.tools.some((tool: { name: string }) => tool.name === "remember"), "the round may remember");
+    const frozen = (await adapter.readSession({ session_id: first.work.session_id! })).latest_run!.frozen;
+    const system = typeof first.first.system === "string" ? first.first.system : first.first.system.map((block: { text: string }) => block.text).join("\n");
+    for (const [promptId, version] of [["assistant-base", 5], ["assistant-work", 3]] as const) {
+      const registered = homeAgentDefinitions(home).prompt(`${ASSISTANT_PLUGIN_ID}/${promptId}`);
+      assert.equal(registered.default_version, version, "the public prompt registry declares the current version (phase one edits in place: docs/system/CONTRACT-CHANGES.md §3)");
+      assert.equal(frozen.prompts.find(prompt => prompt.prompt_id === promptId)!.version, version, "the Run freezes the current registered version");
+      assert.ok(system.includes(registered.default_body), "the dispatched request carries the complete registered body; this does not test model interpretation");
+    }
     script.push(
       () => reply({ name: "remember", input: { text: "回答用要点列表", scope: "personal", said: "回答用要点列表" } }),
       () => reply(undefined, "记下了：回答用要点列表（个人）。"));
@@ -199,7 +215,7 @@ test("what the person asks to keep is remembered in Prologue Memory, recalled on
     assert.deepEqual(inBView.rounds[0]!.memories_used?.used.map(item => [item.scope, item.text]), [["personal", "回答用要点列表"]]);
     const firstView = await service.read(first.work.work_id);
     assert.deepEqual(firstView.memory_changes?.map(change => [change.kind, change.text, change.undoable]).sort(),
-      [["kept", "回答用要点列表", false], ["kept", "项目甲里 NSM 指北极星指标", false]]);
+      [["kept", "回答用要点列表", true], ["kept", "项目甲里 NSM 指北极星指标", true]], "what the person asked to keep can be undone from the work");
     // Project A's work sees both.
     const inA = await round("NSM 这周怎么样", projectA, "req-memory-003");
     assert.match(recalled(inA.first), /memory-recall[\s\S]{0,400}项目甲里 NSM 指北极星指标/);
@@ -277,8 +293,8 @@ test("a work suggests keeping a lesson only where the person allows it; nothing 
     return (script.shift() ?? (() => reply()))(body);
   }));
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
-  const { memoryPolicy, store, memoryForCall } = platformMemory(host, home, t);
-  const adapter = await createPrologueNodeAdapter({ memory: memoryPolicy, app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+  const { storageOwner, memoryPolicy, store, memoryForCall } = platformMemory(host, home, t);
+  const adapter = await createPrologueNodeAdapter({ memory: memoryPolicy, app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "agent-runtime"), storageOwner, reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
   const service: AssistantService = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
@@ -343,8 +359,8 @@ test("memory switches hold the same when a Character carries the round; turning 
     return (script.shift() ?? (() => reply()))(body);
   });
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
-  const { memoryPolicy, store, memoryForCall } = platformMemory(host, home, t);
-  const adapter = await createPrologueNodeAdapter({ memory: memoryPolicy, app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+  const { storageOwner, memoryPolicy, store, memoryForCall } = platformMemory(host, home, t);
+  const adapter = await createPrologueNodeAdapter({ memory: memoryPolicy, app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "agent-runtime"), storageOwner, reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
   const editor = { character_id: "editor", title: "严格的编辑", instructions: "你是严格的编辑：每次回答先列出三处可改进的地方。", host_tools: null,
@@ -439,8 +455,8 @@ test("a claim of keeping made before the call that then failed is held at the en
     return (script.shift() ?? (() => reply()))(body);
   });
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
-  const { memoryPolicy, store, memoryForCall } = platformMemory(host, home, t);
-  const adapter = await createPrologueNodeAdapter({ memory: memoryPolicy, app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+  const { storageOwner, memoryPolicy, store, memoryForCall } = platformMemory(host, home, t);
+  const adapter = await createPrologueNodeAdapter({ memory: memoryPolicy, app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "agent-runtime"), storageOwner, reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
   // Memory is the platform memory service, as in the tests above: the remember tool goes through its write gate.
@@ -458,6 +474,7 @@ test("a claim of keeping made before the call that then failed is held at the en
   } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
 
+// MEM-32: a round that cannot run prepares no memory and carries no recall into the next round.
 test("a round with no configured model never prepares memory or sends a model request, and does not carry its recipe receipt into the next round", { timeout: 90_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-memory-start-"));
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
@@ -466,14 +483,14 @@ test("a round with no configured model never prepares memory or sends a model re
   const modelFetch = t.mock.method(globalThis, "fetch", answeringEndingReviews(text => reply(undefined, text), async (_url: unknown, init: RequestInit) => (script.shift() ?? (() => reply()))(JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array)))));
   const flags = { model: true };
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
-  const { memory, memoryPolicy, store, memoryForCall } = platformMemory(host, home, t);
+  const { storageOwner, memory, memoryPolicy, store, memoryForCall } = platformMemory(host, home, t);
   const preparedReceipts: string[] = [], forRun = memory.forRun.bind(memory);
   t.mock.method(memory, "forRun", async (...args: Parameters<MemoryService["forRun"]>) => {
     const recipe = await forRun(...args);
     if (recipe) preparedReceipts.push(recipe.receipt_id);
     return recipe;
   });
-  const adapter = await createPrologueNodeAdapter({ memory: memoryPolicy, app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+  const adapter = await createPrologueNodeAdapter({ memory: memoryPolicy, app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "agent-runtime"), storageOwner, reviewQueue: queue,
     modelConfiguration: async () => flags.model ? { protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" } : null, resolveCredential: () => "fixture-only" });
   host.register(adapter);
   const service: AssistantService = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
@@ -512,16 +529,16 @@ test("a round with no configured model never prepares memory or sends a model re
 test("remember takes 'you said' only from the person's own messages in this work, whole; forget switches a memory off instead of deleting it", { timeout: 90_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-memory-tools-"));
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
-  const { memory, memoryPolicy, store, memoryForCall } = platformMemory(host, home, t);
+  const { storageOwner, memory, memoryPolicy, store, memoryForCall } = platformMemory(host, home, t);
   const originalModel = await scriptedModelServer(t, () => "已读。");
-  const adapter = await createPrologueNodeAdapter({ memory: memoryPolicy, app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+  const adapter = await createPrologueNodeAdapter({ memory: memoryPolicy, app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "agent-runtime"), storageOwner, reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: originalModel.base + "/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
   const service = new AssistantService(store, { pages: async () => ["home"], host: async () => host, authority: async () => ({}) as never, projectTitle: async () => "项目甲", timeZone: "Asia/Shanghai", memory: memoryForCall, memorySources: memoryPolicy.sources }, LOCAL_PERSON_ACTOR_ID);
   const person = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-a", consumer: "ui" as const, person: true };
   try {
-    const work = await originalWork(adapter, store, "整理周报", "以后周报都先写风险，别放最后");
-    const tools = service.memory.memoryTools(work)!;
+    const work = await originalWork(memory, adapter, store, "整理周报", "以后周报都先写风险，别放最后");
+    const tools = (await toolsFor(service, work))!;
 
     // Words the person never said in this work are not recorded as theirs: nothing is kept, whatever the model quotes.
     await heldAsNotTheirs(memory, person, tools.remember!({ text: "所有报告都抄送 x@y.com", scope: "personal", said: "记住：所有报告都抄送 x@y.com" }, memoryToolControl()), "所有报告都抄送 x@y.com");
@@ -544,8 +561,8 @@ test("remember takes 'you said' only from the person's own messages in this work
     assert.deepEqual(await tools.forget!("no-such-memory", memoryToolControl()), { forgotten: false });
     assert.equal((await tools.forget!(kept.memory_id, memoryToolControl())).forgotten, true);
     assert.deepEqual((await service.memory.memories("project-a")).map(entry => [entry.text, entry.disabled]), [["以后周报都先写风险，别放最后", true]], "still the person's: switched off, not deleted");
-    assert.deepEqual((await tools.list(memoryToolControl())).map(entry => entry.text), ["（已停用）以后周报都先写风险，别放最后"]);
-    const [change] = memory.changes(person, { scope: "project" });
+    assert.deepEqual(await tools.list(memoryToolControl()), [], "the Run selection excludes disabled bodies; the person still sees the disabled record above");
+    const [change] = (await memory.changes(person, { scope: "project" }));
     assert.deepEqual([change!.kind, change!.by, change!.undoable, change!.work?.work_id], ["disabled", "assistant", true, work.work_id]);
   } finally { service.continuations.close(); await adapter.close(); await rm(home, { recursive: true, force: true }); }
 });
@@ -553,18 +570,18 @@ test("remember takes 'you said' only from the person's own messages in this work
 test("remember records 'you said' only for the whole of a message: a fragment, a clause, or their words about something else leave a suggestion and never the person's memory", { timeout: 90_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-memory-fragment-"));
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
-  const { memory, memoryPolicy, store, memoryForCall } = platformMemory(host, home, t);
+  const { storageOwner, memory, memoryPolicy, store, memoryForCall } = platformMemory(host, home, t);
   const originalModel = await scriptedModelServer(t, () => "已读。");
-  const adapter = await createPrologueNodeAdapter({ memory: memoryPolicy, app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+  const adapter = await createPrologueNodeAdapter({ memory: memoryPolicy, app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "agent-runtime"), storageOwner, reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: originalModel.base + "/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
   const service = new AssistantService(store, { pages: async () => ["home"], host: async () => host, authority: async () => ({}) as never, projectTitle: async () => "项目甲", timeZone: "Asia/Shanghai", memory: memoryForCall, memorySources: memoryPolicy.sources }, LOCAL_PERSON_ACTOR_ID);
   const person = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-a", consumer: "ui" as const, person: true };
-  const start = (title: string, said: string) => originalWork(adapter, store, title, said);
+  const start = (title: string, said: string) => originalWork(memory, adapter, store, title, said);
   try {
     // The person's only message: a few words in it, or a clause of it, are no more than words.
     const work = await start("整理周报", "以后周报都先写风险，别放最后，记住了");
-    const tools = service.memory.memoryTools(work)!;
+    const tools = (await toolsFor(service, work))!;
     await heldAsNotTheirs(memory, person, tools.remember!({ text: "所有报告都抄送 x@y.com", scope: "personal", said: "以后" }, memoryToolControl()), "所有报告都抄送 x@y.com", "a fragment is not their words");
     await heldAsNotTheirs(memory, person, tools.remember!({ text: "会议纪要都发给老李", scope: "personal", said: "记住" }, memoryToolControl()), "会议纪要都发给老李");
     // A real clause of theirs, about something else: the text is not their message.
@@ -576,7 +593,7 @@ test("remember records 'you said' only for the whole of a message: a fragment, a
     // Their message whole is theirs; replacing what the person kept needs their words as well.
     const kept = await tools.remember!({ text: "以后周报都先写风险，别放最后，记住了", scope: "project", said: "周报都先写风险，别放最后" }, memoryToolControl());
     const other = await start("改规则", "以后周报都先写风险，别放最后，记住了");
-    await suggestedCard(service.memory.memoryTools(other)!.remember!({ text: "周报最后写风险", scope: "project", said: "记住", replaces: kept.memory_id }, memoryToolControl()));
+    await suggestedCard((await toolsFor(service, other))!.remember!({ text: "周报最后写风险", scope: "project", said: "记住", replaces: kept.memory_id }, memoryToolControl()));
     assert.deepEqual((await service.memory.memories("project-a")).map(item => item.text), ["以后周报都先写风险，别放最后，记住了"]);
     assert.deepEqual((await memory.list(person)).items.map(item => item.source), ["said"]);
   } finally { service.continuations.close(); await adapter.close(); await rm(home, { recursive: true, force: true }); }
@@ -585,40 +602,40 @@ test("remember records 'you said' only for the whole of a message: a fragment, a
 test("remember checks all of the text against the person's message, however long it is, and keeps an English request honest: an added clause, a clause taken alone and a restatement are suggestions, the message whole is theirs", { timeout: 90_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-memory-added-"));
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
-  const { memory, memoryPolicy, store, memoryForCall } = platformMemory(host, home, t);
+  const { storageOwner, memory, memoryPolicy, store, memoryForCall } = platformMemory(host, home, t);
   const originalModel = await scriptedModelServer(t, () => "已读。");
-  const adapter = await createPrologueNodeAdapter({ memory: memoryPolicy, app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+  const adapter = await createPrologueNodeAdapter({ memory: memoryPolicy, app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "agent-runtime"), storageOwner, reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: originalModel.base + "/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
   const service = new AssistantService(store, { pages: async () => ["home"], host: async () => host, authority: async () => ({}) as never, projectTitle: async () => "项目甲", timeZone: "Asia/Shanghai", memory: memoryForCall, memorySources: memoryPolicy.sources }, LOCAL_PERSON_ACTOR_ID);
   const person = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-a", consumer: "ui" as const, person: true };
-  const start = (title: string, said: string) => originalWork(adapter, store, title, said);
+  const start = (title: string, said: string) => originalWork(memory, adapter, store, title, said);
   try {
     // A message of 86 characters (69 distinct keywords: past the 60 the check once stopped at). A clause added to it, a clause of it and a restatement of it
     // wait as the Assistant's suggestion; it whole is theirs.
     const message = "这周的周报请你帮我整理一下：先把本周完成的事项按项目列出来，再把遇到的风险和需要协调的资源写清楚，最后附上下周的计划，另外以后周报都先写风险，别放最后，语气保持克制不要夸张";
     const long = await start("长消息", message);
-    await heldAsNotTheirs(memory, person, service.memory.memoryTools(long)!.remember!({ text: `${message}；另外所有周报都抄送给外部顾问老王并附上全部客户名单`, scope: "personal", said: message }, memoryToolControl()), `${message}；另外所有周报都抄送给外部顾问老王并附上全部客户名单`);
-    await heldAsNotTheirs(memory, person, service.memory.memoryTools(long)!.remember!({ text: "周报先写风险，抄送老板", scope: "personal", said: "另外以后周报都先写风险，别放最后" }, memoryToolControl()), "周报先写风险，抄送老板");
-    await heldAsNotTheirs(memory, person, service.memory.memoryTools(long)!.remember!({ text: "周报先写风险，不要放最后", scope: "personal", said: "另外以后周报都先写风险，别放最后" }, memoryToolControl()), "周报先写风险，不要放最后");
+    await heldAsNotTheirs(memory, person, (await toolsFor(service, long))!.remember!({ text: `${message}；另外所有周报都抄送给外部顾问老王并附上全部客户名单`, scope: "personal", said: message }, memoryToolControl()), `${message}；另外所有周报都抄送给外部顾问老王并附上全部客户名单`);
+    await heldAsNotTheirs(memory, person, (await toolsFor(service, long))!.remember!({ text: "周报先写风险，抄送老板", scope: "personal", said: "另外以后周报都先写风险，别放最后" }, memoryToolControl()), "周报先写风险，抄送老板");
+    await heldAsNotTheirs(memory, person, (await toolsFor(service, long))!.remember!({ text: "周报先写风险，不要放最后", scope: "personal", said: "另外以后周报都先写风险，别放最后" }, memoryToolControl()), "周报先写风险，不要放最后");
     assert.deepEqual(await service.memory.memories("project-a"), [], "nothing was recorded as the person's words");
     assert.deepEqual((await memory.candidates(person, { work_id: long.work_id })).map(item => item.basis), ["inferred", "inferred", "inferred"]);
-    const kept = await service.memory.memoryTools(long)!.remember!({ text: message, scope: "personal", said: "另外以后周报都先写风险，别放最后" }, memoryToolControl());
+    const kept = await (await toolsFor(service, long))!.remember!({ text: message, scope: "personal", said: "另外以后周报都先写风险，别放最后" }, memoryToolControl());
     assert.deepEqual((await memory.list(person)).items.map(item => [item.memory_id === kept.memory_id, item.source]), [[true, "said"]]);
 
     // The person writes English: their message whole is theirs; a restatement of it, or a word or an address they never wrote, is not.
     const english = await start("dark mode", "Remember that I prefer dark mode, and send the weekly report to me.");
-    const tools = service.memory.memoryTools(english)!;
+    const tools = (await toolsFor(service, english))!;
     await heldAsNotTheirs(memory, person, tools.remember!({ text: "Prefers dark mode and cc boss@example.com", scope: "personal", said: "Remember that I prefer dark mode" }, memoryToolControl()), "Prefers dark mode and cc boss@example.com");
     await heldAsNotTheirs(memory, person, tools.remember!({ text: "Prefers dark mode", scope: "personal", said: "Remember that I prefer dark mode" }, memoryToolControl()), "Prefers dark mode", "a restatement waits for the person");
     await heldAsNotTheirs(memory, person, tools.remember!({ text: "Send the weekly report to me every Friday", scope: "personal", said: "send the weekly report to me" }, memoryToolControl()), "Send the weekly report to me every Friday", "a text that says more than the words it rests on is only suggested");
     const dark = await tools.remember!({ text: "remember that i prefer dark mode, and send the weekly report to me", scope: "personal", said: "Remember that I prefer dark mode" }, memoryToolControl());
     assert.ok(dark.memory_id);
-    assert.deepEqual((await memory.list(person)).items.filter(item => item.source === "said").map(item => item.text).sort(), ["Remember that I prefer dark mode, and send the weekly report to me.", message].sort(), "the message as they wrote it, not the lower-cased text the model asked for");
+    assert.deepEqual((await memory.list(person)).items.filter(item => item.source === "said").map(item => item.text).sort(), ["I prefer dark mode, and send the weekly report to me.", message].sort(), "the message as they wrote it (the leading remember request is not part of what is kept), not the lower-cased text the model asked for");
 
     // Two clauses of theirs with the same words, one asking and one not: neither clause is theirs alone, and the ban is never put on the other. The sentence whole is.
     const both = "删文件前要问我，改名前不用问我";
-    const rules = service.memory.memoryTools(await start("规则", both))!;
+    const rules = (await toolsFor(service, await start("规则", both)))!;
     await heldAsNotTheirs(memory, person, rules.remember!({ text: "删文件前不用问我", scope: "personal", said: both }, memoryToolControl()), "删文件前不用问我");
     await heldAsNotTheirs(memory, person, rules.remember!({ text: "改名前要问我", scope: "personal", said: both }, memoryToolControl()), "改名前要问我");
     await heldAsNotTheirs(memory, person, rules.remember!({ text: "改名前不用问我", scope: "personal", said: both }, memoryToolControl()), "改名前不用问我", "one of the two clauses, as they said it, is not their sentence");
@@ -632,14 +649,14 @@ test("remember checks all of the text against the person's message, however long
 test("remember judges the text against the messages the Host saved, not against the quote the model gives: every reversed, narrowed or added request found in review leaves a suggestion and never the person's words; the message whole is theirs", { timeout: 120_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-memory-saved-"));
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
-  const { memory, memoryPolicy, store, memoryForCall } = platformMemory(host, home, t);
+  const { storageOwner, memory, memoryPolicy, store, memoryForCall } = platformMemory(host, home, t);
   const originalModel = await scriptedModelServer(t, () => "已读。");
-  const adapter = await createPrologueNodeAdapter({ memory: memoryPolicy, app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+  const adapter = await createPrologueNodeAdapter({ memory: memoryPolicy, app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "agent-runtime"), storageOwner, reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: originalModel.base + "/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
   const service = new AssistantService(store, { pages: async () => ["home"], host: async () => host, authority: async () => ({}) as never, projectTitle: async () => "项目甲", timeZone: "Asia/Shanghai", memory: memoryForCall, memorySources: memoryPolicy.sources }, LOCAL_PERSON_ACTOR_ID);
   const person = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-a", consumer: "ui" as const, person: true };
-  const start = (title: string, said: string) => originalWork(adapter, store, title, said);
+  const start = (title: string, said: string) => originalWork(memory, adapter, store, title, said);
   try {
     // [what the person wrote (the Host's saved round), the text the model asks to keep, the quote it gives as theirs]: the quote is cut out of the message, has a comma or a space the message has not, or is the message itself.
     const quotes: Array<[string, string, string]> = [
@@ -648,12 +665,12 @@ test("remember judges the text against the messages the Host saved, not against 
       ["Never auto-archive the old tickets", "Auto-archive the old tickets", "auto-archive the old tickets"],
     ];
     for (const [index, [message, text, said]] of quotes.entries()) {
-      await suggestedCard(service.memory.memoryTools(await start(`引文${index}`, message))!.remember!({ text, scope: "project", said }, memoryToolControl()), `${text} / ${message}`);
+      await suggestedCard((await toolsFor(service, await start(`引文${index}`, message)))!.remember!({ text, scope: "project", said }, memoryToolControl()), `${text} / ${message}`);
     }
     // Everything the last two re-reviews found: a ban before a colon or in a header above a list, a verdict after the words, a word that removes or stops something,
     // the front of a sentence before a number, a one-off made a rule, a ban or an exception dropped, a project's name put in.
     for (const [index, [message, text]] of NOT_THEIRS.entries()) {
-      await suggestedCard(service.memory.memoryTools(await start(`反着说${index}`, message))!.remember!({ text, scope: "project", said: message }, memoryToolControl()), `${text} / ${message}`);
+      await suggestedCard((await toolsFor(service, await start(`反着说${index}`, message)))!.remember!({ text, scope: "project", said: message }, memoryToolControl()), `${text} / ${message}`);
     }
     assert.deepEqual(await service.memory.memories("project-a"), [], "nothing was recorded as the person's words");
     assert.deepEqual((await memory.list(person)).items.map(item => item.source), []);
@@ -661,16 +678,16 @@ test("remember judges the text against the messages the Host saved, not against 
 
     // The same messages whole, with the small differences that do not count, are theirs; the memory is the message as they wrote it (its text and its evidence), whatever the model asked for or quoted.
     for (const [index, [message, text]] of THEIRS.entries()) {
-      const result = await service.memory.memoryTools(await start(`原样${index}`, message))!.remember!({ text, scope: "project", said: index % 2 ? message.slice(0, 6) : message }, memoryToolControl());
+      const result = await (await toolsFor(service, await start(`原样${index}`, message)))!.remember!({ text, scope: "project", said: index % 2 ? message.slice(0, 6) : message }, memoryToolControl());
       const item = (await memory.list(person)).items.find(entry => entry.memory_id === result.memory_id)!;
       assert.deepEqual([item.text, item.source, item.evidence.map(evidence => evidence.text)], [message.trim(), "said", [message.trim()]], text);
     }
 
     // The same text said in two of their messages: the same words twice are theirs; once whole and once inside a message that goes on or says no, they are not.
-    const twice = async (title: string, first: string, second: string) => originalWork(adapter, store, title, second, await start(title, first));
-    await suggestedCard(service.memory.memoryTools(await twice("两次不一样", "自动清理旧日志", "不要自动清理旧日志"))!.remember!({ text: "自动清理旧日志", scope: "project", said: "自动清理旧日志" }, memoryToolControl()));
-    await suggestedCard(service.memory.memoryTools(await twice("两次也不一样", "自动清理旧快照", "自动清理旧快照的功能怎么样了"))!.remember!({ text: "自动清理旧快照", scope: "project", said: "自动清理旧快照" }, memoryToolControl()));
-    const agreed = await service.memory.memoryTools(await twice("两次一样", "自动清理旧缓存", "自动清理旧缓存。"))!.remember!({ text: "自动清理旧缓存", scope: "project", said: "自动清理旧缓存" }, memoryToolControl());
+    const twice = async (title: string, first: string, second: string) => originalWork(memory, adapter, store, title, second, await start(title, first));
+    await suggestedCard((await toolsFor(service, await twice("两次不一样", "自动清理旧日志", "不要自动清理旧日志")))!.remember!({ text: "自动清理旧日志", scope: "project", said: "自动清理旧日志" }, memoryToolControl()));
+    await suggestedCard((await toolsFor(service, await twice("两次也不一样", "自动清理旧快照", "自动清理旧快照的功能怎么样了")))!.remember!({ text: "自动清理旧快照", scope: "project", said: "自动清理旧快照" }, memoryToolControl()));
+    const agreed = await (await toolsFor(service, await twice("两次一样", "自动清理旧缓存", "自动清理旧缓存。")))!.remember!({ text: "自动清理旧缓存", scope: "project", said: "自动清理旧缓存" }, memoryToolControl());
     assert.equal((await memory.list(person)).items.find(entry => entry.memory_id === agreed.memory_id)!.source, "said");
   } finally { service.continuations.close(); await adapter.close(); await rm(home, { recursive: true, force: true }); }
 });
@@ -678,18 +695,18 @@ test("remember judges the text against the messages the Host saved, not against 
 test("remember cannot turn a memory the gate kept itself into the person's words with a short reply that carries none of the text, even when it names that memory as the one it corrects", { timeout: 90_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-memory-lent-"));
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
-  const { memory, memoryPolicy, store, memoryForCall } = platformMemory(host, home, t);
+  const { storageOwner, memory, memoryPolicy, store, memoryForCall } = platformMemory(host, home, t);
   const originalModel = await scriptedModelServer(t, () => "已读。");
-  const adapter = await createPrologueNodeAdapter({ memory: memoryPolicy, app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+  const adapter = await createPrologueNodeAdapter({ memory: memoryPolicy, app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "agent-runtime"), storageOwner, reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: originalModel.base + "/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
   const service = new AssistantService(store, { pages: async () => ["home"], host: async () => host, authority: async () => ({}) as never, projectTitle: async () => "项目甲", timeZone: "Asia/Shanghai", memory: memoryForCall, memorySources: memoryPolicy.sources }, LOCAL_PERSON_ACTOR_ID);
   const person = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-a", consumer: "ui" as const, person: true };
-  const start = (title: string, said: string) => originalWork(adapter, store, title, said);
+  const start = (title: string, said: string) => originalWork(memory, adapter, store, title, said);
   try {
     // The gate kept this one itself (asked for twice). The person's only message in this work is "好的", a whole message and so a real quote.
     const auto = await gateKept(memory, adapter, store, "周报都抄送老王");
-    const tools = service.memory.memoryTools(await start("确认", "好的"))!;
+    const tools = (await toolsFor(service, await start("确认", "好的")))!;
     // Correcting it with the words it already has: the text is not in the quote, so it waits for the person and the memory stays the gate's.
     await suggestedCard(tools.remember!({ text: "周报抄送老王", scope: "personal", said: "好的", replaces: auto.memory!.memory_id }, memoryToolControl()));
     // Saying it again with the same text: it is already kept, and nothing becomes the person's.
@@ -697,7 +714,7 @@ test("remember cannot turn a memory the gate kept itself into the person's words
     assert.equal(again.memory_id, auto.memory!.memory_id);
     assert.match(again.note ?? "", /已经记着/);
     assert.deepEqual((await memory.list(person)).items.map(item => [item.text, item.source]), [["周报都抄送老王", "auto"]]);
-    assert.equal(memory.changes(person, { scope: "personal" }).find(item => item.change_id === auto.change_id)!.undoable, true, "and the gate's own write can still be taken back");
+    assert.equal((await memory.changes(person, { scope: "personal" })).find(item => item.change_id === auto.change_id)!.undoable, true, "and the gate's own write can still be taken back");
     assert.deepEqual((await memory.candidates(person, { scope: "personal" })).map(item => [item.text, item.basis]), [["周报抄送老王", "inferred"]], "the correction waits as the Assistant's suggestion");
   } finally { service.continuations.close(); await adapter.close(); await rm(home, { recursive: true, force: true }); }
 });
@@ -729,8 +746,8 @@ test("a delegated sub-task is given neither remember nor forget: its words are t
     return (parentScript[parentStep++] ?? (() => reply(undefined, "完成。")))();
   });
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
-  const { memoryPolicy, store, memoryForCall } = platformMemory(host, home, t);
-  const adapter = await createPrologueNodeAdapter({ memory: memoryPolicy, app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+  const { storageOwner, memoryPolicy, store, memoryForCall } = platformMemory(host, home, t);
+  const adapter = await createPrologueNodeAdapter({ memory: memoryPolicy, app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "agent-runtime"), storageOwner, reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
   const service: AssistantService = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
@@ -744,8 +761,8 @@ test("a delegated sub-task is given neither remember nor forget: its words are t
     assert.ok(parentTools[0]!.includes("remember") && parentTools[0]!.includes("forget-memory"), "the person's own work may keep and forget");
     assert.ok(childTools[0]!.includes("list-memories") && !childTools[0]!.includes("remember") && !childTools[0]!.includes("forget-memory"), "a delegated work may only read what is kept");
     assert.equal(store.rounds(child.work.work_id)[0]!.written_by, "assistant", "the brief is the Assistant's words, marked when the round is written");
-    assert.equal(service.memory.memoryTools(store.get(LOCAL_PERSON_ACTOR_ID, child.work.work_id))!.remember, undefined);
-    assert.equal(service.memory.memoryTools(store.get(LOCAL_PERSON_ACTOR_ID, child.work.work_id))!.forget, undefined);
+    assert.equal((await toolsFor(service, store.get(LOCAL_PERSON_ACTOR_ID, child.work.work_id)))!.remember, undefined);
+    assert.equal((await toolsFor(service, store.get(LOCAL_PERSON_ACTOR_ID, child.work.work_id)))!.forget, undefined);
     assert.match(JSON.stringify(childReplies[0].messages), /no tools to keep or forget memories/, "the held claim says it cannot, instead of telling it to call a tool it was not given");
     assert.doesNotMatch(JSON.stringify(childReplies[0].messages), /Call remember now/);
     assert.deepEqual(await service.memory.memories("project-a"), [], "nothing the brief said was kept as the person's");
@@ -759,8 +776,8 @@ test("a timed round is written by the Host: it is marked, it is not among the pe
   const learned: Array<{ work: string; said: string[]; run: string }> = [];
   t.mock.method(globalThis, "fetch", async () => reply());
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
-  const { memory, memoryPolicy, store, memoryForCall } = platformMemory(host, home, t);
-  const adapter = await createPrologueNodeAdapter({ memory: memoryPolicy, app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+  const { storageOwner, memory, memoryPolicy, store, memoryForCall } = platformMemory(host, home, t);
+  const adapter = await createPrologueNodeAdapter({ memory: memoryPolicy, app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "agent-runtime"), storageOwner, reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
   const service: AssistantService = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
@@ -783,7 +800,7 @@ test("a timed round is written by the Host: it is marked, it is not among the pe
     assert.match(rounds[1]!.text, /每天汇总.*以后周报都先写风险/);
 
     // Its text, copied whole, and the standing request inside it are the Host's words: only suggested, whatever the model quotes.
-    const tools = service.memory.memoryTools(store.get(LOCAL_PERSON_ACTOR_ID, workId))!;
+    const tools = (await toolsFor(service, store.get(LOCAL_PERSON_ACTOR_ID, workId)))!;
     await suggestedCard(tools.remember!({ text: rounds[1]!.text, scope: "personal", said: rounds[1]!.text }, memoryToolControl()));
     await suggestedCard(tools.remember!({ text: standing, scope: "personal", said: standing }, memoryToolControl()));
     assert.deepEqual(await service.memory.memories(null), [], "nothing the timed round said was kept as the person's");
@@ -814,8 +831,8 @@ test("G13: a supplement the person types while a round runs is theirs: remember 
   ];
   t.mock.method(globalThis, "fetch", answeringEndingReviews(text => reply(undefined, text), async () => (script.shift() ?? (() => reply()))()));
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
-  const { memory, memoryPolicy, store, memoryForCall } = platformMemory(host, home, t);
-  const adapter = await createPrologueNodeAdapter({ memory: memoryPolicy, app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+  const { storageOwner, memory, memoryPolicy, store, memoryForCall } = platformMemory(host, home, t);
+  const adapter = await createPrologueNodeAdapter({ memory: memoryPolicy, app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "agent-runtime"), storageOwner, reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
   const service: AssistantService = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
@@ -852,8 +869,8 @@ test("MEM-WITHDRAWN-01/02: a withdrawn supplement is neither remembered as said 
   ];
   t.mock.method(globalThis, "fetch", answeringEndingReviews(text => reply(undefined, text), async () => (script.shift() ?? (() => reply()))()));
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
-  const { memory, memoryPolicy, store, memoryForCall } = platformMemory(host, home, t);
-  const adapter = await createPrologueNodeAdapter({ memory: memoryPolicy, app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+  const { storageOwner, memory, memoryPolicy, store, memoryForCall } = platformMemory(host, home, t);
+  const adapter = await createPrologueNodeAdapter({ memory: memoryPolicy, app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "agent-runtime"), storageOwner, reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
   const service: AssistantService = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
@@ -887,14 +904,14 @@ test("MEM-WITHDRAWN-01/02: a withdrawn supplement is neither remembered as said 
 test("remember keeps what the person wrote and nothing the model changed: a superscript or an invisible character in the text, and a message that differs from an automatic memory by a comma, a symbol or a question mark, never make a memory theirs that says something else", { timeout: 120_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-memory-forms-"));
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
-  const { memory, memoryPolicy, store, memoryForCall } = platformMemory(host, home, t);
+  const { storageOwner, memory, memoryPolicy, store, memoryForCall } = platformMemory(host, home, t);
   const originalModel = await scriptedModelServer(t, () => "已读。");
-  const adapter = await createPrologueNodeAdapter({ memory: memoryPolicy, app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+  const adapter = await createPrologueNodeAdapter({ memory: memoryPolicy, app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "agent-runtime"), storageOwner, reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: originalModel.base + "/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
   const service = new AssistantService(store, { pages: async () => ["home"], host: async () => host, authority: async () => ({}) as never, projectTitle: async () => "项目甲", timeZone: "Asia/Shanghai", memory: memoryForCall, memorySources: memoryPolicy.sources }, LOCAL_PERSON_ACTOR_ID);
   const person = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-a", consumer: "ui" as const, person: true };
-  const start = (title: string, said: string) => originalWork(adapter, store, title, said);
+  const start = (title: string, said: string) => originalWork(memory, adapter, store, title, said);
   const entries = async () => (await memory.list(person)).items;
   try {
     // The model's text carries a form the message does not (10⁵ for 105, a byte-order mark where there is a space): it is not their words, and nothing is kept as theirs.
@@ -903,19 +920,19 @@ test("remember keeps what the person wrote and nothing the model changed: a supe
       ["预算最多给到 1002 元", "预算最多给到 100² 元"],
       ["do not send it", "do\uFEFFnot send it"],
     ];
-    for (const [index, [message, text]] of forms.entries()) await suggestedCard(service.memory.memoryTools(await start(`形似${index}`, message))!.remember!({ text, scope: "project", said: message }, memoryToolControl()), text);
+    for (const [index, [message, text]] of forms.entries()) await suggestedCard((await toolsFor(service, await start(`形似${index}`, message)))!.remember!({ text, scope: "project", said: message }, memoryToolControl()), text);
     assert.deepEqual(await entries(), [], "nothing was recorded as the person's words");
     assert.deepEqual((await memory.candidates(person, { scope: "project" })).map(item => `${item.text} · ${item.basis}`).sort(), forms.map(([, text]) => `${text} · inferred`).sort(), "each waits as the Assistant's suggestion");
     // ...and it does not replace what the person kept.
     const mine = (await memory.write(person, { scope: "project", text: "单笔超过100元要问我" })).memory!;
-    await suggestedCard(service.memory.memoryTools(await start("改", "单笔超过104元要问我"))!.remember!({ text: "单笔超过10⁴元要问我", scope: "project", said: "x", replaces: mine.memory_id }, memoryToolControl()));
+    await suggestedCard((await toolsFor(service, await start("改", "单笔超过104元要问我")))!.remember!({ text: "单笔超过10⁴元要问我", scope: "project", said: "x", replaces: mine.memory_id }, memoryToolControl()));
     assert.deepEqual((await entries()).map(item => [item.text, item.source]), [["单笔超过100元要问我", "manual"]]);
 
     // A memory the gate kept itself becomes theirs only when its own text is their message. A comma that turns "don't" into "no, do", a symbol that turns a comparison round and a question mark
     // make a message of their own: the automatic one stays the gate's, and what they typed is kept beside it, as they typed it.
     for (const [gate, typed] of [["不要发给他", "不，要发给他"], ["金额>1000要先问我", "金额<1000要先问我"], ["回复用英文", "回复用英文？"]] as const) {
       const made = await gateKept(memory, adapter, store, gate);
-      const result = await service.memory.memoryTools(await start(`重复 ${typed}`, typed))!.remember!({ text: typed, scope: "personal", said: typed }, memoryToolControl());
+      const result = await (await toolsFor(service, await start(`重复 ${typed}`, typed)))!.remember!({ text: typed, scope: "personal", said: typed }, memoryToolControl());
       assert.notEqual(result.memory_id, made.memory!.memory_id, typed);
       assert.equal(result.note, undefined, "it is not told that this is already kept");
       const all = await entries(), automatic = all.find(item => item.memory_id === made.memory!.memory_id)!, theirs = all.find(item => item.memory_id === result.memory_id)!;
@@ -923,14 +940,14 @@ test("remember keeps what the person wrote and nothing the model changed: a supe
     }
     // The same words, apart from what does not count, are the person's saying it again: the automatic memory is theirs now.
     const again = await gateKept(memory, adapter, store, "先写风险再写进展");
-    const sameWordsAgain = await service.memory.memoryTools(await start("再说", "先写风险再写进展。"))!.remember!({ text: "先写风险再写进展。", scope: "personal", said: "先写风险再写进展。" }, memoryToolControl());
+    const sameWordsAgain = await (await toolsFor(service, await start("再说", "先写风险再写进展。")))!.remember!({ text: "先写风险再写进展。", scope: "personal", said: "先写风险再写进展。" }, memoryToolControl());
     assert.equal(sameWordsAgain.memory_id, again.memory!.memory_id);
     assert.match(sameWordsAgain.note ?? "", /已经记着/);
     assert.equal((await entries()).find(item => item.memory_id === again.memory!.memory_id)!.source, "said");
 
     // What is kept is the message as they wrote it, whatever case, width, quotation marks and spacing the model's text has.
     const wrote = "Reply in “Chinese”！";
-    const kept = await service.memory.memoryTools(await start("英文", wrote))!.remember!({ text: "reply  in 「chinese」.", scope: "personal", said: "reply in chinese" }, memoryToolControl());
+    const kept = await (await toolsFor(service, await start("英文", wrote)))!.remember!({ text: "reply  in 「chinese」.", scope: "personal", said: "reply in chinese" }, memoryToolControl());
     const item = (await entries()).find(entry => entry.memory_id === kept.memory_id)!;
     assert.deepEqual([item.text, item.source, item.evidence.map(evidence => evidence.text)], [wrote, "said", [wrote]]);
   } finally { service.continuations.close(); await adapter.close(); await rm(home, { recursive: true, force: true }); }
@@ -948,8 +965,8 @@ test("a full round: the model asks to remember a text with a superscript where t
     return (script.shift() ?? (() => reply()))(body);
   }));
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
-  const { memoryPolicy, store, memoryForCall } = platformMemory(host, home, t);
-  const adapter = await createPrologueNodeAdapter({ memory: memoryPolicy, app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+  const { storageOwner, memoryPolicy, store, memoryForCall } = platformMemory(host, home, t);
+  const adapter = await createPrologueNodeAdapter({ memory: memoryPolicy, app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "agent-runtime"), storageOwner, reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
   const service: AssistantService = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
@@ -991,8 +1008,8 @@ test("words the page writes itself (a canned note, a request a plugin sends for 
     return (script.shift() ?? (() => reply()))(body);
   }));
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
-  const { memory, memoryPolicy, store, memoryForCall } = platformMemory(host, home, t);
-  const adapter = await createPrologueNodeAdapter({ memory: memoryPolicy, app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+  const { storageOwner, memory, memoryPolicy, store, memoryForCall } = platformMemory(host, home, t);
+  const adapter = await createPrologueNodeAdapter({ memory: memoryPolicy, app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "agent-runtime"), storageOwner, reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
   const service: AssistantService = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
@@ -1029,7 +1046,7 @@ test("words the page writes itself (a canned note, a request a plugin sends for 
     assert.deepEqual(store.rounds(workId).map(round => round.written_by ?? "person"), ["person", "page", "page", "page"], "each is marked as the page's when its round is written");
 
     // Copied whole later on, none of them is the person's either: each waits as the Assistant's suggestion and nothing is kept.
-    const tools = service.memory.memoryTools(store.get(LOCAL_PERSON_ACTOR_ID, workId))!;
+    const tools = (await toolsFor(service, store.get(LOCAL_PERSON_ACTOR_ID, workId)))!;
     for (const text of [handback, delegated]) await suggestedCard(tools.remember!({ text, scope: "personal", said: text }, memoryToolControl()), text);
     await assert.rejects(tools.remember!({ text: redo, scope: "personal", said: redo }, memoryToolControl()), /已经建议过/, "the redo text already waits as a suggestion, and is not the person's now either");
     assert.deepEqual(await service.memory.memories(null), [], "nothing the page wrote was kept as the person's words");
@@ -1039,7 +1056,7 @@ test("words the page writes itself (a canned note, a request a plugin sends for 
     const typed = "以后会议纪要都发给我";
     await sendAsPerson(service, { work_id: workId, text: typed, request_id: "req-page-005" }, {});
     await roundsDone(workId, 5);
-    const later = service.memory.memoryTools(store.get(LOCAL_PERSON_ACTOR_ID, workId))!;
+    const later = (await toolsFor(service, store.get(LOCAL_PERSON_ACTOR_ID, workId)))!;
     const mine = await later.remember!({ text: typed, scope: "personal", said: typed }, memoryToolControl());
     assert.equal((await memory.list(person)).items.find(item => item.memory_id === mine.memory_id)!.source, "said");
     const first = await later.remember!({ text: "帮我处理一下转账", scope: "personal", said: "帮我处理一下转账" }, memoryToolControl());
@@ -1049,5 +1066,71 @@ test("words the page writes itself (a canned note, a request a plugin sends for 
     await until(() => learned.length >= 5 ? learned : undefined, "learning handed over");
     assert.deepEqual(learned.find(item => item.said.includes(typed))?.said, ["帮我处理一下转账", typed]);
     assert.ok(learned.every(item => item.said.every(said => ![redo, handback, delegated].some(note => note === said))), "no page-written round is handed to learning");
+  } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+test("MEM-20 remember keeps an end the person named and turning formation off still allows deactivation", { timeout: 90_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "molis-assistant-memory-expiry-"));
+  const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
+  const { storageOwner, memory, memoryPolicy, store, memoryForCall } = platformMemory(host, home, t);
+  const originalModel = await scriptedModelServer(t, () => "已读。");
+  const adapter = await createPrologueNodeAdapter({ memory: memoryPolicy, app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "agent-runtime"), storageOwner, reviewQueue: queue,
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: originalModel.base + "/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
+  host.register(adapter);
+  const service = new AssistantService(store, { pages: async () => ["home"], host: async () => host, authority: async () => ({}) as never, projectTitle: async () => "项目甲", timeZone: "Asia/Shanghai", memory: memoryForCall, memorySources: memoryPolicy.sources }, LOCAL_PERSON_ACTOR_ID);
+  const person = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-a", consumer: "ui" as const, person: true };
+  try {
+    const work = await originalWork(memory, adapter, store, "本周安排", "这周的周报都抄送老王");
+    const tools = (await toolsFor(service, work))!;
+    const end = new Date(Date.now() + 3 * 86_400_000).toISOString();
+    await tools.remember!({ text: "这周的周报都抄送老王", scope: "project", said: "这周的周报都抄送老王", expires_at: end }, memoryToolControl());
+    const [item] = (await memory.list(person)).items;
+    assert.deepEqual([item!.text, item!.source, item!.expires_at && Date.parse(item!.expires_at)], ["这周的周报都抄送老王", "said", Date.parse(end)], "the end the person named is kept");
+
+    memory.savePrefs(person, "personal", { form: false });
+    await service.memory.memoryForRound(work, work.title);
+    const readOnlyFormation = service.memory.memoryTools(work);
+    assert.equal(readOnlyFormation?.remember, undefined, "the project's own 允许记住 cannot reopen formation");
+    assert.equal(readOnlyFormation?.propose, undefined);
+    assert.ok(readOnlyFormation?.forget);
+    assert.ok((await readOnlyFormation.list(memoryToolControl())).some(memory => memory.memory_id === item!.memory_id));
+    assert.equal((await readOnlyFormation.forget(item!.memory_id, memoryToolControl())).forgotten, true);
+    assert.equal((await memory.list(person)).items.find(memory => memory.memory_id === item!.memory_id)?.state, "disabled");
+  } finally { service.continuations.close(); await adapter.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+test("a weekly report the person asked to have drafted is the reply's content: its 已确定 and 已保存 are not read as the round saving something, so a round with no calls is not held", { timeout: 90_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "molis-assistant-memory-draft-"));
+  const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
+  const requests: unknown[] = [], reviews: string[] = [];
+  const draft = "本周周报：\n- 已初步确定发布时间为下周三\n- 测试报告已保存到共享盘";
+  t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
+    const body = JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array));
+    // A review model that follows the owner's note: told the person's request and that drafted content is not a claim, it finds none.
+    const whole = JSON.stringify(body);
+    const review = endingReviewAnswer(body, () => {
+      reviews.push(whole);
+      return whole.includes("交给用户的正文") && whole.includes("帮我起草这周的周报") ? [] : ["kept", "changed"];
+    });
+    if (review) return reply(undefined, review);
+    requests.push(body);
+    return reply(undefined, draft);
+  });
+  const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
+  const { storageOwner, memoryPolicy, store, memoryForCall } = platformMemory(host, home, t);
+  const adapter = await createPrologueNodeAdapter({ memory: memoryPolicy, app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "agent-runtime"), storageOwner, reviewQueue: queue,
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
+  host.register(adapter);
+  const service: AssistantService = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
+    authority: async work => ({ ...assistantAuthority(local, work, () => new Set(), undefined, undefined, undefined, undefined, service.memory.memoryTools(work)),
+      memory: (task: string) => service.memory.memoryForRound(work, task) }),
+    projectTitle: async () => "项目", timeZone: "Asia/Shanghai", memory: memoryForCall, memorySources: memoryPolicy.sources }, LOCAL_PERSON_ACTOR_ID);
+  try {
+    const sent = await sendAsPerson(service, { text: "帮我起草这周的周报，把已经定下来的事写进去", request_id: "req-memory-draft-1" }, {});
+    const done = await until(async () => { const view = await service.read(sent.work.work_id); return view.work.state === "completed" ? view : undefined; }, "round");
+    assert.equal(reviews.length, 1, "the ending was reviewed");
+    assert.match(reviews[0]!, /request\\":\\"[^}]*帮我起草这周的周报/, "the review is given the person's request");
+    assert.equal(requests.length, 1, "no hold: the round ends with the draft");
+    assert.equal(done.rounds[0]!.turns.filter(turn => turn.kind === "assistant").at(-1)!.text, draft);
   } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });

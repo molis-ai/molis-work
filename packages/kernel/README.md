@@ -65,6 +65,8 @@ node scripts/run-tests.mjs tests/local-host.test.ts
 
 ## 开发要求
 
+查询结果在交付前同步复用原调用的注册、可用性、权限与取消检查；同 provider/install 重新登记不能复活等待中的旧查询。该尾检只覆盖 query，command 原有副作用与未知结果语义不变。直接回归：`tests/action-query-result-current.test.ts`。
+
 - 负责：能力注册、发现、授予、动作服务调度（`ActionService`）、调用编号与结算、场景兼容与事项动作选项派生，注册时按 SDK 的 `inspectActionDeclarations` 检查动作与场景声明、按 `inspectActionCrossReferences` 检查同一次注册里的交叉引用，以及按动作声明落实时限与取消（计时与取消的工具 `createExecutionLifetime` 和声明检查都来自 `@molis-ai/molis-work-plugin-sdk`，内核不转出）；另外承载平台产品服务「情境排序」（`src/contextual.ts`，纯函数：派生候选、规则打分、判断材料与题面、读回答案、陈列方案）。
 - 不负责：业务状态机、提供方实现、界面渲染、模型调用与凭据、记忆召回、缓存、计时与取消（这些在宿主 `apps/local-host/src/contextual/`）、任何插件或 Module 的业务事实。
 - 公开入口：`@molis-ai/molis-work-kernel`（`src/index.ts`）与情境排序的子入口 `@molis-ai/molis-work-kernel/contextual`（`src/contextual.ts`），都经 `dist` 导出，不深入 `src/` 导入；合同 `@molis-ai/molis-work-contracts/platform/kernel`。
@@ -87,6 +89,7 @@ node scripts/run-tests.mjs tests/local-host.test.ts
   - `admit` 是宿主的异步策略，在解析与授权复查之前跑；`invokeSync` 不跑它（事务里不能等），同步入口自己的检查用第四个参数传入，在结算范围内先跑，它的拒绝同样结算。
   - 核心代码不调用情境排序：核心文件不导入它，也不经入口转手导入它的名字（`pnpm health:check` 的 K1）。根入口不转出它，情境排序走子入口 `@molis-ai/molis-work-kernel/contextual`，所以核心的导入闭包里没有情境排序。它只读 `contracts/platform/actions`、`contracts/services/contextual` 和 `node:crypto`（K2、K3）。
   - 情境排序无 I/O、无计时器、无模块级可变状态，同样的输入得到同样的陈列（K4）。候选只从授权目录来，不点名插件或能力 id（K5）；陈列不删候选；答案里不在候选中的键一律丢掉，模型不能编出动作。会写入的先确认，不可撤回的不推荐。
+- 宿主组合使用同一次同步目录取样记录原登记 token 和保留授权。后续只可检查这次目录里的原行；同引用重注册、复制或伪造的行不获得原证明。普通动作目录及插件客户端合同保持原入口。
 - query_only 调用在发现和实际派发（含同步）都拒绝 command；传入 assert_authority_current 的权限取当前注册定义，避免发现后权限变化而只读 handler 未调用 beforeEffect 的漏洞。绑定的后代调用保留此收窄。定向验证：`tests/action-query-only.test.ts`、`tests/plugin-action-query.test.ts`。
 - 改动后必跑：`node scripts/run-tests.mjs tests/action-service.test.ts tests/action-sync.test.ts tests/action-schema-compiler.test.ts tests/action-dependencies.test.ts tests/action-call-log.test.ts tests/action-concurrency.test.ts tests/execution-lifetime.test.ts tests/action-authorship-dispatch.test.ts tests/contextual-interaction.test.ts tests/contextual-fragment-offers.test.ts tests/contextual-dock-parity.test.ts tests/home-action-scenes.test.ts tests/health-gates-kernel-contextual.test.ts tests/security-invariants-injection.test.ts tests/action-call-id.test.ts tests/action-cross-references.test.ts tests/action-availability-kind.test.ts tests/action-directory-pass.test.ts`
 - 授权尾检与消费者改动另跑：`node scripts/run-tests.mjs tests/mcp-effect-authority.test.ts tests/mcp-scene-effect-authority.test.ts tests/action-authority-tail.test.ts tests/plugin-owner-effect-fence.test.ts tests/action-before-effect.test.ts tests/functions-scene-configuration.test.ts tests/functions-effect-boundaries.test.ts`。
@@ -118,3 +121,7 @@ AI来源（Agent、内置助理与外部MCP）的顶层command若声明版本字
 显式后台受理的额外权限只收窄原 authority：`retainBackgroundAuthority(additionalPermissions?)` 固定原注册与权限，原 handler 的 beforeEffect 不延长；有入口 hook 时由其复核后台授权，无 hook 时保留原取消。父子 bound 身份分别检查。改这条链补跑 `tests/action-background-authority.test.ts`、`tests/security-invariants-alchemist-resumption.test.ts`。
 
 目录单轮缓存只允许同步回调，嵌套读取共享当前轮，异常退出不保留缓存；验证 `tests/action-directory-pass.test.ts`。执行生命周期与声明校验经 SDK 的公开 `/execution` 子路径引用同一实现。
+
+## 选中资料的派发边界
+
+选中资料的 state capture 只允许 query + subject-state 协议及同提供方、安装、项目的精确 reader/source。Kernel 自己保留三项实际注册；严格校验输出与 query 尾检之后才交出 current。current 同步读取前后复核原授权，结束 handler 不延长 beforeEffect。

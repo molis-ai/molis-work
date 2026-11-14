@@ -9,7 +9,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { MolisWorkProjectCatalog } from "@molis-ai/molis-work-app-local-host";
 import { textStatsActions } from "@molis-ai/molis-work-plugin-text-stats";
-import { filesActions } from "@molis-ai/molis-work-plugin-files";
+import { gitActions } from "@molis-ai/molis-work-plugin-git";
 import { diffActions } from "@molis-ai/molis-work-plugin-diff";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
@@ -33,6 +33,8 @@ test("headless runtime companions are discovered and called by the official MCP 
     await withCatalog({ homeDirectory: home }, async catalog => {
       const project = await catalog.createProject({ display_name: "Headless companions", actor_id: "owner" });
       catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "coding", actor_id: "owner" });
+      // Coding embeds Git and Diff; Text stats is a project plugin of its own (batch 06 S5 took it off Coding's embedded list).
+      catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "text-stats", actor_id: "owner" });
       const served = await serveTestHost(null, { home, host });
       const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
       const caller: ActionCallContext = { actor_id: "runtime:reader", project_id: project.project_id, audience: "mcp", permissions: ["artifact:read"] };
@@ -60,10 +62,10 @@ test("headless runtime companions are discovered and called by the official MCP 
         assert.equal((await reader.listTools()).tools.some(tool => tool.name === countName), false, "discovery does not grant execution");
         for (const row of rows) await writeMcpActionGrant(home, createMcpActionGrant(caller.actor_id, project.project_id, row, true));
         assert.ok((await reader.listTools()).tools.some(tool => tool.name === countName));
-        const fileAction = (await host.inspectActions(caller, reference)).find(row => row.capability_id === filesActions.open.capability_id)!;
+        const fileAction = (await host.inspectActions(caller, reference)).find(row => row.capability_id === gitActions.selectDiff.capability_id)!;
         assert.equal(fileAction.availability.available, false, "legacy owner-bound actions must disclose their current identity limit");
         await writeMcpActionGrant(home, createMcpActionGrant(caller.actor_id, project.project_id, fileAction, true));
-        const foreignWrite = await reader.callTool({ name: molisWorkActionToolName(filesActions.open), arguments: { workspace_id: "unknown", path: ["note.txt"] } });
+        const foreignWrite = await reader.callTool({ name: molisWorkActionToolName(gitActions.selectDiff), arguments: { workspace_id: "unknown", path: ["note.txt"], side: "index" } });
         assert.equal(foreignWrite.isError, true, "an explicit action grant cannot impersonate the local Artifact owner");
         const counted = await reader.callTool({ name: countName, arguments: { text: "中🙂\r\nx\n" } });
         assert.equal(counted.isError, false, JSON.stringify(counted));
@@ -82,14 +84,15 @@ test("headless runtime companions are discovered and called by the official MCP 
         await writeMcpActionGrant(home, { ...countGrant, enabled: false });
         assert.equal((await reader.callTool({ name: countName, arguments: { text: "no" } })).isError, true);
         await writeMcpActionGrant(home, countGrant);
-        catalog.removeProjectPlugin({ project_id: project.project_id, plugin_id: "coding", actor_id: "owner" });
+        // Text stats is its own project plugin (batch 06): taking it out of the project withdraws its actions.
+        catalog.removeProjectPlugin({ project_id: project.project_id, plugin_id: "text-stats", actor_id: "owner" });
         assert.equal((await reader.callTool({ name: countName, arguments: { text: "no" } })).isError, true);
         assert.equal((await client.discover(caller)).some(row => row.capability_id === textStatsActions.count.capability_id), false,
           "the resident Host withdraws the disabled Runtime's actions");
         // RAC-105-A-GW-03: the resident has withdrawn this disabled provider; the MCP caller sees missing, not plugin_unavailable.
         await assert.rejects(client.invoke(caller, textStatsActions.count, { text: "no" }), { code: "actions.missing" });
         assert.equal((await readMcpToolPreference(home)).action_grants?.length, 5, "disabling retains exact references");
-        catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "coding", actor_id: "owner" });
+        catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "text-stats", actor_id: "owner" });
         await reader.close();
         await host.closeProject(reference);
         const reopened = await client.discover(caller);

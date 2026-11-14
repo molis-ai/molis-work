@@ -80,7 +80,13 @@ test("RAC-2923 PMAT-18 Coding keeps fixed knowledge versions and live Page revis
     }); return { status: result.status, body: await result.json() };
   };
   const start = (materials?: unknown) => request("/runs", "POST", { task: "看资料", intent: "discuss", workspace_id: "work", provider_id: "p", model_id: "m", ...(materials === undefined ? {} : { materials }) });
-  const pick = (kind: string, id: string, title = "") => ({ kind, id, title });
+  // A pick is an exact reference (materials-ui-contract §2): a 成果 at its fixed version, any other piece as it was indexed.
+  const pinOf = (kind: string, id: string) => {
+    if (kind !== "artifact") return { mode: "current", read_revision: "picked" };
+    const [artifact_id, version] = JSON.parse(id) as [string, number];
+    return { mode: "fixed", version: { artifact_id, version } };
+  };
+  const pick = (kind: string, id: string, title = "") => ({ ref: { subject: { kind, id }, pin: pinOf(kind, id) }, title });
   try {
     // A piece its owner refuses, or that is gone, stops the round before anything starts, and says which piece.
     for (const material of [pick("page", "kept", "不给 Agent 用"), pick("page", "missing", "已删除的页")]) {
@@ -90,7 +96,8 @@ test("RAC-2923 PMAT-18 Coding keeps fixed knowledge versions and live Page revis
     }
     assert.deepEqual([created, starts.length], [0, 0]);
     // Malformed, duplicated or too many picks are refused as they are.
-    for (const materials of [[{ kind: "page bad", id: "p1", title: "" }], [pick("page", "p1"), pick("page", "p1")], Array.from({ length: 31 }, (_, index) => pick("page", `p${index}`))]) {
+    for (const materials of [[{ kind: "page", id: "p1", title: "" }], [{ ref: { subject: { kind: "page", id: "p1" }, pin: { mode: "loose" } }, title: "" }], [pick("page", "p1"), pick("page", "p1")],
+      Array.from({ length: 31 }, (_, index) => pick("page", `p${index}`))]) {
       assert.equal((await request("", "PATCH", { materials })).status, 400, JSON.stringify(materials).slice(0, 80));
     }
 

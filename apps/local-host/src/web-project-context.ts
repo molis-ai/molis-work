@@ -2,9 +2,10 @@ import { readOnlyAlwaysOnProjectPlugins } from "./always-on-plugins.js";
 import { requireSynchronous, type ActionReference, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginPageRequest } from "./plugin-page-authority.js";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
+import type { ProjectPluginMembership } from "@molis-ai/molis-work-contracts/modules/projects";
 import { PAGE_PLUGINS_WITHOUT_SELECTION } from "@molis-ai/molis-work-app-workbench";
 import type { GoalsWebView } from "./web-view.js";
-import { PLATFORM_PLUGIN_REGISTRATIONS, shownProjectPlugins } from "./plugin-registry.js";
+import { builtinPluginByManifestId, shownProjectPlugins } from "./plugin-registry.js";
 import { observeReviewSettlements } from "./review-settlement-events.js";
 import { bindLocalWebActions, localWebActionContext, type LocalWebEntry } from "./local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
@@ -18,6 +19,7 @@ import type { HomeRouteProjectPlugins } from "./home-plugin-http.js";
 import { hostDependencyCheck } from "./plugin-actions-client.js";
 import { pluginReachable, projectReachablePlugins, reachEntry } from "./project-action-availability.js";
 import { homePluginsOutsideBuild } from "./home-registration.js";
+import { matchingActions } from "./local-host-types.js";
 import type { ReadArtifactDisplay } from "./artifact-display-words.js";
 
 /** A request for one project that exists and has a database, before the project's runtime is opened. */
@@ -65,27 +67,50 @@ export function projectRequestContext(context: WebRequestContext, options: Resol
     const home = localHost.homePlugins;
     try { await home?.ready(); } catch { /* A failed Home retains its registered unavailable stages. */ }
     const withExternal = (plugins: readonly string[], hidden: readonly string[]) => {
-      const external = (home?.registered() ?? []).filter(entry => !PLATFORM_PLUGIN_REGISTRATIONS.some(item => item.manifest.plugin_id === entry.manifest.plugin_id)
+      const external = (home?.registered() ?? []).filter(entry => !builtinPluginByManifestId(entry.manifest.plugin_id)
         && !hidden.includes(entry.key)).map(entry => entry.key);
       return [...new Set([...shownProjectPlugins(plugins, hidden), ...external])];
     };
     // An explicitly served single-database fixture has the same declared default selection as its page, without a Catalog record.
     if (!options.project) return { shown: withExternal(PAGE_PLUGINS_WITHOUT_SELECTION, []) };
-    return composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => {
-      if (versioned) {
-        const { plugins, hidden, revision } = catalog.projectPluginMembershipWithRevision(projectId, directory);
-        return { shown: withExternal(plugins, hidden), revision };
-      }
-      const { plugins, hidden } = catalog.projectPluginMembership(projectId, directory);
-      return { shown: withExternal(plugins, hidden) };
+    // A versioned read needs the revision of exactly the membership it shows, so it reads on its own; the others share one reading (N44).
+    if (versioned) return composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => {
+      const { plugins, hidden, revision } = catalog.projectPluginMembershipWithRevision(projectId, directory);
+      return { shown: withExternal(plugins, hidden), revision };
     });
+    const { plugins, hidden } = await observeProjectPluginMembership(composition, homeDirectory, projectId, directory);
+    return { shown: withExternal(plugins, hidden) };
   };
-  const goalsHere = async () => !options.project || await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory },
-    catalog => catalog.listProjectPlugins(options.projectId, directory).includes("goals"));
+  const goalsHere = async () => !options.project
+    || (await observeProjectPluginMembership(composition, homeDirectory, options.projectId, directory)).plugins.includes("goals");
   return { ...context, options, hostReference, userActions, goalsHere,
     shownPlugins: async projectId => (await selection(projectId, false)).shown,
     shownPluginSelection: selection,
   };
+}
+
+/** Presentation reads still waiting for the catalog, per running catalog owner and project: one membership reading serves all of them. */
+const queuedMembership = new WeakMap<object, Map<string, Promise<ProjectPluginMembership>>>();
+
+/**
+ * The project's plugin membership for a page: the Goals branch and the shown list (N44). Reads that queue before one starts share it; the
+ * entry is dropped as that read begins, so a later request reads afresh and nothing finished is kept. Execution and routes read on their own.
+ */
+function observeProjectPluginMembership(composition: WebRequestContext["composition"], home: string | undefined, projectId: string,
+  directory: (() => readonly string[]) | undefined): Promise<ProjectPluginMembership> {
+  let queued = queuedMembership.get(composition);
+  if (!queued) queuedMembership.set(composition, queued = new Map());
+  const key = JSON.stringify([home ?? null, projectId]);
+  const waiting = queued.get(key);
+  if (waiting) return waiting;
+  let started = false, pending: Promise<ProjectPluginMembership> | undefined;
+  const drop = () => { if (pending && queued.get(key) === pending) queued.delete(key); };
+  pending = composition.withCatalog({ homeDirectory: home }, catalog => {
+    started = true; drop();
+    return catalog.projectPluginMembership(projectId, directory);
+  }).finally(() => drop());
+  if (!started) queued.set(key, pending);
+  return pending;
 }
 
 /**
@@ -136,7 +161,8 @@ export function contextualPorts({ localHost, hostReference, serverOptions, reque
     ...(homeDirectory ? { homeDirectory } : {}), scope: hostReference.project_id, actor_id: LOCAL_PERSON_ACTOR_ID,
     actions: () => {
       const client = localHost.actionClient(hostReference);
-      return { discover: async () => client.discover(await context()), invoke: async (reference, input, signal) => client.invoke(await context(signal), reference, input) };
+      return { discover: async select => select ? matchingActions(client, await context(), select) : client.discover(await context()),
+        invoke: async (reference, input, signal) => client.invoke(await context(signal), reference, input) };
     },
     confirmReferences: async (picked, kinds) => localHost.search ? localHost.search.confirmReferences(hostReference.project_id, picked, kinds) : picked.map(() => false),
   };

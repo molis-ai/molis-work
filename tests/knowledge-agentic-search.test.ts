@@ -1,3 +1,4 @@
+import { knowledgeCatalogText } from "@molis-ai/molis-work-contracts/services/knowledge";
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -183,11 +184,11 @@ test("PMAT-35 PMAT-36 a round's catalog is whole when small, otherwise the piece
   await f.indexAll();
   const views = async (caller = agent()) => f.actions.discover(caller);
   // A caller who cannot read pages sees only the three goals (the rule list applies): the whole catalog.
-  const small = f.knowledge.catalog("a", await views(agent(undefined, ["goals:read", "search:read"])), FIRE);
+  const small = await f.knowledge.catalog("a", await views(agent(undefined, ["goals:read", "search:read"])), FIRE);
   assert.deepEqual([small.whole, small.total, small.pieces.map(piece => piece.subject.kind)], [true, 3, ["goal", "goal", "goal"]]);
   assert.ok(!JSON.stringify(small).includes("十月内部试用"), "cards only");
 
-  const large = f.knowledge.catalog("a", await views(), FIRE);
+  const large = await f.knowledge.catalog("a", await views(), FIRE);
   assert.deepEqual([large.whole, large.total, large.pieces.length], [false, 50, 20]);
   assert.equal(large.pieces[0]!.subject.id, "p2", "the piece related to the round's words comes first");
   const listed = await f.knowledge.list(f.access(agent()), { related_to: FIRE, limit: 3 });
@@ -274,4 +275,23 @@ test("PMAT-40 a grep of one piece that stops before its last match says the line
     await assert.rejects(() => f.knowledge.grep(asked, { pattern: "太古里", from_line: 3, ...input }), (error: unknown) => error instanceof ActionError && error.code === "knowledge.invalid");
   const several = await f.knowledge.grep(asked, { pattern: "太古里", subjects: [ref, { kind: "goal", id: "g1" }], context_lines: 0 });
   assert.deepEqual([several.more, several.next_line], [true, null]);
+});
+
+
+test("A4-K bounded list pages and the round catalog keep indexed counts while filtering currently unavailable pieces", async t => {
+  const f = await fixture(t); await f.indexAll();
+  const baseline = await f.knowledge.list(f.access(agent()), {}), checks: string[] = [];
+  const hidden = baseline.pieces[0]!.subject.id;
+  const knowledge = new KnowledgeService({ cards: f.cards, search: (access, input) => f.search.query(access, input), sourceState: async (_access, subject) => {
+    checks.push(subject.id); return subject.id === hidden ? "archived" : "active";
+  } });
+  const access = f.access(agent());
+  const emptyPage = await knowledge.list(access, { limit: 1 });
+  assert.equal(emptyPage.total, baseline.total); assert.deepEqual(emptyPage.sources, baseline.sources); assert.deepEqual(emptyPage.pieces, []);
+  assert.deepEqual(checks, [hidden], "only this actual page is checked"); checks.length = 0;
+  const next = await knowledge.list(access, { limit: 1, offset: 1 });
+  assert.equal(next.total, baseline.total); assert.equal(next.pieces.length, 1); assert.equal(checks.length, 1);
+  const catalog = await knowledge.catalog("a", await f.actions.discover(agent()), "试用", access);
+  assert.equal(catalog.total, baseline.total); assert.equal(catalog.whole, false); assert.equal(catalog.pieces.length, baseline.total - 1);
+  assert.ok(!catalog.pieces.some(piece => piece.subject.id === hidden)); assert.ok(!knowledgeCatalogText(catalog).includes("都列在下面"));
 });

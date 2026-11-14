@@ -1,61 +1,57 @@
 import assert from "node:assert/strict";
-import test from "node:test";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import test, { type TestContext } from "node:test";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import { homeSqlitePath, openSqliteConnection } from "@molis-ai/molis-work-storage";
 import { pagesActions, pagesManifest, PAGES_SUBJECT_KIND } from "@molis-ai/molis-work-plugin-pages";
-import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import type { ProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
-import { servePages } from "./fixtures/pages-runtime.js";
 import { PAGES_ARTIFACT_TYPE_ID, PAGES_ARTIFACT_SCHEMA_VERSION, type PagesRecord } from "@molis-ai/molis-work-plugin-pages/contract";
+
+import { openTestHome } from "./fixtures/test-home.js";
 
 const body = (text: string) => ({ type: "doc" as const, content: [{ type: "paragraph", content: [{ type: "text", text }] }] });
 /** Pages as the Home Runtime runs it in one project (W5-01-PAGES-04): the publication is the plugin's, the 成果库 the project's. */
-async function fixture(t: any) {
-  const f = await servePages(t), caller = { ...f.caller, actor_id: "owner" };
-  return { home: f.home, host: f.host, ref: f.project.reference, projectId: f.project.project_id, caller, client: f.client, bound: bindActionClient(f.client, () => caller) };
+async function fixture(t: TestContext) {
+  const f = await openTestHome(t), project = await f.createProject("Pages publication", ["pages"]);
+  const ref = project.reference, caller = { ...await f.host.localPersonContext(ref), actor_id: "owner" }, client = f.host.actionClient(ref);
+  return { home: f.home, host: f.host, ref, projectId: project.project_id, caller, client, bound: bindActionClient(client, () => caller) };
 }
 
-for (const failure of ["before-artifact", "after-artifact", "after-association"] as const) {
-  test(`publication ${failure} preserves its snapshot across edits and restart, then links exactly one original version`, async t => {
+for (const failure of ["artifact write", "root update"] as const) {
+  test(`BSH-03 Pages ${failure} failure leaves neither owner changed and a fresh pin includes later edits`, async t => {
     const f = await fixture(t);
     const original = (await f.bound.invoke(pagesActions.create, { title: "Original title", body: body("Original approved body"), goal_id: "original-goal" })).document;
-    const db = openHomeSqliteDatabase(f.home, "pages");
-    t.after(() => db.close());
-    if (failure !== "before-artifact") {
+    const alterLibrary = (sql: string) => {
+      const db = openSqliteConnection(homeSqlitePath(f.home, "pages"), { fileMustExist: true });
+      try { db.exec(sql); } finally { db.close(); }
+    };
+    const alterProject = (sql: string) => f.host.withProject(f.ref, ({ store }) => store.db.exec(sql));
+    if (failure === "root update") {
       const sentinel = (await f.bound.invoke(pagesActions.create, { title: "Published constraint fixture" })).document;
       await f.bound.invoke(pagesActions.promote, { id: sentinel.id, expected_version: sentinel.version });
-      // In the second phase association succeeds, but clearing its pending snapshot violates the index.
-      // completePublication must roll both writes back while keeping the already-published Artifact.
-      const predicate = failure === "after-association" ? "artifact_version > 0 AND publication_pending_json IS NULL" : "artifact_version > 0";
-      db.exec(`CREATE UNIQUE INDEX fail_publication ON pages ((1)) WHERE ${predicate}`);
-    } else await f.host.withProject(f.ref, runtime => runtime.store.db.exec("CREATE TRIGGER fail_publication BEFORE INSERT ON library_artifact_versions BEGIN SELECT RAISE(ABORT, 'fixture artifact write interrupted'); END"));
-    await assert.rejects(f.bound.invoke(pagesActions.promote, { id: original.id, expected_version: original.version }),
-      failure === "before-artifact" ? /fixture artifact write interrupted/ : /UNIQUE constraint failed/);
+      alterLibrary("CREATE UNIQUE INDEX fail_publication ON pages ((1)) WHERE artifact_version > 0");
+    } else await alterProject("CREATE TRIGGER fail_publication BEFORE INSERT ON library_artifact_versions BEGIN SELECT RAISE(ABORT, 'fixture artifact write interrupted'); END");
+    await assert.rejects(f.bound.invoke(pagesActions.promote, { id: original.id, goal_id: "refused-goal", expected_version: original.version }),
+      failure === "artifact write" ? /fixture artifact write interrupted/u : /UNIQUE constraint failed/u);
     const failed = (await f.bound.invoke(pagesActions.get, { id: original.id })).document;
-    assert.equal(failed.artifact_version, 0); assert.equal(failed.publication_pending!.version, 1);
-    assert.equal(failed.publication_pending!.source_version, original.version);
+    assert.deepEqual(failed, original);
     const versions = () => f.host.withProject(f.ref, runtime => runtime.artifacts.query.listArtifactVersions(f.projectId, "pages-" + original.id));
-    assert.equal((await versions()).length, failure === "before-artifact" ? 0 : 1);
-    await assert.rejects(f.client.invoke({ ...f.caller, actor_id: "different-owner" }, pagesActions.promote, { id: original.id }), { code: "pages.publication_owner" });
-    await assert.rejects(f.bound.invoke(pagesActions.promote, { id: original.id, goal_id: "other-goal" }), { code: "pages.publication_pending" });
+    assert.deepEqual(await versions(), []);
+    if (failure === "root update") alterLibrary("DROP INDEX fail_publication");
+    else await alterProject("DROP TRIGGER fail_publication");
     const edited = (await f.bound.invoke(pagesActions.update, { id: original.id, title: "New draft title", body: body("Later draft edits"), goal_id: "later-goal" })).document;
-    if (failure !== "before-artifact") db.exec("DROP INDEX fail_publication");
-    else await f.host.withProject(f.ref, runtime => runtime.store.db.exec("DROP TRIGGER fail_publication"));
     await f.host.closeProject(f.ref);
-    const result = await f.bound.invoke(pagesActions.promote, { id: original.id, goal_id: "original-goal", expected_version: edited.version });
-    assert.equal(result.recovered, true); assert.equal(result.document.artifact_version, 1); assert.equal(result.document.publication_pending, undefined);
-    assert.equal(result.document.title, "New draft title"); assert.deepEqual(result.document.body, body("Later draft edits")); assert.equal(result.document.goal_id, "later-goal");
-    const saved = (await versions())[0]!;
-    assert.deepEqual(saved.payload, { title: "Original title", page_id: original.id, goal_id: "original-goal", body: body("Original approved body") });
+    const fresh = { ...await f.host.localPersonContext(f.ref), actor_id: f.caller.actor_id };
+    const reopened = bindActionClient(f.client, () => fresh);
+    const result = await reopened.invoke(pagesActions.promote, { id: original.id, expected_version: edited.version });
+    assert.equal(result.recovered, false);
+    assert.equal(result.document.artifact_version, 1);
+    assert.equal(result.document.publication_pending, undefined);
+    assert.equal(result.document.title, "New draft title");
+    assert.deepEqual(result.document.body, body("Later draft edits"));
+    assert.equal(result.document.goal_id, "later-goal");
+    assert.deepEqual((await versions())[0]?.payload, { title: "New draft title", page_id: original.id, goal_id: "later-goal", body: body("Later draft edits") });
+    await assert.rejects(reopened.invoke(pagesActions.promote, { id: original.id, expected_version: edited.version }), { code: "pages.conflict" });
     assert.equal((await versions()).length, 1);
-    await assert.rejects(f.bound.invoke(pagesActions.promote, { id: original.id, expected_version: edited.version }), { code: "pages.conflict" });
-    assert.equal((await versions()).length, 1, "an old expected_version must not create a duplicate version");
-    const next = await f.bound.invoke(pagesActions.promote, { id: original.id, expected_version: result.document.version });
-    assert.equal(next.artifact.version, 2); assert.equal(next.recovered, false);
-    assert.deepEqual((await versions()).find(row => row.version === 2)!.payload, { title: "New draft title", page_id: original.id, goal_id: "later-goal", body: body("Later draft edits") });
   });
 }
 
@@ -114,21 +110,18 @@ test("W1-18-PIN-CURRENT-01: another actor explicitly pins the next version when 
   });
 });
 
-test("a conflicting immutable Artifact cannot replace the retained publication snapshot or attach itself to the draft", async t => {
+test("BSH-01 a prior immutable Artifact for a different document cannot start a new pin on this line", async t => {
   const f = await fixture(t);
   const original = (await f.bound.invoke(pagesActions.create, { title: "Approved", body: body("Approved snapshot") })).document;
-  const store = openPagesStore(f.home);
-  try { store.beginPublication(original.id, f.projectId, "owner"); } finally { store.close(); }
-  // The version the intent will write already exists with other content: the retained snapshot is not replaced and the draft is not attached to it.
   await f.host.withProject(f.ref, runtime => runtime.artifacts.commands.registerVersion({
     project_id: f.projectId, actor_id: "owner", owner_actor_id: LOCAL_PERSON_ACTOR_ID, artifact_id: "pages-" + original.id, version: 1,
     artifact_type_id: PAGES_ARTIFACT_TYPE_ID, schema_version: PAGES_ARTIFACT_SCHEMA_VERSION,
     producer: { plugin_id: pagesManifest.plugin_id, plugin_version: pagesManifest.version, binding_signature: pagesManifest.publisher.signature },
     content: { kind: "inline", payload: { title: "Conflicting", page_id: original.id, goal_id: "", body: body("Different content") } },
     metadata: { page_id: original.id, goal_id: "", title: "Conflicting" },
-    origin: { kind: "pinned", subject: { kind: PAGES_SUBJECT_KIND, id: original.id }, revision: String(original.version) },
+    origin: { kind: "pinned", subject: { kind: PAGES_SUBJECT_KIND, id: "another-document" }, revision: String(original.version) },
     title: "Conflicting", media_type: "application/json", scope: "personal", supersedes_version: null }));
   await assert.rejects(f.bound.invoke(pagesActions.promote, { id: original.id }), { code: "pages.publication_conflict" });
   const page = (await f.bound.invoke(pagesActions.get, { id: original.id })).document;
-  assert.equal(page.artifact_version, 0); assert.equal(page.publication_pending!.version, 1); assert.deepEqual(page.body, original.body);
+  assert.equal(page.artifact_version, 0); assert.equal(page.publication_pending, undefined); assert.deepEqual(page.body, original.body);
 });

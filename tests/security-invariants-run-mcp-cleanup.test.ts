@@ -71,13 +71,20 @@ test("APR-07/08/11: a real MCP pipe reuses an exact work authorization after res
   const root = await realpath(await mkdtemp(join(tmpdir(), "molis-mcp-permission-")));
   const owner = { project_id: "project", plugin_id: "fixture.coding", install_id: "fixture", actor_id: "person" };
   const directory = { canonical_path: root, realpath_verified: true };
-  const file = join(root, "mcp-notes.jsonl"), script = join(root, "notes.mjs");
-  await writeFile(script, MCP_FIXTURE);
+  const file = join(root, "mcp-notes.jsonl"), script = join(root, "notes.mjs"), release = join(root, "finish-reply");
+  const delayedFixture = MCP_FIXTURE.replace("result={content:", `if(m.params.arguments.note==='Late reply'){
+    const {existsSync}=await import('node:fs');
+    while(!existsSync('finish-reply'))await new Promise(resolve=>setTimeout(resolve,10));
+  }result={content:`);
+  await writeFile(script, delayedFixture);
   let note = "Exact note", send = true, directoryGeneration = "original-directory", directoryAvailable = true;
+  const modelInputs: string[] = [];
   t.mock.method(globalThis, "fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
+    const body = await new Request(input, init).text();
+    modelInputs.push(body);
     if (!send) return cogniaScriptedResponse(undefined, "Finished checking the note.");
     send = false;
-    const request = await new Request(input, init).json() as { tools?: Array<{ name: string; input_schema?: { properties?: { note?: unknown } } }> };
+    const request = JSON.parse(body) as { tools?: Array<{ name: string; input_schema?: { properties?: { note?: unknown } } }> };
     const tool = request.tools?.find(entry => entry.input_schema?.properties?.note);
     assert.ok(tool, "the real selected MCP tool is declared");
     return cogniaScriptedResponse({ name: tool.name, input: { note } });
@@ -119,7 +126,7 @@ test("APR-07/08/11: a real MCP pipe reuses an exact work authorization after res
     && queue.hasExactPermission(row.review_id)), "original MCP review did not appear");
   const settled = (ref: Awaited<ReturnType<typeof start>>["ref"]) => until(async () => {
     const view = await adapter.read(ref);
-    return ["completed", "failed", "cancelled", "stopped"].includes(view.phase) ? view : undefined;
+    return ["completed", "failed", "cancelled", "stopped"].includes(view.phase) && !adapter.sessionTransitionPending(ref) ? view : undefined;
   }, "MCP run did not settle");
   let run = await start();
   const review = await pending(run.ref.run_id);
@@ -150,8 +157,8 @@ test("APR-07/08/11: a real MCP pipe reuses an exact work authorization after res
   await adapter.control(run.ref, { kind: "stop" }); await settled(run.ref);
   assert.deepEqual(await notes(), ["Exact note", "Exact note"], "withdrawn directory receives zero additional pipe writes");
 
-  directoryAvailable = true; note = "Exact note";
   await adapter.mcpLibrary!.control(owner, saved.id, "disconnect");
+  directoryAvailable = true; note = "Exact note";
   await writeFile(script, MCP_FIXTURE.replace("note:{type:'string'}", "note:{type:'string'},category:{type:'string'}"));
   await adapter.mcpLibrary!.control(owner, saved.id, "connect");
   run = await start(); const changedTool = await pending(run.ref.run_id);
@@ -160,4 +167,20 @@ test("APR-07/08/11: a real MCP pipe reuses an exact work authorization after res
   assert.notEqual(current.scope.tool_digest, candidate.scope.tool_digest);
   assert.deepEqual(await notes(), ["Exact note", "Exact note"], "new tool shape never inherits the old decision");
   await adapter.control(run.ref, { kind: "stop" }); await settled(run.ref);
+
+  await adapter.mcpLibrary!.control(owner, saved.id, "disconnect");
+  await writeFile(script, delayedFixture);
+  await adapter.mcpLibrary!.control(owner, saved.id, "connect");
+  directoryAvailable = true; note = "Late reply";
+  run = await start();
+  const late = await pending(run.ref.run_id);
+  await queue.respond({ review_id: late.review_id, version: late.reference.version, decision: "approve", actor_id: owner.actor_id });
+  await until(async () => (await notes()).includes("Late reply") ? true : undefined, "the pipe should write before the original directory is revoked");
+  directoryAvailable = false;
+  await writeFile(release, "");
+  await until(async () => { await queue.refresh(owner.project_id); return queue.receipt(late.review_id)?.effect_uncertain || undefined; }, "late response should leave the sent request awaiting reconciliation");
+  assert.ok(modelInputs.every(body => !body.includes("Saved one note: Late reply")), "the revoked result never reaches the model");
+  assert.deepEqual(await notes(), ["Exact note", "Exact note", "Late reply"], "the original effect was sent once and was not replayed");
+  directoryAvailable = true;
+  await assert.rejects(start(), { code: "agent.session_busy" });
 });

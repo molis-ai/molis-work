@@ -116,7 +116,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     globalThis.molisWorkBindAssistantSettings?.(root);
     globalThis.molisWorkBindAuthorizationSettings?.(root);
     globalThis.molisWorkBindLocalDirectorySettings?.(root, { search: root.dataset.settingsSearch || "" });
-    globalThis.molisWorkBindMemorySettings?.(root);
+    globalThis.molisWorkBindMemorySettings?.(root, { search: root.dataset.settingsSearch || "" });
     globalThis.molisWorkBindAgentDiagnostics?.(root);
     globalThis.molisWorkBindRunningSettings?.(root);
     globalThis.molisWorkBindProjectIdentity?.(root);
@@ -366,7 +366,8 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     projectSettings ||= bindProject();
     if (nested) projectSettings?.caches.delete("planning");
     const linkedItem = projectSection === "kit" && new URLSearchParams(extra).has("install");
-    openProjectSettings(projectSection, linkedItem ? url.pathname + extra : nested ? url.pathname + (fromPage === true ? extra : url.search) : undefined);
+    const memoryTarget = projectSection === "memory" && (url.searchParams.has("memory_session_kind") || url.searchParams.has("memory_session_id"));
+    openProjectSettings(projectSection, linkedItem || nested || memoryTarget ? url.pathname + (linkedItem || fromPage === true ? extra : url.search) : undefined);
     return true;
   };
   const openGlobalSettingsFromUrl = (href, fromPage) => {

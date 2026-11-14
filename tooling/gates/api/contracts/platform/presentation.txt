@@ -31,6 +31,8 @@ export declare const PRESENTATION_LIMITS: {
     readonly action_ref: 212;
     readonly overview_subjects: 5;
     readonly overview_start: 3;
+    readonly start_view_id: 200;
+    readonly start_panel: 100;
 };
 
 export declare const PRESENTATION_OVERVIEW_INPUT_SCHEMA: {
@@ -226,6 +228,14 @@ export interface PresentationObjectAction {
         readonly slots?: readonly SurfaceSlotKind[];
     };
     readonly input_from?: Readonly<Record<string, string>>;
+    readonly unavailable?: {
+        readonly when: {
+            readonly status?: readonly string[];
+            readonly codes?: readonly string[];
+        };
+        readonly reason: TextRef;
+        readonly next?: string;
+    };
 }
 
 export interface PresentationOverview {
@@ -244,7 +254,13 @@ export interface PresentationOverviewDeclaration {
     readonly start?: readonly {
         readonly capability_id: string;
         readonly version: number;
+        readonly open?: PresentationStartForm;
     }[];
+}
+
+export interface PresentationStartForm {
+    readonly view_id: string;
+    readonly panel: string;
 }
 
 export interface PresentationStatusMapping {
@@ -284,4 +300,7 @@ export declare function definePresentationValuesAction(capabilityId: string, ver
 export declare function isPresentationValuesAction(action: {
     input_type?: string;
     output_type?: string;
+    execution?: {
+        cost?: string;
+    };
 }): boolean;

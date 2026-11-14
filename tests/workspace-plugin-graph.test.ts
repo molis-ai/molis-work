@@ -18,11 +18,11 @@ import {
 } from "@molis-ai/molis-work-app-local-host";
 import { createCodingPlugin } from "@molis-ai/molis-work-plugin-coding";
 import { DIFF_PLUGIN_ID, createDiffPlugin } from "@molis-ai/molis-work-plugin-diff";
-import { FILES_PLUGIN_ID, createFilesPlugin } from "@molis-ai/molis-work-plugin-files";
 import { GIT_PLUGIN_ID, createGitPlugin } from "@molis-ai/molis-work-plugin-git";
 import { TEXT_STATS_PLUGIN_ID, createTextStatsPlugin } from "@molis-ai/molis-work-plugin-text-stats";
 import { createShelfPlugin } from "@molis-ai/molis-work-plugin-shelf";
 import { projectDirectoryActions } from "@molis-ai/molis-work-contracts/modules/projects";
+import { SYSTEM_MATERIALS_SOURCE } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import { installTextForTest } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
 import { pagePack } from "./fixtures/page-text.js";
@@ -71,16 +71,11 @@ function project(directory: string, folders?: () => unknown) {
 }
 
 
-function snapshot(text: string) {
-  return { workspace: { workspace_id: "ws-1", name: "示例项目" }, path: ["a.ts"], text };
-}
-
-test("五个插件在真平台上一起起来，没有一个被依赖挡住", async () => {
+test("四个插件在真平台上一起起来，没有一个被依赖挡住", async () => {
   const directory = mkdtempSync(join(tmpdir(), "workspace-graph-"));
   try {
     const { store, platform } = project(directory);
     const report = await platform.start([
-      { definition: createFilesPlugin(), trust: { level: "host" } },
       { definition: createDiffPlugin(), trust: { level: "host" } },
       { definition: createGitPlugin(), trust: { level: "host" } },
       { definition: createTextStatsPlugin(), trust: { level: "host" } },
@@ -89,82 +84,9 @@ test("五个插件在真平台上一起起来，没有一个被依赖挡住", as
     assert.deepEqual(report.failed, []);
     assert.deepEqual(report.blocked, []);
     assert.equal(report.running.includes("io.molis.work.workspace"), false);
-    assert.equal(report.running.includes(FILES_PLUGIN_ID), true);
     assert.equal(report.running.includes(DIFF_PLUGIN_ID), true);
     assert.equal(report.running.includes(GIT_PLUGIN_ID), true);
     assert.equal(report.running.includes(TEXT_STATS_PLUGIN_ID), true);
-    store.close();
-  } finally {
-    rmSync(directory, { recursive: true, force: true });
-  }
-});
-
-// The folder Files browses is the page's own state (SSC-05): the page names it, and with none named Files reads the output (SSC-17).
-test("SSC-05 SSC-17 Files reads the folder the page names, or the output, without a Workspace binding and rejects the retired input", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "workspace-settings-graph-"));
-  let output = { workspace_id: "one", display_name: "One", canonical_path: "/one" };
-  const input = { workspace_id: "two", display_name: "Two", canonical_path: "/two" };
-  const { store, platform } = project(directory, () => [output, input]);
-  try {
-    const report = await platform.start([{ definition: createFilesPlugin(), trust: { level: "host" } }]);
-    assert.deepEqual(report.failed, []);
-    type FilesState = { workspace: { workspace_id: string }; resolved: string | null };
-    const read = async (query: Record<string, string> = {}) => {
-      const response = await platform.router().dispatch({ method: "GET", pathname: "/api/plugins/io.molis.work.files/state", actor_id: "tester", query });
-      return { status: response?.status, body: response?.body as FilesState };
-    };
-    const first = await read();
-    assert.equal(first.status, 200);
-    assert.equal(first.body.workspace.workspace_id, "one", "with none named, Files reads the output");
-    const named = await read({ workspace_id: "two" });
-    assert.equal(named.body.workspace.workspace_id, "two", "the folder the page names");
-    assert.equal(named.body.resolved, "two");
-    const foreign = await read({ workspace_id: "not-this-project" });
-    assert.equal(foreign.body.workspace.workspace_id, "one", "a folder that is not the project's is never read; the output is");
-    assert.equal(foreign.body.resolved, null);
-    output = { ...output, workspace_id: "three", canonical_path: "/three" };
-    assert.equal((await read()).body.workspace.workspace_id, "three", "a new output is read at once");
-    assert.throws(() => platform.wiring.bind({ project_id: DEMO_PROJECT_ID, actor_id: "tester", target_plugin_id: FILES_PLUGIN_ID,
-      target_port: "workspace", source_plugin_id: "io.molis.work.workspace", source_port: "workspace", origin: "user" }));
-  } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
-});
-
-test("Files 捕获的快照到得了 Text stats，数出来的是那一份", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "workspace-graph-"));
-  try {
-    const { store, platform } = project(directory);
-    let filesServices: PluginStartContext["services"];
-    const counted: Array<{ content: unknown; content_version: number } | null> = [];
-
-    await platform.start([
-      {
-        definition: capturing(
-          createFilesPlugin(),
-          (context) => { filesServices = context.services; },
-        ),
-        trust: { level: "host" },
-      },
-      { definition: createTextStatsPlugin({ onSnapshot: (input) => { counted.push(input); } }), trust: { level: "host" } },
-    ]);
-
-    platform.wiring.bind({
-      project_id: DEMO_PROJECT_ID,
-      target_plugin_id: TEXT_STATS_PLUGIN_ID,
-      target_port: "text",
-      source_plugin_id: FILES_PLUGIN_ID,
-      source_port: "before",
-      origin: "user",
-      actor_id: "tester",
-    });
-
-    filesServices!.outputs!.publish({
-      port: "before",
-      content: { kind: "inline", payload: snapshot("中文") },
-    });
-    await platform.wiring.drain();
-
-    assert.equal(counted.length, 1);
-    assert.deepEqual(counted[0]?.content, snapshot("中文"));
     store.close();
   } finally {
     rmSync(directory, { recursive: true, force: true });
@@ -181,7 +103,7 @@ test("Coding fixed output reaches Diff through the production default binding wi
     await platform.start([
       { definition: capturing(createCodingPlugin(), context => { coding = context; }), trust: { level: "host" } },
       { definition: createShelfPlugin(), trust: { level: "host" } },
-      { definition: createFilesPlugin(), trust: { level: "host" } }, { definition: createGitPlugin(), trust: { level: "host" } },
+      { definition: createGitPlugin(), trust: { level: "host" } },
       { definition: createTextStatsPlugin(), trust: { level: "host" } }, { definition: createDiffPlugin(), trust: { level: "host" } },
     ]);
     bindDeclaredDefaults(platform, DEMO_PROJECT_ID, "tester");
@@ -207,7 +129,7 @@ test("the default wiring leaves a 成果 version the person gave an input in pla
   const { store, platform, artifacts } = project(directory);
   try {
     await platform.start([
-      { definition: createCodingPlugin(), trust: { level: "host" } }, { definition: createShelfPlugin(), trust: { level: "host" } }, { definition: createFilesPlugin(), trust: { level: "host" } },
+      { definition: createCodingPlugin(), trust: { level: "host" } }, { definition: createShelfPlugin(), trust: { level: "host" } },
       { definition: createGitPlugin(), trust: { level: "host" } }, { definition: createTextStatsPlugin(), trust: { level: "host" } }, { definition: createDiffPlugin(), trust: { level: "host" } },
     ]);
     const shelfReport = () => platform.wiring.view().plugins.find(plugin => plugin.plugin_id === "io.molis.work.shelf")!.ports.find(port => port.port === "coding-report")!;
@@ -234,10 +156,11 @@ test("the default wiring leaves a 成果 version the person gave an input in pla
 });
 
 test("端口声明里的类型两两对得上，连线才可能是合法的", () => {
-  const outputs = new Map<string, { type: string; version: number }>();
+  // The platform's materials source hands on what the person fixes from the project's folders (Diff's and Text Stats' snapshots).
+  const outputs = new Map<string, { type: string; version: number }>(SYSTEM_MATERIALS_SOURCE.outputs.map(port =>
+    [`${SYSTEM_MATERIALS_SOURCE.plugin_id}:${port.port}`, { type: port.artifact_type_id, version: port.schema_version }]));
   const manifests = [
     createShelfPlugin().manifest,
-    createFilesPlugin().manifest,
     createDiffPlugin().manifest,
     createGitPlugin().manifest,
     createTextStatsPlugin().manifest,
@@ -267,7 +190,6 @@ test("端口声明里的类型两两对得上，连线才可能是合法的", ()
 
 test("每个插件声明的视图都有对应的 contribution", () => {
   for (const definition of [
-    createFilesPlugin(),
     createDiffPlugin(),
     createGitPlugin(),
     createTextStatsPlugin(),

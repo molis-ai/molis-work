@@ -12,8 +12,9 @@ pub(crate) async fn claim(
     revision: i64,
     explicit: bool,
 ) -> ApiResult<()> {
-    let changed=db.prepare("UPDATE sync_heads SET purged_at=unixepoch()*1000 WHERE space=? AND namespace=? AND key=? AND revision=? AND deleted_at IS NOT NULL AND purged_at IS NULL AND (?=1 OR deleted_at<=unixepoch()*1000-2592000000) RETURNING revision")
-        .bind(&[space.into(),namespace.into(),key.into(),JsValue::from_f64(revision as f64),JsValue::from_f64(if explicit{1.0}else{0.0})])?.first::<Value>(None).await?;
+    // An explicit claim never reaches a sealed process-items stream; its trash keeps the ordinary expiry only.
+    let changed=db.prepare("UPDATE sync_heads SET purged_at=unixepoch()*1000 WHERE space=? AND namespace=? AND key=? AND revision=? AND deleted_at IS NOT NULL AND purged_at IS NULL AND (?=1 OR deleted_at<=unixepoch()*1000-2592000000) AND NOT (?=1 AND namespace=? AND EXISTS(SELECT 1 FROM sync_cutovers c WHERE c.space=sync_heads.space)) RETURNING revision")
+        .bind(&[space.into(),namespace.into(),key.into(),JsValue::from_f64(revision as f64),JsValue::from_f64(if explicit{1.0}else{0.0}),JsValue::from_f64(if explicit{1.0}else{0.0}),crate::cutover::PUBLIC.into()])?.first::<Value>(None).await?;
     if changed.is_none() {
         return Err(Failure(409, "SYNC_RETENTION_CONFLICT"));
     }
@@ -54,6 +55,10 @@ async fn enqueue(db: &D1Database, scope: Option<&str>) -> ApiResult<()> {
     // Deleted heads keep their complete retained body until that tombstone's own retention expires.
     db.prepare("DELETE FROM sync_events WHERE revision IN (SELECT e.revision FROM sync_events e JOIN sync_heads h ON h.space=e.space AND h.namespace=e.namespace AND h.key=e.key WHERE h.deleted_at IS NULL AND e.revision<>h.revision AND NOT EXISTS(SELECT 1 FROM sync_history_pins p WHERE p.space=e.space AND p.namespace=e.namespace AND p.revision=e.revision) AND NOT EXISTS(SELECT 1 FROM sync_version_retention r WHERE r.space=e.space AND r.namespace=e.namespace AND r.revision=e.revision AND r.retained_until>unixepoch()*1000) AND e.created_at<unixepoch()*1000-2592000000 AND (? IS NULL OR e.space=?) ORDER BY e.revision LIMIT 20)")
       .bind(&[scope.map_or(JsValue::NULL,JsValue::from_str),scope.map_or(JsValue::NULL,JsValue::from_str)])?.run().await?;
+    // Thirty days after a cutover completes, the sealed stream's unpinned current bodies go too. Heads and receipts stay,
+    // so the keys remain known (and never become terminal) while their attachments follow the ordinary reference count.
+    db.prepare("DELETE FROM sync_events WHERE revision IN (SELECT e.revision FROM sync_events e JOIN sync_heads h ON h.space=e.space AND h.namespace=e.namespace AND h.key=e.key AND h.revision=e.revision JOIN sync_cutovers c ON c.space=e.space AND c.completed_at IS NOT NULL AND c.completed_at<=unixepoch()*1000-2592000000 WHERE e.namespace=? AND h.deleted_at IS NULL AND NOT EXISTS(SELECT 1 FROM sync_history_pins p WHERE p.space=e.space AND p.namespace=e.namespace AND p.revision=e.revision) AND (? IS NULL OR e.space=?) ORDER BY e.revision LIMIT 20)")
+      .bind(&[crate::cutover::PUBLIC.into(),scope.map_or(JsValue::NULL,JsValue::from_str),scope.map_or(JsValue::NULL,JsValue::from_str)])?.run().await?;
     let claimed=db.prepare("UPDATE sync_blobs SET deleting=1 WHERE (space,digest) IN (SELECT b.space,b.digest FROM sync_blobs b WHERE b.deleting=0 AND b.created_at<unixepoch()*1000-86400000 AND (? IS NULL OR b.space=?) AND NOT EXISTS(SELECT 1 FROM sync_events e,json_each(e.attachments) a WHERE e.space=b.space AND json_extract(a.value,'$.digest')=b.digest) ORDER BY b.created_at LIMIT 2) RETURNING space,digest,generation")
         .bind(&[scope.map_or(JsValue::NULL,JsValue::from_str),scope.map_or(JsValue::NULL,JsValue::from_str)])?.all().await?.results::<Value>()?;
     for row in claimed {
@@ -123,6 +128,7 @@ async fn collect_generation(
     ];
     // Byte accounting is released only after R2 deletion succeeds. A newer generation is never touched.
     db.batch(vec![
+        db.prepare("DELETE FROM sync_cutover_blobs WHERE space=? AND digest=? AND generation=? AND EXISTS(SELECT 1 FROM sync_blobs b WHERE b.space=sync_cutover_blobs.space AND b.digest=sync_cutover_blobs.digest AND b.generation=sync_cutover_blobs.generation AND b.deleting=1)").bind(&args)?,
         db.prepare("DELETE FROM sync_blob_parts WHERE space=? AND digest=? AND generation=? AND EXISTS(SELECT 1 FROM sync_blobs b WHERE b.space=sync_blob_parts.space AND b.digest=sync_blob_parts.digest AND b.generation=sync_blob_parts.generation AND b.deleting=1)").bind(&args)?,
         db.prepare("DELETE FROM sync_blobs WHERE space=? AND digest=? AND generation=? AND deleting=1").bind(&args)?,
         db.prepare("UPDATE sync_gc_jobs SET state='done',last_error=NULL WHERE space=? AND digest=? AND generation=?").bind(&args)?,
@@ -176,7 +182,15 @@ async fn scan_orphans(db: &D1Database, bucket: &Bucket) -> ApiResult<()> {
             .bind(&[parts[0].into(), parts[1].into(), parts[2].into()])?
             .first::<Value>(None)
             .await?;
-        if current.is_none() {
+        if current.is_some() {
+            // In a sealed account, a losing writer's object for a part that is already fixed with another checksum is
+            // removed exactly; an object with the recorded checksum is the shared one and stays.
+            let stale=db.prepare("SELECT 1 AS stale FROM sync_blob_parts p JOIN sync_blobs b ON b.space=p.space AND b.digest=p.digest AND b.generation=p.generation AND b.ready=1 WHERE p.space=? AND p.digest=? AND p.generation=? AND p.part=? AND p.checksum<>? AND EXISTS(SELECT 1 FROM sync_cutovers c WHERE c.space=p.space)")
+                .bind(&[parts[0].into(),parts[1].into(),parts[2].into(),parts[3].parse::<f64>().map_or(JsValue::NULL,JsValue::from_f64),parts[4].into()])?.first::<Value>(None).await?;
+            if stale.is_some() {
+                bucket.delete(key.clone()).await?;
+            }
+        } else {
             db.prepare("INSERT INTO sync_gc_jobs(space,digest,generation) VALUES (?,?,?) ON CONFLICT(space,digest,generation) DO UPDATE SET state='pending'").bind(&[parts[0].into(),parts[1].into(),parts[2].into()])?.run().await?;
         }
     }

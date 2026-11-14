@@ -64,7 +64,9 @@ test("a standing request is kept by Prologue's durable queue: it runs once per d
     const key = `fu-${followUp!.followup_id}-${due.getTime()}`;
     assert.deepEqual([schedule.find(key)?.kind, schedule.find(key)?.state], ["assistant.follow-up", "queued"], "the time lives in the runtime's queue");
 
-    const second = await until(async () => { const view = await service.read(sent.work.work_id); return view.rounds.length === 2 && view.work.state === "completed" ? view : undefined; }, "timed round");
+    const second = await until(async () => { const view = await service.read(sent.work.work_id); return view.rounds.length === 2 && view.work.state === "completed" ? view : undefined; }, "timed round").catch(error => {
+      throw new Error(`Timed round did not finish: ${JSON.stringify({ task: schedule.find(key), last: service.followUps.list(sent.work.work_id)[0]?.last })}`, { cause: error });
+    });
     assert.match(second.rounds[1]!.text, /每天六点汇总.*汇总今天的进展/);
     assert.deepEqual(store.rounds(sent.work.work_id).map(round => round.written_by ?? "person"), ["person", "host"], "a timed round is marked as the Host's words when it is written");
     const after = service.followUps.list(sent.work.work_id)[0]!;
@@ -137,9 +139,10 @@ test("a standing request is kept by Prologue's durable queue: it runs once per d
   } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
 
-test("a daily time keeps the person's wall-clock time across a daylight-saving change", () => {
+test("BSH-09 a daily time keeps the person's wall-clock time across a daylight-saving change", () => {
   // 2026-10-31 18:00 PDT; clocks go back on 2026-11-01, so the next six o'clock is 18:00 PST (02:00Z).
   assert.equal(new Date(sameLocalTimeLater(Date.parse("2026-11-01T01:00:00.000Z"), 1, "America/Los_Angeles")).toISOString(), "2026-11-02T02:00:00.000Z");
+  assert.equal(new Date(sameLocalTimeLater(Date.parse("2026-11-01T01:23:45.678Z"), 1, "America/Los_Angeles")).toISOString(), "2026-11-02T02:23:45.678Z");
   assert.equal(new Date(sameLocalTimeLater(Date.parse("2026-09-29T10:00:00.000Z"), 7, "Asia/Shanghai")).toISOString(), "2026-10-06T10:00:00.000Z");
   assert.equal(new Date(sameLocalTimeLater(Date.parse("2026-09-29T10:00:00.000Z"), 1, "Not/AZone")).toISOString(), "2026-09-30T10:00:00.000Z", "an unknown zone falls back to 24 hours");
 });

@@ -27,14 +27,22 @@ export const UNCHECKED = "宿主没有保存你对这个 Agent 说过的话，�
 const trimmed = (message: string) => message.replace(/^\p{White_Space}+|\p{White_Space}+$/gu, "");
 
 /**
+ * “记住：……” / “remember that …” at the very start is the request to keep it, not what is kept: one such opening is taken off a message (and off
+ * the text) before comparing, and the message comes back without it. Only at the start: the same words later in a message are part of what they said.
+ */
+const REMEMBER_OPENING = /^(?:(?:请|帮我)?记住(?![了得过])[：:，,]?|remember(?:\p{White_Space}+that)?(?![\p{L}\p{N}])[:,]?)\p{White_Space}*/iu;
+const withoutOpening = (message: string) => trimmed(trimmed(message).replace(REMEMBER_OPENING, ""));
+
+/**
  * The message of the person's, as they wrote it, that the text is the whole of; null when it is none of them (then it is not theirs), or when the
  * text is also found inside another message of theirs that goes on past it (the text said whole once and a ban or a question about it another time).
  * `messages` are only what the person typed, each one message: a round the Host, the Assistant or a page wrote is not among them.
+ * A leading “记住：” / “remember that” is no part of either (see `REMEMBER_OPENING`).
  */
 export function theirWords(text: string, messages: readonly string[]): string | null {
-  const wanted = fold(text);
+  const wanted = fold(withoutOpening(text));
   if ([...wanted].length < 2) return null;
-  const folded = messages.map(message => ({ message: trimmed(message), body: fold(message) }));
+  const folded = messages.map(message => withoutOpening(message)).map(message => ({ message, body: fold(message) }));
   // Found inside another message that goes on past it (or says no to it), it is no longer clear what they meant: not theirs.
   if (folded.some(({ body }) => body !== wanted && body.includes(wanted))) return null;
   return folded.find(({ body }) => body === wanted)?.message ?? null;

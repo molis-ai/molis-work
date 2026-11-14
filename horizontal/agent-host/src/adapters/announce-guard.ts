@@ -13,9 +13,9 @@ import { DELEGATION_TOOLS, GATEWAY_TOOLS, HOST_GOVERNED_TOOLS, MEMORY_TOOLS } fr
 export const ANNOUNCE_HELD =
   "Your last message only said what you would do next and called no tool, so nothing has happened yet. If the work is not finished, call the tools now. If it is finished, needs the person's decision, or cannot proceed, say so plainly.";
 
-/** What the model reads when it claimed a memory change in a round the person gave no memory (switched off in settings). */
+/** What the model reads when it claims to have kept a memory with formation off. */
 const MEMORY_OFF_HELD =
-  "The person has switched off forming memories, so this round cannot keep or forget anything and nothing was kept. Say plainly that you did not keep it, that it still applies within this work, and that they can turn on “允许记住” under 设置 · 个人 · 记忆.";
+  "The person has switched off forming memories, so this round kept nothing. Say plainly that you did not keep it, that it still applies within this work, and that they can turn on “允许记住” under 设置 · 个人 · 记忆.";
 
 /** What the model reads when it claimed a memory change it did not make. */
 const MEMORY_CLAIM_HELD = {
@@ -28,8 +28,13 @@ const MEMORY_NOT_GIVEN_HELD =
   "This work was handed to you by another work, so you have no tools to keep or forget memories (only the person's own work does): nothing was kept or forgotten. Say plainly that you did not keep or forget it, and leave it to the work that handed this to you to do it if the person asked.";
 
 /** What the model reads when a round's reply claims `claim` that no call made: switched off, no such tool in a handed-down work, or just not done. */
+export const memoryFormationOff = (round: { off: boolean; without: { keep: boolean; forget: boolean } }) =>
+  round.off || round.without.keep && !round.without.forget;
+
 export function memoryHeld(round: { off: boolean; without: { keep: boolean; forget: boolean } }, claim: "keep" | "forget"): string {
-  return round.off ? MEMORY_OFF_HELD : round.without[claim] ? MEMORY_NOT_GIVEN_HELD : MEMORY_CLAIM_HELD[claim];
+  if (claim === "keep" && memoryFormationOff(round)) return MEMORY_OFF_HELD;
+  if (round.off) return "This round has no memory tools and did not switch off any memories. Say plainly that you did not switch it off.";
+  return round.without[claim] ? MEMORY_NOT_GIVEN_HELD : MEMORY_CLAIM_HELD[claim];
 }
 
 /** What the model reads when it said something was saved or created but no change succeeded this round. */

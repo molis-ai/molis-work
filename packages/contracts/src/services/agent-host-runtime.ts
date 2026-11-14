@@ -143,11 +143,34 @@ export interface AgentRuntimeDiagnostics {
   ledger_failures: Array<{ kind: string; seq: number; code: string | null; detail: string | null }>;
 }
 
+/** Current canonical lifecycle; the SDK remains its only writer. */
+export interface AgentSessionLifecycleView {
+  session: AgentSessionRef;
+  state: "active" | "archived";
+}
+
+/** A Host-only denial proof for one live call; it carries neither lifecycle state nor authority. */
+export interface AgentSessionWriteObservation {
+  assert_current(): void;
+  dispose(): void;
+}
+
+export interface AgentSessionLifecycleCapability {
+  observeWrites?(sessions: readonly AgentSessionRef[]): AgentSessionWriteObservation;
+  /** Original App owner only, including after SDK root removal. Missing is explicit; malformed index is an error.
+   * This grants no read/write or model permission. Used only to reconcile an already accepted fixed deletion. */
+  readOwner?(session: AgentSessionRef): Promise<AgentSessionView["owner"] | undefined>;
+  read(session: AgentSessionRef): Promise<{ owner: AgentSessionView["owner"]; view: AgentSessionLifecycleView }>;
+  archive(session: AgentSessionRef): Promise<AgentSessionLifecycleView>;
+  unarchive(session: AgentSessionRef): Promise<AgentSessionLifecycleView>;
+}
+
 export interface AgentRuntimeAdapter {
   /** Trusted Host commit scope through the runtime's asynchronous preparation; never an Agent payload. */
   withEffect?<T>(control: AgentMemoryExecutionControl, operation: () => Promise<T>): Promise<T>;
   /** The Runtime's own account of its assembly, for the developer diagnostics page; absent when it keeps none. */
   diagnostics?(): AgentRuntimeDiagnostics;
+  readonly sessionLifecycle?: AgentSessionLifecycleCapability;
   readonly recovery?: AgentRecoveryCapability;
   readonly schedule?: AgentScheduleCapability;
   readonly memory?: AgentMemoryCapability;

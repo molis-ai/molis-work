@@ -76,7 +76,7 @@ export interface SqliteBaseline {
 ```text
 前提：持主人锁；这个进程还没有打开任何业务库。
 1. 校验段连续（from 从 found 起到 version-1 各一次），缺段记 failed，不碰文件（`upgradeStepsProblem`，在 checkpoint 之前，checkpoint 已经算写）。
-2. 可写打开，PRAGMA wal_checkpoint(TRUNCATE)，关闭。确认 -wal、-shm、-journal 都不在了，否则记 failed。唯一的例外：回滚日志模式的库里没刷盘的 -journal（空的或首字节是 0，SQLite 读时不理、下次写才删），在 BEGIN EXCLUSIVE 之下提前删（S-upgrade-journal-removal）；热日志由持锁方打开时恢复。
+2. 可写打开，PRAGMA wal_checkpoint(TRUNCATE)，关闭。确认 -wal、-shm、-journal 都不在了，否则记 failed。唯一的例外：回滚日志模式的库里没刷盘的 -journal（空的或首字节是 0，SQLite 读时不理、下次写才删），在 BEGIN EXCLUSIVE 之下提前删（S-upgrade-journal-removal）；普通库热日志由持锁方打开时恢复。N12 候选库先在 §4.1 的同租约前置完成恢复。
 3. 原样拷进升级快照，记下大小、sha256、mode、user_version、结构摘要（§5）。记录写 snapshotted。
 4. 可写打开。段里有 rebuilds_tables 就在事务外 foreign_keys=OFF；插件的段一律 OFF（§2.4）。
 5. BEGIN IMMEDIATE
@@ -162,6 +162,7 @@ readonly upgrades?: readonly { readonly from: number; readonly sql: string; read
   - 插件升 `collection.schema_version`：`pluginSyncNamespace` 的哈希含它和发布者签名（`plugin-sync-database.ts:8-13`），一升技术表和触发器全部换名，第 3 层比不过，这个插件回滚并停用。
 
   三者都等第一次真要这样做时再定。
+- **插件的表等它所在的库，库到了就补上（2026-11-13，第 06 批）。** 库本身这一轮没升过去时，插件的表记 `prerequisite_failed`、不动。这不是对插件的表的结论：下一次启动见到它等的库已是这一版（例如 Files 退役的采用程序在两次启动之间把旧布局的项目库带到现行版本），就照常升它；库还没到，它照旧留在记录里，不算待升（`apps/local-host/src/home-upgrade.ts` 的 `prerequisiteNowMet`）。其余失败仍等新版本或 U3。用例 `tests/files-era-adoption.test.ts` 的 BSH-14-F／M3：第一次启动只拦旧布局的项目库与其中插件的表，采用后再启动，这些表全部升完并打上戳。
 - **第 2 层以后改用原生授权（结论）。** `nativeSqliteOwnerBoundary`（`node:sqlite` 的 `setAuthorizer`，S-112）现在只用在 Home 插件库。写这一节时项目库还在 `better-sqlite3` 上，它没有把 SQLite 的授权回调接出来；2026-11-08 起项目库也在 `node:sqlite` 上（[SQLite 第二步](../sqlite-driver-switch/spec.md)，#1959），连接里有 `setAuthorizer`，只是窄接口 `SqliteDatabase` 还没把它交出来，接的时候在 `packages/storage` 加。跑法和范围检查对所有插件同一份（用户 2026-11-06 定），所以**不能 Home 库先用授权、项目库继续按词读**，两边要一起换。逐层的结论：
   - **第 1 层留。** 声明时、安装时没有连接；第 2 层也靠它分清这句是结构语句还是增删改。
   - **第 3 层留。** 授权只管一句碰了什么，不知道段跑完之后对象集合和结构对不对。这是 UPG-03 判断放不放回的依据，和防越权无关也要有。
@@ -306,12 +307,15 @@ acquireUpgradedHomeOwner(home, beforeAcquire?, expected?)  // 放 home-storage-l
   owner = acquireStorageOwner
   有 expected 时只读比 storage-space.json：不符抛 SPACE_OWNERSHIP_MISMATCH，放锁，不升
   注册戳记自愈的监听（§3.3）
-  ensureHomeUpgraded(home)                 // 戳记相符零成本；不符就同步跑完
+  ensureHomeUpgraded(home, owner)
+    先查登记项目与声明的 Home 库的文件身份及日志，按同租约预演并执行原生恢复
+    检查原发布待处理记录为零
+    戳记相符跳过版本扫描，否则续跑未完记录并完成本轮
   出错：注销监听，放锁，往上抛
   return owner
 ```
 
-调它的四处：`ensureHomeStorageOwner` 的首次取锁分支（`home-storage-lifetime.ts:52`）、`project-catalog.ts:250`、`installer/uninstall-owner.ts:12` 的非 purge 分支、`bootstrapSpace` 没有 host 的分支（`space-web-server.ts:58`）。之后才有 `prepareMemoryHome`、业务库打开。
+调它的四处：`ensureHomeStorageOwner` 的首次取锁分支（`home-storage-lifetime.ts:52`）、`project-catalog.ts:250`、`installer/uninstall-owner.ts:12` 的非 purge 分支、`bootstrapSpace` 没有 host 的分支（`space-web-server.ts:58`）。之后才有 `prepareMemoryHome`、业务库打开。N12 成果固定的项目库与 Home 库遵循此顺序。离线快照和目标恢复只检测未收尾的日志，使用者先以原 Home 正常启动恢复再关闭。正常 Host 只用自己持有的匹配租约转换 Catalog 登记项目为 DELETE／EXTRA。启动中止留下的未登记暂存仍归原创建 owner。已安装项目插件的 SQL 子进程实际退出后才释放租约。
 
 `bootstrapSpace` 是 #1877 新加的启动点，根 Home 和账号 Home 都走它，顺序是：只读的 `preflightMemoryHome`、取锁、再查一次、`ensureStorageSpace`、`prepareMemoryHome`（这里才开记忆库）、打开调用方要的东西。升级要排在 `prepareMemoryHome` 之前，否则低版本的记忆库在这里就被拒了；`acquireUpgradedHomeOwner(directory, preflightMemoryHome, expected)` 正好接在取锁这一步，先比身份再升，否则别人的目录放在这个名字下时是先升后拒。单库失败不算这里出错（§5.2），只有取不到锁、记录坏了这类整体问题才抛。
 
@@ -426,7 +430,7 @@ apps/desktop/launchers/web/server.ts：
   6. 记录写 failed，带错误码和这个库的主人。
 ```
 
-每一步都可以重来：中断后从 `restoring` 接着做。失败的库打开时报 `storage.upgrade_failed`：`onUpgradePending` 的监听可以返回一个替换的错误，打开路径就报它，这个失败不用另开一条路。同一 fingerprint 下不自动重试，免得每次启动都花时间；换版本或 U3 的操作才重试。`snapshot_invalid` 换版本也不重试：这个库的快照对不上，只能等 U3（`Round.waiting`）。
+每一步都可以重来：中断后从 `restoring` 接着做。失败的库打开时报 `storage.upgrade_failed`：`onUpgradePending` 的监听可以返回一个替换的错误，打开路径就报它，这个失败不用另开一条路。同一 fingerprint 下不自动重试（唯一的例外见 §2.4：插件的表只因所在的库没升过去而失败，库到了这一版就补升），免得每次启动都花时间；换版本或 U3 的操作才重试。`snapshot_invalid` 换版本也不重试：这个库的快照对不上，只能等 U3（`Round.waiting`）。
 
 **磁盘空间**：按 Home 算，每个 Home 开始前用 `statfsSync` 现查：可用空间不足「这个 Home 要动的文件总大小 × 2」时，这个 Home 这一轮不动任何东西，全部记 `storage.upgrade_no_space`，下次启动再看，别的 Home 照常。根 Home 排第一，否则一个长期不登录的大账号会让根 Home 这一轮也不升。
 

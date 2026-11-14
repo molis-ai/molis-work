@@ -6,7 +6,7 @@
 
 [27-4](../../../post-anticorruption-roadmap/reference/batches/27.md#batch-27-item-4) 的目标仍是交付、验收原有余项。本人能在「插件」里收回、恢复沙箱插件的一项权限，安装和数据都保留。本人直接从 Feed 升格时，Goals 确认来源和输入，其余调用者只能提议。插件的清理钩子失去响应时，宿主在规定时间内结束对它的等待，完成自身清理，停用、重启、卸载和关闭能继续。最终要在隔离 Home 走实际入口，带持久记录和拒绝证据。权限界面复用已有开关和确认，按第 27 批的界面要求核实成品和本人验收。工程、实操、本人验收分别记录。
 
-三项都属于横向能力和底层安全／可靠性，BL-701 还涉及工作台体验，BL-803 涉及 Feed／Goals 产品线。基点已有 02、07 提供的动作、安装及测试入口，日志衔接 [26-4](../../../post-anticorruption-roadmap/reference/batches/26.md#batch-26-item-4)。范围取自 BL-701（已实现，待办已删）、BL-803（已实现，待办已删）、BL-367（已实现，待办已删） 和 [需求清单](../../../post-anticorruption-roadmap/reference/requirements.md#section-3-8)。旧生成器的读取清理随 [46](../../../post-anticorruption-roadmap/reference/batches/46.md)，本机统计随 [74](../../../post-anticorruption-roadmap/reference/batches/74.md)，可选上报随 [SRV-8](../../../post-anticorruption-roadmap/reference/batches/srv-8.md)。
+三项都属于横向能力和底层安全／可靠性，BL-701 还涉及工作台体验，BL-803 涉及 Feed／Goals 产品线。基点已有 02、07 提供的动作、安装及测试入口，日志衔接 [26-4](../../../post-anticorruption-roadmap/reference/batches/26.md#batch-26-item-4)。范围取自 BL-701（已实现，待办已删）、BL-803（已实现，待办已删）、BL-367（已实现，待办已删） 和 [需求清单](../../../post-anticorruption-roadmap/reference/requirements.md#section-3-8)。旧生成器的读取清理随 [47](../../../post-anticorruption-roadmap/reference/batches/47.md)，本机统计随 [75](../../../post-anticorruption-roadmap/reference/batches/75.md)，可选上报随 [SRV-8](../../../post-anticorruption-roadmap/reference/batches/srv-8.md)。
 
 ## BL-701 沙箱插件的可选权限
 

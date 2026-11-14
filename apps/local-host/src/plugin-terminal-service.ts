@@ -247,7 +247,7 @@ function terminalProgram(program: unknown): TerminalProgram {
   return Object.freeze({ command, args: Object.freeze(list as string[]) });
 }
 
-/** The folder: the plugin's owner files, or a linked workspace of the call's project (its preferred one when none is named). */
+/** The folder: the plugin's owner files, or a linked workspace of the call's project (its output directory when none is named). */
 function terminalFolder(directory: unknown): PluginTerminalDirectory {
   if (!plain(directory)) throw invalid();
   const { root, workspace_id, path } = directory;
@@ -265,7 +265,7 @@ const plain = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype;
 
 /**
- * The folder, resolved: its root is the project's linked workspace named by the call, or its preferred one (from the catalog, read now), or the plugin's owner
+ * The folder, resolved: its root is the project's linked workspace named by the call, or its output directory (from the catalog, read now), or the plugin's owner
  * files; the real path must stay inside the root's real path and be a directory. Authority is checked again after every wait. A link
  * swapped into the path between this check and the spawn is not caught (S-103 does not cover it); the spawn uses the resolved `target`.
  */

@@ -1,0 +1,67 @@
+{
+  "generated_by": "scripts/files-era-home.mjs at 54a12642c",
+  "projects": [
+    {
+      "project_id": "project-71c8e026-b779-4ad3-9186-a022c9269b5b",
+      "display_name": "文件时代甲",
+      "database": "projects/project-71c8e026-b779-4ad3-9186-a022c9269b5b/molis-work.db"
+    },
+    {
+      "project_id": "project-a9867ade-741e-4f30-a62c-7f67c9a0b9ca",
+      "display_name": "文件时代乙",
+      "database": "projects/project-a9867ade-741e-4f30-a62c-7f67c9a0b9ca/molis-work.db"
+    }
+  ],
+  "revoked_consent": "8936236c-36b6-4e94-9d68-fa55006c46f1",
+  "stores": [
+    {
+      "path": "projects/catalog.db",
+      "payload": "stores/projects__catalog.db.sql",
+      "sha256": "73c6126ed9ee5aa739b2a53f3097634d3e524a2156185a3690c610c3c4a595a2"
+    },
+    {
+      "path": "projects/project-71c8e026-b779-4ad3-9186-a022c9269b5b/molis-work.db",
+      "payload": "stores/projects__project-71c8e026-b779-4ad3-9186-a022c9269b5b__molis-work.db.sql",
+      "sha256": "0c97c90463f471d2d4d15fb52ca8d3f6d98995c8253c14170cb8ac1a471f579b"
+    },
+    {
+      "path": "projects/project-a9867ade-741e-4f30-a62c-7f67c9a0b9ca/molis-work.db",
+      "payload": "stores/projects__project-a9867ade-741e-4f30-a62c-7f67c9a0b9ca__molis-work.db.sql",
+      "sha256": "2fb14c0eb2fb5b72eeadcaab7b7aa269c1114d802fa6c22e9df1276ed6d21b5d"
+    },
+    {
+      "path": "plugin-runtime/plugin-runtime.db",
+      "payload": "stores/plugin-runtime__plugin-runtime.db.sql",
+      "sha256": "51a5adce3f8711ceac78bebd3f3406779569c18dd91106d4dfd50f345f52f158"
+    },
+    {
+      "path": "memory/memory.db",
+      "payload": "stores/memory__memory.db.sql",
+      "sha256": "7276392d956bd9b5d427c4bd3d0464a087d8893f6e5e88892cb1e96d24225ffd"
+    }
+  ],
+  "files": [
+    {
+      "path": "storage-space.json",
+      "payload": "storage-space.json",
+      "sha256": "8f32b06397b787e54b43c7f5779c002fec7cd76fb66d2243fd5e71d723433d57"
+    }
+  ],
+  "left_out": [
+    {
+      "path": "projects/project-71c8e026-b779-4ad3-9186-a022c9269b5b/molis-work.db",
+      "table": "plugin_runtime_release_artifacts",
+      "rows": 14
+    },
+    {
+      "path": "projects/project-a9867ade-741e-4f30-a62c-7f67c9a0b9ca/molis-work.db",
+      "table": "plugin_runtime_release_artifacts",
+      "rows": 14
+    },
+    {
+      "path": "plugin-runtime/plugin-runtime.db",
+      "table": "plugin_runtime_release_artifacts",
+      "rows": 8
+    }
+  ]
+}

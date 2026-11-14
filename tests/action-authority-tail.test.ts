@@ -210,3 +210,24 @@ for (const fail of [false, true]) for (const independentPermission of [false, tr
     assert.equal(f.state.consumed, fail ? 0 : 1); assert.equal(f.state.failures, fail ? 1 : 0);
   } finally { f.close(); }
 });
+
+
+test("MEM-V0-C2 bound nested calls intersect both live source checks and reject asynchronous final checks", async () => {
+  const service = new ActionService(); let writes = 0, original = true, nested = true;
+  const refs = [{ event_id: "original", version: "1", session_id: "session" }];
+  const current = (allowed: boolean) => { if (!allowed) throw new ActionError("actions.forbidden", "source archived"); };
+  const dispose = service.registerProvider({ provider: { provider_id: "effects", title: "Effects", kind: "system" }, definitions: [effect],
+    handlers: [{ ...effect, handle: async context => { await context.beforeEffect(); context.assert_memory_sources_current?.(refs); return ++writes; } }] });
+  const client = bindActionClient(service, () => ({ ...caller, assert_memory_sources_current: sources => { assert.deepEqual(sources, refs); current(original); } }));
+  const control = { beforeEffect: async () => {}, assert_memory_sources_current: () => current(nested) };
+  try {
+    assert.equal(await client.invoke(effect, {}, control), 1);
+    original = false;
+    await assert.rejects(client.invoke(effect, {}, control), { code: "actions.forbidden" });
+    original = true; nested = false;
+    await assert.rejects(client.invoke(effect, {}, control), { code: "actions.forbidden" });
+    nested = true;
+    await assert.rejects(client.invoke(effect, {}, { ...control, assert_memory_sources_current: async () => {} }), { code: "actions.async_required" });
+    assert.equal(writes, 1, "neither child control nor Promise-returning checker can bypass the original source fence");
+  } finally { dispose(); }
+});

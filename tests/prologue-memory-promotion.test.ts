@@ -154,13 +154,20 @@ test("revoking the original invocation after candidate reservation prevents App 
   assert.equal(f.seen.record.length, 0); assert.deepEqual(await f.bound().list("project", "project-a"), []);
 });
 
+/**
+ * Whether this effect check is the one the Host promotion adapter makes right before it calls the App journal (`prepare` or `record`).
+ * Memory V0 checks effects at each authorization as well, so their count and order are not a stable way to find this boundary.
+ */
+const atAppJournal = (stage: "prepare" | "record") => (new Error().stack ?? "").split("\n")
+  .some(frame => frame.includes(`.${stage} (`) && frame.includes("prologue-memory-promotion."));
+
 test("revocation after the formal commit leaves the original journal pending for an authorized retry", async t => {
   const f = await fixture(t), candidate = await f.propose("record-invocation-revoked");
-  let current = true, prepared = false, subsequentEffects = 0;
+  let current = true, prepared = false;
   f.behavior.prepare = async () => { prepared = true; };
   const controlled = f.bound().withExecution!({ beforeEffect: async () => {
-    // Admit the formal write after preparation; revoke at the next side effect, before the App records it.
-    if (prepared && ++subsequentEffects === 2) current = false;
+    // Admit the formal write after preparation; revoke at the App journal's record, after the formal commit and before the App records it.
+    if (prepared && atAppJournal("record")) current = false;
   }, assert_current: () => {
     if (!current) throw Object.assign(new Error("Invocation revoked"), { code: "actions.forbidden" });
   } });
@@ -177,14 +184,14 @@ test("revocation after the formal commit leaves the original journal pending for
 for (const stage of ["prepare", "record"] as const) {
   test(`cancellation while ${stage} waits for invocation authorization prevents a late App journal call`, { timeout: 10_000 }, async t => {
     const f = await fixture(t), candidate = await f.propose(`cancel-wait-${stage}`), abort = new AbortController();
-    let reached!: () => void, release!: () => void, afterDecision = 0, afterPreparation = 0, blocked = false;
+    let reached!: () => void, release!: () => void, blocked = false;
     const waiting = new Promise<void>(resolve => { reached = resolve; });
     const resume = new Promise<void>(resolve => { release = resolve; });
     t.after(() => release());
     const controlled = f.bound().withExecution!({ beforeEffect: async () => {
-      // After decide, reservation is first and App prepare second; after prepare, formal commit is first and App record second.
-      const atBoundary = stage === "prepare" ? f.seen.decide.length === 1 && f.seen.prepare.length === 0 && ++afterDecision === 2
-        : f.seen.prepare.length === 1 && ++afterPreparation === 2;
+      // Wait at the effect check right before the App journal call: after decide for prepare, after the formal commit for record.
+      const atBoundary = stage === "prepare" ? f.seen.decide.length === 1 && f.seen.prepare.length === 0 && atAppJournal("prepare")
+        : f.seen.prepare.length === 1 && atAppJournal("record");
       if (!blocked && atBoundary) { blocked = true; reached(); await resume; }
     }, assert_current: () => { /* Invocation permission remains valid; cancellation is an independent condition. */ } });
     const rejected = assert.rejects(controlled.candidates.promote({ scope: "project", owner: "project-a", candidate_id: candidate.candidate_id,

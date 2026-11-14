@@ -1,3 +1,5 @@
+import { projectInstallation } from "./fixtures/signed-package-host.js";
+import type { ProjectPluginInstalledView } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import { execFileSync } from "node:child_process";
 import { openTestHome, serveTestHost } from "./fixtures/test-home.js";
 import { signedAgentPackage, newPublisher, PACKAGE_PLUGIN_ID } from "./fixtures/sandbox-package.js";
@@ -364,7 +366,14 @@ test("RAC-2636/2641/2643 signed mixed registrations survive two projects, Home c
     const preview = await client.invoke(caller, pluginInstallActions.preview, { bundle }) as { preview_id: string };
     return client.invoke(caller, pluginInstallActions.confirm, { preview_id: preview.preview_id, consent: true, pin_label: "Signed text" });
   };
-  const control = (project: typeof a, action: "disable" | "enable") => host.actionClient(project.reference).invoke(person(project.project_id), pluginControlActions[action], { plugin_id: PACKAGE_PLUGIN_ID });
+  const control = async (project: typeof a, action: "disable" | "enable") => {
+    const client = host.actionClient(project.reference), caller = person(project.project_id), base = { plugin_id: PACKAGE_PLUGIN_ID };
+    if (action === "disable") return client.invoke(caller, pluginControlActions.disable, base);
+    const { plugins } = await client.invoke(caller, pluginInstallActions.installed, {}) as { plugins: ProjectPluginInstalledView[] };
+    const row = plugins.find(item => item.plugin_id === PACKAGE_PLUGIN_ID);
+    assert.ok(row);
+    return client.invoke(caller, pluginControlActions.enable, { ...base, expected_installation: projectInstallation(row) });
+  };
   const consumer = () => assistantServiceFor({ localHost: host, homeDirectory: h.home, agentHost: new AgentHost({ reviews: new AgentReviewQueue() }), agentReady: async () => {}, projectTitle: async () => "正文", pages: async () => [] });
   const complete = (pluginId: string) => {
     const registry = homeAgentDefinitions(h.home);

@@ -12,7 +12,7 @@ import {
   type PluginStartContext,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
-import { createFilesPlugin } from "@molis-ai/molis-work-plugin-files";
+import { createTextStatsPlugin } from "@molis-ai/molis-work-plugin-text-stats";
 import { registration as coding } from "@molis-ai/molis-work-plugin-coding/registration";
 import { registration as shelf } from "@molis-ai/molis-work-plugin-shelf/registration";
 import {
@@ -100,12 +100,12 @@ test("SQLite release artifacts restore an installed Native version after Host re
 });
 
 test("Native plugin factory archives are bundled and rehydrated as exact definitions", async () => {
-  const artifact = nativePluginReleaseArtifact<typeof createFilesPlugin>(
-    "@molis-ai/molis-work-plugin-files",
-    "createFilesPlugin",
+  const artifact = nativePluginReleaseArtifact<typeof createTextStatsPlugin>(
+    "@molis-ai/molis-work-plugin-text-stats",
+    "createTextStatsPlugin",
     factory => factory(),
   );
-  const current = createFilesPlugin();
+  const current = createTextStatsPlugin();
   const source = await artifact.capture();
   const restored = await artifact.restore(source);
   assert.deepEqual(restored.manifest, current.manifest);
@@ -485,8 +485,8 @@ test("a Manifest below the installed version is not followed for a plugin that i
   }
 });
 
-test("a Manifest changed without a new version is not followed for a plugin that is not bundled: the stored build keeps running, or the plugin does not start", async () => {
-  for (const storedRelease of [true, false]) {
+test("BRC-06 · a changed same-version Manifest can only restore an intact stored release for a plugin that is not bundled", async () => {
+  for (const storedRelease of ["intact", "missing", "tampered"] as const) {
     const db = openPluginTestDatabase(":memory:");
     try {
       const started: string[] = [];
@@ -499,12 +499,15 @@ test("a Manifest changed without a new version is not followed for a plugin that
       const installId = first.state(PLUGIN_ID)?.install_id;
       assert.ok(installId);
       await firstRuntime.stop(installId);
-      if (!storedRelease) db.exec("DELETE FROM plugin_runtime_release_artifacts");
+      if (storedRelease === "missing") db.exec("DELETE FROM plugin_runtime_release_artifacts");
+      if (storedRelease === "tampered") db.exec(`UPDATE plugin_runtime_release_artifacts
+        SET artifact_json = json_set(artifact_json, '$.manifest.name', 'Tampered release')`);
 
       const restartedRuntime = new PluginRuntime(new SqlitePluginRuntimeRepository(db), new NativePluginExecutor(), { hostIds: ISOLATED_HOST_IDS });
       const restarted = new PluginSupervisor(restartedRuntime, { releaseArtifacts: new SqlitePluginRuntimeReleaseArtifactRepository(db) });
+      const restored: string[] = [];
       const report = await restarted.start([{ definition: buildB,
-        releaseArtifact: { capture: () => "native-B", restore: source => source === "native-A" ? buildA : buildB } }]);
+        releaseArtifact: { capture: () => "native-B", restore: source => { restored.push(source); return source === "native-A" ? buildA : buildB; } } }]);
 
       const record = restartedRuntime.get(installId);
       assert.equal(record.version, "0.3.0");
@@ -515,11 +518,13 @@ test("a Manifest changed without a new version is not followed for a plugin that
         "the changed build was never directly usable, so its release was not stored");
       assert.deepEqual(restarted.upgradeCandidates(), [], "the same version is not offered as an upgrade");
       assert.ok(!started.includes("0.3.0 B"), "the changed build's code never runs");
-      if (storedRelease) {
+      if (storedRelease === "intact") {
         assert.deepEqual(report.running, [PLUGIN_ID], "no error: the old build keeps running");
+        assert.deepEqual(restored, ["native-A"]);
         assert.equal(restarted.manifest(PLUGIN_ID)?.name, "Release fixture A");
         assert.equal(started.at(-1), "0.3.0 A");
       } else {
+        assert.deepEqual(restored, [], "the archive is rejected before its code is restored");
         assert.deepEqual(report.running, []);
         assert.equal(report.failed[0]?.code, "plugin.release_artifact_missing");
       }

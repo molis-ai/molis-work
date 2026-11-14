@@ -29,7 +29,7 @@ const probe = () => {
   })()`;
 };
 
-test("UIV-21 UIV-22 UIV-23 S-composer-source-call item 5: a framed page's AI composer is the bar's receiver, carried as plain data, and acts on the bar only while in front", { timeout: 180_000 }, async (t) => {
+test("UIV-18 UIV-21 UIV-22 UIV-23 S-composer-source-call item 5: a framed page's AI composer is the bar's receiver, carried as plain data, and acts on the bar only while in front", { timeout: 180_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const child = await pluginFrameBrowser(t, browser, "lingguang");

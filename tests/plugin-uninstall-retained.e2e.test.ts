@@ -33,7 +33,7 @@ const libraryPackage = (pluginId = LIBRARY_ID) => signedPackage(newPublisher(), 
 }, { pluginId });
 const caller: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: null, permissions: ["storage:private", "home-database:read", "home-database:write"] };
 
-test("BL-915 B27-UN-02 B27-UN-04 the 插件 page shows what an uninstall left in place of its row until 「知道了」, and a stopped clean-up is said and retried in its row", { ...mac, timeout: 150_000 }, async t => {
+test("BL-915 B27-UN-02 B27-UN-04 B27-UN-05 the 插件 page shows what an uninstall left in place of its row until 「知道了」, and a stopped clean-up is said and retried in its row, for the Home and a project, by pointer and by keyboard", { ...mac, timeout: 240_000 }, async t => {
   const h = await fixture(t), served = await serveTestHost(null, { home: h.home, host: h.host });
   const directory = await mkdtemp(join(tmpdir(), "b27-uninstall-retained-")), shots = fileURLToPath(reviewEvidenceUrl("b27-uninstall-retained"));
   let browser: ChromeHarness | undefined;
@@ -71,6 +71,22 @@ test("BL-915 B27-UN-02 B27-UN-04 the 插件 page shows what an uninstall left in
     await page.wait(`[...document.querySelectorAll(${JSON.stringify(scope + " button")})].some(b => b.textContent === ${JSON.stringify(label)} && !b.disabled)`);
     await page.evaluate(`[...document.querySelectorAll(${JSON.stringify(scope + " button")})].find(b => b.textContent === ${JSON.stringify(label)} && !b.disabled).click()`);
   };
+  /** One key, pressed and let go, as the person's keyboard sends it. */
+  const key = async (name: "Tab" | "Enter") => {
+    const code = name === "Tab" ? 9 : 13, text = name === "Enter" ? "\r" : undefined;
+    await page.command("Input.dispatchKeyEvent", { type: "keyDown", key: name, code: name, windowsVirtualKeyCode: code, ...(text ? { text } : {}) });
+    await page.command("Input.dispatchKeyEvent", { type: "keyUp", key: name, code: name, windowsVirtualKeyCode: code });
+  };
+  const focused = () => page.evaluate<string>("document.activeElement?.textContent?.trim() ?? ''");
+  /** Tab until the focused control says `label`, checking each stop is inside `scope`; a control the keyboard cannot reach fails here. */
+  const tabTo = async (label: string, scope: string) => {
+    for (let stops = 0; stops < 12; stops++) {
+      await key("Tab");
+      if (await focused() === label) return;
+      assert.equal(await page.evaluate(`!!document.activeElement?.closest(${JSON.stringify(scope)})`), true, `focus stays in ${scope} on the way to ${label}`);
+    }
+    assert.fail(`the keyboard reaches ${label}`);
+  };
   const open = (name: string) => page.evaluate(`[...document.querySelectorAll('[data-plugin-trust-home] details')].find(d => d.querySelector('summary').textContent.includes(${JSON.stringify(name)})).open = true`);
 
   await open("Kept notes");
@@ -93,6 +109,14 @@ test("BL-915 B27-UN-02 B27-UN-04 the 插件 page shows what an uninstall left in
   await page.viewport(390, 844, true);
   assert.equal(await page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), true, "no sideways scroll at 390");
   await page.screenshot(join(shots, "kept-390-zh-light.png"));
+  // B27-UN-05: at 1440 the result keeps its row's place and width, inside the page's column.
+  await page.viewport(1440, 950);
+  const wide = await page.evaluate<{ fits: boolean; inColumn: boolean }>(`(() => {
+    const result = document.querySelector('[data-plugin-trust-home] .plugin-trust-result').getBoundingClientRect(), list = document.querySelector('[data-plugin-trust-home]').getBoundingClientRect();
+    return { fits: document.documentElement.scrollWidth <= window.innerWidth, inColumn: result.left >= list.left - 1 && result.right <= list.right + 1 };
+  })()`);
+  assert.deepEqual(wide, { fits: true, inColumn: true }, "at 1440 the result sits in the list's column, no sideways scroll");
+  await page.screenshot(join(shots, "kept-1440-zh-light.png"));
   await page.viewport(1024, 900);
   await press("[data-plugin-trust-home]", "知道了");
   await page.wait("document.querySelector('[data-plugin-trust-home] .plugin-trust-result') === null");
@@ -102,14 +126,29 @@ test("BL-915 B27-UN-02 B27-UN-04 the 插件 page shows what an uninstall left in
   await keep(LIBRARY_EN_ID);
   await page.command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "dark" }] });
   await go(`/locale?lang=en&next=${encodeURIComponent(settings)}`);
-  await open("Kept notes");
-  await press("[data-plugin-trust-home]", "Uninstall and delete data");
-  await press("dialog[open]", "Uninstall and delete data");
+  // B27-UN-05: this time by keyboard alone, from the row's own summary: open it, reach the button, confirm in the dialog, put the result away.
+  await page.evaluate(`[...document.querySelectorAll('[data-plugin-trust-home] summary')].find(s => s.textContent.includes('Kept notes')).focus()`);
+  await key("Enter");
+  assert.equal(await page.evaluate("document.activeElement.closest('details').open"), true, "Enter on the summary opens the row");
+  await tabTo("Uninstall and delete data", "[data-plugin-trust-home] details[open]");
+  await key("Enter");
+  await page.wait("!!document.querySelector('dialog[open]') && !!document.activeElement?.closest('dialog[open]')", { describe: "document.activeElement?.outerHTML" });
+  await tabTo("Uninstall and delete data", "dialog[open]");
+  await key("Enter");
   await page.wait("document.querySelector('[data-plugin-trust-home] .plugin-trust-result') !== null", { describe: "document.querySelector('[data-plugin-trust-error]')?.innerText" });
+  assert.equal(await page.evaluate("document.activeElement === document.querySelector('[data-plugin-trust-home] .plugin-trust-result')"), true, "the result takes the focus");
   const english = await page.evaluate<string>("document.querySelector('[data-plugin-trust-home] .plugin-trust-result').innerText");
   for (const words of ["Kept notes is uninstalled · 1 left in place", "Its library", "Couldn’t confirm it was this plugin’s, so it was left in place", "Everything else was deleted.", "Got it"]) assert.ok(english.includes(words), words);
   assert.equal(english.match(/[㐀-鿿]/u), null, "no Chinese is left in English");
   await page.screenshot(join(shots, "kept-1024-en-dark.png"));
+  await page.viewport(1440, 950);
+  await page.screenshot(join(shots, "kept-1440-en-dark.png"));
+  await page.viewport(1024, 900);
+  await tabTo("Got it", "[data-plugin-trust-home] .plugin-trust-result");
+  await key("Enter");
+  await page.wait("document.querySelector('[data-plugin-trust-home] .plugin-trust-result') === null");
+  assert.equal(await page.evaluate("!!document.activeElement && document.activeElement !== document.body && !!document.activeElement.closest('[data-plugin-trust-settings]')"), true,
+    "put away by keyboard, the focus stays in the plugin settings, not lost to the page");
   await page.command("Emulation.setEmulatedMedia", { features: [] });
   await go(`/locale?lang=zh&next=${encodeURIComponent(settings)}`);
 
@@ -143,4 +182,36 @@ test("BL-915 B27-UN-02 B27-UN-04 the 插件 page shows what an uninstall left in
   await press("[data-plugin-trust-home] .mw-alert--danger", "重试卸载");
   await page.wait(`![...document.querySelectorAll('[data-plugin-trust-home] summary')].some(s => s.textContent.includes(${JSON.stringify(brokenName)}))`, { describe: "document.querySelector('[data-plugin-trust-home]')?.innerText" });
   assert.equal(await page.evaluate("document.querySelector('[data-plugin-trust-home] .plugin-trust-result')"), null, "nothing was left, so nothing is listed");
+
+  // B27-UN-05, the project's half: a package installed in this project whose clean-up stops part way is said and retried in the project's list,
+  // and once nothing is left it goes with the usual short note, nothing listed in its place.
+  const projectPackage = signedPackage(newPublisher(), undefined, { pluginId: "io.molis.work.example.project-notes" }), projectName = projectPackage.payload.manifest.name;
+  const trust = `/projects/${project.project_id}/api/plugin-trust`;
+  const pending = await served.web.post(`${trust}/install/preview`, { bundle: projectPackage }) as { preview_id: string };
+  await served.web.post(`${trust}/install/confirm`, { preview_id: pending.preview_id, consent: true, pin_label: "Test publisher" });
+  const projectInstall = (await served.web.get(`${trust}/overview`) as { plugins: Array<{ plugin_id: string; install_id: string }> })
+    .plugins.find(plugin => plugin.plugin_id === "io.molis.work.example.project-notes")!.install_id;
+  const projectFiles = join(h.home, "projects", project.project_id, "plugin-files"), projectHeld = projectFiles + "-held", projectOutside = mkdtempSync(join(tmpdir(), "b27-outside-project-"));
+  t.after(() => rmSync(projectOutside, { recursive: true, force: true }));
+  mkdirSync(join(projectOutside, projectInstall));
+  mkdirSync(join(h.home, "projects", project.project_id), { recursive: true });
+  const projectMoved = existsSync(projectFiles);
+  if (projectMoved) renameSync(projectFiles, projectHeld);
+  symlinkSync(projectOutside, projectFiles);
+  await go(null);
+  await page.wait(`[...document.querySelectorAll('[data-plugin-trust-list] summary')].some(s => s.textContent.includes(${JSON.stringify(projectName)}))`);
+  await page.evaluate(`[...document.querySelectorAll('[data-plugin-trust-list] details')].find(d => d.querySelector('summary').textContent.includes(${JSON.stringify(projectName)})).open = true`);
+  await press("[data-plugin-trust-list]", "卸载并删除数据");
+  await press("dialog[open]", "卸载并删除数据");
+  await page.wait("document.querySelector('[data-plugin-trust-list] .mw-alert--danger') !== null && document.activeElement?.textContent === '重试卸载'", { describe: "document.querySelector('[data-plugin-trust-list]')?.innerText" });
+  assert.match(await page.evaluate<string>("document.querySelector('[data-plugin-trust-list] .mw-alert--danger').innerText"), /卸载没做完/u);
+  assert.equal(await page.evaluate("document.querySelector('[data-plugin-trust-home] .mw-alert--danger')"), null, "said in the project's own list, not the personal space's");
+  await page.viewport(1440, 950);
+  await page.screenshot(join(shots, "project-failed-1440-zh-light.png"));
+  await page.viewport(1024, 900);
+  unlinkSync(projectFiles); if (projectMoved) renameSync(projectHeld, projectFiles);
+  await key("Enter");
+  await page.wait(`![...document.querySelectorAll('[data-plugin-trust-list] summary')].some(s => s.textContent.includes(${JSON.stringify(projectName)}))`, { describe: "document.querySelector('[data-plugin-trust-list]')?.innerText" });
+  assert.equal(await page.evaluate("document.querySelector('[data-plugin-trust-list] .plugin-trust-result')"), null, "nothing was left in the project, so nothing is listed");
+  assert.equal(existsSync(join(projectOutside, projectInstall)), true, "the folder outside the Home was never deleted through the link");
 });

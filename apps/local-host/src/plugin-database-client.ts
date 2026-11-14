@@ -5,7 +5,7 @@ import type {
   PluginDatabase, PluginDatabaseDeclaration, PluginDatabaseReader, PluginDatabaseTransaction, PluginProjectDatabase, PluginProjectDatabaseTransaction,
   PluginSqlRow, PluginSqlValue,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { assertPluginActionCurrent, type PluginInstance } from "@molis-ai/molis-work-plugin-runtime";
+import { assertPluginActionCurrent, assertPluginReadCurrent, type PluginInstance } from "@molis-ai/molis-work-plugin-runtime";
 import type { ProjectJournalBinding } from "./plugin-project-journal.js";
 import { assertReadStatement, assertWriteStatement } from "./project-statement-protocol.js";
 
@@ -38,7 +38,8 @@ const KEPT_STATEMENTS = 64;
 /**
  * The client a plugin is given over its own tables, in the Home or in the project's library; only the connections and the
  * per-statement check differ. Reads go through the read-only connection, and only `SELECT` or `WITH`; writes only inside
- * `transaction`, and only `INSERT`, `UPDATE` or `DELETE`. Every call asks the grants again (`authorize`), and a write also asks the
+ * `transaction`, and only `INSERT`, `UPDATE` or `DELETE`. Every call asks the grants again (`authorize`); a read outside a transaction also
+ * asks the original caller of `instance`'s action (`assertPluginReadCurrent`, BL-943), and a write asks the
  * original caller of `instance`'s action (`assertPluginActionCurrent`) before the plugin's wait, right after it in the same turn as
  * `BEGIN`, before every statement and before `COMMIT`: a call cancelled or revoked at any of these points writes nothing, whatever
  * `beforeEffect` the plugin handed in. A write body that is not synchronous is rolled back and refused, and the transaction's
@@ -64,6 +65,7 @@ export function pluginDatabaseClient<Connection extends PluginDatabaseConnection
     authorize("storage:private"); authorize(permission);
   };
   const permitWrite = () => { permit(declaration.write_permission); assertPluginActionCurrent(instance); };
+  const permitRead = () => { permit(declaration.read_permission); assertPluginReadCurrent(instance); };
   // A transaction reads its uncommitted rows on the writer. SQLite, not the leading keyword, rejects CTE writes.
   const readOnly = <T>(db: Connection, read: () => T): T => {
     if (db !== writer) return read();
@@ -89,8 +91,8 @@ export function pluginDatabaseClient<Connection extends PluginDatabaseConnection
     all(sql, parameters = []) { check(); assertReadStatement(sql); connections.check?.(db, sql, parameters, "read"); return readOnly(db, () => perform(db, sql, parameters, "read", () => prepared(db, sql).all(...parameters) as PluginSqlRow[])); },
   });
   const client: PluginProjectDatabase | PluginDatabase = Object.freeze({
-    ...reads(reader, () => permit(declaration.read_permission)),
-    ...(journal ? { journal: journal.reader(() => permit(declaration.read_permission)) } : {}),
+    ...reads(reader, permitRead),
+    ...(journal ? { journal: journal.reader(permitRead) } : {}),
     async transaction<T>(beforeEffect: () => Promise<void>, write: (transaction: PluginProjectDatabaseTransaction) => T): Promise<T> {
       permitWrite();
       await beforeEffect();

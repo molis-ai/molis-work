@@ -36,6 +36,12 @@ export function codingTimelineWords(readText: (text: string, values?: Record<str
     "sleep-wait": kind("sleep", "clock"),
     "model-switch": kind("model-switch", "sparkles"),
   };
+  /*
+   * The code-intelligence tool is scoped per round (`coding.find-symbol-<scope>`, so one Runtime can hold more than one
+   * pack); the timeline shows what it does, never the internal name with the scope in it.
+   */
+  const symbols = kind("find-symbol", "search");
+  const named = (name: string): ReturnType<typeof kind> => name.startsWith("coding.find-symbol") ? symbols : other(name);
   /** A call the timeline has no words for reads as its own name. */
   const other = (name: string): ReturnType<typeof kind> =>
     ({ key: "other", icon: "activity", tally: "calls", verb: name, doing: uiText.text("coding.call.other.doing", { name }) });
@@ -75,5 +81,5 @@ export function codingTimelineWords(readText: (text: string, values?: Record<str
       : code === "COMMAND_DENIED" ? uiText.text("coding.tool-hint.denied")
       : "";
   };
-  return { KIND, FAILURES, toolHint, other, tally, t: readText };
+  return { KIND, FAILURES, toolHint, other, named, tally, t: readText };
 }

@@ -93,7 +93,7 @@ interface Card {
 | `metric` 数 | 一个可核对的数 | 宿主按 `basis` 从读取输出取；或用户口述（标 `owner-supplied`）；或估算（必须写方法与不确定性） | 查询动作输出 + JSON Pointer（与 `ActionResultView` 同一取值规则） | — / 数、单位、依据 / 加上与上期比 |
 | `status` 来源状态 | 脉搏：每个来源一行红/黄/绿/n.a. | 色与一句话是助理的判断；读取成败与依据由宿主给 | 本轮各来源读取的活动编号 | 三色计数 / 行 / 行 + 风险展开 |
 | `agenda` 时间轴 | 今天或本周的时刻：日程、提醒、到期、冲突 | 主人 | `schedule.tasks.list`、`jelly.calendar.list`、`todo.reminders.due` | 下一个 / 当日轴 / 周视图 |
-| `timeline` 经过 | 一件事最近发生了什么 | 主人 | `goals.timeline.list`、`home.events.read`、`goals.history.list` | — / 最近 3 条 / 全部 |
+| `timeline` 经过 | 一件事最近发生了什么 | 主人 | `home.events.read`；装着 Goals 时还有 `goals.timeline.list`、`goals.history.list`（来源之一，非必备） | — / 最近 3 条 / 全部 |
 | `progress` 进度 | 受托工作的步骤、当前步、等待原因，可暂停或停止 | 执行主人 | `agent.run.read`、`coding.runs.list`、`workflows.instances.get`、`images.jobs.get` | 环与当前步 / 步骤 / 步骤与记录入口 |
 | `diff` 对照 | 两个版本或候选稿与目标的差异 | 主人的对照动作；候选稿用 SDK 的 `compareTexts`（`packages/plugin-sdk/src/text-diff.ts`） | `pages.artifacts.compare`、`dataset.artifacts.compare`、`diff.compare` | 「+12 −3」 / 前几处 / 全部 |
 | `file` 文件 | 文件或成果的预览 | 主人的预览动作 | `artifacts.preview`、`files.side.content`、各插件的 `*.artifacts.preview` | 种类片 / 缩略与名称 / 预览 |
@@ -228,14 +228,14 @@ Skill 指导 → 模型在本轮读事实（各插件的查询动作，每次读
 
 ### 推进
 
-1. **接着做 `next`**：已开始的工作可以接上。`*主对象：object`、`*停在哪：text`（差什么）、`*动作：action`。来源 `goals.work.resume`、`coding.sessions.read`、`pages.get`。主按钮如「接着写《Q4 发布方案》第 3 节」。
+1. **接着做 `next`**：已开始的工作可以接上。`*主对象：object`、`*停在哪：text`（差什么）、`*动作：action`。来源 `coding.sessions.read`、`pages.get`；装着 Goals 时还有 `goals.work.resume`（来源之一，非必备）。主按钮如「接着写《Q4 发布方案》第 3 节」。
 2. **已备好 `prepared`**：候选结果等你采用。`*候选：draft`、`*对照：diff`、`依据：claim`、`*动作：action`（采用 / 调整 / 放弃）。来源 `pages.ai`、`ppt.outline_ai`、`form.questions.draft`、`todo.organize.extract`。采用走目标主人的写入；主人没有可靠撤销时不显示撤销。
-3. **接续 `handoff`**：一处的结果满足了另一处的前提。`*从：object`、`*到：object`、`*怎么转：text`、`*动作：action`。如问卷收齐 → 导入数据集（`form.results.csv` → `dataset.import`），Coding 报告 → Goal 交付（`coding.reports.read` → `goals.deliverables.add`）。
-4. **收拢 `gather`**：零散材料开始指向同一个结果。`*材料：list`（Shelf、Feed、灵光、Inbox）、`*去处：options`（建 Goal / 整理成文档 / 挂到已有 Goal）、`*动作：action`。来源 `shelf.items.list`、`feed.items.get`、`lingguang.content.list`、`inbox.list`；去处 `goals.create`、`pages.create`、`goals.inputs.bind`。未确认的意图保持候选，不自动建承诺。
+3. **接续 `handoff`**：一处的结果满足了另一处的前提。`*从：object`、`*到：object`、`*怎么转：text`、`*动作：action`。如问卷收齐 → 导入数据集（`form.results.csv` → `dataset.import`），装着 Goals 时还有 Coding 报告 → Goal 交付（`coding.reports.read` → `goals.deliverables.add`，来源之一，非必备）。
+4. **收拢 `gather`**：零散材料开始指向同一个结果。`*材料：list`（Shelf、Feed、灵光、Inbox）、`*去处：options`（整理成文档，加上由声明了可挂接关系的已装插件提供的去处，例如装着 Goals 时的建 Goal／挂到已有 Goal）、`*动作：action`。来源 `shelf.items.list`、`feed.items.get`、`lingguang.content.list`、`inbox.list`；去处 `pages.create`，加上各已装插件声明的去处（装着 Goals 时有 `goals.create`、`goals.inputs.bind`）。未确认的意图保持候选，不自动建承诺。
 
 ### 决定
 
-5. **需要你决定 `decision`**：会改变后续的一个选择。`*问题与选项：options`、`*影响：list`（受影响的对象）、`依据：claim`。答案进原工作；关于 Goal 的决定落到 `goals.decisions.record`。
+5. **需要你决定 `decision`**：会改变后续的一个选择。`*问题与选项：options`、`*影响：list`（受影响的对象）、`依据：claim`。答案进原工作；需要可信决定的走平台的决定入口（39-2）（2026-11-13 按插件同等地位收口改，[决定 42](../post-anticorruption-roadmap/reference/decisions.md#decision-42)）。
 6. **方案对照 `compare`**：两到四个方案按维度比。`*表：compare`（卡尺寸至多 4 个维度）、`*推荐：claim`、`*选择：options`。页尺寸是全表与每格依据。
 7. **待确认 `confirm`**：改变助理自己做法的东西：记忆候选、Skill 修改草案、长期委托。`*改动：diff 或 text`、`*范围：text`（对什么、多久）、`*动作：action`。来源 `memory.candidates.list`、`agent.skills.read`。一次成功不自动升级为长期执行（主动式助理 §4.3）。
 

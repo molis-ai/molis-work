@@ -9,6 +9,7 @@ import type {
   AttentionEvent,
   AttentionReason,
   AttentionStatus,
+  AttentionSurfaceEntry,
   AttentionSubjectResolver,
   AttentionSubjectType,
   CreateAttentionEntryInput,
@@ -150,6 +151,22 @@ export class AttentionModule implements AttentionApi {
     private readonly subjects: AttentionSubjectResolver,
     private readonly options: AttentionModuleOptions = {},
   ) {}
+
+  /** Active references only. The owner is the persisted owner, never inferred from the object kind. */
+  listSurfaceEntries(projectId: string, selected?: Pick<AttentionSurfaceEntry, "owner_plugin_id" | "subject">): AttentionSurfaceEntry[] {
+    const subjectKinds: Record<AttentionSubjectType, string> = { feed_item: "feed_item", goal_decision: "goal", source_fault: "source" };
+    const kind = selected && Object.keys(subjectKinds).find(key => subjectKinds[key as AttentionSubjectType] === selected.subject.kind);
+    if (selected && !kind) return [];
+    const rows = this.db.prepare(`
+      SELECT owner_plugin_id, subject_type, subject_id, reason, revision, created_at
+      FROM inbox_entries WHERE project_id = ? AND status IN ('open', 'in_progress') AND owner_plugin_id IS NOT NULL
+      ${selected ? "AND subject_type = ? AND subject_id = ? AND owner_plugin_id = ?" : ""}
+      ORDER BY created_at DESC, entry_id
+    `).all(projectId, ...(selected ? [kind, selected.subject.id, selected.owner_plugin_id] : [])) as Array<{ owner_plugin_id: string; subject_type: AttentionSubjectType; subject_id: string;
+      reason: AttentionReason; revision: number; created_at: string }>;
+    return rows.map(row => ({ owner_plugin_id: row.owner_plugin_id, subject: { kind: subjectKinds[row.subject_type], id: row.subject_id },
+      reason: row.reason, revision: row.revision, entered_at: row.created_at }));
+  }
 
   private list(projectId: string): AttentionEntryRecord[] {
     return (this.db.prepare(

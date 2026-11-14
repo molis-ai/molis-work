@@ -15,7 +15,7 @@
 - [架构防腐](../archive/repository-anti-corruption/spec.md)继续处理事实归属、依赖和平台边界。本专项核查这些实现怎样影响实际使用；代码分层合规不能单独证明流程顺畅，新增层次或状态也不是默认解法。
 - [Onboarding](../onboarding-coverage/spec.md)拥有具体引导行为。本专项以“已有文件夹 → 材料可用 → 模型整理 → 项目内继续工作”为第一条贯穿路径，找出共性原因，再由原主人修正需求和实现。[PR #1320](https://github.com/molis-ai/molis-work/pull/1320)中的场景、团队与新交互首页仍是独立需求；基础路径可靠应先于扩大这些体验，不能用新功能掩盖旧路径断裂。具体材料带入优化与 ONB 验收继续编入原 Onboarding 需求书；本专项不复制第二份功能需求，也不要求其等待全产品核查完成。
 - [服务接入](../assistant-service-connections/spec.md)拥有服务连接页面和对话接入的具体行为；默认直接连接、真实可用与跨入口复用要求写回该需求 §8.1。本专项核查把技术接线转嫁给普通用户的共性问题，覆盖全部服务。
-- [视觉体验](../visual-ui-experience/spec.md)、[AI 交互](../ai-interaction-experience/spec.md)、[快速创建](../quick-create/spec.md)继续拥有各自体验要求；本专项补齐跨入口、跨阶段与跨插件的连续工作核查。
+- [视觉体验](../visual-ui-experience/spec.md)、[AI 交互](../ai-interaction-experience/spec.md)、[快速创建](../context-program/quick-create.md)继续拥有各自体验要求；本专项补齐跨入口、跨阶段与跨插件的连续工作核查。
 - [插件创作工作台升级](../plugin-builder-upgrade/spec.md)继续拥有创作、试用、安装、持续修订和 Alchemist 场景的完整交付；本专项检查其中的流程负担和公共机制，不把它与 Onboarding 合并，也不把本专项全量结束设为该线开工前提。
 - [真人批准门](../agent-approval/spec.md)、[Coding 质量保证](../coding-quality-assurance/spec.md)、[AI 开发手册](../ai-development-handbook/spec.md)均纳入适用范围复核。已经写成规范或已有测试不等于永远合理；需调整的政策提出具体替代方案，不在本轮静默修改。
 
@@ -135,7 +135,7 @@
 - **位置不改变工作归属。** 从底栏召回、切换标签、移动或收起窗格时保留同一内容的有效编辑与阅读状态；查看另一份资料不自动切换发送对象、执行目录或运行中的任务。统一输入继续遵守 [unified-input-voice](../unified-input-voice/spec.md) 和原回执规则，不由布局建立第二套对话状态。
 - **保持公共机制。** 文稿、浏览器、资料、助理、简报与子任务都经同一公开内容／视图合同参与。新增一种内容不能要求宿主添加按插件名或场景名判断的布局分支；能力缺口补进公共合同。布局不按场景自行搬动用户打开的内容，不再按固定格数给简报、子代理和主动建议分配专席。
 
-主规则由本节收口，标签与组的具体行为沿原需求维护；[Side Shelf](../side-shelf/spec.md) 的内容、引用和跨区动作要求保留，固定右栏位置由本节替代。现有代码入口是 `apps/workbench/src/tab-workspace-ops.ts`、`apps/workbench/src/scripts/client/tab-workspace.ts` 和 `apps/workbench/src/scripts/client/plugin-tab-groups.ts`，它们是整合起点，不是另建状态管理器的理由。当前仅静态核对了这些入口；未验证生产代码已满足上述要求。
+主规则由本节收口，标签与组的具体行为沿原需求维护；[Side Shelf](../context-program/side-shelf.md) 的内容、引用和跨区动作要求保留，固定右栏位置由本节替代。现有代码入口是 `apps/workbench/src/tab-workspace-ops.ts`、`apps/workbench/src/scripts/client/tab-workspace.ts` 和 `apps/workbench/src/scripts/client/plugin-tab-groups.ts`，它们是整合起点，不是另建状态管理器的理由。当前仅静态核对了这些入口；未验证生产代码已满足上述要求。
 
 #### 4.6.1 工作台导航的界面定样（第 07 批，2026-11-04）
 

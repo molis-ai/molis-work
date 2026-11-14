@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
 import test from "node:test";
 import { ActionError, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import { defineFragmentOffersAction, defineObjectMoveAction, defineSubjectContextAction, subjectContext } from "@molis-ai/molis-work-plugin-sdk";
+import { bindSearchEntriesHandler, defineFragmentOffersAction, defineObjectMoveAction, defineSearchEntriesAction, defineSubjectContextAction, subjectContext } from "@molis-ai/molis-work-plugin-sdk";
 import { searchActions } from "@molis-ai/molis-work-contracts/services/search";
 import { recordedCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import { openTestHome } from "./fixtures/test-home.js";
@@ -172,15 +172,22 @@ test("W3-02-G1-03 real Home, Placement and Contextual routes preserve owner deta
 });
 
 test("W3-02-G1-03 Search and Contextual HTTP preserve real Host refusals and unknown directory failures", { timeout: 60_000 }, async t => {
+  const entries = defineSearchEntriesAction("example.platform.search.entries", 1,
+    [{ kind: "example_note", title: "Example note", surface: "example-notes" }], "Example notes", [], "project", ["user"]);
   let directoryFailure: Error | undefined;
   const { host, origin, controlToken, createProject } = await openTestHome(t, { host: {
     actionAvailability: (_caller, view) => {
+      if (view.capability_id === entries.capability_id && directoryFailure) throw directoryFailure;
       if (view.capability_id !== searchActions.query.capability_id) return { available: true };
       if (directoryFailure) throw directoryFailure;
       return { available: false, code: "actions.scope_mismatch", reason: "搜索缺少当前项目运行环境", kind: "forbidden" };
     },
   } });
   const project = await createProject("Search refused scope");
+  await host.withProject(project.reference, () => host.actionRegistry(project.reference).registerProvider({
+    provider: { provider_id: "example-notes", title: "Example notes", kind: "system" },
+    definitions: [entries], handlers: [bindSearchEntriesHandler(entries, () => [])],
+  }));
   const search = () => fetch(`${origin}/projects/${project.project_id}/api/search/query`, { method: "POST", headers: {
     origin, "content-type": "application/json", "x-molis-work-control-token": controlToken, "x-molis-work-idempotency-key": randomUUID(),
   }, body: JSON.stringify({ query: "正文" }) });
@@ -194,6 +201,7 @@ test("W3-02-G1-03 Search and Contextual HTTP preserve real Host refusals and unk
   const failedSearch = await search(), failedBody = await failedSearch.json();
   assert.equal(failedSearch.status, 500);
   assert.deepEqual([failedBody.code, failedBody.error], ["actions.execution_failed", "目录读取失败"]);
+  // Surfaces only ask search sources, so inject the discovery failure on an actual source.
   const rows = host.callLog!.recent(1000);
   const surfaces = await fetch(`${origin}/projects/${project.project_id}/api/contextual/surfaces`);
   assert.equal(surfaces.status, 500);

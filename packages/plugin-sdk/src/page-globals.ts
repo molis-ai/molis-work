@@ -198,7 +198,7 @@ export interface ComposerCommonOptions {
    * never learns which object of another owner the page shows (S-composer-source-call). `plugin_id` narrows to the page object's owner; otherwise the mount root's owner is used. Missing ownership means no near. This hint never grants access.
    */
   near?: () => (ActionSubject & { plugin_id?: string }) | null;
-  /** The microphone's name, for a page that takes voice (batch 53); the same option as `renderComposer`'s. */
+  /** The microphone's name, for a page that takes voice (batch 54); the same option as `renderComposer`'s. */
   voice?: string;
   /** The page's own required check: what is missing, or null. */
   required?: () => string | null;

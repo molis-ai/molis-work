@@ -21,6 +21,7 @@ export interface SessionRecord {
 }
 
 export interface RunRecord {
+  memory_binding?: import("./prologue-run-memory.js").RunMemoryBinding;
   view: AgentRunView;
   state: PrologueStreamState;
   control: PrologueControlPort;
@@ -32,7 +33,7 @@ export interface RunRecord {
   timingReady?: boolean;
   timingError?: string;
   observedEndAt?: string;
-  memory_context?: Pick<import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecalledMemory, "consumer" | "usage">;
+  memory_context?: Pick<import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecalledMemory, "consumer" | "usage"> & Partial<Pick<import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecalledMemory, "class_restrictions" | "current_scene">>;
 }
 
 /**
@@ -163,7 +164,7 @@ export class PrologueRunStore {
       if (event.type === "memory-context") void this.memoryUsage.record(record, this.requireSession(ref.session_id).owner).then(() => this.publish(ref.run_id));
     });
     const unsubscribeControl = record.control.subscribe(() => this.publish(ref.run_id));
-    record.unsubscribe = () => { unsubscribeEvents(); unsubscribeControl(); };
+    record.unsubscribe = () => { record.memory_binding?.close(); unsubscribeEvents(); unsubscribeControl(); };
   }
 
   /**
@@ -175,6 +176,7 @@ export class PrologueRunStore {
     const record = this.#runs.get(runId);
     if (!record) return;
     const controlPhase = prologuePhaseOf(record.control.state);
+    if (isEnded(controlPhase) || isEnded(record.state.phase)) record.memory_binding?.close();
     const awaitingCommit = isEnded(controlPhase) && !isEnded(record.state.phase);
     let phase = controlPhase === "running" || awaitingCommit ? record.state.phase : controlPhase;
     let stopReason = awaitingCommit

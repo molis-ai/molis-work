@@ -36,7 +36,7 @@ test("formation none and missing extractor preserve zero source/model reads", as
   assert.equal(unavailable.outcome, "unavailable"); assert.equal(unavailable.extraction.calls, 0); assert.equal(reads, 0);
 });
 
-test("reported extraction use survives final source revocation while persistent candidates stay empty", async t => {
+test("MEM-31 reported extraction use survives final source revocation while persistent candidates stay empty", async t => {
   const env = await fixture(t, { async extract() { env.sources.entries.clear(); return draft; } });
   const result = await env.bound().candidates.form(request("revoked"));
   assert.equal(result.outcome, "failed"); assert.deepEqual(result.extraction, { calls: 1, usage: draft.usage });
@@ -46,7 +46,7 @@ test("reported extraction use survives final source revocation while persistent 
   assert.deepEqual(await env.bound().candidates.list("project", "project-form"), []);
 });
 
-test("cancelling an outstanding extractor returns unknown use and late completion cannot write", async t => {
+test("MEM-31 cancelling an outstanding extractor returns unknown use and late completion cannot write", async t => {
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   const env = await fixture(t, { async extract() { entered.resolve(); await release.promise; return draft; } });
   const controller = new AbortController();

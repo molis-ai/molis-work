@@ -252,3 +252,59 @@ test("compatible Host execution and crash recovery use the implementation versio
     assert.deepEqual(ui.list(), []);
   } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
 });
+
+test("MEM-V0-C2 current owner invocation discovers its plugin-only command, retains source narrowing, and never revives a stopped activation", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "memory-owned-action-")), file = join(directory, "project.db");
+  seedDemoBoard(file); const store = new LocalProjectDatabase(file), actions = pluginActions(store, DEMO_PROJECT_ID);
+  const base = createGithubIntegrationPlugin({ providerFor: () => ({ type: "fixture", async health() { return { ok: true, status: "connected", message: "ready" }; }, async sync() { return { ok: true, mode: "fixture", items: [], cursor: null }; } }) });
+  const ownerAction = { capability_id: "memory.learning.owner-fixture", version: 1, operation: "command" as const,
+    action: { title: "Owner", description: "Current owner", kind: "operation" as const, scope: "project" as const, audiences: ["plugin" as const], permissions: [], subject_kinds: [], scheduling: "concurrent" as const,
+      input_schema: { type: "object", additionalProperties: false }, output_schema: { type: "integer" } } };
+  const child = { ...ownerAction, capability_id: "memory.learning.child-fixture" };
+  let writes = 0, sourceCurrent = true, entered = Promise.withResolvers<void>(), release: Promise<void> | undefined;
+  const refs = [{ event_id: "canonical", version: "1", session_id: "session" }];
+  const dispose = actions.registry.registerProvider({ provider: { provider_id: "child", title: "Child", kind: "system" }, definitions: [child],
+    handlers: [{ ...child, handle: async context => { await context.beforeEffect(); context.assert_memory_sources_current?.(refs); return ++writes; } }] });
+  let runtime: PluginRuntime;
+  const executor = new PluginHostExecutor({ actions, project_id: DEMO_PROJECT_ID, actor_id: "author", record: id => runtime.list().find(record => record.install_id === id) ?? null,
+    artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event) }),
+    processItems: new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event) }), ui: new UiHost(), privateStorageFor: () => ({ get: () => null, set() {}, delete: () => false }) });
+  runtime = new PluginRuntime(undefined, executor, { hostIds: ISOLATED_HOST_IDS, actions });
+  const definition: PluginDefinition = { manifest: { ...base.manifest, plugin_id: "io.molis.work.example.memory-owner", kind: "app", integrations: undefined, connection_services: undefined, permissions: [],
+    actions: [ownerAction], capabilities: { provides: [], consumes: [child.capability_id] } }, async start(context) {
+    const { bindOwnerPluginAction } = await import("@molis-ai/molis-work-plugin-sdk");
+    return { kind: "app", actions: [bindOwnerPluginAction(context, ownerAction, async (_input, beforeWrite) => {
+      const current = await context.services!.actions!.discover();
+      assert.ok(current.some(row => row.capability_id === ownerAction.capability_id && row.provider.plugin_install_id === context.install_id));
+      entered.resolve(); await release; await beforeWrite();
+      return await context.services!.actions!.invoke(child, {}, { beforeEffect: beforeWrite, assert_memory_sources_current: () => {} });
+    })] };
+  } };
+  const installed = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: [] }).install;
+  const expected = { actor_id: "author", project_id: DEMO_PROJECT_ID, plugin_id: definition.manifest.plugin_id, install_id: installed.install_id, installation_generation: installed.installation_generation };
+  const reference = { capability_id: ownerAction.capability_id, version: 1, provider_id: installed.install_id };
+  const control = { beforeEffect: async () => {}, assert_memory_sources_current: () => { if (!sourceCurrent) throw new ActionError("actions.forbidden", "source no longer current"); } };
+  try {
+    await runtime.start(installed.install_id);
+    const publicRows = await actions.client.discover({ actor_id: "author", project_id: DEMO_PROJECT_ID, audience: "user", permissions: [] });
+    assert.ok(!publicRows.some(row => row.capability_id === ownerAction.capability_id), "user discovery cannot reach the owner command");
+    assert.equal(await executor.invokeOwnedAction(expected, reference, {}, control), 1);
+    const sourceGate = Promise.withResolvers<void>(); release = sourceGate.promise; entered = Promise.withResolvers<void>();
+    const narrowed = executor.invokeOwnedAction(expected, reference, {}, control); await entered.promise;
+    sourceCurrent = false; sourceGate.resolve(); await assert.rejects(narrowed, { code: "actions.forbidden" });
+    assert.equal(writes, 1, "a child noop cannot remove the original source checker"); sourceCurrent = true;
+    const stopGate = Promise.withResolvers<void>(); release = stopGate.promise; entered = Promise.withResolvers<void>();
+    const old = executor.invokeOwnedAction(expected, reference, {}, control); await entered.promise;
+    await runtime.stop(installed.install_id); await runtime.start(installed.install_id); stopGate.resolve();
+    await assert.rejects(old, error => error instanceof ActionError);
+    assert.equal(writes, 1, "new activation cannot revive an old pending invocation");
+    await assert.rejects(executor.invokeOwnedAction({ ...expected, installation_generation: "different-installation" }, reference, {}, control), { code: "actions.provider_stopped" });
+    await assert.rejects(executor.invokeOwnedAction({ ...expected, plugin_id: "another-owner" }, reference, {}, control), { code: "actions.provider_stopped" });
+    await runtime.uninstall(installed.install_id, { retain_private_data: true });
+    const replacement = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: [] }).install;
+    assert.equal(replacement.install_id, installed.install_id); assert.notEqual(replacement.installation_generation, installed.installation_generation);
+    await runtime.start(replacement.install_id);
+    await assert.rejects(executor.invokeOwnedAction(expected, reference, {}, control), { code: "actions.provider_stopped" }, "normal reinstall cannot inherit an old persisted generation");
+    assert.equal(await executor.invokeOwnedAction({ ...expected, installation_generation: replacement.installation_generation }, reference, {}, control), 2);
+  } finally { await runtime.stop(installed.install_id); dispose(); store.close(); rmSync(directory, { recursive: true, force: true }); }
+});

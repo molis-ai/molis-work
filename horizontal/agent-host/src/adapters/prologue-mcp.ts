@@ -190,8 +190,18 @@ async function connectConfiguration(state: McpState, { saved }: Held, connection
     const control = await state.holdDirectory(saved);
     const root = await runtime.workspace.authorize({ path: saved.directory!.canonical_path });
     const identity = control.identity && connectionDigest([connectionId, saved.transport, control.identity]);
-    await connectTransport(state, { source: id, connection: connectionId, kind: "stdio", control, identity }, dispatch,
-      () => runtime.connectMcp({ ref: conn.ref, signal: abort.signal, transport: { kind: "stdio", rootRef: root.ref, executable: saved.executable!, argv: saved.argv!, cwd: ".", requestTimeoutMs: saved.timeout_ms, envAllowlist: [] } }));
+    const transport: Extract<McpTransport, { kind: "stdio" }> = { source: id, connection: connectionId, kind: "stdio", control, identity, responses: new Map() };
+    await connectTransport(state, transport, dispatch,
+      () => runtime.connectMcp({ ref: conn.ref, signal: abort.signal, transport: { kind: "stdio", rootRef: root.ref,
+        executable: saved.executable!, argv: saved.argv!, cwd: ".", requestTimeoutMs: saved.timeout_ms, envAllowlist: [],
+        assertResponseCurrent: request => {
+          if (request.method !== "tools/call") return;
+          const check = transport.responses.get(request.requestId);
+          transport.responses.delete(request.requestId);
+          if (transport.session !== request.sessionId || !check) throw createPrologueError("EFFECT_NOT_AUTHORIZED", "The original MCP reply is no longer authorized.");
+          check();
+        },
+      } }));
   } else {
     if (saved.credential_ref) throw new Error("这个 MCP 的凭据没有持久保存，请重新填写认证信息或选择已有连接");
     let credentialRef: ExactRef<"credential"> | undefined;

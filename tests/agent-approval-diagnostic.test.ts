@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import test from "node:test";
 import { inspectAgentApprovals } from "../scripts/agent-approval-diagnostic.mjs";
+import { APPROVAL_CHECK, publishAgentApprovals } from "../scripts/agent-approval-publisher.mjs";
 
 const api = "https://git.example.test";
 const repository = "example/work";
@@ -13,6 +14,7 @@ const user = (id: number, login: string, type = "User") => ({ id, login, type })
 const author = user(1, "author"), reviewer = user(2, "reviewer"), agent = user(3, "agent");
 const writer = user(4, "writer"), excluded = user(5, "excluded"), forkAuthor = user(6, "fork");
 const bot = user(7, "automation", "Bot");
+const app = 20;
 const review = (id: number, account: typeof author, state: string, day: number, commit_id = head) =>
   ({ id, user: account, state, submitted_at: date(day), commit_id });
 const comment = (id: number, account: typeof author, body: string, day = 5) =>
@@ -31,7 +33,9 @@ function fixture() {
     reviews: [] as ReturnType<typeof review>[], comments: [] as ReturnType<typeof comment>[], edited: new Set<number>(),
     permissions: new Map([author, reviewer, writer, forkAuthor, agent, excluded, bot].map(account => [account.login,
       { user: account, permission: account === forkAuthor ? "read" : "write" }])),
-    resolved: head, checks: [] as Array<{ app: { id: number }; head_sha: string; pull_requests: Array<{ number: number; base: typeof pr.base; head: typeof pr.head }> }>,
+    resolved: head, statuses: [] as Array<{ state: string; context: string; description: string; creator: typeof bot }>,
+    publishedComments: [] as Array<{ id: number; body: string; user: typeof bot; performed_via_github_app: { id: number } }>,
+    checks: [] as Array<{ app: { id: number }; head_sha: string; pull_requests: Array<{ number: number; base: typeof pr.base; head: typeof pr.head }> }>,
     onRead: (_route: string, _count: number) => {} };
   const requests = new Map<string, number>();
   const response = (body: unknown, link?: string) => Response.json(body, link ? { headers: { link: `<${api}${prefix}${link}>; rel="next"` } } : {});
@@ -53,6 +57,21 @@ function fixture() {
       }) } });
     }
     assert.ok(url.pathname.startsWith(prefix));
+    if (route === "issues/" + pull + "/comments" && options?.method === "POST") {
+      const saved = { id: 501, body: JSON.parse(String(options.body)).body, user: bot, performed_via_github_app: { id: app } };
+      state.publishedComments.push(saved);
+      return response(saved);
+    }
+    if (route === "issues/comments/501" && options?.method === "PATCH") {
+      const saved = state.publishedComments[0]!;
+      saved.body = JSON.parse(String(options.body)).body;
+      return response(saved);
+    }
+    if (route === "statuses/" + head && options?.method === "POST") {
+      const saved = { ...JSON.parse(String(options.body)), creator: bot };
+      state.statuses.unshift(saved);
+      return response(saved);
+    }
     assert.equal(options?.method ?? "GET", "GET");
     if (route === "pulls/" + pull) return response(state.pr);
     if (route === "git/commits/" + base) return response({ sha: base, tree: { sha: tree } });
@@ -66,14 +85,17 @@ function fixture() {
       state.truncateCompare ? undefined : "compare/" + base + "..." + head + "?per_page=100&page=2");
     if (route === "compare/" + base + "..." + head + "?per_page=100&page=2") return response({ commits: state.commits.slice(1) });
     if (route === "pulls/" + pull + "/reviews?per_page=100") return response(state.reviews);
-    if (route === "issues/" + pull + "/comments?per_page=100") return response(state.comments);
+    if (route === "issues/" + pull + "/comments?per_page=100") return response([...state.comments, ...state.publishedComments]);
+    if (route === "commits/" + head + "/statuses?per_page=100") return response(state.statuses);
     if (route === "commits/" + head + "/check-runs?per_page=100&filter=all") return response({ check_runs: state.checks });
     if (route === "commits/" + head.slice(0, 12)) return state.resolved ? response({ sha: state.resolved }) : new Response(null, { status: 404 });
     const match = /^collaborators\/([^/]+)\/permission$/.exec(route);
     if (match) return response(state.permissions.get(match[1]!));
     assert.fail("Unexpected GitHub request " + route);
   };
-  return { state, requests, inspect: () => inspectAgentApprovals({ repository, pull, token: "read-fixture", api, fetch: fetchFixture }) };
+  return { state, requests, inspect: () => inspectAgentApprovals({ repository, pull, token: "read-fixture", api, fetch: fetchFixture }),
+    publish: (repositoryId = 23) => publishAgentApprovals({ repository, repositoryId, pull, appId: app, appBotId: bot.id,
+      token: "app-fixture", api, fetch: fetchFixture }) };
 }
 
 test("APR-01/02/04: counts current write permissions and two distinct accounts, including the PR author", async () => {
@@ -137,4 +159,44 @@ test("APR-01/02: exact PR association and current facts are required through the
     if (key === "collaborators/author/permission" && count === 2) state.permissions.set(author.login, { ...permission, permission: "read" });
   };
   await assert.rejects(inspect, /permissions changed/);
+});
+
+test("APR-06: the independent publisher reuses only its own sticky comment and fences the current policy", async () => {
+  const { state, requests, publish } = fixture();
+  const imitation = "<!-- molis-agent-approval:23:9 -->\nAuthor text";
+  state.comments = [comment(1, author, imitation)];
+  state.reviews = [review(1, author, "APPROVED", 1, old)];
+  await Promise.all([publish(), publish()]);
+  assert.equal(state.statuses.length, 1);
+  assert.equal(state.statuses[0]?.state, "failure");
+  assert.equal(state.statuses[0]?.context, APPROVAL_CHECK);
+  assert.equal(state.publishedComments.length, 1);
+  assert.match(state.publishedComments[0]!.body, /缺 2 票/u);
+  assert.match(state.publishedComments[0]!.body, new RegExp(old));
+  assert.equal(state.comments[0]?.body, imitation);
+  assert.equal(requests.get("issues/9/comments"), 1);
+
+  state.comments.push(comment(2, author, "/approve " + head));
+  state.reviews.push(review(2, reviewer, "APPROVED", 2));
+  assert.equal((await publish()).published, "success");
+  assert.equal(state.publishedComments.length, 1);
+  assert.match(state.publishedComments[0]!.body, /@author, @reviewer/u);
+  assert.equal(state.statuses[0]?.state, "success");
+});
+
+test("APR-06: a different repository or a withdrawn vote cannot publish a stale result", async () => {
+  const { state, publish } = fixture();
+  state.reviews = [review(1, author, "APPROVED", 1), review(2, reviewer, "APPROVED", 2)];
+  await assert.rejects(publish(62), /PR changed/);
+  assert.equal(state.publishedComments.length, 0);
+  assert.equal(state.statuses.length, 0);
+  state.onRead = route => {
+    if (route === "issues/9/comments") state.reviews.push(review(3, author, "CHANGES_REQUESTED", 3));
+  };
+  await assert.rejects(publish(), /Approval facts changed/);
+  assert.equal(state.statuses.length, 0);
+  state.onRead = () => {};
+  assert.equal((await publish()).published, "failure");
+  assert.equal(state.publishedComments.length, 1);
+  assert.match(state.publishedComments[0]!.body, /缺 1 票/u);
 });

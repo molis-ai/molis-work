@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginErrors, type HomePluginDatabaseDeclaration, type HomeStoreDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { reservedHomeName } from "./sandbox-home-names.js";
-import { openPluginDatabaseConnection } from "./plugin-database.js";
+import { openHomePluginDatabaseConnection } from "./plugin-database.js";
 import { inspectPluginHomeSchema, type PluginProjectSchemaInspector } from "@molis-ai/molis-work-plugin-runtime";
 import { checkSqliteBaselineVersion, sqliteVersionRefusal, readStorageSpace, readDatabaseSpace, STORAGE_SPACE_SCHEMA_SQL, describeSqliteBaseline, describeSqliteSchema, homeSqlitePath, listSqliteObjects, snapshotFileStat, openBaselineHomeSqlite, openHomeSqliteFile, openReadOnlyHomeSqlite, type HomeStoreRegistry, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 
@@ -124,7 +124,7 @@ export function initializeInstalledSandboxHomeLibrary(home: string, owner: Insta
         }
       } finally { inspection.close(); }
     }
-    const db = created ? openPluginDatabaseConnection(home, declaration) : openHomeSqliteFile(homeSqlitePath(home, declaration.store_name));
+    const db = created ? openHomePluginDatabaseConnection(home, declaration) : openHomeSqliteFile(homeSqlitePath(home, declaration.store_name));
     try { db.exec("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 1000;"); return db; }
     catch (error) { db.close(); throw error; }
   }).close();

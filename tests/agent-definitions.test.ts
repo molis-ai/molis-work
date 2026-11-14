@@ -80,7 +80,7 @@ test("ADH-12 ADH-13 the base decides where 「记一下」 goes by one judgment,
   once("「可用的方法」里有适合这件事的方法时，先读取它的步骤再照着做，并告诉用户用了哪个方法；不适合就不用。", "base");
   once("这项工作的对象已不存在或被移走时，先告诉用户它的现状；除非用户明确要求，不在这里重新创建，也不按旧内容改写。", "base");
   once("用户收回的子任务由这项工作接着做完（可以读取它们已产出的对象），不再委托出去，也不再对它们追加要求。", "work");
-  once("「允许记住」关着时，用户要你以后照做的，在这项工作里照做，并告诉用户没有长期记下、在哪里可以打开。", "work");
+  once("「允许记住」关着时，用户本轮提供的内容仍可作本次材料，并告诉用户没有长期记下、在哪里可以打开。", "work");
 });
 
 test("the two questions of the selection bar are listed under 选区推荐 with their default text, and what the person leaves in them is read back without recording a use", async t => {
@@ -287,7 +287,7 @@ test("the ending review runs with the person's version of its instructions, and 
     assert.ok(!requests.some(request => JSON.stringify(request.system ?? "").includes("你读一段 AI 助理在这一轮结束时")), "the shipped text did not run");
     assert.doesNotMatch(JSON.stringify(requests[0].system), /测试用的收尾核对/, "it is never composed into the round's own role");
     const session = await host.adapter("prologue").readSession({ session_id: store.get("web-user", sent.work.work_id).session_id! });
-    assert.deepEqual(session.latest_run?.frozen.ending_review, { prompt_id: "assistant-ending-review", version: 1, user_revision: 1 });
+    assert.deepEqual(session.latest_run?.frozen.ending_review, { prompt_id: "assistant-ending-review", version: 2, user_revision: 1 });
   } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
 

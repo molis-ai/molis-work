@@ -1,0 +1,83 @@
+{
+  "reason": "第 15 批组合首页、公共呈现与跨位置入口的首屏线缆增量：工作台 JS 与插件承载 JS 的增长就是 batch-15-cross-consumers.json、batch-15-home-consumers.json、batch-15-review-fixes.json、batch-15-vux36-side-shared.json 已记的资源增量在四个默认页面上的冷、热实测；工作台词包随本批增删键（首页主人文字、稳定键、删去旧首页词条）得到新的内容寻址文件名。数字取 CI 首屏门禁对 539d2d7d46 的隔离 Host 实测草稿（头 8ccd79f56b）。",
+  "review": "第 15 批 PR #2017 全 PR 评审核对，见 PR 评论的评审台结论。",
+  "userApproval": "用户于 2026-11-09 在第 15 批主会话批准工作台 JS 合计 +49,502 与插件承载 JS +14,597（见 batch-15-cross-consumers.json），2026-11-12 弹窗再批工作台 JS 975 与 557 字节；本条只把这些已批资源增量在首屏页面上的线缆字节与词包新 digest 记入首屏门禁（词包按 2026-11-11-review-locale-entry.json 的先例，内容随本批键的增删变化）。",
+  "entryApprovals": [
+    {
+      "pages": [
+        "arrival-empty",
+        "chooser",
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "zh",
+      "entry": "/assets/locale/workbench.zh.<digest>.js",
+      "change": "new"
+    },
+    {
+      "pages": [
+        "arrival-empty",
+        "chooser",
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "en",
+      "entry": "/assets/locale/workbench.en.<digest>.js",
+      "change": "new"
+    },
+    {
+      "pages": [
+        "arrival-empty",
+        "chooser",
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "both",
+      "entry": "/assets/molis-work-plugin-frame.js",
+      "change": "growth"
+    },
+    {
+      "pages": [
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "both",
+      "entry": "/assets/molis-work-workbench.js",
+      "change": "growth"
+    }
+  ],
+  "pages": {
+    "arrival-empty/zh": {
+      "cold": 788,
+      "warm": 0
+    },
+    "arrival-empty/en": {
+      "cold": 663,
+      "warm": 0
+    },
+    "chooser/zh": {
+      "cold": 5333,
+      "warm": 4062
+    },
+    "chooser/en": {
+      "cold": 5208,
+      "warm": 4062
+    },
+    "workbench-default/zh": {
+      "cold": 55523,
+      "warm": 3360
+    },
+    "workbench-default/en": {
+      "cold": 55345,
+      "warm": 3307
+    },
+    "workbench-all-plugins/zh": {
+      "cold": 58209,
+      "warm": 6046
+    },
+    "workbench-all-plugins/en": {
+      "cold": 58031,
+      "warm": 5993
+    }
+  }
+}

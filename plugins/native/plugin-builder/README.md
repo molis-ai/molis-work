@@ -4,6 +4,10 @@
 
 创作台只画在工作台的主区里（`?openPlugin=plugin-builder`），没有自己的整页，也不嵌框架（[artifact-positioning](../../../specs/archive/artifact-positioning/spec.md) S4）。客户端是插件包的 `AGENT_STUDIO_WORKBENCH_CLIENT_FACTORY_SCRIPT`，接口在 `/api/plugin-builder/studio/*`（`apps/local-host/src/plugin-builder/agent-surface.ts`）。生成的插件安装后在工作台打开，身份为 `io.molis.work.generated.<id>`，每个插件有独立安装身份和数据。先配置模型并关联工作区。
 
+已安装页的组件提交由 Host 页面动作网关解析原发行物的绑定。客户端只送组件 ID 和表单值。未安装的试用仍在创作台预览执行，安装后的组件读取仍走已安装页的读取入口。
+
+设计可选的 `ui.slots`、`surfaceSlot` 部件和 `surface-slot` 节点随草稿、同步与签名发行物一起保存。装好后组件把当前只读查询的引用交给原舞台的父区域；创作预览和隔离子页不代读跨插件对象。不声明挂载位的第 1 版数据继续按原形状读取，错误版本或非法挂载位拒绝，不改写原数据。
+
 旧的「设计数据 + 固定解释器 v1」创作台（独立页面 `/projects/<project>/plugin-builder`、`builder.builds.*` 动作、灵感库示例）已随 S1b 删除，不留兼容；旧路线的设计与验收留在 [specs/archive/plugin-builder](../../../specs/archive/plugin-builder/)。
 
 - Migration: `goal-reorg-f2`

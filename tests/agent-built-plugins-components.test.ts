@@ -8,6 +8,7 @@ import { chinesePagePacks, pageTextScriptForPacks } from './fixtures/page-text-p
 import { builderBrowserExecutable, openStudioChrome } from './fixtures/plugin-builder-browser.js';
 import { validatePluginComponentPlans, resolvePluginComponentCall, PLUGIN_COMPONENT_STYLES, PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT } from '@molis-ai/molis-work-design-system';
 import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import { packageContract } from './fixtures/sandbox-package.js';
 /** The acceptance driver, loaded when a test needs it (one reference to its source for the whole file). */
 const loadDriver = () => import('../apps/local-host/src/plugin-builder/browser.js');
 const pageWords = () => pageTextScriptForPacks('zh', chinesePagePacks());
@@ -22,6 +23,30 @@ const contract: SandboxPluginContract = {
   pages: [{ id: 'home', title: '编辑', regions: [{ id: 'body', title: '编辑', operationIds: ['save'] }] }],
 };
 const plan = { id: 'editor', pageId: 'home', regionId: 'body', intent: 'input' as const, purpose: '编辑文本', props: { title: '原始标题', submitLabel: '保存' }, submit: { operationId: 'save', input: { text: { source: 'form' as const, field: 'text' }, enabled: { source: 'form' as const, field: 'enabled' }, choice: { source: 'form' as const, field: 'choice' } } } };
+
+test('SCS-11: opening a signed record refuses two matches in one component and one in another', { timeout: 30_000 }, async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'signed-record-identity-'));
+  const browser = await openStudioChrome(directory);
+  t.after(async () => { try { await browser?.close(); } finally { await rm(directory, { recursive: true, force: true }); } });
+  assert.ok(browser, 'dedicated Chrome is required');
+  const page = await componentPage(browser);
+  const nodes = ['first', 'second'].map(id => ({ id, pageId: 'home', regionId: 'main', intent: 'collection', kind: 'directory', purpose: id,
+    props: { idField: 'id', titleField: 'text' }, read: { operationId: 'notes.list', input: {} } }));
+  const view = { contract: packageContract(), nodes, connected: ['notes.list'] };
+  const result = await page.evaluate(`(async () => {
+    document.body.innerHTML='<main id="root"></main>';
+    const queries = [], writes = [], app = (${PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT})({ root: document.querySelector('#root'),
+      call: async (id, binding) => { if (binding !== 'read') { writes.push(id); return true; }
+        queries.push(id); return Array.from({length: id === 'first' ? 2 : 1}, (_,index) => ({id:'same',text:id+index})); },
+    });
+    await app.update(${JSON.stringify(view)});
+    const rows = document.querySelectorAll('[data-record-id="same"]').length, active = document.activeElement, readCount = queries.length;
+    const opened = await app.openRecord('same');
+    return { rows, opened, focusStayed: document.activeElement===active, selected: document.querySelectorAll('[data-record-id][aria-current]').length,
+      extraReads: queries.length-readCount, writes: writes.length };
+  })()`);
+  assert.deepEqual(result, { rows: 3, opened: false, focusStayed: true, selected: 0, extraReads: 0, writes: 0 });
+});
 test('component contracts reject unsupported bindings and resolve selected sources separately', () => {
   assert.equal(validatePluginComponentPlans([plan], contract).length, 1);
   assert.throws(() => validatePluginComponentPlans([{ ...plan, submit: { ...plan.submit, input: { ...plan.submit.input, text: { source: 'form', field: 'profile.name' } } } }], contract), /单层/);

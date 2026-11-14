@@ -69,6 +69,20 @@ const PLATFORM_STYLE_PREFIXES = new Set(["mw-", "pc-"]);
 const CATALOG_PROBLEMS = catalogProblems(PLATFORM_PLUGIN_REGISTRATIONS);
 if (CATALOG_PROBLEMS.length > 0) throw new Error(`Built-in plugin catalog: ${CATALOG_PROBLEMS.join("; ")}`);
 
+const byManifestId = new Map<string, PluginRegistration>(), byProjectKey = new Map<ProjectPluginId, PluginRegistration>();
+for (const entry of PLATFORM_PLUGIN_REGISTRATIONS) {
+  byManifestId.set(entry.manifest.plugin_id, entry);
+  byProjectKey.set(entry.project_plugin_id, entry);
+}
+
+export function builtinPluginByManifestId(pluginId: string): PluginRegistration | undefined {
+  return byManifestId.get(pluginId);
+}
+
+export function builtinPluginByProjectKey(projectKey: ProjectPluginId): PluginRegistration | undefined {
+  return byProjectKey.get(projectKey);
+}
+
 /** Plugins a project can enable. Personal Plugins are always on and not listed. */
 export const PROJECT_SCOPED_PLUGIN_IDS: readonly ProjectPluginId[] = PLATFORM_PLUGIN_REGISTRATIONS
   .filter(entry => entry.personal !== true)
@@ -103,17 +117,18 @@ export function shownProjectPlugins(enabled: readonly string[], hidden: readonly
 export function availableProjectPluginIds(
   shown: readonly string[], catalog: readonly PluginRegistration[] = PLATFORM_PLUGIN_REGISTRATIONS,
 ): ReadonlySet<string> {
-  const byProjectId = new Map(catalog.map(entry => [entry.project_plugin_id, entry]));
-  const byManifestId = new Map(catalog.map(entry => [entry.manifest.plugin_id, entry]));
+  const builtin = catalog === PLATFORM_PLUGIN_REGISTRATIONS;
+  const projectKeys = builtin ? byProjectKey : new Map(catalog.map(entry => [entry.project_plugin_id, entry]));
+  const manifestIds = builtin ? byManifestId : new Map(catalog.map(entry => [entry.manifest.plugin_id, entry]));
   const available = new Set<string>();
   const pending = [...shown];
   while (pending.length) {
     const id = pending.pop()!;
-    const entry = byProjectId.get(id);
+    const entry = projectKeys.get(id);
     if (!entry || available.has(id)) continue;
     available.add(id);
     for (const dependency of entry.manifest.ui.embedded_plugins ?? []) {
-      const embedded = byManifestId.get(dependency);
+      const embedded = manifestIds.get(dependency);
       if (embedded) pending.push(embedded.project_plugin_id);
     }
   }
@@ -157,10 +172,6 @@ export function projectRuntimeDeclarations(): ProjectRuntimeDeclaration[] {
   return PLATFORM_PLUGIN_REGISTRATIONS.flatMap(entry => entry.project_runtime ? [{ ...entry.project_runtime, key: entry.project_plugin_id }] : []);
 }
 
-function entryFor(projectPluginId: ProjectPluginId): PluginRegistration | undefined {
-  return PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.project_plugin_id === projectPluginId);
-}
-
 /**
  * Plugins that must come along, worked out from the Manifests. A Plugin with a **required** input port needs somebody in this
  * project able to publish that type; enabled on its own it could never be bound. Optional ports pull in nothing. The closure is
@@ -179,7 +190,7 @@ function requiredCompanions(projectPluginId: ProjectPluginId): ProjectPluginId[]
   const pending = [projectPluginId];
   while (pending.length > 0) {
     const current = pending.pop()!;
-    const manifest = entryFor(current)?.manifest;
+    const manifest = builtinPluginByProjectKey(current)?.manifest;
     if (manifest === undefined) continue;
     for (const port of manifest.ports?.inputs ?? []) {
       if (port.optional === true) continue;
@@ -197,6 +208,6 @@ function requiredCompanions(projectPluginId: ProjectPluginId): ProjectPluginId[]
 export const BUILTIN_PLUGIN_REGISTRY: ProjectPluginRegistry = {
   has: pluginId => PROJECT_SCOPED_PLUGIN_IDS.includes(pluginId),
   initial: () => PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => entry.default_enabled).map(entry => entry.project_plugin_id),
-  companions: pluginId => [...(entryFor(pluginId)?.companions ?? []), ...requiredCompanions(pluginId)],
+  companions: pluginId => [...(builtinPluginByProjectKey(pluginId)?.companions ?? []), ...requiredCompanions(pluginId)],
   isPersonal: pluginId => PERSONAL_PLUGIN_IDS.includes(pluginId),
 };

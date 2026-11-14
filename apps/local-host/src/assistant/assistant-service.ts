@@ -1,3 +1,4 @@
+import { assistantSessionLifecycleProblem, changeAssistantSessionLifecycle } from "./assistant-session-lifecycle.js";
 import type { MethodHandoff } from "./assistant-signed-materials.js";
 import { sentOriginal } from "./assistant-round-start.js";
 import { memoryInputSource } from "../memory/memory-source-identity.js";
@@ -21,6 +22,7 @@ import type { AssistantStore, StoredRound, StoredWork } from "./assistant-store.
 import { AssistantJobs } from "./assistant-jobs.js";
 import { AGENT_STEER_MODES } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 import { assistantErrors } from "./assistant-errors.js";
+import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { MemoryChange } from "@molis-ai/molis-work-contracts/services/memory";
 import type { MemoryService } from "@molis-ai/molis-work-service-memory";
 import { assertRoundToAddress, inputsOf, withdrawInput } from "./assistant-inputs.js";
@@ -38,7 +40,7 @@ import { AssistantMemoryBridge } from "./assistant-memory-bridge.js";
 import { AssistantBudget } from "./assistant-budget.js";
 import { AssistantNotices } from "./assistant-notices.js";
 import type { AgentActionReviewControl } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { assertAssistantSessionSettled, assistantEndControl, assistantWorkEnding, beginAssistantWorkEnds, holdAssistantWorkLifetime } from "./assistant-work-permissions.js";
+import { holdAssistantWorkLifetime } from "./assistant-work-permissions.js";
 
 export type { AssistantServicePorts, AssistantCaller } from "./assistant-service-shared.js";
 export { holdingRule } from "./assistant-notices.js";
@@ -92,10 +94,10 @@ export class AssistantService {
     this.followUps = new AssistantFollowUps<StoredWork>({ actorId, records: store.followUps, now: () => this.now(), ...(ports.timeZone ? { timeZone: ports.timeZone } : {}),
       work: workId => store.get(actorId, workId), notify: (notice, dedupe) => store.raiseNotice(actorId, notice, dedupe) !== null,
       holdWork: async work => {
-        const local = store.holdWorkInput(work.work_id);
+        const local = store.permissionTransitions.holdWorkInput(work.work_id);
         try {
           const host = await ports.host(), lifetime = await holdAssistantWorkLifetime(host, work);
-          return { adapter: host.adapter(RUNTIME), release: local.release, assertCurrent: () => { local.assertCurrent(); lifetime?.(); } };
+          return { release: local.release, assertCurrent: () => { local.assertCurrent(); lifetime?.(); } };
         } catch (error) { local.release(); throw error; }
       },
       setting: key => store.setting(actorId, key), setSetting: (key, value) => store.setSetting(actorId, key, value),
@@ -137,6 +139,14 @@ export class AssistantService {
     }));
   }
 
+  /** The same business owner, without reading a Run, an executor or conversation contents. */
+  memorySessionBinding(workId: string): { session_id: string | null; project_ref: LocalHostProjectReference | null; archived: boolean } {
+    const work = this.store.get(this.actorId, workId);
+    if (work.scope.kind === "project" && work.project_ref?.project_id !== work.scope.project_id
+      || work.scope.kind === "personal" && work.project_ref) throw assistantErrors.conflict("原助理会话的项目归属不可确认");
+    return { session_id: work.session_id, project_ref: work.project_ref ? { ...work.project_ref } : null, archived: work.archived };
+  }
+
   async read(workId: string): Promise<AssistantWorkView> {
     const work = await this.reads.named(this.store.get(this.actorId, workId));
     // One work, whoever ran each round: the Assistant's own session, and the executor's session it carries or handed to.
@@ -145,7 +155,7 @@ export class AssistantService {
     const plugin = carried ? await this.reads.executorPart(work, carried) : null;
     const rounds = this.dispatcher.settleUnsent(work, [...(assistant?.rounds ?? []), ...(plugin?.rounds ?? [])].sort((a, b) => a.started_at.localeCompare(b.started_at)));
     const latest = rounds.at(-1);
-    const problem = assistant?.problem ?? plugin?.problem;
+    const problem = await assistantSessionLifecycleProblem(this.ports, work) ?? assistant?.problem ?? plugin?.problem;
     const state = plugin?.unreadable && work.executor.kind === "plugin" ? "needs-check"
       : await this.continuations.state(work, stateOf(latest && latest.phase !== "unknown" ? latest.phase : latest ? null : undefined, Boolean(assistant?.recovery || plugin?.recovery)));
     const shown: StoredWork = work.executor.kind === "plugin" && plugin?.mode ? { ...work, executor: { ...work.executor, mode: plugin.mode } } : work;
@@ -207,11 +217,11 @@ export class AssistantService {
     const claim = this.store.requests.claimRequest(this.actorId, String(input.request_id ?? ""));
     if (!claim.claimed) return claim.result;
     let work: StoredWork | undefined, inputHold: ReturnType<AssistantContinuations["begin"]> | undefined, draftCurrent = () => false;
-    let originalInput: ReturnType<AssistantStore["holdWorkInput"]> | undefined, assertInput: (() => void) | undefined;
+    let originalInput: ReturnType<AssistantStore["permissionTransitions"]["holdWorkInput"]> | undefined, assertInput: (() => void) | undefined;
     try {
       const created = !input.work_id;
       const existing = input.work_id ? this.store.get(this.actorId, input.work_id) : undefined;
-      if (existing) originalInput = this.store.holdWorkInput(existing.work_id);
+      if (existing) originalInput = this.store.permissionTransitions.holdWorkInput(existing.work_id);
       const assertLifetime = existing && existing.executor.kind === "assistant" && !existing.reply_target
         ? await holdAssistantWorkLifetime(await this.ports.host(), existing) : undefined;
       const scope = existing ?? { project_ref: sendScope(input.scope, caller, choice).kind === "project" ? caller.project_ref : undefined };
@@ -221,12 +231,12 @@ export class AssistantService {
       originalInput?.assertCurrent(); assertLifetime?.();
       requireSynchronous(caller.assertBeforeStart?.());
       work = existing ? this.store.get(this.actorId, existing.work_id) : await this.createWork(text, input.scope, context, caller, choice);
-      this.store.assertWorkPermissionTransitionFree(work.work_id);
+      this.store.permissionTransitions.assertWorkPermissionTransitionFree(work.work_id);
       if (work.archived || work.delegated_by?.taken_back_at) throw assistantErrors.state("这项工作已经归档或收回");
       const workId = work.work_id;
       const original = work;
       assertInput = () => {
-        this.store.assertWorkPermissionTransitionFree(workId); originalInput?.assertCurrent(); assertLifetime?.();
+        this.store.permissionTransitions.assertWorkPermissionTransitionFree(workId); originalInput?.assertCurrent(); assertLifetime?.();
         const current = this.store.get(this.actorId, workId);
         if (current.archived || current.delegated_by?.taken_back_at || current.executor.kind !== original.executor.kind)
           throw assistantErrors.state("工作已结束或交给另一执行方");
@@ -308,34 +318,14 @@ export class AssistantService {
 
   /** Put away (or back). Putting away is quiet: it waits for no round in progress here or in what it handed out, and takes its timed rounds with it. */
   async archive(workId: string, archived: boolean, caller?: AgentActionReviewControl): Promise<AssistantWork> {
-    const own = this.store.get(this.actorId, workId);
-    const group = archived ? [own, ...this.store.delegatedBy(this.actorId, own, "any")] : [own];
-    const release = this.store.holdWorkPermissions(group.map(item => item.work_id));
-    try {
-      const control = assistantEndControl(this.store, own, caller);
-      if (!archived) {
-        const host = await this.ports.host();
-        const group = [own, ...this.store.delegatedBy(this.actorId, own, "any")];
-        const states = await Promise.all(group.map(item => assistantWorkEnding(host, item)?.read()));
-        if (states.some(state => state?.lifecycle === "ending")) throw assistantErrors.state("归档仍待收口，请重试归档");
-        await control.beforeEffect(); control.assertCurrent();
-        const work = this.store.update(this.actorId, workId, null, { archived: false });
-        return this.reads.publicWork(work, await this.reads.stateSafely(work));
-      }
-      const host = await this.ports.host();
-      if ((await Promise.all(group.map(item => this.reads.stateFor(host, item, true)))).some(state => ["running", "paused", "waiting-input", "waiting-review", "needs-check"].includes(state))) {
-        throw assistantErrors.state("这项工作还有一轮在进行，先停止它再归档");
-      }
-      const finish = await beginAssistantWorkEnds(host, this.store, group, "archived", caller);
-      await control.beforeEffect(); control.assertCurrent();
-      for (const member of group) await this.followUps.stopForArchive(member.work_id,
-        { adapter: host.adapter(RUNTIME), control: assistantEndControl(this.store, member, caller) });
-      await control.beforeEffect(); control.assertCurrent();
-      for (const member of group) assertAssistantSessionSettled(host, member);
-      const work = this.store.update(this.actorId, workId, null, { archived: true });
-      await finish();
-      return this.reads.publicWork(work, await this.reads.stateSafely(work));
-    } finally { release(); }
+    const original = this.store.get(this.actorId, workId);
+    const children = this.store.delegatedBy(this.actorId, original, "any");
+    const release = this.store.permissionTransitions.holdWorkPermissions([workId, ...children.map(item => item.work_id)], true, archived ? "archive" : "restore");
+    let work: StoredWork;
+    try { work = await changeAssistantSessionLifecycle(this.store, this.ports, this.actorId, this.reads, this.followUps, this.starting, original, [original, ...children], archived, caller); }
+    finally { release(); }
+    const hasSession = work.session_id || work.executor.kind === "plugin" && work.executor.session_id;
+    return this.reads.publicWork(work, hasSession ? await this.reads.stateSafely(work) : "idle");
   }
 
   private async createWork(text: string, scope: AssistantScope | undefined, context: AssistantContextSnapshot | null, caller: AssistantCaller,

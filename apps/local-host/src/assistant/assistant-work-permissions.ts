@@ -25,6 +25,7 @@ export function assistantWorkEnding(host: AgentHost, work: StoredWork) {
   if (!subject || !store) return undefined;
   return {
     read: () => store.read(subject),
+    finish: (epoch: string, control: AgentActionReviewControl) => store.finishEnd(subject, epoch, control),
     async begin(reason: string, control: AgentActionReviewControl) {
       const current = await store.read(subject);
       const ending = await store.beginEnd(subject, current?.epoch ?? null, reason, control);

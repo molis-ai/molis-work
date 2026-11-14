@@ -24,7 +24,7 @@ test("event recovery uses real project HTTP and SQLite, preserves failed confirm
   t.after(() => db.close());
   const installs = new SqlitePluginRuntimeRepository(db).list();
   const source = installs.find(record => record.plugin_id === "io.molis.work.coding")!;
-  const subscriber = installs.find(record => record.plugin_id === "io.molis.work.files")!;
+  const subscriber = installs.find(record => record.plugin_id === "io.molis.work.git")!;
   assert.ok(source && subscriber);
   const event = repository.append({ event_id: `browser-event-${randomUUID()}`, project_id: projectId!,
     source_plugin_id: source.plugin_id, source_install_id: source.install_id, event_type_id: CODING_FILE_CHANGED_EVENT,

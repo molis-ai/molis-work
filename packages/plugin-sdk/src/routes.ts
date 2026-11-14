@@ -17,6 +17,16 @@ function routeInput<Input>(map: (request: PluginRouteRequest) => Input, request:
 /** Bounds on a streamed route's progress lines (`PluginRouteStreamLine`); the `result` line has only the action's own output limit. */
 export const PLUGIN_ROUTE_STREAM_LIMITS = Object.freeze({ line_bytes: 65_536, lines: 10_000, progress_bytes: 1_048_576 });
 
+/** Check caller-supplied project fields against the bound project and pass only business fields to the action. */
+export function projectRouteFields(request: PluginRouteRequest, projectId: PluginStartContext["project_id"], mismatch: string): Record<string, unknown> {
+  const fields = request.body && typeof request.body === "object" ? { ...request.body as Record<string, unknown> } : {};
+  for (const requested of [request.query.project_id, fields.project_id]) {
+    if (requested !== undefined && requested !== projectId) throw new ActionError("actions.scope_mismatch", mismatch);
+  }
+  delete fields.project_id;
+  return fields;
+}
+
 /** A plugin HTTP route only adapts transport to an action; execution always goes through the Host. */
 export function bindPluginActionRoute<Input, Output>(
   context: PluginStartContext,

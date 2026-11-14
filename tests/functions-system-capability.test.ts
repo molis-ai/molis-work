@@ -37,7 +37,6 @@ import { feedManifest } from "@molis-ai/molis-work-plugin-feed";
 import { inboxManifest } from "@molis-ai/molis-work-plugin-inbox";
 import { liveHostJudgmentRuleAuthoringCatalog } from "@molis-ai/molis-work-app-local-host";
 import { defineSubjectOffersAction, type ActionProvider, type ActionSceneView, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
-import { projectHomeEvents } from "../apps/workbench/dist/home-flow.js";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
@@ -255,19 +254,6 @@ test("authoring names the owning plugin by its plugin id, never by the installat
   assert.ok(catalog.options.every(row => !/^plugin-install-/.test(row.plugin_id)), "no installation id is presented as a plugin id");
 });
 
-test("Home preserves declared navigation and bound suggestions without inventing actions", () => {
-  const now = new Date(2026, 8, 19, 13, 20);
-  const open = { kind: "item" as const, surface: "notes", id: "note-1", title: "笔记", label: "打开笔记" };
-  const events = projectHomeEvents({ now, events: [{
-    id: "opaque", event_id: "note-event", subject: { kind: "note", id: "note-1" },
-    source: { capability_id: "plugin.events", version: 1, provider_id: "unknown" }, origin: { surface: "notes", title: "笔记", icon: "note" },
-    occurred_at: now.toISOString(), placement: "occurred", category: "personal", title: "笔记", summary: "摘要", content: "正文", facts: [], needs_attention: false,
-    open, suggested_behavior_ids: [HOME_CONTINUE_OPTION_ID],
-  }] });
-  assert.deepEqual(events[0]?.open, open);
-  assert.deepEqual(events[0]?.suggested_behavior_ids, [HOME_CONTINUE_OPTION_ID]);
-});
-
 /** A Home whose project has opened, so the shipped scenes have registered and written the rules they declare (RAC-484). */
 async function openHomeWithRules(t: TestContext) {
   const home = await openTestHome(t, { host: { functions: { env: {}, credential: () => null } } });
@@ -392,13 +378,13 @@ test("Feed, Inbox and home do not import the Functions plugin implementation", a
     "plugins/native/inbox/src/ui.ts",
     "plugins/native/inbox/src/route-handlers.ts",
     "plugins/native/inbox/src/routes.ts",
-    "apps/workbench/src/home-flow.ts",
     "plugins/native/inbox/src/actions.ts",
     "plugins/native/feed/src/query-actions.ts",
     "plugins/native/feed/src/stage-ui.ts",
     "apps/workbench/src/stage-renderers.ts",
     "apps/workbench/src/declared-stages.ts",
-    "apps/workbench/src/scripts/client/project-home.ts",
+    "apps/workbench/src/browser/project-home.ts",
+    "apps/workbench/src/browser/project-home-render.ts",
     "plugins/native/inbox/src/browser/client.ts",
     "plugins/native/feed/src/browser/factory.ts",
     "plugins/native/feed/src/browser/sources.ts",
@@ -473,7 +459,7 @@ test("home dock HTTP binds a published function at the scene without executing w
   assert.doesNotMatch(page, /"function_scenes"/);
   assert.match(page, /"inbox_judgment"/);
   assert.doesNotMatch(page, /"home_dock_functions"/);
-  const homeClient = await readFile(join(ROOT, "..", "apps/workbench/src/scripts/client/project-home.ts"), "utf8");
+  const homeClient = (await Promise.all(["project-home", "project-home-render"].map(part => readFile(join(ROOT, "..", `apps/workbench/src/browser/${part}.ts`), "utf8")))).join("\n");
   const functionsClient = (await Promise.all(["client", "client-render", "client-records", "client-events"].map(part => readFile(join(ROOT, "..", `apps/workbench/src/judgment-rules/${part}.ts`), "utf8")))).join("\n");
   assert.doesNotMatch(homeClient, /data-home-dock-judgment/);
   assert.doesNotMatch(functionsClient, /\/api\/home\/dock-judgment|\/api\/inbox\/judgment/, "the generic editor must not keep native scene dispatch branches");

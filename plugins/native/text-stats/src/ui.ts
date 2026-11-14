@@ -41,10 +41,10 @@ export const textStatsUiContribution: UiContribution<TextStatsUiModel | Companio
   },
 };
 
-/** Text Stats' stage in the project page: a refresh, a way to Files, and the counts the page's client fills. */
-export function renderTextStatsStage(model: CompanionStageModel): string {
+/** Text Stats' stage in the project page: a refresh, a way to the materials, and the counts the page's client fills. */
+export function renderTextStatsStage(_model: CompanionStageModel): string {
   return renderCompanionListStage({ surface: "text-stats", label: "Text Stats", refresh: uiText.text("text-stats.stage.refresh"),
-    files: { enabled: model.shown_plugins?.includes("files") ?? false, open: uiText.text("text-stats.stage.open-files"), add: uiText.text("text-stats.stage.add-files") } });
+    materials: uiText.text("text-stats.stage.open-materials") });
 }
 
 export function renderTextStats(model: TextStatsUiModel): string {

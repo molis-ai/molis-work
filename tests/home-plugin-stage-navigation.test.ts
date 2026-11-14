@@ -45,7 +45,13 @@ const plusPersonal = (html: string, pluginId: string) => (JSON.parse(/<script ty
   .find(entry => entry.id === pluginId)?.personal === true;
 const surfaceOf = (entry: string) => /data-work-surface-open="([^"]+)"/u.exec(entry)?.[1];
 const stagesOf = (html: string) => [...html.matchAll(/<section class="desktop-work-surface plugin-stage-shell" data-work-surface="([^"]+)"[^>]* data-installed-plugin="([^"]+)" data-plugin-page-source="([^"]+)"[^>]* data-deferred-surface hidden><script type="application\/json" data-plugin-document>/gu)]
-  .map(match => ({ surface: match[1]!, plugin_id: match[2]!, source: match[3]! }));
+  .map(match => ({ surface: match[1]!, plugin_id: match[2]!, source: match[3]!.replaceAll("&amp;", "&") }));
+/** A stage frames the page of the exact Home installation that drew it (SCS-11). */
+const assertStageSource = (source: string, page: string) => {
+  const url = new URL(source, "http://local");
+  assert.equal(url.pathname + "?frame=" + url.searchParams.get("frame"), page + "?frame=workbench");
+  assert.equal((JSON.parse(url.searchParams.get("installation") ?? "null") as { scope?: string } | null)?.scope, "home");
+};
 
 test("RAC-2620 a project's switcher (its 个人 group) and ＋ offer a Home package with the personal plugins, with the icon it picked and `package` when it picked none; the arrival page has no tool slot", mac, async t => {
   const h = await navHome(t);
@@ -80,7 +86,7 @@ test("RAC-2621 a package that has only a stage view has no side tab; its entry o
   // The page a person opens from the arrival page frames the package's own page.
   const opened = await h.page(`/plugins/${PACKAGE_PLUGIN_ID}`);
   assert.equal(opened.status, 200);
-  assert.ok(opened.text.includes(`<iframe src="/plugins/${PACKAGE_PLUGIN_ID}?frame=workbench"`), "the Home page frames the package's page");
+  assert.ok(opened.text.includes(`<iframe src="/plugins/${PACKAGE_PLUGIN_ID}?frame=workbench&amp;installation=`), "the Home page frames the package's page");
   // The framed page is the common installed-plugin renderer, whose every call goes to the package through the Home's route.
   const framed = await h.page(`/plugins/${PACKAGE_PLUGIN_ID}?frame=workbench`);
   assert.equal(framed.status, 200);
@@ -93,7 +99,7 @@ test("RAC-2621 a package that has only a stage view has no side tab; its entry o
   assert.equal(new Set(stages.map(stage => stage.surface)).size, 2, "two stages, two ids");
   for (const stage of stages) {
     assert.equal(surfaceOf(entryOf(project.text, stage.plugin_id)!), stage.surface, `${stage.plugin_id}'s entry opens its own stage`);
-    assert.equal(stage.source, `${h.projectPath}plugins/${stage.plugin_id}?frame=workbench`, `${stage.plugin_id}'s stage opens its own package page`);
+    assertStageSource(stage.source, `${h.projectPath}plugins/${stage.plugin_id}`);
   }
 });
 
@@ -185,7 +191,7 @@ test("RAC-2621.1 the first request after a start can be a package's page: the Ho
     // Nothing has asked the Home to start yet: refreshing the package's page, or opening the window again after a restart, is the first request.
     const opened = await h.page(`/plugins/${PACKAGE_PLUGIN_ID}`, served.origin);
     assert.equal(opened.status, 200);
-    assert.ok(opened.text.includes(`<iframe src="/plugins/${PACKAGE_PLUGIN_ID}?frame=workbench"`), "the page frames the package");
+    assert.ok(opened.text.includes(`<iframe src="/plugins/${PACKAGE_PLUGIN_ID}?frame=workbench&amp;installation=`), "the page frames the package");
   } finally { await served.close(); await host.close(); }
 });
 
@@ -217,12 +223,12 @@ test("RAC-2621.3 the framed page carries the Home page's policy and a project op
   assert.equal(framed.status, 200);
   assert.match(framed.headers.get("content-security-policy") ?? "", /frame-ancestors 'self'/u, "only this origin frames it");
   assert.equal(framed.headers.get("x-frame-options"), "SAMEORIGIN");
-  const outer = /<iframe src="\/plugins\/[^"]*\?frame=workbench"[^>]*>/u.exec((await h.page(`/plugins/${PACKAGE_PLUGIN_ID}`)).text)?.[0];
+  const outer = /<iframe src="\/plugins\/[^"]*\?frame=workbench&amp;installation=[^"]+"[^>]*>/u.exec((await h.page(`/plugins/${PACKAGE_PLUGIN_ID}`)).text)?.[0];
   assert.ok(outer, "the Home page embeds the package document");
   assert.doesNotMatch(outer, /\bsandbox\b/u, "the Home package page is itself isolated");
   const stage = stagesOf((await h.page(h.projectPath)).text).find(item => item.plugin_id === PACKAGE_PLUGIN_ID);
   assert.ok(stage, "the project carries the package stage as an inert document");
-  assert.equal(stage.source, `${h.projectPath}plugins/${PACKAGE_PLUGIN_ID}?frame=workbench`);
+  assertStageSource(stage.source, `${h.projectPath}plugins/${PACKAGE_PLUGIN_ID}`);
   const chrome = locateTestChrome();
   await t.test("the workbench mounts the signed package's real controls in an opaque document", { skip: !chrome }, async check => {
     assert.ok(chrome);

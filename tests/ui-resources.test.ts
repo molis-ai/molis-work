@@ -191,7 +191,7 @@ test("FSS-34 the same Workbench build discovers and serves a language added only
     assert.throws(authority, /reply-language\/en-GB\.md/, "the platform cannot choose a reply language with no fixed instruction for it");
     const rule = "Reply to the person in British English unless they explicitly ask for another language this round.";
     writeFileSync(path.join(host, "prompts/reply-language/en-GB.md"), rule + "\n");
-    assert.deepEqual(authority(), { prompt_id: "reply-language", version: 1, body: rule });
+    assert.deepEqual(authority(), { prompt_id: "reply-language", version: 2, body: rule });
     const imSource = path.join(ROOT, "packages/im-ui"), im = path.join(scratch, "im");
     for (const item of ["package.json", "dist", "resources", "node_modules"]) cpSync(path.join(imSource, item), path.join(im, item), { recursive: true });
     const imLink = path.join(host, "node_modules/@molis-ai/molis-work-im-ui");

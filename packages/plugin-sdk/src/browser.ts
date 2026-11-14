@@ -1,5 +1,7 @@
 /// <reference lib="dom" />
 
+import type { UiPluginClientHost, UiRequestScope } from "@molis-ai/molis-work-contracts/platform/ui";
+
 /**
  * Where a floating layer goes: beside, above or below what it belongs to, kept inside the screen or the stage the person is
  * working in. A leaf with no import and no use of Node, so a page bundle can take it by itself:
@@ -137,6 +139,66 @@ export { GAP as FLOATING_GAP, MARGIN as FLOATING_MARGIN, clampTo, pick as pickSi
 
 /** Text to show for an error raised by a client action, including a thrown string. */
 export const messageOf = (error: unknown): string => error instanceof Error ? error.message : String(error);
+
+export const statusOf = (error: unknown): number | undefined => (error as { status?: number } | null)?.status;
+export const codeOf = (error: unknown): string | undefined => (error as { code?: string } | null)?.code;
+export const isAbort = (error: unknown): boolean => (error as { name?: string } | null)?.name === "AbortError";
+
+/** Bind the page's missing-element diagnostic once, then query required parts of its markup. */
+export function requiredQuery(missing: (selector: string) => string) {
+  return <T extends Element = HTMLElement>(root: ParentNode, selector: string): T => {
+    const node = root.querySelector<T>(selector);
+    if (!node) throw new Error(missing(selector));
+    return node;
+  };
+}
+
+/** A one-line cell whose full text is also its tooltip. */
+export function textCell(className: string, text: string): HTMLSpanElement {
+  const node = document.createElement("span");
+  node.className = className;
+  node.title = text;
+  node.textContent = text;
+  return node;
+}
+
+type PluginRequestHost = Pick<UiPluginClientHost, "pluginRoute"> & Partial<Pick<UiPluginClientHost, "route" | "readRefusal">>;
+
+interface PluginRequestOptions {
+  fallback(): string;
+  readonly codes?: Readonly<Record<string, () => string>>;
+  readonly readRefusal?: boolean;
+  readonly scope?: UiRequestScope;
+  readonly project?: {
+    id(): string;
+    missing(): string;
+    /** For routes that still declare a project field in both the query and the write body. */
+    readonly includeInRequest?: boolean;
+  };
+}
+
+/** Adapt a page's JSON GET/POST to the Host request, preserving its failure object and cancellation. */
+export function pluginRequest(host: PluginRequestHost, { fallback, codes, readRefusal, scope, project }: PluginRequestOptions) {
+  return async <T>(method: "GET" | "POST", path: string, body?: Record<string, unknown>, signal?: AbortSignal): Promise<T> => {
+    const projectId = project?.id();
+    if (project && !projectId) throw new Error(project.missing());
+    let url = host.route && path.startsWith("/api/") ? host.route(path) : host.pluginRoute(path);
+    const wireProject = project?.includeInRequest ? projectId : undefined;
+    if (wireProject) url += (url.includes("?") ? "&" : "?") + "project_id=" + encodeURIComponent(wireProject);
+    const fields = method === "POST" && body !== undefined ? (wireProject ? { ...body, project_id: wireProject } : body) : undefined;
+    try {
+      return await molisWorkRequest<T>(url, { method, body: fields, scope, signal, fallback: fallback() });
+    } catch (error) {
+      if (error instanceof Error && !isAbort(error)) {
+        const code = codeOf(error), status = statusOf(error);
+        const message = readRefusal && method === "GET" && status !== undefined ? host.readRefusal?.(status, code) : undefined;
+        const translated = message || (code && codes && Object.hasOwn(codes, code) ? codes[code]?.() : undefined);
+        if (translated) error.message = translated;
+      }
+      throw error;
+    }
+  };
+}
 
 /** Native JSON read comparison: preserve toJSON and JSON.stringify's value rules.
  * Integer-shaped keys keep JavaScript's enumeration order; this is not signing text. */

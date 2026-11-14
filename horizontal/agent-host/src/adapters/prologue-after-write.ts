@@ -40,8 +40,12 @@ interface AfterWriteRound {
   readonly store: AgentWriteCheckerStore;
   /** The round's own check before anything leaves for it (its plugin instance, its Character); absent for a trusted Host start. */
   readonly beforeDispatch?: () => void | Promise<void>;
-  /** Keeps which checker answered, under the SDK's key for this check, before the command goes up for review; nothing is kept for a `signal` that has aborted by the time it is written. */
-  note(operationKey: string, note: AgentWriteCheckNote, signal?: AbortSignal): Promise<void>;
+  /**
+   * Keeps which checker answered, under the SDK's key for this check, before the command goes up for review; nothing is
+   * kept for a `signal` that has aborted by the time it is written. `about` names the Session and Run that wrote, so a
+   * child's check is recorded against the child's attempt rather than the parent's (K-1/BL-302).
+   */
+  note(about: NonNullable<Parameters<ToolRunner>[0]["afterWriteCheck"]>, note: AgentWriteCheckNote, signal?: AbortSignal): Promise<void>;
 }
 
 /** Whether a checker whose commands run in `cwd` checks this path: a checker checks only files in its own directory. */
@@ -69,7 +73,7 @@ export function afterWriteExecutor(round: AfterWriteRound): ToolRunner {
     const relative = checker.cwd === "." ? path : posix.relative(checker.cwd, path), file = relative.startsWith("-") ? `./${relative}` : relative;
     // Stopped or given up on by now: nothing is kept, and the SDK does not use this answer.
     call.signal?.throwIfAborted();
-    await round.note(about.operationKey, { checker_id: checker.checker_id, display_name: checker.display_name, version, ...(about.writeCallId ? { write_call_id: about.writeCallId } : {}) }, call.signal);
+    await round.note(about, { checker_id: checker.checker_id, display_name: checker.display_name, version, ...(about.writeCallId ? { write_call_id: about.writeCallId } : {}) }, call.signal);
     checks += 1;
     return JSON.stringify({ command: { executable: checker.executable, argv: checker.args.map(arg => arg === FILE ? file : arg), cwd: checker.cwd, timeoutMs: checker.timeout_ms } });
   };

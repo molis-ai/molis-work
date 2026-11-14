@@ -226,7 +226,7 @@ export class MemoryUpkeep {
       this.ports.ledger.saveChange(change);
       this.ports.ledger.setMarker(caller.actor_id, keyOf(step.operation_id), { ...step, phase: "committed" }, step.at);
       this.ports.ledger.setMarker(caller.actor_id, INDEX, { plans: this.pending(caller).filter(id => id !== step.operation_id) }, step.at);
-      if (step.drop) this.ports.ledger.forget(step.drop.memory_id);
+      if (step.drop) this.ports.ledger.forget(step.drop.memory_id, "related");
     });
   }
 }

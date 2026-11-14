@@ -83,8 +83,10 @@ export class AssistantMemoryBridge {
   memoryTools(work: StoredWork): AgentMemoryTools | undefined {
     const memory = this.ports.memory?.();
     if (!memory) return undefined;
-    const projectId = work.project_ref?.project_id ?? null;
-    return assistantMemoryTools({ memory, controlled: (control, bindChangeTarget) => this.ports.memory?.(control, bindChangeTarget), sources: this.ports.memorySources, currentWork: () => this.store.get(this.actorId, work.work_id), currentInput: this.link.continuations.currentInput(work.work_id), actorId: this.actorId, work, projectId, caller: this.memoryCaller(work, projectId),
+    const projectId = work.project_ref?.project_id ?? null, recipe = this.chosenMemory.get(work.work_id);
+    if (!recipe) return undefined;
+    return assistantMemoryTools({ memory, controlled: (control, bindChangeTarget) => this.ports.memory?.(control, bindChangeTarget), sources: this.ports.memorySources, currentWork: () => this.store.get(this.actorId, work.work_id), currentInput: this.link.continuations.currentInput(work.work_id), actorId: this.actorId, work, projectId, caller: { ...this.memoryCaller(work, projectId),
+      current_scene: recipe.current_scene, class_restrictions: structuredClone(recipe.class_restrictions) },
       onSourceWithdrawal: listener => { this.memorySourceWithdrawals.add(listener); return () => { this.memorySourceWithdrawals.delete(listener); }; },
       spoken: async () => {
         // A work deleted meanwhile has spoken nothing more; a store that cannot be read is thrown, not taken for that.
@@ -132,6 +134,6 @@ export class AssistantMemoryBridge {
         }
       }
     }
-    return { changes: memory.changes(caller, { scope: "all", work_id: work.work_id, limit: 20 }) };
+    return { changes: (await memory.changes(caller, { scope: "all", work_id: work.work_id, limit: 20 })) };
   }
 }

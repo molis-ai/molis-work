@@ -1,4 +1,4 @@
-import type { ActionReference, ActionSceneBinding, ActionSceneConfigureOptions, ActionSceneTarget, ActionSceneUsage, ActionSceneView } from "./actions.js";
+import type { ActionReference, ActionSceneBinding, ActionSceneConfigureOptions, ActionSceneTarget, ActionSceneUsage, ActionSceneView, ExactActionReference } from "./actions.js";
 
 /** The Manifest permission that gives a plugin `services.scenes`. Declared and granted like any other; never implied by who published the plugin. */
 export const PLUGIN_SCENES_PERMISSION = "scenes:use";
@@ -12,6 +12,8 @@ export const PLUGIN_SCENES_PERMISSION = "scenes:use";
 export interface PluginSceneClient {
   /** The scenes this plugin declares, with how the given judgment fits each. */
   discoverScenes(judgment?: ActionReference): Promise<readonly ActionSceneView[]>;
+  /** The same declared scenes for each exact judgment, in input order, including repeated references. */
+  discoverScenesFor(judgments: readonly ExactActionReference[]): Promise<readonly (readonly ActionSceneView[])[]>;
   /** The bindings of this plugin's scenes, with whether each is available now. */
   usages(judgment?: ActionReference): Promise<readonly ActionSceneUsage[]>;
   /** The places this plugin's scenes are configured. With `scene`, only that scene (which must be declared). */

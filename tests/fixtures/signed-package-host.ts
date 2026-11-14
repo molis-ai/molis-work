@@ -1,3 +1,5 @@
+import assert from "node:assert/strict";
+import type { TestContext } from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { createServer, request as httpRequest, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -6,7 +8,9 @@ import { join } from "node:path";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginUninstallTarget } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import { SANDBOX_PACKAGE_FILES, type PluginPackageBundle } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
+import type { ProjectPluginInstalledView } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
+import type { SurfaceInstallationRef } from "@molis-ai/molis-work-contracts/services/surface-composition";
+import { PluginRuntime, PluginSupervisor, SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import { DEMO_PROJECT_ID, HomeConsentLedger, MolisWorkLocalHost, PLUGIN_INSTALL_PERMISSIONS, PluginInstallService, SandboxPackageStore, handlePluginTrustHttp, molisWorkHostProjectReference,
   pluginControlActions, pluginInstallActions, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { PACKAGE_PLUGIN_ID, type PackageFiles } from "./sandbox-package.js";
@@ -24,6 +28,25 @@ export function readsAndWrites(files: PackageFiles) {
 export const mac = { skip: process.platform !== "darwin", timeout: 90_000 };
 export const caller = { actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user" as const, permissions: [], project_id: DEMO_PROJECT_ID };
 
+export function projectInstallation({ install_id, installation_generation, version, manifest_digest }: Omit<SurfaceInstallationRef, "scope">): SurfaceInstallationRef & { scope: "project" } {
+  return { scope: "project", install_id, installation_generation, version, manifest_digest };
+}
+
+/** The original project owners, observed through their public lifecycle while the real signed package starts. */
+export function observeSignedPackageLifecycle(t: TestContext) {
+  let runtime: PluginRuntime | undefined, supervisor: PluginSupervisor | undefined;
+  const startRuntime = PluginRuntime.prototype.start, startSupervisor = PluginSupervisor.prototype.start;
+  t.mock.method(PluginRuntime.prototype, "start", function(this: PluginRuntime, ...args: Parameters<PluginRuntime["start"]>) {
+    if (this.list().some(record => record.plugin_id === PACKAGE_PLUGIN_ID && record.install_id === args[0])) runtime = this;
+    return startRuntime.apply(this, args);
+  });
+  t.mock.method(PluginSupervisor.prototype, "start", function(this: PluginSupervisor, ...args: Parameters<PluginSupervisor["start"]>) {
+    if (args[0].some(entry => entry.definition.manifest.plugin_id === PACKAGE_PLUGIN_ID)) supervisor = this;
+    return startSupervisor.apply(this, args);
+  });
+  return () => { assert.ok(runtime && supervisor, "the signed project package started under its production owners"); return { runtime, supervisor }; };
+}
+
 export async function installedPackageHost() {
   const home = await mkdtemp(join(tmpdir(), "publisher-revoke-"));
   let host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
@@ -35,8 +58,9 @@ export async function installedPackageHost() {
     const preview = await client.invoke(person, { capability_id: pluginInstallActions.preview.capability_id, version: pluginInstallActions.preview.version }, { bundle }) as { preview_id: string };
     return client.invoke(person, { capability_id: pluginInstallActions.confirm.capability_id, version: 1 }, { preview_id: preview.preview_id, consent: true, pin_label: "Example" });
   };
-  const plugins = async () => (await host.actionClient(reference).invoke(person, { capability_id: pluginInstallActions.installed.capability_id, version: pluginInstallActions.installed.version }, {}) as
-    { plugins: Array<{ install_id: string; plugin_id: string; version: string; state: string }> }).plugins.filter(item => item.plugin_id === PACKAGE_PLUGIN_ID);
+  const rows = async () => (await host.actionClient(reference).invoke(person, { capability_id: pluginInstallActions.installed.capability_id, version: pluginInstallActions.installed.version }, {}) as
+    { plugins: ProjectPluginInstalledView[] }).plugins;
+  const plugins = async () => (await rows()).filter(item => item.plugin_id === PACKAGE_PLUGIN_ID);
   // Taking a plugin off is the project settings door's alone (S-94, BL-915): the fixture sends it through that door's real route, as the 插件 page does.
   let door: Promise<{ server: Server; origin: string }> | undefined;
   const settingsDoor = () => door ??= new Promise((resolve, reject) => {
@@ -55,7 +79,12 @@ export async function installedPackageHost() {
   };
   /** The person switches a signed-package plugin off or on, or takes it off (BL-623). */
   const control = async (action: "disable" | "enable" | "uninstall", input: { plugin_id: string; keep_data?: boolean; target?: PluginUninstallTarget }) => {
-    if (action !== "uninstall") return host.actionClient(reference).invoke(person, { capability_id: pluginControlActions[action].capability_id, version: 1 }, { plugin_id: input.plugin_id });
+    if (action === "enable") {
+      const row = (await rows()).find(item => item.plugin_id === input.plugin_id);
+      assert.ok(row);
+      return host.actionClient(reference).invoke(person, pluginControlActions.enable, { plugin_id: input.plugin_id, expected_installation: projectInstallation(row) });
+    }
+    if (action !== "uninstall") return host.actionClient(reference).invoke(person, pluginControlActions[action], { plugin_id: input.plugin_id });
     const { origin } = await settingsDoor(), payload = JSON.stringify({ ...input, target: input.target ?? await targetOf(input.plugin_id) });
     // `node:http`, not `fetch`: a test may stand in for the global `fetch` (a model's answers), and this request is not one of those.
     const text = await new Promise<string>((resolve, reject) => {
@@ -77,7 +106,7 @@ export async function installedPackageHost() {
   return { home, reference, install, control, plugins, operation, data, ledger: new HomeConsentLedger(home), person,
     get host() { return host; }, get client() { return host.actionClient(reference); },
     async reopen() { await host.close(); host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null }); },
-    service: () => new PluginInstallService({ ledger: new HomeConsentLedger(home), packages: new SandboxPackageStore(home), installInProject: async () => undefined, installInHome: async () => undefined, installed: async () => [], control: async () => "disabled" }),
+    service: () => new PluginInstallService({ ledger: new HomeConsentLedger(home), packages: new SandboxPackageStore(home), installInProject: async () => undefined, installInHome: async () => undefined, installed: async () => [], control: async () => ({ state: "disabled" }) }),
     async close() {
       try { if (door) { const { server } = await door; server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); } await host.close(); }
       finally { await rm(home, { recursive: true, force: true }); }

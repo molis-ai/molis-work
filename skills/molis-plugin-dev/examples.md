@@ -64,14 +64,13 @@ Feed、Inbox 已由 Plugin Runtime 装配：页面请求写在各自 Manifest `r
 
 ## Text stats：最小完整 app
 
-人盯着绑来的一份文本快照。`kind: "app"`，一个 `navigator` 入口加一个 `stage` 视图，一个必选输入口，无存储、无事件、无输出口，也不声明搜索来源（没有自己拥有的内容）。消费绑定 Artifact 若比这还重，平台就过重了。新端口消费者从这里抄声明形状。默认连线把它接到 Files 的 `before` 快照（它的输入口声明 `default_source`）；新插件照抄时把 `default_source` 改成自己要读的来源，不写就不会自动接上。
+人盯着绑来的一份文本快照。`kind: "app"`，一个 `navigator` 入口加一个 `stage` 视图，一个必选输入口，无存储、无事件、无输出口，也不声明搜索来源（没有自己拥有的内容）。消费绑定 Artifact 若比这还重，平台就过重了。新端口消费者从这里抄声明形状。默认连线把它接到平台资料服务（`system.materials`）的 `before` 快照（它的输入口声明 `default_source`）；新插件照抄时把 `default_source` 改成自己要读的来源，不写就不会自动接上。
 
-## Diff / Files / Git
+## Diff / Git
 
 - Diff：三组可选输入（两份快照 / Run 变更 / Git 变更），`input_groups`，没绑也能激活并说明自己。
-- Files：浏览项目的文件夹（不指定就是输出目录）；`onEvent` 在 Coding/Git 发 file-changed 之后重读目录。事件 id 来自合同，不 import Coding 包。这是插件事件总线，不是 Functions 去向。
-- Git：工作区改动；文件夹通过 `projects.directories.get` 读取（不指定就是输出目录，写只在输出目录里）。抄事件订阅时点名 `from_plugin_ids`，不要通配。
-- 三者都不声明搜索来源：文件与改动归工作区和 Git，快照已经是 Artifact，经 Artifacts 可搜。
+- Git：工作区改动；文件夹通过 `projects.directories.get` 读取（不指定就是输出目录，写只在输出目录里）；`onEvent` 在 Coding 发 file-changed 之后重读，事件 id 来自合同，不 import Coding 包。抄事件订阅时点名 `from_plugin_ids`，不要通配。项目文件夹的浏览、阅读和固定快照不是插件，是平台资料服务（`materials.*` 动作）。
+- 两者都不声明搜索来源：文件与改动归工作区和 Git，快照已经是 Artifact，经 Artifacts 可搜。
 
 ## Coding：Runtime 托管的 app
 

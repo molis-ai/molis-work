@@ -1,8 +1,10 @@
 import { createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
-import { ActionError, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionProviderRegistration, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionHandler, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionProviderRegistration, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginConsentRecord } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
-import type { PluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
+import { consentSubject, pluginManifestDigest, type PluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
+import { systemOutputSource } from "@molis-ai/molis-work-contracts/platform/project-materials";
+import { builtinPluginByManifestId } from "./plugin-registry.js";
 import { consentsChanged } from "./consent-revision.js";
 import { assertHomePluginPermissionSettingsEntry, assertPluginConsentSettingsEntry, assertPluginPermissionSettingsEntry, assertProjectReachSettingsEntry } from "./plugin-consent-settings-entry.js";
 import { pluginInstallActions } from "./plugin-install-actions.js";
@@ -73,6 +75,17 @@ export const pluginConsentActions = {
     kind: "operation", effect: "write", permissions: [PLUGIN_CONSENT_WRITE],
     input_schema: { type: "object", properties: { consent_id: { type: "string", minLength: 1, maxLength: 80 } }, required: ["consent_id"], additionalProperties: false },
     output_schema: { type: "object", properties: { consent: consentView }, required: ["consent"], additionalProperties: false } } } as ActionDefinition<{ consent_id: string }, { consent: PluginConsentRecord }>,
+  /**
+   * The person's own agreement to a default the Host does not give on its own: a plugin it ships that reads, by default, from one of the
+   * platform's producers, where an upgrade moved the default there (Files retirement, BSH-06). Only a port and source that plugin's
+   * Manifest declares; the agreement is recorded as the person's, never the Host's.
+   */
+  grantDefaultSource: { capability_id: "plugins.consents.grant_default_source", version: /* @version action.plugins.consents.grant_default_source */ 1, operation: "command", action: { ...metadata,
+    title: "同意默认来源", description: "本人同意宿主随带的一个插件按它声明的默认来源，从平台的资料服务读取输入（例如 Diff 的前后快照）；只能同意 Manifest 声明的端口与来源，记为本人的同意。",
+    kind: "operation", effect: "write", permissions: [PLUGIN_CONSENT_WRITE],
+    input_schema: { type: "object", properties: { plugin_id: { type: "string", pattern: PLUGIN_ID, maxLength: 160 }, port: { type: "string", minLength: 1, maxLength: 100 } },
+      required: ["plugin_id", "port"], additionalProperties: false },
+    output_schema: { type: "object", properties: { consent: consentView }, required: ["consent"], additionalProperties: false } } } as ActionDefinition<{ plugin_id: string; port: string }, { consent: PluginConsentRecord }>,
 };
 
 export function pluginConsentHandlers(ledger: PluginConsentLedger, now: () => string = () => new Date().toISOString()): ActionHandlerBinding[] {
@@ -90,6 +103,23 @@ export function pluginConsentHandlers(ledger: PluginConsentLedger, now: () => st
       consentsChanged();
       return { consent };
     } },
+    bindActionHandler(pluginConsentActions.grantDefaultSource, async (input, caller) => {
+      assertPluginConsentSettingsEntry(caller);
+      const manifest = builtinPluginByManifestId(input.plugin_id)?.manifest;
+      const source = manifest?.ports?.inputs?.find(port => port.port === input.port)?.default_source;
+      const system = source ? systemOutputSource(source.plugin_id) : undefined;
+      if (!manifest || !source || !system) throw new ActionError("actions.target_invalid", "只能同意宿主随带的插件声明、从平台资料服务读取的默认来源");
+      const subject = consentSubject.defaultWiring(input.port, source, system.signature);
+      await caller.beforeEffect();
+      assertPluginConsentSettingsEntry(caller);
+      ledger.record({ plugin_id: manifest.plugin_id, publisher_signature: manifest.publisher.signature, manifest_digest: pluginManifestDigest(manifest), granted_by: "user",
+        grants: [{ kind: "default_wiring", subject }], at: now() });
+      const consent = ledger.consents(manifest.plugin_id).find(row => row.kind === "default_wiring" && row.subject === subject && row.revoked_at === null
+        && row.publisher_signature === manifest.publisher.signature);
+      if (!consent) throw pluginErrors.consent_unknown("同意没有记下");
+      consentsChanged();
+      return { consent };
+    }),
   ];
 }
 

@@ -15,6 +15,9 @@ export const BACKLOG_RECORDS = "specs/backlog/";
 const ROW = /^\|\s*(BL-(?:\d+|[a-z][a-z0-9-]*))\s*\|/;
 const DONE_CELL = /^(?:已完成|已实现|已做完|已关闭|完成|done)(?![一-龥a-z])/i;
 const COLUMNS = 8, PRIORITIES = ["高", "中", "低"];
+// The six type words of specs/BACKLOG.md. The type is the row's kind, not its priority: a nonstandard label
+// makes the backlog unreadable and hides whether the item is a gap, a decision or an acceptance item.
+const TYPES = ["待你验收", "待你决定", "未实现", "部分实现", "明确后续做", "已知缺口"];
 
 export function backlogProblems(snapshot) {
   const text = snapshot.read("specs/BACKLOG.md");
@@ -43,10 +46,11 @@ export function backlogProblems(snapshot) {
     else if (pieces.some((cell) => DONE_CELL.test(cell))) problems.push(`${where}: ${id} says it is done; delete the row, with its id in the commit message`);
     if (cells.length !== COLUMNS) problems.push(`${where}: ${id} has ${cells.length} columns; a row has ${COLUMNS}`);
     else {
-      const [, , source, , , , priority, owner] = cells;
+      const [, , source, type, , , priority, owner] = cells;
       if (!source) problems.push(`${where}: ${id} has no source`);
       if (!owner) problems.push(`${where}: ${id} has no owner`);
       if (!PRIORITIES.includes(priority)) problems.push(`${where}: ${id} has priority "${priority}", which is not 高, 中 or 低`);
+      if (!TYPES.includes(type)) problems.push(`${where}: ${id} has type "${type}", which is not one of ${TYPES.join("、")}`);
     }
   });
   }

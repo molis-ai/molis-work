@@ -1,37 +1,21 @@
 import type { ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { CHARACTER_ARTIFACT_PRODUCER } from "@molis-ai/molis-work-contracts/modules/characters";
-import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ARTIFACT_PRODUCER, ARTIFACTS_HOST_PRODUCER } from "@molis-ai/molis-work-module-artifacts";
-import { pluginManifestDigest } from "@molis-ai/molis-work-plugin-runtime";
 import { t, tryOwnedTextRef } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { pluginTextReader, projectDirectoryWords, type PluginTextReader } from "@molis-ai/molis-work-ui-host";
-import { runningInstalledPluginPlatform } from "./installed-plugin-host.js";
+import { projectDirectoryWords } from "@molis-ai/molis-work-ui-host";
 import type { LocalProjectDatabase } from "./project-database.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
-import type { HomePluginPlatform } from "./home-plugins.js";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
-import { runningProjectPlatform } from "./project-plugins.js";
 import { directoryWordResolver } from "./ui-text-provider.js";
+import { runningPluginTextIn, type RunningPluginText } from "./running-plugin-text.js";
 
 type Identity = Pick<ArtifactVersionRecord, "producer_plugin_id" | "producer_binding_signature" | "artifact_type_id" | "schema_version">;
-type Scope = Pick<HomePluginPlatform, "supervisor" | "runtime">;
-type Source = { readonly manifest: PluginManifest; readonly reader: PluginTextReader | null };
+type Source = RunningPluginText;
 type Words = { readonly title?: string; readonly pluginTitle?: string };
 export type ReadArtifactDisplay = (versions: readonly Identity[]) => Promise<(version: Identity) => Words | undefined>;
 
 const producerKey = (version: Identity) => JSON.stringify([version.producer_plugin_id, version.producer_binding_signature]);
 const typeKey = (version: Identity) => JSON.stringify([producerKey(version), version.artifact_type_id, version.schema_version]);
-
-/** Capture one live release, checking the durable identity before using the activation's language files. */
-function runningSource(platform: Scope | null | undefined, version: Identity): Source | null {
-  const source = platform?.supervisor.activeInstance(version.producer_plugin_id)?.source?.();
-  if (!platform || !source || source.manifest.publisher.signature !== version.producer_binding_signature) return null;
-  const { activation, manifest } = source, record = platform.runtime.get(activation.install_id);
-  if (record.state !== "running" || record.plugin_id !== version.producer_plugin_id || manifest.plugin_id !== record.plugin_id
-    || record.installation_generation !== activation.installation_generation || manifest.version !== record.version
-    || manifest.publisher.signature !== record.publisher_signature || pluginManifestDigest(manifest) !== record.manifest_digest) return null;
-  return { manifest, reader: pluginTextReader(activation) };
-}
 
 function hostWords(version: Identity): Words | undefined {
   const host = [ARTIFACTS_HOST_PRODUCER, CHARACTER_ARTIFACT_PRODUCER].find(entry => entry.plugin_id === version.producer_plugin_id);
@@ -60,21 +44,10 @@ export function readArtifactDisplayFor({ store, localHost, hostReference }: {
   const projectId = hostReference.project_id;
   return async versions => {
     if (!versions.length) return () => undefined;
-    const [project, installed] = await Promise.all([runningProjectPlatform(store, projectId), runningInstalledPluginPlatform(store, projectId)]);
-    let homePlatform: Promise<HomePluginPlatform | undefined> | undefined;
-    let reach: Promise<(pluginId: string) => boolean | undefined> | undefined;
+    const running = runningPluginTextIn({ store, localHost, projectId });
     const sourceFor = async (version: Identity): Promise<Source | null> => {
-      const source = runningSource(project, version) ?? runningSource(installed, version);
+      const source = await running({ plugin_id: version.producer_plugin_id, signature: version.producer_binding_signature });
       if (source) return source;
-      homePlatform ??= localHost.homePlugins?.ready({ start: false }).catch(() => undefined);
-      const home = await homePlatform;
-      if (home?.supervisor.activeInstance(version.producer_plugin_id)) {
-        reach ??= localHost.projectPluginReach(projectId).catch(() => () => false);
-        if ((await reach)(version.producer_plugin_id)) {
-          const source = runningSource(home, version);
-          if (source) return source;
-        }
-      }
       // A shipped declaration's original label remains public if its word source is no longer running.
       const manifest = PLATFORM_PLUGIN_REGISTRATIONS.find(row => row.manifest.plugin_id === version.producer_plugin_id
         && row.manifest.publisher.signature === version.producer_binding_signature)?.manifest;

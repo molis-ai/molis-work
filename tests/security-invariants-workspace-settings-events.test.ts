@@ -16,7 +16,7 @@ import { fakeProjectSettings, pluginActions } from "./fixtures/plugin-actions.js
 import { deferred } from "./fixtures/home-runtime.js";
 
 const TOKEN = "molis-work-workspace-settings-events-0123456789";
-const FILES = "io.molis.work.files";
+const GIT = "io.molis.work.git";
 
 // BL-521, S-54: the project's folder settings (a folder added as an input, repaired or removed, the output set: `projects.directories.*`,
 // specs/shared-sources-and-surfaces §3) are announced as
@@ -31,8 +31,8 @@ async function fixture(t: TestContext) {
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const first = await catalog.createProject({ display_name: "设置事件一", actor_id: "user" });
   const second = await catalog.createProject({ display_name: "设置事件二", actor_id: "user" });
-  // Files and Git subscribe to workspace changes; a project that runs neither has nobody to tell.
-  for (const project of [first, second]) for (const plugin_id of ["files", "git"] as const) catalog.addProjectPlugin({ project_id: project.project_id, plugin_id, actor_id: "user" });
+  // Git subscribes to workspace changes; a project that does not run it has nobody to tell.
+  for (const project of [first, second]) for (const plugin_id of ["git"] as const) catalog.addProjectPlugin({ project_id: project.project_id, plugin_id, actor_id: "user" });
   catalog.close();
   const heard: Heard[] = [];
   const original = PluginHostEvents.prototype.broadcast;
@@ -62,9 +62,9 @@ async function fixture(t: TestContext) {
     method, headers: { origin, "x-molis-work-control-token": TOKEN, "x-molis-work-idempotency-key": `settings-events-${key++}` }, ...(body ? { body: JSON.stringify(body) } : {}) });
   /** Opening a plugin's own route starts the project's plugin platform, with the plugins the project enables. */
   const startPlatform = async (project: string) => {
-    // Files answers for itself (it has no folder to browse yet), which is what shows the project's plugins are running.
-    const response = await call(project, `/api/plugins/${FILES}/state`, "GET"), body = await response.text();
-    assert.ok(response.status === 200 || response.status === 400 && body.includes("files.invalid"), body);
+    // Git answers for itself (its folder is no repository yet), which is what shows the project's plugins are running.
+    const response = await call(project, `/api/plugins/${GIT}/state`, "GET"), body = await response.text();
+    assert.ok(response.status === 200 || response.status === 400 && body.includes("git."), body);
   };
   const settings = () => heard.filter(item => item.cause === "workspace-settings");
   /** The project's inputs and output, read over HTTP as the settings page reads them. */
@@ -105,7 +105,7 @@ test("RAC-461 BL-521 S-54 linking, repairing and unlinking a folder, and setting
   // Linked: the folder added as an input.
   const alpha = (await step("add_input", { workspace_path: f.folders[0] })).directories.find(item => item.roles.includes("input"))!;
   assert.deepEqual(f.settings().map(item => item.workspace_id), [alpha.workspace_id], "the folder just linked");
-  assert.ok(f.settings().every(item => item.queued > 0), "a subscriber of the project (Files, Git) was queued the event");
+  assert.ok(f.settings().every(item => item.queued > 0), "a subscriber of the project (Git) was queued the event");
 
   const beta = (await step("add_input", { workspace_path: f.folders[1] })).directories.find(item => item.workspace_id !== alpha.workspace_id && item.roles.includes("input"))!;
   // Repaired: the folder moved on disk, and it is found again at its new path. The folder keeps its identity (§3), so the event names it.
@@ -174,7 +174,7 @@ test("RAC-463 BL-521 S-54 a project's platform, opened through the web entry, te
   await f.startPlatform(f.first);
   assert.equal(opened().length, 1);
   assert.equal(opened()[0]!.workspace_id, outputOf(await f.directories(f.first)));
-  assert.ok(opened()[0]!.queued > 0, "a subscriber of the project (Files, Git) was queued the event");
+  assert.ok(opened()[0]!.queued > 0, "a subscriber of the project (Git) was queued the event");
   await f.startPlatform(f.first); await f.startPlatform(f.first);
   assert.equal(opened().length, 1, "once per platform");
   await f.startPlatform(f.second);
@@ -203,7 +203,7 @@ test("RAC-463 BL-521 R-47 the opening read leaves no call row: a platform's firs
   // The first plugin route of the project opens its platform; its body is over the route's limit, so the route refuses it after the
   // opening announcement, whose read succeeded inside the Host. No other call of this request left a row, so the refusal carries no
   // call number, in the body or the header.
-  const response = await fetch(`${f.origin()}/projects/${encodeURIComponent(f.first)}/api/plugins/${FILES}/open`, { method: "POST",
+  const response = await fetch(`${f.origin()}/projects/${encodeURIComponent(f.first)}/api/plugins/${GIT}/diff`, { method: "POST",
     headers: { origin: f.origin(), "x-molis-work-control-token": TOKEN, "x-molis-work-idempotency-key": "settings-events-oversized", "content-type": "application/json" },
     body: JSON.stringify({ padding: "x".repeat(300_000) }) });
   const body = await response.json() as Record<string, unknown>;
@@ -216,10 +216,10 @@ test("RAC-463 BL-521 R-47 the opening read leaves no call row: a platform's firs
 
 test("RAC-463 BL-521 R-47 a platform's first route whose own call left a row answers with that call's number, in the body and the header alike", async t => {
   const f = await fixture(t);
-  // Files' open is a command: refused for a folder the project never linked, it leaves a row, and the refusal names it.
-  const response = await fetch(`${f.origin()}/projects/${encodeURIComponent(f.first)}/api/plugins/${FILES}/open`, { method: "POST",
+  // Git's diff selection is a command: refused for a folder the project never linked, it leaves a row, and the refusal names it.
+  const response = await fetch(`${f.origin()}/projects/${encodeURIComponent(f.first)}/api/plugins/${GIT}/diff`, { method: "POST",
     headers: { origin: f.origin(), "x-molis-work-control-token": TOKEN, "x-molis-work-idempotency-key": "settings-events-recorded", "content-type": "application/json" },
-    body: JSON.stringify({ workspace_id: "workspace-never-linked", path: ["notes.md"] }) });
+    body: JSON.stringify({ workspace_id: "workspace-never-linked", path: ["notes.md"], side: "index" }) });
   const body = await response.json() as Record<string, unknown>;
   assert.ok(response.status >= 400, JSON.stringify(body));
   assert.equal(typeof body.call_id, "string", JSON.stringify(body));
@@ -230,7 +230,7 @@ test("RAC-463 BL-521 R-47 a platform's first route whose own call left a row ans
 /**
  * Real project platform and public HTTP entry; the opening asks the project's folders through the Host's action client, as the Host
  * itself (`local-host`), and `output` answers that ask (`projects.directories.get@1`) with the project's output, or none, for the test
- * to fault or count. Files, which reads the folders again once the opening is announced, is told there are none.
+ * to fault or count. Git, which reads the folders again once the opening is announced, is told there are none.
  */
 async function openingRouteFixture(t: TestContext, output: () => unknown,
   options: { arrived?(): void; heard?: Array<Heard & { host: PluginHostEvents }> } = {}) {

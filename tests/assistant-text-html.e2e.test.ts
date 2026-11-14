@@ -23,6 +23,9 @@ test("VUX-33: Assistant fences keep literal code during an open, closed or corre
   assert.deepEqual(copySource("> ```\r\n> x  \r\n"), ["x  &#13;\n"]);
   assert.deepEqual(copySource("> ```\r\n> x  \r\noutside"), ["x  "]);
   assert.deepEqual(copySource("~~~\rleft\rright\r~~~"), ["left&#13;right"]);
+  // The copy keeps the lone CR; the body must also show the line it ends (a browser draws that character as a space).
+  const crBody = assistantTextHtml("~~~\rleft\rright\r~~~", [], word => word);
+  assert.match(crBody, /<code[^>]*>left&#13;<br>right<\/code>/, "a lone CR keeps its line in the drawn body as well as in data-code");
   const prose = assistantTextHtml("- 60 分钟\n-30 分钟", [], word => word);
   assert.match(prose, /<li>60 分钟<\/li><li>30 分钟<\/li>/);
 });

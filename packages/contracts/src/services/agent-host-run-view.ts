@@ -159,6 +159,9 @@ export interface AgentRetryWait {
 }
 
 export interface AgentRunView {
+  /** Original trusted Run policy; absent means it cannot authorize a memory operation. */
+  readonly class_restrictions?: import("./agent-host-memory.js").AgentMemoryClassPolicy;
+  readonly memory_scene?: string;
   /** Canonical original input read from its existing Session attempt; absent when no source was recorded. */
   original_input?: import("./agent-inputs.js").AgentOriginalInput;
   step_board?: AgentStepBoard;

@@ -1,8 +1,8 @@
 # 防腐后路线书 · 执行目录
 
-状态：规划（2026-11-03 整理；统筹与排期维护：Claude（本机）统筹会话，2026-11-04 起（用户定，此前 Codex）；实施由各批主会话一个会话做完（[决定 26](reference/decisions.md#decision-26)、[决定 34](reference/decisions.md#decision-34)），谁在做哪一项看[认领板 #1743](https://github.com/molis-ai/molis-work/issues/1743)）。01 已按最终 main 核准，当前交付是核账、归档和本人试用单；其余批次尚未由本批启动。
+状态：执行中（2026-11-13）。统筹与排期维护：Claude（本机）统筹会话，2026-11-04 起（用户定，此前 Codex）；实施由各批主会话一个会话做完（[决定 26](reference/decisions.md#decision-26)、[决定 34](reference/decisions.md#decision-34)），谁在做哪一项看[认领板 #1743](https://github.com/molis-ai/molis-work/issues/1743)。01 已交单；02～27 中至少 18 个批次已有合入记录，最近合入包括 15 #2017（`b819373250`）、16 #2031、22 #2038、25 #2034、27 #2010；06 等仍有在途 PR，未结算项以批次文件与认领板为准。
 
-**当前入口：[01 主线核账](reference/batches/01.md#baseline-01) · [本人试用单](reference/acceptance-01.md)。** 01 已按主线核实并交单；实际试用、真实 Home 和后续批次另计。
+**当前入口：[批次 01～27 的结算与剩余](reference/batches/) · [认领板 #1743](https://github.com/molis-ai/molis-work/issues/1743) · [本人试用单](reference/acceptance-01.md)。** 批次文件记排期与合入结果，实时认领、分支和状态以认领板最新正文/评论为准。
 
 **从 01 往下做。** 同一批次下，每个独立交付各占一行；点内容看该项产出和前置，点批次号看共同约束、来源、并行和 UI 要求。批次号保持不变；同批无关的子项不互相等待，有先后的写在该项前置里。每批一个文件：开头「给人讲清楚」用大白话说这批做什么、为什么做，末尾「Goal Prompt」可整段交给执行会话。每项开始前按[需求开发流程](reference/development-workflow.md#kickoff-brief)先用大白话讲清要做什么，再给技术说明。
 
@@ -12,7 +12,7 @@
 
 <a id="execution-batches"></a>
 
-## 01～89
+## 01～90
 
 | 批次 | 批次内内容 |
 | --- | --- |
@@ -96,126 +96,136 @@
 |  | [事项切换与工作台状态](reference/batches/37.md#batch-37-item-2) |
 | [38](reference/batches/38.md) | [插件配置采用](reference/batches/38.md#batch-38-item-1) |
 | [39](reference/batches/39.md) | [授权、人审与统一管理页](reference/batches/39.md#batch-39-item-1) |
+|  | [可信决定回平台](reference/batches/39.md#batch-39-item-2) |
 | [40](reference/batches/40.md) | [配置、工作交接与使用治理](reference/batches/40.md#batch-40-item-1) |
 |  | [全产品文案与按需帮助](reference/batches/40.md#batch-40-item-2) |
 | [41](reference/batches/41.md) | [Skill 选用](reference/batches/41.md#batch-41-item-1) |
+|  | [规划方法变成技能](reference/batches/41.md#batch-41-item-2) |
 | [42](reference/batches/42.md) | [Skill 创作与改进完整路径](reference/batches/42.md#batch-42-item-1) |
 | [43](reference/batches/43.md) | [项目助理团执行与交付](reference/batches/43.md#batch-43-item-1) |
 |  | [Dataset 汇总、追加与规模性能](reference/batches/43.md#batch-43-item-2) |
-| [44](reference/batches/44.md) | [首次／项目场景闭环](reference/batches/44.md#batch-44-item-1) |
-|  | [官方场景包：行业观察与写作、写代码](reference/batches/44.md#batch-44-item-2) |
-| [45](reference/batches/45.md) | [情境 W4 创建与准备声明](reference/batches/45.md#batch-45-item-1) |
-|  | [通用任务引导与场景复用](reference/batches/45.md#batch-45-item-2) |
-| [46](reference/batches/46.md) | [正式插件交付的平台前置](reference/batches/46.md#batch-46-item-1) |
-|  | [状态机登记与只读查询](reference/batches/46.md#batch-46-item-2) |
-| [47](reference/batches/47.md) | [新插件创建、隔离试用与安装预演](reference/batches/47.md#batch-47-item-1) |
-|  | [成果、搜索与工作流内容站声明](reference/batches/47.md#batch-47-item-2) |
-|  | [依赖、来源与权限可见](reference/batches/47.md#batch-47-item-3) |
-|  | [首次可用率与返修评测样本](reference/batches/47.md#batch-47-item-4) |
-|  | [安装预演与插件目录的状态展示](reference/batches/47.md#batch-47-item-5) |
-| [48](reference/batches/48.md) | [个人同步核心 → SRV-2](reference/batches/48.md#batch-48-item-1) |
-| [49](reference/batches/49.md) | [团队关键协作 → SRV-3](reference/batches/49.md#batch-49-item-1) |
-| [50](reference/batches/50.md) | [双身份协作实证 → SRV-3](reference/batches/50.md#batch-50-item-1) |
-| [51](reference/batches/51.md) | [每日简报、设置与中断恢复](reference/batches/51.md#batch-51-item-1) |
-|  | [初始日报与工作接续 Skill](reference/batches/51.md#batch-51-item-2) |
-|  | [官方场景包：个人事务与每日简报](reference/batches/51.md#batch-51-item-3) |
-| [52](reference/batches/52.md) | [回执与交互余项](reference/batches/52.md#batch-52-item-1) |
-|  | [智能呈现第二片](reference/batches/52.md#batch-52-item-2) |
-|  | [主线第二片](reference/batches/52.md#batch-52-item-3) |
-| [53](reference/batches/53.md) | [本机语音](reference/batches/53.md#batch-53-item-1) |
-| [54](reference/batches/54.md) | [月／季／年重复](reference/batches/54.md#batch-54-item-1) |
-|  | [等待分组与时长](reference/batches/54.md#batch-54-item-2) |
-|  | [待办整理样本](reference/batches/54.md#batch-54-item-3) |
-|  | [TypeSafe 未连接时的判断](reference/batches/54.md#batch-54-item-4) |
-|  | [Shelf 轮盘与快捷键](reference/batches/54.md#batch-54-item-5) |
-|  | [工作流查询与映射](reference/batches/54.md#batch-54-item-6) |
-|  | [旧 Office 与下载／转写恢复](reference/batches/54.md#batch-54-item-7) |
-|  | [连续两期场景](reference/batches/54.md#batch-54-item-8) |
-| [55](reference/batches/55.md) | [Attention 唤醒、角标与系统通知](reference/batches/55.md#batch-55-item-1) |
-|  | [切换后新入口文字与翻译复核](reference/batches/55.md#batch-55-item-2) |
-|  | [N22 全量迁移与收口](reference/batches/55.md#batch-55-item-3) |
-| [56](reference/batches/56.md) | [个人工作完整路径与 M1 交付](reference/batches/56.md#batch-56-item-1) |
-| [57](reference/batches/57.md) | [子代理公共交互组件](reference/batches/57.md#batch-57-item-1) |
-| [58](reference/batches/58.md) | [子代理双入口接入](reference/batches/58.md#batch-58-item-1) |
-| [59](reference/batches/59.md) | [Sessions 控制与交接](reference/batches/59.md#batch-59-item-1) |
-| [60](reference/batches/60.md) | [服务矩阵、现有连接与统一搜索](reference/batches/60.md#batch-60-item-1) |
-|  | [自动化推荐与采用](reference/batches/60.md#batch-60-item-2) |
-|  | [交给 SDK 窗口二的缺口清单](reference/batches/60.md#batch-60-item-3) |
-| [61](reference/batches/61.md) | [四策略、SDK 补缺与逐服务验收](reference/batches/61.md#batch-61-item-1) |
-|  | [项目模型限制与出站边界](reference/batches/61.md#batch-61-item-2) |
-|  | [组合候选目录与引用语义](reference/batches/61.md#batch-61-item-3) |
-| [62](reference/batches/62.md) | [全平台评测扩展](reference/batches/62.md#batch-62-item-1) |
-| [63](reference/batches/63.md) | [主动发现、持续工作与周期报告](reference/batches/63.md#batch-63-item-1) |
-|  | [智能组合第三片](reference/batches/63.md#batch-63-item-2) |
-|  | [主线建议与跨项目个人视图](reference/batches/63.md#batch-63-item-3) |
-|  | [初始场景 Skill 与默认配置](reference/batches/63.md#batch-63-item-4) |
-|  | [访谈初始化与工作记忆](reference/batches/63.md#batch-63-item-5) |
-|  | [回执阶段 5](reference/batches/63.md#batch-63-item-6) |
-|  | [安静准备与观察试用](reference/batches/63.md#batch-63-item-7) |
-| [64](reference/batches/64.md) | [公共搜索与联网设置](reference/batches/64.md#batch-64-item-1) |
-|  | [受限命令、依赖与 AI 低风险审批](reference/batches/64.md#batch-64-item-2) |
-|  | [Hooks 启用、变更、停用与恢复](reference/batches/64.md#batch-64-item-3) |
-| [65](reference/batches/65.md) | [Coding 自检、评审与有界迭代](reference/batches/65.md#batch-65-item-1) |
-|  | [简化与安全专科评审](reference/batches/65.md#batch-65-item-2) |
-|  | [Goals 依据三档与同一验收卡](reference/batches/65.md#batch-65-item-3) |
-| [66](reference/batches/66.md) | [Computer Use、Git 与 PR／CI 基础接入](reference/batches/66.md#batch-66-item-1) |
-|  | [评论处理与真实完整任务评估](reference/batches/66.md#batch-66-item-2) |
-| [67](reference/batches/67.md) | [已装插件持续修订、采用与升级](reference/batches/67.md#batch-67-item-1) |
-|  | [生成插件业务数据导出](reference/batches/67.md#batch-67-item-2) |
-|  | [缺包、损坏、卸载与重启恢复](reference/batches/67.md#batch-67-item-3) |
-|  | [生成插件呈现与操作面保存](reference/batches/67.md#batch-67-item-4) |
-|  | [各主推角色的可安装、可改用样例](reference/batches/67.md#batch-67-item-5) |
-|  | [新插件同口径评测](reference/batches/67.md#batch-67-item-6) |
-| [68](reference/batches/68.md) | [情境 W5 拖放](reference/batches/68.md#batch-68-item-1) |
-|  | [情境 W6 Shelf 与材料篮](reference/batches/68.md#batch-68-item-2) |
-| [69](reference/batches/69.md) | [本机规则脱敏](reference/batches/69.md#batch-69-item-1) |
-|  | [Gmail 全文与附件](reference/batches/69.md#batch-69-item-2) |
-|  | [YouTube 字幕](reference/batches/69.md#batch-69-item-3) |
-|  | [PPT 图片与图表](reference/batches/69.md#batch-69-item-4) |
-|  | [Pages 个人模板](reference/batches/69.md#batch-69-item-5) |
-|  | [固定版逐段差异](reference/batches/69.md#batch-69-item-6) |
-|  | [出处追溯](reference/batches/69.md#batch-69-item-7) |
-|  | [结论重看](reference/batches/69.md#batch-69-item-8) |
-|  | [Word 与固定版导出](reference/batches/69.md#batch-69-item-9) |
-|  | [规划方法扩行业](reference/batches/69.md#batch-69-item-10) |
-| [70](reference/batches/70.md) | [外观自定义与助理制作 D 段](reference/batches/70.md#batch-70-item-1) |
-|  | [外观与语言整体交付 E 段](reference/batches/70.md#batch-70-item-2) |
-| [71](reference/batches/71.md) | [复杂场景设计定稿](reference/batches/71.md#batch-71-item-1) |
-| [72](reference/batches/72.md) | [技能包、工作流与生成插件导入导出](reference/batches/72.md#batch-72-item-1) |
-|  | [场景方案与保存操作面导入导出](reference/batches/72.md#batch-72-item-2) |
-|  | [整份 Home 导出与导入 U7](reference/batches/72.md#batch-72-item-3) |
-|  | [业务数据导出回读](reference/batches/72.md#batch-72-item-4) |
-| [73](reference/batches/73.md) | [个人同步完整交付 → SRV-5](reference/batches/73.md#batch-73-item-1) |
-| [74](reference/batches/74.md) | [本机使用统计](reference/batches/74.md#batch-74-item-1) |
-|  | [调用用量与费用](reference/batches/74.md#batch-74-item-2) |
-|  | [其他应用送入 Work](reference/batches/74.md#batch-74-item-3) |
-| [75](reference/batches/75.md) | [全平台与主动效果验收](reference/batches/75.md#batch-75-item-1) |
-| [76](reference/batches/76.md) | [手动场景组装](reference/batches/76.md#batch-76-item-1) |
-| [77](reference/batches/77.md) | [个人助理场景组装入口](reference/batches/77.md#batch-77-item-1) |
-| [78](reference/batches/78.md) | [团队身份与访问 → SRV-6](reference/batches/78.md#batch-78-item-1) |
-| [79](reference/batches/79.md) | [团队实时协作 → SRV-6](reference/batches/79.md#batch-79-item-1) |
-| [80](reference/batches/80.md) | [团队恢复与首版验收 → SRV-6](reference/batches/80.md#batch-80-item-1) |
-| [81](reference/batches/81.md) | [Alchemist 完整研究场景](reference/batches/81.md#batch-81-item-1) |
-|  | [CGS 自媒体创作场景](reference/batches/81.md#batch-81-item-2) |
-| [82](reference/batches/82.md) | [通用性、角色样例与业务数据验收](reference/batches/82.md#batch-82-item-1) |
-|  | [创作效果同口径评测](reference/batches/82.md#batch-82-item-2) |
-|  | [两条创作路径与智能呈现整项验收](reference/batches/82.md#batch-82-item-3) |
-| [83](reference/batches/83.md) | [Coding C／D 期余项](reference/batches/83.md#batch-83-item-1) |
-|  | [Coding 交互计划页](reference/batches/83.md#batch-83-item-2) |
-| [84](reference/batches/84.md) | [代码现代化完整流程](reference/batches/84.md#batch-84-item-1) |
-| [85](reference/batches/85.md) | [Harness 效率实验](reference/batches/85.md#batch-85-item-1) |
-| [86](reference/batches/86.md) | [团队记忆形成与融合 → SRV-7](reference/batches/86.md#batch-86-item-1) |
-| [87](reference/batches/87.md) | [团队记忆发布、管理与效果 → SRV-7](reference/batches/87.md#batch-87-item-1) |
-| [88](reference/batches/88.md) | [情境 W7 与总纲收口](reference/batches/88.md#batch-88-item-1) |
-|  | [回执阶段 6 的各场景](reference/batches/88.md#batch-88-item-2) |
-|  | [Skill 效果比较](reference/batches/88.md#batch-88-item-3) |
-| [89](reference/batches/89.md) | [整条路线最终交付对账](reference/batches/89.md#batch-89-item-1) |
+| [44](reference/batches/44.md) | [合同去插件化](reference/batches/44.md#batch-44-item-1) |
+|  | [项目指导回平台](reference/batches/44.md#batch-44-item-2) |
+|  | [要求与认可：Goals 改为消费平台能力](reference/batches/44.md#batch-44-item-3) |
+|  | [终端执行解耦](reference/batches/44.md#batch-44-item-4) |
+|  | [其他插件去点名](reference/batches/44.md#batch-44-item-5) |
+|  | [宿主与工作台去私路、Goals 可移除](reference/batches/44.md#batch-44-item-6) |
+|  | [删除桌面胶囊、CLI 的 Goals 命令与 `goal-advance`](reference/batches/44.md#batch-44-item-7) |
+|  | [叙事与命名](reference/batches/44.md#batch-44-item-8) |
+| [45](reference/batches/45.md) | [首次／项目场景闭环](reference/batches/45.md#batch-45-item-1) |
+|  | [官方场景包：行业观察与写作、写代码](reference/batches/45.md#batch-45-item-2) |
+| [46](reference/batches/46.md) | [情境 W4 创建与准备声明](reference/batches/46.md#batch-46-item-1) |
+|  | [通用任务引导与场景复用](reference/batches/46.md#batch-46-item-2) |
+| [47](reference/batches/47.md) | [正式插件交付的平台前置](reference/batches/47.md#batch-47-item-1) |
+|  | [状态机登记与只读查询](reference/batches/47.md#batch-47-item-2) |
+| [48](reference/batches/48.md) | [新插件创建、隔离试用与安装预演](reference/batches/48.md#batch-48-item-1) |
+|  | [成果、搜索与工作流内容站声明](reference/batches/48.md#batch-48-item-2) |
+|  | [依赖、来源与权限可见](reference/batches/48.md#batch-48-item-3) |
+|  | [首次可用率与返修评测样本](reference/batches/48.md#batch-48-item-4) |
+|  | [安装预演与插件目录的状态展示](reference/batches/48.md#batch-48-item-5) |
+| [49](reference/batches/49.md) | [个人同步核心 → SRV-2](reference/batches/49.md#batch-49-item-1) |
+| [50](reference/batches/50.md) | [团队关键协作 → SRV-3](reference/batches/50.md#batch-50-item-1) |
+| [51](reference/batches/51.md) | [双身份协作实证 → SRV-3](reference/batches/51.md#batch-51-item-1) |
+| [52](reference/batches/52.md) | [每日简报、设置与中断恢复](reference/batches/52.md#batch-52-item-1) |
+|  | [初始日报与工作接续 Skill](reference/batches/52.md#batch-52-item-2) |
+|  | [官方场景包：个人事务与每日简报](reference/batches/52.md#batch-52-item-3) |
+| [53](reference/batches/53.md) | [回执与交互余项](reference/batches/53.md#batch-53-item-1) |
+|  | [智能呈现第二片](reference/batches/53.md#batch-53-item-2) |
+|  | [主线第二片](reference/batches/53.md#batch-53-item-3) |
+| [54](reference/batches/54.md) | [本机语音](reference/batches/54.md#batch-54-item-1) |
+| [55](reference/batches/55.md) | [月／季／年重复](reference/batches/55.md#batch-55-item-1) |
+|  | [等待分组与时长](reference/batches/55.md#batch-55-item-2) |
+|  | [待办整理样本](reference/batches/55.md#batch-55-item-3) |
+|  | [TypeSafe 未连接时的判断](reference/batches/55.md#batch-55-item-4) |
+|  | [Shelf 轮盘与快捷键](reference/batches/55.md#batch-55-item-5) |
+|  | [工作流查询与映射](reference/batches/55.md#batch-55-item-6) |
+|  | [旧 Office 与下载／转写恢复](reference/batches/55.md#batch-55-item-7) |
+|  | [连续两期场景](reference/batches/55.md#batch-55-item-8) |
+| [56](reference/batches/56.md) | [Attention 唤醒、角标与系统通知](reference/batches/56.md#batch-56-item-1) |
+|  | [切换后新入口文字与翻译复核](reference/batches/56.md#batch-56-item-2) |
+|  | [N22 全量迁移与收口](reference/batches/56.md#batch-56-item-3) |
+| [57](reference/batches/57.md) | [个人工作完整路径与 M1 交付](reference/batches/57.md#batch-57-item-1) |
+| [58](reference/batches/58.md) | [子代理公共交互组件](reference/batches/58.md#batch-58-item-1) |
+| [59](reference/batches/59.md) | [子代理双入口接入](reference/batches/59.md#batch-59-item-1) |
+| [60](reference/batches/60.md) | [Sessions 控制与交接](reference/batches/60.md#batch-60-item-1) |
+| [61](reference/batches/61.md) | [服务矩阵、现有连接与统一搜索](reference/batches/61.md#batch-61-item-1) |
+|  | [自动化推荐与采用](reference/batches/61.md#batch-61-item-2) |
+|  | [交给 SDK 窗口二的缺口清单](reference/batches/61.md#batch-61-item-3) |
+| [62](reference/batches/62.md) | [四策略、SDK 补缺与逐服务验收](reference/batches/62.md#batch-62-item-1) |
+|  | [项目模型限制与出站边界](reference/batches/62.md#batch-62-item-2) |
+|  | [组合候选目录与引用语义](reference/batches/62.md#batch-62-item-3) |
+| [63](reference/batches/63.md) | [全平台评测扩展](reference/batches/63.md#batch-63-item-1) |
+| [64](reference/batches/64.md) | [主动发现、持续工作与周期报告](reference/batches/64.md#batch-64-item-1) |
+|  | [智能组合第三片](reference/batches/64.md#batch-64-item-2) |
+|  | [主线建议与跨项目个人视图](reference/batches/64.md#batch-64-item-3) |
+|  | [初始场景 Skill 与默认配置](reference/batches/64.md#batch-64-item-4) |
+|  | [访谈初始化与工作记忆](reference/batches/64.md#batch-64-item-5) |
+|  | [回执阶段 5](reference/batches/64.md#batch-64-item-6) |
+|  | [安静准备与观察试用](reference/batches/64.md#batch-64-item-7) |
+| [65](reference/batches/65.md) | [公共搜索与联网设置](reference/batches/65.md#batch-65-item-1) |
+|  | [受限命令、依赖与 AI 低风险审批](reference/batches/65.md#batch-65-item-2) |
+|  | [Hooks 启用、变更、停用与恢复](reference/batches/65.md#batch-65-item-3) |
+| [66](reference/batches/66.md) | [Coding 自检、评审与有界迭代](reference/batches/66.md#batch-66-item-1) |
+|  | [简化与安全专科评审](reference/batches/66.md#batch-66-item-2) |
+|  | [依据三档与同一验收卡](reference/batches/66.md#batch-66-item-3) |
+| [67](reference/batches/67.md) | [Computer Use、Git 与 PR／CI 基础接入](reference/batches/67.md#batch-67-item-1) |
+|  | [评论处理与真实完整任务评估](reference/batches/67.md#batch-67-item-2) |
+| [68](reference/batches/68.md) | [已装插件持续修订、采用与升级](reference/batches/68.md#batch-68-item-1) |
+|  | [生成插件业务数据导出](reference/batches/68.md#batch-68-item-2) |
+|  | [缺包、损坏、卸载与重启恢复](reference/batches/68.md#batch-68-item-3) |
+|  | [生成插件呈现与操作面保存](reference/batches/68.md#batch-68-item-4) |
+|  | [各主推角色的可安装、可改用样例](reference/batches/68.md#batch-68-item-5) |
+|  | [新插件同口径评测](reference/batches/68.md#batch-68-item-6) |
+| [69](reference/batches/69.md) | [情境 W5 拖放](reference/batches/69.md#batch-69-item-1) |
+|  | [情境 W6 Shelf 与材料篮](reference/batches/69.md#batch-69-item-2) |
+| [70](reference/batches/70.md) | [本机规则脱敏](reference/batches/70.md#batch-70-item-1) |
+|  | [Gmail 全文与附件](reference/batches/70.md#batch-70-item-2) |
+|  | [YouTube 字幕](reference/batches/70.md#batch-70-item-3) |
+|  | [PPT 图片与图表](reference/batches/70.md#batch-70-item-4) |
+|  | [Pages 个人模板](reference/batches/70.md#batch-70-item-5) |
+|  | [固定版逐段差异](reference/batches/70.md#batch-70-item-6) |
+|  | [出处追溯](reference/batches/70.md#batch-70-item-7) |
+|  | [结论重看](reference/batches/70.md#batch-70-item-8) |
+|  | [Word 与固定版导出](reference/batches/70.md#batch-70-item-9) |
+|  | [规划方法扩行业](reference/batches/70.md#batch-70-item-10) |
+| [71](reference/batches/71.md) | [外观自定义与助理制作 D 段](reference/batches/71.md#batch-71-item-1) |
+|  | [外观与语言整体交付 E 段](reference/batches/71.md#batch-71-item-2) |
+| [72](reference/batches/72.md) | [复杂场景设计定稿](reference/batches/72.md#batch-72-item-1) |
+| [73](reference/batches/73.md) | [技能包、工作流与生成插件导入导出](reference/batches/73.md#batch-73-item-1) |
+|  | [场景方案与保存操作面导入导出](reference/batches/73.md#batch-73-item-2) |
+|  | [整份 Home 导出与导入 U7](reference/batches/73.md#batch-73-item-3) |
+|  | [业务数据导出回读](reference/batches/73.md#batch-73-item-4) |
+| [74](reference/batches/74.md) | [个人同步完整交付 → SRV-5](reference/batches/74.md#batch-74-item-1) |
+| [75](reference/batches/75.md) | [本机使用统计](reference/batches/75.md#batch-75-item-1) |
+|  | [调用用量与费用](reference/batches/75.md#batch-75-item-2) |
+|  | [其他应用送入 Work](reference/batches/75.md#batch-75-item-3) |
+| [76](reference/batches/76.md) | [全平台与主动效果验收](reference/batches/76.md#batch-76-item-1) |
+| [77](reference/batches/77.md) | [手动场景组装](reference/batches/77.md#batch-77-item-1) |
+| [78](reference/batches/78.md) | [个人助理场景组装入口](reference/batches/78.md#batch-78-item-1) |
+| [79](reference/batches/79.md) | [团队身份与访问 → SRV-6](reference/batches/79.md#batch-79-item-1) |
+| [80](reference/batches/80.md) | [团队实时协作 → SRV-6](reference/batches/80.md#batch-80-item-1) |
+| [81](reference/batches/81.md) | [团队恢复与首版验收 → SRV-6](reference/batches/81.md#batch-81-item-1) |
+| [82](reference/batches/82.md) | [Alchemist 完整研究场景](reference/batches/82.md#batch-82-item-1) |
+|  | [CGS 自媒体创作场景](reference/batches/82.md#batch-82-item-2) |
+| [83](reference/batches/83.md) | [通用性、角色样例与业务数据验收](reference/batches/83.md#batch-83-item-1) |
+|  | [创作效果同口径评测](reference/batches/83.md#batch-83-item-2) |
+|  | [两条创作路径与智能呈现整项验收](reference/batches/83.md#batch-83-item-3) |
+| [84](reference/batches/84.md) | [Coding C／D 期余项](reference/batches/84.md#batch-84-item-1) |
+|  | [Coding 交互计划页](reference/batches/84.md#batch-84-item-2) |
+| [85](reference/batches/85.md) | [代码现代化完整流程](reference/batches/85.md#batch-85-item-1) |
+| [86](reference/batches/86.md) | [Harness 效率实验](reference/batches/86.md#batch-86-item-1) |
+| [87](reference/batches/87.md) | [团队记忆形成与融合 → SRV-7](reference/batches/87.md#batch-87-item-1) |
+| [88](reference/batches/88.md) | [团队记忆发布、管理与效果 → SRV-7](reference/batches/88.md#batch-88-item-1) |
+| [89](reference/batches/89.md) | [情境 W7 与总纲收口](reference/batches/89.md#batch-89-item-1) |
+|  | [回执阶段 6 的各场景](reference/batches/89.md#batch-89-item-2) |
+|  | [Skill 效果比较](reference/batches/89.md#batch-89-item-3) |
+| [90](reference/batches/90.md) | [整条路线最终交付对账](reference/batches/90.md#batch-90-item-1) |
 
 <a id="server-batch"></a>
 
 ## 服务端批
 
-排在 01～89 之后，开工时间由用户定；01～89 不等它。后续服务端需求继续加在这一批。
+排在 01～90 之后，开工时间由用户定；01～90 不等它。后续服务端需求继续加在这一批。
 
 | 批次 | 批次内内容 |
 | --- | --- |

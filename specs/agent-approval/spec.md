@@ -65,6 +65,34 @@ Coding 的可选“AI 低风险自动审批”只覆盖用户明确启用范围�
 - 配置读取必须从 base 分支读，不能从 PR head 读；不 checkout PR head 来读配置。
 - 启用本检查时原建议 `required_approvals: 2`，具体人数与启用范围待项目／团队明确配置；不把此值设为所有工作的默认门槛。Agent 身份和排除账号可配置；`exempt_head_branches` 默认空并标注风险。
 
+<a id="review-contract"></a>
+
+### 3.5 审查合同（39 先交共用草案）
+
+助理决定请求卡、验收卡、32-2 的要求认可和 39-1 的智能呈现使用同一审查引用，由原 owner 读取并提供。调用方从 `@molis-ai/molis-work-contracts/platform/ui` 导入共用类型。
+
+| 共用形状 | 字段和规则 |
+| --- | --- |
+| `ReviewTarget` | `{ owner, subject, version }`。`subject` 复用 `ActionSubject`。`owner` 固定对象的提供方和存储分区。平台拥有的对象用登记的系统提供方标识，例如助理的 `system.assistant-panel`。插件对象还固定插件、安装与世代。项目分区必须带项目 id，归属于项目的 Home 对象也带该项目。`version` 由对象 owner 固定。Home 保存的项目对象仍复核归属，从原审查项目借来的可见性不足以读取另一项目的证据。 |
+| `ReviewRequirement` | `{ id, version, target, statement, requires_person, evidence }`。要求的稳定 id 与版本由要求 owner 给，对象和各依据各有独立版本。产物、要求或证据变化时重新检查受影响条目，保留其他条目的认可与决定历史。 |
+| `ReviewEvidence` | `{ target, tier }`；真人认可另含必填的 `decision`。证据正文由原 owner 提供；自报与机器核过的依据可显示。`person_accepted` 由要求 owner 核对原决定所选的对应要求、产物及证据版本，且决定覆盖本条并来自本人。 |
+| `ReviewRequest` | `{ reference, target, summary, requirements, approver, choices, expires_at, decision? }`。沿 `ReviewReference` 定位原请求。`approver` 表示本人或指定本人。`choices` 各有稳定 id、显示文字、当前可用性，及此选项明确认可和退回的要求 id。选项失效时用 `OwnedTextRef` 给原因；当前权限和有效期仍由入口核。 |
+| 决定引用 | `{ reference: ReviewReference, decision_id }` 定位一条不可变决定，`reference.version` 是原请求版本。要求、证据和请求投影都指向这一条记录。 |
+
+版本固定提案、对象版本、每条要求及其依据、选项指定的逐项结果。文案、当前可点状态、纯展示顺序可变化。32-2 先固定一次选项和逐项范围，再让本人通过现有二元审查决定同意或拒绝这份选择。应用时只读原选择的冻结内容，一次可以认可多条并退回其余明确列出的要求。一次完成批准仍单独核对。消费者按原调用权限批量打开原 owner，包括每条实际依据的项目访问权。
+
+2026-11-14 用户调整了[决定 43](../post-anticorruption-roadmap/reference/decisions.md#decision-43-review-order) 的先后。第 39 批先写共用草案，同一只读评审代理合审；32-2 沿用并继续拥有要求、证据关联、返工和复核的业务事实。39-2 落地前，32-2 的认可沿现有决定请求通道由用户在助理、审查队列点击。验收 APR-14～16。
+
+### 3.6 可信决定
+
+目的：任何插件可在 Manifest 声明某个动作「需要可信用户决定」，平台提供受保护的决定入口（页面点击与 MCP 同一条路径）；决定记录与项目审批规则归平台，不再归 Goals。
+
+1. 动作以 Manifest 声明本人决定。平台由原调用、目录登记和 owner 固定提供方安装、项目、动作版本、待审对象版本和规范业务参数。申请先过现有 schema 与当前权限。通用动作网关在进入业务处理器前核本次专有凭据，普通调用或嵌套调用可按其权限发起申请。
+2. 受保护入口使用同一平台命令。业务输入选择 `ReviewReference` 的精确版本、该请求的选项和备注。Web 与管理 MCP 采用现有的认证和活动性检查，由 Host 在受保护入口绑定本人、项目、原提供方、版本、选项和去重键。绑定凭据仅限单次、指定命令。审计出处沿入口产生的 `ActionUserAction`，含项目和事先确认的原操作定位，可能通过转调保留供审计。网关许可仍须验证不可继承的原入口凭据。
+3. 沿用 `ReviewDecisionRecord` 的决定与来源头。原 Agent 队列的 `decision` 仍为 `approve`／`reject`，通用 owner 以同一字段保存原选项 id，添加可引用的稳定 `decision_id`。通用真人来源必有受保护入口给出的 `ActionUserAction`。原 Agent 队列的来源与记录按其原有格式保留，由队列投影为共同引用。决定历史、业务应用和外部效果各由其 owner 保留。重放同一命令与冻结内容返回原回执，变更内容或对已决定请求使用另一命令拒绝。实际写入时复核项目、安装、对象版本、选项、权限与规则；已发送且结果未知的操作进入待核对。
+4. 项目审批规则与可信决定均由平台拥有。Goals 现有三个作用域及规则历史保持原义。规则变更比较当前版本，保留原规则及变更原因。审批规则不能降低动作自己声明的本人确认要求。统一授权管理页列项目规则及各条当前范围；Goals 消费平台读口。本人审批和 Goals 的物化同事务提交沿现有项目库，不在两个库各存一份。
+5. MCP 现有 `molis_work_v1_event_decide`、`molis_work_v1_goal_tree_decide` 改为受保护通用决定入口，旧入口调用方与手册同片更新。没有 Goals 的项目仍可从同一入口决定插件声明的动作。受保护入口沿 [S-17](../../docs/system/security-invariants/S-17.md) 并同步拒绝证据。隔离迁移范围、同步与回滚见[移交设计](trusted-decisions-design.md)。验收 APR-17～19。
+
 ## 4. 失败与恢复
 
 - 需要批准时查不到身份／批准／权限，按未批准处理；不因可选人审服务未启用就阻塞已有有效授权的工作。
@@ -90,11 +118,17 @@ Coding 的可选“AI 低风险自动审批”只覆盖用户明确启用范围�
 | APR-11 | 在授权内自动执行模式下，助理／Coding 续轮、重试与重启使用仍有效委托，不重复要求批准；改范围、撤权、取消和效果未知时按真实状态处理 |
 | APR-12 | Coding 已启用的低风险 AI 审批与人工批准来源可区分；不能计入真人票数、越过硬边界或扩到其他工具，具体执行与恢复同时满足 CEX-08～10 |
 | APR-13 | 一般自动执行不能替代明确配置的人审或团队记忆发布最终确认；未启用人审流程时，不因可选批准检查缺失阻塞有效委托内工作 |
+| APR-14 | 要求、证据和决定请求使用 §3.5 的共用形状。32-2、助理与验收卡引用同一个 owner；旧产物版本的证据或认可不能证明当前版本。 |
+| APR-15 | 39-2 落地前，32-2 在助理决定请求和原审查队列由用户本人点击认可。单测与调用链核对没有 Goals 依赖。 |
+| APR-16 | 智能呈现的决定请求与验收卡用同一个 `ReviewReference` 打开 owner 的事实和当前可决定性，包括过期决定、无权限和已应用历史。 |
+| APR-17 | 在没有装 Goals 的实际项目中安装使用普通插件，声明需本人决定。页面与管理 MCP 走同一命令；有效决定应用一次，重复及错误安装或版本均不执行。 |
+| APR-18 | 执行 Agent、调用参数里的自报身份、页面／Feed／PR 正文均不能产生可信决定；验 Web 与 MCP 的真实身份、过期、撤权、内容变化和拒绝后零业务写入。 |
+| APR-19 | 批准记录与项目规则归平台；隔离旧库移交后 Goals 只消费。验证旧主键、关系、原始来源、规则作用域、同步和回滚；不可信历史保留但没有执行权限。 |
 
 ## 6. 关联
 
 - Coding 的评审与推送：[coding-quality-assurance](../coding-quality-assurance/spec.md)、[coding-plugin](../coding-plugin/spec.md)
-- Goal 完成与可信决定：[goal-closure-identity](../archive/goal-closure-identity/spec.md)
+- 可信决定与受保护入口：本文 3.6，归平台决定服务（39-2）；要求与认可：平台要求—认可能力（32-2）。Goals 的历史做法见 [goal-closure-identity](../archive/goal-closure-identity/spec.md)
 - 动作授权与 `beforeEffect`：[action-architecture](../action-architecture/spec.md)
 - 安全边界：[SECURITY-INVARIANTS.md](../../docs/system/SECURITY-INVARIANTS.md)
 - 代码：`horizontal/agent-host/src/reviews.ts`、`apps/local-host/src/assistant/assistant-authority.ts`、`packages/kernel/src/action-service.ts`

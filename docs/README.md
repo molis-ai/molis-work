@@ -19,7 +19,8 @@
 | --- | --- |
 | 现行规范 | 从 [SSOT](SSOT-MATRIX.md#1-文档各管什么)和[规格书索引的「现行规范」](../specs/README.md#现行规范)进入。产品承诺、事实归属与执行规则各有主人；规范里的目标和约束不等于每项能力均已实现或发布。 |
 | 执行中或待验收的需求 | [规格书索引的「在做的」](../specs/README.md#在做的)也包含尚未实现的需求。读对应 spec 的状态、验收与证据；分支实现、合入 main、工程验证、产品实操与用户验收分别判断。 |
-| 历史记录 | [文档归档索引](archive/README.md)、[规格书归档](../specs/archive/)和 [0.1.x Bug 台账](molis-work-bug-cards.md)保留当时的事实与决定，不作为当前操作步骤。归档不等于全部实现或验收通过，剩余事项见归档说明指向的待办。 |
+| 历史记录 | [文档归档索引](archive/README.md)、[规格书归档](../specs/archive/README.md)、[0.1.x Bug 台账](molis-work-bug-cards.md)与[已删除/已并入的 BL 编号](backlog-removed.md)保留当时的事实与决定，不作为当前操作步骤。归档不等于全部实现或验收通过，剩余事项见归档说明指向的待办。 |
+| 评审与 QA 证据 | [评审记录索引](reviews/README.md)按日期列出审查、复审与日评；[QA 证据](qa/README.md)保留历史截图。两者都是当时基线的记录，当前状态看 spec、BACKLOG 与最新 PR。 |
 | 设计与运营材料 | [设计参考与原型](design/README.md)用于理解方案，生产 UI 以 [DESIGN](../DESIGN.md)和组件板为准；[产品运营文档](product-operations/README.md)用于产品表达与场景研究，使用时保留其基线、成熟度与示意标记。 |
 
 遇到文档与实现不一致，沿 SSOT 找到 owner 后核对当前代码和验证记录，再修正对应说明。旧截图、历史报告或某次测试通过，都不能单独证明当前版本可用。

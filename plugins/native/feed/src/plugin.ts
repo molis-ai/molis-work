@@ -4,6 +4,9 @@ import { feedDemoSeedAction, seedFeedDemo } from "./demo-seed.js";
 import { syncBindings } from "./sync-binding.js";
 import { ActionError, resolveActionSubject, type ActionClient, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginRouteRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { createFeedPresentationHandlers } from "./presentation.js";
+import { feedPresentationRecords } from "./store/presentation.js";
+import { SourcesModule } from "./store/sources.js";
 import { assembleFeedApplication } from "./application-assembly.js";
 import { createFeedContentHandlers } from "./content-actions.js";
 import { createRuntimeItemStaging, createRuntimeJudgmentTriggers, createRuntimeSceneRuntime } from "./runtime-judgments.js";
@@ -149,9 +152,9 @@ export function createFeedPlugin(): PluginDefinition {
       return readLinkedFeedContext(feed, projectId, input, hydrate);
     };
     const delegation = services?.actions?.directory;
-    // A home event's subject is read through the directory as the caller, as the Inbox reads its own (`resolveActionSubject`).
     const subjects: ActionClient | undefined = delegation && { discover: () => delegation.discover(), invoke: (_caller, reference, input) => delegation.invoke(reference, input) };
     const bindings: ActionHandlerBinding[] = [
+      ...createFeedPresentationHandlers(projectId, feedPresentationRecords(ports.sql, projectId), new SourcesModule(ports.sql).query),
       { capability_id: feedDemoSeedAction.capability_id, version: feedDemoSeedAction.version, handle: caller => seedFeedDemo(feed, sourcesFor(caller), projectId) },
       ...createFeedContentHandlers(feed, projectId, hydrate, subjects ? async (subject, caller) => (await resolveActionSubject(subjects, caller, subject)).context : undefined),
       ...createFeedRunsHandlers(projectId, { feed: () => feed }), ...createFeedQueryHandlers(feed, projectId, { hydrate, authStatus: connector ? () => runtimeConnectorStatus(connector) : later("连接状态"), linkedContext,

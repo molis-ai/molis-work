@@ -127,7 +127,7 @@ index e5c47f7f9f629b5771f08b9ac4ad9470ab20896d..599293a81eff92526b25d3c26dacdb2c
 @@ -5,6 +5,7 @@
   * 装配时一次也不调用，所以排在最后，那时前面各相要的东西都已经备好。
   */
- 
+
 +import { surfaceToolResources } from "./surface-tool-resources.js";
  import type { Runtime } from "./runtime.js";
  import type { RuntimeScope, SharedToolScope, SharedToolDeps } from "./runtime-scope.js";
@@ -208,7 +208,7 @@ index 11970d717b6380f479b3aa08efa2261cda643eff..4fcff8b3b670b17aaf0c73275b727d38
 -    heartbeats, queue, checkLane, modelResponses, surfaces, clockMs, background, waits,
 +    heartbeats, queue, checkLane, modelResponses, clockMs, background, waits,
    } = scope;
- 
+
    /*
 @@ -96,12 +96,12 @@ export async function runtimeShutdown(
     * 一台开着的浏览器**跨不过这个进程**，不关就是留一个没人管的窗口
@@ -236,7 +236,7 @@ index 11970d717b6380f479b3aa08efa2261cda643eff..4fcff8b3b670b17aaf0c73275b727d38
 +  if (surfaceFailure !== undefined) throw surfaceFailure.error;
    return { cancelled, reconcileRequired };
  }
- 
+
 diff --git a/packages/sdk/src/composition/core/runtime-scope.ts b/packages/sdk/src/composition/core/runtime-scope.ts
 index 839b3637e5f8b3bac58764c8eb6db38922c79c65..cdecbf555176321898ffcf97a75f8608e0bc37d1 100644
 --- a/packages/sdk/src/composition/core/runtime-scope.ts
@@ -247,7 +247,7 @@ index 839b3637e5f8b3bac58764c8eb6db38922c79c65..cdecbf555176321898ffcf97a75f8608
    readonly surfaces: UiControl;
 +  readonly settleDetachedSurfaces: () => Promise<void>;
 +  readonly surfaceGuard: (ref: ExactRef<"ui-target"> | ExactRef<"observation">) => () => void;
- 
+
    // ── assembleDeliveryAndWaits
    readonly notifier: Notifier;
 diff --git a/packages/sdk/src/composition/core/surface-tool-resources.ts b/packages/sdk/src/composition/core/surface-tool-resources.ts
@@ -302,7 +302,7 @@ index 0000000000000000000000000000000000000000..1534e18cac3131cadf697a77bbf78d1b
 +  };
 +}
 diff --git a/packages/sdk/src/composition/core/system-tools-context.ts b/packages/sdk/src/composition/core/system-tools-context.ts
-index c17a1e27e7e5db8242d3f48b802e2010c8252233..da4b7d186c46010d77d5ddb91e7b1bb21a7474af 100644
+index 3aac365bf0c86a29683f5eab46462a221eee9d08..b599138f36de0e6098cf82823bcc04c76210893e 100644
 --- a/packages/sdk/src/composition/core/system-tools-context.ts
 +++ b/packages/sdk/src/composition/core/system-tools-context.ts
 @@ -203,6 +203,8 @@ export interface SystemToolInput {
@@ -328,7 +328,7 @@ index c2c42cea4a1fd278bbfd4edb293d1eeeaa89a2e9..b6130689cdbb1b43c3528c142d3ec393
    type SurfaceRefusalReason,
    type UiAction,
 @@ -218,6 +220,8 @@ export function surfaceTools(tool: ToolContext) {
- 
+
    return {
      async operate({ registration, args, gate, abort }: ToolCall): Promise<string | { readonly text: string; readonly image?: Uint8Array }> {
 +      const cancelled = abort === undefined ? undefined : () => abort.requested();
@@ -409,13 +409,13 @@ index d3043688b2ba1edbd5025149212a6f4d61aee36b..1f63d686422aeea8de97bca86b9b1706
 --- a/packages/sdk/src/effect-policy/README.md
 +++ b/packages/sdk/src/effect-policy/README.md
 @@ -14,6 +14,8 @@
- 
+
  持久准备、关联审批与恢复的接口合同见 [Effect/Pending 恢复合同](../../../../docs/slices/effect-pending-recovery.md)。Pending 和 Effect 各自拥有状态，联合变化由模块内窄口一次提交；存储只承载类型化快照，composition 只装配。
- 
+
 +准备可携带原调用的同步提交检查，在原写队列和 Host 提交前拒绝已失效的来源；它只收紧本次准备、不持久化、不授予权限。首个消费者与证据见[界面目标的最终释放](../../../../docs/slices/ui-surface-detach.md)。
 +
  原问题等待、持久答案、独立Run输入事件与取消/重启的现役消费合同见 [AskUser](../../../../docs/slices/ask-user.md)。该合同不把UI或第二套等待状态搬入模块。
- 
+
  问卷这一段（题型、冻结、上界、逐题校验与取值）在 `core/questionnaire.ts`：带类型的题（文本、数字、日期、日期时间、对象引用）、必填、预填、选项说明与推荐，以及公开的纯函数 `validateQuestionnaireAnswer`——App 提交前用它逐题标错，`answer` 用同一把尺做最终判定。合同见 [AskUser 带类型的题](../../../../docs/slices/ask-user-fields.md)。
 diff --git a/packages/sdk/src/effect-policy/core/chain.ts b/packages/sdk/src/effect-policy/core/chain.ts
 index 62cf058998021bc929e1c38fb1ddafe1f643d090..dc028c6cb4436b638ba9bfb6325f5766509fb286 100644
@@ -440,7 +440,7 @@ index 62cf058998021bc929e1c38fb1ddafe1f643d090..dc028c6cb4436b638ba9bfb6325f5766
 @@ -469,27 +471,7 @@ export function createEffectChain(input: {
      preparedAtMs: entry.preparedAtMs,
    });
- 
+
 -  const persist = async (batch: {
 -    readonly effects?: readonly { readonly id: string; readonly entry: Held }[];
 -    readonly pendings?: readonly { readonly id: string; readonly held: HeldPending }[];
@@ -463,13 +463,13 @@ index 62cf058998021bc929e1c38fb1ddafe1f643d090..dc028c6cb4436b638ba9bfb6325f5766
 -    }
 -  };
 +  const persist = createEffectPersistence({ store: input.store, snapshot, notifyFailure: (id, error) => book.notifyFailure(id, error) });
- 
+
    const sourceUnavailable = (issue: Error | undefined, present: boolean): void => {
      if (!present && issue !== undefined) {
 @@ -789,8 +771,10 @@ export function createEffectChain(input: {
        return tightening(evaluate(remembered.inForce(proposal, scopeOf(proposal)?.rules ?? []), targetOf(proposal), input.posture));
      },
- 
+
 -    prepare(proposal: EffectProposal, now: ClockReading, restrict?: PolicyOutcome): Promise<Effect> {
 +    prepare(proposal: EffectProposal, now: ClockReading, restrict?: PolicyOutcome, assertCurrent?: () => void): Promise<Effect> {
 +      const check = assertCurrent === undefined ? undefined : (): void => assertSynchronousPreparation(assertCurrent);
@@ -648,7 +648,7 @@ index d1dfeb8c350ce908b300f2c1ea93e44ddcf86694..4092339c7aa7a3beed57c4ccfcd761cb
 @@ -39,66 +39,8 @@ import {
    type QuestionnaireValue,
  } from "./questionnaire.js";
- 
+
 -/**
 - * 有界 Effect 快照。存储层只认这一份已经校验的形状，不接受任意对象。
 - */
@@ -711,13 +711,13 @@ index d1dfeb8c350ce908b300f2c1ea93e44ddcf86694..4092339c7aa7a3beed57c4ccfcd761cb
 -}
 +import type { StoredEffectState, StoredEffectProposal, StoredEffectRecord, StoredPendingRecord, StoredPolicy } from "./stored-policy-types.js";
 +export type { StoredEffectRecord, StoredPolicy } from "./stored-policy-types.js";
- 
+
  const EFFECT_KIND = "effects";
  const PENDING_KIND = "pendings";
 @@ -769,9 +711,44 @@ function effectBody(record: StoredEffectRecord): unknown {
    };
  }
- 
+
 +async function readStoredPending(storage: Pick<HostStorage, "get" | "readSecure">, id: string): Promise<HeldPending | undefined> {
 +  let record: StorageRecord | undefined;
 +  try {
@@ -771,7 +771,7 @@ index d1dfeb8c350ce908b300f2c1ea93e44ddcf86694..4092339c7aa7a3beed57c4ccfcd761cb
 @@ -895,42 +873,6 @@ export function createStoredPolicy(
        };
      },
- 
+
 -    readPending(id) {
 -      return queued(async () => {
 -        let record: StorageRecord | undefined;
@@ -813,10 +813,10 @@ index d1dfeb8c350ce908b300f2c1ea93e44ddcf86694..4092339c7aa7a3beed57c4ccfcd761cb
    };
  }
 diff --git a/packages/sdk/src/index.ts b/packages/sdk/src/index.ts
-index 6ec6d1b202056d66d01c3106fa834f8a6aa9d57c..7fe0683cf5121c25351fd5f66e37d698b6330d72 100644
+index a3e4418c1dc4a6c70db0545d3823b5bbf6c28646..4374ba2443ebd5e1ff0494d125721b9f92878f0f 100644
 --- a/packages/sdk/src/index.ts
 +++ b/packages/sdk/src/index.ts
-@@ -700,6 +700,8 @@ export type {
+@@ -711,6 +711,8 @@ export type {
    UiLimits,
    UiProposal,
    UiReceipt,
@@ -825,24 +825,124 @@ index 6ec6d1b202056d66d01c3106fa834f8a6aa9d57c..7fe0683cf5121c25351fd5f66e37d698
    UiSurface,
    UiTarget,
  } from "./ui-control/api/index.js";
+diff --git a/packages/sdk/src/mcp/plugin/stdio.ts b/packages/sdk/src/mcp/plugin/stdio.ts
+index d453129c0add2dbb89a5106d1c96192be5602b57..4b0c9332a2a953140a84e9b60ece45f0b3b47fea 100644
+--- a/packages/sdk/src/mcp/plugin/stdio.ts
++++ b/packages/sdk/src/mcp/plugin/stdio.ts
+@@ -74,10 +74,44 @@ export interface StdioServerSpec {
+   readonly envAllowlist?: readonly string[];
+   /** 一次请求等多久。 */
+   readonly requestTimeoutMs?: number;
++  /**
++   * Check the original request after its reply is matched, before its content can leave the transport.
++   * Return undefined synchronously. A throw or another return value leaves the original dispatched effect unknown.
++   */
++  readonly assertResponseCurrent?: (request: {
++    readonly sessionId: string;
++    readonly requestId: number;
++    readonly method: string;
++  }) => void;
+ }
+
+ export const DEFAULT_MCP_REQUEST_TIMEOUT_MS = 30_000;
+
++type StdioReply = { readonly ok: true; readonly result: Readonly<Record<string, unknown>> }
++  | { readonly ok: false; readonly error: unknown };
++
++function responseIsCurrent(check: StdioServerSpec["assertResponseCurrent"], sessionId: string, request: JsonRpcRequest): boolean {
++  try {
++    const result: unknown = check?.({ sessionId, requestId: request.id, method: request.method });
++    if (result === undefined) return true;
++    void Promise.resolve(result).catch(() => undefined);
++    return false;
++  } catch {
++    return false;
++  }
++}
++
++function checkedReply(spec: StdioServerSpec, sessionId: string, request: JsonRpcRequest, frame: JsonRpcFrame): StdioReply {
++  if (!responseIsCurrent(spec.assertResponseCurrent, sessionId, request)) {
++    return { ok: false, error: unknownMcpResult(request.method, "the original response is no longer authorized") };
++  }
++  if (isError(frame)) {
++    // The remote message is data. Return the code without giving the server control of our error text.
++    return { ok: false, error: createPrologueError("MCP_CALL_FAILED", `That MCP server refused ${request.method} (code ${frame.code}).`) };
++  }
++  return { ok: true, result: frame.result };
++}
++
+ /**
+  * 不点名时透传哪几个环境变量。
+  *
+@@ -313,11 +347,7 @@ export async function openMcpStdio(input: {
+     const localAbort = new AbortController();
+     const combined = combineMcpSignals(control?.signal, localAbort.signal) ?? localAbort.signal;
+
+-    const settle = (
+-      next:
+-        | { readonly ok: true; readonly result: Readonly<Record<string, unknown>> }
+-        | { readonly ok: false; readonly error: unknown },
+-    ): void => {
++    const settle = (next: StdioReply): void => {
+       if (settled) {
+         return;
+       }
+@@ -332,11 +362,7 @@ export async function openMcpStdio(input: {
+       }
+     };
+
+-    const finish = (
+-      next:
+-        | { readonly ok: true; readonly result: Readonly<Record<string, unknown>> }
+-        | { readonly ok: false; readonly error: unknown },
+-    ): void => {
++    const finish = (next: StdioReply): void => {
+       if (settled || sealed) {
+         return;
+       }
+@@ -407,21 +433,11 @@ export async function openMcpStdio(input: {
+             if (sealed) {
+               break;
+             }
+-            if (isError(frame)) {
+-              /*
+-               * 对方说这一次不行。**它的话当数据看**——原样当我们的错误
+-               * 消息，等于让一个外部服务写我们的错误文本。
+-               */
+-              finish({
+-                ok: false,
+-                error: createPrologueError(
+-                  "MCP_CALL_FAILED",
+-                  `That MCP server refused ${built.method} (code ${frame.code}).`,
+-                ),
+-              });
++            if (mcpControlAborted(control)) {
++              await abortThis();
+               break;
+             }
+-            finish({ ok: true, result: frame.result });
++            finish(checkedReply(input.spec, opened.sessionId, built, frame));
+             break;
+           }
+           if (sealed) {
 diff --git a/packages/sdk/src/ui-control/README.md b/packages/sdk/src/ui-control/README.md
 index 61ae3bba6f72002b6950c10accef5abb0422fc98..853216490b92b0db2f88d3693ba351a195d81637 100644
 --- a/packages/sdk/src/ui-control/README.md
 +++ b/packages/sdk/src/ui-control/README.md
 @@ -23,7 +23,9 @@
- 
+
  `core/` 内部实现与状态，`api/` 本模块对外入口与类型，`plugin/` 真实适配器。**只建真的有内容的那几个**，不为对称留空目录。
- 
+
 -**观察与动作已完成**（第 19 段）：`core/control.ts` 里是挂目标、观察、准备动作、过门、执行一次、关闭。
 +**观察与动作已完成**（第 19 段）：`core/control.ts` 装配目标入口，`surface.ts` 维护合同与动作校验，`control-operations.ts` 依次观察、准备和执行，`control-state.ts` 维护同一套目标索引与关闭/释放。事实仍只归此 owner，不另建审批链。
 +
 +目标的最终释放由同一 owner 提供 `detach`，原 `close` 仍保留关闭项；取消原待审、在途准备及派发检查的合同见[界面目标的最终释放](../../../../docs/slices/ui-surface-detach.md)。生命周期边界不可配置掉，不增加插件槽或第二套审批。
- 
+
  **接在装配根上，公开入口是 `runtime.surfaces`**，闭集里有 `surface-list` / `surface-observe` / `surface-act` 三样给模型用。这一步是一次明写的决定（`reachability.test.ts` 上那条断言逼出来的）：**「对谁动手」归策略管，而规则表住在 Runtime 上**——接线留给场景，等于每个场景各接一条副作用链。挪上来的是接线，不是驱动。
- 
+
 @@ -52,3 +54,7 @@
  - **动作仍然是副作用**，要过策略/审批，不因为是「点一下」就跳过授权。
- 
+
  功能定义只在需求分册里。本文件不复述功能清单，也不记进度。
 +
 +An attaching owner may supply synchronous `UiSurface.assertCurrent()` for its original round authority. The existing target/epoch fences invoke it before new observations, proposals and dispatch, including the EffectChain's final storage check. Promise-returning guards are refused. Composition retains that exact target guard for the system tool's typed-resource publication and observation-body delivery. A failed check denies the operation without implicitly closing or detaching the target; explicit lifecycle calls still own cleanup.
@@ -2184,7 +2284,7 @@ index ba4b480f64d91bb3a8b1379e9bd0149f0f7a9771..a903151bafde4898701724d52e2132a9
 +  type UiSurface,
 +  type UiTarget,
 +} from "./surface.js";
- 
+
  export function createUiControl(deps: UiControlDeps): UiControl {
 -  interface Held {
 -    readonly ref: ExactRef<"ui-target">;
@@ -2249,7 +2349,7 @@ index ba4b480f64d91bb3a8b1379e9bd0149f0f7a9771..a903151bafde4898701724d52e2132a9
 -  const view = (one: Held): UiTarget => ({ ref: one.ref, kind: one.surface.kind, open: one.open, ...(one.owner === undefined ? {} : { owner: one.owner }) });
 +  return createUiControlOwner(deps).control;
 +}
- 
+
 -  return {
 +/** Composition-only drain; retired targets are deliberately absent from the public catalog. */
 +export function createUiControlOwner(deps: UiControlDeps): { readonly control: UiControl; readonly settleDetached: () => Promise<void>; readonly guard: SurfaceState["guard"] } {
@@ -3457,11 +3557,89 @@ index 0000000000000000000000000000000000000000..aaaee15b92aef97748b6f810fc0a8193
 +    typeof answer.why === "string" ? redactSurfaceError(answer.why).replace(/\s+/g, " ").trim().slice(0, 120) : "";
 +  return { irreversible: true, why: why.length > 0 ? why : undefined };
 +}
+diff --git a/packages/sdk/test/mcp-stdio.live.test.ts b/packages/sdk/test/mcp-stdio.live.test.ts
+index 2615e8e010caa44e065add80cca4f0680fe1ab0a..f88c59ec02d25c5f093ec2a7c2e33671d5795ccc 100644
+--- a/packages/sdk/test/mcp-stdio.live.test.ts
++++ b/packages/sdk/test/mcp-stdio.live.test.ts
+@@ -11,6 +11,7 @@ import {
+   type McpProcessPort,
+   type PrologueError,
+   type Runtime,
++  type StdioServerSpec,
+ } from "../src/index.js";
+
+ const HERE = dirname(fileURLToPath(import.meta.url));
+@@ -75,6 +76,7 @@ const open = async (
+   port: McpProcessPort,
+   rootRef: Awaited<ReturnType<Runtime["workspace"]["authorize"]>>["ref"],
+   env: Record<string, string> = {},
++  assertResponseCurrent?: StdioServerSpec["assertResponseCurrent"],
+ ) =>
+   openMcpStdio({
+     port,
+@@ -84,6 +86,7 @@ const open = async (
+       argv: [SERVER],
+       ...(Object.keys(env).length === 0 ? {} : { envAllowlist: Object.keys(env) }),
+       requestTimeoutMs: 8_000,
++      ...(assertResponseCurrent === undefined ? {} : { assertResponseCurrent }),
+     },
+     clientName: "prologue-test",
+     sleep: (ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
+@@ -175,6 +178,49 @@ describe("真的连上一个 stdio MCP 服务", () => {
+     }
+   }, 30_000);
+
++  it("discards only the revoked reply when two requests share the live pipe", async () => {
++    const { runtime, port, rootRef } = await ready();
++    const sent = Promise.withResolvers<void>(), receive = Promise.withResolvers<void>();
++    const written = new Map<string, number>();
++    let checkingTools = false, authorized = true;
++    const guardedPort: McpProcessPort = { ...port,
++      async writeInteractive(input) {
++        const frame = JSON.parse(input.text) as { id: number; params?: { arguments?: { text?: string } } };
++        await port.writeInteractive(input);
++        const text = frame.params?.arguments?.text;
++        if (text === "revoked" || text === "retained") written.set(text, frame.id);
++        if (written.size === 2) sent.resolve();
++      },
++      async readInteractive(input) {
++        if (checkingTools) await receive.promise;
++        return port.readInteractive(input);
++      },
++    };
++    const checked: Array<{ sessionId: string; requestId: number }> = [];
++    const session = await open(guardedPort, rootRef, {}, request => {
++      if (request.method !== "tools/call") return;
++      checked.push(request);
++      if (!authorized && request.requestId === written.get("revoked")) throw new Error("authority withdrawn");
++    });
++    try {
++      checkingTools = true;
++      const rejected = failure(() => callOverStdio(session, "echo", { text: "revoked" }));
++      const retained = callOverStdio(session, "echo", { text: "retained" });
++      await sent.promise;
++      authorized = false;
++      receive.resolve();
++      expect((await rejected).code).toBe("EFFECT_RECONCILE_REQUIRED");
++      expect(await retained).toContain("echo: retained");
++      expect(checked).toHaveLength(2);
++      expect(new Set(checked.map(request => request.requestId))).toEqual(new Set(written.values()));
++      expect(new Set(checked.map(request => request.sessionId)).size).toBe(1);
++    } finally {
++      receive.resolve();
++      await session.close();
++      await runtime.shutdown();
++    }
++  }, 30_000);
++
+   it("**服务端反过来问我们的那一条,不当成答复**", async () => {
+     /*
+      * MCP 服务端也会发请求（要我们调模型、列根目录），而那些**带 id**。
 diff --git a/packages/sdk/test/public-api.snapshot.txt b/packages/sdk/test/public-api.snapshot.txt
-index d9ad1de6ecb5a37995e2c7b27ac641ae1d462d4f..480039dab9a57880113322d32f1daf33b1b3278c 100644
+index 8ff3abc106312609a0906ba55e390d5a47428956..82032b41a402f18247a74bfe649427356d09da34 100644
 --- a/packages/sdk/test/public-api.snapshot.txt
 +++ b/packages/sdk/test/public-api.snapshot.txt
-@@ -1214,10 +1214,12 @@ UiActPicture
+@@ -1228,10 +1228,12 @@ UiActPicture
  UiAssessment
  UiControl
  UiControlDeps
@@ -3474,7 +3652,7 @@ index d9ad1de6ecb5a37995e2c7b27ac641ae1d462d4f..480039dab9a57880113322d32f1daf33
  UiSurface
  UiTarget
  unifiedDiff
-@@ -3164,6 +3166,7 @@ export interface SystemToolInput {
+@@ -3199,6 +3201,7 @@ export interface SystemToolInput {
      readonly onCommandReceipt?: (callId: string, record: import("../../workspace/core/index.js").WorkspaceCommandRecord) => Promise<void>;
      readonly surfaces?: {
          readonly control: UiControl;
@@ -3482,7 +3660,7 @@ index d9ad1de6ecb5a37995e2c7b27ac641ae1d462d4f..480039dab9a57880113322d32f1daf33
          readonly stageText: (body: string) => Promise<ExactRef<"resource">>;
          readonly readText?: (ref: ExactRef<"resource">, maxChars: number) => Promise<{
              readonly text: string;
-@@ -4612,7 +4615,7 @@ effect-policy/core/chain.d.ts :: EffectChain
+@@ -4665,7 +4668,7 @@ effect-policy/core/chain.d.ts :: EffectChain
  export interface EffectChain {
      evaluate(proposal: EffectProposal): PolicyDecision;
      restriction(proposal: EffectProposal): PolicyOutcome | undefined;
@@ -3491,10 +3669,22 @@ index d9ad1de6ecb5a37995e2c7b27ac641ae1d462d4f..480039dab9a57880113322d32f1daf33
      get(ref: ExactRef<"effect">): Effect | undefined;
      openEffects(): readonly Effect[];
      find(inputFingerprint: string): Effect | undefined;
-@@ -14082,18 +14085,18 @@ export interface SystemToolAvailability {
+@@ -6841,6 +6844,11 @@ export interface StdioServerSpec {
+     readonly cwd?: string;
+     readonly envAllowlist?: readonly string[];
+     readonly requestTimeoutMs?: number;
++    readonly assertResponseCurrent?: (request: {
++        readonly sessionId: string;
++        readonly requestId: number;
++        readonly method: string;
++    }) => void;
+ }
+
+ memory/core/access.d.ts :: MemoryAccessRequest
+@@ -14451,18 +14459,18 @@ export interface SystemToolAvailability {
  tool/core/system.d.ts :: SystemToolName
  export type SystemToolName = (typeof SYSTEM_TOOL_NAMES)[number];
- 
+
 -ui-control/core/control.d.ts :: createSurfaceRefusal
 +ui-control/core/control.d.ts :: createUiControl
 +export declare function createUiControl(deps: UiControlDeps): UiControl;
@@ -3503,35 +3693,35 @@ index d9ad1de6ecb5a37995e2c7b27ac641ae1d462d4f..480039dab9a57880113322d32f1daf33
  export declare function createSurfaceRefusal(reason: SurfaceRefusalReason, options?: {
      readonly partial?: boolean;
  }): SurfaceRefusal;
- 
+
 -ui-control/core/control.d.ts :: createUiControl
 -export declare function createUiControl(deps: UiControlDeps): UiControl;
 -
 -ui-control/core/control.d.ts :: DEFAULT_UI_LIMITS
 +ui-control/core/surface.d.ts :: DEFAULT_UI_LIMITS
  DEFAULT_UI_LIMITS: UiLimits
- 
+
 -ui-control/core/control.d.ts :: Observation
 +ui-control/core/surface.d.ts :: Observation
  export interface Observation {
      readonly ref: ExactRef<"observation">;
      readonly targetRef: ExactRef<"ui-target">;
-@@ -14103,29 +14106,29 @@ export interface Observation {
+@@ -14472,29 +14480,29 @@ export interface Observation {
      readonly expiresAtMs: number;
  }
- 
+
 -ui-control/core/control.d.ts :: ObservationKind
 +ui-control/core/surface.d.ts :: ObservationKind
  export type ObservationKind = "dom" | "accessibility-tree" | "screenshot" | "window-metadata";
- 
+
 -ui-control/core/control.d.ts :: redactSurfaceError
 +ui-control/core/surface.d.ts :: redactSurfaceError
  export declare function redactSurfaceError(raw: unknown): string;
- 
+
 -ui-control/core/control.d.ts :: ScreenshotPolicy
 +ui-control/core/surface.d.ts :: ScreenshotPolicy
  export type ScreenshotPolicy = "redact" | "allow-raw";
- 
+
 -ui-control/core/control.d.ts :: SurfaceRefusal
 +ui-control/core/surface.d.ts :: SurfaceRefusal
  export interface SurfaceRefusal extends PrologueError {
@@ -3539,43 +3729,43 @@ index d9ad1de6ecb5a37995e2c7b27ac641ae1d462d4f..480039dab9a57880113322d32f1daf33
      readonly reason: SurfaceRefusalReason;
      readonly partial: boolean;
  }
- 
+
 -ui-control/core/control.d.ts :: surfaceRefusalOf
 +ui-control/core/surface.d.ts :: surfaceRefusalOf
  export declare function surfaceRefusalOf(error: unknown): SurfaceRefusal | undefined;
- 
+
 -ui-control/core/control.d.ts :: SurfaceRefusalReason
 +ui-control/core/surface.d.ts :: SurfaceRefusalReason
  export type SurfaceRefusalReason = "driver-unavailable" | "person-present" | "screen-locked" | "outside-target";
- 
+
 -ui-control/core/control.d.ts :: UiAction
 +ui-control/core/surface.d.ts :: UiAction
  export type UiAction = Readonly<{
      what: "pointer";
      x: number;
-@@ -14175,18 +14178,18 @@ export type UiAction = Readonly<{
+@@ -14544,18 +14552,18 @@ export type UiAction = Readonly<{
      path: readonly string[];
  }>;
- 
+
 -ui-control/core/control.d.ts :: UiActPicture
 +ui-control/core/surface.d.ts :: UiActPicture
  export interface UiActPicture {
      readonly image: Uint8Array;
  }
- 
+
 -ui-control/core/control.d.ts :: UiAssessment
 +ui-control/core/surface.d.ts :: UiAssessment
  export interface UiAssessment {
      readonly irreversible: boolean;
      readonly why?: string;
  }
- 
+
 -ui-control/core/control.d.ts :: UiControl
 +ui-control/core/surface.d.ts :: UiControl
  export interface UiControl {
      attach(surface: UiSurface, options?: {
          readonly owner?: ExactRef<"session">;
-@@ -14194,10 +14197,12 @@ export interface UiControl {
+@@ -14563,10 +14571,12 @@ export interface UiControl {
      targetOfObservation(ref: ExactRef<"observation">): UiTarget | undefined;
      get(ref: ExactRef<"ui-target">): UiTarget | undefined;
      list(): readonly UiTarget[];
@@ -3588,7 +3778,7 @@ index d9ad1de6ecb5a37995e2c7b27ac641ae1d462d4f..480039dab9a57880113322d32f1daf33
      }): Promise<Observation>;
      prepare(input: {
          readonly observationRef: ExactRef<"observation">;
-@@ -14206,6 +14211,7 @@ export interface UiControl {
+@@ -14575,6 +14585,7 @@ export interface UiControl {
          readonly nowMs: number;
          readonly gate?: EffectGate;
          readonly clockMs?: () => Promise<number>;
@@ -3596,22 +3786,22 @@ index d9ad1de6ecb5a37995e2c7b27ac641ae1d462d4f..480039dab9a57880113322d32f1daf33
      }): Promise<UiProposal>;
      perform(input: {
          readonly effectRef: ExactRef<"effect">;
-@@ -14213,9 +14219,10 @@ export interface UiControl {
+@@ -14582,9 +14593,10 @@ export interface UiControl {
          readonly cancelled?: () => boolean;
      }): Promise<UiReceipt>;
      close(ref: ExactRef<"ui-target">): Promise<UiTarget>;
 +    detach(ref: ExactRef<"ui-target">): Promise<void>;
  }
- 
+
 -ui-control/core/control.d.ts :: UiControlDeps
 +ui-control/core/surface.d.ts :: UiControlDeps
  export interface UiControlDeps {
      readonly chain: EffectChain;
      readonly store: ResourceStore;
-@@ -14225,23 +14232,30 @@ export interface UiControlDeps {
+@@ -14594,23 +14606,30 @@ export interface UiControlDeps {
      readonly redactScreenshot?: (bytes: Uint8Array) => Promise<Uint8Array>;
  }
- 
+
 -ui-control/core/control.d.ts :: UiLimits
 +ui-control/core/surface.d.ts :: UiExpectedTarget
 +export interface UiExpectedTarget {
@@ -3625,7 +3815,7 @@ index d9ad1de6ecb5a37995e2c7b27ac641ae1d462d4f..480039dab9a57880113322d32f1daf33
      readonly observationTtlMs: number;
      readonly maxObservationBytes: number;
  }
- 
+
 -ui-control/core/control.d.ts :: UiProposal
 +ui-control/core/surface.d.ts :: UiProposal
  export interface UiProposal {
@@ -3633,20 +3823,20 @@ index d9ad1de6ecb5a37995e2c7b27ac641ae1d462d4f..480039dab9a57880113322d32f1daf33
      readonly decision: PolicyDecision;
      readonly observationRef: ExactRef<"observation">;
  }
- 
+
 -ui-control/core/control.d.ts :: UiReadiness
 +ui-control/core/surface.d.ts :: UiReadiness
  export type UiReadiness = "ready" | SurfaceRefusalReason;
- 
+
 -ui-control/core/control.d.ts :: UiReceipt
 +ui-control/core/surface.d.ts :: UiReceipt
  export interface UiReceipt {
      readonly effectRef: ExactRef<"effect">;
      readonly state: EffectState;
-@@ -14251,19 +14265,26 @@ export interface UiReceipt {
+@@ -14620,19 +14639,26 @@ export interface UiReceipt {
      readonly modelImage?: Uint8Array;
  }
- 
+
 -ui-control/core/control.d.ts :: UiSurface
 +ui-control/core/surface.d.ts :: UiReviewTarget
 +export interface UiReviewTarget {
@@ -3669,7 +3859,7 @@ index d9ad1de6ecb5a37995e2c7b27ac641ae1d462d4f..480039dab9a57880113322d32f1daf33
 -    assess?(action: UiAction): Promise<UiAssessment>;
 +    assess?(action: UiAction, expected: UiExpectedTarget): Promise<UiAssessment>;
  }
- 
+
 -ui-control/core/control.d.ts :: UiTarget
 +ui-control/core/surface.d.ts :: UiTarget
  export interface UiTarget {

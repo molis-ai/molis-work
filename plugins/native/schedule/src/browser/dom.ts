@@ -1,10 +1,7 @@
+import { requiredQuery } from "@molis-ai/molis-work-plugin-sdk/browser";
 import type { Translate } from "./types.js";
 
-export const required = <T extends Element = HTMLElement>(root: ParentNode, selector: string): T => {
-  const node = root.querySelector<T>(selector);
-  if (!node) throw new Error(`Schedule page: ${selector} is missing`);
-  return node;
-};
+export const required = requiredQuery(selector => `Schedule page: ${selector} is missing`);
 
 /** The detail on show for a row, by the id its `data-schedule-detail` carries. */
 export const detailOf = (workbench: ParentNode, id: string): HTMLElement | undefined =>

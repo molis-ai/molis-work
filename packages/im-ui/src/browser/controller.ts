@@ -16,6 +16,7 @@ import type { createImDialogs } from './controller-dialogs.js';
 import type { createImStartup } from './controller-startup.js';
 import type { createImPage } from './controller-page.js';
 import type { createImClicks } from './controller-clicks.js';
+import type { createImObjects } from './objects.js';
 
 /** The factories installed by the discussion browser entry. */
 export interface ImFactories {
@@ -35,6 +36,7 @@ export interface ImFactories {
   createImStartup: typeof createImStartup;
   createImPage: typeof createImPage;
   createImClicks: typeof createImClicks;
+  createImObjects: (controller: ImCtx) => ReturnType<typeof createImObjects>;
 }
 
 /** Browser-owned orchestration only. Facts remain in the shared server. The work itself is in the controller-* layers. */
@@ -57,7 +59,7 @@ export function startIm(factories: ImFactories) {
   const elements = { root, v, q, e, icon, dialog, dialogBody, projectId, s };
   // Cross-layer calls happen in the returned handlers, once the full context is assembled.
   const context = (): ImCtx => c;
-  const { api, storage, connectProject, subscribe } = factories.createTransport(() => { s.authLost = true; c.syncComposer('group'); c.syncComposer('thread'); c.syncError((uiText.text("im-ui.status.session-expired"))); });
+  const { api, storage, connectProject, subscribe } = factories.createTransport(() => { s.authLost = true; c.syncComposer('group'); c.syncComposer("thread"); c.refreshObjects?.(); c.syncError((uiText.text("im-ui.status.session-expired"))); });
   const { merge, latest, reset: resetHistory } = factories.createHistory(api);
   const base: ImBaseCtx = Object.assign(elements, { api, storage, connectProject, subscribe, merge, latest, resetHistory, drafts: factories.createDrafts(storage) });
   // One typed source avoids Object.assign's variadic any overload; all factories run before base receives the methods.
@@ -74,6 +76,7 @@ export function startIm(factories: ImFactories) {
   const c: ImCtx = Object.assign(methods, { invitations: factories.createInvitations({ api, dialog, body: dialogBody, current: () => ({ room: s.roomId, version: s.dialogVersion }),
     open: methods.openDialog, escape: e, icon, toast: methods.toast }) });
   factories.createImPage(c);
+  c.refreshObjects = factories.createImObjects(c);
   factories.createImClicks(c);
   if (parent !== window) parent.postMessage({ type: 'molis:im-ready' }, location.origin);
   void c.startup();

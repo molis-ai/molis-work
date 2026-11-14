@@ -1,3 +1,4 @@
+import { cutWithEllipsis } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { assistantErrors, whenThere } from "./assistant-errors.js";
 import { randomUUID } from "node:crypto";
 import type { AgentWorkGraphPort, AgentWorkNode } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
@@ -83,7 +84,7 @@ export class AssistantDelegations {
       const state = await this.ports.stateOf(host ?? await this.ports.host(), work);
       const reply = work.session_id ? await this.ports.lastReply(work).catch(() => undefined) : undefined;
       const results = store.relations.forWork(identity(work)).filter(row => row.relation === "result").map(row => ({ kind: row.object.kind, id: row.object.id, revision: row.object.revision }));
-      return { work_id: work.work_id, title: work.title, state, ...(reply ? { reply: reply.length > 1200 ? reply.slice(0, 1200) + "…" : reply } : {}),
+      return { work_id: work.work_id, title: work.title, state, ...(reply ? { reply: cutWithEllipsis(reply, 1200, { prefixLength: 1200 }) } : {}),
         ...(results.length ? { results } : {}), follow_ups: followUps(partSteps(nodes, work)),
         ...(work.delegated_by?.taken_back_at ? { taken_back: true, note: TAKEN_BACK_NOTE } : {}) };
     };
@@ -142,9 +143,10 @@ export class AssistantDelegations {
         const child = own(workId), { graph_id, node_id } = child.delegated_by!;
         const host = await this.ports.host(), assertParent = await this.#holdParent(host, parent), graphs = await this.#graphs(host);
         if (child.delegated_by?.taken_back_at) throw assistantErrors.invalid("用户已把这个子任务收回到这项工作，这部分由你在这里继续，不要再对它追加");
+        if (child.archived) throw assistantErrors.invalid("用户已把这个子任务收起，不要再对它追加；还需要它时告诉用户，由用户先恢复它");
         const assertLifetime = await holdAssistantWorkLifetime(host, child);
         const assertCurrent = () => {
-          assertParent(); assertLifetime?.(); store.assertWorkPermissionTransitionFree(child.work_id);
+          assertParent(); assertLifetime?.(); store.permissionTransitions.assertWorkPermissionTransitionFree(child.work_id);
           if (own(workId).delegated_by?.taken_back_at) throw assistantErrors.state("这项子任务已被收回");
         };
         const steps = partSteps(await graphs.read(graph_id), child);
@@ -228,7 +230,7 @@ export class AssistantDelegations {
     const { store, actorId } = this.ports, original = store.get(actorId, parent.work_id);
     const assertLifetime = await holdAssistantWorkLifetime(host, original), control = assistantEndControl(store, original);
     return () => {
-      store.assertWorkPermissionTransitionFree(parent.work_id); assertLifetime?.(); control.assertCurrent();
+      store.permissionTransitions.assertWorkPermissionTransitionFree(parent.work_id); assertLifetime?.(); control.assertCurrent();
       const current = store.get(actorId, parent.work_id);
       if (current.archived || current.executor.kind !== "assistant" || current.session_id !== parent.session_id) throw assistantErrors.state("原工作已结束或转交");
     };
@@ -250,7 +252,7 @@ export class AssistantDelegations {
     const { store, actorId } = this.ports;
     const child = store.get(actorId, childId), parent = this.parentOf(child);
     if (!child.delegated_by || !parent) throw assistantErrors.invalid("这不是一个子任务");
-    const release = store.holdWorkPermissions([child.work_id]);
+    const release = store.permissionTransitions.holdWorkPermissions([child.work_id]);
     try {
       const host = await this.ports.host(), ending = assistantWorkEnding(host, child), control = assistantEndControl(store, child, caller);
       assertAssistantSessionSettled(host, child);

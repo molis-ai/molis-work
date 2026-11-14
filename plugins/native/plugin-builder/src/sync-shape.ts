@@ -37,7 +37,7 @@ export function assertBuilderIdle(builds:readonly AgentBuild[]):void{
  if(builds.some(b=>b.active||['building','designing'].includes(b.phase)||b.candidates?.some(c=>c.mockup?.status==='drawing')))builderSyncBusy();
 }
 function design(value:unknown){
- const d=object(value);keys(d,['catalog','id','title','description','rationale','journey','contract','parts','acceptance','presentation','experience','localePacks'],['id','title','description','rationale','journey','contract','parts','acceptance']);
+ const d=object(value);keys(d,['catalog','id','title','description','rationale','journey','contract','parts','acceptance','presentation','experience','localePacks','ui'],['id','title','description','rationale','journey','contract','parts','acceptance']);
  return validateBuilderDesignDomain(d);
 }
 function snapshot(value:unknown,pluginId?:string){

@@ -43,3 +43,5 @@ WORK-07 的订阅、席位与平台变更专项联调：构建后以 `MOLIS_AUTH
 WORK-08：`account.features.list@1` 与 `account.entitlements.check@1` 是中央只读动作；后者虽为 HTTP POST，不要求中央写操作幂等键。权益展示复用 `scripts/account-billing.test.mjs`，不缓存离线授权。
 
 2026-11-08 改：安装登录与 Home 共用 V2，不再各有一套当前账号。V1 配置/存储不读取；已有原生证明和短时 Cookie 只负责本机附着，不能安装中央 Token。拒绝场景在上述 Host 安全测试。安装联合验收运行 `MOLIS_AUTH_SOURCE=/absolute/path/to/auth node scripts/account-installation.test.mjs`，须先构建 Auth WASM 与 Work，并按机器 browser 时段执行；使用真实 Host/Auth、临时 Home/D1 与外部 mock，覆盖 A/B/A、原生附着、旧 Cookie 拒绝、同一会话及重启后的本地事实归属。不运行旧双栈回退；Club 本轮未核对。
+
+短信认证接入：Work 的 `REQUEST_CHALLENGE`、`VERIFY_CHALLENGE`、`PHONE_LOGIN`、`COMPLETE` 始终调用中央 Auth 的现有 V2 合同。阿里云发送、核验、签名、模板及密钥归 Auth，Work 不生成或比较短信验证码，不配置云厂商密钥。Auth 的登录网页也使用同一套中央挑战接口。真实短信由 Auth 的 LIVE 模式启用；本机模拟测试继续明确使用 MOCK。短信接入不改变公开 DTO 或 operationId。

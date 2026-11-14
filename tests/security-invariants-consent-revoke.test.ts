@@ -108,7 +108,8 @@ test("RAC-393 S-77 the Host registers the consent actions with its other platfor
   try {
     const views = await host.inspectActionMetadata({ actor_id: "local-person", project_id: null, audience: "user", permissions: PLUGIN_CONSENT_PERMISSIONS });
     const consents = views.filter(view => view.capability_id.startsWith("plugins.consents."));
-    assert.deepEqual(consents.map(view => view.capability_id).sort(), [pluginConsentActions.list.capability_id, pluginConsentActions.revoke.capability_id].sort());
+    assert.deepEqual(consents.map(view => view.capability_id).sort(),
+      [pluginConsentActions.list.capability_id, pluginConsentActions.revoke.capability_id, pluginConsentActions.grantDefaultSource.capability_id].sort());
     for (const view of consents) assert.deepEqual([view.provider.kind, view.provider.plugin_id], ["system", undefined]);
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });

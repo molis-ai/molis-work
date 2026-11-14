@@ -64,6 +64,10 @@ test("an object picked with “@” is checked with its owner and read by it bef
       return { discover: async () => scoped.discover(await local.localPersonContext(ref)),
         invoke: async (action, input) => scoped.invoke(await local.localPersonContext(ref), action, input) };
     },
+    // A project-folder reference the side panel handed in: the platform's materials service answers as the Host's port does.
+    readMaterial: async (_project, ref) => ({ ref, title: "plan.md", read_revision: ref.pin.mode === "snapshot" ? "b".repeat(64) : "a".repeat(64), comparable: true,
+      state: ref.pin.mode === "current" && ref.pin.read_revision !== "a".repeat(64) ? "changed" as const : "ok" as const,
+      text: ref.pin.mode === "snapshot" ? "要引用的那一段" : "整份文件", ...(ref.pin.mode === "snapshot" ? { selection: { start: 4, end: 11 } } : {}) }),
     projectTitle: async () => project.display_name, timeZone: "Asia/Shanghai" }, "web-user");
   try {
     // What the “@” list shows: a hit from the system search, found by the person.
@@ -116,6 +120,23 @@ test("an object picked with “@” is checked with its owner and read by it bef
       materials: [{ ...pinned, reference: { material: { ...pinned.reference.material, pin: { mode: "current", read_revision: "old" } } } }] }, {}),
       (error: unknown) => error instanceof ActionError && error.code === "assistant.invalid" && Boolean(error.details?.unreadable));
     assert.deepEqual(store.get("web-user", sent.work.work_id), beforeRefusal, "refusal leaves the existing work, draft and continuation unchanged");
+
+    // Files retirement S5: a quote of a project-folder file (the side panel's 「加入任务」) is read back through the platform's
+    // materials service before the round; the model is told where it came from, and a file changed since is refused before any call.
+    const quote = { material_id: "mat-1", kind: "object" as const, title: "plan.md · 第 2 行", explicit: true,
+      reference: { material: { subject: { kind: "workspace_file", id: "ws-1:plan.md" }, pin: { mode: "snapshot" as const, version: { artifact_id: "system.materials:capture:1", version: 1 } } } },
+      object: { kind: "workspace_file", id: "ws-1:plan.md", title: "plan.md · 第 2 行" } };
+    const beforeQuote = requests.length;
+    await service.send({ text: "按这段改", request_id: "mention-quote-1", work_id: sent.work.work_id, materials: [quote] }, {});
+    await until(async () => requests.length > beforeQuote && (await service.read(sent.work.work_id)).work.state === "completed", "round with a quote");
+    assert.ok(requests.at(-1)!.includes("已向平台资料服务读取（固定的版本，是其中一段选区）") && requests.at(-1)!.includes("要引用的那一段"), "the fixed quote, read back");
+    const quoted = (await service.read(sent.work.work_id)).rounds.at(-1)!.materials[0]!;
+    assert.deepEqual([quoted.title, quoted.object?.id, String(quoted.object?.version), quoted.reference], ["plan.md · 第 2 行", "ws-1:plan.md", "b".repeat(64), undefined]);
+    const afterQuote = requests.length;
+    await assert.rejects(service.send({ text: "再看整份", request_id: "mention-quote-2", work_id: sent.work.work_id,
+      materials: [{ ...quote, reference: { material: { subject: quote.reference.material.subject, pin: { mode: "current" as const, read_revision: "c".repeat(64) } } } }] }, {}),
+      (error: unknown) => error instanceof ActionError && error.code === "assistant.invalid" && Boolean(error.details?.unreadable));
+    assert.equal(requests.length, afterQuote, "a file changed since it was shown stops the send before any model call");
 
     // Which kind an open tab is, from what plugins declare for their searchable objects.
     const kinds = await service.reads.surfaceKinds({ project_ref: reference });

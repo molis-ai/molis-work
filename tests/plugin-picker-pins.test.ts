@@ -24,7 +24,7 @@ const primitives = {
  * them. Goals is 常开; Text Stats comes with Files and Feed with Inbox.
  */
 const HOST_MARKS: Readonly<Record<string, { always_on?: true; companions?: readonly string[] }>> = {
-  goals: { always_on: true }, "text-stats": { companions: ["files"] }, feed: { companions: ["inbox"] },
+  goals: { always_on: true }, feed: { companions: ["inbox"] },
 };
 const marked = () => builtinPluginDirectory().map(entry => ({ ...entry, ...HOST_MARKS[entry.id] }));
 
@@ -120,14 +120,15 @@ test("DOCK-05 DOCK-06 one button, two states: a plus while the plugin is not in 
 });
 
 test("DOCK-06 what adding adds along, and what removing takes with it, is written on the tile", () => {
-  // Text Stats comes with Files; Feed with Inbox (the Projects service applies both, and the other way round on removal).
-  // Text Stats is offered to add only in developer mode (W2-18 decision 5); a project that has it shows it in either.
+  // Feed comes with Inbox (the Projects service applies it, and the other way round on removal). Text Stats, which came with Files
+  // until batch 06 retired Files, now reads the platform's materials and brings nothing; it is offered to add only in developer
+  // mode (W2-18 decision 5).
   const missing = renderPluginRail(primitives, ["goals"], marked(), { developerMode: true });
-  assert.match(tileOf(missing, "text-stats").wrapper, /data-along="Files"/);
-  assert.match(tileOf(missing, "text-stats").toggle, /添加会同时添加：Files/);
+  assert.doesNotMatch(tileOf(missing, "text-stats").wrapper, /data-along/);
+  assert.doesNotMatch(tileOf(missing, "text-stats").toggle, /添加会同时添加/);
   assert.match(tileOf(missing, "feed").wrapper, /data-along="Inbox"/);
-  const all = renderPluginRail(primitives, ["goals", "files", "text-stats", "inbox", "feed"], marked());
-  assert.match(tileOf(all, "files").wrapper, /data-dependents="Text Stats"/, "removing Files takes Text Stats with it");
+  assert.match(tileOf(missing, "feed").toggle, /添加会同时添加：Inbox/);
+  const all = renderPluginRail(primitives, ["goals", "text-stats", "inbox", "feed"], marked());
   assert.match(tileOf(all, "inbox").wrapper, /data-dependents="Feed"/, "removing Inbox takes Feed with it");
   assert.doesNotMatch(tileOf(all, "text-stats").wrapper, /data-dependents|data-along/, "nothing depends on Text Stats, and it is already in");
 });
@@ -137,7 +138,7 @@ test("RAC-1315 DOCK-06 an addable plugin says which plugins that depend on it wi
   assert.match(tileOf(missing, "inbox").toggle, /；依赖它的插件不会一并添加：Feed/, "adding Inbox alone does not bring Feed");
   const withFeed = renderPluginRail(primitives, ["goals", "feed"], marked());
   assert.doesNotMatch(tileOf(withFeed, "inbox").toggle, /依赖它的插件不会一并添加/, "Feed is already here");
-  const all = renderPluginRail(primitives, ["goals", "files", "text-stats", "inbox", "feed"], marked());
+  const all = renderPluginRail(primitives, ["goals", "text-stats", "inbox", "feed"], marked());
   assert.match(tileOf(all, "inbox").wrapper, /data-dependents="Feed"/, "the removal path is unchanged");
 });
 

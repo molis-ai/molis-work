@@ -142,8 +142,12 @@ test("RAC-1001-QUEUE: an attach skipped after a real registry wait cannot undo a
     assert.equal(home.host.homePlugins!.installation(PLUGIN_ID)?.state, "disabled");
     await assert.rejects(pull(home), code("plugin.integration_unavailable"));
     enabling = home.host.homePlugins!.packageAction(PLUGIN_ID, "enable");
+    // SCS-16: enabling a signed package waits on the Home's installation line, which the queued install still holds; only disable skips it.
+    assert.equal(await Promise.race([secondAttach.promise.then(() => "attached"), new Promise(resolve => setTimeout(resolve, 300, "waiting"))]), "waiting",
+      "the enable does not attach while the install it follows is still in its attach");
+    release.resolve();
     await within("second attach queued", secondAttach.promise);
-    release.resolve(); await Promise.all([held, installing, enabling]);
+    await Promise.all([held, installing, enabling]);
     assert.deepEqual(outcomes, [false, true], "the old attach actually returned without registration; the new one registered");
     assert.equal(home.host.homePlugins!.installation(PLUGIN_ID)?.state, "running");
     assert.equal(registry.integration("example-feed")?.plugin_id, PLUGIN_ID);

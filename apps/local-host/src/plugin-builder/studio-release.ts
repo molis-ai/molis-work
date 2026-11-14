@@ -7,7 +7,7 @@ import { SANDBOX_PACKAGE_FILES, type PluginPackageBundle } from '@molis-ai/molis
 import { effectsFromContract, sandboxPluginManifest } from '@molis-ai/molis-work-plugin-sdk';
 import { parsePluginPackage, signPluginPackage, verifyPluginPackageSignature } from '@molis-ai/molis-work-plugin-runtime';
 import { assertContract } from '@molis-ai/molis-work-plugin-sandbox';
-import { validatePluginComponentNodes, validatePluginPresentation } from '@molis-ai/molis-work-design-system';
+import { validatePluginComponentNodes, validatePluginComponentPlans, validatePluginPresentation } from '@molis-ai/molis-work-design-system';
 import type { AgentBuilderPorts, AgentBuild, AgentRelease, AgentPublicationControl } from './agent-surface.js';
 import { assertHomePackageAllowed } from '../home-package-admission.js';
 import { readKeptSandboxPackage } from '../sandbox-package.js';
@@ -74,7 +74,8 @@ export function createStudioPublisher(home: string, root: string): AgentBuilderP
       await control.beforeEffect();
       if (control.versions().some(item => item.version === version)) throw studioProblem("plugin-builder.request.version-already-published", '发布版本已存在');
       const design = build.design!;
-      assertContract(design.contract); validatePluginComponentNodes(build.nodes, design.parts, design.contract);
+      assertContract(design.contract);
+      validatePluginComponentNodes(build.nodes, validatePluginComponentPlans(design.parts, design.contract, design.ui), design.contract);
       if (design.presentation) validatePluginPresentation(design.presentation, design.parts, design.contract);
       const code = await readBuildFile(build.directory!, relative(build.directory!, bundlePath), 8 * 1024 * 1024);
       control.assertCurrent();

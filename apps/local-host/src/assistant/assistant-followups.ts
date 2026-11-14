@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
+import { zonedParts } from "@molis-ai/molis-work-plugin-sdk";
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import type { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentActionReviewControl, AgentRuntimeAdapter, AgentScheduleCapability, AgentScheduledTask } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -86,7 +88,7 @@ export interface AssistantFollowUpPorts<W extends FollowUpWork> {
   readonly timeZone?: string;
   /** The work by id; throws when it no longer exists. */
   work(workId: string): W;
-  holdWork?(work: W): Promise<{ assertCurrent(): void; release(): void; adapter: AgentRuntimeAdapter } | undefined>;
+  holdWork?(work: W): Promise<{ assertCurrent(): void; release(): void } | undefined>;
   notify(notice: Pick<AssistantNotice, "kind" | "work_id" | "work_title" | "text" | "open">, dedupe: string): boolean;
   setting(key: string): string | null;
   setSetting(key: string, value: string): void;
@@ -149,11 +151,10 @@ export class AssistantFollowUps<W extends FollowUpWork> {
         time_zone: input.time_zone || ports.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone, enabled: true, created_at: ports.now().toISOString() };
       ports.records.save(ports.actorId, followUp);
       this.#runnerFor(schedule);
-      const effect = held && { adapter: held.adapter, control: {
+      await this.#enqueueCurrent(followUp, work.session_id, schedule, held && {
         beforeEffect: async () => { await control?.beforeEffect(); },
         assertCurrent: () => { control?.assertCurrent(); held.assertCurrent(); },
-      } };
-      await this.#enqueueCurrent(followUp, work.session_id, schedule, effect);
+      });
       return followUp;
     } finally { held?.release(); }
   }
@@ -199,7 +200,7 @@ export class AssistantFollowUps<W extends FollowUpWork> {
       if (queued && (queued.state === "failed" || queued.state === "reconcile-required")) { await this.#run(followUp).catch(() => undefined); continue; }
       const held = await this.ports.holdWork?.(work).catch(() => undefined);
       if (this.ports.holdWork && !held) continue;
-      try { await this.#enqueueCurrent(followUp, work.session_id, schedule, held && this.#original(held)); }
+      try { await this.#enqueueCurrent(followUp, work.session_id, schedule, held && { assertCurrent: held.assertCurrent }); }
       catch (error) { this.#unreadableWorks.failed(followUp.followup_id, error, { followup_id: followUp.followup_id }); }
       finally { held?.release(); }
     }
@@ -218,20 +219,16 @@ export class AssistantFollowUps<W extends FollowUpWork> {
     return isDeepStrictEqual(this.list().find(item => item.followup_id === expected.followup_id), expected);
   }
 
-  #original(held: { adapter: AgentRuntimeAdapter; assertCurrent(): void }) {
-    return { adapter: held.adapter, control: { assertCurrent: held.assertCurrent, beforeEffect: held.assertCurrent } };
-  }
-
   async #enqueueCurrent(followUp: AssistantFollowUp, sessionId: string, schedule: AgentScheduleCapability,
-    original?: { adapter: AgentRuntimeAdapter; control: AgentActionReviewControl }): Promise<void> {
+    original?: Pick<AgentActionReviewControl, "assertCurrent"> & Partial<Pick<AgentActionReviewControl, "beforeEffect">>): Promise<void> {
     if (!this.#isCurrent(followUp)) return;
-    const task = followUpTask(followUp, sessionId), enqueue = () => schedule.enqueue(task);
+    const task = followUpTask(followUp, sessionId);
     const assertCurrent = () => {
-      original?.control.assertCurrent();
+      original?.assertCurrent();
       if (!this.#isCurrent(followUp)) throw assistantErrors.state("原定时已变化，不能再加入运行队列");
     };
-    if (original) await inAssistantWorkEffect(original.adapter, { beforeEffect: original.control.beforeEffect, assertCurrent }, enqueue);
-    else await enqueue();
+    // Admission uses the original request. The later timer wakes under the queue's own authority.
+    await schedule.enqueue(task, { beforeCommit: async () => { await original?.beforeEffect?.(); assertCurrent(); return assertCurrent; } });
     if (!this.#isCurrent(followUp)) await schedule.cancel(task.key);
   }
 
@@ -291,7 +288,7 @@ export class AssistantFollowUps<W extends FollowUpWork> {
       const saved: AssistantFollowUp = { ...rest, ...(next !== undefined ? { next_at: new Date(next).toISOString() } : {}), enabled: next !== undefined,
         last: { due_at: due, at: now.toISOString(), outcome, ...(detail ? { detail } : {}) }, ...(missed.length ? { missed } : {}) };
       if (!ports.records.save(ports.actorId, saved, followUp)) return;
-      if (next !== undefined && work?.session_id) await this.#enqueueCurrent(saved, work.session_id, await ports.schedule(), held && this.#original(held));
+      if (next !== undefined && work?.session_id) await this.#enqueueCurrent(saved, work.session_id, await ports.schedule(), held && { assertCurrent: held.assertCurrent });
     } finally { held?.release(); }
   }
 
@@ -369,10 +366,11 @@ export class AssistantFollowUps<W extends FollowUpWork> {
           const due = Date.parse(reminder.due_at);
           if (!(due >= from.getTime() && due <= now.getTime())) continue;
           const late = now.getTime() - due > REMINDER_LATE_MS;
+          const title = cutHead(reminder.title, 120);
           const told = ports.notify({ kind: "reminder", work_id: "", work_title: collection.source.title,
             text: assistantWords(late ? "workbench.assistant-notice.reminder-missed" : "workbench.assistant-notice.reminder",
-              { source: collection.source.title, at: dateArg(reminder.due_at, "time", { time_zone }), title: reminder.title }),
-            ...(reminder.open ? { open: { surface: reminder.open.surface, id: reminder.open.id, title: reminder.title, project_id: reminder.project_id } } : {}) },
+              { source: collection.source.title, at: dateArg(reminder.due_at, "time", { time_zone }), title }),
+            ...(reminder.open ? { open: { surface: reminder.open.surface, id: reminder.open.id, title, project_id: reminder.project_id } } : {}) },
             `reminder:${provider.provider.provider_id}:${reminder.reminder_id}`);
           if (told) raised += 1;
         }
@@ -436,8 +434,11 @@ export class AssistantFollowUps<W extends FollowUpWork> {
 export function sameLocalTimeLater(at: number, days: number, timeZone: string | undefined): number {
   let wall: (ms: number) => number;
   try {
-    const format = new Intl.DateTimeFormat("en-US", { timeZone, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" });
-    wall = ms => { const part = Object.fromEntries(format.formatToParts(new Date(ms)).map(item => [item.type, item.value])); return Date.UTC(+part.year!, +part.month! - 1, +part.day!, +part.hour!, +part.minute!, +part.second!) + ms % 1000; };
+    const parts = zonedParts(timeZone, { seconds: true });
+    wall = ms => {
+      const part = parts(ms);
+      return Date.UTC(+part.year!, +part.month! - 1, +part.day!, +part.hour!, +part.minute!, +part.second!) + ms % 1000;
+    };
   } catch { return at + days * 86_400_000; }
   const target = wall(at) + days * 86_400_000;
   const guess = target - (wall(at) - at);

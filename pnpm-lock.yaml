@@ -115,9 +115,6 @@ importers:
       '@molis-ai/molis-work-plugin-feed':
         specifier: workspace:*
         version: link:plugins/native/feed
-      '@molis-ai/molis-work-plugin-files':
-        specifier: workspace:*
-        version: link:plugins/native/files
       '@molis-ai/molis-work-plugin-form':
         specifier: workspace:*
         version: link:plugins/native/form
@@ -208,6 +205,9 @@ importers:
       '@molis-ai/molis-work-service-search':
         specifier: workspace:*
         version: link:horizontal/search
+      '@molis-ai/molis-work-service-surfaces':
+        specifier: workspace:*
+        version: link:horizontal/surfaces
       '@molis-ai/molis-work-storage':
         specifier: workspace:*
         version: link:packages/storage
@@ -389,9 +389,6 @@ importers:
       '@molis-ai/molis-work-plugin-feed':
         specifier: workspace:*
         version: link:../../plugins/native/feed
-      '@molis-ai/molis-work-plugin-files':
-        specifier: workspace:*
-        version: link:../../plugins/native/files
       '@molis-ai/molis-work-plugin-form':
         specifier: workspace:*
         version: link:../../plugins/native/form
@@ -485,6 +482,9 @@ importers:
       '@molis-ai/molis-work-service-search':
         specifier: workspace:*
         version: link:../../horizontal/search
+      '@molis-ai/molis-work-service-surfaces':
+        specifier: workspace:*
+        version: link:../../horizontal/surfaces
       '@molis-ai/molis-work-storage':
         specifier: workspace:*
         version: link:../../packages/storage
@@ -549,6 +549,9 @@ importers:
       '@molis-ai/molis-work-design-system':
         specifier: workspace:*
         version: link:../../packages/design-system
+      '@molis-ai/molis-work-im-ui':
+        specifier: workspace:*
+        version: link:../../packages/im-ui
       '@molis-ai/molis-work-module-artifacts':
         specifier: workspace:*
         version: link:../../modules/artifacts
@@ -573,9 +576,6 @@ importers:
       '@molis-ai/molis-work-plugin-feed':
         specifier: workspace:*
         version: link:../../plugins/native/feed
-      '@molis-ai/molis-work-plugin-files':
-        specifier: workspace:*
-        version: link:../../plugins/native/files
       '@molis-ai/molis-work-plugin-form':
         specifier: workspace:*
         version: link:../../plugins/native/form
@@ -754,6 +754,15 @@ importers:
         specifier: workspace:*
         version: link:../../packages/contracts
 
+  horizontal/surfaces:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../../packages/plugin-sdk
+
   modules/artifacts:
     dependencies:
       '@molis-ai/molis-work-contracts':
@@ -894,6 +903,9 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@molis-ai/molis-work-kernel':
+        specifier: workspace:*
+        version: link:../kernel
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../plugin-sdk
@@ -1055,19 +1067,6 @@ importers:
       sanitize-html:
         specifier: ^2.17.7
         version: 2.17.7
-    devDependencies:
-      esbuild:
-        specifier: ^0.28.2
-        version: 0.28.2
-
-  plugins/native/files:
-    dependencies:
-      '@molis-ai/molis-work-contracts':
-        specifier: workspace:*
-        version: link:../../../packages/contracts
-      '@molis-ai/molis-work-plugin-sdk':
-        specifier: workspace:*
-        version: link:../../../packages/plugin-sdk
     devDependencies:
       esbuild:
         specifier: ^0.28.2
@@ -1754,7 +1753,7 @@ packages:
     resolution: {integrity: sha512-rDS5/31E9HfPl/CIzGrn0DOlvBbXFseQ5URJ9sYMfstbKLD/c6Gm9vmRzRGDdAXyOIL4zmO37lc9RIwYqVruZw==}
 
   '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-surface-detach.tgz':
-    resolution: {integrity: sha512-zBV/B2XCZ/lw+dvKC61g0ih4pepoNSVepXFeC653Odmsnn/kAjV7x7fZC7K2VAMi6QyT7AvOIn/lPzEdVTTt+g==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-surface-detach.tgz}
+    resolution: {integrity: sha512-aVmSyN0MVwoybBCniCO0DKX9Ha4Wgm2Gp/BO/+SpdEewHy8svxRbxuhDNTUoN4sTSZgp8+DyozLn42CJURqE7g==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-surface-detach.tgz}
     version: 0.0.0-rc.1
 
   '@protobufjs/aspromise@1.1.2':

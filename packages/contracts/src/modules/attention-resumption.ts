@@ -1,4 +1,5 @@
 import { defineErrorCodes } from "../platform/action-errors.js";
+import type { ActionSubject } from "../platform/action-subjects.js";
 import type { ContractDescriptor } from "../platform/package.js";
 
 export const modulesAttentionResumptionContract = {
@@ -34,6 +35,15 @@ export interface AttentionEntryRecord {
   created_at: string;
   updated_at: string;
   completed_at: string | null;
+}
+
+/** The owner's active references for composition. The caller still needs permission to read each object. */
+export interface AttentionSurfaceEntry {
+  owner_plugin_id: string;
+  subject: ActionSubject;
+  reason: AttentionReason;
+  revision: number;
+  entered_at: string;
 }
 
 export interface CreateAttentionEntryInput {

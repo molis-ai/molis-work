@@ -13,7 +13,7 @@ import type { SandboxJson } from "../platform/plugin-sandbox.js";
 import { SETTINGS_CONSEQUENCES, SETTINGS_LAYERS, type SettingConsequence, type SettingLayer } from "../platform/settings.js";
 import { LOCALE_TAG } from "../platform/ui-text.js";
 
-/** The scene service's public contract (specs/scene-and-page-contract/spec.md): the draft, the adoption record and the eight actions declared here. The provider is batch 44's. */
+/** The scene service's public contract (specs/scene-and-page-contract/spec.md): the draft, the adoption record and the eight actions declared here. The provider is batch 45's. */
 export const servicesBlueprintsContract = {
   contractId: /* @version contract.io.molis.work.service.blueprints "io.molis.work.service.blueprints.v{version}" */ "io.molis.work.service.blueprints.v1",
   kind: "service",
@@ -22,7 +22,7 @@ export const servicesBlueprintsContract = {
   ssot: "specs/scene-and-page-contract/spec.md",
 } as const satisfies ContractDescriptor;
 
-/** The provider id the future `system.blueprints` service (batch 44) registers the eight actions under; declared here, not registered yet. */
+/** The provider id the future `system.blueprints` service (batch 45) registers the eight actions under; declared here, not registered yet. */
 export const BLUEPRINTS_PROVIDER_ID = "system.blueprints";
 
 /**

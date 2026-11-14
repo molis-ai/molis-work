@@ -1,15 +1,17 @@
 import { currentLocale, DEFAULT_WEB_LOCALE, webLanguage } from "./web-locale.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { join } from "node:path";
-import { openServerDatabase, SERVER_DATABASE_BASELINE, Identity, ServerEvents, ContinuityService, createServerRequestHandler, createImDomain } from "@molis-ai/molis-work-server";
+import { openServerDatabase, SERVER_DATABASE_BASELINE, Identity, ServerEvents, ContinuityService, createServerRequestHandler, createImDomain, type ServerOptions } from "@molis-ai/molis-work-server";
 import { renderImPage, IM_STYLES, IM_CLIENT_SCRIPT } from "@molis-ai/molis-work-im-ui";
 import { frameUiLanguage } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { isLoopbackHostname } from "@molis-ai/molis-work-contracts/platform/loopback";
 import { homeToolKeysScript } from "@molis-ai/molis-work-app-workbench";
 import type { HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
+import type { MolisWorkLocalHost } from "./project-host.js";
+import { discussionSurfaces, type DiscussionProjectLookup } from "./im-discussion-surfaces.js";
 
 /** Only the IM surface is mounted here; the shared server owns identity and transport. */
-export function createLocalImServer(homeDirectory: string, projectFor?: (id: string) => Promise<{ id: string; title: string } | null>) {
+export function createLocalImServer(homeDirectory: string, projectFor?: DiscussionProjectLookup, localHost?: MolisWorkLocalHost) {
   let resources: ReturnType<typeof initialize> | null = null;
   let stopping = false;
 
@@ -30,7 +32,7 @@ export function createLocalImServer(homeDirectory: string, projectFor?: (id: str
   }
 
   return {
-    async handle(request: IncomingMessage, response: ServerResponse, url: URL, listeningOrigin: string): Promise<boolean> {
+    async handle(request: IncomingMessage, response: ServerResponse, url: URL, listeningOrigin: string, authenticated: () => boolean = () => false): Promise<boolean> {
       const connect = url.pathname.match(/^\/projects\/([^/]+)\/api\/im\/connect$/);
       if (!connect && url.pathname !== "/im" && !url.pathname.startsWith("/im/")) return false;
       if (stopping) {
@@ -84,7 +86,11 @@ export function createLocalImServer(homeDirectory: string, projectFor?: (id: str
         return true;
       }
       // A per-request closure supports local aliases without sharing mutable Origin state.
-      await createServerRequestHandler(current.options, () => origin)(request, response);
+      const im = current.options.im;
+      const options: ServerOptions = localHost && projectFor ? { ...current.options, im: { ...im,
+        handleImRequest: input => discussionSurfaces(localHost, projectFor, current.identity, current.continuity, im, authenticated, input),
+      } } : current.options;
+      await createServerRequestHandler(options, () => origin)(request, response);
       return true;
     },
     /** End SSE before http.Server.close waits for its active connections. */

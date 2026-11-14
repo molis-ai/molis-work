@@ -121,30 +121,31 @@ test("SPC-C08 picker and market save from their own observations, report committ
   assert.deepEqual((await writes(browser, projectId)).at(-1), { method: "DELETE", body: { plugin_id: "schedule", expected_revision: marketObservation.revision } });
   assert.equal(await browser.evaluate("window.__membershipPage === document.body"), true);
 
+  // Diff stands for a plugin the other project has not added (Files, which this used to name, retired in batch 06).
   const before = await membership(browser, other.project_id);
   await browser.click("[data-market-project-trigger]");
   await browser.click(`[data-market-project-option="${other.project_id}"]`);
-  await browser.waitFor(`${ready("files")} && ${marketState("files")} === 'available'`);
+  await browser.waitFor(`${ready("diff")} && ${marketState("diff")} === 'available'`);
   await browser.web.delete(settings(other.project_id), { plugin_id: "form", expected_revision: before.revision });
   const changed = await membership(browser, other.project_id);
   assert.notEqual(changed.revision, before.revision);
-  await browser.click(marketButton("files"));
+  await browser.click(marketButton("diff"));
   await browser.waitFor(retryVisible);
   assert.match(await browser.evaluate<string>(status), /添加 .+Another project for membership/u);
   assert.equal(await browser.evaluate("document.querySelector('[data-market-project]').value"), other.project_id);
-  assert.equal(await browser.evaluate(marketState("files")), "available");
-  assert.deepEqual(await writes(browser, other.project_id), [{ method: "POST", body: { plugin_id: "files", expected_revision: before.revision } }]);
+  assert.equal(await browser.evaluate(marketState("diff")), "available");
+  assert.deepEqual(await writes(browser, other.project_id), [{ method: "POST", body: { plugin_id: "diff", expected_revision: before.revision } }]);
   assert.equal((await membership(browser, other.project_id)).revision, changed.revision);
   await capture(browser, "market-conflict");
   await browser.click(retry);
-  await browser.waitFor(`${ready("files")} && document.querySelector('${retry}').hidden`);
+  await browser.waitFor(`${ready("diff")} && document.querySelector('${retry}').hidden`);
   assert.match(await browser.evaluate<string>(status), /核对.+添加 .+Another project for membership/u);
   assert.equal((await writes(browser, other.project_id)).length, 1, "retry only reads the project list");
-  await browser.click(marketButton("files"));
-  await browser.waitFor(`${ready("files")} && ${marketState("files")} === 'added'`);
-  assert.deepEqual((await writes(browser, other.project_id)).at(-1), { method: "POST", body: { plugin_id: "files", expected_revision: changed.revision } });
-  assert.ok((await membership(browser, other.project_id)).plugins.includes("files"));
-  assert.equal((await membership(browser, projectId)).plugins.includes("files"), false);
+  await browser.click(marketButton("diff"));
+  await browser.waitFor(`${ready("diff")} && ${marketState("diff")} === 'added'`);
+  assert.deepEqual((await writes(browser, other.project_id)).at(-1), { method: "POST", body: { plugin_id: "diff", expected_revision: changed.revision } });
+  assert.ok((await membership(browser, other.project_id)).plugins.includes("diff"));
+  assert.equal((await membership(browser, projectId)).plugins.includes("diff"), false);
 
   // A committed-only observation updates this other project's selection, but cannot authorize a second write until the index is read.
   const otherPath = `/projects/${encodeURIComponent(other.project_id)}/`;

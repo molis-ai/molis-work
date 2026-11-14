@@ -159,12 +159,19 @@ test("Coding stops hidden polling and releases every client listener before the 
   const { command, sessionId, evaluate, waitFor, click, navigate, origin, projectId } = browser;
   await command("Page.addScriptToEvaluateOnNewDocument", { source: `
     window.lifecycleErrors=[];addEventListener('error',e=>lifecycleErrors.push(e.message));addEventListener('unhandledrejection',e=>lifecycleErrors.push(String(e.reason)));
-    window.codingRequests=[];const originalFetch=window.fetch;
-    window.fetch=(input,init)=>{const path=String(input?.url||input);if(path.includes('/api/plugins/io.molis.work.coding/'))codingRequests.push({path,method:init?.method||'GET'});return originalFetch(input,init);};
+    window.codingRequests=[];window.codingViewRevisions=[];const originalFetch=window.fetch;
+    window.fetch=(input,init)=>{
+      const path=new URL(String(input?.url||input),location.href).pathname;
+      if(path.includes('/api/plugins/io.molis.work.coding/')){
+        const reads=path.endsWith('/view-revision')?codingViewRevisions:codingRequests;
+        reads.push({path:String(input?.url||input),method:init?.method||'GET'});
+      }
+      return originalFetch(input,init);
+    };
   ` }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await click('[data-plugin-strip] [data-plugin-id="coding"]');
-  await waitFor("codingRequests.some(request=>request.path.endsWith('/state'))");
+  await waitFor("codingViewRevisions.length > 0 && codingRequests.some(request=>request.path.endsWith('/state'))");
   await child.waitFor("Boolean(document.querySelector('[data-coding-input][data-composer-remote]'))");
   await child.evaluate("window.codingRoot=document.querySelector('[data-coding-workbench]');window.codingParent=codingRoot.parentElement;window.lifecycleErrors=[];addEventListener('error',e=>lifecycleErrors.push(e.message));addEventListener('unhandledrejection',e=>lifecycleErrors.push(String(e.reason)))");
   // SYS-15-L1: hiding preserves the actual browsing context, while its polling stops.
@@ -173,16 +180,21 @@ test("Coding stops hidden polling and releases every client listener before the 
   await waitFor("document.body.dataset.desktopSurface === 'inbox'");
   await pause(100);
   const hiddenReads = await evaluate<number>("codingRequests.length");
+  const hiddenRevisions = await evaluate<number>("codingViewRevisions.length");
   await pause(5500);
   assert.equal(await evaluate("codingRequests.length"), hiddenReads, "hidden Coding does not keep state or review polling alive");
+  assert.equal(await evaluate("codingViewRevisions.length"), hiddenRevisions, "the shell also stops its revision check while Coding is hidden");
   await click('[data-plugin-strip] [data-plugin-id="coding"]');
   await waitFor("document.body.dataset.desktopSurface === 'coding'");
   assert.equal(await evaluate("document.querySelector('iframe[data-plugin-frame=coding]') === originalCodingFrame"), true, "the same isolated page is restored");
   await child.waitFor("!document.body.hidden");
   await waitFor(`codingRequests.length > ${hiddenReads}`);
   await child.evaluate("codingRoot.remove()"); await pause(100);
-  const detachedReads = await evaluate<number>("codingRequests.length"); await pause(1200);
-  assert.equal(await evaluate("codingRequests.length"), detachedReads);
+  const detachedReads = await evaluate<number>("codingRequests.length");
+  const detachedRevisions = await evaluate<number>("codingViewRevisions.length");
+  // Only the client root was removed. The still-visible frame checks for a new revision of its declared view.
+  await waitFor(`codingViewRevisions.length > ${detachedRevisions}`);
+  assert.equal(await evaluate("codingRequests.length"), detachedReads, "the detached Coding client stops requesting state while its frame stays live");
   // The host stands in for the frame host: `returns` is a required member of the page host (UiPluginClientHost, specs/draft-and-return
   // §2.4); with no trip open, arrived() answers null.
   await child.evaluate(`(() => {

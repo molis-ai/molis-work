@@ -25,3 +25,31 @@ test("D0025 scrollbar cancellation, lost capture and window blur release followi
     assert.equal(await page.evaluate("thread.dataset.follow"), "following", event);
   }
 });
+
+test("VUX-26 an automatic pin cannot move a pressed control before release", { timeout: 60_000 }, async t => {
+  const executable = locateTestChrome(); if (!executable) { t.skip("Chrome is unavailable"); return; }
+  const directory = await mkdtemp(join(tmpdir(), "follow-press-"));
+  const browser = await ChromeHarness.start(directory, { executable });
+  t.after(async () => { await browser.close(); await rm(directory, { recursive: true, force: true }); });
+  const page = await browser.page();
+  const point = await page.evaluate<{ x: number; y: number }>(`(() => {
+    document.body.innerHTML = '<div id="thread" style="height:200px;overflow:auto;overflow-anchor:none"><div style="height:400px"></div><button id="run">Run</button></div>';
+    const script = document.createElement('script'); script.textContent = ${JSON.stringify(SCROLL_FOLLOW_CLIENT_SCRIPT)}; document.body.append(script);
+    thread.scrollTop = thread.scrollHeight;
+    window.follow = molisFollow(thread);
+    window.runs = 0; run.onclick = () => runs++;
+    run.focus({ preventScroll:true });
+    const box = run.getBoundingClientRect(); return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  })()`);
+  await page.command("Input.dispatchMouseEvent", { type: "mousePressed", ...point, button: "left", clickCount: 1 });
+  try {
+    await page.evaluate(`(() => { const later = document.createElement('div'); later.style.height = '300px'; thread.append(later); follow.pin(); })()`);
+    await page.evaluate(`new Promise(resolve => setTimeout(resolve,${FOLLOW_COOLDOWN_MS + 80}))`);
+    assert.equal(await page.evaluate(`document.elementFromPoint(${point.x},${point.y})===run`), true, "the same control is still under the pointer");
+  } finally {
+    await page.command("Input.dispatchMouseEvent", { type: "mouseReleased", ...point, button: "left", clickCount: 1 });
+  }
+  assert.equal(await page.evaluate("runs"), 1, "native click runs once");
+  await page.wait("thread.scrollHeight-thread.scrollTop-thread.clientHeight<=1");
+  assert.equal(await page.evaluate("thread.dataset.follow"), "following");
+});

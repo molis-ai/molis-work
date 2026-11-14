@@ -115,7 +115,9 @@ test("RAC-132 the Todo page asks the Host only through the shared request helper
     assert.doesNotMatch(source, /\bfetch\(/u, `${file} calls fetch directly`);
     assert.doesNotMatch(source, /:\s*any\b|as any\b|as unknown as|catch\s*(\([^)]*\))?\s*\{\s*\}/u, `${file} has an untyped escape or an empty catch`);
   }
-  assert.match(readFileSync("plugins/native/todo/src/browser/request.ts", "utf8"), /molisWorkRequest/);
+  // The shared helper is the plugin SDK's `pluginRequest` (batch 06, N13), which every native page uses.
+  assert.match(readFileSync("plugins/native/todo/src/browser/request.ts", "utf8"), /from "@molis-ai\/molis-work-plugin-sdk\/browser"/);
+  assert.match(readFileSync("plugins/native/todo/src/browser/request.ts", "utf8"), /\bpluginRequest\(/);
   assert.match(readFileSync("plugins/native/todo/package.json", "utf8"), /tsc -p tsconfig\.browser\.json/, "the build type-checks the browser code");
 });
 

@@ -1,8 +1,32 @@
 import { inputSchemaFor } from "./action-input.js";
-import { ActionError, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionReference, type ActionView } from "./actions.js";
+import { ActionError, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionReference, type ActionView, type ExactActionReference, type RetainedActionAuthority } from "./actions.js";
 
 export const SUBJECT_REFERENCE_TYPE = /* @version type.molis.subject-reference "molis.subject-reference.v{version}" */ "molis.subject-reference.v1";
 export const SUBJECT_CONTEXT_TYPE = /* @version type.molis.subject-context "molis.subject-context.v{version}" */ "molis.subject-context.v1";
+/** Current owner visibility; deleted means currently absent, not a permanent tombstone. */
+export const SUBJECT_STATE_TYPE = /* @version type.molis.subject-state "molis.subject-state.v{version}" */ "molis.subject-state.v1";
+export interface ActionSubjectState { subject: ActionSubject; state: "active" | "archived" | "deleted" }
+/** Host-only current owner control. Never serialized as an Action result. */
+export interface ActionSubjectCurrentState extends ActionSubjectState {
+  execution_session: Readonly<{ runtime_id: string; session_id: string }> | null;
+}
+export interface RetainedSubjectState {
+  authority: RetainedActionAuthority;
+  current(): ActionSubjectCurrentState;
+}
+export interface SubjectStateCapture {
+  subject: ActionSubject;
+  reader: ExactActionReference;
+  source: ExactActionReference;
+  accept(control: RetainedSubjectState): void;
+}
+export interface SubjectStateRequest { subject_id: string }
+const stateId = { type: "string", minLength: 1, maxLength: 200 };
+export const SUBJECT_STATE_INPUT_SCHEMA = { type: "object", properties: { subject_id: stateId }, required: ["subject_id"], additionalProperties: false };
+export const SUBJECT_STATE_OUTPUT_SCHEMA = { type: "object", properties: {
+  subject: { type: "object", properties: { kind: stateId, id: stateId }, required: ["kind", "id"], additionalProperties: false },
+  state: { enum: ["active", "archived", "deleted"] },
+}, required: ["subject", "state"], additionalProperties: false };
 export interface ActionSubject { kind: string; id: string }
 export interface ActionSubjectContext {
   subject: ActionSubject;

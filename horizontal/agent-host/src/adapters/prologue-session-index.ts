@@ -14,6 +14,14 @@ export const SESSION_INDEX_SCHEMA = /* @version format.prologue.session-index */
  * start (with display times). App provenance is encrypted in the existing Host store; model events and conversation stay
  * solely in Prologue's session ledger.
  */
+/** A generation fact from the SDK's new-child observer; no text or extra owner. */
+export interface ChildOpeningFact {
+  parent_run: string;
+  session: ExactRef<"session">;
+  run: ExactRef<"run">;
+  format: "caller-only-v1";
+}
+
 export interface SessionIndex {
   schema: typeof SESSION_INDEX_SCHEMA;
   /** Rooted child sessions may omit this; their frozen intent carries the authorized directory. */
@@ -29,8 +37,10 @@ export interface SessionIndex {
     /** The first occurrence owns text; later attempts refer to that immutable input in this same Session. */
     original_input?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentOriginalInput;
     original_input_ref?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentOriginalInputRef;
+    /** Only this parent attempt owns these exact new-child generation facts. */
+    child_openings?: ChildOpeningFact[];
     /** Trusted applicability facts for this attempt; body-free and never inferred from the model's query. */
-    memory_context?: { consumer: string; current_scene: string; facts?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecalledMemory["facts"]; usage?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecalledMemory["usage"] };
+    memory_context?: { class_restrictions?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentMemoryClassPolicy; consumer: string; current_scene: string; facts?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecalledMemory["facts"]; usage?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecalledMemory["usage"] };
     /** The round's after-write checks, by the SDK's key for each: which checker answered (prologue-after-write.ts). */
     write_checks?: Record<string, AgentWriteCheckNote> }>;
   rewinds?: PrologueRewindIntent[];

@@ -156,7 +156,7 @@ function frozenActionClient(source: AgentActionClient, validateCharacter: (() =>
       return { ...(held.resolveDelegation ? { resolveDelegation: held.resolveDelegation.bind(held) } : {}), beforeEffect: () => held.beforeEffect(),
         assertCurrent: () => { validateCharacter?.(); held.assertCurrent(); } };
     } } : {}),
-    invoke: async (ref, input, signal, review) => { validateCharacter?.(); return source.invoke(ref, input, signal, review); },
+    invoke: async (ref, input, signal, memorySelection, review) => { validateCharacter?.(); return source.invoke(ref, input, signal, memorySelection, review); },
   };
 }
 
@@ -282,7 +282,11 @@ export function startGuards(authority: AgentStartAuthority, character: AgentFroz
   const assertBeforeStart = () => { requireSynchronous(authority.assertBeforeStart?.(), "最终授权检查必须同步完成"); validateCharacter?.(); };
   const beforeStart = async () => { await authority.beforeStart?.(); assertBeforeStart(); };
   const assertBeforeDispatch = () => { requireSynchronous(authority.assertBeforeDispatch?.(), "最终授权检查必须同步完成"); validateCharacter?.(); };
-  const beforeDispatch = async () => { await authority.beforeDispatch?.(); assertBeforeDispatch(); };
+  const beforeDispatch = async () => {
+    const fence = await authority.beforeDispatch?.();
+    assertBeforeDispatch();
+    return () => { requireSynchronous(fence?.(), "最终派发检查必须同步完成"); assertBeforeDispatch(); };
+  };
   return { validateCharacter, assertBeforeStart, beforeStart, beforeDispatch, assertBeforeDispatch };
 }
 
@@ -294,6 +298,7 @@ interface ActionSource {
   session: AgentSessionRef;
   validateCharacter: (() => void) | undefined;
   execution: AgentRoleExecution;
+  memory?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecalledMemory | null;
   /** The round's frozen consumer and named list, for the Host's own `system.skills` calls the round's tools make (§2.3). */
   skillRound: ActionSkillRound;
 }
@@ -304,7 +309,7 @@ function assertActionsSupported(source: ActionSource): asserts source is ActionS
 
 async function grantedActions(source: ActionSource): Promise<AgentActionClient> {
   assertActionsSupported(source);
-  return source.authority.actions(source.runtimeId, source.validateCharacter, source.session, source.skillRound);
+  return source.authority.actions(source.runtimeId, source.validateCharacter, source.session, source.skillRound, source.memory);
 }
 
 /** The per-action tools the round picked, each found in the directory now, offered to the Agent, and within the role and Character. */
@@ -427,6 +432,7 @@ export interface StartFrozen {
   request: AgentStartRequest;
   role: AgentRoleDeclaration;
   execution: AgentRoleExecution;
+  memory?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecalledMemory | null;
   workspace: string;
   actionRefs: readonly ExactActionReference[];
   gateway: unknown;

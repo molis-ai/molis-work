@@ -2,6 +2,16 @@
 
 状态：进行中。隔离验证不代表已上线或允许维护真实 Home。
 
+### 子文档
+
+- [Goals 同步](goals.md)：Goal 项目一致性集合复用本机增量传输；公网与真实 Home 验收未完成。
+- [关联资产同步](linked-assets.md)：承接 Pages 同步；仅隔离本机联调。
+- [Pages 同步](pages.md)：本机联调闭环；未部署、未上传真实用户数据。
+- [插件复制](plugin-replication.md)：既有适配继续保留，Images/Cognia/Alchemist、Feed/Inbox、Shelf 与大对象传输尚未整合交付。
+- [同步基础](foundation.md)：插件集合声明、空间同步配置、第一阶段契约与 Pages 本地快照适配；整体同步未完成。
+
+本总纲管状态、边界与验收入口；上面的子文档管各自细节。
+
 ### 2026-11-06 PR #1877 质量审查与 CI 修复
 
 审查依据：`docs/prompts/repository-systematic-review.md` §3–12 与开发流程 §10.1；范围是本分支相对 merge-base `b1e0e5b6b` 的新增改动。PR 原 head `cece493e7`；所查 CI 为 run `42196220351`。审查开始时 main `20bdb4c16` 相对基线只有两份文档变化；末轮抓取已到 `c30e251b3`（另含连接器重新登录和终端运行时命令名单重构），后续为解决 PR 冲突合入 `a942bd9c3`，见下方接续记录。清点涵盖桌面、Host、Workbench、Worker/服务端、同步 Module、Storage/Runtime/SDK/contracts、插件 owner 与测试；深入跟踪本轮失败暴露的文件权限、存储基线、关闭生命周期、项目删除、合同消费者与 CI 分工。未声称逐行复核全部约 961 个文件，视觉验收、所有入口调用次数和最终 head Full 仍需完整证据。
@@ -188,7 +198,7 @@
 
 - [x] **复制回执与提交引擎**：原子保存操作/项目/资产身份和阶段；丢失回执重试保持同一副本，新尝试使旧尝试失效；目标编辑或删除后拒绝覆盖/重建。此项仅为已验证的公开服务引擎。
 - [ ] **实际项目文件暂存/发布**：接通准备/发布端口，使不完整项目在真实目录与恢复流程中不可见；再接到复制用户入口。不能用引擎端口合同代替实际装配。
-- [ ] **其余 owner 与附件**：接入 Projects/Goals/治理及关系历史、成果与过程固定版本/文件、Pages/Images、Feed/Sources/Attention、Workflows/Schedule、Coding/Builder/Alchemist、项目所属 Todo/Work 与明确 Home 依赖；同时覆盖独立 Runtime 的发布者、格式和激活检查。历史可保留，不转移执行或批准权限；不复制 SQLite 或扫描工作目录。缺失端口不能算作没有内容。
+- [ ] **其余 owner 与附件**：接入 Projects 与各插件（含 Goals）声明的同步集合、平台决定记录与关系历史（关联边按通用关联集合）、成果与过程固定版本/文件、Pages/Images、Feed/Sources/Attention、Workflows/Schedule、Coding/Builder/Alchemist、项目所属 Todo/Work 与明确 Home 依赖；同时覆盖独立 Runtime 的发布者、格式和激活检查。历史可保留，不转移执行或批准权限；不复制 SQLite 或扫描工作目录。缺失端口不能算作没有内容。
 - [ ] **真实用户入口和账号边界**：本地空间项目多选、关联/附件/预计容量预览、确认和结果；只接受本地根控制权限、同源 Origin 与变更令牌，目标账号来自可信当前登录租约，账号变化拒绝旧请求。离线或满额可完成个人本机副本，显示待同步；保留原件和原有同步开关/集合选择。
 - [ ] **项目云端级联过期**：用服务端期限和明确父子归属处理项目及所有子内容；目前仅清单过期可能留下仍计费的子 head。不得在 Rust 写插件名单或扫描不透明正文。若改变结构，先冻结实际当前 v6，再建立新鲜基线，校验旧库原样拒绝、CAS、恢复竞态及账号隔离。
 - [ ] **本机项目最终清理**：经唯一 ProjectDeletionService，先核对全部 owner 未结算内容、活动任务与服务端过期凭据，再清理并正确退役日志；不能按设备时间删除唯一未上传原件，不能在服务端清理后照搬普通删除钩子造成回传/阻塞。
@@ -246,9 +256,9 @@
 - Goals、Pages、内嵌 Artifacts、Form、Dataset、PPT、Lingguang、Workflows、Jelly、Todo、Issues、Schedule 会话任务、Character 草稿及 Feed 捕捉规则的限定数据适配。
 - Rust/WASM 与隔离 D1 的本机联调链路。传输仍限单记录或聚合 512 KiB，没有 R2 附件协议。
 
-基线入口：[Host 装配](../../apps/local-host/src/personal-sync.ts)、[同步协调器](../../modules/sync-replication/src/index.ts)、[Worker 配置](../../apps/sync-worker/wrangler.jsonc)、[插件覆盖表](../personal-plugin-replication/spec.md#coverage-and-remaining-owner-work)。基线客户端只接受本机 8788，保存配置或立即同步会启动轮询且重启不恢复；S1 首片已修正设备行为，S2 首片已增加可信 HTTPS 配置。已有简单删除标记不等于具备 30 天回收站；手选冲突版本不等于具备业务对比页面。
+基线入口：[Host 装配](../../apps/local-host/src/personal-sync.ts)、[同步协调器](../../modules/sync-replication/src/index.ts)、[Worker 配置](../../apps/sync-worker/wrangler.jsonc)、[插件覆盖表](plugin-replication.md#coverage-and-remaining-owner-work)。基线客户端只接受本机 8788，保存配置或立即同步会启动轮询且重启不恢复；S1 首片已修正设备行为，S2 首片已增加可信 HTTPS 配置。已有简单删除标记不等于具备 30 天回收站；手选冲突版本不等于具备业务对比页面。
 
-[plugin-sync-foundation](../plugin-sync-foundation/spec.md)、[personal-pages-sync](../personal-pages-sync/spec.md)、[personal-linked-assets-sync](../personal-linked-assets-sync/spec.md) 和 [personal-goals-sync](../personal-goals-sync/spec.md) 保留其阶段范围和证据。较早文件中的“Goal 未接入”是当时记录，不是当前状态。后续迭代遵循本规格，但不得把计划倒写成旧阶段的已交付结果。
+[同步基础](foundation.md)、[Pages 同步](pages.md)、[关联资产同步](linked-assets.md) 和 [Goals 同步](goals.md) 保留其阶段范围和证据。较早文件中的“Goal 未接入”是当时记录，不是当前状态。后续迭代遵循本规格，但不得把计划倒写成旧阶段的已交付结果。
 
 ## 3 技术责任边界
 
@@ -321,7 +331,7 @@ Auth 与同步服务分别部署。客户端只能连接可信配置注入的正
 
 | 数据范围 | 当前基础 | 本期覆盖要求 |
 | --- | --- | --- |
-| Goals、Pages、Artifacts | 有联调适配 | 关联、完整历史、附件、大对象与删除恢复；冲突仍遵守 owner 一致性单元 |
+| 声明了同步集合的插件（现有联调适配：Goals、Pages、Artifacts） | 有联调适配 | 关联、完整历史、附件、大对象与删除恢复；冲突仍遵守 owner 一致性单元 |
 | Form、Dataset、PPT、Lingguang | 有联调适配 | 答卷、保存版本、备注及对话等现有可携带字段，补齐大对象与附件 |
 | Jelly、Todo、Issues | 有联调适配 | 日历、笔记、待办、问题及对应历史和附件；不复制本机撤销或临时审查现场 |
 | Feed、Inbox 及外部来源 | 业务描述、获取正文、注意力及历史已有实际 Host/临时 D1/R2 往返 | 来源的可携带业务描述、已获取的内容、注意力记录、历史和引用；外部账号重新关联，不同步令牌和拉取租约 |

@@ -23,7 +23,7 @@ export async function controlAssistantWork(work: StoredWork, control: Exclude<As
   if (work.executor.kind === "plugin") {
     const session = work.executor.session_id;
     if (!session && closeForDeletion) return;
-    const release = ports.store.holdWorkPermissions([work.work_id], control.kind === "stop");
+    const release = ports.store.permissionTransitions.holdWorkPermissions([work.work_id], control.kind === "stop");
     const effect = assistantEndControl(ports.store, work, caller);
     try {
       const executor = await ports.executor(work, { beforeEffect: async () => { await effect.beforeEffect(); }, assert_authority_current: effect.assertCurrent });
@@ -38,7 +38,7 @@ export async function controlAssistantWork(work: StoredWork, control: Exclude<As
   }
   // Prevent a prepared automatic start while validating; an invalid request changes no durable work or setup.
   const children = control.kind === "stop" ? ports.store.delegatedBy(ports.actorId, work, "any") : [];
-  const endAccess = ports.store.holdWorkPermissions([work.work_id, ...children.map(child => child.work_id)], control.kind === "stop");
+  const endAccess = ports.store.permissionTransitions.holdWorkPermissions([work.work_id, ...children.map(child => child.work_id)], control.kind === "stop");
   const release = ports.continuations.blockStart(work.work_id);
   try {
     const host = await ports.host();
@@ -59,7 +59,7 @@ export async function controlAssistantWork(work: StoredWork, control: Exclude<As
     const effect = assistantEndControl(ports.store, work, caller);
     await effect.beforeEffect(); effect.assertCurrent();
     ports.continuations.invalidateInput(work.work_id);
-    if (running || wait?.wait || ending) ports.store.update(ports.actorId, work.work_id, null, { continuation_hold: control.kind === "resume" ? undefined : control.kind === "pause" ? "paused" : "stopped" }, false);
+    if (running || wait?.wait) ports.store.update(ports.actorId, work.work_id, null, { continuation_hold: control.kind === "resume" ? undefined : control.kind === "pause" ? "paused" : "stopped" }, false);
     if (control.kind === "stop") {
       await ports.delegations.hold(work, effect);
       await effect.beforeEffect(); effect.assertCurrent();

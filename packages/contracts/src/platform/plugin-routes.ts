@@ -23,7 +23,7 @@ export type PluginRouteStreamLine =
   | { type: "result"; result: unknown }
   | { type: "error"; status: number; code: string; error: string; call_id?: string; details?: Readonly<Record<string, unknown>> };
 
-export type PluginExecutionControl = Pick<import("./actions.js").ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "locale" | "assert_authority_current" | "retainBackgroundAuthority" | "query_only"> & {
+export type PluginExecutionControl = Pick<import("./actions.js").ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "locale" | "assert_authority_current" | "retainBackgroundAuthority" | "query_only" | "assert_memory_sources_current"> & {
   /**
    * The project a Home instance's route was called in: the Host reads it from the page's path (`/projects/<id>/api/plugins/…`) after
    * checking that the project exists and shows this plugin, never from the route's parameters, query or body. The plugin's own action

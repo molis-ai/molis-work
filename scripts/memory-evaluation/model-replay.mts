@@ -19,37 +19,8 @@ const manifest: AgentManifest = { roles: [{ role_id: "reader", version: 1, name:
 type ModelPorts = Pick<PrologueNodeAdapterOptions, "modelConfiguration" | "resolveCredential">;
 type Environment = Awaited<ReturnType<typeof memoryEvaluationEnvironment>>;
 
-/** Counts actual fetch attempts (including SDK retries); observes a request without rebuilding its prompt. */
-export function observeEvaluationRequests(endpoint: string, maxAttempts: number = MEMORY_MODEL_CALIBRATION.maxAttempts,
-  limits: () => { maxOutputTokens: number; maxRequestBytes: number } = () => MEMORY_MODEL_CALIBRATION) {
-  const original = globalThis.fetch;
-  const fixtures = new Set<string>(), fixtureRequests: Array<{ endpoint: string; bytes: number }> = [];
-  const requests: Array<{ bytes: number; body: unknown; startedAt: string }> = [];
-  globalThis.fetch = async (input, init) => {
-    const url = input instanceof Request ? input.url : String(input);
-    if (fixtures.has(url)) {
-      const raw = typeof init?.body === "string" ? init.body : input instanceof Request ? await input.clone().text() : "";
-      fixtureRequests.push({ endpoint: url, bytes: Buffer.byteLength(raw) }); return original(input, init);
-    }
-    if (url !== endpoint) throw new Error("评测拒绝未声明的网络目标");
-    if (requests.length >= maxAttempts) throw new Error("评测网络 attempt 预算已用尽；不再发出请求");
-    const raw = typeof init?.body === "string" ? init.body : init?.body instanceof Uint8Array ? new TextDecoder().decode(init.body)
-      : input instanceof Request ? await input.clone().text() : null;
-    if (raw === null) throw new Error("评测无法核对请求大小；未发出");
-    const bytes = Buffer.byteLength(raw);
-    if (bytes > limits().maxRequestBytes) throw new Error("评测请求超过已批准字节上限；未发出");
-    const body: { max_tokens?: unknown; model?: unknown } = JSON.parse(raw);
-    if (typeof body.max_tokens !== "number" || body.max_tokens > limits().maxOutputTokens) throw new Error("模型请求未遵守已批准输出上限；未发出");
-    requests.push({ bytes, body, startedAt: new Date().toISOString() });
-    return original(input, init);
-  };
-  return { requests, fixtureRequests,
-    registerFixture(endpoint: string) {
-      const url = new URL(endpoint);
-      if (url.protocol !== "http:" || url.hostname !== "127.0.0.1" || !url.port || url.pathname !== "/v1/chat/completions") throw new Error("Source setup must use the exact loopback endpoint");
-      fixtures.add(endpoint); return () => { fixtures.delete(endpoint); };
-    }, restore() { globalThis.fetch = original; } };
-}
+export { observeEvaluationRequests } from "./network-observation.mjs";
+import { observeEvaluationRequests, type DispatchObservation } from "./network-observation.mjs";
 
 async function ended(env: Environment, handle: AgentRunHandle, timeoutMs: number, started: number): Promise<{ view: AgentRunView | null; error: string | null; firstVisibleResponseMs: number | null }> {
   return new Promise(resolve => {
@@ -126,8 +97,8 @@ export interface CalibrationProgress {
 
 /** Only the root-approved small calibration batch; failures consume attempts and are never silently rerun. */
 export async function replayMemoryModelCalibration(config: PrologueModelConfiguration, resolveCredential: NonNullable<ModelPorts["resolveCredential"]>,
-  onProgress?: (progress: CalibrationProgress) => Promise<void>) {
-  const observer = observeEvaluationRequests(config.endpoint);
+  onProgress?: (progress: CalibrationProgress) => Promise<void>, observation: DispatchObservation = {}) {
+  const observer = observeEvaluationRequests(config.endpoint, MEMORY_MODEL_CALIBRATION.maxAttempts, () => MEMORY_MODEL_CALIBRATION, observation);
   const rows: CalibrationRow[] = [];
   try {
     for (const id of MEMORY_MODEL_CALIBRATION.cases) for (const arm of ["B0", "B2"] as const) {

@@ -2,7 +2,7 @@
 
 状态：**用户已选方案 C**（2026-11-04），个人工作也能用角色，角色操作都在原页面里完成；产品代码没写，实现要等第 13、20 批。决定记在 [Onboarding §10](../../../specs/onboarding-coverage/spec.md#10-决策记录)。
 
-参考原型，不是产品界面。需求来源：[Onboarding §3.9、§3.11～3.12](../../../specs/onboarding-coverage/spec.md)、[PF-A11](../../../specs/product-flow-governance/audit-2026-10-27.md)、[主动助理 PWA-91](../../../specs/proactive-assistant/spec.md)。现状核查和方案取舍写在[第 36 批的本批核账](../../../specs/post-anticorruption-roadmap/reference/batches/36.md#baseline-36)。第 44 批的项目助理团会照这个方案来做。
+参考原型，不是产品界面。需求来源：[Onboarding §3.9、§3.11～3.12](../../../specs/onboarding-coverage/spec.md)、[PF-A11](../../../specs/product-flow-governance/audit-2026-10-27.md)、[主动助理 PWA-91](../../../specs/proactive-assistant/spec.md)。现状核查和方案取舍写在[第 36 批的本批核账](../../../specs/post-anticorruption-roadmap/reference/batches/36.md#baseline-36)。第 45 批的项目助理团会照这个方案来做。
 
 部件全部取自组件板实件（[`../_catalog/`](../_catalog/README.md)），外框是产品自己的：工作台底栏和助理旁边的角色选择（`arrival.css`），全局设置和项目设置（`settings.css`），改角色用组件板的右侧抽屉（`mw-drawer--right`）。组件板上还没有的只有一件，见下文「组件板新增」。
 

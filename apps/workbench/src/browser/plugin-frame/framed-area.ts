@@ -30,6 +30,8 @@ export interface FramedAreaOptions {
   readonly heights: { readonly narrow: number; readonly wide: number };
   /** Says when the height the page should give its element changes: a step, or 0 while the frame is too narrow for the area. */
   onHeight(height: number): void;
+  /** Geometry stays local. The consumer may drop its view when the area stops showing. */
+  onShown?(shown: boolean): void;
 }
 
 export interface FramedArea {
@@ -43,7 +45,7 @@ export interface FramedArea {
    * Replaces what the area shows. A control that had the keyboard focus (by its `data-framed-control` name) has it again, and
    * keeps how long it has had it: drawing the result of a press must not make the next one wait. Each `[data-framed-scroll]` part keeps its scroll position.
    */
-  redraw(html: string): void;
+  redraw(html: string, rearm?: boolean): void;
   /** Checks 1–4 of §3.3 for one activation of `control` (a `[data-framed-control]` inside the area); `null` when it may act. */
   gate(event: MouseEvent, control: Element): FramedAreaRefusal | null;
   close(): void;
@@ -69,7 +71,8 @@ export function pageFramedAreas(scope: FrameScope, root: HTMLElement, frame: HTM
   const view = root.ownerDocument.defaultView ?? window;
   let scheduled = 0;
   interface Entry { area: FramedArea; box: FrameBox | null; shown: Rect | null; movedAt: number; height: number; crossed: boolean;
-    focus: { name: string; at: number } | null; redrawing: boolean; press: { at: number; shown: Rect | null } | null; options: FramedAreaOptions; place(): void }
+    focus: { name: string; at: number } | null; redrawing: boolean; press: { at: number; shown: Rect | null } | null;
+    reported: boolean; options: FramedAreaOptions; place(): void }
 
   /** Where the frame shows on screen, for one entry: its box clamped to the frame, and whether the frame is wide enough at all. */
   const place = (entry: Entry) => {
@@ -84,6 +87,10 @@ export function pageFramedAreas(scope: FrameScope, root: HTMLElement, frame: HTM
     else hide(entry);
   };
   const hide = (entry: Entry) => { entry.area.holder.hidden = true; entry.shown = null; };
+  const report = (entry: Entry, shown: boolean) => {
+    if (entry.reported === shown) return;
+    entry.reported = shown; entry.options.onShown?.(shown);
+  };
 
   /** One frame: place every area, note which moved, hide the ones that cross another, and show which are not ready yet. */
   const tick = () => {
@@ -99,6 +106,7 @@ export function pageFramedAreas(scope: FrameScope, root: HTMLElement, frame: HTM
       // Two areas crossing could pair one's header with the other's switches (§3.1): both hide until they part.
       const crossed = Boolean(entry.shown) && [...areas].some(other => other !== entry && other.shown && crosses(entry.shown!, other.shown));
       if (crossed !== entry.crossed) { entry.crossed = crossed; entry.area.holder.style.visibility = crossed ? "hidden" : ""; entry.area.holder.inert = crossed; }
+      report(entry, Boolean(entry.shown && !crossed && !root.ownerDocument.hidden));
       // Not ready yet (§3.3): within the steady time every control, and a control the focus only just reached, is faded and
       // said to be unavailable, so a person sees why a press does nothing now.
       const settling = now - entry.movedAt < FRAMED_AREA_STEADY_MS;
@@ -112,7 +120,7 @@ export function pageFramedAreas(scope: FrameScope, root: HTMLElement, frame: HTM
     if (scope.visible) scheduled = view.requestAnimationFrame(tick);
   };
   const run = () => { if (!scheduled && areas.size && scope.visible) scheduled = view.requestAnimationFrame(tick); };
-  scope.whenVisible(() => { for (const entry of areas) entry.movedAt = performance.now(); run(); return () => { view.cancelAnimationFrame(scheduled); scheduled = 0; for (const entry of areas) hide(entry); }; });
+  scope.whenVisible(() => { for (const entry of areas) entry.movedAt = performance.now(); run(); return () => { view.cancelAnimationFrame(scheduled); scheduled = 0; for (const entry of areas) { hide(entry); report(entry, false); } }; });
   scope.own(() => { view.cancelAnimationFrame(scheduled); for (const entry of [...areas]) entry.area.close(); });
 
   /** Whether the whole area is in view: the frame's visible box, the window and every clipping box of the trusted document. */
@@ -146,14 +154,14 @@ export function pageFramedAreas(scope: FrameScope, root: HTMLElement, frame: HTM
       holder.style.cssText = "position:absolute;overflow:hidden;z-index:2";
       surface.style.cssText = "position:absolute;box-sizing:border-box";
       holder.append(surface); root.append(holder);
-      const entry: Entry = { box: null, shown: null, movedAt: performance.now(), height: -1, crossed: false, focus: null, redrawing: false, press: null, options, place: () => place(entry),
+      const entry: Entry = { box: null, shown: null, movedAt: performance.now(), height: -1, crossed: false, focus: null, redrawing: false, press: null, reported: false, options, place: () => place(entry),
         area: {
           holder, surface,
           layout(box) {
             entry.box = box && [box.x, box.y, box.width, box.height].every(Number.isFinite) && box.width > 0 ? { x: box.x, y: box.y, width: box.width, height: box.height } : null;
             entry.place(); run();
           },
-          redraw(html) {
+          redraw(html, rearm) {
             const name = entry.focus?.name;
             // A scrolling part keeps its place across a redraw, so a row changed low in a list stays where the person left it.
             const scrolled = [...surface.querySelectorAll<HTMLElement>("[data-framed-scroll]")].map(part => part.scrollTop);
@@ -162,6 +170,10 @@ export function pageFramedAreas(scope: FrameScope, root: HTMLElement, frame: HTM
               surface.innerHTML = html;
               surface.querySelectorAll<HTMLElement>("[data-framed-scroll]").forEach((part, index) => { part.scrollTop = scrolled[index] ?? 0; });
               if (name) surface.querySelector<HTMLElement>(`[data-framed-control="${CSS.escape(name)}"]`)?.focus({ preventScroll: true });
+              if (rearm) {
+                entry.press = null;
+                if (entry.focus) entry.focus.at = performance.now();
+              }
             } finally { entry.redrawing = false; }
           },
           gate(event, control) {

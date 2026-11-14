@@ -1,6 +1,6 @@
 # 插件 UI
 
-产品气质：Soft Workbench——珍珠灰桌面上一张连续的白色工作面，石墨主操作，安静的层次。不要默认 Dashboard、表格、卡片墙、后台式布局。先找这个插件里「人盯着的那一块」，效率场景再保证信息密度。规范总表：仓库 `DESIGN.md`。
+产品气质：Soft Workbench——雾蓝桌面上一张连续的白色工作面，墨蓝主操作，安静的层次。不要默认 Dashboard、表格、卡片墙、后台式布局。先找这个插件里「人盯着的那一块」，效率场景再保证信息密度。规范总表：仓库 `DESIGN.md`。
 
 <!-- studio-quality-bar -->
 ## 质量线（所有插件）
@@ -9,10 +9,10 @@
 
 - **只用 UI 目录里的组件**（组件板 `/__ui/catalog`，`mw-*`）。目录里没有的控件或交互不要自造；需要新组件先进目录。
 - **三种状态都要有**：还没有内容（空态居中：图标、一句标题、下一步能做什么、一个主操作）、正在加载（骨架，不留白）、出错（说原因和下一步，输入保留）。
-- **主操作一处**：一个画面只有一个石墨主按钮；次要操作是浅洗色的柔和按钮，不画外框；新建入口放在标题区或工具条右侧、或列表末尾；危险操作弱化，并在执行前确认。
+- **主操作一处**：一个画面只有一个墨蓝主按钮；次要操作是浅洗色的柔和按钮，不画外框；新建入口放在标题区或工具条右侧、或列表末尾；危险操作弱化，并在执行前确认。
 - **文案**：按钮说人做的事，不说机制；时间说「今天 14:30」，原值保留；取值用人话（「想读」而不是 `unread`）。
 - **层次先靠字**：标题 600、条目与控件 500、正文 400；再靠字号和 `--ink` / `--ink-soft` / `--muted`；最后才用间距和少量分隔线。不给舞台再画外框、不嵌套卡片、不堆装饰性标签。
-- **颜色只表达状态和选中**：选中是中性的浅底（`--nav-active`）或石墨；铜色只给焦点、链接、进行中；插件没有身份色，图标保持中性。业务界面不用渐变；柔和的冷暖光只属于新手引导。
+- **颜色只表达状态和选中**：选中是中性的浅底（`--nav-active`）或墨蓝；雾蓝只给焦点、链接、进行中；插件没有身份色，图标保持中性。业务界面不用渐变；柔和的冷暖光只属于新手引导。
 - **阴影只给抬起的东西**：菜单、弹层、对话框、Toast 用浮层阴影且不再描边；普通内容不加阴影。
 - **位置不重复**：工作台标签条已经写了插件名，舞台里不再放一行插件名大标题；独立打开（预览、试用页）时才显示。
 - **浅色和深色都成立**：颜色一律用 token，不写死；在两种主题下各看一眼。
@@ -41,7 +41,7 @@
 
 - `icon`：图标名，限平台图标集（SDK `/ui` 的 `PLUGIN_ICON_NAMES`，设计系统逐个画）；写了集合外的名字、不是字符串或是空白，`parsePluginManifest` 当场拒绝，不回退。`settings` 视图的 `icon` 是设置目录里这一页的图标；没写就用 `settings`。
 - `hue`（任何槽的视图都可以写，插件取它第一个写了 `hue` 的视图）：这个插件在标签条上那一组的颜色，取设计系统的颜色名之一（`gray`、`brown`、`orange`、`yellow`、`green`、`mint`、`cyan`、`blue`、`indigo`、`purple`、`pink`、`red`、`steel`、`slate`；清单在 `UI_VIEW_HUES`）。只有标签条的分组用它，其余各处插件都是同一个中性色；不写，宿主按插件 id 在备用色里挑一个，同一个插件总是同一个。随宿主发布的插件和运行时装进项目的插件**待遇一样**，宿主不留插件名单。
-- Manifest 的 `name_text`、`summary_text`，视图的 `title_text`，以及 `creates.title_text`、`start.title_text`、`start.hint_text`，都可引用自己的语言文件，例如 `{ "key": "notes.directory.name" }`。保留同字段的原文：缺词时显示它。导航与岛视图用自己的标题，只有舞台的入口用 Manifest 名；两个来源不互相补。目录短句写成一行，不接参数、复数或另一份后备文字；原样显示的品牌名可不写引用。旧 `name_en` 和 `title_en` 被拒。
+- Manifest 的 `name_text`、`summary_text`，视图的 `title_text`、动作 `composer_source` 的 `title_text`，以及 `creates.title_text`、`start.title_text`、`start.hint_text`，都可引用自己的语言文件，例如 `{ "key": "notes.directory.name" }`。保留同字段的原文：缺词时显示它。导航与岛视图用自己的标题，只有舞台的入口用 Manifest 名；两个来源不互相补。目录短句写成一行，不接参数、复数或另一份后备文字；原样显示的品牌名可不写引用。旧 `name_en` 和 `title_en` 被拒。
 - `group`（只用于 `navigator`、`island`）：插件切换列表里归哪一组，取 `advance`（推进）、`make`（写与做）、`personal`（个人）、`research`（研究）、`code`（编码）之一。组名和组的顺序归宿主；组内先是 `island` 视图，再按视图的 `order`、同 `order` 按插件 id 排。不写就在「更多」里。
 - `creates`（只用于 `navigator`、`island`）：`{ station, title }`，在目标的「材料」里给一个「新建」入口。`station` 必须是本 Manifest 里一个能新建的工作流内容站（`defineWorkflowContentActions({ …, create: true })` 的 `id`）；新建出来的默认标题是「未命名」加 `title`（如「未命名文档」）。不写就没有新建入口。
 - `start`（只用于 `navigator`、`island`）：`{ title, hint, icon? }`，项目首页当天没有事件时给的一个起点，点了打开这个插件；`icon` 不写就用视图的 `icon`。不写就不出现在首页。
@@ -98,7 +98,7 @@ renderPluginStageShell({
 
 - `plugin-stage-shell` + `plugin-stage-list`（`feed-stage-list feed-stage-tree`）+ `plugin-stage-workspace`。
 - 点插件条：`is-plugin-directory-empty`，不要 `data-directory-open` 第二栏（来源管理等隐藏 panel 除外）。
-- 列表页由 Host 画成原型的页：居中 960px 一栏，页标题取自 `label`（Host 写进 `--stage-title`，插件不要自己再画标题），`plugin-stage-chrome` 里的动作排在标题右侧，其中第一个 `tree-create` 是本页唯一的石墨按钮。行至少 44px。分组用 `goal-collection-fold`：caret + 状态 mark（勾=安好，三角=要盯）+ 标题 + 计数。点分组头只开合，不自动打开第一行。
+- 列表页由 Host 画成原型的页：居中 960px 一栏，页标题取自 `label`（Host 写进 `--stage-title`，插件不要自己再画标题），`plugin-stage-chrome` 里的动作排在标题右侧，其中第一个 `tree-create` 是本页唯一的墨蓝按钮。行至少 44px。分组用 `goal-collection-fold`：caret + 状态 mark（勾=安好，三角=要盯）+ 标题 + 计数。点分组头只开合，不自动打开第一行。
 - `label` 引用自己的稳定键，由各主人语言文件提供当前语言（例如 `label: t.text("notes.stage.title")`）；旧写法「中文原文当键 + 插件英文表 + Host `L()`」已随第 16 批删除。
 - 编辑器是单个表单时，放进全宽滚动容器里的居中一栏（参考 Forms 52rem、Dataset 72rem）；写作类（灵光）是写作页：文档标题 + 阅读字号正文。
 - 宽屏点行：`data-expanded="true"`，列表收成 `--tree-width` 的浅色侧栏（`--surface-soft`），右边详情。窄屏只看正文，`plugin-stage-back` 回列表。
@@ -143,12 +143,12 @@ Feed / Inbox：随迁到 Plugin Runtime（FI-6）后，列表、详情、来源�
 
 - 字体：系统无衬线 + 平台中文字体（`--font`），代码与终端用 `--font-mono`。字重用角色：`--weight-title` 600、`--weight-control` 500、`--weight-body` 400；不写 700，不用 `!important` 改字重。
 - 面：桌面 `--page`，工作面 `--paper`，插件目录列与内层块 `--surface-soft`，局部分组洗色 `--rail`，分隔 `--line`。面板里的全幅画布用 `--canvas`（与工作面同色）。
-- 动作与强调：主操作石墨 `--action`；选中用 `--nav-active` 或石墨；焦点、链接、进行中用铜色 `--accent`（历史名 `--blue` 同值）。不要蓝色、不要插件色铺底。
-- 焦点：`--focus-stroke`（2px 铜色外描边）；输入框聚焦是加深的边和一圈淡铜色光晕，由 `mw-input` 提供。
+- 动作与强调：主操作墨蓝 `--action`；选中用 `--nav-active` 或墨蓝；焦点、链接、进行中用雾蓝 `--accent`（历史名 `--blue` 同值）。不要自己另配蓝色、不要插件色铺底。
+- 焦点：`--focus-stroke`（2px 雾蓝外描边）；输入框聚焦是加深的边和一圈淡雾蓝光晕，由 `mw-input` 提供。
 - 状态色走 tone/status（文字 + 圆点或图标，不只靠颜色）。禁止系统下拉、系统色盘、`alert` / `confirm` / `prompt`、裸 `<select>`。
 - 色用 token，组件规则里不要写死 hex。
 - 尺寸：控件 32px（紧凑密度 28，窄屏/粗指针 44）；圆角 控件 8、行 10、卡片 12、工作面 14、对话框 16。
-- 秩序（DESIGN「Order」）：状态环、圆点与字等高——`renderStateRing` 不传 `size` 就跟随所在文字（`1em + 2px`），不要在自己的行里给环定尺寸；图标与文字同号或大一级（12–15px 字旁 12–16px）。并排的按钮同一尺寸（变体不改变高度）、同一行、间距 8（紧凑组 4，只有图标按钮或工具条 2）；页头的动作在标题那一行。字号只用 11/12/13/15/17/20/24/30。圆角只用 4（比控件小的标记）、6（标签）、8（控件）、10（行）、12（卡片）、14、16 与胶囊或圆；套着圆角零件的框取零件的圆角加内距，两条曲线同心；紧凑密度和暗色不改圆角、不把状态词改画成描边胶囊。列表里就地增删、上移下移的条目用 `window.molisReflow(列表, 改动)`（类型 `Reflow` 从设计系统引用），改动要保留元素、不整体重画，否则所有条目都算新来的。空状态用 `mw-empty`：居中、标题 15px/600、动作用次按钮（页头已有石墨的新建，空状态不再放第二个）。`tests/visual-order.e2e.test.ts` 会拦。
+- 秩序（DESIGN「Order」）：状态环、圆点与字等高——`renderStateRing` 不传 `size` 就跟随所在文字（`1em + 2px`），不要在自己的行里给环定尺寸；图标与文字同号或大一级（12–15px 字旁 12–16px）。并排的按钮同一尺寸（变体不改变高度）、同一行、间距 8（紧凑组 4，只有图标按钮或工具条 2）；页头的动作在标题那一行。字号只用 11/12/13/15/17/20/24/30。圆角只用 4（比控件小的标记）、6（标签）、8（控件）、10（行）、12（卡片）、14、16 与胶囊或圆；套着圆角零件的框取零件的圆角加内距，两条曲线同心；紧凑密度和暗色不改圆角、不把状态词改画成描边胶囊。列表里就地增删、上移下移的条目用 `window.molisReflow(列表, 改动)`（类型 `Reflow` 从设计系统引用），改动要保留元素、不整体重画，否则所有条目都算新来的。空状态用 `mw-empty`：居中、标题 15px/600、动作用次按钮（页头已有墨蓝的新建，空状态不再放第二个）。`tests/visual-order.e2e.test.ts` 会拦。
 - 动效：`--dur-press` 130ms（按下与悬停）、`--dur-move` 250ms（状态移动）、`--dur-arrive` 420ms（到达），曲线 `--ease-quint`、`--ease-spring`。`mw-btn` 回弹、菜单从控件长出、对话框与侧边面板入场、列表到达都由 Host 提供，不要重写。自己的元素要入场时只用共有的关键帧名：到达 `craft-rise`、再显示 `craft-fade-in`、控件下方的菜单 `craft-drop`、上方的 `craft-rise-from-bar`；不写自己的 `@keyframes`（`tests/one-motion.test.ts` 会拦）。时长用 `--dur-*`，不用旧的 `--motion-*`。`prefers-reduced-motion` 与自动化下全部静止。
 - 不引入 React/shadcn。HTML Slot：`mw-*` + `data-slot`。
 - 插件样式放包内 `styles.ts`，经 Workbench pack 的 `stylesheet` 注入；只写本插件的布局，不重画共享控件。
@@ -179,9 +179,39 @@ Feed / Inbox：随迁到 Plugin Runtime（FI-6）后，列表、详情、来源�
 
 进度查询放在 `whenVisible(signal => cleanup)` / `poll` 中：隐藏停止轮询与订阅，再次显示读取权威状态。请求用 `scope.fetch`，读取 body 后 `scope.assertCurrent(signal)` 才消费结果。普通写入只绑定挂载取消，不因隐藏页面重放命令；UI 卸载不等于服务端业务任务已取消。保留业务幂等和结果未知的提示。参考 Images、Coding、Builder 与 Shelf 当前客户端、`packages/ui-host/README.md`；用真实浏览器验证隐藏祖先、重复挂载、卸载、延迟返回与恢复。
 
-Files/Git 的目录子树独立挂载，避免和 Coding 根节点争用同一个挂载。Host 审查组件接收调用方生命周期和当前可见性 signal，并以自己的容器管理监听与卸载；不要用审查容器因空数据而 hidden 来判断是否该读取，也不要让旧显示世代的决定回调操作重新进入的界面。普通刷新不使同一显示世代的在途决定失效，过期回执只可触发读取当前状态，不能重放命令。
+Git 的目录子树独立挂载，避免和 Coding 根节点争用同一个挂载。Host 审查组件接收调用方生命周期和当前可见性 signal，并以自己的容器管理监听与卸载；不要用审查容器因空数据而 hidden 来判断是否该读取，也不要让旧显示世代的决定回调操作重新进入的界面。普通刷新不使同一显示世代的在途决定失效，过期回执只可触发读取当前状态，不能重放命令。
 
 需要事件刷新时复用 `scope.watchRevision(read, refresh)`；可见时只查轻量 revision，变化后读原状态，隐藏/卸载停止，重连重新读当前事实。忙碌时 refresh 返回 false，避免丢失发生在当前读取期间的通知。revision 不是业务执行身份或成功回执，不能重放写命令。参考 Files/Git。服务端让自己的页面重新读取，调 `context.services.ui.invalidate()`：不带参数，只推自己的 revision；Manifest 声明了 `ui.views` 就能调，不要权限；动作里、事件回调或定时器里都行。`start()` 里还没运行时调用什么也不做，激活停了（停用、重启）再调被拒，版本号不动。`stop` 钩子里被拒是同步抛错（`ui_host.plugin_denied`）；钩子返回以后，留下的定时器、监听器再调什么也不做、不抛错，在还没返回的动作或还没答复的路由里调照常抛错（BL-411，见 [host.md](host.md)「停止以后」）。会调它的定时器、监听器仍要在 `stop` 一开始清掉：它们停用后白跑，日志里留下这个插件。
+
+## 对象的呈现
+
+给插件已经拥有的对象写 `presentation.objects`。例如 `note` 已由本插件的对象读取动作声明，名字片显示标题，行还显示更新时间。要加操作时，`actions[].ref` 指向动作目录中的 `capability_id@version`，`input_from` 写成动作输入键到呈现字段键的映射。实际执行由位置层经动作网关核当前授权。
+
+```json
+{
+  "presentation": { "objects": [{
+    "kind": "note",
+    "fields": [{ "key": "title", "role": "title" }, { "key": "updated_at", "role": "updated_at" }],
+    "forms": { "chip": { "fields": ["title"] }, "row": { "fields": ["title", "updated_at"] } }
+  }] }
+}
+```
+
+**原生插件。** 每个种类在同一插件、同一运行范围内各用一支对象读取动作和给值动作。给值动作可服务多个本插件的种类。两份定义登记到 Manifest 的 `actions`，运行时绑定处理器。SDK 根入口用 `defineSubjectContextAction(id, version, kind, title, permissions, scope)` 配 `bindActionHandler` 读对象正文与版本，用 `definePresentationValuesAction(id, version, [kind], title, permissions, scope)` 配 `bindPresentationValuesHandler` 读显示字段。权限按对象的真实读取要求声明。给值是只读、不外发、不调用模型且不计费的查询。 字段标签和概况说明用所属插件词表的 `TextRef`，公共词可引用 `common.`，用户正文保留原样。`status` 映射供显示，不产生「等你」条目。
+
+给值处理器从调用上下文取当前调用方与项目并逐对象核权。按请求的 `subjects` 和 `fields` 返回 `items`，每件带 `subject`、`revision` 和 `state`，最多回答一次。读到当前值给 `ok`，只回请求过且有权读取的字段。对 `forbidden`、`deleted` 只给前三项。暂时读不到但有旧值时回 `stale` 和真实的 `read_at`。首次读取失败且没有旧值，预览可用 `unreadable` 显示。
+
+**预览。** 用 SDK `/presentation` 的 `presentationFormFields` 选形态与字段，再用 `/ui` 的 `renderPresentationForm(object, form, values)` 画 `chip`、`row`、`card` 或 `peek`。`object.owner` 从可信目录或自己的 Manifest 取。第三参给 `locale`（`null` 用主人默认语言）、`ownerDisplay` 和本次读取结果 `read`。只有位置已经绑定的控件才传给 `actions` 或 `notices` 的下一步。控件 `key` 是这次渲染的局部句柄，由位置层绑定。
+
+**手写签名 app 包。** 在 `contract.json` 写同样的 `presentation`。需要的固定操作写 `kind: "query"` 及 `read_protocol`。对象读取用 `{ kind: "subject_context", subject_kind: "note" }`，给值用 `{ kind: "presentation_values", subject_kinds: ["note"] }`，可选概况用 `{ kind: "presentation_overview" }`。分别取上述两个定义 helper 和 `definePresentationOverviewAction` 返回的 `action.input_schema`、`action.output_schema` 原样作为操作的 `input`、`output`，并给符合合同的示例。固定操作只用实际需要的本机只读效果，例如 `effects: { storage: ["read"] }`。
+
+操作能力 id 用 SDK 的 `sandboxActionId(sandboxPackageBuildId(pluginId, publisherSignature), operationId)` 派生，`publisherSignature` 用签名包真实的公钥绑定身份。签名包动作版本为 1，写对象的操作引用时用派生后的 `capability_id@1`。完整的签验、沙箱读取和重开用例见 [签名包呈现验证](../../tests/security-invariants-sandbox-presentation.test.ts)。
+
+挂载位置写在实际页面贡献的 `slots` 里，例如 `{ slot_id: "related", accepts: [], accepts_forms: ["chip", "row"] }`。把一个空元素留在页内，调用 `host.view.surfaceSlot(element, { slot_id: "related", subjects })`；`subjects` 最多 50 个 `{ kind, id }` 引用。返回的 `ready` 只报告能否预留，元素高度只随声明形态及宽度变化。工作台在隔离页之外读取、绘制并接收人的操作；对象值、数量和结果不回到插件。选择变化时先 `dispose()`，再挂新元素；同元素再次挂载也会释放旧位置，页面关闭时自动释放。此 API 与嵌入整张插件页的 `embed` 各管自己的用途。
+
+签名 app 包与创作台使用同一能力。在 `interface.json` 的 `ui.slots` 写上述声明；在部件和节点写 `surfaceSlot: { slot_id: "related" }`，节点用 `kind: "surface-slot"`。部件的 `read` 指向现有安全查询，查询结果或 `outputPath` 必须是只含 `kind`、`id` 的引用数组。该查询不能外发、用模型、计费或充当呈现读取协议；组件不提供提交或选中输出。平台组件挂载原页面位置，保留原有安装范围和打开路径。不使用挂载位的包省略这组字段。
+
+用 SDK `/presentation` 的 `validatePresentationDeclaration(manifest)` 自查清单，用 `presentationValuesProblems(input, output)` 检查取值。打开组件板 `/__ui/catalog#presentation-forms` 对照四种形态，自查长标题、不可读状态、操作后果和速览的键盘路径。
 
 ## 生成插件的页面组合
 

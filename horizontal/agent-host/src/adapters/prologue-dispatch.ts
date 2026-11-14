@@ -7,9 +7,19 @@ import type { DispatchControl, DispatchGuards, NodeHost } from "./prologue-node-
 export function withDispatchControl<T>(guards: DispatchGuards, control: DispatchControl, operation: () => Promise<T>): Promise<T> {
   const inherited = guards.getStore();
   const assertCurrent = () => { requireSynchronous(inherited?.assertCurrent()); requireSynchronous(control.assertCurrent()); };
-  return guards.run({ assertCurrent, mcp: control.mcp ?? inherited?.mcp, beforeEffect: async () => {
-    await inherited?.beforeEffect(); await control.beforeEffect();
-  } }, operation);
+  const prepareDispatch = async () => {
+    const outer = await prepareDispatchFence(inherited), inner = await prepareDispatchFence(control);
+    return () => { requireSynchronous(outer?.()); requireSynchronous(inner?.()); };
+  };
+  return guards.run({ assertCurrent, mcp: control.mcp ?? inherited?.mcp, prepareDispatch,
+    beforeEffect: async () => { const fence = await prepareDispatch(); fence(); } }, operation);
+}
+
+export async function prepareDispatchFence(control: DispatchControl | undefined) {
+  if (!control) return;
+  if (control.prepareDispatch) return control.prepareDispatch();
+  await control.beforeEffect();
+  return () => requireSynchronous(control.assertCurrent());
 }
 
 /** The existing Node Host owns each command. Its spawn path has no await after this final check. */

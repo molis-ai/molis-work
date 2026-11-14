@@ -563,12 +563,12 @@ test("W3-02-G1-03 memory: recalled for this situation when the directory has it;
   } };
   const f = focus({ plugin_id: "io.molis.work.pages", object: { kind: "pages_document", id: "d1", version: 3, title: "周报" }, goal: { id: "G1", title: "留存" },
     surroundings: { heading_path: ["风险"] } });
-  const recalled = await recallForJudgment(f, { scope: "memory-a", actions });
+  const recalled = await recallForJudgment(f, { directory: "memory-a", actions });
   assert.deepEqual(recalled, { state: "ok", items: [{ kind: "preference", text: "周报里风险写在最前面" }] });
   const asked = calls.find(call => call.capability_id === "memory.recall")!.input;
   assert.deepEqual(asked.situation, { plugin_id: "io.molis.work.pages", object_kind: "pages_document", goal_id: "G1" });
   assert.ok(asked.query.startsWith("风险 我们认为") && asked.limit <= 8 && asked.budget_chars <= 1000);
-  assert.deepEqual(await recallForJudgment(f, { scope: "memory-b", actions: { ...actions, discover: async () => views.slice(0, 2) } }), { state: "ok", items: [] }, "no memory here, nothing recalled");
+  assert.deepEqual(await recallForJudgment(f, { directory: "memory-b", actions: { ...actions, discover: async () => views.slice(0, 2) } }), { state: "ok", items: [] }, "no memory here, nothing recalled");
 
   const server = createServer((request, response) => { void handleContextualHttp(request, response, new URL(request.url!, "http://local"), { scope: "memory-c", actor_id: "user", actions: () => actions }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
@@ -604,7 +604,7 @@ test("RAC-2165 the words asked of memory.recall are cut at 300 units without lea
     return { state: "ok", items: [] };
   } };
   const queryFor = async (text: string) => {
-    await recallForJudgment(focus({ surroundings: { heading_path: ["标题"] }, targets: [{ kind: "text_range", role: "paragraph", text }] }), { scope: `rac-2165-${asked.length}`, actions });
+    await recallForJudgment(focus({ surroundings: { heading_path: ["标题"] }, targets: [{ kind: "text_range", role: "paragraph", text }] }), { directory: `rac-2165-${asked.length}`, actions });
     return asked.at(-1)!;
   };
   const head = "标题 "; // the heading and the space that joins it to the part: 3 units, so the part starts at unit 3
@@ -621,7 +621,7 @@ test("RAC-2166 a recalled memory is cut at 300 units without leaving half a char
   const actions = { discover: async () => [view(memory, "memory.recall")], invoke: async () => ({ state: "ok", items: [{ kind: "preference", text: reply }] }) };
   const recalled = async (text: string) => {
     reply = text;
-    return (await recallForJudgment(focus(), { scope: `rac-2166-${calls++}`, actions })).items;
+    return (await recallForJudgment(focus(), { directory: `rac-2166-${calls++}`, actions })).items;
   };
   const split = await recalled(fill(299) + PAIR + "z");
   assert.deepEqual([split.length, split[0]!.kind, seen(split[0]!.text, fill(299))], [1, "preference", { units: 299, same: true, lone: false }], "the cut at 300 falls between the halves: the half goes, the kind is not touched");

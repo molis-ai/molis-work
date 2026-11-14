@@ -6,6 +6,7 @@ import type { GoalDisplayStatus, GoalPresentationState } from "./tree-order.js";
 import type { GoalsDocumentReadPorts } from "./document-read-ports.js";
 import type { createGoalDocumentIndex } from "./document-index.js";
 import { eventDirectoryPresentation } from "./event-document-model.js";
+import { goalPresentationStatus, type CaptureGoalPresentationStatus } from "./presentation.js";
 
 function archiveOrTrashPresentation(goal: Pick<GoalRecord, "trashed_at" | "archived_at">): {
   status: GoalPresentationState;
@@ -38,6 +39,7 @@ function archiveOrTrashPresentation(goal: Pick<GoalRecord, "trashed_at" | "archi
 export function projectGoalDocument(goal: GoalRecord, input: {
   projectId: string; snapshot: BoardSnapshot; ports: GoalsDocumentReadPorts;
   index: ReturnType<typeof createGoalDocumentIndex>;
+  capturePresentation?: CaptureGoalPresentationStatus;
 }): GoalsDocumentView {
   const { projectId, ports } = input;
   const {
@@ -46,6 +48,7 @@ export function projectGoalDocument(goal: GoalRecord, input: {
     goalTreeProposalsByGoal,
   } = input.index;
   const event = ports.eventWork.readState(projectId, goal.goal_id);
+  if (!goal.archived_at && !goal.trashed_at) input.capturePresentation?.(goal.goal_id, goalPresentationStatus(event));
   const eventOwned = Boolean(event.owner);
   const current = archiveOrTrashPresentation(goal)
     ?? eventDirectoryPresentation(event, goal)

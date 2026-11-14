@@ -438,7 +438,8 @@ test("B27-UI-03 · BL-958 / VUX-30 / VUX-40: narrow settings links stay single-l
         selected: rail.querySelector('[aria-current=page]').textContent.trim(),
       };
     })()`);
-    assert.equal(geometry.selected, language === "en" ? "Interface & language" : "界面与语言");
+    // The English name is batch 16's (workbench.settings-sections.appearance-and-language); the Chinese one did not change.
+    assert.equal(geometry.selected, language === "en" ? "Appearance and language" : "界面与语言");
     assert.deepEqual(geometry.invalid, []);
     assert.equal(geometry.overflow, false);
     assert.equal(geometry.scrollable, true);

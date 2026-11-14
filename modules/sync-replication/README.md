@@ -25,6 +25,8 @@
 
 `refreshCatalog()` 只刷新本机已启用 owner 的目录，不获取令牌、不请求云端策略或传输正文。设置和新设备提示的状态读取会先调用它，所以第一次进入即可选择独立插件，不必先执行一轮同步。构造函数仍不发现、不传输；原来无消费者的 `loadPolicy` 方法已移除，不保留并行入口。
 
+过程项公开集合（`PROCESS_ITEMS_NAMESPACE`）只在本机采用了服务端已完成的切换后移动（`ProcessItemsCutoverGate`，`specs/batch-06-shared-tools/sync-cutover.md`「Host 一侧实施」）：本地状态按 `syncCutoverLane` 记、请求仍写公开名并带范围头；未采用时该集合不建 lane、不发请求，只给等待原因。只有已采用的 Home 每次运行读一次切换状态，空闲轮次的一次请求不变。`cutOver` 不代替本人的 `adopt`。
+
 - 负责：个人空间同步配置缓存、协议协调、进度、冲突入口。
 - `resolveSyncEndpoint` 只接受可信 Host 的规范 HTTPS 来源或显式固定本机联调，默认不连接；请求禁止跟随重定向。每轮读取服务端容量，满额仍下载并选择独立删除，正向队列不丢弃；最终并发准入归 D1。
 - 本机选择保存在该账号 Home 的 `sync/device.json`（格式版本 1，绑定 spaceId），不进入云端空间策略；新设备未选择时无后台传输。关闭自动同步不删除队列或业务内容。

@@ -11,4 +11,4 @@
 | 2026-09-30 防腐体检 | [体检、复查与第一轨记录](reviews/code-health-report-2026-09-30.md) | [防腐归档](../../specs/archive/repository-anti-corruption/spec.md)；后续工作见[统一待办](../../specs/BACKLOG.md) |
 | 旧会话交接 | [交接目录](handoffs/)，含[九项需求交接](handoffs/requirements-handoff-2026-10-15.md) | 从对应 spec 核对当前负责人、依赖与未完成事项，保留已有任务归属 |
 
-规格书历史在 [specs/archive](../../specs/archive/)，产品运营旧稿在[运营归档](../product-operations/archive/版本说明.md)。现行使用与开发入口见[文档导航](../README.md)。
+规格书历史在 [specs/archive](../../specs/archive/README.md)，产品运营旧稿在[运营归档](../product-operations/archive/版本说明.md)。现行使用与开发入口见[文档导航](../README.md)。

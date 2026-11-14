@@ -1,3 +1,4 @@
+import { requiredQuery } from "@molis-ai/molis-work-plugin-sdk/browser";
 /** The icon sprite entry the design system draws (`#icon-<name>`). */
 export const ICON = (name: string) => `<svg aria-hidden="true"><use href="#icon-${name}"></use></svg>`;
 
@@ -25,11 +26,7 @@ export function cutUnits(value: string, limit: number): string {
 }
 
 /** The node a page the server drew must have. */
-export function required<T extends Element = HTMLElement>(root: ParentNode, selector: string): T {
-  const node = root.querySelector<T>(selector);
-  if (!node) throw new Error(`Pages page is missing ${selector}`);
-  return node;
-}
+export const required = requiredQuery(selector => `Pages page is missing ${selector}`);
 
 export const stop = (event: Event) => { event.preventDefault(); event.stopPropagation(); };
 
@@ -37,7 +34,7 @@ export const stop = (event: Event) => { event.preventDefault(); event.stopPropag
 export const said = (error: unknown, fallback: string): string => (error instanceof Error && error.message) || fallback;
 
 /** The failure's HTTP status, when it has one. */
-export const statusOf = (error: unknown): number | undefined => (error as { status?: number } | null)?.status;
+export { statusOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 
 /** The text of a document node, paragraphs apart; a body that is not a document gives nothing. */
 export function docText(node: unknown): string {

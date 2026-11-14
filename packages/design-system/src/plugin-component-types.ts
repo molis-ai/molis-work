@@ -12,7 +12,7 @@ import type { pcOutput, pcQuery } from './plugin-component-output.js';
 import type { pcSubmit, pcPart } from './plugin-component-part.js';
 
 export type { SandboxSchema };
-export interface Part { node: PluginComponentNode; root: HTMLElement; output: HTMLElement; feedback: HTMLElement; form?: HTMLFormElement; dialog?: HTMLDialogElement; opener?: HTMLButtonElement; confirm?: HTMLDialogElement; filter?: HTMLElement; tools?: HTMLElement; waiting?: ReturnType<typeof setTimeout>; feedbackTimer?: ReturnType<typeof setTimeout>; busy: boolean; query: number; draft: number; signature: string; prefilled: Map<string, number>; rows?: unknown[]; seen?: Set<string> }
+export interface Part { node: PluginComponentNode; root: HTMLElement; output: HTMLElement; feedback: HTMLElement; form?: HTMLFormElement; dialog?: HTMLDialogElement; opener?: HTMLButtonElement; confirm?: HTMLDialogElement; filter?: HTMLElement; tools?: HTMLElement; waiting?: ReturnType<typeof setTimeout>; feedbackTimer?: ReturnType<typeof setTimeout>; slot?: { dispose(): void }; busy: boolean; query: number; draft: number; signature: string; prefilled: Map<string, number>; rows?: unknown[]; seen?: Set<string> }
 export type Column = { field: string; label: SandboxVisibleText; values?: Record<string, SandboxVisibleText> };
 export interface DetailView { layout: HTMLElement; pane: HTMLElement; back: HTMLButtonElement; content?: string; scroll?: Array<[Element, number]> }
 

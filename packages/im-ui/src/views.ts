@@ -165,10 +165,12 @@ interface ViewMarkup { html: string; language: string }
 
 function sameMessageRow(old: Element, fresh: Element): boolean {
   if (old.isEqualNode(fresh)) return true;
-  // Arrival motion and a navigation highlight belong to the existing element, not the message content.
-  if (!old.matches(".is-new,.im-source-flash")) return false;
+  // Arrival motion and a navigation highlight belong to the existing element, not the message content; so do the objects the host mounts in it.
+  const mounted = old.querySelector("[data-im-object-part]");
+  if (!mounted && !old.matches(".is-new,.im-source-flash")) return false;
   const stable = old.cloneNode(true) as Element;
   stable.classList.remove("is-new", "im-source-flash");
+  for (const part of stable.querySelectorAll("[data-im-object-part]")) part.remove();
   return stable.isEqualNode(fresh);
 }
 

@@ -1,8 +1,9 @@
 import { isDeepStrictEqual } from "node:util";
 import { ActionError, assertHomeEventWindow, ACTION_REFERENCE_SCHEMA, HOME_EVENTS_INPUT_TYPE, HOME_EVENTS_OUTPUT_TYPE, HOME_EVENT_WINDOW_SCHEMA, HOME_EVENT_SCHEMA, HOME_EVENT_SOURCE_SCHEMA, HOME_OPEN_TARGET_SCHEMA,
-  type ActionCallContext, type ActionClient, type ActionDefinition, type ActionHandlerBinding, type ActionReference, type ActionView, type HomeEventView, type HomeEventCollection, type HomeEventWindow, type HomeOpenTarget } from "@molis-ai/molis-work-contracts/platform/actions";
+  type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionReference, type ActionView, type HomeEventView, type HomeEventCollection, type HomeEventWindow, type HomeOpenTarget } from "@molis-ai/molis-work-contracts/platform/actions";
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { hostLog } from "./host-log.js";
+import { matchingActions, type HostActionClient } from "./local-host-types.js";
 
 export type { HomeEventView } from "@molis-ai/molis-work-contracts/platform/actions";
 export interface HomeEventsResult { events: HomeEventView[]; issues: string[] }
@@ -18,11 +19,13 @@ export const homeEventActions = {
 };
 const same = (a: ActionReference, b: ActionReference) => a.capability_id === b.capability_id && a.version === b.version && a.provider_id === b.provider_id;
 /** `projectPlugins` asks whether the project reaches a provider's plugin: absent (old callers and tests) keeps the previous rule, turning off only `plugin_disabled`. */
-export function createHomeEventHandlers(client: ActionClient, recommendations: ActionReference, projectPlugins?: (projectId: string) => Promise<(pluginId: string) => boolean | undefined>): ActionHandlerBinding[] {
+export function createHomeEventHandlers(client: HostActionClient, recommendations: ActionReference, projectPlugins?: (projectId: string) => Promise<(pluginId: string) => boolean | undefined>): ActionHandlerBinding[] {
+  const isSource = ({ action }: Pick<ActionView, "action">) => action.input_type === HOME_EVENTS_INPUT_TYPE && action.output_type === HOME_EVENTS_OUTPUT_TYPE;
   const collect = async (caller: ActionCallContext, window: HomeEventWindow, pinned?: ActionReference): Promise<HomeEventsResult> => {
     assertHomeEventWindow(window);
-    const directory = await client.discover(caller);
-    const sources = directory.filter(view => view.action.input_type === HOME_EVENTS_INPUT_TYPE && view.action.output_type === HOME_EVENTS_OUTPUT_TYPE
+    const directory = await matchingActions(client, caller, definition => isSource(definition)
+      || !pinned && definition.capability_id === recommendations.capability_id && definition.version === recommendations.version);
+    const sources = directory.filter(view => isSource(view)
       && (!pinned || same(pinned, { ...view, provider_id: view.provider.provider_id })));
     if (pinned && sources.length !== 1) throw new ActionError("actions.event_source_changed", "原事项提供方已不可访问，请重新读取首页");
     const events: HomeEventView[] = [], issues: string[] = [];
@@ -82,7 +85,7 @@ export function createHomeEventHandlers(client: ActionClient, recommendations: A
         hostLog.warn("home", "recommendations_failed", error, { capability: `${recommendations.capability_id}@${recommendations.version}` });
       }
     }
-    const current = await client.discover(caller);
+    const current = await matchingActions(client, caller, isSource);
     // Only sources that were read can have been withdrawn during the read; ones unavailable from the start were handled above.
     const withdrawn = sources.filter(source => source.availability.available && !current.some(view => view.capability_id === source.capability_id && view.version === source.version && view.provider.provider_id === source.provider.provider_id && view.availability.available));
     if (pinned && withdrawn.length) throw new ActionError("actions.event_source_changed", "事项提供方在读取期间已失效");
@@ -98,7 +101,7 @@ export function createHomeEventHandlers(client: ActionClient, recommendations: A
       const event = (await collect(caller, input.window, input.source)).events.find(event => event.event_id === input.event_id);
       if (!event?.open || !isDeepStrictEqual(event.open, input.target)) throw new ActionError("actions.event_changed", "事项或打开目标已变化，请重新读取后选择");
       await caller.validate_authority?.(input.source);
-      if (!(await client.discover(caller)).some(view => same(input.source, { ...view, provider_id: view.provider.provider_id }) && view.availability.available)) {
+      if (!(await matchingActions(client, caller, isSource)).some(view => same(input.source, { ...view, provider_id: view.provider.provider_id }) && view.availability.available)) {
         throw new ActionError("actions.event_source_changed", "原事项提供方已失效，请重新读取首页");
       }
       return { target: event.open };

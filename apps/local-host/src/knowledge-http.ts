@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { KNOWLEDGE_CARD_STATES, KNOWLEDGE_PROVIDER_ID, knowledgeActions, knowledgeManageActions, type KnowledgeCardsResponse, type KnowledgeCardState } from "@molis-ai/molis-work-contracts/services/knowledge";
+import { KNOWLEDGE_CARD_STATES, KNOWLEDGE_CARDS_SUBJECTS_MAX, KNOWLEDGE_PROVIDER_ID, knowledgeActions, knowledgeManageActions, type KnowledgeCardsResponse, type KnowledgeCardState } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { dispatchNativePluginJsonHttp } from "./native-plugin-http.js";
 import { localWebActionContext } from "./local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
@@ -41,13 +41,22 @@ export async function handleKnowledgeHttp(request: IncomingMessage, response: Se
         const next = offset + page.cards.length;
         return { status: 200, body: { states, total: page.total, next_offset: next < page.total ? next : null, model_ready: page.model_ready, listing: page.listing } };
       }
+      // One piece's card, by its key: the project's other cards are not read for it.
       if (method === "GET" && route === "card") {
-        const page = await call(knowledgeManageActions.cards, { subject: { kind: query.get("kind"), id: query.get("id") }, limit: 1 }) as KnowledgeCardsResponse;
-        return { status: 200, body: { card: page.cards[0] ?? null } };
+        const kind = query.get("kind"), id = query.get("id");
+        if (!kind || !id) return { status: 200, body: { card: null } };
+        const named = await call(knowledgeManageActions.cards, { subject: { kind, id }, limit: 1 }) as KnowledgeCardsResponse;
+        return { status: 200, body: { card: named.cards[0] ?? null } };
       }
       if (method === "GET" && route === "glob") return { status: 200, body: await call(knowledgeActions.glob, { pattern: query.get("pattern") ?? "", limit: PAGE }) };
       if (method === "GET" && route === "search") return { status: 200, body: await call(knowledgeActions.search, { query: query.get("q") ?? "", limit: 30 }) };
       if (method !== "POST") return null;
+      // Where the pieces a list shows stand, by their keys (materials-ui-contract §6): no catch-up and no scan of every card.
+      if (route === "states") {
+        const named = await call(knowledgeManageActions.cards, { subjects: body?.subjects ?? [], limit: KNOWLEDGE_CARDS_SUBJECTS_MAX }) as KnowledgeCardsResponse;
+        return { status: 200, body: { states: named.cards.map(card => ({ kind: card.subject.kind, id: card.subject.id, state: card.state, excluded: card.excluded,
+          changed: !!card.suggestion })), model_ready: named.model_ready } };
+      }
       if (route === "edit") return { status: 200, body: await call(knowledgeManageActions.edit, body) };
       if (route === "exclude") return { status: 200, body: await call(knowledgeManageActions.exclude, body) };
       if (route === "organize") return { status: 200, body: await call(knowledgeManageActions.organize, body) };

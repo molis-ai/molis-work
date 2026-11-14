@@ -156,14 +156,14 @@ test("RAC-759 a frame's page starts with its plugin's sheet and the sheets of th
     assert.deepEqual([...client.styles], [...new Set(wanted)], `${client.id}: its own sheet first, then the used ones, only where a sheet exists`);
   }
   const coding = clients.find((client) => client.id === "coding")!;
-  assert.deepEqual([...coding.styles].sort(), ["coding", "files", "git"], "Coding mounts the Git and Files clients, so its frame links their sheets");
+  assert.deepEqual([...coding.styles].sort(), ["coding", "git"], "Coding mounts the Git client, so its frame links its sheet");
   assert.ok(!clients.find((client) => client.id === "diff")!.styles.includes("diff"), "the Diff plugin's rules are all shared, so it has no sheet to link");
   assert.deepEqual([...clients.find((client) => client.id === "shelf")!.styles], ["shelf"], "Shelf's page loads Shelf's own sheet");
   assert.deepEqual([...clients.find((client) => client.id === "plugin-builder")!.styles], ["plugin-builder"], "so does the studio");
-  assert.equal(documentOf(renderPluginFrameSurface("<p>x</p>", "coding", "Coding")), `${link("coding")}${link("git")}${link("files")}<p>x</p>`);
+  assert.equal(documentOf(renderPluginFrameSurface("<p>x</p>", "coding", "Coding")), `${link("coding")}${link("git")}<p>x</p>`);
   assert.equal(documentOf(renderPluginFrameSurface("<p>x</p>", "diff", "Diff")), "<p>x</p>", "a plugin with no sheet of its own adds nothing");
   assert.equal(documentOf(renderPluginFrameSurface("<p>x</p>", "feed", "Feed")), `${link("feed")}<p>x</p>`, "the Feed owner loads its own sheet");
-  assert.equal(documentOf(renderPluginFrameSurface("<p>x</p>", "a-copy", "t", false, false, "coding")), `${link("coding")}${link("git")}${link("files")}<p>x</p>`,
+  assert.equal(documentOf(renderPluginFrameSurface("<p>x</p>", "a-copy", "t", false, false, "coding")), `${link("coding")}${link("git")}<p>x</p>`,
     "a standalone view of a plugin's bundle takes the bundle's sheets");
   assert.ok(!renderPluginFrameSurface("<p>x</p>", "coding", "Coding").includes("<link"), "the links travel inside the inert page data, never in the shell's own markup");
 });
@@ -317,7 +317,7 @@ test("RAC-2591 Coding's rules reach the pages that use them: its own from coding
   const workbench = renderMolisWorkWorkbenchStylesheet();
   assert.ok(own.includes(CODING_OWN_MARKER) && !workbench.includes(CODING_OWN_MARKER), "a rule that names only Coding's class is in coding.css and not in the workbench sheet");
   for (const rule of CODING_SHARED_MARKERS) assert.ok(workbench.includes(rule) && !own.includes(rule), `${rule} stays in the workbench sheet`);
-  assert.equal(pluginSettingsStyleLinks(CODING_SETTINGS_CONTRIBUTION, packs), `${link("coding")}${link("git")}${link("files")}`, "the settings page links the sheets its frame links");
+  assert.equal(pluginSettingsStyleLinks(CODING_SETTINGS_CONTRIBUTION, packs), `${link("coding")}${link("git")}`, "the settings page links the sheets its frame links");
   const page = renderMolisWorkSettings(codingSettingsView());
   assert.ok(page.indexOf('href="/assets/molis-work-settings.css"') < page.indexOf('href="/assets/molis-work-plugins/coding.css"'), "linked after the settings sheet");
 });

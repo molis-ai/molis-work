@@ -18,6 +18,7 @@ export interface Lifetime {
   whenVisible(start: (signal: AbortSignal) => (() => void) | void): () => void;
   /** Reads `read` every `delay` ms while the page is visible; a failure goes to `onError`. */
   poll(read: (signal: AbortSignal) => unknown, delay: number, onError?: (error: unknown) => void): () => void;
+  watchRevision(read: (signal: AbortSignal) => Promise<unknown>, refresh: (signal: AbortSignal) => Promise<boolean | void>): () => void;
   fetch(input: string, init?: RequestInit): Promise<Response>;
   /** Waits `ms`, or rejects when the page ends (or `signal` aborts) first. */
   delay(ms: number, signal?: AbortSignal): Promise<void>;

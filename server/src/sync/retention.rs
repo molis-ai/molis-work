@@ -3,7 +3,12 @@ use serde_json::{Value, json};
 use wasm_bindgen::JsValue;
 use worker::{D1Database, Request};
 
-pub(crate) async fn list(req: &Request, db: &D1Database, space: &str) -> ApiResult<Value> {
+pub(crate) async fn list(
+    req: &Request,
+    db: &D1Database,
+    space: &str,
+    scope: &crate::cutover::Scope,
+) -> ApiResult<Value> {
     let url = req.url()?;
     let before = url
         .query_pairs()
@@ -13,12 +18,29 @@ pub(crate) async fn list(req: &Request, db: &D1Database, space: &str) -> ApiResu
         .map_err(|_| Failure(400, "INVALID_CURSOR"))?
         .unwrap_or(i64::MAX);
     require(before > 0, 400, "INVALID_CURSOR")?;
-    let rows=db.prepare("SELECT namespace,key,revision,deleted_at AS deletedAt,deleted_at+2592000000 AS expiresAt FROM sync_heads WHERE space=? AND deleted_at IS NOT NULL AND purged_at IS NULL AND revision<? ORDER BY revision DESC LIMIT 21").bind(&[space.into(),JsValue::from_f64(before.min(9_007_199_254_740_991) as f64)])?.all().await?.results::<Value>()?;
+    // Filtered before paging: a sealed public stream is gone from ordinary trash, and the private stream appears (under
+    // the public name) only in the scoped view that selects it.
+    let rows=db.prepare("SELECT namespace,key,revision,deleted_at AS deletedAt,deleted_at+2592000000 AS expiresAt FROM sync_heads h WHERE space=? AND deleted_at IS NOT NULL AND purged_at IS NULL AND revision<? AND NOT (namespace=? AND EXISTS(SELECT 1 FROM sync_cutovers c WHERE c.space=h.space)) AND (namespace NOT LIKE '[\"process_items_adopted\",%' OR (?=1 AND EXISTS(SELECT 1 FROM sync_cutovers c WHERE c.space=h.space AND c.namespace=h.namespace AND c.selected=1 AND c.completed_at IS NOT NULL))) ORDER BY revision DESC LIMIT 21").bind(&[space.into(),JsValue::from_f64(before.min(9_007_199_254_740_991) as f64),crate::cutover::PUBLIC.into(),JsValue::from_f64(if scope.current(){1.0}else{0.0})])?.all().await?.results::<Value>()?;
+    let mut items = Vec::new();
+    for row in rows.iter().take(20) {
+        let mut row = row.clone();
+        row["namespace"] = json!(
+            scope
+                .public(string(&row, "namespace", 2500)?)
+                .ok_or(Failure(503, "INVALID_STORAGE"))?
+        );
+        items.push(row);
+    }
     Ok(
-        json!({"items":rows.iter().take(20).collect::<Vec<_>>(),"more":rows.len()>20,"next":rows.get(19).map(|row|row["revision"].clone())}),
+        json!({"items":items,"more":rows.len()>20,"next":rows.get(19).map(|row|row["revision"].clone())}),
     )
 }
-pub(crate) async fn restore(req: &mut Request, db: &D1Database, space: &str) -> ApiResult<Value> {
+pub(crate) async fn restore(
+    req: &mut Request,
+    db: &D1Database,
+    space: &str,
+    scope: &crate::cutover::Scope,
+) -> ApiResult<Value> {
     let value = body(req).await?;
     fields(
         &value,
@@ -30,8 +52,9 @@ pub(crate) async fn restore(req: &mut Request, db: &D1Database, space: &str) -> 
             "policyRevision",
         ],
     )?;
+    let routed = scope.route(string(&value, "namespace", 2500)?)?;
     let (namespace, key, operation, revision) = (
-        string(&value, "namespace", 2500)?,
+        routed.as_str(),
         string(&value, "key", 500)?,
         string(&value, "operationId", 150)?,
         integer(&value, "revision")?,
@@ -52,12 +75,18 @@ pub(crate) async fn restore(req: &mut Request, db: &D1Database, space: &str) -> 
         .bind(&[space.into(),namespace.into(),key.into(),JsValue::from_f64(revision as f64),JsValue::from_f64(revision as f64)])?.first::<Value>(None).await?.ok_or(Failure(404,"SYNC_RECOVERY_MISSING"))?;
     crate::changes::upload_value(json!({"namespace":namespace,"policyRevision":integer(&value,"policyRevision")?,"mutation":{"operationId":operation,"key":key,"base":revision,"value":serde_json::from_str::<Value>(string(&row,"value",524288)?)?},"attachments":serde_json::from_str::<Value>(string(&row,"attachments",524288)?)?}),db,space,"restore",None).await
 }
-pub(crate) async fn purge(req: &mut Request, db: &D1Database, space: &str) -> ApiResult<Value> {
+pub(crate) async fn purge(
+    req: &mut Request,
+    db: &D1Database,
+    space: &str,
+    scope: &crate::cutover::Scope,
+) -> ApiResult<Value> {
     let value = body(req).await?;
     fields(&value, &["namespace", "key", "revision", "confirm"])?;
     require(value["confirm"] == true, 400, "CONFIRM_REQUIRED")?;
+    let routed = scope.route(string(&value, "namespace", 2500)?)?;
     let (namespace, key, revision) = (
-        string(&value, "namespace", 2500)?,
+        routed.as_str(),
         string(&value, "key", 500)?,
         integer(&value, "revision")?,
     );

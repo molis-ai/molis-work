@@ -130,7 +130,8 @@ test("S-ui-text-page FSS-09 the Coding page cannot borrow a restarted embedded G
   const { projects } = await index.json() as { projects: Array<{ project_id: string; revision: string }> };
   let revision = projects.find(row => row.project_id === project.project_id)?.revision;
   assert.ok(revision);
-  for (const plugin_id of ["coding", "git", "files"]) {
+  // Files is retired (batch 06): Coding shows the project's folder through its own files face.
+  for (const plugin_id of ["coding", "git"]) {
     const membership = await f.request("/api/settings/projects/" + project.project_id + "/plugins", { method: "POST", body: { plugin_id, expected_revision: revision } });
     assert.equal(membership.status, 200, await membership.clone().text());
     revision = (await membership.json() as { revision: string }).revision;

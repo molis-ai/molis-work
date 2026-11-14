@@ -16,6 +16,8 @@ import { keepEditsSections, KEEP_EDITS_BOARD_STYLES } from "./catalog-keep-edits
 import { buttonGroupSection, CATALOG_PATTERN_STYLES, dataTableSection, dropZoneSection, rowsSection, statSection, tagInputSection } from "./catalog-patterns.js";
 import { lookSections } from "./catalog-appearance.js";
 import { APPEARANCE_BOARD_STYLES } from "./catalog-appearance-styles.js";
+import { PRESENTATION_BOARD_STYLES, presentationSection, type CatalogPresentationPlugin } from "./catalog-presentation.js";
+import { PRESENTATION_FORM_STYLES } from "../styles/presentation.js";
 import { componentText, PLUGIN_COMPONENTS } from "../plugin-components.js";
 import { itemChoiceSection, itemDetailsSection, listDetailSection, SKILL_PACK_BOARD_STYLES, statusLinkSection } from "./catalog-skill-packs.js";
 import { CAPABILITY_PACK_BOARD_STYLES, cellGridSection, detailTrailSection, iconCountsSection, itemGroupSection, nowBlockSection, stateRowsSection, stickyDetailSection, usageSection } from "./catalog-capability-packs.js";
@@ -217,8 +219,15 @@ function iconSection(): string {
  * `plugins` fills the icon inventory's plugin rows; the design system keeps no list of plugins (PG-075), so omitted means none.
  * `say` is the page's translator: the sections written through it (the unified input's parts) follow the board's language.
  * `delivery` is the running send's name (补充) by its stable key, where the page has the platform's words.
+ * `presentationLocale` is supplied by the board's Host entry, which has the workbench's owned text environment installed.
  */
-export function renderPrimitiveCatalog(options: { readonly plugins?: readonly CatalogPluginIcon[]; readonly say?: Say; readonly delivery?: string } = {}): string {
+export function renderPrimitiveCatalog(options: {
+  readonly plugins?: readonly CatalogPluginIcon[];
+  readonly say?: Say;
+  readonly delivery?: string;
+  readonly presentationLocale?: string;
+  readonly presentationPlugins?: readonly CatalogPresentationPlugin[];
+} = {}): string {
   const say = options.say ?? t;
   const sections = `
     ${paletteSection()}
@@ -266,11 +275,12 @@ export function renderPrimitiveCatalog(options: { readonly plugins?: readonly Ca
     ${stateRowsSection(say)}
     ${usageSection(say)}
     ${stickyDetailSection(say)}
+    ${options.presentationLocale ? presentationSection(options.presentationLocale, options.presentationPlugins) : ""}
     ${layoutSection()}
     ${dataTableSection()}`;
   return `<div class="mw-catalog">
     ${catalogIndex(sections, say)}
-    <style>${COMPOSER_STYLES}${CATALOG_PATTERN_STYLES}${COMPOSER_BOARD_STYLES}${KEEP_EDITS_BOARD_STYLES}${APPEARANCE_BOARD_STYLES}${SKILL_PACK_BOARD_STYLES}${CAPABILITY_PACK_BOARD_STYLES}</style>
+    <style>${COMPOSER_STYLES}${CATALOG_PATTERN_STYLES}${COMPOSER_BOARD_STYLES}${KEEP_EDITS_BOARD_STYLES}${APPEARANCE_BOARD_STYLES}${SKILL_PACK_BOARD_STYLES}${CAPABILITY_PACK_BOARD_STYLES}${options.presentationLocale ? PRESENTATION_FORM_STYLES + PRESENTATION_BOARD_STYLES : ""}</style>
     ${sections}
   </div>
   <script>${CATALOG_CLIENT_SCRIPT}</script>`;

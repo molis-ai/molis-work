@@ -1,7 +1,9 @@
 import { publishCheckedStudioFixture } from './fixtures/checked-studio-release.js';
 import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { ChildProcess, spawn } from 'node:child_process';
+import { once } from 'node:events';
+import { setTimeout as sleep } from 'node:timers/promises';
 import test from 'node:test';
 import { createHash, randomUUID } from 'node:crypto';
 import { copyFile, mkdir, mkdtemp, readFile, readdir, writeFile, rm } from 'node:fs/promises';
@@ -11,11 +13,11 @@ import { AgentBuilderStore, type AgentRelease } from '@molis-ai/molis-work-plugi
 import { ActionService } from '@molis-ai/molis-work-kernel';
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionDefinition, type ActionExecutionPolicy } from '@molis-ai/molis-work-contracts/platform/actions';
 import { PluginRuntime, SqlitePluginPrivateStorage, SqlitePluginRuntimeRepository } from '@molis-ai/molis-work-plugin-runtime';
-import type { PluginPackageBundle } from '@molis-ai/molis-work-contracts/platform/plugin';
+import type { PluginDefinition, PluginPackageBundle, PluginProjectStatements } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { LocalProjectDatabase } from '@molis-ai/molis-work-app-local-host';
 import { seedDemoBoard, DEMO_PROJECT_ID, runningPluginDirectory } from '@molis-ai/molis-work-app-local-host';
-import { HomeConsentLedger, MolisWorkLocalHost, PLUGIN_INSTALL_PERMISSIONS, projectedPermissionDeclarations, PluginInstallService, SandboxPackageStore, molisWorkHostProjectReference, pluginInstallActions, readMcpToolPreference } from '@molis-ai/molis-work-app-local-host';
+import { acquireUpgradedHomeOwner, HomeConsentLedger, MolisWorkLocalHost, PLUGIN_INSTALL_PERMISSIONS, projectedPermissionDeclarations, PluginInstallService, SandboxPackageStore, molisWorkHostProjectReference, pluginInstallActions, readMcpToolPreference } from '@molis-ai/molis-work-app-local-host';
 import { ensureInstalledPlugins, releaseInstalledPlugins } from '../apps/local-host/dist/installed-plugin-host.js';
 import { installedSignature, sandboxedPluginDefinition } from '../apps/local-host/dist/plugin-builder/installed.js';
 import { exposedActionId } from '../apps/local-host/dist/plugin-builder/exposed-actions.js';
@@ -29,9 +31,70 @@ import { callAs, callerPlugin, issuedCaller, registerProbe, startProjectPlugins 
 import { agentDefinitionsFor } from '../apps/local-host/dist/agent-definitions/agent-definitions.js';
 import { builtinRegistrations } from '../apps/local-host/dist/agent-definitions/builtin-agents.js';
 import { PACKAGE_PLUGIN_ID, newPublisher, signedPackage } from './fixtures/sandbox-package.js';
+import { openTestHome } from './fixtures/test-home.js';
 
 const mac = { skip: process.platform !== 'darwin', timeout: 30_000 };
 const caller = { actor_id: 'owner', audience: 'user' as const, permissions: [], project_id: DEMO_PROJECT_ID };
+
+test('BSH-03 S-59 a real installed project SQL child exits before the Host releases the Home lease', { timeout: 20_000 }, async t => {
+  const permissions = ['storage:private', 'fixture:read', 'fixture:write'], pluginId = 'io.molis.work.fixture.statement';
+  const capture: { statements?: PluginProjectStatements } = {};
+  const definition: PluginDefinition = { execution: 'sandbox', manifest: {
+    schema_version: 1, host_api_version: 1, plugin_id: pluginId, version: '1.0.0', name: 'Statement fixture', kind: 'app',
+    publisher: { publisher_id: 'fixture', signature: 'statement-fixture' }, entrypoints: [{ deployment: 'local', entrypoint: './index.mjs' }],
+    permissions: permissions.map(permission => ({ permission, required: true, reason: 'Read fixture data' })),
+    capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [],
+    databases: { project: { store_name: 'fixture', version: 1, read_permission: 'fixture:read', write_permission: 'fixture:write',
+      schema: 'CREATE TABLE fixture_rows (id TEXT PRIMARY KEY);' } },
+    upgrade_compatibility: { compatible_from_versions: ['1.0.0'], migratable_from_versions: [] },
+  }, async start(context) { capture.statements = context.services?.project_statements; return { kind: 'app' }; } };
+  const home = await openTestHome(t);
+  const project = await home.createProject('Close with a native child');
+  const installed = await home.host.withProject(project.reference, ({ store }) =>
+    ensureInstalledPlugins({ store, projectId: project.project_id, homeDirectory: home.home, actorId: LOCAL_PERSON_ACTOR_ID }));
+  assert.deepEqual((await installed.platform.start([{ definition, trust: { level: 'unsigned' }, grants: permissions }])).running, [pluginId]);
+  assert.ok(capture.statements);
+
+  const spawned: { child?: ChildProcess } = {};
+  const prototype = ChildProcess.prototype as ChildProcess & { spawn(options: { args: readonly string[] }): void };
+  const spawnChild = prototype.spawn;
+  t.mock.method(prototype, 'spawn', function(this: ChildProcess, options: { args: readonly string[] }) {
+    const started = Reflect.apply(spawnChild, this, [options]);
+    if (!options.args.some(arg => arg.endsWith('/project-statement-worker.js'))) return started;
+    spawned.child = this;
+    const send = this.send;
+    t.mock.method(this, 'send', function(this: ChildProcess, ...args: Parameters<ChildProcess['send']>) {
+      const request = args[0] as { op?: string; limits?: { rssMb: number } };
+      // This fixture observes shutdown ordering, independent of the SQL startup RSS cap.
+      if (request?.op === 'open') args[0] = { ...request, limits: { ...request.limits, rssMb: 512 } };
+      return Reflect.apply(send, this, args);
+    });
+    return started;
+  });
+  assert.deepEqual(await capture.statements.get('SELECT 1 AS live', [], { bytes: 100 }, t.signal), { live: 1 });
+  const child = spawned.child, pid = child?.pid;
+  assert.ok(child && pid);
+  const exit = once(child, 'close'), stopping = Promise.withResolvers<void>(), kill = ChildProcess.prototype.kill;
+  t.mock.method(child, 'kill', function(this: ChildProcess, signal?: NodeJS.Signals | number) {
+    if (signal === 'SIGKILL') { stopping.resolve(); return true; }
+    return Reflect.apply(kill, this, [signal]);
+  });
+  await home.close();
+  const closing = home.host.close();
+  try {
+    await Promise.race([stopping.promise, closing.then(() => assert.fail('Host closed before signalling the SQL child'))]);
+    const closedEarly = await Promise.race([closing.then(() => true), sleep(100, false)]);
+    assert.equal(process.kill(pid, 0), true);
+    assert.throws(() => acquireUpgradedHomeOwner(home.home).release(), { code: 'storage.owner.busy' });
+    assert.equal(closedEarly, false);
+  } finally {
+    Reflect.apply(kill, child, ['SIGKILL']);
+    await exit;
+    await closing;
+  }
+  assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' });
+  acquireUpgradedHomeOwner(home.home).release();
+});
 
 /** `neverInstalled`: the Runtime has no row for the plugin yet, as for a plugin that is published but has never been installed.
  * `fixedPluginId`: the generated plugin id to use instead of a random one, so a test can control where it sorts. */

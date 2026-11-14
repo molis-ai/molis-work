@@ -1,4 +1,4 @@
-import { effectsFromContract, sandboxIntegrationManifest, sandboxPluginManifest } from '@molis-ai/molis-work-plugin-sdk';
+import { effectsFromContract, parseSandboxUi, sandboxIntegrationManifest, sandboxPluginManifest, type SandboxUiContribution } from '@molis-ai/molis-work-plugin-sdk';
 /**
  * Reads a sandbox package (the public format in `SANDBOX_PACKAGE_FILES`, described in docs/platform/PLUGIN-DEVELOPMENT.md) into what the
  * Host runs it from. The plugin studio is one author of the format; this reads the format and nothing of the studio. It writes nothing:
@@ -34,6 +34,7 @@ export interface SandboxPackage {
   readonly parts: PluginComponentPlan[];
   readonly nodes: PluginComponentNode[];
   readonly presentation?: PluginPresentation;
+  readonly ui?: SandboxUiContribution;
   readonly acceptance: unknown[];
   readonly prompts: SandboxPackagePrompt[];
   readonly agentBodies: SandboxAgentBody[];
@@ -115,9 +116,10 @@ export function readSandboxPackage(payload: PluginPackagePayload): SandboxPackag
   if (contract.pluginId !== manifest.plugin_id) refuse('contract.json 的 pluginId 与清单的 plugin_id 不一致');
 
   const shape = jsonFile(files, SANDBOX_PACKAGE_FILES.interface);
-  if (!plain(shape) || Object.keys(shape).some(key => !['parts', 'nodes', 'presentation', 'acceptance'].includes(key))) return refuse('interface.json 只能有 parts、nodes、presentation、acceptance');
-  const surface: { parts?: unknown; nodes?: unknown; presentation?: unknown; acceptance?: unknown } = shape;
-  const parts = validated('interface.json 的 parts', () => validatePluginComponentPlans(surface.parts, contract));
+  if (!plain(shape) || Object.keys(shape).some(key => !['parts', 'nodes', 'presentation', 'acceptance', 'ui'].includes(key))) return refuse('interface.json 只能有 parts、nodes、presentation、acceptance、ui');
+  const surface: { parts?: unknown; nodes?: unknown; presentation?: unknown; acceptance?: unknown; ui?: unknown } = shape;
+  const ui = validated('interface.json 的 ui', () => parseSandboxUi(surface.ui));
+  const parts = validated('interface.json 的 parts', () => validatePluginComponentPlans(surface.parts, contract, ui));
   const nodes = validated('interface.json 的 nodes', () => {
     if (!Array.isArray(surface.nodes)) throw new Error('nodes 要是数组');
     const assembled: PluginComponentNode[] = surface.nodes;
@@ -152,7 +154,7 @@ export function readSandboxPackage(payload: PluginPackagePayload): SandboxPackag
   }
   validated('清单', () => parsePluginManifest(expected));
   if (expected.databases?.home) validated('Home 库', () => assertPluginHomeSchema(expected.databases!.home!.schema));
-  return { manifest: expected, localePacks, agentBodies, contract, parts, nodes, ...(presentation ? { presentation } : {}), acceptance, prompts, entrypoint, permissions };
+  return { manifest: expected, localePacks, agentBodies, contract, parts, nodes, ...(presentation ? { presentation } : {}), ...(ui ? { ui } : {}), acceptance, prompts, entrypoint, permissions };
 }
 
 /** A package the Host keeps and runs: an app's (`readSandboxPackage`) or an integration's (`readSandboxIntegrationPackage`), by its Manifest's kind. */
@@ -237,8 +239,10 @@ export function readSandboxIntegrationPackage(payload: PluginPackagePayload): Sa
   }
 
   if (contract.pages.length || contract.entities.length) refuse('集成包的合同没有页面和实体');
+  if (contract.presentation !== undefined) refuse('集成包的合同不能声明对象呈现');
   const ids = Object.entries(SANDBOX_INTEGRATION_OPERATIONS);
   for (const operation of contract.operations) {
+    if (operation.read_protocol !== undefined || operation.external !== undefined) refuse('集成包的操作不能声明对象读取协议或外发标记');
     const entry = ids.find(([, id]) => id === operation.id) ?? refuse('合同里有平台之外的操作：' + operation.id);
     const fixed = SANDBOX_INTEGRATION_CONTRACT[entry[0] as keyof typeof SANDBOX_INTEGRATION_OPERATIONS];
     for (const field of ['kind', 'input', 'output', 'effects'] as const) {

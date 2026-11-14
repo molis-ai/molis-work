@@ -1,4 +1,5 @@
 import { agentErrors } from "../errors.js";
+import { promptIncludesCache } from "../inference.js";
 import { AGENT_REASONING_EFFORTS, agentTextMaterialContent, type AgentCreateSessionRequest, type AgentImageMaterial, type AgentRunView, type AgentStartRequest, type AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { type PrologueModelConfiguration } from "./prologue.js";
@@ -42,7 +43,9 @@ export function freezeRunStart(input: { request: AgentStartRequest; role: NonNul
     mcp_sources: request.mcp_sources ?? [],
     host_tools: [...role.host_tools],
     text_materials: textMaterials.map(material => {
-      const item = { material_id: material.material_id, title: material.title };
+      // Where each piece came from and the revision read for this round stay with the round; a reopened round shows them as they were.
+      const item = { material_id: material.material_id, title: material.title,
+        ...(material.material_ref ? { material_ref: structuredClone(material.material_ref) } : {}), ...(material.read_revision ? { read_revision: material.read_revision } : {}) };
       return material.source_artifact_id === undefined ? item : { ...item, source_artifact_id: material.source_artifact_id, source_version: material.source_version };
     }),
     ...(imageMaterials.length ? { image_materials: imageMaterials.map(({ material_id, title, media_type }) => ({ material_id, title, media_type })) } : {}),
@@ -53,7 +56,7 @@ export function freezeRunStart(input: { request: AgentStartRequest; role: NonNul
     ...(request.reasoning_effort ? { reasoning_effort: request.reasoning_effort } : {}),
     ...(defaultWindow ? { model_context: {
       window_tokens: Math.min(model.context_tokens ?? defaultWindow, defaultWindow),
-      prompt_includes_cache: model.protocol.startsWith("openai"),
+      prompt_includes_cache: promptIncludesCache(model.protocol),
     } } : {}),
     budget: request.execution_plan ? { ...request.budget, max_turns: request.budget?.max_turns ?? 8 + request.execution_plan.steps.length * 3 } : request.budget ?? null,
     ...(request.workspace === "none" ? { workspace: "none" } : request.workspace === "business" ? { workspace: "business" } : { directory: structuredClone(request.directory) }),

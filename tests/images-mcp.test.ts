@@ -13,7 +13,7 @@ test('Images standard MCP generates and retrieves real bytes, then preserves the
   const provider=createServer(async(req,res)=>{for await(const _ of req){};calls++;res.writeHead(200,{'content-type':'application/json'});res.end(JSON.stringify({data:[{b64_json:PNG}]}));});
   await new Promise<void>(resolve=>provider.listen(0,'127.0.0.1',resolve));const address=provider.address();assert.ok(address&&typeof address==='object');
   const connect=async(project:string,access='write')=>{const client=new Client({name:'external-images',version:'1'});clients.push(client);
-    const transport=new StdioClientTransport({command:process.execPath,args:['--import','tsx',fileURLToPath(new URL('./fixtures/images-mcp-server.ts',import.meta.url)),home,project,access],stderr:'pipe'});
+    const transport=new StdioClientTransport({command:process.execPath,args:[fileURLToPath(new URL('./fixtures/images-mcp-server.ts',import.meta.url)),home,project,access],stderr:'pipe'});
     let errors='';transport.stderr?.on('data',data=>{errors+=String(data);});try{await client.connect(transport);}catch(error){throw new Error(`${String(error)}\n${errors}`);}return client;};
   const call=async(client:Client,name:string,args:Record<string,unknown>={})=>{const result=await client.callTool({name:`images.${name}__v1`,arguments:args});assert.equal(result.isError,false,JSON.stringify(result));return result.structuredContent as any;};
   try{

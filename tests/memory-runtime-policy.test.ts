@@ -8,22 +8,26 @@ import type { AgentMemoryCaller, AgentMemoryMeta } from "@molis-ai/molis-work-co
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ASSISTANT_INSTALL_ID, ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import { MemoryService, MEMORY_GATE_POLICY, MEMORY_GATE_VERSION, characterOwner, defaultPrefs } from "@molis-ai/molis-work-service-memory";
-import { openMemoryLedger } from "@molis-ai/molis-work-storage";
+import { acquireStorageOwner, initializeMemoryForgetting, openMemoryLedger } from "@molis-ai/molis-work-storage";
 import { memoryRuntimePolicy, type MemoryRuntimePolicyOwner } from "@molis-ai/molis-work-app-local-host";
 import { prologueMemoryBackend } from "@molis-ai/molis-work-app-local-host";
 
 const person: AgentMemoryCaller & { consumer: "ui"; current_scene: string } = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "a", consumer: "ui", person: true, current_scene: "common", purpose: "management" };
 const task: AgentMemoryCaller & { consumer: "agent"; current_scene: string } = { ...person, consumer: "agent", person: false, purpose: "task" };
 const meta: AgentMemoryMeta = { kind: "convention", source: "manual", approved_by: { by: "person" }, classification: { scenes: ["common"], lifecycle: "long-term" } };
+type MemoryOptions = NonNullable<Parameters<typeof createPrologueNodeAdapter>[0]["memory"]>;
 
-async function fixture(t: TestContext) {
+async function fixture(t: TestContext, onAuthorize?: MemoryOptions["authorize"]) {
   const home = mkdtempSync(join(tmpdir(), "molis-memory-runtime-policy-"));
-  const ledger = openMemoryLedger({ homeDirectory: home });
+  const storageOwner = acquireStorageOwner(join(home, "agent-runtime"));
+  initializeMemoryForgetting({ homeDirectory: home, storageOwner, assertCurrent() {} });
+  const ledger = openMemoryLedger({ homeDirectory: home, storageOwner });
   for (const key of ["personal", "project-default"]) ledger.savePrefs(LOCAL_PERSON_ACTOR_ID, key, defaultPrefs(key === "personal" ? "personal" : "project", "reviewed"));
   const projects = new Set(["a", "b"]);
   let alive = true, registered = true, projectCheck: ((id: string) => Promise<boolean>) | undefined;
   let service!: MemoryService;
   const owner: MemoryRuntimePolicyOwner = { alive: () => alive,
+    forgettingPhase: () => service.forgettingPhase(),
     prefsFor: (scope, project) => service.prefsFor(LOCAL_PERSON_ACTOR_ID, scope, project),
     owners: project => ledger.owners(project), candidateOwners: project => ledger.candidateOwners(project),
     projectExists: id => projectCheck ? projectCheck(id) : Promise.resolve(projects.has(id)), deletingProject: () => undefined };
@@ -33,12 +37,18 @@ async function fixture(t: TestContext) {
     undo: { prepare: (caller, request) => service.promotion.undo.prepare(caller, request),
       record: (caller, request) => service.promotion.undo.record(caller, request) },
   } } satisfies NonNullable<Parameters<typeof createPrologueNodeAdapter>[0]["memory"]>;
+  if (onAuthorize) {
+    const authorize = options.authorize, authorizeEach = options.authorizeEach!;
+    options.authorize = async (caller, requests) => await onAuthorize(caller, requests) && authorize(caller, requests);
+    // Read pages reach the App through authorizeEach (BL-1072): the same awaited App authority, so the same hook.
+    options.authorizeEach = async (caller, requests) => await onAuthorize(caller, requests) ? authorizeEach(caller, requests) : requests.map(() => false);
+  }
   let network = 0;
   t.mock.method(globalThis, "fetch", async () => { network++; throw new Error("Memory policy must not send model requests"); });
-  const open = () => createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "agent-runtime"), memory: options,
+  const open = () => createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "agent-runtime"), storageOwner, memory: options,
     modelConfiguration: async () => { throw new Error("No model is needed for policy"); } });
   let adapter!: Awaited<ReturnType<typeof open>>;
-  t.after(async () => { await adapter?.close(); ledger.close(); rmSync(home, { recursive: true, force: true }); assert.equal(network, 0); });
+  t.after(async () => { await adapter?.close(); ledger.close(); storageOwner.release(); rmSync(home, { recursive: true, force: true }); assert.equal(network, 0); });
   adapter = await open();
   service = new MemoryService({ ledger, backend: prologueMemoryBackend(async () => adapter.memory!) });
   return { home, ledger, service, options, projects, owner, get adapter() { return adapter; }, bound: (caller: AgentMemoryCaller = person) => adapter.memory!.withCaller(caller),
@@ -46,6 +56,62 @@ async function fixture(t: TestContext) {
     reopen: async () => { await adapter.close(); adapter = await open(); }, closeOwner: () => { alive = false; }, unregister: () => { registered = false; },
     projectCheck: (check: (id: string) => Promise<boolean>) => { projectCheck = check; } };
 }
+
+test("WARM-APP-01 production policy explicitly accepts frozen list input with ordinary Session and facts prototypes", async t => {
+  let reading = false, batches = 0;
+  const deepFrozen = (value: unknown): void => {
+    if (value === null || typeof value !== "object") return;
+    assert.equal(Object.isFrozen(value), true);
+    for (const child of Object.values(value)) deepFrozen(child);
+  };
+  const f = await fixture(t, async (_caller, requests) => {
+    if (!reading) return true;
+    batches++; deepFrozen(requests);
+    for (const request of requests) {
+      assert.equal(Object.getPrototypeOf(request), Object.prototype);
+      assert.equal(Object.getPrototypeOf(request.context), Object.prototype);
+      assert.equal(Object.getPrototypeOf(request.target.classification), Object.prototype);
+      if (request.context.sessionRef) assert.equal(Object.getPrototypeOf(request.context.sessionRef), Object.prototype);
+      if (request.context.facts) assert.equal(Object.getPrototypeOf(request.context.facts), Object.prototype);
+      assert.equal(Reflect.set(request.target, "owner", "different-project"), false);
+    }
+    await Promise.resolve(); return true;
+  });
+  assert.equal(f.options.readInput, "frozen");
+  const plain = await f.save("plain");
+  const session = await f.adapter.createSession({ actor_id: person.actor_id, project_id: "a", plugin_id: "io.molis.work.coding",
+    install_id: "coding", workspace: "none", role_id: "coding", title: "Frozen read context" });
+  const caller: AgentMemoryCaller = { ...person, session_id: session.session_id, facts: { plugins: ["io.molis.work.coding"] } };
+  const manager = f.bound(caller);
+  const entry = await manager.write({ scope: "project", owner: "a", text: "Session convention", origin: "person", operation_id: "session-frozen",
+    meta: { ...meta, classification: { scenes: ["common"], lifecycle: "session" } } });
+  reading = true;
+  assert.deepEqual((await manager.list("project", "a")).map(one => one.memory_id).sort(),
+    [entry.memory_id, plain.memory_id].sort());
+  assert.deepEqual((await f.bound(task).list("project", "a")).map(one => one.text), ["Convention plain"]);
+  const checked = batches; assert.ok(checked > 0);
+  await manager.list("project", "a"); assert.ok(batches > checked, "later calls must authorize independently");
+});
+
+test("WARM-APP-01 frozen input retains current preference revocation after the awaited App authority", async t => {
+  let revoke = false, change: () => void = () => undefined;
+  const f = await fixture(t, async (_caller, requests) => {
+    if (revoke && requests.some(request => request.action === "read")) {
+      assert.equal(Object.isFrozen(requests), true);
+      await Promise.resolve();
+      change();
+    }
+    return true;
+  });
+  change = () => { f.service.savePrefs({ ...person, consumer: "ui" }, "project", "off"); };
+  await f.save("read-revoked");
+  assert.equal((await f.bound(task).list("project", "a")).length, 1);
+  revoke = true;
+  assert.deepEqual(await f.bound(task).list("project", "a"), []);
+  assert.equal((await f.bound().list("project", "a")).length, 1, "personal management remains independently authorized");
+  revoke = false; f.service.savePrefs({ ...person, consumer: "ui" }, "project", "reviewed");
+  assert.equal((await f.bound(task).list("project", "a")).length, 1);
+});
 
 test("off keeps personal management and deletion but refuses new saves, candidate acceptance and restore", async t => {
   const f = await fixture(t), caller = { ...person, project_id: null }, memory = f.bound(caller);
@@ -59,6 +125,63 @@ test("off keeps personal management and deletion but refuses new saves, candidat
   await assert.rejects(memory.candidates.accept({ scope: "user", owner: person.actor_id, candidate_id: candidate.candidate_id, expected_version: candidate.version, operation_id: "off-accept" }));
   await memory.remove({ scope: "user", owner: person.actor_id, memory_id: entry.memory_id, expected_version: disabled.version, operation_id: "delete" });
   await f.reopen(); assert.deepEqual(await f.bound(caller).list("user", person.actor_id), []);
+});
+
+test("MEM-20 with form off the assistant still turns a memory off; turning it on again, editing and a consumer without its grant stay refused", async t => {
+  // The form switch governs adding and changing, not forgetting (user 2026-11-12): only a save that takes its target off passes it.
+  const f = await fixture(t), assistant: AgentMemoryCaller = { ...person, consumer: "assistant", person: false, purpose: "management" };
+  const memory = f.bound(assistant), prefs = (input: Parameters<MemoryService["savePrefs"]>[2]) => f.service.savePrefs({ ...person, consumer: "ui" }, "project", input);
+  const at = (entry: { memory_id: string; version: number }) => ({ scope: "project" as const, owner: "a", memory_id: entry.memory_id, expected_version: entry.version });
+  const [first, second, third] = [await f.save("form-off-disable"), await f.save("form-off-pause"), await f.save("form-off-edit")];
+  prefs({ form: false });
+  const disabled = await memory.disable({ ...at(first), operation_id: "off-disable", reason: "assistant" });
+  const paused = await memory.pause({ ...at(second), operation_id: "off-pause", reason: "assistant" });
+  assert.ok(disabled.disabled && paused.paused);
+  await assert.rejects(memory.resume({ ...at(disabled), operation_id: "off-resume" }), undefined, "turning it on again is not forgetting");
+  await assert.rejects(memory.update({ ...at(third), operation_id: "off-update", change: { text: "Rewritten convention" } }), undefined, "an edit still needs form");
+  prefs({ form: false, consumers: { assistant: false } });
+  await assert.rejects(memory.disable({ ...at(third), operation_id: "off-revoked", reason: "assistant" }), undefined, "the consumer's own grant still applies");
+  // The same refused calls pass once form and the grant are back: what refused them was the switch, nothing else.
+  prefs({ form: true, consumers: { assistant: true } });
+  assert.equal((await memory.resume({ ...at(disabled), operation_id: "on-resume" })).disabled, undefined);
+  assert.equal((await memory.update({ ...at(third), operation_id: "on-update", change: { text: "Rewritten convention" } })).text, "Rewritten convention");
+});
+
+test("MEM-20 with form off a retried pause or disable passes again, before and after reopening, asking the Authority its first question", async t => {
+  // Prologue #113: a replay carries the before state its operation recorded, so the form-off deactivation rule recognises it again.
+  type Asked = { target: unknown; before?: { paused?: boolean; disabled?: boolean } };
+  const asked: Asked[] = [];
+  const f = await fixture(t, async (caller, requests) => {
+    if (caller.consumer === "assistant") asked.push(...(requests as readonly (Asked & { action: string; target: { paused?: boolean; disabled?: boolean } })[])
+      .filter(request => request.action === "save" && request.before !== undefined && (request.target.paused || request.target.disabled)));
+    return true;
+  });
+  const assistant: AgentMemoryCaller = { ...person, consumer: "assistant", person: false, purpose: "management" };
+  const at = (entry: { memory_id: string; version: number }) => ({ scope: "project" as const, owner: "a", memory_id: entry.memory_id, expected_version: entry.version });
+  const [toPause, toDisable, pausedFirst] = [await f.save("retry-pause"), await f.save("retry-disable"), await f.save("retry-paused-disable")];
+  const earlier = await f.bound(assistant).pause({ ...at(pausedFirst), operation_id: "retry-earlier-pause", reason: "assistant" });
+  f.service.savePrefs({ ...person, consumer: "ui" }, "project", { form: false });
+  const calls = [
+    { name: "pause", run: () => f.bound(assistant).pause({ ...at(toPause), operation_id: "retry-off-pause", reason: "assistant" }), before: { paused: false, disabled: false } },
+    { name: "disable", run: () => f.bound(assistant).disable({ ...at(toDisable), operation_id: "retry-off-disable", reason: "assistant" }), before: { paused: false, disabled: false } },
+    { name: "disable after pause", run: () => f.bound(assistant).disable({ ...at(earlier), operation_id: "retry-off-paused-disable", reason: "assistant" }), before: { paused: true, disabled: false } },
+  ];
+  for (const call of calls) {
+    asked.length = 0;
+    const first = await call.run();
+    const original = asked.splice(0);
+    assert.ok(original.length > 0, `${call.name}: the first call asked the Authority`);
+    assert.deepEqual({ paused: original[0]!.before!.paused === true, disabled: original[0]!.before!.disabled === true }, call.before, `${call.name}: first before`);
+    const replayed = async (when: string) => {
+      assert.deepEqual(await call.run(), first, `${call.name} ${when}: the retry returns the committed result`);
+      const again = asked.splice(0);
+      assert.ok(again.length > 0, `${call.name} ${when}: the retry asked the Authority`);
+      for (const request of again) assert.deepEqual({ target: request.target, before: request.before }, { target: original[0]!.target, before: original[0]!.before }, `${call.name} ${when}: same question`);
+    };
+    await replayed("in the same runtime");
+    await f.reopen();
+    await replayed("after reopening");
+  }
 });
 
 test("mixed on/off scope queries remain admitted while canonical task reads use current consumer switches", async t => {
@@ -95,10 +218,15 @@ test("the trusted scene, plugin kinds and namespace intersect without granting a
   await f.save("coding", { classification: { scenes: ["coding"], lifecycle: "long-term" } });
   await f.save("assistant", { classification: { scenes: ["assistant"], lifecycle: "long-term" } });
   await f.save("own", { namespace: "io.molis.work.coding" }); await f.save("foreign", { namespace: "other.plugin" });
-  await f.save("fact", { kind: "fact" });
+  await f.save("fact", { kind: "fact" }); await f.save("experience", { kind: "experience" });
   const coding: AgentMemoryCaller = { ...task, current_scene: "coding", plugin_id: "io.molis.work.coding" };
   const texts = (await f.bound(coding).recall({ scope: "project", owner: "a", text: "Convention" })).map(hit => hit.entry.text).sort();
-  assert.deepEqual(texts, ["Convention coding", "Convention own"]);
+  // BL-1073 (user 2026-11-12): a plugin's project default adds the project's approved facts; experience stays out.
+  assert.deepEqual(texts, ["Convention coding", "Convention fact", "Convention own"]);
+  await f.bound(person).write({ scope: "user", owner: LOCAL_PERSON_ACTOR_ID, text: "Convention personal fact", origin: "person", operation_id: "personal-fact", meta: { ...meta, kind: "fact" } });
+  await f.bound(person).write({ scope: "user", owner: LOCAL_PERSON_ACTOR_ID, text: "Convention personal habit", origin: "person", operation_id: "personal-convention", meta: { ...meta, kind: "convention" } });
+  assert.deepEqual((await f.bound(coding).recall({ scope: "user", owner: LOCAL_PERSON_ACTOR_ID, text: "Convention" })).map(hit => hit.entry.text), ["Convention personal habit"],
+    "the plugin reads the person's conventions, so the missing personal fact is its kind being held back, not the scope");
   assert.deepEqual(await f.bound(coding).list("project", "b"), []);
   await assert.rejects(f.bound(coding).write({ scope: "project", owner: "b", text: "Cross-project", origin: "person", meta, operation_id: "foreign-project" }));
   f.service.savePrefs({ ...person, consumer: "ui" }, "project", { plugins: { "io.molis.work.coding": { allowed: false, kinds: ["convention"] } } });
@@ -157,8 +285,8 @@ test("global personal candidate management binds each ledger-owned project witho
     { scope: "project", text, kind: "convention", basis: "explicit", why: "Person proposed", from: "work" });
   const a = await propose("a", "Use pnpm"), b = await propose("b", "Use npm");
   assert.deepEqual((await f.service.candidates(global, { scope: "all", anywhere: true })).map(one => one.candidate_id).sort(), [a.candidate_id, b.candidate_id].sort());
-  await assert.rejects(f.service.candidates(task, { scope: "all", anywhere: true }), { code: "MEMORY_SCOPE_DENIED" },
-    "a task caller cannot turn the global management option into a candidate read grant");
+  assert.deepEqual((await f.service.candidates(task, { scope: "all", anywhere: true })).map(one => one.candidate_id), [a.candidate_id],
+    "task candidate results stay in their own authorized project; anywhere cannot expose the other project's candidate");
   await assert.rejects(f.service.accept({ ...person, project_id: "b" }, a.candidate_id, { expected_version: a.version }));
   const accepted = await f.service.accept(global, a.candidate_id, { expected_version: a.version });
   assert.equal(accepted.memory?.project_id, "a");
@@ -280,14 +408,14 @@ test("candidate sources resolve through the same trusted caller and foreign or a
 });
 
 
-test("learning candidate management stays independent of task recall without granting formal or unrelated reads", async t => {
+test("source use alone grants neither candidate context nor unrelated reads when task recall is off", async t => {
   const f = await fixture(t); await f.save("formal-retained");
   const candidate = await f.bound().candidates.propose({ scope: "project", owner: "a", text: "Keep reports concise", origin: "person",
     meta, expected_version: 0, operation_id: "candidate-management" });
   f.service.savePrefs({ ...person, consumer: "ui" }, "project", { task_recall: false });
   const learner: AgentMemoryCaller = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "a", consumer: "assistant",
     current_scene: "common", purpose: "management", source_use: "learning" };
-  assert.deepEqual((await f.bound(learner).candidates.list("project", "a")).map(row => row.candidate_id), [candidate.candidate_id]);
+  assert.deepEqual(await f.bound(learner).candidates.list("project", "a"), [], "read∩form tightening: source use is not a general candidate body grant");
   assert.deepEqual(await f.bound(learner).list("project", "a"), [], "the candidate grant is not formal memory access");
   await assert.rejects(f.bound({ ...learner, purpose: "task" }).candidates.list("project", "a"), { code: "MEMORY_SCOPE_DENIED" },
     "a task caller cannot turn a candidate query into management");
@@ -302,4 +430,62 @@ test("learning candidate management stays independent of task recall without gra
   f.service.savePrefs({ ...person, consumer: "ui" }, "project", "reviewed"); await f.reopen();
   assert.equal((await f.bound().candidates.list("project", "a"))[0]?.version, candidate.version);
   assert.equal((await f.bound().list("project", "a")).length, 1, "permission probes never modify persistent values");
+});
+
+test("candidate receipt reads bind exact scope, owner, id and version without granting ordinary lists", async t => {
+  const f = await fixture(t);
+  const first = await f.bound().candidates.propose({ scope: "project", owner: "a", text: "Keep releases staged", origin: "person",
+    meta, expected_version: 0, operation_id: "receipt-first" });
+  const second = await f.bound().candidates.propose({ scope: "project", owner: "a", text: "Keep reports concise", origin: "person",
+    meta, expected_version: 0, operation_id: "receipt-second" });
+  f.service.savePrefs({ ...person, consumer: "ui" }, "project", { class_restrictions: [
+    { selector: { consumer: "assistant", current_scene: "common" }, read: "off", form: "inherit" },
+  ] });
+  const caller: AgentMemoryCaller = { actor_id: person.actor_id, project_id: "a", consumer: "assistant", current_scene: "common",
+    purpose: "management", source_use: "learning" };
+  const lookup = { scope: "project" as const, owner: "a", candidate_id: first.candidate_id };
+  for (const source_use of ["learning", "explicit"] as const) {
+    assert.deepEqual(await f.bound({ ...caller, source_use }).candidates.list("project", "a"), []);
+    await assert.rejects(f.bound({ ...caller, source_use }).candidates.get(lookup), { code: "MEMORY_SCOPE_DENIED" });
+  }
+  const receipt: NonNullable<AgentMemoryCaller["candidate_access"]> = { purpose: "formation-receipt", ...lookup, version: first.version };
+  const bound = f.bound({ ...caller, candidate_access: receipt });
+  assert.equal((await bound.candidates.get(lookup))?.candidate_id, first.candidate_id);
+  assert.deepEqual(await bound.candidates.list("project", "a"), [], "a receipt is for exact get, never a listing grant");
+  await assert.rejects(bound.candidates.get({ ...lookup, candidate_id: second.candidate_id }), { code: "MEMORY_SCOPE_DENIED" });
+  for (const candidate_access of [{ ...receipt, version: first.version + 1 }, { ...receipt, owner: "b" }, { ...receipt, scope: "user" as const }])
+    await assert.rejects(f.bound({ ...caller, candidate_access }).candidates.get(lookup), { code: "MEMORY_SCOPE_DENIED" });
+  assert.equal(await bound.candidates.get({ ...lookup, candidate_id: "unknown-candidate" }), undefined, "no unknown body is granted");
+  f.service.savePrefs({ ...person, consumer: "ui" }, "project", { class_restrictions: [] });
+  await assert.rejects(f.bound({ ...caller, candidate_access: { ...receipt, version: first.version + 1 } }).candidates.get(lookup),
+    { code: "MEMORY_SCOPE_DENIED" }, "a wrong receipt cannot fall back to broader normal read permission");
+  f.service.savePrefs({ ...person, consumer: "ui" }, "project", { form: false });
+  await assert.rejects(bound.candidates.get(lookup), { code: "MEMORY_SCOPE_DENIED" });
+  assert.equal((await f.bound().candidates.list("project", "a")).length, 2, "the person still manages both unchanged candidates");
+});
+
+test("C1 only trusted management memory preflight inherits explicit access; ordinary reads and candidate grants do not", async t => {
+  const f = await fixture(t), entry = await f.save("explicit-management-target");
+  const row = { selector: { consumer: "assistant" as const, current_scene: "common" as const, kind: "convention" }, read: "explicit-only" as const, form: "inherit" as const };
+  f.service.savePrefs({ ...person, consumer: "ui" }, "project", { class_restrictions: [row] });
+  const caller: AgentMemoryCaller = { actor_id: person.actor_id, project_id: "a", consumer: "assistant", current_scene: "common", purpose: "management", run_explicit: true,
+    class_restrictions: { policy_version: 1, taxonomy_version: 1, personal: [], project: [row] } };
+  type Request = Parameters<typeof f.options.authorize>[1][number];
+  const request: Request = { appId: "io.molis.work", context: { consumer: "assistant", currentScene: "common", purpose: "management" }, action: "manage-read",
+    target: { scope: "project", owner: "a", ref: { kind: "memory", id: entry.memory_id, revision: 1 }, version: entry.version, createdAtMs: 1, identityKnown: true,
+      kind: "convention", source: "manual", classification: { scenes: ["common"], lifecycle: "long-term" }, approvedBy: { by: "person" } } };
+  assert.equal(await f.options.authorize(caller, [request]), true);
+  assert.equal(f.options.assertCurrent?.(caller, [request]), true);
+  for (const other of [{ ...caller, run_explicit: false }, { ...caller, purpose: "task" as const }])
+    assert.equal(await f.options.authorize(other, [request]), false);
+  for (const changed of [
+    { ...request, action: "read" as const }, { ...request, action: "delete" as const },
+    { ...request, readMode: "task" as const }, { ...request, readMode: "resident" as const },
+    { ...request, target: { ...request.target, ref: { kind: "memory-candidate" as const, id: "candidate", revision: 1 } } },
+    { ...request, target: { ...request.target, owner: "b" } },
+  ]) assert.equal(await f.options.authorize(caller, [changed]), false);
+  const off = { ...row, read: "off" as const };
+  assert.equal(await f.options.authorize({ ...caller, class_restrictions: { ...caller.class_restrictions!, project: [off] } }, [request]), false, "frozen off still wins");
+  f.service.savePrefs({ ...person, consumer: "ui" }, "project", { class_restrictions: [off] });
+  assert.equal(await f.options.authorize(caller, [request]), false); assert.equal(f.options.assertCurrent?.(caller, [request]), false);
 });

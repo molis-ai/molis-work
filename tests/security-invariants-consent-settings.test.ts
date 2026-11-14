@@ -7,7 +7,7 @@ import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/p
 import type { PluginConsentRecord } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import { FILE_SNAPSHOT_SCHEMA_VERSION, FILE_SNAPSHOT_TYPE } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { HomeConsentLedger, PLUGIN_CONSENT_PERMISSIONS, ensureProjectPlugins, pluginConsentActions } from "@molis-ai/molis-work-app-local-host";
-import { createFilesPlugin } from "@molis-ai/molis-work-plugin-files";
+import { SYSTEM_MATERIALS_SOURCE } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import { consentSubject } from "@molis-ai/molis-work-plugin-runtime";
 import { bindPluginActionRoute } from "@molis-ai/molis-work-plugin-sdk";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
@@ -98,7 +98,8 @@ test("RAC-393-PAGE RAC-393-DELEGATE S-77 a real plugin page with user_action and
 });
 
 test("RAC-390-LIVE S-77 a running Host reconciles a revoked default on the next project request and never rebinds it", async t => {
-  const id = "io.molis.work.example.consentreader", signature = "consent-reader", source = { plugin_id: "io.molis.work.files", port: "before" };
+  // The default it reads is the platform's materials source, which every project has (the retired Files plugin was the one before).
+  const id = "io.molis.work.example.consentreader", signature = "consent-reader", source = { plugin_id: SYSTEM_MATERIALS_SOURCE.plugin_id, port: "before" };
   const reader: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: id, version: "1.0.0", name: "Consent reader", kind: "app",
     publisher: { publisher_id: "example", signature }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [{ permission: "artifact:read", required: true, reason: "Read the explicitly agreed snapshot input" }],
@@ -109,10 +110,8 @@ test("RAC-390-LIVE S-77 a running Host reconciles a revoked default on the next 
   await f.host.homePlugins!.ready();
   const ledger = new HomeConsentLedger(f.home);
   const row = ledger.record({ plugin_id: id, publisher_signature: signature, manifest_digest: "reader-digest", granted_by: "user", at: "2026-10-25T00:00:00.000Z",
-    grants: [{ kind: "default_wiring", subject: consentSubject.defaultWiring("text", source, createFilesPlugin().manifest.publisher.signature) }] })[0]!;
+    grants: [{ kind: "default_wiring", subject: consentSubject.defaultWiring("text", source, SYSTEM_MATERIALS_SOURCE.signature) }] })[0]!;
   const project = await f.project("Consent live reconciliation"), path = `/projects/${project.project_id}/api/board`;
-  const enabled = await f.request(`/api/settings/projects/${project.project_id}/plugins`, { method: "POST", body: { plugin_id: "files", expected_revision: await projectPluginRevisionAt(f.origin, project.project_id) } });
-  assert.equal(enabled.status, 200);
   assert.equal((await f.request(path)).status, 200);
   const state = await f.host.withProject(project.reference, runtime => ensureProjectPlugins({ store: runtime.store, artifacts: runtime.artifacts, processItems: runtime.processItems,
     projectId: project.project_id, actorId: LOCAL_PERSON_ACTOR_ID, homeDirectory: f.home,

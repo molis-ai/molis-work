@@ -18,6 +18,7 @@ export const SETTINGS_ADDRESS_DEFAULTS = { global: "project desktop", project: "
 export const GLOBAL_SETTINGS_QUERY_EXTRAS: Readonly<Record<string, string>> = {
   // directories: apps/workbench/src/settings-local-directories.ts:28-29 reads plugin.
   directories: "plugin",
+  memory: "memory_session_kind memory_session_id",
   // models: web-catalog-settings.ts:66-69 reads setup/template/provider (modelTemplatePageData reads new with template once the shell opens it).
   models: "setup template provider new",
   // prompts: settings-prompts.ts reads role (and project/desktop from the defaults).
@@ -38,7 +39,7 @@ export const GLOBAL_SETTINGS_QUERY_EXTRAS: Readonly<Record<string, string>> = {
 
 /** Project settings pages that read more than the defaults, by the section the workbench opens. */
 export const PROJECT_SETTINGS_QUERY_EXTRAS: Readonly<Record<string, string>> = {
-  planning: "project", guidance: "draft_ref", kit: "install skill generation version owner role",
+  planning: "project", guidance: "draft_ref", kit: "install skill generation version owner role", memory: "memory_session_kind memory_session_id",
 };
 
 /**

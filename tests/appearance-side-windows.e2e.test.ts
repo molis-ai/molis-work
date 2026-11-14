@@ -80,21 +80,35 @@ async function seedOutputFile(b: IssueBrowser, projectId: string) {
   const directory = join(b.homeDirectory, "appearance-window-files"), filename = "appearance-windows.txt", original = "保留 Files 原文 A & B\n";
   await mkdir(directory);
   await writeFile(join(directory, filename), original);
-  await setProjectOutputFolder(b.web, projectId, directory);
-  return { filename, original };
+  const { workspace_id } = await setProjectOutputFolder(b.web, projectId, directory);
+  return { original, objectId: `${workspace_id}:${filename}` };
 }
 
-async function readOutputFile(tab: Awaited<ReturnType<typeof openTab>>, { filename, original }: { filename: string; original: string }) {
-  await tab.wait("document.querySelector('[data-work-surface=files]')?.dataset.uiClientState === 'ready'");
-  const match = `node => node.dataset.filePath === ${JSON.stringify(JSON.stringify([filename]))}`;
-  const rows = "[...document.querySelectorAll('[data-file-path]')]";
-  await tab.child!.waitFor(`${rows}.some(${match})`);
-  await tab.child!.evaluate(`${rows}.find(${match}).click()`);
-  await tab.child!.waitFor(`document.querySelector('[data-files-text]')?.value === ${JSON.stringify(original)}`);
+type OutputFile = Awaited<ReturnType<typeof seedOutputFile>>;
+
+/** The project's output file read in the side panel's Files tab, the shell's materials reader that took over from the Files plugin (batch 06). */
+async function readOutputFile(tab: Awaited<ReturnType<typeof openTab>>, { original, objectId }: OutputFile) {
+  const row = JSON.stringify(`[data-side-file][data-kind="workspace_file"][data-id=${JSON.stringify(objectId)}]`);
+  // The same two presses as shell-file-preview and side-materials-reader: the tab now selected, then Files.
+  await tab.evaluate("document.querySelector('[data-side-tabs] [data-side-tab][aria-selected=true]').click()");
+  await tab.evaluate("document.querySelector('[data-side-tab=files]').click()");
+  await tab.wait(`Boolean(document.querySelector(${row}))`);
+  await tab.evaluate(`document.querySelector(${row}).click()`);
+  await tab.wait(`document.querySelector('[data-side-files-body]')?.textContent === ${JSON.stringify(original)}`);
 }
 
-test("FSS-06 FSS-07 three Workbench windows with preloaded Issues still open Files and a fourth can open it directly", { timeout: 100_000 }, async t => {
-  // Keep the real Web Host's catalog directory ports so Files reads the configured output.
+/**
+ * A new window on the project that reads the file. The retired Files plugin had a direct link (`?openPlugin=files`); the materials
+ * reader has no object link yet (BL-materials-object-link), so the window reads it from its side panel.
+ */
+async function openOutputFile(t: TestContext, b: IssueBrowser, workbench: string, file: OutputFile) {
+  const tab = await openTab(t, b, workbench);
+  await readOutputFile(tab, file);
+  return tab;
+}
+
+test("FSS-06 FSS-07 three Workbench windows with preloaded Issues still read a project file and a fourth can read it too", { timeout: 100_000 }, async t => {
+  // Keep the real Web Host's catalog directory ports so the materials reader reads the configured output.
   const b = await openGoalBrowser(t, "seeded", undefined, undefined, undefined, undefined, {}, undefined,
     ["--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1"]);
   if (!b) return;
@@ -118,20 +132,18 @@ test("FSS-06 FSS-07 three Workbench windows with preloaded Issues still open Fil
   await ppt.child!.waitFor("document.querySelector('[data-ppt-preview] .ppt-card h2')?.textContent === '打开 PPT'");
   await ppt.wait(sideReady);
 
-  const files = await openTab(t, b, workbench, "files");
+  const files = await openTab(t, b, workbench);
   await files.wait(sideReady);
-  await files.evaluate("document.querySelector('[data-plugin-strip] [data-plugin-id=files]').click()");
   await readOutputFile(files, file);
   const third = traffic.streams.size;
-  const direct = await openTab(t, b, workbench + "?openPlugin=files", "files");
+  const direct = await openOutputFile(t, b, workbench, file);
   await direct.wait(sideReady);
-  await readOutputFile(direct, file);
   assert.ok(traffic.opened.every(source => source.pathname === workbench), "preloaded Issues has no additional HTTP stream");
   assert.ok(third > 0 && third <= 3 && traffic.streams.size <= 4);
   t.diagnostic(JSON.stringify({ third, fourth: traffic.streams.size, embeddedStreams: traffic.opened.filter(source => source.pathname !== workbench).length }));
 });
 
-test("FSS-06 FSS-07 three chooser windows keep their selected project and leave a connection for Files", { timeout: 100_000 }, async t => {
+test("FSS-06 FSS-07 three chooser windows keep their selected project and leave a connection for a project file", { timeout: 100_000 }, async t => {
   const b = await openGoalBrowser(t, "seeded", undefined, undefined, undefined, undefined, {}, undefined,
     ["--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1"]);
   if (!b) return;
@@ -162,8 +174,7 @@ test("FSS-06 FSS-07 three chooser windows keep their selected project and leave 
 
   const chooserStreams = [...traffic.streams.values()].map(source => source.pathname + source.search);
   t.diagnostic(JSON.stringify({ chooserStreams }));
-  const fourth = await openTab(t, b, project + "/?openPlugin=files", "files");
-  await readOutputFile(fourth, file);
+  const fourth = await openOutputFile(t, b, project + "/", file);
   assert.deepEqual(chooserStreams, ["/", "/", "/"]);
   assert.equal(traffic.streams.size, 4);
   assert.ok(traffic.opened.every(source => source.pathname === "/" || source.pathname === project + "/"));

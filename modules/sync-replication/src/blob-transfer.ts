@@ -15,10 +15,13 @@ export interface BlobChannel {
   assert():void;
   json<T>(route:string,body?:unknown):Promise<T>;
   binary(route:string,body?:Uint8Array):Promise<Uint8Array>;
+  /** Local state's name for a public collection (sync-cutover.md BSH-14-A/C); requests always carry the public name. */
+  lane?(namespace:string):string;
 }
 /** One cycle has a bounded request budget; D1 receipts and local parts survive a process restart. */
 export function blobTransfer(home:string,channel:BlobChannel){
   let remaining=32;
+  const local=(namespace:string)=>channel.lane?.(namespace)??namespace;
   const take=()=>{channel.assert();if(remaining--<=0)throw syncError('busy','附件传输尚未完成，请继续同步');};
   const db=<T>(run:(db:ReturnType<typeof openSyncDatabase>)=>T)=>{channel.assert();const connection=openSyncDatabase(home);try{return run(connection);}finally{connection.close();}};
   const status=async(namespace:string,reference:SyncBlobReference,reserve:boolean)=>{
@@ -28,12 +31,12 @@ export function blobTransfer(home:string,channel:BlobChannel){
     return receipt;
   };
   return {
-    release(namespace:string,references:SyncBlobReference[]){for(const reference of references){const ref=blobReference(reference);db(connection=>connection.prepare('DELETE FROM sync_blob_parts WHERE namespace=? AND digest=?').run(namespace,ref.digest));}},
-    forget(namespace:string,operation:string){db(connection=>connection.prepare('DELETE FROM sync_blob_uploads WHERE namespace=? AND operation=?').run(namespace,operation));},
+    release(namespace:string,references:SyncBlobReference[]){for(const reference of references){const ref=blobReference(reference);db(connection=>connection.prepare('DELETE FROM sync_blob_parts WHERE namespace=? AND digest=?').run(local(namespace),ref.digest));}},
+    forget(namespace:string,operation:string){db(connection=>connection.prepare('DELETE FROM sync_blob_uploads WHERE namespace=? AND operation=?').run(local(namespace),operation));},
     async upload(namespace:string,operation:string,source:SyncBlobSource){
       const reference=blobReference(source);if(source.bytes.byteLength!==reference.size||hash(source.bytes)!==reference.digest)throw syncError('invalid','同步附件校验失败');
-      if(db(connection=>connection.prepare('SELECT 1 FROM sync_blob_uploads WHERE namespace=? AND operation=? AND digest=?').get(namespace,operation,reference.digest)))return;
-      const remember=()=>db(connection=>connection.prepare('INSERT OR IGNORE INTO sync_blob_uploads VALUES (?,?,?)').run(namespace,operation,reference.digest));
+      if(db(connection=>connection.prepare('SELECT 1 FROM sync_blob_uploads WHERE namespace=? AND operation=? AND digest=?').get(local(namespace),operation,reference.digest)))return;
+      const remember=()=>db(connection=>connection.prepare('INSERT OR IGNORE INTO sync_blob_uploads VALUES (?,?,?)').run(local(namespace),operation,reference.digest));
       const receipt=await status(namespace,reference,true);if(receipt.ready){remember();return;}
       for(let part=0;part<Math.ceil(reference.size/CHUNK);part++){
         const bytes=source.bytes.subarray(part*CHUNK,(part+1)*CHUNK),checksum=hash(bytes),existing=receipt.parts.find(p=>p.part===part);
@@ -44,7 +47,7 @@ export function blobTransfer(home:string,channel:BlobChannel){
     },
     async download(namespace:string,input:SyncBlobReference,protection?:SyncLocalProtection):Promise<Uint8Array>{
       const reference=blobReference(input);
-      const cache=blobCache(home,namespace,()=>channel.assert(),protection),cachedParts=cache.read(reference);
+      const cache=blobCache(home,local(namespace),()=>channel.assert(),protection),cachedParts=cache.read(reference);
       if(protection&&cachedParts.some(p=>p.part<0||p.part>=Math.ceil(reference.size/CHUNK)||p.bytes.byteLength!==Math.min(CHUNK,reference.size-p.part*CHUNK)||hash(p.bytes)!==p.checksum))throw syncError('invalid','同步暂存校验失败，原数据已保留');
       if(cachedParts.length===Math.ceil(reference.size/CHUNK)&&cachedParts.every((p,i)=>p.part===i&&p.bytes instanceof Uint8Array&&p.bytes.byteLength===Math.min(CHUNK,reference.size-i*CHUNK)&&hash(p.bytes)===p.checksum)){
         const bytes=Buffer.concat(cachedParts.map(p=>p.bytes as Uint8Array));if(hash(bytes)===reference.digest){channel.assert();return bytes;}

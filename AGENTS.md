@@ -32,7 +32,7 @@ Molis Work：本地优先的插件基座加多插件工作平台。平台是一�
 - **合同只认现行取值。** 库与带版本文件改结构须升版本、附连续升级步骤；读取时不兜底历史取值；新增兼容或迁移逻辑先写进 `docs/system/CONTRACT-CHANGES.md`「当前保留机制」并经用户确认。
 - **可信身份从调用上下文来**，不从输入读；密钥只给引用。
 - **新的内置插件只有一条路：** 在自己包的 `src/registration.ts` 写 `registration`，项目级给 `project_runtime`，由每个项目的监督器（`apps/local-host/src/project-plugins.ts`）按登记装配，那个文件不为新插件改；Home 级在 Manifest 写 `runtime: { scope: "home" }` 并在登记上给 `runtime`，由 `apps/local-host/src/home-plugins.ts` 装配（写法见 `skills/molis-plugin-dev/host.md`）。`apps/workbench/src/builtin-plugins.ts` 由脚本生成，不手改。构建期手写接线只剩用户批过的 Alchemist 与插件创作台，名单在 `tests/builtin-plugin-assembly-gate.test.ts`，不可照抄。
-- **插件同等待遇。** 官方、个人、创作台生成或第三方用同一套 SDK、合同、装配、平台服务与授权；只有安装信任按发布者签名区分。插件缺什么就补进平台，不给某个插件开私路。
+- **插件同等待遇。** 官方、个人、创作台生成或第三方用同一套 SDK、合同、装配、平台服务与授权；只有安装信任按发布者签名区分；另有一处不同：装上的插件不能在 Manifest 写升级段（`plugin.upgrade_steps_unsupported`），U4 做完再开放。插件缺什么就补进平台，不给某个插件开私路。
 - **插件只提供内容，挂在工作台的位置**，不出自己的整页、不开第二个标签页（例外见 `specs/shell-page-exceptions/spec.md`）。
 - **成果库只收人要留存、引用的固定版本与导入文件**，类型在 manifest `artifacts.produces` 声明；交给别的插件的数据是过程项（`process_items.produces`）。
 - **删除项目只有一份 Host 服务**（`apps/local-host/src/project-deletion-service.ts`），操作者由入口给。

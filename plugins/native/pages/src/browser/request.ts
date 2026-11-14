@@ -1,25 +1,16 @@
-import type {} from "@molis-ai/molis-work-plugin-sdk";
-import type { UiRequestFailure } from "@molis-ai/molis-work-contracts/platform/ui";
+import { pluginRequest } from "@molis-ai/molis-work-plugin-sdk/browser";
 import type { PagesHost, PagesRequest } from "./types.js";
 
 const uiText = globalThis.t;
 
-/**
- * Requests to Pages' routes in the current project (`tail` follows `/pages`). A failure is the helper's plain Error with the
- * Host's `status`; a read the Host refuses says why in the person's words.
- */
+/** Requests to Pages' routes in the current project (`tail` follows `/pages`). */
 export function pagesRequest(host: PagesHost): PagesRequest {
-  return async <T>(method: "GET" | "POST", tail: string, body?: Record<string, unknown>) => {
-    if (!host.projectId()) throw new Error(uiText.text("pages.error.no-project"));
-    try {
-      return await molisWorkRequest<T>(host.pluginRoute("/pages" + tail), { method, ...(body === undefined || method === "GET" ? {} : { body }), fallback: uiText.text("pages.error.request") });
-    } catch (error) {
-      const failure = error as UiRequestFailure;
-      const refusal = method === "GET" ? host.readRefusal(failure.status, failure.code) : "";
-      if (refusal) failure.message = refusal;
-      throw failure;
-    }
-  };
+  const request = pluginRequest(host, {
+    project: { id: () => host.projectId(), missing: () => uiText.text("pages.error.no-project") },
+    readRefusal: true,
+    fallback: () => uiText.text("pages.error.request"),
+  });
+  return (method, tail, body) => request(method, "/pages" + tail, body);
 }
 
 /** A document's route tail: `/<id>` and what follows it. */

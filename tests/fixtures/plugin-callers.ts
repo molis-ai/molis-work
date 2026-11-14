@@ -5,7 +5,7 @@ import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionClient, type 
 import type { HostPluginCaller, LocalHostProjectClient, LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
-import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
+import { PluginRuntime, SqlitePluginRuntimeReleaseArtifactRepository, SqlitePluginRuntimeRepository, createPluginRuntimeReleaseArtifact } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 
 /*
@@ -104,6 +104,8 @@ export async function startPlugin(host: { actionRegistry(reference: LocalHostPro
   const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), executor, { hostIds: ISOLATED_HOST_IDS });
   const required = plugin.definition.manifest.permissions.filter(item => item.required).map(item => item.permission);
   const { install } = runtime.install({ trust: { level: "unsigned" }, definition: plugin.definition, deployment: "local", grants: [...required, ...(options.grants ?? [])] });
+  // The release a product start archives (its supervisor does), so the project's own reads of what this plugin declares find it.
+  new SqlitePluginRuntimeReleaseArtifactRepository(store.db).save(createPluginRuntimeReleaseArtifact(plugin.definition.manifest, "export default {};"));
   await runtime.start(install.install_id);
   return { runtime, install_id: install.install_id };
 }

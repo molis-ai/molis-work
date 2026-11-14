@@ -59,10 +59,10 @@ test("CPK-08: the close-out table's deleted names no longer appear in the Host, 
 
 test("CPK-08: every BL the close-out table left open names the batch that picks it up", async () => {
   const destinations: ReadonlyArray<readonly [id: string, file: string, batch: RegExp]> = [
-    ["BL-skill-scripts-sandbox", "specs/backlog/BL-skill-scripts-sandbox.md", /去处第 61 批第 1 项/u],
-    ["BL-runtime-mcp-actions-snapshot", "specs/backlog/BL-runtime-mcp-actions-snapshot.md", /去处第 61 批第 1 项/u],
+    ["BL-skill-scripts-sandbox", "specs/backlog/BL-skill-scripts-sandbox.md", /去处第 62 批第 1 项/u],
+    ["BL-runtime-mcp-actions-snapshot", "specs/backlog/BL-runtime-mcp-actions-snapshot.md", /去处第 62 批第 1 项/u],
     ["BL-goals-methods-as-skills", "specs/backlog/BL-goals-methods-as-skills.md", /去处第 41 批/u],
-    ["BL-mcp-action-pipelines-merge", "specs/backlog/BL-mcp-action-pipelines-merge.md", /第 61 批第 1 项/u],
+    ["BL-mcp-action-pipelines-merge", "specs/backlog/BL-mcp-action-pipelines-merge.md", /第 62 批第 1 项/u],
   ];
   for (const [id, file, batch] of destinations) {
     assert.match(await backlogRow(file, id), batch, `${id}: the owner cell names where it is done, not "会话待分配"`);
@@ -90,7 +90,7 @@ test("CPK-02: the two upgrade differences come from data already persisted, with
   const deviation = contract.slice(contract.indexOf("## 10. 偏离记录"), contract.indexOf("## 11. 待决"));
   assert.match(deviation, /retainedVersions/u, "pack upgrades are read from the signed releases the Host kept");
   assert.match(deviation, /connector-mcp-tools\.json/u, "connection discovery differences are kept in the existing JSON cache");
-  assert.match(deviation, /第 61 批 MCP 策略 M0/u, "project MCP servers' discovery difference stays with batch 61's M0");
+  assert.match(deviation, /第 62 批 MCP 策略 M0/u, "project MCP servers' discovery difference stays with batch 62's M0");
   assert.doesNotMatch(deviation, /本轮没有产出者/u, "the old 「nothing produces it this round」 deviation is gone");
   const acceptance = contract.slice(contract.indexOf("## 7. 验收对照表"), contract.indexOf("## 8. 子分支拆法建议"));
   const cpk02 = acceptance.split("\n").find(line => line.startsWith("| CPK-02 |"));

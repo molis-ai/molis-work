@@ -24,7 +24,7 @@
 
 ## 2026-11-11 Inbox 更新建议：基线与修复
 
-用例 `tests/inbox-evaluate-reads.e2e.test.ts`（BFP-01～03、BL-131）：隔离 Home、真实 Host、独立 Chrome 1440×950、Node 24.15；20 个待处理事项，绑定的判断规则固定返回「先核查」，不含模型延迟；同一用例内串行 5 个样本，每个样本重新打开 Inbox 再点「更新前 20 条建议」。计时在插件框里：从点击到状态行出现「已更新」，与到 20 条建议进入 DOM。请求从主页面的 CDP 网络事件取，只数判断 POST 之后对本页文档（`/projects/<id>/`）的读取；Goals 看板自己的刷新（`/api/board/refresh`）另列、不计。
+用例 `tests/inbox-evaluate-reads.e2e.test.ts`（BFP-01、BL-131；BFP-02/03 的 CPU/内存/堆/请求/错误分段见 BL-batch27-audit-followups）：隔离 Home、真实 Host、独立 Chrome 1440×950、Node 24.15；20 个待处理事项，绑定的判断规则固定返回「先核查」，不含模型延迟；同一用例内串行 5 个样本，每个样本重新打开 Inbox 再点「更新前 20 条建议」。计时在插件框里：从点击到状态行出现「已更新」，与到 20 条建议进入 DOM。请求从主页面的 CDP 网络事件取，只数判断 POST 之后对本页文档（`/projects/<id>/`）的读取；Goals 看板自己的刷新（`/api/board/refresh`）另列、不计。
 
 | | 本页文档读取（每次） | 提示与 20 条建议的先后 | 点击到 20 条建议（p50） |
 | --- | --- | --- | --- |

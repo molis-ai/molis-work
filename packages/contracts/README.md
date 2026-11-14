@@ -1,5 +1,7 @@
 # 公共类型与协议
 
+`MemoryRestoreSdkPort.purge` 返回SDK维护已确认的现存权威材料相对路径；多条记忆可以共享一个索引DB。它不授予任意文件写入、删除共享DB或扩大kind选择的权限，签名与原领域授权保持。可写就绪和可靠close由恢复桥及SDK原owner负责，最终发布/回滚由Home publisher负责。
+
 `SyncReplicaAdapter.hasProjectChanges(projectId)` 是 owner 对指定项目未结算内容的只读判断，覆盖待提交变化、冻结上传及保留冲突（包括等待依赖）；删除后的键仍须可判定归属，其他项目不能误计。缺少此端口或归属不可知必须报告不支持/不可用，不能返回 false 冒充已同步；它不确认上传，也不授权回收。SQLite owner 通过可信 `belongsToProject(key,projectId)` 投影现有日志键的业务归属，共同 Storage 不猜键、不跨 owner 查表，查询不受上传启用筛选影响。当前 Aggregate、Pages、Images、Workflows 及已有项目分区已兑现；分区映射由可信组合根显式提供，不从输入猜测，失效分区拒绝观察。Todo 已按当前/删除后归属及未确认保留内容判断；Work 已按 work.project 关系及未确认保留内容判断，交接目标不作为归属；Home 文档和未启用分区的完整被动读取尚待接线，项目云端生命周期仍未因此启用。
 
 让 Module、Host、Plugin 和 App 通过一致的输入输出协作。这里提供真实的公共类型、schema 和解析规则，而不是功能实现。
@@ -64,6 +66,12 @@ node scripts/run-tests.mjs tests/plugin-authoring.test.ts
 
 ## 开发要求
 
+对象状态协议使用现 `molis.subject-reference.v1` 输入及独立 `molis.subject-state.v1` 输出，严格单条 `{subject_id}` 返回 `{subject,state}`。`deleted` 仅指当前已获授权主人确认无此记录，不是永久墓碑；状态协议不回正文、不授读取权限，也不证明历史安装代。正文协议原 strict shape 保持。
+
+`memory.learning.enqueue/run/form@1` 是 plugin-only、concurrent、metered commands，只交换 Session/Run/task refs。permissions=[] 不授予通用记忆写权限：仍经过 issued caller、原 registration、当前 grant、受保护原件及冻结 Run 配方与当前策略。`assert_memory_sources_current` 只收紧来源，绑定客户端对旧、新同步 checker 求交；不进 JSON 或持久数据。
+
+`AgentMemoryRecallFact.retrievals` 可选携带 SDK 已脱敏的 `attempts` 与 `cost`，按 App 的 snake_case 公开；尝试顺序、主算法失败/备用来源和原成本保持，不含正文或路径。未提供的用量保持缺省，物理读取的 `unknown` 与 `complete: false` 不转为零或成功。检索 `ready` 只表示备妥，实际派发仍由原 `contexts` 的 call/receipt 与状态证明；此合同不提供 fallback 配置或执行能力。
+
 插件同步集合/快照合同从 `/platform/plugin` 导出；spaceId 级配置格式从 `/modules/sync-replication` 导出。校验不负责授权、持久化或传输，详见[同步接入规范](../../skills/molis-plugin-dev/sync.md)。
 
 `/platform/settings` 提供设置条目、读写输入及共用返回的合同。动作输入只携带设置键和修改内容，主人和项目从可信上下文获得。写入用读到的 revision 与 `request_id`，返回同一事务内回读的有效值。接入见 [SDK 的设置说明](../plugin-sdk/README.md#设置)。
@@ -103,8 +111,9 @@ node scripts/run-tests.mjs tests/plugin-authoring.test.ts
   - 项目目录的七个动作（`projectDirectoryActions`）和最近资料的两个动作（`materialRecentActions`）现在只声明，还没有提供方登记，调用得到 `actions.missing`。`ProjectDirectories.source_links` 只有 id 没有路径；目录的 `state` 只有 `ok`、`missing`；撤权按调用方的授权算，不是目录的状态；`projects.directory_revoked` 回答冻结轮次用到已经移除的目录。`MaterialOrigin` 的 `unmapped` 只用于 `source: "directory"`，这时不带 `directory`。规则见 [公共来源与呈现合同](../../specs/shared-sources-and-surfaces/spec.md)。
   - `services/skills` 的 Skill 目录四个动作（`skillCatalogActions`，提供方 `system.skills`）与导入两个动作（`skillImportActions`，由 `plugin-install` 提供方登记，导入就是安装）已由宿主登记（第 08 批 #1984）。范围、操作者、调用方的安装从调用上下文来，输入 schema 都不收；`skills.body.read@1` 一次收 1～`SKILL_BODY_READ_MAX_REFS` 个 `SkillRef`，逐项回答正文或 `SkillReadRefusal`，不换成别的版本；目录项不带正文。规则见 [技能包合同稿](../../specs/skill-packs/contract-design.md) 第 6～8 节。
   - 能力包：上报协议在 `platform/kit-report`（两个合同类型、`defineKitReportAction`、条目类型与封闭 schema、`KIT_TOOL_ORIGINS`），它单独一个子路径、不经 `platform/actions` 转出，因为它用技能目录的条目，而 `services/skills` 引 `platform/actions`；汇总的 `kit.catalog.list@1`（`services/kit`，提供方 `system.kit`）只声明，还没有提供方登记。包不存、不登记，状态从内容读出；条目 schema 没有放正文、凭据、端点或路径的字段。点名名单是宿主写的调用上下文字段（`ActionCallContext.named_skills` 绑定安装与动作，`skill_round` 只在宿主对 `system.skills` 的调用上），动作输入里的 `SkillRef`（如工作执行方 `run.start` 的 `skills`）不算点名；`SkillRef` 的封闭 schema 在不公开的 `services/skill-ref-schema.ts`，`services/skills` 以 `SKILL_REF_SCHEMA` 公开。改动后跑 `node scripts/run-tests.mjs tests/capability-pack-contract.test.ts`。规则见 [能力包合同稿](../../specs/capability-pack/contract-design.md) 第 2、4 节。
-  - 智能呈现的声明在 `platform/presentation`（Manifest 的 `presentation` 字段引用它），组合服务的合同在 `services/surface-composition`（C-2、C-3）。`surfaces.compose@1`、`surfaces.correct@1` 只声明，提供方 `system.surfaces` 由第 15 批 S-1 登记；SDK 的 `parsePluginManifest` 用 `validatePresentationDeclaration` 查 `presentation`。values 与概况动作的 schema 只用 `SandboxSchema` 有的写法，字段组合（`stale` 必有 `read_at`、概况的 `start` 是声明的子集）由 SDK `/presentation` 的共用校验查。描述里给人看的字是 `OwnedTextRef`；`excluded` 的件数和插件 id 只给 user 受众，这是服务的规矩，schema 两种都收。挂载位不另起声明：`UiSlotDescriptor`（`platform/ui`）上可选的 `accepts_forms`、`max`、`refuse_kinds` 说平台按形态往这个 slot 放别人的什么，没有 `accepts_forms` 的 slot 平台什么都不放；组合服务的位置叫 `plugin-slot`，带 `plugin_id` 和 `slot_id`。平台的关系类型只有 `modules/context-ledger` 的 `CONTEXT_RELATION_TYPES`，placement 的两种边从它取名。状态环的取值（`STATE_RING_FAMILIES`）在 `platform/ui-state-rings.ts`，经 `platform/ui` 转出，画法留在 SDK 的 `/ui`。规则见 [公共来源与呈现合同](../../specs/shared-sources-and-surfaces/spec.md) 第 5～7 节。
+  - 智能呈现的声明在 `platform/presentation`（Manifest 的 `presentation` 字段引用它），组合服务的合同在 `services/surface-composition`（C-2、C-3）。`surfaces.compose@1`、`surfaces.correct@1` 由 `system.surfaces` 登记；SDK 的 `parsePluginManifest` 用 `validatePresentationDeclaration` 查 `presentation`。values 与概况动作的 schema 只用 `SandboxSchema` 有的写法，字段组合（`stale` 必有 `read_at`、概况的 `start` 是声明的子集）由 SDK `/presentation` 的共用校验查。描述里给人看的字是 `OwnedTextRef`；`excluded` 的件数和插件 id 只给 user 受众，这是服务的规矩，schema 两种都收。挂载位不另起声明：`UiSlotDescriptor`（`platform/ui`）上可选的 `accepts_forms`、`max`、`refuse_kinds` 说平台按形态往这个 slot 放别人的什么，没有 `accepts_forms` 的 slot 平台什么都不放；组合服务的位置叫 `plugin-slot`，带 `plugin_id` 和 `slot_id`。平台的关系类型只有 `modules/context-ledger` 的 `CONTEXT_RELATION_TYPES`，placement 的两种边从它取名。状态环的取值（`STATE_RING_FAMILIES`）在 `platform/ui-state-rings.ts`，经 `platform/ui` 转出，画法留在 SDK 的 `/ui`。规则见 [公共来源与呈现合同](../../specs/shared-sources-and-surfaces/spec.md) 第 5～7 节。
 
+  - 首页请求可给去重且有界的 `home_order`，范围只及可见插件卡。仅插件组的 `plugin_card` 可带本轮概况、说明的 `OwnedTextRef`，以及绑定确切安装的开始、打开和启用入口。开始分为直接动作和打开同 Manifest 视图的表单，项目成员恢复保留原观察的 `expected_revision`。实际路由和权限由宿主在点击时复核。
   - 插件的合同（动作、记录、错误码）归插件自己：写在插件包的 `src/contract.ts`、由包的 `./contract` 子路径公开（Shelf 在 `modules/shelf` 的 `./contract`），不放进 contracts，contracts 也不留转发；`tests/plugin-contract-ownership.test.ts` 钉住。`./modules/*` 里留下的是平台的事实（成果库、项目、Characters、情境、系统能力 `functions`、模型提供方、工作区服务等）和仍待迁出的 `alchemist`。跨插件的使用方不 import 提供方的合同，在 Manifest 里按动作 id 消费，源码里自备只写发问所需（id、版本、权限、输入形状）的视图经 `services.actions.invoke` 调，执行时宿主按提供方的定义校验输入、输出与权限。
   - `ActionCallContext.assert_authority_current` 只来自可信宿主和原 dispatcher，必须同步；可选目标与必要权限由当前消费场景/启用声明给出。`bindActionClient` 的 control 尾检只保留真实父调用自己的来源/权限/生命周期，子动作的目标和消费权限仍由绑定 caller 核对；同 caller 的 `retainActionAuthority` 保留来源和目标。`PluginExecutionControl` 不抹除父尾检。无目标尾检仍核原配置权限，不能授予目标权限或复活已结束的调用，不从业务 input、MCP `_meta` 或 run state 读取。
   - 文字引用（`platform/ui-text.ts`，经 `platform/ui` 转出）分两个形状：声明位置的 `TextRef` 没有 `owner`，写了就被 `TEXT_REF_SCHEMA` 拒绝；`OwnedTextRef` 是平台从可信目录绑好主人之后的。`OWNED_TEXT_REF_SCHEMA` 由前者加 `owner` 得来，不复制属性；数字上限只写在 `TEXT_REF_LIMITS`。`SandboxSchema` 写不出联合，字段组合不归 schema 管。改动后跑 `node scripts/run-tests.mjs tests/ui-text-ref-contract.test.ts`。
@@ -127,3 +136,13 @@ node scripts/run-tests.mjs tests/plugin-authoring.test.ts
 `retainBackgroundAuthority(additionalPermissions?)` 只增加已有权限的持续检查，不改变动作引用或扩大授权。传入数组被复制，额外权限必须属于原调用者；未提供独立可信入口授权时仍受原取消边界。绑定客户端分别保留父动作与子动作权限，不能彼此替代。回归见 `tests/action-background-authority.test.ts` 与 `tests/security-invariants-alchemist-resumption.test.ts`。
 
 `PluginModelClient` 的 `images` 只收字节与可选名称，在首次等待前复制；`execution` 保留同次真实推理回执，注入文字替身不伪造。成功结果与可记账失败的 `validateResult()` 必须在原 `beforeEffect()` 之后、同步提交之前调用；它绑定原动作及模型配置，不能跨动作持有。`choices()` 只返回现行模型名称和能力，不给地址或凭据。
+
+
+Agent 子任务列表 `agent.subagents.list.v1@3` 保留 raw `task` 供查看，`continuation_task` 单独报告 `{status:"available",text}` 或 `{status:"unavailable"}`；复用模型材料不得从 raw 字段兜底。严格输出 schema 与版本同步维护。`AgentStartExecution.beforeDispatch` 的可选返回值只承载原调用的一次同步收紧闭包，不是插件 DTO 或新的授权来源。
+
+会话生命周期新增三个独立 plugin-only Action：`agent.session.lifecycle.read.v1`、`agent.session.archive.v1`、`agent.session.unarchive.v1`，均只接严格 `[AgentSessionRef]`，只回 `{ session, state: "active" | "archived" }`。owner 留在 Host 鉴权，不从 JSON 接收。原 session/status DTO 和执行 recovery 合同不变。
+
+
+## 选中资料的派发边界
+
+Host-only `subject_state_capture` / `provideSubjectState` 只交接原注册授权和当前 owner 的同步只读函数；`coding.subject.state@1` 的 JSON 输入输出不变。`disposeDispatch` 只在进程内交给实际 Run，不写入请求、冻结记录或历史。

@@ -66,6 +66,11 @@ const plainDirectory = (root: string) => {
   return found === undefined || found.isDirectory();
 };
 
+/** `upgrade/` that is not a plain directory refuses the whole round before anything, recovery included, looks inside it. */
+export function assertUpgradeDirectory(root: string): void {
+  if (!plainDirectory(root)) throw refused();
+}
+
 function object(value: unknown, fields: readonly string[]): Record<string, unknown> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) throw refused();
   const found = Object.keys(value);

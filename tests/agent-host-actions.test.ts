@@ -312,9 +312,9 @@ test("merged original-input Action shapes reject prior fixed versions through th
   ] as const;
   for (const [definition, input] of calls) {
     const previousId = definition.capability_id + ".v1";
-    const previousVersion = definition === agent.startRun ? 3 : definition === agent.readSession ? 2 : 4;
-    for (const ref of [{ capability_id: previousId, version: previousVersion }, { capability_id: previousId, version: 1 },
-      { capability_id: definition.capability_id, version: previousVersion }]) {
+    const previousVersions = definition === agent.startRun ? [1, 3] : [1, 2, 4, 5];
+    for (const ref of [...previousVersions.map(version => ({ capability_id: previousId, version })),
+      ...previousVersions.filter(version => version !== definition.version).map(version => ({ capability_id: definition.capability_id, version }))]) {
       await assert.rejects(actions.invoke({ ...definition, ...ref } as ActionDefinition, input), { code: "actions.dependency_missing" }, `${ref.capability_id}@${ref.version}`);
     }
   }

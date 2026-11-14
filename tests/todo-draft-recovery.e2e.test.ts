@@ -188,6 +188,13 @@ test("QA-034: two tabs refuse a stale Todo edit, then reload and save without a 
     const message = note.querySelector('[data-todo-note-text]') ?? note;
     return note.hidden && !note.classList.contains('is-error') && !message.textContent.trim();
   })()`;
+  // The workbench remembers the record last open on the Todo page and reopens it after a reload, quietly
+  // (apps/workbench/src/scripts/client/tab-workspace-plugins.ts `reopenRecord`): it clicks the row once Todo lists it, or asks Todo to
+  // open it 1.5 s later when the row is in another view. Each journey here opens the record from the list itself, so before each page
+  // load it forgets that record (the two tabs share it), as going back to the list does. Racing the reopen made the 390 journeys
+  // depend on the machine: at phone width the reopened record takes the list's place, and on CI the 1.5 s ask came before the test
+  // reached the list, so its clicks met a hidden list (QA-034 at 390).
+  const forgetReopenedRecord = () => b.evaluate(`localStorage.removeItem(${JSON.stringify(`molis-work-plugin-records:${projectId}`)})`);
   const openItem = async (frame: typeof primary, expectedTitle: string, beforeOpen?: () => Promise<unknown>) => {
     await frame.waitFor("document.querySelector('[data-todo-loading]')?.hidden");
     await frame.click('[data-todo-view="unscheduled"]');
@@ -262,6 +269,7 @@ test("QA-034: two tabs refuse a stale Todo edit, then reload and save without a 
           const before = read();
           await b.command("Page.bringToFront", {}, b.sessionId);
           await b.evaluate(`localStorage.setItem('molis-work:theme', '${theme}')`);
+          await forgetReopenedRecord();
           await b.navigate(() => b.command("Page.navigate", { url }, b.sessionId));
           await openItem(primary, before.title, extended ? async () => {
             await primary.click(quick);
@@ -269,6 +277,7 @@ test("QA-034: two tabs refuse a stale Todo edit, then reload and save without a 
           } : undefined);
           assert.equal(await b.evaluate("document.documentElement.dataset.resolvedTheme"), theme);
           await other.command("Page.bringToFront");
+          await forgetReopenedRecord();
           await other.command("Page.navigate", { url });
           await openItem(secondary, before.title);
           const winner = `Other tab title ${before.revision + 1}`;
@@ -387,6 +396,7 @@ test("QA-034: two tabs refuse a stale Todo edit, then reload and save without a 
   await t.test("a real missing draft cannot mark a different selected record unreadable", async () => {
     const titleBefore = read().title;
     await other.command("Page.bringToFront");
+    await forgetReopenedRecord();
     await other.command("Page.navigate", { url });
     await openItem(secondary, titleBefore);
     await secondary.click(`${detail} .plugin-stage-more > summary`);

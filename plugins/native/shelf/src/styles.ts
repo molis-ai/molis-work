@@ -41,7 +41,7 @@ export const SHELF_STYLES = `
     appearance: none;
     -webkit-appearance: none;
   }
-  /* Shelf is the side panel's tab (specs/side-shelf §3.2) and fills it. The list takes the whole tab; an open file takes
+  /* Shelf is the side panel's tab (specs/context-program/side-shelf.md §3.2) and fills it. The list takes the whole tab; an open file takes
      it too, with a back button above; from 640px the 213px list (DropAgent's 213pt) stays beside the open file. */
   [data-shelf-stage-shell] {
     position: fixed; inset: 0; overflow: hidden; container: shelf / inline-size;

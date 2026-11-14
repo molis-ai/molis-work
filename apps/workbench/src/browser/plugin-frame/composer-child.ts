@@ -100,7 +100,13 @@ export function childComposer(port: MessagePort, scope: FrameScope, bar: boolean
       queued = true;
       queueMicrotask(() => {
         queued = false; if (gone || live !== id) return;
-        const now = snapshot(), text = JSON.stringify(now);
+        let now: ComposerSnapshot, text: string;
+        try { now = snapshot(); text = JSON.stringify(now); }
+        catch {
+          // A page handed a control, command or word of the wrong shape: the whole mount is let go, as the parent drops a
+          // malformed state (S-composer-source-call item 5). The page's own script must not turn this into an uncaught error.
+          destroy(); return;
+        }
         if (text !== last) { last = text; send({ type: "composer-state", id, snapshot: now }); }
       });
     };
@@ -176,13 +182,13 @@ export function childComposer(port: MessagePort, scope: FrameScope, bar: boolean
       ).finally(() => { calls.delete(message.call); changed(); });
     };
     port.addEventListener("message", listen);
-    const destroy = () => {
+    function destroy() {
       if (gone) return;
       gone = true; sizes.disconnect(); port.removeEventListener("message", listen); stand.release();
       for (const controller of calls.values()) controller.abort();
       calls.clear(); checks.clear();
       if (live === id) send({ type: "composer-destroy", id });
-    };
+    }
     scope.own(destroy); mounted.set(root, destroy);
     changed();
     const handle: ComposerHandle = {

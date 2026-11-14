@@ -7,10 +7,10 @@ First-party and Studio-generated plugins follow the same standard. The renderer 
 
 - **Use the UI catalog only** (`/__ui/catalog`, `mw-*`). Do not invent a control or interaction. Add needed components to the catalog first.
 - **Three states**: show a centered empty state (icon, one title, useful next step and one primary action), a loading skeleton instead of a blank area, and an error that names the problem and next step while keeping input.
-- **One primary action**: one graphite primary button per view. Secondary actions use softly washed buttons without an outline. Place new-item controls at the title area or toolbar's end, or at the end of the list. Give dangerous actions less emphasis and confirm before executing.
+- **One primary action**: one ink-blue primary button per view. Secondary actions use softly washed buttons without an outline. Place new-item controls at the title area or toolbar's end, or at the end of the list. Give dangerous actions less emphasis and confirm before executing.
 - **Words**: name the person's action, not the mechanism. Show a locale-appropriate time like “Today at 14:30” and keep the underlying value. Show familiar labels (e.g. “Want to read,” not the enum `unread`).
 - **Hierarchy starts with type**: weight 600 for headings, 500 for rows and controls, 400 for body. Then use size and `--ink`, `--ink-soft`, `--muted`; spacing and a few dividers come last. Do not outline the stage, nest cards or pile on decorative labels.
-- **Color conveys state and selection**: selection uses neutral wash (`--nav-active`) or graphite. Copper is for focus, links and progress; a plugin has no identity color and icons stay neutral. Business views have no gradients; soft warm/cool light is reserved for onboarding.
+- **Color conveys state and selection**: selection uses neutral wash (`--nav-active`) or ink blue. Mist blue is for focus, links and progress; a plugin has no identity color and icons stay neutral. Business views have no gradients; soft warm/cool light is reserved for onboarding.
 - **Shadows lift** menus, overlays, dialogs and Toast. Use the overlay shadow without an added border. Ordinary content has no shadow.
 - **Do not repeat location**: the Workbench tab already names the plugin. Leave the plugin name out of the stage heading except on a separately opened preview or trial.
 - **Light and dark both work**: use tokens, no fixed color values, and inspect both appearances.

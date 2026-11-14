@@ -16,6 +16,7 @@ export type { AssistantReviewDisplay, AssistantReviewField, AssistantReviewWords
 export type { WorkbenchAppearance, WorkbenchAppearanceChoices, WorkbenchAppearancePorts } from "./appearance-view.js";
 export type { UiDeclaredMountHost } from "./declared-mount-host.js";
 export { UiViewRegistry } from "./view-registry.js";
+export { directoryRegistry, placedDirectoryViews, stageOnlyDirectoryViews, type DirectoryRegistry, type PlacedDirectoryView } from "./directory-placement.js";
 export { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "./client-lifecycle.js";
 export { shortCallId } from "./call-id.js";
 export { createUiFailureView, createUiRequest, UI_REQUEST_CLIENT_SCRIPT } from "./request-client.js";

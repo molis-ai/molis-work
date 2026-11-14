@@ -209,7 +209,8 @@ test("STRIP-04: the landing is on the strip only while its object goes with the 
   await waitFor(`Boolean(document.querySelector(${JSON.stringify(LANDING)}))`, 10_000);
   // Named by the heading above the place and the place, never by counting paragraphs (L-3); a screen reader hears the sentence.
   assert.equal(await evaluate(`document.querySelector(${JSON.stringify(LANDING + " .assistant-strip-label")}).textContent`), "发布笔记 · 「步骤」光标处");
-  assert.equal(await evaluate(`document.querySelector(${JSON.stringify(LANDING + " .mw-sr-only")}).textContent`), "放进去的位置：发布笔记，「步骤」，光标处（「…第二步，」之后）");
+  // The parts are joined with common.list.separator (batch 16), "、" in Chinese.
+  assert.equal(await evaluate(`document.querySelector(${JSON.stringify(LANDING + " .mw-sr-only")}).textContent`), "放进去的位置：发布笔记、「步骤」、光标处（「…第二步，」之后）");
 
   await evaluate(`document.querySelector(${JSON.stringify(LANDING + " .assistant-strip-act")}).click()`);
   await waitFor(`!document.querySelector(${JSON.stringify(LANDING)}) && document.querySelector(${JSON.stringify(STRIP)})?.textContent.includes('正在看：发布笔记')`, 10_000);

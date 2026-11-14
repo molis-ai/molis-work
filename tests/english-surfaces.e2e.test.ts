@@ -10,7 +10,7 @@ import { projectOutputOf, readProjectDirectories } from "./fixtures/project-dire
 import { TEXT_WRAP_AUDIT, type TextWrapIssue } from "./fixtures/text-wrap-audit.js";
 
 // specs/visual-ui-experience VUX-40「中英文…不溢出、不混排」: a page shown in English says everything it says itself in English.
-// Goals' status words (the projection words them in Chinese), Jelly's fixed "uncategorized" category, and the Files, Git,
+// Goals' status words (the projection words them in Chinese), Jelly's fixed "uncategorized" category, and the Git,
 // Diff and Text Stats pages with the shell around them used to stay Chinese in English. What a person wrote (Goal titles,
 // project names) is theirs and is not checked. The same places in Chinese still say it in Chinese, and the longer English
 // fits where the Chinese did. The Coding page's markup (its dialogs, composer, results and settings, which the Host draws
@@ -31,13 +31,13 @@ const HAN_IN = (selector: string) => `(() => {
   return [...new Set(out)];
 })()`;
 
-test("VUX-40: Goals statuses, Jelly's fixed category and the Files, Git, Diff and Text Stats pages speak English in English", { timeout: 240_000 }, async (t) => {
+test("VUX-40: Goals statuses, Jelly's fixed category and the Git, Diff and Text Stats pages speak English in English", { timeout: 240_000 }, async (t) => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
   const { navigate, command, sessionId, origin, projectId } = browser;
   assert.ok(projectId);
   const output = projectOutputOf(await readProjectDirectories(browser.web, projectId)).canonical_path;
   await assert.rejects(stat(output), { code: "ENOENT" });
-  const views = Object.fromEntries(await Promise.all(["jelly", "files", "git", "diff", "text-stats", "coding"].map(async id => [id, await pluginFrameBrowser(t, browser, id)])));
+  const views = Object.fromEntries(await Promise.all(["jelly", "git", "diff", "text-stats", "coding"].map(async id => [id, await pluginFrameBrowser(t, browser, id)])));
   let active: Pick<typeof browser, "evaluate" | "waitFor"> = browser;
   const evaluate: typeof browser.evaluate = (...args) => active.evaluate(...args);
   const waitFor: typeof browser.waitFor = (...args) => active.waitFor(...args);
@@ -51,9 +51,8 @@ test("VUX-40: Goals statuses, Jelly's fixed category and the Files, Git, Diff an
   const pages: Array<[plugin: string, ready: string, selector: string, zh: string]> = [
     ["goals", "document.querySelectorAll('.goal-status').length > 3", ".goal-status", "正在推进"],
     ["jelly", "document.querySelector('[data-jelly-category-filters] [data-jelly-filter=uncategorized]')", "[data-jelly-category-filters]", "未分类"],
-    ["files", "document.querySelector('[data-companion=files] [data-files-browser]:not([hidden])')", "[data-companion=files]", "项目的当前目录"],
     ["git", "document.querySelector('[data-companion=git] [data-git-status]')?.textContent", "[data-companion=git]", "Git 改动"],
-    ["diff", "document.querySelector('[data-companion=diff] [data-companion-content] .mw-empty')", "[data-companion=diff]", "打开 Files"],
+    ["diff", "document.querySelector('[data-companion=diff] [data-companion-content] .mw-empty')", "[data-companion=diff]", "打开资料"],
     ["text-stats", "document.querySelector('[data-companion=text-stats] [data-companion-content] .mw-empty')", "[data-companion=text-stats]", "固定一份文件快照后"],
   ];
   for (const [plugin, ready, selector, zh] of pages) {
@@ -77,10 +76,10 @@ test("VUX-40: Goals statuses, Jelly's fixed category and the Files, Git, Diff an
   assert.ok((await evaluate<string>("[...document.querySelectorAll('.goal-status')].map((el) => el.textContent).join('|')")).includes("In progress"));
 });
 
-test("VUX-40: with a real repository, Git's changes, branches, commit and conflict tools and the Files reader speak English", { timeout: 240_000 }, async (t) => {
+test("VUX-40: with a real repository, Git's changes, branches, commit and conflict tools and the materials reader speak English", { timeout: 240_000 }, async (t) => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
   const { navigate, command, sessionId, origin, projectId, homeDirectory } = browser;
-  const views = Object.fromEntries(await Promise.all(["files", "git"].map(async id => [id, await pluginFrameBrowser(t, browser, id)])));
+  const views = Object.fromEntries(await Promise.all(["git"].map(async id => [id, await pluginFrameBrowser(t, browser, id)])));
   let active: Pick<typeof browser, "evaluate" | "waitFor" | "click"> = browser;
   const evaluate: typeof browser.evaluate = (...args) => active.evaluate(...args);
   const waitFor: typeof browser.waitFor = (...args) => active.waitFor(...args);
@@ -171,13 +170,18 @@ test("VUX-40: with a real repository, Git's changes, branches, commit and confli
     await readPR("ready", "github.com", "可以经 GitHub CLI 在 github.com 建 PR", "You can open a PR on github.com through the GitHub CLI");
   } finally { process.env.PATH = originalPath; }
 
-  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=files` }, sessionId));
-  active = views.files!;
-  await waitFor("document.querySelectorAll('[data-companion=files] [data-file-path]').length >= 2", 30_000);
-  await click(`[data-companion=files] [data-file-path='${JSON.stringify(["notes.md"])}']`);
-  await waitFor("!document.querySelector('[data-companion=files] [data-files-text]').hidden", 20_000);
-  assert.deepEqual(await evaluate<string[]>(HAN_IN("[data-companion=files]")), [], "Files reader in English");
-  assert.deepEqual((await evaluate<TextWrapIssue[]>(TEXT_WRAP_AUDIT)).filter((issue) => issue.kind === "spill"), [], "Files reader in English fits");
+  // The project folder's own reader (the side panel's 资料; the Files page it replaced retired in batch 06) speaks English too.
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
+  active = browser;
+  await click("[data-side-tabs] [data-side-tab][aria-selected=true]");
+  await click("[data-side-tab=files]");
+  const notes = `[data-side-file][data-kind="workspace_file"][data-id$=":notes.md"]`;
+  await waitFor(`Boolean(document.querySelector(${JSON.stringify(notes)}))`, 30_000);
+  await click(notes);
+  // A short Markdown file is read whole, so the reader draws it as Markdown rather than in windows.
+  await waitFor("!document.querySelector('[data-side-materials-tools]').hidden && (document.querySelector('[data-side-files-body]')?.textContent ?? '').includes('first')", 20_000);
+  assert.deepEqual(await evaluate<string[]>(HAN_IN('[data-side-body="files"]')), [], "the materials reader in English");
+  assert.deepEqual((await evaluate<TextWrapIssue[]>(TEXT_WRAP_AUDIT)).filter((issue) => issue.kind === "spill"), [], "the materials reader in English fits");
 });
 
 /** Chinese in the markup the Host sent for `selector` (text, every attribute and template contents, shown or not). */
@@ -197,7 +201,7 @@ const HAN_IN_MARKUP = (url: string, selector: string) => `(async () => {
 test("VUX-40: the Coding page, its own script's words and Coding settings speak English in English", { timeout: 120_000 }, async (t) => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
   const { navigate, command, sessionId, origin, projectId } = browser;
-  const views = Object.fromEntries(await Promise.all(["jelly", "files", "git", "diff", "text-stats", "coding"].map(async id => [id, await pluginFrameBrowser(t, browser, id)])));
+  const views = Object.fromEntries(await Promise.all(["jelly", "git", "diff", "text-stats", "coding"].map(async id => [id, await pluginFrameBrowser(t, browser, id)])));
   let active: Pick<typeof browser, "evaluate" | "waitFor"> = browser;
   const evaluate: typeof browser.evaluate = (...args) => active.evaluate(...args);
   const waitFor: typeof browser.waitFor = (...args) => active.waitFor(...args);

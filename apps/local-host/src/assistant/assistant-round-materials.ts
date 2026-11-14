@@ -124,8 +124,8 @@ export class AssistantRoundMaterials {
         `和这一轮相关的记忆里，${budget ? `有 ${budget} 条因为篇幅没有带上` : ""}${budget && conflicts ? "，" : ""}${conflicts ? `有 ${conflicts} 条和另一条互相矛盾、带上的是用户明确说过的那条` : ""}。`));
     }
     // Forming memories switched off: the round is told, and where the person turns it on (the work layer says what follows).
-    if (this.ports.memory?.() && !this.link.memoryTools(work)) out.push(...chunked({ title: "记忆设置" }, "memory-off",
-      "用户关闭了“允许记住”（在 设置 · 个人 · 记忆 打开），这一轮不能长期记住或忘掉任何事。"));
+    if (!work.delegated_by && this.ports.memory?.() && !this.link.memoryTools(work)?.remember) out.push(...chunked({ title: "记忆设置" }, "memory-off",
+      "用户关闭了“允许记住”（在 设置 · 个人 · 记忆 打开），这一轮不能保存长期记忆或留下建议。"));
     // Changes a stopped round left running, and how each ended (the base says not to submit an unsettled one again blindly).
     const unsettled = this.store.unsettled(this.actorId, work.work_id, true);
     if (unsettled.length) {
@@ -140,7 +140,9 @@ export class AssistantRoundMaterials {
       const progress = await this.objectBackground(work, { kind: object.subject.kind, id: object.subject.id });
       if (progress) out.push(...chunked({ title: `专业会话的进展：${object.title}` }, `session-${object.subject.id}`, progress));
     }
-    for (const [title, id, text] of [["可用能力目录", "capabilities", capabilityDirectory(offered, unavailable, this.store.confirmAlways(this.actorId))], ["项目资料目录", "knowledge", knowledgeDirectory(this.ports, work.scope.kind === "project" ? work.scope.project_id : null, offered, `${work.title}\n${this.starting.get(work.work_id) ?? ""}`)]] as const) if (text) out.push(...chunked({ title }, id, text));
+    const directory = await knowledgeDirectory(this.ports, work.scope.kind === "project" ? work.scope.project_id : null, offered, `${work.title}\n${this.starting.get(work.work_id) ?? ""}`);
+    try {
+    for (const [title, id, text] of [["可用能力目录", "capabilities", capabilityDirectory(offered, unavailable, this.store.confirmAlways(this.actorId))], ["项目资料目录", "knowledge", directory.text]] as const) if (text) out.push(...chunked({ title }, id, text));
     // Methods Plugins offer: listed, not loaded. A round that needs one reads it; one the person chose is already here.
     // A manual Skill nobody chose is not listed (the catalog refuses it unnamed); only an auto one is readable by this round.
     const methods = work.executor.kind === "plugin" ? [] : await this.link.methods(work).catch(() => [] as AssistantMethod[]);
@@ -181,7 +183,11 @@ export class AssistantRoundMaterials {
       out.push(...chunked({ title: `材料：${material.title}` }, `material-${material.material_id}`, `${head}\n\n${material.text ?? "（没有可读正文）"}`));
     }
     const signed = out.filter(item => item.material_id.startsWith("signed-"));
-    return { materials: [...out.filter(item => !item.material_id.startsWith("signed-")).slice(0, 30 - signed.length), ...signed], told };
+    const assembled = [...out.filter(item => !item.material_id.startsWith("signed-")).slice(0, 30 - signed.length), ...signed];
+    const knowledgeDispatch = assembled.some(item => item.material_id === "knowledge" || item.material_id.startsWith("knowledge.")) ? directory.control : undefined;
+    if (!knowledgeDispatch) directory.control?.dispose();
+    return { materials: assembled, told, ...(knowledgeDispatch ? { knowledgeDispatch } : {}) };
+    } catch (error) { directory.control?.dispose(); throw error; }
   }
 
   /** One object as its owner has it now: its context, "missing" when the owner says it is gone, null when unreadable. */

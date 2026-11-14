@@ -19,8 +19,11 @@ export async function openMaterials(page: Page) {
     return;
   }
   if (s.current !== id || ticket !== s.materialTicket) return;
-  document.dispatchEvent(new CustomEvent("molis-work:knowledge-pick", { detail: { request_id: "coding:" + id + ":" + ticket, selected: structuredClone(s.materialSelections.get(id) || []), max: 30 } }));
+  document.dispatchEvent(new CustomEvent("molis-work:knowledge-pick", { detail: { request_id: "coding:" + id + ":" + ticket, selected: structuredClone((s.materialSelections.get(id) || []).filter(hasRef)), max: 30 } }));
 }
+
+/** The picker shows pieces by their exact reference; a recorded piece kept from before has none, and choosing again replaces it. */
+const hasRef = (item: unknown) => !!item && typeof item === "object" && "ref" in item;
 
 /**
  * The composer as the page stands: held while the session is unread or a round is being started by another button (its own send
@@ -41,6 +44,10 @@ export function drawComposer(page: Page) {
   }
   q("[data-coding-rename]").hidden = !s.current;
   q("[data-coding-archive]").hidden = !s.current;
+  const memory = q<HTMLAnchorElement>("[data-coding-memory-open]");
+  memory.hidden = !s.current;
+  if (s.current) memory.href = memory.dataset.memoryBase + "&memory_session_id=" + encodeURIComponent(s.current);
+  else memory.removeAttribute("href");
   for (const name of ["workspace", "goal", "writer-directories"]) q<HTMLButtonElement>("[data-coding-" + name + "-open]").disabled = shut(page);
 }
 

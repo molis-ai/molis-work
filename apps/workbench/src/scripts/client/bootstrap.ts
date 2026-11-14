@@ -61,7 +61,7 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     const paneMessages = ${PANE_MESSAGES_SCRIPT};
     const settingsReturn = molisWorkSettingsReturn({ translate: readText, projectId: state.project?.project_id || "", prefix: routePrefix,
       tabWorkspace: () => tabWorkspace, showToast: (...args) => showToast(...args), setDirectory: (...args) => setDesktopDirectory(...args) });
-    let projectHome = null;
+    let projectHome = null, projectPositions = null;
     let pluginWorkbench = null;
     let globalSearchPalette = null;
     let assistantIsland = null;

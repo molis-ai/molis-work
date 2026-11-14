@@ -2,9 +2,10 @@ import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
-import type { PluginInstalledView } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
+import type { ProjectPluginInstalledView } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import { HomeConsentLedger } from "@molis-ai/molis-work-app-local-host";
 import { PACKAGE_PLUGIN_ID, newPublisher, signedPackage } from "./fixtures/sandbox-package.js";
+import { projectInstallation } from "./fixtures/signed-package-host.js";
 import { residentManagement } from "./fixtures/resident-management.js";
 
 // ac-trust T7, the interface's door: a project's 插件 page reads what is installed and installs a signed package, and takes an agreement
@@ -13,7 +14,7 @@ import { residentManagement } from "./fixtures/resident-management.js";
 // and the overview says so; RAC-406 the page is in the project's settings.
 
 const mac = { skip: process.platform !== "darwin", timeout: 240_000 };
-interface Overview { plugins: PluginInstalledView[]; publishers: Array<{ key_id: string; label: string }> }
+interface Overview { plugins: ProjectPluginInstalledView[]; publishers: Array<{ key_id: string; label: string }> }
 
 async function setup(t: Parameters<typeof residentManagement>[0]) {
   const env = await residentManagement(t, { completeText: null });
@@ -87,19 +88,20 @@ test("BL623-08 S-84 the project's 插件 page switches a signed plugin off and o
   const bundle = signedPackage(newPublisher());
   const preview = await env.send<{ preview_id: string }>("/api/plugin-trust/install/preview", { body: { bundle } });
   assert.equal((await env.send("/api/plugin-trust/install/confirm", { body: { preview_id: preview.body.preview_id, consent: true, pin_label: "Example" } })).status, 200);
-  const state = async () => (await env.overview()).plugins.find(item => item.plugin_id === PACKAGE_PLUGIN_ID)?.state;
-  assert.equal(await state(), "running");
+  const row = async () => (await env.overview()).plugins.find(item => item.plugin_id === PACKAGE_PLUGIN_ID);
+  assert.equal((await row())?.state, "running");
   const step = (name: string, body: Record<string, unknown> = {}) => env.send<{ plugin_id?: string; state?: string; code?: string }>(`/api/plugin-trust/installed/${name}`, { body: { plugin_id: PACKAGE_PLUGIN_ID, ...body } });
   assert.deepEqual((await step("disable")).body, { plugin_id: PACKAGE_PLUGIN_ID, state: "disabled" });
-  assert.equal(await state(), "disabled");
-  assert.deepEqual((await step("enable")).body, { plugin_id: PACKAGE_PLUGIN_ID, state: "running" });
-  assert.equal(await state(), "running");
+  const disabled = await row(); assert.equal(disabled?.state, "disabled");
+  assert.equal((await step("enable")).body.code, "actions.input_invalid", "a project enable cannot skip the release seen by settings");
+  assert.deepEqual((await step("enable", { expected_installation: projectInstallation(disabled!) })).body, { plugin_id: PACKAGE_PLUGIN_ID, state: "running" });
+  assert.equal((await row())?.state, "running");
   assert.equal((await step("uninstall")).body.code, "actions.input_invalid", "taking it off says whether its data is kept");
   const target = (await env.overview()).plugins.find(item => item.plugin_id === PACKAGE_PLUGIN_ID)!.uninstall_target;
   assert.ok(target, "the row names the installation an uninstall takes off (BL-915)");
   assert.equal((await step("uninstall", { keep_data: true })).body.code, "actions.input_invalid", "taking it off names the row's installation");
   assert.deepEqual((await step("uninstall", { keep_data: true, target })).body, { plugin_id: PACKAGE_PLUGIN_ID, state: "uninstalled" });
-  assert.equal(await state(), undefined, "it is gone from the overview");
+  assert.equal(await row(), undefined, "it is gone from the overview");
   assert.equal((await step("disable", { plugin_id: "goals" })).body.code, "plugin.state_invalid", "a plugin that did not come from a signed package is not touched");
 });
 

@@ -12,7 +12,7 @@ import { PAGES_ARTIFACT_TYPE_ID, PAGES_PLUGIN_ID, type PagesBody, type PagesFold
 import { PAGES_AI_COMMANDS, type PagesAiRequest, type PagesAiResult } from "./ai.js";
 import { runPagesAi } from "./ai-run.js";
 import type { PagesImportFile, PreparedPagesImport } from "./import-files.js";
-import { promotePagesDocument, type PagesLineHeadPort, type PagesPromoteStore, type PagesPublishArtifactPort, type PagesReadArtifactPort } from "./promote.js";
+import type { promotePagesDocument } from "./promote.js";
 import type { PagesStores } from "./store.js";
 import type { PluginModelResult } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { generatePagesFromMaterials } from "./generate.js";
@@ -97,7 +97,7 @@ const PAGES_INTAKE = { intake_id: PAGES_DOCUMENT_INTAKE, item_kind: PAGES_SUBJEC
 export const pagesActions = {
   presentation: pagesPresentationValues,
   /** One document's current text, version and links, by the shared subject protocol (the Assistant, Home, references). */
-  subject: defineSubjectContextAction("pages.subject.read", /* @version action.pages.subject.read */ 1, PAGES_SUBJECT_KIND, "文档", read),
+  subject: withAction(defineSubjectContextAction("pages.subject.read", /* @version action.pages.subject.read */ 1, PAGES_SUBJECT_KIND, "文档", read), { execution: { cost: "none" } }),
   /** What can be done with part of a document; preparing reads and writes nothing (specs/archive/contextual-interaction §5.1). */
   fragmentOffers: defineFragmentOffersAction("pages.fragment.offers", /* @version action.pages.fragment.offers */ 1, [PAGES_SUBJECT_KIND], "文档片段可以做的事", read, PAGES_FRAGMENT_CHOICES),
   /** The input of 「存为文档」 for a passage from anywhere; no choices of its own, so it is only the `prepare` of `create`. */
@@ -111,7 +111,7 @@ export const pagesActions = {
   /** A pinned version of a document as Markdown (artifact-positioning A4), for the 成果库 and the side panel. */
   artifactPreview: defineArtifactPreviewAction("pages.artifacts.preview", /* @version action.pages.artifacts.preview */ 1, "文档", read),
   /** Pins a document's current revision on the spot, for a Goal handing it in (A5); the same publication as `promote`. */
-  artifactPin: withAction(defineArtifactPinAction("pages.artifacts.pin", /* @version action.pages.artifacts.pin */ 1, PAGES_SUBJECT_KIND, "文档", [...read, ...write, "artifact:write"]), { delegation: "confirmation-only" }),
+  artifactPin: withAction(defineArtifactPinAction("pages.artifacts.pin", /* @version action.pages.artifacts.pin */ 1, PAGES_SUBJECT_KIND, "文档", [...read, ...write, "artifact:write"]), { scheduling: "concurrent", delegation: "confirmation-only" }),
   /** Whether a pinned version still matches the pages object it came from (A4b, 「原文已改」); compares content, not revisions. */
   artifactCompare: defineArtifactCompareAction("pages.artifacts.compare", /* @version action.pages.artifacts.compare */ 1, "文档", [...read]),
   /** 「从这一版继续」 (A4b): a new document from a version of a document, or from an imported text file Pages can read. */
@@ -162,7 +162,7 @@ export const pagesActions = {
   ai: readOnly(define<PagesAiRequest & { id: string; expected_version?: number }, PagesAiResult>("ai", /* @version action.pages.ai */ 1, "文档写作助手", "使用文字模型生成候选正文；用户确认或后续动作负责写入，缺少模型时拒绝执行", "command",
     object({ id, command: { enum: PAGES_AI_COMMANDS.map(command => command.id) }, text: { type: "string", minLength: 1, maxLength: 180000, pattern: "\\S" }, style: { enum: ["concise", "expand", "formal", "casual"] }, expected_version: version }, ["id", "command", "text"]),
     object({ text, command: text, style: text }, ["text", "command"]), [...read, "model:invoke"], { cost: "metered" }, "concurrent")),
-  promote: withAction(define<{ id: string; goal_id?: string; expected_version?: number }, { document: PagesRecord; artifact: { artifact_id: string; version: number }; recovered: boolean }>("promote", /* @version action.pages.promote */ 1, "发布文档成果", "将文档保存为成果；有未完成发布时恢复原快照，后续编辑可另存一版。可提供读取时的 version 避免过期发布", "command", object({ id, goal_id: fields.goal_id, expected_version: version }, ["id"]), object({ document: page, artifact: object({ artifact_id: id, version }), recovered: { type: "boolean" } }), [...read, ...write, "artifact:write"]), { delegation: pagesDelegations.promote }),
+  promote: withAction(define<{ id: string; goal_id?: string; expected_version?: number }, { document: PagesRecord; artifact: { artifact_id: string; version: number }; recovered: boolean }>("promote", /* @version action.pages.promote */ 1, "发布文档成果", "将当前文档固定为成果。可提供读取时的 version 避免过期发布", "command", object({ id, goal_id: fields.goal_id, expected_version: version }, ["id"]), object({ document: page, artifact: object({ artifact_id: id, version }), recovered: { type: "boolean" } }), [...read, ...write, "artifact:write"], undefined, "concurrent"), { delegation: pagesDelegations.promote }),
   extract: define<{ id: string }, { document: PagesRecord; cards: number; created: PagesRecord[] }>("extract", /* @version action.pages.extract */ 1, "提取任务与知识", "从文档提取任务卡和知识页，一次事务保存全部结果", "command", object({ id }), object({ document: page, cards: { type: "integer", minimum: 0 }, created: array(page) }), [...read, ...write]),
 };
 /** The body of a Markdown text: Pages' own reader, else one paragraph; never one a document could not hold. */
@@ -179,12 +179,7 @@ export interface PagesActionPorts extends PagesStores {
   complete?(prompt: InstructedPrompt, options: { signal?: AbortSignal; beforeDispatch?: () => Promise<void> }): Promise<PluginModelResult>;
   modelAvailability(): ActionAvailability;
   prepareImport(files: readonly PagesImportFile[], caller: ActionExecutionContext): Promise<PreparedPagesImport>;
-  /** Publication has two commits (intent, then completion); a facade keeps a failed artifact write recoverable. */
-  promote?(caller: ActionExecutionContext, id: string, projectId: string, goalId: string | undefined, expectedVersion: number | undefined,
-    publishArtifact: PagesPublishArtifactPort): ReturnType<typeof promotePagesDocument>;
-  publishArtifact?: (input: Parameters<PagesPublishArtifactPort>[0], caller: ActionCallContext) => ReturnType<PagesPublishArtifactPort>;
-  readArtifact?: (input: Parameters<PagesReadArtifactPort>[0], caller: ActionCallContext) => ReturnType<PagesReadArtifactPort>;
-  lineHead?: PagesLineHeadPort;
+  promote?(id: string, expectedVersion?: number, goalId?: string): ReturnType<typeof promotePagesDocument>;
 }
 
 /**
@@ -212,18 +207,11 @@ export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandle
     capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, retainActionAuthority(caller, { capability_id: definition.capability_id, version: definition.version, provider_id: PAGES_PLUGIN_ID }, caller.beforeEffect)), ...(availability ? { availability } : {}),
   });
   const promote = (id: string, caller: ActionExecutionContext, goalId?: string, expectedVersion?: number) => {
-    const publish: PagesPublishArtifactPort = value => ports.publishArtifact!(value, caller);
-    // A published line commits its intent before the artifact is written; a failure keeps that intent for recovery.
-    if (ports.promote) return ports.promote(caller, id, project(caller), goalId, expectedVersion, publish);
-    const facade: PagesPromoteStore = {
-      get: (recordId, projectId) => ports.read(store => store.get(recordId, projectId)),
-      beginPublication: (...args) => ports.write(caller, store => store.beginPublication(...args)),
-      completePublication: (...args) => ports.write(caller, store => store.completePublication(...args)),
-    };
-    return promotePagesDocument(facade, id, project(caller), publish, goalId, { actorId: caller.actor_id, expectedVersion, beforePublish: () => caller.beforeEffect(),
-      readArtifact: ports.readArtifact ? value => ports.readArtifact!(value, caller) : undefined, lineHead: ports.lineHead });
+    project(caller);
+    if (!ports.promote) throw pagesErrors.unavailable("当前环境不能发出成果");
+    return ports.promote(id, expectedVersion, goalId);
   };
-  const publishable = () => ports.publishArtifact ? { available: true as const } : { available: false as const, code: "pages.unavailable", kind: "conflict" as const, reason: "当前环境不能发出成果" };
+  const publishable = () => ports.promote ? { available: true as const } : { available: false as const, code: "pages.unavailable", kind: "conflict" as const, reason: "当前环境不能发出成果" };
   return [...createPagesCommentHandlers(ports), ...createPagesLandingHandlers(pagesLandingActions, ports),
     bindPresentationValuesHandler(pagesActions.presentation, (input, caller) => ports.read(store => store.presentationValues(project(caller), input))),
     // The whole document (整篇) is prepared from its stored text; preparing never writes.

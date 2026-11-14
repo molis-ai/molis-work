@@ -132,12 +132,13 @@ export function projectReference(project) {
 export function goldenActions(session, project, tag) {
   const ref = projectReference(project), base = { actor_id: "web-user", actor_kind: "user", project_id: project.project_id, audience: "user", permissions: [] };
   let views;
-  const call = async (capability, input = {}, { version = 1, user_action } = {}) => {
+  const call = async (capability, input = {}, { version = 1, user_action, project_owner = false } = {}) => {
     views ??= await session.host.inspectActions(base, ref);
     const view = views.find(item => item.capability_id === capability && item.version === version);
     if (!view) throw goldenFailure("golden.action_not_offered", `${capability}@${version}`);
-    const caller = { ...base, permissions: view.action.permissions, ...(user_action ? { user_action } : {}) };
-    const home = view.action.scope === "home";
+    const caller = project_owner ? await session.host.localPersonContext(ref)
+      : { ...base, permissions: view.action.permissions, ...(user_action ? { user_action } : {}) };
+    const home = view.action.scope === "home" && !project_owner;
     return (home ? session.host.homeActionClient() : session.host.actionClient(ref)).invoke(home ? { ...caller, project_id: null } : caller, view, input);
   };
   return { call, http: session.http, projectId: project.project_id, home: session.home, tag };

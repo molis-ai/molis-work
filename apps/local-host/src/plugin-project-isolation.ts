@@ -1,6 +1,6 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDatabaseDeclaration, PluginProjectStatements } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { assertPluginActionCurrent, type PluginInstance } from "@molis-ai/molis-work-plugin-runtime";
+import { assertPluginActionCurrent, assertPluginReadCurrent, type PluginInstance } from "@molis-ai/molis-work-plugin-runtime";
 import { SandboxError } from "@molis-ai/molis-work-plugin-sandbox";
 import type { ProjectStatementProcess } from "./project-statement-process.js";
 import { assertReadStatement, assertWriteStatement } from "./project-statement-protocol.js";
@@ -10,7 +10,8 @@ import { assertReadStatement, assertWriteStatement } from "./project-statement-p
 // between the steps because the steps are asynchronous: every call asks the grants again, a write also asks the original caller of
 // `instance`'s action (`assertPluginActionCurrent`) before the wait, right after it, before BEGIN's turn, before every statement and
 // before COMMIT, and a call that was cancelled or revoked at any of these points commits nothing. S-46's check of each statement
-// is the process's own (`project-statement-engine.ts`); a read comes back to this side only if the plugin still holds its grant.
+// is the process's own (`project-statement-engine.ts`); a read asks the action's original caller too (`assertPluginReadCurrent`, BL-943)
+// before it is sent and again before its rows come back, so a revoked call neither starts a read nor receives one.
 
 /** `services.project_statements` over one plugin's process; `declaration` names the grants. */
 export function isolatedProjectStatements(processes: ProjectStatementProcess, declaration: PluginDatabaseDeclaration,
@@ -19,18 +20,18 @@ export function isolatedProjectStatements(processes: ProjectStatementProcess, de
     if (closed()) throw new ActionError("actions.plugin_unavailable", "插件数据库已关闭");
     authorize("storage:private"); authorize(permission);
   };
-  const permitRead = () => permit(declaration.read_permission);
+  const permitRead = () => { permit(declaration.read_permission); assertPluginReadCurrent(instance); };
   const permitWrite = () => { permit(declaration.write_permission); assertPluginActionCurrent(instance); };
   return {
     async get(sql, parameters, limits, signal) {
       permitRead(); assertReadStatement(sql);
-      const row = await processes.get(sql, parameters, limits, signal);
+      const row = await processes.get(sql, parameters, limits, signal, permitRead);
       permitRead();
       return row;
     },
     async all(sql, parameters, limits, signal) {
       permitRead(); assertReadStatement(sql);
-      const rows = await processes.all(sql, parameters, limits, signal);
+      const rows = await processes.all(sql, parameters, limits, signal, permitRead);
       permitRead();
       return rows;
     },

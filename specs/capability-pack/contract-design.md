@@ -385,9 +385,9 @@ skillCatalog?: {
 
 - **用户自己组的包**（定样里的「我的研究」）本批不做（用户 2026-11-09 定）：
   - 不新建用户数据与注册表，`pack_id` 也不留 `user:` 一类的空位。
-  - 记 BL，号由主会话给，主人能力包（`horizontal/kit`），去处第 72 批。
+  - 记 BL，号由主会话给，主人能力包（`horizontal/kit`），去处第 73 批。
 - 自带包与「你的角色」的显示名、说明由设计台定，合同只给 `pack_id` 与 `kind`。
-  - 定样示例的「目标推进」包装着对外 MCP。对外 MCP 的主人是对外接入，不是 Goals，所以按本表它在自带包里。
+  - 定样示例原有的「目标推进」包装着对外 MCP，其中的 `goal-advance` 技能随 44-7 删除，示例换成别的对外接入说明；对外 MCP 的主人是对外接入，不是 Goals，所以按本表它在自带包里（2026-11-13 按插件同等地位收口改，[决定 42](../post-anticorruption-roadmap/reference/decisions.md#decision-42)）。
   - 示例的「日常助理」就是自带包。
 
 **为什么是主人上报（9-8 比较的三种放法）**：包不存、每次现算，汇总要读五类主人的事实。定「主人上报，汇总放 `horizontal/kit`」前比较过三种：
@@ -452,7 +452,7 @@ export type KitPackState =
 - **已卸载的包只给包头**：名称、版本、「重新添加」的去处。
   - 条目不列：主人已经不在，能力包不为已不在的东西造条目（第 4.10 节）；用量历史仍在各主人那里。
   - 定样里「只剩历史」那一屏，09 写成包头加一句说明。
-  - 要列历史条目，得各主人上报「已不在」的条目：记 BL，去处第 72 批。
+  - 要列历史条目，得各主人上报「已不在」的条目：记 BL，去处第 73 批。
 - 没有存储，状态不落库。改状态的唯一办法是改它的内容或插件：启用插件、去连接、改技能三档。
 
 ### 4.5 条目与包的形状
@@ -620,7 +620,7 @@ export interface KitMcpState {
   - 一个上报者 ≤2000 条；
   - 一个包的 `roles` ≤64。
 - **不进条目的**：提示词正文、改写原文、凭据、端点、本机路径。MCP 服务器的 `directory`、`executable`、`argv`、`endpoint` 都不进条目，schema 里也没有放它们的字段（CPK-09）。
-- **工具用量**：能便宜取到最近一次就是 `last_only`，否则 `not_counted`。界面只显示「最近一次」或什么都不显示，不出现「次数随第 61 批」这类内部说法（主会话定）。
+- **工具用量**：能便宜取到最近一次就是 `last_only`，否则 `not_counted`。界面只显示「最近一次」或什么都不显示，不出现「次数随第 62 批」这类内部说法（主会话定）。
 
 ### 4.6 上报协议与来源盖章
 
@@ -693,7 +693,7 @@ export function defineKitReportAction(capabilityId: string, version: number, tit
 | 项 | 取值 |
 | --- | --- |
 | 提供方 | `system.kit`，Home 级登记一次（每个项目看到同一个查询） |
-| 谁能调 | <ul><li>`audiences: ["user"]`，`permissions: ["kit:read"]`，宿主在 `local-owner-permissions.ts` 给本人。</li><li>Agent、插件、MCP 调用被拒（CPK-09）。</li><li>以后第 61、63 批要读时按类开受众，每个上报动作仍按主人的规则过滤（能力包需求 §6）。</li></ul> |
+| 谁能调 | <ul><li>`audiences: ["user"]`，`permissions: ["kit:read"]`，宿主在 `local-owner-permissions.ts` 给本人。</li><li>Agent、插件、MCP 调用被拒（CPK-09）。</li><li>以后第 62、64 批要读时按类开受众，每个上报动作仍按主人的规则过滤（能力包需求 §6）。</li></ul> |
 | 输入 | `{}`，`additionalProperties: false`；范围从调用上下文来。不按类筛：只读一部分类，包的状态会被误报成「在用」，所以按类筛在页面里做 |
 | 输出 | `{ packs: KitPack[]; entries: KitEntry[]; issues: Array<{ provider_id: string; title: string; message: string }> }`<ul><li>包的顺序：要处理的在前，其余按名称排。</li><li>`entries` 每条只出现一次，包用 `KitEntryKey` 引用。</li></ul> |
 | 怎样汇总 | <ol><li>用调用方自己的客户端 `discover` 一次，按两个合同类型过滤出上报者。</li><li>对每个可用的上报者 `invoke` 一次（并行）。</li><li>按第 4.6 节盖章、拼包、核对。</li></ol>不可用的、拒绝的、超时的写进 `issues`，不拖垮整页。一个上报者失败时：<ul><li>它的条目可能在的包，状态给 `unknown` 并带这条 issue；</li><li>页面在那些包里把它那一类显示「没读到」，计数写「—」；</li><li>其余照常。</li></ul>插件上报者只影响它自己的包；系统提供方影响它表里允许的所有包 |
@@ -713,7 +713,7 @@ export function defineKitReportAction(capabilityId: string, version: number, tit
 | `tool` | Agent Host 的工具全集（第 5 节）。上报动作 `agent.tools.kit.report@1` 由宿主装配处登记，随 9-10 | 工具名 | 系统工具：SDK 包版本＋形状指纹；平台工具：产品版本 | 开放给哪些角色 | 只看，不能开关 | `last_only` 或 `not_counted` |
 | `mcp`（项目 MCP 服务器与其工具、资源） | Agent Host 的 MCP 库（读已存视图） | `server`／`action_tool`／`tool`／`resource` | 最近一次发现的差异 | 哪个插件的设置 | 「开」分开写；去 Coding 的 MCP 设置 | 已登记成动作的工具：读动作调用记录，`recent`（只留近期）。未登记的：`none` |
 | `mcp`（连接带的 MCP） | 连接器 `horizontal/connector-host` | 同上，`owner: "connection"` | 同上 | 哪个连接 | 去「服务连接」 | 同上 |
-| `mcp`（对外：Molis 自己的 MCP 服务器、`goal-advance` 技能） | 对外接入的主人（`mcp-settings-store` 与安装器） | `outbound` | 产品版本 | 开给哪些客户端（`action_grants`，已知运行时按 `ExternalToolId`） | 去「对外接入」 | `none`（对外调用另有调用记录，09 不读） |
+| `mcp`（对外：Molis 自己的 MCP 服务器；`goal-advance` 技能随 44-7 删除） | 对外接入的主人（`mcp-settings-store` 与安装器） | `outbound` | 产品版本 | 开给哪些客户端（`action_grants`，已知运行时按 `ExternalToolId`） | 去「对外接入」 | `none`（对外调用另有调用记录，09 不读） |
 
 - 签名角色只上报一次：`methods()` 去掉 `kind: "role"`（第 2.2 节）。
 - 创作台的 `BUILDER_PROMPTS` 若不在 Agent 定义登记里，就不上报，记候选（主人创作台，随 BL-377）。
@@ -724,7 +724,7 @@ export function defineKitReportAction(capabilityId: string, version: number, tit
 
 ### 4.9 导出与导回
 
-每一部分走主人的路。导出、导回都只给本人，不开给 Agent、工作流、插件与 MCP（CPK-09）。第 09 批交最小路径：导出、导回、版本核对。完整体验在第 72 批。
+每一部分走主人的路。导出、导回都只给本人，不开给 Agent、工作流、插件与 MCP（CPK-09）。第 09 批交最小路径：导出、导回、版本核对。完整体验在第 73 批。
 
 **以包为单位（「导出这个包」）**：一个文件，里面是这个包能带走的几部分；导回时各部分仍走自己的路。导出菜单（定样的 `mw-menu`）有三项，都出同一种文件，只是带的部分不同：
 - 整个包；
@@ -956,7 +956,7 @@ export function isAgentTool(name: string): boolean;
 | 12 | 页面、外壳与文字 | <ul><li>能力包是设置里的一节，定样 A 已选；设置页合并按第 9.1 节。</li><li>条目文字按第 4.10 节。</li><li>不加 DOM 事件，要加就登记。</li><li>导出走宿主受保护路由。</li><li>页面资源增长写明，超 10 KB 先问。</li></ul> |
 | 13 | 错误 | `defineErrorCodes`，第 4.11 节；主人表加 `kit` 一条（已定） |
 | 14 | 冲突面 | <ul><li>`agent-definitions/`（C）、`agent-host-composition.ts`（C）、`plugin-install-actions.ts`（C）、`apps/mcp`（C）；</li><li>`horizontal/agent-host`（C2）；</li><li>`modules/characters`（规则 7）；</li><li>Coding 设置页（B）、`assistant-present.ts`（A）、设置页与组件板（D）。</li></ul>枢纽文件：`tooling/gates/actions/host-actions.tsv`、`tooling/gates/api/`、`tooling/versions.json`、`tooling/gates/error-owners.json`、`docs/system/security-invariants/` |
-| 15 | 全局最优 | <ul><li>插件：插件就是包，作者只多写一个上报动作，可选地给直接调模型的提示词写 `role_id`。</li><li>平台：不建注册表、不存包，复用使用位置与系统搜索的上报模式，放 `horizontal/` 守 11-01 的规矩。</li><li>助理：个人助理成了没归属提示词的挂处，与执行事实一致；Agent 继续读 08 的 `skills.catalog.list@1`，以后按类开受众不用改上报者。</li><li>各类平台能力：授权、连接、MCP 调用链不动；第 74 批的统计读同一批记录。</li><li>后续开发：用户自组包（BL）以后只加一种 `pack_id` 前缀与一个主人，条目与上报不改；第 61-3 批的候选读上报，不另建；第 72 批在同两种文件上补冲突与恢复。</li><li>代价：多付在 9-10，每个主人都要写一个上报动作，汇总处要拼包；换来主人边界与第三方可用。</li></ul> |
+| 15 | 全局最优 | <ul><li>插件：插件就是包，作者只多写一个上报动作，可选地给直接调模型的提示词写 `role_id`。</li><li>平台：不建注册表、不存包，复用使用位置与系统搜索的上报模式，放 `horizontal/` 守 11-01 的规矩。</li><li>助理：个人助理成了没归属提示词的挂处，与执行事实一致；Agent 继续读 08 的 `skills.catalog.list@1`，以后按类开受众不用改上报者。</li><li>各类平台能力：授权、连接、MCP 调用链不动；第 75 批的统计读同一批记录。</li><li>后续开发：用户自组包（BL）以后只加一种 `pack_id` 前缀与一个主人，条目与上报不改；第 62-3 批的候选读上报，不另建；第 73 批在同两种文件上补冲突与恢复。</li><li>代价：多付在 9-10，每个主人都要写一个上报动作，汇总处要拼包；换来主人边界与第三方可用。</li></ul> |
 
 ### 6.2 助理与 Coding 接点（9-1～9-7，以 09 批文件第五节为底）
 
@@ -976,14 +976,14 @@ export function isAgentTool(name: string): boolean;
 | 12 | 页面、外壳与文字 | <ul><li>不新增页面。</li><li>两处菜单（`assistant-composer.ts`、Coding 的 `slash-menu.ts`／`palette.ts`）改读目录；Coding 菜单对别的插件的 `manual` 技能标「只能在助理里点名」。</li><li>Coding 方法页删掉。</li><li>不加 DOM 事件。</li><li>Coding 页面资源量一下，超 10 KB 先问。</li></ul> |
 | 13 | 错误 | 新码 `agent.role_tool_unknown`（C2）。Coding 现有 `coding.server.method-*` 核一遍写法，旧方法路的删掉 |
 | 14 | 冲突面 | 第 8 节，含与第 10 批 #1991 的重叠 |
-| 15 | 全局最优 | <ul><li>插件：任何执行方（含第三方沙箱执行方）同一条信任路；绑定的上下文字段替掉只在宿主进程里成立的存储。</li><li>平台：沿用 `original_input` 的绑定、`call_id` 的逐轮带法，不另造。</li><li>助理：点名一次，自己用和交给执行方用同一份。</li><li>各类平台能力：技能目录（08）不改；能力包读同一份 `SkillCatalogEntry`。</li><li>后续开发：第 12 批只等 9-1～9-5；第 41 批的选用照读 08 目录；第 61 批的组合候选可读 `frozen.skills`；以后宿主出一个能嵌进插件页面的技能选择器时，跨插件点名多一个宿主入口，合同不用改。</li></ul> |
+| 15 | 全局最优 | <ul><li>插件：任何执行方（含第三方沙箱执行方）同一条信任路；绑定的上下文字段替掉只在宿主进程里成立的存储。</li><li>平台：沿用 `original_input` 的绑定、`call_id` 的逐轮带法，不另造。</li><li>助理：点名一次，自己用和交给执行方用同一份。</li><li>各类平台能力：技能目录（08）不改；能力包读同一份 `SkillCatalogEntry`。</li><li>后续开发：第 12 批只等 9-1～9-5；第 41 批的选用照读 08 目录；第 62 批的组合候选可读 `frozen.skills`；以后宿主出一个能嵌进插件页面的技能选择器时，跨插件点名多一个宿主入口，合同不用改。</li></ul> |
 
 ## 7. 验收对照表
 
 | 编号 | 片 | 证明它的测试或走查 |
 | --- | --- | --- |
 | CPK-01 | 9-10、9-11 | `tests/kit-catalog.test.ts`：<ul><li>能力包列表出插件包、自带包、你的角色；</li><li>包里分角色（带提示词）、技能、MCP、工具；</li><li>按类筛、能搜；</li><li>技能条目与 `skills.catalog.list@1` 逐字段一致。</li></ul>另有页面走查 |
-| CPK-02 | 9-10、9-2、9-4 | 同上。另外：<ul><li>同一技能在能力包、助理、Coding 三处的 `SkillRef` 与 `pack.version` 相等：`tests/kit-catalog.test.ts`（能力包技能条目与 `skills.catalog.list@1` 逐字段相同）、`tests/assistant-methods.test.ts`（助理读同一目录、同一 `SkillRef`）、`tests/security-invariants-skill-delegation.test.ts`（助理点名的同一 `SkillRef` 到 Coding 的一轮）；</li><li>来源与包盖章（`S-kit-catalog` 第 4、5 条）。</li><li>**已实现**（用户 2026-11-11 定「版本不升，做代码修复」）：包上次升级来自留存的签名包（`SandboxPackageStore.retainedVersions`，`tests/kit-catalog.test.ts`「CPK-02: a pack says which retained version it upgraded from」）；连接带的 MCP 发现差异来自 `config/connector-mcp-tools.json` 的 `change`（`tests/connector-mcp.test.ts`「CPK-02: a connection's listing counts what changed」）。项目 MCP 服务器的发现差异没有历史数据，随第 61 批 MCP M0（第 10 节）。</li></ul> |
+| CPK-02 | 9-10、9-2、9-4 | 同上。另外：<ul><li>同一技能在能力包、助理、Coding 三处的 `SkillRef` 与 `pack.version` 相等：`tests/kit-catalog.test.ts`（能力包技能条目与 `skills.catalog.list@1` 逐字段相同）、`tests/assistant-methods.test.ts`（助理读同一目录、同一 `SkillRef`）、`tests/security-invariants-skill-delegation.test.ts`（助理点名的同一 `SkillRef` 到 Coding 的一轮）；</li><li>来源与包盖章（`S-kit-catalog` 第 4、5 条）。</li><li>**已实现**（用户 2026-11-11 定「版本不升，做代码修复」）：包上次升级来自留存的签名包（`SandboxPackageStore.retainedVersions`，`tests/kit-catalog.test.ts`「CPK-02: a pack says which retained version it upgraded from」）；连接带的 MCP 发现差异来自 `config/connector-mcp-tools.json` 的 `change`（`tests/connector-mcp.test.ts`「CPK-02: a connection's listing counts what changed」）。项目 MCP 服务器的发现差异没有历史数据，随第 62 批 MCP M0（第 10 节）。</li></ul> |
 | CPK-03 | 9-10、9-11 | `tests/kit-catalog.test.ts`：<ul><li>只有技能条目有改状态的操作，其余只有 `manage`；</li><li>包没有开关字段，状态随插件停用、条目不可用而变；</li><li>MCP 三种「开」各一个字段；</li><li>代码里搜不到能力包自己的启用状态。</li></ul> |
 | CPK-04 | 9-10 | `tests/kit-catalog.test.ts`：<ul><li>`prompt_uses` 写满 200 行后，`usage.kind === "recent"`、`kept.rows_per_key === 200`；</li><li>工具是 `last_only` 或 `not_counted`；</li><li>没有能力包用量表（表主人门禁）。</li></ul> |
 | CPK-05 | 9-1～9-5 | <ul><li>`tests/assistant-methods.test.ts`（SKP-02、SKP-04、SKC-07）、`tests/agent-host-skill-reads.test.ts`（SKC-07：一轮只读一次目录与正文）、`tests/security-invariants-skill-delegation.test.ts`（S-skill-delegation 2、CPK-05）。</li><li>助理点名的技能进 Coding 的冻结记录 `named: true`：`tests/security-invariants-skill-delegation.test.ts` 的 CPK-05 用例；`tests/coding-work-executor.test.ts` 的 CODING-80 只证会话里**已存的**技能选择冻结进轮，不是这一条。</li></ul> |
@@ -1088,7 +1088,7 @@ CPK-13、CPK-14 是第 3 稿新加的，同一提交写进能力包需求 §11�
 | 能力库、服务连接、对外接入、调用记录、AI 与执行工具 | **保留**，从 MCP 和工具详情链过去 |
 | Coding 的 MCP 页 | **保留**，能力包链过去 |
 | Coding 的方法页 | **删**（9-4、9-5） |
-| Goals 的规划方法库 | **保留**，不并 |
+| Goals 的规划方法库 | 本批保留，不并；41-2 起是能力包里的技能 |
 
 - 合并后「AI」组是：模型设置 · 助理 · 角色 · 能力包。
 - 设置页文档列今天被 `:is(body.project-preferences-page, …) .settings-content > .settings-document` 限在 760px，第 08 批 `.skill-settings` 写的 1100px 被它盖住。
@@ -1117,7 +1117,7 @@ CPK-13、CPK-14 是第 3 稿新加的，同一提交写进能力包需求 §11�
 | 上报者没有时限 | 每个上报者限 5 秒（`KIT_REPORT_TIMEOUT_MS`），上报动作与 `kit.catalog.list@1` 都声明 `scheduling: "concurrent"` | 不声明并行的动作在项目线上一个接一个跑，一个慢的上报者会挡住其他上报者；第 4.11 节第 13 条要求超时只影响它自己的包（9-10） |
 | `AgentDefinitions` 加 `useCounts()` | 提示词用量另成 `PromptUses`（`record`／`list`／`counts`），`AgentDefinitions.uses` 指向它 | 巨大单元只许变小：把用量这一件事拆出去，类不再是巨大单元，登记的例外删掉（9-10） |
 | 包头带上次升级（`KitReportedPack.upgraded`、`KitPack.upgraded`）：偏离记录原写「无数据主人」 | **已实现，不改存储也不升版本**：`pluginKitHeaders` 用 `SandboxPackageStore.retainedVersions()` 读 Home 里留存的签名包，取低于当前版本的最高留存版为 `from`、当前版本留存包的保存时间为 `at`（读不到时用 `record.updated_at`），只给 sandbox 且非 host trust 的安装；没有更低留存版就不给 `upgraded` | 安装记录只有当前 `version`，但留存包本来就在 `plugin-packages/`（卸载也留字节），「上次从哪版升来」据此能算出来，不必给记录加字段或写升级段；内置/宿主构建的包不在这里，所以不显示。用户 2026-11-11 定「版本不升，做代码修复」（9-10） |
-| MCP 显示最近一次发现的差异（`KitVersion.change.kind: "discovered"`）：偏离记录原写「连接 MCP 也无数据主人」 | **连接带的 MCP 已实现**：`config/connector-mcp-tools.json` 每项加可选 `change`（`added`／`removed`／`changed`／`at`；旧文件读作没有，列表没变不重写文件也不改 change），`remember` 每次发现时与上一份清单比较，`connectorsKitEntries` 把 change 挂到该连接的 server 条目（工具条目不挂）。**项目 MCP 服务器不做** | 连接器本来就每次发现覆盖写「最近一次清单」，加一个可选字段就能算出与上一次的差异，不改文件结构、不升版本。项目 MCP（Agent Host 的 MCP 库）只存安全视图、没有上一份清单，要历史数据与升级段，留第 61 批 MCP 策略 M0 |
+| MCP 显示最近一次发现的差异（`KitVersion.change.kind: "discovered"`）：偏离记录原写「连接 MCP 也无数据主人」 | **连接带的 MCP 已实现**：`config/connector-mcp-tools.json` 每项加可选 `change`（`added`／`removed`／`changed`／`at`；旧文件读作没有，列表没变不重写文件也不改 change），`remember` 每次发现时与上一份清单比较，`connectorsKitEntries` 把 change 挂到该连接的 server 条目（工具条目不挂）。**项目 MCP 服务器不做** | 连接器本来就每次发现覆盖写「最近一次清单」，加一个可选字段就能算出与上一次的差异，不改文件结构、不升版本。项目 MCP（Agent Host 的 MCP 库）只存安全视图、没有上一份清单，要历史数据与升级段，留第 62 批 MCP 策略 M0 |
 
 ## 11. 待决
 

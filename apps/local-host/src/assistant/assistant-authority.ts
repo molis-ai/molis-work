@@ -158,7 +158,8 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
         if (!view) throw assistantErrors.action_revoked("这项能力已对助理关闭或不再可用");
         assertActionCommandInput(view, base(), input);
       },
-      invoke: async (action, input, signal, review) => {
+      invoke: async (action, input, signal, memorySelection, review) => {
+        memorySelection?.assert_current();
         const stoppedBeforeDispatch = (view: Omit<ActionView, "availability">) => {
           const refused = Promise.reject(new ActionError("actions.cancelled", "这一轮停止时它还没有发出，没有执行"));
           refused.catch(() => undefined);
@@ -188,8 +189,8 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
         }
         review?.assertCurrent();
         if (view && view.operation === "command") dispatched?.(view);
-        const call = service().invoke({ ...caller, assert_authority_current: (ref, required) => {
-          review?.assertCurrent(); caller.assert_authority_current?.(ref, required);
+        const call = service().invoke({ ...caller, ...(memorySelection ? { memory_context_selection: memorySelection } : {}), assert_authority_current: (ref, required) => {
+          memorySelection?.assert_current(); review?.assertCurrent(); caller.assert_authority_current?.(ref, required);
         } }, action, input);
         // The round may stop while the owner is still changing things: the call goes on, and how it ends is kept for the work.
         if (view && view.operation === "command" && unsettled && signal && !signal.aborted) {

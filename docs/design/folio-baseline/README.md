@@ -41,7 +41,7 @@ http://127.0.0.1:4436/?look=berry&view=work&applied=1
 - 使用现有 `APPEARANCE_BOARD_STYLES`、`lookRules`、`renderSheet`、`renderRadioGroup` 与共用 `kit` 的真实按钮、图标、状态环。窄屏由原生 dialog 提供模态焦点行为，样张同一 DOM 节点移入/移出实际 `mw-sheet`。
 - 配色在 `directions.mjs`，每份是 SDK `parseSkinFile` / `resolveSkin` 接受的皮肤数据；基线和未覆盖角色来自现行资源文件。字体方案同样经 `parseFontScheme` / `resolveFontScheme`；不手抄旧令牌表。生成规则同时覆盖 html/body。
 - 淡入使用现有实件的 View Transition 样式；动态候选的绑定留在原型。与现有板运行逻辑相同，减少动态效果、后台页、`data-craft-still` 或没有 View Transition 时直接换。没有新增产品淡入组件，也未宣称已接好产品应用链。
-- 顶部调试条、页面内固定内容、布局装配和候选绑定仅属于原型。内置卡的更多菜单不在本次皮肤选择样里展示，D 段制作能力仍归第 70 批。
+- 顶部调试条、页面内固定内容、布局装配和候选绑定仅属于原型。内置卡的更多菜单不在本次皮肤选择样里展示，D 段制作能力仍归第 71 批。
 
 ## 临时字体与复现
 

@@ -83,7 +83,8 @@
 | 子任务 | 一项任务或工作再委托出去的一件 | 子任务；英文 sub-task（不写 subtask、Subtask） | 子工作、子代理（指被委托的那件事时；子代理是执行它的 Agent） |
 | 一轮（turn） | AI 从读到输入到交回结果的一次运行 | 这一轮、下一轮；英文 turn（不写 round） | round |
 | 送达方式 | AI 运行中再发一句时的三种送法：补充（默认，模型边界读到）、打断并改向、下一轮再做；键位说明里「下一轮再做」叫排队 | 补充、打断并改向、下一轮再做；英文 Add、Interrupt and redirect、Do it next turn | 这一轮结束后再做、打断（单写，指它时） |
-| 接收者（发给谁） | 输入框里这句话发给的对象：助理、某项工作或任务、子任务、项目讨论的群或话题 | 「发给：对象」；英文 Send to | 目标（界面上「目标」只指 Goal）、发到 |
+| 接收者（发给谁） | 输入框里这句话发给的对象：助理、某项工作或任务、子任务、项目讨论的群或话题。一个输入框（§10.2 甲）里页面登记给底栏的接收对象，代码与框架桥里也叫「收件人」，与这个是同一件事 | 「发给：对象」；英文 Send to；代码与框架桥「收件人」 | 目标（界面上「目标」只指 Goal）、发到 |
+| 一个输入框（one input） | 第 11 批按用户 2026-11-10 选「甲」：工作台底栏的唯一输入框；插件页面不挂自己的框，登记为收件人，底栏在前台是它时发给它（specs/unified-input-voice/spec.md §10.2～§10.4） | 一个输入框、收件人 | 三个入口各挂一个输入框、第二个框 |
 
 ## 2. 定义
 
@@ -271,6 +272,9 @@
 - **事件**必须加限定：插件事件（运行中的插件经 `services.events.publish` 发，落项目库、按订阅者续投）；宿主事件（宿主自己发，如定向的 `host.review.settled@1`、广播的 `host.workspace.changed@1`，只投给收件安装、不落库，S-54）；领域事件（构建期插件与 Module 写进项目库事件流的事件，X-6 的另一种来源，还没有订阅口）；页面里的 DOM 事件（`CustomEvent`，登记在 `packages/contracts/src/platform/dom-events.ts`）。
 - **角色**在外观里另有两个意思：令牌角色（共同规格里的一个令牌，如 `ink`、`r-card`）和字体角色（`body`、`control`、`title`、`display`、`code` 这类用途）。它们是 `ui-spec.json` 的字段，和 Character、Agent role 无关；文档写全「令牌角色」「字体角色」，不裸写「角色」。
 - **Function**：在代码里同时指判断规则（`modules/judgment-rules`）和工作流程的模板转换（衔接类型 `function`）；文档写判断规则或模板转换。
+- **呈现形态（名字片、行、卡片、速览）**：智能呈现的四种公共展示形态。名字片只给图标、名字、主人与打开；行加字段与状态；卡片加色带与操作；速览是锚定浮层（窄屏或触屏为底部弹层）。声明归插件 Manifest，确定组合归 `horizontal/surfaces`，渲染入口是 SDK 的 `renderPresentationForm`；不要把首页的插件卡（plugin card）也叫「卡片」。
+- **挂载位（surface slot）**：插件在 Manifest 里声明的 `surfaceSlot`，别人经组合把对象放进这个位置；声明带 `accepts_forms`、`refuse_kinds`、`max`。它不是一个插件的整页，也不是第二套挂载协议。
+- **接着做**：基础首页三组中的第二组，从工作记录读最近在做的几件，最多三件；工作记录未交付前不出现（第 21／28 批），当前首页不画这一组，也不拿别的东西凑。
 
 ### 2.6 讨论（项目讨论）
 
@@ -329,7 +333,7 @@
 
 - 讲产品时先写界面显示名；要精确指代时写 `project_plugin_id`。路径、包名、`plugin_id` 只在讲代码或身份时写。
 - `manifest.name` 应与界面显示名一致，因为上面几处会把它直接显示出来。曾经只有 `characters` 不一致（名称 Characters，界面「角色」）；它按 2.3 的决定并入宿主后（CHR-1，2026-10-22）这个差异已消失。
-- 内置插件清单以各包 `src/registration.ts` 为准，`apps/workbench/src/builtin-plugins.ts` 的 `BUILTIN_PLUGIN_CATALOG` 从它们生成（现行代码共 24 个：项目插件 10 个，个人插件 14 个；Characters 按 2.3 的决定并入宿主后（CHR-1，2026-10-22）已不在其中）。官方集成的 `plugin_id` 是 `io.molis.work.integration.<连接器>`（`plugins/official-integrations/*/src/index.ts`）。
+- 内置插件清单以各包 `src/registration.ts` 为准，`apps/workbench/src/builtin-plugins.ts` 的 `BUILTIN_PLUGIN_CATALOG` 从它们生成（现行代码共 23 个：项目插件 9 个，个人插件 14 个；Files 第 06 批退役，项目文件夹的阅读与快照归平台资料服务；Characters 按 2.3 的决定并入宿主后（CHR-1，2026-10-22）已不在其中）。官方集成的 `plugin_id` 是 `io.molis.work.integration.<连接器>`（`plugins/official-integrations/*/src/index.ts`）。
 
 ### 3.3 内置插件的名字对照
 
@@ -343,7 +347,6 @@
 | `schedule` | Schedule | Schedule | |
 | `artifacts` | 成果 | 成果 | |
 | `coding` | Coding | Coding | |
-| `files` | Files | Files | |
 | `git` | Git | Git | |
 | `diff` | Diff | Diff | |
 | `text-stats` | Text stats | Text Stats（导航）、Text stats（页面） | 两个标题大小写不同 |
@@ -362,7 +365,7 @@
 | `workflows` | 工作流程 | 工作流程 | Manifest 的 `plugin_id` 是 `io.molis.work.native.workflows`，比其他插件多一段 `.native.`（表后第 1 条） |
 | `issues` | Issue | Issue | |
 
-中文界面里显示名中英文混用：17 个用英文（Goals、Inbox、Feed、Schedule、Coding、Files、Git、Diff、Text stats、Cognia、Jelly、Shelf、Pages、Forms、Dataset、PPT、Issue），7 个用中文（成果、插件创作工作台、图片、灵光、待办、炼金术士、工作流程）。Characters 是设置的一节而不是插件（2.3，CHR-1，2026-10-22 已并入宿主），不在这张清单里。实验插件（`experiments`）2026-10-10 已删（`specs/archive/repository-anti-corruption/spec.md` §1），不在清单里。
+中文界面里显示名中英文混用：16 个用英文（Goals、Inbox、Feed、Schedule、Coding、Git、Diff、Text stats、Cognia、Jelly、Shelf、Pages、Forms、Dataset、PPT、Issue），7 个用中文（成果、插件创作工作台、图片、灵光、待办、炼金术士、工作流程）。Characters 是设置的一节而不是插件（2.3，CHR-1，2026-10-22 已并入宿主），不在这张清单里。实验插件（`experiments`）2026-10-10 已删（`specs/archive/repository-anti-corruption/spec.md` §1），不在清单里。
 
 表外的几处不规则：
 

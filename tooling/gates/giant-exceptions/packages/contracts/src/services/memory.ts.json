@@ -1,0 +1,9 @@
+{
+  "exceptions": {
+    "file packages/contracts/src/services/memory.ts": {
+      "kind": "cohesive-unit",
+      "reason": "Memory 唯一的公共 DTO 与严格动作 schema 出口：页面、批量、学习、操作记录与安全历史的 DTO 和同一组动作声明放在一起；会话绑定与清除的 DTO 由同包 memory-session 承载并在此重导，不增加子路径或兼容别名。分散到多个文件会打散同一份公开协议。",
+      "size": 850
+    }
+  }
+}

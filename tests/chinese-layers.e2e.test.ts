@@ -16,7 +16,7 @@ import { TITLES, WIDTHS, chineseFindings, seedLongChinese, writeLongChinese } fr
 // of Settings and of the project's settings, and the Goal canvas and kanban. A layer is read alone (`data-audit-scope`);
 // a page is read whole.
 
-const SURFACES = ["project", "todo", "pages", "coding", "ppt", "workflows", "feed", "goals", "issues", "im", "shelf", "lingguang", "form", "jelly", "files", "git"];
+const SURFACES = ["project", "todo", "pages", "coding", "ppt", "workflows", "feed", "goals", "issues", "im", "shelf", "lingguang", "form", "jelly", "git"];
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const evidence = reviewEvidenceUrl("visual-ui-experience/chinese-layers/");
 

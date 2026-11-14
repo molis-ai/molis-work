@@ -28,10 +28,11 @@ tests/shell-direct-links.e2e.test.ts
 
 # Main flows: the main action or HTTP flow of each product area, and the i18n test (W2-16).
 tests/assistant-business-gateway.test.ts
+tests/call-budget.test.ts
 tests/coding-actions.test.ts
 tests/coding-product-http.test.ts
 tests/feed-item-actions.test.ts
-tests/files-product-http.test.ts
+tests/files-era-adoption.test.ts
 tests/git-product-http.test.ts
 tests/goals-actions.test.ts
 tests/goals-library-actions.test.ts
@@ -375,7 +376,6 @@ tests/document-import-providers.test.ts
 tests/draft-dialogue-boundaries.test.mjs
 tests/execution-lifetime.test.ts
 tests/feishu-cli-status.test.ts
-tests/files-plugin.test.ts
 tests/form-draft-questions.test.ts
 tests/form-draft-retry.test.ts
 tests/form-fillpage-answer-length.test.ts
@@ -387,7 +387,6 @@ tests/git-operation-review.test.ts
 tests/git-plugin.test.ts
 tests/governance-collaboration-module.test.ts
 tests/governance-provenance.test.ts
-tests/home-flow.test.ts
 tests/home-offer-actions.test.ts
 tests/host-inference-completion.test.ts
 tests/im-browser-state.test.ts

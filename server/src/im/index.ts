@@ -6,6 +6,9 @@ import { createImSchema } from "./schema.js";
 import { ImWrites } from "./writes.js";
 import { ImInvites, invitationTokenHash } from "./invites.js";
 import { ensureProjectRoom } from './project.js';
+import { messageSubjects } from "./subjects.js";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { DiscussionMessagePart } from "./reads.js";
 
 export type { ImDomainOptions, ImSession, ImIdentity, ImEvents, ImRequest, ImDatabase } from "./types.js";
 export { ImError } from "./errors.js";
@@ -20,7 +23,7 @@ export function createImDomain({ db, identity, events }: ImDomainOptions) {
     return session;
   };
 
-  async function handleImRequest({ request, response, url, session }: ImRequest): Promise<boolean> {
+  async function handleImRequest({ request, response, url, session, authorizeSubjects }: ImRequest): Promise<boolean> {
     if (url.pathname !== "/im/api" && !url.pathname.startsWith("/im/api/")) return false;
     if (request.method === "GET" && /^\/im\/api\/rooms\/[^/]+\/events$/.test(url.pathname)) return false;
     try {
@@ -55,6 +58,25 @@ export function createImDomain({ db, identity, events }: ImDomainOptions) {
           const roomId = parts[1];
           reads.assertMember(roomId, member.id);
           const threadId = parts[2] === "threads" && parts[3] ? parts[3] : null;
+          const createsThread = parts.length === 3 && parts[2] === "threads" && !get;
+          const messages = (parts.length === 3 && parts[2] === "messages") || (parts.length === 5 && threadId && parts[4] === "messages");
+          const subjects = body.subjects === undefined ? [] : messageSubjects(body.subjects);
+          let assertObjects: (() => void) | undefined;
+          if (subjects.length) {
+            if (get || (!createsThread && !messages)) throw new ImError("im.invalid_subjects", "只能在消息中引用对象");
+            if (!authorizeSubjects) throw new ImError("im.subjects_forbidden", "请从本机工作台的项目讨论引用对象", 403);
+            const projectId = reads.discussionProject(roomId, member.id);
+            const assertRoom = () => {
+              identity.requireMember(current);
+              if (reads.discussionProject(roomId, member.id) !== projectId) throw new ImError("im.forbidden", "讨论不再属于当前项目", 403);
+              if (threadId) reads.thread(roomId, threadId);
+            };
+            assertRoom();
+            const assertAuthorized = await authorizeSubjects(projectId, current, subjects, assertRoom);
+            assertObjects = () => { assertRoom(); assertAuthorized(); };
+            body.subjects = subjects;
+            assertObjects();
+          }
           if (parts.length === 2 && get) result = reads.state(roomId);
           else if (parts.length === 3 && parts[2] === 'search' && get) result = reads.searchMessages(roomId,url.searchParams.get('q') ?? '');
           else if (parts.length === 3 && parts[2] === 'read') result = get ? reads.readPositions(roomId,member.id)
@@ -66,15 +88,16 @@ export function createImDomain({ db, identity, events }: ImDomainOptions) {
             mutation(() => invites.rotate(roomId, tokenHash), () => { identity.requireMember(current); invites.state(roomId, member.id); });
             // A successful old receipt must never present its superseded link as current.
             result = invites.state(roomId, member.id);
-          } else if (parts.length === 3 && parts[2] === "threads" && !get) {
-            result = mutation(() => writes.createThread(roomId, member.id, body));
+          } else if (createsThread) {
+            result = mutation(() => writes.createThread(roomId, member.id, body, subjects), assertObjects);
           } else if (parts.length === 4 && threadId && get) result = reads.threadState(roomId, threadId);
-          else if ((parts.length === 3 && parts[2] === "messages") || (parts.length === 5 && threadId && parts[4] === "messages")) {
+          else if (messages) {
             result = get ? reads.messages(roomId, threadId, integerQuery(url.searchParams, "before", null), integerQuery(url.searchParams, "limit", 50, 100)!)
-              : mutation(() => writes.send(roomId, threadId, member.id, body.body, body.quote_id));
+              : mutation(() => writes.send(roomId, threadId, member.id, body.body, subjects, body.quote_id), assertObjects);
           } else if (parts.length === 5 && threadId && parts[4] === "share" && !get) {
             result = mutation(() => writes.share(roomId, threadId, member.id, body));
           } else throw new ImError("im.route_not_found", "找不到这个群聊操作", 404);
+          assertObjects?.();
         } else throw new ImError("im.route_not_found", "找不到这个群聊操作", 404);
       }
       imJson(response, 200, result);
@@ -82,5 +105,21 @@ export function createImDomain({ db, identity, events }: ImDomainOptions) {
     return true;
   }
 
-  return { handleImRequest, assertRoomMember: (roomId: string, memberId: string): void => reads.assertMember(roomId, memberId) };
+  const discussionProject = (roomId: string, memberId: string) => {
+    try { return reads.discussionProject(roomId, memberId); }
+    catch (error) {
+      if (error instanceof ImError) throw new ActionError("actions.forbidden", "讨论已不可读");
+      throw error;
+    }
+  };
+  return {
+    handleImRequest,
+    assertRoomMember: (roomId: string, memberId: string): void => reads.assertMember(roomId, memberId),
+    discussionProject,
+    discussionReferences(projectId: string, roomId: string, session: ImSession, views: readonly DiscussionMessagePart[]) {
+      const member = identity.requireMember(requireSession(session));
+      if (discussionProject(roomId, member.id) !== projectId) throw new ActionError("actions.forbidden", "讨论不属于当前项目");
+      return reads.objectReferences(roomId, views);
+    },
+  };
 }

@@ -107,7 +107,8 @@ test("RAC-116: learning enqueue refusal stays observable and private while the c
       const originalRef = { session_id: session.session_id, input_id: original.input_id, version: 1 as const };
       const run = await adapter.start({ ...owner, session, task: text, workspace: "none", role_id: "assistant",
         original_input: original,
-        role: { role_id: "assistant", workspace: "none", version: 1, execution: "read-only", prompts: [], host_tools: [] } });
+        role: { role_id: "assistant", workspace: "none", version: 1, execution: "read-only", prompts: [], host_tools: [],
+          memory: await service.memory.memoryForRound(store.get(LOCAL_PERSON_ACTOR_ID, work.work_id), text) } });
       store.addRound(work.work_id, { run_id: run.ref.run_id, text, materials: [], context: null, started_at: new Date().toISOString() });
       await until(async () => (await service.list()).find(item => item.work_id === work.work_id)?.state, state => state === "running", "real work running before completion");
       finishModel();

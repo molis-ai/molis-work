@@ -19,6 +19,8 @@ import { MATERIAL_REF_SCHEMA, type MaterialRef } from "./project-materials.js";
 export interface ComposerSourceDeclaration {
   /** The group's name in the menu, translated as `SearchSourceKind.title` is. */
   readonly title: string;
+  /** The same name as a line in this plugin's language files (`{ key }`), shown in the page's language; `title` stays the original. */
+  readonly title_text?: { readonly key: string };
   /** Which layer's composers list it. */
   readonly layers: readonly ("ai" | "plain")[];
 }

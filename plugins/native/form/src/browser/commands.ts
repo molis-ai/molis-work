@@ -78,13 +78,14 @@ const version: Command = {
       payload = await page.request<Versioned>("POST", path(id, "/promote"), { expected_version: record!.version });
     } catch (error) {
       if ((error as FormFailure).code !== "form.conflict") {
-        // Publication may have reached Artifact storage before association failed.
+        // Refresh the record in case the response was lost after the atomic commit.
         const fresh = await page.request<FormAnswer>("GET", path(id)).catch(() => null);
         if (fresh && page.sel?.id === id) remember(page, fresh.form, false);
         await loadList(page).catch(() => {});
       }
       throw error;
     }
+    if (page.noteScope === "publication") showNote(page, "", false);
     placed({ verb: "versioned", title: payload.form.title, object: { kind: "form", id: payload.form.id }, artifact: payload.artifact,
       note: uiText.text("form.fixed.done-note", { version: payload.artifact.version }) });
     await loadList(page);

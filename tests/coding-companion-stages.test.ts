@@ -23,7 +23,7 @@ import { CODING_COMPANION_DIRECTORY_SLOT, CODING_COMPANION_RESULT_SLOT, codingMa
 
 type State = Awaited<ReturnType<typeof ensureProjectPlugins>>;
 const repoRoot = process.cwd();
-const SHOWN = ["coding", "files", "git", "diff", "text-stats"];
+const SHOWN = ["coding", "git", "diff", "text-stats"];
 const escape = (value: unknown) => String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 /** The page's primitives with `text` answering the key itself, so the markup says which stable key each place uses. */
 const model = (shown: readonly string[] = SHOWN) => () => ({ route_prefix: "/p", shown_plugins: shown, primitives: { escape, text: (key: string) => key } });
@@ -76,17 +76,17 @@ test("RAC-433 Coding's stage is its running instance's page through the generic 
   await withProject(async (store, state) => {
     const { html, surfaces, unavailable } = renderProjectRuntimeStages(state, store, { shown: SHOWN, drawn: [], model: model() });
     assert.deepEqual(unavailable, []);
-    assert.equal(new Set(surfaces.map(item => item.contribution_id)).size, 5, "one stage for each of the five plugins");
+    assert.equal(new Set(surfaces.map(item => item.contribution_id)).size, 4, "one stage for each of the four plugins");
     const coding = stageOf(html, "coding");
     assert.match(coding, /data-coding-workbench/);
     assert.match(coding, /data-coding-directory/);
-    // Manifest order: embedded_plugins lists Files before Git; both fill the directory and the result slot of the page.
-    assert.deepEqual(codingManifest.ui.embedded_plugins, ["io.molis.work.files", "io.molis.work.git", "io.molis.work.diff", "io.molis.work.text-stats"]);
+    // Git fills the directory and the result slot of the page; the files face is Coding's own, read through the platform (WMD-05).
+    assert.deepEqual(codingManifest.ui.embedded_plugins, ["io.molis.work.git", "io.molis.work.diff"]);
     const at = (text: string) => coding.indexOf(text);
-    for (const marker of ["data-files-browser", "data-git-browser", "data-files-results", "data-git-results"]) assert.ok(at(marker) > 0, `${marker} is in Coding's page`);
-    assert.ok(at("data-files-browser") < at("data-git-browser"), "directories: Files before Git");
-    assert.ok(at("data-files-results") < at("data-git-results"), "readers: Files before Git");
-    assert.ok(at("data-coding-directory") < at("data-files-browser") && at("data-git-browser") < at("data-coding-results-index"), "the directories are in the page's directory, the readers after the results index");
+    for (const marker of ["data-coding-files-face", "data-git-browser", "data-git-results"]) assert.ok(at(marker) > 0, `${marker} is in Coding's page`);
+    assert.doesNotMatch(coding, /data-files-browser|data-files-results/, "Files no longer fills a place in Coding's page");
+    assert.ok(at("data-coding-directory") < at("data-coding-files-face") && at("data-coding-files-face") < at("data-git-browser"), "the files face, then Git's changes under it, in the page's directory");
+    assert.ok(at("data-git-browser") < at("data-coding-results-index") && at("data-coding-results-index") < at("data-git-results"), "the directories are in the page's directory, the readers after the results index");
     // Diff and Text Stats declare no surface for the two slots: they add nothing to Coding's page.
     assert.doesNotMatch(coding, /data-companion=/);
   });
@@ -95,25 +95,23 @@ test("RAC-433 Coding's stage is its running instance's page through the generic 
 test("RAC-434 each companion's own stage keeps the markup the Coding client fills, built from stable keys of the plugin's own words", async () => {
   await withProject(async (store, state) => {
     const { html } = renderProjectRuntimeStages(state, store, { shown: SHOWN, drawn: [], model: model() });
-    for (const [surface, label] of Object.entries({ files: "打开文件，开始阅读", git: "查看工作区的改动", diff: "打开 Files", "text-stats": "打开 Files" })) {
+    for (const [surface, label] of Object.entries({ git: "查看工作区的改动", diff: "打开资料", "text-stats": "打开资料" })) {
       const stage = stageOf(html, surface);
       assert.match(stage, new RegExp(`data-coding-companion="workbench"[^>]*data-companion="${surface}"`), `${surface} keeps its companion hooks`);
       assert.match(stage, /hidden/, `${surface} starts hidden until the client shows it`);
       assert.ok(stage.includes(label), `${surface} draws its own stage words: ${label}`);
       assert.doesNotMatch(stage, new RegExp(`>${surface}\\.stage\\.`));
     }
-    const files = stageOf(html, "files");
-    assert.match(files, /href="\/p\/settings\/workspaces"/);
-    assert.match(files, /companion-directory/); assert.match(files, /data-files-browser/); assert.match(files, /data-files-results/);
     const git = stageOf(html, "git");
     assert.match(git, /data-git-browser/); assert.match(git, /data-git-results/);
-    // A list companion reaches the files through Files when Files is shown, and through the market otherwise.
-    assert.match(stageOf(html, "diff"), /data-companion-open="files"/);
-    assert.match(stageOf(html, "text-stats"), /data-companion-open="files"/);
+    // A list companion reaches the files it compares or counts through the platform's 资料, which every project page has, so the
+    // way is the same whichever plugins the project shows (Files, the plugin it used to name, retired in batch 06).
+    assert.match(stageOf(html, "diff"), /data-companion-open="materials"/);
+    assert.match(stageOf(html, "text-stats"), /data-companion-open="materials"/);
     const without = renderProjectRuntimeStages(state, store, { shown: ["coding", "diff", "text-stats"], drawn: [], model: model(["coding", "diff", "text-stats"]) }).html;
-    assert.match(stageOf(without, "diff"), /data-companion-open="market"/);
-    assert.match(stageOf(without, "text-stats"), /data-companion-open="market"/);
-    assert.equal(stageOf(without, "files"), "", "a plugin the project does not show draws no stage");
+    assert.match(stageOf(without, "diff"), /data-companion-open="materials"/);
+    assert.match(stageOf(without, "text-stats"), /data-companion-open="materials"/);
+    assert.equal(stageOf(without, "git"), "", "a plugin the project does not show draws no stage");
   });
 });
 
@@ -123,7 +121,7 @@ test("RAC-435 an embedded plugin that is not running leaves its place in Coding'
     const { html } = renderProjectRuntimeStages(stopped, store, { shown: SHOWN, drawn: [], model: model() });
     const coding = stageOf(html, "coding");
     assert.match(coding, /data-coding-workbench/);
-    assert.match(coding, /data-files-browser/, "Files still fills its place");
+    assert.match(coding, /data-coding-files-face/, "Coding's own files face still draws");
     assert.doesNotMatch(coding, /data-git-browser|data-git-results/, "Git's places are empty");
   });
 });
@@ -132,15 +130,15 @@ test("RAC-436 an embedded surface that fails leaves its place empty and the page
   await withProject(async (store, state) => {
     const failing = withContribution(state, (pluginId, real) => {
       const contribution = real as { kind?: string; views?: Array<{ descriptor: unknown }> } | undefined;
-      if (pluginId !== "io.molis.work.files" || contribution?.kind !== "app") return real;
+      if (pluginId !== "io.molis.work.git" || contribution?.kind !== "app") return real;
       return { ...contribution, views: (contribution.views ?? []).map(view => ({ descriptor: view.descriptor, render: () => { throw new Error("the surface failed"); } })) };
     });
     const { html, unavailable } = renderProjectRuntimeStages(failing, store, { shown: SHOWN, drawn: [], model: model() });
     const coding = stageOf(html, "coding");
     assert.match(coding, /data-coding-workbench/);
-    assert.doesNotMatch(coding, /data-files-browser|data-files-results/, "Files' places are empty");
-    assert.match(coding, /data-git-browser/, "Git still fills its place");
-    assert.ok(unavailable.some(stage => stage.surface === "files"), "Files' own stage, which fails the same way, is the unavailable shell");
+    assert.doesNotMatch(coding, /data-git-browser|data-git-results/, "Git's places are empty");
+    assert.match(coding, /data-coding-files-face/, "Coding's own files face still draws");
+    assert.ok(unavailable.some(stage => stage.surface === "git"), "Git's own stage, which fails the same way, is the unavailable shell");
     assert.ok(!unavailable.some(stage => stage.surface === "coding"));
   });
 });
@@ -201,11 +199,14 @@ test("RAC-438 the Host has no file of its own for Coding: coding-surface.ts is g
   assert.match(gate, /HYBRID_RUNTIME_PLUGINS: ReadonlySet<string> = new Set<string>\(\["goals"\]\);/);
   const dir = join(repoRoot, "apps/local-host/src");
   // Since PG-067 the supervisor starts a companion from its registration's `project_runtime`, and the Host reaches that registration
-  // only through the generated registry (#1299 PR-B4): no other Host file names a companion's package, Files included since its
-  // factory takes nothing from the Host (BL-616, RAC-2530). Every file under the Host's src/, at any depth, read from its syntax tree.
+  // only through the generated registry (#1299 PR-B4): no other Host file names a companion's package. Every file under the Host's
+  // src/, at any depth, read from its syntax tree. Files (BL-616, RAC-2530) retired in batch 06: not even the registry names it.
   const host = hostSources(dir);
   assert.deepEqual(companionEdges(host), [], "no Host file reaches a companion except the registry's ./registration");
-  for (const name of COMPANIONS) assert.ok(host.some(([file, text]) => file === REGISTRY && text.includes(`"@molis-ai/molis-work-plugin-${name}/registration"`)), `the registry reaches ${name}`);
+  for (const name of COMPANIONS) {
+    const reached = host.some(([file, text]) => file === REGISTRY && text.includes(`"@molis-ai/molis-work-plugin-${name}/registration"`));
+    assert.equal(reached, name !== "files", name === "files" ? "the registry no longer reaches the retired Files" : `the registry reaches ${name}`);
+  }
   assert.match(readFileSync(join(dir, "project-plugins.ts"), "utf8"), /projectRuntimeDeclarations\(\)[^;]*registeredNativePlugin\(entry\)/s,
     "the supervisor starts the companions from their registrations' project_runtime");
   assert.match(readFileSync(join(dir, "native-plugin-release-artifact.ts"), "utf8"), /function registeredNativePlugin[\s\S]+const definition = entry\.create\(\)/u);
@@ -244,7 +245,7 @@ test("RAC-449 every surface an embedded plugin puts into Coding's page targets a
         targets.push(`${embeddedId}:${surface.surface_id}`);
       }
     }
-    assert.deepEqual(targets.sort(), ["io.molis.work.files:browser-directory", "io.molis.work.files:browser-result", "io.molis.work.git:browser-directory", "io.molis.work.git:browser-result"]);
+    assert.deepEqual(targets.sort(), ["io.molis.work.git:browser-directory", "io.molis.work.git:browser-result"]);
   });
 });
 

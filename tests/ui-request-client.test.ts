@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import vm from "node:vm";
 import type { UiRequestFailure } from "@molis-ai/molis-work-contracts/platform/ui";
+import { pluginRequest } from "@molis-ai/molis-work-plugin-sdk/browser";
 import {
   UI_REQUEST_CLIENT_SCRIPT,
   createUiFailureView,
@@ -56,6 +57,52 @@ async function failureOf(run: Promise<unknown>): Promise<UiRequestFailure> {
   try { await run; } catch (error) { return error as UiRequestFailure; }
   throw new assert.AssertionError({ message: "the request was expected to fail" });
 }
+
+test("BSH-09 the SDK keeps project request fields, refusal details and individual cancellation through UiRequest", async t => {
+  const details = { field: "title" };
+  const { seen, request } = harness(({ input, init }) => new URL(input).pathname.startsWith("/api/")
+    ? json(403, { code: "actions.forbidden", error: "host refusal" })
+    : init.method === "POST" ? json(409, { code: "example.conflict", error: "host conflict", details, call_id: CALL_ID })
+      : json(200, { records: [] }));
+  const original = Object.getOwnPropertyDescriptor(globalThis, "molisWorkRequest");
+  Object.defineProperty(globalThis, "molisWorkRequest", { configurable: true, value: request });
+  t.after(() => {
+    if (original) Object.defineProperty(globalThis, "molisWorkRequest", original);
+    else Reflect.deleteProperty(globalThis, "molisWorkRequest");
+  });
+
+  let project = "p/一";
+  const controller = new AbortController();
+  const client = pluginRequest({
+    pluginRoute: path => "/plugin" + path,
+    route: path => path,
+    readRefusal: (status, code) => status === 403 && code === "actions.forbidden" ? "translated refusal" : "",
+  }, {
+    fallback: () => "fallback",
+    codes: { "example.conflict": () => "translated conflict" },
+    readRefusal: true,
+    project: { id: () => project, missing: () => "missing project", includeInRequest: true },
+  });
+  const body = { title: "draft", project_id: "untrusted" };
+  assert.deepEqual(await client("GET", "/records?q=one", body), { records: [] });
+  assert.equal(seen[0]?.input, ORIGIN + "/plugin/records?q=one&project_id=p%2F%E4%B8%80");
+  assert.equal(seen[0]?.init.body, undefined);
+  const conflict = await failureOf(client("POST", "/records", body, controller.signal));
+  assert.deepEqual(JSON.parse(String(seen[1]?.init.body)), { title: "draft", project_id: project });
+  assert.equal(body.project_id, "untrusted");
+  assert.equal(seen[1]?.init.signal, controller.signal);
+  assert.equal(conflict.message, "translated conflict");
+  assert.equal(conflict.code, "example.conflict");
+  assert.equal(conflict.status, 409);
+  assert.equal(conflict.callId, CALL_ID);
+  assert.deepEqual((conflict.body as { details: unknown }).details, details);
+
+  await assert.rejects(client("GET", "/api/platform"), { status: 403, code: "actions.forbidden", message: "translated refusal" });
+  await assert.rejects(client("POST", "/api/platform", {}), { status: 403, code: "actions.forbidden", message: "host refusal" });
+  project = "";
+  await assert.rejects(client("GET", "/records"), { message: "missing project" });
+  assert.equal(seen.length, 4);
+});
 
 test("a read carries no control token and no one-time key, and is never cached", async () => {
   const { seen, request } = harness(() => json(200, { items: [1, 2] }));

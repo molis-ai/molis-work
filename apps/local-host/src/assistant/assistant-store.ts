@@ -1,3 +1,4 @@
+import { AssistantPermissionTransitions } from "./assistant-permission-transitions.js";
 import { AssistantRequests } from "./assistant-requests.js";
 import type { ActionResultPresentation } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AssistantThreadRound } from "./assistant-thread-types.js";
@@ -170,8 +171,7 @@ export class AssistantStore {
   /** Who hears that a work's stored facts changed (record, rounds, cards, follow-ups, jobs, undos, usage): the page's wait. */
   readonly #changes = new Set<(workId: string) => void>();
   readonly #actionPolicyChanges = new Map<string, { access?: object; confirmation?: object }>();
-  readonly #endingPermissions = new Set<string>();
-  readonly #permissionInputs = new Map<string, Set<{ current: boolean }>>();
+  readonly permissionTransitions = new AssistantPermissionTransitions();
 
   constructor(private readonly db: DatabaseSync, private readonly now = () => new Date()) {
     applySqliteBaseline(db, ASSISTANT_STORE_NAME, ASSISTANT_STORE_BASELINE);
@@ -211,34 +211,6 @@ export class AssistantStore {
     return work.executor ? work : { ...work, executor: { kind: "assistant" } };
   }
 
-  /** One owner's stop, archive or take-back can finish at a time for each work it affects. */
-  holdWorkPermissions(workIds: readonly string[], invalidatesInput = true): () => void {
-    for (const id of workIds) this.assertWorkPermissionTransitionFree(id);
-    for (const id of workIds) {
-      this.#endingPermissions.add(id);
-      if (invalidatesInput) for (const input of this.#permissionInputs.get(id) ?? []) input.current = false;
-    }
-    return () => { for (const id of workIds) this.#endingPermissions.delete(id); };
-  }
-
-  /** Capture before any external read, so a late input cannot acquire a replacement work lifetime. */
-  holdWorkInput(workId: string) {
-    this.assertWorkPermissionTransitionFree(workId);
-    const group = this.#permissionInputs.get(workId) ?? new Set(), input = { current: true };
-    group.add(input); this.#permissionInputs.set(workId, group);
-    return {
-      assertCurrent: () => {
-        this.assertWorkPermissionTransitionFree(workId);
-        if (!input.current) throw assistantErrors.state("原工作的权限边界已经变化");
-      },
-      release: () => { input.current = false; group.delete(input); if (!group.size) this.#permissionInputs.delete(workId); },
-    };
-  }
-
-  assertWorkPermissionTransitionFree(workId: string): void {
-    if (this.#endingPermissions.has(workId)) throw assistantErrors.state("这项工作正在停止或归档");
-  }
-
   list(actorId: string, options: { archived?: boolean | "any"; limit?: number } = {}): StoredWork[] {
     const [low, high] = options.archived === "any" ? [0, 1] : options.archived ? [1, 1] : [0, 0];
     return this.db.prepare("SELECT body FROM assistant_works WHERE actor_id=? AND archived BETWEEN ? AND ? ORDER BY updated_at DESC LIMIT ?")
@@ -250,6 +222,11 @@ export class AssistantStore {
   update(actorId: string, workId: string, expected: number | null, patch: Partial<Pick<StoredWork, "title" | "session_id" | "draft" | "archived" | "executor" | "handover_brief" | "character" | "graph_id" | "delegated_by" | "budget_tokens" | "question_drafts" | "reply_target" | "thread_round" | "continuation_hold">>, touch = true): StoredWork {
     const current = this.get(actorId, workId);
     if (expected !== null && current.revision !== expected) throw assistantErrors.conflict("这项工作已在别处更新，请刷新后再改");
+    if (Object.hasOwn(patch, "session_id")) {
+      if (typeof patch.session_id !== "string" || !patch.session_id.trim() || current.session_id !== null && current.session_id !== patch.session_id)
+        throw assistantErrors.conflict("原助理执行会话已经固定，不能改绑或清空");
+      if (current.session_id === patch.session_id && Object.keys(patch).length === 1) return current;
+    }
     const next: StoredWork = { ...current, ...patch, draft_revision: current.draft_revision + (Object.hasOwn(patch, "draft") ? 1 : 0), revision: current.revision + 1, updated_at: touch ? this.now().toISOString() : current.updated_at };
     const changed = this.db.prepare("UPDATE assistant_works SET revision=?, updated_at=?, archived=?, body=? WHERE work_id=? AND actor_id=? AND revision=?")
       .run(next.revision, next.updated_at, next.archived ? 1 : 0, JSON.stringify(next), workId, actorId, current.revision).changes;
@@ -264,8 +241,10 @@ export class AssistantStore {
     this.#changed(workId);
   }
 
-  rounds(workId: string): StoredRound[] {
-    return this.db.prepare("SELECT body FROM assistant_rounds WHERE work_id=? ORDER BY position").all(workId).map(row => JSON.parse(String(row.body)) as StoredRound);
+  rounds(workId: string, last?: number): StoredRound[] {
+    const rows = last === undefined ? this.db.prepare("SELECT body FROM assistant_rounds WHERE work_id=? ORDER BY position").all(workId)
+      : this.db.prepare("SELECT body FROM assistant_rounds WHERE work_id=? ORDER BY position DESC LIMIT ?").all(workId, last).reverse();
+    return rows.map(row => JSON.parse(String(row.body)) as StoredRound);
   }
 
   addCard(card: StoredCard): StoredCard {

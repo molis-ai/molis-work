@@ -78,12 +78,13 @@ export function createFeedSceneRuntime(options: FeedSceneRuntimeOptions): { hand
     catalog: async caller => {
       const candidates = (await actions.discover(caller)).filter(action => action.action.kind === "judgment"
         && (!action.action.subject_kinds.length || action.action.subject_kinds.includes("feed_item")));
-      const choices = await Promise.all(candidates.map(async action => {
-        const reference = { capability_id: action.capability_id, version: action.version, provider_id: action.provider.provider_id };
-        const scene = captureScenes(await scenes.discoverScenes(caller, reference))[0];
+      const references = candidates.map(action => ({ capability_id: action.capability_id, version: action.version, provider_id: action.provider.provider_id }));
+      const views = await scenes.discoverScenesFor(caller, references);
+      const choices = candidates.map((action, index) => {
+        const reference = references[index]!, scene = captureScenes(views[index]!)[0];
         return { reference, title: `${action.action.title} · ${action.provider.title}`, available: Boolean(scene?.compatible && scene.availability.available),
           ...(!scene?.compatible || !scene.availability.available ? { reason: scene?.reason ?? (scene && !scene.availability.available ? scene.availability.reason : undefined) ?? "当前不可用" } : {}) };
-      }));
+      });
       return { choices, usages: (await scenes.usages(caller)).filter(use => use.scene_id === feedCaptureScene.scene_id) };
     },
     preview: async (reference, content, caller) => {

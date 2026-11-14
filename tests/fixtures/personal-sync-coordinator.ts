@@ -5,7 +5,7 @@ import type { TestContext } from 'node:test';
 import { mkdtempSync,rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { ensureStorageSpace,personalStorageSpace,openMemoryLedger } from '@molis-ai/molis-work-storage';
+import { acquireStorageOwner,ensureStorageSpace,initializeMemoryForgetting,personalStorageSpace,openMemoryLedger } from '@molis-ai/molis-work-storage';
 import { PersonalSync,syncNamespace,type SyncRegistration } from '@molis-ai/molis-work-module-sync-replication';
 import type { SyncEvent,SyncMutation } from '@molis-ai/molis-work-contracts/platform/sync-transport';
 import { createSyncConflictState } from '@molis-ai/molis-work-plugin-sdk';
@@ -18,7 +18,7 @@ const selection=pagesSyncSelection;
 export function personalSyncFixture(t:TestContext){
   const root=mkdtempSync(join(tmpdir(),'personal-sync-'));
   const space=personalStorageSpace('http://127.0.0.1:8787','work','alice');
-  const homes=['a','b'].map(name=>join(root,name));homes.forEach(h=>{ensureStorageSpace(h,space);const memory=openMemoryLedger({homeDirectory:h});try{memory.transaction(()=>{memory.savePrefs(LOCAL_PERSON_ACTOR_ID,'personal',defaultPrefs('personal','reviewed'));memory.savePrefs(LOCAL_PERSON_ACTOR_ID,'project-default',defaultPrefs('project','reviewed'));});}finally{memory.close();}});
+  const homes=['a','b'].map(name=>join(root,name));homes.forEach(h=>{ensureStorageSpace(h,space);const owner=acquireStorageOwner(join(h,'agent-runtime'));try{initializeMemoryForgetting({homeDirectory:h,storageOwner:owner,assertCurrent(){}});}finally{owner.release();}const memory=openMemoryLedger({homeDirectory:h});try{memory.transaction(()=>{memory.savePrefs(LOCAL_PERSON_ACTOR_ID,'personal',defaultPrefs('personal','reviewed'));memory.savePrefs(LOCAL_PERSON_ACTOR_ID,'project-default',defaultPrefs('project','reviewed'));});}finally{memory.close();}});
   let active=true;
   const authorize=()=>{if(!active)throw new Error('REVOKED');};
   const context={spaceId:space.spaceId,canUploadProject:()=>true,hasArtifact:()=>true,hasReference:()=>true,authorize,conflictState:createSyncConflictState,project:()=>({title:'文档项目',context:{spaceId:space.spaceId,projectId:'project',authorize,hasReference:()=>true}})};

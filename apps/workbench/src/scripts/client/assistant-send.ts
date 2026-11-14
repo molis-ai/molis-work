@@ -171,7 +171,10 @@ export const ASSISTANT_RECEIPTS_FACTORY_SCRIPT = String.raw`({ readText, shared,
     /** The receipt under one of the person's supplements, placed after it; none for anything else. The thread is its surface. */
     line(thread, node, put, turn, round) {
       const key = "receipt:" + turn.turn_id, line = shared.line(thread, turn, round, act(round));
-      if (!line) { [...node.children].find((child) => child.dataset.entry === key)?.remove(); return; }
+      const drawn = [...node.children].find((child) => child.dataset.entry === key);
+      if (!line) { drawn?.remove(); return; }
+      // A note drawn again is a new node for the same turn: it replaces the one already there rather than adding another.
+      if (drawn && drawn !== line) drawn.remove();
       line.dataset.entry = key; put(line);
     },
     /** Reads the round's question the composer can answer or fill; a new one starts at its default, and the chip shows only then. */

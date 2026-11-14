@@ -251,7 +251,7 @@ test('with a settled directory, another operation being written at the same time
   } finally { await f.close(); await rm(settled, { recursive: true, force: true }); }
 });
 
-test('an installed operation needs trusted Host execution control; actor names and JSON cannot grant access', mac, async () => {
+test('S-47 an installed raw operation refuses actor names, JSON and Host route control without its exposed action', mac, async () => {
   const { sandboxedPluginDefinition } = await import('../apps/local-host/src/plugin-builder/installed.js');
   const f = await fixture();
   try {
@@ -267,9 +267,13 @@ test('an installed operation needs trusted Host execution control; actor names a
     const request = { method: 'POST', pathname: '/call', params: {}, query: {}, actor_id: 'web-user', body: { operation: 'echo', input: 'hi' } };
     try {
       for (const actor_id of ['web-user', 'plugin-builder:scheduled-run', 'plugin-builder:action']) {
-        assert.deepEqual(await running.routes[0]!.handle({ ...request, actor_id, body: { ...request.body, execution } }), { status: 400, body: { error: '未知的组件操作' } });
+        const forged = await running.routes[0]!.handle({ ...request, actor_id, body: { ...request.body, execution } });
+        assert.equal(forged.status, 403);
+        assert.equal((forged.body as { code: string }).code, 'actions.forbidden');
       }
-      assert.deepEqual(await running.routes[0]!.handle({ ...request, execution }), { status: 200, body: { value: 'HI' } });
+      const routed = await running.routes[0]!.handle({ ...request, execution });
+      assert.equal(routed.status, 403);
+      assert.equal((routed.body as { code: string }).code, 'actions.forbidden');
     } finally { await definition.stop?.(); }
   } finally { await f.close(); }
 });

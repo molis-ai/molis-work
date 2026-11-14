@@ -1,0 +1,55 @@
+{
+  "reason": "PR #2042 调整账号文案导致中英文词包内容定址路径变化，头像 CSP 增加响应头字节；不增加其他资源或放宽门禁。",
+  "review": "CI https://github.com/molis-ai/molis-work/actions/runs/43368294863/job/131697963202 对照 58af6ece64 实测：到达页冷 zh +127/en +138，热 +140；默认/全部插件工作台热 +140；其他净增为零。 更新：CI https://github.com/molis-ai/molis-work/actions/runs/43371331143/job/131707658260 合入更新 main 后到达页中文冷载为 +131 B，压缩基线改变了差值；两种语言的到达页冷载按用户已批准的 140 B 上限记录，其余保持原值。",
+  "entryApprovals": [
+    {
+      "pages": [
+        "arrival-empty",
+        "chooser",
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "zh",
+      "entry": "/assets/locale/workbench.zh.<digest>.js",
+      "change": "new"
+    },
+    {
+      "pages": [
+        "arrival-empty",
+        "chooser",
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "en",
+      "entry": "/assets/locale/workbench.en.<digest>.js",
+      "change": "new"
+    }
+  ],
+  "pages": {
+    "arrival-empty/zh": {
+      "cold": 140,
+      "warm": 140
+    },
+    "workbench-default/zh": {
+      "cold": 0,
+      "warm": 140
+    },
+    "workbench-all-plugins/zh": {
+      "cold": 0,
+      "warm": 140
+    },
+    "arrival-empty/en": {
+      "cold": 140,
+      "warm": 140
+    },
+    "workbench-default/en": {
+      "cold": 0,
+      "warm": 140
+    },
+    "workbench-all-plugins/en": {
+      "cold": 0,
+      "warm": 140
+    }
+  },
+  "userApproval": "用户于 2026-11-13 在当前 PR 交付会话明确选择「批准本次精确许可（推荐）」：仅 Work #2042 的中英文词包新哈希路径，以及各页面最多 140 字节的首屏增量。"
+}

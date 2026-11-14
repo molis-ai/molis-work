@@ -25,8 +25,16 @@ function factsOf(page: Page, run: RunView): { values: Fact[]; unused: string[] }
   else unused.push(uiText.text("coding.facts.mcp-source-kind"));
   if (f.character) values.push([uiText.text("coding.facts.character"), f.character.title + " · v" + f.character.reference.version], [uiText.text("coding.facts.host-tools"), f.host_tools?.join(joiner) || uiText.text("coding.facts.no-host-tools")]);
   else unused.push("Character");
-  if (f.text_materials.length) values.push([uiText.text("coding.facts.materials"), f.text_materials.map(material => material.title || material.material_id).join(joiner)]);
+  // Each piece with the version this round read; a round from before that was kept says so rather than guessing from the file now.
+  if (f.text_materials.length) values.push([uiText.text("coding.facts.materials"), f.text_materials.map(material => {
+    const name = material.title || material.material_id;
+    if (material.source_artifact_id !== undefined) return name;
+    return material.read_revision ? uiText.text("coding.facts.material-read", { name, version: material.read_revision.startsWith("size:") ? material.read_revision : material.read_revision.slice(0, 12) })
+      : uiText.text("coding.facts.material-unrecorded", { name });
+  }).join(joiner)]);
   else unused.push(uiText.text("coding.attach.material"));
+  if (f.compaction) values.push([uiText.text("coding.facts.compaction"), uiText.text("coding.facts.compaction-value", { tokens: f.compaction.above_tokens, version: f.compaction.version })]);
+  if (!run.usage.compaction && run.activity.some(item => item.name === "上下文整理")) values.push([uiText.text("coding.facts.usage-scope"), uiText.text("coding.facts.usage-scope-value")]);
   if (f.compaction) values.push([uiText.text("coding.facts.compaction"), uiText.text("coding.facts.compaction-value", { tokens: f.compaction.above_tokens, version: f.compaction.version })]);
   if (!run.usage.compaction && run.activity.some(item => item.name === "上下文整理")) values.push([uiText.text("coding.facts.usage-scope"), uiText.text("coding.facts.usage-scope-value")]);
   return { values, unused };

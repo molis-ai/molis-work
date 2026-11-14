@@ -19,6 +19,8 @@ export interface EndingRound {
   /** Whether the round could keep memories: given and on, switched off by the person, or handed down without the tool. */
   readonly memory?: "available" | "switched-off" | "not-given";
   readonly materials: readonly string[];
+  /** The person's own request this round: what they asked to have written is the reply's content, not a claim about the round. */
+  readonly request?: string;
 }
 
 /**
@@ -42,7 +44,7 @@ export async function reviewEnding(runtime: Runtime, model: ReviewModel, round: 
   const boundary = randomBytes(12).toString("hex");
   const tools = round.facts.calls.map(call => `${call.tool}: ${call.ended}`);
   const earlier = round.facts.said.endsWith(round.reply) ? round.facts.said.slice(0, -round.reply.length) : round.facts.said;
-  const data = { reply: round.reply.slice(-3000), ...(earlier.trim() ? { earlier: earlier.slice(-1500) } : {}),
+  const data = { ...(round.request?.trim() ? { request: round.request.slice(-1500) } : {}), reply: round.reply.slice(-3000), ...(earlier.trim() ? { earlier: earlier.slice(-1500) } : {}),
     facts: { tools, ...(round.memory ? { memory: round.memory } : {}), ...(round.materials.length ? { materials: round.materials } : {}) } };
   try {
     const text = await model.dispatch(async () => {

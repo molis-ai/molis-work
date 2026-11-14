@@ -113,14 +113,13 @@ test("N34-VS-02 a key stays with its own pattern: a string that carries a versio
   assert.ok(output.includes("/* @version contract.io.molis.work.platform.kernel */ 4"));
 });
 
-test("N34-VS-02 the one version Files and Git embedded pages send equals every action they can reach", () => {
-  // These two build the id from the route, so one literal stands for all of them (tooling/gates/version-exceptions.json). When
+test("N34-VS-02 the one version the Git embedded page sends equals every action it can reach", () => {
+  // It builds the id from the route, so one literal stands for all of them (tooling/gates/version-exceptions.json). When
   // an entry moves, this fails instead of the page asking for a version that no longer exists. What they can reach comes from the
-  // table: every action of the plugin (`"files." + operation`) and every `.state` (`plugin + ".state"`), so a new action needs no edit here.
+  // table: every action of the plugin (`"git." + operation`) and every `.state` (`plugin + ".state"`), so a new action needs no edit here.
   const { versions } = versionSource(repository);
   const actions = Object.keys(versions).filter(key => key.startsWith("action.")).map(key => key.slice("action.".length));
   for (const [file, plugin, seen] of [
-    ["plugins/native/files/src/browser/request.ts", "files", ["files.capture", "files.state", "text-stats.state", "diff.state"]],
     ["plugins/native/git/src/browser/request.ts", "git", ["git.conflict", "git.state", "diff.state"]],
   ] as const) {
     const sent = Number(/capability_id: capability, version: (\d+) \}/.exec(readFileSync(path.join(repository, file), "utf8"))?.[1]);

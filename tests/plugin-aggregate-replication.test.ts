@@ -89,12 +89,25 @@ test('Lingguang restores completed conversation turns, ordering and workflow ide
   a.discard([spark.id]);f.send(ra,rb);assert.equal(b.get(spark.id).status,'discarded');assert.equal(rb.next(),null);
 });
 
+function storedPublication(file: string, table: "datasets" | "presentations", id: string, value: { revision: number } | { artifact: string }): void {
+  const db = new DatabaseSync(file);
+  try {
+    if ("revision" in value) {
+      // Original disk state retained by a build interrupted between its separate writes.
+      db.prepare(`UPDATE ${table} SET publication_pending_json=? WHERE id=?`).run(JSON.stringify({ version: 1, source_version: value.revision, actor_id: "alice" }), id);
+    } else {
+      db.prepare(`UPDATE ${table} SET publication_pending_json=NULL, artifact_id=?, artifact_version=1, version=version+1 WHERE id=?`).run(value.artifact, id);
+    }
+  } finally { db.close(); }
+}
+
 test('Publication is never transferred or overwritten, and missing fixed artifacts wait then retry',t=>{
   const f=fixture(t),a=f.open(openPptStore,0),b=f.open(openPptStore,1),ra=a.replica(f.context),rb=b.replica(f.context);
-  const p=a.create({project_id:'project'}),intent=a.beginPublication(p.id,'project','alice');assert.throws(()=>ra.next(),/发布/);
-  a.completePublication(p.id,'project',intent,{artifact_id:'ppt-'+p.id,version:1});f.ready(false);f.send(ra,rb);assert.equal(rb.conflicts()[0]?.waiting,true);assert.throws(()=>b.get(p.id),/找不到/);
+  const p=a.create({project_id:'project'});
+  storedPublication(homeSqlitePath(f.homes[0]!,'ppt'), 'presentations', p.id, { revision: p.version });assert.throws(()=>ra.next(),/发布/);
+  storedPublication(homeSqlitePath(f.homes[0]!,'ppt'), 'presentations', p.id, { artifact: 'ppt-'+p.id });f.ready(false);f.send(ra,rb);assert.equal(rb.conflicts()[0]?.waiting,true);assert.throws(()=>b.get(p.id),/找不到/);
   f.ready(true);rb.retryWaiting!();assert.equal(b.get(p.id).artifact_version,1);assert.equal(rb.counts().conflicts,0);
-  b.beginPublication(p.id,'project','alice');a.update(p.id,{title:'远端改动'});f.send(ra,rb);assert.equal(rb.counts().conflicts,1);assert.throws(()=>rb.resolve(rb.conflicts()[0]!.key,'remote'),/发布/);assert.ok(b.get(p.id).publication_pending);
+  storedPublication(homeSqlitePath(f.homes[1]!,'ppt'), 'presentations', p.id, { revision: b.get(p.id).version });a.update(p.id,{title:'远端改动'});f.send(ra,rb);assert.equal(rb.counts().conflicts,1);assert.throws(()=>rb.resolve(rb.conflicts()[0]!.key,'remote'),/发布/);assert.ok(b.get(p.id).publication_pending);
 });
 
 test('Invalid fields, wrong space, cross-project collisions and oversized payloads do not partially apply',t=>{
@@ -146,8 +159,9 @@ test('Owner rollback rolls back child and root sync journal entries together',t=
 
 test('Dataset historical publication status is preserved as history, never resumed on the target',t=>{
   const f=fixture(t),a=f.open(openDatasetStore,0),b=f.open(openDatasetStore,1),ra=a.replica(f.context),rb=b.replica(f.context);
-  const d=a.create({project_id:'project'}),intent=a.beginPublication(d.id,'project','alice');const saved=a.saveVersion(d.id,'发布时快照');
-  a.completePublication(d.id,'project',intent,{artifact_id:'dataset-'+d.id,version:1});f.send(ra,rb);
+  const d=a.create({project_id:'project'}),file=homeSqlitePath(f.homes[0]!,'dataset');
+  storedPublication(file, 'datasets', d.id, { revision: d.version });const saved=a.saveVersion(d.id,'发布时快照');
+  storedPublication(file, 'datasets', d.id, { artifact: 'dataset-'+d.id });f.send(ra,rb);
   assert.deepEqual(b.listVersions(d.id)[0],saved);assert.equal(b.get(d.id).publication_pending,undefined);
   b.rollback(d.id,saved.id,'project');assert.equal(b.get(d.id).publication_pending,undefined);
 });

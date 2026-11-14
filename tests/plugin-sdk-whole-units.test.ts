@@ -1,11 +1,31 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { cutCharacters, cutHead, cutTail, exceedsCharacters } from "@molis-ai/molis-work-plugin-sdk/whole-units";
+import { cutCharacters, cutHead, cutTail, cutWithEllipsis, exceedsCharacters } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 
 // RAC-2726: the SDK's one rule for cutting text by a bound: UTF-16 units (cutHead/cutTail) or characters (cutCharacters/
 // exceedsCharacters). Text within the bound comes back as it was; a cut between a character's two units drops the lone half
 // instead of keeping it; cutting characters never spreads more than the bound needs.
 const LONE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u;
+
+test("BSH-10 ellipsis cuts preserve complete characters and use the caller's threshold and prefix", () => {
+  assert.equal(cutWithEllipsis("abc ", 4, { trimEnd: true }), "abc ");
+  assert.equal(cutWithEllipsis("text", 0), "");
+  assert.equal(cutWithEllipsis("a😀", 3), "a😀");
+  for (const wide of ["😀", "𠮷"]) {
+    const text = "a" + wide + "bc";
+    const bounded = cutWithEllipsis(text, 3);
+    assert.equal(bounded, "a…");
+    assert.ok(bounded.length <= 3);
+    assert.doesNotMatch(bounded, LONE);
+    const counted = cutWithEllipsis(text, 3, { unit: "characters" });
+    assert.equal(counted, `a${wide}…`);
+    assert.equal([...counted].length, 3);
+  }
+  assert.equal(cutWithEllipsis("abcd", 3, { prefixLength: 3 }), "abc…");
+  assert.equal(cutWithEllipsis("a".repeat(72), 72, { prefixLength: 70 }), "a".repeat(72));
+  assert.equal(cutWithEllipsis("a".repeat(73), 72, { prefixLength: 70 }), "a".repeat(70) + "…");
+  assert.equal(cutWithEllipsis("ab  cd", 4, { prefixLength: 4, trimEnd: true }), "ab…");
+});
 
 test("RAC-2726 cutHead and cutTail keep at most max units without leaving half a character", () => {
   for (const text of ["", "a", "short", "🟢", "🟢".repeat(4000), "a".repeat(4000), "a".repeat(4001), "a".repeat(3999) + "🟢", "🟢" + "a".repeat(4000)]) {

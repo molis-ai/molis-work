@@ -59,7 +59,7 @@ export async function readWorkAuthorization(store: WorkDelegationStore, host: Mo
     const control = { beforeEffect: caller.beforeEffect, assertCurrent: () => {
       caller.signal?.throwIfAborted(); caller.assert_authority_current?.();
       if (work) {
-        assistant.assertWorkPermissionTransitionFree(work.work_id);
+        assistant.permissionTransitions.assertWorkPermissionTransitionFree(work.work_id);
         const latest = assistantWorkPermission(assistant.get(actor, work.work_id))?.subject;
         if (!latest || workDelegationKey(latest) !== id) throw new ActionError("actions.conflict", "原工作的执行方已变化");
       }

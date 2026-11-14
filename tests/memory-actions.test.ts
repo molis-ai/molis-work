@@ -9,15 +9,33 @@ import { MEMORY_PERMISSIONS, MEMORY_PROVIDER_ID, memoryActions } from "@molis-ai
 import type { AgentMemoryCapability } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { ASSISTANT_STORE_NAME, AssistantStore, MolisWorkLocalHost, memoryRuntimePolicy, memorySources, prologueMemoryBackend } from "@molis-ai/molis-work-app-local-host";
 import { ASSISTANT_PLUGIN_ID, ASSISTANT_INSTALL_ID } from "@molis-ai/molis-work-contracts/services/assistant";
-import { openHomeSqliteDatabase, openMemoryLedger } from "@molis-ai/molis-work-storage";
+import { acquireStorageOwner, initializeMemoryForgetting, openHomeSqliteDatabase, openMemoryLedger } from "@molis-ai/molis-work-storage";
 import { MEMORY_GATE_POLICY, MEMORY_GATE_VERSION } from "@molis-ai/molis-work-service-memory";
 import { cogniaModelResponse } from "./fixtures/cognia-model-response.js";
 import { memoryHostFor, registerMemoryHost } from "../apps/local-host/dist/memory/memory-host.js";
 import { LOCAL_OWNER_PERMISSIONS } from "../apps/local-host/dist/local-owner-permissions.js";
 import { assistantAuthority, ensureSystemAgentService } from "@molis-ai/molis-work-app-local-host";
 
+function freshMemoryOwner(home: string) {
+  const storageOwner = acquireStorageOwner(join(home, "agent-runtime"));
+  try { initializeMemoryForgetting({ homeDirectory: home, storageOwner, assertCurrent() {} }); }
+  catch (error) { storageOwner.release(); throw error; }
+  return storageOwner;
+}
+
 const person: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user", permissions: [...MEMORY_PERMISSIONS] };
 const agent: ActionCallContext = { actor_id: "agent:coding-1", actor_kind: "runtime", project_id: null, audience: "agent", permissions: [...MEMORY_PERMISSIONS] };
+
+/** Trusted Host action fixture: a real Session plus the public recipe frozen before this call. Full Run ownership is exercised by the Coding HTTP tests. */
+async function agentFor(host: MolisWorkLocalHost, home: string): Promise<ActionCallContext> {
+  const plugin_id = "memory-action-fixture", system = ensureSystemAgentService(host, home); await system.ready;
+  const adapter = system.agentHost.adapter("prologue");
+  const session = await adapter.createSession({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "assistant-personal", plugin_id, install_id: plugin_id,
+    workspace: "none", role_id: "memory-action-fixture", title: "Memory action fixture" });
+  const recipe = await memoryHostFor(host)!.service.forRun({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, consumer: "agent", plugin_id }, { query: "总结一下" });
+  assert.ok(recipe);
+  return { ...agent, runtime_session_id: session.session_id, runtime_memory: { plugin_id, current_scene: recipe.current_scene, class_restrictions: recipe.class_restrictions } };
+}
 
 // Keep the real policy and journal; the Home owner is registered before any memory command.
 function currentMemory(localHost: MolisWorkLocalHost): NonNullable<PrologueNodeAdapterOptions["memory"]> {
@@ -31,8 +49,9 @@ function currentMemory(localHost: MolisWorkLocalHost): NonNullable<PrologueNodeA
 test("the production learning Host queues original identities only, and respects settings changed after enqueue", { timeout: 60_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "memory-learning-host-")), localHost = new MolisWorkLocalHost({ completeText: null });
   t.mock.method(globalThis, "fetch", async () => cogniaModelResponse("完成。"));
+  const storageOwner = freshMemoryOwner(home);
   let adapter!: Awaited<ReturnType<typeof createPrologueNodeAdapter>>;
-  adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"),
+  adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "agent-runtime"), storageOwner,
     memory: { ...currentMemory(localHost), sources: memorySources(home, () => {
       const current = memoryHostFor(localHost);
       return current && { adapter, policy: current.policy,
@@ -42,9 +61,9 @@ test("the production learning Host queues original identities only, and respects
     }) },
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   const agentHost = new AgentHost(); agentHost.register(adapter);
-  const memory = registerMemoryHost({ localHost, homeDirectory: home, agentHost, ready: async () => {}, executes: () => true, projectExists: async () => true });
+  const memory = registerMemoryHost({ localHost, homeDirectory: home, storageOwner, agentHost, ready: async () => {}, executes: () => true, projectExists: async () => true });
   const db = openHomeSqliteDatabase(home, ASSISTANT_STORE_NAME), store = new AssistantStore(db);
-  t.after(async () => { memory.close(); await adapter.close(); db.close(); await localHost.close(); await rm(home, { recursive: true, force: true }); });
+  t.after(async () => { memory.close(); await adapter.close(); db.close(); await localHost.close(); storageOwner.release(); await rm(home, { recursive: true, force: true }); });
   const owner = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-q4", plugin_id: ASSISTANT_PLUGIN_ID, install_id: ASSISTANT_INSTALL_ID };
   const session = await adapter.createSession({ ...owner, workspace: "none", role_id: "assistant", title: "周报" });
   const work = store.create({ actor_id: owner.actor_id, title: "周报", scope: { kind: "project", project_id: owner.project_id }, origin: null,
@@ -54,7 +73,8 @@ test("the production learning Host queues original identities only, and respects
   // This is the trusted Host fixture; the SDK attempt, not the display round, owns the original.
   const original_input = { input_id: crypto.randomUUID(), text, written_by: "person" as const, occurred_at: new Date().toISOString() };
   const run = await adapter.start({ ...owner, session, task: text, workspace: "none", role_id: "assistant", original_input,
-    role: { role_id: "assistant", workspace: "none", version: 1, execution: "read-only", prompts: [], host_tools: [] } });
+    role: { role_id: "assistant", workspace: "none", version: 1, execution: "read-only", prompts: [], host_tools: [],
+      memory: await memory.service.forRun({ actor_id: owner.actor_id, project_id: owner.project_id, consumer: "assistant" }, { query: text }) } });
   store.addRound(work.work_id, { run_id: run.ref.run_id, text, materials: [], context: null, started_at: new Date().toISOString() });
   const until = async (read: () => boolean | Promise<boolean>) => { for (let i = 0; i < 400; i++) { if (await read()) return; await new Promise(resolve => setTimeout(resolve, 20)); } assert.fail("production learning did not settle"); };
   await until(async () => (await adapter.read(run.ref)).phase === "completed");
@@ -80,7 +100,7 @@ test("the production learning Host queues original identities only, and respects
   assert.equal(JSON.stringify(schedule.find(key)!.payload).includes(text), false);
   await until(() => schedule.find(key)?.state === "done");
   assert.deepEqual(await memory.service.candidates({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: owner.project_id, consumer: "ui", person: true }, { scope: "all" }), []);
-  assert.deepEqual(memory.service.changes({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: owner.project_id, consumer: "ui", person: true }), []);
+  assert.deepEqual((await memory.service.changes({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: owner.project_id, consumer: "ui", person: true })), []);
 });
 
 test("memory is one system.memory provider in the shared directory: the person manages it, agents read and write by the gate, the local person owns what agents keep", { timeout: 60_000 }, async t => {
@@ -90,15 +110,16 @@ test("memory is one system.memory provider in the shared directory: the person m
   assert.ok(memoryHostFor(host), "registered with the Agent service of this Home");
   assert.ok(LOCAL_OWNER_PERMISSIONS.includes("memory:recall") && LOCAL_OWNER_PERMISSIONS.includes("memory:configure"), "the person holds every memory permission");
   const client = host.homeActionClient();
+  const currentAgent = await agentFor(host, home);
   const views = await client.discover(person);
   const memoryViews = views.filter(view => view.provider.provider_id === MEMORY_PROVIDER_ID);
-  assert.deepEqual(memoryViews.map(view => view.capability_id).sort(), ["memory.candidates.accept", "memory.candidates.discard", "memory.candidates.list", "memory.change", "memory.changes.list",
-    "memory.changes.undo", "memory.export", "memory.history", "memory.import", "memory.list", "memory.pairs.list", "memory.pairs.resolve", "memory.prefs.read", "memory.prefs.write",
-    "memory.recall", "memory.scope.clear", "memory.scope.preview", "memory.signals.report", "memory.upkeep.run", "memory.write"]);
-  const agentViews = (await client.discover(agent)).filter(view => view.provider.provider_id === MEMORY_PROVIDER_ID).map(view => view.capability_id).sort();
+  assert.deepEqual(memoryViews.map(view => view.capability_id).sort(), ["memory.batch.apply", "memory.batch.preview", "memory.candidates.accept", "memory.candidates.discard", "memory.candidates.list", "memory.change", "memory.changes.list",
+    "memory.changes.undo", "memory.export", "memory.history", "memory.import", "memory.list", "memory.operations.list", "memory.page", "memory.pairs.list", "memory.pairs.resolve", "memory.prefs.read", "memory.prefs.write",
+    "memory.recall", "memory.scope.clear", "memory.scope.preview", "memory.session.clear.apply", "memory.session.clear.preview", "memory.signals.report", "memory.upkeep.run", "memory.write"]);
+  const agentViews = (await client.discover(currentAgent)).filter(view => view.provider.provider_id === MEMORY_PROVIDER_ID).map(view => view.capability_id).sort();
   assert.deepEqual(agentViews, ["memory.list", "memory.recall", "memory.write"], "agents see reading and the gated write, never management");
 
-  const asPerson = bindActionClient(client, () => person), asAgent = bindActionClient(client, () => agent);
+  const asPerson = bindActionClient(client, () => person), asAgent = bindActionClient(client, () => currentAgent);
   // An agent must bring a quote of the person's words, but the Host holds none of the person's messages for it to be checked against: what an agent writes is a suggestion, never "you said".
   await assert.rejects(asAgent.invoke(memoryActions.write, { scope: "personal", text: "喜欢简短" }), /原话/);
   const suggested = await asAgent.invoke(memoryActions.write, { scope: "personal", text: "回答用要点列表", said: "回答用要点列表" });
@@ -117,7 +138,7 @@ test("memory is one system.memory provider in the shared directory: the person m
   assert.equal(off.state, "off");
   assert.match(off.reason ?? "", /Agent 工作/);
   // Management is the person's own: an agent cannot reach it at all.
-  await assert.rejects(client.invoke(agent, memoryActions.change, { memory_id: kept.memory!.memory_id, expected_version: kept.memory!.version, action: "remove" }));
+  await assert.rejects(client.invoke(currentAgent, memoryActions.change, { memory_id: kept.memory!.memory_id, expected_version: kept.memory!.version, action: "remove" }));
   // Undo and history by the person.
   const history = await asPerson.invoke(memoryActions.history, { memory_id: kept.memory!.memory_id });
   assert.equal(history.revisions.length, 1);
@@ -153,9 +174,10 @@ test("memory.recall cancelled while it waits for the store settles nothing: no r
   t.after(async () => { await host.close(); await rm(home, { recursive: true, force: true }); });
   const service = memoryHostFor(host)!.service;
   const client = host.homeActionClient();
-  const asAgent = bindActionClient(client, () => agent), asPerson = bindActionClient(client, () => person);
+  const currentAgent = await agentFor(host, home);
+  const asAgent = bindActionClient(client, () => currentAgent), asPerson = bindActionClient(client, () => person);
   await asPerson.invoke(memoryActions.write, { scope: "personal", text: "回答用要点列表" });
-  const recallRef = { capability_id: memoryActions.recall.capability_id, version: 1, provider_id: MEMORY_PROVIDER_ID };
+  const recallRef = { capability_id: memoryActions.recall.capability_id, version: memoryActions.recall.version, provider_id: MEMORY_PROVIDER_ID };
 
   // The call is stopped while it is reading the store: the read finishes, the call's own effect check refuses, and no receipt is written.
   const controller = new AbortController();
@@ -166,7 +188,7 @@ test("memory.recall cancelled while it waits for the store settles nothing: no r
   t.mock.method(sdk, "withCaller", (caller: Parameters<AgentMemoryCapability["withCaller"]>[0]) => observedMemory(withCaller(caller), {
     afterList: async () => { reads++; controller.abort(); },
   }));
-  try { await assert.rejects(client.invoke({ ...agent, signal: controller.signal }, recallRef, { query: "总结一下" })); }
+  try { await assert.rejects(client.invoke({ ...currentAgent, signal: controller.signal }, recallRef, { query: "总结一下" })); }
   finally { t.mock.restoreAll(); }
   assert.equal(reads, 1, "the cancellation reached the actual bound store read");
   assert.deepEqual(service.uses({}), [], "a stopped recall leaves no 最近用于");
@@ -194,8 +216,9 @@ for (const phase of ["startup", "screen", "list", "sdk-commit"] as const) for (c
     const root = await mkdtemp(join(tmpdir(), "memory-effects-")), home = join(root, "controlled");
     // A Host built on a Home registers that Home's own memory provider in its constructor (home-side.ts), so the production
     // registration under test gets a Host without a Home of its own: only the controlled SDK adapter below provides memory.
+    const storageOwner = freshMemoryOwner(home);
     const localHost = new MolisWorkLocalHost({ completeText: null });
-    const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"),
+    const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "agent-runtime"), storageOwner,
       memory: currentMemory(localHost),
       modelConfiguration: async () => { throw new Error("no model in memory regression"); }, resolveCredential: () => { throw new Error("no credentials in memory regression"); } });
     const agentHost = new AgentHost(); agentHost.register(adapter);
@@ -220,9 +243,9 @@ for (const phase of ["startup", "screen", "list", "sdk-commit"] as const) for (c
           try { return await binding.handle(caller, input); } finally { finished.resolve(); }
         } }) }) };
     });
-    const memory = registerMemoryHost({ localHost, homeDirectory: home, agentHost, executes: () => true,
+    const memory = registerMemoryHost({ localHost, homeDirectory: home, storageOwner, agentHost, executes: () => true,
       ready: async () => { if (phase === "startup") await barrier(); } });
-    t.after(async () => { release.resolve(); memory.close(); await adapter.close(); await localHost.close(); await rm(root, { recursive: true, force: true }); });
+    t.after(async () => { release.resolve(); memory.close(); await adapter.close(); await localHost.close(); storageOwner.release(); await rm(root, { recursive: true, force: true }); });
     const controller = new AbortController(), caller: ActionCallContext = { ...person, signal: controller.signal,
       validate_authority: reference => { if (revoked && reference.capability_id === memoryActions.write.capability_id) throw new ActionError("actions.permission_revoked", "fixture authority revoked"); } };
     const pending = localHost.homeActionClient().invoke(caller, memoryActions.write, { scope: "personal", text: "记住：回答先列结论" });
@@ -231,18 +254,19 @@ for (const phase of ["startup", "screen", "list", "sdk-commit"] as const) for (c
     if (stop === "cancel") controller.abort(); else revoked = true;
     holding = false; release.resolve(); await Promise.all([rejection, finished.promise]);
     assert.deepEqual((await memory.service.list(memory.caller(person))).items, []);
-    assert.deepEqual(memory.service.changes(memory.caller(person)), []);
+    assert.deepEqual((await memory.service.changes(memory.caller(person))), []);
     const result = await localHost.homeActionClient().invoke(person, memoryActions.write, { scope: "personal", text: "记住：恢复后回答先列结论" });
     assert.equal((result as { outcome: string }).outcome, "written");
     assert.equal((await memory.service.list(memory.caller(person))).items.length, 1);
-    assert.equal(memory.service.changes(memory.caller(person)).length, 1);
+    assert.equal((await memory.service.changes(memory.caller(person))).length, 1);
   });
 
 for (const stop of ["cancel", "revoke"] as const)
   test(`memory cleanup ${stop} after SDK confirms absence leaves source ledger intact`, { timeout: 30_000 }, async t => {
     const root = await mkdtemp(join(tmpdir(), "memory-cleanup-effect-")), home = join(root, "controlled");
+    const storageOwner = freshMemoryOwner(home);
     const localHost = new MolisWorkLocalHost({ completeText: null });
-    const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"),
+    const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "agent-runtime"), storageOwner,
       memory: currentMemory(localHost), modelConfiguration: async () => { throw new Error("no model in cleanup regression"); },
       resolveCredential: () => { throw new Error("no credentials in cleanup regression"); } });
     const agentHost = new AgentHost(); agentHost.register(adapter);
@@ -266,9 +290,9 @@ for (const stop of ["cancel", "revoke"] as const)
           },
         }) }) };
     });
-    const memory = registerMemoryHost({ localHost, homeDirectory: home, agentHost, executes: () => true, ready: async () => {} });
+    const memory = registerMemoryHost({ localHost, homeDirectory: home, storageOwner, agentHost, executes: () => true, ready: async () => {} });
     const ledger = openMemoryLedger({ homeDirectory: home });
-    t.after(async () => { release.resolve(); ledger.close(); memory.close(); await adapter.close(); await localHost.close(); await rm(root, { recursive: true, force: true }); });
+    t.after(async () => { release.resolve(); ledger.close(); memory.close(); await adapter.close(); await localHost.close(); storageOwner.release(); await rm(root, { recursive: true, force: true }); });
     const client = localHost.homeActionClient();
     const saved = await client.invoke(person, memoryActions.write, { scope: "personal", text: "记住：发布说明先列结论" });
     const id = saved.memory!.memory_id;
@@ -297,8 +321,9 @@ for (const stop of ["cancel", "revoke"] as const)
 for (const stop of ["cancel", "revoke"] as const)
   test(`duplicate adoption ${stop} after the SDK return cannot settle the production Action ledger`, { timeout: 30_000 }, async t => {
     const root = await mkdtemp(join(tmpdir(), "memory-duplicate-effect-")), home = join(root, "controlled");
+    const storageOwner = freshMemoryOwner(home);
     const localHost = new MolisWorkLocalHost({ completeText: null });
-    const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"),
+    const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "agent-runtime"), storageOwner,
       memory: currentMemory(localHost), modelConfiguration: async () => { throw new Error("no model in duplicate regression"); },
       resolveCredential: () => { throw new Error("no credentials in duplicate regression"); } });
     const agentHost = new AgentHost(); agentHost.register(adapter);
@@ -314,9 +339,9 @@ for (const stop of ["cancel", "revoke"] as const)
         }) }) };
     });
     const operation = "ad7fb477-dfd4-4b46-a852-1d99f43a091d";
-    const memory = registerMemoryHost({ localHost, homeDirectory: home, agentHost, executes: () => true, ready: async () => {} });
+    const memory = registerMemoryHost({ localHost, homeDirectory: home, storageOwner, agentHost, executes: () => true, ready: async () => {} });
     const ledger = openMemoryLedger({ homeDirectory: home });
-    t.after(async () => { release.resolve(); ledger.close(); memory.close(); await adapter.close(); await localHost.close(); await rm(root, { recursive: true, force: true }); });
+    t.after(async () => { release.resolve(); ledger.close(); memory.close(); await adapter.close(); await localHost.close(); storageOwner.release(); await rm(root, { recursive: true, force: true }); });
     const client = localHost.homeActionClient(), text = "发布说明先列结论";
     const seed = await client.invoke(person, memoryActions.write, { scope: "personal", text });
     const sdk = adapter.memory!, bound = prologueMemoryBackend(async () => sdk).withCaller(memory.caller(person));

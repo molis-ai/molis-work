@@ -1,5 +1,5 @@
 import type { MemoryCandidate, MemoryLedgerPort, MemoryPrefs, MemoryPrefsView, MemoryPreset, MemoryScope } from "@molis-ai/molis-work-contracts/services/memory";
-import { completePrefs, presetPrefs, PERSONAL_PREFS_KEY, PROJECT_DEFAULT_PREFS_KEY, projectPrefsKey } from "./prefs.js";
+import { isCompletePrefs, completePrefs, formationAllowed, presetPrefs, PERSONAL_PREFS_KEY, PROJECT_DEFAULT_PREFS_KEY, projectPrefsKey } from "./prefs.js";
 import { memoryErrors } from "./errors.js";
 import { personOnly, placeOf } from "./places.js";
 import type { MemoryCaller } from "./service.js";
@@ -9,8 +9,11 @@ export class MemoryPreferences {
   constructor(private readonly ledger: MemoryLedgerPort) {}
 
   prefsFor(actorId: string, scope: MemoryScope, projectId: string | null): MemoryPrefs {
-    if (scope === "personal") return completePrefs("personal", this.ledger.prefs(actorId, PERSONAL_PREFS_KEY));
-    return completePrefs("project", this.ledger.prefs(actorId, PROJECT_DEFAULT_PREFS_KEY), projectId ? this.ledger.prefs(actorId, projectPrefsKey(projectId)) : null);
+    const profiles = scope === "personal" ? [this.ledger.prefs(actorId, PERSONAL_PREFS_KEY)]
+      : [this.ledger.prefs(actorId, PROJECT_DEFAULT_PREFS_KEY), projectId ? this.ledger.prefs(actorId, projectPrefsKey(projectId)) : null];
+    if (profiles.some(profile => profile !== null && !isCompletePrefs(profile)))
+      throw memoryErrors.unavailable("这个范围缺少完整的现行记忆设置，不会补造或转换设置");
+    return completePrefs(scope, ...profiles);
   }
 
   prefs(caller: MemoryCaller, scope: MemoryScope = caller.project_id ? "project" : "personal"): MemoryPrefsView {
@@ -37,12 +40,12 @@ export class MemoryPreferences {
    * (personal, and the project default), until that section becomes a summary with a link here.
    */
   assistantPrefs(actorId: string): { form: boolean; use_personal: boolean; use_project: boolean; learn_personal: boolean; learn_project: boolean } {
-    const personal = this.prefsFor(actorId, "personal", null), projects = completePrefs("project", this.ledger.prefs(actorId, PROJECT_DEFAULT_PREFS_KEY));
+    const personal = this.prefsFor(actorId, "personal", null), projects = this.prefsFor(actorId, "project", null);
     return { form: personal.form, use_personal: personal.consumers.assistant, use_project: projects.consumers.assistant, learn_personal: personal.learn_from_work, learn_project: projects.learn_from_work };
   }
 
   saveAssistantPrefs(actorId: string, input: Partial<{ form: boolean; use_personal: boolean; use_project: boolean; learn_personal: boolean; learn_project: boolean }>): ReturnType<MemoryPreferences["assistantPrefs"]> {
-    const personal = this.prefsFor(actorId, "personal", null), projects = completePrefs("project", this.ledger.prefs(actorId, PROJECT_DEFAULT_PREFS_KEY));
+    const personal = this.prefsFor(actorId, "personal", null), projects = this.prefsFor(actorId, "project", null);
     if (typeof input.form === "boolean") { personal.form = input.form; projects.form = input.form; }
     if (typeof input.use_personal === "boolean") personal.consumers.assistant = input.use_personal;
     if (typeof input.use_project === "boolean") projects.consumers.assistant = input.use_project;
@@ -55,10 +58,20 @@ export class MemoryPreferences {
     return this.assistantPrefs(actorId);
   }
 
+  /** 允许记住 for one place: the personal switch and the place's own (see `formationAllowed`). */
+  formAllowed(actorId: string, where: { scope: MemoryScope; owner: string; project?: string | null }): boolean {
+    return formationAllowed(this.prefsFor(actorId, "personal", null), this.prefsAt(actorId, where));
+  }
+
+  /** One place's switches: a project's own, a Character's are its project's. */
+  prefsAt(actorId: string, where: { scope: MemoryScope; owner: string; project?: string | null }): MemoryPrefs {
+    return where.scope === "personal" ? this.prefsFor(actorId, "personal", null) : this.prefsFor(actorId, "project", where.scope === "project" ? where.owner : where.project ?? null);
+  }
+
   assertFormation(actorId: string, where: { scope: MemoryScope; owner: string; project?: string | null }, from: MemoryCandidate["from"], gate: boolean): void {
     this.assertEnabled(actorId, where);
-    const prefs = this.prefsFor(actorId, where.scope, where.project ?? null);
-    if (!prefs.form) throw memoryErrors.off("用户关掉了“允许记住”，不要提出记忆建议");
+    const prefs = this.prefsAt(actorId, where);
+    if (!this.formAllowed(actorId, where)) throw memoryErrors.off("用户关掉了“允许记住”，不要提出记忆建议");
     if (gate) return;
     if ((from === "work" || from === "extraction") && !prefs.learn_from_work)
       throw memoryErrors.forbidden(where.scope === "project" ? "用户没有允许从项目工作里提出项目约定" : "用户没有允许从工作里提出个人偏好");

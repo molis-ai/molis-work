@@ -1,14 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createServer } from "node:http";
-import { existsSync, readdirSync } from "node:fs";
+import { realpathSync } from "node:fs";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { evaluationPerson } from "../scripts/memory-evaluation/originals.mjs";
 import { MEMORY_EVALUATION_SEQUENCES, MEMORY_SEQUENCE_PROTOCOL } from "./fixtures/memory-evaluation-sequences.js";
 import { observeMemoryFormation, replayMemorySequences } from "../scripts/memory-evaluation/sequence-replay.mjs";
 import { summarizeMemoryReport } from "../scripts/memory-evaluation/report.mjs";
 import { observeEmittedMemory } from "../scripts/memory-evaluation/request-observation.mjs";
-import type { AgentMemoryRecallFact } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentMemoryRecallFact, AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { memoryEvaluationEnvironment } from "../scripts/memory-evaluation/replay.mjs";
 
 test("MEM-36: the frozen corpus separates layers, complete sequences and approved history from formation labels", () => {
@@ -40,7 +41,7 @@ test("MEM-36: continuous sequences use real formation, candidate promotion, emit
     if (body.max_tokens === 1500) {
       const prompt = body.messages.flatMap((message: { content: string | { text?: string }[] }) => typeof message.content === "string" ? [message.content] : message.content.map(part => part.text ?? "")).join("\n");
       const data = JSON.parse(prompt.slice(prompt.lastIndexOf("\n\n") + 2));
-      const slot = data.destinations.find((group: { scope: string; replacement?: string }) => group.scope === "project" && !group.replacement)?.slots.convention[0];
+      const slot = data.destinations.find((group: { scope: string; replacement?: string }) => group.scope === "project" && !group.replacement)?.slots.convention;
       assert.ok(slot, "fixture chooses a supplied destination, not a precomputed candidate id");
       text = JSON.stringify({ drafts: [{ slot_id: slot, text: data.sources[0].text, suggested_basis: "explicit",
         evidence: data.sources.map((source: { id: string; text: string }) => ({ source_id: source.id, quote: source.text })) }] });
@@ -130,8 +131,10 @@ test("MEM-36: partial SDK formation remains failed while preserving committed it
     const prompt = body.messages.flatMap((message: { content: string | { text?: string }[] }) => typeof message.content === "string"
       ? [message.content] : message.content.map(part => part.text ?? "")).join("\n");
     const data = JSON.parse(prompt.slice(prompt.lastIndexOf("\n\n") + 2));
-    const slots = data.destinations.find((group: { scope: string; replacement?: string }) => group.scope === "project" && !group.replacement).slots.convention.slice(0, 2);
-    assert.equal(slots.length, 2);
+    // Two drafts for the same destination: the model names its one ID twice, and the extractor gives each its own SDK slot.
+    const id = data.destinations.find((group: { scope: string; replacement?: string }) => group.scope === "project" && !group.replacement).slots.convention;
+    assert.equal(typeof id, "string");
+    const slots = [id, id];
     const text = JSON.stringify({ drafts: slots.map((slot_id: string) => ({ slot_id, text: data.sources[0].text, suggested_basis: "inferred",
       evidence: [{ source_id: data.sources[0].id, quote: data.sources[0].text }] })) });
     const frames: string[] = [];
@@ -154,17 +157,39 @@ test("MEM-36: partial SDK formation remains failed while preserving committed it
     const original = await env.original(sequence.sources[0].text, "coding", "project-a");
     const memory = env.adapter.memory!.withCaller(original.original.caller);
     const read = env.adapter.readOriginalInput!.bind(env.adapter);
-    // Inject a current source-owner failure only after the first actual SDK candidate is durable.
-    const records = join(env.home, "sdk", "records", "io.molis.work~memory-candidates");
+    // Observe the real candidate transaction; reading candidates here would recursively re-enter source authorization.
+    const records = join(realpathSync(join(env.home, "agent-runtime")), "records.sqlite");
+    const prepare = DatabaseSync.prototype.prepare, exec = DatabaseSync.prototype.exec, candidateWrites = new WeakSet<DatabaseSync>();
+    let committedCandidates = 0, sourceFailures = 0;
+    const write = t.mock.method(DatabaseSync.prototype, "prepare", function(this: DatabaseSync, sql: string) {
+      const statement = prepare.call(this, sql), database = this;
+      if (sql === "INSERT INTO records(kind,id,envelope) VALUES(?,?,?) ON CONFLICT(kind,id) DO UPDATE SET envelope=excluded.envelope"
+        && prepare.call(this, "PRAGMA database_list").all().find(row => row.name === "main")?.file === records) {
+        const run = statement.run;
+        t.mock.method(statement, "run", function(this: typeof statement, ...values: Parameters<typeof run>) {
+          const result = run.apply(this, values);
+          if (values[0] === "io.molis.work~memory-candidates") candidateWrites.add(database);
+          return result;
+        });
+      }
+      return statement;
+    });
+    const commit = t.mock.method(DatabaseSync.prototype, "exec", function(this: DatabaseSync, sql: string) {
+      const result = exec.call(this, sql);
+      if (sql === "COMMIT" && candidateWrites.has(this)) { committedCandidates++; candidateWrites.delete(this); }
+      else if (sql === "ROLLBACK") candidateWrites.delete(this);
+      return result;
+    });
     const lookup = t.mock.method(env.adapter, "readOriginalInput", async (ref: Parameters<typeof read>[0]) => {
-      if (existsSync(records) && readdirSync(records).some(name => name.endsWith(".json"))) return undefined;
+      if (committedCandidates > 0) { sourceFailures++; return undefined; }
       return read(ref);
     });
     const observation = await observeMemoryFormation(env, sequence, 0, 0, {
       MOLIS_WORK_TEXT_API_KEY: "fixture-key", MOLIS_WORK_TEXT_BASE_URL: endpoint.replace(/\/v1\/messages$/, ""),
       MOLIS_WORK_TEXT_MODEL: "fixture", MOLIS_WORK_TEXT_API_FORMAT: "anthropic-messages",
-    }, original.original);
-    lookup.mock.restore();
+    }, original.original).finally(() => { lookup.mock.restore(); commit.mock.restore(); write.mock.restore(); });
+    assert.equal(committedCandidates, 1, "the failure is armed only by the first actual candidate transaction's successful COMMIT");
+    assert.ok(sourceFailures > 0, "the real source owner is rechecked and fails after that committed candidate");
     assert.equal(requests, 1);
     assert.equal(observation.outcome?.formation.outcome, "partial");
     assert.deepEqual(observation.outcome.formation.items.map(item => item.outcome), ["created", "unknown"]);
@@ -175,4 +200,39 @@ test("MEM-36: partial SDK formation remains failed while preserving committed it
     assert.equal(env.inspectLedger().candidates.length, 1);
     assert.ok(observation.error, "a partial formation must not be emitted as an observed/successful sequence row");
   } finally { await env.close(); }
+});
+
+test("MEM-36: source callers retain the actual Run's formation restriction after settings change and reopen", async t => {
+  let env = await memoryEvaluationEnvironment(undefined, { seeds: [] });
+  const caller = evaluationPerson("project-a", "assistant");
+  const restriction = { selector: { consumer: "assistant" as const, current_scene: "assistant" as const }, read: "inherit" as const, form: "off" as const };
+  const captured: AgentRunRef[] = [], start = env.adapter.start.bind(env.adapter);
+  const capture = t.mock.method(env.adapter, "start", async (...args: Parameters<typeof start>) => {
+    const handle = await start(...args); captured.push(handle.ref); return handle;
+  });
+  try {
+    for (const scope of ["personal", "project"] as const) env.memory.savePrefs(caller, scope, { class_restrictions: [restriction] });
+    const first = await env.original("以后项目摘要先写风险", "assistant", "project-a");
+    capture.mock.restore();
+    assert.equal(captured.length, 1);
+    assert.equal(env.sourceSetup().calls, 1);
+    assert.deepEqual(env.readCounts(), { calls: 0, entries: 0 }, "source setup freezes restrictions without automatic memory retrieval");
+    const actual = await env.adapter.read(captured[0]!);
+    assert.deepEqual(actual.class_restrictions?.project, [restriction]);
+    assert.deepEqual(first.original.caller.class_restrictions, actual.class_restrictions, "caller restrictions come from the completed real Run");
+    for (const scope of ["personal", "project"] as const) env.memory.savePrefs(caller, scope, { class_restrictions: [] });
+    const homeDirectory = env.home;
+    await env.close(false);
+    env = await memoryEvaluationEnvironment(undefined, { seeds: [], homeDirectory });
+    assert.deepEqual((await env.adapter.read(captured[0]!)).class_restrictions, actual.class_restrictions, "the Run's restriction is persistent SDK fact");
+    const replay = await env.original("以后项目摘要先写风险", "assistant", "project-a", first.original);
+    assert.deepEqual(replay.original.caller, first.original.caller, "replay never replaces the original caller with current settings");
+    env.setGeneration(async () => { throw new Error("a denied source must not reach extraction"); });
+    const denied = await env.memory.learnFromWork({ ...replay.original.caller, operation_id: "frozen-source-denial" }, { said: ["以后项目摘要先写风险"], sources: replay.sources });
+    assert.equal(denied.formation.outcome, "skipped");
+    assert.equal(denied.formation.extraction.calls, 0);
+    const current = await env.original("以后项目摘要先写风险", "assistant", "project-a");
+    assert.deepEqual(current.original.caller.class_restrictions?.project, []);
+    assert.equal(env.memory.worthLearning(current.original.caller, ["以后项目摘要先写风险"]), true, "a new Run takes the current permitted snapshot");
+  } finally { capture.mock.restore(); await env.close(); }
 });

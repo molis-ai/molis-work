@@ -30,12 +30,12 @@ export type AssistantOutcomesLinks = Pick<AssistantDispatch, "executorOf" | "dis
  * `link`.
  */
 export class AssistantOutcomes {
-  constructor(private readonly store: Pick<AssistantStore, "addCard" | "get" | "holdWorkInput" | "raiseNotice" | "relations" | "rounds" | "saveUndo" | "setSetting" | "setting" | "undos">, private readonly ports: AssistantServicePorts, private readonly actorId: string, private readonly now: () => Date, private readonly titles: Map<string, CapabilityTitles>, private readonly link: AssistantOutcomesLinks) {}
+  constructor(private readonly store: Pick<AssistantStore, "addCard" | "get" | "permissionTransitions" | "raiseNotice" | "relations" | "rounds" | "saveUndo" | "setSetting" | "setting" | "undos">, private readonly ports: AssistantServicePorts, private readonly actorId: string, private readonly now: () => Date, private readonly titles: Map<string, CapabilityTitles>, private readonly link: AssistantOutcomesLinks) {}
 
   async answer(workId: string, input: { run_id: string; pending_id: string; pending_revision?: number; text?: string;
     answers?: ReadonlyArray<import("@molis-ai/molis-work-contracts/services/agent-interaction").AgentQuestionAnswer> }, caller: AssistantCaller = {}): Promise<AssistantWorkView> {
     const work = this.store.get(this.actorId, workId);
-    const entry = this.store.holdWorkInput(workId);
+    const entry = this.store.permissionTransitions.holdWorkInput(workId);
     try { return await this.answerOriginal(work, input, caller, entry.assertCurrent); }
     finally { entry.release(); }
   }

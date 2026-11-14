@@ -8,6 +8,7 @@ import type { AgentHost, AgentStartAuthority } from "@molis-ai/molis-work-servic
 import type { AgentSessionRef, AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { ActionSubjectContext, ActionView, BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
+import type { MaterialRef, MaterialsReadResult } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import type { AssistantCharacterChoice, AssistantWorkObject } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { WebLocale } from "../web-locale.js";
 import type { AssistantRoundFactPorts } from "./assistant-directory.js";
@@ -39,6 +40,8 @@ export interface AssistantServicePorts extends AssistantLandingPorts, AssistantR
   setupMaterial?(work: StoredWork, offered: readonly ActionView[], previousWaitWithdrawn: boolean): AgentTextMaterial | undefined;
   /** The Home's Agent Host, ready to run. */
   host(): Promise<AgentHost>;
+  /** A draft in a Home whose runtime has been used can have a grant before its first round. */
+  hostForDraftPermissions?(): Promise<AgentHost | undefined>;
   /** The language the person last used, read when a round no page started begins. Absent: such a round is told no language. */
   lastLocale?(): WebLocale;
   authority(work: StoredWork, origin?: { source: "card" }, locale?: WebLocale, namedSkills?: readonly SkillRef[]): Promise<AgentStartAuthority>;
@@ -50,6 +53,11 @@ export interface AssistantServicePorts extends AssistantLandingPorts, AssistantR
   personActions?(work: Pick<StoredWork, "project_ref">, use?: "dispatch", handed?: ExecutorHanded, executorPluginId?: string): Promise<BoundActionClient>;
   /** The person's own actions in a work's scope (its project, or the Home), for reading related objects from their owners. */
   scopeActions?(work: Pick<StoredWork, "project_ref">): Promise<PersonActions>;
+  /**
+   * A file of the project's folders, or a version the platform's materials service fixed, read back as the person through
+   * `materials.read` in the work's project (Files retirement S5): only for a reference the person handed in, with the folder read it asks.
+   */
+  readMaterial?(project: LocalHostProjectReference, ref: MaterialRef): Promise<MaterialsReadResult>;
   /** The person's own actions in their Home, for reading the reminders they set in Plugins. */
   homeActions?(): Promise<PersonActions>;
   /** The Characters the person published in a project, each saying whether it can run now. */
@@ -103,7 +111,7 @@ export function checkText(value: unknown, field: string, max: number): string {
 }
 
 /** What a round is given as marked data, and what in it is told only once (marked told after the round has started). */
-export interface RoundMaterials { materials: AgentTextMaterial[]; told: { undos: string[]; unsettled: string[] } }
+export interface RoundMaterials { knowledgeDispatch?: import("../knowledge-dispatch.js").KnowledgeDispatchControl; materials: AgentTextMaterial[]; told: { undos: string[]; unsettled: string[] } }
 
 /**
  * A Home-kept object that says it belongs to another project (or a project, for personal work): its content is not

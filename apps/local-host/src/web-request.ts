@@ -32,9 +32,12 @@ import type { MolisWorkPtyHost } from "@molis-ai/molis-work-service-runtime-host
 import { cachedMolisWorkWebView, type MolisWorkWebViewCache, type GoalsWebView } from "./web-view.js";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import { ensureProjectPlugins } from "./project-plugins.js";
+import { handleSurfaceHomeHttp, isSurfaceHomePath } from "./surface-home-http.js";
+import { handleSurfaceAttentionHttp } from "./surface-position-http.js";
+import { handleSurfaceSlotHttp } from "./surface-slot-http.js";
 import { UI_LANGUAGE_PREVIEW_HEADER } from "./web-ui-preference.js";
 import { homeStageHalves } from "./home-plugin-http.js";
-import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
+import { builtinPluginByProjectKey } from "./plugin-registry.js";
 import { readRuntimeStageData, runtimeStageOwner, shownRuntimeOwners, type RuntimeStageOwner } from "./project-plugin-stages.js";
 import type { InboxStageData } from "@molis-ai/molis-work-plugin-inbox";
 import { handlePluginStageFragmentHttp } from "./plugin-stage-fragment-http.js";
@@ -88,7 +91,8 @@ export async function handleMolisWorkWebRequest(
       ptyHost, webUrl, localHost, composition, agentHost, agentReady };
     if (await homePluginsRoute.handle(context)) return;
     // The personal space always exists for the person; it is made the first time anyone opens it.
-    if (/^\/projects\/personal(?:\/|$)/u.test(url.pathname) && !serverOptions.databasePath && request.headers[UI_LANGUAGE_PREVIEW_HEADER] === undefined) {
+    const personal = /^\/projects\/personal(?=\/|$)/u.exec(url.pathname);
+    if (personal && !serverOptions.databasePath && request.headers[UI_LANGUAGE_PREVIEW_HEADER] === undefined && !isSurfaceHomePath(url.pathname.slice(personal[0].length))) {
       await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => catalog.ensurePersonalSpace());
     }
     const resolved = await resolveOrChooser(context);
@@ -160,6 +164,9 @@ const PROJECT_ROUTES: readonly WebRoute<ProjectRequestContext>[] = [
     return true;
   } },
   homePluginsRoute,
+  { id: "surface-home", handle: handleSurfaceHomeHttp },
+  { id: "surface-attention", handle: handleSurfaceAttentionHttp },
+  { id: "surface-slot", handle: handleSurfaceSlotHttp },
   pluginPageRoute, directoryGrantRoute,
   { id: "project-plugin-consents", handle: context => handlePluginConsentSettingsHttp(context, context.hostReference) },
   { id: "project-task-grants", handle: context => handleTaskGrantsSettingsHttp(context, context.hostReference) },
@@ -242,7 +249,7 @@ const pageOwnerRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
       bind: (action, owner, signal) => bindLocalWebAction(localHost, hostReference, action, { signal, stage_read: ownerRead(owner) }),
       owner: async key => {
         const state = await ensureProjectPlugins(pluginPorts), home = await homeStageHalves(localHost.homePlugins);
-        const entry = PLATFORM_PLUGIN_REGISTRATIONS.find(item => item.project_plugin_id === key) ?? home?.entries.find(item => item.project_plugin_id === key);
+        const entry = builtinPluginByProjectKey(key) ?? home?.entries.find(item => item.project_plugin_id === key);
         return entry ? runtimeStageOwner(state, entry, home).owner : undefined;
       } }) },
   { id: "subject-context", handle: ({ request, response, url, options, shownPlugins, localHost, hostReference, pluginPorts }) =>

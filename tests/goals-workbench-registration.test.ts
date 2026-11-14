@@ -54,9 +54,13 @@ test("RAC-2093 Goals' settings scripts run from the registration's settings clie
 test("the shipped page preserves the assembled registration program after literal pooling and compaction", () => {
   const source = workbenchClientSource();
   assert.ok(source.startsWith(UI_REQUEST_CLIENT_SCRIPT));
-  const expected = UI_REQUEST_CLIENT_SCRIPT + compactClientScript(source.slice(UI_REQUEST_CLIENT_SCRIPT.length));
+  const program = compactClientScript(source.slice(UI_REQUEST_CLIENT_SCRIPT.length));
   const shipped = renderMolisWorkWorkbenchClientScript();
-  assert.equal(shipped.slice(0, expected.length), expected);
-  assert.match(shipped.slice(expected.length), /data-unified-account-link/);
+  assert.equal(shipped.slice(0, UI_REQUEST_CLIENT_SCRIPT.length), UI_REQUEST_CLIENT_SCRIPT);
+  // The project home view is its own bundle between the request bootstrap and the shell that calls it (tooling/build-client.mjs).
+  const rest = shipped.slice(UI_REQUEST_CLIENT_SCRIPT.length), at = rest.indexOf(program);
+  assert.match(rest, /^"use strict";var molisWorkHomeView=/u);
+  assert.ok(at > 0 && rest.indexOf(program, at + 1) < 0, "the assembled program is shipped once, whole, after the home view");
+  assert.match(rest.slice(at + program.length), /data-unified-account-link/);
   assert.equal(count(shipped, "data-unified-account-link"), 1);
 });

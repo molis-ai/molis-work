@@ -70,7 +70,7 @@ Molis Work 把这份记录放在本地。Codex、Claude Code、OpenCode 或其�
   <img src="docs/screenshots/soft-workbench/phone-zh.jpg" width="22%" alt="手机宽度下的项目首页与两行底栏">
 </p>
 <p align="center">
-  <sub>截图来自当前源码与演示数据。珍珠灰桌面上是一张连续的工作面，全局导航和统一对话都在底栏。所有页面共用一套图标、一套字号阶梯、四档动效时长，深色模式分三层。视觉规范见 <a href="DESIGN.md">DESIGN.md</a>。</sub>
+  <sub>截图来自当前源码与演示数据。雾蓝桌面上是一张连续的工作面，全局导航和统一对话都在底栏。所有页面共用一套图标、一套字号阶梯、四档动效时长，深色模式分三层。视觉规范见 <a href="DESIGN.md">DESIGN.md</a>。</sub>
 </p>
 
 ## 核心功能

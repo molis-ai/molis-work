@@ -17,6 +17,7 @@ UiHost.register 保存 contribution，render 调用对应渲染器；mount 检�
 | [src/index.ts](src/index.ts) | UiHost 注册、渲染与挂载 |
 | [src/declared-mount-host.ts](src/declared-mount-host.ts) | 外壳的构造器对 UiHost 只要的那一个调用：`mountDeclared`（按 surface 声明的 slot 挂）；「方法→surface」表造渲染方法的构造器在 Goals 页（`plugins/native/goals/src/page/surfaces.ts`），这里不留第二份 |
 | [src/plugin-client.ts](src/plugin-client.ts) | Plugin UI 访问边界 |
+| [src/view-registry.ts](src/view-registry.ts) | 按声明排序的工作台视图。工作台用 `placements(slot)` 同时取原 manifest 输入与放置结果，以便保留不同目录条目的归属。 |
 | [src/text-sources.ts](src/text-sources.ts) | 由宿主按实际激活对象登记和撤回语言读取器。平台词源可共享，插件词源只供该实例使用。 |
 | [src/plugin-directory-words.ts](src/plugin-directory-words.ts) | 从 Manifest 的原文和准确词源投影目录纯文字。工作台接着裁剪显示字段。 |
 | [src/client-lifecycle.ts](src/client-lifecycle.ts) | 浏览器挂载、取消及资源释放，由 Host 注入 |

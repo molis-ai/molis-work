@@ -1,4 +1,5 @@
 import { childEmbeds } from "./embed.js";
+import { childSurfaceSlots } from "./surface-slot-child.js";
 import type { UiPageView } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { FrameDown, FramePack, FrameScope, FrameUp } from "./types.js";
 import { renderedFrameText } from "./document.js";
@@ -61,7 +62,8 @@ export function childView(port: MessagePort, scope: FrameScope): UiPageView<HTML
     const entry = pending.get(event.data.id); if (!entry) return;
     entry.finish(event.data.html ?? "", event.data.error ? new Error(event.data.error) : undefined);
   });
-  return { onClosing(action) { if (scope.alive) port.postMessage({ type: "on-closing", action } satisfies FrameUp); }, embed: childEmbeds(port, scope), refreshShell() { if (scope.alive) port.postMessage({ type: "refresh-shell" } satisfies FrameUp); }, readDocument: query => new Promise<string>((resolve, reject) => {
+  return { onClosing(action) { if (scope.alive) port.postMessage({ type: "on-closing", action } satisfies FrameUp); },
+    embed: childEmbeds(port, scope), surfaceSlot: childSurfaceSlots(port, scope), refreshShell() { if (scope.alive) port.postMessage({ type: "refresh-shell" } satisfies FrameUp); }, readDocument: query => new Promise<string>((resolve, reject) => {
     if (!scope.alive) { reject(new Error("View closed")); return; }
     query?.signal?.throwIfAborted();
     const id = ++sequence, language = languageRevision;

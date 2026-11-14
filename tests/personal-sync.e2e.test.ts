@@ -237,3 +237,59 @@ test('PCSYNC-27 resident indicator reports conflict and offline states without s
  await b.evaluate("dispatchEvent(new Event('offline'))");await b.waitFor("document.querySelector('[data-sync-indicator]').dataset.syncPhase==='offline'");
  assert.equal(await b.evaluate("document.querySelector('[data-sync-indicator]').textContent.includes('已同步')"),false);
 });
+
+test('BSH-14-D sync settings show the four process-item steps in order, a button only on the step whose turn it is, each behind a confirmation',{timeout:60000},async t=>{
+  const b=await openGoalBrowser(t,true);if(!b)return;
+  await b.command('Page.addScriptToEvaluateOnNewDocument',{source:`(()=>{
+    const original=window.fetch.bind(window),selection={plugin_id:'io.molis.work.artifacts',publisher_id:'molis',publisher_signature:'official-artifacts-binding',collection_id:'process_items',schema_version:1};
+    const project=(id,name,extra={})=>({project_id:id,name,layout:'current',pending:0,unsettled:[],refused:[],...extra});
+    window.stepCalls=[];
+    window.stepView={cutover:{phase:'complete',cutoverId:'cutover-0123456789abcdef',completionHead:4,consentRevision:1},adopted:false,
+      projects:[project('p1','旧笔记',{layout:'original',pending:3,unsettled:['2 process item change(s) not yet uploaded from the original journal']}),project('p2','安静项目')],capture:null};
+    window.fetch=async(url,init)=>{
+      const path=new URL(String(url),location.href).pathname;
+      if(path==='/api/sync/process-items')return Response.json(window.stepView);
+      if(path.startsWith('/api/sync/process-items/')){
+        const step=path.slice('/api/sync/process-items/'.length);window.stepCalls.push(step);
+        if(step==='capture'){window.stepView={...window.stepView,capture:{captureId:'a'.repeat(32),items:[{key:'k1',project_id:'p1',name:'旧笔记',artifact_id:'files-shared',versions:2},{key:'k2',project_id:'p1',name:'旧笔记',artifact_id:'files-local',versions:1}]}};return Response.json({captureId:'a'.repeat(32),status:window.stepView});}
+        if(step==='adopt'){window.stepView={...window.stepView,adopted:true,projects:window.stepView.projects.map(p=>({...p,layout:'current',pending:0,unsettled:[]}))};return Response.json({adopted:true,projects:[],status:window.stepView});}
+        if(step==='take-over')return Response.json({outcomes:[{key:'k1',outcome:'conflict'},{key:'k2',outcome:'queued'}],status:window.stepView});
+      }
+      if(path==='/api/sync')return Response.json({available:true,device:{automatic:false},policy:{spaceId:'steps-space',revision:1,selections:[selection]},running:false,error:null,lastSuccess:null,progress:{selected:1,pending:0,conflicts:0,waiting:0,failures:0,unavailable:0,complete:true},collections:[{selection,title:'过程项',pending:0,conflicts:[],failures:[]}],unavailable:[]});
+      return original(url,init);
+    };
+  })();`},b.sessionId);
+  await b.navigate(()=>b.command('Page.navigate',{url:b.origin+'/settings/sync'},b.sessionId));
+  await b.waitFor("document.querySelector('[data-sync-process-items]')?.hidden===false");
+  const rows=()=>b.evaluate<string[]>("[...document.querySelectorAll('[data-sync-process-items] .settings-setting-row')].map(row=>row.textContent)");
+  const buttons=()=>b.evaluate<string[]>("[...document.querySelectorAll('[data-sync-process-items] button')].map(el=>el.dataset.processItemsStep)");
+  let text=await rows();
+  assert.equal(text.length,4);
+  assert.ok(text[0]!.includes('已完成（任一设备一次）'));assert.ok(text[1]!.includes('待做 · 1 个项目'));assert.ok(text[2]!.includes('等②完成'));assert.ok(text[3]!.includes('这台设备不需要'));
+  assert.deepEqual(await buttons(),['capture'],'only the step whose turn it is can be pressed');
+  await mkdir('.impeccable/qa/review',{recursive:true});
+  const shoot=async(name:string)=>{for(const [width,theme] of [[1440,'light'],[390,'dark']] as const){
+    await b.command('Emulation.setDeviceMetricsOverride',{width,height:1000,deviceScaleFactor:1,mobile:false},b.sessionId);
+    await b.evaluate(`localStorage.setItem('molis-work:theme',${JSON.stringify(theme)});dispatchEvent(new StorageEvent('storage',{key:'molis-work:theme',newValue:${JSON.stringify(theme)}}));document.querySelector('[data-sync-process-items]').scrollIntoView({block:'start'})`);
+    await b.waitFor(`document.documentElement.dataset.resolvedTheme===${JSON.stringify(theme)}`);
+    assert.equal(await b.evaluate('document.documentElement.scrollWidth<=innerWidth'),true);
+    const shot=await b.command<{data:string}>('Page.captureScreenshot',{format:'png'},b.sessionId);await writeFile(`.impeccable/qa/review/sync-process-items-${name}-${width}-${theme}.png`,Buffer.from(shot.data,'base64'));
+  }};
+  await shoot('keep');
+  // A step runs only after its confirmation.
+  await b.click('[data-process-items-step="capture"]');await b.waitFor("document.querySelector('dialog[open]')?.textContent.includes('保全本机未上传的过程项？')");
+  assert.deepEqual(await b.evaluate('window.stepCalls'),[]);
+  await b.evaluate("document.querySelector('dialog[open] footer button').click()");await b.waitFor("window.stepCalls.length===1");
+  await b.waitFor("[...document.querySelectorAll('[data-sync-process-items] button')].some(el=>el.dataset.processItemsStep==='adopt')");
+  text=await rows();assert.ok(text[1]!.includes('已保全 2 项'));assert.deepEqual(await buttons(),['adopt']);
+  await b.click('[data-process-items-step="adopt"]');await b.waitFor("document.querySelector('dialog[open]')?.textContent.includes('采用本机项目库？')");
+  await b.evaluate("document.querySelector('dialog[open] footer button').click()");await b.waitFor("window.stepCalls.length===2");
+  await b.waitFor("[...document.querySelectorAll('[data-sync-process-items] button')].some(el=>el.dataset.processItemsStep==='take-over')");
+  text=await rows();assert.ok(text[2]!.includes('已采用，本机已接上新流'));assert.ok(text[3]!.includes('2 项可接管'));
+  assert.ok((await b.evaluate<string>("document.querySelector('[data-sync-process-items] ul').textContent")).includes('旧笔记 · files-shared · 本机 2 版'));
+  await shoot('take-over');
+  await b.click('[data-process-items-step="take-over"]');await b.waitFor("document.querySelector('dialog[open]')?.textContent.includes('接管保全的过程项？')");
+  await b.evaluate("document.querySelector('dialog[open] footer button').click()");await b.waitFor("window.stepCalls.length===3");
+  await b.waitFor("document.querySelector('[data-sync-process-items]').textContent.includes('结果：相同 0 · 已排队 1 · 冲突 1')");
+  assert.deepEqual(await b.evaluate('window.stepCalls'),['capture','adopt','take-over']);
+});

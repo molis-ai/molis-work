@@ -20,7 +20,7 @@ export function feedWakeAction(tick: ActionDefinition): ActionDefinition<Schedul
     execution: { timeout_ms: 660_000 },
     input_schema: { type: "object", properties: { job_id: text, plugin_id: text, capability_id: text, object_ref: text, due_at: text },
       required: ["job_id", "plugin_id", "capability_id", "object_ref", "due_at"], additionalProperties: false },
-    output_schema: { type: "object", properties: { status: { enum: ["ok", "failed", "plugin_unavailable"] }, detail: { type: "string" } }, additionalProperties: false },
+    output_schema: { type: "object", properties: { status: { enum: ["ok", "failed", "plugin_unavailable"] }, detail: { type: "string" }, view_changed: { const: false } }, additionalProperties: false },
   }, /* @version action.feed.sources.wake */ 1);
 }
 

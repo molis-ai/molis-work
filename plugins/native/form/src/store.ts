@@ -13,11 +13,10 @@ import type {
 import { formErrors } from "./error.js";
 import { FORM_ANSWER_FORMAT, FORM_ANSWER_LIMIT } from "./fillpage.js";
 
-import type { FormPublicationIntent, FormPublicationSnapshot } from "./promote.js";
 import { FORM_DATABASE } from "./database.js";
 export { FORM_DATABASE };
 
-interface FormRow {
+type FormRow = {
   id: string;
   project_id: string;
   title: string;
@@ -31,7 +30,7 @@ interface FormRow {
   artifact_id?: string;
   artifact_version?: number;
   publication_pending_json?: string | null;
-}
+};
 
 interface SubmissionRow {
   id: string;
@@ -124,7 +123,7 @@ export class FormStore {
     expected_version?: number;
   }, projectId?: string): FormRecord {
     const current = this.get(id, projectId);
-    this.assertVersion(current, patch.expected_version);
+    assertFormVersion(current, patch.expected_version);
     const next: FormRecord = {
       ...current,
       title: patch.title !== undefined ? normalizeTitle(patch.title) : current.title,
@@ -140,7 +139,7 @@ export class FormStore {
 
   publish(id: string, projectId?: string, expectedVersion?: number): FormRecord {
     const current = this.get(id, projectId);
-    this.assertVersion(current, expectedVersion);
+    assertFormVersion(current, expectedVersion);
     const share_id = current.share_id ?? crypto.randomUUID().slice(0, 12);
     const next: FormRecord = {
       ...current,
@@ -169,7 +168,7 @@ export class FormStore {
   /** Stop collecting: the fill page says so and takes no more answers; answers already in stay. */
   closeCollection(id: string, projectId?: string, expectedVersion?: number): FormRecord {
     const current = this.get(id, projectId);
-    this.assertVersion(current, expectedVersion);
+    assertFormVersion(current, expectedVersion);
     const next: FormRecord = { ...current, status: "closed", updated_at: new Date().toISOString(), version: current.version + 1 };
     const result = this.db.run("UPDATE forms SET status = ?, updated_at = ?, version = ? WHERE id = ? AND version = ?", [next.status, next.updated_at, next.version, id, current.version]);
     if (result.changes !== 1) throw formErrors.conflict("问卷已改变，请重新读取后再停止收集");
@@ -249,7 +248,7 @@ export class FormStore {
 
   delete(id: string, projectId?: string, expectedVersion?: number): void {
     this.atomically(() => {
-      const current = this.get(id, projectId); this.assertVersion(current, expectedVersion);
+      const current = this.get(id, projectId); assertFormVersion(current, expectedVersion);
       if (current.publication_pending) throw formErrors.publication_pending("请先恢复上次成果发布，再删除问卷");
       this.db.run("DELETE FROM submissions WHERE form_id = ?", [id]);
       this.db.run("DELETE FROM forms WHERE id = ?", [id]);
@@ -287,7 +286,7 @@ export class FormStore {
           return prior;
         }
       }
-      this.assertVersion(form, options.expectedVersion);
+      assertFormVersion(form, options.expectedVersion);
       const normalized = normalizeAnswers(form.questions, answers);
       const submission: FormSubmissionRecord = { id: crypto.randomUUID(), form_id: id, answers: normalized,
         submitted_at: new Date().toISOString(), form_version: form.version, questions: form.questions, source };
@@ -307,43 +306,15 @@ export class FormStore {
     const row = this.db.get("SELECT COUNT(*) AS count FROM submissions WHERE form_id = ?", [id]) as { count: number };
     return { form_id: id, submission_count: Number(row.count) };
   }
-  beginPublication(id: string, projectId: string, actorId: string, expectedVersion?: number, existing?: FormPublicationSnapshot, version?: number): FormPublicationIntent {
-    return this.atomically(() => {
-      const current = this.get(id, projectId); this.assertVersion(current, expectedVersion);
-      const pending = this.publicationIntent(id);
-      if (pending) {
-        if (pending.actor_id !== actorId) throw formErrors.publication_owner("请由上次发布的发起者恢复，原快照已保留");
-        return pending;
-      }
-      const intent: FormPublicationIntent = { content: existing ?? { title: current.title, description: current.description, status: current.status, questions: current.questions },
-        version: version ?? current.artifact_version + 1, source_version: current.version, actor_id: actorId };
-      this.db.run("UPDATE forms SET publication_pending_json = ? WHERE id = ?", [JSON.stringify(intent), id]);
-      return intent;
-    });
-  }
-
-  completePublication(id: string, projectId: string, intent: FormPublicationIntent, artifact: { artifact_id: string; version: number }): FormRecord {
-    return this.atomically(() => {
-      const current = this.get(id, projectId);
-      if (current.artifact_id === artifact.artifact_id && current.artifact_version >= intent.version) return current;
-      if (JSON.stringify(this.publicationIntent(id)) !== JSON.stringify(intent)) throw formErrors.publication_conflict("发布记录已改变，请重新读取问卷");
-      this.db.run("UPDATE forms SET artifact_id = ?, artifact_version = ?, updated_at = ?, version = version + 1, publication_pending_json = NULL WHERE id = ?", [artifact.artifact_id, artifact.version, new Date().toISOString(), id]);
-      return this.get(id, projectId);
-    });
-  }
-
-  private publicationIntent(id: string): FormPublicationIntent | null {
-    const row = this.db.get("SELECT publication_pending_json FROM forms WHERE id = ?", [id]) as { publication_pending_json: string | null };
-    return row.publication_pending_json ? JSON.parse(row.publication_pending_json) as FormPublicationIntent : null;
-  }
-  private assertVersion(current: FormRecord, expectedVersion?: number): void {
-    if (expectedVersion !== undefined && expectedVersion !== current.version) throw formErrors.conflict("问卷已被其他窗口修改，请重新读取；当前草稿未覆盖服务器内容");
-  }
 }
 
 
-function fromRow(row: FormRow): FormRecord {
-  const pending = row.publication_pending_json ? JSON.parse(row.publication_pending_json) as FormPublicationIntent : null;
+export function assertFormVersion(current: FormRecord, expectedVersion?: number): void {
+  if (expectedVersion !== undefined && expectedVersion !== current.version) throw formErrors.conflict("问卷已被其他窗口修改，请重新读取；当前草稿未覆盖服务器内容");
+}
+
+export function fromRow(row: FormRow): FormRecord {
+  const pending = row.publication_pending_json ? JSON.parse(row.publication_pending_json) as NonNullable<FormRecord["publication_pending"]> : null;
   return {
     id: row.id,
     project_id: row.project_id ?? "",

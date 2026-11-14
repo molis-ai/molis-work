@@ -243,6 +243,8 @@ export declare const GOALS_TREE_SUBMIT_RESULT: ActionResultView;
 
 export declare const GOAL_EVENT_EVIDENCE_MAX = 8;
 
+export declare const GOAL_MATERIAL_SNAPSHOT_SOURCE = "material_snapshot";
+
 export declare const GOAL_PLUGIN_OBJECT_SOURCE = "plugin_object";
 
 export interface GoalAcceptanceCriterion {
@@ -2332,6 +2334,11 @@ export declare const goalHistoryPageSchema: Readonly<Record<string, unknown>>;
 
 export declare const goalIntentSourceKinds: readonly ["web", "onboarding", "feed", "runtime", "tree"];
 
+export declare function goalMaterialSnapshotRef(version: {
+    artifact_id: string;
+    version: number;
+}): string;
+
 export declare const goalPluginActions: {
     readonly list: import("@molis-ai/molis-work-contracts/platform/actions").ActionDefinition<GoalListActionInput, GoalEventDirectoryPage>;
     readonly contract: import("@molis-ai/molis-work-contracts/platform/actions").ActionDefinition<GoalReadActionInput, GoalContractView>;
@@ -2437,6 +2444,11 @@ export { nullableSchema as nullable } from "@molis-ai/molis-work-plugin-sdk";
 export declare const object: (properties: Record<string, unknown>, required?: string[]) => ActionSchema;
 
 export declare const option: Readonly<Record<string, unknown>>;
+
+export declare function parseGoalMaterialSnapshotRef(ref: string): {
+    artifact_id: string;
+    version: number;
+} | null;
 
 export declare function parseGoalPluginObjectRef(ref: string): {
     kind: string;

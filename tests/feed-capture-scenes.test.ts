@@ -5,10 +5,11 @@ import { tmpdir } from "node:os";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
-import { FEED_ACTION_PERMISSIONS, feedCaptureScene, feedRuleActions, feedSceneBindingId, createFeedCaptureTrigger } from "@molis-ai/molis-work-plugin-feed";
+import { FEED_ACTION_PERMISSIONS, feedCaptureScene, feedRuleActions, feedSceneBindingId, createFeedCaptureTrigger, type FeedJudgmentCatalog, type FeedOutRuleRecord, type FeedSourceRecord } from "@molis-ai/molis-work-plugin-feed";
 import { bindActionClient, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { withFunctionsService, type FunctionsHostOptions } from "../apps/local-host/dist/judgment-rules-host.js";
-import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
+import { createLocalFeedApplication, createLocalFeedSourceService, listTestFeedSourceCatalog } from "./fixtures/feed-library.js";
+import { openTestHome } from "./fixtures/test-home.js";
 
 async function fixture() {
   const home = await mkdtemp(join(tmpdir(), "feed-capture-scenes-"));
@@ -136,4 +137,52 @@ test("Feed binds unknown judgments and rejects stale rule, item, provider and au
     assert.equal((await actions.invoke(feedRuleActions.list, {})).rules.find(value => value.rule_id === rule.rule_id)!.enabled, false);
     assert.equal(calls, 6);
   } finally { await f.close(); }
+});
+
+test("BRC-05 S-89 a Feed choice from a real GET cannot bind, preview, or run after its provider changes", { timeout: 30_000 }, async t => {
+  const home = await openTestHome(t);
+  const host: MolisWorkLocalHost = home.host;
+  const project = await home.createProject("Stale scene candidate", ["feed"]);
+  const api = `/projects/${encodeURIComponent(project.project_id)}/api/plugins/io.molis.work.feed`;
+  const rules = api + "/out-rules", preview = rules + "/preview-judgment";
+  const { source } = await home.web.post<{ source: FeedSourceRecord }>(api + "/sources", { kind: "rss", definition_id: listTestFeedSourceCatalog()[0]!.id });
+  const item = await host.withProject(project.reference, runtime => createLocalFeedApplication(runtime.store.db).ingestItem({
+    source, externalId: "n49-preview", title: "Launch note", summary: "Original text", occurredAt: new Date().toISOString(), attention: false,
+  }).item);
+  const definition: ActionDefinition = { capability_id: "fixture.n49.stale_judgment", version: 1, operation: "command", action: {
+    title: "Original judgment", description: "Judges a Feed item", kind: "judgment", scope: "project", audiences: ["user", "workflow"], permissions: [],
+    subject_kinds: ["feed_item"], input_schema: feedCaptureScene.input_schema, output_schema: feedCaptureScene.result_schema, output_type: feedCaptureScene.result_type,
+  } };
+  let invoked = 0;
+  const register = (provider_id: string) => host.actionRegistry(project.reference).registerProvider({
+    provider: { provider_id, title: provider_id, kind: "system", project_id: project.project_id }, definitions: [definition],
+    handlers: [{ ...definition, handle() { invoked++; return { status: "ok", suggested_behavior_ids: ["feed.open"] }; } }],
+  });
+  const remove = register("fixture.original");
+  t.after(remove);
+  const choice = (await home.web.get<FeedJudgmentCatalog>(rules + "/judgments")).choices.find(row => row.reference.capability_id === definition.capability_id);
+  assert.ok(choice?.available);
+  assert.equal(choice.reference.provider_id, "fixture.original");
+  const input = { name: "Saved with original provider", source_id: source.source_id, judgment: choice.reference, admission: "suggest" };
+  const saved = (await home.web.post<{ rule: FeedOutRuleRecord }>(rules, input)).rule;
+  const previewInput = { item_id: item.item_id, judgment: choice.reference };
+  assert.deepEqual(await home.web.post(preview, previewInput), { status: "ok", suggested_behavior_ids: ["feed.open"] });
+  const history = () => withFunctionsService(home.home, service => service.listJudgments());
+  const before = history();
+
+  remove();
+  t.after(register("fixture.replacement"));
+  const invalid = { code: "actions.binding_invalid", message: /原引用不能自动替换/ };
+  await assert.rejects(home.web.post(rules, { ...input, name: "Refused binding" }), invalid);
+  await assert.rejects(home.web.post(preview, previewInput), invalid);
+  const caller: ActionCallContext = { actor_id: "owner", project_id: project.project_id, audience: "user", permissions: FEED_ACTION_PERMISSIONS };
+  await assert.rejects(host.sceneClient(project.reference).runScene(caller, feedCaptureScene, feedSceneBindingId(saved.rule_id), {
+    rule_id: saved.rule_id, item_id: item.item_id,
+  }), { code: "actions.scene_incompatible", message: /原引用不能自动替换/ });
+  assert.deepEqual(await home.web.get(rules), { rules: [saved] }, "no new rule and the existing binding revision is unchanged");
+  assert.deepEqual(history(), before, "no judgment record was written");
+  assert.equal(invoked, 1, "neither the removed judgment nor its replacement ran");
+  const latest = await home.web.get<FeedJudgmentCatalog>(rules + "/judgments");
+  assert.ok(latest.choices.some(row => row.reference.provider_id === "fixture.replacement" && row.available));
+  assert.equal(latest.usages.find(row => row.binding_id === feedSceneBindingId(saved.rule_id))?.availability.available, false);
 });

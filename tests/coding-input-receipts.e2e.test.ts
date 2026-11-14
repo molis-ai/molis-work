@@ -188,7 +188,8 @@ test("RC-10/RC-11/RC-13/RC-16: Coding sends a supplement with its mode, sends a 
   for (let i = 0; i < 600 && bodies.length <= asked; i++) await new Promise(resolve => setTimeout(resolve, 50));
   assert.match(JSON.stringify(bodies[asked]?.messages ?? ""), /登录失败时提示要说清原因/u, "the correction went with the next round");
   assert.equal(JSON.stringify(bodies.slice(asked)).includes("下一轮顺便看注册接口"), false, "RCPT-332 the one taken back from the tray did not");
-  await waitFor(`${receiptOf("/v2/login")}?.querySelector('.mw-receipt__link')?.textContent === '你改为：「补充一句：登录失败时提示…」'`, 20_000);
+  // #2035: the receipt puts the quoted text (common.punctuation.quoted) straight after 你改为.
+  await waitFor(`${receiptOf("/v2/login")}?.querySelector('.mw-receipt__link')?.textContent === '你改为「补充一句：登录失败时提示…」'`, 20_000);
   await b.waitFor(`!!document.querySelector('${CODING_COMPOSER} [data-composer-stop]')`, 15_000);
   await barFill(`${CODING_COMPOSER} .mw-composer__input`, "顺便把日志也看一遍");
   await b.click(`${CODING_COMPOSER} [data-composer-send]`);

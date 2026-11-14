@@ -7,9 +7,11 @@ import { isRecord } from "./json-value.js";
 
 /** A table or column name as the platform writes it into a statement: plain, unqualified, never chosen by an argument. */
 const IDENTIFIER = /^[a-z_][a-z0-9_]*$/u;
-const FIELDS = new Set(["label", "order", "tables", "files"]);
+const FIELDS = new Set(["label", "order", "tables", "files", "artifact_join"]);
 const FILES_FIELDS = new Set(["table", "column", "key", "directory"]);
 const TABLE_FIELDS = new Set(["table", "column", "parent", "key"]);
+const JOIN_COLUMNS = ["id_column", "version_column", "artifact_id_column", "artifact_version_column"] as const;
+const JOIN_FIELDS = new Set(["table", ...JOIN_COLUMNS, "write_columns", "pending_column"]);
 const LABEL_LIMIT = 200;
 export const projectDeletionLine = (label: string): boolean =>
   label.trim().length > 0 && label.length <= LABEL_LIMIT && !/[\p{Cc}\u2028\u2029]/u.test(label);
@@ -34,6 +36,26 @@ export function projectRowsProblems(path: string, value: unknown, schema: unknow
   const own = createdTables(typeof schema === "string" ? schema : "");
   value.tables.forEach((table, index) => problems.push(...tableProblems(`${path}.tables[${index}]`, table, own, value.tables as unknown[], index)));
   if (value.files !== undefined) problems.push(...filesProblems(`${path}.files`, value.files, value.tables, ownerFiles));
+  if (value.artifact_join !== undefined) problems.push(...artifactJoinProblems(`${path}.artifact_join`, value.artifact_join, value.tables));
+  return problems;
+}
+
+function artifactJoinProblems(path: string, value: unknown, tables: readonly unknown[]): string[] {
+  if (!isRecord(value)) return [`${path} 必须为对象`];
+  const problems: string[] = [];
+  const unknown = Object.keys(value).filter(field => !JOIN_FIELDS.has(field));
+  if (unknown.length > 0) problems.push(`${path} 不认这些字段：${unknown.join("、")}`);
+  const owner = tables.find(table => isRecord(table) && table.table === value.table && table.parent === undefined);
+  if (typeof value.table !== "string" || !IDENTIFIER.test(value.table) || !isRecord(owner)) {
+    problems.push(`${path}.table 必须是 tables 里一张不带 parent 的表`);
+  }
+  const names = [...JOIN_COLUMNS.map(field => value[field]), ...value.pending_column === undefined ? [] : [value.pending_column]];
+  if (!Array.isArray(value.write_columns)) problems.push(`${path}.write_columns 必须为数组`);
+  else names.push(...value.write_columns);
+  if (names.some(name => typeof name !== "string" || !IDENTIFIER.test(name))) problems.push(`${path} 的列必须是不带库名的小写标识符`);
+  if (new Set(names).size !== names.length || isRecord(owner) && names.includes(owner.column)) {
+    problems.push(`${path} 的列必须互不重复，且不能是项目列`);
+  }
   return problems;
 }
 

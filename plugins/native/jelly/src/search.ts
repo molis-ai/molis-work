@@ -11,10 +11,12 @@ const kinds = [
   { kind: JELLY_ITEM_SUBJECT_KIND, title: "日程", surface: JELLY_PROJECT_PLUGIN_ID },
   { kind: JELLY_NOTE_SUBJECT_KIND, title: "笔记", surface: JELLY_PROJECT_PLUGIN_ID },
 ];
+const itemReader = defineSubjectContextAction("jelly.item.subject.read", /* @version action.jelly.item.subject.read */ 1, JELLY_ITEM_SUBJECT_KIND, "Jelly 日程", ["jelly:read"], "home");
+const noteReader = defineSubjectContextAction("jelly.note.subject.read", /* @version action.jelly.note.subject.read */ 1, JELLY_NOTE_SUBJECT_KIND, "Jelly 笔记", ["jelly:read"], "home");
 export const jellySearchActions = {
   entries: defineSearchEntriesAction("jelly.search.entries", /* @version action.jelly.search.entries */ 1, kinds, "Jelly 日程与笔记", ["jelly:read"], "home"),
-  item: defineSubjectContextAction("jelly.item.subject.read", /* @version action.jelly.item.subject.read */ 1, JELLY_ITEM_SUBJECT_KIND, "Jelly 日程", ["jelly:read"], "home"),
-  note: defineSubjectContextAction("jelly.note.subject.read", /* @version action.jelly.note.subject.read */ 1, JELLY_NOTE_SUBJECT_KIND, "Jelly 笔记", ["jelly:read"], "home"),
+  item: { ...itemReader, action: { ...itemReader.action, execution: { cost: "none" as const } } },
+  note: { ...noteReader, action: { ...noteReader.action, execution: { cost: "none" as const } } },
 };
 
 const itemText = (item: JellyItem) => [item.notes, item.completion_description, item.start_date === item.end_date ? item.start_date : `${item.start_date} — ${item.end_date}`].filter(Boolean).join("\n");

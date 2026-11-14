@@ -36,55 +36,68 @@ globalThis.molisWorkBindAuthorizationSettings = (container = document) => {
   const root = container.matches?.("[data-authorization-settings]") ? container : container.querySelector?.("[data-authorization-settings]");
   if (!root || root.dataset.bound) return;
   root.dataset.bound = "true";
-  const q = selector => root.querySelector(selector);
-  const list = q("[data-authorization-list]"), detail = q("[data-authorization-detail]"), banner = q("[data-authorization-error]");
-  const project = q("[data-authorization-project]"), owner = q("[data-authorization-owner]"), client = q("[data-authorization-client]"), search = q("[data-authorization-search]");
+  const part = name => root.querySelector("[data-authorization-" + name + "]");
+  const list = part("list"), detail = part("detail"), banner = part("error");
+  const project = part("project"), owner = part("owner"), client = part("client"), search = part("search");
   const text = (key, args) => globalThis.t.text("workbench.authorization." + key, args);
   const word = value => typeof value === "string" ? value : globalThis.say.text(value);
+  const title = item => item.title_text ? word(item.title_text) : item.title;
   const el = (tag, name, copy) => { const node = document.createElement(tag); if (name) node.className = name; if (copy) node.textContent = copy; return node; };
   const button = (label, run, variant = "secondary") => {
     const node = el("button", "mw-btn mw-btn--" + variant, label); node.type = "button"; node.addEventListener("click", run); return node;
   };
-  let rows = [], row = null, generation = 0, detailGeneration = 0, saving = false, kept = null;
+  const muted = copy => el("p", "settings-muted", copy);
+  const showFacts = (title, values) => {
+    const facts = el("dl", "authorization-facts");
+    for (const [label, value] of values) if (value) facts.append(el("dt", "", text(label)), el("dd", "", value));
+    detail.replaceChildren(el("h2", "", title), facts);
+  };
+  const rowButton = (title, status, selected, run) => {
+    const pick = button("", run, "ghost");
+    pick.classList.add("authorization-row");
+    pick.setAttribute("aria-current", String(Boolean(selected)));
+    pick.append(el("strong", "", title), el("span", "settings-muted", status));
+    list.append(pick);
+    return pick;
+  };
+  const date = at => new Date(at).toLocaleString();
+  let rows = [], row = null, generation = 0, detailGeneration = 0, saving = false, removed;
   let showing = "grants", sources = [], source = null;
   const identity = item => JSON.stringify([item.owner, item.id]);
   const path = "/api/settings/authorizations";
   const query = () => { const params = new URLSearchParams(); if (project.value) params.set("project", project.value === "home" ? "" : project.value); return params; };
-  const read = () => { const params = query(); if (owner.value) params.set("owner", owner.value); if (owner.value === "mcp-client" && client.value) params.set("client", client.value); return molisWorkRequest(path + "?" + params); };
+  const request = (params, suffix = "", options) => molisWorkRequest(path + suffix + "?" + params, options);
+  const read = () => { const params = query(); if (owner.value) params.set("owner", owner.value); if (owner.value === "mcp-client" && client.value) params.set("client", client.value); return request(params); };
   const problem = (node, failure) => { molisWorkRequest.show(node, failure); node.hidden = false; };
   const live = selected => root.isConnected && row && identity(row) === identity(selected);
+  const replaceRow = current => {
+    rows = rows.map(item => identity(item) === identity(current) ? current : item);
+    row = current; paintList();
+  };
+  const searchText = () => search.value.trim().toLocaleLowerCase();
   function paintList() {
     if (showing === "reviews") return paintSources();
-    const needle = search.value.trim().toLocaleLowerCase();
+    const needle = searchText();
     const active = document.activeElement?.dataset.authorizationRow;
     list.replaceChildren();
     for (const entry of rows.filter(item => !needle || [item.title, item.actor, ...item.scope].some(value => value.toLocaleLowerCase().includes(needle)))) {
       const id = identity(entry);
-      const select = button("", () => { void choose(entry, true); }, "ghost");
+      const select = rowButton(entry.title, text(entry.status), row && id === identity(row), () => { void choose(entry, true); });
       select.dataset.authorizationRow = id;
-      select.classList.add("authorization-row");
-      select.setAttribute("aria-current", String(Boolean(row && id === identity(row))));
-      select.append(el("strong", "", entry.title), el("span", "settings-muted", text(entry.status)));
-      list.append(select);
       if (active === id) select.focus({ preventScroll: true });
     }
-    if (!list.childElementCount) list.append(el("p", "settings-muted", text("empty")));
+    if (!list.childElementCount) list.append(muted(text("empty")));
   }
   function showDetail(current, feedback) {
-    detail.replaceChildren();
-    const title = el("h2", "", current.title), facts = el("dl", "authorization-facts");
-    const fact = (label, value) => { if (value) facts.append(el("dt", "", label), el("dd", "", value)); };
-    fact(text("mode"), text(current.mode));
-    fact(text("lifetime"), text(current.lifetime));
-    fact(text("status"), text(current.status));
-    if (current.expires_at) fact(text("expires"), new Date(current.expires_at).toLocaleString());
-    fact(text("source"), current.source ? globalThis.t.text("workbench.agent-review.source-" + current.source.kind) : text("unknown"));
-    fact(text("actor"), current.actor);
-    fact(text("recent"), current.recent_use_at ? new Date(current.recent_use_at).toLocaleString() : text("unknown"));
-    detail.append(title, facts);
-    if (current.reason) detail.append(el("p", "settings-muted", current.reason));
+    showFacts(current.title, [["mode", text(current.mode)], ["lifetime", text(current.lifetime)], ["status", text(current.status)],
+      ["expires", current.expires_at && date(current.expires_at)], ["source", current.source ? globalThis.t.text("workbench.agent-review.source-" + current.source.kind) : text("unknown")],
+      ["actor", current.actor], ["recent", current.recent_use_at ? date(current.recent_use_at) : text("unknown")]]);
+    if (current.reason) detail.append(muted(current.reason));
     const scope = el("div", "authorization-scope"), change = el("div", "authorization-actions");
     const edits = current.changes.includes("narrow");
+    const allowed = key => !removed.has(key);
+    const setAllowed = (key, on) => on ? removed.delete(key) : removed.add(key);
+    let selection;
     const check = (title, selected, update) => {
       const label = el("label", "settings-check"), box = document.createElement("input");
       box.type = "checkbox"; box.checked = selected; box.disabled = !edits;
@@ -92,60 +105,60 @@ globalThis.molisWorkBindAuthorizationSettings = (container = document) => {
       return label;
     };
     if (current.categories?.length) {
-      const category = item => JSON.stringify([item.provider_id, item.group_id ?? null]);
-      kept ??= new Set(current.categories.map(category));
-      for (const item of current.categories) scope.append(check(item.title, kept.has(category(item)), on => on ? kept.add(category(item)) : kept.delete(category(item))));
-      if (edits) change.append(button(text("narrow"), () => void save(current, "narrow", current.categories.filter(item => kept.has(category(item)))
-        .map(({ provider_id, group_id }) => ({ provider_id, ...(group_id ? { group_id } : {}) })))));
+      const category = item => JSON.stringify([item.provider_id, item.group_id]);
+      for (const item of current.categories) scope.append(check(item.title, allowed(category(item)), on => setAllowed(category(item), on)));
+      selection = () => current.categories.filter(item => allowed(category(item)))
+        .map(({ provider_id, group_id }) => ({ provider_id, ...(group_id ? { group_id } : {}) }));
     } else if (current.candidates?.length) {
-      kept ??= new Map();
-      const allowed = key => kept.get(key) !== false;
+      const operationKey = (item, index) => item.scope_index + ":" + index;
+      const valueKey = (key, target, value) => JSON.stringify([key, target.key, value.id]);
       for (const item of current.candidates) {
         const group = el("section", "authorization-candidate"); group.append(el("h3", "", item.title));
         if (item.exact_parameters) group.append(el("pre", "", item.exact_parameters));
-        if (item.reason) group.append(el("p", "settings-muted", item.reason));
+        if (item.reason) group.append(muted(item.reason));
         if (item.operations) item.operations.forEach((operation, index) => {
-          const key = item.scope_index + ":" + index;
+          const key = operationKey(item, index);
           const field = el("fieldset", "authorization-operation");
-          const toggle = check(operation.title_text ? word(operation.title_text) : operation.title, allowed(key), on => { kept.set(key, on); targets.disabled = !on; });
+          const toggle = check(title(operation), allowed(key), on => { setAllowed(key, on); targets.disabled = !on; });
           const targets = el("fieldset", "authorization-targets"); targets.disabled = !allowed(key);
           field.append(toggle, targets);
           operation.targets.forEach(target => {
-            const label = target.title_text ? word(target.title_text) : target.title;
-            if (target.values.length < 2) targets.append(el("p", "settings-muted", label + " · " + word(target.values[0].label)));
+            const label = title(target);
+            if (target.values.length < 2) targets.append(muted(label + " · " + word(target.values[0].label)));
             else {
               const options = el("fieldset", "authorization-targets"); options.append(el("legend", "", label));
               target.values.forEach(value => {
-                const id = JSON.stringify([key, target.key, value.id]);
-                options.append(check(word(value.label), allowed(id), on => kept.set(id, on)));
+                const id = valueKey(key, target, value);
+                options.append(check(word(value.label), allowed(id), on => setAllowed(id, on)));
               });
               targets.append(options);
             }
           });
           group.append(field);
         });
-        else if (edits) group.append(check(text("keep"), allowed(String(item.scope_index)), on => kept.set(String(item.scope_index), on)));
+        else if (edits) group.append(check(text("keep"), allowed(item.scope_index), on => setAllowed(item.scope_index, on)));
         scope.append(group);
       }
-      if (edits) change.append(button(text("narrow"), () => void save(current, "narrow", current.candidates.flatMap(item => {
-        if (!item.operations) return allowed(String(item.scope_index)) ? [{ scope_index: item.scope_index }] : [];
+      selection = () => current.candidates.flatMap(item => {
+        if (!item.operations) return allowed(item.scope_index) ? [{ scope_index: item.scope_index }] : [];
         const operations = item.operations.flatMap((operation, index) => {
-          const key = item.scope_index + ":" + index;
+          const key = operationKey(item, index);
           if (!allowed(key)) return [];
           const targets = operation.targets.map(target => ({ key: target.key,
-            ids: target.values.filter(value => allowed(JSON.stringify([key, target.key, value.id]))).map(value => value.id) }));
+            ids: target.values.filter(value => allowed(valueKey(key, target, value))).map(value => value.id) }));
           return targets.every(target => target.ids.length) ? [{ row_index: index, targets }] : [];
         });
         return operations.length ? [{ scope_index: item.scope_index, operations }] : [];
-      }))));
+      });
     } else if (current.scope.length) {
       const facts = el("ul", "authorization-scope");
       for (const item of current.scope) facts.append(el("li", "", item));
       scope.append(facts);
     }
     if (scope.childElementCount) detail.append(scope);
+    if (edits && selection) change.append(button(text("narrow"), () => void save(current, "narrow", selection())));
     const message = el("p", "settings-form-error"); message.setAttribute("role", "alert"); message.hidden = true;
-    const announce = el("p", "settings-muted", feedback); announce.dataset.authorizationStatus = ""; announce.setAttribute("role", "status");
+    const announce = muted(feedback); announce.dataset.authorizationStatus = ""; announce.setAttribute("role", "status");
     for (const kind of current.changes.filter(item => item !== "narrow")) {
       change.append(button(text(kind), event => {
         if (kind !== "revoke") { void save(current, kind); return; }
@@ -158,15 +171,16 @@ globalThis.molisWorkBindAuthorizationSettings = (container = document) => {
     detail.append(change, announce, message);
     detail.report = failure => problem(message, failure);
   }
-  async function choose(selected, focus = false, priorSelection = null) {
+  async function choose(selected, focus = false, priorSelection) {
     delete detail.report;
     const next = ++detailGeneration;
-    row = selected; kept = priorSelection; paintList();
-    detail.replaceChildren(el("p", "settings-muted", text("loading"))); detail.setAttribute("aria-busy", "true");
+    row = selected; paintList();
+    detail.replaceChildren(muted(text("loading"))); detail.setAttribute("aria-busy", "true");
     const params = query(); params.set("owner", selected.owner); params.set("id", selected.id);
     try {
-      const current = await molisWorkRequest(path + "?" + params);
+      const current = await request(params);
       if (next !== detailGeneration || !live(selected)) return;
+      removed = selected.expected === current.expected ? priorSelection ?? new Set() : new Set();
       showDetail(current);
       if (focus && matchMedia("(max-width: 720px)").matches) detail.focus();
     } catch (failure) {
@@ -180,43 +194,36 @@ globalThis.molisWorkBindAuthorizationSettings = (container = document) => {
     const next = detailGeneration, actions = [...detail.querySelectorAll("button, input:not(:disabled)")], status = detail.querySelector("[data-authorization-status]");
     actions.forEach(button => { button.disabled = true; }); status.textContent = text("saving");
     try {
-      const saved = await molisWorkRequest(path + "?" + query(), { method: "POST", body: { owner: current.owner, id: current.id, expected: current.expected, kind, ...(keep ? { keep } : {}) } });
+      const saved = await request(query(), "", { method: "POST", body: { owner: current.owner, id: current.id, expected: current.expected, kind, ...(keep ? { keep } : {}) } });
       window.dispatchEvent(new CustomEvent("molis:authorization-changed"));
       if (next !== detailGeneration || !live(current)) return;
-      rows = rows.map(item => identity(item) === identity(saved) ? saved : item); row = saved; kept = null; paintList(); showDetail(saved, text("updated"));
+      removed.clear(); replaceRow(saved); showDetail(saved, text("updated"));
       detail.focus({ preventScroll: true });
     } catch (failure) {
       if (next !== detailGeneration || !live(current)) return;
       const actual = failure.body?.details?.current;
       if (actual?.owner === current.owner && actual?.id === current.id) {
-        rows = rows.map(item => identity(item) === identity(actual) ? actual : item); row = actual; paintList();
-        await choose(actual, false, kept);
+        replaceRow(actual);
+        await choose(actual);
       } else if (failure.status === 409 || kind === "revoke" || kind === "settle") {
-        await choose(current, false, kept);
+        await choose(current, false, removed);
       } else status.textContent = "";
       detail.report?.(failure);
     } finally { saving = false; actions.forEach(button => { button.disabled = false; }); }
   }
   function paintSources() {
-    const needle = search.value.trim().toLocaleLowerCase();
+    const needle = searchText();
     list.replaceChildren();
     for (const item of sources.filter(row => !needle || row.title.toLocaleLowerCase().includes(needle))) {
-      const pick = button("", () => { source = item; paintSources(); detail.focus({ preventScroll: true }); }, "ghost");
-      pick.classList.add("authorization-row");
-      pick.setAttribute("aria-current", String(source?.id === item.id));
-      pick.append(el("strong", "", item.title), el("span", "settings-muted", item.phase));
-      list.append(pick);
+      rowButton(item.title, item.phase, source?.id === item.id, () => { source = item; paintSources(); detail.focus({ preventScroll: true }); });
     }
-    if (project.value && !list.childElementCount) list.append(el("p", "settings-muted", text("review-empty")));
-    detail.replaceChildren();
+    if (project.value && !list.childElementCount) list.append(muted(text("review-empty")));
     if (!source) {
-      detail.append(el("p", "settings-muted", text(project.value ? "select-review" : "choose-review-project")));
+      detail.replaceChildren(muted(text(project.value ? "select-review" : "choose-review-project")));
       return;
     }
-    const facts = el("dl", "authorization-facts");
-    for (const [label, value] of [["status", source.phase], ["decision", source.decision], ["source", source.source], ["actor", source.person],
-      ["review-time", new Date(source.at).toLocaleString()]]) if (value) facts.append(el("dt", "", text(label)), el("dd", "", value));
-    detail.append(el("h2", "", source.title), facts);
+    showFacts(source.title, [["status", source.phase], ["decision", source.decision], ["source", source.source], ["actor", source.person],
+      ["review-time", date(source.at)]]);
     if (source.detail) detail.append(el("p", "settings-form-error", source.detail));
   }
   async function load() {
@@ -226,7 +233,7 @@ globalThis.molisWorkBindAuthorizationSettings = (container = document) => {
       if (showing === "reviews") {
         sources = []; source = null; paintSources();
         if (!project.value) return;
-        const history = await molisWorkRequest(path + "/reviews?" + query());
+        const history = await request(query(), "/reviews");
         if (next !== generation || !root.isConnected) return;
         sources = history.rows; paintSources();
         if (history.omitted) { banner.textContent = text("review-omitted", { count: history.omitted }); banner.hidden = false; }
@@ -247,7 +254,7 @@ globalThis.molisWorkBindAuthorizationSettings = (container = document) => {
       const selected = row && rows.find(item => identity(item) === identity(row));
       row = selected ?? null; paintList();
       if (selected) await choose(selected);
-      else { const message = el("p", "settings-muted", text("select")); detail.replaceChildren(message); }
+      else detail.replaceChildren(muted(text("select")));
     } catch (failure) { if (next === generation && root.isConnected) problem(banner, failure); }
     finally { if (next === generation) list.removeAttribute("aria-busy"); }
   }
@@ -258,11 +265,11 @@ globalThis.molisWorkBindAuthorizationSettings = (container = document) => {
     for (const option of modes) option.setAttribute("aria-pressed", String(option === mode));
     owner.hidden = showing === "reviews";
     client.hidden = showing === "reviews" || owner.value !== "mcp-client";
-    row = null; kept = null; list.replaceChildren(); detail.replaceChildren();
+    row = null; list.replaceChildren(); detail.replaceChildren();
     void load();
   });
   for (const select of [project, owner, client]) select.addEventListener("change", () => { void load(); });
-  q("[data-authorization-reload]").addEventListener("click", () => { void load(); });
+  part("reload").addEventListener("click", () => { void load(); });
   window.addEventListener("molis:authorization-changed", () => { if (root.isConnected && !saving) void load(); });
   search.addEventListener("input", paintList);
   void load();

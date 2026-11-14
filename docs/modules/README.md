@@ -7,14 +7,14 @@ Molis Work 是本地优先的插件基座加多个插件，每项事实只有一
 | 类别 | Modules |
 | --- | --- |
 | 基础 | [Identity, Team & Access](identity-team-access.md)、[Projects](projects.md)、[Context Ledger](context-ledger.md)、[Sync & Replication](sync-replication.md) |
-| 信息与个人工作 | [Sources](sources.md)、[Signals](signals.md)、[Feed](feed.md)、[Actions](actions.md)、[Attention & Resumption](attention-resumption.md)、[Shelf](shelf.md)、[Functions](../../modules/judgment-rules/README.md)、[Characters](../../modules/characters/README.md) |
+| 信息与个人工作 | [Sources](sources.md)、[Signals](signals.md)、[Feed](feed.md)、[Actions](actions.md)、[Attention & Resumption](attention-resumption.md)、[Shelf](shelf.md)、[Judgment Rules](../../modules/judgment-rules/README.md)、[Characters](../../modules/characters/README.md) |
 | 目标与工作上下文 | [Goals](goals.md)、[Private Work Context](private-work-context.md) |
 | 成果与过程项 | [Artifacts](artifacts.md) |
 | 协作与自动化 | [Governance & Collaboration](governance-collaboration.md)、[Automation](automation.md) |
 
 Identity, Team & Access、Sync & Replication、Automation 目前没有包（`absent`，见 [SSOT](../SSOT-MATRIX.md)），对应文档只记录目标边界；Actions 页描述的是已在用的系统级动作服务（`packages/kernel` 与 Local Host），个人/外部 Action 请求的 `modules/actions` 同样没有包。
 
-Sources、Signals、Feed 三页写的是边界，代码已并入 Feed 插件（`plugins/native/feed/src/store/`，FI-5）；Goals 与 Governance & Collaboration 两页同理，代码在 Goals 插件（`plugins/native/goals/src/module/`、`src/governance/`，S9-3）。`modules/` 下现有 8 个包：`artifacts`、`attention-resumption`、`characters`、`context-ledger`、`functions`、`private-work-context`、`projects`、`shelf`。
+Sources、Signals、Feed 三页写的是边界，代码已并入 Feed 插件（`plugins/native/feed/src/store/`，FI-5）；Goals 与 Governance & Collaboration 两页同理，代码在 Goals 插件（`plugins/native/goals/src/module/`、`src/governance/`，S9-3）。`modules/` 下现有 9 个包：`artifacts`、`attention-resumption`、`characters`、`context-ledger`、`judgment-rules`、`private-work-context`、`projects`、`shelf`、`sync-replication`。
 
 共同边界、部署与调用规则见 [`docs/system/ARCHITECTURE.md`](../system/ARCHITECTURE.md)。逐包完整 Contract 见 [`specs/molis-work-architecture-reorganization/spec.md`](../../specs/molis-work-architecture-reorganization/spec.md) 第 20 节。
 

@@ -1,15 +1,63 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, statSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
 import { AgentReviewQueue, createPrologueNodeAdapter, PrologueAgentAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { composeAgentHost, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { acquireStorageOwner } from "@molis-ai/molis-work-storage";
 import { storageOwnerProcesses, storageOwnerResources } from "./fixtures/home-storage-owner.js";
+import { currentMemoryOptions } from "./fixtures/current-memory.js";
 
 const app = { appId: "io.molis.work", appVersion: "0.0.0" };
 const noModel = async (): Promise<never> => { throw new Error("Cleanup tests must not call a model"); };
+
+for (const phase of ["running", "initialization"] as const)
+test(`MEM-40-I2: ${phase} indexed close failure retains the same Node resource and actual parent owner until explicit cleanup`, { timeout: 30_000 }, async t => {
+  let adapter: Awaited<ReturnType<typeof createPrologueNodeAdapter>> | undefined, initialization: ReturnType<typeof createPrologueNodeAdapter> | undefined;
+  let restoreFault = () => {};
+  const f = home(t, async () => { restoreFault(); await initialization?.close(); await adapter?.close(); });
+  const owner = f.resources.acquire(f.root), peer = await f.peers.start(f.root);
+  const caller = { actor_id: "indexed-cleanup-person", project_id: null, consumer: "ui", current_scene: "coding", purpose: "management" as const, person: true };
+  const memory = currentMemoryOptions({ appId: app.appId, scopesFor: () => [{ scope: "user", owner: caller.actor_id }] });
+  const options = { app, storageRoot: f.root, storageOwner: owner, modelConfiguration: noModel, memory };
+  adapter = await createPrologueNodeAdapter(options);
+  await adapter.memory!.withCaller(caller).write({ scope: "user", owner: caller.actor_id, text: "Keep the same native connection owned",
+    origin: "person", operation_id: "native-close-seed" });
+  const target = join(f.root, "records.sqlite"), before = readFileSync(target);
+  if (phase === "initialization") await adapter.close();
+  const prepare = DatabaseSync.prototype.prepare, nativeClose = DatabaseSync.prototype.close, retained = new Set<DatabaseSync>();
+  const fault = t.mock.method(DatabaseSync.prototype, "close", function(this: DatabaseSync) {
+    const path = String(prepare.call(this, "PRAGMA database_list").all().find(row => row.name === "main")?.file);
+    if (path === target) { retained.add(this); throw new Error("injected before actual native indexed close"); }
+    return nativeClose.call(this);
+  });
+  restoreFault = () => fault.mock.restore();
+  try {
+    if (phase === "initialization") {
+      initialization = createPrologueNodeAdapter(options);
+      await assert.rejects(initialization, error => error instanceof AggregateError && error.errors.length === 2
+        && error.errors.every(item => item.code === "STORAGE_RECONCILE_REQUIRED"));
+    } else await assert.rejects(adapter.memory!.withCaller(caller).list("user", caller.actor_id), { code: "STORAGE_RECONCILE_REQUIRED" });
+    assert.equal(retained.size, 1); const connection = [...retained][0]!; assert.equal(connection.isOpen, true);
+    const close = phase === "initialization" ? initialization!.close.bind(initialization) : adapter.close.bind(adapter);
+    const closing = close(); assert.equal(close(), closing);
+    await assert.rejects(closing, error => error instanceof AggregateError && error.errors.some(item => item.code === "STORAGE_RECONCILE_REQUIRED"));
+    assert.equal(connection.isOpen, true); assert.deepEqual(readFileSync(target), before);
+    assert.throws(() => owner.release(), { code: "storage.owner.borrowed" });
+    assert.deepEqual(await peer.request("acquire"), { code: "storage.owner.busy" });
+    fault.mock.restore(); await close(); await close(); assert.equal(connection.isOpen, false);
+    assert.deepEqual(readFileSync(target), before);
+    assert.deepEqual(await peer.request("acquire"), { code: "storage.owner.busy" }, "ending the borrow cannot release its live parent");
+    owner.release(); assert.equal((await peer.request("acquire")).state, "held"); await peer.stop();
+    const next = f.resources.acquire(f.root); next.release();
+  } finally {
+    fault.mock.restore();
+    for (const connection of retained) if (connection.isOpen) nativeClose.call(connection);
+    await initialization?.close(); await adapter.close();
+  }
+});
 
 function home(t: TestContext, finish: () => Promise<void>) {
   t.after(finish);

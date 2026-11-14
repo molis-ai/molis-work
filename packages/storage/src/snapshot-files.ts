@@ -62,13 +62,18 @@ function unchanged(file: string, descriptor: number, before: Stats) {
 }
 
 /** File-header classification, not a raw database copy. Never call this on an ownership lock. */
-export function isSnapshotSqlite(file: string): boolean {
+export function isSnapshotSqlite(file: string, standalone = false): boolean {
   const { descriptor, before } = openFile(file);
   try {
-    const header = Buffer.alloc(16);
+    if (standalone) for (const suffix of ["-wal", "-shm", "-journal"])
+      if (lstatSync(file + suffix, { throwIfNoEntry: false }))
+        throw new ActionError("actions.input_invalid", `归档库必须是独立文件: ${file}`, { kind: "invalid" });
+    const header = Buffer.alloc(standalone ? 20 : 16);
     const count = readSync(descriptor, header, 0, header.length, 0);
     unchanged(file, descriptor, before);
-    return count === 16 && header.equals(Buffer.from("SQLite format 3\0"));
+    if (standalone && (count !== 20 || header[18] !== 1 || header[19] !== 1))
+      throw new ActionError("actions.input_invalid", `归档库必须是独立 SQLite 文件: ${file}`, { kind: "invalid" });
+    return count >= 16 && header.subarray(0, 16).equals(Buffer.from("SQLite format 3\0"));
   } finally {
     closeSync(descriptor);
   }

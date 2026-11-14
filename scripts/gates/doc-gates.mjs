@@ -8,6 +8,8 @@
 import { brokenCitations } from "./doc-citations.mjs";
 import { brokenLinks } from "./doc-links.mjs";
 import { backlogProblems } from "./backlog-rows.mjs";
+import { backlogReferenceProblems } from "./backlog-refs.mjs";
+import { docIndexProblems } from "./doc-indexes.mjs";
 import { contractPlaceholderProblems } from "./contract-placeholders.mjs";
 import { docRawDataProblems } from "./doc-raw-data.mjs";
 import { countMetric } from "./count-metric.mjs";
@@ -24,6 +26,8 @@ export function docGateProblems(snapshot) {
     ...tagged("bad citation", brokenCitations(snapshot)),
     ...tagged("spec index", specIndexProblems(snapshot)),
     ...tagged("BACKLOG", backlogProblems(snapshot)),
+    ...tagged("backlog reference", backlogReferenceProblems(snapshot)),
+    ...tagged("doc index", docIndexProblems(snapshot)),
     ...tagged("root allow-list", rootAllowlistProblems(snapshot)),
     ...tagged("contract placeholder", contractPlaceholderProblems(snapshot)),
     ...tagged("security invariants", securityInvariantProblems(snapshot)),

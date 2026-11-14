@@ -8,7 +8,7 @@ import { createBrowserSurfaceDriver } from "./browser/surface-driver.js";
 import { locateBrowser } from "./browser/locate.js";
 import { installComputerDesk } from "./computer/computer-surfaces.js";
 import { startWebProjectSchedulers } from "./web-project-schedulers.js";
-import type { MolisWorkLocalHost } from "./project-host.js";
+import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import type { PeriodicTasks } from "./periodic-tasks.js";
 import type { MolisWorkWebViewCache } from "./web-view.js";
@@ -43,12 +43,14 @@ export function createWebStorageResources(options: {
   // Stop new project rounds before waiting for all periodic tasks already in flight.
   resources.unshift(["project-schedules", () => projectSchedulers.stop()]);
   const im = createLocalImServer(home, async id => {
-    if (fixture && id === fixture.projectId) return { id, title: fixture.project?.display_name ?? "Molis Work" };
+    if (fixture && id === fixture.projectId) return { id, title: fixture.project?.display_name ?? "Molis Work",
+      reference: molisWorkHostProjectReference({ projectId: id, databasePath: fixture.databasePath }) };
     return withCatalog({ homeDirectory: home }, catalog => {
       const project = projectOrNull(catalog, id);
-      return project ? { id: project.project_id, title: project.display_name } : null;
+      return project ? { id: project.project_id, title: project.display_name,
+        reference: molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path }) } : null;
     });
-  });
+  }, localHost);
   resources.push(["discussion", () => im.close()]);
   const browserHost = lazyBrowserHost(home, options.server);
   resources.push(["browser", () => browserHost.current()?.close()]);

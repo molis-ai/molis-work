@@ -54,6 +54,16 @@ export function retainInitializationCleanup(reason: unknown, dispose: () => Prom
 
 const owners = new WeakMap<object, { home: string; owner: StorageOwner; released: boolean; resources: Set<() => Promise<void>> }>();
 
+/** A live effect may use only the lease that this Host already holds. */
+export function assertCurrentHomeStorageOwner(host: object, directory: string): void {
+  const held = owners.get(host);
+  if (!held || held.released) throw hostErrors.closed("Local Host 未持有 Home 存储所有权");
+  if (realpathSync(directory) !== held.home) throw new ActionError("actions.home_mismatch", "Host 不能绑定到另一个 Home");
+  const lockDirectory = agentRuntimeDirectory(held.home);
+  assertStorageOwner(lockDirectory, held.owner);
+  assertNoPendingHomeRestore(lockDirectory);
+}
+
 /**
  * The one way to take a Home's lock in order to open its stores (upgrade-chain-design §4.1): the Home comes back already upgraded, before
  * any business store has been opened. A store that fails stays in the record and is not an error here. Only what stops the whole Home

@@ -11,6 +11,7 @@ export async function useProjectWorkspace(page: Page, id: string) {
   const { host, lifetime } = page;
   try {
     await host.selectWorkspace(id);
+    page.refs.filesFace?.follow(id);
   } catch (error) {
     throw new Error(uiText.text("coding.workspace.switch-failed-why", { reason: errorMessage(error) }));
   }

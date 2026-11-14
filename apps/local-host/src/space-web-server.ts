@@ -43,6 +43,8 @@ export interface SpaceWebSurface extends http.Server {
   withSyncCatalog?:LocalWebCatalogRunner;
   readSyncCatalog?:import('./personal-runtime-sync-authority.js').SyncCatalogReader;
   discoverSync?(authorize:()=>void):Promise<readonly import('@molis-ai/molis-work-module-sync-replication').SyncRegistration[]>;
+  /** The Host's side of the person's process-item steps (storage owner, holding a project closed); see process-items-maintenance.ts. */
+  processItemsMaintenance?:import('./process-items-maintenance.js').ProcessItemsMaintenancePorts;
   matchesNativeAccountCallback?(url:URL,origin?:string):boolean;
 }
 
@@ -378,7 +380,7 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
           if(expectedSpace&&expectedSpace!==selected.space.spaceId){sendLocalWebJson(response,409,{error:'空间已切换，请刷新页面。'});return;}
           if(!webRequestAuthenticated(request,token)){sendLocalWebJson(response,403,{error:'空间已切换，请刷新页面。'});return;}
           if(!authorizeLocalWebRequest(request,response,url,token,mutations))return;
-          await serveSpaceSync({request,response,url,local:selected.space.kind==='local',service:()=>syncFor(selected,request)});
+          await serveSpaceSync({request,response,url,local:selected.space.kind==='local',service:()=>syncFor(selected,request),maintenance:()=>surfaces.get(selected.space.spaceId)?.server.processItemsMaintenance});
           return;
         }
         if(accountPath){

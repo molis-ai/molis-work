@@ -525,11 +525,12 @@ test("RAC-1503 S-84 the other-publisher check refuses only another publisher's p
 test("RAC-1680 RAC-1681 S-84 a package whose plugin id the Host's build ships, or sits on one's dotted path, is refused at the preview with plugin.id_namespace_conflict, in either range, before anything is written", async () => {
   const h = await harness(undefined, true);
   try {
-    for (const id of ["io.molis.work.todo", "io.molis.work.files", "io.molis.work.native.workflows"]) assert.ok(HOST_PLUGIN_IDS.has(id), `${id} is one of the Host's`);
+    for (const id of ["io.molis.work.todo", "io.molis.work.git", "io.molis.work.files", "io.molis.work.native.workflows"]) assert.ok(HOST_PLUGIN_IDS.has(id), `${id} is one of the Host's`);
     const publisher = newPublisher();
     const cases: Array<[string, PluginPackageBundle]> = [
       ["RAC-1680 a Home package with a Home plugin's id", homeBundle(publisher, { pluginId: "io.molis.work.todo" })],
-      ["RAC-1680 a project package with a project plugin's id", signedPackage(publisher, undefined, { pluginId: "io.molis.work.files" })],
+      ["RAC-1680 a project package with a project plugin's id", signedPackage(publisher, undefined, { pluginId: "io.molis.work.git" })],
+      ["RAC-1680 a project package with the retired Files plugin's id", signedPackage(publisher, undefined, { pluginId: "io.molis.work.files" })],
       ["RAC-1681 a Home package under a Host plugin's id", homeBundle(publisher, { pluginId: "io.molis.work.todo.notes" })],
       ["RAC-1681 a project package above a Host plugin's id", signedPackage(publisher, undefined, { pluginId: "io.molis.work.native" })],
     ];

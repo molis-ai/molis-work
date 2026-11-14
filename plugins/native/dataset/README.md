@@ -14,7 +14,7 @@
 
 Owner 在写入前拒绝超过 80 个 Unicode 字符的列名，仍限制最多 40 列、2000 行。Form 转表若题数或题名超出限制，保留原问卷、答卷、CSV 和已存表，由人缩短表头后重新导入。
 
-发布先保存固定快照，再交给原 Artifact owner；固定下来的版本归本机的人，固定它的行为者记在 `created_by`。中断后显示“恢复发布”，恢复原内容及版本，保留此后本地编辑；完成后可另存新版；数据表移走又移回后，下一次固定接着项目成果库里已有的最高版号，不把旧版当作中断记录交回。未恢复的发布不能删除，表和本机快照的删除在同一事务完成。
+固定成果在同一事务中保存当前表内容并更新表的固定引用。固定下来的版本归本机的人，固定它的行为者记在 `created_by`。失败后可编辑草稿，再固定最新内容。数据表移走又移回后，下一次固定接着项目成果库里已有的最高版号。表和本机快照在同一事务删除。
 
 开发合同见 [Plugin 开发](../../../docs/platform/PLUGIN-DEVELOPMENT.md#对外-mcp)。对应验证为 `tests/dataset-actions.test.ts`、`tests/dataset-mcp.test.ts` 和 `tests/dataset-actions.e2e.test.ts`。这项迁移不代表全系统工作流、客户端授权或其他插件已完成迁移。
 
@@ -34,8 +34,7 @@ Owner 在写入前拒绝超过 80 个 Unicode 字符的列名，仍限制最多 
 - 不变量：
   - 数据按 Host 注入的 canonical `project_id` 分区。
   - 冲突保留本地输入，并阻止发布或切表。
-  - 发布中断后可恢复原内容与版本并保留之后的编辑；未恢复的发布不能删除，表与快照在同一事务删除。
-  - 发布的每个副作用（intent、成果、完成记录）先等这次调用的授权，库与成果服务在写入的同一回合里再问原调用方（S-18），插件不手写这一步：被取消或撤权的调用只留已经提交的阶段，不再多写成果（`tests/dataset-promote-authority.test.ts tests/dataset-client-bundle.test.ts tests/creative-tools-plugins.test.ts`）。
+  - 固定事务在更新根行、登记成果及最终提交时复查原调用授权（S-18）。提交前取消、撤权或提供方变化会回滚表引用、成果、事件及复制记录（`tests/dataset-promote-authority.test.ts tests/dataset-client-bundle.test.ts tests/creative-tools-plugins.test.ts`）。
   - 项目被删除时平台按 Manifest 里 Home 库的 `project_rows`（`src/database.ts`：确认框里的标签与要删的表）删掉数据表与保存的版本，连同创建回执；插件的代码不参与，平台在自己的连接上删，库不存在时不创建，重复运行没有副作用（PG-024）。
 - 改动后必跑：`node scripts/run-tests.mjs tests/dataset-actions.test.ts tests/dataset-mcp.test.ts tests/creative-artifact-promote.test.ts tests/document-pin-after-move.test.ts tests/artifact-compare-moved.test.ts tests/project-deletion-owners.test.ts tests/document-plugins-error-model.test.ts tests/dataset-promote-authority.test.ts`
 - Owner 列名与跨 Form 转表改动加跑：`node scripts/run-tests.mjs tests/content-owner-regressions.test.ts tests/work-placement-plugins.e2e.test.ts`（后一份需要本机 Chrome）。

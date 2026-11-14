@@ -147,7 +147,7 @@ export const SURFACE_LANGUAGE_STYLES = `
     .goal-node-toolbar button, .goal-details-toggle, .plugin-stage-back { width: 44px; min-height: 44px; }
   }
   /* Search and irreversible confirmations remain compact, with restrained depth. */
-  body :is(.global-search-dialog, .home-shortcut-dialog, .runtime-plan-dialog, .goal-trash-dialog) { border-radius: 8px; box-shadow: var(--lift-1); }
-  body :is(.global-search-dialog, .home-shortcut-dialog, .runtime-plan-dialog, .goal-trash-dialog)::backdrop { background: var(--scrim); backdrop-filter: none; }
+  body :is(.global-search-dialog, .runtime-plan-dialog, .goal-trash-dialog) { border-radius: 8px; box-shadow: var(--lift-1); }
+  body :is(.global-search-dialog, .runtime-plan-dialog, .goal-trash-dialog)::backdrop { background: var(--scrim); backdrop-filter: none; }
   @media (prefers-reduced-motion: reduce) { ${EDITOR_PANEL}, ${EDITOR_PANEL}::backdrop { animation: none; transition: none; } }
 `;

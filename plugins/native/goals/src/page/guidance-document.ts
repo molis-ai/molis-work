@@ -1,3 +1,4 @@
+import { cutWithEllipsis } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { GoalsHintOptions } from "./ports.js";
@@ -45,7 +46,7 @@ export function createProjectGuidanceDocumentRenderer(ports: {
       restored: uiText.text("goals.guidance-document.restore"),
     };
     const historyRows = guidance.revisions.map((revision) => {
-      const content = revision.content.length > 220 ? `${revision.content.slice(0, 220)}…` : revision.content;
+      const content = cutWithEllipsis(revision.content, 220, { prefixLength: 220 });
       const stateLabel = revision.active ? uiText.text("goals.guidance-document.active-revision") : uiText.text("goals.guidance-document.deactivated-revision");
       return `<article class="guidance-history-row"><div><strong>${escapeHtml(changeLabels[revision.change_kind] ?? revision.change_kind)}</strong><div class="guidance-history-state${revision.active ? "" : " guidance-history-state--inactive"}">${uiText("goals.guidance-document.revision-revision", { revision: revision.revision })} · ${stateLabel}</div></div><div><strong>${escapeHtml(kindMeta[revision.kind]?.label ?? revision.kind)}</strong><p>${escapeHtml(content)}</p><details class="guidance-history-entry"><summary>${uiText("goals.guidance-document.view-full-revision-change-reason")}</summary><dl class="guidance-history-full"><div><dt>${uiText("goals.guidance-document.full-text")}</dt><dd>${escapeHtml(revision.content)}</dd></div><div><dt>${uiText("goals.guidance-document.change-reason")}</dt><dd>${escapeHtml(revision.reason)}</dd></div><div><dt>${uiText("goals.guidance-document.changed")}</dt><dd>${escapeHtml(revision.changed_by)}</dd></div><div><dt>${uiText("goals.guidance-document.confirmation-record")}</dt><dd>${escapeHtml(revision.confirmation_summary)}</dd></div></dl></details></div><time datetime="${escapeHtml(revision.created_at)}">${formatDate(revision.created_at)}</time></article>`;
     }).join("");

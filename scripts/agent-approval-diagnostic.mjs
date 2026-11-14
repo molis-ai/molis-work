@@ -85,27 +85,31 @@ export async function diagnoseAgentApprovals(snapshot, { permission, resolveComm
     required: policy.required_approvals, missing, counted, expired };
 }
 
-function readGithub(fetch, origin, token, repository) {
+export function approvalGithubRepository({fetch, origin, token, repository}) {
   const base = new URL(origin);
-  if (base.protocol !== "https:" || base.username || base.password || base.search || base.hash) throw new Error("Invalid GitHub API origin");
+  if (base.protocol !== "https:" || base.username || base.password || base.search || base.hash
+    || !/^[a-z0-9_.-]+\/[a-z0-9_.-]+$/i.test(repository ?? "") || repository.split("/").some(part => part === "." || part === "..")
+    || !token) throw new Error("A valid GitHub API origin, repository and credential are required");
   const prefix = base.pathname.replace(/\/$/, "") + "/repos/" + repository + "/";
   const headers = { accept: "application/vnd.github+json", authorization: "Bearer " + token, "x-github-api-version": "2022-11-28" };
-  const get = async (resource, missing = false) => {
+  const request = async (resource, { method = "GET", body, missing = false } = {}) => {
     const url = new URL(resource, base.origin + prefix);
     if (url.origin !== base.origin || !url.pathname.startsWith(prefix)) throw new Error("Unexpected GitHub API pagination target");
-    const response = await fetch(url, { redirect: "error", signal: AbortSignal.timeout(15_000), headers });
+    const response = await fetch(url, { method, redirect: "error", signal: AbortSignal.timeout(15_000),
+      headers: body === undefined ? headers : { ...headers, "content-type": "application/json" },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
     if (missing && response.status === 404) return { body: null, next: undefined };
-    if (!response.ok) throw new Error("GitHub read failed (" + response.status + ") for " + url.pathname);
+    if (!response.ok) throw new Error("GitHub " + (method === "GET" ? "read" : "write") + " failed (" + response.status + ") for " + url.pathname);
     const next = /<([^>]+)>;\s*rel="next"/.exec(response.headers.get("link") ?? "")?.[1];
     return { body: await response.json(), next };
   };
-  const one = async (resource, missing) => (await get(resource, missing)).body;
+  const one = async (resource, missing) => (await request(resource, { missing })).body;
   const pages = async (resource, extract = value => value) => {
     const result = [], seen = new Set();
     for (let next = resource; next;) {
       if (seen.has(next) || seen.size >= 100) throw new Error("Could not read complete GitHub results");
       seen.add(next);
-      const page = await get(next), rows = extract(page.body);
+      const page = await request(next), rows = extract(page.body);
       if (!Array.isArray(rows)) throw new Error("Incomplete GitHub results");
       result.push(...rows);
       next = page.next;
@@ -133,7 +137,7 @@ function readGithub(fetch, origin, token, repository) {
     }
     return answer;
   };
-  return { one, pages, commentFacts };
+  return { one, pages, commentFacts, async write(resource, method, body) { return (await request(resource, { method, body })).body; } };
 }
 
 async function basePolicy(one, base) {
@@ -161,10 +165,10 @@ async function basePolicy(one, base) {
 }
 
 /** Read the current PR with fixed SHA policy and a complete commit comparison. Any ambiguous response fails closed. */
-export async function inspectAgentApprovals({ repository, pull, token, api = "https://api.github.com", fetch = globalThis.fetch }) {
+export async function inspectAgentApprovals({ repository, pull, token, publisher, api = "https://api.github.com", fetch = globalThis.fetch }) {
   if (!/^[a-z0-9_.-]+\/[a-z0-9_.-]+$/i.test(repository ?? "") || repository.split("/").some(part => part === "." || part === "..")
     || !id(pull) || !token) throw new Error("A repository, PR number and GitHub read credential are required");
-  const { one, pages, commentFacts } = readGithub(fetch, api, token, repository);
+  const { one, pages, commentFacts } = approvalGithubRepository({ fetch, origin: api, token, repository });
   const load = async () => {
     const pr = await one("pulls/" + pull);
     if (pr?.number !== pull || !id(pr.id) || pr.state !== "open" || !SHA.test(pr.base?.sha ?? "") || !SHA.test(pr.head?.sha ?? "")
@@ -184,7 +188,9 @@ export async function inspectAgentApprovals({ repository, pull, token, api = "ht
   }
   const compare = "compare/" + pr.base.sha + "..." + pr.head.sha + "?per_page=100";
   const readVotes = async () => {
-    const [reviews, comments] = await Promise.all([pages("pulls/" + pull + "/reviews?per_page=100"), pages("issues/" + pull + "/comments?per_page=100")]);
+    const [reviews, conversation] = await Promise.all([pages("pulls/" + pull + "/reviews?per_page=100"), pages("issues/" + pull + "/comments?per_page=100")]);
+    const comments = conversation.filter(row => !(publisher && row.user?.type === "Bot" && row.user.id === publisher.bot
+      && row.performed_via_github_app?.id === publisher.app));
     const ids = comments.filter(row => row.user?.type === "User" && !row.performed_via_github_app && commandOf(row.body)).map(row => row.node_id);
     if (ids.some(node => typeof node !== "string" || !node)) throw new Error("GitHub did not return a stable comment identity");
     const edited = await commentFacts([...new Set(ids)]);

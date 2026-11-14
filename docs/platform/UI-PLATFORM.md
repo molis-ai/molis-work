@@ -11,9 +11,9 @@ Workbench 不直接访问 SQLite、Module implementation、Node-only API 或 Tau
 
 ## 2. 控件原语
 
-产品控件、色板、图标、字体的用法和文件表在 [`packages/design-system/README.md`](../../packages/design-system/README.md)。视觉规范是 [`DESIGN.md`](../../DESIGN.md) 的 Soft Workbench：珍珠灰桌面上一张连续白色工作面，石墨主操作，铜色焦点与链接，字重 400/500/600，动效约 130/250/420ms。开发预览组件板是 `/__ui/catalog`（真实底栏标本在 `/__ui/catalog/bar`）。改共享控件、状态或微动效**要**对照这块板；达标标本**要**补进 Catalog。不准把系统下拉、系统色盘、系统确认框当产品控件。动效、图标色是切片内工作。过程说明见 [CLI 与开发](../cli-and-development.md#前端与控件板) 与 [ui-craft-floor](../../specs/ui-craft-floor/spec.md)。
+产品控件、色板、图标、字体的用法和文件表在 [`packages/design-system/README.md`](../../packages/design-system/README.md)。视觉规范是 [`DESIGN.md`](../../DESIGN.md) 的 Soft Workbench：雾蓝桌面上一张连续白色工作面，墨蓝主操作，雾蓝焦点与链接，字重 400/500/600，动效约 130/250/420ms。开发预览组件板是 `/__ui/catalog`（真实底栏标本在 `/__ui/catalog/bar`）。改共享控件、状态或微动效**要**对照这块板；达标标本**要**补进 Catalog。不准把系统下拉、系统色盘、系统确认框当产品控件。动效、图标色是切片内工作。过程说明见 [CLI 与开发](../cli-and-development.md#前端与控件板) 与 [ui-craft-floor](../../specs/ui-craft-floor/spec.md)。
 
-合同是 HTML Slot：部件由 Plugin SDK 公开，插件从 `@molis-ai/molis-work-plugin-sdk/ui` 导入 `render*` / `icon`（宿主一侧同样直接取它，design-system 不转出），产出 `mw-*` + `data-slot`。不迁 React，不另起 class 填充。颜色、圆角、高度和时长只取共享 token（值只在 `packages/design-system/resources/` 的基线文件里，`palette.ts` 把它们写成 CSS），不写 hex、不用 `!important` 或按插件覆盖去压前面的层。壳层选中走 `--nav-*`；石墨 `--action` 只给主操作和选中的选项；铜色 `--accent`（`--blue*` / `--focus` 的实际值）给焦点、链接和进行中；插件没有身份色。
+合同是 HTML Slot：部件由 Plugin SDK 公开，插件从 `@molis-ai/molis-work-plugin-sdk/ui` 导入 `render*` / `icon`（宿主一侧同样直接取它，design-system 不转出），产出 `mw-*` + `data-slot`。不迁 React，不另起 class 填充。颜色、圆角、高度和时长只取共享 token（值只在 `packages/design-system/resources/` 的基线文件里，`palette.ts` 把它们写成 CSS），不写 hex、不用 `!important` 或按插件覆盖去压前面的层。壳层选中走 `--nav-*`；墨蓝 `--action` 只给主操作和选中的选项；雾蓝 `--accent`（`--blue*` / `--focus` 的实际值）给焦点、链接和进行中；插件没有身份色。
 
 ### 全局导航
 
@@ -55,7 +55,7 @@ Workbench 不直接访问 SQLite、Module implementation、Node-only API 或 Tau
 
 - **事件**（`DOM_EVENTS`，按名字排序）：名字、种类、主人、发在哪里、载荷、含义。种类只有两种：`announcement`（主人报告自己状态的变化或自己做的决定，主人发、别人听）和 `request`（别人请主人去改它的状态，主人听、别人发；一个界面把自己的情况报给持有共同状态的主人，也是 `request`，如 `molis:surface-focus`、`molis:assistant-surface-changed`）。发在哪里是 `window`、`document` 或某个元素（`bubbles` 说明它是否冒泡）；`window` 上的监听器听不到发在 `document` 上的、不冒泡的事件，两个模块对不上多半就是这一条。带 `cancelable` 的事件（登记里现在三个：请求 `molis:side-open`、`molis:context-panel-open`，公告 `molis:assistant-context-action-chosen`）由接住它的一方调用 `preventDefault()`，发的一方读结果决定要不要另想办法。代码里还有第三处这样用、却没有登记也没有人接住的：见「现状与例外」里的 `molis-work:open-settings-section`。
 - **页面状态的主人**（`PAGE_STATE_OWNERS`）：持有一块页面状态的客户端模块和它持有什么。工作台客户端由许多片段文件拼成一个程序，所以一个主人可以是几个文件。目标规则：一块状态一个主人，别的模块不去改它的内部变量，只发 request、听 announcement。门禁查的只有主人这一侧（announcement 从它的文件里发出、request 在它的文件里被听到），不查别的模块有没有绕过去。登记的范围是「别的模块要通过事件看到或请它改」的状态；模块内部的变量和存储键都不在其中（`state` 的描述里提到某个存储键，只是说明主人持有什么，那个键本身没有登记）。
-- **前缀**（`DOM_EVENT_PREFIXES`）：平台自己的前缀现在有三种写法（`molis-work:`、`molis:`、`workbench-`）。合成一种是后续单独的改动；在那之前，平台事件的名字必须落在列表里的某个前缀上。插件主人另用 `molis-<owner>-`，判定见 `dom-events.ts`：同一张 `PAGE_STATE_OWNERS` 表中，该主人的 `files` 全部属于同一个 `plugins/<组>/<目录>/` 包；跨插件与平台、或跨两个插件包的主人必须拆开登记。事件登记的 `owner` 须等于最长完整前缀中的 `<owner>`（`molis-shelf-notice` 的主人是 `shelf`）。平台主人不能用该通用前缀，平台表不再给某个插件开专用前缀（ac-artifacts A4，PG-096）；前缀和登记的主人对不上，门禁直接失败。
+- **前缀**（`DOM_EVENT_PREFIXES`）：平台自己的前缀现在有两种写法（`molis-work:`、`molis:`）。合成一种是后续单独的改动；在那之前，平台事件的名字必须落在列表里的某个前缀上。插件主人另用 `molis-<owner>-`，判定见 `dom-events.ts`：同一张 `PAGE_STATE_OWNERS` 表中，该主人的 `files` 全部属于同一个 `plugins/<组>/<目录>/` 包；跨插件与平台、或跨两个插件包的主人必须拆开登记。事件登记的 `owner` 须等于最长完整前缀中的 `<owner>`（`molis-shelf-notice` 的主人是 `shelf`）。平台主人不能用该通用前缀，平台表不再给某个插件开专用前缀（ac-artifacts A4，PG-096）；前缀和登记的主人对不上，门禁直接失败。
 
 加一个事件：在 `DOM_EVENTS` 里按名字顺序加一条，与发它的代码在同一个改动里；浏览器代码里把名字写成字符串字面量，不拼接、不放进变量（浏览器程序是模板字符串，不能 import 这份合同，门禁只能读源码；TypeScript 的类型实参 `new CustomEvent<T>("名字")` 照常读）。合同的公开 API 快照随之变，跑 `pnpm api:update`，并在 PR 里说明新事件对插件和调用方意味着什么。
 
@@ -124,7 +124,7 @@ Planning contribution 通过显式 renderPage 原语使用原设置页外框，�
 
 ### 原生客户端生命周期
 
-UI Host 的 `UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT` 由 Workbench 或独立页面实例化，提供 `mountPluginClient(root)`。它拥有挂载去重、文档/祖先 hidden 变化、卸载取消与资源清理；不拥有插件状态。Images、Coding 及子面板、Files/Git 伴随面板和独立 Diff/Text Stats、Host 审查视图、Builder 两套界面、Shelf 及结果面板已接入，Pages 与灵光在离开时收回空白项这一处也用它（`whenVisible` 与 `own`）。同源 iframe 还观察父页面的隐藏与移除。API、隐藏/卸载差异及异步响应检查见 [UI Host README](../../packages/ui-host/README.md#浏览器生命周期)。浏览器回归覆盖真实请求中止、SSE 断开重连、隐藏轮询停止及同一 DOM 重新挂载。
+UI Host 的 `UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT` 由 Workbench 或独立页面实例化，提供 `mountPluginClient(root)`。它拥有挂载去重、文档/祖先 hidden 变化、卸载取消与资源清理；不拥有插件状态。Images、Coding 及子面板、Git 伴随面板和独立 Diff/Text Stats、Host 审查视图、Builder 两套界面、Shelf 及结果面板已接入，Pages 与灵光在离开时收回空白项这一处也用它（`whenVisible` 与 `own`）。同源 iframe 还观察父页面的隐藏与移除。API、隐藏/卸载差异及异步响应检查见 [UI Host README](../../packages/ui-host/README.md#浏览器生命周期)。浏览器回归覆盖真实请求中止、SSE 断开重连、隐藏轮询停止及同一 DOM 重新挂载。
 
 轻量刷新提示可用 `scope.watchRevision(read, refresh)`：可见时每两秒查询 revision，首次进入、变化及断线恢复后重新读取事实，隐藏/卸载清理。`refresh` 在业务交互忙碌时返回 false，保留未消费 revision 待下次读取。Host 按项目提供当前运行插件的 `/api/plugins/<id>/view-revision`，进程更换 epoch；只含不透明 revision，不包含事件正文或授权。Files/Git 已实际接入，固定 Artifact 差异仍保留原版本。
 
@@ -141,7 +141,7 @@ revision 由插件自己推动：服务端在改了页面显示的内容以后�
 - **没有回答时不显示浏览器英文原话。** 读取报 `ui_host.unreachable`「连不上 Molis Work 服务，请稍后重试」；写入报 `ui_host.outcome_unknown`「不知道这次操作有没有完成，请刷新后核对」，页面保留已填内容、不替人重发。已有自己重发设计的界面（助理输入框用同一 `request_id`、Goal 表单复用键）保持原样。
 - **诊断编号只在查得到时出现。** 助手只读错误体里的 `call_id`，不读响应头；宿主只在这次调用在调用记录里留下了行时才往错误体写它，所以界面上出现的编号，在「设置 › 诊断」里一定查得到。管理类写入和入口的安全拒绝不进调用记录，没有编号。`show(目标, 错误, 兜底)` 把消息写进错误区域，有编号时加一个「诊断编号 xxxxxxxx」按钮（点一下复制完整编号）；`toast(...)` 是同样的错误吐司，带编号的停约 8 秒，指着或聚焦时不消失；吐司上换了新消息，旧按钮连同它的焦点就算没了，不等浏览器报「失去焦点」（有的浏览器引擎在聚焦的节点被删时不报）。
 - **谁拥有什么。** 键、头、错误形状、编号按钮归助手；错误文案、放在页面哪里、要不要保留输入仍归各界面。
-- **插件的页面代码不自己发请求。** `plugins/native/*/src` 里的 TypeScript 不调 `fetch`、`XMLHttpRequest`、`EventSource`、`sendBeacon`（代码里或送进页面的字符串里都不行），只用助手；只有 Alchemist 与插件创作台绕过（与构建期接线的两个批过的例外同一批，BL-376/377）。`tests/plugin-client-request.test.ts` 静态扫这些写法，绕过名单 `BYPASSED` 里的插件一旦不再自己发请求就必须从名单删掉；它不覆盖 `.js`、别名调用（`const f = fetch`）、`WebSocket` 和动态 `import()`，是所列写法的回归检查，不是网络路径的安全边界。
+- **插件的页面代码不自己发请求。** `plugins/native/*/src` 里的 TypeScript 不调 `fetch`、`XMLHttpRequest`、`EventSource`、`sendBeacon`（代码里或送进页面的字符串里都不行），只用助手；只有 Alchemist 与插件创作台绕过（与构建期接线的两个批过的例外同一批，BL-377）。`tests/plugin-client-request.test.ts` 静态扫这些写法，绕过名单 `BYPASSED` 里的插件一旦不再自己发请求就必须从名单删掉；它不覆盖 `.js`、别名调用（`const f = fetch`）、`WebSocket` 和动态 `import()`，是所列写法的回归检查，不是网络路径的安全边界。
 
 `molisWorkControlHeaders()` 留着，是同一助手只给头的入口，供还没迁的调用方使用（删除条件见 [UI Host README](../../packages/ui-host/README.md#浏览器请求)）。进度：W3-10-1a 把助手装到不进 `/assets/` 的内联页面（设置、项目设置、引导、新建项目旅程、选择页、侧栏独立页、创作台页）；W3-10-1b 让工作台主程序（`/assets/molis-work-workbench.js`）以助手开头，所以挂进工作台的页面（设置里的各页、侧栏）不用自带，并先迁了设置一组（模型、提示词、助理、记忆、诊断、常驻服务、项目与项目说明、Runtime 接入预览）、侧栏（含浏览器与文件）、设置目录、后台任务和插件通知；工作台的其余请求（导航、Feed、插件挂载、助理底栏、放置、搜索，W3-10-2～4）和插件客户端（W5-04）还在用各自的包装。挂进工作台的页面里的「诊断编号」按钮只有一个复制入口（`data-molis-call-id`，助手的点击处理），不再另挂 `data-copy-value`。
 

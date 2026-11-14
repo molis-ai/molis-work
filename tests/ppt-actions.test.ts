@@ -1,21 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pptActions as actions, PPT_ACTION_PERMISSIONS, pptxFilename } from "@molis-ai/molis-work-plugin-ppt";
 import { openPptStore } from "./fixtures/plugin-home-stores.js";
 import { pagesActions, PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-pages";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { initializeBoard } from "./fixtures/goals-board.js";
+import { openTestHome } from "./fixtures/test-home.js";
 async function fixture(t: test.TestContext) {
-  const home = await mkdtemp(join(tmpdir(), "ppt-actions-")), host = new MolisWorkLocalHost({ homeDirectory: home });
-  t.after(async () => { await host.close(); await rm(home, { recursive: true, force: true }); });
-  const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "a" });
-  await initializeBoard(host, ref, { actor_id: "owner", idempotency_key: "init" });
-  const caller: ActionCallContext = { actor_id: "owner", project_id: "a", audience: "user", permissions: PPT_ACTION_PERMISSIONS };
+  const { home, host, createProject } = await openTestHome(t);
+  const { reference: ref } = await createProject("PPT actions", ["ppt"]);
+  const caller: ActionCallContext = { actor_id: "owner", project_id: ref.project_id, audience: "user", permissions: PPT_ACTION_PERMISSIONS };
   const client = host.actionClient(ref), bound = bindActionClient(client, () => caller);
   return { home, host, ref, caller, client, bound };
 }
@@ -59,7 +53,7 @@ test("PPT reads a stored presentation without rewriting slides, colors or artifa
   const db=openHomeSqliteDatabase(f.home,'ppt');
   try{
     db.prepare(`INSERT INTO presentations (id,project_id,title,description,color_primary,color_background,color_text,slides_json,created_at,updated_at,version,artifact_id,artifact_version)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`).run('old','a','旧演示','旧说明','#123456','#FFFFFF','#000000',JSON.stringify(slides),'2025-01-01','2025-01-02',8,'ppt-old',3);
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`).run('old',f.ref.project_id,'旧演示','旧说明','#123456','#FFFFFF','#000000',JSON.stringify(slides),'2025-01-01','2025-01-02',8,'ppt-old',3);
     const record=(await f.bound.invoke(actions.get,{id:'old'})).presentation;
     assert.deepEqual(record.slides,slides);assert.equal(record.color_background,'#FFFFFF');assert.equal(record.version,8);assert.equal(record.artifact_version,3);
     assert.equal(record.created_at,'2025-01-01');assert.equal(record.publication_pending,undefined);
@@ -69,30 +63,30 @@ test("PPT reads a stored presentation without rewriting slides, colors or artifa
   }finally{db.close();}
 });
 
-test("PPT fixed publication survives partial success, actor isolation, restart and later edits",async t=>{
-  const f=await fixture(t);const {presentation}=await f.bound.invoke(actions.create,{title:'Original snapshot'});
-  const id=presentation.id,db=openHomeSqliteDatabase(f.home,'ppt');
-  try{
-    const sentinel = (await f.bound.invoke(actions.create, { title: 'Published constraint fixture' })).presentation;
-    await f.bound.invoke(actions.promote, { id: sentinel.id });
-    db.exec("CREATE UNIQUE INDEX fail_ppt ON presentations ((1)) WHERE artifact_version > 0");
-    await assert.rejects(f.bound.invoke(actions.promote,{id}),/UNIQUE constraint failed/);
-    assert.equal((await f.bound.invoke(actions.get,{id})).presentation.publication_pending!.version,1);
-    await assert.rejects(f.bound.invoke(actions.delete,{id}),{code:'ppt.publication_pending'});
-    await f.bound.invoke(actions.update,{id,title:'Later edit',slides});
-    await assert.rejects(f.client.invoke({...f.caller,actor_id:'other'},actions.promote,{id}),{code:'ppt.publication_owner'});
-    db.exec('DROP INDEX fail_ppt');
-  }finally{db.close();}
-  await f.host.closeProject(f.ref);
-  const restored=await f.bound.invoke(actions.promote,{id});
-  assert.equal(restored.recovered,true);assert.equal(restored.artifact.version,1);assert.equal(restored.presentation.title,'Later edit');assert.deepEqual(restored.presentation.slides,slides);
-  await f.host.withProject(f.ref,runtime=>{
-    const original=runtime.artifacts.query.getArtifactVersion(f.ref.project_id,restored.artifact)!;
-    assert.equal((original.payload as any).title,'Original snapshot');assert.equal((original.payload as any).slides.length,1);
-    assert.equal(runtime.artifacts.query.getArtifactVersion(f.ref.project_id,{...restored.artifact,version:2}),null);
-  });
-  const next=await f.bound.invoke(actions.promote,{id});assert.equal(next.artifact.version,2);
-  await f.host.withProject(f.ref,runtime=>assert.deepEqual((runtime.artifacts.query.getArtifactVersion(f.ref.project_id,next.artifact)!.payload as any).slides,slides));
+test("BSH-03 PPT refuses the joined row write and the next pin uses the edited draft", async t => {
+  const { bound, home, host, ref } = await fixture(t);
+  const { presentation } = await bound.invoke(actions.create, { title: "Initial draft" });
+  const id = presentation.id, sentinel = (await bound.invoke(actions.create, { title: "Constraint fixture" })).presentation;
+  await bound.invoke(actions.promote, { id: sentinel.id });
+  const db = openHomeSqliteDatabase(home, "ppt");
+  try {
+    db.exec("CREATE UNIQUE INDEX fail_publication ON presentations ((1)) WHERE artifact_version > 0");
+    await assert.rejects(bound.invoke(actions.promote, { id }), /UNIQUE constraint failed/u);
+    assert.deepEqual((await bound.invoke(actions.get, { id })).presentation, presentation);
+    assert.equal(await host.withProject(ref, ({ artifacts }) => artifacts.query.latestArtifactVersion(ref.project_id, "ppt-" + id)), null);
+    db.exec("DROP INDEX fail_publication");
+  } finally { db.close(); }
+  const edited = (await bound.invoke(actions.update, { id, title: "Later edit", slides, expected_version: presentation.version })).presentation;
+  await host.closeProject(ref);
+  const pinned = await bound.invoke(actions.promote, { id, expected_version: edited.version });
+  assert.equal(pinned.recovered, false);
+  assert.equal(pinned.artifact.version, 1);
+  assert.equal(pinned.presentation.title, "Later edit");
+  assert.equal(pinned.presentation.publication_pending, undefined);
+  assert.deepEqual(pinned.presentation.slides, slides);
+  const first = await host.withProject(ref, ({ artifacts }) => artifacts.query.getArtifactVersion(ref.project_id, pinned.artifact));
+  assert.equal(first?.title, "Later edit");
+  assert.equal((await bound.invoke(actions.promote, { id })).artifact.version, 2);
 });
 
 test("PPT outline: pasted Markdown becomes slides locally; the model path needs a text model", async t => {

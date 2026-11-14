@@ -1,0 +1,67 @@
+import { MEMORY_FORMAL_KINDS, MEMORY_LIFECYCLES, type MemoryClassRestriction, type MemoryPrefs, type MemoryScope } from "@molis-ai/molis-work-contracts/services/memory";
+
+/** Trusted caller and canonical classification only; no permission or default classification is inferred. */
+export interface MemoryClassContext { consumer: string; current_scene: string }
+export interface MemoryClassTarget {
+  kind?: string;
+  classification?: { scenes: readonly string[]; lifecycle: string } | null;
+}
+
+function matches(row: MemoryClassRestriction, context: MemoryClassContext, target: MemoryClassTarget): boolean {
+  const selector = row.selector;
+  return selector.consumer === context.consumer && selector.current_scene === context.current_scene
+    && (selector.kind === undefined || selector.kind === target.kind)
+    && (selector.lifecycle === undefined || selector.lifecycle === target.classification?.lifecycle)
+    && (selector.scene === undefined || (selector.scene === context.current_scene || selector.scene === "common")
+      && target.classification?.scenes.includes(selector.scene) === true);
+}
+
+/** Only the new read restriction; callers still intersect old authorization and any frozen Run restrictions. */
+export function memoryClassReadAllowed(restrictions: readonly MemoryClassRestriction[], context: MemoryClassContext,
+  target: MemoryClassTarget, mode: "explicit" | "task" | "resident"): boolean {
+  return restrictions.every(row => !matches(row, context, target)
+    || row.read === "inherit" || row.read === "explicit-only" && mode === "explicit");
+}
+
+/** Automatic formation is independent of read. This does not authorize human or plugin explicit saves. */
+export function memoryClassFormationAllowed(restrictions: readonly MemoryClassRestriction[], context: MemoryClassContext,
+  target: MemoryClassTarget): boolean {
+  return restrictions.every(row => !matches(row, context, target) || row.form === "inherit");
+}
+
+/** Conservative existence check before an automatic read; unknown classification never becomes common. */
+export function memoryClassReadPossible(restrictions: readonly MemoryClassRestriction[], context: MemoryClassContext,
+  mode: "explicit" | "task" | "resident", filter: { kinds?: readonly string[]; scenes?: readonly string[]; lifecycles?: readonly string[] } = {}): boolean {
+  const kinds = filter.kinds ?? MEMORY_FORMAL_KINDS;
+  const scenes = [context.current_scene, "common"].filter(scene => !filter.scenes || filter.scenes.includes(scene));
+  const lifecycles = filter.lifecycles ?? MEMORY_LIFECYCLES;
+  const readable = (target: MemoryClassTarget) => memoryClassReadAllowed(restrictions, context, target, mode);
+  if (!filter.scenes && !filter.lifecycles && (filter.kinds ? kinds.some(kind => readable({ kind })) : readable({}))) return true;
+  return kinds.some(kind => scenes.some(scene => lifecycles.some(lifecycle => readable({ kind, classification: { scenes: [scene], lifecycle } }))));
+}
+
+/** Intersect current settings with this invocation's original Run recipe; neither side grants authority. */
+export function callerClassAllowed(prefs: MemoryPrefs, caller: {
+  consumer: string; current_scene?: string; plugin_id?: string | null; session_id?: string; purpose?: "management" | "task"; person?: boolean;
+  class_restrictions?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentMemoryClassPolicy;
+}, scope: MemoryScope, target: MemoryClassTarget, mode: "explicit" | "task" | "resident" | "form"): boolean {
+  if (caller.person && caller.purpose !== "task") return true;
+  if (caller.session_id && !caller.class_restrictions) return false;
+  const current_scene = caller.current_scene ?? (caller.plugin_id === "io.molis.work.coding" ? "coding" : caller.consumer === "assistant" ? "assistant" : "common");
+  const context = { consumer: caller.consumer, current_scene }, policy = caller.class_restrictions;
+  const allowed = (rows: readonly MemoryClassRestriction[]) => mode === "form"
+    ? memoryClassFormationAllowed(rows, context, target) : memoryClassReadAllowed(rows, context, target, mode);
+  return allowed(prefs.class_restrictions) && (!policy || policy.policy_version === /* @version format.memory.class-policy */ 1 && policy.taxonomy_version === /* @version format.memory.class-taxonomy */ 1
+    && allowed(policy[scope === "personal" ? "personal" : "project"]));
+}
+
+/** Avoid a body scan when neither the original Run nor current rules allow any visible class. */
+export function callerClassReadPossible(prefs: MemoryPrefs, caller: Parameters<typeof callerClassAllowed>[1], scope: MemoryScope,
+  mode: "explicit" | "task" | "resident"): boolean {
+  if (caller.person && caller.purpose !== "task") return true;
+  if (caller.session_id && !caller.class_restrictions) return false;
+  const context = { consumer: caller.consumer, current_scene: caller.current_scene
+    ?? (caller.plugin_id === "io.molis.work.coding" ? "coding" : caller.consumer === "assistant" ? "assistant" : "common") };
+  const frozen = caller.class_restrictions?.[scope === "personal" ? "personal" : "project"] ?? [];
+  return memoryClassReadPossible([...prefs.class_restrictions, ...frozen], context, mode);
+}

@@ -6,6 +6,7 @@ import { fromEntryMeta } from "./facts.js";
 import { memoryErrors } from "./errors.js";
 import { MEMORY_GATE_POLICY, MEMORY_GATE_RULE, MEMORY_GATE_VERSION, automaticMemoryHold } from "./policy.js";
 import { theirWords } from "./spoken.js";
+import { formationAllowed } from "./prefs.js";
 
 interface PromotionMark extends AgentMemoryPromotionIdentity {
   kind: "promotion";
@@ -30,6 +31,16 @@ const journalKey = (operation: string) => `memory-operation:${operation}:promoti
 const sourcesKey = (memory: string) => `memory-source-links:${memory}`;
 const forgottenKey = (scope: MemoryScope, owner: string, event: string) => `memory-source-forgotten:${JSON.stringify([scope, owner, event])}`;
 
+/** The same source projection is shared by ordinary forgetting and the project-deletion owner. */
+export function memoryPromotionSources(ledger: MemoryLedgerPort, now: () => Date): Pick<MemoryPromotion, "linked" | "retainSuppression"> {
+  return {
+    linked: (actor, memory) => (ledger.marker(actor, sourcesKey(memory))?.body as { sources?: AgentMemorySourceRef[] } | undefined)?.sources ?? [],
+    retainSuppression: (actor, scope, owner, events) => ledger.transaction(() => {
+      for (const event_id of events) ledger.setMarker(actor, forgottenKey(scope, owner, event_id), { event_id }, now().toISOString());
+    }),
+  };
+}
+
 /** App approval and durable undo share the existing ledger; the SDK remains the only formal/candidate writer. */
 export class MemoryPromotion {
   readonly capability: AgentMemoryPromotion = {
@@ -40,15 +51,19 @@ export class MemoryPromotion {
   constructor(private readonly ports: PromotionPorts) {}
 
   sourceAllowed(actor: string, scope: MemoryScope, owner: string, refs: readonly AgentMemorySourceRef[]): boolean {
-    return refs.every(ref => !this.ports.ledger.marker(actor, forgottenKey(scope, owner, ref.event_id)));
+    return !this.ports.ledger.forgetting.read().decisions.some(one => one.actor_id === actor && one.scope === scope && one.owner === owner
+      && refs.some(ref => one.source_event_ids.includes(ref.event_id)))
+      && refs.every(ref => !this.ports.ledger.marker(actor, forgottenKey(scope, owner, ref.event_id)));
   }
 
   linked(actor: string, memory: string): readonly AgentMemorySourceRef[] {
-    return (this.ports.ledger.marker(actor, sourcesKey(memory))?.body as { sources?: AgentMemorySourceRef[] } | undefined)?.sources ?? [];
+    return memoryPromotionSources(this.ports.ledger, this.ports.now).linked(actor, memory);
   }
 
   /** Retain every source that ever contributed to this canonical memory, including replaced versions. */
   link(actor: string, memory: string, refs: readonly AgentMemorySourceRef[]): void {
+    if (this.ports.ledger.forgetting.read().decisions.some(one => one.memories.some(item => item.memory_id === memory)))
+      throw memoryErrors.conflict("这条记忆已经接受遗忘，不能再补入来源或返回旧正文");
     if (!refs.length) return;
     const existing = this.linked(actor, memory);
     const sources = [...new Map([...existing, ...refs].map(ref => [JSON.stringify([ref.event_id, ref.version]), { event_id: ref.event_id, version: ref.version }])).values()];
@@ -61,6 +76,10 @@ export class MemoryPromotion {
       const refs = [...extra, ...memories.flatMap(id => this.linked(actor, id))];
       for (const ref of refs) this.ports.ledger.setMarker(actor, forgottenKey(scope, owner, ref.event_id), { event_id: ref.event_id }, this.ports.now().toISOString());
     });
+  }
+
+  retainSuppression(actor: string, scope: MemoryScope, owner: string, events: readonly string[]): void {
+    memoryPromotionSources(this.ports.ledger, this.ports.now).retainSuppression(actor, scope, owner, events);
   }
 
   change(actor: string, operation: string): MemoryChangeRecord {
@@ -83,7 +102,7 @@ export class MemoryPromotion {
     request.signal?.throwIfAborted();
     const entry = request.proposed, scope = scopeOf(entry), meta = request.desired.change.meta;
     const prefs = this.ports.prefs(caller.actor_id, scope, scope === "project" ? entry.owner : caller.project_id);
-    if (caller.source_use !== "learning" || request.policy !== MEMORY_GATE_POLICY || request.version !== MEMORY_GATE_VERSION || !prefs.enabled || !prefs.form || !prefs.learn_from_work
+    if (caller.source_use !== "learning" || request.policy !== MEMORY_GATE_POLICY || request.version !== MEMORY_GATE_VERSION || !prefs.enabled || !formationAllowed(this.ports.prefs(caller.actor_id, "personal", null), prefs) || !prefs.learn_from_work
       || !meta || !MEMORY_KINDS.includes(meta.kind as MemoryKind) || automaticMemoryHold(meta.kind as MemoryKind, meta.basis ?? null, prefs.auto)
       || meta.source !== "auto" || !isDeepStrictEqual(meta.approved_by, { by: "policy", policy: MEMORY_GATE_POLICY, version: MEMORY_GATE_VERSION })
       || !this.sourceAllowed(caller.actor_id, scope, entry.owner, request.sources)) return "hold";

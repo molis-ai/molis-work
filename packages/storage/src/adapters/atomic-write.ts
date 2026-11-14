@@ -11,7 +11,11 @@ export function syncPath(target: string): void {
   }
 }
 
-/** `durable`: survives a power loss as well as a crash, for records a later run depends on. */
+/**
+ * `durable`: survives a power loss as well as a crash, for records a later run depends on. The temporary file is created exclusively and synced
+ * through its own descriptor; a missing parent is created and its own parent synced first. An error after the rename leaves the new target for its
+ * owner to reconcile.
+ */
 export function atomicWriteFileSync(
   targetPath: string,
   data: string | Buffer,
@@ -19,22 +23,28 @@ export function atomicWriteFileSync(
 ): void {
   const mode = options.mode ?? 0o600;
   const directory = path.dirname(targetPath);
-  fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
+  if (!options.durable) fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
+  else if (!fs.existsSync(directory)) { fs.mkdirSync(directory, { recursive: true, mode: 0o700 }); syncPath(path.dirname(directory)); }
   const temporaryPath = path.join(
     directory,
     `.${path.basename(targetPath)}.${process.pid}.${Date.now()}.tmp`,
   );
+  let created = false;
   try {
-    fs.writeFileSync(temporaryPath, data, { mode });
-    if (options.durable) syncPath(temporaryPath);
+    if (options.durable) {
+      const file = fs.openSync(temporaryPath, "wx", mode); created = true;
+      try { fs.writeFileSync(file, data); fs.fchmodSync(file, mode); fs.fsyncSync(file); }
+      finally { fs.closeSync(file); }
+    } else fs.writeFileSync(temporaryPath, data, { mode });
     fs.renameSync(temporaryPath, targetPath);
-    fs.chmodSync(targetPath, mode);
     if (options.durable) syncPath(directory);
+    else fs.chmodSync(targetPath, mode);
   } catch (error) {
     try {
-      fs.unlinkSync(temporaryPath);
+      if (!options.durable || created) fs.unlinkSync(temporaryPath);
     } catch {
-      // Best effort only; the target was never replaced.
+      // After rename, the new target may already exist. Never roll it back on an
+      // unconfirmed directory sync; its owner must reconcile before more effects.
     }
     throw error;
   }

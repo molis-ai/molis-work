@@ -1,16 +1,20 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { openMemoryLedger } from "@molis-ai/molis-work-storage";
+import { openMemoryLedger, type StorageOwner } from "@molis-ai/molis-work-storage";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
-import type { AgentMemoryCapability, AgentMemoryExecutionControl, AgentMemoryUseReceipt, AgentScheduledTask } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentMemoryCapability, AgentMemoryExecutionControl, AgentMemorySourceRef, AgentMemoryUseReceipt, AgentScheduledTask } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { readMemoryInputSource } from "./memory-source-identity.js";
 import { ASSISTANT_INSTALL_ID, ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import { ActionError, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import {
   MEMORY_PROVIDER_ID,
   memoryActions,
+  memoryLearningActions,
   type MemoryChangeRequest,
   type MemoryCandidateDecision,
   type MemoryListRequest,
+  type MemoryPageRequest,
+  type MemoryPageResponse,
   type MemoryPrefsWriteRequest,
   type MemoryRecallRequest,
   type MemoryScope,
@@ -22,10 +26,12 @@ import { dispatchNativePluginJsonHttp } from "../native-plugin-http.js";
 import { localWebActionContext } from "../local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "../local-owner-permissions.js";
 import type { MolisWorkLocalHost } from "../project-host.js";
+import { pluginMemoryLearning } from "./memory-learning-owner.js";
 import { learnFromQueuedWork } from "./memory-learning.js";
-import { assistantMemorySources, type AssistantMemoryLearningRequest } from "../assistant/assistant-memory-sources.js";
+import { assistantMemorySources, assistantMemorySourceWork, type AssistantMemoryLearningRequest } from "../assistant/assistant-memory-sources.js";
 import { runUpkeep, subjectTitles } from "./memory-upkeep.js";
 import { controlledMemoryService, memoryCallService, memoryCaller, memoryCommandBody } from "./memory-effect.js";
+import { bindMemorySession, type AssistantMemoryBindingReader } from "./memory-session-binding.js";
 import { memorySources } from "./memory-sources.js";
 import { hostLog } from "../host-log.js";
 import { prologueMemoryBackend } from "./memory-backend.js";
@@ -45,6 +51,8 @@ const RUNTIME = "prologue";
 
 interface MemoryHost {
   readonly service: MemoryService;
+  bindSession(input: { caller: ActionCallContext; kind: string; id: string; mode: "read" | "write" | "delete";
+    projectRef?: LocalHostProjectReference; assistantBinding?: AssistantMemoryBindingReader; preview_id?: string }): ReturnType<typeof bindMemorySession>;
   readonly policy: MemoryRuntimePolicyOwner;
   withExecution(control: AgentMemoryExecutionControl, bindChangeTarget: NonNullable<MemoryServicePorts["bindChangeTarget"]>): MemoryService;
   /** The same SourcePort, restricted to the Assistant's fixed Host installation. */
@@ -87,6 +95,7 @@ export async function recordMemoryUsage(localHost: MolisWorkLocalHost, receipt: 
 interface MemoryHostPorts {
   localHost: MolisWorkLocalHost;
   homeDirectory: string;
+  storageOwner: StorageOwner;
   agentHost: AgentHost;
   /** Starts the runtime when needed; memory lives in it. */
   ready(): Promise<void>;
@@ -104,6 +113,7 @@ interface MemoryHostPorts {
   /** Whether the project is still in this Home's catalog; null when this process has no catalog to ask. */
   projectExists?(projectId: string): Promise<boolean | null>;
   projectTitle?(projectId: string): Promise<string | null>;
+  projectReference?(projectId: string): Promise<LocalHostProjectReference>;
 }
 
 /** The original runtime queue owns learning and upkeep; both stop with ordinary Memory business. */
@@ -150,9 +160,10 @@ function memoryBackgroundWork(input: {
     assertBusiness();
     await schedule.enqueue({ key, session_id, kind: UPKEEP_KIND, payload: {}, due_at: when.toISOString(), max_attempts: 2 });
   };
-  const runLearning = async (task: Pick<AgentScheduledTask, "key" | "session_id" | "payload">) => {
+  const runLearning = async (task: AgentScheduledTask) => {
     try {
       assertBusiness();
+      if (task.payload.source_kind === "plugin-run") { await pluginLearning.run(task); return; }
       const outcome = await learnFromQueuedWork(ports.homeDirectory, task, { adapter: ports.agentHost.adapter(RUNTIME), service,
         ports: { backend, ledger, ...(ports.projectTitle ? { projectTitle: ports.projectTitle } : {}) }, backend: control => prologueMemoryBackend(store, control),
         alive: businessAlive, ...(ports.projectExists ? { projectExists: ports.projectExists } : {}) });
@@ -172,8 +183,11 @@ function memoryBackgroundWork(input: {
     queueAttached = true;
     void scheduleUpkeep(new Date()).catch(error => hostLog.warn("memory", "upkeep_not_queued", error));
   };
+  const pluginLearning = pluginMemoryLearning({ home: ports.homeDirectory, localHost: ports.localHost, service, ports: servicePorts,
+    adapter: () => ports.agentHost.adapter(RUNTIME), store, ready: ports.ready, alive: businessAlive, attachQueue,
+    projectReference: ports.projectReference, projectExists: ports.projectExists });
   void ports.started?.().then(attachQueue).catch(() => undefined);
-  return { upkeepNow,
+  return { upkeepNow, pluginLearning,
     learnLater: async (request: AssistantMemoryLearningRequest) => {
       assertBusiness();
       await ports.ready();
@@ -184,8 +198,17 @@ function memoryBackgroundWork(input: {
       if (!sources || !service.worthLearning(sources.request.caller, sources.request.said)) { hostLog.debug("memory", "learning_skipped", { key }); return; }
       attachQueue();
       const schedule = ports.agentHost.adapter(RUNTIME).schedule;
-      if (!schedule) { void runLearning(task).catch(error => hostLog.warn("memory", "learning_failed", error)); return; }
-      const queued = await schedule.enqueue({ ...task, kind: LEARN_KIND, due_at: new Date().toISOString(), max_attempts: 2 });
+      if (!schedule) throw memoryErrors.unavailable("持久学习队列不可用");
+      const current = () => { assertBusiness();
+        if (!service.worthLearning(sources.request.caller, sources.request.said) || !sources.request.caller.session_id
+          || assistantMemorySourceWork(ports.homeDirectory, sources.request.caller.actor_id, sources.request.caller.session_id)?.project_id !== sources.request.caller.project_id)
+          throw memoryErrors.forbidden("原工作或学习权限已失效"); };
+      const queued = await schedule.enqueue({ ...task, kind: LEARN_KIND, due_at: new Date().toISOString(), max_attempts: 2 },
+        { beforeCommit: async () => {
+          if (!await sources.current() || sources.request.caller.project_id && await ports.projectExists?.(sources.request.caller.project_id) !== true)
+            throw memoryErrors.forbidden("原工作来源或项目已经变化");
+          current(); return current;
+        } });
       hostLog.debug("memory", "learning_queued", { key: queued.key, state: queued.state, due_at: queued.due_at });
     },
   };
@@ -215,7 +238,7 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
   let stopped = false, closed = false;
   const businessAlive = () => !stopped && !closed && ports.localHost.lifecycle() === "running";
   const assertBusiness = () => { if (!businessAlive()) throw memoryErrors.unavailable("原记忆服务已关闭"); };
-  const ledger = openMemoryLedger({ homeDirectory: ports.homeDirectory });
+  const ledger = openMemoryLedger({ homeDirectory: ports.homeDirectory, storageOwner: ports.storageOwner });
   const store = async (): Promise<AgentMemoryCapability> => {
     assertBusiness();
     await ports.ready();
@@ -225,17 +248,22 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
     return memory;
   };
   const backend = prologueMemoryBackend(store);
-  const servicePorts = { backend, ledger, ...(ports.projectTitle ? { projectTitle: ports.projectTitle } : {}) };
+  // A session's memory page and clear include what was learned from what the person said in it (the source names its Runtime session).
+  const sourceSession = (ref: AgentMemorySourceRef) => readMemoryInputSource(ref)?.session_id;
+  const servicePorts = { backend, ledger, sourceSession, ...(ports.projectTitle ? { projectTitle: ports.projectTitle } : {}) };
   const projection = new MemoryService(servicePorts);
   const service = controlledMemoryService(servicePorts, control => prologueMemoryBackend(store, control),
     { beforeEffect: async () => assertBusiness(), assert_current: assertBusiness });
-  const forCall = (context: ActionExecutionContext) => memoryCallService(context, { backend, ledger, ...(ports.projectTitle ? { projectTitle: ports.projectTitle } : {}) },
+  const forCall = (context: ActionExecutionContext) => memoryCallService(context, { backend, ledger, sourceSession, ...(ports.projectTitle ? { projectTitle: ports.projectTitle } : {}) },
     control => prologueMemoryBackend(store, control), businessAlive);
   const caller = memoryCaller;
   const input = <T>(value: unknown) => (value ?? {}) as T;
-  const { upkeepNow, learnLater } = memoryBackgroundWork({ ports, service, servicePorts, store, businessAlive, assertBusiness });
+  const { upkeepNow, learnLater, pluginLearning } = memoryBackgroundWork({ ports, service, servicePorts, store, businessAlive, assertBusiness });
   const bindings: ActionHandlerBinding[] = [
+    { ...memoryLearningActions.enqueue, handle: (context, value) => pluginLearning.enqueue(context, input(value)) },
+    { ...memoryLearningActions.form, handle: (context, value) => pluginLearning.form(context, input(value)) },
     { ...memoryActions.recall, handle: (context, value) => forCall(context).recall(caller(context), input<MemoryRecallRequest>(value), { beforeEffect: () => context.beforeEffect(), readMode: context.memory_read_mode ?? "task" }) }, // concurrent: its receipts (最近用于) are its only effect, written after the call's own check
+    { ...memoryActions.page, handle: (context, value) => forCall(context).page(caller(context), input<MemoryPageRequest>(value)) },
     { ...memoryActions.list, handle: (context, value) => forCall(context).list(caller(context), input<MemoryListRequest>(value)) },
     { ...memoryActions.write, handle: async (context, value) => { await context.beforeEffect(); return forCall(context).write(caller(context), input<MemoryWriteRequest>(value)); } },
     { ...memoryActions.change, handle: async (context, value) => { await context.beforeEffect(); return forCall(context).change(caller(context), input<MemoryChangeRequest>(value)); } },
@@ -245,7 +273,7 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
       return forCall(context).accept(caller(context), request.candidate_id, request); } },
     { ...memoryActions.discard, handle: async (context, value) => { await context.beforeEffect(); const request = input<MemoryCandidateDecision>(value);
       return forCall(context).discard(caller(context), request.candidate_id, request.expected_version); } },
-    { ...memoryActions.changes, handle: (context, value) => ({ changes: forCall(context).changes(caller(context), input(value)) }) },
+    { ...memoryActions.changes, handle: async (context, value) => ({ changes: await forCall(context).changes(caller(context), input(value)) }) },
     { ...memoryActions.undo, handle: async (context, value) => { await context.beforeEffect(); return forCall(context).undo(caller(context), input<{ change_id: string }>(value).change_id); } },
     { ...memoryActions.prefs, handle: (context, value) => forCall(context).prefs(caller(context), input<{ scope?: MemoryScope }>(value).scope) },
     { ...memoryActions.savePrefs, handle: async (context, value) => { await context.beforeEffect(); const request = input<MemoryPrefsWriteRequest>(value);
@@ -255,6 +283,11 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
     { ...memoryActions.resolvePair, handle: async (context, value) => { await context.beforeEffect(); const request = input<{ pair_id: string; keep: "a" | "b" | "both" }>(value);
       return forCall(context).resolvePair(caller(context), request.pair_id, request.keep); } },
     { ...memoryActions.upkeep, handle: async context => { if (context.audience !== "user") throw memoryErrors.forbidden("只有本人能立即整理"); await context.beforeEffect(); return upkeepNow(forCall(context)); } },
+    { ...memoryActions.batchPreview, handle: (context, value) => forCall(context).previewBatch(caller(context), input(value)) },
+    { ...memoryActions.batchApply, handle: async (context, value) => { await context.beforeEffect(); return forCall(context).applyBatch(caller(context), input<{ preview_id: string }>(value).preview_id); } },
+    { ...memoryActions.sessionClearPreview, handle: (context) => forCall(context).sessionClear.preview(caller(context)) },
+    { ...memoryActions.sessionClearApply, handle: (context, value) => forCall(context).sessionClear.apply(caller(context), input<{ preview_id: string }>(value).preview_id) },
+    { ...memoryActions.operations, handle: (context, value) => forCall(context).listOperations(caller(context), input(value)) },
     { ...memoryActions.preview, handle: async (context, value) => { return forCall(context).previewScope(caller(context), input<{ scope: MemoryScope }>(value).scope); } },
     { ...memoryActions.clear, handle: async (context, value) => { await context.beforeEffect(); const request = input<{ scope: MemoryScope; fingerprint: string }>(value);
       return forCall(context).clearScope(caller(context), request.scope, request.fingerprint); } },
@@ -263,10 +296,12 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
       return forCall(context).importScope(caller(context), request.scope, request.package); } },
   ];
   const dispose = ports.localHost.actionRegistry().registerProvider({ provider: { provider_id: MEMORY_PROVIDER_ID, title: "记忆", kind: "system" },
-    definitions: Object.values(memoryActions), handlers: bindings });
+    definitions: [...Object.values(memoryActions), memoryLearningActions.enqueue, memoryLearningActions.form], handlers: bindings });
   const deletion = registerMemoryProjectDeletion({ ...ports, backend, ledger, alive: businessAlive });
   const host: MemoryHost = {
     service,
+    bindSession: input => bindMemorySession({ ...input, localHost: ports.localHost, agentHost: ports.agentHost, assertBusiness,
+      acceptedPlan: binding => !!input.preview_id && service.sessionClear.acceptedBinding(input.caller.actor_id, input.preview_id, binding) }),
     withExecution: (control, bindChangeTarget) => controlledMemoryService({ ...servicePorts, bindChangeTarget },
       current => prologueMemoryBackend(store, current), {
         beforeEffect: () => control.beforeEffect(),
@@ -275,6 +310,8 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
     checkAssistantSources: (caller, request) => assistantSources.check(caller, request),
     policy: {
       alive: businessAlive,
+      authorizeSessionPurge: (caller, target) => service.sessionClear.authorizePurge(caller, target),
+      forgettingPhase: () => service.forgettingPhase(),
       prefsFor: (scope, projectId) => service.prefsFor(LOCAL_PERSON, scope, projectId),
       owners: projectId => ledger.owners(projectId),
       candidateOwners: projectId => ledger.candidateOwners(projectId),
@@ -309,40 +346,83 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
  * invoked with the local person's own context in this page's scope (the project page reaches that project's memories).
  */
 export async function handleMemoryHttp(request: IncomingMessage, response: ServerResponse, url: URL,
-  ports: { localHost: MolisWorkLocalHost; projectRef?: LocalHostProjectReference }): Promise<boolean> {
+  ports: { localHost: MolisWorkLocalHost; projectRef?: LocalHostProjectReference; assistantBinding?: AssistantMemoryBindingReader }): Promise<boolean> {
   const abort = new AbortController();
+  let releaseSession: (() => void) | undefined;
   const disconnected = () => { if (!response.writableEnded) abort.abort(new ActionError("actions.cancelled", "调用已取消")); };
   request.once("aborted", disconnected); response.once("close", disconnected);
   try { return await dispatchNativePluginJsonHttp(request, response, url, { prefix: "/api/memory", maxBodyBytes: 400_000,
     async handle({ method, pathname, body: rawBody }) {
       if (!memoryHostFor(ports.localHost)) return { status: 503, body: { error: "记忆服务还没有就绪，请稍后再试", code: "memory.unavailable" } };
-      const parts = pathname.slice("/api/memory/".length).split("/").map(decodeURIComponent);
+      let parts = pathname.slice("/api/memory/".length).split("/").map(decodeURIComponent);
       const client = ports.projectRef ? ports.localHost.actionClient(ports.projectRef) : ports.localHost.homeActionClient();
       const { body, operation_id } = memoryCommandBody(rawBody);
-      const context = { ...await localWebActionContext(ports.localHost, ports.projectRef, LOCAL_OWNER_PERMISSIONS, abort.signal),
+      let context: ActionCallContext = { ...await localWebActionContext(ports.localHost, ports.projectRef, LOCAL_OWNER_PERMISSIONS, abort.signal),
         ...(method === "POST" && operation_id ? { memory_operation_id: operation_id } : {}),
         ...(method === "POST" && parts.length === 1 && parts[0] === "recall" ? { memory_read_mode: "explicit" as const } : {}) };
+      if (parts[0] === "sessions") {
+        if (parts.length < 3) throw memoryErrors.invalid("会话记忆需要明确的业务会话入口");
+        const kind = parts[1]!, id = parts[2]!;
+        parts = parts.slice(3);
+        if (!parts.length && method === "GET") parts = ["overview"];
+        const reading = method === "GET" || parts[0] === "recall" || parts[0] === "clear" && parts[1] === "preview";
+        const deleting = parts[0] === "clear" && parts[1] === "apply" || parts[0] === "change" && body.action === "remove";
+        const held = await memoryHostFor(ports.localHost)!.bindSession({ caller: context, kind, id, projectRef: ports.projectRef,
+          mode: reading ? "read" : deleting ? "delete" : "write",
+          ...(deleting && parts[0] === "clear" && typeof body.preview_id === "string" ? { preview_id: body.preview_id } : {}), ...(ports.assistantBinding ? { assistantBinding: ports.assistantBinding } : {}) });
+        context = { ...context, memory_session: held.context }; releaseSession = held.dispose;
+      }
       const call = (definition: { capability_id: string; version: number }, input: unknown) =>
         client.invoke(context, { capability_id: definition.capability_id, version: definition.version, provider_id: MEMORY_PROVIDER_ID }, input);
       const scope = (value: unknown): MemoryScope | undefined => value === "project" || value === "personal" ? value : undefined;
-      // One read for a settings page: the scope's memories, switches, candidates and recent changes.
+      const pageLabels = async (page: MemoryPageResponse) => ({ goals: await subjectTitles(ports.localHost, ports.projectRef, "goal",
+        page.items.flatMap(item => item.applies.goal_ids ?? [])).catch(() => ({})) });
+      if (method === "GET" && parts.length === 1 && parts[0] === "operations") {
+        if (context.memory_session && url.searchParams.has("scope")) throw memoryErrors.invalid("会话操作查询不能另选范围");
+        const query = { ...(url.searchParams.has("scope") ? { scope: url.searchParams.get("scope")! } : {}),
+          ...(url.searchParams.has("limit") ? { limit: Number(url.searchParams.get("limit")) } : {}),
+          ...(url.searchParams.get("cursor") ? { cursor: url.searchParams.get("cursor")! } : {}) };
+        return { status: 200, body: await call(memoryActions.operations, query) };
+      }
+      if (method === "GET" && parts.length === 1 && parts[0] === "page") {
+        const encoded = url.searchParams.get("input") ?? "{}";
+        if (encoded.length > 70000) throw memoryErrors.invalid("管理页查询超出限额");
+        let input: unknown;
+        try { input = JSON.parse(encoded); } catch { throw memoryErrors.invalid("管理页查询不是有效 JSON"); }
+        const page = await call(memoryActions.page, input) as MemoryPageResponse;
+        return { status: 200, body: { ...page, labels: await pageLabels(page) } };
+      }
+      // Side sections retain their contracts; formal memories use the same bounded page as subsequent requests.
       if (method === "GET" && parts.length === 1 && parts[0] === "overview") {
         const wanted = scope(url.searchParams.get("scope")) ?? (ports.projectRef ? "project" : "personal");
-        // A project's page also holds its Characters' memories, so it lists everything the person has there and shows those.
-        const [list, prefs, candidates, changes, pairs] = await Promise.all([
-          call(memoryActions.list, wanted === "project" ? {} : { scope: wanted }), call(memoryActions.prefs, { scope: wanted }),
-          call(memoryActions.candidates, { scope: wanted }), call(memoryActions.changes, { scope: wanted, limit: 30 }), call(memoryActions.pairs, { scope: wanted }),
+        const [page, prefs, candidates, changes] = await Promise.all([
+          call(memoryActions.page, { scope: wanted }), call(memoryActions.prefs, { scope: wanted }),
+          call(memoryActions.candidates, { scope: wanted }).catch(error => {
+            if (abort.signal.aborted) throw error;
+            // The failed Action keeps its diagnostic; null means unread, never an empty candidate list.
+            return { candidates: null };
+          }), call(memoryActions.changes, { scope: wanted, limit: 30 }),
         ]);
-        // Goals a memory is limited to, by name (read through the Goals plugin's own reader), so the page never shows bare ids.
-        const goalIds = ((list as { items?: Array<{ applies?: { goal_ids?: string[] } }> }).items ?? []).flatMap(item => item.applies?.goal_ids ?? []);
-        const goals = await subjectTitles(ports.localHost, ports.projectRef, "goal", goalIds).catch(() => ({}));
-        return { status: 200, body: { scope: wanted, ...(list as object), ...(prefs as object), ...(candidates as object), ...(changes as object), ...(pairs as object),
-          labels: { goals }, last_upkeep: memoryHostFor(ports.localHost)?.service.lastUpkeep(LOCAL_PERSON) ?? null } };
+        return { status: 200, body: { scope: wanted, ...(page as object), ...(prefs as object), ...(candidates as object), ...(changes as object), pairs: null,
+          labels: await pageLabels(page as MemoryPageResponse), last_upkeep: memoryHostFor(ports.localHost)?.service.lastUpkeep(LOCAL_PERSON) ?? null } };
       }
+      if (method === "GET" && parts.length === 1 && parts[0] === "pairs") return { status: 200,
+        body: await call(memoryActions.pairs, { scope: url.searchParams.get("scope") ?? (ports.projectRef ? "project" : "personal") }) };
+      if (method === "GET" && parts.length === 1 && parts[0] === "pairs") return { status: 200, body: await call(memoryActions.pairs, { scope: scope(url.searchParams.get("scope")) }) };
       if (method === "GET" && parts.length === 3 && parts[0] === "items" && parts[2] === "history") return { status: 200, body: await call(memoryActions.history, { memory_id: parts[1] }) };
       if (method !== "POST") return null;
+      if (parts.length === 2 && parts[0] === "clear" && parts[1] === "preview") {
+        if (!context.memory_session) throw memoryErrors.forbidden("清除本会话记忆需要原业务入口");
+        return { status: 200, body: await call(memoryActions.sessionClearPreview, rawBody) };
+      }
+      if (parts.length === 2 && parts[0] === "clear" && parts[1] === "apply") {
+        if (!context.memory_session) throw memoryErrors.forbidden("清除本会话记忆需要原业务入口");
+        return { status: 200, body: await call(memoryActions.sessionClearApply, rawBody) };
+      }
       if (parts.length === 1 && parts[0] === "recall") return { status: 200, body: await call(memoryActions.recall, body) };
       if (parts.length === 1 && parts[0] === "items") return { status: 200, body: await call(memoryActions.write, body) };
+      if (parts.length === 2 && parts[0] === "batch" && parts[1] === "preview") return { status: 200, body: await call(memoryActions.batchPreview, body) };
+      if (parts.length === 2 && parts[0] === "batch" && parts[1] === "apply") return { status: 200, body: await call(memoryActions.batchApply, body) };
       if (parts.length === 1 && parts[0] === "change") return { status: 200, body: await call(memoryActions.change, body) };
       if (parts.length === 1 && parts[0] === "prefs") return { status: 200, body: await call(memoryActions.savePrefs, body) };
       if (parts.length === 3 && parts[0] === "candidates" && parts[2] === "accept") return { status: 200, body: await call(memoryActions.accept, { candidate_id: parts[1], expected_version: body.expected_version, ...(typeof body.text === "string" && body.text.trim() ? { text: body.text } : {}) }) };
@@ -357,5 +437,5 @@ export async function handleMemoryHttp(request: IncomingMessage, response: Serve
       if (parts.length === 1 && parts[0] === "import") return { status: 200, body: await call(memoryActions.import, body) };
       return null;
     },
-  }); } finally { request.off("aborted", disconnected); response.off("close", disconnected); }
+  }); } finally { releaseSession?.(); request.off("aborted", disconnected); response.off("close", disconnected); }
 }

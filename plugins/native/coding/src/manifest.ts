@@ -1,3 +1,4 @@
+import { memoryLearningActions } from "@molis-ai/molis-work-contracts/services/memory";
 import { searchActions, SEARCH_READ_PERMISSION } from "@molis-ai/molis-work-contracts/services/search";
 import { CHARACTER_ARTIFACT_TYPE, characterPluginActions } from "@molis-ai/molis-work-contracts/modules/characters";
 import { workspaceReadActions, writerDirectoryCapabilities, writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
@@ -8,6 +9,7 @@ import { agentInputActions } from "@molis-ai/molis-work-contracts/services/agent
 import { projectDirectoryActions, projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { GOALS_ACTIONS } from "./goals-actions.js";
 import { KNOWLEDGE_READ_PERMISSION, knowledgeActions } from "@molis-ai/molis-work-contracts/services/knowledge";
+import { materialsActions } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import { SKILLS_READ_PERMISSION, skillCatalogActions } from "@molis-ai/molis-work-contracts/services/skills";
 import { CODING_GOAL_CONTEXT_TYPE, CODING_PLAN_TYPE } from "./artifacts.js";
 import {
@@ -28,6 +30,7 @@ import { codingHomeBackgroundTasks } from "./home-background.js";
 import { codingResultDocument } from "./contract.js";
 import { CODING_PROJECT_DATABASE } from "./database.js";
 
+import { codingPresentation, codingPresentationActions } from "./presentation.js";
 export const CODING_PLUGIN_ID = "io.molis.work.coding";
 /** What the project database stores for this Plugin. */
 export const CODING_PROJECT_PLUGIN_ID = "coding";
@@ -82,8 +85,10 @@ export const codingManifest: PluginManifest = {
   capabilities: {
     provides: [],
     consumes: [
+      memoryLearningActions.enqueue.capability_id, memoryLearningActions.form.capability_id,
       searchActions.references.capability_id, "goals.subject.read", "goals.search.entries",
-      "files.state", "files.directory", "files.open", "files.capture", "diff.state", "text-stats.state",
+      // The embedded Git shows a file's changes through Diff, under this page.
+      "diff.state",
       "git.state", "git.select-diff", "git.prepare-index", "git.results", "git.summary", "git.pr-support", "git.conflict", "git.operations", "git.prepare-operation", "git.save-result",
       ...Object.values(agentHostCapabilities).map((entry) => entry.capability_id),
       ...Object.values(agentCollaborationActions).map((entry) => entry.capability_id),
@@ -94,6 +99,10 @@ export const codingManifest: PluginManifest = {
       ...Object.values(characterPluginActions).map(entry => entry.capability_id),
       knowledgeActions.read.capability_id,
       knowledgeActions.list.capability_id,
+      // A folder file, a quote or a snapshot chosen as a round's material is read through the platform's materials service.
+      materialsActions.read.capability_id,
+      // The files face opens a folder file as the platform's 「打开资料」, then shows it in the side panel's reader.
+      materialsActions.open.capability_id,
       skillCatalogActions.list.capability_id,
       skillCatalogActions.readBodies.capability_id,
       projectDirectoryActions.get.capability_id,
@@ -144,7 +153,8 @@ export const codingManifest: PluginManifest = {
     { job_id: "observe", reason: "独立读取并保存会话状态与关联目标标题，页面查询保持只读", permissions: ["artifact:read", "storage:private", "goals:read"] },
   ] },
   // Redeemed by this Runtime instance and bound to the person who owns the sessions; their routes forward to them.
-  actions: [...CODING_ACTIONS, ...Object.values(codingExecutorActions), codingArtifactPreview, codingResultDocument, codingHomeBackgroundTasks],
+  presentation: codingPresentation,
+  actions: [memoryLearningActions.run, ...CODING_ACTIONS, ...codingPresentationActions, ...Object.values(codingExecutorActions), codingArtifactPreview, codingResultDocument, codingHomeBackgroundTasks],
   routes: [
     { route_id: "coding.evaluate-step", method: "POST", path: "/sessions/:sessionId/runs/:runId/steps/:stepId" },
     { route_id: "coding.writer-directories", method: "GET", path: "/workspaces/:workspaceId/writers" },
@@ -184,8 +194,11 @@ export const codingManifest: PluginManifest = {
     { route_id: "coding.save-mcp", method: "POST", path: "/mcp" },
     { route_id: "coding.control-mcp", method: "POST", path: "/mcp/:serverId/control" },
     { route_id: "coding.state", method: "GET", path: "/state" },
+    { route_id: "coding.list-sessions", method: "GET", path: "/sessions" },
     { route_id: "coding.create-session", method: "POST", path: "/sessions" },
     { route_id: "coding.read-session", method: "GET", path: "/sessions/:sessionId" },
+    { route_id: "coding.session-binding", method: "GET", path: "/sessions/:sessionId/binding" },
+    { route_id: "coding.subject-state", method: "GET", path: "/sessions/:sessionId/subject-state" },
     { route_id: "coding.subject", method: "GET", path: "/sessions/:sessionId/subject" },
     { route_id: "coding.search-entries", method: "GET", path: "/search/entries" },
     { route_id: "coding.read-runs", method: "GET", path: "/sessions/:sessionId/runs" },
@@ -215,7 +228,7 @@ export const codingManifest: PluginManifest = {
     { route_id: "coding.card-dismiss", method: "POST", path: "/sessions/:sessionId/cards/:cardId/dismiss" },
   ],
   ui: { locales: { default: "zh", available: ["zh", "en"] },
-    embedded_plugins: ["io.molis.work.files", "io.molis.work.git", "io.molis.work.diff", "io.molis.work.text-stats"],
+    embedded_plugins: ["io.molis.work.git", "io.molis.work.diff"],
     contributions: [CODING_UI_CONTRIBUTION_ID, CODING_SETTINGS_UI_CONTRIBUTION_ID],
     views: [
       { view_id: "conversation", slot: "stage", title: "Coding", contribution_id: CODING_UI_CONTRIBUTION_ID, accepts_objects: true },

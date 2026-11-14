@@ -1,6 +1,6 @@
-# 卸载后留下的项目（第 27 批 · BL-915）
+# 卸载后留下的项目（第 27 批 · BL-915，已完成）
 
-状态：用户 2026-11-11 选定 A（就地结果），已实现；方案、理由、否掉的 B 与 C 记在 [BL-915 的 spec](../../../specs/visual-ui-experience/work-items/batch27-sandbox-recovery/spec.md)「设置页呈现」。
+状态：用户 2026-11-11 选定 A（就地结果），已实现；方案、理由、否掉的 B 与 C 记在 [第 27 批沙箱恢复 spec，BL-915 已完成](../../../specs/visual-ui-experience/work-items/batch27-sandbox-recovery/spec.md)「设置页呈现」。
 
 ## 要解决什么
 

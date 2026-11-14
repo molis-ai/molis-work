@@ -46,6 +46,9 @@ export const MEMORY_SETTINGS_STYLES = `
   .memory-settings .memory-history-list li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
   .memory-settings .memory-history-version { color: var(--muted); white-space: nowrap; }
   .memory-settings .memory-pref-static .setting-value { font-size: 13px; }
+  .memory-settings .memory-pref-static.is-off strong { color: var(--muted); }
+  .memory-settings .memory-project-choices { display: grid; gap: 8px; max-height: min(50vh, 360px); overflow: auto; }
+  .memory-settings .memory-project-choices .mw-btn { justify-content: flex-start; overflow-wrap: anywhere; }
   .memory-settings .memory-rules-note { margin-top: 16px; font-size: 12px; }
   .memory-settings .memory-empty { padding: 12px 0; font-size: 13px; }
   .memory-settings .memory-pair-line { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 8px; padding: 6px 0; box-shadow: 0 -1px 0 var(--line); }

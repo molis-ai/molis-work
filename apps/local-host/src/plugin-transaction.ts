@@ -1,12 +1,12 @@
 import { ActionError, requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginDatabase, PluginDatabaseTransaction } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginDatabase, PluginDatabaseTransaction, PluginProjectRowTransaction } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 interface Transaction {
   readonly owner: PluginDatabase;
   readonly check: () => void;
   readonly committed: Array<() => void>;
 }
-const active = new WeakMap<PluginDatabaseTransaction, Transaction>();
+const active = new WeakMap<PluginDatabaseTransaction | PluginProjectRowTransaction, Transaction>();
 
 /** Only the database owner opens this binding, for the lifetime of its synchronous write body. */
 export function bindPluginTransaction(handle: PluginDatabaseTransaction, owner: PluginDatabase, check: () => void) {
@@ -22,7 +22,7 @@ export function bindPluginTransaction(handle: PluginDatabaseTransaction, owner: 
 }
 
 /** Platform services join the exact live transaction, without handing out its connection. */
-export function joinPluginTransaction<T>(owner: PluginDatabase, handle: PluginDatabaseTransaction,
+export function joinPluginTransaction<T>(owner: PluginDatabase, handle: PluginDatabaseTransaction | PluginProjectRowTransaction,
   write: (afterCommit: (effect: () => void) => void, check: () => void) => T): T {
   const transaction = active.get(handle);
   const check = () => {

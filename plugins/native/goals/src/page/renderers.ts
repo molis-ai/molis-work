@@ -28,7 +28,7 @@ export function createGoalsRenderers<TView extends GoalsPageView>(
   }
 
   const goalsTreeRenderer = factories.tree({
-    translate: goalsL, escapeHtml, listJoin, icon,
+    translate: goalsL, escapeHtml, listJoin, icon, presentationLocale: currentLocale,
     renderStatus, renderActionStatus, renderVisibleGoalStatus, displayStatuses: GOAL_DISPLAY_STATUSES,
   });
   const { renderGoalMomentum, renderMomentumPlaceholder, renderGoalKanban } = factories.momentum({

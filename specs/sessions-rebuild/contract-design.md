@@ -134,7 +134,7 @@
 
 ### 3.3 三个读表要注意的
 
-- **恢复与发送不是本批接的。** 这两列和停止列只是登记能力，实现在第 59 批。第 34 批只接前四列和导出。表里「搜索」列的「待」多是命令已知、输出没核，复核后写手改成「命」。
+- **恢复与发送不是本批接的。** 这两列和停止列只是登记能力，实现在第 60 批。第 34 批只接前四列和导出。表里「搜索」列的「待」多是命令已知、输出没核，复核后写手改成「命」。
 - **同品牌不外推。** `claude-code` 接通不代表 `claude-code-web` 接通。入口之间是否共用会话，只在实测后写进 `shares_sessions_with`（第 5.2 节）。
 - **一项能力只登一种接入方式。** `claude-code`、`codex` 优先协议，少碰内部格式。Agent SDK 是新增 npm 依赖，由第 34 批这一家的适配片定（第 9.1 节），登记表随实现改成实际走的那条。
 
@@ -354,7 +354,7 @@ SRB-13 的测试至少覆盖：中断后重扫行数不变、两个 `location_ke
 
 两个读取动作的受众写五种，是为了登记一次、各入口共用；实际能读什么由处理器按第 7.4 节收窄。
 
-恢复、发送、停止、交接的动作第 59 批再加，不在这里占位：只读与控制的授权分开（需求 §1.1、SRB-11），早加没有消费者。
+恢复、发送、停止、交接的动作第 60 批再加，不在这里占位：只读与控制的授权分开（需求 §1.1、SRB-11），早加没有消费者。
 
 ### 6.1 `sessions.list@1`
 
@@ -990,7 +990,7 @@ export interface SessionsPorts {
 }
 ```
 
-宿主一侧是 `apps/local-host/src/sessions-actions.ts`，只装配，同 `knowledge-actions.ts`。第三方插件贡献来源适配不在本批：登记表是合同，适配在服务包里。需求 §2 的「开放工具」现在按登记一行走；要开放成扩展点是第 59 批之后的事，记在第 12 节。
+宿主一侧是 `apps/local-host/src/sessions-actions.ts`，只装配，同 `knowledge-actions.ts`。第三方插件贡献来源适配不在本批：登记表是合同，适配在服务包里。需求 §2 的「开放工具」现在按登记一行走；要开放成扩展点是第 60 批之后的事，记在第 12 节。
 
 同步文档：`docs/SSOT-MATRIX.md` 新增一行，`scripts/workspace-packages.mjs`、`docs/system/PACKAGE-BOUNDARIES.md` 现行包清单、`docs/horizontal/sessions.md`、`docs/system/HOME-DATA.md`（新库与表）、`docs/system/GLOSSARY.md`（外部会话、来源、读取范围、待归类）。「外部工具」「产品入口」两词 C-1 就进代码，词条随 C-1 落，写清它们和 Runtime 的关系。`tooling/gates/error-owners.json` 加 `sessions` 主人，这是 README 写的常规步骤，不算改门禁。
 
@@ -1052,7 +1052,7 @@ export const sessionsErrors = defineErrorCodes("sessions", {
 | S-sessions-person-decides | 读取范围、项目的 AI 读取许可与单条决定只有本人能定：Agent、MCP、工作流、插件调 `sessions.scope.set@1`、`sessions.project_ai_read.set@1`、`sessions.attribution.set@1` 被拒；`actor_id`、`project_id` 等身份字段在输入里不认。工具能做的只有报绑定：它得到 `reported`，排在本人决定和本人目录关系之后，不改读取范围，不产生 `automatic`，不进项目 AI 的可读范围。项目 AI 的读取要许可开着（本人明确动作给的内容不算，见第 6.4 节），且只到当前项目的 `confirmed`、`automatic` 会话；待归类与 `view: "all"` 只有本人；归属不授予读取或控制权 | 四种受众逐个被拒且决定表没写；非本人调 `sessions.scope.read@1` 被拒，拿不到各项目的计数；`context_bind` 与终端面板把目录带进项目后，`linked_projects` 的范围不变，这个目录下没有绑定的会话是 `tool_linked`，绑定的那个会话是 `reported`，都不是 `automatic`；工具绑定不覆盖本人的目录来源和单条决定；`context_unbind` 解除不了本人建的目录关系，回 `changed: false`、`unbound_project: null` 和 `kept`，不说成已解除；`bound_by` 不是本人 id 的行（含旧的 `<客户端>:<会话>`）不算本人建的；本人目录下的会话，工具绑到别的项目：仍是 `automatic`、归本人目录的项目，项目 AI 的范围不变，`reported` 计数不变，本人的行带 `tool_reported_other`，非本人的输出没有这个字段；读取范围是「所有目录」时，没有本人目录关系的 Runtime 绑定显示 `reported` 不是 `confirmed`；许可开着时，`reported` 的会话不出现在 `agent`、`workflow`、`plugin`、`mcp` 的列表里，读原文报 `sessions.not_found`，本人确认后才可读；许可默认关时 `agent`、`workflow`、`plugin`、`mcp` 读列表和原文都报 `sessions.project_ai_read_off`；许可开着时读别的项目的会话报 `sessions.not_found`，用 `unfiled`、`all` 报 `actions.forbidden`；MCP 客户端有许可、没有 S-08 授权时被拒；未允许的来源里，归了项目或有 Runtime 绑定的会话照样读不到；自动归入的会话许可关时被拒、开时可读；非本人的 `sessions.list@1` 输出里 `unfiled_count` 是 `null`，`sources` 没有别的项目的来源和数量；行里没有 `identity`，`return_target` 是 `null`，整个响应里找不到 `location_key` 和 `native_id`；非本人的 `search.query` 不返回 `external_session`，调 `sessions.tool.search@1` 被拒；`projectReferenceKinds`、`pluginReferenceKinds` 的结果里没有 `external_session`；持 `knowledge:read` 的插件用 `session_key` 调 `knowledge.read`、`outline`、`grep`，许可开着和关着都拿不到标题和目录；本人用「@」选外部会话，或点选把选区、当前对象加进这一轮：这一轮的材料里有内容且标不可信，下一轮的材料和这项工作的对象里没有；用「@」时这一轮的材料里只有标题、目录和工具名，没有对话原文；没有明确动作时（选了文字没点、开着页面没选、标签页回退推出的对象）这一轮没有它；一轮还在跑时补充带外部会话内容被拒，下一轮的模型历史里没有它 |
 | S-sessions-git-files-only | 认仓库只读文件，不跑 git：只读 `.git`、`commondir`、`gitdir` 三个文件，各不超过 4 KB，内容只留哈希，不读 `config` 与 hooks；到用户主目录或根目录停止往上找；`.git` 文件必须和仓库里的 `gitdir` 互相指着才算 worktree，否则 `repository_key` 为空 | `PATH` 上放假 `git` 并记录调用，发现、归属、范围判断之后调用次数为 0；任意目录放 `.git` 文件写 `gitdir: <已关联仓库>/.git/worktrees/x`，而仓库那边没有指回：`repository_key` 为空，不进范围，不自动归入；`gitdir:` 指向不相干的目录、没有 `commondir`、超长、含 NUL 时 `repository_key` 都为空且不报错；仓库 `config` 里写 `core.fsmonitor` 也不执行；三个文件之外的读取次数为 0 |
 
-SRB-11 的「读取不推导控制」等第 59 批加控制动作时补进新行。
+SRB-11 的「读取不推导控制」等第 60 批加控制动作时补进新行。
 
 ### 9.5 调用次数（开工前检查第 9 项）
 
@@ -1137,7 +1137,7 @@ C-2、C-3 只有定义，宿主还没登记，所以不动 `tooling/gates/action
 
 **宿主现在认不出选区来自外部会话。** 外壳发给宿主的 `context.selection` 只有 `text` 和 `truncated`（`AssistantContextSnapshot`），没有来源；`context.source` 写的是当前标签页，不一定是选区所在的区域。所以「标不可信」「一轮还在跑时不收」这两条宿主现在做不到；「选区不自动带」本来由外壳做（上一段），宿主也兜不住：它分不出这段文字是不是外部会话的原文。S-5 要让外壳在发送时带上选区的来源（选区落在外部会话的区域里），S-4 要让助理按这个来源处理；这两片都要先解决这一条，「外部会话原文」页面才能上线。
 
-接适配时要复核登记表里 C-1 没核过的项：`qodercli`、`kiro-cli`、`kimi`、`codebuddy` 这几个命令名，以及各家 `detect` 的 `version_argv`、`version_pattern`。`cursor` 的恢复按官方参数表写成 `--resume [chatId]`，本机没装 `cursor-agent`，第 59 批接恢复之前要实测一次。`vendor` 一列没人读，也没逐家核实，别当已核事实用。
+接适配时要复核登记表里 C-1 没核过的项：`qodercli`、`kiro-cli`、`kimi`、`codebuddy` 这几个命令名，以及各家 `detect` 的 `version_argv`、`version_pattern`。`cursor` 的恢复按官方参数表写成 `--resume [chatId]`，本机没装 `cursor-agent`，第 60 批接恢复之前要实测一次。`vendor` 一列没人读，也没逐家核实，别当已核事实用。
 
 其余后续批次要接的：
 
@@ -1145,7 +1145,7 @@ C-2、C-3 只有定义，宿主还没登记，所以不动 `tooling/gates/action
 | --- | --- |
 | 第 20 批 | 就绪判断同时看读取范围和项目许可，缺哪样去处不同（第 6.5 节） |
 | 第 35 批 | Onboarding 加一步，让本人打开这个项目的 AI 读取许可。许可默认关，不打开时冷启动的 AI 整理读不到历史（SRB-09） |
-| 第 59 批 | 恢复、发送、停止、交接的动作，持续跟进 |
+| 第 60 批 | 恢复、发送、停止、交接的动作，持续跟进 |
 | 团队批 | `sessions.project_ai_read.set@1` 对共享项目拒绝，加拒绝测试（第 7.4 节） |
 
 ### 10.3 和观测采集层的分界
@@ -1155,7 +1155,7 @@ C-2、C-3 只有定义，宿主还没登记，所以不动 `tooling/gates/action
 | 有哪些会话、状态、归属 | 主人 | 只读 |
 | 原文 | 不存，按需读 | 证据按[设计](../observation-collection/design.md) §1 D1 定；只放引用或快照 |
 | 增量读取 | 给读取能力：`sessions.history.read@1` 的 `from: { after }` 和稳定的 `position` | 记水位、补读、缺口、去重；决定什么时候读 |
-| 「持续跟进」开关 | 不管 | 主人（委托记录），第 59 批接 |
+| 「持续跟进」开关 | 不管 | 主人（委托记录），第 60 批接 |
 | 首次读取、补读、导入的来源类别 | 不判断 | 入口给出（设计 §3） |
 | 定时轮询 | 不建 | 按采集层的节奏 |
 | 读取范围变化 | 经动作调用记录被看到 | 按「授权与撤权」一行接入 |
@@ -1174,7 +1174,7 @@ C-2、C-3 只有定义，宿主还没登记，所以不动 `tooling/gates/action
 | SRB-04 | 登记发送方式；不定动作 | 59 |
 | SRB-05 | 不涉及 | 59 |
 | SRB-06 | 范围、项目 AI 读取许可、再核、受众、不变量 S-sessions-read-roots、S-sessions-recheck-before-return、S-sessions-person-decides | 34 实现与拒绝测试；发送部分 59 |
-| SRB-07 | 入口分行、地区分行、`shares_sessions_with` 必须实测 | 34、59 逐入口验 |
+| SRB-07 | 入口分行、地区分行、`shares_sessions_with` 必须实测 | 34、60 逐入口验 |
 | SRB-08 | 列表与历史合同按定样写 | 34 高保真与实操，本人验收 |
 | SRB-09 | 只给读取能力，导入整理不在这里 | 35（Onboarding）；写入按各主人流程 |
 | SRB-10 | 第 10.3 节的分界与 `position` | 28 接入，59 持续跟进 |
@@ -1217,7 +1217,7 @@ C-2、C-3 只有定义，宿主还没登记，所以不动 `tooling/gates/action
 | 22 | 已定裁定之间 | 第一版让 `reported` 进项目 AI 的可读范围，和 P4 的本意有张力 | 已定（2026-11-06）：收紧，`reported` 不进，本人确认后才算（第 7.4 节、S-sessions-person-decides） |
 | 23 | 绑定指向另一个项目 | 会话在本人连的 A 目录下，工具绑到 B | 已定（2026-11-06）：仍 `automatic` 归 A，行上标「工具另报」，打开后写「工具报的是另一个项目」，写在第 8.2 节、S-sessions-person-decides |
 | 24 | 项目设置 | 工具带进来的目录和本人连的看起来一样，「本人再连一次」没有入口 | **要进定样**：两种目录分开显示，后者给确认入口；2026-11-12 转第 34 批定样，实现列在片 S-5 |
-| 25 | 需求 §2「开放工具同走公共接入合同」 | 登记表在合同里、适配在服务包里，第三方插件现在贡献不了来源适配 | 本批不做；要开放成扩展点在第 59 批之后另议 |
+| 25 | 需求 §2「开放工具同走公共接入合同」 | 登记表在合同里、适配在服务包里，第三方插件现在贡献不了来源适配 | 本批不做；要开放成扩展点在第 60 批之后另议 |
 | 26 | 第 5.1 节云端的 `location_key`（公共合同台合审） | `copilot-coding-agent` 走 `gh`，账号在 `gh` 里，这一行原来写的 `connection:` + `connection_id` 取不到 | 已答（C-2）：走 `auth_method: "cli"` 的连接，不另立规则，规则和类型的改动写在第 5.1 节 |
 | 27 | `codex-cloud` | 命令 `codex cloud list` 核完之后，`CONNECTOR_CLIS` 里没有 `codex`，没有可选连接 | 现在是缺口，不影响 C-2；接这一家时要先加连接定义，第 34 批这一片定 |
 | 28 | `gh agent-task` 的权限 | `CONNECTOR_CLIS.github` 登录时要的 scope 是 `notifications,read:user`，这组 scope 能不能读 `agent-task` 没实测 | 第 34 批这一家的适配片实测；不够时改那条登录命令，那是 connector 的改动 |

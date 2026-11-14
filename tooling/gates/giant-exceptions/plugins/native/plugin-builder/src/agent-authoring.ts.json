@@ -3,12 +3,12 @@
     "file plugins/native/plugin-builder/src/agent-authoring.ts": {
       "kind": "cohesive-unit",
       "reason": "设计答卷 DSL 的内聚解析与归一化单元，类型、操作、组件绑定和验收共用标识与诊断，联合展开为同一严格设计合同；拆开会分散同一语法的交叉引用和归一化顺序。",
-      "size": 818
+      "size": 825
     },
     "function plugins/native/plugin-builder/src/agent-authoring.ts#expandDesign": {
       "kind": "cohesive-unit",
-      "reason": "把一份设计答卷展开成插件的文件与验收用例：对零件、表单、读写操作和浏览器验收逐个生成，是一条代码生成流水线（改它必须跑 pnpm studio:replay）；拆开会让同一份答卷的展开散到几处。",
-      "size": 228
+      "reason": "把一份设计答卷展开成插件的文件与验收用例：零件、表单、读写操作、同一界面的对象挂载位和浏览器验收共用这次生成与校验（改它必须跑 pnpm studio:replay）；拆开会让同一份答卷的展开散到几处。",
+      "size": 232
     }
   }
 }

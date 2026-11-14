@@ -2,16 +2,13 @@ import { join } from "node:path";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { IMAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-images";
 import { createActionMcpPorts, handleMcpMessage, serveMcpStdio } from "@molis-ai/molis-work-app-mcp";
-import { goalApplicationOf, goalsQueryOf } from "./goal-application.js";
 
 // Explicit fixture launch grants. Production client grant management is tested separately.
 const [home, projectId, access] = process.argv.slice(2);
 if (!home || !projectId) throw new Error("Missing fixture identity");
 const host = new MolisWorkLocalHost({ homeDirectory: home });
 const ref = molisWorkHostProjectReference({ databasePath: join(home, `${projectId}.sqlite`), projectId: projectId });
-await host.withProject(ref, runtime => {
-  if (!goalsQueryOf(runtime.store).listProjectIds().includes(projectId)) goalApplicationOf(runtime).initializeBoard({ project_id: projectId, actor_id: `fixture-${projectId}`, idempotency_key: "images-mcp-fixture-init" });
-});
+// The first MCP discovery opens the project through the real Host. Images does not need a Goals board.
 const ports = createActionMcpPorts({ service: host.actionClient(ref), serverInfo: { name: "images-actions", version: "1" },
   context: () => ({ actor_id: `fixture-${projectId}`, project_id: projectId, audience: "mcp", permissions: access === "read" ? ["images:read"] : IMAGES_ACTION_PERMISSIONS }),
 });

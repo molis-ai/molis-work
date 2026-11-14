@@ -734,7 +734,6 @@
  "tests/home-backup-recovery.test.ts": 9,
  "tests/home-event-actions.test.ts": 35,
  "tests/home-events.e2e.test.ts": 17,
- "tests/home-flow.test.ts": 1,
  "tests/home-judgment-plugin-caller.test.ts": 16,
  "tests/home-library-declaration.test.ts": 3,
  "tests/home-mcp-actions.test.ts": 24,

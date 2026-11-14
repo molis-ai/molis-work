@@ -19,6 +19,7 @@ const assets = createLocalWebAssets({ renderer, ptyClientFilePath: () => "/unuse
 // not a substitute for the Service/SDK authority and CAS tests, and never starts a Home or calls a model.
 interface Request { path: string; body: Record<string, unknown>; key: string }
 const entry = (id: string, version: number, state = "active") => ({ memory_id: id, version, state,
+  owner: "project", classification: { scenes: ["common"], lifecycle: "long-term" }, expires_at: null, expired: false,
   text: `记忆 ${id}`, kind: "preference", source: "manual", scope: "project", applies: {}, origin: "本人", created_at: "2026-10-23T00:00:00Z" });
 async function open(t: TestContext, answer: (request: Request) => { status?: number; body: unknown } | Promise<{ status?: number; body: unknown }>, guidanceFlow = false, section: "memory" | "plugins" = "memory") {
   const chrome = locateTestChrome(); if (!chrome) { t.skip("Chrome is required"); return null; }
@@ -27,7 +28,8 @@ async function open(t: TestContext, answer: (request: Request) => { status?: num
   const requests: Array<{method:string;url:string}> = [];
   const visits: string[] = [];
   const overview = { items: [entry("active", 7), entry("disabled", 11, "disabled"), entry("paused", 19, "paused")],
-    candidates: [{ candidate_id: "proposal", version: 13, text: "建议", kind: "preference" }], changes: [], pairs: [], prefs: {}, counts: { project: 3 } };
+    candidates: [{ candidate_id: "proposal", version: 13, text: "建议", kind: "preference" }], changes: [], pairs: [], prefs: {}, counts: { project: 3 }, exhausted: true, stopped: "end", total: { kind: "exact", value: 3 },
+    scanned: "unknown", cost: { directory_entries: "unknown", directory_enumerations: "unknown", directory_traversal: "unknown", metadata_reads: "unknown", body_reads: "unknown" } };
   const project = { project_id: "project", display_name: "测试项目" };
   const view: MolisWorkWebView & { feed: FeedSnapshot } = {
     snapshot: { board: { project_id: "project", active_goal_id: null, created_at: "2026-10-23T00:00:00Z", updated_at: "2026-10-23T00:00:00Z" },
@@ -46,9 +48,16 @@ async function open(t: TestContext, answer: (request: Request) => { status?: num
     if (path.endsWith(".js")) { response.setHeader("content-type", "application/javascript"); response.end(); return; }
     if (!path.includes("/api/memory/") && !path.includes("/api/contextual/") && !(section === "plugins" && ["/api/plugin-trust/", "/api/settings/plugin-permissions/", "/api/settings/plugin-project-reach/"].some(prefix => path.includes(prefix)))) { response.setHeader("content-type", "text/html; charset=utf-8"); response.end(guidanceFlow && path.endsWith("/settings/guidance") ? guidanceHtml : html); return; }
     response.setHeader("content-type", "application/json");
+    if (path.endsWith("/operations")) { response.end(JSON.stringify({ items: [], exhausted: true })); return; }
     if (path.endsWith("/overview")) { response.end(JSON.stringify(section === "plugins" ? {plugins:[],publishers:[]} : overview)); return; }
     if (section === "plugins" && path.endsWith("/list")) { response.end(JSON.stringify({ plugins: [], capabilities: [], refused: [], project_name: "测试项目" })); return; }
-    if (path.endsWith("/history")) { response.end(JSON.stringify({ revisions: [{ version: 2, text: "旧版", at: "2026-10-22T00:00:00Z" }] })); return; }
+    if (path.endsWith("/page")) {
+      const input = JSON.parse(new URL(request.url!, "http://local").searchParams.get("input") || "{}");
+      const items = overview.items.filter(item => !input.query || item.text.includes(input.query));
+      response.end(JSON.stringify({ ...overview, items, total: input.query ? { kind: "unknown" } : overview.total })); return;
+    }
+    if (path.endsWith("/history")) { response.end(JSON.stringify({ revisions: [{ version: 2, text: "旧版", kind: "preference", applies: {},
+      classification: { scenes: ["common"], lifecycle: "long-term" }, expires_at: null, snapshot_available: true, at: "2026-10-22T00:00:00Z" }] })); return; }
     let raw = ""; for await (const chunk of request) raw += chunk;
     const call = { path, body: JSON.parse(raw || "{}"), key: String(request.headers["x-molis-work-idempotency-key"] || "") }; calls.push(call);
     const result = await answer(call); response.statusCode = result.status ?? 200; response.end(JSON.stringify(result.body));
@@ -80,7 +89,8 @@ test("Memory settings sends the displayed formal/candidate version for every exi
     { name: "resume", version: 19, run: () => page.click(item("paused") + " " + textButton("恢复使用")) },
     { name: "update", version: 7, run: async () => { await page.click(item() + " " + textButton("修改")); await page.fill(item() + " textarea", "新的表达"); await page.click(item() + " button[type=submit]"); } },
     { name: "move", version: 7, run: () => more("改为个人记忆") },
-    { name: "restore", version: 7, run: async () => { await more("历史版本"); await page.wait("document.querySelector('.memory-history button')"); await page.click(".memory-history button"); } },
+    { name: "restore", version: 7, run: async () => { await more("历史版本"); await page.wait("document.querySelector('.memory-history button')"); await page.click(".memory-history button");
+      await page.wait("document.querySelector('[data-memory-confirm-yes]')"); await page.click("[data-memory-confirm-yes]"); } },
     { name: "remove", version: 7, run: async () => { await more("删除"); await page.click("[data-memory-confirm-yes]"); } },
     { name: "accept", version: 13, run: () => page.click("[data-memory-candidates] " + textButton("记住")) },
     { name: "reword", version: 13, run: async () => { await page.click("[data-memory-candidates] .memory-actions button:nth-child(2)"); await page.fill("[data-memory-candidates] textarea", "改写后的建议"); await page.click("[data-memory-candidates] button[type=submit]"); } },
@@ -256,6 +266,35 @@ test("Import retry retains the selected package after the file input clears and 
   assert.doesNotMatch(status, /这次操作已完成/);
 });
 
+
+test("B4 v2 clear retry cards show changing partial results without success until the original clear is complete", { timeout: 40_000 }, async t => {
+  let clears = 0;
+  const f = await open(t, call => {
+    if (call.path.endsWith("/preview")) return { body: { count: 4, fingerprint: "clear-card-fixed" } };
+    if (call.path.endsWith("/clear")) {
+      clears++;
+      const outcomes = clears === 1 ? ["completed", "conflict", "unknown", "not-executed"]
+        : clears === 2 ? ["completed", "completed", "unknown", "not-executed"] : ["completed", "completed", "completed", "completed"];
+      return { body: { removed: outcomes.filter(one => one === "completed").length, complete: clears === 3,
+        items: outcomes.map((outcome, index) => ({ memory_id: String(index), outcome })) } };
+    }
+    return { body: {} };
+  }); if (!f) return;
+  const { page, calls } = f;
+  await page.click("[data-memory-clear]"); await page.wait("document.querySelector('[data-memory-confirm-yes]')"); await page.click("[data-memory-confirm-yes]");
+  await page.wait("document.querySelector('[data-memory-clear-status]')?.textContent.includes('版本冲突 1') && document.querySelector('[data-memory-list]')?.getAttribute('aria-busy') === 'false'");
+  await page.click("[data-memory-retry]");
+  await page.wait("document.querySelector('[data-memory-clear-status]')?.textContent.includes('已删除 2') || document.querySelector('[data-settings-toast]').textContent.includes('这次操作已完成')");
+  const status = await page.evaluate<string>("document.querySelector('[data-memory-clear-status]').textContent");
+  assert.match(status, /已删除 2/); assert.match(status, /版本冲突 0/); assert.match(status, /结果未知 1/); assert.match(status, /尚未执行 1/);
+  assert.doesNotMatch(await page.evaluate<string>("document.querySelector('[data-settings-toast]').textContent"), /这次操作已完成|清空已完成/);
+  assert.equal(await page.evaluate("document.querySelector('[data-memory-retries]').hidden"), false);
+  assert.equal(await page.evaluate("document.querySelector('[data-memory-clear]').textContent"), "重试本次清空");
+  await page.click("[data-memory-retry]");
+  await page.wait("document.querySelector('[data-memory-retries]').hidden && document.querySelector('[data-settings-toast]').textContent.includes('清空已完成')");
+  assert.deepEqual(calls.filter(call => call.path.endsWith("/clear")).map(call => call.body.fingerprint), ["clear-card-fixed", "clear-card-fixed", "clear-card-fixed"]);
+});
+
 test("D0194/D0224 the confirm dialog returns focus: Escape to the row's more button, a gone trigger to the add button, and never stealing focus", { timeout: 90_000 }, async t => {
   // Each confirmed delete's reply is held on the server. Both hold pairs are allocated before any request exists —
   // the handler only resolves arrival on its own pair and opens its own gate — so the awaiting side never reads an
@@ -315,7 +354,8 @@ test("D0194/D0224 the confirm dialog returns focus: Escape to the row's more but
   await page.evaluate("document.querySelector('[data-memory-export]').focus()");
   f.overview.items = f.overview.items.filter(one => one.memory_id !== "active");
   first.release();
-  await page.wait("!document.querySelector('[data-memory-id=active]')");
+  // A removal in flight clears every displayed copy (B4), so "active is gone" holds at once; wait for the reread that brings the rest back.
+  await page.wait("!document.querySelector('[data-memory-id=active]') && document.querySelector('[data-memory-id=disabled]') && document.querySelector('[data-memory-list]')?.getAttribute('aria-busy') === 'false'");
   assert.equal(await page.evaluate("document.activeElement?.hasAttribute('data-memory-export')"), true, "focus the person moved stays put");
 
   // A confirmed delete repaints the list and takes the row's more button away: focus lands on the page's add button.

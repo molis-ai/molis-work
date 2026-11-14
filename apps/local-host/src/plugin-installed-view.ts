@@ -1,8 +1,9 @@
 import { ACTION_ERROR_CODE } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginErrors, type PluginInstanceRecord, type PluginManifest, type PluginPermissionDeclaration } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { projectedPermissionsOf } from './installed-permission-projection.js';
-import { platformPermissionMeaning, type PluginInstalledPermissionView, type PluginInstalledView, type PluginJobView, type PluginPermissionView } from '@molis-ai/molis-work-contracts/platform/plugin-trust';
-import { UNINSTALL_PENDING, type PluginConsentLedger } from '@molis-ai/molis-work-plugin-runtime';
+import { platformPermissionMeaning, type PluginConsentRecord, type PluginInstalledPermissionView, type PluginInstalledView, type PluginJobView, type PluginPendingDefaultSource, type PluginPermissionView } from '@molis-ai/molis-work-contracts/platform/plugin-trust';
+import { systemOutputSource } from '@molis-ai/molis-work-contracts/platform/project-materials';
+import { consentSubject, UNINSTALL_PENDING, type PluginConsentLedger } from '@molis-ai/molis-work-plugin-runtime';
 
 /** One installation of a project or of the Home, the Manifest it was installed with (undefined when that cannot be read), and why it is not running when its plugin host knows. */
 export interface InstalledPluginEntry { record: PluginInstanceRecord; manifest: PluginManifest | undefined;
@@ -42,14 +43,29 @@ export const installedPermissionViews = (manifest: PluginManifest, grants: reado
 export const jobViews = (manifest: PluginManifest): PluginJobView[] =>
   (manifest.background?.jobs ?? []).map(job => ({ job_id: job.job_id, reason: job.reason, permissions: [...job.permissions] }));
 
+/**
+ * The platform defaults a bundled plugin declares and the person has not agreed to now: only for a Host-trusted install (the person's
+ * agreement through the settings door takes only a bundled plugin's own declaration), each named by its complete current subject.
+ */
+export function pendingDefaultSources(record: PluginInstanceRecord, manifest: PluginManifest | undefined, consents: readonly PluginConsentRecord[]): PluginPendingDefaultSource[] {
+  if (!manifest || record.publisher_trust !== 'host') return [];
+  return (manifest.ports?.inputs ?? []).flatMap(input => {
+    const source = input.default_source, system = source ? systemOutputSource(source.plugin_id) : undefined;
+    if (!source || !system) return [];
+    const subject = consentSubject.defaultWiring(input.port, source, system.signature);
+    const agreed = consents.some(row => row.kind === 'default_wiring' && row.subject === subject && row.revoked_at === null && row.publisher_signature === record.publisher_signature);
+    return agreed ? [] : [{ port: input.port, source_plugin_id: system.plugin_id, source_name: system.name, source_port: source.port }];
+  });
+}
+
 /** The plugin detail page's rows (ac-trust T7): the trust the install carries, what it asked for and runs, and the agreements the person gave it. */
 export function installedPluginViews(entries: readonly InstalledPluginEntry[], ledger: PluginConsentLedger): PluginInstalledView[] {
   const pins = new Map(ledger.publishers().map(pin => [pin.key_id, pin]));
-  return entries.map(({ record, manifest, recoveryCode, requestedPermissions }) => ({
+  return entries.map(({ record, manifest, recoveryCode, requestedPermissions }) => { const consents = ledger.consents(record.plugin_id); return {
     install_id: record.install_id, plugin_id: record.plugin_id, name: manifest?.name ?? record.plugin_id, version: record.version, state: record.state,
     trust: record.publisher_trust, publisher_signature: record.publisher_signature, publisher_label: pins.get(record.publisher_signature)?.label ?? null,
     manifest_available: manifest !== undefined, permissions: manifest ? installedPermissionViews(manifest, record.grants, requestedPermissions, projectedPermissionsOf(record)) : [], jobs: manifest ? jobViews(manifest) : [],
-    consents: ledger.consents(record.plugin_id), recovery_error: recoveryCode ? (recoveryCode === "plugin.package_invalid" && record.last_error_code && ACTION_ERROR_CODE.test(record.last_error_code) ? record.last_error_code : recoveryCode) : null,
+    consents, pending_defaults: pendingDefaultSources(record, manifest, consents), recovery_error: recoveryCode ? (recoveryCode === "plugin.package_invalid" && record.last_error_code && ACTION_ERROR_CODE.test(record.last_error_code) ? record.last_error_code : recoveryCode) : null,
     ...uninstallFields(record),
-  }));
+  }; });
 }

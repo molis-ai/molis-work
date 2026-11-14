@@ -77,6 +77,24 @@ export class SqlitePluginPrivateStorage {
     };
   }
 
+  /**
+   * A platform producer's own values (the materials service's reading positions), under its system id as the install id. Host code only:
+   * the id must be a platform one (`system.<name>`), which no installation can have, and the caller has already settled who may write.
+   */
+  forSystem(systemId: string): { get(key: string): string | null; set(key: string, value: string): void; delete(key: string): boolean } {
+    if (!/^system\.[a-z][a-z0-9_.-]*$/u.test(systemId)) throw pluginErrors.storage_denied("只有平台自己的提供方可以这样存值");
+    const key = (value: string) => { if (typeof value !== "string" || value.length === 0) throw pluginErrors.storage_input_invalid("私有存储 key 必须为非空字符串"); return value; };
+    return {
+      get: item => (this.db.prepare("SELECT item_value FROM plugin_private_values WHERE install_id = ? AND item_key = ?").get(systemId, key(item)) as { item_value: string } | undefined)?.item_value ?? null,
+      set: (item, value) => {
+        if (typeof value !== "string") throw pluginErrors.storage_input_invalid("私有存储值必须编码为字符串");
+        this.db.prepare(`INSERT INTO plugin_private_values (install_id, item_key, item_value) VALUES (?, ?, ?)
+          ON CONFLICT (install_id, item_key) DO UPDATE SET item_value = excluded.item_value`).run(systemId, key(item), value);
+      },
+      delete: item => Number(this.db.prepare("DELETE FROM plugin_private_values WHERE install_id = ? AND item_key = ?").run(systemId, key(item)).changes) > 0,
+    };
+  }
+
   /** Called only by the owning Host after a non-retaining uninstall succeeds. */
   deleteInstallationData(installId: string): void {
     this.db.prepare("DELETE FROM plugin_private_values WHERE install_id = ?").run(installId);

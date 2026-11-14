@@ -92,6 +92,30 @@ async function grantWork(f: Pick<Awaited<ReturnType<typeof fixture>>, "person">,
   return f.person.invoke(agentDelegationActions.grant, { ...choice, expected_version: preview.storage_version, candidate_digest: preview.candidate_digest, mode: "automatic", expires_at: null });
 }
 
+test("APR-11: a never-run draft ends its stored grant across restart and ordinary restore", { timeout: 45_000 }, async t => runWithLocale("en", async () => {
+  const f = await fixture(t);
+  const { document } = await f.person.invoke(pagesActions.create, { title: "Unsent draft scope", markdown: "Original" });
+  const work = createWork(f, "Unsent draft");
+  const choice = { work_id: work.work_id, lifetime: "work" as const, choices: [objectChoice(document.id)] };
+  const preview = await f.person.invoke(agentDelegationActions.prepare, choice);
+  const grant = { ...choice, expected_version: preview.storage_version, candidate_digest: preview.candidate_digest, mode: "automatic" as const, expires_at: null };
+  await f.person.invoke(agentDelegationActions.grant, grant);
+
+  const next = await f.reopen();
+  assert.equal(next.agents.agentHost.workDelegations("prologue"), undefined);
+  assert.equal((await next.service.archive(work.work_id, true)).archived, true);
+  assert.equal((await next.service.archive(work.work_id, false)).archived, false);
+  assert.equal(next.store.get(person, work.work_id).session_id, null);
+  const restored = await next.person.invoke(agentDelegationActions.prepare, choice);
+  assert.equal(restored.lifecycle, "ended");
+  assert.ok(restored.selection?.revoked_at);
+  await assert.rejects(next.person.invoke(agentDelegationActions.grant, grant), { code: "actions.conflict" });
+  await assert.rejects(next.service.send({ work_id: work.work_id, text: "Continue on the old grant", request_id: "archived-draft-old-send" },
+    { project_ref: f.reference }), { code: "agent.delegation_ended" });
+  assert.deepEqual((await next.person.invoke(pagesActions.get, { id: document.id })).document, document);
+  assert.equal(next.store.get(person, work.work_id).session_id, null);
+}));
+
 test("APR-07/08/11/12/13 ASC-51/52: the selected Pages scope survives rounds and restart, with durable sources and actual refusal after revoke", { timeout: 90_000 }, async t => runWithLocale("en", async () => {
   const f = await fixture(t);
   const { document } = await f.person.invoke(pagesActions.create, { title: "Minutes", markdown: "Original content" });
@@ -194,8 +218,8 @@ test("APR-07/11/13 ASC-51/52: a saved delegation withdrawn while the real Pages 
     release.resolve();
     assert.deepEqual(await revoked, { value: { storage_version: result.storage_version, lifecycle: result.lifecycle, cancellation_pending: false, selection: result.selection } });
     const refusal = await until("Pages refusal", () => seen.find(row => row.capability_id === update.capability_id && row.audience === "agent"));
-    assert.equal(refusal.ok, false);
     assert.deepEqual(pagesRows(f.home), before);
+    assert.equal(refusal.ok, false, JSON.stringify(seen.filter(row => row.capability_id === update.capability_id)));
   } finally { release.resolve(); }
 }));
 

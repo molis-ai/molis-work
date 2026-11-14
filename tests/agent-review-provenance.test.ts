@@ -113,6 +113,23 @@ test("APR-07: a stale displayed version cannot write a decision or answer an own
   assert.equal(f.values.size, 0); assert.equal(f.answers(), 0); assert.equal(f.queue.receipt(r.review_id)?.status, "pending");
 });
 
+test("APR-14/16: the owner projects the committed decision and its original version, even after restoration", async t => {
+  const f = fixture(), reopened = new AgentReviewQueue({ decisions: f.store });
+  t.after(() => { f.queue.close(); reopened.close(); });
+  const r = request("fixed-review"); f.admit(r);
+  assert.equal((await f.queue.readMany([r.review_id]))[0]?.decision, undefined);
+  await f.queue.respond(input(r));
+  const expected = { reference: r.reference, decision_id: r.review_id };
+  assert.deepEqual((await f.queue.readMany([r.review_id]))[0]?.decision, expected);
+  reopened.restoreDecision(r, { status: "approved", decided_by: "person", decided_at: "2026-11-12T00:00:00Z", note: null });
+  assert.equal((await reopened.readMany([r.review_id]))[0]?.decision, undefined, "a legacy receipt alone cannot identify an authoritative record");
+  const original = await f.store.read(r.reference);
+  assert.ok(original);
+  reopened.restoreRecordedDecision(original);
+  assert.deepEqual((await reopened.readMany([r.review_id]))[0]?.decision, expected);
+  assert.equal((await reopened.readMany([r.review_id]))[0]?.decisions.approve.available, false);
+});
+
 test("APR-08: revocation after a storage wait refuses the actual commit", async t => {
   const f = fixture(); t.after(() => f.queue.close()); const r = request("r"); f.admit(r);
   const entered = gate(), resume = gate(); let current = true;

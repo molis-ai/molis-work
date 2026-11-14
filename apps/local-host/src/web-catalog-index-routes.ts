@@ -6,7 +6,7 @@ import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/a
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import { projectOrNull } from "./catalog-lookup.js";
-import { assistantNotices, handleAssistantHttp, type AssistantHttpPorts } from "./assistant/assistant-http.js";
+import { assistantNotices, assistantServiceFor, handleAssistantHttp, type AssistantHttpPorts } from "./assistant/assistant-http.js";
 import { installedPagesPort } from "./assistant/assistant-pages.js";
 import { handleAttentionHttp } from "./attention-http.js";
 import { handleMemoryHttp } from "./memory/memory-host.js";
@@ -37,8 +37,9 @@ export const CATALOG_INDEX_ROUTES: readonly WebRoute<CatalogIndexContext>[] = [
   { id: "plugin-permissions", handle: handlePluginPermissionSettingsHttp },
   { id: "authorization-management", handle: handleAuthorizationManagementHttp },
   // Personal memories are managed from the global settings, outside any project.
-  { id: "memory", handle: async ({ request, response, url, serverOptions, localHost }) =>
-    Boolean(serverOptions.homeDirectory) && url.pathname.startsWith("/api/memory/") && await handleMemoryHttp(request, response, url, { localHost }) },
+  { id: "memory", handle: async ({ request, response, url, serverOptions, localHost, assistant }) =>
+    Boolean(serverOptions.homeDirectory) && url.pathname.startsWith("/api/memory/") && await handleMemoryHttp(request, response, url,
+      { localHost, ...(assistant ? { assistantBinding: id => assistantServiceFor(assistant).service.memorySessionBinding(id) } : {}) }) },
   { id: "assistant", handle: async ({ request, response, url, assistant, serverOptions }) =>
     Boolean(assistant) && url.pathname.startsWith("/api/assistant/") && await handleAssistantHttp(request, response, url, assistant!, serverOptions.assertAccountCurrent) },
   { id: "attention", handle: async ({ request, response, url, assistant, projects, localHost }) => Boolean(assistant) && await handleAttentionHttp(request, response, url,

@@ -8,4 +8,14 @@ export declare const cutHead: (text: string, max: number) => string;
 
 export declare const cutTail: (text: string, max: number) => string;
 
+export declare function cutWithEllipsis(text: string, limit: number, { unit, prefixLength, trimEnd }?: EllipsisCutOptions): string;
+
 export declare const exceedsCharacters: (text: string, limit: number) => boolean;
+
+// Declarations the exports above refer to, which no entry exports itself:
+
+interface EllipsisCutOptions {
+    readonly unit?: "utf16" | "characters";
+    readonly prefixLength?: number;
+    readonly trimEnd?: boolean;
+}

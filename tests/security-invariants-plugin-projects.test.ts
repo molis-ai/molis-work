@@ -1,3 +1,5 @@
+import { projectInstallation } from "./fixtures/signed-package-host.js";
+import type { SurfaceInstallationRef } from "@molis-ai/molis-work-contracts/services/surface-composition";
 import { effectsFromContract, sandboxPluginManifest } from '@molis-ai/molis-work-plugin-sdk';
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -256,8 +258,9 @@ for (const scope of ["home", "project"] as const) test(`S-96 RAC-1065-RESTORE-${
   const caller = person(project.project_id), client = home.host.actionClient(project.reference);
   const preview = await client.invoke(caller, ref(pluginInstallActions.preview), { bundle: projectsPackage([project.project_id, "unknown"], scope) }) as { preview_id: string };
   await client.invoke(caller, ref(pluginInstallActions.confirm), { preview_id: preview.preview_id, consent: true, pin_label: "Projects restart test publisher" });
-  const control = (host: MolisWorkLocalHost, action: "disable" | "enable") => scope === "home" ? host.homePlugins!.packageAction(PACKAGE_PLUGIN_ID, action)
-    : host.actionClient(project.reference).invoke(caller, ref(pluginControlActions[action]), { plugin_id: PACKAGE_PLUGIN_ID });
+  const control = (host: MolisWorkLocalHost, action: "disable" | "enable", expected_installation?: SurfaceInstallationRef) => scope === "home"
+    ? host.homePlugins!.packageAction(PACKAGE_PLUGIN_ID, action)
+    : host.actionClient(project.reference).invoke(caller, ref(pluginControlActions[action]), { plugin_id: PACKAGE_PLUGIN_ID, ...(expected_installation ? { expected_installation } : {}) });
   const list = async (host: MolisWorkLocalHost) => {
     const target = scope === "home" ? host.homeActionClient() : host.actionClient(project.reference);
     const result = await target.invoke(scope === "home" ? person(null) : caller, ref(scope === "home" ? pluginInstallActions.homeInstalled : pluginInstallActions.installed), {}) as
@@ -276,7 +279,9 @@ for (const scope of ["home", "project"] as const) test(`S-96 RAC-1065-RESTORE-${
     const after = await list(restarted);
     assert.equal(after.install_id, before.install_id); assert.equal(after.state, "disabled", "changing a stopped installation's grants does not start it");
     assert.equal(after.permissions.find(item => item.permission === PLUGIN_PROJECTS_EXIST_PERMISSION)?.granted, true);
-    await control(restarted, "enable");
+    const projectEnable = scope === "project" ? (await restarted.actionClient(project.reference).invoke(caller, ref(pluginInstallActions.installed), {}) as
+      { plugins: Array<{ plugin_id: string } & Omit<SurfaceInstallationRef, "scope">> }).plugins.find(item => item.plugin_id === PACKAGE_PLUGIN_ID) : undefined;
+    await control(restarted, "enable", projectEnable && projectInstallation(projectEnable));
     const target = scope === "home" ? restarted.homeActionClient() : restarted.actionClient(project.reference), who = scope === "home" ? person(null) : caller;
     const answer = await operate(target, who, await operationsOf(target, who), "notes.list", {}) as Array<{ id: string; text: string }>;
     assert.deepEqual(answer.map(row => row.id), ["answer"]);

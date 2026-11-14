@@ -29,7 +29,7 @@ export function codingActions(context: PluginStartContext, beforeWrite: CodingBe
 export function codingJobWrite(control: PluginJobControl): CodingBeforeWrite {
   return Object.assign(() => control.beforeEffect(), { assert_current: () => control.assert_authority_current(), signal: control.signal });
 }
-type Handler = (request: PluginRouteRequest, api: PluginActionClient, execution: CodingExecution, beforeWrite: CodingBeforeWrite) => Promise<unknown>;
+type Handler = (request: PluginRouteRequest, api: PluginActionClient, execution: CodingExecution, beforeWrite: CodingBeforeWrite, control?: Pick<ActionExecutionContext, "provideSubjectState">) => Promise<unknown>;
 /** What an action with no route of its own runs with. `routed` answers through one of the routes' handlers, under this action's fence. */
 export interface CodingActionCall {
   readonly api: PluginActionClient;
@@ -72,7 +72,7 @@ export function codingRouteEntry(context: PluginStartContext, execution: CodingE
       actions.push({ ...binding, handle: async (caller, input) => { try { return await bindOwnerPluginAction(context, action.definition, async (value, ownerCheck) => {
         const request = { ...action.toRequest(value), pathname: "", actor_id: context.actor_id! };
         const beforeWrite = check(caller, ownerCheck, action.definition.action.permissions), { api, execution } = await execute(request, beforeWrite, caller.locale);
-        return handle(request, api, execution, beforeWrite);
+        return handle(request, api, execution, beforeWrite, { provideSubjectState: caller.provideSubjectState });
       }).handle(caller, input); } catch (error) { throw codingErrorIn(error); } } });
     }
     return { route_id, async handle(request) {

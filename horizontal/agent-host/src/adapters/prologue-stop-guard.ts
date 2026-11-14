@@ -1,7 +1,7 @@
 import type { Runtime } from "@prologue/sdk";
 import { actionEffect, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentActionClient } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { ANNOUNCE_HELD, BUTTON_CLAIM_HELD, SAVED_CLAIM_HELD, WRITTEN_CALL_HELD, actedThisRound, emptyRoundFacts, internalIdsHeld, memoryHeld, mentionsInternalIds, noteRoundEvent,
+import { ANNOUNCE_HELD, BUTTON_CLAIM_HELD, SAVED_CLAIM_HELD, WRITTEN_CALL_HELD, actedThisRound, emptyRoundFacts, internalIdsHeld, memoryFormationOff, memoryHeld, mentionsInternalIds, noteRoundEvent,
   writesToolCallAsText, type EndingClaim } from "./announce-guard.js";
 import { GATEWAY_TOOLS, MEMORY_TOOLS } from "./prologue-action-gateway.js";
 import { REVIEW_TIMEOUT_MS, reviewEnding, type EndingRound, type ReviewModel } from "./ending-review.js";
@@ -114,8 +114,8 @@ export function ensureStopGuard(runtime: Runtime, state: RoundState, sessionId: 
       || (suggestedMemory && /记住|记下|保留|忘记|删掉|停用|remember|kept|forgot/i.test(text));
     if (changed && !(suggestionsOnly && claimAfterSuggestion)) return { kind: "allow" as const };
     record.reviewedAt = facts.calls.length;
-    const round: EndingRound = { reply: text, facts, materials: guard.materials,
-      ...(memory ? { memory: memory.off ? "switched-off" : memory.without.keep ? "not-given" : "available" } : {}) };
+    const round: EndingRound = { reply: text, facts, materials: guard.materials, request: guard.task,
+      ...(memory ? { memory: memoryFormationOff(memory) ? "switched-off" : memory.without.keep ? "not-given" : "available" } : {}) };
     const signal = AbortSignal.any([AbortSignal.timeout(REVIEW_TIMEOUT_MS), ...(guard.signal ? [guard.signal] : [])]);
     const held = heldFor(await reviewEnding(runtime, guard.review, round, signal), memory, guard.business, suggestedAction).filter(([kind]) => !record.held.has(kind));
     return held.length ? hold(held.map(([kind]) => kind), held.map(([, why]) => why).join("\n\n")) : { kind: "allow" as const };

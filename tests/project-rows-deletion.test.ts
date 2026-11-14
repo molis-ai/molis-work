@@ -31,7 +31,10 @@ const WHOLLY_PROJECT = DECLARING.filter(id => id !== "images");
 function withHome(t: TestContext): string {
   const directory = mkdtempSync(join(tmpdir(), "project-rows-"));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
-  return join(directory, "home");
+  // A Home exists before its plugins start; a library whose rows join the project's artifacts opens at the Home's real path (batch 06, N12).
+  const home = join(directory, "home");
+  mkdirSync(home);
+  return home;
 }
 
 /**

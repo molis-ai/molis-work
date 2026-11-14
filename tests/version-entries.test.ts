@@ -86,8 +86,8 @@ test("an encoding discriminator is not a version, so moving a version cannot mak
 
 test("an entry that served two things is split, and two entries for one thing are one", () => {
   assert.ok(!entries.includes("role.reader"));
-  assert.deepEqual(moved("role.coding.main-reader", 2), ["plugins/native/coding/src/roles.ts"]);
-  assert.deepEqual(moved("role.schedule.reader", 2), ["plugins/native/schedule/src/roles.ts"]);
+  assert.deepEqual(moved("role.coding.main-reader", Number(real.versions["role.coding.main-reader"]) + 1), ["plugins/native/coding/src/roles.ts"]);
+  assert.deepEqual(moved("role.schedule.reader", Number(real.versions["role.schedule.reader"]) + 1), ["plugins/native/schedule/src/roles.ts"]);
   assert.ok(!entries.includes("format.continuity.assets"), "the same molis-work-assets bundle");
   assert.deepEqual(moved("format.asset.bundle", 2), ["apps/local-host/src/work-assets.ts", "server/src/continuity/service.ts"], "the writer and the reader move together");
   assert.ok(!entries.includes("format.builder.files-envelope"), "the signed package's own envelope");
@@ -109,7 +109,7 @@ test("a fixed name stays out of the table: UI contribution ids and slots have no
   assert.deepEqual(entries.filter(key => key.startsWith("contract.") && !/^contract\.io\.molis\.work\.(?:module|modules|platform|service)\./.test(key)), []);
   assert.deepEqual(entries.filter(key => key.startsWith("slot.")), []);
   assert.match(source("plugins/native/coding/src/ui.ts"), /CODING_UI_CONTRIBUTION_ID = "io\.molis\.work\.native\.coding\.ui\.v1";/);
-  assert.match(source("packages/plugin-sdk/src/sandbox-manifest.ts"), /pluginId \+ '\.ui\.v1'/, "written the same way as a built-in's");
+  assert.match(source("packages/plugin-sdk/src/sandbox-ui.ts"), /pluginId \+ "\.ui\.v1"/, "written the same way as a built-in's");
 });
 
 test("the action gateway pack takes its version from the table, in the SemVer form the SDK requires", () => {

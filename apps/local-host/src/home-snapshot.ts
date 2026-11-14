@@ -12,6 +12,7 @@ import { snapshotDestination, syncSnapshotPath, writeSnapshotJson } from "./home
 import { homeSnapshotErrors } from "./home-store-snapshot.js";
 import { homeStores } from "./home-stores.js";
 import { homeUpgradeUnfinished } from "./home-upgrade-ledger.js";
+import { assertArtifactSnapshotReady } from "./home-artifact-recovery.js";
 import { resolveConfiguredHome } from "./product-home.js";
 import { PRODUCT_VERSION } from "./product-version.js";
 
@@ -36,6 +37,7 @@ export async function createHomeSnapshot(
     owner = acquireStorageOwner(root);
   let publication: ReturnType<ReturnType<typeof snapshotDestination>["create"]> | undefined;
   try {
+    assertArtifactSnapshotReady(home, owner);
     if (homeUpgradeUnfinished(home)) throw homeSnapshotErrors.maintenance_pending("上一轮升级还没有做完，所以没有做快照。先启动一次 Molis Work 让它做完，再来做快照。");
     const scope = snapshotSpaceDigest(home);
     const assertCurrent = () => {

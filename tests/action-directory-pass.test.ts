@@ -121,7 +121,7 @@ test("RAC-1133 authority taken away in the same round refuses the call after the
     assert.ok(service.discover(asking).every(view => view.availability.available));
     // A call asks the caller itself (its last check and its own availability), never the directory's answer, even inside the pass.
     assert.deepEqual(service.invokeSync(asking, definitions[0]!, {}), { ok: true });
-    assert.deepEqual([authority.named, authority.asked], [1, 2]);
+    assert.deepEqual([authority.named, authority.asked], [1, 3], "dispatch and query delivery each recheck current authority outside the directory answer");
     authority.refuse = Infinity;
     assert.throws(() => service.invokeSync(asking, definitions[0]!, {}), (error: ActionError) => error.code === "actions.forbidden");
     const asked = authority.asked;

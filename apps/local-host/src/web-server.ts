@@ -1,4 +1,4 @@
-import { WebSessions, webPageToken, withWebSessionRequest } from "./web-sessions.js";
+import { WebSessions, webPageToken, webRequestAuthenticated, withWebSessionRequest } from "./web-sessions.js";
 import { renderPersonalAccountEntry, renderAccountSameOriginEntry } from "@molis-ai/molis-work-app-workbench";
 import { createLocalWebAssets } from "./web-assets.js";
 import { createLocalHostWorkbenchRenderer } from "./workbench-renderer.js";
@@ -188,7 +188,7 @@ export function createLocalWebCoreFactory(platform: LocalWebPlatform) {
           }
           if (await handleBrowserHttp(request, response, url, { browsers: browserHost, projectExists, sites, decideSite: decision => agents.decideSurfaceSite(decision) })) return;
           if (await computer.handleHttp(request, response, url)) return;
-          if (await im.handle(request, response, url, loopbackWebOrigin(server))) return;
+          if (await im.handle(request, response, url, loopbackWebOrigin(server), () => webRequestAuthenticated(request, controlToken))) return;
           if (await handleMcpContextHttp(request, response, url, { home: storageHome, host: localHost, withCatalog,
             deletion: webProjectDeletionPorts({ isPanelAlive: panelId => pty.host?.alive(panelId) ?? false, projectSchedules, webViewCache, localHost }) })) return;
           if (await handleManagementActionHttp(request, response, url, storageHome, localHost) || await handlePluginInstallHttp(request, response, url, storageHome, localHost) || await handleActionGatewayHttp(request, response, url, storageHome, localHost, withCatalog, serverOptions.mcpCredentialHomeDirectory ?? storageHome)) return;

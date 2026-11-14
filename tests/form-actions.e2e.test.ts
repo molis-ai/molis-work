@@ -43,7 +43,7 @@ test("FSS-35 an open Form response retitles its seconds and preserves the origin
   }
 });
 
-for (const width of [1440,390]) test(`Form ${width}px: author, preview, historical answers, conflicts and fixed Artifact recovery`, {timeout:100_000}, async t => {
+for (const width of [1440,390]) test(`Form ${width}px: author, preview, historical answers, conflicts and retrying a fixed Artifact`, {timeout:100_000}, async t => {
   let modelCalls=0;
   // specs/ai-interaction-experience AC-26: 「AI 生成题目」 asks first in the shared question card, then drafts with the answer.
   const browser=await openGoalBrowser(t,true,undefined,async prompt=>{modelCalls++;assert.match(prompt,/常用工具/);return JSON.stringify(/内部同事/.test(prompt)
@@ -176,20 +176,25 @@ for (const width of [1440,390]) test(`Form ${width}px: author, preview, historic
   await screenshot('conflict');
   await moreClick('[data-form-reload]');await waitFor("document.querySelector('[data-form-confirm]').open");await click('[data-form-confirm] [data-confirm-ok]');await idle();
   await click('[data-form-tab=editor]');await idle();
+  // The root-program guard refuses this trigger before either write. This exercises the failure UI and explicit retry.
   const db=openHomeSqliteDatabase(homeDirectory,'form');
   try{
     db.exec("CREATE TRIGGER fail_form_ui BEFORE UPDATE OF artifact_version ON forms WHEN NEW.artifact_version > OLD.artifact_version BEGIN SELECT RAISE(ABORT, 'fixture association failed'); END");
-    await click('[data-form-artifact-bar]');await idle();assert.equal(read().forms[0]!.publication_pending!.version,1);
+    await click('[data-form-artifact-bar]');await idle();assert.equal(read().forms[0]!.publication_pending,undefined);assert.equal(read().forms[0]!.artifact_version,0);
     db.exec('DROP TRIGGER fail_form_ui');
     // An answer keeps the questions as they were: one removed from the form since still shows under its own title.
     db.prepare('INSERT INTO submissions (id,form_id,answers_json,submitted_at,form_version,questions_json,source) VALUES (?,?,?,?,?,?,?)').run('old-answer',id,
       JSON.stringify({'removed-question':'历史回答'}),'2025-01-01T00:00:00Z',1,JSON.stringify([{id:'removed-question',type:'text',title:'已删掉的题',required:false,order:0}]),'preview');
   }finally{db.close();}
-  assert.equal(await evaluate("document.querySelector('[data-form-artifact-bar]').textContent"),'继续保存上次固定版本');
+  assert.equal(await evaluate("document.querySelector('[data-form-artifact-bar]').textContent"),'存为固定版本');
+  const failedPinNote = "document.querySelector('[data-form-note].is-error:not([hidden])')?.textContent";
+  const error = await evaluate<string>(failedPinNote);
+  assert.ok(error, 'the editor shows the fixed-version failure');
   await input('[data-form-description]','发布后继续编辑');await saved();await screenshot('recovery');
-  assert.equal(await evaluate("document.querySelector('[data-form-note]').hidden"),true);
-  assert.equal(await evaluate("document.querySelector('[data-form-publication-note]').hidden"),false);
+  assert.equal(await evaluate(failedPinNote),error);
+  assert.equal(await evaluate("document.querySelector('[data-form-publication-note]').hidden"),true);
   await click('[data-form-artifact-bar]');await idle();assert.equal(read().forms[0]!.artifact_version,1);assert.equal(read().forms[0]!.publication_pending,undefined);
+  assert.equal(await evaluate("document.querySelector('[data-form-note]').hidden"),true, 'a successful fixed version clears its own failure');
   assert.equal(read().forms[0]!.description,'发布后继续编辑');assert.equal(read().forms[0]!.share_id,share);
   const denied=await evaluate<number>(`fetch('/projects/${projectId}/api/plugins/io.molis.work.form/forms?project_id=${projectId}',{method:'POST',headers:molisWorkControlHeaders(),body:JSON.stringify({project_id:'wrong',title:'denied'})}).then(r=>r.status)`);
   assert.equal(denied,403);assert.equal(read().forms.length,1);
@@ -223,4 +228,61 @@ test('Form unavailable model keeps local question creation usable',{timeout:45_0
   assert.match(await evaluate<string>("document.querySelector('[data-form-ai-reason]').textContent"),/模型/);
   await evaluate("document.querySelector('[data-form-ai-prompt]').value='手工问题'");await click('[data-form-generate]');
   await waitFor("document.querySelector('[data-question-title]')?.value === '手工问题'");
+});
+
+test("BSH-01 Form reads its only fixed version after losing the committed HTTP response", { timeout: 45_000 }, async t => {
+  const browser = await openGoalBrowser(t, true, undefined, null);
+  if (!browser) return;
+  const { evaluate, waitFor, click } = await pluginFrameBrowser(t, browser, "form");
+  const { command, sessionId, navigate, origin, projectId, homeDirectory, store } = browser;
+  assert.ok(projectId);
+  await browser.setViewport(1440, 950);
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=form` }, sessionId));
+  await browser.waitFor("document.querySelector('[data-plugin-id=form]')");
+  if (await browser.evaluate("document.body.dataset.desktopSurface") !== "form") await browser.click('[data-plugin-strip] [data-plugin-id=form]');
+  const idle = () => waitFor("document.querySelector('[data-form=workbench]').getAttribute('aria-busy') === 'false'");
+  await click('[data-form-new]');
+  await idle();
+  const read = () => {
+    const library = openFormStore(homeDirectory);
+    try { return library.list(projectId)[0]!; }
+    finally { library.close(); }
+  };
+  const form = read(), artifactId = "form-" + form.id;
+  const versions = () => store.db.prepare("SELECT version FROM library_artifact_versions WHERE artifact_id=? ORDER BY version").all(artifactId).map(row => row.version);
+  assert.deepEqual(versions(), []);
+  assert.equal(form.artifact_version, 0);
+
+  // Let the real HTTP request finish and discard its successful response before Form consumes it.
+  await evaluate(`(() => {
+    const original = window.molisWorkRequest, formPath = "/forms/" + ${JSON.stringify(encodeURIComponent(form.id))};
+    const observed = window.observedPin = { posts: 0, committed: null, reread: null };
+    window.molisWorkRequest = Object.assign(async (url, init) => {
+      const path = new URL(url, 'http://plugin.invalid').pathname;
+      const pin = init?.method === "POST" && path.endsWith(formPath + "/promote");
+      if (pin) observed.posts++;
+      const response = await original(url, init);
+      if (pin && observed.posts === 1 && response.artifact?.version === 1) {
+        observed.committed = response.artifact;
+        throw new Error("fixture fixed-version response lost");
+      }
+      if (observed.committed !== null && path.endsWith(formPath) && (init?.method ?? "GET") === "GET") {
+        observed.reread = { artifact_id: response.form.artifact_id, version: response.form.artifact_version };
+      }
+      return response;
+    }, original);
+  })()`);
+
+  await click('[data-form-artifact-bar]');
+  await idle();
+  assert.match(await evaluate<string>("document.querySelector('[data-form-note].is-error:not([hidden])')?.textContent"), /fixed-version response lost/u);
+  assert.equal(await evaluate("document.querySelector('[data-form-artifact-bar]').textContent"), "再存一个固定版本");
+  const ref = { artifact_id: artifactId, version: 1 };
+  assert.deepEqual(await evaluate("window.observedPin"), { posts: 1, committed: ref, reread: ref });
+  const fixed = read();
+  assert.equal(fixed.artifact_id, artifactId);
+  assert.equal(fixed.artifact_version, 1);
+  assert.equal(fixed.version, form.version + 1);
+  assert.equal(fixed.publication_pending, undefined);
+  assert.deepEqual(versions(), [1]);
 });

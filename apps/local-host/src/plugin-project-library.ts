@@ -44,7 +44,7 @@ export interface ProjectLibrary {
  */
 export function openPluginProjectLibrary(library: ProjectLibrary, manifest: PluginManifest, authorize: (permission: string) => void, instance: PluginInstance,
   statementLimits: Partial<StatementLimits> = {}, home?: string): {
-  client: PluginProjectDatabase; sync?: ReturnType<typeof pluginSyncForVerifiedLibrary>; statements: PluginProjectStatements; reader: PluginDatabaseConnection; close(): void;
+  client: PluginProjectDatabase; sync?: ReturnType<typeof pluginSyncForVerifiedLibrary>; statements: PluginProjectStatements; reader: PluginDatabaseConnection; close(): Promise<void>;
 } {
   const declaration = manifest.databases?.project;
   if (!declaration) throw new Error(`插件 ${manifest.plugin_id} 没有声明项目库`);
@@ -52,7 +52,7 @@ export function openPluginProjectLibrary(library: ProjectLibrary, manifest: Plug
   authorize("storage:private");
   const record = openPluginTables(library.db, library.path, manifest);
   const storage = new LocalSqliteStorage(library.path, { readonly: true });
-  let closed = false;
+  let closed = false, closing: Promise<void> | undefined;
   try {
     const reader: PluginDatabaseConnection = storage.db;
     const triggers = new Map([...projectReplicationTriggers(library.db), ...replicaTriggerDefinitions(library.db), ...pluginSyncTriggers(library.db as ReplicaDatabase, pluginSyncDatabaseDeclaration(manifest, declaration), manifest, declaration.schema)]);
@@ -68,7 +68,13 @@ export function openPluginProjectLibrary(library: ProjectLibrary, manifest: Plug
     const assertActive = () => { if (closed) throw new ActionError('actions.plugin_unavailable', '插件数据库已关闭'); authorize('storage:private'); };
     const sync = home ? pluginSyncForVerifiedLibrary({home, manifest, declaration, db: library.db, projectId, client,
       inTransaction: () => library.db.inTransaction === true, assertActive, authorize, guard: writes}) : undefined;
-    return { client, ...(sync ? {sync} : {}), statements, reader, close() { if (!closed) { closed = true; processes.dispose(); storage.close(); } } };
+    return { client, ...(sync ? {sync} : {}), statements, reader, close() {
+      closed = true;
+      return closing ??= (async () => {
+        const exited = processes.close();
+        try { storage.close(); } finally { await exited; }
+      })();
+    } };
   } catch (error) { storage.close(); throw error; }
 }
 

@@ -5,6 +5,7 @@ import { pagePlacement } from "./placement.js";
 import { pageReviews } from "./reviews.js";
 import { pageEmbeds } from "./embed.js";
 import { pageFramedAreas } from "./framed-area.js";
+import { pageSurfaceSlots } from "./surface-slot-parent.js";
 import { pageTaskGrants } from "./task-grants-area.js";
 import { pageConnectionNeed } from "./connection-need.js";
 import { pageReturns } from "./returns.js";
@@ -26,6 +27,7 @@ import { pageModal } from "./modal.js";
 import { pagePresentation } from "./presentation.js";
 import { pageConnectionSlot } from "./connection-slot.js";
 import { pageFilePicker } from "./file-picker.js";
+import { pageMaterialsPicker } from "./materials-picker.js";
 import { pageWorkspaces } from "./workspaces.js";
 import { pageFrameAssets } from "./frame-assets.js";
 import type { FrameConfig, FrameHost, FramePack, FrameScope, FrameUp } from "./types.js";
@@ -234,6 +236,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   const { visible } = environment;
   // One registry of framed areas a page: the reads area and the connection card share its four places, layer and checks (§13.5).
   const areas = pageFramedAreas(scope, root, frame, visible), owner = frame.title;
+  const surfaceSlot = pageSurfaceSlots(port, scope, areas, grant.page_id, JSON.stringify([grant.storage_scope, mount ?? pack.id]), route, host, root);
   const taskGrants = pageTaskGrants(port, scope, areas, grant.page_id, route, uiText.text, () => frame.title);
   const returns = pageReturns(port, scope, root, pack, grant.storage_scope, visible), connectionNeed = pageConnectionNeed(port, scope, areas, grant.page_id, route, uiText.text, owner, returns.connection);
   const state = () => {
@@ -255,6 +258,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   };
   const connectionSlot = pageConnectionSlot(port, scope, frame, root, grant.page_id, route, uiText.text);
   const pickFile = pageFilePicker(port, scope, frame, grant.page_id, route, uiText.text);
+  const pickMaterials = pageMaterialsPicker(port, scope, grant.page_id, route, text => host.showToast?.(text, true));
   const composer = pageComposer(port, scope, root, frame, pack, visible);
   port.onmessage = (event: MessageEvent<FrameUp>) => {
     const message = event.data;
@@ -295,6 +299,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
       return;
     }
     if (message.type === "placement-slots" || message.type === "placement-open") { placement(message); return; }
+    if (message.type === "surface-slot-open" || message.type === "surface-slot-layout" || message.type === "surface-slot-close") { surfaceSlot(message); return; }
     if (message.type === "review-show" || message.type === "review-layout" || message.type === "review-close") { void reviews(message); return; }
     if (message.type === "open-behind") { if (scope.visible && typeof message.itemId === "string" && message.itemId.length <= 1000 && typeof message.title === "string") host.openBehind?.(pack.id, message.itemId, message.title.slice(0, 1000)); return; }
     if (message.type === "workspace") { void workspaces(message); return; }
@@ -317,6 +322,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
     if (message.type === "context-key" || message.type === "context-report" || message.type === "context-taken" || message.type === "context-call" || message.type === "context-unreadable") { void contextMessage(message); return; }
     if (message.type === "native-files") { void handoffPageFiles(port, scope, grant.page_id, route, message); return; }
     if (message.type === "native-file-pick") { void pickFile(message); return; } else if (message.type.startsWith("composer-")) { composer(message as Extract<FrameUp, { type: `composer-${string}` }>); return; }
+    if (message.type === "knowledge-pick") { pickMaterials(message); return; }
     if (["ui", "link", "refresh-shell"].includes(message.type) && (!root.isConnected || !visible())) return;
     if (message.type === "refresh-shell") {
       if (shellRefreshed) return;

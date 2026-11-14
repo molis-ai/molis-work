@@ -53,6 +53,7 @@ export function createRuntimeItemStaging(feed: () => FeedApplication, projectId:
 /** The platform's scene client without a caller: the plugin's own running action is the caller. */
 const sceneClientOf = (scenes: PluginSceneClient): ActionSceneClient => ({
   discoverScenes: (_caller, judgment) => scenes.discoverScenes(judgment),
+  discoverScenesFor: (_caller, judgments) => scenes.discoverScenesFor(judgments),
   usages: (_caller, judgment) => scenes.usages(judgment),
   targets: (_caller, judgment, scene) => scenes.targets(judgment, scene),
   bind: (_caller, binding, options) => scenes.bind(binding, options),

@@ -1,4 +1,4 @@
-import { cardInputValues, dismissActionCard, runActionCard } from "@molis-ai/molis-work-plugin-sdk";
+import { cardInputValues, dismissActionCard, isTimeZone, runActionCard } from "@molis-ai/molis-work-plugin-sdk";
 import type { PluginRouteBinding, PluginRouteRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { codingCardErrors, codingCardPorts, landRoundOffers, sessionCards } from "./action-cards.js";
 import { type CodingActivation, selected } from "./route-activation.js";
@@ -10,7 +10,7 @@ import { codingActions, type CodingBeforeWrite } from "./route-entry.js";
 /** The zone the person works in, as their page says; a name the platform does not know is none. */
 function zoneOf(value: unknown): string | undefined {
   if (typeof value !== "string" || !value || value.length > 64) return undefined;
-  try { new Intl.DateTimeFormat("en", { timeZone: value }); return value; } catch { return undefined; }
+  return isTimeZone(value) ? value : undefined;
 }
 
 /**

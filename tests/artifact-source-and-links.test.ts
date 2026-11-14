@@ -17,14 +17,11 @@ test("a pinned document shows when the original changed or was deleted, and whic
   const project = await withHostCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "artifact-source", actor_id: "test" }));
   const DEMO_PROJECT_ID = project.project_id;
   await seedDemoGoals(project.database_path, DEMO_PROJECT_ID);
-  const store = new LocalProjectDatabase(project.database_path);
-  const coordinator = new GoalProjectApplication(store);
   const origin = served.origin;
   const controlToken = served.controlToken;
   // Every request this test makes belongs to the project: its pages and its Runtime plugin routes are served under the project prefix.
   const projectOrigin = `${origin}/projects/${encodeURIComponent(DEMO_PROJECT_ID)}`;
   const fetchProject = (path: string, init?: RequestInit) => globalThis.fetch(path.startsWith(origin) ? projectOrigin + path.slice(origin.length) : path, init);
-  t.after(async () => { store.close(); });
   await (await fetchProject(origin + "/health")).text();
   const headers = () => ({ "content-type": "application/json", origin, "x-molis-work-control-token": controlToken, "x-molis-work-idempotency-key": randomUUID() });
   const post = async (path: string, body: unknown) => {
@@ -59,6 +56,11 @@ test("a pinned document shows when the original changed or was deleted, and whic
   // Goals that take it as input or hand it in are listed under 「被谁引用」 in Goals' group, named by Goals' own link-subjects
   // action asked as the caller (RAC-2084), each opening the Goal as a workbench item (RAC-2085).
   await post("/api/plugins/io.molis.work.goals/goals/V1/deliverables", { reference: pinned, delivered: true });
+  // The test's own connection opens only after the pin: while a second connection holds the file, the Host cannot switch the project to
+  // the rollback journal that pinning commits in (batch 06 N12, project-database.ts), and pinning answers service_unavailable.
+  const store = new LocalProjectDatabase(project.database_path);
+  t.after(() => store.close());
+  const coordinator = new GoalProjectApplication(store);
   const scope = { kind: "personal" as const, id: DEMO_PROJECT_ID };
   createContextLedger(store.db, { authorize: () => true }).commands.put({ actor_id: "fixture", scope }, { key: "input-fixture", type: "goal.input", cause: "fixture",
     source: { module: "goals", id: "PLATFORM", version: null, scope }, target: { module: "artifacts", id: pinned.artifact_id, version: pinned.version, scope } });
@@ -126,8 +128,6 @@ test("RAC-2088 RAC-2495 an MCP client reads the Goal titles under 「被谁引�
   const served = await openTestHome(t);
   const project = await served.createProject("artifact-links-mcp");
   await seedDemoGoals(project.database_path, project.project_id);
-  const store = new LocalProjectDatabase(project.database_path);
-  t.after(() => store.close());
   const projectOrigin = `${served.origin}/projects/${encodeURIComponent(project.project_id)}`;
   const post = async (path: string, body: unknown) => {
     const response = await globalThis.fetch(projectOrigin + path, { method: "POST", body: JSON.stringify(body), headers: { "content-type": "application/json", origin: served.origin,
@@ -138,6 +138,8 @@ test("RAC-2088 RAC-2495 an MCP client reads the Goal titles under 「被谁引�
   const created = (await post("/api/plugins/io.molis.work.pages/pages", { title: "季度计划", markdown: "第一稿" })).document as { id: string; version: number };
   const pinned = (await post(`/api/plugins/io.molis.work.pages/pages/${created.id}/promote`, { expected_version: created.version })).artifact as { artifact_id: string; version: number };
   await post("/api/plugins/io.molis.work.goals/goals/V1/deliverables", { reference: pinned, delivered: true });
+  const store = new LocalProjectDatabase(project.database_path); // After the pin, as in the test above.
+  t.after(() => store.close());
   const v1 = new GoalProjectApplication(store).goalQueries.getGoal(project.project_id, "V1")!.title;
 
   const linksAction = { capability_id: "artifacts.links", version: 1 }, namesAction = { capability_id: "goals.artifacts.link_subjects", version: 1 };

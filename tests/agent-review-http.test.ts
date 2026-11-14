@@ -26,11 +26,11 @@ const reviewHome = mkdtempSync(path.join(tmpdir(), "molis-review-host-"));
 const hostForReviews = () => reviewHost ??= Promise.resolve(new MolisWorkLocalHost({ homeDirectory: reviewHome, completeText: null }));
 after(async () => { await (await reviewHost)?.close(); rmSync(reviewHome, { recursive: true, force: true }); });
 
-function pending(reviewId: string): AgentReviewRequest {
+function pending(reviewId: string, projectId = BOARD): AgentReviewRequest {
   return {
-    reference: { owner: { kind: "agent-review" as const, project_id: BOARD, plugin_id: "io.molis.work.coding", install_id: "install" }, id: reviewId, version: "proposal-1" }, review_id: reviewId,
+    reference: { owner: { kind: "agent-review" as const, project_id: projectId, plugin_id: "io.molis.work.coding", install_id: "install" }, id: reviewId, version: "proposal-1" }, review_id: reviewId,
     run: { run_id: "run-1", session_id: "s-1" },
-    project_id: BOARD,
+    project_id: projectId,
     plugin_id: "io.molis.work.coding",
     kind: "text-edit",
     document: {
@@ -208,7 +208,7 @@ test("Host review refresh reads owner receipts and renders only the requested ru
 test("manual rewind reviews are scoped to the selected runtime session and current project", async () => {
   const item=await fixture();try {
     for(const [id,session,board] of [['mine','sdk-a',BOARD],['other-session','sdk-b',BOARD],['other-board','sdk-a','foreign']]) {
-      item.agentHost.reviews.request({...pending(id),project_id:board,run:null,operation:{operation_id:id,session_id:session,kind:'checkpoint-rewind'},kind:'rewind',document:{kind:'rewind',checkpoint_id:'cp',files:[{path:'a',change:'restore',before_text:'now',after_text:'old'}]}});
+      item.agentHost.reviews.request({...pending(id, board),run:null,operation:{operation_id:id,session_id:session,kind:'checkpoint-rewind'},kind:'rewind',document:{kind:'rewind',checkpoint_id:'cp',files:[{path:'a',change:'restore',before_text:'now',after_text:'old'}]}});
     }
     item.agentHost.reviews.request(pending('run-review'));
     const manual=await (await fetch(`${item.base}/api/agent/reviews?session_id=sdk-a`)).json();assert.deepEqual(manual.reviews.map((row:any)=>row.request.review_id),['mine']);
@@ -227,7 +227,7 @@ test('Git recovery enforces project ownership, explicit confirmation and Host-ow
   });
   try {
     const queue = item.agentHost.reviews;
-    queue.request(pending('mine')); queue.request({ ...pending('foreign'), project_id: 'other-project' });
+    queue.request(pending('mine')); queue.request(pending('foreign', 'other-project'));
     queue.registerRecoveryHandler('mine', {
       inspect: async observe => ({ review_id: 'mine', receipt: queue.receipt('mine')!, observation: await observe(), can_confirm_not_happened: false, message: original }),
       resolve: async (input, observe) => {
@@ -301,7 +301,7 @@ test("BL-360: a computer injection during owner waiting cannot commit its own ap
   const read = new Promise<void>(resolve => { entered = resolve; }), waiting = new Promise<void>(resolve => { release = resolve; });
   try {
     queue.request(pending("injected"));
-    queue.registerDecisionHandler("injected", async (_input, commit) => { entered(); await waiting; const receipt = commit(); effects++; return receipt; });
+    queue.registerDecisionHandler("injected", async (_input, commit) => { entered(); await waiting; const receipt = await commit(); effects++; return receipt; });
     const response = fetch(`${item.base}/api/agent/reviews/decide`, { method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({ review_id: "injected", version: "proposal-1", decision: "approve" }) });
     await read; holder.lastInjectAt = 5_000; release();
@@ -323,7 +323,7 @@ for (const mode of ["expired", "closed"] as const) test(`BL-360: a Web session $
     queue.request(pending("session-closed"));
     queue.registerDecisionHandler("session-closed", async (_input, commit) => {
       enter(); await waiting;
-      try { const receipt = commit(); effects++; return receipt; } catch (error) { refusal = error; throw error; } finally { finish(); }
+      try { const receipt = await commit(); effects++; return receipt; } catch (error) { refusal = error; throw error; } finally { finish(); }
     });
     const response = fetch(`${item.base}/api/agent/reviews/decide`, { method: "POST", headers: { "content-type": "application/json", connection: "close", cookie, "x-molis-work-page-session": token },
       body: JSON.stringify({ review_id: "session-closed", version: "proposal-1", decision: "approve" }) })
@@ -345,7 +345,7 @@ test("BL-360: a changed computer holder cannot return the previous project's pen
   let enter!: () => void, release!: () => void;
   const entered = new Promise<void>(resolve => { enter = resolve; }), waiting = new Promise<void>(resolve => { release = resolve; });
   try {
-    queue.request({ ...pending("other"), project_id: "other-project" });
+    queue.request(pending("other", "other-project"));
     queue.registerDecisionHandler("other", async (_input, commit) => commit(), async () => { enter(); await waiting; return () => true; });
     const response = fetch(`${item.base}/api/agent/reviews?run_session_id=s-1&status=pending`);
     await entered; holder.sessionId = "replacement"; release();
@@ -369,6 +369,8 @@ for (const withdrawn of ["session", "computer", "work"] as const) test(`BL-360: 
   const sessionId = "original-session";
   store.update(LOCAL_PERSON_ACTOR_ID, work.work_id, null, { session_id: sessionId });
   const queue = agents.agentHost.reviews, entered = deferred(), release = deferred();
+  const decisions = reviewDecisionStorage();
+  queue.bindDecisionStore(decisions.store);
   t.after(() => { release.resolve(); sessions.close(); });
   let lastInjectAt: number | null = null, effects = 0;
   t.mock.method(ComputerDesk.prototype, "holding", () => ({ sessionId, projectId: null, lastInjectAt }));
@@ -378,7 +380,7 @@ for (const withdrawn of ["session", "computer", "work"] as const) test(`BL-360: 
     requested_at: new Date().toISOString(), expires_at: null });
   queue.registerDecisionHandler("original-review", async (_input, commit) => {
     entered.resolve(); await release.promise;
-    const receipt = commit(); effects++; return receipt;
+    const receipt = await commit(); effects++; return receipt;
   });
   const page = await fetch(f.origin), html = await page.text();
   assert.equal(page.status, 200);
@@ -386,7 +388,7 @@ for (const withdrawn of ["session", "computer", "work"] as const) test(`BL-360: 
   assert.ok(proof);
   const cookie = page.headers.getSetCookie().map(value => value.split(";")[0]).join("; ");
   const response = f.request(`/api/assistant/works/${work.work_id}/reviews/original-review`, { method: "POST", authorized: false,
-    headers: { cookie, "x-molis-work-page-session": proof }, body: { decision: "approve" } });
+    headers: { cookie, "x-molis-work-page-session": proof }, body: { decision: "approve", version: "proposal-1" } });
   await Promise.race([entered.promise, response.then(async value => { throw new Error(`request ended before owner waiting: ${value.status} ${await value.clone().text()}`); })]);
   if (withdrawn === "session") now = 60_001;
   else if (withdrawn === "computer") lastInjectAt = Date.now();
@@ -398,4 +400,5 @@ for (const withdrawn of ["session", "computer", "work"] as const) test(`BL-360: 
   assert.equal(effects, 0, "the original owner gets no authorization and performs no effect");
   const receipt = queue.receipt("original-review");
   assert.equal(receipt?.status, "pending"); assert.equal(receipt?.decided_by, null); assert.equal(receipt?.effect_settled, false);
+  assert.equal(await decisions.store.read(queue.get("original-review")!.reference), undefined);
 });

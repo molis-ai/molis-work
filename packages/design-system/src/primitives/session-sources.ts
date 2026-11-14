@@ -48,7 +48,7 @@ export const SESSION_SOURCE_STYLES = `
   .mw-turn > .mw-who { margin-top: 1px; }
   .mw-turn__body { display: grid; gap: 2px; min-width: 0; }
   .mw-turn__head { display: flex; align-items: center; gap: 8px; min-width: 0; margin: 0; color: var(--muted); font-size: 12px; line-height: 18px; }
-  .mw-turn__head > b { min-width: 0; overflow: hidden; color: var(--ink); font-weight: var(--weight-title); text-overflow: ellipsis; white-space: nowrap; }
+  .mw-turn__head > b { min-width: 0; color: var(--ink); font-weight: var(--weight-title); overflow-wrap: anywhere; }
   .mw-turn__head > time { flex: none; font-variant-numeric: tabular-nums; }
   .mw-turn__head > .mw-status { flex: none; }
   .mw-turn__text { max-width: 68ch; margin: 0; color: var(--ink); font-size: 13px; line-height: 1.65; overflow-wrap: anywhere; white-space: pre-wrap; }

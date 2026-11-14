@@ -20,12 +20,14 @@ test("Goal kanban sits beside the canvas, opens Frame, and remembers the board v
   assert.equal(await evaluate("document.querySelector('[data-directory-panel=goals] .tree-node')"), null);
   assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-goal-stage-list]')).display"), "block");
   const listRows = await evaluate<{ height: number; line: string; stateLeft: number; titleRight: number; relationsLine: string | null; depths: number[] }>(`(() => {
+    // A Goal row draws its title either as plain text or, with a declared status, as the Goals presentation chip.
+    const TITLE = '.tree-title-line strong, .tree-presentation-name .mw-presentation__tag strong';
     const rows = [...document.querySelectorAll('[data-goal-stage-list] [data-tree-root]:not([data-collection-tree]) .tree-entry')];
     return {
       height: Math.max(...rows.map(row => Math.round(row.getBoundingClientRect().height))),
-      line: getComputedStyle(rows[0].querySelector('.tree-title-line strong')).whiteSpace,
+      line: getComputedStyle(rows[0].querySelector(TITLE)).whiteSpace,
       stateLeft: Math.min(...rows.map(row => Math.round(row.querySelector('.directory-row-state').getBoundingClientRect().left))),
-      titleRight: Math.max(...rows.map(row => row.querySelector('.tree-title-line strong').getBoundingClientRect().right)),
+      titleRight: Math.max(...rows.map(row => row.querySelector(TITLE).getBoundingClientRect().right)),
       relationsLine: document.querySelector('.tree-relations-copy') ? getComputedStyle(document.querySelector('.tree-relations-copy')).whiteSpace : null,
       depths: [...new Set(rows.map(row => Number(row.closest('[data-tree-depth]').dataset.treeDepth)))]
     };

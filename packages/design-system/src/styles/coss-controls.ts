@@ -48,8 +48,7 @@ export const COSS_CONTROL_STYLES = `
   .dialog-body select,
   .runtime-plan-dialog input:not([type=checkbox]),
   .artifact-reference-label input,
-  .artifact-content-reference input,
-  body.immersive-workbench .home-shortcut-dialog input {
+  .artifact-content-reference input {
     min-height: var(--control-h);
     height: var(--control-h);
     padding: 0 12px;
@@ -57,11 +56,6 @@ export const COSS_CONTROL_STYLES = `
     border-radius: var(--radius-control);
     color: var(--ink);
     background: var(--paper);
-    box-shadow: none;
-  }
-  body.immersive-workbench .home-shortcut-dialog input:focus {
-    border-color: var(--control-input);
-    outline: 0;
     box-shadow: none;
   }
   .dialog-body textarea {
@@ -73,8 +67,7 @@ export const COSS_CONTROL_STYLES = `
 
   .create-dialog,
   .runtime-plan-dialog,
-  .project-delete-dialog,
-  .home-shortcut-dialog {
+  .project-delete-dialog {
     border: 1px solid var(--control-border);
     border-radius: var(--radius-surface);
     background: var(--paper);
@@ -83,8 +76,7 @@ export const COSS_CONTROL_STYLES = `
   }
   .create-dialog::backdrop,
   .runtime-plan-dialog::backdrop,
-  .project-delete-dialog::backdrop,
-  .home-shortcut-dialog::backdrop {
+  .project-delete-dialog::backdrop {
     background: var(--scrim);
   }
   .navigator-project-menu-popover {

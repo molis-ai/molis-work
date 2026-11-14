@@ -400,5 +400,6 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     void loadArtifacts(path);
   });
   void refreshUpdates();
-  return { open: surface => { if (surface === "market") void loadMarket(); if (surface === "artifacts" && !artifactRequest) void loadArtifacts(); } };
+  // Opening the library reads its last place only after the opening that showed it: a restore names its version in the same turn, and that read wins.
+  return { open: surface => { if (surface === "market") void loadMarket(); if (surface === "artifacts" && !artifactRequest) setTimeout(() => { if (!artifactRequest) void loadArtifacts(); }, 0); } };
 }`;

@@ -1,36 +1,24 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import test from "node:test";
-import { MolisWorkLocalHost, DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
-import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
-
-const controlToken = "artifact-continue-control-token-0123456789";
+import { openTestHome } from "./fixtures/test-home.js";
 
 // specs/artifact-positioning A4b: 「从这一版继续」 starts a new object with the pinned version's content, in the plugin the
 // person chose; the version and the original object are left as they are.
 test("a pinned document, form, deck and table each continue as a new object of their own plugin", { timeout: 60_000 }, async t => {
-  const directory = await mkdtemp(join(tmpdir(), "molis-work-artifact-continue-"));
-  const databasePath = join(directory, "fixture.db");
-  await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
-  seedDemoBoard(databasePath);
-  const server = createMolisWorkWebServer({ databasePath, projectId: DEMO_PROJECT_ID, homeDirectory: directory, controlToken });
-  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
-  const address = server.address();
-  assert.ok(address && typeof address === "object");
-  const origin = `http://127.0.0.1:${address.port}`;
-  t.after(async () => { await new Promise<void>(resolve => server.close(() => resolve())); await rm(directory, { recursive: true, force: true }); });
-  await (await fetch(origin + "/health")).text();
+  // Pinning is a Home project's: the project library and the plugin library commit one transaction (batch 06 N12), so the project
+  // lives in a test Home rather than a standalone library.
+  const home = await openTestHome(t);
+  const project = await home.createProject("Artifact continue", ["pages", "form", "ppt", "dataset"]);
+  const { origin, controlToken } = home, base = `${origin}/projects/${project.project_id}`;
   const post = async (path: string, body: unknown, status = 200) => {
-    const response = await fetch(origin + path, { method: "POST", body: JSON.stringify(body),
+    const response = await fetch(base + path, { method: "POST", body: JSON.stringify(body),
       headers: { "content-type": "application/json", origin, "x-molis-work-control-token": controlToken, "x-molis-work-idempotency-key": randomUUID() } });
     assert.equal(response.status, status, `${path}: ${await response.clone().text()}`);
     return await response.json() as Record<string, any>;
   };
-  const get = async (path: string) => await (await fetch(origin + path)).json() as Record<string, any>;
-  const detail = async (artifact: { artifact_id: string; version: number }) => await (await fetch(`${origin}/artifacts/${encodeURIComponent(artifact.artifact_id)}/versions/${artifact.version}`,
+  const get = async (path: string) => await (await fetch(base + path)).json() as Record<string, any>;
+  const detail = async (artifact: { artifact_id: string; version: number }) => await (await fetch(`${base}/artifacts/${encodeURIComponent(artifact.artifact_id)}/versions/${artifact.version}`,
     { headers: { "x-molis-work-fragment": "artifact-workbench" } })).text();
   const continueFrom = async (artifact: { artifact_id: string; version: number }, plugin_id: string) => (await post("/api/artifacts/continue", { reference: artifact, plugin_id }, 201)).open as { surface: string; id: string; title: string };
 

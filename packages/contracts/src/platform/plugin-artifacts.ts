@@ -3,7 +3,7 @@ import type {
   ProcessItemRecord, ProcessItemResult,
 } from "../modules/artifacts.js";
 import type { ArtifactLineHead } from "./artifact-pins.js";
-import type { PluginDatabaseTransaction } from "./plugin-database.js";
+import type { PluginDatabaseTransaction, PluginProjectRowTransaction } from "./plugin-database.js";
 
 /** What a Plugin writes for one version, in either store; identity, owner and producer come from the Host. */
 export interface PluginProcessItemInput extends ArtifactReference {
@@ -55,11 +55,10 @@ export interface PluginArtifactClient {
   /** All consumable fixed versions: 成果 first, then process items, in each owner's listing order. */
   listConsumable(): PluginConsumableVersion[];
   /**
-   * Runs `write` inside the plugin's current project transaction (`PluginDatabase.transaction`), like `services.attention.join`: a version
-   * it pins is committed or rolled back with the plugin's own rows, and the writer is refused once the transaction ends. Only a plugin with
-   * a project database has it.
+   * Runs `write` inside the plugin's current project transaction or its declared Home root row transaction. A version it pins is committed
+   * or rolled back with the plugin's own rows. A Home row needs one newly pinned version and one matching row update in the same transaction.
    */
-  join?<T>(transaction: PluginDatabaseTransaction, write: (writer: PluginArtifactWriter) => T): T;
+  join?<T>(transaction: PluginDatabaseTransaction | PluginProjectRowTransaction, write: (writer: PluginArtifactWriter) => T): T;
 }
 
 /** The 成果库 inside one plugin transaction (`PluginArtifactClient.join`); every call asks the grants and the original caller again. */

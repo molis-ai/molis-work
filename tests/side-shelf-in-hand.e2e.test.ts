@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
-// specs/context-program §21.4 W3-C, specs/side-shelf AC-S04: a plugin's tab in the side panel reports what is in hand, as a
+// specs/context-program §21.4 W3-C, specs/context-program/side-shelf.md AC-S04: a plugin's tab in the side panel reports what is in hand, as a
 // split pane does. A passage of a Shelf material selected in its side tab is in hand there: the bar stands beside it in that
 // tab's own document, with its actions and the landing on the left (「插入到光标处」); a selection on the left takes the bar
 // back to the left; closing the panel puts it away. The top document marks it as in the side panel, and which tab.

@@ -152,7 +152,7 @@
 | `routeUnavailable` ×2 | `apps/local-host/src/search-query-routes.ts:89`、`plugins/official-integrations/rss/src/exact-source-routes.ts:300` | 宿主与插件各 8 行；可用 SDK 的 `actionErrorResponse` 包装消除 |
 | `liveFailure` ×2 | `plugins/official-integrations/{catalog,github}/src/provider.ts` | 官方集成之间的同一错误包装；集成包之间不能 import，考虑放 SDK `/oauth` 或 `/provider` 工具 |
 | `events.ts` vs `host-events.ts` 同包两处 14 行相同方法 | `packages/plugin-runtime/src/{events,host-events}.ts` | 同包内重复，直接提取 |
-| `mapCard`/`mapIdeaCard` 26 行相同 | `plugins/native/alchemist/.../exploration-repository.ts:220`、`idea-repository.ts:266` | Alchemist 待重做（BL-376/377），可先提取或标注 |
+| `mapCard`/`mapIdeaCard` 26 行相同 | `plugins/native/alchemist/.../exploration-repository.ts:220`、`idea-repository.ts:266` | Alchemist 待重做（BL-377），可先提取或标注 |
 | `bindAuthority` ×3 | 见 §2.2 | 窗口内新增，建议立即提取 |
 
 ### 5.3 死代码/无引用候选

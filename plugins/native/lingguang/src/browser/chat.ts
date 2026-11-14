@@ -1,4 +1,5 @@
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
+import type {} from "@molis-ai/molis-work-plugin-sdk";
 import { isAbort, required, textCard } from "./dom.js";
 import type { ConversationPayload, LingguangPage, Message, Spark } from "./types.js";
 

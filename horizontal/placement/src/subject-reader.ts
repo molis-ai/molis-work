@@ -24,7 +24,7 @@ export async function readPlacementIn(ports: PlacementPorts, object: PlacedObjec
     }
     try {
       const context = await scope.client.invoke(scope.caller, { capability_id: reader.capability_id, version: reader.version, provider_id: reader.provider.provider_id }, { subject_id: object.id }) as ActionSubjectContext;
-      if (context.title) { await ports.beforeEffect?.(); ports.titles.set(object.kind, object.id, context.title); }
+      if (context.title && !ports.surfaceSource) { await ports.beforeEffect?.(); ports.titles.set(object.kind, object.id, context.title); }
       return { state: "ok", reason: null, context, plugin };
     } catch (error) {
       const code = error instanceof ActionError ? error.code : "";

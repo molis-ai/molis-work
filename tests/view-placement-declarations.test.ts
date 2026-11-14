@@ -271,7 +271,9 @@ test("RAC-76 W5-06-PLACE-02 the rail lists each plugin under the group its view 
   assert.deepEqual(members(bare, "研究"), ["alchemist"]);
   assert.deepEqual(members(bare, "编码"), ["coding"]);
   for (const id of ["lingguang", "todo", "jelly", "cognia"]) assert.ok(members(bare, "更多").includes(id), `${id} names 个人 and is not marked the person's own: under 更多`);
-  assert.ok(members(bare, "更多").includes("files"), "a plugin whose view names no group is under 更多");
+  // Files, the former example, is retired (batch 06); Diff's view names no group either.
+  assert.equal(declaredGroups.get("diff"), null, "Diff's rail view names no group");
+  assert.ok(members(bare, "更多").includes("diff"), "a plugin whose view names no group is under 更多");
 
   // With the Host's directory, the plugins it marks personal and home (registered personal, Manifest runtime scope home) are 个人,
   // in its declared place, whatever group their view names; one that names 个人 without the marks stays under 更多.

@@ -35,7 +35,8 @@ async function assistantHome(t: TestContext) {
     const chunks: Buffer[] = []; for await (const chunk of request) chunks.push(Buffer.from(chunk));
     const raw = Buffer.concat(chunks).toString("utf8");
     // Ending reviews and background memory extraction share this model, but must not consume the next business turn.
-    const ancillary = asideReply(raw) ?? (raw.includes("你在帮用户的工作平台决定这次工作里有没有值得长期记住的东西") ? '{"candidates":[]}' : undefined);
+    // The extraction is recognised by the opening of the registered prompt (memory.extract v3) and proposes nothing.
+    const ancillary = asideReply(raw) ?? (raw.includes("从这次工作里找值得长期记住的东西") ? '{"drafts":[]}' : undefined);
     if (ancillary) { response.writeHead(200, { "content-type": "text/event-stream" }); response.end(reply(undefined, ancillary)); return; }
     requests.push(JSON.parse(raw));
     response.writeHead(200, { "content-type": "text/event-stream" }); response.end(replies.shift() ?? reply());

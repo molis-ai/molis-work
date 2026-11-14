@@ -23,3 +23,6 @@ export function automaticMemoryHold(kind: MemoryKind, basis: MemoryBasis | null,
   if (!enabled) return "你关掉了“自动记住”，所以先请你认可";
   return null;
 }
+
+/** A suggestion left alone this long has gone quietly; a learned candidate waits no longer than this (one value for all three). */
+export const CANDIDATE_TTL_MS = 14 * 24 * 60 * 60 * 1000;

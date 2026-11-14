@@ -380,9 +380,26 @@ test("PG110-17 S-15 plugin callbacks cannot acquire an upstream Host-issued call
     title: "身份判断", kind: "judgment", input_schema: scene.input_schema, output_schema: scene.result_schema } };
   const binding: ActionSceneBinding = { binding_id: "identity", scene_id: scene.scene_id, scene_version: 1, project_id: null,
     function: { capability_id: judge.capability_id, version: 1, provider_id: "identity-judgment" }, enabled: true, title: "Identity", revision: "1" };
+  const runtimeMemory: NonNullable<ActionCallContext["runtime_memory"]> = { plugin_id: sender.id, current_scene: "common",
+    class_restrictions: { policy_version: 1, taxonomy_version: 1, personal: [],
+      project: [{ selector: { consumer: "agent", current_scene: "common", kind: "convention" }, read: "off", form: "off" }] } };
+  const originalPolicy = structuredClone(runtimeMemory), protectedCallbacks = new Set<string>();
+  let checkingPolicy = false, judgments = 0;
   const check = (name: string, caller: ActionCallContext) => {
     assert.equal(Object.hasOwn(caller, "host_plugin"), false, `${name}: no issued identity property reaches plugin code`);
     assert.equal(caller.host_plugin, undefined, `${name}: the upstream identity is unavailable`);
+    assert.equal(Object.hasOwn(caller, "runtime_memory"), false, `${name}: no Host Run policy property reaches plugin code`);
+    assert.equal(caller.runtime_memory, undefined, `${name}: the original policy is unavailable`);
+    assert.equal(Object.hasOwn(caller, "memory_context_selection"), false, `${name}: no current Run selection handle reaches plugin code`);
+    assert.equal(Object.hasOwn(caller, "memory_session"), false, `${name}: no Host Session management identity or live control reaches plugin code`);
+    assert.equal(Object.hasOwn(caller, "assert_memory_sources_current"), false, `${name}: the Host source control never reaches a mutable callback view`);
+    // A plugin can edit its callback view, including adding a lookalike field, but cannot alter the Host's policy.
+    const replacement = structuredClone(runtimeMemory);
+    replacement.class_restrictions.project[0]!.read = "inherit";
+    Reflect.set(caller, "runtime_memory", replacement);
+    Reflect.set(caller, "memory_context_selection", { assert_current: () => {} });
+    assert.deepEqual(runtimeMemory, originalPolicy, `${name}: editing the plugin view cannot change the original restriction`);
+    if (checkingPolicy) protectedCallbacks.add(name);
     seen.add(name);
   };
   let fail = false;
@@ -412,13 +429,23 @@ test("PG110-17 S-15 plugin callbacks cannot acquire an upstream Host-issued call
   host.actionRegistry().registerProvider({ provider: { provider_id: "identity-judgment", title: "Identity judgment", kind: "system" },
     definitions: [judge], handlers: [{ ...judge, handle: caller => {
       assert.equal(caller.host_plugin, original, "the Host retains the real upstream identity for authorization");
+      assert.equal(caller.runtime_memory, runtimeMemory, "the Host judgment retains the same original Run snapshot object");
+      assert.deepEqual(caller.runtime_memory, originalPolicy, "plugin callbacks cannot relax the Host judgment's policy");
+      judgments++;
       if (fail) throw new Error("identity judgment failed");
       return true;
     } }] });
   assert.equal(await sender.actions().invoke(accept, {}), null, "A reaches B, and B reaches its declared Host query");
   assert.equal(receiver.context().services!.storage!.get("accepted"), "yes");
   assert.equal(probe.state.callers.at(-1)!.plugin_id, receiver.id, "B's SDK uses B's own issued identity");
-  const caller = callAs(original, [READ]), scenes = host.sceneClient();
+  const sourceCheck = () => {};
+  const selection = { assert_current: () => {} };
+  const memorySession: NonNullable<ActionCallContext["memory_session"]> = { session: { runtime_id: "prologue", session_id: "host-only-session" },
+    current_scene: "assistant", target: { kind: "assistant", id: "host-only-business", project_id: null }, beforeEffect: async () => {}, assertCurrent: () => {} };
+  const caller = callAs(original, [READ], { memory_session: memorySession, memory_context_selection: selection, runtime_memory: runtimeMemory, assert_memory_sources_current: sourceCheck }), scenes = host.sceneClient();
+  checkingPolicy = true;
+  assert.equal(await host.homeActionClient().invoke(caller, accept, {}), null, "the Host-bound caller traverses the actual plugin action boundary");
+  assert.equal(caller.runtime_memory, runtimeMemory, "the plugin action cannot replace the original Host binding");
   const offered = (await scenes.discoverScenes(caller)).find(value => value.definition.scene_id === scene.scene_id)!;
   await scenes.targets(caller, undefined, { scene_id: scene.scene_id, scene_version: 1, provider_id: offered.provider.provider_id });
   await scenes.bind(caller, binding, { provider_id: offered.provider.provider_id, expected_revision: "1" });
@@ -429,6 +456,11 @@ test("PG110-17 S-15 plugin callbacks cannot acquire an upstream Host-issued call
   assert.equal(await scenes.runScene(caller, scene, binding.binding_id, {}), undefined, "the failed consumer handles the judgment error");
   assert.deepEqual([...seen].sort(), ["action", "action availability", "bindings", "targets", "prepare", "scene availability",
     "configuration availability", "bind", "consume", "failed"].sort());
+  assert.deepEqual([...protectedCallbacks].sort(), [...seen].sort(), "every callback was exercised with the Host policy present upstream");
+  assert.equal(judgments, 2, "both successful and failed Host judgments retained their original policy");
+  assert.deepEqual(caller.runtime_memory, originalPolicy);
+  assert.equal(caller.memory_context_selection, selection, "callback edits cannot replace the original Run selection handle");
+  assert.equal(caller.assert_memory_sources_current, sourceCheck);
 });
 
 test("PG110-18 S-15 a plugin's handler is told which plugin called it by the Host, never by the call: a person's call carrying one is not told", async t => {

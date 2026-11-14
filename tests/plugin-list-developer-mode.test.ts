@@ -33,25 +33,25 @@ test("the plugin list a person picks from leaves Text Stats out unless developer
   assert.equal(pluginMarketCards({ developerMode: true }).some(card => card.id === "text-stats"), true);
   assert.deepEqual(pluginMarketCards({ developerMode: true }).map(card => card.id).filter(id => id !== "text-stats"), pluginMarketCards().map(card => card.id),
     "nothing else changes");
-  const page = renderMolisWorkWeb(view(["goals", "files"]));
+  const page = renderMolisWorkWeb(view(["goals", "git"]));
   assert.equal(tile(page), false, "not in the switcher");
   assert.equal(marketRow(page), false, "not in the market");
-  assert.match(page, /data-plugin-tile="files"/, "the rest of the list is there");
-  assert.match(page, /data-market-plugin="files"/);
-  const developer = renderMolisWorkWeb(view(["goals", "files"], true));
+  assert.match(page, /data-plugin-tile="git"/, "the rest of the list is there");
+  assert.match(page, /data-market-plugin="git"/);
+  const developer = renderMolisWorkWeb(view(["goals", "git"], true));
   assert.equal(tile(developer), true);
   assert.equal(marketRow(developer), true);
   assert.match(developer, /data-plugin-toggle="text-stats"[^>]*data-state="available"/, "and it can be added from there");
 });
 
 test("a project that already has Text Stats keeps seeing it and can take it out", () => {
-  const page = renderMolisWorkWeb(view(["goals", "files", "text-stats"]));
+  const page = renderMolisWorkWeb(view(["goals", "git", "text-stats"]));
   assert.equal(tile(page), true);
   assert.match(page, /data-plugin-toggle="text-stats"[^>]*data-state="added"/);
 });
 
 test("it stays installable and stays the platform's reference plugin and fixture", () => {
   assert.equal(BUILTIN_PLUGIN_REGISTRY.has("text-stats"), true);
-  assert.deepEqual(BUILTIN_PLUGIN_REGISTRY.companions("text-stats"), ["files"]);
+  assert.deepEqual(BUILTIN_PLUGIN_REGISTRY.companions("text-stats"), [], "its snapshot comes from the platform's materials, so it brings nothing along");
   assert.ok(PROJECT_SCOPED_PLUGIN_IDS.includes("text-stats"));
 });

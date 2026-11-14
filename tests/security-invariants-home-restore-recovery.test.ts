@@ -8,7 +8,7 @@ import test from "node:test";
 import { isDeepStrictEqual } from "node:util";
 import { createHomeSnapshot, recoverHomeRestore, type HomeSnapshotManifest } from "@molis-ai/molis-work-app-local-host";
 import { inspectMolisWorkProjectCatalogSnapshot } from "@molis-ai/molis-work-app-desktop";
-import { acquireStorageOwner, HOME_RESTORE_JOURNAL } from "@molis-ai/molis-work-storage";
+import { acquireStorageOwner, HOME_RESTORE_JOURNAL, initializeMemoryForgetting } from "@molis-ai/molis-work-storage";
 import { restoreCli, restoreFixture } from "./fixtures/home-restore.js";
 import { inspectMemoryLedger } from "@molis-ai/molis-work-storage";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -36,6 +36,9 @@ test("S-12 RAC-2915 RAC-2918 RAC-2917: recovery refuses foreign or unsafe journa
   const recover = () => recoverHomeRestore({ homeDirectory: f.home, inspectCatalog: inspectMolisWorkProjectCatalogSnapshot });
   const incoming = (path: string) => ({ path, mode: 0o600, size: 1, sha256: "0".repeat(64) });
   const mutations: Array<[string, (input: typeof base) => void]> = [
+    // The unified version start (#1837) made 1 the only journal version; there is no older one, so below and above it are both refused.
+    ["journal version below the first", value => { value.schema_version = 0; }],
+    ["future journal version", value => { value.schema_version = 2; }],
     ["another Home", value => { value.home_directory = f.area; }],
     ["foreign originals directory", value => { value.originals_directory = f.area; }],
     ["different operation directory", value => { value.operation_id = randomUUID(); }],
@@ -172,6 +175,11 @@ test("RAC-2916: failed rollback retains the actual original nodes and pending ba
 test("RAC-2913 RAC-2916: an interrupted generated Memory node is in the same journal and rolls back to the nonempty original target", async t => {
   const f = await smallSnapshotHome(t);
   await createHomeSnapshot({ homeDirectory: f.home, destination: f.snapshot });
+  // Current initialization persists independent forgetting facts before creating the ledger; retain that legal interrupted state.
+  const owner = acquireStorageOwner(join(f.home, "agent-runtime"));
+  try { initializeMemoryForgetting({ homeDirectory: f.home, storageOwner: owner, assertCurrent() {} }); }
+  finally { owner.release(); }
+  assert.equal(inspectMemoryLedger({ homeDirectory: f.home, actorId: LOCAL_PERSON_ACTOR_ID }).state, "absent");
   mkdirSync(join(f.home, "plugin-files")); writeFileSync(join(f.home, "plugin-files", "original.bin"), "later target content");
   const before = retainedOriginalState(f.home), result = await faultRestore(t, f.home, f.snapshot, "partial-kill");
   assert.equal(result.signal, "SIGKILL", result.stderr);

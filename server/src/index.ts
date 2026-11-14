@@ -11,4 +11,4 @@ export type { ServerOptions } from "./http.js";
 export { startServer, createServerRequestHandler } from "./http.js";
 
 export { createImDomain } from "./im/index.js";
-export type { ImDomainOptions, ImIdentity, ImEvents, ImRequest } from "./im/types.js";
+export type { ImDomainOptions, ImIdentity, ImEvents, ImRequest, ImSession } from "./im/types.js";

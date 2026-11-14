@@ -1,4 +1,4 @@
-// Per-file counts of the old names and of the empty catches in browser programs (specs/archive/repository-anti-corruption §4.13 /
+// Per-file counts of direct ellipsis cuts, the old names and empty catches in browser programs (specs/archive/repository-anti-corruption §4.13 /
 // §4.16, slice W1-04). Each rule counts per file and may only fall; a file with no record starts at 0, so new code starts
 // clean. The counts of empty catch blocks and `as unknown as` casts in TypeScript code moved to the static checks (W1-09:
 // scripts/gates/lint.mjs, tooling/gates/lint/*.grit), which report the same sites file by file; this file keeps what a
@@ -48,6 +48,10 @@
 //                       (JSON examples, shell and Rust files). Closing it needs a rule per file type, not a regex.
 //                       What the baseline keeps today (the checkout-local health baseline, oldNames): nothing. The count is 0 and can
 //                       only stay there.
+// directEllipsisCuts    N16: a direct .slice(...) or ["slice"](...) followed by a literal … or ..., with optional
+//                       whitespace before the marker. Count + and template substitutions. For +, unwrap parentheses
+//                       and read a template's text before its first substitution. General slices, chained calls after
+//                       slice, comments, text inside a string, and test fixtures do not count.
 import ts from "typescript";
 import { browserFetchScan, browserFetchProblems } from "./browser-fetch.mjs";
 
@@ -56,6 +60,7 @@ const OLD_PRODUCT_NAME = /goalboard/gi;
 const OLD_ID_NAME = /(?<![A-Za-z])(?:board_ids?|boardIds?)(?![a-z])|(?<![A-Z])BoardIds?(?![a-z])|(?<![A-Z])BOARD_IDS?(?![A-Z])/g;
 
 const SCRIPT_NAME = /_SCRIPT$/;
+const ELLIPSIS_START = /^\s*(?:…|\.{3})/u;
 const scriptText = (node) => {
   while (ts.isParenthesizedExpression(node) || ts.isAsExpression(node) || ts.isSatisfiesExpression(node)) node = node.expression;
   if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) || ts.isTemplateExpression(node)) return true;
@@ -65,18 +70,47 @@ const scriptText = (node) => {
 const IS_STRING_LIKE = (node) => ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)
   || ts.isTemplateHead(node) || ts.isTemplateMiddle(node) || ts.isTemplateTail(node);
 
+function withoutParentheses(node) {
+  while (ts.isParenthesizedExpression(node)) node = node.expression;
+  return node;
+}
+
+function directSlice(expression) {
+  const node = withoutParentheses(expression);
+  if (!ts.isCallExpression(node)) return false;
+  const target = node.expression;
+  if (ts.isPropertyAccessExpression(target)) return target.name.text === "slice";
+  return ts.isElementAccessExpression(target)
+    && ts.isStringLiteralLike(target.argumentExpression) && target.argumentExpression.text === "slice";
+}
+
+function startsWithEllipsis(expression) {
+  const node = withoutParentheses(expression);
+  if (ts.isTemplateExpression(node)) return ELLIPSIS_START.test(node.head.text);
+  return ts.isStringLiteralLike(node) && ELLIPSIS_START.test(node.text);
+}
+
 /** Counts one file. `text` is the whole file; `inSource` is false for tests. Exported for the tests of the definitions. */
 export const countFile = (file, text, { inSource = false } = {}) => {
-  const counts = { emptyCatchesInScripts: 0, oldNames: 0, scriptConstants: 0 };
+  const counts = { emptyCatchesInScripts: 0, oldNames: 0, scriptConstants: 0, directEllipsisCuts: 0 };
   if (!inSource) return counts;
   counts.oldNames = (text.match(OLD_PRODUCT_NAME) ?? []).length + (text.match(OLD_ID_NAME) ?? []).length;
   // Parse only the files whose text can hold one of the shapes.
-  const catches = /\bcatch\b/.test(text), scripts = text.includes("_SCRIPT");
-  if (!catches && !scripts) return counts;
+  const catches = /\bcatch\b/.test(text), scripts = text.includes("_SCRIPT"), slices = text.includes("slice");
+  if (!catches && !scripts && !slices) return counts;
   const visit = (node) => {
     if (catches && IS_STRING_LIKE(node)) counts.emptyCatchesInScripts += (node.text.match(CATCH_SHAPE) ?? []).length;
     if (scripts && ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && SCRIPT_NAME.test(node.name.text) && node.initializer && scriptText(node.initializer)) {
       counts.scriptConstants += 1;
+    }
+    if (slices && ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.PlusToken
+      && directSlice(node.left) && startsWithEllipsis(node.right)) {
+      counts.directEllipsisCuts += 1;
+    }
+    if (slices && ts.isTemplateExpression(node)) {
+      for (const span of node.templateSpans) {
+        if (directSlice(span.expression) && ELLIPSIS_START.test(span.literal.text)) counts.directEllipsisCuts += 1;
+      }
     }
     ts.forEachChild(node, visit);
   };
@@ -84,12 +118,12 @@ export const countFile = (file, text, { inSource = false } = {}) => {
   return counts;
 };
 
-// One pass over a snapshot serves both rules.
+// One pass over a snapshot serves the counters above.
 const passes = new WeakMap();
 const measureSnapshot = (snapshot, { isSource }) => {
   let result = passes.get(snapshot);
   if (result) return result;
-  result = { emptyCatchesInScripts: {}, oldNames: {}, scriptConstants: {} };
+  result = { emptyCatchesInScripts: {}, oldNames: {}, scriptConstants: {}, directEllipsisCuts: {} };
   for (const file of snapshot.files) {
     if (!isSource(file)) continue;
     const text = snapshot.read(file);
@@ -111,6 +145,8 @@ export const SOURCE_COUNT_RULES = [...[
     hint: "use Molis Work and project_id; a kept constant belongs in the baseline, not in new code" },
   { id: "scriptConstants", title: "Browser programs kept as text in *_SCRIPT constants", summary: "script text constants", what: "browser programs kept as text in a *_SCRIPT constant",
     hint: "write the program as TypeScript and bundle it (plugins/native/form/src/browser/ is the sample); a new one starts at 0" },
+  { id: "directEllipsisCuts", title: "Direct slice followed by an ellipsis in sources", summary: "direct ellipsis cuts",
+    what: "direct ellipsis cuts", hint: "use cutWithEllipsis from @molis-ai/molis-work-plugin-sdk/whole-units" },
 ].map((rule) => ({ ...rule, measure: (snapshot, scope) => measureSnapshot(snapshot, scope)[rule.id] })),
   { id: "rawFetchInScripts", title: "Raw fetch calls in executable browser programs", summary: "raw browser fetch calls",
     what: "raw fetch calls in a browser program", hint: "use the public UiRequest; Workbench is zero and plugin counts may only fall",

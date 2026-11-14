@@ -145,7 +145,10 @@ test("with the side pane out of sight, the top line offers 去确认, then 继�
     window.reviewWrites = []; window.reviewReads = []; const fetchOriginal = window.fetch;
     window.fetch = (input, init) => {
       const path = new URL(String(input?.url || input), location.href).pathname, method = init?.method || 'GET';
-      if (path.includes('/api/assistant/') && method !== 'GET') reviewWrites.push(path);
+      // Marking the open work's notice seen is the page noting what the person has in front of them (assistant-notices.ts), sent when
+      // an attention read arrives, which on a slower machine falls inside the language switches below: it is not a write of the review.
+      const seen = path.endsWith('/api/assistant/notices') && (() => { try { return JSON.parse(String(init?.body)).state === 'seen'; } catch { return false; } })();
+      if (path.includes('/api/assistant/') && method !== 'GET' && !seen) reviewWrites.push(path);
       const response = fetchOriginal(input, init), work = path.split('/api/assistant/works/')[1];
       if (method !== 'GET' || !work || work.includes('/')) return response;
       return response.then(async value => {

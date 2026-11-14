@@ -1,6 +1,6 @@
 import type { AgentQuestionType } from "@molis-ai/molis-work-contracts/services/agent-interaction";
 import { isSubjectReader, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
-import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
+import { PLATFORM_PLUGIN_REGISTRATIONS, builtinPluginByManifestId } from "./plugin-registry.js";
 import { boundReferenceKinds, type ReferenceKindCandidate } from "@molis-ai/molis-work-service-agent-host";
 
 /**
@@ -45,7 +45,7 @@ export function hostReferenceKinds(manifests: ReadonlyArray<{ plugin_id: string;
 /** A plugin that ships with the Host registers under its own id; any other installation under its installation id. */
 const builtinOf = (view: ActionView) => {
   const pluginId = view.provider.plugin_id ?? view.provider.provider_id;
-  const entry = PLATFORM_PLUGIN_REGISTRATIONS.find(candidate => candidate.manifest.plugin_id === pluginId);
+  const entry = builtinPluginByManifestId(pluginId);
   // The Host registers a bundled Runtime plugin under its plugin_id; an external installation registers under its install id,
   // even when its Manifest names a built-in plugin's id. The install id is a hash for both, so it cannot make this choice.
   return entry && view.provider.provider_id === pluginId ? entry : undefined;

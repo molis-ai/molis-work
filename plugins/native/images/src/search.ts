@@ -3,10 +3,12 @@ import { IMAGES_PROJECT_PLUGIN_ID, type ImageJob } from "./contract.js";
 import { imagesErrors } from "./error.js";
 import type { ImagesService } from "./service.js";
 
+const subjectReader = defineSubjectContextAction("images.subject.read", /* @version action.images.subject.read */ 1, "image_job", "生图记录", ["images:read"]);
+
 /** Images' part in the system search: this project's generation records by their description and model. Image bytes are not text. */
 export const imagesSearchActions = {
   entries: defineSearchEntriesAction("images.search.entries", /* @version action.images.search.entries */ 1, [{ kind: "image_job", title: "生成记录", surface: IMAGES_PROJECT_PLUGIN_ID }], "生图记录", ["images:read"]),
-  subject: defineSubjectContextAction("images.subject.read", /* @version action.images.subject.read */ 1, "image_job", "生图记录", ["images:read"]),
+  subject: { ...subjectReader, action: { ...subjectReader.action, execution: { cost: "none" as const } } },
   /** The side panel's file tab (specs/archive/side-panel): each generated picture, previewed as itself. */
   files: defineFileEntriesAction("images.files.entries", /* @version action.images.files.entries */ 1, [{ kind: "generated_image", title: "生成的图片", surface: IMAGES_PROJECT_PLUGIN_ID }], "生成的图片", ["images:read"]),
   fileContent: defineFileContentAction("images.files.content", /* @version action.images.files.content */ 1, [{ kind: "generated_image", title: "生成的图片", surface: IMAGES_PROJECT_PLUGIN_ID }], "生成的图片", ["images:read"]),

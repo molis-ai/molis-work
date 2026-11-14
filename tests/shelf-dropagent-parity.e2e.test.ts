@@ -60,7 +60,7 @@ fi
   assert.equal((await shelf.runtime()).executable, join(bin, "claude"));
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "light" }] }, sessionId);
-  // Shelf's side panel tab, in the document the panel's frame loads (specs/side-shelf §3.2).
+  // Shelf's side panel tab, in the document the panel's frame loads (specs/context-program/side-shelf.md §3.2).
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/side/shelf/side` }, sessionId));
   await waitFor("document.querySelector('[data-shelf-item]')", 8_000);
 

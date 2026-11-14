@@ -72,11 +72,11 @@ test("CIP-03 Verify executes the real shell verdict and rejects unauthorized ski
 test("CIP-06 Full expands independent runners while preserving worker caps and failure semantics", () => {
   const block = jobBlock("shard", fullSuiteWorkflow);
   const count = /shard: \[([^\]]+)\]/.exec(block)![1]!.split(",").map(Number);
-  assert.deepEqual(count, Array.from({ length: 32 }, (_, i) => i + 1));
-  assert.match(block, /max-parallel: 16/);
+  assert.deepEqual(count, Array.from({ length: 48 }, (_, i) => i + 1));
+  assert.match(block, /max-parallel: 24/);
   assert.match(block, /MOLIS_WORK_TEST_JOBS: 2/);
   assert.match(block, /MOLIS_WORK_TEST_BROWSER_JOBS: 1/);
-  assert.match(block, /--shard \$\{\{ matrix.shard \}\}\/32/);
+  assert.match(block, /--shard \$\{\{ matrix.shard \}\}\/48/);
   assert.match(block, /--retries 1 \$BAIL/);
   // The nightly run, integration branches and roadmap batch pull requests (decision 31) run every file; everything else stops
   // at the first failure. `fail-fast` and `--bail` must use the same condition.

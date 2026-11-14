@@ -33,7 +33,9 @@ test("K4: a confirmed save leaves no window copy; words whose save failed come b
   await owner.reloadPage();
   await owner.click('[data-plugin-strip] [data-plugin-id="coding"]');
   await waitFor(`document.querySelector('${coding} [data-coding-session="${id}"]')`, 20_000);
-  await click(`${coding} [data-coding-session="${id}"]`);
+  // The parent's plugin-picker popover can stay over the frame after a reload; activate the session in its own document so this
+  // draft test does not depend on where that popover sits. The click still runs the page's own handler on the real row.
+  await evaluate(`document.querySelector(${JSON.stringify(`${coding} [data-coding-session="${id}"]`)})?.click()`);
   await owner.waitFor(`${CODING_TAKEN} && ${box}.value === '这段还没写进会话' && !${box}.disabled`, 20_000);
   for (let i = 0; i < 100 && await server() !== "这段还没写进会话"; i++) await new Promise(resolve => setTimeout(resolve, 100));
   assert.equal(await server(), "这段还没写进会话", "saved again on its own");

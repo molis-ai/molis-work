@@ -1893,7 +1893,13 @@
     "coding.rules.project-none": "This project has no project instructions.",
     "coding.rules.no-round": "This session hasn’t run a round yet.",
     "coding.rules.files": "Repository instruction files",
-    "coding.rules.chars": "{count} characters",
+    "coding.rules.chars": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "{count} character",
+        "other": "{count} characters"
+      }
+    },
     "coding.rules.fingerprint": "Content fingerprint {hash}",
     "coding.rules.truncated": "Too long, start only",
     "coding.rules.in-effect": "In effect",

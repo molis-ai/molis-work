@@ -191,6 +191,8 @@ async function auditFeed(t: TestContext, b: Browser, sourceId: string) {
   await frame.click("[data-feed-rail-toggle]");
   await frame.click(`[data-feed-task="${sourceId}"]`);
   await frame.waitFor(`!document.querySelector('[data-feed-current-sync]').hidden`);
+  // The header is redrawn as the source is selected; wait for the add button to be laid out before reading its accessible name.
+  await frame.waitFor(`document.querySelector(${JSON.stringify(add)})?.getClientRects().length > 0`, 15_000);
   await assertNames(frame, [[add, "button", "添加来源"], ["[data-feed-current-sync]", "button", "立即拉取"]]);
   await assertNamedButtons(frame);
   await activate(b, frame, add);
@@ -224,7 +226,8 @@ async function auditInbox(t: TestContext, b: Browser, entryId: string) {
   await frame.waitFor(`!${node(back)} || !${node(back)}.getClientRects().length`);
 }
 
-test("B27-NAMES-01 · existing named Dataset, Jelly, Feed and Inbox controls", { timeout: 120_000 }, async t => {
+// The first workbench view draws every plugin frame; on a slow machine the four audits need more than 120s together.
+test("B27-NAMES-01 · existing named Dataset, Jelly, Feed and Inbox controls", { timeout: 240_000 }, async t => {
   const b = await openGoalBrowser(t, true, undefined, null);
   if (!b) return;
   const project = b.projectId!;

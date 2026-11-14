@@ -6,6 +6,8 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 test("Manage projects leaves a Coding session and returns from a responsive directory", { timeout: 180_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded");
   if (!browser) return;
+  // The journey is about the desktop directory; the CI browser starts at 780px, where the directory sidebar is hidden.
+  await browser.setViewport(1440, 900);
   const child = await pluginFrameBrowser(t,browser,"coding");
   const { origin, projectId, command, sessionId, navigate, evaluate, click, waitFor } = browser;
   for (const desktop of [false, true]) {

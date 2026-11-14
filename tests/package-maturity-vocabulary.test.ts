@@ -34,6 +34,7 @@ test("W5-15-03 the registry rejects any maturity word outside the vocabulary, wi
   // and WORK-01 adds the account service as a slice (2026-11-05). Batch 09 adds the production AI-kits aggregator horizontal/kit.
   // Batch 16 adds horizontal/appearance as a slice; batch 15 adds the composition service horizontal/surfaces as a slice.
   // Batch 06 retires the production Files plugin package. Batch 28 adds the observation service horizontal/observation as a slice.
+  // Batch 17 adds the experimental plugins/native/risk.
   const counts = {};
   for (const item of WORKSPACE_PACKAGES) {
     assert.ok(PACKAGE_MATURITY.includes(item.maturity), `${item.path}: ${item.maturity}`);

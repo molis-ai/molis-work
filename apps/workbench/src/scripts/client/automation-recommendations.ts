@@ -7,6 +7,8 @@ globalThis.molisWorkOpenAutomation = (project, trigger) => {
   const part = name => dialog.querySelector("[data-automation-" + name + "]");
   const status = part("progress"), error = part("error"), result = part("result");
   const save = part("save"), retry = part("retry");
+  const saveLabel = key => { save.querySelector("[data-slot=button-label]").textContent = text(key); };
+  const setStatus = key => { status.textContent = key ? text(key) : ""; };
   let request, report, entry, sending = false, documentId;
   const node = (tag, content, className) => {
     const element = document.createElement(tag);
@@ -82,40 +84,40 @@ globalThis.molisWorkOpenAutomation = (project, trigger) => {
       result.append(prefs);
     }
   }
-  const showError = failure => { error.hidden = false; molisWorkRequest.show(error, failure); };
+  const showError = failure => { setStatus(); error.hidden = false; molisWorkRequest.show(error, failure); };
   const route = at => prefix(at.project) + "/api/automation/recommendations";
-  const begin = () => request = new AbortController();
-  const stale = (pending, at) => pending.signal.aborted || at !== entry;
+  const begin = () => (request = new AbortController()).signal;
+  const stale = (signal, at) => signal.aborted || at !== entry;
   async function load() {
     const at = entry;
     request?.abort();
-    const pending = begin();
+    const signal = begin();
     report = undefined; error.hidden = true; save.hidden = true; retry.hidden = true;
-    status.textContent = text("loading"); result.replaceChildren();
+    setStatus("loading"); result.replaceChildren();
     try {
-      const loaded = await molisWorkRequest(route(at), { signal: pending.signal });
-      if (stale(pending, at)) return;
-      report = loaded; draw(); status.textContent = "";
+      const loaded = await molisWorkRequest(route(at), { signal });
+      if (stale(signal, at)) return;
+      report = loaded; draw(); setStatus();
       save.hidden = false; save.disabled = false;
     } catch (failure) {
-      if (stale(pending, at)) return;
-      status.textContent = ""; showError(failure); retry.hidden = false;
+      if (stale(signal, at)) return;
+      showError(failure); retry.hidden = false;
     }
   }
   async function change(action, body, complete) {
     if (sending || !report || !entry) return;
     const at = entry, source = report;
-    const pending = begin();
+    const signal = begin();
     const controls = [...result.querySelectorAll("button"), save];
     sending = true; controls.forEach(button => { button.disabled = true; });
-    error.hidden = true; status.textContent = text("saving");
+    error.hidden = true; setStatus("saving");
     try {
-      const answer = await molisWorkRequest(route(at) + "/" + action, { body: { ...body, save_token: source.save_token }, signal: pending.signal });
-      if (stale(pending, at)) return;
+      const answer = await molisWorkRequest(route(at) + "/" + action, { body: { ...body, save_token: source.save_token }, signal });
+      if (stale(signal, at)) return;
       await complete(answer);
     } catch (failure) {
-      if (stale(pending, at)) return;
-      status.textContent = ""; showError(failure);
+      if (stale(signal, at)) return;
+      showError(failure);
       if (failure?.status === 409) retry.hidden = false;
     } finally {
       if (at === entry) {
@@ -125,7 +127,7 @@ globalThis.molisWorkOpenAutomation = (project, trigger) => {
   }
   const preference = (id, choice) => change("preference", { suggestion_id: id, choice, expected_revision: report.preferences.revision }, async () => {
     await load();
-    if (report) status.textContent = text("preference-saved");
+    if (report) setStatus("preference-saved");
   });
   retry.onclick = () => { void load(); };
   save.onclick = () => {
@@ -135,15 +137,14 @@ globalThis.molisWorkOpenAutomation = (project, trigger) => {
     }
     void change("save", {}, value => {
       documentId = value.document_id;
-      status.textContent = text("saved");
-      save.querySelector("[data-slot=button-label]").textContent = text("open-document");
+      setStatus("saved"); saveLabel("open-document");
     });
   };
   function open(project, trigger) {
     if (!project || project === "personal" || dialog.open) return;
     entry = { project, trigger };
     documentId = undefined;
-    save.querySelector("[data-slot=button-label]").textContent = text("save");
+    saveLabel("save");
     dialog.showModal(); void load();
   }
   dialog.querySelector("[data-dialog-close]").onclick = () => dialog.close();

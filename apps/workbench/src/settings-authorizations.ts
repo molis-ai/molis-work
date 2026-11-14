@@ -36,7 +36,8 @@ globalThis.molisWorkBindAuthorizationSettings = (container = document) => {
   const root = container.matches?.("[data-authorization-settings]") ? container : container.querySelector?.("[data-authorization-settings]");
   if (!root || root.dataset.bound) return;
   root.dataset.bound = "true";
-  const part = name => root.querySelector("[data-authorization-" + name + "]");
+  const attribute = name => "[data-authorization-" + name + "]";
+  const part = name => root.querySelector(attribute(name));
   const list = part("list"), detail = part("detail"), banner = part("error");
   const project = part("project"), owner = part("owner"), client = part("client"), search = part("search");
   const text = (key, args) => globalThis.t.text("workbench.authorization." + key, args);
@@ -47,6 +48,12 @@ globalThis.molisWorkBindAuthorizationSettings = (container = document) => {
     const node = el("button", "mw-btn mw-btn--" + variant, label); node.type = "button"; node.addEventListener("click", run); return node;
   };
   const muted = copy => el("p", "settings-muted", copy);
+  const errorMessage = (failure) => {
+    const node = el("p", "settings-form-error");
+    node.setAttribute("role", "alert");
+    if (failure) problem(node, failure); else node.hidden = true;
+    return node;
+  };
   const showFacts = (title, values) => {
     const facts = el("dl", "authorization-facts");
     for (const [label, value] of values) if (value) facts.append(el("dt", "", text(label)), el("dd", "", value));
@@ -61,6 +68,8 @@ globalThis.molisWorkBindAuthorizationSettings = (container = document) => {
     return pick;
   };
   const date = at => new Date(at).toLocaleString();
+  const focusDetails = () => detail.focus({ preventScroll: true });
+  const showBanner = copy => { banner.textContent = copy; banner.hidden = false; };
   let rows = [], row = null, generation = 0, detailGeneration = 0, saving = false, removed;
   let showing = "grants", sources = [], source = null;
   const identity = item => JSON.stringify([item.owner, item.id]);
@@ -157,7 +166,7 @@ globalThis.molisWorkBindAuthorizationSettings = (container = document) => {
     }
     if (scope.childElementCount) detail.append(scope);
     if (edits && selection) change.append(button(text("narrow"), () => void save(current, "narrow", selection())));
-    const message = el("p", "settings-form-error"); message.setAttribute("role", "alert"); message.hidden = true;
+    const message = errorMessage();
     const announce = muted(feedback); announce.dataset.authorizationStatus = ""; announce.setAttribute("role", "status");
     for (const kind of current.changes.filter(item => item !== "narrow")) {
       change.append(button(text(kind), event => {
@@ -182,23 +191,24 @@ globalThis.molisWorkBindAuthorizationSettings = (container = document) => {
       if (next !== detailGeneration || !live(selected)) return;
       removed = selected.expected === current.expected ? priorSelection ?? new Set() : new Set();
       showDetail(current);
-      if (focus && matchMedia("(max-width: 720px)").matches) detail.focus();
+      if (focus && matchMedia("(max-width: 720px)").matches) focusDetails();
     } catch (failure) {
       if (next !== detailGeneration || !live(selected)) return;
-      const error = el("p", "settings-form-error"); detail.replaceChildren(error); problem(error, failure);
+      detail.replaceChildren(errorMessage(failure));
     } finally { if (next === detailGeneration) detail.removeAttribute("aria-busy"); }
   }
   async function save(current, kind, keep) {
     if (saving) return;
     saving = true;
-    const next = detailGeneration, actions = [...detail.querySelectorAll("button, input:not(:disabled)")], status = detail.querySelector("[data-authorization-status]");
-    actions.forEach(button => { button.disabled = true; }); status.textContent = text("saving");
+    const next = detailGeneration, actions = detail.querySelectorAll("button, input:not(:disabled)"), status = part("status");
+    const disable = disabled => actions.forEach(control => { control.disabled = disabled; });
+    disable(true); status.textContent = text("saving");
     try {
       const saved = await request(query(), "", { method: "POST", body: { owner: current.owner, id: current.id, expected: current.expected, kind, ...(keep ? { keep } : {}) } });
       window.dispatchEvent(new CustomEvent("molis:authorization-changed"));
       if (next !== detailGeneration || !live(current)) return;
       removed.clear(); replaceRow(saved); showDetail(saved, text("updated"));
-      detail.focus({ preventScroll: true });
+      focusDetails();
     } catch (failure) {
       if (next !== detailGeneration || !live(current)) return;
       const actual = failure.body?.details?.current;
@@ -209,13 +219,14 @@ globalThis.molisWorkBindAuthorizationSettings = (container = document) => {
         await choose(current, false, removed);
       } else status.textContent = "";
       detail.report?.(failure);
-    } finally { saving = false; actions.forEach(button => { button.disabled = false; }); }
+    } finally { saving = false; disable(false); }
   }
   function paintSources() {
     const needle = searchText();
     list.replaceChildren();
-    for (const item of sources.filter(row => !needle || row.title.toLocaleLowerCase().includes(needle))) {
-      rowButton(item.title, item.phase, source?.id === item.id, () => { source = item; paintSources(); detail.focus({ preventScroll: true }); });
+    for (const item of sources) {
+      if (needle && !item.title.toLocaleLowerCase().includes(needle)) continue;
+      rowButton(item.title, item.phase, source?.id === item.id, () => { source = item; paintSources(); focusDetails(); });
     }
     if (project.value && !list.childElementCount) list.append(muted(text("review-empty")));
     if (!source) {
@@ -236,7 +247,7 @@ globalThis.molisWorkBindAuthorizationSettings = (container = document) => {
         const history = await request(query(), "/reviews");
         if (next !== generation || !root.isConnected) return;
         sources = history.rows; paintSources();
-        if (history.omitted) { banner.textContent = text("review-omitted", { count: history.omitted }); banner.hidden = false; }
+        if (history.omitted) showBanner(text("review-omitted", { count: history.omitted }));
         return;
       }
       const answer = await read();
@@ -247,10 +258,7 @@ globalThis.molisWorkBindAuthorizationSettings = (container = document) => {
       client.hidden = owner.value !== "mcp-client";
       rows = answer.entries;
       const failed = answer.owners.filter(item => item.state === "failed");
-      if (failed.length) {
-        banner.textContent = text(failed.length === answer.owners.length ? "failed" : "partial", { owners: failed.map(item => text(item.owner)).join(text("separator")) });
-        banner.hidden = false;
-      }
+      if (failed.length) showBanner(text(failed.length === answer.owners.length ? "failed" : "partial", { owners: failed.map(item => text(item.owner)).join(text("separator")) }));
       const selected = row && rows.find(item => identity(item) === identity(row));
       row = selected ?? null; paintList();
       if (selected) await choose(selected);
@@ -258,7 +266,7 @@ globalThis.molisWorkBindAuthorizationSettings = (container = document) => {
     } catch (failure) { if (next === generation && root.isConnected) problem(banner, failure); }
     finally { if (next === generation) list.removeAttribute("aria-busy"); }
   }
-  const modes = root.querySelectorAll("[data-authorization-view]");
+  const modes = root.querySelectorAll(attribute("view"));
   for (const mode of modes) mode.addEventListener("click", () => {
     if (saving || showing === mode.dataset.authorizationView) return;
     showing = mode.dataset.authorizationView;

@@ -1,6 +1,6 @@
 # 第 06 批成果固定、平台资料产生者与 SDK 公用工具
 
-状态：独立合同预审及回修复核通过（2026-11-09）。N12 平台隔离实现与四插件采用已做定向验证，整批验证和真实 Home 采用另约。Files 的设计和界面定样按独立前置推进，数据切换与删除等 §3 的证据。设计维护由本批合同设计台负责，实现由第 06 批主会话分配。基线为 `batch/06` 的 `54a12642c`。
+状态：已随第 06 批 [#2009](https://github.com/molis-ai/molis-work/pull/2009) 合入 main `a720834a09`（2026-11-13）。N12 四插件采用、Files 退役与 SDK 共用实现完成；真实 Home 采用另授权，剩余真实 Home 与本人验收。
 
 这是 [06-2](../post-anticorruption-roadmap/reference/batches/06.md#batch-06-item-2) 与 [Files 退役](../post-anticorruption-roadmap/reference/batches/06.md#batch-06-item-1) 的 S1 技术切片。原需求沿用 [审查台账 N12／N13／N15／N16](../../docs/reviews/adversarial-review-2026-11-01.md)、[项目资料 WMD §5–7](../product-flow-governance/workspace-and-materials-design.md) 和 [06 批 11-08 方案](../post-anticorruption-roadmap/reference/batches/06.md#batch-06-plan-2026-11-08)。第 05 批公共资料合同已随 #1979 合入。实施目标沿 06 批的合同、消费者切换、迁移回读、删除和完整体验验收。分片状态与证据见各节。
 
@@ -282,7 +282,7 @@ N52 随 S4/S5 接同一公共界面：现有 `/sources` 响应合并可见来源
 ## 4. S3 公用 SDK 工具
 
 - **N13／N12⑤。** `/browser` 沿用浏览器安全的叶子入口，复用 `/ui` 的 HTML 转义与已存在请求基础 `molisWorkRequest`。仅提取实际共用的 `required`、错误消息／状态、abort 识别和 `pluginRequest(host, { fallback, codes })`。保持不同路由的已定项目参数、body、翻译回退、失败 code/status 与当前生命周期 `signal`，调用点负责附上实际的挂载／离开信号（Dataset BL-1033）。浏览器助手复用 Pages 已有文档内容 owner。search/body/start 的输入、权限、摘要和错误先比对，只有纯粹的适配相同才共享。页面专用控件与非同义辅助代码仍在各自插件。
-- **N15。** 取时区部件复用 SDK `card-values.ts` 的 `wallClockIn` 内现成 `formatToParts` 规则，提取 `zonedParts` 并保持本地时区、h23、跨日和 DST 行为。通过实际 `Intl` 接受的时区统一 `isTimeZone`，保留 Jelly/Coding 调用方现有空输入政策。面向界面先复用 SDK `ui/message-format.ts` 的 `formatDate` 与现行 locale。缺相同格式时补小段共用日期标签，保持今天／日期回退由当前语言决定，将审查发现的英文界面缺口归 [语言书 §6.1](../font-and-skin-system/spec.md#61-现状与注意事项2026-10-21视觉细节目标-vux-40-的英文实走所得)。 2026-11-09 核查确认四文档插件的短月日标签同义，但现有 `formatDate` 的坏值回退和月份长度不同，不能无差别替换；Images／Workflows／Jelly 的各自格式保留。用量午夜的 DST 偏差已实测并单列 [BL-assistant-usage-dst-midnight](../backlog/BL-assistant-usage-dst-midnight.md)，本次提取不静默改变预算时间窗。
+- **N15。** 取时区部件复用 SDK `card-values.ts` 的 `wallClockIn` 内现成 `formatToParts` 规则，提取 `zonedParts` 并保持本地时区、h23、跨日和 DST 行为。通过实际 `Intl` 接受的时区统一 `isTimeZone`，保留 Jelly/Coding 调用方现有空输入政策。面向界面先复用 SDK `ui/message-format.ts` 的 `formatDate` 与现行 locale。缺相同格式时补小段共用日期标签，保持今天／日期回退由当前语言决定，将审查发现的英文界面缺口归 [语言书 §6.1](../font-and-skin-system/spec.md#61-现状与注意事项2026-10-21视觉细节目标-vux-40-的英文实走所得)。 2026-11-09 核查确认四文档插件的短月日标签同义，但现有 `formatDate` 的坏值回退和月份长度不同，不能无差别替换；Images／Workflows／Jelly 的各自格式保留。用量午夜的 DST 偏差已修（2026-11-13：`startOfToday` 按目标日午夜偏移，`tests/assistant-usage-ledger-dst.test.ts` 钉住洛杉矶两侧与上海），不再单列 BL。
 - **N16／E3。** 在 `whole-units.ts` 实现 `cutWithEllipsis`，沿用 `cutHead/cutCharacters`，输出不拆代理对。按调用点核截断前清理、UTF-16／码点预算、尾记是否计入预算及既有 `…`／`...`，明确选项只覆盖现存差异。E3 的无省略号提醒标题直接改用 `cutHead`。门禁只增加用户已批准的直接 `slice` 后加省略号的源码计数，按文件比较基点只减不增，跳过无关的一般切片。库快照与用例随同一 PR。
 - #1987 已收口 `isRecord`、`compareCodeUnits` 和 Shelf/工作台的转义。这里直接复用该 SDK 实现，contracts 的工具依赖方向按 BL 另算。SDK 公开入口和快照写前按实际文件查 #1999／#2000，当前已知 `packages/plugin-sdk/src/index.ts` 与部分入口在途。先以有消费的子路径缩小出口范围，再等待同文件的接力。
 

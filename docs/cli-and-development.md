@@ -2,6 +2,8 @@
 
 ## Home 离线快照
 
+`molis-work home adopt-process-items --confirm [--home /原Home] [--json]` 在停掉宿主的离线窗口把旧布局第 2 版项目库显式采用到第 3 版：先备份、逐项目采用，全部采用后才撤回 Files 同意并移出项目成员；不带 `--confirm` 拒绝。它和同步设置里的过程项四步走同一个 `adoptProjectDatabase`／`retireFilesConsents`，给没开账号同步的本地空间 Home 用。
+
 `molis-work home snapshot --to /绝对路径/新目录 --home /原Home --json` 从已存在的 Home 捕获快照；`--home` 省略时沿用产品的 Home 解析。`--to` 必填，目标尚不存在、父目录已存在，并且目标与 Home 不能互相包含。参数重复、未知或缺值直接拒绝。成功 stdout 是 JSON（不加 `--json` 时是路径和数量），失败只向 stderr 写错误并返回 1。
 
 先停止使用该 Home 的 Web/Desktop/Agent，再在离线窗口执行。命令取得与 Host/Agent 相同的存储所有权，不启动业务 Host 或在线暂停；忙时不建立输出。存储集合来自 `homeStores()`，包括实际安装库和项目分区。SQLite 使用 backup API，包含最新已提交 WAL，侧车和所有权锁不复制；未知条目、错版、坏库、链接或未完成维护整次拒绝。
@@ -252,7 +254,7 @@ pnpm --filter @molis-ai/molis-work-integration-github typecheck
 
 增长许可与页面资源共用目录。`assets` 约束静态资源，`pages` 约束页面及语言的总量净增，例如 `"pages": { "workbench-default/zh": { "cold": 120, "warm": 0 } }`。新增路径或单行净增超过 10,000 B 时，即使页总量缩小，也须在带 `userApproval` 的新许可中用 `entryApprovals` 列明这一项：`pages`（所涉页面数组）、`locale`、`entry`、`change`（`new` 或 `growth`），以及适用的 `response` 和 `document`。顶层文档可写 `<page>`，项目标识可写 `<project>`；工作台启动词包用对应语言的 `/assets/locale/workbench.<语言>.<digest>.js` 匹配一条内容定址路径。CI 会列出需审批的路径和对应许可文件。每次比较只消费基点尚未采用的许可。
 
-每批开工前由统筹通过独立浏览器做一次防漏核对。构建后运行：
+每批开工前由本批主会话通过独立浏览器做一次防漏核对。构建后运行：
 
 ```sh
 node scripts/machine-slot.mjs run browser --label 'first-screen audit' -- node scripts/first-screen-report.mjs --runs 1 --pages arrival-empty,chooser,workbench-default,workbench-all-plugins,workbench-demo

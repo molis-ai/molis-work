@@ -53,7 +53,7 @@ import { handleObservationShellHttp } from "./observation-shell-entry.js";
 // surfaces' entries, and the order of the whole table, are in web-request.ts.
 
 export const pluginPageRoute: WebRoute<ProjectRequestContext> = { id: "plugin-page",
-  handle: context => handlePluginPageHttp(context, context.hostReference, () => context.shownPlugins(context.hostReference.project_id)) };
+  handle: context => handlePluginPageHttp(context, context.hostReference, () => context.shownPluginsFresh(context.hostReference.project_id)) };
 
 export const directoryGrantRoute: WebRoute<ProjectRequestContext> = { id: "directory-grant",
   handle: context => handleDirectoryGrantHttp(context, context.hostReference) };

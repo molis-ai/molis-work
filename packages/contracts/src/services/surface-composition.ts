@@ -120,8 +120,8 @@ export interface SurfacePluginCard {
 
 /** Every word here is an `OwnedTextRef`: the service binds its owner from the plugin directory, so a page finds the words without asking. */
 export interface SurfaceGroup {
-  kind: "attention" | "continue" | "plugin" | "slot";
-  /** Only in a `plugin` group. */
+  kind: "attention" | "continue" | "plugin" | "slot" | "lead";
+  /** Only in a `plugin` or `lead` group. */
   owner_plugin_id?: string;
   /** `disabled` and `undeclared` only in a `plugin` group. */
   state: "ok" | "unreadable" | "stale" | "disabled" | "undeclared";
@@ -134,6 +134,11 @@ export interface SurfaceGroup {
   overflow?: { count: number; label?: OwnedTextRef };
   /** Home's trusted card facts, only in a plugin group. */
   plugin_card?: SurfacePluginCard;
+  /**
+   * Only in a `lead` group, at most one, first on the home: the main-area view the Host selected for the one plugin whose overview
+   * declares `lead`. The page shows that view in place of the groups; the person can switch back to them.
+   */
+  lead?: { installation: SurfaceInstallationRef; view_id: string };
   title?: OwnedTextRef;
   items: SurfaceItem[];
 }
@@ -226,13 +231,19 @@ const PLUGIN_CARD_SCHEMA = { type: "object", additionalProperties: false, proper
     properties: { kind: { const: "stage" }, installation: INSTALLATION, view_id: text(PRESENTATION_LIMITS.start_view_id) } },
   enable: ENABLE_SCHEMA,
 } };
+const LEAD_SCHEMA = { type: "object", additionalProperties: false, required: ["installation", "view_id"],
+  properties: { installation: INSTALLATION, view_id: text(PRESENTATION_LIMITS.start_view_id) } };
 const GROUP_SCHEMA = { type: "object", additionalProperties: false, required: ["kind", "state", "items"], properties: {
-  kind: { enum: ["attention", "continue", "plugin", "slot"] }, owner_plugin_id: text(200), state: { enum: ["ok", "unreadable", "stale", "disabled", "undeclared"] },
+  kind: { enum: ["attention", "continue", "plugin", "slot", "lead"] }, owner_plugin_id: text(200), state: { enum: ["ok", "unreadable", "stale", "disabled", "undeclared"] },
   read_at: { type: "string", format: "date-time" }, excluded: { type: "array", items: EXCLUSION_SCHEMA },
   hidden_above: { type: "object", additionalProperties: false, required: ["count", "label"], properties: { count: { type: "integer", minimum: 1 }, label: OWNED_TEXT_REF_SCHEMA } },
   overflow: { type: "object", additionalProperties: false, required: ["count"], properties: { count: { type: "integer", minimum: 1 }, label: OWNED_TEXT_REF_SCHEMA } },
-  plugin_card: PLUGIN_CARD_SCHEMA, title: OWNED_TEXT_REF_SCHEMA, items: { type: "array", items: ITEM_SCHEMA } },
-  if: { properties: { kind: { const: "plugin" } } }, then: {}, else: { not: { required: ["plugin_card"] } } };
+  plugin_card: PLUGIN_CARD_SCHEMA, lead: LEAD_SCHEMA, title: OWNED_TEXT_REF_SCHEMA, items: { type: "array", items: ITEM_SCHEMA } },
+  allOf: [
+    { if: { properties: { kind: { const: "plugin" } } }, then: {}, else: { not: { required: ["plugin_card"] } } },
+    { if: { properties: { kind: { const: "lead" } } }, then: { required: ["lead", "owner_plugin_id"], properties: { state: { const: "ok" }, items: { maxItems: 0 } } },
+      else: { not: { required: ["lead"] } } },
+  ] };
 const DESCRIPTION_SCHEMA = { type: "object", additionalProperties: false, required: ["composed_by", "revision", "corrections_revision", "groups"], properties: {
   composed_by: { enum: ["rules", "assistant"] }, revision: REVISION, corrections_revision: REVISION, groups: { type: "array", items: GROUP_SCHEMA }, reason: OWNED_TEXT_REF_SCHEMA } };
 // `expected_revision` stays a top-level property, where the Kernel looks for the version a command commits from.

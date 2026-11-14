@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createProject } from "@molis-ai/molis-work-test-kit/local-host-http";
 import test from "node:test";
 import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
@@ -113,6 +114,30 @@ test("SYS-15 S-47 a page link never navigates the owner document: a settings add
   await child.evaluate("new Promise(resolve=>setTimeout(resolve,100))");
   assert.deepEqual(await evaluate<string[]>("window.__settingsAddresses"), [`${browser.origin}/settings/models`], "the hidden frame cannot forward a second link");
   assert.deepEqual(await evaluate(owner), before, "a host address that opens no surface still moves nothing");
+});
+
+// S-47 (user decision 2026-11-14): the one address a page link may send the owner document to is another project's bare home.
+// The same project with a query, a deeper path of it, or a fragment still changes nothing.
+test("WBR-24 S-47 a page link opens another project's home and nothing else of it: a query, a deeper path or a fragment moves nothing", { timeout: 60_000 }, async t => {
+  const browser = await openGoalBrowser(t, true); if (!browser) return;
+  const child = await pluginFrameBrowser(t, browser, "cognia");
+  const { command, sessionId, evaluate, navigate, waitFor } = browser;
+  const other = (await createProject(browser.web, "另一个项目")).project_id;
+  await navigate(() => command("Page.navigate", { url: `${browser.origin}/projects/${browser.projectId}/?openPlugin=cognia` }, sessionId));
+  await browser.surfaceReady("cognia"); await child.waitFor("!document.querySelector('[data-cognia-rows]').textContent.includes('正在读取')");
+  await evaluate("window.__ownerMarker='owner-page'");
+  const follow = (href: string) => child.evaluate(`(() => { const link = document.createElement("a"); link.setAttribute("href", ${JSON.stringify(href)}); document.body.append(link); link.click(); link.remove(); })()`);
+  const before = await evaluate<string>("location.href");
+  for (const refused of [`/projects/${other}/?openSurface=settings`, `/projects/${other}/desk`, `/projects/${other}/#x`, `/projects/${other}`, `/projects/${browser.projectId}/`, `/projects/%${browser.projectId.charCodeAt(0).toString(16)}${browser.projectId.slice(1)}/`]) {
+    await follow(refused);
+    await child.evaluate("new Promise(resolve=>setTimeout(resolve,100))");
+    assert.deepEqual(await evaluate("[location.href, window.__ownerMarker]"), [before, "owner-page"], `${refused} moved nothing`);
+  }
+  // The owner document goes away under the page's click: the page's own answer to it may never arrive.
+  await navigate(() => follow(`/projects/${other}/`).catch(() => undefined));
+  await waitFor(`location.pathname === ${JSON.stringify(`/projects/${other}/`)} && window.__ownerMarker === undefined`, 15_000);
+  assert.equal(await evaluate<string>("location.search"), "", "the home, with nothing named in it");
+  assert.ok(Date.now() - Number(await evaluate<string>("sessionStorage.getItem('molis-work:page-project-jump')")) < 60_000, "the jump is recorded, so a second one within five seconds is refused");
 });
 
 test("SYS-15-F1 SYS-15-F2 desktop search releases only the file selected by a trusted click, then opens its owned copy", { timeout: 60_000 }, async t => {

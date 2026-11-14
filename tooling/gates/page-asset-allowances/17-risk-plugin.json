@@ -1,47 +1,47 @@
 {
-  "reason": "第 17 批风险插件（specs/risk-plugin/implementation.md）。risk.js 是新插件的页面客户端（src/browser 打包，含 5 KB 样式）：总览分组与筛选、两栏详情、编辑与冲突对照、进展、关联、复查段、侧栏视图；用 SDK /ui 的渲染函数，不另带控件。三张样式表各 +1257：SDK 矩阵小格 renderSeverityGrid 的样式进 design-system primitives（§4.4，D 轨合审要求样式进 primitives，矩阵小格 3×3、两种尺寸、四种色调）。workbench.js +1238：侧栏视图 opens_items 的推导与打开改道（§4.3，sideOpenedItemPlugins 与 openItemInSide），Goals 顾虑引用对象按声明的打开位置命名并经工作台打开。plugin-frame.js +82：同一插件自己的帧发来的打开带发起方，展开成整页不被改回侧栏。schedule.js +214：按任务 id 打开详情，风险复查去开读取授权的入口。对 main f972bc9e 的独立构建实测，workbench.js 按对 main 9aab01f8 的实测取 1238。 首屏（pages）：上述三张样式表、workbench.js 与风险/Goals 文字随首屏下发，各页冷启动 +2.6～7.7 KB、热启动 0～5.1 KB，都在 10 KB 以内，没有新入口；对 main 9aab01f8 实测（scripts/gates/first-screen.mjs）。",
+  "reason": "第 17 批风险插件（specs/risk-plugin/implementation.md）。risk.js 是新插件的页面客户端（src/browser 打包，含 5 KB 样式）：总览分组与筛选、两栏详情、编辑与冲突对照、进展、关联、复查段、侧栏视图；用 SDK /ui 的渲染函数，不另带控件。三张样式表各 +1275：SDK 矩阵小格 renderSeverityGrid 的样式进 design-system primitives（§4.4，D 轨合审要求样式进 primitives，矩阵小格 3×3、两种尺寸、四种色调）。workbench.js +1238：侧栏视图 opens_items 的推导与打开改道（§4.3，sideOpenedItemPlugins 与 openItemInSide），Goals 顾虑引用对象按声明的打开位置命名并经工作台打开。plugin-frame.js +82：同一插件自己的帧发来的打开带发起方，展开成整页不被改回侧栏。schedule.js +214：按任务 id 打开详情，风险复查去开读取授权的入口。对 main f972bc9e 的独立构建实测，workbench.js 按对 main 9aab01f8 的实测取 1238。 首屏（pages）：上述三张样式表、workbench.js 与风险/Goals 文字随首屏下发，各页冷启动 +2.6～7.7 KB、热启动 0～5.1 KB，都在 10 KB 以内，没有新入口；对 main 9aab01f8 实测（scripts/gates/first-screen.mjs）。",
   "review": "设计稿经公共合同台与 D 轨合审通过（specs/risk-plugin/implementation.md「合审记录」2026-11-13 第 2 版 0f622090ff）；实现随第 17 批 PR 由评审台审。",
   "userApproval": "用户 2026-11-13 在第 17 批主会话的弹窗里选「同意新增（推荐）」：风险插件新增页面客户端资源（risk.js，新增资源），见 specs/risk-plugin/implementation.md §2 第 12 行。",
   "assets": {
     "/assets/molis-work-plugins/risk.js": 46312,
-    "/assets/molis-work-arrival.css": 1257,
-    "/assets/molis-work-settings.css": 1257,
-    "/assets/molis-work-workbench.css": 1257,
+    "/assets/molis-work-arrival.css": 1275,
+    "/assets/molis-work-settings.css": 1275,
+    "/assets/molis-work-workbench.css": 1275,
     "/assets/molis-work-workbench.js": 1238,
     "/assets/molis-work-plugin-frame.js": 82,
     "/assets/molis-work-plugins/schedule.js": 214
   },
   "pages": {
     "arrival-empty/zh": {
-      "cold": 2596,
+      "cold": 2632,
       "warm": 0
     },
     "arrival-empty/en": {
-      "cold": 2596,
+      "cold": 2632,
       "warm": 0
     },
     "chooser/zh": {
-      "cold": 2662,
+      "cold": 2698,
       "warm": 66
     },
     "chooser/en": {
-      "cold": 2662,
+      "cold": 2698,
       "warm": 66
     },
     "workbench-default/zh": {
-      "cold": 4942,
+      "cold": 4960,
       "warm": 2365
     },
     "workbench-default/en": {
-      "cold": 4949,
+      "cold": 4967,
       "warm": 2372
     },
     "workbench-all-plugins/zh": {
-      "cold": 7649,
+      "cold": 7667,
       "warm": 5072
     },
     "workbench-all-plugins/en": {
-      "cold": 7688,
+      "cold": 7706,
       "warm": 5111
     }
   }

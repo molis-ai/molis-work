@@ -93,7 +93,7 @@
 
 | 批次 | 建议落在哪 |
 | --- | --- |
-| [32 明确交办与后台任务](../post-anticorruption-roadmap/reference/batches/32.md#design-language-32) | 事项线的分区、节点颜色、节点展开与「轮到你」的动效、后台任务列表先摆例外 |
+| [32 明确交办与后台任务](../post-anticorruption-roadmap/reference/batches/32.md#design-language-32) | 事项线的分区、事件的颜色、事件展开与「轮到你」的动效、后台任务面板先摆例外 |
 | [36 角色设置与主线服务](../post-anticorruption-roadmap/reference/batches/36.md#design-language-36) | 作用范围当位置、合同只说状态不说颜色、「下一步」带动词短句 |
 | [37 生成页面与事项工作台](../post-anticorruption-roadmap/reference/batches/37.md#design-language-37) | 线头事项名、切换事项的转场、生成页面的颜色校验 |
 | [40 产品治理与全产品文案](../post-anticorruption-roadmap/reference/batches/40.md#design-language-40) | 状态词和颜色一一对应、先说还差什么 |

@@ -120,7 +120,7 @@ C1 管合同与快照，C2 管 AI 运行时与换包，C3 管独立平台服务�
 | [27-5](batches/27.md#batch-27-item-5) | 宿主出口、文档门禁与各包清理 | 不归轨道 | 否 | — |
 | [32-1](batches/32.md#batch-32-item-1) | 主对话持续接单与后台任务控制 | A | 是 | — |
 | [32-2](batches/32.md#batch-32-item-2) | 逐项产物、认可、返工与复核 | A | 是 | C1 |
-| [32-3](batches/32.md#batch-32-item-3) | 事项线第一片：外壳、线、节点卡与后台任务列表 | D | 是 | A、C1、C3 |
+| [32-3](batches/32.md#batch-32-item-3) | 事项线第一片：外壳、线、事件登记、事件卡与后台任务面板 | D | 是 | A、C1、C3 |
 | [33-1](batches/33.md#batch-33-item-1) | Coding 任务与环境恢复 | B | 是 | — |
 | [33-2](batches/33.md#batch-33-item-2) | 材料、大清单与重启接续 | F | 是 | — |
 | [35-1](batches/35.md#batch-35-item-1) | 引导接入已有 Sessions | F | 是 | C3 |

@@ -87,7 +87,7 @@
 | [prologue-strategies](../../prologue-strategies/spec.md) | 横向能力（AI 运行时） | [41](batches/41.md)、[42](batches/42.md)、[61](batches/61.md)、[62](batches/62.md) | 要决策：四份子策略整体评审（[决定 9](decisions.md#decision-9)）；引用声明的语义一致（[决定 16](decisions.md#decision-16)） |
 | [intelligent-surfaces](../../intelligent-surfaces/spec.md) | 横向能力（呈现与组合）、产品线（工作台、助理） | [03](batches/03.md)、[05](batches/05.md)、[15](batches/15.md)、[53](batches/53.md)、[63](batches/63.md)、[64](batches/64.md)、[68](batches/68.md)、[76](batches/76.md)、[83](batches/83.md) | 15 已合入（#2017）：组合服务 `horizontal/surfaces`、SDK 四种形态与读取协议、插件挂载位，首页、讨论、助理材料与等你共用一份组合（[第 15 批收尾检查](batches/15.md#收尾检查)）；剩本人验收（[BL-surface-home-acceptance](../../backlog/BL-surface-home-acceptance.md)）与 53 起各片；负责人（沿原安排至明确交接） |
 | [work-mainline](../../work-mainline/spec.md) | 产品线（工作台）、横向能力（主线服务） | [03](batches/03.md)、[36](batches/36.md)、[37](batches/37.md)、[53](batches/53.md)、[64](batches/64.md)、[SRV-5](batches/srv-5.md) | 要决策：切换器的界面定样（列表 2026-11-03 已定；位置 2026-11-12 改到事项线的线头） |
-| [work-line](../../work-line/spec.md) | 产品线（工作台、助理）、横向能力（主线服务的线读取与安放、呈现形态）、体验与效果 | [32](batches/32.md)、[36](batches/36.md)、[37](batches/37.md)、[53](batches/53.md)、[58](batches/58.md)、[64](batches/64.md) | 要决策：事项线的界面定样（第 32 批开工时）；三处已定项的改动用户 2026-11-12 已确认（[决定 38](decisions.md#decision-38)） |
+| [work-line](../../work-line/spec.md) | 产品线（工作台、助理）、横向能力（事件登记、主线服务的线读取与安放、后台任务总表、呈现形态）、体验与效果 | [32](batches/32.md)、[36](batches/36.md)、[37](batches/37.md)、[53](batches/53.md)、[58](batches/58.md)、[64](batches/64.md) | 要决策：事项线的界面定样（第 32 批开工时）；三处已定项的改动用户 2026-11-12 已确认（[决定 38](decisions.md#decision-38)） |
 
 **字体、皮肤与语言分五段**（[实现方案](../../font-and-skin-system/implementation-plan.md) 第 11 节）：
 

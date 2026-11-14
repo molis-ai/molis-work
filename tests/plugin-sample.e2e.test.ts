@@ -41,6 +41,10 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
     assert.equal(readFileSync(join(project, "index.mjs"), "utf8"), original);
     const validated = JSON.parse(execFileSync(process.execPath, [cli, "validate", join(project, "manifest.json")], { encoding: "utf8" }));
     assert.equal(validated.plugin_id, "io.molis.work.example.notes");
+    // SMP-04: the CLI generates and validates the same declaration the isolated sample uses.
+    const sampleManifest = JSON.parse(readFileSync(join(root, "examples/plugin-sample/manifest.json"), "utf8"));
+    assert.deepEqual(validated.state_machines, sampleManifest.state_machines);
+    assert.equal(validated.state_machines[0].machine_id, "io.molis.work.example.notes.result");
     // FSS-62: the language files are checked too; a placeholder broken in one language fails the check, and fixing it passes again.
     const zhPath = join(project, "locales/zh.json"), zhSource = readFileSync(zhPath, "utf8");
     writeFileSync(zhPath, zhSource.replace("已保存的结果：{count}", "已保存的结果：{count"));

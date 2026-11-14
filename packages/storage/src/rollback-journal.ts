@@ -20,13 +20,14 @@ export interface RollbackLibrary {
   readonly kind: "project" | "home";
   readonly version: number;
   readonly baseline?: SqliteBaseline;
+  readonly before?: SqliteBaseline;
   readonly initialSpace?: StorageSpace;
   inspect(database: SqliteDatabase, peer?: RollbackLibrary): void;
 }
 
 type Child = RollbackFile & { readonly library: RollbackLibrary; readonly footer?: RollbackFooter };
 type Marker = RollbackFile & { readonly project: RollbackLibrary; readonly data: Buffer };
-type Group = { readonly libraries: readonly RollbackLibrary[]; readonly children: readonly Child[]; readonly marker?: Marker };
+type Group = { readonly libraries: readonly RollbackLibrary[]; readonly children: readonly Child[]; readonly marker?: Marker; readonly attached?: true };
 type Sources = { readonly files: readonly RollbackFile[]; readonly uninitialized: ReadonlySet<RollbackLibrary> };
 const stagePrefix = ".rj-";
 const markerSuffix = /-mj[0-9A-F]{6}9[0-9A-F]{2}$/u;
@@ -42,8 +43,39 @@ function markerProject(path: string, projects: ReadonlyMap<string, RollbackLibra
   return project;
 }
 
-function pathsInMarker(project: string, library: string): Buffer {
-  return Buffer.from(`${project}-journal\0${library}-journal\0`);
+function pathsInMarker(...paths: readonly string[]): Buffer {
+  return Buffer.from(paths.map(path => path + "-journal\0").join(""));
+}
+
+/** A confirmed version change already named the whole group, including the main database. The files may only confirm that group. */
+function attachedRecovery(libraries: readonly RollbackLibrary[], sidecars: readonly string[]): Group {
+  const main = libraries[0];
+  if (!main || libraries.length < 2) throw rollbackRefused();
+  const possibleMarkers = new Map([[main.path, main]]);
+  const expected = new Map(libraries.map(library => [library.path + "-journal", library]));
+  const children: Child[] = [];
+  let marker: Marker | undefined, referenced: string | undefined;
+  for (const path of sidecars) {
+    const file = checkedRollbackFile(path), library = expected.get(path);
+    if (library) {
+      const footer = rollbackFooter(file);
+      if (footer) {
+        markerProject(footer.path, possibleMarkers);
+        if (referenced && referenced !== footer.path) throw rollbackRefused();
+        referenced = footer.path;
+      }
+      children.push({ ...file, library, footer });
+    } else {
+      if (marker) throw rollbackRefused();
+      marker = { ...file, project: markerProject(path, possibleMarkers), data: rollbackMarkerBytes(file, libraries.length) };
+    }
+  }
+  if (referenced && marker?.path !== referenced && (marker || lstatSync(referenced, { throwIfNoEntry: false }))) throw rollbackRefused();
+  if (marker) {
+    const names = pathsInMarker(...libraries.map(library => library.path));
+    if (!(referenced ? names : names.subarray(0, marker.data.length)).equals(marker.data)) throw rollbackRefused();
+  }
+  return { libraries, children, marker, attached: true };
 }
 
 function clearedMarkerGroups(children: readonly Child[], projects: ReadonlyMap<string, RollbackLibrary>): Group[] {
@@ -137,9 +169,9 @@ function originalFiles(group: Group): Sources {
     const file = checkedRollbackFile(library.path);
     const { version, wal } = rollbackDatabaseHeader(file);
     if (version > library.version) throw rollbackRefused();
-    if (wal) {
-      const child = group.children[0];
-      if (group.marker || group.libraries.length !== 1 || group.children.length !== 1 || !child || child.footer
+    if (wal && (!group.attached || group.children.some(child => child.library === library))) {
+      const child = group.children.find(item => item.library === library);
+      if (group.marker || (!group.attached && (group.libraries.length !== 1 || group.children.length !== 1)) || !child || child.footer
         || !walModeTransitionJournal(child, version)) throw rollbackRefused();
     }
     if (version === 0) uninitialized.add(library);
@@ -151,7 +183,7 @@ function originalFiles(group: Group): Sources {
   return { files, uninitialized };
 }
 
-function replay(group: Group, sources: Sources, at: (path: string) => string): void {
+function replay(group: Group, sources: Sources, at: (path: string) => string, inspectGroup?: () => void): void {
   for (const library of group.libraries) {
     const file = at(library.path), readonly = !group.children.some(child => child.library === library);
     const db = openSqliteConnection(file, { fileMustExist: true, readonly, timeout: 100 });
@@ -160,6 +192,7 @@ function replay(group: Group, sources: Sources, at: (path: string) => string): v
       inspectReplay(db, group, library, sources.uninitialized.has(library));
     } finally { db.close(); }
   }
+  inspectGroup?.();
   for (const child of group.children) {
     const file = at(child.library.path), journal = file + "-journal";
     if (!lstatSync(journal, { throwIfNoEntry: false })) continue;
@@ -176,7 +209,7 @@ function replay(group: Group, sources: Sources, at: (path: string) => string): v
 
 function inspectReplay(db: SqliteDatabase, group: Group, library: RollbackLibrary, rawUninitialized: boolean): void {
   const version = Number(db.pragma("user_version", { simple: true }));
-  if (group.libraries.length > 1 && db.pragma("journal_mode", { simple: true }) !== "delete") throw rollbackRefused();
+  if (!group.attached && group.libraries.length > 1 && db.pragma("journal_mode", { simple: true }) !== "delete") throw rollbackRefused();
   if (version === 0) {
     const child = group.children[0], space = library.initialSpace, baseline = library.baseline;
     if (!space || !baseline || !rawUninitialized || library.kind !== "home" || group.libraries.length !== 1 || group.marker || !child || child.footer) throw rollbackRefused();
@@ -188,11 +221,14 @@ function inspectReplay(db: SqliteDatabase, group: Group, library: RollbackLibrar
   if (version > library.version || version < 1) throw rollbackRefused();
   if (version === library.version) {
     if (baseline && !upgradedShapeMatches(db, baseline)) throw rollbackRefused();
-  } else if (!baseline || upgradeStepsProblem(baseline, version)) throw rollbackRefused();
+  } else {
+    const before = library.before;
+    if (before ? version !== before.version || !upgradedShapeMatches(db, before) : !baseline || upgradeStepsProblem(baseline, version)) throw rollbackRefused();
+  }
   library.inspect(db, group.libraries.find(candidate => candidate !== library));
 }
 
-function preflight(root: string, directory: string, group: Group, sources: Sources): void {
+function preflight(root: string, directory: string, group: Group, sources: Sources, inspectGroup?: () => void): void {
   if (group.libraries.length === 0) return;
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   const scratch = mkdtempSync(join(directory, stagePrefix));
@@ -217,13 +253,14 @@ function preflight(root: string, directory: string, group: Group, sources: Sourc
         ftruncateSync(fd, child.footer.position + replacement.length);
       } finally { closeSync(fd); }
     }
-    if (group.marker && group.children.length > 0) writeFileSync(at(group.marker.path), pathsInMarker(at(group.libraries[0]!.path), at(group.libraries[1]!.path)));
-    replay(group, sources, at);
+    if (group.marker && group.children.length > 0) writeFileSync(at(group.marker.path), pathsInMarker(...group.libraries.map(library => at(library.path))));
+    replay(group, sources, at, inspectGroup);
   } finally { rmSync(scratch, { recursive: true }); }
 }
 
 /** Recover only after a private native replay proves the expected owner and baseline, while the same Home lease excludes all writers. */
-export function recoverSqliteRollbackJournals(lock: UpgradeHomeLock, libraries: readonly RollbackLibrary[], sidecars: readonly string[]): void {
+export function recoverSqliteRollbackJournals(lock: UpgradeHomeLock, libraries: readonly RollbackLibrary[], sidecars: readonly string[],
+  attached?: { readonly inspectGroup: () => void }): void {
   const root = realpathSync(lock.home);
   const checkOwner = () => {
     assertStorageOwner(lock.lockDirectory, lock.owner);
@@ -234,13 +271,13 @@ export function recoverSqliteRollbackJournals(lock: UpgradeHomeLock, libraries: 
   if (libraries.some(library => !inside(root, library.path)) || sidecars.some(path => !inside(root, path))
     || new Set(libraries.map(library => library.path)).size !== libraries.length || new Set(sidecars).size !== sidecars.length) throw rollbackRefused();
   const directory = stages(root);
-  const groups = recoveryGroups(libraries, sidecars).map(group => ({ group, sources: originalFiles(group) }));
-  for (const { group, sources } of groups) preflight(root, directory, group, sources);
+  const groups = (attached ? [attachedRecovery(libraries, sidecars)] : recoveryGroups(libraries, sidecars)).map(group => ({ group, sources: originalFiles(group) }));
+  for (const { group, sources } of groups) preflight(root, directory, group, sources, attached?.inspectGroup);
   checkOwner();
   for (const { group, sources } of groups) {
     for (const file of sources.files) assertRollbackFile(file);
     assertSidecars(group);
   }
   // Leave all original journals in place until validation of the complete set succeeds. SQLite performs the original replay.
-  for (const { group, sources } of groups) replay(group, sources, path => path);
+  for (const { group, sources } of groups) replay(group, sources, path => path, attached?.inspectGroup);
 }

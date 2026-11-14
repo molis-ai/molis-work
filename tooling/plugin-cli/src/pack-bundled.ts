@@ -13,7 +13,7 @@ import { writePluginPackageFile } from './package-files.js';
 // `pack-content.json` instead of on a command line — and signed in the same step. A bundled package is never unsigned: the Host lists
 // and installs it as any signed package, so a missing key stops here. The official packages are signed with Molis Work's publisher
 // key, which this step takes by reference (a signer, or a key file it is pointed at) and never holds; that key and the release step
-// that calls this are batch 26's (26-1).
+// that calls this are batch 26's (26-9).
 
 const bundledErrors = defineErrorCodes('plugin', { publisher_key_missing: 'invalid' });
 
@@ -86,7 +86,7 @@ export async function packSystemPack(directory: string, outputDirectory: string)
  */
 export async function packBundledContent(directory: string, outputDirectory: string, signer: PluginPackageSigner | undefined): Promise<{ bundle: PluginPackageBundle; file: string }> {
   if (!signer) {
-    throw bundledErrors.publisher_key_missing('随安装包带上的包要用发布者密钥签名，这里没有给密钥，什么也没写。官方包用 Molis Work 的官方发布者密钥（第 26 批 26-1）；自己试的时候给一把测试密钥');
+    throw bundledErrors.publisher_key_missing('随安装包带上的包要用发布者密钥签名，这里没有给密钥，什么也没写。官方包用 Molis Work 的官方发布者密钥（第 26 批 26-9）；自己试的时候给一把测试密钥');
   }
   const options = await readBundledPackOptions(directory);
   const payload = await contentPayloadFromFolder(join(directory, 'skills'), { ...options, publisherKeyId: signer.publisher_identity });

@@ -83,7 +83,8 @@ async function withProjectPluginSurfaces(view: GoalsWebView, input: {
   const installed = await installedPluginStages({ store, projectId: input.projectId, homeDirectory, routePrefix: view.route_prefix,
     models: async () => homeDirectory ? configuredModelChoices(homeDirectory) : [], actorId: LOCAL_PERSON_ACTOR_ID, actions: pluginServices.actions,
     ...(pluginServices.dependencyCheck ? { dependencyCheck: pluginServices.dependencyCheck } : {}) }).catch(noInstalledStages);
-  return { ...view, plugin_stages: [...(view.plugin_stages ?? []), ...installed.map(item => item.stage)],
+  return { ...view, plugin_stages: [...(view.plugin_stages ?? []), ...installed.flatMap(item => item.stage ? [item.stage] : [])],
+    unavailable_plugin_stages: [...(view.unavailable_plugin_stages ?? []), ...installed.flatMap(item => item.unavailable ? [item.unavailable] : [])],
     plugin_directory: mergePluginDirectories(builtin.directory, view.plugin_directory ?? [], installed.map(item => item.directory), builtinMarketDirectory(homeDirectory)) };
 }
 export function createLocalGoalsReadHttp(ports: {

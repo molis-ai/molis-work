@@ -1494,16 +1494,11 @@ export interface AgentRunOffer extends AgentActionOffer {
     action_digest: string;
 }
 
-export type AgentRunPhase = "starting" | "running" | "awaiting-review" | "awaiting-input" | "paused" | "compacting" | "completed" | "failed" | "cancelled" | "stopped" | "reconcile-required";
+export type AgentRunPhase = keyof typeof STATE_VOCABULARIES.agentRun.states;
 
 export interface AgentRunRef {
     run_id: string;
     session_id: string;
-}
-
-export interface AgentRunSkillRead {
-    ref: import("@molis-ai/molis-work-contracts/services/agent-definitions").SkillRef;
-    name: string;
 }
 
 export interface AgentRunUsage {
@@ -1546,7 +1541,6 @@ export interface AgentRunView {
         requested?: string;
     };
     offers?: readonly AgentRunOffer[];
-    skill_reads?: readonly AgentRunSkillRead[];
     started_at: string;
     ended_at: string | null;
 }
@@ -2351,7 +2345,6 @@ interface AgentStartInputFields {
     text_materials?: AgentTextMaterial[];
     image_materials?: AgentImageMaterial[];
     skills?: SkillRef[];
-    auto_skills?: false;
     mcp_tools?: AgentMcpToolRef[];
     mcp_sources?: AgentMcpSourceRef[];
     budget?: AgentRunBudget;

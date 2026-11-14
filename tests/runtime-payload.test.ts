@@ -7,6 +7,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { createMolisWorkRuntimePayload } from "@molis-ai/molis-work-app-local-host";
+import { verifyPluginPackageSignature } from "@molis-ai/molis-work-plugin-runtime";
+import { newPublisher } from "./fixtures/sandbox-package.js";
 
 const exec = promisify(execFile);
 
@@ -28,10 +30,13 @@ test("real workspace payload installs offline from an unrelated directory and pr
   const directory = await mkdtemp(join(tmpdir(), "molis-work-runtime-payload-"));
   try {
     const payload = join(directory, "payload");
+    const publisher = newPublisher();
+    const keyFile = join(directory, "fixture-publisher.pem");
+    await writeFile(keyFile, publisher.keys.privateKey.export({ type: "pkcs8", format: "pem" }), { mode: 0o600 });
     await exec(process.execPath, [
       join(process.cwd(), "apps", "desktop", "tooling", "prepare-runtime-payload.mjs"),
       process.cwd(), payload, process.execPath,
-    ]);
+    ], { env: { ...process.env, MOLIS_WORK_RELEASE_PROFILE: "dev", MOLIS_WORK_DEV_PUBLISHER_KEY_FILE: keyFile } });
     const provenance = "vendor/intelligence-client/adeptify-intelligence-client-0.2.2.tgz.provenance.json";
     const sbom = "vendor/intelligence-client/sbom.cdx.json";
     for (const relative of [provenance, sbom, "LICENSE"]) {
@@ -61,6 +66,12 @@ test("real workspace payload installs offline from an unrelated directory and pr
     const installed = JSON.parse(output.stdout);
     assert.equal(installed.status, "installed");
     assert.deepEqual(await readFile(join(installed.release_directory, provenance)), await readFile(join(payload, provenance)));
+    const bundledPlugin = "io.molis.work.content.design-accessibility";
+    const installedPack = await readFile(join(installed.release_directory,
+      "node_modules", "@molis-ai", "molis-work-app-local-host", "dist", "bundled-plugins", bundledPlugin + ".json"), "utf8");
+    const { bundle, key_id } = verifyPluginPackageSignature(JSON.parse(installedPack));
+    assert.equal(bundle.payload.manifest.plugin_id, bundledPlugin);
+    assert.equal(key_id, publisher.identity);
     // The actual installed launcher must no longer need its source payload.
     await rm(payload, { recursive: true, force: true });
     await assertLicenseMaterials(installed.release_directory);

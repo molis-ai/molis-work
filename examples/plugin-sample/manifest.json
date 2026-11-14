@@ -38,6 +38,15 @@
       "reason": "Save a personal result, consume its exact version and show the local sample"
     }
   ],
+  "state_machines": [
+    {
+      "machine_id": "io.molis.work.example.notes.result",
+      "version": 1,
+      "states": { "empty": "idle", "saved": "done" },
+      "initial": "empty",
+      "terminal": []
+    }
+  ],
   "capabilities": {
     "provides": [],
     "consumes": []

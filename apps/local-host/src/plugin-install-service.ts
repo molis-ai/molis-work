@@ -379,6 +379,8 @@ export class PluginInstallService {
       const release = packagedRelease(held.pkg, directory, this.now());
       if (inHome) await this.ports.installInHome(release, assertCurrent);
       else await this.ports.installInProject(held.project_id, release, assertCurrent);
+      if (caller?.signal?.aborted) throw new ActionError('actions.cancelled', '此次安装确认的调用已取消');
+      assertCurrent();
       return { plugin_id: held.pkg.manifest.plugin_id, version: held.pkg.manifest.version, publisher_key_id: key_id };
     };
     return catalog ? withSurfacePresentationCheck(held.pkg.manifest, catalog, keep) : keep();

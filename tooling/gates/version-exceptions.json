@@ -422,8 +422,8 @@
   {
     "file": "tooling/plugin-cli/src/sample-source.ts",
     "name": "version",
-    "values": { "1": 2 },
-    "reason": "新插件模板里样例动作的初始版本，生成后归插件作者自己管理。"
+    "values": { "1": 3 },
+    "reason": "新插件模板里样例动作和状态机的初始版本，生成后归插件作者自己管理。"
   },
   {
     "file": "tooling/plugin-cli/src/sample-source.ts",

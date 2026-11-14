@@ -1,5 +1,5 @@
 import type { ActionErrorKind } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { HomePluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { HomePluginDatabaseDeclaration, PluginDatabaseVersionSwitch, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginProjectDatabaseRecord } from "@molis-ai/molis-work-plugin-runtime";
 import type { InstalledLibraryOwner } from "./installed-plugin-libraries.js";
 
@@ -11,10 +11,16 @@ export type StatementRow = Record<string, StatementValue>;
 
 export interface StatementMemoryLimits { readonly heapMb: number; readonly rssMb: number; readonly sampleMs: number }
 /** Host-only preparation. The sandbox never supplies a path, owner, registry or a preparation command. */
+export type DatabaseUpgradeCall = {
+  readonly target: PluginManifest;
+  readonly change: Omit<PluginDatabaseVersionSwitch, "assertCurrent">;
+} & ({ readonly op: "upgrade-project-database"; readonly home: string; readonly path: string; readonly projectId: string }
+  | { readonly op: "upgrade-home-database"; readonly home: string; readonly reserved: readonly { readonly path: string; readonly owner: string }[] });
 export type HomePreparationCall =
   | { readonly op: "validate-home-schema"; readonly declaration: HomePluginDatabaseDeclaration }
   | { readonly op: "initialize-owned-home-library"; readonly home: string; readonly owner: InstalledLibraryOwner;
-      readonly declaration: HomePluginDatabaseDeclaration; readonly reserved: readonly { readonly path: string; readonly owner: string }[] };
+      readonly declaration: HomePluginDatabaseDeclaration; readonly reserved: readonly { readonly path: string; readonly owner: string }[] }
+  | DatabaseUpgradeCall;
 export type HomePreparationCommand = HomePreparationCall & {
   readonly limits: StatementMemoryLimits; readonly startDeadline: number; readonly executionMs: number;
 };
@@ -38,7 +44,13 @@ export type StatementStep = Exclude<StatementRequest, { readonly op: "open" } | 
 
 /** The process will end even if the Host cannot consume this notification. It also applies between two requests. */
 export interface StatementFatal { readonly fatal: "timeout" | "memory" | "process"; readonly message: string }
-export type StatementMessage = StatementReply | StatementFatal;
+export interface StatementPrepared { readonly id: number; readonly prepared: true }
+export interface StatementUpgradeDecision { readonly id: number; readonly publishUpgrade: true }
+export type StatementMessage = StatementReply | StatementFatal | StatementPrepared;
+export const isDatabaseUpgrade = <T extends { op: string }>(request: T): request is T & DatabaseUpgradeCall =>
+  request.op === "upgrade-home-database" || request.op === "upgrade-project-database";
+export const isPreparation = (request: StatementRequest): request is StatementRequest & HomePreparationCommand =>
+  request.op === "validate-home-schema" || request.op === "initialize-owned-home-library" || isDatabaseUpgrade(request);
 
 export type StatementFailure = "refused" | "too_large" | "error";
 export type StatementReply =

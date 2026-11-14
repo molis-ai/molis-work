@@ -1,3 +1,4 @@
+import type { STATE_VOCABULARIES } from "../platform/state-vocabulary.js";
 import type { ContractDescriptor } from "../platform/package.js";
 import type { ActionDefinition, ActionSubject } from "../platform/actions.js";
 import { ACTION_SUBJECT_SCHEMA, SEARCH_OPEN_TARGET_SCHEMA, type SearchOpenTarget } from "../platform/actions.js";
@@ -234,7 +235,7 @@ export const KNOWLEDGE_SECTION_SUMMARY_MAX_CHARS = 200;
  * retained card whose source is currently absent, archived or unconfirmed (it may come back with the piece).
  */
 /** missing: source currently invisible or unconfirmed; retained card data is not task-reading authority. */
-export type KnowledgeCardState = "pending" | "ready" | "listed" | "failed" | "over_quota" | "missing";
+export type KnowledgeCardState = keyof typeof STATE_VOCABULARIES.knowledgeCard.states;
 export const KNOWLEDGE_CARD_STATES = ["pending", "ready", "listed", "failed", "over_quota", "missing"] as const satisfies readonly KnowledgeCardState[];
 export type KnowledgeEditableField = "title" | "brief" | "keywords";
 export interface KnowledgeCardFields { title: string; brief: string; keywords: string[] }

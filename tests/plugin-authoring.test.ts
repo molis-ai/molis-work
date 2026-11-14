@@ -75,7 +75,7 @@ test("wire Manifest rejects missing shapes, invalid permissions and incompatible
   ] }), (error: unknown) => (error instanceof ActionError && error.kind === "invalid") && error.code === "plugin.entrypoint_missing");
 });
 
-test("real Plugin CLI validates in a clean directory without executing entrypoint or modifying input", () => {
+test("SMP-12 real Plugin CLI validates in a clean directory without executing entrypoint or modifying input", () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-plugin-cli-"));
   try {
     const manifestPath = join(directory, "manifest.json");
@@ -86,7 +86,8 @@ test("real Plugin CLI validates in a clean directory without executing entrypoin
     const invoke = (...args: string[]) => spawnSync(process.execPath, [cli, ...args], { cwd: directory, encoding: "utf8" });
     const valid = invoke("validate", manifestPath);
     assert.equal(valid.status, 0, valid.stderr);
-    assert.deepEqual(JSON.parse(valid.stdout), { valid: true, plugin_id: "io.molis.work.example.notes", version: "1.0.0" });
+    assert.deepEqual(JSON.parse(valid.stdout), { valid: true, plugin_id: "io.molis.work.example.notes", version: "1.0.0",
+      state_machine_notes: ["此 Manifest 未声明状态机；有状态的插件可填写 state_machines。"] });
     assert.equal(readFileSync(manifestPath, "utf8"), bytes);
     assert.equal(existsSync(join(directory, "executed")), false);
     writeFileSync(manifestPath, JSON.stringify({ ...manifest(), host_api_version: 2 }));

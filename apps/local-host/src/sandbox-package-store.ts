@@ -20,6 +20,8 @@ const missingOr = (error: unknown, said: string) => (error as { code?: unknown }
 
 
 const BUNDLE_FILE = 'bundle.json';
+export const sandboxEditionKey = (pluginId: string, keyId: string, version: string) =>
+  createHash('sha256').update(JSON.stringify([pluginId, keyId, version])).digest('hex').slice(0, 32);
 
 /**
  * What the Host runs a verified package from: the release, with the trust its publisher's pinned key gives it. An integration package
@@ -40,6 +42,7 @@ export function packagedRelease(pkg: KeptPackage, directory: string, publishedAt
     nodes: app.nodes, manifest: { version: /* @version format.builder.build-manifest */ 1, pluginId: contract.pluginId, revision: contract.revision, effects: pkg.permissions },
     directory, bundlePath: join(directory, SANDBOX_PACKAGE_FILES.entrypoint), packagePath: directory, permissions: pkg.permissions, publishedAt, prompts: app.prompts,
     packaged: { manifest, localePacks: pkg.localePacks, ...('agentBodies' in pkg ? { agentBodies: pkg.agentBodies } : {}), ...(blueprint ? { blueprint } : {}),
+      ...('entrypoint' in pkg ? { entrypointSha256: createHash('sha256').update(pkg.entrypoint).digest('hex') } : {}),
       trust: { level: 'pinned', publisher_key_id: manifest.publisher.signature } },
   };
 }
@@ -48,7 +51,7 @@ export class SandboxPackageStore {
   constructor(private readonly home: string) {}
 
   private directory(pluginId: string, keyId: string, version: string): string {
-    return join(this.home, 'plugin-packages', createHash('sha256').update(JSON.stringify([pluginId, keyId, version])).digest('hex').slice(0, 32));
+    return join(this.home, 'plugin-packages', sandboxEditionKey(pluginId, keyId, version));
   }
 
   /** Writes a verified package. The same package again changes nothing; other content under the same plugin, publisher and version is refused. */
@@ -139,11 +142,17 @@ export class SandboxPackageStore {
   /** Reads an installed package back, checking it again: its signature, its form, and that it is the package the installation names. */
   /** Offline inspection reads only retained signed bytes and never imports the package or follows symlinks. */
   snapshotManifest(pluginId:string, keyId:string, version:string) {
-    const path = join(this.directory(pluginId,keyId,version),BUNDLE_FILE);
+    return this.snapshotEdition(pluginId, keyId, sandboxEditionKey(pluginId, keyId, version));
+  }
+
+  /** An interrupted upgrade keeps the fixed-size edition key even when the signed version string is long. */
+  snapshotEdition(pluginId: string, keyId: string, edition: string) {
+    if (!/^[0-9a-f]{32}$/u.test(edition)) throw pluginErrors.package_invalid("发行包标识无效");
+    const path = join(this.home, "plugin-packages", edition, BUNDLE_FILE);
     if (!lstatSync(path,{throwIfNoEntry:false})) return undefined;
     const {bundle,key_id} = verifyPluginPackageSignature(JSON.parse(readSnapshotFile(path,64 * 1024 * 1024).toString("utf8")));
     const {manifest} = readKeptPackage(bundle.payload);
-    if (key_id !== keyId || manifest.plugin_id !== pluginId || manifest.version !== version)
+    if (key_id !== keyId || manifest.plugin_id !== pluginId || sandboxEditionKey(pluginId, keyId, manifest.version) !== edition)
       throw pluginErrors.signer_mismatch("留存发行包的身份与安装记录不符");
     return manifest;
   }

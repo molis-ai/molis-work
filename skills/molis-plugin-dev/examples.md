@@ -83,3 +83,5 @@ Connector + Signal + 设置页。`whoami`、连接、断开不进 `feed.capture`
 ## 新开去向的反例
 
 Goals「采用 / 退回」、灵光「丢掉 / 复制内容」是对象上的处置，今天没有「到来时判断亮按钮」的场景和接线。先不要新开 `action_scenes`。
+
+状态机入门可读仓库的[本地样例](../../examples/plugin-sample/README.md)。清单列出状态与家族，SDK 在发布动作内核对转换，状态来自主人保存的计数。命令创建的同款样例也由 `molis-work plugin validate` 检查。需要按旧状态提交的例子见[状态与转换](state-machine.md)。

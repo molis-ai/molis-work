@@ -12,6 +12,7 @@ Molis Work：本地优先的插件基座加多插件工作平台。平台是一�
 | 一个词该叫什么 | `docs/system/GLOSSARY.md` |
 | 改某个包 | 该包 README 的「开发要求」（写法见 `docs/system/DEVELOPMENT-REQUIREMENTS.md`） |
 | 能力怎样注册、发现、调用、授权 | `specs/action-architecture/spec.md` §3 |
+| 添加公开状态、定义插件对象的状态机 | [平台词表](docs/platform/STATE-VOCABULARY.md)、[插件状态机 Skill](skills/molis-plugin-dev/state-machine.md) |
 | 写或改插件 | `skills/molis-plugin-dev/SKILL.md` |
 | 调模型、跑 Agent、提示词、模型设置 | `skills/molis-prologue-ai/SKILL.md`（手册 `docs/platform/PROLOGUE-AI.md`） |
 | 界面、文字与外观 | `DESIGN.md`、`specs/craft-finish/spec.md`、组件板 `/__ui/catalog`、`skills/molis-plugin-dev/text-and-appearance.md` |
@@ -27,6 +28,7 @@ Molis Work：本地优先的插件基座加多插件工作平台。平台是一�
 
 ## 硬约束
 
+- 平台能力的公开状态从 contracts 的[公开词表](docs/platform/STATE-VOCABULARY.md)派生，转换归原来的包。插件自己的状态用 Manifest 申报，写入和流水账归该插件。状态声明变更走合同流程，非法转换由 SDK 拒绝；本批的清单校验先行，启动兑现核对见[第 47 批](specs/post-anticorruption-roadmap/reference/batches/47.md)。
 - **跨模块只走公开合同。** 插件不 import 另一个插件的实现。能力注册一次，由动作目录供页面、工作流、Agent、MCP 使用，不另写名单或宿主分支。
 - **模型调用只经 `horizontal/agent-host`**（唯一依赖 `@prologue/sdk` 的包）。一个 Home 只有一个执行进程，其他入口转发给常驻宿主。
 - **外部插件作者只装 `packages/contracts` 与 `packages/plugin-sdk`。** SDK 只依赖 contracts，不转出私有包；作者和平台共用的运行时工具放在 SDK 里，平台各层取同一份。SDK 算共享核心，改它按共享核心跑全量。
@@ -34,7 +36,7 @@ Molis Work：本地优先的插件基座加多插件工作平台。平台是一�
 - **合同只认现行取值。** 库与带版本文件改结构须升版本、附连续升级步骤；读取时不兜底历史取值；新增兼容或迁移逻辑先写进 `docs/system/CONTRACT-CHANGES.md`「当前保留机制」并经用户确认。
 - **可信身份从调用上下文来**，不从输入读；密钥只给引用。
 - **新的内置插件只有一条路：** 在自己包的 `src/registration.ts` 写 `registration`，项目级给 `project_runtime`，由每个项目的监督器（`apps/local-host/src/project-plugins.ts`）按登记装配，那个文件不为新插件改；Home 级在 Manifest 写 `runtime: { scope: "home" }` 并在登记上给 `runtime`，由 `apps/local-host/src/home-plugins.ts` 装配（写法见 `skills/molis-plugin-dev/host.md`）。`apps/workbench/src/builtin-plugins.ts` 由脚本生成，不手改。构建期手写接线只剩用户批过的 Alchemist 与插件创作台，名单在 `tests/builtin-plugin-assembly-gate.test.ts`，不可照抄。
-- **插件同等待遇。** 官方、个人、创作台生成或第三方用同一套 SDK、合同、装配、平台服务与授权；只有安装信任按发布者签名区分；另有一处不同：装上的插件不能在 Manifest 写升级段（`plugin.upgrade_steps_unsupported`），U4 做完再开放。插件缺什么就补进平台，不给某个插件开私路。
+- **插件同等待遇。** 官方、个人、创作台生成或第三方用同一套 SDK、合同、装配、平台服务与授权；安装信任按发布者签名区分。插件的数据库升级段随 Manifest 申报，由平台按归属执行；已装签名包在用户确认换版时升级。插件缺什么就补进平台，不给某个插件开私路。
 - **插件只提供内容，挂在工作台的位置**，不出自己的整页、不开第二个标签页（例外见 `specs/shell-page-exceptions/spec.md`）。
 - **成果库只收人要留存、引用的固定版本与导入文件**，类型在 manifest `artifacts.produces` 声明；交给别的插件的数据是过程项（`process_items.produces`）。
 - **删除项目只有一份 Host 服务**（`apps/local-host/src/project-deletion-service.ts`），操作者由入口给。

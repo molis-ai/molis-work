@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginProjectDatabaseErrors, type PluginProjectDatabaseRecord } from "@molis-ai/molis-work-plugin-runtime";
-import type { HomePreparationCall, StatementCall, StatementFatal, StatementMessage, StatementReply, StatementRow, StatementValue } from "./project-statement-protocol.js";
+import { type HomePreparationCall, type StatementCall, type StatementFatal, type StatementMessage, type StatementReply, type StatementRow, type StatementValue, isDatabaseUpgrade, type StatementUpgradeDecision } from "./project-statement-protocol.js";
 
 // The process that runs one sandboxed plugin's statements (specs/archive/repository-anti-corruption/slices/sandbox-project-database-limits.md
 // §2). Neither SQLite driver the Host has can interrupt a statement that is running, and `Worker.terminate()` cannot stop a native
@@ -41,7 +41,7 @@ const WORKER = fileURLToPath(new URL("./project-statement-worker.js", import.met
 
 type Step = Exclude<StatementCall, { readonly op: "open" } | { readonly op: HomePreparationCall["op"] }>;
 type Answered = Extract<StatementReply, { ok: true }>;
-interface Waiting { readonly id: number; settle(reply: StatementReply): void; fail(error: unknown): void }
+interface Waiting { readonly id: number; settle(reply: StatementReply): void; fail(error: unknown): void; authorize?: () => void }
 type HomePreparationResult = { readonly ok: true } | { readonly ok: false; readonly error: unknown; readonly interrupted: boolean };
 
 /** The steps of one write transaction, between its BEGIN and its COMMIT; the process is held for it. */
@@ -69,9 +69,11 @@ export class ProjectStatementProcess {
   }
 
   /** Both scratch validation and real initialization run on the existing SQL Worker, under its independent controller. */
-  async prepareHome(request: HomePreparationCall, signal?: AbortSignal): Promise<HomePreparationResult> {
+  async prepareHome(request: HomePreparationCall, signal?: AbortSignal, authorize?: () => void): Promise<HomePreparationResult> {
     return await this.exclusive(async () => {
       signal?.throwIfAborted();
+      if (Boolean(authorize) !== isDatabaseUpgrade(request)) throw new Error("升级准备须由宿主授权提交");
+      authorize?.();
       const child = this.spawn();
       // Preparation must keep its caller alive until the process has actually exited, including after a lost IPC reply.
       child.ref(); child.channel?.ref();
@@ -79,7 +81,7 @@ export class ProjectStatementProcess {
       const startDeadline = Date.now() + startMs;
       let replied = false;
       try {
-        const reply = await this.exchange(child, { ...request, limits: { heapMb, rssMb, sampleMs }, startDeadline, executionMs }, startDeadline + executionMs, signal);
+        const reply = await this.exchange(child, { ...request, limits: { heapMb, rssMb, sampleMs }, startDeadline, executionMs }, startDeadline + executionMs, signal, authorize);
         replied = true;
         if (!reply.ok) {
           const coded = reply.preparationError;
@@ -193,8 +195,13 @@ export class ProjectStatementProcess {
     child.on("message", reply => {
       const message = reply as StatementMessage;
       if (this.child === child && "fatal" in message) { this.kill(fatalError(message)); return; }
+      if (!("id" in message)) return;
       const waiting = this.waiting;
-      if (this.child === child && waiting && "id" in message && message.id === waiting.id) waiting.settle(message);
+      if (this.child !== child || !waiting || message.id !== waiting.id) return;
+      if ("prepared" in message) {
+        if (waiting.authorize) waiting.authorize();
+        else this.kill(pluginProjectDatabaseErrors.process_failed("收到没有授权回调的升级请求"));
+      } else waiting.settle(message);
     });
     child.on("exit", (code, signal) => {
       if (this.child !== child) return;
@@ -221,7 +228,7 @@ export class ProjectStatementProcess {
   }
 
   /** The child enforces the same deadline independently; this timer also bounds a failed controller or IPC. */
-  private exchange(child: ChildProcess, request: StatementCall, deadline: number, signal?: AbortSignal): Promise<StatementReply> {
+  private exchange(child: ChildProcess, request: StatementCall, deadline: number, signal?: AbortSignal, authorize?: () => void): Promise<StatementReply> {
     return new Promise<StatementReply>((resolve, reject) => {
       const id = this.next++;
       const kill = (error: unknown) => { if (this.child === child && this.waiting?.id === id) this.kill(error); };
@@ -229,7 +236,15 @@ export class ProjectStatementProcess {
       const abort = () => kill(signal?.reason ?? new DOMException("Aborted", "AbortError"));
       signal?.addEventListener("abort", abort, { once: true });
       const done = () => { clearTimeout(timer); signal?.removeEventListener("abort", abort); if (this.waiting?.id === id) this.waiting = undefined; };
-      this.waiting = { id, settle: reply => { done(); resolve(reply); }, fail: error => { done(); reject(error); } };
+      this.waiting = { id, settle: reply => { done(); resolve(reply); }, fail: error => { done(); reject(error); },
+        ...(authorize ? { authorize: () => {
+          if (Date.now() >= deadline) { kill(timedOut()); return; }
+          try { signal?.throwIfAborted(); authorize(); }
+          catch (error) { kill(error); return; }
+          const decision: StatementUpgradeDecision = { id, publishUpgrade: true };
+          child.send(decision, error => { if (error) kill(error); });
+        } } : {}),
+      };
       child.send({ ...request, id, deadline }, error => { if (error) kill(pluginProjectDatabaseErrors.process_failed(`项目库的语句进程收不到请求：${error.message}`)); });
     });
   }

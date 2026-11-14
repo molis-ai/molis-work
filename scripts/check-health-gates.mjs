@@ -68,6 +68,7 @@ import { createErrorMetrics } from "./gates/error-metrics.mjs";
 import { actionInputMetrics } from "./gates/action-input-counts.mjs";
 import { CALL_BUDGET_ALLOWANCES, CALL_BUDGET_FILE, callBudgetProblems, contextCallMetric } from "./gates/call-budget.mjs";
 import { errorOwnersWantsText } from "./gates/error-owners.mjs";
+import { reportStateVocabulary, stateVocabularySummary, stateVocabularyWantsText } from "./gates/state-vocabulary.mjs";
 import { pluginRegistryProblems } from "./generate-plugin-registry.mjs";
 
 const USAGE = "usage: check-health-gates.mjs [--base <ref>] [--update] [--report [--top N] [--json]] [--root <dir>]";
@@ -160,7 +161,7 @@ const isVendoredSdk = (file) => /^vendor\/prologue-sdk\/.*\.tgz$/.test(file);
 // cannot hide from them in a directory of that name. `tests/`, `dist/` and `node_modules/` are still skipped.
 const FIXTURES_DIR = /(^|\/)fixtures\//;
 const isStructureSource = (file) => isSource(file) || (FIXTURES_DIR.test(file) && isSource(file.replace(FIXTURES_DIR, "$1")));
-const needsText = (file) => file === CALL_BUDGET_FILE || file.startsWith(CALL_BUDGET_ALLOWANCES) || file.startsWith(GIANT_REGISTRY) || isStructureSource(file) || schemaPatchesWantText(file) || schemaExecsWantText(file) || isTestFile(file) || structureWantsText(file) || docGateInputs(file) || lintWantsText(file) || splitsWantText(file) || errorOwnersWantsText(file) || browserWantsText(file) || hostLinesWantText(file);
+const needsText = (file) => file === CALL_BUDGET_FILE || file.startsWith(CALL_BUDGET_ALLOWANCES) || file.startsWith(GIANT_REGISTRY) || isStructureSource(file) || schemaPatchesWantText(file) || schemaExecsWantText(file) || isTestFile(file) || structureWantsText(file) || docGateInputs(file) || lintWantsText(file) || splitsWantText(file) || errorOwnersWantsText(file) || browserWantsText(file) || hostLinesWantText(file) || stateVocabularyWantsText(file);
 
 // A snapshot is a file list plus a reader: the working tree for the head, a commit read from the object database for the
 // merge-base (no checkout, so it cannot disturb the working tree or another session's worktree).
@@ -496,6 +497,10 @@ if (mergeBase) {
 
 // A2 is informational and is kept out of the metrics that determine admission or write the local baseline.
 const hostLines = reportHostLines(headSnapshot, baseSnapshot, renames);
+const stateVocabulary = await reportStateVocabulary(headSnapshot, baseSnapshot, { renames }).catch(error => ({
+  sites: [], previousSites: null, declaredManifests: 0, findings: [`could not finish the scan: ${error.message}`],
+}));
+if (!report) console.log(stateVocabularySummary(stateVocabulary));
 if (!report) console.log(hostLineSummary(hostLines));
 // R4: the Host entry's importable names, at the merge-base and now; report only until the batch's combined head is read (decision 37 ③).
 if (!report) console.log(hostEntryWidthSummary(measureHostEntryWidth(headSnapshot, root), baseSnapshot ? measureHostEntryWidth(baseSnapshot, root) : null));
@@ -550,11 +555,12 @@ const against = mergeBase ? `merge-base ${mergeBase.slice(0, 8)} (${options.base
 // ---- --report --------------------------------------------------------------------------------------------------------
 if (report) {
   if (flags.has("--json")) {
-    console.log(JSON.stringify({ limits, mergeBase: mergeBase || null, head, base: reference ?? null, giantExceptions: exceptions, giantExceptionChanges, hostLines }, null, 2));
+    console.log(JSON.stringify({ limits, mergeBase: mergeBase || null, head, base: reference ?? null, giantExceptions: exceptions, giantExceptionChanges, hostLines, stateVocabulary }, null, 2));
   } else {
     const env = { top: options.top ? Number(options.top) : undefined };
     console.log(`Health report: working tree${mergeBase ? ` against ${against}` : ""}; limits ${JSON.stringify(limits)}`);
     console.log("\n" + [hostLineSummary(hostLines), ...hostLineDetails(hostLines, env.top)].join("\n"));
+    console.log("\n" + stateVocabularySummary(stateVocabulary));
     for (const metric of METRICS) console.log("\n" + metric.lines(head[metric.id], reference?.[metric.id], env).join("\n"));
     const problems = specProblems();
     console.log(`\nSpec status lines: ${problems.length ? problems.join("; ") : "every specs/ root directory has one"}`);

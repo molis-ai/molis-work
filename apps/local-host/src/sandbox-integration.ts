@@ -126,7 +126,7 @@ export function sandboxedIntegrationDefinition(release: InstalledRelease, approv
       };
       const open = () => {
         if (runner) return runner;
-        const created = runner = createSandboxRunner({ bundlePath: release.bundlePath, contract, grants: approved, services, identity,
+        const created = runner = createSandboxRunner({ bundlePath: release.bundlePath, bundleSha256: release.packaged?.entrypointSha256, contract, grants: approved, services, identity,
           localePacks: sandboxTextPacks(release.packaged!.localePacks) });
         created.catch(() => { if (runner === created) runner = undefined; });
         return created;

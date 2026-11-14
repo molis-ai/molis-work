@@ -34,6 +34,7 @@ import { pageRouteProblems } from "./page-routes.js";
 import { subjectContextProblems } from "./subject-context.js";
 import { createStations, settingsReadActions, stageDataPlacementProblems, viewPlacementProblems } from "./view-placement-declarations.js";
 import { PLUGIN_ID } from "./plugin-id.js";
+import { inspectStateMachineDeclarations } from "./state-machine-declaration.js";
 
 
 
@@ -63,6 +64,7 @@ export function parsePluginManifest(input: unknown): PluginManifest {
   // A plugin with only declarations is held to its own list of keys first, so a key it may not write is refused by name.
   if (manifest.kind === "content") { const problems = inspectContentPlugin(manifest); if (problems.length) refuseDeclarations(problems); }
   inspectOptionalDeclarations(manifest);
+  inspectStateMachineDeclarations(manifest.state_machines, manifest.plugin_id);
   inspectUpgradeCompatibility(manifest);
   inspectPresentation(manifest);
   if (manifest.always_on !== undefined && typeof manifest.always_on !== "boolean") invalid("always_on 必须为布尔值");

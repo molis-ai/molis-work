@@ -29,8 +29,10 @@ export const WORK_LINE_STYLES = `
 @keyframes work-line-pop{from{opacity:0;transform:translateY(6px) scale(.97)}}
 @keyframes work-line-rise{from{opacity:0;transform:translateY(10px)}}
 @keyframes work-line-turn{0%,100%{box-shadow:inset 0 0 0 1px var(--amber)}50%{box-shadow:inset 0 0 0 1px var(--amber),0 0 0 4px color-mix(in srgb,var(--amber) 18%,transparent)}}
-/* The line: what happened on the left, the composer in the middle, what comes next on the right. Its height is constant. */
-.work-line{position:relative;display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,540px) minmax(0,1fr);grid-template-rows:minmax(0,1fr);align-items:center;gap:12px;min-width:0}
+/* The line: what happened on the left, the composer in the middle, what comes next on the right. Its height is constant.
+   The left wing holds what is in progress and what waits for the person, so it keeps 420px before the right one grows: the
+   composer is centred from 1444px up and sits a little right of centre below that. */
+.work-line{position:relative;display:grid;grid-template-columns:minmax(min(420px,40%),1fr) minmax(320px,540px) minmax(200px,1fr);grid-template-rows:minmax(0,1fr);align-items:center;gap:12px;min-width:0}
 .work-line::before{content:"";position:absolute;left:0;right:0;top:50%;height:1px;background:var(--line-strong);pointer-events:none}
 .work-line-track{display:contents}
 .work-line-now{display:none}
@@ -39,8 +41,9 @@ export const WORK_LINE_STYLES = `
 .work-line-wing[data-wing="next"]{grid-column:3;grid-row:1}
 .work-line-slot{grid-column:2;grid-row:1;position:relative;align-self:end;min-width:0}
 .work-line-run{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:8px;height:44px;padding:0 2px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
+.work-line-wing[data-wing="past"] .work-line-run{flex:1 1 0;min-width:min(180px,45%)}
 .work-line-wing[data-wing="past"] .work-line-run>:first-child{margin-left:auto}
-.work-line-wing[data-wing="past"] .work-line-run[data-more]{-webkit-mask-image:linear-gradient(90deg,transparent,#000 12px);mask-image:linear-gradient(90deg,transparent,#000 12px)}
+.work-line-lead{flex:0 1 auto;min-width:0;display:flex;align-items:center;gap:8px}
 .work-line-wing[data-wing="next"] .work-line-run[data-more]{-webkit-mask-image:linear-gradient(270deg,transparent,#000 24px);mask-image:linear-gradient(270deg,transparent,#000 24px)}
 .work-line-label{position:relative;flex:none;padding:0 6px;background:var(--desk);color:var(--faint);font-size:11px;white-space:nowrap}
 ${PRESSABLE}{position:relative;flex:none;display:inline-flex;align-items:center;font:inherit;white-space:nowrap;cursor:pointer;transition:background-color ${HOVER},box-shadow ${HOVER},border-color ${HOVER}}
@@ -48,20 +51,24 @@ ${PRESSABLE}:hover{background:var(--surface-soft)}
 :is(.work-line-head,.work-line-earlier,.work-event,.work-task-mark,.work-task-row-main):focus-visible{outline:var(--focus-stroke);outline-offset:2px}
 ${PRESSABLE}>svg{flex:none;width:14px;height:14px}
 /* The head: which work item the line belongs to, and how many of its events wait for the person. */
-.work-line-head{gap:7px;height:34px;max-width:200px;padding:0 8px 0 9px;border:1px solid var(--line-strong);border-radius:var(--r-control,8px);background:var(--paper);color:var(--ink);font-size:12.5px;font-weight:600}
+.work-line-head{flex:0 1 auto;min-width:calc(3em + 62px);gap:7px;height:34px;max-width:200px;padding:0 8px 0 9px;border:1px solid var(--line-strong);border-radius:var(--r-control,8px);background:var(--paper);color:var(--ink);font-size:12.5px;font-weight:600}
 .work-line-head-name{min-width:0;${ELLIPSIS}}
 .work-line-count{flex:none;display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--amber-soft);color:var(--amber);font-size:11px;font-weight:600;font-variant-numeric:tabular-nums}
 /* The way to the events the left wing cannot hold: how many lie out of sight, one step back per press. */
 .work-line-earlier{gap:1px;height:28px;padding:0 7px 0 3px;border:1px solid var(--line-strong);border-radius:var(--r-control,8px);background:var(--paper);color:var(--ink-soft);font-size:11.5px;font-variant-numeric:tabular-nums}
-.work-line-earlier[hidden]{display:none}
+.work-line-earlier[data-attn]{border-color:var(--amber)}
+.work-line-earlier-attn{display:inline-flex;align-items:center;gap:1px;margin-left:5px;color:var(--amber);font-weight:600}
+.work-line-earlier-attn>svg{width:12px;height:12px}
+:is(.work-line-earlier,.work-line-earlier-attn)[hidden]{display:none}
 /* An event: one thing on the line, registered by a plugin or the Assistant. Its state is a word as well as a look; the tasks behind it show as a ring and a count. */
 .work-event{gap:7px;height:32px;max-width:300px;padding:0 10px 0 6px;border:0;border-radius:16px;background:var(--paper);box-shadow:inset 0 0 0 1px var(--line-strong);color:var(--ink);font-size:12.5px;font-weight:500}
-.work-line-wing[data-wing="past"] .work-event{max-width:min(300px,calc(100% - 16px))}
+.work-line-wing[data-wing="past"] .work-event{max-width:min(300px,calc(100% - 4px))}
+.work-event[data-cut]{visibility:hidden}
 .work-event[aria-current]{box-shadow:inset 0 0 0 1.5px var(--ink)}
 .work-event[data-fresh]{animation:work-line-pop var(--dur-move) var(--ease-spring,var(--ease-quint))}
 .work-event-mark{flex:none;display:inline-grid;place-items:center;width:18px;height:18px;border-radius:5px;background:color-mix(in srgb,var(--event-hue,var(--muted)) 16%,transparent);color:var(--event-hue,var(--muted))}
 .work-event-mark svg{width:12px;height:12px}
-.work-event-name{flex:0 1 auto;min-width:4em;overflow:hidden;text-overflow:ellipsis}
+.work-event-name{flex:0 1 auto;min-width:2em;overflow:hidden;text-overflow:ellipsis}
 .work-event-state{flex:none;font-size:11.5px}
 .work-event-note{flex:0 4 auto;min-width:2.5em;overflow:hidden;text-overflow:ellipsis;color:var(--muted);font-size:11.5px;font-weight:400}
 .work-event-tasks{flex:none;display:inline-flex;align-items:center;gap:3px;color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums}
@@ -75,9 +82,9 @@ ${PRESSABLE}>svg{flex:none;width:14px;height:14px}
 .work-event[data-state="done"]{background:var(--desk);color:var(--ink-soft)}
 .work-event:is([data-state="gone"],[data-state="denied"],[data-state="unreadable"]){background:var(--desk);box-shadow:none;border:1px dashed var(--line-strong);color:var(--muted)}
 .work-line-wing[data-wing="past"] ${QUIET} .work-event-note,.work-event[data-tight] .work-event-note{display:none}
-/* The left wing gives what it holds by its own width (a split view or an open side panel narrows it, not only the window): first the notes go, then the head's name and an unreadable source's words (its glyph and dashed edge stay); a state word never goes. */
-@container work-wing (max-width:460px){.work-event-note{display:none}}
-@container work-wing (max-width:400px){.work-line-head-name,.work-event[data-state="unreadable"] :is(.work-event-name,.work-event-state){display:none}}
+/* The left wing gives what it holds by its own width (a split view or an open side panel narrows it, not only the window): a capsule that cannot hold its name drops its note (the script marks it tight); under 460px an unreadable source keeps its glyph and name, under 340px (a 1024px window) the head and the source keep only their glyphs. A state word never goes. */
+@container work-wing (max-width:460px){.work-event[data-state="unreadable"] .work-event-state,.work-line-lead:has(.work-event) .work-line-head-name{display:none}.work-line-lead:has(.work-event) .work-line-head{min-width:0}}
+@container work-wing (max-width:400px){.work-line-head-name,.work-event[data-state="unreadable"] .work-event-name{display:none}.work-line-head{min-width:0}}
 /* Who a reply is from: the Assistant's mark, or a Character's initial. */
 .work-reply-who{flex:none;display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--rail);color:var(--ink-soft);font-size:10px;font-weight:600}
 .work-reply-who[data-who="assistant"]{border-radius:5px;background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--accent-strong)}
@@ -126,7 +133,8 @@ ${PRESSABLE}>svg{flex:none;width:14px;height:14px}
 .work-task-facts dd>span{min-width:0;${ELLIPSIS}}
 .work-task-facts dd>.mw-btn{margin-left:auto}
 .work-task-step{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:var(--r-row,8px);font-size:12.5px;white-space:nowrap}
-.work-task-step-name{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.work-task-step-name{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.work-task-step-who{flex:none;margin-left:auto;color:var(--muted);font-size:11.5px}
 .work-task-step[data-step="current"]{background:var(--accent-soft)}
 .work-task-step[data-step="todo"]{color:var(--muted)}
 /* A quiet button on a quiet ground still shows where it ends (the workbench draws its secondary buttons without an edge). */
@@ -148,6 +156,9 @@ ${W} ${BUTTON_GROUNDS} .mw-btn--secondary:not(:disabled){border-color:var(--line
 .work-card{display:flex;flex-direction:column;gap:10px;margin:0 0 4px;padding:12px;border:1px solid var(--line-strong);border-radius:var(--r-card,12px);background:var(--paper)}
 .work-card-head{display:flex;align-items:center;gap:8px;min-width:0;margin:-4px -4px -6px 0}
 .work-card-facts{flex:1 1 auto;min-width:0;${ELLIPSIS};color:var(--muted);font-size:12px}
+.work-card-source{display:flex;align-items:center;gap:6px;min-width:0;color:var(--muted);font-size:12px;white-space:nowrap}
+.work-card-source>svg{flex:none;width:14px;height:14px}
+.work-card-source>span{min-width:0;overflow:hidden;text-overflow:ellipsis}
 .work-card-quote{padding:8px 10px;border-radius:var(--r-row,8px);background:var(--surface-soft);color:var(--ink-soft);line-height:1.6}
 .work-card-section{display:flex;flex-direction:column;gap:4px;padding:8px;border:1px solid var(--line);border-radius:var(--r-row,8px)}
 .work-card-section>h4{margin:0 0 2px;padding:0 2px;color:var(--muted);font-size:11px;font-weight:500}
@@ -159,7 +170,7 @@ ${W} ${BUTTON_GROUNDS} .mw-btn--secondary:not(:disabled){border-color:var(--line
 .work-reply-peek p{margin:0}
 .work-reply-mini{align-self:flex-end;display:inline-flex;align-items:center;gap:2px;padding:4px;border-radius:var(--r-card,12px);background:var(--popover);box-shadow:var(--lift-2);animation:work-line-pop var(--dur-hover) var(--ease-quint)}
 /* A dialog tab is as wide as its name (96 to 184), and the strip scrolls: an event's tab has to say which event it is. */
-${W} .assistant-tabs[data-work-line] .assistant-tab{flex:0 0 auto;width:auto;min-width:96px;max-width:184px}
+${W} .assistant-tabs[data-work-tabs] .assistant-tab{flex:0 0 auto;width:auto;min-width:96px;max-width:184px}
 @media (prefers-reduced-motion:reduce){${ANIMATED}{animation:none}}
 html[data-craft-still] ${ANIMATED}{animation:none}
 @media (max-width:1180px){
@@ -173,16 +184,19 @@ html[data-craft-still] ${ANIMATED}{animation:none}
   .work-line-track{display:flex;align-items:center;gap:8px;height:48px;min-width:0;overflow-x:auto;scrollbar-width:none}
   .work-line-wing{flex:none;height:48px}
   .work-line-wing[data-wing="past"]{display:contents}
+  .work-line-lead{flex:none;position:sticky;z-index:2;left:0;height:48px;padding-right:4px;background:var(--desk);box-shadow:6px 0 6px -2px var(--desk)}
+  .work-event[data-cut]{visibility:visible}
+  .work-event[data-state="unreadable"] :is(.work-event-name,.work-event-state){display:none}
   .work-line-slot{align-self:stretch}
   .work-line-run{flex:none;overflow:visible}
   .work-line-earlier{display:none}
   .work-line-now{position:relative;flex:none;display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:11px;background:var(--action);color:var(--action-ink);font-size:11px;font-weight:600}
-  .work-line-head{position:sticky;z-index:2;left:0;height:44px;box-shadow:6px 0 6px -2px var(--desk)}
+  .work-line-head{height:44px;min-width:0}
   .work-line-head-name,.work-event-note{display:none}
   .work-event,.work-line-wing[data-wing="past"] .work-event{height:44px;max-width:240px;border-radius:22px}
-  ${W} .assistant-tabs[data-work-line] .assistant-tab:not([data-current]){display:flex}
-  ${W} .assistant-tabs[data-work-line] .assistant-tab{min-width:72px;max-width:132px}
-  ${W} .assistant-tabs[data-work-line] .assistant-tab[data-current]{max-width:220px}
+  ${W} .assistant-tabs[data-work-tabs] .assistant-tab:not([data-current]){display:flex}
+  ${W} .assistant-tabs[data-work-tabs] .assistant-tab{min-width:72px;max-width:132px}
+  ${W} .assistant-tabs[data-work-tabs] .assistant-tab[data-current]{max-width:220px}
   .work-task-mark{height:36px;min-width:36px;justify-content:center}
   .work-task-mark::after{content:"";position:absolute;inset:-4px}
   :is(.work-task-panel-head,.work-card-head,.work-reply-peek-head,.work-reply-mini) .mw-btn.mw-btn--icon-only{width:44px;height:44px;min-width:44px}

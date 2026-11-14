@@ -3,7 +3,7 @@ import { assistantComposerLabels } from "./assistant-composer-labels.js";
 import type { WebLocale } from "./i18n.js";
 import {
   renderEventCard, renderLineEvent, renderLineHead, renderLineUnreadable, renderOwnerMark, renderReplyCarried, renderReplyMini, renderReplyPeek, renderReplyPlaced,
-  renderReplyReturned, renderReplyWho, renderTabUnread, renderTaskCard, renderTaskFloat, renderTaskMark, renderTaskPanel, renderTaskRow, renderWorkLine,
+  renderReplyReturned, renderReplyWho, renderTabUnread, renderTaskCard, renderTaskFloat, renderTaskMark, renderTaskPanel, renderTaskRow, renderTaskSteps, renderWorkLine,
   type LineEventState, type LineEventView, type LineOwnerView, type TaskRowView,
 } from "./work-line-parts.js";
 
@@ -98,7 +98,7 @@ function replies(all = true): string {
   const placed = round(say("user-ask"), p("assistant-ack")
     + renderReplyPlaced({ task: "t-fix", where: { kind: "new-event", name: e.fix.title } }) + renderReplyPlaced({ task: "t-notes", where: { kind: "none" } }));
   const more = round(say("user-ask-more"), p("assistant-ack-more")
-    + renderReplyPlaced({ task: "t-quote", where: { kind: "supplement", name: e.quote.title } }) + renderReplyPlaced({ task: "t-talk", where: { kind: "for-event", name: e.review.title } })
+    + renderReplyPlaced({ task: "t-quote", where: { kind: "supplement", name: e.quote.title } }) + renderReplyPlaced({ task: "t-room", where: { kind: "for-event", name: e.review.title } })
     + renderReplyPlaced({ task: "t-list", where: { kind: "other-item", name: nav("roll-out-brand-guide") } }));
   const returned = round("", renderReplyReturned(e.fix.title) + p("returned-reply") + renderReplyCarried(1, 3));
   const waiting = round("", renderReplyReturned(say("compare-three-quotes")) + p("needs-you-reply") + `<div class="work-reply-actions">${button("primary", "go-decide", { "data-event-open": "quote" })}</div>`);
@@ -115,6 +115,39 @@ function eventCard(): string {
       + `<div class="work-card-section"><h4>${escapeHtml(say("tasks-behind"))}</h4>${renderTaskRow({ id: t.quote.id, title: t.quote.title, ring: t.quote.ring, step: t.quote.step })}</div>`
       + `<div class="work-card-actions">${button("primary", "pick-first")}${button("secondary", "pick-second")}${button("secondary", "ask-me-later")}</div>`,
   });
+}
+
+/** The card of work that was asked for and is being done: the person's own words, the tasks behind it, and the breakdown with who does each step. */
+function liveCard(): string {
+  const t = tasks();
+  return renderEventCard({
+    id: "fix", facts: say("registered-by-in-progress", { plugin: uiText.text("workbench.assistant-dock.assistant") }),
+    body: `<div class="work-card-quote">${escapeHtml(say("user-ask-fix"))}</div>`
+      + `<div class="work-card-section"><h4>${escapeHtml(say("in-progress"))}</h4>${renderTaskRow({ id: t.fix.id, title: t.fix.title, ring: t.fix.ring, step: t.fix.step, control: "stop" })}</div>`
+      + `<div class="work-card-section"><h4>${escapeHtml(say("breakdown"))}</h4>${renderTaskSteps([{ name: say("read-code-reproduce"), at: "done", who: OWNER.coding.name }, { name: say("change-styles"), at: "done", who: OWNER.coding.name },
+        { name: say("run-tests"), at: "current", who: OWNER.coding.name }, { name: say("update-plan-screenshots"), at: "todo", who: assistant().name }])}</div>`
+      + `<div class="work-card-actions">${button("secondary", "pause")}${renderButton({ variant: "secondary", size: "sm", label: uiText.text("workbench.work-line.stop") })}</div>`,
+  });
+}
+
+/** The card of a result handed back for acceptance: a preview, where it came from, each requirement with the version it was checked against, and what can be done with it. */
+function acceptanceCard(): string {
+  return renderEventCard({
+    id: "plan", facts: say("registered-by-to-accept", { plugin: OWNER.pages.name }),
+    body: `<div class="work-card-quote">${escapeHtml(say("plan-preview"))}</div>`
+      + `<div class="work-card-source">${icon("note")}<span>${escapeHtml(say("plan-source"))}</span></div>`
+      + `<div class="work-card-section"><h4>${escapeHtml(say("requirements-n-of-n"))}</h4>${renderTaskSteps([{ name: say("requirement-three-tiers"), at: "done", who: say("checked-v3") }, { name: say("requirement-comparison-table"), at: "done", who: say("checked-v3") },
+        { name: say("requirement-faq"), at: "current", ring: "answer", who: say("needs-your-look") }])}</div>`
+      + `<div class="work-card-actions">${button("primary", "accept")}${button("secondary", "revise")}${button("secondary", "review-item-by-item")}`
+      + `${renderButton({ variant: "ghost", size: "sm", icon: "external", iconOnly: true, label: say("open-as-tab") })}${renderButton({ variant: "ghost", size: "sm", icon: "bookmark", iconOnly: true, label: say("put-on-shelf") })}</div>`,
+  });
+}
+
+/** What goes with the next message, in the product's own strip above the composer (scripts/client/assistant-context-strip.ts): the hand adds to it, nothing new is drawn. */
+function handStrip(): string {
+  const chip = (key: string) => `<span class="assistant-strip-chip" title="${uiText("workbench.assistant-context-strip.added")}"><span class="assistant-strip-label">${escapeHtml(say(key))}</span>`
+    + `<button type="button" class="assistant-strip-act" aria-label="${escapeHtml(uiText.text("workbench.assistant-context-strip.leave-out-title", { title: say(key) }))}">×</button></span>`;
+  return `<div class="assistant-context-strip" role="group" aria-label="${uiText("workbench.assistant-context-strip.going-send")}">${chip("hand-shelf-item")}${chip("hand-idea")}${chip("hand-file")}</div>`;
 }
 
 function taskCard(): string {
@@ -150,7 +183,7 @@ function dialog(kind: "main" | "narrow" | "event" | "offline"): string {
   const mark = renderTaskMark(offline ? { count: 4, offline: true, expanded: true, panel: panelId } : { count: 4, lead: "answer", needsYou: true, expanded: !onEvent, ...(onEvent ? {} : { panel: panelId }) });
   const minimise = `<button type="button" class="dock-window-action" aria-label="${uiText("workbench.assistant-dock.minimize")}" title="${uiText("workbench.assistant-dock.minimize")}">${icon("chevron-down")}</button>`;
   const thread = onEvent ? eventCard() + round(say("user-on-event"), p("assistant-on-event")) : replies(false);
-  return `<div class="mw-wls__stage" data-work-float-frame${kind === "narrow" ? " data-narrow" : ""}><section class="assistant-panel" id="${id}" data-side="closed" aria-label="${uiText("workbench.assistant-dock.assistant")}"><header class="assistant-tabbar"><div class="assistant-tabs" data-work-line data-overflow-fade role="tablist" aria-label="${uiText("workbench.assistant-dock.open-work")}">${tabs}</div>`
+  return `<div class="mw-wls__stage" data-work-float-frame${kind === "narrow" ? " data-narrow" : ""}><section class="assistant-panel" id="${id}" data-side="closed" aria-label="${uiText("workbench.assistant-dock.assistant")}"><header class="assistant-tabbar"><div class="assistant-tabs" data-work-tabs data-overflow-fade role="tablist" aria-label="${uiText("workbench.assistant-dock.open-work")}">${tabs}</div>`
     + `<span class="assistant-tabbar-actions">${mark}${minimise}</span></header><div class="assistant-body"><div class="assistant-main"><div class="assistant-thread" role="log">${thread}</div></div></div></section>${onEvent ? "" : renderTaskFloat(id, panel(panelId, offline))}</div>`;
 }
 
@@ -168,7 +201,9 @@ export function renderWorkLineSpecimens(specimen: Specimen): string {
   const panels = specimen("wl-task-panel", "4", say("task-panel"), say("task-panel-note"),
     `<div class="mw-wls__panels">${panel()}${taskCard()}${renderTaskPanel({ live: [], returned: [] })}${renderTaskPanel({ live: [t.fix, t.notes], returned: [], offlineSince: "14:32" })}</div>`);
   const reply = specimen("wl-reply", "5", say("under-reply"), say("under-reply-note"), `<div class="mw-wls__thread assistant-thread">${replies()}</div>`);
-  const card = specimen("wl-event-card", "6", say("event-card"), say("event-card-note"), `<div class="mw-wls__thread assistant-thread">${eventCard()}</div>`);
+  const card = specimen("wl-event-card", "6", say("event-card"), say("event-card-note"),
+    `${state("card-live")}<div class="mw-wls__thread assistant-thread">${liveCard()}</div>${state("card-decision")}<div class="mw-wls__thread assistant-thread">${eventCard()}</div>${state("card-acceptance")}<div class="mw-wls__thread assistant-thread">${acceptanceCard()}</div>`);
+  const hand = specimen("wl-hand", "8", say("hand"), say("hand-note"), `<div class="mw-wls__slot">${handStrip()}${composer(assistant())}</div>`);
   const peek = specimen("wl-peek", "7", say("dialog-closed"), say("dialog-closed-note"),
     `<div class="mw-wls__slot">${renderReplyPeek({ who: assistant(), returned: e.fix.title, body: p("peek-reply"), mark: renderTaskMark({ count: 2, lead: "running" }) })}</div>`
     + `<div class="mw-wls__slot">${renderReplyPeek({ who: linxia(), body: p("peek-reply-character"), mark: renderTaskMark({ count: 3, lead: "answer", needsYou: true }) })}</div>`
@@ -178,7 +213,7 @@ export function renderWorkLineSpecimens(specimen: Specimen): string {
     + `${state("nothing-on-line-yet")}${line("empty")}${state("source-unreadable")}${line("unreadable")}`);
   const dialogs = specimen("wl-dialog", "", say("dialog-composed"), say("dialog-composed-note"),
     `${state("main-conversation-panel-open")}${dialog("main")}${state("panel-over-dialog")}${dialog("narrow")}${state("event-tab")}${dialog("event")}${state("disconnected")}${dialog("offline")}`);
-  return capsule + head + mark + panels + reply + card + peek + whole + dialogs;
+  return capsule + head + mark + panels + reply + card + peek + hand + whole + dialogs;
 }
 
 export const workLineSpecimenTitle = () => say("work-line");

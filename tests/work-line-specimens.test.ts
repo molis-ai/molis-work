@@ -22,7 +22,7 @@ test("the board has a 事项线 section whose frame is the navigation frame with
   assert.match(board, /data-nav-frame src="\/__ui\/catalog\/navigation\?lang=zh&amp;sheet=work-line"/u);
   const html = frame("zh");
   assert.match(html, /<link rel="stylesheet" href="\/assets\/molis-work-workbench\.css">/u, "drawn by the sheet the product loads");
-  for (const id of ["wl-event", "wl-head", "wl-task-mark", "wl-task-panel", "wl-reply", "wl-event-card", "wl-peek", "wl-line", "wl-dialog"]) {
+  for (const id of ["wl-event", "wl-head", "wl-task-mark", "wl-task-panel", "wl-reply", "wl-event-card", "wl-peek", "wl-hand", "wl-line", "wl-dialog"]) {
     assert.ok(html.includes(`data-nav-specimen="${id}"`), `specimen ${id}`);
   }
 });
@@ -60,7 +60,7 @@ test("WLN-19: the head says the work item, and how many of its events wait", () 
   }
 });
 
-test("WLN-37: a source that cannot be read never scrolls away, and events out of sight can be brought back (specs/work-line §4.10)", () => {
+test("WLN-37: a source that cannot be read is in the line's lead, outside what scrolls, and the way back to earlier events is drawn (their behaviour: tests/work-line-layout.e2e.test.ts)", () => {
   const html = main(frame("zh"));
   const whole = html.slice(html.indexOf('data-nav-specimen="wl-line"'), html.indexOf('data-nav-specimen="wl-dialog"'));
   const lines = whole.split('<div class="work-line" data-work-line').slice(1);
@@ -70,9 +70,10 @@ test("WLN-37: a source that cannot be read never scrolls away, and events out of
     const run = line.indexOf('class="work-line-run"');
     const earlier = line.indexOf("data-work-line-earlier");
     assert.ok(earlier > 0 && earlier < run, "the way back to earlier events stands before the run, after the head");
-    assert.match(line, /data-work-line-earlier data-label="更早的事件 · \{n\} 件" aria-label="更早的事件" hidden>/u);
+    assert.match(line, /data-work-line-earlier data-label="更早的事件 · \{n\} 件" data-label-attn="更早的事件 · \{n\} 件，其中 \{m\} 件要留意" aria-label="更早的事件" hidden>/u);
+    assert.match(line, /<div class="work-line-lead"><button type="button" class="work-line-head"/u, "the head leads the line");
     const retry = line.indexOf("data-work-line-retry");
-    assert.ok(retry < run, "an unreadable source stands beside the head, outside what scrolls");
+    assert.ok(retry < earlier, "an unreadable source stands in the lead, before the way back and outside what scrolls");
   }
   assert.ok(lines[3]!.includes("data-work-line-retry"));
 });
@@ -125,6 +126,25 @@ test("WLN-35: the panel is placed by the product's rule next to the dialog it be
     assert.ok(html.includes(`<section class="assistant-panel" id="${dialog}"`), dialog!);
     assert.ok(html.includes(`aria-controls="${panel}"`), `the mark names the panel it opens: ${panel}`);
   }
+});
+
+test("WLN-08, WLN-09, WLN-11: the event card has its three forms: work in progress, a decision asked for, a result to accept", () => {
+  const html = main(frame("zh"));
+  const cards = html.slice(html.indexOf('data-nav-specimen="wl-event-card"'), html.indexOf('data-nav-specimen="wl-peek"'));
+  assert.deepEqual([...cards.matchAll(/data-event-card="([^"]+)"/gu)].map(match => match[1]), ["fix", "quote", "plan"]);
+  const [live, decision, acceptance] = cards.split('<article class="work-card"').slice(1) as [string, string, string];
+  assert.match(live, /class="work-card-quote">把首屏错位修了[\s\S]*data-task-control="stop"[\s\S]*class="work-task-step-who">Coding<[\s\S]*class="work-task-step-who">助理</u, "the words asked, the task behind it, and who does each step");
+  assert.match(decision, /data-task-open="t-quote"[\s\S]*选第一家[\s\S]*选第二家/u);
+  assert.match(acceptance, /class="work-card-source"[\s\S]*已核对 v3[\s\S]*等你看[\s\S]*>认可<[\s\S]*>再改改<[\s\S]*>逐项审阅<[\s\S]*aria-label="打开成标签"[\s\S]*aria-label="放到 Shelf"/u);
+  for (const card of [live, decision, acceptance]) assert.match(card, /data-event-park=/u, "every form can be parked in the side panel");
+});
+
+test("WLN-03: what goes with the next message stands in the product's own strip above the one composer", () => {
+  const html = main(frame("zh"));
+  const hand = html.slice(html.indexOf('data-nav-specimen="wl-hand"'), html.indexOf('data-nav-specimen="wl-line"'));
+  assert.match(hand, /<div class="assistant-context-strip" role="group" aria-label="这次发送带上的">/u);
+  assert.equal([...hand.matchAll(/class="assistant-strip-chip"/gu)].length, 3);
+  assert.equal([...hand.matchAll(/class="assistant-strip-act" aria-label="不带上：[^"]+"/gu)].length, 3, "each can be left out");
 });
 
 test("every button in the specimens has a name, in both languages, and no key is shown raw", () => {

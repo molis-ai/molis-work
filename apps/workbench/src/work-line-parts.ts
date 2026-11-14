@@ -77,16 +77,19 @@ export function renderLineHead(head: { readonly name: string; readonly waiting: 
  * The whole line. `past` are the events that happened, `active` the ones being worked on or waiting for the person (they sit
  * next to now, at the end of the left wing), `next` what comes after; `slot` is what stands in the middle (the composer and
  * what floats above it), drawn by the caller. When the left wing cannot hold its events the oldest go out of sight first, and
- * the button after the head says how many and brings them back (the layout script counts and shows it).
+ * the button after the head says how many (and whether one of them asks for attention) and brings them back; the layout script
+ * counts and shows it. The head and any unreadable source are the line's lead: they stay put while the rest scrolls.
  */
 export function renderWorkLine(line: {
   readonly head: string; readonly past: readonly LineEventView[]; readonly active: readonly LineEventView[]; readonly next: readonly LineEventView[];
   readonly unreadable?: readonly string[]; readonly slot: string;
 }): string {
   const run = (events: readonly LineEventView[]) => events.map(renderLineEvent).join("");
-  const earlier = `<button type="button" class="work-line-earlier" data-work-line-earlier data-label="${escapeHtml(uiText.text("workbench.work-line.earlier-events-n", { n: "{n}" }))}" aria-label="${uiText("workbench.work-line.earlier-events")}" hidden>${icon("chevron-left")}<span data-count></span></button>`;
+  const label = (key: string) => escapeHtml(uiText.text(`workbench.work-line.${key}`, { n: "{n}", m: "{m}" }));
+  const earlier = `<button type="button" class="work-line-earlier" data-work-line-earlier data-label="${label("earlier-events-n")}" data-label-attn="${label("earlier-events-n-attention")}" aria-label="${uiText("workbench.work-line.earlier-events")}" hidden>`
+    + `${icon("chevron-left")}<span data-count></span><span class="work-line-earlier-attn" data-attn-count hidden>${icon("circle-alert")}<span data-n></span></span></button>`;
   return `<div class="work-line" data-work-line role="region" aria-label="${uiText("workbench.work-line.work-line")}">`
-    + `<div class="work-line-track" data-work-line-track><div class="work-line-wing" data-wing="past">${line.head}${(line.unreadable ?? []).map(renderLineUnreadable).join("")}${earlier}`
+    + `<div class="work-line-track" data-work-line-track><div class="work-line-wing" data-wing="past"><div class="work-line-lead">${line.head}${(line.unreadable ?? []).map(renderLineUnreadable).join("")}</div>${earlier}`
     + `<div class="work-line-run" role="group" aria-label="${uiText("workbench.work-line.done-and-in-progress")}">${run(line.past)}${run(line.active)}</div></div>`
     + `<span class="work-line-now" aria-hidden="true">${uiText("workbench.work-line.now")}</span>`
     + `<div class="work-line-wing" data-wing="next"><div class="work-line-run" role="group" aria-label="${uiText("workbench.work-line.next")}">${run(line.next)}</div><span class="work-line-label" aria-hidden="true">${uiText("workbench.work-line.next")}</span></div></div>`
@@ -179,6 +182,14 @@ export function renderTaskPanel(panel: {
     + `<div class="work-task-panel-body">${rows}</div>${banner}</section>`;
 }
 
+/** One step of a task's breakdown: done, the one being worked on (with its ring), or still to do; `who` says who does it where a card lists several doers. */
+export interface TaskStepView { readonly name: string; readonly at: "done" | "current" | "todo"; readonly ring?: StateRingState; readonly who?: string }
+
+/** A task's breakdown, one step a row. */
+export function renderTaskSteps(steps: readonly TaskStepView[]): string {
+  return steps.map(step => `<div class="work-task-step" data-step="${step.at}">${ring(step.at === "done" ? "done" : step.at === "current" ? step.ring ?? "running" : "idle")}${text("work-task-step-name", step.name)}${step.who ? text("work-task-step-who", step.who) : ""}</div>`).join("");
+}
+
 export interface TaskCardView {
   readonly id: string;
   /** The panel's element id, when the task mark names what it controls. */
@@ -191,14 +202,14 @@ export interface TaskCardView {
   /** The event it is done for, in words (a new event, none, or for which event). */
   readonly serves: string;
   readonly returnsTo: string;
-  readonly steps: readonly { readonly name: string; readonly at: "done" | "current" | "todo"; readonly ring?: StateRingState }[];
+  readonly steps: readonly TaskStepView[];
   /** The buttons at the card's foot, drawn by the caller: stop, add a note, retry this step, open in its plugin. */
   readonly actions: string;
 }
 
 /** One task's card, in the panel's place, with the way back to the list. The head holds only its name; its state stands with the other facts. */
 export function renderTaskCard(card: TaskCardView): string {
-  const steps = card.steps.map(step => `<div class="work-task-step" data-step="${step.at}">${ring(step.at === "done" ? "done" : step.at === "current" ? step.ring ?? "running" : "idle")}${text("work-task-step-name", step.name)}</div>`).join("");
+  const steps = renderTaskSteps(card.steps);
   const fact = (key: string, value: string, more = "") => `<dt>${uiText(`workbench.work-line.${key}`)}</dt><dd>${more}<span title="${escapeHtml(value)}">${escapeHtml(value)}</span>`;
   return `<section class="work-task-panel"${attr("id", card.panel)} data-task-panel data-task-card="${escapeHtml(card.id)}" role="dialog" aria-label="${escapeHtml(card.title)}">`
     + `<header class="work-task-panel-head">${renderOwnerMark(card.owner)}<span class="work-task-panel-title" title="${escapeHtml(card.title)}">${escapeHtml(card.title)}</span>${iconButton("back", uiText.text("workbench.work-line.back-to-list"), { "data-task-panel-list": "" })}${iconButton("x", uiText.text("workbench.work-line.close"), { "data-task-panel-close": "" })}</header>`

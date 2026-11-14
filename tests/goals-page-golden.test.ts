@@ -191,6 +191,15 @@ const pages: Record<string, Draw> = {
 // shell's materials toolbar and materials stage added, and the plugin-title model without Files (162 / 184 characters shorter in
 // zh / en); the other differences are in executable scripts, the plugin directory and the locale script's address, outside the hash.
 // No Goals markup or JSON changed. The 16 were then recorded with MOLIS_WORK_GOLDEN_RECORD=1; the other 50 records did not change.
+// Main #2056 (2026-11-14, global design language round 1): the current collection fold draws its column names once above the rows
+// (`tree-columns`, +169 en / +146 zh), and the hidden project-home tab's heading became the project's own name under a quiet
+// "Project home" line (en −14 / zh +20). All 66 records matched on independently built 6306758c22. Removing only the column names
+// from the current draws left the 8 refresh records exact, and the 16 whole pages differed only in the home heading. The 24 were
+// then recorded with MOLIS_WORK_GOLDEN_RECORD=1; the other 42 records did not change.
+// Main #2058 (batch 17, risk plugin) with #2063 (design closeout): the shell gained the risk plugin's rail tile and settings
+// row (and the closeout's shell wording), so every whole-page record moved by +2185 en / +1997 zh; the 50 fragment records did
+// not change. The 16 whole pages were re-recorded with MOLIS_WORK_GOLDEN_RECORD=1 on the merge of main 7a4c7f982d; they are
+// the shell's reviewed additions, not a Goals markup change.
 // The hashes below come from the checked draws with RECORD unset. The independent text and data assertions stay in place.
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }

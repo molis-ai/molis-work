@@ -3289,8 +3289,8 @@ Dreaming 是连接这四层的后台过程：拿原文核对笔记、补漏、�
 
 | 内容 | 落点 | 说明 |
 | --- | --- | --- |
-| P1 短合同补整理变更的撤销窗口；P2-02 的「空常驻不发召回」（只改 Molis） | [31-2](../post-anticorruption-roadmap/reference/batches/31.md#batch-31-item-2) | 都在 Agent Host 记忆适配与 P1 历史这一处 |
-| 请 Prologue 补：开轮召回收可信任务语境、候选按范围公平收、会话检索三项、（按 P2-01 合同需要）提炼结果带关系与目标版本 | [62](../post-anticorruption-roadmap/reference/batches/62.md)「请 Prologue 补的清单」 | 阶段 3 的换包窗口 |
+| P1 短合同补整理变更的撤销窗口；P2-02 的「空常驻不发召回」（上游 molis-ai/molis-prologue#121 已做，随这次换包生效、不改 Agent Host） | [31-2](../post-anticorruption-roadmap/reference/batches/31.md#batch-31-item-2) | 都在 Agent Host 记忆适配与 P1 历史这一处 |
+| 请 Prologue 补：开轮召回收可信任务语境、会话检索（上游 #121 已做）；候选按范围公平收（上游试做后撤回，要 Host 能按 scope 区间列行）；按 P2-01 合同需要的「提炼结果带关系与目标版本」 | [62](../post-anticorruption-roadmap/reference/batches/62.md)「请 Prologue 补的清单」 | 阶段 3 的换包窗口 |
 | 记忆样本与逐段定位进评测平台 | [63](../post-anticorruption-roadmap/reference/batches/63.md) | 与 64 共同消费，到 76 汇合 |
 | P2-05 常驻层并进工作记忆 | [64-5](../post-anticorruption-roadmap/reference/batches/64.md#batch-64-item-5) | 热缓存即常驻层 |
 | P2-01 形成质量 | [64-8](../post-anticorruption-roadmap/reference/batches/64.md#batch-64-item-8)（新） | 与整理共用判断合同，先于 64-9 |

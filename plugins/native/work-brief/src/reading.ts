@@ -1,5 +1,4 @@
 import { ActionError, findSubjectReader, type ActionReference, type ActionSubject, type ActionSubjectContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PresentationOverview } from "@molis-ai/molis-work-contracts/platform/presentation";
 import { actionErrorKind, isRecord } from "@molis-ai/molis-work-plugin-sdk";
 import { isPresentationOverviewReader } from "@molis-ai/molis-work-plugin-sdk/presentation";
 import { tryOwnedTextRef } from "@molis-ai/molis-work-plugin-sdk/ui";
@@ -66,8 +65,8 @@ export function overviewReaders(views: readonly ActionView[]): Map<string, Actio
 function overviewOf(value: unknown, owner: string): Pick<SourceRow, "summary" | "subjects"> | null {
   if (!isRecord(value) || !Array.isArray(value.subjects)) return null;
   const summary = tryOwnedTextRef(value.summary, owner);
-  const subjects = (value as unknown as PresentationOverview).subjects.filter(subject => isRecord(subject) && typeof subject.kind === "string" && typeof subject.id === "string")
-    .map(({ kind, id }) => ({ kind, id }));
+  const subjects = value.subjects.flatMap((subject: unknown) => isRecord(subject) && typeof subject.kind === "string" && typeof subject.id === "string"
+    ? [{ kind: subject.kind, id: subject.id }] : []);
   return summary ? { summary, subjects } : null;
 }
 

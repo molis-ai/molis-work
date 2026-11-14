@@ -18,6 +18,9 @@ export async function loadOverview(page: RiskPage, more = false): Promise<void> 
     state.rows = more ? [...state.rows, ...answer.risks] : answer.risks;
     state.owners = answer.owners;
     state.next = answer.next_cursor;
+    // No open risk under the default view is not no risk: a project whose risks are all closed still reaches them (RISK-04).
+    state.anyClosed = !more && !answer.risks.length && status === "open" && !impact && !owner_name && !linked
+      ? (await page.call<{ risks: RiskRow[] }>("risk.list", { status: "closed", limit: 1 })).risks.length > 0 : false;
     state.overviewError = "";
   } catch (error) {
     if (more) throw error;
@@ -73,10 +76,14 @@ function body(page: RiskPage): string {
     return renderAlert({ tone: "danger", title: text("overview.failed"), body: `${text("overview.failed-body")} ${state.overviewError}`.trim(),
       actions: [{ label: text("action.retry"), icon: "refresh", attrs: { "data-rk-act": "reload" } }] });
   }
-  if (!state.rows.length && !filtered(page) && state.filter.status === "open") {
+  if (!state.rows.length && !filtered(page) && state.filter.status === "open" && !state.anyClosed) {
     return renderEmpty({ icon: "shield", title: text("empty.title"), body: text("empty.body"), action: act(text("action.new"), "new", { variant: "primary", icon: "plus" }) });
   }
   const top = filterBar(page, state.rows.length);
+  if (!state.rows.length && state.anyClosed) {
+    return top + renderEmpty({ icon: "shield", title: text("overview.none-open"), body: text("overview.none-open-body"),
+      action: act(text("overview.show-closed"), "filter-status", { value: "closed" }) });
+  }
   if (!state.rows.length) {
     return top + renderEmpty({ icon: "filter", title: text("overview.no-match"), body: text("overview.no-match-body"), action: act(text("overview.clear"), "clear-filter") });
   }

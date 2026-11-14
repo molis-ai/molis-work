@@ -47,7 +47,7 @@ function placeLinks(page: RiskPage): void {
 async function openRecord(page: RiskPage, riskId: string, options: { quiet?: boolean } = {}): Promise<void> {
   const { state } = page;
   const same = state.record?.risk.risk_id === riskId;
-  Object.assign(state, { view: "record", recordError: "", editing: false, conflict: null, pop: "", ...(same ? {} : { record: null, review: null, reviewError: "" }) });
+  Object.assign(state, { view: "record", recordError: "", editing: false, conflict: null, pop: "", ...(same ? {} : { record: null, review: null, reviewError: "", readOnly: false }), recordId: riskId });
   page.render();
   try {
     state.record = await page.call<RecordAnswer>("risk.get", { risk_id: riskId });
@@ -230,7 +230,8 @@ async function onAct(page: RiskPage, action: string, value: string, element: HTM
     case "unlink": if (risk) { const answer = await write(page, "risk.links.remove", { risk_id: risk.risk_id, subject: subjectOf(value) }); if (answer) await reread(page); else page.render(); } return;
     case "link": if (risk && element.getAttribute("aria-disabled") !== "true") { const answer = await write(page, "risk.links.add", { risk_id: risk.risk_id, subject: subjectOf(value) }); if (answer) await reread(page, text("record.linked")); else page.render(); } return;
     case "expand": if (risk) page.host.openItem("risk", risk.risk_id, risk.title); return;
-    case "reload-record": if (risk) await openRecord(page, risk.risk_id); else if (state.record === null) state.view = "overview"; return;
+    // A record that could not be read is tried again by its id; only with none to try does the page go back to the overview.
+    case "reload-record": if (risk ?? state.recordId) await openRecord(page, risk?.risk_id ?? state.recordId); else { state.view = "overview"; await loadOverview(page); } return;
     case "reload-review": state.reviewError = ""; page.render(); await loadReview(page); return;
     case "review-enabled": await reviewCommand(page, "risk.review.enabled", { enabled: value === "true" }); return;
     case "review-cancel": await reviewCommand(page, "risk.review.cancel", {}); return;

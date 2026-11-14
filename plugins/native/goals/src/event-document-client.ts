@@ -722,8 +722,9 @@ ${GOALS_DELIVERABLES_SCRIPT}
         const by = new Map();
         for (const [surface, { kind }] of Object.entries(answer?.surfaces ?? {})) by.set(kind, [...(by.get(kind) ?? []), surface]);
         return new Map([...by].filter(([, surfaces]) => surfaces.length === 1).map(([kind, surfaces]) => [kind, surfaces[0]]));
-      }).catch(() => { citedSurfaces = null; return new Map(); });
-      void citedSurfaces.then((surfaces) => pending.forEach((button) => {
+      }).catch(() => { citedSurfaces = null; return null; });
+      // Not read is not none: the buttons wait unnamed, and the next change to the document asks again.
+      void citedSurfaces.then((surfaces) => surfaces && pending.forEach((button) => {
         if (!button.isConnected) return;
         button.dataset.goalCitedReady = "";
         const surface = surfaces.get(button.dataset.kind);

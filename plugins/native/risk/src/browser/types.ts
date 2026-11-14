@@ -23,6 +23,8 @@ export interface RiskPageState {
   view: "overview" | "record" | "new" | "idle";
   filter: OverviewFilter;
   rows: RiskRow[];
+  /** Under the default view with nothing open: whether closed risks exist, so the page does not say there are none. */
+  anyClosed: boolean;
   owners: string[];
   next: string | null;
   /** The overview could not be read: says so, never shows zero risks. */
@@ -34,6 +36,8 @@ export interface RiskPageState {
   reviewError: string;
   /** The person cannot write (a write was refused for permission): the record is shown read-only. */
   readOnly: boolean;
+  /** The record last asked for, so a failed read can be tried again. */
+  recordId: string;
   editing: boolean;
   /** A save refused because someone else changed the risk: theirs and the person's draft, side by side. */
   conflict: { current: RiskRecord; draft: RiskDraft } | null;

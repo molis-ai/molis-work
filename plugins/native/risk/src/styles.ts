@@ -66,6 +66,7 @@ export const RISK_STYLES = `
 .rk-form{display:flex;flex-direction:column;gap:12px}
 .rk-form__row{display:grid;grid-template-columns:auto auto minmax(160px,1fr);gap:12px;align-items:start}
 [data-risk-side] .rk-form__row{grid-template-columns:minmax(0,1fr)}
+@media (max-width:600px){.rk-form__row{grid-template-columns:minmax(0,1fr)}}
 .rk-review{display:flex;flex-direction:column;gap:8px}
 .rk-review__line{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .rk-review-at{font-size:13px;color:var(--ink-soft)}

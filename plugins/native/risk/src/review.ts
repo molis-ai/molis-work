@@ -94,7 +94,9 @@ export function toRiskReview(task: ScheduleTask, reads: readonly ScheduleReads[]
   const answer = [...task.turns].reverse().find(turn => turn.kind === "assistant");
   const failed = task.turns.at(-1)?.kind === "system" && task.last_error ? task.turns.at(-1)!.text : null;
   const due = task.run_at ? Date.parse(task.run_at) : Number.NaN;
-  const state = task.enabled ? "scheduled" : task.last_run_at || failed || due <= now ? "done" : "paused";
+  // Off before its time is paused, whatever ran earlier (a review run, rescheduled, then paused, can still resume); off once its time has passed is done.
+  const waiting = Number.isNaN(due) ? !task.last_run_at && !failed : due > now;
+  const state = task.enabled ? "scheduled" : waiting ? "paused" : "done";
   const counted = reads ? reads.find(item => item.task_id === task.task_id) : undefined;
   return { task_id: task.task_id, at: task.run_at, state, focus: task.instructions, last_run_at: task.last_run_at,
     result: answer ? { text: answer.text, important: answer.important, at: answer.created_at } : null, failure: failed,

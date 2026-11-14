@@ -32,8 +32,8 @@ export const isPermission = (error: unknown) => {
 };
 
 function initialState(): RiskPageState {
-  return { view: "overview", filter: { status: "open", impact: "", owner_name: "", linked: "" }, rows: [], owners: [], next: null, overviewError: "",
-    loading: true, record: null, recordError: "", review: null, reviewError: "", readOnly: false, editing: false, conflict: null, pop: "", busy: false };
+  return { view: "overview", filter: { status: "open", impact: "", owner_name: "", linked: "" }, rows: [], anyClosed: false, owners: [], next: null, overviewError: "",
+    loading: true, record: null, recordError: "", review: null, reviewError: "", readOnly: false, recordId: "", editing: false, conflict: null, pop: "", busy: false };
 }
 
 /** The page the parts share, on the root the server drew; null when this view is not on the page. */

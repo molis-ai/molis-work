@@ -171,4 +171,9 @@ test("RISK-08 a review that found nothing new, one that failed, and one paused b
   assert.equal(failed.reads, null, "the platform could not say what it may read: unknown, not none");
   const paused = toRiskReview({ ...base, run_at: "2026-11-03T01:00:00.000Z", enabled: false, last_run_at: null, turns: [] }, [], now);
   assert.equal(paused.state, "paused");
+  // Ran once, rescheduled a week out, then paused: still paused (it can resume and be cancelled), not done.
+  const pausedAfterRun = toRiskReview({ ...base, run_at: "2026-11-08T01:00:00.000Z", enabled: false, last_run_at: "2026-11-01T01:00:05.000Z",
+    turns: [{ kind: "user", text: "看", important: false, created_at: "x" }, { kind: "assistant", text: "没有变化。", important: false, created_at: "y" }] }, [], now);
+  assert.equal(pausedAfterRun.state, "paused");
+  assert.deepEqual(pausedAfterRun.result, { text: "没有变化。", important: false, at: "y" }, "the earlier round's result stays shown");
 });

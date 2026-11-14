@@ -5,7 +5,7 @@ import type { ActionCallContext, ActionExecutionContext } from "@molis-ai/molis-
 import type { PluginMethodDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import type { PluginPublisherPin } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
-import { SKILL_EXCERPT_CHARS, SKILL_SETTINGS_LOCKED_REASONS, skillErrors, type SkillAvailability, type SkillBodyReadResult,
+import { SKILL_EXCERPT_CHARS, SKILL_ROUND_AUTO_LIMIT, SKILL_SETTINGS_LOCKED_REASONS, skillErrors, type SkillAvailability, type SkillBodyReadResult,
   type SkillCatalogEntry, type SkillCatalogListRequest, type SkillReadRefusal, type SkillResourceContent, type SkillSettingsSetRequest } from "@molis-ai/molis-work-contracts/services/skills";
 import type { AgentDefinitions } from "./agent-definitions.js";
 import { USES_KEPT, type SkillSetting } from "./skill-settings.js";
@@ -68,8 +68,37 @@ function entry(skill: CatalogSkill, setting: SkillSetting | undefined): SkillCat
     ...(setting ? { enabled: { at: setting.enabled_at, by: setting.enabled_by, scope: setting.scope_ref === "home" ? "home" as const : "project" as const } } : {}) };
 }
 
+/** Rounds whose own picks the catalog still counts: more than any Home runs at once; the oldest leaves first. */
+const ROUNDS_KEPT = 512;
+
 export class SkillCatalog {
+  /**
+   * The `auto` Skills each round read of its own choice, by the round's number (`skill_round.round`): what the limit counts. In memory
+   * only: a round does not outlive the Host that runs it, and what a round used is kept by its owner, from the round's own events.
+   */
+  private readonly picked = new Map<string, Set<string>>();
+
   constructor(private readonly ports: SkillCatalogPorts) {}
+
+  /**
+   * One read of a round's own choice (SKL-02): an `auto` Skill the person did not name, on a call that carries the round's number.
+   * Reading the same one again is free; a different one past `SKILL_ROUND_AUTO_LIMIT` is `over_limit`. The first read of each is
+   * recorded as used: the Host's round is what accepted it, so a read that is no round's (no number) still records nothing.
+   */
+  private pick(skill: CatalogSkill, caller: ActionCallContext, round: string): SkillReadRefusal | undefined {
+    let held = this.picked.get(round);
+    const key = settingKey(skill.ref.install_id, skill.ref.skill_id);
+    if (held?.has(key)) return undefined;
+    if ((held?.size ?? 0) >= SKILL_ROUND_AUTO_LIMIT) return "over_limit";
+    if (!held) {
+      if (this.picked.size >= ROUNDS_KEPT) this.picked.delete(this.picked.keys().next().value!);
+      this.picked.set(round, held = new Set());
+    }
+    held.add(key);
+    this.ports.definitions.skills.recordUse({ ref: skill.ref, name: (skill.display ?? skill.declaration).name, scope_ref: scopeOf(caller),
+      caller: caller.skill_round!.consumer, at: new Date().toISOString() });
+    return undefined;
+  }
 
   private withSnapshot<Result>(caller: ActionCallContext, use: (skills: readonly CatalogSkill[], settings: ReadonlyMap<string, SkillSetting>) => Result): Promise<Result> {
     return this.ports.withSkills(caller, skills => {
@@ -93,7 +122,9 @@ export class SkillCatalog {
     if (!skill.availability.available && !(skill.availability.reason === "native_only" && caller.skill_round?.engine === "local")) return skill.availability.reason;
     if (!applicable(skill, caller)) return "not_applicable";
     if (!setting) return "off";
-    if (setting.state === "manual" && !caller.skill_round?.named.some(named => isDeepStrictEqual(named, ref))) return "not_named";
+    if (caller.skill_round?.named.some(named => isDeepStrictEqual(named, ref))) return undefined;
+    // Not named: a `manual` Skill stays closed, and so does every `auto` one in a round the person asked to run without them.
+    if (setting.state === "manual" || caller.skill_round?.auto === false) return "not_named";
     return undefined;
   }
 
@@ -101,7 +132,9 @@ export class SkillCatalog {
     return this.withSnapshot(caller, (skills, settings) => {
       const byKey = new Map(skills.map(skill => [settingKey(skill.ref.install_id, skill.ref.skill_id), skill]));
       return { results: refs.map(ref => {
-        const key = settingKey(ref.install_id, ref.skill_id), skill = byKey.get(key), reason = this.refusal(skill, ref, caller, settings.get(key));
+        const key = settingKey(ref.install_id, ref.skill_id), skill = byKey.get(key), round = caller.skill_round;
+        const reason = this.refusal(skill, ref, caller, settings.get(key))
+          ?? (round?.round && !round.named.some(named => isDeepStrictEqual(named, ref)) ? this.pick(skill!, caller, round.round) : undefined);
         return reason ? { ref, ok: false as const, reason } : { ref, ok: true as const, name: (skill!.display ?? skill!.declaration).name, body: skill!.body };
       }) };
     });
@@ -110,7 +143,10 @@ export class SkillCatalog {
   readResource(caller: ActionCallContext, ref: SkillRef, path: string): Promise<SkillResourceContent> {
     return this.withSnapshot(caller, (skills, settings) => {
       const skill = skills.find(item => item.ref.install_id === ref.install_id && item.ref.skill_id === ref.skill_id);
-      const reason = this.refusal(skill, ref, caller, settings.get(settingKey(ref.install_id, ref.skill_id)));
+      const round = caller.skill_round;
+      // A resource is its Skill's: reading one is choosing that Skill, so it counts as the body does.
+      const reason = this.refusal(skill, ref, caller, settings.get(settingKey(ref.install_id, ref.skill_id)))
+        ?? (round?.round && !round.named.some(named => isDeepStrictEqual(named, ref)) ? this.pick(skill!, caller, round.round) : undefined);
       if (reason) throw skillErrors.read_refused("这个技能当前不能读取", { reason });
       const resource = skill!.declaration.resources?.find(item => item.path === path);
       if (!resource) throw skillErrors.resource_undeclared("技能没有声明这个附带文件");

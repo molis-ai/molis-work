@@ -518,6 +518,23 @@ export declare const WORK_LINE_EVENT_SCHEMA: {
     additionalProperties: boolean;
 };
 
+export interface WaitingItem {
+    subject: ActionSubject;
+    source: "event" | "task";
+    event_id?: string;
+    task?: ActionSubject;
+    since: string;
+    open: OpenTarget | null;
+}
+
+export interface WaitingReadResult {
+    items: WaitingItem[];
+    counts: {
+        total: number;
+    };
+    issues: MainlineIssue[];
+}
+
 export interface WorkLineEvent extends WorkEvent {
     id: string;
     source: Required<ActionReference>;
@@ -540,6 +557,7 @@ export interface WorkLineReadResult {
 
 export declare const mainlineActions: {
     line: ActionDefinition<WorkEventWindow, WorkLineReadResult>;
+    waiting: ActionDefinition<WorkEventWindow, WaitingReadResult>;
     place: ActionDefinition<TaskPlaceRequest, TaskPlaceResult>;
     tasks: ActionDefinition<Record<string, never>, BackgroundTasksReadResult>;
     command: ActionDefinition<BackgroundTaskCommandRequest, BackgroundTaskCommandResult>;

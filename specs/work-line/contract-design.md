@@ -137,15 +137,16 @@ placement 已有「主人记关联、平台按声明操作」的机制：主人�
 ## 6. 等你的统一读取
 
 ```ts
-// attention.waiting.read@1（查询，项目范围）
-output: { items: Array<{ subject: ActionSubject; source: "attention" | "task" | "event" | "missed_run";
-                         since: string; task?: ActionSubject; open: OpenTarget | null }>;
-          counts: { total: number } }
+// attention.waiting.read@1（查询，项目范围；输入与线读取相同的时间窗口）
+output: { items: Array<{ subject: ActionSubject; source: "event" | "task";
+                         event_id?: string; task?: ActionSubject; since: string; open: OpenTarget | null }>;
+          counts: { total: number };
+          issues: Array<{ source: ActionReference; title: string; code: string }> }
 ```
 
-- 读时合并四处：Attention 条目、总表里等你的任务、事件登记里要你处理的事件、错过的运行；同一对象只算一次。线头的数字、事件上的等你、面板里的等你用同一次结果（WLN-39）。
-- 写侧不动；第 56 批把来源收进 Attention 后，这个动作改成只问一处，调用方不用改。
-- 放在哪：动作名归 Attention；合并要读事件与总表，实现放在宿主装配的一小段里调两边的端口。待核：公共合同台是否要求合并逻辑进 `horizontal/mainline`。
+- 同一个对象只算一次：线上等你的事件是一项（背后有任务等你时带上那个任务，`source` 是 `task`；主人自己说等你时是 `event`）；不为线上任何事件办的等你任务单独一项。线头的数字、事件上的等你、面板里的等你用同一次结果（WLN-39）。
+- **实现时的调整（2026-11-14，已随代码落地，`readWaiting`）。** 原稿写「读时合并四处」，其中 Attention 条目和错过的运行不另读一遍：Inbox 已经把每条未处理的 Attention 条目登记成等你的事件（对象是 `inbox_entry`），再直接读一次 Attention 表会把同一件事按两个对象各算一次；错过的运行由平台的任务提供方作为等你的任务行给出。所以这个动作只从线读取与任务总表的同一次结果推出，放在 `horizontal/mainline`（原稿的待核项就此定了），输入是线的时间窗口。
+- 写侧不动；第 56 批把来源收进 Attention 后，这个动作改成只问一处，调用方不用改。动作名归 Attention，暂由 `system.mainline` 提供。
 
 ## 7. 对象引用与打开
 

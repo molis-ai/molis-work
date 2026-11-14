@@ -262,7 +262,7 @@ Repository 仅内部可见是目标约束；当前 Goals/Artifacts 等 public en
 | `horizontal/connector-host` | 横向 | 6 | 897 | `connection-store.ts` 452 | 1 | 2 | 1 | 在用 | 浅 | 已审 |
 | `horizontal/kit` | 横向 | 1 | 224 | `index.ts` 224 | 1 | 1 | 1 | 在用 | 浅 | 待审 |
 | `horizontal/knowledge` | 横向 | 11 | 1,388 | `index.ts` 426 | 1 | 2 | 1 | 在用 | 浅 | 待审 |
-| `horizontal/mainline` | 横向 | 1 | 245 | `index.ts` 245 | 1 | 2 | 1 | 在用 | 浅 | 待审 |
+| `horizontal/mainline` | 横向 | 1 | 269 | `index.ts` 269 | 1 | 2 | 1 | 在用 | 浅 | 待审 |
 | `horizontal/memory` | 横向 | 23 | 3,180 | `service.ts` 1,151 | 1 | 1 | 1 | 在用 | 中 | 已审 |
 | `horizontal/placement` | 横向 | 6 | 908 | `index.ts` 617 | 1 | 2 | 1 | 在用 | 中 | 已审 |
 | `horizontal/runtime-host` | 横向 | 2 | 436 | `adapters/terminal-pty.ts` 424 | 1 | 1 | 2 | 在用 | 浅 | 已审 |

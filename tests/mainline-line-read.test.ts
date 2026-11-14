@@ -106,3 +106,32 @@ test("WLN-37 the mainline service and its Host wiring name no plugin: a registra
     assert.doesNotMatch(source(file), /io\.molis\.work\.|coding|todo|feed|inbox|goals|system\.assistant/i, file);
   }
 });
+
+test("WLN-39 attention.waiting.read counts what waits on the person once per object, from the same line and task table: the number at the head of the line, the marks on events and the panel's waiting rows agree", { timeout: 60_000 }, async t => {
+  const plugin = backgroundPlugin(() => ({ source: SOURCE, tasks: [
+    task("t-wait", ["e-task"], { waiting: true, state: "answer", updated_at: at(9) }), task("t-wait-2", ["e-task"], { waiting: true, state: "approval", updated_at: at(8) }),
+    task("t-free", [], { waiting: true, state: "answer", updated_at: at(7), open: { kind: "item", surface: "example", id: "t-free", title: "任务", label: "打开" } }),
+    task("t-off-line", ["not-on-the-line"], { waiting: true, state: "answer", updated_at: at(6) }), task("t-run", ["e-own"]),
+  ] }));
+  plugin.state.events = () => ({ source: SOURCE, events: [event("e-task", "occurred", 5), event("e-own", "today", 4, { needs_attention: true }), event("e-both", "active", 3, { needs_attention: true }), event("e-quiet", "active", 2)] });
+  const rig = await backgroundRig(t, plugin, ["A"]);
+  const a = rig.project("A"), client = rig.host.actionClient(a), me = person(a.project_id, [MAINLINE_READ_PERMISSION, "homebg:read"]);
+  const waiting = await client.invoke(me, mainlineActions.waiting, WINDOW);
+  assert.deepEqual(waiting.items.map(item => [item.subject.id, item.source, item.task?.id]), [
+    ["e-task", "task", "t-wait"],        // an event with two tasks waiting behind it is one item
+    ["t-free", "task", "t-free"],        // a waiting task that serves no event
+    ["t-off-line", "task", "t-off-line"], // one whose event is not on this line
+    ["e-own", "event", undefined], ["e-both", "event", undefined],  // events their owner says wait
+  ]);
+  assert.deepEqual(waiting.counts, { total: 5 });
+  assert.deepEqual(waiting.items[1]!.open, { kind: "item", surface: "example", id: "t-free", title: "任务", label: "打开" });
+  // The same call's line and table say the same: every waiting event of the line is in it, and every waiting row of the panel is behind one of its items.
+  const line = await client.invoke(me, mainlineActions.line, WINDOW), table = await client.invoke(me, mainlineActions.tasks, {});
+  assert.deepEqual(line.events.filter(row => row.waiting).map(row => row.id).sort(), waiting.items.flatMap(item => item.event_id ? [item.event_id] : []).sort());
+  const covered = new Set(waiting.items.flatMap(item => [item.subject.id, ...(item.task ? [item.task.id] : [])]));
+  for (const row of table.tasks.filter(task => task.waiting)) assert.ok(covered.has(row.subject.id) || row.serves.some(served => covered.has(served.id)), row.subject.id);
+  // Nothing waits: an empty answer, not an error.
+  plugin.state.answer = () => ({ source: SOURCE, tasks: [] }); plugin.state.events = () => ({ source: SOURCE, events: [event("e-quiet", "active", 2)] });
+  assert.deepEqual(await client.invoke(me, mainlineActions.waiting, WINDOW), { items: [], counts: { total: 0 }, issues: [] });
+  await assert.rejects(client.invoke(person(a.project_id, ["homebg:read"]), mainlineActions.waiting, WINDOW), code("actions.forbidden"));
+});

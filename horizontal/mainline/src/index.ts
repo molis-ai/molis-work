@@ -4,7 +4,7 @@ import { ActionError, BACKGROUND_TASKS_OUTPUT_TYPE, TASK_SERVES_RELATION, WORK_E
   type WorkEventCollection, type WorkEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 import { STATE_RING_FAMILIES, type StateRingState } from "@molis-ai/molis-work-contracts/platform/ui";
 import { mainlineErrors, type BackgroundTaskCommandRequest, type BackgroundTaskCommandResult, type BackgroundTaskRow, type BackgroundTasksReadResult, type MainlineIssue, type TaskPlaceRequest, type TaskPlaceResult,
-  type WorkLineEvent, type WorkLineReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
+  type WaitingItem, type WaitingReadResult, type WorkLineEvent, type WorkLineReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
 import { createExecutionLifetime, isHomeAggregateQuery } from "@molis-ai/molis-work-plugin-sdk";
 
 // The mainline service (specs/work-line §5–§6): it finds a project's event registrants and task providers in the caller's own
@@ -170,6 +170,7 @@ const FAMILY: ReadonlyMap<string, string> = new Map(STATE_RING_FAMILIES.flatMap(
 const UNDER_WAY: ReadonlySet<string> = new Set(["running", "waiting", "syncing", "retrying"]);
 const WING = { occurred: "done", active: "now", today: "next" } as const;
 const subjectKey = (subject: ActionSubject) => JSON.stringify([subject.kind, subject.id]);
+const sameSubject = (a: ActionSubject, b: ActionSubject) => a.kind === b.kind && a.id === b.id;
 
 /**
  * `mainline.line.read@1`: one discovery, then every registrant and the task table in parallel. Each event is placed by its owner,
@@ -178,6 +179,11 @@ const subjectKey = (subject: ActionSubject) => JSON.stringify([subject.kind, sub
  * first. A registrant that is off in the project says nothing; one that cannot answer is an issue by its code (WLN-37, WLN-38).
  */
 export async function readWorkLine(caller: ActionCallContext, client: ActionClient, window: WorkEventWindow): Promise<WorkLineReadResult> {
+  return (await lineAndTable(caller, client, window)).line;
+}
+
+/** The line and the task rows it was placed with, from one discovery and one round of reads. */
+async function lineAndTable(caller: ActionCallContext, client: ActionClient, window: WorkEventWindow): Promise<{ line: WorkLineReadResult; tasks: BackgroundTaskRow[] }> {
   assertWorkEventWindow(window);
   const reader: ActionCallContext = { ...caller, query_only: true };
   const directory = await client.discover(reader);
@@ -202,7 +208,26 @@ export async function readWorkLine(caller: ActionCallContext, client: ActionClie
     events.filter(event => event.wing === wing).sort((a, b) => order[wing](a, b) || a.id.localeCompare(b.id)).forEach((event, rank) => { event.rank = rank; });
   }
   const WINGS = ["done", "now", "next"];
-  return { events: events.sort((a, b) => WINGS.indexOf(a.wing) - WINGS.indexOf(b.wing) || a.rank - b.rank), issues: [...issues, ...table.issues] };
+  return { line: { events: events.sort((a, b) => WINGS.indexOf(a.wing) - WINGS.indexOf(b.wing) || a.rank - b.rank), issues: [...issues, ...table.issues] }, tasks: table.tasks };
+}
+
+/**
+ * `attention.waiting.read@1`: what waits on the person, from the same line and task table a line read uses, each object once
+ * (WLN-39). An event that waits is one item, with the task that waits behind it when one does; a waiting task that serves no event
+ * of the line is its own item. Newest first.
+ */
+export async function readWaiting(caller: ActionCallContext, client: ActionClient, window: WorkEventWindow): Promise<WaitingReadResult> {
+  const { line, tasks } = await lineAndTable(caller, client, window);
+  const waitingTasks = tasks.filter(task => task.waiting), onLine = new Set(line.events.map(event => subjectKey(event.subject)));
+  const items: WaitingItem[] = line.events.filter(event => event.waiting).map(event => {
+    const task = waitingTasks.find(candidate => candidate.serves.some(served => sameSubject(served, event.subject)));
+    return { subject: event.subject, source: task ? "task" : "event", event_id: event.id, ...(task ? { task: task.subject } : {}), since: task?.updated_at ?? event.occurred_at, open: event.open };
+  });
+  for (const task of waitingTasks) {
+    if (!task.serves.some(served => onLine.has(subjectKey(served)))) items.push({ subject: task.subject, source: "task", task: task.subject, since: task.updated_at, open: task.open });
+  }
+  items.sort((a, b) => b.since.localeCompare(a.since) || subjectKey(a.subject).localeCompare(subjectKey(b.subject)));
+  return { items, counts: { total: items.length }, issues: line.issues };
 }
 
 /** What a part of the `serves` relation returns: the events the task is done for now. Anything else is not the owner's answer. */
@@ -211,7 +236,6 @@ function servesOf(output: unknown): ActionSubject[] {
   if (!serves || serves.includes(null)) throw mainlineErrors.owner_answer_invalid("任务的主人给出的回答读不了，请稍后重试");
   return serves as ActionSubject[];
 }
-const sameSubject = (a: ActionSubject, b: ActionSubject) => a.kind === b.kind && a.id === b.id;
 
 /**
  * `mainline.place@1`: the first placement of a task and every later change (specs/work-line §5, WLN-32, WLN-34). The owner of the

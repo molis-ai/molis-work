@@ -224,6 +224,7 @@
     "action.assistant.threads.status": 1,
     "action.assistant.threads.stop": 1,
     "action.assistant.works.related": 1,
+    "action.attention.waiting.read": 1,
     "action.background.tasks.command": 1,
     "action.background.tasks.read": 1,
     "action.blueprints.adoption.apply": 1,

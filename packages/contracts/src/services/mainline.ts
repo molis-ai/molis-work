@@ -1,6 +1,6 @@
 import { inputSchemaFor } from "../platform/action-input.js";
-import { ACTION_REFERENCE_SCHEMA, ACTION_SUBJECT_SCHEMA, BACKGROUND_TASK_SCHEMA, WORK_EVENT_SCHEMA, WORK_EVENT_SOURCE_SCHEMA, WORK_EVENT_WINDOW_SCHEMA, defineErrorCodes,
-  type ActionDefinition, type ActionReference, type ActionSubject, type BackgroundTask, type BackgroundTaskCollection, type BackgroundTaskCommand, type WorkEvent, type WorkEventCollection,
+import { ACTION_REFERENCE_SCHEMA, ACTION_SUBJECT_SCHEMA, BACKGROUND_TASK_SCHEMA, OPEN_TARGET_SCHEMA, WORK_EVENT_SCHEMA, WORK_EVENT_SOURCE_SCHEMA, WORK_EVENT_WINDOW_SCHEMA, defineErrorCodes,
+  type ActionDefinition, type ActionReference, type ActionSubject, type BackgroundTask, type BackgroundTaskCollection, type BackgroundTaskCommand, type OpenTarget, type WorkEvent, type WorkEventCollection,
   type WorkEventWindow } from "../platform/actions.js";
 import type { StateRingState } from "../platform/ui-state-rings.js";
 
@@ -60,6 +60,25 @@ export interface BackgroundTaskCommandRequest { source: Required<ActionReference
 export interface BackgroundTaskCommandResult { role: BackgroundTaskCommand["role"]; output: unknown }
 
 /**
+ * One thing that waits on the person in this project (specs/work-line §6, WLN-39): an event of the line that waits, by itself or
+ * because a task behind it does, or a waiting task that serves no event of the line. Each object is counted once. The number at
+ * the head of the line, the mark on an event and the task panel read this one answer.
+ */
+export interface WaitingItem {
+  /** The event, or the task when it serves no event of the line. */
+  subject: ActionSubject;
+  /** `task`: a task waits (behind the event, or on its own); `event`: the event's owner says it waits. */
+  source: "event" | "task";
+  /** The line's id of the event, when the item is an event. */
+  event_id?: string;
+  /** The task that waits, when one does. */
+  task?: ActionSubject;
+  since: string;
+  open: OpenTarget | null;
+}
+export interface WaitingReadResult { items: WaitingItem[]; counts: { total: number }; issues: MainlineIssue[] }
+
+/**
  * Where a task goes (specs/work-line §5): onto an event of the line, onto a new event of its own, or to no event. The first
  * placement and a later change are the same call. `window` is the line the caller is looking at: an event is accepted only if a
  * registrant the caller can read reports it there.
@@ -108,6 +127,18 @@ export const mainlineActions = {
     kind: "query", effect: "read", audiences: ["user", "agent", "workflow", "mcp"], permissions: [MAINLINE_READ_PERMISSION],
     input_schema: inputSchemaFor<WorkEventWindow>()(WORK_EVENT_WINDOW_SCHEMA),
     output_schema: { type: "object", properties: { events: { type: "array", items: WORK_LINE_EVENT_SCHEMA }, issues: { type: "array", items: ISSUE_SCHEMA } }, required: ["events", "issues"], additionalProperties: false } } } as ActionDefinition<WorkEventWindow, WorkLineReadResult>,
+  /**
+   * What waits on the person, merged at read time from the line and the task table of the same call, each object once. What the
+   * Attention entries and missed runs say reaches it through their registrants and task providers, not through a read of its own.
+   */
+  waiting: { capability_id: "attention.waiting.read", version: /* @version action.attention.waiting.read */ 1, operation: "query", action: { ...metadata,
+    title: "等你处理的", description: "读取这个项目里此刻等你处理的事件与后台任务，同一个对象只算一次，供线头的数字、事件上的标记与后台任务面板共用；只读。",
+    kind: "query", effect: "read", audiences: ["user", "agent", "workflow", "mcp"], permissions: [MAINLINE_READ_PERMISSION],
+    input_schema: inputSchemaFor<WorkEventWindow>()(WORK_EVENT_WINDOW_SCHEMA),
+    output_schema: { type: "object", properties: { items: { type: "array", items: { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, source: { enum: ["event", "task"] },
+      event_id: { type: "string", minLength: 1, maxLength: 1000 }, task: ACTION_SUBJECT_SCHEMA, since: { type: "string", minLength: 1, maxLength: 64 }, open: { anyOf: [{ type: "null" }, OPEN_TARGET_SCHEMA] } },
+      required: ["subject", "source", "since", "open"], additionalProperties: false } }, counts: { type: "object", properties: { total: count }, required: ["total"], additionalProperties: false },
+      issues: { type: "array", items: ISSUE_SCHEMA } }, required: ["items", "counts", "issues"], additionalProperties: false } } } as ActionDefinition<WorkEventWindow, WaitingReadResult>,
   /**
    * Placement and its later change: the owner of the task is found by its `serves` declaration and asked as the caller. Nothing of
    * the task's authority, budget or data scope is touched, and the service keeps no record of its own.

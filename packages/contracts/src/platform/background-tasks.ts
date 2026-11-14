@@ -72,3 +72,32 @@ export function defineBackgroundTasksAction(capabilityId: string, version: numbe
     input_type: BACKGROUND_TASKS_INPUT_TYPE, output_type: BACKGROUND_TASKS_OUTPUT_TYPE,
     input_schema: inputSchemaFor<Record<string, never>>()({ type: "object", properties: {}, additionalProperties: false }), output_schema: BACKGROUND_TASK_COLLECTION_SCHEMA } };
 }
+
+/**
+ * Which event a task is done for (specs/work-line §5) is kept by the task's owner. The owner declares these parts on its own
+ * actions with `placement_relation` (the relation is `serves`), for the task kinds it names; the mainline service finds them by
+ * the declaration, never by a capability id, and calls them as the caller. `list` says what the task serves now and is where the
+ * owner refuses a task the caller may not read; `bind` makes it serve exactly the given event; `release` makes it serve nothing;
+ * `create` registers the task as an event of its own. An owner that offers no part cannot have its tasks moved.
+ */
+export const TASK_SERVES_RELATION = "serves";
+export type TaskServesRole = "list" | "bind" | "release" | "create";
+export interface TaskServesInput { task: ActionSubject }
+export interface TaskServesBindInput { task: ActionSubject; event: ActionSubject }
+export interface TaskServesResult { serves: ActionSubject[] }
+const servesResult = { type: "object", properties: { serves: { type: "array", maxItems: 20, items: ACTION_SUBJECT_SCHEMA } }, required: ["serves"], additionalProperties: false };
+const SERVES_WORDS: Record<TaskServesRole, string> = {
+  list: "读取一个后台任务此刻为哪些事件办；只读。", bind: "把一个后台任务改为只为给定的事件办；不改任务的授权、预算与数据范围，任务不停、不重做。",
+  release: "让一个后台任务不再属于任何事件；任务照常进行。", create: "把一个后台任务登记成线上的一个新事件；任务照常进行。",
+};
+export function defineTaskServesAction<Role extends TaskServesRole>(role: Role, capabilityId: string, version: number, kinds: string[], title: string, permissions: string[]):
+  ActionDefinition<Role extends "bind" ? TaskServesBindInput : TaskServesInput, TaskServesResult> {
+  const reads = role === "list";
+  const input = role === "bind"
+    ? inputSchemaFor<TaskServesBindInput>()({ type: "object", properties: { task: ACTION_SUBJECT_SCHEMA, event: ACTION_SUBJECT_SCHEMA }, required: ["task", "event"], additionalProperties: false } as const)
+    : inputSchemaFor<TaskServesInput>()({ type: "object", properties: { task: ACTION_SUBJECT_SCHEMA }, required: ["task"], additionalProperties: false } as const);
+  return { capability_id: capabilityId, version, operation: reads ? "query" : "command", action: { title, description: SERVES_WORDS[role], kind: reads ? "query" : "operation", scope: "project",
+    effect: reads ? "read" : "write", audiences: ["user", "agent"], permissions, subject_kinds: kinds,
+    placement_relation: { relation: TASK_SERVES_RELATION, role, ...(role === "list" ? { target: { kind: "work_event", noun: "事件" } } : {}) },
+    input_schema: input, output_schema: servesResult } } as ActionDefinition<Role extends "bind" ? TaskServesBindInput : TaskServesInput, TaskServesResult>;
+}

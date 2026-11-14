@@ -1,10 +1,10 @@
 import { isDeepStrictEqual } from "node:util";
-import { ActionError, BACKGROUND_TASKS_OUTPUT_TYPE, WORK_EVENTS_INPUT_TYPE, WORK_EVENTS_OUTPUT_TYPE, assertWorkEventWindow, type ActionCallContext, type ActionClient, type ActionReference,
-  type ActionSubject, type ActionView, type BackgroundTask, type BackgroundTaskCollection, type BackgroundTaskCommand, type BackgroundTaskPhrase, type OpenTarget, type WorkEvent,
+import { ActionError, BACKGROUND_TASKS_OUTPUT_TYPE, TASK_SERVES_RELATION, WORK_EVENTS_INPUT_TYPE, WORK_EVENTS_OUTPUT_TYPE, assertWorkEventWindow, type ActionCallContext, type ActionClient, type ActionReference,
+  type ActionSubject, type ActionView, type BackgroundTask, type BackgroundTaskCollection, type BackgroundTaskCommand, type BackgroundTaskPhrase, type OpenTarget, type TaskServesRole, type WorkEvent,
   type WorkEventCollection, type WorkEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 import { STATE_RING_FAMILIES, type StateRingState } from "@molis-ai/molis-work-contracts/platform/ui";
-import { mainlineErrors, type BackgroundTaskCommandRequest, type BackgroundTaskCommandResult, type BackgroundTaskRow, type BackgroundTasksReadResult, type MainlineIssue, type WorkLineEvent,
-  type WorkLineReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
+import { mainlineErrors, type BackgroundTaskCommandRequest, type BackgroundTaskCommandResult, type BackgroundTaskRow, type BackgroundTasksReadResult, type MainlineIssue, type TaskPlaceRequest, type TaskPlaceResult,
+  type WorkLineEvent, type WorkLineReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
 import { createExecutionLifetime, isHomeAggregateQuery } from "@molis-ai/molis-work-plugin-sdk";
 
 // The mainline service (specs/work-line §5–§6): it finds a project's event registrants and task providers in the caller's own
@@ -203,4 +203,42 @@ export async function readWorkLine(caller: ActionCallContext, client: ActionClie
   }
   const WINGS = ["done", "now", "next"];
   return { events: events.sort((a, b) => WINGS.indexOf(a.wing) - WINGS.indexOf(b.wing) || a.rank - b.rank), issues: [...issues, ...table.issues] };
+}
+
+/** What a part of the `serves` relation returns: the events the task is done for now. Anything else is not the owner's answer. */
+function servesOf(output: unknown): ActionSubject[] {
+  const serves = record(output) && Array.isArray(output.serves) && output.serves.length <= 20 ? output.serves.map(subjectOf) : null;
+  if (!serves || serves.includes(null)) throw mainlineErrors.owner_answer_invalid("任务的主人给出的回答读不了，请稍后重试");
+  return serves as ActionSubject[];
+}
+const sameSubject = (a: ActionSubject, b: ActionSubject) => a.kind === b.kind && a.id === b.id;
+
+/**
+ * `mainline.place@1`: the first placement of a task and every later change (specs/work-line §5, WLN-32, WLN-34). The owner of the
+ * task kind is the one provider in the caller's directory that declares the `serves` relation for it; its `list` part is asked
+ * first, so a task the caller may not read is refused by its owner before anything is changed. An event is accepted only if a
+ * registrant the caller can read reports it in the window. The owner then records the change; nothing is kept here, and nothing
+ * of the task's authority, budget or data scope is touched.
+ */
+export async function placeTask(caller: ActionCallContext, client: ActionClient, request: TaskPlaceRequest): Promise<TaskPlaceResult> {
+  const { task, to } = request, reader: ActionCallContext = { ...caller, query_only: true };
+  const directory = await client.discover(caller);
+  const parts = directory.filter(view => view.availability.available && view.action.placement_relation?.relation === TASK_SERVES_RELATION && view.action.subject_kinds.includes(task.kind));
+  const owners = [...new Set(parts.map(view => view.provider.provider_id))];
+  if (owners.length > 1) throw mainlineErrors.relation_ambiguous("有不止一个提供方声明保管这类任务与事件的关系，无法安放", { owners });
+  const part = (role: TaskServesRole) => { const view = parts.find(candidate => candidate.action.placement_relation?.role === role); return view ? referenceOf(view) : null; };
+  const list = part("list"), change = part(to.kind === "event" ? "bind" : to.kind === "new_event" ? "create" : "release");
+  if (!list || !change) throw mainlineErrors.task_not_placeable("这个任务的主人不提供这种安放");
+  if (to.kind === "event" ? !to.subject || !request.window : to.subject !== undefined) throw new ActionError("actions.input_invalid", "安放到事件要给出事件与当前的时间窗口，其余去处不带事件");
+  const before = servesOf(await client.invoke(reader, list, { task }));
+  if (to.kind === "event") {
+    const event = to.subject!;
+    const answers = await gatherWorkEvents(reader, client, request.window!, directory.filter(isWorkEventSource));
+    if (!answers.some(answer => answer.events?.some(reported => sameSubject(reported.subject, event)))) throw mainlineErrors.event_unreadable("线上没有这个事件，或你读不到它");
+    if (before.length === 1 && sameSubject(before[0]!, event)) return { task, serves: before };
+  } else if (to.kind === "none" && !before.length) return { task, serves: [] };
+  const serves = servesOf(await client.invoke(caller, change, to.kind === "event" ? { task, event: to.subject } : { task }));
+  const done = to.kind === "event" ? serves.length === 1 && sameSubject(serves[0]!, to.subject!) : to.kind === "none" ? serves.length === 0 : serves.length === 1;
+  if (!done) throw mainlineErrors.owner_answer_invalid("任务的主人没有按要求记下去处，请重新读取后再试");
+  return { task, serves };
 }

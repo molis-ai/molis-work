@@ -81,11 +81,17 @@ output: {
 ```ts
 // mainline.place@1（命令）：安放与「改」共用
 input: { task: ActionSubject;
-         to: { kind: "event"; subject: ActionSubject }   // 挂到线上的一个事件
-           | { kind: "new_event" }                       // 登记成新事件
-           | { kind: "none" } }                          // 不属于事件
-output: { task: ActionSubject; serves: ActionSubject[]; event?: ActionSubject }
+         to: { kind: "event" | "new_event" | "none"; subject?: ActionSubject };  // 挂到线上的一个事件（带 subject）、登记成新事件、不属于事件
+         window?: WorkEventWindow }                      // 挂到事件时必填：调用方正在看的那条线
+output: { task: ActionSubject; serves: ActionSubject[] }
 ```
+
+实现时定下的几点（2026-11-14，已随代码落地，`placeTask`）：
+
+- **先问主人，再核对事件，最后才改。** 先调主人的 `list`：调用方读不到的任务由主人自己拒绝，原样返回主人的错误码。挂到事件时，事件必须出现在调用方读得到的登记方这一窗口的回答里，否则 `mainline.event_unreadable`。已经在要去的地方就不再写。
+- **主人的回答要对得上。** 改完以后主人返回的 `serves` 必须正是要求的结果（只为那个事件、空、或一个新事件），否则 `mainline.owner_answer_invalid`。
+- **受众与权限。** 本人、Agent、MCP 可调，工作流不可；权限是 `mainline:place`，主人的那一步仍按它自己的权限单独授权。
+- **拒绝码。** `mainline.task_not_placeable`（没有主人为这类任务声明关联，或不提供这一步）、`mainline.relation_ambiguous`（两个提供方为同一类任务声明）、`mainline.event_unreadable`、`mainline.owner_answer_invalid`。
 
 - 它自己不记任何东西：按任务的种类找到主人声明的关联动作（§5）去挂上或解开；「登记成新事件」调主人声明的登记动作（助理的是把这件交办标成事件）。主人没声明的任务不能改挂，返回明确的拒绝。
 - 只接受调用方读得到的任务与事件，别的引用被拒并留诊断行（WLN-34）。不改任务的授权、预算与数据范围。
@@ -121,9 +127,10 @@ interface BackgroundTask {
 
 placement 已有「主人记关联、平台按声明操作」的机制：主人给几个动作标上 `placement_relation`（列出、挂上、解开、候选、新建），placement 在目录里按声明找到它们，今天只服务一个关联名。改动：
 
-- placement 的关联解析从「固定一个名字」改成按调用给的关联名解析；同一个关联名在一个项目里仍只许一个主人对一种对象声明。
-- 任务主人声明关联 `serves`：助理声明在 `assistant_work` 上（记在助理工作里），Coding 的运行归会话是它本来就有的，只在总表的行里给出、不提供改挂。
-- 面板里的「挂到事件」「移开」和助理的安放都经 `mainline.place`，它转给 placement 的这组声明。
+- 任务主人在自己的动作上用 `placement_relation` 声明关联 `serves` 的四步：`list`（现在为哪些事件办）、`bind`（改为只为给定事件办）、`release`（不属于事件）、`create`（登记成新事件）。合同里有现成的定义函数 `defineTaskServesAction`（`platform/background-tasks.ts`，SDK 同名导出），输入输出形状固定。
+- 主线服务按声明和任务的对象种类在调用方的目录里找到主人：同一类任务只许一个提供方声明，两个就拒绝、谁也不调。**实现时的调整（2026-11-14）：** 主线服务自己读这份声明，不经 `horizontal/placement` 的服务代码——那里的解析与返回是按 Goal 关联的形状写的（`goal_id`、候选 Goal），按名字泛化要动它的线上词汇，留给第 44 批；声明合同是同一份，没有为新关联另写一套。
+- 助理声明在 `assistant_work` 上（记在助理工作里），随结果回流那一步做；Coding 的运行归会话是它本来就有的，只在总表的行里给出、不提供改挂。
+- 面板里的「挂到事件」「移开」和助理的安放都经 `mainline.place`。
 
 待核：placement 里与 Goal 关联绑在一起的几处（`placement.goals`、`placement.goal.bind`）是否顺手并到通用入口，还是留给第 44 批；本批只保证不为新关联再写一份。
 

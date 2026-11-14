@@ -13,6 +13,8 @@ export const MAINLINE_PROVIDER_ID = "system.mainline";
 export const MAINLINE_READ_PERMISSION = "mainline:read";
 /** Acting on a task: the action a command names is still authorized on its own when it is called. */
 export const MAINLINE_CONTROL_PERMISSION = "mainline:control";
+/** Saying which event a task is done for: the owner's own part is still authorized on its own when it is called. */
+export const MAINLINE_PLACE_PERMISSION = "mainline:place";
 
 /** A task as a reader gets it: the provider's own row, with the provider it came from. */
 export interface BackgroundTaskRow extends BackgroundTask {
@@ -57,12 +59,28 @@ export interface WorkLineReadResult { events: WorkLineEvent[]; issues: MainlineI
 export interface BackgroundTaskCommandRequest { source: Required<ActionReference>; subject: ActionSubject; command: BackgroundTaskCommand }
 export interface BackgroundTaskCommandResult { role: BackgroundTaskCommand["role"]; output: unknown }
 
+/**
+ * Where a task goes (specs/work-line §5): onto an event of the line, onto a new event of its own, or to no event. The first
+ * placement and a later change are the same call. `window` is the line the caller is looking at: an event is accepted only if a
+ * registrant the caller can read reports it there.
+ */
+export interface TaskPlaceRequest { task: ActionSubject; to: { kind: "event" | "new_event" | "none"; subject?: ActionSubject }; window?: WorkEventWindow }
+export interface TaskPlaceResult { task: ActionSubject; serves: ActionSubject[] }
+
 /** The service's refusals. */
 export const mainlineErrors = defineErrorCodes("mainline", {
   /** The provider a row came from no longer answers this caller. */
   source_changed: "conflict",
   /** The task is gone, or no longer offers the command as it was shown. */
   task_changed: "conflict",
+  /** The task's owner keeps no relation to events for this kind of task, or does not offer this part of it. */
+  task_not_placeable: "invalid",
+  /** Two providers say they keep the relation for the same kind of task: neither is called. */
+  relation_ambiguous: "conflict",
+  /** No registrant the caller can read reports this event in the window. */
+  event_unreadable: "not_found",
+  /** The owner's answer is not what the relation's parts return, or does not say what was asked of it. */
+  owner_answer_invalid: "upstream",
 });
 
 const id = { type: "string", minLength: 1, maxLength: 200 } as const;
@@ -90,6 +108,17 @@ export const mainlineActions = {
     kind: "query", effect: "read", audiences: ["user", "agent", "workflow", "mcp"], permissions: [MAINLINE_READ_PERMISSION],
     input_schema: inputSchemaFor<WorkEventWindow>()(WORK_EVENT_WINDOW_SCHEMA),
     output_schema: { type: "object", properties: { events: { type: "array", items: WORK_LINE_EVENT_SCHEMA }, issues: { type: "array", items: ISSUE_SCHEMA } }, required: ["events", "issues"], additionalProperties: false } } } as ActionDefinition<WorkEventWindow, WorkLineReadResult>,
+  /**
+   * Placement and its later change: the owner of the task is found by its `serves` declaration and asked as the caller. Nothing of
+   * the task's authority, budget or data scope is touched, and the service keeps no record of its own.
+   */
+  place: { capability_id: "mainline.place", version: /* @version action.mainline.place */ 1, operation: "command", action: { ...metadata,
+    title: "安放后台任务", description: "说明一个后台任务为线上的哪个事件办、登记成新事件，或不属于事件；由任务的主人记下，任务不停、不重做，授权、预算与数据范围不变。",
+    kind: "operation", effect: "write", audiences: ["user", "agent", "mcp"], permissions: [MAINLINE_PLACE_PERMISSION],
+    input_schema: inputSchemaFor<TaskPlaceRequest>()({ type: "object", properties: { task: ACTION_SUBJECT_SCHEMA,
+      to: { type: "object", properties: { kind: { enum: ["event", "new_event", "none"] }, subject: ACTION_SUBJECT_SCHEMA }, required: ["kind"], additionalProperties: false }, window: WORK_EVENT_WINDOW_SCHEMA },
+      required: ["task", "to"], additionalProperties: false } as const),
+    output_schema: { type: "object", properties: { task: ACTION_SUBJECT_SCHEMA, serves: { type: "array", maxItems: 20, items: ACTION_SUBJECT_SCHEMA } }, required: ["task", "serves"], additionalProperties: false } } } as ActionDefinition<TaskPlaceRequest, TaskPlaceResult>,
   /** The task panel's read: every provider of the table in this project, asked once each in parallel through the caller's client. */
   tasks: { capability_id: "background.tasks.read", version: /* @version action.background.tasks.read */ 1, operation: "query", action: { ...metadata,
     title: "后台任务", description: "从这个项目里已授权的提供方读取正在办、或等着你处理的后台任务，保留各自的对象与提供方身份；只读，不会执行任务上的动作。",

@@ -280,6 +280,8 @@ export interface BackgroundTasksReadResult {
 
 export declare const MAINLINE_CONTROL_PERMISSION = "mainline:control";
 
+export declare const MAINLINE_PLACE_PERMISSION = "mainline:place";
+
 export declare const MAINLINE_PROVIDER_ID = "system.mainline";
 
 export declare const MAINLINE_READ_PERMISSION = "mainline:read";
@@ -288,6 +290,20 @@ export interface MainlineIssue {
     source: Required<ActionReference>;
     title: string;
     code: string;
+}
+
+export interface TaskPlaceRequest {
+    task: ActionSubject;
+    to: {
+        kind: "event" | "new_event" | "none";
+        subject?: ActionSubject;
+    };
+    window?: WorkEventWindow;
+}
+
+export interface TaskPlaceResult {
+    task: ActionSubject;
+    serves: ActionSubject[];
 }
 
 export declare const WORK_LINE_EVENT_SCHEMA: {
@@ -524,6 +540,7 @@ export interface WorkLineReadResult {
 
 export declare const mainlineActions: {
     line: ActionDefinition<WorkEventWindow, WorkLineReadResult>;
+    place: ActionDefinition<TaskPlaceRequest, TaskPlaceResult>;
     tasks: ActionDefinition<Record<string, never>, BackgroundTasksReadResult>;
     command: ActionDefinition<BackgroundTaskCommandRequest, BackgroundTaskCommandResult>;
 };
@@ -531,4 +548,8 @@ export declare const mainlineActions: {
 export declare const mainlineErrors: import("platform/action-errors").ErrorCodeRaisers<{
     readonly source_changed: "conflict";
     readonly task_changed: "conflict";
+    readonly task_not_placeable: "invalid";
+    readonly relation_ambiguous: "conflict";
+    readonly event_unreadable: "not_found";
+    readonly owner_answer_invalid: "upstream";
 }>;

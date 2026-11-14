@@ -3602,6 +3602,23 @@ export interface SyncActionClient {
     invokeSync(context: ActionCallContext, reference: ActionReference, input: unknown): unknown;
 }
 
+export declare const TASK_SERVES_RELATION = "serves";
+
+export interface TaskServesBindInput {
+    task: ActionSubject;
+    event: ActionSubject;
+}
+
+export interface TaskServesInput {
+    task: ActionSubject;
+}
+
+export interface TaskServesResult {
+    serves: ActionSubject[];
+}
+
+export type TaskServesRole = "list" | "bind" | "release" | "create";
+
 export declare const WORKFLOW_CONTENT_OUTPUT_VERSIONS: {
     readonly list: 1;
     readonly read: 1;
@@ -4320,6 +4337,8 @@ export declare function defineSubjectContextAction(capabilityId: string, version
 export declare function defineSubjectOffersAction(capabilityId: string, version: number, kinds: string[], title: string, permissions: string[], choices?: readonly SubjectOfferChoice[]): ActionDefinition<SubjectOffersInput, {
     offers: SubjectActionOffer[];
 }>;
+
+export declare function defineTaskServesAction<Role extends TaskServesRole>(role: Role, capabilityId: string, version: number, kinds: string[], title: string, permissions: string[]): ActionDefinition<Role extends "bind" ? TaskServesBindInput : TaskServesInput, TaskServesResult>;
 
 export declare function defineWorkEventsAction(capabilityId: string, version: number, kinds: string[], title: string, permissions: string[]): ActionDefinition<WorkEventWindow, WorkEventCollection>;
 

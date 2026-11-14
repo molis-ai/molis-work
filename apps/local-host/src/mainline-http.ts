@@ -12,6 +12,7 @@ import type { MolisWorkLocalHost } from "./project-host.js";
 const MAX_BODY_BYTES = 256 * 1024;
 const ROUTES = new Map<string, ActionDefinition>([
   ["line", mainlineActions.line as ActionDefinition],
+  ["place", mainlineActions.place as ActionDefinition],
   ["tasks", mainlineActions.tasks as ActionDefinition],
   ["tasks/command", mainlineActions.command as ActionDefinition],
 ]);

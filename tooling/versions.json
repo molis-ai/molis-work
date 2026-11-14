@@ -691,6 +691,7 @@
     "action.lingguang.subject.read": 1,
     "action.lingguang.update": 1,
     "action.mainline.line.read": 1,
+    "action.mainline.place": 1,
     "action.materials.capture": 1,
     "action.materials.files.content": 1,
     "action.materials.files.entries": 1,

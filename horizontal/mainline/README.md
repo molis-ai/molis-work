@@ -2,7 +2,7 @@
 
 按调用方自己的授权，现读一个项目的事项线（各登记方此刻报的事件，排好位置与先后）和后台任务总表，并在重新问过提供方之后执行任务自己给出的命令（[事项线](../../specs/work-line/spec.md) §5、§6）。它什么也不存，每次都重新问。
 
-包名：`@molis-ai/molis-work-service-mainline`。工作区内部包，由 Host 装配成 `system.mainline` 的 `mainline.line.read@1`、`background.tasks.read@1` 与 `background.tasks.command@1`。
+包名：`@molis-ai/molis-work-service-mainline`。工作区内部包，由 Host 装配成 `system.mainline` 的 `mainline.line.read@1`、`mainline.place@1`、`background.tasks.read@1` 与 `background.tasks.command@1`。
 
 ## 一次典型调用
 
@@ -14,7 +14,7 @@
 
 | 文件 | 用途 |
 | --- | --- |
-| [src/index.ts](src/index.ts) | `readWorkLine`、`gatherWorkEvents`（逐家问登记方，首页事项读取也用它）、`readBackgroundTasks`、`runBackgroundTaskCommand`，以及一行、一份回答的检查（`backgroundTaskRow`、`backgroundTaskRows`、`backgroundTaskOrigin`） |
+| [src/index.ts](src/index.ts) | `readWorkLine`、`gatherWorkEvents`（逐家问登记方，首页事项读取也用它）、`placeTask`（安放与改去处）、`readBackgroundTasks`、`runBackgroundTaskCommand`，以及一行、一份回答的检查（`backgroundTaskRow`、`backgroundTaskRows`、`backgroundTaskOrigin`） |
 
 合同在 `@molis-ai/molis-work-contracts/platform/actions`（任务行的形状、`defineBackgroundTasksAction`）和 `@molis-ai/molis-work-contracts/services/mainline`（两个系统动作、读到的行、拒绝的错误码）。Host 装配在 [apps/local-host/src/mainline-actions.ts](../../apps/local-host/src/mainline-actions.ts)，工作台的入口在 [apps/local-host/src/mainline-http.ts](../../apps/local-host/src/mainline-http.ts)；跨项目的聚合（[apps/local-host/src/home-background-tasks.ts](../../apps/local-host/src/home-background-tasks.ts)）用这里的同一份行检查。
 
@@ -29,7 +29,7 @@ pnpm --filter @molis-ai/molis-work-service-mainline build
 
 ## 开发要求
 
-- 负责：发现事件登记方与任务提供方、并行只读调用与限时、逐行检查、给事件定位置与先后、把读不到的来源写进 `issues`；执行命令前重读提供方并核对命令。
+- 负责：发现事件登记方与任务提供方、并行只读调用与限时、逐行检查、给事件定位置与先后、把读不到的来源写进 `issues`；执行命令前重读提供方并核对命令；安放时按声明找到任务的主人、核对事件读得到、让主人记下去处。
 - 不负责：事件与任务本身、它们的状态和命令的效果（都归登记方与提供方：Coding、助理、待办、平台调度等）、存储、动作的注册与授权（Host 装配，授权走动作网关）、任务面板的界面。
 - 公开入口：`@molis-ai/molis-work-service-mainline`（`src/index.ts`，经 `dist` 导出）；合同 `@molis-ai/molis-work-contracts/services/mainline`、`@molis-ai/molis-work-contracts/platform/actions`。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（执行生命周期、聚合查询的判定）。方向：只依赖合同与 SDK；不读任何主人的库与文件，不依赖宿主和插件（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
@@ -39,6 +39,7 @@ pnpm --filter @molis-ai/molis-work-service-mainline build
   - 提供方声明的对象种类之外的任务不给出；登记方报了重复的事件 id 或声明之外的对象种类，它这一次的回答整份作废。
   - 事件的名字、状态词是登记方当次给的，不当成事实留存；任务的进度不抄进线读取的返回（WLN-21、WLN-38）。
   - 读取不写任何业务记录；读不到的提供方只留错误码，不带它说的话。
+  - 安放不改任务的授权、预算与数据范围；任务为哪个事件办只记在主人那里；调用方读不到的任务或事件被拒，主人什么也不改（WLN-34）。
   - 不存任何东西，不缓存上一次的回答。
-- 改动后必跑：`node scripts/run-tests.mjs tests/mainline-line-read.test.ts tests/mainline-background-tasks.test.ts tests/home-event-actions.test.ts tests/coding-background-tasks.test.ts tests/home-aggregate.test.ts`；改了合同再跑 `pnpm api:update`、`pnpm actions:update`。
-- 相关手册：[specs/work-line/contract-design.md](../../specs/work-line/contract-design.md) 第 3、4 节；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+- 改动后必跑：`node scripts/run-tests.mjs tests/mainline-line-read.test.ts tests/mainline-place.test.ts tests/mainline-background-tasks.test.ts tests/home-event-actions.test.ts tests/coding-background-tasks.test.ts tests/home-aggregate.test.ts`；改了合同再跑 `pnpm api:update`、`pnpm actions:update`。
+- 相关手册：[specs/work-line/contract-design.md](../../specs/work-line/contract-design.md) 第 3、4、5 节；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

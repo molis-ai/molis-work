@@ -126,7 +126,7 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 | `horizontal/account` | 中央账号协议与 Host 会话适配；身份和商业事实由 Auth 持有，本地身份与 Home 不变 | 固定中央客户端、可信环境、持久会话、邮箱/手机认证及 Google/GitHub 回跳；资料与商业管理页面待后续任务 | `slice` | `specs/unified-account/spec.md` | 横向服务：@yijunw0212 |
 | `horizontal/kit` | 能力包：现算这个范围里的能力包（插件包、自带、你的角色），给每条盖来源与所属的包、读出包状态 | `gatherKit`；系统动作 `kit.catalog.list` 由 Host 装配；条目由各主人的上报动作给，自己不存任何东西 | `production` | `specs/capability-pack/contract-design.md` | 横向服务：@yijunw0212 |
 | `horizontal/knowledge` | 项目资料：项目里所有 Agent 共用的资料查找与读取（卡片、分节、按节读原文、逐行查找），经系统搜索找、向对象主人读，用调用者的授权 | `KnowledgeService`；系统动作 `knowledge.list/search/outline/read/grep/glob` 由 Host 与系统搜索同处装配；不保存正文；内置 Agent 在项目里默认持有（可在对外接入撤销） | `production` | `specs/archive/project-knowledge/spec.md` | 横向服务：@yijunw0212 |
-| `horizontal/mainline` | 主线服务：现读一个项目的事项线（各登记方报的事件，排好位置与先后）和各提供方的后台任务，核对每一行；按行里写的命令停止、暂停或继续任务 | `readWorkLine`、`gatherWorkEvents`、`readBackgroundTasks`、`runBackgroundTaskCommand`；系统动作 `mainline.line.read`、`background.tasks.read`、`background.tasks.command` 由 Host 装配为 `system.mainline`；事件与任务由各主人的读取动作给，自己不存任何东西 | `slice` | `specs/work-line/contract-design.md` | 横向服务：@yijunw0212 |
+| `horizontal/mainline` | 主线服务：现读一个项目的事项线（各登记方报的事件，排好位置与先后）和各提供方的后台任务，核对每一行；按行里写的命令停止、暂停或继续任务 | `readWorkLine`、`gatherWorkEvents`、`placeTask`、`readBackgroundTasks`、`runBackgroundTaskCommand`；系统动作 `mainline.line.read`、`mainline.place`、`background.tasks.read`、`background.tasks.command` 由 Host 装配为 `system.mainline`；事件与任务由各主人的读取动作给，自己不存任何东西 | `slice` | `specs/work-line/contract-design.md` | 横向服务：@yijunw0212 |
 | `horizontal/search` | 系统搜索：经动作目录发现插件的搜索来源、维护可重建索引、按调用者权限聚合结果 | `SearchService`；系统动作 `search.query/open/status/rebuild` 由 Host 装配；索引持久化在 storage 适配；不读插件私有库 | `production` | `specs/archive/system-search/spec.md` | 横向服务：@yijunw0212 |
 | `horizontal/memory` | 平台记忆：个人与项目记忆的开关与策略、确定性写入门、召回编排、候选、最近变动与撤销、界面信号计数 | `MemoryService`；系统动作 `memory.*` 由 Host 装配；正文、版本、删除与隔离在 Prologue Memory（经 Agent Host）；旁表在 storage 适配；不调用模型 | `production` | `specs/archive/memory-system/spec.md` | 横向服务：@yijunw0212 |
 | `horizontal/placement` | 放在哪里：对象的位置、访问范围、关联（用于项目、Goal 资料、来自/复制自）与移动后的位置索引 | `PlacementService`；系统动作 `placement.describe/spaces/related/locate/link/unlink/move/copy/convert/goals/goal.bind/create` 由 Host 装配；关系写 Home 级 Context Ledger（`placement.db`）；对象事实总向所有者读；移动/复制经插件放置协议 | `production` | `specs/archive/work-placement/spec.md` | 横向服务：@yijunw0212 |
@@ -219,6 +219,7 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 | 责任 | Owner | 唯一事实源 |
 | --- | --- | --- |
 | 事项线怎样读：按类型发现项目里的事件登记方、逐个现问，事件在哪一翼、排第几、线上显示什么状态 | `horizontal/mainline` | 不存任何东西，每次由 `mainline.line.read@1` 现读；事件的事实在各登记方，名字与状态词不留存 |
+| 任务为哪个事件办 | 任务的主人（用 `placement_relation` 声明关联 `serves`） | 主人自己的记录；`mainline.place@1` 只按声明找到主人并让它记下，自己不记 |
 | 后台任务总表怎样读：按类型发现项目里的任务提供方、逐个现问、核对每一行；命令执行前重读提供方、只认它仍给出的那一条 | `horizontal/mainline` | 不存任何东西，每次由 `background.tasks.read@1` 现读；任务的事实在各提供方 |
 | 能力包怎样拼：三种包（插件安装、Molis Work 自带、你的角色）、给条目盖来源与所属的包、算包的状态 | `horizontal/kit` | 不存任何东西，每次由 `kit.catalog.list@1` 现算；不建注册表 |
 | 技能、提示词、插件角色条目 | apps/local-host 的 Agent definitions | 上报动作读同一份 Agent 定义登记 |

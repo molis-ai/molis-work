@@ -4,7 +4,7 @@ import { join } from "node:path";
 import type { TestContext } from "node:test";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { molisWorkHostProjectReference, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
-import { defineBackgroundTasksAction, defineWorkEventsAction, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, defineBackgroundTasksAction, defineTaskServesAction, defineWorkEventsAction, type ActionExecutionContext, type ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { startProjectPlugins } from "./plugin-callers.js";
@@ -22,7 +22,10 @@ export function backgroundPlugin(answer: (projectId: string) => unknown) {
   const state = { answer, calls: [] as Array<{ project: string | null; query_only: boolean }>, stops: [] as Array<{ project: string | null; job: string }>,
     stop: (async job => ({ stopped: job })) as (job: string) => Promise<unknown>,
     // What it registers on the work line (specs/work-line §5): nothing until a test sets it.
-    events: ((): unknown => ({ source: { surface: "example", title: "示例", icon: "list" }, events: [] })) as (projectId: string) => unknown, eventCalls: [] as Array<{ project: string | null; query_only: boolean }> };
+    events: ((): unknown => ({ source: { surface: "example", title: "示例", icon: "list" }, events: [] })) as (projectId: string) => unknown, eventCalls: [] as Array<{ project: string | null; query_only: boolean }>,
+    // Which event each of its tasks is done for, kept by the plugin itself (the `serves` relation): only the tasks named here exist.
+    serves: new Map<string, ActionSubject[]>(), servesCalls: [] as Array<{ role: string; task: string; event?: string; audience: string }>,
+    servesAnswer: undefined as ((role: string) => unknown) | undefined };
   const query = defineBackgroundTasksAction("homebg.tasks", 1, ["homebg_task"], "示例后台任务", [READ]);
   // A third-party plugin may declare any schema for its answer; the page's rows are checked again by the Host.
   const declared = { ...query, action: { ...query.action, output_schema: { type: "object" as const } } };
@@ -31,10 +34,11 @@ export function backgroundPlugin(answer: (projectId: string) => unknown) {
     effect: "write" as const, audiences: ["user" as const], permissions: [READ], subject_kinds: [],
     input_schema: { type: "object" as const, properties: { job: { type: "string" as const } }, required: ["job"], additionalProperties: false }, output_schema: { type: "object" as const } } };
   const events = defineWorkEventsAction("homebg.events", 1, ["homebg_item"], "示例事件", [READ]);
+  const relation = (["list", "bind", "release", "create"] as const).map(role => defineTaskServesAction(role, `homebg.serves.${role}`, 1, ["homebg_task"], `示例任务的去处（${role}）`, [READ]));
   const definition: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: BACKGROUND_PLUGIN_ID, version: "1.0.0", name: "homebg", kind: "app",
     publisher: { publisher_id: "example", signature: "home-background" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [{ permission: READ, required: true, reason: "读自己的后台任务" }],
-    capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [declared, stop, events] },
+    capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [declared, stop, events, ...relation] },
   async start() {
     return { kind: "app", views: [], actions: [{ ...declared, async handle(caller: ActionExecutionContext) {
       state.calls.push({ project: caller.project_id ?? null, query_only: caller.query_only === true });
@@ -46,7 +50,15 @@ export function backgroundPlugin(answer: (projectId: string) => unknown) {
     } }, { ...events, async handle(caller: ActionExecutionContext) {
       state.eventCalls.push({ project: caller.project_id ?? null, query_only: caller.query_only === true });
       return await state.events(caller.project_id ?? "") as never;
-    } }] };
+    } }, ...relation.map(part => ({ ...part, async handle(caller: ActionExecutionContext, input: unknown) {
+      const role = part.action.placement_relation!.role, { task, event } = input as { task: ActionSubject; event?: ActionSubject };
+      state.servesCalls.push({ role, task: task.id, ...(event ? { event: event.id } : {}), audience: caller.audience });
+      if (!state.serves.has(task.id)) throw new ActionError("homebg.task_missing", "没有这个任务", { kind: "not_found" });
+      if (role === "bind") state.serves.set(task.id, [event!]);
+      if (role === "release") state.serves.set(task.id, []);
+      if (role === "create") state.serves.set(task.id, [{ kind: "homebg_item", id: `from-${task.id}` }]);
+      return (state.servesAnswer?.(role) ?? { serves: state.serves.get(task.id)! }) as never;
+    } }))] };
   } };
   return { definition, state };
 }

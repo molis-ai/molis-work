@@ -588,6 +588,11 @@ export type { SyncMutation } from "@molis-ai/molis-work-contracts/platform/sync-
 export type { SyncPortableRow } from "@molis-ai/molis-work-contracts/platform/plugin-sync";
 export type { SyncReplicaAdapter } from "@molis-ai/molis-work-contracts/platform/sync-transport";
 export type { SyncTrackedTable } from "@molis-ai/molis-work-contracts/platform/plugin-sync";
+export { TASK_SERVES_RELATION } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { TaskServesBindInput } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { TaskServesInput } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { TaskServesResult } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { TaskServesRole } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { UiClientScope } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiClientTranslate } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiConnectionNeedOutcome } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -789,6 +794,7 @@ export declare function defineSettingsActions(options: SettingsActionsOptions): 
 
 export { defineSubjectContextAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineSubjectOffersAction } from "@molis-ai/molis-work-contracts/platform/actions";
+export { defineTaskServesAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineWorkEventsAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineWorkExecutorAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineWorkExecutorActions } from "@molis-ai/molis-work-contracts/platform/actions";

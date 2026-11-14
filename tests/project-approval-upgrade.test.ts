@@ -187,6 +187,8 @@ test("APR-19 keeps the complete old owner and schema on late failure, wrong publ
     "UPDATE plugin_project_databases SET publisher_signature='another-publisher'",
     "UPDATE goal_event_applied_decisions SET governance_decision_id='missing'",
     "UPDATE goal_event_applied_decisions SET selected_option_id='another-option'",
+    `UPDATE goal_event_applied_decisions SET authorized_change_json='{"outcome":"Different approved result"}'`,
+    `UPDATE goal_work_events SET payload_json=json_set(payload_json,'$.agreement_version',99) WHERE event_id='event-1'`,
     "DELETE FROM plugin_project_databases",
     `CREATE TRIGGER corrupt_provenance AFTER UPDATE ON plugin_project_databases BEGIN
       UPDATE plugin_project_databases SET version=99; END;`,
@@ -197,6 +199,7 @@ test("APR-19 keeps the complete old owner and schema on late failure, wrong publ
     if (!late) db.exec(bad);
     const snapshot = () => ({ shape: describeSqliteSchema(db), ledger: db.prepare("SELECT * FROM plugin_project_databases").all(),
       decisions: db.prepare("SELECT * FROM goal_event_trusted_decisions").all(), rules: db.prepare("SELECT * FROM policy_bindings").all(),
+      effects: db.prepare("SELECT * FROM goal_event_applied_decisions").all(), events: db.prepare("SELECT * FROM goal_work_events").all(),
       outbox: db.prepare(`SELECT * FROM ${old}_replica_outbox`).all() });
     const before = snapshot();
     const attempt = late ? { ...baseline, upgrades: [ ...PROJECT_DATABASE_BASELINE.upgrades?.filter(step => step.from !== 3) ?? [],

@@ -12,7 +12,7 @@ const goalsV1 = (schema: string) => schema
   .replace("    basis_json TEXT,\n    tier TEXT NOT NULL DEFAULT 'self_reported',\n    gap TEXT,\n    reporter_session TEXT,\n", "")
   .replace("    checked_artifact_id TEXT,\n    checked_version INTEGER,\n", "");
 
-export const GOALS_PROJECT_DATABASE_V1: PluginDatabaseDeclaration = {
+const GOALS_PROJECT_DATABASE_V1 = {
   store_name: "goals", version: 1, schema: goalsV1(priorSchema(GOALS_V2_EVENT_STATE_SQL)),
   read_permission: "storage:private", write_permission: "storage:private",
 };
@@ -25,7 +25,7 @@ export const GOALS_PROJECT_DATABASE: PluginDatabaseDeclaration = {
 };
 
 /** Original v3 declaration. The Host verifies this shape and runs these steps inside the approval transfer for v1/v2 libraries. */
-export const GOALS_PROJECT_DATABASE_V3: PluginDatabaseDeclaration = {
+const GOALS_PROJECT_DATABASE_V3: PluginDatabaseDeclaration = {
   store_name: "goals", version: 3,
   schema: priorSchema(GOALS_EVENT_STATE_SQL),
   read_permission: "storage:private", write_permission: "storage:private",
@@ -48,13 +48,13 @@ export const GOALS_PROJECT_DATABASE_V3: PluginDatabaseDeclaration = {
   }],
 };
 
-/** Both source shapes have their own verified ledger, including the corresponding sync tracking. */
-export const GOALS_PROJECT_DATABASE_V2: PluginDatabaseDeclaration = {
+/** Each source shape has its own verified ledger, including the corresponding sync tracking. */
+const GOALS_PROJECT_DATABASE_V2 = {
   ...GOALS_PROJECT_DATABASE_V3, version: 2, schema: priorSchema(GOALS_V2_EVENT_STATE_SQL), upgrades: [],
 };
 
 export const GOALS_APPROVAL_TRANSFER_BASELINES = {
   1: GOALS_PROJECT_DATABASE_V1, 2: GOALS_PROJECT_DATABASE_V2, 3: GOALS_PROJECT_DATABASE_V3,
-};
+} satisfies Readonly<Record<number, PluginDatabaseDeclaration>>;
 export type GoalsApprovalSource = keyof typeof GOALS_APPROVAL_TRANSFER_BASELINES;
 export const GOALS_APPROVAL_TRANSFER_SOURCE = GOALS_PROJECT_DATABASE_V3.version;

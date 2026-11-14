@@ -11,7 +11,7 @@ import { UiHost, createPluginUiClient, type PluginTextReader } from "@molis-ai/m
 import { pluginHostActions } from "./plugin-actions-client.js";
 import { heldPermissions, issuePluginCaller } from "./plugin-callers.js";
 import { outsidePluginAction } from "@molis-ai/molis-work-plugin-runtime";
-import { openPluginDatabase } from "./plugin-database.js";
+import { openPluginDatabase } from "./plugin-home-database-client.js";
 import { refuseUngivenSandboxServices } from "./plugin-sandbox-start.js";
 import { removeSandboxOwnerFiles, sandboxOwnerFilesFor } from "./plugin-sandbox-owner-files.js";
 import { discardInstallationOwnerData, forgetInstallationRecords, forgetLeftoverInstallationBindings } from "./plugin-installation-cleanup.js";

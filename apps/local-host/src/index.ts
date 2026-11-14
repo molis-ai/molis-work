@@ -25,7 +25,7 @@ export { HomePluginHost, type HomePluginEntry, type HomePluginPlatform } from ".
 export { handleCharactersHttp, type CharactersInvoke } from "./characters-http.js";
 export { charactersProvider, type CharactersProject } from "./characters-host.js";
 export { collectHomeAggregate, homeAggregatePorts, type HomeAggregateAnswer, type HomeAggregateIssue, type HomeAggregatePorts, type HomeAggregateResult } from "./home-aggregate.js";
-export { openPluginDatabase } from "./plugin-database.js";
+export { openPluginDatabase } from "./plugin-home-database-client.js";
 export { openPluginProjectLibrary, type ProjectLibrary } from "./plugin-project-library.js";
 export { openSandboxHomeLibrary } from "./plugin-sandbox-home-library.js";
 export { installedLibrarySnapshots } from "./installed-plugin-libraries.js";

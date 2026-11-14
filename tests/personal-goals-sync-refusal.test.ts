@@ -140,7 +140,7 @@ test('APR-19 a Goal Tree decision from the management entry preserves exact owne
   })) as { result: { applied_item_ids: string[] }; record: { decision_id: string; outcome_digest: string } };
   assert.deepEqual(approved.result.applied_item_ids, ['tree-sync-item']);
   assert.match(approved.record.outcome_digest, /^sha256:[a-f0-9]{64}$/u);
-  await f.enable();
+  await f.enable(true);
   const current = f.events.at(-1)!;
   assert.ok(current);
   const snapshot = (i: number) => f.edit(i, (app, store) => ({
@@ -148,6 +148,18 @@ test('APR-19 a Goal Tree decision from the management entry preserves exact owne
     child: app.goalsQuery.getGoal(p, 'synced-child'),
     approvals: store.db.prepare('SELECT record_json FROM project_review_decisions WHERE decision_id=?').all(approved.record.decision_id),
   }));
+  const empty = snapshot(1);
+  assert.equal(empty.proposal, null);
+  const missingEffect = structuredClone(current.value);
+  (goalWire(missingEffect) as GoalWire).facts.governance!.goal_tree_item_effects!.splice(0);
+  const missing = { ...current, value: missingEffect, revision: current.revision + 1, operationId: 'first-receipt-missing-tree-effect' };
+  f.replica(1, replica => replica.receive(missing));
+  assert.equal(f.replica(1, replica => replica.conflicts()[0]?.waiting), true);
+  assert.throws(() => f.replica(1, replica => replica.resolve(current.key, 'remote')));
+  assert.deepEqual(snapshot(1), empty);
+  const recovered = { ...current, revision: missing.revision + 1, operationId: 'first-receipt-exact-tree-effect' };
+  f.replica(1, replica => replica.receive(recovered));
+  assert.deepEqual(f.replica(1, replica => replica.conflicts()), []);
   const before = snapshot(1);
   assert.equal(before.child?.title, 'Synced child');
   assert.equal(before.proposal?.decisions[0]?.authority_source, 'management');
@@ -155,7 +167,7 @@ test('APR-19 a Goal Tree decision from the management entry preserves exact owne
   assert.deepEqual(comparable(before), comparable(snapshot(0)));
   const effects = (wire: unknown) => (goalWire(wire) as GoalWire).facts.governance!.goal_tree_item_effects!;
   assert.equal(effects(current.value)[0]?.approval_id, approved.record.decision_id);
-  let revision = current.revision;
+  let revision = recovered.revision;
   for (const edit of [
     (rows: ProjectReplicaRows) => { rows.goal_tree_item_effects![0]!.materialized_objects_json = '[]'; },
     (rows: ProjectReplicaRows) => { rows.goal_tree_proposal_items![0]!.materialized_objects_json = '[]'; },

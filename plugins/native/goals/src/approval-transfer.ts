@@ -1,6 +1,7 @@
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ApprovalRuleOwner, ProjectApprovalRuleScope } from "@molis-ai/molis-work-contracts/services/project-approvals";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { canonicalJsonText } from "@molis-ai/molis-work-plugin-sdk";
 import { GOALS_APPROVAL_TRANSFER_BASELINES, GOALS_PROJECT_DATABASE, type GoalsApprovalSource } from "./project-database.js";
 import { GOALS_TREE_EFFECTS_SQL } from "./project-database-governance.js";
 import { goalsApprovalTransferSync } from "./approval-transfer-sync.js";
@@ -69,9 +70,11 @@ function readDecisions(db: TransferConnection, projectId: string) {
   const originals = new Map(events.map(row => [row.decision_id, row]));
   for (const row of applied) {
     const original = originals.get(row.governance_decision_id);
-    const same = ["goal_id", "actor_id", "authority_source", "conclusion", "accepts_requirements", "scope_json", "request_id", "selected_option_id"];
+    const same = ["goal_id", "actor_id", "authority_source", "conclusion", "accepts_requirements", "request_id", "selected_option_id"];
     if (!original || same.some(key => row[key] !== original[key]) || row.observed_event_id !== row.event_id
       || row.observed_project !== projectId || row.observed_goal !== row.goal_id || row.observed_kind !== "system" || row.observed_actor !== row.actor_id) throw invalid();
+    const cell = (text: string | number | null | undefined) => canonicalJsonText(JSON.parse(String(text ?? "null")));
+    if (cell(row.scope_json) !== cell(original.scope_json) || cell(row.authorized_change_json) !== cell(original.change_json)) throw invalid();
     const event = JSON.parse(String(row.observed_payload)) as { operation?: unknown; governance_decision_id?: unknown; decision_id?: unknown };
     if (event?.operation !== "user_decision" || event.governance_decision_id !== row.governance_decision_id || event.decision_id !== row.decision_id) throw invalid();
   }
@@ -85,7 +88,7 @@ function readDecisions(db: TransferConnection, projectId: string) {
   return [
     ...events.map(row => {
       const original = exportedDecision(projectId, row, "event", row.recorded_at);
-      const outcome = readGoalApprovalOutcome(db, projectId, row.decision_id, "goal");
+      const outcome = readGoalApprovalOutcome(db, projectId, row.decision_id, "goal", "transferred");
       return { ...original, ...(outcome ? { outcome_digest: outcome.digest } : {}) };
     }),
     ...items.map(row => exportedDecision(projectId, row, "proposal-item", row.created_at)),

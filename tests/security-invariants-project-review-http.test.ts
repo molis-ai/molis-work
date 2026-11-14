@@ -26,6 +26,7 @@ async function removeGoals(env: Awaited<ReturnType<typeof openTestHome>>, pid: s
 function notePlugin() {
   const pluginId = "io.molis.work.example.approval-notes", permission = "storage:private";
   let wait: (() => Promise<void>) | undefined;
+  let holdNextRead: (() => Promise<void>) | undefined;
   let replaceEvidence: ((offer: TrustedReviewOffer) => TrustedReviewOffer) | undefined;
   const libraries = new Map<string, NonNullable<NonNullable<Parameters<PluginDefinition["start"]>[0]["services"]>["project_database"]>>();
   const ports = (projectId: string | null | undefined) => libraries.get(projectId ?? "") ?? assert.fail("project instance was never started");
@@ -45,7 +46,10 @@ function notePlugin() {
   });
   const reader = defineAction({ ...read, operation: "query", action: { title: "Read review", description: "Read the original pending note.",
     kind: "query", scope: "project", scheduling: "concurrent", audiences: ["user"], permissions: [permission], subject_kinds: ["note"],
-    input_schema: TRUSTED_REVIEW_OWNER_INPUT_SCHEMA } }, (caller, { request_id }: { request_id: string }) => {
+    input_schema: TRUSTED_REVIEW_OWNER_INPUT_SCHEMA } }, async (caller, { request_id }: { request_id: string }) => {
+    const pending = holdNextRead;
+    holdNextRead = undefined;
+    await pending?.();
     const row = ports(caller.project_id).get("SELECT id, body, revision, accepted FROM review_notes WHERE id=?", [request_id]);
     if (!row) throw new ActionError("actions.missing", "Missing note");
     const offer = { target: { subject: { kind: "note", id: String(row.id) }, version: String(row.revision) },
@@ -68,6 +72,7 @@ function notePlugin() {
   } };
   return { definition, apply, pluginId,
     wait(value?: () => Promise<void>) { wait = value; },
+    nextRead(value?: () => Promise<void>) { holdNextRead = value; },
     evidence(value?: typeof replaceEvidence) { replaceEvidence = value; },
   };
 }
@@ -143,14 +148,31 @@ test("APR-17/18 S-17 the real Web and management MCP reach one original review i
   for (const audience of ["user", "agent"] as const) await assert.rejects(env.host.actionClient(ref).invoke({ ...forged, audience }, action,
     { id: "web", version: 1, text: "Web note" }), { code: "actions.forbidden" });
   assert.deepEqual(await notes(), []);
-  const web = await env.web.post<{ record: ProjectTrustedDecision }>(prefix() + "/decide", webCommand);
+  let readStarted!: () => void, resumeRead!: () => void;
+  const reading = new Promise<void>(resolve => { readStarted = resolve; });
+  const resumeOriginalRead = new Promise<void>(resolve => { resumeRead = resolve; });
+  fixture.nextRead(async () => {
+    readStarted();
+    await resumeOriginalRead;
+    throw new ActionError("actions.missing", "The original pending request is closed");
+  });
+  const originalRead = env.web.post<ReviewRequest>(prefix() + "/request", { reference: webReview.reference });
+  const completed = Promise.allSettled([originalRead]);
+  await reading;
+  const web = await (async () => {
+    try {
+      const decided = await env.web.post<{ record: ProjectTrustedDecision }>(prefix() + "/decide", webCommand);
+      await env.host.withProject(ref, runtime => runtime.store.db.prepare("UPDATE review_notes SET body='Edited after approval',revision=2 WHERE id='web'").run());
+      return decided;
+    } finally { resumeRead(); }
+  })();
   assert.equal(web.record.source.entry.source, "web");
   assert.deepEqual(await readBack(web.record.decision_id), web.record);
   const applied = await mcp<ReviewRequest>("molis_work_v1_review_request", { reference: webReview.reference });
   assert.deepEqual(applied.decision, { reference: webReview.reference, decision_id: web.record.decision_id });
   assert.equal(applied.summary, webReview.summary);
   assert.ok(applied.choices.every(choice => !choice.availability.available));
-  await env.host.withProject(ref, runtime => runtime.store.db.prepare("UPDATE review_notes SET body='Edited after approval',revision=2 WHERE id='web'").run());
+  assert.deepEqual(await completed, [{ status: "fulfilled", value: applied }]);
   await assert.rejects(read("web"), { code: "actions.conflict" });
   assert.deepEqual(await mcp<ReviewRequest>("molis_work_v1_review_request", { reference: webReview.reference }), applied);
   const replay = await mcp<{ record: ProjectTrustedDecision; replayed: boolean }>("molis_work_v1_review_decide", webCommand);

@@ -2,15 +2,16 @@ import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/pl
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginSyncIdentity } from "@molis-ai/molis-work-contracts/platform/plugin-sync";
 import type { ProjectReplicaRows } from "@molis-ai/molis-work-contracts/platform/sync-transport";
-import type { ProjectTrustedDecision } from "@molis-ai/molis-work-contracts/services/project-approvals";
+import type { ProjectDecisionHistory, ProjectTrustedDecision } from "@molis-ai/molis-work-contracts/services/project-approvals";
 import { decisionOwnerMatches, projectReviewDecisions, readProjectReviewDecision } from "@molis-ai/molis-work-service-project-approvals";
 import type { ReplicaDatabase, SqliteDatabase } from "@molis-ai/molis-work-storage";
-import { assertGoalApprovalHistory, goalApprovalOutcomes, readGoalApprovalOutcome } from "./goal-callers.js";
+import { assertGoalApprovalHistory, goalApprovalOutcomes, readGoalApprovalOutcome, verifyTreeItemDecisionHistory } from "./goal-callers.js";
 import { builtinPluginByProjectKey } from "./plugin-registry.js";
 
 type Collection = PluginSyncIdentity & { readonly collection_id: string; readonly schema_version: number };
 const errors = defineErrorCodes("host", { approval_dependency_missing: "conflict" });
 const incompatible = () => new ActionError("actions.conflict", "同步的目标结果与原平台决定不一致");
+const pendingApproval = (): never => { throw errors.approval_dependency_missing("原审批记录还在同步，原目标数据已保留", { sync_waiting: true }); };
 
 function currentGoalsOwner(identity: PluginSyncIdentity): boolean {
   const goals = builtinPluginByProjectKey("goals")?.manifest;
@@ -36,13 +37,24 @@ export function freezeGoalApprovalOutcome(db: SqliteDatabase, manifest: PluginMa
 
 export function verifyGoalsApprovalLinks(db: ReplicaDatabase, project: string, owner: Collection, facts: Readonly<Record<string, ProjectReplicaRows>>,
   previous?: Readonly<Record<string, ProjectReplicaRows>>): void {
-  const outcomes = goalApprovalOutcomes(facts);
-  if (previous) assertGoalApprovalHistory(goalApprovalOutcomes(previous), outcomes, facts);
-  for (const [id, outcome] of outcomes) {
+  const originalOwner = { kind: "plugin", plugin_id: owner.plugin_id, publisher_signature: owner.publisher_signature } as const;
+  const records = new Map<string, ProjectTrustedDecision | ProjectDecisionHistory>();
+  function read(id: string) {
+    const saved = records.get(id);
+    if (saved) return saved;
     const record = readProjectReviewDecision(db, project, id);
-    if (!record) throw errors.approval_dependency_missing("原审批记录还在同步，原目标数据已保留", { sync_waiting: true });
-    if (!decisionOwnerMatches(record, { kind: "plugin", plugin_id: owner.plugin_id, publisher_signature: owner.publisher_signature })
-      || record.outcome_digest !== outcome.digest) throw incompatible();
+    if (!record) return pendingApproval();
+    if (!decisionOwnerMatches(record, originalOwner)) throw incompatible();
+    records.set(id, record);
+    return record;
+  }
+  const source = (id: string) => "kind" in read(id) ? "transferred" as const : undefined;
+  const outcomes = goalApprovalOutcomes(facts, source);
+  const previousOutcomes = previous ? goalApprovalOutcomes(previous, source) : null;
+  if (previousOutcomes) assertGoalApprovalHistory(previousOutcomes, outcomes, facts);
+  for (const [id, outcome] of outcomes) {
+    const record = read(id);
+    if (record.outcome_digest !== outcome.digest) throw incompatible();
     if ("kind" in record) {
       if (record.subject !== "event" || outcome.kind !== "goal" || record.original.goal_id !== outcome.id) throw incompatible();
     } else {
@@ -50,4 +62,6 @@ export function verifyGoalsApprovalLinks(db: ReplicaDatabase, project: string, o
       if (subject.kind !== outcome.kind || subject.id !== outcome.id) throw incompatible();
     }
   }
+  const history = projectReviewDecisions(db as SqliteDatabase, project).transferred(originalOwner, "proposal-item");
+  verifyTreeItemDecisionHistory(facts.governance!, history, pendingApproval);
 }

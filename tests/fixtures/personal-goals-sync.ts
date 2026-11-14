@@ -24,7 +24,7 @@ export async function fixture(t: TestContext) {
   homes.forEach(home => ensureStorageSpace(home, space));
   const project = await withMolisWorkProjectCatalog({ homeDirectory: homes[0] }, c => c.createProject({ display_name: '跨设备 Goals', actor_id: 'alice' }));
   const initialStore=new LocalProjectDatabase(project.database_path);try{new GoalProjectApplication(initialStore).initializeBoard({project_id:project.project_id,actor_id:'alice',idempotency_key:'fixture-board'});}finally{initialStore.close();}
-  let active = true, online = true, drop = false;
+  let active = true, online = true, drop = false, deferGoalsDelivery = false;
   const check = () => { if (!active) throw new Error('host.test_revoked'); };
   const targetProject=await withMolisWorkProjectCatalog({homeDirectory:homes[1]},c=>c.ensureSyncedProject({project_id:project.project_id,display_name:project.display_name,actor_id:'alice'},check));
   const runtimes=homes.map(home=>runtimeGoalSync(home,space.spaceId,'alice',check));
@@ -73,7 +73,9 @@ export async function fixture(t: TestContext) {
       if (drop) { drop = false; throw new Error('host.test_receipt_lost'); }
       return Response.json({ accepted: true,revision:events.find(e=>e.operationId===m.operationId)!.revision });
     }
-    const rows = stream(url.searchParams.get('namespace') ?? '').filter(e => e.revision > Number(url.searchParams.get('after')));
+    const namespace = url.searchParams.get('namespace') ?? '';
+    const rows = deferGoalsDelivery && namespace === syncNamespace(selection) ? []
+      : stream(namespace).filter(e => e.revision > Number(url.searchParams.get('after')));
     return Response.json({ events: rows.slice(0, 2), more: rows.length > 2 });
   };
   const peers = homes.map((home, i) => {
@@ -96,7 +98,11 @@ export async function fixture(t: TestContext) {
     for (const c of clients) assert.equal(c.status().error, null,JSON.stringify(c.status()));
     await runtimes[1]!.withCatalog({ homeDirectory: homes[1] }, c => { paths[1] = c.listProjects().find(p => p.project_id === project.project_id)!.database_path; });
   };
-  const enable = async () => { await clients[0]!.save({ ...clients[0]!.policy(), selections: approvalSelections }); await run(); };
+  const enable = async (uploadOnly = false) => {
+    await clients[0]!.save({ ...clients[0]!.policy(), selections: approvalSelections });
+    deferGoalsDelivery = uploadOnly;
+    try { await run(); } finally { deferGoalsDelivery = false; }
+  };
   const replica = <T>(i: number, fn: (r: import('@molis-ai/molis-work-contracts/platform/sync-transport').SyncReplicaAdapter) => T) => registrations[i]!.withReplica(fn);
   const approvalReplica = <T>(i: number, fn: (r: import('@molis-ai/molis-work-contracts/platform/sync-transport').SyncReplicaAdapter) => T) => peers[i]!.approvals.withReplica(fn);
   t.after(() => { clients.forEach(c => c.close()); });

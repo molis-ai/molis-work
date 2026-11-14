@@ -30,7 +30,7 @@ import { createPluginUiClient } from "@molis-ai/molis-work-ui-host";
 import { pluginHostActions } from "./plugin-actions-client.js";
 import { heldPermissions, issuePluginCaller } from "./plugin-callers.js";
 import { outsidePluginAction, pluginActivationOpen, type PluginInstance } from "@molis-ai/molis-work-plugin-runtime";
-import { openPluginDatabase } from "./plugin-database.js";
+import { openPluginDatabase } from "./plugin-home-database-client.js";
 import { homeLibraryFor } from "./plugin-database-entries.js";
 import { openInstalledPluginLibrary } from "./installed-plugin-libraries.js";
 import { openPluginProjectLibrary } from "./plugin-project-library.js";

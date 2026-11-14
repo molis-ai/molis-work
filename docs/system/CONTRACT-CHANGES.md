@@ -182,7 +182,7 @@
 | `projects/<project_id>/molis-work.db#feed` | 1 → 2 | 第 25 批第 1 项（错过的拉取：晚过宽限的来源不拉、记错过、推到下一时刻，加错过表） | `plugins/native/feed/src/database.ts#FEED_PROJECT_DATABASE#1→2` |
 | `projects/<project_id>/molis-work.db#goals` | 2 → 3 | 第 17 批 #2058（顾虑引用对象 `cited_subjects`，删 `blocking_risks`） | `plugins/native/goals/src/project-database.ts#GOALS_PROJECT_DATABASE#2→3` |
 | `projects/<project_id>/molis-work.db` | 3 → 4 | 第 39 批 APR-19，项目库备份后在同一事务交接平台决定、项目规则、Goals 库登记与同步集合。用户 2026-11-14 批准隔离验证。 | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE#3→4` |
-| `projects/<project_id>/molis-work.db#goals` | 1／2／3 → 4 | 第 39 批 APR-19，只由项目库升级作一次交接，随平台移交提交。既有决定、规则与物化保留原身份和出处。 | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE#3→4` |
+| `projects/<project_id>/molis-work.db#goals` | 3 → 4 | 第 39 批 APR-19，只由项目库升级作一次交接。Goals v1、v2 先在同一事务走原步骤到 v3。既有决定、规则与物化保留原身份和出处。 | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE#3→4` |
 | `projects/<project_id>/molis-work.db#schedule` | 2 → 3 | 第 17 批 #2058（一次性对象任务 `repeat`／`run_at`／`subject`） | `plugins/native/schedule/src/database.ts#SCHEDULE_PROJECT_DATABASE#2→3` |
 
 ## 4. 阶段二：起点之后，读取兼容

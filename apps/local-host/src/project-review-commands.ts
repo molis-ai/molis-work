@@ -45,23 +45,37 @@ async function readByReference(host: MolisWorkLocalHost, project: LocalHostProje
   const locator = reviewLookup(reference);
   const registered = await holdCommand(host, project, locator, entry);
   if (!same(registered.owner, reference.owner)) throw missing();
-  const record = await inReviewLibrary(host, project, entry, decisions => decisions.forRequest(reference.id));
-  registered.assertCurrent();
-  if (record && same(record.reference, reference)) {
-    // The exact accepted projection remains readable after the original object has changed.
-    const original = record.presentation;
-    if (!original || !same(record.review.target.owner, registered.targetOwner)) throw missing();
-    const target = record.review.target;
-    return { ...original, reference, target, choices: original.choices.map(choice => ({ ...choice,
-      availability: { available: false as const, code: "actions.conflict", reason: { literal: "此请求已有决定" } } })),
-      decision: { reference, decision_id: record.decision_id } };
+  const readSettled = async () => {
+    const record = await inReviewLibrary(host, project, entry, decisions => decisions.forRequest(reference.id));
+    registered.assertCurrent();
+    if (!record) return null;
+    if (!same(record.reference, reference)) throw stale();
+    return presentSettledReview(record, registered.targetOwner);
+  };
+  const original = await readSettled();
+  if (original) return original;
+  let held: Awaited<ReturnType<typeof loadOffer>>;
+  try {
+    held = await loadOffer(host, project, heldDraft(host, project.project_id, entry.caller.actor_id, reference, locator), entry, registered);
+  } catch (error) {
+    const settled = await readSettled();
+    if (settled) return settled;
+    throw error;
   }
-  const held = await loadOffer(host, project, heldDraft(host, project.project_id, entry.caller.actor_id, reference, locator), entry, registered);
+  const settled = await readSettled();
+  if (settled) return settled;
   if (!same(held.view.reference, reference)) throw stale();
-  const settled = await inReviewLibrary(host, project, entry, decisions => decisions.forRequest(reference.id));
   held.assertCurrent();
-  if (settled && !same(settled.reference, reference)) throw stale();
-  return presentReview(held, settled);
+  return presentReview(held, null);
+}
+
+/** A settled request reopens the exact facts the person saw. */
+function presentSettledReview(record: ProjectTrustedDecision, owner: ProjectReviewCoverage["target"]["owner"]): ReviewRequest {
+  const original = record.presentation, { target } = record.review, { reference } = record;
+  if (!original || !same(target.owner, owner)) throw missing();
+  return { ...original, reference, target, choices: original.choices.map(choice => ({ ...choice,
+    availability: { available: false, code: "actions.conflict", reason: { literal: "此请求已有决定" } } })),
+    decision: { reference, decision_id: record.decision_id } };
 }
 
 function presentReview(held: Awaited<ReturnType<typeof loadOffer>>, record: ProjectTrustedDecision | null): ReviewRequest {

@@ -5,7 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createHostObservation, directoryForHome, installHostUiText, removeMcpActionGrants, writeMcpActionGrant } from "@molis-ai/molis-work-app-local-host";
-import { readRecords, snapshotText } from "@molis-ai/molis-work-service-observation";
+import { ObservationLayer, observationKeys, readRecords, snapshotText } from "@molis-ai/molis-work-service-observation";
 
 installHostUiText();
 
@@ -73,4 +73,24 @@ test("OCL-01 OCL-03: a folder grant given, taken back by the person, or taken by
   const store = f.observation.layer.writer.database()!;
   assert.equal(snapshotText(store.db, store.keys, folder.kind === "snapshot" ? folder.digest : ""), folders[2],
     "the folder chosen, kept after its grant's row is gone");
+});
+
+test("OCL-01 OCL-03: a grant change in a process with no running Host layer is still recorded", async t => {
+  const home = realpathSync(mkdtempSync(join(tmpdir(), "observation-grants-file-")));
+  t.after(() => rmSync(home, { recursive: true, force: true }));
+  const folder = join(home, "chosen"); mkdirSync(folder);
+  const service = directoryForHome(home), binding = { plugin_id: "io.molis.work.test.reader", project_id: null, actor_id: LOCAL_PERSON_ACTOR_ID,
+    install_id: "reader-install", installation_generation: "g1", name: "Reader", assertCurrent() {} };
+  const connected = service.connect(binding); t.after(() => connected.dispose());
+  const grant = await service.select({ plugin_id: binding.plugin_id, project_id: null, actor_id: LOCAL_PERSON_ACTOR_ID }, async () => ({ status: "picked", path: folder }));
+  assert.ok(grant);
+  service.revoke({ grant_id: grant.grant_id }, person(null));
+  // No createHostObservation: this is the command-line/uninstall shape, where the layer is written straight to the Home store.
+  const layer = new ObservationLayer({ home, env: { platformVersion: "0.test", now: () => new Date(), projectClass: () => undefined },
+    keys: has => observationKeys({ get: () => null, createIfAbsent: () => false }, has) });
+  t.after(() => layer.close());
+  layer.flush();
+  const records = readRecords(layer.writer.database()!.db, { fact: "grants.directory" });
+  assert.deepEqual(records.map(record => [record.stage, record.subjects[0]?.kind]), [["granted", "directory_grant"], ["revoked", "directory_grant"]],
+    "both the choice and its later withdrawal are kept without a running Host");
 });

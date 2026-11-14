@@ -1,5 +1,5 @@
 import { instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
-import { isSubjectReader, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { isSubjectReader, type ActionCallContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { MemoryUpkeepReport } from "@molis-ai/molis-work-contracts/services/memory";
 import type { MemoryCaller, MemoryService } from "@molis-ai/molis-work-service-memory";
 import { MEMORY_TIDY } from "../agent-definitions/system-prompts.js";
@@ -43,12 +43,16 @@ export async function runUpkeep(service: MemoryService, input: { homeDirectory: 
 
 const memoryContext = (host: MolisWorkLocalHost, reference: LocalHostProjectReference | undefined) => localWebActionContext(host, reference, LOCAL_OWNER_PERMISSIONS);
 
-/** The names of the objects memories are limited to (Goals, for now), read through their own plugins' readers; unreadable ones are left out. */
-export async function subjectTitles(localHost: MolisWorkLocalHost, reference: LocalHostProjectReference | undefined, kind: string, ids: readonly string[]): Promise<Record<string, string>> {
+/**
+ * The names of the objects memories are limited to (Goals, for now), read through their own plugins' readers; unreadable ones are
+ * left out. A caller that already holds this request's person context passes it, so one request prepares one (N42).
+ */
+export async function subjectTitles(localHost: MolisWorkLocalHost, reference: LocalHostProjectReference | undefined, kind: string, ids: readonly string[],
+  existing?: ActionCallContext): Promise<Record<string, string>> {
   const unique = [...new Set(ids)].slice(0, 40);
   if (!unique.length) return {};
   const client = reference ? localHost.actionClient(reference) : localHost.homeActionClient();
-  const context = await memoryContext(localHost, reference);
+  const context = existing ?? await memoryContext(localHost, reference);
   const views: readonly ActionView[] = await Promise.resolve(client.discover(context)).catch(() => []);
   const reader = views.find(view => isSubjectReader(view.action) && view.availability.available && view.action.subject_kinds.includes(kind));
   if (!reader) return {};

@@ -319,11 +319,14 @@ export async function handleMemoryHttp(request: IncomingMessage, response: Serve
       const parts = pathname.slice("/api/memory/".length).split("/").map(decodeURIComponent);
       const client = ports.projectRef ? ports.localHost.actionClient(ports.projectRef) : ports.localHost.homeActionClient();
       const { body, operation_id } = memoryCommandBody(rawBody);
-      const context = { ...await localWebActionContext(ports.localHost, ports.projectRef, LOCAL_OWNER_PERMISSIONS, abort.signal),
+      // N42: one person context serves this whole request, prepared when the route first really calls an action; a path this
+      // door does not answer prepares none. Calls keep re-checking the person's authority, so a grant taken back meanwhile still refuses.
+      let pending: Promise<ActionCallContext> | undefined;
+      const context = () => pending ??= localWebActionContext(ports.localHost, ports.projectRef, LOCAL_OWNER_PERMISSIONS, abort.signal).then(caller => ({ ...caller,
         ...(method === "POST" && operation_id ? { memory_operation_id: operation_id } : {}),
-        ...(method === "POST" && parts.length === 1 && parts[0] === "recall" ? { memory_read_mode: "explicit" as const } : {}) };
-      const call = (definition: { capability_id: string; version: number }, input: unknown) =>
-        client.invoke(context, { capability_id: definition.capability_id, version: definition.version, provider_id: MEMORY_PROVIDER_ID }, input);
+        ...(method === "POST" && parts.length === 1 && parts[0] === "recall" ? { memory_read_mode: "explicit" as const } : {}) }));
+      const call = async (definition: { capability_id: string; version: number }, input: unknown) =>
+        client.invoke(await context(), { capability_id: definition.capability_id, version: definition.version, provider_id: MEMORY_PROVIDER_ID }, input);
       const scope = (value: unknown): MemoryScope | undefined => value === "project" || value === "personal" ? value : undefined;
       // One read for a settings page: the scope's memories, switches, candidates and recent changes.
       if (method === "GET" && parts.length === 1 && parts[0] === "overview") {
@@ -335,7 +338,7 @@ export async function handleMemoryHttp(request: IncomingMessage, response: Serve
         ]);
         // Goals a memory is limited to, by name (read through the Goals plugin's own reader), so the page never shows bare ids.
         const goalIds = ((list as { items?: Array<{ applies?: { goal_ids?: string[] } }> }).items ?? []).flatMap(item => item.applies?.goal_ids ?? []);
-        const goals = await subjectTitles(ports.localHost, ports.projectRef, "goal", goalIds).catch(() => ({}));
+        const goals = await subjectTitles(ports.localHost, ports.projectRef, "goal", goalIds, await context()).catch(() => ({}));
         return { status: 200, body: { scope: wanted, ...(list as object), ...(prefs as object), ...(candidates as object), ...(changes as object), ...(pairs as object),
           labels: { goals }, last_upkeep: memoryHostFor(ports.localHost)?.service.lastUpkeep(LOCAL_PERSON) ?? null } };
       }

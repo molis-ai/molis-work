@@ -171,8 +171,9 @@ export function createScheduleActionHandlers(projectId: string, ports: ScheduleA
   return [
     // With a subject, the list is that object's tasks and says what each may read (a plugin showing its object's review).
     bind(scheduleActions.list, async input => {
+      // Without a subject the list is as before: jobs first, then tasks and operations.
+      if (!input.subject) return { jobs: [...ports.listJobs()], tasks: [...ports.listTasks()], operations: ports.listOperations?.() ?? [] };
       const tasks = [...ports.listTasks(input.subject)];
-      if (!input.subject) return { jobs: [...ports.listJobs()], tasks, operations: ports.listOperations?.() ?? [] };
       const ids = new Set(tasks.map(item => item.task_id));
       // The reads are the platform's; when it cannot say, the tasks still show and `reads` is left out rather than shown as none.
       const reads = await ports.taskReads?.().then(all => all.filter(item => ids.has(item.task_id)), () => undefined);

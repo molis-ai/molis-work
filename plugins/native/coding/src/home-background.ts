@@ -43,6 +43,8 @@ function codingBackgroundTasksOf(sessions: readonly CodingBackgroundSession[], s
       // Stopping one is the same reviewed stop the session's own panel offers, as Coding's own action.
       commands: (session.commands ?? []).map(command => ({ role: "stop", action: { capability_id: "coding.background.stop", version: /* @version action.coding.background.stop */ 1 },
         input: { session_id: session.session_id, task_id: command.task_id }, summary: command.summary })),
+      // What a session waits on is decided in the session: only the person decides a held step, and a plugin offers no action that does (agent-host).
+      decisions: [],
       open: { kind: "item", surface: "coding", id: session.session_id, title: session.title || uiText.text("coding.home-background.open-session"), label: uiText.text("coding.home-background.open-session") } };
   });
 }

@@ -18,7 +18,7 @@ const at = (hour: number) => `2026-11-14T${String(hour).padStart(2, "0")}:00:00.
 const event = (id: string, placement: "occurred" | "active" | "today", hour: number, extra: Record<string, unknown> = {}) => ({ event_id: id, subject: { kind: "homebg_item", id }, title: `事件 ${id}`, summary: "", content: "",
   facts: [], category: "personal", placement, occurred_at: at(hour), needs_attention: false, open: null, ...extra });
 const task = (id: string, serves: string[], extra: Record<string, unknown> = {}) => ({ subject: { kind: "homebg_task", id }, title: `任务 ${id}`, state: "running", details: [], waiting: false,
-  updated_at: at(9), executor: { kind: "plugin", label: "示例" }, serves: serves.map(item => ({ kind: "homebg_item", id: item })), scope: "project", commands: [], open: null, ...extra });
+  updated_at: at(9), executor: { kind: "plugin", label: "示例" }, serves: serves.map(item => ({ kind: "homebg_item", id: item })), scope: "project", commands: [], decisions: [], open: null, ...extra });
 const code = (expected: string) => (error: unknown) => error instanceof ActionError && error.code === expected;
 const person = (projectId: string, permissions: readonly string[] = [MAINLINE_READ_PERMISSION, "homebg:read"], change: Partial<ActionCallContext> = {}): ActionCallContext =>
   ({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: projectId, permissions: [...permissions], ...change });

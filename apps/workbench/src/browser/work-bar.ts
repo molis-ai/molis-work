@@ -131,10 +131,10 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
   };
   const unreadable = (issues: readonly MainlineIssue[]) => [...new Set(issues.map(issue => issue.title))].map(renderLineUnreadable).join("");
 
-  const panel = installTaskPanel(host, { events: () => events.values(), press, keyOf, hue, again, request });
+  const panel = installTaskPanel(host, { events: () => events.values(), press, keyOf, hue, again, request, repaint: () => cards.paint() });
 
   const eventOf = (subject: ActionSubject) => [...events.values()].find(one => keyOf(one.subject) === keyOf(subject));
-  const cards = installEventCards(host, { event: eventOf, keyOf, press, rows: panel.rows,
+  const cards = installEventCards(host, { event: eventOf, keyOf, press, rows: panel.rows, decisions: panel.decisions,
     // Who registered it, then how it stands: the owner's own line about it, or that it waits for the person.
     facts: event => { const { stateLabel, note } = view(event, false); return [uiText.text("workbench.work-line.registered-by", { plugin: event.origin.title }), stateLabel || note].filter(Boolean).join(" · "); } });
 

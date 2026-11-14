@@ -1,6 +1,6 @@
 import { inputSchemaFor } from "../platform/action-input.js";
 import { ACTION_REFERENCE_SCHEMA, ACTION_SUBJECT_SCHEMA, BACKGROUND_TASK_SCHEMA, OPEN_TARGET_SCHEMA, WORK_EVENT_SCHEMA, WORK_EVENT_SOURCE_SCHEMA, WORK_EVENT_WINDOW_SCHEMA, defineErrorCodes,
-  type ActionDefinition, type ActionReference, type ActionSubject, type BackgroundTask, type BackgroundTaskCollection, type BackgroundTaskCommand, type OpenTarget, type WorkEvent, type WorkEventCollection,
+  type ActionDefinition, type ActionReference, type ActionSubject, type BackgroundTask, type BackgroundTaskAnswer, type BackgroundTaskCollection, type BackgroundTaskCommand, type OpenTarget, type WorkEvent, type WorkEventCollection,
   type WorkEventWindow } from "../platform/actions.js";
 import type { StateRingState } from "../platform/ui-state-rings.js";
 
@@ -60,6 +60,14 @@ export interface BackgroundTaskCommandRequest { source: Required<ActionReference
 export interface BackgroundTaskCommandResult { role: BackgroundTaskCommand["role"]; output: unknown }
 
 /**
+ * An answer to one thing a task asks (specs/work-line §4.4, WLN-10): the decision by the id the row gave it, and which of its
+ * answers. It is run only if the provider, asked again, still asks exactly that and still offers that answer, so an answer never
+ * reaches another question or a later version of this one (PWA-135). `note` is the person's words for `revise`, and is required for it.
+ */
+export interface BackgroundTaskDecideRequest { source: Required<ActionReference>; subject: ActionSubject; decision: string; role: BackgroundTaskAnswer["role"]; note?: string }
+export interface BackgroundTaskDecideResult { role: BackgroundTaskAnswer["role"]; output: unknown }
+
+/**
  * One thing that waits on the person in this project (specs/work-line §6, WLN-39): an event of the line that waits, by itself or
  * because a task behind it does, or a waiting task that serves no event of the line. Each object is counted once. The number at
  * the head of the line, the mark on an event and the task panel read this one answer.
@@ -92,6 +100,10 @@ export const mainlineErrors = defineErrorCodes("mainline", {
   source_changed: "conflict",
   /** The task is gone, or no longer offers the command as it was shown. */
   task_changed: "conflict",
+  /** The task no longer asks this, or no longer offers this answer to it. */
+  decision_changed: "conflict",
+  /** 「改一下」 without the words to change it by, or words with another answer. */
+  note_invalid: "invalid",
   /** The task's owner keeps no relation to events for this kind of task, or does not offer this part of it. */
   task_not_placeable: "invalid",
   /** Two providers say they keep the relation for the same kind of task: neither is called. */
@@ -166,4 +178,14 @@ export const mainlineActions = {
     kind: "operation", effect: "write", audiences: ["user"], permissions: [MAINLINE_CONTROL_PERMISSION],
     input_schema: inputSchemaFor<BackgroundTaskCommandRequest>()({ type: "object", properties: { source, subject: ACTION_SUBJECT_SCHEMA, command: COMMAND_SCHEMA }, required: ["source", "subject", "command"], additionalProperties: false } as const),
     output_schema: { type: "object", properties: { role: { enum: ["stop", "pause", "resume"] }, output: {} }, required: ["role", "output"], additionalProperties: false } } } as ActionDefinition<BackgroundTaskCommandRequest, BackgroundTaskCommandResult>,
+  /**
+   * Answer what a task asks: the provider is asked again, and the answer is run only if the task still asks exactly this and still
+   * offers it. The answer's action is the provider's own and is called as the caller; only the person may ask.
+   */
+  decide: { capability_id: "background.tasks.decide", version: /* @version action.background.tasks.decide */ 1, operation: "command", action: { ...metadata,
+    title: "回答后台任务要你定的事", description: "重新读取任务的提供方，确认它仍在问这一件、仍给出这种回答后，以本人身份调用它写明的动作；同意、改一下或拒绝只作用于这一个问题。",
+    kind: "operation", effect: "write", audiences: ["user"], permissions: [MAINLINE_CONTROL_PERMISSION],
+    input_schema: inputSchemaFor<BackgroundTaskDecideRequest>()({ type: "object", properties: { source, subject: ACTION_SUBJECT_SCHEMA, decision: id, role: { enum: ["approve", "revise", "reject"] },
+      note: { type: "string", minLength: 1, maxLength: 2000 } }, required: ["source", "subject", "decision", "role"], additionalProperties: false } as const),
+    output_schema: { type: "object", properties: { role: { enum: ["approve", "revise", "reject"] }, output: {} }, required: ["role", "output"], additionalProperties: false } } } as ActionDefinition<BackgroundTaskDecideRequest, BackgroundTaskDecideResult>,
 };

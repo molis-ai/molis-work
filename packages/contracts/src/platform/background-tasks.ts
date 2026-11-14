@@ -20,6 +20,29 @@ export interface BackgroundTaskPhrase { text: string; count?: number }
 /** What the person may do to a task: an action through the gateway with the input the provider wrote, so it is authorized and leaves its diagnostic line like any call. */
 export interface BackgroundTaskCommand { role: "stop" | "pause" | "resume"; action: ActionReference; input: Record<string, unknown>; summary: string }
 
+/**
+ * One way to answer what a task asks: the provider's own action through the gateway, with the input the provider wrote. `revise`
+ * is run with the person's words added to that input as `note`; the others are run with the input as it is.
+ */
+export interface BackgroundTaskAnswer { role: "approve" | "revise" | "reject"; action: ActionReference; input: Record<string, unknown>; summary: string }
+
+/**
+ * What a task that stopped asks the person to decide (specs/work-line §4.4, WLN-10), exactly as its owner holds it. `id` is the
+ * owner's own id of this question at this version: an answer names it, reaches that question only, and is refused once the owner
+ * no longer asks exactly it (PWA-135). A provider that cannot offer an action for an answer leaves `answers` empty: the person
+ * decides where the task opens.
+ */
+export interface BackgroundTaskDecision {
+  id: string;
+  /** What is to be decided, in the owner's words. */
+  ask: string;
+  /** Why it is asked. */
+  why?: string;
+  /** What agreeing would change, one place a line. */
+  changes: Array<{ label: string; value: string }>;
+  answers: BackgroundTaskAnswer[];
+}
+
 export interface BackgroundTaskExecutor { kind: "assistant" | "character" | "plugin" | "platform"; label: string }
 
 export interface BackgroundTask {
@@ -41,6 +64,8 @@ export interface BackgroundTask {
   serves: ActionSubject[];
   scope: "project" | "personal";
   commands: BackgroundTaskCommand[];
+  /** What it waits on the person to decide, each answered on its own; empty when it asks nothing that can be listed. */
+  decisions: BackgroundTaskDecision[];
   open: OpenTarget | null;
 }
 
@@ -54,16 +79,20 @@ const text = { type: "string" };
 const id = { ...text, minLength: 1, maxLength: 200 };
 const instant = { ...id, format: "date-time" };
 const phrase = { type: "object", properties: { text: { ...id, maxLength: 200 }, count: { type: "integer", minimum: 0 } }, required: ["text"], additionalProperties: false };
+const command = (roles: readonly string[]) => ({ type: "object", properties: { role: { enum: roles }, action: ACTION_REFERENCE_SCHEMA, input: { type: "object" }, summary: { ...text, maxLength: 1000 } },
+  required: ["role", "action", "input", "summary"], additionalProperties: false });
+export const BACKGROUND_TASK_DECISION_SCHEMA = { type: "object", properties: { id, ask: { ...id, maxLength: 1000 }, why: { ...id, maxLength: 1000 },
+  changes: { type: "array", maxItems: 20, items: { type: "object", properties: { label: { ...id, maxLength: 200 }, value: { ...text, maxLength: 2000 } }, required: ["label", "value"], additionalProperties: false } },
+  answers: { type: "array", maxItems: 3, items: command(["approve", "revise", "reject"]) } }, required: ["id", "ask", "changes", "answers"], additionalProperties: false };
 const BACKGROUND_TASK_STATES: readonly StateRingState[] = STATE_RING_FAMILIES.flatMap(family => [...family.states]);
 export const BACKGROUND_TASK_SCHEMA = { type: "object", properties: {
   subject: ACTION_SUBJECT_SCHEMA, title: { ...text, maxLength: 500 }, state: { enum: BACKGROUND_TASK_STATES }, step: phrase, details: { type: "array", maxItems: 8, items: phrase },
   waiting: { type: "boolean" }, started_at: instant, updated_at: instant,
   executor: { type: "object", properties: { kind: { enum: ["assistant", "character", "plugin", "platform"] }, label: { ...id, maxLength: 120 } }, required: ["kind", "label"], additionalProperties: false },
   serves: { type: "array", maxItems: 20, items: ACTION_SUBJECT_SCHEMA }, scope: { enum: ["project", "personal"] },
-  commands: { type: "array", maxItems: 50, items: { type: "object", properties: { role: { enum: ["stop", "pause", "resume"] }, action: ACTION_REFERENCE_SCHEMA, input: { type: "object" }, summary: { ...text, maxLength: 1000 } },
-    required: ["role", "action", "input", "summary"], additionalProperties: false } },
+  commands: { type: "array", maxItems: 50, items: command(["stop", "pause", "resume"]) }, decisions: { type: "array", maxItems: 10, items: BACKGROUND_TASK_DECISION_SCHEMA },
   open: { anyOf: [{ type: "null" }, OPEN_TARGET_SCHEMA] } },
-  required: ["subject", "title", "state", "details", "waiting", "updated_at", "executor", "serves", "scope", "commands", "open"], additionalProperties: false };
+  required: ["subject", "title", "state", "details", "waiting", "updated_at", "executor", "serves", "scope", "commands", "decisions", "open"], additionalProperties: false };
 export const BACKGROUND_TASK_COLLECTION_SCHEMA = { type: "object", properties: { source: WORK_EVENT_SOURCE_SCHEMA, tasks: { type: "array", maxItems: 500, items: BACKGROUND_TASK_SCHEMA } }, required: ["source", "tasks"], additionalProperties: false };
 
 export function defineBackgroundTasksAction(capabilityId: string, version: number, kinds: string[], title: string, permissions: string[]): ActionDefinition<Record<string, never>, BackgroundTaskCollection> {

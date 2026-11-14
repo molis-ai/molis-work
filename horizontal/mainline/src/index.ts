@@ -1,9 +1,9 @@
 import { isDeepStrictEqual } from "node:util";
 import { ActionError, BACKGROUND_TASKS_OUTPUT_TYPE, TASK_SERVES_RELATION, WORK_EVENTS_INPUT_TYPE, WORK_EVENTS_OUTPUT_TYPE, assertWorkEventWindow, type ActionCallContext, type ActionClient, type ActionReference,
-  type ActionSubject, type ActionView, type BackgroundTask, type BackgroundTaskCollection, type BackgroundTaskCommand, type BackgroundTaskPhrase, type OpenTarget, type TaskServesRole, type WorkEvent,
+  type ActionSubject, type ActionView, type BackgroundTask, type BackgroundTaskAnswer, type BackgroundTaskCollection, type BackgroundTaskCommand, type BackgroundTaskDecision, type BackgroundTaskPhrase, type OpenTarget, type TaskServesRole, type WorkEvent,
   type WorkEventCollection, type WorkEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 import { STATE_RING_FAMILIES, type StateRingState } from "@molis-ai/molis-work-contracts/platform/ui";
-import { mainlineErrors, type BackgroundTaskCommandRequest, type BackgroundTaskCommandResult, type BackgroundTaskRow, type BackgroundTasksReadResult, type MainlineIssue, type TaskPlaceRequest, type TaskPlaceResult,
+import { mainlineErrors, type BackgroundTaskCommandRequest, type BackgroundTaskCommandResult, type BackgroundTaskDecideRequest, type BackgroundTaskDecideResult, type BackgroundTaskRow, type BackgroundTasksReadResult, type MainlineIssue, type TaskPlaceRequest, type TaskPlaceResult,
   type WaitingItem, type WaitingReadResult, type WorkLineEvent, type WorkLineReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
 import { createExecutionLifetime, isHomeAggregateQuery } from "@molis-ai/molis-work-plugin-sdk";
 
@@ -33,11 +33,23 @@ function openOf(value: unknown): OpenTarget | null {
  * A command is offered only as an action of the provider that answered: a row cannot put another provider's action, with an
  * input of its choosing, behind a button the person presses. Anything else is not offered.
  */
-function commandOf(value: unknown, source: Required<ActionReference>): BackgroundTaskCommand | null {
-  if (!record(value) || !["stop", "pause", "resume"].includes(value.role as string) || typeof value.summary !== "string" || value.summary.length > 1000 || !record(value.input) || !record(value.action)) return null;
+function commandOf<Role extends string = BackgroundTaskCommand["role"]>(value: unknown, source: Required<ActionReference>, roles: readonly string[] = ["stop", "pause", "resume"]): { role: Role; action: Required<ActionReference>; input: Record<string, unknown>; summary: string } | null {
+  if (!record(value) || !roles.includes(value.role as string) || typeof value.summary !== "string" || value.summary.length > 1000 || !record(value.input) || !record(value.action)) return null;
   const { capability_id, version, provider_id } = value.action;
   if (!text(capability_id, 200) || !Number.isSafeInteger(version) || (version as number) < 1 || (provider_id !== undefined && provider_id !== source.provider_id)) return null;
-  return { role: value.role as BackgroundTaskCommand["role"], action: { capability_id, version: version as number, provider_id: source.provider_id }, input: value.input, summary: value.summary };
+  return { role: value.role as Role, action: { capability_id, version: version as number, provider_id: source.provider_id }, input: value.input, summary: value.summary };
+}
+/**
+ * What a task asks, or null when it cannot be drawn. Its answers are held to the same rule as a command: the provider's own actions,
+ * one of a role at most. A line of what would change that is not a label and a value is a row the provider got wrong.
+ */
+function decisionOf(value: unknown, source: Required<ActionReference>): BackgroundTaskDecision | null {
+  if (!record(value) || !text(value.id, 200) || !text(value.ask, 1000) || (value.why !== undefined && !text(value.why, 1000)) || !Array.isArray(value.changes) || value.changes.length > 20
+    || !Array.isArray(value.answers) || value.answers.length > 3) return null;
+  const changes = value.changes.map(line => record(line) && text(line.label, 200) && typeof line.value === "string" && line.value.length <= 2000 ? { label: line.label, value: line.value } : null);
+  const answers = value.answers.map(answer => commandOf<BackgroundTaskAnswer["role"]>(answer, source, ["approve", "revise", "reject"]));
+  if (changes.includes(null) || answers.includes(null) || new Set(answers.map(answer => answer!.role)).size !== answers.length) return null;
+  return { id: value.id, ask: value.ask, ...(value.why === undefined ? {} : { why: value.why as string }), changes: changes as BackgroundTaskDecision["changes"], answers: answers as BackgroundTaskAnswer[] };
 }
 
 /** Who answered, as the answer names itself, or null when it is not a plain surface, name and glyph. */
@@ -52,15 +64,16 @@ export function backgroundTaskRow(task: unknown, source: Required<ActionReferenc
   if (!record(task)) return null;
   const subject = subjectOf(task.subject), executor = record(task.executor) ? task.executor : null;
   if (!subject || !kinds.includes(subject.kind) || typeof task.title !== "string" || task.title.length > 500 || !STATES.has(task.state as string) || typeof task.waiting !== "boolean" || !text(task.updated_at, 64)
-    || !Array.isArray(task.details) || task.details.length > 8 || !Array.isArray(task.serves) || task.serves.length > 20 || !Array.isArray(task.commands) || (task.scope !== "project" && task.scope !== "personal")
+    || !Array.isArray(task.details) || task.details.length > 8 || !Array.isArray(task.serves) || task.serves.length > 20 || !Array.isArray(task.commands) || !Array.isArray(task.decisions) || task.decisions.length > 10 || (task.scope !== "project" && task.scope !== "personal")
     || !executor || !["assistant", "character", "plugin", "platform"].includes(executor.kind as string) || !text(executor.label, 120)
     || (task.started_at !== undefined && !text(task.started_at, 64)) || (task.open !== null && !openOf(task.open))) return null;
   const details = task.details.map(phraseOf), serves = task.serves.map(subjectOf), step = task.step === undefined ? undefined : phraseOf(task.step);
-  if (details.includes(null) || serves.includes(null) || step === null) return null;
+  const decisions = task.decisions.map(decision => decisionOf(decision, source));
+  if (details.includes(null) || serves.includes(null) || step === null || decisions.includes(null) || new Set(decisions.map(decision => decision!.id)).size !== decisions.length) return null;
   return { id: JSON.stringify([source.provider_id, source.capability_id, subject.kind, subject.id]), source, origin, subject, title: task.title, state: task.state as StateRingState,
     ...(step ? { step } : {}), details: details as BackgroundTaskPhrase[], waiting: task.waiting, ...(task.started_at === undefined ? {} : { started_at: task.started_at as string }), updated_at: task.updated_at,
     executor: { kind: executor.kind as BackgroundTask["executor"]["kind"], label: executor.label as string }, serves: serves as ActionSubject[], scope: task.scope,
-    commands: task.commands.flatMap(command => { const offered = commandOf(command, source); return offered ? [offered] : []; }), open: openOf(task.open) };
+    commands: task.commands.flatMap(command => { const offered = commandOf(command, source); return offered ? [offered] : []; }), decisions: decisions as BackgroundTaskDecision[], open: openOf(task.open) };
 }
 
 /** The rows of one provider's answer, or null when the answer as a whole cannot be read. */
@@ -122,6 +135,27 @@ export async function runBackgroundTaskCommand(caller: ActionCallContext, client
     await caller.validate_authority?.(source);
   } };
   return { role: command.role, output: await client.invoke(guarded, command.action, command.input) };
+}
+
+/**
+ * `background.tasks.decide@1` (WLN-10, PWA-135): the provider is asked again, and the answer is run only if the task still asks the
+ * decision of that id and still offers an answer of that role. What runs is the provider's own action with the input it wrote in
+ * this read; the page's copy is never the answer. `revise` carries the person's words as `note`, and nothing else may.
+ */
+export async function decideBackgroundTask(caller: ActionCallContext, client: ActionClient, request: BackgroundTaskDecideRequest): Promise<BackgroundTaskDecideResult> {
+  if ((request.role === "revise") !== (typeof request.note === "string" && request.note.trim().length > 0)) throw mainlineErrors.note_invalid("「改一下」要写上怎么改；同意和拒绝不带修改意见");
+  const view = (await client.discover(caller)).find(candidate => isTaskSource(candidate) && same(request.source, referenceOf(candidate)));
+  if (!view?.availability.available) throw mainlineErrors.source_changed("这个任务的提供方已不可用，请重新读取后台任务");
+  const source = referenceOf(view);
+  const rows = backgroundTaskRows(await beforeDeadline(caller.signal, signal => client.invoke({ ...caller, query_only: true, signal }, source, {})), source, view.action.subject_kinds ?? []);
+  const task = rows?.find(row => row.subject.kind === request.subject.kind && row.subject.id === request.subject.id);
+  const answer = task?.decisions.find(decision => decision.id === request.decision)?.answers.find(offered => offered.role === request.role);
+  if (!answer) throw mainlineErrors.decision_changed("任务已不再问这一件，或不再给出这种回答，请重新读取后再操作");
+  const guarded: ActionCallContext = { ...caller, validate_authority: async reference => {
+    await caller.validate_authority?.(reference);
+    await caller.validate_authority?.(source);
+  } };
+  return { role: answer.role, output: await client.invoke(guarded, answer.action, answer.role === "revise" ? { ...answer.input, note: request.note!.trim() } : answer.input) };
 }
 
 /** An event registrant: a query with the event registry's two types (specs/work-line §5). There is no other list of registrants. */

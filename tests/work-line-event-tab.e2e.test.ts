@@ -370,3 +370,87 @@ test("WLN-09 WLN-14: an event's card lists the tasks done for it; parked in the 
   assert.equal(await evaluate("document.querySelector('[data-side-parked]').dataset.empty"), "true");
   assert.equal(await evaluate("document.documentElement.scrollWidth <= window.innerWidth"), true, "no sideways scroll");
 });
+
+// WLN-10 (PWA-135): a task that waits on the person shows what it asks at the head of the event's card — the question, why, what
+// would change — with 同意／改一下／拒绝; an answer names that question of that task only. The task table here is the real one with
+// the question written onto the task's row on its way to the page (no model runs in this fixture, so no step is really held);
+// that the service runs only what the owner still asks is tests/mainline-background-tasks.test.ts.
+test("WLN-10: a waiting task's question heads the event's card with what would change; 同意 and 「改一下」 with its words answer that question only", { timeout: 150_000 }, async t => {
+  const browser = await openGoalBrowser(t, true, undefined, null);
+  if (!browser) return;
+  const { command, sessionId, navigate, origin, projectId, homeDirectory, evaluate, waitFor, click } = browser;
+  const store = openTodoStore(homeDirectory);
+  const item = store.create({ title: "给王总回电话", placement: "project", planned_date: today() }, { projectId, projectIds: [], actor: "user" as const, actorId: "test" }).item;
+  store.close();
+  const PRESS = `[data-work-line] [data-work-event*="todo-planned:${item.id}"]`, KEY = `todo_item:${item.id}`;
+  await command("Page.addScriptToEvaluateOnNewDocument", { source: `window.__asks = []; window.__decided = []; (() => { const real = window.fetch; window.fetch = async function (input, init) {
+    const url = new URL(typeof input === 'string' ? input : input.url, location.href);
+    if (url.pathname.endsWith('/api/mainline/tasks/decide')) {
+      const body = JSON.parse(init.body); window.__decided.push(body); window.__asks = window.__asks.filter(id => id !== body.decision);
+      return new Response(JSON.stringify({ role: body.role, output: {} }), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    const response = await real.apply(this, arguments);
+    try {
+      if (!window.__asks.length || !url.pathname.endsWith('/api/attention')) return response;
+      const body = await response.clone().json();
+      for (const task of body.tasks?.tasks ?? []) if (task.serves.some(one => one.id === ${JSON.stringify(item.id)})) Object.assign(task, { state: 'approval', waiting: true, decisions: window.__asks.map(id => ({ id, ask: id === 'q1' ? '把回电时间改到下午三点' : '给王总发一封确认邮件',
+        why: '这一步会改动内容，照你的设置先问你', changes: id === 'q1' ? [{ label: '计划时间', value: '上午十点 → 下午三点' }, { label: '提醒', value: '提前十分钟' }] : [],
+        answers: ['approve', 'revise', 'reject'].map(role => ({ role, action: { capability_id: 'assistant.background.decide', version: 1, provider_id: task.source.provider_id }, input: {}, summary: role })) })) });
+      return new Response(JSON.stringify(body), { status: response.status, headers: { "content-type": "application/json" } });
+    } catch { return response; }
+  }; })();` }, sessionId);
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
+  await waitFor(`document.querySelector(${JSON.stringify(PRESS)})?.textContent.includes('给王总回电话')`, 20_000);
+  await click(PRESS);
+  const CARD = `document.querySelector('[data-assistant-event-card] [data-event-card=${JSON.stringify(KEY)}]')`, ASKS = `[...${CARD}.querySelectorAll('[data-card-decisions] [data-task-decision]')]`;
+  await evaluate(type("先问预算"));
+  await evaluate("document.querySelector('[data-assistant-composer] [data-composer-send]').click()");
+  await waitFor(`${CARD}?.querySelector('[data-card-tasks] .work-task-row-title')?.textContent === '先问预算'`, 25_000);
+  assert.equal(await evaluate(`${CARD}.querySelector('[data-card-decisions]').hidden`), true, "a task that asks nothing puts nothing at the head of the card");
+
+  // The task stops on two questions: both head the card, above what the owner shows and 「在办」, the first with the one primary button.
+  const again = "document.dispatchEvent(new CustomEvent('molis-work:attention-refresh'))";
+  await evaluate(`window.__asks = ['q1', 'q2']; ${again}`);
+  await waitFor(`${CARD} && ${ASKS}.length === 2`, 15_000);
+  assert.deepEqual(await evaluate(`${ASKS}.map(part => ({ ask: part.querySelector('.work-decision-ask strong').textContent, why: part.querySelector('.work-decision-why').textContent,
+    changes: [...part.querySelectorAll('.work-decision-changes > div')].map(line => line.querySelector('dt').textContent + '：' + line.querySelector('dd').textContent),
+    answers: [...part.querySelectorAll('[data-decision-answer]')].map(button => button.textContent.trim() + (button.classList.contains('mw-btn--primary') ? '*' : '')) }))`), [
+    { ask: "把回电时间改到下午三点", why: "「先问预算」在问 · 这一步会改动内容，照你的设置先问你", changes: ["计划时间：上午十点 → 下午三点", "提醒：提前十分钟"], answers: ["同意*", "改一下", "拒绝"] },
+    { ask: "给王总发一封确认邮件", why: "「先问预算」在问 · 这一步会改动内容，照你的设置先问你", changes: [], answers: ["同意", "改一下", "拒绝"] }]);
+  assert.equal(await evaluate(`(() => { const card = ${CARD}, asks = card.querySelector('[data-card-decisions]'), body = card.querySelector('[data-card-body]'); return asks.getBoundingClientRect().bottom <= body.getBoundingClientRect().top + 1 && card.scrollWidth <= card.clientWidth + 1
+    && [...asks.querySelectorAll('.mw-btn')].every(button => getComputedStyle(button).borderTopWidth !== '0px' || button.classList.contains('mw-btn--primary')); })()`), true, "the questions stand first, fit the card, and every answer has an edge");
+  assert.equal(await evaluate(`Boolean(${CARD}.querySelector('[data-card-tasks] [data-task-control="decide"]'))`), false, "the row offers no second way to decide what the card already asks");
+  const shot = new URL("../.impeccable/qa/review/work-line/", import.meta.url);
+  await mkdir(shot, { recursive: true });
+  await writeFile(new URL("event-card-decision-1440.png", shot), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
+
+  // 「改一下」: the field takes the answers' place; no words, nothing is sent; the words written stay through a new read; Enter sends them for that question.
+  await evaluate(`${ASKS}[0].querySelector('[data-decision-answer="revise"]').click()`);
+  const NOTE = `${CARD}.querySelector('[data-task-decision="q1"] [data-decision-note]')`;
+  await waitFor(`document.activeElement === ${NOTE}`);
+  await evaluate(`${CARD}.querySelector('[data-task-decision="q1"] [data-decision-send]').click()`);
+  assert.equal(await evaluate(`${NOTE}.getAttribute('aria-invalid')`), "true");
+  assert.deepEqual(await evaluate("window.__decided"), []);
+  await evaluate(`(() => { const note = ${NOTE}; note.value = '改到下午四点'; note.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+  await evaluate(`window.__asks = ['q1', 'q2', 'q3']; ${again}`);
+  await waitFor(`${ASKS}.length === 3`, 15_000);
+  assert.equal(await evaluate(`${NOTE}.value`), "改到下午四点", "what was being written survives the redraw");
+  await evaluate(`${NOTE}.focus(); ${NOTE}.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }))`);
+  await waitFor(`window.__decided.length === 1 && ${ASKS}.length === 2`, 15_000);
+  // 同意 on the next one: that question, and only it.
+  await evaluate(`${CARD}.querySelector('[data-task-decision="q2"] [data-decision-answer="approve"]').click()`);
+  await waitFor(`window.__decided.length === 2 && ${ASKS}.length === 1`, 15_000);
+  const decided = await evaluate<Array<{ subject: { kind: string }; decision: string; role: string; note?: string; source: { capability_id: string } }>>("window.__decided");
+  assert.deepEqual(decided.map(one => [one.subject.kind, one.source.capability_id, one.decision, one.role, one.note]), [["assistant_work", "assistant.background.tasks", "q1", "revise", "改到下午四点"], ["assistant_work", "assistant.background.tasks", "q2", "approve", undefined]]);
+
+  // The same question in the task's own card in the panel, where no other task is named.
+  await click(`[data-assistant-event-card] [data-card-tasks] [data-task-open]`);
+  await waitFor("document.querySelector('[data-work-task-float] [data-task-card] [data-task-decision=\"q3\"]')");
+  assert.equal(await evaluate("Boolean(document.querySelector('[data-work-task-float] [data-task-decision=\"q3\"] .work-decision-why')?.textContent.includes('在问'))"), false);
+  await evaluate("document.querySelector('[data-work-task-float] [data-task-decision=\"q3\"] [data-decision-answer=\"reject\"]').click()");
+  await waitFor(`window.__decided.length === 3 && ${CARD}.querySelector('[data-card-decisions]').hidden`, 15_000);
+  assert.equal((await evaluate<Array<{ decision: string; role: string }>>("window.__decided"))[2]!.role, "reject");
+  assert.equal(await evaluate("document.documentElement.scrollWidth <= window.innerWidth"), true, "no sideways scroll");
+});

@@ -8,7 +8,7 @@
 
 工作台画底部的线：Host 的 `mainline.line.read@1` 交给 `readWorkLine`。它 `discover` 一次，按事件读取合同的两个类型挑出登记方，并行各问一次（只读、各限 5 秒），同一次调用里读一遍后台任务总表，按每行的 `serves` 对上事件，给每件事件定在哪一翼、排第几、线上显示什么状态。
 
-本人打开后台任务面板：Host 的 `background.tasks.read@1` 把调用方和它自己的客户端交给 `readBackgroundTasks`。它 `discover` 一次，按输出类型（`BACKGROUND_TASKS_OUTPUT_TYPE`）和聚合查询的规则挑出任务提供方，并行各问一次（只读、各限 2 秒），逐行检查后按更新时间排好给出；读不到的提供方只留标题和错误码。本人点一行上的「停止」：`background.tasks.command@1` 交给 `runBackgroundTaskCommand`，它再问一遍那个提供方，命令与此刻给出的完全相同才以本人身份调用命令写明的动作。
+本人打开后台任务面板：Host 的 `background.tasks.read@1` 把调用方和它自己的客户端交给 `readBackgroundTasks`。它 `discover` 一次，按输出类型（`BACKGROUND_TASKS_OUTPUT_TYPE`）和聚合查询的规则挑出任务提供方，并行各问一次（只读、各限 2 秒），逐行检查后按更新时间排好给出；读不到的提供方只留标题和错误码。本人点一行上的「停止」：`background.tasks.command@1` 交给 `runBackgroundTaskCommand`，它再问一遍那个提供方，命令与此刻给出的完全相同才以本人身份调用命令写明的动作。本人在事件卡或任务卡上答一项决定请求（同意、改一下、拒绝）：`background.tasks.decide@1` 交给 `decideBackgroundTask`，同样再问一遍提供方，这个任务还在问这个编号、还给这种回答才调用它写的动作；「改一下」必须带修改意见，别的回答不能带。
 
 ## 从哪里读代码
 

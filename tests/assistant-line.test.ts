@@ -22,13 +22,15 @@ function harness() {
     { work: base("report", "季度报告", 40), state: "completed" },
     { work: base("plan", "发布计划", 45), state: "waiting-input" },
     { work: base("errand", "查一下汇率", 46, { ...delegated("p-1"), character: { artifact_id: "character:project:editor", version: 2, title: "严格的编辑" } }), state: "running" },
-    { work: base("tracked", "整理访谈", 47, { ...delegated("p-2"), line_event: true }), state: "waiting-review" },
+    { work: base("tracked", "整理访谈", 47, { ...delegated("p-2"), line_event: true }), state: "waiting-review",
+      reviews: [{ review_id: "r1", kind: "business", run_id: "run-1", summary: "把访谈整理成三段", fields: [{ label: "标题", value: "访谈纪要" }, { label: "正文", value: "三段" }], requested_at: at(47), expires_at: null },
+        { review_id: "r2", kind: "file", run_id: "run-1", summary: "改 notes.md", fields: [], requested_at: at(47), expires_at: null }] },
     { work: base("for-plan", "补发布说明", 48, { ...delegated("p-3"), serves: [{ kind: ASSISTANT_WORK_KIND, id: "plan" }] }), state: "running" },
     { work: base("done-errand", "查了天气", 30, delegated("p-4")), state: "completed" },
     // Said by the person in a plugin event's tab (specs/work-line §4.4): a work done for that event, not an event of its own.
     { work: base("about-todo", "先问预算", 49, { serves: [{ kind: "todo_item", id: "t1" }] }), state: "running" },
   ];
-  const placed: Array<{ work_id: string; to: { serves: unknown[]; line_event: boolean } }> = [], stopped: string[] = [], asked: string[] = [];
+  const placed: Array<{ work_id: string; to: { serves: unknown[]; line_event: boolean } }> = [], stopped: string[] = [], asked: string[] = [], decided: Array<{ work_id: string; review_id: string; decision: string; note?: string }> = [];
   const source: AssistantLineSource = {
     works: async project => { asked.push(project); return project === "p1" ? works : []; },
     place: (workId, to) => {
@@ -39,6 +41,7 @@ function harness() {
       return found.work;
     },
     stop: async workId => { stopped.push(workId); },
+    decide: async (workId, input) => { decided.push({ work_id: workId, ...input }); },
   };
   const registration = assistantLineRegistration(() => source);
   let effects = 0;
@@ -47,7 +50,7 @@ function harness() {
     const handler = registration.handlers.find(one => one.capability_id === capability)!;
     return handler.handle({ ...caller, beforeEffect: async () => { effects++; } } as Parameters<typeof handler.handle>[0], input) as Promise<T>;
   };
-  return { registration, invoke, placed, stopped, asked, effects: () => effects };
+  return { registration, invoke, placed, stopped, asked, decided, effects: () => effects };
 }
 const subject = (id: string) => ({ kind: ASSISTANT_WORK_KIND, id });
 
@@ -120,4 +123,27 @@ test("WLN-39: the stop on a row stops that work; a work of another project is no
   await assert.rejects(invoke("assistant.background.stop", { work_id: "errand" }, { actor_id: "local-person", project_id: "p2", audience: "user", permissions: [] }), (error: unknown) => (error as { code?: string }).code === "assistant.not_found");
   await assert.rejects(invoke("assistant.background.stop", { work_id: "main" }), (error: unknown) => (error as { code?: string }).code === "assistant.not_found");
   assert.deepEqual(stopped, ["errand"]);
+});
+
+test("WLN-10, PWA-135: a work that waits on a confirmation lists each held effect as a decision of its row, by the review's own id; an answer reaches that effect of the caller's own work only, and a work of another project or the conversation itself is refused with nothing recorded", async () => {
+  const { invoke, decided, effects } = harness();
+  const tasks = (await invoke<BackgroundTaskCollection>("assistant.background.tasks", {})).tasks;
+  const tracked = tasks.find(task => task.subject.id === "tracked")!;
+  assert.deepEqual(tracked.decisions.map(one => [one.id, one.ask, one.changes, one.answers.map(answer => [answer.role, answer.action.capability_id, answer.input])]), [
+    ["r1", "把访谈整理成三段", [{ label: "标题", value: "访谈纪要" }, { label: "正文", value: "三段" }], [["approve", "assistant.background.decide", { work_id: "tracked", review_id: "r1", decision: "approve" }],
+      ["revise", "assistant.background.decide", { work_id: "tracked", review_id: "r1", decision: "reject" }], ["reject", "assistant.background.decide", { work_id: "tracked", review_id: "r1", decision: "reject" }]]],
+    ["r2", "改 notes.md", [], [["approve", "assistant.background.decide", { work_id: "tracked", review_id: "r2", decision: "approve" }],
+      ["revise", "assistant.background.decide", { work_id: "tracked", review_id: "r2", decision: "reject" }], ["reject", "assistant.background.decide", { work_id: "tracked", review_id: "r2", decision: "reject" }]]]]);
+  assert.ok(tasks.filter(task => task.subject.id !== "tracked").every(task => task.decisions.length === 0), "a work that waits on nothing held asks nothing");
+  assert.deepEqual(ASSISTANT_LINE_ACTIONS.decide.action.audiences, ["user"], "only the person answers");
+
+  const before = effects();
+  assert.deepEqual(await invoke("assistant.background.decide", { work_id: "tracked", review_id: "r1", decision: "approve" }), { decided: "approve" });
+  assert.deepEqual(await invoke("assistant.background.decide", { work_id: "tracked", review_id: "r2", decision: "reject", note: "别动这个文件" }), { decided: "reject" });
+  assert.equal(effects(), before + 2, "each answer passes beforeEffect");
+  const missing = (error: unknown) => (error as { code?: string }).code === "assistant.not_found";
+  await assert.rejects(invoke("assistant.background.decide", { work_id: "tracked", review_id: "r1", decision: "approve" }, { actor_id: "local-person", project_id: "p2", audience: "user", permissions: [] }), missing);
+  await assert.rejects(invoke("assistant.background.decide", { work_id: "main", review_id: "r1", decision: "approve" }), missing);
+  await assert.rejects(invoke("assistant.background.decide", { work_id: "nope", review_id: "r1", decision: "approve" }), missing);
+  assert.deepEqual(decided, [{ work_id: "tracked", review_id: "r1", decision: "approve" }, { work_id: "tracked", review_id: "r2", decision: "reject", note: "别动这个文件" }]);
 });

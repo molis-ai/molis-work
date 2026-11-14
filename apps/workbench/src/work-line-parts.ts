@@ -146,6 +146,43 @@ export function renderTaskRow(row: TaskRowView): string {
     + `<span class="work-task-row-text"><span class="work-task-row-title" title="${escapeHtml(row.title)}">${escapeHtml(row.title)}</span><span class="work-task-row-step" title="${escapeHtml(row.step)}">${escapeHtml(row.step)}</span>${serves}</span></button>${control}</div>`;
 }
 
+export interface TaskDecisionView {
+  /** The task that asks, and the owner's id of what it asks. */
+  readonly task: string; readonly id: string;
+  readonly ask: string; readonly why?: string;
+  /** The asking task's name, where the card is not that task's own. */
+  readonly from?: string;
+  readonly changes: readonly { readonly label: string; readonly value: string }[];
+  /** The answers the owner offers; none: the person decides where the task opens. */
+  readonly answers: readonly ("approve" | "revise" | "reject")[];
+  /** The first decision a card lists carries its one primary button. */
+  readonly lead: boolean;
+  /** 「改一下」 was pressed: the field for the words stands in place of the answers. */
+  readonly revising: boolean;
+  readonly busy: boolean;
+}
+
+/**
+ * What a task that stopped asks the person (specs/work-line §4.4, WLN-10): the question, why, what agreeing would change — one
+ * place a line — and the answers. Agreeing is the card's one primary button; a waiting state is said by the ring and the words.
+ */
+export function renderTaskDecision(view: TaskDecisionView): string {
+  const say = (key: string, values?: Record<string, string | number>) => uiText.text(`workbench.work-line.${key}`, values);
+  const button = (role: string, variant: "primary" | "secondary", attrs: Record<string, string>) => renderButton({ variant, size: "sm", label: say(`decision-${role}`), attrs: { ...attrs, ...(view.busy ? { disabled: "" } : {}) } });
+  const why = [view.from ? say("decision-from", { task: view.from }) : "", view.why ?? ""].filter(Boolean).join(" · ");
+  const changes = view.changes.map(line => `<div><dt title="${escapeHtml(line.label)}">${escapeHtml(line.label)}</dt><dd title="${escapeHtml(line.value)}">${escapeHtml(line.value)}</dd></div>`).join("");
+  const answers = view.revising
+    ? `<textarea class="work-decision-note" data-decision-note rows="2" maxlength="2000" aria-label="${escapeHtml(say("decision-how"))}" placeholder="${escapeHtml(say("decision-how"))}"${view.busy ? " disabled" : ""}></textarea>`
+      + `<div class="work-card-actions">${button("send", "primary", { "data-decision-send": "" })}${button("cancel", "secondary", { "data-decision-cancel": "" })}</div>`
+    : `<div class="work-card-actions">${view.answers.length
+      ? view.answers.map(role => button(role, role === "approve" && view.lead ? "primary" : "secondary", { "data-decision-answer": role })).join("")
+      : renderButton({ variant: view.lead ? "primary" : "secondary", size: "sm", label: say("go-decide"), attrs: { "data-decision-go": "" } })}</div>`;
+  return `<section class="work-decision" data-task-decision="${escapeHtml(view.id)}" data-task="${escapeHtml(view.task)}" aria-label="${escapeHtml(view.ask)}"${view.busy ? ' aria-busy="true"' : ""}>`
+    + `<div class="work-decision-ask">${ring("approval")}<strong title="${escapeHtml(view.ask)}">${escapeHtml(view.ask)}</strong></div>`
+    + (why ? `<p class="work-decision-why" title="${escapeHtml(why)}">${escapeHtml(why)}</p>` : "")
+    + (changes ? `<dl class="work-decision-changes" aria-label="${escapeHtml(say("decision-changes"))}">${changes}</dl>` : "") + answers + `</section>`;
+}
+
 const iconButton = (glyph: PluginIconName, label: string, attrs: Record<string, string>) => renderButton({ variant: "ghost", size: "sm", icon: glyph, iconOnly: true, label, attrs });
 
 export interface TaskCountsView { readonly working: number; readonly needsYou: number; readonly failed: number }
@@ -205,6 +242,8 @@ export interface TaskCardView {
   readonly steps: readonly TaskStepView[];
   /** The buttons at the card's foot, drawn by the caller: stop, add a note, retry this step, open in its plugin. */
   readonly actions: string;
+  /** What it asks the person to decide, drawn by the caller with `renderTaskDecision`; it stands first. */
+  readonly decisions?: string;
 }
 
 /** One task's card, in the panel's place, with the way back to the list. The head holds only its name; its state stands with the other facts. */
@@ -213,7 +252,7 @@ export function renderTaskCard(card: TaskCardView): string {
   const fact = (key: string, value: string, more = "") => `<dt>${uiText(`workbench.work-line.${key}`)}</dt><dd>${more}<span title="${escapeHtml(value)}">${escapeHtml(value)}</span>`;
   return `<section class="work-task-panel"${attr("id", card.panel)} data-task-panel data-task-card="${escapeHtml(card.id)}" role="dialog" aria-label="${escapeHtml(card.title)}">`
     + `<header class="work-task-panel-head">${renderOwnerMark(card.owner)}<span class="work-task-panel-title" title="${escapeHtml(card.title)}">${escapeHtml(card.title)}</span>${iconButton("back", uiText.text("workbench.work-line.back-to-list"), { "data-task-panel-list": "" })}${iconButton("x", uiText.text("workbench.work-line.close"), { "data-task-panel-close": "" })}</header>`
-    + `<div class="work-task-panel-body" data-card><dl class="work-task-facts">${fact("state", card.state, ring(card.ring))}</dd>${fact("who", card.who)}</dd>`
+    + `<div class="work-task-panel-body" data-card>${card.decisions ?? ""}<dl class="work-task-facts">${fact("state", card.state, ring(card.ring))}</dd>${fact("who", card.who)}</dd>`
     + `${fact("for-event", card.serves)}${renderButton({ variant: "secondary", size: "sm", label: uiText.text("workbench.work-line.change"), attrs: { "data-place-change": card.id, "aria-haspopup": "menu" } })}</dd>`
     + `${fact("returns-to", card.returnsTo)}</dd></dl>`
     + `<div class="work-card-section"><h4>${uiText("workbench.work-line.steps")}</h4>${steps}</div>${card.actions ? `<div class="work-card-actions">${card.actions}</div>` : ""}</div></section>`;

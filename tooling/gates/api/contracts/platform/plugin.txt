@@ -1208,7 +1208,7 @@ export declare const BACKGROUND_TASK_COLLECTION_SCHEMA: {
                             type: string;
                             properties: {
                                 role: {
-                                    enum: string[];
+                                    enum: readonly string[];
                                 };
                                 action: {
                                     readonly type: "object";
@@ -1235,6 +1235,92 @@ export declare const BACKGROUND_TASK_COLLECTION_SCHEMA: {
                                 summary: {
                                     maxLength: number;
                                     type: string;
+                                };
+                            };
+                            required: string[];
+                            additionalProperties: boolean;
+                        };
+                    };
+                    decisions: {
+                        type: string;
+                        maxItems: number;
+                        items: {
+                            type: string;
+                            properties: {
+                                id: {
+                                    minLength: number;
+                                    maxLength: number;
+                                    type: string;
+                                };
+                                ask: {
+                                    maxLength: number;
+                                    minLength: number;
+                                    type: string;
+                                };
+                                why: {
+                                    maxLength: number;
+                                    minLength: number;
+                                    type: string;
+                                };
+                                changes: {
+                                    type: string;
+                                    maxItems: number;
+                                    items: {
+                                        type: string;
+                                        properties: {
+                                            label: {
+                                                maxLength: number;
+                                                minLength: number;
+                                                type: string;
+                                            };
+                                            value: {
+                                                maxLength: number;
+                                                type: string;
+                                            };
+                                        };
+                                        required: string[];
+                                        additionalProperties: boolean;
+                                    };
+                                };
+                                answers: {
+                                    type: string;
+                                    maxItems: number;
+                                    items: {
+                                        type: string;
+                                        properties: {
+                                            role: {
+                                                enum: readonly string[];
+                                            };
+                                            action: {
+                                                readonly type: "object";
+                                                readonly properties: {
+                                                    readonly capability_id: {
+                                                        readonly type: "string";
+                                                        readonly minLength: 1;
+                                                    };
+                                                    readonly version: {
+                                                        readonly type: "integer";
+                                                        readonly minimum: 1;
+                                                    };
+                                                    readonly provider_id: {
+                                                        readonly type: "string";
+                                                        readonly minLength: 1;
+                                                    };
+                                                };
+                                                readonly required: readonly ["capability_id", "version"];
+                                                readonly additionalProperties: false;
+                                            };
+                                            input: {
+                                                type: string;
+                                            };
+                                            summary: {
+                                                maxLength: number;
+                                                type: string;
+                                            };
+                                        };
+                                        required: string[];
+                                        additionalProperties: boolean;
+                                    };
                                 };
                             };
                             required: string[];
@@ -1291,6 +1377,89 @@ export declare const BACKGROUND_TASK_COLLECTION_SCHEMA: {
                         } | {
                             type: string;
                         })[];
+                    };
+                };
+                required: string[];
+                additionalProperties: boolean;
+            };
+        };
+    };
+    required: string[];
+    additionalProperties: boolean;
+};
+
+export declare const BACKGROUND_TASK_DECISION_SCHEMA: {
+    type: string;
+    properties: {
+        id: {
+            minLength: number;
+            maxLength: number;
+            type: string;
+        };
+        ask: {
+            maxLength: number;
+            minLength: number;
+            type: string;
+        };
+        why: {
+            maxLength: number;
+            minLength: number;
+            type: string;
+        };
+        changes: {
+            type: string;
+            maxItems: number;
+            items: {
+                type: string;
+                properties: {
+                    label: {
+                        maxLength: number;
+                        minLength: number;
+                        type: string;
+                    };
+                    value: {
+                        maxLength: number;
+                        type: string;
+                    };
+                };
+                required: string[];
+                additionalProperties: boolean;
+            };
+        };
+        answers: {
+            type: string;
+            maxItems: number;
+            items: {
+                type: string;
+                properties: {
+                    role: {
+                        enum: readonly string[];
+                    };
+                    action: {
+                        readonly type: "object";
+                        readonly properties: {
+                            readonly capability_id: {
+                                readonly type: "string";
+                                readonly minLength: 1;
+                            };
+                            readonly version: {
+                                readonly type: "integer";
+                                readonly minimum: 1;
+                            };
+                            readonly provider_id: {
+                                readonly type: "string";
+                                readonly minLength: 1;
+                            };
+                        };
+                        readonly required: readonly ["capability_id", "version"];
+                        readonly additionalProperties: false;
+                    };
+                    input: {
+                        type: string;
+                    };
+                    summary: {
+                        maxLength: number;
+                        type: string;
                     };
                 };
                 required: string[];
@@ -1422,7 +1591,7 @@ export declare const BACKGROUND_TASK_SCHEMA: {
                 type: string;
                 properties: {
                     role: {
-                        enum: string[];
+                        enum: readonly string[];
                     };
                     action: {
                         readonly type: "object";
@@ -1449,6 +1618,92 @@ export declare const BACKGROUND_TASK_SCHEMA: {
                     summary: {
                         maxLength: number;
                         type: string;
+                    };
+                };
+                required: string[];
+                additionalProperties: boolean;
+            };
+        };
+        decisions: {
+            type: string;
+            maxItems: number;
+            items: {
+                type: string;
+                properties: {
+                    id: {
+                        minLength: number;
+                        maxLength: number;
+                        type: string;
+                    };
+                    ask: {
+                        maxLength: number;
+                        minLength: number;
+                        type: string;
+                    };
+                    why: {
+                        maxLength: number;
+                        minLength: number;
+                        type: string;
+                    };
+                    changes: {
+                        type: string;
+                        maxItems: number;
+                        items: {
+                            type: string;
+                            properties: {
+                                label: {
+                                    maxLength: number;
+                                    minLength: number;
+                                    type: string;
+                                };
+                                value: {
+                                    maxLength: number;
+                                    type: string;
+                                };
+                            };
+                            required: string[];
+                            additionalProperties: boolean;
+                        };
+                    };
+                    answers: {
+                        type: string;
+                        maxItems: number;
+                        items: {
+                            type: string;
+                            properties: {
+                                role: {
+                                    enum: readonly string[];
+                                };
+                                action: {
+                                    readonly type: "object";
+                                    readonly properties: {
+                                        readonly capability_id: {
+                                            readonly type: "string";
+                                            readonly minLength: 1;
+                                        };
+                                        readonly version: {
+                                            readonly type: "integer";
+                                            readonly minimum: 1;
+                                        };
+                                        readonly provider_id: {
+                                            readonly type: "string";
+                                            readonly minLength: 1;
+                                        };
+                                    };
+                                    readonly required: readonly ["capability_id", "version"];
+                                    readonly additionalProperties: false;
+                                };
+                                input: {
+                                    type: string;
+                                };
+                                summary: {
+                                    maxLength: number;
+                                    type: string;
+                                };
+                            };
+                            required: string[];
+                            additionalProperties: boolean;
+                        };
                     };
                 };
                 required: string[];
@@ -1526,7 +1781,15 @@ export interface BackgroundTask {
     serves: ActionSubject[];
     scope: "project" | "personal";
     commands: BackgroundTaskCommand[];
+    decisions: BackgroundTaskDecision[];
     open: OpenTarget | null;
+}
+
+export interface BackgroundTaskAnswer {
+    role: "approve" | "revise" | "reject";
+    action: ActionReference;
+    input: Record<string, unknown>;
+    summary: string;
 }
 
 export interface BackgroundTaskCollection {
@@ -1543,6 +1806,17 @@ export interface BackgroundTaskCommand {
     action: ActionReference;
     input: Record<string, unknown>;
     summary: string;
+}
+
+export interface BackgroundTaskDecision {
+    id: string;
+    ask: string;
+    why?: string;
+    changes: Array<{
+        label: string;
+        value: string;
+    }>;
+    answers: BackgroundTaskAnswer[];
 }
 
 export interface BackgroundTaskExecutor {

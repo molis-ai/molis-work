@@ -187,7 +187,7 @@ test("W5-01-CODING-34 Coding's reader lists the sessions that are active or hold
 
 const SOURCE = { surface: "example", title: "示例", icon: "list" };
 const fixtureTask = (extra: Record<string, unknown> = {}, commands: unknown[] = []) => ({ subject: { kind: "homebg_task", id: "j" }, title: "任务", state: "running", details: [], waiting: false,
-  updated_at: "2026-10-01T10:00:00.000Z", executor: { kind: "plugin", label: "示例" }, serves: [], scope: "project", commands, open: null, ...extra });
+  updated_at: "2026-10-01T10:00:00.000Z", executor: { kind: "plugin", label: "示例" }, serves: [], scope: "project", commands, decisions: [], open: null, ...extra });
 
 test("W5-01-CODING-36 the Home lists what any plugin declares for it: another plugin's tasks show on its own surface, in the projects where it is on and open, and nothing else is asked", { timeout: 60_000 }, async t => {
   const task = (project: string, updated: string) => fixtureTask({ subject: { kind: "homebg_task", id: `job-${project}` }, title: "导出", updated_at: updated, step: { text: "跑了 {n} 项", count: 3 },

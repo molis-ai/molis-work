@@ -214,6 +214,18 @@ ${W} ${BUTTON_GROUNDS} .mw-btn--secondary:not(:disabled){border-color:var(--line
 .work-card-section{display:flex;flex-direction:column;gap:4px;padding:8px;border:1px solid var(--line);border-radius:var(--r-row,8px)}
 .work-card-section>h4{margin:0 0 2px;padding:0 2px;color:var(--muted);font-size:11px;font-weight:500}
 .work-card-actions{display:flex;align-items:center;gap:6px;min-width:0}
+.work-card-decisions{display:flex;flex-direction:column;gap:8px}
+.work-decision{display:flex;flex-direction:column;gap:6px;min-width:0;padding:10px;border:1px solid var(--amber);border-radius:var(--r-row,8px);background:var(--amber-soft)}
+.work-task-panel-body>.work-decision{margin:0 0 10px}
+.work-decision-ask{display:flex;align-items:center;gap:6px;min-width:0}
+.work-decision-ask>strong{min-width:0;${ELLIPSIS};font-size:13px;color:var(--ink)}
+.work-decision-why{margin:0;${ELLIPSIS};color:var(--ink-soft);font-size:12px}
+.work-decision-changes{display:flex;flex-direction:column;gap:2px;margin:0;padding:6px 8px;border:1px solid var(--line);border-radius:var(--r-control,6px);background:var(--paper);font-size:12px}
+.work-decision-changes>div{display:flex;gap:8px;min-width:0}
+.work-decision-changes dt{flex:0 0 auto;max-width:40%;${ELLIPSIS};color:var(--muted)}
+.work-decision-changes dd{flex:1 1 auto;min-width:0;margin:0;${ELLIPSIS};color:var(--ink)}
+.work-decision-note{width:100%;min-height:44px;padding:6px 8px;border:1px solid var(--line-strong);border-radius:var(--r-control,6px);background:var(--paper);color:var(--ink);font:inherit;font-size:13px;resize:vertical}
+.work-decision-note[aria-invalid="true"]{border-color:var(--red)}
 .work-place-menu{position:static;display:flex;flex-direction:column;max-height:220px;overflow:auto;border:1px solid var(--line);border-radius:var(--r-row,8px);box-shadow:none}
 /* With the dialog closed: the latest reply above the composer, or only the mark once the person has clicked the work surface. */
 .work-reply-peek{display:flex;flex-direction:column;gap:6px;padding:10px 12px;border-radius:var(--r-card,12px);background:var(--popover);box-shadow:var(--lift-2);line-height:1.65;animation:craft-rise ${MOVE}}

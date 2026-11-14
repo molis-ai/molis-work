@@ -194,6 +194,19 @@ export const ASSISTANT_CONVERSATION_PART = String.raw`  /* ─── Showing a t
     if (material.expired) { chip.classList.add("is-expired"); chip.title = globalThis.t.text(EXPIRED_IMAGE); }
     return chip;
   };
+  // A press on a Skill of a round's line asks the shell's 「依据」 panel; its answer runs the same words again with the chosen Skills.
+  thread.addEventListener("click", (event) => {
+    const button = event.target.closest?.("[data-skill-pick]"), line = button?.closest("[data-skill-round]");
+    if (!line) return;
+    const box = button.getBoundingClientRect(), index = button.dataset.skillPick;
+    document.dispatchEvent(new CustomEvent("molis:skill-pick-open", { cancelable: true, detail: { reply: "assistant:" + line.dataset.skillRound, consumer: "assistant",
+      picks: JSON.parse(line.dataset.skillPicks || "[]"), index: index === "" ? null : Number(index), box: { x: box.left, y: box.top, width: box.width, height: box.height } } }));
+  });
+  document.addEventListener("molis:skill-redo", (event) => {
+    const detail = event.detail || {}, round = view && view.rounds.find(one => "assistant:" + one.run_id === detail.reply), work = getWork();
+    if (!round || !work) return;
+    redoWithSkills(work, round, detail.named || []);
+  });
   const renderRound = (work, round) => {
     const node = keyed(thread, "data-round", round.run_id, () => el("section", "assistant-round"));
     const put = placer(node);
@@ -230,7 +243,7 @@ export const ASSISTANT_CONVERSATION_PART = String.raw`  /* ─── Showing a t
       if (carried) { put(carried); carried = null; }
     } else node.querySelector(':scope > [data-entry="task"]')?.remove();
     // The steps between two messages read as one quiet line that opens to each step (assistant-process.ts). A single step stays a line of its own.
-    let run = [], anchor = "start";
+    let run = [], anchor = "start", skillsPut = false;
     const flush = () => { if (run.length) proc.place(node, run, put, anchor); run = []; };
     entries.forEach((entry) => {
       if (entry.turn) {
@@ -245,6 +258,13 @@ export const ASSISTANT_CONVERSATION_PART = String.raw`  /* ─── Showing a t
         if (bubble.dataset.text !== turn.text) {
           const had = bubble.dataset.text !== undefined; bubble.dataset.text = turn.text; // Only a reply still being written, seen arriving, shows its new words come in: never a reopen, a hidden page or the last update.
           if (kind === "assistant") { if (window.molisStreamText) window.molisStreamText(bubble, turn.html, { reveal: had && work.state === "running" && !document.hidden, grow: growCode }); else bubble.innerHTML = turn.html; bindText(bubble); } else bubble.textContent = turn.text;
+        }
+        // The Skills this round used, one line above its first reply (SKL-11); drawn by the Host, opened by the shell's panel.
+        if (kind === "assistant" && round.skills_html && !skillsPut) {
+          skillsPut = true;
+          const line = keyed(node, "data-entry", "skills", () => el("div", "assistant-round-skills"));
+          if (line.dataset.html !== round.skills_html) { line.dataset.html = round.skills_html; line.innerHTML = round.skills_html; }
+          put(line);
         }
         put(bubble); receipts.line(thread, node, put, turn, round);
         if (kind === "assistant") {

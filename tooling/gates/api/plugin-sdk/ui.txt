@@ -259,6 +259,20 @@ export declare const STATE_RING_ICON_STATES: {
 
 export declare const STATE_RING_LABELS: Record<StateRingState, string>;
 
+export interface SkillLinePick {
+    ref: unknown;
+    name: string;
+    picked: "named" | "auto";
+}
+
+export interface SkillLineWords {
+    used: string;
+    auto: string;
+    named: string;
+    none: string;
+    choose: string;
+}
+
 export interface SkinTokenSelection {
     readonly theme?: "light" | "dark";
     readonly terminal?: TerminalAxis;
@@ -768,6 +782,13 @@ export declare function renderSidebar(options: {
 }): string;
 
 export declare function renderSkeleton(options?: {
+    className?: string;
+}): string;
+
+export declare function renderSkillLine(options: {
+    picks: readonly SkillLinePick[];
+    round: string;
+    words: SkillLineWords;
     className?: string;
 }): string;
 

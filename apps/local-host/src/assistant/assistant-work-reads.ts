@@ -321,6 +321,6 @@ export class AssistantWorkReads {
  */
 export function roundSkillPicks(round: Pick<StoredRound, "materials">, view: Pick<AgentRunView, "skill_reads">): SkillPick[] {
   const named = new Map(round.materials.flatMap(item => item.kind === "method" && item.method?.kind === "skill"
-    ? [[skillRefKey(item.method.ref), { ref: item.method.ref, name: item.title, picked: "named" as const }] as const] : []));
+    ? [[skillRefKey(item.method.ref), { ref: item.method.ref, name: (item.method as { name?: string }).name ?? item.title, picked: "named" as const }] as const] : []));
   return [...named.values(), ...(view.skill_reads ?? []).filter(read => !named.has(skillRefKey(read.ref))).map(read => ({ ...read, picked: "auto" as const }))];
 }

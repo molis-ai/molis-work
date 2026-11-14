@@ -11,7 +11,7 @@ import { activeLocale } from './web-locale.js';
  */
 import { randomUUID } from 'node:crypto';
 import { ActionError, requireSynchronous, type ActionExecutionContext } from '@molis-ai/molis-work-contracts/platform/actions';
-import { pluginErrors, type PluginPackageBundle, type SandboxAgentBody } from '@molis-ai/molis-work-contracts/platform/plugin';
+import { pluginErrors, type PluginManifest, type PluginPackageBundle, type SandboxAgentBody } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SurfaceInstallationRef } from '@molis-ai/molis-work-contracts/services/surface-composition';
 import type { SkillInstallPreview } from '@molis-ai/molis-work-contracts/services/skills';
 import type { SandboxEffects } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
@@ -19,6 +19,7 @@ import type { PluginInstalledPermissionView, PluginInstalledView, PluginInstallP
 import { declarationsNeedingConsent, verifyPluginPackageSignature, type PluginConsentLedger } from '@molis-ai/molis-work-plugin-runtime';
 import type { InstalledRelease } from './installed-release.js';
 import { consentsChanged } from './consent-revision.js';
+import type { LocalPackageSignInput } from '@molis-ai/molis-work-contracts/platform/plugin-trust';
 import { readKeptPackage, type KeptPackage, type KeptSandboxPackage } from './sandbox-package.js';
 import { skillInstallPreviews } from './skill-install-preview.js';
 import { packagedRelease, type SandboxPackageStore } from './sandbox-package-store.js';
@@ -45,6 +46,11 @@ export type ProjectPackageControl = { plugin_id: string } & (
 );
 
 export interface PluginInstallPorts {
+  /**
+   * This Home's own publisher identity, for the bundled packages the release ships unsigned (`BundledDraft`): the id it signs under
+   * (null before the Home has one) and the signing itself, done within the caller's authority. A Host without it lists and installs no draft.
+   */
+  localSigner?: { keyId(): string | null; sign(draft: LocalPackageSignInput, caller: InstallAuthority): Promise<PluginPackageBundle> };
   skillStates?(scopeRef: string, installId: string): ReadonlyMap<string, import("@molis-ai/molis-work-contracts/services/skills").SkillState>;
   ledger: PluginConsentLedger;
   packages: SandboxPackageStore;
@@ -88,6 +94,8 @@ export interface BundledPluginView {
   summary: string | null;
   runtime_scope: 'home' | 'project';
   publisher: { publisher_id: string; key_id: string; pinned_label: string | null; revoked: boolean };
+  /** `true`: the release ships it unsigned and this Home signs it with its own publisher identity when the person installs it; `key_id` is that identity's, empty before the Home has one. */
+  signed_here?: true;
 }
 
 /** The packages this release ships, and each file in their folder the Host would not take, with why. */
@@ -192,16 +200,20 @@ export class PluginInstallService {
 
   /** The packages this release ships, read and verified now; listing them installs nothing and registers nothing. */
   async bundled(): Promise<BundledPluginList> {
-    const { packages, refused } = this.ports.bundledDirectory ? await readBundledPackages(this.ports.bundledDirectory) : { packages: [], refused: [] };
+    const { packages, drafts, refused } = this.ports.bundledDirectory ? await readBundledPackages(this.ports.bundledDirectory) : { packages: [], drafts: [], refused: [] };
     const pins = this.ports.ledger.publishers();
     const locale = activeLocale();
+    const view = (manifest: PluginManifest, key_id: string, localePacks: KeptPackage['localePacks']): BundledPluginView => {
+      const pin = pins.find(item => item.key_id === key_id);
+      const { name, summary } = projectDirectoryWords(manifest, localePacks && locale ? directoryWordResolver(localePacks, locale) : undefined);
+      return { plugin_id: manifest.plugin_id, version: manifest.version, name, summary: summary ?? null,
+        runtime_scope: scopeOf(manifest), publisher: { publisher_id: manifest.publisher.publisher_id, key_id, pinned_label: pin?.label ?? null, revoked: Boolean(pin?.revoked_at) } };
+    };
+    // A draft is this Home's to sign: it is listed only where this Host can sign one, under the identity it would be signed with.
+    const here = this.ports.localSigner ? this.ports.localSigner.keyId() ?? '' : null;
     return {
-      plugins: packages.map(({ manifest, key_id, localePacks }) => {
-        const pin = pins.find(item => item.key_id === key_id);
-        const { name, summary } = projectDirectoryWords(manifest, localePacks && locale ? directoryWordResolver(localePacks, locale) : undefined);
-        return { plugin_id: manifest.plugin_id, version: manifest.version, name, summary: summary ?? null,
-          runtime_scope: scopeOf(manifest), publisher: { publisher_id: manifest.publisher.publisher_id, key_id, pinned_label: pin?.label ?? null, revoked: Boolean(pin?.revoked_at) } };
-      }),
+      plugins: [...packages.map(({ manifest, key_id, localePacks }) => view(manifest, key_id, localePacks)),
+        ...(here === null ? [] : drafts.map(({ manifest, localePacks }) => ({ ...view(manifest, here, localePacks), signed_here: true as const })))],
       refused: refused.map(({ file, error }) => ({ file, code: error.code, message: error.message })),
     };
   }
@@ -210,19 +222,22 @@ export class PluginInstallService {
    * The bundle a bundled package is, as its file lies now: the one the person saw in the list (`version`), or the refusal its file
    * raises. It is then previewed as any package is, signature and all.
    */
-  private async bundledBundle(reference: { plugin_id: string; version: string }): Promise<unknown> {
+  private async bundledBundle(reference: { plugin_id: string; version: string }, caller?: InstallAuthority): Promise<unknown> {
     if (!this.ports.bundledDirectory) throw pluginErrors.definition_missing('这个安装包没有随包带上的插件');
-    const { packages, refused } = await readBundledPackages(this.ports.bundledDirectory);
-    const found = packages.find(item => item.manifest.plugin_id === reference.plugin_id);
-    if (!found) throw refused.find(item => item.file === `${reference.plugin_id}.json`)?.error ?? pluginErrors.definition_missing(`这个安装包没有随包带上 ${reference.plugin_id}`);
+    const { packages, drafts, refused } = await readBundledPackages(this.ports.bundledDirectory);
+    const found = packages.find(item => item.manifest.plugin_id === reference.plugin_id) ?? (this.ports.localSigner ? drafts.find(item => item.manifest.plugin_id === reference.plugin_id) : undefined);
+    if (!found) throw refused.find(item => item.file === `${reference.plugin_id}.json` || item.file === `${reference.plugin_id}.draft.json`)?.error ?? pluginErrors.definition_missing(`这个安装包没有随包带上 ${reference.plugin_id}`);
     const { version } = found.manifest;
     if (version !== reference.version) throw pluginErrors.definition_missing(`随包带上的 ${reference.plugin_id} 是 ${version}，不是 ${reference.version}：请重新打开列表`);
-    return found.bundle;
+    if ('bundle' in found) return found.bundle;
+    // Shipped unsigned: signed now with this Home's publisher identity, for this person's preview, then read as any signed package.
+    if (!caller) throw new ActionError('actions.forbidden', '给随包带上的待签插件签名需要本人这一次的操作');
+    return this.ports.localSigner!.sign(found.draft, caller);
   }
 
   /** Checks a package and says what installing it means. Writes nothing durable: the preview is held in memory for the confirmation. */
   async preview(input: PluginInstallPreviewInput, who: PreviewOwner, caller?: InstallAuthority): Promise<PluginInstallPreviewResult> {
-    const { bundle, key_id, public_key_spki_base64 } = verifyPluginPackageSignature('bundled' in input ? await this.bundledBundle(input.bundled) : input.bundle);
+    const { bundle, key_id, public_key_spki_base64 } = verifyPluginPackageSignature('bundled' in input ? await this.bundledBundle(input.bundled, caller) : input.bundle);
     const pkg = readKeptPackage(bundle.payload);
     this.assertPublisherStanding(key_id);
     const { manifest } = pkg, runtime_scope = scopeOf(manifest);

@@ -12,7 +12,7 @@ import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contrac
 import type { PluginPackageBundle } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { SKILLS_PERMISSIONS, skillCatalogActions, type SkillCatalogEntry } from "@molis-ai/molis-work-contracts/services/skills";
 import { MemoryPluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
-import { packBundledContent, runPluginCli } from "@molis-ai/molis-work-plugin-cli";
+import { packBundledContent, packBundledDraft, runPluginCli } from "@molis-ai/molis-work-plugin-cli";
 import { DEMO_PROJECT_ID, MolisWorkLocalHost, PLUGIN_INSTALL_PERMISSIONS, PluginInstallService, SandboxPackageStore, bundledPackagesDirectory, homeAgentDefinitions,
   molisWorkHostProjectReference, pluginInstallActions, seedDemoBoard, type BundledPluginList } from "@molis-ai/molis-work-app-local-host";
 import { signedContentPackage } from "./fixtures/content-package.js";
@@ -222,4 +222,57 @@ test("08-10 SKP-01 SKC-02 S-bundled-packages in a real Host the bundled design a
     await assert.rejects(client.invoke(person, ref(pluginInstallActions.preview), { bundled: { plugin_id: PLUGIN_ID, version: "1.0.0" } }), /Plugin 内容或签名已改变/u);
     await assert.rejects(client.invoke(person, ref(pluginInstallActions.preview), { bundle: {}, bundled: { plugin_id: PLUGIN_ID, version: "1.0.0" } }), "one package at a time");
   } finally { await host.close(); await b.done(); }
+});
+
+// 用户 2026-11-14 定（specs/prologue-strategies/skill.md §10）: until Molis Work has a publisher key of its own (batch 26, 26-1) the
+// official packs ship unsigned (`<plugin_id>.draft.json`), and the Home that installs one signs it with its own publisher identity —
+// the trust of a Skill folder imported from this machine, no more. Lying there still gives it nothing; a Host that cannot sign lists none.
+test("S-bundled-packages an unsigned bundled pack is signed by this Home only when the person installs it, through the same preview and confirmation; a draft with a publisher, beside a signed one, or on a Host that cannot sign is refused", mac, async () => {
+  const base = await mkdtemp(join(tmpdir(), "molis-work-bundled-draft-")), folder = join(base, "bundled-plugins"), home = join(base, "home");
+  await mkdir(home);
+  const { file } = await packBundledDraft(PACK, folder);
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, bundledPluginsDirectory: folder });
+  const databasePath = join(home, "project.sqlite"); seedDemoBoard(databasePath);
+  const reference = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
+  try {
+    const client = host.actionClient(reference);
+    const person = { ...caller, permissions: PLUGIN_INSTALL_PERMISSIONS, user_action: { source: "management" as const, conversation_ref: "41:install", message_ref: "41:confirm" } };
+    const ref = (action: { capability_id: string; version: number }) => ({ capability_id: action.capability_id, version: action.version });
+    const ours = () => homeAgentDefinitions(home).methods().filter(item => item.owner_id === PLUGIN_ID).map(item => item.name).sort();
+    const list = async () => await client.invoke(person, ref(pluginInstallActions.bundled), {}) as BundledPluginList;
+
+    const before = await list();
+    assert.deepEqual(before.plugins.map(item => [item.plugin_id, item.signed_here, item.publisher.key_id, item.publisher.pinned_label]), [[PLUGIN_ID, true, "", null]], "listed as this Home's to sign; the Home has no identity yet");
+    assert.equal(existsSync(join(home, "config", "plugin-publisher.json")), false, "listing makes no identity");
+    assert.deepEqual(ours(), [], "and registers nothing");
+    await assert.rejects(client.invoke({ ...person, audience: "agent" }, ref(pluginInstallActions.preview), { bundled: { plugin_id: PLUGIN_ID, version: "1.0.0" } }), "an Agent cannot have it signed");
+
+    const preview = await client.invoke(person, ref(pluginInstallActions.preview), { bundled: { plugin_id: PLUGIN_ID, version: "1.0.0" } }) as { preview_id: string; publisher: { key_id: string; pinned_label: string | null } };
+    assert.deepEqual(ours(), [], "signing for the preview installs nothing");
+    assert.equal(preview.publisher.pinned_label, null, "this Home's publisher is not pinned in advance either");
+    await client.invoke(person, ref(pluginInstallActions.confirm), { preview_id: preview.preview_id, consent: true, pin_label: "这台电脑" });
+    assert.deepEqual(ours(), SKILLS, "installed by the person's confirmation: its Skills are registered from the package this Home signed");
+    const after = await list();
+    assert.deepEqual(after.plugins.map(item => [item.publisher.key_id, item.publisher.pinned_label]), [[preview.publisher.key_id, "这台电脑"]], "and the list names the identity it was signed with");
+
+    // A draft that names a publisher is not a draft; one lying beside the signed package of the same plugin is not offered twice.
+    const draft = JSON.parse(await readFile(file, "utf8")) as { manifest: Record<string, unknown>; files: unknown[] };
+    await writeFile(file, JSON.stringify({ ...draft, manifest: { ...draft.manifest, publisher: { publisher_id: "molis-work", signature: preview.publisher.key_id } } }));
+    assert.deepEqual([(await list()).plugins, (await list()).refused.map(item => item.file)], [[], [`${PLUGIN_ID}.draft.json`]]);
+    await assert.rejects(client.invoke(person, ref(pluginInstallActions.preview), { bundled: { plugin_id: PLUGIN_ID, version: "1.0.0" } }), /发布者由签名方填写/u);
+    await writeFile(file, JSON.stringify(draft));
+    await packBundledContent(PACK, folder, newPublisher().signer);
+    const both = await list();
+    assert.deepEqual([both.plugins.map(item => item.signed_here), both.refused.map(item => item.file)], [[undefined], [`${PLUGIN_ID}.draft.json`]], "the signed one is offered; its draft is refused");
+  } finally { await host.close(); await rm(base, { recursive: true, force: true }); }
+
+  // A Host that cannot sign for this Home neither lists a draft nor installs one by reference.
+  const b = await mkdtemp(join(tmpdir(), "molis-work-bundled-draft-")), plain = join(b, "bundled-plugins");
+  try {
+    await mkdir(join(b, "home")); await packBundledDraft(PACK, plain);
+    const s = service(plain, join(b, "home"));
+    assert.deepEqual((await s.install.bundled()).plugins, []);
+    await assert.rejects(s.install.preview({ bundled: { plugin_id: PLUGIN_ID, version: "1.0.0" } }, who), refused("plugin.definition_missing"));
+    s.nothingWritten();
+  } finally { await rm(b, { recursive: true, force: true }); }
 });

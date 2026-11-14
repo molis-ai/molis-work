@@ -119,5 +119,12 @@ function pluginInstallServiceFor(home: string, source: ProjectPluginHost): Plugi
     regrant: (projectId, installId, permission, granted, expected) => regrantPluginInProject(source, projectId, installId, permission, granted, expected),
     homeInstalled: () => installedHomePlugins(source.homePlugins()), homeRegrant: (installId, permission, granted, expected) => regrantHomePlugin(source.homePlugins(), installId, permission, granted, expected),
     homeControl: (pluginId, action, input, caller) => controlHomePackage(source.homePlugins(), pluginId, action, input, caller),
-    bundledDirectory: source.options.bundledPluginsDirectory ?? bundledPackagesDirectory() });
+    bundledDirectory: source.options.bundledPluginsDirectory ?? bundledPackagesDirectory(),
+    // The official packs ship unsigned until batch 26's publisher key: this Home signs one as it signs an import from this machine.
+    localSigner: { keyId: () => localPublisherKeyId(home), sign: async (draft, caller) => {
+      const input = structuredClone(draft);
+      preflight(input);
+      const signer = await studioPublisherIdentity(home, { beforeEffect: caller.beforeEffect, assertCurrent: () => assertInstallAuthority(caller) });
+      return signPluginPackage({ payload: completeContentPackagePayload(input, { publisher_id: LOCAL_PUBLISHER_ID, signature: signer.publisher_identity }), signature: null, publisher_key: null }, signer);
+    } } });
 }

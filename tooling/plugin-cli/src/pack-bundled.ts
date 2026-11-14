@@ -1,9 +1,11 @@
-import { mkdir, readFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { defineErrorCodes } from '@molis-ai/molis-work-contracts/platform/actions';
 import { pluginErrors, type PluginLocalesDeclaration, type PluginPackageBundle, type PluginPackageSigner } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { signPluginPackage, verifyPluginPackageSignature } from '@molis-ai/molis-work-plugin-runtime';
-import { contentPayloadFromFolder, type PackContentOptions } from './pack-content.js';
+import type { LocalPackageSignInput } from '@molis-ai/molis-work-contracts/platform/plugin-trust';
+import { completeContentPackagePayload } from '@molis-ai/molis-work-plugin-sdk';
+import { contentDraftFromFolder, contentPayloadFromFolder, type PackContentOptions } from './pack-content.js';
 import { writePluginPackageFile } from './package-files.js';
 
 // `pack-bundled`: a content package the installer ships uninstalled (specs/skill-packs/contract-design.md §3, 「随包带上、还没装」),
@@ -62,4 +64,21 @@ export async function packBundledContent(directory: string, outputDirectory: str
   await mkdir(outputDirectory, { recursive: true });
   await writePluginPackageFile(file, bundle);
   return { bundle, file };
+}
+
+/**
+ * Packs the bundled package in `directory` without a publisher, for a release that has no publisher key of its own yet (batch 26,
+ * 26-1): the declaration and files the Host signs with the Home's own publisher identity when the person installs it (用户 2026-11-14
+ * 定). Written to `<outputDirectory>/<plugin_id>.draft.json`, replacing the one a previous build left; the draft is checked as the Host
+ * will check it once a publisher is filled in.
+ */
+export async function packBundledDraft(directory: string, outputDirectory: string): Promise<{ draft: LocalPackageSignInput; file: string }> {
+  const options = await readBundledPackOptions(directory);
+  const draft = await contentDraftFromFolder(join(directory, 'skills'), options);
+  completeContentPackagePayload(draft, { publisher_id: options.publisherId, signature: 'ed25519:sha256:' + '0'.repeat(64) });
+  const file = join(outputDirectory, `${options.pluginId}.draft.json`);
+  await mkdir(outputDirectory, { recursive: true });
+  await rm(file, { force: true });
+  await writeFile(file, JSON.stringify(draft) + '\n', { flag: 'wx' });
+  return { draft, file };
 }

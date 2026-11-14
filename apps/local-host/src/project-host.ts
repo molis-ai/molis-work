@@ -252,7 +252,14 @@ export class MolisWorkLocalHost {
         close: (runtime, reference) => closeProjectRuntime(runtime, () => options.onRuntimeClose?.(reference), () => closeProjectSchedulers(this, runtime, reference), () => this.homePlugins?.stopProjectJobs(runtime.project_id)),
       },
     });
-    if (options.homeDirectory) this.observation = createHostObservation(options.homeDirectory);
+    if (options.homeDirectory) this.observation = createHostObservation(options.homeDirectory, {
+      catalogProjects: () => this.catalogRunner
+        ? this.catalogRunner({ homeDirectory: options.homeDirectory }, catalog => catalog.listProjects().map(project => project.project_id))
+        : Promise.resolve(undefined),
+      openProjects: () => this.host.projects(),
+      withOpenProject: (reference, fn) => this.host.withExistingRuntime(reference, fn),
+      actionClientFor: reference => reference ? this.actionClient(reference) : this.homeActionClient(),
+    });
     this.synchronization = projectSyncAccess(this.host);
     this.surfaceHome = projectSurfaceHome(this.host, this, options.homeDirectory, readCatalog);
     const position = projectSurfaceContext(this.host, this, options.homeDirectory, readCatalog);

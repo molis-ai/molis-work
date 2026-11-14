@@ -1,9 +1,12 @@
-import type { ActionCallContext, ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
-import { observationActions, type ObservationFactInput, type ObservationRecorder, type ObservationService, type ObservationSink } from "@molis-ai/molis-work-contracts/services/observation";
+import type { ActionCallContext, ActionDefinition, ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { observationActions, type ObservationCleanupResult, type ObservationFactInput, type ObservationRecorder, type ObservationService, type ObservationSink } from "@molis-ai/molis-work-contracts/services/observation";
 import { defineAction } from "@molis-ai/molis-work-plugin-sdk";
+import { sweepExpiredRecords } from "./cleanup.js";
 import { exitRecord, exitSkips, type ExitAction, type ExitObservation } from "./exit.js";
 import type { ObservationKeys } from "./keys.js";
 import type { PluginPurge } from "./lifecycle.js";
+import { handleCleanupApply, handleCleanupPreview, handleSettingsGet, handleSettingsSet, handleSpaceGet } from "./management-actions.js";
+import { handleCoverageGet, handleEvidenceGet, handleRecordsQuery } from "./read-actions.js";
 import { handleReport } from "./report.js";
 import { factOwned, pendingRecord, type ObservationEnvironment, type Origin } from "./records.js";
 import { ObservationWriter } from "./writer.js";
@@ -61,6 +64,37 @@ export class ObservationLayer {
   reportAction(shellEntry: (caller: ActionCallContext) => void): { readonly definition: typeof observationActions.report; readonly handler: ActionHandlerBinding } {
     const { definition, handler } = defineAction(observationActions.report, (caller, input) => handleReport({ env: this.options.env, writer: this.writer, shellEntry }, caller, input));
     return { definition, handler };
+  }
+
+  /** All public actions of `system.observation`: `report@1` plus the eight read and management actions (contract-design §4, §16.2). */
+  actions(shellEntry: (caller: ActionCallContext) => void): {
+    readonly definitions: readonly ActionDefinition[];
+    readonly handlers: readonly ActionHandlerBinding[];
+  } {
+    const deps = { env: this.options.env, writer: this.writer };
+    const bound = [
+      this.reportAction(shellEntry),
+      defineAction(observationActions.recordsQuery, (caller, input) => handleRecordsQuery(deps, caller, input)),
+      defineAction(observationActions.evidenceGet, (caller, input) => handleEvidenceGet(deps, caller, input)),
+      defineAction(observationActions.coverageGet, (caller, input) => handleCoverageGet(deps, caller, input)),
+      defineAction(observationActions.settingsGet, (caller) => handleSettingsGet(deps, caller)),
+      defineAction(observationActions.settingsSet, (caller, input) => handleSettingsSet(deps, caller, input)),
+      defineAction(observationActions.spaceGet, (caller) => handleSpaceGet(deps, caller)),
+      defineAction(observationActions.cleanupPreview, (caller, input) => handleCleanupPreview(deps, caller, input)),
+      defineAction(observationActions.cleanupApply, (caller, input) => handleCleanupApply(deps, caller, input)),
+    ];
+    return {
+      definitions: bound.map((item) => item.definition as ActionDefinition),
+      handlers: bound.map((item) => item.handler),
+    };
+  }
+
+  /** Run the automatic retention sweep when a bounded retention period (`365`, `180`, `90`, `30`) is configured (OCL-12). */
+  sweepRetention(): ObservationCleanupResult | null {
+    this.writer.flush();
+    const opened = this.writer.database();
+    if (!opened) return null;
+    return sweepExpiredRecords(opened.db, this.options.env.now());
   }
 
   clearProject(projectId: string): void { this.writer.clearProject(projectId); }

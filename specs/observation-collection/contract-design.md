@@ -227,7 +227,7 @@
 
 ### 16.1 五类记录与用途分类
 
-- **五类记录**（`OBSERVATION_RECORD_KINDS`）：`"user"`（你的操作）、`"ai"`（AI 做的事）、`"content"`（内容的变化）、`"flow"`（工作流与后台任务）、`"present"`（呈现与反馈）。每条存储记录通过纯函数映射为唯一一类（`owner.kind === "shell"` 或 `fact` 以 `ui.` 开头／`assistant.feedback` 为 `"present"`；`entry` 为 `workflow`／`schedule`／`background` 或 `owner.id` 为 `workflows`／`scheduler`／`schedule`／`connections` 为 `"flow"`；`owner.id` 为 `agent`／`assistant` 或受众／入口为 `agent`／`assistant`／`mcp` 为 `"ai"`；插件或导入／同步变化为 `"content"`；其余本人操作与授权为 `"user"`），保证占用按种类分色与手动清理按种类筛选完全一致。
+- **五类记录**（`OBSERVATION_RECORD_KINDS`）：`"user"`（你的操作）、`"ai"`（AI 做的事）、`"content"`（内容的变化）、`"flow"`（工作流与后台任务）、`"present"`（呈现与反馈）。每条存储记录通过纯函数映射为唯一一类（`ui.candidates*` 或 `owner.id === "assistant"`／`assistant.*` 为 `"present"`；`entry` 为 `workflow`／`schedule`／`background` 或 `owner.id` 为 `workflows`／`scheduler`／`schedule`／`connections` 为 `"flow"`；`owner.id === "agent"`／`agent.*` 或受众／入口为 `agent`／`mcp` 为 `"ai"`；插件或首次读取／补读／导入变化及插件写命令为 `"content"`；`ui.open`／`ui.dwell*`／`ui.locate` 与其余本人操作和授权为 `"user"`），保证占用按种类分色与手动清理按种类筛选完全一致。
 - **用途分类**（`OBSERVATION_USES`）：`"lookback"`（本机回看，始终 `true`）、`"assistant"`（主动助理与报告，默认 `true`）、`"evaluation"`（效果评测，默认 `true`）、`"export"`（导出与诊断包，默认 `false`）、`"upload"`（上传，本版不开放，恒为 `false`）。
 
 ### 16.2 公开动作清单（`system.observation`）

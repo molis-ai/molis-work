@@ -945,6 +945,7 @@ export interface UiPageWorkspaces {
         workspace_id: string;
     }>;
     setOutput(workspaceId: string): Promise<void>;
+    readInstructions(): Promise<void>;
 }
 
 export interface UiPluginClientHost<Element = unknown, Dialog = Element, Media = Element> extends UiPageFiles<Media>, UiPageDialogs, UiPageActions {
@@ -1326,7 +1327,6 @@ export interface UiViewDeclaration {
     readonly accepts_objects?: boolean;
     readonly context_binding?: "focused-object";
     readonly objects?: readonly string[];
-    readonly opens_items?: boolean;
     readonly order?: number;
     readonly hue?: UiViewHue;
     readonly group?: UiViewGroup;

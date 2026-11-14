@@ -1,4 +1,5 @@
-import type { AgentImageMaterial, AgentRoundSkill, AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentImageMaterial, AgentRoundSkill, AgentSessionOwner, AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { ObservationRecorder } from "@molis-ai/molis-work-contracts/services/observation";
 import type { AgentPendingQuestion } from "@molis-ai/molis-work-contracts/services/agent-interaction";
 import type {
   AgentRuntimeAdapter,
@@ -59,6 +60,11 @@ export interface PrologueAdapterPorts {
   endedOnPromise?(runId: string, sessionId: string): boolean;
   /** Project actual SDK Context receipts into the App's existing memory ledger. Never a model tool. */
   memoryUsage?(receipt: AgentMemoryUseReceipt): void | Promise<void>;
+  /**
+   * The work records' recorder for one round, bound when it starts to the session's owner and the call that started it
+   * (observation-collection contract-design §4). Absent, or undefined for a round: that round is not recorded.
+   */
+  observeRun?(start: { owner: AgentSessionOwner; call_id?: string }): ObservationRecorder | undefined;
 }
 
 export interface PrologueRunPort {
@@ -97,6 +103,8 @@ export interface PrologueStartInput {
   workspace?: "required" | "none" | "business";
   root_path?: string;
   model: PrologueModelConfiguration;
+  /** The Host trusted the project: the runtime may give the round the repository's instruction files. Never from the request. */
+  project_trusted?: true;
   /** Character frozen from the Plugin's own role declaration. */
   character: {
     id: string;
@@ -171,6 +179,9 @@ export interface PrologueRuntimePort {
   readPendingQuestion?(run: AgentRunRef, pendingId: string, revision: number): Promise<AgentPendingQuestion | null>;
   /** Current original SDK approval facts, observed without answering or dispatching anything. */
   unexecutedApprovalCall?(run: AgentRunRef, waiting: import("./prologue-stream.js").PrologueApprovalWaiting): string | undefined;
+  /** Hear each model request a round sends, as the runtime handed it to the Host; returns how to stop hearing. */
+  /** Each model request the runtime settles, with the runs above it when a subagent sent it (nearest first; empty for a round of ours). */
+  listenModelRequests?(listen: (request: import("@prologue/sdk").ModelRequestObserved, lineage: () => readonly string[]) => void): () => void;
   readCommandOutput?(sessionId: string, ref: AgentCommandOutputRef): Promise<AgentCommandOutput>;
   sessions: {
     lifecycle?: AgentRuntimeAdapter["sessionLifecycle"];
@@ -191,6 +202,8 @@ export interface PrologueRuntimePort {
   startAgentRun(input: PrologueStartInput): Promise<{
     run: PrologueRunPort;
     control: PrologueControlPort;
+    /** The instruction files this round was given, as recorded in its index (`frozen.instructions`); absent when not recorded. */
+    instructions?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRunInstructions;
     memory?: import("@prologue/sdk").AgentMemoryControl;
   } & RoundDesk>;
   shutdown(): Promise<unknown>;

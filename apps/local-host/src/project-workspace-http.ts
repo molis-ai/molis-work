@@ -37,6 +37,7 @@ const CHANGES: Readonly<Record<string, ActionDefinition<never, ProjectDirectorie
   repair: projectDirectoryActions.repair as ActionDefinition<never, ProjectDirectories>,
   map_source: projectDirectoryActions.mapSource as ActionDefinition<never, ProjectDirectories>,
   unmap_source: projectDirectoryActions.unmapSource as ActionDefinition<never, ProjectDirectories>,
+  set_instructions: projectDirectoryActions.setInstructions as ActionDefinition<never, ProjectDirectories>,
 };
 
 async function pickWorkspace(context: ProjectWorkspaceHttpContext) {

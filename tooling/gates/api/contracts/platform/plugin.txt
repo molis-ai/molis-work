@@ -544,6 +544,7 @@ export interface ActionMetadata {
     readonly scope: "home" | "project";
     readonly effect?: "read" | "write" | "irreversible";
     readonly external?: true;
+    readonly draft?: true;
     readonly plugin?: false;
     readonly scheduling?: "concurrent";
     readonly authorship?: "session";
@@ -3688,6 +3689,7 @@ export interface PluginManifest {
     image_generation?: import("platform/plugin-image-generation").PluginImageGenerationDeclaration;
     runtime?: PluginRuntimeDeclaration;
     local_tools?: import("platform/plugin-local-tools").PluginLocalToolsDeclaration;
+    onboarding?: import("@molis-ai/molis-work-contracts/platform/plugin-onboarding").PluginOnboardingDeclaration;
     attention?: import("@molis-ai/molis-work-contracts/platform/plugin-attention").PluginAttentionDeclaration;
     connections?: import("@molis-ai/molis-work-contracts/platform/plugin-connections").PluginConnectionsDeclaration;
     connection_services?: readonly import("@molis-ai/molis-work-contracts/platform/plugin-integrations").PluginConnectionServiceDeclaration[];

@@ -23,6 +23,7 @@ jelly/jelly.db	io.molis.work.jelly	1	f8ed975502abc63b	-
 knowledge/knowledge.db	packages/storage	1	2adbf0ecde034d1b	-
 lingguang/lingguang.db	io.molis.work.lingguang	1	6a6ba024b4fde7ba	-
 memory/memory.db	packages/storage	2	17c9d78d1f64f5b8	1
+observation/observation.db	horizontal/observation	1	61bf0c860d21d41f	-
 pages/pages.db	io.molis.work.pages	1	3070ef951cd25cad	-
 placement/placement.db	apps/local-host	1	cc231f53373dbc13	-
 plugin-directories/plugin-directories.db	apps/local-host	1	4e3877ad46125b3e	-
@@ -33,11 +34,10 @@ ppt/ppt.db	io.molis.work.ppt	1	f3762d71cb86ab0f	-
 projects/*/molis-work.db	apps/local-host	3	052d02d66e597812	1,2
 projects/*/molis-work.db#io.molis.work.coding	io.molis.work.coding	1	7554f5bd7e17b35e	-
 projects/*/molis-work.db#io.molis.work.feed	io.molis.work.feed	2	a2446b1f1b0d700d	1
-projects/*/molis-work.db#io.molis.work.goals	io.molis.work.goals	3	27f1d16ea2cb34c1	1,2
+projects/*/molis-work.db#io.molis.work.goals	io.molis.work.goals	2	acd0b4c100229f63	1
 projects/*/molis-work.db#io.molis.work.inbox	io.molis.work.inbox	1	56acddfd14f308b1	-
-projects/*/molis-work.db#io.molis.work.risk	io.molis.work.risk	1	d1c505276d1b2bda	-
-projects/*/molis-work.db#io.molis.work.schedule	io.molis.work.schedule	3	60eee1da661a2c2a	1,2
-projects/catalog.db	apps/local-host	3	24e0e3c5a6f72a76	1,2
+projects/*/molis-work.db#io.molis.work.schedule	io.molis.work.schedule	2	083dcf10551f13fc	1
+projects/catalog.db	apps/local-host	4	f704641f25a9cbb2	1,2,3
 server/server.sqlite	server	1	2c4efaa24415de5e	-
 sync/sync.db	modules/sync-replication	1	19cf5fee78712da0	-
 todo/todo.db	io.molis.work.todo	1	edc487237edda4db	-

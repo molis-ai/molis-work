@@ -40,6 +40,8 @@ export interface ComposerSnapshot {
   near: ActionSubject | null;
   voice?: string;
   required: string | null;
+  /** The page's line above the box, without its function: its button is pressed with `composer-act` `notice`. */
+  notice: { text: string; tone: "readonly" | "info"; icon?: string; action: { label: string } | null } | null;
   submitKeys: boolean;
   draft: boolean;
   /** Where the page's conversation stands across its frame (the box around the root it gave), so the bar lines up with it. */
@@ -80,8 +82,8 @@ export type ComposerUp =
 export type ComposerDown =
   | { type: "composer-call"; id: number; call: number; op: ComposerOp; arg?: unknown }
   | { type: "composer-abort"; id: number; call: number }
-  /** A control changed, a command chosen, or (`receiver`) another of the page's receivers picked in 「发给」, by the id the page gave. */
-  | { type: "composer-act"; id: number; act: "control" | "command" | "receiver"; key: string; value?: string }
+  /** A control changed, a command chosen, (`receiver`) another of the page's receivers picked in 「发给」 by the id the page gave, or (`notice`) the button of the line above the box. */
+  | { type: "composer-act"; id: number; act: "control" | "command" | "receiver" | "notice"; key: string; value?: string }
   | { type: "composer-text"; id: number; text: string }
   | { type: "composer-materials"; id: number; materials: ComposerMaterial[] }
   /** How wide the bar's input stands over the page, so its conversation column can stand as wide (`--mw-bar-column` on the page). */

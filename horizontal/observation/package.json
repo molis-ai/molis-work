@@ -1,0 +1,32 @@
+{
+  "name": "@molis-ai/molis-work-service-observation",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The observation layer: records of the work, their evidence snapshots and the coverage register, written from the action exit, service sinks and reports.",
+  "type": "module",
+  "license": "SEE LICENSE IN LICENSE",
+  "engines": {
+    "node": ">=24"
+  },
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@molis-ai/molis-work-contracts": "workspace:*",
+    "@molis-ai/molis-work-plugin-sdk": "workspace:*",
+    "@molis-ai/molis-work-storage": "workspace:*"
+  }
+}

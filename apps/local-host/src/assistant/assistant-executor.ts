@@ -5,6 +5,7 @@ import type { AgentMcpServerView, AgentMcpToolRef } from "@molis-ai/molis-work-c
 import type { AgentInputSend, AgentSteerReceipt } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import type { AssistantExecutorOffer } from "@molis-ai/molis-work-contracts/services/assistant";
+import { PROJECT_WORKSPACE_PROVIDER_ID, projectPluginActions } from "@molis-ai/molis-work-contracts/modules/projects";
 import { assistantErrors } from "./assistant-errors.js";
 
 /** The person's own action client in a project, as far as the Assistant's reads of other plugins need it. */
@@ -58,6 +59,18 @@ export function unavailableReason(provider: ExecutorProvider): string | null {
   return null;
 }
 
+/**
+ * Why a work's executor is not in the directory, from what the person can see (CHO-04): the plugin still publishes actions but not all
+ * six roles (a version without the executor protocol), it is not in the project at all, or it is in the project and not running
+ * (stopped, or it failed to start). One read of the project's plugin membership, only when the actions say nothing.
+ */
+async function missingReason(actions: BoundActionClient, views: readonly ActionView[], pluginId: string): Promise<string> {
+  if (views.some(view => view.provider.plugin_id === pluginId)) return uiText.text("workbench.assistant-executor.executor-incomplete");
+  const membership = await actions.invoke({ ...projectPluginActions.get, provider_id: PROJECT_WORKSPACE_PROVIDER_ID }, {}).catch(() => null);
+  return membership && !membership.plugins.includes(pluginId) ? uiText.text("workbench.assistant-executor.executor-not-in-project")
+    : uiText.text("workbench.assistant-executor.executor-not-running");
+}
+
 const unavailable = (reason?: string) => assistantErrors.executor_unavailable(reason || uiText.text("workbench.assistant-executor.executor-cannot-be-used-right-now"), { action: uiText.text("workbench.assistant-executor.check-plugin-management") });
 
 /**
@@ -69,8 +82,8 @@ export class WorkExecutor {
 
   /** The provider a work is kept with, found again in the current directory: stopped, uninstalled, without a grant or short of a role, it is refused and no other one is used. */
   static async bind(actions: BoundActionClient, pluginId: string, dispatch?: ExecutorControl): Promise<WorkExecutor> {
-    const provider = executorProviders(await actions.discover()).find(row => row.plugin_id === pluginId);
-    if (!provider) throw unavailable(uiText.text("workbench.assistant-executor.work-s-executor-cannot-be-found-now-may"));
+    const views = await actions.discover(), provider = executorProviders(views).find(row => row.plugin_id === pluginId);
+    if (!provider) throw unavailable(await missingReason(actions, views, pluginId));
     const reason = unavailableReason(provider);
     if (reason !== null) throw unavailable(reason);
     return new WorkExecutor(actions, provider, dispatch);

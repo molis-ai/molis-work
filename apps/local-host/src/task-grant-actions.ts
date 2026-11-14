@@ -205,7 +205,7 @@ async function setCategories(ports: TaskGrantPorts, caller: ActionExecutionConte
   const grants = chosenGrants(input.categories, records, catalog, declarations.of, view =>
     createMcpActionGrant(clientId, view.action.scope === "home" ? null : asked.projectId, view, true));
   await caller.beforeEffect();
-  const written = await replaceMcpClientGrants(ports.homeDirectory, clientId, grants, stale);
+  const written = await replaceMcpClientGrants(ports.homeDirectory, clientId, grants, stale, caller);
   return subjectView(written, { project_id: asked.projectId, plugin_install_id: input.plugin_install_id, key: input.key }, catalog, declarations.of);
 }
 
@@ -213,7 +213,7 @@ async function clearSubject(ports: TaskGrantPorts, caller: ActionExecutionContex
   const asked = answering(ports, caller), install = installationOf(asked, input.plugin_install_id, true);
   const clientId = taskGrantSubjectId(asked.projectId, install, input.key);
   await caller.beforeEffect();
-  return { cleared: await removeMcpActionGrants(ports.homeDirectory, grant => grant.client_id === clientId) > 0 };
+  return { cleared: await removeMcpActionGrants(ports.homeDirectory, grant => grant.client_id === clientId, caller) > 0 };
 }
 
 async function listSubjects(ports: TaskGrantPorts, caller: ActionExecutionContext, input: TaskGrantListRequest): Promise<TaskGrantListResult> {

@@ -1,18 +1,28 @@
+import { codeRootFile, contextFileSkip } from "@molis-ai/molis-work-contracts/services/materials";
 import { connectorAccountControl } from "./connector-oauth-targets.js";
 import { Buffer } from "node:buffer";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { resolveApiConnection } from "./connector-access.js";
 import { withConnectorRequest } from "./connector-lifecycle.js";
-import type { ContextSource, ContextSourceKind, ImportFile, ContextFileMetadata } from "./context-onboarding-store.js";
+import type { ContextJourney, ContextSource, ContextSourceKind, ImportFile, ContextFileMetadata } from "./context-onboarding-store.js";
 import { isStagedDigest } from "./context-onboarding-staging.js";
 
 const CONTEXT_DIRECTORY_KINDS = ["downloads", "documents", "desktop", "custom"] as const;
 const KINDS: ContextSourceKind[] = ["files", "directory", ...CONTEXT_DIRECTORY_KINDS, "browser", "gmail", "chat"];
 const isContextDirectory = (kind: ContextSourceKind) => CONTEXT_DIRECTORY_KINDS.some(id => id === kind);
-const supportedContextFile = (path: string) => /\.(?:md|markdown|txt|csv|json|html?|pdf|docx)$/iu.test(path);
+/** A file onboarding takes in: the page's own rule (`contextFileSkip`), checked again here, so a selection cannot name another. */
+const supportedContextFile = (path: string) => contextFileSkip(path) === null;
+/**
+ * The folder this round may hand to a plugin that takes a code folder: the person's own chosen folder (`custom`, never Downloads,
+ * Documents or Desktop), still selected, read from its path, with a build or package file at its top (ONB-44). Null when there is none.
+ */
+export function codeRoot(journey: Pick<ContextJourney, "sources">): string | null {
+  const source = journey.sources.find(s => s.kind === "custom" && s.selected && s.path);
+  return source?.path && source.metadata?.files.some(file => codeRootFile(file.path)) ? source.path : null;
+}
 function relativePath(value: unknown): string {
   if (typeof value !== "string" || !value || value.length > 4096 || /[\\\u0000-\u001f]/u.test(value)
-    || value.split("/").some(part => !part || part === ".." || part.startsWith(".") || ["node_modules", "vendor", "dist", "build"].includes(part))) throw new Error("文件范围无效");
+    || value.split("/").some(part => !part || part === "." || part === "..")) throw new Error("文件范围无效");
   return value;
 }
 /** A file's place in its source, as the person chose it: a relative path of a kind onboarding reads. */

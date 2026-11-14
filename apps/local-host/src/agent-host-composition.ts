@@ -244,7 +244,8 @@ async function runPlaces(options: Pick<AgentHostCompositionOptions, "workspaceFo
   const found = await options.workspaceFor(projectId), output = found?.realpath_verified ? found : null;
   const listed = output && options.directoriesFor ? await options.directoriesFor(projectId) : undefined;
   const directories = output && listed ? { revision: listed.revision, output: { workspace_id: output.workspace_id, canonical_path: output.canonical_path },
-    inputs: listed.directories.filter(row => row.roles.includes("input")).map(row => ({ workspace_id: row.workspace_id, canonical_path: row.canonical_path })) } : undefined;
+    inputs: listed.directories.filter(row => row.roles.includes("input")).map(row => ({ workspace_id: row.workspace_id, canonical_path: row.canonical_path })),
+    instructions_trusted: listed.instructions.trusted } : undefined;
   return { output, directories, worktrees: (): Promise<readonly AgentHostWorktree[]> => output ? hostWorktrees(output.canonical_path) : Promise.resolve([]) };
 }
 

@@ -120,7 +120,7 @@ test("CODING-WORKTREE-05 CODING-WORKTREE-06 CODING-WORKTREE-08 a round that ran 
  try{
   const adapter=composition.agentHost.adapter("prologue"),owner={project_id:"board",plugin_id:coding,install_id,actor_id:"user"};
   const authority={manifest:codingAgentManifest,prompts:codingPrompts,authorizedDirectories:[root],worktrees:async()=>[{worktree_id:"tree",canonical_path:treeRoot}],
-   directories:{revision:"directories-1",output,inputs:[]}};
+   directories:{revision:"directories-1",output,inputs:[],instructions_trusted:false}};
   const session=await adapter.createSession({...owner,directory:{canonical_path:root,realpath_verified:true},title:"worktree"});
   const settle=async(ref:{session_id:string;run_id:string})=>{const deadline=Date.now()+15000,decided=new Set<string>();
    while(!["completed","failed"].includes((await adapter.read(ref)).phase)){

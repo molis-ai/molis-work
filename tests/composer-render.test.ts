@@ -116,12 +116,15 @@ test("UIC-13: the board's #composer specimens are renderComposer's structure, pl
   const board = withPageText("zh", [], renderPrimitiveCatalog);
   const section = board.slice(board.indexOf('<section class="mw-catalog__section" id="composer"'), board.indexOf("</section>", board.indexOf('id="composer"')));
   const starts = [...section.matchAll(/<div class="mw-composer" data-slot="composer"/g)].map((match) => match.index!);
-  // Ten states plus the two at rest in one row (user 11-08): a phone's and a short window's.
-  assert.equal(starts.length, 12, "eleven AI specimens and one plain");
+  // Ten states plus the two at rest in one row (user 11-08): a phone's and a short window's; and the five with the line above the box
+  // (batch12-design §2.3).
+  assert.equal(starts.length, 17, "sixteen AI specimens and one plain");
   const states = new Set<string>();
   for (const start of starts) {
     let specimen = divAt(section, start);
-    // The client's parts: the attachment strip, the restored line, the ▾ menu's items; and the board's own markers.
+    // The client's parts: the line above the box, the attachment strip, the restored line, the ▾ menu's items; and the board's own markers.
+    const notice = specimen.indexOf('<div class="mw-composer__notice"');
+    if (notice >= 0) specimen = specimen.replace(divAt(specimen, notice), "").replace(/ data-notice="[a-z]+"/, "");
     specimen = specimen.replace(/<ul class="mw-uploads mw-composer__files">[\s\S]*?<\/ul>/, "").replace(/<p class="mw-field__hint mw-composer__restore">[\s\S]*?<\/p>/, "");
     for (const menu of [...specimen.matchAll(/<div class="mw-compose__menu"/g)].map((match) => divAt(specimen, match.index!))) {
       specimen = specimen.replace(menu, '<div class="mw-compose__menu" data-compose-menu hidden></div>');

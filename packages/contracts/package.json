@@ -234,6 +234,10 @@
       "types": "./dist/services/placement.d.ts",
       "import": "./dist/services/placement.js"
     },
+    "./services/observation": {
+      "types": "./dist/services/observation.d.ts",
+      "import": "./dist/services/observation.js"
+    },
     "./services/surface-composition": {
       "types": "./dist/services/surface-composition.d.ts",
       "import": "./dist/services/surface-composition.js"
@@ -297,6 +301,10 @@
     "./platform/presentation": {
       "types": "./dist/platform/presentation.d.ts",
       "import": "./dist/platform/presentation.js"
+    },
+    "./platform/plugin-onboarding": {
+      "types": "./dist/platform/plugin-onboarding.d.ts",
+      "import": "./dist/platform/plugin-onboarding.js"
     },
     "./platform/plugin-attention": {
       "types": "./dist/platform/plugin-attention.d.ts",

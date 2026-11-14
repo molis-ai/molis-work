@@ -63,6 +63,20 @@ export const WORKSPACE_SOURCE_LINKS_SQL = `
       ON workspace_source_links(workspace_id);
 `;
 
+/**
+ * Whether a project's rounds read the repository's instruction files, and which output the person confirmed for it (batch12-design §3.3).
+ * No row is the default: read, nothing confirmed. A device fact, beside the output it is about: never in the synced projection. The
+ * catalog upgrade to version 4 makes this table from the same text (`catalog-upgrade.ts`).
+ */
+export const PROJECT_INSTRUCTION_SETTINGS_SQL = `
+    CREATE TABLE IF NOT EXISTS project_instruction_settings (
+      project_id TEXT PRIMARY KEY REFERENCES projects(project_id) ON DELETE CASCADE,
+      off INTEGER NOT NULL CHECK (off IN (0, 1)),
+      confirmed_workspace_id TEXT,
+      updated_at TEXT NOT NULL
+    );
+`;
+
 export function createProjectsSchema(db: ProjectsSqliteDatabase): void {
   createDeletionStepsSchema(db);
   db.exec(`
@@ -131,5 +145,6 @@ export function createProjectsSchema(db: ProjectsSqliteDatabase): void {
   `);
   db.exec(WORKSPACE_MEMBERSHIPS_SQL);
   db.exec(WORKSPACE_SOURCE_LINKS_SQL);
+  db.exec(PROJECT_INSTRUCTION_SETTINGS_SQL);
   createProjectRecycleSchema(db);
 }

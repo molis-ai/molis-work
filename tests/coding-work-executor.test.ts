@@ -203,7 +203,7 @@ test("W5-01-CODING-77..81 a round the Assistant starts is the page's round: same
   assert.deepEqual(read.runs.map(run => run.ref.run_id), [run_id]);
   assert.equal(read.recovery, null);
 
-  // W5-01-CODING-80: the round carries the session's own choices as the page's start sends them: its Skills, and writer assignments
+  // W5-01-CODING-80 CHO-03: the round carries the session's own choices as the page's start sends them: its Skills (MCP tools and sources ride the same saved choices), and writer assignments
   // only for parallel writers, so a session set up for them on the page and switched to another way still starts.
   const chose = await invoke<{ session_id: string }>("session.open", { title: "按技能修改" });
   const { skills } = await client.invoke(owner, find("coding.state"), {}) as { skills: Array<{ ref: { skill_id: string } }> };

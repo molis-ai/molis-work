@@ -16,6 +16,7 @@ import { isRecord } from "./json-value.js";
 import { artifactDeclarationProblems } from "./artifact-declarations.js";
 import { backgroundDeclarationProblems } from "./background-declarations.js";
 import { demoSeedDeclarationProblems } from "./demo-seed-declarations.js";
+import { onboardingDeclarationProblems } from "./onboarding-declarations.js";
 import { notificationDeclarationProblems } from "./notification-declarations.js";
 import { attentionDeclarationProblems } from "./attention-declarations.js";
 import { readGroupDeclarationProblems } from "./read-group-declarations.js";
@@ -277,6 +278,7 @@ function assertDeclarations(parsed: PluginManifest, ui: Record<string, unknown>)
   problems.push(...backgroundDeclarationProblems(parsed.background, declaredPermissions, parsed.actions));
   problems.push(...notificationDeclarationProblems(parsed.notifications, parsed.actions));
   problems.push(...demoSeedDeclarationProblems(parsed.demo_seed, parsed.actions));
+  problems.push(...onboardingDeclarationProblems(parsed.onboarding, parsed.actions));
   problems.push(...connectionDeclarationProblems(parsed.connections, declaredPermissions));
   problems.push(...integrationDeclarationProblems(parsed));
   problems.push(...attentionDeclarationProblems(parsed.attention, declaredPermissions));

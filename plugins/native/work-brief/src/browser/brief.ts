@@ -188,7 +188,7 @@ export function renderBrief(page: BriefPage): string {
   if (!view) return renderFrame({ className: "wb-frame", title, description: project, action: headerActions(page, null), panel: `<p class="wb-muted" aria-busy="true">${esc(text("page.loading"))}</p>` });
   if (!view.version) return renderFrame({ className: "wb-frame", title, description: project, action: headerActions(page, view),
     panel: renderEmpty({ icon: "note", title: text("empty.title"), body: text("empty.body"),
-      action: `<div class="mw-empty__actions">${act(text("empty.refresh"), "refresh", { variant: "primary", icon: "refresh", disabled: Boolean(state.busy) })}${act(text("empty.ask"), "ask", { icon: "sparkles" })}</div>` }) });
+      action: `<div class="mw-empty__actions">${act(text("empty.refresh"), "refresh", { variant: "primary", size: "md", icon: "refresh", disabled: Boolean(state.busy) })}${act(text("empty.ask"), "ask", { size: "md", icon: "sparkles" })}</div>` }) });
   const version = view.version, old = Boolean(state.old);
   const body = `${banner(page, view)}${section("sources", sources(version))}${section("now", claims(page, view))}${
     old ? "" : section("attention", attention(version)) + section("changes", changes(view)) + section("next", next(page, view))}`;

@@ -8,6 +8,7 @@ export const WORK_BRIEF_STYLES = `
 .wb-frame{min-width:0;max-width:960px;margin-inline:auto}
 .wb-frame .mw-frame__panel{display:grid;grid-template-columns:minmax(0,1fr);align-content:start;gap:28px}
 .wb-frame .mw-items{width:100%;grid-template-columns:minmax(0,1fr);align-content:start}
+.wb-frame .mw-empty{justify-items:center;text-align:center}
 .wb-head-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 .wb-sec{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;min-width:0}
 .wb-sec .mw-items{width:100%;grid-template-columns:minmax(0,1fr)}

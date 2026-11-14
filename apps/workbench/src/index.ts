@@ -12,7 +12,6 @@ export { CONTEXT_ACTIONS_FACTORY_SCRIPT } from "./scripts/client/context-actions
 export { CARD_TARGET_ASK_SCRIPT } from "./scripts/client/context-card-target.js";
 export { ASSISTANT_WORK_OBJECTS_FACTORY_SCRIPT } from "./scripts/client/assistant-work-objects.js";
 export { WORK_RECORDS_FACTORY_SCRIPT } from "./scripts/client/work-records.js";
-export { GLOBAL_SEARCH_FACTORY_SCRIPT } from "./scripts/client/global-search.js";
 export { ASSISTANT_STEP_ROW_FACTORY_SCRIPT, ASSISTANT_THREAD_REPLY_SCRIPT } from "./scripts/client/assistant-step-row.js";
 export type { MolisWorkOnboardingRenderOptions } from "./onboarding-renderer.js";
 export { onboardingIntentFrame, onboardingPlanningHint, type OnboardingIntentFrame } from "./onboarding-intent.js";

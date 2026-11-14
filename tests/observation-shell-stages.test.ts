@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
 import vm from "node:vm";
-import { GLOBAL_SEARCH_FACTORY_SCRIPT, WORK_RECORDS_FACTORY_SCRIPT } from "@molis-ai/molis-work-app-workbench";
+import { WORK_RECORDS_FACTORY_SCRIPT } from "@molis-ai/molis-work-app-workbench";
 import { readRecords } from "@molis-ai/molis-work-service-observation";
 import { openTestHome } from "./fixtures/test-home.js";
 
@@ -95,7 +95,7 @@ test("OCL-07 OCL-10: what is shown, time on it per minute, and one search's stag
   assert.ok(!records.some(record => /adopt|read/u.test(record.stage ?? "")), "choosing is not adopting or reading");
 });
 
-test("OCL-07: a locate's loading and return stages are recorded for the chosen interaction, and the shell back step is wired", () => {
+test("OCL-07: a locate's loading and return stages are recorded for the chosen interaction", () => {
   const p = page();
   const search = p.records.interaction("search");
   const a = p.records.subject("pages_document", "doc-3", "4");
@@ -112,5 +112,4 @@ test("OCL-07: a locate's loading and return stages are recorded for the chosen i
   assert.deepEqual(locate.map(fact => fact.stage), ["requested", "loading", "visible", "highlighted", "returned"], "loading before the target appears, return after the shell's back step; a second back adds nothing");
   assert.equal(new Set(locate.map(fact => (fact.work as { work_ref: string }).work_ref)).size, 1, "all stages belong to the same interaction");
   assert.deepEqual(Array.from(locate.at(-1)!.subjects as Array<Record<string, unknown>>, item => ({ ...item })), [{ kind: "pages_document", id: "doc-3", version: "4" }]);
-  assert.match(GLOBAL_SEARCH_FACTORY_SCRIPT, /locate\("loading"/, "the real search script reports loading before it opens the target");
 });

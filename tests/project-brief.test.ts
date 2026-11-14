@@ -128,6 +128,8 @@ test("the brief reads title, description, the goal in play and what is next, and
   assert.match(html, /先核对版本号/, "the goal's own next hint is the body when nothing more is known");
   assert.match(html, /1<\/b> \/ 3 完成/);
   assert.match(html, /等你确认/);
+  // BCC-09: the old brief link carries its plugin and item; opening it after that owner is removed is exercised by
+  // tests/goals-absent-project.e2e.test.ts (no dialog, no Goal data, no page error).
   assert.match(html, /href="\/projects\/p1\/\?openPlugin=inbox&amp;openItem=m\+1&amp;openTitle=%E9%82%AE%E4%BB%B6"/);
   assert.match(html, /工作目录 ~\/code\/a/);
   // The recorded progress outranks the hint when the host read one.

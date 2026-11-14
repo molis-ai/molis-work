@@ -1,6 +1,6 @@
 # N49 候选场景一次读取
 
-状态：独立复核与定向验证已通过，已接回本批 `00bedcd38`（2026-11-10）。整批统一验证、公共 C 合审与 CI Full 待最终头。完成标准沿 [06-4 原验收](../post-anticorruption-roadmap/reference/batches/06.md#batch-06-item-4)。
+状态：已随第 06 批 [#2009](https://github.com/molis-ai/molis-work/pull/2009) 合入 main `a720834a09`（2026-11-13）；独立复核与定向验证通过，整批 CI 见 #2009。完成标准沿 [06-4 原验收](../post-anticorruption-roadmap/reference/batches/06.md#batch-06-item-4)。
 
 基点 `d2dcffa0257f`，产品构建来自 `9e8583022`，两者之间仅文档变化。现行需求见[各包调用成本](spec.md)，N43／46 另见[宿主成本](../batch-06-call-cost/spec.md)。用户已明确本批取消新增升版，本项沿当前合同版本增加方法，不升动作、存储或同步版本。第 27 批 BL-097／BL-131 可直接消费本次投影入口和调用数字。本文只覆盖 Inbox 与 Feed 的两个候选目录读。
 

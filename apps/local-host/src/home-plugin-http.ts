@@ -7,7 +7,7 @@ import { declaredStageContributionId, renderHomePluginPage, sideOpenedPlugins, s
 import type { UiContribution, UiRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import { builtinPluginByManifestId, builtinPluginByProjectKey, runsInHome } from "./plugin-registry.js";
 import { describePluginTablesRefusal, rollbackHrefFor } from "./home-unavailable-owners.js";
-import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import { runningProjectPlatform } from "./project-plugins.js";
@@ -133,12 +133,15 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
   // (stopped, revoked or uninstalled) leaves it only to a project half that binds it; one that does not, or whose platform cannot be
   // started, is not this route's to answer: the Home answers it as it answers any stopped Home plugin's (RAC-1300, RAC-1301).
   let earlyProject: (LocalHostProjectReference & { display_name?: string }) | undefined;
+  // A platform start may prepare this request's context; the route that answers reuses it instead of preparing the same authority twice (N42).
+  let splitContext: (() => Promise<ActionCallContext>) | undefined;
   if (split && projectHalfRoute(platform, install, request.method, url.pathname)) {
     if (install?.state === "running" || !prefixed) return false;
     const found = await routeProject(prefixed[1]!, pluginId, projectPlugins, split);
     if (!(found instanceof ActionError)) {
       earlyProject = found;
-      const projectPlatform = await projectPluginPlatform(host, found);
+      splitContext = requestProjectContext(host, found);
+      const projectPlatform = await projectPluginPlatform(host, found, splitContext);
       // A project whose plugins cannot run is the project chain's to refuse, as it does for any project plugin route today.
       if (!projectPlatform) return false;
       if (projectHalfBinds(projectPlatform, pluginId, request.method, url.pathname)) return false;
@@ -206,7 +209,7 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
   let routed: ReturnType<typeof projectRouteControl> | undefined;
   try {
     abort.signal.throwIfAborted();
-    const caller = await localWebActionContext(host, project, LOCAL_OWNER_PERMISSIONS);
+    const caller = splitContext ? await splitContext() : await projectContext(host, project);
     abort.signal.throwIfAborted();
     routed = projectRouteControl(plain, project?.project_id ?? null, project ? host.actionClient(project) : host.homeActionClient(), async () => {
       if (!project || !prefixed) return;
@@ -285,15 +288,25 @@ function binds(platform: Pick<PluginPlatform, "runtime">, install: PluginInstanc
   return Boolean(contribution?.kind === "app" && (contribution.routes ?? []).some(binding => binding.route_id === routeId));
 }
 
+const projectContext = (host: MolisWorkLocalHost, project: LocalHostProjectReference | undefined) => localWebActionContext(host, project, LOCAL_OWNER_PERMISSIONS);
+
+/** One request's person context for a project, built on first use: starting the platform and the route that answers share it (N42). */
+function requestProjectContext(host: MolisWorkLocalHost, project: LocalHostProjectReference): () => Promise<ActionCallContext> {
+  let pending: Promise<ActionCallContext> | undefined;
+  return () => pending ??= projectContext(host, project);
+}
+
 /**
  * The project's plugin platform, started through the Host's own preparation path when nothing has started it yet. Null when it still
  * does not run: the route is then the project chain's to answer, as it answers any project plugin route whose platform cannot start.
+ * `caller` prepares the person's context on first use and keeps it for the rest of the request (N42).
  */
-async function projectPluginPlatform(host: MolisWorkLocalHost, project: LocalHostProjectReference): Promise<PluginPlatform | null> {
+async function projectPluginPlatform(host: MolisWorkLocalHost, project: LocalHostProjectReference,
+  caller: () => Promise<ActionCallContext>): Promise<PluginPlatform | null> {
   const running = () => host.withProject(project, runtime => runningProjectPlatform(runtime.store, project.project_id));
   const started = await running();
   if (started) return started;
-  await host.actionClient(project).discover(await localWebActionContext(host, project, LOCAL_OWNER_PERMISSIONS));
+  await host.actionClient(project).discover(await caller());
   return running();
 }
 

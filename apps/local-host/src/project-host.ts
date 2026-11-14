@@ -294,12 +294,12 @@ export class MolisWorkLocalHost {
       { workspaceFor: options.workspaceFor, workspacesFor: options.workspacesFor, prepareDirectory: options.prepareDirectory },
     );
     if (home) {
-      bindHomeSide(this, home, options, settingsVersionClaims);
+      const ownerContext = (ref: LocalHostProjectReference) => localWebActionContext(this, ref, LOCAL_OWNER_PERMISSIONS); bindHomeSide(this, home, options, settingsVersionClaims);
       this.search = createSearchHost({ homeDirectory: home, registry: this.host.actionRegistry(),
         sessionLifecycle: runtimeId => this.agents?.service.agentHost.adapter(runtimeId).sessionLifecycle,
         project: projectId => this.host.projects().find(row => row.project_id === projectId && row.state !== "closing"),
         projectClient: reference => this.actionClient(reference), homeClient: () => this.homeActionClient(),
-        ownerContext: reference => localWebActionContext(this, reference, LOCAL_OWNER_PERMISSIONS),
+        ownerContext,
         // A project is gone only when the catalog no longer has it and no runtime of it is open (deletion closes it first).
         knownProjects: async () => this.catalogRunner
           ? [...await this.catalogRunner({ homeDirectory: home }, catalog => catalog.listProjects().map(project => project.project_id)),
@@ -321,7 +321,7 @@ export class MolisWorkLocalHost {
         },
         open: async project => { const value = reference(project); await this.withProject(value, () => undefined); return value; },
         projectClient: value => this.actionClient(value), homeClient: () => this.homeActionClient(),
-        ownerContext: value => localWebActionContext(this, value, LOCAL_OWNER_PERMISSIONS) });
+        ownerContext });
     }
     } catch (error) {
       // The failed object is never published. Close everything already constructed before relinquishing its lock.

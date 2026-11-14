@@ -1,3 +1,5 @@
+// BSH-11: the double-Home cutover matrix lives across this file and the cutover/takeover/maintenance files; this test covers the
+// complete process-version graph through the actual Host collection and Rust/D1/R2 without activating Coding.
 import {createStaticPersonalSync as createPersonalSync} from '../../tests/fixtures/static-personal-sync.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';

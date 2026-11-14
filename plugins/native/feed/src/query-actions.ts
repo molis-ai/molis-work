@@ -23,6 +23,7 @@ export type FeedDirectorySnapshot = Omit<FeedSnapshot, "inbox_entries"> & { offs
 /** Data for Feed's own stage; Inbox's attention facts arrive through its public read. */
 export interface FeedStageData {
   readonly snapshot: FeedDirectorySnapshot;
+  readonly source_messages: Readonly<Record<string, readonly string[]>>;
   readonly source_catalog: readonly FeedSourceCatalogView[];
   readonly connector_auth: ConnectorAuthStatus;
   readonly inbox_entries: readonly AttentionEntryRecord[];
@@ -50,8 +51,8 @@ const linkedContext = define<{ goal_id: string; item_id?: string }, { source_con
 export const feedQueryActions = {
   stage: define<Record<string, string>, FeedStageData>("feed.stage.read", /* @version action.feed.stage.read */ 1, "读取 Feed 舞台", "分页读取本实例的来源目录、消息、捕捉建议、连接与 Inbox 活跃事实", feedPageSchema,
     { type: "object", properties: { snapshot: snapshotSchema, source_catalog: rows(["id", "name", "feed_url", "category", "category_label", "limitations"]),
-      connector_auth: connectionsSchema, inbox_entries: rows(["entry_id", "subject_type", "subject_id", "status"]), source_presentations: { type: "object" } },
-      required: ["snapshot", "source_catalog", "connector_auth", "inbox_entries", "source_presentations"], additionalProperties: false },
+      source_messages: { type: "object", additionalProperties: { type: "array", items: { type: "string" } } }, connector_auth: connectionsSchema, inbox_entries: rows(["entry_id", "subject_type", "subject_id", "status"]), source_presentations: { type: "object" } },
+      required: ["snapshot", "source_messages", "source_catalog", "connector_auth", "inbox_entries", "source_presentations"], additionalProperties: false },
     ["feed:read", "inbox:read", "evidence:read", "sources:pull_feed", "sources:pull_connector"]),
   reader: define<{ object_id: string; material_offset?: string }, FeedReaderData>("feed.items.reader", /* @version action.feed.items.reader */ 1, "读取 Feed 阅读器", "读取一条消息的正文、有效捕捉建议及当前可用的处置",
     { ...empty, properties: { material_offset: { type: "string", pattern: "^(0|[1-9][0-9]*)$" }, object_id: { type: "string", minLength: 1, maxLength: 200 } }, required: ["object_id"] },
@@ -103,6 +104,7 @@ export function createFeedQueryHandlers(feed: FeedApplication, projectId: string
       await caller.beforeEffect();
       const suggested = new Map(recommendations.map(row => [row.item_id, row.suggested_behavior_ids]));
       return { snapshot: { ...current, feed_items: current.feed_items.map(entry => ({ ...entry, suggested_behavior_ids: suggested.get(entry.item_id) ?? [] })) },
+        source_messages: Object.fromEntries(current.sources.map(source => [source.source_id, feed.reads.page(projectId, { source_id: source.source_id, limit: 3, offset: 0, sort: "newest" }).map(item => item.title)])),
         source_catalog, connector_auth, inbox_entries, source_presentations };
     }),
     bind(feedQueryActions.reader, async (input, caller) => {

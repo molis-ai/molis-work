@@ -1,6 +1,6 @@
 # 06 批各包调用成本
 
-状态：实施中（2026-11-10，Codex）。对应 [06-4](../post-anticorruption-roadmap/reference/batches/06.md#batch-06-item-4) 的 N47～51，目标为功能可用。N47／N51 已合入本批分支 `d8d527b78`，N48／N50 已合入 `7b9bddc95`；N49 已合回本批 `00bedcd38`，测量与定向证据见下文。全批统一验证、最终合审及合入 main 尚未完成。
+状态：已随第 06 批 [#2009](https://github.com/molis-ai/molis-work/pull/2009) 合入 main `a720834a09`（2026-11-13）。对应 [06-4](../post-anticorruption-roadmap/reference/batches/06.md#batch-06-item-4) 的 N47～51；实现与定向证据见下文，绝对计数是探针证据，不是仓库内断言。
 
 ## 范围与方案
 

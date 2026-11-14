@@ -195,6 +195,9 @@ const pages: Record<string, Draw> = {
 // row (and the closeout's shell wording), so every whole-page record moved by +2185 en / +1997 zh; the 50 fragment records did
 // not change. The 16 whole pages were re-recorded with MOLIS_WORK_GOLDEN_RECORD=1 on the merge of main 7a4c7f982d; they are
 // the shell's reviewed additions, not a Goals markup change.
+// Batch 19 (Work Brief plugin): the shell gained the Work Brief plugin's rail tile and settings row, so every whole-page record
+// moved by +2403 en / +2193 zh; the 50 fragment records did not change. The 16 whole pages were re-recorded with
+// MOLIS_WORK_GOLDEN_RECORD=1 on the merge of main 653cf456d4; not a Goals markup change.
 // The hashes below come from the checked draws with RECORD unset. The independent text and data assertions stay in place.
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }

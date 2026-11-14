@@ -160,6 +160,8 @@ for (const width of WIDTHS) test(`WBR-02 WBR-22 WBR-25 WBR-27 the brief on the p
   await browser.waitFor(toggle);
   await browser.evaluate(`${toggle}.click()`);
   await browser.waitFor("document.querySelector('[data-home-lead]').hidden");
+  // The basic home is really there: its scroll area shows and at least one plugin's group is drawn.
+  await browser.waitFor("(() => { const home = document.querySelector('[data-home-scroll]'); return Boolean(home) && home.getClientRects().length > 0 && home.querySelectorAll('[data-home-group]').length > 0; })()");
   await screenshot("basic");
   await browser.evaluate(`${toggle}.click()`);
   await browser.waitFor("!document.querySelector('[data-home-lead]').hidden");

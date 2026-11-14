@@ -22,7 +22,7 @@
 - [batch-06-call-cost](batch-06-call-cost/spec.md)：第 06 批调用成本整治；已随 #2009 合入 `a720834a09`，剩余 N42 首片范围与 BL-943 后续；BCC-09 直测已补。
 - [batch-06-runtime-cost](batch-06-runtime-cost/spec.md)：第 06 批各包调用成本；已随 #2009 合入 `a720834a09`，N47/N48/N49/N50/N51 的实现与定向证据见文内，绝对计数为探针证据。
 
-- [workbench-experience-upgrade](workbench-experience-upgrade/spec.md) 工作台体验走查与升级方案。含现状截图、界面样稿、交互动效和六项待评审决定。2026-11-13 方案整理，需求维护 Codex；第一轮全局设计语言（色彩搭配、动效语法、组件板分章）在分支实现，待用户定样，其余实施待分配。
+- [workbench-experience-upgrade](workbench-experience-upgrade/spec.md) 工作台体验走查与升级方案。含现状截图、界面样稿、交互动效和六项待评审决定。2026-11-13 方案整理，需求维护 Codex；第一轮全局设计语言（色彩搭配、动效语法、组件板分章）已随 #2056 合入（2026-11-13），五项设计决定用户已采纳，其余实施待分配。
 - [documentation-consolidation](documentation-consolidation/spec.md)：文档状态、索引与事实来源收口；2026-11-13 审计后立项，P0 状态修正、五份已完成 spec 归档与批次回填已完成；P1 主体完成、P2 主体完成（工作线保留两份），见正文。
 
 - [state-machine-platform](state-machine-platform/spec.md)：状态与状态机的平台能力——平台能力状态统一登记、插件声明状态与迁移、启动兑现、只读登记、统一家族显示、可选的插件自管流水账；内置先强制、第三方先提示、对外开放后的阶段二第三方也强制，创作台生成必须申报，公开家族照搬现有 21 类。2026-11-08 需求已整理、用户就十二项方向拍板，并确认按 §13 并入路线书 26-7／27-6／47-2／48-5、迁移进统一待办；尚未实现。

@@ -113,7 +113,7 @@ interface NextOption { option_id: string; text: string; why: string; subject?: A
 ```
 
 - 每句没有口述标记的断言至少一条 `cite`；`cite` 必须是保存时以调用者身份读得到的对象，读不到的让保存当场失败并指出是哪一条（WBR-03）。
-- `SourceRow.turn` 只从平台的公共词推出，不认任何插件自己的状态词：这个来源的概况对象里，按主人呈现声明的 `status.map` 映射出的 `attention`（`needs_decision`、`needs_acceptance` → `waiting`；`failed` → `blocked`）和状态环家族（`blocked`／`failed` → `blocked`；`answer` → `waiting`；`running` → `moving`）；与上一版比概况对象有增减 → `moving`；其余 `idle`。
+- `SourceRow.turn` 只从这份简报自己的内容推出，不认任何插件自己的状态词，也不读各主人的状态映射：这个来源有「要你处理」的项且标了卡住 → `blocked`；有「要你处理」的项 → `waiting`；读得到、与上一版比概况对象有增减 → `moving`；其余 `idle`（`model.ts` 的 `sourceTurn`；实现时改定，原稿从主人的 `status.map` 推，会让 Work Brief 依赖各插件的状态词）。
 - 「和上次比」不存：由两版的依据和来源状态算出。
 - 下一步里「原插件的真实动作」是 SDK 的操作卡（`packages/plugin-sdk/src/action-cards.ts` 的 `ActionCard`：动作引用加准备好的输入）：保存时用 `directory.check` 核对动作存在、输入合 schema；本人点了才由 Work Brief 以本人身份经动作目录执行（`runActionCard`），执行前用 `sweepActionCard` 核对象没变，变了的旧卡不可执行（WBR-06）。「交给助理」由页面发平台已有的 `molis:assistant-message`（`purpose: "delegate"`，真实手势之后），Work Brief 只记本人选了它。
 - 文字一律按数据处理、转义后显示；正文不收 HTML（WBR-11）。
@@ -126,11 +126,11 @@ interface NextOption { option_id: string; text: string; why: string; subject?: A
 | --- | --- | --- | --- | --- |
 | `work-brief.briefs.list@1` | 项目 | query | user、agent、plugin、mcp | 本项目的简报与各自的现行版本（不含依据文字） |
 | `work-brief.briefs.get@1` | 项目 | query，并发 | 同上 | 一份简报的某一版（默认现行）：正文、依据、人工修改、版本列表、待处理的提案；可带 `compare_with`。每条冻结的依据按调用者此刻读不读得到复核，读不到的只给缺口标记，不给当时的标题与状态（原需求 §1.5） |
-| `work-brief.briefs.save@1` | 项目 | command，并发 | user、agent | 交一版草稿：核对每条依据、冻结、存成新的一版。有未合并的人工修改时存成提案，逐句列出冲突。`request_id` 存在自己的表里（唯一），重复提交返回同一结果（WBR-07） |
+| `work-brief.briefs.save@1` | 项目 | command，并发 | user、agent | 交一版草稿：核对每条依据、冻结、存成新的一版。可带 `base_version`（草稿是照哪一版写的；不是现行版时报 `work_brief.conflict`），不用 `expected_revision`：助理与 MCP 调用声明了 `expected_revision` 的 command 必须带值，而第一版没有可带的值。有未合并的人工修改时存成提案，逐句列出冲突。`request_id` 存在自己的表里（唯一），重复提交返回同一结果（WBR-07） |
 | `work-brief.briefs.refresh@1` | 项目 | command，并发 | user、agent、workflow | 不调模型：重读各来源的概况与每条依据的现状；有变化才存成新的一版，返回变化；读不到的标过期或缺口。固定的旧版本不动（WBR-10／18） |
 | `work-brief.briefs.edit@1` | 项目 | command | user | 本人改一句或补一句 |
 | `work-brief.proposals.resolve@1` | 项目 | command | user | 逐处处理提案里的冲突；全部处理完才成为新的一版（WBR-05） |
-| `work-brief.versions.fix@1` | 项目 | command，并发 | user | 把一版固定并发成成果（类型 `io.molis.work.work-brief.brief`，带预览动作）；库里的行与成果在一个事务里提交（`project_rows.artifact_join`，照 Form 的写法）。之后这一版只读（WBR-04） |
+| `work-brief.versions.fix@1` | 项目 | command，并发 | user | 把一版固定并发成成果（类型 `io.molis.work.work-brief.brief`，带预览动作）；库里的行与成果在一个事务里提交（`project_rows.artifact_join`，照 Form 的写法）。成果的 `origin.revision` 是这行的行版本（平台按它做比较并提交），简报的版本号放在成果的 metadata 里；动作权限含 `artifact:write`。之后这一版只读（WBR-04） |
 | `work-brief.next.run@1` | 项目 | command，并发 | user | 执行一条下一步的操作卡；结果记成回执引用 |
 | `work-brief.next.set@1` | 项目 | command | user | 标一条下一步「暂不」、撤回，或记下已交给助理 |
 | `work-brief.presentation.overview@1`、`…values@1`、`work-brief.subject.read@1`、搜索来源 | 项目 | query | 照呈现合同 | 首页卡片、名片与搜索；对象种类 `brief` |
@@ -159,9 +159,9 @@ interface NextOption { option_id: string; text: string; why: string; subject?: A
 
 ## 4. 对象引用与打开（等第 32 批）
 
-Work Brief 的主区视图声明收对象的挂载位（`accepts_forms: ["chip", "row", "card"]`），经 `host.view.surfaceSlot` 交给平台画：名字、状态、打开、速览都是平台按主人的呈现声明给的。一个页面至多 4 个挂载位，所以按段用：依据名片一个（当前点开的那一条角标）、「要你处理」一个、「和上次比」一个、下一步的对象一个。Work Brief 的代码里不出现 `?openPlugin=`，也不自己读「等你」。挂载位只在主区装载下可用（§2 走主区这条路的原因之一）。
+Work Brief 的主区视图声明收对象的挂载位（`accepts_forms: ["row"]`：一行里有名字、状态和打开，卡片式在句子和弹层里太重），经 `host.view.surfaceSlot` 交给平台画：名字、状态、打开、速览都是平台按主人的呈现声明给的。一个页面至多 4 个挂载位，所以按段用：依据名片一个（当前点开的那一条角标）、「要你处理」一个、「和上次比」一个、下一步的对象一个。Work Brief 的代码里不出现 `?openPlugin=`，也不自己读「等你」。挂载位只在主区装载下可用（§2 走主区这条路的原因之一）。
 
-第 32 批的 `objects.open@1` 与 `attention.waiting.read@1` 合入后：平台的挂载位自己换成通用打开；个人简报的「跳到对应项目」换成 `objects.open@1`。Work Brief 这边只有 `src/browser/objects.ts` 一处封装。
+第 32 批的 `objects.open@1` 与 `attention.waiting.read@1` 合入后：平台的挂载位自己换成通用打开；个人简报的「跳到对应项目」换成 `objects.open@1`。Work Brief 这边只有两处：`src/browser/parts.ts` 的 `slot`（对象的位置）和 `src/browser/brief.ts` 个人简报里跳到项目的链接。
 
 ## 5. 授权去处
 
@@ -181,3 +181,14 @@ Home 库 `work-brief`，第 1 版，不分区：`briefs`、`brief_versions`、`b
 ## 8. 评审记录
 
 2026-11-14 评审子代理（Opus high，只读）对 `b7bf6f8402` 退回六项，本稿已改：主区内容由侧栏文档改走主区装载（侧栏那条路不支持签名与沙箱包、与双实例冲突、撞 S-30、量不到高度）；与 11-04 写法的冲突经用户弹窗定；错误码主人名改 `work_brief`、动作与权限前缀改 `work-brief`；每个动作写明归哪一半；读取时按调用者现状遮蔽冻结的依据；下一步改用 SDK 操作卡。不挡合并的几条（概况是 `lead` 的前提、§7 补全受影响处、登记清单、`turn` 的推法、「固定」不与「保存」混用）一并收进。
+
+## 9. 实现时改定（2026-11-14）
+
+- **正文平铺。** 存的不是 `BriefSection[]`，是 `{ sources, claims, attention, next }` 四个数组（`model.ts` 的 `BriefBody`）：四段的次序是页面的事，存成分段只多一层判别。`Cite` 多 `owner_plugin_id` 和读不到时的 `gap`（`changed`／`gone`／`unreadable`），不存主人的状态词。下一步的处置多一个 `running`（执行中）。
+- **概况动作的受众加 `workflow`。** `definePresentationOverviewAction` 原来只给 `user`；持有 `actions:delegate` 的插件经目录是以工作流受众到达的，读不到任何概况。现在是 `["user", "workflow"]`，权限检查不变（仍是原调用者的权限）。这是对所有声明概况的插件生效的合同改动，动作快照随之更新。
+- **页面以本人身份调用自己的动作。** 插件页面经页面动作入口（`/api/host/plugin-page-actions`）调本安装自己的动作，原来只带安装自己的授权，动作里再经目录读别的插件时什么都读不到（来源全是「未授权」，刷新与下一步执行不了）。用户 2026-11-14 弹窗定：读写都放开——安装持有 `actions:delegate` 时，这次调用是页面上本人的调用，与插件自己的路由同一条规则（2026-10-20 的决定）。页面自己仍只叫得到本安装的动作；没有该授权的安装不变。登记在 S-43，拒绝测试 `tests/security-invariants-plugin-action-delegation.test.ts` 的两条 WBR-28。
+- **首页主区的盒子是页面的定位容器。** 被收进首页的主区页面按它的容器定位；`.home-lead` 没有定位时页面会盖住上面的细栏（「看基础首页」点不到），挂载位也偏一个细栏的高度。
+- **下一步的卡片用 SDK 的通用卡片。** 页面在 iframe 里，SDK `/ui` 没有操作卡的渲染（在 design-system 里，iframe 取不到），所以下一步用 `renderCard` 画：标题、来自哪个插件、原因、作用对象、一个主按钮。执行规则仍是 SDK 的操作卡规则（`runActionCard`、`sweepActionCard`），在服务端。
+- **个人简报。** 用户 2026-11-14 定：个人简报是个人事项的集合汇总，每项带「项目」或「个人」标签，项目的项带跳到对应项目的链接。Home 那一半读各项目简报现行版里要你处理的项和没处置的下一步（`projects:reach`，可不授予：不给时只有个人范围的事项，并说明不完整）。
+- **界面语言。** 存下来的来源名（`SourceRow.name`）是保存时读到的插件名原文，不随界面语言变；页面自己的字都走语言文件。
+

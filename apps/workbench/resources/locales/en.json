@@ -7317,7 +7317,13 @@
     "workbench.settings-sync.adopt-refused": "“{name}” can’t be adopted: {reason}",
     "workbench.settings-sync.adopt-refusal.layout": "The project library layout is {layout}, not an adoptable old layout",
     "workbench.settings-sync.adopt-refusal.output": "Output “{port}” names “{artifact}”, which is not a Files process item",
-    "workbench.settings-sync.adopt-refusal.unsettled": "{count} process items are not settled yet",
+    "workbench.settings-sync.adopt-refusal.unsettled": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "{count} process item is not settled yet",
+        "other": "{count} process items are not settled yet"
+      }
+    },
     "workbench.settings-sync.adopt-refusal.private_value": "Private value “{key}” can’t be adopted",
     "workbench.settings-sync.adopt-refusal.position": "The reading position can’t be adopted",
     "workbench.settings-sync.adopt-refusal.retired": "A retired installation or cursor is not cleaned up",

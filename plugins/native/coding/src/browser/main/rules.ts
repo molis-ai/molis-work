@@ -74,11 +74,17 @@ export async function confirmRules(page: Page, button: HTMLButtonElement): Promi
     await page.host.readInstructions();
     await refreshState(page);
     drawRules(page);
+    // The button is gone with the redraw; the menu keeps focus on its own close control.
+    page.q<HTMLElement>("[data-coding-rules-close]").focus({ preventScroll: true });
   } catch (error) {
-    // The person said no in the Host's dialog, or the change was refused: the menu stays as it was, with the reason under it.
-    const said = errorMessage(error);
-    if (said) page.q("[data-coding-rules-body]").insertAdjacentHTML("beforeend", `<p class="coding-rules__error" role="alert">${escapeHtml(said)}</p>`);
+    // The Host's refusal carries its status and is an error; a "no" in the Host's dialog carries none and is only a note. One line
+    // either way: a second try replaces the first's, and focus stays on the button the person pressed.
+    const said = errorMessage(error), refused = typeof (error as { status?: unknown }).status === "number";
+    const body = page.q("[data-coding-rules-body]");
+    body.querySelector("[data-coding-rules-said]")?.remove();
+    if (said) body.insertAdjacentHTML("beforeend", `<p class="coding-rules__${refused ? "error" : "note"}" role="${refused ? "alert" : "status"}" data-coding-rules-said>${escapeHtml(said)}</p>`);
     button.disabled = false;
+    button.focus({ preventScroll: true });
   }
 }
 

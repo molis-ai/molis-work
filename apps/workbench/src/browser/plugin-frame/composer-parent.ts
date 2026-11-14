@@ -56,7 +56,7 @@ function noticeOf(value: unknown): ComposerSnapshot["notice"] {
   if (value === null || value === undefined) return null;
   const raw = record(value), action = raw.action === null || raw.action === undefined ? null : record(raw.action);
   want(raw.tone === "readonly" || raw.tone === "info");
-  return { text: text(raw.text, 400), tone: raw.tone as "readonly" | "info", ...optional("icon", maybe(raw.icon, 80)), action: action ? { label: text(action.label, 100) } : null };
+  return { text: text(raw.text, 400), tone: raw.tone as "readonly" | "info", ...icon(raw.icon), action: action ? { label: text(action.label, 100) } : null };
 }
 const flag = (value: unknown) => { want(value === undefined || typeof value === "boolean"); return value === true; };
 const icon = (value: unknown) => { want(value === undefined || typeof value === "string"); return typeof value === "string" && ICONS.has(value) ? { icon: value as PluginIconName } : {}; };

@@ -97,6 +97,8 @@ export const NAVIGATION_CLICKS: readonly ClickRule[] = [
   ["[data-coding-workspace-close]", page => page.q<HTMLDialogElement>("[data-coding-workspace-dialog]").close()],
   ["[data-coding-rules-close]", page => page.q<HTMLDialogElement>("[data-coding-rules-dialog]").close()],
   ["[data-coding-rules-confirm]", (page, target) => void confirmRules(page, target)],
+  // Going to project settings leaves the menu: it closes as the link is followed, so the person does not come back to it still open.
+  ["[data-coding-rules-settings-link]", page => page.q<HTMLDialogElement>("[data-coding-rules-dialog]").close()],
   ["[data-coding-results-open]", page => {
     const { q, root } = page;
     root.dataset.codingResults = root.dataset.codingResults === "true" ? "false" : "true";

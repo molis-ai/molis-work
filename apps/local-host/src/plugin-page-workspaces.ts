@@ -8,7 +8,8 @@ import type { WebRequestContext } from "./web-route-table.js";
 
 /**
  * A plugin page adds a folder the person picked as an input of its project, or makes one of its folders the output (the 「设为输出」 beside
- * an input-only refusal), through the trusted Host workspace service only, after the person confirmed it in the shell's own dialog;
+ * an input-only refusal), or turns on reading the output's instruction files (the rules menu's 「确认」, batch12-design §3.4), through the
+ * trusted Host workspace service only, after the person confirmed it in the shell's own dialog;
  * identity and permissions come from the bound page. Which folder the page shows is the page's own state (specs/shared-sources-and-surfaces
  * §4): there is no setting to select it here any more.
  */

@@ -73,6 +73,7 @@ export interface UiPageWorkspaces {
   add(path: string): Promise<{ workspace_id: string }>;
   /** For the 「设为输出」 beside a refusal that the folder is only an input (`projects.directory_input_only`); the Host's dialog names it as the Host reads it. */
   setOutput(workspaceId: string): Promise<void>;
+  /** For the rules menu's 「读取这个文件夹的说明文件」: turns reading on and confirms the current output, after the Host's dialog; a "no" there rejects without a status, a refusal with one. */
   readInstructions(): Promise<void>;
 }
 

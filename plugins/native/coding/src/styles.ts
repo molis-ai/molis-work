@@ -721,7 +721,10 @@ dialog[data-coding-integration-dialog] .mw-form__body { grid-template-columns:mi
 /* The rules menu (batch12-design §3.7): two file groups, the second saying why nothing was read when nothing was. */
 dialog.mw-dialog--form.coding-rules { width:min(560px,calc(100vw - 32px)); }
 .coding-rules__body { display:grid; gap:12px; min-width:0; }
+/* The as-of caption is a sentence: on a narrow screen it wraps instead of being cut. */
+.coding-rules__group .mw-file-group__text small { white-space:normal; overflow:visible; text-overflow:clip; }
 .coding-rules__body .mw-file-row__name { font-family:var(--font-mono,ui-monospace,SFMono-Regular,Menlo,monospace); }
 .coding-rules__foot > p { margin:0; font-size:12px; line-height:1.5; color:var(--muted); }
-.coding-rules__error { margin:0; font-size:12px; color:var(--red,var(--danger)); }
+.coding-rules__error, .coding-rules__note { margin:0; font-size:12px; line-height:1.5; color:var(--red,var(--danger)); }
+.coding-rules__note { color:var(--muted); }
 ` + CODING_TIMELINE_STYLES;

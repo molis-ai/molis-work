@@ -186,9 +186,7 @@ fn scan(directory: &File, prefix: &str, depth: usize, output: &mut Scan) -> Resu
             output.skipped += 1;
             continue;
         };
-        if name.starts_with('.') && skipped_file(name)
-            || IGNORED_FOLDERS.contains(&name.to_ascii_lowercase().as_str())
-        {
+        if name.starts_with('.') && skipped_file(name) {
             output.skipped += 1;
             continue;
         }
@@ -218,6 +216,11 @@ fn scan(directory: &File, prefix: &str, depth: usize, output: &mut Scan) -> Resu
         };
         match info.st_mode & libc::S_IFMT {
             libc::S_IFDIR => {
+                // Only a folder by these names is left out, as the host's rule does; a file named `build` or `out` is read.
+                if IGNORED_FOLDERS.contains(&name.to_ascii_lowercase().as_str()) {
+                    output.skipped += 1;
+                    continue;
+                }
                 if depth >= MAX_DEPTH {
                     output.skipped += 1;
                     output.truncated = true;
@@ -517,6 +520,24 @@ mod tests {
             .unwrap();
         let result = read(&fixture.root(), vec![report]);
         assert_eq!(result[0].data.as_deref().unwrap(), [0, 1, 2, 255]);
+    }
+    #[test]
+    fn walk_leaves_out_only_folders_by_the_ignored_names() {
+        // The host's rule (`contextFileSkip`, ONB-37) leaves out folders called build/out/target, never a file of that name.
+        let fixture = Fixture::new();
+        std::fs::write(fixture.0.join("build"), "#!/bin/sh").unwrap();
+        std::fs::write(fixture.0.join("out"), "notes").unwrap();
+        std::fs::create_dir(fixture.0.join("target")).unwrap();
+        std::fs::write(fixture.0.join("target/app.rs"), "excluded").unwrap();
+        let preview = preview(&fixture.root(), 0).unwrap();
+        let mut paths: Vec<_> = preview
+            .files
+            .iter()
+            .map(|file| file.path.as_str())
+            .collect();
+        paths.sort();
+        assert_eq!(paths, ["build", "out"]);
+        assert_eq!(preview.skipped, 1);
     }
     #[test]
     fn previews_and_reads_any_number_of_files_of_any_size() {

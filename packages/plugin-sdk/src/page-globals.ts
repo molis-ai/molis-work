@@ -240,13 +240,13 @@ export interface ComposerCommand { slash: string; label: string; hint?: string; 
 /** One thing `@` names (`mentions`): its name, a line saying where it is, and the text put in place of the `@words`. */
 export interface ComposerMention { title: string; hint?: string; insert: string }
 
-/** Pause as the page has it now (`pause`): the button's name and tooltip, and what pressing it does. */
 /**
  * One line above the box: what holds for the next send, with at most one way out (specs/coding-harness-optimization/batch12-design.md §2).
  * `readonly`: the next send changes nothing, and the box's outline takes the read-only colour; `info`: a plain line. The text is the
  * page's own words; the platform escapes it.
  */
 export interface ComposerNotice { text: string; tone: "readonly" | "info"; icon?: PluginIconName; action?: { label: string; run(): void } }
+/** Pause as the page has it now (`pause`): the button's name and tooltip, and what pressing it does. */
 export interface ComposerPause { label: string; title: string; busy?: boolean; run(signal: AbortSignal): Promise<void> }
 
 /**

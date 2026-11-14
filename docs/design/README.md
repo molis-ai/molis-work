@@ -51,6 +51,7 @@
 - [卸载后留下的项目（第 27 批 · BL-915，已完成）](uninstall-retained/README.md)
 - [Work Brief 首页与简报核心：可点的定样（路线书第 19 批）](work-brief-core/README.md)
 - [事项线：方向原型](work-line/README.md)
+- [事项线第一片定样（第 32 批）](work-line-32/README.md)
 - [主线：顶部事项切换定样](work-mainline-switch/README.md)
 - [工作记录：可点的定样（路线书第 21 批）](work-records/README.md)
 - [工作台 Frame 容器 · 高保真切片](workbench-frame-container/README.md)

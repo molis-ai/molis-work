@@ -261,6 +261,7 @@
     "action.coding.artifacts.preview": 1,
     "action.coding.changesets.read": 1,
     "action.coding.changesets.save": 1,
+    "action.coding.events": 1,
     "action.coding.executor.run.control": 1,
     "action.coding.executor.run.start": 1,
     "action.coding.executor.session.open": 1,

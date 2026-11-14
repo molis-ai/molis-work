@@ -13,11 +13,11 @@ import type { CodingBackgroundSession, CodingSessionStore } from "./store.js";
 export const codingBackgroundTasks = defineBackgroundTasksAction("coding.background.tasks", /* @version action.coding.background.tasks */ 1, ["coding_session"], "Coding 后台任务", ["artifact:read"]);
 
 /** The standing of a session whose round is under way or waiting, in the words the page has translations for. */
-const STANDING: Readonly<Record<string, string>> = { running: "coding.home-background.in-progress", paused: "coding.home-background.paused", "waiting-answer": "coding.home-background.waiting-for-your-answer", "waiting-approval": "coding.home-background.waiting-for-your-review", "reconcile-required": "coding.home-background.needs-checking", queued: "coding.home-background.queued" };
+export const CODING_STANDING: Readonly<Record<string, string>> = { running: "coding.home-background.in-progress", paused: "coding.home-background.paused", "waiting-answer": "coding.home-background.waiting-for-your-answer", "waiting-approval": "coding.home-background.waiting-for-your-review", "reconcile-required": "coding.home-background.needs-checking", queued: "coding.home-background.queued" };
 /** The standings in which the session waits on the person, not on the model. */
 const WAITING = new Set(["paused", "waiting-answer", "waiting-approval", "reconcile-required", "queued"]);
 /** The state ring's value for each standing; a round that ended with steps still held shows as ended. */
-const RING: Readonly<Record<string, StateRingState>> = { running: "running", paused: "paused", "waiting-answer": "answer", "waiting-approval": "approval", "reconcile-required": "verify", queued: "queued" };
+export const CODING_RING: Readonly<Record<string, StateRingState>> = { running: "running", paused: "paused", "waiting-answer": "answer", "waiting-approval": "approval", "reconcile-required": "verify", queued: "queued" };
 
 /**
  * `startedAt` is when the Home process started. A round does not survive that: one recorded as under way before then was cut off, so
@@ -36,9 +36,9 @@ function codingBackgroundTasksOf(sessions: readonly CodingBackgroundSession[], s
       ...unowned ? [{ text: uiText.text("coding.home-background.n-unclaimed-steps", { n: unowned }) }] : []];
     const ended = holders.length || session.commands?.length ? uiText.text("coding.home-background.the-round-ended") : session.state;
     const subject = { kind: "coding_session", id: session.session_id };
-    return { subject, title: session.title, state: mine && shown !== "running" ? "answer" : RING[shown] ?? "round-ended", updated_at: session.updated_at,
+    return { subject, title: session.title, state: mine && shown !== "running" ? "answer" : CODING_RING[shown] ?? "round-ended", updated_at: session.updated_at,
       waiting: !beforeRestart && (WAITING.has(session.state) || mine > 0),
-      step: { text: beforeRestart ? uiText.text("coding.home-background.this-did-not-finish-before-the-service") : STANDING[session.state] ? uiText.text(STANDING[session.state]!) : ended }, details: holders,
+      step: { text: beforeRestart ? uiText.text("coding.home-background.this-did-not-finish-before-the-service") : CODING_STANDING[session.state] ? uiText.text(CODING_STANDING[session.state]!) : ended }, details: holders,
       executor: { kind: "plugin", label: "Coding" }, serves: [subject], scope: "project",
       // Stopping one is the same reviewed stop the session's own panel offers, as Coding's own action.
       commands: (session.commands ?? []).map(command => ({ role: "stop", action: { capability_id: "coding.background.stop", version: /* @version action.coding.background.stop */ 1 },

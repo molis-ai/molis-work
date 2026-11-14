@@ -27,6 +27,7 @@ import { codingArtifactPreview } from "./artifact-preview.js";
 import { CODING_ARTIFACT_SCHEMA_VERSIONS } from "./artifacts.js";
 import { codingSync } from './session-replication.js';
 import { codingBackgroundTasks } from "./home-background.js";
+import { codingWorkEventsAction } from "./work-events.js";
 import { codingResultDocument } from "./contract.js";
 import { CODING_PROJECT_DATABASE } from "./database.js";
 
@@ -154,7 +155,7 @@ export const codingManifest: PluginManifest = {
   ] },
   // Redeemed by this Runtime instance and bound to the person who owns the sessions; their routes forward to them.
   presentation: codingPresentation,
-  actions: [memoryLearningActions.run, ...CODING_ACTIONS, ...codingPresentationActions, ...Object.values(codingExecutorActions), codingArtifactPreview, codingResultDocument, codingBackgroundTasks],
+  actions: [memoryLearningActions.run, ...CODING_ACTIONS, ...codingPresentationActions, ...Object.values(codingExecutorActions), codingArtifactPreview, codingResultDocument, codingBackgroundTasks, codingWorkEventsAction],
   routes: [
     { route_id: "coding.evaluate-step", method: "POST", path: "/sessions/:sessionId/runs/:runId/steps/:stepId" },
     { route_id: "coding.writer-directories", method: "GET", path: "/workspaces/:workspaceId/writers" },

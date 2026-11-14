@@ -95,7 +95,9 @@ test("SRB-06: only the person changes what may be read; the two reads are one re
     assert.equal(definition.operation, "command");
     assert.equal(definition.action.effect, "write");
     assert.equal(definition.action.scheduling, definition === sessionsActions.attributionSuggest ? "concurrent" : undefined, reference(definition));
-    assert.deepEqual([...definition.action.permissions], ["sessions:manage"]);
+    assert.deepEqual([...definition.action.permissions], definition === sessionsActions.attributionSuggest
+      ? ["sessions:manage", "model:invoke"] // it asks the configured model
+      : ["sessions:manage"]);
   }
   for (const definition of [sessionsActions.list, sessionsActions.historyRead]) assert.deepEqual([...definition.action.audiences], ["user", "agent", "workflow", "mcp", "plugin"]);
 });

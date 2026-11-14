@@ -9,19 +9,25 @@ const UNREADABLE = "plugin.package_invalid";
  * (#1999): a missing package (`plugin.package_missing`), a publisher taken back (`plugin.publisher_revoked`), and so on. A reason given as a
  * bare sentence, or as a failure without a code of ours, is `plugin.package_invalid`.
  */
-export class RecoveryErrors extends Map<string, string> {
-  private readonly codes = new Map<string, string>();
+const codesByErrors = new WeakMap<RecoveryErrors, Map<string, string>>();
+/** The codes live outside the instance so the Map constructor's `set` calls work before any field is initialized. */
+const codesOf = (errors: RecoveryErrors): Map<string, string> => {
+  let codes = codesByErrors.get(errors);
+  if (!codes) { codes = new Map(); codesByErrors.set(errors, codes); }
+  return codes;
+};
 
+export class RecoveryErrors extends Map<string, string> {
   override set(pluginId: string, reason: unknown): this {
     const code = (reason as { code?: unknown } | null)?.code;
-    // The Map constructor calls nothing here, so `codes` is always there by the time anyone sets a reason.
-    this.codes.set(pluginId, typeof code === "string" && ACTION_ERROR_CODE.test(code) ? code : UNREADABLE);
+    // `new RecoveryErrors(entries)` calls this from the Map constructor, before any field would exist; the WeakMap is ready either way.
+    codesOf(this).set(pluginId, typeof code === "string" && ACTION_ERROR_CODE.test(code) ? code : UNREADABLE);
     return super.set(pluginId, reason instanceof Error ? reason.message : String(reason));
   }
 
-  override delete(pluginId: string): boolean { this.codes.delete(pluginId); return super.delete(pluginId); }
+  override delete(pluginId: string): boolean { codesOf(this).delete(pluginId); return super.delete(pluginId); }
 
-  override clear(): void { this.codes.clear(); super.clear(); }
+  override clear(): void { codesOf(this).clear(); super.clear(); }
 
-  code(pluginId: string): string | undefined { return this.codes.get(pluginId); }
+  code(pluginId: string): string | undefined { return codesOf(this).get(pluginId); }
 }

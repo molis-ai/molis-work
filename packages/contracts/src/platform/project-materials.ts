@@ -264,7 +264,7 @@ export const materialsActions = {
     capability_id: "materials.read",
     version: /* @version action.materials.read */ 1,
     operation: "query",
-    action: { title: "读取资料引用", description: "按调用方此刻的授权读一份资料引用：head 只核对它现在指向什么，text 同时返回正文；读不了的拒绝，不交付内容",
+    action: { title: "读取资料引用", description: "按调用方此刻的授权读一份资料引用：head 只核对它现在指向什么，text 同时返回正文；读不了的拒绝，不交付内容。固定成果库版本还需要 artifact:read（插件的 artifacts:read 也算）",
       kind: "query", scope: "project", scheduling: "concurrent", audiences: ["user", "agent", "workflow", "mcp", "plugin"], subject_kinds: ["workspace", "file"], ...materialsReading,
       input_schema: shape({ ref: MATERIAL_REF_SCHEMA, mode: { enum: ["head", "text"] }, cursor: cursorShape }, ["ref", "mode"]),
       output_schema: shape({ ref: MATERIAL_REF_SCHEMA, title: { type: "string" }, read_revision: { type: "string", minLength: 1 }, comparable: { type: "boolean" },

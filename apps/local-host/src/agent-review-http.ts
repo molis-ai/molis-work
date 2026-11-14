@@ -12,7 +12,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { confirmArrivedTooSoon, reviewProjectFor, type ComputerRoundHolder } from "./computer/computer-policy.js";
 import { computerErrors } from "./computer/computer-errors.js";
 import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
-import { webEntryDoor, webEntryProvider } from "./web-entry-actions.js";
+import { responseAbortSignal, webEntryDoor, webEntryProvider } from "./web-entry-actions.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
 
 /**
@@ -54,7 +54,7 @@ export const agentReviewActions = {
     title: "决定一条待审操作", description: "本人批准或拒绝 Agent 请求的一项操作；批准不等于已经发生，回执另说。",
     input_schema: { type: "object", properties: { review_id: reviewId, decision: { enum: ["approve", "reject"] }, note: { type: "string", maxLength: 2000 },
       remember: { enum: ["session", "app-this-round"] } }, required: ["review_id", "decision"], additionalProperties: false } },
-  async ({ ports, page }, input) => {
+  async ({ ports, page }, input, caller) => {
     const holder = ports.computerHolder?.() ?? null;
     const review = ports.agentHost.reviews.get(input.review_id);
     const projectId = page ? ports.projectId : reviewProjectFor(ports.projectId, review?.run?.session_id ?? null, holder);
@@ -63,6 +63,7 @@ export const agentReviewActions = {
       throw computerErrors.self_approval(uiText.text("workbench.agent-review.self-approval"));
     }
     await ports.agentHost.reviews.refresh(projectId);
+    caller.signal?.throwIfAborted();
     try {
       page?.assertCurrent();
       return { receipt: await ports.agentHost.reviews.respond({ review_id: input.review_id, decision: input.decision, actor_id: ports.actorId,
@@ -73,8 +74,9 @@ export const agentReviewActions = {
     title: "核对一项结果未知的原操作", description: "本人按原执行记录重新核对，或在确认后记下原操作没有发生。",
     input_schema: { type: "object", properties: { review_id: reviewId, action: { enum: ["refresh", "not-happened"] }, confirmed: { type: "boolean" },
       revision: { type: "string", maxLength: 200 }, reason: { type: "string", maxLength: 2000 } }, required: ["review_id", "action"], additionalProperties: false } },
-  async ({ ports, page }, input) => {
+  async ({ ports, page }, input, caller) => {
     await ports.agentHost.reviews.refresh(ports.projectId);
+    caller.signal?.throwIfAborted();
     page?.assertCurrent();
     if (ports.agentHost.reviews.get(input.review_id)?.project_id !== ports.projectId) throw missing(uiText.text("workbench.agent-review.operation-missing"));
     const observe = ports.observeGitIndex;
@@ -87,7 +89,7 @@ export const agentReviewActions = {
   }),
 };
 export const agentReviewProvider = () => webEntryProvider("system.agent-reviews", "审批", Object.values(agentReviewActions));
-const asPerson = (request: IncomingMessage, ports: AgentReviewHttpPorts) => ({ host: ports.host, request, entry: { ports, page: pluginPageRequest(request) } });
+const asPerson = (request: IncomingMessage, ports: AgentReviewHttpPorts, signal: AbortSignal) => ({ host: ports.host, request, entry: { ports, page: pluginPageRequest(request) }, signal });
 /** What went wrong, answered with the status its kind gives (gone 404, conflict 409, refused 403): it must not read as success. */
 const refuse = (response: ServerResponse, error: unknown) => { const refusal = actionErrorResponse(error); sendLocalWebJson(response, refusal.status, refusal.body); };
 
@@ -108,7 +110,7 @@ export async function handleAgentReviewHttp(
       if (typeof body.review_id !== "string" || body.review_id === "") { sendLocalWebJson(response, 404, { error: uiText.text("workbench.agent-review.operation-missing") }); return true; }
       if (body.action !== "refresh" && body.action !== "not-happened") { sendLocalWebJson(response, 409, { error: uiText.text("workbench.agent-review.bad-recovery-action") }); return true; }
       try {
-        const { view } = await door.invoke(asPerson(request, ports), agentReviewActions.recover.definition, { review_id: body.review_id, action: body.action,
+        const { view } = await door.invoke(asPerson(request, ports, responseAbortSignal(response)), agentReviewActions.recover.definition, { review_id: body.review_id, action: body.action,
           ...(typeof body.confirmed === "boolean" ? { confirmed: body.confirmed } : {}),
           ...(typeof body.revision === "string" ? { revision: body.revision } : {}), ...(typeof body.reason === "string" ? { reason: body.reason } : {}) });
         sendLocalWebJson(response, 200, { view, html: renderAgentReviewRecovery(view, escape) });
@@ -185,7 +187,7 @@ export async function handleAgentReviewHttp(
     }
     try {
       // 200 carries the receipt, not a claim that the effect happened: that is `effect_settled`, and it stays false until a real result comes back.
-      sendLocalWebJson(response, 200, await door.invoke(asPerson(request, ports), agentReviewActions.decide.definition, { review_id: reviewId, decision,
+      sendLocalWebJson(response, 200, await door.invoke(asPerson(request, ports, responseAbortSignal(response)), agentReviewActions.decide.definition, { review_id: reviewId, decision,
         ...(typeof body.note === "string" && body.note !== "" ? { note: body.note } : {}),
         ...(body.remember === "session" || body.remember === "app-this-round" ? { remember: body.remember } : {}) }));
     } catch (error) { refuse(response, error); }

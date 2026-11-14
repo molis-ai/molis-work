@@ -555,6 +555,8 @@ export const sessionsActions = {
       required: ["session_key", "decision", "expected_revision"], additionalProperties: false },
     output_schema: personRow } } as ActionDefinition<ExternalSessionAttributionInput, ExternalSessionRow>,
   attributionSuggest: { capability_id: "sessions.attribution.suggest", version: /* @version action.sessions.attribution.suggest */ 1, operation: "command", action: { ...decision, scheduling: "concurrent" as const,
+    // It asks the configured model, so it pays the metered cost and names the permission the model service checks (like knowledge.locate).
+    execution: { cost: "metered" }, permissions: [SESSIONS_MANAGE_PERMISSION, "model:invoke"],
     title: "建议外部会话归到哪里", description: `请配置的模型看标题、目录和开头几句，建议这些会话归到哪个项目。同一目录的会话一起问，一次最多 ${EXTERNAL_SESSION_SUGGEST_MAX_GROUPS} 组。只写建议，不写归属；模型失败时状态是 failed，会话照常待归类。`,
     input_schema: { type: "object", properties: { session_keys: { type: "array", minItems: 1, maxItems: EXTERNAL_SESSION_SUGGEST_MAX_SESSIONS, uniqueItems: true, items: sessionKey }, retry: bool },
       required: ["session_keys"], additionalProperties: false },

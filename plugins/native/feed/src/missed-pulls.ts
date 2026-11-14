@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import {
   ActionError, assertRunsWindow, bindActionHandler, defineRunDecisionAction, defineRunsOverviewAction, withinRunsWindow, RUNS_MISSED_LIMIT, RUNS_UPCOMING_LIMIT,
   type ActionExecutionContext, type ActionHandlerBinding, type RunDecided, type RunDecision, type RunsOverview, type RunsWindow, type ScheduledRun,
@@ -28,7 +29,11 @@ export function feedRunsOverview(feed: FeedApplication, projectId: string, windo
     .sort((a, b) => Date.parse(a.due_at) - Date.parse(b.due_at)).slice(0, RUNS_UPCOMING_LIMIT);
   const missed = feed.sources.missed.list(projectId, RUNS_MISSED_LIMIT).map(entry => ({ run_id: entry.run_id, title: entry.title, due_at: entry.due_at,
     project_id: projectId, open: { surface: FEED_SURFACE, id: entry.source_id }, needs: ["network" as const], missed_at: entry.missed_at }));
-  return { source: { surface: FEED_SURFACE, title: "Feed 来源" }, upcoming, missed };
+  // The host page shows this label; the plugin's own words follow the action caller's language, with the old Chinese as a fallback for
+  // direct calls that install no text context.
+  let title = "Feed 来源";
+  try { const word = uiText.text("feed.runs.source-title"); if (word !== "feed.runs.source-title") title = word; } catch { /* direct call has no text context */ }
+  return { source: { surface: FEED_SURFACE, title }, upcoming, missed };
 }
 
 /** One decision, synchronous so the Runtime's transaction holds it whole. A source that is gone, paused or no longer on a schedule is `gone`. */

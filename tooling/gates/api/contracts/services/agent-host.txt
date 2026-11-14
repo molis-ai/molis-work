@@ -1524,6 +1524,7 @@ export interface AgentRunView {
     step_board_error?: string;
     ref: AgentRunRef;
     phase: AgentRunPhase;
+    readonly stop_reason_code?: "person" | "host";
     frozen: AgentFrozenStart;
     turns: AgentTurnView[];
     activity: AgentToolActivity[];

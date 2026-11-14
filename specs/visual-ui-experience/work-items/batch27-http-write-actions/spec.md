@@ -6,7 +6,7 @@
 
 用户 2026-11-01 定（[审查台账 B9](../../../../docs/reviews/adversarial-review-2026-11-01.md)）：只走 HTTP 的写入先逐条登记进 [CALL-CHAINS §10.1.1](../../../../docs/system/CALL-CHAINS.md#1011-b9-接入记录)，再逐组改成动作；新写入一律走动作。首页一组已经走现行动作（§10.1 末），本稿管其余三组：首次引导的整理旅程、Agent 审批、助理面板。插件创作台一组属于用户批过的构建期例外（BL-377 重做），不在本批。
 
-改完以后，这三组的每个 POST 都是动作目录里登记过的一个动作：有输入 schema、受众、调用记录、取消信号，同一条授权与派发路径。HTTP 只剩传输：读请求、把路径里的标识与请求体交给动作、把结果写回（含现有的「画好再给页面」）。GET 照旧是 HTTP 读取：它们读时做的恢复与结算已在 §10.1.1 逐条登记，归各自主人，不是本人的新决定，本稿不改。
+改完以后，这三组的每个 POST 都是动作目录里登记过的一个动作：有输入 schema、受众、调用记录、取消信号，同一条授权与派发路径。HTTP 只剩传输：读请求、把路径里的标识与请求体交给动作、把结果写回（含现有的「画好再给页面」）。HTTP 只剩传输：读请求、把路径里的标识与请求体交给动作、把结果写回（含现有的「画好再给页面」）。GET 照旧是 HTTP 读取：它们读时做的恢复与结算已在 §10.1.1 逐条登记，归各自主人，不是本人的新决定，本稿不改。
 
 ## 入口门：只有本人从这扇页面门进来才算
 
@@ -46,3 +46,5 @@
 - 2026-11-11（第 27 批主会话）：三组按稿实施，分支 `b27/b9-actions` 合进 `batch/27`。
 - 与初稿不同：① 门的调用不经 `bindLocalWebActions` 推算本人的整份目录，而是按动作确切身份发一次调用（与 `invokeLocalWebCatalogAction` 同法）：门的动作都是宿主自己的、不要权限，推算整份目录每个请求要几十次检查，助理面板写草稿这种高频写入不该付这个代价；页面会话的检查照旧每次都做。② 原文件不经 `original_file` 先落临时文件，请求流直接作入口数据交给处理器，省掉一遍摘要重读。③ 审批的作用域是 home（初稿写 project）：无项目的入口用个人空间的主人，不是真实项目。④ 助理的动作前缀用 `assistant.panel.`，与面板这扇门同名。
 - 页面只改了一处：助理面板处理记忆建议时带上看到的版本（`apps/workbench/src/scripts/client/assistant-island.ts`）；`AssistantMemoryCandidate` 加了 `version`（公开 API 快照随之刷新）。
+- 页面资源：`tooling/gates/page-asset-allowances/batch-27.json` 的 reason 写「12,000 bytes」，实测这段页面资源是 13,907 bytes；allowance 已按 adopted 处理，`page-assets:check` 不允许改它，所以偏差记在这里，下一次页面资源收紧时以实测为准。不要为了改这句话去动 adopted allowance。
+- 取消信号：三组 HTTP 适配器都为每个 POST 从 response close 取一个 `AbortSignal` 并随动作传入；门在入口和每次授权复查时同步 `throwIfAborted`。助理 `send`、`works.answer`、`cards.redo`、`works.archive` 在 `beforeEffect`/最终检查前检查它，审批 `decide`/`recover` 在写前检查；其余处理器是同步写或只读，入口检查已经足够。引导的 `stage_file` 以请求流为入口，流断即结束；`start` 只启动后台作业，后台有独立授权。这样页面在等模型或外部服务时关闭，不会把回答、卡片或归档留到没有页面的地方。

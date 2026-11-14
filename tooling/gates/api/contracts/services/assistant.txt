@@ -527,6 +527,7 @@ export interface AssistantRound {
         window_tokens?: number;
     };
     stop_reason?: string;
+    stop_reason_code?: "person" | "host";
     retry_wait?: AgentRetryWait;
     ended_at: string | null;
     memories_used?: {
@@ -550,6 +551,7 @@ export interface AssistantRoundDiagnostics {
     ended_at: string | null;
     phase: AgentRunPhase | "unknown";
     stop_reason: string | null;
+    stop_reason_code?: "person" | "host";
     frozen: {
         model_id: string;
         role: {

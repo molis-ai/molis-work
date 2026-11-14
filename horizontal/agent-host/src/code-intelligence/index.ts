@@ -3,8 +3,9 @@
  *
  * The pack declares `coding.find-symbol` and leaves `coding.symbol-index` to the App; this is that App side. It answers a
  * symbol's definition and references by asking a language server the person configured, starting it on demand per file
- * type and closing it when the round ends. Nothing is downloaded: a file type with no configured server is refused, and
- * the tool reports itself unavailable.
+ * type and closing it when the round ends. Downloads are off by default; with the person's `downloads: "allow"` and an
+ * explicit registry, a missing server is fetched into the isolated tools root (Q5). Without either, the file type is refused
+ * and the tool reports itself unavailable.
  */
 
 import { existsSync } from "node:fs";

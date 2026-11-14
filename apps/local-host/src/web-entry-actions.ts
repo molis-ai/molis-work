@@ -1,4 +1,4 @@
-import type { IncomingMessage } from "node:http";
+import type { IncomingMessage, ServerResponse } from "node:http";
 import { defineAction } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionError, bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionReference, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding,
   type ActionProviderRegistration, type ActionSchema, type ActionUserAction, type InferActionInput } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -51,6 +51,19 @@ export interface WebEntryCall<Entry> {
   readonly entry: Entry;
   readonly original_file?: ActionCallContext["original_file"];
   readonly signal?: AbortSignal;
+}
+
+/**
+ * The request's cancellation signal (B9): aborted when the response closes before it finished, so a write that is still waiting on a
+ * model or another service can stop before its effect instead of recording an answer nobody will see. A finished response aborts nothing.
+ */
+export function responseAbortSignal(response: ServerResponse): AbortSignal {
+  const controller = new AbortController();
+  const close = () => { if (!response.writableEnded) controller.abort(); };
+  response.once("close", close);
+  response.once("finish", () => response.off("close", close));
+  if (response.destroyed) controller.abort();
+  return controller.signal;
 }
 
 /** `scope` names the door in the call's audit locator (`web:<scope>`); it grants nothing. */

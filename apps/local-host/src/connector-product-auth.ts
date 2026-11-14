@@ -1,3 +1,4 @@
+import { activeReleaseProfile } from "./active-release-profile.js";
 import { readProductEnv } from "@molis-ai/molis-work-storage";
 import type { PluginOAuthMethodDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import { oauthSecretRequired, resolveOAuthSettings } from "./connector-oauth-declarations.js";
@@ -37,9 +38,11 @@ export function productDeviceLoginReady(service: string): boolean {
 
 /** Explicit deployment allowlist; do not advertise an unconfigured cloud app. The caller has the service's declared `oauth` method. */
 export function connectorBrokerOrigin(service: string): string | undefined {
-  if (!readProductEnv("CONNECTOR_BROKER_SERVICES")?.split(",").map(s => s.trim()).includes(service)) return undefined;
+  const profile = activeReleaseProfile().connectors;
+  const services: readonly string[] = readProductEnv("CONNECTOR_BROKER_SERVICES")?.split(",").map(name => name.trim()) ?? profile.services;
+  if (!services.includes(service)) return undefined;
   try {
-    const url = new URL(readProductEnv("CONNECTOR_BROKER_ORIGIN") || "");
+    const url = new URL(readProductEnv("CONNECTOR_BROKER_ORIGIN") ?? profile.brokerOrigin ?? "");
     if (url.protocol === "https:" && !url.username && !url.password && url.pathname === "/" && !url.search && !url.hash) return url.origin;
   } catch { /* Not deployed/configured yet. */ }
   return undefined;

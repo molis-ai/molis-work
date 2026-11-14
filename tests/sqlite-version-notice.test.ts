@@ -4,6 +4,8 @@
 // security-invariants-plugin-project-database.test.ts and security-invariants-local-entry.test.ts; this file holds the sentence, its log
 // entry and the pin: `.nvmrc`, the workflows and `engines` name one version, and the sentence names the same one.
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { readFileSync, readdirSync } from "node:fs";
 import test from "node:test";
 import { captureHostLog, reportSqliteVersion, sqliteVersionNotice, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
@@ -66,8 +68,11 @@ test("SQLD-11 the macOS Desktop payload downloads the locked Node, and its smoke
   // Without this the Desktop app would bundle a Node whose SQLite refuses every plugin statement (S-46). The release build calls the
   // script without an override (build-macos-release.sh), so the default is what ships.
   const runtime = read("apps/desktop/tooling/prepare-macos-runtime.sh");
-  const defaults = [...runtime.matchAll(/^NODE_VERSION="\$\{MOLIS_WORK_NODE_VERSION:-([^}]+)\}"$/gm)].map(match => match[1]);
-  assert.deepEqual(defaults, [LOCKED]);
+  const reader = fileURLToPath(new URL("../tooling/release/profile.mjs", import.meta.url));
+  const environment = { ...process.env };
+  delete environment.MOLIS_WORK_NODE_VERSION;
+  assert.equal(execFileSync(process.execPath, [reader, "--profile", "dev", "--node"], { env: environment, encoding: "utf8" }), LOCKED);
+  assert.match(runtime, /profile\.mjs.*--node/u);
   assert.doesNotMatch(read("apps/desktop/tooling/build-macos-release.sh"), /MOLIS_WORK_NODE_VERSION/, "the release build does not pick another Node");
   const smoke = read("apps/desktop/tooling/prepare-runtime-payload.mjs");
   assert.match(smoke, /SELECT sqlite_version\(\)/);

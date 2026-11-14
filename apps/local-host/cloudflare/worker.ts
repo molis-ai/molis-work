@@ -1,7 +1,9 @@
+import { connectorApplicationReference } from "../src/release-profile.js";
 import { API_OAUTH_PROVIDERS, apiOAuthProvider } from "./providers.js";
 
 export interface BrokerEnv {
   PUBLIC_ORIGIN: string;
+  MOLIS_WORK_RELEASE_PROFILE?: string;
   /** Worker Secret: base64url-encoded 32 random bytes. */
   ENVELOPE_KEY: string;
   /** Worker Secret: JSON object keyed by service id. Never returned to clients. */
@@ -53,9 +55,11 @@ function origin(env: BrokerEnv): string {
 }
 function application(env: BrokerEnv, service: string): App {
   if (!Object.hasOwn(API_OAUTH_PROVIDERS, service)) throw new Error("unsupported_service");
-  const secretName = `OAUTH_APP_${service.replaceAll("-", "_").toUpperCase()}` as const;
-  const raw = env[secretName] !== undefined
-    ? JSON.parse(env[secretName]!)
+  const secretName = connectorApplicationReference(env.MOLIS_WORK_RELEASE_PROFILE ?? "dev", service);
+  if (!secretName) throw new Error("not_configured");
+  const configured = env[secretName];
+  const raw = configured !== undefined
+    ? JSON.parse(configured)
     : object(JSON.parse(env.OAUTH_APPS || "{}"))[service];
   const app = object(raw) as unknown as App;
   const provider = apiOAuthProvider(service, app.settings);

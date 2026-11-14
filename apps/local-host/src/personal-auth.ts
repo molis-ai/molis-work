@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { assertSecretStoreWritable, createFileSecretStore, resolveMolisWorkHome, type SecretStore } from "@molis-ai/molis-work-storage";
 import { accountErrors, createAccountSessionManager, createAccountAuthentication, parseAccountEnvironment, type AccountSessionManager } from "@molis-ai/molis-work-service-account";
+import { configuredAccountEnvironment } from "./active-release-profile.js";
 import type { AccountEnvironmentConfig, AccountCallControl, AccountView, UserView } from "@molis-ai/molis-work-contracts/services/account";
 
 /**
@@ -30,7 +31,8 @@ export interface PersonalAccountLease {
   accessToken(): Promise<string>;
 }
 export function personalCloudConfig(env: NodeJS.ProcessEnv = process.env): PersonalCloudConfig | null {
-  return env.MOLIS_WORK_ACCOUNT_CONFIG ? parseAccountEnvironment(env.MOLIS_WORK_ACCOUNT_CONFIG) : null;
+  const configuration = configuredAccountEnvironment(env);
+  return configuration ? parseAccountEnvironment(configuration) : null;
 }
 type Authentication = ReturnType<typeof createAccountAuthentication>;
 interface SessionOwner { manager:AccountSessionManager; authentication:Authentication; record:unknown|null; persistent:boolean }

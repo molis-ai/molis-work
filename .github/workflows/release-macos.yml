@@ -19,8 +19,6 @@ jobs:
           - runner: macos-15-intel
             arch: x64
     runs-on: ${{ matrix.runner }}
-    env:
-      HAS_APPLE_RELEASE_CREDENTIALS: ${{ secrets.APPLE_CERTIFICATE != '' && secrets.APPLE_CERTIFICATE_PASSWORD != '' && secrets.APPLE_SIGNING_IDENTITY != '' && secrets.APPLE_ID != '' && secrets.APPLE_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' }}
     steps:
       - uses: actions/checkout@v6
 
@@ -46,32 +44,56 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         run: node scripts/verify-release-versions.mjs --tag "$GITHUB_REF_NAME"
 
-      - name: Require Apple credentials for a public release
-        if: startsWith(github.ref, 'refs/tags/v') && env.HAS_APPLE_RELEASE_CREDENTIALS != 'true'
+      - name: Read macOS release configuration
+        id: profile
+        shell: bash
         run: |
-          echo "A public macOS release requires Developer ID signing and Apple notarization credentials." >&2
-          echo "Configure APPLE_CERTIFICATE, APPLE_CERTIFICATE_PASSWORD, APPLE_SIGNING_IDENTITY, APPLE_ID, APPLE_PASSWORD, and APPLE_TEAM_ID." >&2
-          exit 1
+          profile=dev
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then profile=release; fi
+          node tooling/release/profile.mjs --profile "$profile" --ci-outputs >> "$GITHUB_OUTPUT"
+
+      - name: Check the configured macOS credential references
+        id: signing
+        shell: bash
+        env:
+          HAS_APPLE_RELEASE_CREDENTIALS: ${{ secrets[steps.profile.outputs.certificate] != '' && secrets[steps.profile.outputs.certificatePassword] != '' && secrets[steps.profile.outputs.signingIdentity] != '' && secrets[steps.profile.outputs.appleId] != '' && secrets[steps.profile.outputs.notaryPassword] != '' && secrets[steps.profile.outputs.teamId] != '' && (steps.profile.outputs.profile != 'release' || steps.profile.outputs.notarization == 'apple-id') }}
+        run: |
+          printf 'configured=%s\n' "$HAS_APPLE_RELEASE_CREDENTIALS" >> "$GITHUB_OUTPUT"
+          if [[ "$GITHUB_REF" == refs/tags/v* && "$HAS_APPLE_RELEASE_CREDENTIALS" != "true" ]]; then
+            echo "A public macOS release requires Developer ID signing and Apple notarization credentials." >&2
+            echo "See the macOS Secret references in tooling/release/profile.mjs --profile dev --ci-outputs." >&2
+            exit 1
+          fi
 
       - name: Import Developer ID certificate
-        if: env.HAS_APPLE_RELEASE_CREDENTIALS == 'true'
+        if: steps.signing.outputs.configured == 'true'
         uses: apple-actions/import-codesign-certs@v7
         with:
-          p12-file-base64: ${{ secrets.APPLE_CERTIFICATE }}
-          p12-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          p12-file-base64: ${{ secrets[steps.profile.outputs.certificate] }}
+          p12-password: ${{ secrets[steps.profile.outputs.certificatePassword] }}
 
-      - name: Build signed and notarized DMG
-        if: env.HAS_APPLE_RELEASE_CREDENTIALS == 'true'
-        run: pnpm desktop:build:macos
+      - name: Build macOS DMG
+        shell: bash
         env:
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-
-      - name: Build ad-hoc DMG
-        if: env.HAS_APPLE_RELEASE_CREDENTIALS != 'true' && !startsWith(github.ref, 'refs/tags/v')
-        run: pnpm desktop:build:macos
+          MOLIS_WORK_RELEASE_PROFILE: ${{ steps.profile.outputs.profile }}
+          PUBLISHER_KEY_REF: ${{ steps.profile.outputs.publisherKey }}
+          BUNDLED_PUBLISHER_KEY: ${{ secrets[steps.profile.outputs.publisherKey] }}
+          APPLE_SIGNING_IDENTITY: ${{ steps.signing.outputs.configured == 'true' && secrets[steps.profile.outputs.signingIdentity] || '' }}
+          APPLE_ID: ${{ steps.signing.outputs.configured == 'true' && secrets[steps.profile.outputs.appleId] || '' }}
+          APPLE_PASSWORD: ${{ steps.signing.outputs.configured == 'true' && secrets[steps.profile.outputs.notaryPassword] || '' }}
+          APPLE_TEAM_ID: ${{ steps.signing.outputs.configured == 'true' && secrets[steps.profile.outputs.teamId] || '' }}
+        run: |
+          if [[ -z "$BUNDLED_PUBLISHER_KEY" ]]; then
+            echo "The configured development publisher key Secret is required to sign the bundled packages." >&2
+            exit 1
+          fi
+          umask 077
+          key_file="$(mktemp "$RUNNER_TEMP/molis-publisher.XXXXXX")"
+          trap 'rm -f "$key_file"' EXIT
+          printf '%s' "$BUNDLED_PUBLISHER_KEY" > "$key_file"
+          unset BUNDLED_PUBLISHER_KEY
+          export "$PUBLISHER_KEY_REF=$key_file"
+          pnpm desktop:build:macos
 
       - uses: actions/upload-artifact@v4
         with:

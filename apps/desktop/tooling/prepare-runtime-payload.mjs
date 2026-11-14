@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { promises as fs } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { packBundledReleasePackages } from "../../../tooling/release/pack-bundled.mjs";
 import { createMolisWorkRuntimePayload } from "@molis-ai/molis-work-app-local-host";
 
 const [sourceDirectory, resourceDirectory, nodeExecutablePath] = process.argv.slice(2);
@@ -17,7 +18,10 @@ const staged = path.join(temporary, "payload");
 const previous = path.join(temporary, "previous");
 let movedPrevious = false;
 try {
-  await createMolisWorkRuntimePayload({ sourceDirectory, destinationDirectory: staged, nodeExecutablePath });
+  const profile = process.env.MOLIS_WORK_RELEASE_PROFILE ?? "dev";
+  const signedPackages = await packBundledReleasePackages(sourceDirectory, path.join(temporary, "signed-packages"), profile);
+  await createMolisWorkRuntimePayload({ sourceDirectory, destinationDirectory: staged, nodeExecutablePath,
+    desktopDistribution: { profile, signedPackages } });
   const node = path.join(staged, "runtime", "node");
   // Resolve from the payload, never the checkout's node_modules. No install scripts or network here.
   // Project libraries run on the bundled Node's own SQLite, and every plugin statement is refused unless it is the version the statement

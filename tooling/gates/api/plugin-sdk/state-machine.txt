@@ -7,6 +7,7 @@ export interface StateMachine<State extends string, Event extends string> {
     assert(from: State, event: Event): void;
     next(from: State, event: Event): State;
     family(state: State): StateRingFamily;
+    readonly definition: StateMachineDefinition<State, Event>;
     describe(): StateMachineDeclaration<State>;
     apply(port: StateMachinePort<State>, input: {
         readonly expectedFrom: State;
@@ -29,7 +30,7 @@ export interface StateMachinePort<State extends string> {
 export interface StateMachineTransition<State extends string> {
     readonly from: readonly State[];
     readonly to: State;
-    readonly trigger?: ActionReference;
+    readonly trigger?: Pick<ActionReference, "capability_id" | "version">;
 }
 
 export declare function defineStateMachine<State extends string, Event extends string>(definition: StateMachineDefinition<State, Event>): StateMachine<State, Event>;

@@ -15,7 +15,7 @@ export function accountEnvironment(name: string) {
   if (!Object.hasOwn(configuration.accountEnvironments, name)) throw new Error("Choose dev, test or prod explicitly");
   const { port, ...config } = configuration.accountEnvironments[name as keyof typeof configuration.accountEnvironments];
   const productOrigin = `http://127.0.0.1:${port}`;
-  return { ...config, productOrigin, policyProfile: "unified-account-v2", redirectAllowlist: [productOrigin + "/account/callback"] };
+  return { ...config, productOrigin, policyProfile: configuration.accountPolicyProfile, redirectAllowlist: [productOrigin + "/account/callback"] };
 }
 
 export function connectorApplicationReference(profile: string, service: string): string | undefined {

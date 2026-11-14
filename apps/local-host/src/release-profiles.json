@@ -7,6 +7,7 @@
   "runtime": {
     "nodeVersionFile": ".nvmrc"
   },
+  "accountPolicyProfile": "unified-account-v2",
   "macOS": {
     "machO": [
       "Contents/MacOS/*",

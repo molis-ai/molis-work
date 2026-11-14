@@ -58,6 +58,10 @@ test("SMP-03 SMP-07 untrusted declarations reject wrong identity, bounds, shapes
 test("SMP-03 SMP-05 SMP-15 definitions check edges and permit a trigger reference before actions are registered", () => {
   const machine = defineStateMachine({ ...data, transitions });
   assert.deepEqual(machine.describe(), data);
+  assert.deepEqual(machine.definition.transitions.finish.trigger, transitions.finish.trigger);
+  assert.notEqual(machine.definition.transitions.finish.trigger, transitions.finish.trigger);
+  assert.ok(Object.isFrozen(machine.definition.transitions.finish.trigger));
+  assert.ok(Object.isFrozen(machine.definition.transitions.finish.from));
   assert.equal(machine.family("active"), "running");
   assert.equal(machine.next("active", "finish"), "closed");
   assert.equal(machine.can("closed", "begin"), false);

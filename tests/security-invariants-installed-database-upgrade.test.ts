@@ -64,7 +64,7 @@ async function assertUpgradeCard(home: TestHome, path: string, scope: Scope) {
   const page = await fetch(home.origin + path, { headers: { accept: "text/html" } });
   assert.equal(page.status, 200);
   const html = await page.text();
-  assert.match(html, new RegExp(`data-${scope}-plugin-unavailable`));
+  assert.ok(new RegExp(`data-${scope}-plugin-unavailable`).test(html), `expected the ${scope} upgrade card on ${path}`);
   assert.match(html, /data-owner-unavailable="upgrade_failed"/u);
   assert.match(html, /data-copy-value="D-[0-9A-F]{8}"/u);
 }
@@ -89,7 +89,7 @@ test("UPG-09 refuses a signed migration validator with write access", () => {
       effects: { storage: ["write"] }, errors: [], examples: [] });
     files[SANDBOX_PACKAGE_FILES.contract] = JSON.stringify(contract);
   }, { version: "1.1.0" });
-  assert.throws(() => readSandboxPackage(bundle.payload), /validateUpgrade|query.*write/);
+  assert.throws(() => readSandboxPackage(bundle.payload), /validateUpgrade|Queries cannot declare writes/);
 });
 
 for (const scope of ["project", "home"] as const) {
@@ -174,5 +174,5 @@ test("UPG-03 UPG-04 a failed Home upgrade is restored byte for byte and leaves a
   const other = await home.host.withProject(project.reference, ({ store }) => store.db.prepare(
     "SELECT json_extract(record_json, '$.state') AS state FROM plugin_runtime_installs WHERE json_extract(record_json, '$.plugin_id') = ?").get(otherId));
   assert.deepEqual({ ...(other as { state: string }) }, { state: "running" });
-  await assertUpgradeCard(home, "/", "home");
+  await assertUpgradeCard(home, `/projects/${project.project_id}/`, "home");
 });

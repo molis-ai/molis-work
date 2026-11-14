@@ -11,7 +11,7 @@ export type { StateMachineDeclaration } from "@molis-ai/molis-work-contracts/pla
 export interface StateMachineTransition<State extends string> {
   readonly from: readonly State[];
   readonly to: State;
-  readonly trigger?: ActionReference;
+  readonly trigger?: Pick<ActionReference, "capability_id" | "version">;
 }
 
 export interface StateMachineDefinition<State extends string, Event extends string> extends StateMachineDeclaration<State> {
@@ -30,6 +30,8 @@ export interface StateMachine<State extends string, Event extends string> {
   assert(from: State, event: Event): void;
   next(from: State, event: Event): State;
   family(state: State): StateRingFamily;
+  /** Checked code declaration. Only describe() is serialized into the Manifest. */
+  readonly definition: StateMachineDefinition<State, Event>;
   describe(): StateMachineDeclaration<State>;
   apply(port: StateMachinePort<State>, input: { readonly expectedFrom: State; readonly event: Event }): Promise<State>;
 }
@@ -53,7 +55,7 @@ function checkedTransitions<State extends string, Event extends string>(
   if (!isRecord(transitions)) return fail("的 transitions 必须为对象");
   const rows = Object.entries<StateMachineTransition<State>>(transitions);
   if (rows.length > LIMITS.transitions) return fail(`最多能声明 ${LIMITS.transitions} 条转换`);
-  const rules = new Map<string, { from: ReadonlySet<string>; to: State }>();
+  const rules = new Map<string, StateMachineTransition<State>>();
   const outbound = new Set(any);
   for (const [event, edge] of rows) {
     if (!stateMachineLocalId(event) || !isRecord(edge) || !states.has(edge.to) || !Array.isArray(edge.from)
@@ -64,7 +66,8 @@ function checkedTransitions<State extends string, Event extends string>(
       if (!states.has(state) || terminal.has(state)) return fail("的转换须从已声明的非终态出发");
       outbound.add(state);
     }
-    rules.set(event, { from: new Set(edge.from), to: edge.to });
+    rules.set(event, Object.freeze({ from: Object.freeze([...edge.from]), to: edge.to,
+      ...(edge.trigger ? { trigger: Object.freeze({ ...edge.trigger }) } : {}) }));
   }
   for (const state of states) if (!terminal.has(state) && !outbound.has(state)) return fail(`的非终态 ${state} 没有出边`);
   return { any, rules };
@@ -76,9 +79,13 @@ export function defineStateMachine<State extends string, Event extends string>(
   const { machine_id, version, states, initial, terminal } = definition;
   const declaration = stateMachineDeclaration({ machine_id, version, states, initial, terminal }, "状态机") as StateMachineDeclaration<State>;
   const { any, rules } = checkedTransitions(definition, declaration);
+  const checked: StateMachineDefinition<State, Event> = Object.freeze({
+    ...declaration, transitions: Object.freeze(Object.fromEntries(rules)) as StateMachineDefinition<State, Event>["transitions"],
+    ...(definition.allow_any ? { allow_any: Object.freeze([...definition.allow_any]) } : {}),
+  });
   const can = (from: State, event: Event) => {
     const rule = rules.get(event);
-    return rule !== undefined && (any.has(from) || rule.from.has(from));
+    return rule !== undefined && (any.has(from) || rule.from.includes(from));
   };
   const family = (state: State): StateRingFamily => {
     if (!Object.hasOwn(declaration.states, state)) throw stateMachineErrors.state_unknown(`状态机 ${machine_id} 没有这个状态`);
@@ -91,7 +98,7 @@ export function defineStateMachine<State extends string, Event extends string>(
   };
   return Object.freeze({
     can, next, family, assert: (from: State, event: Event) => { next(from, event); },
-    describe: () => declaration,
+    definition: checked, describe: () => declaration,
     async apply(port: StateMachinePort<State>, { expectedFrom, event }: { expectedFrom: State; event: Event }) {
       const target = next(expectedFrom, event);
       await port.beforeEffect();

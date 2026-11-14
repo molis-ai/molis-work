@@ -39,7 +39,7 @@ export function productDeviceLoginReady(service: string): boolean {
 /** Explicit deployment allowlist; do not advertise an unconfigured cloud app. The caller has the service's declared `oauth` method. */
 export function connectorBrokerOrigin(service: string): string | undefined {
   const profile = activeReleaseProfile().connectors;
-  const services: readonly string[] = readProductEnv("CONNECTOR_BROKER_SERVICES")?.split(",").map(name => name.trim()) ?? profile.services;
+  const services = readProductEnv("CONNECTOR_BROKER_SERVICES")?.split(",").map(name => name.trim()) ?? Object.keys(profile.applicationRefs);
   if (!services.includes(service)) return undefined;
   try {
     const url = new URL(readProductEnv("CONNECTOR_BROKER_ORIGIN") ?? profile.brokerOrigin ?? "");

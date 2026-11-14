@@ -12,6 +12,8 @@
 
 手写插件用 SDK 的 `/state-machine`，让清单引用同一份定义生成的 `describe()`。盘点、预览等消费方读静态清单即可。下面以允许关闭的收集状态为例。
 
+`definition` 保留校验后的转换与可选触发动作引用，供运行期读取。打包 Manifest 使用 `describe()` 的静态元数据。
+
 ```ts
 import { defineStateMachine } from "@molis-ai/molis-work-plugin-sdk/state-machine";
 

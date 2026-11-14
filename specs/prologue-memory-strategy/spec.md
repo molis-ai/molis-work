@@ -3289,12 +3289,12 @@ Dreaming 是连接这四层的后台过程：拿原文核对笔记、补漏、�
 
 | 内容 | 落点 | 说明 |
 | --- | --- | --- |
-| P1 短合同补整理变更的撤销窗口；P2-02 的「空常驻不发召回」（上游 molis-ai/molis-prologue#121 已做，当前 vendor 不含它，随包含它的换包生效、不改 Agent Host） | [31-2](../post-anticorruption-roadmap/reference/batches/31.md#batch-31-item-2)（撤销窗口）；换包含它的包见 [62](../post-anticorruption-roadmap/reference/batches/62.md) | 同在 P1 历史与换包这一处 |
+| P1 短合同补整理变更的撤销窗口；P2-02 的「空常驻不发召回」（上游 molis-ai/molis-prologue#121 已做，当前 vendor 不含它，随包含它的换包生效、不改 Agent Host） | [31-2](../post-anticorruption-roadmap/reference/batches/31.md#batch-31-item-2)（撤销窗口）；换包含它的包随本批或 [62](../post-anticorruption-roadmap/reference/batches/62.md) | 同在 P1 历史与换包这一处 |
 | 请 Prologue 补：会话检索（上游 #121 已做）、按 P2-01 合同需要的「提炼结果带关系与目标版本」（视合同） | [62](../post-anticorruption-roadmap/reference/batches/62.md)「记忆与会话检索清单」 | 阶段 3 的换包窗口；候选公平的 Host 侧与开轮召回的 Molis 接入见 64-9 |
 | 记忆样本与逐段定位进评测平台 | [63](../post-anticorruption-roadmap/reference/batches/63.md) | 与 64 共同消费，到 76 汇合 |
-| P2-05 常驻层并进工作记忆 | [64-5](../post-anticorruption-roadmap/reference/batches/64.md#batch-64-item-5) | 热缓存即常驻层 |
+| P2-05 常驻层并进工作记忆 | [64-5](../post-anticorruption-roadmap/reference/batches/64.md#batch-64-item-5) | 热缓存即常驻层，叠在 64-9 上 |
 | P2-01 形成质量 | [64-8](../post-anticorruption-roadmap/reference/batches/64.md#batch-64-item-8)（新） | 与整理共用判断合同，先于 64-9 |
-| P2-02 的 Molis 消费（含候选按 scope 公平收的 Host 侧）、P2-03、P2-04、用户控制 | [64-9](../post-anticorruption-roadmap/reference/batches/64.md#batch-64-item-9)（新） | 等 64-8、62 的清单、32-2、44-2 |
+| P2-02 的 Molis 消费（含候选按 scope 公平收的 Host 侧）、P2-03、P2-04、用户控制 | [64-9](../post-anticorruption-roadmap/reference/batches/64.md#batch-64-item-9)（新） | 等 64-8、62 的清单里仍属上游的第 4 项（视 P2-01 合同）、32-2、44-2 |
 | 整理与常驻的长期观察 | [76](../post-anticorruption-roadmap/reference/batches/76.md) | 观察期满再下结论 |
 | P2-06 主题导览 | [BL-memory-topic-guide](../backlog/BL-memory-topic-guide.md) | 条件触发，不排批 |
 | 语义／混合召回、规模与查询下推 | 仍按 BL-memory-p2-semantic-recall、BL-memory-p2-scale 触发 | 触发前先过 MEM-65 的逐段定位 |

@@ -1,5 +1,6 @@
 export { accountSessionForHost } from "./account-host.js";
 export {syncDocumentFiles} from './sync-document-files.js';
+export { onboardingTakers, type OnboardingTaker } from "./onboarding-takers.js";
 export { openRuntimeProjectCopyDirectory, type RuntimeProjectCopyDirectory, type RuntimeProjectCopyInput } from "./runtime-project-copy.js";
 export { installMolisWorkHome } from "./installer/home.js";
 export { keepPreviousRelease, readRollbackHold, readRollbackPoint, rollbackErrors, rollbackHome, type RollbackPoint, type RollbackResult } from "./installer/home-rollback.js";

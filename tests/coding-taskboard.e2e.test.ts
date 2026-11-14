@@ -176,3 +176,34 @@ test("TaskBoard 大纲：左栏用同一棵树画紧凑的行；没有会话时�
     assert.equal(result.boardDrawn, 0, "a hidden board is not drawn for the outline");
   } finally { await browser.close(); rmSync(directory, { recursive: true, force: true }); }
 });
+
+// BL-161: the TaskBoard numbers a step by where it stands, as the plan card does, so an inserted step moves the ones
+// below it down by one on both.
+test("BL-161：任务板按位置编号，插入一步后下面的步骤后移，与计划卡一致", { timeout: 30000 }, async t => {
+  const directory = mkdtempSync(join(tmpdir(), "coding-taskboard-keys-"));
+  const browser = await openStudioChrome(directory);
+  if (!browser) { rmSync(directory, { recursive: true, force: true }); t.skip("没有可用的 Chrome"); return; }
+  try {
+    const page = await browser.page();
+    await page.evaluate(`(()=>{${pageTextScript("zh", "coding")}})()`);
+    const keys = await page.evaluate<string[]>(`(async()=>{
+      document.body.innerHTML='<section data-coding-board><h2 data-coding-board-title></h2><p data-coding-board-meta></p><div data-coding-board-list></div><p data-coding-board-status></p></section>';
+      ${STATE_RING_CLIENT_SCRIPT}
+      const board=document.querySelector('[data-coding-board]');
+      const api=(${CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT})({lifetime:(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})()(board),translate:globalThis.t.text,board,current:()=>'s',status:()=>{},ownTask:text=>text,from:()=>null,roleName:id=>id,
+        navigate:async()=>{},amend:async()=>{}});
+      const plan={revision:1,content:{title:'计划',steps:[{title:'一',acceptance:'a'},{title:'二',acceptance:'b'},{title:'三',acceptance:'c'}],blockers:'',change_reason:''}};
+      const nodes=[{id:'step-1',state:'succeeded',reports:[]},{id:'step-2',state:'succeeded',reports:[]},{id:'user-1',title:'你插入的',inserted:true,state:'ready',reports:[]},{id:'step-3',state:'not-started',depends_on:['user-1'],reports:[]}];
+      const frozen={role_id:'builder',model_id:'m',directory:{canonical_path:'/w'}};
+      api.update('s',{session:{title:'会话'},plan:{...plan,confirmed:{artifact_id:'x',version:1}},
+        runs:[{ref:{run_id:'r1'},phase:'running',started_at:new Date().toISOString(),frozen,task:'按计划执行'}],
+        taskboard_plans:[{run_id:'r1',revision:1,plan,board:{project_id:'b1',version:2,terminal:false,nodes},verdicts:{}}],subagents:[]});
+      board.hidden=false;api.show(); await Promise.resolve();
+      return [...board.querySelectorAll('[data-board-key^="step-r1-"] .coding-board-key')].map(node=>node.textContent);
+    })()`);
+    assert.deepEqual(keys, ["S1", "S2", "新插入", "S4"], "BL-161：第三步排在插入的那一步后面，按位置是 S4，与计划卡相同");
+  } finally {
+    await browser.close();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});

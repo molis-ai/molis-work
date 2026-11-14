@@ -143,6 +143,7 @@ function wire(c: Composer, { drafts, menus, sender }: Parts, files: HTMLInputEle
       if (control?.kind === "toggle") { const on = target.getAttribute("aria-pressed") !== "true"; target.setAttribute("aria-pressed", String(on)); control.change?.(on); }
       if (control?.kind === "button") control.run();
     }
+    if (data.composerNotice !== undefined) return options.notice?.()?.action?.run();
     if (data.composerReceiver !== undefined) c.ai?.receiver?.()?.open?.();
     if (data.tagRemove !== undefined) c.ai?.receiver?.()?.reset?.();
   }, { signal });

@@ -55,6 +55,9 @@ export type DirectoryChange = {
 } | {
     kind: "unmap_source";
     source_workspace_id: string;
+} | {
+    kind: "set_instructions";
+    off: boolean;
 };
 
 export type DirectoryRole = "input" | "output";
@@ -111,6 +114,11 @@ export interface ProjectDirectories {
         source_workspace_id: string;
         workspace_id: string;
     }[];
+    instructions: {
+        off: boolean;
+        trusted: boolean;
+        why_not?: "default_output" | "off" | "not_chosen";
+    };
     revision: string;
 }
 
@@ -309,6 +317,11 @@ export declare const projectDirectoryActions: {
     mapSource: ActionDefinition<({
         source_workspace_id: string;
     } & DirectoryTarget) & {
+        expected_revision: string;
+    }, ProjectDirectories>;
+    setInstructions: ActionDefinition<{
+        off: boolean;
+    } & {
         expected_revision: string;
     }, ProjectDirectories>;
     unmapSource: ActionDefinition<{

@@ -94,6 +94,7 @@ function startInput(request: AgentStartRequest, role: FrozenRole, model: Prologu
     ...(role.memory ? { memory: structuredClone(role.memory) } : {}),
     ...(role.subagents ? { subagents: structuredClone(role.subagents) } : {}),
     ...(role.subagent_workspaces ? { subagent_workspaces: structuredClone(role.subagent_workspaces) } : {}),
+    ...(role.instructions_trusted === true && request.workspace !== "none" && request.workspace !== "business" ? { project_trusted: true as const } : {}),
     text_materials: materials.text_materials,
     ...(materials.image_materials?.length ? { image_materials: materials.image_materials } : {}),
     skills: role.skills ?? [],
@@ -125,6 +126,7 @@ export async function startPrologueRun(context: RunStartContext, request: AgentS
   const started = await runtime.startAgentRun({ ...startInput(request, memoryBinding.role(role), model, mode, { text_materials: textMaterials, image_materials: imageMaterials },
     { frozen, started_at: at }, execution), ...(original ? { original_input: original } : {}) }).catch(error => { memoryBinding.close(); throw error; });
 
+  if (started.instructions) frozen.instructions = structuredClone(started.instructions);
   const state = runStreamState(model.protocol.startsWith("openai"), started);
   const ref: AgentRunRef = {
     run_id: started.run.ref.id,

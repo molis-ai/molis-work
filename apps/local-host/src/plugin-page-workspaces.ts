@@ -8,7 +8,8 @@ import type { WebRequestContext } from "./web-route-table.js";
 
 /**
  * A plugin page adds a folder the person picked as an input of its project, or makes one of its folders the output (the 「设为输出」 beside
- * an input-only refusal), through the trusted Host workspace service only, after the person confirmed it in the shell's own dialog;
+ * an input-only refusal), or turns on reading the output's instruction files (the rules menu's 「确认」, batch12-design §3.4), through the
+ * trusted Host workspace service only, after the person confirmed it in the shell's own dialog;
  * identity and permissions come from the bound page. Which folder the page shows is the page's own state (specs/shared-sources-and-surfaces
  * §4): there is no setting to select it here any more.
  */
@@ -17,7 +18,7 @@ export async function changePageWorkspace(context: WebRequestContext, project: L
   const page = pluginPageRequest(context.request);
   if (!page || !project || page.project_id !== project.project_id || !context.request.headers["x-molis-context-page"])
     throw new ActionError("actions.forbidden", "工作目录操作需要当前项目页面");
-  if (!body || Object.keys(body).some(key => !["operation", "value"].includes(key)) || (body.operation !== "add" && body.operation !== "set_output")
+  if (!body || Object.keys(body).some(key => !["operation", "value"].includes(key)) || !["add", "set_output", "read_instructions"].includes(String(body.operation))
     || typeof body.value !== "string" || !body.value.trim() || body.value.length > 4096) throw new ActionError("actions.input_invalid", "工作目录请求无效");
   const beforeEffect = async () => {
     page.assertCurrent();
@@ -29,6 +30,13 @@ export async function changePageWorkspace(context: WebRequestContext, project: L
   const actions = bindLocalWebActions(context.localHost, project, ["projects:settings"]);
   // The person adds it from what they see now: the revision is read in the same request, so a change in between is a conflict, not lost.
   const current = await actions.invoke(projectDirectoryActions.get, {}, control);
+  // 「读取这个文件夹的说明文件」 on a page (Coding's rules menu): the person's own press turns reading on and confirms the current output
+  // (batch12-design §3.2). Only on: turning it off is the project settings' switch.
+  if (body.operation === "read_instructions") {
+    if (body.value !== "on") throw new ActionError("actions.input_invalid", "工作目录请求无效");
+    const after = await actions.invoke(projectDirectoryActions.setInstructions, { off: false, expected_revision: current.revision }, control);
+    return { instructions: after.instructions };
+  }
   if (body.operation === "set_output") {
     // A folder that is not the project's is refused by `set_output` itself, under its own code.
     const workspaceId = body.value;

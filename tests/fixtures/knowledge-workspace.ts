@@ -37,7 +37,7 @@ export async function knowledgeWorkspace(t: import("node:test").TestContext) {
   // The project's folders as the Home catalog answers `projects.directories.get@1` (specs/shared-sources-and-surfaces §3): a has the
   // folder as its output, b has none. Only that read of the catalog is stood in for; the two projects are standalone ones the catalog
   // has no plugin record of, as before (`catalog.project_not_found`, project-action-availability.ts).
-  const folders = (projectId: string): ProjectDirectories => ({ project_id: projectId, source_links: [], revision: "r1",
+  const folders = (projectId: string): ProjectDirectories => ({ project_id: projectId, source_links: [], instructions: { off: false, trusted: false }, revision: "r1",
     directories: projectId === "a" ? [{ ...workspace, roles: ["output"], state: "ok" }] : [] });
   const catalog: Pick<MolisWorkProjectCatalog, "projectDirectories" | "projectPluginMembership"> = { projectDirectories: folders,
     projectPluginMembership: () => { throw Object.assign(new Error("standalone project"), { code: "catalog.project_not_found" }); } };

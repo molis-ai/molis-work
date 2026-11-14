@@ -31,11 +31,11 @@
 .wl-msg .tx{flex:1;min-width:0}
 
 /* [组件板新增] 线 */
-.wl-line{position:relative;display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,540px) minmax(0,1fr);align-items:center;gap:12px;padding:0 14px}
+.wl-line{position:relative;display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,540px) minmax(0,1fr);grid-template-rows:minmax(0,1fr);align-items:center;gap:12px;padding:0 14px}
 .wl-line:before{content:"";position:absolute;left:14px;right:14px;top:50%;height:1px;background:var(--line-strong);pointer-events:none}
 .wl-track{display:contents}.wl-now{display:none}
 .wl-wing{position:relative;display:flex;align-items:center;gap:8px;height:44px;min-width:0}
-.wl-wing.past{grid-column:1;grid-row:1}.wl-wing.next{grid-column:3;grid-row:1}.wl-slot{grid-column:2;grid-row:1;position:relative}
+.wl-wing.past{grid-column:1;grid-row:1}.wl-wing.next{grid-column:3;grid-row:1}.wl-slot{grid-column:2;grid-row:1;position:relative;align-self:end;margin-bottom:10px}
 .wl-run{flex:1;min-width:0;display:flex;align-items:center;gap:8px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;height:44px;padding:0 2px}
 .wl-wing.past .wl-run>:first-child{margin-left:auto}
 .wl-wing.past .wl-run{-webkit-mask-image:linear-gradient(90deg,transparent,#000 32px);mask-image:linear-gradient(90deg,transparent,#000 32px)}
@@ -53,7 +53,7 @@
 .wl-ev.fresh{animation:wl-pop var(--dur-move) var(--ease-spring,var(--ease))}
 .wl-ev[data-state=wait]{background:var(--amber-soft);box-shadow:inset 0 0 0 1px var(--amber);animation:wl-turn 1.8s ease-in-out 3}
 .wl-ev[data-state=failed]{box-shadow:inset 0 0 0 1px var(--red)}
-.wl-ev[data-state=wait] small,.wl-ev[data-state=failed] small{flex:none;color:inherit}
+.wl-ev[data-state=wait] small,.wl-ev[data-state=failed] small{flex:0 2 auto;min-width:4em;color:inherit}.wl-ev[data-state=wait] .nm,.wl-ev[data-state=failed] .nm{min-width:5em}
 .wl-ev[data-state=done]{color:var(--ink-soft);background:transparent}
 .wl-wing.past .wl-ev:not([data-state=wait]):not([data-state=failed]):not([aria-current=true]) small{display:none}
 .wl-wing.past .wl-ev{max-width:190px}
@@ -63,13 +63,18 @@
 .wl-ev .tk i{width:5px;height:5px;border-radius:50%;background:var(--accent)}.wl-ev .tk i.y{background:var(--amber)}.wl-ev .tk i.q{background:var(--faint)}
 
 /* 输入 */
-.wl-cap{display:flex;align-items:flex-end;gap:4px;min-height:48px;padding:6px;border-radius:var(--r-composer);background:var(--paper);box-shadow:var(--lift-2);position:relative;z-index:3}
+.wl-cap{display:flex;flex-wrap:wrap;align-items:flex-end;gap:4px;min-height:48px;padding:6px;border-radius:var(--r-composer);background:var(--paper);box-shadow:var(--lift-2);position:relative;z-index:3}
 .wl-cap:focus-within{box-shadow:var(--lift-2),0 0 0 3px color-mix(in srgb,var(--accent) 16%,transparent)}
 .wl-cap.joined{border-top-left-radius:0;border-top-right-radius:0}
-.wl-cap textarea{flex:1;min-width:0;height:36px;max-height:120px;border:0;outline:0;resize:none;background:transparent;color:var(--ink);font:inherit;line-height:20px;padding:8px 6px}
+.wl-cap textarea{flex:1;min-width:0;height:36px;max-height:116px;overflow-y:auto;border:0;outline:0;resize:none;background:transparent;color:var(--ink);font:inherit;line-height:20px;padding:8px 6px}
 .wl-cap textarea::placeholder{color:var(--faint)}
 .wl-cbtn{width:36px;height:36px;border-radius:11px;border:0;background:transparent;color:var(--ink-soft);display:grid;place-items:center;flex:none}
 .wl-cbtn:hover{background:var(--hover)}.wl-cbtn.go{background:var(--action);color:var(--action-ink)}.wl-cbtn.go:disabled{opacity:.3;cursor:default}
+/* [组件板新增] 附上的手边内容：一行，可横向滑，不折行 */
+.wl-atts{flex:1 0 100%;min-width:0;display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:2px 2px 4px}
+.wl-att{flex:none;display:inline-flex;align-items:center;gap:5px;height:26px;max-width:200px;padding:0 3px 0 8px;border-radius:8px;border:1px solid var(--line-strong);background:var(--soft);font-size:12px;white-space:nowrap;animation:wl-pop var(--dur-hover) var(--ease)}
+.wl-att>span{overflow:hidden;text-overflow:ellipsis}
+.wl-att button{width:20px;height:20px;border:0;border-radius:6px;background:transparent;color:var(--muted);display:grid;place-items:center;flex:none}.wl-att button:hover{background:var(--hover);color:var(--ink)}
 /* [组件板新增] 发给 */
 .wl-to{flex:none;display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 8px;border-radius:11px;border:1px solid var(--line-strong);background:var(--paper);font-size:12px;font-weight:500;max-width:150px}
 .wl-to span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.wl-to:hover{background:var(--soft)}
@@ -114,13 +119,19 @@
 .wl-tico:hover{background:var(--soft)}.wl-tico b{font-weight:600;color:var(--ink)}
 .wl-tico[aria-expanded=true]{background:var(--active);color:var(--ink)}
 .wl-tico[data-you=true]{border-color:var(--amber);background:var(--amber-soft)}
+.wl-tico[data-bad=true]{border-color:var(--red)}
+.wl-tico[data-off=true]{border-style:dashed;color:var(--amber)}
+.wl-udot{flex:none;width:6px;height:6px;border-radius:50%;background:var(--accent);margin-left:-2px}
 .wl-tfloat{position:absolute;left:calc(100% + 10px);bottom:0;width:340px;display:flex;z-index:5}
 .wl-tfloat .wl-card{flex:1;max-height:min(56vh,480px);transform-origin:0 100%}
 .wl-tfloat.over{position:static;width:auto;order:-1}
 /* 方案 E（整体版）：面板、标签、消息用产品助理对话框自己的样式（kit.css 里 body.immersive-workbench 下的 .assistant-*），这里只补线上新增的几处 */
-.wl-slot.bar-center .assistant-panel{height:min(520px,calc(100dvh - 190px))}
+body.immersive-workbench:not([data-pane-embedded]) .wl-slot.bar-center .assistant-panel{height:min(560px,calc(100dvh - var(--line-h,68px) - 132px))} /* --line-h 是线这一条现在的高度（输入框长高时跟着变），由 app.js 量 */
 .wl-slot.bar-center .assistant-tabbar-actions{margin-left:auto;display:flex;align-items:center;gap:4px;padding-bottom:5px}
 .wl-slot.bar-center .assistant-tabbar-actions .wl-tico{height:28px}
+.wl-slot.bar-center .assistant-tabs{overflow-x:auto;scrollbar-width:none;min-width:0}
+.wl-slot.bar-center .assistant-tabs.more{-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent)}
+body.immersive-workbench .wl-slot.bar-center .assistant-tab{flex:0 0 auto;width:auto;min-width:96px;max-width:184px} /* 产品里是等分收窄到 96；事件标签要读得出名字，这里改成随内容、放不下横向滑 */
 .wl-slot.bar-center .assistant-tab-main .own,.wl-slot.bar-center .assistant-tab-main .who{flex:none}
 .wl-amsg{display:flex;flex-direction:column;gap:6px}.wl-amsg .wl-from,.wl-amsg .cf{align-self:flex-start}.wl-amsg p{margin:0}
 .wl-evcard{display:flex;flex-direction:column;gap:10px;padding:12px;margin:0 0 4px;border-radius:var(--r-card);border:1px solid var(--line-strong);background:var(--paper)}
@@ -177,11 +188,12 @@
   .wl-track{display:flex;align-items:center;gap:8px;min-width:0;overflow-x:auto;scrollbar-width:none;scroll-snap-type:x proximity;height:40px}
   .wl-wing{flex:none;height:40px}.wl-run{overflow:visible;flex:none;-webkit-mask-image:none!important;mask-image:none!important}
   .wl-now{display:inline-flex;flex:none;align-items:center;height:22px;padding:0 8px;border-radius:11px;background:var(--action);color:var(--action-ink);font-size:11px;font-weight:600;scroll-snap-align:center;position:relative}
-  .wl-slot{position:static}.wl-stack,.wl-stack.wide{left:8px;right:8px;width:auto;transform:none}
+  .wl-slot{position:static;margin-bottom:0}.wl-stack,.wl-stack.wide{left:8px;right:8px;width:auto;transform:none}
   .wl-head .nm{display:inline;max-width:6em}.wl-ev,.wl-head{height:36px}.wl-ev small{display:none}.wl-ev[data-state=wait] small{display:inline}
   .wl-deck{grid-template-columns:1fr}.wl-trow .main{min-height:48px}.wl-trow .mw-btn{display:none}.wl-serve{max-width:96px}
   .wl-to span{display:none}.wl-cbtn,.wl-to{height:40px}.wl-cbtn{width:40px}
   .wl-dock{max-height:60%}.wl-card{max-height:62vh}
   .wl-tico{height:32px}.wl-slot.bar-center{width:100%;align-self:stretch}
-  .wl-tfloat.dlg,.wl-tfloat.dlg.over{position:fixed;left:16px;right:16px;bottom:132px;width:auto;z-index:52}
+  .wl-tfloat.dlg,.wl-tfloat.dlg.over{position:fixed;left:16px;right:16px;bottom:calc(var(--line-h,106px) + 8px);width:auto;z-index:52}
+  body.immersive-workbench:not([data-pane-embedded]) .wl-slot.bar-center .assistant-panel{bottom:calc(var(--line-h,106px) + 2px);height:min(560px,calc(100dvh - var(--line-h,106px) - 96px))}
 }

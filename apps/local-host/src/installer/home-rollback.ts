@@ -124,11 +124,17 @@ export async function keepPreviousRelease(home: string, previous: InstallManifes
 
 /**
  * §5.3: offline, under the owner lock. `saveCurrent` first takes a whole snapshot of the Home as it is now (the caller's, before the lock);
- * then the stores go back, then the program, then the hold. A refusal changes nothing; a failure part-way leaves whole stores, the program
- * that was there, and the point to go back to, so running it again finishes it.
+ * then the hold, then the stores, then the program. A refusal changes nothing; a failure after the hold but before the program moves removes
+ * the hold again, leaving whole stores, the program that was there, and the point to go back to, so running it again finishes it.
+ *
+ * The hold is written before the stores and the program, not after them: `swapProgram` deletes `releases/previous/` once the kept program is
+ * in place, so a hold written afterwards that failed would leave the Home on the kept program with no point and no hold — the desktop would
+ * install the newer runtime again on its next start. Written first, a failed hold moves nothing at all; a crash after it leaves a hold
+ * that says the Home is being kept on the older program, so the next start does not upgrade and the person can retry or lift it.
  */
 export async function rollbackHome(home: string, options: { readonly saved_to?: string | null } = {}): Promise<RollbackResult> {
   const root = realpathSync(home), lockDirectory = agentRuntimeDirectory(root), owner = acquireStorageOwner(lockDirectory);
+  const installationFile = path.join(root, "config", INSTALLATION);
   try {
     assertNoPendingHomeRestore(root);
     const point = readRollbackPoint(root), kept = readRecord(root);
@@ -136,11 +142,23 @@ export async function rollbackHome(home: string, options: { readonly saved_to?: 
       const reason = point.available ? "no_previous" : point.reason;
       throw rollbackErrors.unavailable(UNAVAILABLE[reason], { reason });
     }
-    const restored = point.data === "restore" ? putBackUpgradeRound(root, owner) : [];
-    const from = await swapProgram(root, kept);
+    const current = readSmallJson(installationFile);
+    if (!isCurrentInstallManifest(current)) throw rollbackErrors.unavailable(UNAVAILABLE.no_previous, { reason: "no_previous" });
     await writeAtomic(path.join(root, HOLD), `${JSON.stringify({ schema_version: HOLD_SCHEMA_VERSION, held_version: kept.installation.version,
-      rolled_back_from: from, at: new Date().toISOString() }, null, 2)}\n`);
-    return { version: point.version, data: point.data, restored, saved_to: options.saved_to ?? null };
+      rolled_back_from: { version: current.version, content_digest: current.content_digest }, at: new Date().toISOString() }, null, 2)}\n`);
+    try {
+      const restored = point.data === "restore" ? putBackUpgradeRound(root, owner) : [];
+      await swapProgram(root, kept);
+      return { version: point.version, data: point.data, restored, saved_to: options.saved_to ?? null };
+    } catch (error) {
+      // A failure before the program moved must not leave a hold for a version that is not held. One that happened after the switch keeps
+      // the hold: the kept program is in place, and the next start must not reinstall the newer runtime.
+      const now = readSmallJson(installationFile);
+      if (!isCurrentInstallManifest(now) || now.version !== kept.installation.version || now.content_digest !== kept.installation.content_digest) {
+        await fs.rm(path.join(root, HOLD), { force: true });
+      }
+      throw error;
+    }
   } finally { owner.release(); }
 }
 

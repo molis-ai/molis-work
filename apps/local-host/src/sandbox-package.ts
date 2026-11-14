@@ -16,7 +16,7 @@ import { assertContract } from '@molis-ai/molis-work-plugin-sandbox';
 import { sandboxUiTextRefs, usesPluginFieldWords, validatePluginComponentNodes, validatePluginComponentPlans, validatePluginPresentation,
   type PluginComponentNode, type PluginComponentPlan, type PluginPresentation } from '@molis-ai/molis-work-design-system';
 import { packagedMethodBodies, readSandboxAgentBodies, sandboxAgentBodyPaths } from './sandbox-agent-bodies.js';
-import { assertPluginHomeSchema, assertPluginLocales, pluginLocaleFilePaths, pluginLocaleReader, type PluginLocaleManifest, type PluginLocaleReader } from '@molis-ai/molis-work-plugin-runtime';
+import { assertPluginHomeSchema, assertPluginUpgradeSteps, assertPluginLocales, pluginLocaleFilePaths, pluginLocaleReader, type PluginLocaleManifest, type PluginLocaleReader } from '@molis-ai/molis-work-plugin-runtime';
 import { UI_FILE_LIMITS } from '@molis-ai/molis-work-contracts/platform/ui';
 
 
@@ -143,8 +143,8 @@ export function readSandboxPackage(payload: PluginPackagePayload): SandboxPackag
   const named = manifest.ui.views?.[0]?.icon;
   const icon = PLUGIN_ICON_NAMES.find(name => name === named);
   const expected = sandboxPluginManifest({ pluginId: manifest.plugin_id, version: manifest.version, name: manifest.name, publisher: manifest.publisher,
-    presentation: presentation !== undefined, upgradesFrom: manifest.upgrade_compatibility?.compatible_from_versions, runtime: manifest.runtime, effects: permissions, contract,
-    homeDatabase: manifest.databases?.home, connections: manifest.connections, ownerFiles: manifest.owner_files?.entries,
+    presentation: presentation !== undefined, upgradeCompatibility: manifest.upgrade_compatibility, stateMachines: manifest.state_machines, runtime: manifest.runtime, effects: permissions, contract,
+    homeDatabase: manifest.databases?.home, projectDatabase: manifest.databases?.project, connections: manifest.connections, ownerFiles: manifest.owner_files?.entries,
     ...(icon ? { icon } : {}), textDeclarations: manifest, stageTitleText: manifest.ui.views?.[0]?.title_text });
   const { agent: wireAgent, methods: wireMethods, ...fixed } = manifest;
   const { agent: projectedAgent, methods: projectedMethods, ...expectedFixed } = expected;
@@ -153,6 +153,7 @@ export function readSandboxPackage(payload: PluginPackagePayload): SandboxPackag
     refuseManifestShape(fixed.permissions, '清单不是沙箱插件的形状：入口、权限、路由、界面声明要与包的其他文件一致，不能自带别的');
   }
   validated('清单', () => parsePluginManifest(expected));
+  validated('升级段', () => assertPluginUpgradeSteps(expected));
   if (expected.databases?.home) validated('Home 库', () => assertPluginHomeSchema(expected.databases!.home!.schema));
   return { manifest: expected, localePacks, agentBodies, contract, parts, nodes, ...(presentation ? { presentation } : {}), ...(ui ? { ui } : {}), acceptance, prompts, entrypoint, permissions };
 }
@@ -233,7 +234,7 @@ export function readSandboxIntegrationPackage(payload: PluginPackagePayload): Sa
   const contract = validated('contract.json', () => { const raw = jsonFile(files, SANDBOX_PACKAGE_FILES.contract); assertContract(raw); return raw; });
   if (contract.pluginId !== manifest.plugin_id) refuse('contract.json 的 pluginId 与清单的 plugin_id 不一致');
   const expected = sandboxIntegrationManifest({ pluginId: manifest.plugin_id, version: manifest.version, name: manifest.name, publisher: manifest.publisher, contract, textDeclarations: manifest,
-    upgradesFrom: manifest.upgrade_compatibility?.compatible_from_versions, connection_services: services, integrations, source_presentations: manifest.source_presentations });
+    upgradeCompatibility: manifest.upgrade_compatibility, stateMachines: manifest.state_machines, connection_services: services, integrations, source_presentations: manifest.source_presentations });
   if (!isDeepStrictEqual(JSON.parse(JSON.stringify(manifest)), JSON.parse(JSON.stringify(expected)))) {
     refuseManifestShape(manifest.permissions, '清单不是沙箱集成的形状：入口、权限要是平台的，运行范围是 Home，不能有路由或界面');
   }

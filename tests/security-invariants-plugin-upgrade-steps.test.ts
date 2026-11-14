@@ -13,7 +13,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDatabaseDeclaration, PluginDefinition, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { PLATFORM_PLUGIN_REGISTRATIONS, pluginSyncNamespace } from "@molis-ai/molis-work-app-local-host";
 import {
-  HOST_BUILD_TRUST, PLUGIN_PROJECT_DATABASES_SCHEMA_SQL, PluginRuntime, UNSIGNED_TRUST, assertPluginUpgradeStepsAdmitted, openPluginProjectDatabase, pluginUpgradeSteps,
+  HOST_BUILD_TRUST, PLUGIN_PROJECT_DATABASES_SCHEMA_SQL, PluginRuntime, UNSIGNED_TRUST, assertPluginUpgradeSteps, openPluginProjectDatabase, pluginUpgradeSteps,
   upgradePluginProjectTables, type PluginUpgradeInspector,
 } from "@molis-ai/molis-work-plugin-runtime";
 import { describeSqliteSchema, listSqliteObjects, LocalSqliteStorage, nativeSqliteOwnerBoundary, nativeSqliteSchemaBoundary } from "@molis-ai/molis-work-storage";
@@ -183,7 +183,7 @@ test("S-upgrade-plugin-steps-scope: 4212 ways to write a step: nothing that is n
   assert.ok(passed > 0, "and ways that go through: a step of its own rows");
 });
 
-test("S-upgrade-plugin-steps-scope: an installed plugin that declares steps is refused at install and at a version change; one whose steps no plugin may write is refused for their scope first", async () => {
+test("S-upgrade-plugin-steps-scope: UPG-09 built-in and installed plugins admit the same valid steps and reject illegal declarations on install and upgrade", async () => {
   const permissions = ["probe:read", "probe:write"].map(permission => ({ permission, required: true, reason: "读写自己的表" }));
   const manifest = (version: string, project: PluginDatabaseDeclaration): PluginManifest => ({ ...probeManifest(project), version, permissions });
   const definition = (value: PluginManifest): PluginDefinition => ({ manifest: value, async start() { return { kind: "app", views: [] }; }, async stop() {} });
@@ -192,7 +192,7 @@ test("S-upgrade-plugin-steps-scope: an installed plugin that declares steps is r
   const outOfScope = declaration(2, legal.schema, [{ from: 1, sql: "DROP TABLE IF EXISTS goals" }]);
   const install = (trust: typeof HOST_BUILD_TRUST, project: PluginDatabaseDeclaration) =>
     new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS }).install({ definition: definition(manifest("1.0.2", project)), deployment: "local", grants: ["probe:read", "probe:write"], trust });
-  assert.throws(() => install(UNSIGNED_TRUST, legal), code("plugin.upgrade_steps_unsupported"));
+  assert.equal(install(UNSIGNED_TRUST, legal).install.publisher_trust, "unsigned");
   assert.throws(() => install(UNSIGNED_TRUST, outOfScope), code(OUT_OF_SCOPE), "a step no plugin may write says so first");
   assert.throws(() => install(HOST_BUILD_TRUST, outOfScope), code(OUT_OF_SCOPE), "the Host's own build gets the same check");
   assert.equal(install(HOST_BUILD_TRUST, legal).install.publisher_trust, "host");
@@ -200,13 +200,13 @@ test("S-upgrade-plugin-steps-scope: an installed plugin that declares steps is r
   const runtime = new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS });
   const installed = runtime.install({ definition: definition(manifest("1.0.1", declaration(1, "CREATE TABLE probe_notes (id INTEGER PRIMARY KEY, note TEXT);"))), deployment: "local",
     grants: ["probe:read", "probe:write"], trust: UNSIGNED_TRUST });
-  await assert.rejects(runtime.upgrade({ install_id: installed.install.install_id, definition: definition(manifest("1.0.2", legal)), grants: ["probe:read", "probe:write"] }),
-    code("plugin.upgrade_steps_unsupported"));
+  await assert.rejects(runtime.upgrade({ install_id: installed.install.install_id, definition: definition(manifest("1.0.2", outOfScope)), grants: ["probe:read", "probe:write"] }),
+    code(OUT_OF_SCOPE));
 });
 
 test("S-upgrade-plugin-steps-scope: every plugin of the Host's own build passes the first layer, so a step none may write cannot ship", () => {
   for (const { manifest } of PLATFORM_PLUGIN_REGISTRATIONS) {
-    assert.doesNotThrow(() => assertPluginUpgradeStepsAdmitted(manifest, "host"), manifest.plugin_id);
+    assert.doesNotThrow(() => assertPluginUpgradeSteps(manifest), manifest.plugin_id);
     for (const declared of [manifest.databases?.project, manifest.databases?.home]) if (declared) assert.doesNotThrow(() => pluginUpgradeSteps(declared), manifest.plugin_id);
   }
 });

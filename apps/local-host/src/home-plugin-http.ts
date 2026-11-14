@@ -408,7 +408,7 @@ function homeUnavailableStage(host: HomePluginHost, platform: HomePluginPlatform
   const install = platform ? host.installation(entry.manifest.plugin_id) : null;
   const state = platform?.supervisor.state(entry.manifest.plugin_id);
   // A Home plugin stopped because its tables were not upgraded draws the upgrade card (U3 §2.4); restarting cannot upgrade them.
-  const code = state?.code, upgrade = code ? describePluginTablesRefusal(host.homeDirectory, entry.manifest.plugin_id, null, { code }) : undefined;
+  const code = install?.last_error_code ?? state?.code, upgrade = code ? describePluginTablesRefusal(host.homeDirectory, entry.manifest.plugin_id, null, { code }) : undefined;
   return { ...(state ? { status: state.status === "running" ? undefined : state.status, code: state.code } : { code: failure?.code }), surface: entry.project_plugin_id, label: entry.manifest.name, scope: "home",
     ...(upgrade ? { upgrade: { title: entry.manifest.name, reason: upgrade.reason, diagnostic_id: upgrade.diagnostic_id, rollback_href: rollbackHrefFor(host.homeDirectory, upgrade.reason), reload_href: null } } : {}),
     reason: failure?.message ?? (state?.status === "starting" ? uiText.text("workbench.home-plugin-http.starting") : null) ?? host.packageError(entry.manifest.plugin_id) ?? state?.message

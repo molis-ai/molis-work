@@ -71,8 +71,17 @@ export function describeUnavailable(home: string, refusal: { readonly code: stri
 
 const PLUGIN_TABLE_REASON: Readonly<Record<string, UnavailableReason>> = {
   "plugin.project_database.upgrade_failed": "upgrade_failed",
+  "plugin.project_database.upgrade_out_of_scope": "upgrade_failed",
+  "plugin.project_database.upgrade_nondeterministic": "upgrade_failed",
+  "plugin.project_database.statement_timeout": "upgrade_failed",
+  "plugin.project_database.statement_memory": "upgrade_failed",
+  "plugin.project_database.process_failed": "upgrade_failed",
+  "plugin.upgrade_validation_failed": "upgrade_failed",
+  "plugin.home_database.version_mismatch": "upgrade_failed",
   "plugin.project_database.version_mismatch": "upgrade_failed",
 };
+
+export const isPluginTableRefusal = (code: string): boolean => Object.hasOwn(PLUGIN_TABLE_REASON, code) || Object.hasOwn(REASON_OF_CODE, code);
 
 /**
  * Why a plugin stopped over its own tables, when an upgrade is the reason (§2.4): the plugin's stage then draws the card instead of a restart.

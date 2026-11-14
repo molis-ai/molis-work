@@ -1,4 +1,4 @@
-import { sandboxOperationActions, sandboxOperationPermissions, sandboxActionId } from '@molis-ai/molis-work-plugin-sdk';
+import { SANDBOX_VALIDATE_UPGRADE, sandboxOperationActions, sandboxOperationPermissions, sandboxActionId } from '@molis-ai/molis-work-plugin-sdk';
 /**
  * An installed generated plugin offers its functions to the rest of the product (D16): each operation becomes an
  * action of the project's unified directory, provided by the plugin itself, so a person, the Home AI, an external MCP
@@ -102,7 +102,7 @@ export function exposeInstalledPlugin(actions: ProjectActions, release: AgentRel
   const providerId = exposedProviderId(release), title = release.design.title;
   const definitions = sandboxOperationActions({ contract: release.design.contract, buildId: release.buildId, version: release.version, title,
     scope: actions.project_id === null ? 'home' : 'project' });
-  const handlers: ActionHandlerBinding[] = release.design.contract.operations.map(operation => ({
+  const handlers: ActionHandlerBinding[] = release.design.contract.operations.filter(operation => operation.id !== SANDBOX_VALIDATE_UPGRADE).map(operation => ({
     capability_id: exposedActionId(release, operation.id), version: release.version,
     handle: async (context, input) => {
       await context.beforeEffect();

@@ -218,6 +218,58 @@ export function openInstalledPluginLibrary<Opened extends { close(): void }>(hom
 /** Why a library an uninstall would have removed is kept (BL-915): no verified Manifest or ledger row to match, or another holder. */
 export type InstalledLibraryKept = { readonly reason: "ownership_unverified" | "other_holder"; readonly store_name: string };
 
+/** Confines a snapshot to a signed installed publisher's exact recorded library. Reads no package SQL. */
+export function installedLibraryUpgradeFile(home: string, owner: InstalledLibraryOwner, previous: HomePluginDatabaseDeclaration,
+  reserved: HomeStoreRegistry): string {
+  const row = installedLibrarySnapshots(home, reserved).find(candidate => candidate.plugin_id === owner.plugin_id);
+  if (row?.publisher_signature !== owner.publisher_signature) throw installedLibraryErrors.publisher_mismatch("原归属账本未记录此发布者");
+  if (row.store_name !== previous.store_name || row.version !== previous.version || row.schema_digest !== digestOf(previous)) {
+    throw installedLibraryErrors.shape_mismatch("库账本与已安装发行版的声明不一致");
+  }
+  const path = homeSqlitePath(home, row.store_name);
+  snapshotFileStat(path);
+  const db = openReadOnlyHomeSqlite(home, row.store_name);
+  try {
+    const actual = Number(db.prepare("PRAGMA user_version").get()?.user_version);
+    if (actual !== previous.version) throw sqliteVersionRefusal(path, actual, previous.version, home);
+    const storage = readStorageSpace(home);
+    if (!storage || JSON.stringify(storage) !== JSON.stringify(readDatabaseSpace(db))) throw installedLibraryErrors.shape_mismatch("库不属于当前空间");
+  } finally { db.close(); }
+  return path;
+}
+
+/** The ledger's attached alias for an atomic upgrade, used only by the SQL process. */
+export const INSTALLED_LIBRARY_UPGRADE_LEDGER = "installed_library_ledger";
+
+export function installedLibraryLedgerFile(home: string): string {
+  return homeSqlitePath(home, INSTALLED_LIBRARIES_HOME_STORE.path);
+}
+
+/** Checks the attached ledger and the original owned declaration before SQLite runs a migration. */
+export function checkInstalledLibraryUpgrade(home: string, owner: InstalledLibraryOwner, previous: HomePluginDatabaseDeclaration,
+  reserved: HomeStoreRegistry, database: ReturnType<typeof openHomeSqliteFile>): void {
+  if (!INSTALLED_LIBRARY_NAME.test(previous.store_name) || holderOf(previous.store_name, reserved) || previous.partition !== undefined) {
+    throw installedLibraryErrors.object_taken("所选库名不属于此已安装插件");
+  }
+  const row = database.prepare("SELECT plugin_id, publisher_signature, store_name, version, schema_digest FROM installed_library_ledger.plugin_home_libraries WHERE plugin_id = ?")
+    .get(owner.plugin_id) as LedgerRow | undefined;
+  if (row?.publisher_signature !== owner.publisher_signature) throw installedLibraryErrors.publisher_mismatch("原归属账本未记录此发布者");
+  if (row.store_name !== previous.store_name || row.version !== previous.version || row.schema_digest !== digestOf(previous)) {
+    throw installedLibraryErrors.shape_mismatch("库账本与已安装发行版的声明不一致");
+  }
+  const actual = Number(database.prepare("PRAGMA main.user_version").get()?.user_version);
+  if (actual !== previous.version) throw sqliteVersionRefusal(homeSqlitePath(home, previous.store_name), actual, previous.version, home);
+  if (!matchesScopedLibrary(database, previous, home)) throw installedLibraryErrors.shape_mismatch("库结构或空间归属与已安装发行版不一致");
+}
+
+/** Advances only the verified owner's ledger row within the transaction that runs its SQL. */
+export function advanceInstalledLibraryUpgrade(database: ReturnType<typeof openHomeSqliteFile>, owner: InstalledLibraryOwner,
+  previous: HomePluginDatabaseDeclaration, target: HomePluginDatabaseDeclaration): void {
+  const { changes } = database.prepare(`UPDATE installed_library_ledger.plugin_home_libraries SET version = ?, schema_digest = ?
+    WHERE plugin_id = ? AND publisher_signature = ? AND store_name = ? AND version = ? AND schema_digest = ?`)
+    .run(target.version, digestOf(target), owner.plugin_id, owner.publisher_signature, previous.store_name, previous.version, digestOf(previous));
+  if (Number(changes) !== 1) throw installedLibraryErrors.shape_mismatch("库账本已变化，无法提交升级");
+}
 /**
  * Removes the library of an installed plugin taken off without its data (BL-915 A, BL-628 §3.7), under the same ledger lock as opening it. Only
  * when the ledger row is the installation's (plugin, publisher) and the installation's own verified Manifest (`declaration`, from its release

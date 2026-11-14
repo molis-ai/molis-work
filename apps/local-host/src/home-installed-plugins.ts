@@ -14,8 +14,9 @@ import { installedPluginExposure } from './installed-plugin-exposure.js';
 import { PUBLISHER_REVOKED_MESSAGE, publisherStanding, publisherStops } from './installed-publisher-standing.js';
 import { INSTALLED_MODEL_KEY, sandboxDeclaration, sandboxGrants, staleInstallation } from './installed-plugin-host.js';
 import { APPROVED_KEY, installedLifecycle, type InstalledPluginPlatform, isPendingUninstall, onlyOne, uninstallInstalledRecord, type InstalledLifecycleContext } from './installed-plugin-lifecycle.js';
-import { installedVersion, type InstalledRelease } from './installed-release.js';
+import { HOME_INSTALL_SCOPE, installedVersion, type InstalledRelease } from './installed-release.js';
 import { assertHomePackageAllowed } from './home-package-admission.js';
+import { isPluginTableRefusal } from './home-unavailable-owners.js';
 import { configuredModelChoices } from './configured-models.js';
 import { capabilityCatalog, catalogCapabilities, installedCapabilityCatalog, registerPlatformCapabilities, type CatalogCapability, type ProjectActions } from './plugin-builder/catalog.js';
 import { createPluginModelGeneration } from './plugin-builder/model.js';
@@ -35,7 +36,7 @@ import { RecoveryErrors } from './installed-recovery-errors.js';
 import type { PluginUninstallTarget } from '@molis-ai/molis-work-contracts/platform/plugin-trust';
 
 /** What the Home's installs are kept under where a project's id would go: the approval, the secrets and the prompt registrations. Not a project's id. */
-export const HOME_INSTALL_SCOPE = '~home';
+export { HOME_INSTALL_SCOPE };
 
 export type HomeInstalledPlatform = InstalledPluginPlatform & Pick<PluginPlatform, 'router'>;
 
@@ -243,10 +244,12 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
      * (no page) and one whose release cannot be read back (no Manifest to draw) are not.
      */
     pages: (): { key: string; manifest: PluginManifest }[] => records().flatMap(item => {
-      if (item.state !== 'running' && (!recoveryErrors.has(item.plugin_id) || item.state === 'disabled' || item.state === 'quarantined')) return [];
+      const failedUpgrade = item.state === 'disabled' && item.last_error_code && isPluginTableRefusal(item.last_error_code);
+      if (!failedUpgrade && item.state !== 'running' && (!recoveryErrors.has(item.plugin_id) || item.state === 'disabled' || item.state === 'quarantined')) return [];
       // Like `running`: a publisher the person took back has no page until its installation is stopped and says why.
       if (item.state === 'running' && !standing.trusted(item)) return [];
       const manifest = releaseFor(item.plugin_id)?.packaged?.manifest;
+      if (failedUpgrade && !manifest?.databases?.home) return [];
       return manifest?.kind === 'app' && manifest.ui?.views?.some(view => view.slot === 'stage') ? [{ key: item.plugin_id, manifest }] : [];
     }),
     refreshPublicActions: async () => { await stops.reconcile(); if (exposed.size) await catalog(); },

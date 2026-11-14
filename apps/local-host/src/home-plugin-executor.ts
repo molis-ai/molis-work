@@ -5,7 +5,7 @@ import { installedComponentSubmit } from "./installed-action-registration.js";
 import { pluginPageActions } from "./plugin-page-actions.js";
 import { pluginPageFiles } from "./plugin-page-files.js";
 import { ActionError, type ActionClient, type ActionRegistryPort } from "@molis-ai/molis-work-contracts/platform/actions";
-import { pluginErrors, type HomePluginDatabaseDeclaration, type PluginDefinition, type PluginExecutor, type PluginInstanceRecord, type PluginStartContext, type PluginUpgradeContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { pluginErrors, type HomePluginDatabaseDeclaration, type PluginDatabaseVersionSwitch, type PluginDefinition, type PluginExecutor, type PluginInstanceRecord, type PluginStartContext, type PluginUpgradeContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createPluginOwnerFilesClient, StoppedServiceCalls, type SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost, createPluginUiClient, type PluginTextReader } from "@molis-ai/molis-work-ui-host";
 import { pluginHostActions } from "./plugin-actions-client.js";
@@ -16,6 +16,7 @@ import { refuseUngivenSandboxServices } from "./plugin-sandbox-start.js";
 import { removeSandboxOwnerFiles, sandboxOwnerFilesFor } from "./plugin-sandbox-owner-files.js";
 import { discardInstallationOwnerData, forgetInstallationRecords, forgetLeftoverInstallationBindings } from "./plugin-installation-cleanup.js";
 import { homeLibraryFor } from "./plugin-database-entries.js";
+import { commitInstalledDatabaseUpgrade, withInstalledHomeSnapshot } from "./plugin-sandbox-database-upgrade.js";
 import { openSandboxHomeLibrary } from "./plugin-sandbox-home-library.js";
 import { SandboxPackageStore } from "./sandbox-package-store.js";
 import { noteRetained } from "./uninstall-retained.js";
@@ -260,6 +261,17 @@ export class HomePluginExecutor implements PluginExecutor {
   }
   restorePrivateData(installId: string, snapshot: unknown): void {
     this.options.storage.restoreInstallationData(installId, snapshot as ReturnType<SqlitePluginPrivateStorage["snapshotInstallationData"]>);
+  }
+
+  async commitDatabaseUpgrade(definition: PluginDefinition, change: PluginDatabaseVersionSwitch): Promise<void> {
+    const { assertCurrent, ...expected } = change, home = pluginHomeFor(this.options.home);
+    await this.libraryExits.get(change.current.install_id);
+    this.libraryExits.delete(change.current.install_id);
+    await withInstalledHomeSnapshot(home, change, () => this.options.record(change.current.install_id),
+      () => commitInstalledDatabaseUpgrade({
+      op: "upgrade-home-database", home: home.directory, target: definition.manifest, change: expected,
+      reserved: home.stores.stores.map(({ path, owner }) => ({ path, owner })),
+    }, () => { assertCurrent(); home.assertStorageOwner(); }));
   }
 
   async validateUpgrade(definition: PluginDefinition, context: PluginUpgradeContext, from: PluginInstanceRecord): Promise<void> {

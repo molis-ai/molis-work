@@ -2959,6 +2959,12 @@ export interface PluginDatabase extends PluginDatabaseReader {
     transactionProjectRow?<T>(id: string, write: (transaction: PluginProjectRowTransaction) => T): Promise<T>;
 }
 
+export interface PluginDatabaseApproval {
+    readonly installId: string;
+    readonly key: string;
+    readonly value: string;
+}
+
 export interface PluginDatabaseDeclaration {
     readonly store_name: string;
     readonly version: number;
@@ -2987,6 +2993,14 @@ export interface PluginDatabaseUpgradeStep {
     readonly from: number;
     readonly sql: string;
     readonly reduces_rows?: readonly string[];
+}
+
+export interface PluginDatabaseVersionSwitch {
+    readonly previous: PluginManifest;
+    readonly current: PluginInstanceRecord;
+    readonly next: PluginInstanceRecord;
+    readonly approval?: PluginDatabaseApproval;
+    assertCurrent(): void;
 }
 
 export interface PluginDeclarationProblem {
@@ -3219,6 +3233,7 @@ export interface PluginExecutor {
     start(definition: PluginDefinition, context: PluginStartContext): Promise<PluginExecutorHandle>;
     stop(definition: PluginDefinition, context: PluginStartContext): Promise<void>;
     validateUpgrade?(definition: PluginDefinition, context: PluginUpgradeContext, from: PluginInstanceRecord): Promise<void>;
+    commitDatabaseUpgrade?(definition: PluginDefinition, change: PluginDatabaseVersionSwitch): Promise<void>;
     capturePrivateData?(installId: string): Promise<unknown> | unknown;
     restorePrivateData?(installId: string, snapshot: unknown): Promise<void> | void;
     uninstalled?(record: PluginInstanceRecord): Promise<void> | void;
@@ -4258,6 +4273,8 @@ export interface PluginRuntimeApi {
         deployment?: PluginDeployment;
         grants?: string[];
         assertCurrent?: () => void;
+        previousManifest?: PluginManifest;
+        persistApproval?: PluginDatabaseApproval;
     }): Promise<PluginLifecycleReceipt>;
     rollback(input: {
         install_id: string;
@@ -4531,6 +4548,7 @@ export interface PluginUpgradeCompatibilityDeclaration {
 }
 
 export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
+    readonly assertCurrent?: () => void;
     readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "project_statements" | "database_statements" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "localTools" | "materials" | "connections" | "directory" | "background" | "scheduler" | "agents" | "installations" | "projects" | "notifications" | "attention" | "contextLedger" | "interaction" | "savedHistory" | "sync"> & {
         readonly storage?: Pick<PluginPrivateStorage, "get">;
     };

@@ -21,7 +21,8 @@ import { NativePluginExecutor } from "./native-executor.js";
 import { assertRecoverableState, assertRequiredGrants, cloneRecord, declaresOnly, definitionKey, installIdentity, normalizeErrorCode, requireDefinition, requireInstall, safeErrorCode, safeErrorMessage, sameStrings, selectedEntrypoint, startedInstall, validateManifest } from "./runtime-rules.js";
 import { captureStartControl, createActivationContext, releaseRejectedActivation, releaseUnrecorded } from "./activation-context.js";
 import { regrantInstall } from "./regrant.js";
-import { assertPluginUpgradeStepsAdmitted } from "./plugin-upgrade-steps.js";
+import { assertPluginUpgradeSteps } from "./plugin-upgrade-steps.js";
+import { commitInstalledVersion, installedDatabaseChange, validateUpgradeFor } from "./plugin-database-version.js";
 import type { PluginContributionSource } from "./lifecycle.js";
 
 export * from "./public-api.js";
@@ -40,7 +41,7 @@ import type {
   PluginRuntimeApi,
   PluginRuntimeRepository,
   PluginStartContext,
-  PluginUpgradeContext,
+  PluginDatabaseApproval,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 /** What an install is called with. */
@@ -131,7 +132,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     validateManifest(manifest);
     const installId = installIdentity(manifest);
     assertDeclarationsFree(manifest, installId, this.options.declarationOwners);
-    assertPluginUpgradeStepsAdmitted(manifest, trust.level);
+    assertPluginUpgradeSteps(manifest);
     const entrypoint = selectedEntrypoint(manifest, input.deployment);
     const current = this.repository.get(installId);
     if (current?.state === "uninstalled" && this.locks.busy(installId)) throw pluginErrors.state_invalid("Plugin 卸载尚未完成，请等待卸载完成后再安装");
@@ -226,29 +227,29 @@ export class PluginRuntime implements PluginRuntimeApi {
     return this.receipt("install", record, false);
   }
 
-  /** Replace one installed version after an explicit Host action and preflight. */
   async upgrade(input: {
     install_id: string;
     definition: PluginDefinition;
     deployment?: PluginDeployment;
     grants?: string[];
     assertCurrent?: () => void;
+    previousManifest?: PluginManifest;
+    persistApproval?: PluginDatabaseApproval;
   }): Promise<PluginLifecycleReceipt> {
     return this.changeVersion(input, false);
   }
-
   async rollback(input: { install_id: string; definition: PluginDefinition }): Promise<PluginLifecycleReceipt> {
     return this.changeVersion(input, true);
   }
 
-  private async changeVersion(given: { install_id: string; definition: PluginDefinition; deployment?: PluginDeployment; grants?: string[]; assertCurrent?: () => void }, rollbackCode: boolean): Promise<PluginLifecycleReceipt> {
+  private async changeVersion(given: { install_id: string; definition: PluginDefinition; deployment?: PluginDeployment; grants?: string[]; assertCurrent?: () => void; previousManifest?: PluginManifest; persistApproval?: PluginDatabaseApproval }, rollbackCode: boolean): Promise<PluginLifecycleReceipt> {
     const input = { ...given, definition: platformDefinition(given.definition) }; return this.locks.run(input.install_id, async () => {
       input.assertCurrent?.();
       const target = input.definition.manifest;
       validateManifest(target);
       const current = requireInstall(this.repository, input.install_id);
       assertDeclarationsFree(target, current.install_id, this.options.declarationOwners);
-      assertPluginUpgradeStepsAdmitted(target, current.publisher_trust);
+      assertPluginUpgradeSteps(target);
       if (current.execution !== (input.definition.execution ?? "host")) throw pluginErrors.definition_conflict("不能在升级时改变执行信任边界");
       if (rollbackCode && current.execution !== "sandbox") throw pluginErrors.state_invalid("代码回滚只适用于隔离的生成插件");
       if (current.state === "uninstalled" || current.state === "quarantined") {
@@ -286,12 +287,17 @@ export class PluginRuntime implements PluginRuntimeApi {
         throw pluginErrors.upgrade_validation_missing("此升级需要插件提供旧私有数据校验");
       }
 
+      const originalManifest = input.previousManifest ?? before?.manifest;
+      const databaseChange = installedDatabaseChange(current, target, originalManifest, rollbackCode, migratable);
+      if (databaseChange && !this.executor.commitDatabaseUpgrade) throw pluginErrors.upgrade_required("此宿主未装配已安装插件库的升级过程");
+
       if (current.state === "running") await this.stopOnce(input.install_id);
       restoration?.beforeCommit();
       const stopped = requireInstall(this.repository, input.install_id);
       const oldDefinition = this.definitions.get(definitionKey(stopped));
       let privateDataSnapshot: unknown;
       let hasPrivateDataSnapshot = false, recoverable = stopped;
+      let committedDatabase: PluginInstanceRecord | undefined;
       let releaseSettings: (() => void) | undefined;
       try {
         input.assertCurrent?.();
@@ -300,25 +306,7 @@ export class PluginRuntime implements PluginRuntimeApi {
           hasPrivateDataSnapshot = privateDataSnapshot !== undefined;
         }
         input.assertCurrent?.();
-        if (input.definition.validateUpgrade) {
-          const grants = Object.freeze([...targetGrants]);
-          const context: PluginUpgradeContext = Object.freeze({
-            install_id: stopped.install_id, installation_generation: stopped.installation_generation,
-            plugin_id: stopped.plugin_id,
-            version: target.version,
-            deployment,
-            grants,
-            requireGrant(permission) {
-              if (!grants.includes(permission)) throw pluginErrors.grant_denied(`Plugin 没有 ${permission} grant`);
-            },
-          });
-          try {
-            if (this.executor.validateUpgrade) await outsidePluginAction(() => this.executor.validateUpgrade!(input.definition, context, stopped));
-            else await input.definition.validateUpgrade({ from: cloneRecord(stopped), context });
-          } catch (error) {
-            throw pluginErrors.upgrade_validation_failed(`旧私有数据校验失败：${safeErrorMessage(error)}`);
-          }
-        }
+        await validateUpgradeFor(this.executor, input.definition, stopped, deployment, targetGrants, input.assertCurrent);
 
         restoration?.beforeCommit();
         input.assertCurrent?.();
@@ -326,15 +314,28 @@ export class PluginRuntime implements PluginRuntimeApi {
         const upgraded = versionChangeRecord(stopped, target, { deployment, entrypoint, grants: targetGrants, disabled: current.state === "disabled", at: this.now() });
         if (current.state !== "disabled") releaseSettings = this.options.declarationOwners?.retainSettings?.(stopped, upgraded, target, oldDefinition?.manifest);
         this.register(input.definition);
-        this.repository.save(upgraded);
+        if (databaseChange) {
+          await commitInstalledVersion(this.executor, this.repository, input.definition, {
+            previous: databaseChange, current: stopped, next: upgraded, approval: input.persistApproval, assertCurrent: input.assertCurrent,
+          }, stored => { committedDatabase = stored; });
+        } else this.repository.save(upgraded);
         recoverable = upgraded;
         const receipt = current.state === "disabled" ? this.receipt("start", upgraded, false)
           : await this.startOnce(input.install_id, { assertCurrent: restoration?.assertRestored ?? input.assertCurrent });
         return { ...receipt, operation: rollbackCode ? "rollback" : "upgrade", replayed: false };
       } catch (error) {
+        const currentInstall = () => this.repository.list().find(item => item.install_id === input.install_id) ?? null;
+        if (committedDatabase) {
+          input.assertCurrent?.();
+          const latest = currentInstall();
+          if (latest && holdsInstalledEdition(latest, committedDatabase) && latest.state !== "running") {
+            this.repository.save({ ...latest, state: "disabled", last_error_code: safeErrorCode(error), updated_at: this.now() });
+          }
+          throw error;
+        }
         if (restoration && error instanceof ActionError && error.code === "actions.provider_replaced") throw error;
-        const failed = this.repository.get(input.install_id);
-        if (!holdsInstalledEdition(failed, recoverable)) throw error;
+        const failed = currentInstall();
+        if (!holdsInstalledEdition(failed, databaseChange ? stopped : recoverable)) throw error;
         let dataRollbackError: unknown;
         if (hasPrivateDataSnapshot) {
           try { await this.executor.restorePrivateData!(input.install_id, privateDataSnapshot); }
@@ -344,13 +345,13 @@ export class PluginRuntime implements PluginRuntimeApi {
         try { input.assertCurrent?.(); } catch { interrupted = true; }
         const rollback: PluginInstanceRecord = interrupted && !dataRollbackError ? current : {
           ...stopped,
-          state: dataRollbackError ? "disabled" : stopped.state,
+          state: dataRollbackError || databaseChange ? "disabled" : stopped.state,
           last_error_code: dataRollbackError ? "plugin.upgrade_rollback_failed" : safeErrorCode(error),
           updated_at: this.now(),
         };
-        if (!holdsInstalledEdition(this.repository.get(input.install_id), recoverable)) throw error;
+        if (!holdsInstalledEdition(currentInstall(), databaseChange ? stopped : recoverable)) throw error;
         this.repository.save(rollback);
-        if (oldDefinition && !dataRollbackError && current.state !== "disabled") {
+        if (oldDefinition && !dataRollbackError && (!databaseChange || interrupted) && current.state !== "disabled") {
           // Restore the pre-upgrade implementation after a failed candidate start (a switched-off install stays off).
           // Its stable install id keeps access to the same private data.
           try { await this.startOnce(input.install_id); } catch { /* the original upgrade error remains authoritative */ }

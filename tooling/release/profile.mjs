@@ -36,7 +36,7 @@ export function missingProfileValues(name, profile = releaseProfile(name)) {
     ...(name === "release" ? {
       entitlements: profile.entitlements,
       "connectors.brokerOrigin": profile.connectors.brokerOrigin,
-      "connectors.services": profile.connectors.services.length,
+      "connectors.applicationRefs": Object.keys(profile.connectors.applicationRefs).length,
       "connectors.applications": profile.connectors.applications,
       "connectors.applicationSecretPrefix": profile.connectors.applicationSecretPrefix,
       updateChannel: profile.updateChannel,
@@ -68,6 +68,7 @@ function misplacedValues() {
     ...accounts.flatMap(account => [account.authOrigin, account.applicationId, account.clientId]),
     ...Object.values(configuration.profiles).flatMap(profile => [
       profile.connectors.brokerOrigin, profile.publisherKeyRef, profile.entitlements, profile.symbolUploadTarget,
+      ...Object.values(profile.connectors.applicationRefs),
     ]),
   ].filter(Boolean));
   const references = Object.values(configuration.macOS.secretRefs);
@@ -89,7 +90,7 @@ function misplacedValues() {
 function run(args) {
   const [flag, name, command, ...rest] = args;
   if (flag !== "--profile" || !name || !command || rest.length !== 0) {
-    throw new Error("Usage: node tooling/release/profile.mjs --profile dev|test|release --check|--tauri|--node|--app-name|--signing-identity|--ci-outputs");
+    throw new Error("Usage: node tooling/release/profile.mjs --profile dev|test|release --check|--tauri|--node|--app-name|--signing-identity|--mach-o|--ci-outputs");
   }
   const profile = releaseProfile(name);
   switch (command) {
@@ -101,6 +102,7 @@ function run(args) {
     case "--node": process.stdout.write(nodeVersion()); return;
     case "--app-name": process.stdout.write(releaseApplication.productName); return;
     case "--signing-identity": process.stdout.write(profile.signingIdentity ?? ""); return;
+    case "--mach-o": process.stdout.write(releaseMacOS.machO.join("\n") + "\n"); return;
     case "--ci-outputs": {
       const outputs = { ...releaseMacOS.secretRefs, profile: name, notarization: profile.notarization ?? "", publisherKey: profile.publisherKeyRef ?? "" };
       for (const [key, value] of Object.entries(outputs)) {

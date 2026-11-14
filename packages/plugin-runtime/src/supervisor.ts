@@ -395,15 +395,16 @@ export class PluginSupervisor implements PluginHostLifecycle {
     return candidates.sort((left, right) => left.plugin_id.localeCompare(right.plugin_id));
   }
 
-  async upgrade(pluginId: string, definition?: PluginDefinition, options?: { grants?: string[]; assertCurrent?: () => void }): Promise<PluginSupervisorState> {
-    return this.#changeVersion(pluginId, definition, false, options?.grants, options?.assertCurrent);
+  async upgrade(pluginId: string, definition?: PluginDefinition, options?: Pick<Parameters<PluginRuntimeApi["upgrade"]>[0], "grants" | "assertCurrent" | "previousManifest" | "persistApproval">): Promise<PluginSupervisorState> {
+    return this.#changeVersion(pluginId, definition, false, options);
   }
 
   async rollback(pluginId: string, definition: PluginDefinition): Promise<PluginSupervisorState> {
     return this.#changeVersion(pluginId, definition, true);
   }
 
-  async #changeVersion(pluginId: string, definition: PluginDefinition | undefined, rollbackCode: boolean, grants?: string[], assertCurrent?: () => void): Promise<PluginSupervisorState> {
+  async #changeVersion(pluginId: string, definition: PluginDefinition | undefined, rollbackCode: boolean, options?: Parameters<PluginSupervisor["upgrade"]>[2]): Promise<PluginSupervisorState> {
+    const { grants, assertCurrent, previousManifest, persistApproval } = options ?? {};
     assertCurrent?.();
     const prior = this.#entries.get(pluginId), entry = definition ? { ...prior, definition: platformDefinition(definition) } : prior;
     // A switched-off install is not registered after a Host restart: the target stands in for its entry, and an
@@ -441,7 +442,7 @@ export class PluginSupervisor implements PluginHostLifecycle {
         install_id: current.install_id,
         definition: entry.definition,
         deployment: entry.deployment ?? "local",
-        ...(grants ? { grants } : {}), assertCurrent,
+        ...(grants ? { grants } : {}), assertCurrent, previousManifest, persistApproval,
       });
       assertCurrent?.();
       this.#activeEntries.set(pluginId, { ...entry, grants: receipt.install.grants });

@@ -4,7 +4,7 @@
  * Host rebuilds it from a sandbox package to check the package's own Manifest against it; this is the one place that writes it.
  */
 import { createHash } from 'node:crypto';
-import { PLUGIN_PROJECTS_EXIST_PERMISSION, pluginErrors, type HomePluginDatabaseDeclaration, type PluginManifest, type PluginOwnerFileEntry, type SandboxPackageManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
+import { PLUGIN_PROJECTS_EXIST_PERMISSION, pluginErrors, type HomePluginDatabaseDeclaration, type PluginDatabaseDeclaration, type PluginManifest, type PluginOwnerFileEntry, type SandboxPackageManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { sandboxAgentDeclarations } from './sandbox-agent-declarations.js';
 import type { SandboxEffects, SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { PLUGIN_PRESENTATION_CAPABILITY, type TextRef } from '@molis-ai/molis-work-contracts/platform/ui';
@@ -12,7 +12,7 @@ import type { PluginIconName } from './ui/icon.js';
 import { databaseDeclarationProblems } from './database-declarations.js';
 import { connectionDeclarationProblems } from './connection-declarations.js';
 import { ownerFilesDeclarationProblems } from './owner-files-declaration.js';
-import { sandboxOperationActions, sandboxPackageBuildId } from './sandbox-actions.js';
+import { assertSandboxUpgradeValidator, sandboxOperationActions, sandboxPackageBuildId } from './sandbox-actions.js';
 import { sandboxUiDeclaration } from './sandbox-ui.js';
 import { sandboxLocaleProblems } from './locale-declarations.js';
 
@@ -20,7 +20,7 @@ import { sandboxLocaleProblems } from './locale-declarations.js';
 export const SANDBOX_IMAGE_PERMISSIONS = Object.freeze({ read: 'image-api:read', write: 'image-api:write', generate: 'image-api:generate' });
 const MODEL_READ = 'model:read', MODEL_INVOKE = 'model:invoke';
 
-type DerivedEffects = Pick<SandboxEffects, 'storage' | 'background' | 'projects' | 'model' | 'modelSettings' | 'imageGeneration' | 'homeDatabase' | 'connections' | 'materials' | 'ownerFiles' | 'networkDomains' | 'secretRefs' | 'capabilities'>;
+type DerivedEffects = Pick<SandboxEffects, 'storage' | 'background' | 'projects' | 'model' | 'modelSettings' | 'imageGeneration' | 'homeDatabase' | 'projectDatabase' | 'connections' | 'materials' | 'ownerFiles' | 'networkDomains' | 'secretRefs' | 'capabilities'>;
 const HOME_READ = 'home-database:read', HOME_WRITE = 'home-database:write', FILE_READ = 'owner-files:read', FILE_WRITE = 'owner-files:write';
 
 /**
@@ -76,7 +76,7 @@ export function sandboxOperationSwitches(effects: Partial<Record<keyof SandboxEf
 
 /** Exact per-operation service permissions. A read-only operation cannot borrow a write grant held by its installation. */
 export function sandboxOperationPermissions(effects: DerivedEffects | undefined): string[] {
-  return [...(effects?.background?.length || effects?.homeDatabase?.length || effects?.ownerFiles?.length ? ['storage:private'] : []), ...serviceRows(effects).map(row => row.permission)];
+  return [...(effects?.background?.length || effects?.homeDatabase?.length || effects?.projectDatabase?.length || effects?.ownerFiles?.length ? ['storage:private'] : []), ...serviceRows(effects).map(row => row.permission)];
 }
 
 function serviceRows(effects: DerivedEffects | undefined, shape = false): Array<{ permission: string; reason: string; required: false }> {
@@ -115,6 +115,8 @@ export interface SandboxManifestInput {
   presentation: boolean;
   /** Versions this one upgrades from; empty or absent for a first release. */
   upgradesFrom?: readonly string[];
+  upgradeCompatibility?: PluginManifest['upgrade_compatibility'];
+  stateMachines?: PluginManifest['state_machines'];
   /**
    * Where the plugin runs: absent for a project, `{ scope: "home" }` for one instance every project shares (BL-628). A published package
    * writes its checked target scope. Whether the Home takes it is the install's to decide (S-80), not the form's.
@@ -132,21 +134,28 @@ export interface SandboxManifestInput {
   textDeclarations?: Pick<SandboxPackageManifest, 'plugin_id' | 'agent' | 'methods' | 'name_text' | 'summary' | 'summary_text'>;
   stageTitleText?: TextRef;
   /** The author chooses only version/schema; the store and read/write names are deterministic platform output. */
-  homeDatabase?: Pick<HomePluginDatabaseDeclaration, 'version' | 'schema'>;
+  homeDatabase?: Pick<HomePluginDatabaseDeclaration, 'version' | 'schema' | 'upgrades'>;
+  projectDatabase?: Pick<PluginDatabaseDeclaration, 'version' | 'schema' | 'upgrades'>;
   connections?: PluginManifest['connections'];
   ownerFiles?: readonly PluginOwnerFileEntry[];
 }
 
 function sandboxResources(input: SandboxManifestInput): Pick<PluginManifest, 'databases' | 'connections' | 'owner_files'> {
-  const { effects, homeDatabase, connections, ownerFiles } = input;
+  const { effects, homeDatabase, projectDatabase, connections, ownerFiles } = input;
   const refuse = (message: string): never => { throw pluginErrors.declaration_invalid('沙箱资源：' + message); };
-  if (!!homeDatabase !== !!effects?.homeDatabase?.length || !!connections !== !!effects?.connections?.length || !!ownerFiles !== !!effects?.ownerFiles?.length) {
+  if (!!homeDatabase !== !!effects?.homeDatabase?.length || !!projectDatabase !== !!effects?.projectDatabase?.length || !!connections !== !!effects?.connections?.length || !!ownerFiles !== !!effects?.ownerFiles?.length) {
     refuse('库、连接槽和文件条目必须与操作实际声明的 effects 一致');
   }
   if (homeDatabase && input.runtime?.scope !== 'home') refuse('Home 库只给 Home 范围的包');
+  if (projectDatabase && input.runtime?.scope === 'home') refuse('Home 范围的包没有项目库');
+  const storeName = 'sbxdb-' + createHash('sha256').update(input.pluginId).digest('hex').slice(0, 32);
+  const library = (scope: Pick<PluginDatabaseDeclaration, 'schema' | 'version' | 'upgrades'>, read_permission: string, write_permission: string) => ({
+    store_name: storeName, version: scope.version, schema: scope.schema, read_permission, write_permission,
+    ...(scope.upgrades === undefined ? {} : { upgrades: scope.upgrades }),
+  });
   const resources: Pick<PluginManifest, 'databases' | 'connections' | 'owner_files'> = {
-    ...(homeDatabase ? { databases: { home: { store_name: 'sbxdb-' + createHash('sha256').update(input.pluginId).digest('hex').slice(0, 32),
-      version: homeDatabase.version, schema: homeDatabase.schema, read_permission: HOME_READ, write_permission: HOME_WRITE } } } : {}),
+    ...(homeDatabase ? { databases: { home: library(homeDatabase, HOME_READ, HOME_WRITE) } } : {}),
+    ...(projectDatabase ? { databases: { project: library(projectDatabase, 'storage:private', 'storage:private') } } : {}),
     ...(connections ? { connections } : {}),
     ...(ownerFiles ? { owner_files: { store_name: 'files', entries: ownerFiles, read_permission: FILE_READ, write_permission: FILE_WRITE } } : {}),
   };
@@ -176,11 +185,19 @@ function directoryFields(input?: Pick<PluginManifest, 'name_text' | 'summary' | 
   };
 }
 
+function sandboxUpgradeFields(input: Pick<SandboxManifestInput, 'upgradesFrom' | 'upgradeCompatibility'>): Pick<PluginManifest, 'upgrade_compatibility'> {
+  const { upgradesFrom, upgradeCompatibility } = input;
+  if (upgradesFrom?.length && upgradeCompatibility) throw pluginErrors.declaration_invalid('只可提供一份升级来源声明');
+  if (upgradeCompatibility !== undefined) return { upgrade_compatibility: upgradeCompatibility };
+  return upgradesFrom?.length ? { upgrade_compatibility: { compatible_from_versions: [...upgradesFrom] } } : {};
+}
+
 export function sandboxPluginManifest(input: SandboxManifestInput): PluginManifest {
   if (input.contract) {
     if (input.contract.pluginId !== input.pluginId) throw pluginErrors.declaration_invalid('合同与 Manifest 的插件身份不一致');
     input = { ...input, effects: effectsFromContract(input.contract) };
   }
+  assertSandboxUpgradeValidator(sandboxUpgradeFields(input), input.contract);
   const { contribution_id: uiId } = sandboxUiDeclaration(input);
   if (input.effects?.background?.length && !input.contract) throw pluginErrors.declaration_invalid('后台操作需要完整合同来派生动作');
   const actions = input.contract && (input.contract.presentation !== undefined || input.contract.operations.some(operation =>
@@ -195,7 +212,8 @@ export function sandboxPluginManifest(input: SandboxManifestInput): PluginManife
     ...directoryFields(input.textDeclarations),
     ...(input.textDeclarations ? sandboxAgentDeclarations(input.textDeclarations) : {}),
     entrypoints: [{ deployment: 'local', entrypoint: './plugin.mjs' }],
-    ...(input.upgradesFrom?.length ? { upgrade_compatibility: { compatible_from_versions: [...input.upgradesFrom] } } : {}),
+    ...sandboxUpgradeFields(input),
+    ...(input.stateMachines === undefined ? {} : { state_machines: input.stateMachines }),
     ...(input.runtime ? { runtime: input.runtime } : {}),
     ...sandboxResources(input),
     permissions: [{ permission: 'storage:private', required: true, reason: '保存这个插件自己的数据' }, ...sandboxDerivedPermissions(input.effects)],
@@ -213,6 +231,8 @@ export interface SandboxIntegrationManifestInput {
   name: string;
   publisher: PluginManifest['publisher'];
   upgradesFrom?: readonly string[];
+  upgradeCompatibility?: PluginManifest['upgrade_compatibility'];
+  stateMachines?: PluginManifest['state_machines'];
   /** The services and integrations the package declares, as an Integration Plugin writes them; the rest of the Manifest is the Host's. */
   connection_services: NonNullable<PluginManifest['connection_services']>;
   integrations: NonNullable<PluginManifest['integrations']>;
@@ -228,12 +248,14 @@ export interface SandboxIntegrationManifestInput {
  * to show: no route, no view.
  */
 export function sandboxIntegrationManifest(input: SandboxIntegrationManifestInput): PluginManifest {
+  assertSandboxUpgradeValidator(sandboxUpgradeFields(input), input.contract);
   return {
     schema_version: /* @version manifest.schema */ 1, host_api_version: /* @version host.api */ 1, plugin_id: input.pluginId, version: input.version, name: input.name, kind: 'integration',
     ...directoryFields(input.textDeclarations),
     publisher: input.publisher,
     entrypoints: [{ deployment: 'local', entrypoint: './plugin.mjs' }],
-    ...(input.upgradesFrom?.length ? { upgrade_compatibility: { compatible_from_versions: [...input.upgradesFrom] } } : {}),
+    ...sandboxUpgradeFields(input),
+    ...(input.stateMachines === undefined ? {} : { state_machines: input.stateMachines }),
     permissions: [{ permission: 'storage:private', required: true, reason: '保存这个插件自己的数据' }],
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] },
     ui: { ...localeFields(input.pluginId, input.contract), contributions: [] },

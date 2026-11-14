@@ -3,16 +3,16 @@
  * uninstall; this definition only proxies to the plugin's sandboxed process. The plugin's code never runs in the
  * host process, and its interface is the host's component renderer, so no plugin script runs in the page either.
  */
-import { pluginErrors, type PluginAppContribution, type PluginDefinition, type PluginManifest, type PluginStartContext } from '@molis-ai/molis-work-contracts/platform/plugin';
+import { pluginErrors, type PluginAppContribution, type PluginDefinition, type PluginManifest, type PluginStartContext, type PluginUpgradeContext } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
 import { assertCapturedPluginActionCurrent, currentPluginAction, inPluginInstance, pluginManifestDigest } from '@molis-ai/molis-work-plugin-runtime';
 import { exposedActionReference } from './exposed-actions.js';
 import { rememberInstalledActionSource } from '../installed-action-registration.js';
 import type { SandboxEffects, SandboxIdentity, SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
-import { createSandboxRunner, createBackgroundLane, SANDBOX_BACKGROUND_LIMITS, sandboxServicesFor, SandboxError, type SandboxBackgroundLane, type SandboxRunner, type SandboxServices, type SandboxServiceContext } from '@molis-ai/molis-work-plugin-sandbox';
+import { createSandboxRunner, createBackgroundLane, readOnlySandboxStorage, SANDBOX_BACKGROUND_LIMITS, sandboxServicesFor, SandboxError, type SandboxBackgroundLane, type SandboxRunner, type SandboxServices, type SandboxServiceContext } from '@molis-ai/molis-work-plugin-sandbox';
 import { executionProjectReach } from '../plugin-project-reach-subject.js';
 import { resolvePluginComponentCall, validatePluginPresentation } from '@molis-ai/molis-work-design-system';
-import { actionErrorResponse, effectsFromContract, isRecord, sandboxPluginManifest, sandboxUiDeclaration, sandboxOperationEffects } from '@molis-ai/molis-work-plugin-sdk';
+import { SANDBOX_VALIDATE_UPGRADE, actionErrorResponse, effectsFromContract, isRecord, sandboxPluginManifest, sandboxUiDeclaration, sandboxOperationEffects } from '@molis-ai/molis-work-plugin-sdk';
 import { installedStageFrame } from '../installed-stage-section.js';
 import { releaseInstructions } from './prompts.js';
 import { releaseVersion, type InstalledRelease } from '../installed-release.js';
@@ -61,6 +61,39 @@ export interface SandboxedPluginHost {
   grantedCapabilities?(identity: Readonly<SandboxIdentity>): readonly string[];
 }
 
+function packageAgentBodies(release: InstalledRelease): Pick<PluginDefinition, "agent_prompt_names" | "agent_prompts" | "methods"> {
+  const packaged = release.packaged, bodies = packaged?.agentBodies;
+  if (!bodies) return {};
+  const roles = bodies.filter(item => item.kind === 'role');
+  return {
+    agent_prompt_names: Object.fromEntries(roles.map(item => [item.prompt_id!, { title: item.name, purpose: item.purpose }])),
+    agent_prompts: roles.map(item => ({ prompt_id: item.prompt_id!, version: /* @version format.sandbox.agent-prompt */ 1, layer: 'role', body: item.body })),
+    methods: packaged!.manifest.methods?.map(({ body: _path, ...declared }) => ({
+      ...declared, body: bodies.find(item => item.kind === 'method' && item.entry_id === declared.skill_id)?.body ?? '',
+    })) ?? [],
+  };
+}
+
+/** The candidate sees one read-only broker on the original installation, before the SQL worker is called. */
+function installedUpgradeValidator(release: InstalledRelease, manifest: PluginManifest, localePacks: ReturnType<typeof sandboxTextPacks>) {
+  if (!manifest.upgrade_compatibility?.migratable_from_versions?.length) return undefined;
+  const operation = release.design.contract.operations.find(item => item.id === SANDBOX_VALIDATE_UPGRADE)!;
+  return async ({ from, context }: { from: { version: string }; context: PluginUpgradeContext }) => {
+    context.assertCurrent?.();
+    const storage = context.services?.storage;
+    const validator = await createSandboxRunner({
+      bundlePath: release.bundlePath, contract: release.design.contract, grants: operation.effects,
+      identity: { projectId: context.project_id ?? null, installationId: context.install_id, pluginId: manifest.plugin_id, namespace: 'installed' },
+      services: storage ? { storage: readOnlySandboxStorage(storage) } : {}, localePacks,
+    });
+    try {
+      const accepted = await validator.call(SANDBOX_VALIDATE_UPGRADE, from.version, { beforeEffect: async () => context.assertCurrent?.() });
+      context.assertCurrent?.();
+      if (accepted !== true) throw pluginErrors.upgrade_validation_failed('插件拒绝迁移当前安装的数据');
+    } finally { await validator.stop(); }
+  };
+}
+
 /** `host.capability` serves the platform capabilities the person approved; the broker still checks each call against them. */
 export function sandboxedPluginDefinition(release: InstalledRelease, approved: SandboxEffects, compatibleFrom: readonly number[], host: SandboxedPluginHost = {},
   /** What an installed package declared (already checked against `sandboxPluginManifest`); a generated plugin's is written from its release. */
@@ -74,17 +107,9 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
   const instructions = declared?.kind === 'app' ? releaseInstructions(release, [release]) : undefined;
   // A model call runs in its own process, so the plugin's other reads and saves never wait behind it.
   const lanes = new Map<Lane, Promise<SandboxRunner>>(); let background: SandboxBackgroundLane | undefined;
-  const packaged = release.packaged, bodies = packaged?.agentBodies;
-  const definition: PluginDefinition = { manifest,
-    ...(instructions ? { instructions } : {}),
-    ...(packaged && bodies ? {
-      agent_prompt_names: Object.fromEntries(bodies.filter(item => item.kind === 'role').map(item => [item.prompt_id!, { title: item.name, purpose: item.purpose }])),
-      agent_prompts: bodies.filter(item => item.kind === 'role').map(item => ({ prompt_id: item.prompt_id!, version: /* @version format.sandbox.agent-prompt */ 1, layer: 'role' as const, body: item.body })),
-      // A method is its package's own declaration, with the body the package ships in place of the body's path.
-      methods: (packaged.manifest.methods ?? []).map(({ body: _path, ...declared }) => ({ ...declared,
-        body: bodies.find(item => item.kind === 'method' && item.entry_id === declared.skill_id)?.body ?? '' })),
-    } : {}),
-    // Host provenance: Plugin Runtime then requires explicit grants and rolls back code without rolling back data.
+  const upgradeValidator = installedUpgradeValidator(release, manifest, localePacks);
+  const definition: PluginDefinition = { manifest, ...(instructions ? { instructions } : {}), ...packageAgentBodies(release),
+    ...(upgradeValidator ? { validateUpgrade: upgradeValidator } : {}),
     execution: 'sandbox',
     async start(context) {
       context.requireGrant('storage:private');
@@ -137,7 +162,8 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
             const call = raw ? { operationId: installedOperation(release, context, body.operation), input: Object.hasOwn(body, 'input') ? body.input : {} }
               : resolvePluginComponentCall(node!, 'read', body.payload ?? {});
             await request.execution?.beforeEffect(); request.execution?.signal?.throwIfAborted();
-            const operation = release.design.contract.operations.find(item => item.id === call.operationId)!;
+            const operation = release.design.contract.operations.find(item => item.id === call.operationId && item.id !== SANDBOX_VALIDATE_UPGRADE);
+            if (!operation) throw new ActionError('actions.forbidden', '这个操作不在已安装页面的合同内');
             const effects = sandboxOperationEffects(release.design.contract, operation), dependencies = effects.capabilities ?? [];
             // Before any of its code runs, whichever door it came through (BL-701).
             try { assertOperationGranted(effects, context.grants); } catch (error) { refused = error; throw error; }

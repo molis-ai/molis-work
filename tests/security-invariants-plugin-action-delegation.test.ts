@@ -474,6 +474,82 @@ test("W5-01-DELEGATE-08 S-43 from the page, a plugin holding actions:delegate st
   assert.deepEqual(ran, [query.capability_id]); assert.equal(probe.delivered(), '"done"');
 });
 
+/**
+ * The same person, through the page's action gateway instead of a route (`/api/host/plugin-page-actions`, user decision 2026-11-14): the
+ * page of an installation that holds `actions:delegate` calls that installation's own action as the person. An installation without it
+ * keeps what it had: its own grants, and nothing the person holds.
+ */
+function pageProbe(name: string, delegate: boolean, consumes: readonly string[] = []) {
+  const id = `io.molis.work.example.${name}`, contexts: PluginStartContext[] = [];
+  const action: ActionDefinition<Directive, unknown> = { capability_id: `${name}.run`, version: 1, operation: "command", action: {
+    title: "Use the action directory from a page", description: "Reach another action from the page's own action", kind: "operation", scope: "project", scheduling: "concurrent",
+    audiences: ["user"], permissions: ["storage:private"], subject_kinds: [],
+    input_schema: { type: "object", properties: { op: { type: "string" }, reference: { type: "object" }, input: { type: "object" } }, additionalProperties: false },
+  } };
+  const definition: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: id, version: "1.0.0", name, kind: "app",
+    publisher: { publisher_id: "example", signature: `delegate-${name}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
+    permissions: [{ permission: "storage:private", required: true, reason: "Keep what the call returned" },
+      ...(delegate ? [{ permission: DELEGATE, required: true, reason: "Call other actions as the person who asked" }] : [])],
+    capabilities: { provides: [], consumes: [...consumes] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [action],
+  }, async start(context) {
+    contexts.push(context);
+    return { kind: "app", actions: [{ ...action, async handle(caller, raw) {
+      const directive = raw as Directive, actions = context.services!.actions!;
+      const result = delegate ? await actions.directory!.invoke(directive.reference!, directive.input ?? {}) : await actions.invoke(directive.reference!, directive.input ?? {});
+      await caller.beforeEffect();
+      context.services!.storage!.set("delivered", JSON.stringify(result));
+      return result;
+    } }] };
+  } };
+  return { id, action, definition, grants: () => contexts.at(-1)!.grants, delivered: () => contexts.at(-1)!.services!.storage!.get("delivered") };
+}
+
+async function openedPage(s: { origin: string; controlToken: string }, projectId: string, probe: ReturnType<typeof pageProbe>) {
+  const post = (path: string, body: unknown, headers: Record<string, string> = {}) => fetch(`${s.origin}/projects/${projectId}${path}`, { method: "POST",
+    headers: { origin: s.origin, "content-type": "application/json", "x-molis-work-control-token": s.controlToken, "x-molis-work-idempotency-key": randomUUID(), ...headers }, body: JSON.stringify(body) });
+  const opened = await post("/api/host/plugin-pages", { plugin_id: probe.id });
+  assert.equal(opened.status, 200, await opened.clone().text());
+  const { page_id } = await opened.json() as { page_id: string };
+  return { run: (definition: ActionDefinition) => post("/api/host/plugin-page-actions", { reference: ref(probe.action), input: { op: "invoke", reference: ref(definition) } }, { "x-molis-plugin-page": page_id }),
+    direct: (definition: ActionDefinition) => post("/api/host/plugin-page-actions", { reference: ref(definition), input: {} }, { "x-molis-plugin-page": page_id }) };
+}
+
+test("WBR-28 S-43 from the page's action gateway, an installation holding actions:delegate runs its own action as the person: it reaches what the person holds, not what the person lacks or what is closed to workflow, and the page itself still reaches only its own actions", async t => {
+  const probe = pageProbe("paged", true);
+  const s = await openTestHome(t, { catalogPolicy: false, host: { pluginFixtures: { project: [probe.definition] } } });
+  const project = await s.createProject("Page delegation", []);
+  const held = target("delegate.page_person_holds", ["user", "workflow"], [PERSON_HOLDS]);
+  const lacked = target("delegate.page_person_lacks", ["user", "workflow"], ["delegate:admin"]);
+  const closed = target("delegate.page_not_workflow", ["user"], [PERSON_HOLDS]);
+  const ran: string[] = [];
+  t.after(s.host.actionRegistry(project.reference).registerProvider({ provider: { provider_id: PERSON_HOLDS_PROVIDER, title: "Delegation targets", kind: "system" },
+    definitions: [held, lacked, closed], handlers: [held, lacked, closed].map(definition => ({ ...definition, handle: async () => { ran.push(definition.capability_id); return "done"; } })) }));
+  const page = await openedPage(s, project.project_id, probe);
+  for (const refused of [lacked, closed]) assert.notEqual((await page.run(refused)).status, 200, refused.capability_id);
+  // The page names only its installation's own actions: the person's reach is the running action's, never the page's.
+  assert.equal((await page.direct(held)).status, 403);
+  assert.deepEqual(ran, []); assert.equal(probe.delivered(), null);
+  assert.equal(probe.grants().includes(PERSON_HOLDS), false);
+  const response = await page.run(held);
+  assert.equal(response.status, 200, await response.clone().text());
+  assert.deepEqual(ran, [held.capability_id]); assert.equal(probe.delivered(), '"done"');
+});
+
+test("WBR-28 S-43 from the page's action gateway, an installation without actions:delegate gets nothing of the person's: a target needing a permission only the person holds is refused and never runs", async t => {
+  const held = target("delegate.page_plain_target", ["user", "workflow", "plugin"], [PERSON_HOLDS]);
+  const probe = pageProbe("pagedplain", false, [held.capability_id]);
+  const s = await openTestHome(t, { catalogPolicy: false, host: { pluginFixtures: { project: [probe.definition] } } });
+  const project = await s.createProject("Page without delegation", []);
+  const ran: string[] = [];
+  t.after(s.host.actionRegistry(project.reference).registerProvider({ provider: { provider_id: PERSON_HOLDS_PROVIDER, title: "Delegation targets", kind: "system" },
+    definitions: [held], handlers: [{ ...held, handle: async () => { ran.push(held.capability_id); return "done"; } }] }));
+  const page = await openedPage(s, project.project_id, probe);
+  const refused = await page.run(held);
+  assert.notEqual(refused.status, 200, await refused.clone().text());
+  assert.deepEqual(ran, []); assert.equal(probe.delivered(), null);
+  assert.equal(probe.grants().includes(PERSON_HOLDS), false);
+});
+
 const TYPED: ActionDefinition = { ...OPEN, capability_id: "delegate.typed", action: { ...OPEN.action, title: "delegate.typed",
   input_schema: { type: "object", properties: { title: { type: "string" } }, required: ["title"], additionalProperties: false } } };
 

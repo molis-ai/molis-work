@@ -48,7 +48,7 @@ node scripts/run-tests.mjs tests/observation-layer.test.ts
 - 负责：工作记录、证据快照、覆盖登记与缺口、上报动作 `observation.report@1`、来源范围、删项目与清除插件数据时的清理。
 - 不负责：任何业务事实（各主人自己的）；读取动作、保留期清理、用途开关（第 29 批）；评测留存（第 30 批）。
 - 公开入口：`@molis-ai/molis-work-service-observation`（`src/index.ts`）；合同 `@molis-ai/molis-work-contracts/services/observation`。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（只用 `defineAction`、`redactSecrets`）、`@molis-ai/molis-work-storage`（建库与本机正文保护）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（只用 `defineAction`、`redactSecrets`）、`@molis-ai/molis-work-storage`（建库与本机正文保护）。依赖方向只向下：不 import `apps/`、任何插件包或另一个横向服务的实现；宿主只装配本包。
 - 不变量：
   - 记录从不抛进、不等待、不拖慢它记的那件事：入队只追加，读库、加密、写盘都在写批里；写失败记成缺口（OCL-15）。
   - 主人、身份、项目、入口只从可信上下文来；写入方只能写自己前缀下的事实，外壳只经 Host 签发入口凭据的路由（安全不变量 `S-observation-records`）。

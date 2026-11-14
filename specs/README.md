@@ -45,7 +45,7 @@
 
 - [prologue-memory-strategy](prologue-memory-strategy/spec.md)：以记忆更精准、好用、省 token 为目标；App 自定义分类与读写策略矩阵、Prologue 多策略组合、首期质量闭环及 40 项验收。C0/Q0 已独立交付，Prologue C0 与 S1 已合并。Memory V0 按路线书决定 36 单独成批收口（[#2020](https://github.com/molis-ai/molis-work/pull/2020)），原验收、历史失败及 BL-1071～BL-1077 的去向见正文。
 - [unified-input-voice](unified-input-voice/spec.md)：平台统一输入组件与本地语音；第 10 批已实现公共组件、首页与助理接入（#1991，2026-11-09 合入 main）；第 11 批 K4 Coding 与 K5「待办」来源随 #2016 合入（2026-11-11），框架页来源按 BL 留待 K6 灵光之前；其余入口与语音待后续批。10-27 已定整体体验归属、插件开放注册与补充／排队／打断操作。
-- [observation-collection](observation-collection/spec.md)：观测和采集层，统一记录全平台获准的用户行为、过程、结果与历史条件，供评测和主动助理共用；2026-10-27 从主动助理需求迁出，需求已整理，尚未实现。需求维护 Codex；实施沿用 C 轨（Claude），防腐收尾后阶段 1 设计、阶段 2 接通、阶段 3 验证下游效果。
+- [observation-collection](observation-collection/spec.md)：观测和采集层，统一记录全平台获准的用户行为、过程、结果与历史条件，供评测和主动助理共用；2026-10-27 从主动助理需求迁出，需求已整理；第 28 批已接入写入面（[#2059](https://github.com/molis-ai/molis-work/pull/2059)，2026-11-14 合入 `4417d2bcd3`），读取、保留与清理在 29、评测在 30。需求维护 Codex；实施沿用 C 轨（Claude），防腐收尾后阶段 1 设计、阶段 2 接通、阶段 3 验证下游效果。
 - [proactive-assistant](proactive-assistant/spec.md)：个人助理的主动协助、场景 Skill 与后台任务；需求已整理，尚未实现（§13 的 PWA-27／PWA-137 常驻运行与错过提示已随第 25 批 #2034 于 2026-11-12 实现，其余未实现）。含工作记忆例程、路由、技能生成与跨源搜索；2026-10-28 补讨论中的诉求识别、主对话持续可用、连续交办和任务可视化。明确交办先在阶段 2 接通，主动工作阶段 3 复用；共用采集与维护由 observation-collection 承接，助理与评测分别消费。
 - [work-brief](work-brief/spec.md)：项目综合首页与工作简报；10-27 已定可选安装、未安装时的基础首页、共用公开来源／呈现、承接生成页面及 Feed 归属。基础首页已随第 15 批 #2017 实现并合入（2026-11-13，`b819373250`）；Work Brief 本体、周期报告、living page 与风险总览仍未实现。需求维护 Codex，实施沿原 E 轨并与 C/D/A 协作。
 - [coding-harness-optimization](coding-harness-optimization/spec.md)：Coding 与平台性能；需求已整理，尚未实现。

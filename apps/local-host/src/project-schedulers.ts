@@ -4,6 +4,8 @@ import { closeProjectClock, scheduleServiceFor } from "./project-clock.js";
 import type { ProjectScheduleRuntime } from "./web-types.js";
 
 type Composition = {
+  /** The Home whose work records the clocks' wakeups go to. */
+  home: string;
   runtimes: Map<string, ProjectScheduleRuntime>;
   changed(databasePath: string): void;
 };
@@ -48,7 +50,7 @@ export async function closeProjectSchedulers(host: MolisWorkLocalHost, runtime: 
 
 function activate(composition: Composition, runtime: MolisWorkProjectRuntime, reference: LocalHostProjectReference): void {
   if (composition.runtimes.has(reference.storage_key)) return;
-  const schedule = scheduleServiceFor(runtime.store.db);
+  const schedule = scheduleServiceFor(runtime.store.db, { home: composition.home, projectId: reference.project_id });
   if (!schedule.active) schedule.start();
   composition.runtimes.set(reference.storage_key, { schedule });
 }

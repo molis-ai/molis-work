@@ -41,6 +41,14 @@ export function installDeterminism(seed) {
     : realInterval(callback, period, ...rest);
   globalThis.setInterval = standingInterval;
   timers.setInterval = standingInterval;
+  // Knowledge's settle-after-change timer (2s) is a background organizer: whether its cards made it in must not depend on the machine.
+  // The same timer is the only 2s wait a generation needs; other waits use other delays.
+  const realTimeout = globalThis.setTimeout;
+  const standingTimeout = (callback, delay, ...rest) => delay === 2_000
+    ? realTimeout(() => undefined, delay, ...rest)
+    : realTimeout(callback, delay, ...rest);
+  globalThis.setTimeout = standingTimeout;
+  timers.setTimeout = standingTimeout;
 
   // A forked process runs on the same clock: the statement process enforces the deadlines this one gives it (scripts/golden/frozen-clock.mjs).
   const realFork = childProcess.fork;

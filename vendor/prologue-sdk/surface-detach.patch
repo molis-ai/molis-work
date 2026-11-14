@@ -1,6 +1,6 @@
 diff --git a/docs/slices/ui-surface-detach.md b/docs/slices/ui-surface-detach.md
 new file mode 100644
-index 0000000000000000000000000000000000000000..c991929af86102612bc38d897f4a585f0d615525
+index 00000000..c991929a
 --- /dev/null
 +++ b/docs/slices/ui-surface-detach.md
 @@ -0,0 +1,60 @@
@@ -65,7 +65,7 @@ index 0000000000000000000000000000000000000000..c991929af86102612bc38d897f4a585f
 +
 +Molis Work's batch 39 user approved this additional SDK scope on 2026-11-14; the same reviewer approved the optional cancellation parameters as the minimal completion of that scope. No version, release, real Home, unrelated upstream or compatibility changes are included. On 2026-11-14, the 47 new `ui-surface-target.live.test.ts` cases, SDK build, strict TypeScript check of that file and dependencies, public API check, quality ratchet against `1cc80b05253df798eeb34afff65d1bda06bee587` and live-document links passed. The same GPT-6.1 high reviewer approved this supplement's code and C contract after the original-reference, duplicate-preparation and shutdown-tail findings were fixed. These are local SDK engineering results, not Molis Host consumption, real OS input or product acceptance; prior tests and full regressions remain for the batch's final verification.
 diff --git a/packages/sdk/src/composition/core/agent-permissions.ts b/packages/sdk/src/composition/core/agent-permissions.ts
-index 08d0921475820bea2b75d3678aba3d44674eb7da..2b6e8334e3b9c91ff54e993bca03ac6ddeccf017 100644
+index 08d09214..2b6e8334 100644
 --- a/packages/sdk/src/composition/core/agent-permissions.ts
 +++ b/packages/sdk/src/composition/core/agent-permissions.ts
 @@ -60,7 +60,9 @@ export function bindAgentEffects(input: {
@@ -80,7 +80,7 @@ index 08d0921475820bea2b75d3678aba3d44674eb7da..2b6e8334e3b9c91ff54e993bca03ac6d
        const held = authority();
        const bound = { ...request, recheck: async (effect: Parameters<typeof request.recheck>[0]) => active && await request.recheck(effect) };
 diff --git a/packages/sdk/src/composition/core/assemble-integrations.ts b/packages/sdk/src/composition/core/assemble-integrations.ts
-index b281a286fb9fcd201e28fe9d73415e5e10522609..6b6959c0dfc36fe54231e62024f47f064b4638d2 100644
+index b281a286..6b6959c0 100644
 --- a/packages/sdk/src/composition/core/assemble-integrations.ts
 +++ b/packages/sdk/src/composition/core/assemble-integrations.ts
 @@ -11,7 +11,7 @@ import { TYPESAFE_SYSTEMONE } from "../../model/plugin/typesafe-systemone.js";
@@ -121,7 +121,7 @@ index b281a286fb9fcd201e28fe9d73415e5e10522609..6b6959c0dfc36fe54231e62024f47f06
    };
  }
 diff --git a/packages/sdk/src/composition/core/assemble-tooling.ts b/packages/sdk/src/composition/core/assemble-tooling.ts
-index e5c47f7f9f629b5771f08b9ac4ad9470ab20896d..599293a81eff92526b25d3c26dacdb2cd097307b 100644
+index e5c47f7f..599293a8 100644
 --- a/packages/sdk/src/composition/core/assemble-tooling.ts
 +++ b/packages/sdk/src/composition/core/assemble-tooling.ts
 @@ -5,6 +5,7 @@
@@ -189,7 +189,7 @@ index e5c47f7f9f629b5771f08b9ac4ad9470ab20896d..599293a81eff92526b25d3c26dacdb2c
      now: () => scope.runtime.readClock(),
      /*
 diff --git a/packages/sdk/src/composition/core/runtime-lifecycle.ts b/packages/sdk/src/composition/core/runtime-lifecycle.ts
-index 11970d717b6380f479b3aa08efa2261cda643eff..4fcff8b3b670b17aaf0c73275b727d38b3995c6d 100644
+index 11970d71..4fcff8b3 100644
 --- a/packages/sdk/src/composition/core/runtime-lifecycle.ts
 +++ b/packages/sdk/src/composition/core/runtime-lifecycle.ts
 @@ -28,7 +28,7 @@ export async function runtimeShutdown(
@@ -238,7 +238,7 @@ index 11970d717b6380f479b3aa08efa2261cda643eff..4fcff8b3b670b17aaf0c73275b727d38
  }
 
 diff --git a/packages/sdk/src/composition/core/runtime-scope.ts b/packages/sdk/src/composition/core/runtime-scope.ts
-index 839b3637e5f8b3bac58764c8eb6db38922c79c65..cdecbf555176321898ffcf97a75f8608e0bc37d1 100644
+index 839b3637..cdecbf55 100644
 --- a/packages/sdk/src/composition/core/runtime-scope.ts
 +++ b/packages/sdk/src/composition/core/runtime-scope.ts
 @@ -279,6 +279,8 @@ export interface RuntimeScope {
@@ -252,7 +252,7 @@ index 839b3637e5f8b3bac58764c8eb6db38922c79c65..cdecbf555176321898ffcf97a75f8608
    readonly notifier: Notifier;
 diff --git a/packages/sdk/src/composition/core/surface-tool-resources.ts b/packages/sdk/src/composition/core/surface-tool-resources.ts
 new file mode 100644
-index 0000000000000000000000000000000000000000..1534e18cac3131cadf697a77bbf78d1b41303ead
+index 00000000..1534e18c
 --- /dev/null
 +++ b/packages/sdk/src/composition/core/surface-tool-resources.ts
 @@ -0,0 +1,45 @@
@@ -302,7 +302,7 @@ index 0000000000000000000000000000000000000000..1534e18cac3131cadf697a77bbf78d1b
 +  };
 +}
 diff --git a/packages/sdk/src/composition/core/system-tools-context.ts b/packages/sdk/src/composition/core/system-tools-context.ts
-index 3aac365bf0c86a29683f5eab46462a221eee9d08..b599138f36de0e6098cf82823bcc04c76210893e 100644
+index 3aac365b..b599138f 100644
 --- a/packages/sdk/src/composition/core/system-tools-context.ts
 +++ b/packages/sdk/src/composition/core/system-tools-context.ts
 @@ -203,6 +203,8 @@ export interface SystemToolInput {
@@ -315,7 +315,7 @@ index 3aac365bf0c86a29683f5eab46462a221eee9d08..b599138f36de0e6098cf82823bcc04c7
      /**
       * 一次文字观察的正文，给模型读的那一份：**有上限，超了明说截了**。
 diff --git a/packages/sdk/src/composition/core/system-tools-surface.ts b/packages/sdk/src/composition/core/system-tools-surface.ts
-index c2c42cea4a1fd278bbfd4edb293d1eeeaa89a2e9..b6130689cdbb1b43c3528c142d3ec39392e152e4 100644
+index c2c42cea..b6130689 100644
 --- a/packages/sdk/src/composition/core/system-tools-surface.ts
 +++ b/packages/sdk/src/composition/core/system-tools-surface.ts
 @@ -7,6 +7,8 @@
@@ -405,7 +405,7 @@ index c2c42cea4a1fd278bbfd4edb293d1eeeaa89a2e9..b6130689cdbb1b43c3528c142d3ec393
        /*
         * **驱动说「现在不行」是一次失败，而且说得出为什么、该怎么办。** 回执的状态照实带上：
 diff --git a/packages/sdk/src/effect-policy/README.md b/packages/sdk/src/effect-policy/README.md
-index d3043688b2ba1edbd5025149212a6f4d61aee36b..1f63d686422aeea8de97bca86b9b170666988ff9 100644
+index d3043688..1f63d686 100644
 --- a/packages/sdk/src/effect-policy/README.md
 +++ b/packages/sdk/src/effect-policy/README.md
 @@ -14,6 +14,8 @@
@@ -418,7 +418,7 @@ index d3043688b2ba1edbd5025149212a6f4d61aee36b..1f63d686422aeea8de97bca86b9b1706
 
  问卷这一段（题型、冻结、上界、逐题校验与取值）在 `core/questionnaire.ts`：带类型的题（文本、数字、日期、日期时间、对象引用）、必填、预填、选项说明与推荐，以及公开的纯函数 `validateQuestionnaireAnswer`——App 提交前用它逐题标错，`answer` 用同一把尺做最终判定。合同见 [AskUser 带类型的题](../../../../docs/slices/ask-user-fields.md)。
 diff --git a/packages/sdk/src/effect-policy/core/chain.ts b/packages/sdk/src/effect-policy/core/chain.ts
-index 62cf058998021bc929e1c38fb1ddafe1f643d090..dc028c6cb4436b638ba9bfb6325f5766509fb286 100644
+index 62cf0589..dc028c6c 100644
 --- a/packages/sdk/src/effect-policy/core/chain.ts
 +++ b/packages/sdk/src/effect-policy/core/chain.ts
 @@ -1,3 +1,4 @@
@@ -489,7 +489,7 @@ index 62cf058998021bc929e1c38fb1ddafe1f643d090..dc028c6cb4436b638ba9bfb6325f5766
          }
 diff --git a/packages/sdk/src/effect-policy/core/effect-persistence.ts b/packages/sdk/src/effect-policy/core/effect-persistence.ts
 new file mode 100644
-index 0000000000000000000000000000000000000000..47bb7977f6204fd1f577995c131bb0a132032486
+index 00000000..47bb7977
 --- /dev/null
 +++ b/packages/sdk/src/effect-policy/core/effect-persistence.ts
 @@ -0,0 +1,66 @@
@@ -560,7 +560,7 @@ index 0000000000000000000000000000000000000000..47bb7977f6204fd1f577995c131bb0a1
 +  };
 +}
 diff --git a/packages/sdk/src/effect-policy/core/index.ts b/packages/sdk/src/effect-policy/core/index.ts
-index b267dafbeabd152bfe2c394d7ff1b2cfb7079ae5..8e6421aefcad963daefd742e38fd7a98e706f40a 100644
+index b267dafb..8e6421ae 100644
 --- a/packages/sdk/src/effect-policy/core/index.ts
 +++ b/packages/sdk/src/effect-policy/core/index.ts
 @@ -97,3 +97,4 @@ export {
@@ -570,7 +570,7 @@ index b267dafbeabd152bfe2c394d7ff1b2cfb7079ae5..8e6421aefcad963daefd742e38fd7a98
 +export { isUncertainPolicyCommit } from "./effect-persistence.js";
 diff --git a/packages/sdk/src/effect-policy/core/stored-policy-types.ts b/packages/sdk/src/effect-policy/core/stored-policy-types.ts
 new file mode 100644
-index 0000000000000000000000000000000000000000..6d91f9dd2001c2c4ffb4793a9469d06191a238f9
+index 00000000..6d91f9dd
 --- /dev/null
 +++ b/packages/sdk/src/effect-policy/core/stored-policy-types.ts
 @@ -0,0 +1,67 @@
@@ -642,7 +642,7 @@ index 0000000000000000000000000000000000000000..6d91f9dd2001c2c4ffb4793a9469d061
 +  readPending(id: string): Promise<HeldPending | undefined>;
 +}
 diff --git a/packages/sdk/src/effect-policy/core/stored-policy.ts b/packages/sdk/src/effect-policy/core/stored-policy.ts
-index d1dfeb8c350ce908b300f2c1ea93e44ddcf86694..4092339c7aa7a3beed57c4ccfcd761cb55ccae4d 100644
+index d1dfeb8c..4092339c 100644
 --- a/packages/sdk/src/effect-policy/core/stored-policy.ts
 +++ b/packages/sdk/src/effect-policy/core/stored-policy.ts
 @@ -39,66 +39,8 @@ import {
@@ -813,10 +813,10 @@ index d1dfeb8c350ce908b300f2c1ea93e44ddcf86694..4092339c7aa7a3beed57c4ccfcd761cb
    };
  }
 diff --git a/packages/sdk/src/index.ts b/packages/sdk/src/index.ts
-index a3e4418c1dc4a6c70db0545d3823b5bbf6c28646..4374ba2443ebd5e1ff0494d125721b9f92878f0f 100644
+index a297d009..9598ca57 100644
 --- a/packages/sdk/src/index.ts
 +++ b/packages/sdk/src/index.ts
-@@ -711,6 +711,8 @@ export type {
+@@ -713,6 +713,8 @@ export type {
    UiLimits,
    UiProposal,
    UiReceipt,
@@ -826,7 +826,7 @@ index a3e4418c1dc4a6c70db0545d3823b5bbf6c28646..4374ba2443ebd5e1ff0494d125721b9f
    UiTarget,
  } from "./ui-control/api/index.js";
 diff --git a/packages/sdk/src/mcp/plugin/stdio.ts b/packages/sdk/src/mcp/plugin/stdio.ts
-index d453129c0add2dbb89a5106d1c96192be5602b57..4b0c9332a2a953140a84e9b60ece45f0b3b47fea 100644
+index d453129c..4b0c9332 100644
 --- a/packages/sdk/src/mcp/plugin/stdio.ts
 +++ b/packages/sdk/src/mcp/plugin/stdio.ts
 @@ -74,10 +74,44 @@ export interface StdioServerSpec {
@@ -926,7 +926,7 @@ index d453129c0add2dbb89a5106d1c96192be5602b57..4b0c9332a2a953140a84e9b60ece45f0
            }
            if (sealed) {
 diff --git a/packages/sdk/src/ui-control/README.md b/packages/sdk/src/ui-control/README.md
-index 61ae3bba6f72002b6950c10accef5abb0422fc98..853216490b92b0db2f88d3693ba351a195d81637 100644
+index 61ae3bba..85321649 100644
 --- a/packages/sdk/src/ui-control/README.md
 +++ b/packages/sdk/src/ui-control/README.md
 @@ -23,7 +23,9 @@
@@ -949,7 +949,7 @@ index 61ae3bba6f72002b6950c10accef5abb0422fc98..853216490b92b0db2f88d3693ba351a1
 +
 +Original observation identity/scope now travels in `UiExpectedTarget` through observe, assess and perform. Drivers must compare it and keep its synchronous check through their final read/input boundary. Trusted approval adapters use `reviewTarget(exactEffectRef)` to find the original pending plan, not the latest focused target. Single-call cancellation belongs to that observe or prepared plan; it is never global surface state. See UID-05–08 in the [surface contract](../../../../docs/slices/ui-surface-detach.md).
 diff --git a/packages/sdk/src/ui-control/api/index.ts b/packages/sdk/src/ui-control/api/index.ts
-index 44f4951d9b10c0c0f8f477fd28b2dee228d0252e..88d9ce0dffed3cf2522f6dcc3a80b1bde9e24775 100644
+index 44f4951d..88d9ce0d 100644
 --- a/packages/sdk/src/ui-control/api/index.ts
 +++ b/packages/sdk/src/ui-control/api/index.ts
 @@ -21,6 +21,8 @@ export {
@@ -963,7 +963,7 @@ index 44f4951d9b10c0c0f8f477fd28b2dee228d0252e..88d9ce0dffed3cf2522f6dcc3a80b1bd
  } from "../core/index.js";
 diff --git a/packages/sdk/src/ui-control/core/control-operations.ts b/packages/sdk/src/ui-control/core/control-operations.ts
 new file mode 100644
-index 0000000000000000000000000000000000000000..61385b6f1ee0a1ca10f66ffd3acaad3b265ed3fe
+index 00000000..61385b6f
 --- /dev/null
 +++ b/packages/sdk/src/ui-control/core/control-operations.ts
 @@ -0,0 +1,376 @@
@@ -1345,7 +1345,7 @@ index 0000000000000000000000000000000000000000..61385b6f1ee0a1ca10f66ffd3acaad3b
 +}
 diff --git a/packages/sdk/src/ui-control/core/control-state.ts b/packages/sdk/src/ui-control/core/control-state.ts
 new file mode 100644
-index 0000000000000000000000000000000000000000..aa7133ceaf6cdb4c93a109edb62a09544f797885
+index 00000000..aa7133ce
 --- /dev/null
 +++ b/packages/sdk/src/ui-control/core/control-state.ts
 @@ -0,0 +1,202 @@
@@ -1552,7 +1552,7 @@ index 0000000000000000000000000000000000000000..aa7133ceaf6cdb4c93a109edb62a0954
 +  };
 +}
 diff --git a/packages/sdk/src/ui-control/core/control.ts b/packages/sdk/src/ui-control/core/control.ts
-index ba4b480f64d91bb3a8b1379e9bd0149f0f7a9771..a903151bafde4898701724d52e2132a977d99a27 100644
+index ba4b480f..a903151b 100644
 --- a/packages/sdk/src/ui-control/core/control.ts
 +++ b/packages/sdk/src/ui-control/core/control.ts
 @@ -1,1180 +1,79 @@
@@ -2795,7 +2795,7 @@ index ba4b480f64d91bb3a8b1379e9bd0149f0f7a9771..a903151bafde4898701724d52e2132a9
 +  return { control, settleDetached: state.settleDetached, guard: state.guard };
  }
 diff --git a/packages/sdk/src/ui-control/core/index.ts b/packages/sdk/src/ui-control/core/index.ts
-index ec10ed1d347a7d9bb734b63389f6a777592ba4a9..ab47d171f016bf79bb43deb57f47ce7e4911beae 100644
+index ec10ed1d..ab47d171 100644
 --- a/packages/sdk/src/ui-control/core/index.ts
 +++ b/packages/sdk/src/ui-control/core/index.ts
 @@ -2,6 +2,7 @@ export {
@@ -2821,7 +2821,7 @@ index ec10ed1d347a7d9bb734b63389f6a777592ba4a9..ab47d171f016bf79bb43deb57f47ce7e
 +export { assertSurfaceAuthority } from "./surface.js";
 diff --git a/packages/sdk/src/ui-control/core/surface.ts b/packages/sdk/src/ui-control/core/surface.ts
 new file mode 100644
-index 0000000000000000000000000000000000000000..aaaee15b92aef97748b6f810fc0a81933a02da83
+index 00000000..aaaee15b
 --- /dev/null
 +++ b/packages/sdk/src/ui-control/core/surface.ts
 @@ -0,0 +1,732 @@
@@ -3558,7 +3558,7 @@ index 0000000000000000000000000000000000000000..aaaee15b92aef97748b6f810fc0a8193
 +  return { irreversible: true, why: why.length > 0 ? why : undefined };
 +}
 diff --git a/packages/sdk/test/mcp-stdio.live.test.ts b/packages/sdk/test/mcp-stdio.live.test.ts
-index 2615e8e010caa44e065add80cca4f0680fe1ab0a..f88c59ec02d25c5f093ec2a7c2e33671d5795ccc 100644
+index 2615e8e0..f88c59ec 100644
 --- a/packages/sdk/test/mcp-stdio.live.test.ts
 +++ b/packages/sdk/test/mcp-stdio.live.test.ts
 @@ -11,6 +11,7 @@ import {
@@ -3636,10 +3636,10 @@ index 2615e8e010caa44e065add80cca4f0680fe1ab0a..f88c59ec02d25c5f093ec2a7c2e33671
      /*
       * MCP 服务端也会发请求（要我们调模型、列根目录），而那些**带 id**。
 diff --git a/packages/sdk/test/public-api.snapshot.txt b/packages/sdk/test/public-api.snapshot.txt
-index 8ff3abc106312609a0906ba55e390d5a47428956..82032b41a402f18247a74bfe649427356d09da34 100644
+index 48b6020e..70b2bf11 100644
 --- a/packages/sdk/test/public-api.snapshot.txt
 +++ b/packages/sdk/test/public-api.snapshot.txt
-@@ -1228,10 +1228,12 @@ UiActPicture
+@@ -1233,10 +1233,12 @@ UiActPicture
  UiAssessment
  UiControl
  UiControlDeps
@@ -3652,7 +3652,7 @@ index 8ff3abc106312609a0906ba55e390d5a47428956..82032b41a402f18247a74bfe64942735
  UiSurface
  UiTarget
  unifiedDiff
-@@ -3199,6 +3201,7 @@ export interface SystemToolInput {
+@@ -3227,6 +3229,7 @@ export interface SystemToolInput {
      readonly onCommandReceipt?: (callId: string, record: import("../../workspace/core/index.js").WorkspaceCommandRecord) => Promise<void>;
      readonly surfaces?: {
          readonly control: UiControl;
@@ -3660,7 +3660,7 @@ index 8ff3abc106312609a0906ba55e390d5a47428956..82032b41a402f18247a74bfe64942735
          readonly stageText: (body: string) => Promise<ExactRef<"resource">>;
          readonly readText?: (ref: ExactRef<"resource">, maxChars: number) => Promise<{
              readonly text: string;
-@@ -4665,7 +4668,7 @@ effect-policy/core/chain.d.ts :: EffectChain
+@@ -4693,7 +4696,7 @@ effect-policy/core/chain.d.ts :: EffectChain
  export interface EffectChain {
      evaluate(proposal: EffectProposal): PolicyDecision;
      restriction(proposal: EffectProposal): PolicyOutcome | undefined;
@@ -3669,7 +3669,7 @@ index 8ff3abc106312609a0906ba55e390d5a47428956..82032b41a402f18247a74bfe64942735
      get(ref: ExactRef<"effect">): Effect | undefined;
      openEffects(): readonly Effect[];
      find(inputFingerprint: string): Effect | undefined;
-@@ -6841,6 +6844,11 @@ export interface StdioServerSpec {
+@@ -6869,6 +6872,11 @@ export interface StdioServerSpec {
      readonly cwd?: string;
      readonly envAllowlist?: readonly string[];
      readonly requestTimeoutMs?: number;
@@ -3681,7 +3681,7 @@ index 8ff3abc106312609a0906ba55e390d5a47428956..82032b41a402f18247a74bfe64942735
  }
 
  memory/core/access.d.ts :: MemoryAccessRequest
-@@ -14451,18 +14459,18 @@ export interface SystemToolAvailability {
+@@ -14495,18 +14503,18 @@ export interface SystemToolAvailability {
  tool/core/system.d.ts :: SystemToolName
  export type SystemToolName = (typeof SYSTEM_TOOL_NAMES)[number];
 
@@ -3706,7 +3706,7 @@ index 8ff3abc106312609a0906ba55e390d5a47428956..82032b41a402f18247a74bfe64942735
  export interface Observation {
      readonly ref: ExactRef<"observation">;
      readonly targetRef: ExactRef<"ui-target">;
-@@ -14472,29 +14480,29 @@ export interface Observation {
+@@ -14516,29 +14524,29 @@ export interface Observation {
      readonly expiresAtMs: number;
  }
 
@@ -3743,7 +3743,7 @@ index 8ff3abc106312609a0906ba55e390d5a47428956..82032b41a402f18247a74bfe64942735
  export type UiAction = Readonly<{
      what: "pointer";
      x: number;
-@@ -14544,18 +14552,18 @@ export type UiAction = Readonly<{
+@@ -14588,18 +14596,18 @@ export type UiAction = Readonly<{
      path: readonly string[];
  }>;
 
@@ -3765,7 +3765,7 @@ index 8ff3abc106312609a0906ba55e390d5a47428956..82032b41a402f18247a74bfe64942735
  export interface UiControl {
      attach(surface: UiSurface, options?: {
          readonly owner?: ExactRef<"session">;
-@@ -14563,10 +14571,12 @@ export interface UiControl {
+@@ -14607,10 +14615,12 @@ export interface UiControl {
      targetOfObservation(ref: ExactRef<"observation">): UiTarget | undefined;
      get(ref: ExactRef<"ui-target">): UiTarget | undefined;
      list(): readonly UiTarget[];
@@ -3778,7 +3778,7 @@ index 8ff3abc106312609a0906ba55e390d5a47428956..82032b41a402f18247a74bfe64942735
      }): Promise<Observation>;
      prepare(input: {
          readonly observationRef: ExactRef<"observation">;
-@@ -14575,6 +14585,7 @@ export interface UiControl {
+@@ -14619,6 +14629,7 @@ export interface UiControl {
          readonly nowMs: number;
          readonly gate?: EffectGate;
          readonly clockMs?: () => Promise<number>;
@@ -3786,7 +3786,7 @@ index 8ff3abc106312609a0906ba55e390d5a47428956..82032b41a402f18247a74bfe64942735
      }): Promise<UiProposal>;
      perform(input: {
          readonly effectRef: ExactRef<"effect">;
-@@ -14582,9 +14593,10 @@ export interface UiControl {
+@@ -14626,9 +14637,10 @@ export interface UiControl {
          readonly cancelled?: () => boolean;
      }): Promise<UiReceipt>;
      close(ref: ExactRef<"ui-target">): Promise<UiTarget>;
@@ -3798,7 +3798,7 @@ index 8ff3abc106312609a0906ba55e390d5a47428956..82032b41a402f18247a74bfe64942735
  export interface UiControlDeps {
      readonly chain: EffectChain;
      readonly store: ResourceStore;
-@@ -14594,23 +14606,30 @@ export interface UiControlDeps {
+@@ -14638,23 +14650,30 @@ export interface UiControlDeps {
      readonly redactScreenshot?: (bytes: Uint8Array) => Promise<Uint8Array>;
  }
 
@@ -3833,7 +3833,7 @@ index 8ff3abc106312609a0906ba55e390d5a47428956..82032b41a402f18247a74bfe64942735
  export interface UiReceipt {
      readonly effectRef: ExactRef<"effect">;
      readonly state: EffectState;
-@@ -14620,19 +14639,26 @@ export interface UiReceipt {
+@@ -14664,19 +14683,26 @@ export interface UiReceipt {
      readonly modelImage?: Uint8Array;
  }
 
@@ -3867,7 +3867,7 @@ index 8ff3abc106312609a0906ba55e390d5a47428956..82032b41a402f18247a74bfe64942735
      readonly kind: SurfaceKind;
 diff --git a/packages/sdk/test/ui-surface-detach.live.test.ts b/packages/sdk/test/ui-surface-detach.live.test.ts
 new file mode 100644
-index 0000000000000000000000000000000000000000..472da41ec2e05eabe3da8bf2a1143b3cd255a199
+index 00000000..472da41e
 --- /dev/null
 +++ b/packages/sdk/test/ui-surface-detach.live.test.ts
 @@ -0,0 +1,668 @@
@@ -4541,7 +4541,7 @@ index 0000000000000000000000000000000000000000..472da41ec2e05eabe3da8bf2a1143b3c
 +});
 diff --git a/packages/sdk/test/ui-surface-target.live.test.ts b/packages/sdk/test/ui-surface-target.live.test.ts
 new file mode 100644
-index 0000000000000000000000000000000000000000..abac9842c8b34ab064156c825f0c1b6234940048
+index 00000000..abac9842
 --- /dev/null
 +++ b/packages/sdk/test/ui-surface-target.live.test.ts
 @@ -0,0 +1,470 @@

@@ -192,7 +192,7 @@ export type {
   StoredProjectDeletion,
 };
 export { listCatalogProjectsForUninstall } from "./installation-inspection.js";
-export { dropHostWorktreeLinks, fillProjectOutputs, PROJECTS_CATALOG_UPGRADE_1_SQL, upgradeProjectsCatalog1, verifyProjectOutputs, type HostWorktreeTest } from "./catalog-upgrade.js";
+export { dropHostWorktreeLinks, fillProjectOutputs, PROJECTS_CATALOG_UPGRADE_1_SQL, upgradeProjectsCatalog1, upgradeProjectsCatalog3, verifyProjectOutputs, type HostWorktreeTest } from "./catalog-upgrade.js";
 export { MATERIAL_RECENT_USES_SCHEMA_SQL, MaterialRecentUses, type MaterialRecentCaller } from "./material-recent.js";
 export {
   isProjectOutputWorkspaceId, prepareProjectOutputDirectory, projectOutputContents, projectOutputDirectoryPath, projectOutputHash, projectOutputWorkspaceId,

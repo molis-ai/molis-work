@@ -255,13 +255,22 @@ export function assertPluginReadCurrent(instance: PluginInstance): void {
   // What the caller's checks look at (grants, the Home's catalog, a discussion's members) changes only from another request, which runs
   // in a task of its own: within one turn the first read's answer holds for the rest, and only the call's own signal is asked again.
   // A write still asks everything before every statement.
-  if (scope && readCheckedIn.get(scope) === turn && inPluginInstance(scope, instance)) { scope.caller.signal?.throwIfAborted(); return; }
+  const checked = scope ? readCheckedIn.get(scope) : undefined;
+  if (scope && checked?.turn === turn && checked.generation === readCheckGeneration && inPluginInstance(scope, instance)) {
+    scope.caller.signal?.throwIfAborted(); return;
+  }
   assertCapturedPluginActionCurrent(scope, instance);
-  if (scope) readCheckedIn.set(scope, turn);
+  if (scope) readCheckedIn.set(scope, { turn, generation: readCheckGeneration });
 }
 
-const readCheckedIn = new WeakMap<PluginInvocationScope, object>();
+const readCheckedIn = new WeakMap<PluginInvocationScope, { turn: object; generation: number }>();
 let turn: object | undefined;
+let readCheckGeneration = 0;
+
+/** Bumped by every writer that changes authorization, enablement, display or the catalog. A read cache keyed by (turn, generation)
+ *  stops relying on which microtask queued first (BL-read-check-generation). */
+export function advanceReadCheckGeneration(): void { readCheckGeneration += 1; }
+export function currentReadCheckGeneration(): number { return readCheckGeneration; }
 
 /**
  * The turn the code now running is in: the same object until the microtasks queued so far have run. Anything another request changes is

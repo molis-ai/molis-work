@@ -187,6 +187,44 @@ test("UIC-08: an AI composer with no stop callback has no inert stop button", { 
   assert.equal(await c.page.evaluate("Boolean(document.querySelector('#composer-probe [data-composer-stop]'))"), false);
 });
 
+test("BCD-01 BCD-11 BCD-12: the line above the box follows the page, takes the read-only outline, keeps its node and is read with the box", { timeout: 120_000 }, async (t) => {
+  const c = await open(t);
+  if (!c) return;
+  await c.mountPlain();
+  await c.page.evaluate(`(() => {
+    const root = document.getElementById("composer-probe"); globalThis.composerHandle.destroy(); root.replaceChildren();
+    globalThis.noticeRuns = 0;
+    globalThis.noticeNow = { text: "「讨论」只读", tone: "readonly", action: { label: "换成修改", run: () => { globalThis.noticeRuns++; globalThis.noticeNow = null; globalThis.composerHandle.refresh(); } } };
+    globalThis.composerHandle = window.molisComposer(root, { kind: "ai", labels: ${JSON.stringify(COMPOSER_AI_LABELS)}, entry: "notice", draft: { conversation: "notice" },
+      notice: () => globalThis.noticeNow, submit: async () => ({ state: "sent" }) });
+  })()`);
+  await c.ready("#composer-probe");
+  await c.page.wait("Boolean(document.querySelector('#composer-probe .mw-composer__notice'))");
+  const look = () => c.page.evaluate<{ text: string; tone: string; before: boolean; described: boolean; outline: string; rest: boolean; animated: boolean }>(`(() => {
+    const shell = document.querySelector("#composer-probe .mw-composer"), line = shell.querySelector(".mw-composer__notice"), box = shell.querySelector(".mw-composer__box");
+    const field = shell.querySelector(".mw-composer__input");
+    return { text: line?.textContent ?? "", tone: shell.dataset.notice ?? "", before: line?.nextElementSibling === box, described: (field.getAttribute("aria-describedby") ?? "").split(" ").includes(line?.id ?? "-"),
+      outline: getComputedStyle(box).boxShadow, rest: shell.hasAttribute("data-rest"), animated: line ? getComputedStyle(line).animationName !== "none" : false };
+  })()`);
+  let seen = await look();
+  assert.match(seen.text, /「讨论」只读.*换成修改/u); assert.equal(seen.tone, "readonly");
+  assert.ok(seen.before, "BCD-11: above the box, also when the box is at rest"); assert.ok(seen.described, "BCD-12: the box is described by the line");
+  const readOnly = seen.outline;
+  await c.page.evaluate("document.querySelector('#composer-probe .mw-composer__input').focus()");
+  assert.equal((await look()).outline, readOnly, "BCD-01: focus keeps the read-only outline");
+  // The same words again: the same node, so nothing is announced again (BCD-12).
+  await c.page.evaluate("globalThis.noticeNode = document.querySelector('#composer-probe .mw-composer__notice'); globalThis.composerHandle.refresh()");
+  assert.equal(await c.page.evaluate("document.querySelector('#composer-probe .mw-composer__notice') === globalThis.noticeNode"), true);
+  await c.page.command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] });
+  assert.equal((await look()).animated, false, "BCD-11: no entrance under reduced motion");
+  await c.page.evaluate("document.querySelector('#composer-probe [data-composer-notice]').click()");
+  await c.page.wait("!document.querySelector('#composer-probe .mw-composer__notice')");
+  assert.equal(await c.page.evaluate("globalThis.noticeRuns"), 1);
+  seen = await look();
+  assert.equal(seen.tone, ""); assert.equal(seen.described, false, "BCD-01: null takes the line away");
+  assert.notEqual(seen.outline, readOnly, "BCD-01: without the line the focused box has its own outline again");
+});
+
 async function open(t: TestContext, locale: "zh" | "en" = "zh") {
   // The browser first: `after` hooks run in the order they were added, so it lets go of the page before the Home closes.
   const directory = await mkdtemp(join(tmpdir(), "composer-e2e-"));

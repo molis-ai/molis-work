@@ -47,6 +47,11 @@ export const HOME_OFFERS_FACTORY_SCRIPT = `(host) => {
     if (rendered.get(node)?.html !== html || rendered.get(node)?.key !== state.key) {
       const keepResultOpen = rendered.get(node)?.key === state.key && node.querySelector('.home-offers-result')?.open;
       node.innerHTML = html; rendered.set(node, { html, key: state.key });
+      // The offers as shown, in order, for the subject in view (ui.candidates); running one is the Host's action, the exit's record.
+      const shownOffers = offers.map(({ offer }) => offer.offer_id || offer.recommendation_key || offer.title).join('\\n');
+      if (host.records && offers.length && !state.loading && state.recorded !== shownOffers && (state.recorded = shownOffers)) host.records.record({ fact: 'ui.candidates', stage: 'presented', work: { work_ref: 'ui:home-offers:' + state.requestId },
+        subjects: [host.records.subject(state.subject.kind, state.subject.id), ...offers.slice(0, 15).map(({ offer }) => host.records.subject('home_offer', offer.offer_id || offer.recommendation_key || offer.title))],
+        detail: { list: 'home_offers', count: offers.length } });
       if (keepResultOpen && node.querySelector('.home-offers-result')) node.querySelector('.home-offers-result').open = true;
     }
     if(state.error && typeof state.error!=='string')molisWorkRequest.show(node.querySelector('[role=alert]'),state.error);

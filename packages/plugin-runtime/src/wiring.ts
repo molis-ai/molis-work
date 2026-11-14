@@ -3,6 +3,7 @@ import type {
   ArtifactVersionRecord,
   FixedVersionRecord,
 } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import { advanceReadCheckGeneration } from "./action-scope.js";
 import {
   PluginWiringError,
   portTypeKey,
@@ -331,7 +332,7 @@ export class PluginInputGraph implements PluginWiringApi {
   /** Activation/revocation invalidates the previous instance's input context. */
   revoke(pluginId: string): void {
     this.#revoke(pluginId);
-    this.#dispatched.delete(pluginId);
+    this.#dispatched.delete(pluginId); advanceReadCheckGeneration();
   }
 
   /** A failed journal read cannot leave previously delivered inputs authoritative. */

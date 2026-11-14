@@ -12,6 +12,7 @@ import { enterHome, goldenActions, loadGoldenWrites, openGoldenHost, root } from
 const local = await import("@molis-ai/molis-work-app-local-host");
 const { withMolisWorkProjectCatalog } = await import("@molis-ai/molis-work-app-desktop");
 const { KnowledgeOrganizer } = await import("@molis-ai/molis-work-service-knowledge");
+const { ObservationLayer } = await import("@molis-ai/molis-work-service-observation");
 const { addProjectPlugin, createProject, LocalHostHttpClient } = await import("@molis-ai/molis-work-test-kit/local-host-http");
 const { verifyPluginPackageSignature } = await import("@molis-ai/molis-work-plugin-runtime");
 const { openBaselineHomeSqlite, bindDatabaseSpace, readStorageSpace } = await import("@molis-ai/molis-work-storage");
@@ -30,6 +31,22 @@ export function holdAutomaticKnowledgeOrganization() {
   const kick = KnowledgeOrganizer.prototype.kick;
   KnowledgeOrganizer.prototype.kick = () => Promise.resolve();
   return () => { KnowledgeOrganizer.prototype.kick = kick; };
+}
+
+/**
+ * A generation writes no work records. Every call the Host settles is one (batch 28), numbered and given its id in the order concurrent calls
+ * finish, and that order is the machine's: search refreshes its known sources in parallel, 800 ms after a change, so two generations hold the
+ * same calls in another order, under other ids and evidence nonces, and shift the seeded stream the next encryption draws from. The library is
+ * still opened by its owner and kept with its current structure, in both Homes; recorded in the manifest's `imports`.
+ */
+export function holdObservationRecords() {
+  const methods = ["observed", "sink", "reportAction"];
+  const originals = Object.fromEntries(methods.map(name => [name, ObservationLayer.prototype[name]]));
+  for (const name of methods) ObservationLayer.prototype[name] = function (...args) {
+    this.writer.enqueue = () => undefined;
+    return originals[name].apply(this, args);
+  };
+  return () => { Object.assign(ObservationLayer.prototype, originals); };
 }
 
 /** The third-party sample: the one corpus entry that has a write, read back through its own action. */

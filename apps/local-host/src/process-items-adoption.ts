@@ -23,8 +23,10 @@ import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
 
 /**
  * The explicit, isolated adoption of one Home's project libraries (specs/batch-06-shared-tools/current-version-adoption.md
- * 「同版本存储实施」, docs/system/CONTRACT-CHANGES.md「当前保留机制」 Files 退役): never run by an ordinary open, never a U1 step, and
- * `PRAGMA user_version` stays 2. Each project moves in one transaction of deterministic owner steps: the retired Files producer's process
+ * 「同版本存储实施」, docs/system/CONTRACT-CHANGES.md「当前保留机制」 Files 退役): never run by an ordinary open, never a U1 step.
+ * An original version-2 library is upgraded inside the same transaction to the current version (3), after the adopted journal is
+ * installed; `PRAGMA user_version` therefore ends at `PROJECT_DATABASE_BASELINE.version`, not 2 (user 2026-11-13). Each project moves in one
+ * transaction of deterministic owner steps: the retired Files producer's process
  * items to the platform's materials source (modules/artifacts), its output ports and default bindings likewise (Plugin Runtime), and the
  * process-item triggers to the adopted journal (this Host). Anything the preflight cannot prove leaves that library exactly as it was.
  */

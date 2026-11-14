@@ -12,7 +12,7 @@ export interface DirectoriesWeb {
   post<T>(path: string, body: unknown): Promise<T>;
 }
 
-export type DirectoryChangeName = "add_input" | "remove_input" | "set_output" | "repair" | "map_source" | "unmap_source";
+export type DirectoryChangeName = "add_input" | "remove_input" | "set_output" | "repair" | "map_source" | "unmap_source" | "set_instructions";
 
 type Reply = { status: number; body: unknown };
 

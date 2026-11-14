@@ -51,6 +51,7 @@ import { questionAnswer } from "@molis-ai/molis-work-plugin-sdk";
 import { questionErrors } from "../agent-question-card.js";
 import { AssistantQuestionDrafts } from "./assistant-questions.js";
 import { drawAssistantReply } from "./assistant-view-html.js";
+import { recordAssistantWorkStep } from "./assistant-work-records.js";
 import { cancelConnectorAuthorizationsForSession, holdConnectorAuthorizationsForSession } from "../connector-authorization-status.js";
 import { retainConnectorSetupsForSession } from "../connector-setup-retain.js";
 import { assistantSetupMaterial } from "./assistant-setup-material.js";
@@ -310,8 +311,9 @@ const ofReview = { ...ofItem, properties: { ...ofItem.properties, body: { type: 
 }, required: ["decision", "version"], additionalProperties: false } } } as const;
 const scoped = (entry: AssistantPageEntry) => entry.ports.projectRef ? { project_ref: entry.ports.projectRef } : {};
 const panel = <const S extends ActionSchema, Output>(name: string, version: number, title: string, input_schema: S,
-  handle: (entry: AssistantPageEntry, input: InferActionInput<S>, caller: ActionExecutionContext) => Output | Promise<Output>, metered = false) =>
-  door.define({ capability_id: `assistant.panel.${name}`, version, title, description: `助理面板：${title}。`, scope: "home", input_schema, ...(metered ? { metered } : {}) }, handle);
+  handle: (entry: AssistantPageEntry, input: InferActionInput<S>, caller: ActionExecutionContext) => Output | Promise<Output>, metered = false, draft?: true) =>
+  door.define({ capability_id: `assistant.panel.${name}`, version, title, description: `助理面板：${title}。`, scope: "home", input_schema, ...(metered ? { metered } : {}), ...(draft ? { draft } : {}) },
+    async (entry, input, caller) => { const output = await handle(entry, input, caller); recordAssistantWorkStep(entry.ports.homeDirectory, entry.ports.projectRef?.project_id ?? null, name, input, output); return output; });
 const of = (entry: AssistantPageEntry) => assistantServiceFor(entry.ports);
 
 /** The Assistant panel's writes (CALL-CHAINS §10.1.1): each the same call of its owner the route made before, now an action only this panel's door reaches. */
@@ -335,7 +337,7 @@ export const assistantPanelActions = {
   control: panel("works.control", /* @version action.assistant.panel.works.control */ 1, "暂停、继续、停止或撤回", ofWork,
     (entry, input, caller) => of(entry).service.control(input.work_id, pageBody<AssistantControl>(input.body), assistantPermissionCaller(caller, entry.page))),
   draft: panel("works.draft", /* @version action.assistant.panel.works.draft */ 1, "保存输入草稿", ofWork,
-    (entry, input) => ({ work: of(entry).service.saveDraft(input.work_id, pageBody<{ draft: string }>(input.body).draft) })),
+    (entry, input) => ({ work: of(entry).service.saveDraft(input.work_id, pageBody<{ draft: string }>(input.body).draft) }), false, true),
   rename: panel("works.rename", /* @version action.assistant.panel.works.rename */ 1, "改工作名", ofWork,
     async (entry, input) => ({ work: await of(entry).service.rename(input.work_id, Number(input.body.revision), String(input.body.title ?? "")) })),
   mode: panel("works.mode", /* @version action.assistant.panel.works.mode */ 1, "设定执行方的后续模式", ofWork,
@@ -363,7 +365,7 @@ export const assistantPanelActions = {
     })),
   answer: panel("works.answer", /* @version action.assistant.panel.works.answer */ 1, "回答待答的问题", ofWork, (entry, input, caller) => answerQuestion(entry, input.work_id, input.body, assistantPermissionCaller(caller, entry.page)), true),
   questionDraft: panel("works.question_draft", /* @version action.assistant.panel.works.question_draft */ 1, "保存问题的草稿", ofWork, (entry, input) => ({ ok: true,
-    ...questionDrafts(of(entry).store).save(input.work_id, String(input.body.pending_id ?? ""), input.body.values, input.body.draft_revision) })),
+    ...questionDrafts(of(entry).store).save(input.work_id, String(input.body.pending_id ?? ""), input.body.values, input.body.draft_revision) }), false, true),
   runCard: panel("works.cards.run", /* @version action.assistant.panel.works.cards.run */ 1, "执行一张操作卡", ofItem,
     (entry, input) => of(entry).service.offers.runCard(input.work_id, input.item, { revision: Number(input.body.revision), values: input.body.values })),
   dismissCard: panel("works.cards.dismiss", /* @version action.assistant.panel.works.cards.dismiss */ 1, "收起一张操作卡", ofItem, (entry, input) => of(entry).service.offers.dismissCard(input.work_id, input.item)),
@@ -534,6 +536,10 @@ function handleAssistantActions(request: IncomingMessage, response: ServerRespon
   });
 }
 
+/** The one caller the thread routes use; the action gateway still checks the current authority on every call. */
+const threadCaller = (host: MolisWorkLocalHost, reference: LocalHostProjectReference) =>
+  localWebActionContext(host, reference, LOCAL_OWNER_PERMISSIONS);
+
 /** Thread requests keep the page's trusted project and pass through the common action gateway. */
 async function handleThreadHttp(parts: string[], method: "GET" | "POST", url: URL, body: Record<string, unknown>,
   ports: AssistantHttpPorts & { projectRef?: LocalHostProjectReference }) {
@@ -542,7 +548,7 @@ async function handleThreadHttp(parts: string[], method: "GET" | "POST", url: UR
     : parts[1] === "retry" ? assistantThreadActions.retry : parts[1] === "stop" ? assistantThreadActions.stop : null;
   if (!action || method === "GET" && parts[1] !== "status") return null;
   const input = method === "GET" ? { target: { provider_id: url.searchParams.get("provider_id"), subject_kind: url.searchParams.get("subject_kind"), subject_id: url.searchParams.get("subject_id"), thread_id: url.searchParams.get("thread_id") } } : body;
-  const result = await ports.localHost.actionClient(ports.projectRef).invoke(await localWebActionContext(ports.localHost, ports.projectRef, LOCAL_OWNER_PERMISSIONS), action, input);
+  const result = await ports.localHost.actionClient(ports.projectRef).invoke(await threadCaller(ports.localHost, ports.projectRef), action, input);
   return { status: 200, body: parts[1] === "status" ? { status: result } : result };
 }
 
@@ -552,7 +558,7 @@ async function threadWorkRoute(workId: string, parts: string[], body: Record<str
   const bound = store.get(WEB_ACTOR, workId);
   if (!bound.reply_target || ["rename", "archive", "recovery", "budget"].includes(parts[2] ?? "")) return null;
   if (parts[2] !== "control" || body.kind !== "stop" || !bound.project_ref) throw assistantErrors.scope("请回到原评论继续这项回复");
-  await ports.localHost.actionClient(bound.project_ref).invoke(await localWebActionContext(ports.localHost, bound.project_ref, LOCAL_OWNER_PERMISSIONS), assistantThreadActions.stop, { work_id: workId });
+  await ports.localHost.actionClient(bound.project_ref).invoke(await threadCaller(ports.localHost, bound.project_ref), assistantThreadActions.stop, { work_id: workId });
   return { status: 200, body: await service.read(workId) };
 }
 

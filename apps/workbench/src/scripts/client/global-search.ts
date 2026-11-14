@@ -28,7 +28,7 @@ export function takeSearchHits(
 }
 
 export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
-  const { translate: readText, setMobileView, noteSearchActivity, openTabItem, openPlugin, openPluginRecord, expandDirectory, askAssistant, route, projectId, itemTabs: ITEM_TABS } = host;
+  const { translate: readText, setMobileView, noteSearchActivity, openTabItem, openPlugin, openPluginRecord, expandDirectory, askAssistant, route, projectId, itemTabs: ITEM_TABS, records } = host;
   // \`home\`: the Home's project list (BL-041). No project is open there, so the person's own content is the one scope, every hit
   // opens in its own space (a Home-level record in the personal space), and there are no tools or quick actions to switch to.
   const home = Boolean(host.home);
@@ -55,6 +55,9 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
   let scope = (() => { try { const saved = sessionStorage.getItem("molis-work:search-scope"); return scopes.includes(saved) ? saved : scopes[0]; } catch { return scopes[0]; } })();
   let hits = [];
   let selected = 0;
+  // This opening of the palette as one interaction of the work records: what it showed, what was chosen, how finding it went.
+  let interaction = null, presented = false, chose = false;
+  const subjectOf = (item) => item.kind === "hit" ? records.subject(item.hit.subject.kind, item.hit.subject.id, item.hit.revision) : records.subject(item.kind, item.id);
   // Whether the person moved the selection themselves (arrows or pointer) since the words last changed.
   let explicit = false;
   let pointerOnHit = false;
@@ -215,6 +218,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
       const merged = append ? [...remote.hits, ...result.hits.filter((hit) => !remote.hits.some((known) => known.hit_id === hit.hit_id))] : result.hits;
       remote = { query, status: "done", hits: merged, sources: result.sources || [], next: result.next_cursor, error: "" };
       render();
+      if (interaction) { presented = true; interaction.presented(hits.map(subjectOf), { scope, more: append }); }
       // The first index is still being built: ask again shortly, while the person is still looking.
       if (result.sources?.some((source) => source.state === "indexing") && retries < 12) {
         retries += 1;
@@ -241,15 +245,18 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
     if (dialog.open) dialog.close();
   };
   // After the owner opened the object, bring the matched words into view in whichever pane shows it.
-  const locate = (surface, text) => {
+  // \`report(stage)\`: the surface came into view, the words were brought into view, or, after five seconds, only the surface or nothing.
+  const locate = (surface, text, report) => {
     const needle = String(text || "").trim().toLowerCase();
-    if (!needle) return;
     const started = Date.now();
+    let seen = false;
     const documents = () => [document, ...[...document.querySelectorAll("iframe[data-pane-tab]")].map((frame) => { try { return frame.contentDocument; } catch { return null; } }).filter(Boolean)];
     const attempt = () => {
       for (const doc of documents()) {
         const root = doc.querySelector('[data-work-surface="' + surface + '"]:not([hidden])') || (doc !== document ? doc.body : null);
         if (!root) continue;
+        if (!seen) { seen = true; report("visible"); }
+        if (!needle) return true;
         const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT);
         for (let node = walker.nextNode(); node; node = walker.nextNode()) {
           const at = String(node.nodeValue || "").toLowerCase().indexOf(needle);
@@ -271,12 +278,17 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
           } else {
             const selection = view?.getSelection?.(); selection?.removeAllRanges(); selection?.addRange(range);
           }
+          report("highlighted");
           return true;
         }
       }
       return false;
     };
-    const tick = () => { if (attempt() || Date.now() - started > 5000) return; setTimeout(tick, 150); };
+    const tick = () => {
+      if (attempt()) return;
+      if (Date.now() - started > 5000) { report(seen ? "degraded" : "failed"); return; }
+      setTimeout(tick, 150);
+    };
     setTimeout(tick, 120);
   };
   const openTarget = (target, kind, title) => {
@@ -302,6 +314,8 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
   };
   const activate = async (item) => {
     if (!item) return;
+    const chosen = interaction, subject = chosen ? subjectOf(item) : null;
+    chose = true; chosen?.chosen(subject, hits.indexOf(item));
     if (item.kind === "plugin") {
       close();
       requestAnimationFrame(() => { openPlugin?.(item.id); mobileDocument(); });
@@ -314,6 +328,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
       // The owner confirms the object still exists and this person may read it before anything opens.
       const opened = await request("/api/search/open", { hit_id: hit.hit_id });
       if (opened.state !== "ok") {
+        chosen?.locate("refused", subject, "failed", { state: opened.state });
         notice = opened.state === "missing" ? globalThis.t.text("workbench.global-search.item-was-deleted-archived-has-been-removed-results") : (globalThis.t.text("workbench.global-search.can-t-open-reason", { reason: opened.reason }));
         if (opened.state === "missing") remote = { ...remote, hits: remote.hits.filter((known) => known.hit_id !== hit.hit_id) };
         render();
@@ -322,10 +337,12 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
       close();
       const target = opened.open || hit.open;
       if (!target) return;
+      chosen?.locate("requested", subject, undefined, { away: away(hit) });
       if (away(hit)) { openElsewhere(hit.project_id || ${JSON.stringify(PERSONAL_SPACE_PROJECT_ID)}, target, opened.title || hit.title); return; }
       requestAnimationFrame(() => {
         openTarget(target, hit.subject.kind, opened.title || hit.title);
-        locate(target.surface, hit.locator?.field !== "title" ? hit.locator?.text : "");
+        locate(target.surface, hit.locator?.field !== "title" ? hit.locator?.text : "",
+          (stage) => chosen?.locate(stage, subject, stage === "failed" ? "failed" : undefined, { surface: target.surface }));
       });
     } catch (error) {
       notice=error;
@@ -335,6 +352,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
   // \`query\`: open already searching for it (a word chosen in the context actions); the person can refine it.
   const open = (trigger, query) => {
     lastTrigger = trigger?.nodeType === 1 ? trigger : document.activeElement;
+    if (!dialog.open) { interaction = records?.interaction("search") || null; presented = false; chose = false; }
     input.value = "";
     resetQuery();
     if (!dialog.open) dialog.showModal();
@@ -390,6 +408,8 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
   dialog.addEventListener("close", () => {
     // The close event is dispatched later; reopened in between (Esc then ⌘K), it belongs to the previous session.
     if (dialog.open) return;
+    if (presented && !chose) interaction?.dismissed();
+    interaction = null;
     clearTimeout(retry); clearTimeout(debounce); requestSeq += 1;
     input.setAttribute("aria-expanded", "false");
     input.removeAttribute("aria-activedescendant");

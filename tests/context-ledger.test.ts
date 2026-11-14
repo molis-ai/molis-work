@@ -222,6 +222,11 @@ test("D0195: Feed pages fetch only selected materials and one exact-key ledger b
     assert.deepEqual([0, 200, 400].map(offset => feed.query.materials("project-a", target.item_id, offset, 200).length), [200, 200, 6]);
     assert.equal(feed.query.get("project-a", target.item_id, { offset: 400, limit: 200 }).materials.length, 6);
     assert.deepEqual(feed.query.materials("project-b", target.item_id, 0, 200), []);
+    // D0195: full-content callers keep every material; no SQL result exceeds the page bound.
+    reads.length = 0;
+    assert.equal(feed.query.get("project-a", target.item_id).materials.length, 406);
+    assert.deepEqual(reads.filter(read => read.sql.includes("FROM feed_materials")).map(read => read.count), [200, 200, 6]);
+
     const matched = feed.query.list("project-a", { limit: 200, offset: 0, search: target.title, source_id: "source-a" });
     assert.deepEqual(matched.map(item => item.item_id), [target.item_id], "search reaches records outside the initial page");
     // FBR-04: stable-key walks keep later records even if an earlier page's item is deleted.

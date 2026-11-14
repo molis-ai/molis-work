@@ -4,6 +4,7 @@ import { WORKFLOWS_UI_CONTRIBUTION_ID } from "./ui.js";
 import { WORKFLOWS_ACTIONS } from "./actions.js";
 import { workflowsSync } from "./replication.js";
 import { WORKFLOWS_DATABASE } from "./database.js";
+import { observationActions } from "@molis-ai/molis-work-contracts/services/observation";
 
 /** The largest body any Workflows route reads: the same 400 000 bytes the Host's own route gave them. */
 const WORKFLOWS_BODY_BYTES = 400_000;
@@ -27,7 +28,8 @@ export const workflowsManifest: PluginManifest = {
     { permission: "actions:delegate", required: true, reason: "替当前这个调用者调用每一站的内容动作、动作步骤和判断规则" },
     { permission: "model:invoke", required: false, reason: "AI 整理这一段交接的内容" },
   ],
-  capabilities: { provides: [], consumes: [] },
+  // Each handoff is reported to the work records as this installation (specs/observation-collection/design.md §4「工作流」).
+  capabilities: { provides: [], consumes: [observationActions.report.capability_id] },
   actions: WORKFLOWS_ACTIONS,
   databases: { home: WORKFLOWS_DATABASE },
   routes: [

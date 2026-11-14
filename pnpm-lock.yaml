@@ -193,6 +193,9 @@ importers:
       '@molis-ai/molis-work-service-memory':
         specifier: workspace:*
         version: link:horizontal/memory
+      '@molis-ai/molis-work-service-observation':
+        specifier: workspace:*
+        version: link:horizontal/observation
       '@molis-ai/molis-work-service-placement':
         specifier: workspace:*
         version: link:horizontal/placement
@@ -470,6 +473,9 @@ importers:
       '@molis-ai/molis-work-service-memory':
         specifier: workspace:*
         version: link:../../horizontal/memory
+      '@molis-ai/molis-work-service-observation':
+        specifier: workspace:*
+        version: link:../../horizontal/observation
       '@molis-ai/molis-work-service-placement':
         specifier: workspace:*
         version: link:../../horizontal/placement
@@ -720,6 +726,18 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+
+  horizontal/observation:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../../packages/plugin-sdk
+      '@molis-ai/molis-work-storage':
+        specifier: workspace:*
+        version: link:../../packages/storage
 
   horizontal/placement:
     dependencies:
@@ -1753,7 +1771,7 @@ packages:
     resolution: {integrity: sha512-rDS5/31E9HfPl/CIzGrn0DOlvBbXFseQ5URJ9sYMfstbKLD/c6Gm9vmRzRGDdAXyOIL4zmO37lc9RIwYqVruZw==}
 
   '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-surface-detach.tgz':
-    resolution: {integrity: sha512-aVmSyN0MVwoybBCniCO0DKX9Ha4Wgm2Gp/BO/+SpdEewHy8svxRbxuhDNTUoN4sTSZgp8+DyozLn42CJURqE7g==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-surface-detach.tgz}
+    resolution: {integrity: sha512-OXGXUCxIdNVy3m6Ga46sDHEST0TGA4ysUW41dJ2hJxuEy+18gRctp0bmlG7pYG+aUKGPMKUvTIX6JmAzIgOAWw==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-surface-detach.tgz}
     version: 0.0.0-rc.1
 
   '@protobufjs/aspromise@1.1.2':

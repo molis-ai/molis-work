@@ -97,6 +97,8 @@ interface SandboxOperationFields {
   effects: SandboxEffects;
   /** Whether the operation sends content outside the Home. Separate from the effects it has permission to use. */
   external?: true;
+  /** Its input is the person's unsent draft: the work records keep that it was saved, not its words (`ActionMetadata.draft`). */
+  draft?: true;
   examples: SandboxOperationExample[];
 }
 

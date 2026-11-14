@@ -12,6 +12,7 @@ import { handleComposerDraftsHttp, handleComposerSourcesHttp } from "./composer-
 import { runningHomePluginText } from "./running-plugin-text.js";
 import { handlePluginSlotsHttp } from "./plugin-connection-slots-http.js";
 import { handlePlacementHttp } from "./placement-http.js";
+import { handleObservationShellHttp } from "./observation-shell-entry.js";
 import { bindLocalWebActions, invokeLocalWebCatalogAction } from "./local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { seedDemoHomeSamples } from "./demo-plugin-seed.js";
@@ -104,6 +105,8 @@ export const CATALOG_ROUTES: readonly WebRoute<CatalogRequestContext>[] = [
   { id: "composer-drafts", handle: ({ request, response, url, localHost, projects }) => handleComposerDraftsHttp(request, response, url,
     { projects: () => projects.map((project) => project.project_id), reach: (project) => localHost.projectPluginReach(project) }) },
   { id: "placement", handle: ({ request, response, url, localHost }) => handlePlacementHttp(request, response, url, () => homeActions(localHost)) },
+  // The shell's UI stages, through the door that issues this request's entry credential (observation-collection §4).
+  { id: "observation-ui", handle: ({ request, response, url, localHost }) => handleObservationShellHttp(request, response, url, localHost) },
   { id: "functions", handle: async ({ request, response, url, serverOptions, localHost }) => Boolean(serverOptions.homeDirectory && await handleFunctionsHttp(request, response, url, serverOptions.homeDirectory, {
     actions: bindLocalWebActions(localHost, undefined, ["functions:invoke", "functions:manage"]),
   })) },

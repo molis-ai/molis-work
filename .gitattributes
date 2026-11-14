@@ -1,0 +1,14 @@
+# Merge drivers for the files most batches touch (docs/system/PARALLEL-DEVELOPMENT.md §2.1). They take effect once
+# scripts/setup-merge-drivers.mjs has registered them, which `pnpm install` does (the root `prepare` script).
+
+# JSON tables and dictionaries: three-way merge by key, a conflict only where both sides gave one key different values.
+tooling/versions.json merge=molis-json
+tooling/gates/version-exceptions.json merge=molis-json
+tooling/gates/error-owners.json merge=molis-json
+**/locales/*.json merge=molis-json
+tests/fixtures/goals-page-golden/golden.json merge=molis-json
+
+# Generated snapshots: take the incoming side and list the path; `pnpm merge:regenerate` rewrites them from the merged source.
+tooling/gates/api/** merge=molis-snapshot
+tooling/gates/actions/*.tsv merge=molis-snapshot
+tooling/gates/schemas/stores.tsv merge=molis-snapshot

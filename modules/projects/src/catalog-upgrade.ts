@@ -1,7 +1,7 @@
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 
 import { insertProjectOutput } from "./project-output.js";
-import { WORKSPACE_MEMBERSHIPS_SQL, WORKSPACE_SOURCE_LINKS_SQL } from "./repository.js";
+import { PROJECT_INSTRUCTION_SETTINGS_SQL, WORKSPACE_MEMBERSHIPS_SQL, WORKSPACE_SOURCE_LINKS_SQL } from "./repository.js";
 import type { Row } from "./sqlite.js";
 import { projectHasPersonMembership } from "./workspace-repository.js";
 
@@ -111,4 +111,13 @@ export function verifyProjectOutputs(db: CatalogUpgradeDatabase): void {
   if (without.length) throw new Error(`${without.length} 个项目升级后没有输出目录`);
   const columns = (db.prepare("PRAGMA table_info(workspace_project_memberships)").all() as Row[]).map(row => String(row.name));
   if (columns.includes("is_default")) throw new Error("升级后成员表还有 is_default");
+}
+
+/**
+ * The catalog from version 3 to 4, the Projects tables' part (specs/coding-harness-optimization/batch12-design.md §3.3): the table for
+ * the repository's instruction files only. It starts empty, which reads as the default for every project (read, nothing confirmed), so no
+ * row is filled in and no other table changes.
+ */
+export function upgradeProjectsCatalog3(db: CatalogUpgradeDatabase): void {
+  db.exec(PROJECT_INSTRUCTION_SETTINGS_SQL);
 }

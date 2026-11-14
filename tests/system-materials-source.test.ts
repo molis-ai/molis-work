@@ -58,6 +58,8 @@ test("BSH-05 a binding reads system.materials; a version on its output that anot
   graph.publish({ plugin_id: MATERIALS_PROVIDER_ID, port: "before", reference: { artifact_id: "own", version: 1 } });
   assert.deepEqual(graph.reference(DIFF, "before"), { artifact_id: "own", version: 1 });
 
+  // BSH-07: after adoption the retired Files producer id/signature is not the platform's current registration; the same subject
+  // (fixed version or snapshot) cannot be handed on or read back under the old identity.
   for (const [id, producer, signature] of [["forged", "io.molis.work.files", SYSTEM_MATERIALS_SOURCE.signature], ["stale", MATERIALS_PROVIDER_ID, "an-old-signature"]] as const) {
     versions.set(`${id}@1`, snapshot(id, producer, signature));
     graph.publish({ plugin_id: MATERIALS_PROVIDER_ID, port: "before", reference: { artifact_id: id, version: 1 } });

@@ -71,10 +71,19 @@ export const CONTEXT_BAR_SCRIPT = String.raw`  const toolbar = makeToolbar({
     reanchor() { if (!this.frame) toolbar.place(); },
     // The judgment did not come: the basis note says so (the rules' actions stay).
     judgeFailed() { if (this.view) { this.view.basis = { state: "failed", text: globalThis.t.text("workbench.context-bar.judgment-failed-rules"), title: "" }; this.push(); } },
+    // The work records keep each set of actions shown, in order, once per passage and order (ui.candidates); taking one or putting them
+    // away goes to the Host as a signal, so it is the exit's record of that call.
+    record() {
+      const shown = this.shown, records = host.records, key = shown ? shown.context_id + "\n" + shown.primary.join("\n") : "";
+      if (!records || !shown || key === this.recorded) return;
+      this.recorded = key;
+      records.record({ fact: "ui.candidates", stage: "presented", work: { work_ref: "ui:context:" + shown.context_id.slice(0, 200) },
+        subjects: shown.primary.slice(0, 16).map((item) => records.subject("context_action", item)), detail: { list: "context", count: shown.primary.length } });
+    },
     push(summon) {
       if (!this.view) return;
       const frame = bus.source && bus.source.frame;
-      if (frame) { this.frame = frame; this.tell(frame, { op: "render", view: this.view, summon }); return; }
+      if (frame) { this.frame = frame; this.tell(frame, { op: "render", view: this.view, summon }); this.record(); return; }
       this.frame = null;
       const rect = rectOf(() => bus.focus || {});
       // Under the Assistant's panel or the side panel (a phone's panels cover the page), the passage cannot be seen: its toolbar
@@ -84,6 +93,7 @@ export const CONTEXT_BAR_SCRIPT = String.raw`  const toolbar = makeToolbar({
       this.covered = Boolean(cover && !(bus.source && bus.source.element && cover.contains(bus.source.element)));
       if (this.covered) { toolbar.hide(); return; }
       toolbar.show({ ...this.view, touch: coarse(), anchor: { rect, placement: ((bus.focus || {}).screen || {}).placement } });
+      this.record();
     },
     render(out, focus, rulesOnly) {
       const plan = out.plan;

@@ -1,0 +1,7 @@
+{
+  "reason": "第 06 批合后审计修复：资料阅读器恢复对象链接（?openPlugin=materials&openItem=…）。workbench.js 的 object-link 分支让外壳自己的 materials 面按 openItem 进主区，替代第 06 批收尾时临时改走的侧栏路径。基线 a720834a09 上 workbench-client.js 1200650 B，加上本分支 1200805 B，+155 B；未新增资源，其他资源不变。",
+  "review": "本分支独立构建实测：a720834a09 的 workbench-client.js 1200650 B，修复后 1200805 B；155 B 低于 10 KB，无需用户逐项批准。测试 tests/appearance-side-windows.e2e.test.ts 的 FSS-06/FSS-07 三道用例 3/3 通过。",
+  "assets": {
+    "/assets/molis-work-workbench.js": 155
+  }
+}

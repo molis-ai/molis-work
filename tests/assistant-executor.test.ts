@@ -66,7 +66,8 @@ function fixture(executors: Array<ReturnType<typeof fakeExecutor>> = [fakeExecut
   // The project's whole directory and a call routed to the provider it names, as the person's bound client does.
   const actions: BoundActionClient = { discover: async () => (await Promise.all(executors.map(row => row.actions.discover()))).flat(),
     invoke: async <In, Out>(definition: ActionDefinition<In, Out>, input: In, control?: unknown) => {
-      const owner = executors.find(row => row.views.some(view => view.capability_id === definition.capability_id))!;
+      // A call no executor publishes (the project's own plugin membership) goes to the first, which a test may answer for the Host.
+      const owner = executors.find(row => row.views.some(view => view.capability_id === definition.capability_id)) ?? exec;
       return await owner.actions.invoke(definition, input, control as never) as Out;
     } };
   const service = new AssistantService(store, { pages: async () => ["home"], host: async () => host as never, authority: async () => { throw new Error("not used"); },
@@ -410,4 +411,25 @@ test("MEM-35 executor supplements bind personal provenance to the installed gene
       assert.equal(originals.length, 1);
     } finally { withdraw(); }
   } finally { await runtime.stop(installed.install_id); }
+});
+
+test("CHO-04 an executor that cannot be found says why: a version short of the protocol, not in the project, or in it and not running", async () => {
+  const reasons: string[] = [];
+  for (const [shape, plugins] of [["partial", [PLUGIN]], ["absent", []], ["stopped", [PLUGIN]]] as const) {
+    const exec = fakeExecutor();
+    const { service, caller, plugin, project } = fixture([exec]);
+    const sent = await service.send({ executor: plugin, scope: project, text: "加一个 subtract 函数", request_id: randomUUID() }, caller);
+    if (shape === "partial") exec.views.splice(exec.views.findIndex(view => view.capability_id.endsWith(".run.control")), 1);
+    else exec.views.length = 0;
+    // The project's plugin membership, read only when the directory says nothing about the plugin.
+    const invoke = exec.actions.invoke;
+    exec.actions.invoke = (async (definition: ActionDefinition<unknown, unknown>, input: unknown) => definition.capability_id === "projects.plugins.get"
+      ? { plugins, hidden: [], revision: 1 } : await invoke(definition, input)) as BoundActionClient["invoke"];
+    await assert.rejects(inAssistantPage("zh", () => service.send({ work_id: sent.work.work_id, text: "再加 multiply", request_id: randomUUID() }, caller)),
+      (error: unknown) => { reasons.push((error as Error).message); return (error as { code?: string }).code === "assistant.executor_unavailable"; });
+  }
+  assert.match(reasons[0]!, /没有全套执行方动作/, "the plugin is there but this version lacks a role");
+  assert.match(reasons[1]!, /不在这个项目里/, "the plugin is not in the project");
+  assert.match(reasons[2]!, /没有运行/, "the plugin is in the project and not running");
+  assert.equal(new Set(reasons).size, 3, "three causes, three different sentences");
 });

@@ -758,7 +758,7 @@ test("RAC-1745 a dual-instance plugin in the build is drawn by the half that off
   const projectInstallId = projectPlatform.supervisor.state(FEED_PLUGIN_ID)!.install_id!;
   await projectPlatform.runtime.stop(projectInstallId);
   const data = { snapshot: { sources: [], feed_items: [], runs: [], out_rules: [], offset: 0, next_offset: null, facets: [] }, source_catalog: [],
-    connector_auth: { github: { bound: false }, gmail: { bound: false } }, inbox_entries: [], source_presentations: {} };
+    connector_auth: { github: { bound: false }, gmail: { bound: false } }, inbox_entries: [], source_messages: {}, source_presentations: {} };
   let homeReads = 0;
   const registration = { provider: { provider_id: FEED_PLUGIN_ID, plugin_id: FEED_PLUGIN_ID,
     plugin_install_id: install.install_id, title: "Feed Home stage", kind: "plugin" as const }, definitions: [feedQueryActions.stage],

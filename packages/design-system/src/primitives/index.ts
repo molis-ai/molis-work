@@ -44,7 +44,7 @@ export {
   type MwFileGroupOptions,
   type MwBriefOptions,
 } from "./arrival.js";
-export { renderPrimitiveCatalog, PRIMITIVE_CATALOG_IDS, type CatalogPluginIcon } from "./catalog.js";
+export { renderPrimitiveCatalog, catalogIndexGroup, PRIMITIVE_CATALOG_IDS, type CatalogPluginIcon } from "./catalog.js";
 export { ITEM_ROW_STYLES, MARK_STYLES } from "./catalog-patterns.js";
 
 export { SKILL_PACK_BOARD_STYLES } from "./catalog-skill-packs.js";

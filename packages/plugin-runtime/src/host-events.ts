@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { advanceReadCheckGeneration } from "./action-scope.js";
 
 import {
   eventTypeKey,
@@ -120,6 +121,7 @@ export class PluginHostEvents {
       if (!controller.signal.aborted) controller.abort();
     }
     this.#controllers.delete(pluginId);
+    advanceReadCheckGeneration();
   }
 
   async close(): Promise<void> {

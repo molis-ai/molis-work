@@ -1,8 +1,11 @@
 import { existsSync } from "node:fs";
 import { randomUUID } from "node:crypto";
+import { currentCallId } from "@molis-ai/molis-work-kernel";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ConnectorPullReceipt } from "@molis-ai/molis-work-contracts/platform/plugin-source-pull";
 import type { ConnectorConnectionRecord } from "@molis-ai/molis-work-contracts/services/connector-host";
+import type { ObservationOwnerSourceClass } from "@molis-ai/molis-work-contracts/services/observation";
+import { withObservationSource } from "@molis-ai/molis-work-service-observation";
 import type { IntegrationBinding } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import { ConnectorHost } from "@molis-ai/molis-work-service-connector-host";
 import { homeSqlitePath, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
@@ -12,6 +15,8 @@ import { withConnectorRequest } from "./connector-lifecycle.js";
 import { targetScope } from "./connector-plugin-requests.js";
 import { shownState } from "./connector-refresh-refusals.js";
 import type { IntegrationRegistry } from "./integration-registry.js";
+import { hostLog } from "./host-log.js";
+import { liveObservation } from "./observation-live.js";
 
 // The Host's side of `services.sourcePull.connector` (FI-4 step 4c-4, S-97 provisional): the account of a source is the one the person bound
 // to the plugin's `per_record` slot for that source, read here and nowhere else; the integration is the Home registry's. The credential
@@ -61,7 +66,10 @@ export function createConnectorSourcePort(options: ConnectorSourcePortOptions): 
         connector.registerDriver(integration.connector_driver);
         connector.connect({ connection_id, driver_id: integration.connector_driver.driver_id });
         await run.beforeEffect(); current();
-        const receipt = await runWithMolisWorkHome(home, () => connector.invoke({ connection_id, cursor: request.cursor, intent: { ...request.intent } }, { signal, current, beforeEffect: async () => { current(); await run.beforeEffect(); current(); } }));
+        const source = pullClass(request.cursor, request.intent);
+        const invoke = () => runWithMolisWorkHome(home, () => connector.invoke({ connection_id, cursor: request.cursor, intent: { ...request.intent } }, { signal, current, beforeEffect: async () => { current(); await run.beforeEffect(); current(); } }));
+        const receipt = source ? await withObservationSource(source, invoke) : await invoke();
+        recordPull(home, target, account.connection_id, request.integration_id, source, receipt);
         await run.beforeEffect(); current();
         const { receipt_id, driver_id, started_at, completed_at, result } = receipt;
         return { receipt_id, driver_id, started_at, completed_at, result };
@@ -77,6 +85,30 @@ export function createConnectorSourcePort(options: ConnectorSourcePortOptions): 
       return withConnectorConnections(home, store => Object.fromEntries(service_ids.map(id => [id, { bound: store.list(id).some(row => row.enabled && !row.disconnected_at) }])), true) ?? Object.fromEntries(service_ids.map(id => [id, { bound: false }]));
     },
   };
+}
+
+/**
+ * What a pull reads (design §3): with no cursor, what the account already held when the source was first connected; with a rebuilt cursor,
+ * the changes a break missed, at their own times. Neither is new work done now, so neither may count as it. Any other pull is real.
+ */
+function pullClass(cursor: unknown, intent: Readonly<Record<string, unknown>> | undefined): ObservationOwnerSourceClass | undefined {
+  if (cursor === null || cursor === undefined) return "first_read";
+  return intent?.sync_mode === "rebuild_cursor" ? "catch_up" : undefined;
+}
+
+/** One pull from a bound account as a work record, in the call that asked for it; what the plugin made of the events is the plugin's. */
+function recordPull(home: string, target: PluginConnectionTarget, connectionId: string, integrationId: string, source: ObservationOwnerSourceClass | undefined,
+  receipt: Awaited<ReturnType<ConnectorHost["invoke"]>>): void {
+  const live = liveObservation(home), call_id = currentCallId(), { result } = receipt;
+  if (!live) return;
+  try {
+    live.sink("connections").bind({ kind: "background", entry: "background", actor_id: `plugin:${target.plugin_id}`, project_id: target.project_id ?? null,
+      install_id: target.install_id, ...(call_id ? { call_id } : {}) }).record({ fact: "connections.pull", outcome: result.ok ? "succeeded" : "failed",
+      occurred_at: receipt.started_at, ...(source ? { source_class: source } : {}),
+      subjects: [{ kind: "source", id: target.record_key ?? "" }, { kind: "connection", id: connectionId }],
+      detail: { integration_id: integrationId, driver_id: receipt.driver_id, mode: result.mode, completed_at: receipt.completed_at,
+        ...(result.ok ? { events: result.events.length } : { failure: result.failure }) } });
+  } catch (error) { hostLog.warn("observation", "connector_pull_record_failed", error); }
 }
 
 /** The connection bound to this record's slot, when it can be used as it is: of the slot's service, enabled, connected. */

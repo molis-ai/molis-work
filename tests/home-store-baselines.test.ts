@@ -44,7 +44,7 @@ test("FI-6: Feed's Home reference ledger freezes its accepted v1 schema, with no
 });
 
 // Frozen fixtures describe each owner's complete current schema (repository-anti-corruption §4.1). Some began as
-// schema-only real-Home records; connectors, Pages, Form, Issues, Memory and Characters now freeze current DDL,
+// schema-only real-Home records; connectors, Pages, Form, Issues, Memory and Characters now freeze current DDL (the work records, new in batch 28, from the start),
 // without claiming another real-Home inspection. The independently frozen Runtime schema is checked by its Host test below.
 // The Alchemist search store's is what the previous build created, since no real Home had one; it lives inside the
 // Alchemist store's directory, one per project, so it is not a registered library of its own. Changing a baseline means a

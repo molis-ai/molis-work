@@ -2,6 +2,8 @@
 
 ## Offline Home snapshots
 
+`molis-work home adopt-process-items --confirm [--home /original/Home] [--json]` explicitly adopts version-2 project libraries into version 3 in an offline window with the Host stopped: it backs up each library, adopts every project, and only then revokes Files consents and removes its project memberships. Without `--confirm` it refuses. It uses the same `adoptProjectDatabase`/`retireFilesConsents` as the sync settings step, for local-space Homes with no account sync.
+
 `molis-work home snapshot --to /absolute/path/new-directory --home /original/Home --json` captures an existing Home. If `--home` is omitted, normal product Home resolution applies. `--to` is required: the destination must not exist, its parent must exist, and neither the destination nor the Home may contain the other. Duplicate, unknown or incomplete arguments are rejected. Success writes JSON to stdout, or the path and counts without `--json`; failure writes only to stderr and exits with code 1.
 
 Stop every Web/Desktop/Agent process using that Home before running the command. It acquires the same storage ownership as Host/Agent; it neither starts a business Host nor pauses an online one. A busy Home produces no snapshot output. The store inventory comes from `homeStores()`, including actual installed-plugin databases and project partitions. SQLite uses the backup API, including the latest committed WAL; sidecars and ownership locks are excluded. Unknown entries, wrong versions, corrupt databases, links or unfinished maintenance reject the entire snapshot.

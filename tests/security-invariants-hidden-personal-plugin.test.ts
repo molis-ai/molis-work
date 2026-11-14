@@ -1,4 +1,7 @@
 import { projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
+// BCC-08 / BCC-09: a hidden personal plugin is refused by routes and actions in the project that hid it, works again the very next call
+// after it is shown, and a Home outside the build gets the same reach treatment. The cached brief/contextual click after revoke is in
+// contextual-interaction.test.ts; the old brief link's prepare/read/write refusal is the BCC-09 remaining case.
 import assert from "node:assert/strict";
 import test from "node:test";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";

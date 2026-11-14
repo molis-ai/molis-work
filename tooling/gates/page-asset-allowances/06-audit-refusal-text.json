@@ -1,0 +1,66 @@
+{
+  "reason": "第 06 批合后审计修复 BL-adoption-refusal-text：同步设置的过程项采用拒绝原因改为语言中性的 code + params，UI 按工作台语言文件说；工作台客户端多 92 B（workbench-client.js 1200805→1200897，a720 基准 1200650，本项 +92）。没有新增资源；语言文件的键只增长已有工作台语言包。 工作台语言包换了内容寻址文件名后，main #2010 的首屏字节门把中英文语言包各算一条新入口，四张页面的冷启动因此各多 157～416 字节（热 0）；同一批 7 条拒绝原因，语言包本身没有新增资源。",
+  "review": "本分支独立构建 + `page-assets --base a720834a09` 实测：workbench.js 1200650→1200897（+247），其中前一项许可 06-audit-object-link 覆盖 +155，本项只补剩余 +92；其余资源只有 issues.js −19 B。 合入 main 9aab01f8e4 后按 CI 实测（Package boundaries / First-screen budgets）：到达页与选择页冷 zh +169 / en +157，工作台默认与全部插件冷 zh +416 / en +404，热 0；新语言包入口为 /assets/locale/workbench.zh.<digest>.js 与 workbench.en.<digest>.js。",
+  "assets": {
+    "/assets/molis-work-workbench.js": 92
+  },
+  "userApproval": "用户 2026-11-13 已批准 BL-adoption-refusal-text 的页面资源许可（本文件 +92 B）；用户 2026-11-13 在 PR #2060 会话里对首屏门新增语言包入口与上述冷启动字节答「批准，加到现有许可」。",
+  "entryApprovals": [
+    {
+      "pages": [
+        "arrival-empty",
+        "chooser",
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "zh",
+      "entry": "/assets/locale/workbench.zh.<digest>.js",
+      "change": "new"
+    },
+    {
+      "pages": [
+        "arrival-empty",
+        "chooser",
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "en",
+      "entry": "/assets/locale/workbench.en.<digest>.js",
+      "change": "new"
+    }
+  ],
+  "pages": {
+    "arrival-empty/zh": {
+      "cold": 169,
+      "warm": 0
+    },
+    "arrival-empty/en": {
+      "cold": 157,
+      "warm": 0
+    },
+    "chooser/zh": {
+      "cold": 169,
+      "warm": 0
+    },
+    "chooser/en": {
+      "cold": 157,
+      "warm": 0
+    },
+    "workbench-default/zh": {
+      "cold": 416,
+      "warm": 0
+    },
+    "workbench-default/en": {
+      "cold": 404,
+      "warm": 0
+    },
+    "workbench-all-plugins/zh": {
+      "cold": 416,
+      "warm": 0
+    },
+    "workbench-all-plugins/en": {
+      "cold": 404,
+      "warm": 0
+    }
+  }
+}

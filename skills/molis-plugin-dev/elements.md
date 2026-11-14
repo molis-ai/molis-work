@@ -189,4 +189,4 @@ Manifest 里没有 `behaviors`、`function_scenes`、`judgment_subjects`（2026-
 
 `settings` 槽只放页面，不给其他插件读权；`storage:private` 只存自己的偏好。项目说明仍属 Goals。归属与例子见 `docs/platform/PROJECT-SETTINGS.md`。
 
-生产事件要从事实 owner 的提交或回执接出，不能从审批通过或一次历史查询推断新执行。Coding `run-updated`、Git `operation-updated` 是刷新提示，包含失败/未知状态；不冒充旧的 review 失效或 file-changed 协议。Host 按项目和 activation 装配、停止时注销；提示到 Files/Git 后只失效视图 revision。可靠业务副作用仍需要自己的提交一致性，不能由 UI revision 冒充持久 outbox。
+生产事件要从事实 owner 的提交或回执接出，不能从审批通过或一次历史查询推断新执行。Coding `run-updated`、Git `operation-updated` 是刷新提示，包含失败/未知状态；不冒充旧的 review 失效或 file-changed 协议。Host 按项目和 activation 装配、停止时注销；提示到 Git 后只失效视图 revision。可靠业务副作用仍需要自己的提交一致性，不能由 UI revision 冒充持久 outbox。

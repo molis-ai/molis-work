@@ -4,6 +4,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { ActionError, requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { VersionedFile, VersionedFileStep } from "@molis-ai/molis-work-storage";
+import { recordGrantChanges, type GrantChange, type GrantChangedBy } from "./observation-grants.js";
 
 export interface McpActionGrant {
   readonly client_id: string;
@@ -101,7 +102,26 @@ function assertUniqueGrants(preference: McpToolPreference): void {
 const writes = new Map<string, Promise<unknown>>();
 
 /** Management is the writer; all MCP processes re-read the same atomic file. */
-async function updateMcpToolPreference(homeDirectory: string, change: (current: McpToolPreference) => McpToolPreference, control?: WriteControl): Promise<McpToolPreference> {
+type StoredGrant = McpToolPreference["action_grants"][number];
+const grantChange = (row: StoredGrant, change: GrantChange["change"]): GrantChange => ({ fact: "grants.mcp", change, project_id: row.project_id,
+  subjects: [{ kind: "action_client", id: row.client_id }, { kind: "action", id: row.capability_id, version: row.version }],
+  detail: { provider_id: row.provider_id, enabled: row.enabled, permissions: [...row.permissions].sort().join(",") } });
+
+/**
+ * What one write changed, grant by grant (design §4「授权与撤权」): the file keeps only the current switch, so each grant turned on or
+ * off, given other permissions, or taken away is a work record. A grant written again unchanged keeps its generation and is no change.
+ */
+function grantChanges(before: McpToolPreference, after: McpToolPreference): GrantChange[] {
+  const earlier = new Map(before.action_grants.map(row => [actionGrantKey(row), row])), later = new Set(after.action_grants.map(actionGrantKey));
+  const changed = after.action_grants.flatMap(row => {
+    const previous = earlier.get(actionGrantKey(row));
+    if (previous?.generation === row.generation) return [];
+    return [grantChange(row, !row.enabled ? "revoked" : previous?.enabled ? "changed" : "granted")];
+  });
+  return [...changed, ...before.action_grants.filter(row => !later.has(actionGrantKey(row))).map(row => grantChange({ ...row, enabled: false }, "revoked"))];
+}
+
+async function updateMcpToolPreference(homeDirectory: string, by: GrantChangedBy, change: (current: McpToolPreference) => McpToolPreference, control?: WriteControl): Promise<McpToolPreference> {
   const filePath = mcpToolPreferencePath(homeDirectory);
   // Only the order is chained: the previous write's failure was already answered to its own caller.
   const pending = (writes.get(filePath) ?? Promise.resolve()).catch(() => undefined).then(async () => {
@@ -117,6 +137,7 @@ async function updateMcpToolPreference(homeDirectory: string, change: (current: 
       await control?.beforeEffect(); requireSynchronous(control?.assertCurrent());
       renameSync(temporary, filePath);
       published = true;
+      recordGrantChanges(homeDirectory, by, grantChanges(current, preference));
       return preference;
     } finally {
       if (!published) await rm(temporary, { force: true }).catch(() => undefined);
@@ -126,22 +147,26 @@ async function updateMcpToolPreference(homeDirectory: string, change: (current: 
   try { return await pending; } finally { if (writes.get(filePath) === pending) writes.delete(filePath); }
 }
 
-export async function writeMcpActionGrant(homeDirectory: string, grant: McpActionGrant): Promise<McpToolPreference> {
-  return writeMcpActionGrants(homeDirectory, [grant]);
+/** `by`: whose call changed it (the person in Settings), recorded with each grant it changed. */
+export async function writeMcpActionGrant(homeDirectory: string, grant: McpActionGrant, by: GrantChangedBy): Promise<McpToolPreference> {
+  return writeMcpActionGrants(homeDirectory, [grant], { by });
 }
 
 /** Several grants in one atomic write: an action and the actions it depends on are saved together or not at all. */
-export async function writeMcpActionGrants(homeDirectory: string, grants: readonly McpActionGrant[], choice?: {
-  expected: ReadonlyMap<string, McpActionGrantExpected>; read?: ReadonlyMap<string, McpActionGrantExpected>; control: WriteControl;
+export async function writeMcpActionGrants(homeDirectory: string, grants: readonly McpActionGrant[], choice: {
+  readonly by: GrantChangedBy;
+  readonly expected?: ReadonlyMap<string, McpActionGrantExpected>;
+  readonly read?: ReadonlyMap<string, McpActionGrantExpected>;
+  readonly control?: WriteControl;
 }): Promise<McpToolPreference> {
   const snapshots = validGrants(grants);
   const keys = new Set(snapshots.map(actionGrantKey));
-  const expected = choice && structuredClone(new Map(choice.expected));
+  const expected = choice.expected && structuredClone(new Map(choice.expected));
   const read = choice?.read && structuredClone(new Map(choice.read));
   if (expected && (expected.size !== keys.size || [...keys].some(key => !expected.has(key)))) {
     throw new ActionError("actions.input_invalid", "每项授权都需要自己的当前版本");
   }
-  return updateMcpToolPreference(homeDirectory, current => {
+  return updateMcpToolPreference(homeDirectory, choice.by, current => {
     const previous = new Map(current.action_grants.map(row => [actionGrantKey(row), row]));
     for (const [key, token] of new Map([...read ?? [], ...expected ?? []])) {
       const row = previous.get(key);
@@ -160,10 +185,10 @@ export async function writeMcpActionGrants(homeDirectory: string, grants: readon
  * file as it is inside that write, before anything changes, and refuses by throwing: a stale revision changes nothing.
  */
 export async function replaceMcpClientGrants(homeDirectory: string, clientId: string, grants: readonly McpActionGrant[],
-  check: (current: McpToolPreference) => void, control?: WriteControl): Promise<McpToolPreference> {
+  check: (current: McpToolPreference) => void, by: GrantChangedBy, control?: WriteControl): Promise<McpToolPreference> {
   const snapshots = validGrants(grants);
   if (snapshots.some(grant => grant.client_id !== clientId)) throw new Error("动作授权无效");
-  return updateMcpToolPreference(homeDirectory, current => {
+  return updateMcpToolPreference(homeDirectory, by, current => {
     check(current);
     const previous = new Map(current.action_grants.map(row => [actionGrantKey(row), row]));
     return { ...current, action_grants: [...current.action_grants.filter(row => row.client_id !== clientId), ...withGenerations(previous, snapshots)] };
@@ -171,10 +196,10 @@ export async function replaceMcpClientGrants(homeDirectory: string, clientId: st
 }
 
 /** Takes the grants `remove` picks, in one atomic write; answers how many went. A Home without such a grant (or without the file) is not written. */
-export async function removeMcpActionGrants(homeDirectory: string, remove: (grant: McpActionGrant) => boolean, control?: WriteControl): Promise<number> {
+export async function removeMcpActionGrants(homeDirectory: string, remove: (grant: McpActionGrant) => boolean, by: GrantChangedBy, control?: WriteControl): Promise<number> {
   if (!(await readMcpToolPreference(homeDirectory)).action_grants.some(remove)) return 0;
   let removed = 0;
-  await updateMcpToolPreference(homeDirectory, current => {
+  await updateMcpToolPreference(homeDirectory, by, current => {
     const kept = current.action_grants.filter(row => !remove(row));
     removed = current.action_grants.length - kept.length;
     return { ...current, action_grants: kept };

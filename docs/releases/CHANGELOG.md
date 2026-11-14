@@ -12,6 +12,12 @@
 - **合同与存储**：组合、呈现、`composer_source.title_text` 与 IM 消息 `subjects_json` 按阶段一更新；项目库 2→3 新建 `surface_corrections` 并带升级段；`server/server.sqlite` 保持 v1，`subjects_json` 走用户 2026-11-09 批准的同版本窄例外，旧结构拒绝且不转换。
 - **未完成**：本人实物验收（`BL-surface-home-acceptance`）、Todo 首页呈现（`BL-todo-home-presentation`）、IUI-20 切换后复测（`BL-surface-home-performance`）与 C2/C3/D2/D3 等后续项。四个 Linux 原始红已由 #2044/#2046 了结（`BL-linux-ci-browser-reds` 已删）；#2046 另记 `BL-feed-wake-resets-page`、`BL-inbox-update-blocks-host`、`BL-assistant-card-press-scrolls` 三个产品缺陷与仍红的 `surface-cross-positions`，不属于本批四个原始红的遗留。
 
+### Files 退役与平台资料服务（2026-11-13，#2009）
+
+- **Files 插件退役**：内置 Files 插件删除，`files.state`、`files.directory`、`files.open`、`files.capture`、`files.side.entries`、`files.side.content` 六个动作删除；项目文件夹的浏览、阅读、固定快照、选区和交给 Diff 的前后两版改由平台资料服务 `system.materials` 与工作台公共界面提供。新动作 `materials.open`、`materials.capture`、`materials.read`、`materials.pinned`、`materials.position`、`materials.subject.read`、`materials.files.entries`、`materials.files.content`；Diff/Text Stats 的默认来源改为 `system.materials`。旧安装、事件游标、目录成员在显式采用时退役，插件 id `io.molis.work.files` 保留不可占用。
+- **资料界面**：侧栏「资料」就地预览（引用选区、固定快照带对比端口、加入任务）、主区「资料」标签、资料选择器、Coding 文件面、Diff/Text Stats「打开资料」；同步设置里的过程项四步与插件设置「同意默认来源」。
+- **SDK 与合同**：`/browser` 的 `pluginRequest`、`requiredQuery`、`textCell`、`isAbort`、`codeOf`，`zonedParts`、`isTimeZone`，`cutWithEllipsis`；N12 Home 成果固定（`transactionProjectRow`、`artifact_join`、`join`）；`molis-work:knowledge-pick`／`knowledge-picked` 载荷改形状；`knowledge.cards` 上限 200→500 并加 `subjects`。
+
 ### 持续运行与升级恢复（2026-11-12，#2034）
 
 - **常驻运行与错过的事**：关掉窗口后 Molis Work 继续在后台跑（设置 › 运行可关）；菜单栏「运行」面板显示是否在运行、等着什么、错过的事（每件可「现在做」「跳过」）与接下来 5 件，有未处理的错过时托盘带一个点；退出前先列出 24 小时内不会运行的事；再次打开时首页顶部先提示没在运行的时段与错过的事。错过的事由各自的主人保存（Schedule 的定时任务与提醒、Feed 的拉取、助理的跟进），晚过宽限（10 分钟）就不自动补跑，平台只按类型汇总展示。
@@ -40,6 +46,8 @@
 - 平台内部createUiRequest工厂显式接收共享UI_HOST_CLIENT_CODES；序列化脚本与所有平台调用方已更新。外部插件仍使用现有SDK页面端口。
 
 ### 升级须知（需要动手）
+
+- **第 06 批：Files 插件删除，资料改走 `system.materials`；旧布局第 2 版项目库要先采用**（[#2009](https://github.com/molis-ai/molis-work/pull/2009)，2026-11-13）：内置 Files 插件与 `files.*` 六个动作删除，项目文件夹的浏览、阅读、固定快照、选区和 Diff 前后两版改由平台资料服务；Diff/Text Stats 的默认来源改为 `system.materials`，原来指向 Files 的默认连线在本人到插件设置「同意默认来源」之前不再生效。页面、工作流、Agent 或 MCP 里固定了 `files.*` 动作、`io.molis.work.files` 安装或 Files 事件/游标的引用要重选或随采用退役。旧布局第 2 版项目库在升级后普通打开会被拒绝，要在同步设置的过程项四步（或维护窗口的采用程序）里先采用再打开；真实 Home 的采用由用户另授权。`molis-work:knowledge-pick` 的 `selected` 改为 `{ ref, title }`、`knowledge-picked` 改为 `outcome + items`，发送方与监听方同批更新，没有读取兼容。
 
 - **第 09 批：助理和 Coding 改用同一份技能目录，第三方工作执行方要接住 `run.start` 的 `skills`**（#2015 + 收尾 #2019，2026-11-11；阶段一不留兼容）：`run.start` 在同一版本上多一个 `skills`（`SkillRef` 数组，至多 20 项），把这一轮要用的技能交给执行方；第三方工作执行方要按引用读正文并按精确引用冻结，读不到就整轮拒绝、不悄悄换版本。读共同目录用插件自己的身份、要 `skills:read`：第三方执行方要在 Manifest 里声明并获授予，才能用目录给它的技能（本人在助理里点名、由宿主按调用绑定到冻结名单的那几项例外）；缺这项权限时目录读取被拒、这一轮不开。Manifest 角色的 `skills` 字段与 `AgentRoleSkillsDeclaration` 已删，写了旧字段的声明检查直接拒绝；角色不再自带技能表，技能写进 Manifest 的 `methods`（给别的 Agent 用）或 `agent.skills`（自己的 Agent 用）。SDK 新增 `/skill-ref` 子路径（`skillRefKey`，页面也能引）；`ActionCallContext` 多 `named_skills`、`skill_round`，冻结记录里的 `skills` 改成带 `ref`、`origin`、`name`、`tools`、`named` 并多 `reply_locale`。旧写法、旧版本引用都要改成现行形状，没有读取兼容。
 

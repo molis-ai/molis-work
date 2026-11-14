@@ -37,6 +37,16 @@ export class AssistantUsageLedger {
 /** Midnight of `now`'s day in `zone`, as an instant: where today's usage starts. */
 export function startOfToday(now: Date, zone: string): string {
   const parts = zonedParts(zone, { seconds: true })(now);
-  const wall = Date.UTC(+parts.year!, +parts.month! - 1, +parts.day!, +parts.hour!, +parts.minute!, +parts.second!);
-  return new Date(now.getTime() - (wall - Date.UTC(+parts.year!, +parts.month! - 1, +parts.day!))).toISOString();
+  const midnight = Date.UTC(+parts.year!, +parts.month! - 1, +parts.day!);
+  // The offset at the midnight itself, not at `now`: the two sides of a DST change have different offsets, and subtracting
+  // today's offset from the wall date would count an extra or missing hour (BL-assistant-usage-dst-midnight).
+  const offsetAt = (instant: number) => {
+    const at = zonedParts(zone, { seconds: true })(new Date(instant));
+    return Date.UTC(+at.year!, +at.month! - 1, +at.day!, +at.hour!, +at.minute!, +at.second!) - instant;
+  };
+  let instant = midnight - offsetAt(midnight);
+  instant = midnight - offsetAt(instant);
+  // A zone that changes offset at midnight needs the second correction; one more pass settles the ordinary cases.
+  instant = midnight - offsetAt(instant);
+  return new Date(instant).toISOString();
 }

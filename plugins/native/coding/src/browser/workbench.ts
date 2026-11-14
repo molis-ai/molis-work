@@ -78,6 +78,7 @@ export function codingWorkbench(host: CodingWorkbenchHost): void {
     onDirectoryFace: (face: string) => { gitBrowser?.show?.(face); },
     showReviews,
     addWorkspace: (workspacePath: string) => host.workspaces.add(workspacePath),
+    readInstructions: () => host.workspaces.readInstructions(),
     selectWorkspace: async (id: string) => { gitBrowser?.browse?.(id); }, invokeAction: host.invokeAction,
     openItem: (plugin: string, id: string, title?: string) => host.openItem?.(plugin, id, title),
     openBeside: (plugin: string, id: string, title?: string) => host.openBeside?.(plugin, id, title),

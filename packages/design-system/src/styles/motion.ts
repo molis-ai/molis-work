@@ -1,6 +1,7 @@
 /**
- * The product's motion vocabulary (DESIGN「Motion」): one keyframe for each kind of entrance, and the one wash for
- * something that has just landed, plus the menu lifecycle rules. Part of the final layer every product page loads, so a plugin animates with these
+ * The product's motion vocabulary (DESIGN「Motion」): one keyframe for each kind of entrance, the one wash for
+ * something that has just landed, the turn of a page forward or back, the ring that says it is the person's turn and the
+ * walk of one object to its new place, plus the menu lifecycle rules. Part of the final layer every product page loads, so a plugin animates with these
  * names and never writes its own.
  */
 export const MOTION_STYLES = `
@@ -11,7 +12,7 @@ export const MOTION_STYLES = `
   /* A menu grows from its control: down from one above it, up from one below it (and from the bar); 4px and .97. */
   @keyframes craft-drop { from { opacity: 0; transform: translateY(-4px) scale(.97); } to { opacity: 1; transform: none; } }
   @keyframes craft-rise-from-bar { from { opacity: 0; transform: translateY(4px) scale(.97); } to { opacity: 1; transform: none; } }
-  /* Something that just landed (a new Goal, message, Inbox entry, issue or record) says so once: one copper wash that fades.
+  /* Something that just landed (a new Goal, message, Inbox entry, issue or record) says so once: one mist-blue wash that fades.
      Set data-craft-new on the row, or call molisCraft.land(row); the row keeps its own background and pseudo-elements' room. */
   [data-craft-new] { position: relative; }
   [data-craft-new]::after {
@@ -21,6 +22,22 @@ export const MOTION_STYLES = `
   }
   @keyframes craft-landed { 0% { opacity: 0; } 12% { opacity: 1; } 100% { opacity: 0; } }
   @media (prefers-reduced-motion: reduce) { [data-craft-new]::after { animation: none; } }
+  /* Going forward or back: what arrives comes from the side it was reached from, 16px (molisCraft.turn(node, back)). */
+  [data-craft-turn] { animation: craft-turn var(--dur-arrive, 420ms) var(--ease-quint); }
+  [data-craft-turn="back"] { --craft-turn-from: -16px; }
+  @keyframes craft-turn { from { opacity: .4; transform: translateX(var(--craft-turn-from, 16px)); } to { opacity: 1; transform: none; } }
+  /* It is the person's turn: one warm ring leaves the thing that waits on them, once (molisCraft.ask(node)). The state mark
+     keeps saying it afterwards; the ring only says "now". */
+  [data-craft-ask] { animation: craft-ask var(--dur-moment, 640ms) var(--ease-quint); }
+  @keyframes craft-ask {
+    from { outline: 2px solid color-mix(in srgb, var(--tone-attention, var(--amber)) 60%, transparent); outline-offset: 0; }
+    to { outline: 2px solid transparent; outline-offset: 8px; }
+  }
+  /* The same object in a new place walks there (molisCraft.carry(from, change)): the browser moves the element that leaves
+     into the one marked data-craft-carried, on the arrival clock; the rest of the page cross-fades on the move clock. */
+  ::view-transition-group(craft-carried) { animation-duration: var(--dur-arrive, 420ms); animation-timing-function: var(--ease-quint); }
+  ::view-transition-old(root), ::view-transition-new(root) { animation-duration: var(--dur-move, 250ms); }
+  @media (prefers-reduced-motion: reduce) { [data-craft-turn], [data-craft-ask] { animation: none; } }
 `;
 
 /** Popovers and menus that drop from the control that opened them. */

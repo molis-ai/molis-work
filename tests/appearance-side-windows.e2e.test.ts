@@ -97,13 +97,10 @@ async function readOutputFile(tab: Awaited<ReturnType<typeof openTab>>, { origin
   await tab.wait(`document.querySelector('[data-side-files-body]')?.textContent === ${JSON.stringify(original)}`);
 }
 
-/**
- * A new window on the project that reads the file. The retired Files plugin had a direct link (`?openPlugin=files`); the materials
- * reader has no object link yet (BL-materials-object-link), so the window reads it from its side panel.
- */
+/** A new window on the project that reads the file through its object link, as the retired Files plugin did. */
 async function openOutputFile(t: TestContext, b: IssueBrowser, workbench: string, file: OutputFile) {
-  const tab = await openTab(t, b, workbench);
-  await readOutputFile(tab, file);
+  const tab = await openTab(t, b, workbench + "?openPlugin=materials&openItem=" + encodeURIComponent(file.objectId));
+  await tab.wait(`!document.querySelector('[data-work-surface="materials"]')?.hidden && document.querySelector('[data-materials-stage-body]')?.textContent.includes(${JSON.stringify(file.original)})`);
   return tab;
 }
 

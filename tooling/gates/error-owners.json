@@ -337,6 +337,13 @@
       ],
       "reason": "The plugin sandbox (SandboxError): its UPPER_CASE codes become sandbox.* (spec W3-02 J6)."
     },
+    "observation": {
+      "paths": [
+        "horizontal/observation/",
+        "packages/contracts/src/services/observation.ts"
+      ],
+      "reason": "The observation layer (batch 28): records of the work, their evidence and the coverage register; observation.report@1 and its quotas."
+    },
     "scheduler": {
       "paths": [
         "horizontal/scheduler/",

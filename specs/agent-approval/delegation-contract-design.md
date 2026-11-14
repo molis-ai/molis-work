@@ -164,6 +164,8 @@ Host 实现细节（2026-11-14）：普通坐标卡展示原提案里的精确�
 
 ## 3. 委托动作与可信入口
 
+2026-11-14 第 28 批合入后，用户批准把 §2.5、§2.6 和本批 stdio MCP 回复校验一并移植到官方 `c764d970b9ab934e9621bc5d38ae2471a440749a`，保留模型请求观测、Memory 读取及既有能力。代码及 C 合审通过。两次独立冻结安装和构建产生同一份包，139 条定向用例通过。范围与确切补丁、新旧包来源见 [vendor 记录](../../vendor/prologue-sdk/README.md)。
+
 公开服务仍放 `services/agent-host`，动作以 `agent.delegations.*` 登记一次。`prepare` 为只读候选，可供 Agent 提出范围；`grant/narrow/revoke/mode` 只给有权限的真人入口。输入只能选择工作引用和候选范围，actor、project、安装、工作 epoch、来源、grantor、声明摘要均由实际 owner 从可信上下文核出，不能接受客户端自报。工作引用也必须在原工作 owner 下验归属，不能用同名 id 代替。
 
 `prepare` 返回可展示候选及不可用原因、当前 owner revision、准确动作和范围；候选不保留执行闭包、不算授权。`grant` 带用户所见的工作 revision、候选合同摘要和新增范围；重新核目录、目标与工作，再用 expectedVersion 保存。失效候选返回冲突及当前投影，不自动读新版本重新授予。`narrow` 只接受原目标集合和操作行的子集、相同身份与声明，不接受新目标、延长到期或换 scope；`revoke` 单向置 revoked；`mode` 向更严格切换可沿当前选择，放宽按 grant 明确呈现差额。结果携 owner 新 revision 与投影，不另让页面猜成功。

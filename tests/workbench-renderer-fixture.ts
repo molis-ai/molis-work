@@ -29,6 +29,7 @@ function ownerStageFacts(view: MolisWorkWebView & { feed?: FeedSnapshot; feed_so
   const { inbox_entries, ...snapshot } = facts;
   const feed: FeedStageData = { snapshot: { ...snapshot, offset: 0, next_offset: null, facets: snapshot.feed_items.map(item => ({ source_id: item.source_id ?? "", label: item.source_label, count: 1 })) }, inbox_entries, source_catalog: view.feed_source_catalog ?? [],
     connector_auth: view.feed_connector_auth ?? { github: { bound: false }, gmail: { bound: false } },
+    source_messages: Object.fromEntries(facts.sources.map(source => [source.source_id, facts.feed_items.filter(item => item.source_id === source.source_id).slice(0, 3).map(item => item.title)])),
     source_presentations: Object.fromEntries(facts.sources.flatMap(source => {
       const id = feedSourcePresentationId(source);
       return id ? [[source.source_id, id === "rss-http" ? rssSourcePresentation({ cursor: source.cursor }) : gmailSourcePresentation()]] : [];

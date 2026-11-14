@@ -2,7 +2,7 @@ import { isDeepStrictEqual } from "node:util";
 import { WORKSPACE_COMMAND_KIND, isAfterWriteCheckOperationKey, type ExactRef, type Runtime } from "@prologue/sdk";
 import type { AgentReviewReceipt } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { gatewayReview, isGatewayChange } from "./prologue-action-gateway.js";
-import { agentActionToolName } from "./prologue-action-tools.js";
+import { agentActionToolName, MOLIS_ACTION_TOOL_PREFIX } from "./prologue-action-tools.js";
 import { PrologueApprovalBridge, type ProloguePendingPort } from "./prologue-approvals.js";
 import { mcpConnectionId } from "./prologue-mcp.js";
 import type { PrologueSurfaces } from "./prologue-surfaces.js";
@@ -97,7 +97,7 @@ async function actionCard(deps: ReviewDeps, pending: Pending, effect: Effect, su
     if (!selected) throw new Error("原能力审查授权不可读取");
     return gatewayReview(subject.input, selected.view, subject.name);
   }
-  if (subject.name.startsWith("molis-action-")) {
+  if (subject.name.startsWith(MOLIS_ACTION_TOOL_PREFIX)) {
     if (typeof subject.input !== "string") throw new Error("Action arguments are unavailable");
     const { attempt } = await attemptOf(deps, pending);
     const selected = attempt?.action_tool_scope && attempt.frozen.action_tools?.find(ref => agentActionToolName(ref, attempt.action_tool_scope!) === subject.name);

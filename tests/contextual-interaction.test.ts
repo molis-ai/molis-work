@@ -703,7 +703,7 @@ test("W3-02-G1-03 host routes: rules at once, prepare returns the provider's own
     const unoffered = await call("/api/contextual/prepare", { pane_id: "main", focus: f, key: concise.key, request_id: "r3" });
     assert.equal(unoffered.status, 409);
     assert.equal(unoffered.body.code, "contextual.not_offered");
-    // Revoked after it was shown (the writing assistant switched off, say): preparing it is refused, nothing runs.
+    // BCC-09: revoked after it was shown (the writing assistant switched off, say): preparing it is refused, nothing runs.
     views[1] = view(pages, "pages.ai", {}, false);
     const revoked = await call("/api/contextual/prepare", { pane_id: "main", focus: { ...f, context_id: "ctx-revoked" }, key: concise.key, request_id: "r4" });
     assert.equal(revoked.status, 409);

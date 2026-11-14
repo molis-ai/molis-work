@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { ActionError, type ActionCallContext, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { mcpErrors } from "./mcp-errors.js";
 import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
@@ -53,7 +53,7 @@ export async function changeMcpActionAccess(home: string, host: MolisWorkLocalHo
   const expected = new Map(changes.map(row => [actionGrantKey(identity(caller, row)), row.expected]));
   if (expected.size !== changes.length) throw mcpErrors.grant_invalid("同一项授权只能选择一次");
   const save = async (grants: Parameters<typeof writeMcpActionGrants>[1], owner = control, read?: ReadonlyMap<string, McpActionGrantExpected>) => {
-    const written = await writeMcpActionGrants(home, grants, { expected, control: owner, read });
+    const written = await writeMcpActionGrants(home, grants, { by: { ...caller, actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", audience: "user" }, expected, control: owner, read });
     return written.action_grants.find(row => actionGrantKey(row) === key)!;
   };
   const previous = preference.action_grants.find(grant => actionGrantKey(grant) === key);

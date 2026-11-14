@@ -1,4 +1,5 @@
-import { CONTEXT_ONBOARDING_BLANK_NAME_PART } from "./context-onboarding-blank-name.js";
+import { codeRootFile, contextFileSkip } from "@molis-ai/molis-work-contracts/services/materials";
+import { CONTEXT_ONBOARDING_BLANK_NAME_PART } from "./context-onboarding-blank-name.js"; import { CONTEXT_ONBOARDING_TAKE_PART } from "./context-onboarding-take.js";
 
 // The arrival frame draws the existing Home journey: sources, scope, reading and naming.
 // Providers own authorization; the Host owns the ids and phases under /api/onboarding/context.
@@ -13,6 +14,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   const native = Boolean(globalThis.__TAURI__?.core?.invoke);
   const firstRun = document.body.dataset.onboardingMode === 'first_run';
   const directories = ['downloads','documents','desktop','custom'];
+  const contextFileSkip = ${contextFileSkip.toString()}, codeRootFile = ${codeRootFile.toString()};
   const kinds = [...(native?directories:['directory']),'files','browser','gmail','chat'];
   const names = {downloads:"workbench.context-onboarding.downloads",documents:"workbench.context-onboarding.documents",desktop:"workbench.context-onboarding.desktop",custom:"workbench.context-onboarding.another-folder",files:"workbench.context-onboarding.pick-files",directory:"workbench.context-onboarding.folder-materials",browser:"workbench.context-onboarding.browser-content",gmail:"workbench.context-onboarding.gmail",chat:"workbench.context-onboarding.chat-history"};
   const sourceIcons = {downloads:'folder',documents:'folder',desktop:'folder',custom:'folder',files:'file',directory:'folder',browser:'globe',gmail:'mail',chat:'message'};
@@ -314,6 +316,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   }
   // Todo drafts from the same materials: the person keeps what they want; the rest waits in Todo's “待你确认”.
   let todoPicked=null;
+${CONTEXT_ONBOARDING_TAKE_PART}
   const KIND={request:["workbench.context-onboarding.todo-needs-you",'attention','status-needs-you'],commitment:["workbench.context-onboarding.todo-your-commitment",'progress','status-progress'],waiting:["workbench.context-onboarding.todo-waiting",'hold','status-waiting'],suggestion:["workbench.context-onboarding.todo-suggestion",'quiet','status-todo']};
   function draftDay(date){return globalThis.t.text("common.generated.formatted",{value:{kind:"date",at:date,style:"month-day"}});}
   function drafts(){
@@ -349,7 +352,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
       + (editing ? '<textarea id="cx-summary-editor" class="mw-textarea cx-summary-editor" rows="10" maxlength="100000" aria-label="' + globalThis.t.text("workbench.context-onboarding.edit-summary") + '">' + esc(s.body) + '</textarea>' : '<div class="cx-summary">' + markdown(s.body) + '</div>') + '</div>'
       + '<p class="ob-note">' + glyph('note') + '<span>' + globalThis.t.text("workbench.context-onboarding.sources-sources-materials-n", {sources:picked().length, n:s.references.length}) + '</span></p>'
       + (s.references.length ? collapsible(globalThis.t.text("workbench.context-onboarding.based-these-materials-n", {n:s.references.length}), '<div class="cx-sources">' + s.references.map(r=>'<button type="button" class="cx-reference" data-cite="'+r.label+'"><span>'+globalThis.t.text("workbench.context-onboarding.label-version-version",{label:r.label,version:r.version})+'</span>'+esc(r.title)+'</button>').join('') + picked().filter(x=>x.error).map(x=>'<p class="cx-source-meta">'+globalThis.t.text(names[x.kind])+': '+esc(x.error)+'</p>').join('') + picked().map(issues).join('') + '</div>') : '')
-      + '<div>' + btn({variant:'ghost', size:'md', icon:'undo', label:globalThis.t.text("workbench.context-onboarding.adjust-sources-redo"), attrs:{'data-action':'restart'}}) + '</div>';
+      + takeChoice() + '<div>' + btn({variant:'ghost', size:'md', icon:'undo', label:globalThis.t.text("workbench.context-onboarding.adjust-sources-redo"), attrs:{'data-action':'restart'}}) + '</div>';
     const right = briefPreview(s.title, s.body, {title:readText("workbench.context-onboarding.next-todo-drafts"), body:draftsHtml || '<p class="mw-brief__quiet">' + globalThis.t.text("workbench.context-onboarding.no-todo-drafts") + '</p>'}, globalThis.t.text("workbench.context-onboarding.just-now-n-n", {n:s.references.length}));
     return {kind:'onboard', view:'review', step:'start', left, right,
       bar:{start:exitButton() + stepsBar('start'), center:barStatus({glyph:'check', title:todoPicked ? globalThis.t.text("workbench.context-onboarding.project-suggestion-ready-n-n", {n:picks}) : globalThis.t.text("workbench.context-onboarding.project-suggestion-ready"), caption:globalThis.t.text(todoPicked&&todoPicked.size?"workbench.context-onboarding.summary-source-snapshot-todos-checked-saved-together-project":"workbench.context-onboarding.summary-snapshot-its-sources-saved-project")}),
@@ -507,7 +510,8 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
     if(name)journey.summary.title=name.value;if(body)journey.summary.body=body.value;
   }
   function projectLocation() {
-    // With todos added, the person starts from one of them; otherwise from the overview document.
+    const take = journey.adoption && journey.adoption.take, opened = journey.take_result && journey.take_result.open; // a folder handed to a plugin: go on there, in what it opened. With todos added, start from one; otherwise from the overview.
+    if (take) return route('/projects/'+encodeURIComponent(journey.project_id)+'/?openPlugin='+encodeURIComponent(take.project_plugin_id)+(opened ? '&openItem='+encodeURIComponent(opened.item_id)+'&openTitle='+encodeURIComponent(opened.title) : ''));
     if (journey.todo && journey.todo.added && journey.todo.added.length) return route('/projects/'+encodeURIComponent(journey.project_id)+'/?openPlugin=todo');
     return route('/projects/'+encodeURIComponent(journey.project_id)+'/?openPlugin=pages&openItem='+encodeURIComponent(journey.document_id || '')+'&openTitle='+encodeURIComponent((journey.adoption?.title || journey.summary?.title || globalThis.t.text("workbench.context-onboarding.project"))+' · '+globalThis.t.text("workbench.context-onboarding.work-summary")));
   }
@@ -606,7 +610,7 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
     preserveEdits();await saveQueue;
     const accepted=journey.adoption;
     const name=accepted?.title ?? (isBlank?document.getElementById('cx-blank-name').value:journey.summary.title);
-    journey=await api(endpoint('adopt'),{title:name,body:accepted?.body ?? (isBlank?'':journey.summary.body),blank:isBlank&&!materialsOnly,materials_only:materialsOnly,todo_selected:!isBlank&&todoPicked?[...todoPicked]:[]});
+    journey=await api(endpoint('adopt'),{title:name,body:accepted?.body ?? (isBlank?'':journey.summary.body),blank:isBlank&&!materialsOnly,materials_only:materialsOnly,todo_selected:!isBlank&&todoPicked?[...todoPicked]:[],...(!isBlank&&!accepted&&takePicked&&codeFolder()?{take:takePicked}:{})});
     blank=false;
     if(journey.phase==='complete')location.assign(projectLocation());else{error=journey.error||globalThis.t.text("workbench.context-onboarding.saving-didn-t-finish-try-again");render();}
   }
@@ -616,7 +620,8 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
     let bytes = 0, index = 0, drawn = 0;
     const take = file => {
       const path = file.webkitRelativePath || file.name;
-      if (/(^|\/)(\.[^/]*|node_modules|vendor|dist|build)(\/|$)/.test(path) || !/\.(md|markdown|txt|csv|json|html?|pdf|docx)$/i.test(file.name)) return;
+      // One rule with the Host (contextFileSkip in the materials contract): what is left out is counted, never dropped unseen (ONB-37).
+      if (contextFileSkip(path)) return;
       chosen.push(file); bytes += file.size || 0;
     };
     if (total > 2500) {
@@ -661,7 +666,7 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
     // Only what changes the selection is saved; leaving the name field, say, must not touch it (a journey already read refuses).
     let changed=false;
     try {
-      if(el.dataset.draft){if(el.checked)todoPicked.add(el.dataset.draft);else todoPicked.delete(el.dataset.draft);render();return;}
+      if(el.dataset.take!==undefined){takePicked=el.checked?el.dataset.take:'';document.querySelectorAll('[data-take]').forEach(box=>{if(box!==el)box.checked=false;});return;}if(el.dataset.draft){if(el.checked)todoPicked.add(el.dataset.draft);else todoPicked.delete(el.dataset.draft);render();return;}
       if(el.id==='cx-project-title'||el.id==='cx-summary-editor'){preserveEdits();await saveDraft();return;}
       if(el.dataset.filesAll!==undefined){const s=source(el.dataset.filesAll);if(!s.metadata.files.length)s.selected=el.checked;else{const all=included(s).length===s.metadata.files.length;invalidateSource(s);s.excluded=all?s.metadata.files.map(f=>f.path):[];}changed=true;}
       else if(el.dataset.field){const s=source(el.dataset.kind);invalidateSource(s);s[el.dataset.field]=el.dataset.field==='days'?Number(el.value):el.value;if(el.dataset.field==='connection_id')s.selected=Boolean(el.value);changed=true;}

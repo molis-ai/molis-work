@@ -12,6 +12,8 @@ import { PlacementService, PLACEMENT_LEDGER_ACCESS, type PlacementPorts } from "
 
 // S-35: after a plugin has committed a cross-partition move and the round is then refused, the platform may put the object back
 // (user decision 2026-10-17). The move-back goes only to where the object was, and not after the placement service has closed.
+// BSH-04: these cases are the "committed move, then revoke/close" matrix; the object's fixed version stays with its owner (the
+// artifact tests cover the fixed version), and a refused move-back writes no location edge.
 
 const reader = defineSubjectContextAction("notes.subject.read", 1, "note", "笔记", ["notes:read"]);
 const mover = defineObjectMoveAction("notes.placement.move", 1, ["note"], "笔记", ["notes:write"]);

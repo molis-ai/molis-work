@@ -6,6 +6,7 @@ import { PLUGIN_MEMBERSHIP_FACTORY_SCRIPT } from "./plugin-membership.js";
 import { IMMERSIVE_NAVIGATION_FACTORY_SCRIPT } from "./immersive-navigation.js";
 import { NAVIGATION_PRESENTATION_SCRIPT, DOCK_SCRIPT } from "./navigation-presentation.js";
 import { GLOBAL_SEARCH_FACTORY_SCRIPT } from "./global-search.js";
+import { WORK_RECORDS_FACTORY_SCRIPT } from "./work-records.js";
 import { ATTENTION_FACTORY_SCRIPT } from "./attention.js";
 import { PLUGIN_NOTIFICATIONS_FACTORY_SCRIPT } from "./plugin-notifications.js";
 import { SETTINGS_DIRECTORY_FACTORY_SCRIPT } from "./settings-directory.js";
@@ -89,8 +90,14 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     // object's tab where the surface opens objects by id, else the record in the plugin's list.
     (${SIDE_FILES_FACTORY_SCRIPT})({ readText, route, kit: materialsKit, openRecord: (plugin, id, title) => itemTabs.includes(plugin)
       ? tabWorkspace?.openItem(plugin, id, title) : tabWorkspace?.openPluginRecord(plugin, id) });
+    // The UI stages go to the work records from the top page only: a split pane's page is a view of the same workspace.
+    const workRecords = document.body.hasAttribute("data-pane-embedded") ? null : (${WORK_RECORDS_FACTORY_SCRIPT})({ route, current: () => {
+      const tabs = tabWorkspace?.state?.(), pane = tabs && !tabs.exclusive ? tabs.panes.find(entry => entry.id === tabs.focusedPaneId) || tabs.panes[0] : null;
+      const tab = pane?.tabs.find(entry => entry.id === pane.activeTabId), surface = tab && (tab.plugin || (tab.owner && "system:" + tab.owner));
+      return surface ? { surface, id: tab.itemId || tab.kind } : null;
+    } });
     globalSearchPalette = (${GLOBAL_SEARCH_FACTORY_SCRIPT})({
-      translate: readText, itemTabs,
+      translate: readText, itemTabs, records: workRecords,
       route, projectId: state.project?.project_id || document.body.dataset.projectId || "",
       openPluginRecord: (plugin, id) => tabWorkspace?.openPluginRecord(plugin, id),
       openPlugin: (plugin) => tabWorkspace?.openPlugin(plugin),
@@ -106,7 +113,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       order: () => tabWorkspace?.homeOrder?.() ?? [],
       navigationFrom: (source) => tabWorkspace?.homeNavigationFrom(source) ?? (() => false),
       market: () => tabWorkspace?.setExclusive("market"),
-      offers: positionOffers,
+      offers: (offerHost) => positionOffers({ ...offerHost, records: workRecords }),
       projectKey: state.project?.project_id || "",
       translate: readText,
       receipt: showToast, changed: () => positionChanged(),
@@ -158,7 +165,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title), pluginTitle: (plugin) => tabWorkspace?.pluginTitle(plugin),
       project: { id: state.project?.project_id || state.snapshot.board.project_id, title: state.project?.display_name || "" },
     });
-    (${CONTEXT_ACTIONS_FACTORY_SCRIPT})({ translate: readText, showToast, route, headers: () => molisWorkControlHeaders(), paneMessages,
+    (${CONTEXT_ACTIONS_FACTORY_SCRIPT})({ translate: readText, showToast, route, headers: () => molisWorkControlHeaders(), paneMessages, records: workRecords,
       openSearch: (query) => globalSearchPalette?.open(document.activeElement, query) });
     globalThis.molisPlacement = (${PLACEMENT_FACTORY_SCRIPT})({ translate: readText, route, headers: () => molisWorkControlHeaders(), itemTabs,
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title), openPluginRecord: (plugin, id) => tabWorkspace?.openPluginRecord(plugin, id),

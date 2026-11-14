@@ -7,7 +7,7 @@
 <!-- 分档与检查项见 specs/post-anticorruption-roadmap/reference/development-workflow.md。 -->
 
 - [ ] 档位：小修 / 独立片 / 大需求；类型（产品线 / 体验与效果 / 横向能力 / 底层与架构，跨几类都写）；路线书批次一批一个 PR（第 8.4 节），按项写
-- [ ] 小修：第 4 节涉及的项与结论写在这里；独立片与大需求：贴 spec 里「开工前检查」一节和统筹审过的评论
+- [ ] 小修：第 4 节涉及的项与结论写在这里；独立片与大需求：贴 spec 里「开工前检查」一节（含第 4.1 节平台能力检查）
 - [ ] 新页面、新交互、新控件或视觉方向变化：贴 spec 决策记录里定样的决定；不涉及写「不涉及」
 - [ ] 防腐与代码质量（第 10.1 节）：七条逐条写「过」「不涉及（理由）」或「问题」，不只挑几条
 - [ ] 清理（第 8.2 节）：这一片删了什么；让什么变多余却没删、为什么；没有写「无」
@@ -52,13 +52,14 @@ CI 跑包边界与 workspace 校验、健康门禁（对照 merge-base，含 Bio
 - [ ] 等模型或外部服务的动作声明 `scheduling: "concurrent"`，返回后 `beforeEffect()` 再提交；被取消、撤权、停用的调用不写任何业务记录（处理器开始之前就被拒的，调用记录里只留一行「未执行」诊断行，只记谁、什么动作、结果与错误码，不记内容）
 - [ ] 插件没有 import 另一个插件的实现；模型调用只经 `horizontal/agent-host`
 
-## 合并前（统筹 / 合并队列）
+## 合并前（本批主会话 / 合并队列）
 
 <!-- 2026-10-20 复审后补：评审、全量和 main 基线都以最终 head 为准，不以合并后的补跑替代。 -->
 
 - [ ] 最后一轮评审的「要改」已全部落实，或被评审明确豁免；评论里贴出对应提交/验证
-- [ ] 共享核心（`packages/contracts`、`packages/kernel`、`plugin-sdk`、`plugin-runtime`、`horizontal/agent-host`、`modules`）在最终 head 上跑完 full-suite，贴运行链接，没有取消/失败分片
-- [ ] 在最终 head 上跑过 `pnpm health:check`、`pnpm boundary:check`、页面资源与 `pnpm secrets:check`（或写明由统筹跑）
+- [ ] 共享核心（`packages/contracts`、`packages/kernel`、`plugin-sdk`、`plugin-runtime`、`horizontal/agent-host`、`modules`）与路线书批次在最终 head 上跑完 full-suite，贴运行链接，没有取消的分片；红的文件只限「main 的夜间全量红了」issue 与 `tests/quarantine.json` 里已有的，逐个写明
+- [ ] 路线书批次：收尾五问、清理、需求映射与依赖图更新已在本 PR 里做完（[批次执行手册](../specs/post-anticorruption-roadmap/reference/batch-runbook.md)第十节）
+- [ ] 在最终 head 上跑过 `pnpm health:check`、`pnpm boundary:check`、页面资源与 `pnpm secrets:check`
 - [ ] stacked PR 写明父 PR；MERGEED 不等于在 main，父 PR 已合入、目标分支确认后才算完成
 - [ ] 合并队列通过后回读 main 上的合并提交，确认文件树与验证过的 head 一致
 

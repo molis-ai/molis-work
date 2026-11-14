@@ -251,6 +251,9 @@ const runtimeHost = (home: string) => ({ homeDirectory: home, runtimeContext: { 
 const callTool = async (server: LocalMcpServer, name: string, args: Record<string, unknown>) => (await server.handleMessage({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } }) as
   { result: { isError: boolean; content: Array<{ text: string }> } }).result;
 
+// 1032: this path removes the project's library before the open runtime closes; `stopProjectPlugins` treats SQLite's
+// SQLITE_READONLY_DBMOVED (1032, the file is gone under the connection) as a stopped runtime, not a cleanup failure. The same path is
+// what the MCP and demo-delete tests below exercise indirectly; the direct version is tests/project-plugins-close-moved.test.ts.
 test("the MCP tool asks the resident Host: a live terminal stops it (409), and once it is closed the Host lets go of its runtime and deletes", { timeout: 60_000 }, async t => {
   const { directory, home } = await scratchHome(t);
   let withCatalog = withMolisWorkProjectCatalog;

@@ -250,6 +250,8 @@ export interface PluginManifest {
   runtime?: PluginRuntimeDeclaration;
   /** The command-line tools this plugin looks for on this machine (`services.localTools`, PG-112): names and directories declared here, found by the platform, never run by it. */
   local_tools?: import("./plugin-local-tools.js").PluginLocalToolsDeclaration;
+  /** 可承接上手材料 (decision 43②): what this plugin takes from onboarding and its own action that takes it; the platform calls takers by this, naming none. */
+  onboarding?: import("./plugin-onboarding.js").PluginOnboardingDeclaration;
   /** the kinds of subject its objects are for Attention, with `attention:write` (`services.attention`, PG-087). */
   attention?: import("./plugin-attention.js").PluginAttentionDeclaration;
   /** places where the plugin may use an account the person binds, with `connections:use` (`services.connections`, S-57). */

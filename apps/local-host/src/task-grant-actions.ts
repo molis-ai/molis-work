@@ -233,7 +233,7 @@ async function setCategories(ports: TaskGrantPorts, caller: ActionExecutionConte
     createMcpActionGrant(clientId, view.action.scope === "home" ? null : asked.projectId, view, true));
   const providers = new Set([...records, ...grants].map(row => row.provider_id));
   const registered = catalog.filter(row => providers.has(row.provider.provider_id));
-  const written = await replaceMcpClientGrants(ports.homeDirectory, clientId, grants, stale, taskGrantWriteControl(caller, () => {
+  const written = await replaceMcpClientGrants(ports.homeDirectory, clientId, grants, stale, caller, taskGrantWriteControl(caller, () => {
     declarations.assertCurrent?.(input.plugin_install_id, providers);
     const current = ports.currentCatalog?.(catalogCaller(asked.projectId, [], caller.signal), asked.reference)?.filter(row => providers.has(row.provider.provider_id));
     if (current && (current.length !== registered.length || current.some((row, index) => row.action !== registered[index]?.action || row.provider !== registered[index]?.provider))) {
@@ -254,7 +254,7 @@ export function restrictTaskGrant(ports: TaskGrantPorts, caller: ActionExecution
 async function clearSubject(ports: TaskGrantPorts, caller: ActionExecutionContext, input: TaskGrantClearRequest) {
   const asked = answering(ports, caller), install = installationOf(asked, input.plugin_install_id, true);
   const clientId = taskGrantSubjectId(asked.projectId, install, input.key);
-  return { cleared: await removeMcpActionGrants(ports.homeDirectory, grant => grant.client_id === clientId, taskGrantWriteControl(caller)) > 0 };
+  return { cleared: await removeMcpActionGrants(ports.homeDirectory, grant => grant.client_id === clientId, caller, taskGrantWriteControl(caller)) > 0 };
 }
 
 function taskGrantWriteControl(caller: ActionExecutionContext, ownerCurrent?: () => void) {

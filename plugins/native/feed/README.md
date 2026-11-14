@@ -54,7 +54,7 @@ Feed 是双实例插件：每个项目一个项目实例（`createFeedPlugin`）
 
 ## 有界读取
 
-页面列表经 `feed.snapshot` / `feed.stage.read` 每页最多 200 条，只读元数据；`offset` 为十进制字符串，`filter` 为筛选字段的 JSON 字符串（`item_id`、`source_id`、`search`、`status`、`unread`、`since`、`provider`、`source_label`、`sort`）。按 `next_offset` 取后页，`null` 表示结束。来源汇总与筛选选项覆盖整个集合，不随当前页截断。阅读器的 `material_offset` 单独控制材料页；明确请求一项完整内容的动作仍保持完整内容语义。
+页面列表经 `feed.snapshot` / `feed.stage.read` 每页最多 200 条，只读元数据；`offset` 为十进制字符串，`filter` 为筛选字段的 JSON 字符串（`item_id`、`source_id`、`search`、`status`、`unread`、`since`、`provider`、`source_label`、`sort`）。按 `next_offset` 取后页，`null` 表示结束。来源汇总与筛选选项覆盖整个集合，不随当前页截断。舞台的 `source_messages` 按来源单独读取最近三条标题，不继承消息列表的筛选或页码。阅读器的 `material_offset` 单独控制材料页；明确请求一项完整内容的动作仍保持完整内容语义。完整材料在存储层按每批最多200条读取，返回集合保持完整，最终结果仍占用与材料数量成正比的内存。
 
 来源管理直接调用来源 owner；后台保留引用和历史清理通过 Feed 自己的数据库分页去重，单次返回最多 200 个引用或操作编号，不聚合项目快照。公开搜索与工作流列表仍返回合同要求的完整元数据，不读取无关正文或材料。
 

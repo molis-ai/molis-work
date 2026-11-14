@@ -43,6 +43,7 @@ export interface ComposerCommonOptions {
     }) | null;
     voice?: string;
     required?: () => string | null;
+    notice?: () => ComposerNotice | null;
     submit(input: ComposerSubmission, signal: AbortSignal): Promise<ComposerOutcome>;
 }
 
@@ -104,6 +105,16 @@ export interface ComposerMention {
     title: string;
     hint?: string;
     insert: string;
+}
+
+export interface ComposerNotice {
+    text: string;
+    tone: "readonly" | "info";
+    icon?: PluginIconName;
+    action?: {
+        label: string;
+        run(): void;
+    };
 }
 
 export type ComposerOptions = ComposerCommonOptions & ({

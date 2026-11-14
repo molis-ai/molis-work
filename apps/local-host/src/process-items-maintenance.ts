@@ -5,6 +5,7 @@ import { listProcessItemsRecoveries, processItemsSyncFailureKeys, type PersonalS
 import { readStorageSpace, type StorageOwner } from "@molis-ai/molis-work-storage";
 import { projectDatabases } from "./platform-upgrade-stores.js";
 import { adoptionPending, adoptProjectDatabase, inspectProjectAdoption, processItemsNeverSynced, retireFilesConsents, type ProjectAdoptionReport } from "./process-items-adoption.js";
+import { adoptionRefusalText, type AdoptionRefusalText } from "./process-items-refusal-text.js";
 import { captureProcessItemsRecovery, processItemKey, verifyProcessItemsRecovery } from "./process-items-recovery.js";
 
 /**
@@ -35,6 +36,8 @@ export interface ProcessItemsProjectView {
   readonly unsettled: readonly string[];
   /** What stops adoption that no recovery file can keep. */
   readonly refused: readonly string[];
+  /** `refused` as language-neutral codes and values; the workbench says them with `t`. */
+  readonly refusal_codes: readonly AdoptionRefusalText[];
 }
 
 export interface ProcessItemsCaptureView {
@@ -88,7 +91,8 @@ export function processItemsMaintenance(sync: Pick<PersonalSync, "processItems">
         const open = new Set(report.unsettled);
         return { project_id: projectId, name: name(projectId), layout: report.layout,
           pending: report.items + report.outputs + report.bindings + report.private_values + report.positions + report.installs + report.cursors,
-          unsettled: [...report.unsettled], refused: report.refused.filter(reason => !open.has(reason)) };
+          unsettled: [...report.unsettled], refused: report.refused.filter(reason => !open.has(reason)),
+          refusal_codes: report.refused.filter(reason => !open.has(reason)).map(adoptionRefusalText) };
       });
       const recovery = cutover?.phase === "complete" ? verified(cutoverId(cutover)) : null;
       const capture = recovery && {
@@ -108,7 +112,7 @@ export function processItemsMaintenance(sync: Pick<PersonalSync, "processItems">
      * Step 3: adopt each library that still has something to move, each while its project is held closed, with the recovery file that
      * keeps its unsettled lines; then, only if none was refused, join the adopted stream and take Files' own consents back.
      */
-    async adopt(): Promise<{ readonly projects: readonly ProjectAdoptionReport[]; readonly adopted: boolean }> {
+    async adopt(): Promise<{ readonly projects: readonly (ProjectAdoptionReport & { readonly refusal_codes: readonly AdoptionRefusalText[] })[]; readonly adopted: boolean }> {
       const { cutover, reports } = await sync.processItems.maintain(async observed => {
         const cutover = complete(observed), recovery = verified(cutover.cutoverId)?.header.captureId;
         const reports: ProjectAdoptionReport[] = [];
@@ -120,10 +124,11 @@ export function processItemsMaintenance(sync: Pick<PersonalSync, "processItems">
         }
         return { cutover, reports };
       });
-      if (reports.some(report => report.state === "refused")) return { projects: reports, adopted: false };
+      const shown = reports.map(report => ({ ...report, refusal_codes: report.refused.map(adoptionRefusalText) }));
+      if (shown.some(report => report.state === "refused")) return { projects: shown, adopted: false };
       await sync.processItems.adopt(cutover.cutoverId);
       retireFilesConsents({ home: home(), owner: ports.owner(), at: ports.now?.() ?? new Date().toISOString() });
-      return { projects: reports, adopted: true };
+      return { projects: shown, adopted: true };
     },
     /** Step 4: take the kept lines over on the adopted stream; each line's outcome is the person's to see. */
     async takeOver(): Promise<readonly ProcessItemsTakeoverOutcome[]> {

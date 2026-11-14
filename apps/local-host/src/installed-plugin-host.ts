@@ -199,7 +199,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
       // The account it used for each of its records here goes with it; its installation slot's account is every project's, and goes with the last one (BL-596).
       forgetInstallationConnections(homeDirectory, installId, { kind: "project", project_id: projectId });
       // What the person let its tasks here read goes with it too (task grant subjects of this installation in this project).
-      await forgetTaskGrantSubjects(homeDirectory, subject => subject.plugin_install_id === installId && subject.project_id === projectId);
+      await forgetTaskGrantSubjects(homeDirectory, subject => subject.plugin_install_id === installId && subject.project_id === projectId, "uninstalled");
     } };
   const lifecycle = installedLifecycle(lifecycleContext);
   const close = async () => {

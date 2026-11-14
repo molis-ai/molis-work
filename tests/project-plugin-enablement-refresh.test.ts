@@ -1,3 +1,6 @@
+// BCC-09 (N44/BL-943): after a display read, an enable/hide/disable submitted through the current owner is consumed by the next
+// display or target path; queued rounds share only what queued before the read began, and a late/failed/closed read never revives a
+// stopped plugin.
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";

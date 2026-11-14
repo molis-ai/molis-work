@@ -1,5 +1,5 @@
 import type { AsyncLocalStorage } from "node:async_hooks";
-import { OFFICIAL_CODING_PACK, SYSTEM_TOOL_NAMES, type ExactRef, type ModelEvent, type PolicySnapshot, type Runtime, type Skill } from "@prologue/sdk";
+import { OFFICIAL_CODING_PACK, SYSTEM_TOOL_NAMES, type ExactRef, type ModelEvent, type ModelRequestObserved, type PolicySnapshot, type Runtime, type Skill } from "@prologue/sdk";
 import type { createNodeHost } from "@prologue/sdk/node";
 import type { McpDispatch } from "./prologue-mcp-dispatch.js";
 import type { RoundMcp } from "./prologue-round-mcp.js";
@@ -133,6 +133,8 @@ export interface RoundState {
   readonly runWork: Map<string, { project: string; id: string; session: ExactRef<"session">; directory: string }>;
   /** Each running round's own pre-dispatch check, asked again before every child it dispatches. */
   readonly dispatchChecks: Map<string, DispatchGuard>;
+  /** Who hears each model request the runtime's rounds send (the run store, which records it against its round). */
+  readonly modelRequests: Set<(request: ModelRequestObserved) => void>;
 }
 
 export function createRoundState(): RoundState {
@@ -141,7 +143,7 @@ export function createRoundState(): RoundState {
     gatewayHooks: new Set(), actionReviews: new Map(), heldLabels: new Map(), memoryRounds: new Map(), changeRounds: new Map(),
     stopGuards: new Map(), stopHooks: new Set(), roundFacts: new Map(), actionControllers: new Map(), runRoots: new Map(), activeRuns: new Map(), runSessions: new Map(),
     runRefs: new Map(), reviewEffects: new Map(), deadlines: new Map(), commandEvents: new Map(), subagentBridgeErrors: new Map(),
-    liveSessions: new Map(), runWork: new Map(), dispatchChecks: new Map(),
+    liveSessions: new Map(), runWork: new Map(), dispatchChecks: new Map(), modelRequests: new Set(),
   };
 }
 

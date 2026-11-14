@@ -10,7 +10,7 @@
 - **合同/能力包/文档（D）**：kit 的宿主 provider id 收进 contracts 单源；`blueprints` owner 错误码表补齐；home/blueprints/surface-composition 补 `contract-only` descriptor；`CALL-CHAINS.md` 补四条横切链并把链 1 的旧控制令牌表述改为 page-session；能力包/统一输入/账号/日评等状态句按事实更新；页面资源许可只新增本任务的一份增长许可（已采用的 4 份许可按门禁规则不可改，占位 review 保留，见「复查后仍未处理」）；成员 HTTP 信封校验复用 action schema；成员版本读只登记 BL。
 - **工作台/统一输入（E）**：K5 来源名按页面语言给英文；composer 桥死字段删除；发给图标改从助理 glyph sprite 取；动效改用语义 token；删死事件 `molis:side-toggle` 及登记/文档；页面全局补进 UI-PLATFORM；页面收件人丢文件改可见提示；web 路由契约测试补 11 条新地址并重新生成快照；im-ui `createViews` 降到 150 行内并删对应巨大单元例外。
 - **冗余清理（F）**：三个 socket 的授权绑定收进 `socket-authority.ts`；SDK 新增 `parseJson` 并替换 artifacts/feed 的 5 处副本；SDK `/ui` 导出 `escapeAttribute`，design-system 复用；plugin-runtime 两处事件失败包装合并；宿主/RSS 的 `routeUnavailable` 与两个官方集成的 `liveFailure` 收进合同单一工厂；connector-store 减到 298 行并删其巨大单元例外；其余跨插件重复列为 BL 候选。
-- **Lead**：AGENTS SDK 共用工具清单补 `hostBoundSession`/`parseJson`/`escapeAttribute`；`CHECKLIST` 第 3 节补 `config/ui-locale.json`；`tooling/gates/README.md` 补 `@version` 标记扫描口径；修复构建中发现的 String.raw 模板反引号、嵌入函数注释反引号、import 常量与更新路由快照；更新 `BL-golden-prompt-uses-flaky` 的部分修复状态。
+- **Lead**：AGENTS SDK 共用工具清单补 `hostBoundSession`/`parseJson`/`escapeAttribute`；`CHECKLIST` 第 3 节补 `config/ui-locale.json`；`tooling/gates/README.md` 补 `@version` 标记扫描口径；修复构建中发现的 String.raw 模板反引号、嵌入函数注释反引号、import 常量与更新路由快照；更新 BL-golden-prompt-uses-flaky（已修复） 的部分修复状态。
 
 ## 与 main 第 16 批（#2031）的合并说明（2026-11-11 晚）
 
@@ -47,7 +47,7 @@ PR 期间 main 合入 #2030「合后审计整改——补做 Coding 自动档、
 - `pnpm boundary:check`、`pnpm secrets:check`、`node scripts/verify-release-versions.mjs`、`pnpm page-assets:check` 通过（页面资源增量 17/159/17/454 字节，按任务新增一份增长许可 `code-review-fixes-20261111.json`；已有已采用许可未改）。
 - `pnpm test:contracts`：64/65 文件通过；`tests/action-before-effect.test.ts` 在并发负载下超时，单跑 23/23 通过（判定为本地负载 flake）。快照：`pnpm api:update` 更新 9 份（见下），`actions:update` 无变化，`schemas:update` 不需要。
 - 定向回归：账号 17 文件、技能/证据、升级/版本/门禁、合同/能力包、冗余/安全子集均通过（含 `security-invariants-account-host` 17/17、`security-invariants-web-sessions` 5/5、`security-invariants-home-upgrade` 26/26、`dom-events-contract` 33/33、`web-route-table` 2/2、`socket-authority` 3/3 等）。
-- 未跑：全量 376 文件安全套件在本机与 build 并发时被拖红（超时/端口类），已在空闲时跑变更相关的安全子集全绿；本机不跑全量（仓库规矩是集成分支跑），CI 会跑。`tests/golden-home.test.ts` 的 UPG2-02 仍会在共享机负载下差在生成期后台写入（`agent-runtime/records` 随机后缀、notices/memory/knowledge_cards），`prompt_uses` 已稳定；已将该残余写进 `BL-golden-prompt-uses-flaky`，需单独一批隔离生成期后台任务。浏览器用例本机无测试浏览器，未跑（用户人工验收已免）。
+- 未跑：全量 376 文件安全套件在本机与 build 并发时被拖红（超时/端口类），已在空闲时跑变更相关的安全子集全绿；本机不跑全量（仓库规矩是集成分支跑），CI 会跑。`tests/golden-home.test.ts` 的 UPG2-02 曾在共享机负载下差在生成期后台写入；2026-11-13 已修：生成期屏蔽知识整理的 2 秒 settle 定时器，同头重生成与慢机轮次到点两条关键用例各跑一次通过。浏览器用例本机无测试浏览器，未跑（用户人工验收已免）。
 
 ## 公开 API / 合同变化（`pnpm api:update` 已刷新）
 

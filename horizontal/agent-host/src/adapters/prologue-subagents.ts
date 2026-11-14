@@ -59,3 +59,18 @@ export function verifySubagentStart(runtime: Runtime, roles: ReadonlyMap<string,
   };
 }
 export function exactCharacterKey(ref: ExactRef<"character">): string { return ref.id; }
+
+/**
+ * The runs above a subagent's run, nearest first, as the runtime's one register of dispatched children has them; empty for a run
+ * nobody dispatched. A child is registered before its first model request (`verifySubagentStart` reads it there), so a request
+ * always finds its parents. Bounded, so a malformed register cannot loop.
+ */
+export function runLineage(runtime: Runtime, runId: string, depth = 8): string[] {
+  const lineage: string[] = [], children = runtime.subagents.list();
+  for (let at = runId; lineage.length < depth;) {
+    const child = children.find(one => one.run.id === at);
+    if (!child) break;
+    lineage.push(at = child.parentRun.id);
+  }
+  return lineage;
+}

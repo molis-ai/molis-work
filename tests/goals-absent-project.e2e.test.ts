@@ -9,6 +9,9 @@ import { createProjectWithoutGoals } from "./fixtures/goals-agreement.js";
 
 const RECORD_ERRORS = "window.__errors = []; addEventListener('error', event => window.__errors.push(String(event.message))); addEventListener('unhandledrejection', event => window.__errors.push(String(event.reason)));";
 
+// BCC-09: this is the old brief link shape after its owner was removed (`?openPlugin=goals&openItem=…`): it opens no dialog and
+// writes nothing. The contextual half of BCC-09 is tests/contextual-interaction.test.ts; the brief HTML click-through is not
+// generated in this file.
 test("RAC-400 a project without Goals opens on its home, offers no Goals and opens no Goal from a link, without a page error", { timeout: 240_000 }, async t => {
   let project!: Awaited<ReturnType<typeof createProjectWithoutGoals>>;
   const b = await openGoalBrowser(t, "user", undefined, undefined, undefined, undefined, {

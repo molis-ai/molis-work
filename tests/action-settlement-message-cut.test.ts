@@ -15,7 +15,7 @@ const reference: ActionReference = { capability_id: "test.settle", version: 1, p
 async function settle(error: unknown): Promise<{ outcome: CallOutcome; caught: unknown }> {
   let told: CallOutcome | undefined;
   let caught: unknown;
-  await refuseCall((_call, _action, outcome) => { told = outcome; }, context, reference, error).catch(thrown => { caught = thrown; });
+  await refuseCall({ settled: (_call, _action, outcome) => { told = outcome; } }, context, reference, error).catch(thrown => { caught = thrown; });
   assert.ok(told, "the call was settled once");
   return { outcome: told, caught };
 }

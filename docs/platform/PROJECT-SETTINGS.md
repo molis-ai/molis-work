@@ -1,6 +1,6 @@
 # 当前项目设置
 
-项目设置管理当前项目共用的配置。项目的文件夹分两种角色：**输入**（界面上叫「参考」）只读，可以有多个；**输出**只有一个，是 Agent、Coding、Git 和终端读写、运行的地方。没选过输出的项目，输出就是它的默认输出目录 `<Home>/outputs/<项目>`，第一次在里面写或运行时才建。目录在「项目设置 → 输入与输出」里查看和改；Files 与 Git 不指定目录时看输出目录。页面在几个目录里看哪一个，是页面自己的状态，项目不记「浏览目录」，所以也没有浏览选择、没有「首选工作区」。
+项目设置管理当前项目共用的配置。项目的文件夹分两种角色：**输入**（界面上叫「参考」）只读，可以有多个；**输出**只有一个，是 Agent、Coding、Git 和终端读写、运行的地方。没选过输出的项目，输出就是它的默认输出目录 `<Home>/outputs/<项目>`，第一次在里面写或运行时才建。目录在「项目设置 → 输入与输出」里查看和改；平台资料服务与 Git 不指定目录时看输出目录。页面在几个目录里看哪一个，是页面自己的状态，项目不记「浏览目录」，所以也没有浏览选择、没有「首选工作区」。
 
 ## 插件读取
 
@@ -48,7 +48,7 @@ const output = directories.find(item => item.roles.includes('output'));
 
 ## 数据和刷新
 
-目录事实唯一来源是 catalog（`projects/catalog.db`）的 `workspaces`、`workspace_project_memberships`（`role_input`、`role_output` 两列表示角色）和 `workspace_source_links`，不复制目录到设置存储。项目库里没有浏览选择：旧的 `project_browsing_settings` 随项目库升到第 2 版删掉，换成每个调用方的「最近用过」`material_recent_uses`。默认输出目录是 `workspaces` 里真实的一行，建项目时写入，`canonical_path` 记为 `project-output:<project_id>`、不存路径，路径由 Home 与项目编号推导；文件夹在第一次写或运行时才建，建好前 Git 的读取返回空、暂存和提交答「还没有建立，不是 Git 仓库」，Files 列出空目录。
+目录事实唯一来源是 catalog（`projects/catalog.db`）的 `workspaces`、`workspace_project_memberships`（`role_input`、`role_output` 两列表示角色）和 `workspace_source_links`，不复制目录到设置存储。项目库里没有浏览选择：旧的 `project_browsing_settings` 随项目库升到第 2 版删掉，换成每个调用方的「最近用过」`material_recent_uses`。默认输出目录是 `workspaces` 里真实的一行，建项目时写入，`canonical_path` 记为 `project-output:<project_id>`、不存路径，路径由 Home 与项目编号推导；文件夹在第一次写或运行时才建，建好前 Git 的读取返回空、暂存和提交答「还没有建立，不是 Git 仓库」，平台资料服务列出空目录。
 
 受保护的项目 Web 页面使用 `/projects/<id>/api/project-settings/directories`：GET 读目录（即 `projects.directories.get`），POST `{ change, input }` 做一项改动，`change` 是上表六个动作名去掉前缀后的一个（`add_input`、`remove_input`、`set_output`、`repair`、`map_source`、`unmap_source`），`input` 由对应动作自己的 schema 检查；系统选文件夹的窗口走 `POST /api/workspaces/pick`。这些是可信 Host UI 路由（`apps/local-host/src/project-workspace-http.ts`），不是给插件绕过 Manifest 的 SDK。插件经 `services.actions` 调具名动作。读接口不提供写设置能力。
 
@@ -72,4 +72,4 @@ Workspace 不再进入产品 catalog 或启动图，也没有 navigator view。�
 
 新增设置先明确范围（项目/个人/会话）、唯一 owner、读者和写入入口；有实际跨插件需求时添加具名、定型、单独授权的 capability。不要把所有页面字段自动变成可读项目设置。
 
-验证入口：`tests/current-project-settings.test.ts`（权限、隔离、没有浏览选择），`tests/project-directories.test.ts`（目录动作、角色、输入只读、默认输出），`tests/default-output-first-use.test.ts`（默认输出目录第一次用到才建），`tests/files-product-http.test.ts`、`tests/git-product-http.test.ts`（实际消费与恢复），`tests/project-workspaces-settings.e2e.test.ts`、`tests/project-settings-navigation.e2e.test.ts`（真实设置操作）。
+验证入口：`tests/current-project-settings.test.ts`（权限、隔离、没有浏览选择），`tests/project-directories.test.ts`（目录动作、角色、输入只读、默认输出），`tests/default-output-first-use.test.ts`（默认输出目录第一次用到才建），`tests/system-materials-actions.test.ts`、`tests/side-materials-reader.e2e.test.ts`、`tests/git-product-http.test.ts`（实际消费与恢复），`tests/project-workspaces-settings.e2e.test.ts`、`tests/project-settings-navigation.e2e.test.ts`（真实设置操作）。

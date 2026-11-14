@@ -1,4 +1,4 @@
-import { t as uiText, escapeHtml, icon, renderButton } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText, escapeHtml, icon, renderButton, renderSwitch } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderMenu, renderMenuGroup, renderMenuItem } from "@molis-ai/molis-work-design-system";
 import { renderWriteCheckersSection } from "./write-checkers-section.js";
 
@@ -22,6 +22,8 @@ export function renderProjectDirectoriesSection(readText: Say, prefix: string): 
     remove_named: uiText.text("workbench.project-directories-section.remove-name"), output_named: uiText.text("workbench.project-directories-section.make-name-output"), change_named: uiText.text("workbench.project-directories-section.choose-another-folder-name"), unmap_named: uiText.text("workbench.project-directories-section.unlink-name"),
     default_name: uiText.text("workbench.project-directories-section.default-output-folder"), source_folder: uiText.text("workbench.project-directories-section.folder-another-device"), source_other_default: uiText.text("workbench.project-directories-section.another-device-s-default-output-folder"),
     source_former_default: uiText.text("workbench.project-directories-section.project-s-earlier-default-output-folder"), stands: uiText.text("workbench.project-directories-section.stands-source"), input_role: uiText.text("workbench.project-directories-section.input-folder"), output_role: uiText.text("workbench.project-directories-section.output-folder"), choose_output: uiText.text("workbench.project-directories-section.where-output-goes-now"), choose_source: uiText.text("workbench.project-directories-section.where-read-folder"),
+    instructions_on: uiText.text("workbench.project-directories-section.instructions-on"), instructions_off: uiText.text("workbench.project-directories-section.instructions-off"),
+    instructions_default: uiText.text("workbench.project-directories-section.instructions-default"), instructions_unconfirmed: uiText.text("workbench.project-directories-section.instructions-unconfirmed"),
   }));
   const button = (label: string, act: string, variant: "secondary" | "ghost" = "secondary", extra: Record<string, string | boolean> = {}) =>
     renderButton({ label, variant, size: "sm", attrs: { "data-act": act, ...extra } });
@@ -73,6 +75,9 @@ export function renderProjectDirectoriesSection(readText: Say, prefix: string): 
       <section class="settings-section" aria-labelledby="project-directories-output">
         <div class="settings-setting-row"><span class="setting-copy"><strong id="project-directories-output">${uiText("workbench.project-directories-section.where-output-goes")}</strong><span>${uiText("workbench.project-directories-section.just-one-shared-every-task-plugin")}</span></span></div>
         <div data-directories-output></div>
+        <div class="settings-setting-row" data-directories-instructions><label class="setting-copy" for="project-directories-instructions"><strong>${uiText("workbench.project-directories-section.instructions")}</strong><span>${uiText("workbench.project-directories-section.instructions-help")}</span>
+          <span class="project-directory__note" data-instructions-note hidden>${icon("circle-alert")}<span data-text="note"></span></span></label>
+          <div class="setting-value">${renderSwitch({ attrs: { id: "project-directories-instructions", "data-directories-read-instructions": "" } })}</div></div>
       </section>
       <p class="project-directories__status" data-directories-status role="status" aria-live="polite"></p>
       ${row}${link}${chooser}${folderItem}

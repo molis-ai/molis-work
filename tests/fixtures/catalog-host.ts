@@ -39,6 +39,6 @@ export function catalogPorts(home: string) {
  * `projects.directories.get` from them and changes none.
  */
 export function directoriesOf(workspaces: readonly ProjectWorkspaceRef[]) {
-  return (projectId: string) => ({ project_id: projectId, source_links: [], revision: "fixture",
+  return (projectId: string) => ({ project_id: projectId, source_links: [], instructions: { off: false, trusted: false }, revision: "fixture",
     directories: workspaces.map((workspace, index) => ({ ...workspace, roles: index === 0 ? ["input" as const, "output" as const] : ["input" as const], state: "ok" as const })) });
 }

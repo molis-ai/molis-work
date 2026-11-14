@@ -4,6 +4,7 @@ import { agentErrors } from "../errors.js";
 import type { AgentRunRef, AgentRunView, AgentSessionView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { PrologueApprovalBridge } from "./prologue-approvals.js";
 import type { PrologueAdapterPorts, PrologueControlPort, PrologueModelConfiguration, PrologueRunPort, PrologueRunTiming, PrologueRuntimePort } from "./prologue-ports.js";
+import { observeRun, type RoundObserver, type RunObservationStart } from "./prologue-run-observation.js";
 import {
   applyRunEvent,
   prologuePhaseOf,
@@ -43,6 +44,8 @@ export interface RunRecord {
 export class PrologueRunStore {
   readonly #sessions = new Map<string, SessionRecord>();
   readonly #runs = new Map<string, RunRecord>();
+  /** Each followed round's way to record a model request it or a subagent it dispatched sent, by run id. */
+  readonly #requests = new Map<string, RoundObserver["request"]>();
   /** Sessions starting a round, closing an interrupted one or preparing a rewind: one at a time each. */
   readonly #startingSessions = new Set<string>();
   readonly #restoring = new Map<string, Promise<SessionRecord>>();
@@ -54,6 +57,17 @@ export class PrologueRunStore {
     this.#runtime = runtime;
     this.now = now;
     this.#approvals = approvals;
+    // A subagent's request goes to the nearest round above it that is followed here, as the child's own work. A request of a run with no
+    // followed round above it (none is started outside this store) is not recorded. The store lives as long as the runtime it listens to,
+    // so the listener is never taken off; each round's entry in `#requests` goes when the round is no longer followed.
+    runtime.listenModelRequests?.((request, lineage) => {
+      try {
+        const own = this.#requests.get(request.runId);
+        if (own) { own(request); return; }
+        const parents = lineage(), above = parents.find(id => this.#requests.has(id));
+        if (above) this.#requests.get(above)!(request, parents[0]);
+      } catch { /* a record that cannot be made never touches the round */ }
+    });
   }
 
   get sessions(): ReadonlyMap<string, SessionRecord> { return this.#sessions; }
@@ -135,17 +149,24 @@ export class PrologueRunStore {
    * Follow a live round: each event the runtime sends is projected into its view and published, an effect it stops on goes
    * in front of the person, and a control change is published too.
    */
-  follow(record: RunRecord, task: string, run: PrologueRunPort, ports: PrologueAdapterPorts): void {
-    const ref = record.view.ref;
+  follow(record: RunRecord, start: RunObservationStart, run: PrologueRunPort, ports: PrologueAdapterPorts): void {
+    const ref = record.view.ref, frozen = record.view.frozen;
+    let observe: RoundObserver | undefined;
+    try {
+      const recorder = ports.observeRun?.({ owner: this.requireSession(ref.session_id).owner, ...(frozen.call_id ? { call_id: frozen.call_id } : {}) });
+      observe = recorder && observeRun(recorder, ref, frozen, start, record.model);
+      if (observe) this.#requests.set(ref.run_id, observe.request);
+    } catch { /* No recorder for this round: it runs unrecorded, never held back by the records. */ }
     let initialPromptPending = true;
     const unsubscribeEvents = run.subscribe((event) => {
       // The Host already displays the submitted task before SDK replay starts.
       if (event.type === "prompt" && event.role === "user" && initialPromptPending) {
         initialPromptPending = false;
-        if (event.text === task) return;
+        if (event.text === start.task) return;
       }
       const at = this.now().toISOString();
       if (!applyRunEvent(record.state, event, at, waiting => this.#runtime.unexecutedApprovalCall?.(ref, waiting))) return;
+      try { observe?.event(event); } catch { /* A record that cannot be made never stops or slows the round it describes. */ }
       // A held ending reads as what was wrong with it; one that ended still only announcing says nothing was done.
       if (event.type === "model-response-repair" && event.reason === "stop-held") {
         const label = ports.stopHeld?.(ref.run_id), held = [...record.state.activity].reverse().find(item => item.call_id.startsWith("model-held-"));
@@ -164,7 +185,7 @@ export class PrologueRunStore {
       if (event.type === "memory-context") void this.memoryUsage.record(record, this.requireSession(ref.session_id).owner).then(() => this.publish(ref.run_id));
     });
     const unsubscribeControl = record.control.subscribe(() => this.publish(ref.run_id));
-    record.unsubscribe = () => { record.memory_binding?.close(); unsubscribeEvents(); unsubscribeControl(); };
+    record.unsubscribe = () => { record.memory_binding?.close(); unsubscribeEvents(); unsubscribeControl(); this.#requests.delete(ref.run_id); };
   }
 
   /**

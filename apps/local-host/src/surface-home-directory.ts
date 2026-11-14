@@ -7,7 +7,7 @@ import { PLUGIN_ICON_NAMES, type PresentationFormValues } from "@molis-ai/molis-
 import { presentationOwnerHue } from "@molis-ai/molis-work-design-system";
 import type { SurfaceInstallationRef } from "@molis-ai/molis-work-contracts/services/surface-composition";
 import type { SurfaceHomePlugin, SurfacePlugin } from "@molis-ai/molis-work-service-surfaces";
-import { currentTurn } from "@molis-ai/molis-work-plugin-runtime";
+import { currentReadCheckGeneration, currentTurn } from "@molis-ai/molis-work-plugin-runtime";
 import { readOnlyAlwaysOnProjectPlugins, withFreshReadOnlyPluginDirectory } from "./always-on-plugins.js";
 import { currentHomeStageHalves } from "./home-plugin-http.js";
 import type { HomePluginHost } from "./home-plugins.js";
@@ -188,16 +188,18 @@ export function surfaceHomeDirectory(ports: DirectoryPorts) {
   const entries = sample(ports), original = facts(entries);
   // A Home read asks this at every step; the catalog only changes from another request, in a turn of its own (`currentTurn`), so within
   // a turn it is sampled once.
-  let sampledIn: object | undefined;
+  let sampledIn: object | undefined, sampledGeneration = -1;
   return { entries, plugins: entries.map(entry => entry.plugin), assertVisiblePackage(pluginId: string) {
     if (homeMembership(ports).hidden.has(pluginId))
       throw new ActionError("actions.plugin_disabled", "此项目不再显示该插件");
   }, isShownMember(member: string) {
     return homeMembership(ports).shown.has(member);
   }, assertCurrent() {
-    if (!ports.store.db.open || sampledIn !== currentTurn() && facts(sample(ports)) !== original)
+    const turn = currentTurn(), generation = currentReadCheckGeneration();
+    if (!ports.store.db.open || (sampledIn !== turn || sampledGeneration !== generation) && facts(sample(ports)) !== original)
       throw new ActionError("actions.provider_changed", "首页的插件目录已变化，请重新读取");
-    sampledIn = currentTurn();
+    sampledIn = turn;
+    sampledGeneration = generation;
     for (const { route } of entries) if (route?.kind === "native") route.owner.assertCurrent();
   } };
 }

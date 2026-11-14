@@ -103,13 +103,22 @@ test("IUI-02 IUI-03 IUI-10 IUI-21 ordered discussion objects belong to the origi
   const pageSubject = { kind: "pages_document", id: document.id };
   const callLog = f.host.callLog!, recordCall = callLog.record;
   let pageReads = 0, withdraw = false;
-  // Where each counted read came from, so a failed count names the caller instead of only the number.
+  // Where each counted read came from, so a failed count names the caller instead of only the number. The default ten frames end
+  // inside the dispatcher, before the reader that made the call, so the stack is taken deeper.
   const readSources: string[] = [];
+  const readSource = () => {
+    const limit = Error.stackTraceLimit;
+    Error.stackTraceLimit = 40;
+    try { return String(new Error().stack).split("\n").filter(line => /handleImRequest|im-discussion-surfaces|surface|home-|search|knowledge/u.test(line)).map(line => line.trim()).join(" < "); }
+    finally { Error.stackTraceLimit = limit; }
+  };
   callLog.record = function (caller, action, outcome) {
-    // Discussion's owner proof is read-only. Index catch-up reads the same Pages object with its own owner context.
+    // Discussion's owner proof is read-only. Background work reads the same Pages object at any moment of this window with the
+    // owner context, which is not read-only: the search index refresh after the Pages command, and project knowledge's catch-up
+    // (a search) two seconds after a change. On a slow runner either lands between these requests, so they are not counted.
     if (caller.project_id === project.project_id && caller.query_only && caller.read_only_effects && action.capability_id === "pages.subject.read" && outcome.ok) {
       pageReads++;
-      readSources.push(String(new Error().stack).split("\n").filter(line => /handleImRequest|im-discussion-surfaces|surface-|home-|search/u.test(line)).map(line => line.trim()).join(" < "));
+      readSources.push(readSource());
       if (withdraw) db.db.prepare("DELETE FROM mw_access WHERE project_id=? AND member_id=?").run(project.project_id, owner.id);
     }
     return recordCall.call(this, caller, action, outcome);
@@ -133,11 +142,11 @@ test("IUI-02 IUI-03 IUI-10 IUI-21 ordered discussion objects belong to the origi
       target: { kind: "object", subject: row.subject, installation: row.installation } } };
     const opened = await json<{ owner_plugin_id: string; shell_key: string; item_id: string; installation: unknown }>(await post(surfaces, open));
     assert.deepEqual([opened.owner_plugin_id, opened.shell_key, opened.item_id, opened.installation], [row.owner, "pages", document.id, row.installation]);
-    assert.equal(pageReads, 3, "the click reuses the current request's fresh proof");
+    assert.equal(pageReads, 3, "the click reuses the current request's fresh proof: " + readSources.join(" || "));
     const count = db.db.prepare("SELECT count(*) AS n FROM im_messages").get()?.n;
     withdraw = true;
     const denied = await post(messages, { client_id: randomUUID(), body: "", subjects: [pageSubject] });
-    assert.equal(pageReads, 4);
+    assert.equal(pageReads, 4, "the refused send proved the object once more: " + readSources.join(" || "));
     assert.ok(!denied.ok);
     assert.doesNotMatch(await denied.text(), new RegExp(pagesTitle + "|" + privateBody + "|" + document.id, "u"));
     assert.equal(db.db.prepare("SELECT count(*) AS n FROM im_messages").get()?.n, count);

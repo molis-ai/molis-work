@@ -20,7 +20,7 @@
 - [ ] `pnpm install --frozen-lockfile`，整体 `pnpm build`，`pnpm test`。全量优先在 `full-suite.yml` 的 CI 分片运行，本机补 macOS 专属路径（见 [并行开发规范](../system/PARALLEL-DEVELOPMENT.md) 第 7 节）；浏览器用例需要本机 Chrome。全量回归期间不改源码、脚本、`package.json` 和 `skills/`（`AGENTS.md`「构建与测试」）。
 - [ ] 失败的用例逐个分清：产品回归、预期变化、测试缺陷、环境与时序；对照干净基线工作树的结果。发布说明里写数字，不写「通过」两个字。
 - [ ] `node scripts/check-health-gates.mjs --base origin/main` 通过。
-- [ ] 构建安装包：`pnpm desktop:build:macos`（先跑版本核对，产物在 `release/macos/`，附 SHA256）。公开发行需要 Developer ID 签名与 Apple 公证，缺凭据时 tag 构建会失败（`.github/workflows/release-macos.yml`）；没有公证的本机构建不叫公开发行包。
+- [ ] 构建安装包：`pnpm desktop:build:macos`（先跑版本核对，产物在 `release/macos/`，附 SHA256）。公开发行需要 Developer ID 签名与 Apple 公证，缺凭据时 tag 构建会失败（`.github/workflows/release-macos.yml`）；没有公证的本机构建不叫公开发行包。给了 Developer ID 身份时，构建脚本自己逐项把关，任何一项不过就失败、不出包：内嵌运行时逐个重签、`verify-macos-signatures.mjs --release`（每个 Mach-O 与助手 App 都是 Developer ID、hardened runtime、带时间戳、同一 Team ID、无 `get-task-allow`）、App 与 DMG 的 `stapler validate`、`spctl` 评估；arm64 与 x64 两份都要过。首次在一台没装过的 Mac 上打开 DMG（断网一次、联网一次），确认没有 Gatekeeper 拦截，并在发布说明里写明改换签名后屏幕录制、辅助功能、输入监控要重新授权（[APPLE-INDIVIDUAL-ACCOUNT.md](APPLE-INDIVIDUAL-ACCOUNT.md) 第 8、9 节）。
 - [ ] 安装器：源码与 `dist` 不一致会停止（`apps/local-host/src/installer/fingerprint.ts`）；所以发布构建前整体 `pnpm build`，不复用旧的 `dist`。
 - [ ] 生成本版金样并入库（[金样设计](../../specs/upgrade-continuity/golden-replay-design.md) §3，U2-e）。在第 1 节改完版本号、整体 `pnpm build` 之后、打 tag 之前，在发布 PR 的分支上做：
   - **在哪里生成：** macOS，`.nvmrc` 锁定的官方 Node（Homebrew 的 Node 链的库，沙箱不放行）。脚本只用系统临时目录下新建的隔离 Home：真实 Home `~/.molis-work` 和临时目录之外的路径一律拒绝（UPG2-01），不连 4207、4208，不联网。不要加 `--without-third-party`：入库的金样要带两个签名样本，写到默认目录时别的 Node 也会被拒（`golden.node_not_locked`）。

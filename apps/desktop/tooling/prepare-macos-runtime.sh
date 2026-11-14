@@ -40,4 +40,10 @@ NODE_HOME="$TEMP_DIR/node-v${NODE_VERSION}-darwin-${NODE_ARCH}"
 
 node "$SCRIPT_DIR/prepare-runtime-payload.mjs" "$REPO_ROOT" "$RESOURCE_DIR" "$NODE_HOME/bin/node"
 
+# node-pty ships prebuilds for every platform. Only this target's are ever loaded (node-pty picks prebuilds/<platform-arch>);
+# the rest is dead weight, and the other darwin architecture is a Mach-O that notarization would also want signed.
+while IFS= read -r -d '' PREBUILDS; do
+  find "$PREBUILDS" -mindepth 1 -maxdepth 1 -type d ! -name "darwin-${NODE_ARCH}" -exec rm -rf {} +
+done < <(find "$RESOURCE_DIR" -type d -path '*/node-pty/prebuilds' -print0)
+
 echo "Prepared Molis Work macOS runtime: $RESOURCE_DIR ($NODE_ARCH, Node v$NODE_VERSION)"

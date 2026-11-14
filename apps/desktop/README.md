@@ -70,7 +70,7 @@ node scripts/run-tests.mjs tests/desktop-tui.test.ts
   - 启动器只准备环境并转发：MCP stdio 经动作网关转给常驻 Web 宿主，不另起执行器。
   - 不直接写业务数据库；面板、Capsule、热键等原生适配不承载业务判断。
   - 构建、安装与签名/公证是不同步骤，构建通过不等于已公证或已发布。
-- 改动后必跑：`node scripts/run-tests.mjs tests/desktop-shell-bootstrap.test.ts tests/desktop-tui.test.ts tests/action-mcp-stdio.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/desktop-shell-bootstrap.test.ts tests/desktop-tui.test.ts tests/action-mcp-stdio.test.ts`；改签名、entitlements 或 `tooling/` 的打包脚本时加 `tests/desktop-macos-signing.test.ts`（macOS）
 - 相关手册：[docs/platform/DESKTOP.md](../../docs/platform/DESKTOP.md)、[docs/platform/LOCAL-HOST.md](../../docs/platform/LOCAL-HOST.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

@@ -61,6 +61,36 @@ const documentation = "localWebActionContext()";
   const tightened = gate();
   assert.equal(tightened.status, 0, tightened.text);
 
+  // BCC-02: a budget grows only by a new allowance of the change, up to the value it names, and an adopted allowance is spent.
+  const allowance = "tooling/gates/call-budget-allowances/new-plugin.json";
+  const record = counters => JSON.stringify({ reason: "a new built-in plugin", review: "reviewed", userApproval: "the user approved it", counters });
+  put(limits, '{"projectBrief":{"discover":5,"sqliteOpens":10},"sideFileSources":{"discover":1}}');
+  put(allowance, record({ projectBrief: { discover: 4 } }));
+  git("add", ".");
+  const short = gate();
+  assert.equal(short.status, 1, short.text);
+  assert.match(short.text, /projectBrief\.discover grew 4 → 5; new allowances cover 4/u);
+  put(allowance, JSON.stringify({ reason: "a new built-in plugin", review: "reviewed", counters: { projectBrief: { discover: 5 } } }));
+  assert.match(gate().text, /new-plugin\.json: invalid allowance: missing userApproval/u);
+  put(allowance, record({ projectBrief: { opens: 5 } }));
+  assert.match(gate().text, /an allowance names projectBrief\.opens, which the budget does not have/u);
+  put(allowance, record({ projectBrief: { discover: 5 } }));
+  const allowed = gate();
+  assert.equal(allowed.status, 0, allowed.text);
+  git("add", ".");
+  git("commit", "-qm", "adopt the allowance");
+  git("branch", "-f", "main");
+  put(allowance, record({ projectBrief: { discover: 6 } }));
+  put(limits, '{"projectBrief":{"discover":6,"sqliteOpens":10},"sideFileSources":{"discover":1}}');
+  const spent = gate();
+  assert.equal(spent.status, 1, spent.text);
+  assert.match(spent.text, /new-plugin\.json: an adopted allowance cannot be changed or removed/u);
+  put(allowance, record({ projectBrief: { discover: 5 } }));
+  const reused = gate();
+  assert.equal(reused.status, 1, reused.text);
+  assert.match(reused.text, /projectBrief\.discover grew 5 → 6/u, "an adopted allowance raises nothing again");
+  put(limits, '{"projectBrief":{"discover":5,"sqliteOpens":10},"sideFileSources":{"discover":1}}');
+
   git("rm", "-f", limits);
   const missing = gate();
   assert.equal(missing.status, 1, missing.text);

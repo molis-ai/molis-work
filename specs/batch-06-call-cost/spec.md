@@ -57,6 +57,8 @@
 
 以 `MOLIS_WORK_CALL_BUDGET_REPORT=1` 运行预算测试可重打报告，CI 始终比较 [预算](../../tooling/gates/call-budget.json)。
 
+预算对照 merge-base 只许下降；确需增长时（如新增内置插件让线性扫描的登记行变多），在 `tooling/gates/call-budget-allowances/` 放一份按任务的许可（`reason`、`review`、`userApproval` 与 `counters`：场景 → 计数 → 可到的值），只放行基点没有的新许可、只到写明的值；已采用的许可不能改、不能删，也不再放行（`scripts/gates/call-budget.mjs`，用例 `tests/call-budget-gate.test.mjs`；用户 2026-11-14 在第 17 批定）。
+
 ## 首片验证
 
 BCC-03 的拒绝用例在旧构建上因缺来源仍准备一次上下文而失败。改动后，缺来源、缺预览类型、缺预览编号三种请求各从 `1 / 0 / 1 / 1 / 4 / 10` 降到六项全零，其他代表请求实测与基线相同。完整请求仍读到原文，移除 Pages 后再次预览同一文件返回 404。预算已按实测下降值更新。BL-943 的目录读取优化及运行中撤权留给后续片。

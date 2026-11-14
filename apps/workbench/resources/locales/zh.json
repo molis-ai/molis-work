@@ -7868,7 +7868,7 @@
     "workbench.work-line-specimens.view-task": "看任务",
     "workbench.work-line-specimens.which-vendor": "选哪一家",
     "workbench.work-line-specimens.whole-line": "整条线",
-    "workbench.work-line-specimens.whole-line-note": "左边是发生过和正在办的（等你的、在办的紧挨输入框），中间是输入框，右边是接下来的。线的高度不变；线自己宽 1120px 以上（窗口约 1180px）左翼不少于 420px。左翼只显示完整的胶囊，放不下时最早的先出视野，线头后面的按钮写着还有几件（里面有要留意的会标出），点一下把前面的一屏带回来，每次至少多看到一件，直到最早一件；翻回去以后右端有回到现在的按钮，滚轮一格翻一件。读不到的来源固定在线头旁边。线自己宽 960px 以下时线在输入框上面、输入框另起一行，两翼照旧；520px 以下（手机）是一条横向滑动的轨道，停在完整的胶囊上，线头和读不到的来源固定在左边。线看自己的宽度，分屏、侧边把它挤窄也一样。",
+    "workbench.work-line-specimens.whole-line-note": "左边是发生过和正在办的（等你的、在办的紧挨输入框），中间是输入框，右边是接下来的。线的高度不变；线自己宽 1120px 以上（窗口约 1180px）左翼不少于 420px。左翼只显示完整的胶囊，放不下时最早的先出视野，线头后面的按钮写着还有几件（里面有要留意的会标出），点一下把前面的一屏带回来，每次至少多看到一件，直到最早一件；翻回去以后右端有回到现在的按钮，滚轮一格翻一件。读不到的来源固定在线头旁边。线自己宽 960px 以下时线在输入框上面、输入框另起一行，两翼照旧；540px 以下（手机）是一条横向滑动的轨道，停在完整的胶囊上，线头和读不到的来源固定在左边。线看自己的宽度，分屏、侧边把它挤窄也一样。",
     "workbench.work-line-specimens.work-line": "事项线",
     "workbench.work-line-specimens.work-line-specimen": "事项线标本",
     "workbench.work-line-specimens.write-talk-outline": "写讲稿提纲",

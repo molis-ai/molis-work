@@ -42,8 +42,8 @@ export const WORK_LINE_STYLES = `
 .work-line-wing[data-wing="next"]{grid-column:3;grid-row:1}
 .work-line-slot{grid-column:2;grid-row:1;position:relative;align-self:end;min-width:0}
 .work-line-run{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:8px;height:44px;padding:0 2px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
-/* The line with its wings (it is more than 520px wide itself, whatever the window): the events' stretch of the left wing keeps 200px where the wing has it (the head's name shortens first), snaps to whole capsules, and makes room at its end for the way back to now once paged back. */
-@container work-line (min-width:521px){
+/* The line with its wings (it is more than 540px wide itself, whatever the window): the events' stretch of the left wing keeps 200px where the wing has it (the head's name shortens first), snaps to whole capsules, and makes room at its end for the way back to now once paged back. */
+@container work-line (min-width:541px){
   .work-line-wing[data-wing="past"] .work-line-run{flex:1 1 0;min-width:min(196px,calc(100% - 224px));scroll-snap-type:x mandatory;scroll-padding-right:2px}
   .work-line-wing[data-wing="past"] .work-line-run[data-back]{padding-right:38px;scroll-padding-right:38px}
   .work-line-wing[data-wing="past"] .work-event{scroll-snap-align:end}
@@ -156,6 +156,7 @@ ${W} ${BUTTON_GROUNDS} .mw-btn--secondary:not(:disabled){border-color:var(--line
 .work-reply-placed>svg{flex:none;width:14px;height:14px;color:var(--ink-soft)}
 .work-reply-placed-where{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;font-weight:500}
 .work-reply-returned{align-self:flex-start;display:inline-flex;align-items:center;gap:4px;height:20px;max-width:100%;min-width:0;padding:0 7px;border-radius:var(--r-tag,6px);background:var(--accent-soft);color:var(--accent-strong);font-size:11px;font-weight:500;white-space:nowrap}
+.work-reply-peek-head .work-reply-returned{align-self:center}
 .work-reply-returned[data-state="failed"]{background:color-mix(in srgb,var(--red) 12%,transparent);color:var(--red)}
 .work-reply-returned>svg,.work-reply-carried>svg{flex:none;width:12px;height:12px}
 .work-reply-returned-name{min-width:0;overflow:hidden;text-overflow:ellipsis}
@@ -195,8 +196,8 @@ html[data-craft-still] ${ANIMATED}{animation:none}
   .work-line-now{grid-column:2;grid-row:1;position:relative;display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:11px;background:var(--action);color:var(--action-ink);font-size:11px;font-weight:600}
   .work-line-slot{grid-column:1/-1;grid-row:2;align-self:auto;justify-self:center;width:min(100%,640px)}
 }
-/* A phone (the line is 520px or less): one track above the composer that slides sideways and rests on whole capsules, the head and any unreadable source fixed at its start. */
-@container work-line (max-width:520px){
+/* A phone (the line is 540px or less): one track above the composer that slides sideways and rests on whole capsules, the head and any unreadable source fixed at its start. */
+@container work-line (max-width:540px){
   .work-line-row{display:flex;flex-direction:column;align-items:stretch;gap:6px}
   .work-line-row::before{top:24px}
   .work-line-track{display:flex;align-items:center;gap:8px;height:48px;min-width:0;overflow-x:auto;scrollbar-width:none;scroll-snap-type:x mandatory;scroll-padding-left:var(--lead-width,0px)}
@@ -213,7 +214,7 @@ html[data-craft-still] ${ANIMATED}{animation:none}
   .work-line-now{flex:none}
   .work-line-head{height:44px;min-width:0}
   .work-line-head-name,.work-event-note{display:none}
-  .work-event,.work-line-wing[data-wing="past"] .work-event{height:44px;max-width:240px;border-radius:22px}
+  .work-event,.work-line-wing[data-wing="past"] .work-event{height:44px;max-width:min(240px,var(--cap-max,240px));border-radius:22px}
   .work-line-wing[data-wing="past"] .work-line-run>:last-child{max-width:min(240px,var(--near-max,240px))}
 }
 @media (max-width:760px){

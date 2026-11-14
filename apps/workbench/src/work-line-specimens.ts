@@ -147,7 +147,7 @@ function acceptanceCard(): string {
 function handStrip(): string {
   const chip = (key: string) => `<span class="assistant-strip-chip" title="${uiText("workbench.assistant-context-strip.added")}"><span class="assistant-strip-label">${escapeHtml(say(key))}</span>`
     + `<button type="button" class="assistant-strip-act" aria-label="${escapeHtml(uiText.text("workbench.assistant-context-strip.leave-out-title", { title: say(key) }))}">×</button></span>`;
-  return `<div class="assistant-context-strip" role="group" aria-label="${uiText("workbench.assistant-context-strip.going-send")}">${chip("hand-shelf-item")}${chip("hand-idea")}${chip("hand-file")}</div>`;
+  return `<div class="assistant-context-strip" role="group" aria-label="${uiText("workbench.assistant-context-strip.going-send")}"><div class="assistant-strip-row">${chip("hand-shelf-item")}${chip("hand-idea")}${chip("hand-file")}</div></div>`;
 }
 
 function taskCard(): string {
@@ -231,6 +231,7 @@ export const WORK_LINE_FRAME_STYLES = `.mw-wls__row{flex-wrap:nowrap;overflow-x:
 .mw-wls__thread{display:flex;flex-direction:column;gap:12px;max-width:560px;padding:4px!important;font-size:14px}
 .mw-wls__slot{display:flex;flex-direction:column;max-width:540px;padding:4px}
 .mw-wls__hand{position:relative;margin-top:44px}
+@media (max-width:760px){.mw-wls__hand{margin-top:56px}}
 .mw-wls__above{position:absolute;left:0;right:0;bottom:calc(100% + 8px);display:flex;flex-direction:column}
 .mw-navs .work-line{min-height:64px;padding:8px 0}
 .mw-navs .work-line-row:has(.mw-wls__above){margin-top:112px}

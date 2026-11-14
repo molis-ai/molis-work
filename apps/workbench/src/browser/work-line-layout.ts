@@ -143,33 +143,40 @@ function installTrack(track: HTMLElement): void {
   const now = track.querySelector<HTMLElement>(".work-line-now");
   const slides = () => getComputedStyle(track).display !== "contents";
   const leadWidth = () => (track.querySelector<HTMLElement>(".work-line-lead")?.getBoundingClientRect().width ?? 0) + 8;
+  const capsules = () => [...track.querySelectorAll<HTMLElement>(".work-line-run > .work-event")];
   let turned = 0;
   const rest = () => {
-    for (const name of ["--near-max", "--lead-width", "--track-tail"]) track.style.removeProperty(name);
+    for (const name of ["--near-max", "--cap-max", "--lead-width", "--track-tail"]) track.style.removeProperty(name);
     if (!now || !slides()) return;
     const lead = leadWidth();
     track.style.setProperty("--lead-width", `${lead}px`);
     // The event next to now is no wider than what the fixed lead and now leave of the track: it shows whole in any language.
     track.style.setProperty("--near-max", `${Math.max(96, track.clientWidth - lead - now.offsetWidth - 24)}px`);
+    // No event is wider than the track beside the lead: each can rest whole at the lead's edge.
+    track.style.setProperty("--cap-max", `${Math.max(96, track.clientWidth - lead - 8)}px`);
     const box = track.getBoundingClientRect(), nearest = track.querySelector<HTMLElement>(`${PAST_RUN} > :last-child`);
     const from = (nearest ?? now).getBoundingClientRect().left - box.left - lead;
     // Never so far that now leaves the track.
     const most = now.getBoundingClientRect().right - box.left - track.clientWidth + 8;
-    const to = track.scrollLeft + Math.max(from, most), short = to - (track.scrollWidth - track.clientWidth);
-    if (short > 0) track.style.setProperty("--track-tail", `${Math.ceil(short)}px`);
+    const to = track.scrollLeft + Math.max(from, most), end = track.scrollWidth - track.clientWidth;
+    // The track ends where a capsule starts at the lead's edge: slid all the way, none stands half under the lead. The
+    // tail is what the content lacks to end there (and to reach the resting place at all).
+    const stops = capsules().map((item) => track.scrollLeft + item.getBoundingClientRect().left - box.left - lead);
+    const last = stops.find((stop) => stop >= Math.max(to, end) - 1) ?? Math.max(to, end);
+    if (last - end > 0.5) track.style.setProperty("--track-tail", `${Math.ceil(last - end)}px`);
     track.scrollLeft = to;
   };
   track.addEventListener("wheel", (event) => {
     if (!slides() || Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
-    // At either end the wheel is the page's again.
-    if (event.deltaY < 0 ? track.scrollLeft <= 0 : track.scrollLeft >= track.scrollWidth - track.clientWidth - 1) return;
+    const edge = track.getBoundingClientRect().left + leadWidth(), events = capsules();
+    const at = events.findIndex((item) => item.getBoundingClientRect().left >= edge - 1), target = events[(at < 0 ? events.length : at) + (event.deltaY < 0 ? -1 : 1)];
+    // With no event further that way, or the track at its end, the wheel is the page's again.
+    if (!target || (event.deltaY > 0 && track.scrollLeft >= track.scrollWidth - track.clientWidth - 1)) { turned = 0; return; }
     event.preventDefault();
     turned += event.deltaMode ? event.deltaY * 16 : event.deltaY;
     if (Math.abs(turned) < 48) return;
-    const edge = track.getBoundingClientRect().left + leadWidth(), events = [...track.querySelectorAll<HTMLElement>(".work-line-run > .work-event")];
-    const at = events.findIndex((item) => item.getBoundingClientRect().left >= edge - 1), target = events[(at < 0 ? events.length : at) + (turned < 0 ? -1 : 1)];
     turned = 0;
-    if (target) track.scrollBy({ left: target.getBoundingClientRect().left - edge });
+    track.scrollBy({ left: target.getBoundingClientRect().left - edge });
   }, { passive: false });
   rest(); new ResizeObserver(rest).observe(track);
 }

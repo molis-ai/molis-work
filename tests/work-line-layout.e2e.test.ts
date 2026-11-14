@@ -174,13 +174,14 @@ test("WLN-37, WLN-18: an unreadable source stays beside the head, on a desk and 
   assert.equal(await evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth"), true);
 });
 
-// Between a phone and three columns (a line of 521–959px: a window of 577–1015px on the board) the line stands above the
+// Between a phone and three columns (a line of 541–959px: a window of 597–1015px on the board) the line stands above the
 // composer with the same two wings. Before: these widths got the phone's track, where a mouse could not reach the earlier
 // events and nothing said one of them had failed; before that, three columns that cut "needs you" off.
 for (const lang of ["zh", "en"]) test(`work-line §4.9 (${lang}): in two rows the wings work as in three columns, and the event next to now keeps its name and state word`, { timeout: 120_000 }, async (t) => {
   const page = await open(t, 800, lang); if (!page) return;
   const { evaluate, size, settle } = page;
-  for (const width of [600, 800, 940, 1000]) {
+  // 597 is the narrowest window with two rows: before, the English name next to now was 53px there, cut to "Reply t…".
+  for (const width of [597, 600, 800, 940, 1000]) {
     await size(width); await settle(); await settle();
     for (const index of [0, 1, 3]) {
       const rest = await evaluate<Wing>(`${WING}(${LINES}[${index}])`);
@@ -197,7 +198,7 @@ for (const lang of ["zh", "en"]) test(`work-line §4.9 (${lang}): in two rows th
   await pageBack(page, 1, `${lang} 800`);
 });
 
-// The line as a track: a phone (a line of 520px or less).
+// The line as a track: a phone (a line of 540px or less).
 const TRACKS = `${LINES}.map((line) => { const track = line.querySelector('[data-work-line-track]'), frame = track.getBoundingClientRect();
   const parts = [...line.querySelectorAll('.work-line-wing[data-wing="past"] .work-line-run > *, .work-line-now, .work-line-wing[data-wing="next"] .work-line-run > *')].map((part) => ({ name: part.dataset.workEvent || part.className, box: part.getBoundingClientRect() }));
   const now = line.querySelector('.work-line-now').getBoundingClientRect(), lead = line.querySelector('.work-line-lead').getBoundingClientRect(), last = line.querySelector('.work-line-wing[data-wing="past"] .work-line-run > :last-child');
@@ -211,19 +212,33 @@ for (const lang of ["zh", "en"]) test(`WLN-18, work-line §4.9 (${lang}): on a p
   const page = await open(t, 390, lang); if (!page) return;
   const { evaluate, size, settle } = page;
   // Before: in English at 390 the fixed lead lay over the event next to now; a line too short to slide left a capsule half under the lead.
-  for (const width of [390, 360, 480, 560]) {
+  const slide = (to: string) => evaluate(`${LINES}.forEach((line) => { const track = line.querySelector('[data-work-line-track]'); track.scrollLeft = ${to}; })`);
+  for (const width of [390, 360, 480, 560, 596]) {
     await size(width); await settle(); await settle();
     const tracks = await evaluate<Record<string, unknown>[]>(TRACKS);
     assert.deepEqual(tracks, tracks.map(() => ({ form: "track", overlap: [], under: [], now: true, near: true, word: true, name: true })), `${width}px`);
+    // Slid all the way to either end it still rests on whole capsules. Before: at the far end the last capsules could not
+    // reach the lead's edge, and one stood half under the lead on every line.
+    for (const to of ["track.scrollWidth", "0"]) {
+      await slide(to); await settle(); await settle();
+      const ends = await evaluate<{ under: string[]; overlap: string[] }[]>(TRACKS);
+      assert.deepEqual(ends.map((line) => [line.under, line.overlap]), ends.map(() => [[], []]), `${width}px, slid to ${to}`);
+    }
     assert.equal(await evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth"), true, `${width}px: the page does not scroll sideways`);
   }
   // A wheel that only turns up and down moves the track an event a notch, and rests on whole capsules still.
+  await size(390); await settle(); await settle();
   const turn = (by: number) => evaluate(`${LINES}[1].querySelector('[data-work-line-track]').dispatchEvent(new WheelEvent('wheel', { deltaY: ${by}, cancelable: true, bubbles: true }))`);
   const at = () => evaluate<number>(`Math.round(${LINES}[1].querySelector('[data-work-line-track]').scrollLeft)`);
   const start = await at();
   await turn(-100); await settle(); await settle();
   assert.ok((await at()) < start, "a notch back slides the track to the event before");
   assert.deepEqual((await evaluate<{ under: string[] }[]>(TRACKS))[1]!.under, [], "and it rests with no capsule half under the lead");
+  // At either end the wheel is the page's again. Before: the track rests 2px in at its start, and the wheel was held there.
+  for (const [to, by] of [["0", -100], ["track.scrollWidth", 100]] as const) {
+    await slide(to); await settle(); await settle();
+    assert.equal(await turn(by), true, `slid to ${to}, the wheel is not held`);
+  }
 });
 
 test("WLN-03: what the hand added stands above the composer, inside its specimen", { timeout: 120_000 }, async (t) => {

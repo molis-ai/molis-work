@@ -18,11 +18,13 @@ export declare const SKILL_EXCERPT_CHARS = 200;
 
 export declare const SKILL_INSTALL_PREVIEW_SCHEMA: ActionSchema;
 
-export declare const SKILL_READ_REFUSALS: readonly ["plugin_disabled", "publisher_revoked", "resource_invalid", "requires_unmet", "connection_missing", "native_only", "not_applicable", "not_current", "off", "not_named"];
+export declare const SKILL_READ_REFUSALS: readonly ["plugin_disabled", "publisher_revoked", "resource_invalid", "requires_unmet", "connection_missing", "native_only", "not_applicable", "not_current", "off", "not_named", "over_limit"];
 
 export declare const SKILL_REF_SCHEMA: ActionSchema;
 
 export declare const SKILL_RESOURCE_READ_MAX_BYTES: number;
+
+export declare const SKILL_ROUND_AUTO_LIMIT = 3;
 
 export declare const SKILL_SCOPES: readonly ["project", "home"];
 
@@ -173,6 +175,12 @@ export interface SkillInstallPreview {
 }
 
 export type SkillPackTrust = "host" | "pinned" | "home_local";
+
+export interface SkillPick {
+    ref: SkillRef;
+    name: string;
+    picked: "named" | "auto";
+}
 
 export type SkillReadRefusal = (typeof SKILL_READ_REFUSALS)[number];
 

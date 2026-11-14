@@ -98,8 +98,9 @@ test("APR-11: a delayed old monitor-off cannot disable monitoring for a later le
 
 test("APR-11: an exited app never silently retargets the approved action to a new process", { timeout: 15_000 }, async t => {
   const f = await fixture(t), original = context(); await f.open(original);
+  const expected = await surfaceTarget(f.surface, original.control);
   const before = f.frames.length, barrier = f.holdNext("app.state");
-  const rejected = assert.rejects(performSurface(f.surface, { what: "key", keys: ["Enter"] }, original.control), /exited/u);
+  const rejected = assert.rejects(performSurface(f.surface, { what: "key", keys: ["Enter"] }, original.control, expected), /exited/u);
   await barrier.reached; barrier.reject("app.gone", "original app exited"); await rejected;
   assert.equal(f.frames.slice(before).some(frame => frame.op === "apps.running" || frame.op.startsWith("input.")), false);
   assert.equal(f.desk.target()?.pid, 42);
@@ -184,12 +185,13 @@ test("APR-11: switching the same app during a focused-field read invalidates onl
 
 test("APR-11: a reconnected helper requires a new confirmed monitor before another input", { timeout: 15_000 }, async t => {
   const f = await fixture(t), original = context(); await f.open(original);
-  const generation = f.helper.generation, before = f.inputs().length;
+  const generation = f.helper.generation, before = f.inputs().length, beforeFrames = f.frames.length;
   await f.disconnect();
   const next = f.nextConnection(), monitor = f.holdNext("monitor");
   const rejected = assert.rejects(performSurface(f.surface, { what: "key", keys: ["Enter"] }, original.control), /未能启用/u);
   await next; f.hello(); await monitor.reached;
   assert.equal(f.helper.generation, generation + 1); assert.equal(f.inputs().length, before);
+  assert.deepEqual(f.frames.slice(beforeFrames).map(frame => frame.op), ["monitor"]);
   monitor.release({ watching: false }); await rejected;
   assert.equal(f.inputs().length, before);
   await performSurface(f.surface, { what: "key", keys: ["Enter"] }, original.control);
@@ -248,12 +250,13 @@ test("APR-11: a synchronous activity listener revoking the round refuses before 
 
 test("APR-11: watch_failed on the same helper connection requires successful monitoring before the next input", { timeout: 15_000 }, async t => {
   const f = await fixture(t), original = context(); await f.open(original);
-  const generation = f.helper.generation, before = f.inputs().length;
+  const generation = f.helper.generation, before = f.inputs().length, beforeFrames = f.frames.length;
   f.event({ event: "watch_failed" }); await setImmediate(); await setImmediate();
   const monitor = f.holdNext("monitor");
   const next = performSurface(f.surface, { what: "key", keys: ["Enter"] }, original.control);
   await monitor.reached;
   assert.equal(f.helper.generation, generation); assert.equal(f.inputs().length, before);
+  assert.deepEqual(f.frames.slice(beforeFrames).map(frame => frame.op), ["monitor"]);
   monitor.release({ watching: true }); await next;
   assert.equal(f.frames.filter(frame => frame.op === "monitor" && frame.params.on === true).length, 2);
   assert.equal(f.inputs().length, before + 1);

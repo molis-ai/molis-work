@@ -224,7 +224,7 @@ export class ComputerDriver {
     };
     return this.surfaceDriver = {
       kind: "desktop", project_id: null,
-      identity: context => checked(context, driver => driver.identity()),
+      identity: context => checked(context, driver => driver.identity(context)),
       scope: context => checked(context, async driver => driver.ctx.target()?.bundle_id ?? NO_APP_SCOPE),
       readiness: context => checked(context, driver => driver.ctx.readiness(context)),
       observe: (kind, context, expected) => withOriginal(context, expected, driver => driver.observe(kind, context, expected)),
@@ -259,7 +259,8 @@ export class ComputerDriver {
   }
 
   /** Which app, which window, where it is and what it is called, and how often the person took over: equal or stale. */
-  private async identity(): Promise<string> {
+  private async identity(context: HostSurfaceContext): Promise<string> {
+    if (this.ctx.target()) await this.ctx.ready(context);
     const state = this.ctx.target() ? await this.appState().catch(error => {
       if (isHelperFailure(error) && error.code === "app.gone") return null;
       throw error;

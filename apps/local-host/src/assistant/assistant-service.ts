@@ -1,3 +1,4 @@
+import { assistantSessionLifecycleProblem, changeAssistantSessionLifecycle } from "./assistant-session-lifecycle.js";
 import type { MethodHandoff } from "./assistant-signed-materials.js";
 import { sentOriginal } from "./assistant-round-start.js";
 import { memoryInputSource } from "../memory/memory-source-identity.js";
@@ -21,6 +22,7 @@ import type { AssistantStore, StoredRound, StoredWork } from "./assistant-store.
 import { AssistantJobs } from "./assistant-jobs.js";
 import { AGENT_STEER_MODES } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 import { assistantErrors } from "./assistant-errors.js";
+import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { MemoryChange } from "@molis-ai/molis-work-contracts/services/memory";
 import type { MemoryService } from "@molis-ai/molis-work-service-memory";
 import { assertRoundToAddress, inputsOf, withdrawInput } from "./assistant-inputs.js";
@@ -128,6 +130,14 @@ export class AssistantService {
     }));
   }
 
+  /** The same business owner, without reading a Run, an executor or conversation contents. */
+  memorySessionBinding(workId: string): { session_id: string | null; project_ref: LocalHostProjectReference | null; archived: boolean } {
+    const work = this.store.get(this.actorId, workId);
+    if (work.scope.kind === "project" && work.project_ref?.project_id !== work.scope.project_id
+      || work.scope.kind === "personal" && work.project_ref) throw assistantErrors.conflict("原助理会话的项目归属不可确认");
+    return { session_id: work.session_id, project_ref: work.project_ref ? { ...work.project_ref } : null, archived: work.archived };
+  }
+
   async read(workId: string): Promise<AssistantWorkView> {
     const work = await this.reads.named(this.store.get(this.actorId, workId));
     // One work, whoever ran each round: the Assistant's own session, and the executor's session it carries or handed to.
@@ -136,7 +146,7 @@ export class AssistantService {
     const plugin = carried ? await this.reads.executorPart(work, carried) : null;
     const rounds = this.dispatcher.settleUnsent(work, [...(assistant?.rounds ?? []), ...(plugin?.rounds ?? [])].sort((a, b) => a.started_at.localeCompare(b.started_at)));
     const latest = rounds.at(-1);
-    const problem = assistant?.problem ?? plugin?.problem;
+    const problem = await assistantSessionLifecycleProblem(this.ports, work) ?? assistant?.problem ?? plugin?.problem;
     const state = plugin?.unreadable && work.executor.kind === "plugin" ? "needs-check"
       : await this.continuations.state(work, stateOf(latest && latest.phase !== "unknown" ? latest.phase : latest ? null : undefined, Boolean(assistant?.recovery || plugin?.recovery)));
     const shown: StoredWork = work.executor.kind === "plugin" && plugin?.mode ? { ...work, executor: { ...work.executor, mode: plugin.mode } } : work;
@@ -262,16 +272,10 @@ export class AssistantService {
   }
 
   /** Put away (or back). Putting away is quiet: it waits for no round in progress here or in what it handed out, and takes its timed rounds with it. */
-  async archive(workId: string, archived: boolean): Promise<AssistantWork> {
-    if (archived) {
-      const host = await this.ports.host(), own = this.store.get(this.actorId, workId), group = [own, ...this.store.delegatedBy(this.actorId, own, "any")];
-      if ((await Promise.all(group.map(item => this.reads.stateFor(host, item)))).some(state => ["running", "paused", "waiting-input", "waiting-review"].includes(state))) {
-        throw assistantErrors.state("这项工作还有一轮在进行，先停止它再归档");
-      }
-      await this.followUps.stopForArchive(workId);
-    }
-    const work = this.store.update(this.actorId, workId, null, { archived });
-    return this.reads.publicWork(work, await this.reads.stateSafely(work));
+  async archive(workId: string, archived: boolean, control?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentMemoryExecutionControl): Promise<AssistantWork> {
+    const work = await changeAssistantSessionLifecycle(this.store, this.ports, this.actorId, this.reads, this.followUps, this.starting, workId, archived, control);
+    const hasSession = work.session_id || work.executor.kind === "plugin" && work.executor.session_id;
+    return this.reads.publicWork(work, hasSession ? await this.reads.stateSafely(work) : "idle");
   }
 
   private async createWork(text: string, scope: AssistantScope | undefined, context: AssistantContextSnapshot | null, caller: AssistantCaller,

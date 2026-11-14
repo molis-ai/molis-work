@@ -131,7 +131,7 @@ export function renderStagePage(contribution: UiContribution, model: unknown, ow
         if (descriptor) {
           const id = html.match(/\bdata-(?:work-surface|directory-panel)="([^"]+)"/)?.[1] ?? owner;
           const title = html.match(/\bdata-work-surface-label="([^"]+)"/)?.[1] ?? options?.manifest?.name ?? owner;
-          return renderPluginFrameSurface(html, id, title, true, false, owner,
+          return renderPluginFrameSurface(html, id, title, descriptor.target_slot_id !== "workbench.directory", false, owner,
             { contribution_id, surface, target_slot_id: descriptor.target_slot_id }, options?.manifest?.plugin_id, options?.producer);
         }
       }

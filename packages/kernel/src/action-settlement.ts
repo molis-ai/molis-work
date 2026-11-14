@@ -2,6 +2,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { requireSynchronous, type ActionCallContext, type ActionExecutionContext, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityDescriptor } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { currentCallId, insideHandler, newCallId, withCallId, withCallIdSync } from "./call-scope.js";
+import { inDirectoryPass } from "./directory-pass.js";
 import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { currentInvocationId, withInvocation, withInvocationSync } from "./invocation-scope.js";
 
@@ -53,12 +54,13 @@ export function assertCurrentAuthority(context: ActionCallContext, reference?: A
 /** Preserve the dispatcher's own registration/lifetime when this context reaches a nested call. */
 export function effectGuard(context: ActionCallContext, reference: ActionReference, permissions: readonly string[], assertCurrent: () => void,
   beforeEffect?: (context: ActionCallContext, reference: ActionReference) => void | Promise<void>): Pick<ActionExecutionContext, "beforeEffect" | "assert_authority_current"> {
-  const assertAuthority = (target?: ActionReference, requiredPermissions?: readonly string[]) => {
+  // The whole check is synchronous, the callers' checks it reaches included, so it is one directory pass: each installation record is read once for it.
+  const assertAuthority = (target?: ActionReference, requiredPermissions?: readonly string[]) => inDirectoryPass(() => {
     assertCurrent();
     assertCurrentAuthority(context, reference, requiredPermissions ? [...new Set([...permissions, ...requiredPermissions])] : permissions);
     if (target && (target.capability_id !== reference.capability_id || target.version !== reference.version || target.provider_id !== reference.provider_id)) assertCurrentAuthority(context, target, requiredPermissions);
     assertCurrent();
-  };
+  });
   return { assert_authority_current: assertAuthority, beforeEffect: async () => {
     assertCurrent();
     await context.validate_authority?.(reference);

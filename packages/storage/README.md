@@ -1,5 +1,9 @@
 # 本地存储基础设施
 
+Memory ledger现行基线为2，表结构与业务行保持不变。版本2只由真正空的新Home创建；版本1及未来版本均拒绝，不转换、不降版。这个容器版本让旧715 App在SDK初始化前拒开新索引Home，索引库本身仍归SDK。回归：`tests/home-store-baselines.test.ts`、`tests/memory-initialization.test.ts`、`tests/home-restore-forgetting-old-cli.test.ts`。
+
+A4-M 本地初始合同：同一 format_version:1 的每项独立遗忘决定必填 selection_mode=related|exact-identities。旧非空缺字段、未知值、exact 带 sources 或没有正式/候选身份均拒绝，不猜测、不转换；空 decisions 合法。同 operation 比较 mode、scope/owner、完整正式/候选版本与来源。ledger.forget 由原写主人明确传 mode；related 保留原关联清理，exact 不擦未选候选自己的正文与历史关联。已忘正式身份的修订、使用、变动与迟到成功门保持。冷恢复仅由独立接受事实派生 mode，坏 ledger 不能降低模式；同身份的 related 不被 exact 削弱。复用原 owner、原文件和现有库，不新增 store/schema/迁移。完整短合同与22路径白名单见 Memory 包 A4-M 小节；本段不接 Session 管理、Action 或 UI。
+
 `belongsToProject` 的第三参是惰性的保留内容读取函数：只有需要解释冻结上传/冲突内业务归属的 owner 才调用，沿同一授权和原正文保护解码，最多返回该键两份现有记录；Storage 不解释其 payload。只从稳定键判断范围的 owner 不触碰正文或密钥。
 
 `SyncReplicaAdapter.hasProjectChanges(projectId)` 是 owner 对指定项目未结算内容的只读判断，覆盖待提交变化、冻结上传及保留冲突（包括等待依赖）；删除后的键仍须可判定归属，其他项目不能误计。缺少此端口或归属不可知必须报告不支持/不可用，不能返回 false 冒充已同步；它不确认上传，也不授权回收。SQLite owner 通过可信 `belongsToProject(key,projectId)` 投影现有日志键的业务归属，共同 Storage 不猜键、不跨 owner 查表，查询不受上传启用筛选影响。当前 Aggregate、Pages、Images、Workflows 及已有项目分区已兑现；分区映射由可信组合根显式提供，不从输入猜测，失效分区拒绝观察。Todo 已按当前/删除后归属及未确认保留内容判断；Work 已按 work.project 关系及未确认保留内容判断，交接目标不作为归属；Home 文档和未启用分区的完整被动读取尚待接线，项目云端生命周期仍未因此启用。
@@ -107,11 +111,17 @@ pnpm test:run tests/feed-security.test.ts tests/web-home-isolation.test.ts tests
 
 ## 开发要求
 
+同步读取批次复用现 `forgetting.read`，不新增公开 Port、全局缓存或第二个写主人。Memory 的范围过滤与最后等待后的交付复核各自取得事实，并在同步阶段尾由原读门重新核验。`recordUses` 在现 SQLite 事务内取得一份当前事实，逐条检查已接受身份及当前 forgotten marker，保留原回执强度、版本/Run 冲突和全部 returned/omitted 行；COMMIT 紧前重新经原 owner 的 read 比较完整事实，变化、关闭、文件替换/链接/损坏、恢复屏障或未知结果均拒绝并回滚。本事务嵌套到既有事务时，返回前先核本阶段，外层 COMMIT 前再次核验；回执批次任意失败都会阻止外层提交，即使外层捕获该错误也回滚，事务结束清除失败状态。不把内部事务成功当成持久提交。可替换性沿原 Storage Port；这些检查不可配置，App/用户没有新增开关。定向回归沿 `tests/memory-forgetting-facts.test.ts` 与 `tests/memory-ledger-transaction.test.ts`，不改变 schema 或遗忘文件格式。
+
+Home 顶层 `memory-forgetting-v2.json` 是同一 Storage owner 的无正文遗忘事实，登记为普通文件 store；文件名 v2 标识当前 Home 物理代，JSON 仍严格 `format_version: 1`。只读写这一现行路径，不双读、自动改名或转换旧名 Home/归档；旧名 only 因当前文件缺失拒绝，双名在原离线 snapshot/restore inventory 拒绝，正常启动不新增全 Home 扫描。仅 fresh-only 初始化可建立空文件，非空 Home 缺失或损坏时拒绝。固定 operation 的 actor、scope/owner、正式/候选身份版本和来源事件必须完整一致；同操作确认不会改选，合并只增不减。决定写入用原原子文件 helper 的 durable 选项：只清理本次独占创建的临时文件，文件 fsync、rename、目录 fsync 全部完成才返回接受。rename 后失败保留实际可见文件，正常读门立即阻止使用，原操作重新确认持久化；不得谎称回滚。活入口共享原 owner 实例的不可变事实，不逐条重读 JSON；文件身份意外变化、生命周期退出与无法核验状态均拒绝，真实重开严格重读。
+
+恢复只从可核验的独立文件取得较新决定，目标 `memory.db` 保持 opaque。`readMemoryLedgerRestoreFacts` 只解码发布材料中与固定决定关联的现行投影；`retainMemoryLedgerAfterRestore` 在原 storage owner 与 journal 下合并终止屏障，清除正式账本副本及明确选中的候选投影。SDK 已清除而 ledger 补清失败时，必须以持久投影本身验证，不能因 SDK 列表为空就留下正文。独立文件自身缺失/损坏不当空；不迁移库、不复制 key、不另起发布日志。回归：`tests/storage-atomic-write-durable.test.ts`、`tests/memory-forgetting-facts.test.ts`、`tests/home-restore-memory-forgetting.test.ts`。
+
 项目连接从 `openSqliteConnection` 打开，返回 storage 的 `SqliteDatabase` 接口；它只打开连接，不建表。底下是 `node:sqlite`，SQLite 跟着 Node 走，所以版本由 `.nvmrc` 定（`specs/sqlite-driver-switch/spec.md` §2.1）。这一层保留调用方靠得住的拒绝：一次一句、参数个数、命名参数、布尔和 `Date`、对写语句用 `get`，因为 `node:sqlite` 在这些地方不报错、悄悄照做。失败的名字用 `sqliteErrorName`（`SQLITE_BUSY` 等，从 SQLite 的结果码读），不看 `error.code`：`node:sqlite` 全是 `ERR_SQLITE_ERROR`。需要项目库的日志和 WAL 设置时由 `LocalSqliteStorage` 配置。测试从 test-kit 的 `/sqlite` 入口取得同一驱动。基线检查在持有该库的驱动上执行。
 
 `inspectMemoryLedger` 只读当前完整账本与可信 actor 的 personal/project-default 偏好；缺文件只返回 absent，不授予 fresh 资格。源库及 WAL/SHM 不经 SQLite 打开，私有副本使用同一基线与 contracts 完整性规则，源字节/模式/侧车保持。`inspectSnapshotSqlite` 只检查已有 standalone 归档，复用 backup 的 owner/schema/完整性检查，不初始化或切 WAL。恢复 key 与证据只读端口复用原密封 owner，不创建替代 key。`retainStorageOwner` 将 Catalog 寿命与 SDK 单 borrow 分开，pending 拒绝正常打开/借用，恢复 owner 不能启动 SDK。直接回归：`tests/home-restore-owner-inspection.test.ts`、`tests/security-invariants-home-restore-guard.test.ts`。
 
-`backupSnapshotSqlite` 只读源库、使用 SQLite backup API 包含已提交 WAL，在私有副本核 owner 版本、schema、integrity/外键并刷盘；`copySnapshotFile` 与摘要端口拒绝链接、特殊文件和读取期间的改动，普通文件使用有界内存流式复制，默认在返回前刷盘。持离线 lease 的快照 owner 可明确延后私有副本的刷盘，先认证实际副本，再在发布前刷齐每个文件；认证或刷盘失败均不发布，不能把这个参数用于省略成功产物的持久化。调用方须先排除所有权锁及其侧车，不能打开它们做摘要。Home 路径、存储集合、同 Home lease 和原 key 策略由 Host 编排，不在 storage 复制业务名单；原 key 只记身份，不导出。回归包含 `tests/home-snapshot-content.test.ts`、`tests/security-invariants-home-snapshot-inputs.test.ts` 与 `tests/security-invariants-home-snapshot-lifecycle.test.ts`。
+`backupSnapshotSqlite` 只读源库、使用 SQLite backup API 包含已提交 WAL，在私有副本核 owner 版本、schema、integrity/外键并刷盘；普通 WAL 首次读取可能产生原技术侧车，不承诺所有普通库物理零写。声明 `standalone: true` 的源须在 inventory 及实际 backup 打开 SQLite 前，通过同一有界20字节文件头与精确侧车缺席检查；默认不限制普通 WAL 库。`copySnapshotFile` 与摘要端口拒绝链接、特殊文件和读取期间的改动，普通文件使用有界内存流式复制，默认在返回前刷盘。持离线 lease 的快照 owner 可明确延后私有副本的刷盘，先认证实际副本，再在发布前刷齐每个文件；认证或刷盘失败均不发布，不能把这个参数用于省略成功产物的持久化。调用方须先排除所有权锁及其侧车，不能打开它们做摘要。Home 路径、存储集合、同 Home lease 和原 key 策略由 Host 编排，不在 storage 复制业务名单；原 key 只记身份，不导出。回归包含 `tests/home-snapshot-content.test.ts`、`tests/security-invariants-home-snapshot-inputs.test.ts` 与 `tests/security-invariants-home-snapshot-lifecycle.test.ts`。
 
 快照技术拒绝沿共同 `ActionError`：静态不合法为平台 `actions.input_invalid`，开始复制后观察到改变为 `actions.conflict`；源库原 `storage.schema_version_mismatch`、取消和 I/O 原样传播。Home 编排把这两类转为自己的快照码，不依赖消息文本。当前库由owner的基线/元数据检查与完整性验证共同决定可捕获范围，公开拒绝及源零写证明见 `tests/home-snapshot-errors.test.ts`。退役Sessions的metadata端口已按2026-10-30用户决定删除，未知目录不被读取。
 
@@ -158,6 +168,12 @@ SQLite 自己的授权回调：`SqliteDatabase.setAuthorizer` 接 Node 的 `setA
 
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。
+
+### B4 原操作发现与固定选中批量（本地实施合同）
+
+按原 Memory V0 spec 末尾已批准合同：本人有界发现无正文原操作，原 change/clear 继续；选中 disable/remove 经 SDK 固定 preview/mutateBatch，原 marker 保存原 ID/version/operation 和真实完成投影。scope clear 与 remove batch 全部固定组接受后才物理清理，接受部分失败不伪称原子。页面不持久正文或命令，不追删新目标；缺原请求/结果标需对账。路径白名单与红绿验收沿统筹批准的 B4 提案，保留本包原开发要求；不改 SDK/vendor、Storage schema 或独立 forgetting v1。
+
+Memory recordUses 的批量 SQL 仍属于原同步 BEGIN IMMEDIATE 事务：有界读取全体身份的当前 marker 与旧回执，逐项按输入顺序保留执行/版本冲突、状态单调性和首次插入列值，批量持久全部回执。写后核 marker，原独立遗忘事实在嵌套边界及最终 COMMIT 前重核；任一变化或冲突 poison 整个外层事务。批内回执重入使预取失效并拒绝整个事务，顺序批次仍可执行。没有异步/摘要回执或跨事务缓存；物理查询合并不减少逻辑身份检查。见现 Memory spec 的 WARM-APP-02/03。
 
 项目 owner 可声明 `journalUpdateCondition`，仅约束 UPDATE 日志，`$old`/`$new` 引用原行/新行；INSERT/DELETE 不受该谓词影响。Coding 用它区分本机运行缓存与新终态历史：活动/待核对缓存不制造业务冲突，真正结束的 SDK 会话保持待导出和待同步。
 

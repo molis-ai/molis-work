@@ -244,6 +244,8 @@ test("a round's action pack id names one declaration: the suggest tool and each 
     plain: prologueActionTools(actions('fixture'), 60_000),
     again: prologueActionTools(actions('fixture'), 60_000),
     suggesting: prologueActionTools(actions('fixture'), 60_000, undefined, true),
+    // A round that also carries the coding pack's symbol tool declares a different pack: the same actions, another tool.
+    symbols: prologueActionTools(actions('fixture'), 60_000, undefined, false, true),
     renamed: prologueActionTools(actions('renamed'), 60_000),
     sooner: prologueActionTools(actions('fixture'), 30_000),
     empty: prologueActionTools({ ...actions('fixture'), tools: [] }, 60_000),
@@ -257,7 +259,7 @@ test("a round's action pack id names one declaration: the suggest tool and each 
     assert.equal(byId.get(projected.pack.id) ?? declared, declared, `${round}: another declaration already holds ${projected.pack.id}`);
     byId.set(projected.pack.id, declared);
   }
-  assert.equal(new Set([rounds.plain, rounds.suggesting, rounds.renamed, rounds.sooner, rounds.empty].map(projected => projected.pack.id)).size, 5);
+  assert.equal(new Set([rounds.plain, rounds.suggesting, rounds.symbols, rounds.renamed, rounds.sooner, rounds.empty].map(projected => projected.pack.id)).size, 6);
   // The same choice reuses its pack, and nothing to suggest from is the same pack as no suggesting.
   assert.equal(rounds.again.pack.id, rounds.plain.pack.id);
   assert.deepEqual(rounds.again.names, rounds.plain.names);

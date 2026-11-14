@@ -4,7 +4,7 @@ import type { AgentMemoryCaller, AgentMemorySourceRef, AgentMemorySourceRequest,
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ASSISTANT_INSTALL_ID, ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { MemoryScope } from "@molis-ai/molis-work-contracts/services/memory";
-import { characterOwner, consumerAccess } from "@molis-ai/molis-work-service-memory";
+import { characterOwner, consumerAccess, formationAllowed as memoryFormationAllowed, memoryErrors } from "@molis-ai/molis-work-service-memory";
 import { assistantMemorySourceWork } from "../assistant/assistant-memory-sources.js";
 import type { MemoryRuntimePolicyOwner } from "./memory-runtime-policy.js";
 import { personalInputText, readMemoryInputSource } from "./memory-source-identity.js";
@@ -30,12 +30,15 @@ function sourceScope(caller: AgentMemoryCaller, target: AgentMemorySourceRequest
   return undefined;
 }
 
+const personDecision = (caller: AgentMemoryCaller) => caller.person === true && caller.purpose === "management" && caller.source_use === undefined;
+
 function formationAllowed(owner: MemorySourceOwner, caller: AgentMemoryCaller, scope: MemoryScope, projectId: string | null, assistant: boolean, ref: AgentMemorySourceRef, targetOwner: string): boolean {
   const prefs = owner.policy.prefsFor(scope === "personal" ? "personal" : "project", scope === "personal" ? null : projectId);
   const consumer = assistant ? "assistant" : "agent", plugin = assistant ? undefined : CODING;
-  const permitted = (value: typeof prefs) => value.enabled && value.form && (caller.source_use === "explicit" || value.learn_from_work)
+  // Accepting an existing candidate is the person's decision; automatic formation switches do not authorize or veto it.
+  const permitted = (value: typeof prefs) => value.enabled && (personDecision(caller) || memoryFormationAllowed(owner.policy.prefsFor("personal", null), value) && (caller.source_use === "explicit" || value.learn_from_work)
     && consumerAccess(value, consumer, plugin, "explicit").allowed
-    && (!plugin || consumerAccess(value, "plugin", plugin, "explicit").allowed);
+    && (!plugin || consumerAccess(value, "plugin", plugin, "explicit").allowed));
   return owner.policy.alive() && permitted(prefs)
     && (scope !== "personal" || !projectId || permitted(owner.policy.prefsFor("project", projectId)))
     && owner.sourceAllowed(caller.actor_id, scope, targetOwner, [ref]);
@@ -47,8 +50,10 @@ async function readSource(home: string, owner: MemorySourceOwner, caller: AgentM
   if (!identity || request.app_id !== "io.molis.work" || request.signal?.aborted || !owner.policy.alive()
     || identity.actor_id !== caller.actor_id || caller.actor_id !== LOCAL_PERSON_ACTOR_ID) return undefined;
   const sessionRef = { session_id: identity.session_id, runtime_id: owner.adapter.descriptor.runtime_id };
+  const lifecycle = await owner.adapter.sessionLifecycle?.read(sessionRef);
+  if (lifecycle?.view.state !== "active") return undefined;
   const session = await owner.adapter.readSessionStatus?.(sessionRef);
-  if (!session || session.status.recovery || session.owner.actor_id !== identity.actor_id) return undefined;
+  if (!session || !isDeepStrictEqual(session.owner, lifecycle.owner) || session.status.recovery || session.owner.actor_id !== identity.actor_id) return undefined;
   const assistant = session.owner.plugin_id === ASSISTANT_PLUGIN_ID;
   if (assistant ? session.owner.install_id !== ASSISTANT_INSTALL_ID || caller.consumer !== "assistant" && !caller.person
     : session.owner.plugin_id !== CODING || caller.plugin_id !== CODING && !caller.person) return undefined;
@@ -80,7 +85,7 @@ async function readSource(home: string, owner: MemorySourceOwner, caller: AgentM
   }
   if (!Number.isFinite(at) || !text.trim() || runRef.session_id !== identity.session_id) return undefined;
   const run = await owner.adapter.read(runRef);
-  const usablePhase = (phase: string) => phase === "completed" || caller.source_use === "explicit"
+  const usablePhase = (phase: string) => phase === "completed" || identity.kind === "original" && personDecision(caller) && phase === "failed" || caller.source_use === "explicit"
     && ["running", "awaiting-input", "awaiting-review", "compacting"].includes(phase);
   if (!usablePhase(run.phase)) return undefined;
   if (request.signal?.aborted || !work() || !await owner.sessionAllowed(session.owner)
@@ -95,6 +100,9 @@ async function readSource(home: string, owner: MemorySourceOwner, caller: AgentM
       || current.receipt.accepted_at_ms !== at) return undefined;
   }
   if (request.signal?.aborted || !work() || !formationAllowed(owner, caller, scope, projectId, assistant, ref, request.target.owner)) return undefined;
+  const final = await owner.adapter.sessionLifecycle?.read(sessionRef);
+  if (final?.view.state !== "active" || !isDeepStrictEqual(final.owner, session.owner) || request.signal?.aborted || !work()
+    || !formationAllowed(owner, caller, scope, projectId, assistant, ref, request.target.owner)) return undefined;
   return { ...ref, speaker: { kind: "person", id: identity.actor_id }, derivation: "original", occurred_at_ms: at, text };
 }
 
@@ -113,7 +121,13 @@ export function memorySources(home: string, ownerFor: () => MemorySourceOwner | 
     }
     return sources;
   };
-  return { resolve, async check(caller, request) {
+  return { resolve, capture(caller, request) {
+    const owner = ownerFor(), lifecycle = owner?.adapter.sessionLifecycle;
+    if (!owner || !owner.adapter.withEffect || !lifecycle?.observeWrites || request.app_id !== "io.molis.work" || request.signal?.aborted) throw memoryErrors.unavailable("当前来源会话写观察不可用");
+    const ids = request.refs.map(ref => readMemoryInputSource(ref));
+    if (ids.some(identity => !identity || identity.actor_id !== caller.actor_id)) throw memoryErrors.forbidden("来源会话身份不可核验");
+    return lifecycle.observeWrites([...new Set(ids.map(identity => identity!.session_id))].map(session_id => ({ session_id, runtime_id: owner.adapter.descriptor.runtime_id })));
+  }, async check(caller, request) {
     const identities = structuredClone(request.identities);
     if (!identities.length) return false;
     const found = await resolve(caller, { ...request, refs: identities.map(({ event_id, version }) => ({ event_id, version })) });

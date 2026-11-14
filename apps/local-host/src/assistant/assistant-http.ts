@@ -20,7 +20,7 @@ import { bindLocalWebActions, localWebActionContext } from "../local-web-actions
 import { LOCAL_OWNER_PERMISSIONS, MATERIALS_OWNER_PERMISSIONS } from "../local-owner-permissions.js";
 import { materialsActions } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import type { MolisWorkLocalHost } from "../project-host.js";
-import { ActionError, actionEffect, bindActionClient, type ActionCallContext, type ActionDefinition, type ActionSchema, type ActionView, type BoundActionClient, type InferActionInput, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, actionEffect, bindActionClient, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionSchema, type ActionView, type BoundActionClient, type InferActionInput, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MEMORY_WRITE_PERMISSION, memoryActions } from "@molis-ai/molis-work-contracts/services/memory";
 import { webEntryDoor, webEntryProvider, type WebEntryCall } from "../web-entry-actions.js";
 import { assistantCandidate } from "./assistant-memory-tools.js";
@@ -230,7 +230,11 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
     readReferences: async (projectId, picked) => ports.localHost.search ? ports.localHost.search.readReferences(projectId, picked) : picked.map(() => null),
     // How many documents the round could list in the project, for 「本轮情况」 (specs/project-knowledge PMAT-33).
     knowledgeTally: (projectId, views) => ports.localHost.search?.knowledgeTally(projectId, views) ?? null,
-    knowledgeCatalog: (projectId, views, words) => ports.localHost.search?.knowledgeCatalog(projectId, views, words) ?? null,
+    knowledgeCatalog: async (projectId, views, words) => {
+      if (!ports.localHost.search || !ports.projectReference) return null;
+      const reference = await ports.projectReference(projectId), caller = await personContext(reference);
+      return ports.localHost.search.knowledgeCatalog(projectId, views, words, { caller, client: ports.localHost.actionClient(reference) });
+    },
   };
   const service: AssistantService = new AssistantService(store, servicePorts, WEB_ACTOR), surroundings = assistantSurroundings(store, servicePorts, WEB_ACTOR);
   threads = new AssistantThreads(store, service, {
@@ -287,9 +291,9 @@ const ofWork = { type: "object", properties: { work_id: pageId, body }, required
 const ofItem = { type: "object", properties: { work_id: pageId, item: pageId, body }, required: ["work_id", "item", "body"], additionalProperties: false } as const;
 const scoped = (entry: AssistantPageEntry) => entry.ports.projectRef ? { project_ref: entry.ports.projectRef } : {};
 const panel = <const S extends ActionSchema, Output>(name: string, version: number, title: string, input_schema: S,
-  handle: (entry: AssistantPageEntry, input: InferActionInput<S>) => Output | Promise<Output>, metered = false, draft?: true) =>
+  handle: (entry: AssistantPageEntry, input: InferActionInput<S>, caller: ActionExecutionContext) => Output | Promise<Output>, metered = false, draft?: true) =>
   door.define({ capability_id: `assistant.panel.${name}`, version, title, description: `助理面板：${title}。`, scope: "home", input_schema, ...(metered ? { metered } : {}), ...(draft ? { draft } : {}) },
-    async (entry, input) => { const output = await handle(entry, input); recordAssistantWorkStep(entry.ports.homeDirectory, entry.ports.projectRef?.project_id ?? null, name, input, output); return output; });
+    async (entry, input, caller) => { const output = await handle(entry, input, caller); recordAssistantWorkStep(entry.ports.homeDirectory, entry.ports.projectRef?.project_id ?? null, name, input, output); return output; });
 const of = (entry: AssistantPageEntry) => assistantServiceFor(entry.ports);
 
 /** The Assistant panel's writes (CALL-CHAINS §10.1.1): each the same call of its owner the route made before, now an action only this panel's door reaches. */
@@ -324,8 +328,11 @@ export const assistantPanelActions = {
     { to: pageBody<Pick<AssistantHandover, "to">>(input.body).to, ...(typeof input.body.mode === "string" ? { mode: input.body.mode } : {}) })),
   recovery: panel("works.recovery", /* @version action.assistant.panel.works.recovery */ 1, "关闭中断的一轮", ofWork, async (entry, input): Promise<object> => typeof input.body.run_id === "string"
     ? of(entry).service.closeInterrupted(input.work_id, { run_id: input.body.run_id, version: Number(input.body.version) }) : of(entry).service.recovery(input.work_id)),
+  // A closed archive request stops only its own remaining writes; committed facts stay with their original owners.
   archive: panel("works.archive", /* @version action.assistant.panel.works.archive */ 1, "归档或恢复工作", ofWork,
-    async (entry, input) => ({ work: await of(entry).service.archive(input.work_id, input.body.archived !== false) })),
+    async (entry, input, caller) => ({ work: await of(entry).service.archive(input.work_id, input.body.archived !== false, {
+      beforeEffect: async () => { caller.signal?.throwIfAborted(); await caller.beforeEffect?.(); caller.signal?.throwIfAborted(); },
+      assert_current: () => caller.signal?.throwIfAborted() }) })),
   review: panel("works.review", /* @version action.assistant.panel.works.review */ 1, "批准或拒绝工作里的待审操作", ofItem, (entry, input) => of(entry).service.outcomes.decide(input.work_id,
     { review_id: input.item, decision: pageBody<{ decision: "approve" | "reject" }>(input.body).decision, ...(typeof input.body.note === "string" ? { note: input.body.note } : {}) })),
   answer: panel("works.answer", /* @version action.assistant.panel.works.answer */ 1, "回答待答的问题", ofWork, (entry, input) => answerQuestion(entry, input.work_id, input.body), true),
@@ -348,9 +355,15 @@ const named = <T>(table: Readonly<Record<string, T>>, key: string | undefined): 
 
 /** The panel's write a POST names, called as the person through the panel's door; undefined when the path is not one of them. */
 async function panelWrite(parts: readonly string[], body: Readonly<Record<string, unknown>>, ports: AssistantHttpPorts & { projectRef?: LocalHostProjectReference },
-  request: IncomingMessage): Promise<{ result: unknown } | undefined> {
+  request: IncomingMessage, response?: ServerResponse): Promise<{ result: unknown } | undefined> {
   const call: WebEntryCall<AssistantPageEntry> = { host: ports.localHost, request, entry: { ports, language: () => pageRoundLanguage(ports) } };
-  const run = async <I>(definition: ActionDefinition<I, unknown>, input: I) => ({ result: await door.invoke(call, definition, input) });
+  const run = async <I>(definition: ActionDefinition<I, unknown>, input: I) => {
+    // Only archiving ends with the request: a closed archive request stops its own remaining writes (the other writes keep their behaviour).
+    if (!response || definition !== assistantPanelActions.archive.definition) return { result: await door.invoke(call, definition, input) };
+    const ended = new AbortController(), stop = () => ended.abort(); response.once("close", stop);
+    try { return { result: await door.invoke({ ...call, signal: ended.signal }, definition, input) }; }
+    finally { response.off("close", stop); }
+  };
   const a = assistantPanelActions;
   if (parts.length === 1) {
     const top = named<Panel<typeof ofPanel>>({ send: a.send, cards: a.cards, attachments: a.attachments, notices: a.notices }, parts[0]);
@@ -490,7 +503,7 @@ function handleAssistantActions(request: IncomingMessage, response: ServerRespon
       if (method !== "POST") return null;
       const threadWork = await threadWorkRoute(workId, parts, body, ports);
       if (threadWork) return threadWork;
-      const written = await panelWrite(parts, body, ports, request);
+      const written = await panelWrite(parts, body, ports, request, response);
       return written ? { status: 200, body: written.result } : null;
     },
     // Questions, cards and next steps are drawn by their Host owner; common refusals keep the shared error envelope.

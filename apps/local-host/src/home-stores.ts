@@ -9,7 +9,8 @@ import { ARTIFACTS_HOME_STORE } from "@molis-ai/molis-work-module-artifacts";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { CHARACTERS_HOME_STORE } from "@molis-ai/molis-work-module-characters";
 import { FUNCTIONS_HOME_STORE } from "@molis-ai/molis-work-module-judgment-rules";
-import { KNOWLEDGE_CARDS_HOME_STORE, MEMORY_LEDGER_HOME_STORE, TEXT_SEARCH_HOME_STORE, homeStoreRegistry, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
+import { KNOWLEDGE_CARDS_HOME_STORE, MEMORY_FORGETTING_HOME_STORE, MEMORY_LEDGER_HOME_STORE, TEXT_SEARCH_HOME_STORE,
+  homeStoreRegistry, inspectMemoryForgetting, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 import { AGENT_DEFINITIONS_HOME_STORE } from "./agent-definitions/agent-definitions.js";
 import { AGENT_DECLARATIONS_HOME_STORE } from "./agent-definitions/agent-declarations.js";
 import { ALCHEMIST_HOME_STORE } from "./alchemist-paths.js";
@@ -71,7 +72,9 @@ export function homeStores(homeDirectory?: string): HomeSnapshotStoreRegistry {
     ...owned("modules/functions", FUNCTIONS_HOME_STORE),
     ...owned("modules/artifacts", ARTIFACTS_HOME_STORE),
     ...owned("modules/characters", CHARACTERS_HOME_STORE),
-    ...owned("packages/storage", MEMORY_LEDGER_HOME_STORE, { ...TEXT_SEARCH_HOME_STORE, snapshot: omittedSnapshot("Rebuildable full-text index", "reset") },
+    ...owned("packages/storage", MEMORY_LEDGER_HOME_STORE,
+      { ...MEMORY_FORGETTING_HOME_STORE, snapshot: { inspect: async copiedFile => { inspectMemoryForgetting(dirname(copiedFile)); } } },
+      { ...TEXT_SEARCH_HOME_STORE, snapshot: omittedSnapshot("Rebuildable full-text index", "reset") },
       KNOWLEDGE_CARDS_HOME_STORE, { path: "feed", snapshot: feedSnapshot }),
     ...owned("server", DISCUSSION_HOME_STORE),
     ...PLATFORM_PLUGIN_REGISTRATIONS.flatMap(entry => {

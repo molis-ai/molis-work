@@ -1,6 +1,7 @@
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { currentPluginInvocation } from "@molis-ai/molis-work-plugin-runtime";
-import type { PrologueInferenceClient } from "@molis-ai/molis-work-service-agent-host";
+import { languageServerSettings, type PrologueInferenceClient } from "@molis-ai/molis-work-service-agent-host";
 import { pdfDocumentParser } from "./pdf-document-parser.js";
 import { hostErrors } from "./host-errors.js";
 import type { HostPluginCaller, LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
@@ -123,6 +124,7 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     if (disposed) return Promise.reject(new Error("Agent 服务已关闭"));
     return ready ??= (async () => {
       if (options.prologue === undefined) return;
+      const codeServers = codeIntelligenceConfig(options.homeDirectory);
       // A rejected start may still own resources. Finish that instance before creating another one.
       await initialization?.close();
       if (disposed) return;
@@ -132,6 +134,8 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
         documentParsers: [pdfDocumentParser],
         // File, owner and background-job waits each recheck the authority of their own source.
         checks: hostConditionChecks(options),
+        // The person's language servers for the coding pack's `coding.find-symbol` (see the Home's language-servers.json).
+        ...(codeServers === undefined ? {} : { codeIntelligence: codeServers }),
         reviewQueue: agentHost.reviews,
         app: { appId: "io.molis.work", appVersion: "0.0.0" },
       });
@@ -322,7 +326,8 @@ async function startAuthority(
         project_id: runtime.project_id, audience: "user" as const, permissions: [SKILLS_READ_PERMISSION], call_id: callId, locale } } } : {}),
       named: named?.named.refs ?? [] }) } : {}),
     mcp_owner: { project_id: runtime.project_id, plugin_id: pluginId },
-    actions: async (runtimeId, validate, session, skillRound) => {
+    actions: async (runtimeId, validate, session, skillRound, memory) => {
+      const runtimeMemory = memory ? { plugin_id: pluginId, current_scene: memory.current_scene, class_restrictions: structuredClone(memory.class_restrictions) } : undefined;
       // `actor_id` stays the grant's client id: `agent:<runtime>`, or the task grant subject the Host composed for a plugin's round, whose
       // catalog holds only the categories its provider offers a task now. The session is the one the Host checked against the Runtime's own
       // record when it started the round, never one read from the request or the tool input: it scopes what the tools write and who is
@@ -330,19 +335,21 @@ async function startAuthority(
       const source = subject ? taskReadableHost(localHost) : localHost;
       // `skill_round` is the Host's word about this round (§2.3): the grant resolution gets it, so the round's own reads of `system.skills` need
       // no separate 对外接入 grant (mcp-action-grants.ts), and the handler context gets it only on those calls. A tool call into any other
-      // plugin's action never carries it, and nothing in the tool input can set it (S-skill-delegation §2.6).
-      const current = async (signal?: AbortSignal, action?: ExactActionReference) => {
+      // plugin's action never carries it, and nothing in the tool input can set it (S-skill-delegation §2.6). The round's memory scene and
+      // class restrictions, and the selection a memory read is held to, travel the same way.
+      const current = async (signal?: AbortSignal, action?: ExactActionReference, memorySelection?: { assert_current(): void }) => {
         const authorized = await authorizeMcpActions(source, { actor_id: subject ?? `agent:${runtimeId}`, actor_kind: "runtime", call_id: callId,
           project_id: runtime.project_id, audience: "agent", permissions: [], locale, ...(skillRound ? { skill_round: structuredClone(skillRound) } : {}),
+          ...(memorySelection ? { memory_context_selection: memorySelection } : {}), ...(runtimeMemory ? { runtime_memory: structuredClone(runtimeMemory) } : {}),
           ...(session ? { runtime_session_id: session.session_id, audit_actor_id: `agent:${runtimeId}:${session.session_id}` } : {}), ...(signal ? { signal } : {}) }, homeDirectory, reference, async () => { caller?.assertActive(); await validate?.(); caller?.assertActive(); }, () => {
-            caller?.assertActive(); signal?.throwIfAborted();
+            caller?.assertActive(); signal?.throwIfAborted(); memorySelection?.assert_current();
             if (localHost.lifecycle() !== "running") throw new ActionError("actions.host_closed", "能力所在运行环境已关闭");
           });
         return { ...authorized, context: action?.provider_id === SKILLS_PROVIDER_ID ? authorized.context : withoutSkillRound(authorized.context) };
       };
       return {
         discover: async () => { const authorized = await current(); return authorized.service.discover(authorized.context); },
-        invoke: async (action, input, signal) => { const authorized = await current(signal, action); return authorized.service.invoke(authorized.context, action, input); },
+        invoke: async (action, input, signal, memorySelection) => { memorySelection?.assert_current(); const authorized = await current(signal, action, memorySelection); return authorized.service.invoke(authorized.context, action, input); },
         check: async (action, input) => checkActionInput(await current(), action, input),
       };
     },
@@ -443,4 +450,43 @@ function hostConditionChecks(options: AgentHostCompositionOptions): NonNullable<
   return { directoryAuthorized: async (project, directory) => await runsIn(project, directory) !== undefined,
     workspaceAt: runsIn,
     owned: assistantConnectionCheckers(home, options.localHost), workAuthority: workAuthorityCheck(options.localHost) };
+}
+
+/**
+ * The language servers the person configured for code intelligence, from `<Home>/language-servers.json`.
+ *
+ * The file is optional: without it the coding pack's symbol tool reports that no server is configured for a file type.
+ * A file that is there but unreadable or invalid is an error, not a silent "no servers" — a typo in a command should be
+ * visible at start, not leave a file type without intelligence forever.
+ */
+export function codeIntelligenceConfig(homeDirectory: string | undefined): {
+  readonly servers: readonly import("@molis-ai/molis-work-service-agent-host").LanguageServerSpec[];
+  readonly downloadsAllowed: boolean;
+  readonly registry?: string;
+  readonly toolsRoot: string;
+  /** Set when the optional file exists but cannot be used; the Agent still starts and the symbol tool reports this. */
+  readonly problem?: string;
+} | undefined {
+  if (homeDirectory === undefined) return undefined;
+  const file = path.join(homeDirectory, "language-servers.json");
+  if (!existsSync(file)) return undefined;
+  const toolsRoot = path.join(homeDirectory, "tools", "language-servers");
+  try {
+    let parsed: unknown;
+    parsed = JSON.parse(readFileSync(file, "utf8"));
+    const settings = languageServerSettings(parsed);
+    return {
+      servers: settings.servers,
+      downloadsAllowed: settings.downloads,
+      // The isolated tools root belongs to this Home, never to a project or a global prefix (Q5).
+      toolsRoot,
+      ...(settings.registry === undefined ? {} : { registry: settings.registry }),
+    };
+  } catch (error) {
+    /*
+     * The file is optional and hand-written: a typo in it disables code intelligence and says why, but must not stop the
+     * whole Agent Host — every other action would be unavailable until the person found and fixed it.
+     */
+    return { servers: [], downloadsAllowed: false, toolsRoot, problem: `language-servers.json 读不了：${(error as Error).message}` };
+  }
 }

@@ -1,4 +1,6 @@
-import { openMemoryLedger } from '@molis-ai/molis-work-storage';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { acquireStorageOwner, homeSqlitePath, initializeMemoryForgetting, MEMORY_LEDGER_STORE, openMemoryLedger } from '@molis-ai/molis-work-storage';
 import { defaultPrefs } from '@molis-ai/molis-work-service-memory';
 import { LOCAL_PERSON_ACTOR_ID } from '@molis-ai/molis-work-contracts/platform/actions';
 import { MolisWorkLocalHost, discoverRuntimeSyncCollections, molisWorkHostProjectReference, createPersonalSync, bindPersonalSpaceAuthority } from '@molis-ai/molis-work-app-local-host';
@@ -6,6 +8,8 @@ import { openMolisWorkProjectCatalog } from '@molis-ai/molis-work-app-desktop';
 import type { StorageSpace } from '@molis-ai/molis-work-contracts/platform/storage';
 /** Explicit setup of a fresh synthetic Home, before any Runtime or business owner opens it. */
 export function prepareSyncTestHome(home:string){
+ // A current Home has its forgetting file before its ledger; only a Home with no ledger yet is fresh.
+ if(!existsSync(homeSqlitePath(home,MEMORY_LEDGER_STORE))){const owner=acquireStorageOwner(join(home,'agent-runtime'));try{initializeMemoryForgetting({homeDirectory:home,storageOwner:owner,assertCurrent(){}});}finally{owner.release();}}
  const memory=openMemoryLedger({homeDirectory:home});
  try{memory.transaction(()=>{if(!memory.prefs(LOCAL_PERSON_ACTOR_ID,'personal'))memory.savePrefs(LOCAL_PERSON_ACTOR_ID,'personal',defaultPrefs('personal','reviewed'));if(!memory.prefs(LOCAL_PERSON_ACTOR_ID,'project-default'))memory.savePrefs(LOCAL_PERSON_ACTOR_ID,'project-default',defaultPrefs('project','reviewed'));});}finally{memory.close();}
 }

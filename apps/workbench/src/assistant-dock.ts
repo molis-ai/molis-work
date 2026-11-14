@@ -35,6 +35,7 @@ export function renderAssistantDock(primitives: { readText(value: string): strin
               <div class="assistant-summary-top">
                 <p class="assistant-summary-state"><span class="assistant-state" data-assistant-work-state></span></p>
                 <span class="assistant-summary-controls">
+                  <a class="assistant-control" data-assistant-memory hidden>${uiText("workbench.assistant-dock.session-memory")}</a>
                   <button class="assistant-control" type="button" data-assistant-control="pause" hidden>${uiText("workbench.assistant-dock.pause")}</button>
                   <button class="assistant-control" type="button" data-assistant-control="resume" hidden>${uiText("workbench.assistant-dock.continue")}</button>
                   <button class="assistant-control assistant-control--stop" type="button" data-assistant-control="stop" hidden>${uiText("workbench.assistant-dock.stop")}</button><button class="assistant-control" type="button" data-assistant-control="stop" data-keep-connections hidden>${uiText("workbench.assistant-dock.stop-task-keep-connecting")}</button>

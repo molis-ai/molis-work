@@ -228,7 +228,7 @@ flowchart LR
 
 ### 5.2 可用范围要补的（合同草案，2026-10-02 按总纲修订）
 
-现有字段继续有效：对象种类、粒度、内容角色、`requires: ["goal"]`、意图、效果。要补的：
+现有字段继续有效：对象种类、粒度、内容角色、`requires`（一个声明过的关联对象类型，写成插件加类型，不再写死 `"goal"`；`ContextualFocus` 的 `goal` 字段换成 `related`：插件、类型、id、显示名）、意图、效果（2026-11-13 按插件同等地位收口改，[决定 42](../post-anticorruption-roadmap/reference/decisions.md#decision-42)）。要补的：
 
 ```ts
 // 可选动作（FragmentOfferChoice、SubjectOfferChoice）与创建入口（ItemIntake）都可以带
@@ -260,7 +260,8 @@ readonly places?: readonly ("main" | "side" | "assistant")[];
 | 提供方 | 动作 | 范围 | 效果 |
 | --- | --- | --- | --- |
 | Pages | 插入到光标处、替换选中的内容、作为引用插入、整理成要点后插入 | `ItemAttach`，落点是 Pages 文档的光标或选区；手上的东西不限 | 放进落点，先预览（整理类先调用模型生成） |
-| Goals | 作为依据附到当前 Goal、拆成子目标 | `ItemAttach`（落点是 Goal 对象）/ 创建入口 | 放进落点 / 提案卡片 |
+| Goals | 拆成子目标 | 创建入口 | 提案卡片 |
+| 平台：要求与认可 | 作为依据附上（落点是声明了要求的对象，如装着 Goals 时的 Goal、助理后台任务；内容交平台要求—认可能力保存为证据，档位由平台给2026-11-13 按插件同等地位收口改，[决定 42](../post-anticorruption-roadmap/reference/decisions.md#decision-42)） | `ItemAttach`（落点是声明了要求的对象） | 放进落点 |
 | Coding | 作为材料交给当前会话 | `ItemAttach`，落点是 Coding 会话（只许本机本人） | 放进落点，先预览。手上是 Shelf 材料时复用现有通路（`shelf.material.save` → 过程项 `shelf.text-material.v1` → Coding 的 `materials` 端口）；别的来源由 Coding 新增自己名下的文字摘录过程项（总纲 8.5） |
 | Shelf | 整合、提取文字、快捷动作、各 Agent 动作（U6） | 手上是 Shelf 材料，或者手上的文件是 Shelf 认得的类型 | result / record（Agent 动作沿用 Shelf 原有的确认页） |
 | Shelf | 放上 Shelf（第二期） | 创建入口，底层动作 `shelf.items.admit`，撤销 `shelf.items.delete`；手上的东西不限 | record（个人材料，不产生过程项） |

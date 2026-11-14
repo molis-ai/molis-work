@@ -1,3 +1,4 @@
+import { memoryLearningActions } from "@molis-ai/molis-work-contracts/services/memory";
 import { searchActions, SEARCH_READ_PERMISSION } from "@molis-ai/molis-work-contracts/services/search";
 import { CHARACTER_ARTIFACT_TYPE, characterPluginActions } from "@molis-ai/molis-work-contracts/modules/characters";
 import { workspaceReadActions, writerDirectoryCapabilities, writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
@@ -84,6 +85,7 @@ export const codingManifest: PluginManifest = {
   capabilities: {
     provides: [],
     consumes: [
+      memoryLearningActions.enqueue.capability_id, memoryLearningActions.form.capability_id,
       searchActions.references.capability_id, "goals.subject.read", "goals.search.entries",
       // The embedded Git shows a file's changes through Diff, under this page.
       "diff.state",
@@ -152,7 +154,7 @@ export const codingManifest: PluginManifest = {
   ] },
   // Redeemed by this Runtime instance and bound to the person who owns the sessions; their routes forward to them.
   presentation: codingPresentation,
-  actions: [...CODING_ACTIONS, ...codingPresentationActions, ...Object.values(codingExecutorActions), codingArtifactPreview, codingResultDocument, codingHomeBackgroundTasks],
+  actions: [memoryLearningActions.run, ...CODING_ACTIONS, ...codingPresentationActions, ...Object.values(codingExecutorActions), codingArtifactPreview, codingResultDocument, codingHomeBackgroundTasks],
   routes: [
     { route_id: "coding.evaluate-step", method: "POST", path: "/sessions/:sessionId/runs/:runId/steps/:stepId" },
     { route_id: "coding.writer-directories", method: "GET", path: "/workspaces/:workspaceId/writers" },
@@ -192,8 +194,11 @@ export const codingManifest: PluginManifest = {
     { route_id: "coding.save-mcp", method: "POST", path: "/mcp" },
     { route_id: "coding.control-mcp", method: "POST", path: "/mcp/:serverId/control" },
     { route_id: "coding.state", method: "GET", path: "/state" },
+    { route_id: "coding.list-sessions", method: "GET", path: "/sessions" },
     { route_id: "coding.create-session", method: "POST", path: "/sessions" },
     { route_id: "coding.read-session", method: "GET", path: "/sessions/:sessionId" },
+    { route_id: "coding.session-binding", method: "GET", path: "/sessions/:sessionId/binding" },
+    { route_id: "coding.subject-state", method: "GET", path: "/sessions/:sessionId/subject-state" },
     { route_id: "coding.subject", method: "GET", path: "/sessions/:sessionId/subject" },
     { route_id: "coding.search-entries", method: "GET", path: "/search/entries" },
     { route_id: "coding.read-runs", method: "GET", path: "/sessions/:sessionId/runs" },

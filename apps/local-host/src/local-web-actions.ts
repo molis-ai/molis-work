@@ -1,3 +1,4 @@
+import { inDirectoryPass } from "@molis-ai/molis-work-kernel";
 import { captureWebSessionAuthority } from "./web-sessions.js";
 import { ActionError, bindActionClient, type ActionClient, type ActionCallContext, type ActionDefinition, type ActionProvider, type ActionReference, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ActionSceneView, ActionUserAction } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -10,6 +11,7 @@ import type { PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-
 import { currentProjectPlatform, runningProjectPlatform } from "./project-plugins.js";
 import type { LocalProjectDatabase } from "./project-database.js";
 import { sameInstalledRelease } from "./installed-stage-identity.js";
+import { matchingActions } from "./local-host-types.js";
 
 type LocalActionMetadata = ReturnType<MolisWorkLocalHost["inspectActionMetadata"]>[number];
 
@@ -83,7 +85,15 @@ export function openProjectPersonContext(host: MolisWorkLocalHost, reference: Lo
     new SqlitePluginRuntimeRepository(store.db), currentProjectPlatform(store, reference.project_id), host.homePlugins?.installations(false, true) ?? []) };
 }
 
-function localWebAuthority(host: MolisWorkLocalHost, reference: LocalHostProjectReference | undefined, base: ActionCallContext, sessionCurrent: () => void,
+/**
+ * Building the authority is synchronous and checks every listed action's grants, so it is one directory pass: each installation record is read once
+ * for it (not once per action and permission). The checks it hands out run later, each reading afresh.
+ */
+function localWebAuthority(...args: Parameters<typeof buildLocalWebAuthority>): ActionCallContext {
+  return inDirectoryPass(() => buildLocalWebAuthority(...args));
+}
+
+function buildLocalWebAuthority(host: MolisWorkLocalHost, reference: LocalHostProjectReference | undefined, base: ActionCallContext, sessionCurrent: () => void,
   catalog: readonly LocalActionMetadata[], projectRepository: SqlitePluginRuntimeRepository | undefined,
   platform: Awaited<ReturnType<typeof runningProjectPlatform>>, homeInstalled: readonly PluginInstanceRecord[], entry: LocalWebEntry = {},
   stageAction?: ActionDefinition): ActionCallContext {
@@ -277,15 +287,17 @@ function boundLocalWebClient(host: MolisWorkLocalHost, reference: LocalHostProje
   const asEntry = (caller: ActionCallContext): ActionCallContext => entry.user_action ? { ...caller, actor_kind: "user", user_action: entry.user_action() } : caller;
   const current = () => context ??= localWebActionContext(host, reference, builtinPermissions, entry.signal, entry, single).then(narrow).catch(error => { context = undefined; throw error; });
   const entrance = (caller: ActionCallContext, action: ActionReference) => {
-    const matches = (caller.allowed_actions ?? []).filter(ref => ref.capability_id === single?.capability_id && ref.version === single.version);
-    return action.capability_id === single?.capability_id && action.version === single.version && matches.length === 1
-      && (!action.provider_id || action.provider_id === matches[0]!.provider_id);
+    if (action.capability_id !== single?.capability_id || action.version !== single.version) return false;
+    const matches = (caller.allowed_actions ?? []).filter(ref => ref.capability_id === action.capability_id && ref.version === action.version);
+    return matches.length === 1 && (!action.provider_id || action.provider_id === matches[0]!.provider_id);
   };
   return {
     // What is available can depend on where the act came from (a tree decision needs the page's own provenance), so a discovery carries it too.
     discover: async () => {
       entry.stage_read?.assertCurrent();
-      const caller = await current(), views = await client.discover(asEntry(caller));
+      const caller = await current(), actionCaller = asEntry(caller);
+      const views = await (entry.stage_read ? matchingActions(client, actionCaller,
+        (definition, provider) => entrance(caller, { ...definition, provider_id: provider.provider_id })) : client.discover(actionCaller));
       entry.stage_read?.assertCurrent();
       return entry.stage_read ? views.filter(view => entrance(caller, { ...view, provider_id: view.provider.provider_id })) : views;
     },

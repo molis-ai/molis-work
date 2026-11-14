@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { MemoryService, characterOwner, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { MEMORY_PERMISSIONS, MEMORY_PROVIDER_ID, memoryActions, type MemoryWriteRequest } from "@molis-ai/molis-work-contracts/services/memory";
+import { MEMORY_PERMISSIONS, MEMORY_PROVIDER_ID, memoryActions, memoryLearningActions, type MemoryWriteRequest } from "@molis-ai/molis-work-contracts/services/memory";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { callAs, callerPlugin, issuedCaller, registerProbe } from "./fixtures/plugin-callers.js";
 
@@ -125,12 +125,11 @@ test("memories limited to a plugin, an object kind or a Goal come only where tha
   assert.equal((await service.recall(tables, { query: "导出 格式" })).items.some(item => item.text === "上次导出用的是 CSV 格式"), false);
 });
 
-// Decision 19 (specs/archive/repository-anti-corruption, W2-03): no plugin uses memory, and a plugin's call carries no Host-confirmed plugin identity
-// today (the Studio's generated plugins carry none), so `memory.write` was refused and `memory.recall` and `memory.list` could not apply the
-// person's rule for one plugin. The directory shows plugins none of them until a plugin really uses memory with a Host-confirmed identity;
-// MemoryService above still holds a plugin to its own namespace and to the kinds the person allows, for that day. The Studio's capability
-// board follows the directory: tests/agent-built-plugins-catalog.test.ts.
-test("plugins are not an audience of memory yet: the directory offers them none of memory.*, and a call is refused", { timeout: 60_000 }, async t => {
+// Ordinary platform Memory reads, writes and management remain closed to plugin callers.
+// C2 separately exposes owner-bound learning enqueue/form; directory visibility does not supply a project or source owner.
+// This issued Home plugin proves the project-scope refusal; formation-owner and installation gates have their own C2 regressions.
+
+test("plugins discover only owner-bound learning commands; ordinary memory reads and writes remain forbidden", { timeout: 60_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-memory-plugin-actions-"));
   // A plugin that declares and holds every memory permission, started by the Host: the call context it presents carries the caller the Host issued it.
   const tables = callerPlugin("memorytables", "home", Object.fromEntries(MEMORY_PERMISSIONS.map(permission => [permission, true])));
@@ -144,14 +143,16 @@ test("plugins are not an audience of memory yet: the directory offers them none 
   const agent: ActionCallContext = { actor_id: "agent:coding-1", actor_kind: "runtime", project_id: null, audience: "agent", permissions: [...MEMORY_PERMISSIONS] };
   const ofMemory = (views: readonly { provider: { provider_id: string }; capability_id: string }[]) => views.filter(view => view.provider.provider_id === MEMORY_PROVIDER_ID).map(view => view.capability_id).sort();
 
-  // Declared: no plugin audience, and `plugin: false` because all three are open to agents and would otherwise reach plugins through them.
+  // The ordinary memory actions still have no plugin audience; the two C2 source-owner commands are separate.
   for (const action of [memoryActions.recall, memoryActions.list, memoryActions.write]) {
     assert.equal(action.action.audiences.includes("plugin" as never), false, action.capability_id);
     assert.equal(action.action.plugin, false, action.capability_id);
   }
-  // Directory and metadata inspection: a plugin sees none of them, an agent the same three as before.
-  assert.deepEqual(ofMemory(await client.discover(plugin)), []);
-  assert.deepEqual(ofMemory(await host.inspectActions(plugin)), []);
+  assert.equal(memoryActions.change.action.audiences.includes("plugin" as never), false, memoryActions.change.capability_id);
+  // C2 adds exactly these source-owner commands, not generic memory access. Agents retain the same three.
+  const learning = ["memory.learning.enqueue", "memory.learning.form"];
+  assert.deepEqual(ofMemory(await client.discover(plugin)), learning);
+  assert.deepEqual(ofMemory(await host.inspectActions(plugin)), learning);
   assert.deepEqual(ofMemory(await client.discover(agent)), ["memory.list", "memory.recall", "memory.write"]);
 
   // A call from a plugin is refused whatever the permission it holds, and nothing was kept.
@@ -162,5 +163,9 @@ test("plugins are not an audience of memory yet: the directory offers them none 
   await assert.rejects(call(memoryActions.recall, { query: "表格 日期 排序" }), forbidden);
   await assert.rejects(call(memoryActions.list, {}), forbidden);
   await assert.rejects(call(memoryActions.change, { memory_id: "m1", action: "remove" }), forbidden);
+  // This issued Home plugin has no project source owner; the existing project-scope gate refuses both commands.
+  await assert.rejects(call(memoryLearningActions.enqueue, { session_id: "not-owned-session", run_id: "not-owned-run" }), { code: "actions.project_required" });
+  await assert.rejects(call(memoryLearningActions.form, { session_id: "not-owned-session", run_id: "not-owned-run", task_key: "not-owned-task" }), { code: "actions.project_required" });
   assert.deepEqual((await asPerson.invoke(memoryActions.list, {})).items, []);
+  assert.deepEqual((await asPerson.invoke(memoryActions.candidates, {})).candidates, []);
 });

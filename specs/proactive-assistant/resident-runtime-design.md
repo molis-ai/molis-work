@@ -176,7 +176,7 @@ interface RuntimeOverview {
 | RES-09 | 退出前列出 24 小时内不会运行的事；没有就直接退；宿主不是桌面拉起的照 #1815 写明后台继续运行 | `res09_…`（`main.rs`）+ 浏览器用例 `tests/runtime-panel.e2e.test.ts` |
 | RES-10 | 面板：在运行、等着、错过（现在做／跳过）、处理完；宿主停了显示「没在运行」，不显示仍在运行（PWA-137） | `res10_…`（`main.rs`、`runtime.rs`）+ 浏览器用例同上 |
 | RES-11 | 设置 › 运行的两个开关只在桌面出现，经原生命令读写；「关掉窗口后继续运行」关掉时关窗走退出确认 | `res11_…`（`runtime.rs`）、`tests/plugin-global-settings.test.ts` + 浏览器用例同上 |
-| RES-12 | [人工] 真机：关窗仍跑、睡眠醒来看到错过、退出确认、再打开首页的提示、登录时启动 | 本人验收 |
+| RES-12 | [人工] 真机：关窗仍跑、睡眠醒来看到错过、退出确认、再打开首页的提示、登录时启动 | 本人验收；其中依赖胶囊的部分（运行面板、退出确认、错过红点）随胶囊删除暂时作废，重做胶囊时恢复（2026-11-13 按插件同等地位收口改，[决定 43](../post-anticorruption-roadmap/reference/decisions.md#decision-43)） |
 
 ## 10. 实现时改
 
@@ -186,7 +186,7 @@ interface RuntimeOverview {
 - **项目里的主人按项目找**：Schedule、Feed 的 `runs.overview`／`runs.decide` 是 scope project 的动作，宿主在每个打开的项目里各问一次（与首页汇总同一套 `home_aggregate`）；助理定时的两个动作挂在 `io.molis.work.assistant.rules` 这个系统提供方上（scope home）。动作 id 是 `<主人>.runs.overview@1`、`<主人>.runs.decide@1`。
 - **`waiting.model`** 是「没有设好可用的文字模型」，不是连接探测；`waiting.network` 是本机有没有网络。
 - **醒来立刻检查**只让宿主的周期任务马上跑一次（`onHostWake` → `periodic.wake()`），Schedule、Feed 的错过在它们各自的唤醒里记。
-- **胶囊的「运行」一节**用胶囊自己的样式类，经桌面命令读和决定（`runtime_overview`、`runtime_decide`、`runtime_missed_dot`、`runtime_quit_confirmed`、`runtime_open`），不加载页面的共享请求客户端：那个客户端比这一节本身还大，胶囊整页会超过 10 KB 的增长线。首页的提示用组件板的 `mw-*` 与 `molisWorkRequest`。
+- **胶囊的「运行」一节（面板、退出前确认、错过红点）随桌面胶囊在 44-7 一并删除，重做胶囊时再做，现在不另找去处；错过的事与重启后的补上、「现在做／跳过」的宿主逻辑照旧，只是胶囊上暂时没有提示；2026-11-13 按插件同等地位收口改，[决定 43](../post-anticorruption-roadmap/reference/decisions.md#decision-43)）。**以下是当时的做法：用胶囊自己的样式类，经桌面命令读和决定（`runtime_overview`、`runtime_decide`、`runtime_missed_dot`、`runtime_quit_confirmed`、`runtime_open`），不加载页面的共享请求客户端：那个客户端比这一节本身还大，胶囊整页会超过 10 KB 的增长线。首页的提示用组件板的 `mw-*` 与 `molisWorkRequest`。
 - **「已核对、不再提醒」那几件今天没有来源**：助理跟进的结果里没有「已不需要」这一种，首页只列错过的。等跟进有了这个结果再接（不在本批另判断）。
 - **设置 › 运行**一份页面两种样子：设置区把页面抓取进来时不带桌面标记、页面里的内联脚本也不执行，所以由 `molisWorkBindRunningSettings` 看有没有桌面命令，有就显示两个开关，没有就说开关在桌面里；目录只在桌面里列这一页，地址在浏览器里也打得开。
 - **胶囊能打开的主窗口页**在 `/projects/…` 之外只多了正好 `/settings/models`（「去设置模型」那一下）。

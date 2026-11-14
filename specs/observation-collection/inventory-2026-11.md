@@ -23,7 +23,7 @@
 | 记忆 | `packages/storage/src/adapters/memory-ledger.ts`；条目本体在 SDK | memory | `memory_revisions` 各版正文；`memory_uses` 按工作和运行记用了哪一版；`memory_changes` | 有版本 | 遗忘一条记忆时一起删 | `memory.history`、`memory.changes.list`，只给本人 |
 | 检索 | `packages/storage/src/adapters/text-search-index.ts`；`knowledge-cards.ts` | search；knowledge | 索引是派生物；`knowledge_receipts` 记谁读了哪块原文 | 查询、命中和进入上下文的结果都不记（`horizontal/search/src/index.ts`） | 回执 30 天、每项目 5000 条；索引结构变化即重建 | — |
 | Pages | `pn/pages/src/database.ts` | pages | 当前正文和整数版本；`page_changes` 存 AI 或工作流改动前的副本 | 只有当前态；发布成成果后才有固定版本 | `page_changes` 14 天（`store.ts`） | Pages 动作 |
-| Goals | `pn/goals/src/project-database-goals.ts`、`project-database-event-facts.ts` | goals | 目标当前态；`goal_work_events`（类型、载荷、actor、收到时间、journal_seq、配置版本）、指引修订 | 目标本身没有修订；历史靠事件 | 跟着目标删除 | `goals.history.list`、`goals.events.*`、`goals.timeline.list` |
+| Goals | `pn/goals/src/project-database-goals.ts`、`project-database-event-facts.ts` | goals | 目标当前态；`goal_work_events`（类型、载荷、actor、收到时间、journal_seq、配置版本）、指引修订（44-2 起归平台项目服务）（2026-11-13 按插件同等地位收口改，[决定 42](../post-anticorruption-roadmap/reference/decisions.md#decision-42)） | 目标本身没有修订；历史靠事件 | 跟着目标删除 | `goals.history.list`、`goals.events.*`、`goals.timeline.list` |
 | Todo | `pn/todo/src/database.ts` | todo | `todo_changes` 前后值、actor、revision | 有前后值 | 删条目即删历史 | Todo 动作 |
 | Feed | `pn/feed/src/store/` | feed | `signal_revisions` 完整草稿；条目分 `source_created_at` 与 `imported_at` | 条目只有当前修订；正文按内容寻址，无人引用即回收 | 回收无人引用的正文 | Feed 动作 |
 | 成果库与过程项 | `modules/artifacts/src/repository.ts` | artifacts | 不可变版本、摘要、supersedes、作者、来源、trace；大原件按 sha256 存文件 | 固定版本 | 归档不删 | `artifacts.*`，含 MCP |

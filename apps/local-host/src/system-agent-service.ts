@@ -1,4 +1,3 @@
-import path from "node:path";
 import {bindSavedHistory} from './saved-history-host.js';
 import { projectOrNull } from "./catalog-lookup.js";
 import { prologueModelConfiguration } from "@molis-ai/molis-work-service-agent-host";
@@ -21,13 +20,14 @@ import { browserSurfacesFor } from "./browser/browser-surfaces.js";
 import { computerSurfacesFor } from "./computer/computer-surfaces.js";
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
 import { preflightMemoryHome, prepareMemoryHome } from "./memory/memory-initialization.js";
+import { resolveConfiguredHome } from "./product-home.js";
 
 const owners = new WeakMap<MolisWorkLocalHost, { withCatalog?: LocalWebCatalogRunner; home: string; release?: () => void }>();
 type WorkspacePorts = Pick<AgentHostCompositionOptions, "workspacesFor" | "directoriesFor" | "prepareDirectory"> & Partial<Pick<AgentHostCompositionOptions, "workspaceFor">>;
 
 /** Bind once without opening runtime storage or resolving credentials. Web/MCP may supply their Catalog owner later. */
 export function ensureSystemAgentService(localHost: MolisWorkLocalHost, homeDirectory: string, withCatalog?: LocalWebCatalogRunner, workspaces: WorkspacePorts = {}) {
-  const storageHome = path.resolve(homeDirectory);
+  const storageHome = resolveConfiguredHome(homeDirectory);
   const owner = owners.get(localHost) ?? { home: storageHome, withCatalog };
   if (owner.home !== storageHome) throw new ActionError("actions.home_mismatch", "Agent 服务与 Host 必须属于同一个 Home");
   if (withCatalog) owner.withCatalog = withCatalog;
@@ -39,15 +39,16 @@ export function ensureSystemAgentService(localHost: MolisWorkLocalHost, homeDire
   return localHost.ensureAgentService(storageHome, storageOwner => {
     prepareMemoryHome(storageHome, storageOwner);
     const connectors = createAgentConnectorPorts(storageHome);
+    const projectReference = async (projectId: string) => {
+      if (!owner.withCatalog) throw new Error("项目连接目录尚未装配");
+      return owner.withCatalog({ homeDirectory: storageHome }, catalog => {
+        const project = catalog.getProject(projectId);
+        return molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
+      });
+    };
     const service: AgentHostComposition = composeAgentHost({
       localHost, homeDirectory: storageHome,
-      projectReference: async projectId => {
-        if (!owner.withCatalog) throw new Error("项目连接目录尚未装配");
-        return owner.withCatalog({ homeDirectory: storageHome }, catalog => {
-          const project = catalog.getProject(projectId);
-          return molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
-        });
-      },
+      projectReference,
       prompts: agentDefinitionsFor(storageHome, builtinRegistrations),
       workspacesFor: projectId => owner.withCatalog
         ? owner.withCatalog({ homeDirectory: storageHome }, catalog => catalog.listWorkspaceDirectory(projectId))
@@ -102,8 +103,8 @@ export function ensureSystemAgentService(localHost: MolisWorkLocalHost, homeDire
     // Memory lives in this runtime: the platform memory is registered with it (specs/archive/memory-system §5.2).
     // The Web server and the embedded MCP pass the catalog owner: they have taken this service as their own and run the Home's
     // runtime. The lazy binding every Host with a Home gets in its constructor, all a forwarding stdio MCP has, does not.
-    const memory = registerMemoryHost({ localHost, homeDirectory: storageHome, agentHost: service.agentHost, ready: () => service.ready, started: () => service.started,
-      executes: () => owner.withCatalog !== undefined,
+    const memory = registerMemoryHost({ localHost, homeDirectory: storageHome, storageOwner, agentHost: service.agentHost, ready: () => service.ready, started: () => service.started,
+      executes: () => owner.withCatalog !== undefined, projectReference,
       projects: async () => owner.withCatalog ? owner.withCatalog({ homeDirectory: storageHome }, catalog => catalog.listProjects().map(project => project.project_id)) : [],
       projectExists: async projectId => owner.withCatalog ? owner.withCatalog({ homeDirectory: storageHome }, catalog => catalog.listProjects().some(project => project.project_id === projectId)) : null,
       projectTitle: async projectId => owner.withCatalog ? owner.withCatalog({ homeDirectory: storageHome }, catalog => projectOrNull(catalog, projectId)?.display_name ?? null) : null });

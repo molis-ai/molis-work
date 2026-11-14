@@ -1,4 +1,5 @@
-import { ActionError, type ActionCallContext, type ActionSubject, type ActionClient, type ActionHandlerBinding, type ActionProvider, type ActionRegistryPort, type ActionView, type FragmentOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, isSearchEntriesSource, isSubjectReader, type ActionCallContext, type ActionSubject, type ActionClient, type ActionHandlerBinding, type ActionProvider, type ActionRegistryPort, type ActionView, type FragmentOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
+import { matchingActions, type HostActionClient } from "./local-host-types.js";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { SEARCH_PROVIDER_ID, prepareSearchFragmentOffers, searchActions, type SearchOpenRequest, type SearchQueryRequest, type SearchRebuildRequest, type SearchReferencesRequest, type SearchScope } from "@molis-ai/molis-work-contracts/services/search";
 import { SearchService, findReferenceCandidates, readReferences, type SearchAccess } from "@molis-ai/molis-work-service-search";
@@ -6,6 +7,7 @@ import { openTextSearchIndex } from "@molis-ai/molis-work-storage";
 import { PERSONAL_SPACE_PROJECT_ID } from "./personal-space.js";
 import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
 import { SEARCH_OWNER } from "./project-deleted-owners.js";
+import type { KnowledgeAccess } from "@molis-ai/molis-work-service-knowledge";
 import { createKnowledgeHost, type KnowledgeHost } from "./knowledge-actions.js";
 import { outsidePluginAction } from "@molis-ai/molis-work-plugin-runtime";
 import { runBackgroundWorkIn } from "./ui-locale-memory.js";
@@ -17,11 +19,12 @@ import { runBackgroundWorkIn } from "./ui-locale-memory.js";
  */
 interface SearchHostPorts {
   homeDirectory: string;
+  sessionLifecycle?: import("./knowledge-actions.js").KnowledgeHostPorts["sessionLifecycle"];
   registry: ActionRegistryPort;
   /** The open project behind a caller, or undefined when it is not open (or the caller has none). */
   project(projectId: string): LocalHostProjectReference | undefined;
-  projectClient(reference: LocalHostProjectReference): ActionClient;
-  homeClient(): ActionClient;
+  projectClient(reference: LocalHostProjectReference): HostActionClient;
+  homeClient(): HostActionClient;
   /** The local person's trusted context over one scope, as the Web uses it. */
   ownerContext(reference: LocalHostProjectReference | undefined): Promise<ActionCallContext>;
   /** Project ids still in this Home's catalog; null until the catalog is configured. */
@@ -47,32 +50,36 @@ export interface SearchHost {
   readReferences(projectId: string, picked: readonly ActionSubject[], kinds?: readonly string[]): Promise<({ label: string; revision: string } | null)[]>;
   /** How many pieces of project knowledge a caller whose directory is `views` would see listed (specs/project-knowledge PMAT-33). */
   knowledgeTally(projectId: string, views: readonly ActionView[]): { total: number; sources: Array<{ plugin_title: string; count: number }> };
-  knowledgeCatalog(projectId: string, views: readonly ActionView[], words: string): ReturnType<KnowledgeHost["catalog"]>;
+  knowledgeCatalog(projectId: string, views: readonly ActionView[], words: string, access: KnowledgeAccess): ReturnType<KnowledgeHost["catalog"]>;
   close(): Promise<void>;
 }
 
 export function createSearchHost(ports: SearchHostPorts): SearchHost {
   const index = openTextSearchIndex({ homeDirectory: ports.homeDirectory });
-  const clientFor = (caller: ActionCallContext): ActionClient => {
+  const clientFor = (caller: ActionCallContext): HostActionClient => {
     if (!caller.project_id) return ports.homeClient();
     const reference = ports.project(caller.project_id);
     if (!reference) throw new ActionError("actions.scope_mismatch", "搜索缺少当前项目运行环境");
     return ports.projectClient(reference);
   };
+  const searchClient = (client: HostActionClient): ActionClient => ({
+    invoke: client.invoke,
+    discover: caller => matchingActions(client, caller, ({ action }) => isSearchEntriesSource(action) || isSubjectReader(action)),
+  });
   const service = new SearchService({
     index,
     background: refresh => outsidePluginAction(() => runBackgroundWorkIn(ports.homeDirectory, refresh)),
     indexer: async projectId => {
-      if (!projectId) return { client: ports.homeClient(), caller: await ports.ownerContext(undefined) };
+      if (!projectId) return { client: searchClient(ports.homeClient()), caller: await ports.ownerContext(undefined) };
       const reference = ports.project(projectId) ?? (projectId === PERSONAL_SPACE_PROJECT_ID ? await ports.openPersonalSpace?.() : undefined);
       if (!reference) throw new ActionError("search.project_closed", "项目未打开，稍后在该项目里搜索时再更新");
-      return { client: ports.projectClient(reference), caller: await ports.ownerContext(reference) };
+      return { client: searchClient(ports.projectClient(reference)), caller: await ports.ownerContext(reference) };
     },
     knownProjects: () => ports.knownProjects(),
     personalSpace: PERSONAL_SPACE_PROJECT_ID,
     ...(ports.onError ? { onError: ports.onError } : {}),
   });
-  const access = (caller: ActionCallContext): SearchAccess => ({ client: clientFor(caller), caller });
+  const access = (caller: ActionCallContext): SearchAccess => ({ client: searchClient(clientFor(caller)), caller });
   const handlers: ActionHandlerBinding[] = [
     { ...searchActions.fragmentOffers, handle: (_caller, input) => ({ offers: prepareSearchFragmentOffers(input as FragmentOffersInput) }) },
     { ...searchActions.query, handle: (caller, input) => service.query(access(caller), input as SearchQueryRequest) },
@@ -87,7 +94,9 @@ export function createSearchHost(ports: SearchHostPorts): SearchHost {
     if (!reference) throw new ActionError("actions.scope_mismatch", "项目资料缺少当前项目运行环境");
     return ports.ownerContext(reference);
   };
-  const knowledge = createKnowledgeHost({ homeDirectory: ports.homeDirectory, search: service, index, clientFor, ownerContext, ...(ports.onError ? { onError: ports.onError } : {}) });
+  const knowledge = createKnowledgeHost({ homeDirectory: ports.homeDirectory, index, clientFor, ownerContext, sessionLifecycle: ports.sessionLifecycle,
+    search: { query: (access, input) => service.query({ ...access, client: searchClient(access.client) }, input), indexedCatalog: access => service.indexedCatalog(access) },
+    ...(ports.onError ? { onError: ports.onError } : {}) });
   const disposers = [{ provider: { provider_id: SEARCH_PROVIDER_ID, title: "搜索", kind: "system" as const }, definitions: Object.values(searchActions), handlers },
     knowledge.registration].map(registration => ports.registry.registerProvider(registration));
   let closed = false;
@@ -96,7 +105,7 @@ export function createSearchHost(ports: SearchHostPorts): SearchHost {
   const read = async (projectId: string, picked: readonly ActionSubject[], kinds?: readonly string[]) => {
     const reference = ports.project(projectId);
     if (!reference) return picked.map(() => null);
-    return readReferences({ client: ports.projectClient(reference), caller: await ports.ownerContext(reference) }, picked, kinds);
+    return readReferences({ client: searchClient(ports.projectClient(reference)), caller: await ports.ownerContext(reference) }, picked, kinds);
   };
   return {
     service,
@@ -106,7 +115,7 @@ export function createSearchHost(ports: SearchHostPorts): SearchHost {
     confirmReferences: async (projectId, picked, kinds) => (await read(projectId, picked, kinds)).map(found => found !== null),
     readReferences: (projectId, picked, kinds) => read(projectId, picked, kinds),
     knowledgeTally: (projectId, views) => knowledge.tally(projectId, views),
-    knowledgeCatalog: (projectId, views, words) => knowledge.catalog(projectId, views, words),
+    knowledgeCatalog: (projectId, views, words, access) => knowledge.catalog(projectId, views, words, access),
     close: async () => { closed = true; for (const dispose of disposers) dispose(); await knowledge.close(); await service.close(); index.close(); },
   };
 }

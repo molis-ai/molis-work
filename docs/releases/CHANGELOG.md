@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+### 首页公共能力与智能呈现第一片（2026-11-13，#2017）
+
+- **组合服务**：新增 `horizontal/surfaces` 的 `surfaces.compose@1`／`surfaces.correct@1`，按插件 Manifest 的呈现声明做确定组合；宿主只装配，SDK 只留作者与平台共用的声明/描述校验。不调模型，不按插件名分支。
+- **公共呈现**：名字片、行、卡片、速览四种形态与组件板「呈现形态」；`renderPresentationForm` 与 `surfaceSlot` 由原生、签包和第三方共用；四人主人（Goals、Inbox、Coding、Feed）首批接入首页、插件内、对话、项目讨论与「等你」。
+- **基础首页与 Feed**：首页按「等你 → 接着做 → 项目插件卡片」组合（工作记录未交付时不出「接着做」）；Feed 的项目/个人归属按来源原记录，不再按 Gmail/RSS 类型猜；同步来的资料不算 Attention 或工作计数。
+- **合同与存储**：组合、呈现、`composer_source.title_text` 与 IM 消息 `subjects_json` 按阶段一更新；项目库 2→3 新建 `surface_corrections` 并带升级段；`server/server.sqlite` 保持 v1，`subjects_json` 走用户 2026-11-09 批准的同版本窄例外，旧结构拒绝且不转换。
+- **未完成**：本人实物验收（`BL-surface-home-acceptance`）、Todo 首页呈现（`BL-todo-home-presentation`）、IUI-20 切换后复测（`BL-surface-home-performance`）与 C2/C3/D2/D3 等后续项。四个 Linux 原始红已由 #2044/#2046 了结（`BL-linux-ci-browser-reds` 已删）；#2046 另记 `BL-feed-wake-resets-page`、`BL-inbox-update-blocks-host`、`BL-assistant-card-press-scrolls` 三个产品缺陷与仍红的 `surface-cross-positions`，不属于本批四个原始红的遗留。
+
 ### 持续运行与升级恢复（2026-11-12，#2034）
 
 - **常驻运行与错过的事**：关掉窗口后 Molis Work 继续在后台跑（设置 › 运行可关）；菜单栏「运行」面板显示是否在运行、等着什么、错过的事（每件可「现在做」「跳过」）与接下来 5 件，有未处理的错过时托盘带一个点；退出前先列出 24 小时内不会运行的事；再次打开时首页顶部先提示没在运行的时段与错过的事。错过的事由各自的主人保存（Schedule 的定时任务与提醒、Feed 的拉取、助理的跟进），晚过宽限（10 分钟）就不自动补跑，平台只按类型汇总展示。

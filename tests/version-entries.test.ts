@@ -86,8 +86,8 @@ test("an encoding discriminator is not a version, so moving a version cannot mak
 
 test("an entry that served two things is split, and two entries for one thing are one", () => {
   assert.ok(!entries.includes("role.reader"));
-  assert.deepEqual(moved("role.coding.main-reader", 2), ["plugins/native/coding/src/roles.ts"]);
-  assert.deepEqual(moved("role.schedule.reader", 2), ["plugins/native/schedule/src/roles.ts"]);
+  assert.deepEqual(moved("role.coding.main-reader", Number(real.versions["role.coding.main-reader"]) + 1), ["plugins/native/coding/src/roles.ts"]);
+  assert.deepEqual(moved("role.schedule.reader", Number(real.versions["role.schedule.reader"]) + 1), ["plugins/native/schedule/src/roles.ts"]);
   assert.ok(!entries.includes("format.continuity.assets"), "the same molis-work-assets bundle");
   assert.deepEqual(moved("format.asset.bundle", 2), ["apps/local-host/src/work-assets.ts", "server/src/continuity/service.ts"], "the writer and the reader move together");
   assert.ok(!entries.includes("format.builder.files-envelope"), "the signed package's own envelope");

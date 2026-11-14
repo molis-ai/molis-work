@@ -6,6 +6,7 @@ import { skillRefKey } from "@molis-ai/molis-work-plugin-sdk/skill-ref";
 import { freezeRunStart, validateRunAttachments } from "./prologue-frozen.js";
 import type { PrologueAdapterPorts, PrologueModelConfiguration, PrologueRuntimePort, PrologueStartInput } from "./prologue-ports.js";
 import { isEnded, type PrologueRunStore, type RunRecord, type SessionRecord } from "./prologue-run-store.js";
+import { RunMemoryBinding } from "./prologue-run-memory.js";
 import { runStreamState } from "./prologue-stream.js";
 
 /** What starting a round needs from the adapter (prologue.ts). */
@@ -76,6 +77,7 @@ function startInput(request: AgentStartRequest, role: FrozenRole, model: Prologu
     beforeStart: execution?.beforeStart,
     assertBeforeStart: execution?.assertBeforeStart,
     beforeDispatch: execution?.beforeDispatch,
+    disposeDispatch: execution?.disposeDispatch,
     provenance,
     session_id: request.session.session_id,
     ...(request.workspace === "none" ? { workspace: "none" } : request.workspace === "business" ? { workspace: "business" } : { root_path: request.directory.canonical_path }),
@@ -119,8 +121,9 @@ export async function startPrologueRun(context: RunStartContext, request: AgentS
 
   await execution?.beforeStart?.();
   requireSynchronous(execution?.assertBeforeStart?.(), "最终授权检查必须同步完成");
-  const started = await runtime.startAgentRun({ ...startInput(request, role, model, mode, { text_materials: textMaterials, image_materials: imageMaterials },
-    { frozen, started_at: at }, execution), ...(original ? { original_input: original } : {}) });
+  const memoryBinding = new RunMemoryBinding(role.memory, execution?.beforeDispatch);
+  const started = await runtime.startAgentRun({ ...startInput(request, memoryBinding.role(role), model, mode, { text_materials: textMaterials, image_materials: imageMaterials },
+    { frozen, started_at: at }, execution), ...(original ? { original_input: original } : {}) }).catch(error => { memoryBinding.close(); throw error; });
 
   const state = runStreamState(model.protocol.startsWith("openai"), started);
   const ref: AgentRunRef = {
@@ -130,6 +133,7 @@ export async function startPrologueRun(context: RunStartContext, request: AgentS
   const view: AgentRunView = {
     ref,
     ...(original ? { original_input: original } : {}),
+    ...(role.memory ? { class_restrictions: structuredClone(role.memory.class_restrictions), memory_scene: role.memory.current_scene } : {}),
     phase: "starting",
     frozen,
     turns: [{ turn_id: "user-1", kind: "user", text: request.task, at, sequence: 0 }],
@@ -142,16 +146,18 @@ export async function startPrologueRun(context: RunStartContext, request: AgentS
   state.turns.push(view.turns[0]!);
 
   const record: RunRecord = {
+    memory_binding: memoryBinding,
     view,
     state,
     control: started.control,
     model,
-    ...(role.memory ? { memory_context: { consumer: role.memory.consumer,
+    ...(role.memory ? { memory_context: { consumer: role.memory.consumer, current_scene: role.memory.current_scene, class_restrictions: structuredClone(role.memory.class_restrictions),
       ...(role.memory.usage ? { usage: structuredClone(role.memory.usage) } : {}) } } : {}),
     unsubscribe: () => {},
     listeners: new Set(),
   };
   store.rememberRun(session, record);
+  memoryBinding.bind(record, started.memory);
   store.follow(record, { task: request.task, prompts: role.prompts, skills: role.skills ?? [], materials: textMaterials }, started.run, context.ports);
   store.publish(ref.run_id);
   return { ref, frozen };

@@ -279,7 +279,11 @@ const row = el("li"), mark = root.querySelector('[data-plugin-trust-kind="' + ke
 if (mark) row.append(mark.content.cloneNode(true));
 row.append(el("strong", "", readText(KEPT[kept.kind]) + (kept.label ? " · " + kept.label : "")), el("span", "", readText(WHY[kept.reason]))); list.append(row);
 }
-done.addEventListener("click", () => { outcome = null; load().catch(fail); });
+// Put away, the focus goes to the row now in its place (or the one before it, or the list), not to the page: a keyboard user carries on from there.
+done.addEventListener("click", () => { const was = outcome; outcome = null; load().then(() => {
+const target = $(was.list), rows = [...target.children], next = (rows[was.index] ?? rows[was.index - 1])?.querySelector("summary");
+if (next) next.focus(); else { target.tabIndex = -1; target.focus(); }
+}).catch(fail); });
 actions.append(done); alert.append(list, el("p", "settings-muted", readText("workbench.settings-plugins.everything-else-deleted")), actions); item.tabIndex = -1; item.append(alert);
 const target = $(outcome.list), empty = target.children.length === 1 && !target.firstElementChild.querySelector("details");
 if (empty) target.replaceChildren(item); else target.insertBefore(item, target.children[outcome.index] || null);

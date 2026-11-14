@@ -4,6 +4,7 @@ import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import path from "node:path";
 import { ActionError, type ActionReference, type ActionView, type FragmentActionOffer } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionSelection } from "@molis-ai/molis-work-kernel";
 import { FUNCTIONS_DEFAULT_MODEL } from "@molis-ai/molis-work-contracts/modules/functions";
 import type { ContextualJudgeRequest, SurfaceFocus, SurfaceLanding } from "@molis-ai/molis-work-contracts/services/contextual";
 import { contextualCandidates, type JudgmentWording } from "@molis-ai/molis-work-kernel/contextual";
@@ -32,7 +33,7 @@ import { createContextualJudgmentService, type ContextualJudgmentService } from 
  * otherwise the page that owns the object runs it after the person confirms (P1), or the Assistant does through its cards (P2).
  */
 interface ContextualActions {
-  discover(): Promise<readonly ActionView[]>;
+  discover(select?: ActionSelection): Promise<readonly ActionView[]>;
   invoke(reference: ActionReference, input: unknown, signal?: AbortSignal): Promise<unknown>;
 }
 
@@ -170,7 +171,7 @@ export async function handleContextualHttp(request: IncomingMessage, response: S
   // item but does not name it itself, the workbench names it. Only a surface that opens exactly one kind is listed.
   if (url.pathname === "/api/contextual/surfaces") {
     if (request.method !== "GET") { sendJson(response, 405, { error: "请求方法不受支持" }); return true; }
-    try { sendJson(response, 200, { surfaces: surfaceKinds(await ports.actions().discover()) }); }
+    try { sendJson(response, 200, { surfaces: surfaceKinds(await ports.actions().discover(({ action }) => Boolean(action.search_source?.kinds.some(entry => entry.surface)))) }); }
     catch (error) { const failure = actionErrorResponse(error); sendJson(response, failure.status, failure.body); }
     return true;
   }

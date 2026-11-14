@@ -5,7 +5,7 @@ import {
   RUNS_OVERVIEW_INPUT_TYPE, RUNS_OVERVIEW_OUTPUT_TYPE, RUNS_OVERVIEW_SCHEMA, RUNS_WINDOW_SCHEMA,
   RUN_DECISION_INPUT_TYPE, RUN_DECISION_OUTPUT_TYPE, RUN_DECISION_SCHEMA, RUN_DECIDED_SCHEMA,
   SUBJECT_CONTEXT_INPUT_SCHEMA, SUBJECT_CONTEXT_OUTPUT_SCHEMA, SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_OPEN,
-  SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_PROJECT, SUBJECT_CONTEXT_TYPE, SUBJECT_REFERENCE_TYPE,
+  SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_PROJECT, SUBJECT_CONTEXT_TYPE, SUBJECT_REFERENCE_TYPE, SUBJECT_STATE_TYPE, SUBJECT_STATE_INPUT_SCHEMA, SUBJECT_STATE_OUTPUT_SCHEMA,
   SUBJECT_OFFERS_INPUT_SCHEMA, SUBJECT_OFFERS_INPUT_TYPE, SUBJECT_OFFERS_OUTPUT_SCHEMA, SUBJECT_OFFERS_OUTPUT_TYPE,
   WORKFLOW_CONTENT_OUTPUT_VERSIONS, WORKFLOW_CONTENT_SCHEMAS, WORKFLOW_CONTENT_VERSIONS, validActionExecutionPolicy, validActionResultView, type WorkflowContentStation,
 } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -125,7 +125,13 @@ function referenceProblems(key: string, a: ActionBody): string[] {
 
 function subjectProtocolProblems(key: string, operation: unknown, a: ActionBody): string[] {
   const problems: string[] = [];
-  if (a.output_type === SUBJECT_CONTEXT_TYPE || a.input_type === SUBJECT_REFERENCE_TYPE) {
+  if (a.output_type === SUBJECT_STATE_TYPE) {
+    if (operation !== "query" || a.scope !== "project" || a.kind !== "query" || !a.subject_kinds.length
+      || a.input_type !== SUBJECT_REFERENCE_TYPE || canonicalSchema(a.input_schema) !== canonicalSchema(SUBJECT_STATE_INPUT_SCHEMA)
+      || canonicalSchema(a.output_schema) !== canonicalSchema(SUBJECT_STATE_OUTPUT_SCHEMA)) {
+      problems.push(`能力 ${key} 没有兑现对象状态协议 v1 的输入输出合同`);
+    }
+  } else if (a.output_type === SUBJECT_CONTEXT_TYPE || a.input_type === SUBJECT_REFERENCE_TYPE) {
     if (operation !== "query" || (a.scope !== "project" && a.scope !== "home") || a.kind !== "query" || !a.subject_kinds.length
       || a.input_type !== SUBJECT_REFERENCE_TYPE || a.output_type !== SUBJECT_CONTEXT_TYPE
       || canonicalSchema(a.input_schema) !== canonicalSchema(SUBJECT_CONTEXT_INPUT_SCHEMA)

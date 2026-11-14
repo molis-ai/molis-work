@@ -6,7 +6,7 @@ import test, { type TestContext } from "node:test";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { memoryActions, MEMORY_PERMISSIONS } from "@molis-ai/molis-work-contracts/services/memory";
 import { MemoryService, characterOwner, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
-import { openMemoryLedger } from "@molis-ai/molis-work-storage";
+import { openMemoryLedger, type StorageOwner } from "@molis-ai/molis-work-storage";
 import { MolisWorkLocalHost, ensureSystemAgentService, prologueMemoryBackend } from "@molis-ai/molis-work-app-local-host";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { memoryServiceHome, observeMemoryBackend, originalMemorySources, scriptedMemoryExtraction } from "./fixtures/memory-service-home.js";
@@ -20,13 +20,21 @@ const proposal = { scope: "personal" as const, text: "周报先写风险", kind:
 /** Actual Home startup, SDK Node storage and ledger; reopening exercises the persisted choice. */
 async function memoryHome(t: TestContext) {
   const home = await mkdtemp(join(tmpdir(), "molis-memory-presets-"));
+  let storageOwner: StorageOwner | undefined;
+  const ensure = MolisWorkLocalHost.prototype.ensureAgentService;
+  // Observe the public composition seam; the real Host still creates and owns the service.
+  t.mock.method(MolisWorkLocalHost.prototype, "ensureAgentService", function(this: MolisWorkLocalHost,
+    directory: string, create: Parameters<MolisWorkLocalHost["ensureAgentService"]>[1], beforeAcquire?: (home: string) => void) {
+    return ensure.call(this, directory, owner => { storageOwner = owner; return create(owner); }, beforeAcquire);
+  });
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   try { await catalog.createProject({ project_id: projectId, display_name: "Memory presets", actor_id: LOCAL_PERSON_ACTOR_ID }); } finally { catalog.close(); }
   const open = async () => {
     const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
     const withCatalog = host.configurePersonalPlanning(home, host.ensureWebCatalog(home, openMolisWorkProjectCatalog).withCatalog);
     const agents = ensureSystemAgentService(host, home, withCatalog); await agents.ready;
-    const ledger = openMemoryLedger({ homeDirectory: home });
+    assert.ok(storageOwner, "the production Host supplies the actual Home owner");
+    const ledger = openMemoryLedger({ homeDirectory: home, storageOwner });
     const backend = prologueMemoryBackend(async () => agents.agentHost.adapter("prologue").memory!).withCaller(person);
     const service = new MemoryService({ ledger, backend });
     const actions = bindActionClient(host.homeActionClient(), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user" as const, permissions: [...MEMORY_PERMISSIONS] }));
@@ -62,7 +70,7 @@ test("off blocks saving accepting restoring moving and importing but keeps histo
   const kept = (await service.write(person, { scope: "personal", text: "周报先写风险" })).memory!;
   await service.change(person, { memory_id: kept.memory_id, action: "update", text: "周报先写结论" });
   await service.change(worker, { memory_id: kept.memory_id, action: "disable" });
-  const undo = service.changes(person, { scope: "personal" }).find(item => item.undoable)!;
+  const undo = (await service.changes(person, { scope: "personal" })).find(item => item.undoable)!;
   const candidate = await service.propose(worker, { ...proposal, text: "周报使用短段落" });
   const pack = await service.exportScope(person, "personal");
   service.savePrefs(person, "personal", "off");
@@ -120,6 +128,7 @@ test("manual allows personal saving and acceptance while task reads and learning
 });
 
 // MEM-24: actual UI route provides explicit intent, while ordinary Action/MCP contexts cannot get it from model input.
+// MEM-32: under the manual preset task recall is off and only the person's explicit entry reads.
 test("manual recall is explicit only at the protected memory HTTP entry and not from action arguments or MCP identity", async t => {
   const web = await serveHomeRuntime(t);
   const actions = bindActionClient(web.host.homeActionClient(), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user" as const, permissions: [...MEMORY_PERMISSIONS] }));
@@ -188,7 +197,7 @@ test("off preserves removal undo and prevents upkeep from changing disabled scop
   const kept = await service.learnFromWork({ ...worker, operation_id: "learn-before-off" }, { said: [text, text], sources: originals });
   assert.equal(kept.formation.outcome, "completed");
   assert.equal(kept.learned[0]?.outcome, "written", "only two real independent originals authorize automatic retention");
-  const auto = service.changes(person, { scope: "personal" }).find(item => item.undoable)!;
+  const auto = (await service.changes(person, { scope: "personal" })).find(item => item.undoable)!;
   service.savePrefs(person, "personal", "off"); service.savePrefs(person, "project", "off");
   const before = await backend.list("personal", person.actor_id);
   const report = await service.upkeep(person, { projects: [person.project_id!], objectState: async () => { throw new Error("closed scope must not be inspected"); } });

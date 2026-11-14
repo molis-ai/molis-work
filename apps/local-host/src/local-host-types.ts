@@ -1,6 +1,17 @@
 import type { HostCapabilityInvocation, LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
-import type { CallContext, CallDescription, CallObservation, CallOutcome, SubjectOfferChoiceView } from "@molis-ai/molis-work-kernel";
-import type { ActionAvailability, ActionCallContext, ActionProvider, ActionReference, ActionSceneDefinition, ActionSceneUsage, ActionSceneView, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionSelection, CallContext, CallDescription, CallObservation, CallOutcome, SubjectOfferChoiceView } from "@molis-ai/molis-work-kernel";
+import type { ActionAvailability, ActionCallContext, ActionClient, ActionProvider, ActionReference, ActionSceneDefinition, ActionSceneUsage, ActionSceneView, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+
+/** Host composition can project a subset of its directory without changing the caller's authority. */
+export interface HostActionClient extends ActionClient {
+  discoverMatching?(caller: ActionCallContext, select: ActionSelection): ReturnType<ActionClient["discover"]>;
+}
+
+/** Standalone consumers can select from the ordinary client's authorized directory. */
+export async function matchingActions(client: HostActionClient, caller: ActionCallContext, select: ActionSelection): Promise<readonly ActionView[]> {
+  if (client.discoverMatching) return client.discoverMatching(caller, select);
+  return (await client.discover(caller)).filter(view => select(view, view.provider));
+}
 
 export interface LocalHostRuntimeFactory<Runtime> {
   open(reference: LocalHostProjectReference): Runtime | Promise<Runtime>;

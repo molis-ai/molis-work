@@ -21,6 +21,7 @@ import { projectSurfaceHome } from "./surface-home-http.js";
 import { projectSurfaceContext, projectSurfacePosition, projectSurfaceSearch } from "./surface-project-read.js";
 import type { SurfaceInstallRegistry } from "./surface-installation.js";
 import { openProjectSchedulers, closeProjectSchedulers } from "./project-schedulers.js";
+import { refreshAfterScheduledAction } from "./plugin-scheduler-owner.js";
 import { precompileActionSchemas, refuseCall, type CallReports } from "@molis-ai/molis-work-kernel";
 import { createConnectorMcpDirectory, type ConnectorMcpDirectory } from "./connector-mcp-actions.js";
 import { projectPluginMembershipActionProvider, projectWorkspaceActionProvider, type ProjectCatalogOwner } from "./project-workspace-actions.js";
@@ -66,6 +67,7 @@ import { projectMaterialsProvider } from "./system-materials-actions.js";
 import type { LocalHostProjectClient, LocalHostProjectReference, LocalHostStatus } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { ProjectDirectories, ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionProviderRegistration, type ActionReference, type ActionRegistryPort, type ActionSceneClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { HostActionClient } from "./local-host-types.js";
 import type { AgentHostComposition } from "./agent-host-composition.js";
 import { createSearchHost, type SearchHost } from "./search-actions.js";
 import { createPlacementHost, type PlacementHost, type PlacementProjectRecord } from "./placement-actions.js";
@@ -183,6 +185,10 @@ export class MolisWorkLocalHost {
   private readonly callReports = hostCallReports(this);
 
   constructor(private readonly options: MolisWorkLocalHostOptions = {}) {
+    if (options.homeDirectory !== undefined) {
+      options = { ...options, homeDirectory: resolveConfiguredHome(options.homeDirectory) };
+      this.options = options;
+    }
     assertFixtureScopes(options.pluginFixtures, Boolean(options.homeDirectory));
     const homeStorage = prepareHostMemoryHome(this, options.homeDirectory);
     const readCatalog: SurfaceHomeCatalogReader = operation => this.webCatalog?.access.read(operation);
@@ -293,6 +299,7 @@ export class MolisWorkLocalHost {
     if (home) {
       bindHomeSide(this, home, options, settingsVersionClaims);
       this.search = createSearchHost({ homeDirectory: home, registry: this.host.actionRegistry(),
+        sessionLifecycle: runtimeId => this.agents?.service.agentHost.adapter(runtimeId).sessionLifecycle,
         project: projectId => this.host.projects().find(row => row.project_id === projectId && row.state !== "closing"),
         projectClient: reference => this.actionClient(reference), homeClient: () => this.homeActionClient(),
         ownerContext: reference => localWebActionContext(this, reference, LOCAL_OWNER_PERMISSIONS),
@@ -349,7 +356,7 @@ export class MolisWorkLocalHost {
   ensureAgentService(homeDirectory: string, create: (owner: import("@molis-ai/molis-work-storage").StorageOwner) => AgentHostComposition,
     beforeAcquire?: (home: string) => void): AgentHostComposition {
     if (this.closing.started || this.host.lifecycle() !== "running") throw hostErrors.closed("Local Host 已关闭");
-    const home = path.resolve(homeDirectory);
+    const home = resolveConfiguredHome(homeDirectory);
     const owner = ensureHomeStorageOwner(this, home, beforeAcquire);
     return (this.agents ??= { home, service: create(owner) }).service;
   }
@@ -368,7 +375,7 @@ export class MolisWorkLocalHost {
   }
 
   /** `preparePlugins: false` skips project Runtime preparation and external MCP restoration; project Runtime actions may not be registered. Home actions are still prepared. */
-  actionClient(reference: LocalHostProjectReference, preparePlugins = true): ActionClient {
+  actionClient(reference: LocalHostProjectReference, preparePlugins = true): HostActionClient {
     return withPreparedActions(this.host.actionClient(reference), async caller => {
       if (preparePlugins) await this.prepareProjectPlugins(reference, caller);
       caller.signal?.throwIfAborted();
@@ -378,7 +385,7 @@ export class MolisWorkLocalHost {
 
   syncActionClient(reference: LocalHostProjectReference) { return this.host.syncActionClient(reference); }
 
-  homeActionClient(): ActionClient {
+  homeActionClient(): HostActionClient {
     return withPreparedActions(this.host.homeActionClient(), () => this.prepareHomeActions(),
       (caller, action, error) => refuseCall(this.callReports, caller, action, error));
   }
@@ -501,9 +508,10 @@ function hostCallReports(host: Pick<MolisWorkLocalHost, "callLog" | "search" | "
   return { observed: (caller, action, observation) => host.observation?.observed(caller, action, observation), settled: (caller, action, outcome) => {
     host.callLog?.record(caller, action, outcome);
     // Only a completed business command invalidates its views; a preparation refusal has no effect to refresh.
-    if (outcome.ok && action.operation === "command" && action.provider_id) {
-      host.search?.changed(action.provider_id, caller.project_id);
-      host.homePlugins?.invalidateView(action.provider_id);
+    const provider = action.provider_id;
+    if (outcome.ok && action.operation === "command" && provider) {
+      host.search?.changed(provider, caller.project_id);
+      refreshAfterScheduledAction(caller, action, () => host.homePlugins?.invalidateView(provider));
     }
   } };
 }

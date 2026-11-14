@@ -174,14 +174,12 @@ export const GOAL_CANVAS_STYLES = `
   @media (max-width: 760px) {
     body.immersive-workbench .goal-stage-list .tree-entry { grid-template-columns: minmax(0, 1fr) fit-content(45%); }
     body.immersive-workbench .goal-stage-list .tree-entry > :is(.tree-progress, .tree-relations, .tree-created-meta) { display: none !important; }
-    body.immersive-workbench .goal-stage-list .tree-columns { display: none; }
   }
   /* A narrow column on a wide window is the same: the right side kept open beside Goals (07-S1) or a split leaves it under the
      five columns' 600-odd px, and the row keeps the title and its status rather than sliding sideways. */
   @container goal-board (max-width: 640px) {
     body.immersive-workbench .goal-stage-list .tree-entry { grid-template-columns: minmax(0, 1fr) fit-content(45%); }
     body.immersive-workbench .goal-stage-list .tree-entry > :is(.tree-progress, .tree-relations, .tree-created-meta) { display: none !important; }
-    body.immersive-workbench .goal-stage-list .tree-columns { display: none; }
   }
   /* The column names: the rows' own grid, drawn once above them. Two columns (a phone, a narrow column) need no names. */
   .tree-columns { display: none; }
@@ -193,6 +191,14 @@ export const GOAL_CANVAS_STYLES = `
   body.immersive-workbench .goal-stage-list .tree-columns > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   body.immersive-workbench .goal-stage-list .tree-columns > :first-child { padding-left: 32px; }
   body.immersive-workbench .goal-stage-list .tree-columns > :last-child { min-width: calc(6em + 26px); text-align: right; }
+  /* The two-column rows have no names to show. These rules follow the base one above because a media or container query adds no
+     specificity: placed before it, they lost the cascade and the names stayed, wider than the narrow list (RAC-2680). */
+  @media (max-width: 760px) {
+    body.immersive-workbench .goal-stage-list .tree-columns { display: none; }
+  }
+  @container goal-board (max-width: 640px) {
+    body.immersive-workbench .goal-stage-list .tree-columns { display: none; }
+  }
   /* In its own list a Goal's name is plain words on the row: every row there is a Goal, so the owner's tile says nothing, the status
      column already carries the state, and a capsule around each name made seventeen boxes of one list. */
   body.immersive-workbench .goal-stage-list .tree-presentation-name .mw-presentation__tag { inline-size: 100%; gap: 8px; padding-inline: 0; background: none; box-shadow: none; font-size: 13px; }

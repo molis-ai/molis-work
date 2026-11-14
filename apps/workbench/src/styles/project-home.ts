@@ -64,6 +64,8 @@ export const PROJECT_HOME_STYLES = PRESENTATION_FORM_STYLES + `
   .home-row:has(>.surface-correction-menu) .mw-presentation--chip { padding-inline-end: 2.75rem; }
   .surface-correction-reason { display: flex; flex-wrap: wrap; gap: .35rem .65rem; align-items: center; justify-content: space-between; color: var(--muted); min-inline-size: 0; }
   .surface-correction-reason p { margin: 0; overflow-wrap: anywhere; }
+  /* The scope is a note in the type scale, not the browser's small step (which lands on 10px). */
+  .surface-correction-reason small { font-size: var(--type-note-size, 12px); line-height: var(--type-note-line-height, 1.6); }
   .surface-correction-recovery { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; }
   .discussion-display-defaults { display: flex; justify-content: flex-end; padding-inline: .5rem; }
   .home-peek { inline-size: min(100% - 2rem, 30rem); max-block-size: min(85dvh, 32rem); padding: 1rem; }

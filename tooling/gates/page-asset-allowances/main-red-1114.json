@@ -1,0 +1,7 @@
+{
+  "reason": "修 main 4417d2bc 上的红（#2057）：Goals 列表的列名在手机与窄容器里没有藏住——两条隐藏规则写在基础 display:grid 规则之前，媒体/容器查询不增加特异度，于是被后面的基础规则按源码顺序覆盖，窄列里横向滚出 676px；把隐藏规则移到最后，并给首页设置的作用范围小字补回字号阶上的 note 字号（<small> 的浏览器默认在小字上落到 10px，不在 11/12/13/15… 的阶上）。两处都只改样式，工作台样式表净增 184 字节。",
+  "review": "本次修 main 红的 PR（fix/main-red-1114）：本机 pnpm workspace:build 后 node scripts/gates/page-assets.mjs --base origin/main 实测 /assets/molis-work-workbench.css 1130374 → 1130558（+184）；许可按实测写，未新增资源，小于 10 KB，按 PR 评审一次性放行。",
+  "assets": {
+    "/assets/molis-work-workbench.css": 184
+  }
+}

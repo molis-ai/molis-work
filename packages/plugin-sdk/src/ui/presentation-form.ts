@@ -34,11 +34,18 @@ type Words = (key: string) => string;
 
 const platformWord = (key: string): OwnedTextRef => ({ owner: PLATFORM_TEXT_OWNER, key: `common.presentation.${key}` });
 const unavailableWord: OwnedTextRef = { owner: PLATFORM_TEXT_OWNER, key: "common.text.unavailable" };
-/** The same canonical plugin id picks the same semantic hue in every install. */
+/**
+ * The hues an owner's tile and band may take: the cool ones. Colour with a temperature is a state's — warm is "yours to act on"
+ * (orange, yellow, brown read as the attention wash), red and pink are "blocked", green and mint are "done", cyan is "waiting on
+ * someone", grey is "at rest" — so an owner never looks like a state it is not in.
+ */
+const OWNER_HUES = (["blue", "indigo", "purple", "slate", "steel"] as const satisfies readonly UiViewHue[])
+  .filter(hue => UI_VIEW_HUES.includes(hue));
+/** The same canonical plugin id picks the same hue in every install. */
 export function presentationOwnerHue(pluginId: string): UiViewHue {
   let hash = 0;
   for (const char of pluginId) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
-  return UI_VIEW_HUES[hash % UI_VIEW_HUES.length]!;
+  return OWNER_HUES[hash % OWNER_HUES.length]!;
 }
 
 const unavailableRing: Readonly<Record<ReadUnavailable, StateRingState>> = { forbidden: "blocked", deleted: "trashed", unreadable: "disconnected" };

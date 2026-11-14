@@ -1181,6 +1181,10 @@
     "goals.tree-ui.archive": "Archive",
     "goals.tree-ui.clear": "Clear",
     "goals.tree-ui.clear-all-filters": "Clear all filters",
+    "goals.tree-ui.column-created": "Created",
+    "goals.tree-ui.column-goal": "Goal",
+    "goals.tree-ui.column-progress": "Progress",
+    "goals.tree-ui.column-relations": "Depends on",
     "goals.tree-ui.count-blocked": "{count} blocked",
     "goals.tree-ui.count-count": {
       "plural_arg": "count",

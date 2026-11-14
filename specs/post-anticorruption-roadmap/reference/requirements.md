@@ -33,7 +33,7 @@
 
 <a id="memory-paused"></a>
 
-**Memory 未完成（暂停已于 2026-11-11 解除，[决定 36](decisions.md#decision-36)）。** [P0 形成、召回及 SDK 接入](../../prologue-memory-strategy/spec.md)不归入完成项。去向分三段：① P0 收口（[BL-memory-p0-closure](../../backlog/BL-memory-p0-closure.md)；#2020 分支上的 BL-1071～BL-1077，含 MEM-41～44 的 BL-1075）单独成批，不占 01～90 的编号，以 Memory V0 草稿 PR [#2020](https://github.com/molis-ai/molis-work/pull/2020) 为起点，不在别的批次里重做它的内容；这一批收尾时产出 P1 的短合同（BL-memory-p1-contract）。② P1（SDK 有界历史与恢复、导出 v2、正文单一写主人：MEM-10、11、19，及 MEM-22、23、34、40 的 P1 部分）并入 [31](batches/31.md#batch-31-item-2)，前置是 P0 已合入 main、短合同已冻结。③ P2（语义／混合召回、规模与查询下推、去重、衰减、巩固）不排批，各登记一条待办并写明触发条件（BL-memory-p2-semantic-recall、BL-memory-p2-scale、BL-memory-p2-dedup、BL-memory-p2-decay、BL-memory-p2-consolidation），测到问题才做，都先等 P0 的质量与成本对照（BL-1073）。[64](batches/64.md) 的工作记忆只等 P0 合入，不等 P1、P2。换 `vendor/prologue-sdk`、搬迁记忆正文、动真实 Home 仍逐项要用户批。给 P2 补验收编号要改 Memory spec，等 #2020 合入后做。
+**Memory P0 已经 [#2020](https://github.com/molis-ai/molis-work/pull/2020) 合入 main。** [交付及验收边界](../../prologue-memory-strategy/spec.md#p0-收尾与验收边界2026-11-13)保留未达标的性能和 token，以及本人走查。后续范围：② P1（SDK 有界历史与恢复、导出 v2、正文单一写主人：MEM-10、11、19，及 MEM-22、23、34、40 的 P1 部分）并入 [31](batches/31.md#batch-31-item-2)，前置是 P0 已合入 main、短合同已冻结。③ P2（语义／混合召回、规模与查询下推、去重、衰减、巩固）不排批，各登记一条待办并写明触发条件（BL-memory-p2-semantic-recall、BL-memory-p2-scale、BL-memory-p2-dedup、BL-memory-p2-decay、BL-memory-p2-consolidation），测到问题才做，都先等 P0 的质量与成本对照（BL-1073）。[64](batches/64.md) 的工作记忆只等 P0 合入，不等 P1、P2。换 `vendor/prologue-sdk`、搬迁记忆正文、动真实 Home 仍逐项要用户批。P2 的验收编号随 P2 的合同确认。
 
 <a id="section-3-2"></a>
 

@@ -1,6 +1,7 @@
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityDescriptor } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { ActionError, requireSynchronous, type ActionAvailability, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { inDirectoryPass } from "./directory-pass.js";
 export { subjectOfferChoices, subjectOfferChoiceKey, judgmentRecommendationKeys, subjectOfferCompatibilityReason, type SubjectOfferChoiceView } from "./subject-offer-choices.js";
 
 export type CapabilityHandler<Context, Input, Output> = (
@@ -104,16 +105,17 @@ export class CapabilityRegistry<Context> {
     return (local ?? this.entries.get(capabilityKey({ capability_id: reference.capability_id, version: reference.version })))?.descriptor;
   }
 
+  /** One check is one directory pass (`inDirectoryPass`): what its parts read, an installation's record above all, is read once for the whole check. */
   availability(context: Context, reference: RegistryReference): ActionAvailability {
     const entry = this.entries.get(capabilityKey(reference));
-    return entry ? entry.availability?.(context) ?? { available: true }
+    return entry ? inDirectoryPass(() => entry.availability?.(context) ?? { available: true })
       : { available: false, code: "actions.missing", reason: "能力未注册或已停用" };
   }
 
   /** Composition-only declaration eligibility; execution always uses the ordinary availability evaluator. */
   metadataAvailability(context: Context, reference: RegistryReference): ActionAvailability {
     const entry = this.entries.get(capabilityKey(reference));
-    return entry ? (entry.metadataAvailability ?? entry.availability)?.(context) ?? { available: true }
+    return entry ? inDirectoryPass(() => (entry.metadataAvailability ?? entry.availability)?.(context) ?? { available: true })
       : { available: false, code: "actions.missing", reason: "能力未注册或已停用" };
   }
 
@@ -143,7 +145,7 @@ export class CapabilityRegistry<Context> {
     if (!registered || registered.descriptor.operation !== descriptor.operation) {
       throw kernelErrors.capability_missing(`Capability 未注册: ${capabilityKey(descriptor)}`);
     }
-    const availability = requireSynchronous(registered.availability?.(context));
+    const availability = requireSynchronous(inDirectoryPass(() => registered.availability?.(context)));
     if (availability && !availability.available) throw new ActionError(availability.code, availability.reason, { kind: availability.kind });
     return registered;
   }

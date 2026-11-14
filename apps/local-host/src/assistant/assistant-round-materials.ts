@@ -279,7 +279,8 @@ export class AssistantRoundMaterials {
     // A work an executor carries hands its Skills over by reference (§2.3): the executor's round reads them, as itself, not this one.
     const handedOver = work.executor.kind === "plugin";
     const refs = handedOver ? [] : [...new Map(materials.flatMap(item => item.kind === "method" && item.method?.kind === "skill" ? [[methodKey(item.method), item.method.ref] as const] : [])).values()];
-    const read = refs.length ? await this.link.readSkills(work, refs) : undefined;
+    const names = new Map(materials.flatMap(item => item.kind === "method" && item.method?.kind === "skill" && item.method.name ? [[skillRefKey(item.method.ref), item.method.name] as const] : []));
+    const read = refs.length ? await this.link.readSkills(work, refs, names) : undefined;
     if (read) handoffs.push(read.handoff);
     const out: AssistantMaterial[] = [];
     for (const material of materials) {

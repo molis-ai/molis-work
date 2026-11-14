@@ -157,6 +157,26 @@ test("SKC-13: the Prologue registration of a catalog Skill names only the role's
   assert.deepEqual(handle.frozen.host_tools, ["ask-user"]);
 });
 
+// SKL-16 (the basic layer): the round says every Skill it could not read, each with its own reason, that it did not start and that
+// nothing was swapped in — not only the first one it met.
+test("SKL-16: two Skills that cannot be read are both said, each with its reason, and the round does not start", async () => {
+  const { adapter, seen } = recordingAdapter();
+  const host = new AgentHost(); host.register(adapter);
+  const { catalog } = countingCatalog(undefined, skill => skill.skill_id === "skill-1" ? { ok: false, ref: skill, reason: "off" }
+    : skill.skill_id === "skill-2" ? { ok: false, ref: skill, reason: "connection_missing", detail: "Google Calendar" } : body(skill));
+  await assert.rejects(host.start("probe", startRequest([ref(1), ref(2), ref(3)]), { manifest, authorizedDirectories: [DIRECTORY], skillCatalog: catalog }),
+    (error: Error & { code?: string }) => {
+      assert.equal(error.code, "agent.capability_unavailable");
+      assert.match(error.message, /^这一轮没有开始，也没有换成别的技能。/);
+      assert.match(error.message, /现在不能用：它已停用[^；]*（off）；/, "the first one, with its reason");
+      assert.match(error.message, /现在不能用：它需要的服务还没连接，先去连接（Google Calendar，connection_missing）。/, "the second one, with what it needs");
+      assert.doesNotMatch(error.message, /skill-3/, "the one that can be read is not listed");
+      assert.match(error.message, /可以处理好再发，改用另一个技能，或者去掉技能直接发。$/, "and what the person can do");
+      return true;
+    });
+  assert.equal(seen.length, 0, "the Runtime never starts");
+});
+
 // SKP-10 (round-2 review, fixed): who a round's Skill reads are for was decided while freezing and then lost for the round's own
 // tool calls — a `coding` round could not read an `auto`, `applies_to: coding` Skill while it ran. The Host's action port now gets the
 // round's consumer and named list, so every tool call carries them.

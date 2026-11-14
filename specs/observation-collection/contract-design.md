@@ -1,6 +1,6 @@
 # 观测和采集层：合同设计稿（第 28 批第一片）
 
-状态：设计稿第 3 版（2026-11-13，第 28 批主会话）。第 1 版（`8e2e1e0f27`）经本批评审台兼公共合同台合审退回 11 处，第 2 版（`6284156165`）逐条改过；复核时其中两处（上报限额、缺失原因）还差一步，本版补上（见 §14、§15）；改后再交同一评审复核，结论写在本批 PR 评论里。代码照本稿写，和本稿不一样的地方回来改本稿。依据：[需求](spec.md)、[设计](design.md)（第 21 批）、[盘点](inventory-2026-11.md)、[评测案例](eval-cases.md)；main `b66112d0d7`。
+状态：设计稿第 3 版（2026-11-13，第 28 批主会话）。第 1 版（`8e2e1e0f27`）经本批评审台兼公共合同台合审退回 11 处，第 2 版（`6284156165`）逐条改过；复核时其中两处（上报限额、缺失原因）还差一步，本版补上（见 §14、§15）；改后再交同一评审复核，结论写在本批 PR 评论里。代码照本稿写，和本稿不一样的地方回来改本稿；2026-11-14 合后复核把合入代码与稿的差异补进 §13（外壳两个地址、检索不经 sink、Onboarding 只按导入、上报每天第一次读一次额度），读取、保留与评测的边界不变。依据：[需求](spec.md)、[设计](design.md)（第 21 批）、[盘点](inventory-2026-11.md)、[评测案例](eval-cases.md)；main `b66112d0d7`（合入 `4417d2bcd3`）。
 
 本稿回答 21 设计里留给第 28 批合同的几件事：包与库叫什么、一条记录长什么样、事实怎样写进来、证据快照怎样存与删（D1 的三个追问）、覆盖登记写什么、安全边界怎样守。**读取与管理**（按版本取回、权限与用途、增量、保留与清理、占用与提醒、界面）是第 29 批，本稿只给它留出位置，不定它的动作。
 
@@ -50,12 +50,12 @@
 
 **出口：动作调用。** kernel 的结算改成收一组 `CallReports { settled?, observed? }`：`settled` 仍是诊断记录用的，照旧不见输入和结果；`observed` 是采集出口，同一处结算时拿到开始与结束时间、处理器是否已开始、原始输入与结果、`invocation_id` 与父调用。`ActionService.invoke/invokeSync` 和宿主里直接拒绝调用的 `refuseCall`（`local-host.ts`、`project-host.ts` 共七处）用的是同一组，所以被拒的也一条不漏。出口自己出错不影响调用，算进 §8 的「丢失」。页面查找自己没有的区域时预期中的拒绝（`refusalExpected`）不是用户行为，出口不记（与诊断记录同一口径）。
 
-**端口：平台服务。** contracts 的 `ObservationSink` 只有 `bind(origin)`：服务在一件事开始时（一轮运行开始、一次唤醒、一次检索）用当时的调用上下文绑定一次，得到的记录器之后随时 `record(fact)`，不依赖回调发生时异步上下文还在不在（Prologue 的事件在发起它的动作结束后才到，那时调用范围已关）。没有调用上下文的事（定时触发）用 `ObservationBackgroundOrigin` 绑定，写明 actor 与入口。宿主装配时给每个服务一个只认它前缀的 sink；没装配的服务什么也不记。记录同步入队、不抛、不等、不读库。
+**端口：平台服务。** contracts 的 `ObservationSink` 只有 `bind(origin)`：服务在一件事开始时（一轮运行开始、一次唤醒、一次连接器拉取）用当时的调用上下文绑定一次，得到的记录器之后随时 `record(fact)`，不依赖回调发生时异步上下文还在不在（Prologue 的事件在发起它的动作结束后才到，那时调用范围已关）。检索、读取与记忆写入都是动作调用，随出口记，没有单独的检索 sink。没有调用上下文的事（定时触发）用 `ObservationBackgroundOrigin` 绑定，写明 actor 与入口。宿主装配时给每个服务一个只认它前缀的 sink；没装配的服务什么也不记。记录同步入队、不抛、不等、不读库。
 
 **上报：`observation.report@1`。** 一个动作，两种调用方：
 
 - **插件**（受众 `plugin`）：`owner` 取宿主签发的 `host_plugin.plugin_id`（`calling_plugin_id` 只在 Plugin Runtime 交给插件处理器时才有，system 提供方拿不到）；只收以自己 `plugin_id` 开头的事实。插件要在 Manifest `capabilities.consumes` 声明它，内置与第三方同一条路。
-- **外壳**（受众 `user`）：只经宿主的「界面阶段」路由进来。路由每次请求签发一个冻结的入口凭据（照 `S-page-entry-actions` 的 `webEntryDoor` 写法），处理器只服务本人、没有 `host_plugin` 与 `delegated_by`、带着这次签发的凭据的调用；`owner = shell`，只收 `ui.*`。别的路由、插件页面（含插件页面拿自己的凭据调这条路由）、手写的 `user` 调用一律拒（新不变量 `S-observation-records` 配拒绝测试）。
+- **外壳**（受众 `user`）：只经宿主的「界面阶段」路由进来。Home 的地址是 `/api/observation/ui`，记录不属于任何项目；项目里的地址是 `/projects/<项目 id>/api/observation/ui`，记录属于那个项目——项目身份来自地址与门签发的凭据，不读请求体（§13 2026-11-14 一行）。路由每次请求签发一个冻结的入口凭据（照 `S-page-entry-actions` 的 `webEntryDoor` 写法），处理器只服务本人、没有 `host_plugin` 与 `delegated_by`、带着这次签发的凭据的调用；`owner = shell`，只收 `ui.*`。别的路由、插件页面（含插件页面拿自己的凭据调这条路由）、手写的 `user` 调用一律拒（新不变量 `S-observation-records` 配拒绝测试）。
 - **处理器按受众分两条**：`webEntryDoor.define` 写死了 `audiences: ["user"]` 与 `scheduling: "concurrent"`，一个动作服务两种调用方用不了它。所以动作自己定义（`audiences: ["user","plugin"]`，不声明 `concurrent`：只入内存队列、不等外部），门只用来签发和核对：给门加一个只读的 `entryOf(caller)`，`user` 这一条照门的规则检查（与 `define` 用同一个函数），`plugin` 这一条查 `host_plugin`。
 
 限额（数字都在合同的 `OBSERVATION_LIMITS`）：
@@ -74,7 +74,7 @@
 `real`、`first_read`、`catch_up`、`imported`、`trial`、`replay`、`demo`、`system_check`。按顺序定，前面的赢：
 
 1. 项目 `data_class = "regenerable_demo"` → `demo`（装配时从目录取并缓存，不信写入方）。
-2. **来源范围** `withObservationSource(kind, run)`：放在 observation 包里（不进 kernel、不进 `ActionCallContext`），只有宿主入口包得住自己的工作：Onboarding 采用（`first_read` 或 `imported`）、连接器首次同步与重连补读（`first_read`、`catch_up`）、平台自检（`system_check`）、评测回放（`replay`，30 批起）。照 `CallScope.open` 的写法，`run` 结束即关：范围里起的定时器、订阅、轮询在范围结束后再发生的事不带这一类；内层范围覆盖外层。出口在调用方自己的异步上下文里同步收到报告，所以宿主的出口能直接读到当前范围。沙箱插件进程外的回调拿不到范围，覆盖登记对「沙箱插件的首次同步」写「暂不可用」。
+2. **来源范围** `withObservationSource(kind, run)`：放在 observation 包里（不进 kernel、不进 `ActionCallContext`），只有宿主入口包得住自己的工作：Onboarding 采用（`imported`：把本人带来的材料采用进新项目；「首次读取现有项目」的入口尚未接，见 §13）、连接器首次同步与重连补读（`first_read`、`catch_up`）、平台自检（`system_check`）、评测回放（`replay`，30 批起）。照 `CallScope.open` 的写法，`run` 结束即关：范围里起的定时器、订阅、轮询在范围结束后再发生的事不带这一类；内层范围覆盖外层。出口在调用方自己的异步上下文里同步收到报告，所以宿主的出口能直接读到当前范围。沙箱插件进程外的回调拿不到范围，覆盖登记对「沙箱插件的首次同步」写「暂不可用」。
 3. 写入方给的类别：只有插件和服务能说，只认 `first_read`、`catch_up`、`imported`；外壳一律 `real`。
 4. 其余 `real`。
 
@@ -134,7 +134,7 @@
 ## 9 调用次数、落盘与性能
 
 - 队列每 250 毫秒或满 200 条在一个事务里落盘（WAL，`synchronous = NORMAL`）；同一批里相同摘要的快照只处理一次。关库与宿主停止时先刷完。
-- 出口、端口、上报都不读库；合并读取用内存里最近一分钟的键，不查库。
+- 出口与端口只把记录追加进队列，不读库；上报在入队前要向库核对这个上报方当天的额度：每个上报方每天第一次读一次并缓存，之后按内存计数，不逐条读；库的连接也在第一次用时打开。写批才读写库。合并读取用内存里最近一分钟的键，不查库。
 - 外壳上报最多每 2 秒一次，页面隐藏时立刻发一次，不轮询。
 - 整个 Home 一个连接，宿主装配时打开、停止时关。
 - 预算数字等本批接完、照 eval-cases §4 回放一周后实测再定；本批先量 EC-01、02、06、09 每轮多写多少字节、多花多少毫秒，写进盘点 §7。
@@ -188,6 +188,9 @@
 | 2026-11-13 | **评审 B1（PR #2059）：子代理的一轮。** 子运行由 Prologue 在父运行里起，App 收不到它自己的事件流，只有父运行的 `subagent-started`／`subagent-ended` 与每次请求的 `onModelRequest`。记法：父一轮记 `agent.subagent`（开始、结束与结局，带子运行与子会话）；子运行的每次模型请求按运行库里派出登记的上下级（`runLineage`，子运行在第一次请求前就已登记）交给最近一个被跟着的上级一轮的记录器，记成子运行自己的 `agent.model_request`（`work.run_id` 是子运行、主体是子会话、`parent_run_id` 是派它的那一跑）；子运行自己的回复、工具与用量不记，覆盖登记写「暂不可用」（`agent.subagent.events`，`child_stream_not_followed`）；它调用的动作仍是出口的记录 | 方案 (b) 只把子代理标成暂不可用，而请求本身拿得到，丢掉它第 30 批的评测就少了子代理实际收到的内容；方案 (a) 全做要上游给子运行的事件订阅，本批不改上游第二次 |
 | 2026-11-13 | **评审 B2（PR #2059）：`ActionMetadata.draft`。** 这一项随 `batch/28-services` 进来，合同稿第 3 版原来没有，这里补记：动作可以声明输入是本人还没发出的草稿；出口只在调用方是本人（`user` 受众）时按规则不记它的输入与结果，别的受众经同一动作写入的照常留内容，拒绝用例 S-observation-records 7。三个声明它的动作：`assistant.panel.works.draft@1`、`assistant.panel.works.question_draft@1`、`onboarding.context.draft@1`（受众都只有 `user`） | 原写法只看声明，沙箱或第三方插件声明了就能让 Agent、MCP、工作流对它的调用都不留内容，与 OCL-05 冲突；在声明时拒掉「draft + 非 user 受众」也行，但出口一处判断就够，且不改 Manifest 校验 |
 | 2026-11-13 | **用户定：每次唤醒自成一次操作。** 项目时钟每次唤醒用自己的调用号（`eachWakeup`），它起的动作、运行与 `scheduler.wakeup` 记录都在这一号下；同一轮到期的两个任务是两次操作，不再并成这一轮的号。旧用例 SYS-15-A1/S4 原断言唤醒起的那一轮沿用这一轮的号，改为断言它有自己的号、与这一轮的不同、两次唤醒彼此不同（`tests/schedule-task-runner.test.ts`） | 沿用这一轮的号时，生产里每轮本来就新起一个合成的号，同轮的几个任务会在工作记录里并成一次操作，按操作回看、评测都会把无关的任务连在一起 |
+| 2026-11-14 | **合后复核：外壳的上报路由有两个地址。** Home 的 `/api/observation/ui` 记不属于任何项目；项目的 `/projects/<id>/api/observation/ui` 记属于那个项目。项目身份来自地址与门签发的入口凭据，不从请求体读。§4 原来只写「宿主的界面阶段路由」，本版补上两个地址（代码在 `apps/local-host/src/observation-shell-entry.ts`，两处路由表各挂一次） | 只留 Home 地址时，项目身份只能从请求体或页面参数来，正是 S-observation-records 2 拒的那类；两个地址各自把项目钉在路径上 |
+| 2026-11-14 | **合后复核：检索、读取与记忆写入不设服务 sink。** 它们都经动作目录调用，`search.query`、`knowledge.*`、`memory.*` 的输入与结果由出口记（页面读取的结果按 §7 只留摘要）；§4 原把「一次检索」列进 sink 的例子，是写错了，本版改掉。`OBSERVATION_SERVICE_PREFIXES` 里保留的 `search`、`knowledge`、`memory`、`onboarding` 还没有 sink，也没有对应事实，见 BL-observation-b28-audit-followups ⑩ | 给检索再建一个 sink 要绕过动作目录、重复授权与结果证据；出口已经拿到同一份调用和结果 |
+| 2026-11-14 | **合后复核：Onboarding 采用只按 `imported` 记。** 采用是把本人带来的材料放进一个新项目，入口包在 `withObservationSource("imported")` 里；连接器首次同步与重连补读仍是 `first_read`／`catch_up`。§5 原写「Onboarding 采用（`first_read` 或 `imported`）」，但「首次读取现有项目」的入口还没有，代码不能凭空给另一个类别；这一入口出现时再接，记 BL ⑧ | 把新项目的导入说成「首次读取已有」会让本期成果与历史资料混在一起（OCL-02/13）；反过来把连接器首读说成导入也一样错，两边各自按实际入口给 |
 
 ## 14 第 1 版合审退回的改法
 

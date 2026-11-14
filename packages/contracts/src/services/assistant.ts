@@ -493,6 +493,7 @@ export interface AssistantSendInput extends Pick<AgentInputSend, "about"> {
   /** Omitted starts a new work. */
   work_id?: string;
   main?: true; // Without `work_id`: the main conversation of this scope with this counterpart (`character`, or the Assistant), opened on first use.
+  for_event?: { kind: string; id: string }; // For a new work said in an event's tab: the event on the person's work line it is done for (the Host reads the line as the person).
   /** For a new work: who carries it. An existing work keeps its executor. */
   executor?: AssistantExecutorChoice;
   /** For a new work carried by a plugin: the mode of its first round. Later rounds use the session's own setting. */

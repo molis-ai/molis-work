@@ -14,15 +14,18 @@
  * Bundled by esbuild into dist/work-bar-client.js and carried in workbench.js; the workbench's start calls the page global
  * `molisWorkBar` once its shell is drawn (not in a pane-embedded page, which has no bar).
  */
+import type { ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { StateRingState, UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { BackgroundTaskRow, BackgroundTasksReadResult, MainlineIssue, WorkLineEvent, WorkLineReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
 import { t as uiText, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { renderLineEvent, renderLineUnreadable, renderTaskFloat, renderTaskMark, renderTaskPanel, type LineEventState, type LineEventView, type TaskRowView } from "../work-line-parts.js";
+import { renderLineEvent, renderLineUnreadable, renderOwnerMark, renderTaskFloat, renderTaskMark, renderTaskPanel, type LineEventState, type LineEventView, type TaskRowView } from "../work-line-parts.js";
 import { installWorkLineLayout } from "./work-line-layout.js";
 
-/** What the workbench gives the line: where its routes are, and how a thing opens in the work area. */
+/** What the workbench gives the line: where its routes are, how a thing opens in the work area, and the dialog an event's tab opens in. */
 export interface WorkBarHost {
   route(path: string): string;
+  /** A press on an event: its tab in the Assistant's dialog (specs/work-line §4.4). `mark` is its owner's mark as the line draws it. */
+  openEvent(event: { subject: ActionSubject; title: string; mark: string }): void;
   openItem(surface: string, id: string, title: string): void;
   openSurface(surface: string): void;
 }
@@ -51,15 +54,24 @@ function hues(): Map<string, string> {
   } catch { return new Map(); }
 }
 
-export function installWorkBar(host: WorkBarHost): void {
+/** What the line takes back: which event's tab is the dialog's current one (none at "now"). */
+export interface WorkBarHandle {
+  focus(subject: ActionSubject | null): void;
+  /** The event of this object on the line as last read, as a press on it would open it; null when the line does not show it. */
+  event(subject: ActionSubject): LineEventPress | null;
+}
+type LineEventPress = Parameters<WorkBarHost["openEvent"]>[0];
+
+export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
   const bar = document.querySelector<HTMLElement>("[data-work-bar]"), line = bar?.querySelector<HTMLElement>("[data-work-line]");
   const past = line?.querySelector<HTMLElement>('[data-wing="past"] .work-line-run'), next = line?.querySelector<HTMLElement>('[data-wing="next"] .work-line-run');
   const lead = line?.querySelector<HTMLElement>(".work-line-lead"), head = lead?.querySelector<HTMLElement>("[data-work-line-head]");
   const { molisWorkRequest: request, molisCraft: craft } = globalThis as typeof globalThis & { molisWorkRequest?: UiRequest; molisCraft?: { ask?(node: Element | null): void } };
-  if (!bar || !line || !past || !next || !lead || !head || !request) return;
+  if (!bar || !line || !past || !next || !lead || !head || !request) return undefined;
   installWorkLineLayout(bar);
   const hue = hues(), name = head.querySelector(".work-line-head-name")?.textContent ?? "";
-  let events = new Map<string, WorkLineEvent>(), shown = "";
+  let events = new Map<string, WorkLineEvent>(), shown = "", focused = "";
+  const keyOf = (subject: ActionSubject) => `${subject.kind}:${subject.id}`;
   const again = () => document.dispatchEvent(new CustomEvent("molis-work:attention-refresh"));
 
   const view = (event: WorkLineEvent, fresh: boolean): LineEventView => {
@@ -70,9 +82,10 @@ export function installWorkBar(host: WorkBarHost): void {
       owner: { name: event.origin.title, glyph: event.origin.icon as PluginIconName, hue: hue.get(event.origin.surface) ?? "" },
       ...(quiet && event.summary ? { note: event.summary } : {}),
       ...(behind > 0 ? { tasks: { count: behind, lead: event.tasks.waiting > 0 ? "answer" as const : "running" as const } } : {}),
-      ...(fresh ? { fresh: true } : {}),
+      ...(fresh ? { fresh: true } : {}), ...(focused === keyOf(event.subject) ? { current: true } : {}),
     };
   };
+  const press = (event: WorkLineEvent): LineEventPress => ({ subject: event.subject, title: event.title, mark: renderOwnerMark(view(event, false).owner) });
   const paintHead = (waiting: number) => {
     const label = waiting > 0 ? uiText.text("workbench.work-line.head-with-waiting", { name, n: waiting }) : name;
     head.setAttribute("aria-label", label); head.title = label;
@@ -153,9 +166,8 @@ export function installWorkBar(host: WorkBarHost): void {
     const target = event.target instanceof Element ? event.target : null;
     if (target?.closest("[data-work-line-retry]")) { again(); return; }
     if (target?.closest("[data-work-line-head]")) { host.openSurface("home"); return; }
-    const open = events.get(target?.closest<HTMLElement>("[data-work-event]")?.dataset.workEvent ?? "")?.open;
-    if (!open) return;
-    if (open.kind === "surface" || !open.id) host.openSurface(open.surface); else host.openItem(open.surface, open.id, open.title);
+    const pressed = events.get(target?.closest<HTMLElement>("[data-work-event]")?.dataset.workEvent ?? "");
+    if (pressed) host.openEvent(press(pressed));
   });
   // A part the read could not get is null: the line and the mark keep what they showed.
   document.addEventListener("molis-work:attention", event => {
@@ -163,6 +175,17 @@ export function installWorkBar(host: WorkBarHost): void {
     if (read) draw(read);
     if (table) takeTasks(table);
   });
+  return {
+    event(subject) { const found = [...events.values()].find(one => keyOf(one.subject) === keyOf(subject)); return found ? press(found) : null; },
+    // The outline moves with the dialog's current tab; the event keeps its place on the line (WLN-07).
+    focus(subject) {
+      focused = subject ? keyOf(subject) : "";
+      for (const node of line.querySelectorAll<HTMLElement>("[data-work-event]")) {
+        const event = events.get(node.dataset.workEvent ?? "");
+        if (event && keyOf(event.subject) === focused) node.setAttribute("aria-current", "true"); else node.removeAttribute("aria-current");
+      }
+    },
+  };
 }
 
-(globalThis as { molisWorkBar?: (host: WorkBarHost) => void }).molisWorkBar = installWorkBar;
+(globalThis as { molisWorkBar?: (host: WorkBarHost) => WorkBarHandle | undefined }).molisWorkBar = installWorkBar;

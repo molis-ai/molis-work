@@ -20,7 +20,7 @@ async function until<T>(read: () => T | Promise<T>, what: string): Promise<NonNu
   throw new Error(`Expected ${what} not reached`);
 }
 
-async function fixture(t: TestContext) {
+async function fixture(t: TestContext, line: Array<{ kind: string; id: string }> = []) {
   const home = await mkdtemp(join(tmpdir(), "molis-main-conversation-"));
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
   const requests: string[] = [];
@@ -34,7 +34,9 @@ async function fixture(t: TestContext) {
   host.register(adapter);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
   const service: AssistantService = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
-    authority: async work => assistantAuthority(local, work, () => new Set(), undefined, undefined, service.delegation(work)), projectTitle: async () => "项目" }, "web-user");
+    authority: async work => assistantAuthority(local, work, () => new Set(), undefined, undefined, service.delegation(work)), projectTitle: async () => "项目",
+    // What the work line shows this person in the project: the only thing the service reads through this port here.
+    scopeActions: async () => ({ discover: async () => [], invoke: async () => ({ events: line.map(subject => ({ subject })), issues: [] }) }) }, "web-user");
   t.after(async () => { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); });
   const done = (workId: string, rounds: number) => until(async () => { const view = await service.read(workId); return view.work.state === "completed" && view.rounds.length === rounds ? view : undefined; }, `round ${rounds} of ${workId}`);
   return { service, store, requests, done };
@@ -69,4 +71,23 @@ test("WLN-15: what is said at 「现在」 goes to one standing main conversatio
   await assert.rejects(service.send({ text: "交给 Coding", main: true, executor: { kind: "plugin", plugin_id: "io.molis.work.coding" }, request_id: "req-main-0006" }, { project_ref: board }),
     (error: unknown) => error instanceof ActionError && error.code === "assistant.invalid");
   assert.equal(store.list("web-user").filter(work => work.main).length, 3, "the refused send opened nothing");
+});
+
+test("WLN-12: what is said in an event's tab starts one work done for that event; an event the line does not show, or the main conversation, is refused and opens nothing", { timeout: 90_000 }, async t => {
+  const todo = { kind: "todo_item", id: "t1" };
+  const { service, store, done } = await fixture(t, [todo]);
+  const board = { project_id: "board", storage_key: "memory:board" };
+  const first = await service.send({ text: "先问预算", for_event: todo, request_id: "req-event-0001" }, { project_ref: board });
+  assert.deepEqual([first.work.serves, first.work.main, first.work.line_event], [[todo], undefined, undefined], "done for the event: not an event of its own, not the main conversation");
+  await done(first.work.work_id, 1);
+  // Said again in the same tab, the page names the work: nothing about the event is read or changed.
+  const again = await service.send({ text: "顺便问交期", work_id: first.work.work_id, for_event: { kind: "todo_item", id: "gone" }, request_id: "req-event-0002" }, { project_ref: board });
+  assert.deepEqual([again.work.work_id, again.work.serves], [first.work.work_id, [todo]]);
+  await done(first.work.work_id, 2);
+  const count = store.list("web-user").length;
+  const refused = (code: string) => (error: unknown) => error instanceof ActionError && error.code === code;
+  await assert.rejects(service.send({ text: "为别的事", for_event: { kind: "todo_item", id: "not-on-the-line" }, request_id: "req-event-0003" }, { project_ref: board }), refused("assistant.not_found"));
+  await assert.rejects(service.send({ text: "主对话里", main: true, for_event: todo, request_id: "req-event-0004" }, { project_ref: board }), refused("assistant.invalid"));
+  await assert.rejects(service.send({ text: "写错了", for_event: { kind: "todo_item" } as never, request_id: "req-event-0005" }, { project_ref: board }), refused("assistant.invalid"));
+  assert.equal(store.list("web-user").length, count, "a refused send opens no work");
 });

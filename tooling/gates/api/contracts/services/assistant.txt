@@ -638,6 +638,10 @@ export type AssistantScope = {
 export interface AssistantSendInput extends Pick<AgentInputSend, "about"> {
     work_id?: string;
     main?: true;
+    for_event?: {
+        kind: string;
+        id: string;
+    };
     executor?: AssistantExecutorChoice;
     mode?: string;
     executor_session_id?: string;

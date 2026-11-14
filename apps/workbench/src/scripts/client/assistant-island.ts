@@ -122,7 +122,7 @@ ${ASSISTANT_BROWSER_HANDBACK_PART}
     if (!executorsHere() && nextExec !== "assistant") nextExec = "assistant";
     // A page that knows what the person is looking at (the project list) may say so in the placeholder of a new work.
     const hint = !work && nextExec === "assistant" && host.placeholder ? host.placeholder(project) : "";
-    input.placeholder = work?.reply_target ? readText("workbench.assistant-island.return-original-comment-continue") : work ? readText("workbench.assistant-island.add-answer-correct") : nextExec !== "assistant" && executorOffer(nextExec) ? readText("workbench.assistant-island.ask-name-do-something", { name: executorOffer(nextExec).title })
+    input.placeholder = work?.reply_target ? readText("workbench.assistant-island.return-original-comment-continue") : curEvent ? readText("workbench.assistant-island.about-this-event") : work ? readText("workbench.assistant-island.add-answer-correct") : nextExec !== "assistant" && executorOffer(nextExec) ? readText("workbench.assistant-island.ask-name-do-something", { name: executorOffer(nextExec).title })
       : hint ? hint : searchKey() ? readText("workbench.assistant-island.ask-assistant-press-key-search", { key: searchKey() }) : readText("workbench.assistant-island.ask-assistant-do-something");
     if (sync) syncComposer();
   };
@@ -140,7 +140,12 @@ ${ASSISTANT_BROWSER_HANDBACK_PART}
   let fresh = false;
   const mains = () => works.filter((work) => work.main && !work.archived).sort((a, b) => Number(Boolean(a.character)) - Number(Boolean(b.character)));
   const mainId = () => mains().find((work) => !work.character)?.work_id || null;
-  const startFresh = () => { fresh = true; if (curId) return showWork(null); drawTabs(); render(); };
+  const startFresh = () => { fresh = true; if (curId || curEvent) return showWork(null); drawTabs(); render(); };
+  // Events of the work line opened as tabs here, and the one in front (specs/work-line §4.4; the rest is in assistant-tabs.ts).
+  const WORK_KIND = "assistant_work";
+  let eventTabs = [], curEvent = null;
+  // Words not yet sent with no work in front are kept per place: the event's tab, or a new work (WLN-13).
+  const newDraftKey = () => scoped(curEvent ? "event-draft:" + curEvent : "new-draft");
   // A tab keeps its place; when there are too many, the one looked at longest ago (never the current one) closes.
   const openTab = (id) => {
     if (!id) return;
@@ -157,6 +162,7 @@ ${ASSISTANT_BROWSER_HANDBACK_PART}
   };
   // Closing a tab only puts the work away: it stays in the list of works, and its notices still open it.
   const closeTab = (id) => {
+    if (id.startsWith("event:")) return closeEvent(id.slice(6));
     const at = tabs.indexOf(id);
     if (at < 0) return;
     tabs.splice(at, 1); saveTabs();
@@ -165,11 +171,14 @@ ${ASSISTANT_BROWSER_HANDBACK_PART}
   };
 ${ASSISTANT_LAYOUT_PART}
 
-  const switchTo = async (id) => { const to = id || (fresh ? null : mainId()); if (to !== curId) await showWork(to); else if (!id) drawTabs(); };
-  const showWork = async (id) => {
-    if (id) fresh = false; else if (!fresh) id = mainId();
-    curId = id; remember(); problem = null; view = null; pendingChar = undefined;
-    openTab(id); if (!spacious()) drawerOpen = false;
+  const switchTo = async (id) => { const to = id || (fresh ? null : mainId()); if (to !== curId || curEvent) await showWork(to); else if (!id) drawTabs(); };
+  // \`about\`: the event whose tab this is. A work that is the conversation of an open event tab is shown in that tab.
+  const showWork = async (id, about = null) => {
+    if (id && !about) about = eventTabs.find((one) => aboutEvent(one.subject)?.work_id === id)?.key || null;
+    if (id) fresh = false; else if (!fresh && !about) id = mainId();
+    curEvent = about; curId = id; remember(); problem = null; view = null; pendingChar = undefined;
+    if (!about) openTab(id);
+    if (!spacious()) drawerOpen = false;
     thread.querySelectorAll(":scope > [data-round], :scope > .assistant-problem").forEach((node) => node.remove());
     thread.querySelectorAll(":scope > [data-review]").forEach(removeReview);
     render(); paintLayout();
@@ -450,12 +459,13 @@ ${ASSISTANT_TABS_PART}
       else memoryButton.removeAttribute("href");
     }
     renderAttention(work); renderPath(work); surroundings.paint(work); sideContext.paint(); renderResults(work); renderUsage(work);
-    if (empty) empty.hidden = Boolean(curId);
+    if (empty) empty.hidden = Boolean(curId || curEvent);
     paintEmpty(); receipts.paint(work && view.rounds[view.rounds.length - 1]);
     const rounds = work ? view.rounds : [];
     if (work) announceEffects(work, rounds);
     [...thread.children].forEach((node) => { if (node.dataset.round && !rounds.some((round) => round.run_id === node.dataset.round)) node.remove(); });
     const put = placer(thread);
+    eventSurface(put);
     if (empty) put(empty);
     const fromPages = work ? (view.cards || []).filter((card) => card.status !== "dismissed" && pageCard(card)) : [];
     [...thread.children].forEach((node) => { if (node.dataset.card && !fromPages.some((card) => card.card_id === node.dataset.card)) node.remove(); });
@@ -591,11 +601,14 @@ ${ASSISTANT_TABS_PART}
       if (was && was !== states(works)) document.dispatchEvent(new CustomEvent("molis-work:attention-refresh"));
       if (curId && !works.some((work) => work.work_id === curId)) { curId = null; remember(); view = null; }
       // With no work in front the main conversation is: shown as soon as the list says there is one.
-      if (!curId && !fresh) { const main = mainId(); if (main) { curId = main; remember(); queueMicrotask(() => { if (curId === main && !view) reload().then(poll); }); } }
+      // An event's tab takes the conversation about it once there is one (said elsewhere), unless words are being written here.
+      const about = !curId && curEvent && !String(input.value || "").trim() ? aboutEvent(eventOf().subject) : null;
+      if (about) { curId = about.work_id; remember(); queueMicrotask(() => { if (curId === about.work_id && !view) reload().then(poll); }); }
+      if (!curId && !fresh && !curEvent) { const main = mainId(); if (main) { curId = main; remember(); queueMicrotask(() => { if (curId === main && !view) reload().then(poll); }); } }
       // A tab whose work is gone closes; the work in front always has one.
       const kept = tabs.filter((id) => works.some((work) => work.work_id === id));
       if (kept.length !== tabs.length) { tabs = kept; saveTabs(); }
-      openTab(curId);
+      if (!curEvent) openTab(curId);
       paintList(); paintAim(); paintSum(); drawTabs();
     } catch { /* the list stays as it was; the next refresh retries */ }
   };
@@ -708,8 +721,8 @@ ${ASSISTANT_PAGE_MESSAGES_PART}
   if (panel && "MutationObserver" in window) new MutationObserver(() => {
     if (!panel.hidden && !spacious()) drawerOpen = false;
     paintLayout();
-    if (panel.hidden) { conversationObjects?.clear(); setWorks(false); restIfStale(); }
-    else { void conversationObjects?.update(false); drawTabs(); paintJump(); }
+    if (panel.hidden) { conversationObjects?.clear(); eventObjects?.clear(); setWorks(false); restIfStale(); }
+    else { void conversationObjects?.update(false); void eventObjects?.update(false); drawTabs(); paintJump(); }
   }).observe(panel, { attributes: true, attributeFilter: ["hidden"] });
   // The list of works is a dropdown under the tabs: a click anywhere else in the panel puts it away.
   panel?.addEventListener("pointerdown", (event) => {
@@ -734,11 +747,13 @@ ${ASSISTANT_PAGE_MESSAGES_PART}
     fill: (text) => { setWords(text); input.focus(); },
     /** Search's 问助理: the words go now, to where the next Send goes. */
     ask: (text) => say(text, {}),
+    /** The work line's press on an event: its tab in the dialog, opened and in front (specs/work-line §4.4). */
+    openEvent,
     /** Where a new work goes, as the page changes what it is about: a project, or null for the person's own space. */
     setProject: (next) => {
       const chosen = next?.id ? next : null;
       if (chosen?.id === project?.id) { project = chosen; paintAim(); paintSum(); return; }
-      project = chosen; tabs = savedTabs(); nextScope = project ? "project" : "personal";
+      project = chosen; tabs = savedTabs(); eventTabs = []; nextScope = project ? "project" : "personal";
       void showWork(store.get(scoped("current")));
     },
     dispose: () => { executorRequest++; document.removeEventListener("molis-work:language-changed", retitleReviews); follower.stop(); retries.stop(); clearInterval(listTimer); cancelAnimationFrame(materialsFrame); watchers.forEach((watcher) => watcher.disconnect()); composer?.destroy(); } };

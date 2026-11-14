@@ -135,6 +135,9 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     const open = globalThis.molisBarReceivers?.front() ? openSendTo : openConversation;
     // A new work names where it will be put first (this project, or personal), so a personal request typed on a project page is not filed there unseen.
     const place = scopeLabel(nextScope === "project" && project ? { kind: "project", project_id: project.id } : { kind: "personal" });
+    // An event's tab in front: the words are about that event (WLN-03); the cross goes back to now.
+    const about = eventOf();
+    if (about && !work?.reply_target) return { open, icon: "sparkles", label: about.title, reset: () => { void switchTo(null); input.focus(); }, resetLabel: readText("workbench.assistant-dock.start-new-work-instead") };
     if (!work) return { open, icon: "sparkles", label: place + " · " + (nextExec !== "assistant" && executorOffer(nextExec) ? executorOffer(nextExec).title : readText("workbench.common.assistant")) };
     const where = work.scope?.project_id !== project?.id ? scopeLabel(work.scope, work.scope_title) : "";
     // With a page in front that takes words, say plainly that this Send goes to the Assistant, not to that page.
@@ -205,12 +208,12 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   const going = new Map(), later = new Map(), writing = new Map();
   const draftAdapters = new Map();
   const draftFor = (id) => {
-    const key = id || scoped("new-draft");
+    const key = id || newDraftKey();
     if (!draftAdapters.has(key)) draftAdapters.set(key, makeDraft(id));
     return draftAdapters.get(key);
   };
   const makeDraft = (id) => {
-    if (!id) { const key = scoped("new-draft"); return { read: async () => store.get(key) || "", write: async (text) => store.set(key, text || null) }; }
+    if (!id) { const key = newDraftKey(); return { read: async () => store.get(key) || "", write: async (text) => store.set(key, text || null) }; }
     const route = host.route("/api/assistant/works/" + encodeURIComponent(id) + "/draft");
     let unsaved = false;
     return {
@@ -280,7 +283,7 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   const mountComposer = () => {
     island.removeAttribute("data-receiver"); paintAim(false);
     refreshComposerWords = assistantInputName; refreshComposerWords();
-    mountedFor = curId || scoped("new-draft"); draftHere = draftFor(curId); painted = shown();
+    mountedFor = curId || newDraftKey(); draftHere = draftFor(curId); painted = shown();
     composer = window.molisComposer(compose, { kind: "ai", entry: "assistant", labels: words, draft: { adapter: draftHere },
       receiver: receiverNow, delivery: deliveryNow, get controls() { return controlsNow(); }, get commands() { return commands(); },
       attachments: { accept: upload.accept, upload: (file) => upload.upload(file) }, onMaterials: () => paintMats(),
@@ -296,7 +299,7 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     const page = pageInFront();
     // The person opened another receiver: the composer moves now, even with a Send on its way (its outcome is the Host's and the
     // thread's). A new work's first Send moving it to that work waits until the composer has settled the Send.
-    if (mountedFor !== (page ? page.key : curId || scoped("new-draft")) && !(sending && handedOver && !page)) {
+    if (mountedFor !== (page ? page.key : curId || newDraftKey()) && !(sending && handedOver && !page)) {
       // Destroy flushes captured edits, including typing before the shared script arrived.
       composer?.destroy(); boundPage?.bind(null); boundPage = null;
       handedOver = false; closeSendTo(false);

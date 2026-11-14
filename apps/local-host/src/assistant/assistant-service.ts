@@ -29,7 +29,7 @@ import { assertRoundToAddress, inputsOf, withdrawInput } from "./assistant-input
 import { checkLanding } from "./assistant-landing.js";
 import { reaskMaterial, reaskTask } from "./assistant-reask.js";
 import { readComposerMaterials, sendScope } from "./assistant-composer-materials.js";
-import { MAIN_TITLE, lineEventsFor, mainSendInput } from "./assistant-line-actions.js";
+import { MAIN_TITLE, eventServes, lineEventsFor, mainSendInput } from "./assistant-line-actions.js";
 import { checkHeldImages, checkMaterials } from "./assistant-send-materials.js";
 import { RUNTIME, MAX_TEXT, sessionRef, checkText, assertSendCurrent, type AssistantServicePorts, type AssistantCaller } from "./assistant-service-shared.js";
 import { stateOf, titleFrom, recoveryView, type CapabilityTitles } from "./assistant-present.js";
@@ -216,7 +216,7 @@ export class AssistantService {
       const scope = input.work_id ? this.store.get(this.actorId, input.work_id) : { project_ref: sendScope(input.scope, caller, choice).kind === "project" ? caller.project_ref : undefined };
       materials = await readComposerMaterials(materials, scope, this.ports);
       assertSendCurrent(stillCurrent);
-      work = input.work_id ? this.store.get(this.actorId, input.work_id) : await this.createWork(text, input.scope, context, caller, choice, input.main === true);
+      work = input.work_id ? this.store.get(this.actorId, input.work_id) : await this.createWork(text, input.scope, context, caller, choice, input.main === true, await eventServes(input, this.ports.scopeActions && (() => this.ports.scopeActions!({ project_ref: caller.project_ref }))));
       const draftWorkId = work.work_id, ownsDraft = input.draft_revision === undefined || input.draft_revision === work.draft_revision;
       let savedDraft = work.draft_revision; draftCurrent = () => ownsDraft && this.store.get(this.actorId, draftWorkId).draft_revision === savedDraft;
       // Before the input hold and the material links: a work with no session yet has no round to interrupt or wait behind.
@@ -283,12 +283,12 @@ export class AssistantService {
   }
 
   private async createWork(text: string, scope: AssistantScope | undefined, context: AssistantContextSnapshot | null, caller: AssistantCaller,
-    choice: AssistantSendInput["executor"], main = false): Promise<StoredWork> {
+    choice: AssistantSendInput["executor"], main = false, serves?: StoredWork["serves"]): Promise<StoredWork> {
     const wanted = sendScope(scope, caller, choice);
     // Chosen only among the executors this project offers now, and kept by the plugin's id.
     const executor = choice?.kind === "plugin" ? await this.dispatcher.executorOf({ project_ref: caller.project_ref }, choice.plugin_id) : null;
     const scopeTitle = wanted.kind === "project" ? await this.ports.projectTitle?.(wanted.project_id).catch(() => null) : null;
-    return this.store.create({ actor_id: this.actorId, title: main ? MAIN_TITLE : titleFrom(text), scope: wanted, origin: context?.source ?? null, ...(scopeTitle ? { scope_title: scopeTitle } : {}), ...(main ? { main: true as const } : {}),
+    return this.store.create({ actor_id: this.actorId, title: main ? MAIN_TITLE : titleFrom(text), scope: wanted, origin: context?.source ?? null, ...(scopeTitle ? { scope_title: scopeTitle } : {}), ...(main ? { main: true as const } : {}), ...(serves ? { serves } : {}),
       ...(executor ? { executor: { kind: "plugin" as const, plugin_id: executor.provider.plugin_id, title: executor.provider.title, session_id: null } } : {}),
       ...(wanted.kind === "project" ? { project_ref: caller.project_ref! } : {}) });
   }

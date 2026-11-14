@@ -9,20 +9,24 @@ export const ASSISTANT_TABS_PART = String.raw`  /* ─── Tabs ────�
     if (!tabsEl) return;
     const focused = tabsEl.contains(document.activeElement) ? document.activeElement.closest("[data-tab]")?.dataset.tab : null;
     // The main conversations lead and stay (one per counterpart, the Assistant's first even before its first message); then the open works.
-    const lead = mains(), own = lead.find((work) => !work.character), ids = tabs.filter((id) => !workById(id)?.main);
+    const lead = mains(), own = lead.find((work) => !work.character), said = eventTabs.map((one) => aboutEvent(one.subject));
+    const ids = tabs.filter((id) => !workById(id)?.main && !said.some((work) => work?.work_id === id));
+    const front = curEvent ? "event:" + curEvent : curId || (fresh ? "new" : "main");
     tabsEl.replaceChildren();
-    const tab = (id, title, mark, closable) => {
+    const tab = (id, title, mark, closable, owner, work = workById(id)) => {
       const wrap = el("div", "assistant-tab"); wrap.dataset.tab = id;
       if (mark) wrap.dataset.mark = mark;
-      const cur = id === (curId || (fresh ? "new" : "main"));
+      const cur = id === front;
       if (id === "main" || workById(id)?.main) wrap.dataset.main = "";
       if (cur) wrap.setAttribute("data-current", "");
       const main = el("button", "assistant-tab-main"); main.type = "button"; main.setAttribute("role", "tab");
       main.setAttribute("aria-selected", String(cur)); main.tabIndex = cur ? 0 : -1;
       main.setAttribute("aria-controls", "assistant-side");
-      main.append(tabMark(mark, workById(id)), el("span", "assistant-tab-title", title));
+      // An event's tab leads with its owner's mark, as on the line.
+      if (owner) { const shell = document.createElement("template"); shell.innerHTML = owner; if (shell.content.firstElementChild) main.append(shell.content.firstElementChild); }
+      main.append(tabMark(mark, work), el("span", "assistant-tab-title", title));
       main.title = title + (mark ? " · " + globalThis.t.text(MARK_LABEL[mark]) : "");
-      main.addEventListener("click", () => { if (id === "main") { fresh = false; void switchTo(null); } else if (id !== "new") void switchTo(id); });
+      main.addEventListener("click", () => { if (id === "main") { fresh = false; void switchTo(null); } else if (id.startsWith("event:")) void showEvent(id.slice(6)); else if (id !== "new") void switchTo(id); });
       wrap.append(main);
       if (id !== "new") wrap.addEventListener("auxclick", (event) => { if (event.button !== 1) return; event.preventDefault(); closeTab(id); });
       if (closable) {
@@ -37,7 +41,10 @@ export const ASSISTANT_TABS_PART = String.raw`  /* ─── Tabs ────�
     tab(own ? own.work_id : "main", globalThis.t.text("workbench.assistant-tabs.main-conversation"), markOf(own), false);
     lead.filter((work) => work.character).forEach((work) => tab(work.work_id, work.character.title, markOf(work), false));
     ids.forEach((id) => { const work = workById(id); tab(id, work ? work.title : globalThis.t.text("workbench.assistant-tabs.loading"), markOf(work), true); });
-    if (!curId && fresh) tab("new", globalThis.t.text("workbench.assistant-tabs.new-work"), "", true);
+    eventTabs.forEach((one, at) => tab("event:" + one.key, one.title, markOf(said[at]), true, one.mark, said[at]));
+    if (!curId && !curEvent && fresh) tab("new", globalThis.t.text("workbench.assistant-tabs.new-work"), "", true);
+    // The line marks the event whose tab is in front; the main conversation is "now", which marks none.
+    host.lineFocus?.(curEvent ? eventOf()?.subject || null : curId ? { kind: WORK_KIND, id: curId } : null);
     const cur = tabsEl.querySelector("[data-current]");
     if (cur) {
       const left = cur.offsetLeft, right = left + cur.offsetWidth;
@@ -69,7 +76,7 @@ export const ASSISTANT_TABS_PART = String.raw`  /* ─── Tabs ────�
   /* A new work's conversation is where to begin: this page's starting points and the works to go back to. */
   const emptyList = island.querySelector("[data-assistant-empty-list]");
   function paintEmpty() {
-    if (!emptyList || curId) return;
+    if (!emptyList || curId || curEvent) return;
     const starters = startersFor();
     const recent = works.filter((work) => !work.archived && !work.delegated_by).slice().sort((a, b) => String(b.updated_at || "").localeCompare(String(a.updated_at || ""))).slice(0, 3);
     const signature = JSON.stringify([starters.map((one) => [one.label, one.key || "", one.kind || ""]), recent.map((work) => [work.work_id, work.title, work.state, markOf(work)])]);
@@ -99,4 +106,44 @@ export const ASSISTANT_TABS_PART = String.raw`  /* ─── Tabs ────�
     }
     parts.push(el("p", "assistant-empty-hint", globalThis.t.text("workbench.assistant-tabs.type-bring-project-content-use-capability-method-drop")));
     emptyList.replaceChildren(...parts);
+  }
+
+  /* ─── Events of the work line as tabs (specs/work-line §4.4) ───────────── */
+  // An event's tab: its card on top and the conversation about it below — the latest work the person said in this tab (it
+  // \`serves\` the event), or none yet. Which events are open is this page's own. An event that is one of the Assistant's own
+  // works is that work's tab. (Declarations, so the parts above may name them.)
+  function eventKey(subject) { return subject.kind + ":" + subject.id; }
+  function eventOf(key = curEvent) { return eventTabs.find((one) => one.key === key) || null; }
+  function aboutEvent(subject) {
+    return works.filter((work) => !work.archived && !work.main && !work.delegated_by && (work.serves || []).some((one) => one.kind === subject.kind && one.id === subject.id))
+      .sort((a, b) => String(b.updated_at || "").localeCompare(String(a.updated_at || "")))[0] || null;
+  }
+  function showEvent(key) { return showWork(aboutEvent(eventOf(key).subject)?.work_id || null, key); }
+  function openEvent(event) {
+    setPanel(true);
+    if (event.subject.kind === WORK_KIND) return switchTo(event.subject.id);
+    const key = eventKey(event.subject), had = eventOf(key);
+    if (had) Object.assign(had, event); else eventTabs.push({ key, ...event });
+    while (eventTabs.length > MAX_TABS) eventTabs.splice(eventTabs.findIndex((one) => one.key !== key && one.key !== curEvent), 1);
+    return showEvent(key);
+  }
+  // Closing an event's tab goes back to now: the main conversation.
+  function closeEvent(key) { eventTabs = eventTabs.filter((one) => one.key !== key); if (curEvent === key) { fresh = false; void showWork(null); } else drawTabs(); }
+  // What a page hands over is about its object, not the main conversation (WLN-33): the object's event when the line shows it
+  // (its tab, and the conversation already about it), a work of its own otherwise — which stands on the line as its own event.
+  function aboutObject(object) {
+    const event = object ? host.lineEvent?.({ kind: object.kind, id: object.id }) : null;
+    return event ? openEvent(event) : startFresh();
+  }
+  // The card of the event whose tab is in front (WLN-08): the platform composes it from what the event's owner declared, as it
+  // does a conversation's objects. Nothing here knows a kind of event or a plugin.
+  const eventCard = el("div", "assistant-conversation-objects assistant-event-card"); eventCard.dataset.assistantEventCard = "";
+  let cardFor = null, eventObjects = null;
+  function eventSurface(put) {
+    const about = host.positions ? eventOf() : null, key = about ? about.key : null;
+    if (key !== cardFor) {
+      eventObjects?.destroy(); eventObjects = null; cardFor = key;
+      if (about) { eventObjects = host.positions.mount(eventCard, (body, signal) => host.positionRead("/api/mainline/event/surfaces", body, signal), { source: () => ({ subject: about.subject }) }); void eventObjects.update(); }
+    } else if (eventObjects) void eventObjects.update(false);
+    if (eventObjects) put(eventCard); else eventCard.remove();
   }`;

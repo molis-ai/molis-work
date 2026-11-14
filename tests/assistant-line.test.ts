@@ -25,6 +25,8 @@ function harness() {
     { work: base("tracked", "整理访谈", 47, { ...delegated("p-2"), line_event: true }), state: "waiting-review" },
     { work: base("for-plan", "补发布说明", 48, { ...delegated("p-3"), serves: [{ kind: ASSISTANT_WORK_KIND, id: "plan" }] }), state: "running" },
     { work: base("done-errand", "查了天气", 30, delegated("p-4")), state: "completed" },
+    // Said by the person in a plugin event's tab (specs/work-line §4.4): a work done for that event, not an event of its own.
+    { work: base("about-todo", "先问预算", 49, { serves: [{ kind: "todo_item", id: "t1" }] }), state: "running" },
   ];
   const placed: Array<{ work_id: string; to: { serves: unknown[]; line_event: boolean } }> = [], stopped: string[] = [], asked: string[] = [];
   const source: AssistantLineSource = {
@@ -77,7 +79,7 @@ test("WLN-39: every work under way is a row of the task table with whom it serve
   const { invoke } = harness();
   const table = await invoke<BackgroundTaskCollection>("assistant.background.tasks", {});
   assert.deepEqual(table.tasks.map(task => [task.subject.id, task.state, task.waiting, task.serves.map(one => one.id)]), [
-    ["plan", "answer", true, ["plan"]], ["errand", "running", false, []], ["tracked", "approval", true, ["tracked"]], ["for-plan", "running", false, ["plan"]]]);
+    ["plan", "answer", true, ["plan"]], ["errand", "running", false, []], ["tracked", "approval", true, ["tracked"]], ["for-plan", "running", false, ["plan"]], ["about-todo", "running", false, ["t1"]]]);
   for (const task of table.tasks) {
     assert.deepEqual(task.commands.map(command => [command.role, command.action.capability_id, command.input]), [["stop", "assistant.background.stop", { work_id: task.subject.id }]]);
     assert.equal(task.executor.kind, "assistant");
@@ -90,7 +92,9 @@ test("WLN-34 WLN-38: which event a task is done for is kept on the task; a work 
   assert.deepEqual(await invoke<TaskServesResult>("assistant.serves.bind", { task: subject("errand"), event: { kind: "todo_item", id: "t1" } }), { serves: [{ kind: "todo_item", id: "t1" }] });
   assert.deepEqual(await invoke<TaskServesResult>("assistant.serves.create", { task: subject("errand") }), { serves: [subject("errand")] });
   assert.deepEqual(await invoke<TaskServesResult>("assistant.serves.release", { task: subject("errand") }), { serves: [] });
-  assert.equal(placed.length, 3);
+  // A work said in an event's tab can be moved off its event: it then stands on the line as its own event.
+  assert.deepEqual(await invoke<TaskServesResult>("assistant.serves.release", { task: subject("about-todo") }), { serves: [subject("about-todo")] });
+  assert.equal(placed.length, 4);
   const before = effects();
   // The refusals: each is checked before the effect gate, and writes nothing.
   await assert.rejects(invoke("assistant.serves.release", { task: subject("plan") }), (error: unknown) => (error as { code?: string }).code === "assistant.invalid");
@@ -101,7 +105,7 @@ test("WLN-34 WLN-38: which event a task is done for is kept on the task; a work 
   const elsewhere: ActionCallContext = { actor_id: "local-person", project_id: "p2", audience: "user", permissions: [] };
   await assert.rejects(invoke("assistant.serves.release", { task: subject("errand") }, elsewhere), (error: unknown) => (error as { code?: string }).code === "assistant.not_found");
   await assert.rejects(invoke("assistant.events", WINDOW, { ...elsewhere, project_id: null }), (error: unknown) => (error as { code?: string }).code === "assistant.scope");
-  assert.equal(placed.length, 3, "a refused call keeps nothing");
+  assert.equal(placed.length, 4, "a refused call keeps nothing");
   assert.equal(effects(), before, "and passes no effect gate");
 });
 

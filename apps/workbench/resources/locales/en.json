@@ -1300,6 +1300,7 @@
     "workbench.assistant-frame.sample-has-no-more-steps": "The sample has no more steps",
     "workbench.assistant-http.data-changed-after-was-suggested": "the data changed after it was suggested",
     "workbench.assistant-http.suggestion-title-did-not-run-why-read-latest": "The suggestion “{title}” did not run: {why}. Read the latest state and prepare a fresh card for it as things are now.",
+    "workbench.assistant-island.about-this-event": "About this",
     "workbench.assistant-island.add-answer-correct": "Add, answer or correct…",
     "workbench.assistant-island.add-title": "Add to: {title}",
     "workbench.assistant-island.another-project": "Another project",

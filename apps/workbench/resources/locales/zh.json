@@ -1262,6 +1262,7 @@
     "workbench.assistant-frame.sample-has-no-more-steps": "样例已经走完了",
     "workbench.assistant-http.data-changed-after-was-suggested": "数据在建议之后变化了",
     "workbench.assistant-http.suggestion-title-did-not-run-why-read-latest": "建议「{title}」没有执行：{why}。请读取最新状态，按现在的情况重新准备这一项的操作卡。",
+    "workbench.assistant-island.about-this-event": "关于这件事",
     "workbench.assistant-island.add-answer-correct": "补充、回答或纠正…",
     "workbench.assistant-island.add-title": "补充到：{title}",
     "workbench.assistant-island.another-project": "另一个项目",

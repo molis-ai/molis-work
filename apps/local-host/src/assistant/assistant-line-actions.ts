@@ -57,8 +57,8 @@ const ENDED_SHOWN = 20;
 
 const subjectOf = (work: StoredWork): ActionSubject => ({ kind: ASSISTANT_WORK_KIND, id: work.work_id });
 const openOf = (work: StoredWork): OpenTarget => ({ kind: "item", surface: SOURCE.surface, id: work.work_id, title: work.title || "助理工作", label: "打开" });
-/** A work that is an event on the line in its own right. */
-const isEvent = (work: StoredWork) => !work.main && !work.reply_target && (work.delegated_by ? work.line_event === true : true);
+/** A work that is an event on the line in its own right: one the person started for one thing (not said about another event), or a background task registered as one. */
+const isEvent = (work: StoredWork) => !work.main && !work.reply_target && (work.delegated_by ? work.line_event === true : !work.serves?.length);
 /** A work that can be a row of the task table: anything but the conversation itself and a reply into someone's thread. */
 const isTask = (work: StoredWork) => !work.main && !work.reply_target;
 const servesOf = (work: StoredWork): ActionSubject[] => isEvent(work) ? [subjectOf(work)] : (work.serves ?? []).map(one => ({ kind: one.kind, id: one.id }));
@@ -95,9 +95,9 @@ export function assistantLineRegistration(source: () => AssistantLineSource): { 
     if (!found) throw assistantErrors.not_found("没有这项助理任务，或你读不到它");
     return found.work;
   };
-  /** Only a task a conversation handed out can be moved: a work the person started for one thing is the event itself. */
+  /** Only a task done for something else can be moved: a work the person started for one thing is the event itself. */
   const movable = (work: StoredWork) => {
-    if (!work.delegated_by) throw assistantErrors.invalid("这项工作本身就是线上的事件，不能挂到别的事件或移开");
+    if (!work.delegated_by && !work.serves?.length) throw assistantErrors.invalid("这项工作本身就是线上的事件，不能挂到别的事件或移开");
     return work;
   };
   const answer = (work: StoredWork): TaskServesResult => ({ serves: servesOf(work) });
@@ -171,6 +171,19 @@ export function mainSendInput(store: Pick<AssistantStore, "list">, actorId: stri
   if (input.executor?.kind === "plugin") throw assistantErrors.invalid("主对话由助理或一个 Character 承担，不交给执行方插件");
   const standing = mainWorkOf(store, actorId, scope(input), input.character ?? null);
   return standing ? { ...input, work_id: standing.work_id } : input;
+}
+/**
+ * A new work said in an event's tab (specs/work-line §4.4, WLN-12): it is done for that event. The event has to be on the person's
+ * own line now, read with their authority before anything is written; a main conversation is never done for an event.
+ */
+export async function eventServes(input: AssistantSendInput, actions: (() => Promise<Pick<AgentActionClient, "invoke">>) | undefined): Promise<StoredWork["serves"]> {
+  const wanted = input.for_event;
+  if (wanted === undefined || input.work_id) return undefined;
+  if (input.main || typeof wanted !== "object" || wanted === null || typeof wanted.kind !== "string" || typeof wanted.id !== "string" || !wanted.kind || !wanted.id)
+    throw assistantErrors.invalid("for_event 要写事件的 kind 与 id，主对话不为某个事件办");
+  const events = await lineEventsFor(await actions?.());
+  if (!events.some(event => event.kind === wanted.kind && event.id === wanted.id)) throw assistantErrors.not_found("事项线上没有这个事件，或你读不到它");
+  return [{ kind: wanted.kind, id: wanted.id }];
 }
 /** The main conversation's name until its counterpart is a Character; the page names the tab by the counterpart. */
 export const MAIN_TITLE = "与助理的对话";

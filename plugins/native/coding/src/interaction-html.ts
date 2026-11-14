@@ -5,8 +5,24 @@ import type { AgentPendingQuestion } from "@molis-ai/molis-work-contracts/servic
 import { actionCardView, type ActionCard } from "@molis-ai/molis-work-plugin-sdk";
 import { codingFollowUps, type CodingFollowUpRun } from "./next-steps.js";
 import { codingText } from "./words.js";
+import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
+import type { SkillPick } from "@molis-ai/molis-work-contracts/services/skills";
+import { skillRefKey } from "@molis-ai/molis-work-plugin-sdk/skill-ref";
+import { renderSkillLine } from "@molis-ai/molis-work-plugin-sdk/ui";
 
-type RoundsBody = { runs?: Array<CodingFollowUpRun & { turns?: unknown; awaiting_input?: AgentPendingQuestion[]; cards?: Array<ActionCard & { run_id?: string }> }> };
+type SkillFacts = { ref?: { run_id?: string }; frozen?: { skills?: Array<{ ref: SkillRef; name: string; origin: string; named: boolean }> }; skill_reads?: Array<{ ref: SkillRef; name: string }> };
+
+/**
+ * The Skills one round used (SKL-11): the catalog Skills it was started with (the person's choice for it), then those it read of its
+ * own choice, from the Agent Host's record of its catalog reads. The role's own Skills are part of the role, not a pick.
+ */
+export function roundSkillPicks(run: SkillFacts): SkillPick[] {
+  const named = (run.frozen?.skills ?? []).filter(skill => skill.origin === "catalog").map(skill => ({ ref: skill.ref, name: skill.name, picked: "named" as const }));
+  const keys = new Set(named.map(pick => skillRefKey(pick.ref)));
+  return [...named, ...(run.skill_reads ?? []).filter(read => !keys.has(skillRefKey(read.ref))).map(read => ({ ref: read.ref, name: read.name, picked: "auto" as const }))];
+}
+
+type RoundsBody = { runs?: Array<CodingFollowUpRun & SkillFacts & { turns?: unknown; awaiting_input?: AgentPendingQuestion[]; cards?: Array<ActionCard & { run_id?: string }> }> };
 
 /**
  * A round's question cards, its suggestions' cards (D25) and the row beside the composer (AC-25, AC-06), drawn by the platform
@@ -33,6 +49,10 @@ export async function codingInteractionHtml<T>(body: T, interaction: PluginInter
     questions.forEach((question, index) => Object.assign(question, { html: questionHtml[index] }));
     cards.forEach((card, index) => Object.assign(card, { html: cardHtml[index] }));
     Object.assign(run, { next_html: next });
+    const picks = roundSkillPicks(run);
+    // The Skills the round used, one line above its reply (SKL-11). 「这一轮没用技能」 is said only of a round that is over.
+    if (picks.length || isTerminalAgentPhase(run.phase as AgentRunPhase)) Object.assign(run, { skills_html: renderSkillLine({ picks, round: run.ref?.run_id ?? "", words: {
+      used: say("coding.skills.used"), auto: say("coding.skills.auto"), named: say("coding.skills.named"), none: say("coding.skills.none"), choose: say("coding.skills.choose") } }) });
   }));
   return body;
 }

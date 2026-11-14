@@ -236,6 +236,7 @@ ${BUTTON_STYLES}
   .mw-skill-why__facts dt { color: var(--muted); white-space: nowrap; }
   .mw-skill-why__facts dd { margin: 0; min-width: 0; color: var(--ink-soft); overflow-wrap: anywhere; }
   .mw-skill-why__group { display: grid; gap: 2px; padding-top: 8px; border-top: 1px solid var(--line); }
+  .mw-skill-why__body > .mw-skill-why__group:first-child { padding-top: 0; border-top: 0; }
   .mw-skill-why__label { margin: 0 0 2px; font-size: 11.5px; color: var(--muted); }
   .mw-skill-why .mw-alert { margin-top: 10px; }
 

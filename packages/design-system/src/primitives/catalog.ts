@@ -19,6 +19,7 @@ import { APPEARANCE_BOARD_STYLES } from "./catalog-appearance-styles.js";
 import { PRESENTATION_BOARD_STYLES, presentationSection, type CatalogPresentationPlugin } from "./catalog-presentation.js";
 import { PRESENTATION_FORM_STYLES } from "../styles/presentation.js";
 import { componentText, PLUGIN_COMPONENTS } from "../plugin-components.js";
+import { SKILL_SELECTION_BOARD_STYLES, skillLineSection, skillWhySection } from "./catalog-skill-selection.js";
 import { itemChoiceSection, itemDetailsSection, listDetailSection, SKILL_PACK_BOARD_STYLES, statusLinkSection } from "./catalog-skill-packs.js";
 import { CAPABILITY_PACK_BOARD_STYLES, cellGridSection, detailTrailSection, iconCountsSection, itemGroupSection, nowBlockSection, stateRowsSection, stickyDetailSection, usageSection } from "./catalog-capability-packs.js";
 import { LANGUAGE_BOARD_STYLES, languageSection, motionGrammarSpecimens, pairingSection, zonesSection } from "./catalog-language.js";
@@ -284,6 +285,8 @@ export function renderPrimitiveCatalog(options: {
     ${itemDetailsSection(say)}
     ${listDetailSection(say)}
     ${statusLinkSection(say)}
+    ${skillLineSection(say)}
+    ${skillWhySection(say)}
     ${nowBlockSection(say)}
     ${itemGroupSection(say)}
     ${cellGridSection(say)}
@@ -301,7 +304,7 @@ export function renderPrimitiveCatalog(options: {
     ${options.presentationLocale ? presentationSection(options.presentationLocale, options.presentationPlugins) : ""}`;
   return `<div class="mw-catalog">
     ${catalogIndex(sections, say)}
-    <style>${COMPOSER_STYLES}${CATALOG_PATTERN_STYLES}${COMPOSER_BOARD_STYLES}${KEEP_EDITS_BOARD_STYLES}${APPEARANCE_BOARD_STYLES}${SKILL_PACK_BOARD_STYLES}${CAPABILITY_PACK_BOARD_STYLES}${LANGUAGE_BOARD_STYLES}${options.presentationLocale ? PRESENTATION_FORM_STYLES + PRESENTATION_BOARD_STYLES : ""}</style>
+    <style>${COMPOSER_STYLES}${CATALOG_PATTERN_STYLES}${COMPOSER_BOARD_STYLES}${KEEP_EDITS_BOARD_STYLES}${APPEARANCE_BOARD_STYLES}${SKILL_PACK_BOARD_STYLES}${SKILL_SELECTION_BOARD_STYLES}${CAPABILITY_PACK_BOARD_STYLES}${LANGUAGE_BOARD_STYLES}${options.presentationLocale ? PRESENTATION_FORM_STYLES + PRESENTATION_BOARD_STYLES : ""}</style>
     ${sections}
   </div>
   <script>${CATALOG_CLIENT_SCRIPT}</script>`;

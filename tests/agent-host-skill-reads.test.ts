@@ -173,5 +173,8 @@ test("SKP-10: a coding round's tool calls carry its Skill consumer and the named
     skillCatalog: countingCatalog().catalog,
     actions: async (...args: unknown[]) => { seen.push(args); return { discover: async () => [view], invoke: async () => ({}) } as never; } };
   await host.start("probe", { ...startRequest([]), action_tools: [{ capability_id: "demo.read", version: 1, provider_id: "demo" }] }, authority);
-  assert.deepEqual(seen[0]?.[3], { consumer: "coding", named: [] }, "the round's tool calls read the catalog as that round");
+  const round = seen[0]?.[3] as { consumer: string; named: unknown[]; round?: string };
+  assert.deepEqual({ consumer: round.consumer, named: round.named }, { consumer: "coding", named: [] }, "the round's tool calls read the catalog as that round");
+  // SKL-02: the round's number is what the catalog counts its three automatic Skills against.
+  assert.match(round.round ?? "", /^[0-9a-f-]{36}$/, "and carry the round's own number");
 });

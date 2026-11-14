@@ -1757,6 +1757,11 @@
     "coding.writers.turn": "本轮分工（{count} 个独立目录）",
     "coding.writers.use": "用于下一轮",
     "coding.call.find-symbol": "查符号",
-    "coding.call.find-symbol.doing": "正在查符号"
+    "coding.call.find-symbol.doing": "正在查符号",
+    "coding.skills.used": "用了",
+    "coding.skills.auto": "自动选的",
+    "coding.skills.named": "你点名的",
+    "coding.skills.none": "这一轮没用技能",
+    "coding.skills.choose": "选一个"
   }
 }

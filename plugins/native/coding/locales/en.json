@@ -1877,6 +1877,11 @@
     "coding.writers.turn": "This turn’s split · separate directories: {count}",
     "coding.writers.use": "Use for the next turn",
     "coding.call.find-symbol": "Find symbol",
-    "coding.call.find-symbol.doing": "Finding a symbol"
+    "coding.call.find-symbol.doing": "Finding a symbol",
+    "coding.skills.used": "Used",
+    "coding.skills.auto": "picked by AI",
+    "coding.skills.named": "named by you",
+    "coding.skills.none": "No skill was used this round",
+    "coding.skills.choose": "Choose one"
   }
 }

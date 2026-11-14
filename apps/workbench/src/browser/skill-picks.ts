@@ -1,6 +1,6 @@
 import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import type { SkillCatalogEntry, SkillPick, SkillState } from "@molis-ai/molis-work-contracts/services/skills";
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { renderSkillWhy, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 /**
  * What a page sends with `molis:skill-pick-open` (specs/prologue-strategies/skill.md §10): the round's Skills as its line shows them,
@@ -57,12 +57,14 @@ export function mountSkillPicks(ports: Ports): void {
       pop.style.left = `${Math.max(edge, Math.min(box.x, innerWidth - width - edge))}px`;
       pop.style.top = `${up ? Math.max(edge, box.y - gap - Math.min(height, above)) : box.y + box.height + gap}px`;
     };
-    const item = (label: string, desc: string, run: () => void) => {
-      const button = el("button", "mw-menu__item"); button.type = "button"; button.setAttribute("role", "menuitem");
-      const text = el("span"); text.dataset.slot = "menu-item-label"; text.append(el("span", "", label)); if (desc) text.append(el("small", "mw-menu__desc", desc));
-      button.append(text); button.addEventListener("click", run); return button;
+    // The panel's inside is the SDK's markup (the component board shows the same); each action's id runs what was drawn with it.
+    let runs = new Map<string, () => void>();
+    const show = (options: Omit<Parameters<typeof renderSkillWhy>[0], "groups">, groups: Array<{ label?: string; empty?: string; actions: Array<{ label: string; detail?: string; run(): void }> }>) => {
+      runs = new Map();
+      body.innerHTML = renderSkillWhy({ ...options, groups: groups.map(group => ({ ...group, actions: group.actions.map(({ run, ...words }) => { const id = String(runs.size); runs.set(id, run); return { id, ...words }; }) })) });
+      place();
     };
-    const group = (title: string, ...items: HTMLElement[]) => { const box = el("div", "mw-skill-why__group"); box.setAttribute("role", "menu"); box.setAttribute("aria-label", title); box.append(el("p", "mw-skill-why__label", title), ...items); return box; };
+    body.addEventListener("click", event => { const id = (event.target as Element).closest<HTMLElement>("[data-skill-why-action]")?.dataset.skillWhyAction; if (id !== undefined) runs.get(id)?.(); });
     const close = () => pop.hidePopover();
     const failed = (cause: unknown, retry: () => void) => {
       fail.hidden = false; const again = el("button", "mw-btn mw-btn--secondary mw-btn--sm", uiText.text("common.control.retry")); again.type = "button";
@@ -85,29 +87,25 @@ export function mountSkillPicks(ports: Ports): void {
     const others = (all: SkillCatalogEntry[], keep: SkillRedo["named"], back?: () => void) => {
       const rows = all.filter(entry => entry.state !== "off" && entry.availability.available && (entry.applies_to === "both" || entry.applies_to === request.consumer)
         && !request.picks.some(used => same(used.ref, entry.ref)));
-      const list = group(say("others"), ...rows.map(entry => item(entry.name, (entry.state === "manual" ? say("state-manual") + " · " : "") + (entry.when_to_use || entry.description),
-        () => { close(); redo(request, [...keep, { ref: entry.ref, name: entry.name }]); })));
-      if (!rows.length) list.append(el("p", "mw-skill-why__empty", say("no-others")));
-      body.replaceChildren(...(back ? [item("‹ " + uiText.text("common.control.back"), "", back)] : []), list); place();
+      show({}, [...(back ? [{ actions: [{ label: "‹ " + uiText.text("common.control.back"), run: back }] }] : []),
+        { label: say("others"), empty: say("no-others"), actions: rows.map(entry => ({ label: entry.name, detail: (entry.state === "manual" ? say("state-manual") + " · " : "") + (entry.when_to_use || entry.description),
+          run: () => { close(); redo(request, [...keep, { ref: entry.ref, name: entry.name }]); } })) }]);
     };
     const draw = (all: SkillCatalogEntry[]) => {
       if (!pick) { others(all, request.picks.filter(used => used.picked === "named").map(({ ref, name }) => ({ ref, name }))); return; }
-      const entry = all.find(row => same(row.ref, pick.ref)), head = el("h4", "", pick.name);
-      const facts = el("dl", "mw-skill-why__facts"), fact = (label: string, text: string | undefined) => { if (text) facts.append(el("dt", "", say(label)), el("dd", "", text)); };
-      fact("what", entry?.description); fact("when", entry?.when_to_use);
-      fact("from", entry ? say("from-pack", { pack: entry.pack.title, version: entry.ref.version }) : undefined);
-      fact("setting", entry ? say(STATE[entry.state]) : undefined);
+      const entry = all.find(row => same(row.ref, pick.ref));
+      const facts = entry ? ([["what", entry.description], ["when", entry.when_to_use], ["from", say("from-pack", { pack: entry.pack.title, version: entry.ref.version })], ["setting", say(STATE[entry.state])]] as const)
+        .flatMap(([label, text]) => text ? [[say(label), text] as const] : []) : [];
       // The round again without this one: the Skills the person named stay, this one leaves, and the AI adds none of its own.
       const kept = request.picks.filter(used => used.picked === "named" && used !== pick).map(({ ref, name }) => ({ ref, name }));
-      const menus = [group(say("this-round"), item(say("swap"), say("swap-detail"), () => others(all, kept, () => draw(all))), item(say("plain"), say("plain-detail"), () => { close(); redo(request, []); }))];
-      if (entry && entry.state !== "off") menus.push(group(say("from-now"),
-        ...(entry.state === "auto" ? [item(say("make-manual"), say("make-manual-detail"), () => void setState(entry, "manual", false))] : []),
-        item(say("turn-off"), say("turn-off-detail"), () => void setState(entry, "off", false))));
-      body.replaceChildren(head, el("p", "mw-skill-why__reason", say(pick.picked === "auto" ? "why-auto" : "why-named")),
-        ...(entry ? [facts] : [el("p", "mw-skill-why__empty", say("gone"))]), ...menus); place();
+      show({ title: pick.name, reason: say(pick.picked === "auto" ? "why-auto" : "why-named"), facts, ...(entry ? {} : { note: say("gone") }) }, [
+        { label: say("this-round"), actions: [{ label: say("swap"), detail: say("swap-detail"), run: () => others(all, kept, () => draw(all)) }, { label: say("plain"), detail: say("plain-detail"), run: () => { close(); redo(request, []); } }] },
+        ...(entry && entry.state !== "off" ? [{ label: say("from-now"), actions: [
+          ...(entry.state === "auto" ? [{ label: say("make-manual"), detail: say("make-manual-detail"), run: () => void setState(entry, "manual", false) }] : []),
+          { label: say("turn-off"), detail: say("turn-off-detail"), run: () => void setState(entry, "off", false) }] }] : [])]);
     };
     pop.addEventListener("toggle", event => { if ((event as ToggleEvent).newState === "closed") pop.remove(); });
-    body.append(el("p", "mw-skill-why__empty", say("loading"))); pop.showPopover(); place();
+    show({ note: say("loading") }, []); pop.showPopover(); place();
     const load = () => api<{ skills: SkillCatalogEntry[] }>(false, "list").then(listed => { if (pop.isConnected) draw(listed.skills); }, cause => { if (pop.isConnected) { body.replaceChildren(); failed(cause, () => void load()); } });
     void load();
   };

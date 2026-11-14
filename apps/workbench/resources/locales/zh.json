@@ -7787,6 +7787,19 @@
     "workbench.skill-picks.others": "改用哪个",
     "workbench.skill-picks.no-others": "这里没有别的可用技能。",
     "workbench.skill-picks.gone": "这个技能现在不在目录里了（已卸载或已升级）。",
-    "workbench.skill-picks.loading": "正在读取…"
+    "workbench.skill-picks.loading": "正在读取…",
+    "workbench.catalog-skill-selection.skill-line": "一轮用了哪些技能",
+    "workbench.catalog-skill-selection.skill-why": "技能的依据面板",
+    "workbench.catalog-skill-selection.meeting-notes": "整理会议纪要",
+    "workbench.catalog-skill-selection.one-picked-by-ai": "AI 自动选了一个",
+    "workbench.catalog-skill-selection.named-and-picked": "你点名一个，AI 又选了一个",
+    "workbench.catalog-skill-selection.none-used": "没用技能，可以选一个重做",
+    "workbench.catalog-skill-selection.why-and-what-to-do": "为什么用它，这一轮和以后怎么办",
+    "workbench.catalog-skill-selection.use-another": "换一个重做：列出别的可用技能",
+    "workbench.catalog-skill-selection.no-other": "没有别的可用技能",
+    "workbench.catalog-skill-selection.save-failed": "改设置没保存成：就地说明，可重试",
+    "workbench.catalog-skill-selection.review-what": "按本周的记录写一份周复盘：做了什么、卡在哪、下周做什么。",
+    "workbench.catalog-skill-selection.review-when": "要写周报、周复盘或回顾一周工作时。",
+    "workbench.catalog-skill-selection.notes-when": "有会议记录要整理成纪要时。"
   }
 }

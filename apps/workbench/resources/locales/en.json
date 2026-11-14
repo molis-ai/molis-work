@@ -8383,6 +8383,19 @@
     "workbench.skill-picks.others": "Use which instead",
     "workbench.skill-picks.no-others": "No other skills are available here.",
     "workbench.skill-picks.gone": "This skill is no longer in the catalog (uninstalled or upgraded).",
-    "workbench.skill-picks.loading": "Loading…"
+    "workbench.skill-picks.loading": "Loading…",
+    "workbench.catalog-skill-selection.skill-line": "Skills a round used",
+    "workbench.catalog-skill-selection.skill-why": "Why a skill was used",
+    "workbench.catalog-skill-selection.meeting-notes": "Tidy meeting notes",
+    "workbench.catalog-skill-selection.one-picked-by-ai": "One picked by AI",
+    "workbench.catalog-skill-selection.named-and-picked": "One you named, one picked by AI",
+    "workbench.catalog-skill-selection.none-used": "None used; choose one to redo",
+    "workbench.catalog-skill-selection.why-and-what-to-do": "Why it was used, and what to do now and later",
+    "workbench.catalog-skill-selection.use-another": "Redo with another: the other skills available",
+    "workbench.catalog-skill-selection.no-other": "No other skill available",
+    "workbench.catalog-skill-selection.save-failed": "A setting change that failed: said in place, with retry",
+    "workbench.catalog-skill-selection.review-what": "Writes a weekly review from this week’s records: what was done, what is stuck, what comes next.",
+    "workbench.catalog-skill-selection.review-when": "When you need a weekly report or a review of the week.",
+    "workbench.catalog-skill-selection.notes-when": "When meeting records need to become notes."
   }
 }

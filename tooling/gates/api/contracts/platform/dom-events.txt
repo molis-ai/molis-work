@@ -110,21 +110,6 @@ export declare const DOM_EVENTS: readonly [{
     readonly detail: "{ request_id, outcome: 'confirmed' | 'cancelled' | 'unavailable', items: Array<{ ref: MaterialRef, title, hint? }> }";
     readonly summary: "The picker's one answer to request_id. confirmed: items is the person's whole choice, replacing what was chosen before (an empty one clears it); cancelled: they closed it, or another request took its place, and the asking input keeps what it had; unavailable: there is no project here to pick from. Each item is an exact reference: a 成果 version, a piece as its owner indexed it, a folder file as read when ticked, or a quote or snapshot the materials service fixed.";
 }, {
-    readonly name: "molis:skill-pick-open";
-    readonly kind: "request";
-    readonly owner: "skill-picks";
-    readonly on: "document";
-    readonly cancelable: true;
-    readonly detail: "{ reply, consumer: 'assistant' | 'coding', picks: SkillPick[], index: number | null, box: { x, y, width, height } }";
-    readonly summary: "Open the 「依据」 panel for one Skill of a round's line (index; null for 「选一个」), anchored at the pressed button's box. Sent by the page that shows the round: the Assistant, and Coding through its frame. The panel takes it with preventDefault(); reply is the page's own mark for the round.";
-}, {
-    readonly name: "molis:skill-redo";
-    readonly kind: "announcement";
-    readonly owner: "skill-picks";
-    readonly on: "document";
-    readonly detail: "{ reply, named: Array<{ ref: SkillRef, name }> }";
-    readonly summary: "The person asked for the round marked reply to run again with exactly these Skills and no automatic ones (an empty list: without Skills). The page that asked starts the round; nothing was changed in the Skill settings by this.";
-}, {
     readonly name: "molis-work:language-changed";
     readonly kind: "announcement";
     readonly owner: "document-language";
@@ -447,6 +432,21 @@ export declare const DOM_EVENTS: readonly [{
     readonly on: "document";
     readonly detail: "{ tab, target, open }";
     readonly summary: "A tab of the side panel is now shown (or the panel closed); the tab's owner loads what it was asked to show.";
+}, {
+    readonly name: "molis:skill-pick-open";
+    readonly kind: "request";
+    readonly owner: "skill-picks";
+    readonly on: "document";
+    readonly cancelable: true;
+    readonly detail: "{ reply, consumer: 'assistant' | 'coding', picks: SkillPick[], index: number | null, box: { x, y, width, height } }";
+    readonly summary: "Open the 「依据」 panel for one Skill of a round's line (index; null for 「选一个」), anchored at the pressed button's box. Sent by the page that shows the round: the Assistant, and Coding through its frame. The panel takes it with preventDefault(); reply is the page's own mark for the round.";
+}, {
+    readonly name: "molis:skill-redo";
+    readonly kind: "announcement";
+    readonly owner: "skill-picks";
+    readonly on: "document";
+    readonly detail: "{ reply, named: Array<{ ref: SkillRef, name }> }";
+    readonly summary: "The person asked for the round marked reply to run again with exactly these Skills and no automatic ones (an empty list: without Skills). The page that asked starts the round; nothing was changed in the Skill settings by this.";
 }, {
     readonly name: "molis:surface-focus";
     readonly kind: "request";

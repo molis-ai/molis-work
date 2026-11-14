@@ -273,6 +273,12 @@ export interface SkillLineWords {
     choose: string;
 }
 
+export interface SkillWhyAction {
+    id: string;
+    label: string;
+    detail?: string;
+}
+
 export interface SkinTokenSelection {
     readonly theme?: "light" | "dark";
     readonly terminal?: TerminalAxis;
@@ -790,6 +796,18 @@ export declare function renderSkillLine(options: {
     round: string;
     words: SkillLineWords;
     className?: string;
+}): string;
+
+export declare function renderSkillWhy(options: {
+    title?: string;
+    reason?: string;
+    facts?: ReadonlyArray<readonly [label: string, text: string]>;
+    note?: string;
+    groups: ReadonlyArray<{
+        label?: string;
+        actions: readonly SkillWhyAction[];
+        empty?: string;
+    }>;
 }): string;
 
 export declare function renderSlider(options: {

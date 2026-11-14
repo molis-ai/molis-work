@@ -530,6 +530,7 @@ export interface AssistantRound {
     stop_reason_code?: "person" | "host";
     retry_wait?: AgentRetryWait;
     ended_at: string | null;
+    skills?: SkillPick[];
     memories_used?: {
         used: AssistantRoundMemory[];
         omitted: Array<AssistantRoundMemory & {
@@ -651,6 +652,7 @@ export interface AssistantSendInput extends Pick<AgentInputSend, "about"> {
     target?: "answer" | "steer";
     delivery?: AgentSteerMode;
     reask?: AgentQuestionReask;
+    auto_skills?: false;
     submission_id?: string;
     draft_revision?: number;
     request_id: string;

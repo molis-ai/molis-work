@@ -49,7 +49,7 @@
         "workbench-all-plugins"
       ],
       "locale": "zh",
-      "entry": "/assets/locale/workbench.zh.e701d175e0409adef72871f5.js",
+      "entry": "/assets/locale/workbench.zh.<digest>.js",
       "change": "new"
     },
     {
@@ -60,7 +60,7 @@
         "workbench-all-plugins"
       ],
       "locale": "en",
-      "entry": "/assets/locale/workbench.en.31fb2dbb24b7bcf31e6a3b4f.js",
+      "entry": "/assets/locale/workbench.en.<digest>.js",
       "change": "new"
     }
   ]

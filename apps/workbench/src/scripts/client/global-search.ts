@@ -338,6 +338,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
       const target = opened.open || hit.open;
       if (!target) return;
       chosen?.locate("requested", subject, undefined, { away: away(hit) });
+      chosen?.locate("loading", subject, undefined, { away: away(hit) });
       if (away(hit)) { openElsewhere(hit.project_id || ${JSON.stringify(PERSONAL_SPACE_PROJECT_ID)}, target, opened.title || hit.title); return; }
       requestAnimationFrame(() => {
         openTarget(target, hit.subject.kind, opened.title || hit.title);

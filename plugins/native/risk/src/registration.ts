@@ -1,5 +1,9 @@
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
-import { createRiskPlugin, RISK_CLIENT_FACTORY_SCRIPT, RISK_PROJECT_PLUGIN_ID, riskManifest, riskUiContribution } from "./index.js";
+import { RISK_CLIENT_FACTORY_SCRIPT } from "./client.js";
+import { RISK_PROJECT_PLUGIN_ID } from "./identity.js";
+import { riskManifest } from "./manifest.js";
+import { createRiskPlugin } from "./plugin.js";
+import { riskUiContribution } from "./ui.js";
 
 /**
  * This plugin's entry in the built-in catalog (W5-02). `node scripts/generate-plugin-registry.mjs` lists it in

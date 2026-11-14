@@ -7,6 +7,7 @@ import test, { type TestContext } from "node:test";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { scheduleServiceFor } from "@molis-ai/molis-work-app-local-host";
 import { scheduleActions, SCHEDULE_ACTION_PERMISSIONS, SCHEDULE_PLUGIN_ID, getScheduleConversationTask } from "@molis-ai/molis-work-plugin-schedule";
+import { readRecords } from "@molis-ai/molis-work-service-observation";
 import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import { MEMORY_PERMISSIONS, memoryActions } from "@molis-ai/molis-work-contracts/services/memory";
 import { emptyCapabilityMatrix } from "@molis-ai/molis-work-service-agent-host";
@@ -73,6 +74,10 @@ test("SYS-15-A1/S4: the real Schedule wakeup runs the Home Prologue reader with 
   assert.equal(first.arguments[0], "prologue"); assert.equal(first.arguments[1].plugin_id, SCHEDULE_PLUGIN_ID);
   assert.equal(first.arguments[1].role_id, "reader");
   assert.ok(first.arguments[2].call_id, "the round carries a call id"); assert.notEqual(first.arguments[2].call_id, callId, "the wakeup's own, not the tick's");
+  // The wakeup's own work record carries the same number: the round and the wakeup are one operation.
+  const layer = f.host.observation!.layer; layer.flush();
+  const wakeups = readRecords(layer.writer.database()!.db, { fact: "scheduler.wakeup" });
+  assert.equal(wakeups.at(-1)!.work.call_id, first.arguments[2].call_id);
   assert.match(f.prompts[0]!, /汇总本周进展/); assert.match(f.prompts[0]!, /汇总工作进展时先列需要处理的工作/);
   await f.resume(); await f.tick();
   assert.equal(f.task().turns.length, 3); assert.match(f.prompts[1]!, /assistant: 有三项工作需要处理/);

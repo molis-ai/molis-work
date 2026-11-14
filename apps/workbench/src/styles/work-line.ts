@@ -42,8 +42,8 @@ export const WORK_LINE_STYLES = `
 .work-line-wing[data-wing="next"]{grid-column:3;grid-row:1}
 .work-line-slot{grid-column:2;grid-row:1;position:relative;align-self:end;min-width:0}
 .work-line-run{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:8px;height:44px;padding:0 2px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
-/* The line in three columns (it is more than 900px wide itself, whatever the window): the events' stretch of the left wing keeps 200px where the wing has it (the head's name shortens first), snaps to whole capsules, and makes room at its end for the way back to now once paged back. */
-@container work-line (min-width:901px){
+/* The line with its wings (it is more than 520px wide itself, whatever the window): the events' stretch of the left wing keeps 200px where the wing has it (the head's name shortens first), snaps to whole capsules, and makes room at its end for the way back to now once paged back. */
+@container work-line (min-width:521px){
   .work-line-wing[data-wing="past"] .work-line-run{flex:1 1 0;min-width:min(196px,calc(100% - 224px));scroll-snap-type:x mandatory;scroll-padding-right:2px}
   .work-line-wing[data-wing="past"] .work-line-run[data-back]{padding-right:38px;scroll-padding-right:38px}
   .work-line-wing[data-wing="past"] .work-event{scroll-snap-align:end}
@@ -108,6 +108,7 @@ ${PRESSABLE}>svg{flex:none;width:14px;height:14px}
    where there is no room beside it (work-line-layout.ts measures and says which). It never moves the work surface. */
 .work-task-float{position:fixed;z-index:60;top:var(--dialog-top,auto);left:calc(var(--dialog-right,0px) + 12px);display:flex;max-width:calc(100% - 20px)}
 .work-task-float[data-place="over"]{top:calc(var(--dialog-top,0px) + 52px);left:auto;right:var(--dialog-inset,18px)}
+.work-task-float[data-place="over"] .work-task-panel{max-height:min(56vh,480px,var(--dialog-room,480px))}
 /* The task panel: a list, or one task's card with a way back. */
 .work-task-panel{display:flex;flex-direction:column;width:340px;max-width:100%;max-height:min(56vh,480px);overflow:hidden;border-radius:var(--r-card,12px);background:var(--popover);box-shadow:var(--lift-3);animation:work-line-rise ${MOVE}}
 .work-task-panel-head{flex:none;display:flex;align-items:center;gap:8px;min-height:44px;min-width:0;padding:0 8px 0 12px;border-bottom:1px solid var(--line)}
@@ -187,11 +188,20 @@ html[data-craft-still] ${ANIMATED}{animation:none}
   ${QUIET} .work-event-note{display:none}
   .work-line-label{display:none}
 }
-/* The line as a track above the composer: a phone, or a split view or an open side panel that leaves the line 900px or less. */
-@container work-line (max-width:900px){
+/* Under 960px of its own width the line stands above the composer, in two rows: the same two wings with now between them, then the composer. Three columns would leave the event next to now too little room for its name. */
+@container work-line (max-width:959px){
+  .work-line-row{grid-template-columns:minmax(0,3fr) auto minmax(0,1fr);grid-template-rows:44px auto;row-gap:6px}
+  .work-line-row::before{top:22px}
+  .work-line-now{grid-column:2;grid-row:1;position:relative;display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:11px;background:var(--action);color:var(--action-ink);font-size:11px;font-weight:600}
+  .work-line-slot{grid-column:1/-1;grid-row:2;align-self:auto;justify-self:center;width:min(100%,640px)}
+}
+/* A phone (the line is 520px or less): one track above the composer that slides sideways and rests on whole capsules, the head and any unreadable source fixed at its start. */
+@container work-line (max-width:520px){
   .work-line-row{display:flex;flex-direction:column;align-items:stretch;gap:6px}
   .work-line-row::before{top:24px}
-  .work-line-track{display:flex;align-items:center;gap:8px;height:48px;min-width:0;overflow-x:auto;scrollbar-width:none}
+  .work-line-track{display:flex;align-items:center;gap:8px;height:48px;min-width:0;overflow-x:auto;scrollbar-width:none;scroll-snap-type:x mandatory;scroll-padding-left:var(--lead-width,0px)}
+  .work-line-track::after{content:"";flex:none;width:var(--track-tail,0px)}
+  .work-line-run>.work-event{scroll-snap-align:start}
   .work-line-wing{flex:none;height:48px}
   .work-line-wing[data-wing="past"]{display:contents}
   .work-line-lead{flex:none;position:sticky;z-index:2;left:0;height:48px;padding-right:4px;background:var(--desk);box-shadow:6px 0 6px -2px var(--desk)}
@@ -200,7 +210,7 @@ html[data-craft-still] ${ANIMATED}{animation:none}
   .work-line-slot{align-self:stretch}
   .work-line-run{flex:none;overflow:visible}
   .work-line-earlier{display:none}
-  .work-line-now{position:relative;flex:none;display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:11px;background:var(--action);color:var(--action-ink);font-size:11px;font-weight:600}
+  .work-line-now{flex:none}
   .work-line-head{height:44px;min-width:0}
   .work-line-head-name,.work-event-note{display:none}
   .work-event,.work-line-wing[data-wing="past"] .work-event{height:44px;max-width:240px;border-radius:22px}

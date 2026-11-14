@@ -17,6 +17,8 @@ const WING = `((line) => { const wing = line.querySelector('.work-line-wing[data
   const to = box.right - parseFloat(getComputedStyle(run).paddingRight), id = (item) => item.dataset.workEvent;
   return { scroll: Math.round(run.scrollLeft), most: run.scrollWidth - run.clientWidth, shown: shown.length, cut: run.children.length - shown.length,
     ids: shown.map(id), before: [...run.children].filter((item) => item.getBoundingClientRect().left < box.left - 1).map(id), latest: !line.querySelector('[data-work-line-latest]').hidden,
+    form: getComputedStyle(line.querySelector('[data-work-line-track]')).display !== 'contents' ? 'track' : line.querySelector('.work-line-now').getBoundingClientRect().width ? 'rows' : 'columns',
+    name: (() => { const name = run.lastElementChild?.querySelector('.work-event-name'); return !name || name.scrollWidth <= name.clientWidth + 1 || name.clientWidth >= 56; })(),
     covered: shown.filter((item) => item.getBoundingClientRect().right > to + 1).length, wing: Math.round(wing.getBoundingClientRect().width), stretch: run.clientWidth,
     words: shown.filter((item) => { const word = item.querySelector('.work-event-state')?.getBoundingClientRect(), at = item.getBoundingClientRect(); return word && word.width > 0 && (word.left < at.left || word.right > at.right || word.right > to + 1); }).length,
     partial: shown.filter((item) => { const at = item.getBoundingClientRect(); return at.left < box.left - 1 || at.right > box.right + 1; }).length,
@@ -24,7 +26,7 @@ const WING = `((line) => { const wing = line.querySelector('.work-line-wing[data
     nearest: run.lastElementChild ? !run.lastElementChild.hasAttribute('data-cut') : null,
     overlap: lead.some((a, i) => lead.some((b, j) => j > i && a.right > b.left + 0.5 && b.right > a.left + 0.5)) || [...head.children].some((part) => part.getBoundingClientRect().right > edge + 0.5),
     earlier: earlier.hidden ? null : { count: Number(earlier.querySelector('[data-count]').textContent), label: earlier.getAttribute('aria-label') } }; })`;
-type Wing = { scroll: number; most: number; shown: number; cut: number; ids: string[]; before: string[]; latest: boolean; covered: number; wing: number; stretch: number; words: number; partial: number; spill: number; nearest: boolean | null; overlap: boolean; earlier: { count: number; label: string } | null };
+type Wing = { scroll: number; most: number; shown: number; cut: number; ids: string[]; before: string[]; latest: boolean; form: string; name: boolean; covered: number; wing: number; stretch: number; words: number; partial: number; spill: number; nearest: boolean | null; overlap: boolean; earlier: { count: number; label: string } | null };
 
 async function open(t: Parameters<typeof openBoardBrowser>[0], width: number, lang = "zh", motion = false) {
   const browser = await openBoardBrowser(t, "seeded"); if (!browser) return null;
@@ -116,12 +118,14 @@ test("work-line §4.10: with motion on, a press glides to its capsule and lands 
 test("work-line §4.9: in English at 1024 the narrow left wing still shows whole events, nothing overlaps and nothing runs out of a capsule", { timeout: 120_000 }, async (t) => {
   const page = await open(t, 1024, "en"); if (!page) return;
   const { evaluate, size, settle } = page;
-  // 980 is the narrowest window that leaves the board's line in three columns; 1180 is where an unreadable source used to take the events' room.
-  for (const width of [980, 1024, 1180, 1340, 1440]) {
+  // 1016 is the narrowest window that leaves the board's line (the window less 56px) in three columns; 1180 is where an unreadable source used to take the events' room.
+  for (const width of [1016, 1024, 1180, 1340, 1440]) {
     await size(width); await settle();
     for (const index of [0, 1, 3]) {
       const rest = await evaluate<Wing>(`${WING}(${LINES}[${index}])`);
-      assert.deepEqual([rest.partial, rest.spill, rest.words, rest.nearest, rest.overlap, Math.abs(rest.scroll - rest.most) <= 1], [0, 0, 0, true, false, true], `${width}px, line ${index}`);
+      assert.deepEqual([rest.form, rest.partial, rest.spill, rest.words, rest.nearest, rest.overlap, Math.abs(rest.scroll - rest.most) <= 1], ["columns", 0, 0, 0, true, false, true], `${width}px, line ${index}`);
+      // Before: just above the narrowest three columns the event that needs you read "Re…".
+      assert.equal(rest.name, true, `${width}px, line ${index}: the event next to now keeps a name one can read`);
       assert.ok(rest.stretch >= Math.min(196, rest.wing - 224) - 1, `${width}px, line ${index}: the events keep their stretch of the wing (${rest.stretch} of ${rest.wing})`);
     }
   }
@@ -170,24 +174,56 @@ test("WLN-37, WLN-18: an unreadable source stays beside the head, on a desk and 
   assert.equal(await evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth"), true);
 });
 
-// The line as a track: a phone, and any line 900px wide or less (the board's line is the window less 56px).
+// Between a phone and three columns (a line of 521–959px: a window of 577–1015px on the board) the line stands above the
+// composer with the same two wings. Before: these widths got the phone's track, where a mouse could not reach the earlier
+// events and nothing said one of them had failed; before that, three columns that cut "needs you" off.
+for (const lang of ["zh", "en"]) test(`work-line §4.9 (${lang}): in two rows the wings work as in three columns, and the event next to now keeps its name and state word`, { timeout: 120_000 }, async (t) => {
+  const page = await open(t, 800, lang); if (!page) return;
+  const { evaluate, size, settle } = page;
+  for (const width of [600, 800, 940, 1000]) {
+    await size(width); await settle(); await settle();
+    for (const index of [0, 1, 3]) {
+      const rest = await evaluate<Wing>(`${WING}(${LINES}[${index}])`);
+      assert.deepEqual([rest.form, rest.partial, rest.spill, rest.words, rest.nearest, rest.overlap, Math.abs(rest.scroll - rest.most) <= 1], ["rows", 0, 0, 0, true, false, true], `${width}px, line ${index}`);
+      assert.equal(rest.earlier?.count ?? 0, rest.cut, `${width}px, line ${index}: the button counts the events out of sight`);
+      assert.equal(rest.name, true, `${width}px, line ${index}: the event next to now keeps a name one can read`);
+    }
+    const stacked = await evaluate<boolean>(`${LINES}.every((line) => line.querySelector('[data-work-line-slot]').getBoundingClientRect().top >= line.querySelector('.work-line-wing[data-wing="past"]').getBoundingClientRect().bottom - 1)`);
+    assert.equal(stacked, true, `${width}px: the composer is under the line`);
+    assert.equal(await evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth"), true, `${width}px: the page does not scroll sideways`);
+  }
+  await size(800); await settle();
+  assert.match((await evaluate<Wing>(`${WING}(${LINES}[1])`)).earlier?.label ?? "", lang === "zh" ? /要留意/ : /asking for attention/, "what is out of sight and asks for attention is said");
+  await pageBack(page, 1, `${lang} 800`);
+});
+
+// The line as a track: a phone (a line of 520px or less).
 const TRACKS = `${LINES}.map((line) => { const track = line.querySelector('[data-work-line-track]'), frame = track.getBoundingClientRect();
   const parts = [...line.querySelectorAll('.work-line-wing[data-wing="past"] .work-line-run > *, .work-line-now, .work-line-wing[data-wing="next"] .work-line-run > *')].map((part) => ({ name: part.dataset.workEvent || part.className, box: part.getBoundingClientRect() }));
   const now = line.querySelector('.work-line-now').getBoundingClientRect(), lead = line.querySelector('.work-line-lead').getBoundingClientRect(), last = line.querySelector('.work-line-wing[data-wing="past"] .work-line-run > :last-child');
   const near = last?.getBoundingClientRect(), word = last?.querySelector('.work-event-state')?.getBoundingClientRect(), name = last?.querySelector('.work-event-name')?.getBoundingClientRect();
-  return { form: getComputedStyle(track).overflowX === 'visible' ? 'columns' : 'track', overlap: parts.flatMap((part, at) => at && part.box.left < parts[at - 1].box.right - 0.5 ? [parts[at - 1].name + ' / ' + part.name] : []),
+  return { form: getComputedStyle(track).display === 'contents' ? 'wings' : 'track', overlap: parts.flatMap((part, at) => at && part.box.left < parts[at - 1].box.right - 0.5 ? [parts[at - 1].name + ' / ' + part.name] : []),
+    // No capsule stands half under the fixed lead: the track rests with a capsule's start at the lead's edge.
+    under: parts.filter((part) => part.box.left < lead.right - 1 && part.box.right > lead.right + 1).map((part) => part.name),
     now: now.width > 0 && now.left >= frame.left - 1 && now.right <= frame.right + 1, near: !near || (near.left >= lead.right - 1 && near.right <= frame.right + 1),
     word: !word || !word.width || (word.left >= near.left && word.right <= near.right), name: !name || name.width >= 24 }; })`;
-for (const lang of ["zh", "en"]) test(`WLN-18, work-line §4.9 (${lang}): as a track the event next to now stands whole beside the fixed lead, with its name and its state word`, { timeout: 120_000 }, async (t) => {
+for (const lang of ["zh", "en"]) test(`WLN-18, work-line §4.9 (${lang}): on a phone the track rests with the event next to now whole beside the fixed lead, and no capsule half under it`, { timeout: 120_000 }, async (t) => {
   const page = await open(t, 390, lang); if (!page) return;
   const { evaluate, size, settle } = page;
-  // Before: in English at 390 the fixed lead lay over the event next to now; between 761 and 950 the three columns left "needs you" out of sight.
-  for (const width of [390, 800, 940]) {
+  // Before: in English at 390 the fixed lead lay over the event next to now; a line too short to slide left a capsule half under the lead.
+  for (const width of [390, 360, 480, 560]) {
     await size(width); await settle(); await settle();
     const tracks = await evaluate<Record<string, unknown>[]>(TRACKS);
-    assert.deepEqual(tracks, tracks.map(() => ({ form: "track", overlap: [], now: true, near: true, word: true, name: true })), `${width}px`);
+    assert.deepEqual(tracks, tracks.map(() => ({ form: "track", overlap: [], under: [], now: true, near: true, word: true, name: true })), `${width}px`);
     assert.equal(await evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth"), true, `${width}px: the page does not scroll sideways`);
   }
+  // A wheel that only turns up and down moves the track an event a notch, and rests on whole capsules still.
+  const turn = (by: number) => evaluate(`${LINES}[1].querySelector('[data-work-line-track]').dispatchEvent(new WheelEvent('wheel', { deltaY: ${by}, cancelable: true, bubbles: true }))`);
+  const at = () => evaluate<number>(`Math.round(${LINES}[1].querySelector('[data-work-line-track]').scrollLeft)`);
+  const start = await at();
+  await turn(-100); await settle(); await settle();
+  assert.ok((await at()) < start, "a notch back slides the track to the event before");
+  assert.deepEqual((await evaluate<{ under: string[] }[]>(TRACKS))[1]!.under, [], "and it rests with no capsule half under the lead");
 });
 
 test("WLN-03: what the hand added stands above the composer, inside its specimen", { timeout: 120_000 }, async (t) => {
@@ -217,6 +253,17 @@ test("WLN-35, WLN-18: the task panel floats beside its dialog, over its right si
   const over = await view("narrow");
   assert.deepEqual([over.place, over.inDialog, over.inStage], ["over", true, true], "over the dialog where the stage has no room beside it");
   assert.ok(over.top >= 44, "under the tab bar");
+
+  // Before: over the dialog the panel ran past its foot and "reconnect" was cut off.
+  const foot = (kind: string) => evaluate<{ place: string; inDialog: boolean; reconnect: boolean }>(`(() => { const float = document.querySelector('[data-work-task-float="wl-dialog-${kind}"]'), panel = float.firstElementChild.getBoundingClientRect();
+    const dialog = document.getElementById('wl-dialog-${kind}').getBoundingClientRect(), frame = float.closest('[data-work-float-frame]').getBoundingClientRect(), button = float.querySelector('.work-task-banner .mw-btn')?.getBoundingClientRect();
+    return { place: float.dataset.place, inDialog: panel.bottom <= dialog.bottom + 1 && panel.bottom <= frame.bottom + 1, reconnect: Boolean(button && button.height > 0 && button.bottom <= panel.bottom + 1 && button.top >= panel.top) }; })()`);
+  assert.deepEqual(await foot("offline"), { place: "beside", inDialog: true, reconnect: true }, "1340: the offline panel, beside");
+  for (const width of [900, 800]) {
+    await size(width); await settle(); await settle();
+    assert.deepEqual(await foot("offline"), { place: "over", inDialog: true, reconnect: true }, `${width}px: the offline panel over its dialog ends inside it, with reconnect in reach`);
+    assert.deepEqual([(await view("main")).place, (await view("main")).inStage], ["over", true], `${width}px: the panel over the main dialog`);
+  }
 
   await size(390); await settle();
   assert.equal((await view("main")).inStage, true, "390: the panel is a layer inside its frame");

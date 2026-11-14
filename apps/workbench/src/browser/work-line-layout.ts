@@ -134,21 +134,43 @@ function installNextWing(run: HTMLElement): void {
   settle(); new ResizeObserver(settle).observe(run);
 }
 
-/** On a phone the line is one track that scrolls sideways. It opens with the event next to now whole after the head, and now in sight (WLN-18). */
+/**
+ * On a phone the line is one track that slides sideways. It opens with the event next to now whole after the fixed lead, and
+ * now in sight (WLN-18); it rests on whole capsules (the sheet snaps their starts to the lead's edge, which this measures), a
+ * line too short to slide that far gets the tail it needs, and a wheel that only turns up and down moves an event a notch.
+ */
 function installTrack(track: HTMLElement): void {
   const now = track.querySelector<HTMLElement>(".work-line-now");
+  const slides = () => getComputedStyle(track).display !== "contents";
+  const leadWidth = () => (track.querySelector<HTMLElement>(".work-line-lead")?.getBoundingClientRect().width ?? 0) + 8;
+  let turned = 0;
   const rest = () => {
-    if (!now?.offsetParent) { track.style.removeProperty("--near-max"); return; }
-    const lead = (track.querySelector<HTMLElement>(".work-line-lead")?.getBoundingClientRect().width ?? 0) + 8;
+    for (const name of ["--near-max", "--lead-width", "--track-tail"]) track.style.removeProperty(name);
+    if (!now || !slides()) return;
+    const lead = leadWidth();
+    track.style.setProperty("--lead-width", `${lead}px`);
     // The event next to now is no wider than what the fixed lead and now leave of the track: it shows whole in any language.
     track.style.setProperty("--near-max", `${Math.max(96, track.clientWidth - lead - now.offsetWidth - 24)}px`);
-    const box = track.getBoundingClientRect();
-    const nearest = track.querySelector<HTMLElement>(`${PAST_RUN} > :last-child`);
+    const box = track.getBoundingClientRect(), nearest = track.querySelector<HTMLElement>(`${PAST_RUN} > :last-child`);
     const from = (nearest ?? now).getBoundingClientRect().left - box.left - lead;
     // Never so far that now leaves the track.
     const most = now.getBoundingClientRect().right - box.left - track.clientWidth + 8;
-    track.scrollLeft += Math.max(from, most);
+    const to = track.scrollLeft + Math.max(from, most), short = to - (track.scrollWidth - track.clientWidth);
+    if (short > 0) track.style.setProperty("--track-tail", `${Math.ceil(short)}px`);
+    track.scrollLeft = to;
   };
+  track.addEventListener("wheel", (event) => {
+    if (!slides() || Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
+    // At either end the wheel is the page's again.
+    if (event.deltaY < 0 ? track.scrollLeft <= 0 : track.scrollLeft >= track.scrollWidth - track.clientWidth - 1) return;
+    event.preventDefault();
+    turned += event.deltaMode ? event.deltaY * 16 : event.deltaY;
+    if (Math.abs(turned) < 48) return;
+    const edge = track.getBoundingClientRect().left + leadWidth(), events = [...track.querySelectorAll<HTMLElement>(".work-line-run > .work-event")];
+    const at = events.findIndex((item) => item.getBoundingClientRect().left >= edge - 1), target = events[(at < 0 ? events.length : at) + (turned < 0 ? -1 : 1)];
+    turned = 0;
+    if (target) track.scrollBy({ left: target.getBoundingClientRect().left - edge });
+  }, { passive: false });
   rest(); new ResizeObserver(rest).observe(track);
 }
 
@@ -187,6 +209,8 @@ function installFloat(float: HTMLElement): void {
     float.style.setProperty("--dialog-top", `${box.top - within.top}px`);
     float.style.setProperty("--dialog-right", `${box.right - within.left}px`);
     float.style.setProperty("--dialog-inset", `${within.right - box.right + 8}px`);
+    // Over the dialog the panel ends inside it: what is at its foot (reconnecting, when the connection is lost) stays in reach.
+    float.style.setProperty("--dialog-room", `${Math.max(160, box.height - 60)}px`);
     // On a phone the panel is a layer above the line: it never lies over the track or the composer (WLN-18).
     float.style.setProperty("--line-clear", `${line ? Math.max(0, within.bottom - line.getBoundingClientRect().top) : 0}px`);
   };

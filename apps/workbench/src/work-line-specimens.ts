@@ -238,7 +238,7 @@ export const WORK_LINE_FRAME_STYLES = `.mw-wls__row{flex-wrap:nowrap;overflow-x:
 .mw-wls__stage{position:relative;display:flex;align-items:flex-start;height:500px;min-width:0;padding:8px 4px;overflow:hidden;transform:translate(0)}
 .mw-wls__stage[data-narrow]{max-width:700px}
 html body.mw-navs-page .mw-wls__stage .assistant-panel[data-side]{position:relative;inset:auto;flex:0 1 560px;min-width:0;width:auto;height:480px;animation:none}
-@container work-line (max-width:900px){.mw-navs .work-line-row:is(:has(.mw-wls__above),:has(.work-reply-mini)){margin-top:0}.mw-wls__above{position:static}}
+@container work-line (max-width:959px){.mw-navs .work-line-row:is(:has(.mw-wls__above),:has(.work-reply-mini)){margin-top:0}.mw-wls__above{position:static}}
 @media (max-width:760px){.mw-wls__stage{height:560px}html body.mw-navs-page .mw-wls__stage .assistant-panel[data-side]{flex-basis:100%;height:540px}}`;
 
 /** The board's section: the frame above, in the board's language, at a fixed height that scrolls inside. */

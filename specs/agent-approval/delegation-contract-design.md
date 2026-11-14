@@ -42,6 +42,8 @@
 | 无可信声明的 MCP 工具 | 只保存完整 JSON 参数及实际工具身份的精确指纹；连接身份边界同上 | 参数有任何变化就不命中，包括省略和显式 null；工具 annotation 不证明只读。不显示数据库／目录宽范围的静态承诺；未改变原执行前授权和原 SDK effect 归属 |
 | Coding 命令 | 原工作区身份、会话／工作 epoch、完整 command/argv/cwd/env_allowlist/timeout/background/outlives_run | 原 command document 与原 SDK pending 精确匹配；现有 elevate/network/path 的硬边界不由“记住”扩大。后续独立低风险 AI 评估器仍归第 64 批 |
 
+服务连接的 MCP 动作沿原 `AgentActionReviewAuthority.resolveDelegation` 给出 `mcp_scope`。服务连接 owner 固定当前连接 id、修订、协议目标与声明世代，以及当前登记中的工具名和完整输入形状摘要。工作权限动作和审批执行都使用该 owner 与同一精确 JSON 范围。该字段仅由 Host 填入，页面和模型只能引用原提案。实际客户端仍在最终 HTTP 或 stdio 发送时核对原权限。连接收到请求而没有可靠结果时，由原效果进入待核对。
+
 Pages 现状只把 Goal 关联当字符串，`normalizeGoalId` 没有 Goals owner 的当前存在/项目检查，不能在设计里写成已有该保证。首批对象自动范围完整覆盖文稿内容、Pages 文件夹、新建、删除及明确不关联 Goal 的发布；非空 Goal 关联不声明为当前可自动委托的目标，保留原确认，UI 给出原因，**完整参数精确授权也不能绕过此限制**。若要在本批加入非空 Goal 自动范围，必须先提交 Goals 当前身份的公开最终校验设计并合审，不能仅凭授予时读过标题放行。这是无法验证的跨 owner 目标的适配边界；对象级授权并未退成所有动作只能精确参数，其他可验证操作仍须交付。
 
 目标名称不能由模型提供。复用 `platform/presentation` 的 `presentation.values`：按声明发现同一可信项目内唯一的目标 owner，批量读 subject 的 title 角色字段与 state，固定其 provider/安装世代；重复 owner、缺项、forbidden/deleted/stale 均不能用于新授予。Pages 补文稿/文件夹的该协议实现，Goals 沿它的现行呈现声明；不新增 `delegation_targets` 协议。不读正文，每次按现有上限 50 个 subject 分页；候选一次最多 50 个非空目标，按 owner 批读。空串的根／不关联名称来自字段声明，不伪造可读取的对象。没有 title 呈现声明的 owner 不能展示一个看似对象级的授权选择。声明上的 title 也沿现行词包机制，不把原始 id 当主标签。

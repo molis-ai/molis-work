@@ -217,6 +217,7 @@ export const agentReviewsRoute: WebRoute<ProjectRuntimeContext> = { id: "agent-r
     projectId,
     agentHost,
     actorId: LOCAL_PERSON_ACTOR_ID,
+    assertAccountCurrent: serverOptions.assertAccountCurrent,
     computerHolder: () => computerHolderFor(localHost)?.() ?? null,
     observeGitIndex: review => {
       if (review.project_id !== projectId || review.operation?.kind !== "git-index" || review.document.kind !== "git-index" || !options.project) throw new Error("原操作没有可核对的项目工作区");
@@ -265,7 +266,7 @@ export const projectAssistantRoutes: readonly WebRoute<ProjectRuntimeContext>[] 
     && url.pathname.startsWith("/api/memory/") && await handleMemoryHttp(request, response, url, { localHost, projectRef: hostReference }) },
   { id: "assistant", handle: async context => {
     const assistant = projectAssistant(context);
-    return Boolean(assistant) && context.url.pathname.startsWith("/api/assistant/") && await handleAssistantHttp(context.request, context.response, context.url, assistant!);
+    return Boolean(assistant) && context.url.pathname.startsWith("/api/assistant/") && await handleAssistantHttp(context.request, context.response, context.url, assistant!, context.serverOptions.assertAccountCurrent);
   } },
   { id: "attention", handle: async context => {
     const assistant = projectAssistant(context);

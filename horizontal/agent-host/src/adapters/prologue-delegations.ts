@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { WorkDelegationStore, workDelegationKey } from "../delegations.js";
-import { readDelegationState } from "../delegation-state.js";
+import { readDelegationState, WORK_DELEGATION_SCHEMA_VERSION } from "../delegation-state.js";
 import { agentErrors } from "../errors.js";
 import type { PrologueEffects } from "./prologue-effects.js";
 
@@ -11,7 +11,7 @@ export function createPrologueDelegations(effects: PrologueEffects, appId: strin
   const read = async (id: string) => {
     const record = await storage.get({ kind, id });
     if (!record) return undefined;
-    if (record.tombstoned || record.metadata.schema !== 1) throw agentErrors.delegation_unreadable("授权存储记录不可读");
+    if (record.tombstoned || record.metadata.schema !== WORK_DELEGATION_SCHEMA_VERSION) throw agentErrors.delegation_unreadable("授权存储记录不可读");
     const bytes = await storage.readSecure({ kind, id });
     try {
       const value = readDelegationState(JSON.parse(new TextDecoder().decode(bytes)));
@@ -25,7 +25,7 @@ export function createPrologueDelegations(effects: PrologueEffects, appId: strin
       const bytes = new TextEncoder().encode(JSON.stringify(value));
       try {
         await effects.call({ beforeEffect: control.beforeEffect, assert_current: control.assertCurrent }, async () => {
-          await storage.commit({ kind, id, expectedVersion, metadata: { schema: 1 }, secureBody: bytes });
+          await storage.commit({ kind, id, expectedVersion, metadata: { schema: WORK_DELEGATION_SCHEMA_VERSION }, secureBody: bytes });
         });
       } finally { bytes.fill(0); }
     },

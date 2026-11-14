@@ -40,8 +40,11 @@ import { prologueToolName, sameRef, stageInstructions, stageTextResource, type D
 import { SESSION_INDEX_SCHEMA, type SessionIndex, type SessionIndexStore } from "./prologue-session-index.js";
 import { ensureStopGuard, guardRound, watchRoundFacts } from "./prologue-stop-guard.js";
 import { withDispatchControl } from "./prologue-dispatch.js";
+import { roundMcp, type RoundMcp } from "./prologue-round-mcp.js";
+import { stopSdkRun } from "./prologue-stop-run.js";
 import { actionWorkVerdict, bindWorkDelegation, workToolVerdict, type PrologueWorkDelegation } from "./prologue-work-delegation.js";
 import type { WorkDelegationStore } from "../delegations.js";
+import type { ReviewDecisionControl } from "../review-decisions.js";
 
 /**
  * Starting one round on the Prologue runtime (W4-06 moved `startAgentRun` here from the Node composition, in stages):
@@ -111,7 +114,7 @@ const systemTools = (input: PrologueStartInput) => hostSystemTools(input).map(pr
  * The round's actions: the business gateway's three tools, or one tool per frozen action. What the round really keeps,
  * forgets and changes is counted for the stop check; a call to a capability that is gone is refused before review.
  */
-function roundGateway(deps: RunDeps, input: PrologueStartInput, none: boolean, stopping: () => boolean, work?: PrologueWorkDelegation) {
+function roundGateway(deps: RunDeps, input: PrologueStartInput, none: boolean, stopping: () => boolean, work: PrologueWorkDelegation | undefined, mcp: RoundMcp | undefined) {
   const { state, runtime } = deps;
   const actionController = new AbortController();
   const reviews = new PrologueActionReviews(input.session_id, () => {
@@ -143,7 +146,7 @@ function roundGateway(deps: RunDeps, input: PrologueStartInput, none: boolean, s
     state.gatewayRuns.set(input.session_id, { ...input.action_gateway, declare: gatewayTools?.declare });
     if (gatewayTools) { state.gatewayKnown.set(input.session_id, gatewayTools.known); state.gatewayOffered.set(input.session_id, gatewayTools.offered); }
   }
-  if (input.action_gateway || input.actions || work) {
+  if (input.action_gateway || input.actions || work || mcp) {
     const sessionId = input.session_id, hookId = `molis-action-gateway-${sessionId}`;
     if (state.gatewayHooks.has(sessionId)) runtime.hooks.unregister(hookId);
     state.gatewayHooks.add(sessionId);
@@ -153,6 +156,7 @@ function roundGateway(deps: RunDeps, input: PrologueStartInput, none: boolean, s
         const verdict = actionTools && "writes" in actionTools && actionTools.writes?.has(context.toolName)
           ? actionWorkVerdict(work) : workToolVerdict(work, context);
         if (verdict?.kind === "deny") return verdict;
+        await mcp?.prepare(context.origin, context.toolName, context.input);
         const problem = gatewayForRun ? await gatewayProblem(gatewayForRun, context.toolName, context.input, gatewayTools?.known, gatewayTools?.offered, { calls: reviews, origin: context.origin }) : null;
         if (problem) return { kind: "deny" as const, why: problem };
         if (actionTools && "prepareReview" in actionTools) await actionTools.prepareReview(context.origin, context.toolName, context.input);
@@ -189,7 +193,7 @@ const WORKSPACE_PARENT_TOOLS: readonly string[] = WORKSPACE_PARENT_TOOL_NAMES.ma
 });
 
 /** The round's child directories and fixed child roles, each a published Character, and what the round is told of them. */
-async function childSetup(deps: RunDeps, input: PrologueStartInput) {
+async function childSetup(deps: RunDeps, input: PrologueStartInput, work?: PrologueWorkDelegation) {
   const { runtime } = deps;
   const childRoots: PrologueSubagentRoot[] = [];
   if (input.subagent_workspaces?.length && input.character.tools.some(tool => !WORKSPACE_PARENT_TOOLS.includes(tool))) throw agentErrors.role_execution_exceeded("独立目录协调者只能读取和分派，不能持有其他执行工具");
@@ -201,6 +205,7 @@ async function childSetup(deps: RunDeps, input: PrologueStartInput) {
   }
   const childRoles = new Map<string, ChildRole>();
   for (const role of input.subagents ?? []) {
+    if (work && work.permission.mode !== "original" && (role.execution !== "read-only" || role.host_tools.some(tool => AGENT_TOOLS.some(entry => entry.name === tool && entry.writes)))) continue;
     assertChildRoleTools(role.execution, role.host_tools, childRoots.length > 0, input.character.tools);
     const ref = await stageInstructions(runtime, role.prompts.map(prompt => prompt.body).join("\n\n"));
     const draft = runtime.characters.create({ id: `molis-child-${randomUUID()}`, version: role.version, name: role.name, role: role.role_id,
@@ -513,7 +518,8 @@ async function afterStart(deps: RunDeps, input: PrologueStartInput, index: Sessi
   readonly started: Started; readonly session: Session; readonly root: { ref: ExactRef<"authorized-root"> } | undefined; readonly attemptIndex: number;
   readonly actionController: AbortController; readonly surface: SurfaceAttachment; readonly hasActions: boolean; readonly none: boolean; readonly project: string; readonly scopePaths: string[];
   readonly plan: PrologueStartInput["provenance"]["frozen"]["execution_plan"]; readonly stepBoard: Awaited<ReturnType<typeof roundMaterials>>["stepBoard"]; readonly stopping: () => boolean;
-  readonly workSelection?: boolean;
+  readonly work?: PrologueWorkDelegation; readonly appliedPolicies: Map<string, () => void>;
+  readonly exactPermissions: Map<string, { ref: ExactRef<"effect">; control: ReviewDecisionControl }>; readonly mcp?: RoundMcp;
 }): Promise<void> {
   const { state } = deps;
   const { started, session } = at;
@@ -524,7 +530,13 @@ async function afterStart(deps: RunDeps, input: PrologueStartInput, index: Sessi
   // A round is live until it ends: before its first model event it is still "prepared", and it hears a steer then too.
   state.runSessions.set(started.run.ref.id, session.ref.id); state.runRefs.set(started.run.ref.id, started.run.ref); at.surface.noteRun(started.run.ref.id);
   state.activeRuns.set(started.run.ref.id, { live: () => ["prepared", "running"].includes(started.run.state), policy: started.policy,
-    ...(at.workSelection ? { workSelection: true } : {}),
+    stop: () => stopSdkRun(started.run), usePolicy: (id, assert) => { at.appliedPolicies.set(id, assert); },
+    ...(at.work ? { work: at.work, workSelection: at.work.permission.mode !== "original",
+      useExact: (id: string, control: ReviewDecisionControl) => {
+        const ref = state.reviewEffects.get(`prologue:${id}`);
+        if (!ref) throw agentErrors.review_not_permitted("原授权操作不可读");
+        at.exactPermissions.set(id, { ref, control });
+      } } : {}), mcp: at.mcp,
     assertAuthority: () => {
       if (at.stopping()) throw agentErrors.review_not_permitted("原轮次正在停止");
       requireSynchronous(input.assertBeforeDispatch?.(), "最终授权检查必须同步完成");
@@ -549,6 +561,7 @@ function roundEnded(deps: RunDeps, started: Started, session: Session, stepBoard
   const surfaceHost = deps.surfaces();
   actionController.abort(); state.actionControllers.delete(started.run.ref.id); state.dispatchChecks.delete(started.run.ref.id);
   state.activeRuns.delete(started.run.ref.id);
+  deps.options.reviewQueue?.permissions.releaseRun(started.run.ref.id);
   if (state.actionReviews.get(session.ref.id)?.releaseRun(started.run.ref.id)) state.actionReviews.delete(session.ref.id);
   if (stepBoard) deps.stepBoards.unfollow(started.run.ref.id);
   deps.workGraphs.ended(started.run.ref, session.ref, type);
@@ -652,18 +665,27 @@ async function startBoundRound(deps: RunDeps, input: PrologueStartInput, index: 
   const { runtime, state } = deps;
   const ref = state.sessions.get(input.session_id);
   const stopping: { current: Promise<void> | undefined } = { current: undefined };
-  const { actionController, actionTools, parameterBranches } = roundGateway(deps, input, mode.none, () => stopping.current !== undefined, work);
+  const appliedPolicies = new Map<string, () => void>();
+  const exactPermissions = new Map<string, { ref: ExactRef<"effect">; control: ReviewDecisionControl }>();
+  const activeExact = () => {
+    for (const [id, { ref }] of exactPermissions) {
+      const state = runtime.effects.get(ref)?.state;
+      if (state !== "awaiting-approval" && state !== "authorized" && state !== "dispatching") exactPermissions.delete(id);
+    }
+    return exactPermissions.values();
+  };
+  const mcp = input.mcp_tools?.length || input.mcp_sources?.length ? roundMcp(runtime, deps.mcpLibrary, index.owner, input) : undefined;
+  const { actionController, actionTools, parameterBranches } = roundGateway(deps, input, mode.none, () => stopping.current !== undefined, work, mcp);
   const assertDispatchCurrent = () => {
     if (stopping.current !== undefined) throw new Error("原轮次正在停止");
     actionController.signal.throwIfAborted();
+    for (const check of appliedPolicies.values()) check();
+    for (const { control } of activeExact()) control.assertCurrent();
     requireSynchronous(input.assertBeforeDispatch?.(), "最终授权检查必须同步完成");
   };
-  const dispatchGuard = { assertCurrent: assertDispatchCurrent, beforeEffect: async () => {
+  const dispatchGuard = { assertCurrent: assertDispatchCurrent, mcp: mcp?.dispatch, beforeEffect: async () => {
     await input.beforeDispatch?.();
-    if (!mode.none && !mode.business) {
-      await deps.mcpLibrary.validate(index.owner, input.mcp_tools ?? []);
-      await deps.mcpLibrary.validateSources(index.owner, input.mcp_sources ?? []);
-    }
+    for (const { control } of activeExact()) await control.beforeEffect();
   } };
   ensureStopGuard(runtime, state, input.session_id);
   const attempted: { run_id?: string } = {}, afterWrite = await roundChecks(deps, input, index, mode, attempted, actionTools?.pack.tools);
@@ -677,7 +699,7 @@ async function startBoundRound(deps: RunDeps, input: PrologueStartInput, index: 
   const methods = inlineMethods(runtime, state.registeredMethods, input.skills ?? [], hostSystemTools(input), prologueToolName);
   const textResources: Array<{ ref: ExactRef<"resource">; as: "original" }> = [];
   for (const material of input.text_materials ?? []) textResources.push({ ref: await stageTextResource(runtime, agentTextMaterialContent(material), "coding-material"), as: "original" });
-  const { childRoots, childRoles, childInstructions } = await childSetup(deps, input);
+  const { childRoots, childRoles, childInstructions } = await childSetup(deps, input, work);
   const plan = input.provenance.frozen.execution_plan;
   const materials = await roundMaterials(deps, input, index, session, mode.none, plan, textResources);
   const surface = await roundSurface(deps, input, index, session, mode.business, dispatchGuard);
@@ -716,23 +738,32 @@ async function startBoundRound(deps: RunDeps, input: PrologueStartInput, index: 
     });
     accepted = started; attempted.run_id = started.run.ref.id;
     work?.accept(started.run);
+    if (mcp) started.run.subscribe(event => {
+      if (event.type === "tool-result") mcp.release((event as Extract<PrologueEvent, { type: "tool-result" }>).callId);
+    });
     watchRoundFacts(state, started.run);
     // Every child this round dispatches is let out only after the round's own check passes again (the Runtime asks).
     state.dispatchChecks.set(started.run.ref.id, async () => { assertDispatchCurrent(); await dispatchGuard.beforeEffect(); assertDispatchCurrent(); });
-    await afterStart(deps, input, index, { started, session, root, attemptIndex, actionController, surface, hasActions: Boolean(actionTools?.names.length), none: mode.none,
-      project: materials.project, scopePaths: materials.scopePaths, plan, stepBoard: materials.stepBoard, stopping: () => stopping.current !== undefined,
-      workSelection: work !== undefined && work.permission.mode !== "original" });
+    await afterStart(deps, input, index, { started, session, root, attemptIndex, actionController, surface, appliedPolicies, exactPermissions, work, mcp,
+      hasActions: Boolean(actionTools?.names.length), none: mode.none,
+      project: materials.project, scopePaths: materials.scopePaths, plan, stepBoard: materials.stepBoard, stopping: () => stopping.current !== undefined });
     work?.assertCurrent();
     return { ...roundHandle(deps, input, { started, session, attemptIndex, actionController, surface, stepBoard: materials.stepBoard, stopping, work }),
       ...(surface.desktop_target ? { desktop_target: surface.desktop_target } : {}) };
   } catch (error) {
     actionController.abort();
+    const failures: unknown[] = [error];
     if (accepted) {
-      accepted.control.stop("cancelled"); state.activeRuns.delete(accepted.run.ref.id);
-      state.actionControllers.delete(accepted.run.ref.id); state.dispatchChecks.delete(accepted.run.ref.id);
-      deps.surfaces()?.releaseRun(accepted.run.ref); state.runRefs.delete(accepted.run.ref.id);
+      accepted.control.stop("cancelled");
+      try {
+        await accepted.run.cancel();
+        state.activeRuns.delete(accepted.run.ref.id);
+        state.actionControllers.delete(accepted.run.ref.id); state.dispatchChecks.delete(accepted.run.ref.id);
+        deps.surfaces()?.releaseRun(accepted.run.ref); state.runRefs.delete(accepted.run.ref.id);
+      } catch (failure) { failures.push(failure); }
     }
-    try { await surface.release("failed"); } catch (cleanup) { throw new AggregateError([error, cleanup], "启动失败，原界面尚未释放"); }
+    try { await surface.release("failed"); } catch (failure) { failures.push(failure); }
+    if (failures.length > 1) throw new AggregateError(failures, "启动失败，原执行或界面仍需收口");
     throw error;
   }
 }

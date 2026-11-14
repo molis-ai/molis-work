@@ -1,4 +1,6 @@
 import path from "node:path";
+import { createHash } from "node:crypto";
+import { realpathSync, statSync } from "node:fs";
 import { currentPluginInvocation } from "@molis-ai/molis-work-plugin-runtime";
 import type { PrologueInferenceClient } from "@molis-ai/molis-work-service-agent-host";
 import { pdfDocumentParser } from "./pdf-document-parser.js";
@@ -309,6 +311,7 @@ async function startAuthority(
       if (localHost.lifecycle() !== "running") throw new ActionError("actions.host_closed", "能力所在运行环境已关闭");
     },
     ...(original ? { original_input: original } : {}),
+    ...(caller && record && !subject ? { sessionInstallation: { generation: record.installation_generation } } : {}),
     manifest: declared?.manifest ?? { roles: [], prompts: [] },
     // A round works in the output or one of the Host's worktrees of it, never in an input folder (SSC-15).
     authorizedDirectories: places.output ? [places.output.canonical_path] : [],
@@ -457,5 +460,44 @@ function hostConditionChecks(options: AgentHostCompositionOptions): NonNullable<
   };
   return { directoryAuthorized: async (project, directory) => await runsIn(project, directory) !== undefined,
     workspaceAt: runsIn,
+    holdCommandWorkspace: (project, id, directory, tree) => holdCommandWorkspace(options.localHost, project, id, directory, tree),
+    holdMcpDirectory: async (project, directory) => {
+      const places = await runPlaces(options, project);
+      if (!places.output) return undefined;
+      const tree = directory === places.output.canonical_path ? undefined : (await places.worktrees()).find(row => row.canonical_path === directory);
+      if (directory !== places.output.canonical_path && !tree) return undefined;
+      return holdCommandWorkspace(options.localHost, project, places.output.workspace_id, directory, tree?.worktree_id);
+    },
     owned: assistantConnectionCheckers(home, options.localHost), workAuthority: workAuthorityCheck(options.localHost) };
+}
+
+async function holdCommandWorkspace(host: MolisWorkLocalHost, project: string, id: string, directory: string, worktree?: string) {
+  const original = host.readAuthorizationOutput(project);
+  if (!original || original.output.workspace_id !== id || !original.output.realpath_verified) return undefined;
+  const output = original.output.canonical_path, projectCurrent = host.holdAuthorizationProject(original.reference);
+  if (!worktree && directory !== output) return undefined;
+  const physical = () => {
+    if (realpathSync.native(directory) !== directory) throw new ActionError("actions.conflict", "原命令目录的真实路径已变化");
+    const state = statSync(directory, { bigint: true });
+    if (!state.isDirectory()) throw new ActionError("actions.conflict", "原命令目录已不可用");
+    return [state.dev, state.ino, state.birthtimeNs].join(":");
+  };
+  const physicalIdentity = physical();
+  const assertCurrent = () => {
+    projectCurrent();
+    const current = host.readAuthorizationOutput(project)?.output;
+    if (current?.workspace_id !== id || current.canonical_path !== output || !current.realpath_verified || physical() !== physicalIdentity) {
+      throw new ActionError("actions.conflict", "原命令目录或项目权限已变化");
+    }
+  };
+  const beforeEffect = async () => {
+    assertCurrent();
+    if (worktree && !(await hostWorktrees(output)).some(row => row.worktree_id === worktree && row.canonical_path === directory)) {
+      throw new ActionError("actions.conflict", "原命令的工作树已不可用");
+    }
+    assertCurrent();
+  };
+  await beforeEffect();
+  const identity = createHash("sha256").update(JSON.stringify([original.created, id, worktree, directory, physicalIdentity])).digest("hex");
+  return { assertCurrent, beforeEffect, identity };
 }

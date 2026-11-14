@@ -74,7 +74,8 @@ function presentation(value: unknown, record: ReviewDecisionRecord): value is Ag
       : object(value.run) && text(value.run.session_id) && text(value.run.run_id));
 }
 
-interface SavedDecision extends StoredReviewDecision { schema: 1; submission_id: string }
+export const REVIEW_DECISION_SCHEMA_VERSION = /* @version format.agent.review-decision */ 1;
+interface SavedDecision extends StoredReviewDecision { schema: typeof REVIEW_DECISION_SCHEMA_VERSION; submission_id: string }
 
 /** One immutable encrypted fact per original operation, including its provenance. Never replays delivery. */
 export class ReviewDecisionStore {
@@ -83,10 +84,10 @@ export class ReviewDecisionStore {
   async #read(key: string, owner: Pick<ReviewReference, "owner" | "id">): Promise<SavedDecision | undefined> {
     const value = await this.storage.read(key);
     if (value === undefined) return undefined;
-    if (!object(value) || value.schema !== 1 || !text(value.submission_id) || !decision(value.record)
+    if (!object(value) || value.schema !== REVIEW_DECISION_SCHEMA_VERSION || !text(value.submission_id) || !decision(value.record)
       || reviewDecisionKey(value.record.reference) !== key || !isDeepStrictEqual(value.record.reference.owner, owner.owner)
       || value.record.reference.id !== owner.id || !presentation(value.request, value.record)) throw agentErrors.review_unreadable("批准决定记录不可读，不能当作尚未决定");
-    return { schema: 1, submission_id: value.submission_id, record: structuredClone(value.record), request: structuredClone(value.request) };
+    return { schema: REVIEW_DECISION_SCHEMA_VERSION, submission_id: value.submission_id, record: structuredClone(value.record), request: structuredClone(value.request) };
   }
 
   async read(owner: Pick<ReviewReference, "owner" | "id"> & Partial<Pick<ReviewReference, "version">>): Promise<StoredReviewDecision | undefined> {
@@ -99,7 +100,7 @@ export class ReviewDecisionStore {
 
   async save(record: ReviewDecisionRecord, request: AgentReviewRequest, control: ReviewDecisionControl): Promise<ReviewDecisionSave> {
     if (!decision(record) || !presentation(request, record)) throw agentErrors.review_unreadable("批准决定缺少可信归属或来源");
-    const saved: SavedDecision = { schema: 1, submission_id: randomUUID(), record: structuredClone(record), request: structuredClone(request) };
+    const saved: SavedDecision = { schema: REVIEW_DECISION_SCHEMA_VERSION, submission_id: randomUUID(), record: structuredClone(record), request: structuredClone(request) };
     const key = reviewDecisionKey(saved.record.reference);
     try {
       await this.storage.create(key, saved, control);

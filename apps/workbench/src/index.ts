@@ -59,6 +59,7 @@ export {
   leakedMarkup,
   renderAgentReviewSurface,
   reviewPhase,
+  reviewSourceSummary,
   type AgentReviewPrimitives,
   type AgentReviewRow,
 } from "./agent-review-surface.js";

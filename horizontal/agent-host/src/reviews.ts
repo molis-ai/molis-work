@@ -1,10 +1,10 @@
 import { agentErrors } from "./errors.js";
 import { isDeepStrictEqual } from "node:util";
-import { randomUUID } from "node:crypto";
 import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import type {
 
   AgentReviewDecisionInput,
+  AgentDelegationActionChoice,
   AgentReviewDecisions,
   AgentReviewQueueApi,
   AgentReviewReceipt,
@@ -21,10 +21,13 @@ import { PLUGIN_REVIEW_KINDS } from "@molis-ai/molis-work-contracts/services/age
 import { clonePresentedReview } from "./review-presentation.js";
 import { ReviewDeadlines } from "./review-deadlines.js";
 import type { ReviewDecisionStore, StoredReviewDecision } from "./review-decisions.js";
+import { ReviewPermissionRules } from "./review-permission-rules.js";
+import type { ExactPermission } from "./adapters/prologue-exact-permission.js";
 
 /** The owner commits first, then uses the same caller control for its recovery projection and SDK answer. */
 export interface ReviewDecisionCommit {
   (assertOwnerCurrent?: () => void): Promise<AgentReviewReceipt>;
+  readonly source: ReviewDecisionSource;
   assertCurrent(): void;
   effect<T>(write: () => Promise<T>, assertOwnerCurrent?: () => void): Promise<T>;
 }
@@ -106,15 +109,14 @@ interface RecoveryHandler {
  * never be turned into permission by asking a second way.
  */
 export class AgentReviewQueue implements AgentReviewQueueApi {
-  /** "Allow this command for this session", keyed by the exact command and its session; in memory only. */
-  readonly #standing = new Map<string, Extract<ReviewDecisionSource, { kind: "policy" }>>();
+  readonly permissions = new ReviewPermissionRules();
   readonly #claims = new Map<string, DecisionClaim>();
   #decisionStore?: ReviewDecisionStore;
   readonly #rows = new Map<string, ReviewRow>();
   readonly #consumed = new Set<string>();
   readonly #settlements = new Set<ReviewSettlementListener>();
   readonly #listeners = new Set<(request: AgentReviewRequest) => void>();
-  readonly #deciders = new Map<string, { respond: (input: AgentReviewDecisionInput, commit: ReviewDecisionCommit) => Promise<AgentReviewReceipt>; available?: () => Promise<() => boolean>; assertApprovalCurrent?: () => void; beforeApprovalEffect?: () => void | Promise<void> }>();
+  readonly #deciders = new Map<string, { respond: (input: AgentReviewDecisionInput, commit: ReviewDecisionCommit) => Promise<AgentReviewReceipt>; available?: () => Promise<() => boolean>; assertApprovalCurrent?: () => void; beforeApprovalEffect?: () => void | Promise<void>; delegationChoice?: () => AgentDelegationActionChoice | undefined; exactPermission?: () => ExactPermission | undefined }>();
   readonly #refreshers = new Set<(projectId: string) => Promise<void>>();
   readonly #recoverers = new Map<string, RecoveryHandler>();
   /** Only for a plugin's operation asked for in this process; a restored one has none, so it can never be approved. */
@@ -146,7 +148,7 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
     this.#refreshers.clear();
     this.#listeners.clear();
     this.#settlements.clear();
-    this.#standing.clear();
+    this.permissions.close();
     this.#claims.clear();
   }
 
@@ -164,6 +166,18 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
       await claim.refreshing;
     }
     await Promise.all([...this.#refreshers].map(handler => handler(projectId)));
+  }
+
+  /** Use the original settled receipts. A saved but undelivered approval does not count as use. */
+  recentAuthorizationUses() {
+    const uses = new Map<string, string>();
+    for (const { receipt } of this.#rows.values()) {
+      const { source, decided_at, effect_settled, status } = receipt;
+      if (status !== "approved" || !effect_settled || !decided_at || !source) continue;
+      const id = source.kind === "delegation" ? source.delegation.id : source.kind === "policy" ? source.id : undefined;
+      if (id && decided_at > (uses.get(id) ?? "")) uses.set(id, decided_at);
+    }
+    return uses;
   }
 
   async #refreshDecision(request: AgentReviewRequest, claim: DecisionClaim): Promise<void> {
@@ -292,18 +306,19 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
   }
 
   /** Host-only dispatch to the execution owner; never exposed as a Plugin capability. */
-  registerDecisionHandler(reviewId: string, handler: (input: AgentReviewDecisionInput, commit: ReviewDecisionCommit) => Promise<AgentReviewReceipt>, available?: () => Promise<() => boolean>, assertApprovalCurrent?: () => void, beforeApprovalEffect?: () => void | Promise<void>, useStanding = true): void {
+  registerDecisionHandler(reviewId: string, handler: (input: AgentReviewDecisionInput, commit: ReviewDecisionCommit) => Promise<AgentReviewReceipt>, available?: () => Promise<() => boolean>, assertApprovalCurrent?: () => void, beforeApprovalEffect?: () => void | Promise<void>, useStanding = true, delegationChoice?: () => AgentDelegationActionChoice | undefined, exactPermission?: () => ExactPermission | undefined): void {
     const row = this.#pending(reviewId);
     if (this.#deciders.has(reviewId)) throw agentErrors.review_already_decided("审查已有执行所有者，不能替换");
-    this.#deciders.set(reviewId, { respond: handler, available, assertApprovalCurrent, beforeApprovalEffect });
+    this.#deciders.set(reviewId, { respond: handler, available, assertApprovalCurrent, beforeApprovalEffect, delegationChoice, exactPermission });
     // An exact repeat of a command a person allowed for this session goes through the same decision path,
     // attributed to that person and marked as coming from their rule. If it cannot, it simply stays pending.
-    const key = useStanding ? standingKey(row.request) : null, rule = key ? this.#standing.get(key) : undefined;
-    if (!rule || this.#status(row) !== "pending") return;
+    const key = useStanding ? standingKey(row.request) : null, matched = key ? this.permissions.command(key) : undefined;
+    if (!matched || this.#status(row) !== "pending") return;
+    const rule = matched.source;
     queueMicrotask(() => {
       if (this.#status(row) !== "pending") return;
       void this.#respond({ review_id: reviewId, version: row.request.reference.version, decision: "approve", actor_id: rule.set_by,
-        note: `按本会话规则批准：同一命令已由 ${rule.set_by} 于 ${rule.set_at} 允许本会话内不再询问` }, rule)
+        note: `按本会话规则批准：同一命令已由 ${rule.set_by} 于 ${rule.set_at} 允许本会话内不再询问` }, rule, { assertCurrent: matched.assertCurrent })
         .catch(() => { /* A failed or uncertain save never grants execution. */ });
     });
   }
@@ -313,9 +328,10 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
   }
 
   /** Only the trusted execution owner may consume a matched permission for the exact original request. */
-  respondAutomatically(request: AgentReviewRequest, source: Extract<ReviewDecisionSource, { kind: "delegation" | "policy" }>, assertCurrent: () => void): Promise<AgentReviewReceipt> {
+  respondAutomatically(request: AgentReviewRequest, source: Extract<ReviewDecisionSource, { kind: "delegation" | "policy" }>, assertCurrent: () => void,
+    beforeEffect?: () => void | Promise<void>): Promise<AgentReviewReceipt> {
     return this.#respond({ review_id: request.review_id, version: request.reference.version, decision: "approve", actor_id: source.kind === "delegation" ? source.delegation.grantor_id : source.set_by },
-      source, { assertCurrent });
+      source, { assertCurrent, ...(beforeEffect ? { beforeEffect: async () => { await beforeEffect(); } } : {}) });
   }
 
   /** The original handler owns settlement until it returns; refresh must not race its final receipt. */
@@ -376,14 +392,12 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
       try { assertCurrent(); }
       catch (error) { this.deliveryFailed(input.review_id, "决定已保存，送达情况待核对"); throw error; }
       return this.receipt(input.review_id)!;
-    }, { assertCurrent, effect: <T>(write: () => Promise<T>, assertOwnerCurrent?: () => void) => store.withControl({ ...control,
+    }, { source, assertCurrent, effect: <T>(write: () => Promise<T>, assertOwnerCurrent?: () => void) => store.withControl({ ...control,
       assertCurrent: () => { assertCurrent(); requireSynchronous(assertOwnerCurrent?.()); },
     }, write) });
     try {
       const receipt = await handler.respond(input, commit);
-      if (key && committed && !receipt.delivery_error && !receipt.effect_error) this.#standing.set(key, {
-        kind: "policy", owner: "agent.session-rule", id: randomUUID(), revision: 1, set_by: input.actor_id, set_at: row.receipt.decided_at!,
-      });
+      if (key && committed && !receipt.delivery_error && !receipt.effect_error) this.permissions.rememberCommand(key, request, input.actor_id, row.receipt.decided_at!);
       return receipt;
     } catch (error) {
       if (committed) this.#consumed.add(input.review_id);
@@ -430,6 +444,44 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
     const row = this.#rows.get(reviewId);
     return row ? clonePresentedReview(row.request) : null;
   }
+
+  /** Used only after the original work owner checked the local person and the review's exact scope. */
+  delegationChoice(reviewId: string, version: string): { choice: AgentDelegationActionChoice; assertPending(): void } | undefined {
+    const row = this.#pending(reviewId), handler = this.#deciders.get(reviewId);
+    if (row.request.reference.version !== version) throw agentErrors.review_version_changed("原操作已变化，请重新查看");
+    if (!handler?.delegationChoice) return undefined;
+    if (this.#claims.has(reviewId)) throw agentErrors.review_decision_pending("另一项决定已经开始保存");
+    requireSynchronous(handler.assertApprovalCurrent?.());
+    const choice = handler.delegationChoice();
+    return choice && { choice: structuredClone(choice), assertPending: () => {
+      if (this.#claims.has(reviewId)) throw agentErrors.review_decision_pending("另一项决定已经开始保存");
+      if (this.#pending(reviewId) !== row || this.#deciders.get(reviewId) !== handler || handler.delegationChoice?.() !== choice) {
+        throw agentErrors.pending_not_open("原待批已结束，请重新查看权限范围");
+      }
+    } };
+  }
+
+  canProposeDelegation(reviewId: string): boolean {
+    return Boolean(this.#deciders.get(reviewId)?.delegationChoice);
+  }
+
+  /** A person can use the original pending operation as the candidate for a later round. */
+  exactPermission(reviewId: string, version: string) {
+    const row = this.#pending(reviewId), handler = this.#deciders.get(reviewId);
+    if (row.request.reference.version !== version) throw agentErrors.review_version_changed("原操作已变化，请重新查看");
+    if (this.#claims.has(reviewId)) throw agentErrors.review_decision_pending("另一项决定已经开始保存");
+    const held = handler?.exactPermission?.();
+    if (!held) return undefined;
+    return { title: held.title, scope: structuredClone(held.scope), subject: structuredClone(held.work.permission.subject),
+      beforeEffect: held.control.beforeEffect, assertCurrent: held.control.assertCurrent, assertPending: () => {
+      if (this.#claims.has(reviewId)) throw agentErrors.review_decision_pending("另一项决定已经开始保存");
+      if (this.#pending(reviewId) !== row || this.#deciders.get(reviewId) !== handler || handler?.exactPermission?.() !== held) {
+        throw agentErrors.pending_not_open("原待批已结束，请重新查看权限范围");
+      }
+    } };
+  }
+
+  hasExactPermission(reviewId: string): boolean { return Boolean(this.#deciders.get(reviewId)?.exactPermission); }
 
   #projectDecision(record: ReviewDecisionRecord): void {
     const row = this.#rows.get(record.reference.id);

@@ -2,6 +2,7 @@ import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { UiPageReviewQuery } from "@molis-ai/molis-work-contracts/platform/ui";
 import { pageDialogs } from "./dialogs.js";
 import { overFrame } from "./over-frame.js";
+import { openReviewPermission } from "./review-permission.js";
 import type { FrameDown, FrameHost, FrameScope, FrameUp } from "./types.js";
 
 type ReviewMessage = Extract<FrameUp, { type: "review-show" | "review-layout" | "review-close" }>;
@@ -51,6 +52,7 @@ export function pageReviews(port: MessagePort, scope: FrameScope, root: HTMLElem
         const lifetime = host.mountPluginClient(holder); if (!lifetime) throw new Error("Review view unavailable");
         const show = molisFrameReviews({ mountPluginClient: host.mountPluginClient, route,
           headers: () => ({ "x-molis-context-page": pageId }), confirm: text => dialogs.confirm(text),
+          permission: (trigger, id, version) => openReviewPermission(trigger, id, version, lifetime, route, () => ({ "x-molis-context-page": pageId })),
           onDecision: ({receipt, error}) => {
             const outcome = error ? "unavailable" : receipt?.effect_uncertain ? "uncertain" : receipt?.status === "rejected" ? "rejected"
               : receipt?.reconciliation ? "reconciled" : receipt?.effect_error ? "failed" : receipt?.effect_settled ? "settled" : "pending";

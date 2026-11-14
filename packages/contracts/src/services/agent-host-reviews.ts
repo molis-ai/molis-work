@@ -176,6 +176,8 @@ export interface AgentReviewRow {
   request: AgentReviewRequest;
   receipt?: AgentReviewReceipt;
   decisions: AgentReviewDecisions;
+  /** The Host can offer a choice for later rounds from this exact live proposal. This does not approve it. */
+  work_permission_available?: true;
 }
 
 export interface AgentGitIndexObservation {

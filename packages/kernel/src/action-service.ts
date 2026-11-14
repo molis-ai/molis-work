@@ -6,7 +6,7 @@ import { registeredActionMetadata } from "./action-metadata.js";
 import {
   ActionError, requireSynchronous,
   type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionClient, type ActionDefinition,
-  type ActionProvider, type ActionProviderRegistration, type ActionReference, type ActionRegistryPort,
+  type ActionProvider, type ActionProviderRegistration, type ActionReference, type ActionRegistryPort, type ExactActionReference,
   type ActionSceneTarget, type ActionSceneConfigureOptions, type ActionSceneBinding, type ActionSceneDefinition, type ActionSceneHandlerBinding, type ActionSceneUsage, type ActionView, type ActionSceneView,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityDescriptor } from "@molis-ai/molis-work-contracts/platform/app-host";
@@ -207,6 +207,16 @@ export class ActionService implements ActionClient, ActionRegistryPort {
     if (saved.definition.operation !== offered.operation || !isDeepStrictEqual(saved.definition.action, offered.action)) throw new ActionError("actions.definition_changed", "审查的能力合同已经变化");
     assertReadOnlyEffects(context, offered); assertCallerProvenance(offered.action, context);
     validateActionInput(createActionSchemaCompiler()(offered.action.input_schema), offered, context, input);
+    return this.registrationReviewControl(context, saved);
+  }
+
+  /** Pin a related registration without constructing business input for it, e.g. the undo of a reversible action. */
+  holdReviewRegistration(context: ActionCallContext, reference: ExactActionReference) {
+    const saved = captureActionRegistration(this.registry, ref => this.registry.descriptor(ref, context.project_id), reference, context);
+    return this.registrationReviewControl(context, saved);
+  }
+
+  private registrationReviewControl(context: ActionCallContext, saved: ReturnType<typeof captureActionRegistration>) {
     const assertCurrent = () => {
       saved.assertCurrent(); this.effects.assertCurrent?.(context, saved.reference);
       assertCurrentAuthority(context, saved.reference, saved.permissions);
@@ -263,6 +273,22 @@ export class ActionService implements ActionClient, ActionRegistryPort {
   /** Composition-only declarations. No handler, availability evaluation or execution authority is returned. */
   inspectSceneMetadata(context: ActionCallContext): Array<Pick<ActionSceneView, "definition" | "provider">> {
     return this.sceneDeclarations(context).map(({ metadata }) => metadata);
+  }
+
+  /** Pin the consuming owner's enabled bindings before an external action grant is written. */
+  holdRequiredScene(context: ActionCallContext, required: { scene_id: string; version: number }) {
+    const reference = { scene_id: required.scene_id, scene_version: required.version };
+    const original = this.requireScene(context, reference);
+    const bindings = () => {
+      if (this.requireScene(context, reference) !== original) throw new ActionError("actions.provider_changed", "原消费场景已变化");
+      const rows = requireSynchronous(original.handler.bindings(context), "此场景未提供可在保存时核对的绑定");
+      return rows.filter(row => row.enabled && bindingBelongsTo(row, original.definition, context));
+    };
+    const seen = structuredClone(bindings());
+    if (!seen.length) throw new ActionError("actions.binding_required", "请先为此场景选择并启用判断规则");
+    return { definition: original.definition, provider: original.provider, bindings: seen, assertCurrent: () => {
+      if (!isDeepStrictEqual(bindings(), seen)) throw new ActionError("actions.conflict", "消费场景的原绑定已变化，请重新查看授权");
+    } };
   }
 
   discoverScenes(context: ActionCallContext, judgment?: ActionReference): ActionSceneView[] {

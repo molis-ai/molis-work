@@ -125,12 +125,13 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 | `horizontal/appearance` | 一个 Home 的外观选择与最近使用语言 | `interface/state.json` 的精确选择、修订、恢复组合及本人操作回执；`config/ui-locale.json` 给没有页面的工作。定义由 Design System 发布，动作合同在 `platform/ui` | `slice` | [第 16 批 B1](../specs/font-and-skin-system/bc-runtime-contract.md) | 横向服务：@yijunw0212 |
 | `horizontal/account` | 中央账号协议与 Host 会话适配；身份和商业事实由 Auth 持有，本地身份与 Home 不变 | 固定中央客户端、可信环境、持久会话、邮箱/手机认证及 Google/GitHub 回跳；资料与商业管理页面待后续任务 | `slice` | `specs/unified-account/spec.md` | 横向服务：@yijunw0212 |
 | `horizontal/kit` | 能力包：现算这个范围里的能力包（插件包、自带、你的角色），给每条盖来源与所属的包、读出包状态 | `gatherKit`；系统动作 `kit.catalog.list` 由 Host 装配；条目由各主人的上报动作给，自己不存任何东西 | `production` | `specs/capability-pack/contract-design.md` | 横向服务：@yijunw0212 |
+| `horizontal/automation-recommender` | 项目自动化建议、每人每项目的忽略偏好 | 扫描经 Projects 的只读目录能力，候选来自原能力目录；`config/automation-recommendations.json` 保存偏好，Pages 拥有报告文稿 | `slice` | [自动化建议](../specs/automation-recommender/spec.md) | 横向服务：@yijunw0212 |
 | `horizontal/knowledge` | 项目资料：项目里所有 Agent 共用的资料查找与读取（卡片、分节、按节读原文、逐行查找），经系统搜索找、向对象主人读，用调用者的授权 | `KnowledgeService`；系统动作 `knowledge.list/search/outline/read/grep/glob` 由 Host 与系统搜索同处装配；不保存正文；内置 Agent 在项目里默认持有（可在对外接入撤销） | `production` | `specs/archive/project-knowledge/spec.md` | 横向服务：@yijunw0212 |
 | `horizontal/search` | 系统搜索：经动作目录发现插件的搜索来源、维护可重建索引、按调用者权限聚合结果 | `SearchService`；系统动作 `search.query/open/status/rebuild` 由 Host 装配；索引持久化在 storage 适配；不读插件私有库 | `production` | `specs/archive/system-search/spec.md` | 横向服务：@yijunw0212 |
 | `horizontal/memory` | 平台记忆：个人与项目记忆的开关与策略、确定性写入门、召回编排、候选、最近变动与撤销、界面信号计数 | `MemoryService`；系统动作 `memory.*` 由 Host 装配；正文、版本、删除与隔离在 Prologue Memory（经 Agent Host）；旁表在 storage 适配；不调用模型 | `production` | `specs/archive/memory-system/spec.md` | 横向服务：@yijunw0212 |
 | `horizontal/placement` | 放在哪里：对象的位置、访问范围、关联（用于项目、Goal 资料、来自/复制自）与移动后的位置索引 | `PlacementService`；系统动作 `placement.describe/spaces/related/locate/link/unlink/move/copy/convert/goals/goal.bind/create` 由 Host 装配；关系写 Home 级 Context Ledger（`placement.db`）；对象事实总向所有者读；移动/复制经插件放置协议 | `production` | `specs/archive/work-placement/spec.md` | 横向服务：@yijunw0212 |
 
-本节 9 个包分两类（见[系统架构 §3](system/ARCHITECTURE.md)）：`connector-host`、`scheduler`、`runtime-host`、`agent-host`、`account` 是横向运行服务，只保存 cursor、lease、retry 等可恢复的技术状态。例外只有一处：`agent-host` 另外保存人保存的 Agent 配置，只有外部 MCP 服务器、装进项目的 Skill（界面叫「方法」）、写后检查器三类，各在下面「Agent Host 保存的人的配置」里有一行；除此之外它也只存技术状态。`memory`、`placement`、`search`、`knowledge` 按职责属于「平台产品服务」（目录暂留在 `horizontal/` 下），可以持有跨插件的策略和本服务自己的机制记录（放置的关联与来源、记忆的开关、候选与撤销、可重建的搜索索引）。情境排序（`packages/kernel` 的 `contextual.ts`）同属平台产品服务，代码位置不变。两类都不拥有 Goal、Signal、Action、Session 等插件或 Module 的业务事实。
+本节服务分两类（见[系统架构 §3](system/ARCHITECTURE.md)）。`connector-host`、`scheduler`、`runtime-host`、`agent-host`、`account` 是横向运行服务，保存 cursor、lease、retry 等可恢复的技术状态。Agent Host 也保存下面列出的配置、工作授权和审查决定。`memory`、`placement`、`search`、`knowledge`、`automation-recommender` 属于平台产品服务，可以保存跨插件的策略和自身机制记录。情境排序在 `packages/kernel` 的 `contextual.ts`。Goal、Signal、Action、Session 等业务事实仍归原插件或 Module。
 
 **规划中的平台产品服务：观测和采集层。** [独立需求](../specs/observation-collection/spec.md)于 2026-10-27 从主动助理中迁出，尚未实现，包位置待设计；不计入上表当前包与成熟度。它负责获准的观察记录、工作关联、历史证据可用性与覆盖缺口，原始业务内容、正式状态及对象身份仍归对应插件或服务；历史证据不产生第二份可编辑事实。评测与主动助理经公开能力消费同一事实，分别负责效果判断和工作建议，不各建采集链；实施沿后续演进计划 C 轨。
 
@@ -236,8 +237,9 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 | --- | --- | --- |
 | 外部 MCP 服务器的配置（地址或命令、超时、启用；凭据只给引用） | `horizontal/agent-host` | Prologue Runtime 的存储，kind `molis-mcp`；宿主能力 `agent.mcp.*` |
 | 写后检查器：每个项目、每个已授权工作区一份，带版本 | `horizontal/agent-host` | Prologue Runtime 的存储，kind `molis-write-checkers`；动作 `agent.write_checkers.list`、`agent.write_checkers.save`，受众只有人（`specs/prologue-adoption/spec.md` §6.0p.2） |
+| 本次工作和持续授权，原审查决定及来源 | `horizontal/agent-host` | Prologue 的加密记录；统一管理从同一 owner 读取，运行时仍逐次核对原授权、安装和操作版本 |
 
-上表两类都由人保存，`agent-host` 只经 Prologue 的存储读写，不建自己的表。工作区授权本身归 Home 的项目目录（读法是 `projects.directories.get`），这里只引用它。
+Agent Host 经 Prologue 的存储读写。工作区授权由 Home 的项目目录提供（`projects.directories.get`）。现有 MCP 客户端和任务授权继续归原 MCP 设置 owner。
 
 ## 图片生成插件
 

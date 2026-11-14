@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { AsyncLocalStorage } from "node:async_hooks";
@@ -69,6 +69,98 @@ test("APR-11: cancelling an approved background command during dispatch preparat
   await f.adapter.control(f.started.ref, { kind: "stop" });
   release.resolve(); await f.settled();
   await assert.rejects(readFile(join(f.root, "effect.txt")), { code: "ENOENT" });
+});
+
+test("APR-07/08/11: the original command is reused across rounds and restart; changed argv stays pending", { timeout: 65_000 }, async t => {
+  const root = await realpath(await mkdtemp(join(tmpdir(), "molis-command-permission-")));
+  const owner = { project_id: "project", plugin_id: "fixture.coding", install_id: "fixture", actor_id: "person" };
+  const directory = { canonical_path: root, realpath_verified: true };
+  const output = "original-output";
+  const pending = [{ name: "run-command", input: { executable: "node", argv: ["-e", "require('node:fs').appendFileSync('receipt.txt', 'ran\\n')"] } }];
+  let send = true, directoryAvailable = true, waitDispatch = false, waiting = false;
+  const barrier = deferred();
+  t.mock.method(globalThis, "fetch", async () => {
+    if (send) { send = false; return cogniaScriptedResponse(pending[0]); }
+    return cogniaScriptedResponse(undefined, "Finished checking the command receipt.");
+  });
+  const check = () => { if (!directoryAvailable) throw new Error("original directory revoked"); };
+  const make = async () => {
+    const queue = new AgentReviewQueue();
+    const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.command-permission", appVersion: "1.0.0" },
+      storageRoot: join(root, "runtime"), reviewQueue: queue,
+      checks: { holdCommandWorkspace: async (project, id, path) => {
+        assert.deepEqual([project, id, path], [owner.project_id, output, root]);
+        check();
+        return { assertCurrent: check, beforeEffect: check };
+      } },
+      modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }),
+      resolveCredential: () => "test-only" });
+    return { queue, adapter };
+  };
+  let { adapter, queue } = await make();
+  t.after(async () => { barrier.resolve(); await adapter.close(); await rm(root, { recursive: true, force: true }); });
+  const session = await adapter.createSession({ ...owner, directory, title: "Original Coding session" });
+  const subject = { kind: "work" as const, actor_id: owner.actor_id, project_id: owner.project_id,
+    work: { owner_id: owner.plugin_id, id: session.session_id },
+    executor: { plugin_id: owner.plugin_id, install_id: owner.install_id, role_id: "worker", installation_generation: "original" } };
+  const start = async (beforeDispatch?: () => Promise<void>) => {
+    send = true;
+    return adapter.start({ ...owner, session, directory, role_id: "worker", task: "Run the specified local fixture.", budget: { max_turns: 2 },
+      role: { role_id: "worker", version: 1, execution: "workspace-write", prompts: [], host_tools: ["run-command"],
+        directories: { output, inputs: [], directories_revision: "original", execution: { kind: "output" } } } }, {
+      delegation: { subject, session_owner_id: owner.project_id }, beforeDispatch,
+    });
+  };
+  const settle = (run: Awaited<ReturnType<typeof start>>) => until(async () => {
+    const view = await adapter.read(run.ref);
+    return ["completed", "failed", "cancelled", "stopped"].includes(view.phase) ? view : undefined;
+  }, "the original command round did not settle");
+  const proposal = (run: Awaited<ReturnType<typeof start>>) => until(async () => queue.list(owner.project_id, "pending").find(row =>
+    row.run?.run_id === run.ref.run_id && queue.hasExactPermission(row.review_id)), "no live original command candidate");
+  const first = await start(), review = await proposal(first);
+  await assert.rejects(readFile(join(root, "receipt.txt")), { code: "ENOENT" });
+  const held = queue.exactPermission(review.review_id, review.reference.version)!;
+  assert.equal(held.scope.kind, "command-exact");
+  assert.deepEqual(held.subject, subject);
+  const previous = (await adapter.delegations.read(subject))!;
+  const control = { assertCurrent: held.assertPending, beforeEffect: held.beforeEffect };
+  const selected = await adapter.delegations.grant(subject, { expected_version: previous.storage_version, mode: "automatic",
+    scopes: [held.scope], expires_at: null }, control);
+  await settle(first);
+  await assert.rejects(readFile(join(root, "receipt.txt")), { code: "ENOENT" });
+
+  for (const restart of [false, true]) {
+    if (restart) { await adapter.close(); ({ adapter, queue } = await make()); }
+    const run = await start();
+    await settle(run); await queue.refresh(owner.project_id);
+    const actual = queue.list(owner.project_id).find(row => row.run?.run_id === run.ref.run_id);
+    assert.ok(actual);
+    const receipt = queue.receipt(actual.review_id);
+    assert.equal(receipt?.source?.kind, "delegation", JSON.stringify(receipt));
+    if (receipt.source?.kind === "delegation") assert.equal(receipt.source.delegation.id, selected.selection_id);
+    assert.equal(await readFile(join(root, "receipt.txt"), "utf8"), "ran\n".repeat(restart ? 2 : 1));
+  }
+
+  const originalArgs = pending[0]!.input.argv;
+  pending[0]!.input.argv = ["-e", "require('node:fs').writeFileSync('different.txt', 'new input')"];
+  const different = await start(), differentReview = await proposal(different);
+  await assert.rejects(readFile(join(root, "different.txt")), { code: "ENOENT" });
+  await queue.respond({ review_id: differentReview.review_id, version: differentReview.reference.version, actor_id: owner.actor_id, decision: "reject" });
+  await settle(different);
+  pending[0]!.input.argv = originalArgs;
+  waitDispatch = true;
+  const same = await start(async () => {
+    const row = queue.list(owner.project_id).at(-1);
+    if (waitDispatch && row && queue.receipt(row.review_id)?.source?.kind === "delegation") {
+      waiting = true;
+      await barrier.promise;
+    }
+  });
+  await until(async () => waiting ? true : undefined, "authorized command did not reach the dispatch boundary");
+  directoryAvailable = false;
+  barrier.resolve();
+  await settle(same);
+  assert.equal(await readFile(join(root, "receipt.txt"), "utf8"), "ran\nran\n", "loss of the exact directory at the final wait prevents a new process");
 });
 
 function commandBoundary() {

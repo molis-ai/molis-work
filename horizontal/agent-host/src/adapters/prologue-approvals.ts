@@ -3,6 +3,7 @@ import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/acti
 import type {
 
   AgentReviewDocument,
+  AgentDelegationActionChoice,
   AgentReviewKind,
   AgentReviewReceipt,
   AgentReviewRequest,
@@ -14,6 +15,7 @@ import type {
 } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 import { AgentReviewQueue, type ReviewDecisionCommit } from "../reviews.js";
+import type { ExactPermission } from "./prologue-exact-permission.js";
 
 /**
  * Bridges Prologue's pending effect approvals to the Host Review queue.
@@ -61,8 +63,10 @@ export interface ProloguePendingPort {
 
 type PrologueApprovalControl = AgentActionReviewControl & {
   beforeAnswer?(): void;
+  delegationChoice?(): AgentDelegationActionChoice | undefined;
+  exactPermission?(): ExactPermission | undefined;
   readonly workSelection?: boolean;
-  readonly automatic?: { source: Extract<ReviewDecisionSource, { kind: "delegation" | "policy" }>; assertCurrent(): void; activate(): void };
+  readonly automatic?: { source: Extract<ReviewDecisionSource, { kind: "delegation" | "policy" }>; beforeEffect?(): void | Promise<void>; assertCurrent(): void; activate(): void };
 };
 
 export interface PrologueApprovalBridgeOptions {
@@ -72,7 +76,8 @@ export interface PrologueApprovalBridgeOptions {
   /** Persist the Host's decision before waking SDK execution; not an effect receipt. */
   recordDecision?(pending: ProloguePending, receipt: AgentReviewReceipt): Promise<void>;
   /** The person allowed this run to act in the approved desktop action's app for the rest of the round (D06). */
-  allowAppForRound?(pending: ProloguePending): Promise<void>;
+  allowAppForRound?(pending: ProloguePending, request: AgentReviewRequest, receipt: AgentReviewReceipt): void;
+  useRule?(request: AgentReviewRequest, source: Extract<ReviewDecisionSource, { kind: "policy" }>): { assertCurrent(): void; activate(): void; release(): void };
   /** Preserve the original presentation before a later restart projects it. */
   recordRequest?(pending: ProloguePending, request: AgentReviewRequest): Promise<void>;
 }
@@ -93,6 +98,7 @@ export class PrologueApprovalBridge {
   readonly #now: () => Date;
   readonly #recordDecision: PrologueApprovalBridgeOptions["recordDecision"];
   readonly #allowAppForRound: PrologueApprovalBridgeOptions["allowAppForRound"];
+  readonly #useRule: PrologueApprovalBridgeOptions["useRule"];
   readonly #recordRequest: PrologueApprovalBridgeOptions["recordRequest"];
   readonly #pendingByReview = new Map<string, ProloguePendingRef>();
   readonly #answered = new Set<(run: AgentRunRef, pendingId: string) => void>();
@@ -125,6 +131,7 @@ export class PrologueApprovalBridge {
     this.#now = options.now ?? (() => new Date());
     this.#recordDecision = options.recordDecision;
     this.#allowAppForRound = options.allowAppForRound;
+    this.#useRule = options.useRule;
     this.#recordRequest = options.recordRequest;
   }
 
@@ -170,7 +177,7 @@ export class PrologueApprovalBridge {
           this.#queue.cancel(request.review_id, "原执行等待已结束");
           return false;
         };
-      }, input.approval.assertCurrent, input.approval.beforeEffect, input.approval.workSelection !== true);
+      }, input.approval.assertCurrent, input.approval.beforeEffect, input.approval.workSelection !== true, input.approval.delegationChoice, input.approval.exactPermission);
       this.#pendingByReview.set(request.review_id, pendingRef);
     }
     return request;
@@ -217,7 +224,7 @@ export class PrologueApprovalBridge {
         approval,
     });
     if (approval.automatic) {
-      try { await this.#queue.respondAutomatically(request, approval.automatic.source, approval.automatic.assertCurrent); }
+      try { await this.#queue.respondAutomatically(request, approval.automatic.source, approval.automatic.assertCurrent, approval.automatic.beforeEffect); }
       catch { /* An uncommitted automatic decision leaves the original wait for the person. */ }
     }
     if (this.#queue.receipt(request.review_id)?.status === "pending") await this.#recordRequest?.(pending, request);
@@ -268,10 +275,17 @@ export class PrologueApprovalBridge {
     if (input.remember === "app-this-round" && (input.decision !== "approve" || request.document.kind !== "tool-operation" || !request.document.round_allow)) {
       throw agentErrors.review_not_permitted("这张审查卡没有提供本轮应用许可");
     }
-    const receipt = await commit(() => this.#assertOpen());
+    const source = commit.source;
+    const standing = source?.kind === "policy" && ["agent.session-rule", "agent.run-app"].includes(source.owner);
+    const hold = standing ? this.#useRule?.(request, source) : undefined;
+    if (standing && !hold) throw agentErrors.review_not_permitted("原轮次不能继续使用这份许可");
+    let receipt: AgentReviewReceipt;
+    try { receipt = await commit(() => { this.#assertOpen(); hold?.assertCurrent(); }); }
+    catch (error) { hold?.release(); throw error; }
+    let activated = false;
     const assertCurrent = () => {
       this.#assertOpen();
-      commit.assertCurrent();
+      commit.assertCurrent(); hold?.assertCurrent();
       if (!this.#pendings.canAnswer(pendingRef)) throw agentErrors.pending_not_open("原执行等待已结束，决定不会送达");
     };
 
@@ -286,7 +300,8 @@ export class PrologueApprovalBridge {
         assertCurrent();
         if (input.decision === "approve") {
           requireSynchronous(approval?.beforeAnswer?.());
-          if (receipt.source?.kind === "delegation" || receipt.source?.kind === "policy" && receipt.source.owner === "agent.assistant-reversible") {
+          if (hold) { hold.activate(); activated = true; }
+          else if (receipt.source?.kind === "delegation" || receipt.source?.kind === "policy" && receipt.source.owner === "agent.assistant-reversible") {
             if (!approval?.automatic) throw agentErrors.review_not_permitted("原自动许可不可读取");
             approval.automatic.activate();
           }
@@ -298,7 +313,8 @@ export class PrologueApprovalBridge {
           this.#assertOpen(); commit.assertCurrent();
           await approval.beforeEffect();
           this.#assertOpen(); commit.assertCurrent();
-          await this.#allowAppForRound(pending);
+          approval.assertCurrent();
+          this.#allowAppForRound(pending, request, receipt);
         }
         catch { this.#queue.rememberFailed(input.review_id, "原决定已送达，但本轮应用许可未设置；后续操作仍按当前授权确认"); }
       }
@@ -317,7 +333,7 @@ export class PrologueApprovalBridge {
       // or retry it automatically; preserve the user's decision for recovery.
       return this.#queue.deliveryFailed(input.review_id,
         error instanceof Error ? error.message : "执行方尚未确认收到决定，结果待核对");
-    }
+    } finally { if (!activated) hold?.release(); }
   }
 
   /**

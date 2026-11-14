@@ -91,19 +91,20 @@ export const ASSISTANT_CONVERSATION_PART = String.raw`  /* ─── Showing a t
     }
   };
   const renderReview = (card, work, review) => {
-    const decisions=JSON.stringify(review.decisions);
+    const decisions=JSON.stringify([review.decisions, review.permission_available]);
     const sameVersion=card.dataset.reviewVersion===review.version;
     if(card.dataset.painted&&sameVersion&&card.dataset.reviewDecisions===decisions)return;
     card.dataset.reviewDecisions=decisions;
     card.dataset.reviewVersion=review.version;
     if(card.dataset.painted&&sameVersion){
-      const row=card.querySelector('.assistant-card-actions'),focused=row.contains(document.activeElement)?document.activeElement.dataset.assistantDecision:null;
+      const row=card.querySelector('.assistant-card-actions'),active=row.contains(document.activeElement)?document.activeElement:null;
+      const focused=active?.dataset.assistantDecision, permissionFocused=active?.hasAttribute('data-assistant-permission-open');
       const updated=document.createElement('template');updated.innerHTML=review.html;
       row.innerHTML=updated.content.querySelector('.assistant-card-actions').innerHTML;
       card.querySelector('.assistant-card-hint').replaceWith(updated.content.querySelector('.assistant-card-hint'));
       if(row.ariaBusy==='true')row.querySelectorAll('[data-assistant-decision]').forEach(button=>{button.ariaDisabled='true';});
       retitleReviewText(card);
-      if(focused){let next=row.querySelector('[data-assistant-decision="'+focused+'"]');if(!next){next=card.querySelector('.assistant-card-title');next.tabIndex=-1;}next.focus({preventScroll:true});}
+      if(active){let next=permissionFocused?row.querySelector('[data-assistant-permission-open]'):focused?row.querySelector('[data-assistant-decision="'+focused+'"]'):null;if(!next){next=card.querySelector('.assistant-card-title');next.tabIndex=-1;}next.focus({preventScroll:true});}
       return;
     }
     card.dataset.painted='1';

@@ -8,6 +8,7 @@ export interface McpAccessEntry {
   plugin_id?: string;
   title: string; provider_title: string; description: string; kind: string;
   permissions: readonly string[];
+  expected: { expected_generation: string } | { expected_absent: true };
   status: "ungranted" | "enabled" | "disabled" | "unavailable" | "stale" | "missing" | "public";
   reason?: string;
   can_enable: boolean;
@@ -33,7 +34,7 @@ export function renderMcpAccessRows(model: Pick<McpAccessModel, "entries" | "que
     && (model.filter !== "granted" || row.can_revoke) && (model.filter !== "attention" || ["stale", "missing", "unavailable"].includes(row.status)));
   return `<p class="mcp-access-count" role="status">${uiText("workbench.mcp-access.count-count", { count: entries.length })}</p>${entries.length ? entries.map(row => {
     const key = e(mcpAccessEntryKey(row));
-    const action = (enabled: boolean, label: string) => `<button type="button" class="mw-btn mw-btn--secondary" data-mcp-grant="${key}" data-grant-enabled="${enabled}">${uiText(label)}</button>`;
+    const action = (enabled: boolean, label: string) => `<button type="button" class="mw-btn mw-btn--secondary" data-mcp-grant="${key}" data-grant-expected="${e(JSON.stringify(row.expected))}" data-grant-enabled="${enabled}">${uiText(label)}</button>`;
     return `<article class="mcp-access-row" data-grant-row="${key}"><div class="mcp-access-copy"><h3>${e(row.title)}</h3><p>${e(row.description)}</p><span class="mcp-access-origin">${e(row.provider_title)} · v${row.version} · ${uiText(row.kind === "query" ? "workbench.mcp-access.query" : row.kind === "judgment" ? "workbench.mcp-access.evaluation" : "workbench.mcp-access.action")}</span><p class="mcp-access-state" data-status="${row.status}" data-mw-state="${row.status === "enabled" || row.status === "public" ? "ready" : row.status === "stale" || row.status === "ungranted" ? "reauth" : row.status === "disabled" ? "disabled" : "unavailable"}">${uiText(labels[row.status])}${row.reason ? ` · ${e(row.reason)}` : ""}</p><details><summary>${uiText("workbench.mcp-access.view-permissions-identity")}</summary><dl><dt>${uiText("workbench.mcp-access.required-permissions")}</dt><dd>${e(row.permissions.join(", ") || uiText.text("workbench.mcp-access.no-additional-permissions"))}</dd><dt>${uiText("workbench.mcp-access.capabilities")}</dt><dd><code>${e(row.capability_id)}@${row.version}</code></dd><dt>${uiText("workbench.mcp-access.provider")}</dt><dd><code>${e(row.provider_id)}</code></dd></dl></details></div><div class="mcp-access-actions">${row.can_enable ? action(true, row.status === "stale" ? "workbench.mcp-access.update-access" : "workbench.mcp-access.authorize-capability") : ""}${row.can_revoke ? action(false, "workbench.mcp-access.revoke-access") : ""}</div></article>`;
   }).join("") : `<div class="settings-empty"><strong>${uiText("workbench.mcp-access.no-matching-capabilities")}</strong><span>${uiText("workbench.mcp-access.adjust-search-filters-select-another-scope")}</span></div>`}`;
 }

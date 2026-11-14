@@ -1,5 +1,7 @@
 import { escapeHtml, renderButton, renderComposer, t as uiText, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { assistantComposerLabels } from "./assistant-composer-labels.js";
+import { renderAssistantPermissions, renderReviewPermission } from "./assistant-permissions.js";
+import { renderAutomationRecommendations } from "./automation-recommendations.js";
 
 /** The glyphs the side pane draws for kinds of things and states, rendered once from the shared icon set. */
 const ASSISTANT_GLYPHS: readonly PluginIconName[] = ["file", "note", "image", "zap", "check", "circle", "clock", "flag", "undo", "edit", "alert", "circle-alert", "sparkles", "package",
@@ -41,6 +43,8 @@ export function renderAssistantDock(primitives: { readText(value: string): strin
                 </span>
               </div>
               <p class="assistant-summary-title" data-assistant-work-title>${uiText("workbench.assistant-dock.new-work")}</p>
+              ${renderButton({ variant: "ghost", size: "sm", icon: "shield", label: uiText.text("workbench.authorization.choose"), attrs: { "data-assistant-permission-open": "", "data-assistant-permission-summary": true, hidden: true } })}
+              ${renderButton({ variant: "ghost", size: "sm", icon: "sparkles", label: uiText.text("workbench.automation.title"), attrs: { "data-automation-open": "", "data-assistant-automation": true, hidden: true } })}
               <p class="assistant-summary-now" data-assistant-now hidden></p>
               <dl class="assistant-summary-meta" data-assistant-meta></dl>
             </section>
@@ -71,7 +75,8 @@ export function renderAssistantDock(primitives: { readText(value: string): strin
             <button class="assistant-jump" type="button" data-assistant-jump hidden></button>
           </div>
         </div>
-      </section>
+      </section>${renderAssistantPermissions()}${renderReviewPermission()}${renderAutomationRecommendations()}
+      <p class="settings-form-error" data-automation-load-error role="alert" hidden></p>
       <div class="assistant-context-strip" data-assistant-context-strip role="group" hidden></div>
       <div class="assistant-next-row" data-assistant-next-row hidden></div>
       <div class="assistant-popover assistant-notices" id="assistant-notices" data-assistant-notices role="group" aria-label="${uiText("workbench.assistant-dock.needs-attention")}" hidden></div>

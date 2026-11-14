@@ -1,4 +1,4 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { renderButton, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-design-system";
 /** A CSS string literal for a custom property: whatever could end the string or the attribute is written as a hex escape. */
 const cssString = (value: string) => "'" + value.replace(/[\\'"<>&\n]/g, character => '\\' + character.codePointAt(0)!.toString(16) + ' ') + "'";
@@ -17,6 +17,8 @@ export function renderAgentStudio(text: (key: string, values?: Record<string, st
     + '<header class="as-top"><div class="as-top-actions"><label class="as-select"><span class="as-sr">' + mine + '</span><select data-as-builds aria-label="' + mine + '"></select></label>'
     + '<button class="as-icon" type="button" data-as-new aria-label="' + newPlugin + '" title="' + newPlugin + '"><svg aria-hidden="true"><use href="#icon-plus"/></svg></button>'
     + '<label class="as-select as-model"><span>' + text("plugin-builder.agent-studio.model") + '</span><select data-as-model aria-label="' + text("plugin-builder.agent-studio.model-used-building") + '"></select></label>'
+    + renderButton({ variant: "ghost", size: "sm", icon: "sparkles", iconOnly: true,
+      label: text("plugin-builder.agent-studio.automation-suggestions"), attrs: { "data-automation-open": true } })
     + '<a class="as-model-setup" data-as-model-setup href="/settings/models" hidden>' + text("plugin-builder.agent-studio.open-model-settings") + '</a></div></header>'
     + '<aside class="as-left" aria-label="' + text("plugin-builder.agent-studio.collaboration") + '"><div class="as-feed" data-as-feed aria-live="polite"></div>'
     + '<label class="as-select" data-as-edit-label hidden><span>' + edit + '</span><select data-as-edit-mode aria-label="' + edit + '"><option value="message">' + text("plugin-builder.agent-studio.features-interface") + '</option><option value="visual">' + text("plugin-builder.agent-studio.interface-only") + '</option></select></label>'

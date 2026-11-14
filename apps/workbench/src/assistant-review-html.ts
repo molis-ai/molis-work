@@ -38,7 +38,8 @@ export function renderAssistantReviewHtml(review: AssistantPendingReview, ports:
   if (exact.length) html += `<details class="assistant-exact"><summary>${say("workbench.assistant-review.exact-arguments-capability")}</summary>${exact.map(field => `<p class="assistant-muted">${copy(field.label)}</p><pre><span translate="no">${escaped(field.value)}</span></pre>`).join("")}</details>`;
   const { approve, reject } = review.decisions;
   const choices = (approve.available ? `<button class="mw-btn mw-btn--primary mw-btn--sm" type="button" data-assistant-decision="approve">${say("workbench.assistant-review.allow-run")}</button>` : "")
-    + (reject.available ? `<button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-assistant-decision="reject">${say("workbench.agent-review.reject")}</button>` : "");
+    + (reject.available ? `<button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-assistant-decision="reject">${say("workbench.agent-review.reject")}</button>` : "")
+    + (review.permission_available && approve.available ? `<button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-assistant-permission-open="${escaped(review.review_id)}">${say("workbench.authorization.choose")}</button>` : "");
   const hint = approve.available ? say("workbench.assistant-review.decision-hint") : fixedWord(approve.reason, read(approve.reason));
   return html + `<div class="assistant-card-actions">${choices}</div><p class="assistant-card-hint">${hint}</p>`;
 }

@@ -13,6 +13,8 @@ export function mountKit(root: HTMLElement): () => void {
   const body = $("body"), notice = $("notice"), search = $<HTMLInputElement>("search"), kindSelect = $<HTMLSelectElement>("kind"), groupSelect = $<HTMLSelectElement>("group");
   const pluginsHref = `/projects/${encodeURIComponent(project || "personal")}/settings/plugins`;
   const view: View = { query: "", kind: "all", group: "all", detail: false };
+  const link = new URLSearchParams(root.closest<HTMLElement>("[data-settings-source]")?.dataset.settingsSearch ?? location.search);
+  let followLink = Boolean(link.get("install") && (link.get("skill") || link.get("role")));
   const selectedLanguage = () => document.documentElement.dataset.uiLanguageTag ?? document.documentElement.lang;
   let kit: Kit | undefined, failure: unknown, turn = 0, entering = false, requestedLanguage: string | undefined;
 
@@ -35,6 +37,17 @@ export function mountKit(root: HTMLElement): () => void {
         return;
       }
       kit = kitOf(catalog);
+      if (followLink) {
+        followLink = false;
+        const install = link.get("install");
+        const selected = catalog.entries.find(entry => entry.source.kind === "plugin" && entry.source.install_id === install
+          && (entry.kind === "skill" && entry.skill.ref.skill_id === link.get("skill")
+            && entry.skill.ref.installation_generation === link.get("generation") && String(entry.skill.ref.version) === link.get("version")
+            || entry.kind === "role" && entry.ref.kind === "plugin" && entry.ref.owner_id === link.get("owner")
+            && entry.ref.role_id === link.get("role") && entry.source.version === link.get("version")));
+        if (selected) open(selected.pack, selected.key);
+        else say(readText("workbench.automation.item-changed"), "danger");
+      }
     } catch (cause) {
       if (mine !== turn || !root.isConnected) return;
       if (retitle && kit) { requestedLanguage = undefined; say((cause as Error)?.message || readText("workbench.kit.host-did-not-respond"), "danger"); return; }

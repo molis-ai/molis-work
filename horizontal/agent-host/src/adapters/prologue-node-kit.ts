@@ -1,6 +1,8 @@
 import type { AsyncLocalStorage } from "node:async_hooks";
 import { SYSTEM_TOOL_NAMES, type ExactRef, type ModelEvent, type PolicySnapshot, type Runtime, type Skill } from "@prologue/sdk";
 import type { createNodeHost } from "@prologue/sdk/node";
+import type { McpDispatch } from "./prologue-mcp-dispatch.js";
+import type { RoundMcp } from "./prologue-round-mcp.js";
 import type { AgentActionClient } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { ActionView, ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PrologueAdapterPorts, PrologueStartInput } from "./prologue.js";
@@ -13,6 +15,7 @@ import type { StopGuard } from "./prologue-stop-guard.js";
 import { agentTool } from "../tool-catalog.js";
 import type { PrologueActionReviews } from "./prologue-action-reviews.js";
 import type { ReviewDecisionControl } from "../review-decisions.js";
+import type { PrologueWorkDelegation } from "./prologue-work-delegation.js";
 
 /**
  * What the parts of the Node composition share (W4-06 split `initializePrologueNodeAdapter` into them): the adapter's
@@ -62,7 +65,8 @@ export interface PrologueNodeAdapterOptions extends PrologueAdapterPorts {
 }
 
 export type NodeHost = ReturnType<typeof createNodeHost>;
-export type DispatchGuards = AsyncLocalStorage<ReviewDecisionControl>;
+export type DispatchControl = ReviewDecisionControl & { readonly mcp?: McpDispatch };
+export type DispatchGuards = AsyncLocalStorage<DispatchControl>;
 export type CommandEvent = Extract<ModelEvent, { type: "command-receipt" }>;
 /** The kinds of ending a round's stop check holds once each. */
 export type HeldKind = "memory" | "written" | "button" | "ids" | "saved" | "announce";
@@ -98,7 +102,9 @@ export interface RoundState {
   readonly roundFacts: Map<string, RoundFacts>;
   readonly actionControllers: Map<string, AbortController>;
   readonly runRoots: Map<string, ExactRef<"authorized-root">>;
-  readonly activeRuns: Map<string, { live(): boolean; assertAuthority(): void; steer(text: string): Promise<void>; readonly policy?: PolicySnapshot; readonly workSelection?: boolean }>;
+  readonly activeRuns: Map<string, { live(): boolean; assertAuthority(): void; steer(text: string): Promise<void>;
+    usePolicy?(id: string, assertCurrent: () => void): void; useExact?(id: string, control: ReviewDecisionControl): void;
+    stop?(): Promise<void>; readonly policy?: PolicySnapshot; readonly work?: PrologueWorkDelegation; readonly workSelection?: boolean; readonly mcp?: RoundMcp }>;
   /** Which session each run belongs to, and the run ref, so "allow in this app this round" binds to that run. */
   readonly runSessions: Map<string, string>;
   readonly runRefs: Map<string, ExactRef<"run">>;

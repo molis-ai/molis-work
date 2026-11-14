@@ -21,7 +21,7 @@ import { WorkExecutor, executorProviders, offerExecutors, type ExecutorControl }
 import type { ExecutorHanded } from "./assistant-executor-input.js";
 import { AssistantInputs, addressesRound, assertRoundToAddress, inputsOf, type SendIntent } from "./assistant-inputs.js";
 import { ownerOf, roundStartInput } from "./assistant-round-start.js";
-import { assistantEndControl, assistantWorkEnding, assistantWorkPermission, holdAssistantWorkLifetime, inAssistantWorkEffect } from "./assistant-work-permissions.js";
+import { assertAssistantSessionSettled, assistantEndControl, assistantWorkEnding, assistantWorkPermission, holdAssistantWorkLifetime, inAssistantWorkEffect } from "./assistant-work-permissions.js";
 import { recoveryAction } from "./assistant-parked-answer.js";
 import { RUNTIME, MAX_TEXT, sessionRef, HANDOVER_MARK, assertSendCurrent, type AssistantServicePorts, type AssistantCaller, type RoundMaterials } from "./assistant-service-shared.js";
 import { RELATION_WORDS, describeObjects, type CapabilityTitles } from "./assistant-present.js";
@@ -75,7 +75,9 @@ export class AssistantDispatch {
     if (to?.kind !== "assistant" && !(to?.kind === "plugin" && typeof to.plugin_id === "string" && to.plugin_id)) throw assistantErrors.invalid("只能交给执行方插件或助理");
     const release = this.store.holdWorkPermissions([workId]);
     try {
-      const state = await this.link.stateSafely(work);
+      const host = await this.ports.host();
+      assertAssistantSessionSettled(host, work);
+      const state = await this.link.stateSafely(work, true);
       if (["running", "waiting-input", "waiting-review", "paused", "needs-check"].includes(state)) throw assistantErrors.state("请先结束这一轮或核对中断结果");
       const control = assistantEndControl(this.store, work, caller);
       if (to.kind === "plugin") await this.handoverToPlugin(work, to.plugin_id, input.mode, control);
@@ -94,7 +96,9 @@ export class AssistantDispatch {
     const executor = await this.executorOf(work, pluginId, { control: { beforeEffect: async () => { await control.beforeEffect(); }, assert_authority_current: control.assertCurrent } });
     const brief = await this.handoverBrief(work);
     const { provider } = executor;
-    const ending = assistantWorkEnding(await this.ports.host(), work);
+    const host = await this.ports.host();
+    assertAssistantSessionSettled(host, work);
+    const ending = assistantWorkEnding(host, work);
     const finish = await ending?.begin("executor-changed", control);
     let sessionId = this.store.relations.forWork(identity(work)).filter(row => row.relation === "session" && row.object.kind === provider.session_kind).at(-1)?.object.id ?? null;
     if (!sessionId) {
@@ -135,7 +139,7 @@ export class AssistantDispatch {
     if (!this.ports.personActions) throw assistantErrors.unsupported("当前环境不能从这里使用执行方插件");
     const id = pluginId ?? ("executor" in work && work.executor.kind === "plugin" ? work.executor.plugin_id : undefined);
     if (!id) throw assistantErrors.invalid("这项工作不由执行方插件承担");
-    const handed = dispatch && { original: dispatch.original, skills: dispatch.skills };
+    const handed = dispatch?.original || dispatch?.skills?.length ? { original: dispatch.original, skills: dispatch.skills } : undefined;
     return WorkExecutor.bind(await this.ports.personActions(work, dispatch ? "dispatch" : undefined, handed, id), id, dispatch?.control);
   }
 
@@ -167,7 +171,7 @@ export class AssistantDispatch {
       assert_authority_current: () => { requireSynchronous(assertBeforeStart?.(), "最终授权检查必须同步完成"); assertSendCurrent(stillCurrent); handoff?.assertCurrent(); }, ...(locale ? { locale } : {}) } });
     if (work.executor.kind !== "plugin") throw assistantErrors.invalid("这项工作不由执行方插件承担");
     // The mode chosen before the first Send is saved on the session, where the plugin's page reads it too.
-    if (!work.executor.session_id) work = await openSession(this.store, this.actorId, work, executor, mode);
+    if (!work.executor.session_id) work = await openSession(this.store, this.actorId, work, executor, mode, assertBeforeStart);
     const sessionId = (work.executor as { session_id: string }).session_id;
     const read = await executor.read(sessionId, 2);
     assertSendCurrent(stillCurrent);
@@ -291,7 +295,12 @@ export class AssistantDispatch {
       this.recalled.delete(work.work_id); this.chosenMemory.delete(work.work_id); this.starting.delete(work.work_id);
       throw error;
     }
-    await inputEffect.beforeEffect(); inputEffect.assertCurrent();
+    try { await inputEffect.beforeEffect(); inputEffect.assertCurrent(); }
+    catch (error) {
+      this.recalled.delete(work.work_id); this.chosenMemory.delete(work.work_id); this.starting.delete(work.work_id);
+      try { await adapter.control(handle.ref, { kind: "cancel" }); } catch (failure) { throw new AggregateError([error, failure], "已接受的原轮停止结果仍需核对"); }
+      throw error;
+    }
     this.store.markTold(this.actorId, prepared.told);
     this.store.addRound(work.work_id, { run_id: handle.ref.run_id, text, materials, context, started_at: startedAt, ...(writtenBy ? { written_by: writtenBy } : {}), ...(work.character ? { character: { ...work.character } } : {}),
       ...(spent.budget_tokens === null ? {} : { work_budget: spent.budget_tokens }), ...(this.recalled.get(work.work_id) ? { memory_receipt: this.recalled.get(work.work_id)! } : {}) });

@@ -152,6 +152,9 @@ function guardGatewayTool(run: GatewayToolRun, runSignal?: AbortSignal): ToolRun
     if (runSignal?.aborted || call.signal?.aborted || call.abort?.requested()) stop();
     try { abort.signal.throwIfAborted(); return await run(call.args as Record<string, unknown>, abort.signal, randomUUID(), call.callId); }
     catch (error) {
+      if (error instanceof ActionError && error.code === "actions.outcome_unknown") {
+        throw createPrologueError("EFFECT_RECONCILE_REQUIRED", error.message);
+      }
       if (error instanceof ActionError && !abort.signal.aborted) {
         throw createPrologueError("HOST_RESPONSE_INVALID", `${error.code}: ${error.message}`);
       }

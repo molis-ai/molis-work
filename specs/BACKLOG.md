@@ -20,6 +20,8 @@
 
 按[第 01 批本人试用单](post-anticorruption-roadmap/reference/acceptance-01.md)逐项试：已有实现与前置条件分别写明。BL-010／013 尚待对应实现，BL-929 的真实 Home 已重建、待你试；BL-001 已委托，BL-017 已接受已有验证、个人账号路径未实测。第 16 批外观/首屏/组件板本人验收见 [BL-b16-appearance-acceptance](backlog/BL-b16-appearance-acceptance.md)。不要把本节整体当作可立即验收或已获认可。
 
+第 39 批本人验收见[授权、人审与统一管理页的验收表](agent-approval/spec.md#batch-39-kickoff)和[项目建议的 Skill 使用与撤销](automation-recommender/spec.md#第-39-批证据)。随本批最终交付在隔离 Home 操作权限选择、授权管理及审批来源。
+
 
 ## 2. 待你决定
 

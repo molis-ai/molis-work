@@ -30,17 +30,23 @@ export type AssistantOutcomesLinks = Pick<AssistantDispatch, "executorOf" | "dis
  * `link`.
  */
 export class AssistantOutcomes {
-  constructor(private readonly store: Pick<AssistantStore, "addCard" | "assertWorkPermissionTransitionFree" | "get" | "raiseNotice" | "relations" | "rounds" | "saveUndo" | "setSetting" | "setting" | "undos">, private readonly ports: AssistantServicePorts, private readonly actorId: string, private readonly now: () => Date, private readonly titles: Map<string, CapabilityTitles>, private readonly link: AssistantOutcomesLinks) {}
+  constructor(private readonly store: Pick<AssistantStore, "addCard" | "get" | "holdWorkInput" | "raiseNotice" | "relations" | "rounds" | "saveUndo" | "setSetting" | "setting" | "undos">, private readonly ports: AssistantServicePorts, private readonly actorId: string, private readonly now: () => Date, private readonly titles: Map<string, CapabilityTitles>, private readonly link: AssistantOutcomesLinks) {}
 
   async answer(workId: string, input: { run_id: string; pending_id: string; pending_revision?: number; text?: string;
     answers?: ReadonlyArray<import("@molis-ai/molis-work-contracts/services/agent-interaction").AgentQuestionAnswer> }, caller: AssistantCaller = {}): Promise<AssistantWorkView> {
     const work = this.store.get(this.actorId, workId);
-    this.store.assertWorkPermissionTransitionFree(workId);
+    const entry = this.store.holdWorkInput(workId);
+    try { return await this.answerOriginal(work, input, caller, entry.assertCurrent); }
+    finally { entry.release(); }
+  }
+
+  private async answerOriginal(work: StoredWork, input: Parameters<AssistantOutcomes["answer"]>[1], caller: AssistantCaller, assertEntry: () => void): Promise<AssistantWorkView> {
+    const workId = work.work_id;
     const host = await this.ports.host();
     const assertLifetime = await holdAssistantWorkLifetime(host, work);
     const original = assistantEndControl(this.store, work);
     const assertCurrent = () => {
-      this.store.assertWorkPermissionTransitionFree(workId); assertLifetime?.(); original.assertCurrent();
+      assertEntry(); assertLifetime?.(); original.assertCurrent();
       const current = this.store.get(this.actorId, workId);
       if (current.archived || current.delegated_by?.taken_back_at) throw assistantErrors.state("这项工作已经归档或收回");
       requireSynchronous(caller.assertBeforeStart?.());

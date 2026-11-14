@@ -1,10 +1,10 @@
 import { AssistantRequests } from "./assistant-requests.js";
 import type { ActionResultPresentation } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AssistantThreadRound } from "./assistant-thread-types.js";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { assistantErrors } from "./assistant-errors.js";
 import { AssistantFollowUpRecords } from "./assistant-followups.js";
-import { applySqliteBaseline, openBaselineHomeSqlite, type openHomeSqliteDatabase, type SqliteBaseline, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
+import { applySqliteBaseline, openBaselineHomeSqlite, rollbackPreservingError, type openHomeSqliteDatabase, type SqliteBaseline, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 import { CONTEXT_LEDGER_SCHEMA } from "@molis-ai/molis-work-module-context-ledger";
 import { AssistantRelations } from "./assistant-relations.js";
 import { AssistantUsageLedger } from "./assistant-usage-ledger.js";
@@ -169,7 +169,9 @@ export class AssistantStore {
 
   /** Who hears that a work's stored facts changed (record, rounds, cards, follow-ups, jobs, undos, usage): the page's wait. */
   readonly #changes = new Set<(workId: string) => void>();
+  readonly #actionPolicyChanges = new Map<string, { access?: object; confirmation?: object }>();
   readonly #endingPermissions = new Set<string>();
+  readonly #permissionInputs = new Map<string, Set<{ current: boolean }>>();
 
   constructor(private readonly db: DatabaseSync, private readonly now = () => new Date()) {
     applySqliteBaseline(db, ASSISTANT_STORE_NAME, ASSISTANT_STORE_BASELINE);
@@ -210,10 +212,27 @@ export class AssistantStore {
   }
 
   /** One owner's stop, archive or take-back can finish at a time for each work it affects. */
-  holdWorkPermissions(workIds: readonly string[]): () => void {
+  holdWorkPermissions(workIds: readonly string[], invalidatesInput = true): () => void {
     for (const id of workIds) this.assertWorkPermissionTransitionFree(id);
-    for (const id of workIds) this.#endingPermissions.add(id);
+    for (const id of workIds) {
+      this.#endingPermissions.add(id);
+      if (invalidatesInput) for (const input of this.#permissionInputs.get(id) ?? []) input.current = false;
+    }
     return () => { for (const id of workIds) this.#endingPermissions.delete(id); };
+  }
+
+  /** Capture before any external read, so a late input cannot acquire a replacement work lifetime. */
+  holdWorkInput(workId: string) {
+    this.assertWorkPermissionTransitionFree(workId);
+    const group = this.#permissionInputs.get(workId) ?? new Set(), input = { current: true };
+    group.add(input); this.#permissionInputs.set(workId, group);
+    return {
+      assertCurrent: () => {
+        this.assertWorkPermissionTransitionFree(workId);
+        if (!input.current) throw assistantErrors.state("原工作的权限边界已经变化");
+      },
+      release: () => { input.current = false; group.delete(input); if (!group.size) this.#permissionInputs.delete(workId); },
+    };
   }
 
   assertWorkPermissionTransitionFree(workId: string): void {
@@ -283,9 +302,61 @@ export class AssistantStore {
 
   setActionEnabled(actorId: string, key: string, enabled: boolean): Set<string> {
     const current = this.disabledActions(actorId);
+    if (enabled === !current.has(key)) return current;
     if (enabled) current.delete(key); else current.add(key);
     this.setSetting(actorId, "disabled_actions", JSON.stringify([...current].sort()));
+    this.#recordActionPolicyChange(actorId, key, "access");
     return current;
+  }
+
+  actionPolicies(actorId: string) {
+    const rows = this.db.prepare("SELECT key, value, revision FROM assistant_settings WHERE actor_id=? AND key IN ('disabled_actions', 'confirm_always')").all(actorId);
+    const values = (name: string) => {
+      const row = rows.find(item => item.key === name);
+      return { keys: new Set(JSON.parse(String(row?.value ?? "[]")) as string[]), revision: Number(row?.revision ?? 0) };
+    };
+    const disabled = values("disabled_actions"), confirmation = values("confirm_always");
+    return { disabled: disabled.keys, confirmation: confirmation.keys, forAction: (key: string) => ({
+      enabled: !disabled.keys.has(key), confirm_always: confirmation.keys.has(key),
+      expected: createHash("sha256").update(JSON.stringify([actorId, key, disabled.revision, confirmation.revision])).digest("hex"),
+    }) };
+  }
+
+  /** Both switches belong to this exact action and change under one check on the original settings rows. */
+  changeActionPolicy(actorId: string, key: string, input: { expected: string; enabled?: boolean; confirm_always?: boolean }, assertCurrent: () => void) {
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      const policies = this.actionPolicies(actorId), current = policies.forAction(key);
+      if (input.expected !== current.expected) throw assistantErrors.conflict("这项能力的授权已变化，请刷新后再决定", { current });
+      const enabled = input.enabled ?? current.enabled, confirm = input.confirm_always ?? current.confirm_always;
+      assertCurrent();
+      const update = (name: string, keys: Set<string>, add: boolean) => {
+        if (add) keys.add(key); else keys.delete(key);
+        this.setSetting(actorId, name, JSON.stringify([...keys].sort()));
+      };
+      if (enabled !== current.enabled) update("disabled_actions", policies.disabled, !enabled);
+      if (confirm !== current.confirm_always) update("confirm_always", policies.confirmation, confirm);
+      this.db.exec("COMMIT");
+      if (enabled !== current.enabled) this.#recordActionPolicyChange(actorId, key, "access");
+      if (confirm !== current.confirm_always) this.#recordActionPolicyChange(actorId, key, "confirmation");
+      return this.actionPolicies(actorId).forAction(key);
+    } catch (error) { rollbackPreservingError(error, () => this.db.exec("ROLLBACK")); throw error; }
+  }
+
+  #recordActionPolicyChange(actorId: string, key: string, field: "access" | "confirmation"): void {
+    const id = JSON.stringify([actorId, key]);
+    this.#actionPolicyChanges.set(id, { ...this.#actionPolicyChanges.get(id), [field]: {} });
+  }
+
+  /** An old action approval remains revoked even after the person turns the same switch back on. */
+  holdActionPolicy(actorId: string, key: string, includeConfirmation = false): () => void {
+    const id = JSON.stringify([actorId, key]), previous = this.#actionPolicyChanges.get(id);
+    return () => {
+      const current = this.#actionPolicyChanges.get(id);
+      if (current?.access !== previous?.access || includeConfirmation && current?.confirmation !== previous?.confirmation) {
+        throw assistantErrors.action_revoked("原操作的权限已变化，旧确认不能继续使用");
+      }
+    };
   }
 
   /** Raise a notice once: the same dedupe key never raises a second (a repeated or retried event stays one notice). */
@@ -391,8 +462,10 @@ export class AssistantStore {
 
   setConfirmAlways(actorId: string, key: string, on: boolean): void {
     const keys = this.confirmAlways(actorId);
+    if (on === keys.has(key)) return;
     if (on) keys.add(key); else keys.delete(key);
     this.setSetting(actorId, "confirm_always", JSON.stringify([...keys]));
+    this.#recordActionPolicyChange(actorId, key, "confirmation");
   }
 
   /** What a round that has started was told: those undone changes and settled changes are not told again. */

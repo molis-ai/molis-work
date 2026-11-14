@@ -8,6 +8,7 @@ import type { SessionIndex } from "./prologue-session-index.js";
 import { GATEWAY_TOOLS, MEMORY_TOOLS } from "./prologue-action-gateway.js";
 import { AGENT_TOOLS } from "../tool-catalog.js";
 import { SUGGEST_TOOL_PREFIX } from "./prologue-action-tools.js";
+import { stopSdkRun } from "./prologue-stop-run.js";
 
 const WRITING_TOOLS = new Set(AGENT_TOOLS.filter(tool => tool.writes).map(tool => tool.runtime_name ?? tool.name));
 
@@ -45,7 +46,7 @@ function createWorkDelegation(store: WorkDelegationStore, permission: WorkDelega
     if (key !== workKey && key !== ongoingKey) return;
     invalidated = true;
     const original = active;
-    return original && change.reason === "selection" ? { settle: () => original.cancel() } : undefined;
+    return original && change.reason === "selection" ? { settle: () => stopSdkRun(original) } : undefined;
   });
   return { store, permission, assertCurrent,
     accept(run: Run) { assertCurrent(); active = run; },
@@ -64,7 +65,7 @@ export function actionWorkVerdict(work: PrologueWorkDelegation | undefined): Hoo
 export function workToolVerdict(work: PrologueWorkDelegation | undefined, { toolName, input }: HookContext): HookVerdict | undefined {
   if (!work || work.permission.mode === "original" || !toolName) return;
   work.assertCurrent();
-  if (work.permission.mode === "read-only" && (toolName === GATEWAY_TOOLS.suggest || toolName === MEMORY_TOOLS.propose || toolName.startsWith(SUGGEST_TOOL_PREFIX))) {
+  if (work.permission.mode === "read-only" && (toolName === "board-wait" || toolName === GATEWAY_TOOLS.suggest || toolName === MEMORY_TOOLS.propose || toolName.startsWith(SUGGEST_TOOL_PREFIX))) {
     return { kind: "deny", why: "当前工作只允许读取；可以在回复里提出建议。" };
   }
   if (toolName === GATEWAY_TOOLS.direct) return { kind: "deny", why: `当前工作已选择权限方式，改动使用 ${GATEWAY_TOOLS.change}。` };

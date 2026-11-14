@@ -96,7 +96,7 @@ async function grant(ports: Ports, offered: AgentDelegationGrantInput, caller: A
   return projection(held.store, held.subject, saved);
 }
 
-function keptScopes(current: readonly AgentDelegationScope[], selection: AgentDelegationNarrowInput["keep"]): AgentDelegationScope[] {
+export function keptScopes(current: readonly AgentDelegationScope[], selection: AgentDelegationNarrowInput["keep"]): AgentDelegationScope[] {
   const missing = () => assistantErrors.invalid("只能保留原权限范围中的操作与目标");
   if (new Set(selection.map(row => row.scope_index)).size !== selection.length) throw missing();
   return selection.map(row => {

@@ -212,9 +212,11 @@ test("ISSUE-03 ISSUE-06 ISSUE-07 ISSUE-09 real HTTP and authorized MCP process s
     const gateway = new LocalActionGatewayClient({ url: origin, homeDirectory: home, clientId, projectId: null });
     const external: ActionCallContext = { actor_id: clientId, project_id: null, audience: "mcp", permissions: [] };
     assert.equal((await gateway.discover(external)).filter(view => view.capability_id.startsWith("issues.")).length, 0);
+    let createGeneration: string | undefined;
     for (const action of Object.values(issuesActions).filter(action => action.action.audiences.includes("mcp"))) {
-      const grant = await request("/api/settings/mcp/actions", { client_id: clientId, project_id: null, capability_id: action.capability_id, version: action.version, provider_id: ISSUES_PLUGIN_ID, enabled: true });
+      const grant = await request("/api/settings/mcp/actions", { client_id: clientId, project_id: null, capability_id: action.capability_id, version: action.version, provider_id: ISSUES_PLUGIN_ID, enabled: true, expected: { expected_absent: true } });
       assert.equal(grant.status, 200, await grant.clone().text());
+      if (action.capability_id === issuesActions.create.capability_id) createGeneration = (await grant.json() as { generation: string }).generation;
     }
     await sdk.connect(transport);
     const name = (action: { capability_id: string; version: number }) => actionMcpToolName({ ...action, capability_id: `molis_work_v1_action_${action.capability_id}`, provider_id: ISSUES_PLUGIN_ID });
@@ -232,7 +234,8 @@ test("ISSUE-03 ISSUE-06 ISSUE-07 ISSUE-09 real HTTP and authorized MCP process s
     assert.equal((await request(`/api/plugins/${ISSUES_PLUGIN_ID}/update`, { id: saved.id, expected_version: 1, title: "过期页面" })).status, 409);
     const deleted = await sdk.callTool({ name: name(issuesActions.delete), arguments: { id: mcpIssue.id, expected_version: 1 } });
     assert.equal(deleted.isError, false, JSON.stringify(deleted));
-    await request("/api/settings/mcp/actions", { client_id: clientId, project_id: null, capability_id: "issues.create", version: issuesActions.create.version, provider_id: ISSUES_PLUGIN_ID, enabled: false });
+    assert.ok(createGeneration);
+    await request("/api/settings/mcp/actions", { client_id: clientId, project_id: null, capability_id: "issues.create", version: issuesActions.create.version, provider_id: ISSUES_PLUGIN_ID, enabled: false, expected: { expected_generation: createGeneration } });
     assert.equal((await sdk.callTool({ name: name(issuesActions.create), arguments: input })).isError, true);
     const remaining = await request(`/api/plugins/${ISSUES_PLUGIN_ID}/list`);
     assert.equal((await remaining.json()).items.length, 1);

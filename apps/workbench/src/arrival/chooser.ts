@@ -9,6 +9,7 @@ import {
   renderProjectMonogram,
 } from "@molis-ai/molis-work-design-system";
 import { renderAssistantDock } from "../assistant-dock.js";
+import { AUTOMATION_RECOMMENDATIONS_LOADER, CAPABILITY_ASSET_LOADER } from "../scripts/client/automation-recommendations.js";
 import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "../scripts/client/assistant-island.js";
 import { ATTENTION_FACTORY_SCRIPT } from "../scripts/client/attention.js";
 import { CHOOSER_SEARCH_LOADER_SCRIPT } from "./chooser-search.js";
@@ -141,7 +142,7 @@ globalThis.__ARRIVAL_ASSISTANT__ = (${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ transl
 // The person's own content, searched from here with the workbench's dialog (BL-041): the Host fixes the scope to the Home, and a hit opens in its own space.
 // Its program comes on the first press of its button (chooser-search.ts).
 ${CHOOSER_SEARCH_LOADER_SCRIPT}
-${CHOOSER_CLIENT_SCRIPT}${RUNTIME_PANEL_CLIENT_SCRIPT}`;
+${CHOOSER_CLIENT_SCRIPT}${RUNTIME_PANEL_CLIENT_SCRIPT}${CAPABILITY_ASSET_LOADER}${AUTOMATION_RECOMMENDATIONS_LOADER}`;
     return shell.document({
       title: uiText.text("workbench.chooser.choose-project-molis-work"), screen: "chooser", desktopShell, controlToken,
       titlebar: shell.titlebar(desktopShell, { caption: true, tasks: true, account: true }), stage, bar,

@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createServer } from "node:http";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { cogniaScriptedResponse } from "./fixtures/cognia-model-response.js";
+import { MCP_FIXTURE } from "./fixtures/mcp-notes-server.js";
 
 async function until<T>(read: () => Promise<T | undefined>, message: string): Promise<T> {
   for (const limit = Date.now() + 10_000; ;) {
@@ -14,7 +15,7 @@ async function until<T>(read: () => Promise<T | undefined>, message: string): Pr
   }
 }
 
-test("ASC-51/APR-11: stopping a native MCP Run preserves its original cancellation and remote session cleanup", { timeout: 30_000 }, async t => {
+for (const remoteSession of [true, false]) test(`ASC-51/APR-11: stopping a native MCP Run preserves its original cancellation (remote session ${remoteSession ? "present" : "absent"})`, { timeout: 30_000 }, async t => {
   const root = await mkdtemp(join(tmpdir(), "molis-mcp-run-cleanup-")), queue = new AgentReviewQueue();
   let businessId: unknown, cancelledId: unknown, deletedSession: string | undefined;
   const server = createServer((request, response) => {
@@ -28,7 +29,7 @@ test("ASC-51/APR-11: stopping a native MCP Run preserves its original cancellati
       const result = message.method === "initialize"
         ? { protocolVersion: "2025-11-25", capabilities: { tools: {} }, serverInfo: { name: "cleanup", version: "1" } }
         : { tools: [{ name: "record_note", description: "Record one note", inputSchema: { type: "object", properties: { note: { type: "string" } }, required: ["note"] } }] };
-      response.writeHead(200, { "content-type": "application/json", "mcp-session-id": "original-remote-session" }).end(JSON.stringify({ jsonrpc: "2.0", id: message.id, result }));
+      response.writeHead(200, { "content-type": "application/json", ...(remoteSession ? { "mcp-session-id": "original-remote-session" } : {}) }).end(JSON.stringify({ jsonrpc: "2.0", id: message.id, result }));
     })().catch(error => { response.writeHead(500).end(String(error)); });
   });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
@@ -63,5 +64,100 @@ test("ASC-51/APR-11: stopping a native MCP Run preserves its original cancellati
   await until(async () => cancelledId, "stopping the original Run blocked its cancellation notification");
   assert.equal(cancelledId, businessId, "cleanup names the exact request already sent");
   await library.control(owner, saved.id, "disconnect");
-  assert.equal(deletedSession, "original-remote-session", "no Run guard is needed to close the original remote session");
+  assert.equal(deletedSession, remoteSession ? "original-remote-session" : undefined, "only the original remote session may be deleted");
+});
+
+test("APR-07/08/11: a real MCP pipe reuses an exact work authorization after restart, and refuses a changed tool or directory", { timeout: 60_000 }, async t => {
+  const root = await realpath(await mkdtemp(join(tmpdir(), "molis-mcp-permission-")));
+  const owner = { project_id: "project", plugin_id: "fixture.coding", install_id: "fixture", actor_id: "person" };
+  const directory = { canonical_path: root, realpath_verified: true };
+  const file = join(root, "mcp-notes.jsonl"), script = join(root, "notes.mjs");
+  await writeFile(script, MCP_FIXTURE);
+  let note = "Exact note", send = true, directoryGeneration = "original-directory", directoryAvailable = true;
+  t.mock.method(globalThis, "fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
+    if (!send) return cogniaScriptedResponse(undefined, "Finished checking the note.");
+    send = false;
+    const request = await new Request(input, init).json() as { tools?: Array<{ name: string; input_schema?: { properties?: { note?: unknown } } }> };
+    const tool = request.tools?.find(entry => entry.input_schema?.properties?.note);
+    assert.ok(tool, "the real selected MCP tool is declared");
+    return cogniaScriptedResponse({ name: tool.name, input: { note } });
+  });
+  const open = async () => {
+    const queue = new AgentReviewQueue();
+    const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.run-mcp-permission", appVersion: "1.0.0" }, storageRoot: join(root, "runtime"), reviewQueue: queue,
+      checks: { holdMcpDirectory: async (project, path) => {
+        assert.deepEqual([project, path], [owner.project_id, root]);
+        const identity = directoryGeneration;
+        const assertCurrent = () => {
+          if (!directoryAvailable || directoryGeneration !== identity) throw new Error("原目录已变化");
+        };
+        assertCurrent();
+        return { identity, assertCurrent, beforeEffect: assertCurrent };
+      } },
+      modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }),
+      resolveCredential: () => "test-only" });
+    return { adapter, queue };
+  };
+  let { adapter, queue } = await open();
+  t.after(async () => { await adapter.close(); await rm(root, { recursive: true, force: true }); });
+  const saved = await adapter.mcpLibrary!.save(owner, { expected_version: 0, label: "Original pipe", enabled: true, transport: "stdio", timeout_ms: 5000,
+    directory, executable: process.execPath, argv: ["notes.mjs"] });
+  await adapter.mcpLibrary!.control(owner, saved.id, "connect");
+  const session = await adapter.createSession({ ...owner, directory, title: "Review external notes" });
+  const subject = { kind: "work" as const, project_id: owner.project_id, actor_id: owner.actor_id, work: { owner_id: owner.plugin_id, id: session.session_id },
+    executor: { plugin_id: owner.plugin_id, install_id: owner.install_id, installation_generation: "original", role_id: "worker" } };
+  const notes = async () => (await readFile(file, "utf8").catch(error => { if (error.code === "ENOENT") return ""; throw error; }))
+    .split("\n").filter(Boolean).map(line => JSON.parse(line).note);
+  const start = async () => {
+    send = true;
+    const tools = (await adapter.mcpLibrary!.list(owner))[0]!.tools;
+    return adapter.start({ ...owner, session, directory, role_id: "worker", task: "Record one note.", mcp_tools: tools, budget: { max_turns: 2 },
+      role: { role_id: "worker", version: 1, execution: "workspace-write", prompts: [], host_tools: [] } },
+      { delegation: { subject, session_owner_id: owner.project_id } });
+  };
+  const pending = (runId: string) => until(async () => queue.list(owner.project_id, "pending").find(row => row.run?.run_id === runId
+    && queue.hasExactPermission(row.review_id)), "original MCP review did not appear");
+  const settled = (ref: Awaited<ReturnType<typeof start>>["ref"]) => until(async () => {
+    const view = await adapter.read(ref);
+    return ["completed", "failed", "cancelled", "stopped"].includes(view.phase) ? view : undefined;
+  }, "MCP run did not settle");
+  let run = await start();
+  const review = await pending(run.ref.run_id);
+  const candidate = queue.exactPermission(review.review_id, review.reference.version);
+  assert.ok(candidate && candidate.scope.kind === "mcp-exact");
+  assert.equal(candidate.scope.source_id, saved.id);
+  assert.deepEqual(JSON.parse(candidate.scope.input_json), { note });
+  assert.deepEqual(await notes(), []);
+  const store = adapter.delegations;
+  const permission = await store.read(subject);
+  await store.grant(subject, { expected_version: permission!.storage_version, mode: "automatic", scopes: [candidate.scope], expires_at: null },
+    { beforeEffect: candidate.beforeEffect, assertCurrent: candidate.assertPending });
+  await settled(run.ref);
+  assert.deepEqual(await notes(), [], "choosing future authority does not answer the original operation");
+  run = await start(); await settled(run.ref);
+  assert.deepEqual(await notes(), ["Exact note"]);
+  assert.ok(queue.list(owner.project_id, "approved").some(row => queue.receipt(row.review_id)?.source?.kind === "delegation"));
+
+  await adapter.close(); ({ adapter, queue } = await open());
+  await adapter.mcpLibrary!.control(owner, saved.id, "connect");
+  run = await start(); await settled(run.ref);
+  assert.deepEqual(await notes(), ["Exact note", "Exact note"]);
+
+  note = "Different note"; run = await start();
+  const changed = await pending(run.ref.run_id);
+  directoryAvailable = false;
+  await assert.rejects(queue.respond({ review_id: changed.review_id, version: changed.reference.version, decision: "approve", actor_id: owner.actor_id }));
+  await adapter.control(run.ref, { kind: "stop" }); await settled(run.ref);
+  assert.deepEqual(await notes(), ["Exact note", "Exact note"], "withdrawn directory receives zero additional pipe writes");
+
+  directoryAvailable = true; note = "Exact note";
+  await adapter.mcpLibrary!.control(owner, saved.id, "disconnect");
+  await writeFile(script, MCP_FIXTURE.replace("note:{type:'string'}", "note:{type:'string'},category:{type:'string'}"));
+  await adapter.mcpLibrary!.control(owner, saved.id, "connect");
+  run = await start(); const changedTool = await pending(run.ref.run_id);
+  const current = queue.exactPermission(changedTool.review_id, changedTool.reference.version);
+  assert.ok(current?.scope.kind === "mcp-exact");
+  assert.notEqual(current.scope.tool_digest, candidate.scope.tool_digest);
+  assert.deepEqual(await notes(), ["Exact note", "Exact note"], "new tool shape never inherits the old decision");
+  await adapter.control(run.ref, { kind: "stop" }); await settled(run.ref);
 });

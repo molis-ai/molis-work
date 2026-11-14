@@ -9,7 +9,7 @@ import type { SkillRef } from "./agent-definitions.js";
 import type { AgentActionOffer } from "./agent-host-offers.js";
 import type { AgentRecalledMemory } from "./agent-host-memory.js";
 import type { AgentSessionRef } from "./agent-host-runtime.js";
-import type { AgentDelegationSubject, AgentDelegationTargetOwner } from "./agent-delegations.js";
+import type { AgentDelegationSubject, AgentDelegationTargetOwner, AgentExactDelegationScope } from "./agent-delegations.js";
 
 /** Host-owned, in-memory: authority checks, and the call number the Host gave the round (never from a Plugin payload). */
 export interface AgentStartExecution extends ActionCallOrigin {
@@ -318,6 +318,8 @@ export interface AgentActionReviewControl { beforeEffect(): void | Promise<void>
 export interface AgentActionReviewAuthority extends AgentActionReviewControl {
   resolveDelegation?(): Promise<{
     readonly provider_installation_generation: string | null;
+    /** An MCP action gets its exact tool and connection identity from the original protocol owner. */
+    readonly mcp_scope?: Omit<Extract<AgentExactDelegationScope, { kind: "mcp-exact" }>, "input_json">;
     confirmationRequired(): boolean;
     assertProviderCurrent(): void;
     readonly target_owners: Readonly<Record<string, { readonly identity: AgentDelegationTargetOwner; assertCurrent(): void }>>;
@@ -337,7 +339,7 @@ export interface AgentActionClient {
   /** Validate an input exactly as dispatch will, running nothing; throws the contract's own error. */
   check?(reference: ExactActionReference, input: unknown): Promise<void>;
   /** Pin the selected original registration and grant while forming a review, before waiting for a decision. */
-  prepareReview?(view: ActionView, input: unknown): Promise<AgentActionReviewAuthority>;
+  prepareReview?(view: ActionView, input: unknown, automaticPolicy?: "reversible"): Promise<AgentActionReviewAuthority>;
   /**
    * Whether this change may run without the person's confirmation: it declares how it is undone, its undo is offered
    * now, and the person has not set it to confirm each time. Absent: every change is confirmed.

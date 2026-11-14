@@ -173,6 +173,10 @@ export async function installedHomePlugins(homePlugins: HomePluginHost | undefin
   if (!homePlugins) return [];
   await homePlugins.ready();
   await homePlugins.reconcilePublishers();
+  return observedHomePlugins(homePlugins);
+}
+
+export function observedHomePlugins(homePlugins: HomePluginHost): InstalledPluginEntry[] {
   return homePlugins.installations().filter(record => record.state !== "uninstalled" || isPendingUninstall(record))
     .map(record => ({ record, manifest: homePlugins.manifest(record.plugin_id), recoveryCode: homePlugins.packageError(record.plugin_id, "code") }));
 }

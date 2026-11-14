@@ -15,6 +15,7 @@ import type { ActionSkillRound } from "@molis-ai/molis-work-contracts/platform/a
 import { freezeRoundSkills, type AgentRoundSkillCatalog, type AgentSkillSource } from "./round-skills.js";
 import type {
   AgentActionClient,
+  AgentSessionOwner,
   AgentHostApi,
   AgentSessionRef,
   AgentRunHandle,
@@ -130,6 +131,12 @@ function assertSessionCreation(adapter: AgentRuntimeAdapter, input: import("@mol
   } else placeOf(input.directory, authority, worktrees, "这个目录没有被授权给当前项目");
 }
 
+function sessionDelegation(owner: AgentSessionOwner, session: AgentSessionRef, role: string, generation: string): NonNullable<AgentStartAuthority["delegation"]> {
+  return { session_owner_id: owner.project_id, subject: { kind: "work", actor_id: owner.actor_id, project_id: owner.project_id,
+    work: { owner_id: owner.plugin_id, id: session.session_id }, executor: { plugin_id: owner.plugin_id, install_id: owner.install_id,
+      installation_generation: generation, role_id: role } } };
+}
+
 export interface AgentStartAuthority {
   /** Original text from the protected Host entry/current Action, never a plugin's start DTO. */
   original_input?: Omit<import("@molis-ai/molis-work-contracts/platform/actions").HostOfferedOriginalInput, "action">;
@@ -148,6 +155,8 @@ export interface AgentStartAuthority {
   assertBeforeDispatch?(): void;
   /** Stable work identity resolved by the protected work owner. The request carries no such authority. */
   delegation?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentStartExecution["delegation"];
+  /** The original activation, used only after the runtime verified the session and selected role. */
+  sessionInstallation?: { readonly generation: string };
   /** Current runtime grants, resolved by Host; selecting a tool grants nothing. */
   /** The trusted guard must run again at dispatch, including after the Host queue. */
   /**
@@ -345,6 +354,8 @@ export class AgentHost implements AgentHostApi {
     const { role, execution, workspace, place } = checkStartRole(adapter, runtimeId, request, authority, worktrees);
     const session = await adapter.readSession(request.session);
     checkStartSession(session, request, runtimeId, workspace);
+    const delegation = authority.delegation ?? (workspace === "required" && authority.sessionInstallation && this.workDelegations(runtimeId)
+      ? sessionDelegation(session.owner, session.session, role.role_id, authority.sessionInstallation.generation) : undefined);
     const { character, hostTools } = selectStartCharacter(role, request, authority);
     const { validateCharacter, assertBeforeStart, beforeStart, beforeDispatch, assertBeforeDispatch } = startGuards(authority, character, request);
     if (request.execution_plan && STEP_TOOLS.some(tool => !hostTools.includes(tool))) {
@@ -406,7 +417,7 @@ export class AgentHost implements AgentHostApi {
         host_tools: hostTools,
       },
     }, { beforeStart, assertBeforeStart, beforeDispatch, assertBeforeDispatch, ...(authority.call_id ? { call_id: authority.call_id } : {}),
-      ...(authority.delegation ? { delegation: structuredClone(authority.delegation) } : {}) });
+      ...(delegation ? { delegation: structuredClone(delegation) } : {}) });
     if (widensFrozen(handle, { request, role, execution, workspace, actionRefs, gateway, character, characterSkillIds, childWorkspaces, hostTools, mcp, sources, compaction, skills, replyLocale: authority.reply_language?.locale })) {
       await adapter.control(handle.ref, { kind: "cancel" });
       throw agentErrors.role_execution_exceeded(`Runtime 返回的角色权限与 Manifest 冻结的不一致，已取消该 Run`);

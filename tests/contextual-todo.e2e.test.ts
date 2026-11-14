@@ -79,7 +79,10 @@ test("S1 W4-1 RAC-136 contextual Todo: real selection → made at once from what
   // bar's entry is the person's own click and does not read it (统筹裁定 2, anti-corruption §10.28): the creates below are made at once.
   const confirmAlways = await evaluate<boolean | undefined>(`(async () => {
     const headers = { ...molisWorkControlHeaders(), 'content-type': 'application/json' }, prefix = document.body.dataset.routePrefix;
-    await fetch(prefix + '/api/assistant/capabilities', { method: 'POST', headers, body: JSON.stringify({ ...${JSON.stringify(first.draft.action)}, confirm_always: true }) }).then(r => { if (!r.ok) throw new Error(String(r.status)); });
+    const action = ${JSON.stringify(first.draft.action)}, path = prefix + '/api/assistant/capabilities';
+    const current = await fetch(path, { headers }).then(r => r.json());
+    const expected = current.capabilities.find(row => row.capability_id === action.capability_id && row.provider_id === action.provider_id)?.expected;
+    await fetch(path, { method: 'POST', headers, body: JSON.stringify({ ...action, expected, confirm_always: true }) }).then(r => { if (!r.ok) throw new Error(String(r.status)); });
     const listed = await fetch(prefix + '/api/assistant/capabilities', { headers }).then(r => r.json());
     return listed.capabilities.find(row => row.capability_id === ${JSON.stringify(first.draft.action.capability_id)} && row.provider_id === ${JSON.stringify(first.draft.action.provider_id)})?.confirm_always;
   })()`);

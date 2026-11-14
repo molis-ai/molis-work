@@ -43,10 +43,10 @@ export class AssistantContinuations {
     const view = (await adapter.collaboration?.read(owner(work), work.session_id))?.[0];
     return view?.wait?.by === "app" ? undefined : view;
   }
-  async state(work: StoredWork, fallback: AssistantWorkState): Promise<AssistantWorkState> {
+  async state(work: StoredWork, fallback: AssistantWorkState, inspectActual = false): Promise<AssistantWorkState> {
     if (work.continuation_hold && work.executor.kind === "assistant") return work.continuation_hold === "input" ? "paused" : work.continuation_hold;
     if (!["completed", "idle"].includes(fallback)) return fallback;
-    const view = await this.view(work).catch(() => undefined);
+    const view = await this.view(work).catch(error => { if (inspectActual) throw error; return undefined; });
     return view?.wait?.state === "waiting" || view?.continuation?.state === "eligible" ? "waiting-input"
       : view?.continuation && ["blocked", "needs-reconciliation"].includes(view.continuation.state) ? "needs-check" : fallback;
   }

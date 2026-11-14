@@ -88,7 +88,6 @@ export interface PrologueSurfaces {
    * The person allowed the Assistant to act in one desktop app for the rest of this round (spec D06): a remembered
    * approval bound to this run, dropped when it ends, never persisted, only for reversible local actions.
    */
-  allowAppForRound(run: ExactRef<"run">, bundleId: string): void;
   /** Whether this run still holds its original binding. Review decisions additionally require the exact effect. */
   current(runId: string, sessionRefId: string, kind: "browser" | "desktop"): boolean;
   /** A run reached a terminal state: its run-bound approvals are dropped. */
@@ -256,11 +255,6 @@ export function createPrologueSurfaces(runtime: () => SurfaceRuntime, ports: Pro
       for (const action of SITE_ALLOWED_ACTIONS) effects.forget({ what: "surface", scope: decision.scope, action });
       if (decision.decision === "allow") for (const rule of siteApprovals(decision.scope)) effects.remember(rule);
     },
-    allowAppForRound(run, bundleId) {
-      runtime().effects.remember({ source: "user", effect: "approved", kinds: ["mutate-local", "user-visible"],
-        match: { what: "surface", surface: "desktop", scope: bundleId },
-        why: "The person lets the Assistant act in this app for the rest of this round." }, { run });
-    },
     releaseRun(run) { runtime().effects.releaseRun(run); },
     async close() {
       closed = true;
@@ -310,7 +304,8 @@ export async function desktopActionCard(
 ) {
   const detail = target ? await target.describe(action, label, typed) : { raw: label, words: [label], reviewable: false };
   const appName = target ? await target.appName(scope) : scope;
-  const reversible = detail.reviewable && proposalKind !== "mutate-external" && action !== "app" && action !== "upload" && action !== "download", actionWords = surfaceActionWords(DESKTOP_VERBS, action, "desktop");
+  const reversible = detail.reviewable && (proposalKind === "mutate-local" || proposalKind === "user-visible")
+    && !["app", "upload", "download"].includes(action), actionWords = surfaceActionWords(DESKTOP_VERBS, action, "desktop");
   return { reviewable: detail.reviewable, focus: detail.focus, document: presentToolReview({ kind: "tool-operation", tool: "surface-act", summary: `在「${appName}」${DESKTOP_VERBS[action] ?? action}`,
     ...(reversible ? { round_allow: { app: scope, label: appName } } : {}) }, [
     reviewField("应用", appName, "app"), reviewField("动作", DESKTOP_VERBS[action] ?? action, "action", { value: actionWords }),
@@ -318,17 +313,4 @@ export async function desktopActionCard(
     ...(action === "upload" || action === "download" ? [reviewField("注意", "这会在这台电脑和应用之间传文件，确认前请核对是哪个文件", "warning",
       { value: [reviewText("surface.app-transfer-warning")] })] : []),
   ], [reviewText("surface.in-app"), " ", appName, " · ", ...actionWords]) };
-}
-
-/** Binds "allow in this app for the rest of the round" to the run of one live desktop approval. */
-export function allowDesktopAppForRound<S extends { what: string; surface?: string; scope?: string }>(
-  surfaces: Pick<PrologueSurfaces, "allowAppForRound"> | undefined,
-  effect: { proposal: { subject: S } } | undefined | false,
-  run: ExactRef<"run"> | undefined,
-): void {
-  const subject = effect ? effect.proposal.subject : undefined;
-  if (!surfaces || !run || !subject || subject.what !== "surface" || subject.surface !== "desktop" || !subject.scope) {
-    throw new Error("只有桌面应用的待审操作可以设为「本轮内允许在这个应用里操作」");
-  }
-  surfaces.allowAppForRound(run, subject.scope);
 }

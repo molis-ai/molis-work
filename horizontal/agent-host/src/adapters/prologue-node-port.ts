@@ -12,6 +12,7 @@ import { workPaths } from "./prologue-project-work.js";
 import { answerProblems, ownedReferences, projectQuestion, questionUnavailable } from "./prologue-questions.js";
 import { queuedInput, type createPrologueRecovery } from "./prologue-recovery.js";
 import { startPrologueRun, type RunDeps } from "./prologue-run.js";
+import type { PrologueEffects } from "./prologue-effects.js";
 import type { createPrologueSchedule } from "./prologue-schedule.js";
 import { createPrologueSubagents } from "./prologue-subagents.js";
 import { surfaceRules, type PrologueSurfaces } from "./prologue-surfaces.js";
@@ -118,6 +119,7 @@ export function createNodeGitReviews(options: PrologueNodeAdapterOptions, host: 
 interface PortDeps extends RunDeps {
   readonly host: NodeHost;
   readonly schedule: ReturnType<typeof createPrologueSchedule>;
+  readonly effects: PrologueEffects;
   readonly recovery: ReturnType<typeof createPrologueRecovery>;
   readonly checkpoints: ReturnType<typeof createPrologueCheckpoints> | undefined;
   readonly readQuestion: (run: AgentRunRef, id: string, revision: number) => ReturnType<Runtime["effects"]["pendings"]["read"]> extends Promise<infer P> ? Promise<NonNullable<P>> : never;
@@ -301,7 +303,7 @@ export function createNodePort(deps: PortDeps): PrologueRuntimePort {
     projectWork: projectWorkPort(deps),
     documents: createPrologueDocuments(runtime, deps.options.storageRoot),
     memory: deps.platformMemory.capability,
-    schedule: deps.schedule.port(runtime, deps.index),
+    schedule: deps.schedule.port(runtime, deps.index, deps.effects),
     recovery: deps.recovery.port,
     ...(deps.options.reviewQueue ? { subagents: { workspaces: true as const, ...createPrologueSubagents(runtime, async run => {
       const index = await deps.index.read(run.session_id), attempt = index?.attempts.find(attempt => attempt.run_id === run.run_id);

@@ -29,13 +29,13 @@ export async function readMcpActionAccess(home: string, host: MolisWorkLocalHost
     return { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id,
       ...(view.provider.plugin_id ? { plugin_id: view.provider.plugin_id } : {}),
       title: view.action.title, provider_title: view.provider.title, description: view.action.description, kind: view.action.kind,
-      permissions: view.action.permissions, status, ...(reason ? { reason } : {}),
+      permissions: view.action.permissions, status, expected: grant ? { expected_generation: grant.generation } : { expected_absent: true }, ...(reason ? { reason } : {}),
       can_enable: status === "ungranted" || status === "disabled" || status === "stale", can_revoke: !!grant?.enabled || defaultOpen };
   });
   for (const grant of grants.filter(grant => !catalog.some(view => same(grant, view)))) {
     entries.push({ capability_id: grant.capability_id, version: grant.version, provider_id: grant.provider_id,
       title: grant.capability_id, provider_title: grant.provider_id, description: "原授权记录已保留。", kind: "operation", permissions: grant.permissions,
-      status: "missing", reason: scopeMissing ? "原项目已不存在。" : "找不到原能力、版本或提供方。", can_enable: false, can_revoke: grant.enabled });
+      status: "missing", expected: { expected_generation: grant.generation }, reason: scopeMissing ? "原项目已不存在。" : "找不到原能力、版本或提供方。", can_enable: false, can_revoke: grant.enabled });
   }
   return { client_id: caller.actor_id, project_id: caller.project_id, actions: catalog.map(view => current.find(row => row.capability_id === view.capability_id && row.version === view.version) ?? view), grants, entries };
 }

@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
+import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { setTimeout as delay } from "node:timers/promises";
 import test, { type TestContext } from "node:test";
-import { MolisWorkLocalHost, assistantServiceFor, ensureSystemAgentService, installHostUiText, molisWorkHostProjectReference, runWithLocale } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, assistantServiceFor, ensureSystemAgentService, installHostUiText, molisWorkHostProjectReference, runWithLocale, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { agentDelegationActions, type AgentDelegationActionChoice } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -16,6 +17,7 @@ import { cogniaScriptedResponse as reply } from "./fixtures/cognia-model-respons
 import { asideReply } from "./fixtures/ending-review.js";
 import { seedConfiguredModels } from "./fixtures/configured-models.js";
 import { watchSettlements } from "./fixtures/settlements.js";
+import { serveTestHost } from "./fixtures/test-home.js";
 
 installHostUiText();
 
@@ -47,7 +49,10 @@ async function fixture(t: TestContext) {
   const projectId = project.project_id;
   const reference = molisWorkHostProjectReference({ projectId, databasePath: project.database_path });
   const steps: Array<() => Response | Promise<Response>> = [];
-  t.mock.method(globalThis, "fetch", async (_url: unknown, init?: RequestInit) => {
+  const localFetch = globalThis.fetch;
+  t.mock.method(globalThis, "fetch", async (url: Parameters<typeof fetch>[0], init?: RequestInit) => {
+    const address = url instanceof Request ? url.url : String(url);
+    if (address.startsWith("http://127.0.0.1:") && !address.startsWith("http://127.0.0.1:1/")) return localFetch(url, init);
     const body = typeof init?.body === "string" ? init.body : init?.body instanceof Uint8Array ? new TextDecoder().decode(init.body) : "";
     const review = asideReply(body);
     return review ? reply(undefined, review) : await (steps.shift()?.() ?? reply());
@@ -302,7 +307,187 @@ test("APR-11: a late live answer cannot become input after the original work sto
   } finally { release.resolve(); }
   const outcome = await answer;
   assert.ok("error" in outcome);
-  assert.match(String(outcome.error), /权限已结束|授权已经结束/);
+  assert.deepEqual((outcome.error as { code?: string }).code, "assistant.state");
   const round = (await f.service.read(work.work_id)).rounds[0]!;
   assert.ok(round.turns.every(turn => !turn.text?.includes("14 November")));
+}));
+
+test("APR-11: a Send held in the Pages owner cannot use permission granted after its original work stopped", { timeout: 90_000 }, async t => runWithLocale("en", async () => {
+  const f = await fixture(t);
+  const { document } = await f.person.invoke(pagesActions.create, { title: "Read while sending", markdown: "The original page" });
+  const work = createWork(f, "Wait for the original person");
+  await grantWork(f, work.work_id, [document.id]);
+  f.steps.push(() => reply({ name: "ask-user", input: { why: "Which date?", questions: [{ id: "date", type: "text", prompt: "Enter a date" }] } }));
+  const first = await f.service.send({ work_id: work.work_id, text: "Ask me which date", request_id: "permission-send-original" }, { project_ref: f.reference });
+  await until("original round awaits an answer", async () => (await f.service.read(work.work_id)).rounds[0]?.awaiting_input[0]);
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  f.setPolicy(async (caller, view) => {
+    if (caller.audience !== "user" || view.capability_id !== pagesActions.subject.capability_id || !caller.allowed_actions?.length) return;
+    entered.resolve(); await release.promise;
+  });
+  const subject = { kind: "pages_document", id: document.id }, request = "permission-send-held";
+  const sending = f.service.send({ work_id: work.work_id, request_id: request, text: "This input should never arrive",
+    materials: [{ material_id: "original-page", kind: "object", title: document.title, explicit: true, object: subject,
+      reference: { material: { subject, pin: { mode: "current", read_revision: String(document.version) } } } }] }, { project_ref: f.reference });
+  const rejected = assert.rejects(sending, { code: "assistant.state" });
+  let stopped;
+  try {
+    await Promise.race([entered.promise, sending.then(() => assert.fail("the original Send should remain held"), error => { throw error; })]);
+    assert.equal((await f.service.control(work.work_id, { kind: "stop" })).work.state, "stopped");
+    await grantWork(f, work.work_id, [document.id]);
+    stopped = f.store.get(person, work.work_id);
+  } finally { release.resolve(); }
+  await rejected;
+  assert.deepEqual(f.store.get(person, work.work_id), stopped, "a late input leaves no draft or work revision");
+  const latest = await f.service.read(work.work_id);
+  assert.deepEqual(latest.rounds.map(row => row.run_id), [first.run_id]);
+  assert.ok(latest.rounds[0]!.turns.every(turn => !turn.text?.includes("This input should never arrive")));
+  assert.ok(latest.objects.every(object => object.subject.id !== document.id), "a late input leaves no material link");
+  assert.equal(f.store.requests.read(person, request).state, "not-sent");
+}));
+
+test("APR-07/08/11 H1: the actual permission picker uses the live original Pages proposal, and saves for later without approving it", { timeout: 90_000 }, async t => runWithLocale("en", async () => {
+  const f = await fixture(t);
+  const browser = await serveTestHost(t, { home: f.home, host: f.host });
+  const { document } = await f.person.invoke(pagesActions.create, { title: "Choose by real title", markdown: "Original" });
+  const { folder } = await f.person.invoke(pagesActions.createFolder, { title: "Other project folder" });
+  const work = createWork(f, "Change the minutes");
+  f.steps.push(updateReply({ id: document.id, expected_version: document.version, markdown: "Do not run this old request", folder_id: folder.id }));
+  await f.service.send({ work_id: work.work_id, request_id: "choice-original-pending", text: "Change and move the page" }, { project_ref: f.reference });
+  const review = await until("original Pages decision with scoped choices", async () => (await f.service.read(work.work_id)).reviews.find(row => row.permission_available));
+  const ref = { review_id: review.review_id, version: review.version, lifetime: "work" };
+  const path = `/projects/${f.projectId}/api/assistant/works/${work.work_id}/permission`;
+  const preview = await browser.web.get<{ preview: { candidate_digest: string; storage_version: number; candidates: Array<{ operations: Array<{ key: string; targets: Array<{ values: Array<{ label: string }> }> }> }> } }>(
+    path + "?" + new URLSearchParams({ ...ref, selected: "edit" }));
+  assert.deepEqual(preview.preview.candidates[0]?.operations.map(operation => [operation.key, operation.targets[0]?.values[0]?.label]), [["edit", "Choose by real title"]]);
+  const picked = { ...ref, mode: "automatic", selected: ["edit"], expected_version: preview.preview.storage_version, candidate_digest: preview.preview.candidate_digest };
+  await assert.rejects(browser.web.post(path, { ...picked, choices: [objectChoice(document.id)] }), { code: "assistant.invalid" });
+  await assert.rejects(browser.web.post(path, { ...picked, selected: ["move"] }), { code: "actions.conflict" });
+  const before = (await f.person.invoke(pagesActions.get, { id: document.id })).document;
+  const saved = await browser.web.post<{ selection: { id: string } }>(path, picked);
+  assert.ok(saved.selection.id);
+  await f.agents.agentHost.reviews.refresh(f.projectId);
+  assert.notEqual(f.agents.agentHost.reviews.receipt(review.review_id)?.status, "approved");
+  assert.deepEqual((await f.person.invoke(pagesActions.get, { id: document.id })).document, before);
+  await assert.rejects(browser.web.post(path, picked));
+  f.steps.push(updateReply({ id: document.id, expected_version: before.version, markdown: "Next round only" }));
+  await f.service.send({ work_id: work.work_id, request_id: "choice-following-round", text: "Only edit the page" }, { project_ref: f.reference });
+  await until("real update from new permission", async () => (await f.person.invoke(pagesActions.get, { id: document.id })).document.version > before.version ? true : undefined);
+  assert.deepEqual((await f.person.invoke(pagesActions.get, { id: document.id })).document.body, body("Next round only"));
+  await f.agents.agentHost.reviews.refresh(f.projectId);
+  assert.ok(f.reviews().some(row => row.source?.kind === "delegation" && row.source.delegation.id === saved.selection.id && row.effect_settled));
+}));
+
+test("APR-07/08/11 ASC-51/52: Assistant reuses one real connector MCP tool across restart and refuses changed account, input and dispatch authority", { timeout: 90_000 }, async t => runWithLocale("en", async () => {
+  const writes: Array<{ account: string; note: string }> = [];
+  let pause: { entered: PromiseWithResolvers<void>; release: PromiseWithResolvers<void> } | undefined;
+  let dropReceipt = false;
+  const remote = createServer(async (request, response) => {
+    try {
+      if (request.headers.authorization !== "Bearer fixture-" + request.url?.slice(1) + "-account") { response.writeHead(401).end(); return; }
+      if (request.method === "GET") { response.writeHead(405).end(); return; }
+      if (request.method === "DELETE") { response.writeHead(204).end(); return; }
+      let text = ""; for await (const chunk of request) text += String(chunk);
+      const message = JSON.parse(text) as { method: string; id?: number; params: { protocolVersion: string; arguments: { note: string } } };
+      if (message.id === undefined) { response.writeHead(202).end(); return; }
+      let result: unknown;
+      if (message.method === "initialize") result = { protocolVersion: message.params.protocolVersion, capabilities: { tools: {} }, serverInfo: { name: "notes", version: "1" } };
+      else if (message.method === "tools/list") {
+        const gate = pause;
+        if (gate) { pause = undefined; gate.entered.resolve(); await gate.release.promise; }
+        result = { tools: [{ name: "record_note", inputSchema: { type: "object", properties: { note: { type: "string" } }, required: ["note"], additionalProperties: false } }] };
+      } else if (message.method === "tools/call") {
+        writes.push({ account: request.url!, note: message.params.arguments.note });
+        if (dropReceipt) { response.destroy(); return; }
+        result = { content: [{ type: "text", text: "Note recorded" }] };
+      } else { response.writeHead(400).end(); return; }
+      response.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ jsonrpc: "2.0", id: message.id, result }));
+    } catch (error) { response.writeHead(500).end(String(error)); }
+  });
+  await new Promise<void>(resolve => remote.listen(0, "127.0.0.1", resolve));
+  const address = remote.address(); assert.ok(address && typeof address === "object");
+  t.after(async () => { remote.closeAllConnections(); await new Promise<void>(resolve => remote.close(() => resolve())); });
+  const f = await fixture(t), web = await serveTestHost(null, { home: f.home, host: f.host });
+  t.after(() => web.close());
+  const connect = async (account: string) => {
+    const { connection_id: id } = await web.web.post<{ connection_id: string }>("/api/settings/connectors/methods/mcp/start", {
+      service_id: "mcp-bearer", display_name: account, authentication: "bearer", token: `fixture-${account}-account`,
+      endpoint: `http://127.0.0.1:${address.port}/${account}`,
+    });
+    const view = (await f.host.actionClient(f.reference).discover({ ...f.caller, permissions: ["mcp:external"] }))
+      .find(row => row.provider.provider_id === "system.connectors#mcp:" + id && row.action.title === "record_note");
+    assert.ok(view?.availability.available);
+    return { id, action: { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id } };
+  };
+  const first = await connect("personal"), other = await connect("team"), work = createWork(f, "Record notes in my service");
+  const send = async (current: Pick<typeof f, "service">, target = first.action, note = "Original note") => {
+    f.steps.push(() => reply({ name: "change-capability", input: { ...target, input: { note } } }));
+    await current.service.send({ work_id: work.work_id, request_id: crypto.randomUUID(), text: "Record the requested note" }, { project_ref: f.reference });
+  };
+  const pending = (current: Pick<typeof f, "service">) => until("real MCP review", async () => (await current.service.read(work.work_id)).reviews[0]);
+  const complete = (current: Pick<typeof f, "service">) => until("round completed", async () =>
+    (await current.service.read(work.work_id)).work.state === "completed" ? true : undefined);
+  await send(f);
+  const original = await pending(f);
+  const path = `/projects/${f.projectId}/api/assistant/works/${work.work_id}/permission`;
+  const reference = { review_id: original.review_id, version: original.version, lifetime: "work" };
+  const { automatic } = await web.web.get<{ automatic: { storage_version: number; candidate_digest: string; candidates: Array<{ state: string; exact_parameters?: string }> } }>(
+    path + "?" + new URLSearchParams(reference));
+  assert.equal(automatic.candidates[0]?.state, "ready");
+  assert.deepEqual(JSON.parse(automatic.candidates[0]!.exact_parameters!), { note: "Original note" });
+  const saved = await web.web.post<{ selection: { id: string; mode: string } }>(path, {
+    ...reference, mode: "automatic", expected_version: automatic.storage_version, candidate_digest: automatic.candidate_digest,
+  });
+  assert.equal(saved.selection.mode, "automatic");
+  assert.deepEqual(writes, [], "saving future scope sends no business request");
+  await until("original work stopped after selection", async () => !(await f.service.read(work.work_id)).reviews.length ? true : undefined);
+  await send(f); await complete(f);
+  await f.agents.agentHost.reviews.refresh(f.projectId);
+  assert.ok(f.reviews().some(row => row.source?.kind === "delegation" && row.source.delegation.id === saved.selection.id && row.effect_settled));
+  await web.close();
+  const next = await f.reopen();
+  await send(next); await complete(next);
+  const allowed = [{ account: "/personal", note: "Original note" }, { account: "/personal", note: "Original note" }];
+  assert.deepEqual(writes, allowed);
+  for (const [target, note] of [[other.action, "Original note"], [first.action, "Different note"]] as const) {
+    await send(next, target, note);
+    const review = await pending(next);
+    assert.deepEqual(writes, allowed, "new account or arguments still require a decision");
+    await next.service.outcomes.decide(work.work_id, { review_id: review.review_id, version: review.version, decision: "reject" });
+    await complete(next);
+  }
+  const gate = { entered: Promise.withResolvers<void>(), release: Promise.withResolvers<void>() };
+  pause = gate;
+  try {
+    await send(next);
+    await until("remote tool discovery started", () => pause ? undefined : true);
+    await gate.entered.promise;
+    withConnectorConnections(f.home, store => { store.setEnabled(first.id, false); store.setEnabled(first.id, true); });
+    gate.release.resolve();
+    await complete(next);
+    assert.deepEqual(writes, allowed, "changing the account generation during real tool discovery leaves no remote write");
+  } finally { gate.release.resolve(); }
+  await send(next);
+  const expired = await pending(next);
+  assert.deepEqual(writes, allowed, "the prior account revision cannot become automatic again");
+  await next.service.outcomes.decide(work.work_id, { review_id: expired.review_id, version: expired.version, decision: "reject" });
+  await complete(next);
+  // A real request that reached the server and lost its response settles on the original SDK effect as unknown.
+  dropReceipt = true;
+  await send(next);
+  const accepted = await pending(next);
+  await next.service.outcomes.decide(work.work_id, { review_id: accepted.review_id, version: accepted.version, decision: "approve" });
+  await until("server recorded the original request", () => writes.length > allowed.length ? true : undefined);
+  const unknown = await until("original MCP result awaiting reconciliation", async () => {
+    await next.agents.agentHost.reviews.refresh(f.projectId);
+    const receipt = next.agents.agentHost.reviews.receipt(accepted.review_id);
+    return receipt?.effect_uncertain ? receipt : undefined;
+  });
+  assert.equal(unknown.source?.kind, "person");
+  const unresolved = await until("original Assistant run requires reconciliation", async () => {
+    const state = await next.service.read(work.work_id);
+    return state.rounds.at(-1)?.phase === "reconcile-required" ? state : undefined;
+  });
+  assert.equal(unresolved.work.work_id, work.work_id);
+  assert.deepEqual(writes, [...allowed, allowed[0]], "an uncertain tool request is not replayed");
 }));

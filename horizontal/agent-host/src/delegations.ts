@@ -3,7 +3,7 @@ import { isDeepStrictEqual } from "node:util";
 import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentDelegationMode, AgentDelegationScope, AgentDelegationSelection, AgentDelegationState, AgentDelegationSubject } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { reviewProposalVersion, type ReviewDecisionControl } from "./review-decisions.js";
-import { currentDelegation, delegationDate, delegationModeRank, delegationSnapshot, readDelegationState, validDelegationMode, validDelegationSubject, type StoredDelegationState } from "./delegation-state.js";
+import { currentDelegation, delegationDate, delegationModeRank, delegationSnapshot, readDelegationState, validDelegationMode, validDelegationSubject, WORK_DELEGATION_SCHEMA_VERSION, type StoredDelegationState } from "./delegation-state.js";
 import { delegationScopesNarrow, validDelegationScope } from "./delegation-scopes.js";
 import { agentErrors } from "./errors.js";
 import { ongoingDelegationSubject, workDelegationPermission, type WorkDelegationPermission } from "./delegation-permissions.js";
@@ -48,7 +48,7 @@ function selectedAt(state: StoredDelegationState | undefined, token: WorkDelegat
   return row;
 }
 function newDelegationState(subject: AgentDelegationSubject): StoredDelegationState {
-  return { schema: 1, submission_id: randomUUID(), subject, storage_version: 0, epoch: randomUUID(), lifecycle: "open", ended_at: null, ended_reason: null, selection_id: null, selections: [] };
+  return { schema: WORK_DELEGATION_SCHEMA_VERSION, submission_id: randomUUID(), subject, storage_version: 0, epoch: randomUUID(), lifecycle: "open", ended_at: null, ended_reason: null, selection_id: null, selections: [] };
 }
 
 /** One live owner per Home. It serializes each subject, keeps tombstones, and invalidates before an asynchronous shrink. */
@@ -101,6 +101,11 @@ export class WorkDelegationStore {
   async read(subject: AgentDelegationSubject): Promise<AgentDelegationState | undefined> {
     const fixed = structuredClone(subject), key = workDelegationKey(fixed);
     return this.#serial(key, async () => { const state = await this.#load(key, fixed); return state && delegationSnapshot(state); });
+  }
+  /** Look up a selected management row without loading every work in the Home. The caller still checks its returned subject. */
+  async readByKey(key: string): Promise<AgentDelegationState | undefined> {
+    if (!/^[0-9a-f]{64}$/.test(key)) return undefined;
+    return this.#serial(key, async () => { const state = await this.#load(key, undefined, true); return state && delegationSnapshot(state); });
   }
   /** An input or handoff holds its original lifetime, including a work that has not started its first round. */
   async holdWorkLifetime(subject: AgentDelegationSubject): Promise<() => void> {
@@ -242,7 +247,9 @@ export class WorkDelegationStore {
       const current = await this.#load(key, fixed); assertStorageVersion(current, grant.expected_version);
       await control.beforeEffect(); assertControl(control);
       if (reopen) {
-        if (fixed.kind !== "work" || current?.lifecycle !== "ended") throw agentErrors.delegation_ended("工作尚未完成停止，不能重新授予");
+        if (fixed.kind !== "work" || current?.lifecycle !== "ended" || current.ended_reason === "deleted") {
+          throw agentErrors.delegation_ended("原工作尚未完成停止或已删除，不能重新授予");
+        }
       } else this.#open(key, current);
       const at = new Date(this.now()).toISOString(), previous = currentDelegation(current);
       const row: AgentDelegationSelection = { id: randomUUID(), revision: 1, mode: grant.mode === "automatic" && !grant.scopes.length ? "confirm" : grant.mode,
@@ -291,15 +298,19 @@ export class WorkDelegationStore {
     const endedReason = reason.trim();
     if (fixed.kind !== "work" || !endedReason || !this.#states.has(key) || (known?.epoch ?? null) !== epoch) return Promise.reject(agentErrors.delegation_changed("先读取原工作授权 epoch，变化后不能结束新工作"));
     assertControl(control);
-    if (known?.lifecycle === "ended") return Promise.resolve(delegationSnapshot(known));
+    const deletion = endedReason === "deleted";
+    if (known?.lifecycle === "ended" && (!deletion || known.ended_reason === "deleted")) return Promise.resolve(delegationSnapshot(known));
     this.#endAttempts.set(key, (this.#endAttempts.get(key) ?? 0) + 1);
     this.#blocked.add(key);
-    const receipts = known?.lifecycle !== "ending" ? this.#invalidate(key, fixed, known, "ending") : [];
+    const receipts = !known || known.lifecycle === "open" ? this.#invalidate(key, fixed, known, "ending") : [];
     return this.#mutating(key, async () => {
       await control.beforeEffect(); assertControl(control);
       const current = await this.#load(key, fixed, true);
       if ((current?.epoch ?? null) !== epoch && !(epoch === null && !known)) throw agentErrors.delegation_changed("工作授权 epoch 已变化");
-      if (current && current.lifecycle !== "open") return delegationSnapshot(current);
+      if (current && current.lifecycle !== "open") {
+        // A deletion receipt can arrive after Stop, but the removed work can never get another lifetime.
+        return deletion && current.ended_reason !== "deleted" ? this.#save(key, { ...current, lifecycle: "ending", ended_reason: endedReason }, control) : delegationSnapshot(current);
+      }
       const at = new Date(this.now()).toISOString(), next = { ...(current ?? newDelegationState(fixed)), lifecycle: "ending" as const, ended_at: at, ended_reason: endedReason,
         selections: (current?.selections ?? []).map(row => ({ ...row, mode: row.mode === "read-only" ? "read-only" as const : "confirm" as const, revoked_at: row.revoked_at ?? at })) };
       return this.#save(key, next, control, () => {}, receipts);
@@ -316,6 +327,15 @@ export class WorkDelegationStore {
       if (!current || current.epoch !== epoch || current.lifecycle === "open") throw agentErrors.delegation_changed("原工作尚未进入结束流程");
       return current.lifecycle === "ended" ? delegationSnapshot(current) : this.#save(key, { ...current, lifecycle: "ended" }, control);
     });
+  }
+  async endSessionWork(owner: { project_id: string; plugin_id: string; install_id: string; actor_id: string }, sessionId: string, control: ReviewDecisionControl): Promise<void> {
+    const states = (await this.list()).filter(({ subject, lifecycle }) => lifecycle !== "ended" && subject.kind === "work"
+      && subject.project_id === owner.project_id && subject.actor_id === owner.actor_id && subject.work.id === sessionId
+      && subject.work.owner_id === owner.plugin_id && subject.executor.plugin_id === owner.plugin_id && subject.executor.install_id === owner.install_id);
+    for (const { subject, epoch } of states) {
+      const ended = await this.beginEnd(subject, epoch, "archived", control);
+      await this.finishEnd(subject, ended.epoch, control);
+    }
   }
   /** Requires a successful load before exposing any Run. Invalidation never trusts a later replacement selection. */
   assertCurrent(subject: AgentDelegationSubject, epoch: string, selection?: Pick<AgentDelegationSelection, "id" | "revision">): void {

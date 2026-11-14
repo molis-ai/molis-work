@@ -6,6 +6,9 @@ export type { ReviewReference, ReviewDelegationReference, ReviewDecisionSource, 
 export type { AgentDelegationMode, AgentDelegationExecutor, AgentDelegationSubject, AgentDelegationTargetOwner, AgentDelegationOperationScope,
   AgentActionDelegationScope, AgentExactDelegationScope, AgentDelegationScope, AgentDelegationSelection, AgentDelegationState } from "./agent-delegations.js";
 export { AGENT_DELEGATIONS_PROVIDER_ID, agentDelegationActions } from "./agent-delegation-actions.js";
+export { AGENT_AUTHORIZATIONS_PROVIDER_ID, AUTHORIZATION_OWNERS, agentAuthorizationActions } from "./agent-authorizations.js";
+export type { AuthorizationOwner, AuthorizationStatus, AuthorizationChangeKind, AuthorizationKey, AuthorizationFilter, AuthorizationEntry,
+  AuthorizationDetail, AuthorizationChange, AuthorizationList } from "./agent-authorizations.js";
 export type { AgentDelegationActionChoice, AgentDelegationCandidate, AgentDelegationWorkChoice, AgentDelegationProposal, AgentDelegationGrantInput,
   AgentDelegationNarrowInput, AgentDelegationUpdateInput, AgentDelegationModeInput, AgentDelegationToken, AgentDelegationProjection,
   AgentDelegationPreparation } from "./agent-delegation-actions.js";
@@ -464,6 +467,11 @@ export const agentHostCapabilities = {
     action: { title: "读 Agent 会话", description: "自己的一条会话：标题、各轮的引用和最近一轮。", kind: "query", ...pluginOnly,
       input_schema: { type: "array", minItems: 1, maxItems: 1, items: [sessionRef], additionalItems: false }, output_schema: sessionViewOutput },
   } as ActionDefinition<[session: AgentSessionRef], AgentSessionView>,
+  endSessionWork: {
+    capability_id: "agent.session.end-work", version: /* @version action.agent.session.end-work */ 1, operation: "command",
+    action: { title: "结束会话的本次工作授权", description: "原会话主人归档该会话前，结束其本次工作授权。",
+      kind: "operation", ...pluginOnly, input_schema: { type: "array", minItems: 1, maxItems: 1, items: [sessionRef], additionalItems: false } },
+  } as ActionDefinition<[session: AgentSessionRef], void>,
   /**
    * Many sessions' standing in one call, for a directory: one queued operation instead of one per session. A session
    * this project cannot read comes back with an error of its own rather than failing the others.

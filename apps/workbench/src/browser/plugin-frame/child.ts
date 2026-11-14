@@ -135,7 +135,12 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
   const context = () => send({ type: "context", value: root.getAttribute("data-assistant-context"), expanded: root.getAttribute("data-expanded") });
   scope.observe(new MutationObserver(context), root, { attributes: true, attributeFilter: ["data-assistant-context", "data-expanded"] });
   document.addEventListener("click", event => {
-    const link = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>("a[href]") : null;
+    const target = event.target instanceof Element ? event.target : null;
+    if (event.isTrusted && scope.visible && target?.closest("[data-automation-open]")) {
+      send({ type: "automation-suggestions" });
+      return;
+    }
+    const link = target?.closest<HTMLAnchorElement>("a[href]");
     if (!link || event.defaultPrevented || event.button !== 0) return;
     const href = link.getAttribute("href"); if (!href || href.startsWith("#")) return;
     event.preventDefault(); send({ type: "link", url: new URL(href, config.origin).href, download: link.hasAttribute("download") });

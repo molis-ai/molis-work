@@ -4,8 +4,8 @@
       "kind": "cohesive-unit",
       "reason": "助理工作与设置的 SQLite 存储共用一个 Home 的实例。停止、归档的工作锁也在这个实例，保存授权、启动与工作操作都在同一处检查。提醒与跟进、发送请求账本各有自己的表与协作者。",
       "size": {
-        "lines": 270,
-        "methods": 39
+        "lines": 343,
+        "methods": 44
       }
     }
   }

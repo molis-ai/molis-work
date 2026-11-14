@@ -7,7 +7,7 @@ import { ASSISTANT_DELEGATED_ROLE_ID, ASSISTANT_ROLE_ID } from "./assistant-agen
 import { ownerOf } from "./assistant-round-start.js";
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
 import { assistantErrors } from "./assistant-errors.js";
-import { RUNTIME } from "./assistant-service-shared.js";
+import { RUNTIME, sessionRef } from "./assistant-service-shared.js";
 
 /** The Assistant is a Host service with a fixed built-in identity. Plugin executors keep their own installation owner. */
 export function assistantWorkPermission(work: StoredWork): AgentStartExecution["delegation"] {
@@ -37,6 +37,12 @@ export function assistantWorkEnding(host: AgentHost, work: StoredWork) {
 export async function holdAssistantWorkLifetime(host: AgentHost, work: StoredWork): Promise<(() => void) | undefined> {
   const subject = assistantWorkPermission(work)?.subject, store = host.workDelegations(RUNTIME);
   return subject && store ? store.holdWorkLifetime(subject) : undefined;
+}
+
+export function assertAssistantSessionSettled(host: AgentHost, work: StoredWork): void {
+  if (work.executor.kind === "assistant" && work.session_id && host.adapter(RUNTIME).sessionTransitionPending?.(sessionRef(work))) {
+    throw assistantErrors.state("原轮仍在保存启动或恢复结果，请稍后重试");
+  }
 }
 
 /** The runtime's final pending/SDK commit still checks this call after asynchronous reference reads. */

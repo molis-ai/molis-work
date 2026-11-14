@@ -19,7 +19,7 @@ const ASSISTANT_ACTOR = LOCAL_PERSON_ACTOR_ID;
 
 export const actionKey = (ref: Pick<ActionReference, "capability_id" | "version" | "provider_id">) => JSON.stringify([ref.capability_id, ref.version, ref.provider_id ?? ""]);
 
-export const actionReference = (view: ActionView) => ({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id });
+export const actionReference = (view: Pick<ActionView, "capability_id" | "version" | "provider">) => ({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id });
 
 export function assistantActionRows<View extends Omit<ActionView, "availability">>(catalog: readonly View[], caller: ActionCallContext, disabled: ReadonlySet<string>): View[] {
   return catalog.filter(view => view.action.audiences.includes("agent") && (!view.provider.project_id || view.provider.project_id === caller.project_id)
@@ -59,7 +59,7 @@ export function directEligible(view: ActionView, offered: readonly ActionView[],
  * own — separate from Coding's and external agents'.
  */
 export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectActions" | "inspectActionMetadata" | "actionClient" | "homeActionClient" | "prepareActionReview">
-  & Partial<Pick<MolisWorkLocalHost, "projectActionInstallations" | "homePlugins">>, work: StoredWork, disabled: () => ReadonlySet<string>,
+  & Partial<Pick<MolisWorkLocalHost, "projectActionInstallations" | "homePlugins" | "connectorMcp">>, work: StoredWork, disabled: () => ReadonlySet<string>,
   /** Records a suggestion for the person, checked against the capabilities offered now. */
   offer?: (offer: AgentActionOffer, views: readonly ActionView[]) => Promise<{ offer_id: string }>,
   /** Told after a command succeeded, with the action as offered, so the work can keep a relation to what it changed. */
@@ -76,7 +76,7 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
   dispatched?: (view: ActionView) => void,
   pageContext?: () => ActionCallContext["page_context"], locale?: WebLocale,
   /** The Skills the person named for this round (its materials): the round's frozen list, so a `manual` one can be read. */
-  roundSkills: readonly SkillRef[] = []): AgentStartAuthority {
+  roundSkills: readonly SkillRef[] = [], holdActionPolicy?: (key: string, automatic?: boolean) => () => void): AgentStartAuthority {
   const reference = work.project_ref;
   // This round's number: the request that sent the message when there is one, else a new one. The tools run later, in the Runtime's loop,
   // outside any scope, so the number goes into every call's context.
@@ -113,17 +113,34 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
     authorizedDirectories: [],
     actions: async (_runtimeId, validate) => ({
       discover: () => discover(validate),
-      prepareReview: async (view, input) => {
+      prepareReview: async (view, input, automaticPolicy) => {
         await validate?.();
         const caller = base(), action = actionReference(view);
-        const assertEnabled = () => { if (accepted([view], caller).length !== 1) throw assistantErrors.action_revoked("这项能力已对助理关闭或不再可用，未执行"); };
+        const undo = automaticPolicy && view.action.undo;
+        const related = undo && discovered.find(row => row.capability_id === undo.capability_id && row.version === undo.version && row.provider.provider_id === action.provider_id);
+        const policy = holdActionPolicy?.(actionKey(action), automaticPolicy === "reversible");
+        const confirmation = holdActionPolicy?.(actionKey(action), true);
+        const undoPolicy = related && holdActionPolicy?.(actionKey(actionReference(related)));
+        const assertEnabled = () => {
+          policy?.(); undoPolicy?.();
+          if (accepted([view], caller).length !== 1 || related && accepted([related], caller).length !== 1)
+            throw assistantErrors.action_revoked("原操作或它的撤销能力已对助理关闭，未执行");
+          if (automaticPolicy && (!related || !directEligible(view, [related], confirmAlways?.() ?? new Set()))) throw assistantErrors.action_revoked("原操作现在需要本人确认");
+        };
         assertEnabled();
-        const held = localHost.prepareActionReview({ ...caller, permissions: view.action.permissions, allowed_actions: [action], assert_authority_current: assertEnabled }, view, input, reference);
+        const held = localHost.prepareActionReview({ ...caller, permissions: [...view.action.permissions, ...related?.action.permissions ?? []],
+          allowed_actions: related ? [action, actionReference(related)] : [action], assert_authority_current: assertEnabled }, view, input, reference, related && actionReference(related));
+        const mcp = await localHost.connectorMcp?.holdTool(view);
+        const assertCurrent = () => { held.assertCurrent(); mcp?.assertCurrent(); };
+        const confirmationRequired = () => { confirmation?.(); return confirmAlways?.().has(actionKey(action)) === true; };
+        assertCurrent();
         const originalCatalog = discovered;
         const installations = localHost.projectActionInstallations?.bind(localHost);
-        return { assertCurrent: held.assertCurrent, beforeEffect: async () => { await validate?.(); await held.beforeEffect(); },
-          ...(installations ? { resolveDelegation: () => assistantActionDelegation({ projectActionInstallations: installations, homePlugins: localHost.homePlugins },
-            work, view, input, originalCatalog, () => confirmAlways?.().has(actionKey(action)) === true,
+        return { assertCurrent, beforeEffect: async () => { await validate?.(); await held.beforeEffect(); mcp?.assertCurrent(); },
+          ...(mcp ? { resolveDelegation: async () => ({ provider_installation_generation: null, mcp_scope: mcp.scope, confirmationRequired,
+            assertProviderCurrent: mcp.assertCurrent, target_owners: {} }) }
+          : installations ? { resolveDelegation: () => assistantActionDelegation({ projectActionInstallations: installations, homePlugins: localHost.homePlugins },
+            work, view, input, originalCatalog, confirmationRequired,
             (reader, kind, id) => localHost.prepareActionReview({ ...caller, permissions: reader.action.permissions }, reader,
               { subjects: [{ kind, id }], fields: [] }, reference).assertCurrent) } : {}),
         };

@@ -93,7 +93,7 @@
 
 严格沿 AUT-01～08：只读已授权工作区的有限文件与当前注册目录；按五类各给最有依据的 1～2 条，没有可用能力的类别明确为空，不能凑数。配置与文件内容是不可信证据，不能把其中的指令升为安装或执行授权。已有配置与已安装能力用于去重，不从目录中随便选一个同名能力。
 
-报告列实际证据引用、效果、前置、风险／费用、置信度与一个可达的既有下一步。点击下一步仍进入原安装／创建确认；扫描不运行命令、不写项目、Goal 或正式业务事实。仅用户点保存才发布有声明的报告，忽略／已有／不再提示是项目内推荐偏好。部分读取失败保留成功部分和缺口，失败项不编造。
+报告列实际证据引用、效果、前置、风险／费用、置信度与一个可达的既有下一步。点击下一步仍进入原安装／创建确认；扫描不运行命令、不写项目、Goal 或正式业务事实。仅用户点保存才创建一份 Pages 文稿，忽略／已有／不再提示是项目内推荐偏好。部分读取失败保留成功部分和缺口，失败项不编造。
 
 已核实 `project-arrival.ts` 的版本 1 文件只保存上次打开时间、项目简介与上次项目，没有通用推荐偏好 CAS；`recommendation-catalog.ts` 服务判断规则创作，只提供已登记消费场景和可选项，不是文件扫描器。不能以这两个相近名字省去真实接线，也不向旧文件悄悄追加字段。
 
@@ -105,8 +105,20 @@
 | 可用候选 | 读取同一次请求中、原调用者当前可见的动作目录，以及已登记的技能包/连接器/角色列表；只使用它们实际提供的创建/设置入口和当前 availability。五类每类至多两条；没有可用候选或可达入口时说明该类没有建议，不根据依赖名编出产品能力 |
 | 返回 | 扫描结果只在当前请求/页面内存中，引用项目/工作区与读取到的文件证据。完成最后一次 await 后复核调用者、项目/目录和安装/连接快照；撤权的迟到正文不返回。正常技术调用审计可由原动作链记录，不写 Goal、Pages、项目配置或偏好；AUT-01 按这些业务存储与文件的前后值验证 |
 | 项目偏好 | 服务自己拥有新版本 1 文件 `config/automation-recommendations.json`，键为可信 actor/project；每组有 revision，条目以实际候选能力/目标/证据种类的稳定指纹定位。保存忽略/已有/不再提示在同一 Home 单写入队列中重读并比 expected_revision，再临时文件原子替换；只保存偏好，不保存扫描正文。坏文件报错不当空表，不改 `project-arrival.json`，无旧格式升级 |
-| 保存报告 | 用户点击才进入受保护写入口，复用 Pages `pages.create` 的 request_id 幂等与 `pages.promote` 的 expected_version。先固定本次报告的正文及摘要，创建成功后使用该同一 document id/返回版本发布；响应丢失/发布失败重试沿用原 request_id，重读 Pages 后对照报告摘要与原版本，不能新建第二篇或发布用户后来编辑的版本。版本已变提示用户保留原文并另存新报告，不覆盖 |
+| 保存报告 | 本人点击后经受保护入口调用原 `pages.create@1` 保存一份可编辑文稿。冻结同一报告正文、项目与 request_id，响应丢失后沿原键重试；已有文稿由 Pages 返回，之后的本人编辑照常保留。AUT-07 要求可保存报告，可在 Pages 自己的入口另行发布固定成果 |
 | 三个入口 | 到达流程不阻塞项目打开，打开建议时才扫描；助理给出同一结果视图/报告动作；创作台从项目上下文调用同一只读动作。下一步只交到已有创建/安装界面，权限、来源、版本与最终确认仍由原 owner 提供；没有可达入口的候选不显示伪链接 |
+
+### 6.1 公开动作与入口细化
+
+新增合同子路径 `services/automation-recommender`，动作均为 project scope，且只面向 `user`。路径上的项目由 Host 用 catalog 固定到本次调用上下文。项目到达、助理面板、插件创作台由同一工作台视图投射按钮和报告，本人点击后发同一个受保护的页面入口。创作台内不发新权限给沙箱／插件，助理也不把扫描正文交给模型。AUT 原文要求本人打开建议，主动模型扫描另有产品决定再接。
+
+| 动作 | 输入 | 输出和最终检查 |
+| --- | --- | --- |
+| `automation.recommendations.scan@1`（query/read，concurrent） | 严格空对象。工作区是 Projects 中该人明确关联并验证的输入目录，按 catalog 顺序最多四个，经本人 membership、input、可读取且 verified 取交集；原 membership id／更新时间、目录 id／实际路径、项目生存期、Projects revision 固定 | `{ groups, evidence, gaps, preferences, save_token }`。每类实际候选至多二条，证据只有工作区名／相对路径／指纹和有限信号；带候选原公开引用及匹配的已存在入口枚举。报告保存凭据仅为本人当前项目绑定的短期引用，不承载 workspace authority。每次最多 20 次现有文件动作，最多 8 次目录、12 次文本；每次文本沿原上限 256 KiB，最多累计采信 512 KiB，达到上限即报告缺口。文件动作内部按现有目录读取与准备权限，各有其调用成本。读取结束后再次核项目与工作区 membership、安装和候选 owner 原引用，最后同步核原请求；拒绝迟到返回 |
+| `automation.recommendations.preferences.set@1`（command/write，concurrent） | `{ expected_revision, suggestion_id, choice, save_token }`，choice 为 `ignored / already-have / hidden / show`；本次报告中存在该 suggestion 或本项目已保存的隐藏项才可改；稳定 id 只含原逻辑身份与匹配信号，不含文案、文件内容或候选版本 | `{ revision, choices }`。原 actor/project 行 CAS，按原记录重算只改一项，其他项目保留。偏好按项目删除并列入 Home 快照和格式清单。保存临时文件后同步核同一调用并 rename；错误保留表单状态 |
+| `automation.recommendations.report.save@1`（command/write，concurrent） | `{ save_token }`。同一报告不可从浏览器提交替换过的正文、请求号或另一个项目 | `{ document_id }`。本机有界短期内存引用指向这次冻结的正文与原请求号，按 actor/project/原版本使用；重复请求仍用原 Pages 幂等键。过期或 Host 重启时提示重读建议，成功响应前后同一 token 一律沿同一个 Pages 幂等键，Pages 原有保存和阅读授权独立核对。保存不执行建议 |
+
+候选使用当前真实且可达的原目录。首个可操作类别为已安装、可用且当前 off 的技能，去 `/settings/kit` 按实际 SkillRef 找到条目，由现有设置展示发布者、版本和能力，启用／撤销仍走该 owner。已启用或配置中明确出现的技能省略。角色从实际注册且可用的子角色取，下一步是角色配置；连接器从实际连接目录返回且当前有可选接入方式的服务取，已经连过的省略。Hook 和命令需要原目录里可配置的实际项及可达创建入口；找不到时这一类显示缺口，不从 `package.json` 生成可运行按钮。已有配置只提取可识别有限信号。没有完成的读取明确显示，已有配置不可确认时不声明该类是新建议。
 
 扫描的未完成项与偏好读取失败分别呈现；偏好不可读时不宣称“没有忽略项”，也不覆盖原文件。保存报告和保存偏好是两次用户明确操作，扫描本身不会顺手做任何一次。AUT-08 仍须真实项目安装/启用并撤销一项建议来证明闭环，静态匹配测试不能替代。
 
@@ -121,7 +133,7 @@
 身份、版本和竞争的具体规则：
 
 - 从 GitHub API 的 commits 读取关联 GitHub author/committer 的数字 id 和类型，另读 PR author、reviews/comments 作者与可信 Agent run。Agent 名单用稳定数字 id；不能仅凭 git 自报 name/email 认定真人，无法映射的提交标未知来源。检查范围是否启用来自固定 base SHA 的配置，不能借标题、分支名或改配置自豁免。
-- 计票按同一 GitHub 数字 user id 去重，review 与 `/approve` 合并成至多一票；当前有效、未 dismissed 的最新 APPROVED review 必须绑定当前 head。后续 CHANGES_REQUESTED 撤回该人的旧 review 赞成，普通 COMMENTED 不制造赞成。评论只认本人写的一整行命令 `/approve <sha>`，不认引用块、代码块或正文叙述；服务端读取作者当前写权限，Agent/bot/排除名单为零票。
+- 计票按同一 GitHub 数字 user id 去重，review 与 `/approve` 合并成至多一票。当前有效的最新 APPROVED review 必须绑定当前 head，后续 CHANGES_REQUESTED 撤回该人更早的 review 与命令票。当前最新决定为 DISMISSED 且接口不给 dismiss 时间时，该人的评论不能与 dismiss 排序，要求本 head 新的原生 review。普通 COMMENTED 不产生票。评论正文必须是单行命令 `/approve <sha>`；GitHub 明确的 editor、lastEditedAt、isMinimized 与原作者及正文一起核对，编辑或隐藏的评论需重新发出。服务端读取作者当前写权限，Agent/bot/排除名单为零票。未知提交来源进入需要核对的路径，不能走“仅真人”的豁免；只读诊断在尾端重新核对审查、评论、计入票权限、当前 head/base 和配置，任一变化要求重新查询。
 - 原规格“完整 SHA（12–40 位）”解释为：40 位须等于当前 head；12–39 位须是当前 head 的精确前缀，并向 GitHub 解析为唯一且同一完整 commit；含糊/其他 commit/读失败拒绝。统一大小写后比较。PR 作者仍可一票，其余要求靠不同真人满足。
 - 获取一次 `{head_sha, base_sha, config_digest}`，读齐分页后计算；发布 status 前重读三者，变化则丢弃本轮计算、按新事实重算。状态写在实际计算的完整 commit 上；sticky comment 只更新检查器自身账号拥有且带固定 marker 的一条记录，不能采用 PR 作者伪造 marker 的评论。
 - 本机 runner 在同一仓库/PR 串行，sticky 带本次 head/base/config 的 generation；每次写前再读 PR，写后核对当前 generation。它只能保证自己的发布顺序，不能给 GitHub 的提交状态附加 PR 级原子 CAS。GitHub 状态按 commit + context 生效，同 head 的多个 PR 或 base 政策变化可能复用原 success；所以仅靠“再读一次”和内存锁不能宣称 APR-06 已通过。
@@ -129,6 +141,8 @@
 APR-06 的具体接入要求为：可信 base 的检查器在 PR 检查和 `merge_group` 两处都运行；保护分支要求合并队列，并要求 `agent-approval-check` 在当前队列生成的合并提交上通过。合并组须从 GitHub 的真实成员引用取每个原 PR 的当前 head 与批准、按固定 base 政策分别核验，组内全部达标才写当前 merge-group SHA 的通过；不能按临时分支名字猜成员，也不能仅拿其中一个 PR 的结果给整个组放行。实际接入前还须核目标仓库的队列能力、成员读取接口、token 权限与 concurrency，给出具体配置让用户批准。没有这些接线只交计票/诊断能力，APR-06/10 保持未完成，不把它写成已启用的合并门。
 
 依据：GitHub 的[提交状态文档](https://docs.github.com/en/rest/commits/statuses)说明状态反映到涉及同一提交的 PR；[合并队列文档](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue)说明队列以最新 base 及前序 PR 生成不同 SHA，并必须运行 merge_group 检查。这里选择队列绑定是针对跨 PR/base 复用风险的设计决定，仍需真实目标仓库操作验证，不是官方文档替本批证明验收。
+
+2026-11-14 只读核对 Molis Work：`main` 当前只要求由 GitHub Actions 发布的 `Verify`，队列配置为 ALLGREEN、SQUASH，最多同时构建和落地五项。实际历史队列运行与检查套件的 REST `pull_requests` 为空；队列为空时无法用 [MergeQueueEntry 的 GraphQL 字段](https://docs.github.com/en/graphql/reference/pulls#mergequeueentry)证明哪个原 PR 对应当次合并提交。GitHub 的[队列规则](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue)中，单次落地数限制不会改变合并检查的成员。建议先在隔离仓库用一个真实 PR 采集事件里的队列 head/base、条目 id/position 与原 PR id/head，确认完整成员归属及更新后的失效。检查发布使用独立可信 GitHub App，或已有受组织保护的可信工作流。原 `Verify` 保留。隔离试验权限和正式开启分别由用户决定。
 
 ## 8. 拟修改面与合审问题
 

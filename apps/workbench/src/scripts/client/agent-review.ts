@@ -54,6 +54,14 @@ export const AGENT_REVIEW_CLIENT_FACTORY_SCRIPT = `(host) => {
       });
       state.lifetime.listen(container,'click',async event=>{
         if(!event.isTrusted || !state.control.lifetime.visible)return;
+        const permission=event.target.closest('[data-agent-review-permission]');
+        if(permission && host.permission && container.contains(permission)) {
+          const row=permission.closest('[data-agent-review-item]');
+          if(await host.permission(permission,row.dataset.agentReviewItem,row.dataset.agentReviewVersion) && current(state,state.control)) {
+            void show(container,state.refs,state.sessionId,state.workspaceId,state.scope,state.control);
+          }
+          return;
+        }
         const recoveryButton=event.target.closest('[data-agent-review-inspect],[data-review-recheck],[data-review-confirm-not]');
         if(recoveryButton && container.contains(recoveryButton)) {
           const row=recoveryButton.closest('[data-agent-review-item]'), review_id=row.dataset.agentReviewItem;

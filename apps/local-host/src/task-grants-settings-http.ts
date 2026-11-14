@@ -7,7 +7,7 @@ import { projectDirectoryWords } from "@molis-ai/molis-work-ui-host";
 import { localWebActionContext } from "./local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { installedPluginEntries } from "./plugin-installation-directory.js";
-import { pluginPageRequest } from "./plugin-page-authority.js";
+import { authorizationSettingsControl } from "./authorization-settings-control.js";
 import { directoryWordResolver, registeredInstallationText } from "./ui-text-provider.js";
 import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
 import type { WebRequestContext } from "./web-route-table.js";
@@ -15,7 +15,7 @@ import type { WebRequestContext } from "./web-route-table.js";
 /** What each mode takes, and nothing more: the project is the route's, the person is the caller, both from the request context. */
 const KEYS: Record<string, readonly string[]> = {
   list: ["mode"], titles: ["mode", "plugin_install_id", "cursor"],
-  set: ["mode", "plugin_install_id", "key", "categories", "expected_revision"], clear: ["mode", "plugin_install_id", "key"],
+  set: ["mode", "plugin_install_id", "key", "categories", "expected_revision"],
 };
 const text = (value: unknown) => typeof value === "string" && value.length > 0 && value.length <= 512;
 
@@ -42,7 +42,7 @@ function subjectSource(views: readonly ActionView[], installId: string, kind: st
  * 授权与放行 in a project's settings (specs/proactive-assistant/task-grants-platform-area.md §5): the person's own page lists every
  * task's grants once (`agent.task_grants.list`, no installation named), names each task by its provider's own search source (§5.2,
  * one page of up to 500 entries per call, the next only when the page asks), and takes a category or a task's grants back through
- * `set` and `clear`. The route sits behind the local control guard and answers no plugin page: a frame's bridge header or the shell's
+ * revision-checked `set`, including an empty selection. The route sits behind the local control guard and answers no plugin page: a frame's bridge header or the shell's
  * page header is refused before anything is read. Every call is the person's, in this route's project; the installation is named
  * because a key is unique only within one, and the actions check it again. A title is shown, never relied on.
  */
@@ -54,23 +54,25 @@ export async function handleTaskGrantsSettingsHttp(context: WebRequestContext, p
   const cancel = () => controller.abort(new ActionError("actions.cancelled", "这次设置操作已经结束"));
   const disconnected = () => { if (!response.writableEnded) cancel(); };
   request.once("aborted", cancel); response.once("close", disconnected);
+  const control = authorizationSettingsControl(request, response, localHost, context.serverOptions.assertAccountCurrent);
   try {
-    if (pluginPageRequest(request) || request.headers["x-molis-plugin-page"] !== undefined || request.headers["x-molis-context-page"] !== undefined)
-      throw new ActionError("actions.forbidden", "插件页面不能代本人管理任务的读取授权");
+    control.assertCurrent();
     const body = await readLocalWebBody(request), keys = typeof body.mode === "string" ? KEYS[body.mode] : undefined;
     if (!keys || Object.keys(body).some(key => !keys.includes(key)) || body.mode !== "list" && !text(body.plugin_install_id)
       || body.mode === "titles" && body.cursor !== null && !text(body.cursor)
-      || (body.mode === "set" || body.mode === "clear") && typeof body.key !== "string"
+      || body.mode === "set" && typeof body.key !== "string"
       || body.mode === "set" && (!Array.isArray(body.categories) || typeof body.expected_revision !== "string"))
       throw new ActionError("actions.input_invalid", "任务授权请求无效");
-    const caller = await localWebActionContext(localHost, project, LOCAL_OWNER_PERMISSIONS, controller.signal);
+    const projectCurrent = localHost.holdAuthorizationProject(project);
+    const caller = await localWebActionContext(localHost, project, LOCAL_OWNER_PERMISSIONS, controller.signal, {
+      assertCurrent: () => { control.assertCurrent(); projectCurrent(); },
+    });
     const client = bindActionClient(localHost.actionClient(project), () => caller), install = body.plugin_install_id as string;
     if (body.mode === "set") {
       const subject = await client.invoke(agentTaskGrantActions.set, { plugin_install_id: install, key: body.key as string,
         categories: body.categories as TaskGrantSetCategory[], expected_revision: body.expected_revision as string });
       sendLocalWebJson(response, 200, { subject }); return true;
     }
-    if (body.mode === "clear") { sendLocalWebJson(response, 200, await client.invoke(agentTaskGrantActions.clear, { plugin_install_id: install, key: body.key as string })); return true; }
     if (body.mode === "list") {
       const listed = await client.invoke(agentTaskGrantActions.list, {});
       // Each installation the subjects are in, by its own name, and whether it says what its tasks are (so the page asks it for their titles).

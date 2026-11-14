@@ -16,6 +16,7 @@ import type { ProjectSettingsPagePorts } from "./project-settings-pages.js";
 import { renderConnectorsSettings } from "./settings-connectors.js";
 import { renderPromptSettings } from "./settings-prompts.js";
 import { renderAssistantSettings } from "./settings-assistant.js";
+import { renderAuthorizationSettings } from "./settings-authorizations.js";
 import { renderMemorySettings } from "./settings-memory.js";
 import { renderLocalDirectorySettings } from "./settings-local-directories.js";
 import { renderDiagnosticsSettings } from "./settings-call-diagnostics.js";
@@ -82,6 +83,8 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
       ? uiText.text("workbench.settings-renderer.ai-execution-tools")
     : view.section === "assistant"
       ? uiText.text("workbench.settings-renderer.assistant")
+    : view.section === "authorizations"
+      ? uiText.text("workbench.authorization.manage")
     : view.section === "prompts"
       ? uiText.text("workbench.settings-renderer.prompts")
     : view.section === "memory"
@@ -112,6 +115,7 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
         ? renderRuntimeSettings(view, primitives)
         : view.section === "assistant"
           ? renderAssistantSettings({ readText, projectId: contextProject?.project_id ?? null })
+        : view.section === "authorizations" ? renderAuthorizationSettings(view.projects, contextProject?.project_id ?? null)
         : view.section === "kit" ? renderKitSettings({ projectId: null })
         : view.section === "prompts" ? renderPromptSettings({ readText, displayModel: view.agent_display_model })
         : view.section === "memory"
@@ -140,7 +144,7 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
   </main>
   ${renderRuntimePlanDialog({ readText, icon })}
   <div class="mw-toast toast" data-settings-toast role="status" aria-live="polite"></div>${renderAppearanceRecovery(readText, appearance)}
-  ${settingsText(pluginPage, primitives.catalogTextPacks)}${renderLanguageHead(htmlLang())}<script>${UI_REQUEST_CLIENT_SCRIPT}${SETTINGS_CLIENT_SCRIPT}${view.capabilities?.rules ? FUNCTIONS_SYSTEM_CLIENT_SCRIPT : ""}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>${appearanceClientTag(appearance)}
+  ${settingsText(pluginPage, primitives.catalogTextPacks)}${renderLanguageHead(htmlLang())}<script>${UI_REQUEST_CLIENT_SCRIPT}${SETTINGS_CLIENT_SCRIPT}${view.capabilities?.rules ? FUNCTIONS_SYSTEM_CLIENT_SCRIPT : ""}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>${view.section === "authorizations" ? '<script defer src="/assets/molis-work-capabilities.js"></script>' : ""}${appearanceClientTag(appearance)}
 </body></html>`;
 }
 

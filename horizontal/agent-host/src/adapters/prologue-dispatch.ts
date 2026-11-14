@@ -1,14 +1,13 @@
 import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createPrologueError } from "@prologue/sdk";
 import { agentErrors } from "../errors.js";
-import type { ReviewDecisionControl } from "../review-decisions.js";
-import type { DispatchGuards, NodeHost } from "./prologue-node-kit.js";
+import type { DispatchControl, DispatchGuards, NodeHost } from "./prologue-node-kit.js";
 
 /** Nested calls retain both original owners; a later check cannot replace the initiating Run's fence. */
-export function withDispatchControl<T>(guards: DispatchGuards, control: ReviewDecisionControl, operation: () => Promise<T>): Promise<T> {
+export function withDispatchControl<T>(guards: DispatchGuards, control: DispatchControl, operation: () => Promise<T>): Promise<T> {
   const inherited = guards.getStore();
   const assertCurrent = () => { requireSynchronous(inherited?.assertCurrent()); requireSynchronous(control.assertCurrent()); };
-  return guards.run({ assertCurrent, beforeEffect: async () => {
+  return guards.run({ assertCurrent, mcp: control.mcp ?? inherited?.mcp, beforeEffect: async () => {
     await inherited?.beforeEffect(); await control.beforeEffect();
   } }, operation);
 }

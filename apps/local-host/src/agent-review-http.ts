@@ -4,16 +4,19 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentReviewStatus, AgentGitIndexObservation, AgentReviewRequest, AgentReviewDecisionAvailability } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { ASSISTANT_PERSONAL_OWNER } from "@molis-ai/molis-work-contracts/services/assistant";
-import { renderAgentReviewSurface, renderAgentReviewRecovery } from "@molis-ai/molis-work-app-workbench";
+import { renderAgentReviewSurface, renderAgentReviewRecovery, reviewSourceSummary } from "@molis-ai/molis-work-app-workbench";
+export { reviewSourceSummary };
 import { format, icon, say, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { actionErrorKind, actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 
-import { ActionError, requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
-import { confirmArrivedTooSoon, reviewProjectFor, type ComputerRoundHolder } from "./computer/computer-policy.js";
-import { computerErrors } from "./computer/computer-errors.js";
+import { ActionError, requireSynchronous, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { assertHumanReview, reviewProjectFor, type ComputerRoundHolder } from "./computer/computer-policy.js";
 import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
 import { webEntryDoor, webEntryProvider } from "./web-entry-actions.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
+import { webEffectControl } from "./authorization-settings-control.js";
+import { webManagementAuthenticated } from "./web-sessions.js";
+import { reviewProposalVersion } from "@molis-ai/molis-work-service-agent-host";
 
 /**
  * The Host's review queue over HTTP.
@@ -33,6 +36,7 @@ export interface AgentReviewHttpPorts {
   observeGitIndex?: (request: AgentReviewRequest) => Promise<AgentGitIndexObservation>;
   /** The round holding the computer, when this process has a desk. Absent on a forwarder. */
   computerHolder?: () => ComputerRoundHolder | null;
+  assertAccountCurrent?: () => void;
   /** Clock for the self-approval quiet period. Defaults to the wall clock. */
   now?: () => number;
 }
@@ -53,6 +57,29 @@ const conflict = (error: unknown, fallback: string) => {
 };
 
 export const agentReviewActions = {
+  permission: door.define({ capability_id: "agent.reviews.permission.set", version: /* @version action.agent.reviews.permission.set */ 1, scope: "home",
+    title: "保存原操作的后续工作权限", description: "本人从原审查中选择后续工作的权限方式。",
+    input_schema: { type: "object", properties: { review_id: reviewId, version: reviewId,
+      mode: { enum: ["read-only", "confirm", "automatic"] }, lifetime: { enum: ["work", "ongoing"] },
+      expected_version: { type: "integer", minimum: 0 }, scope_version: reviewId },
+      required: ["review_id", "version", "mode", "lifetime", "expected_version", "scope_version"], additionalProperties: false } },
+  async (entry, input, caller) => {
+    const held = await exactReviewPermission(entry.ports, input.review_id, input.version, input.lifetime);
+    if (input.scope_version !== held.scopeVersion) throw new ActionError("actions.conflict", "原操作范围已变化");
+    const assertCurrent = () => {
+      requireSynchronous(caller.assert_authority_current?.()); entry.page?.assertCurrent(); held.assertPending();
+      if (input.mode === "automatic") held.assertCurrent();
+      assertHumanReview(entry.ports.computerHolder?.() ?? null, held.session);
+    };
+    const beforeEffect = async () => {
+      await caller.beforeEffect(); await entry.page?.beforeEffect();
+      if (input.mode === "automatic") await held.beforeEffect();
+      assertCurrent();
+    };
+    assertCurrent();
+    return { permission: await held.store.grant(held.subject, { expected_version: input.expected_version,
+      mode: input.mode, scopes: input.mode === "automatic" ? [held.scope] : [], expires_at: null }, { beforeEffect, assertCurrent }) };
+  }),
   decide: door.define({ capability_id: "agent.reviews.decide", version: /* @version action.agent.reviews.decide */ 1, scope: "home",
     title: "决定一条待审操作", description: "本人批准或拒绝 Agent 请求的一项操作；批准不等于已经发生，回执另说。",
     input_schema: { type: "object", properties: { review_id: reviewId, version: { type: "string", minLength: 1, maxLength: 200 }, decision: { enum: ["approve", "reject"] }, note: { type: "string", maxLength: 2000 },
@@ -66,9 +93,7 @@ export const agentReviewActions = {
       const holder = ports.computerHolder?.() ?? null;
       const projectId = page ? ports.projectId : reviewProjectFor(ports.projectId, review?.run?.session_id ?? null, holder);
       if (!review || review.project_id !== projectId) throw missing(uiText.text("workbench.agent-review.review-missing"));
-      if (holder?.lastInjectAt != null && review.run?.session_id === holder.sessionId && confirmArrivedTooSoon(holder.lastInjectAt, ports.now?.() ?? Date.now())) {
-        throw computerErrors.self_approval(uiText.text("workbench.agent-review.self-approval"));
-      }
+      assertHumanReview(holder, review.run?.session_id, ports.now?.());
     };
     assertCurrent();
     await ports.agentHost.reviews.refresh(review!.project_id);
@@ -101,6 +126,26 @@ const asPerson = (request: IncomingMessage, ports: AgentReviewHttpPorts) => ({ h
 /** What went wrong, answered with the status its kind gives (gone 404, conflict 409, refused 403): it must not read as success. */
 const refuse = (response: ServerResponse, error: unknown) => { const refusal = actionErrorResponse(error); sendLocalWebJson(response, refusal.status, refusal.body); };
 
+async function exactReviewPermission(ports: AgentReviewHttpPorts, id: string, version: string, lifetime: "work" | "ongoing") {
+  const queue = ports.agentHost.reviews;
+  const request = queue.get(id);
+  if (!request?.run || request.project_id !== ports.projectId) throw missing(uiText.text("workbench.agent-review.review-missing"));
+  try {
+    if (!(await queue.decisions(id)).approve.available) throw new ActionError("actions.conflict", "原操作已经不能决定");
+    const held = queue.exactPermission(id, version), store = ports.agentHost.workDelegations("prologue");
+    if (!held || !store || held.subject.kind !== "work" || held.subject.actor_id !== ports.actorId
+      || held.subject.project_id !== request.project_id || held.subject.executor.plugin_id !== request.plugin_id
+      || held.subject.executor.install_id !== request.reference.owner.install_id || held.subject.work.id !== request.run.session_id) {
+      throw missing(uiText.text("workbench.agent-review.review-missing"));
+    }
+    const subject = lifetime === "work" ? held.subject : { kind: "ongoing" as const, actor_id: held.subject.actor_id,
+      project_id: held.subject.project_id, executor: held.subject.executor };
+    const current = await store.read(subject);
+    held.assertPending();
+    return { ...held, subject, current, store, session: request.run.session_id, scopeVersion: reviewProposalVersion(held.scope) };
+  } catch (error) { throw conflict(error, uiText.text("workbench.agent-review.cannot-decide")); }
+}
+
 const STATUSES: readonly AgentReviewStatus[] = [
   "pending", "approved", "rejected", "cancelled", "expired",
 ];
@@ -111,6 +156,31 @@ export async function handleAgentReviewHttp(
   url: URL,
   ports: AgentReviewHttpPorts,
 ): Promise<boolean> {
+  if ((request.method === "GET" || request.method === "POST") && url.pathname === "/api/agent/reviews/permission") {
+    const control = webEffectControl(request, response, ports.host, ports.assertAccountCurrent);
+    try {
+      control.assertCurrent();
+      const page = pluginPageRequest(request);
+      if (!webManagementAuthenticated(request) || request.headers["x-molis-plugin-page"] !== undefined) throw new ActionError("actions.forbidden", "只有本人可以管理工作权限");
+      if (request.method === "GET") {
+        const { review_id, version, lifetime } = Object.fromEntries(url.searchParams);
+        if (!review_id || !version || lifetime !== "work" && lifetime !== "ongoing") throw new ActionError("actions.input_invalid", "请按原操作查看权限");
+        const held = await exactReviewPermission(ports, review_id, version, lifetime);
+        let automatic = true;
+        try { await held.beforeEffect(); held.assertCurrent(); } catch { automatic = false; }
+        control.assertCurrent(); page?.assertCurrent(); held.assertPending();
+        const selected = held.current?.selections.find(row => row.id === held.current?.selection_id);
+        sendLocalWebJson(response, 200, { title: held.title, scope: held.scope, automatic, scope_version: held.scopeVersion,
+          storage_version: held.current?.storage_version ?? 0, selection: selected ? { mode: selected.mode, revoked_at: selected.revoked_at } : null });
+      } else {
+        const input = await readLocalWebBody(request);
+        type Input = typeof agentReviewActions.permission.definition extends ActionDefinition<infer Value, unknown> ? Value : never;
+        sendLocalWebJson(response, 200, await door.invoke({ ...asPerson(request, ports), assertCurrent: control.assertCurrent },
+          agentReviewActions.permission.definition, input as Input));
+      }
+    } catch (error) { refuse(response, error); }
+    return true;
+  }
   if ((request.method === "GET" || request.method === "POST") && url.pathname === "/api/agent/reviews/recovery") {
     const escape = (value: string) => value.replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!);
     if (request.method === "POST") {
@@ -165,7 +235,9 @@ export async function handleAgentReviewHttp(
     const open = (row: typeof matched[number]) => !row.receipt || row.receipt.status === "pending" || row.receipt.status === "approved" && !row.receipt.effect_settled && !row.receipt.effect_error;
     const settled = matched.filter(row => !open(row));
     const kept = limit === undefined ? null : new Set(settled.sort((a, b) => b.request.requested_at.localeCompare(a.request.requested_at)).slice(0, limit));
-    const rows = kept ? matched.filter(row => open(row) || kept.has(row)) : matched;
+    const rows = (kept ? matched.filter(row => open(row) || kept.has(row)) : matched).map(row =>
+      row.decisions.approve.available && ports.agentHost.reviews.hasExactPermission(row.request.review_id)
+        ? { ...row, work_permission_available: true as const } : row);
     const html = renderAgentReviewSurface({ rows, primitives: {
       escape: value => String(value).replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!),
       icon, formatDate: value => format.date(value, "datetime-with-seconds"),

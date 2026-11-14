@@ -24,6 +24,7 @@ import { ASSISTANT_NOTICES_PART } from "./assistant-notices.js";
 import { ASSISTANT_MATERIALS_PART } from "./assistant-materials.js";
 import { ASSISTANT_COMPOSER_PART } from "./assistant-composer.js";
 import { ASSISTANT_PAGE_MESSAGES_PART } from "./assistant-page-messages.js";
+import { ASSISTANT_PERMISSIONS_PART } from "./assistant-permissions.js";
 // The SDK's tokenizer is consumed here on the Host, never serialized into the Assistant's browser script.
 const assistantGrownTokens = assistantCodeColours(growCodeTokens, codeTokens);
 export const assistantTextHtml = (text: string, objects: AssistantWorkView["objects"], say: AssistantTextPorts["say"]): string =>
@@ -104,6 +105,7 @@ ${ASSISTANT_BROWSER_HANDBACK_PART}
   const scopeLabel = (scope, title) => !scope ? "" : scope.kind === "personal" ? readText("workbench.assistant-island.personal")
     : title || (project && scope.project_id === project.id ? (project.title || readText("workbench.assistant-island.project")) : readText("workbench.assistant-island.another-project"));
   const getWork = () => works.find((work) => work.work_id === curId) || (view && view.work.work_id === curId ? view.work : null);
+${ASSISTANT_PERMISSIONS_PART}
   const isLive = (state) => state === "running" || state === "waiting-input" || state === "waiting-review" || state === "paused";
   let presentation, stepRow;
   const setPanel = (open) => { if (!presentation?.show(open) && panel) panel.hidden = !open; };
@@ -305,6 +307,14 @@ ${ASSISTANT_STRIP_PART}
   function paintSum() {
     const work = view && view.work.work_id === curId ? view.work : getWork();
     titleEl.textContent = work ? work.title : readText("workbench.assistant-island.new-work");
+    const suggestion = island.querySelector("[data-assistant-automation]");
+    if (suggestion) {
+      const projectId = work ? (work.scope.kind === "project" ? work.scope.project_id : "") : project?.id ?? "";
+      suggestion.dataset.automationOpen = projectId;
+      suggestion.hidden = !projectId;
+    }
+    const permission = island.querySelector("[data-assistant-permission-summary]");
+    if (permission) permission.hidden = !work || work.executor.kind !== "assistant" || work.archived || Boolean(work.reply_target);
     stateEl.textContent = work ? stateLabel(work.state) : "";
     stateEl.dataset.state = work ? work.state : ""; if (work) stateEl.dataset.mwState = ringState(work.state); else stateEl.removeAttribute("data-mw-state");
     const summary = island.querySelector(".assistant-summary");

@@ -170,7 +170,11 @@ test("ASC-25 ASC-34: setup context is scoped to the actor, session and project a
   assert.deepEqual(snapshot.requests.map(row => row.authorization_id), [own.authorization_id]);
   assert.equal(snapshot.requests[0]?.commit_held, true);
   assert.equal(snapshot.previous_wait_withdrawn, false, "a prior normal completion did not register a wait");
-  await home.web.post(prefix + "/api/assistant/capabilities", { capability_id: "connectors.authorization.read", version: 1, provider_id: "system.connectors", enabled: false });
+  const capabilities = prefix + "/api/assistant/capabilities";
+  const { capabilities: available } = await home.web.get<{ capabilities: { capability_id: string; expected: string }[] }>(capabilities);
+  const expected = available.find(row => row.capability_id === "connectors.authorization.read")?.expected;
+  assert.ok(expected);
+  await home.web.post(capabilities, { capability_id: "connectors.authorization.read", version: 1, provider_id: "system.connectors", enabled: false, expected });
   const nextText = "撤回读取权限后再看本轮情况";
   await home.web.post(prefix + "/api/assistant/send", { work_id: sent.work.work_id, text: nextText, request_id: crypto.randomUUID() });
   await settled(3);

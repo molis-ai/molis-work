@@ -57,10 +57,15 @@ test("an external MCP client reads memory only through the person's grant for me
   };
   // The person's grant, as the settings page records it: one record per client, action, version and provider; memory.recall is a Home action.
   const grant = { client_id: "runtime:codex", project_id: null, capability_id: "memory.recall", version: 1, provider_id: MEMORY_PROVIDER_ID, permissions: ["memory:recall"], enabled: true };
-  const record = (enabled: boolean) => served!.web.post("/api/settings/mcp/actions", {
-    client_id: grant.client_id, project_id: grant.project_id, capability_id: grant.capability_id,
-    version: grant.version, provider_id: grant.provider_id, enabled,
-  });
+  let expected: { expected_absent: true } | { expected_generation: string } = { expected_absent: true };
+  const record = async (enabled: boolean) => {
+    const saved = await served!.web.post<{ generation: string }>("/api/settings/mcp/actions", {
+      client_id: grant.client_id, project_id: grant.project_id, capability_id: grant.capability_id,
+      version: grant.version, provider_id: grant.provider_id, enabled, expected,
+    });
+    expected = { expected_generation: saved.generation };
+    return saved;
+  };
 
   // Before a grant the client sees nothing of memory, and a call by name is refused without leaking a memory.
   assert.equal((await codex.tools()).some(name => name.includes("memory.")), false, "declaring an MCP audience grants nothing");

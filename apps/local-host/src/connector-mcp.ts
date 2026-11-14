@@ -9,7 +9,7 @@ import { connectorProductAuth } from "./connector-product-auth.js";
 import { resolve } from "node:path";
 import { createHash } from "node:crypto";
 import { withConnectorRequest } from "./connector-lifecycle.js";
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import { mcpInputFingerprint } from "./mcp-tool-actions.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { auth, UnauthorizedError, type OAuthClientProvider, type OAuthDiscoveryState } from "@modelcontextprotocol/sdk/client/auth.js";
@@ -26,7 +26,7 @@ import { assertSecretStoreWritable } from "@molis-ai/molis-work-storage";
 import { isLoopbackHttpOrigin, isLoopbackHttpUrl } from "@molis-ai/molis-work-contracts/platform/loopback";
 import { PRODUCT_VERSION } from "./product-version.js";
 import { activeMcpOperation, resolveMcpServer, mcpOperationAuthority, mcpSourcePin, productMcpClientEligible, type McpSourcePin, type McpOperationAuthority } from "./connector-mcp-configuration.js";
-import { useLocalMcpConnection } from "./connector-local-mcp.js";
+import { businessMcpRequestId, trackMcpDispatch, useLocalMcpConnection, watchMcpReplies, watchMcpStdioDispatch } from "./connector-local-mcp.js";
 
 export interface McpServerConfiguration {
   endpoint: string;
@@ -68,7 +68,9 @@ export type { McpInspection } from "./connector-mcp-inspection.js";
 interface McpRequestOptions {
   signal?: AbortSignal;
   beforeDispatch?(): void | Promise<void>;
-  onBusinessDispatch?(): void;
+  assertCurrent?(): void;
+  onBusinessDispatch?: () => void;
+  dispatch?: ReturnType<typeof trackMcpDispatch>;
 }
 interface McpToolRequestOptions extends McpRequestOptions {
   expectedInputFingerprint?: string;
@@ -91,13 +93,13 @@ function mcpCallback(input: StartMcpConnectionInput, mode: McpConfiguration["mod
   return { origin, redirectUri };
 }
 function authorizationError(message: string): ActionError { return connectorErrors["connector.mcp.authorization"](message); }
-function safeError(error: unknown): ActionError {
+function safeError(error: unknown, refusal?: number): ActionError {
   const connectionRefusal = error instanceof ActionError && error.code.startsWith("connector.connection.") && Object.hasOwn(connectorErrors, error.code);
   if (error instanceof ActionError && !connectionRefusal) return error;
   if (error instanceof UnauthorizedError) return authorizationError("MCP 需要重新授权，请检查账号权限或 OAuth 应用配置");
-  // Only what the server did, never its text: whether it answered (an HTTP status, a JSON-RPC error code) decides a run of failures (ASC-58).
+  // Only what the server did, never its text. A JSON-RPC number also exists in client-side errors.
   const answer = error instanceof StreamableHTTPError && typeof error.code === "number" && error.code >= 400 ? { http_status: error.code }
-    : error instanceof McpError && Number.isInteger(error.code) ? { jsonrpc_code: error.code } : undefined;
+    : error instanceof McpError && refusal !== undefined && error.code === refusal ? { jsonrpc_code: refusal } : undefined;
   return connectorErrors["connector.mcp.provider"]("MCP 连接失败，请检查服务地址、账号权限和 OAuth 应用配置后重试", answer);
 }
 
@@ -131,12 +133,34 @@ interface ConnectorMcpHostOptions {
   stdioTransport?: (parameters: StdioServerParameters) => Transport;
 }
 
+/** The transport may retry an authenticated POST. Keep effect tracking at the actual transport boundary. */
+function guardConnectorMcpFetch(config: McpConfiguration, checkActive: () => void, control: McpRequestOptions, testEndpoints: boolean): typeof fetch {
+  return async (input, init) => {
+    const { signal, beforeDispatch, dispatch } = control;
+    checkActive();
+    const url = new URL(input instanceof Request ? input.url : String(input));
+    const configured = new URL(config.endpoint);
+    const permittedLocal = url.origin === configured.origin && (testEndpoints || config.serviceId === "figma" || config.serviceId === CUSTOM_MCP_SERVICE && isLoopbackHttpUrl(configured));
+    if (url.username || url.password || (url.protocol !== "https:" && !(url.protocol === "http:" && permittedLocal))) throw connectorErrors["connector.mcp.configuration"]("MCP 授权服务返回了不安全的地址");
+    await beforeDispatch?.();
+    checkActive();
+    init?.signal?.throwIfAborted();
+    if (dispatch && init?.method === "POST" && typeof init.body === "string" && /^application\/json(?:\s*;|$)/iu.test(new Headers(init.headers).get("content-type") ?? "")) {
+      const id = businessMcpRequestId(JSON.parse(init.body));
+      if (id !== undefined) dispatch.send(id);
+    }
+    const response = await fetch(input, { ...init, redirect: "error", signal: AbortSignal.any([AbortSignal.timeout(REQUEST_TIMEOUT), ...(init?.signal ? [init.signal] : []), ...(signal ? [signal] : [])]) });
+    checkActive();
+    return response;
+  };
+}
+
 /**
  * Runs `run` against the Feishu/Lark MCP server, started as a child process for this use alone: the Host builds its launch
  * (pinned package, only the variables it needs, an empty working directory of its own), and closes the child and removes
  * that directory when the use ends, however it ends.
  */
-async function runLarkMcpChild<T>(credentials: LarkMcpLaunchInput, use: Pick<ConnectorMcpHostOptions, "stdioTransport"> & { checkActive?: () => void; signal?: AbortSignal },
+async function runLarkMcpChild<T>(credentials: LarkMcpLaunchInput, use: Pick<ConnectorMcpHostOptions, "stdioTransport"> & McpRequestOptions & { checkActive?: () => void },
   run: (client: Client) => Promise<T>): Promise<{ result: T }> {
   const launch = larkMcpLaunch(credentials);
   const client = new Client({ name: "molis-work", version: PRODUCT_VERSION }, { capabilities: {} });
@@ -145,6 +169,9 @@ async function runLarkMcpChild<T>(credentials: LarkMcpLaunchInput, use: Pick<Con
   try {
     const parameters: StdioServerParameters = { command: launch.command, args: launch.args, env: launch.env, cwd: launch.cwd, stderr: "pipe" };
     const transport = use.stdioTransport ? use.stdioTransport(parameters) : new StdioClientTransport(parameters);
+    watchMcpStdioDispatch(transport, use.checkActive, use.dispatch);
+    await use.beforeDispatch?.();
+    use.signal?.throwIfAborted(); use.checkActive?.(); requireSynchronous(use.assertCurrent?.());
     use.signal?.addEventListener("abort", abort, { once: true });
     await client.connect(transport, { timeout: 60_000, signal: use.signal });
     use.checkActive?.();
@@ -170,27 +197,13 @@ export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
   };
   const resolveServer = (home: string, serviceId: string, requested?: string) => resolveMcpServer(home, serviceId, requested, options.testServers);
   const active = (home: string, id: string) => activeMcpOperation(home, id, options.testServers);
-  function guardedFetch(config: McpConfiguration, checkActive?: () => void, signal?: AbortSignal, beforeDispatch?: McpRequestOptions["beforeDispatch"]): typeof fetch {
-    return async (input, init) => {
-      checkActive?.();
-      const url = new URL(input instanceof Request ? input.url : String(input));
-      const configured = new URL(config.endpoint);
-      const permittedLocal = url.origin === configured.origin && (options.testServers || config.serviceId === "figma" || config.serviceId === CUSTOM_MCP_SERVICE && isLoopbackHttpUrl(configured));
-      if (url.username || url.password || (url.protocol !== "https:" && !(url.protocol === "http:" && permittedLocal))) throw connectorErrors["connector.mcp.configuration"]("MCP 授权服务返回了不安全的地址");
-      await beforeDispatch?.();
-      checkActive?.();
-      signal?.throwIfAborted();
-      const response = await fetch(input, { ...init, redirect: "error", signal: AbortSignal.any([AbortSignal.timeout(REQUEST_TIMEOUT), ...(init?.signal ? [init.signal] : []), ...(signal ? [signal] : [])]) });
-      checkActive?.(); signal?.throwIfAborted();
-      return response;
-    };
-  }
-  function provider(home: string, config: McpConfiguration, authority: McpOperationAuthority, state?: string, signal?: AbortSignal, beforeDispatch?: McpRequestOptions["beforeDispatch"]) {
+  function provider(home: string, config: McpConfiguration, authority: McpOperationAuthority, state?: string, control: McpRequestOptions = {}) {
     const secrets = connectorProtocolSecrets(home, config.sessionId);
     const checkActive = () => {
-      signal?.throwIfAborted();
+      control.signal?.throwIfAborted();
       if (state) assertMcpAuthorizationPending(home, state, now());
-      authority.check();
+      if (control.assertCurrent) requireSynchronous(control.assertCurrent());
+      else authority.check();
     };
     let authorizationUrl: string | undefined;
     const saveConfig = () => {
@@ -233,16 +246,16 @@ export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
         if (scope === "all" || scope === "discovery") { delete config.discovery; saveConfig(); }
       },
     };
-    return { oauth, secrets, checkActive, authorizationUrl: () => authorizationUrl, fetch: guardedFetch(config, checkActive, signal, beforeDispatch) };
+    return { oauth, secrets, checkActive, authorizationUrl: () => authorizationUrl, fetch: guardConnectorMcpFetch(config, checkActive, control, Boolean(options.testServers)) };
   }
-  async function useClient<T>(home: string, config: McpConfiguration, authority: McpOperationAuthority, run: (client: Client) => Promise<T>, state?: string, signal?: AbortSignal, beforeDispatch?: McpRequestOptions["beforeDispatch"]): Promise<{ result?: T; authorizationUrl?: string }> {
-    const session = provider(home, config, authority, state, signal, beforeDispatch);
+  async function useClient<T>(home: string, config: McpConfiguration, authority: McpOperationAuthority, run: (client: Client) => Promise<T>, state?: string, control: McpRequestOptions = {}): Promise<{ result?: T; authorizationUrl?: string }> {
+    const { signal } = control, session = provider(home, config, authority, state, control);
     signal?.throwIfAborted(); session.checkActive();
     if (authority.server.stdio) {
       const info = session.oauth.clientInformation() as OAuthClientInformationMixed | undefined;
       if (!info?.client_id || !info.client_secret) throw connectorErrors["connector.mcp.configuration"]("飞书 / Lark MCP 需要 App ID 与 App Secret");
       return runLarkMcpChild({ appId: info.client_id, appSecret: info.client_secret, domain: new URL(config.endpoint).origin, userAccessToken: session.secrets.get("access") },
-        { stdioTransport: options.stdioTransport, checkActive: session.checkActive, signal }, run);
+        { ...control, stdioTransport: options.stdioTransport, checkActive: session.checkActive }, run);
     }
     const expires = Number(session.secrets.get("expires"));
     // Some official servers also expose anonymous tools. A user asking to link
@@ -256,13 +269,16 @@ export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
     if (config.mode === "bearer" && !token) throw connectorErrors["connector.mcp.authorization"]("MCP 令牌缺失，请重新连接");
     const headers = token ? { Authorization: `${authority.server.tokenScheme ?? "Bearer"} ${token}` } : undefined;
     const transportOptions = { authProvider: config.mode === "oauth" ? session.oauth : undefined, requestInit: headers ? { headers } : undefined, fetch: session.fetch };
+    let initialized = false;
     const connect = async (kind: "http" | "sse") => {
       const client = new Client({ name: "molis-work", version: PRODUCT_VERSION }, { capabilities: {} });
       const transport = kind === "http" ? new StreamableHTTPClientTransport(new URL(config.endpoint), transportOptions) : new SSEClientTransport(new URL(config.endpoint), transportOptions);
+      watchMcpReplies(transport, control.dispatch);
       const abort = () => { void client.close().catch(() => {}); }; // Aborting closes the connection; a connection that is already closed has nothing left to close.
       signal?.addEventListener("abort", abort, { once: true });
       try {
         await client.connect(transport, { timeout: REQUEST_TIMEOUT, signal });
+        initialized = true;
         session.checkActive?.();
         config.transport = kind;
         const result = await run(client);
@@ -273,7 +289,7 @@ export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
     try { return await connect(config.transport); }
     catch (error) {
       if (session.authorizationUrl()) return { authorizationUrl: session.authorizationUrl() };
-      if (config.transport === "http" && error instanceof StreamableHTTPError && [404, 405].includes(error.code ?? 0)) {
+      if (!initialized && config.transport === "http" && error instanceof StreamableHTTPError && [404, 405].includes(error.code ?? 0)) {
         try { return await connect("sse"); }
         catch (fallbackError) { if (session.authorizationUrl()) return { authorizationUrl: session.authorizationUrl() }; throw fallbackError; }
       }
@@ -320,7 +336,7 @@ export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
     const state = withConnectorProtocols(home, store => store.begin(origin, config, now()));
     const authorizationId = beginConnectorAuthorization(home, state, connectionId, input.serviceId, now(), input.setupId);
     try {
-      const connected = await useClient(home, config, authority, inspect, state, control.signal, control.beforeDispatch);
+      const connected = await useClient(home, config, authority, inspect, state, control);
       authority.check(); assertMcpAuthorizationPending(home, state, now());
       if (connected.authorizationUrl) { withConnectorProtocols(home, store => store.update(state, config)); saveConnectorAuthorizationPresentation(home, authorizationId, { authorization_url: connected.authorizationUrl }); return { connectionId, authorizationId, authorizationUrl: connected.authorizationUrl }; }
       if (!connected.result) throw connectorErrors["connector.mcp.provider"]("MCP 未完成初始化");
@@ -366,12 +382,22 @@ export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
       signal.throwIfAborted();
       const { config, authority } = await active(home, id);
       authority.check();
-      const connected = config.transport === "stdio"
-        ? await useLocalMcpConnection(home, config, { ...options, signal }, client => run(client, signal, authority.check))
-        : await useClient(home, config, authority, client => run(client, signal, authority.check), undefined, signal, options.beforeDispatch);
-      authority.check();
-      if (connected.result === undefined) throw connectorErrors["connector.mcp.authorization"]("MCP 需要重新授权");
-      return connected.result;
+      const checkCurrent = () => { authority.check(); signal.throwIfAborted(); requireSynchronous(options.assertCurrent?.()); };
+      const dispatch = trackMcpDispatch(options.onBusinessDispatch);
+      const control = { ...options, signal, assertCurrent: checkCurrent, dispatch };
+      try {
+        const connected = config.transport === "stdio"
+          ? await useLocalMcpConnection(home, config, control, client => run(client, signal, checkCurrent))
+          : await useClient(home, config, authority, client => run(client, signal, checkCurrent), undefined, control);
+        checkCurrent();
+        if (connected.result === undefined) throw connectorErrors["connector.mcp.authorization"]("MCP 需要重新授权");
+        return connected.result;
+      } catch (error) {
+        if (!dispatch.dispatched()) throw error;
+        const handled = safeError(error, dispatch.refusal());
+        if (handled.code === "connector.mcp.provider" && typeof handled.details?.jsonrpc_code === "number") throw handled;
+        throw new ActionError("actions.outcome_unknown", "MCP 已派发但没有可靠结果，请先核对实际结果", { details: handled.details });
+      }
     }));
   const inspectMcpConnection = (home: string, id: string, options: McpRequestOptions = {}) => runConnection(home, id, options, inspect);
   const getMcpConnectionDescriptor = async (home: string, id: string, options: { signal?: AbortSignal } = {}) => {
@@ -396,14 +422,12 @@ export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
     }
     await options.beforeDispatch?.();
     signal.throwIfAborted(); checkCurrent();
-    options.onBusinessDispatch?.();
     return client.callTool({ name, arguments: args }, undefined, { timeout: REQUEST_TIMEOUT, signal });
   });
   const readMcpConnectionResource = (home: string, id: string, uri: string, options: McpRequestOptions = {}) => runConnection(home, id, options, async (client, signal, checkCurrent) => {
     if (!uri.trim() || uri.length > 4096) throw connectorErrors["connector.mcp.configuration"]("资源 URI 无效");
     await options.beforeDispatch?.();
     signal.throwIfAborted(); checkCurrent();
-    options.onBusinessDispatch?.();
     return client.readResource({ uri }, { timeout: REQUEST_TIMEOUT, signal });
   });
   const resolveMcpConnectionToken = (home: string, id: string, endpoint: string) => serialized(home, id, async () => {

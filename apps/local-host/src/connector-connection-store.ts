@@ -2,17 +2,20 @@ import { connectorErrors } from "@molis-ai/molis-work-contracts/services/connect
 import { existsSync } from "node:fs";
 import { openExistingBaselineHomeSqlite, createFileSecretStore, homeSqlitePath, peekSealedEntry, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { openConnectorsStore, CONNECTORS_BASELINE, CONNECTORS_HOME_STORE } from "./connectors-store.js";
+import { ConnectorProtocolStore, type ConnectorProtocolConfiguration } from "./connector-protocol-store.js";
 import { ConnectorConnectionStore, ConnectorObservationStore, forgetPluginBindings, type ConnectorCheckObservation, type ConnectorConnectionSecrets } from "@molis-ai/molis-work-service-connector-host";
 import { invalidateConnectorBindingRequests, invalidateConnectorRequests } from "./connector-lifecycle.js";
 import { settleConnectionNotices } from "./assistant/assistant-connection-notices.js";
 
 export { ConnectorConnectionStore } from "@molis-ai/molis-work-service-connector-host";
 
+type ReadProtocol = <T extends ConnectorProtocolConfiguration>(id: string) => T | null;
+
 /** Opens one short-lived connection to the Home-owned registry. */
-export function withConnectorConnections<T>(homeDirectory: string, operation: (store: ConnectorConnectionStore) => T): T;
-export function withConnectorConnections<T>(homeDirectory: string, operation: (store: ConnectorConnectionStore) => T, existingOnly: true): T | undefined;
-export function withConnectorConnections<T>(homeDirectory: string, operation: (store: ConnectorConnectionStore) => T, existingOnly: "required"): T;
-export function withConnectorConnections<T>(homeDirectory: string, operation: (store: ConnectorConnectionStore) => T, existingOnly: boolean | "required" = false): T | undefined {
+export function withConnectorConnections<T>(homeDirectory: string, operation: (store: ConnectorConnectionStore, readProtocol: ReadProtocol) => T): T;
+export function withConnectorConnections<T>(homeDirectory: string, operation: (store: ConnectorConnectionStore, readProtocol: ReadProtocol) => T, existingOnly: true): T | undefined;
+export function withConnectorConnections<T>(homeDirectory: string, operation: (store: ConnectorConnectionStore, readProtocol: ReadProtocol) => T, existingOnly: "required"): T;
+export function withConnectorConnections<T>(homeDirectory: string, operation: (store: ConnectorConnectionStore, readProtocol: ReadProtocol) => T, existingOnly: boolean | "required" = false): T | undefined {
   const db = existingOnly ? openExistingBaselineHomeSqlite(homeDirectory, CONNECTORS_HOME_STORE.path, CONNECTORS_BASELINE) : openConnectorsStore(homeDirectory);
   if (!db) {
     if (existingOnly === "required") throw connectorErrors["connector.connection.not_found"]("连接不存在");
@@ -30,7 +33,7 @@ export function withConnectorConnections<T>(homeDirectory: string, operation: (s
     const store = new ConnectorConnectionStore(db, secrets, undefined, id => { invalidateConnectorRequests(homeDirectory, id); settleConnectionNotices(homeDirectory, id); },
       binding => invalidateConnectorBindingRequests(homeDirectory, binding));
     observationsOf.set(store, new ConnectorObservationStore(db));
-    return operation(store);
+    return operation(store, <Protocol extends ConnectorProtocolConfiguration>(id: string) => new ConnectorProtocolStore(db).get<Protocol>(id));
   } finally { db.close(); }
 }
 

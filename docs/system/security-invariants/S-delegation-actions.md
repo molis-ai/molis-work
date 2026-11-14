@@ -11,3 +11,5 @@
 第一组用例经实际 ActionService 和 Pages SQLite 事务验证范围与拒绝；委托存储端口用受控内存记录。助理用例在临时 Home 走登记的权限动作、实际 Prologue 待批、可信来源保存和 Pages 写事务，并核对重启后的同一授权、越界待审和写前撤销的全部业务行。模型响应由测试固定。界面体验与本人验收在整批交付时验证。
 
 同一用例文件还核对停止时拒绝迟到的原问题回答、撤销后用当前授权版本重试收口并拒绝旧版本和 Agent 调用、敏感精确参数不进入候选，以及原可撤销策略通过同一个 SDK effect 保存来源后才允许 Todo 写入。重启后读回原策略记录。工作管理的撤销结果区分授权已经失效与原停止回执待核对。
+
+服务连接的 MCP 动作由 `connector-mcp-actions.ts` 绑定这一次的账号、当前连接修订、协议来源和实际工具指纹，完整参数来自原提案。授权预览不连服务。实际 HTTP 请求与 stdio 写管道在最后同步确认当前性后才计为派出。已派出的业务帧没有可靠结果时，原 SDK effect 进入待核对。回归 `tests/security-invariants-assistant-pages-permissions.test.ts`「Assistant reuses one real connector MCP tool」用两个有独立测试凭据的回环连接，逐项断言换连接、改参数和发送前切换修订无远端写入。测试另让服务实际写入后断开响应并查原审批回执。

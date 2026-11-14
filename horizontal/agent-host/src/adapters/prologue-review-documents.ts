@@ -1,11 +1,11 @@
 import { isDeepStrictEqual } from "node:util";
 import { WORKSPACE_COMMAND_KIND, isAfterWriteCheckOperationKey, type ExactRef, type Runtime } from "@prologue/sdk";
-import type { AgentMcpLibrary, AgentReviewReceipt } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentReviewReceipt } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { gatewayReview, isGatewayChange } from "./prologue-action-gateway.js";
 import { agentActionToolName } from "./prologue-action-tools.js";
 import { PrologueApprovalBridge, type ProloguePendingPort } from "./prologue-approvals.js";
 import { mcpConnectionId } from "./prologue-mcp.js";
-import { allowDesktopAppForRound, type PrologueSurfaces } from "./prologue-surfaces.js";
+import type { PrologueSurfaces } from "./prologue-surfaces.js";
 import { presentReview, presentToolReview, reviewField, reviewText, type ReviewWord } from "../review-presentation.js";
 import { createSurfaceReview, type SurfaceReview } from "./prologue-surface-review.js";
 import type { createProjectWork } from "./prologue-project-work.js";
@@ -14,6 +14,7 @@ import type { SessionIndexStore } from "./prologue-session-index.js";
 import { prologueReviewReference } from "./prologue-review-decisions.js";
 import { inspectReviewEffect } from "./prologue-review-effects.js";
 import type { ReviewDecisionStore } from "../review-decisions.js";
+import { matchExactPermission, reusableInput, type ExactPermission } from "./prologue-exact-permission.js";
 
 /**
  * What the person reviews before a held operation goes through (W4-06 split this out of the Node composition): the
@@ -29,7 +30,6 @@ interface ReviewDeps {
   readonly surfaces: () => PrologueSurfaces | undefined;
   readonly projectWork: ReturnType<typeof createProjectWork>;
   readonly decisions: ReviewDecisionStore;
-  readonly mcpLibrary: AgentMcpLibrary;
 }
 
 type Pending = Parameters<ProloguePendingPort["document"]>[0];
@@ -120,7 +120,7 @@ async function actionCard(deps: ReviewDeps, pending: Pending, effect: Effect, su
 }
 
 /** A command or a file change in the round's own workspace: read from the exact review resource the runtime published. */
-async function workspaceCard(deps: ReviewDeps, pending: Pending, ref: ExactRef<"resource">): Promise<Card> {
+async function workspaceCard(deps: ReviewDeps, pending: Pending, ref: ExactRef<"resource">, hold?: (scope: ExactPermission) => void): Promise<Card> {
   const review = await readResource(deps.runtime, ref);
   const index = pending.origin?.session ? await deps.index.read(pending.origin.session) : undefined;
   const attempt = index?.attempts.find(each => each.run_id === pending.origin?.run);
@@ -137,6 +137,20 @@ async function workspaceCard(deps: ReviewDeps, pending: Pending, ref: ExactRef<"
     // The person's after-write check (§6.0p.3): which checker, from which list version, as its executor noted under this key.
     const check = isAfterWriteCheckOperationKey(review.operationKey) ? attempt?.write_checks?.[review.operationKey] ?? null : undefined;
     if (check === null) throw new Error("这条写后检查找不到当时用的检查器，不能批准");
+    const run = pending.origin?.run ? deps.state.activeRuns.get(pending.origin.run) : undefined;
+    const work = run?.work, directories = attempt?.frozen.directories, directory = attempt?.frozen.directory?.canonical_path;
+    const ordinary = typeof review.operationKey === "string" && /^(?:run|start)-command:[1-9][0-9]*$/.test(review.operationKey);
+    if (hold && index && !index.parent_run && work && run?.useExact && directories && directory && !grants && review.escalate === false
+      && !check && ordinary) {
+      const input = reusableInput({ command: review.executable, args: review.argv, cwd: review.cwd, timeout_ms: review.timeoutMs,
+        env_allowlist: review.envAllowlist, background: review.background === true, outlives_run: review.outlivesRun === true });
+      if (input) {
+        const tree = directories.execution.kind === "worktree" ? directories.execution.worktree_id : undefined;
+        // A missing directory proof limits reuse. The original SDK review can still describe a one-time decision.
+        const control = await deps.options.checks?.holdCommandWorkspace?.(index.owner.project_id, directories.output, directory, tree).catch(() => undefined);
+        if (control) hold({ title: index.title, scope: { kind: "command-exact", workspace_id: control.identity ?? tree ?? directories.output, workspace_path: directory, input_json: input }, control, work });
+      }
+    }
     return { kind: "command", ...(childDirectory ? { workspace_path: childDirectory } : {}), command: review.executable, args: review.argv, cwd: review.cwd,
       timeout_ms: review.timeoutMs, env_allowlist: review.envAllowlist, escalate: review.escalate, ...(grants ? { grants } : {}),
       ...(review.background === true ? { background: true, outlives_run: review.outlivesRun === true } : {}),
@@ -167,8 +181,9 @@ async function workspaceCard(deps: ReviewDeps, pending: Pending, ref: ExactRef<"
 
 /** The pending port the approval bridge uses: read, whether it can be answered now, answer, and the card to show. */
 export function createPendingPort(deps: ReviewDeps): ProloguePendingPort {
-  const { runtime, host, state } = deps;
+  const { runtime, host, state, options } = deps;
   const surfaceReviews = new WeakMap<Pending, SurfaceReview>();
+  const exactPermissions = new WeakMap<Pending, ExactPermission>();
   return {
     async read(ref) {
       const pending = await runtime.effects.pendings.read(ref);
@@ -197,7 +212,8 @@ export function createPendingPort(deps: ReviewDeps): ProloguePendingPort {
     finalPresentation(pending, document) {
       const presented = surfaceReviews.get(pending)?.present() ?? document;
       const runId = pending.origin?.run;
-      if (!runId || !state.activeRuns.get(runId)?.workSelection) return presented;
+      const run = runId ? state.activeRuns.get(runId) : undefined;
+      if (run?.stop && run.usePolicy && !run.workSelection) return presented;
       if (presented.kind === "command") return { ...presented, session_rule_blocked: true };
       if (presented.kind !== "tool-operation" || !presented.round_allow) return presented;
       const { round_allow: _roundAllow, ...once } = presented;
@@ -213,22 +229,38 @@ export function createPendingPort(deps: ReviewDeps): ProloguePendingPort {
       const changesAction = subject?.what === "tool" && (isGatewayChange(subject.name) || subject.name.startsWith("molis-action-"));
       const action = effect && changesAction
         ? state.actionReviews.get(pending.origin!.session!)?.forEffect(effect) : undefined;
-      const selected = subject?.what === "surface" ? surfaceReview!.control : action?.control;
+      const nativeMcp = subject?.what === "tool" && subject.name.startsWith("mcp:");
+      const mcp = nativeMcp && effect && typeof subject.input === "string"
+        ? run.mcp?.approval(effect.ref, effect.proposal.origin, subject.name, jsonObject(subject.input, "原 MCP 参数不可读")) : undefined;
+      if (nativeMcp && !mcp) throw new Error("原 MCP 调用、连接或工具版本已不可用");
+      const selected = subject?.what === "surface" ? surfaceReview!.control : action?.control ?? mcp;
       if (changesAction && !selected) throw new Error("原能力审查授权不可读取");
-      const automatic = action && run.policy && action.automatic(run.policy);
-      const original = subject?.what === "tool" && subject.name.startsWith("mcp:") ? await attemptOf(deps, pending) : undefined;
-      const mcp = original?.attempt?.frozen.mcp_tools.find(ref => subject?.what === "tool" && `mcp:${mcpConnectionId(ref)}/${ref.tool}` === subject.name);
-      if (original && (!mcp || !original.index)) throw new Error("原 MCP 审查版本不可读取");
+      const app = effect && subject?.what === "surface" && subject.surface === "desktop" && !["app", "upload", "download"].includes(subject.action) && !run.workSelection
+        && (effect.proposal.kind === "mutate-local" || effect.proposal.kind === "user-visible") && pending.origin?.session && pending.origin.run
+        ? await attemptOf(deps, pending).then(({ index }) => index && options.reviewQueue?.permissions.app(index.owner.project_id,
+          { session_id: pending.origin!.session!, run_id: pending.origin!.run! }, subject.scope)) : undefined;
+      const mcpInput = mcp && reusableInput(mcp.args), mcpIdentity = mcp?.transport.identity;
+      const mcpExact: ExactPermission | undefined = mcpInput && mcpIdentity && run.work
+        ? { title: mcp.tool, scope: { kind: "mcp-exact", source_id: mcp.transport.source, connection_identity: mcpIdentity,
+          tool: mcp.tool, tool_digest: mcp.digest, input_json: mcpInput }, control: mcp, work: run.work } : undefined;
+      const exact = mcpExact ?? exactPermissions.get(pending);
+      const automatic = action && run.policy && action.automatic(run.policy) || app && { ...app, activate: app.assertCurrent }
+        || mcpExact && mcp && matchExactPermission(mcpExact, mcp.activate)
+        || exact && run.useExact && matchExactPermission(exact, control => run.useExact!(pending.ref.id, control));
       const assertCurrent = () => {
         if (!run.live()) throw new Error("原执行已结束"); run.assertAuthority(); selected?.assertCurrent();
-        if (mcp && !deps.mcpLibrary.live?.(mcp)) throw new Error("原 MCP 连接或工具版本已不可用");
       };
       assertCurrent();
       return { assertCurrent, ...(run.workSelection ? { workSelection: true } : {}),
         ...(automatic ? { automatic } : {}),
+        ...(exact ? { exactPermission: () => this.canAnswer(pending.ref) ? exact : undefined } : {}),
+        ...(action?.choice ? { delegationChoice: () => {
+          if (!this.canAnswer(pending.ref)) return undefined;
+          action.assertChoiceCurrent();
+          return action.choice;
+        } } : {}),
         ...(surfaceReview?.control.beforeAnswer ? { beforeAnswer: surfaceReview.control.beforeAnswer } : {}), beforeEffect: async () => {
         assertCurrent(); await selected?.beforeEffect();
-        if (mcp) await deps.mcpLibrary.validate(original!.index!.owner, [mcp]);
         assertCurrent();
       } };
     },
@@ -262,7 +294,7 @@ export function createPendingPort(deps: ReviewDeps): ProloguePendingPort {
       const action = subject.what === "tool" ? await actionCard(deps, pending, effect, subject) : undefined;
       if (action) return action;
       if (!ref) throw new Error("原始审查资源不可用，不能批准");
-      return workspaceCard(deps, pending, ref);
+      return workspaceCard(deps, pending, ref, held => exactPermissions.set(pending, held));
     },
   };
 }
@@ -297,11 +329,24 @@ export function createApprovals(deps: ReviewDeps, pendings: ProloguePendingPort,
         if (!pendings.canAnswer(pending.ref) || queue.receipt(request.review_id)?.status !== "pending") throw new Error("原等待已结束，不能新增待批投影");
       });
     },
-    async allowAppForRound(pending) {
+    allowAppForRound(pending, request, receipt) {
       const runId = pending.origin?.run, run = runId && deps.state.activeRuns.get(runId);
-      if (!runId || !run || !run.live()) throw new Error("原轮次已结束，不能新增应用许可");
+      const effect = pending.effectRef && deps.runtime.effects.get(pending.effectRef), original = effect?.proposal.subject, document = request.document;
+      if (!runId || !run || !run.live() || !run.stop || run.workSelection || document.kind !== "tool-operation" || !document.round_allow
+        || original?.what !== "surface" || original.surface !== "desktop" || ["app", "upload", "download"].includes(original.action) || original.scope !== document.round_allow.app
+        || effect?.proposal.kind !== "mutate-local" && effect?.proposal.kind !== "user-visible" || receipt.source?.kind !== "person" || !receipt.decided_at) {
+        throw new Error("原轮次或桌面应用许可不再有效");
+      }
+      queue.permissions.rememberApp(request, { id: original.scope, label: document.round_allow.label }, receipt.source.actor_id, receipt.decided_at,
+        () => { if (!run.live()) throw new Error("原轮次已结束"); run.assertAuthority(); });
+    },
+    useRule(request, source) {
+      const run = request.run && deps.state.activeRuns.get(request.run.run_id);
+      if (!run?.live() || !run.stop || !run.usePolicy || run.workSelection) throw new Error("原轮次不能继续使用这份许可");
       run.assertAuthority();
-      allowDesktopAppForRound(deps.surfaces(), pending.effectRef && deps.runtime.effects.get(pending.effectRef), deps.state.runRefs.get(runId));
+      const held = queue.permissions.holdForRun(source, request, run.stop);
+      return { assertCurrent: () => { run.assertAuthority(); held.assertCurrent(); },
+        activate: () => run.usePolicy!(source.id, held.assertCurrent), release: held.release };
     },
     async recordDecision(pending, receipt) {
       if (!pending.origin?.session) throw new Error("审查缺少会话归属，不能保存决定");

@@ -17,6 +17,8 @@ import { booleanInt, text, type ProjectsSqliteDatabase, type Row } from "./sqlit
 /** One row of `workspace_project_memberships` with the folder it names, as this project sees it. */
 export interface ProjectDirectoryRow extends ProjectWorkspaceRef {
   roles: DirectoryRole[];
+  membership_id: string;
+  person_bound: boolean;
   /** The stored `canonical_path`: an absolute path, or `project-output:<project_id>` for a default output directory. */
   stored_path: string;
   updated_at: string;
@@ -142,14 +144,16 @@ export class WorkspaceRepository {
   projectDirectoryRows(projectId: string): ProjectDirectoryRow[] {
     return (this.db.prepare(`
       SELECT workspace.workspace_id, workspace.canonical_path, workspace.realpath_verified, workspace.display_name,
-        membership.project_id, membership.role_input, membership.role_output, membership.updated_at
+        membership.project_id, membership.membership_id, membership.role_input, membership.role_output,
+        membership.bound_by, membership.updated_at
       FROM workspace_project_memberships AS membership
       INNER JOIN workspaces AS workspace ON workspace.workspace_id = membership.workspace_id
       WHERE membership.project_id = ? AND membership.project_id NOT IN (SELECT project_id FROM project_recycle WHERE recycled=1)
       ORDER BY membership.role_output DESC, workspace.display_name COLLATE NOCASE, workspace.workspace_id
     `).all(projectId) as Row[]).map((row) => {
       this.assertOutputMember(row);
-      return { ...this.ref(row), roles: role(row), stored_path: text(row.canonical_path), updated_at: text(row.updated_at) };
+      return { ...this.ref(row), roles: role(row), membership_id: text(row.membership_id),
+        person_bound: row.bound_by === LOCAL_PERSON_ACTOR_ID, stored_path: text(row.canonical_path), updated_at: text(row.updated_at) };
     });
   }
 

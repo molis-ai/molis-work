@@ -378,6 +378,10 @@ export class MolisWorkProjectCatalog {
     return this.projects.query.projectDirectories(projectId);
   }
 
+  personInputDirectories(projectId: string) {
+    return this.projects.workspaces.personInputDirectories(projectId);
+  }
+
   /** Where a read, a write or a run that names no folder goes (SSC-17). */
   outputDirectory(projectId: string): ProjectWorkspaceRef {
     return this.projects.query.outputDirectory(projectId);

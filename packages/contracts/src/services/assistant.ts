@@ -353,6 +353,8 @@ export interface AssistantPendingReview {
   version: string;
   /** The original execution owner determines which decisions this pending can still accept. */
   decisions: AgentReviewDecisions;
+  /** The original live approval can offer a separate permission for future rounds. */
+  permission_available?: true;
   /** What is held: a business change, a file edit, a command, an MCP call… The fields read accordingly. */
   kind: string;
   run_id: string | null;

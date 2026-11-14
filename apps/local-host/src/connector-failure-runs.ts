@@ -35,19 +35,15 @@ export function useOfStatus(status: number): ConnectionUse {
  * a write whose outcome is unknown, a record read that found no service. A write or an MCP call that times out counts too: nothing is
  * resent for it, and it says the service is not answering just the same.
  */
-const UNAVAILABLE = new Set(["connector.plugin_requests.timeout", "connector.plugin_requests.upstream", "actions.outcome_unknown", "connector.read.unreachable"]);
-
-/** JSON-RPC codes the MCP client gives a request the server never answered (the connection closed, the request timed out). */
-const MCP_UNANSWERED = new Set([-32000, -32001]);
+const UNAVAILABLE = new Set(["connector.plugin_requests.timeout", "connector.plugin_requests.upstream", "connector.read.unreachable"]);
 
 /**
- * An MCP failure by what the server did: an HTTP status is read like any other answer; a JSON-RPC error the server sent is an answer for
- * the request's own reason (the run ends), except the client's own codes for no answer at all; anything else (no connection, a transport
- * that broke) is a server that could not be reached.
+ * An MCP failure by what the server did: an HTTP status is read like any other answer.
+ * A JSON-RPC error frame was matched to the original request, so the run ends.
  */
 function useOfMcp(details: Readonly<Record<string, unknown>> | undefined): ConnectionUse {
   if (typeof details?.http_status === "number") return useOfStatus(details.http_status);
-  if (typeof details?.jsonrpc_code === "number") return MCP_UNANSWERED.has(details.jsonrpc_code) ? failed("unavailable") : ENDED;
+  if (typeof details?.jsonrpc_code === "number") return ENDED;
   return failed("unavailable");
 }
 
@@ -55,7 +51,7 @@ function useOfMcp(details: Readonly<Record<string, unknown>> | undefined): Conne
 export function useOfError(error: unknown): ConnectionUse {
   if (error instanceof ActionError) {
     if (UNAVAILABLE.has(error.code)) return failed("unavailable");
-    if (error.code === "connector.mcp.provider") return useOfMcp(error.details);
+    if (error.code === "connector.mcp.provider" || error.code === "actions.outcome_unknown") return useOfMcp(error.details);
     if (error.code === "connector.mcp.authorization" || error.code === "connector.read.refused") return failed("denied");
     if (error.code === "connector.read.answered") return ENDED;
     return SKIPPED;

@@ -1,8 +1,8 @@
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import { readFileSync } from "node:fs";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { readFileSync, renameSync } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { VersionedFile, VersionedFileStep } from "@molis-ai/molis-work-storage";
 
 export interface McpActionGrant {
@@ -14,6 +14,10 @@ export interface McpActionGrant {
   readonly permissions: readonly string[];
   readonly enabled: boolean;
 }
+
+export type McpActionGrantExpected = { readonly expected_generation: string } | { readonly expected_absent: true };
+export type McpGrantIdentity = Pick<McpActionGrant, "client_id" | "project_id" | "capability_id" | "version" | "provider_id">;
+type WriteControl = { beforeEffect(): void | Promise<void>; assertCurrent(): void };
 
 const MCP_TOOL_PREFERENCE_VERSION = /* @version format.mcp.tool-preference */ 1;
 const MCP_TOOL_PREFERENCE_UPGRADES: readonly VersionedFileStep[] = [];
@@ -54,7 +58,7 @@ function isMcpActionGrant(value: unknown, stored = false): value is McpActionGra
 
 function isStoredMcpActionGrant(value: unknown): value is McpToolPreference["action_grants"][number] { return isMcpActionGrant(value, true); }
 
-export function actionGrantKey(grant: Pick<McpActionGrant, "client_id" | "project_id" | "capability_id" | "version" | "provider_id">): string {
+export function actionGrantKey(grant: McpGrantIdentity): string {
   return JSON.stringify([grant.client_id, grant.project_id, grant.capability_id, grant.version, grant.provider_id]);
 }
 
@@ -97,7 +101,7 @@ function assertUniqueGrants(preference: McpToolPreference): void {
 const writes = new Map<string, Promise<unknown>>();
 
 /** Management is the writer; all MCP processes re-read the same atomic file. */
-async function updateMcpToolPreference(homeDirectory: string, change: (current: McpToolPreference) => McpToolPreference): Promise<McpToolPreference> {
+async function updateMcpToolPreference(homeDirectory: string, change: (current: McpToolPreference) => McpToolPreference, control?: WriteControl): Promise<McpToolPreference> {
   const filePath = mcpToolPreferencePath(homeDirectory);
   // Only the order is chained: the previous write's failure was already answered to its own caller.
   const pending = (writes.get(filePath) ?? Promise.resolve()).catch(() => undefined).then(async () => {
@@ -107,9 +111,16 @@ async function updateMcpToolPreference(homeDirectory: string, change: (current: 
     assertUniqueGrants(preference);
     await mkdir(path.dirname(filePath), { recursive: true });
     const temporary = `${filePath}.${randomUUID()}.tmp`;
-    await writeFile(temporary, `${JSON.stringify(preference, null, 2)}\n`, "utf8");
-    await rename(temporary, filePath);
-    return preference;
+    let published = false;
+    try {
+      await writeFile(temporary, `${JSON.stringify(preference, null, 2)}\n`, { encoding: "utf8", flag: "wx" });
+      await control?.beforeEffect(); requireSynchronous(control?.assertCurrent());
+      renameSync(temporary, filePath);
+      published = true;
+      return preference;
+    } finally {
+      if (!published) await rm(temporary, { force: true }).catch(() => undefined);
+    }
   });
   writes.set(filePath, pending);
   try { return await pending; } finally { if (writes.get(filePath) === pending) writes.delete(filePath); }
@@ -120,11 +131,28 @@ export async function writeMcpActionGrant(homeDirectory: string, grant: McpActio
 }
 
 /** Several grants in one atomic write: an action and the actions it depends on are saved together or not at all. */
-export async function writeMcpActionGrants(homeDirectory: string, grants: readonly McpActionGrant[]): Promise<McpToolPreference> {
+export async function writeMcpActionGrants(homeDirectory: string, grants: readonly McpActionGrant[], choice?: {
+  expected: ReadonlyMap<string, McpActionGrantExpected>; read?: ReadonlyMap<string, McpActionGrantExpected>; control: WriteControl;
+}): Promise<McpToolPreference> {
   const snapshots = validGrants(grants);
   const keys = new Set(snapshots.map(actionGrantKey));
-  return updateMcpToolPreference(homeDirectory, current => ({ ...current,
-    action_grants: [...current.action_grants.filter(row => !keys.has(actionGrantKey(row))), ...withGenerations(current, snapshots)] }));
+  const expected = choice && structuredClone(new Map(choice.expected));
+  const read = choice?.read && structuredClone(new Map(choice.read));
+  if (expected && (expected.size !== keys.size || [...keys].some(key => !expected.has(key)))) {
+    throw new ActionError("actions.input_invalid", "每项授权都需要自己的当前版本");
+  }
+  return updateMcpToolPreference(homeDirectory, current => {
+    const previous = new Map(current.action_grants.map(row => [actionGrantKey(row), row]));
+    for (const [key, token] of new Map([...read ?? [], ...expected ?? []])) {
+      const row = previous.get(key);
+      if ("expected_generation" in token ? row?.generation !== token.expected_generation : row !== undefined) {
+        throw new ActionError("actions.conflict", "授权已在别处变化，请刷新后再决定", { details: {
+          expected: row ? { expected_generation: row.generation } : { expected_absent: true },
+        } });
+      }
+    }
+    return { ...current, action_grants: [...current.action_grants.filter(row => !keys.has(actionGrantKey(row))), ...withGenerations(previous, snapshots)] };
+  }, choice?.control);
 }
 
 /**
@@ -132,24 +160,25 @@ export async function writeMcpActionGrants(homeDirectory: string, grants: readon
  * file as it is inside that write, before anything changes, and refuses by throwing: a stale revision changes nothing.
  */
 export async function replaceMcpClientGrants(homeDirectory: string, clientId: string, grants: readonly McpActionGrant[],
-  check: (current: McpToolPreference) => void): Promise<McpToolPreference> {
+  check: (current: McpToolPreference) => void, control?: WriteControl): Promise<McpToolPreference> {
   const snapshots = validGrants(grants);
   if (snapshots.some(grant => grant.client_id !== clientId)) throw new Error("动作授权无效");
   return updateMcpToolPreference(homeDirectory, current => {
     check(current);
-    return { ...current, action_grants: [...current.action_grants.filter(row => row.client_id !== clientId), ...withGenerations(current, snapshots)] };
-  });
+    const previous = new Map(current.action_grants.map(row => [actionGrantKey(row), row]));
+    return { ...current, action_grants: [...current.action_grants.filter(row => row.client_id !== clientId), ...withGenerations(previous, snapshots)] };
+  }, control);
 }
 
 /** Takes the grants `remove` picks, in one atomic write; answers how many went. A Home without such a grant (or without the file) is not written. */
-export async function removeMcpActionGrants(homeDirectory: string, remove: (grant: McpActionGrant) => boolean): Promise<number> {
+export async function removeMcpActionGrants(homeDirectory: string, remove: (grant: McpActionGrant) => boolean, control?: WriteControl): Promise<number> {
   if (!(await readMcpToolPreference(homeDirectory)).action_grants.some(remove)) return 0;
   let removed = 0;
   await updateMcpToolPreference(homeDirectory, current => {
     const kept = current.action_grants.filter(row => !remove(row));
     removed = current.action_grants.length - kept.length;
     return { ...current, action_grants: kept };
-  });
+  }, control);
   return removed;
 }
 
@@ -159,9 +188,9 @@ function validGrants(grants: readonly McpActionGrant[]): McpActionGrant[] {
 }
 
 /** A grant written again unchanged (same switch, same permissions) keeps its generation; any other gets a new one. */
-function withGenerations(current: McpToolPreference, grants: readonly McpActionGrant[]): McpToolPreference["action_grants"] {
+function withGenerations(current: ReadonlyMap<string, McpToolPreference["action_grants"][number]>, grants: readonly McpActionGrant[]): McpToolPreference["action_grants"] {
   return grants.map(grant => {
-    const previous = current.action_grants.find(row => actionGrantKey(row) === actionGrantKey(grant));
+    const previous = current.get(actionGrantKey(grant));
     const samePermissions = previous && new Set(previous.permissions).size === new Set(grant.permissions).size
       && previous.permissions.every(permission => grant.permissions.includes(permission));
     return { ...grant, generation: previous && previous.enabled === grant.enabled && samePermissions ? previous.generation : randomUUID() };

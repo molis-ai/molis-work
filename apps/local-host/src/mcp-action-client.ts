@@ -9,7 +9,7 @@ import { mcpBackgroundAuthority } from "./mcp-background-authority.js";
 export async function prepareMcpActionReview(host: Pick<MolisWorkLocalHost, "prepareActionReview">, caller: ActionCallContext, home: string | undefined,
   view: ActionView, input: unknown, project: LocalHostProjectReference, beforeEffect: () => void | Promise<void>, assertCurrent: () => void) {
   await beforeEffect();
-  const preference = home ? await readMcpToolPreference(home) : { version: 1 as const, action_grants: [] };
+  const preference = home ? await readMcpToolPreference(home) : { version: /* @version format.mcp.tool-preference */ 1 as const, action_grants: [] };
   const pinned = pinMcpActionGrants(caller, [view], preference), action = { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id };
   const check = () => {
     assertCurrent();

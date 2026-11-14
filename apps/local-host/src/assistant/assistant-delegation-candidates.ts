@@ -1,4 +1,5 @@
 import { actionEffect, type ActionCallContext, type ActionExecutionContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { isDeepStrictEqual } from "node:util";
 import type { PresentationValues } from "@molis-ai/molis-work-contracts/platform/presentation";
 import { PRESENTATION_LIMITS } from "@molis-ai/molis-work-contracts/platform/presentation";
 import type { AgentDelegationActionChoice, AgentDelegationCandidate, AgentDelegationOperationScope, AgentDelegationScope } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -102,17 +103,42 @@ export async function resolveAssistantDelegationChoices(host: MolisWorkLocalHost
   const owners = await assistantActionOwners(host, work, catalog), targets = new CandidateTargets(owners);
   const asked = new Map(catalog.map(view => [actionKey(actionReference(view)), view]));
   const confirmation = store.confirmAlways(work.actor_id);
-  const resolve = (choice: AgentDelegationActionChoice): CandidateResolution => {
+  const resolve = async (choice: AgentDelegationActionChoice): Promise<CandidateResolution> => {
     const view = asked.get(actionKey(choice.action));
     const candidate = { action: choice.action, title: view?.action.title ?? "原操作", provider_title: view?.provider.title ?? "" };
     const unavailable = (reason: string): AgentDelegationCandidate => ({ ...candidate, state: "unavailable", reason });
     if (!view || view.operation !== "command" || actionEffect(view.action, view.capability_id) === "read") return { unavailable: unavailable("这项改动目前无法授权给助理") };
     if (!view.availability.available) return { unavailable: unavailable(view.availability.reason) };
     if (confirmation.has(actionKey(choice.action)) || view.action.delegation === "confirmation-only") return { unavailable: unavailable("这项操作需要本人确认") };
+    if (choice.kind === "exact" && view.action.delegation === undefined) {
+      try {
+        const mcp = await host.connectorMcp?.holdTool(view);
+        if (mcp) {
+          const inputJson = canonicalJsonText(choice.input);
+          if (!inputJson || inputJson.length > 12_000 || !isDeepStrictEqual(JSON.parse(inputJson), choice.input))
+            return { unavailable: unavailable("完整操作参数超出可预览范围") };
+          if (redactSecrets(inputJson) !== inputJson) return { unavailable: unavailable("参数包含敏感内容，这项操作需要本人逐次确认") };
+          const original = host.prepareActionReview({ ...context, permissions: view.action.permissions }, view, choice.input, work.project_ref);
+          const policy = store.holdActionPolicy(work.actor_id, actionKey(choice.action), true);
+          checks.add(() => {
+            original.assertCurrent(); mcp.assertCurrent(); policy();
+            if (store.disabledActions(work.actor_id).has(actionKey(choice.action)) || store.confirmAlways(work.actor_id).has(actionKey(choice.action)))
+              throw assistantErrors.action_revoked("这项操作已关闭或改为每次确认");
+          });
+          return { candidate, binding: { scope: { ...mcp.scope, input_json: inputJson } } };
+        }
+      } catch { return { unavailable: unavailable("无法核对原连接与工具的授权范围") }; }
+    }
     const provider = owners.installation(view.provider);
     if (!provider) return { unavailable: unavailable("无法确认原能力提供方的安装") };
     const identity = { action: actionReference(view), declaration_digest: actionDigest(view), provider_installation_generation: provider.generation };
+    const assertPolicy = store.holdActionPolicy(work.actor_id, actionKey(identity.action), true);
+    const registered = () => {
+      const latest = host.inspectActionMetadata(base, work.project_ref).find(row => actionKey(actionReference(row)) === actionKey(identity.action));
+      if (latest?.action !== view.action || latest.provider !== view.provider) throw assistantErrors.action_revoked("原能力提供方已变化，请重新查看权限范围");
+    };
     const fence = () => {
+      assertPolicy(); registered();
       if (store.disabledActions(work.actor_id).has(actionKey(identity.action)) || store.confirmAlways(work.actor_id).has(actionKey(identity.action))) throw assistantErrors.action_revoked("这项操作已关闭或改为每次确认");
       provider.assertCurrent();
     };
@@ -133,7 +159,7 @@ export async function resolveAssistantDelegationChoices(host: MolisWorkLocalHost
     checks.add(fence);
     return { candidate, binding };
   };
-  const resolved = choices.map(resolve);
+  const resolved = await Promise.all(choices.map(resolve));
   await targets.read(host, context, work);
   checks.add(() => targets.assertCurrent());
   const candidates = resolved.map((row): AgentDelegationCandidate => {
@@ -144,7 +170,7 @@ export async function resolveAssistantDelegationChoices(host: MolisWorkLocalHost
     scopes.push(row.binding.scope);
     const { scope, operations } = row.binding;
     return { ...row.candidate, state: "ready", ...(operations ? { operations } : {}),
-      ...(scope.kind === "action-exact" ? { exact_parameters: scope.input_json } : {}) };
+      ...(scope.kind === "action-exact" || scope.kind === "mcp-exact" ? { exact_parameters: scope.input_json } : {}) };
   });
   assertCurrent();
   return { candidates, scopes, assertCurrent };

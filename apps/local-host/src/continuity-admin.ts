@@ -11,12 +11,20 @@ export async function configureMemberActions(input:{hostUrl:string;homeDirectory
   const token=(await readFile(input.controlTokenFile,"utf8")).trim();
   if(token.length<32 || token.length>512 || /[\r\n\0]/.test(token))throw Error("Invalid Host control token file");
   // This is an explicit local administrator operation, not a request by the forwarding client.
-  if(input.role!=="revoked")changeMcpClientCredential(input.homeDirectory,memberClientId(input.memberId),"connect");
+  const clientId=memberClientId(input.memberId);
+  if(input.role!=="revoked")changeMcpClientCredential(input.homeDirectory,clientId,"connect");
+  const endpoint=new URL("/api/settings/mcp/actions",url);
+  const query=new URLSearchParams({client_id:clientId,project_id:input.projectId});
+  const read=await fetch(new URL(`?${query}`,endpoint),{redirect:"error",signal:AbortSignal.timeout(30000),headers:{"x-molis-work-control-token":token}});
+  if(!read.ok)throw new Error(`Host could not read current grants: ${read.status}`);
+  const {grants}=await read.json() as {grants:ReadonlyArray<{capability_id:string;version:number;provider_id:string;generation:string}>};
   const results:{capability_id:string;enabled:boolean;status:string}[]=[];
   for(const action of CONTINUITY_ACTIONS){
     const enabled=input.role!=="revoked" && (input.role!=="viewer" || action.capability_id!=="goals.progress.record");
-    const response=await fetch(url.origin+"/api/settings/mcp/actions",{method:"POST",redirect:"error",signal:AbortSignal.timeout(30000),headers:{origin:url.origin,"content-type":"application/json","x-molis-work-control-token":token,"x-molis-work-idempotency-key":randomUUID()},
-      body:JSON.stringify({client_id:memberClientId(input.memberId),project_id:input.projectId,...action,enabled})});
+    const previous=grants.find(row=>row.capability_id===action.capability_id && row.version===action.version && row.provider_id===action.provider_id);
+    const expected=previous ? {expected_generation:previous.generation} : {expected_absent:true};
+    const response=await fetch(endpoint,{method:"POST",redirect:"error",signal:AbortSignal.timeout(30000),headers:{origin:url.origin,"content-type":"application/json","x-molis-work-control-token":token,"x-molis-work-idempotency-key":randomUUID()},
+      body:JSON.stringify({client_id:clientId,project_id:input.projectId,...action,enabled,expected})});
     const result=await response.json() as {code?:string};
     if(!response.ok && !(enabled===false && result.code==="mcp.grant_missing"))throw new Error(`Host rejected ${action.capability_id}: ${result.code ?? response.status}. ${results.length} preceding grants applied; rerun after resolving the Host error.`);
     results.push({capability_id:action.capability_id,enabled,status:response.ok?"saved":"already absent"});

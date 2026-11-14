@@ -83,16 +83,22 @@ function assistantEntry(owner: AgentDefinitionRegistration, common: Common, usag
 
 /** The register's prompts and roles in the call's scope: each installation's in its pack, the Host's own in Molis Work's. */
 export async function agentDefinitionsKitEntries(home: string, source: ProjectPluginHost, caller: ActionCallContext): Promise<KitReport> {
-  const definitions = homeAgentDefinitions(home), say = words(caller.locale), counts = definitions.uses.counts();
-  const { installations } = await scopeInstallations(source, caller);
-  const context = { localKey: localPublisherKeyId(home), pins: new Map(new HomeConsentLedger(home).publishers().map(pin => [pin.key_id, pin])), locale: caller.locale };
+  const definitions = homeAgentDefinitions(home);
+  return projectAgentDefinitionEntries(home, definitions, (await scopeInstallations(source, caller)).installations, caller.locale);
+}
+
+export function projectAgentDefinitionEntries(home: string, definitions: AgentDefinitions,
+  installations: Awaited<ReturnType<typeof scopeInstallations>>["installations"], locale?: string,
+  publishers = new HomeConsentLedger(home).publishers()): KitReport {
+  const say = words(locale), counts = definitions.uses.counts();
+  const context = { localKey: localPublisherKeyId(home), pins: new Map(publishers.map(pin => [pin.key_id, pin])), locale };
   const entries: KitReportedEntry[] = [];
   for (const row of installations) {
     const { record, manifest, scope } = row;
     const owner = definitions.installation(record.plugin_id, record.install_id);
     if (!owner) continue;
-    entries.push(...ownerEntries(definitions, owner, { pack: `plugin:${record.install_id}`, source: kitPluginSource(record, manifest, context, kitPluginWords(row, caller.locale).name), scope,
-      available: record.state === "running", tools: manifestTools(manifest?.agent) }, counts, say, caller.locale));
+    entries.push(...ownerEntries(definitions, owner, { pack: `plugin:${record.install_id}`, source: kitPluginSource(record, manifest, context, kitPluginWords(row, locale).name), scope,
+      available: record.state === "running", tools: manifestTools(manifest?.agent) }, counts, say, locale));
   }
   const inline = new Map(BUILTIN_INLINE_AGENT_ROLES.map(row => [`${row.owner_id}\0${row.role.role_id}`, row.host_tools]));
   const registered = new Map(definitions.registrations().map(owner => [owner.owner_id, owner]));
@@ -101,7 +107,7 @@ export async function agentDefinitionsKitEntries(home: string, source: ProjectPl
     if (!owner) continue;
     const title = owner.source.title;
     entries.push(...ownerEntries(definitions, owner, { pack: "system:builtin", source: { kind: "system", module: owner_id, title }, scope: "home", available: true,
-      tools: role => owner_id === ASSISTANT_PLUGIN_ID ? manifestTools(ASSISTANT_AGENT)(role) : [...inline.get(`${owner_id}\0${role.role_id}`) ?? []] }, counts, say, caller.locale));
+      tools: role => owner_id === ASSISTANT_PLUGIN_ID ? manifestTools(ASSISTANT_AGENT)(role) : [...inline.get(`${owner_id}\0${role.role_id}`) ?? []] }, counts, say, locale));
   }
   return { entries };
 }

@@ -38,7 +38,7 @@ import { AssistantMemoryBridge } from "./assistant-memory-bridge.js";
 import { AssistantBudget } from "./assistant-budget.js";
 import { AssistantNotices } from "./assistant-notices.js";
 import type { AgentActionReviewControl } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { assistantEndControl, assistantWorkEnding, beginAssistantWorkEnds, holdAssistantWorkLifetime } from "./assistant-work-permissions.js";
+import { assertAssistantSessionSettled, assistantEndControl, assistantWorkEnding, beginAssistantWorkEnds, holdAssistantWorkLifetime } from "./assistant-work-permissions.js";
 
 export type { AssistantServicePorts, AssistantCaller } from "./assistant-service-shared.js";
 export { holdingRule } from "./assistant-notices.js";
@@ -91,6 +91,13 @@ export class AssistantService {
       createWork: (title, scope, context, caller) => this.createWork(title, scope, context, caller, undefined), fail: (code, message) => assistantErrors[code.slice("assistant.".length) as keyof typeof assistantErrors](message) });
     this.followUps = new AssistantFollowUps<StoredWork>({ actorId, records: store.followUps, now: () => this.now(), ...(ports.timeZone ? { timeZone: ports.timeZone } : {}),
       work: workId => store.get(actorId, workId), notify: (notice, dedupe) => store.raiseNotice(actorId, notice, dedupe) !== null,
+      holdWork: async work => {
+        const local = store.holdWorkInput(work.work_id);
+        try {
+          const host = await ports.host(), lifetime = await holdAssistantWorkLifetime(host, work);
+          return { adapter: host.adapter(RUNTIME), release: local.release, assertCurrent: () => { local.assertCurrent(); lifetime?.(); } };
+        } catch (error) { local.release(); throw error; }
+      },
       setting: key => store.setting(actorId, key), setSetting: (key, value) => store.setSetting(actorId, key, value),
       rules: () => store.rules(actorId), setRules: rules => store.setRules(actorId, rules), pages: () => ports.pages(),
       // Each look at the Plugins is bounded in time, so one that does not answer cannot hold the sweep.
@@ -200,22 +207,26 @@ export class AssistantService {
     const claim = this.store.requests.claimRequest(this.actorId, String(input.request_id ?? ""));
     if (!claim.claimed) return claim.result;
     let work: StoredWork | undefined, inputHold: ReturnType<AssistantContinuations["begin"]> | undefined, draftCurrent = () => false;
+    let originalInput: ReturnType<AssistantStore["holdWorkInput"]> | undefined, assertInput: (() => void) | undefined;
     try {
       const created = !input.work_id;
-      const scope = input.work_id ? this.store.get(this.actorId, input.work_id) : { project_ref: sendScope(input.scope, caller, choice).kind === "project" ? caller.project_ref : undefined };
+      const existing = input.work_id ? this.store.get(this.actorId, input.work_id) : undefined;
+      if (existing) originalInput = this.store.holdWorkInput(existing.work_id);
+      const assertLifetime = existing && existing.executor.kind === "assistant" && !existing.reply_target
+        ? await holdAssistantWorkLifetime(await this.ports.host(), existing) : undefined;
+      const scope = existing ?? { project_ref: sendScope(input.scope, caller, choice).kind === "project" ? caller.project_ref : undefined };
       materials = await readComposerMaterials(materials, scope, this.ports);
+      await caller.beforeStart?.();
       assertSendCurrent(stillCurrent);
-      work = input.work_id ? this.store.get(this.actorId, input.work_id) : await this.createWork(text, input.scope, context, caller, choice);
+      originalInput?.assertCurrent(); assertLifetime?.();
+      requireSynchronous(caller.assertBeforeStart?.());
+      work = existing ? this.store.get(this.actorId, existing.work_id) : await this.createWork(text, input.scope, context, caller, choice);
       this.store.assertWorkPermissionTransitionFree(work.work_id);
       if (work.archived || work.delegated_by?.taken_back_at) throw assistantErrors.state("这项工作已经归档或收回");
       const workId = work.work_id;
       const original = work;
-      let assertLifetime: (() => void) | undefined;
-      if (!created && work.executor.kind === "assistant" && !work.reply_target) {
-        assertLifetime = await holdAssistantWorkLifetime(await this.ports.host(), work);
-      }
-      const assertInput = () => {
-        this.store.assertWorkPermissionTransitionFree(workId); assertLifetime?.();
+      assertInput = () => {
+        this.store.assertWorkPermissionTransitionFree(workId); originalInput?.assertCurrent(); assertLifetime?.();
         const current = this.store.get(this.actorId, workId);
         if (current.archived || current.delegated_by?.taken_back_at || current.executor.kind !== original.executor.kind)
           throw assistantErrors.state("工作已结束或交给另一执行方");
@@ -227,7 +238,7 @@ export class AssistantService {
       // Before the input hold and the material links: a work with no session yet has no round to interrupt or wait behind.
       if (!created) assertRoundToAddress(Boolean(work.executor.kind === "plugin" ? work.executor.session_id : work.session_id), input.delivery);
       if (work.reply_target && caller.thread_request !== work.thread_round?.attempt_id) throw assistantErrors.scope("请在原评论内继续这项讨论");
-      if (created && input.executor_session_id) work = await adoptSession(this.store, this.actorId, work, await this.dispatcher.executorOf(work), input.executor_session_id);
+      if (created && input.executor_session_id) work = await adoptSession(this.store, this.actorId, work, await this.dispatcher.executorOf(work), input.executor_session_id, assertInput);
       if (!writtenBy && !input.written_by && work.executor.kind === "assistant") {
         inputHold = this.continuations.begin(work, text, draftCurrent()); work = inputHold.work; savedDraft = work.draft_revision;
         const previous = stillCurrent; stillCurrent = () => inputHold!.current() && (!previous || previous());
@@ -251,13 +262,16 @@ export class AssistantService {
       if (stillCurrent && !stillCurrent()) throw error;
       // Nothing the person typed is lost: an unsent message stays as the work's draft (a re-ask's words are the Host's: the draft stays).
       if (work && !work.reply_target) {
-        const kept = input.reask === undefined && draftCurrent() ? this.store.update(this.actorId, work.work_id, null, { draft: text }, false) : this.store.get(this.actorId, work.work_id);
+        const canKeep = () => {
+          try { assertInput?.(); return true; } catch { return false; }
+        };
+        const kept = input.reask === undefined && draftCurrent() && canKeep() ? this.store.update(this.actorId, work.work_id, null, { draft: text }, false) : this.store.get(this.actorId, work.work_id);
         const failure = assistantFailure(error);
         throw new ActionError(failure.code, failure.message, { kind: failure.kind, cause: failure,
           details: { ...failure.details, work: this.reads.publicWork(kept, await this.reads.stateSafely(kept)) } });
       }
       throw assistantFailure(error);
-    } finally { inputHold?.end(); }
+    } finally { inputHold?.end(); originalInput?.release(); }
   }
 
   async control(workId: string, control: AssistantControl, caller?: AgentActionReviewControl): Promise<AssistantWorkView> {
@@ -265,9 +279,20 @@ export class AssistantService {
     if (control?.kind === "withdraw") {
       await withdrawInput(work, this.store.rounds(work.work_id), control, { executor: () => this.dispatcher.executorOf(work), runtime: async () => inputsOf((await this.ports.host()).adapter(RUNTIME)),
         beforeWithdraw: (session_id, input_id) => { const source = memoryInputSource({ actor_id: this.actorId, session_id, input_id, kind: "supplement" }); for (const cancel of this.memorySourceWithdrawals) cancel(source.event_id); } });
-    } else await controlAssistantWork(work, control, { store: this.store, actorId: this.actorId, continuations: this.continuations, delegations: this.delegations,
-      host: () => this.ports.host(), executor: work => this.dispatcher.executorOf(work), latest: (host, work) => this.reads.latestRun(host, work), cancelSetups: this.ports.cancelSetups, retainSetups: this.ports.retainSetups }, caller);
+    } else await controlAssistantWork(work, control, this.controlPorts(), caller);
     return this.read(workId);
+  }
+
+  private controlPorts(): Parameters<typeof controlAssistantWork>[2] {
+    return { store: this.store, actorId: this.actorId, continuations: this.continuations, delegations: this.delegations,
+      host: () => this.ports.host(), executor: (work, control) => this.dispatcher.executorOf(work, undefined, { control }), latest: (host, work) => this.reads.latestRun(host, work), cancelSetups: this.ports.cancelSetups, retainSetups: this.ports.retainSetups };
+  }
+
+  /** Only the committed project deletion owner calls this, including for idle and never-started works. */
+  async closeForProjectDeletion(workId: string): Promise<void> {
+    const work = this.store.get(this.actorId, workId);
+    await controlAssistantWork(work, { kind: "stop" }, this.controlPorts(), undefined,
+      (member, host, control) => this.followUps.stopForArchive(member.work_id, { adapter: host.adapter(RUNTIME), control }));
   }
 
   saveDraft(workId: string, draft: string): AssistantWork {
@@ -298,13 +323,15 @@ export class AssistantService {
         return this.reads.publicWork(work, await this.reads.stateSafely(work));
       }
       const host = await this.ports.host();
-      if ((await Promise.all(group.map(item => this.reads.stateFor(host, item)))).some(state => ["running", "paused", "waiting-input", "waiting-review"].includes(state))) {
+      if ((await Promise.all(group.map(item => this.reads.stateFor(host, item, true)))).some(state => ["running", "paused", "waiting-input", "waiting-review", "needs-check"].includes(state))) {
         throw assistantErrors.state("这项工作还有一轮在进行，先停止它再归档");
       }
       const finish = await beginAssistantWorkEnds(host, this.store, group, "archived", caller);
       await control.beforeEffect(); control.assertCurrent();
-      await this.followUps.stopForArchive(workId);
+      for (const member of group) await this.followUps.stopForArchive(member.work_id,
+        { adapter: host.adapter(RUNTIME), control: assistantEndControl(this.store, member, caller) });
       await control.beforeEffect(); control.assertCurrent();
+      for (const member of group) assertAssistantSessionSettled(host, member);
       const work = this.store.update(this.actorId, workId, null, { archived: true });
       await finish();
       return this.reads.publicWork(work, await this.reads.stateSafely(work));
@@ -317,6 +344,7 @@ export class AssistantService {
     // Chosen only among the executors this project offers now, and kept by the plugin's id.
     const executor = choice?.kind === "plugin" ? await this.dispatcher.executorOf({ project_ref: caller.project_ref }, choice.plugin_id) : null;
     const scopeTitle = wanted.kind === "project" ? await this.ports.projectTitle?.(wanted.project_id).catch(() => null) : null;
+    await caller.beforeStart?.(); requireSynchronous(caller.assertBeforeStart?.());
     return this.store.create({ actor_id: this.actorId, title: titleFrom(text), scope: wanted, origin: context?.source ?? null, ...(scopeTitle ? { scope_title: scopeTitle } : {}),
       ...(executor ? { executor: { kind: "plugin" as const, plugin_id: executor.provider.plugin_id, title: executor.provider.title, session_id: null } } : {}),
       ...(wanted.kind === "project" ? { project_ref: caller.project_ref! } : {}) });

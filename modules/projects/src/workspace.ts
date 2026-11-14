@@ -75,16 +75,29 @@ export class ProjectWorkspaceService {
 
   /** The project's inputs and output as `projects.directories.get@1` answers them; a folder's state is looked at now. */
   directories(projectId: string): ProjectDirectories {
-    const id = this.requiredProjectId(projectId);
-    const rows = this.repository.workspaces.projectDirectoryRows(id);
-    const sourceLinks = this.repository.workspaces.sourceLinks(id);
+    const { id, rows, sourceLinks, revision } = this.directoryObservation(projectId);
     return {
       project_id: id,
       directories: rows.map(row => ({ workspace_id: row.workspace_id, canonical_path: row.canonical_path, realpath_verified: row.realpath_verified,
         display_name: row.display_name, roles: row.roles, state: this.state(row) })),
       source_links: sourceLinks,
-      revision: revisionOf(rows, sourceLinks),
+      revision,
     };
+  }
+
+  /** The original person-linked inputs and membership identities, with the same project directory revision. */
+  personInputDirectories(projectId: string) {
+    const { rows, revision } = this.directoryObservation(projectId);
+    const folders = rows.filter(row => row.person_bound && row.realpath_verified && row.roles.includes("input"))
+      .map(row => ({ id: row.workspace_id, title: row.display_name, path: row.canonical_path, membership: row.membership_id, changed: row.updated_at }));
+    return { revision, folders };
+  }
+
+  private directoryObservation(projectId: string) {
+    const id = this.requiredProjectId(projectId);
+    const rows = this.repository.workspaces.projectDirectoryRows(id);
+    const sourceLinks = this.repository.workspaces.sourceLinks(id);
+    return { id, rows, sourceLinks, revision: revisionOf(rows, sourceLinks) };
   }
 
   /** Where a read, a write or a run that names no folder goes. Every registered project has one; a project in the recycle bin answers none. */

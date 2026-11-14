@@ -189,6 +189,10 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       ...(steps && (steps.mine || steps.subtasks || steps.unowned) ? { steps } : {}) } };
   }
 
+  sessionTransitionPending(session: AgentSessionRef): boolean {
+    return this.#store.startingSessions.has(session.session_id);
+  }
+
   async start(request: AgentStartRequest, execution?: AgentStartExecution): Promise<AgentRunHandle> {
     request = { ...request, budget: parseAgentRunBudget(request.budget),
       ...(request.original_input ? { original_input: structuredClone(request.original_input) } : {}),

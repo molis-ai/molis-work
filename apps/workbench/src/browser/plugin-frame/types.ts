@@ -100,6 +100,7 @@ export type FrameUp =
   | { type: "frame-asset-layout"; handle: string; slots: Array<{ reference: UiFrameAssetReference; box: { x: number; y: number; width: number; height: number } | null }> }
   | { type: "connection-slot-cancel"; id: number }
   | { type: "view-open"; selection: UiViewSelection }
+  | { type: "automation-suggestions" }
   | { type: "view-invalidate" }
   | { type: "connection-slot"; id: number; slot_id: string; record_key: string; mode: "read" | "choose"; box?: { x: number; y: number; width: number; height: number } }
   | { type: "on-closing"; action: Parameters<UiPageView["onClosing"]>[0] }

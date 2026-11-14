@@ -1,13 +1,12 @@
 import { ProjectRuntimeSettings } from "./project-runtime-settings.js";
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { HostCapabilityInvocation } from "@molis-ai/molis-work-contracts/platform/app-host";
+import { ActionError, bindActionHandler, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { workspaceReadActions, type WorkspaceFileQuery, type WorkspaceFileResult, type WorkspaceGitQuery, type WorkspaceGitResult } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { readConflictFile, readGitSummary, readPullRequestSupport } from "./workspace-git-operations.js";
 import { readWorkspaceGit } from "./workspace-git.js";
 import { readWorkspaceFile } from "./workspace-files.js";
-import type { LocalHost } from "./local-host.js";
+import { HOST_PROVIDER_ID, type LocalHost } from "./local-host.js";
 import type { MolisWorkProjectRuntime } from "./project-host.js";
 
 /** Whether a folder of the project is on disk yet, checked before it is read (§3 「碰磁盘之前」); a folder the person chose always is. */
@@ -26,7 +25,7 @@ const NOT_MADE_GIT = { outcome: "not-a-repository", message: "这个文件夹还
 export function registerProjectCapabilities(
   host: LocalHost<MolisWorkProjectRuntime>,
   ports: ProjectCapabilityPorts = {},
-): void {
+): readonly ActionProviderRegistration[] {
   const { workspaceFor } = ports;
   const current = async (projectId: string) => ports.workspacesFor ? await ports.workspacesFor(projectId) : [await workspaceFor!(projectId)].filter((item): item is ProjectWorkspaceRef => item !== null);
   /** A default output directory that is not made yet reads as an empty folder; nothing here makes it. */
@@ -49,21 +48,18 @@ export function registerProjectCapabilities(
     if (!(await current(runtime.project_id)).some(item => item.workspace_id === query.workspace_id && item.realpath_verified && item.canonical_path === accepted?.canonical_path)) return { outcome: "denied", message: "工作区授权已变化，请重新读取" };
     return result;
   };
-  const readFile = async (runtime: MolisWorkProjectRuntime, query: WorkspaceFileQuery, invocation: HostCapabilityInvocation): Promise<WorkspaceFileResult> => {
-    // A whole file (an image, a PDF) is for the preview of a plugin the Host runs: told by the Host-confirmed plugin identity (`consumer`), not by audience.
-    if (query.kind === "bytes" && invocation.consumer !== "plugin") throw new ActionError("actions.forbidden", "整份文件只供宿主运行的插件预览，请读取目录或文本");
-    const selected = await current(runtime.project_id);
+  const readFile = bindActionHandler(workspaceReadActions.file, async (query: WorkspaceFileQuery, caller): Promise<WorkspaceFileResult> => {
+    // Only the trusted plugin provenance can read a whole file for preview.
+    if (query.kind === "bytes" && !caller.host_plugin) throw new ActionError("actions.forbidden", "整份文件只供宿主运行的插件预览，请读取目录或文本");
+    const projectId = caller.project_id!;
+    const selected = await current(projectId);
     const folder = selected.find(item => item.workspace_id === query.workspace_id);
-    if (folder && !await made(runtime.project_id, folder.workspace_id)) {
+    if (folder && !await made(projectId, folder.workspace_id)) {
       return query.kind === "directory" && query.path.length === 0 ? { outcome: "directory", entries: [], truncated: false } : { outcome: "missing" };
     }
+    caller.assert_authority_current?.();
     return readWorkspaceFile(query, selected);
-  };
-  if (ports.workspacesFor || workspaceFor) {
-    // One id per read, for every caller: the Files, Git and Coding plugins call these two actions as the plugin audience.
-    host.registerAction(workspaceReadActions.git, readGit);
-    host.registerAction(workspaceReadActions.file, readFile);
-  }
+  });
   // The Runtime pick does not depend on where the project's folders are kept: it is registered with the other current-project settings.
   host.registerAction(projectSettingsCapabilities.runtime, runtime => new ProjectRuntimeSettings(runtime.store.db).read(runtime.project_id));
   host.registerAction(projectSettingsCapabilities.selectRuntime, async (runtime, [runtimeId], invocation) => {
@@ -71,4 +67,9 @@ export function registerProjectCapabilities(
     invocation.assertAuthorityCurrent();
     return new ProjectRuntimeSettings(runtime.store.db).select(runtime.project_id, runtimeId);
   });
+  if (!ports.workspacesFor && !workspaceFor) return [];
+  // Project folders belong to the Catalog. This read can precede opening the project.
+  host.registerAction(workspaceReadActions.git, readGit);
+  return [{ provider: { provider_id: HOST_PROVIDER_ID, title: "Molis Work", kind: "system" },
+    definitions: [workspaceReadActions.file], handlers: [readFile] }];
 }

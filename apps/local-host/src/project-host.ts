@@ -23,6 +23,7 @@ import { announceWorkspaceSettingsChange } from "./workspace-settings-events.js"
 import type { PtySpawnRequest, PtySpawnResult } from "@molis-ai/molis-work-contracts/services/runtime-host";
 import { artifactActionProvider } from "./artifact-actions.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
+import type { MolisWorkProjectCatalog } from "./project-catalog.js";
 import { createWebCatalogAccess } from "./web-catalog-access.js";
 import { projectPluginJudge } from "./project-action-availability.js";
 import { AlchemistHostService, type AlchemistHostOptions } from "./alchemist-service-host.js";
@@ -33,6 +34,11 @@ import { agentReviewProvider } from "./agent-review-http.js";
 import { assistantPanelProvider } from "./assistant/assistant-http.js";
 import { assistantStoreFor, type AssistantStore } from "./assistant/assistant-store.js";
 import { assistantDelegationProvider } from "./assistant/assistant-delegation-actions.js";
+import { authorizationManagementProvider } from "./authorization-management.js";
+import { AutomationRecommender } from "@molis-ai/molis-work-service-automation-recommender";
+import { automationRecommendationProvider, type RecommendationEntry } from "./automation-recommendations.js";
+import { assertAutomationProject, automationProjectSnapshot } from "./automation-project.js";
+import { automationCandidates } from "./automation-candidates.js";
 import { ActionCallLog } from "./action-call-log.js";
 import { connectorAccountActionProvider } from "./connector-account-actions.js";
 import { HomeConsentLedger } from "./home-plugin-store.js";
@@ -60,7 +66,7 @@ import { registerProjectCapabilities, type PrepareProjectDirectory } from "./pro
 import { refreshRunningProjectPlugins, releaseProjectPlugins } from "./project-plugins.js";
 import type { LocalHostProjectClient, LocalHostProjectReference, LocalHostStatus } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { ProjectDirectories, ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
-import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionProviderRegistration, type ActionReference, type ActionRegistryPort, type ActionSceneClient, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionProviderRegistration, type ActionReference, type ActionRegistryPort, type ActionSceneClient, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentHostComposition } from "./agent-host-composition.js";
 import { createSearchHost, type SearchHost } from "./search-actions.js";
 import { createPlacementHost, type PlacementHost, type PlacementProjectRecord } from "./placement-actions.js";
@@ -162,6 +168,7 @@ export class MolisWorkLocalHost {
   private catalogRunner?: LocalWebCatalogRunner;
   private webCatalog?: { home: string; access: ReturnType<typeof createWebCatalogAccess> };
   private readonly systemFunctions?: SystemFunctionsActions;
+  private readonly recommendations?: AutomationRecommender;
   private readonly alchemist?: AlchemistHostService;
   private agents?: { home: string; service: AgentHostComposition };
   private readonly closing: { started?: boolean; completed: Set<string>; attempt?: Promise<void>; work?: Promise<void> } = { completed: new Set() };
@@ -180,7 +187,10 @@ export class MolisWorkLocalHost {
     try {
     this.personalPlanningHome = options.homeDirectory ? resolveConfiguredHome(options.homeDirectory) : undefined;
     const catalogOwner = () => this.personalPlanningHome && this.catalogRunner ? { home: this.personalPlanningHome, run: this.catalogRunner } : undefined;
-    if (options.homeDirectory) this.callLog = new ActionCallLog(options.homeDirectory);
+    if (options.homeDirectory) {
+      this.callLog = new ActionCallLog(options.homeDirectory);
+      this.recommendations = new AutomationRecommender(options.homeDirectory);
+    }
     this.host = new LocalHost({
       instanceId: options.instanceId,
       assertProjectAvailable: projectId => { if (options.homeDirectory) assertPassiveProjectAvailable(options.homeDirectory, projectId); },
@@ -255,7 +265,7 @@ export class MolisWorkLocalHost {
     const callerClient = (caller: ActionCallContext) => callerOwnClient(this, caller);
     const platform: ActionProviderRegistration[] = [
       accountActionProvider(() => accountSessionForHost(this)),
-      actionUsagesProvider(callerClient, options.homeDirectory), contextOnboardingProvider(), agentReviewProvider(), assistantPanelProvider(), // the pages' writes, behind their doors (B9)
+      actionUsagesProvider(callerClient, options.homeDirectory), contextOnboardingProvider(), agentReviewProvider(), assistantPanelProvider(), authorizationManagementProvider(), // the pages' writes, behind their doors (B9)
       ...kitProviders({ clientFor: callerClient, library: async () => this.agents?.service.mcpLibrary(), plugins: this.plugins, home: options.homeDirectory }),
       ...(this.assistantStore ? [assistantDelegationProvider({ host: this, works: this.assistantStore, permissions: async () => {
         const service = this.agents?.service;
@@ -268,16 +278,15 @@ export class MolisWorkLocalHost {
         return project ? molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path }) : null;
       }) : Promise.resolve(null)), withConnectorsKitReport(connectorAccountActionProvider(options.homeDirectory, (...args) => this.connectorMcp!.remember(...args), { library: async () => this.agents?.service.mcpLibrary(), refresh: async owner => { if (!this.agents) throw new Error("项目 MCP 运行服务未装配"); await this.agents.service.refreshExternalMcp(owner); } }, caller => this.inspectActions(caller, this.host.projects().find(project => project.project_id === caller.project_id)), caller => caller.project_id ? this.actionClient(this.host.projects().find(project => project.project_id === caller.project_id)!) : this.homeActionClient(), { manifest: (installId, pluginId, projectId) => installedPluginManifestFor(installId, pluginId, this.homePlugins, reference => this.withProject(reference, runtime => installedPluginManifest(runtime.store.db, installId)), this.host.projects().find(project => project.project_id === projectId)), projectNames: async () => new Map(this.catalogRunner ? await this.catalogRunner({ homeDirectory: options.homeDirectory }, catalog => catalog.listProjects().map(project => [project.project_id, project.display_name] as const)) : []) }), options.homeDirectory, this.plugins)] : []),
     ];
-    this.projectCatalogActions = registerHostPlatformProviders(this.host, platform, catalogOwner, () => this.prepareHomeActions(), this.settleAction);
+    const workspaceProviders = registerProjectCapabilities(this.host,
+      { workspaceFor: options.workspaceFor, workspacesFor: options.workspacesFor, prepareDirectory: options.prepareDirectory });
+    this.projectCatalogActions = registerHostPlatformProviders(this.host, platform, catalogOwner, () => this.prepareHomeActions(), this.settleAction,
+      [...workspaceProviders, ...(this.recommendations ? [automationRecommendationProvider()] : [])]);
     if (options.homeDirectory) {
       // Remote MCP servers connected in 服务连接: what each last offered is back in the directory at start.
       this.connectorMcp = createConnectorMcpDirectory({ localHost: this, homeDirectory: options.homeDirectory });
       try { this.connectorMcp.sync(); } catch (error) { hostLog.warn("connections", "mcp_sync_failed", error); } // The connections page lists them again.
     }
-    registerProjectCapabilities(
-      this.host,
-      { workspaceFor: options.workspaceFor, workspacesFor: options.workspacesFor, prepareDirectory: options.prepareDirectory },
-    );
     if (home) {
       bindHomeSide(this, home, options, settingsVersionClaims);
       this.search = createSearchHost({ homeDirectory: home, registry: this.host.actionRegistry(),
@@ -382,7 +391,7 @@ export class MolisWorkLocalHost {
   /** Registered declarations only: no Runtime preparation, availability policy or execution authority. */
   inspectActionMetadata(caller: ActionCallContext, reference?: LocalHostProjectReference) { return this.host.inspectActionMetadata(caller, reference); }
 
-  prepareActionReview(caller: ActionCallContext, view: ActionView, input: unknown, project?: LocalHostProjectReference) { return this.host.prepareActionReview(caller, view, input, project); }
+  prepareActionReview(caller: ActionCallContext, view: ActionView, input: unknown, project?: LocalHostProjectReference, related?: ExactActionReference) { return this.host.prepareActionReview(caller, view, input, project, related); }
 
   /** A directory has already prepared these providers. Observe the same installation owner without reactivating plugins. */
   projectActionInstallations(project: LocalHostProjectReference) {
@@ -392,7 +401,61 @@ export class MolisWorkLocalHost {
     }));
   }
 
+  async automationRecommendationEntry(reference: LocalHostProjectReference, scan: boolean): Promise<RecommendationEntry> {
+    const catalog = this.webCatalog, service = this.recommendations;
+    if (!catalog || !service) throw new ActionError("actions.service_unavailable", "项目目录服务尚未就绪");
+    const snapshot = (current: MolisWorkProjectCatalog) =>
+      automationProjectSnapshot(catalog.home, current, reference, scan);
+    const { seen, allows } = await catalog.access.withCatalog({ homeDirectory: catalog.home }, current => ({
+      seen: snapshot(current), allows: scan ? projectPluginJudge(current, reference.project_id, catalog.home) : () => undefined,
+    }));
+    const runtime = this.host.projectClosingSignal(reference);
+    const assertCurrent = () => {
+      this.host.assertProjectOpenForCatalog(reference);
+      runtime?.throwIfAborted();
+      assertAutomationProject(seen, catalog.access.read(snapshot));
+    };
+    return { service, host: this, project: reference, incarnation: seen.incarnation,
+      source: { directories: seen.folders, assertCurrent }, files: this.projectCatalogActions.passiveClient(reference),
+      candidates: caller => automationCandidates(catalog.home, this.plugins, reference, caller, allows) };
+  }
+
+  /** Keeps an original project incarnation and any current Runtime lease across a management write. */
+  holdAuthorizationProject(reference: LocalHostProjectReference): () => void {
+    const catalog = this.webCatalog;
+    const project = (current: MolisWorkProjectCatalog) => {
+      const record = current.getProject(reference.project_id);
+      if (path.resolve(record.database_path) !== reference.storage_key || current.recycle.isRecycled(reference.project_id)) {
+        throw new ActionError("actions.conflict", "原项目已变化，请重新查看权限");
+      }
+      return record.created_at;
+    };
+    const created = catalog?.access.read(project);
+    const closing = this.host.projectClosingSignal(reference);
+    return () => {
+      this.host.assertProjectOpenForCatalog(reference);
+      closing?.throwIfAborted();
+      if (catalog && catalog.access.read(project) !== created) throw new ActionError("actions.conflict", "原项目已变化，请重新查看权限");
+    };
+  }
+
+  readAuthorizationOutput(projectId: string) {
+    const catalog = this.webCatalog;
+    return catalog?.access.read(current => {
+      assertPassiveProjectAvailable(catalog.home, projectId);
+      const project = current.getProject(projectId);
+      if (current.recycle.isRecycled(projectId)) throw new ActionError("actions.conflict", "原项目已回收");
+      const reference = molisWorkHostProjectReference({ projectId, databasePath: project.database_path });
+      this.host.assertProjectOpenForCatalog(reference);
+      return { reference, created: project.created_at, output: current.outputDirectory(projectId) };
+    });
+  }
+
   inspectSceneMetadata(caller: ActionCallContext, reference?: LocalHostProjectReference) { return this.host.inspectSceneMetadata(caller, reference); }
+
+  holdRequiredScene(caller: ActionCallContext, scene: { scene_id: string; version: number }, reference?: LocalHostProjectReference) {
+    return this.host.holdRequiredScene(caller, scene, reference);
+  }
 
   /** Local caller construction needs the prepared providers' declarations, not an availability result it would discard. */
   async inspectPreparedActionMetadata(caller: ActionCallContext, reference?: LocalHostProjectReference) {
@@ -507,21 +570,24 @@ function hostCallSettled(host: Pick<MolisWorkLocalHost, "callLog" | "search" | "
 
 /** The Host's own providers are `system` and belong to no plugin; this is not a way to hand-register a plugin's actions. */
 function registerHostPlatformProviders(host: LocalHost<MolisWorkProjectRuntime>, providers: readonly ActionProviderRegistration[], catalogOwner: ProjectCatalogOwner,
-  prepareHome: () => Promise<void>, settle: CallSettled) {
+  prepareHome: () => Promise<void>, settle: CallSettled, catalogProviders: readonly ActionProviderRegistration[]) {
   const systemRegistry = host.actionRegistry(), catalogRegistry = host.actionRegistry(undefined, "project-catalog");
   const membership = projectPluginMembershipActionProvider(catalogOwner, async projectId => {
     const reference = host.projects().find(project => project.project_id === projectId);
     return reference ? host.withExistingRuntime(reference, current => refreshRunningProjectPlugins(current.store, projectId)) : null;
   });
-  for (const registration of [...providers, membership]) {
+  for (const [registry, registrations] of [[systemRegistry, providers], [catalogRegistry, [membership, ...catalogProviders]]] as const) {
+    for (const registration of registrations) {
     if (registration.provider.kind !== "system" || registration.provider.plugin_id) throw new Error("Host 平台动作只登记 system 提供方：" + registration.provider.provider_id);
-    const registry = registration === membership ? catalogRegistry : systemRegistry;
-    registry.registerProvider(registration);
+      registry.registerProvider(registration);
+    }
   }
+  const passiveClient = (reference: LocalHostProjectReference) => host.actionClient(reference, false, "project-catalog");
   return {
     descriptor: (reference: ActionReference) => host.projectCatalogActionDescriptor(reference),
+    passiveClient,
     client: (reference: LocalHostProjectReference): ActionClient => {
-      const client = host.actionClient(reference, false, "project-catalog");
+      const client = passiveClient(reference);
       const { invoke } = withPreparedActions(client, prepareHome, (caller, action, error) => refuseCall(settle, caller, action, error));
       return { discover: client.discover, invoke };
     },

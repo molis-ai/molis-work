@@ -1,6 +1,7 @@
 import type { Effect, EffectOrigin, PolicySnapshot } from "@prologue/sdk";
 import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { AgentActionClient, AgentActionReviewControl, ReviewDecisionSource } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentActionClient, AgentActionReviewControl, AgentDelegationActionChoice, ReviewDecisionSource } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { canonicalJsonText, extractActionDelegation, isRecord, redactSecrets } from "@molis-ai/molis-work-plugin-sdk";
 import { agentErrors } from "../errors.js";
 import { reviewProposalVersion } from "../review-decisions.js";
 import type { WorkDelegationPermission } from "../delegation-permissions.js";
@@ -13,7 +14,20 @@ interface HeldActionReview {
   readonly args: string;
   readonly view: ActionView;
   readonly control: AgentActionReviewControl;
+  readonly choice?: AgentDelegationActionChoice;
+  readonly assertChoiceCurrent: () => void;
   automatic(policy: PolicySnapshot): { source: AutomaticSource; assertCurrent(): void; activate(): void } | undefined;
+}
+
+function choiceFor(view: ActionView, input: unknown): AgentDelegationActionChoice | undefined {
+  const action = { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id };
+  const result = extractActionDelegation(view.action, input);
+  if (result.state === "resolved") return { kind: "objects", action, operations: result.operations.map(row => ({ key: row.key,
+    targets: Object.entries(row.targets).map(([key, id]) => ({ key, ids: [id] })) })) };
+  if (result.reason !== "undeclared" || !isRecord(input)) return undefined;
+  const exact = canonicalJsonText(input);
+  if (!exact || exact.length > 12_000 || redactSecrets(exact) !== exact) return undefined;
+  return { kind: "exact", action, input: structuredClone(input) };
 }
 
 /** One Run's original SDK tool calls. Neither a tool argument nor a later page can supply this identity. */
@@ -35,7 +49,7 @@ export class PrologueActionReviews {
     this.#run = origin.run;
     if (this.#calls.has(origin.toolCall)) throw agentErrors.review_version_changed("原工具调用已有固定提案，不能重新绑定");
     this.#assertRun();
-    const original = await client.prepareReview(view, input);
+    const original = await client.prepareReview(view, input, reversible ? "reversible" : undefined);
     const assertCurrent = () => { this.#assertRun(); original.assertCurrent(); this.delegation?.permission.assertCurrent(); };
     const control = { assertCurrent, beforeEffect: async () => { assertCurrent(); await original.beforeEffect(); assertCurrent(); } };
     const automaticReview = reversible ? this.#reversible(view, client, control) : await this.#automatic(original, view, input, control);
@@ -50,7 +64,9 @@ export class PrologueActionReviews {
     };
     control.assertCurrent();
     if (this.#calls.has(origin.toolCall)) throw agentErrors.review_version_changed("原工具调用已有固定提案，不能重新绑定");
+    const choice = choiceFor(view, input);
     this.#calls.set(origin.toolCall, { tool, args: reviewProposalVersion(args), view: structuredClone(view), control: heldControl,
+      ...(choice ? { choice } : {}), assertChoiceCurrent: original.assertCurrent,
       automatic: policy => automaticReview ? {
         source: automaticReview.source(policy), assertCurrent: assertAutomatic,
         activate: () => { assertAutomatic(); usedAutomatic = true; },
@@ -72,10 +88,10 @@ export class PrologueActionReviews {
     const work = this.delegation;
     if (work?.permission.mode !== "automatic" || !work.permission.automatic || !original.resolveDelegation) return undefined;
     const facts = await original.resolveDelegation();
-    if (!facts.provider_installation_generation || facts.confirmationRequired()) return undefined;
+    if (!(facts.provider_installation_generation || facts.mcp_scope) || facts.confirmationRequired()) return undefined;
     const decided = await work.store.actionDecision(work.permission.subject, {
       work_epoch: work.permission.work_epoch, view, input, provider_installation_generation: facts.provider_installation_generation,
-      confirmation_required: false, target_owners: facts.target_owners,
+      mcp_scope: facts.mcp_scope, confirmation_required: false, target_owners: facts.target_owners,
     }, control, work.permission);
     if (decided.decision.state !== "delegation") return undefined;
     const source = decided.decision.source;

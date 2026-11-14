@@ -4,7 +4,8 @@ import type { AgentDelegationMode, AgentDelegationSelection, AgentDelegationStat
 import { validDelegationScope } from "./delegation-scopes.js";
 import { agentErrors } from "./errors.js";
 
-export interface StoredDelegationState extends AgentDelegationState { readonly schema: 1; readonly submission_id: string }
+export const WORK_DELEGATION_SCHEMA_VERSION = /* @version format.agent.work-delegation */ 1;
+export interface StoredDelegationState extends AgentDelegationState { readonly schema: typeof WORK_DELEGATION_SCHEMA_VERSION; readonly submission_id: string }
 const text = (value: unknown): value is string => typeof value === "string" && value.length > 0 && value === value.trim();
 const integer = (value: unknown) => typeof value === "number" && Number.isSafeInteger(value) && value > 0;
 const keys = (value: Record<string, unknown>, required: readonly string[]) => Object.keys(value).length === required.length && required.every(key => Object.hasOwn(value, key));
@@ -37,7 +38,7 @@ function selection(value: unknown): value is AgentDelegationSelection {
 
 function validState(value: unknown, subject?: AgentDelegationSubject): value is StoredDelegationState {
   if (!isRecord(value) || !keys(value, ["schema", "submission_id", "subject", "storage_version", "epoch", "lifecycle", "ended_at", "ended_reason", "selection_id", "selections"])
-    || value.schema !== 1 || !text(value.submission_id) || !validDelegationSubject(value.subject)
+    || value.schema !== WORK_DELEGATION_SCHEMA_VERSION || !text(value.submission_id) || !validDelegationSubject(value.subject)
     || subject && !isDeepStrictEqual(subject, value.subject) || !integer(value.storage_version) || !text(value.epoch)
     || value.lifecycle !== "open" && value.lifecycle !== "ending" && value.lifecycle !== "ended"
     || !Array.isArray(value.selections) || !value.selections.every(selection)) return false;

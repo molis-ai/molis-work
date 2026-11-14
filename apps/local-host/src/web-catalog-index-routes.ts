@@ -21,6 +21,7 @@ import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./projec
 import type { LocalWebComposition } from "./web-composition.js";
 import type { WebProjectNavigation } from "@molis-ai/molis-work-app-workbench";
 import type { WebRequestContext, WebRoute } from "./web-route-table.js";
+import { handleAuthorizationManagementHttp } from "./authorization-management-http.js";
 
 /** A request outside any project: the chooser, the global settings, and what the Home shows there. */
 interface CatalogIndexContext extends WebRequestContext {
@@ -34,11 +35,12 @@ export const CATALOG_INDEX_ROUTES: readonly WebRoute<CatalogIndexContext>[] = [
   { id: "directory-grant", handle: context => handleDirectoryGrantHttp(context) },
   { id: "plugin-consents", handle: handlePluginConsentSettingsHttp },
   { id: "plugin-permissions", handle: handlePluginPermissionSettingsHttp },
+  { id: "authorization-management", handle: handleAuthorizationManagementHttp },
   // Personal memories are managed from the global settings, outside any project.
   { id: "memory", handle: async ({ request, response, url, serverOptions, localHost }) =>
     Boolean(serverOptions.homeDirectory) && url.pathname.startsWith("/api/memory/") && await handleMemoryHttp(request, response, url, { localHost }) },
-  { id: "assistant", handle: async ({ request, response, url, assistant }) =>
-    Boolean(assistant) && url.pathname.startsWith("/api/assistant/") && await handleAssistantHttp(request, response, url, assistant!) },
+  { id: "assistant", handle: async ({ request, response, url, assistant, serverOptions }) =>
+    Boolean(assistant) && url.pathname.startsWith("/api/assistant/") && await handleAssistantHttp(request, response, url, assistant!, serverOptions.assertAccountCurrent) },
   { id: "attention", handle: async ({ request, response, url, assistant, projects, localHost }) => Boolean(assistant) && await handleAttentionHttp(request, response, url,
     { backgroundTasks: () => homeBackgroundTasks(homeAggregatePorts(localHost), projects), notices: surface => assistantNotices(assistant!, surface) }) },
   { id: "side-files", handle: async ({ request, response, url, serverOptions }) => Boolean(serverOptions.homeDirectory)

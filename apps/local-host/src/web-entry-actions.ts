@@ -20,6 +20,9 @@ export interface WebEntryDoor<Entry> {
   /** One action of this door: the handler first checks the call came through it, then gets this request's entry. */
   define<const S extends ActionSchema, Output>(spec: WebEntryActionSpec<S>, handle: (entry: Entry, input: InferActionInput<S>, caller: ActionExecutionContext) => Output | Promise<Output>):
     { readonly definition: ActionDefinition<InferActionInput<S>, Output>; readonly handler: ActionHandlerBinding };
+  /** Register an already declared public action without replacing its input or output contract. */
+  bind<Input, Output>(definition: ActionDefinition<Input, Output>, handle: (entry: Entry, input: Input, caller: ActionExecutionContext) => Output | Promise<Output>):
+    { readonly definition: ActionDefinition<Input, Output>; readonly handler: ActionHandlerBinding };
   /** Calls one of this door's actions as the person, for the request being answered. */
   invoke<Input, Output>(call: WebEntryCall<Entry>, definition: ActionDefinition<Input, Output>, input: Input): Promise<Output>;
 }
@@ -44,6 +47,7 @@ export interface WebEntryCall<Entry> {
   readonly entry: Entry;
   readonly original_file?: ActionCallContext["original_file"];
   readonly signal?: AbortSignal;
+  readonly assertCurrent?: () => void;
 }
 
 /** `scope` names the door in the call's audit locator (`web:<scope>`); it grants nothing. */
@@ -65,6 +69,7 @@ export function webEntryDoor<Entry>(scope: string, refusal: () => string): WebEn
   }
   return {
     define,
+    bind: (definition, handle) => defineAction(definition, (caller, input) => handle(entryOf(caller), input, caller)),
     invoke: async (call, definition, input) => {
       const user_action: ActionUserAction = Object.freeze(entryUserAction("web", scope, webEntryMessage(call.request)));
       issued.set(user_action, { entry: call.entry, project_id: call.reference?.project_id ?? null });
@@ -74,6 +79,7 @@ export function webEntryDoor<Entry>(scope: string, refusal: () => string): WebEn
       const sessionCurrent = captureWebSessionAuthority(), locale = pageLocale();
       const assertAuthority = (target?: ActionReference) => {
         sessionCurrent();
+        call.assertCurrent?.();
         call.signal?.throwIfAborted();
         if (target && (target.capability_id !== definition.capability_id || target.version !== definition.version)) throw new ActionError("actions.forbidden", refusal());
       };

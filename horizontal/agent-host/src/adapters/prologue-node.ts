@@ -15,6 +15,7 @@ import { guardNodeDispatch, withDispatchControl } from "./prologue-dispatch.js";
 import type { PrologueGitReviewPort } from "./prologue-git.js";
 import type { PrologueInferenceClient } from "../inference.js";
 import { createPrologueMcpLibrary } from "./prologue-mcp.js";
+import { guardMcpDispatch } from "./prologue-mcp-dispatch.js";
 import { createPrologueMemory } from "./prologue-memory.js";
 import { createPrologueMemoryAuthority } from "./prologue-memory-authority.js";
 import { readResource, readResourceText, createRoundState, type DispatchGuards, type PrologueNodeAdapterOptions } from "./prologue-node-kit.js";
@@ -146,7 +147,7 @@ export function createPrologueNodeAdapter(
 async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions, onFailureClose: (close: () => unknown) => () => Promise<void>) {
   // Async context holds only a trusted denial guard, never serializes it in a Run.
   const dispatchGuards: DispatchGuards = new AsyncLocalStorage();
-  const host = guardNodeDispatch(createNodeHost({
+  const node = createNodeHost({
     // This runtime owns or borrows the storage root's actual owner lock for its whole life, so a write claim
     // found there at start is one a crashed owner left: the Host clears it instead of refusing that record for ever.
     storageRoot: options.storageRoot, exclusiveOwner: true,
@@ -156,7 +157,8 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     // A model call that got no response at all (the connection dropped) is sent again under the retry policy, rather
     // than ending the round: the person's decision (2026-09-27), knowing a dropped request may be billed twice.
     retryUnansweredModelCalls: true,
-  }), dispatchGuards);
+  });
+  const host = guardMcpDispatch(guardNodeDispatch(node, dispatchGuards), dispatchGuards);
   // Each invocation's SDK writes re-check its caller first (prologue-effects); accepted runs detach from the start call.
   const effects = prologueEffects(host);
   const decisions = createPrologueReviewDecisions(effects, options.app.appId);
@@ -197,6 +199,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   const mcpLibrary = createPrologueMcpLibrary(runtime, {
     withDispatchGuard: (guard, operation) => withDispatchControl(dispatchGuards, guard, operation),
     directoryAuthorized: options.checks?.directoryAuthorized,
+    holdDirectory: options.checks?.holdMcpDirectory,
     resolveConnection: options.resolveMcpConnection, saveConnection: options.saveMcpConnection,
     subscribeConnections: options.subscribeMcpConnections,
     credentialRefFor: (ref) => credentials.prologueRefFor(ref),
@@ -214,7 +217,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   const closeWaits = onFailureClose(() => waitsPort.close());
   const closeMessages = onFailureClose(() => messages.close());
   const closeStepBoards = onFailureClose(() => stepBoards.close());
-  const reviews = { runtime, host, state, index, options, surfaces, projectWork, decisions, mcpLibrary };
+  const reviews = { runtime, host, state, index, options, surfaces, projectWork, decisions };
   const pendings = createPendingPort(reviews);
   const remember = createReviewMemory(reviews);
   const approvals = createApprovals(reviews, pendings, remember);

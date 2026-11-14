@@ -2,6 +2,7 @@ import type { QueuedTask, Runtime } from "@prologue/sdk";
 import type { AgentScheduledTask } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { PrologueRuntimePort } from "./prologue.js";
 import { agentErrors } from "../errors.js";
+import type { PrologueEffects } from "./prologue-effects.js";
 import type { SessionIndexStore } from "./prologue-session-index.js";
 
 /**
@@ -21,21 +22,25 @@ export function createPrologueSchedule() {
     await runner(view(task));
   };
   /** The schedule port, once the runtime and the session index exist. */
-  const port = (runtime: Runtime, index: SessionIndexStore): NonNullable<PrologueRuntimePort["schedule"]> => ({
+  const port = (runtime: Runtime, index: SessionIndexStore, effects: PrologueEffects): NonNullable<PrologueRuntimePort["schedule"]> => ({
     claim: () => { const claim = runtime.queue.claim(); return { survives_window_close: claim.survivesWindowClose, why: claim.why }; },
     enqueue: async input => {
       const session = await index.read(input.session_id);
       if (!session) throw agentErrors.session_unknown("会话不存在，不能安排定时");
       const due = Date.parse(input.due_at);
       if (!Number.isFinite(due)) throw agentErrors.capability_unavailable("定时的时间无效");
-      return view(await runtime.queue.enqueue({ key: input.key, sessionRef: session.ref, work: { kind: input.kind, payload: { ...input.payload } }, dueAtMs: due,
-        ...(input.max_attempts ? { maxAttempts: input.max_attempts } : {}) }));
+      await effects.beforeEffect(); effects.assertCurrent();
+      // Queue acceptance changes its in-memory entry synchronously. Its own persistence must finish once accepted.
+      const queued = await effects.detach(() => runtime.queue.enqueue({ key: input.key, sessionRef: session.ref,
+        work: { kind: input.kind, payload: { ...input.payload } }, dueAtMs: due, ...(input.max_attempts ? { maxAttempts: input.max_attempts } : {}) }));
+      return view(queued);
     },
     cancel: async key => {
+      await effects.beforeEffect(); effects.assertCurrent();
       const task = runtime.queue.find(key);
       if (!task) return null;
       if (task.state !== "queued") return view(task);
-      return view(await runtime.queue.cancel(task.ref));
+      return view(await effects.detach(() => runtime.queue.cancel(task.ref)));
     },
     find: key => { const task = runtime.queue.find(key); return task ? view(task) : null; },
     list: kind => runtime.queue.list().filter(task => !kind || task.work.kind === kind).map(view),

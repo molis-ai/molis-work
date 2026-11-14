@@ -116,7 +116,7 @@ export type AgentReviewPhase =
   | "cancelled"
   | "expired";
 
-export function reviewPhase(row: AgentReviewRow): AgentReviewPhase {
+export function reviewPhase(row: Pick<AgentReviewRow, "receipt">): AgentReviewPhase {
   if (row.receipt?.effect_uncertain) return "reconcile";
   const status: AgentReviewStatus = row.receipt?.status ?? "pending";
   if (status !== "approved") return status;
@@ -187,17 +187,10 @@ function reviewPriority(row: AgentReviewRow): number {
   return ["pending", "approved", "reconcile"].includes(reviewPhase(row)) ? 0 : reviewPhase(row) === "failed" ? 1 : 2;
 }
 
-function renderRow(row: AgentReviewRow, p: AgentReviewPrimitives): string {
-  const phase = reviewPhase(row);
-  const mark = phase === "done" && row.request.kind === "command"
-    ? { ...PHASE_MARK.done, label: "workbench.agent-review.executed" }
-    : phase === "failed" && row.receipt?.reconciliation ? { ...PHASE_MARK.failed, label: "workbench.agent-review.not-happened" } : PHASE_MARK[phase];
-  const history = ["done", "rejected", "cancelled", "expired"].includes(phase);
-  const document = row.request.document;
-  const documentReadable = readable(document);
-  const decidable = isDecidable(row);
+function reviewLabel(row: Pick<AgentReviewRow, "request">): string {
+  const document = row.request.document, documentReadable = readable(document);
   // The heading names the thing itself, so a history list reads without opening every row.
-  const label = document.kind === "text-edit" ? document.target_path
+  return document.kind === "text-edit" ? document.target_path
     : document.kind === "command" && documentReadable ? [document.command, ...document.args].map(shellWord).join(" ")
     : document.kind === "git-index" ? (document.action === "stage" ? uiText.text("workbench.agent-review.stage") : uiText.text("workbench.agent-review.unstage"))
     : document.kind === "git-integration" ? uiText.text("workbench.agent-review.integrate")
@@ -207,6 +200,39 @@ function renderRow(row: AgentReviewRow, p: AgentReviewPrimitives): string {
     // A Git operation is named by what it does, with its own summary (branch, remote, file count) beside it.
     : document.kind === "tool-operation" && GIT_TOOL_TITLES[document.tool] ? uiText.text("workbench.agent-review.tool-with-summary", { name: uiText.text(GIT_TOOL_TITLES[document.tool]!), summary: document.summary })
     : document.kind === "tool-operation" && document.tool === "git-worktree-create" ? uiText.text("workbench.agent-review.worktree") : uiText.text("workbench.agent-review.tool");
+}
+
+function reviewMark(row: Pick<AgentReviewRow, "request" | "receipt">, phase: AgentReviewPhase) {
+  const mark = phase === "done" && row.request.kind === "command"
+    ? { ...PHASE_MARK.done, label: "workbench.agent-review.executed" }
+    : phase === "failed" && row.receipt?.reconciliation ? { ...PHASE_MARK.failed, label: "workbench.agent-review.not-happened" } : PHASE_MARK[phase];
+  return mark;
+}
+
+/** Read-only copy for the person inspecting where decisions came from. It uses the same phase and labels as the review itself. */
+export function reviewSourceSummary(row: Pick<AgentReviewRow, "request" | "receipt">) {
+  const phase = reviewPhase(row), receipt = row.receipt, source = receipt?.source;
+  const decided = receipt && (receipt.status === "approved" || receipt.status === "rejected");
+  return {
+    id: row.request.review_id, project_id: row.request.project_id,
+    title: row.request.document.kind === "tool-operation" && row.request.document.summary ? row.request.document.summary : reviewLabel(row),
+    phase: uiText.text(reviewMark(row, phase).label),
+    decision: decided ? uiText.text(receipt.status === "approved" ? "workbench.authorization.review-approved" : "workbench.authorization.review-rejected") : null,
+    source: decided ? uiText.text(source ? "workbench.agent-review.source-" + source.kind : "workbench.agent-review.source-unrecorded") : null,
+    person: source?.kind === "person" ? source.actor_id : source?.kind === "policy" ? source.set_by : source?.delegation.grantor_id ?? null,
+    at: receipt?.decided_at ?? row.request.requested_at,
+    detail: receipt?.decision_save_error ?? receipt?.delivery_error ?? receipt?.effect_uncertain ?? receipt?.effect_error ?? null,
+  };
+}
+
+function renderRow(row: AgentReviewRow, p: AgentReviewPrimitives): string {
+  const phase = reviewPhase(row);
+  const mark = reviewMark(row, phase);
+  const history = ["done", "rejected", "cancelled", "expired"].includes(phase);
+  const document = row.request.document;
+  const documentReadable = readable(document);
+  const decidable = isDecidable(row);
+  const label = reviewLabel(row);
   const labelClass = document.kind === "command" || document.kind === "text-edit" ? "agent-review-title agent-review-title--code" : "agent-review-title";
   return `<article class="agent-review-row" data-agent-review-item="${p.escape(row.request.review_id)}" data-agent-review-version="${p.escape(row.request.reference.version)}" data-agent-review-phase="${phase}">
     ${history ? '<details data-review-detail="history"><summary>' : ""}<header class="agent-review-head">
@@ -235,6 +261,7 @@ function renderFooter(row: AgentReviewRow, decidable: boolean, p: AgentReviewPri
     const canApprove = row.decisions.approve.available && readable(row.request.document);
     // A round's own proposals (edits, commands, dispatches, MCP calls) of any plugin can be refused with a reason the round receives.
     return `${blocked}${row.request.run && ["text-edit", "command", "tool-operation", "mcp"].includes(row.request.document.kind) ? `<label class="mw-field agent-review-feedback"><span class="mw-field__label">${uiText("workbench.agent-review.feedback")}</span><textarea class="mw-textarea" data-slot="textarea" data-agent-review-feedback aria-label="${uiText("workbench.agent-review.feedback")}" maxlength="2000" rows="1" placeholder="${uiText("workbench.agent-review.feedback-placeholder")}"></textarea><span class="mw-field__hint">${uiText("workbench.agent-review.feedback-hint")}</span></label>` : ""}<footer class="agent-review-actions">
+      ${canApprove && row.work_permission_available ? `<button class="mw-btn mw-btn--ghost" type="button" data-agent-review-permission>${p.escape(uiText.text("workbench.authorization.choose"))}</button>` : ""}
       ${canApprove && row.request.document.kind === "command" && row.request.document.escalate === false && row.request.document.grants === undefined && !row.request.document.session_rule_blocked && row.request.run ? `<label class="agent-review-remember"><input type="checkbox" data-agent-review-remember>${p.escape(uiText.text("workbench.agent-review.remember-session"))}</label>` : ""}
       ${row.decisions.reject.available ? `<button class="mw-btn" type="button" data-agent-review-reject="${reviewId}">${p.escape(uiText.text("workbench.agent-review.reject"))}</button>` : ""}
       ${canApprove ? `<button class="mw-btn mw-btn--primary" type="button" data-agent-review-approve="${reviewId}">${p.escape(uiText.text("workbench.agent-review.approve-once"))}</button>` : ""}

@@ -79,15 +79,8 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
       if (kind && root.dataset.settingsPanel) host.noteCover?.(kind, root.dataset.settingsPanel + " " + path);
     },
   });
-  let capabilityScripts = null;
-  const ensureCapabilityScripts = (html) => !/data-functions=|data-mcp-access|data-functions-settings/.test(html) ? Promise.resolve()
-    : capabilityScripts ||= new Promise((resolve, reject) => {
-      const script = document.createElement("script");
-      script.src = "/assets/molis-work-capabilities.js";
-      script.onload = () => resolve();
-      script.onerror = () => { capabilityScripts = null; script.remove(); reject(new Error(globalThis.t.text("workbench.settings-directory.try-again-moment"))); };
-      document.head.append(script);
-    });
+  const ensureCapabilityScripts = (html) => !/data-functions=|data-mcp-access|data-functions-settings|data-authorization-settings/.test(html) ? Promise.resolve()
+    : globalThis.molisWorkLoadCapabilities();
   const stylesheets = new Set();
   const ensureStyleSheets = (html) => {
     const sources = [...new Set([...html.matchAll(/<link\\b[^>]*>/g)].map((tag) => /href="([^"]*\\.css)"/.exec(tag[0])?.[1]).filter((href) => href?.includes("/assets/molis-work-plugins/")))];
@@ -121,6 +114,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     };
     globalThis.molisWorkBindPromptSettings?.(root, { search: root.dataset.settingsSearch || "", hash: root.dataset.settingsHash || "" });
     globalThis.molisWorkBindAssistantSettings?.(root);
+    globalThis.molisWorkBindAuthorizationSettings?.(root);
     globalThis.molisWorkBindLocalDirectorySettings?.(root, { search: root.dataset.settingsSearch || "" });
     globalThis.molisWorkBindMemorySettings?.(root);
     globalThis.molisWorkBindAgentDiagnostics?.(root);
@@ -368,9 +362,11 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     const projectSection = projectSectionFromPath(url.pathname);
     if (!projectSection) return false;
     const nested = /\\/settings\\/planning\\/.+/.test(url.pathname);
+    const extra = keptAddress(url, PROJECT_DEFAULTS, PROJECT_QUERY_EXTRAS, projectSection);
     projectSettings ||= bindProject();
     if (nested) projectSettings?.caches.delete("planning");
-    openProjectSettings(projectSection, nested ? url.pathname + (fromPage === true ? keptAddress(url, PROJECT_DEFAULTS, PROJECT_QUERY_EXTRAS, projectSection) : url.search) : undefined);
+    const linkedItem = projectSection === "kit" && new URLSearchParams(extra).has("install");
+    openProjectSettings(projectSection, linkedItem ? url.pathname + extra : nested ? url.pathname + (fromPage === true ? extra : url.search) : undefined);
     return true;
   };
   const openGlobalSettingsFromUrl = (href, fromPage) => {

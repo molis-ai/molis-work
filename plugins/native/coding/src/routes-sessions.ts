@@ -179,20 +179,19 @@ const ROUTES: RouteMaker[] = [
       const record = selected(a, request, execution);
       const body = bodyOf(request);
       if (body.archive === true) {
-        const notSubmitting = () => {
-          if (busy.has(record.session_id)) throw codingError(codingSessionErrors.session_busy, "coding.server.busy-archive");
-        };
-        notSubmitting();
-        if (record.runtime_session_id) {
-          const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
-          const snapshot = await codingActions(context, beforeWrite).invoke(agent.readSession, [session]);
-          if (snapshot.checkpoint_busy || snapshot.recovery || snapshot.latest_run && !isTerminalAgentPhase(snapshot.latest_run.phase)) {
-            throw codingError(codingSessionErrors.session_busy, "coding.server.stop-before-archive");
+        if (busy.has(record.session_id)) throw codingError(codingSessionErrors.session_busy, "coding.server.busy-archive");
+        busy.add(record.session_id);
+        try {
+          if (record.runtime_session_id) {
+            const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id }, actions = codingActions(context, beforeWrite);
+            const snapshot = await actions.invoke(agent.readSession, [session]);
+            if (snapshot.checkpoint_busy || snapshot.recovery || snapshot.latest_run && !isTerminalAgentPhase(snapshot.latest_run.phase)) {
+              throw codingError(codingSessionErrors.session_busy, "coding.server.stop-before-archive");
+            }
+            await actions.invoke(agent.endSessionWork, [session]);
           }
-        }
-        // Checked again inside the write: a round started while the write waited on `beforeWrite` is still refused.
-        notSubmitting();
-        return { session: await execution.sessions.archive(beforeWrite, projectId, record.session_id, new Date().toISOString(), notSubmitting) };
+          return { session: await execution.sessions.archive(beforeWrite, projectId, record.session_id, new Date().toISOString()) };
+        } finally { busy.delete(record.session_id); }
       }
       if (record.archived) throw codingError(codingSessionErrors.archived_edit, "coding.server.archived-edit");
       const inputPatch=codingInputPatch(execution.sessions.inputs.read(projectId,record.session_id),body);

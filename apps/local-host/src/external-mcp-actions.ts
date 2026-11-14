@@ -89,7 +89,8 @@ export function createExternalMcpDirectory(options: { localHost: MolisWorkLocalH
             // Permission comes before any process/network start; the library reconnects and checks the exact live shape.
             await caller.beforeEffect();
             const call = (onBusinessDispatch?: () => void, onBusinessResult?: (outcome: "succeeded" | "failed" | "unknown") => void) =>
-              library.call!(owner, tool, input as Record<string, unknown>, { signal: caller.signal, beforeDispatch: caller.beforeEffect, onBusinessDispatch, onBusinessResult });
+              library.call!(owner, tool, input as Record<string, unknown>, { signal: caller.signal, beforeDispatch: caller.beforeEffect,
+                assertCurrent: caller.assert_authority_current, onBusinessDispatch, onBusinessResult });
             return options.homeDirectory ? observeConnectionCall(options.homeDirectory, server, { capability_id: definition.capability_id, version: definition.version, provider_id: projectMcpProviderId(owner, server) }, caller, async () => {
               const current = (await library.list(owner)).find(row => row.id === server);
               return current ? projectMcpRevision(options.homeDirectory!, current) : undefined;

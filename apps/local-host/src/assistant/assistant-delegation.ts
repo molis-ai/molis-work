@@ -8,7 +8,7 @@ import type { AssistantCharacterChoice, AssistantCharacterRef, AssistantMaterial
 import { assistantWords } from "./assistant-saved-text.js";
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
 import { identity } from "./assistant-relations.js";
-import { assistantEndControl, assistantWorkEnding, holdAssistantWorkLifetime, inAssistantWorkEffect, stopOriginalRun } from "./assistant-work-permissions.js";
+import { assertAssistantSessionSettled, assistantEndControl, assistantWorkEnding, holdAssistantWorkLifetime, inAssistantWorkEffect, stopOriginalRun } from "./assistant-work-permissions.js";
 
 /**
  * How much one work may hand out: the Assistant's own product rule, defined here and nowhere else. `parts` sub-tasks in
@@ -253,6 +253,7 @@ export class AssistantDelegations {
     const release = store.holdWorkPermissions([child.work_id]);
     try {
       const host = await this.ports.host(), ending = assistantWorkEnding(host, child), control = assistantEndControl(store, child, caller);
+      assertAssistantSessionSettled(host, child);
       if (child.delegated_by.taken_back_at && (await ending?.read())?.lifecycle !== "ending") throw assistantErrors.invalid("这个子任务已经收回了");
       const finish = await ending?.begin("taken-back", control);
       await this.#endOpen(child, TAKEN_BACK_NOTE, control);

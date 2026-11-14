@@ -1,6 +1,6 @@
 import { isDeepStrictEqual } from "node:util";
 import { actionEffect, requireSynchronous, type ActionView, type ActionDelegationExtraction } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { AgentDelegationSubject, AgentDelegationTargetOwner, ReviewDecisionSource } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentActionReviewAuthority, AgentDelegationSubject, AgentDelegationTargetOwner, ReviewDecisionSource } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { canonicalJsonText, extractActionDelegation } from "@molis-ai/molis-work-plugin-sdk";
 import { actionDigest } from "./action-digest.js";
 import { actionDelegationMatches } from "./delegation-scopes.js";
@@ -14,6 +14,7 @@ export interface WorkActionProposal {
   readonly view: ActionView;
   readonly input: unknown;
   readonly provider_installation_generation: string | null;
+  readonly mcp_scope?: Awaited<ReturnType<NonNullable<AgentActionReviewAuthority["resolveDelegation"]>>>["mcp_scope"];
   /** Includes explicit human-review policy and the person's current confirm-always setting. */
   readonly confirmation_required: boolean;
   /** Only nonempty targets need owners. Each fence retains that exact registration and installation generation. */
@@ -37,6 +38,7 @@ function exactJson(input: unknown): string {
 export function prepareActionDelegation(proposal: WorkActionProposal, control: ReviewDecisionControl) {
   const inputJson = exactJson(proposal.input), input = JSON.parse(inputJson) as unknown;
   const { work_epoch: workEpoch, provider_installation_generation: generation, confirmation_required: required } = proposal;
+  const mcpScope = proposal.mcp_scope && structuredClone(proposal.mcp_scope);
   if (!workEpoch || typeof required !== "boolean") throw agentErrors.delegation_invalid("动作判定缺少原工作版本或确认规则");
   const view = structuredClone(proposal.view), extracted = extractActionDelegation(view.action, input);
   const ownerEntries: Array<[string, AgentDelegationTargetOwner | null]> = [], fences: Array<() => void> = [];
@@ -71,14 +73,19 @@ export function prepareActionDelegation(proposal: WorkActionProposal, control: R
     else if (isRead) decision = { state: "read" };
     else if (permission.mode === "original") decision = { state: "original" };
     else if (permission.mode === "confirm") decision = { state: "confirm", reason: "mode" };
-    else if (!generation || view.provider.kind === "mcp") decision = { state: "confirm", reason: "identity" };
+    else if (!mcpScope && (!generation || view.provider.kind === "mcp")) decision = { state: "confirm", reason: "identity" };
     else {
       const automatic = permission.automatic;
       const identity = { action: reference, declaration_digest: digest, provider_installation_generation: generation };
-      const matched = automatic?.selection.scopes.some(scope => extracted.state === "resolved"
-        ? scope.kind === "action-objects" && actionDelegationMatches(scope, { kind: "action-objects", ...identity, operations: extracted.operations, target_owners: owners })
-        : extracted.reason === "undeclared" && scope.kind === "action-exact" && isDeepStrictEqual(scope, { kind: "action-exact", ...identity, input_json: inputJson }));
-      matchedObject = Boolean(matched && extracted.state === "resolved");
+      const matched = automatic?.selection.scopes.some(scope => {
+        if (mcpScope) return extracted.state === "confirmation-required" && extracted.reason === "undeclared"
+          && scope.kind === "mcp-exact" && isDeepStrictEqual(scope, { ...mcpScope, input_json: inputJson });
+        if (!generation || view.provider.kind === "mcp") return false;
+        if (extracted.state === "resolved") return scope.kind === "action-objects"
+          && actionDelegationMatches(scope, { kind: "action-objects", ...identity, provider_installation_generation: generation, operations: extracted.operations, target_owners: owners });
+        return extracted.reason === "undeclared" && scope.kind === "action-exact" && isDeepStrictEqual(scope, { kind: "action-exact", ...identity, input_json: inputJson });
+      });
+      matchedObject = Boolean(matched && !mcpScope && extracted.state === "resolved");
       decision = matched && automatic ? { state: "delegation", subject: structuredClone(automatic.state.subject), source: { kind: "delegation", delegation: {
         id: automatic.selection.id, revision: automatic.selection.revision, work_epoch: workEpoch, grantor_id: automatic.selection.granted_by,
       } } } : { state: "confirm", reason: extracted.state === "resolved" || extracted.reason === "undeclared" ? "scope" : extracted.reason };

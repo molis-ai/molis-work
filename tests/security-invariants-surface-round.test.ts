@@ -460,7 +460,11 @@ test("APR-13: an accepted desktop app-this-round choice is installed against its
   const receipt = await f.queue.respond({ review_id: review.review_id, version: review.reference.version, decision: "approve", actor_id: "person", remember: "app-this-round" });
   assert.equal(receipt.remember_error, undefined);
   await f.finished(run.ref); assert.equal(desk.inputs.length, 2); assert.equal(desk.inputs[0], desk.inputs[1]);
-  assert.equal(f.queue.list(f.owner.project_id).length, 1);
+  const rows = f.queue.list(f.owner.project_id).map(row => f.queue.receipt(row.review_id)!);
+  assert.equal(rows.length, 2, "the second original effect keeps its own approval receipt");
+  assert.equal(rows.filter(row => row.source?.kind === "person").length, 1);
+  assert.equal(rows.filter(row => row.source?.kind === "policy" && row.source.owner === "agent.run-app").length, 1);
+  assert.equal(f.queue.permissions.list().some(row => row.owner === "run-app"), false, "a terminal run releases its app permission");
 });
 
 test("APR-13: the person reviews the entire long text including its tail before that exact text reaches the driver", { timeout: 30_000 }, async t => {

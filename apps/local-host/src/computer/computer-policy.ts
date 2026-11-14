@@ -1,3 +1,5 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { computerErrors } from "./computer-errors.js";
 /**
  * The decisions the desktop driver applies before a look or a click (specs/computer-use).
  * Window text is data from the screen. It never changes one of these answers.
@@ -25,6 +27,13 @@ export interface ComputerRoundHolder {
 export function reviewProjectFor(openProjectId: string, runSessionId: string | null, holder: ComputerRoundHolder | null): string {
   if (runSessionId && holder && holder.sessionId === runSessionId && holder.projectId) return holder.projectId;
   return openProjectId;
+}
+
+/** The same original computer activity protects a single decision and a reusable authorization. */
+export function assertHumanReview(holder: ComputerRoundHolder | null | undefined, sessionId: string | undefined, now = Date.now()): void {
+  if (holder?.lastInjectAt != null && sessionId === holder.sessionId && confirmArrivedTooSoon(holder.lastInjectAt, now)) {
+    throw computerErrors.self_approval(uiText.text("workbench.agent-review.self-approval"));
+  }
 }
 
 /** Forbidden apps, and any window that shows Molis Work: the Assistant cannot approve itself. */

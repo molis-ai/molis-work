@@ -1,8 +1,8 @@
-import { ActionError, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionProviderRegistration, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, requireSynchronous, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionProviderRegistration, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import {
-  agentTaskGrantActions, type TaskGrantClearRequest, type TaskGrantListRequest, type TaskGrantListResult, type TaskGrantSetCategory, type TaskGrantSetRequest, type TaskGrantSubject,
+  agentTaskGrantActions, type TaskGrantCategoryReference, type TaskGrantClearRequest, type TaskGrantListRequest, type TaskGrantListResult, type TaskGrantSetCategory, type TaskGrantSetRequest, type TaskGrantSubject,
 } from "@molis-ai/molis-work-contracts/services/agent-task-grants";
 import { textKeyPrefix } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { createMcpActionGrant } from "./mcp-action-grants.js";
@@ -20,6 +20,7 @@ export const TASK_GRANTS_PROVIDER_ID = "system.task-grants";
 export interface TaskGrantDeclarations {
   readonly of: DeclarationOf;
   installed(installId: string): boolean;
+  assertCurrent?(installId: string, providers: ReadonlySet<string>): void;
 }
 
 /** What the three actions read of the Host. */
@@ -29,10 +30,11 @@ export interface TaskGrantPorts {
   project(projectId: string): LocalHostProjectReference | undefined;
   /** The project's catalog, Home actions included, as registered now. */
   catalog(caller: ActionCallContext, reference: LocalHostProjectReference): Promise<readonly ActionView[]>;
+  currentCatalog?(caller: ActionCallContext, reference: LocalHostProjectReference): readonly Omit<ActionView, "availability">[];
   declarations(reference: LocalHostProjectReference): Promise<TaskGrantDeclarations>;
 }
 
-type Host = Pick<MolisWorkLocalHost, "withProject" | "homePlugins" | "inspectActions" | "projects">;
+type Host = Pick<MolisWorkLocalHost, "withProject" | "homePlugins" | "inspectActions" | "inspectActionMetadata" | "projects">;
 
 /**
  * The providers' declarations, from the Manifest each installation was installed with: the project's own installations first (a
@@ -41,15 +43,23 @@ type Host = Pick<MolisWorkLocalHost, "withProject" | "homePlugins" | "inspectAct
  * Host's own has none to read (`{}`): it is one whole category if it declares `task_readable`, and offers nothing otherwise (`readableByTask`).
  */
 export async function taskGrantDeclarations(host: Pick<Host, "withProject" | "homePlugins">, reference: LocalHostProjectReference): Promise<TaskGrantDeclarations> {
-  const entries = await host.withProject(reference, runtime => installedPluginEntries(runtime.store.db));
+  const { entries, current } = await host.withProject(reference, runtime => {
+    const current = () => installedPluginEntries(runtime.store.db);
+    return { entries: current(), current };
+  });
   const home = host.homePlugins;
   const provides = (record: PluginInstanceRecord, providerId: string) => record.install_id === providerId || record.plugin_id === providerId && record.publisher_trust === "host";
-  const manifestOf = (providerId: string): { record: PluginInstanceRecord; manifest: PluginManifest | undefined } | undefined => {
-    const own = entries.find(({ record }) => provides(record, providerId));
+  const manifestOf = (providerId: string, at = entries): { record: PluginInstanceRecord; manifest: PluginManifest | undefined } | undefined => {
+    const own = at.find(({ record }) => provides(record, providerId));
     if (own) return own;
     const record = home?.installation(providerId);
     return record && provides(record, providerId) ? { record, manifest: home?.manifest(record.plugin_id) } : undefined;
   };
+  const homeEntries = (home?.installations() ?? []).map(record => ({ record, manifest: home?.manifest(record.plugin_id) }));
+  const original = (providerId: string) => entries.find(({ record }) => provides(record, providerId)) ?? homeEntries.find(({ record }) => provides(record, providerId));
+  const originalInstall = (id: string) => entries.find(({ record }) => record.install_id === id) ?? homeEntries.find(({ record }) => record.install_id === id);
+  const identity = (entry: ReturnType<typeof manifestOf>) => entry && JSON.stringify([entry.record.install_id, entry.record.installation_generation,
+    entry.record.manifest_digest, entry.record.state, entry.manifest?.read_groups?.map(group => [group.group_id, group.actions])]);
   const declarations = new Map<string, ProviderDeclaration>();
   const declaration = (manifest: PluginManifest, record: PluginInstanceRecord): ProviderDeclaration => {
     const existing = declarations.get(record.install_id);
@@ -72,11 +82,20 @@ export async function taskGrantDeclarations(host: Pick<Host, "withProject" | "ho
   };
   return {
     of: provider => {
-      const found = manifestOf(provider.provider_id);
+      const found = original(provider.provider_id);
       if (found) return found.manifest ? declaration(found.manifest, found.record) : null;
       return provider.kind === "plugin" ? null : {};
     },
-    installed: installId => entries.some(({ record }) => record.install_id === installId) || home?.installation(installId)?.install_id === installId,
+    installed: installId => !!originalInstall(installId),
+    assertCurrent(installId, providers) {
+      const latest = current();
+      const task = latest.find(({ record }) => record.install_id === installId);
+      const homeTask = home?.installation(installId);
+      const live = task ?? (homeTask && { record: homeTask, manifest: home?.manifest(homeTask.plugin_id) }) ?? undefined;
+      if (identity(originalInstall(installId)) !== identity(live) || [...providers].some(id => identity(original(id)) !== identity(manifestOf(id, latest)))) {
+        throw new ActionError("actions.conflict", "任务安装或读取类别已变化，请刷新后再改");
+      }
+    },
   };
 }
 
@@ -100,7 +119,8 @@ export function taskReadableHost(host: Host & Pick<MolisWorkLocalHost, "actionCl
 /** The Host's ports for the actions; the project is the open one the call is made in. */
 export function taskGrantHostPorts(homeDirectory: string, host: Host): TaskGrantPorts {
   return { homeDirectory, project: projectId => host.projects().find(project => project.project_id === projectId),
-    catalog: (caller, reference) => host.inspectActions(caller, reference), declarations: reference => taskGrantDeclarations(host, reference) };
+    catalog: (caller, reference) => host.inspectActions(caller, reference), currentCatalog: (caller, reference) => host.inspectActionMetadata(caller, reference),
+    declarations: reference => taskGrantDeclarations(host, reference) };
 }
 
 /** The catalog as a task of this project sees it registered, to read what it may be given; the actor is no subject of anyone's. */
@@ -191,45 +211,74 @@ function chosenGrants(categories: readonly TaskGrantSetCategory[], records: read
   return [...chosen.values()];
 }
 
-async function setCategories(ports: TaskGrantPorts, caller: ActionExecutionContext, input: TaskGrantSetRequest): Promise<TaskGrantSubject> {
-  const asked = answering(ports, caller), clientId = taskGrantSubjectId(asked.projectId, input.plugin_install_id, input.key);
+async function setCategories(ports: TaskGrantPorts, caller: ActionExecutionContext, input: TaskGrantSetRequest,
+  asked = answering(ports, caller), original?: McpToolPreference): Promise<TaskGrantSubject> {
+  const clientId = taskGrantSubjectId(asked.projectId, input.plugin_install_id, input.key);
   // Read now, at the call: what the catalog and the Manifests offer at this moment is what the categories record (§3.2).
   const { catalog, declarations } = await readCatalog(ports, asked, caller.signal);
   if (!declarations.installed(input.plugin_install_id)) throw new ActionError("actions.input_invalid", "这个项目里没有这个插件安装");
   const stale = (current: McpToolPreference) => {
     if (subjectRevision(current, clientId, catalog, declarations.of) !== input.expected_revision) throw new ActionError("actions.conflict", "这个任务的授权已在别处改过，请刷新后再改");
   };
-  const preference = await readMcpToolPreference(ports.homeDirectory);
+  const preference = original ?? await readMcpToolPreference(ports.homeDirectory);
   stale(preference);
   const records = preference.action_grants.filter(grant => grant.client_id === clientId);
+  if (original) {
+    const held = recordedCategories(records, catalog, declarations.of);
+    if (input.categories.some(item => item.confirm || !held.has(categoryKey(item)))) {
+      throw new ActionError("actions.input_invalid", "只能保留任务原来获准的读取类别");
+    }
+  }
   const grants = chosenGrants(input.categories, records, catalog, declarations.of, view =>
     createMcpActionGrant(clientId, view.action.scope === "home" ? null : asked.projectId, view, true));
-  await caller.beforeEffect();
-  const written = await replaceMcpClientGrants(ports.homeDirectory, clientId, grants, stale);
+  const providers = new Set([...records, ...grants].map(row => row.provider_id));
+  const registered = catalog.filter(row => providers.has(row.provider.provider_id));
+  const written = await replaceMcpClientGrants(ports.homeDirectory, clientId, grants, stale, taskGrantWriteControl(caller, () => {
+    declarations.assertCurrent?.(input.plugin_install_id, providers);
+    const current = ports.currentCatalog?.(catalogCaller(asked.projectId, [], caller.signal), asked.reference)?.filter(row => providers.has(row.provider.provider_id));
+    if (current && (current.length !== registered.length || current.some((row, index) => row.action !== registered[index]?.action || row.provider !== registered[index]?.provider))) {
+      throw new ActionError("actions.conflict", "任务的能力登记已变化，请刷新后再改");
+    }
+  }));
   return subjectView(written, { project_id: asked.projectId, plugin_install_id: input.plugin_install_id, key: input.key }, catalog, declarations.of);
+}
+
+/** The authorized management door can only retain or remove categories from the original subject. */
+export function restrictTaskGrant(ports: TaskGrantPorts, caller: ActionExecutionContext, subject: TaskGrantSubjectIdentity,
+  reference: LocalHostProjectReference, preference: McpToolPreference, expected_revision: string, categories: readonly TaskGrantCategoryReference[]) {
+  if (subject.project_id !== reference.project_id) throw new ActionError("actions.scope_mismatch", "任务授权和项目不匹配");
+  return setCategories(ports, caller, { plugin_install_id: subject.plugin_install_id, key: subject.key, expected_revision, categories: [...categories] },
+    { projectId: subject.project_id, reference, ownInstall: undefined }, preference);
 }
 
 async function clearSubject(ports: TaskGrantPorts, caller: ActionExecutionContext, input: TaskGrantClearRequest) {
   const asked = answering(ports, caller), install = installationOf(asked, input.plugin_install_id, true);
   const clientId = taskGrantSubjectId(asked.projectId, install, input.key);
-  await caller.beforeEffect();
-  return { cleared: await removeMcpActionGrants(ports.homeDirectory, grant => grant.client_id === clientId) > 0 };
+  return { cleared: await removeMcpActionGrants(ports.homeDirectory, grant => grant.client_id === clientId, taskGrantWriteControl(caller)) > 0 };
+}
+
+function taskGrantWriteControl(caller: ActionExecutionContext, ownerCurrent?: () => void) {
+  return { beforeEffect: caller.beforeEffect, assertCurrent: () => { caller.signal?.throwIfAborted(); requireSynchronous(caller.assert_authority_current?.()); ownerCurrent?.(); } };
 }
 
 async function listSubjects(ports: TaskGrantPorts, caller: ActionExecutionContext, input: TaskGrantListRequest): Promise<TaskGrantListResult> {
-  const asked = answering(ports, caller), install = installationOf(asked, input.plugin_install_id, false);
-  const preference = await readMcpToolPreference(ports.homeDirectory);
+  const asked = answering(ports, caller);
+  return taskGrantSubjects(ports, asked, await readMcpToolPreference(ports.homeDirectory), caller.signal, installationOf(asked, input.plugin_install_id, false), asked.ownInstall === undefined);
+}
+
+/** One settings projection can reuse the original grant file it already read. */
+export async function taskGrantSubjects(ports: TaskGrantPorts, asked: Pick<Answering, "projectId" | "reference">, preference: McpToolPreference,
+  signal?: AbortSignal, install?: string, offer = false): Promise<TaskGrantListResult> {
   const subjects = [...new Set(preference.action_grants.map(grant => grant.client_id))].sort().flatMap(clientId => {
     const subject = parseTaskGrantSubject(clientId);
     return subject && subject.project_id === asked.projectId && (install === undefined || subject.plugin_install_id === install) ? [subject] : [];
   });
-  const person = asked.ownInstall === undefined;
-  if (!subjects.length && !person) return { categories: [], subjects: [] };
-  const { catalog, declarations } = await readCatalog(ports, asked, caller.signal);
+  if (!subjects.length && !offer) return { categories: [], subjects: [] };
+  const { catalog, declarations } = await readCatalog(ports, { ...asked, ownInstall: undefined }, signal);
   // Only what `set` takes as a new category (R5): one with nothing callable now is not offered; a subject that holds it sees it
   // under its own state (`unavailable`), never as a switch that would be refused.
   const offered = offeredCategories(catalog, declarations.of).filter(entry => entry.members.some(view => view.availability.available));
-  return { categories: person ? offered.map(entry => entry.category) : [],
+  return { categories: offer ? offered.map(entry => entry.category) : [],
     subjects: subjects.map(subject => subjectView(preference, subject, catalog, declarations.of)) };
 }
 

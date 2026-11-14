@@ -275,6 +275,12 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
     if (message.type === "connection-slot-cancel") { connectionSlot.cancel(message.id); return; }
     if (message.type === "connection-slot") { void connectionSlot(message); return; }
     if (message.type === "view-invalidate") { if (scope.visible) { ownInvalidation = true; try { host.invalidateView?.(root); } finally { ownInvalidation = false; } } return; }
+    if (message.type === "automation-suggestions") {
+      if (visible() && root.isConnected && document.body.dataset.projectId) {
+        document.dispatchEvent(new CustomEvent("molis:automation-suggestions-open", { detail: { trigger: frame } }));
+      }
+      return;
+    }
     if (message.type === "view-open") {
       const value = message.selection;
       if (scope.visible && value && typeof value.surface === "string" && value.surface.length < 200

@@ -13,7 +13,7 @@ const families = "packages/contracts/src/platform/ui-state-rings.ts";
 const document = "docs/platform/STATE-VOCABULARY.md";
 const unions = "packages/contracts/src/platform/example.ts";
 
-test("SMP-01 SMP-18 reports per-file growth, unknown families, and malformed declarations without failing the check", () => {
+test("SMP-01 SMP-02 SMP-18 reports per-file growth, unknown families, and malformed declarations without failing the check", () => {
   const root = mkdtempSync(join(tmpdir(), "molis-state-vocabulary-"));
   const git = (...args: string[]) => execFileSync("git", args, { cwd: root, encoding: "utf8" });
   const put = (file: string, source: string) => {
@@ -28,8 +28,11 @@ test("SMP-01 SMP-18 reports per-file growth, unknown families, and malformed dec
     put(families, sourceFile(families));
     put(document, "stale");
     put(unions, 'export type CurrentState = "before" | "after";');
+    const retired = "packages/contracts/src/platform/retired.ts";
+    put(retired, 'export type RetiredState = "open" | "closed";');
     git("add", ".");
     git("-c", "user.name=Test", "-c", "user.email=fixture@example.invalid", "commit", "-qm", "base");
+    rmSync(join(root, retired));
     put(unions, `type HiddenStatus = "before" | "after";
       type ApprovalStatus = "pending" | "approved"; export type { ApprovalStatus };
       export type CurrentState = "before" | "after";
@@ -41,7 +44,8 @@ test("SMP-01 SMP-18 reports per-file growth, unknown families, and malformed dec
     }] }));
     const check = report(root, ["--base", "HEAD", "--report", "--manifest", manifest]);
     assert.equal(check.status, 0, check.stderr);
-    assert.match(check.stdout, /named state unions 1 → 2/);
+    assert.match(check.stdout, /2 named, 0 inline → 2 named, 1 inline/);
+    assert.ok(check.stdout.includes(`${unions}: named state unions 1 → 2`));
     assert.match(check.stdout, /inline state unions 0 → 1/);
     assert.match(check.stdout, /pluginLifecycle\.installed has unknown family unknown-family/);
     assert.match(check.stdout, /outside\.json: state_machines\.declaration_invalid/);

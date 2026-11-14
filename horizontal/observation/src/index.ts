@@ -1,5 +1,5 @@
-// The package's public entries. Host assembly and the observation tests use these; the read-back functions are package-internal
-// until batch 29 turns them into actions with their own audience rules (contract-design §1).
+// The package's public entries. Host assembly uses these; the read-back functions are exported for the observation tests only
+// until batch 29 turns them into read actions with their own audience rules (contract-design §1).
 export { OBSERVATION_HOME_STORE } from "./schema.js";
 export { withObservationSource, currentObservationSource, type ObservationScopeClass } from "./source-scope.js";
 export { observationKeys, OBSERVATION_EVIDENCE_KEY_REF, OBSERVATION_DIGEST_KEY_REF } from "./keys.js";

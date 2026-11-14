@@ -156,6 +156,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     ${pluginWorkbenchClientBootstrap(undefined, true)}
     assistantIsland = (${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ translate: readText, showToast, route, headers: () => molisWorkControlHeaders(), interaction, receipts,
       positions: projectPositions, positionRead, lineFocus: (subject) => workLine?.focus(subject), lineEvent: (subject) => workLine?.event(subject) || null,
+      linePlaced: (task) => workLine?.placed(task) || '', linePlace: (subject) => workLine?.place(subject),
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title), pluginTitle: (plugin) => tabWorkspace?.pluginTitle(plugin),
       project: { id: state.project?.project_id || state.snapshot.board.project_id, title: state.project?.display_name || "" },
     });

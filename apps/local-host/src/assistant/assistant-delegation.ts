@@ -212,8 +212,8 @@ export class AssistantDelegations {
     const children = this.ports.store.delegatedBy(this.ports.actorId, work);
     if (!children.length) return [];
     const host = await this.ports.host(), nodes = await (await this.#graphs(host)).read(work.graph_id!);
-    return Promise.all(children.map(async child => ({ work_id: child.work_id, title: child.title, state: await this.ports.stateOf(host, child), follow_ups: followUps(partSteps(nodes, child)),
-      ...(child.delegated_by?.taken_back_at ? { taken_back: true } : {}) })));
+    return Promise.all(children.map(async child => ({ work_id: child.work_id, title: child.title, state: await this.ports.stateOf(host, child), follow_ups: followUps(partSteps(nodes, child)), created_at: child.created_at,
+      ...(child.delegated_by?.taken_back_at ? { taken_back: true } : {}), ...(child.serves?.length ? { serves: child.serves.map(one => ({ ...one })) } : {}), ...(child.line_event ? { line_event: true as const } : {}) })));
   }
 
   /** The person ends what of a part is not done: its round can no longer report on it (the generation moved on). */

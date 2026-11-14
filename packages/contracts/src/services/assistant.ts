@@ -457,8 +457,8 @@ export interface AssistantWorkView {
   cards: AssistantCard[];
   /** The objects this work started from, used, produced and handed to, as their owners have them now. */
   objects: AssistantWorkObject[];
-  /** Sub-tasks this work handed to works of their own (its task board): each one's state and follow-ups. */
-  delegated?: Array<{ work_id: string; title: string; state: AssistantWorkState; follow_ups: number; taken_back?: boolean }>;
+  /** Sub-tasks this work handed to works of their own (its task board): each one's state and follow-ups, when it was handed out, and where it stands on the work line (as on the work itself). */
+  delegated?: Array<{ work_id: string; title: string; state: AssistantWorkState; follow_ups: number; taken_back?: boolean; created_at: string; serves?: Array<{ kind: string; id: string }>; line_event?: true }>;
   /** Timed rounds the person asked this work to run. */
   scheduled?: AssistantFollowUp[];
   /** Whether those timed rounds still run with the window closed (the runtime queue's own claim). */

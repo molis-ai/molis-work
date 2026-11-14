@@ -71,6 +71,8 @@ test("a work hands an independent part to a work of its own, waits for it, reads
     assert.equal(done.delegated!.length, 1);
     const child = await service.read(done.delegated![0]!.work_id);
     assert.deepEqual(child.work.delegated_by, { work_id: sent.work.work_id, title: sent.work.title, acceptance: "恰好三条、每条一句话" });
+    // WLN-32: the board says when each part was handed out and where it stands on the line (this one serves no event and is none itself).
+    assert.deepEqual([done.delegated![0]!.created_at, done.delegated![0]!.serves, done.delegated![0]!.line_event], [child.work.created_at, undefined, undefined]);
     assert.equal(child.work.state, "completed");
     assert.deepEqual(child.rounds[0]!.materials.map(material => material.title), ["访谈记录"], "the child gets only the material handed to it");
     assert.ok(parentTools[0]!.includes("delegate-work"), "the parent may delegate");

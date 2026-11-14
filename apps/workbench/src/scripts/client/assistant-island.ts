@@ -473,7 +473,7 @@ ${ASSISTANT_TABS_PART}
     const putPageCards = (before) => {
       while (placed < fromPages.length && (before === null || fromPages[placed].created_at < before)) { placeCard(thread, work, fromPages[placed], put); placed += 1; }
     };
-    rounds.forEach((round) => { putPageCards(round.started_at); put(renderRound(work, round)); });
+    placedRows(work, rounds, -1); rounds.forEach((round, at) => { putPageCards(round.started_at); put(renderRound(work, round)); placedRows(work, rounds, at, put); });
     putPageCards(null);
     conversationSurface(work, rounds, put);
     receipts.after(thread, put, work && view);
@@ -758,5 +758,5 @@ ${ASSISTANT_PAGE_MESSAGES_PART}
       project = chosen; tabs = savedTabs(); eventTabs = []; nextScope = project ? "project" : "personal";
       void showWork(store.get(scoped("current")));
     },
-    dispose: () => { executorRequest++; document.removeEventListener("molis-work:language-changed", retitleReviews); follower.stop(); retries.stop(); clearInterval(listTimer); cancelAnimationFrame(materialsFrame); watchers.forEach((watcher) => watcher.disconnect()); composer?.destroy(); } };
+    dispose: () => { executorRequest++; document.removeEventListener("molis-work:language-changed", retitleReviews); document.removeEventListener("molis-work:attention", placedMoved); follower.stop(); retries.stop(); clearInterval(listTimer); cancelAnimationFrame(materialsFrame); watchers.forEach((watcher) => watcher.disconnect()); composer?.destroy(); } };
 }`;

@@ -167,3 +167,79 @@ test("WLN-18: at 390 the event's tab is a layer above the line's track and the o
   assert.ok(box.panel <= box.track + 1 && box.panel <= box.input + 1, `the dialog ends above the track and the input (${JSON.stringify(box)})`);
   assert.equal(box.small, 0, "every target on the line and the tab strip is at least 44px");
 });
+
+// WLN-32: under the reply that handed a task to the background the conversation says where the task went, with 「改」. This Home
+// has no model, so no round begins and nothing delegates by itself: the page's read of the main conversation is given the round
+// and one task it handed out — the work started for the event, with where the Host says it stands now — and everything after
+// that read is the product's own.
+test("WLN-32: the reply that handed a task out says where it went; 「改」 opens the task's card with where it can go, and the row follows the change", { timeout: 150_000 }, async t => {
+  const browser = await openGoalBrowser(t, true, undefined, null);
+  if (!browser) return;
+  const { command, sessionId, navigate, origin, projectId, homeDirectory, evaluate, waitFor, click } = browser;
+  const store = openTodoStore(homeDirectory);
+  const item = store.create({ title: "给王总回电话", placement: "project", planned_date: today() }, { projectId, projectIds: [], actor: "user" as const, actorId: "test" }).item;
+  store.close();
+  const PRESS = `[data-work-line] [data-work-event*="todo-planned:${item.id}"]`;
+  await command("Page.addScriptToEvaluateOnNewDocument", { source: `window.__handed = null; (() => { const real = window.fetch; window.fetch = async function (input, init) {
+    const response = await real.apply(this, arguments);
+    try {
+      const url = new URL(typeof input === 'string' ? input : input.url, location.href);
+      if (!window.__handed || !/\\/api\\/assistant\\/(works\\/[^/]+|send$)/.test(url.pathname)) return response;
+      // Every way the page gets the conversation: a read, the wait that follows it, the answer to a Send.
+      const body = await response.clone().json(), view = body.view && body.view.work ? body.view : body;
+      if (!view.work || !view.work.main || !Array.isArray(view.rounds)) return response;
+      // (No model here: the words were kept as a draft and no round began. The reply that handed the task out is given too.)
+      if (!view.rounds.length) view.rounds = [{ run_id: 'run-handed', text: '顺便订会议室', materials: [], context: null, started_at: view.work.created_at, phase: 'completed', turns: [], activity: [], awaiting_input: [] }];
+      const child = (await real(url.pathname.replace(/\\/api\\/assistant\\/.*$/, '/api/assistant/works/' + encodeURIComponent(window.__handed))).then(read => read.json())).work, serves = child.serves || [];
+      view.delegated = [{ work_id: child.work_id, title: child.title, state: child.state, follow_ups: 0, created_at: view.rounds[view.rounds.length - 1].started_at, ...(serves.length ? { serves } : { line_event: true }) }];
+      return new Response(JSON.stringify(body), { status: response.status, headers: { "content-type": "application/json" } });
+    } catch { return response; }
+  }; })();` }, sessionId);
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
+  const send = "document.querySelector('[data-assistant-composer] [data-composer-send]').click()";
+  const works = `fetch(${JSON.stringify(`/projects/${projectId}/api/assistant/works`)}).then(response => response.json()).then(body => body.works)`;
+
+  // A task done for the todo's event (the words said in its tab), then words in the main conversation.
+  await waitFor(`document.querySelector(${JSON.stringify(PRESS)})?.textContent.includes('给王总回电话')`, 20_000);
+  await click(PRESS);
+  await waitFor(`${TAB}?.dataset.tab?.startsWith('event:')`);
+  await evaluate(type("先问预算")); await evaluate(send);
+  await waitFor(`${works}.then(list => list.some(work => (work.serves || []).some(one => one.id === ${JSON.stringify(item.id)})))`, 15_000);
+  const task = (await evaluate<Array<{ work_id: string; main?: boolean }>>(works)).find(work => !work.main)!.work_id;
+  await click(".assistant-tab[data-main] .assistant-tab-main");
+  await waitFor(`${TAB}?.hasAttribute('data-main') && ${INPUT}.value === ''`);
+  await evaluate(`window.__handed = ${JSON.stringify(task)}`);
+  await evaluate(type("顺便订会议室")); await evaluate(send);
+  // The answer to the Send is not a read of the work; coming back to the tab is.
+  await waitFor(`${works}.then(list => list.some(work => work.main))`, 15_000);
+  await click(PRESS);
+  await waitFor(`${TAB}?.dataset.tab?.startsWith('event:')`);
+  await click(".assistant-tab[data-main] .assistant-tab-main");
+  await waitFor(`${TAB}?.hasAttribute('data-main')`);
+
+  // The row stands under that reply: done for the event, by the event's name on the line.
+  const ROW = `document.querySelector(${JSON.stringify(`[data-assistant-thread] [data-placed-task="${task}"]`)})`, WHERE = `${ROW}?.querySelector('.work-reply-placed-where')?.textContent`;
+  await waitFor(`${WHERE} === '为「给王总回电话」办'`, 20_000);
+  assert.equal(await evaluate(`${ROW}.previousElementSibling?.matches('.assistant-round')`), true, "it ends the reply that handed the task out");
+  const button = await evaluate<{ name: string; border: string }>(`(() => { const node = ${ROW}.querySelector('[data-place-change]'); return { name: node.textContent.trim(), border: getComputedStyle(node).borderTopWidth }; })()`);
+  assert.deepEqual(button, { name: "改", border: "1px" }, "「改」 is a button with an edge");
+  const shot = new URL("../.impeccable/qa/review/work-line/", import.meta.url);
+  await mkdir(shot, { recursive: true });
+  await writeFile(new URL("reply-placed-1440.png", shot), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
+
+  // 「改」: the task's card in the background-task panel, with where it can go; the event it is on is ticked.
+  await click(`[data-placed-task="${task}"] [data-place-change]`);
+  await waitFor("document.querySelector('[data-work-task-float] [data-task-card] [data-place-menu]')", 20_000);
+  assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-place-menu] [aria-checked=\"true\"]')].map(node => node.textContent.trim())"), ["给王总回电话"]);
+  // Moved: the work goes on as it was (same work, nothing started again), and the row, the line and the panel say the new place.
+  const before = await evaluate<Array<{ work_id: string }>>(works);
+  await click('[data-place-menu] [data-place-to="new_event"]');
+  await waitFor(`${WHERE} === '新事件「先问预算」'`, 25_000);
+  await waitFor("[...document.querySelectorAll('[data-work-line] [data-work-event]')].some(node => node.textContent.includes('先问预算'))", 20_000);
+  assert.match(String(await evaluate("document.querySelector('[data-work-task-float] .work-task-facts').textContent")), /为哪个事件先问预算/u);
+  assert.deepEqual((await evaluate<Array<{ work_id: string }>>(works)).map(work => work.work_id).sort(), before.map(work => work.work_id).sort(), "no work was started or ended by moving it");
+  assert.equal(await evaluate("document.querySelector('[data-toast]:not([hidden])')?.textContent || ''"), "");
+  assert.equal(await evaluate("document.documentElement.scrollWidth <= window.innerWidth"), true, "no sideways scroll");
+});

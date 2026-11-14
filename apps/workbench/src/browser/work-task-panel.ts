@@ -26,11 +26,12 @@ export interface TaskPanelLine {
   request: UiRequest;
 }
 
-export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take(result: BackgroundTasksReadResult): void } {
+export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take(result: BackgroundTasksReadResult): void; place(subject: ActionSubject): void } {
   const { keyOf, press, hue, again, request } = line, events = { values: () => [...line.events()], get: (id: string) => [...line.events()].find(one => one.id === id) };
   const PANEL = "work-task-panel";
   // `carded`: the task whose card stands in the panel's place (WLN-36); `placing`: its 「改」 menu is open.
-  let tasks: BackgroundTaskRow[] = [], float: HTMLElement | null = null, tasksShown = "", carded = "", placing = false;
+  // `wanted`: the task asked for from outside the panel (「改」 under a reply), shown as soon as the table has it.
+  let tasks: BackgroundTaskRow[] = [], float: HTMLElement | null = null, tasksShown = "", carded = "", placing = false, wanted = "";
   const asks = (task: BackgroundTaskRow) => task.waiting || ASKS.has(task.state);
   const weight = (task: BackgroundTaskRow) => asks(task) ? 0 : FAILED.has(task.state) ? 1 : 2;
   const row = (task: BackgroundTaskRow): TaskRowView => {
@@ -58,6 +59,8 @@ export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take
     counts.working = live.length - counts.needsYou - counts.failed;
     for (const mark of document.querySelectorAll("[data-task-mark]"))
       mark.outerHTML = renderTaskMark({ count: live.length, panel: PANEL, expanded: Boolean(float), ...(live[0] ? { lead: live[0].state } : {}), needsYou: counts.needsYou > 0, failed: counts.failed > 0 });
+    const asked = wanted ? tasks.find(task => keyOf(task.subject) === wanted) : undefined;
+    if (asked) { carded = asked.id; placing = true; wanted = ""; }
     const shown = tasks.find(task => task.id === carded);
     if (!shown) { carded = ""; placing = false; }
     if (float) { float.innerHTML = shown ? card(shown) : renderTaskPanel({ id: PANEL, live: live.map(row), returned: [], counts }); installWorkLineLayout(document); }
@@ -70,7 +73,7 @@ export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take
   const showTasks = (open: boolean) => {
     if (open === Boolean(float)) return;
     if (open) { document.body.insertAdjacentHTML("beforeend", renderTaskFloat("assistant-panel", "")); float = document.body.lastElementChild as HTMLElement; again(); }
-    else { float?.remove(); float = null; carded = ""; placing = false; }
+    else { float?.remove(); float = null; carded = ""; placing = false; wanted = ""; }
     paintTasks();
     if (!open) document.querySelector<HTMLElement>("[data-task-mark]")?.focus();
   };
@@ -82,9 +85,9 @@ export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take
     // it landed on (a tab of the dialog) is still a press inside the dialog.
     const inDialog = event.composedPath().some(node => node instanceof Element && node.matches("[data-assistant-panel]"));
     if (target?.closest("[data-task-panel-close]") || !target?.closest("[data-work-task-float]")) { if (!inDialog || target?.closest("[data-task-panel-close]")) showTasks(false); return; }
-    if (target.closest("[data-task-panel-list]")) { carded = ""; placing = false; paintTasks(); return; }
+    if (target.closest("[data-task-panel-list]")) { carded = ""; placing = false; wanted = ""; paintTasks(); return; }
     const row = target.closest<HTMLElement>("[data-task-open]");
-    if (row) { carded = row.dataset.taskOpen ?? ""; placing = false; paintTasks(); float.querySelector<HTMLElement>("[data-task-panel-list]")?.focus(); return; }
+    if (row) { carded = row.dataset.taskOpen ?? ""; placing = false; wanted = ""; paintTasks(); float.querySelector<HTMLElement>("[data-task-panel-list]")?.focus(); return; }
     const stop = target.closest<HTMLElement>('[data-task-control="stop"]'), task = tasks.find(one => one.id === (stop?.dataset.task ?? carded));
     if (!task) return;
     const failed = (error: unknown) => request.toast?.(document.querySelector("[data-toast]") as never, error);
@@ -104,5 +107,10 @@ export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take
   });
   document.addEventListener("keydown", event => { if (event.key === "Escape" && float) { event.stopPropagation(); showTasks(false); } }, true);
 
-  return { take: takeTasks };
+  return {
+    take: takeTasks,
+    // 「改」 under a reply (WLN-32): the panel opens on that task's card with where it can go — at once when the table has the
+    // task, else when the read this asks for brings it. A task that has ended is not in the table: the panel shows its list.
+    place(subject) { wanted = keyOf(subject); if (float) again(); else showTasks(true); paintTasks(); },
+  };
 }

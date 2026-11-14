@@ -77,7 +77,7 @@ function planWork(at: Iso): { view: AssistantWorkView; surroundings: AssistantWo
       { job_id: "j-dataset", work_id: work.work_id, title: "Dataset · 导入试用问卷", state: "failed", started_at: at(44), ended_at: at(40) },
     ],
     usage: { tokens: 18200, rounds: 2, budget_tokens: null },
-    delegated: [{ work_id: "board-sub-interviews", title: "汇总试用访谈", state: "running", follow_ups: 1 }, { work_id: "board-sub-survey", title: "整理问卷里的首次导入问题", state: "completed", follow_ups: 0 }],
+    delegated: [{ work_id: "board-sub-interviews", title: "汇总试用访谈", state: "running", follow_ups: 1, created_at: "2026-10-02T09:12:00.000Z" }, { work_id: "board-sub-survey", title: "整理问卷里的首次导入问题", state: "completed", follow_ups: 0, created_at: "2026-10-02T09:12:00.000Z" }],
   });
   const surroundings: AssistantWorkSurroundings = {
     environment: { scope: { kind: "project", project_id: BOARD_PROJECT.id, title: BOARD_PROJECT.title } },

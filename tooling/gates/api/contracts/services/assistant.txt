@@ -852,6 +852,12 @@ export interface AssistantWorkView {
         state: AssistantWorkState;
         follow_ups: number;
         taken_back?: boolean;
+        created_at: string;
+        serves?: Array<{
+            kind: string;
+            id: string;
+        }>;
+        line_event?: true;
     }>;
     scheduled?: AssistantFollowUp[];
     schedule_survives_close?: boolean;

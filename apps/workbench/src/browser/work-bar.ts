@@ -16,7 +16,7 @@ import type { ActionSubject } from "@molis-ai/molis-work-contracts/platform/acti
 import type { StateRingState, UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { BackgroundTasksReadResult, MainlineIssue, WorkLineEvent, WorkLineReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
 import { t as uiText, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { renderLineEvent, renderLineUnreadable, renderOwnerMark, type LineEventState, type LineEventView } from "../work-line-parts.js";
+import { renderLineEvent, renderLineUnreadable, renderOwnerMark, renderReplyPlaced, type LineEventState, type LineEventView } from "../work-line-parts.js";
 import { ASKS, FAILED, installTaskPanel } from "./work-task-panel.js";
 import { installWorkLineLayout } from "./work-line-layout.js";
 
@@ -58,6 +58,10 @@ export interface WorkBarHandle {
   focus(subject: ActionSubject | null): void;
   /** The event of this object on the line as last read, as a press on it would open it; null when the line does not show it. */
   event(subject: ActionSubject): LineEventPress | null;
+  /** Under a reply that handed a task to the background: where the task stands on the line as last read, with 「改」 (WLN-32). */
+  placed(task: { subject: ActionSubject; title: string; serves: readonly ActionSubject[]; own: boolean }): string;
+  /** 「改」 was pressed: the task's card in the background-task panel, with where it can go. */
+  place(subject: ActionSubject): void;
 }
 export type LineEventPress = Parameters<WorkBarHost["openEvent"]>[0];
 
@@ -150,6 +154,11 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
   });
   return {
     event(subject) { const found = [...events.values()].find(one => keyOf(one.subject) === keyOf(subject)); return found ? press(found) : null; },
+    placed(task) {
+      const served = task.serves.map(subject => [...events.values()].find(one => keyOf(one.subject) === keyOf(subject))).find(Boolean);
+      return renderReplyPlaced({ task: keyOf(task.subject), where: served ? { kind: "for-event", name: served.title } : task.own ? { kind: "new-event", name: task.title } : { kind: "none" } });
+    },
+    place: subject => panel.place(subject),
     // The outline moves with the dialog's current tab; the event keeps its place on the line (WLN-07).
     focus(subject) {
       focused = subject ? keyOf(subject) : "";

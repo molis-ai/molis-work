@@ -146,4 +146,31 @@ export const ASSISTANT_TABS_PART = String.raw`  /* ─── Tabs ────�
       if (about) { eventObjects = host.positions.mount(eventCard, (body, signal) => host.positionRead("/api/mainline/event/surfaces", body, signal), { source: () => ({ subject: about.subject }) }); void eventObjects.update(); }
     } else if (eventObjects) void eventObjects.update(false);
     if (eventObjects) put(eventCard); else eventCard.remove();
-  }`;
+  }
+  /* ─── Where a handed-out task went (WLN-32) ────────────────────────────── */
+  // Under the reply that handed a task to the background: where it stands on the work line, with 「改」. The line draws the row
+  // (the event's name is the line's) and 「改」 opens the task's card in the background-task panel, where it can go elsewhere.
+  const ownKeys = (child) => child.line_event ? [WORK_KIND + ":" + child.work_id] : (child.serves || []).map(eventKey).sort();
+  function placedRows(work, rounds, at, put) {
+    const handed = host.linePlaced && work && view.delegated ? view.delegated.filter((child) => !child.taken_back) : [];
+    // (at -1: before the rounds are drawn, the rows of tasks this conversation no longer hands out go.)
+    if (at < 0) { [...thread.children].forEach((node) => { if (node.dataset.placedTask && !handed.some((child) => child.work_id === node.dataset.placedTask)) node.remove(); }); return; }
+    const from = rounds[at].started_at, until = rounds[at + 1]?.started_at;
+    handed.filter((child) => child.created_at >= from && (!until || child.created_at < until)).forEach((child) => {
+      const row = keyed(thread, "data-placed-task", child.work_id, () => el("div", "assistant-placed"));
+      const html = host.linePlaced({ subject: { kind: WORK_KIND, id: child.work_id }, title: child.title, serves: child.serves || [], own: Boolean(child.line_event) });
+      if (row.shown !== html) { row.innerHTML = html; row.shown = html; }
+      put(row);
+    });
+  }
+  thread.addEventListener("click", (event) => {
+    const row = event.target.closest && event.target.closest("[data-place-change]")?.closest("[data-placed-task]");
+    if (row) { event.stopPropagation(); host.linePlace?.({ kind: WORK_KIND, id: row.dataset.placedTask }); }
+  });
+  // The task table says a task of this conversation stands somewhere else now (changed here or anywhere): read the work again.
+  function placedMoved(event) {
+    const table = event.detail?.tasks, handed = curId && view?.delegated;
+    if (!table || !handed) return;
+    if (handed.some((child) => { const task = table.tasks.find((one) => one.subject.kind === WORK_KIND && one.subject.id === child.work_id); return task && String(task.serves.map(eventKey).sort()) !== String(ownKeys(child)); })) void reload();
+  }
+  document.addEventListener("molis-work:attention", placedMoved);`;

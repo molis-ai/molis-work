@@ -300,14 +300,17 @@ test("BCD-15: onboarding takes refuse a missing, query, Home-scoped, shared or r
   const base = currentManifest();
   const command = { capability_id: "sample.onboarding.take", version: 1, operation: "command", action: { kind: "operation", scope: "project", subject_kinds: ["project"], title: "Take", description: "Sample", audiences: ["user"], permissions: [], input_schema: ONBOARDING_CODE_ROOT_TAKE_INPUT_SCHEMA, output_schema: ONBOARDING_TAKE_RESULT_SCHEMA } };
   const declaration = { takes: [{ kind: "code_root", capability_id: command.capability_id, version: 1 }] };
-  assert.throws(() => parsePluginManifest({ ...base, onboarding: declaration }), /onboarding/);
+  const refuses = (run: () => unknown) => assert.throws(run, (error: { code?: string }) => error.code === "plugin.declaration_invalid");
+  refuses(() => parsePluginManifest({ ...base, onboarding: declaration }));
   for (const action of [{ ...command, action: { ...command.action, scope: "home" } }, { ...command, operation: "query" },
     { ...command, action: { ...command.action, audiences: ["user", "agent"] } }, { ...command, action: { ...command.action, audiences: ["workflow"] } },
     { ...command, action: { ...command.action, input_schema: { type: "object", properties: {}, additionalProperties: false } } },
     { ...command, action: { ...command.action, output_schema: { type: "object", properties: {}, additionalProperties: false } } }])
-    assert.throws(() => parsePluginManifest({ ...base, actions: [action], onboarding: declaration }), /onboarding/);
+    refuses(() => parsePluginManifest({ ...base, actions: [action], onboarding: declaration }));
   for (const bad of [{}, { takes: [] }, { takes: [{ ...declaration.takes[0], kind: "folder" }] }, { takes: [declaration.takes[0], declaration.takes[0]] }, { ...declaration, extra: true }])
-    assert.throws(() => parsePluginManifest({ ...base, actions: [command], onboarding: bad }), /onboarding/);
+    refuses(() => parsePluginManifest({ ...base, actions: [command], onboarding: bad }));
+  // Pointing at an action this Manifest does not declare is refused through the same path as a missing one.
+  refuses(() => parsePluginManifest({ ...base, actions: [command], onboarding: { takes: [{ ...declaration.takes[0], capability_id: "coding.onboarding.take" }] } }));
   assert.deepEqual(parsePluginManifest({ ...base, actions: [command], onboarding: declaration }).onboarding, declaration);
   // Coding is the first plugin to declare one, and its Manifest passes the same check.
   assert.deepEqual(parsePluginManifest(codingManifest).onboarding?.takes.map(take => take.kind), ["code_root"]);

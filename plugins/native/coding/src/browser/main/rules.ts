@@ -1,7 +1,6 @@
 import type { ComposerControl } from "@molis-ai/molis-work-plugin-sdk/page-globals";
 import { escapeHtml, format, icon, renderAlert, renderBadge, type MwButtonOptions } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { errorMessage } from "../dom.js";
-import { refreshState } from "./configuration.js";
 import type { Page } from "./page.js";
 import type { RunView } from "./shapes.js";
 
@@ -71,8 +70,7 @@ function notLoaded(page: Page, why: "default_output" | "off" | "not_chosen" | un
 export async function confirmRules(page: Page, button: HTMLButtonElement): Promise<void> {
   button.disabled = true;
   try {
-    await page.host.readInstructions();
-    await refreshState(page);
+    page.s.state.instructions = await page.host.readInstructions();
     drawRules(page);
     // The button is gone with the redraw; the menu keeps focus on its own close control.
     page.q<HTMLElement>("[data-coding-rules-close]").focus({ preventScroll: true });

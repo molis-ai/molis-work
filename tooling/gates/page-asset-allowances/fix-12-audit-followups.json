@@ -1,0 +1,8 @@
+{
+  "reason": "第 12 批合后审计整改（2026-11-14）：Coding 规则菜单的「读取这个文件夹的说明文件」改为直接用宿主回执，不再整页重读（coding.js +11）；composer/plugin-frame 的承接设置回执桥（plugin-frame.js +160）。两项都是很小的现有界面接线，没有新资源，单项远低于 10 KB。",
+  "review": "本次修复按审计发现执行；增长由 page-assets 对 d2cb8c55 的隔离构建实测（coding.js 322675 → 322686，plugin-frame.js 307062 → 307222），没有新增资源，不需要用户批准；随修复分支评审。",
+  "assets": {
+    "/assets/molis-work-plugin-frame.js": 160,
+    "/assets/molis-work-plugins/coding.js": 11
+  }
+}

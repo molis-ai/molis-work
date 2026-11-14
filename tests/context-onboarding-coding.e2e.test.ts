@@ -50,6 +50,18 @@ test("ONB-44 ONB-46 a code folder ticked at review becomes Coding's working fold
   await navigate(() => command("Page.navigate", { url: `${origin}/onboarding?mode=new-project&journey=${id}` }, sessionId));
   const box = "[data-take='io.molis.work.coding']";
   await waitFor(`Boolean(document.querySelector(${JSON.stringify(box)}))`);
+  // Evidence for the review step at the widths the batch asks for; the screenshots stay in the ignored QA directory.
+  const shot = async (name: string) => {
+    const directory = join(process.cwd(), ".impeccable/qa/review/context-onboarding-take"); await mkdir(directory, { recursive: true });
+    const image = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId);
+    await writeFile(join(directory, `${name}.png`), Buffer.from(image.data, "base64"));
+  };
+  for (const [width, height] of [[1440, 900], [1024, 768], [390, 844]] as const) {
+    await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: width < 600 }, sessionId);
+    await new Promise(resolve => setTimeout(resolve, 300));
+    await shot(`zh-light-${width}-review`);
+  }
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   const folderName = folder.split("/").at(-1)!;
   assert.equal(await evaluate(`document.querySelector(${JSON.stringify(box)}).checked`), false, "not ticked by itself: a material folder is not made a working folder unasked");
   assert.match(String(await evaluate(`document.querySelector(${JSON.stringify(box)}).closest('label').textContent`)), new RegExp(`Coding.*${folderName}`));

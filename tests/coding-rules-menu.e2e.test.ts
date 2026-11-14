@@ -65,7 +65,7 @@ test("BCD-05 BCD-08 BCD-10 BCD-14 the rules menu shows what each round was given
   await writeFile(join(workspace, "AGENTS.md"), RULE);
   const fill = (selector: string, value: string) => b.evaluate(`(()=>{const node=document.querySelector(${JSON.stringify(selector)});node.value=${JSON.stringify(value)};
     node.dispatchEvent(new Event('input',{bubbles:true}));node.dispatchEvent(new Event('change',{bubbles:true}));})()`);
-  await command("Emulation.setDeviceMetricsOverride", { width: 1360, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await b.navigate(() => command("Page.navigate", { url: `${b.origin}/projects/${projectId}/` }, sessionId));
   // The person chooses their own folder as the project's output, in the project's settings: that is what trusts it (§3.1).
   await b.click(".navigator-project-settings");
@@ -115,16 +115,16 @@ test("BCD-05 BCD-08 BCD-10 BCD-14 the rules menu shows what each round was given
   assert.match(menu, /项目说明.*这个项目没有写项目说明/, "BCD-14: the project's own instructions are a group of their own, not counted in 规则 N");
   assert.match(menu, /仓库说明文件.*1MDAGENTS\.md\d+ 字生效中/, "BCD-08: the file the round recorded, its length, in effect");
   assert.match(menu, /规则只能约束 Coding/);
-  await shot("zh-light-1360-trusted");
+  await shot("zh-light-1440-trusted");
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "dark" }] }, sessionId);
-  await shot("zh-dark-1360-trusted");
+  await shot("zh-dark-1440-trusted");
   await command("Emulation.setEmulatedMedia", { features: [] }, sessionId);
-  for (const [width, height] of [[768, 1024], [390, 844]] as const) {
+  for (const [width, height] of [[1024, 768], [390, 844]] as const) {
     await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: width < 600 }, sessionId);
     await new Promise(resolve => setTimeout(resolve, 300));
     await shot(`zh-light-${width}-trusted`);
   }
-  await command("Emulation.setDeviceMetricsOverride", { width: 1360, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await closeMenu();
 
   // The person turns reading off in the project's settings: the next round reads nothing and the menu says why, with the confirm.
@@ -133,7 +133,7 @@ test("BCD-05 BCD-08 BCD-10 BCD-14 the rules menu shows what each round was given
   await b.click("[data-directories-read-instructions]");
   await b.waitFor("document.querySelector('[data-directories-status]')?.dataset.tone === 'done' && document.querySelector('[data-directories-read-instructions]').checked === false");
   await b.evaluate("document.querySelector('[data-directories-instructions]').scrollIntoView({block:'center'})");
-  await shot("zh-light-1360-settings-off");
+  await shot("zh-light-1440-settings-off");
   await b.navigate(() => command("Page.navigate", { url: `${b.origin}/projects/${projectId}/?openPlugin=coding` }, sessionId));
   await b.waitFor(`document.querySelector('[data-work-surface="coding"]')?.dataset.uiClientState === 'ready'`, 20_000);
   await child.click(`${coding} [data-coding-session="${session}"]`);
@@ -143,7 +143,7 @@ test("BCD-05 BCD-08 BCD-10 BCD-14 the rules menu shows what each round was given
   const off = await openMenu();
   assert.match(off, /仓库说明文件.*没有读取.*你在项目设置里关了读取/, "BCD-08: not loaded, and why");
   assert.equal(await child.evaluate<string>(`document.querySelector('${DIALOG} [data-coding-rules-not-loaded]')?.dataset.codingRulesNotLoaded ?? ''`), "off");
-  await shot("zh-light-1360-not-loaded");
+  await shot("zh-light-1440-not-loaded");
   // 「读取这个文件夹的说明文件」 goes through the Host's own dialog; once the person says yes the menu says it applies from the next round.
   await child.click(`${DIALOG} [data-coding-rules-confirm]`);
   await b.waitFor("document.querySelector('[data-page-dialog=confirm]')?.open === true || Boolean(document.querySelector('[data-page-dialog=confirm]:not([hidden])'))");
@@ -160,10 +160,16 @@ test("BCD-05 BCD-08 BCD-10 BCD-14 the rules menu shows what each round was given
   await b.waitFor(`document.querySelector(${JSON.stringify(RULES)})?.textContent.trim() === 'Rules 1'`, 20_000);
   const english = await openMenu();
   assert.match(english, /Repository instruction files.*1MDAGENTS\.md.*In effect/);
-  await shot("en-light-1360-trusted");
+  await shot("en-light-1440-trusted");
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "dark" }] }, sessionId);
-  await shot("en-dark-1360-trusted");
+  await shot("en-dark-1440-trusted");
   await command("Emulation.setEmulatedMedia", { features: [] }, sessionId);
+  for (const [width, height] of [[1024, 768], [390, 844]] as const) {
+    await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: width < 600 }, sessionId);
+    await new Promise(resolve => setTimeout(resolve, 300));
+    await shot(`en-light-${width}-trusted`);
+  }
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await closeMenu();
 
   // BCD-10: a round that recorded no sources (one from before they were recorded) says so; it never shows the files as not loaded.

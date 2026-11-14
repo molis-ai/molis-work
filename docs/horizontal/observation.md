@@ -22,7 +22,7 @@
 - **草稿**：动作的输入是本人还没发出的草稿（输入框草稿、写到一半的回答），在定义上写 `draft: true`（沙箱包写在操作上）；出口只记存过，不留输入与结果。
 - **插件上报**：照工作流程插件（`plugins/native/workflows/src/observation.ts`）：Manifest 声明消费 `observation.report@1`，用 `context.services.actions.invoke` 以自己的安装身份调用，在业务写完之后 await、出错吞掉，从不让上报决定业务的成败；被取消或撤权的调用，上报也会被拒。
 - **外壳的界面阶段**：工作台页面脚本 `apps/workbench/src/scripts/client/work-records.ts` 是唯一的发送处（项目页发到 `/projects/<id>/api/observation/ui`，记在该项目下）；别的界面代码拿到它的 `record`、`subject`、`interaction(list)` 来记，不另开请求。高频的停留与滚动按对象每分钟汇总。
-- **宿主侧的记录器**：服务不在 Host 对象上时，用 `liveObservation(home)` 找到这个 Home 正在运行的采集层；授权变化走 `recordGrantChanges`，写在保存之后、从不抛错。
+- **宿主侧的记录器**：服务不在 Host 对象上时，用 `liveObservation(home)` 找到这个 Home 正在运行的采集层；没有运行层（命令行卸载）时，`recordGrantChanges` 直接开这个 Home 的库写同形记录。授权变化写在保存之后、从不抛错。
 
 ## 出了问题看哪里
 

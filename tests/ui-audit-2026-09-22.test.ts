@@ -40,6 +40,7 @@ test("search hits dedupe by plugin and id before the cap", () => {
   assert.equal(capped.at(-1)?.id, "page-10");
   assert.equal(takeSearchHits([{ plugin: "Pages", id: "", search: "x" }, { plugin: "Pages", id: "", search: "x" }], "", 8).length, 2);
   assert.match(GLOBAL_SEARCH_FACTORY_SCRIPT, /takeSearchHits\(items, q, limit\)/);
+  assert.match(GLOBAL_SEARCH_FACTORY_SCRIPT, /locate\("loading"/, "the real search script reports loading before it opens the target");
   assert.equal(pluginSearchRows().find((row) => row[0] === "pages")?.[1], "button[data-page-id]");
 });
 

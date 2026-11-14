@@ -182,3 +182,5 @@ Manifest：`permissions` 含 `actions:delegate`（转调 Schedule、读取器核
 10. 合后独立审计整改（2026-11-14，见批次文件 17.md「合后独立审计整改」）：`risk.create` 的关联逐个走读取器；`risk.notes.add` 对已关闭拒绝；`ScheduleTaskReads` 带 provider/group/state，风险页只看自己的 `risk` 组；复查写按风险串行化；页面每页对象格上限 20；总览可从已有关联对象里精确筛选；`concern_opened` 的 `cited_subjects` 改为可选；`risk-review` 方法改用 `risk.list` 的 `keyword`。行为与验收以原需求与 17.md 为准。
 
 11. 合后整修（2026-11-14）：侧栏文档里的插件帧原先没有 `openItem` 宿主，侧栏的「展开成整页」和「去开授权」点了没有动作；补 `molis:side-main-open`（只接受侧栏帧，带发起插件），主区打开同一条风险或 Schedule 任务，`risk-page.e2e` 增展开断言。复查任务被暂停后过了约定时间且从未跑过，原先被算成「已复查」，现为「已暂停」，可改期。无 Goals 时侧栏空闲文案不再提 Goal；关联对象筛选只列已装插件能打开的种类。
+
+12. 方法版本：`method.risk-review` 正文改用 `risk.list` 的 `keyword`／`linked` 查同一件事，版本 1→2（`tooling/versions.json`、`src/methods.ts`）；固定引用按新版本取。

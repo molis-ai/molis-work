@@ -559,6 +559,7 @@ function roundEnded(deps: RunDeps, started: Started, session: Session, stepBoard
 function roundHandle(deps: RunDeps, input: PrologueStartInput, at: {
   readonly started: Started; readonly session: Session; readonly attemptIndex: number; readonly actionController: AbortController; readonly surface: SurfaceAttachment;
   readonly stepBoard: { ref: { id: string } } | undefined; readonly stopping: { current: Promise<void> | undefined };
+  readonly actionReviews: ReturnType<typeof roundGateway>["reviews"];
   readonly work?: PrologueWorkDelegation;
 }): Awaited<ReturnType<PrologueRuntimePort["startAgentRun"]>> {
   const { started, actionController } = at;
@@ -594,7 +595,13 @@ function roundHandle(deps: RunDeps, input: PrologueStartInput, at: {
       cancel: () => { actionController.abort(); void at.surface.release("stopped").catch(() => undefined); return started.run.cancel(); },
     },
     control: {
-      get state() { const state = control.state; return state === "sleeping" ? "paused" : state; },
+      get state() {
+        const state = control.state;
+        if (state === "sleeping") return "paused";
+        if (state === "reconcile-required" && at.actionReviews.hasReconciledResult
+          && !deps.runtime.effects.openEffects().some(effect => effect.proposal.origin?.run === started.run.ref.id)) return "failed";
+        return state;
+      },
       get stopReason() { return hostStop; },
       stop(reason) {
         if (["completed", "failed", "stopped", "cancelled"].includes(control.state)) return Promise.resolve();
@@ -614,7 +621,11 @@ function roundHandle(deps: RunDeps, input: PrologueStartInput, at: {
         await deps.effects.beforeEffect();
         return control.switchModel({ protocol: target.protocol, endpoint: target.endpoint, model: target.model, credentialRef }, { beforeAccept: () => { deps.effects.assertCurrent(); beforeAccept(); } });
       },
-      steer: input => control.steer(input), withdrawSteer: steerId => control.withdrawSteer(steerId), subscribe: listener => control.subscribe(listener),
+      steer: input => control.steer(input), withdrawSteer: steerId => control.withdrawSteer(steerId),
+      subscribe(listener) {
+        const controlSubscription = control.subscribe(listener), receiptSubscription = at.actionReviews.observeReconciliation(listener);
+        return () => { controlSubscription(); receiptSubscription(); };
+      },
     },
   };
 }
@@ -654,7 +665,7 @@ async function startBoundRound(deps: RunDeps, input: PrologueStartInput, index: 
     return exactPermissions.values();
   };
   const mcp = input.mcp_tools?.length || input.mcp_sources?.length ? roundMcp(runtime, deps.mcpLibrary, index.owner, input) : undefined;
-  const { actionController, actionTools, parameterBranches, codeIntelligence, symbolTool, symbolToolName } = roundGateway(deps, input, mode.none, () => stopping.current !== undefined, work, mcp);
+  const { actionController, actionTools, reviews: actionReviews, parameterBranches, codeIntelligence, symbolTool, symbolToolName } = roundGateway(deps, input, mode.none, () => stopping.current !== undefined, work, mcp);
   const assertDispatchCurrent = () => {
     if (stopping.current !== undefined) throw new Error("原轮次正在停止");
     actionController.signal.throwIfAborted();
@@ -739,7 +750,7 @@ async function startBoundRound(deps: RunDeps, input: PrologueStartInput, index: 
     const instructions = packed && await deps.index.update(input.session_id, saved => { saved.attempts[attemptIndex]!.frozen.instructions = structuredClone(packed); })
       .then(() => packed, () => undefined);
     work?.assertCurrent();
-    return { ...roundHandle(deps, input, { started, session, attemptIndex, actionController, surface, stepBoard: materials.stepBoard, stopping, work }),
+    return { ...roundHandle(deps, input, { started, session, attemptIndex, actionController, surface, stepBoard: materials.stepBoard, stopping, actionReviews, work }),
       ...(surface.desktop_target ? { desktop_target: surface.desktop_target } : {}), ...(instructions ? { instructions } : {}) };
   } catch (error) {
     actionController.abort();

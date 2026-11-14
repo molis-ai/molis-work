@@ -513,5 +513,19 @@ test("APR-07/08/11 ASC-51/52: Assistant reuses one real connector MCP tool acros
     return state.rounds.at(-1)?.phase === "reconcile-required" ? state : undefined;
   });
   assert.equal(unresolved.work.work_id, work.work_id);
+  // Ending the grant must not close, repeat, or retarget the already dispatched remote effect.
+  await next.service.control(work.work_id, { kind: "stop" });
+  const closed = await next.person.invoke(agentDelegationActions.prepare, { work_id: work.work_id, lifetime: "work", choices: [] });
+  assert.equal(closed.lifecycle, "ended");
+  const restarted = await f.reopen();
+  const afterRestart = await restarted.service.read(work.work_id);
+  assert.equal(afterRestart.rounds.at(-1)?.phase, "reconcile-required");
+  assert.equal(afterRestart.rounds.at(-1)?.run_id, unresolved.rounds.at(-1)?.run_id);
+  await restarted.agents.agentHost.reviews.refresh(f.projectId);
+  const recovered = restarted.agents.agentHost.reviews.receipt(accepted.review_id);
+  assert.ok(recovered?.effect_uncertain);
+  assert.deepEqual(recovered.source, unknown.source);
+  await assert.rejects(restarted.service.send({ work_id: work.work_id, text: "Continue", request_id: "mcp-after-stop-01" }, { project_ref: f.reference }),
+    { code: "agent.delegation_ended" });
   assert.deepEqual(writes, [...allowed, allowed[0]], "an uncertain tool request is not replayed");
 }));

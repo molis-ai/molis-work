@@ -3,7 +3,7 @@ import type { AgentActionOffer, AgentDelegation, AgentMemoryTools } from "@molis
 import type { AgentPromptText } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { MEMORY_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/memory";
-import { ActionError, type ActionCallContext, type ActionReference, type ActionView, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, requireSynchronous, type ActionCallContext, type ActionReference, type ActionView, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { readProjectGuidance, type ProjectGuidanceFacts } from "../goal-callers.js";
 import { assertActionCommandInput, currentCallId, newCallId } from "@molis-ai/molis-work-kernel";
 import type { MolisWorkLocalHost } from "../project-host.js";
@@ -199,9 +199,12 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
           call.then(() => signal.removeEventListener("abort", left), () => signal.removeEventListener("abort", left));
         }
         const output = await call;
-        if (view && view.operation === "command") {
+        if (view && view.operation === "command" && changed && !signal?.aborted) {
+          // A late result can settle its original receipt. Publishing cards, jobs and relations still needs current authority.
+          try { review?.assertCurrent(); requireSynchronous(caller.assert_authority_current?.(action, view.action.permissions)); }
+          catch { return output; }
           // The change happened; a relation that failed to record is not a failed change.
-          try { changed?.(view, input, output); } catch (error) { hostLog.warn("assistant", "relation_unrecorded", error, { step: "command", capability_id: view.capability_id }); }
+          try { changed(view, input, output); } catch (error) { hostLog.warn("assistant", "relation_unrecorded", error, { step: "command", capability_id: view.capability_id }); }
         }
         return output;
       },

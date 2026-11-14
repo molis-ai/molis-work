@@ -544,29 +544,41 @@ test("a JSON-string input is refused like any input that does not match the cont
   } finally { await f.close(); }
 });
 
-test("switched off while its change waits for approval: approving later runs nothing, and the round says why", { timeout: 60_000 }, async t => {
+test("APR-07 BL-360: switching an action off while it waits refuses approval and keeps the original wait rejectable", { timeout: 60_000 }, async t => {
+  const reason = "这项能力已被关闭，不要保存";
   const f = await fixture(t, [
     () => reply({ name: "change-capability", input: { capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes", input: { text: "held" } } }),
-    body => { assert.match(JSON.stringify(body.messages), /not offered here any more.*nothing ran.*Do not use a different capability/); return reply(undefined, "这项能力已被关闭，没有保存。"); },
+    body => { assert.ok(JSON.stringify(body.messages).includes(reason)); return reply(undefined, "这项能力已被关闭，没有保存。"); },
   ]);
   try {
     const sent = await f.service.send({ text: "save held", request_id: "req-00000021" }, { project_ref: f.project });
     const view = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.reviews.length ? v : undefined; }, "review");
+    const original = { review_id: view.reviews[0]!.review_id, version: view.reviews[0]!.version };
     // The person switches the capability off for the Assistant in settings while the change is still waiting.
     f.store.setActionEnabled("web-user", actionKey({ capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes" }), false);
-    await f.service.outcomes.decide(sent.work.work_id, { review_id: view.reviews[0]!.review_id, version: view.reviews[0]!.version, decision: "approve" });
+    const held = (await f.service.read(sent.work.work_id)).reviews[0]!;
+    assert.equal(held.review_id, original.review_id);
+    assert.deepEqual([held.decisions.approve.available, held.decisions.reject.available], [false, true]);
+    await assert.rejects(f.service.outcomes.decide(sent.work.work_id, { ...original, decision: "approve" }), { code: "agent.review_not_permitted" });
+    assert.equal(f.queue.receipt(original.review_id)?.source, undefined);
+    assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 0, "the refused approval dispatches no action");
+    await f.service.outcomes.decide(sent.work.work_id, { ...original, decision: "reject", note: reason });
     const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return ["completed", "failed"].includes(v.work.state) ? v : undefined; }, "end");
-    assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 0, "the approval given before the switch does not outlive it");
+    assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 0, "rejecting the same wait does not run either");
+    assert.deepEqual(f.queue.receipt(original.review_id)?.source, { kind: "person", actor_id: "web-user" });
+    assert.equal(f.queue.receipt(original.review_id)?.status, "rejected");
     const change = done.rounds[0]!.activity.find(item => item.verb === "change")!;
-    assert.deepEqual([change.state, change.reason], ["failed", "unavailable"]);
+    assert.deepEqual([change.state, change.reason], ["failed", "declined"]);
+    assert.equal(done.work.state, "completed");
   } finally { await f.close(); }
 });
 
-test("a plugin disabled or upgraded while its change waits: the old call runs nothing, the round says so, and the new version is found", { timeout: 60_000 }, async t => {
+test("APR-07 BL-360: upgrading the provider leaves the old approval unavailable and the next search finds the new version", { timeout: 60_000 }, async t => {
   const upgraded: ActionDefinition = { ...write, version: 2, action: { ...write.action, title: "Save a note (v2)" } };
+  const reason = "插件已升级，旧调用不要执行";
   const f = await fixture(t, [
     () => reply({ name: "change-capability", input: { capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes", input: { text: "old call" } } }),
-    body => { assert.match(JSON.stringify(body.messages), /not offered here any more at version 1.*now offers version 2/); return reply({ name: "find-capabilities", input: { query: "Save" } }); },
+    body => { assert.ok(JSON.stringify(body.messages).includes(reason)); return reply({ name: "find-capabilities", input: { query: "Save" } }); },
     body => {
       const found = JSON.stringify(body.messages);
       assert.match(found, /"version\\":2/, "the upgraded capability is found");
@@ -576,15 +588,22 @@ test("a plugin disabled or upgraded while its change waits: the old call runs no
   try {
     const sent = await f.service.send({ text: "save old call", request_id: "req-00000025" }, { project_ref: f.project });
     const view = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.reviews.length ? v : undefined; }, "review");
+    const original = { review_id: view.reviews[0]!.review_id, version: view.reviews[0]!.version };
     // The plugin is disabled, then comes back as a new version, while the change is still waiting for the person.
     f.unregister();
     f.local.actionRegistry(f.project).registerProvider({ provider: { provider_id: "fixture.notes", kind: "plugin", title: "Notes" }, definitions: [upgraded],
       handlers: [{ ...upgraded, handle(context, input) { f.notes.prepare("INSERT INTO notes VALUES (?, ?, ?, ?)").run((input as { text: string }).text, context.project_id, context.actor_id, "v2"); return { saved: true }; } }] });
-    await f.service.outcomes.decide(sent.work.work_id, { review_id: view.reviews[0]!.review_id, version: view.reviews[0]!.version, decision: "approve" });
+    const held = (await f.service.read(sent.work.work_id)).reviews[0]!;
+    assert.equal(held.review_id, original.review_id);
+    assert.deepEqual([held.decisions.approve.available, held.decisions.reject.available], [false, true]);
+    await assert.rejects(f.service.outcomes.decide(sent.work.work_id, { ...original, decision: "approve" }), { code: "agent.review_not_permitted" });
+    assert.equal(f.queue.receipt(original.review_id)?.source, undefined);
+    assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 0, "version 1 never runs as version 2");
+    await f.service.outcomes.decide(sent.work.work_id, { ...original, decision: "reject", note: reason });
     const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return ["completed", "failed"].includes(v.work.state) ? v : undefined; }, "end");
-    assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 0, "an approval of version 1 never runs as version 2");
+    assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 0, "finding version 2 does not run it");
     const change = done.rounds[0]!.activity.find(item => item.verb === "change")!;
-    assert.deepEqual([change.state, change.reason], ["failed", "unavailable"]);
+    assert.deepEqual([change.state, change.reason], ["failed", "declined"]);
     assert.equal(done.work.state, "completed");
   } finally { await f.close(); }
 });
@@ -635,8 +654,10 @@ test("PREP-108-04: a change the stop reaches before it is sent never runs, and t
   } finally { await f.close(); }
 });
 
-test("a change stopped while its owner is still running: shown as not known, then as what the owner did; the next round is told and nothing is re-sent", { timeout: 60_000 }, async t => {
-  const slow: ActionDefinition = { ...write, capability_id: "fixture.slow.write", action: { ...write.action, title: "Save slowly" } };
+test("APR-08/11 ADH-12: stopping a change preserves the original unknown effect, then records its owner's late receipt for a freshly authorized round", { timeout: 60_000 }, async t => {
+  const slow: ActionDefinition = { ...write, capability_id: "fixture.slow.write", action: { ...write.action, title: "Save slowly",
+    subject_kinds: ["note"], result_subject: { id: "id", revision: "version" },
+    output_schema: { type: "object", required: ["id", "version"], properties: { id: { type: "string" }, version: { type: "integer" } } } } };
   let finish!: () => void, entered!: () => void;
   const gate = new Promise<void>(resolve => { finish = resolve; }), reached = new Promise<void>(resolve => { entered = resolve; });
   const f = await fixture(t, [
@@ -652,29 +673,51 @@ test("a change stopped while its owner is still running: shown as not known, the
   f.local.actionRegistry(f.project).registerProvider({ provider: { provider_id: "fixture.slow", kind: "plugin", title: "Slow" }, definitions: [slow],
     handlers: [{ ...slow, async handle(context, input) {
       await context.beforeEffect?.();
-      entered(); await gate;
       f.notes.prepare("INSERT INTO notes VALUES (?, ?, ?, ?)").run((input as { text: string }).text, context.project_id, context.actor_id, "slow");
-      return { saved: true };
+      entered(); await gate;
+      return { id: "original-note", version: 1 };
     } }] });
   try {
     const sent = await f.service.send({ text: "save slow", request_id: "req-00000022" }, { project_ref: f.project });
     const held = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.reviews.length ? v : undefined; }, "review");
     await f.service.outcomes.decide(sent.work.work_id, { review_id: held.reviews[0]!.review_id, version: held.reviews[0]!.version, decision: "approve" });
     await reached;
-    // The person stops the round while the owner is still saving.
-    await f.service.control(sent.work.work_id, { kind: "stop" });
-    const stopped = await until(async () => { const v = await f.service.read(sent.work.work_id); return ["stopped", "failed"].includes(v.work.state) ? v : undefined; }, "stopped");
+    // The write is committed. The person stops while the original owner's receipt is still in flight.
+    assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 1);
+    const stopped = await f.service.control(sent.work.work_id, { kind: "stop" });
+    assert.equal(stopped.work.state, "stopped");
+    const originalRun = { session_id: f.store.get("web-user", sent.work.work_id).session_id!, run_id: sent.run_id! };
+    const originalView = await f.adapter.read(originalRun);
+    assert.equal(originalView.phase, "reconcile-required");
+    assert.ok(originalView.ended_at);
     const change = stopped.rounds[0]!.activity.find(item => item.verb === "change")!;
-    assert.notEqual(change.state, "completed");
-    assert.notEqual(change.reason, "interrupted", "not claimed as “没有执行”: it was already with its owner");
+    assert.deepEqual([change.state, change.reason], ["unknown", undefined]);
     assert.deepEqual(stopped.unsettled?.map(item => [item.title, item.state]), [["Slow · Save slowly", "pending"]]);
+    const reviewId = held.reviews[0]!.review_id;
+    await f.queue.refresh(f.project.project_id);
+    assert.ok(f.queue.receipt(reviewId)?.effect_uncertain);
+    const ended = (await f.adapter.delegations.list()).find(row => row.subject.kind === "work" && row.subject.work.id === sent.work.work_id)!;
+    assert.equal(ended.lifecycle, "ended");
     // The owner finishes after all: it happened once, and the work says so.
     finish();
     const settled = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.unsettled?.[0]?.state === "completed" ? v : undefined; }, "the owner's late answer");
     assert.ok(settled.unsettled![0]!.settled_at);
+    assert.equal(settled.objects.some(object => object.relation === "result"), false, "the old grant cannot publish a result relation");
+    const receipt = await until(async () => {
+      await f.queue.refresh(f.project.project_id);
+      const receipt = f.queue.receipt(reviewId);
+      return receipt?.effect_settled ? receipt : undefined;
+    }, "original SDK receipt settled");
+    assert.equal(receipt.effect_uncertain, undefined);
+    assert.deepEqual(receipt.source, { kind: "person", actor_id: "web-user" });
     assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 1);
-    // The next round is told once; nothing is sent again.
-    await f.service.send({ work_id: sent.work.work_id, text: "继续", request_id: "req-00000023" }, {});
+    const nextRequest = { work_id: sent.work.work_id, text: "继续", request_id: "req-00000023" };
+    await assert.rejects(f.service.send(nextRequest, {}), { code: "agent.delegation_ended" });
+    assert.equal(f.requests.length, 1);
+    const access = await f.adapter.delegations.reopen(ended.subject, { expected_version: ended.storage_version, mode: "confirm", expires_at: null, scopes: [] },
+      { async beforeEffect() {}, assertCurrent() {} });
+    assert.equal(access.lifecycle, "open");
+    await f.service.send(nextRequest, {});
     const next = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.rounds.length === 2 && v.work.state === "completed" ? v : undefined; }, "next round");
     assert.equal(next.unsettled, undefined, "told, so no longer listed");
     assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 1, "exactly one effect");
@@ -1188,8 +1231,9 @@ test("a change its owner has not answered by the gateway's own deadline ends in 
   const { executors } = prologueActionGateway({ client, operate: true } as never, 10_500);
   const started = Date.now();
   await assert.rejects((executors["change-capability"] as any)({ args: { capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes", input: { text: "x" } } }),
-    // What the model sees (GATEWAY-MODEL-CODE-01): the SDK's tool error, carrying the owner's code and words at its start.
-    (error: any) => error.code === "HOST_RESPONSE_INVALID" && /^actions\.outcome_unknown: /.test(error.message) && /may or may not have taken effect/.test(error.message));
+    // GATEWAY-MODEL-CODE-01: the SDK preserves an unknown operation, with the original reason and instructions.
+    (error: any) => error.code === "EFFECT_RECONCILE_REQUIRED" && /^actions\.outcome_unknown: /.test(error.message)
+      && /may or may not have taken effect.*Do not submit it again/.test(error.message));
   assert.ok(Date.now() - started < 7_000, "well before the runtime's own limit");
   assert.equal(seen?.aborted, true, "the owner is told to stop");
 });

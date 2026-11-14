@@ -197,8 +197,9 @@ export class PrologueRunStore {
     const record = this.#runs.get(runId);
     if (!record) return;
     const controlPhase = prologuePhaseOf(record.control.state);
-    if (isEnded(controlPhase) || isEnded(record.state.phase)) record.memory_binding?.close();
-    const awaitingCommit = isEnded(controlPhase) && !isEnded(record.state.phase);
+    const ledgerEnded = isEnded(record.state.phase);
+    if (isEnded(controlPhase) || ledgerEnded) record.memory_binding?.close();
+    const awaitingCommit = isEnded(controlPhase) && !ledgerEnded;
     let phase = controlPhase === "running" || awaitingCommit ? record.state.phase : controlPhase;
     let stopReason = awaitingCommit
       ? controlPhase === "stopped" || controlPhase === "cancelled"
@@ -206,7 +207,7 @@ export class PrologueRunStore {
         : "正在保存本轮执行记录"
       // A round the runtime (a guardrail or its circuit breaker) or the Host stopped keeps the reason it gave; one the person stopped says so.
       : phase === "stopped" ? (record.state.phase === "stopped" && record.state.stop_reason) || record.control.stopReason || "已停止" : record.state.stop_reason;
-    if (stampTerminal && isEnded(phase) && this.#runtime.saveRunTiming && !record.timingReady) {
+    if (stampTerminal && ledgerEnded && this.#runtime.saveRunTiming && !record.timingReady) {
       if (!record.timingCommit) {
         record.observedEndAt = record.view.ended_at ?? this.now().toISOString();
         const timing: PrologueRunTiming = {
@@ -219,11 +220,14 @@ export class PrologueRunStore {
           .catch(() => { record.timingError = "显示时间未能保存；执行结果已保存在运行时，重启后部分时间可能未知。"; })
           .then(() => { record.timingReady = true; this.publish(runId); });
       }
-      phase = "running";
-      stopReason = "执行已结束，正在保存显示时间";
+      if (phase !== "reconcile-required") {
+        phase = "running";
+        stopReason = "执行已结束，正在保存显示时间";
+      }
     }
     if (record.timingError) stopReason = [stopReason, record.timingError].filter(Boolean).join("；");
-    record.view = withRunFacts(record.state, isEnded(phase), {
+    const executionEnded = ledgerEnded && (!stampTerminal || !this.#runtime.saveRunTiming || record.timingReady);
+    record.view = withRunFacts(record.state, Boolean(executionEnded), {
       ...record.view,
       phase: phase === "starting" ? "running" : phase,
       turns: [...record.state.turns, ...(record.state.streaming === "" ? [] : [{
@@ -248,7 +252,7 @@ export class PrologueRunStore {
         ...(this.#runtime.readPendingQuestion ? { answerable: false, unavailable_reason: "正在读取原问题" } : {}),
       })),
       stop_reason: stopReason,
-      ...(stampTerminal && isEnded(phase) && record.view.ended_at === null
+      ...(stampTerminal && executionEnded && record.view.ended_at === null
         ? { ended_at: record.observedEndAt ?? this.now().toISOString() }
         : {}),
     });

@@ -1,5 +1,5 @@
 import { isDeepStrictEqual } from "node:util";
-import { isTerminalAgentPhase, type AgentActionReviewControl, type AgentRunRef, type AgentRuntimeAdapter, type AgentStartExecution } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { isTerminalAgentPhase, type AgentActionReviewControl, type AgentRunRef, type AgentRunView, type AgentRuntimeAdapter, type AgentStartExecution } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import { requireSynchronous, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ASSISTANT_INSTALL_ID, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
@@ -81,14 +81,16 @@ export function assistantPermissionCaller(caller: ActionExecutionContext, page?:
 
 /** A Stop acknowledgement can precede the Run's terminal event. Keep the work's ending barrier until the owner settles it. */
 export async function stopOriginalRun(adapter: AgentRuntimeAdapter, run: AgentRunRef, control: AgentActionReviewControl): Promise<void> {
+  // The SDK can commit the Run's end while its original dispatched effect still needs reconciliation.
+  const ended = (view: AgentRunView) => isTerminalAgentPhase(view.phase) || (view.phase === "reconcile-required" && view.ended_at !== null);
+  if (ended(await adapter.read(run))) return;
   await inAssistantWorkEffect(adapter, control, () => adapter.control(run, { kind: "stop" }));
-  if (isTerminalAgentPhase((await adapter.read(run)).phase)) return;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let unsubscribe: (() => void) | undefined;
   try {
     await new Promise<void>((resolve, reject) => {
       timer = setTimeout(() => reject(assistantErrors.state("原轮停止回执尚未到达，请重试停止")), 10_000);
-      unsubscribe = adapter.observe(run, view => { if (isTerminalAgentPhase(view.phase)) resolve(); });
+      unsubscribe = adapter.observe(run, view => { if (ended(view)) resolve(); });
     });
   } finally { clearTimeout(timer); unsubscribe?.(); }
 }

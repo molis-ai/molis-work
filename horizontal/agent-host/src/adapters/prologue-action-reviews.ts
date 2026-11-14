@@ -16,6 +16,7 @@ interface HeldActionReview {
   readonly control: AgentActionReviewControl;
   readonly choice?: AgentDelegationActionChoice;
   readonly assertChoiceCurrent: () => void;
+  keepLateResult?(result: Promise<unknown>): void;
   automatic(policy: PolicySnapshot): { source: AutomaticSource; assertCurrent(): void; activate(): void } | undefined;
 }
 
@@ -33,6 +34,10 @@ function choiceFor(view: ActionView, input: unknown): AgentDelegationActionChoic
 /** One Run's original SDK tool calls. Neither a tool argument nor a later page can supply this identity. */
 export class PrologueActionReviews {
   readonly #calls = new Map<string, HeldActionReview>();
+  #end!: () => void;
+  readonly #ended = new Promise<void>(resolve => { this.#end = resolve; });
+  readonly #listeners = new Set<() => void>();
+  #hasReconciledResult = false;
   #run?: string;
   #assertRunCurrent?: () => void;
   constructor(readonly session: string, assertRunCurrent: () => void,
@@ -114,6 +119,26 @@ export class PrologueActionReviews {
     return this.forCall(origin.toolCall, subject.name, JSON.parse(subject.input));
   }
 
+  /** Only a successful response to the original invocation can settle its dispatch after the SDK ended the Run. */
+  bindReceipt(effect: Effect, settle: () => Promise<boolean>): void {
+    const held = this.forEffect(effect);
+    held.keepLateResult = result => {
+      delete held.keepLateResult;
+      void result.then(async () => {
+        await this.#ended;
+        if (!await settle()) return;
+        this.#hasReconciledResult = true;
+        for (const listener of this.#listeners) listener();
+      }).catch(() => { /* A failed, expired or unverifiable receipt leaves the original effect open. */ });
+    };
+  }
+
+  get hasReconciledResult(): boolean { return this.#hasReconciledResult; }
+  observeReconciliation(listener: () => void): () => void {
+    this.#listeners.add(listener);
+    return () => { this.#listeners.delete(listener); };
+  }
+
   release(id: string | undefined): void { if (id) this.#calls.delete(id); }
   releaseEffect(effect: Effect | undefined): void {
     const origin = effect?.proposal.origin;
@@ -121,6 +146,6 @@ export class PrologueActionReviews {
   }
   releaseRun(id: string): boolean {
     if (this.#run !== undefined && this.#run !== id) return false;
-    this.#calls.clear(); this.#assertRunCurrent = undefined; return true;
+    this.#calls.clear(); this.#assertRunCurrent = undefined; this.#end(); return true;
   }
 }

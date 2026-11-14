@@ -24,6 +24,7 @@ import { createNodeCoordination, createNodeInference, createNodeProjectWork } fr
 import { createWorkGraphs } from "./prologue-work-graphs.js";
 import { answerPending, createNodeGitReviews, createNodePort, createNodeRuntime, directoriesIdle, questionReader } from "./prologue-node-port.js";
 import { createPrologueRecovery } from "./prologue-recovery.js";
+import { withActionDispatchReceipts } from "./prologue-review-effects.js";
 import { createApprovals, createPendingPort, createReviewMemory, restoreReviewHistory } from "./prologue-review-documents.js";
 import { createPrologueReviewDecisions } from "./prologue-review-decisions.js";
 import { createPrologueDelegations } from "./prologue-delegations.js";
@@ -160,7 +161,9 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     // than ending the round: the person's decision (2026-09-27), knowing a dropped request may be billed twice.
     retryUnansweredModelCalls: true,
   });
-  const host = guardMcpDispatch(guardNodeDispatch(node, dispatchGuards), dispatchGuards);
+  const state = createRoundState();
+  let runtime: Awaited<ReturnType<typeof createNodeRuntime>>;
+  const host = withActionDispatchReceipts(guardMcpDispatch(guardNodeDispatch(node, dispatchGuards), dispatchGuards), state, () => runtime);
   onFailureClose(() => host.closeStorage(), true);
   const effects = prologueEffects(host, options.app.appId);
   const closeEffects = onFailureClose(() => effects.close());
@@ -171,14 +174,13 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   const schedule = createPrologueSchedule();
   // Bound after the runtime exists; the redactor it is given reaches it only when a screenshot is taken.
   let surfaceHost: PrologueSurfaces | undefined;
-  const state = createRoundState();
   const index = createSessionIndexStore(effects.host, options.app.appId);
   const memoryAuthority = createPrologueMemoryAuthority(options.memory, index, effects);
   const closeMemoryAuthority = onFailureClose(() => memoryAuthority.close());
   // Bound to the runtime once it exists; nothing is looked at before a wait is registered.
   const checks = createPrologueConditionCheckers({ runtime: () => runtime, ports: options.checks, project: async id => (await index.read(id).catch(() => undefined))?.owner.project_id,
     owner: async id => (await index.read(id).catch(() => undefined))?.owner });
-  const runtime = await createNodeRuntime(options, effects.host, schedule.run, () => surfaceHost, { forRun: runId => state.dispatchChecks.get(runId) }, checks.checkers, memoryAuthority, state.modelRequests);
+  runtime = await createNodeRuntime(options, effects.host, schedule.run, () => surfaceHost, { forRun: runId => state.dispatchChecks.get(runId) }, checks.checkers, memoryAuthority, state.modelRequests);
   let runtimeClosing: Promise<unknown> | undefined;
   const surfaceFailures = new Set<unknown>();
   const closeRuntime = onFailureClose(() => runtimeClosing ??= runtime.shutdown().catch(error => {

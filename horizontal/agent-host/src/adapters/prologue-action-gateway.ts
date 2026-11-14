@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { createPrologueError, DEFAULT_TOOL_LIMITS, type EffectOrigin, type ScenarioPack, type ToolRunner } from "@prologue/sdk";
 import { ActionError, actionEffect, actionFieldLabelSource, actionFieldValue, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { presentToolReview, reviewField, reviewText, type ToolReviewField } from "../review-presentation.js";
-import type { AgentActionClient, AgentActionOffer, AgentActionReviewControl, AgentFrozenRole } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentActionClient, AgentActionOffer, AgentFrozenRole } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { PrologueActionReviews } from "./prologue-action-reviews.js";
 import { actionReads, CAPABILITY_PARAMETERS, declaredCapabilities, SUGGEST_PARAMETERS } from "./prologue-gateway-declared.js";
 
@@ -174,7 +174,7 @@ function guardGatewayTool(run: GatewayToolRun, runSignal?: AbortSignal): ToolRun
     try { abort.signal.throwIfAborted(); return await run(call.args as Record<string, unknown>, abort.signal, randomUUID(), call.callId); }
     catch (error) {
       if (error instanceof ActionError && error.code === "actions.outcome_unknown") {
-        throw createPrologueError("EFFECT_RECONCILE_REQUIRED", error.message);
+        throw createPrologueError("EFFECT_RECONCILE_REQUIRED", `${error.code}: ${error.message}`);
       }
       if (error instanceof ActionError && !abort.signal.aborted) {
         throw createPrologueError("HOST_RESPONSE_INVALID", `${error.code}: ${error.message}`);
@@ -185,13 +185,32 @@ function guardGatewayTool(run: GatewayToolRun, runSignal?: AbortSignal): ToolRun
   };
 }
 
-/**
- * The Host's action gateway as one SDK pack: three tools instead of one per action.
- *
- * Every call reads the directory again, so what a round may use is what is offered now: an action switched off,
- * uninstalled or changed since the round began is refused, and one installed since is found. Reads run at once;
- * a change is a separate tool whose every call is held for the person's review of its exact arguments.
- */
+/** Wait for the original action owner, keeping an interrupted write eligible for receipt reconciliation. */
+async function invokeGatewayAction(client: AgentActionClient, args: CapabilityArgs, view: ActionView, signal: AbortSignal, timeoutMs: number, write = false,
+  review?: ReturnType<PrologueActionReviews["forCall"]>): Promise<string> {
+  // A change stops being waited on before the SDK deadline, so the original uncertainty reaches the ledger.
+  const local = new AbortController();
+  const follow = () => local.abort(signal.reason);
+  if (signal.aborted) follow(); else signal.addEventListener("abort", follow, { once: true });
+  const deadline = write && timeoutMs > 10_000 ? setTimeout(() => local.abort(new ActionError("actions.timeout", "ran out of time")), timeoutMs - 5_000) : undefined;
+  let call: Promise<unknown> | undefined;
+  try {
+    call = client.invoke({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id },
+      gatewayInput(view, args), local.signal, undefined, review?.control);
+    const result = write ? await Promise.race([call, abortedBy(local.signal)]) : await call;
+    local.signal.throwIfAborted();
+    return JSON.stringify(result) ?? "null";
+  } catch (error) {
+    const code = (error as { code?: unknown })?.code;
+    if (write && (local.signal.aborted || code === "actions.output_invalid_after_effect")) {
+      if (call && local.signal.aborted) review?.keepLateResult?.(call);
+      throw new ActionError("actions.outcome_unknown", `"${view.provider.title} · ${view.action.title}" was sent but did not finish (${local.signal.aborted ? "it ran out of time or was stopped" : "its result was invalid"}); it may or may not have taken effect. Do not submit it again: first read the object back with ${GATEWAY_TOOLS.read} and tell the person what actually happened.`);
+    }
+    throw await inputRefusal(error, view.action.input_schema, fitsContract(client, view, args));
+  } finally { clearTimeout(deadline); signal.removeEventListener("abort", follow); }
+}
+
+/** One pack for the Host capability directory, re-read for each operation. Every change keeps its exact review. */
 export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL_LIMITS.maxTimeoutMs, runSignal?: AbortSignal, reviews?: PrologueActionReviews) {
   // Capability ids this round has seen offered (found or used), which the round's replies do not show the person.
   const known = new Set<string>();
@@ -210,31 +229,6 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
     if (!write && !reads) throw new ActionError("actions.gateway_mismatch", `This capability changes data; call it with ${GATEWAY_TOOLS.change}, which asks the person first.`);
     return view;
   };
-  const invoke = async (args: CapabilityArgs, view: ActionView, signal: AbortSignal, write = false, review?: AgentActionReviewControl) => {
-    const schema = view.action.input_schema;
-    // A change stops being waited on a little before the runtime's own deadline, so the round hears why in words.
-    const local = new AbortController();
-    const follow = () => local.abort(signal.reason);
-    if (signal.aborted) follow(); else signal.addEventListener("abort", follow, { once: true });
-    const deadline = write && timeoutMs > 10_000 ? setTimeout(() => local.abort(new ActionError("actions.timeout", "ran out of time")), timeoutMs - 5_000) : undefined;
-    try {
-      const call = gateway.client.invoke({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id },
-        gatewayInput(view, args), local.signal, undefined, review);
-      call.catch(() => undefined);
-      // A change is not waited on past a stop or deadline: its owner may still finish it, so it ends as "not known".
-      const result = write ? await Promise.race([call, abortedBy(local.signal)]) : await call;
-      local.signal.throwIfAborted();
-      return JSON.stringify(result) ?? "null";
-    } catch (error) {
-      const code = (error as { code?: unknown })?.code;
-      // Sent to its owner and not finished (stopped or out of time), or finished with an unusable result: it may have
-      // happened. Said as such, so neither the person nor the model takes it for "nothing happened" and repeats it.
-      if (write && (local.signal.aborted || code === "actions.output_invalid_after_effect")) {
-        throw new ActionError("actions.outcome_unknown", `"${view.provider.title} · ${view.action.title}" was sent but did not finish (${local.signal.aborted ? "it ran out of time or was stopped" : "its result was invalid"}); it may or may not have taken effect. Do not submit it again: first read the object back with ${GATEWAY_TOOLS.read} and tell the person what actually happened.`);
-      }
-      throw await inputRefusal(error, schema, fitsContract(gateway.client, view, args));
-    } finally { clearTimeout(deadline); signal.removeEventListener("abort", follow); }
-  };
   const executors: Record<string, ToolRunner> = {
     [GATEWAY_TOOLS.find]: guarded(async args => {
       const query = typeof args.query === "string" ? args.query.trim().toLowerCase() : "";
@@ -250,7 +244,10 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
       for (const row of scored.slice(0, FIND_LIMIT)) { known.add(row.view.capability_id); offered.add(offeredKey(row.view)); declared.note(row.view); }
       return JSON.stringify({ found: scored.length, shown: Math.min(scored.length, FIND_LIMIT), capabilities: scored.slice(0, FIND_LIMIT).map(row => describe(row.view, Boolean(gateway.client.direct?.(row.view)))) });
     }),
-    [GATEWAY_TOOLS.read]: guarded(async (args, signal) => { const parsed = parseCapability(args); return invoke(parsed, await current(parsed, false), signal); }),
+    [GATEWAY_TOOLS.read]: guarded(async (args, signal) => {
+      const parsed = parseCapability(args);
+      return invokeGatewayAction(gateway.client, parsed, await current(parsed, false), signal, timeoutMs);
+    }),
     // A proposal for the person: recorded by the caller, checked against the capability as it is now; runs nothing.
     [GATEWAY_TOOLS.suggest]: guarded(async args => {
       if (!gateway.client.offer) throw new ActionError("actions.forbidden", "This round cannot offer actions.");
@@ -273,7 +270,7 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
       const held = reviews?.forCall(callId, GATEWAY_TOOLS.change, args);
       try {
         await held?.control.beforeEffect(); held?.control.assertCurrent();
-        return await invoke(parsed, held?.view ?? await current(parsed, true), signal, true, held?.control);
+        return await invokeGatewayAction(gateway.client, parsed, held?.view ?? await current(parsed, true), signal, timeoutMs, true, held);
       } finally { reviews?.release(callId); }
     }),
     // A change that says how it is undone, which the person lets run without asking: it runs now and can be taken back.
@@ -286,7 +283,7 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
         if (!gateway.client.direct?.(view)) throw new ActionError("actions.gateway_mismatch", `This change is not one the person lets run without asking; call it with ${GATEWAY_TOOLS.change}, which asks them first.`);
         await held?.control.beforeEffect();
         held?.control.assertCurrent();
-        const output = await invoke(parsed, view, signal, true, held?.control);
+        const output = await invokeGatewayAction(gateway.client, parsed, view, signal, timeoutMs, true, held);
         return JSON.stringify({ result: JSON.parse(output), note: "It can be undone. Tell the person what changed and that they can undo it from this work's panel." });
       } finally { reviews?.release(callId); }
     }),

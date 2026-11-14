@@ -46,8 +46,9 @@ export function roundGateway(deps: Pick<RunDeps, "state" | "runtime" | "options"
     : prologueActionTools(input.actions, Math.min(60_000, runtime.tools.limits.maxTimeoutMs), actionController.signal, input.character.tools.includes(SUGGEST_HOST_TOOL),
       // The symbol tool is part of this pack's identity (the catalog allows one registration per name and `prepare` compares content).
       !none && input.root_path !== undefined && input.character.tools.includes(FIND_SYMBOL_HOST_TOOL), reviews);
-  if (input.action_gateway) {
-    state.gatewayRuns.set(input.session_id, { ...input.action_gateway, declare: gatewayTools?.declare });
+  const gateway = gatewayForRun && { ...gatewayForRun, declare: gatewayTools?.declare };
+  if (gateway) {
+    state.gatewayRuns.set(input.session_id, gateway);
     if (gatewayTools) { state.gatewayKnown.set(input.session_id, gatewayTools.known); state.gatewayOffered.set(input.session_id, gatewayTools.offered); }
   }
   if (input.action_gateway || input.actions || work || mcp) {
@@ -61,7 +62,7 @@ export function roundGateway(deps: Pick<RunDeps, "state" | "runtime" | "options"
           ? actionWorkVerdict(work) : workToolVerdict(work, context);
         if (verdict?.kind === "deny") return verdict;
         await mcp?.prepare(context.origin, context.toolName, context.input);
-        const problem = gatewayForRun ? await gatewayProblem(gatewayForRun, context.toolName, context.input, gatewayTools?.known, gatewayTools?.offered, { calls: reviews, origin: context.origin }) : null;
+        const problem = gateway ? await gatewayProblem(gateway, context.toolName, context.input, gatewayTools?.known, gatewayTools?.offered, { calls: reviews, origin: context.origin }) : null;
         if (problem) return { kind: "deny" as const, why: problem };
         if (actionTools && "prepareReview" in actionTools) await actionTools.prepareReview(context.origin, context.toolName, context.input);
         return verdict ?? { kind: "allow" as const };
@@ -104,6 +105,6 @@ export function roundGateway(deps: Pick<RunDeps, "state" | "runtime" | "options"
         : codeIntelligence === undefined ? unconfiguredSymbolIndex : codeIntelligence.symbolIndex,
       name: symbolToolName,
     }), names: [...actionTools.names, symbolToolName] };
-  return { actionController, actionTools: withCoding, parameterBranches: gatewayTools?.parameterBranches, codeIntelligence, symbolTool: wantsSymbols,
+  return { actionController, actionTools: withCoding, reviews, parameterBranches: gatewayTools?.parameterBranches, codeIntelligence, symbolTool: wantsSymbols,
     ...(symbolToolName === undefined ? {} : { symbolToolName }) };
 }

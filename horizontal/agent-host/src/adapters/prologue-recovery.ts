@@ -105,6 +105,8 @@ export function createPrologueRecovery(deps: RecoveryDeps) {
     if (index.workspace !== "none" && index.workspace !== "business") await deps.checkpoints?.restore(id);
     const terminal = await session.terminalRuns();
     const open = await runtime.listOpenWork();
+    const uncertainRuns = new Set(runtime.effects.openEffects().filter(effect => effect.proposal.origin?.session === id)
+      .map(effect => effect.proposal.origin?.run));
     const reasons = await restoreReasons(id, index, terminal, open);
     const runs: PrologueRestoredSession["runs"] = [];
     const reverse = [...index.attempts].reverse();
@@ -128,6 +130,7 @@ export function createPrologueRecovery(deps: RecoveryDeps) {
         ...(attempt.timing ? { timing: attempt.timing } : {}),
         ...(attempt.desktop_target ? { desktop_target: attempt.desktop_target } : {}),
         ...(ref ? { terminal: true } : {}),
+        ...(uncertainRuns.has(attempt.run_id) ? { uncertain_effect: true as const } : {}),
         ...(!ref ? { original_questions: pendingQuestions.filter(pending => pending.origin?.run === attempt.run_id).map(pending => ({ pending_id: pending.ref.id, pending_revision: pending.ref.revision, kind: pending.kind, why: pending.why })) } : {}),
         events: ref ? await session.replay(ref) : await session.readRunProgress({ kind: "run", id: attempt.run_id, revision: 1 }) });
     }

@@ -10,14 +10,14 @@ export function restoredSessionRecords(restored: PrologueRestoredSession, readCa
     ...(restored.recovery ? { recovery: restored.recovery } : {}) };
   const records: RunRecord[] = [];
   for (const saved of restored.runs) {
-    const { state, endedAt } = restorePrologueRun(saved, waiting => readCall?.(saved.ref, waiting));
+    const { state, phase, endedAt } = restorePrologueRun(saved, waiting => readCall?.(saved.ref, waiting));
     // Replayed records are immutable observations. A new Run continues the
     // same SDK session; old control handles cannot be resurrected.
     const unavailable = (): never => { throw agentErrors.capability_unavailable("历史执行没有活动控制句柄，不能重放停止、回答或继续指令"); };
-    const control: PrologueControlPort = { state: state.phase === "reconcile-required" ? "reconcile-required" : "running",
+    const control: PrologueControlPort = { state: phase === "reconcile-required" ? "reconcile-required" : "running",
       stop: unavailable, pause: unavailable, resume: unavailable, steer: unavailable, subscribe: () => () => {} };
     const view: AgentRunView = { ref: saved.ref, frozen: saved.frozen, started_at: saved.started_at, ended_at: endedAt,
-      phase: state.phase, turns: [], activity: [], usage: state.usage, awaiting_input: [],
+      phase, turns: [], activity: [], usage: state.usage, awaiting_input: [],
       ...(saved.original_input ? { original_input: structuredClone(saved.original_input) } : {}),
       ...(saved.memory_context?.class_restrictions ? { class_restrictions: structuredClone(saved.memory_context.class_restrictions), memory_scene: saved.memory_context.current_scene } : {}) };
     records.push({ view, state, control, unsubscribe: () => {}, listeners: new Set(), timingReady: true,
@@ -73,5 +73,5 @@ export function restorePrologueRun(saved: PrologueRestoredSession["runs"][number
     }
   }
   if (state.phase === "cancelled" && saved.stop_intent === "stopped") { state.phase = "stopped"; state.stop_reason = saved.stop_reason ?? "已停止"; }
-  return { state, endedAt };
+  return { state, endedAt, phase: saved.uncertain_effect ? "reconcile-required" as const : state.phase };
 }

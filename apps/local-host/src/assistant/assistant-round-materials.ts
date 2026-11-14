@@ -5,7 +5,7 @@ import { isSubjectReader, type ActionSubjectContext, type ActionView } from "@mo
 import type { AssistantDelegations } from "./assistant-delegation.js";
 import type { AssistantMethod, AssistantMethodSelection, AssistantContextSnapshot, AssistantMaterial, AssistantMaterialText } from "@molis-ai/molis-work-contracts/services/assistant";
 import { ASSISTANT_METHOD_ACTIONS } from "./assistant-rule-actions.js";
-import { SKILLS_PROVIDER_ID, skillCatalogActions } from "@molis-ai/molis-work-contracts/services/skills";
+import { SKILL_ROUND_AUTO_LIMIT, SKILLS_PROVIDER_ID, skillCatalogActions } from "@molis-ai/molis-work-contracts/services/skills";
 import { capabilityDirectory, knowledgeDirectory, knowledgeFact } from "./assistant-directory.js";
 import { identity } from "./assistant-relations.js";
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
@@ -16,7 +16,7 @@ import type { MemoryService } from "@molis-ai/molis-work-service-memory";
 import type { PersonActions } from "./assistant-executor.js";
 import { landingMaterials } from "./assistant-landing.js";
 import { readPickedPiece } from "./assistant-send-materials.js";
-import { skillRefKey } from "@molis-ai/molis-work-plugin-sdk/skill-ref";
+import { skillChoiceRow, skillRefKey } from "@molis-ai/molis-work-plugin-sdk/skill-ref";
 import { RUNTIME, belongsElsewhere, whereNow, type AssistantServicePorts, type RoundMaterials } from "./assistant-service-shared.js";
 import { RELATION_WORDS, describeObjects } from "./assistant-present.js";
 import type { AssistantWorkReads } from "./assistant-work-reads.js";
@@ -63,7 +63,9 @@ export class AssistantRoundMaterials {
   readonly images = new Map<string, { revision: number; media_type: string }>();
 
   /** The round's situation and the person's materials, as marked data. Changing facts travel here, not in the role. */
-  async roundMaterials(work: StoredWork, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, offered: readonly ActionView[], unavailable: readonly ActionView[], previousWaitWithdrawn: boolean): Promise<RoundMaterials> {
+  async roundMaterials(work: StoredWork, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, offered: readonly ActionView[], unavailable: readonly ActionView[], previousWaitWithdrawn: boolean,
+    /** False for 「这次不用技能」: the automatic Skills are not listed, as the catalog would refuse them. */
+    autoSkills = true): Promise<RoundMaterials> {
     const zone = this.ports.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
     const now = this.now();
     const local = format.date(now.toISOString(), "datetime", { time_zone: zone });
@@ -148,15 +150,15 @@ export class AssistantRoundMaterials {
     const methods = work.executor.kind === "plugin" ? [] : await this.link.methods(work).catch(() => [] as AssistantMethod[]);
     const chosen = new Set(materials.flatMap(item => item.kind === "method" && item.method ? [methodKey(item.method)] : []));
     const listed: object[] = [];
-    for (const method of methods.filter(item => !chosen.has(methodKey(item)) && (item.kind !== "skill" || item.skill.state === "auto")).slice(0, 20)) {
-      const row = method.kind === "skill" ? { kind: "skill", ref: method.skill.ref, name: method.skill.name, description: method.skill.description,
-        ...(method.skill.when_to_use ? { when_to_use: method.skill.when_to_use } : {}), plugin_title: method.skill.pack.title } : method;
+    for (const method of methods.filter(item => !chosen.has(methodKey(item)) && (item.kind !== "skill" || (autoSkills && item.skill.state === "auto"))).slice(0, 20)) {
+      const row = method.kind === "skill" ? { kind: "skill", ...skillChoiceRow(method.skill), plugin_title: method.skill.pack.title } : method;
       if (JSON.stringify([...listed, row]).length > 18_000) break;
       listed.push(row);
     }
     const skillRead = skillCatalogActions.readBodies;
     if (listed.length) out.push({ material_id: "methods", title: "可用角色资料与方法", text:
-      `按需读取资料：方法（kind 为 skill）用 read-capability，capability_id 为 ${skillRead.capability_id}，version 为 ${skillRead.version}，provider_id 为 ${SKILLS_PROVIDER_ID}，input 是对象，例如 {"refs":[目录中的完整 ref]}；` +
+      `按需读取资料：方法（kind 为 skill）用 read-capability，capability_id 为 ${skillRead.capability_id}，version 为 ${skillRead.version}，provider_id 为 ${SKILLS_PROVIDER_ID}，input 是对象，例如 {"refs":[目录中的完整 ref]}。` +
+      `方法由你按这一轮的任务自己挑：对照 description、when_to_use 和 when_not_to_use，只读真正用得上的，一轮最多 ${SKILL_ROUND_AUTO_LIMIT} 个（再多会被拒绝为 over_limit）；都不合适就不读。用户点名的方法已经在这一轮里，优先按它做，不占这个名额。` +
       `角色资料（kind 为 role）用 read-capability 的 capability_id 为 ${ASSISTANT_METHOD_ACTIONS.read.capability_id}，version 为 ${ASSISTANT_METHOD_ACTIONS.read.version}，provider_id 为 ${ASSISTANT_METHOD_ACTIONS.read.provider_id}。input 是对象，例如 {"method_id":"signed/role-id"}，必须附目录中的完整 default_ref 和 installation。\n` +
       SIGNED_MATERIAL_NOTICE + "\n" + JSON.stringify(listed) });
     // The object the person is on, as its owner has it: where it stands and what it belongs to. The page's claim is

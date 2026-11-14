@@ -1,7 +1,8 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { AssistantMethodSelection } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { SignedAgentInstallation, SignedAgentReference, SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
-import type { SkillCatalogEntry } from "@molis-ai/molis-work-contracts/services/skills";
+import type { SkillCatalogEntry, SkillPick } from "@molis-ai/molis-work-contracts/services/skills";
+import { skillRefKey } from "@molis-ai/molis-work-plugin-sdk/skill-ref";
 import type { SignedRoleView } from "../agent-definitions/agent-definitions.js";
 import type { MethodHandoff, ReadRoleMaterial } from "./assistant-signed-materials.js";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
@@ -305,10 +306,21 @@ export class AssistantWorkReads {
       materials: round.materials.map(({ text: _text, ...rest }) => rest.kind === "image" && rest.image && !this.link.holdsImage(rest.image) ? { ...rest, expired: true } : rest),
       phase: view?.phase ?? "unknown", turns: spokenTurns(view?.turns ?? []), activity: presentActivity(view?.activity ?? [], titles, view ? isTerminalAgentPhase(view.phase) : false), awaiting_input: view?.awaiting_input ?? [],
       ...(view?.usage ? { usage: view.usage } : {}), ...roundModel(view), ...(view?.stop_reason ? { stop_reason: stopInWords(view.stop_reason, round.work_budget) } : {}),
-      ...(view?.todo?.length ? { steps: view.todo.map(({ id, text, state }) => ({ id, text, state })) } : {}), ...(view?.retry_wait ? { retry_wait: { ...view.retry_wait } } : {}), ended_at: view?.ended_at ?? null };
+      ...(view?.todo?.length ? { steps: view.todo.map(({ id, text, state }) => ({ id, text, state })) } : {}), ...(view?.retry_wait ? { retry_wait: { ...view.retry_wait } } : {}), ended_at: view?.ended_at ?? null,
+      ...(view && round.executor !== "plugin" ? { skills: roundSkillPicks(round, view) } : {}) };
   }
 
   publicWork(work: StoredWork, state: AssistantWorkState): AssistantWork {
     return workView(work, state, this.link.delegations.shown(work));
   }
+}
+
+/**
+ * The Skills one round used (SKL-11): those the person named for it (its materials, as stored), then those the round read of its own
+ * choice (the runtime's record of its catalog reads). A named one the round read again is listed once, as named.
+ */
+export function roundSkillPicks(round: Pick<StoredRound, "materials">, view: Pick<AgentRunView, "skill_reads">): SkillPick[] {
+  const named = new Map(round.materials.flatMap(item => item.kind === "method" && item.method?.kind === "skill"
+    ? [[skillRefKey(item.method.ref), { ref: item.method.ref, name: item.title, picked: "named" as const }] as const] : []));
+  return [...named.values(), ...(view.skill_reads ?? []).filter(read => !named.has(skillRefKey(read.ref))).map(read => ({ ...read, picked: "auto" as const }))];
 }

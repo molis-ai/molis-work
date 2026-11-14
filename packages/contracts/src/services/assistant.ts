@@ -1,6 +1,6 @@
 import type { MaterialRef } from "../platform/project-materials.js";
 import type { SignedAgentReference, SignedAgentInstallation, SkillRef } from "./agent-definitions.js";
-import type { SkillCatalogEntry } from "./skills.js";
+import type { SkillCatalogEntry, SkillPick } from "./skills.js";
 import type { AssistantMemoryCandidate, AssistantRoundMemory } from "./assistant-memory.js";
 export type { AssistantMemory, AssistantMemoryCandidate, AssistantMemoryPrefs, AssistantRoundMemory } from "./assistant-memory.js";
 import type { AssistantCard, AssistantPreparedCard } from "./assistant-cards.js";
@@ -341,6 +341,12 @@ export interface AssistantRound {
   /** While a model call of this round waits to try again: when and why, as the runtime said (the page counts down to it). */
   retry_wait?: AgentRetryWait;
   ended_at: string | null;
+  /**
+   * The Skills this round used (SKL-11): the ones the person named for it, then the ones the Assistant read of its own choice, from
+   * the runtime's record of the round's catalog reads. Empty when it used none; absent for a round a plugin's Agent ran (its own page
+   * says what it used) or one the runtime has no record of.
+   */
+  skills?: SkillPick[];
   /** The memories this round was given, and the ones that matched but did not fit (specs/archive/memory-system §7.3). Deleted ones are not listed. */
   memories_used?: { used: AssistantRoundMemory[]; omitted: Array<AssistantRoundMemory & { reason: "budget" | "limit" }>;
     uncertain?: AssistantRoundMemory[]; unverified?: true; recording_error?: "memory.receipt_unrecorded" };
@@ -521,6 +527,12 @@ export interface AssistantSendInput extends Pick<AgentInputSend, "about"> {
    */
   delivery?: AgentSteerMode;
   reask?: AgentQuestionReask;
+  /**
+   * `false`: 「这次不用技能」 — the round this Send starts picks no automatic Skill; the ones named in `materials` are still used
+   * (SKL-11). It holds for that round only and changes no Skill's state. A Send that reaches a round under way starts none, so it
+   * changes nothing there.
+   */
+  auto_skills?: false;
   /** Identifies the content of this attempt when recovering a lost Send with the same request_id. Echoed only for the attempt that claimed it. */
   submission_id?: string;
   /** Draft revision paired with the text read or saved by the page. A delayed Send cannot replace a newer saved draft. */

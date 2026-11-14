@@ -234,7 +234,7 @@ export function readSandboxIntegrationPackage(payload: PluginPackagePayload): Sa
   const contract = validated('contract.json', () => { const raw = jsonFile(files, SANDBOX_PACKAGE_FILES.contract); assertContract(raw); return raw; });
   if (contract.pluginId !== manifest.plugin_id) refuse('contract.json 的 pluginId 与清单的 plugin_id 不一致');
   const expected = sandboxIntegrationManifest({ pluginId: manifest.plugin_id, version: manifest.version, name: manifest.name, publisher: manifest.publisher, contract, textDeclarations: manifest,
-    upgradeCompatibility: manifest.upgrade_compatibility, stateMachines: manifest.state_machines, connection_services: services, integrations, source_presentations: manifest.source_presentations });
+    upgradesFrom: manifest.upgrade_compatibility?.compatible_from_versions, stateMachines: manifest.state_machines, connection_services: services, integrations, source_presentations: manifest.source_presentations });
   if (!isDeepStrictEqual(JSON.parse(JSON.stringify(manifest)), JSON.parse(JSON.stringify(expected)))) {
     refuseManifestShape(manifest.permissions, '清单不是沙箱集成的形状：入口、权限要是平台的，运行范围是 Home，不能有路由或界面');
   }

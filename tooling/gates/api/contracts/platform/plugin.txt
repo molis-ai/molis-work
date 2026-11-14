@@ -5146,7 +5146,7 @@ export declare const STATE_MACHINE_DECLARATION_LIMITS: {
     readonly machines: 32;
     readonly states: 64;
     readonly transitions: 256;
-    readonly id: 160;
+    readonly id: number;
     readonly localId: 64;
 };
 
@@ -6434,6 +6434,7 @@ export declare const pluginErrors: import("platform/action-errors").ErrorCodeRai
     readonly storage_denied: "invalid";
     readonly storage_input_invalid: "invalid";
     readonly uninstall_cleanup_pending: "unavailable";
+    readonly upgrade_activation_failed: "unavailable";
     readonly upgrade_required: "invalid";
     readonly upgrade_rollback_failed: "invalid";
     readonly upgrade_validation_failed: "invalid";

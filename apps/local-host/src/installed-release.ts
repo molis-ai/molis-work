@@ -20,6 +20,7 @@ export type InstalledRelease = AgentRelease & {
   readonly packaged?: {
     readonly manifest: PluginManifest;
     readonly trust: PluginTrust;
+    readonly entrypointSha256?: string;
     readonly agentBodies?: readonly SandboxAgentBody[];
     readonly blueprint?: ContentPackage['blueprint'];
     readonly localePacks?: PluginLocaleReader | null;

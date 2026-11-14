@@ -400,7 +400,10 @@ export function upgradePluginProjectTables(connection: PluginRuntimeDatabase,
   const { declaration } = owner, found = pluginProjectTablesVersion(connection, owner.plugin_id), to = declaration.version;
   if (found === undefined || found === to) return found === undefined ? undefined : { from: to, to };
   const where = `项目库 ${options.path} 里插件 ${owner.plugin_id} 的表`;
-  if (found > to) throw pluginProjectDatabaseErrors.version_mismatch(`${where} 是第 ${found} 版，比这次声明的第 ${to} 版新，不读也不写`);
+  if (found > to) {
+    const refusal = options.beforeSteps ? pluginProjectDatabaseErrors.store_too_new : pluginProjectDatabaseErrors.version_mismatch;
+    throw refusal(`${where} 是第 ${found} 版，比这次声明的第 ${to} 版新，数据未改动`);
+  }
   // The first layer before anything else: a step no plugin may write is refused as that, without opening a scratch database for it.
   const label = { where, from: found, to }, steps = chain(declaration, found, label);
   const target = platformDeclaration(declaration, inspector, options.platformSchema, options.platformPrelude);

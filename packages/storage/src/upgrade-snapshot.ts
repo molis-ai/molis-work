@@ -354,3 +354,17 @@ export function pruneUpgradeSnapshots(lock: UpgradeHomeLock, keepRunId: string):
     syncPath(upgrade);
   });
 }
+
+/** A finished, single-unit install operation no longer needs its temporary copy. Leave other upgrade rounds alone. */
+export function discardUpgradeSnapshot(unit: UpgradeSnapshotUnit): void {
+  assertHomeLock(unit);
+  const paths = unitPaths(unit);
+  attempt("prune_failed", paths.label, () => {
+    if (!present(paths.run)) return;
+    assertOrdinaryPlaces(paths);
+    const entries = readManifest(paths, unit.runId);
+    if (entries.length !== 1 || entries[0]?.path !== unit.relativePath) throw fail("snapshot_invalid", paths.label);
+    rmSync(paths.run, { recursive: true, force: true });
+    syncPath(paths.upgrade);
+  });
+}

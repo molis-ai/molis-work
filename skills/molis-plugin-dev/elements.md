@@ -22,7 +22,7 @@ Manifest 定义在 `packages/contracts/src/platform/plugin-manifest.ts`，仍从
 - `migratable_from_versions`：允许用户手动升级。目标定义实现 `validateUpgrade({ from, context })`。签名沙箱包声明只读 `validateUpgrade` 查询，输入旧插件版本、输出布尔值。修改库结构时，同一 Manifest 带目标结构和逐版 SQL 升级段。
 - 来源必须是精确 SemVer；较高版本的来源必须早于当前 `version`，只有 `compatible_from_versions` 可列出与 Manifest 相同的版本。未声明的来源不能升级；升级不能降低版本。
 - Runtime 检查目标 Manifest 保留全部旧 grant 和必需权限，不会自动授予新权限。相同身份的普通安装仍要求指纹一致；同版本不同 Manifest 只有明确兼容声明才可用于继续运行，存储的版本与指纹保持不变。
-- `validateUpgrade` 的 Host 服务限于原安装的只读 `storage:private.get`。SQL 与安装版本一同提交。提交前失败时保留原版本、grant 和存储，受影响的库对应插件进入「暂不可用」。
+- `validateUpgrade` 的 Host 服务限于原安装的只读 `storage:private.get`。SQL 与安装版本一同提交。提交前失败时保留原版本、grant 和存储，受影响的库对应插件进入「暂不可用」。新版本在提交后无法激活时，宿主保留新版本和新库，现有「暂不可用」卡片说明原因。
 
 内置插件（监督器条目 `trust: HOST_BUILD_TRUST`）不用这些声明：它随宿主版本升级，安装记录跟着提升。授权和其他插件同一规则：必需的总有，可选的按人留下的给，人关掉的可选权限升级后仍关着（项目设置的插件页对每项可选权限有开关，只有本人能开关，关掉立即生效、插件重启一次）；新 Manifest 不再声明的去掉，新声明的可选权限像新装一样默认打开（全新安装时可选的都默认打开）。所以给内置插件加一项可选权限，已装的人升级后就有；关了它，只是用到它的动作不可用。
 

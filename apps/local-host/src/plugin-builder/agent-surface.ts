@@ -206,7 +206,7 @@ export async function installedPluginStages(options: AgentStudioOptions): Promis
     if (!release) return [];
     const surface = installedStageSurface(release), words = installedPluginWords(release), label = words.name;
     const directory: PluginDirectoryEntry = { id: surface, plugin_id: item.plugin_id, chosen: false, ...words };
-    if (item.state === 'disabled' && item.last_error_code && release.packaged?.manifest.databases?.project &&
+    if ((item.state === 'disabled' || item.state === 'crashed') && item.last_error_code && release.packaged?.manifest.databases?.project &&
         release.packaged.manifest.ui.views?.some(view => view.slot === 'stage')) {
       const failure = installed.recoveryErrors.get(item.plugin_id);
       const code = item.last_error_code;

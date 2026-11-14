@@ -18,11 +18,11 @@ import { advanceReadCheckGeneration, outsidePluginAction } from "./action-scope.
 import { OfferedContributions } from "./offered-contributions.js";
 import { MemoryPluginRuntimeRepository } from "./memory-repository.js";
 import { NativePluginExecutor } from "./native-executor.js";
-import { assertRecoverableState, assertRequiredGrants, cloneRecord, declaresOnly, definitionKey, installIdentity, normalizeErrorCode, requireDefinition, requireInstall, safeErrorCode, safeErrorMessage, sameStrings, selectedEntrypoint, startedInstall, validateManifest } from "./runtime-rules.js";
+import { assertRecoverableState, assertRequiredGrants, cloneRecord, declaresOnly, definitionKey, installIdentity, normalizeErrorCode, requireDefinition, requireInstall, runtimeFailureCodes, safeErrorCode, safeErrorMessage, sameStrings, selectedEntrypoint, startedInstall, validateManifest } from "./runtime-rules.js";
 import { captureStartControl, createActivationContext, releaseRejectedActivation, releaseUnrecorded } from "./activation-context.js";
 import { regrantInstall } from "./regrant.js";
 import { assertPluginUpgradeSteps } from "./plugin-upgrade-steps.js";
-import { commitInstalledVersion, installedDatabaseChange, validateUpgradeFor } from "./plugin-database-version.js";
+import { commitInstalledVersion, installedDatabaseChange, validateUpgradeFor, recordUpgradeActivationFailure } from "./plugin-database-version.js";
 import type { PluginContributionSource } from "./lifecycle.js";
 
 export * from "./public-api.js";
@@ -324,14 +324,12 @@ export class PluginRuntime implements PluginRuntimeApi {
           : await this.startOnce(input.install_id, { assertCurrent: restoration?.assertRestored ?? input.assertCurrent });
         return { ...receipt, operation: rollbackCode ? "rollback" : "upgrade", replayed: false };
       } catch (error) {
-        const currentInstall = () => this.repository.list().find(item => item.install_id === input.install_id) ?? null;
+        const currentInstall = () => this.repository.get(input.install_id);
         if (committedDatabase) {
           input.assertCurrent?.();
-          const latest = currentInstall();
-          if (latest && holdsInstalledEdition(latest, committedDatabase) && latest.state !== "running") {
-            this.repository.save({ ...latest, state: "disabled", last_error_code: safeErrorCode(error), updated_at: this.now() });
-          }
-          throw error;
+          const failure = pluginErrors.upgrade_activation_failed("插件库已升级，新版本暂时无法启动");
+          recordUpgradeActivationFailure(this.repository, committedDatabase, this.now());
+          throw failure;
         }
         if (restoration && error instanceof ActionError && error.code === "actions.provider_replaced") throw error;
         const failed = currentInstall();
@@ -341,17 +339,20 @@ export class PluginRuntime implements PluginRuntimeApi {
           try { await this.executor.restorePrivateData!(input.install_id, privateDataSnapshot); }
           catch (restoreError) { dataRollbackError = restoreError; }
         }
-        let interrupted = false;
-        try { input.assertCurrent?.(); } catch { interrupted = true; }
-        const rollback: PluginInstanceRecord = interrupted && !dataRollbackError ? current : {
+        let interruption: { error: unknown } | undefined;
+        try { input.assertCurrent?.(); } catch (error) { interruption = { error }; }
+        const revoked = databaseChange && interruption?.error instanceof ActionError &&
+          (interruption.error.code === "actions.provider_replaced" || interruption.error.code === "plugin.publisher_revoked" || interruption.error.code === "actions.host_closed");
+        if (revoked) throw interruption?.error;
+        const rollback: PluginInstanceRecord = interruption && !dataRollbackError ? current : {
           ...stopped,
-          state: dataRollbackError || databaseChange ? "disabled" : stopped.state,
+          state: dataRollbackError ? "disabled" : databaseChange && current.state !== "disabled" ? "crashed" : stopped.state,
           last_error_code: dataRollbackError ? "plugin.upgrade_rollback_failed" : safeErrorCode(error),
           updated_at: this.now(),
         };
         if (!holdsInstalledEdition(currentInstall(), databaseChange ? stopped : recoverable)) throw error;
         this.repository.save(rollback);
-        if (oldDefinition && !dataRollbackError && (!databaseChange || interrupted) && current.state !== "disabled") {
+        if (oldDefinition && !dataRollbackError && (!databaseChange || interruption) && current.state !== "disabled") {
           // Restore the pre-upgrade implementation after a failed candidate start (a switched-off install stays off).
           // Its stable install id keeps access to the same private data.
           try { await this.startOnce(input.install_id); } catch { /* the original upgrade error remains authoritative */ }
@@ -409,6 +410,17 @@ export class PluginRuntime implements PluginRuntimeApi {
   stop(installId: string, options: { preserve_enabled?: boolean } = {}): Promise<PluginLifecycleReceipt> {
     this.revokeContext(installId, true); // Withdraw authority now; retain the context for the queued cleanup hook.
     return this.locks.run(installId, () => this.stopOnce(installId, options.preserve_enabled === true));
+  }
+
+  pauseAfterUpgrade(installId: string, manifestDigest: string, assertCurrent: () => void): Promise<void> {
+    return this.locks.run(installId, async () => {
+      assertCurrent();
+      const original = this.repository.get(installId);
+      if (original?.manifest_digest !== manifestDigest || original.state !== "running") return;
+      try { await this.stopOnce(installId); }
+      catch (error) { if (!(error instanceof ActionError) || error.code !== "plugin.executor_failed") throw error; }
+      finally { assertCurrent(); recordUpgradeActivationFailure(this.repository, original, this.now()); }
+    });
   }
 
   reportCrash(installId: string, errorCode = "plugin.process_crashed"): Promise<PluginLifecycleReceipt> {
@@ -756,28 +768,6 @@ function forgetUninstalledDefinitions(definitions: Map<string, PluginDefinition>
     if (definition.manifest.plugin_id === current.plugin_id && definition.manifest.publisher.signature === current.publisher_signature) definitions.delete(key);
   }
 }
-
-const runtimeFailureCodes = {
-  "plugin.manifest_invalid": true,
-  "plugin.definition_missing": true,
-  "plugin.definition_conflict": true,
-  "plugin.entrypoint_missing": true,
-  "plugin.grant_denied": true,
-  "plugin.state_invalid": true,
-  "plugin.signer_mismatch": true,
-  "plugin.id_namespace_conflict": true,
-  "plugin.in_process_denied": true,
-  "plugin.install_replaced": true,
-  "plugin.executor_failed": true,
-  "plugin.contribution_kind_invalid": true,
-  "plugin.contribution_unredeemed": true,
-  "plugin.quarantined": true,
-  "plugin.upgrade_required": true,
-  "plugin.kept_data_incompatible": true,
-  "plugin.upgrade_validation_missing": true,
-  "plugin.upgrade_validation_failed": true,
-  "plugin.upgrade_rollback_failed": true
-} as const;
 
 export { createPluginMaterialsClient, type PluginMaterialsPort, type PluginMaterialsDispatch, type PluginMaterialsGate, type PluginOriginalFileKey } from "./materials-service.js";
 export { createPluginConnectionsClient, createCallConnectionsClient, type PluginConnectionsPort, type PluginConnectionDispatch, type PluginConnectionTarget, type PluginConnectionsGate,

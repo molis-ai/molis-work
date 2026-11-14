@@ -452,7 +452,6 @@ export interface SandboxIntegrationManifestInput {
     name: string;
     publisher: PluginManifest['publisher'];
     upgradesFrom?: readonly string[];
-    upgradeCompatibility?: PluginManifest['upgrade_compatibility'];
     stateMachines?: PluginManifest['state_machines'];
     connection_services: NonNullable<PluginManifest['connection_services']>;
     integrations: NonNullable<PluginManifest['integrations']>;
@@ -996,11 +995,13 @@ export declare function sandboxOperationActions(input: {
     version: number;
     title: string;
     scope: 'home' | 'project';
+    upgradeOperation?: string;
+    hasProjectDatabase?: boolean;
 }): ActionDefinition[];
 
 export declare function sandboxOperationEffects(contract: SandboxPluginContract, operation: SandboxOperationContract): SandboxEffects;
 
-export declare function sandboxOperationPermissions(effects: DerivedEffects | undefined): string[];
+export declare function sandboxOperationPermissions(effects: DerivedEffects | undefined, hasProjectDatabase?: boolean): string[];
 
 export declare function sandboxOperationSwitches(effects: Partial<Record<keyof SandboxEffects, readonly string[]>> | undefined): string[];
 
@@ -1026,6 +1027,8 @@ export declare function sandboxUiDeclaration(input: {
     name: string;
     ui?: SandboxUiContribution;
 }): UiContributionDeclaration;
+
+export declare function sandboxUpgradeOperation(manifest: Pick<PluginManifest, "upgrade_compatibility"> | undefined): string | undefined;
 
 export { sceneConfigurationActions } from "@molis-ai/molis-work-contracts/platform/actions";
 export { searchEntriesPage } from "@molis-ai/molis-work-contracts/platform/actions";

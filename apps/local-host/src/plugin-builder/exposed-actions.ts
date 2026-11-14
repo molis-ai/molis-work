@@ -1,4 +1,4 @@
-import { SANDBOX_VALIDATE_UPGRADE, sandboxOperationActions, sandboxOperationPermissions, sandboxActionId } from '@molis-ai/molis-work-plugin-sdk';
+import { sandboxUpgradeOperation, sandboxOperationActions, sandboxOperationPermissions, sandboxActionId } from '@molis-ai/molis-work-plugin-sdk';
 /**
  * An installed generated plugin offers its functions to the rest of the product (D16): each operation becomes an
  * action of the project's unified directory, provided by the plugin itself, so a person, the Home AI, an external MCP
@@ -9,7 +9,7 @@ import { SANDBOX_VALIDATE_UPGRADE, sandboxOperationActions, sandboxOperationPerm
  */
 import { ActionError, type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionExecutionPolicy, type ActionHandlerBinding, type ExactActionReference } from '@molis-ai/molis-work-contracts/platform/actions';
 import type { SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
-import type { AgentRelease } from '@molis-ai/molis-work-plugin-builder';
+import type { InstalledRelease as AgentRelease } from '../installed-release.js';
 import { runInPluginAction, pluginActionBeforeEffect, reservePluginInvocationPlace, type PluginInstance } from '@molis-ai/molis-work-plugin-runtime';
 
 import type { ProjectActions } from './catalog.js';
@@ -26,7 +26,7 @@ export function exposedActionReference(release: Pick<AgentRelease, 'buildId' | '
 }
 
 type Cost = NonNullable<ActionExecutionPolicy['cost']>;
-type PublishedOperations = Pick<AgentRelease, 'buildId' | 'pluginId' | 'version' | 'design'>;
+type PublishedOperations = Pick<AgentRelease, 'buildId' | 'pluginId' | 'version' | 'design' | 'packaged'>;
 const operationKey = (release: PublishedOperations, id: string) => {
   const { capability_id, version, provider_id } = exposedActionReference(release, id);
   return JSON.stringify([capability_id, version, provider_id]);
@@ -47,7 +47,7 @@ export function exposedOperationPolicies(releases: readonly PublishedOperations[
       const { operation, release } = operations.get(key)!;
       bindings.push(key);
       if (operation.kind !== 'query') effect = 'write';
-      for (const permission of sandboxOperationPermissions(operation.effects)) permissions.add(permission);
+      for (const permission of sandboxOperationPermissions(operation.effects, !!release.packaged?.manifest.databases?.project)) permissions.add(permission);
       if (operation.effects.networkDomains?.length || operation.effects.connections?.length) costs.push('unknown');
       // The person's model or image account is spent by these, whatever else the operation reaches (BL-491).
       if (operation.effects.model?.includes('invoke') || operation.effects.imageGeneration?.includes('generate')) costs.push('metered');
@@ -100,9 +100,10 @@ export interface InstalledPluginActions {
 export function exposeInstalledPlugin(actions: ProjectActions, release: AgentRelease, call: InstalledOperationCall, availability?: (context: ActionCallContext) => ActionAvailability, plugin?: PluginInstance,
   operationAvailability?: (operationId: string, context: ActionCallContext) => ActionAvailability): InstalledPluginActions {
   const providerId = exposedProviderId(release), title = release.design.title;
-  const operations = release.design.contract.operations.filter(operation => operation.id !== SANDBOX_VALIDATE_UPGRADE);
+  const upgradeOperation = sandboxUpgradeOperation(release.packaged?.manifest);
+  const operations = release.design.contract.operations.filter(operation => operation.id !== upgradeOperation);
   const definitions = sandboxOperationActions({ contract: release.design.contract, buildId: release.buildId, version: release.version, title,
-    scope: actions.project_id === null ? 'home' : 'project' });
+    scope: actions.project_id === null ? 'home' : 'project', upgradeOperation, hasProjectDatabase: !!release.packaged?.manifest.databases?.project });
   const handlers: ActionHandlerBinding[] = operations.map(operation => ({
     capability_id: exposedActionId(release, operation.id), version: release.version,
     handle: async (context, input) => {

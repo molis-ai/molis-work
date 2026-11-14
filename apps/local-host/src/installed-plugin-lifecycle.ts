@@ -35,6 +35,8 @@ export const covered = (next: SandboxEffects, approved: SandboxEffects) =>
 
 export interface InstalledLifecycleContext {
   platform: InstalledPluginPlatform;
+  readonly home: string;
+  readonly library: string | null;
   /** The place installations come off here: the project, or the Home (null); what an uninstall's owners note what they kept under (BL-915). */
   project_id: string | null;
   /** The project's own store, where approvals live. */

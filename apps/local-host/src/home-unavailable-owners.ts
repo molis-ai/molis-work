@@ -5,9 +5,10 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { readRollbackPoint } from "./installer/home-rollback.js";
 import { readUpgradeLedger, readUpgradeNotice, removeUpgradeNotice, type UpgradeNotice } from "./home-upgrade-ledger.js";
 import { homeUpgradeDescriptors, type UpgradeBlock } from "./home-upgrade-stores.js";
+import { hostLog } from "./host-log.js";
 
 /** Why a part of the product cannot be used after an upgrade (U3 design §2.4). Each has its own sentence and its own ways out. */
-export type UnavailableReason = "upgrade_failed" | "store_too_new" | "upgrade_no_space" | "snapshot_invalid";
+export type UnavailableReason = "upgrade_failed" | "upgrade_activation_failed" | "store_too_new" | "upgrade_no_space" | "snapshot_invalid";
 
 /** What the page says about a store an open refused: the part that stops, why, and the number to quote. */
 export interface UnavailableOwner {
@@ -79,6 +80,8 @@ const PLUGIN_TABLE_REASON: Readonly<Record<string, UnavailableReason>> = {
   "plugin.upgrade_validation_failed": "upgrade_failed",
   "plugin.home_database.version_mismatch": "upgrade_failed",
   "plugin.project_database.version_mismatch": "upgrade_failed",
+  "plugin.project_database.store_too_new": "store_too_new",
+  "plugin.upgrade_activation_failed": "upgrade_activation_failed",
 };
 
 export const isPluginTableRefusal = (code: string): boolean => Object.hasOwn(PLUGIN_TABLE_REASON, code) || Object.hasOwn(REASON_OF_CODE, code);
@@ -90,7 +93,8 @@ export const isPluginTableRefusal = (code: string): boolean => Object.hasOwn(PLU
  */
 export function describePluginTablesRefusal(home: string, pluginId: string, library: string | null,
   refusal: { readonly code: string; readonly details?: Readonly<Record<string, unknown>> }): UnavailableOwner | undefined {
-  let reason = PLUGIN_TABLE_REASON[refusal.code] ?? REASON_OF_CODE[refusal.code];
+  if (!isPluginTableRefusal(refusal.code)) return undefined;
+  let reason = Object.hasOwn(PLUGIN_TABLE_REASON, refusal.code) ? PLUGIN_TABLE_REASON[refusal.code] : REASON_OF_CODE[refusal.code];
   if (!reason) return undefined;
   const { recorded_version: recorded, declared_version: declared } = refusal.details ?? {};
   if (typeof recorded === "number" && typeof declared === "number" && recorded > declared) reason = "store_too_new";
@@ -105,6 +109,11 @@ export function describePluginTablesRefusal(home: string, pluginId: string, libr
     }
   } catch { /* A record that cannot be read gives no round to name; the refusal itself still says what is wrong. */ }
   return { block: { kind: "plugin", plugin_id: pluginId }, project_id: library ? projectOf(path) : null, reason, diagnostic_id: diagnosticId(runId, path) };
+}
+
+export function logInstalledUpgradeRefusal(home: string, pluginId: string, library: string | null, code: string): void {
+  const refusal = describePluginTablesRefusal(home, pluginId, library, { code });
+  if (refusal) hostLog.warn("host", "installed_plugin_upgrade_failed", undefined, { diagnostic_id: refusal.diagnostic_id, owner: pluginId });
 }
 
 /** The notice the home page shows once an interrupted upgrade is finished (§3), if there is one for the round the record is at. */

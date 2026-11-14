@@ -5,7 +5,7 @@ import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/pl
 import { pluginErrors, type HomePluginDatabaseDeclaration, type HomeStoreDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { reservedHomeName } from "./sandbox-home-names.js";
 import { openHomePluginDatabaseConnection } from "./plugin-database.js";
-import { inspectPluginHomeSchema, type PluginProjectSchemaInspector } from "@molis-ai/molis-work-plugin-runtime";
+import { inspectPluginHomeSchema, pluginProjectDatabaseErrors, type PluginProjectSchemaInspector } from "@molis-ai/molis-work-plugin-runtime";
 import { checkSqliteBaselineVersion, sqliteVersionRefusal, readStorageSpace, readDatabaseSpace, STORAGE_SPACE_SCHEMA_SQL, describeSqliteBaseline, describeSqliteSchema, homeSqlitePath, listSqliteObjects, snapshotFileStat, openBaselineHomeSqlite, openHomeSqliteFile, openReadOnlyHomeSqlite, type HomeStoreRegistry, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 
 // A library in the Home for a plugin the Host did not ship (PG-022 P1b, specs/archive/repository-anti-corruption/slices/pg022-manifest-declarations.md).
@@ -22,6 +22,17 @@ export const installedLibraryErrors = defineErrorCodes("plugin.home_database", {
   version_mismatch: "conflict",
   shape_mismatch: "conflict",
 });
+
+/** An authorized migration keeps the old edition when it cannot prove the source structure or owner. */
+export function checkUpgradeInput<T>(check: () => T): T {
+  try { return check(); }
+  catch (error) {
+    if (error instanceof ActionError && ["shape_mismatch", "publisher_mismatch", "object_taken"].some(reason => error.code.endsWith("." + reason))) {
+      throw pluginProjectDatabaseErrors.upgrade_failed("现有库的结构或归属与原安装不符，插件库没有升级");
+    }
+    throw error;
+  }
+}
 
 /** A plugin library's name: one directory of the Home. */
 export const INSTALLED_LIBRARY_NAME = /^[a-z][a-z0-9-]*$/u;

@@ -133,7 +133,8 @@ export async function runPluginCli(args: readonly string[], output: PluginCliOut
     // A language short of a word does not stop anything, and shows the default's word until someone adds it.
     const localeNotes = await validatePluginLocaleFiles(args[1]!, manifest);
     output.stdout(`${JSON.stringify({ valid: true, plugin_id: manifest.plugin_id, version: manifest.version, ...(sites.length ? { browser_sites: sites } : {}), ...(localeNotes.length ? { locale_notes: localeNotes } : {}),
-      ...(manifest.state_machines ? { state_machines: manifest.state_machines } : {}) })}\n`);
+      ...(manifest.state_machines?.length ? { state_machines: manifest.state_machines }
+        : { state_machine_notes: ['此 Manifest 未声明状态机；有状态的插件可填写 state_machines。'] }) })}\n`);
     return 0;
   } catch (error) {
     const code = error && typeof error === "object" && "code" in error ? error.code : "plugin.manifest_invalid";

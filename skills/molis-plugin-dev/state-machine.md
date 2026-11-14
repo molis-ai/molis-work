@@ -18,7 +18,7 @@
 import { defineStateMachine } from "@molis-ai/molis-work-plugin-sdk/state-machine";
 
 const collection = defineStateMachine({
-  machine_id: "io.example.forms.collection",
+  machine_id: "io.molis.work.forms.collection",
   version: 1,
   initial: "draft",
   terminal: ["closed"],

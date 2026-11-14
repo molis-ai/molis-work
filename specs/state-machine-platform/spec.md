@@ -89,15 +89,17 @@
 
 ```ts
 const session = defineStateMachine({
-  machine_id: "coding.session",        // <plugin_id>.<object>；平台内部用 platform.<owner>.<object>
+  machine_id: "io.molis.work.coding.session", // <plugin_id>.<object>
   version: 1,
   states: { idle: "idle", running: "running", waiting_answer: "answer", done: "done" },
   initial: "idle",
-  terminal: ["done", "cancelled", "stopped"],
+  terminal: ["done"],
   transitions: {
-    "round-started": { from: ["idle", "queued", "done", "failed"], to: "running",
+    "round-started": { from: ["idle"], to: "running",
       trigger: { capability_id: "coding.sessions.start", version: 1 } }, // 可选：哪个动作会触发
+    "question-asked": { from: ["running"], to: "waiting_answer" },
     "answer-received": { from: ["waiting_answer"], to: "running" },
+    "completed": { from: ["running"], to: "done" },
   },
 });
 ```

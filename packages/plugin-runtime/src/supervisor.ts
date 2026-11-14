@@ -14,6 +14,7 @@ import { buildEventContract, type PluginEventContract } from "./event-contract.j
 import { pluginManifestDigest } from "./identity.js";
 import { persistReleaseArtifact, resolveInstalledEntry, startInstallInput } from "./supervisor-releases.js";
 import { UNSIGNED_TRUST, isHostTrust } from "./trust-rules.js";
+import { holdsFailedDatabaseUpgrade } from "./plugin-database-version.js";
 import type { PluginTrust } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import type { PluginActiveInstance, PluginContributionSource, PluginHostLifecycle } from "./lifecycle.js";
 import {
@@ -454,6 +455,7 @@ export class PluginSupervisor implements PluginHostLifecycle {
       // The failed attempt did not move the installation, so the old implementation, running or not, keeps its own
       // event declarations; only the candidate entry stays registered for a retry.
       if (recovered.version === current.version) { if (activeContract) this.#contracts.set(pluginId, activeContract); else this.#contracts.delete(pluginId); }
+      else this.#activeEntries.set(pluginId, { ...entry, grants: recovered.grants });
       assertCurrent?.();
       if (off) { if (!prior) this.#entries.delete(pluginId); return failure; } // still switched off, as the person left it
       if (!this.#revoked.has(pluginId) && recovered.state === "running" && active?.status === "running" && active.install_id === current.install_id) {
@@ -503,6 +505,7 @@ export class PluginSupervisor implements PluginHostLifecycle {
         if (this.#revoked.has(pluginId) || (this.#epochs.get(pluginId) ?? 0) !== epoch) {
           return this.#revokedState(pluginId, installId);
         }
+        if (holdsFailedDatabaseUpgrade(record)) return this.#fail(pluginId, installId, record.last_error_code!, "插件库升级需要从安装入口重新确认");
         if (record.state === "crashed" || releaseQuarantine && record.state === "quarantined") {
           const receipt = await this.#runtime.recover(installId, { release_quarantine: releaseQuarantine });
           if (this.#revoked.has(pluginId) || (this.#epochs.get(pluginId) ?? 0) !== epoch) {

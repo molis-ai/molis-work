@@ -4,7 +4,7 @@ import { pathToFileURL } from "node:url";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import {
-  SqlitePluginPrivateStorage, SqlitePluginRuntimeRepository, pluginManifestDigest, pluginProjectDatabaseErrors,
+  SqlitePluginPrivateStorage, SqlitePluginRuntimeRepository, pluginManifestDigest, pluginProjectDatabaseErrors, pluginProjectTablesVersion,
   type PluginRuntimeDatabase,
 } from "@molis-ai/molis-work-plugin-runtime";
 import {
@@ -12,7 +12,7 @@ import {
 } from "@molis-ai/molis-work-storage";
 import { listProjectRoots, projectDatabasePath } from "@molis-ai/molis-work-module-projects";
 import {
-  INSTALLED_LIBRARY_UPGRADE_LEDGER, advanceInstalledLibraryUpgrade, checkInstalledLibraryUpgrade,
+  INSTALLED_LIBRARY_UPGRADE_LEDGER, advanceInstalledLibraryUpgrade, checkInstalledLibraryUpgrade, checkUpgradeInput,
   installedLibraryLedgerFile, installedLibrarySnapshots, validateInstalledSandboxHomeSchema,
 } from "./installed-plugin-libraries.js";
 import { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
@@ -64,8 +64,11 @@ function upgradeProject(request: ProjectCall, publish: () => void): void {
     const roots = listProjectRoots(db);
     if (roots.length !== 1 || roots[0]?.project_id !== request.projectId) throw storageRefusal();
     const label = `projects/${request.projectId}/${basename(file)}`;
+    const previous = request.change.previous.databases!.project!;
+    const found = pluginProjectTablesVersion(db, request.change.current.plugin_id);
+    if (found !== undefined && found > previous.version) throw pluginProjectDatabaseErrors.store_too_new("项目插件库来自比当前安装更新的版本");
     const result = upgradePluginTables(db, label, request.target, {
-      beforeSteps: () => { inspectInstalledProjectTables(db, label, request.change.previous); },
+      beforeSteps: () => { checkUpgradeInput(() => inspectInstalledProjectTables(db, label, request.change.previous)); },
       beforeCommit: () => { stageInstallRow(db, request); publish(); },
     });
     if (!result || result.from === result.to) throw storageRefusal();
@@ -114,7 +117,7 @@ function upgradeHome(request: HomeCall, publish: () => void): void {
     attachUpgradeDatabase(db, ledger, INSTALLED_LIBRARY_UPGRADE_LEDGER);
     attachUpgradeDatabase(db, runtime, RUNTIME);
     const result = upgradePluginLibrary(db, `${previous.store_name}/${basename(library)}`, request.target, {
-      beforeSteps: () => { checkInstalledLibraryUpgrade(home, owner, previous, reserved, db); },
+      beforeSteps: () => { checkUpgradeInput(() => checkInstalledLibraryUpgrade(home, owner, previous, reserved, db)); },
       beforeCommit: () => {
         advanceInstalledLibraryUpgrade(db, owner, previous, target);
         stageInstallRow(db, request, RUNTIME);

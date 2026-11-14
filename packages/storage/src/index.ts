@@ -28,6 +28,7 @@ export {
   assertUpgradeDiskSpace,
   captureUpgradeFileSnapshot,
   captureUpgradeSnapshot,
+  discardUpgradeSnapshot,
   pruneUpgradeSnapshots,
   restoreUpgradeSnapshot,
   upgradeSnapshotListed,

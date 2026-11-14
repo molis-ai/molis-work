@@ -70,11 +70,15 @@ export function sandboxOperationEffects(contract: SandboxPluginContract, operati
 /** Host-only preflight of a signed sandbox release, excluded from its callable actions. */
 export const SANDBOX_VALIDATE_UPGRADE = "validateUpgrade";
 
+export function sandboxUpgradeOperation(manifest: Pick<PluginManifest, "upgrade_compatibility"> | undefined): string | undefined {
+  return manifest?.upgrade_compatibility?.migratable_from_versions?.length ? SANDBOX_VALIDATE_UPGRADE : undefined;
+}
+
 export function assertSandboxUpgradeValidator(manifest: Pick<PluginManifest, "upgrade_compatibility">, contract?: SandboxPluginContract): void {
-  const operation = contract?.operations.find(item => item.id === SANDBOX_VALIDATE_UPGRADE);
-  const required = Boolean(manifest.upgrade_compatibility?.migratable_from_versions?.length);
-  if (!required && !operation) return;
-  if (!required || !operation || operation.kind !== "query" || operation.read_protocol || operation.external || operation.background_job
+  const id = sandboxUpgradeOperation(manifest);
+  if (!id) return;
+  const operation = contract?.operations.find(item => item.id === id);
+  if (!operation || operation.kind !== "query" || operation.read_protocol || operation.external || operation.background_job
     || operation.input.type !== "string" || operation.output.type !== "boolean"
     || Object.keys(operation.effects).some(effect => effect !== "storage") || operation.effects.storage?.some(value => value !== "read")
     || contract?.operations.some(item => item.effects.background?.includes(SANDBOX_VALIDATE_UPGRADE))
@@ -84,14 +88,14 @@ export function assertSandboxUpgradeValidator(manifest: Pick<PluginManifest, "up
 }
 
 /** One deterministic action projection for signed packages, generated releases and their running scopes. */
-export function sandboxOperationActions(input: { contract: SandboxPluginContract; buildId: string; version: number; title: string; scope: 'home' | 'project' }): ActionDefinition[] {
+export function sandboxOperationActions(input: { contract: SandboxPluginContract; buildId: string; version: number; title: string; scope: 'home' | 'project'; upgradeOperation?: string; hasProjectDatabase?: boolean }): ActionDefinition[] {
   const problems = sandboxBackgroundProblems(input.contract);
   if (problems.length) throw pluginErrors.declaration_invalid(problems.join('; '));
-  return input.contract.operations.filter(operation => operation.id !== SANDBOX_VALIDATE_UPGRADE).map(operation => {
+  return input.contract.operations.filter(operation => operation.id !== input.upgradeOperation).map(operation => {
     if (operation.read_protocol !== undefined) {
       const definition = sandboxReadProtocolAction(operation, { capabilityId: sandboxActionId(input.buildId, operation.id), version: input.version,
         title: input.title + ' · ' + (operation.description || operation.id), scope: input.scope,
-        permissions: sandboxOperationPermissions(operation.effects) });
+        permissions: sandboxOperationPermissions(operation.effects, input.hasProjectDatabase) });
       return { ...definition, action: { ...definition.action, local_id: operation.id } };
     }
     return {
@@ -99,7 +103,7 @@ export function sandboxOperationActions(input: { contract: SandboxPluginContract
       action: { local_id: operation.id, title: input.title + ' · ' + (operation.description || operation.id),
         description: '插件「' + input.title + '」的功能：' + (operation.description || operation.id), kind: operation.kind === 'query' ? 'query' : 'operation',
         scope: input.scope, scheduling: 'concurrent', audiences: ['user', 'agent', 'workflow', 'mcp', 'plugin'],
-        permissions: sandboxOperationPermissions(sandboxOperationEffects(input.contract, operation)), subject_kinds: [],
+        permissions: sandboxOperationPermissions(sandboxOperationEffects(input.contract, operation), input.hasProjectDatabase), subject_kinds: [],
         input_schema: { ...operation.input }, output_schema: { ...operation.output },
         ...(operation.external === undefined ? {} : { external: operation.external }),
         ...(operation.draft === undefined ? {} : { draft: operation.draft }),

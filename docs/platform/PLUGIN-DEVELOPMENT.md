@@ -352,7 +352,7 @@ Runtime 管理的首方 Native 工厂会保存为单文件发行物，写入当�
 
 `install_id` 是稳定的数据命名空间，重装可沿用保留的数据；持久任务还必须绑定 Runtime 的 `installation_generation`。后者在确认重装时更新，重启、停用/启用和版本升级保持不变。Host 直接读安装记录的 `installation_generation`，不从任务输入接受安装世代。Schedule 提醒与定时操作都按此规则隔离：世代不符的记录保留，不自动投递或执行，等重装后确认归属。
 
-`migratable_from_versions` 表示发布者允许从列出的旧版本手动升级，但不能据此直接启动新实现。目标 `PluginDefinition` 必须实现 `validateUpgrade({ from, context })`：在切换前只读检查 `storage:private` 数据能否被目标实现处理。校验上下文只提供只读的 `get` 和必要身份，不暴露其他 Host 服务。签名沙箱包以只读 `validateUpgrade` 查询声明同一项预检。通过后，Host 按目标版本执行连续 SQL 升级段并核对结构。换版和 SQL 升级在同一个提交点保存；提交前失败时，旧安装版本、grant 与数据得以保留，失败的库对应插件显示暂不可用。
+`migratable_from_versions` 表示发布者允许从列出的旧版本手动升级，但不能据此直接启动新实现。目标 `PluginDefinition` 必须实现 `validateUpgrade({ from, context })`：在切换前只读检查 `storage:private` 数据能否被目标实现处理。校验上下文只提供只读的 `get` 和必要身份，不暴露其他 Host 服务。签名沙箱包以只读 `validateUpgrade` 查询声明同一项预检；该查询仅供升级入口使用。通过后，Host 按目标版本执行连续 SQL 升级段并核对结构。换版和 SQL 升级在同一个提交点保存；提交前失败时，旧安装版本、grant 与数据得以保留，失败的库对应插件显示暂不可用。提交后无法激活时保留新库和新安装版本，现有卡片显示 `plugin.upgrade_activation_failed` 对应的原因。
 
 无论升级方式，目标 Manifest 都必须保留旧安装的全部 grant 声明及必需权限；升级不会重新授权、改变签名身份或创建新私人库。常规启动不会把新 Manifest 写成已安装版本；未声明支持的来源版本可在市场显示为不可升级，不会在项目启动时被静默替换。显式升级目标必须高于当前版本。项目包在当前项目升级，声明 Home 作用域的签名包在 Home Runtime 升级。
 
@@ -577,7 +577,7 @@ Host 解析 MCP 账号时可交出可信的同步 `assertCurrent`，闭包固定
 
 **安装**：`molis-work plugin install <signed-package.json> <project-id> [--pin-as <发布者名称>] [--confirm]`，交给这个 Home 的常驻 Host 去做（没有常驻 Host 就停下，不在命令自己的进程里装）。不带 `--confirm` 只预览：Host 验证签名，按上面的格式读一遍，再说明装上它意味着什么（发布者、有没有被固定过、要的权限）；加 `--confirm` 才装。发布者还没被固定时，`--confirm` 要同时给 `--pin-as` 名称，这是本人对这个公钥的信任，之后这个发布者的包不必再取名；固定可以撤销，已撤销的发布者的包在预览就被拒。界面里是同样的两个动作（`plugins.install.preview`、`plugins.install.confirm`），只接受本人的操作，Agent、MCP、工作流和插件都调不了。
 
-**拒绝**：包没有签名、内容被改、公钥不是清单里写的发布者，分别以 `plugin.signature_invalid`、`plugin.signer_mismatch` 拒绝；签名通过但不是上面的格式，以 `plugin.declaration_invalid` 拒绝，且发生在写入任何记录之前（固定的发布者、保存的包、安装记录都没有）。装好的包放在 Home 的 `plugin-packages/` 下，每次启动都重新验证签名和入口代码，被改过就不运行。从签名包装进来的插件：升级就是装它的更高版本的包（同一个发布者、清单的 `upgrade_compatibility.compatible_from_versions` 含当前版本，预览与确认照旧，数据保留）；停用、启用、卸载在项目设置的「插件」页，或经 `plugins.installed.{disable,enable,uninstall}@1`（只给本人）；回滚不支持，先卸载、再装旧的包。
+**拒绝**：包没有签名、内容被改、公钥不是清单里写的发布者，分别以 `plugin.signature_invalid`、`plugin.signer_mismatch` 拒绝；签名通过但不是上面的格式，以 `plugin.declaration_invalid` 拒绝，且发生在写入任何记录之前（固定的发布者、保存的包、安装记录都没有）。装好的包放在 Home 的 `plugin-packages/` 下，每次启动都重新验证签名和入口代码，被改过就不运行。同一发布者的高版本沿原预览和确认安装。清单的 `upgrade_compatibility` 须把当前版本列在兼容来源或可迁移来源之一，库结构变化使用上面的迁移预检与提交。停用、启用、卸载在项目设置的「插件」页，或经 `plugins.installed.{disable,enable,uninstall}@1`（只给本人）。旧版本如何读取升级后的数据，取决于它的库声明。
 
 ## 可复现验证
 

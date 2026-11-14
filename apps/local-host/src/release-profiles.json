@@ -8,6 +8,16 @@
     "nodeVersionFile": ".nvmrc"
   },
   "accountPolicyProfile": "unified-account-v2",
+  "connectorApplications": {
+    "test": {
+      "secretPrefix": "OAUTH_APP_",
+      "fallbackMapRef": "OAUTH_APPS"
+    },
+    "release": {
+      "secretPrefix": null,
+      "fallbackMapRef": null
+    }
+  },
   "macOS": {
     "machO": [
       "Contents/MacOS/*",
@@ -66,7 +76,6 @@
       "connectors": {
         "brokerOrigin": null,
         "applicationRefs": {},
-        "applicationSecretPrefix": "OAUTH_APP_",
         "applications": "test"
       },
       "publisherKeyRef": "MOLIS_WORK_DEV_PUBLISHER_KEY_FILE",
@@ -82,7 +91,6 @@
       "connectors": {
         "brokerOrigin": null,
         "applicationRefs": {},
-        "applicationSecretPrefix": "OAUTH_APP_",
         "applications": "test"
       },
       "publisherKeyRef": "MOLIS_WORK_TEST_PUBLISHER_KEY_FILE",
@@ -98,7 +106,6 @@
       "connectors": {
         "brokerOrigin": null,
         "applicationRefs": {},
-        "applicationSecretPrefix": null,
         "applications": null
       },
       "publisherKeyRef": null,

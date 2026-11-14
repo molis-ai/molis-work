@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { STATE_MACHINE_DECLARATION_LIMITS, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { STATE_VOCABULARIES } from "@molis-ai/molis-work-contracts/platform/state-vocabulary";
 import { STATE_RING_FAMILIES } from "@molis-ai/molis-work-contracts/platform/ui";
+import { KNOWLEDGE_CARD_STATES } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { defineStateMachine } from "@molis-ai/molis-work-plugin-sdk/state-machine";
 import { runPluginCli } from "@molis-ai/molis-work-plugin-cli";
@@ -62,6 +63,9 @@ test("SMP-03 SMP-05 SMP-15 definitions check edges and permit a trigger referenc
   assert.notEqual(machine.definition.transitions.finish.trigger, transitions.finish.trigger);
   assert.ok(Object.isFrozen(machine.definition.transitions.finish.trigger));
   assert.ok(Object.isFrozen(machine.definition.transitions.finish.from));
+  const trigger = { capability_id: "7Connector:Probe", version: 1 };
+  assert.deepEqual(defineStateMachine({ ...data, transitions: { ...transitions, finish: { ...transitions.finish, trigger } } }).definition.transitions.finish.trigger, trigger);
+  assert.deepEqual(KNOWLEDGE_CARD_STATES, Object.keys(STATE_VOCABULARIES.knowledgeCard.states));
   assert.equal(machine.family("active"), "running");
   assert.equal(machine.next("active", "finish"), "closed");
   assert.equal(machine.can("closed", "begin"), false);
@@ -70,6 +74,19 @@ test("SMP-03 SMP-05 SMP-15 definitions check edges and permit a trigger referenc
   assert.throws(() => defineStateMachine({ ...data, transitions: { begin: transitions.begin } }), { code: "state_machines.declaration_invalid" });
   assert.throws(() => defineStateMachine({ ...data, transitions: { ...transitions, broken: { from: ["idle"], to: "unknown" } } }), { code: "state_machines.declaration_invalid" });
   assert.throws(() => defineStateMachine({ ...data, machine_id: "no-dots", transitions }), { code: "state_machines.declaration_invalid" });
+});
+
+test("SMP-04 makes and validates the template for long plugin ids with a numeric segment", async t => {
+  const dir = await mkdtemp(join(tmpdir(), "molis-state-template-"));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const path = join(dir, "plugin");
+  const id = "io.molis.work." + "2state.".repeat(22) + "notes";
+  const messages: string[] = [];
+  const output = { stdout: (line: string) => messages.push(line), stderr: (line: string) => messages.push(line) };
+  assert.equal(await runPluginCli(["create", path, id, "example", "signed-label"], output), 0, messages.join("\n"));
+  assert.equal(await runPluginCli(["validate", join(path, "manifest.json")], output), 0, messages.join("\n"));
+  const created = JSON.parse(await readFile(join(path, "manifest.json"), "utf8")) as PluginManifest;
+  assert.equal(created.state_machines?.[0]?.machine_id, id + ".result");
 });
 
 test("SMP-05 state changes keep CAS and the caller's authority in the write port", async () => {

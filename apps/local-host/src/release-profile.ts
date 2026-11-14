@@ -10,6 +10,7 @@ export function releaseProfile(name: string) {
 export const releaseApplication = configuration.application;
 export const releaseMacOS = configuration.macOS;
 export const releaseRuntime = configuration.runtime;
+export const connectorApplications = configuration.connectorApplications;
 
 export function accountEnvironment(name: string) {
   if (!Object.hasOwn(configuration.accountEnvironments, name)) throw new Error("Choose dev, test or prod explicitly");
@@ -18,9 +19,11 @@ export function accountEnvironment(name: string) {
   return { ...config, productOrigin, policyProfile: configuration.accountPolicyProfile, redirectAllowlist: [productOrigin + "/account/callback"] };
 }
 
-export function connectorApplicationReference(profile: string, service: string): string | undefined {
-  const { applicationRefs, applicationSecretPrefix: prefix } = releaseProfile(profile).connectors;
+export function connectorApplicationReferences(profile: string, service: string) {
+  const { applicationRefs, applications } = releaseProfile(profile).connectors;
   const references: Readonly<Record<string, string>> = applicationRefs;
-  if (Object.hasOwn(references, service)) return references[service];
-  return prefix ? `${prefix}${service.replaceAll("-", "_").toUpperCase()}` : undefined;
+  const table = applications === null ? undefined : connectorApplications[applications as keyof typeof connectorApplications];
+  const primary = Object.hasOwn(references, service) ? references[service]
+    : table?.secretPrefix ? `${table.secretPrefix}${service.replaceAll("-", "_").toUpperCase()}` : undefined;
+  return { primary, fallback: primary ? table?.fallbackMapRef ?? undefined : undefined };
 }

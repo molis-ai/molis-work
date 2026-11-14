@@ -12,7 +12,7 @@ import type { SandboxEffects, SandboxIdentity, SandboxJson } from '@molis-ai/mol
 import { createSandboxRunner, createBackgroundLane, readOnlySandboxStorage, SANDBOX_BACKGROUND_LIMITS, sandboxServicesFor, SandboxError, type SandboxBackgroundLane, type SandboxRunner, type SandboxServices, type SandboxServiceContext } from '@molis-ai/molis-work-plugin-sandbox';
 import { executionProjectReach } from '../plugin-project-reach-subject.js';
 import { resolvePluginComponentCall, validatePluginPresentation } from '@molis-ai/molis-work-design-system';
-import { SANDBOX_VALIDATE_UPGRADE, actionErrorResponse, effectsFromContract, isRecord, sandboxPluginManifest, sandboxUiDeclaration, sandboxOperationEffects } from '@molis-ai/molis-work-plugin-sdk';
+import { sandboxUpgradeOperation, actionErrorResponse, effectsFromContract, isRecord, sandboxPluginManifest, sandboxUiDeclaration, sandboxOperationEffects } from '@molis-ai/molis-work-plugin-sdk';
 import { installedStageFrame } from '../installed-stage-section.js';
 import { releaseInstructions } from './prompts.js';
 import { releaseVersion, type InstalledRelease } from '../installed-release.js';
@@ -76,22 +76,36 @@ function packageAgentBodies(release: InstalledRelease): Pick<PluginDefinition, "
 
 /** The candidate sees one read-only broker on the original installation, before the SQL worker is called. */
 function installedUpgradeValidator(release: InstalledRelease, manifest: PluginManifest, localePacks: ReturnType<typeof sandboxTextPacks>) {
-  if (!manifest.upgrade_compatibility?.migratable_from_versions?.length) return undefined;
-  const operation = release.design.contract.operations.find(item => item.id === SANDBOX_VALIDATE_UPGRADE)!;
+  const id = sandboxUpgradeOperation(manifest), sources = manifest.upgrade_compatibility?.migratable_from_versions;
+  if (!id || !sources) return undefined;
+  const operation = release.design.contract.operations.find(item => item.id === id)!;
   return async ({ from, context }: { from: { version: string }; context: PluginUpgradeContext }) => {
+    if (!sources.includes(from.version)) return;
     context.assertCurrent?.();
-    const storage = context.services?.storage;
-    const validator = await createSandboxRunner({
-      bundlePath: release.bundlePath, contract: release.design.contract, grants: operation.effects,
-      identity: { projectId: context.project_id ?? null, installationId: context.install_id, pluginId: manifest.plugin_id, namespace: 'installed' },
-      services: storage ? { storage: readOnlySandboxStorage(storage) } : {}, localePacks,
-    });
+    assertSandboxActivationScope(context.project_id, release.permissions);
+    const storage = context.services?.storage, authority = context.assertCurrent;
+    let accepted: SandboxJson | undefined;
     try {
-      const accepted = await validator.call(SANDBOX_VALIDATE_UPGRADE, from.version, { beforeEffect: async () => context.assertCurrent?.() });
-      context.assertCurrent?.();
-      if (accepted !== true) throw pluginErrors.upgrade_validation_failed('插件拒绝迁移当前安装的数据');
-    } finally { await validator.stop(); }
+      const validator = await createSandboxRunner({
+        bundlePath: release.bundlePath, bundleSha256: release.packaged?.entrypointSha256, contract: release.design.contract, grants: operation.effects,
+        identity: { projectId: context.project_id ?? null, installationId: context.install_id, pluginId: manifest.plugin_id, namespace: 'installed' },
+        services: storage ? { storage: readOnlySandboxStorage({ get: key => { authority?.(); return storage.get(key); } }) } : {}, localePacks,
+      });
+      try { accepted = await validator.call(id, from.version, { beforeEffect: async () => authority?.() }); }
+      finally { await validator.stop(); }
+    } catch {
+      authority?.();
+      throw pluginErrors.upgrade_validation_failed('插件的只读迁移校验未完成');
+    }
+    authority?.();
+    if (accepted !== true) throw pluginErrors.upgrade_validation_failed('插件拒绝迁移当前安装的数据');
   };
+}
+
+/** Model selection and image connections belong to the person's Home (BL-491). */
+function assertSandboxActivationScope(projectId: string | null | undefined, approved: SandboxEffects): void {
+  if (projectId && (approved.modelSettings?.length || approved.imageGeneration?.length))
+    throw pluginErrors.declaration_invalid('模型设置和图片生成只给装在 Home 里的插件，项目里的实例不提供');
 }
 
 /** `host.capability` serves the platform capabilities the person approved; the broker still checks each call against them. */
@@ -108,19 +122,19 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
   // A model call runs in its own process, so the plugin's other reads and saves never wait behind it.
   const lanes = new Map<Lane, Promise<SandboxRunner>>(); let background: SandboxBackgroundLane | undefined;
   const upgradeValidator = installedUpgradeValidator(release, manifest, localePacks);
+  const upgradeOperation = sandboxUpgradeOperation(manifest);
   const definition: PluginDefinition = { manifest, ...(instructions ? { instructions } : {}), ...packageAgentBodies(release),
     ...(upgradeValidator ? { validateUpgrade: upgradeValidator } : {}),
     execution: 'sandbox',
     async start(context) {
       context.requireGrant('storage:private');
-      // A package's model settings and image connections belong to the person's Home (BL-491): a project's instance of it is refused, as it is for a Home library.
-      if (context.project_id && (approved.modelSettings?.length || approved.imageGeneration?.length)) throw pluginErrors.declaration_invalid('模型设置和图片生成只给装在 Home 里的插件，项目里的实例不提供');
+      assertSandboxActivationScope(context.project_id, approved);
       // What the Host built for this activation goes to the sandbox through the broker, which still checks each call against the grants.
       const identity: SandboxIdentity = { projectId: context.project_id ?? null, installationId: context.install_id, pluginId: release.pluginId, namespace: 'installed' };
       // The approval as this activation may use it (BL-701): an effect whose switch is off never reaches the broker.
       const allowed = grantedEffects(approved, context.grants);
       const backgroundServices = sandboxServicesFor(context.services, instructions ? { ...host, instructions } : host);
-      background = createBackgroundLane({ contract: release.design.contract, create: () => createSandboxRunner({ bundlePath: release.bundlePath,
+      background = createBackgroundLane({ contract: release.design.contract, create: () => createSandboxRunner({ bundlePath: release.bundlePath, bundleSha256: release.packaged?.entrypointSha256,
         contract: release.design.contract, grants: allowed, identity, services: backgroundServices, limits: SANDBOX_BACKGROUND_LIMITS, localePacks }) });
       const lane = background;
       const guardedBackground: SandboxBackgroundLane = { check: lane.check, stop: lane.stop, async run(operationId, input, control) {
@@ -143,7 +157,7 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
       const services = sandboxServicesFor(context.services, { ...host, ...(instructions ? { instructions } : {}), backgroundLane: guardedBackground });
       const open = (lane: Lane) => {
         const existing = lanes.get(lane); if (existing) return existing;
-        const created = createSandboxRunner({ bundlePath: release.bundlePath, contract: release.design.contract, grants: allowed, services,
+        const created = createSandboxRunner({ bundlePath: release.bundlePath, bundleSha256: release.packaged?.entrypointSha256, contract: release.design.contract, grants: allowed, services,
           identity, localePacks });
         lanes.set(lane, created); created.catch(() => { if (lanes.get(lane) === created) lanes.delete(lane); });
         return created;
@@ -162,7 +176,7 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
             const call = raw ? { operationId: installedOperation(release, context, body.operation), input: Object.hasOwn(body, 'input') ? body.input : {} }
               : resolvePluginComponentCall(node!, 'read', body.payload ?? {});
             await request.execution?.beforeEffect(); request.execution?.signal?.throwIfAborted();
-            const operation = release.design.contract.operations.find(item => item.id === call.operationId && item.id !== SANDBOX_VALIDATE_UPGRADE);
+            const operation = release.design.contract.operations.find(item => item.id === call.operationId && item.id !== upgradeOperation);
             if (!operation) throw new ActionError('actions.forbidden', '这个操作不在已安装页面的合同内');
             const effects = sandboxOperationEffects(release.design.contract, operation), dependencies = effects.capabilities ?? [];
             // Before any of its code runs, whichever door it came through (BL-701).

@@ -1,16 +1,16 @@
 import assert from "node:assert/strict";
 import { ChildProcess } from "node:child_process";
-import { readFileSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import test from "node:test";
+import test, { type TestContext } from "node:test";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SANDBOX_PACKAGE_FILES, type PluginPackageBundle } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { SandboxPluginContract } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
 import { PLUGIN_INSTALL_PERMISSIONS, pluginInstallActions, readSandboxPackage } from "@molis-ai/molis-work-app-local-host";
-import { SANDBOX_VALIDATE_UPGRADE, sandboxPluginManifest } from "@molis-ai/molis-work-plugin-sdk";
+import { SANDBOX_VALIDATE_UPGRADE, sandboxOperationActions, sandboxPluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { newPublisher, PACKAGE_PLUGIN_ID, signedPackage } from "./fixtures/sandbox-package.js";
-import { openTestHome, type TestHome, type TestProject } from "./fixtures/test-home.js";
+import { openTestHome, serveTestHost, type TestHome, type TestProject } from "./fixtures/test-home.js";
 
 const schema1 = "CREATE TABLE upgrade_notes (id INTEGER PRIMARY KEY, text TEXT NOT NULL);";
 const schema2 = "CREATE TABLE upgrade_notes (id INTEGER PRIMARY KEY, text TEXT NOT NULL, format TEXT NOT NULL DEFAULT 'plain');";
@@ -18,7 +18,9 @@ const sql = "ALTER TABLE upgrade_notes ADD COLUMN format TEXT NOT NULL DEFAULT '
 const mac = { skip: process.platform !== "darwin", timeout: 90_000 };
 type Scope = "project" | "home";
 
-function packageAt(publisher: ReturnType<typeof newPublisher>, scope: Scope, version: string, options: { allow?: boolean; upgradeSql?: string } = {}) {
+function packageAt(publisher: ReturnType<typeof newPublisher>, scope: Scope, version: string, options: {
+  allow?: boolean; upgradeSql?: string; validationSource?: string; modelRead?: boolean; compatible?: boolean;
+} = {}) {
   const initial = version === "1.0.0";
   const database = { version: initial ? 1 : 2, schema: initial ? schema1 : schema2,
     ...(initial ? {} : { upgrades: [{ from: 1, sql: options.upgradeSql ?? sql }] }) };
@@ -26,18 +28,20 @@ function packageAt(publisher: ReturnType<typeof newPublisher>, scope: Scope, ver
     const contract = JSON.parse(files[SANDBOX_PACKAGE_FILES.contract]!) as SandboxPluginContract;
     const effect = scope === "home" ? "homeDatabase" : "projectDatabase";
     for (const operation of contract.operations) operation.effects = { [effect]: [operation.kind === "query" ? "read" : "write"] };
+    if (options.modelRead) contract.operations[0]!.effects.modelSettings = ["read"];
     if (!initial) contract.operations.unshift({ id: SANDBOX_VALIDATE_UPGRADE, kind: "query", input: { type: "string" }, output: { type: "boolean" },
       effects: {}, errors: [], examples: [{ input: "1.0.0", output: options.allow !== false }] });
     files[SANDBOX_PACKAGE_FILES.contract] = JSON.stringify(contract);
     files[SANDBOX_PACKAGE_FILES.entrypoint] = `export const operations = {
       "notes.list": async (_, sdk) => (await sdk.${effect}.all("SELECT id, text FROM upgrade_notes", [])).map(row => ({...row, id: String(row.id)})),
       "notes.add": async (input, sdk) => { await sdk.${effect}.transaction([{sql: "INSERT INTO upgrade_notes (text) VALUES (?)", parameters: [input.text]}]); return true; },
-      ${initial ? "" : `validateUpgrade: async version => version === "1.0.0" && ${options.allow !== false},`}
+      ${initial ? "" : `validateUpgrade: ${options.validationSource ?? `async version => version === "1.0.0" && ${options.allow !== false}`},`}
     };`;
     Object.assign(manifest, sandboxPluginManifest({
       pluginId: PACKAGE_PLUGIN_ID, name: manifest.name, publisher: manifest.publisher, version, presentation: false, contract,
       ...(scope === "home" ? { runtime: { scope: "home" }, homeDatabase: database } : { projectDatabase: database }),
-      ...(initial ? {} : { upgradeCompatibility: { migratable_from_versions: ["1.0.0"] } }),
+      ...(initial ? {} : { upgradeCompatibility: { migratable_from_versions: [options.compatible ? "0.9.0" : "1.0.0"],
+        ...(options.compatible ? { compatible_from_versions: ["1.2.0"] } : {}) } }),
       stateMachines: [{ machine_id: PACKAGE_PLUGIN_ID + ".note", version: 1, states: { active: "connected" }, initial: "active", terminal: ["active"] }],
     }));
   }, { version });
@@ -64,13 +68,29 @@ function readDatabase(home: TestHome, project: TestProject, scope: Scope, bundle
   finally { db.close(); }
 }
 
-async function assertUpgradeCard(home: TestHome, path: string, scope: Scope) {
+async function assertUpgradeCard(home: Pick<TestHome, "origin">, path: string, scope: Scope, reason = "upgrade_failed") {
   const page = await fetch(home.origin + path, { headers: { accept: "text/html" } });
   assert.equal(page.status, 200);
   const html = await page.text();
   assert.ok(new RegExp(`data-${scope}-plugin-unavailable`).test(html), `expected the ${scope} upgrade card on ${path}`);
-  assert.match(html, /data-owner-unavailable="upgrade_failed"/u);
+  assert.ok(html.includes(`data-owner-unavailable="${reason}"`), `expected upgrade reason ${reason}`);
   assert.match(html, /data-copy-value="D-[0-9A-F]{8}"/u);
+}
+
+/** Intercepts the host-only commit handshake without running another SQL implementation. */
+function interceptWorkerPublish(t: TestContext, intercept: (worker: ChildProcess) => boolean) {
+  const prototype = ChildProcess.prototype as ChildProcess & { spawn(options: { args: readonly string[] }): void };
+  const spawnChild = prototype.spawn;
+  t.mock.method(prototype, "spawn", function(this: ChildProcess, options: { args: readonly string[] }) {
+    const started = Reflect.apply(spawnChild, this, [options]);
+    if (!options.args.some(arg => arg.endsWith("/project-statement-worker.js"))) return started;
+    const send = this.send;
+    t.mock.method(this, "send", function(this: ChildProcess, ...args: Parameters<ChildProcess["send"]>) {
+      if ((args[0] as { publishUpgrade?: boolean })?.publishUpgrade && intercept(this)) return false;
+      return Reflect.apply(send, this, args);
+    });
+    return started;
+  });
 }
 
 test("SMP-12 UPG-09 signed package reconstruction keeps checked state and SQL declarations", () => {
@@ -96,12 +116,31 @@ test("UPG-09 refuses a signed migration validator with write access", () => {
   assert.throws(() => readSandboxPackage(bundle.payload), /validateUpgrade|Queries cannot declare writes/);
 });
 
+test("UPG-09 a same-named ordinary operation remains callable without a migration declaration", () => {
+  const publisher = newPublisher();
+  const bundle = signedPackage(publisher, files => {
+    const contract = JSON.parse(files[SANDBOX_PACKAGE_FILES.contract]!) as SandboxPluginContract;
+    contract.operations.push({ id: SANDBOX_VALIDATE_UPGRADE, kind: "query", input: { type: "string" }, output: { type: "boolean" },
+      effects: {}, errors: [], examples: [{ input: "example", output: true }] });
+    files[SANDBOX_PACKAGE_FILES.contract] = JSON.stringify(contract);
+  });
+  const { contract } = readSandboxPackage(bundle.payload);
+  assert.equal(sandboxOperationActions({ contract, buildId: "12345678", version: 1, title: "Test", scope: "project" })
+    .find(action => action.action.local_id === SANDBOX_VALIDATE_UPGRADE)?.capability_id, "generated.12345678.validateUpgrade");
+});
+
 for (const scope of ["project", "home"] as const) {
   test(`UPG-02 UPG-03 UPG-09 signed ${scope} upgrade moves the installed edition and preserves data across a bounded worker commit`, mac, async t => {
     const home = await openTestHome(t);
     const project = await home.createProject("Upgrade notes");
     const publisher = newPublisher(), initial = packageAt(publisher, scope, "1.0.0");
     await install(home, project, initial);
+    if (scope === "home") {
+      const runtime = (await home.host.homePlugins!.ready()).runtime;
+      const row = home.host.homePlugins!.installation(PACKAGE_PLUGIN_ID)!;
+      await runtime.regrant(row.install_id, "home-database:read", true);
+      await runtime.regrant(row.install_id, "home-database:write", true);
+    }
     const file = scope === "home" ? (() => {
       const name = initial.payload.manifest.databases!.home!.store_name;
       return join(home.home, name, name + ".db");
@@ -118,12 +157,15 @@ for (const scope of ["project", "home"] as const) {
       plugin_id: PACKAGE_PLUGIN_ID, version: "1.2.0", publisher_key_id: publisher.identity,
     });
     assert.deepEqual(readDatabase(home, project, scope, initial, "SELECT * FROM upgrade_notes"), [{ id: 1, text: "kept", format: "plain" }]);
-    const client = home.host.actionClient(project.reference), caller = person(project);
+    const client = scope === "home" ? home.host.homeActionClient() : home.host.actionClient(project.reference);
+    const caller = { ...person(project), project_id: scope === "home" ? null : project.project_id,
+      permissions: ["storage:private", "home-database:read", "home-database:write"] };
     const offered = (await client.discover(caller)).filter(view => view.provider.plugin_id === PACKAGE_PLUGIN_ID);
     const read = offered.find(view => view.capability_id.endsWith(".notes.list")), add = offered.find(view => view.capability_id.endsWith(".notes.add"));
-    assert.ok(read && add);
+    assert.ok(read && add, JSON.stringify(offered.map(view => view.action.local_id)));
     assert.equal(offered.some(view => view.capability_id.toLowerCase().includes("validateupgrade")), false);
-    assert.notDeepEqual(read.action.permissions, add.action.permissions, "the query and command retain their own effect permissions");
+    assert.deepEqual(read.action.permissions, scope === "project" ? ["storage:private"] : ["storage:private", "home-database:read"]);
+    assert.deepEqual(add.action.permissions, scope === "project" ? ["storage:private"] : ["storage:private", "home-database:write"]);
     assert.deepEqual(await client.invoke(caller, { capability_id: read.capability_id, version: read.version, provider_id: read.provider.provider_id }, {}),
       [{ id: "1", text: "kept" }]);
     const runtimedb = new DatabaseSync(scope === "home" ? join(home.home, "plugin-runtime", "plugin-runtime.db") : project.database_path, { readOnly: true });
@@ -131,6 +173,8 @@ for (const scope of ["project", "home"] as const) {
       const row = runtimedb.prepare("SELECT json_extract(record_json, '$.version') AS version FROM plugin_runtime_installs WHERE json_extract(record_json, '$.plugin_id') = ?").get(PACKAGE_PLUGIN_ID);
       assert.equal(row?.version, "1.2.0");
     } finally { runtimedb.close(); }
+    const compatible = packageAt(publisher, scope, "1.3.0", { compatible: true, allow: false });
+    assert.equal((await install(home, project, compatible) as { version: string }).version, "1.3.0");
   });
 }
 
@@ -138,22 +182,11 @@ test("UPG-04 UPG-06 UPG-09 an interrupted SQL worker leaves the old owned schema
   const home = await openTestHome(t), project = await home.createProject("Interrupted upgrade");
   const publisher = newPublisher(), initial = packageAt(publisher, "project", "1.0.0");
   await install(home, project, initial);
-  const prototype = ChildProcess.prototype as ChildProcess & { spawn(options: { args: readonly string[] }): void };
-  const spawnChild = prototype.spawn;
   let interrupted = false;
-  t.mock.method(prototype, "spawn", function(this: ChildProcess, options: { args: readonly string[] }) {
-    const started = Reflect.apply(spawnChild, this, [options]);
-    if (!options.args.some(arg => arg.endsWith("/project-statement-worker.js"))) return started;
-    const send = this.send;
-    t.mock.method(this, "send", function(this: ChildProcess, ...args: Parameters<ChildProcess["send"]>) {
-      if ((args[0] as { publishUpgrade?: boolean })?.publishUpgrade) {
-        interrupted = true;
-        this.kill("SIGKILL");
-        return false;
-      }
-      return Reflect.apply(send, this, args);
-    });
-    return started;
+  interceptWorkerPublish(t, worker => {
+    interrupted = true;
+    worker.kill("SIGKILL");
+    return true;
   });
   await assert.rejects(install(home, project, packageAt(publisher, "project", "1.1.0")), /进程|升级/);
   assert.equal(interrupted, true);
@@ -161,8 +194,86 @@ test("UPG-04 UPG-06 UPG-09 an interrupted SQL worker leaves the old owned schema
   assert.deepEqual(table.map(row => row.name), ["id", "text"]);
   const records = readDatabase(home, project, "project", initial,
     "SELECT json_extract(record_json, '$.version') AS version, json_extract(record_json, '$.state') AS state FROM plugin_runtime_installs WHERE json_extract(record_json, '$.plugin_id') = 'io.molis.work.example.notes'");
-  assert.deepEqual(records, [{ version: "1.0.0", state: "disabled" }]);
+  assert.deepEqual(records, [{ version: "1.0.0", state: "crashed" }]);
   await assertUpgradeCard(home, `/projects/${project.project_id}/`, "project");
+});
+
+test("UPG-04 UPG-05 an installed project library from a newer version stays untouched and shows the newer-store reason", mac, async t => {
+  const home = await openTestHome(t), project = await home.createProject("Newer library");
+  const publisher = newPublisher(), initial = packageAt(publisher, "project", "1.0.0");
+  await install(home, project, initial);
+  const db = new DatabaseSync(project.database_path);
+  try { db.prepare("UPDATE plugin_project_databases SET version = 9 WHERE plugin_id = ?").run(PACKAGE_PLUGIN_ID); }
+  finally { db.close(); }
+  await assert.rejects(install(home, project, packageAt(publisher, "project", "1.1.0")), { code: "plugin.project_database.store_too_new" });
+  assert.deepEqual(readDatabase(home, project, "project", initial, "SELECT version FROM plugin_project_databases WHERE plugin_id = 'io.molis.work.example.notes'"), [{ version: 9 }]);
+  await assertUpgradeCard(home, `/projects/${project.project_id}/`, "project", "store_too_new");
+});
+
+test("UPG-03 a startup constraint and validator error leave the old library untouched and return no plugin text", mac, async t => {
+  const home = await openTestHome(t), project = await home.createProject("Activation preflight");
+  const publisher = newPublisher(), initial = packageAt(publisher, "project", "1.0.0");
+  await install(home, project, initial);
+  await assert.rejects(install(home, project, packageAt(publisher, "project", "1.1.0", { modelRead: true })),
+    /只给装在 Home 里的插件/);
+  await assert.rejects(install(home, project, packageAt(publisher, "project", "1.2.0", {
+    validationSource: "async () => { throw new Error('private-validation-text'); }",
+  })), (error: Error) => /只读迁移校验未完成/.test(error.message) && !error.message.includes("private-validation-text"));
+  const table = readDatabase(home, project, "project", initial, "PRAGMA table_info(upgrade_notes)");
+  assert.deepEqual(table.map(row => row.name), ["id", "text"]);
+});
+
+test("UPG-04 UPG-09 switching the Home plugin off before publish keeps the original SQLite schema and edition", mac, async t => {
+  const home = await openTestHome(t), project = await home.createProject("Withdraw at publish");
+  const publisher = newPublisher(), initial = packageAt(publisher, "home", "1.0.0");
+  await install(home, project, initial);
+  const host = home.host.homePlugins!, platform = await host.ready();
+  const prototype = ChildProcess.prototype as ChildProcess & { spawn(options: { args: readonly string[] }): void };
+  const spawnChild = prototype.spawn;
+  let withdrew = false;
+  t.mock.method(prototype, "spawn", function(this: ChildProcess, options: { args: readonly string[] }) {
+    const started = Reflect.apply(spawnChild, this, [options]);
+    if (options.args.some(arg => arg.endsWith("/project-statement-worker.js"))) this.prependListener("message", message => {
+      if (!(message as { prepared?: boolean }).prepared) return;
+      withdrew = true;
+      platform.supervisor.revoke(PACKAGE_PLUGIN_ID);
+    });
+    return started;
+  });
+  await assert.rejects(install(home, project, packageAt(publisher, "home", "1.1.0")), { code: "actions.provider_replaced" });
+  assert.equal(withdrew, true);
+  assert.equal(host.installation(PACKAGE_PLUGIN_ID)?.version, "1.0.0");
+  assert.equal(host.installation(PACKAGE_PLUGIN_ID)?.state, "disabled");
+  const table = readDatabase(home, project, "home", initial, "PRAGMA table_info(upgrade_notes)");
+  assert.deepEqual(table.map(row => row.name), ["id", "text"]);
+});
+
+test("UPG-03 UPG-04 activation failure after a committed migration retains the exact new edition and a durable reason", mac, async t => {
+  const home = await openTestHome(t), project = await home.createProject("Activation after commit");
+  const publisher = newPublisher(), initial = packageAt(publisher, "project", "1.0.0");
+  await install(home, project, initial);
+  const candidate = packageAt(publisher, "project", "1.1.0");
+  const { spawn } = ChildProcess.prototype as ChildProcess & { spawn(options: { args: readonly string[] }): void };
+  let sandboxStarts = 0;
+  t.mock.method(ChildProcess.prototype, "spawn", function(this: ChildProcess, options: { args: readonly string[] }) {
+    const result = Reflect.apply(spawn, this, [options]);
+    if (options.args[0]?.endsWith("/sandbox-exec") && ++sandboxStarts === 2) this.kill("SIGKILL");
+    return result;
+  });
+  await assert.rejects(install(home, project, candidate), { code: "plugin.upgrade_activation_failed" });
+  const records = readDatabase(home, project, "project", initial,
+    "SELECT json_extract(record_json, '$.version') AS version, json_extract(record_json, '$.last_error_code') AS code FROM plugin_runtime_installs WHERE json_extract(record_json, '$.plugin_id') = 'io.molis.work.example.notes'");
+  assert.deepEqual(records, [{ version: "1.1.0", code: "plugin.upgrade_activation_failed" }]);
+  const table = readDatabase(home, project, "project", initial, "PRAGMA table_info(upgrade_notes)");
+  assert.deepEqual(table.map(row => row.name), ["id", "text", "format"]);
+  const path = `/projects/${project.project_id}/`;
+  await assertUpgradeCard(home, path, "project", "upgrade_activation_failed");
+  t.mock.restoreAll();
+  await home.close();
+  await home.host.close();
+  const restarted = await serveTestHost(null, { home: home.home });
+  try { await assertUpgradeCard(restarted, path, "project", "upgrade_activation_failed"); }
+  finally { await restarted.close(); }
 });
 
 test("UPG-03 UPG-04 a failed Home upgrade is restored byte for byte and leaves another plugin running", mac, async t => {
@@ -176,12 +287,15 @@ test("UPG-03 UPG-04 a failed Home upgrade is restored byte for byte and leaves a
     db.prepare("PRAGMA wal_checkpoint(TRUNCATE)").get();
   } finally { db.close(); }
   const before = readFileSync(file);
+  const snapshots = join(home.home, "upgrade");
+  const oldSnapshots = existsSync(snapshots) ? readdirSync(snapshots).sort() : [];
   const otherId = "io.molis.work.example.other-notes";
   await install(home, project, signedPackage(newPublisher(), undefined, { pluginId: otherId }));
   await assert.rejects(install(home, project, packageAt(publisher, "home", "1.1.0", {
     upgradeSql: "UPDATE upgrade_notes SET text = 'temporary'",
   })), { code: "plugin.project_database.upgrade_failed" });
   assert.deepEqual(readFileSync(file), before);
+  assert.deepEqual(readdirSync(snapshots).sort(), oldSnapshots);
   assert.deepEqual(readDatabase(home, project, "home", initial, "SELECT * FROM upgrade_notes"), [{ id: 1, text: "held" }]);
   const other = await home.host.withProject(project.reference, ({ store }) => store.db.prepare(
     "SELECT json_extract(record_json, '$.state') AS state FROM plugin_runtime_installs WHERE json_extract(record_json, '$.plugin_id') = ?").get(otherId));

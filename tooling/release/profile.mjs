@@ -38,7 +38,6 @@ export function missingProfileValues(name, profile = releaseProfile(name)) {
       "connectors.brokerOrigin": profile.connectors.brokerOrigin,
       "connectors.applicationRefs": Object.keys(profile.connectors.applicationRefs).length,
       "connectors.applications": profile.connectors.applications,
-      "connectors.applicationSecretPrefix": profile.connectors.applicationSecretPrefix,
       updateChannel: profile.updateChannel,
       symbolUploadTarget: profile.symbolUploadTarget,
     } : {}),
@@ -61,25 +60,29 @@ export function carrierIssues(name, rootRead = read) {
     .map(([file, field]) => `${file} ${field} differs from the developer profile (checking ${name})`);
 }
 
-function misplacedValues() {
-  const configuration = JSON.parse(read(configurationFile));
+export function misplacedValues(repository = root) {
+  const configuration = JSON.parse(readFileSync(new URL(configurationFile, repository), "utf8"));
+  const { application, connectorApplications, macOS, accountPolicyProfile } = configuration;
   const accounts = Object.values(configuration.accountEnvironments);
   const values = new Set([
+    accountPolicyProfile, ...macOS.machO,
     ...accounts.flatMap(account => [account.authOrigin, account.applicationId, account.clientId]),
+    ...Object.values(connectorApplications).flatMap(table => [table.secretPrefix, table.fallbackMapRef]),
     ...Object.values(configuration.profiles).flatMap(profile => [
       profile.connectors.brokerOrigin, profile.publisherKeyRef, profile.entitlements, profile.symbolUploadTarget,
       ...Object.values(profile.connectors.applicationRefs),
     ]),
   ].filter(Boolean));
-  const references = Object.values(configuration.macOS.secretRefs);
+  const references = Object.values(macOS.secretRefs);
   const search = spawnSync("git", [
     "grep", "-n", "-F", "--untracked", ...[...values].flatMap(value => ["-e", value]),
-    "-e", `"${releaseApplication.identifier}"`, "-e", `'${releaseApplication.identifier}'`,
+    "-e", `"${application.identifier}"`, "-e", `'${application.identifier}'`,
     ...references.flatMap(value => ["-e", `secrets.${value}`, "-e", `secrets['${value}']`]),
     "--", "apps/local-host", "apps/desktop", "scripts", "tooling", ".github/workflows/release-macos.yml",
     `:(exclude)${configurationFile}`, `:(exclude)${tauriFile}`, `:(exclude)${tauriMacOSFile}`,
+    ":(exclude)tooling/gates/api/**", ":(exclude)tooling/gates/version-exceptions.json",
     ":(exclude)**/*.md", ":(exclude)**/*.test.*", ":(exclude)**/test/**", ":(exclude)**/test.mjs",
-  ], { cwd: fileURLToPath(root), encoding: "utf8" });
+  ], { cwd: fileURLToPath(repository), encoding: "utf8" });
   if (search.status !== 0 && search.status !== 1) throw new Error("Unable to check release configuration literals");
   return search.stdout.trim().split("\n").filter(Boolean).map(line => {
     const match = /^([^:]+:\d+):/u.exec(line);
@@ -119,6 +122,7 @@ export function publisherKeyReference(name) {
   return releaseProfile(name).publisherKeyRef;
 }
 
+export { connectorApplicationReferences } from "../../apps/local-host/src/release-profile.ts";
 export { releaseMacOS };
 
 if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) run(process.argv.slice(2));

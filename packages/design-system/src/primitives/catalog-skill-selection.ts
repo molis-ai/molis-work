@@ -30,7 +30,7 @@ export function skillWhySection(say: Say): string {
   const review = say("workbench.catalog-skill-packs.write-the-weekly-review"), notes = say("workbench.catalog-skill-selection.meeting-notes");
   const why = renderSkillWhy({ title: review, reason: pick("why-auto"), facts: [
     [pick("what"), say("workbench.catalog-skill-selection.review-what")], [pick("when"), say("workbench.catalog-skill-selection.review-when")],
-    [pick("from"), say("workbench.skill-picks.from-pack", { pack: say("workbench.catalog-skill-packs.weekly-reports-and-reviews"), version: 3 })], [pick("setting"), pick("state-auto")]],
+    [pick("from"), say("workbench.skill-picks.from-pack", { pack: say("workbench.catalog-skill-packs.weekly-reports-and-reviews"), version: "3" })], [pick("setting"), pick("state-auto")]],
     groups: [{ label: pick("this-round"), actions: [{ id: "swap", label: pick("swap"), detail: pick("swap-detail") }, { id: "plain", label: pick("plain"), detail: pick("plain-detail") }] },
       { label: pick("from-now"), actions: [{ id: "manual", label: pick("make-manual"), detail: pick("make-manual-detail") }, { id: "off", label: pick("turn-off"), detail: pick("turn-off-detail") }] }] });
   const others = renderSkillWhy({ groups: [{ actions: [{ id: "back", label: "‹ " + say("common.control.back") }] },

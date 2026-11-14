@@ -19,6 +19,8 @@ export interface CatalogSkill {
   body: string;
   pack: SkillCatalogEntry["pack"];
   availability: SkillAvailability;
+  /** A pack that comes with the system says how its Skills start; every other Skill is `off` until the person enables it. */
+  default_state?: "auto" | "manual";
   /** The captured snapshot still holds (installation identity); no owner is reopened. */
   assertCurrent(): void;
   /** Recheck the publisher against the pins one boundary read after an await, never per Skill. */
@@ -64,8 +66,8 @@ function entry(skill: CatalogSkill, setting: SkillSetting | undefined): SkillCat
     ...(d.argument_hint ? { argument_hint: d.argument_hint } : {}), user_invocable: d.user_invocable ?? true, tools: [...d.tools],
     resources: resources.map(({ path, role, bytes }) => ({ path, role, bytes })), connector_categories: [...d.connector_categories ?? []],
     runs_scripts: resources.some(resource => resource.role === "script"), excerpt: Array.from(skill.body).slice(0, SKILL_EXCERPT_CHARS).join(""),
-    pack: skill.pack, state: setting?.state ?? "off", settings_revision: setting?.revision ?? 0, availability: skill.availability,
-    ...(setting ? { enabled: { at: setting.enabled_at, by: setting.enabled_by, scope: setting.scope_ref === "home" ? "home" as const : "project" as const } } : {}) };
+    pack: skill.pack, state: setting?.state ?? skill.default_state ?? "off", settings_revision: setting?.revision ?? 0, availability: skill.availability,
+    ...(setting && setting.state !== "off" ? { enabled: { at: setting.enabled_at, by: setting.enabled_by, scope: setting.scope_ref === "home" ? "home" as const : "project" as const } } : {}) };
 }
 
 /** Rounds whose own picks the catalog still counts: more than any Home runs at once; the oldest leaves first. */
@@ -121,10 +123,11 @@ export class SkillCatalog {
     try { skill.assertCurrent(); } catch { return "not_current"; }
     if (!skill.availability.available && !(skill.availability.reason === "native_only" && caller.skill_round?.engine === "local")) return skill.availability.reason;
     if (!applicable(skill, caller)) return "not_applicable";
-    if (!setting) return "off";
+    const state = setting?.state ?? skill.default_state ?? "off";
+    if (state === "off") return "off";
     if (caller.skill_round?.named.some(named => isDeepStrictEqual(named, ref))) return undefined;
     // Not named: a `manual` Skill stays closed, and so does every `auto` one in a round the person asked to run without them.
-    if (setting.state === "manual" || caller.skill_round?.auto === false) return "not_named";
+    if (state === "manual" || caller.skill_round?.auto === false) return "not_named";
     return undefined;
   }
 
@@ -224,7 +227,7 @@ export class SkillCatalog {
     if (!availability.available && SKILL_SETTINGS_LOCKED_REASONS.some(reason => reason === availability.reason))
       throw skillErrors.settings_locked("请先恢复技能所在的插件", { reason: availability.reason });
     const store = this.ports.definitions.skills, scope = scopeOf(scoped);
-    if (store.set(scope, input.install_id, input.skill_id, input.state, input.expected_revision, caller.actor_id) === "conflict")
+    if (store.set(scope, input.install_id, input.skill_id, input.state, input.expected_revision, caller.actor_id, skill.default_state !== undefined) === "conflict")
       throw skillErrors.settings_conflict("技能状态已变化，请刷新后再改");
     return entry(skill, store.setting(scope, input.install_id, input.skill_id));
   }

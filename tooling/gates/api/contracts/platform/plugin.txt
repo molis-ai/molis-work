@@ -943,6 +943,7 @@ export interface AgentSkillDeclaration {
     argument_hint?: string;
     native_only_reason?: string;
     body?: string;
+    locales?: string[];
     resources?: SkillResourceDeclaration[];
     connector_categories?: string[];
 }
@@ -5498,6 +5499,7 @@ export interface SandboxAgentBody {
     name: string;
     purpose: string;
     body: string;
+    body_by_locale?: Readonly<Record<string, string>>;
 }
 
 export interface SandboxAgentBodyDeclaration {

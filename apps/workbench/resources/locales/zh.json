@@ -6428,6 +6428,7 @@
     "workbench.settings-plugins.file-not-plugin-package": "这个文件不是插件包",
     "workbench.settings-plugins.have-not-pinned-publisher": "你还没有固定过发布者",
     "workbench.settings-plugins.have-not-trusted-publisher-yet-give-name-pin": "你还没有信任这个发布者。给它起个名字，才会固定它；固定后它之后签的包都会按这份信任安装。",
+    "workbench.settings-plugins.signed-on-this-computer": "官方签名还没有提供。安装时由这台电脑签名，和你自己导入的技能同样对待。",
     "workbench.settings-plugins.included-with-this-release": "随安装包提供",
     "workbench.settings-plugins.install-personal-space": "安装到个人空间",
     "workbench.settings-plugins.install-plugin-package": "安装插件包",

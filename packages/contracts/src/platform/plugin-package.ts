@@ -33,6 +33,8 @@ export interface SandboxAgentBody {
   name: string;
   purpose: string;
   body: string;
+  /** A method's declared translations (`AgentSkillDeclaration.locales`), by language. */
+  body_by_locale?: Readonly<Record<string, string>>;
 }
 
 export interface PluginPackagePayload {

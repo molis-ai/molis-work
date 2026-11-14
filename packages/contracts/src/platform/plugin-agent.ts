@@ -189,6 +189,11 @@ export interface AgentSkillDeclaration {
   native_only_reason?: string;
   /** The body's path in the package, always `skills/<skill_id>/SKILL.md`; required in a signed package. */
   body?: string;
+  /**
+   * `methods` only: the languages this Skill's body is also written in, each at `skills/<skill_id>/SKILL.<locale>.md` beside the
+   * default one. Translations only: a subset of `ui.locales.available` without its default. One `version` covers every language.
+   */
+  locales?: string[];
   resources?: SkillResourceDeclaration[];
   /** The connector categories the body writes placeholders for (`~~project tracker`), as lower-case tokens such as `project-tracker`. */
   connector_categories?: string[];

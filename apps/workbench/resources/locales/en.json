@@ -6940,6 +6940,7 @@
     "workbench.settings-plugins.file-not-plugin-package": "This file is not a plugin package",
     "workbench.settings-plugins.have-not-pinned-publisher": "You have not pinned a publisher",
     "workbench.settings-plugins.have-not-trusted-publisher-yet-give-name-pin": "You have not trusted this publisher yet. Give it a name to pin it; packages it signs later are then installed under that trust.",
+    "workbench.settings-plugins.signed-on-this-computer": "No official signature is available yet. This computer signs it when you install, and it is treated like Skills you import yourself.",
     "workbench.settings-plugins.included-with-this-release": "Included with this release",
     "workbench.settings-plugins.install-personal-space": "Install in personal space",
     "workbench.settings-plugins.install-plugin-package": "Install a plugin package",

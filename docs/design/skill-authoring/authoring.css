@@ -1,0 +1,45 @@
+/*
+ * 「写自己的技能」原型（路线书第 41 批第 2 项）的版式。目录的排法沿用 ../skill-packs/skills.css（第 08 批已定的左列表右详情），
+ * 这里只排编辑表单。只用组件板令牌，不写 hex。「组件板新增」的部件：au-count（正文字数行）、au-leave（离开前的未保存提示条）、au-steps（分步头）。
+ */
+.au-new { display: flex; gap: 8px; padding: 0 0 10px; }
+.au-new .mw-btn { flex: 1; justify-content: center; }
+.au-form { display: grid; gap: 16px; min-width: 0; max-width: 680px; }
+.au-form header { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.au-form header h3 { margin: 0; flex: 1; min-width: 0; font-size: 16px; font-weight: var(--weight-title, 600); }
+.au-field { display: grid; gap: 6px; min-width: 0; }
+.au-field > label, .au-field > .au-label { font-size: 13px; font-weight: var(--weight-control, 560); }
+.au-field small { font-size: 12px; color: var(--muted); line-height: 1.5; }
+.au-field .mw-input, .au-field .mw-textarea { width: 100%; box-sizing: border-box; }
+.au-field [data-bad] { border-color: var(--danger); }
+.au-err { font-size: 12px; color: var(--danger); margin: 0; }
+.au-body { min-height: 260px; font-family: var(--font-mono, ui-monospace, monospace); font-size: 12.5px; line-height: 1.7; resize: vertical; }
+/* 组件板新增 · au-count：正文下面一行，左边说明写法，右边字数；快到上限变色。 */
+.au-count { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; color: var(--muted); }
+.au-count [data-over] { color: var(--danger); }
+/* 「给谁用」「放在哪」各占一行：分段里的字不折行。 */
+.au-row { display: grid; gap: 16px; }
+.au-row .mw-toggle-group { justify-self: start; max-width: 100%; }
+.au-row .mw-toggle-group button { white-space: nowrap; }
+.au-more > summary { font-size: 13px; color: var(--ink-soft); cursor: pointer; padding: 4px 0; }
+.au-more[open] > summary { margin-bottom: 10px; }
+.au-foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding-top: 12px; border-top: 1px solid var(--line); position: sticky; bottom: -96px; background: var(--paper); }
+.au-foot .grow { flex: 1; min-width: 8px; font-size: 12px; color: var(--muted); }
+/* 组件板新增 · au-leave：有没保存的改动时要去别处，在表单顶上问一次，不弹窗。 */
+.au-leave { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 12px; border-radius: var(--r-card); background: var(--warning-soft, var(--surface-soft)); border: 1px solid var(--line-strong); font-size: 13px; animation: sk-arrive var(--dur-move) var(--ease-quint); }
+.au-leave .grow { flex: 1; min-width: 120px; }
+/* B：先说一句。 */
+.au-ask { display: grid; gap: 12px; max-width: 680px; }
+.au-ask h3 { margin: 0; font-size: 16px; font-weight: var(--weight-title, 600); }
+.au-ask .mw-textarea { min-height: 96px; width: 100%; box-sizing: border-box; }
+.au-drafting { display: flex; align-items: center; gap: 10px; color: var(--ink-soft); font-size: 13px; }
+.au-drafted { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+/* 组件板新增 · au-steps：分步头，一步一个有边界的格。 */
+.au-steps { list-style: none; margin: 0; padding: 0; display: flex; gap: 6px; flex-wrap: wrap; }
+.au-steps li { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border: 1px solid var(--line); border-radius: var(--r-control); font-size: 12px; color: var(--muted); white-space: nowrap; }
+.au-steps li[aria-current="step"] { border-color: var(--accent); color: var(--ink); background: var(--accent-soft); }
+.au-steps li[data-done] { color: var(--ink-soft); }
+.au-readonly { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--r-card); background: var(--surface-soft); font-size: 13px; }
+.au-readonly .grow { flex: 1; min-width: 160px; color: var(--ink-soft); }
+@media (max-width: 640px) { .au-foot { position: static; } .au-new { flex-wrap: wrap; } }
+@media (prefers-reduced-motion: reduce) { .au-leave { animation: none; } }

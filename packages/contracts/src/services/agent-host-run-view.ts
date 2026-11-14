@@ -168,6 +168,9 @@ export interface AgentRunView {
   step_board_error?: string;
   ref: AgentRunRef;
   phase: AgentRunPhase;
+  /** Why a stopped Run stopped, without reading the person's language: "person" for the person's stop, "host" for the Host,
+   *  a guardrail or the runtime. Absent while the Run has not stopped. */
+  readonly stop_reason_code?: "person" | "host";
   frozen: AgentFrozenStart;
   turns: AgentTurnView[];
   activity: AgentToolActivity[];

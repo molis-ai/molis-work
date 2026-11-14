@@ -2,6 +2,7 @@ import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginManifest, PluginPrivateStorage, PluginUpgradeContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import {compareAndSetPrivateValue} from './private-value.js';
 export {privateValueReplicaOwner,validatePrivateValueReplication,installPrivateValueReplicationJournal} from './private-replication.js';
+import { qualifyRuntimeTable } from "./repository.js";
 import { assertPluginActionCurrent } from "./action-scope.js";
 
 export interface PluginPrivateStorageDatabase {
@@ -29,7 +30,8 @@ export const PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL = `
 
 /** Host-owned private data repository. Never expose this object or its database to Plugin code. */
 export class SqlitePluginPrivateStorage {
-  constructor(private readonly db: PluginPrivateStorageDatabase) {}
+  private readonly table: string;
+  constructor(private readonly db: PluginPrivateStorageDatabase, schema = "") { this.table = qualifyRuntimeTable(schema, "plugin_private_values"); }
 
   forPlugin(context: PluginUpgradeContext, manifest: PluginManifest): PluginPrivateStorage {
     if (manifest.plugin_id !== context.plugin_id || manifest.version !== context.version
@@ -57,8 +59,7 @@ export class SqlitePluginPrivateStorage {
         if (typeof value !== "string") {
           throw pluginErrors.storage_input_invalid("私有存储值必须由 Plugin 编码为字符串");
         }
-        this.db.prepare(`INSERT INTO plugin_private_values (install_id, item_key, item_value) VALUES (?, ?, ?)
-          ON CONFLICT (install_id, item_key) DO UPDATE SET item_value = excluded.item_value`).run(installId, key, value);
+        this.saveValue(installId, key, value);
       },
       delete: key => {
         authorizeWrite(key);
@@ -75,6 +76,12 @@ export class SqlitePluginPrivateStorage {
         return compareAndSetPrivateValue(this.db,installId,key,expected,value);
       },
     };
+  }
+
+  /** Trusted owners writing an already scoped value inside their own transaction. */
+  saveValue(installId: string, key: string, value: string): void {
+    this.db.prepare(`INSERT INTO ${this.table} (install_id, item_key, item_value) VALUES (?, ?, ?)
+      ON CONFLICT (install_id, item_key) DO UPDATE SET item_value = excluded.item_value`).run(installId, key, value);
   }
 
   /**

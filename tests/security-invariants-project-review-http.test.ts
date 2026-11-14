@@ -312,9 +312,9 @@ test("APR-17/18 S-17 a signed sandbox package commits its review and project wri
   assert.ok(row);
   assert.equal(entries.some(entry => entry.provider.plugin_id === "io.molis.work.goals" && entry.provider.project_id === pid), false);
   const prefix = `/projects/${pid}/api`;
-  for (const permission of ["project-database:read", "project-database:write"]) {
-    await env.web.post(prefix + "/plugin-trust/permissions/set", { install_id: row.provider.plugin_install_id, permission, granted: true });
-  }
+  // The installed project library uses the existing U4 storage grant; this operation still requires its trusted decision.
+  assert.deepEqual(row.action.permissions, ["storage:private"]);
+  assert.equal(row.action.requires_trusted_decision, true);
   const action = { capability_id: row.capability_id, version: row.version, provider_id: row.provider.provider_id };
   await env.host.withProject(reference, runtime => {
     runtime.store.db.exec("INSERT INTO fixture_review_notes VALUES ('a','Original text',1,NULL),('b','Was decided',1,'prior'),('c','Before permit',1,NULL),('d','After commit',1,NULL),('e','Receipt later',1,NULL)");

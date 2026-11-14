@@ -154,7 +154,7 @@ test("08-10 S-bundled-packages pack-bundled without a publisher key packs nothin
   const out = await mkdtemp(join(tmpdir(), "molis-work-bundled-"));
   try {
     const target = join(out, "bundled-plugins");
-    await assert.rejects(packBundledContent(PACK, target, undefined), (error: unknown) => error instanceof ActionError && error.code === "plugin.publisher_key_missing" && /26-1/u.test(error.message));
+    await assert.rejects(packBundledContent(PACK, target, undefined), (error: unknown) => error instanceof ActionError && error.code === "plugin.publisher_key_missing" && /26-9/u.test(error.message));
     assert.equal(existsSync(target), false, "no folder, no file");
     const lines: string[] = [], output = { stdout: (text: string) => lines.push(text), stderr: (text: string) => lines.push(text) };
     assert.equal(await runPluginCli(["pack-bundled", PACK, target], output), 1, lines.join(""));

@@ -321,6 +321,18 @@
 | 插件 | `plugin` |
 | 讨论 | `discussion` |
 
+### 2.8 状态
+
+| 术语 | 含义 |
+| --- | --- |
+| 公开状态词汇 | 平台能力对其消费者使用的一组状态 ID 和家族，来自 [contracts 词表](../platform/STATE-VOCABULARY.md) |
+| 状态家族 | 状态环的语义类别，例如进行中、需核对，与业务状态 ID 各有各的用途 |
+| 状态机声明 | Manifest 的 `state_machines`，包含机器 ID、版本、状态及其家族、初始态和终态 |
+| `machine_id` | 一台机器的稳定 ID，由插件 ID 和一个本地名组成 |
+| 兑现 | 运行实现提供与清单一致的状态机；核对由[第 47 批](../../specs/post-anticorruption-roadmap/reference/batches/47.md)接入 |
+| 登记 | 从定义和已安装发行包的 Manifest 读取出来的机器元数据投影 |
+| 流水账 | 状态主人为中断恢复或幂等留在自身库里的操作记录 |
+
 ## 3. 插件的名字
 
 ### 3.1 五样名字

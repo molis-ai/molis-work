@@ -36,6 +36,8 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 | Plugin、存储、交换、UI 等平台机制 | [`docs/platform/`](platform/README.md) |
 | Molis Work 自己联网去哪里（出站网络逐类登记：主机、触发、发出去什么、限制） | [`docs/platform/NETWORK.md`](platform/NETWORK.md)（[English](platform/NETWORK.en.md)）；设置页「服务连接」链到它；到 AnySearch 的出站只有 `apps/local-host/src/anysearch-transport.ts` 一条 |
 | 新插件先写什么、怎么接到产品 | [`skills/molis-plugin-dev/SKILL.md`](../skills/molis-plugin-dev/SKILL.md)（Host/CLI/接入分文件）；命令与录取四问仍是 [`docs/platform/PLUGIN-DEVELOPMENT.md`](platform/PLUGIN-DEVELOPMENT.md) |
+| 平台公开状态与家族 | [contracts 的公开词表](platform/STATE-VOCABULARY.md)；状态环家族来自 contracts 的 UI 合同 |
+| 插件状态机声明、转换及流水账 | 声明归插件 Manifest，转换和数据归对象主人，SDK 提供共用检查；安装登记投影的主人是 Plugin Runtime，交付见[第 47 批](../specs/post-anticorruption-roadmap/reference/batches/47.md) |
 | 新增一个插件、服务集成、设置分区、界面语言、操作系统平台等要改哪里、目标几处；内置插件迁到 Plugin Runtime 的计划；第三方插件的安装方案 | [`docs/system/EXTENSION-POINTS.md`](system/EXTENSION-POINTS.md)、[`docs/system/RUNTIME-MIGRATION.md`](system/RUNTIME-MIGRATION.md)、[`docs/system/THIRD-PARTY-PLUGINS.md`](system/THIRD-PARTY-PLUGINS.md) |
 | 某次实现具体改什么、如何验收 | 对应 `specs/<task>/spec.md` 或已接受 Goal Contract |
 | 查找执行中需求、现行规范与归档；接续剩余工作 | [`specs/README.md`](../specs/README.md)管分类与索引，[`specs/BACKLOG.md`](../specs/BACKLOG.md)管统一待办；排期见[路线书](../specs/post-anticorruption-roadmap/spec.md)，步骤见[需求开发流程](../specs/post-anticorruption-roadmap/reference/development-workflow.md) |

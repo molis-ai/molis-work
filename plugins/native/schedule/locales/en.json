@@ -131,6 +131,7 @@
     "schedule.read-group.operations.description": "This project’s scheduled tasks and reminders, and other plugins’ scheduled operations with their original input",
     "schedule.read-group.operations.title": "Scheduled operations",
     "schedule.read-group.reminders.description": "This project’s reminders: what they say (including the text of reminders other plugins set), which plugin set them and when they are next due",
-    "schedule.read-group.reminders.title": "Reminders"
+    "schedule.read-group.reminders.title": "Reminders",
+    "schedule.runs.source-title": "Scheduled tasks"
   }
 }

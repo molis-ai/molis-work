@@ -24,7 +24,7 @@ import { materialsActions } from "@molis-ai/molis-work-contracts/platform/projec
 import type { MolisWorkLocalHost } from "../project-host.js";
 import { ActionError, bindActionClient, requireSynchronous, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionSchema, type ActionView, type BoundActionClient, type InferActionInput, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MEMORY_WRITE_PERMISSION, memoryActions } from "@molis-ai/molis-work-contracts/services/memory";
-import { webEntryDoor, webEntryProvider, type WebEntryCall } from "../web-entry-actions.js";
+import { responseAbortSignal, webEntryDoor, webEntryProvider, type WebEntryCall } from "../web-entry-actions.js";
 import { assistantCandidate } from "./assistant-memory-tools.js";
 import { assistantAuthority, assistantProjectPrompts } from "./assistant-authority.js";
 import { registerWorkAuthority } from "../agent-work-authority.js";
@@ -325,7 +325,7 @@ export const assistantPanelActions = {
       beforeStart: async () => { await control.beforeEffect(); }, assertBeforeStart: control.assertCurrent,
       ...(!body.written_by && body.reask === undefined && typeof body.text === "string" && typeof body.request_id === "string" ? { original_input: {
         input_id: body.request_id, text: body.text, written_by: "person" as const, occurred_at: new Date().toISOString(), install_id: ASSISTANT_INSTALL_ID,
-      } } : {}) });
+      } } : {}) }, undefined, () => { caller.signal?.throwIfAborted(); return true; });
   }, true),
   cards: panel("cards", /* @version action.assistant.panel.cards */ 1, "放下页面准备的操作卡", ofPanel, (entry, { body }) => of(entry).service.offers.offerFromPage(pageBody<AssistantPageCardInput>(body), scoped(entry))),
   attachments: panel("attachments", /* @version action.assistant.panel.attachments */ 1, "读出带来的文档", ofPanel,
@@ -352,7 +352,7 @@ export const assistantPanelActions = {
     { to: pageBody<Pick<AssistantHandover, "to">>(input.body).to, ...(typeof input.body.mode === "string" ? { mode: input.body.mode } : {}) }, assistantPermissionCaller(caller, entry.page))),
   recovery: panel("works.recovery", /* @version action.assistant.panel.works.recovery */ 1, "关闭中断的一轮", ofWork, async (entry, input): Promise<object> => typeof input.body.run_id === "string"
     ? of(entry).service.closeInterrupted(input.work_id, { run_id: input.body.run_id, version: Number(input.body.version) }) : of(entry).service.recovery(input.work_id)),
-  // A closed archive request stops only its own remaining writes; committed facts stay with their original owners.
+  // A closed request aborts this action's signal; archive checks it around its own remaining writes, as send/answer/redo do.
   archive: panel("works.archive", /* @version action.assistant.panel.works.archive */ 1, "归档或恢复工作", ofWork,
     async (entry, input, caller) => ({ work: await of(entry).service.archive(input.work_id, input.body.archived !== false, assistantPermissionCaller(caller, entry.page)) })),
   review: panel("works.review", /* @version action.assistant.panel.works.review */ 1, "批准或拒绝工作里的待审操作", ofReview, (entry, input, caller) => of(entry).service.outcomes.decide(input.work_id,
@@ -369,11 +369,12 @@ export const assistantPanelActions = {
   runCard: panel("works.cards.run", /* @version action.assistant.panel.works.cards.run */ 1, "执行一张操作卡", ofItem,
     (entry, input) => of(entry).service.offers.runCard(input.work_id, input.item, { revision: Number(input.body.revision), values: input.body.values })),
   dismissCard: panel("works.cards.dismiss", /* @version action.assistant.panel.works.cards.dismiss */ 1, "收起一张操作卡", ofItem, (entry, input) => of(entry).service.offers.dismissCard(input.work_id, input.item)),
-  redoCard: panel("works.cards.redo", /* @version action.assistant.panel.works.cards.redo */ 1, "重新准备一张操作卡", ofItem, (entry, input) => {
+  redoCard: panel("works.cards.redo", /* @version action.assistant.panel.works.cards.redo */ 1, "重新准备一张操作卡", ofItem, (entry, input, caller) => {
     // A stale card is prepared again only when asked: the request goes in as the page's words, nothing runs in its place.
     const card = of(entry).service.offers.card(input.work_id, input.item);
     return of(entry).service.send({ work_id: input.work_id, request_id: randomUUID(), text: uiText.text("workbench.assistant-http.suggestion-title-did-not-run-why-read-latest",
-      { title: card.title, why: card.outcome || uiText.text("workbench.assistant-http.data-changed-after-was-suggested") }) }, { ...entry.language(), ...scoped(entry) }, "page");
+      { title: card.title, why: card.outcome || uiText.text("workbench.assistant-http.data-changed-after-was-suggested") }) }, { ...entry.language(), ...scoped(entry) }, "page",
+      () => { caller.signal?.throwIfAborted(); return true; });
   }, true),
 };
 export const assistantPanelProvider = () => webEntryProvider("system.assistant-panel", "助理面板", Object.values(assistantPanelActions));
@@ -384,14 +385,9 @@ const named = <T>(table: Readonly<Record<string, T>>, key: string | undefined): 
 /** The panel's write a POST names, called as the person through the panel's door; undefined when the path is not one of them. */
 async function panelWrite(parts: readonly string[], body: Readonly<Record<string, unknown>>, ports: AssistantHttpPorts & { projectRef?: LocalHostProjectReference },
   request: IncomingMessage, response: ServerResponse, assertCurrent: () => void): Promise<{ result: unknown } | undefined> {
-  const call: WebEntryCall<AssistantPageEntry> = { host: ports.localHost, request, assertCurrent, entry: { ports, language: () => pageRoundLanguage(ports), page: pluginPageRequest(request) } };
-  const run = async <I>(definition: ActionDefinition<I, unknown>, input: I) => {
-    // Only archiving ends with the request: a closed archive request stops its own remaining writes (the other writes keep their behaviour).
-    if (definition !== assistantPanelActions.archive.definition) return { result: await door.invoke(call, definition, input) };
-    const ended = new AbortController(), stop = () => ended.abort(); response.once("close", stop);
-    try { return { result: await door.invoke({ ...call, signal: ended.signal }, definition, input) }; }
-    finally { response.off("close", stop); }
-  };
+  const call: WebEntryCall<AssistantPageEntry> = { host: ports.localHost, request, signal: responseAbortSignal(response), assertCurrent,
+    entry: { ports, language: () => pageRoundLanguage(ports), page: pluginPageRequest(request) } };
+  const run = async <I>(definition: ActionDefinition<I, unknown>, input: I) => ({ result: await door.invoke(call, definition, input) });
   const a = assistantPanelActions;
   if (parts.length === 1) {
     const top = named<Panel<typeof ofPanel>>({ send: a.send, cards: a.cards, attachments: a.attachments, notices: a.notices }, parts[0]);

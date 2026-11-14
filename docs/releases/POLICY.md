@@ -8,6 +8,10 @@ Molis Work 只有一个产品版本，每次发布都带发布说明、CHANGELOG
 - 改了什么：[CHANGELOG.md](CHANGELOG.md)（按版本）和 `v<版本>.md`（每个版本一篇发布说明）。
 - 门禁：`node scripts/verify-release-versions.mjs`，CI 里跑（`.github/workflows/ci.yml` 的「Release versions agree」），构建 macOS 安装包前也跑（`apps/desktop/tooling/build-macos-release.sh`）；发布工作流（`.github/workflows/release-macos.yml`，现在只有手动触发）选 tag `v<版本>` 运行时再加 `--tag`。
 
+## 发行配置
+
+构建脚本、macOS 发行工作流和宿主使用同一份[发行配置](../../apps/local-host/src/release-profiles.json)。运行 `node tooling/release/profile.mjs --profile dev --check` 或将 `dev` 换成 `test`、`release`，查看缺项与重复配置。开发档沿用本机 Auth 与测试应用；有官方包时，构建使用该档引用的本机开发发布者密钥签名。密钥文件存放在仓库外。发行档的缺项按[发行批](../../specs/post-anticorruption-roadmap/reference/release-batch.md)逐项接入。自有版本继续由版本表生成。
+
 ## 1. 一个产品版本和它的载体
 
 所有自有版本的唯一维护入口是 `tooling/versions.json`：产品、各库和文件格式、动作、提示词、角色、方法、同步集合与自有协议分别命名。修改条目后运行 `pnpm versions:generate`，它只把表里的值写到用的地方，校验不过就一个文件也不写。构建入口只核对不生成：结果过期就失败，并提示运行这条命令。绕过这张表的新声明归 `scripts/gates/version-declarations.mjs` 管，由 `node scripts/verify-release-versions.mjs` 调用；例外都写在 `tooling/gates/version-exceptions.json`，按文件、名字和字面量个数逐条登记，各带理由。代码只写字面量加标记（`version: /* @version action.todo.items.list */ 1`），不导入版本表，也没有生成的常量文件；写不了标记的地方（方法 Markdown、Manifest、配置，以及 `server/src/sync/quota.rs`、`server/src/sync/round.rs`、`apps/local-host/src/assistant/assistant-agent.ts` 里的几处）只由表里的 `carriers` 改写。例外是外观与语言文件（共同规格、皮肤、字体方案、语言包、资源登记表，`format.ui.*`）：格式版本升一号时文件形状也变了，只改数字的工具帮不上忙，所以这些 JSON 手写 `format_version`，不走 `carriers`，`scripts/gates/version-declarations.mjs` 也不读它们；解析器发现不符就拒绝，CI 的解析测试拦住（`specs/font-and-skin-system/a-section-contract.md` 第 1.4 节）。发布检查单的库版本表是手写的，`verify-release-versions` 对照定义处核对，不符就失败；历史维护清单也人工登记。

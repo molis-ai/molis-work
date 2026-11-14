@@ -1,3 +1,4 @@
+import type { STATE_VOCABULARIES } from "../platform/state-vocabulary.js";
 /** The agent-host contract (`services/agent-host`): a runtime's capabilities, descriptor and health, session and run references and phases, and the adapter a runtime implements. */
 import type { AgentMemoryExecutionControl, AgentMemoryCapability, AgentDocumentCapability } from "./agent-host-memory.js";
 import type { AgentRecoveryCapability, AgentScheduleCapability, AgentCheckpointsCapability, AgentMcpLibrary, AgentSubagentsCapability } from "./agent-host-ports.js";
@@ -100,18 +101,7 @@ export interface AgentRunRef {
   session_id: string;
 }
 
-export type AgentRunPhase =
-  | "starting"
-  | "running"
-  | "awaiting-review"
-  | "awaiting-input"
-  | "paused"
-  | "compacting"
-  | "completed"
-  | "failed"
-  | "cancelled"
-  | "stopped"
-  | "reconcile-required";
+export type AgentRunPhase = keyof typeof STATE_VOCABULARIES.agentRun.states;
 
 const TERMINAL_AGENT_PHASES: readonly AgentRunPhase[] = [
   "completed",

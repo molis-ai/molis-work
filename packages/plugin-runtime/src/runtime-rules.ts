@@ -4,6 +4,27 @@ import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import type { PluginDefinition, PluginDeployment, PluginInstanceRecord, PluginManifest, PluginRuntimeRepository } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ACTION_ERROR_CODE } from "@molis-ai/molis-work-contracts/platform/actions";
 
+export const runtimeFailureCodes = {
+  "plugin.manifest_invalid": true,
+  "plugin.definition_missing": true,
+  "plugin.definition_conflict": true,
+  "plugin.entrypoint_missing": true,
+  "plugin.grant_denied": true,
+  "plugin.state_invalid": true,
+  "plugin.signer_mismatch": true,
+  "plugin.id_namespace_conflict": true,
+  "plugin.in_process_denied": true,
+  "plugin.install_replaced": true,
+  "plugin.executor_failed": true,
+  "plugin.contribution_kind_invalid": true,
+  "plugin.contribution_unredeemed": true,
+  "plugin.quarantined": true,
+  "plugin.upgrade_required": true,
+  "plugin.kept_data_incompatible": true,
+  "plugin.upgrade_validation_missing": true,
+  "plugin.upgrade_validation_failed": true,
+  "plugin.upgrade_rollback_failed": true,
+} as const;
 
 export function validateManifest(manifest: PluginManifest): void {
   parsePluginManifest(manifest);

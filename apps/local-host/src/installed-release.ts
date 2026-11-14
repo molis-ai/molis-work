@@ -8,6 +8,8 @@ import type { PluginTrust } from '@molis-ai/molis-work-contracts/platform/plugin
 import type { PluginLocaleReader } from '@molis-ai/molis-work-plugin-runtime';
 import type { ContentPackage } from '@molis-ai/molis-work-plugin-sdk';
 
+export const HOME_INSTALL_SCOPE = '~home';
+
 export const releaseVersion = (version: number) => `${version}.0.0`;
 
 /**
@@ -18,6 +20,7 @@ export type InstalledRelease = AgentRelease & {
   readonly packaged?: {
     readonly manifest: PluginManifest;
     readonly trust: PluginTrust;
+    readonly entrypointSha256?: string;
     readonly agentBodies?: readonly SandboxAgentBody[];
     readonly blueprint?: ContentPackage['blueprint'];
     readonly localePacks?: PluginLocaleReader | null;

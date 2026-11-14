@@ -201,12 +201,16 @@ export class PrologueRunStore {
     if (isEnded(controlPhase) || ledgerEnded) record.memory_binding?.close();
     const awaitingCommit = isEnded(controlPhase) && !ledgerEnded;
     let phase = controlPhase === "running" || awaitingCommit ? record.state.phase : controlPhase;
+    const stoppedReason = (record.state.phase === "stopped" && record.state.stop_reason) || record.control.stopReason;
     let stopReason = awaitingCommit
       ? controlPhase === "stopped" || controlPhase === "cancelled"
         ? "已请求停止，正在收尾并保存执行记录"
         : "正在保存本轮执行记录"
       // A round the runtime (a guardrail or its circuit breaker) or the Host stopped keeps the reason it gave; one the person stopped says so.
-      : phase === "stopped" ? (record.state.phase === "stopped" && record.state.stop_reason) || record.control.stopReason || "已停止" : record.state.stop_reason;
+      : phase === "stopped" ? stoppedReason || "已停止" : record.state.stop_reason;
+    // "person" is the stop with no reason of its own; a runtime/Host stop keeps its reason. The page checks this code, never the words.
+    // A run still being committed is not a stop yet: no code until the phase is actually stopped, so two reads of the same ended run
+    // cannot differ only by a transient code.
     if (stampTerminal && ledgerEnded && this.#runtime.saveRunTiming && !record.timingReady) {
       if (!record.timingCommit) {
         record.observedEndAt = record.view.ended_at ?? this.now().toISOString();
@@ -251,7 +255,7 @@ export class PrologueRunStore {
         allows_free_text: question.kind === "text",
         ...(this.#runtime.readPendingQuestion ? { answerable: false, unavailable_reason: "正在读取原问题" } : {}),
       })),
-      stop_reason: stopReason,
+      stop_reason: stopReason, stop_reason_code: phase === "stopped" ? (stoppedReason ? "host" : "person") : undefined,
       ...(stampTerminal && executionEnded && record.view.ended_at === null
         ? { ended_at: record.observedEndAt ?? this.now().toISOString() }
         : {}),

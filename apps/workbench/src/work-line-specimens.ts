@@ -98,7 +98,7 @@ function replies(all = true): string {
   const placed = round(say("user-ask"), p("assistant-ack")
     + renderReplyPlaced({ task: "t-fix", where: { kind: "new-event", name: e.fix.title } }) + renderReplyPlaced({ task: "t-notes", where: { kind: "none" } }));
   const more = round(say("user-ask-more"), p("assistant-ack-more")
-    + renderReplyPlaced({ task: "t-quote", where: { kind: "supplement", name: e.quote.title } }) + renderReplyPlaced({ task: "t-room", where: { kind: "for-event", name: e.review.title } })
+    + renderReplyPlaced({ task: "t-quote", where: { kind: "supplement", name: e.quote.title } }) + renderReplyPlaced({ task: "t-links", where: { kind: "for-event", name: e.review.title } })
     + renderReplyPlaced({ task: "t-list", where: { kind: "other-item", name: nav("roll-out-brand-guide") } }));
   const returned = round("", renderReplyReturned(e.fix.title) + p("returned-reply") + renderReplyCarried(1, 3));
   const waiting = round("", renderReplyReturned(say("compare-three-quotes")) + p("needs-you-reply") + `<div class="work-reply-actions">${button("primary", "go-decide", { "data-event-open": "quote" })}</div>`);
@@ -123,7 +123,7 @@ function liveCard(): string {
   return renderEventCard({
     id: "fix", facts: say("registered-by-in-progress", { plugin: uiText.text("workbench.assistant-dock.assistant") }),
     body: `<div class="work-card-quote">${escapeHtml(say("user-ask-fix"))}</div>`
-      + `<div class="work-card-section"><h4>${escapeHtml(say("in-progress"))}</h4>${renderTaskRow({ id: t.fix.id, title: t.fix.title, ring: t.fix.ring, step: t.fix.step, control: "stop" })}</div>`
+      + `<div class="work-card-section"><h4>${escapeHtml(say("in-progress"))}</h4>${renderTaskRow({ id: t.fix.id, title: t.fix.title, ring: t.fix.ring, step: t.fix.step })}</div>`
       + `<div class="work-card-section"><h4>${escapeHtml(say("breakdown"))}</h4>${renderTaskSteps([{ name: say("read-code-reproduce"), at: "done", who: OWNER.coding.name }, { name: say("change-styles"), at: "done", who: OWNER.coding.name },
         { name: say("run-tests"), at: "current", who: OWNER.coding.name }, { name: say("update-plan-screenshots"), at: "todo", who: assistant().name }])}</div>`
       + `<div class="work-card-actions">${button("secondary", "pause")}${renderButton({ variant: "secondary", size: "sm", label: uiText.text("workbench.work-line.stop") })}</div>`,
@@ -203,7 +203,7 @@ export function renderWorkLineSpecimens(specimen: Specimen): string {
   const reply = specimen("wl-reply", "5", say("under-reply"), say("under-reply-note"), `<div class="mw-wls__thread assistant-thread">${replies()}</div>`);
   const card = specimen("wl-event-card", "6", say("event-card"), say("event-card-note"),
     `${state("card-live")}<div class="mw-wls__thread assistant-thread">${liveCard()}</div>${state("card-decision")}<div class="mw-wls__thread assistant-thread">${eventCard()}</div>${state("card-acceptance")}<div class="mw-wls__thread assistant-thread">${acceptanceCard()}</div>`);
-  const hand = specimen("wl-hand", "8", say("hand"), say("hand-note"), `<div class="mw-wls__slot">${handStrip()}${composer(assistant())}</div>`);
+  const hand = specimen("wl-hand", "8", say("hand"), say("hand-note"), `<div class="mw-wls__slot"><div class="mw-wls__hand">${handStrip()}${composer(assistant())}</div></div>`);
   const peek = specimen("wl-peek", "7", say("dialog-closed"), say("dialog-closed-note"),
     `<div class="mw-wls__slot">${renderReplyPeek({ who: assistant(), returned: e.fix.title, body: p("peek-reply"), mark: renderTaskMark({ count: 2, lead: "running" }) })}</div>`
     + `<div class="mw-wls__slot">${renderReplyPeek({ who: linxia(), body: p("peek-reply-character"), mark: renderTaskMark({ count: 3, lead: "answer", needsYou: true }) })}</div>`
@@ -230,14 +230,16 @@ export const WORK_LINE_FRAME_STYLES = `.mw-wls__row{flex-wrap:nowrap;overflow-x:
 .mw-wls__panels{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,340px));align-items:start;gap:16px;padding:4px}
 .mw-wls__thread{display:flex;flex-direction:column;gap:12px;max-width:560px;padding:4px!important;font-size:14px}
 .mw-wls__slot{display:flex;flex-direction:column;max-width:540px;padding:4px}
+.mw-wls__hand{position:relative;margin-top:44px}
 .mw-wls__above{position:absolute;left:0;right:0;bottom:calc(100% + 8px);display:flex;flex-direction:column}
 .mw-navs .work-line{min-height:64px;padding:8px 0}
-.mw-navs .work-line:has(.mw-wls__above){margin-top:112px}
-.mw-navs .work-line:has(.work-reply-mini){margin-top:48px}
+.mw-navs .work-line-row:has(.mw-wls__above){margin-top:112px}
+.mw-navs .work-line-row:has(.work-reply-mini){margin-top:48px}
 .mw-wls__stage{position:relative;display:flex;align-items:flex-start;height:500px;min-width:0;padding:8px 4px;overflow:hidden;transform:translate(0)}
 .mw-wls__stage[data-narrow]{max-width:700px}
 html body.mw-navs-page .mw-wls__stage .assistant-panel[data-side]{position:relative;inset:auto;flex:0 1 560px;min-width:0;width:auto;height:480px;animation:none}
-@media (max-width:760px){.mw-navs .work-line:has(.mw-wls__above),.mw-navs .work-line:has(.work-reply-mini){margin-top:0}.mw-wls__above{position:static}.mw-wls__stage{height:560px}html body.mw-navs-page .mw-wls__stage .assistant-panel[data-side]{flex-basis:100%;height:540px}}`;
+@container work-line (max-width:900px){.mw-navs .work-line-row:is(:has(.mw-wls__above),:has(.work-reply-mini)){margin-top:0}.mw-wls__above{position:static}}
+@media (max-width:760px){.mw-wls__stage{height:560px}html body.mw-navs-page .mw-wls__stage .assistant-panel[data-side]{flex-basis:100%;height:540px}}`;
 
 /** The board's section: the frame above, in the board's language, at a fixed height that scrolls inside. */
 export function renderWorkLineSection(lang: WebLocale): string {

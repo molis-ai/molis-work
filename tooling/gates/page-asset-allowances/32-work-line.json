@@ -1,6 +1,6 @@
 {
   "reason": "第 32 批事项线第一片的部件样式（apps/workbench/src/styles/work-line.ts，随工作台样式表下发）：线与两翼、线头、事件胶囊的十种状态、后台任务图标与浮窗、任务行与任务卡、回应上下的去处行与任务交回标记、事件卡、对话框收起时的回应。组件板的标本经同一张样式表画，所以规则先于产品接线进入样式表。只有工作台样式表变大，没有新增资源路径。",
-  "review": "specs/work-line/spec.md §4、docs/design/work-line-32（方案 E）与分支 batch/32 的 PR 评审。本机对照 merge-base 392f3bdd7 的隔离构建实测（node scripts/gates/page-assets.mjs --base origin/main）：/assets/molis-work-workbench.css 1130374 → 1147375（+17001，含合审第二轮后的左翼让位规则与三种事件卡）。许可取 18000；本批后续接线若再增长，在用户批准的合计 30000 字节内改这个数字，超出再问。",
+  "review": "specs/work-line/spec.md §4、docs/design/work-line-32（方案 E）与分支 batch/32 的 PR 评审。本机对照 merge-base 392f3bdd7 的隔离构建实测（node scripts/gates/page-assets.mjs --base origin/main）：/assets/molis-work-workbench.css 1130374 → 1147943（+17569，含合审第二、三轮后的左翼让位规则、翻页吸附与三种事件卡）。许可取 18000；本批后续接线若再增长，在用户批准的合计 30000 字节内改这个数字，超出再问。",
   "userApproval": "用户于 2026-11-14 弹窗批准（「本批合计放行到 30 KB（推荐）」）：第 32 批给 /assets/molis-work-workbench.css 合计增加不超过 30000 字节。",
   "assets": {
     "/assets/molis-work-workbench.css": 18000

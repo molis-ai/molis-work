@@ -133,7 +133,8 @@ test("WLN-08, WLN-09, WLN-11: the event card has its three forms: work in progre
   const cards = html.slice(html.indexOf('data-nav-specimen="wl-event-card"'), html.indexOf('data-nav-specimen="wl-peek"'));
   assert.deepEqual([...cards.matchAll(/data-event-card="([^"]+)"/gu)].map(match => match[1]), ["fix", "quote", "plan"]);
   const [live, decision, acceptance] = cards.split('<article class="work-card"').slice(1) as [string, string, string];
-  assert.match(live, /class="work-card-quote">把首屏错位修了[\s\S]*data-task-control="stop"[\s\S]*class="work-task-step-who">Coding<[\s\S]*class="work-task-step-who">助理</u, "the words asked, the task behind it, and who does each step");
+  assert.match(live, /class="work-card-quote">把首屏错位修了[\s\S]*data-task-open="t-fix"[\s\S]*class="work-task-step-who">Coding<[\s\S]*class="work-task-step-who">助理</u, "the words asked, the task behind it, and who does each step");
+  assert.deepEqual([live.includes("data-task-control"), live.split(">停止<").length - 1], [false, 1], "one way to stop the work, on the card, not a second one on its only task");
   assert.match(decision, /data-task-open="t-quote"[\s\S]*选第一家[\s\S]*选第二家/u);
   assert.match(acceptance, /class="work-card-source"[\s\S]*已核对 v3[\s\S]*等你看[\s\S]*>认可<[\s\S]*>再改改<[\s\S]*>逐项审阅<[\s\S]*aria-label="打开成标签"[\s\S]*aria-label="放到 Shelf"/u);
   for (const card of [live, decision, acceptance]) assert.match(card, /data-event-park=/u, "every form can be parked in the side panel");

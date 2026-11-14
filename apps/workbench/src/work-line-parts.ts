@@ -88,12 +88,13 @@ export function renderWorkLine(line: {
   const label = (key: string) => escapeHtml(uiText.text(`workbench.work-line.${key}`, { n: "{n}", m: "{m}" }));
   const earlier = `<button type="button" class="work-line-earlier" data-work-line-earlier data-label="${label("earlier-events-n")}" data-label-attn="${label("earlier-events-n-attention")}" aria-label="${uiText("workbench.work-line.earlier-events")}" hidden>`
     + `${icon("chevron-left")}<span data-count></span><span class="work-line-earlier-attn" data-attn-count hidden>${icon("circle-alert")}<span data-n></span></span></button>`;
+  const latest = `<button type="button" class="work-line-earlier work-line-latest" data-work-line-latest aria-label="${uiText("workbench.work-line.back-to-now")}" title="${uiText("workbench.work-line.back-to-now")}" hidden>${icon("chevron-right")}</button>`;
   return `<div class="work-line" data-work-line role="region" aria-label="${uiText("workbench.work-line.work-line")}">`
-    + `<div class="work-line-track" data-work-line-track><div class="work-line-wing" data-wing="past"><div class="work-line-lead">${line.head}${(line.unreadable ?? []).map(renderLineUnreadable).join("")}</div>${earlier}`
-    + `<div class="work-line-run" role="group" aria-label="${uiText("workbench.work-line.done-and-in-progress")}">${run(line.past)}${run(line.active)}</div></div>`
+    + `<div class="work-line-row"><div class="work-line-track" data-work-line-track><div class="work-line-wing" data-wing="past"><div class="work-line-lead">${line.head}${(line.unreadable ?? []).map(renderLineUnreadable).join("")}</div>${earlier}`
+    + `<div class="work-line-run" role="group" aria-label="${uiText("workbench.work-line.done-and-in-progress")}">${run(line.past)}${run(line.active)}</div>${latest}</div>`
     + `<span class="work-line-now" aria-hidden="true">${uiText("workbench.work-line.now")}</span>`
     + `<div class="work-line-wing" data-wing="next"><div class="work-line-run" role="group" aria-label="${uiText("workbench.work-line.next")}">${run(line.next)}</div><span class="work-line-label" aria-hidden="true">${uiText("workbench.work-line.next")}</span></div></div>`
-    + `<div class="work-line-slot" data-work-line-slot>${line.slot}</div></div>`;
+    + `<div class="work-line-slot" data-work-line-slot>${line.slot}</div></div></div>`;
 }
 
 /** Who a reply is from: the Assistant's glyph, or a Character's initial. */

@@ -32,8 +32,9 @@ export const WORK_LINE_STYLES = `
 /* The line: what happened on the left, the composer in the middle, what comes next on the right. Its height is constant.
    The left wing holds what is in progress and what waits for the person, so it keeps 420px before the right one grows: the
    composer is centred from 1444px up and sits a little right of centre below that. */
-.work-line{position:relative;display:grid;grid-template-columns:minmax(min(420px,40%),1fr) minmax(320px,540px) minmax(200px,1fr);grid-template-rows:minmax(0,1fr);align-items:center;gap:12px;min-width:0}
-.work-line::before{content:"";position:absolute;left:0;right:0;top:50%;height:1px;background:var(--line-strong);pointer-events:none}
+.work-line{min-width:0;container:work-line/inline-size}
+.work-line-row{position:relative;display:grid;grid-template-columns:minmax(min(420px,40%),1fr) minmax(320px,540px) minmax(200px,1fr);grid-template-rows:minmax(0,1fr);align-items:center;gap:12px;min-width:0}
+.work-line-row::before{content:"";position:absolute;left:0;right:0;top:50%;height:1px;background:var(--line-strong);pointer-events:none}
 .work-line-track{display:contents}
 .work-line-now{display:none}
 .work-line-wing{position:relative;display:flex;align-items:center;gap:8px;height:44px;min-width:0}
@@ -41,7 +42,12 @@ export const WORK_LINE_STYLES = `
 .work-line-wing[data-wing="next"]{grid-column:3;grid-row:1}
 .work-line-slot{grid-column:2;grid-row:1;position:relative;align-self:end;min-width:0}
 .work-line-run{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:8px;height:44px;padding:0 2px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
-.work-line-wing[data-wing="past"] .work-line-run{flex:1 1 0;min-width:min(180px,45%)}
+/* The line in three columns (it is more than 900px wide itself, whatever the window): the events' stretch of the left wing keeps 200px where the wing has it (the head's name shortens first), snaps to whole capsules, and makes room at its end for the way back to now once paged back. */
+@container work-line (min-width:901px){
+  .work-line-wing[data-wing="past"] .work-line-run{flex:1 1 0;min-width:min(196px,calc(100% - 224px));scroll-snap-type:x mandatory;scroll-padding-right:2px}
+  .work-line-wing[data-wing="past"] .work-line-run[data-back]{padding-right:38px;scroll-padding-right:38px}
+  .work-line-wing[data-wing="past"] .work-event{scroll-snap-align:end}
+}
 .work-line-wing[data-wing="past"] .work-line-run>:first-child{margin-left:auto}
 .work-line-lead{flex:0 1 auto;min-width:0;display:flex;align-items:center;gap:8px}
 .work-line-wing[data-wing="next"] .work-line-run[data-more]{-webkit-mask-image:linear-gradient(270deg,transparent,#000 24px);mask-image:linear-gradient(270deg,transparent,#000 24px)}
@@ -51,7 +57,7 @@ ${PRESSABLE}:hover{background:var(--surface-soft)}
 :is(.work-line-head,.work-line-earlier,.work-event,.work-task-mark,.work-task-row-main):focus-visible{outline:var(--focus-stroke);outline-offset:2px}
 ${PRESSABLE}>svg{flex:none;width:14px;height:14px}
 /* The head: which work item the line belongs to, and how many of its events wait for the person. */
-.work-line-head{flex:0 1 auto;min-width:calc(3em + 62px);gap:7px;height:34px;max-width:200px;padding:0 8px 0 9px;border:1px solid var(--line-strong);border-radius:var(--r-control,8px);background:var(--paper);color:var(--ink);font-size:12.5px;font-weight:600}
+.work-line-head{flex:0 1 auto;min-width:calc(2em + 60px);gap:7px;height:34px;max-width:200px;padding:0 8px 0 9px;border:1px solid var(--line-strong);border-radius:var(--r-control,8px);background:var(--paper);color:var(--ink);font-size:12.5px;font-weight:600}
 .work-line-head-name{min-width:0;${ELLIPSIS}}
 .work-line-count{flex:none;display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--amber-soft);color:var(--amber);font-size:11px;font-weight:600;font-variant-numeric:tabular-nums}
 /* The way to the events the left wing cannot hold: how many lie out of sight, one step back per press. */
@@ -60,10 +66,11 @@ ${PRESSABLE}>svg{flex:none;width:14px;height:14px}
 .work-line-earlier-attn{display:inline-flex;align-items:center;gap:1px;margin-left:5px;color:var(--amber);font-weight:600}
 .work-line-earlier-attn>svg{width:12px;height:12px}
 :is(.work-line-earlier,.work-line-earlier-attn)[hidden]{display:none}
+.work-line-latest{position:absolute;right:0;padding:0 6px}
 /* An event: one thing on the line, registered by a plugin or the Assistant. Its state is a word as well as a look; the tasks behind it show as a ring and a count. */
 .work-event{gap:7px;height:32px;max-width:300px;padding:0 10px 0 6px;border:0;border-radius:16px;background:var(--paper);box-shadow:inset 0 0 0 1px var(--line-strong);color:var(--ink);font-size:12.5px;font-weight:500}
 .work-line-wing[data-wing="past"] .work-event{max-width:min(300px,calc(100% - 4px))}
-.work-event[data-cut]{visibility:hidden}
+.work-event[data-cut]{opacity:0;pointer-events:none}
 .work-event[aria-current]{box-shadow:inset 0 0 0 1.5px var(--ink)}
 .work-event[data-fresh]{animation:work-line-pop var(--dur-move) var(--ease-spring,var(--ease-quint))}
 .work-event-mark{flex:none;display:inline-grid;place-items:center;width:18px;height:18px;border-radius:5px;background:color-mix(in srgb,var(--event-hue,var(--muted)) 16%,transparent);color:var(--event-hue,var(--muted))}
@@ -82,9 +89,11 @@ ${PRESSABLE}>svg{flex:none;width:14px;height:14px}
 .work-event[data-state="done"]{background:var(--desk);color:var(--ink-soft)}
 .work-event:is([data-state="gone"],[data-state="denied"],[data-state="unreadable"]){background:var(--desk);box-shadow:none;border:1px dashed var(--line-strong);color:var(--muted)}
 .work-line-wing[data-wing="past"] ${QUIET} .work-event-note,.work-event[data-tight] .work-event-note{display:none}
-/* The left wing gives what it holds by its own width (a split view or an open side panel narrows it, not only the window): a capsule that cannot hold its name drops its note (the script marks it tight); under 460px an unreadable source keeps its glyph and name, under 340px (a 1024px window) the head and the source keep only their glyphs. A state word never goes. */
-@container work-wing (max-width:460px){.work-event[data-state="unreadable"] .work-event-state,.work-line-lead:has(.work-event) .work-line-head-name{display:none}.work-line-lead:has(.work-event) .work-line-head{min-width:0}}
-@container work-wing (max-width:400px){.work-line-head-name,.work-event[data-state="unreadable"] .work-event-name{display:none}.work-line-head{min-width:0}}
+/* The left wing gives what it holds by its own width (a split view or an open side panel narrows it, not only the window): a capsule that cannot hold its name drops its note (the script marks it tight); the head's name shortens; an unreadable source drops its words under 640px and its name under 560px; under 400px (a 1024px window) a line with events keeps only the head's glyph and count. A state word never goes. */
+.work-event[data-state="unreadable"] .work-event-name{max-width:6em}
+@container work-wing (max-width:640px){.work-event[data-state="unreadable"] .work-event-state{display:none}}
+@container work-wing (max-width:560px){.work-event[data-state="unreadable"] .work-event-name{display:none}}
+@container work-wing (max-width:400px){.work-line-wing:has(.work-line-run>*) .work-line-head-name{display:none}.work-line-wing:has(.work-line-run>*) .work-line-head{min-width:0}}
 /* Who a reply is from: the Assistant's mark, or a Character's initial. */
 .work-reply-who{flex:none;display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--rail);color:var(--ink-soft);font-size:10px;font-weight:600}
 .work-reply-who[data-who="assistant"]{border-radius:5px;background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--accent-strong)}
@@ -173,19 +182,20 @@ ${W} ${BUTTON_GROUNDS} .mw-btn--secondary:not(:disabled){border-color:var(--line
 ${W} .assistant-tabs[data-work-tabs] .assistant-tab{flex:0 0 auto;width:auto;min-width:96px;max-width:184px}
 @media (prefers-reduced-motion:reduce){${ANIMATED}{animation:none}}
 html[data-craft-still] ${ANIMATED}{animation:none}
-@media (max-width:1180px){
-  .work-line{grid-template-columns:minmax(0,3fr) minmax(300px,400px) minmax(0,2fr)}
+@container work-line (max-width:1120px){
+  .work-line-row{grid-template-columns:minmax(0,2fr) minmax(300px,400px) minmax(0,1fr)}
   ${QUIET} .work-event-note{display:none}
   .work-line-label{display:none}
 }
-@media (max-width:760px){
-  .work-line{display:flex;flex-direction:column;align-items:stretch;gap:6px}
-  .work-line::before{top:24px}
+/* The line as a track above the composer: a phone, or a split view or an open side panel that leaves the line 900px or less. */
+@container work-line (max-width:900px){
+  .work-line-row{display:flex;flex-direction:column;align-items:stretch;gap:6px}
+  .work-line-row::before{top:24px}
   .work-line-track{display:flex;align-items:center;gap:8px;height:48px;min-width:0;overflow-x:auto;scrollbar-width:none}
   .work-line-wing{flex:none;height:48px}
   .work-line-wing[data-wing="past"]{display:contents}
   .work-line-lead{flex:none;position:sticky;z-index:2;left:0;height:48px;padding-right:4px;background:var(--desk);box-shadow:6px 0 6px -2px var(--desk)}
-  .work-event[data-cut]{visibility:visible}
+  .work-event[data-cut]{opacity:1;pointer-events:auto}
   .work-event[data-state="unreadable"] :is(.work-event-name,.work-event-state){display:none}
   .work-line-slot{align-self:stretch}
   .work-line-run{flex:none;overflow:visible}
@@ -194,6 +204,9 @@ html[data-craft-still] ${ANIMATED}{animation:none}
   .work-line-head{height:44px;min-width:0}
   .work-line-head-name,.work-event-note{display:none}
   .work-event,.work-line-wing[data-wing="past"] .work-event{height:44px;max-width:240px;border-radius:22px}
+  .work-line-wing[data-wing="past"] .work-line-run>:last-child{max-width:min(240px,var(--near-max,240px))}
+}
+@media (max-width:760px){
   ${W} .assistant-tabs[data-work-tabs] .assistant-tab:not([data-current]){display:flex}
   ${W} .assistant-tabs[data-work-tabs] .assistant-tab{min-width:72px;max-width:132px}
   ${W} .assistant-tabs[data-work-tabs] .assistant-tab[data-current]{max-width:220px}

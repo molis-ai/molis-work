@@ -24,28 +24,48 @@ function fitEvents(scope: ParentNode): void {
 
 /**
  * The left wing rests at its end: what is being worked on and what waits sit next to the composer, and the oldest events go
- * out of sight first. Only whole capsules show (one cut by the wing's edge is hidden and counted), except the one next to now,
- * which shrinks instead. The button after the head says how many are out of sight, and whether one of them asks for attention.
+ * out of sight first. Only whole capsules show: one cut by an edge is made invisible (it stays in the reading and tab order,
+ * and focusing it brings it into the wing). The button after the head says how many are before the wing, and whether one of
+ * them asks for attention; a press brings the last of them to the wing's end, so every press shows at least one more event
+ * whole and every counted event is reached. Once paged back, a button at the wing's end goes back to now.
  */
 function installPastWing(run: HTMLElement): void {
-  const earlier = run.parentElement?.querySelector<HTMLButtonElement>("[data-work-line-earlier]");
+  const wing = run.parentElement;
+  const earlier = wing?.querySelector<HTMLButtonElement>("[data-work-line-earlier]"), latest = wing?.querySelector<HTMLButtonElement>("[data-work-line-latest]");
   const count = earlier?.querySelector<HTMLElement>("[data-count]"), flagged = earlier?.querySelector<HTMLElement>("[data-attn-count]");
+  const items = () => [...run.children] as HTMLElement[];
+  const smooth = (): ScrollBehavior => matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
+  /** Where a capsule's end rests: the run's end, less its padding (wider while the way back to now stands there). */
+  const end = () => run.getBoundingClientRect().right - parseFloat(getComputedStyle(run).paddingRight);
+  const align = (item: HTMLElement, behavior: ScrollBehavior = "auto") => run.scrollTo({ left: run.scrollLeft + item.getBoundingClientRect().right - end(), behavior });
   // Whether the person left the wing at its end: a size change keeps the end in sight only then, so paging back is not undone.
   // Only a scroll the person made counts (one that follows their input): the scroll events our own settling causes, arriving
-  // after the button appeared and narrowed the run, would otherwise read as "scrolled away".
-  let atEnd = true, touched = -Infinity;
+  // after a button appeared and narrowed the run, would otherwise read as "scrolled away".
+  let atEnd = true, touched = -Infinity, turned = 0;
+  // While a press is carrying the wing to a capsule: a size change must not cut the move short or land it elsewhere, and on
+  // the way back to now the capsules still past the end do not bring the way back's room in again.
+  let dest: HTMLElement | null = null, idle = 0, homing = false;
+  // The last whole capsule in sight: what a size change keeps in place while paged back, and what a wheel steps from.
+  let anchor: HTMLElement | null = null;
   const touch = () => { touched = performance.now(); };
   const report = () => {
-    const box = run.getBoundingClientRect(), items = [...run.children] as HTMLElement[];
-    const boxes = items.map((item) => item.getBoundingClientRect());
-    // Before the wing's start: out of sight and counted. Past its end (while paged back): only hidden, they are next to now.
-    const before = boxes.map((item, index) => index < items.length - 1 && item.left < box.left - 1);
+    const from = run.getBoundingClientRect().left, to = end(), all = items();
+    const boxes = all.map((item) => item.getBoundingClientRect());
+    // Before the wing's start: out of sight and counted. Past its end (while paged back): out of sight, toward now.
+    const before = boxes.map((box) => box.left < from - 1), after = boxes.map((box) => box.right > to + 1);
     let hidden = 0, attention = 0;
-    items.forEach((item, index) => {
-      item.toggleAttribute("data-cut", before[index] || boxes[index]!.right > box.right + 1);
-      if (before[index]) { hidden += 1; if (URGENT.has(item.dataset.state ?? "")) attention += 1; }
+    anchor = null;
+    all.forEach((item, index) => {
+      item.toggleAttribute("data-cut", !dest && (before[index]! || after[index]!));
+      if (before[index]) { hidden += 1; if (URGENT.has(item.dataset.state ?? "")) attention += 1; } else if (!after[index]) anchor = item;
     });
+    const back = !homing && after.some(Boolean);
+    run.toggleAttribute("data-back", back);
+    // A button that goes away while it holds the focus hands it to the event it led to.
+    if (latest && !back && document.activeElement === latest) all[all.length - 1]?.focus({ preventScroll: true });
+    if (latest) latest.hidden = !back;
     if (!earlier) return;
+    if (hidden === 0 && document.activeElement === earlier) all[0]?.focus({ preventScroll: true });
     earlier.hidden = hidden === 0;
     earlier.toggleAttribute("data-attn", attention > 0);
     if (count) count.textContent = String(hidden);
@@ -53,14 +73,56 @@ function installPastWing(run: HTMLElement): void {
     const label = (attention ? earlier.dataset.labelAttn : earlier.dataset.label)?.replace("{n}", String(hidden)).replace("{m}", String(attention));
     if (label) { earlier.setAttribute("aria-label", label); earlier.title = label; }
   };
-  const settle = () => { fitEvents(run); if (atEnd) run.scrollLeft = run.scrollWidth; report(); };
-  earlier?.addEventListener("click", () => { touch(); run.scrollBy({ left: -Math.max(120, run.clientWidth - FADE), behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }); });
-  for (const type of ["wheel", "pointerdown", "touchstart", "keydown", "focusin"]) run.addEventListener(type, touch, { passive: true });
-  run.addEventListener("scroll", () => { if (performance.now() - touched < 2000) atEnd = run.scrollLeft + run.clientWidth >= run.scrollWidth - 2; report(); }, { passive: true });
-  // A wheel that only turns up and down still reaches the earlier events.
+  const settle = () => {
+    fitEvents(run);
+    if (!dest) { if (atEnd) run.scrollLeft = run.scrollWidth; else if (anchor?.isConnected) align(anchor); }
+    report();
+  };
+  /** The move a press began has come to rest (no scroll for a moment): it lands exactly on its capsule, whatever changed size on the way. */
+  const arrive = () => {
+    const to = dest; dest = null;
+    if (atEnd) run.scrollLeft = run.scrollWidth; else if (to?.isConnected) align(to);
+    report();
+  };
+  const wait = () => { clearTimeout(idle); idle = window.setTimeout(arrive, 160); };
+  /** Brings a capsule to the wing's end; the one next to now takes the wing back to its rest. */
+  const go = (target: HTMLElement | undefined, behavior: ScrollBehavior) => {
+    if (!target) return;
+    const all = items();
+    touch(); clearTimeout(idle);
+    // Only a glide has a way to go: without motion the capsule is there at once.
+    dest = behavior === "smooth" ? target : null;
+    if (dest) wait();
+    atEnd = homing = target === all[all.length - 1];
+    if (atEnd) { run.removeAttribute("data-back"); run.scrollTo({ left: run.scrollWidth, behavior }); return; }
+    // The way back to now takes its room first, so the capsule lands where it will stay.
+    run.setAttribute("data-back", ""); anchor = target; align(target, behavior);
+  };
+  const beside = (by: number) => { const all = items(); return all[(anchor ? all.indexOf(anchor) : all.length - 1) + by]; };
+  // A press while the last one is still gliding goes one event further than where that one is headed.
+  earlier?.addEventListener("click", () => {
+    const from = run.getBoundingClientRect().left, all = items();
+    go(dest ? all[all.indexOf(dest) - 1] : all.filter((item) => item.getBoundingClientRect().left < from - 1).pop(), smooth());
+  });
+  latest?.addEventListener("click", () => go(items().pop(), smooth()));
+  // The person's own input: what follows is theirs, and it ends a move a press began.
+  for (const type of ["wheel", "pointerdown", "touchstart", "keydown", "focusin"]) run.addEventListener(type, () => { touch(); homing = false; dest = null; clearTimeout(idle); }, { passive: true });
+  run.addEventListener("scroll", () => {
+    const rests = run.scrollLeft + run.clientWidth >= run.scrollWidth - 2;
+    if (rests) homing = false;
+    if (!homing && performance.now() - touched < 2000) atEnd = rests;
+    if (dest) wait();
+    report();
+  }, { passive: true });
+  // A wheel that only turns up and down still reaches the earlier events, a capsule at a time (the run snaps to whole capsules).
   run.addEventListener("wheel", (event) => {
     if (run.scrollWidth <= run.clientWidth || Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
-    event.preventDefault(); touch(); run.scrollLeft += event.deltaY;
+    // At either end the wheel is the page's again.
+    if (event.deltaY < 0 ? run.scrollLeft <= 0 : atEnd) return;
+    event.preventDefault();
+    turned += event.deltaMode ? event.deltaY * 16 : event.deltaY;
+    if (Math.abs(turned) < 48) return;
+    go(beside(turned < 0 ? -1 : 1), "auto"); turned = 0;
   }, { passive: false });
   settle(); new ResizeObserver(settle).observe(run);
 }
@@ -76,8 +138,11 @@ function installNextWing(run: HTMLElement): void {
 function installTrack(track: HTMLElement): void {
   const now = track.querySelector<HTMLElement>(".work-line-now");
   const rest = () => {
-    if (!now?.offsetParent) return;
-    const box = track.getBoundingClientRect(), lead = (track.querySelector<HTMLElement>(".work-line-lead")?.getBoundingClientRect().width ?? 0) + 8;
+    if (!now?.offsetParent) { track.style.removeProperty("--near-max"); return; }
+    const lead = (track.querySelector<HTMLElement>(".work-line-lead")?.getBoundingClientRect().width ?? 0) + 8;
+    // The event next to now is no wider than what the fixed lead and now leave of the track: it shows whole in any language.
+    track.style.setProperty("--near-max", `${Math.max(96, track.clientWidth - lead - now.offsetWidth - 24)}px`);
+    const box = track.getBoundingClientRect();
     const nearest = track.querySelector<HTMLElement>(`${PAST_RUN} > :last-child`);
     const from = (nearest ?? now).getBoundingClientRect().left - box.left - lead;
     // Never so far that now leaves the track.

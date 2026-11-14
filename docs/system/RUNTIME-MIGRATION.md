@@ -1,14 +1,16 @@
 # 内置插件迁到 Plugin Runtime：计划
 
+> 本页同时保留 2026-10 的迁移历史与现行装配规则。现行为准的是 `AGENTS.md` 与 [`PACKAGE-BOUNDARIES.md`](PACKAGE-BOUNDARIES.md)；§9「怎样量进展」的「现在」列是 2026-11-13 重测值，§2/§3 的 2026-10 数字是历史基线，不要当现状。
+
 T-382 路径更新：本文历史记录中的 `artifact-native-plugin-http.ts` 现为平台成果库路由 `apps/local-host/src/artifact-library-http.ts`；已移出 `NATIVE_PLUGIN_HTTP_FILES`。历史证据与当时裁定保留。
 
-状态：执行中。2026-10-18 按本地 W5-01 整合候选核对：Form、灵光、PPT、Dataset 由项目监督器启动，Issues、Todo、Cognia、Images、Jelly 由 Home 监督器启动；Todo #684、灵光 #729 已合入 main；截至 2026-10-30 的 main：Cognia、Images、Jelly、PPT、Dataset 已进 Plugin Runtime（各自 `src/registration.ts` 的 `runtime`/`project_runtime`：Cognia、Images、Jelly 由 Home 监督器启动，PPT、Dataset 由项目监督器启动；这些登记分别在 #840（2026-10-20）与 batch-39（#1307，2026-10-25）进 main）。第 2.1 节的目录条目以 2026-10-18 为准（名字与库的来源见该节首的说明），其他标明日期的行号、接线数量和缺口保留调研时口径。这份文档回答「迁哪些、不迁哪些、什么顺序、迁之前要补什么、每个插件一个 PR 怎么做、怎样量进展」，并写明 Characters 反方向并进 modules/characters（第 5.4 节；CHR-1 已于 2026-10-22 做完，见该节进度）。**2026-10-18 用户改了几项（第 1 节末四行）**：四个构建期例外取消（Goals 按本计划迁，插件创作台并进平台能力，成果库与 Sessions 归平台事实、Sessions 清理），内置插件的授权改成与其他插件同一规则，只给内置的特权改成按声明与授权，项目库加库服务；第 10 节第 3～9 项都已定。下文与这些冲突的地方标了「2026-10-18 改」，没标的照旧。2026-10-31 W6-01 第二片（T-147）：构建期只剩用户批过的两个例外 Alchemist、插件创作台，门禁里的名单改名 `APPROVED_BUILD_TIME_EXCEPTIONS`、带出处；下文各节按当时口径写的数与名单，以第 9 节「现在」一列为准。
+状态：现行迁移记录（2026-11-13 重测；历史基线保留在正文）。2026-10-18 按本地 W5-01 整合候选核对：Form、灵光、PPT、Dataset 由项目监督器启动，Issues、Todo、Cognia、Images、Jelly 由 Home 监督器启动；Todo #684、灵光 #729 已合入 main；截至 2026-10-30 的 main：Cognia、Images、Jelly、PPT、Dataset 已进 Plugin Runtime（各自 `src/registration.ts` 的 `runtime`/`project_runtime`：Cognia、Images、Jelly 由 Home 监督器启动，PPT、Dataset 由项目监督器启动；这些登记分别在 #840（2026-10-20）与 batch-39（#1307，2026-10-25）进 main）。第 2.1 节的目录条目以 2026-10-18 为准（名字与库的来源见该节首的说明），其他标明日期的行号、接线数量和缺口保留调研时口径。这份文档回答「迁哪些、不迁哪些、什么顺序、迁之前要补什么、每个插件一个 PR 怎么做、怎样量进展」，并写明 Characters 反方向并进 modules/characters（第 5.4 节；CHR-1 已于 2026-10-22 做完，见该节进度）。**2026-10-18 用户改了几项（第 1 节末四行）**：四个构建期例外取消（Goals 按本计划迁，插件创作台并进平台能力，成果库与 Sessions 归平台事实、Sessions 清理），内置插件的授权改成与其他插件同一规则，只给内置的特权改成按声明与授权，项目库加库服务；第 10 节第 3～9 项都已定。下文与这些冲突的地方标了「2026-10-18 改」，没标的照旧。2026-10-31 W6-01 第二片（T-147）：构建期只剩用户批过的两个例外 Alchemist、插件创作台，门禁里的名单改名 `APPROVED_BUILD_TIME_EXCEPTIONS`、带出处；下文各节按当时口径写的数与名单，以第 9 节「现在」一列为准。
 
 任务来源：`docs/prompts/repository-anti-corruption.md` §4.6「装配统一」；路线图 W1-15、W3-06、W4-01、W4-02、W4-04、W5-01、W5-02、W6-01、W6-02（`specs/archive/repository-anti-corruption/roadmap-2026-10-07.md`）；扩展点清单见 [EXTENSION-POINTS.md](EXTENSION-POINTS.md)，第三方插件见 [THIRD-PARTY-PLUGINS.md](THIRD-PARTY-PLUGINS.md)。
 
 ## 白话说明
 
-内置插件现在有两种装配方式。**经 Plugin Runtime**：监督器启动，有安装记录、升级检查、崩溃恢复，HTTP 由 Manifest 声明；本地候选有 17 个，其中 Characters 已并进宿主、不再是插件（第 5.4 节，CHR-1，2026-10-22）。**构建期组合**：宿主里手写一行 `registerProvider`、一个 `<插件>-native-plugin-http.ts`、`web-request.ts` 里的一段路由，没有安装记录和升级检查；（2026-10-31）只剩用户批过的两个例外 Alchemist、插件创作台。两种方式的插件在工作台里都有目录条目。迁移逐个删除插件在宿主里的专用文件和接线，最终构建期只剩 4 个批准例外。2026-10-18 改：这 4 个例外已取消（Goals 按标准迁到 Runtime，插件创作台并进平台能力，成果库与 Sessions 归平台事实、Sessions 清理），见第 1 节与第 3 节开头，所以「只剩 4 个批准例外」是取消前的算法。库留在原处，界面与业务事实保持；每片完成程度和验证见防腐 spec。
+内置插件现在只有两种装配方式。**经 Plugin Runtime**：监督器启动，有安装记录、升级检查、崩溃恢复，HTTP 由 Manifest 声明；大部分内置插件已在这条路上。**构建期组合**：宿主里手写 `registerProvider`、一个 `<插件>-native-plugin-http.ts`、`web-request.ts` 里的一段路由，没有安装记录和升级检查；现在只剩用户批过的 **2 个例外**（Alchemist、插件创作台，BL-377 重做后为 0）。两种方式的插件在工作台里都有目录条目。历史上曾有 4 个批准例外，2026-10-18 取消（Goals 按标准迁到 Runtime，成果库与 Sessions 归平台事实，Sessions 清理），那是历史算法，不是现状。库留在原处，界面与业务事实保持；每片完成程度和验证见防腐 spec。
 
 Home 路径沿已有 Issue 的 `HomePluginHost` / `HomePluginExecutor`，不再建第二个平台。安装、发行物和安装隔离 KV 是完整基线，旧版与坏结构严格拒绝；迁移来的插件业务表仍留原 SQLite。数据库/模型/动作/指令与生命周期复用现有共同服务；Home HTTP 共用 operations，Host 验证路径中的项目存在、插件可见后给本次调用建立项目身份，不信请求体或 query 自称的项目。项目删除仍向现行 catalog 的数据 owner 调清理；可信 Home 条目可声明同步停止回调，由同一 owner 在 purge 前送给当前实例，停用后回到原离线清理。相关验收与待运行工程证据见防腐 spec 的 W5-01 段。
 
@@ -42,11 +44,11 @@ AGENTS.md 的硬约束同时有效：新的内置插件只走 Runtime；不再�
 
 名字以 2026-10-18 为准，W4-11（#542）登记库；2026-10-24 起（PG-022 P1，#1222）库由 Manifest 的 `databases.home` 声明，删项目时库里的行另由其 `project_rows` 声明（PG-024，第 10 节第 5 项）。
 
-`apps/workbench/src/builtin-plugins.ts` 的 `BUILTIN_PLUGIN_CATALOG` 有 26 条（W5-02 PR-1a 起由 `node scripts/generate-plugin-registry.mjs` 从各包 `src/registration.ts` 生成，不手改），在 `tests/builtin-plugin-assembly-gate.test.ts` 里分成：
+`apps/workbench/src/builtin-plugins.ts` 的 `BUILTIN_PLUGIN_CATALOG` 有 22 条（W5-02 PR-1a 起由 `node scripts/generate-plugin-registry.mjs` 从各包 `src/registration.ts` 生成，不手改），在 `tests/builtin-plugin-assembly-gate.test.ts` 里分成：
 
-- `RUNTIME_ASSEMBLED`（13）：characters、shelf、coding、files、git、diff、text-stats、form、lingguang、pages、ppt、dataset、workflows，由 `apps/local-host/src/project-plugins.ts` 的监督器启动。Characters 将移出（第 5.4 节），所以长期是 12。（CHR-1 已移出，2026-10-22：现在是 12，列表里没有 characters。）
+- `RUNTIME_ASSEMBLED`（15）：coding、dataset、diff、feed、form、git、goals、inbox、lingguang、pages、ppt、schedule、shelf、text-stats、workflows，由 `apps/local-host/src/project-plugins.ts` 的监督器启动。
 - Home 级（5）：issues、todo、cognia、images、jelly，Manifest 写 `runtime: { scope: "home" }`、包自己的 `registration` 带 `runtime: { create, … }`，由 `apps/local-host/src/home-plugins.ts` 的 Home 监督器启动。
-- `BUILD_TIME_ASSEMBLED`（8）：alchemist、artifacts、feed、goals、inbox、plugin-builder、schedule、sessions。（2026-10-31 起只剩 alchemist、plugin-builder，名单改名 `APPROVED_BUILD_TIME_EXCEPTIONS`，T-147。）
+- `APPROVED_BUILD_TIME_EXCEPTIONS`（2）：alchemist、plugin-builder；其余目录条目都在上面两类里。
 
 PPT 的本地 Runtime 迁移候选已实现（见防腐 spec W5-01-PPT；宿主 `ppt-actions.ts`/`ppt-native-plugin-http.ts` 已删，尚未推送/合入）。
 
@@ -60,7 +62,7 @@ Workflows 已由 Plugin Runtime 装配（防腐 spec W5-01-WORKFLOWS）：宿主
 
 范围（个人或项目）取自插件 `registration` 的 `personal`；数据位置取自 Home 存储登记（`apps/local-host/src/home-stores.ts` 的 `homeStores()`）、`apps/local-host/src/project-database-schema.ts` 和各包。
 
-**批准的构建期例外（4）**（2026-10-18 改：已取消，见第 1 节与第 3 节开头）：Goals、Artifacts、Sessions（包 `plugins/native/work`）、插件创作台（`plugin-builder`），见第 3 节。
+**批准的构建期例外（2；2026-10-18 取消的历史 4 个见第 1、3 节）**：Alchemist、插件创作台（`plugin-builder`）。
 
 **要迁的（14）**。「实例」一列是放置规则的结果（见表后），「项目分区的 Home 数据」一列说明有没有要在「项目已删」步骤里清的数据（见 4.2 和 6）：
 
@@ -87,7 +89,7 @@ Workflows 已由 Plugin Runtime 装配（防腐 spec W5-01-WORKFLOWS）：宿主
 - **每个项目一个实例**：提供方今天按项目登记的（同文件第 189–206 行，`this.host.actionRegistry(reference)`）：Form、Dataset、PPT、Pages、灵光、Workflows、Inbox、Schedule、Feed，共 9 个。监督器条目放在 `project-plugins.ts` 的 `startPlatform`，和 Shelf、Coding 一族一样。
 - **用户已确认（2026-10-10，防腐 spec §1）。** Form、Dataset、PPT、Pages、灵光、Workflows 每个项目一个 Runtime 实例，原 Home 库仍按项目分区；Todo、Jelly、Cognia、Images、Alchemist 是 Home 级实例。目录的 `personal` 仍只表示每个项目都可用，不决定实例作用域。
 
-**混合插件**（在 `RUNTIME_ASSEMBLED` 里，宿主却仍留着手写文件，门禁看不出来）：名单（`tests/builtin-plugin-assembly-gate.test.ts` 的 `HYBRID_RUNTIME_PLUGINS`）现在只剩 Coding（Git 已随 G5 移出）。Shelf 已收拢（S4，2026-10-23）：Home 与项目两半的动作和模型调用从 Shelf S2 起是 Runtime 实例（registration 的 `runtime: { scope: "home", dual_instance }`，项目提供方 #1018 已删），路由（`/api/plugins/io.molis.work.shelf/…`）从 S3 起只由插件声明，`shelf-native-plugin-http.ts` 已删；W6-01（#1168）删了 personal 适配桥，Alchemist 的 HTTP 改由 `apps/local-host/src/web-request.ts` 显式直连；S4 删了 `shelf-actions.ts`，演示数据的示例改由常驻宿主调 Shelf 自己的动作 `shelf.sample.seed` 放回（PG-026-S1）。宿主替 Shelf 拼设置节（`web-catalog.ts` 按贡献 id 分支）不是 Shelf 名下的文件，归 PG-072。Characters 原来也是混合插件（宿主里有 `characters-host.ts` 等文件），现在走另一条路：并进宿主（第 5.4 节；CHR-1 已做，2026-10-22）。
+**混合插件**（在 `RUNTIME_ASSEMBLED` 里，宿主却仍留着手写文件，门禁看不出来）：名单（`tests/builtin-plugin-assembly-gate.test.ts` 的 `HYBRID_RUNTIME_PLUGINS`）现在只剩 `goals`；Coding、Git、Shelf 已不再混合。Shelf 已收拢（S4，2026-10-23）：Home 与项目两半的动作和模型调用从 Shelf S2 起是 Runtime 实例（registration 的 `runtime: { scope: "home", dual_instance }`，项目提供方 #1018 已删），路由（`/api/plugins/io.molis.work.shelf/…`）从 S3 起只由插件声明，`shelf-native-plugin-http.ts` 已删；W6-01（#1168）删了 personal 适配桥，Alchemist 的 HTTP 改由 `apps/local-host/src/web-request.ts` 显式直连；S4 删了 `shelf-actions.ts`，演示数据的示例改由常驻宿主调 Shelf 自己的动作 `shelf.sample.seed` 放回（PG-026-S1）。宿主替 Shelf 拼设置节（`web-catalog.ts` 按贡献 id 分支）不是 Shelf 名下的文件，归 PG-072。Characters 原来也是混合插件（宿主里有 `characters-host.ts` 等文件），现在走另一条路：并进宿主（第 5.4 节；CHR-1 已做，2026-10-22）。
 
 ## 3. 批准的构建期例外
 
@@ -201,7 +203,7 @@ Todo 打开 Home 级路径：它是第一个迁到 Home 级实例上的插件，
 3. 流程族：Schedule、Workflows、Inbox。Schedule 的提醒和定时操作与宿主调度器相连，Workflows 要通过动作目录调其他插件，Inbox 与 Feed 有判断场景绑定；碰到 4.2 的项目库表问题。Inbox 和 Workflows 还在代码里写死了自己的 `provider_id`，Inbox 还钉着 Pages（4.2 第 3 类后果）：4.2 已定内置插件保持 `plugin_id`（用户 2026-10-10，W3-06 C），这些钉死处不用改，迁 Pages 也不会让 Inbox 的动作不可用，迁移顺序不受它牵制。
 4. Feed：被 29 个宿主文件 import，来源、信号、连接器、Inbox 都和它相连，单独写计划再迁。
 5. 混合插件收拢：Shelf 已做（S2 Runtime 实例；S3 路由：项目提供方与 `shelf-native-plugin-http.ts` 已删；S4 演示种子走 Shelf 的动作 `shelf.sample.seed`，删 `shelf-actions.ts`，移出混合名单）。
-6. Alchemist：最后迁，它有自己的宿主服务和每项目工作室库。（2026-10-21 用户定：不迁，防腐收尾后删除再重做，见防腐 spec §1 的 2026-10-21 行与 BL-376。）
+6. Alchemist：不迁、不删，本轮继续绕过，由 [BL-377](../../specs/backlog/BL-377.md) 整体重做（用户 2026-10-21、10-23 定）；它有自己的宿主服务和每项目工作室库。
 
 ### 5.4 Characters：并进宿主，不是迁到 Runtime
 
@@ -266,13 +268,13 @@ CHR-1 之前的现状（留作记录）：包 `plugins/native/characters` 有 13
 
 | 指标 | 现在 | 全部迁完后的目标 |
 | --- | --- | --- |
-| 目录条目 | 25（CHR-1 移出 Characters 之后，2026-10-22） | 25（迁移本身不增减目录条目；原来写的 24 是减去 Characters 的数，它已移出） |
-| `RUNTIME_ASSEMBLED`（Runtime 装配的内置插件） | 16（2026-10-31，登记上有 `project_runtime` 的；Home 级另算） | 20（现有 6 个，Characters 移出，加迁来的 14 个） |
-| `APPROVED_BUILD_TIME_EXCEPTIONS`（构建期装配的内置插件；2026-10-31 前的名单名见 `:47`） | 2（2026-10-31） | 2（Alchemist、插件创作台，BL-377 重做后为 0） |
-| `apps/local-host/src/*-native-plugin-http.ts` | 1 个文件（T-382 后只剩 `alchemist-native-plugin-http.ts`；平台成果库为 `artifact-library-http.ts`） | 1 个（`artifact-native-plugin-http.ts`，208 行） |
-| 以插件命名的 `apps/local-host/src/*-actions.ts` | 15 个 | 3 个（`artifact-actions.ts`、`goals-actions.ts`、`work-actions.ts`，共 136 行） |
-| `project-host.ts` 里按插件逐个登记的 `registerProvider` | 16 行 | 0 |
-| 新增一个内置插件在包外的手改文件数（外加 SSOT 一行，两端都要） | 12（见 EXTENSION-POINTS.md 3.1） | 1（要 X-1；没有 X-1 是 4） |
+| 目录条目 | 22（2026-11-13，`BUILTIN_PLUGIN_CATALOG`；第 06 批 Files 退役） | 22（迁移本身不增减目录条目） |
+| `RUNTIME_ASSEMBLED`（Runtime 装配的内置插件） | 15（2026-11-13，登记上有 `project_runtime` 的；Home 级另算） | 17（两个构建期例外迁完后；BL-377 重做后另算） |
+| `APPROVED_BUILD_TIME_EXCEPTIONS`（构建期装配的内置插件） | 2（Alchemist、插件创作台） | 0（BL-377 重做后） |
+| `apps/local-host/src/*-native-plugin-http.ts` | 1 个文件（T-382 后只剩 `alchemist-native-plugin-http.ts`；平台成果库为 `artifact-library-http.ts`） | 0（BL-377 重做后） |
+| 以插件命名的 `apps/local-host/src/*-actions.ts` | 0（平台自己的 `artifact-actions.ts` 等不算按插件命名） | 0 |
+| `project-host.ts` 里按插件逐个登记的 `registerProvider` | 3 处调用，其中按插件命名的只有 Alchemist 1 处 | 0 |
+| 新增一个内置插件在包外的手改文件数（外加 SSOT 一行，两端都要） | 11（2026-10-25 历史基线，见 EXTENSION-POINTS.md 3.1；不是目标） | 1（要 X-1；没有 X-1 是 4） |
 
 量法：目录条目和两份名单数 `tests/builtin-plugin-assembly-gate.test.ts` 里的集合与 `BUILTIN_PLUGIN_CATALOG` 的条数；两类 `*-native-plugin-http.ts`、`*-actions.ts` 数文件与行数，`ls apps/local-host/src/*-native-plugin-http.ts`、`wc -l`；按插件登记的 `registerProvider` 数 `project-host.ts` 里的行：`grep -c -E "registerProvider\((pages|ppt|form|dataset|lingguang|inbox|schedule|scheduleReminder|shelfProject|workflows|images|jelly|todo|cognia|shelf)ActionProvider|registerProvider\(this\.alchemist\.provider" apps/local-host/src/project-host.ts`（Feed 通过 `nativeContentProviders` 的循环登记，不在这一行数里）；包外手改文件数用 EXTENSION-POINTS.md 第 1 节的两条命令。W6-04 用同一套方法重量并记入 spec。
 

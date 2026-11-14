@@ -268,6 +268,7 @@ export type { LocalCliOptions } from "./cli-host.js";
 export { ModelProviderStore, createModelProviderTables, type ModelProviderSqlite, type ModelProviderStoreOptions, type ModelSecretPort } from "./model-provider-store.js";
 export { MINIMAX_ANTHROPIC_BASE_URL, MODEL_PROVIDER_TEMPLATES, modelProviderTemplate } from "./model-provider-templates.js";
 export {
+  codeIntelligenceConfig,
   composeAgentHost,
   workspaceRefFor,
   type WorkspaceLookupPorts,
@@ -323,7 +324,7 @@ export { deliveryNote, deliveryNoteHtml, deliverySteps, isOpenable, type Deliver
 export { assistantAuthority } from "./assistant/assistant-authority.js";
 export { purgeAssistantProject } from "./assistant/assistant-project-purge.js";
 export { logMemoryLearning, prologueMemoryBackend } from "./memory/memory-host.js";
-export { memoryRuntimePolicy, type MemoryRuntimePolicyOwner } from "./memory/memory-runtime-policy.js";
+export { memoryRuntimePolicy, type MemoryForgettingPhase, type MemoryRuntimePolicyOwner } from "./memory/memory-runtime-policy.js";
 export { memorySources, type MemorySourceOwner } from "./memory/memory-sources.js";
 export { memoryExtractor } from "./memory/memory-extractor.js";
 export { registerMemoryProjectDeletion } from "./memory/memory-project-deletion.js";

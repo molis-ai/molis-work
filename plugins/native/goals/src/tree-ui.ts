@@ -186,7 +186,7 @@ function renderCollectionFold(
   const filterEmpty = kind === "current"
     ? `<div class="tree-filter-empty" data-tree-filter-empty hidden><p>${uiText("goals.tree-ui.no-goal-matches-current-filters")}</p><button class="mw-btn mw-btn--link" type="button" data-clear-tree-filter>${uiText("goals.tree-ui.clear-all-filters")}</button></div>`
     : "";
-  const body = items.length ? `${tree}${filterEmpty}` : `<p class="goal-collection-empty">${empty}</p>`;
+  const body = items.length ? `${kind === "current" ? treeColumns() : ""}${tree}${filterEmpty}` : `<p class="goal-collection-empty">${empty}</p>`;
   return `<details class="goal-collection-fold" data-goal-collection-fold="${kind}" data-persist-open="${persist}"${open ? " open data-collection-open" : ""}>
     <summary>
       <span class="goal-collection-caret" aria-hidden="true">${icon("chevron-down")}</span>
@@ -250,6 +250,15 @@ function renderGoalRefreshDirectory(view: GoalsTreeView, collection: GoalCollect
 
   return { renderGoalTree, renderTreeChrome, renderGoalDirectory, renderGoalRefreshDirectory, renderGoalStageList, renderGoalRootEntry };
 }
+/**
+ * The list is a table read down its columns: the names stand once, over the rows, so no row has to explain its own cells.
+ * Each cell already says what it is to a screen reader (status words, the progress label, the date), so the line is decoration there.
+ */
+function treeColumns(): string {
+  const names = ["goals.tree-ui.column-goal", "goals.tree-ui.status", "goals.tree-ui.column-progress", "goals.tree-ui.column-relations", "goals.tree-ui.column-created"] as const;
+  return `<div class="tree-columns" data-tree-columns aria-hidden="true">${names.map(name => `<span>${uiText(name)}</span>`).join("")}</div>`;
+}
+
 export type GoalsTreeRenderer = ReturnType<typeof createTreeRenderer>;
 export type GoalsTreeUiModel = { primitives: GoalsTreeUiPrimitives } & (
   | { kind: "root-entry"; args: Parameters<GoalsTreeRenderer["renderGoalRootEntry"]> }

@@ -8,7 +8,7 @@ import type { AgentRunView } from "@molis-ai/molis-work-contracts/services/agent
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { isCompleteMemoryPrefs } from "@molis-ai/molis-work-contracts/services/memory";
 import { MemoryService, MEMORY_GATE_POLICY, MEMORY_GATE_VERSION, defaultPrefs } from "@molis-ai/molis-work-service-memory";
-import { openMemoryLedger } from "@molis-ai/molis-work-storage";
+import { acquireStorageOwner, initializeMemoryForgetting, openMemoryLedger } from "@molis-ai/molis-work-storage";
 import { memoryRuntimePolicy, prologueMemoryBackend } from "@molis-ai/molis-work-app-local-host";
 
 /**
@@ -18,12 +18,14 @@ import { memoryRuntimePolicy, prologueMemoryBackend } from "@molis-ai/molis-work
 test("a pinned memory that writes a system or fence marker reaches the model with the marker neutralized and is stored unchanged", { timeout: 30_000 }, async t => {
   const root = await mkdtemp(join(tmpdir(), "molis-memory-boundary-"));
   const bodies: string[] = [];
-  const ledger = openMemoryLedger({ homeDirectory: root });
+  const storageOwner = acquireStorageOwner(join(root, "agent-runtime"));
+  initializeMemoryForgetting({ homeDirectory: root, storageOwner, assertCurrent() {} });
+  const ledger = openMemoryLedger({ homeDirectory: root, storageOwner });
   ledger.savePrefs(LOCAL_PERSON_ACTOR_ID, "personal", defaultPrefs("personal", "reviewed"));
   let alive = true;
   let service!: MemoryService;
   let adapter: Awaited<ReturnType<typeof createPrologueNodeAdapter>> | undefined;
-  t.after(async () => { alive = false; await adapter?.close(); ledger.close(); await rm(root, { recursive: true, force: true }); });
+  t.after(async () => { alive = false; await adapter?.close(); ledger.close(); storageOwner.release(); await rm(root, { recursive: true, force: true }); });
   t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
     bodies.push(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array));
     const events: string[] = [], emit = (type: string, value: object) => events.push(`event: ${type}\ndata: ${JSON.stringify({ type, ...value })}\n\n`);
@@ -36,7 +38,7 @@ test("a pinned memory that writes a system or fence marker reaches the model wit
     return new Response(events.join(""), { headers: { "content-type": "text/event-stream" } });
   });
   adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(root, "sdk"), reviewQueue: new AgentReviewQueue(),
-    memory: { ...memoryRuntimePolicy(() => ({ alive: () => alive, prefsFor: () => {
+    memory: { ...memoryRuntimePolicy(() => ({ alive: () => alive, forgettingPhase: () => service.forgettingPhase(), prefsFor: () => {
       const prefs = ledger.prefs(LOCAL_PERSON_ACTOR_ID, "personal"); assert.ok(isCompleteMemoryPrefs(prefs)); return prefs;
     },
       owners: project => ledger.owners(project), candidateOwners: project => ledger.candidateOwners(project),
@@ -60,7 +62,9 @@ test("a pinned memory that writes a system or fence marker reaches the model wit
   const role = { role_id: "reader", version: 1, workspace: "none" as const, execution: "read-only" as const, host_tools: [], prompts: [],
     memory: { pinned: [{ scope: "user" as const, owner: caller.actor_id, memory_id: memory.memory_id, version: memory.version }],
       consumer: "agent", current_scene: "coding", scopes: [{ scope: "user" as const, owner: caller.actor_id }],
-      facts: { plugins: [caller.plugin_id] }, task: false, skip: false, budget_tokens: 800, budget_chars: 3000 } };
+      facts: { plugins: [caller.plugin_id] }, task: false, skip: false, budget_tokens: 800, budget_chars: 3000,
+      // Memory V0 freezes the person's class switches into every Run; none are set here.
+      class_restrictions: { policy_version: 1 as const, taxonomy_version: 1 as const, personal: [], project: [] } } };
   const handle = await adapter.start({ ...owner, session, workspace: "none", role_id: "reader", task: "Where do release notes go?", role });
   let view: AgentRunView;
   for (const until = Date.now() + 20_000;; await new Promise(resolve => setTimeout(resolve, 10))) {

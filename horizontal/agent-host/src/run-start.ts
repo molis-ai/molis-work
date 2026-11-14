@@ -151,7 +151,7 @@ function frozenActionClient(source: AgentActionClient, validateCharacter: (() =>
   return {
     discover: async () => { validateCharacter?.(); return source.discover(); },
     ...(source.check ? { check: async (ref: ExactActionReference, input: unknown) => { validateCharacter?.(); return source.check!(ref, input); } } : {}),
-    invoke: async (ref, input, signal) => { validateCharacter?.(); return source.invoke(ref, input, signal); },
+    invoke: async (ref, input, signal, memorySelection) => { validateCharacter?.(); return source.invoke(ref, input, signal, memorySelection); },
   };
 }
 
@@ -276,7 +276,11 @@ export function startGuards(authority: AgentStartAuthority, character: AgentFroz
   } : undefined;
   const assertBeforeStart = () => { requireSynchronous(authority.assertBeforeStart?.(), "最终授权检查必须同步完成"); validateCharacter?.(); };
   const beforeStart = async () => { await authority.beforeStart?.(); assertBeforeStart(); };
-  const beforeDispatch = async () => { await authority.beforeDispatch?.(); validateCharacter?.(); };
+  const beforeDispatch = async () => {
+    const fence = await authority.beforeDispatch?.();
+    validateCharacter?.();
+    return () => { requireSynchronous(fence?.(), "最终派发检查必须同步完成"); validateCharacter?.(); };
+  };
   return { validateCharacter, assertBeforeStart, beforeStart, beforeDispatch };
 }
 
@@ -288,6 +292,7 @@ interface ActionSource {
   session: AgentSessionRef;
   validateCharacter: (() => void) | undefined;
   execution: AgentRoleExecution;
+  memory?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecalledMemory | null;
   /** The round's frozen consumer and named list, for the Host's own `system.skills` calls the round's tools make (§2.3). */
   skillRound: ActionSkillRound;
 }
@@ -298,7 +303,7 @@ function assertActionsSupported(source: ActionSource): asserts source is ActionS
 
 async function grantedActions(source: ActionSource): Promise<AgentActionClient> {
   assertActionsSupported(source);
-  return source.authority.actions(source.runtimeId, source.validateCharacter, source.session, source.skillRound);
+  return source.authority.actions(source.runtimeId, source.validateCharacter, source.session, source.skillRound, source.memory);
 }
 
 /** The per-action tools the round picked, each found in the directory now, offered to the Agent, and within the role and Character. */
@@ -335,7 +340,7 @@ export async function frozenGateway(source: ActionSource, workspace: string): Pr
     ...(granted.memory ? { memory: granted.memory } : {}), ...(granted.reader ? { reader: granted.reader } : {}),
     // Which changes may run without a confirmation stays the caller's call (a declared undo, the person's setting).
     ...(granted.direct ? { direct: (view: ActionView) => granted.direct!(view) } : {}),
-    invoke: async (ref, input, signal) => { validateCharacter?.(); return granted.invoke(ref, input, signal); },
+    invoke: async (ref, input, signal, memorySelection) => { validateCharacter?.(); return granted.invoke(ref, input, signal, memorySelection); },
   } };
 }
 
@@ -423,6 +428,7 @@ export interface StartFrozen {
   request: AgentStartRequest;
   role: AgentRoleDeclaration;
   execution: AgentRoleExecution;
+  memory?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecalledMemory | null;
   workspace: string;
   actionRefs: readonly ExactActionReference[];
   gateway: unknown;

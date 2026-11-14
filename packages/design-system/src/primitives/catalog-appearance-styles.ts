@@ -6,7 +6,6 @@ import { lookRules } from "./catalog-appearance-looks.js";
 export const APPEARANCE_PARTS_STYLES = `
   /* 1 · Look card. What a look is has to be seen before it is chosen: its colours, its corners and its recommended type, drawn by the look itself. The whole
      card is one button (aria-pressed); the state is said in words by a badge, and the more-actions button is the card's other, separate control. */
-  .mw-catalog :is([data-primitive="look-card"], [data-primitive="look-proof"], [data-primitive="look-fade"]) .mw-catalog__specimen { margin: 0; }
   .mw-look-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 196px), 1fr)); gap: 12px; width: 100%; min-width: 0; }
   .mw-look-grid--narrow { max-width: 196px; }
   /* Room under the card for its open menu, so it never lies over what comes next. At desktop size the menu ends about where the card does; the touch

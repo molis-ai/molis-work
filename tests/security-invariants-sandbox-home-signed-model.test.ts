@@ -15,7 +15,7 @@ import type { AgentRelease } from "@molis-ai/molis-work-plugin-builder";
 import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { PACKAGE_PLUGIN_ID, newPublisher, packageFiles, payloadOf, signedPackage } from "./fixtures/sandbox-package.js";
 import { fixture, mac, operate, operationsOf, person, ref, runtimeStore } from "./fixtures/home-sandbox.js";
-import { IMAGE_DOMAIN, IMAGE_PNG, noisePng, signedImageProvider } from "./fixtures/home-signed-model-provider.js";
+import { IMAGE_DOMAIN, IMAGE_PNG, noiseJpeg, noisePng, signedImageProvider } from "./fixtures/home-signed-model-provider.js";
 import { openTestHome, serveTestHost } from "./fixtures/test-home.js";
 
 // BL-491 (PG-017; specs/archive/repository-anti-corruption/slices/pg011-pg017-remaining.md §6, S-60, S-66, S-91): a signed package installed in the Home asks for its model and
@@ -367,12 +367,17 @@ for (const certificate of ["untrusted", "wrong-san", "trusted"] as const) test(`
       assert.equal(provider.requests.length, 1, "unapproved origin is refused before sending");
       // BL-918 B27-IMG-02: real pictures of 1–2 MiB (a last part that is not whole) and four of 2 MiB, read in parts and checked against the provider's own bytes.
       const digest = (images: Buffer[]) => images.map(bytes => { let sum = 0; for (const byte of bytes) sum = (sum * 31 + byte) >>> 0; return { length: bytes.length, sum }; });
-      for (const images of [[noisePng(1.5 * 1024 * 1024 + 4321, 7)], [1, 2, 3, 4].map(seed => noisePng(2 * 1024 * 1024 - 64 * 1024, seed))]) {
+      // A JPEG too (B27-IMG-02, 2026-11-13): 1.5 MiB with a last part that is not whole, and a 2 MiB one beside a PNG in the same batch.
+      const rssBefore = process.resourceUsage().maxRSS;
+      for (const images of [[noisePng(1.5 * 1024 * 1024 + 4321, 7)], [1, 2, 3, 4].map(seed => noisePng(2 * 1024 * 1024 - 64 * 1024, seed)),
+        [noiseJpeg(1.5 * 1024 * 1024 + 4321, 11)], [noiseJpeg(2 * 1024 * 1024 - 64 * 1024, 12), noisePng(2 * 1024 * 1024 - 64 * 1024, 13)]]) {
         provider.reply.images = images;
         const sent = provider.requests.length;
         assert.deepEqual(await r.ask({ op: "image.digest", url, revision: state.revision }), { revision: state.revision, images: digest(images) });
         assert.equal(provider.requests.length, sent + 1, "one provider request per batch");
       }
+      // The Host process's own peak while it carried these batches (the provider runs in this process too, so this is an upper bound for the Host).
+      t.diagnostic(`B27-IMG-02 Host peak RSS ${Math.round(process.resourceUsage().maxRSS / 1024)} MiB (before the large batches ${Math.round(rssBefore / 1024)} MiB)`);
     } else {
       assert.ok(result.error, "the installed operation observed the production refusal");
       assert.equal(provider.requests.length, 0, "TLS refusal happens before HTTP");

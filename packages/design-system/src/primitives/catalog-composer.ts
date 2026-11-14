@@ -1,6 +1,6 @@
 // The board's parts for the unified input (specs/unified-input-voice/implementation-plan.md §3.6, UIC-04): the multi-row
 // composer shell `mw-composer`, the menu item's description line `mw-menu__desc` and the microphone glyph `mic` (a placeholder
-// until voice input lands in batch 53). Like the patterns in
+// until voice input lands in batch 54). Like the patterns in
 // catalog-patterns.ts they were on the board first; since K2 the shell's rules are served in the workbench sheet (`COMPOSER_STYLES`
 // in composer-styles.ts, with the `mw-upload`, `mw-tag` and `mw-btn-group` rules it is built from) and the board reads the same
 // constant. The shell holds only existing controls; it adds the box, its rows and its states. Its markup is the SDK's
@@ -16,7 +16,6 @@ export type Say = (text: string, values?: Record<string, string | number>) => st
 
 /** The board's own layout for the three sections; the shell's look is `COMPOSER_STYLES` (composer-styles.ts), served to pages. */
 export const COMPOSER_BOARD_STYLES = `
-  .mw-catalog :is([data-primitive="composer"], [data-primitive="menu-desc"], [data-primitive="mic"]) .mw-catalog__specimen { margin: 0; }
   .mw-catalog [data-primitive="composer"] .mw-catalog__specimens { grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); align-items: start; }
   /* The specimen whose ▾ menu is open keeps room above itself for it (the menu hangs from the whole composer), so it stays in its cell. */
   .mw-catalog [data-catalog-menu-room] { margin-top: var(--catalog-menu-room, 240px); }

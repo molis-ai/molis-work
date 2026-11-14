@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+### 首页公共能力与智能呈现第一片（2026-11-13，#2017）
+
+- **组合服务**：新增 `horizontal/surfaces` 的 `surfaces.compose@1`／`surfaces.correct@1`，按插件 Manifest 的呈现声明做确定组合；宿主只装配，SDK 只留作者与平台共用的声明/描述校验。不调模型，不按插件名分支。
+- **公共呈现**：名字片、行、卡片、速览四种形态与组件板「呈现形态」；`renderPresentationForm` 与 `surfaceSlot` 由原生、签包和第三方共用；四人主人（Goals、Inbox、Coding、Feed）首批接入首页、插件内、对话、项目讨论与「等你」。
+- **基础首页与 Feed**：首页按「等你 → 接着做 → 项目插件卡片」组合（工作记录未交付时不出「接着做」）；Feed 的项目/个人归属按来源原记录，不再按 Gmail/RSS 类型猜；同步来的资料不算 Attention 或工作计数。
+- **合同与存储**：组合、呈现、`composer_source.title_text` 与 IM 消息 `subjects_json` 按阶段一更新；项目库 2→3 新建 `surface_corrections` 并带升级段；`server/server.sqlite` 保持 v1，`subjects_json` 走用户 2026-11-09 批准的同版本窄例外，旧结构拒绝且不转换。
+- **未完成**：本人实物验收（`BL-surface-home-acceptance`）、Todo 首页呈现（`BL-todo-home-presentation`）、IUI-20 切换后复测（`BL-surface-home-performance`）与 C2/C3/D2/D3 等后续项。四个 Linux 原始红已由 #2044/#2046 了结（`BL-linux-ci-browser-reds` 已删）；#2046 另记 `BL-feed-wake-resets-page`、`BL-inbox-update-blocks-host`、`BL-assistant-card-press-scrolls` 三个产品缺陷与仍红的 `surface-cross-positions`，不属于本批四个原始红的遗留。
+
 ### Files 退役与平台资料服务（2026-11-13，#2009）
 
 - **Files 插件退役**：内置 Files 插件删除，`files.state`、`files.directory`、`files.open`、`files.capture`、`files.side.entries`、`files.side.content` 六个动作删除；项目文件夹的浏览、阅读、固定快照、选区和交给 Diff 的前后两版改由平台资料服务 `system.materials` 与工作台公共界面提供。新动作 `materials.open`、`materials.capture`、`materials.read`、`materials.pinned`、`materials.position`、`materials.subject.read`、`materials.files.entries`、`materials.files.content`；Diff/Text Stats 的默认来源改为 `system.materials`。旧安装、事件游标、目录成员在显式采用时退役，插件 id `io.molis.work.files` 保留不可占用。

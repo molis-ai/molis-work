@@ -127,7 +127,7 @@ export function renderServiceConnectionSection(readText: Say): string {
 
 /** The board's own layout for the section (the parts' styles come first); the cards sit in a column as narrow as a conversation. */
 export const SERVICE_CONNECTION_SECTION_STYLES = SERVICE_CONNECTION_PART_STYLES
-  + `#service-connections .mw-catalog__specimen{margin:0}.mw-conn-board__rows{max-width:760px}.mw-conn-board__rows .settings-connector-catalog{display:grid;gap:24px;padding-top:0}`
+  + `.mw-conn-board__rows{max-width:760px}.mw-conn-board__rows .settings-connector-catalog{display:grid;gap:24px;padding-top:0}`
   + `.mw-conn-board__states{display:grid;gap:8px;margin:0;padding:0;list-style:none}.mw-conn-board__states>li{display:grid;grid-template-columns:96px minmax(0,1fr);align-items:center;gap:12px;min-width:0}.mw-conn-board__states>li>span:first-child{color:var(--muted);font-size:12px}`
   + `.mw-conn-board__try{display:grid;gap:12px;max-width:560px;padding:16px;border-radius:var(--r-card);background:var(--surface-soft)}`
   + `.mw-conn-board__cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,320px),1fr));gap:24px;align-items:start}`

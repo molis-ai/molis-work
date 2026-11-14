@@ -1,15 +1,46 @@
+import { callerClassAllowed } from "./class-restrictions.js";
+import { isDeepStrictEqual } from "node:util";
 import type { AgentMemoryScopePreview } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { MemoryClearResult, MemoryExportPackage, MemoryLedgerPort, MemoryMetaRecord, MemoryItem, MemoryPrefs, MemoryScope, MemoryWriteResult } from "@molis-ai/molis-work-contracts/services/memory";
 import type { MemoryBackendEntry, MemoryBackendPort } from "./backend.js";
 import type { MemoryCaller } from "./service.js";
-import { MemoryOperations } from "./operations.js";
+import type { MemoryOperations } from "./operations.js";
+import type { MemoryForgetting } from "./forgetting.js";
 import { MemoryPreferences } from "./preferences.js";
 import { memoryErrors } from "./errors.js";
+import { belongsToMemorySession } from "./classification.js";
 import { fromEntryMeta } from "./facts.js";
 import { isExpired, personOnly, placeOf, visibleTo } from "./places.js";
 import { packageFingerprint, readPackage } from "./shapes.js";
 
 export interface Located { scope: MemoryScope; owner: string; entry: MemoryBackendEntry; meta: MemoryMetaRecord; project?: string | null }
+type ClearPlan = { scope: MemoryScope; owner: string; parts: Array<{ scope: MemoryScope; owner: string } & AgentMemoryScopePreview>;
+  started: boolean; complete?: true };
+
+/** The original clear request is recoverable from its fixed SDK decisions, not from a missing completion flag. */
+export function isMemoryClearPlan(value: unknown, scopes: readonly { scope: MemoryScope; owner: string }[]): value is ClearPlan {
+  const plan = value as ClearPlan | undefined;
+  const allowed = (scope: MemoryScope, owner: string) => scopes.some(one => one.scope === scope && one.owner === owner);
+  if (!plan || !allowed(plan.scope, plan.owner) || typeof plan.started !== "boolean" || plan.complete !== undefined && plan.complete !== true
+    || !Array.isArray(plan.parts) || !plan.parts.length || !plan.parts.some(part => part?.scope === plan.scope && part.owner === plan.owner)) return false;
+  const owners = new Set<string>(), identities = new Set<string>();
+  return plan.parts.every(part => {
+    const decision = part?.decision, key = JSON.stringify([part?.scope, part?.owner]);
+    if (!part || !allowed(part.scope, part.owner) || owners.has(key) || typeof part.operation_id !== "string" || !part.operation_id
+      || typeof part.fingerprint !== "string" || !part.fingerprint || !Array.isArray(part.items) || part.count !== part.items.length
+      || decision?.version !== 1 || typeof decision.binding !== "string" || !decision.binding || decision.scope !== (part.scope === "personal" ? "user" : part.scope) || decision.owner !== part.owner
+      || !Array.isArray(decision.items) || decision.items.length !== part.items.length) return false;
+    owners.add(key);
+    return part.items.every((item, index) => {
+      const selected = decision.items[index];
+      if (!item || typeof item.memory_id !== "string" || !item.memory_id || identities.has(item.memory_id)
+        || !Number.isSafeInteger(item.version) || item.version < 1 || selected?.ref?.kind !== "memory" || selected.ref.revision !== 1
+        || selected.ref.id !== item.memory_id || selected.expectedVersion !== item.version
+        || selected.operationId !== `${part.operation_id}:${item.memory_id}` || selected.mutation?.kind !== "purge") return false;
+      identities.add(item.memory_id); return true;
+    });
+  });
+}
 interface ScopePorts {
   backend: MemoryBackendPort;
   ledger: MemoryLedgerPort;
@@ -19,7 +50,11 @@ interface ScopePorts {
   newId: () => string;
   timeZone?: string;
   importEntry(caller: MemoryCaller, scope: MemoryScope, entry: MemoryExportPackage["entries"][number], origin: string): Promise<MemoryWriteResult>;
-  beforeForget(caller: MemoryCaller, scope: MemoryScope, owner: string, ids: readonly string[]): Promise<void>;
+  beforeForget(caller: MemoryCaller, scope: MemoryScope, owner: string, memories: readonly { memory_id: string; version: number }[]): Promise<void>;
+  acceptForget(caller: MemoryCaller, scope: MemoryScope, owner: string, memories: readonly { memory_id: string; version: number }[]): Promise<void>;
+  forgetFailed(caller: MemoryCaller, error: unknown): never;
+  hidden(scope: MemoryScope, owner: string, id: string): boolean;
+  forgettingPhase(): ReturnType<MemoryForgetting["readPhase"]>;
   recordClear(caller: MemoryCaller, scope: MemoryScope, owner: string, removed: number, complete: boolean): void;
 }
 
@@ -28,7 +63,27 @@ export class MemoryScopeCommands {
   constructor(private readonly ports: ScopePorts) {}
   /** A scope's switches: the person's own, or the project's (a Character's memories follow its project's). */
   prefsAt(actorId: string, where: { scope: MemoryScope; owner: string; project?: string | null }): MemoryPrefs {
-    return where.scope === "personal" ? this.ports.preferences.prefsFor(actorId, "personal", null) : this.ports.preferences.prefsFor(actorId, "project", where.scope === "project" ? where.owner : where.project ?? null);
+    return this.ports.preferences.prefsAt(actorId, where);
+  }
+
+  /** Share data, never permission results, only until this synchronous phase's final check. */
+  prefsPhase() {
+    const profiles = new Map<string, { actorId: string; scope: MemoryScope; owner: string; project: string | null; prefs: MemoryPrefs }>();
+    return {
+      at: (actorId: string, where: { scope: MemoryScope; owner: string; project?: string | null }): MemoryPrefs => {
+        const project = where.project ?? null, key = JSON.stringify([actorId, where.scope, where.owner, project]);
+        let profile = profiles.get(key);
+        if (!profile) {
+          profile = { actorId, scope: where.scope, owner: where.owner, project, prefs: this.prefsAt(actorId, where) };
+          profiles.set(key, profile);
+        }
+        return profile.prefs;
+      },
+      assertCurrent: (): void => {
+        for (const profile of profiles.values()) if (!isDeepStrictEqual(profile.prefs, this.prefsAt(profile.actorId, profile)))
+          throw memoryErrors.off("同步读取期间记忆设置已变化，请按当前设置重试");
+      },
+    };
   }
 
   /** Personal always; the caller's project when it has one. A person's scopes for listings include the project too. */
@@ -48,20 +103,26 @@ export class MemoryScopeCommands {
     return out;
   }
 
-  async located(caller: MemoryCaller, scope: MemoryScope, owner: string): Promise<Located[]> {
+  async located(caller: MemoryCaller, scope: MemoryScope, owner: string, allowNonSession = false): Promise<Located[]> {
     const entries = await this.ports.backend.withCaller(caller).list(scope, owner);
     const project = scope === "project" ? owner : scope === "character" ? caller.project_id : null;
+    const forgetting = this.ports.forgettingPhase(), prefs = this.prefsPhase();
     // Every entry this service writes carries its facts; one without them is not the platform's and stays out of sight.
-    return entries.flatMap(entry => {
+    const located = entries.flatMap(entry => {
+      if (forgetting.hidden({ scope, owner }, "memory", entry.memory_id)) return [];
+      if (!belongsToMemorySession(caller, entry.meta) && !(allowNonSession && !entry.meta.session_ref && entry.meta.classification?.lifecycle !== "session")) return [];
       const meta = fromEntryMeta({ memory_id: entry.memory_id, scope, owner, meta: entry.meta, ...(entry.paused ? { paused: entry.paused } : {}), ...(entry.disabled ? { disabled: entry.disabled } : {}),
         created_at_ms: entry.created_at_ms, updated_at_ms: entry.updated_at_ms });
-      return meta ? [{ scope, owner, entry, project, meta }] : [];
+      return meta && callerClassAllowed(prefs.at(caller.actor_id, { scope, owner, project }), caller, scope, entry.meta,
+        caller.context_selection ? "explicit" : caller.purpose === "task" ? "task" : "explicit") ? [{ scope, owner, entry, project, meta }] : [];
     });
+    prefs.assertCurrent(); forgetting.assertCurrent();
+    return located;
   }
 
-  async find(caller: MemoryCaller, memoryId: string): Promise<Located> {
+  async find(caller: MemoryCaller, memoryId: string, allowNonSession = false): Promise<Located> {
     for (const where of this.scopesFor(caller, undefined, true)) {
-      const found = (await this.located(caller, where.scope, where.owner)).find(located => located.entry.memory_id === memoryId);
+      const found = (await this.located(caller, where.scope, where.owner, allowNonSession)).find(located => located.entry.memory_id === memoryId);
       if (found && visibleTo(caller, found.meta)) return found;
     }
     throw memoryErrors.not_found("这条记忆不在这里（可能已删除，或属于别的项目）");
@@ -100,8 +161,9 @@ export class MemoryScopeCommands {
     personOnly(caller, "只有本人能清空记忆");
     const where = placeOf(caller, scope), key = `memory-clear:${fingerprint}`;
     const marker = this.ports.ledger.marker(caller.actor_id, key);
-    const preview = marker?.body as { scope: MemoryScope; owner: string; parts: Array<{ scope: MemoryScope; owner: string } & AgentMemoryScopePreview>; started: boolean } | undefined;
-    if (!marker || !preview || preview.scope !== scope || preview.owner !== where.owner) throw memoryErrors.conflict("没有这次清空预览，请重新预览后确认");
+    const preview = marker?.body;
+    const scopes = this.scopesFor(caller, scope === "project" ? ["project", "character"] : [scope]);
+    if (!marker || !isMemoryClearPlan(preview, scopes) || preview.scope !== scope || preview.owner !== where.owner) throw memoryErrors.conflict("没有这次清空预览，请重新预览后确认");
     const backend = this.ports.backend.withCaller(caller);
     if (!preview.started) {
       // Preserve the pre-confirmation changed-scope refusal, but never rebuild the SDK decisions after a partial attempt.
@@ -115,24 +177,37 @@ export class MemoryScopeCommands {
       }
       this.ports.ledger.setMarker(caller.actor_id, key, { ...preview, started: true }, marker.at);
     }
+    for (const part of preview.parts) {
+      const child = { ...caller, operation_id: part.operation_id };
+      try { await this.ports.acceptForget(child, part.scope, part.owner, part.items); }
+      catch (error) { this.ports.forgetFailed(child, error); }
+    }
     const items: MemoryClearResult["items"] = [];
     for (const [index, part] of preview.parts.entries()) {
-      await this.ports.beforeForget({ ...caller, operation_id: part.operation_id }, part.scope, part.owner, part.items.map(item => item.memory_id));
+      const child = { ...caller, operation_id: part.operation_id };
+      try {
+      await this.ports.beforeForget(child, part.scope, part.owner, part.items);
       const result = await backend.clearScope({ scope: part.scope, owner: part.owner, preview: part,
         operation_id: part.operation_id, ...(caller.signal ? { signal: caller.signal } : {}) });
       items.push(...result.items.map(item => ({ memory_id: item.memory_id, outcome: item.outcome })));
+      caller.signal?.throwIfAborted();
       this.ports.ledger.transaction(() => {
-        for (const item of result.items) if (item.outcome === "completed" || item.outcome === "already-absent") this.ports.ledger.forget(item.memory_id);
+        for (const item of result.items) if (item.outcome === "completed" || item.outcome === "already-absent") this.ports.ledger.forget(item.memory_id, "related");
       });
       if (result.items.some(item => item.outcome === "unknown")) {
         for (const remaining of preview.parts.slice(index + 1))
           items.push(...remaining.items.map(item => ({ memory_id: item.memory_id, outcome: "not-executed" as const })));
         break;
       }
+      } catch (error) { this.ports.forgetFailed(child, error); }
     }
     const removed = items.filter(item => item.outcome === "completed" || item.outcome === "already-absent").length;
     const complete = removed === items.length;
-    this.ports.recordClear(caller, scope, where.owner, removed, complete);
+    caller.signal?.throwIfAborted();
+    this.ports.ledger.transaction(() => {
+      this.ports.recordClear(caller, scope, where.owner, removed, complete);
+      if (complete) this.ports.ledger.setMarker(caller.actor_id, key, { ...preview, started: true, complete: true }, marker.at);
+    });
     return { removed, complete, items };
   }
 
@@ -166,7 +241,8 @@ export class MemoryScopeCommands {
       return redacted;
     };
     const entries: MemoryExportPackage["entries"] = [];
-    for (const located of await this.located(caller, scope, where.owner)) {
+    const selected = await this.located(caller, scope, where.owner);
+    for (const located of selected) {
       const { applies } = located.meta, task = applies.task === undefined ? {} : { task: await clean(applies.task) };
       const constraints = {
         ...(located.entry.meta.classification ? { classification: structuredClone(located.entry.meta.classification) } : {}),
@@ -178,6 +254,8 @@ export class MemoryScopeCommands {
       if (await clean(encoded) !== encoded) throw memoryErrors.unavailable("分类或会话约束包含不能导出的内容，没有生成记忆包");
       entries.push({ text: await clean(located.entry.text), kind: located.meta.kind, source: located.meta.source, basis: located.meta.basis, applies: { ...applies, ...task }, origin: await clean(located.entry.origin), expires_at: located.meta.expires_at, ...constraints });
     }
+    if (selected.some(one => this.ports.hidden(one.scope, one.owner, one.entry.memory_id)))
+      throw memoryErrors.conflict("导出期间记忆已被遗忘，没有生成记忆包");
     return { format: "molis.memory", version: /* @version format.memory.export */ 1, exported_at: this.ports.now().toISOString(), scope, entries, redactions: [...redactions].map(([kind, count]) => ({ kind, count })) };
   }
 

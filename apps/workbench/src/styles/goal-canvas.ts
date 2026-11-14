@@ -81,6 +81,17 @@ export const GOAL_CANVAS_STYLES = `
     body.immersive-workbench .goal-canvas-shell[data-board-view="list"][data-expanded="true"] .goal-stage-list .tree-node { height: auto; min-height: 20px; align-items: flex-start; }
     body.immersive-workbench .goal-canvas-shell[data-board-view="list"][data-expanded="true"] .goal-stage-list .tree-title-line strong { display: -webkit-box; white-space: normal; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 20px; }
     body.immersive-workbench .goal-canvas-shell[data-board-view="list"][data-expanded="true"] .goal-stage-list .directory-row-state { grid-column: 1; grid-row: 2; padding-left: calc((var(--tree-depth, 0) + 1) * 16px + 18px); font-size: 12px; }
+    /* A Goal drawn as its object (title and state ring together) needs one line there: the title takes the column and the ring
+       ends the row, so twice as many Goals stay in view and a title keeps more of its words. The state's words are the ring's name. */
+    body.immersive-workbench .goal-canvas-shell[data-board-view="list"][data-expanded="true"] .goal-stage-list .tree-entry:has(.tree-presentation-name) {
+      grid-template-rows: auto; row-gap: 0; align-items: center; min-height: 32px; padding: 0 8px 0 4px;
+    }
+    body.immersive-workbench .goal-canvas-shell[data-board-view="list"][data-expanded="true"] .goal-stage-list .tree-entry:has(.tree-presentation-name) .directory-row-state { display: none; }
+    body.immersive-workbench .goal-canvas-shell[data-board-view="list"][data-expanded="true"] .goal-stage-list .tree-entry:has(.tree-presentation-name) .tree-leading { align-items: center; padding-left: calc(var(--tree-depth, 0) * 12px + 4px); }
+    body.immersive-workbench .goal-canvas-shell[data-board-view="list"][data-expanded="true"] .goal-stage-list .tree-entry:has(.tree-presentation-name) :is(.tree-toggle, .tree-guide) { margin-top: 0; }
+    body.immersive-workbench .goal-canvas-shell[data-board-view="list"][data-expanded="true"] .goal-stage-list .tree-presentation-name .mw-presentation__tag > strong { flex: 1 1 auto; }
+    body.immersive-workbench .goal-canvas-shell[data-board-view="list"][data-expanded="true"] .goal-stage-list .tree-presentation-name .mw-status { display: inline-flex; }
+    body.immersive-workbench .goal-canvas-shell[data-board-view="list"][data-expanded="true"] .goal-stage-list .tree-columns { display: none; }
   }
   .goal-canvas-shell[data-board-view="list"] > [data-goal-momentum] { display: none !important; }
   .goal-canvas-shell[data-board-view="kanban"] > [data-goal-kanban] { display: flex; position: absolute; inset: 0; width: 100%; height: 100%; }
@@ -163,13 +174,31 @@ export const GOAL_CANVAS_STYLES = `
   @media (max-width: 760px) {
     body.immersive-workbench .goal-stage-list .tree-entry { grid-template-columns: minmax(0, 1fr) fit-content(45%); }
     body.immersive-workbench .goal-stage-list .tree-entry > :is(.tree-progress, .tree-relations, .tree-created-meta) { display: none !important; }
+    body.immersive-workbench .goal-stage-list .tree-columns { display: none; }
   }
   /* A narrow column on a wide window is the same: the right side kept open beside Goals (07-S1) or a split leaves it under the
      five columns' 600-odd px, and the row keeps the title and its status rather than sliding sideways. */
   @container goal-board (max-width: 640px) {
     body.immersive-workbench .goal-stage-list .tree-entry { grid-template-columns: minmax(0, 1fr) fit-content(45%); }
     body.immersive-workbench .goal-stage-list .tree-entry > :is(.tree-progress, .tree-relations, .tree-created-meta) { display: none !important; }
+    body.immersive-workbench .goal-stage-list .tree-columns { display: none; }
   }
+  /* The column names: the rows' own grid, drawn once above them. Two columns (a phone, a narrow column) need no names. */
+  .tree-columns { display: none; }
+  body.immersive-workbench .goal-stage-list .tree-columns {
+    display: grid; grid-template-columns: minmax(12rem, 1fr) minmax(6.25rem, .3fr) 4.75rem 8.5rem auto; column-gap: 12px; align-items: center;
+    height: 28px; margin-block-end: 2px; padding: 0 8px; border-block-end: 1px solid var(--line);
+    color: var(--muted); font-size: 11px; white-space: nowrap; user-select: none;
+  }
+  body.immersive-workbench .goal-stage-list .tree-columns > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  body.immersive-workbench .goal-stage-list .tree-columns > :first-child { padding-left: 32px; }
+  body.immersive-workbench .goal-stage-list .tree-columns > :last-child { min-width: calc(6em + 26px); text-align: right; }
+  /* In its own list a Goal's name is plain words on the row: every row there is a Goal, so the owner's tile says nothing, the status
+     column already carries the state, and a capsule around each name made seventeen boxes of one list. */
+  body.immersive-workbench .goal-stage-list .tree-presentation-name .mw-presentation__tag { inline-size: 100%; gap: 8px; padding-inline: 0; background: none; box-shadow: none; font-size: 13px; }
+  body.immersive-workbench .goal-stage-list .tree-presentation-name .mw-presentation__owner { display: none; }
+  body.immersive-workbench .goal-stage-list .tree-presentation-name .mw-presentation__tag > strong { flex: 0 1 auto; min-inline-size: 0; }
+  body.immersive-workbench .goal-stage-list .tree-presentation-name .mw-status { display: none; padding: 0; background: none; box-shadow: none; }
   .goal-stage-list .tree-entry:hover { background: var(--nav-hover); }
   .goal-stage-list .tree-entry.is-selected { background: var(--nav-active); }
   body.immersive-workbench .goal-stage-list .tree-leading {

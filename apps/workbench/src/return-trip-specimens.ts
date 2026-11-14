@@ -51,8 +51,7 @@ export function renderReturnTripSection(readText: Say): string {
 }
 
 /** The board's own layout for the section; the parts' look is the design system's (`.mw-return-bar`, `.mw-resume-prompt`). */
-export const RETURN_TRIP_SECTION_STYLES = "#return-trips .mw-catalog__specimen{margin:0}"
-  + ".mw-return-board__states{display:grid;gap:12px;max-width:760px;margin:0;padding:0;list-style:none}"
+export const RETURN_TRIP_SECTION_STYLES = ".mw-return-board__states{display:grid;gap:12px;max-width:760px;margin:0;padding:0;list-style:none}"
   + ".mw-return-board__states>li{display:grid;grid-template-columns:96px minmax(0,1fr);align-items:center;gap:12px;min-width:0}"
   + ".mw-return-board__states>li>span:first-child{color:var(--ink-soft);font-size:12px}"
   + ".mw-return-board__narrow{box-sizing:border-box;width:390px;max-width:100%;padding:16px;border:1px dashed var(--line);border-radius:12px}"

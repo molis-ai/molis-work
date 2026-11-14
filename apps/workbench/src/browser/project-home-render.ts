@@ -38,14 +38,15 @@ function objectControl(row: SurfaceHomeRowDisplay, action: "open" | "peek" | "pl
 }
 
 function rowHtml(row: SurfaceHomeRowDisplay, item: SurfaceItem, group: SurfaceGroup, data: SurfaceHomeDisplay, controls: Map<string, HomeControl>, mixed: boolean,
-  framed?: readonly FramedSurfaceControl[], fix?: CorrectionRender) {
+  lead: boolean, framed?: readonly FramedSurfaceControl[], fix?: CorrectionRender) {
   const key = subjectKey(row.owner, row.subject);
   const actions = framed?.filter(action => subjectKey(action.owner, action.subject) === key) ?? item.actions.flatMap(action => {
     const ref = action.ref;
     if (ref !== "open" && ref !== "peek" && ref !== "place" && ref !== "hand_off" || isPlacementControl(ref) && row.read.state !== "ok") return [];
     const id = controlKey(key, action.ref);
     controls.set(id, objectControl(row, ref));
-    return [{ key: id, label: ref === "open" ? home("open") : common(ref), primary: ref === "open" && group.kind === "attention" }];
+    // One primary action in view: the first thing waiting leads, the ones under it are the same action at rest.
+    return [{ key: id, label: ref === "open" ? home("open") : common(ref), primary: ref === "open" && group.kind === "attention" && lead }];
   });
   const read = "values" in row.read && !mixed ? { ...row.read, values: Object.fromEntries(Object.entries(row.read.values ?? {}).filter(([key]) =>
     row.declaration.fields.find(field => field.key === key)?.role !== "held_in")) } : row.read;
@@ -65,7 +66,7 @@ function rowList(data: SurfaceHomeDisplay, group: SurfaceGroup, controls: Map<st
   const places = new Set(items.flatMap(({ row }) => row.declaration.fields.filter(field => field.role === "held_in")
     .map(field => "values" in row.read ? row.read.values?.[field.key] : undefined)));
   const mixed = places.has("project") && places.has("personal");
-  return { html: items.map(({ item, row }) => rowHtml(row, item, group, data, controls, mixed, framed, fix)).join(""),
+  return { html: items.map(({ item, row }, index) => rowHtml(row, item, group, data, controls, mixed, index === 0, framed, fix)).join(""),
     count: items.filter(({ row }) => row.read.state === "ok" || row.read.state === "stale").length,
     unreadable: items.some(({ row }) => row.read.state === "unreadable") };
 }
@@ -107,6 +108,11 @@ export function renderHome(data: SurfaceHomeDisplay, controls: Map<string, HomeC
     const attention = group.kind === "attention", unreadable = group.state === "unreadable" || rows.unreadable;
     const excluded = group.excluded?.reduce((count, entry) => count + (entry.count ?? 0), 0) ?? 0;
     const title = attention ? home("attention", rows.count) : home("continue");
+    // Nothing waiting is said in one quiet line, not under a heading with a zero in it: the first screen goes to the work in hand.
+    if (attention && !rows.count && !unreadable && !excluded) {
+      groups.push(`<section class="home-clear" data-home-group="attention"><p>${icon("check")}<span>${e(home("attention-empty"))}</span></p></section>`);
+      continue;
+    }
     const lead = unreadable ? `<p>${e(home("attention-unreadable"))}</p>`
       : attention && !rows.count ? `<p>${e(home("attention-empty"))}</p>` : "";
     groups.push(`<section data-home-group="${group.kind}"><h2>${e(attention && unreadable && !rows.count ? home("attention-unreadable") : title)}</h2>

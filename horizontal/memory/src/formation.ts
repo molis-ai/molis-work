@@ -5,8 +5,8 @@ import type { MemoryCaller } from "./service.js";
 import type { Located } from "./scope-commands.js";
 import { newMemoryClassification } from "./classification.js";
 import { fromEntryMeta } from "./facts.js";
-import { automaticMemoryHold } from "./policy.js";
-import { theirWords } from "./spoken.js";
+import { automaticMemoryHold, CANDIDATE_TTL_MS } from "./policy.js";
+import { quotedFrom, theirWords } from "./spoken.js";
 import { looksLikeInstruction, sameWords } from "./text.js";
 import { memoryErrors } from "./errors.js";
 
@@ -17,7 +17,6 @@ export interface FormationSnapshot {
   pending: Array<{ note: MemoryCandidateRecord; entry: MemoryBackendCandidate }>;
 }
 export type FormationSlot = NonNullable<MemoryFormationInput["slots"]>[number];
-const WAITING_MS = 14 * 24 * 60 * 60 * 1000;
 
 /** Pending review context is not formal recall: apply the App's current scene and private namespace boundary. */
 export function formationPending(caller: MemoryCaller, entry: MemoryBackendCandidate): boolean {
@@ -33,7 +32,7 @@ export function formationSlots(caller: MemoryCaller, snapshot: FormationSnapshot
   const slots: FormationSlot[] = [];
   for (const place of snapshot.places) for (const kind of place.kinds) for (let index = 0; index < 3; index += 1) {
     slots.push({ id: `new:${place.scope}:${kind}:${index}`, scope: place.scope, owner: place.owner, origin: "建议 · extraction",
-      meta: { ...newMemoryClassification(caller, null), kind, source: "accepted", expires_at_ms: Date.parse(at) + WAITING_MS } });
+      meta: { ...newMemoryClassification(caller, null), kind, source: "accepted", expires_at_ms: Date.parse(at) + CANDIDATE_TTL_MS } });
   }
   for (const located of snapshot.existing) {
     // Unclassified memories remain readable, but are not silently assigned a new class by an automatic correction.
@@ -45,7 +44,7 @@ export function formationSlots(caller: MemoryCaller, snapshot: FormationSnapshot
         meta: { kind, source: "accepted", classification: meta.classification,
           ...(meta.namespace ? { namespace: meta.namespace } : {}), ...(meta.session_ref ? { session_ref: meta.session_ref } : {}),
           ...(meta.applies_when ? { applies_when: meta.applies_when } : {}),
-          expires_at_ms: Math.min(meta.expires_at_ms ?? Infinity, Date.parse(at) + WAITING_MS) },
+          expires_at_ms: Math.min(meta.expires_at_ms ?? Infinity, Date.parse(at) + CANDIDATE_TTL_MS) },
         replacement: { memory_id: located.entry.memory_id, expected_version: located.entry.version } });
     }
   }
@@ -89,11 +88,13 @@ export function formedRecord(caller: MemoryCaller, slot: FormationSlot, entry: M
   const place = snapshot.places.find(where => where.scope === slot.scope && where.owner === slot.owner)!;
   const target = slot.replacement ? snapshot.existing.find(one => one.entry.memory_id === slot.replacement!.memory_id) : undefined;
   const single = entry.meta.kind === "fact" ? "背景事实" : entry.meta.kind === "experience" ? "经验" : "这项要求";
-  const why = basis === "repeated" ? "你在两份独立的原始输入里都这样要求" : basis === "explicit" ? "你在这次原始输入里完整表达了这项要求" : "从这次工作里推断";
+  // Quoted out of a longer message of theirs: still not their whole words (so only a suggestion), but no guess either.
+  const quoted = basis === "inferred" && quotedFrom(entry.text, said);
+  const why = basis === "repeated" ? "你在两份独立的原始输入里都这样要求" : basis === "explicit" ? "你在这次原始输入里完整表达了这项要求" : quoted ? "摘自你在这次工作里说的话" : "从这次工作里推断";
   return { candidate_id: entry.candidate_id, version: entry.version, source_refs: refs.map(({ event_id, version }) => ({ event_id, version })),
     actor_id: caller.actor_id, owner: slot.owner, scope: slot.scope, project_id: place.project, formal_expires_at: target?.meta.expires_at ?? null,
     kind: entry.meta.kind as MemoryKind, text: entry.text, applies: facts.applies, basis, why, from: "extraction", work: caller.work ?? null,
-    hold_reason: looksLikeInstruction(entry.text) ?? (basis === "inferred" ? "只是推断或缺少可核验的原件，需要你认可才会生效"
+    hold_reason: looksLikeInstruction(entry.text) ?? (basis === "inferred" ? quoted ? "摘自你说的话，需要你认可才会生效" : "只是推断或缺少可核验的原件，需要你认可才会生效"
       : basis === "explicit" ? `${single}只有一份原始表态，需要你认可才会生效`
       : automaticMemoryHold(entry.meta.kind as MemoryKind, basis, place.auto)),
     supersedes: entry.replacement?.memory_id ?? null, state: entry.state === "promoted" ? "accepted" : entry.state,

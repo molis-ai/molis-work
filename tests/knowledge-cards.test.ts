@@ -4,7 +4,7 @@ import test from "node:test";
 import { ActionError, bindSearchEntriesHandler, defineSearchEntriesAction, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
 import { knowledgeManageActions } from "@molis-ai/molis-work-contracts/services/knowledge";
-import { KnowledgeCards, KnowledgeOrganizer, KnowledgeService, knowledgeCatalog, type KnowledgeDraft, type KnowledgeDraftInput } from "@molis-ai/molis-work-service-knowledge";
+import { KnowledgeCards, KnowledgeOrganizer, KnowledgeService, knowledgeCatalog, type KnowledgeDraft, type KnowledgeDraftInput, type KnowledgeOrganizerOptions } from "@molis-ai/molis-work-service-knowledge";
 import { clearKnowledgeProject, openKnowledgeCards } from "@molis-ai/molis-work-storage";
 import { person, referenceOwners } from "./fixtures/reference-owners.js";
 
@@ -14,7 +14,7 @@ const agent = (permissions = ["goals:read", "pages:read", "search:read"]): Actio
 const owner = person("a");
 const LONG = ["# 背景", "项目要在十月完成内部试用。".repeat(400), "", "# 账号", "每人一个账号，编号 MW-0042。".repeat(300), "", "# 反馈", "反馈写进 Goal。".repeat(400)].join("\n");
 
-async function fixture(t: import("node:test").TestContext, options: { quota?: { pieces: number; chars: number }; writer?: (input: KnowledgeDraftInput) => Promise<KnowledgeDraft> } = {}) {
+async function fixture(t: import("node:test").TestContext, options: { quota?: { pieces: number; chars: number }; writer?: (input: KnowledgeDraftInput) => Promise<KnowledgeDraft>; sourceState?: KnowledgeOrganizerOptions["sourceState"]; contentTokens?: boolean } = {}) {
   const f = await referenceOwners(t);
   const cards = openKnowledgeCards({ homeDirectory: f.home });
   t.after(() => cards.close());
@@ -24,7 +24,7 @@ async function fixture(t: import("node:test").TestContext, options: { quota?: { 
     return { title: `${input.title}（整理）`, brief: `讲的是${input.title}。`, keywords: ["内测通行证", input.title], sections: input.sections.map(section => ({ anchor: section.anchor, summary: `${section.title}这一节` })) };
   });
   let model = true;
-  const organizer = new KnowledgeOrganizer({ store: cards, catalog: async projectId => knowledgeCatalog(f.index, projectId), writer: () => model ? writer : null,
+  const organizer = new KnowledgeOrganizer({ store: cards, catalog: async projectId => knowledgeCatalog(f.index, projectId).map(piece => options.contentTokens ? { ...piece, revision: `content-v1:${piece.revision}` } : piece), ...(options.sourceState ? { sourceState: options.sourceState } : {}), writer: () => model ? writer : null,
     ...(options.quota ? { quota: options.quota } : {}), clock: () => new Date("2026-10-19T08:00:00Z") });
   const knowledge = new KnowledgeService({ search: (access, input) => f.search.query(access, input), cards });
   // The catalog is what search indexed: a search by the owner brings project a's sources into the index.
@@ -292,6 +292,55 @@ test("PMAT-01 managing cards is the person's own: user-only actions under knowle
     assert.deepEqual(item.action.permissions, ["knowledge:manage"]);
   }
   assert.deepEqual(definitions.map(item => item.operation), ["query", "command", "command", "command", "query"]);
+});
+
+
+test("A4-K absent adopted sources retain unedited and edited cards until the current owner explicitly says deleted", async t => {
+  let state: "active" | "archived" | "unknown" | "deleted" = "active";
+  const f = await fixture(t, { contentTokens: true, sourceState: async () => state });
+  f.goals.clear(); f.pages.set("p2", { id: "p2", title: "第二份", body: "第二份原文", version: 1 });
+  await f.indexAll(); await f.organizer.kick("a");
+  f.manage.edit(owner, { subject: { kind: "page", id: "p2" }, title: "本人编辑" });
+  const before = [card(f, "p1"), card(f, "p2")], calls = f.written.length;
+  f.pages.clear(); state = "archived";
+  await f.search.rebuild(f.access(owner), { scope: "project" }); await f.organizer.reconcile("a");
+  for (const [index, id] of ["p1", "p2"].entries()) assert.deepEqual({ ...card(f, id), state: before[index]!.state }, before[index]);
+  assert.deepEqual(f.cards.list("a").map(card => card.state), ["missing", "missing"]);
+  state = "unknown"; await f.organizer.kick("a");
+  assert.equal(f.cards.list("a").length, 2); assert.equal(f.written.length, calls);
+  state = "deleted"; await f.organizer.reconcile("a");
+  assert.deepEqual(f.cards.list("a"), [], "current owner deletion clears both cards, including a person's edits");
+});
+
+test("A4-K opaque organized material is preserved failed until the person's existing named organize request", async t => {
+  const f = await fixture(t); f.goals.clear(); await f.indexAll(); await f.organizer.kick("a");
+  const original = card(f, "p1"), sent: KnowledgeDraftInput[] = [];
+  const adopted = new KnowledgeOrganizer({ store: f.cards,
+    catalog: async project => knowledgeCatalog(f.index, project).map(piece => ({ ...piece, revision: `content-v1:${piece.revision}` })),
+    sourceState: async () => "active", writer: () => async input => { sent.push(input); return { title: input.title, brief: "本人重新整理" }; } });
+  t.after(() => adopted.close());
+  await adopted.kick("a");
+  const failed = card(f, "p1");
+  assert.deepEqual({ ...failed, state: original.state, error: original.error }, original);
+  assert.equal(failed.state, "failed"); assert.match(failed.error!, /手动整理/); assert.equal(sent.length, 0);
+  const manage = new KnowledgeCards(f.cards, adopted);
+  assert.equal(manage.organize(owner, { subjects: [failed.subject] }).queued, 1);
+  await adopted.kick("a");
+  assert.equal(sent.length, 1); assert.equal(card(f, "p1").state, "ready");
+  assert.equal(card(f, "p1").organized_revision, "content-v1:1");
+});
+
+test("A4-K a current source becoming archived while a model writes cannot commit its late card draft", async t => {
+  let state: "active" | "archived" = "active";
+  const started = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  const f = await fixture(t, { contentTokens: true, sourceState: async () => state, writer: async () => {
+    started.resolve(); await release.promise; return { title: "晚到模型标题", brief: "不该提交" };
+  } });
+  f.goals.clear(); await f.indexAll(); const pass = f.organizer.kick("a"); await started.promise;
+  state = "archived"; f.pages.clear(); await f.search.rebuild(f.access(owner), { scope: "project" });
+  await f.organizer.reconcile("a"); release.resolve(); await pass;
+  assert.equal(card(f, "p1").state, "missing"); assert.equal(card(f, "p1").organized_revision, null);
+  assert.notEqual(card(f, "p1").title, "晚到模型标题");
 });
 
 for (const outcome of ["draft", "failure"] as const) {

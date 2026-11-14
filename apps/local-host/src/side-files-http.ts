@@ -2,13 +2,14 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { logPreviewFailure } from "./host-log.js";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import {
-  FILE_ENTRIES_PAGE_LIMIT, SUBJECT_CONTEXT_TYPE, SUBJECT_REFERENCE_TYPE, isFileContentSource, isFileEntriesSource,
+  FILE_ENTRIES_PAGE_LIMIT, SUBJECT_CONTEXT_TYPE, SUBJECT_REFERENCE_TYPE, isArtifactPreviewAction, isFileContentSource, isFileEntriesSource,
   type ActionSubjectContext, type ActionView, type FileContent, type FileEntriesPage,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import { writeNativePluginJsonResponse } from "./native-plugin-http.js";
 import { localWebActionContext } from "./local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS, MATERIALS_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
+import { matchingActions } from "./local-host-types.js";
 import { artifactTypeDeclarations } from "./artifact-type-registry.js";
 import { builtinPluginByManifestId } from "./plugin-registry.js";
 import { ARTIFACT_SUBJECT_KIND, parseArtifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
@@ -27,7 +28,7 @@ interface SideFilesPorts {
 
 const referenceOf = (view: ActionView) => ({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id });
 const sourceId = (view: ActionView) => `${view.provider.provider_id}|${view.capability_id}|${view.version}`;
-const isReader = (view: ActionView) => view.action.input_type === SUBJECT_REFERENCE_TYPE && view.action.output_type === SUBJECT_CONTEXT_TYPE;
+const isReader = ({ action }: Pick<ActionView, "action">) => action.input_type === SUBJECT_REFERENCE_TYPE && action.output_type === SUBJECT_CONTEXT_TYPE;
 const RAW_TYPES = new Set(["application/pdf", "image/png", "image/jpeg", "image/gif", "image/webp", "image/avif"]);
 const textual = (mediaType: string) => /^text\/|\/(json|xml|yaml|javascript|typescript|x-sh)$|\+(json|xml)$/u.test(mediaType);
 
@@ -78,7 +79,9 @@ export async function handleSideFilesHttp(request: IncomingMessage, response: Se
     // The panel lists the project's folders too, so it carries the folder read the materials service asks (BSH-08).
     const caller = await localWebActionContext(ports.localHost, ports.reference, [...LOCAL_OWNER_PERMISSIONS, ...MATERIALS_OWNER_PERMISSIONS]);
     const client = ports.localHost.actionClient(ports.reference);
-    const views = await client.discover(caller);
+    const preview = route === "content" || route === "raw";
+    const views = await matchingActions(client, caller, ({ action }) => isFileEntriesSource(action)
+      || preview && (isFileContentSource(action) || isReader({ action }) || kind === ARTIFACT_SUBJECT_KIND && isArtifactPreviewAction(action)));
     const shown = await ports.shownPlugins?.();
     // A built-in plugin the project does not show lists nothing here; a plugin installed from outside the catalog follows its own state.
     const hiddenHere = (view: ActionView) => {

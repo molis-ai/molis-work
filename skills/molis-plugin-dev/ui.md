@@ -158,7 +158,7 @@ Feed / Inbox：随迁到 Plugin Runtime（FI-6）后，列表、详情、来源�
 终层（`packages/design-system/src/styles/craft-finish.ts`，最后加载）：
 
 - 舞台已经在连续的白色工作面上。不要再给自己的舞台画外框、圆角卡片或整页阴影；需要分区用间距、字重和分隔线。
-- 插件自己的「完成」和「新到达」可以调用 `molisCraft.celebrate(元素)` / `molisCraft.land(元素)`（只做呈现，减少动效时自动静止）；服务端渲染的新行也可以直接带 `data-craft-new`，是同一层淡去的底色。只在真实完成或真实到达时调用，首次渲染不要调用。
+- 插件自己的「完成」和「新到达」可以调用 `molisCraft.celebrate(元素)` / `molisCraft.land(元素)`（只做呈现，减少动效时自动静止）；服务端渲染的新行也可以直接带 `data-craft-new`，是同一层淡去的底色。只在真实完成或真实到达时调用，首次渲染不要调用。另有三种说明变化的动效，同样只做呈现：条目开始等用户处理时先把状态换成「等你」，再调用一次 `molisCraft.ask(元素)`（一圈琥珀色的环散开一次）；内容前进或返回时调用 `molisCraft.turn(元素, 是否返回)`（从来的那一侧滑入）；同一个对象换了地方（列表里的标题变成详情的标题）用 `molisCraft.carry(原来的元素, 改页面的函数)`，并在函数里给新位置的元素加 `data-craft-carried`。哪种变化用哪种动效见组件板「动效标本」开头的动效语法。
 - 位置由标签条最前的插件芯片说明，舞台不需要再放一行「插件名」大标题。
 
 硬规则与用法：`packages/design-system/README.md`。

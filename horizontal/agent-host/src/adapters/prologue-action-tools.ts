@@ -28,7 +28,7 @@ const SUGGEST_RESULT_BYTES = 32 * 1024;
  * SDK session-scoped callbacks; declarations are a projection of the authorized action directory. With `suggest`, one
  * more tool offers the person one of these same actions as a button: only an action frozen here, checked as it is now.
  */
-export function prologueActionTools(actions: AgentFrozenRole["actions"], timeoutMs = DEFAULT_TOOL_LIMITS.maxTimeoutMs, runSignal?: AbortSignal, suggest = false) {
+export function prologueActionTools(actions: AgentFrozenRole["actions"], timeoutMs = DEFAULT_TOOL_LIMITS.maxTimeoutMs, runSignal?: AbortSignal, suggest = false, symbols = false) {
   const tools = [...(actions?.tools ?? [])].sort((a, b) => compareCodeUnits(JSON.stringify([a.capability_id, a.version, a.provider.provider_id]),
     JSON.stringify([b.capability_id, b.version, b.provider.provider_id])));
   // A pack owns its tool names in the SDK's shared catalog, which keeps the first declaration under an id for the whole
@@ -36,7 +36,8 @@ export function prologueActionTools(actions: AgentFrozenRole["actions"], timeout
   // suggest declares one more tool than one that may not, and the provider's title is in each description. Reordering
   // or rebinding the same choice reuses it.
   const suggests = Boolean(suggest && tools.length);
-  const scope = createHash("sha256").update(JSON.stringify({ timeoutMs, suggests, tools: tools.map(view => ({
+  // The id covers everything the pack declares: a round that also carries the coding pack's symbol tool is another pack.
+  const scope = createHash("sha256").update(JSON.stringify({ timeoutMs, suggests, symbols, tools: tools.map(view => ({
     capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id, provider_title: view.provider.title,
     operation: view.operation, action: view.action,
   })) })).digest("hex").slice(0, 24);

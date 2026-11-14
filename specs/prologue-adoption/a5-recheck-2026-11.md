@@ -25,7 +25,7 @@
 | 8 | 逐轮变更 | 已采用 | `prologue-stream.ts` 的 `turn-changes` 投影；Coding `turn-changes-client.ts`；`tests/coding-timeline.e2e.test.ts` | 不变 | — |
 | 9 | 写后诊断（写后检查） | 已采用 | A2-1（Prologue）、A2-2（#822：`adapters/prologue-after-write.ts`、审查卡、S-42）、A2-3（#805：项目设置里的检查器）都在 main；`tests/coding-diagnose-after-write.test.ts`、`tests/prologue-write-checkers.test.ts`、`tests/write-checkers-settings-http.test.ts`、`tests/write-checkers-settings.e2e.test.ts`；时间线读回执与审查卡的浏览器验收在第 24 批补上（原 BL-301、BL-303，`tests/coding-diagnose-timeline.e2e.test.ts`） | 10-14 是「未做」 | 子任务目录里的写入（BL-302）上游缺，去 [31](../post-anticorruption-roadmap/reference/batches/31.md)。BL-160、BL-171、BL-220 都在等真实用量或上游，原样保留 |
 | 10 | 文字增量、停止与错误 | 已采用 | 灵光的流式、Stop、断连取消；`tests/lingguang-plugin.e2e.test.ts` | 不变 | — |
-| 11 | 结构化生成 | 不在本线做 | `apps/local-host/src/alchemist-prologue.ts` 仍把 schema 写进提示词再解码 | 仍未做 | 2026-10-27 并入 BL-377（Alchemist 场景重做），见 BL-306；去 [81](../post-anticorruption-roadmap/reference/batches/81.md)。本线不再单列 |
+| 11 | 结构化生成 | 不在本线做 | `apps/local-host/src/alchemist-prologue.ts` 仍把 schema 写进提示词再解码 | 仍未做 | 2026-10-27 并入 BL-377（Alchemist 场景重做），见 BL-306；去 [82](../post-anticorruption-roadmap/reference/batches/82.md)。本线不再单列 |
 | 12 | 变化等待 | 已采用 | 助理 `assistant/assistant-wait.ts`；Schedule 的 `adapter.observe`；`tests/assistant-work-wait.test.ts`、`tests/schedule-task-runner.test.ts` | 协作视图的版本已随 P3 | — |
 | 13 | Coding 子代理让出与续做 | 已采用 | `subagentYieldGuard` 已删（全仓无引用）；让出走 SDK 的等待与接续，Coding 只读协作视图（`plugins/native/coding/src/waits.ts` 现在是只读投影，不碰存储）；`tests/prologue-subagents.test.ts`、`tests/prologue-work-waits.test.ts`、`tests/coding-collab-handoff.test.ts` | 10-14 是「按 A0 边界拒绝」 | Coding 还留着 `last-start:<session>`、`wake-note:<wait>` 两个存储键（`start-round.ts`、`wake-loop.ts`）：是这一轮的启动参数和给人的留言，不是协调状态；P6 核对旧路径退出时一并看（BL-308） |
 | 14 | 助理委派交回与续做 | 已采用 | 私有的 `handed_back_run`、`hand_back_held` 已不在 `apps/local-host/src/assistant/`；交回改用 SDK 的等待与接续（§6.0n）、每个 Work 一块任务图（§6.0k）、后台作业是图上的一步（§6.0o）；`tests/assistant-delegation-handback.test.ts`、`tests/assistant-handback.e2e.test.ts`、`tests/prologue-work-jobs.test.ts` | 10-14 是「私有实现在 main」 | — |
@@ -51,10 +51,10 @@
 
 | 缺口 | 现状（main `7a39c25bc`） | 去处 |
 | --- | --- | --- |
-| 输入回执阶段 4 后一半：Goal 页「来自对话的输入」（BL-314，RCPT-384～389） | 包里的 `inputQueueView`、`takeQueued`、`withdrawQueued` 只有 `adapters/prologue-node-port.ts` 在用；Goals 一侧没开工 | [52-1](../post-anticorruption-roadmap/reference/batches/52.md#batch-52-item-1)「Goal 对话输入」 |
+| 输入回执阶段 4 后一半：Goal 页「来自对话的输入」（BL-314，RCPT-384～389） | 包里的 `inputQueueView`、`takeQueued`、`withdrawQueued` 只有 `adapters/prologue-node-port.ts` 在用；Goals 一侧没开工 | [53-1](../post-anticorruption-roadmap/reference/batches/53.md#batch-53-item-1)「Goal 对话输入」 |
 | P5 协作与关联线集成（BL-307，PA-13）：同一输入键和节点能找到消息、Run 和成果 | 没开工 | [31](../post-anticorruption-roadmap/reference/batches/31.md) 的「任务关联」。不需要换包，按 31 写的「现有 SDK 可做的消费者不等本窗口」可以先于换包做；[32-1](../post-anticorruption-roadmap/reference/batches/32.md#batch-32-item-1) 的后台任务要用它定位 |
 | P6 旧路径退出与恢复验收（BL-308，PA-14、PA-15、PA-21） | `prologue-recovery.ts` 接了一部分；存量会话在隔离副本里维护成现行形状的演练没做；Coding 的两个存储键见第 13 项 | [31](../post-anticorruption-roadmap/reference/batches/31.md) 的「恢复、退出旧路径」；关窗、重启、休眠后不补跑不双唤醒（PA-21）和 [25-1](../post-anticorruption-roadmap/reference/batches/25.md#batch-25-item-1) 是同一组行为，25-1 做常驻与休眠时一起验 |
-| 给子代理转用户的话记成 `app` 而不是人（SAI-03） | `adapters/prologue-run.ts` 两处 `control.steer({ text, source: "app" })` | [57](../post-anticorruption-roadmap/reference/batches/57.md)「输入归属」 |
+| 给子代理转用户的话记成 `app` 而不是人（SAI-03） | `adapters/prologue-run.ts` 两处 `control.steer({ text, source: "app" })` | [58](../post-anticorruption-roadmap/reference/batches/58.md)「输入归属」 |
 | 子 Run 的写后检查（BL-302）、继续已结束的子代理、App 模式带子代理、LSP、Skill 自动选用 | 上游缺 | [31](../post-anticorruption-roadmap/reference/batches/31.md)「请 Prologue 补的清单」，范围等用户定 |
 | 执行证据（`createEvidenceLedger`、`EvidenceGap`）、会话目标（`SessionObjective`、`judgeObjective`） | 全仓没有引用 | 本批第 3 项没有接：证据取自 agent-host 已有的命令回执与轮次活动（`agent.evidence.check@1`），接 `EvidenceLedger` 留给 31 批（BL-goal-evidence-limits ④）；见[批次文件](../post-anticorruption-roadmap/reference/batches/24.md#batch-24-item-3) |
 

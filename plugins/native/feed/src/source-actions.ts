@@ -132,7 +132,8 @@ export function createFeedSourceHandlers(board: string, ports: FeedSourceActionP
     // Each source records its own failure, so a wakeup that got as far as pulling is `ok`.
     ...(ports.wake ? [bindWaiting(ports.wake, async (_input, caller) => {
       const result = await tick(caller);
-      return { status: "ok" as const, detail: `到期 ${result.due}，完成 ${result.completed}，失败 ${result.failed}，跳过 ${result.skipped}` };
+      return { status: "ok" as const, detail: `到期 ${result.due}，完成 ${result.completed}，失败 ${result.failed}，跳过 ${result.skipped}`,
+        ...(result.due === 0 ? { view_changed: false as const } : {}) };
     })] : []),
   ];
 }

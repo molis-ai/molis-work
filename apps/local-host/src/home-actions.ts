@@ -3,11 +3,12 @@ import { canonicalJsonText, compareCodeUnits, createActionDefinition } from "@mo
 import { homeOfferActions, createHomeOfferHandlers, type HomeActionOffer } from "./home-offer-actions.js";
 import { callerDirectory, prepareSubjectOffers } from "./contextual/contextual-service.js";
 import { homeEventActions, createHomeEventHandlers } from "./home-event-actions.js";
+import type { HostActionClient } from "./local-host-types.js";
 import { createHash, randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { judgmentRecommendationKeys, subjectOfferCompatibilityReason } from "@molis-ai/molis-work-kernel";
 import { ActionError, requireSynchronous, ACTION_SUBJECT_SCHEMA, resolveActionSubject, type ActionSubject, retainActionAuthority, type ActionExecutionContext, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionProviderRegistration, type ActionReference,
-  type ActionClient, type ActionSceneBinding, type ActionSceneClient, type ActionSceneDefinition, type ActionSceneHandlerBinding, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+  type ActionSceneBinding, type ActionSceneClient, type ActionSceneDefinition, type ActionSceneHandlerBinding, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { HOME_DOCK_SCENE_ID, INBOX_DISMISS_OPTION_ID, INBOX_DONE_OPTION_ID, SYSTEM_HOME_DOCK_FUNCTION_KEY, type JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
 import { publishedFunctionAction, publishedFunctionKey, type FunctionsActionPorts } from "@molis-ai/molis-work-module-judgment-rules";
 import { withFunctionsService, type FunctionsHostOptions } from "./judgment-rules-host.js";
@@ -74,7 +75,7 @@ const sameBinding = (left: ActionSceneBinding | null, right: ActionSceneBinding)
 
 /** Home owns its consumption contract; Functions remains the owner of saved bindings and history. */
 export interface HomeSceneServices {
-  actions: ActionClient; scenes: ActionSceneClient; functions?: FunctionsHostOptions;
+  actions: HostActionClient; scenes: ActionSceneClient; functions?: FunctionsHostOptions;
   pageDrafts?: Pick<DraftReferences, "handlers">;
   /** A running Host owns this connection; standalone scene callers use a scoped service. */
   readFunctions?: FunctionsActionPorts["read"];

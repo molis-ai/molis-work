@@ -233,7 +233,9 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   const addMenu = `document.querySelector('${CODING_COMPOSER} .mw-composer__start [data-compose-menu]')`;
   assert.equal(await b.evaluate(`!${addMenu} || ${addMenu}.hidden`), true);
   await b.click(`${CODING_COMPOSER} [data-composer-add]`);
-  assert.equal(await b.evaluate(`${addMenu}.querySelectorAll('[data-composer-command] svg').length`), 7, "＋ keeps its glyphs (materials, character, methods, action capabilities, MCP, delegate, context)");
+  assert.deepEqual(await b.evaluate(`Array.from(${addMenu}.querySelectorAll('[data-composer-command]'), item => [item.querySelector('kbd, .mw-menu__shortcut')?.textContent.trim(), !!item.querySelector('svg')])`),
+    ["materials", "character", "methods", "actions", "mcp", "delegate", "memory", "context"].map(command => [`/${command}`, true]),
+    "each command in the ＋ menu has its glyph, including the Session memory shortcut");
   await b.evaluate(codingAdd("context"));
   assert.equal(await b.evaluate(`${addMenu}.hidden && !${addMenu}.childElementCount`), true, "choosing an item closes the menu");
   assert.equal(await evaluate(`document.querySelector('${coding} [data-coding-rename]').getBoundingClientRect().height > 0`), true, 'compact session settings retain rename');

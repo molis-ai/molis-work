@@ -32,7 +32,7 @@ export function renderPlatformAreaSection(_L: Say, _lang: WebLocale): string {
 
 /** The board's layout for the section; the area's own styles are the shell's. */
 export const PLATFORM_AREA_SECTION_STYLES = PLATFORM_AREA_STYLES
-  + `#platform-area .mw-catalog__specimen{margin:0}#platform-area figcaption small{display:block;margin-top:2px;color:var(--muted);font-size:12px}`
+  + `#platform-area figcaption small{display:block;margin-top:2px;color:var(--muted);font-size:12px}`
   + `.mw-pa-board__stage{display:grid;justify-items:start;gap:10px;max-width:100%;overflow-x:auto;padding:16px;border-radius:var(--r-card);background:var(--paper);box-shadow:inset 0 0 0 1px var(--line)}`
   + `.mw-pa-board__stage>.mw-platform-area{flex:none}.mw-pa-board__line{display:block;padding:0;background:none;box-shadow:none;animation:none}`;
 

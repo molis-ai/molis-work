@@ -57,7 +57,7 @@
 | A1 | 读仓库说明文件，`/init` 生成 | 五家都有 | ◐ | 接上 | — |
 | A2 | 自定义斜杠命令、提示模板 | 五家都有 | ✗ | 新做 | — |
 | A3 | 图片输入，模型看图 | 五家都有 | ✗ | 接上 | — |
-| A4 | 代码智能：查定义与引用、写后回传诊断、自动格式化 | OpenCode | ✗ | 新做 | Q5 已定；待实施 |
+| A4 | 代码智能：查定义与引用、写后回传诊断、自动格式化 | OpenCode | ◐ | 新做 | Q5 已定；查定义与引用已由第 31 批宿主侧接上（A4-1），写后诊断由 A4-2 的检查器命令承担，格式化仍待实施 |
 | B1 | 模型联网：搜索、读公开网页，默认允许、项目/本次任务可关闭 | Codex、OpenCode、Claude Code、Cursor | ✗ | 接上 | Q1 已定；实施接入平台公共搜索 |
 | B2 | 按规则放行、操作系统沙盒、网络范围、AI 低风险自动审批 | Claude Code、Codex、OpenCode、Pi | ◐ | 扩展 | Q2 已定；待实施 |
 | B3 | 用户钩子 | Codex、Claude Code、OpenCode、Pi、Cursor | ✗ | 扩展 | Q3 已定；待实施 |
@@ -105,8 +105,9 @@
 
 - **需求**：模型能查定义、引用、实现、符号和调用链；写入或修改文件后能看到新增的编译或类型错误；写入的代码自动格式化。
 - **参照**：OpenCode 的 `lsp` 工具（goToDefinition、findReferences、hover、documentSymbol、workspaceSymbol、goToImplementation、调用层级），写入后回传诊断，26 种格式化器。
-- **实现要点**：SDK 新增语言服务器模块，Node 宿主按文件类型需要时才启动，会话结束时关闭。新增只读工具"代码智能"，不经审查。写入或修改后附上该文件新增的错误。格式化放在审查之前，审查卡上显示格式化后的最终内容，用户批的就是最终写入的内容。先支持 TypeScript/JavaScript、Python、Rust、Go。
-- **工具获取（2026-10-28 用户已定）**：按项目版本要求、运行环境及已启用语言能力，优先使用项目或本机已有适用版本；缺少时自动下载本次任务所需的公开代码分析工具到平台管理的隔离工具目录，无须用户先手动安装或逐包确认。沿已有环境准备与 B2 的目录、执行和联网规则，来源与版本由有效配置及语言插件声明确定，不为每种语言在宿主写下载分支，不另配一套联网许可。
+- **实现要点（第 31 批已落第一片，宿主侧；2026-11-12 用户定）**：**不进 SDK**，复用 SDK 官方编码包已经声明的 `coding.find-symbol` 与执行器缝 `coding.symbol-index`：Molis 在 `horizontal/agent-host/src/code-intelligence` 接语言服务器（JSON-RPC、按文件类型按需启动、回合结束关闭、只读本轮目录、平台 `MOLIS_WORK_*` 环境不进子进程），人配置写在 Home 的 `language-servers.json`。Coding 的阅读角色声明 `find-symbol`，工具在时间线里有自己的词。**仍待做**：写入/修改后回传该文件新增的错误、审查前格式化、先支持 Python/Rust/Go。
+- **工具获取（Q5，本批已实现第一片；用户 2026-11-12 定「本批补上自动下载」）**：`language-servers.json` 里每个服务器可以写 `install: { package, version, bin }`，人再把 `downloads` 设成 `"allow"`（**默认 `"deny"`**，不悄悄联网）。已装好的按 `package@version` 复用（隔离目录里有 `installed.json` 才算完），没有就 `npm install --ignore-scripts` 到 `<Home>/tools/language-servers/<package>/<version>`（项目、全局前缀和个人环境都不动），装完才原子改名，失败把临时目录删掉并给出原因。语言服务器进程仍剥掉 `MOLIS_WORK_*`。第三方插件暂时还不能在 Manifest 声明 `lsp_servers`（记 BL-lsp-servers-declaration）。
+- **工具获取的规则（Q5，2026-10-28 用户已定；本批实现第一片，见上一段「工具获取」）**：按项目版本要求、运行环境及已启用语言能力，优先使用项目或本机已有适用版本；缺少时自动下载本次任务所需的公开代码分析工具到平台管理的隔离工具目录，无须用户先手动安装或逐包确认。来源与版本由有效配置及语言插件声明确定，不为每种语言在宿主写下载分支。**授权口径（第 31 批实现，用户 2026-11-12 定）**：宿主自己的语言服务器下载以**人**在 `language-servers.json` 里的 `downloads: "allow"` 为授权（默认 `deny`，且必须同时写 `registry`），不借插件安装或 Agent 任务的联网许可；系统与平台自身的联网限制仍在下层生效。
 - **安装与范围**：工具目录用于运行支撑，不成为项目第二个输出目录；保持项目依赖、版本约束、系统全局安装和个人环境设置。已准备的兼容版本可复用，不每轮重下或自动升级；只按任务实际需要获取工具，不因打开项目安装全部语言服务。工具进程及子进程沿当前项目／任务授权，下载许可不扩大代码读取、写入或外部上传权限；需要登录、付费、私有来源或系统级安装时仍按对应授权处理。
 - **失败与恢复**：遵守项目／任务／来源禁网与撤权；可用本地版本仍可在授权内工作。缺少兼容版本、下载中断、安装或启动失败时说明原因和修复／重试入口，未完成产物不被当作可用工具；恢复与重启核对实际安装状态。保留成果，允许已有文件搜索、阅读等独立工作继续，不能把语言服务不可用误报为“没有错误”；停用语言能力和会话结束沿原生命周期释放本次进程。
 - **验收**：保留真实跨文件改名、诊断回传与 `tsc` 验证，并增加以下编号；证明用例在测试名或注释引用编号。
@@ -117,7 +118,7 @@
 | CLS-02 | 下载遵守有效版本、来源和网络限制；禁网／撤权阻止未获准请求，工具及子进程不越过项目权限；项目依赖、全局安装和个人环境未被改写 | 实际目录及配置前后对比、出站请求与权限交错；已有本地工具在许可内继续 |
 | CLS-03 | 中断、失败和重启不把半成品标为可用；恢复后原任务可接续，独立工作继续，不冒称诊断通过；停用／结束后本次进程正确退出 | 真实下载、安装及启动故障与恢复，核对文件、进程、诊断状态和最终任务结果 |
 
-CLS-01～03 当前未实现或验证；Q5 只确定获取规则，不改变 Harness 对代码智能收益评估及分期的要求。
+CLS-01～03 里「查定义/查引用」「按需下载到隔离目录、重开复用」「中断失败不留半成品」已由第 31 批的宿主侧第一片与 `tests/code-intelligence-download.test.ts` 覆盖；诊断、格式化、Python/Rust/Go 的支持留给后续片。Q5 只确定获取规则，不改变 Harness 对代码智能收益评估及分期的要求。
 
 ### B 期：联网与权限（按已定规则接入）
 
@@ -237,7 +238,7 @@ Q4 产品对齐已完成，不代表 Memory P0 已交付；原负责人、依赖
 
 - **需求**：在终端或脚本里直接交给 Coding 一个任务，拿到结构化结果；其他 agent 也能调用 Coding。
 - **参照**：`codex exec`、`opencode run` 与 `serve`、Pi 的 print / json / rpc 模式、`claude -p`。
-- **实现要点**：`molis-work coding run "任务"` 经本机服务执行，输出 JSON 事件流；审查照旧，命中放行规则的直接跑，需要人批的就停下并给出打开审查的链接。把 Coding 的会话能力作为工具加进 Molis 自带的 MCP 服务。
+- **实现要点**：Coding 在 Manifest 里声明一条非交互运行命令，平台 CLI 按已安装插件的声明生成子命令（第三方插件同样可以声明），平台 CLI 里不写死 `coding`；用户敲的仍可以是 `molis-work coding run "任务"`，它存在是因为 Coding 声明了。经本机服务执行，输出 JSON 事件流；审查照旧，命中放行规则的直接跑，需要人批的就停下并给出打开审查的链接。MCP 工具来自动作目录，不在 MCP 里单列（2026-11-13 按插件同等地位收口改，[决定 43](../post-anticorruption-roadmap/reference/decisions.md#decision-43)）。
 - **验收**：在终端跑一个只读评审任务，拿到 JSON 结果。
 
 #### D2 GitHub：PR 跟进、评论触发、PR 评审
@@ -301,7 +302,7 @@ CGH-01～03 当前未实现或验证；Q7 是产品规则决定，不代表账�
 
 | 编号 | 补充 | 参照 | 做法 | 验收 |
 | --- | --- | --- | --- | --- |
-| A4-1 | LSP 用**声明式插件**，不在宿主逐语言写死 | `claude-plugins-official` 的 12 个 LSP 插件只在 marketplace 里写 `lspServers` | Manifest 增加 `lsp_servers`（`command`、`args`、`extensionToLanguage`、超时）；Prologue 加 LSP 客户端；先支持 TS/JS、Python、Rust、Go；按已定 Q5 优先复用项目／本机版本，缺少时自动下载到隔离目录并遵守联网限制 | 装一个语言插件就能查到定义/引用；卸载后 server 退出 |
+| A4-1 | 代码理解（LSP）**放宿主侧**，不进 SDK（用户 2026-11-12 定，第 31 批） | `claude-plugins-official` 的 12 个 LSP 插件只在 marketplace 里写 `lspServers` | 复用 SDK 官方编码包已经声明的 `coding.find-symbol` 与执行器缝 `coding.symbol-index`：Molis 在 `horizontal/agent-host` 接语言服务器（JSON-RPC、按文件类型按需启动、会话结束关闭、只读本轮目录），人配置写在 Home 的 `language-servers.json`；不用 Manifest `lsp_servers`、不改 SDK。先支持人在配置里登记的语言（TS/JS 等）；按已定 Q5：先找配置里 `command` 指向的本机可执行文件（绝对路径或 PATH 上的名字）；没有且人把 `downloads` 设为 `"allow"` 时装进 `<Home>/tools/language-servers`（`npm install --ignore-scripts`，不动项目/全局/个人环境），默认 `"deny"` 就明确报「没有服务器、下载关着」 | 人配一个语言服务器后，Coding 能查到定义与引用；没有登记且不允许下载时明确报原因；会话结束服务器进程退出 |
 | A4-2 | 写后诊断 + 审查前格式化 | Claude Code 的 LSP diagnostics | 写入/修改后回传该文件新增诊断；格式化放在审查之前，审查卡显示最终内容 | 改名改全、诊断为零、`tsc` 通过；审查卡看到的是格式化后的内容 |
 | A6 | Coding 也消费**技能包**（与个人助理共用） | `knowledge-work-plugins` 的角色包 | 见 [skill-packs](../skill-packs/spec.md)：`applies_to` 含 `coding` 的包可安装为方法或在起跑时注入 `agent.skills`；不授予权限 | 安装一个工程方法包，Coding session 能选到并按精确版本用 |
 | B3-1 | 用户钩子用**Markdown 规则文件** | `claude-code/plugins/hookify` | `.molis/hooks/<name>.md`：frontmatter 的 event/matcher/conditions/action（warn/block/ask）；首次启用及修改后按 Q3 确认才生效；面板可启停；受限执行、超时与失败按 B3 的触发阶段处理 | 一条 `rm -rf` 规则挡住并告诉模型原因；一条 lint 钩子在写后跑 |
@@ -311,7 +312,7 @@ CGH-01～03 当前未实现或验证；Q7 是产品规则决定，不代表账�
 | D4 | **明确启用的 PR 真人批准门** | `claude-code-action/agent-approval-check` | 仅在配置适用范围要求 N 个有写权限的不同真人批准；`/approve <sha>` 绑定 head，push 后过期；Agent/bot 与 AI 低风险代批不计票，分支名不作信任依据；其余工作复用有效授权 | 适用人审范围未达 N 票不能合并，push 后重新批准；已授权且无该人审要求的工作不被统一阻塞 |
 | D5 | 提交签名与身份 | Claude Code Action 的 `use_commit_signing` / `ssh_signing_key` | Coding 推的 commit 可配置 GitHub API 签名或 SSH 签名；bot 身份可配置；审查卡显示这次提交是谁签的 | 真实 PR 上 commit 显示 verified；身份与配置一致 |
 | D6 | PR 场景的**配置来源与注入清洗** | Claude Code Action 的安全模型 | 评审/CI 场景先从 base 分支恢复 `.molis/`、`.mcp.json`、`AGENTS.md` 等项目配置，PR head 的版本只作参考；清洗 HTML 注释、不可见字符、alt、隐藏属性、实体 | PR 作者改配置不能提权；隐藏指令不进模型上下文 |
-| D7 | 非交互结构化输出 | Claude Code Action 的 `--json-schema` | D1 的 `molis-work coding run` 支持 JSON Schema，结果按 schema 校验后作为单一 JSON 输出；用于 flaky 判定、发布说明、Issue 分诊 | 脚本/CI 能稳定消费；schema 不符时失败而不是猜 |
+| D7 | 非交互结构化输出 | Claude Code Action 的 `--json-schema` | D1 的 Coding 声明的运行命令（`molis-work coding run`）支持 JSON Schema，结果按 schema 校验后作为单一 JSON 输出；用于 flaky 判定、发布说明、Issue 分诊 | 脚本/CI 能稳定消费；schema 不符时失败而不是猜 |
 | E6 | **有界迭代** | `claude-code/plugins/ralph-wiggum` | 用 Stop 事件做“同一目标反复跑”，必须有完成承诺、最大轮数、可取消；不取代正常一轮的停止判断 | 修到测试全绿后停止；达到上限/取消后不再跑 |
 | E7 | 计划即页面 | `claude-plugins-community/html-plan`、`playground` | 实施计划可生成为一张交互页：claim 树 + 每种 claim 一个 exhibit + 决策放在它影响的 claim 上；用户在页面里勾选/评论，最后把一份 response 交回 Coding | 计划页能评审、能回答决策、能把结果带回新一轮 |
 | E8 | 代码简化与安全评审作为专科角色 | `code-simplifier`、`claude-security` | 评审面板可选“简化但不改行为”“安全 finding + 独立 verifier + 只出 patch”；安全评审不自动应用 | 简化不改行为；安全 finding 经过复核才进待处理项 |

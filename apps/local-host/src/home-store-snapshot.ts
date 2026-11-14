@@ -83,16 +83,45 @@ function sdkEntry(file: string): SnapshotDisposition {
   return unknown(file);
 }
 
+function sdkSnapshotEntry(file: string): SnapshotDisposition {
+  return file === "records.sqlite" ? { kind: "keep" } : sdkEntry(file);
+}
+
+function sdkSnapshotDatabase(file: string): SqliteSnapshotOptions | undefined {
+  return file === "records.sqlite" ? { standalone: true } : undefined;
+}
+
+function sdkRestoreEntry(file: string, incoming: boolean): HomeRestoreDisposition {
+  if (!file || file === "records.sqlite") return "replace";
+  if (/^records\.sqlite-(?:journal|wal|shm)$/u.test(file)) {
+    if (incoming) return unknown(file);
+    return "reset";
+  }
+  const disposition = sdkEntry(file);
+  return disposition.kind === "key" ? "preserve" : disposition.kind === "omit" ? disposition.restore : disposition.restore ?? "replace";
+}
+
 export const agentSnapshot: HomeStoreSnapshotPolicy = {
-  entry: (_home, file) => sdkEntry(file),
+  entry: (_home, file) => sdkSnapshotEntry(file),
+  database: sdkSnapshotDatabase,
+  restoreEntry: sdkRestoreEntry,
   inspect: (storageRoot, keyRoot, _paths, control) => verifyPrologueNodeStorageContents({ storageRoot, keyRoot, ...control }),
 };
 
 export const builderSnapshot: HomeStoreSnapshotPolicy = {
   entry: (_home, file) => {
     const run = /^[^/]+\/runs\/[^/]+\/(.+)$/u.exec(file);
-    if (run) return sdkEntry(run[1]!);
+    if (run) return sdkSnapshotEntry(run[1]!);
     return /(?:^|\/)(?:node_modules|\.cache)(?:\/|$)/u.test(file) ? excluded("Rebuildable build dependencies/cache") : { kind: "keep" };
+  },
+  database: file => {
+    const run = /^[^/]+\/runs\/[^/]+\/(.+)$/u.exec(file);
+    return run ? sdkSnapshotDatabase(run[1]!) : undefined;
+  },
+  restoreEntry: (file, incoming) => {
+    const run = /^[^/]+\/runs\/[^/]+\/(.+)$/u.exec(file);
+    if (run) return sdkRestoreEntry(run[1]!, incoming);
+    return /(?:^|\/)(?:node_modules|\.cache)(?:\/|$)/u.test(file) ? "reset" : "replace";
   },
   inspect: async (dataRoot, keyRoot, paths, control) => {
     const runs = new Set(paths.flatMap(path => {

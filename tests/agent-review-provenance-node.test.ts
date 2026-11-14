@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtemp, mkdir, readFile, writeFile, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, readdir, writeFile, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -114,4 +114,50 @@ for (const refuseProjection of [false, true]) test(`APR-07/12: real Node Git dec
   assert.equal((await history.decisions(request.review_id)).approve.available, false);
   await assert.rejects(history.respond({ review_id: request.review_id, version: request.reference.version, decision: "approve", actor_id: "another-person" }));
   assert.equal(executions, refuseProjection ? 0 : 1);
+});
+
+test("APR-08/13: Git recovery revocation at the evidence commit leaves the original receipt uncertain", async t => {
+  const root = await mkdtemp(join(tmpdir(), "review-git-evidence-"));
+  const app = { appId: "molis.review.git-evidence", appVersion: "1.0.0" };
+  const storageRoot = join(root, "sdk");
+  let queue = new AgentReviewQueue(), adapter = await createPrologueNodeAdapter({ app, storageRoot, reviewQueue: queue });
+  t.after(async () => { await adapter.close(); queue.close(); await rm(root, { recursive: true, force: true }); });
+  let executions = 0;
+  const request = await adapter.gitReviews!.prepare({ project_id: "project", workspace_id: "workspace", operation_id: "manual-recovery-operation",
+    proposal_fingerprint: reviewProposalVersion({ target: "note", change: "reviewed" }),
+    document: { kind: "git-index", action: "stage", workspace_name: "repo", files: [] },
+  }, { authority: { plugin_id: "plugin", install_id: "original", holds: () => true }, check: async () => {}, execute: async () => {
+    executions++;
+    throw Object.assign(new Error("no final receipt"), { code: "EFFECT_RECONCILE_REQUIRED" });
+  } });
+  const approved = await queue.respond({ review_id: request.review_id, version: request.reference.version, decision: "approve", actor_id: "person" });
+  assert.ok(approved.effect_uncertain);
+  const records = join(storageRoot, "records");
+  const [kind, otherKind] = (await readdir(records)).filter(name => name.startsWith("molis-git-review-"));
+  assert.ok(kind); assert.equal(otherKind, undefined);
+  const [entry, otherEntry] = (await readdir(join(records, kind))).filter(name => name.endsWith(".json"));
+  assert.ok(entry); assert.equal(otherEntry, undefined);
+  const evidenceRecord = join(records, kind, entry), initialRecord = await readFile(evidenceRecord);
+
+  const observe = async () => ({ revision: "original-index", observed_at: new Date().toISOString(), files: [], matches_before: true, matches_after: false });
+  const input = { review_id: request.review_id, action: "not-happened" as const, actor_id: "person", revision: "original-index", reason: "Checked the original index." };
+  const controller = new AbortController();
+  await assert.rejects(queue.recover(input, observe, {
+    async beforeEffect() { await Promise.resolve(); controller.abort(new Error("the recovery request ended before commit")); },
+    assertCurrent: () => controller.signal.throwIfAborted(),
+  }), /ended before commit/);
+  assert.ok((await readFile(evidenceRecord)).equals(initialRecord), "the original durable recovery record was not replaced");
+  assert.ok(queue.receipt(request.review_id)?.effect_uncertain);
+  assert.equal(queue.receipt(request.review_id)?.reconciliation, undefined);
+
+  await adapter.close(); queue.close();
+  queue = new AgentReviewQueue(); adapter = await createPrologueNodeAdapter({ app, storageRoot, reviewQueue: queue });
+  await queue.refresh("project");
+  assert.ok(queue.receipt(request.review_id)?.effect_uncertain);
+  assert.equal(queue.receipt(request.review_id)?.reconciliation, undefined);
+  const recovered = await queue.recover(input, observe, { beforeEffect() {}, assertCurrent() {} });
+  assert.ok(!(await readFile(evidenceRecord)).equals(initialRecord), "a current caller saves the original evidence");
+  assert.equal(recovered.receipt.reconciliation?.reason, input.reason);
+  assert.equal(recovered.receipt.effect_uncertain, undefined);
+  assert.equal(executions, 1);
 });

@@ -110,16 +110,23 @@ export const agentReviewActions = {
     input_schema: { type: "object", properties: { review_id: reviewId, action: { enum: ["refresh", "not-happened"] }, confirmed: { type: "boolean" },
       revision: { type: "string", maxLength: 200 }, reason: { type: "string", maxLength: 2000 } }, required: ["review_id", "action"], additionalProperties: false } },
   async ({ ports, page }, input, caller) => {
+    const assertCurrent = () => {
+      caller.signal?.throwIfAborted();
+      requireSynchronous(caller.assert_authority_current?.());
+      page?.assertCurrent();
+    };
+    assertCurrent();
     await ports.agentHost.reviews.refresh(ports.projectId);
-    caller.signal?.throwIfAborted();
-    page?.assertCurrent();
+    assertCurrent();
     if (ports.agentHost.reviews.get(input.review_id)?.project_id !== ports.projectId) throw missing(uiText.text("workbench.agent-review.operation-missing"));
     const observe = ports.observeGitIndex;
     try {
       if (!observe) throw new Error(uiText.text("workbench.agent-review.index-unavailable"));
       if (input.action === "not-happened" && input.confirmed !== true) throw new Error(uiText.text("workbench.agent-review.must-confirm"));
       return { view: await ports.agentHost.reviews.recover({ review_id: input.review_id, action: input.action, actor_id: ports.actorId,
-        ...(input.revision !== undefined ? { revision: input.revision } : {}), ...(input.reason !== undefined ? { reason: input.reason } : {}) }, observe) };
+        ...(input.revision !== undefined ? { revision: input.revision } : {}), ...(input.reason !== undefined ? { reason: input.reason } : {}) }, observe, {
+        beforeEffect: async () => { await caller.beforeEffect(); await page?.beforeEffect(); }, assertCurrent,
+      }) };
     } catch (error) { throw conflict(error, uiText.text("workbench.agent-review.check-failed")); }
   }),
 };
@@ -186,11 +193,13 @@ export async function handleAgentReviewHttp(
   if ((request.method === "GET" || request.method === "POST") && url.pathname === "/api/agent/reviews/recovery") {
     const escape = (value: string) => value.replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!);
     if (request.method === "POST") {
+      const control = webEffectControl(request, response, ports.host, ports.assertAccountCurrent);
       const body = await readLocalWebBody(request);
       if (typeof body.review_id !== "string" || body.review_id === "") { sendLocalWebJson(response, 404, { error: uiText.text("workbench.agent-review.operation-missing") }); return true; }
       if (body.action !== "refresh" && body.action !== "not-happened") { sendLocalWebJson(response, 409, { error: uiText.text("workbench.agent-review.bad-recovery-action") }); return true; }
       try {
-        const { view } = await door.invoke(asPerson(request, ports, responseAbortSignal(response)), agentReviewActions.recover.definition, { review_id: body.review_id, action: body.action,
+        const { view } = await door.invoke({ ...asPerson(request, ports, responseAbortSignal(response)), assertCurrent: control.assertCurrent },
+          agentReviewActions.recover.definition, { review_id: body.review_id, action: body.action,
           ...(typeof body.confirmed === "boolean" ? { confirmed: body.confirmed } : {}),
           ...(typeof body.revision === "string" ? { revision: body.revision } : {}), ...(typeof body.reason === "string" ? { reason: body.reason } : {}) });
         sendLocalWebJson(response, 200, { view, html: renderAgentReviewRecovery(view, escape) });

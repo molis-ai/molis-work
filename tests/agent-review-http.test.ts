@@ -11,7 +11,7 @@ import test, { after } from "node:test";
 import { AgentHost, assistantServiceFor, ComputerDesk, ensureSystemAgentService, MolisWorkLocalHost, handleAgentReviewHttp, installHostUiText, resolveWebLocale, runWithLocale, WebSessions, webPageToken, withWebSessionRequest } from "@molis-ai/molis-work-app-local-host";
 import type { AgentReviewRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 
-import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import { deferred, serveHomeRuntime } from "./fixtures/home-runtime.js";
 
@@ -42,7 +42,7 @@ function pending(reviewId: string, projectId = BOARD): AgentReviewRequest {
   };
 }
 
-async function fixture(observeGitIndex?: import("@molis-ai/molis-work-app-local-host").AgentReviewHttpPorts["observeGitIndex"], entry: Pick<import("@molis-ai/molis-work-app-local-host").AgentReviewHttpPorts, "computerHolder" | "now"> = {}, sessions?: WebSessions) {
+async function fixture(observeGitIndex?: import("@molis-ai/molis-work-app-local-host").AgentReviewHttpPorts["observeGitIndex"], entry: Pick<import("@molis-ai/molis-work-app-local-host").AgentReviewHttpPorts, "computerHolder" | "now" | "assertAccountCurrent"> = {}, sessions?: WebSessions) {
   const { AgentHost: Host } = await import("@molis-ai/molis-work-service-agent-host");
   const agentHost = new Host({ reviews: new AgentReviewQueue({ decisions: reviewDecisionStorage().store }) }), host = await hostForReviews();
   const server = createServer((request, response) => {
@@ -218,21 +218,23 @@ test("manual rewind reviews are scoped to the selected runtime session and curre
 });
 
 test('Git recovery enforces project ownership, explicit confirmation and Host-owned evidence and identity', async () => {
-  let reads = 0, resolves = 0;
+  let reads = 0, resolves = 0, revokeWhileReading = false, accountCurrent = true;
   const original = "<script>unsafe</script>\"\n" + " 原始 Git 错误 ".repeat(300) + "Complete tail";
   const item = await fixture(async request => {
     reads++; assert.equal(request.review_id, 'mine');
     assert.equal(request.document.kind, 'text-edit', 'browser cannot replace the stored review');
+    if (revokeWhileReading) accountCurrent = false;
     return { revision: 'host-version', observed_at: 'now', files: [], matches_before: true, matches_after: false };
-  });
+  }, { assertAccountCurrent() { if (!accountCurrent) throw new ActionError("actions.forbidden", "original account revoked"); } });
   try {
     const queue = item.agentHost.reviews;
     queue.request(pending('mine')); queue.request(pending('foreign', 'other-project'));
     queue.registerRecoveryHandler('mine', {
       inspect: async observe => ({ review_id: 'mine', receipt: queue.receipt('mine')!, observation: await observe(), can_confirm_not_happened: false, message: original }),
-      resolve: async (input, observe) => {
-        resolves++; assert.equal(input.actor_id, 'user'); assert.equal(input.reason, 'actual evidence');
+      resolve: async (input, observe, control) => {
+        assert.equal(input.actor_id, 'user'); assert.equal(input.reason, 'actual evidence');
         const observation = await observe(); assert.equal(observation.revision, 'host-version');
+        await control.beforeEffect(); control.assertCurrent(); resolves++;
         return { review_id: 'mine', receipt: queue.receipt('mine')!, observation, can_confirm_not_happened: false, message: { owner: 'workbench', key: 'workbench.agent-review.recovery-settled' } };
       },
     });
@@ -253,6 +255,10 @@ test('Git recovery enforces project ownership, explicit confirmation and Host-ow
     assert.match(english.html, /Complete tail<\/p>/u);
     const result = await post({ review_id: 'mine', action: 'not-happened', confirmed: true, actor_id: 'forged', reason: 'actual evidence', revision: 'host-version', observation: { matches_before: true }, document: { kind: 'git-index' } });
     assert.equal(result.status, 200); assert.equal(resolves, 1); assert.equal(reads, 3);
+    revokeWhileReading = true;
+    const refused = await post({ review_id: 'mine', action: 'not-happened', confirmed: true, reason: 'actual evidence', revision: 'host-version' });
+    assert.equal(refused.status, 403); assert.match(await refused.text(), /original account revoked/u);
+    assert.equal(reads, 4); assert.equal(resolves, 1);
   } finally { item.server.close(); }
 });
 

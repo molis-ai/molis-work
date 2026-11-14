@@ -132,38 +132,39 @@ for (const applied of [false, true]) test(`Git recovery ${applied ? 'retains unc
     assert.equal(failedRead.can_confirm_not_happened, false);
     const otherFailure = await queue.inspectRecovery(id, async () => { throw null; });
     assert.deepEqual(otherFailure.message, { owner: "workbench", key: "workbench.agent-review.recovery-index-unreadable" });
-    const refresh = await queue.recover({ review_id: id, action: 'refresh', actor_id: 'tester' }, observe);
+    const control = { beforeEffect() {}, assertCurrent() {} };
+    const refresh = await queue.recover({ review_id: id, action: 'refresh', actor_id: 'tester' }, observe, control);
     assert.ok(refresh.receipt.effect_uncertain); assert.equal(refresh.receipt.effect_settled, false); assert.equal(calls, 1);
     const input = { review_id: id, action: 'not-happened' as const, actor_id: 'tester', revision: initial.observation!.revision, reason: 'The fixture interrupted the execution before the index writer was called.' };
     if (applied) {
-      await assert.rejects(queue.recover(input, observe), /不支持确认/);
+      await assert.rejects(queue.recover(input, observe, control), /不支持确认/);
       await assert.rejects(adapter.gitReviews!.prepare({ ...intent, operation_id: 'next-operation' }, { ...prepared, authority: held }), /结果未知/);
       assert.equal((await git('show', ':note')).stdout, '\uFEFFafter🙂\r\n');
       assert.ok(queue.receipt(id)?.effect_uncertain); assert.equal(queue.receipt(id)?.reconciliation, undefined);
     } else {
-      await assert.rejects(queue.recover({ ...input, reason: ' ' }, observe), /具体依据/);
-      await assert.rejects(queue.recover({ ...input, revision: 'outdated' }, observe), /核对内容已改变/);
+      await assert.rejects(queue.recover({ ...input, reason: ' ' }, observe, control), /具体依据/);
+      await assert.rejects(queue.recover({ ...input, revision: 'outdated' }, observe, control), /核对内容已改变/);
       await writeFile(path.join(root, '.git/index.lock'), 'other writer');
       assert.equal((await queue.inspectRecovery(id, observe)).can_confirm_not_happened, false);
-      await assert.rejects(queue.recover(input, observe), /不支持确认/);
+      await assert.rejects(queue.recover(input, observe, control), /不支持确认/);
       assert.equal(await readFile(path.join(root, '.git/index.lock'), 'utf8'), 'other writer'); await rm(path.join(root, '.git/index.lock'));
       const originalGrants = grants; grants = [];
       assert.equal((await queue.inspectRecovery(id, observe)).observation, null);
-      await assert.rejects(queue.recover(input, observe), /不支持确认/); grants = originalGrants;
+      await assert.rejects(queue.recover(input, observe, control), /不支持确认/); grants = originalGrants;
       let observations = 0;
       await assert.rejects(queue.recover(input, async request => {
         if (++observations === 2) { await writeFile(path.join(root, 'other'), 'concurrent'); await git('add', 'other'); }
         return observe(request);
-      }), /保存核对依据期间暂存区已改变/);
+      }, control), /保存核对依据期间暂存区已改变/);
       assert.ok(queue.receipt(id)?.effect_uncertain);
       await adapter.close(); await start(); await queue.refresh('board');
       assert.ok(queue.receipt(id)?.effect_uncertain); assert.equal(queue.receipt(id)?.reconciliation, undefined, 'saving provenance alone must not resolve the SDK effect');
       const current = await queue.inspectRecovery(id, observe), before = await readFile(path.join(root, '.git/index'));
-      const resolved = await queue.recover({ ...input, revision: current.observation!.revision }, observe);
+      const resolved = await queue.recover({ ...input, revision: current.observation!.revision }, observe, control);
       assert.equal(resolved.receipt.effect_uncertain, undefined); assert.equal(resolved.receipt.effect_settled, false);
       assert.equal(resolved.receipt.reconciliation?.reason, input.reason); assert.match(resolved.receipt.effect_error!, /未发生/);
       assert.deepEqual(await readFile(path.join(root, '.git/index')), before);
-      await assert.rejects(queue.recover(input, observe), /已经收口|已收口/);
+      await assert.rejects(queue.recover(input, observe, control), /已经收口|已收口/);
       await assert.rejects(queue.respond({ review_id: id, version: request.reference.version, decision: 'approve', actor_id: 'tester' }));
       await adapter.close(); await start(); await queue.refresh('board');
       assert.deepEqual(queue.receipt(id), resolved.receipt, 'SDK outcome and Host provenance survive restart');

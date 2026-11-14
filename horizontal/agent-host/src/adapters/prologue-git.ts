@@ -64,16 +64,18 @@ async function savedOf(ports: Ports, effect: Effect): Promise<StoredReview | nul
 /** Carry an effect's settled outcome onto its review; an outcome not yet known stays uncertain and is never retried. */
 async function settleReview(ports: Ports, effect: Effect, request: AgentReviewRequest, error?: unknown, restored = false) {
   const { runtime, queue } = ports;
-  let { effect: current, dispatch } = await inspectReviewEffect(runtime, effect.ref);
+  const { effect: inspected, dispatch, inspectionFailure } = await inspectReviewEffect(runtime, effect.ref);
+  let current = inspected;
   const receipt = queue.receipt(request.review_id);
   if ((restored || receipt?.delivery_error) && current && ["prepared", "awaiting-approval", "authorized"].includes(current.state) && dispatch.state === "not-dispatched") {
     try { await runtime.effects.cancel(effect.ref); } catch (failure) { error ??= failure; }
     current = runtime.effects.get(effect.ref);
   }
-  // This diagnostic is not authority. A lost projection cannot undo the saved decision.
-  const saved = receipt?.status === "approved" ? await ports.readDecision(effect.proposal.inputFingerprint).catch(() => undefined) : undefined;
+  const readProjection = () => ports.readDecision(effect.proposal.inputFingerprint);
   if (!current || dispatch.state === "unknown" || !["completed", "failed", "denied", "cancelled"].includes(current.state)) {
-    const reason = error instanceof Error ? error.message : saved?.failure_reason ?? receipt?.effect_uncertain;
+    const saved = receipt?.status === "approved" ? await readProjection().catch(() => undefined) : undefined;
+    const reason = inspectionFailure instanceof Error ? inspectionFailure.message
+      : error instanceof Error ? error.message : saved?.failure_reason ?? receipt?.effect_uncertain;
     const guidance = request.operation?.kind === "git-worktree"
       ? "工作树准备结果尚待核对；请检查本次审查列出的目录、分支和来源登记，不要重复创建"
       : "Git 操作结果尚未确定，请核对仓库；不会自动重复执行";
@@ -81,13 +83,14 @@ async function settleReview(ports: Ports, effect: Effect, request: AgentReviewRe
     return;
   }
   if (receipt?.status === "approved") {
-    // The old projection contributes diagnostics only. Its absence or corruption
-    // cannot undo the atomic decision or hide the SDK's actual dispatch receipt.
+    // Only the original historical records still depend on this old decision read.
+    const projection = readProjection();
+    const saved = await (receipt.source ? projection.catch(() => undefined) : projection);
     const reconciled = current.state === "failed" && dispatch.state === "not-dispatched" ? saved?.reconciliation : undefined;
     const outcome = current.state === "completed" && dispatch.state === "dispatched" && dispatch.ok === true
       ? { ok: true } : { ok: false, error: reconciled ? "经核对，原操作未发生；不会自动重试"
         : error instanceof Error ? error.message : saved?.failure_reason ?? "这次 Git 操作没有完成；需要时重新预览，不会自动重试" };
-    if (dispatch.state === "not-dispatched") queue.settleNotDispatched(request.review_id, outcome.error ?? "原 Git 操作没有派出");
+    if (dispatch.state === "not-dispatched" && !reconciled) queue.settleNotDispatched(request.review_id, `确认未执行。${outcome.error ?? "原 Git 操作没有派出"}`);
     else queue.settle(request.review_id, outcome, { restored });
     if (reconciled) queue.recordReconciliation(request.review_id, reconciled);
   } else if (["cancelled", "denied", "failed"].includes(current.state)) {
@@ -110,15 +113,15 @@ export function createPrologueGitReviews(ports: Ports): PrologueGitReviewPort {
     return pending.finally(() => settling.delete(pending));
   };
   const settle = (effect: Effect, request: AgentReviewRequest, error?: unknown, restored = false) => settleReview(ports, effect, request, error, restored);
-  const bindRecovery = (effect: Effect, request: AgentReviewRequest): void => bindGitRecovery({ runtime, queue, saveReconciliation: (key, value) => {
+  const bindRecovery = (effect: Effect, request: AgentReviewRequest): void => bindGitRecovery({ runtime, queue, saveReconciliation: (key, value, control) => {
     const receipt = queue.receipt(request.review_id)!;
-    return ports.saveReconciliation(key, value, { status: receipt.status, decided_by: receipt.decided_by, decided_at: receipt.decided_at, note: receipt.note });
+    return ports.decisionStore.withControl(control, () => ports.saveReconciliation(key, value,
+      { status: receipt.status, decided_by: receipt.decided_by, decided_at: receipt.decided_at, note: receipt.note }));
   }, live, recovering, track, closed: () => closed, settle }, effect, request);
   // Git operations from before this process are brought back once per board; every later one is registered live here,
   // so rereading the whole execution ledger on each review refresh found nothing new and cost a disk read per record.
-  const settledBoards = new Set<string>();
-  const restore = async (projectId: string) => {
-    if (settledBoards.has(projectId)) return;
+  const historyByProject = new Map<string, Promise<void>>();
+  const loadHistory = async (projectId: string) => {
     const report = await runtime.effects.readRecovery();
     if (report.unavailable.length) throw new Error("执行记录暂不可读，不能发起新的 Git 操作");
     for (const effect of report.effects) {
@@ -126,22 +129,29 @@ export function createPrologueGitReviews(ports: Ports): PrologueGitReviewPort {
       const saved = await savedOf(ports, effect);
       if (!saved || saved.project_id !== projectId) continue;
       const request = requestOf(effect, saved);
-      let recorded;
-      try { recorded = await ports.decisionStore.read(request.reference); }
-      catch {
+      let recorded, decision;
+      try {
+        recorded = await ports.decisionStore.read(request.reference);
+        if (!recorded) decision = await ports.readDecision(fingerprint(saved));
+      } catch {
         queue.restoreUnreadableDecision(request, async () => ({ request, decision: await ports.readDecision(fingerprint(saved)) ?? null }));
         checking.set(request.review_id, { effect, restored: true });
         bindRecovery(effect, request); restored.add(effect.ref.id); continue;
       }
-      const decision = recorded ? undefined : await ports.readDecision(fingerprint(saved));
       if (recorded) queue.restoreRecordedDecision(recorded);
       else queue.restoreDecision(request, decision ? { status: decision.status, decided_by: decision.decided_by, decided_at: decision.decided_at, note: decision.note } : null);
-      bindRecovery(effect, request);
       await settle(effect, request, typeof decision?.failure_reason === "string" ? new Error(decision.failure_reason) : undefined, true);
+      bindRecovery(effect, request);
       if (queue.receipt(request.review_id)?.effect_uncertain) checking.set(request.review_id, { effect, restored: true });
       restored.add(effect.ref.id);
     }
-    settledBoards.add(projectId);
+  };
+  const restore = (projectId: string): Promise<void> => {
+    const previous = historyByProject.get(projectId);
+    if (previous) return previous;
+    const read = loadHistory(projectId).catch(error => { historyByProject.delete(projectId); throw error; });
+    historyByProject.set(projectId, read);
+    return read;
   };
   const refresh = async (projectId: string) => {
     await restore(projectId);
@@ -149,12 +159,15 @@ export function createPrologueGitReviews(ports: Ports): PrologueGitReviewPort {
     // They keep no execution authority after the store resolves the unknown save.
     for (const [reviewId, original] of checking) {
       const effect = runtime.effects.get(original.effect.ref);
-      if (!effect) continue;
+      if (!effect || recovering.has(effect.ref.id)) continue;
       const request = queue.get(reviewId);
       const receipt = queue.receipt(reviewId);
       if (!request || request.project_id !== projectId || queue.isDeciding(reviewId) || receipt?.decision_save_error || !original.restored && !receipt?.delivery_error && !receipt?.effect_uncertain) continue;
-      await settle(effect, request, undefined, original.restored); live.delete(effect.ref.id); restored.add(effect.ref.id);
-      if (!queue.receipt(reviewId)?.effect_uncertain && ["completed", "failed", "denied", "cancelled"].includes(runtime.effects.get(effect.ref)?.state ?? "")) checking.delete(reviewId);
+      recovering.add(effect.ref.id);
+      try {
+        await settle(effect, request, undefined, original.restored); live.delete(effect.ref.id); restored.add(effect.ref.id);
+        if (!queue.receipt(reviewId)?.effect_uncertain && ["completed", "failed", "denied", "cancelled"].includes(runtime.effects.get(effect.ref)?.state ?? "")) checking.delete(reviewId);
+      } finally { recovering.delete(effect.ref.id); }
     }
   };
   const detach = queue.registerRefresh(projectId => {

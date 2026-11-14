@@ -231,7 +231,7 @@ for (const decision of ["approve", "reject"] as const) test(`APR-07/12: Git ${de
     release.resolve(); await answering;
     const receipt = f.ports.queue.receipt(review.review_id)!;
     assert.equal(receipt.delivery_error, undefined); assert.equal(receipt.effect_uncertain, undefined);
-    if (decision === "approve") assert.equal(receipt.effect_error, "original projection failure");
+    if (decision === "approve") assert.equal(receipt.effect_error, "确认未执行。original projection failure");
     else assert.equal(receipt.status, "rejected");
     await f.ports.queue.refresh("board"); assert.deepEqual(f.ports.queue.receipt(review.review_id), receipt);
   } finally { release.resolve(); await answering; }
@@ -263,9 +263,10 @@ test("BL-359: a failed Git dispatch inspection cannot turn a delivery failure in
   const first = await prepare("unreadable-dispatch");
   ports.decisionFailure = new Error("decision storage unavailable");
   const inspection = t.mock.method(sdk.effects, "inspectDispatch", async () => { throw new Error("dispatch ledger unavailable"); });
-  await assert.rejects(ports.queue.respond({ review_id: first.review_id, version: first.reference.version, decision: "approve", actor_id: "person" }), /dispatch ledger unavailable/);
+  await assert.rejects(ports.queue.respond({ review_id: first.review_id, version: first.reference.version, decision: "approve", actor_id: "person" }), /decision storage unavailable/);
   assert.equal(ports.queue.receipt(first.review_id)?.effect_error, null);
   assert.match(ports.queue.receipt(first.review_id)?.delivery_error ?? "", /storage unavailable/);
+  assert.equal(ports.queue.receipt(first.review_id)?.effect_uncertain, "dispatch ledger unavailable");
   await assert.rejects(prepare("not-allowed-yet"), /结果未知/);
   inspection.mock.restore();
 });
@@ -358,7 +359,8 @@ test("BL-359: Git close waits for accepted recovery to save its result and rejec
   const events: string[] = [];
   ports.queue.observeSettlement(review => events.push(review.review_id));
   const input = { review_id: request.review_id, action: "not-happened" as const, actor_id: "person", revision: "original-index", reason: "The fixture stopped before applying an index change." };
-  const recovery = ports.queue.recover(input, observe);
+  const control = { beforeEffect() {}, assertCurrent() {} };
+  const recovery = ports.queue.recover(input, observe, control);
   await entered.promise;
   const scanned = Promise.withResolvers<void>(), readRecovery = sdk.effects.readRecovery.bind(sdk.effects);
   t.mock.method(sdk.effects, "readRecovery", async () => {
@@ -367,7 +369,7 @@ test("BL-359: Git close waits for accepted recovery to save its result and rejec
   let closed = false;
   const closing = reviews.close().then(() => { closed = true; });
   try {
-    await assert.rejects(ports.queue.recover(input, observe), /仍在处理/);
+    await assert.rejects(ports.queue.recover(input, observe, control), /仍在处理/);
     await assert.rejects(ports.queue.inspectRecovery(request.review_id, observe), /正在关闭/);
     await scanned.promise;
     await new Promise(resolve => setImmediate(resolve));
@@ -379,6 +381,58 @@ test("BL-359: Git close waits for accepted recovery to save its result and rejec
   assert.equal(result.receipt.reconciliation?.reason, input.reason);
   assert.equal((await sdk.effects.readRecovery()).effects.find(effect => effect.pending?.ref.id === request.review_id.slice("prologue-git:".length))?.state, "failed");
   assert.deepEqual(events, [request.review_id]);
+});
+
+test("APR-13: passive Git refresh leaves unknown history readable and cannot take an accepted manual settlement", async t => {
+  const { sdk, ports, reviews, prepare } = await liveGitDecision(t);
+  const request = await prepare("manual-recovery-notification", async () => {
+    throw Object.assign(new Error("lost dispatch receipt"), { code: "EFFECT_RECONCILE_REQUIRED" });
+  });
+  await ports.queue.respond({ review_id: request.review_id, version: request.reference.version, decision: "approve", actor_id: "person" });
+  await reviews.close(); ports.queue.close();
+  ports.sources.records.clear(); // The older Home has only its original Git decision.
+  ports.queue = new AgentReviewQueue();
+  ports.queue.bindDecisionStore(ports.decisionStore);
+  const restored = createPrologueGitReviews(ports);
+  const release = Promise.withResolvers<void>();
+  let manual: Promise<unknown> | undefined;
+  try {
+    const resumeHistory = Promise.withResolvers<void>(), readRecovery = sdk.effects.readRecovery.bind(sdk.effects);
+    const historicalRead = t.mock.method(sdk.effects, "readRecovery", async () => { await resumeHistory.promise; return readRecovery(); });
+    const loading = ports.queue.refresh("board");
+    const preparing = assert.rejects(restored.prepare({ project_id: "board", workspace_id: "workspace", operation_id: "another-operation",
+      proposal_fingerprint: reviewProposalVersion({ action: "stage another change" }), document: { kind: "git-index", action: "stage", workspace_name: "fixture", files: [] },
+    }, { authority: held, check: async () => { assert.fail("unknown history must block preparation"); }, execute: async () => { assert.fail("unexpected dispatch"); } }), /结果未知/);
+    resumeHistory.resolve();
+    await Promise.all([loading, preparing]);
+    assert.equal(historicalRead.mock.callCount(), 1, "refresh and prepare share the first recovery read");
+    historicalRead.mock.restore();
+    ports.failOnRead = ports.reads + 1;
+    ports.readFailure = new Error("temporary old Git record read failure");
+    await ports.queue.refresh("board");
+    assert.ok(ports.queue.receipt(request.review_id)?.effect_uncertain);
+
+    const written = Promise.withResolvers<void>(), reconcile = sdk.effects.reconcile.bind(sdk.effects);
+    t.mock.method(sdk.effects, "reconcile", async (...args: Parameters<typeof reconcile>) => {
+      const result = await reconcile(...args);
+      written.resolve(); await release.promise; return result;
+    });
+    const events: string[] = [];
+    ports.queue.observeSettlement(review => events.push(review.review_id));
+    const observe = async () => ({ revision: "original-index", observed_at: new Date().toISOString(), files: [], matches_before: true, matches_after: false });
+    const input = { review_id: request.review_id, action: "not-happened" as const, actor_id: "person", revision: "original-index", reason: "Checked this index." };
+    const result = ports.queue.recover(input, observe, { beforeEffect() {}, assertCurrent() {} });
+    manual = result;
+    await Promise.race([written.promise, result]);
+    await ports.queue.refresh("board");
+    assert.ok(ports.queue.receipt(request.review_id)?.effect_uncertain);
+    assert.deepEqual(events, []);
+    release.resolve();
+    const view = await result;
+    assert.equal(view.receipt.effect_uncertain, undefined);
+    assert.equal(view.receipt.reconciliation?.reason, input.reason);
+    assert.deepEqual(events, [request.review_id]);
+  } finally { release.resolve(); await manual?.catch(() => undefined); await restored.close(); }
 });
 
 test("worktree creation with a missing dispatch receipt remains unknown after restart and cannot be retried as an index operation", async () => {

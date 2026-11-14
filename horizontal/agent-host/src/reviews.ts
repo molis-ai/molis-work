@@ -20,7 +20,7 @@ import type {
 import { PLUGIN_REVIEW_KINDS } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { clonePresentedReview } from "./review-presentation.js";
 import { ReviewDeadlines } from "./review-deadlines.js";
-import type { ReviewDecisionStore, StoredReviewDecision } from "./review-decisions.js";
+import type { ReviewDecisionControl, ReviewDecisionStore, StoredReviewDecision } from "./review-decisions.js";
 import { ReviewPermissionRules } from "./review-permission-rules.js";
 import type { ExactPermission } from "./adapters/prologue-exact-permission.js";
 
@@ -98,7 +98,7 @@ interface DecisionClaim {
 type RecoveryObserver = (request: AgentReviewRequest) => Promise<AgentGitIndexObservation>;
 interface RecoveryHandler {
   inspect(observe: () => Promise<AgentGitIndexObservation>): Promise<AgentReviewRecoveryView>;
-  resolve(input: AgentReviewRecoveryInput, observe: () => Promise<AgentGitIndexObservation>): Promise<AgentReviewRecoveryView>;
+  resolve(input: AgentReviewRecoveryInput, observe: () => Promise<AgentGitIndexObservation>, control: ReviewDecisionControl): Promise<AgentReviewRecoveryView>;
 }
 
 /**
@@ -207,10 +207,10 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
     return handler.inspect(() => observe(request));
   }
 
-  async recover(input: AgentReviewRecoveryInput, observe: RecoveryObserver): Promise<AgentReviewRecoveryView> {
+  async recover(input: AgentReviewRecoveryInput, observe: RecoveryObserver, control: ReviewDecisionControl): Promise<AgentReviewRecoveryView> {
     const request = this.get(input.review_id), handler = this.#recoverers.get(input.review_id);
     if (!request || !handler) throw agentErrors.capability_unavailable("此操作的核对入口尚不可用");
-    return handler.resolve(input, () => observe(request));
+    return handler.resolve(input, () => observe(request), control);
   }
 
   recordReconciliation(reviewId: string, value: NonNullable<AgentReviewReceipt["reconciliation"]>): void {

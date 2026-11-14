@@ -2,7 +2,7 @@ import type { DispatchProof, DispatchReceipt, Effect, ExactRef, Runtime } from "
 import type { NodeHost, RoundState } from "./prologue-node-kit.js";
 import { isGatewayChange } from "./prologue-action-gateway.js";
 
-type ReviewEffect = { effect: Effect | undefined; dispatch: DispatchReceipt | { state: "unknown" } };
+type ReviewEffect = { effect: Effect | undefined; dispatch: DispatchReceipt | { state: "unknown" }; inspectionFailure?: unknown };
 const committingReceipts = new WeakMap<Runtime, Map<string, Promise<ReviewEffect>>>();
 
 /** Reconcile only the original SDK dispatch evidence; never infer execution from business data or replay it. */
@@ -21,9 +21,9 @@ export async function inspectReviewEffect(runtime: Runtime, ref: ExactRef<"effec
       effect = runtime.effects.get(ref);
     }
     return { effect, dispatch };
-  } catch {
+  } catch (inspectionFailure) {
     // One unreadable receipt stays unknown without hiding unrelated reviews.
-    return pending() ?? { effect: runtime.effects.get(ref), dispatch: { state: "unknown" } };
+    return pending() ?? { effect: runtime.effects.get(ref), dispatch: { state: "unknown" }, inspectionFailure };
   }
 }
 

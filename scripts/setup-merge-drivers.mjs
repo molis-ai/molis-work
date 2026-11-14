@@ -11,14 +11,20 @@
 import { execFileSync } from "node:child_process";
 import { isMainScript } from "./script-paths.mjs";
 
+// The config is shared by every worktree, but the script exists only in checkouts that already have it. A worktree still on an older
+// branch (another session, a rebase onto an old base, `git stash apply`) must not call a missing script: node would exit 1 with the
+// file left as our side and no markers, and the other side's change would be lost on `git add`. So the command checks for the script
+// and otherwise does exactly what git does without a driver: a line merge with standard markers.
+const guarded = (mode) => `if [ -f scripts/merge-drivers/driver.mjs ]; then node scripts/merge-drivers/driver.mjs ${mode} %O %A %B %L %P %S %X %Y; else git merge-file --marker-size=%L %A %O %B; fi`;
+
 export const MERGE_DRIVERS = {
   "molis-json": {
     name: "Molis Work: three-way merge of JSON by key",
-    driver: "node scripts/merge-drivers/driver.mjs json %O %A %B %L %P %S %X %Y",
+    driver: guarded("json"),
   },
   "molis-snapshot": {
     name: "Molis Work: take the incoming generated snapshot and list it for pnpm merge:regenerate",
-    driver: "node scripts/merge-drivers/driver.mjs snapshot %O %A %B %L %P %S %X %Y",
+    driver: guarded("snapshot"),
   },
 };
 

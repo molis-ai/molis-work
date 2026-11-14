@@ -213,7 +213,7 @@ for (const { manifest } of BUILTIN_PLUGIN_CATALOG) {
 
 在获准的只读拷贝中，分别对每个项目库和 `plugin-runtime/plugin-runtime.db` 执行：`SELECT json_extract(record_json,'$.plugin_id'), json_extract(record_json,'$.version'), json_extract(record_json,'$.manifest_digest'), json_extract(record_json,'$.state') FROM plugin_runtime_installs;`。只打开拷贝里的路径，不沿用目录库里指向真实 Home 的路径。项目监督器的名单以登记上的 `project_runtime` 为准，Home 监督器以 `runtime` 为准；逐条确认实际启动的内置插件记录与上面构建清单的版本、摘要一致，`state` 和监督器报告没有启动失败。重启后安装身份与私有数据仍在；本次新 Home 不继承旧安装记录。
 
-出现版本/结构不符、服务异常或核对失败就停，交统筹决定；不改PRAGMA绕过、不自动搬回旧Home或删除旧目录。产品发布版本和读取兼容起算策略不因本次存储起点改变。
+出现版本/结构不符、服务异常或核对失败就停，停下问用户；不改PRAGMA绕过、不自动搬回旧Home或删除旧目录。产品发布版本和读取兼容起算策略不因本次存储起点改变。
 
 ## 5. 发布后
 

@@ -78,9 +78,9 @@ node scripts/regenerate-after-merge.mjs --dry-run   # 只看要跑什么
 node scripts/regenerate-after-merge.mjs --all       # 不看清单全跑一遍（变基之后、拿不准时）
 ```
 
-生成出来的改动看一遍再随合并一起提交。忘了跑也漏不过去：快照与源码不符时 `pnpm health:check`（API 快照）和 `pnpm test:contracts`（动作与库结构快照）都会失败，版本产物过期时 `pnpm build` 直接报错，CI 里同样挡合并。
+生成出来的改动看一遍再提交：合并没有别的冲突时 git 已经自动提交了合并，重新生成的改动就单独提交一次；想和合并放在同一个提交里，合并时用 `git merge --no-commit`。忘了跑也漏不过去：快照与源码不符时 `pnpm health:check`（API 快照）和 `pnpm test:contracts`（动作与库结构快照）都会失败，版本产物过期时 `pnpm build` 直接报错，CI 里同样挡合并。
 
-驱动由 `scripts/setup-merge-drivers.mjs` 写进仓库的共享 Git 配置（所有工作树共用，命令是相对路径，每个工作树跑自己那份），根 `package.json` 的 `prepare` 让每次 `pnpm install` 都执行一遍，重复执行不改任何东西；不在 Git 检出里或写不进配置时只打印一行，不让安装失败。`node scripts/setup-merge-drivers.mjs --check` 查有没有登记。驱动出任何错（读不懂的 JSON、驱动自己的缺陷）都退回 git 不带驱动时的逐行合并；只在合并结果读回、核对无误后才写文件，不会留下写了一半的文件。
+驱动由 `scripts/setup-merge-drivers.mjs` 写进仓库的共享 Git 配置（所有工作树共用，命令是相对路径，每个工作树跑自己那份），根 `package.json` 的 `prepare` 让每次 `pnpm install` 都执行一遍，重复执行不改任何东西；不在 Git 检出里或写不进配置时只打印一行，不让安装失败。`node scripts/setup-merge-drivers.mjs --check` 查有没有登记。驱动出任何错（读不懂的 JSON、驱动自己的缺陷）都退回 git 不带驱动时的逐行合并；只在合并结果读回、核对无误后才写文件，不会留下写了一半的文件。按键合出冲突、逐行合并却是干净的（例如数组两边改了不相邻的元素），也照 git 不带驱动时的做法算干净合入，只打印一行提醒去看一眼这个文件。工作树里还没有驱动脚本时（还在旧分支上的工作树、变基到旧基点、`git stash apply`），登记的命令先查脚本在不在，不在就直接跑 `git merge-file`，和没有驱动时完全一样，不会把对方的改动丢掉。驱动执行的是当前检出里的脚本，和 `pnpm build` 一样只在自己信任的检出里合并。
 
 没有交给驱动的：`tooling/gates/giant-exceptions/` 每个文件只有一个对象，冲突都在实测的 `size` 上，按键合也是冲突，要重新量；`tooling/gates/baseline.json` 和页面资源这类门禁数字要按 merge-base 重新量，不能取一边；`package.json`、`pnpm-lock.yaml` 由 pnpm 管；Goals 页面金样不是生成文件（按测试注释里的录制规程从参照构建录下来），所以不取一边、不自动重录，只按键合：两边改了不同的页面记录可以合，同一条记录两边都改仍是冲突，要按规程重录；`tests/goals-page-golden.test.ts` 会核对合出来的每一条。
 
@@ -124,7 +124,7 @@ node scripts/regenerate-after-merge.mjs --all       # 不看清单全跑一遍�
 
 - **子代理不跑全量。** 全量在 CI 上跑：批次由主会话在最终头上加 `full-suite`，集成分支推上去就跑（第 7 节）；子代理只跑定向用例：包 README 的「改动后必跑」、自己改到的测试、门禁。派活时在实现和评审两份提示里都写明这一条，路线图某行写着「Full regression」也一样，否则评审会把它当成必须修的问题，修复的子代理就去跑全量。依据：2026-10-09 有两个修复子代理在负载很高的机器上轮询全量 3 到 5 个小时。 本次接续由根安排 CI Full，见本节覆盖说明。
 - **只停自己起的进程，按 pid。** 用 `$!` 记下自己起的进程，或用 `pgrep` 按自己工作树的路径过滤后 `kill <pid>`；不用 `pkill`、`killall` 或按模式的 `kill`。依据：2026-10-11 一个子代理发现自己误起了全量，`pkill -f "scripts/run-tests.mjs"` 把统筹会话跑了约 50 分钟的全量一起杀了。
-- **测试运行默认占大半台机器。** 不带参数的 `node scripts/run-tests.mjs` 默认按核数一半同时跑（10 核的机器上是 5 个文件），一次全量就把机器占满大半。同一时间只让一个会话跑全量；别的会话（或子代理）也在跑测试时，用 `--jobs 1`（或环境变量 `MOLIS_WORK_TEST_JOBS=1`）把自己的份数调到最小。本机跑测试一律包成 `node scripts/machine-slot.mjs run browser --label "<线名> tests" -- node scripts/run-tests.mjs --jobs 1 <文件…>`，整机最多同时三个测试批次、每批同时一个文件（用户 2026-11-07 更新，替代 2026-10-25 的整机一次一个测试）：不带槽位的非浏览器运行不自动排队，别用它绕过；全量与浏览器批次由统筹安排，别的会话不在本机跑。 本次本机不执行其中 Full，按本节覆盖说明。
+- **测试运行默认占大半台机器。** 不带参数的 `node scripts/run-tests.mjs` 默认按核数一半同时跑（10 核的机器上是 5 个文件），一次全量就把机器占满大半。同一时间只让一个会话跑全量；别的会话（或子代理）也在跑测试时，用 `--jobs 1`（或环境变量 `MOLIS_WORK_TEST_JOBS=1`）把自己的份数调到最小。本机跑测试一律包成 `node scripts/machine-slot.mjs run browser --label "<线名> tests" -- node scripts/run-tests.mjs --jobs 1 <文件…>`，整机最多同时三个测试批次、每批同时一个文件（用户 2026-11-07 更新，替代 2026-10-25 的整机一次一个测试）：不带槽位的非浏览器运行不自动排队，别用它绕过；全量在 CI 上跑，由批次主会话在最终头上加 `full-suite`，本机不跑全量；浏览器批次按上面的机器槽位排队。 本次本机不执行其中 Full，按本节覆盖说明。
 
 ## 6. 验证频率（2026-10-03 的决定）
 

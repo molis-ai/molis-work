@@ -140,7 +140,8 @@ test("in a git repository: setup registers the drivers once, outside one it does
   const setup = () => execFileSync(process.execPath, ["scripts/setup-merge-drivers.mjs"], { cwd: repo, env, encoding: "utf8" });
   assert.match(setup(), /registered molis-json and molis-snapshot/);
   assert.equal(setup(), "", "a second run changes nothing and says nothing");
-  assert.match(must(["config", "--get", "merge.molis-json.driver"]), /^node scripts\/merge-drivers\/driver\.mjs json %O %A %B %L %P/);
+  assert.match(must(["config", "--get", "merge.molis-json.driver"]), /^if \[ -f scripts\/merge-drivers\/driver\.mjs \]; then node scripts\/merge-drivers\/driver\.mjs json %O %A %B %L %P/);
+  assert.match(must(["config", "--get", "merge.molis-json.driver"]), /else git merge-file --marker-size=%L %A %O %B; fi\n?$/, "a checkout without the script falls back to git's own line merge");
   assert.equal(spawnSync(process.execPath, ["scripts/setup-merge-drivers.mjs", "--check"], { cwd: repo, env }).status, 0);
   const outside = path.join(scratch, "outside");
   mkdirSync(outside);
@@ -199,4 +200,35 @@ test("in a git repository: a driver that fails ends as git's own merge, markers 
   assert.equal(broken.status, 0, "lines that do not touch merge as git would merge them without a driver");
   assert.match(broken.stderr, /falling back to git's line merge/);
   assert.equal(read("tooling/gates/error-owners.json"), unreadable.replace(`"a": 1`, `"a": 3`).replace(`"b": 2`, `"b": 4`));
+});
+
+test("in a git repository: a checkout without the driver script (an older branch) still merges as git would, markers and both sides intact", () => {
+  const base = `{\n  "a": 1,\n  "b": 2\n}\n`;
+  rmSync(path.join(repo, "scripts/merge-drivers/driver.mjs"));
+  try {
+    const merge = mergeCase("no-script", "plugins/x/locales/fr.json", base, base.replace(`"a": 1`, `"a": 10`), base.replace(`"a": 1`, `"a": 20`));
+    assert.notEqual(merge.status, 0, "git reports the conflict instead of keeping our side silently");
+    assert.match(merge.stdout, /CONFLICT \(content\)/);
+    const text = read("plugins/x/locales/fr.json");
+    assert.match(text, /<<<<<<< [^\n]*\n {2}"a": 10,\n=======\n {2}"a": 20,\n>>>>>>> /, "both sides between the usual markers");
+    finish(merge);
+    const apart = `{\n  "a": 1,\n  "x": 0,\n  "y": 0,\n  "b": 2\n}\n`; // git's line merge treats neighbouring lines as one change
+    const clean = mergeCase("no-script-clean", "plugins/x/locales/de.json", apart, apart.replace(`"a": 1`, `"a": 3`), apart.replace(`"b": 2`, `"b": 4`));
+    assert.equal(clean.status, 0, `lines that do not touch merge cleanly: ${clean.stdout}${clean.stderr}`);
+    assert.equal(read("plugins/x/locales/de.json"), apart.replace(`"a": 1`, `"a": 3`).replace(`"b": 2`, `"b": 4`));
+  } finally {
+    // mergeCase commits everything, so the deletion is committed too: put the script back as a commit of its own.
+    if (git(["rev-parse", "-q", "--verify", "MERGE_HEAD"]).status === 0) must(["merge", "--abort"]);
+    must(["checkout", "-q", "main"]);
+    copyFileSync(path.join(root, "scripts/merge-drivers/driver.mjs"), path.join(repo, "scripts/merge-drivers/driver.mjs"));
+    must(["add", "-A"]); must(["commit", "-qm", "driver back"]);
+  }
+});
+
+test("in a git repository: values that disagree but whose lines merge cleanly end as a clean merge with a warning, as git would without the driver", () => {
+  const base = `{\n  "list": [\n    1,\n    2,\n    3,\n    4,\n    5\n  ]\n}\n`;
+  const merge = mergeCase("array-lines", "tooling/versions.json", base, base.replace("    1,", "    10,"), base.replace("    5\n", "    50\n"));
+  assert.equal(merge.status, 0, `no conflict without markers: ${merge.stderr}`);
+  assert.match(merge.stderr, /merge cleanly although the values disagree/);
+  assert.equal(read("tooling/versions.json"), base.replace("    1,", "    10,").replace("    5\n", "    50\n"));
 });

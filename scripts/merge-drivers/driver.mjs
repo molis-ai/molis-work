@@ -54,7 +54,12 @@ function mergeJson() {
   const result = mergeJsonText(read(basePath), read(currentPath), read(otherPath), { identities: ARRAY_IDENTITIES[file] ?? {} });
   if (result.conflicts) {
     say(`both sides changed ${result.conflicts.slice(0, 5).join(", ")}${result.conflicts.length > 5 ? ` and ${result.conflicts.length - 5} more` : ""}; left to the line merge`);
-    if (lineMerge() === 0) say("the lines merge cleanly but the values disagree: check the file before you commit it");
+    // Without this driver git would have taken a clean line merge as clean, so do the same: never report a conflict the file
+    // shows no markers for (that state invites `git add` on our side only).
+    if (lineMerge() === 0) {
+      say("the lines merge cleanly although the values disagree, as a plain git merge would; check the file before you commit it");
+      return 0;
+    }
     return 1;
   }
   if (needsRegeneration(file)) recordForRegeneration(file);

@@ -1,5 +1,5 @@
 import { readOnlyAlwaysOnProjectPlugins } from "./always-on-plugins.js";
-import { requireSynchronous, type ActionReference, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { requireSynchronous, type ActionCallContext, type ActionReference, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginPageRequest } from "./plugin-page-authority.js";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { ProjectPluginMembership } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -159,14 +159,25 @@ export function projectPluginServices({ localHost, hostReference, options, agent
 export function contextualPorts({ localHost, hostReference, serverOptions, request }: ProjectRequestContext): ContextualHttpPorts {
   const homeDirectory = serverOptions.homeDirectory;
   const page = pluginPageRequest(request);
-  const context = async (signal?: AbortSignal) => {
-    const caller = await localWebActionContext(localHost, hostReference, LOCAL_OWNER_PERMISSIONS,
-      signal && page ? AbortSignal.any([signal, page.signal]) : signal ?? page?.signal);
-    return { ...caller, validate_authority: async (reference: ActionReference) => {
-      page?.assertCurrent(); await caller.validate_authority?.(reference); page?.assertCurrent();
-    }, assert_authority_current: (reference?: ActionReference, permissions?: readonly string[]) => {
-      page?.assertCurrent(); requireSynchronous(caller.assert_authority_current?.(reference, permissions));
-    } };
+  // One request's prepared authority, shared by the discovery and the calls its route makes (N42). It never outlives the request;
+  // each call still re-checks the person's grants. A call brings its own signal when the page stops waiting for it, and gets the
+  // context prepared with that signal, so the cancellation reaches the call rather than being dropped by the sharing.
+  const contexts = new Map<AbortSignal | null, Promise<ActionCallContext>>();
+  const context = (signal?: AbortSignal) => {
+    const key = signal ?? null;
+    let pending = contexts.get(key);
+    if (!pending) {
+      pending = localWebActionContext(localHost, hostReference, LOCAL_OWNER_PERMISSIONS,
+        signal && page ? AbortSignal.any([signal, page.signal]) : signal ?? page?.signal).then(caller => ({ ...caller,
+        validate_authority: async (reference: ActionReference) => {
+          page?.assertCurrent(); await caller.validate_authority?.(reference); page?.assertCurrent();
+        }, assert_authority_current: (reference?: ActionReference, permissions?: readonly string[]) => {
+          page?.assertCurrent(); requireSynchronous(caller.assert_authority_current?.(reference, permissions));
+        } }));
+      contexts.set(key, pending);
+      pending.catch(() => { if (contexts.get(key) === pending) contexts.delete(key); });
+    }
+    return pending;
   };
   return {
     ...(homeDirectory ? { homeDirectory } : {}), scope: hostReference.project_id, actor_id: LOCAL_PERSON_ACTOR_ID,

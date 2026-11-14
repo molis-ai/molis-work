@@ -10,7 +10,7 @@ import { specEvidenceDirectory } from "./fixtures/review-evidence.js";
  * The risk page as a person uses it (specs/risk-plugin/implementation.md §4.1): record two risks, see them grouped and filtered,
  * open one, change its status, add a note, see the review section; then an open that names one risk lands in the side view first.
  */
-for (const width of [1440, 1024, 390]) test(`RISK-04 RISK-05 RISK-06 risk page ${width}px: record, overview, filter, record view, status, note, review, side open`, { timeout: 150_000 }, async t => {
+for (const width of [1440, 1024, 390]) test(`RISK-04 RISK-05 RISK-06 risk page ${width}px: record, overview, filter, record view, status, note, review, side open and expand`, { timeout: 150_000 }, async t => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { command, sessionId, navigate, origin, projectId, web } = browser;
@@ -87,4 +87,7 @@ for (const width of [1440, 1024, 390]) test(`RISK-04 RISK-05 RISK-06 risk page $
   await browser.waitFor(`document.querySelector('[data-side-body="plugin:risk/record"]') && !document.querySelector('[data-side-body="plugin:risk/record"]').hidden`);
   await side.waitFor("document.querySelector('[data-risk-side] .rk-frame--side')?.textContent.includes('供应商延期')");
   await screenshot("side");
+  // RISK-05: 展开成整页 lands the same risk on the stage (the side frame's own open is not sent back to the side).
+  await side.click('[data-rk-act="expand"]');
+  await browser.waitFor(`document.querySelector('.tab-item[data-tab-kind=item][data-plugin=risk][data-item-id=${JSON.stringify(riskId)}]')`);
 });

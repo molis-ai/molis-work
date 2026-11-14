@@ -36,9 +36,9 @@ const filtered = (page: RiskPage) => {
   return Boolean(impact || owner_name || linked || linkedSubject);
 };
 
-/** The kinds already linked in the risks on screen: the filter offers only types that really have links there. */
+/** The kinds already linked on screen that an installed plugin still opens: no dead kind, no raw kind. */
 const linkedKinds = (page: RiskPage): string[] =>
-  [...new Set(page.state.rows.flatMap(risk => risk.links.map(link => link.kind)))].slice(0, 8);
+  [...new Set(page.state.rows.flatMap(risk => risk.links.filter(link => page.host.surfaceFor(link.kind)).map(link => link.kind)))].slice(0, 8);
 
 function linkFilterPicker(): string {
   return renderPopover({ preview: true, className: "rk-pop rk-pop--form", body: `<form data-rk-form="linked-search"><label class="rk-label" for="rk-linked-query">${

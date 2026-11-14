@@ -211,7 +211,7 @@ function searchLinked(page: RiskPage, query: string): void {
   const list = page.body.querySelector<HTMLElement>('[data-rk-found="linked"]');
   if (!list) return;
   if (!query.trim()) { list.innerHTML = ""; return; }
-  const kinds = [...new Set(page.state.rows.flatMap(risk => risk.links.map(link => link.kind)))].slice(0, 8);
+  const kinds = [...new Set(page.state.rows.flatMap(risk => risk.links.filter(link => page.host.surfaceFor(link.kind)).map(link => link.kind)))].slice(0, 8);
   if (!kinds.length) { list.innerHTML = `<li class="rk-muted">${esc(text("filter.no-kind"))}</li>`; return; }
   const seq = ++linkedSeq;
   linkedTimer = setTimeout(() => page.run(async () => {

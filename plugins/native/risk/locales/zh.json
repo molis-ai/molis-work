@@ -143,7 +143,7 @@
     "risk.review.unavailable-body": "复查由 Schedule 安排；这个项目没启用 Schedule，或你够不到它。",
     "risk.review.when": "什么时候",
     "risk.side.idle": "这里显示一条风险",
-    "risk.side.idle-body": "从 Goal、助理或搜索里打开一条风险，会先在这里看。",
+    "risk.side.idle-body": "从别处打开一条风险，会先在这里看。",
     "risk.status.accepted": "已接受",
     "risk.status.close-hint": "关闭（不再需要跟进）",
     "risk.status.closed": "已关闭",

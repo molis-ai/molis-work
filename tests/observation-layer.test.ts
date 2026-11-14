@@ -115,6 +115,10 @@ test("OCL-11: credential shapes are redacted before a snapshot is kept, and the 
   assert.ok(input.kind === "snapshot" && input.redacted === true);
   assert.ok(!snapshotText(f.db(), f.layer.writer.database()!.keys, input.digest)!.includes("abc.def"));
   assert.equal(readCoverage(f.db())[0]!.redacted, 1);
+  // Detail is not sealed, so a writer's free text loses credential shapes there too.
+  const sink = f.layer.sink("agent").bind({ kind: "background", entry: "agent", actor_id: "agent:a", project_id: null });
+  sink.record({ fact: "agent.guard", outcome: "refused", detail: { why: "upstream said: api_key=abc.def is not valid" } });
+  assert.ok(!JSON.stringify(f.records()).includes("abc.def"), "no credential shape is kept in detail");
 });
 
 test("OCL-09: a snapshot over the size limit keeps its digest and length, and counts as a truncation", t => {
@@ -243,10 +247,12 @@ test("OCL-15: a run that ended without writing its queue shows the stretch since
   assert.ok(readCoverageGaps(next.writer.database()!.db).some(gap => gap.reason === "unknown_exit" && gap.state === "lost"));
 });
 
-test("OCL-11: the exit never records the observation layer's own calls", t => {
+test("OCL-11: the exit never records the observation layer's own calls, known by the provider that answered, not by the name", t => {
   const f = fixture(t);
-  f.layer.observed(person(), { capability_id: "observation.report", version: 1, operation: "command" }, done({}, {}));
+  f.layer.observed(person(), { capability_id: "observation.report", version: 1, provider_id: "system.observation", operation: "command" }, done({}, {}));
   assert.equal(f.records().length, 0);
+  f.layer.observed(person(), { capability_id: "observation.lookalike", version: 1, provider_id: "io.example.plugin", operation: "command" }, done({}, {}));
+  assert.deepEqual(f.records().map(record => record.subjects[0]), [{ kind: "action", id: "observation.lookalike@1" }], "another provider's look-alike is recorded");
 });
 
 test("OCL-01: an exit record names the runtime client that acted, from the Host's audit name and never from input", t => {

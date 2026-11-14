@@ -14,7 +14,7 @@ export interface CoveragePlanEntry {
  * checks it against the Host's real wiring. A kind of fact not here is not recorded by this build.
  */
 /** A round's own events, recorded by agent-host from the runtime's stream (`prologue-run-observation.ts`). */
-const AGENT_FACTS = ["run", "instructions", "skill", "materials", "prompt", "reply", "tool", "usage", "compaction", "memory", "guard", "waiting", "retry", "model", "changes"];
+const AGENT_FACTS = ["run", "instructions", "skill", "materials", "prompt", "reply", "tool", "usage", "compaction", "memory", "guard", "waiting", "retry", "model", "changes", "subagent"];
 
 export const OBSERVATION_COVERAGE_PLAN: readonly CoveragePlanEntry[] = [
   { owner: "service:gateway", fact: "action.call", entries: ["workbench", "cli", "mcp", "agent", "workflow", "plugin", "schedule", "host"], state: "complete" },
@@ -22,8 +22,9 @@ export const OBSERVATION_COVERAGE_PLAN: readonly CoveragePlanEntry[] = [
   // A command line with no Home runs in its own process and keeps nothing (design §9 D5); the desktop shell starts no work over IPC yet.
   { owner: "service:gateway", fact: "action.call.cli_without_home", entries: ["cli"], state: "not_applicable", reason: "no_home_no_records" },
   { owner: "service:gateway", fact: "action.call.desktop_ipc", entries: ["desktop"], state: "not_applicable", reason: "no_desktop_work_entry" },
-  // An action that declares its input an unsent draft: kept as saved, by whom and when, never its words (OCL-11).
-  { owner: "service:gateway", fact: "action.call.draft_content", entries: ["workbench", "cli", "mcp", "agent", "workflow", "plugin"], state: "by_rule", reason: "unsent_draft_not_kept" },
+  // An action that declares its input an unsent draft, called by the person: kept as saved, by whom and when, never its words (OCL-11).
+  // Any other caller's write through it keeps its content like any write.
+  { owner: "service:gateway", fact: "action.call.draft_content", entries: ["workbench", "cli"], state: "by_rule", reason: "unsent_draft_not_kept" },
   { owner: "service:gateway", fact: "action.call.read_timing", entries: ["workbench", "cli", "mcp", "agent", "workflow", "plugin"], state: "by_rule", reason: "reads_coalesced_per_minute" },
   ...AGENT_FACTS.map(name => ({ owner: "service:agent", fact: `agent.${name}`, entries: ["agent"], state: "complete" } as const)),
   // An action tool's input and result are the action exit's record of that call; the round's record only links it.
@@ -34,6 +35,10 @@ export const OBSERVATION_COVERAGE_PLAN: readonly CoveragePlanEntry[] = [
   // placeholders there, and an image a round was shown is the row above. A compaction summary's request is not reported by the runtime.
   { owner: "service:agent", fact: "agent.model_request", entries: ["agent"], state: "complete" },
   { owner: "service:agent", fact: "agent.model_request.compaction", entries: ["agent"], state: "by_rule", reason: "runtime_reports_loop_turns_only" },
+  // A subagent's round: its start and end are in the dispatching round's stream and each request it sent is recorded as its own run's work
+  // (above), but the runtime streams the child's own events (replies, tools, usage) to nobody outside it, so they are not recorded; the
+  // actions it calls are still the exit's records.
+  { owner: "service:agent", fact: "agent.subagent.events", entries: ["agent"], state: "unavailable", reason: "child_stream_not_followed" },
   // Every wakeup of a project clock, in its own operation; the action it fired is the exit's record under the same call number.
   { owner: "service:scheduler", fact: "scheduler.wakeup", entries: ["schedule"], state: "complete" },
   // Each panel write on an Assistant work, joined to that work; the call's content is the exit's, the rounds it started are the agent's.

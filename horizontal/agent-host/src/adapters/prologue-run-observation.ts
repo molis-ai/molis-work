@@ -39,10 +39,12 @@ export interface RunObservationStart {
 /** A round's two ways in: the events it streams, and each model request it sent. */
 export interface RoundObserver {
   readonly event: (event: PrologueEvent) => void;
-  readonly request: (request: ModelRequestObserved) => void;
+  /** `parent`: the run that dispatched the subagent which sent it; absent for the round's own request. */
+  readonly request: (request: ModelRequestObserved, parent?: string) => void;
 }
 
 const REQUEST_OUTCOME: Readonly<Record<ModelRequestObserved["status"], ObservationOutcome>> = { "response-observed": "succeeded", "dispatched-or-unknown": "unknown", "not-dispatched": "no_action" };
+const SUBAGENT_END: Readonly<Record<string, ObservationOutcome>> = { completed: "succeeded", failed: "failed", cancelled: "cancelled" };
 
 export function observeRun(recorder: ObservationRecorder, ref: AgentRunRef, frozen: AgentRunView["frozen"], start: RunObservationStart, model: PrologueModelConfiguration | undefined): RoundObserver {
   const work = { run_id: ref.run_id }, subjects = [{ kind: "agent_session", id: ref.session_id }];
@@ -77,9 +79,11 @@ export function observeRun(recorder: ObservationRecorder, ref: AgentRunRef, froz
   for (const skill of start.skills) put({ fact: "agent.skill", outcome: "succeeded", stage: "effective", work,
     subjects: [...subjects, { kind: "skill", id: skill.ref.skill_id, version: skill.ref.version }], detail: { origin: skill.origin, named: skill.named }, evidence: [text("body", skill.body)] });
   // What was sent, byte for byte as text; a request that never left keeps no body (nothing reached the model).
-  const request = (sent: ModelRequestObserved) => record("agent.model_request", REQUEST_OUTCOME[sent.status], { stage: sent.status,
+  // A subagent's request is its own run's work, in its own session, naming the run that dispatched it.
+  const request = (sent: ModelRequestObserved, parent?: string) => put({ fact: "agent.model_request", outcome: REQUEST_OUTCOME[sent.status], stage: sent.status,
+    ...(sent.runId === ref.run_id ? { work, subjects } : { work: { run_id: sent.runId }, subjects: [{ kind: "agent_session", id: sent.sessionId }] }),
     conditions: { model: { provider: sent.protocol ?? conditions.model.provider, model_id: sent.model ?? frozen.model_id } },
-    detail: { model_call_id: sent.callId, bytes: sent.body.byteLength, attachments: sent.attachments },
+    detail: { model_call_id: sent.callId, bytes: sent.body.byteLength, attachments: sent.attachments, ...(parent === undefined ? {} : { parent_run_id: parent }) },
     evidence: [sent.status === "not-dispatched" ? kept("request") : text("request", new TextDecoder().decode(sent.body), "application/json")] });
   const event = (event: PrologueEvent) => {
     // The union ends in an open shape for frames this projection does not read, so fields are read by name as the stream defines them.
@@ -121,6 +125,10 @@ export function observeRun(recorder: ObservationRecorder, ref: AgentRunRef, froz
       case "turn-changes": { const changes = (e.changes ?? []) as ReadonlyArray<{ path: string; digest: string; checkpointId: string }>;
         record("agent.changes", "succeeded", { detail: { files: changes.length },
           evidence: changes.map(change => ({ role: change.path, ref: { kind: "owner", owner: "agent-runtime", id: change.checkpointId, version: change.digest } })) }); return; }
+      // A subagent this round dispatched: when it started and how it ended, naming its run and session (its requests carry the same run).
+      case "subagent-started": case "subagent-ended": { const child = { session: (e.session as { id: string }).id, run: (e.run as { id: string }).id };
+        put({ fact: "agent.subagent", outcome: event.type === "subagent-started" ? "succeeded" : SUBAGENT_END[String(e.state)] ?? "unknown", stage: event.type === "subagent-started" ? "started" : "ended",
+          work, subjects: [...subjects, { kind: "agent_session", id: child.session }], detail: { child_run_id: child.run, ...(e.character ? { character: String(e.character) } : {}) } }); return; }
       case "completed": end("succeeded"); return;
       case "failed": { const error = e.error as { code: string } | undefined; end("failed", error ? { code: error.code } : {}); return; }
       case "cancelled": end("cancelled"); return;

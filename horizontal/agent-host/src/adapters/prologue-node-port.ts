@@ -1,6 +1,6 @@
 import { readOriginalInput, resolveOriginalInput } from "./prologue-original-inputs.js";
 import { createHash } from "node:crypto";
-import { DEFAULT_CONTEXT_WINDOW_TOKENS, WORKSPACE_COMMAND_RECEIPT_KIND, createRuntime, type ConditionCheckers, type ExactRef, type PendingAnswer, type QueuedTask, type Runtime } from "@prologue/sdk";
+import { DEFAULT_CONTEXT_WINDOW_TOKENS, WORKSPACE_COMMAND_RECEIPT_KIND, createRuntime, type ConditionCheckers, type ExactRef, type ModelRequestObserved, type PendingAnswer, type QueuedTask, type Runtime } from "@prologue/sdk";
 import type { AgentReviewReceipt, AgentRunRef, AgentWriteCheckNote } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { GATEWAY_TOOLS, HOST_GOVERNED_TOOLS } from "./prologue-action-gateway.js";
 import type { createPrologueCheckpoints } from "./prologue-checkpoints.js";
@@ -13,7 +13,7 @@ import { answerProblems, ownedReferences, projectQuestion, questionUnavailable }
 import { queuedInput, type createPrologueRecovery } from "./prologue-recovery.js";
 import { startPrologueRun, type RunDeps } from "./prologue-run.js";
 import type { createPrologueSchedule } from "./prologue-schedule.js";
-import { createPrologueSubagents } from "./prologue-subagents.js";
+import { createPrologueSubagents, runLineage } from "./prologue-subagents.js";
 import { surfaceRules, type PrologueSurfaces } from "./prologue-surfaces.js";
 import { codingExecutionRules } from "./prologue-taskboard.js";
 import type { PrologueAdapterOptions, PrologueRuntimePort } from "./prologue.js";
@@ -302,7 +302,10 @@ export function createNodePort(deps: PortDeps): PrologueRuntimePort {
   const openSession = (sessionId: string, unreadable: string) => openSessionOf(deps, sessionId, unreadable);
   return {
     defaultContextWindowTokens: DEFAULT_CONTEXT_WINDOW_TOKENS,
-    listenModelRequests(listen) { state.modelRequests.add(listen); return () => { state.modelRequests.delete(listen); }; },
+    listenModelRequests(listen) {
+      const heard = (request: ModelRequestObserved) => listen(request, () => runLineage(runtime, request.runId));
+      state.modelRequests.add(heard); return () => { state.modelRequests.delete(heard); };
+    },
     unexecutedApprovalCall(run, waiting) {
       if (waiting.effect_revision === undefined || waiting.pending_revision === undefined) return undefined;
       const effectRef = { kind: "effect" as const, id: waiting.effect_id, revision: waiting.effect_revision };

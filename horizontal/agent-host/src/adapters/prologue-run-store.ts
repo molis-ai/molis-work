@@ -44,7 +44,7 @@ export interface RunRecord {
 export class PrologueRunStore {
   readonly #sessions = new Map<string, SessionRecord>();
   readonly #runs = new Map<string, RunRecord>();
-  /** Each followed round's way to record a model request it sent, by run id. */
+  /** Each followed round's way to record a model request it or a subagent it dispatched sent, by run id. */
   readonly #requests = new Map<string, RoundObserver["request"]>();
   /** Sessions starting a round, closing an interrupted one or preparing a rewind: one at a time each. */
   readonly #startingSessions = new Set<string>();
@@ -57,8 +57,17 @@ export class PrologueRunStore {
     this.#runtime = runtime;
     this.now = now;
     this.#approvals = approvals;
-    // A request the runtime reports for a round nobody follows here (or no longer) is not recorded.
-    runtime.listenModelRequests?.(request => { try { this.#requests.get(request.runId)?.(request); } catch { /* a record that cannot be made never touches the round */ } });
+    // A subagent's request goes to the nearest round above it that is followed here, as the child's own work. A request of a run with no
+    // followed round above it (none is started outside this store) is not recorded. The store lives as long as the runtime it listens to,
+    // so the listener is never taken off; each round's entry in `#requests` goes when the round is no longer followed.
+    runtime.listenModelRequests?.((request, lineage) => {
+      try {
+        const own = this.#requests.get(request.runId);
+        if (own) { own(request); return; }
+        const parents = lineage(), above = parents.find(id => this.#requests.has(id));
+        if (above) this.#requests.get(above)!(request, parents[0]);
+      } catch { /* a record that cannot be made never touches the round */ }
+    });
   }
 
   get sessions(): ReadonlyMap<string, SessionRecord> { return this.#sessions; }

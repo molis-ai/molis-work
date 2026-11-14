@@ -106,6 +106,28 @@ test("S-observation-records 6: an action that declares its input an unsent draft
   assert.ok(!JSON.stringify(call).includes("the-unsent-words"));
 });
 
+// Review B2 on #2059: `draft` is the provider's own word, so it never lets a provider leave an Agent's, an MCP client's, a workflow's or a
+// plugin's write unrecorded; only the person's own call to save a draft is kept without its words.
+test("S-observation-records 7: the draft rule is refused to every caller but the person: another audience's write through a draft action keeps its content", async t => {
+  const { service, records } = home(t);
+  const schema = { type: "object", properties: { draft: { type: "string" } }, additionalProperties: false } as const;
+  const draft = { capability_id: "test.save_draft", version: 1, operation: "command" as const, action: { title: "save draft", description: "save draft",
+    kind: "operation" as const, scope: "home" as const, effect: "write" as const, draft: true as const, audiences: ["user" as const, "agent" as const, "plugin" as const], permissions: [], subject_kinds: [],
+    input_schema: schema, output_schema: { type: "object" } } };
+  service.registerProvider({ provider: { provider_id: "system.test", title: "Test", kind: "system" }, definitions: [draft], handlers: [
+    { capability_id: "test.save_draft", version: 1, handle: (_caller, input) => ({ saved: (input as { draft: string }).draft }) },
+  ] });
+  await service.invoke(person({ actor_id: "agent:round-1", actor_kind: "runtime", audience: "agent" }), draft, { draft: "the-agent-wrote-this" });
+  await service.invoke(plugin("io.example.notes"), draft, { draft: "the-plugin-wrote-this" });
+  await service.invoke(person(), draft, { draft: "the-person-unsent" });
+  const calls = records().filter(record => record.fact === "action.call");
+  assert.equal(calls.length, 3);
+  // Content is kept as encrypted snapshots, so each call is told apart by who made it.
+  const by = (actor: string) => calls.find(record => record.actor.actor_id === actor)!.evidence.map(item => [item.role, item.ref.kind, item.ref.kind === "missing" ? item.ref.reason : null]);
+  for (const actor of ["agent:round-1", "plugin:io.example.notes"]) assert.deepEqual(by(actor), [["input", "snapshot", null], ["result", "snapshot", null]], `${actor}: its write keeps its content`);
+  assert.deepEqual(by(LOCAL_PERSON_ACTOR_ID), [["input", "missing", "by_rule"], ["result", "missing", "by_rule"]], "the person's own unsent draft still keeps no words");
+});
+
 test("S-observation-records 5: a reporter past its day's quota is turned down whole, while other reporters keep their own", async t => {
   const { directory, service, observation } = home(t);
   assert.deepEqual(await service.invoke(plugin("notes"), observationActions.report, facts("notes.saved")), { accepted: 1, rejected: [] });

@@ -1,6 +1,6 @@
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { platformErrorKind } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { ObservationFactInput, ObservationOutcome } from "@molis-ai/molis-work-contracts/services/observation";
+import { OBSERVATION_PROVIDER_ID, type ObservationFactInput, type ObservationOutcome } from "@molis-ai/molis-work-contracts/services/observation";
 import { pendingRecord, type ObservationEnvironment, type PendingEvidence, type PendingRecord } from "./records.js";
 
 /** The action as the kernel described it to its exit: identity, provider and operation (the kernel's `CallDescription`). */
@@ -9,7 +9,7 @@ export interface ExitAction {
   readonly version: number;
   readonly provider_id?: string;
   readonly operation: string;
-  /** An unsent draft's input: its words are not kept, by rule (OCL-11). */
+  /** An unsent draft's input: when the person saves it, its words are not kept, by rule (OCL-11). */
   readonly draft?: true;
 }
 
@@ -26,8 +26,11 @@ export interface ExitObservation {
   readonly aborted: boolean;
 }
 
-/** The calls the exit never records: the observation layer's own (one report would make another record). */
-export const exitSkips = (action: Pick<ExitAction, "capability_id">): boolean => action.capability_id.startsWith("observation.");
+/**
+ * The calls the exit never records: the ones the observation layer itself answered (one report would make another record). Known by the
+ * provider that answered, not by a name, so another provider's action that happens to start with `observation.` is recorded like any.
+ */
+export const exitSkips = (action: Pick<ExitAction, "provider_id">): boolean => action.provider_id === OBSERVATION_PROVIDER_ID;
 
 const json = (value: unknown): string | undefined => {
   try { return value === undefined ? undefined : JSON.stringify(value); }
@@ -63,8 +66,11 @@ export function exitRecord(env: ObservationEnvironment, context: ActionCallConte
   if (context.audit_actor_id) detail.client = context.audit_actor_id;
   // The person's own page (the workbench, or a management command): what it read is already on their screen; the rule keeps its digest only.
   const pageRead = action.operation === "query" && context.audience === "user";
-  // A draft the person has not sent is kept as saved, not as said: neither its words nor the result that echoes them.
-  const evidence: PendingEvidence[] = outcome === "succeeded" && action.draft
+  // A draft the person has not sent is kept as saved, not as said: neither its words nor the result that echoes them. The flag is the
+  // provider's word, so it holds only for the person's own call: an Agent, MCP client, workflow or plugin writing through the same action
+  // is a write like any other and keeps its content (OCL-05), so a provider cannot use it to leave others' calls unrecorded.
+  const unsentDraft = action.draft === true && context.audience === "user";
+  const evidence: PendingEvidence[] = outcome === "succeeded" && unsentDraft
     ? [{ role: "input", ref: { kind: "missing", reason: "by_rule" } }, { role: "result", ref: { kind: "missing", reason: "by_rule" } }]
     : outcome === "succeeded" ? [content("input", observation.input), content("result", observation.result, pageRead)]
     : outcome === "refused" ? [{ role: "input", ref: { kind: "missing", reason: "by_rule" } }]

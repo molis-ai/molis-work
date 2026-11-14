@@ -1,3 +1,4 @@
+import { redactSecrets } from "@molis-ai/molis-work-plugin-sdk";
 import { randomUUID } from "node:crypto";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
@@ -107,7 +108,8 @@ function boundedDetail(detail: ObservationDetail | undefined): { value: Observat
   const value: Record<string, string | number | boolean> = {};
   for (const [key, item] of kept.slice(0, OBSERVATION_LIMITS.detail_keys)) {
     if (typeof item === "string" && item.length > OBSERVATION_LIMITS.detail_text) dropped = true;
-    value[cut(key, OBSERVATION_LIMITS.ref_text)] = typeof item === "string" ? item.slice(0, OBSERVATION_LIMITS.detail_text) : item;
+    // Detail is short facts kept as written, not sealed like evidence; a writer's free text (an error message) still loses credential shapes.
+    value[cut(key, OBSERVATION_LIMITS.ref_text)] = typeof item === "string" ? redactSecrets(item.slice(0, OBSERVATION_LIMITS.detail_text)) : item;
   }
   return { value, cut: dropped };
 }

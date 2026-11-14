@@ -53,9 +53,10 @@ export function createWorkflowContinuation<Reach>(d: Dependencies<Reach>) {
         arrived = await content.receive(target.plugin, pending.output, workflowRequestId(current.instance_id, from + 1), target.content);
       }
     } catch (error) {
-      // Only a delivery that was sent is a failed step: one refused before it started (unconfirmed, a bad mapping) changed nothing.
+      // Only a delivery that was sent is a failed step: one refused before it started (unconfirmed, a bad mapping) changed nothing. A call
+      // that was stopped or lost its authority meanwhile reports nothing more (S-35): what it did is the exit's record of the call.
       const attempted = storedAttempt(d, current.instance_id, from);
-      if (attempted?.attempted_at !== undefined && attempted.attempted_at !== pending.attempted_at) await d.report?.(workflowStepFact(current, from, "failed", pending,
+      if (attempted?.attempted_at !== undefined && attempted.attempted_at !== pending.attempted_at && stillCurrent(original)) await d.report?.(workflowStepFact(current, from, "failed", pending,
         { ...(pending.verdict ? { verdict: pending.verdict } : {}), ...(retry ? { retry } : {}), error: attempted.attempt_error ?? (error instanceof Error ? error.message : String(error)) }));
       throw error;
     }
@@ -79,6 +80,13 @@ export function createWorkflowContinuation<Reach>(d: Dependencies<Reach>) {
       throw error;
     }
   };
+}
+
+/** The call has not been stopped and still holds the authority it started with. */
+function stillCurrent(call: ActionExecutionContext): boolean {
+  if (call.signal?.aborted) return false;
+  try { call.assert_authority_current?.(); return true; }
+  catch { return false; /* revoked or disabled meanwhile: not current, which is the answer */ }
 }
 
 /** The attempt the store holds for step `from`, or none when the run is no longer there. */

@@ -21,7 +21,7 @@ import { PRESENTATION_FORM_STYLES } from "../styles/presentation.js";
 import { componentText, PLUGIN_COMPONENTS } from "../plugin-components.js";
 import { SKILL_SELECTION_BOARD_STYLES, skillLineSection, skillWhySection } from "./catalog-skill-selection.js";
 import { itemChoiceSection, itemDetailsSection, listDetailSection, SKILL_PACK_BOARD_STYLES, statusLinkSection } from "./catalog-skill-packs.js";
-import { CAPABILITY_PACK_BOARD_STYLES, cellGridSection, detailTrailSection, iconCountsSection, itemGroupSection, nowBlockSection, stateRowsSection, stickyDetailSection, usageSection } from "./catalog-capability-packs.js";
+import { CAPABILITY_PACK_BOARD_STYLES, cellGridSection, detailTrailSection, iconCountsSection, itemGroupSection, leaveBarSection, nowBlockSection, stateRowsSection, stickyDetailSection, textCountSection, usageSection } from "./catalog-capability-packs.js";
 import { LANGUAGE_BOARD_STYLES, languageSection, motionGrammarSpecimens, pairingSection, zonesSection } from "./catalog-language.js";
 
 export const PRIMITIVE_CATALOG_IDS = PLUGIN_COMPONENTS.map(({ kind }) => kind);
@@ -295,6 +295,8 @@ export function renderPrimitiveCatalog(options: {
     ${stateRowsSection(say)}
     ${usageSection(say)}
     ${stickyDetailSection(say)}
+    ${textCountSection(say)}
+    ${leaveBarSection(say)}
     ${dataTableSection()}
     ${layoutSection()}
     ${chapter("模式与场景")}

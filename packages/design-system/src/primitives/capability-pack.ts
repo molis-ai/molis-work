@@ -96,6 +96,18 @@ export const CAPABILITY_PACK_STYLES = `
   .mw-usage__text > strong { color: var(--ink); font-weight: var(--weight-control, 500); }
   .mw-usage__scope { margin: 0; max-width: 640px; color: var(--muted); font-size: 12px; line-height: 1.55; }
 
+  /* 9 · A text count (batch 41): under a long text field, how to write it on the left and how much is written on the right; the
+     count turns to the warning colour once it is over. */
+  .mw-text-count { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; min-width: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+  .mw-text-count__hint { min-width: 0; }
+  .mw-text-count__n { flex: none; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .mw-text-count__n[data-over] { color: var(--red); font-weight: var(--weight-control, 500); }
+
+  /* 10 · A leave bar (batch 41): unsaved changes and the person is going elsewhere; asked once, in place above the form, never a dialog. */
+  .mw-leave-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; min-width: 0; padding: 10px 12px; border-radius: var(--r-card, 12px); background: var(--surface-soft); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--ink); font-size: 13px; line-height: 1.5; }
+  .mw-leave-bar__text { flex: 1 1 160px; min-width: 0; margin: 0; }
+  .mw-leave-bar__actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-width: 0; }
+
   /* 8 · List and detail with the detail kept in view, only where a page asks (data-sticky-detail): it stays at the top of the
      scrolling area and scrolls itself when taller; at its end the scroll goes on to the page (no overscroll containment). The
      area's height comes from the settings shell (--settings-view-h); outside it, the window's. One side at a time, it is in flow. */
@@ -189,5 +201,15 @@ export function renderUsage(options: { figure?: number; head: string; last?: str
   const figure = options.figure === undefined ? "" : `<span class="mw-usage__num">${options.figure}</span>`;
   return `<div class="mw-usage" data-slot="usage"><div class="mw-usage__figure">${figure}<span class="mw-usage__text"><strong>${escapeHtml(options.head)}</strong>${
     options.last ? `<span>${escapeHtml(options.last)}</span>` : ""}</span></div>${options.scope ? `<p class="mw-usage__scope">${escapeHtml(options.scope)}</p>` : ""}</div>`;
+}
+
+/** 9 · A text count: `hint` says how to write the field, `count` how much is written against its limit; `over` once past it. */
+export function renderTextCount(options: { hint: string; count: string; over?: boolean; attrs?: Record<string, AttrValue> }): string {
+  return `<p class="mw-text-count" data-slot="text-count"${renderAttrs(options.attrs)}><span class="mw-text-count__hint">${escapeHtml(options.hint)}</span><span class="mw-text-count__n"${options.over ? " data-over" : ""} aria-live="polite">${escapeHtml(options.count)}</span></p>`;
+}
+
+/** 10 · A leave bar: what is unsaved, then the ways on (`actions`: buttons, the one that keeps the work first). It takes the focus where it appears. */
+export function renderLeaveBar(options: { text: string; actions: string; attrs?: Record<string, AttrValue> }): string {
+  return `<div class="mw-leave-bar" data-slot="leave-bar" role="alertdialog" aria-label="${escapeHtml(options.text)}" tabindex="-1"${renderAttrs(options.attrs)}><p class="mw-leave-bar__text">${escapeHtml(options.text)}</p><div class="mw-leave-bar__actions">${options.actions}</div></div>`;
 }
 export { renderMenuGroup, renderMenuItem } from "./overlay.js";

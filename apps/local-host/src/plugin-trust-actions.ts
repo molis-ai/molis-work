@@ -123,12 +123,12 @@ export function skillAuthoringFor(home: string, source: ProjectPluginHost, insta
 
 /** The install provider over the Home: its ledger, its kept packages, and the project the plugin is installed in. */
 export function pluginInstallProviderFor(home: string, source: ProjectPluginHost,
-  resolveProject?: (projectId: string) => Promise<LocalHostProjectReference | null>, completion?: HostCompleteText | null): ActionProviderRegistration {
+  resolveProject?: (projectId: string) => Promise<LocalHostProjectReference | null>, completion?: HostCompleteText | null, systemSkillsDirectory?: string): ActionProviderRegistration {
   const service = pluginInstallServiceFor(home, source);
   const provider = pluginInstallProvider(service, skillImportFor(home, source, service, homedir(), resolveProject), home, skillAuthoringFor(home, source, service, resolveProject, completion));
   // The AI kit's pack headers and a content package's export come from the install records and packages this provider owns (§4.6, §4.9).
   return { ...provider, definitions: [...provider.definitions, pluginsKitReport, pluginPackageExport],
-    handlers: [...provider.handlers, bindActionHandler(pluginsKitReport, (_input, caller) => pluginKitHeaders(home, source, caller)), pluginPackageExportHandler(home, source)] };
+    handlers: [...provider.handlers, bindActionHandler(pluginsKitReport, (_input, caller) => pluginKitHeaders(home, source, caller, systemSkillsDirectory)), pluginPackageExportHandler(home, source)] };
 }
 
 function pluginInstallServiceFor(home: string, source: ProjectPluginHost): PluginInstallService {

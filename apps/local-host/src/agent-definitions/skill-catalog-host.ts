@@ -18,9 +18,16 @@ import { scopeInstallations } from "../scope-installations.js";
 import type { ProjectPluginHost } from "../project-plugin-ports.js";
 import { isDeepStrictEqual } from "node:util";
 import type { CatalogSkill } from "./skill-catalog.js";
-import { SYSTEM_PACK_SIGNATURE, systemPackInstallId, systemSkillPacks } from "./system-skill-packs.js";
+import { SYSTEM_PACK_SIGNATURE, systemPackInstallId, systemSkillPacks, type SystemSkillPack } from "./system-skill-packs.js";
 
 /** The catalog reads existing owners once per call: installations, verified packages, declarations, and scoped settings. */
+/** A system pack's name and what it is, in the caller's language: its own words, as an installed package's are read. */
+export function systemSkillPackWords(pack: SystemSkillPack, callerLocale?: string): { name: string; summary?: string } {
+  const { manifest, localePacks: reader } = pack;
+  const locale = matchLocale(callerLocale ?? activeLocale(), manifest.ui.locales?.available ?? [], reader?.default ?? DEFAULT_WEB_LOCALE);
+  return projectDirectoryWords({ ...manifest, ui: {} }, reader ? directoryWordResolver(reader, locale) : undefined);
+}
+
 export function skillCatalogProviderFor(home: string, source: ProjectPluginHost, systemSkillsDirectory?: string) {
   const definitions = homeAgentDefinitions(home), packages = new SandboxPackageStore(home), ledger = new HomeConsentLedger(home);
   const publishers = () => new Map(ledger.publishers().map(pin => [pin.key_id, pin]));
@@ -81,7 +88,7 @@ export function skillCatalogProviderFor(home: string, source: ProjectPluginHost,
     for (const pack of systemSkillPacks(systemSkillsDirectory)) {
       const { manifest, localePacks: reader } = pack;
       const locale = matchLocale(caller.locale ?? activeLocale(), manifest.ui.locales?.available ?? [], reader?.default ?? DEFAULT_WEB_LOCALE);
-      const title = projectDirectoryWords({ ...manifest, ui: {} }, reader ? directoryWordResolver(reader, locale) : undefined).name;
+      const title = systemSkillPackWords(pack, caller.locale).name;
       for (const declaration of manifest.methods ?? []) {
         const body = pack.bodies.find(item => item.kind === "method" && item.entry_id === declaration.skill_id);
         result.push({ declaration, display: skillDisplayWords(declaration, reader, locale), body: body ? agentBodyIn(body, caller.locale) : "",

@@ -3,7 +3,7 @@ import test from "node:test";
 import { runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import {
   ANCHORED_MENU_CLIENT_SCRIPT, CAPABILITY_PACK_BOARD_STYLES, SKILL_PACK_BOARD_STYLES, renderCells, renderDetailTrail, renderIconCounts, renderItemGroup,
-  renderMenuItem, renderNowBlock, renderPickRow, renderPrimitiveCatalog, renderStateRows, renderUsage,
+  renderLeaveBar, renderMenuItem, renderNowBlock, renderPickRow, renderPrimitiveCatalog, renderStateRows, renderTextCount, renderUsage,
 } from "@molis-ai/molis-work-design-system";
 import { workbenchClientSource } from "@molis-ai/molis-work-app-workbench";
 import { renderMolisWorkSettingsStylesheet } from "./workbench-renderer-fixture.js";
@@ -46,6 +46,19 @@ test("CPK-01 CPK-04: cells, trail, counts, state rows and usage carry their name
   assert.match(renderStateRows([{ name: "服务器", meaning: "在不在跑", mark: "<m></m>", go: "<g></g>" }]), /<li><span class="mw-state-row__what"><strong>服务器<\/strong><small>在不在跑<\/small><\/span><span class="mw-state-row__state"><m><\/m><\/span><span class="mw-state-row__go"><g><\/g><\/span><\/li>/);
   assert.match(renderUsage({ figure: 12, head: "近期 12 次", scope: "不是总数" }), /<span class="mw-usage__num">12<\/span>.*<p class="mw-usage__scope">不是总数<\/p>/);
   assert.doesNotMatch(renderUsage({ head: "只有最近一次" }), /mw-usage__num/, "no figure stands for the last use only");
+});
+
+test("SKL-41-2-AU-20: the text count and the leave bar (batch 41) are board parts with their own sections, English, and tokens only", () => {
+  const count = renderTextCount({ hint: "写给 AI 的做法", count: "512 / 500 行", over: true });
+  assert.match(count, /^<p class="mw-text-count" data-slot="text-count"><span class="mw-text-count__hint">写给 AI 的做法<\/span><span class="mw-text-count__n" data-over aria-live="polite">512 \/ 500 行<\/span><\/p>$/);
+  assert.doesNotMatch(renderTextCount({ hint: "h", count: "1" }), /data-over/);
+  const bar = renderLeaveBar({ text: "「周报」有没保存的改动。", actions: "<b>保存再走</b>" });
+  assert.match(bar, /^<div class="mw-leave-bar" data-slot="leave-bar" role="alertdialog" aria-label="「周报」有没保存的改动。" tabindex="-1"><p class="mw-leave-bar__text">「周报」有没保存的改动。<\/p><div class="mw-leave-bar__actions"><b>保存再走<\/b><\/div><\/div>$/);
+  const board = runWithLocale("zh", () => renderPrimitiveCatalog()), english = runWithLocale("en", () => renderPrimitiveCatalog());
+  assert.ok(board.indexOf('id="sticky-detail"') < board.indexOf('id="text-count"') && board.indexOf('id="text-count"') < board.indexOf('id="leave-bar"'));
+  assert.match(sectionOf(board, "text-count"), /data-over/);
+  assert.match(sectionOf(english, "leave-bar"), /Keep writing/);
+  for (const id of ["text-count", "leave-bar"]) assert.deepEqual(sectionOf(english, id).replace(/<style>[\s\S]*?<\/style>/g, "").match(/[㐀-鿿]+/gu) ?? [], [], `no Chinese is left in ${id}`);
 });
 
 test("CPK-01: the board has the eight sections, in order, with English for every word and tokens only", () => {

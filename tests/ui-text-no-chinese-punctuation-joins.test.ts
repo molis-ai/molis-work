@@ -150,7 +150,7 @@ const JOINED_BASELINE: Readonly<Record<string, number>> = {
   "plugins/native/goals/src/planning-actions.ts": 1,
   "plugins/native/goals/src/proposal-normalizer.ts": 2,
   "plugins/native/goals/src/terminal-actions.ts": 3,
-  "plugins/native/inbox/src/home-events.ts": 2,
+  "plugins/native/inbox/src/work-events.ts": 2,
   "plugins/native/pages/src/actions.ts": 1,
   "plugins/native/shelf/src/ai.ts": 1,
   "plugins/native/todo/src/browser/list-rows.ts": 1,

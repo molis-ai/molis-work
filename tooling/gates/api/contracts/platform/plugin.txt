@@ -1919,360 +1919,6 @@ export declare const HOME_BACKGROUND_TASKS_INPUT_TYPE = "molis.home-background-t
 
 export declare const HOME_BACKGROUND_TASKS_OUTPUT_TYPE = "molis.home-background-tasks.collection.v1";
 
-export declare const HOME_EVENTS_INPUT_TYPE = "molis.home-events.window.v1";
-
-export declare const HOME_EVENTS_OUTPUT_TYPE = "molis.home-events.collection.v1";
-
-export declare const HOME_EVENT_COLLECTION_SCHEMA: {
-    type: string;
-    properties: {
-        source: {
-            type: string;
-            properties: {
-                surface: {
-                    pattern: string;
-                    minLength: 1;
-                    type: "string";
-                };
-                title: {
-                    readonly minLength: 1;
-                    readonly type: "string";
-                };
-                icon: {
-                    pattern: string;
-                    minLength: 1;
-                    type: "string";
-                };
-            };
-            required: string[];
-            additionalProperties: boolean;
-        };
-        events: {
-            type: string;
-            items: {
-                type: string;
-                properties: {
-                    event_id: {
-                        readonly minLength: 1;
-                        readonly type: "string";
-                    };
-                    subject: {
-                        readonly type: "object";
-                        readonly properties: {
-                            readonly kind: {
-                                readonly type: "string";
-                                readonly minLength: 1;
-                            };
-                            readonly id: {
-                                readonly type: "string";
-                                readonly minLength: 1;
-                            };
-                        };
-                        readonly required: readonly ["kind", "id"];
-                        readonly additionalProperties: false;
-                    };
-                    occurred_at: {
-                        readonly format: "date-time";
-                        readonly minLength: 1;
-                        readonly type: "string";
-                    };
-                    placement: {
-                        enum: string[];
-                    };
-                    category: {
-                        enum: string[];
-                    };
-                    title: {
-                        readonly minLength: 1;
-                        readonly type: "string";
-                    };
-                    summary: {
-                        readonly type: "string";
-                    };
-                    content: {
-                        readonly type: "string";
-                    };
-                    facts: {
-                        type: string;
-                        items: {
-                            type: string;
-                            items: {
-                                readonly type: "string";
-                            };
-                            minItems: number;
-                            maxItems: number;
-                        };
-                    };
-                    needs_attention: {
-                        type: string;
-                    };
-                    open: {
-                        anyOf: ({
-                            readonly type: "object";
-                            readonly properties: {
-                                readonly kind: {
-                                    readonly enum: readonly ["item", "group", "surface"];
-                                };
-                                readonly surface: {
-                                    pattern: string;
-                                    minLength: 1;
-                                    type: "string";
-                                };
-                                readonly id: {
-                                    readonly type: readonly ["string", "null"];
-                                    readonly minLength: 1;
-                                };
-                                readonly title: {
-                                    readonly minLength: 1;
-                                    readonly type: "string";
-                                };
-                                readonly label: {
-                                    readonly minLength: 1;
-                                    readonly type: "string";
-                                };
-                            };
-                            readonly required: readonly ["kind", "surface", "id", "title", "label"];
-                            readonly additionalProperties: false;
-                            readonly anyOf: readonly [{
-                                readonly properties: {
-                                    readonly kind: {
-                                        readonly const: "surface";
-                                    };
-                                    readonly id: {
-                                        readonly type: "null";
-                                    };
-                                };
-                            }, {
-                                readonly properties: {
-                                    readonly kind: {
-                                        readonly enum: readonly ["item", "group"];
-                                    };
-                                    readonly id: {
-                                        readonly minLength: 1;
-                                        readonly type: "string";
-                                    };
-                                };
-                            }];
-                        } | {
-                            type: string;
-                        })[];
-                    };
-                };
-                required: string[];
-                additionalProperties: boolean;
-            };
-        };
-    };
-    required: string[];
-    additionalProperties: boolean;
-};
-
-export declare const HOME_EVENT_SCHEMA: {
-    type: string;
-    properties: {
-        event_id: {
-            readonly minLength: 1;
-            readonly type: "string";
-        };
-        subject: {
-            readonly type: "object";
-            readonly properties: {
-                readonly kind: {
-                    readonly type: "string";
-                    readonly minLength: 1;
-                };
-                readonly id: {
-                    readonly type: "string";
-                    readonly minLength: 1;
-                };
-            };
-            readonly required: readonly ["kind", "id"];
-            readonly additionalProperties: false;
-        };
-        occurred_at: {
-            readonly format: "date-time";
-            readonly minLength: 1;
-            readonly type: "string";
-        };
-        placement: {
-            enum: string[];
-        };
-        category: {
-            enum: string[];
-        };
-        title: {
-            readonly minLength: 1;
-            readonly type: "string";
-        };
-        summary: {
-            readonly type: "string";
-        };
-        content: {
-            readonly type: "string";
-        };
-        facts: {
-            type: string;
-            items: {
-                type: string;
-                items: {
-                    readonly type: "string";
-                };
-                minItems: number;
-                maxItems: number;
-            };
-        };
-        needs_attention: {
-            type: string;
-        };
-        open: {
-            anyOf: ({
-                readonly type: "object";
-                readonly properties: {
-                    readonly kind: {
-                        readonly enum: readonly ["item", "group", "surface"];
-                    };
-                    readonly surface: {
-                        pattern: string;
-                        minLength: 1;
-                        type: "string";
-                    };
-                    readonly id: {
-                        readonly type: readonly ["string", "null"];
-                        readonly minLength: 1;
-                    };
-                    readonly title: {
-                        readonly minLength: 1;
-                        readonly type: "string";
-                    };
-                    readonly label: {
-                        readonly minLength: 1;
-                        readonly type: "string";
-                    };
-                };
-                readonly required: readonly ["kind", "surface", "id", "title", "label"];
-                readonly additionalProperties: false;
-                readonly anyOf: readonly [{
-                    readonly properties: {
-                        readonly kind: {
-                            readonly const: "surface";
-                        };
-                        readonly id: {
-                            readonly type: "null";
-                        };
-                    };
-                }, {
-                    readonly properties: {
-                        readonly kind: {
-                            readonly enum: readonly ["item", "group"];
-                        };
-                        readonly id: {
-                            readonly minLength: 1;
-                            readonly type: "string";
-                        };
-                    };
-                }];
-            } | {
-                type: string;
-            })[];
-        };
-    };
-    required: string[];
-    additionalProperties: boolean;
-};
-
-export declare const HOME_EVENT_SOURCE_SCHEMA: {
-    type: string;
-    properties: {
-        surface: {
-            pattern: string;
-            minLength: 1;
-            type: "string";
-        };
-        title: {
-            readonly minLength: 1;
-            readonly type: "string";
-        };
-        icon: {
-            pattern: string;
-            minLength: 1;
-            type: "string";
-        };
-    };
-    required: string[];
-    additionalProperties: boolean;
-};
-
-export declare const HOME_EVENT_WINDOW_SCHEMA: {
-    readonly type: "object";
-    readonly properties: {
-        readonly from: {
-            readonly format: "date-time";
-            readonly minLength: 1;
-            readonly type: "string";
-        };
-        readonly to: {
-            readonly format: "date-time";
-            readonly minLength: 1;
-            readonly type: "string";
-        };
-        readonly now: {
-            readonly format: "date-time";
-            readonly minLength: 1;
-            readonly type: "string";
-        };
-    };
-    readonly required: readonly ["from", "to", "now"];
-    readonly additionalProperties: false;
-};
-
-export declare const HOME_OPEN_TARGET_SCHEMA: {
-    readonly type: "object";
-    readonly properties: {
-        readonly kind: {
-            readonly enum: readonly ["item", "group", "surface"];
-        };
-        readonly surface: {
-            pattern: string;
-            minLength: 1;
-            type: "string";
-        };
-        readonly id: {
-            readonly type: readonly ["string", "null"];
-            readonly minLength: 1;
-        };
-        readonly title: {
-            readonly minLength: 1;
-            readonly type: "string";
-        };
-        readonly label: {
-            readonly minLength: 1;
-            readonly type: "string";
-        };
-    };
-    readonly required: readonly ["kind", "surface", "id", "title", "label"];
-    readonly additionalProperties: false;
-    readonly anyOf: readonly [{
-        readonly properties: {
-            readonly kind: {
-                readonly const: "surface";
-            };
-            readonly id: {
-                readonly type: "null";
-            };
-        };
-    }, {
-        readonly properties: {
-            readonly kind: {
-                readonly enum: readonly ["item", "group"];
-            };
-            readonly id: {
-                readonly minLength: 1;
-                readonly type: "string";
-            };
-        };
-    }];
-};
-
 export declare const HOST_CONNECTIONS_OBSERVE_PERMISSION = "connections:observe";
 
 export declare const HOST_CONNECTION_CHANGED_EVENT = "host.connection.changed";
@@ -2311,50 +1957,6 @@ export interface HomeBackgroundTaskCommand {
 export interface HomeBackgroundTaskPhrase {
     text: string;
     count?: number;
-}
-
-export interface HomeEvent {
-    event_id: string;
-    subject: ActionSubject;
-    occurred_at: string;
-    placement: "occurred" | "active" | "today";
-    category: "personal" | "organization";
-    title: string;
-    summary: string;
-    content: string;
-    facts: Array<[string, string]>;
-    needs_attention: boolean;
-    open: HomeOpenTarget | null;
-}
-
-export interface HomeEventCollection {
-    source: {
-        surface: string;
-        title: string;
-        icon: string;
-    };
-    events: HomeEvent[];
-}
-
-export interface HomeEventView extends HomeEvent {
-    id: string;
-    source: ActionReference;
-    origin: HomeEventCollection["source"];
-    suggested_behavior_ids: string[];
-}
-
-export interface HomeEventWindow {
-    from: string;
-    to: string;
-    now: string;
-}
-
-export interface HomeOpenTarget {
-    kind: "item" | "group" | "surface";
-    surface: string;
-    id: string | null;
-    title: string;
-    label: string;
 }
 
 export interface HomePageSubject {
@@ -2622,6 +2224,62 @@ export interface MaterialSourceContent {
 
 export interface MissedRun extends ScheduledRun {
     missed_at: string;
+}
+
+export declare const OPEN_TARGET_SCHEMA: {
+    readonly type: "object";
+    readonly properties: {
+        readonly kind: {
+            readonly enum: readonly ["item", "group", "surface"];
+        };
+        readonly surface: {
+            pattern: string;
+            minLength: 1;
+            type: "string";
+        };
+        readonly id: {
+            readonly type: readonly ["string", "null"];
+            readonly minLength: 1;
+        };
+        readonly title: {
+            readonly minLength: 1;
+            readonly type: "string";
+        };
+        readonly label: {
+            readonly minLength: 1;
+            readonly type: "string";
+        };
+    };
+    readonly required: readonly ["kind", "surface", "id", "title", "label"];
+    readonly additionalProperties: false;
+    readonly anyOf: readonly [{
+        readonly properties: {
+            readonly kind: {
+                readonly const: "surface";
+            };
+            readonly id: {
+                readonly type: "null";
+            };
+        };
+    }, {
+        readonly properties: {
+            readonly kind: {
+                readonly enum: readonly ["item", "group"];
+            };
+            readonly id: {
+                readonly minLength: 1;
+                readonly type: "string";
+            };
+        };
+    }];
+};
+
+export interface OpenTarget {
+    kind: "item" | "group" | "surface";
+    surface: string;
+    id: string | null;
+    title: string;
+    label: string;
 }
 
 export declare const PERSONAL_SPACE_PROJECT_ID = "personal";
@@ -5854,9 +5512,369 @@ export declare const WORKFLOW_CONTENT_VERSIONS: {
     readonly create: 1;
 };
 
+export declare const WORK_EVENTS_INPUT_TYPE = "molis.work-events.window.v1";
+
+export declare const WORK_EVENTS_OUTPUT_TYPE = "molis.work-events.collection.v1";
+
+export declare const WORK_EVENT_COLLECTION_SCHEMA: {
+    type: string;
+    properties: {
+        source: {
+            type: string;
+            properties: {
+                surface: {
+                    pattern: string;
+                    minLength: 1;
+                    type: "string";
+                };
+                title: {
+                    readonly minLength: 1;
+                    readonly type: "string";
+                };
+                icon: {
+                    pattern: string;
+                    minLength: 1;
+                    type: "string";
+                };
+            };
+            required: string[];
+            additionalProperties: boolean;
+        };
+        events: {
+            type: string;
+            items: {
+                type: string;
+                properties: {
+                    event_id: {
+                        readonly minLength: 1;
+                        readonly type: "string";
+                    };
+                    subject: {
+                        readonly type: "object";
+                        readonly properties: {
+                            readonly kind: {
+                                readonly type: "string";
+                                readonly minLength: 1;
+                            };
+                            readonly id: {
+                                readonly type: "string";
+                                readonly minLength: 1;
+                            };
+                        };
+                        readonly required: readonly ["kind", "id"];
+                        readonly additionalProperties: false;
+                    };
+                    occurred_at: {
+                        readonly format: "date-time";
+                        readonly minLength: 1;
+                        readonly type: "string";
+                    };
+                    scheduled_at: {
+                        readonly format: "date-time";
+                        readonly minLength: 1;
+                        readonly type: "string";
+                    };
+                    state: {
+                        enum: readonly ("partial" | "archived" | "unavailable" | "failed" | "done" | "conflict" | "cancelled" | "idle" | "connected" | "ready" | "running" | "doing" | "starting" | "generating" | "saving" | "indexing" | "saved" | "round-ended" | "staged" | "waiting" | "queued" | "answer" | "approval" | "reauth" | "paused" | "stopped" | "disabled" | "blocked" | "quarantined" | "syncing" | "retrying" | "interrupted" | "verify" | "stale" | "disconnected" | "unsaved" | "draft" | "unstaged" | "untracked" | "unread" | "read" | "material" | "trashed")[];
+                    };
+                    placement: {
+                        enum: string[];
+                    };
+                    category: {
+                        enum: string[];
+                    };
+                    title: {
+                        readonly minLength: 1;
+                        readonly type: "string";
+                    };
+                    summary: {
+                        readonly type: "string";
+                    };
+                    content: {
+                        readonly type: "string";
+                    };
+                    facts: {
+                        type: string;
+                        items: {
+                            type: string;
+                            items: {
+                                readonly type: "string";
+                            };
+                            minItems: number;
+                            maxItems: number;
+                        };
+                    };
+                    needs_attention: {
+                        type: string;
+                    };
+                    open: {
+                        anyOf: ({
+                            readonly type: "object";
+                            readonly properties: {
+                                readonly kind: {
+                                    readonly enum: readonly ["item", "group", "surface"];
+                                };
+                                readonly surface: {
+                                    pattern: string;
+                                    minLength: 1;
+                                    type: "string";
+                                };
+                                readonly id: {
+                                    readonly type: readonly ["string", "null"];
+                                    readonly minLength: 1;
+                                };
+                                readonly title: {
+                                    readonly minLength: 1;
+                                    readonly type: "string";
+                                };
+                                readonly label: {
+                                    readonly minLength: 1;
+                                    readonly type: "string";
+                                };
+                            };
+                            readonly required: readonly ["kind", "surface", "id", "title", "label"];
+                            readonly additionalProperties: false;
+                            readonly anyOf: readonly [{
+                                readonly properties: {
+                                    readonly kind: {
+                                        readonly const: "surface";
+                                    };
+                                    readonly id: {
+                                        readonly type: "null";
+                                    };
+                                };
+                            }, {
+                                readonly properties: {
+                                    readonly kind: {
+                                        readonly enum: readonly ["item", "group"];
+                                    };
+                                    readonly id: {
+                                        readonly minLength: 1;
+                                        readonly type: "string";
+                                    };
+                                };
+                            }];
+                        } | {
+                            type: string;
+                        })[];
+                    };
+                };
+                required: string[];
+                additionalProperties: boolean;
+            };
+        };
+    };
+    required: string[];
+    additionalProperties: boolean;
+};
+
+export declare const WORK_EVENT_SCHEMA: {
+    type: string;
+    properties: {
+        event_id: {
+            readonly minLength: 1;
+            readonly type: "string";
+        };
+        subject: {
+            readonly type: "object";
+            readonly properties: {
+                readonly kind: {
+                    readonly type: "string";
+                    readonly minLength: 1;
+                };
+                readonly id: {
+                    readonly type: "string";
+                    readonly minLength: 1;
+                };
+            };
+            readonly required: readonly ["kind", "id"];
+            readonly additionalProperties: false;
+        };
+        occurred_at: {
+            readonly format: "date-time";
+            readonly minLength: 1;
+            readonly type: "string";
+        };
+        scheduled_at: {
+            readonly format: "date-time";
+            readonly minLength: 1;
+            readonly type: "string";
+        };
+        state: {
+            enum: readonly ("partial" | "archived" | "unavailable" | "failed" | "done" | "conflict" | "cancelled" | "idle" | "connected" | "ready" | "running" | "doing" | "starting" | "generating" | "saving" | "indexing" | "saved" | "round-ended" | "staged" | "waiting" | "queued" | "answer" | "approval" | "reauth" | "paused" | "stopped" | "disabled" | "blocked" | "quarantined" | "syncing" | "retrying" | "interrupted" | "verify" | "stale" | "disconnected" | "unsaved" | "draft" | "unstaged" | "untracked" | "unread" | "read" | "material" | "trashed")[];
+        };
+        placement: {
+            enum: string[];
+        };
+        category: {
+            enum: string[];
+        };
+        title: {
+            readonly minLength: 1;
+            readonly type: "string";
+        };
+        summary: {
+            readonly type: "string";
+        };
+        content: {
+            readonly type: "string";
+        };
+        facts: {
+            type: string;
+            items: {
+                type: string;
+                items: {
+                    readonly type: "string";
+                };
+                minItems: number;
+                maxItems: number;
+            };
+        };
+        needs_attention: {
+            type: string;
+        };
+        open: {
+            anyOf: ({
+                readonly type: "object";
+                readonly properties: {
+                    readonly kind: {
+                        readonly enum: readonly ["item", "group", "surface"];
+                    };
+                    readonly surface: {
+                        pattern: string;
+                        minLength: 1;
+                        type: "string";
+                    };
+                    readonly id: {
+                        readonly type: readonly ["string", "null"];
+                        readonly minLength: 1;
+                    };
+                    readonly title: {
+                        readonly minLength: 1;
+                        readonly type: "string";
+                    };
+                    readonly label: {
+                        readonly minLength: 1;
+                        readonly type: "string";
+                    };
+                };
+                readonly required: readonly ["kind", "surface", "id", "title", "label"];
+                readonly additionalProperties: false;
+                readonly anyOf: readonly [{
+                    readonly properties: {
+                        readonly kind: {
+                            readonly const: "surface";
+                        };
+                        readonly id: {
+                            readonly type: "null";
+                        };
+                    };
+                }, {
+                    readonly properties: {
+                        readonly kind: {
+                            readonly enum: readonly ["item", "group"];
+                        };
+                        readonly id: {
+                            readonly minLength: 1;
+                            readonly type: "string";
+                        };
+                    };
+                }];
+            } | {
+                type: string;
+            })[];
+        };
+    };
+    required: string[];
+    additionalProperties: boolean;
+};
+
+export declare const WORK_EVENT_SOURCE_SCHEMA: {
+    type: string;
+    properties: {
+        surface: {
+            pattern: string;
+            minLength: 1;
+            type: "string";
+        };
+        title: {
+            readonly minLength: 1;
+            readonly type: "string";
+        };
+        icon: {
+            pattern: string;
+            minLength: 1;
+            type: "string";
+        };
+    };
+    required: string[];
+    additionalProperties: boolean;
+};
+
+export declare const WORK_EVENT_WINDOW_SCHEMA: {
+    readonly type: "object";
+    readonly properties: {
+        readonly from: {
+            readonly format: "date-time";
+            readonly minLength: 1;
+            readonly type: "string";
+        };
+        readonly to: {
+            readonly format: "date-time";
+            readonly minLength: 1;
+            readonly type: "string";
+        };
+        readonly now: {
+            readonly format: "date-time";
+            readonly minLength: 1;
+            readonly type: "string";
+        };
+    };
+    readonly required: readonly ["from", "to", "now"];
+    readonly additionalProperties: false;
+};
+
 export declare const WORK_EXECUTOR_PROTOCOL: Readonly<Record<WorkExecutorRole, WorkExecutorRoleContract>>;
 
 export declare const WORK_EXECUTOR_ROLES: readonly ["state", "session.open", "session.read", "session.update", "run.start", "run.control"];
+
+export interface WorkEvent {
+    event_id: string;
+    subject: ActionSubject;
+    title: string;
+    summary: string;
+    content: string;
+    facts: Array<[string, string]>;
+    category: "personal" | "organization";
+    placement: "occurred" | "active" | "today";
+    occurred_at: string;
+    scheduled_at?: string;
+    state?: StateRingState;
+    needs_attention: boolean;
+    open: OpenTarget | null;
+}
+
+export interface WorkEventCollection {
+    source: {
+        surface: string;
+        title: string;
+        icon: string;
+    };
+    events: WorkEvent[];
+}
+
+export interface WorkEventView extends WorkEvent {
+    id: string;
+    source: ActionReference;
+    origin: WorkEventCollection["source"];
+    suggested_behavior_ids: string[];
+}
+
+export interface WorkEventWindow {
+    from: string;
+    to: string;
+    now: string;
+}
 
 export interface WorkExecutorActionOptions {
     readonly capability_id: string;
@@ -6096,9 +6114,9 @@ export declare function artifactLineHeadOf(latest: {
 
 export declare function assertDueReminderWindow(window: DueReminderWindow): void;
 
-export declare function assertHomeEventWindow(window: HomeEventWindow): void;
-
 export declare function assertRunsWindow(window: RunsWindow): void;
+
+export declare function assertWorkEventWindow(window: WorkEventWindow): void;
 
 export declare function bindActionClient(client: ActionClient, context: () => ActionCallContext): BoundActionClient;
 
@@ -6165,8 +6183,6 @@ export declare function defineFragmentOffersAction(capabilityId: string, version
 
 export declare function defineHomeBackgroundTasksAction(capabilityId: string, version: number, title: string, permissions: string[]): ActionDefinition<Record<string, never>, HomeBackgroundTaskCollection>;
 
-export declare function defineHomeEventsAction(capabilityId: string, version: number, kinds: string[], title: string, permissions: string[]): ActionDefinition<HomeEventWindow, HomeEventCollection>;
-
 export declare function defineObjectCopyAction(capabilityId: string, version: number, kinds: readonly string[], title: string, permissions: readonly string[]): ActionDefinition<PlacementCopyInput, PlacementResult>;
 
 export declare function defineObjectMoveAction(capabilityId: string, version: number, kinds: readonly string[], title: string, permissions: readonly string[], scope?: "project" | "home"): ActionDefinition<PlacementMoveInput, PlacementResult>;
@@ -6182,6 +6198,8 @@ export declare function defineSubjectContextAction(capabilityId: string, version
 export declare function defineSubjectOffersAction(capabilityId: string, version: number, kinds: string[], title: string, permissions: string[], choices?: readonly SubjectOfferChoice[]): ActionDefinition<SubjectOffersInput, {
     offers: SubjectActionOffer[];
 }>;
+
+export declare function defineWorkEventsAction(capabilityId: string, version: number, kinds: string[], title: string, permissions: string[]): ActionDefinition<WorkEventWindow, WorkEventCollection>;
 
 export declare function defineWorkExecutorAction<R extends WorkExecutorRole>(name: R, options: WorkExecutorActionOptions): ActionDefinition<WorkExecutorCalls[R]["input"], WorkExecutorCalls[R]["output"]>;
 
@@ -6464,9 +6482,9 @@ export declare function withControlChecks(caller: ActionCallContext, control: Pi
 
 export declare function withinDueReminderWindow(value: string, window: DueReminderWindow): boolean;
 
-export declare function withinHomeEventWindow(value: string, window: HomeEventWindow): boolean;
-
 export declare function withinRunsWindow(value: string, window: RunsWindow): boolean;
+
+export declare function withinWorkEventWindow(value: string, window: WorkEventWindow): boolean;
 
 export declare function workExecutorRoleOf(action: {
     input_type?: string;

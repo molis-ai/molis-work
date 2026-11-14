@@ -6,7 +6,7 @@ import { parseSceneFunctionKey } from "./judgment-rules-host.js";
 import { homeActions } from "./home-actions.js";
 import type { HomeOfferExecutionInput } from "./home-offer-actions.js";
 import type { HomeEventOpenInput } from "./home-event-actions.js";
-import type { HomeEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { WorkEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export interface HomeDockHttpOptions { actions: BoundActionClient; invalidateWebView(): void }
 
@@ -17,7 +17,7 @@ export async function handleHomeDockJudgmentHttp(request: IncomingMessage, respo
     try {
       const body: unknown = await readBody(request);
       sendJson(response, 200, url.pathname.endsWith("/open") ? await options.actions.invoke(homeActions.openEvent, body as HomeEventOpenInput)
-        : await options.actions.invoke(homeActions.events, body as HomeEventWindow));
+        : await options.actions.invoke(homeActions.events, body as WorkEventWindow));
     } catch (error) {
       const failure = actionErrorResponse(error);
       sendJson(response, failure.status, failure.body);

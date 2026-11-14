@@ -1,34 +1,34 @@
 import { isDeepStrictEqual } from "node:util";
-import { ActionError, assertHomeEventWindow, ACTION_REFERENCE_SCHEMA, HOME_EVENTS_INPUT_TYPE, HOME_EVENTS_OUTPUT_TYPE, HOME_EVENT_WINDOW_SCHEMA, HOME_EVENT_SCHEMA, HOME_EVENT_SOURCE_SCHEMA, HOME_OPEN_TARGET_SCHEMA,
-  type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionReference, type ActionView, type HomeEventView, type HomeEventCollection, type HomeEventWindow, type HomeOpenTarget } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, assertWorkEventWindow, ACTION_REFERENCE_SCHEMA, WORK_EVENTS_INPUT_TYPE, WORK_EVENTS_OUTPUT_TYPE, WORK_EVENT_WINDOW_SCHEMA, WORK_EVENT_SCHEMA, WORK_EVENT_SOURCE_SCHEMA, OPEN_TARGET_SCHEMA,
+  type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionReference, type ActionView, type WorkEventView, type WorkEventCollection, type WorkEventWindow, type OpenTarget } from "@molis-ai/molis-work-contracts/platform/actions";
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { hostLog } from "./host-log.js";
 import { matchingActions, type HostActionClient } from "./local-host-types.js";
 
-export type { HomeEventView } from "@molis-ai/molis-work-contracts/platform/actions";
-export interface HomeEventsResult { events: HomeEventView[]; issues: string[] }
-export interface HomeEventOpenInput { window: HomeEventWindow; source: ActionReference; event_id: string; target: HomeOpenTarget }
+export type { WorkEventView } from "@molis-ai/molis-work-contracts/platform/actions";
+export interface HomeEventsResult { events: WorkEventView[]; issues: string[] }
+export interface HomeEventOpenInput { window: WorkEventWindow; source: ActionReference; event_id: string; target: OpenTarget }
 const metadata = { scope: "project" as const, scheduling: "concurrent" as const, audiences: ["user", "agent", "workflow", "mcp"] as const, permissions: ["home:read"], subject_kinds: [] };
-const eventSchema = { ...HOME_EVENT_SCHEMA, properties: { ...HOME_EVENT_SCHEMA.properties, id: { type: "string" }, source: ACTION_REFERENCE_SCHEMA, origin: HOME_EVENT_SOURCE_SCHEMA, suggested_behavior_ids: { type: "array", items: { type: "string" } } }, required: [...HOME_EVENT_SCHEMA.required, "id", "source", "origin", "suggested_behavior_ids"] };
+const eventSchema = { ...WORK_EVENT_SCHEMA, properties: { ...WORK_EVENT_SCHEMA.properties, id: { type: "string" }, source: ACTION_REFERENCE_SCHEMA, origin: WORK_EVENT_SOURCE_SCHEMA, suggested_behavior_ids: { type: "array", items: { type: "string" } } }, required: [...WORK_EVENT_SCHEMA.required, "id", "source", "origin", "suggested_behavior_ids"] };
 export const homeEventActions = {
-  events: { capability_id: "home.events.read", version: /* @version action.home.events.read */ 1, operation: "query", action: { ...metadata, title: "首页事项", description: "从已授权插件查询当前窗口的事项，保留各自对象与提供方身份。", kind: "query", input_schema: HOME_EVENT_WINDOW_SCHEMA,
-    output_schema: { type: "object", properties: { events: { type: "array", items: eventSchema }, issues: { type: "array", items: { type: "string" } } }, required: ["events", "issues"], additionalProperties: false } } } as ActionDefinition<HomeEventWindow, HomeEventsResult>,
+  events: { capability_id: "home.events.read", version: /* @version action.home.events.read */ 1, operation: "query", action: { ...metadata, title: "首页事项", description: "从已授权插件查询当前窗口的事项，保留各自对象与提供方身份。", kind: "query", input_schema: WORK_EVENT_WINDOW_SCHEMA,
+    output_schema: { type: "object", properties: { events: { type: "array", items: eventSchema }, issues: { type: "array", items: { type: "string" } } }, required: ["events", "issues"], additionalProperties: false } } } as ActionDefinition<WorkEventWindow, HomeEventsResult>,
   openEvent: { capability_id: "home.events.open", version: /* @version action.home.events.open */ 1, operation: "query", action: { ...metadata, title: "打开首页事项", description: "重新读取原提供方并核对显示的目标，返回可由界面打开的当前对象或分组；不修改业务数据。", kind: "query",
-    input_schema: { type: "object", properties: { window: HOME_EVENT_WINDOW_SCHEMA, source: ACTION_REFERENCE_SCHEMA, event_id: { type: "string", minLength: 1 }, target: HOME_OPEN_TARGET_SCHEMA }, required: ["window", "source", "event_id", "target"], additionalProperties: false },
-    output_schema: { type: "object", properties: { target: HOME_OPEN_TARGET_SCHEMA }, required: ["target"], additionalProperties: false } } } as ActionDefinition<HomeEventOpenInput, { target: HomeOpenTarget }>,
+    input_schema: { type: "object", properties: { window: WORK_EVENT_WINDOW_SCHEMA, source: ACTION_REFERENCE_SCHEMA, event_id: { type: "string", minLength: 1 }, target: OPEN_TARGET_SCHEMA }, required: ["window", "source", "event_id", "target"], additionalProperties: false },
+    output_schema: { type: "object", properties: { target: OPEN_TARGET_SCHEMA }, required: ["target"], additionalProperties: false } } } as ActionDefinition<HomeEventOpenInput, { target: OpenTarget }>,
 };
 const same = (a: ActionReference, b: ActionReference) => a.capability_id === b.capability_id && a.version === b.version && a.provider_id === b.provider_id;
 /** `projectPlugins` asks whether the project reaches a provider's plugin: absent (old callers and tests) keeps the previous rule, turning off only `plugin_disabled`. */
 export function createHomeEventHandlers(client: HostActionClient, recommendations: ActionReference, projectPlugins?: (projectId: string) => Promise<(pluginId: string) => boolean | undefined>): ActionHandlerBinding[] {
-  const isSource = ({ action }: Pick<ActionView, "action">) => action.input_type === HOME_EVENTS_INPUT_TYPE && action.output_type === HOME_EVENTS_OUTPUT_TYPE;
-  const collect = async (caller: ActionCallContext, window: HomeEventWindow, pinned?: ActionReference): Promise<HomeEventsResult> => {
-    assertHomeEventWindow(window);
+  const isSource = ({ action }: Pick<ActionView, "action">) => action.input_type === WORK_EVENTS_INPUT_TYPE && action.output_type === WORK_EVENTS_OUTPUT_TYPE;
+  const collect = async (caller: ActionCallContext, window: WorkEventWindow, pinned?: ActionReference): Promise<HomeEventsResult> => {
+    assertWorkEventWindow(window);
     const directory = await matchingActions(client, caller, definition => isSource(definition)
       || !pinned && definition.capability_id === recommendations.capability_id && definition.version === recommendations.version);
     const sources = directory.filter(view => isSource(view)
       && (!pinned || same(pinned, { ...view, provider_id: view.provider.provider_id })));
     if (pinned && sources.length !== 1) throw new ActionError("actions.event_source_changed", "原事项提供方已不可访问，请重新读取首页");
-    const events: HomeEventView[] = [], issues: string[] = [];
+    const events: WorkEventView[] = [], issues: string[] = [];
     // A source that failed while reading is not reported again as withdrawn: the same reference is one line, by its exact identity.
     const reported = new Set<string>(), sourceKey = (source: ActionView) => JSON.stringify([source.provider.provider_id, source.capability_id, source.version]);
     // The exposure judgement is only needed for a source that cannot answer; when it is needed and the read fails, the person sees
@@ -61,7 +61,7 @@ export function createHomeEventHandlers(client: HostActionClient, recommendation
       }
       const reference = { capability_id: source.capability_id, version: source.version, provider_id: source.provider.provider_id };
       try {
-        const result = await client.invoke(caller, reference, window) as HomeEventCollection;
+        const result = await client.invoke(caller, reference, window) as WorkEventCollection;
         const ids = new Set<string>();
         for (const event of result.events) {
           if (ids.has(event.event_id) || !source.action.subject_kinds.includes(event.subject.kind)) throw new ActionError("actions.event_invalid", "插件事项身份重复或超出已声明的对象类型");
@@ -95,7 +95,7 @@ export function createHomeEventHandlers(client: HostActionClient, recommendation
     return { events: events.filter(event => !withdrawn.some(source => same(event.source, { ...source, provider_id: source.provider.provider_id }))), issues };
   };
   return [
-    { ...homeEventActions.events, handle: (caller, input) => collect(caller, input as HomeEventWindow) },
+    { ...homeEventActions.events, handle: (caller, input) => collect(caller, input as WorkEventWindow) },
     { ...homeEventActions.openEvent, handle: async (caller, value) => {
       const input = value as HomeEventOpenInput;
       const event = (await collect(caller, input.window, input.source)).events.find(event => event.event_id === input.event_id);

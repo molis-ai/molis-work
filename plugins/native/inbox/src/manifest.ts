@@ -1,6 +1,6 @@
 import { attentionSections } from "./sync.js";
 import { inboxContentActions, inboxSearchEntriesAction, inboxSubjectAction } from "./content-actions.js";
-import { inboxHomeEventsAction } from "./home-events.js";
+import { inboxWorkEventsAction } from "./work-events.js";
 import { inboxNextScene } from "./scenes.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { INBOX_UI_CONTRIBUTION_ID } from "./ui.js";
@@ -46,11 +46,11 @@ export const inboxManifest: PluginManifest = {
     { permission: "storage:private", required: true, reason: "项目里 Inbox 下一步的绑定" },
     ...PLATFORM_PERMISSIONS],
   presentation: inboxPresentation,
-  actions: [...INBOX_ACTIONS, ...inboxPresentationActions, ...Object.values(inboxContentActions), inboxSubjectAction, inboxSearchEntriesAction, inboxHomeEventsAction],
+  actions: [...INBOX_ACTIONS, ...inboxPresentationActions, ...Object.values(inboxContentActions), inboxSubjectAction, inboxSearchEntriesAction, inboxWorkEventsAction],
   action_scenes: [inboxNextScene],
   // What another plugin's background task may be let read, one switch per group (specs/proactive-assistant/schedule-task-reads.md §3.2).
   read_groups: [{ group_id: "inbox", title: "来信", description: "Inbox 里待处理的事项与它们的内容",
-    actions: ["inbox.list", "inbox.subject.read", "inbox.search.entries", "inbox.home.events", "inbox.content.list", "inbox.content.read"] }],
+    actions: ["inbox.list", "inbox.subject.read", "inbox.search.entries", "inbox.events", "inbox.content.list", "inbox.content.read"] }],
   // The page's requests: each adapts one HTTP call to one of the plugin's own actions (`createInboxRouteHandlers`), under /api/plugins/<plugin_id>/.
   routes: [
     { route_id: "inbox.list", method: "GET", path: "/entries", permission: "inbox:read" },

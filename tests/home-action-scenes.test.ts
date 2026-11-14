@@ -8,7 +8,7 @@ import test from "node:test";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, DEMO_PROJECT_ID, cachedMolisWorkWebView } from "@molis-ai/molis-work-app-local-host";
 import { ActionError, bindActionClient, type ActionAvailability, type ActionCallContext, type ActionDefinition, type ActionSceneBinding, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
-import { definePlugin, defineSubjectContextAction, defineHomeEventsAction, defineSubjectOffersAction, subjectContext } from "@molis-ai/molis-work-plugin-sdk";
+import { definePlugin, defineSubjectContextAction, defineWorkEventsAction, defineSubjectOffersAction, subjectContext } from "@molis-ai/molis-work-plugin-sdk";
 import { liveHostJudgmentRuleAuthoringCatalog } from "@molis-ai/molis-work-app-local-host";
 import { publishedFunctionAction } from "@molis-ai/molis-work-module-judgment-rules";
 import { subjectOfferChoiceKey } from "@molis-ai/molis-work-kernel";
@@ -204,7 +204,7 @@ test("BCC-07 Home judgment resolves a formally installed plugin's own subjects a
     project.store.db.exec("CREATE TABLE fixture_home_judgment_notes (id TEXT PRIMARY KEY, revision INTEGER NOT NULL, content TEXT NOT NULL)");
     project.store.db.prepare("INSERT INTO fixture_home_judgment_notes VALUES (?, 1, ?)").run(subject.id, "插件私有记录的原始正文");
     const reader = defineSubjectContextAction("unknown.notes.read", 1, subject.kind, "原笔记", ["notes:read"]);
-    const events = defineHomeEventsAction("unknown.notes.events", 1, [subject.kind], "笔记事项", ["notes:read"]);
+    const events = defineWorkEventsAction("unknown.notes.events", 1, [subject.kind], "笔记事项", ["notes:read"]);
     const write: ActionDefinition = { capability_id: "unknown.notes.finish", version: 1, operation: "command", action: {
       title: "完成笔记", description: "修改插件原记录", kind: "operation", scope: "project", audiences: ["user", "mcp"],
       permissions: ["notes:write"], subject_kinds: [subject.kind], input_schema: { type: "object", properties: { id: { type: "string" }, revision: { type: "integer" }, marker: { type: "string" } }, required: ["id", "revision", "marker"], additionalProperties: false },

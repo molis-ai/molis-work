@@ -70,8 +70,9 @@ function installPastWing(run: HTMLElement): void {
     earlier.toggleAttribute("data-attn", attention > 0);
     if (count) count.textContent = String(hidden);
     if (flagged) { flagged.hidden = attention === 0; const n = flagged.querySelector("[data-n]"); if (n) n.textContent = String(attention); }
-    const label = (attention ? earlier.dataset.labelAttn : earlier.dataset.label)?.replace("{n}", String(hidden)).replace("{m}", String(attention));
-    if (label) { earlier.setAttribute("aria-label", label); earlier.title = label; }
+    const label = attention ? globalThis.t.text("workbench.work-line.earlier-events-n-attention", { n: String(hidden), m: String(attention) })
+      : globalThis.t.text("workbench.work-line.earlier-events-n", { n: String(hidden) });
+    earlier.setAttribute("aria-label", label); earlier.title = label;
   };
   const settle = () => {
     fitEvents(run);

@@ -32,7 +32,7 @@ const titles = (result: TodoListResult) => result.items.map(item => item.title).
 test("manifest parses, every action is home-scoped (the home page source and a project's search source are per project) and delete is the only irreversible one", () => {
   const manifest = parsePluginManifest(JSON.parse(JSON.stringify(todoManifest)));
   assert.equal(manifest.plugin_id, "io.molis.work.todo");
-  const perProject = new Set(["todo.home.events", "todo.search.project_entries"]);
+  const perProject = new Set(["todo.events", "todo.search.project_entries"]);
   for (const definition of todoManifest.actions!) assert.equal(definition.action.scope, perProject.has(definition.capability_id) ? "project" : "home", definition.capability_id);
   const irreversible = todoManifest.actions!.filter(definition => actionEffect(definition.action, definition.capability_id) === "irreversible").map(definition => definition.capability_id);
   assert.deepEqual(irreversible, ["todo.items.delete"]);

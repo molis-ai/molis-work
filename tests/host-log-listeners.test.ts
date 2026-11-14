@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
-import { defineDueRemindersAction, defineHomeEventsAction, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { defineDueRemindersAction, defineWorkEventsAction, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MemoryPluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
 import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 import { AssistantService, AssistantStore, ComputerDesk, ComputerRecords, ComputerSettings, LocalHost, PluginInstallService, SandboxPackageStore, assistantAuthority, captureHostLog,
@@ -184,7 +184,7 @@ test("RAC-1114 W5-13-16 a background look that keeps failing (a source of new ma
   const local = newLocalHost();
   t.after(() => local.close());
   let eventsBroken = true, remindersBroken = true;
-  const events = defineHomeEventsAction("fixture.material.events", 1, ["note"], "事项", []);
+  const events = defineWorkEventsAction("fixture.material.events", 1, ["note"], "事项", []);
   local.actionRegistry(project).registerProvider({ provider: { provider_id: "fixture.material", kind: "plugin", title: "Material" }, definitions: [events],
     handlers: [{ ...events, handle: () => { if (eventsBroken) throw failure("fixture.events_down"); return { source: { surface: "notes", title: "Notes", icon: "note" }, events: [] }; } }] });
   const reminders = defineDueRemindersAction("fixture.material.reminders", 1, ["note"], "提醒", []);

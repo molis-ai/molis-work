@@ -1,4 +1,4 @@
-import { assertHomeEventWindow, defineHomeEventsAction, type ActionCallContext, type ActionHandlerBinding, type HomeEvent, type HomeEventCollection, type HomeEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
+import { assertWorkEventWindow, defineWorkEventsAction, type ActionCallContext, type ActionHandlerBinding, type WorkEvent, type WorkEventCollection, type WorkEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 import { TODO_PROJECT_PLUGIN_ID, TODO_SUBJECT_KIND, type TodoItem } from "./contract.js";
 import { localDate } from "./dates.js";
 import type { TodoAccess, TodoStore } from "./store.js";
@@ -9,23 +9,23 @@ import { todoFlags } from "./views.js";
  * What Todo puts on the project's home page: reminders that are due, what is overdue, due or planned today, and follow-ups due.
  * All of it is still to do today, so it sits on today; the time shown is the reminder's, or when the todo was written down.
  */
-export const todoHomeEventsAction = defineHomeEventsAction("todo.home.events", /* @version action.todo.home.events */ 1, [TODO_SUBJECT_KIND], "待办首页事项", ["todo:read"]);
+export const todoWorkEventsAction = defineWorkEventsAction("todo.events", /* @version action.todo.events */ 1, [TODO_SUBJECT_KIND], "待办事件", ["todo:read"]);
 
 const MAX_EVENTS = 20;
 const open = (item: TodoItem) => ({ kind: "item" as const, surface: TODO_PROJECT_PLUGIN_ID, id: item.id, title: item.title, label: "打开待办" });
 const placementText = (item: TodoItem, projectId: string | null) => item.placement === "project" ? (item.project_id === projectId ? "这个项目" : "其他项目") : item.placement === "personal" ? "个人" : "暂未归类";
 const clock = (iso: string) => { const at = new Date(iso); return `${String(at.getHours()).padStart(2, "0")}:${String(at.getMinutes()).padStart(2, "0")}`; };
 
-export function todoHomeEvents(store: TodoStore, access: TodoAccess, now: Date): HomeEvent[] {
+export function todoWorkEvents(store: TodoStore, access: TodoAccess, now: Date): WorkEvent[] {
   const today = localDate(now);
-  const events: HomeEvent[] = [];
+  const events: WorkEvent[] = [];
   const seen = new Set<string>();
   const facts = (item: TodoItem): Array<[string, string]> => [
     ...(item.due_date ? [["截止", item.due_date + (item.due_time ? " " + item.due_time : "")] as [string, string]] : []),
     ...(item.planned_date ? [["计划", item.planned_date] as [string, string]] : []),
     ["放在", placementText(item, access.projectId)],
   ];
-  const push = (item: TodoItem, event: Omit<HomeEvent, "subject" | "category" | "title" | "content" | "facts" | "open">) => {
+  const push = (item: TodoItem, event: Omit<WorkEvent, "subject" | "category" | "title" | "content" | "facts" | "open">) => {
     if (seen.has(item.id) || events.length >= MAX_EVENTS) return;
     seen.add(item.id);
     events.push({ ...event, subject: { kind: TODO_SUBJECT_KIND, id: item.id }, category: "personal", title: item.title,
@@ -54,10 +54,10 @@ export function todoHomeEvents(store: TodoStore, access: TodoAccess, now: Date):
 }
 
 export function createTodoHomeEventsHandler(read: <T>(run: (store: TodoStore) => T) => T, now: () => Date = () => new Date()): ActionHandlerBinding {
-  return { ...todoHomeEventsAction, handle: (caller: ActionCallContext, value: unknown): HomeEventCollection => {
-    const window = value as HomeEventWindow;
-    assertHomeEventWindow(window);
+  return { ...todoWorkEventsAction, handle: (caller: ActionCallContext, value: unknown): WorkEventCollection => {
+    const window = value as WorkEventWindow;
+    assertWorkEventWindow(window);
     const access: TodoAccess = { projectId: todoCallerProject(caller), projectIds: [], actor: "other", actorId: caller.actor_id };
-    return { source: { surface: TODO_PROJECT_PLUGIN_ID, title: "待办", icon: "list" }, events: read(store => todoHomeEvents(store, access, now())) };
+    return { source: { surface: TODO_PROJECT_PLUGIN_ID, title: "待办", icon: "list" }, events: read(store => todoWorkEvents(store, access, now())) };
   } };
 }

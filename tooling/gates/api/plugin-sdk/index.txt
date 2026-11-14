@@ -236,10 +236,6 @@ export type { HomeBackgroundTask } from "@molis-ai/molis-work-contracts/platform
 export type { HomeBackgroundTaskCollection } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { HomeBackgroundTaskCommand } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { HomeBackgroundTaskPhrase } from "@molis-ai/molis-work-contracts/platform/actions";
-export type { HomeEvent } from "@molis-ai/molis-work-contracts/platform/actions";
-export type { HomeEventCollection } from "@molis-ai/molis-work-contracts/platform/actions";
-export type { HomeEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
-export type { HomeOpenTarget } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { InferActionInput } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 export type { InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
@@ -274,6 +270,7 @@ export type { MaterialSource } from "@molis-ai/molis-work-contracts/services/mat
 export type { MaterialSourceContent } from "@molis-ai/molis-work-contracts/services/materials";
 export type { MaterialUpload } from "@molis-ai/molis-work-contracts/services/materials";
 export type { MissedRun } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { OpenTarget } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export declare const PAGE_ROUTE_LIMITS: Readonly<{
     routes: 32;
@@ -623,6 +620,9 @@ export type { UiTerminalEvent } from "@molis-ai/molis-work-contracts/platform/ui
 export type { UiTerminalMountOptions } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiTerminalView } from "@molis-ai/molis-work-contracts/platform/ui";
 export { WORK_EXECUTOR_ROLES } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { WorkEvent } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { WorkEventCollection } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { WorkEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { WorkExecutorActionOptions } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { WorkExecutorCalls } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { WorkExecutorRole } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -657,7 +657,6 @@ export declare function arraySchema<const I>(items: I): {
 };
 
 export { assertDueReminderWindow } from "@molis-ai/molis-work-contracts/platform/actions";
-export { assertHomeEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export declare function assertManifest(manifest: PluginManifest): void;
 
@@ -674,6 +673,7 @@ export declare function assertMatches(schema: SandboxSchema, value: unknown, fai
 export declare function assertSchema(schema: unknown, fail: SandboxSchemaFailure): asserts schema is SandboxSchema;
 // exported from this entry as "assertSandboxSchema"
 
+export { assertWorkEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 export { bindActionHandler } from "@molis-ai/molis-work-contracts/platform/actions";
 export { bindArtifactCompare } from "@molis-ai/molis-work-contracts/platform/actions";
 export { bindArtifactContinue } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -763,7 +763,6 @@ export { defineFileContentAction } from "@molis-ai/molis-work-contracts/platform
 export { defineFileEntriesAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineFragmentOffersAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineHomeBackgroundTasksAction } from "@molis-ai/molis-work-contracts/platform/actions";
-export { defineHomeEventsAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineInstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 export { defineKitReportAction } from "@molis-ai/molis-work-contracts/platform/kit-report";
 export { defineObjectCopyAction } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -789,6 +788,7 @@ export declare function defineSettingsActions(options: SettingsActionsOptions): 
 
 export { defineSubjectContextAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineSubjectOffersAction } from "@molis-ai/molis-work-contracts/platform/actions";
+export { defineWorkEventsAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineWorkExecutorAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineWorkExecutorActions } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineWorkflowContentActions } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -1081,8 +1081,8 @@ export declare function wallClockIn(at: number, zone: string | undefined): {
 
 export { withActionEffect } from "@molis-ai/molis-work-contracts/platform/actions";
 export { withinDueReminderWindow } from "@molis-ai/molis-work-contracts/platform/actions";
-export { withinHomeEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 export { withinRunsWindow } from "@molis-ai/molis-work-contracts/platform/actions";
+export { withinWorkEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export declare function zonedParts(timeZone: string | undefined, { seconds, shortOffset }?: {
     seconds?: boolean;

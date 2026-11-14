@@ -70,7 +70,7 @@ test("WLN-37: a source that cannot be read is in the line's lead, outside what s
     const run = line.indexOf('class="work-line-run"');
     const earlier = line.indexOf("data-work-line-earlier");
     assert.ok(earlier > 0 && earlier < run, "the way back to earlier events stands before the run, after the head");
-    assert.match(line, /data-work-line-earlier data-label="更早的事件 · \{n\} 件" data-label-attn="更早的事件 · \{n\} 件，其中 \{m\} 件要留意" aria-label="更早的事件" hidden>/u);
+    assert.match(line, /data-work-line-earlier aria-label="更早的事件" hidden>/u);
     assert.match(line, /<div class="work-line-lead"><button type="button" class="work-line-head"/u, "the head leads the line");
     const retry = line.indexOf("data-work-line-retry");
     assert.ok(retry < earlier, "an unreadable source stands in the lead, before the way back and outside what scrolls");

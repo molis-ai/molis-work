@@ -85,8 +85,7 @@ export function renderWorkLine(line: {
   readonly unreadable?: readonly string[]; readonly slot: string;
 }): string {
   const run = (events: readonly LineEventView[]) => events.map(renderLineEvent).join("");
-  const label = (key: string) => escapeHtml(uiText.text(`workbench.work-line.${key}`, { n: "{n}", m: "{m}" }));
-  const earlier = `<button type="button" class="work-line-earlier" data-work-line-earlier data-label="${label("earlier-events-n")}" data-label-attn="${label("earlier-events-n-attention")}" aria-label="${uiText("workbench.work-line.earlier-events")}" hidden>`
+  const earlier = `<button type="button" class="work-line-earlier" data-work-line-earlier aria-label="${uiText("workbench.work-line.earlier-events")}" hidden>`
     + `${icon("chevron-left")}<span data-count></span><span class="work-line-earlier-attn" data-attn-count hidden>${icon("circle-alert")}<span data-n></span></span></button>`;
   const latest = `<button type="button" class="work-line-earlier work-line-latest" data-work-line-latest aria-label="${uiText("workbench.work-line.back-to-now")}" title="${uiText("workbench.work-line.back-to-now")}" hidden>${icon("chevron-right")}</button>`;
   return `<div class="work-line" data-work-line role="region" aria-label="${uiText("workbench.work-line.work-line")}">`

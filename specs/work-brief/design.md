@@ -11,7 +11,7 @@
 | 助理交给人的结构只有四种：问题卡（`AgentPendingQuestion`）、动作卡（`AssistantCard`，`apps/local-host/src/assistant/assistant-card-view.ts`）、下一步行、动作结果摘要（`ActionResultPresentation`：一句话、标题、至多 4000 字正文、一个链接） | 都是表单或回执的形状。一份周报、一个日程冲突、一组方案对照只能写成 Markdown 正文，再挂一张动作卡；对象、依据、状态都埋在文字里 |
 | 正文里的对象只有名字 | 点不开、定位不了、变了也看不出来，平台核对不了是不是真对象（主动式助理 §5.5「卡片的对象和位置必须来自可核对的工具结果」） |
 | 工作简报需求把脉搏、状态页、使用回顾、交互式报告页各写了一段 | 照着做是四种页面、四套代码，违反 WBR-08「插件没有按场景名称固定的生成流程」 |
-| 首页事项（`HomeEvent`）、Inbox 推荐、动作卡各有各的行样式与状态 | 同一件事在首页、侧栏、对话里长得不一样，状态各算各的（主动式助理 §11「不产生另一套需要手工维护的首页待办」） |
+| 首页事项（`WorkEvent`）、Inbox 推荐、动作卡各有各的行样式与状态 | 同一件事在首页、侧栏、对话里长得不一样，状态各算各的（主动式助理 §11「不产生另一套需要手工维护的首页待办」） |
 
 ## 2. 方案
 
@@ -129,7 +129,7 @@ interface SubjectSummary {
 // 读不到的逐个回 { subject, missing: "deleted" | "unavailable" }，不整批失败
 ```
 
-每个已有 `subject.read` 的插件补一个 `*.subject.summaries`，权限同读取。首页事项（`packages/contracts/src/platform/home-events.ts`）的 `facts` 与 `open` 已经是这个形状，Todo、Schedule、Goals、Feed、Inbox 可以直接复用取值。
+每个已有 `subject.read` 的插件补一个 `*.subject.summaries`，权限同读取。首页事项（`packages/contracts/src/platform/work-events.ts`）的 `facts` 与 `open` 已经是这个形状，Todo、Schedule、Goals、Feed、Inbox 可以直接复用取值。
 
 ## 6. 状态与有效性
 

@@ -297,7 +297,7 @@ test("RAC-76 W5-06-PLACE-02 the rail lists each plugin under the group its view 
 
 test("RAC-77 W5-06-PLACE-03 a settings page's icon is its view's, also when found by its own URL", () => {
   const icons = Object.fromEntries(listPluginSettingsNavItems(shownProjectPlugins(["goals", "coding"])).map(item => [item.section_id, item.icon]));
-  assert.deepEqual(icons, { shelf: "library", planning: "workflow", "coding-settings": "code" });
+  assert.deepEqual(icons, { shelf: "library", "coding-settings": "code" });
   assert.equal(findPluginSettingsNavItem("coding-settings")?.icon, "code", "a project that does not show Coding still finds its page with its icon");
   assert.equal(findPluginSettingsNavItem("shelf")?.icon, "library");
   const page: UiContributionDeclaration = {

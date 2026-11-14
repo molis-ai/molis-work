@@ -147,6 +147,8 @@ export const DOCK_SCRIPT = `(readText, projectId, host = {}) => {
     const held = failed(id) && document.querySelector('[data-work-surface="' + CSS.escape(id) + '"] [data-owner-unavailable]');
     pin.title = labelOf(source); pin.setAttribute('aria-label', labelOf(source) + (failed(id) ? ' · ' + (held ? globalThis.t.text("workbench.navigation-presentation.unavailable-for-now") : globalThis.t.text("workbench.navigation-presentation.didn-t-start")) : ''));
     const glyph = glyphOf(id); if (glyph) pin.append(glyph);
+    // The current one reads its name in the top strip (specs/work-line §4.2); the others are their glyph.
+    const name = document.createElement('span'); name.className = 'dock-pin-name'; name.textContent = labelOf(source); pin.append(name);
     warn(pin, id);
     return pin;
   };
@@ -299,7 +301,7 @@ export const DOCK_SCRIPT = `(readText, projectId, host = {}) => {
   // The bar's width is the window's; watching it (not the Dock itself) keeps folding from feeding back into itself. The right
   // group too: a directory button joins it after the first fit. And the switcher, whose name (a long plugin name) takes room
   // from the pins.
-  if (pins && 'ResizeObserver' in window) { const watcher = new ResizeObserver(() => fit()); for (const node of [dock, dock.querySelector('.bar-end'), dock.querySelector('.plugin-picker'), own]) if (node) watcher.observe(node); }
+  if (pins && 'ResizeObserver' in window) { const watcher = new ResizeObserver(() => fit()); for (const node of [dock, dock.querySelector('[data-titlebar-tabs]'), dock.querySelector('.plugin-picker'), own]) if (node) watcher.observe(node); }
 
   const searchKey = dock.querySelector('.plugin-picker-search kbd');
   if (searchKey && !/Mac|iPhone|iPad/.test(navigator.platform)) searchKey.textContent = 'Ctrl K';

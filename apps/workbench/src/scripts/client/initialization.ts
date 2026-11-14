@@ -73,7 +73,8 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       shownPlugin: () => tabWorkspace?.shownPlugin?.() || null,
       registerCover: (kind, open) => tabWorkspace?.registerCover?.(kind, open),
     });
-    if (!document.body.hasAttribute('data-pane-embedded')) globalThis.molisWorkBarColumn?.();
+    if (!document.body.hasAttribute('data-pane-embedded')) globalThis.molisWorkBar?.({ route,
+      openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title), openSurface: (plugin) => openSurfaceEntry(plugin) });
     (${ATTENTION_FACTORY_SCRIPT})({ translate: readText, route, projectId: state.project?.project_id,
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title) });
     (${PLUGIN_NOTIFICATIONS_FACTORY_SCRIPT})({ projectId: state.project?.project_id });

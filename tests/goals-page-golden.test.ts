@@ -186,6 +186,13 @@ const pages: Record<string, Draw> = {
 // shell's materials toolbar and materials stage added, and the plugin-title model without Files (162 / 184 characters shorter in
 // zh / en); the other differences are in executable scripts, the plugin directory and the locale script's address, outside the hash.
 // No Goals markup or JSON changed. The 16 were then recorded with MOLIS_WORK_GOLDEN_RECORD=1; the other 50 records did not change.
+// Batch 32 (work line, WLN-16): base 392f3bdd71 already drew 24 records differently from golden.json — #2056 (63b86de1b8) put the
+// column names over the Goal list (`data-tree-columns`, 146 / 169 characters in zh / en) without re-recording, which is the whole
+// difference of the 8 refresh records. The 16 project pages carry that line plus this batch's shell change (639 / 596 characters):
+// the Dock, the start page behind ＋, the person's tray and the project button went from the foot to the top strip, the foot is
+// the work line with the Assistant in its slot, and the side's background-tasks tab and page are gone from a project page (the
+// task panel beside the dialog replaces them). Every page state grew by the same amount in each language and no document or
+// settings record moved, so no Goals markup changed here. The 24 were recorded with MOLIS_WORK_GOLDEN_RECORD=1; the other 42 did not change.
 // The hashes below come from the checked draws with RECORD unset. The independent text and data assertions stay in place.
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }

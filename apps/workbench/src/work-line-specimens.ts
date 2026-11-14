@@ -75,7 +75,7 @@ const linxia = () => ({ name: say("linxia"), character: true });
 
 function line(kind: "ok" | "wait" | "empty" | "unreadable", above = ""): string {
   const e = events(), waiting = kind === "wait";
-  const head = renderLineHead({ name: nav("website-revamp"), waiting: waiting ? 1 : 0 });
+  const head = renderLineHead({ menu: "", name: nav("website-revamp"), waiting: waiting ? 1 : 0 });
   const slot = `${above ? `<div class="mw-wls__above">${above}</div>` : ""}${composer(assistant())}`;
   if (kind === "empty") return renderWorkLine({ head, past: [], active: [], next: [], slot });
   return renderWorkLine({
@@ -136,7 +136,7 @@ function acceptanceCard(): string {
     id: "plan", facts: say("registered-by-to-accept", { plugin: OWNER.pages.name }),
     body: `<div class="work-card-quote">${escapeHtml(say("plan-preview"))}</div>`
       + `<div class="work-card-source">${icon("note")}<span>${escapeHtml(say("plan-source"))}</span></div>`
-      + `<div class="work-card-section"><h4>${escapeHtml(say("requirements-n-of-n"))}</h4>${renderTaskSteps([{ name: say("requirement-three-tiers"), at: "done", who: say("checked-v3") }, { name: say("requirement-comparison-table"), at: "done", who: say("checked-v3") },
+      + `<div class="work-card-section"><h4>${escapeHtml(say("requirements-n-of-n"))}</h4>${renderTaskSteps([{ name: say("requirement-three-tiers"), at: "done", who: say("checked-third-version") }, { name: say("requirement-comparison-table"), at: "done", who: say("checked-third-version") },
         { name: say("requirement-faq"), at: "current", ring: "answer", who: say("needs-your-look") }])}</div>`
       + `<div class="work-card-actions">${button("primary", "accept")}${button("secondary", "revise")}${button("secondary", "review-item-by-item")}`
       + `${renderButton({ variant: "ghost", size: "sm", icon: "external", iconOnly: true, label: say("open-as-tab") })}${renderButton({ variant: "ghost", size: "sm", icon: "bookmark", iconOnly: true, label: say("put-on-shelf") })}</div>`,
@@ -194,7 +194,7 @@ export function renderWorkLineSpecimens(specimen: Specimen): string {
     row(renderLineEvent(e.review) + renderLineEvent(e.upgrade) + renderLineEvent(e.fix) + renderLineEvent(e.goal) + renderLineEvent({ ...e.fix, id: "fix-current", current: true }) + renderLineEvent({ ...e.brand, id: "brand-fresh", fresh: true }))
     + row(renderLineEvent(e.quote) + renderLineEvent(e.talk) + renderLineEvent(e.exported) + renderLineEvent(e.merge))
     + row(renderLineEvent(e.plan) + renderLineEvent(e.weekly) + renderLineEvent(e.hidden) + renderLineUnreadable("Feed")));
-  const head = specimen("wl-head", "2", say("line-head"), say("line-head-note"), row(renderLineHead({ name: nav("website-revamp"), waiting: 0 }) + renderLineHead({ name: nav("homepage-revamp-new-first-screen"), waiting: 0, ring: "running" }) + renderLineHead({ name: nav("homepage-revamp-new-first-screen"), waiting: 2, ring: "answer" })));
+  const head = specimen("wl-head", "2", say("line-head"), say("line-head-note"), row(renderLineHead({ menu: "", name: nav("website-revamp"), waiting: 0 }) + renderLineHead({ menu: "", name: nav("homepage-revamp-new-first-screen"), waiting: 0, ring: "running" }) + renderLineHead({ menu: "", name: nav("homepage-revamp-new-first-screen"), waiting: 2, ring: "answer" })));
   const mark = specimen("wl-task-mark", "3", say("task-mark"), say("task-mark-note"),
     row(renderTaskMark({ count: 0 }) + renderTaskMark({ count: 2, lead: "running" }) + renderTaskMark({ count: 3, lead: "answer", needsYou: true }) + renderTaskMark({ count: 2, lead: "failed", failed: true })
       + renderTaskMark({ count: 2, offline: true }) + renderTaskMark({ count: 2, lead: "running", expanded: true })));
@@ -226,7 +226,7 @@ export const renderWorkLineIndexLink = () => `<a href="#work-line" title="${esca
  * above the composer, and the stage a dialog stands in. The product's dialog is fixed above the bar; here it stands in a
  * stage that frames it (`data-work-float-frame`), and the task panel is placed in that stage by the product's own rule.
  */
-export const WORK_LINE_FRAME_STYLES = `.mw-wls__row{flex-wrap:nowrap;overflow-x:auto;padding:4px 2px;scrollbar-width:none}
+export const WORK_LINE_FRAME_STYLES = `.mw-wls__row{flex-wrap:nowrap;overflow-x:auto;padding:4px 2px}
 .mw-wls__panels{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,340px));align-items:start;gap:16px;padding:4px}
 .mw-wls__thread{display:flex;flex-direction:column;gap:12px;max-width:560px;padding:4px!important;font-size:14px}
 .mw-wls__slot{display:flex;flex-direction:column;max-width:540px;padding:4px}

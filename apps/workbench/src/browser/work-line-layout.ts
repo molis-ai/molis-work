@@ -126,13 +126,15 @@ function installPastWing(run: HTMLElement): void {
     go(beside(turned < 0 ? -1 : 1), "auto"); turned = 0;
   }, { passive: false });
   settle(); new ResizeObserver(settle).observe(run);
+  // The line is drawn again into the same wing (a read brought other events): it settles as after a resize.
+  new MutationObserver(settle).observe(run, { childList: true });
 }
 
 function installNextWing(run: HTMLElement): void {
-  const report = () => run.toggleAttribute("data-more", run.scrollLeft + run.clientWidth < run.scrollWidth - 1);
-  const settle = () => { fitEvents(run); report(); };
-  run.addEventListener("scroll", report, { passive: true });
+  // The edge that has more fades by the shared overflow fade (the run is marked data-overflow-fade); nothing is measured here for it.
+  const settle = () => fitEvents(run);
   settle(); new ResizeObserver(settle).observe(run);
+  new MutationObserver(settle).observe(run, { childList: true });
 }
 
 /**
@@ -180,6 +182,7 @@ function installTrack(track: HTMLElement): void {
     track.scrollBy({ left: target.getBoundingClientRect().left - edge });
   }, { passive: false });
   rest(); new ResizeObserver(rest).observe(track);
+  new MutationObserver(rest).observe(track, { childList: true, subtree: true });
 }
 
 function installTabs(tabs: HTMLElement): void {

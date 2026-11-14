@@ -46,7 +46,7 @@ export const CRAFT_PAGES_STYLES = `  /* A phone: two rows at the foot, the Assis
     ${ASSIST} .bar-center > .assistant-next-row { inset: auto -8px 100%; max-width: none; padding: 8px 8px 6px; background: var(--desk); }
     ${ASSIST} .bar-center > .assistant-context-strip { inset: auto -8px calc(100% + var(--next-row, 0px)); max-width: none; padding: 6px 8px 0; background: var(--desk); }
     ${SHELL} .account-global-popover { position: fixed; left: 10px; bottom: calc(var(--dock-h) + 6px); width: min(300px, calc(100vw - 20px)); }
-    html ${SHELL} .workbench-bar .bar-end .navigator-project-menu-popover { position: fixed; right: 10px; left: auto; bottom: calc(var(--dock-h) + 6px); }
+    html ${SHELL} .workbench-header .titlebar-end .navigator-project-menu-popover { position: fixed; right: 10px; left: auto; top: calc(var(--desktop-titlebar-height) + 6px); }
     ${SHELL} .bar-start .plugin-picker { max-width: none; padding-right: 0; }
     ${SHELL} .bar-start .plugin-picker-trigger { padding: 0 8px; }
     /* On a phone the Dock beside it already shows where you are: the switcher is the door to all plugins. */

@@ -8,32 +8,36 @@ export const ASSISTANT_TABS_PART = String.raw`  /* ─── Tabs ────�
   function drawTabs() {
     if (!tabsEl) return;
     const focused = tabsEl.contains(document.activeElement) ? document.activeElement.closest("[data-tab]")?.dataset.tab : null;
-    const ids = tabs.slice();
+    // The main conversations lead and stay (one per counterpart, the Assistant's first even before its first message); then the open works.
+    const lead = mains(), own = lead.find((work) => !work.character), ids = tabs.filter((id) => !workById(id)?.main);
     tabsEl.replaceChildren();
     const tab = (id, title, mark, closable) => {
       const wrap = el("div", "assistant-tab"); wrap.dataset.tab = id;
       if (mark) wrap.dataset.mark = mark;
-      const cur = id === (curId || "new");
+      const cur = id === (curId || (fresh ? "new" : "main"));
+      if (id === "main" || workById(id)?.main) wrap.dataset.main = "";
       if (cur) wrap.setAttribute("data-current", "");
       const main = el("button", "assistant-tab-main"); main.type = "button"; main.setAttribute("role", "tab");
       main.setAttribute("aria-selected", String(cur)); main.tabIndex = cur ? 0 : -1;
       main.setAttribute("aria-controls", "assistant-side");
       main.append(tabMark(mark, workById(id)), el("span", "assistant-tab-title", title));
       main.title = title + (mark ? " · " + globalThis.t.text(MARK_LABEL[mark]) : "");
-      main.addEventListener("click", () => { if (id === "new") void switchTo(null); else void switchTo(id); });
+      main.addEventListener("click", () => { if (id === "main") { fresh = false; void switchTo(null); } else if (id !== "new") void switchTo(id); });
       wrap.append(main);
       if (id !== "new") wrap.addEventListener("auxclick", (event) => { if (event.button !== 1) return; event.preventDefault(); closeTab(id); });
       if (closable) {
         const close = el("button", "assistant-tab-close", "×"); close.type = "button"; close.tabIndex = -1;
         close.setAttribute("aria-label", globalThis.t.text("workbench.assistant-tabs.close-tab-named", { title }));
         close.title = globalThis.t.text("workbench.assistant-tabs.close-tab-work-stays-all-work");
-        close.addEventListener("click", (event) => { event.stopPropagation(); if (id === "new") void switchTo(tabs[tabs.length - 1] || null); else closeTab(id); });
+        close.addEventListener("click", (event) => { event.stopPropagation(); if (id === "new") { fresh = false; void switchTo(tabs[tabs.length - 1] || null); } else closeTab(id); });
         wrap.append(close);
       }
       tabsEl.append(wrap);
     };
+    tab(own ? own.work_id : "main", globalThis.t.text("workbench.assistant-tabs.main-conversation"), markOf(own), false);
+    lead.filter((work) => work.character).forEach((work) => tab(work.work_id, work.character.title, markOf(work), false));
     ids.forEach((id) => { const work = workById(id); tab(id, work ? work.title : globalThis.t.text("workbench.assistant-tabs.loading"), markOf(work), true); });
-    if (!curId) tab("new", globalThis.t.text("workbench.assistant-tabs.new-work"), "", ids.length > 0);
+    if (!curId && fresh) tab("new", globalThis.t.text("workbench.assistant-tabs.new-work"), "", true);
     const cur = tabsEl.querySelector("[data-current]");
     if (cur) {
       const left = cur.offsetLeft, right = left + cur.offsetWidth;

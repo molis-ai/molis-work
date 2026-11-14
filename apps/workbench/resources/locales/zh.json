@@ -1830,6 +1830,7 @@
     "workbench.assistant-tabs.close-tab-work-stays-all-work": "关闭标签（工作仍在“全部工作”里）",
     "workbench.assistant-tabs.continue-recent-work": "继续最近的工作",
     "workbench.assistant-tabs.loading": "正在读取…",
+    "workbench.assistant-tabs.main-conversation": "主对话",
     "workbench.assistant-tabs.needs": "等你",
     "workbench.assistant-tabs.new-messages": "新消息",
     "workbench.assistant-tabs.new-results": "有新结果",
@@ -7762,7 +7763,7 @@
     "workbench.work-line-specimens.card-decision": "决定请求",
     "workbench.work-line-specimens.card-live": "在办的交办",
     "workbench.work-line-specimens.change-styles": "改样式",
-    "workbench.work-line-specimens.checked-v3": "已核对 v3",
+    "workbench.work-line-specimens.checked-third-version": "已核对 v3",
     "workbench.work-line-specimens.coding-in-sandbox": "Coding · 在沙箱里",
     "workbench.work-line-specimens.compare-three-quotes": "对比三家报价",
     "workbench.work-line-specimens.dialog-closed": "对话框收起时",
@@ -7915,6 +7916,7 @@
     "workbench.work-line.stop": "停止",
     "workbench.work-line.task-failed": "任务失败 · {task}",
     "workbench.work-line.unreadable-retry": "读不到 · 重试",
+    "workbench.work-line.waiting-for-you": "等你",
     "workbench.work-line.who": "谁在办",
     "workbench.work-line.work-line": "事项线"
   }

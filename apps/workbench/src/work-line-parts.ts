@@ -8,7 +8,7 @@ import { escapeHtml, icon, renderButton, renderStateRing, t as uiText, type Plug
  * drawn part rests or floats is browser/work-line-layout.ts, run after each draw.
  */
 
-/** Who registered an event: the glyph and hue its Manifest declares, and its name for a title. */
+/** Who registered an event: the glyph and hue its Manifest declares (no hue: the neutral ink), and its name for a title. */
 export interface LineOwnerView { readonly name: string; readonly glyph: PluginIconName; readonly hue: string }
 
 /**
@@ -46,7 +46,7 @@ const attr = (name: string, value: string | undefined) => value ? ` ${name}="${e
 const text = (className: string, value: string) => `<span class="${className}">${escapeHtml(value)}</span>`;
 
 /** The mark of who registered a thing: its glyph on its hue. */
-export const renderOwnerMark = (owner: LineOwnerView) => `<span class="work-event-mark" style="--event-hue:var(--hue-${escapeHtml(owner.hue)})" aria-hidden="true">${icon(owner.glyph)}</span>`;
+export const renderOwnerMark = (owner: LineOwnerView) => `<span class="work-event-mark"${owner.hue ? ` style="--event-hue:var(--hue-${escapeHtml(owner.hue)})"` : ""} aria-hidden="true">${icon(owner.glyph)}</span>`;
 
 /** One event on the line. Its accessible name is the owner, the kind, the title, the state and the note, so a reader hears more than a sighted person sees, never less. */
 export function renderLineEvent(event: LineEventView): string {
@@ -65,12 +65,12 @@ export function renderLineUnreadable(source: string): string {
   return `<button type="button" class="work-event" data-work-line-retry data-state="unreadable" data-attn aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">${icon("circle-alert")}${text("work-event-name", source)}${text("work-event-state", uiText.text("workbench.work-line.unreadable-retry"))}${icon("refresh")}</button>`;
 }
 
-/** The line's head (WLN-19): the work item the line belongs to, its state ring when it has one, and how many of its events wait for the person. Opens the head's menu. */
+/** The line's head (WLN-19): the work item the line belongs to, its state ring when it has one, and how many of its events wait for the person. With a `menu` (the id of the menu it opens, empty while that menu is not mounted) it opens that menu; without one (a project's own line, which has nothing to switch to yet) a press goes to what the line belongs to. */
 export function renderLineHead(head: { readonly name: string; readonly waiting: number; readonly ring?: StateRingState; readonly menu?: string }): string {
   const waiting = head.waiting > 0 ? `<span class="work-line-count" aria-hidden="true">${head.waiting}</span>` : "";
   const label = head.waiting > 0 ? uiText.text("workbench.work-line.head-with-waiting", { name: head.name, n: head.waiting }) : head.name;
-  return `<button type="button" class="work-line-head" data-work-line-head aria-haspopup="menu" aria-expanded="false"${attr("aria-controls", head.menu)} aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">`
-    + `${head.ring ? ring(head.ring) : icon("folder")}${text("work-line-head-name", head.name)}${waiting}${icon("chevron-down")}</button>`;
+  return `<button type="button" class="work-line-head" data-work-line-head${head.menu !== undefined ? ` aria-haspopup="menu" aria-expanded="false"${attr("aria-controls", head.menu || undefined)}` : ""} aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">`
+    + `${head.ring ? ring(head.ring) : icon("folder")}${text("work-line-head-name", head.name)}${waiting}${head.menu !== undefined ? icon("chevron-down") : ""}</button>`;
 }
 
 /**
@@ -92,7 +92,7 @@ export function renderWorkLine(line: {
     + `<div class="work-line-row"><div class="work-line-track" data-work-line-track><div class="work-line-wing" data-wing="past"><div class="work-line-lead">${line.head}${(line.unreadable ?? []).map(renderLineUnreadable).join("")}</div>${earlier}`
     + `<div class="work-line-run" role="group" aria-label="${uiText("workbench.work-line.done-and-in-progress")}">${run(line.past)}${run(line.active)}</div>${latest}</div>`
     + `<span class="work-line-now" aria-hidden="true">${uiText("workbench.work-line.now")}</span>`
-    + `<div class="work-line-wing" data-wing="next"><div class="work-line-run" role="group" aria-label="${uiText("workbench.work-line.next")}">${run(line.next)}</div><span class="work-line-label" aria-hidden="true">${uiText("workbench.work-line.next")}</span></div></div>`
+    + `<div class="work-line-wing" data-wing="next"><div class="work-line-run" data-overflow-fade role="group" aria-label="${uiText("workbench.work-line.next")}">${run(line.next)}</div><span class="work-line-label" aria-hidden="true">${uiText("workbench.work-line.next")}</span></div></div>`
     + `<div class="work-line-slot" data-work-line-slot>${line.slot}</div></div></div>`;
 }
 
@@ -120,7 +120,7 @@ export function renderTaskMark(view: TaskMarkView): string {
   const label = view.offline ? uiText.text("workbench.work-line.background-tasks-offline")
     : view.count > 0 ? uiText.text("workbench.work-line.background-tasks-n", { n: view.count }) : title;
   return `<button type="button" class="work-task-mark" data-task-mark aria-expanded="${Boolean(view.expanded)}"${attr("aria-controls", view.panel)}${view.needsYou ? " data-needs-you" : ""}${view.failed ? " data-failed" : ""}${view.offline ? " data-offline" : ""} aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">`
-    + `${view.offline ? icon("circle-alert") : view.lead ? ring(view.lead) : icon("activity")}${view.count > 0 ? `<span class="work-task-mark-count">${view.count}</span>` : ""}</button>`;
+    + `${view.offline ? icon("circle-alert") : view.lead ? ring(view.lead) : icon("activity")}${view.count > 0 ? `<span class="work-task-mark-count" data-background-tasks-count>${view.count}</span>` : ""}</button>`;
 }
 
 export interface TaskRowView {

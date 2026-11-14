@@ -16,6 +16,9 @@
  * properties named here. Written without spaces after `:` and `;`, since the host only strips comments and indentation.
  */
 const W = "body.immersive-workbench";
+/** The shell outside a pane and the component board's real-bar specimen, as the design system's own rules name it. */
+const SHELL = "html :is(body.immersive-workbench:not([data-pane-embedded]),.mw-catalog-bar-stage)";
+const TOP = `${SHELL} .workbench-header[data-dock]`;
 const HOVER = "var(--dur-hover) var(--ease-quint)";
 const MOVE = "var(--dur-move) var(--ease-quint)";
 const ELLIPSIS = "overflow:hidden;text-overflow:ellipsis;white-space:nowrap";
@@ -23,12 +26,43 @@ const PRESSABLE = ":is(.work-line-head,.work-line-earlier,.work-event,.work-task
 /** An event whose note is a detail (a step, a due time): dropped where the line is short. One that needs attention keeps its note. */
 const QUIET = ".work-event:not([data-attn],[aria-current])";
 const BUTTON_GROUNDS = ":is(.work-reply-placed,.work-reply-actions,.work-task-row,.work-task-banner,.work-task-facts,.work-card-actions)";
-const ANIMATED = ":is(.work-event:is([data-state],[data-fresh]),.work-task-panel,.work-reply-placed,.work-reply-peek,.work-reply-mini)";
+const ANIMATED = ":is(.work-event[data-fresh],.work-task-panel,.work-reply-placed,.work-reply-peek,.work-reply-mini)";
 
 export const WORK_LINE_STYLES = `
-@keyframes work-line-pop{from{opacity:0;transform:translateY(6px) scale(.97)}}
-@keyframes work-line-rise{from{opacity:0;transform:translateY(10px)}}
-@keyframes work-line-turn{0%,100%{box-shadow:inset 0 0 0 1px var(--amber)}50%{box-shadow:inset 0 0 0 1px var(--amber),0 0 0 4px color-mix(in srgb,var(--amber) 18%,transparent)}}
+/* The shell around the line (WLN-16). The bottom is the line and nothing else; the plugins chosen to stay, the start page's ＋,
+   the person's own plugins and the project stand in the top strip, which is 44px tall for them. */
+@media (min-width:761px){html body.immersive-workbench:not(.arrival-page){--desktop-titlebar-height:44px}}
+${SHELL} .workbench-bar[data-work-bar]{display:block}
+${TOP}{position:relative;gap:6px;padding:0 var(--sheet-inset,14px) 0 8px;--dock-btn:30px}
+${TOP}>.dock-pins{order:1;flex:0 1 auto;height:36px;margin:0 2px;padding:3px;gap:2px;border-radius:11px;background:color-mix(in srgb,var(--ink) 4%,transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--ink) 6%,transparent)}
+${TOP}>.dock-pins::before,${TOP} .dock-pin[aria-current]::after,${TOP}>.plugin-picker::after{content:none}
+${TOP} .dock-pin{border-radius:8px}
+${TOP} .dock-pin:hover{transform:none}
+${TOP} .dock-pin svg{width:17px;height:17px}
+.dock-pin-name{display:none}
+${TOP} .dock-pin[aria-current]{display:inline-flex;align-items:center;gap:6px;width:auto;max-width:160px;padding:0 10px 0 8px;font:inherit;font-size:12px;font-weight:500}
+${TOP} .dock-pin[aria-current]>.dock-pin-name{display:block;${ELLIPSIS}}
+${TOP} .dock-pin.is-fixed{margin-right:0}
+${TOP} .dock-pin.is-fixed::before{content:none}
+/* The tabs take what they need and ＋ follows them; the strip's own ＋ (a list of plugins to open) is the start page now. */
+${TOP}>[data-titlebar-tabs]{flex:0 1 auto;min-width:120px}
+${TOP}>.desktop-titlebar-drag{flex:1 1 0;width:auto;min-width:0}
+${TOP} .tab-add-button{display:none}
+${TOP}>.plugin-picker{order:2;position:static;flex:none;max-width:none;padding:0}
+${TOP} .plugin-picker-trigger{justify-content:center;width:28px;height:28px;padding:0;border:1px solid var(--line-strong);border-radius:var(--r-control,8px);background:var(--paper)}
+${TOP} .plugin-picker-trigger>svg{width:14px;height:14px}
+${TOP} .plugin-picker-trigger[aria-expanded="true"]>svg{transform:rotate(45deg)}
+${TOP} .plugin-picker-current{display:none}
+${TOP} .plugin-picker-popover:not([hidden]){animation:craft-fade-in var(--dur-hover) var(--ease-quint) both}
+${TOP}>.bar-own{order:5;height:36px;gap:2px}
+${TOP}>.titlebar-end{order:8;flex:none;display:flex;align-items:center;gap:8px;margin-left:2px}
+/* A phone: the strip's first row is the way back, the pinned plugins (44px targets, no tray), the right side's glyphs, the layout button and the project; the tabs and ＋ are its second row. */
+@media (max-width:760px){
+  ${TOP}{--dock-btn:44px;padding:0 8px}
+  ${TOP}>.dock-pins{height:44px;margin:0;padding:0;gap:0;background:none;box-shadow:none}
+  ${TOP}>.titlebar-end{order:1;margin-left:auto}
+  ${TOP} .plugin-picker-trigger{width:44px;height:44px}
+}
 /* The line: what happened on the left, the composer in the middle, what comes next on the right. Its height is constant.
    The left wing holds what is in progress and what waits for the person, so it keeps 420px before the right one grows: the
    composer is centred from 1444px up and sits a little right of centre below that. */
@@ -41,7 +75,7 @@ export const WORK_LINE_STYLES = `
 .work-line-wing[data-wing="past"]{grid-column:1;grid-row:1;container:work-wing/inline-size}
 .work-line-wing[data-wing="next"]{grid-column:3;grid-row:1}
 .work-line-slot{grid-column:2;grid-row:1;position:relative;align-self:end;min-width:0}
-.work-line-run{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:8px;height:44px;padding:0 2px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
+.work-line-run{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:8px;height:44px;padding:0 2px;overflow-x:auto;overflow-y:hidden}
 /* The line with its wings (it is more than 540px wide itself, whatever the window): the events' stretch of the left wing keeps 200px where the wing has it (the head's name shortens first), snaps to whole capsules, and makes room at its end for the way back to now once paged back. */
 @container work-line (min-width:541px){
   .work-line-wing[data-wing="past"] .work-line-run{flex:1 1 0;min-width:min(196px,calc(100% - 224px));scroll-snap-type:x mandatory;scroll-padding-right:2px}
@@ -50,36 +84,35 @@ export const WORK_LINE_STYLES = `
 }
 .work-line-wing[data-wing="past"] .work-line-run>:first-child{margin-left:auto}
 .work-line-lead{flex:0 1 auto;min-width:0;display:flex;align-items:center;gap:8px}
-.work-line-wing[data-wing="next"] .work-line-run[data-more]{-webkit-mask-image:linear-gradient(270deg,transparent,#000 24px);mask-image:linear-gradient(270deg,transparent,#000 24px)}
 .work-line-label{position:relative;flex:none;padding:0 6px;background:var(--desk);color:var(--faint);font-size:11px;white-space:nowrap}
 ${PRESSABLE}{position:relative;flex:none;display:inline-flex;align-items:center;font:inherit;white-space:nowrap;cursor:pointer;transition:background-color ${HOVER},box-shadow ${HOVER},border-color ${HOVER}}
 ${PRESSABLE}:hover{background:var(--surface-soft)}
 :is(.work-line-head,.work-line-earlier,.work-event,.work-task-mark,.work-task-row-main):focus-visible{outline:var(--focus-stroke);outline-offset:2px}
 ${PRESSABLE}>svg{flex:none;width:14px;height:14px}
 /* The head: which work item the line belongs to, and how many of its events wait for the person. */
-.work-line-head{flex:0 1 auto;min-width:calc(2em + 60px);gap:7px;height:34px;max-width:200px;padding:0 8px 0 9px;border:1px solid var(--line-strong);border-radius:var(--r-control,8px);background:var(--paper);color:var(--ink);font-size:12.5px;font-weight:600}
+.work-line-head{flex:0 1 auto;min-width:calc(2em + 60px);gap:7px;height:34px;max-width:200px;padding:0 8px 0 9px;border:1px solid var(--line-strong);border-radius:var(--r-control,8px);background:var(--paper);color:var(--ink);font-size:13px;font-weight:600}
 .work-line-head-name{min-width:0;${ELLIPSIS}}
 .work-line-count{flex:none;display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--amber-soft);color:var(--amber);font-size:11px;font-weight:600;font-variant-numeric:tabular-nums}
 /* The way to the events the left wing cannot hold: how many lie out of sight, one step back per press. */
-.work-line-earlier{gap:1px;height:28px;padding:0 7px 0 3px;border:1px solid var(--line-strong);border-radius:var(--r-control,8px);background:var(--paper);color:var(--ink-soft);font-size:11.5px;font-variant-numeric:tabular-nums}
+.work-line-earlier{gap:1px;height:28px;padding:0 7px 0 3px;border:1px solid var(--line-strong);border-radius:var(--r-control,8px);background:var(--paper);color:var(--ink-soft);font-size:11px;font-variant-numeric:tabular-nums}
 .work-line-earlier[data-attn]{border-color:var(--amber)}
 .work-line-earlier-attn{display:inline-flex;align-items:center;gap:1px;margin-left:5px;color:var(--amber);font-weight:600}
 .work-line-earlier-attn>svg{width:12px;height:12px}
 :is(.work-line-earlier,.work-line-earlier-attn)[hidden]{display:none}
 .work-line-latest{position:absolute;right:0;padding:0 6px}
 /* An event: one thing on the line, registered by a plugin or the Assistant. Its state is a word as well as a look; the tasks behind it show as a ring and a count. */
-.work-event{gap:7px;height:32px;max-width:300px;padding:0 10px 0 6px;border:0;border-radius:16px;background:var(--paper);box-shadow:inset 0 0 0 1px var(--line-strong);color:var(--ink);font-size:12.5px;font-weight:500}
+.work-event{gap:7px;height:32px;max-width:300px;padding:0 10px 0 6px;border:0;border-radius:16px;background:var(--paper);box-shadow:inset 0 0 0 1px var(--line-strong);color:var(--ink);font-size:12px;font-weight:500}
 .work-line-wing[data-wing="past"] .work-event{max-width:min(300px,calc(100% - 4px))}
 .work-event[data-cut]{opacity:0;pointer-events:none}
 .work-event[aria-current]{box-shadow:inset 0 0 0 1.5px var(--ink)}
-.work-event[data-fresh]{animation:work-line-pop var(--dur-move) var(--ease-spring,var(--ease-quint))}
+.work-event[data-fresh]{animation:craft-rise-from-bar var(--dur-move) var(--ease-spring,var(--ease-quint))}
 .work-event-mark{flex:none;display:inline-grid;place-items:center;width:18px;height:18px;border-radius:5px;background:color-mix(in srgb,var(--event-hue,var(--muted)) 16%,transparent);color:var(--event-hue,var(--muted))}
 .work-event-mark svg{width:12px;height:12px}
 .work-event-name{flex:0 1 auto;min-width:2em;overflow:hidden;text-overflow:ellipsis}
-.work-event-state{flex:none;font-size:11.5px}
-.work-event-note{flex:0 4 auto;min-width:2.5em;overflow:hidden;text-overflow:ellipsis;color:var(--muted);font-size:11.5px;font-weight:400}
+.work-event-state{flex:none;font-size:11px}
+.work-event-note{flex:0 4 auto;min-width:2.5em;overflow:hidden;text-overflow:ellipsis;color:var(--muted);font-size:11px;font-weight:400}
 .work-event-tasks{flex:none;display:inline-flex;align-items:center;gap:3px;color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums}
-.work-event[data-state="wait"]{background:var(--amber-soft);box-shadow:inset 0 0 0 1px var(--amber);animation:work-line-turn 1.8s ease-in-out 3}
+.work-event[data-state="wait"]{background:var(--amber-soft);box-shadow:inset 0 0 0 1px var(--amber)}
 .work-event[data-state="wait"] .work-event-note{color:inherit}
 .work-event[data-state="failed"]{box-shadow:inset 0 0 0 1px var(--red)}
 .work-event[data-state="failed"] .work-event-state{color:var(--red)}
@@ -95,7 +128,7 @@ ${PRESSABLE}>svg{flex:none;width:14px;height:14px}
 @container work-wing (max-width:560px){.work-event[data-state="unreadable"] .work-event-name{display:none}}
 @container work-wing (max-width:400px){.work-line-wing:has(.work-line-run>*) .work-line-head-name{display:none}.work-line-wing:has(.work-line-run>*) .work-line-head{min-width:0}}
 /* Who a reply is from: the Assistant's mark, or a Character's initial. */
-.work-reply-who{flex:none;display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--rail);color:var(--ink-soft);font-size:10px;font-weight:600}
+.work-reply-who{flex:none;display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--rail);color:var(--ink-soft);font-size:11px;font-weight:600}
 .work-reply-who[data-who="assistant"]{border-radius:5px;background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--accent-strong)}
 /* The background-task mark at the dialog's top right: a ring and how many are being worked on. */
 .work-task-mark{gap:5px;height:28px;padding:0 8px 0 6px;border:1px solid var(--line-strong);border-radius:var(--r-control,8px);background:var(--paper);color:var(--ink-soft);font-size:12px}
@@ -110,10 +143,10 @@ ${PRESSABLE}>svg{flex:none;width:14px;height:14px}
 .work-task-float[data-place="over"]{top:calc(var(--dialog-top,0px) + 52px);left:auto;right:var(--dialog-inset,18px)}
 .work-task-float[data-place="over"] .work-task-panel{max-height:min(56vh,480px,var(--dialog-room,480px))}
 /* The task panel: a list, or one task's card with a way back. */
-.work-task-panel{display:flex;flex-direction:column;width:340px;max-width:100%;max-height:min(56vh,480px);overflow:hidden;border-radius:var(--r-card,12px);background:var(--popover);box-shadow:var(--lift-3);animation:work-line-rise ${MOVE}}
+.work-task-panel{display:flex;flex-direction:column;width:340px;max-width:100%;max-height:min(56vh,480px);overflow:hidden;border-radius:var(--r-card,12px);background:var(--popover);box-shadow:var(--lift-3);animation:craft-rise ${MOVE}}
 .work-task-panel-head{flex:none;display:flex;align-items:center;gap:8px;min-height:44px;min-width:0;padding:0 8px 0 12px;border-bottom:1px solid var(--line)}
 .work-task-panel-head>svg{width:16px;height:16px;flex:none}
-.work-task-panel-title{flex:1 1 auto;min-width:0;${ELLIPSIS};font-size:14px;font-weight:600}
+.work-task-panel-title{flex:1 1 auto;min-width:0;${ELLIPSIS};font-size:13px;font-weight:600}
 .work-task-counts{flex:none;display:inline-flex;align-items:center;gap:8px;color:var(--ink-soft);font-size:12px;white-space:nowrap}
 .work-task-counts [data-count]{display:inline-flex;align-items:center;gap:3px;font-weight:600;font-variant-numeric:tabular-nums}
 .work-task-counts [data-count="you"]{color:var(--amber)}
@@ -131,7 +164,7 @@ ${PRESSABLE}>svg{flex:none;width:14px;height:14px}
 .work-task-row-main:focus-visible{outline-offset:-2px}
 .work-task-row-text{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:1px}
 .work-task-row-title{${ELLIPSIS};font-weight:500}
-.work-task-row-step{${ELLIPSIS};color:var(--muted);font-size:11.5px}
+.work-task-row-step{${ELLIPSIS};color:var(--muted);font-size:12px}
 .work-task-row[data-state="done"] .work-task-row-title{color:var(--muted)}
 .work-task-serves{display:flex;align-items:center;gap:4px;min-width:0;color:var(--ink-soft);font-size:11px;white-space:nowrap}
 .work-task-serves>svg{flex:none;width:12px;height:12px}
@@ -142,9 +175,9 @@ ${PRESSABLE}>svg{flex:none;width:14px;height:14px}
 .work-task-facts dd{display:flex;align-items:center;gap:6px;min-width:0;min-height:24px;margin:0}
 .work-task-facts dd>span{min-width:0;${ELLIPSIS}}
 .work-task-facts dd>.mw-btn{margin-left:auto}
-.work-task-step{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:var(--r-row,8px);font-size:12.5px;white-space:nowrap}
+.work-task-step{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:var(--r-row,8px);font-size:12px;white-space:nowrap}
 .work-task-step-name{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
-.work-task-step-who{flex:none;margin-left:auto;color:var(--muted);font-size:11.5px}
+.work-task-step-who{flex:none;margin-left:auto;color:var(--muted);font-size:11px}
 .work-task-step[data-step="current"]{background:var(--accent-soft)}
 .work-task-step[data-step="todo"]{color:var(--muted)}
 /* A quiet button on a quiet ground still shows where it ends (the workbench draws its secondary buttons without an edge). */
@@ -152,7 +185,7 @@ ${W} ${BUTTON_GROUNDS} .mw-btn--secondary:not(:disabled){border-color:var(--line
 /* Around a reply in the dialog: where the work was placed (with a way to change it), which task handed a reply back, and a note when the Assistant carried on by itself. */
 .work-reply-body{display:flex;flex-direction:column;gap:6px;min-width:0}
 .work-reply-body p{margin:0}
-.work-reply-placed{display:flex;align-items:center;gap:8px;min-height:32px;min-width:0;padding:3px 4px 3px 9px;border:1px solid var(--line);border-radius:var(--r-control,8px);color:var(--ink);font-size:12px;white-space:nowrap;animation:work-line-pop ${MOVE}}
+.work-reply-placed{display:flex;align-items:center;gap:8px;min-height:32px;min-width:0;padding:3px 4px 3px 9px;border:1px solid var(--line);border-radius:var(--r-control,8px);color:var(--ink);font-size:12px;white-space:nowrap;animation:craft-rise-from-bar ${MOVE}}
 .work-reply-placed>svg{flex:none;width:14px;height:14px;color:var(--ink-soft)}
 .work-reply-placed-where{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;font-weight:500}
 .work-reply-returned{align-self:flex-start;display:inline-flex;align-items:center;gap:4px;height:20px;max-width:100%;min-width:0;padding:0 7px;border-radius:var(--r-tag,6px);background:var(--accent-soft);color:var(--accent-strong);font-size:11px;font-weight:500;white-space:nowrap}
@@ -160,7 +193,7 @@ ${W} ${BUTTON_GROUNDS} .mw-btn--secondary:not(:disabled){border-color:var(--line
 .work-reply-returned[data-state="failed"]{background:color-mix(in srgb,var(--red) 12%,transparent);color:var(--red)}
 .work-reply-returned>svg,.work-reply-carried>svg{flex:none;width:12px;height:12px}
 .work-reply-returned-name{min-width:0;overflow:hidden;text-overflow:ellipsis}
-.work-reply-carried{display:flex;align-items:center;gap:5px;color:var(--muted);font-size:11.5px}
+.work-reply-carried{display:flex;align-items:center;gap:5px;color:var(--muted);font-size:11px}
 .work-reply-actions{align-self:flex-start;display:flex;align-items:center;gap:6px}
 .work-tab-unread{flex:none;width:6px;height:6px;margin-left:-2px;border-radius:50%;background:var(--accent)}
 /* The event card that heads an event's tab in the dialog; a task's card uses its sections and actions too. */
@@ -175,11 +208,11 @@ ${W} ${BUTTON_GROUNDS} .mw-btn--secondary:not(:disabled){border-color:var(--line
 .work-card-section>h4{margin:0 0 2px;padding:0 2px;color:var(--muted);font-size:11px;font-weight:500}
 .work-card-actions{display:flex;align-items:center;gap:6px;min-width:0}
 /* With the dialog closed: the latest reply above the composer, or only the mark once the person has clicked the work surface. */
-.work-reply-peek{display:flex;flex-direction:column;gap:6px;padding:10px 12px;border-radius:var(--r-card,12px);background:var(--popover);box-shadow:var(--lift-2);line-height:1.65;animation:work-line-rise ${MOVE}}
-.work-reply-peek-head{display:flex;align-items:center;gap:6px;min-width:0;color:var(--muted);font-size:11.5px;white-space:nowrap}
+.work-reply-peek{display:flex;flex-direction:column;gap:6px;padding:10px 12px;border-radius:var(--r-card,12px);background:var(--popover);box-shadow:var(--lift-2);line-height:1.65;animation:craft-rise ${MOVE}}
+.work-reply-peek-head{display:flex;align-items:center;gap:6px;min-width:0;color:var(--muted);font-size:11px;white-space:nowrap}
 .work-reply-peek-fill{flex:1 1 auto}
 .work-reply-peek p{margin:0}
-.work-reply-mini{align-self:flex-end;display:inline-flex;align-items:center;gap:2px;padding:4px;border-radius:var(--r-card,12px);background:var(--popover);box-shadow:var(--lift-2);animation:work-line-pop var(--dur-hover) var(--ease-quint)}
+.work-reply-mini{align-self:flex-end;display:inline-flex;align-items:center;gap:2px;padding:4px;border-radius:var(--r-card,12px);background:var(--popover);box-shadow:var(--lift-2);animation:craft-rise-from-bar var(--dur-hover) var(--ease-quint)}
 /* A dialog tab is as wide as its name (96 to 184), and the strip scrolls: an event's tab has to say which event it is. */
 ${W} .assistant-tabs[data-work-tabs] .assistant-tab{flex:0 0 auto;width:auto;min-width:96px;max-width:184px}
 @media (prefers-reduced-motion:reduce){${ANIMATED}{animation:none}}
@@ -200,7 +233,7 @@ html[data-craft-still] ${ANIMATED}{animation:none}
 @container work-line (max-width:540px){
   .work-line-row{display:flex;flex-direction:column;align-items:stretch;gap:6px}
   .work-line-row::before{top:24px}
-  .work-line-track{display:flex;align-items:center;gap:8px;height:48px;min-width:0;overflow-x:auto;scrollbar-width:none;scroll-snap-type:x mandatory;scroll-padding-left:var(--lead-width,0px)}
+  .work-line-track{display:flex;align-items:center;gap:8px;height:48px;min-width:0;overflow-x:auto;scroll-snap-type:x mandatory;scroll-padding-left:var(--lead-width,0px)}
   .work-line-track::after{content:"";flex:none;width:var(--track-tail,0px)}
   .work-line-run>.work-event{scroll-snap-align:start}
   .work-line-wing{flex:none;height:48px}

@@ -1,0 +1,8 @@
+{
+  "reason": "第 32 批把插件图标、起始页入口和项目圆钮从底栏移到顶条（WLN-16）：设计系统里这些部件的选择器从 `.workbench-bar …` 改成 `.workbench-header …`，每条多几个字符；到达页与设置页的样式表带着同一份设计系统规则，所以各多 98 字节。没有新增规则，也没有新增资源路径。",
+  "review": "分支 batch/32 的 PR 评审。本机对照 merge-base 392f3bdd7 的隔离构建实测（pnpm page-assets:check）：/assets/molis-work-arrival.css 617768 → 617866（+98），/assets/molis-work-settings.css 769139 → 769237（+98）。许可各取 120。",
+  "assets": {
+    "/assets/molis-work-arrival.css": 120,
+    "/assets/molis-work-settings.css": 120
+  }
+}

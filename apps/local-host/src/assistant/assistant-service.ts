@@ -29,7 +29,7 @@ import { assertRoundToAddress, inputsOf, withdrawInput } from "./assistant-input
 import { checkLanding } from "./assistant-landing.js";
 import { reaskMaterial, reaskTask } from "./assistant-reask.js";
 import { readComposerMaterials, sendScope } from "./assistant-composer-materials.js";
-import { MAIN_TITLE, lineEventsFor, mainWorkOf } from "./assistant-line-actions.js";
+import { MAIN_TITLE, lineEventsFor, mainSendInput } from "./assistant-line-actions.js";
 import { checkHeldImages, checkMaterials } from "./assistant-send-materials.js";
 import { RUNTIME, MAX_TEXT, sessionRef, checkText, assertSendCurrent, type AssistantServicePorts, type AssistantCaller } from "./assistant-service-shared.js";
 import { stateOf, titleFrom, recoveryView, type CapabilityTitles } from "./assistant-present.js";
@@ -193,12 +193,7 @@ export class AssistantService {
    */
   async send(input: AssistantSendInput, caller: AssistantCaller, writtenBy?: StoredRound["written_by"], stillCurrent?: () => boolean): Promise<AssistantSendResult> {
     const text = input?.reask !== undefined ? reaskTask() : checkText(input?.text, "要发送的内容", MAX_TEXT);
-    // Said at 「现在」: the standing conversation of this scope with this counterpart, once there is one (specs/work-line §3.2).
-    if (input?.main && !input.work_id) {
-      if (input.executor?.kind === "plugin") throw assistantErrors.invalid("主对话由助理或一个 Character 承担，不交给执行方插件");
-      const standing = mainWorkOf(this.store, this.actorId, sendScope(input.scope, caller, input.executor), input.character ?? null);
-      if (standing) input = { ...input, work_id: standing.work_id };
-    }
+    if (input) input = mainSendInput(this.store, this.actorId, input, to => sendScope(to.scope, caller, to.executor));
     const original_input = sentOriginal(input, caller.original_input, writtenBy);
     let materials = checkMaterials(input.materials);
     checkHeldImages(materials, this.materials.images);

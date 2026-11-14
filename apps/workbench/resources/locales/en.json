@@ -1946,6 +1946,7 @@
     "workbench.assistant-tabs.close-tab-work-stays-all-work": "Close tab (the work stays in All work)",
     "workbench.assistant-tabs.continue-recent-work": "Continue a recent work",
     "workbench.assistant-tabs.loading": "Loading…",
+    "workbench.assistant-tabs.main-conversation": "Main",
     "workbench.assistant-tabs.needs": "Needs you",
     "workbench.assistant-tabs.new-messages": "New messages",
     "workbench.assistant-tabs.new-results": "New results",
@@ -8358,7 +8359,7 @@
     "workbench.work-line-specimens.card-decision": "A decision asked for",
     "workbench.work-line-specimens.card-live": "Work in progress",
     "workbench.work-line-specimens.change-styles": "Change the styles",
-    "workbench.work-line-specimens.checked-v3": "checked at v3",
+    "workbench.work-line-specimens.checked-third-version": "checked at v3",
     "workbench.work-line-specimens.coding-in-sandbox": "Coding · in the sandbox",
     "workbench.work-line-specimens.compare-three-quotes": "Compare three quotes",
     "workbench.work-line-specimens.dialog-closed": "With the dialog closed",
@@ -8523,6 +8524,7 @@
     "workbench.work-line.stop": "Stop",
     "workbench.work-line.task-failed": "Task failed · {task}",
     "workbench.work-line.unreadable-retry": "can’t be read · Retry",
+    "workbench.work-line.waiting-for-you": "Needs you",
     "workbench.work-line.who": "Who",
     "workbench.work-line.work-line": "Work line"
   }

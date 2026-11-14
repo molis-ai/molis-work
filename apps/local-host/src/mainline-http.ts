@@ -18,6 +18,21 @@ const ROUTES = new Map<string, ActionDefinition>([
   ["tasks/command", mainlineActions.command as ActionDefinition],
 ]);
 
+const DAY = 86_400_000;
+
+/**
+ * The line and the task table for the page's one attention read (`attention-http.ts`): each is read as the person, in the window the
+ * bottom line shows (thirty days back, two ahead). A plugin's page gets neither, as on the routes below.
+ */
+export function mainlineAttention(request: IncomingMessage, host: MolisWorkLocalHost, project: LocalHostProjectReference): { line(): Promise<unknown>; tasks(): Promise<unknown> } | null {
+  if (pluginPageRequest(request)) return null;
+  const client = bindLocalWebActions(host, project, LOCAL_OWNER_PERMISSIONS);
+  return {
+    line: () => { const now = Date.now(); return client.invoke(mainlineActions.line as ActionDefinition, { from: new Date(now - 30 * DAY).toISOString(), to: new Date(now + 2 * DAY).toISOString(), now: new Date(now).toISOString() }); },
+    tasks: () => client.invoke(mainlineActions.tasks as ActionDefinition, {}),
+  };
+}
+
 /**
  * The workbench's own doors to the mainline service in one project: each route invokes its action as the person. The person's own
  * page request is the `user_action` (S-58); nothing in the body is read for it, and a plugin's page is refused: a plugin reads its

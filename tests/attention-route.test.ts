@@ -12,18 +12,22 @@ import { openTestHome } from "./fixtures/test-home.js";
 
 /**
  * W4-10: what waits on the person is one read, `GET /api/attention`, on the Home page and on each project page. It answers
- * the title bar's background tasks, the Assistant's notices for the surface asked about, the count of plugin deliveries
- * waiting, and (on a project page) the board's event cursor, so a page that is only open does not poll each owner apart.
+ * the Assistant's notices for the surface asked about, the count of plugin deliveries waiting, on the Home page the title
+ * bar's background tasks, and on a project page the board's event cursor with the project's work line and the tasks behind it
+ * (WLN-17, WLN-34: the bottom line and the task panel paint from this read and have no beat of their own), so a page that is
+ * only open does not poll each owner apart.
  */
 
-interface Attention { background_tasks: unknown[] | null; notices: unknown[] | null; plugin_events_pending: number | null; board_cursor: number | null }
+interface Attention { background_tasks: unknown[] | null; notices: unknown[] | null; plugin_events_pending: number | null; board_cursor: number | null;
+  line: { events: unknown[]; issues: unknown[] } | null; tasks: { tasks: unknown[]; issues: unknown[] } | null }
 type Notice = import("@molis-ai/molis-work-contracts/services/assistant").AssistantNotice;
 
 test("W4-10-01 the Home page's attention read answers background tasks and notices, with no project parts", async t => {
   const home = await openTestHome(t);
   await home.createProject("Attention");
   const attention = await home.web.get<Attention>("/api/attention");
-  assert.deepEqual(Object.keys(attention).sort(), ["background_tasks", "board_cursor", "notices", "plugin_events_pending"]);
+  assert.deepEqual(Object.keys(attention).sort(), ["background_tasks", "board_cursor", "line", "notices", "plugin_events_pending", "tasks"]);
+  assert.deepEqual([attention.line, attention.tasks], [null, null], "the Home page has no work line");
   assert.deepEqual(attention.background_tasks, [], "no Coding session is under way in any project");
   assert.ok(Array.isArray(attention.notices), "the Assistant's notices are read");
   assert.equal(attention.plugin_events_pending, 0, "the Home page runs no project's plugins");
@@ -39,7 +43,9 @@ test("W4-10-01 a project page's attention read carries the board cursor the Goal
   const attention = await home.web.get<Attention>(`${base}/api/attention?surface=todo`);
   const { observed_event_cursor } = await home.web.get<{ observed_event_cursor: number }>(`${base}/api/board/cursor`);
   assert.equal(attention.board_cursor, observed_event_cursor, "the cursor is the board's own");
-  assert.ok(Array.isArray(attention.background_tasks));
+  assert.equal(attention.background_tasks, null, "a project page has no cross-project list: its tasks come with its line");
+  assert.ok(Array.isArray(attention.line?.events) && Array.isArray(attention.line?.issues), "WLN-17: the project's work line, as the mainline service reads it for the person");
+  assert.ok(Array.isArray(attention.tasks?.tasks) && Array.isArray(attention.tasks?.issues), "WLN-34: the tasks behind it, from the task table");
   assert.ok(Array.isArray(attention.notices));
   assert.equal(typeof attention.plugin_events_pending, "number", "the project's plugin deliveries are counted");
 });
@@ -97,7 +103,7 @@ test("W4-10-01 QA-022 a project page's attention read counts exactly the plugin 
   assert.deepEqual(attention.notices, notices, "the surface's notices, as the Assistant tells them");
   const { observed_event_cursor } = await home.web.get<{ observed_event_cursor: number }>(`${base}/api/board/cursor`);
   assert.equal(attention.board_cursor, observed_event_cursor);
-  assert.deepEqual(attention.background_tasks, []);
+  assert.equal(attention.background_tasks, null);
 });
 
 /** The route alone over loopback, with readers the test controls. */
@@ -122,7 +128,8 @@ async function serveAttention(t: TestContext, sources: AttentionSources) {
 test("W4-10-01 QA-022 a reader that fails nulls only its own part of the attention read", async t => {
   const tasks = [{ project_id: "project-a", session_id: "session-1", state: "waiting" }];
   const told = (surface: string | null) => [{ notice_id: "notice-1", kind: "reminder", surface }];
-  const exact: Attention = { background_tasks: tasks, notices: told("todo"), plugin_events_pending: 3, board_cursor: 41 };
+  const line = { events: [{ id: "event-1" }], issues: [] }, table = { tasks: [{ id: "task-1" }], issues: [] };
+  const exact: Attention = { background_tasks: tasks, notices: told("todo"), plugin_events_pending: 3, board_cursor: 41, line, tasks: table };
   const failing = { current: null as keyof Attention | null, rejects: false };
   const fail = (part: keyof Attention) => failing.current === part && (failing.rejects ? "rejects" : "throws");
   const answer = <T>(part: keyof Attention, value: T): T | Promise<T> => {
@@ -136,6 +143,7 @@ test("W4-10-01 QA-022 a reader that fails nulls only its own part of the attenti
     notices: surface => Promise.resolve(answer("notices", told(surface))),
     pluginEventsPending: () => Promise.resolve(answer("plugin_events_pending", 3)),
     boardCursor: () => answer("board_cursor", 41) as number,
+    mainline: { line: () => Promise.resolve(answer("line", line)), tasks: () => Promise.resolve(answer("tasks", table)) },
   });
   assert.deepEqual(await read("/api/attention?surface=todo"), exact);
   assert.deepEqual((await read()).notices, told(null), "no surface asked about is the Home's notices");
@@ -149,7 +157,10 @@ test("W4-10-01 QA-022 a reader that fails nulls only its own part of the attenti
   assert.deepEqual(await read("/api/attention?surface=todo"), exact, "a reader that answers again is read again");
 });
 
-test("W4-10-01 QA-022 where a page has no plugins or no board, those parts answer none, not a failure", async t => {
+test("W4-10-01 QA-022 where a page has no plugins, no board or no line, those parts answer none, not a failure", async t => {
   const read = await serveAttention(t, { backgroundTasks: () => [], notices: async () => [] });
-  assert.deepEqual(await read(), { background_tasks: [], notices: [], plugin_events_pending: 0, board_cursor: null });
+  assert.deepEqual(await read(), { background_tasks: [], notices: [], plugin_events_pending: 0, board_cursor: null, line: null, tasks: null });
+  // A plugin's page is given no mainline reader (mainline-http.ts): the line and the tasks are null for it, the rest answers.
+  const plugin = await serveAttention(t, { notices: async () => [], mainline: null });
+  assert.deepEqual(await plugin(), { background_tasks: null, notices: [], plugin_events_pending: 0, board_cursor: null, line: null, tasks: null });
 });

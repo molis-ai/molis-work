@@ -409,78 +409,78 @@ export const CRAFT_ASSISTANT_STYLES = `  /* 概况: the state, what it is doing 
   html ${SHELL} .workbench-bar details > .navigator-project-menu-popover { transform-origin: bottom right; --menu-from-y: 4px; }
 
   /* The project: a round mark at the far right; its menu switches project, opens settings and the person. */
-  html ${SHELL} .workbench-bar .bar-end .workspace-chrome { position: static; display: flex; width: auto; height: auto; min-height: 0; margin: 0 0 0 4px; padding: 0; border: 0; background: transparent; box-shadow: none; grid-area: auto; }
-  html ${SHELL} .workbench-bar .bar-end .navigator-project-primary { display: flex; flex-direction: row; align-items: center; width: auto; height: auto; min-height: 0; margin: 0; padding: 0; gap: 0; background: transparent; box-shadow: none; }
-  html ${SHELL} .workbench-bar .bar-end :is(.navigator-project-search, .desktop-titlebar-drag, .navigator-directory-toggle, .immersive-show-directory) { display: none !important; }
-  html ${SHELL} .workbench-bar .bar-end .navigator-project-menu { position: relative; width: auto; }
-  html ${SHELL} .workbench-bar .bar-end .navigator-project-selector {
-    display: grid; grid-template-columns: 40px; place-items: center; justify-content: center; gap: 0; width: 40px; height: 40px; min-height: 40px;
+  html ${SHELL} .workbench-header .titlebar-end .workspace-chrome { position: static; display: flex; width: auto; height: auto; min-height: 0; margin: 0 0 0 4px; padding: 0; border: 0; background: transparent; box-shadow: none; grid-area: auto; }
+  html ${SHELL} .workbench-header .titlebar-end .navigator-project-primary { display: flex; flex-direction: row; align-items: center; width: auto; height: auto; min-height: 0; margin: 0; padding: 0; gap: 0; background: transparent; box-shadow: none; }
+  html ${SHELL} .workbench-header .titlebar-end :is(.navigator-project-search, .desktop-titlebar-drag, .navigator-directory-toggle, .immersive-show-directory) { display: none !important; }
+  html ${SHELL} .workbench-header .titlebar-end .navigator-project-menu { position: relative; width: auto; }
+  html ${SHELL} .workbench-header .titlebar-end .navigator-project-selector {
+    display: grid; grid-template-columns: 30px; place-items: center; justify-content: center; gap: 0; width: 30px; height: 30px; min-height: 30px;
     padding: 0; border-radius: 50%; background: transparent; overflow: visible; list-style: none; cursor: pointer;
   }
-  html ${SHELL} .workbench-bar .bar-end .navigator-project-selector::-webkit-details-marker { display: none; }
-  html ${SHELL} .workbench-bar .bar-end .navigator-project-selector > :is(strong, svg:last-child) { display: none; }
-  html ${SHELL} .workbench-bar .bar-end .navigator-project-selector .project-monogram {
-    width: 36px; height: 36px; border-radius: 50%; font-size: 13px; font-weight: 600;
+  html ${SHELL} .workbench-header .titlebar-end .navigator-project-selector::-webkit-details-marker { display: none; }
+  html ${SHELL} .workbench-header .titlebar-end .navigator-project-selector > :is(strong, svg:last-child) { display: none; }
+  html ${SHELL} .workbench-header .titlebar-end .navigator-project-selector .project-monogram {
+    width: 26px; height: 26px; border-radius: 50%; font-size: 11px; font-weight: 600;
     box-shadow: 0 0 0 2px var(--paper), var(--lift-1); transition: box-shadow var(--dur-move) var(--ease-quint);
   }
-  html ${SHELL} .workbench-bar .bar-end .navigator-project-selector:hover .project-monogram,
-  html ${SHELL} .workbench-bar .bar-end .navigator-project-menu[open] > .navigator-project-selector .project-monogram { box-shadow: 0 0 0 2px var(--paper), 0 0 0 3.5px var(--line-strong), var(--lift-1); }
-  html ${SHELL} .workbench-bar .bar-end .navigator-project-selector:focus-visible { outline: var(--focus-stroke); outline-offset: 3px; }
+  html ${SHELL} .workbench-header .titlebar-end .navigator-project-selector:hover .project-monogram,
+  html ${SHELL} .workbench-header .titlebar-end .navigator-project-menu[open] > .navigator-project-selector .project-monogram { box-shadow: 0 0 0 2px var(--paper), 0 0 0 3.5px var(--line-strong), var(--lift-1); }
+  html ${SHELL} .workbench-header .titlebar-end .navigator-project-selector:focus-visible { outline: var(--focus-stroke); outline-offset: 3px; }
   @media (max-width: 1100px) {
     ${SHELL} .workbench-bar { grid-template-columns: minmax(120px, 1fr) minmax(200px, 560px) minmax(max-content, 1fr); gap: 12px; }
   }
-  html ${SHELL} .workbench-bar .bar-end .navigator-project-menu-popover {
-    position: absolute; top: auto; left: auto; right: 0; bottom: calc(100% + 12px); width: 276px; min-width: 0; max-height: min(78dvh, 640px); overflow: auto;
+  html ${SHELL} .workbench-header .titlebar-end .navigator-project-menu-popover {
+    position: absolute; top: calc(100% + 8px); left: auto; right: 0; bottom: auto; width: 276px; min-width: 0; max-height: min(78dvh, 640px); overflow: auto;
   }
   /* The switch list keeps one layout at every width. */
-  html ${SHELL} .workbench-bar .navigator-project-menu-popover > span { display: block; padding: 8px 12px 4px; color: var(--muted); font-size: 11px; font-weight: 500; line-height: 18px; }
-  html ${SHELL} .workbench-bar .navigator-project-menu-popover nav { display: grid; gap: 1px; }
-  html ${SHELL} .workbench-bar .navigator-project-option {
+  html ${SHELL} .workbench-header .navigator-project-menu-popover > span { display: block; padding: 8px 12px 4px; color: var(--muted); font-size: 11px; font-weight: 500; line-height: 18px; }
+  html ${SHELL} .workbench-header .navigator-project-menu-popover nav { display: grid; gap: 1px; }
+  html ${SHELL} .workbench-header .navigator-project-option {
     display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 34px; padding: 0 12px; border-radius: 8px;
     color: var(--ink); font-size: 13px; text-decoration: none;
   }
-  html ${SHELL} .workbench-bar .navigator-project-option > span { display: flex; align-items: center; gap: 8px; min-width: 0; }
-  html ${SHELL} .workbench-bar .navigator-project-option strong { overflow: hidden; font-size: 13px; font-weight: var(--weight-control, 500); text-overflow: ellipsis; white-space: nowrap; }
-  html ${SHELL} .workbench-bar .navigator-project-option.is-current strong { font-weight: 500; }
-  html ${SHELL} .workbench-bar .navigator-project-option > svg { flex: none; width: 14px; height: 14px; color: var(--ink); }
-  html ${SHELL} .workbench-bar .navigator-project-option:hover { background: var(--nav-hover); }
-  html ${SHELL} .workbench-bar .navigator-project-option.is-current { background: var(--nav-active); }
-  html ${SHELL} .workbench-bar .navigator-project-option:focus-visible { outline: var(--focus-stroke); outline-offset: -2px; }
+  html ${SHELL} .workbench-header .navigator-project-option > span { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  html ${SHELL} .workbench-header .navigator-project-option strong { overflow: hidden; font-size: 13px; font-weight: var(--weight-control, 500); text-overflow: ellipsis; white-space: nowrap; }
+  html ${SHELL} .workbench-header .navigator-project-option.is-current strong { font-weight: 500; }
+  html ${SHELL} .workbench-header .navigator-project-option > svg { flex: none; width: 14px; height: 14px; color: var(--ink); }
+  html ${SHELL} .workbench-header .navigator-project-option:hover { background: var(--nav-hover); }
+  html ${SHELL} .workbench-header .navigator-project-option.is-current { background: var(--nav-active); }
+  html ${SHELL} .workbench-header .navigator-project-option:focus-visible { outline: var(--focus-stroke); outline-offset: -2px; }
   /* One row system for the project menu: every row 34px, a 20px leading slot, one text column, and one kind of
      divider with even space on both sides. */
-  html ${SHELL} .workbench-bar .navigator-project-menu-popover { padding: 8px; border-radius: 14px; }
-  html ${SHELL} .workbench-bar .navigator-project-menu-popover > span { padding: 4px 12px 4px; }
-  html ${SHELL} .workbench-bar .navigator-project-menu-popover :is(.navigator-project-option, .navigator-project-manage, .navigator-project-settings, .navigator-personal > .account-global-item, .navigator-personal > .personal-account) {
+  html ${SHELL} .workbench-header .navigator-project-menu-popover { padding: 8px; border-radius: 14px; }
+  html ${SHELL} .workbench-header .navigator-project-menu-popover > span { padding: 4px 12px 4px; }
+  html ${SHELL} .workbench-header .navigator-project-menu-popover :is(.navigator-project-option, .navigator-project-manage, .navigator-project-settings, .navigator-personal > .account-global-item, .navigator-personal > .personal-account) {
     position: relative; display: flex; align-items: center; justify-content: flex-start; gap: 12px; width: 100%; height: var(--menu-row, 34px); min-height: var(--menu-row, 34px);
     margin: 0; padding: 0 12px; border: 0; border-radius: 8px; box-shadow: none; background: transparent;
     color: var(--ink); font: inherit; font-size: 13px; font-weight: 400; line-height: 1; text-align: left; text-decoration: none;
   }
-  html ${SHELL} .workbench-bar .navigator-project-menu-popover :is(.navigator-project-manage, .navigator-project-settings, .navigator-personal > .account-global-item) > svg:first-child {
+  html ${SHELL} .workbench-header .navigator-project-menu-popover :is(.navigator-project-manage, .navigator-project-settings, .navigator-personal > .account-global-item) > svg:first-child {
     flex: none; width: 16px; height: 16px; margin: 0 4px; color: var(--ink-soft);
   }
-  html ${SHELL} .workbench-bar .navigator-project-menu-popover :is(.navigator-project-manage, .navigator-project-settings, .navigator-personal > .account-global-item) > span:not(.personal-account-avatar):not(.personal-account-copy) {
+  html ${SHELL} .workbench-header .navigator-project-menu-popover :is(.navigator-project-manage, .navigator-project-settings, .navigator-personal > .account-global-item) > span:not(.personal-account-avatar):not(.personal-account-copy) {
     position: static; width: auto; height: auto; margin: 0; clip: auto; overflow: visible; white-space: nowrap;
   }
-  html ${SHELL} .workbench-bar .navigator-project-menu-popover :is(.navigator-project-option, .navigator-project-manage, .navigator-project-settings, .navigator-personal > .account-global-item):hover { background: var(--nav-hover); color: var(--ink); }
-  html ${SHELL} .workbench-bar .navigator-project-menu-popover :is(.navigator-project-manage, .navigator-project-settings, .navigator-personal > .account-global-item):hover > svg:first-child { color: var(--ink); }
-  html ${SHELL} .workbench-bar .navigator-project-menu-popover :is(.navigator-project-option.is-current, .navigator-project-settings[aria-current], .navigator-personal > .account-global-item[aria-current]) { background: var(--nav-active); color: var(--ink); }
-  html ${SHELL} .workbench-bar .navigator-project-menu-popover .navigator-project-option > span { gap: 12px; }
-  html ${SHELL} .workbench-bar .navigator-project-menu-popover .navigator-project-option .project-monogram { flex: none; width: 20px; height: 20px; border-radius: 6px; font-size: 11px; box-shadow: none; }
-  html ${SHELL} .workbench-bar .navigator-project-menu-popover .navigator-project-option > svg { margin-left: auto; }
-  html ${SHELL} .workbench-bar .navigator-project-menu-popover .personal-account-avatar {
+  html ${SHELL} .workbench-header .navigator-project-menu-popover :is(.navigator-project-option, .navigator-project-manage, .navigator-project-settings, .navigator-personal > .account-global-item):hover { background: var(--nav-hover); color: var(--ink); }
+  html ${SHELL} .workbench-header .navigator-project-menu-popover :is(.navigator-project-manage, .navigator-project-settings, .navigator-personal > .account-global-item):hover > svg:first-child { color: var(--ink); }
+  html ${SHELL} .workbench-header .navigator-project-menu-popover :is(.navigator-project-option.is-current, .navigator-project-settings[aria-current], .navigator-personal > .account-global-item[aria-current]) { background: var(--nav-active); color: var(--ink); }
+  html ${SHELL} .workbench-header .navigator-project-menu-popover .navigator-project-option > span { gap: 12px; }
+  html ${SHELL} .workbench-header .navigator-project-menu-popover .navigator-project-option .project-monogram { flex: none; width: 20px; height: 20px; border-radius: 6px; font-size: 11px; box-shadow: none; }
+  html ${SHELL} .workbench-header .navigator-project-menu-popover .navigator-project-option > svg { margin-left: auto; }
+  html ${SHELL} .workbench-header .navigator-project-menu-popover .personal-account-avatar {
     display: grid; place-items: center; flex: none; width: 20px; height: 20px; border-radius: 50%; background: var(--nav-active); color: var(--ink-soft);
   }
-  html ${SHELL} .workbench-bar .navigator-project-menu-popover .personal-account-avatar svg { width: 12px; height: 12px; }
-  @media (min-width: 761px) { html ${SHELL} .workbench-bar .navigator-project-menu-popover .personal-account-avatar { box-shadow: inset 0 0 0 1px var(--line-strong); } }
-  html ${SHELL} .workbench-bar .navigator-project-menu-popover .personal-account-copy { display: flex; align-items: baseline; gap: 8px; min-width: 0; line-height: 1; }
-  html ${SHELL} .workbench-bar .navigator-project-menu-popover .personal-account-copy strong { font-size: 13px; font-weight: 500; color: var(--ink); }
-  html ${SHELL} .workbench-bar .navigator-project-menu-popover .personal-account-copy small { font-size: 12px; color: var(--muted); }
-  html ${SHELL} .workbench-bar .navigator-project-menu-popover .navigator-personal { position: relative; display: grid; gap: 0; margin: 12px 0 0; padding: 0; box-shadow: none; }
+  html ${SHELL} .workbench-header .navigator-project-menu-popover .personal-account-avatar svg { width: 12px; height: 12px; }
+  @media (min-width: 761px) { html ${SHELL} .workbench-header .navigator-project-menu-popover .personal-account-avatar { box-shadow: inset 0 0 0 1px var(--line-strong); } }
+  html ${SHELL} .workbench-header .navigator-project-menu-popover .personal-account-copy { display: flex; align-items: baseline; gap: 8px; min-width: 0; line-height: 1; }
+  html ${SHELL} .workbench-header .navigator-project-menu-popover .personal-account-copy strong { font-size: 13px; font-weight: 500; color: var(--ink); }
+  html ${SHELL} .workbench-header .navigator-project-menu-popover .personal-account-copy small { font-size: 12px; color: var(--muted); }
+  html ${SHELL} .workbench-header .navigator-project-menu-popover .navigator-personal { position: relative; display: grid; gap: 0; margin: 12px 0 0; padding: 0; box-shadow: none; }
   /* Groups: switch projects · this project · you. The divider is drawn in the gap, so it never touches a row.
      Who you are is shown, not clicked: no hover, no pointer. */
-  html ${SHELL} .workbench-bar .navigator-project-menu-popover .navigator-personal > .personal-account { cursor: default; }
-  html ${SHELL} .workbench-bar .navigator-project-menu-popover .navigator-personal > .personal-account:hover { background: transparent; }
-  html ${SHELL} .workbench-bar .navigator-project-menu-popover .navigator-personal::before {
+  html ${SHELL} .workbench-header .navigator-project-menu-popover .navigator-personal > .personal-account { cursor: default; }
+  html ${SHELL} .workbench-header .navigator-project-menu-popover .navigator-personal > .personal-account:hover { background: transparent; }
+  html ${SHELL} .workbench-header .navigator-project-menu-popover .navigator-personal::before {
     content: ""; position: absolute; left: 5px; right: 5px; top: -6px; height: 1px; background: var(--line); pointer-events: none;
   }
   ${SHELL} .dock-window-action {

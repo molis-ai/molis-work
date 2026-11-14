@@ -27,7 +27,7 @@ import { NAVIGATION_SECTION_STYLES, renderNavigationSection } from "./navigation
 import { renderWorkLineIndexLink, renderWorkLineSection } from "./work-line-specimens.js";
 import { renderSessionSourceSection, SESSION_SOURCE_SECTION_STYLES } from "./session-source-specimens.js";
 import { ENVIRONMENT_SECTION_SCRIPT, ENVIRONMENT_SECTION_STYLES } from "./environment-specimens.js";
-import { renderPluginRail, renderWorkbenchBar, renderWorkspaceChrome } from "./immersive-shell.js";
+import { renderImmersiveHeader, renderPluginRail, renderWorkbenchBar, renderWorkspaceChrome } from "./immersive-shell.js";
 import { renderPersonalMenuItems } from "./settings-directory.js";
 import { BUILTIN_PLUGIN_CATALOG, builtinPluginDirectory, pluginTabGlyphs } from "./plugin-catalog.js";
 import { ARTIFACT_NAVIGATION } from "./artifacts/navigation.js";
@@ -58,23 +58,24 @@ function iconInventoryPlugins(): CatalogPluginIcon[] {
 }
 
 /**
- * The resident bar exactly as the workbench composes it, on a strip of desk: Dock menu, pinned plugins,
- * the plugin switcher with the Assistant line, the side panel's button and the project. Pins are filled
- * the way the workbench client fills them; the switcher opens with the same popover.
+ * The top strip and the bottom line exactly as the workbench composes them, on a strip of desk: the pinned plugins, the tabs'
+ * place and the start page's ＋ with the project at the top; the work line with the one input at the bottom. Pins are filled
+ * the way the workbench client fills them; the start page opens with the same popover.
  */
 function renderBarSpecimen(): string {
   const primitives = { readText: (text: string) => text, escapeHtml, icon, htmlLang: () => "zh-CN" };
   const project = { project_id: "project-demo", display_name: "Molis Work 示例项目" };
   const monogram = renderProjectMonogram(project.display_name, project.project_id, escapeHtml);
   const projectMenu = `<div class="navigator-project-primary"><details class="navigator-project-menu" data-project-menu><summary class="navigator-project-selector" aria-label="切换项目">${monogram}<strong>${project.display_name}</strong>${icon("chevron-down")}</summary><div class="navigator-project-menu-popover"><span>切换项目</span><nav><a class="navigator-project-option is-current" href="#bar" aria-current="page"><span>${monogram}<strong>${project.display_name}</strong></span>${icon("check")}</a></nav><a class="navigator-project-manage" href="#bar">${icon("database")}<span>管理项目</span></a>${renderPersonalMenuItems(primitives)}</div></details></div>`;
-  const bar = renderWorkbenchBar(primitives, {
+  const strip = renderImmersiveHeader(primitives, false, [], {
     enabled: SAMPLE_PROJECT_PLUGINS,
     rail: renderPluginRail(primitives, SAMPLE_PROJECT_PLUGINS, builtinPluginDirectory()),
     projectChrome: renderWorkspaceChrome(primitives, projectMenu),
   });
+  const bar = renderWorkbenchBar(primitives, { head: project.display_name });
   const pin = (id: string, glyph: Parameters<typeof icon>[0], label: string, extra = "") => `<button type="button" class="dock-pin${id === "home" ? " is-fixed" : ""}" data-dock-pin="${id}" aria-label="${label}" title="${label}"${extra}>${icon(glyph)}</button>`;
   const pins = pin("home", "home", "项目首页") + pin("goals", "target", "Goals", ' aria-current="page"') + pin("inbox", "inbox", "Inbox") + pin("feed", "rss", "Feed");
-  return `<div class="mw-catalog-bar-stage" data-catalog-bar>${bar.replace('<div class="dock-pins" data-dock-pins role="toolbar" aria-label="常驻插件"></div>', `<div class="dock-pins" data-dock-pins role="toolbar" aria-label="常驻插件">${pins}</div>`)}</div>`;
+  return `<div class="mw-catalog-bar-stage" data-catalog-bar>${strip.replace('<div class="dock-pins" data-dock-pins role="toolbar" aria-label="常驻插件"></div>', `<div class="dock-pins" data-dock-pins role="toolbar" aria-label="常驻插件">${pins}</div>`)}${bar}</div>`;
 }
 
 /** The board shows the bar in its own workbench context: the page the iframe below loads. */

@@ -2,7 +2,7 @@ import { bindActionHandler, defineBackgroundTasksAction, inputSchemaFor, defineT
   type ActionDefinition, type ActionHandlerBinding, type ActionSubject, type BackgroundTask, type BackgroundTaskCollection, type OpenTarget,
   type TaskServesBindInput, type TaskServesInput, type TaskServesResult, type WorkEvent, type WorkEventCollection, type WorkEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { StateRingState } from "@molis-ai/molis-work-contracts/platform/ui";
-import type { AssistantScope, AssistantWorkState } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { AssistantScope, AssistantSendInput, AssistantWorkState } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { AgentActionClient } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { MAINLINE_PROVIDER_ID, mainlineActions, type WorkLineReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
 import { assistantErrors } from "./assistant-errors.js";
@@ -153,6 +153,24 @@ export function assistantLineSource(store: Pick<AssistantStore, "list" | "observ
 export function mainWorkOf(store: Pick<AssistantStore, "list">, actorId: string, scope: AssistantScope, character: { artifact_id: string } | null): StoredWork | undefined {
   return store.list(actorId, { limit: Number.MAX_SAFE_INTEGER }).find(work => work.main && !work.delegated_by && work.scope.kind === scope.kind
     && (scope.kind !== "project" || work.scope.kind === "project" && work.scope.project_id === scope.project_id) && (work.character?.artifact_id ?? null) === (character?.artifact_id ?? null));
+}
+/**
+ * Where a message said at 「现在」 goes (specs/work-line §3.2): the standing conversation of its scope with its counterpart, once
+ * there is one. A main conversation is with one counterpart, so naming another one in it goes to that one's own main conversation
+ * instead of changing who this one is with.
+ */
+export function mainSendInput(store: Pick<AssistantStore, "list">, actorId: string, input: AssistantSendInput, scope: (input: AssistantSendInput) => AssistantScope): AssistantSendInput {
+  if (input.work_id && input.character !== undefined) {
+    const held = store.list(actorId, { limit: Number.MAX_SAFE_INTEGER }).find(work => work.work_id === input.work_id);
+    if (held?.main && (held.character?.artifact_id ?? null) !== (input.character?.artifact_id ?? null)) {
+      const { work_id: _work, draft_revision: _revision, target: _target, delivery: _delivery, ...rest } = input;
+      input = { ...rest, main: true, scope: held.scope };
+    }
+  }
+  if (!input.main || input.work_id) return input;
+  if (input.executor?.kind === "plugin") throw assistantErrors.invalid("主对话由助理或一个 Character 承担，不交给执行方插件");
+  const standing = mainWorkOf(store, actorId, scope(input), input.character ?? null);
+  return standing ? { ...input, work_id: standing.work_id } : input;
 }
 /** The main conversation's name until its counterpart is a Character; the page names the tab by the counterpart. */
 export const MAIN_TITLE = "与助理的对话";

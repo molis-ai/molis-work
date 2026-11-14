@@ -87,7 +87,10 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
 ${ASSISTANT_CHOOSERS_PART}
 ${ASSISTANT_BROWSER_HANDBACK_PART}
 
-  const api=(path,method,body,route=host.route("/api/assistant"+path))=>molisWorkRequest(route,{method:method||"GET",body,fallback:readText("workbench.assistant-island.assistant-could-not-finish-right-now")});
+  // A main conversation is named here, in the reader's language, by who it is with: its stored title is not shown.
+  const nameMain=(work)=>{if(work&&work.main)work.title=work.character?work.character.title:globalThis.t.text("workbench.assistant-tabs.main-conversation");return work;};
+  const named=(res)=>{if(res&&res.work)nameMain(res.work);if(res&&Array.isArray(res.works))res.works.forEach(nameMain);return res;};
+  const api=(path,method,body,route=host.route("/api/assistant"+path))=>molisWorkRequest(route,{method:method||"GET",body,fallback:readText("workbench.assistant-island.assistant-could-not-finish-right-now")}).then(named);
   let executorRequest = 0;
   const loadExecutors = async () => {
     if (!project) return;
@@ -132,6 +135,12 @@ ${ASSISTANT_BROWSER_HANDBACK_PART}
   let tabs = savedTabs();
   const seenAt = new Map();
   const saveTabs = () => store.set(scoped("tabs"), tabs.length ? JSON.stringify(tabs) : null);
+  // The main conversation (specs/work-line §3.2): one standing work per counterpart, the Assistant's first. With no work in front
+  // the dialog shows it; a press on ＋ starts a separate work instead (fresh), which becomes an event on the line.
+  let fresh = false;
+  const mains = () => works.filter((work) => work.main && !work.archived).sort((a, b) => Number(Boolean(a.character)) - Number(Boolean(b.character)));
+  const mainId = () => mains().find((work) => !work.character)?.work_id || null;
+  const startFresh = () => { fresh = true; if (curId) return showWork(null); drawTabs(); render(); };
   // A tab keeps its place; when there are too many, the one looked at longest ago (never the current one) closes.
   const openTab = (id) => {
     if (!id) return;
@@ -156,8 +165,9 @@ ${ASSISTANT_BROWSER_HANDBACK_PART}
   };
 ${ASSISTANT_LAYOUT_PART}
 
-  const switchTo = async (id) => { if (id !== curId) await showWork(id); };
+  const switchTo = async (id) => { const to = id || (fresh ? null : mainId()); if (to !== curId) await showWork(to); else if (!id) drawTabs(); };
   const showWork = async (id) => {
+    if (id) fresh = false; else if (!fresh) id = mainId();
     curId = id; remember(); problem = null; view = null; pendingChar = undefined;
     openTab(id); if (!spacious()) drawerOpen = false;
     thread.querySelectorAll(":scope > [data-round], :scope > .assistant-problem").forEach((node) => node.remove());
@@ -522,7 +532,7 @@ ${ASSISTANT_TABS_PART}
     const focused = document.activeElement && workNav.contains(document.activeElement) ? document.activeElement.dataset.workId || "new" : null;
     workNav.replaceChildren();
     const fresh = el("button", "assistant-works-item assistant-works-new", readText("workbench.assistant-island.new-work-2")); fresh.type = "button"; fresh.dataset.workId = "new";
-    fresh.addEventListener("click", () => { setWorks(false); switchTo(null); input.focus(); });
+    fresh.addEventListener("click", () => { setWorks(false); startFresh(); input.focus(); });
     workNav.append(fresh);
     if (!works.length) workNav.append(el("p", "assistant-muted", readText("workbench.assistant-island.no-work-yet-send-message-start-first-one")));
     // Grouped the way the person looks for them: what waits on them, what is running, then the rest by recency.
@@ -575,8 +585,13 @@ ${ASSISTANT_TABS_PART}
       const res = await api("/works", "GET", undefined, at);
       if (generation !== worksGeneration || at !== worksAt || at !== host.route("/api/assistant/works") || !island.isConnected) return;
       const drafts = new Map(works.map((work) => [work.work_id, { draft: work.draft, draft_revision: work.draft_revision }]));
+      const states = (list) => list.map((work) => work.work_id + ":" + work.state).join(" "), was = states(works);
       works = (res.works || []).map((work) => ({ ...work, ...(work.work_id === curId ? drafts.get(work.work_id) : undefined) }));
+      // A work began, ended or came to wait: the line and the task panel paint from the page's one attention read, asked again now.
+      if (was && was !== states(works)) document.dispatchEvent(new CustomEvent("molis-work:attention-refresh"));
       if (curId && !works.some((work) => work.work_id === curId)) { curId = null; remember(); view = null; }
+      // With no work in front the main conversation is: shown as soon as the list says there is one.
+      if (!curId && !fresh) { const main = mainId(); if (main) { curId = main; remember(); queueMicrotask(() => { if (curId === main && !view) reload().then(poll); }); } }
       // A tab whose work is gone closes; the work in front always has one.
       const kept = tabs.filter((id) => works.some((work) => work.work_id === id));
       if (kept.length !== tabs.length) { tabs = kept; saveTabs(); }
@@ -598,7 +613,7 @@ ${ASSISTANT_TABS_PART}
   };
   // A work is followed while it, its last round (stopped, the work answers before the round has ended) or a sub-task it handed out is live.
   const followed = (seen) => isLive(seen.work.state) || /^(starting|running|compacting)$/.test(seen.rounds?.at(-1)?.phase || "") || (seen.delegated || []).some((child) => !child.taken_back && isLive(child.state));
-  const follower = (${ASSISTANT_FOLLOW_FACTORY_SCRIPT})({ route: host.route, headers: host.headers, followed, current: () => curId, show: (next) => { view = next; render(); } });
+  const follower = (${ASSISTANT_FOLLOW_FACTORY_SCRIPT})({ route: host.route, headers: host.headers, followed, current: () => curId, show: (next) => { view = named(next); render(); } });
   const poll = () => { if (curId && view && view.work.work_id === curId && followed(view)) follower.follow(curId); else follower.stop(); };
   document.addEventListener("visibilitychange", () => { if (!document.hidden) { reload().then(poll); loadWorks(); } });
   // Another window may have changed this work (a mode, a new round): coming back to this one reads it again.
@@ -653,7 +668,7 @@ ${ASSISTANT_PAGE_MESSAGES_PART}
     await control(btnEl.dataset.assistantControl, btnEl.hasAttribute("data-keep-connections") ? { keep_connections: true } : {});
     btnEl.disabled = false;
   }));
-  newButton?.addEventListener("click", () => { switchTo(null); input.focus(); });
+  newButton?.addEventListener("click", () => { startFresh(); input.focus(); });
   worksToggle?.addEventListener("click", () => setWorks(workNav.hidden));
   workNav?.addEventListener("keydown", (event) => {
     if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setWorks(false); worksToggle?.focus(); return; }

@@ -1,9 +1,11 @@
 /**
- * What waits on the person, read once for the whole page (W4-10): `/api/attention` answers the background tasks, the
- * Assistant's notices for the plugin in front and the plugin deliveries waiting in the market in one request. It is read on a
+ * What waits on the person, read once for the whole page (W4-10): `/api/attention` answers the Assistant's notices for the
+ * plugin in front and the plugin deliveries waiting in the market in one request; on a project page also the project's work line
+ * and the tasks behind it (the bottom line and the task panel paint from them, browser/work-bar.ts), on the Home page the
+ * background tasks of every open project. It is read on a
  * beat while the page is visible (15 seconds after the last read ends, longer after a failure: see below), at once when the person
  * comes back or moves to another plugin, and when a reader asks (`molis-work:attention-refresh`, after the person acted on something). The Assistant's bell, with the plugin
- * notification count, paints from `molis-work:attention`; this module paints the right side's background-tasks tab: its
+ * notification count, paints from `molis-work:attention`; this module paints the Home page's background-tasks tab (a project page has none: specs/work-line §4.5): its
  * badge counts the tasks not finished (running plus waiting on the person), and its view lists them, in this project and every
  * other open one, with the background commands they left running and a button to stop each (the row's own command, through the mainline service). It knows no plugin: each row names where it opens, the words under its title and whether
  * it waits on the person, as the provider that owns the task said them (PG-043, specs/work-line §6). A task here

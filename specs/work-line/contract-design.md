@@ -221,6 +221,8 @@ interface OpenTarget { kind: "item" | "group" | "surface"; surface: string; id: 
 
 线、面板、等你三处都不轮询。待核后定一种：首选把页面今天已有的两个信号（项目事件游标、助理工作变化的长请求）收成外壳的一个订阅；登记方的对象变了，经它已声明的插件事件进入。如果插件事件带不了「我的事件登记变了」，加一个平台事件类型，所有登记方发同一种。这一条定下来之前不写线的页面代码。
 
+**定下来的做法（2026-11-14，已随代码落地）。** 用首选：外壳只有一个订阅，就是页面原有的「等你」读取（`GET /api/attention`，页面可见时按拍读、回到前台和有人请求时马上读；项目事件游标本来就在里面）。项目页的回答多两段 `line` 与 `tasks`（`apps/local-host/src/mainline-http.ts` 的 `mainlineAttention`，按本人经主线服务读；插件页面拿不到，是 null），线、线头的等你数、任务图标和面板都从 `molis-work:attention` 画，自己没有定时器。助理的工作换了状态（它的长请求先知道），页面请这一次读取马上再来（`molis-work:attention-refresh`），所以交办开始、交回、等你在线上是马上变的；插件登记方的对象变了，最迟下一拍出现，和 Goal 看板今天的节奏一样。没有加平台事件类型：线读的是登记方此刻的回答，不是事件流，按拍读一次就够；以后要更快，在这一个订阅上改成推送，线和面板不用动。
+
 ## 12. 要更新的快照与消费者
 
 - 公共 API 快照：contracts 的 `platform/*`（事件、后台任务、对象引用、呈现、placement）、`services/*`（主线、助理、agent-host 协作），插件 SDK。动作快照：三家事件提供方改名、新增助理与 Coding 的事件提供方、`mainline.*`、`background.tasks.read`、`attention.waiting.read`、`objects.open`，删掉等待接续的动作。

@@ -1,6 +1,6 @@
 # 状态与状态机平台能力（State Machine Platform）
 
-状态：需求已整理，尚未实现（2026-11-08）。用户已就 §3 的十二项方向拍板（含 Skill 单独一章、家族照搬现有 21 类、第三方最终也强制），并在复查后确认按 §13 并入路线书批次（26-7、27-6、47-2、48-5；迁移进统一待办）；实施未开始，本 spec 是方案与验收依据，不是完成记录。
+状态：第 26 批交付 Manifest 声明、SDK 状态机、公开词汇首片、只报告的门禁与作者文档。用户 2026-11-08 已确认 §3 的十二个方向。Runtime 兑现、创作台合同和只读动作按 §13 由第 47 批接续，安装预演展示由第 48 批接续。
 
 依据：[全仓隐式状态机盘点（2026-11-08）](../../docs/reviews/implicit-state-machines-2026-11-08.md)（对象 `main` 的 `5945c0271a`）、[AGENTS.md](../../AGENTS.md)、[CONTRACT-CHANGES.md](../../docs/system/CONTRACT-CHANGES.md)、[SSOT-MATRIX.md](../../docs/SSOT-MATRIX.md)、[插件开发 Skill](../../skills/molis-plugin-dev/SKILL.md)、[第三方插件安装方案](../../docs/system/THIRD-PARTY-PLUGINS.md)。
 
@@ -80,7 +80,7 @@
 
 - `StateRingFamily`／`STATE_RING_FAMILIES`：**平台闭合的语义家族**，已随 #1979 落在 `platform/ui-state-rings.ts`（由 `platform/ui.ts` 转出），就是现有 `STATE_RING_FAMILIES` 的 21 个键（idle、connected、running、done、waiting、answer、paused、blocked、syncing、retrying、failed、partial、interrupted、verify、stale、disconnected、unsaved、unread、read、archived、trashed）。contracts 不能反向依赖 SDK，所以键集合以数据形式放在 contracts，SDK 的视觉表保留并**用一条穷尽测试互相对照**（任何一边增删都失败）；见 §4.5。
 - `STATE_VOCABULARIES`：**纯数据表**，每个平台能力一段：`owner`、`states`（状态 → 家族）、`public`（是否对外可见）。**不放转换表、不放函数**——转换属于实现（§4.7）。`owner` 只能是平台能力；插件（含 Goals）的状态机只经 Manifest 的 `state_machines` 申报，不写进 contracts，首片的 4～6 个公开类型里也不含 Goal 类（2026-11-13 按插件同等地位收口改，[决定 42](../post-anticorruption-roadmap/reference/decisions.md#decision-42)）
-- 现有 31 个命名状态类型改成从表派生（`export type X = keyof typeof VOCAB.states`），**类型仍留在原文件**并 re-export，避免 25 个文件与 177 个 `PluginManifest` 级联改动；38 个内联联合按“公开且被界面/接口消费的”逐个升级成命名类型，其余留在原处并记入基线（§8）。
+- [状态词汇审计基线](vocabulary-audit-baseline.md)逐项标明命名类型与内联联合的归属。公开词汇采用时用 `export type X = keyof typeof VOCAB.states`，类型仍留在原文件，内联公开词汇随各自主人逐片采用。
 - contracts 的纯度门禁（`scripts/gates/contracts-purity.mjs`）只数副作用、可变状态和 ≥20 行函数：本表是 `as const` 数据，不加函数；helper 一律放 SDK。
 
 ### 4.2 机器声明（SDK，插件与平台实现共用）
@@ -282,7 +282,7 @@ SDK 提供 `defineOperation` / `createStateLedger` 模板：状态事件 + 当�
 ## 7. 验收标准
 
 1. **SMP-01** 公开状态词汇单一来源：平台能力对外状态只在 `packages/contracts/src/platform/state-vocabulary.ts` 登记，类型从表派生；全仓导出的 `*Status/*State/*Phase` 裸字符串联合按文件计数不再增加（门禁可报告、可挡合并）。
-2. **SMP-02** 基线与范围：审计 §8 的 31 个命名状态类型与 38 个内联联合逐条分类（公开/内部/派生/非状态机）；公开的进词汇表，内部的记入基线并只减；不要求批 0 一次转换完。
+2. **SMP-02** 基线与范围：[基线](vocabulary-audit-baseline.md)逐条分类审计源树里的 31 个命名状态类型和可复现的 71 处内联候选（公开／内部／派生／非状态机）。公开词汇首片进词汇表，其他采用随各自主人推进。持续检查按合并基点的逐文件计数只减。
 3. **SMP-03** 定义自校验：重复状态、未知迁移、终态出边、坏 `machine_id` 在 `defineStateMachine` 或 `molis-work-plugin validate` 定义时被拒绝，错误码稳定可测。
 4. **SMP-04** 作者可用：`pnpm build` 后，`plugin-sample` 与 `molis-work plugin create` 模板自带一台状态机；`molis-work-plugin validate` 输出机器清单；作者按 Skill 能跑通。
 5. **SMP-05** 非法迁移拒绝：内置样板与生成样板的非法转换被拒绝（错误码/kind 有断言），测试名或注释写出本编号。
@@ -382,12 +382,12 @@ SDK 提供 `defineOperation` / `createStateLedger` 模板：状态事件 + 当�
 
 ## 13. 路线书去处与影响（2026-11-08 已并入路线书）
 
-结论：**不新增独立批次号**（用户 2026-11-08 确认）。按路线书维护规则，把它拆成四个交付行并入既有批次（26-7、27-6、47-2、48-5），迁移作为独立需求进统一待办 `BL-state-machine-migration`，第三方最终强制留在暂缓项。路线书文件已按维护规则更新。这利用了既有依赖链：**26 → 27 → 47 → 48 → 57**（第 47 批本来就依赖 26 和 27，第 48 批本来就依赖 47）。
+交付排在既有批次（26-7、26-8、47-2、48-5）。第 47 批同时等第 26 和 27 批；第 48 批消费第 47 批的登记。迁移走 `BL-state-machine-migration`，第三方最终强制随市场开放。
 
 | 去处 | 加什么 | 为什么在这里 |
 | --- | --- | --- |
-| **第 26 批第 7 项（26-7）**（M1 发行准备与升级 U4～U6） | 合同与基础：Manifest `state_machines` 字段、SDK 状态机子路径、contracts 公开词表首片、错误码、api／versions 快照；**只读动作的定义与注册不在这批**；**21 类家族不在这里新造**，用已随 #1979 合入的 `packages/contracts/src/platform/ui-state-rings.ts`（由 `platform/ui.ts` 转出）那一份（见下方前置） | 26-5 已在改插件升级 U4／U5 与合同过渡；第 47 批已依赖 26；合同必须赶在第 57 批（M1 第一个外部版本）前定死，否则阶段二要升版本、带读取兼容 |
-| **第 26 批第 8 项（26-8，原 27-6；用户 2026-11-11 定跟在 26-7 之后）**（宿主出口、文档门禁与各包清理） | 新门禁（先只报告、后只减）、生成的 `STATE-VOCABULARY.md`、插件开发 Skill 新章、`AGENTS.md`／手册／术语表／包 README | 27 正是门禁与文档清理批；第 47 批已依赖 27；新检查按仓库习惯先报告再挡合并 |
+| **第 26 批第 7 项（26-7）** | Manifest `state_machines` 字段、SDK 状态机子路径、contracts 公开词表首片、错误码、API 与版本快照；直接用 #1979 合入的 21 类状态环 | 26-5 的 U4 与这项共用 Manifest 快照；第 47 批用它登记与兑现；发行合同过渡由 REL-4 接续 |
+| **第 26 批第 8 项（26-8，原 27-6）** | 只报告的门禁、生成的 `STATE-VOCABULARY.md`、审计基线、插件开发 Skill 新章、`AGENTS.md`、手册、术语表与包 README | 用户于 2026-11-11 定跟在 26-7 之后；第 47 批消费同一份词表与声明检查 |
 | **第 47 批第 2 项（47-2）**（正式插件交付的平台前置） | Runtime 兑现与登记投影、`system.state-machines` 只读动作的**定义、注册与动作快照**、平台样板选**插件生命周期**（plugin-runtime；Run 相位属 agent-host，不在这批，留独立片）、生成插件设计合同与校验、3 条安全不变量与拒绝测试 | 47 是把创作台与生成插件搬上普通插件通路；48 紧接着安装预演；状态声明是“安装前看得见”的前置，正好在这一批消费 |
 | **第 48 批第 5 项（48-5）**（新插件创作试用路径） | 安装预演与插件目录里的状态展示、交互定样（**D 轨独占文件，由 D 轨落**；市场展示不在本路径） | 48-1／48-3 消费 47 的登记；界面排在 16 的一次切换之后，避开窗口冻结 |
 | **统一待办清单（独立工作流）** | 144 条迁移**只挂在第 26 批合入之后**的批次或独立迁移片：33／66／84 Coding（T2-12）、55-1 Schedule（T3-01）、55-3 待办（T3-02、T3-06）、61／48 连接与授权（T4-21、T5-09、T7-02、T7-03）、66 Goals（T1-01、T1-02）、70 固定版（T3-04）、47 插件生命周期（T6-01）；Run 相位（T5-01）与没有合适批次的升级／删除／跨分区（T4-01、T4-03、T5-21）开独立片 | 迁移不是能力前置；按 N22（决定 29）的先例拆独立需求、进度只减、32 条高风险优先；不让它挡其他批次 |
@@ -396,7 +396,6 @@ SDK 提供 `defineOperation` / `createStateLedger` 模板：状态事件 + 当�
 **影响面：**
 
 - **第 26 批**：增加合同范围与快照排队——Manifest 是最热文件，与 08／20 等已有改动排队；与 26-5 的 U4 用同一份合同快照（U5 2026-11-14 移到发行批 REL-4）。若 26 排不下，按决定 31 用“只改合同的小 PR”在 47 前单独合，范围只合同、不写实现。**迁移不能提前到 26 之前的批次**（06、12、13、18、25 等）：那时合同和工具还没有，硬挂会二次返工；它们原本的整理照做，状态机采用放到 26 之后或独立迁移片。
-- **第 27 批**：新门禁要接入 `pnpm health:check` 的只减口径并带拒绝测试；`AGENTS.md`／开发流程的文字按先例先给用户看。27 是清理批，新增“插件开发 Skill 新章 + 生成词表文档 + 新门禁”会比原来的清理重；要么压成最小文档+门禁片，要么把 Skill 新章挪到 47 前随一次小改动一起做（需统筹裁）。
 - **第 47 批**：与 C1／C3／D／E 协作；改 `project-host.ts` 等热文件按轨道规则 4 一起落；创作台章节与提示词改动要跑 `pnpm studio:replay` 和隔离冒烟；新增只读动作的定义、注册与快照都在这批，避免在 26 就出现“声明了动作但没人注册”的半截快照。47 是 C1 轨道且原本只有一条大交付、全批一个 PR，再加登记／只读会明显变重；**只加最小片**。若 47 排不下，按用户 2026-11-08 定：登记片拆成独立片放到 47 之后，不并进 48。
 - **第 48 批**：新增“安装预演显示状态”的界面要求，组件板先定样。
 - **第 16／71 批**：界面家族与未知回退排在 16 的一次切换之后；家族沿用现有 21 类、不新增文案，语言按 16 后的格式。

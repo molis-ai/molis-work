@@ -323,7 +323,7 @@
     stage.style.setProperty("--yield", `${stay && stay.offsetHeight ? stay.offsetHeight + 8 : 0}px`);
     const tf = document.querySelector(".wl-tfloat"), host = document.querySelector(".assistant-panel") ?? stack; // 右边放不下时，浮窗叠到对话框上
     if (tf && host) tf.classList.toggle("over", innerWidth - host.getBoundingClientRect().right < 350);
-    if (tf && tf.classList.contains("dlg") && !tf.classList.contains("over")) { // 浮窗的上沿对齐对话框的上沿，紧挨着右上角的图标
+    if (tf && tf.classList.contains("dlg") && !tf.classList.contains("over") && !matchMedia("(max-width:760px)").matches) { // 浮窗的上沿对齐对话框的上沿，紧挨着右上角的图标
       const slot = document.querySelector(".wl-slot"); tf.style.bottom = `${slot.offsetHeight + 8 + host.offsetHeight - tf.offsetHeight}px`;
     }
     const th = document.querySelector(".assistant-thread"); if (th) th.scrollTop = th.scrollHeight;

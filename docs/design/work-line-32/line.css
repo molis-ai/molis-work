@@ -125,7 +125,7 @@
 .wl-amsg{display:flex;flex-direction:column;gap:6px}.wl-amsg .wl-from,.wl-amsg .cf{align-self:flex-start}.wl-amsg p{margin:0}
 .wl-evcard{display:flex;flex-direction:column;gap:10px;padding:12px;margin:0 0 4px;border-radius:var(--r-card);border:1px solid var(--line-strong);background:var(--paper)}
 .wl-tfloat.dlg{left:calc(100% + 50px);bottom:calc(100% + 8px);z-index:51}
-.wl-tfloat.dlg.over{position:absolute;left:auto;right:-32px;width:min(340px,calc(100% + 40px));order:0;box-shadow:var(--lift-3);border-radius:var(--r-card)}
+.wl-tfloat.dlg.over{position:absolute;left:auto;right:-32px;width:340px;bottom:calc(100% + 16px);order:0;z-index:52}
 .wl-still,.wl-still .assistant-thread{animation:none!important}
 /* 方案 B：一排任务片 */
 .wl-chips{display:flex;align-items:center;gap:6px;overflow-x:auto;scrollbar-width:none;padding:2px}
@@ -182,5 +182,6 @@
   .wl-deck{grid-template-columns:1fr}.wl-trow .main{min-height:48px}.wl-trow .mw-btn{display:none}.wl-serve{max-width:96px}
   .wl-to span{display:none}.wl-cbtn,.wl-to{height:40px}.wl-cbtn{width:40px}
   .wl-dock{max-height:60%}.wl-card{max-height:62vh}
-  .wl-tico{height:32px}
+  .wl-tico{height:32px}.wl-slot.bar-center{width:100%;align-self:stretch}
+  .wl-tfloat.dlg,.wl-tfloat.dlg.over{position:fixed;left:16px;right:16px;bottom:132px;width:auto;z-index:52}
 }

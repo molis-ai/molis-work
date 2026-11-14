@@ -252,7 +252,7 @@ pnpm --filter @molis-ai/molis-work-integration-github typecheck
 
 增长许可与页面资源共用目录。`assets` 约束静态资源，`pages` 约束页面及语言的总量净增，例如 `"pages": { "workbench-default/zh": { "cold": 120, "warm": 0 } }`。新增路径或单行净增超过 10,000 B 时，即使页总量缩小，也须在带 `userApproval` 的新许可中用 `entryApprovals` 列明这一项：`pages`（所涉页面数组）、`locale`、`entry`、`change`（`new` 或 `growth`），以及适用的 `response` 和 `document`。顶层文档可写 `<page>`，项目标识可写 `<project>`；工作台启动词包用对应语言的 `/assets/locale/workbench.<语言>.<digest>.js` 匹配一条内容定址路径。CI 会列出需审批的路径和对应许可文件。每次比较只消费基点尚未采用的许可。
 
-每批开工前由统筹通过独立浏览器做一次防漏核对。构建后运行：
+每批开工前由本批主会话通过独立浏览器做一次防漏核对。构建后运行：
 
 ```sh
 node scripts/machine-slot.mjs run browser --label 'first-screen audit' -- node scripts/first-screen-report.mjs --runs 1 --pages arrival-empty,chooser,workbench-default,workbench-all-plugins,workbench-demo

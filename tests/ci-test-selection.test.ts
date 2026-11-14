@@ -288,6 +288,8 @@ test("RAC-1764 ci.yml: only a successful none skips a PR job; whole and untruste
   }
   const security = jobBlock("security-invariants");
   assert.match(security, /if \[ -n "\$SELECTED" \]; then\n\s+read -r -a files <<< "\$SELECTED"\n\s+node scripts\/run-tests\.mjs --shard .+ "\$\{files\[@\]\}"\n\s+else\n\s+pnpm test:security --shard /, "an empty list never reaches run-tests.mjs (it would run every test): the whole list goes through test:security");
+  // Decision 44 (2026-11-14): a security file that fails is run once more and a pass on the retry is listed as flaky, as in the full suite.
+  assert.equal(security.match(/--retries 1\b/g)?.length, 2, "both the selected files and the whole test:security list retry a failed file once");
   const product = jobBlock("product-subset");
   assert.match(product, /set --\n\s+if \[ -n "\$ONLY" \]; then set -- --only "\$ONLY"; fi\n\s+exec node scripts\/ci-product-subset\.mjs --expect-platform linux "\$@" /, "--only only when files were chosen");
   // Evaluate the actual if/matrix/list expressions. Stale outputs from a failed selector, empty/unknown modes and

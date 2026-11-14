@@ -64,7 +64,7 @@
 
 ### 首屏加载与资源
 
-数字来自[字体皮肤语言的首屏实测与资源预算方案](font-and-skin-system/resource-budget.md)。第一屏总字节门禁已随第 16 批 #2031 合入（`scripts/gates/first-screen.mjs`、`tooling/gates/first-screen.json`、CI 的 First-screen budgets）；后续改动在这项检查里看数字变化，排期由统筹定。
+数字来自[字体皮肤语言的首屏实测与资源预算方案](font-and-skin-system/resource-budget.md)。第一屏总字节门禁已随第 16 批 #2031 合入（`scripts/gates/first-screen.mjs`、`tooling/gates/first-screen.json`、CI 的 First-screen budgets）；后续改动在这项检查里看数字变化，排期由碰到这块的批次主会话定。
 
 
 ### 写后检查
@@ -89,4 +89,4 @@ Memory P0 已随 [#2020](https://github.com/molis-ai/molis-work/pull/2020) 合�
 
 ### 工程流程
 
-统筹在第 02 批接续工程验证与排期。产品体验仍由各自的主人验收。
+工程验证与排期由碰到它的批次主会话接续。产品体验仍由各自的主人验收。

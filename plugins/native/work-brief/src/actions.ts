@@ -32,10 +32,10 @@ const PEOPLE_AND_TOOLS: Audiences = ["user", "agent", "plugin", "mcp"], WRITERS:
 
 /** `define<Output>()(…)`: the input type comes from the schema, so no handler writes an input type of its own. */
 const define = <O>() => <const S extends ActionSchema>(name: string, version: number, title: string, description: string, operation: "query" | "command",
-  audiences: Audiences, input: S, output: ActionSchema, extra: { concurrent?: true; result?: true; scope?: "home"; reach?: true } = {}) =>
+  audiences: Audiences, input: S, output: ActionSchema, extra: { concurrent?: true; result?: true; scope?: "home"; reach?: true; artifact?: true } = {}) =>
   createActionDefinition<InferActionInput<S>, O>(`work-brief.${name}`, operation, {
     title, description, audiences: [...audiences], subject_kinds: extra.scope ? [] : [BRIEF_KIND], input_schema: input, output_schema: output,
-    permissions: operation === "query" ? WORK_BRIEF_READ : WORK_BRIEF_WRITE, ...(extra.concurrent ? { scheduling: "concurrent" as const } : {}),
+    permissions: [...(operation === "query" ? WORK_BRIEF_READ : WORK_BRIEF_WRITE), ...(extra.artifact ? ["artifact:write"] : [])], ...(extra.concurrent ? { scheduling: "concurrent" as const } : {}),
     ...(extra.scope ? { scope: extra.scope } : {}), ...(extra.reach ? { project_reach: "person" as const } : {}),
     ...(extra.result ? { result_subject: { id: "brief.brief_id", revision: "brief.revision" } } : {}),
   }, version);
@@ -65,8 +65,8 @@ export const workBriefActions = {
     object({ brief: nullableSchema(brief), version: nullableSchema(version), versions: array(loose), proposal: nullableSchema(loose), edits: array(loose), marks: array(loose),
       compared: version, changes }, ["brief", "version", "versions", "proposal", "edits", "marks"]), { concurrent: true }),
   save: define<BriefSaved>()("briefs.save", /* @version action.work-brief.briefs.save */ 1, "保存简报",
-    `交一版草稿，存成简报新的一版。draft.claims 是一句句话（最多 ${BRIEF_LIMITS.claims} 句、每句 ${BRIEF_LIMITS.claim_text} 字）：每句用 cites 列出它依据的对象（kind 与 id，最多 ${BRIEF_LIMITS.cites} 条），保存时以调用者身份逐条读取并记下当时的标题与版本，读不到的以 work_brief.cite_unreadable 拒绝并指出是哪一句的哪一条；本人口述、没有对象可依的句子标 supplied_by: "owner"，不带 cites。draft.attention 是要本人处理的对象与一句原因；draft.next 是下一步（最多 ${BRIEF_LIMITS.next} 个）：act.kind 为 action 时给动作引用与准备好的输入（保存时核对动作在、输入合它的 schema，本人点了才执行），为 assistant 时表示交给助理继续。不给 brief_id 存到项目自己的那一份（没有就建）；new_topic 为 true 时用 title 建一份专题简报。沿用已有句子时带回它的 claim_id。本人改过的句子和草稿不一致时不覆盖：存成提案并在 proposal.conflicts 逐句列出，等本人处理。request_id 相同的重复提交返回同一结果。`,
-    "command", WRITERS, object({ brief_id: id, new_topic: { type: "boolean" }, title: text(BRIEF_LIMITS.title), expected_revision: revision, request_id: text(BRIEF_LIMITS.request_id),
+    `交一版草稿，存成简报新的一版。draft.claims 是一句句话（最多 ${BRIEF_LIMITS.claims} 句、每句 ${BRIEF_LIMITS.claim_text} 字）：每句用 cites 列出它依据的对象（kind 与 id，最多 ${BRIEF_LIMITS.cites} 条），保存时以调用者身份逐条读取并记下当时的标题与版本，读不到的以 work_brief.cite_unreadable 拒绝并指出是哪一句的哪一条；本人口述、没有对象可依的句子标 supplied_by: "owner"，不带 cites。draft.attention 是要本人处理的对象与一句原因；draft.next 是下一步（最多 ${BRIEF_LIMITS.next} 个）：act.kind 为 action 时给动作引用与准备好的输入（保存时核对动作在、输入合它的 schema，本人点了才执行），为 assistant 时表示交给助理继续。不给 brief_id 存到项目自己的那一份（没有就建）；new_topic 为 true 时用 title 建一份专题简报。沿用已有句子时带回它的 claim_id。本人改过的句子和草稿不一致时不覆盖：存成提案并在 proposal.conflicts 逐句列出，等本人处理。带 base_version（草稿依据的那一版的版本号）时，简报已不在那一版就以 work_brief.conflict 拒绝。request_id 相同的重复提交返回同一结果。`,
+    "command", WRITERS, object({ brief_id: id, new_topic: { type: "boolean" }, title: text(BRIEF_LIMITS.title), base_version: { type: "integer", minimum: 0 }, request_id: text(BRIEF_LIMITS.request_id),
       task: ACTION_SUBJECT_SCHEMA, draft }, ["request_id", "draft"]), saved, { concurrent: true, result: true }),
   refresh: define<BriefRefreshed>()("briefs.refresh", /* @version action.work-brief.briefs.refresh */ 1, "刷新简报",
     "不调用模型：以调用者身份重读各来源的首页概况和现行版每条依据的现状。有变化才存成新的一版并在 changes 里只报变化（哪个来源、哪句话的哪条依据）；没有变化时 changed 为 false、不存新版。读不到的来源标过期（保留上次读到的内容与时间）或缺口，没有权限的标未授权，不编造。本人改过的句子原样保留，固定过的旧版本不动。不给 brief_id 刷新项目自己的那一份（没有就建）。",
@@ -83,7 +83,7 @@ export const workBriefActions = {
   fix: define<{ brief: BriefRecord; version: BriefVersion; artifact: { artifact_id: string; version: number } }>()("versions.fix", /* @version action.work-brief.versions.fix */ 1, "固定简报版本",
     "把简报的一版（默认现行版）固定下来并发成成果，供留存、引用和分享；之后这一版只读，后续刷新与修改都不改它。已固定的版本再固定返回原来的成果。",
     "command", PERSON, object({ brief_id: id, version: versionNumber, expected_revision: revision }, ["brief_id", "expected_revision"]),
-    object({ brief, version, artifact: object({ artifact_id: id, version: versionNumber }) }), { concurrent: true, result: true }),
+    object({ brief, version, artifact: object({ artifact_id: id, version: versionNumber }) }), { concurrent: true, result: true, artifact: true }),
   runNext: define<{ mark: NextMark }>()("next.run", /* @version action.work-brief.next.run */ 1, "执行简报的下一步",
     "本人点了现行版里的一条下一步：以本人身份执行它准备好的那个动作，结果记在这条下一步上。它针对的对象在简报保存之后变过、或动作已不可用时不执行，以 work_brief.option_stale 拒绝。一条下一步只执行一次。",
     "command", PERSON, object({ brief_id: id, option_id: id }), object({ mark: loose }), { concurrent: true }),

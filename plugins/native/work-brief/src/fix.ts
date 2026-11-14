@@ -69,7 +69,8 @@ export function createFixHandlers(ports: BriefPorts, database: PluginDatabase, a
           const title = brief.title || "Work Brief";
           const { artifact } = writer.publish({ artifact_id: artifactId, version: next, artifact_type_id: BRIEF_ARTIFACT_TYPE_ID, schema_version: BRIEF_ARTIFACT_SCHEMA_VERSION,
             content: { kind: "inline", payload: JSON.parse(JSON.stringify(payloadOf(title, shown))) }, metadata: { brief_id, brief_version: shown.version, title },
-            origin: { kind: "pinned", subject: { kind: BRIEF_KIND, id: brief_id }, revision: String(shown.version) }, title, media_type: "application/json",
+            // The pin names the row revision it was made at (the platform ties the two); which version of the brief it holds is in the metadata.
+            origin: { kind: "pinned", subject: { kind: BRIEF_KIND, id: brief_id }, revision: String(expected_revision) }, title, media_type: "application/json",
             supersedes_version: next > 1 ? next - 1 : null });
           const mark: BriefFixed = { artifact_id: artifact.artifact_id, artifact_version: artifact.version, at };
           if (!row.compareAndSet(expected_revision, { updated_at: at, fixed_json: JSON.stringify({ ...brief.fixed, [String(shown.version)]: mark }) }))

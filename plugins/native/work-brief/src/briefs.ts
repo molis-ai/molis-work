@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { bindActionHandler, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionSubject, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionHandler, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionSubject, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { canonicalJsonText, draftActionCard } from "@molis-ai/molis-work-plugin-sdk";
 import { workBriefActions, type BriefSaved, type BriefView } from "./actions.js";
 import { workBriefErrors } from "./error.js";
@@ -68,7 +68,10 @@ async function checkedDraft(draft: Draft, current: BriefVersion | null, views: r
     const offer = option.act;
     const card = await draftActionCard(base.option_id, { title: option.text, summary: option.why, reference: offer.reference, input: offer.input }, views, {
       now: () => new Date(at), refuse: (_reason, message) => workBriefErrors.invalid("这条下一步的动作现在不可用或输入不对，简报没有保存", { next: index, message }),
-      check: (view, input) => directory.check({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }, input),
+      check: async (view, input) => {
+        try { await directory.check({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }, input); }
+        catch (error) { throw error instanceof ActionError ? workBriefErrors.invalid("这条下一步的动作现在不可用或输入不对，简报没有保存", { next: index, code: error.code }) : error; }
+      },
       readSubject: async subject => { const found = (await readBriefSubjects(directory, views, [subject])).get(briefSubjectKey(subject)); return found?.state === "ok" ? found.context : found?.state === "gone" ? "missing" : null; },
     });
     next.push({ ...base, act: { kind: "card", card } });
@@ -136,7 +139,7 @@ export function createBriefHandlers(ports: BriefPorts): ActionHandlerBinding[] {
         const brief = input.new_topic ? null : target(store, input.brief_id);
         if (input.new_topic && (input.brief_id || !input.title)) throw workBriefErrors.invalid("新建专题简报要给标题，不带 brief_id");
         if (brief && store.proposal(brief.brief_id)) throw workBriefErrors.proposal_pending("还有一份提案没处理完，先处理它", { brief_id: brief.brief_id });
-        if (brief && input.expected_revision !== undefined && input.expected_revision !== brief.revision) throw workBriefErrors.conflict("简报刚被别处更新，请重新读取后再试", { brief_id: brief.brief_id });
+        if (brief && input.base_version !== undefined && input.base_version !== brief.current_version) throw workBriefErrors.conflict("简报刚被别处更新，请重新读取后再试", { brief_id: brief.brief_id });
         return { brief, current: brief && store.version(brief) };
       });
       if ("answered" in before) return before.answered!;

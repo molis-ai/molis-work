@@ -104,7 +104,7 @@ export function observeRun(recorder: ObservationRecorder, ref: AgentRunRef, froz
         return;
       }
       case "usage-recorded": case "compaction-usage-recorded": flushReply();
-        // The round's model follows a switch; context tidying keeps the model the round started with (design §4 / the Run view's note).
+        // The round's model follows a switch; the compactor is frozen to the model the round started with (prologue-run.ts / prologue-compaction.ts).
         const usageConditions = { model: event.type === "usage-recorded" ? usageModel : conditions.model };
         record("agent.usage", "succeeded", { stage: event.type === "usage-recorded" ? "model" : "compaction", conditions: usageConditions,
           detail: { ...usageDetail(e.receipt as PrologueUsageReceipt), ...(event.type === "usage-recorded" && e.callId ? { model_call_id: String(e.callId) } : {}) } }); return;

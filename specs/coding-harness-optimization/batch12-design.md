@@ -206,3 +206,10 @@ export interface OnboardingTakeResult {
 | BCD-17 | 采用时请求里的 `plugin_id` 不在承接者里被拒、路径不从请求读；成功后输出是本人的文件夹、插件已加、承接动作以本人身份被调一次，重试不再调 | 上手服务用例 |
 | BCD-18 | `coding.onboarding.take@1` 只给本人；`workspace_id` 不是输出时被拒；同一 `request_id` 返回同一会话；会话的下一轮材料是传来的成果版本 | Coding 用例、安全不变量用例 |
 | ONB-44、ONB-46 | 浏览器用例照旧走通「复查 → 勾选 → 落在 Coding 的新会话」 | `tests/context-onboarding-coding.e2e.test.ts` |
+
+### 7.7 合审条件（合同台 2026-11-13「有条件通过」，头 `93ca673772`）
+
+- **C1 权限来自声明**：上手服务调承接动作用 `bindLocalWebAction(host, ref, definition)`（`local-web-actions.ts`），只带被点名动作自己声明的权限、只能调这一个动作，与 `plugin-demo-seed.ts` 同法；`web-onboarding.ts` 的固定权限名单不加任何承接者的权限。
+- **C2 形状由 SDK 的 Manifest 检查管**：点名的动作必须是 `scope: project` 的 `command`、受众正好 `["user"]`，输入是只含 `request_id`、`code_root`、`materials` 的封闭对象，输出与 `OnboardingTakeResult` 相同；不满足就 `plugin.manifest_invalid`。BCD-15 覆盖这些拒绝。
+- **C3 改掉的名字**：宿主 `codingRoot`→`codeRoot`、`CODING_PLUGIN` 删、`input.coding_root`→`input.take`、错误句改通用；存档 `adoption.coding_root`→`adoption.take`（只在本分支，不兼容）；页面 `codingPicked`／`codingFolder`／`codingChoice`／`cx-coding-root`／`data-coding-root` 改成 `take*`／`code-root`；语言键 `hand-folder-to-coding(-hint)` 换成通用句 `hand-folder-to(-hint)`，提示句不再描述某个插件；contracts `codeRootFile` 注释不点名 Coding。BCD-16 扫 `apps/local-host/src/*onboarding*`、`apps/workbench/src/scripts/context-onboarding*.ts` 与 `workbench.context-onboarding.*` 的键和文字，不分大小写不含 `coding`。
+- **采纳的非阻塞意见**：承接者多于一个时是单选组（N1，请求只带一个 `take`）；超过 30 份材料时如实说交了几份（N2）；Coding 先写 `onboarding:<request_id>` 再建会话、会话 id 由 `request_id` 推出，重试不会多建（N3）；落点 `openItem` 打不开时退回插件页（N5）。

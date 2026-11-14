@@ -1,6 +1,5 @@
 import { codeRootFile, contextFileSkip } from "@molis-ai/molis-work-contracts/services/materials";
 import { CONTEXT_ONBOARDING_BLANK_NAME_PART } from "./context-onboarding-blank-name.js"; import { CONTEXT_ONBOARDING_TAKE_PART } from "./context-onboarding-take.js";
-
 // The arrival frame draws the existing Home journey: sources, scope, reading and naming.
 // Providers own authorization; the Host owns the ids and phases under /api/onboarding/context.
 export const CONTEXT_ONBOARDING_CLIENT = String.raw`
@@ -42,7 +41,6 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   const readable = () => picked().filter(ready);
   const sourceStatus = s => s.references?.length ? "workbench.context-onboarding.staged" : directory(s) ? (grants[s.kind]?.state==='ready'?"workbench.context-onboarding.authorized":grants[s.kind]?.state==='unavailable'?"workbench.context-onboarding.reauthorization-required":"workbench.context-onboarding.awaiting-authorization") : ready(s)?"workbench.context-onboarding.added":s.kind==='gmail'?(config.gmail_configured?"workbench.context-onboarding.awaiting-connection":"workbench.context-onboarding.unavailable-now"):"workbench.context-onboarding.awaiting-material";
   const startLabel = () => busy ? (counting && !counting.saving ? globalThis.t.text("workbench.context-onboarding.counting-done-total", counting) : preparing?readText("workbench.context-onboarding.preparing"):uploading?globalThis.t.text("workbench.context-onboarding.uploading-k-n", uploading):readingLocal?readText("workbench.context-onboarding.reading-now"):readText("workbench.context-onboarding.saving")) : readText("workbench.context-onboarding.confirm-scope");
-
   /* ───────── Markup: the design system's parts, drawn in the browser (same classes as primitives/*.ts) ───────── */
   const attrs = map => Object.keys(map || {}).filter(k => map[k] !== undefined && map[k] !== null && map[k] !== false).map(k => map[k] === true ? ' ' + k : ' ' + k + '="' + esc(map[k]) + '"').join('');
   // md is the default height, left to the button so it follows the person's density.
@@ -76,7 +74,6 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   // Every step of the journey is a Welcome step: the question on the left, what it makes on the right.
   const split = (view, left, right, cls) => '<div class="stage-single"><div class="stage-sheet welcome onboard" data-ob-view="' + view + '"><section class="welcome-q ob-left" data-scroll>' + left + '</section><div class="welcome-scene"><section class="ob-right' + (cls ? ' ' + cls : '') + '" data-scroll>' + right + '</section></div></div></div>';
   const stageHead = (heading, meta) => '<header class="ob-stage-head"><h2>' + esc(heading) + '</h2><span>' + meta + '</span></header>';
-
   /* ───────── Where in the journey ───────── */
   const introKey = 'molis-work:onboarding-intro';
   const readIntro = () => { try { return localStorage.getItem(introKey); } catch { return null; } };
@@ -91,7 +88,6 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   const primary = (label, action, options) => primaryText(readText(label), action, options);
   // A phone hides the label of a button that has an icon, so it keeps its name.
   const secondary = (label, action, o) => btn({variant:'secondary', size:'lg', icon:o?.icon, label:globalThis.t.text(label), disabled:o?.disabled, attrs:{'data-action':action, ...(o?.icon ? {'aria-label':globalThis.t.text(label)} : {})}});
-
   /* ───────── The opening and the two Welcome questions ───────── */
   function opening() {
     return {kind:'opening', view:'opening', step:'', html:'<div class="stage-single"><div class="stage-sheet opening" data-view="opening"><div class="opening-glow" aria-hidden="true"></div><div class="opening-copy"><div class="opening-caption">' + (document.getElementById('cx-caption')?.innerHTML || '') + '</div><h1 class="ob-greeting-wordmark" id="ob-title" tabindex="-1">' + (document.getElementById('cx-wordmark')?.innerHTML || '') + '</h1></div></div></div>',
@@ -118,7 +114,6 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
       html:'<div class="stage-single"><div class="stage-sheet welcome" data-view="welcome" data-step="appearance"><section class="welcome-q">' + title(globalThis.t.text("workbench.context-onboarding.appearance")) + '<p>' + globalThis.t.text("workbench.context-onboarding.choose-light-dark-follow-system-changes-apply-once") + '</p><div class="welcome-options" role="group" aria-label="' + globalThis.t.text("workbench.context-onboarding.theme") + '">' + opt('data-theme-option','light',"workbench.context-onboarding.light",theme,'sun') + opt('data-theme-option','dark',"workbench.context-onboarding.dark",theme,'moon') + opt('data-theme-option','system',"workbench.context-onboarding.follow-system",theme,'system') + '</div><p class="welcome-label">' + globalThis.t.text("workbench.context-onboarding.interface-density") + '</p><div class="welcome-options" role="group" aria-label="' + globalThis.t.text("workbench.context-onboarding.interface-density") + '">' + opt('data-density-option','standard',"workbench.context-onboarding.standard",density,'rows') + opt('data-density-option','compact',"workbench.context-onboarding.compact",density,'list') + '</div></section><aside class="welcome-scene" aria-hidden="true">' + miniWorkbench() + '</aside></div></div>',
       bar:{start:btn({variant:'ghost', size:'lg', label:globalThis.t.text("workbench.context-onboarding.previous"), cls:'arrival-back', attrs:{'data-action':'intro-back'}}) + stepsBar('appearance'), center:'', end:primary("workbench.context-onboarding.continue",'intro-next')}};
   }
-
   /* ───────── Sources: add what the project is made from ───────── */
   const sourceRows = () => [
     {id:'folder', kinds: native ? directories : ['directory'], icon:'folder', name:readText("workbench.context-onboarding.folder-materials"), caption: native ? readText("workbench.context-onboarding.folder-materials-native") : readText("workbench.context-onboarding.folder-materials-web")},
@@ -220,7 +215,6 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
     return {kind:'onboard', view:'sources', step:'sources', left, right:materialsPane(), rightCls:any.length ? '' : 'is-empty',
       bar:{start:exitButton() + stepsBar('sources'), center:'', end:secondary("workbench.context-onboarding.skip",'blank') + primaryText(startLabel(), 'prepare', {disabled:!picked().length || busy})}};
   }
-
   /* ───────── Scope: the person's last word on what is read ───────── */
   const previewReady = s => ready(s) && (!directory(s)||Boolean(s.references?.length||s.metadata));
   function selectionTotal() {

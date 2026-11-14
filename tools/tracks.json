@@ -607,7 +607,7 @@
 "basis": "桌面与设置页明确，但重启、日志主体在宿主，不归任何轨道"
 },
 "26-5": {
-"title": "插件升级 U4 与合同过渡 U5",
+"title": "插件升级 U4",
 "main": "C1",
 "also": [
 "A",
@@ -1433,7 +1433,7 @@
 "basis": "tracks.md 逐项表"
 },
 "57-1": {
-"title": "个人工作完整路径与 M1 交付",
+"title": "个人工作完整路径",
 "main": "F",
 "also": [
 "B",
@@ -2424,5 +2424,122 @@
 "occupy": true,
 "status": "定",
 "basis": "记录写服务一侧归 G；工作量主要在宿主，客户端归 F"
+},
+"26-9": {
+"title": "发行配置收拢",
+"main": "F",
+"also": [
+"C1"
+],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md 逐项表"
+},
+"REL-1-1": {
+"title": "Apple 签名与公证凭据",
+"main": "F",
+"also": [],
+"kind": "只读核查",
+"occupy": false,
+"status": "定",
+"basis": "tracks.md（2026-11-14 发行批）"
+},
+"REL-1-2": {
+"title": "公开主页、隐私政策与服务条款",
+"main": "F",
+"also": [],
+"kind": "只读核查",
+"occupy": false,
+"status": "定",
+"basis": "tracks.md（2026-11-14 发行批）"
+},
+"REL-1-3": {
+"title": "正式 OAuth 应用",
+"main": "F",
+"also": [],
+"kind": "只读核查",
+"occupy": false,
+"status": "定",
+"basis": "tracks.md（2026-11-14 发行批）"
+},
+"REL-1-4": {
+"title": "Prologue SDK 再分发许可",
+"main": "F",
+"also": [],
+"kind": "只读核查",
+"occupy": false,
+"status": "定",
+"basis": "tracks.md（2026-11-14 发行批）"
+},
+"REL-2-1": {
+"title": "签名、公证与安装",
+"main": "F",
+"also": [],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md（2026-11-14 发行批）"
+},
+"REL-2-2": {
+"title": "原生组件随包预置与首次自检",
+"main": "F",
+"also": [],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md（2026-11-14 发行批）"
+},
+"REL-2-3": {
+"title": "官方包与字体的发行核对",
+"main": "F",
+"also": [
+"D"
+],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md（2026-11-14 发行批）"
+},
+"REL-3-1": {
+"title": "本机日志、崩溃恢复与诊断包",
+"main": "F",
+"also": [
+"D"
+],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md（2026-11-14 发行批）"
+},
+"REL-4-1": {
+"title": "合同过渡 U5",
+"main": "C1",
+"also": [
+"A",
+"E"
+],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md（2026-11-14 发行批）"
+},
+"REL-4-2": {
+"title": "副本演练 U6",
+"main": "F",
+"also": [],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md（2026-11-14 发行批）"
+},
+"REL-5-1": {
+"title": "M1 发行与第二台 Mac 验收",
+"main": "F",
+"also": [],
+"kind": "验收",
+"occupy": false,
+"status": "定",
+"basis": "tracks.md（2026-11-14 发行批）"
 }
 }

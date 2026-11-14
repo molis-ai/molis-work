@@ -4,8 +4,8 @@ from data import FINAL,MAP
 DATA,BATCHES,TPL,OUT=sys.argv[1:5]
 d=json.load(open(DATA));N={n['id']:n for n in d['nodes']};T=d['batches']
 prog=json.load(open(sys.argv[5]))
-bid=lambda x:re.match(r'(SRV-\d+|\d+)',x).group(1)
-B=sorted({bid(u) for u in N},key=lambda x:(x.startswith('SRV'),int(re.sub(r'\D','',x))))
+bid=lambda x:re.match(r'((?:SRV|REL)-\d+|\d+)',x).group(1)
+B=sorted({bid(u) for u in N},key=lambda x:(2 if x.startswith('SRV') else 1 if x.startswith('REL') else 0,int(re.sub(r'\D','',x))))
 def clean(s):
     s=re.sub(r'<a id="[^"]*"></a>','',s);s=re.sub(r'\[([^\]]+)\]\([^)]*\)',r'\1',s);s=re.sub(r'\[([^\]]+)\]\[[^\]]*\]',r'\1',s);return s.replace('**','').strip()
 par=collections.defaultdict(set);soft=collections.defaultdict(dict);prereq=collections.defaultdict(set);ext=collections.defaultdict(list);decs=collections.defaultdict(dict);stage={}
@@ -34,7 +34,7 @@ def anc(u):
 edges=[[p,u] for u in B for p in sorted(par[u],key=B.index) if not any(p in anc(q) for q in par[u] if q!=p)]
 out=[]
 for b in B:
-    fn=b.lower() if b.startswith('SRV') else b
+    fn=b.lower() if b.startswith(('SRV','REL')) else b
     t=open(f'{BATCHES}/{fn}.md').read()
     items=[{'t':clean(a),'d':clean(x)} for _,a,x in sorted(re.findall(r'^\| <a id="[^"]+-item-(\d+)"></a>(.*?) \| (.*) \| .*?\s*\|$',t,re.M),key=lambda r:int(r[0]))]
     cond=list(ext[b])+[f"决定 {k}（待定）：{v}" for k,v in sorted(decs[b].items(),key=lambda kv:int(kv[0]))]

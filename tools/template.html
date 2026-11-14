@@ -375,7 +375,7 @@ const TRACK_NAMES={A:'助理与输入',B:'Coding',C:'合同、运行时与服务
 const tracksOf=b=>[...new Set(b.items.map(i=>i.track))].filter(t=>TRACK_NAMES[t]);
 const claimable=i=>i.s==='待认领'||i.s==='放弃';
 const BOARD_API='https://api.github.com/repos/molis-ai/molis-work/issues/1743';
-const BASES=['已认领','定样中','实施中','待评审','已合入','暂停','放弃','待认领','移到服务端批'];
+const BASES=['已认领','定样中','实施中','待评审','已合入','暂停','放弃','待认领','移到服务端批','移到发行批'];
 const ACTIVE=new Set(['已认领','定样中','实施中','待评审']);
 const KIND={m:'可先开发，合入要等它',p:'只挡其中一部分',c:'核出缺口才等'};
 const byId=Object.fromEntries(D.batches.map(b=>[b.id,b]));

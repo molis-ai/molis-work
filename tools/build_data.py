@@ -12,7 +12,7 @@ def parse(s):
     return [s,k,1 if inf else 0]
 deps={r[0]:[parse(x) for x in r[3]] for r in rows}
 deps[M1]=[[x,'h',0] for x in M1_HARD]+[[x,'c' if x=='31' else 'p',0] for x in M1_PART]
-deps[FINAL]=[[x,'h',0] for x in ids if x!=FINAL and not x.startswith('SRV') and x not in MOVED]
+deps[FINAL]=[[x,'h',0] for x in ids if x!=FINAL and not x.startswith(('SRV','REL')) and x not in MOVED]
 B=os.path.join(R,'batches')
 def clean(s):
     s=re.sub(r'<a id="[^"]*"></a>','',s)
@@ -22,7 +22,7 @@ def clean(s):
 batch={}
 def load(b):
     if b in batch:return batch[b]
-    fn=b.lower() if b.startswith('SRV') else b
+    fn=b.lower() if b.startswith(('SRV','REL')) else b
     t=open(f'{B}/{fn}.md').read()
     head=t.split('\n')[0]
     title=clean(head.split('·',1)[1])
@@ -38,7 +38,7 @@ def load(b):
     batch[b]=dict(title=title,stage=stage,intro=clean(intro),ask=clean(ask),items=items,
         url=f'https://github.com/molis-ai/molis-work/blob/{SHA}/specs/post-anticorruption-roadmap/reference/batches/{fn}.md')
     return batch[b]
-def bid(x):return re.match(r'(SRV-\d+|\d+)',x).group(1)
+def bid(x):return re.match(r'((?:SRV|REL)-\d+|\d+)',x).group(1)
 dec={}
 for m in re.finditer(r'^\| <a id="decision-(\d+)"></a>\1 \| (.*?) \|',open(f'{R}/decisions.md').read(),re.M):
     dec[m.group(1)]=clean(m.group(2))

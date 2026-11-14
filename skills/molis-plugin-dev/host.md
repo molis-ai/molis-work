@@ -7,6 +7,8 @@ Manifest 写完不等于底栏插件切换里有入口：内置插件还要在�
 
 ## 内置插件：经 Plugin Runtime 装配
 
+持久对象有显式状态时，在插件的 Manifest 申报 `state_machines`，转换和写入留在本插件。平台能力的公开词汇由 contracts 提供。见[状态与转换](state-machine.md)。
+
 新的内置插件（任何 kind）只走 Plugin Runtime：由监督器启动，得到安装记录、升级检查、崩溃恢复和每个安装独立的私人存储。不再新增 `apps/local-host/src/<插件>-native-plugin-http.ts`，也不再往构建期名单加条目；构建期只剩用户批过的两个例外，见下面「构建期 Native」一节（门禁 `tests/builtin-plugin-assembly-gate.test.ts`）。
 
 典型目录：`plugins/native/<id>/src/{manifest,ui,client,styles,en,routes,index}.ts`。私人库对照 Pages / 灵光；不要新建第二张业务 Module 表。

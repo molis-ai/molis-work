@@ -326,6 +326,10 @@ SDK 导出的 `PLUGIN_ROUTE_STREAM_LIMITS` 固定进度上限：单行 65,536 UT
 
 打开舞台的那个 view（`stage` view，没有就是第一个 `navigator` view）可用 `stage_data: { action }` 声明本 Manifest 自己的只读、面向 `user`、只有一个版本的查询，规则与 `settings_data` 相同。宿主按页面上的这个人、只带这个动作自己的权限调用，结果交给舞台的 `StagePageModel.data`；整页与原地重画（`GET /api/stage/<project_plugin_id>`）走同一条路。插件不在或被拒时没有 `data`，其他失败照常报错。当前只对内置目录兑现（T-133）。
 
+## 状态与状态机
+
+手写插件在 Manifest 申报 `state_machines`；主人的代码通过 SDK 的 `/state-machine` 声明业务转换。校验只读静态声明，输出申报的机器、状态和家族。现行 Manifest 格式允许省略此字段。状态的家族从 UI 合同取，落库仍走普通写动作的授权与 CAS。例子见[状态机 Skill](../../skills/molis-plugin-dev/state-machine.md)，平台能力的现行取值见[平台词表](STATE-VOCABULARY.md)。创作台生成合同及启动核对见[第 47 批](../../specs/post-anticorruption-roadmap/reference/batches/47.md)。
+
 ## 插件版本升级
 
 插件发布新版本时，递增 Manifest `version`。`upgrade_compatibility` 只接受精确的 SemVer 来源版本；较高目标版本的来源必须早于目标版本，每个来源版本只能列在以下一项：

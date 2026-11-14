@@ -36,6 +36,8 @@
 
 2026-11-09 日报 A 类：Manifest 新增可选 `demo_seed` 动作引用，由通用 Runtime 启动后调用；新增 `feed.demo.seed@1`（仅 workflow）、`goals.states.read@1` 批量读取和 `contextual.draft_reference.issue/take@1` 项目动作。Goals 输出加入取消状态；列表合同增加 owner SQL 分页/筛选、情境账按键批量读取，SDK 新增统一 HTML 清理与事务错误保全。仓库内所有调用方同片更新，API 与动作快照随片更新；当前阶段一，不保留旧形状或旧命令兼容。Server 组合入口统一为 `molis-work server …`，本机恢复适配器仍归 Host，不新增插件恢复权限。完整消费影响与验证见[本批需求](../../specs/archive/daily-quality-medium-20261108/spec.md)。
 
+插件状态在 Manifest 可选字段 `state_machines`，阶段一在现行 Manifest 格式上添加。contracts 的 `/platform/state-vocabulary` 与 SDK 的 `/state-machine` 进入 API 快照；机器版本由插件作者维护。调用方继续使用现有状态取值和动作引用。声明随 Manifest 摘要，已装同版的声明变化适用同版摘要拒绝。状态集合变化沿插件升级合同，阶段二的读写主体与过渡期按第 4 节。
+
 ## 2. 版本号的编号方案
 
 产品只有一个版本，根包、桌面端、Tauri 和内置插件的 Manifest 同版，工作区包保持私有 0.0.0；每次发布有说明、CHANGELOG 和带各库版本表的检查单。2026-10-08 原定的下一版 0.3.0，已由用户 2026-11-02 的 N34 决定改为复位 0.1.0。2026-11-06 依追加授权删除旧 GoalBoard `v0.1.0` release 与同名 tag、核实名称释放后，现行产品载体及全部内置 Manifest 已复位 0.1.0；版本归属和发布流程见 [版本策略](../releases/POLICY.md)，候选范围见 [v0.1.0.md](../releases/v0.1.0.md)。这是未发布的开发候选，不登记首次外部安装或真实 Home 的统一起点日期。

@@ -12,6 +12,7 @@ Molis Work：本地优先的插件基座加多插件工作平台。平台是一�
 | 一个词该叫什么 | `docs/system/GLOSSARY.md` |
 | 改某个包 | 该包 README 的「开发要求」（写法见 `docs/system/DEVELOPMENT-REQUIREMENTS.md`） |
 | 能力怎样注册、发现、调用、授权 | `specs/action-architecture/spec.md` §3 |
+| 添加公开状态、定义插件对象的状态机 | [平台词表](docs/platform/STATE-VOCABULARY.md)、[插件状态机 Skill](skills/molis-plugin-dev/state-machine.md) |
 | 写或改插件 | `skills/molis-plugin-dev/SKILL.md` |
 | 调模型、跑 Agent、提示词、模型设置 | `skills/molis-prologue-ai/SKILL.md`（手册 `docs/platform/PROLOGUE-AI.md`） |
 | 界面、文字与外观 | `DESIGN.md`、`specs/craft-finish/spec.md`、组件板 `/__ui/catalog`、`skills/molis-plugin-dev/text-and-appearance.md` |
@@ -27,6 +28,7 @@ Molis Work：本地优先的插件基座加多插件工作平台。平台是一�
 
 ## 硬约束
 
+- 平台能力的公开状态从 contracts 的[公开词表](docs/platform/STATE-VOCABULARY.md)派生，转换归原来的包。插件自己的状态用 Manifest 申报，写入和流水账归该插件。状态声明变更走合同流程，非法转换由 SDK 拒绝；本批的清单校验先行，启动兑现核对见[第 47 批](specs/post-anticorruption-roadmap/reference/batches/47.md)。
 - **跨模块只走公开合同。** 插件不 import 另一个插件的实现。能力注册一次，由动作目录供页面、工作流、Agent、MCP 使用，不另写名单或宿主分支。
 - **模型调用只经 `horizontal/agent-host`**（唯一依赖 `@prologue/sdk` 的包）。一个 Home 只有一个执行进程，其他入口转发给常驻宿主。
 - **外部插件作者只装 `packages/contracts` 与 `packages/plugin-sdk`。** SDK 只依赖 contracts，不转出私有包；作者和平台共用的运行时工具放在 SDK 里，平台各层取同一份。SDK 算共享核心，改它按共享核心跑全量。

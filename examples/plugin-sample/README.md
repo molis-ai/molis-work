@@ -26,3 +26,5 @@ SDK 当前版本为仓库开发版本 0.0.0，尚未宣称发布到 npm；请安
 - UI Host：注册与挂载，Local Host 在停止/失败时撤销 UI。
 
 完整范围和未完成项见 [DV3 工作计划](../../specs/molis-work-architecture-reorganization/dv3-work-plan.md)。这不是整体产品用户 E2E 的替代品。
+
+The result machine is declared in `manifest.json`. Its initial `empty` state and subsequent `saved` state both come from the persisted private counter. The publish action checks the transition with the SDK before writing. `molis-work plugin validate` lists the machine and its families.

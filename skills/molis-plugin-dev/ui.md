@@ -139,6 +139,8 @@ Feed / Inbox：随迁到 Plugin Runtime（FI-6）后，列表、详情、来源�
 
 ## 控件与视觉
 
+对象的状态来自主人，页面用声明的家族投影同一状态，静态标签按[文字与外观](text-and-appearance.md)写。见[状态与转换](state-machine.md)。
+
 从 `@molis-ai/molis-work-plugin-sdk/ui` 导入 `renderButton` / `renderChoice` / `icon` / 已有 `render*`（外部作者装的就是这个包；插件不 import 私有的 design-system，规则 `plugin-private-ui-dependency`，只有创作台例外）。浏览器端工具（`placeFloating`、`followScroll` 等）从 `/browser` 取，页面全局的类型（`window.molisReflow` 等）用 `import type {} from "@molis-ai/molis-work-plugin-sdk/page-globals"`。class 用 `mw-btn`、`mw-input`、`mw-status`、`mw-choice`。标本与组合：`/__ui/catalog`（含底栏与浮层的真实样例）。
 
 - 字体：系统无衬线 + 平台中文字体（`--font`），代码与终端用 `--font-mono`。字重用角色：`--weight-title` 600、`--weight-control` 500、`--weight-body` 400；不写 700，不用 `!important` 改字重。

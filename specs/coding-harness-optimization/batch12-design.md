@@ -1,6 +1,6 @@
 # 第 12 批合同设计稿：输入框上方的提示行、项目规则的信任与来源
 
-状态：设计稿第 3 版（2026-11-13），合审通过（评审台兼公共合同台／D 轨，第 3 轮）。第 2 版复核为「有条件通过」，新阻塞一条（「本人再选一次」在选择器里点不到、`trusted` 变了修订号不变），第 3 版改成规则菜单里的「确认」（§3.2、§3.4），并加外键、改文案、写明哈希来源与子任务继承。第 1 版经评审台兼公共合同台（C 轨）、D 轨合审为「有条件通过」：阻塞五条（冻结来源做不出来、「用户选的」判断有漏洞、存储与修订号、信任怎样交给一轮与安全登记、旧一轮与项目层提示），第 2 版逐条改在第 3 节，非阻塞的画法、读屏、验收与文字也一并改进；改完再复核一次后写合同代码。属[第 12 批](../post-anticorruption-roadmap/reference/batches/12.md)第 1 项；定样与用户决定见[需求书 §11](spec.md#11-决策记录)。验收编号：CHO-06、CHO-38、BCD-01～BCD-14（第 4 节）。
+状态：设计稿第 4 版（2026-11-13）：§7「插件声明可承接上手材料」待合审；第 3 版（§1～§6）合审通过（评审台兼公共合同台／D 轨，第 3 轮）。第 2 版复核为「有条件通过」，新阻塞一条（「本人再选一次」在选择器里点不到、`trusted` 变了修订号不变），第 3 版改成规则菜单里的「确认」（§3.2、§3.4），并加外键、改文案、写明哈希来源与子任务继承。第 1 版经评审台兼公共合同台（C 轨）、D 轨合审为「有条件通过」：阻塞五条（冻结来源做不出来、「用户选的」判断有漏洞、存储与修订号、信任怎样交给一轮与安全登记、旧一轮与项目层提示），第 2 版逐条改在第 3 节，非阻塞的画法、读屏、验收与文字也一并改进；改完再复核一次后写合同代码。属[第 12 批](../post-anticorruption-roadmap/reference/batches/12.md)第 1 项；定样与用户决定见[需求书 §11](spec.md#11-决策记录)。验收编号：CHO-06、CHO-38、BCD-01～BCD-14（第 4 节）。
 
 ## 1. 为什么要改平台
 
@@ -139,3 +139,70 @@ Coding 输入框底部「规则 N」（N = 本轮实际读到的仓库说明文�
 | §3.4 读合同 | `instructions: { off; trusted }` | 加可选 `why_not: "default_output" \| "off" \| "not_chosen"`（不信任时必有，依次判断） | 页面要按原因给不同的出路（去项目设置选文件夹，或确认），只凭 `off`、`trusted` 分不出默认输出与没确认；原因由宿主一处算，Coding 不另读目录行去猜 |
 | §3.7 关掉的位置 | 「项目设置里可以关」 | 项目设置「输入与输出」的「产出写到哪里」下加「读取说明文件」开关；默认输出时开关不可用并说明原因，没确认的输出显示关、打开即确认；Coding 规则菜单「去项目设置」直达这一页 | 设置要有地方关；放在输出目录旁边，与它管的是同一件事 |
 | §3.7 警示标题 | 「仓库说明文件没加载」 | 菜单里分组标题已是「仓库说明文件」，警示标题写「没有读取」；「仓库说明文件没加载」留作「规则」按钮的提示 | 截图里两行重复 |
+
+## 7. 插件声明可承接上手材料（第 4 版，2026-11-13，决定 43②）
+
+评审台退回 #2061 的挡合并点 A：12-2 采用后接 Coding 时，上手服务写死了 Coding（`context-onboarding-service.ts` 的 `CODING_PLUGIN`、页面的 `?openPlugin=coding` 与「交给 Coding」文字）。用户 2026-11-13 定（[决定 43](../post-anticorruption-roadmap/reference/decisions.md#decision-43)②，本批弹窗再确认「本批补上声明」）：接续的目标由插件声明「可承接上手材料」，平台按声明调用，宿主和上手服务里不写 Coding 的 id；Coding 第一个声明，本批只落最小形式，第 44 批再把 Todo、Pages 迁到同一声明。
+
+### 7.1 Manifest 声明（`packages/contracts/src/platform/plugin-manifest.ts`）
+
+```ts
+/**
+ * 可承接上手材料 (decision 43②): what this plugin can take from onboarding, and its own action that takes it. Only the kind
+ * `code_root` today: a folder the person chose that has project files at its top. Batch 44 adds the kinds Todo and Pages take.
+ */
+onboarding?: { takes: ReadonlyArray<{ kind: "code_root"; capability_id: string; version: number }> };
+```
+
+- 写法照 `demo_seed`：声明点名插件**自己**的一个动作（`actions` 里有同一 `capability_id@version`，manifest 校验拒绝点名别人的或不存在的，错误码沿用 `plugin.manifest_invalid`）。同一 kind 一个插件最多一条。
+- 不分内置与装上的插件（插件同等待遇）：Manifest 解析与校验在 SDK 一处（`parseManifest` 与声明检查），平台各层取同一份。
+
+### 7.2 承接动作的合同（`packages/contracts/src/platform/onboarding.ts`，新 subpath 之下导出）
+
+```ts
+export interface OnboardingCodeRootTake {
+  /** The journey and this take: a retry with the same id returns what the first call did, writes nothing again. */
+  request_id: string;
+  /** The person's own folder, already the project's output when the plugin is called; the plugin checks it against `projects.directories.get@1`. */
+  code_root: { workspace_id: string };
+  /** The materials this round brought, by exact reference (fixed 成果 versions), at most 30. */
+  materials: ReadonlyArray<{ ref: MaterialRef; title: string }>;
+}
+export interface OnboardingTakeResult {
+  /** Where the person goes on: the plugin's own item to open, or null for the plugin's page as it opens. */
+  open: { item_id: string; title: string } | null;
+}
+```
+
+- 动作：`command`、`scope: project`、`write`，受众 `["user"]`（只有本人的上手在新项目里以本人身份调它；Agent、工作流程和 MCP 没有「上手交接」这件事，不开给它们；插件、Agent、MCP 调不了，被拒 `actions.forbidden`）。身份（actor、项目、安装）从调用上下文来。不等模型，不声明 `concurrent`。
+- 被取消、撤权、停用的调用不写业务记录（照硬约束）；处理器开始之前被拒只留「未执行」诊断行。
+
+### 7.3 平台怎样找承接者、怎样调（`apps/local-host`）
+
+- 新函数 `onboardingTakers(kind)`（与 `artifactProducerSources()` 同法）：本构建带的插件登记（`PLATFORM_PLUGIN_REGISTRATIONS`，已装的读已装 Manifest）加上 Home 里装上且在生效的插件；挑出声明了这个 kind 的，返回 `{ plugin_id, project_plugin_id, name, name_text?, take }`。个人插件（`personal`）与常开以外的规则不变：只列能加进项目的插件。
+- 复查页：journey 读回时多一个 `takers: [{ plugin_id, name }]`（只在有代码根时给）。页面每个承接者一行勾选「把 {folder} 交给 {plugin}」，插件名取 Manifest 的显示名；默认不勾（ONB-44 不变）。一个也没有就不出这一行。
+- 采用：请求带 `take: { plugin_id }`（替换现在的 `coding_root: true`）。宿主只认 `onboardingTakers("code_root")` 里有的 `plugin_id`，代码根仍只从这一轮本人选的文件夹算（`codingRoot`，改名 `codeRoot`），不从请求读路径。顺序：建项目 → 加 Pages → 加这个插件（`project_plugin_id`）→ 把文件夹设为输出（本人的选择，归 Projects，由宿主写，不交给插件）→ 导入材料（现有 Pages／成果库步骤）→ 以本人身份调插件的承接动作，`request_id = onboarding:<journey>:take`，`materials` 是这一轮导入的成果版本（`journey.artifact_references`），超过 30 份只给前 30 份。
+- 记录：`journey.adoption.take = { plugin_id, project_plugin_id, code_root }`；承接返回后 `journey.take_result = { open }`。重试时已有结果就不再调；调用失败时 journey 记失败、已建的项目与材料保留，重试从承接这一步接着做（同现有 Pages 步骤）。
+- 落点：完成后页面去 `/projects/<id>/?openPlugin=<project_plugin_id>`，有 `open` 时加 `&openItem=<item_id>&openTitle=<title>`；宿主和页面里没有 `coding` 字样。
+
+### 7.4 Coding 怎么承接（`plugins/native/coding`）
+
+- Manifest：`onboarding: { takes: [{ kind: "code_root", capability_id: "coding.onboarding.take", version: 1 }] }`，动作在 `registration` 里声明一次。
+- 处理器：读 `projects.directories.get@1`，确认 `code_root.workspace_id` 是现在的输出（不是就拒 `coding.onboarding_root_mismatch`，conflict）；建一个会话（标题「从上手开始」），把 `materials` 存为这个会话下一轮的材料（`materials:<session>`，与委派建会话同法）；同一 `request_id` 重试返回同一会话（存 `onboarding:<request_id>` → session_id）。返回 `{ open: { item_id: session_id, title } }`。
+- 不碰输出目录与信任：输出由宿主设，信任仍按 §3（本人选的输出即信任）。
+
+### 7.5 对别人的影响与不做的
+
+- 新可选 Manifest 字段与一个新 subpath；API 快照、动作快照（`coding.onboarding.take@1`）刷新。第三方插件同样可以声明。
+- Todo、Pages 仍是上手服务里钉住的提供方（`shipped(...)`），第 44 批迁到同一声明并加 kind；本批不动。
+- 文字：「交给 Coding」两句改成带 `{plugin}` 参数的通用句，中英各一。
+
+### 7.6 验收
+
+| 编号 | 验收 | 用例 |
+| --- | --- | --- |
+| BCD-15 | Manifest 声明点名自己没有的动作、点名别人的动作、同一 kind 两条：都被拒 | SDK manifest 用例 |
+| BCD-16 | 上手服务只按声明找承接者：一个声明了 `code_root` 的测试插件出现在复查页，Coding 不声明时不出现；源码里 `context-onboarding-*` 与页面不含 `coding` 字面 | 上手服务用例＋门禁式断言 |
+| BCD-17 | 采用时请求里的 `plugin_id` 不在承接者里被拒、路径不从请求读；成功后输出是本人的文件夹、插件已加、承接动作以本人身份被调一次，重试不再调 | 上手服务用例 |
+| BCD-18 | `coding.onboarding.take@1` 只给本人；`workspace_id` 不是输出时被拒；同一 `request_id` 返回同一会话；会话的下一轮材料是传来的成果版本 | Coding 用例、安全不变量用例 |
+| ONB-44、ONB-46 | 浏览器用例照旧走通「复查 → 勾选 → 落在 Coding 的新会话」 | `tests/context-onboarding-coding.e2e.test.ts` |

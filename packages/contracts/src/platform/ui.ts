@@ -14,7 +14,7 @@ export * from "./ui-files.js";
 export * from "./ui-text.js";
 export * from "./ui-state-rings.js";
 export * from "./ui-slots.js";
-
+export type { ReviewOwner, ReviewReference, ReviewDelegationReference, ReviewDecisionSource, ReviewDecisionAvailability, ReviewDecisionRecord, ReviewDecisionReference, TrustedReviewDecisionRecord, ReviewTarget, ReviewEvidence, ReviewRequirement, ReviewRequest } from "./reviews.js";
 /** A renderer contract requirement, not a callable business capability. */
 export const PLUGIN_PRESENTATION_CAPABILITY = { capability_id: "ui.plugin-presentation", version: /* @version action.ui.plugin-presentation */ 1 } as const;
 

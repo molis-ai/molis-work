@@ -123,6 +123,115 @@ export type ReceiptWords = {
     MARK: Partial<Record<AgentStepState, string>>;
 };
 
+export type ReviewDecisionAvailability = {
+    readonly available: true;
+} | {
+    readonly available: false;
+    readonly code: string;
+    readonly reason: OwnedTextRef;
+};
+
+export interface ReviewDecisionRecord<Choice extends string = "approve" | "reject", Source extends ReviewDecisionSource = ReviewDecisionSource, Ref extends ReviewReference<ReviewOwner> = ReviewReference> {
+    readonly reference: Ref;
+    readonly decision: Choice;
+    readonly actor_id: string;
+    readonly decided_at: string;
+    readonly note: string | null;
+    readonly source: Source;
+}
+
+export interface ReviewDecisionReference {
+    readonly reference: ReviewReference<ReviewOwner>;
+    readonly decision_id: string;
+}
+
+export type ReviewDecisionSource = {
+    readonly kind: "person";
+    readonly actor_id: string;
+} | {
+    readonly kind: "delegation";
+    readonly delegation: ReviewDelegationReference;
+} | {
+    readonly kind: "ai";
+    readonly delegation: ReviewDelegationReference;
+    readonly assessment: {
+        readonly id: string;
+        readonly version: string;
+        readonly provider_id: string;
+        readonly model_id: string;
+    };
+    readonly reason: string;
+} | {
+    readonly kind: "policy";
+    readonly owner: string;
+    readonly id: string;
+    readonly revision: number;
+    readonly set_by: string;
+    readonly set_at: string;
+};
+
+export interface ReviewDelegationReference {
+    readonly id: string;
+    readonly revision: number;
+    readonly work_epoch: string;
+    readonly grantor_id: string;
+}
+
+export type ReviewEvidence = {
+    readonly target: ReviewTarget;
+} & ({
+    readonly tier: "self_reported" | "machine_checked";
+} | {
+    readonly tier: "person_accepted";
+    readonly decision: ReviewDecisionReference;
+});
+
+export type ReviewOwner = AgentReviewOwner | {
+    readonly kind: "trusted-decision";
+    readonly project_id: string;
+} & StageSceneMetadataAuthority["owner"];
+
+export interface ReviewReference<Owner extends ReviewOwner = AgentReviewOwner> {
+    readonly owner: Owner;
+    readonly id: string;
+    readonly version: string;
+}
+
+export interface ReviewRequest {
+    readonly reference: ReviewReference<ReviewOwner>;
+    readonly target: ReviewTarget;
+    readonly summary: string;
+    readonly requirements: readonly ReviewRequirement[];
+    readonly approver: {
+        readonly kind: "person";
+        readonly actor_id?: string;
+    };
+    readonly choices: readonly {
+        readonly id: string;
+        readonly label: OwnedTextRef;
+        readonly availability: ReviewDecisionAvailability;
+        readonly accepts: readonly string[];
+        readonly returns: readonly string[];
+    }[];
+    readonly expires_at: string | null;
+    readonly decision?: ReviewDecisionReference;
+}
+
+export interface ReviewRequirement {
+    readonly id: string;
+    readonly version: string;
+    readonly target: ReviewTarget;
+    readonly statement: string;
+    readonly requires_person: boolean;
+    readonly evidence: readonly ReviewEvidence[];
+}
+
+export interface ReviewTarget {
+    readonly owner: ReviewTargetOwner;
+    readonly subject: Readonly<ActionSubject>;
+    readonly version: string;
+}
+
 export declare const STATE_RING_FAMILIES: readonly [{
     readonly key: "idle";
     readonly label: "未开始";
@@ -407,6 +516,18 @@ export type TextRef = {
 } | {
     readonly literal: string;
 };
+
+export interface TrustedReviewDecisionRecord extends ReviewDecisionRecord<string, Extract<ReviewDecisionSource, {
+    kind: "person";
+}> & {
+    readonly entry: ActionUserAction & {
+        readonly source: "web" | "management";
+    };
+}, ReviewReference<Extract<ReviewOwner, {
+    kind: "trusted-decision";
+}>>> {
+    readonly decision_id: string;
+}
 
 export declare const UI_COMPONENT_VALUES: {
     readonly groups: readonly ["版面", "展示", "录入", "操作", "浮层", "反馈"];
@@ -1393,7 +1514,28 @@ export declare const platformUiContract: {
 
 // Declarations the exports above refer to, which no entry exports itself:
 
+type AgentReviewOwner = {
+    readonly kind: "agent-review" | "goal-acceptance";
+    readonly project_id: string;
+    readonly plugin_id: string;
+    readonly install_id: string;
+};
+
 type AgentStepState = AgentStepBoard["nodes"][number]["state"];
+
+type ReviewTargetOwner = Pick<ActionProvider, "provider_id"> & ReviewTargetPartition & ({
+    readonly kind: "system";
+} | {
+    readonly kind: "plugin";
+} & Omit<StageSceneMetadataAuthority["owner"], "scope">);
+
+type ReviewTargetPartition = {
+    readonly scope: "project";
+    readonly project_id: string;
+} | {
+    readonly scope: "home";
+    readonly project_id: string | null;
+};
 
 interface UiResourceFields {
     readonly id: string;

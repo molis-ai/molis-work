@@ -721,8 +721,8 @@ ${ASSISTANT_PAGE_MESSAGES_PART}
   if (panel && "MutationObserver" in window) new MutationObserver(() => {
     if (!panel.hidden && !spacious()) drawerOpen = false;
     paintLayout();
-    if (panel.hidden) { conversationObjects?.clear(); eventObjects?.clear(); setWorks(false); restIfStale(); }
-    else { void conversationObjects?.update(false); void eventObjects?.update(false); drawTabs(); paintJump(); }
+    if (panel.hidden) { conversationObjects?.clear(); setWorks(false); restIfStale(); }
+    else { void conversationObjects?.update(false); cardHandle?.update(); drawTabs(); paintJump(); }
   }).observe(panel, { attributes: true, attributeFilter: ["hidden"] });
   // The list of works is a dropdown under the tabs: a click anywhere else in the panel puts it away.
   panel?.addEventListener("pointerdown", (event) => {
@@ -749,6 +749,8 @@ ${ASSISTANT_PAGE_MESSAGES_PART}
     ask: (text) => say(text, {}),
     /** The work line's press on an event: its tab in the dialog, opened and in front (specs/work-line §4.4). */
     openEvent,
+    /** The card of this event went to the side panel: its tab is put away and the dialog closes (WLN-14). */
+    parked: (subject) => { if (subject.kind === WORK_KIND) closeTab(subject.id); else closeEvent(eventKey(subject)); setPanel(false); },
     /** Back to now (Esc on the line): the main conversation in front, the caret in the input. */
     toNow: () => { fresh = false; void switchTo(null).then(() => input.focus()); },
     /** Where a new work goes, as the page changes what it is about: a project, or null for the person's own space. */

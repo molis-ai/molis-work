@@ -1,5 +1,6 @@
 import { cutWithEllipsis } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { assistantErrors, whenThere } from "./assistant-errors.js";
+import { eventBehind } from "./assistant-line-actions.js";
 import { randomUUID } from "node:crypto";
 import type { AgentWorkGraphPort, AgentWorkNode } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import { isTerminalAgentPhase, type AgentDelegatedWork, type AgentDelegation, type AgentRunView, type AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -119,7 +120,9 @@ export class AssistantDelegations {
         const child = store.create({ actor_id: actorId, title: input.title.slice(0, 80), scope: parent.scope, ...(parent.scope_title ? { scope_title: parent.scope_title } : {}),
           origin: { surface: "assistant", title: `「${parent.title}」委托` }, ...(parent.project_ref ? { project_ref: parent.project_ref } : {}),
           delegated_by: { graph_id, node_id, title: parent.title, acceptance: input.acceptance.slice(0, 2000) },
-          ...(input.for_event ? { serves: [{ kind: input.for_event.kind, id: input.for_event.id }] } : {}), ...(input.track && parent.project_ref ? { line_event: true as const } : {}) });
+          // Done for the event the round named; else, unless it is registered as an event of its own, for the event this work is (or is done for).
+          ...(input.for_event ? { serves: [{ kind: input.for_event.kind, id: input.for_event.id }] } : input.track || !parent.project_ref ? {} : { serves: eventBehind(parent) }),
+          ...(input.track && parent.project_ref ? { line_event: true as const } : {}) });
         const materials: AssistantMaterial[] = (input.materials ?? []).slice(0, 4).map((material, index) => ({ material_id: `delegated-${index + 1}`, kind: "text", title: material.title.slice(0, 200),
           text: material.text.slice(0, 20_000), explicit: true, source: { surface: "assistant", title: parent.title } }));
         try {

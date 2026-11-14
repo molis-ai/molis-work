@@ -138,17 +138,17 @@ export const ASSISTANT_TABS_PART = String.raw`  /* ─── Tabs ────�
     const event = object ? host.lineEvent?.({ kind: object.kind, id: object.id }) : null;
     return event ? openEvent(event) : startFresh();
   }
-  // The card of the event whose tab is in front (WLN-08): the platform composes it from what the event's owner declared, as it
-  // does a conversation's objects. Nothing here knows a kind of event or a plugin.
-  const eventCard = el("div", "assistant-conversation-objects assistant-event-card"); eventCard.dataset.assistantEventCard = "";
-  let cardFor = null, eventObjects = null;
+  // The card of the event in front (WLN-08, WLN-09): an event's tab, or a work of the Assistant's own that stands on the line. The
+  // line draws it — who registered it, the display the platform composes from what its owner declared, the tasks done for it —
+  // as it draws the same card parked in the side panel. Nothing here knows a kind of event or a plugin.
+  const eventCard = el("div", "assistant-event-card"); eventCard.dataset.assistantEventCard = "";
+  let cardFor = null, cardHandle = null;
   function eventSurface(put) {
-    const about = host.positions ? eventOf() : null, key = about ? about.key : null;
-    if (key !== cardFor) {
-      eventObjects?.destroy(); eventObjects = null; cardFor = key;
-      if (about) { eventObjects = host.positions.mount(eventCard, (body, signal) => host.positionRead("/api/mainline/event/surfaces", body, signal), { source: () => ({ subject: about.subject }) }); void eventObjects.update(); }
-    } else if (eventObjects) void eventObjects.update(false);
-    if (eventObjects) put(eventCard); else eventCard.remove();
+    const tab = host.lineCard ? eventOf() : null, work = !tab && host.lineCard && curId ? workById(curId) : null;
+    const own = work && !work.main ? host.lineEvent?.({ kind: WORK_KIND, id: curId }) : null;
+    const about = tab ? { subject: tab.subject, title: tab.title, mark: tab.mark, composed: true } : own ? { ...own, composed: false } : null, key = about ? eventKey(about.subject) : null;
+    if (key !== cardFor) { cardHandle?.destroy(); cardHandle = null; cardFor = key; if (about) cardHandle = host.lineCard(eventCard, about); }
+    if (cardHandle) put(eventCard); else eventCard.remove();
   }
   // 「发给」 a counterpart (WLN-40): the Assistant (null) or a Character. Its standing main conversation comes in front; a Character
   // not spoken to yet is kept as the one the next Send goes to, with a draft of its own, and the Host opens its conversation then.
@@ -180,6 +180,8 @@ export const ASSISTANT_TABS_PART = String.raw`  /* ─── Tabs ────�
   });
   // The task table says a task of this conversation stands somewhere else now (changed here or anywhere): read the work again.
   function placedMoved(event) {
+    // (A work of the Assistant's own gets its card once the line has read it.)
+    if (!cardFor && curId && !curEvent) eventSurface(placer(thread));
     const table = event.detail?.tasks, handed = curId && view?.delegated;
     if (!table || !handed) return;
     if (handed.some((child) => { const task = table.tasks.find((one) => one.subject.kind === WORK_KIND && one.subject.id === child.work_id); return task && String(task.serves.map(eventKey).sort()) !== String(ownKeys(child)); })) void reload();

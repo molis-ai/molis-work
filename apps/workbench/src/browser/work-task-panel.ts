@@ -9,7 +9,7 @@ import type { ActionSubject } from "@molis-ai/molis-work-contracts/platform/acti
 import type { StateRingState, UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { BackgroundTaskRow, BackgroundTasksReadResult, WorkLineEvent } from "@molis-ai/molis-work-contracts/services/mainline";
 import { renderButton, t as uiText, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { renderPlaceMenu, renderTaskCard, renderTaskFloat, renderTaskMark, renderTaskPanel, type TaskRowView } from "../work-line-parts.js";
+import { renderPlaceMenu, renderTaskCard, renderTaskFloat, renderTaskMark, renderTaskPanel, renderTaskRow, type TaskRowView } from "../work-line-parts.js";
 import type { LineEventPress, WorkBarHost } from "./work-bar.js";
 import { installWorkLineLayout } from "./work-line-layout.js";
 
@@ -26,7 +26,7 @@ export interface TaskPanelLine {
   request: UiRequest;
 }
 
-export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take(result: BackgroundTasksReadResult): void; place(subject: ActionSubject): void } {
+export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take(result: BackgroundTasksReadResult): void; place(subject: ActionSubject): void; rows(subject: ActionSubject): string } {
   const { keyOf, press, hue, again, request } = line, events = { values: () => [...line.events()], get: (id: string) => [...line.events()].find(one => one.id === id) };
   const PANEL = "work-task-panel";
   // `carded`: the task whose card stands in the panel's place (WLN-36); `placing`: its 「改」 menu is open.
@@ -77,9 +77,25 @@ export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take
     paintTasks();
     if (!open) document.querySelector<HTMLElement>("[data-task-mark]")?.focus();
   };
+  const failed = (error: unknown) => request.toast?.(document.querySelector("[data-toast]") as never, error);
+  // The stop is the command the row carries; the mainline service checks it with the owner again (WLN-39).
+  const stopTask = (task: BackgroundTaskRow) => {
+    const command = task.commands.find(one => one.role === "stop");
+    if (command) void request(host.route("/api/mainline/tasks/command"), { body: { source: task.source, subject: task.subject, command } }).catch(failed).finally(again);
+  };
+  const go = (task: BackgroundTaskRow) => { if (!task.open) return; if (task.open.kind === "surface" || !task.open.id) host.openSurface(task.open.surface); else host.openItem(task.open.surface, task.open.id, task.open.title); };
   document.addEventListener("click", event => {
     const target = event.target instanceof Element ? event.target : null;
     if (target?.closest("[data-task-mark]")) { showTasks(!float); return; }
+    // 「在办」 on an event's card (in the dialog or parked in the side panel): the same task, so the same stop, and its card in the panel.
+    if (target?.closest("[data-event-card]")) {
+      const control = target.closest<HTMLElement>("[data-task-control]"), opened = target.closest<HTMLElement>("[data-task-open]");
+      const on = tasks.find(one => one.id === (control?.dataset.task ?? opened?.dataset.taskOpen));
+      if (!on) return;
+      if (control?.dataset.taskControl === "stop") stopTask(on); else if (control) go(on);
+      else { wanted = ""; showTasks(true); carded = on.id; placing = false; paintTasks(); }
+      return;
+    }
     if (!float) return;
     // A press outside the panel and the dialog puts the panel away. The path is the one the press took: a press that redrew what
     // it landed on (a tab of the dialog) is still a press inside the dialog.
@@ -90,12 +106,9 @@ export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take
     if (row) { carded = row.dataset.taskOpen ?? ""; placing = false; wanted = ""; paintTasks(); float.querySelector<HTMLElement>("[data-task-panel-list]")?.focus(); return; }
     const stop = target.closest<HTMLElement>('[data-task-control="stop"]'), task = tasks.find(one => one.id === (stop?.dataset.task ?? carded));
     if (!task) return;
-    const failed = (error: unknown) => request.toast?.(document.querySelector("[data-toast]") as never, error);
     const to = target.closest<HTMLElement>("[data-place-to]"), served = servedBy(task);
-    if (stop) {
-      const command = task.commands.find(one => one.role === "stop");
-      if (command) void request(host.route("/api/mainline/tasks/command"), { body: { source: task.source, subject: task.subject, command } }).catch(failed).finally(again);
-    } else if (target.closest("[data-place-change]")) { placing = !placing; paintTasks(); }
+    if (stop) stopTask(task);
+    else if (target.closest("[data-place-change]")) { placing = !placing; paintTasks(); }
     else if (to) {
       // Where it goes is the owner's record, changed through the mainline service; what is under way goes on (WLN-36).
       const subject = events.get(to.dataset.placeEvent ?? "")?.subject, now = Date.now(), DAY = 86_400_000;
@@ -103,12 +116,15 @@ export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take
       void request(host.route("/api/mainline/place"), { body: { task: task.subject, to: { kind: to.dataset.placeTo, ...(subject ? { subject } : {}) },
         window: { from: new Date(now - 30 * DAY).toISOString(), to: new Date(now + 2 * DAY).toISOString(), now: new Date(now).toISOString() } } }).catch(failed).finally(again);
     } else if (target.closest("[data-task-event]")) { if (served) host.openEvent(press(served)); }
-    else if (target.closest("[data-task-go]") && task.open) { if (task.open.kind === "surface" || !task.open.id) host.openSurface(task.open.surface); else host.openItem(task.open.surface, task.open.id, task.open.title); }
+    else if (target.closest("[data-task-go]")) go(task);
   });
   document.addEventListener("keydown", event => { if (event.key === "Escape" && float) { event.stopPropagation(); showTasks(false); } }, true);
 
   return {
     take: takeTasks,
+    // The tasks done for one event, as its card lists them (WLN-09): what waits on the person first, each with the way to decide or to stop.
+    rows: subject => [...tasks].filter(task => task.serves.some(one => keyOf(one) === keyOf(subject))).sort((a, b) => weight(a) - weight(b) || b.updated_at.localeCompare(a.updated_at))
+      .map(task => { const { serves: _serves, control, ...rest } = row(task); return renderTaskRow({ ...rest, ...(asks(task) && task.open ? { control: "decide" as const } : control ? { control } : {}) }); }).join(""),
     // 「改」 under a reply (WLN-32): the panel opens on that task's card with where it can go — at once when the table has the
     // task, else when the read this asks for brings it. A task that has ended is not in the table: the panel shows its list.
     place(subject) { wanted = keyOf(subject); if (float) again(); else showTasks(true); paintTasks(); },

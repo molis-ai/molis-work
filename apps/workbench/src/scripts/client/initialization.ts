@@ -73,7 +73,8 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       shownPlugin: () => tabWorkspace?.shownPlugin?.() || null,
       registerCover: (kind, open) => tabWorkspace?.registerCover?.(kind, open),
     });
-    const workLine = document.body.hasAttribute('data-pane-embedded') ? null : globalThis.molisWorkBar?.({ route, openEvent: (event) => assistantIsland?.openEvent(event), toNow: () => assistantIsland?.toNow(),
+    const workLine = document.body.hasAttribute('data-pane-embedded') ? null : globalThis.molisWorkBar?.({ route, openEvent: (event) => assistantIsland?.openEvent(event), toNow: () => assistantIsland?.toNow(), parked: (subject) => assistantIsland?.parked(subject),
+      positions: () => projectPositions, positionRead: (path, body, signal) => molisWorkRequest(route(path), { body, signal }),
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title), openSurface: (plugin) => openSurfaceEntry(plugin) });
     (${ATTENTION_FACTORY_SCRIPT})({ translate: readText, route, projectId: state.project?.project_id,
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title) });
@@ -156,7 +157,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     ${pluginWorkbenchClientBootstrap(undefined, true)}
     assistantIsland = (${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ translate: readText, showToast, route, headers: () => molisWorkControlHeaders(), interaction, receipts,
       positions: projectPositions, positionRead, lineFocus: (subject) => workLine?.focus(subject), lineEvent: (subject) => workLine?.event(subject) || null, lineEvents: workLine ? () => workLine.events() : undefined,
-      linePlaced: (task) => workLine?.placed(task) || '', linePlace: (subject) => workLine?.place(subject),
+      linePlaced: (task) => workLine?.placed(task) || '', linePlace: (subject) => workLine?.place(subject), lineCard: workLine ? (slot, card) => workLine.card(slot, card) : undefined,
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title), pluginTitle: (plugin) => tabWorkspace?.pluginTitle(plugin),
       project: { id: state.project?.project_id || state.snapshot.board.project_id, title: state.project?.display_name || "" },
     });

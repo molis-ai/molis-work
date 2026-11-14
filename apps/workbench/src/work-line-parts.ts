@@ -132,8 +132,8 @@ export interface TaskRowView {
   /** The event it is done for; null when it belongs to none. Left out inside an event's own card. */
   readonly serves?: string | null;
   readonly done?: boolean;
-  /** The one control the row offers in place: stop while it runs, retry once it failed. */
-  readonly control?: "stop" | "retry";
+  /** The one control the row offers in place: stop while it runs, retry once it failed, "decide" where it waits on the person. */
+  readonly control?: "stop" | "retry" | "decide";
 }
 
 /** One task: its ring, its name, the step it is on, which event it is done for (each on its own line, so none squeezes another), and the control it offers in place. */
@@ -141,7 +141,7 @@ export function renderTaskRow(row: TaskRowView): string {
   const none = row.serves === null ? uiText.text("workbench.work-line.no-event") : "";
   const serves = row.serves === undefined ? ""
     : `<span class="work-task-serves"${row.serves === null ? ' data-serves="none"' : ""} title="${escapeHtml(row.serves ?? none)}">${row.serves === null ? "" : icon("link")}${text("work-task-serves-name", row.serves ?? none)}</span>`;
-  const control = row.control ? renderButton({ variant: "secondary", size: "sm", label: uiText.text(row.control === "stop" ? "workbench.work-line.stop" : "workbench.work-line.retry"), attrs: { "data-task-control": row.control, "data-task": row.id } }) : "";
+  const control = row.control ? renderButton({ variant: row.control === "decide" ? "primary" : "secondary", size: "sm", label: uiText.text(`workbench.work-line.${row.control === "decide" ? "go-decide" : row.control}`), attrs: { "data-task-control": row.control, "data-task": row.id } }) : "";
   return `<div class="work-task-row" data-state="${row.done ? "done" : "live"}"><button type="button" class="work-task-row-main" data-task-open="${escapeHtml(row.id)}">${ring(row.ring)}`
     + `<span class="work-task-row-text"><span class="work-task-row-title" title="${escapeHtml(row.title)}">${escapeHtml(row.title)}</span><span class="work-task-row-step" title="${escapeHtml(row.step)}">${escapeHtml(row.step)}</span>${serves}</span></button>${control}</div>`;
 }
@@ -261,10 +261,16 @@ export function renderTabUnread(): string {
   return `<i class="work-tab-unread" role="img" aria-label="${uiText("workbench.work-line.result-came-back")}"></i>`;
 }
 
-/** The event card that heads an event's tab: who registered it and its state, "park in the side panel", then the body the caller draws for its kind. */
-export function renderEventCard(card: { readonly id: string; readonly facts: string; readonly body: string }): string {
-  return `<article class="work-card" data-event-card="${escapeHtml(card.id)}"><div class="work-card-head"><span class="work-card-facts" title="${escapeHtml(card.facts)}">${escapeHtml(card.facts)}</span>`
-    + `${iconButton("sidebar", uiText.text("workbench.work-line.park-side-panel"), { "data-event-park": card.id })}</div>${card.body}</article>`;
+/**
+ * The event card: who registered the event and its state, then the body the caller draws. In an event's tab it carries "park in
+ * the side panel"; parked there (`parked`) it names the event, since no tab does, and carries the way back to the dialog and its close.
+ */
+export function renderEventCard(card: { readonly id: string; readonly facts: string; readonly body: string; readonly parked?: boolean; readonly title?: string; readonly mark?: string }): string {
+  const id = escapeHtml(card.id), name = card.parked ? `<span class="work-card-name" data-card-name>${card.mark ?? ""}<strong title="${escapeHtml(card.title ?? "")}">${escapeHtml(card.title ?? "")}</strong></span>` : "";
+  const buttons = card.parked
+    ? iconButton("message", uiText.text("workbench.work-line.back-to-dialog"), { "data-event-unpark": card.id }) + iconButton("x", uiText.text("workbench.work-line.close"), { "data-event-close": card.id })
+    : iconButton("sidebar", uiText.text("workbench.work-line.park-side-panel"), { "data-event-park": card.id });
+  return `<article class="work-card" data-event-card="${id}"${card.parked ? " data-parked" : ""}><div class="work-card-head">${name}<span class="work-card-facts" title="${escapeHtml(card.facts)}">${escapeHtml(card.facts)}</span>${buttons}</div>${card.body}</article>`;
 }
 
 /** With the dialog closed: the latest reply above the composer, with the task mark and the way to open the dialog. Only the reply itself is announced. */

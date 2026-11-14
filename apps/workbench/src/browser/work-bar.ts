@@ -17,6 +17,7 @@ import type { StateRingState, UiRequest } from "@molis-ai/molis-work-contracts/p
 import type { BackgroundTasksReadResult, MainlineIssue, WorkLineEvent, WorkLineReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
 import { t as uiText, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderLineEvent, renderLineUnreadable, renderOwnerMark, renderReplyPlaced, type LineEventState, type LineEventView } from "../work-line-parts.js";
+import { installEventCards, type EventCardHandle, type EventCardOpen, type PositionViews } from "./work-event-card.js";
 import { ASKS, FAILED, installTaskPanel } from "./work-task-panel.js";
 import { installWorkLineLayout } from "./work-line-layout.js";
 
@@ -29,6 +30,11 @@ export interface WorkBarHost {
   toNow(): void;
   openItem(surface: string, id: string, title: string): void;
   openSurface(surface: string): void;
+  /** The platform's composed displays, for an event card's body: the page part and the read it asks through. */
+  positions?(): PositionViews | null | undefined;
+  positionRead?(path: string, body: unknown, signal: AbortSignal): Promise<unknown>;
+  /** A card was parked in the side panel: the dialog puts that event's tab away and closes. */
+  parked?(subject: ActionSubject): void;
 }
 
 const RUNNING: ReadonlySet<StateRingState> = new Set(["doing", "starting", "running", "generating", "saving", "indexing", "syncing", "retrying"]);
@@ -64,6 +70,8 @@ export interface WorkBarHandle {
   placed(task: { subject: ActionSubject; title: string; serves: readonly ActionSubject[]; own: boolean }): string;
   /** 「改」 was pressed: the task's card in the background-task panel, with where it can go. */
   place(subject: ActionSubject): void;
+  /** The event card in a place the caller gives (an event's tab). Parked cards are the line's own, in the side panel. */
+  card(slot: HTMLElement, card: EventCardOpen): EventCardHandle;
 }
 export type LineEventPress = Parameters<WorkBarHost["openEvent"]>[0];
 
@@ -125,6 +133,11 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
 
   const panel = installTaskPanel(host, { events: () => events.values(), press, keyOf, hue, again, request });
 
+  const eventOf = (subject: ActionSubject) => [...events.values()].find(one => keyOf(one.subject) === keyOf(subject));
+  const cards = installEventCards(host, { event: eventOf, keyOf, press, rows: panel.rows,
+    // Who registered it, then how it stands: the owner's own line about it, or that it waits for the person.
+    facts: event => { const { stateLabel, note } = view(event, false); return [uiText.text("workbench.work-line.registered-by", { plugin: event.origin.title }), stateLabel || note].filter(Boolean).join(" · "); } });
+
   line.addEventListener("click", event => {
     const target = event.target instanceof Element ? event.target : null;
     if (target?.closest("[data-work-line-retry]")) { again(); return; }
@@ -153,9 +166,11 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
     const { line: read, tasks: table } = (event as CustomEvent<{ line?: WorkLineReadResult | null; tasks?: BackgroundTasksReadResult | null }>).detail ?? {};
     if (read) draw(read);
     if (table) panel.take(table);
+    cards.paint();
   });
   return {
-    event(subject) { const found = [...events.values()].find(one => keyOf(one.subject) === keyOf(subject)); return found ? press(found) : null; },
+    event(subject) { const found = eventOf(subject); return found ? press(found) : null; },
+    card: cards.mount,
     events: () => [...events.values()].map(press),
     placed(task) {
       const served = task.serves.map(subject => [...events.values()].find(one => keyOf(one.subject) === keyOf(subject))).find(Boolean);

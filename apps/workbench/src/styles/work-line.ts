@@ -189,6 +189,11 @@ ${W} ${BUTTON_GROUNDS} .mw-btn--secondary:not(:disabled){border-color:var(--line
 .work-reply-placed>svg{flex:none;width:14px;height:14px;color:var(--ink-soft)}
 .assistant-placed{margin:6px 0 2px;min-width:0}
 .assistant-send-to{max-height:min(60vh,440px);overflow:auto}
+.work-card-name{flex:0 1 auto;display:flex;align-items:center;gap:6px;min-width:0}
+.work-card-name>strong{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
+.work-card-body:empty{display:none}
+.side-parked{display:flex;flex-direction:column;gap:12px;height:100%;padding:12px;overflow:auto}
+.side-parked:not([data-empty="true"])>.side-parked-empty{display:none}
 .work-reply-placed-where{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;font-weight:500}
 .work-reply-returned{align-self:flex-start;display:inline-flex;align-items:center;gap:4px;height:20px;max-width:100%;min-width:0;padding:0 7px;border-radius:var(--r-tag,6px);background:var(--accent-soft);color:var(--accent-strong);font-size:11px;font-weight:500;white-space:nowrap}
 .work-reply-peek-head .work-reply-returned{align-self:center}

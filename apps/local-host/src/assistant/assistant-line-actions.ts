@@ -61,6 +61,12 @@ const openOf = (work: StoredWork): OpenTarget => ({ kind: "item", surface: SOURC
 const isEvent = (work: StoredWork) => !work.main && !work.reply_target && (work.delegated_by ? work.line_event === true : !work.serves?.length);
 /** A work that can be a row of the task table: anything but the conversation itself and a reply into someone's thread. */
 const isTask = (work: StoredWork) => !work.main && !work.reply_target;
+/**
+ * The event a part handed out by `parent` is done for when the round names none: the event `parent` itself is, or the one it is
+ * done for. A main conversation is no event, so what it hands out belongs to none until it is placed.
+ */
+export const eventBehind = (parent: StoredWork): StoredWork["serves"] =>
+  parent.main || parent.reply_target || parent.delegated_by ? undefined : parent.serves?.length ? parent.serves.map(one => ({ ...one })) : [{ kind: ASSISTANT_WORK_KIND, id: parent.work_id }];
 const servesOf = (work: StoredWork): ActionSubject[] => isEvent(work) ? [subjectOf(work)] : (work.serves ?? []).map(one => ({ kind: one.kind, id: one.id }));
 
 export function assistantWorkEvents(works: ReadonlyArray<{ work: StoredWork; state: AssistantWorkState }>, window: WorkEventWindow): WorkEvent[] {

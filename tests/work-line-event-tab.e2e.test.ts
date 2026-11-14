@@ -313,3 +313,60 @@ test("WLN-03 WLN-40: 「发给」 lists the Assistant, the Characters and the li
   assert.deepEqual([sent!.text, sent!.main, sent!.character, sent!.work_id, sent!.for_event], ["帮我改改周报开头", true, editor, undefined, undefined]);
   assert.equal(await evaluate("document.documentElement.scrollWidth <= window.innerWidth"), true, "no sideways scroll");
 });
+
+// WLN-09, WLN-14: the card says who registered the event and lists the tasks done for it; parked, the same card stays open in the
+// side panel's 「对话」 page while the dialog is closed, and what is pressed there is what is pressed in the dialog.
+test("WLN-09 WLN-14: an event's card lists the tasks done for it; parked in the side panel it stays open, acts the same and goes back to the dialog", { timeout: 150_000 }, async t => {
+  const browser = await openGoalBrowser(t, true, undefined, null);
+  if (!browser) return;
+  const { command, sessionId, navigate, origin, projectId, homeDirectory, evaluate, waitFor, click } = browser;
+  const store = openTodoStore(homeDirectory);
+  const item = store.create({ title: "给王总回电话", placement: "project", planned_date: today() }, { projectId, projectIds: [], actor: "user" as const, actorId: "test" }).item;
+  store.close();
+  const PRESS = `[data-work-line] [data-work-event*="todo-planned:${item.id}"]`, KEY = `todo_item:${item.id}`;
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
+  await waitFor(`document.querySelector(${JSON.stringify(PRESS)})?.textContent.includes('给王总回电话')`, 20_000);
+  await click(PRESS);
+  const CARD = `document.querySelector('[data-assistant-event-card] [data-event-card=${JSON.stringify(KEY)}]')`;
+  await waitFor(`${CARD}?.querySelector('[data-card-body]')?.textContent.includes('给王总回电话')`, 15_000);
+  // Who registered it, then how it stands; no task yet, so no 「在办」.
+  assert.match(String(await evaluate(`${CARD}.querySelector('.work-card-facts').textContent`)), /^待办 登记/u);
+  assert.equal(await evaluate(`${CARD}.querySelector('[data-card-tasks]').hidden`), true);
+
+  // Words said here start a task done for the event: the card lists it, by the row the task panel gives the same task.
+  await evaluate(type("先问预算"));
+  await evaluate("document.querySelector('[data-assistant-composer] [data-composer-send]').click()");
+  await waitFor(`${CARD}?.querySelector('[data-card-tasks] .work-task-row-title')?.textContent === '先问预算'`, 25_000);
+  assert.equal(await evaluate(`${CARD}.querySelector('[data-card-tasks] h4').textContent`), "在办");
+  assert.equal(await evaluate(`Boolean(${CARD}.querySelector('[data-card-tasks] .work-task-serves'))`), false, "inside its own event's card a row does not repeat the event");
+  const shot = new URL("../.impeccable/qa/review/work-line/", import.meta.url);
+  await mkdir(shot, { recursive: true });
+  await writeFile(new URL("event-card-tasks-1440.png", shot), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
+
+  // WLN-14: parked — the card is in the side panel's 「对话」 page, the dialog is closed and the event's tab is put away.
+  await click("[data-assistant-event-card] [data-event-park]");
+  const SIDE = `document.querySelector('[data-side-body="conversation"] [data-event-card=${JSON.stringify(KEY)}]')`;
+  await waitFor(`${SIDE} && !document.querySelector('[data-side-body="conversation"]').hidden && document.querySelector('[data-assistant-panel]').hidden`, 15_000);
+  assert.equal(await evaluate("document.querySelector('[data-side-tab=\"conversation\"]').hidden"), false, "the page is offered while a card is parked");
+  assert.equal(await evaluate("Boolean(document.querySelector('.assistant-tab[data-tab^=\"event:\"]'))"), false);
+  await waitFor(`${SIDE}.querySelector('[data-card-name] strong')?.textContent === '给王总回电话' && ${SIDE}.querySelector('[data-card-body]')?.textContent.includes('给王总回电话') && ${SIDE}.querySelector('[data-card-tasks] .work-task-row-title')?.textContent === '先问预算'`, 15_000);
+  assert.equal(await evaluate(`(() => { const box = ${SIDE}.getBoundingClientRect(), side = document.querySelector('[data-side-panel]').getBoundingClientRect(); return box.left >= side.left && box.right <= side.right + 1 && ${SIDE}.scrollWidth <= ${SIDE}.clientWidth + 1; })()`), true, "the card fits the side panel");
+  await writeFile(new URL("event-card-parked-1440.png", shot), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
+  // A row pressed there opens that task's card in the background-task panel, as in the dialog.
+  await click(`[data-side-body="conversation"] [data-card-tasks] [data-task-open]`);
+  await waitFor("document.querySelector('[data-work-task-float] [data-task-card]')?.textContent.includes('先问预算')");
+  await evaluate("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))");
+  await waitFor("!document.querySelector('[data-work-task-float]')");
+  // It stays parked over a reload (this viewer's own, per project).
+  await navigate(() => command("Page.reload", {}, sessionId));
+  await waitFor(`${SIDE}?.querySelector('[data-card-name] strong')?.textContent === '给王总回电话' && ${SIDE}.querySelector('[data-card-tasks] .work-task-row-title')?.textContent === '先问预算'`, 25_000);
+
+  // Back in the dialog: the event's tab again, and nothing left parked.
+  await evaluate(`${SIDE}.querySelector('[data-event-unpark]').click()`);
+  await waitFor(`${TAB}?.dataset.tab === ${JSON.stringify(`event:${KEY}`)} && !document.querySelector('[data-assistant-panel]').hidden && !${SIDE}`);
+  await waitFor(`${CARD}?.querySelector('[data-card-tasks] .work-task-row-title')?.textContent === '先问预算'`, 15_000);
+  assert.equal(await evaluate("document.querySelector('[data-side-parked]').dataset.empty"), "true");
+  assert.equal(await evaluate("document.documentElement.scrollWidth <= window.innerWidth"), true, "no sideways scroll");
+});

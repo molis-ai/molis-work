@@ -1501,11 +1501,6 @@ export interface AgentRunRef {
     session_id: string;
 }
 
-export interface AgentRunSkillRead {
-    ref: import("@molis-ai/molis-work-contracts/services/agent-definitions").SkillRef;
-    name: string;
-}
-
 export interface AgentRunUsage {
     compaction?: {
         recorded_calls: number;
@@ -1529,6 +1524,7 @@ export interface AgentRunView {
     step_board_error?: string;
     ref: AgentRunRef;
     phase: AgentRunPhase;
+    readonly stop_reason_code?: "person" | "host";
     frozen: AgentFrozenStart;
     turns: AgentTurnView[];
     activity: AgentToolActivity[];
@@ -1546,7 +1542,6 @@ export interface AgentRunView {
         requested?: string;
     };
     offers?: readonly AgentRunOffer[];
-    skill_reads?: readonly AgentRunSkillRead[];
     started_at: string;
     ended_at: string | null;
 }
@@ -2351,7 +2346,6 @@ interface AgentStartInputFields {
     text_materials?: AgentTextMaterial[];
     image_materials?: AgentImageMaterial[];
     skills?: SkillRef[];
-    auto_skills?: false;
     mcp_tools?: AgentMcpToolRef[];
     mcp_sources?: AgentMcpSourceRef[];
     budget?: AgentRunBudget;

@@ -12,6 +12,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { isolatedProjectStatements } from "./plugin-project-isolation.js";
 import { openPluginTables } from "./project-plugin-databases.js";
 import { ProjectStatementProcess, type StatementLimits } from "./project-statement-process.js";
+import { freezeGoalApprovalOutcome } from "./project-approval-sync-links.js";
 import { commitProjectReview } from "./project-review-commit.js";
 import { decisionOwnerMatches, projectApprovalRules, projectReviewDecisions } from "@molis-ai/molis-work-service-project-approvals";
 
@@ -75,13 +76,14 @@ export function openPluginProjectLibrary(library: ProjectLibrary, manifest: Plug
     } : undefined;
     const decisions = projectId && rules ? projectReviewDecisions(library.db as SqliteDatabase, projectId) : undefined;
     const approvalHistory: PluginProjectDatabase["approvalHistory"] = decisions ? {
-      read(id) { checkRead(); const record = decisions.read(id); return record && decisionOwnerMatches(record, ruleOwner) ? record : null; },
+      read(id) { checkRead(); const record = decisions.read(id, ruleOwner); return record && decisionOwnerMatches(record, ruleOwner) ? record : null; },
       transferred(subject) { checkRead(); return decisions.transferred(ruleOwner, subject); },
     } : undefined;
     const client = pluginDatabaseClient({ reader, writer: library.db, inTransaction: () => library.db.inTransaction === true, projectId,
       ...(approvalRules ? { approvalRules: Object.freeze(approvalRules) } : {}),
       ...(approvalHistory ? { approvalHistory: Object.freeze(approvalHistory) } : {}),
       joinProjectDecision: (decision, check) => commitProjectReview(library.db as SqliteDatabase, decision, check),
+      freezeProjectOutcome: outcome => freezeGoalApprovalOutcome(library.db as SqliteDatabase, manifest, outcome),
       check: (connection, sql, parameters, mode) => (connection === reader ? reads : writes)(sql, parameters, mode) }, declaration, authorize, instance, () => closed, journal);
     const processes = new ProjectStatementProcess(library.path, record, statementLimits);
     const statements = isolatedProjectStatements(processes, declaration, authorize, instance, () => closed, projectId);

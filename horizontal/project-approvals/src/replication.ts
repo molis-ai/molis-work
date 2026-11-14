@@ -4,6 +4,7 @@ import { canonicalJsonText, createSyncConflictState, isRecord } from "@molis-ai/
 import { createSqliteReplica, namespacedReplicaDatabase, type ReplicaDatabase } from "@molis-ai/molis-work-storage";
 import { PROJECT_APPROVALS_JOURNAL } from "./schema.js";
 import { assertFrozenProjectReview, assertProjectReviewCoverage } from "./coverage.js";
+import { isApprovalRuleScope } from "./rules.js";
 
 type ApprovalRow = ProjectReplicaRow & { project_id: string };
 const decisionColumns = ["decision_id", "project_id", "request_id", "request_key", "record_json", "recorded_at"] as const;
@@ -24,7 +25,8 @@ function parsedJson(value: unknown): Record<string, unknown> {
 
 function validateDecision(row: ApprovalRow) {
   const value = parsedJson(row.record_json);
-  if (!text(row.decision_id) || !text(row.recorded_at) || value.decision_id !== row.decision_id) throw invalid();
+  if (!text(row.decision_id) || !text(row.recorded_at) || value.decision_id !== row.decision_id
+    || value.outcome_digest !== undefined && (typeof value.outcome_digest !== "string" || !/^sha256:[a-f0-9]{64}$/u.test(value.outcome_digest))) throw invalid();
   if (value.kind === "history") {
     const original = value.original;
     if (row.request_id !== null || row.request_key !== null || value.project_id !== row.project_id || value.recorded_at !== row.recorded_at
@@ -51,19 +53,13 @@ function validateDecision(row: ApprovalRow) {
 }
 
 function validateRule(row: ApprovalRow) {
-  const scope = parsedJson(row.scope_json), owner = scope.owner;
   if (!text(row.id) || !Number.isSafeInteger(row.revision) || Number(row.revision) < 1
     || !Number.isSafeInteger(row.rule_order) || Number(row.rule_order) < 1
     || ![null, 0, 1].includes(row.requires_person as number | null) || !["active", "replaced", "withdrawn"].includes(String(row.state))
     || !text(row.created_by) || !text(row.created_at) || typeof row.reason !== "string") throw invalid();
   const changed = [row.changed_by, row.changed_at, row.change_reason];
   if (!changed.every(item => item === null) && !changed.every(text)) throw invalid();
-  if (owner !== undefined && (!isRecord(owner) || (owner.kind === "system" ? !text(owner.provider_id)
-    : owner.kind !== "plugin" || !text(owner.plugin_id) || !text(owner.publisher_signature)))) throw invalid();
-  if (scope.kind === "project_default") {
-    if (!fields(scope, owner === undefined ? ["kind"] : ["kind", "owner"])) throw invalid();
-  } else if ((scope.kind !== "object" && scope.kind !== "ancestor_minimum") || !owner || !fields(scope, ["kind", "owner", "subject"])
-    || !isRecord(scope.subject) || !fields(scope.subject, ["kind", "id"]) || !text(scope.subject.kind) || !text(scope.subject.id)) throw invalid();
+  if (!isApprovalRuleScope(parsedJson(row.scope_json))) throw invalid();
 }
 
 function approvedRows(input: unknown, projectId: string, columns: readonly string[], validate: (row: ApprovalRow) => void): ApprovalRow[] {

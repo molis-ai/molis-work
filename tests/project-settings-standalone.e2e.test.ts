@@ -4,9 +4,10 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { defaultShelfHotKeys } from "@molis-ai/molis-work-module-shelf";
 import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
+import { projectRulesPage } from "./fixtures/project-review-entry.js";
 import test from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
-import { boardSnapshot, goalsQueryOf } from "./fixtures/goal-application.js";
+import { boardSnapshot } from "./fixtures/goal-application.js";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { ensureStorageSpace } from "@molis-ai/molis-work-storage";
@@ -107,7 +108,7 @@ test("settings serve complete category pages; the project gear opens them in the
   browser.server?.on("request", observePane);
   t.after(() => { browser.server?.off("request", observePane); });
   const prefix = `/projects/${projectId}`;
-  for (const [path, content] of [["", "data-project-rename"], ["/general", "data-project-rename"], ["/guidance", "data-guidance-form"], ["/rules", "data-policy-form"], ["/planning", "data-planning-search"]]) {
+  for (const [path, content] of [["", "data-project-rename"], ["/general", "data-project-rename"], ["/guidance", "data-guidance-form"], ["/planning", "data-planning-search"]]) {
     const response = await fetch(origin + prefix + "/settings" + path);
     assert.equal(response.status, 200);
     const html = await response.text();
@@ -115,9 +116,12 @@ test("settings serve complete category pages; the project gear opens them in the
     assert.ok(html.includes(content));
     assert.doesNotMatch(html.replace(/<script[\s\S]*?<\/script>/g, ""), /data-tab-workspace|data-plugin-strip|data-project-settings-page-root/);
   }
-  const embed = await (await fetch(origin + prefix + "/settings/rules?embed=1")).text();
-  assert.match(embed, /data-policy-form/);
-  assert.doesNotMatch(embed, /<body/);
+  const rules = await fetch(origin + prefix + "/settings/rules?embed=1", { redirect: "manual" });
+  assert.equal(rules.status, 302);
+  const rulesLocation = new URL(rules.headers.get("location")!, origin);
+  assert.equal(rulesLocation.pathname, "/settings/authorizations");
+  assert.equal(rulesLocation.searchParams.get("project"), projectId);
+  assert.equal(rulesLocation.searchParams.get("view"), "project-rules");
   await browser.setViewport(1440, 1000);
   await navigate(() => command("Page.navigate", { url: origin + prefix + "/" }, sessionId));
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
@@ -293,26 +297,33 @@ test("project settings preserve edits on failed saves, record guidance versions,
   await waitFor("!!document.querySelector('[data-work-surface=project-settings] .guidance-entry')", 15_000);
   assert.match(await evaluate<string>("document.querySelector('.guidance-entry').textContent"), /用户数据和备份只保存在本机/);
   await navigate(() => command("Page.navigate", { url: origin + prefix + "/settings/rules" }, sessionId));
-  await waitFor("!!document.querySelector('[data-work-surface=project-settings] [data-policy-form]')", 15_000);
+  const ruleForm = '[data-authorization-rule-form]';
+  const rulePath = "/api/settings/authorizations/project-rules?project=" + encodeURIComponent(projectId!);
+  await waitFor(`!!document.querySelector('${ruleForm}')`, 15_000);
   const beforeRules = boardSnapshot(browser.store, DEMO_PROJECT_ID).cursor;
-  const accepted = "document.querySelector('[data-policy-form] [name=human_approval]').checked";
+  const accepted = `document.querySelector('${ruleForm} [name=requires_person]').checked`;
   const original = await evaluate<boolean>(accepted);
   await evaluate(accepted + " = " + String(!original));
-  await click('[data-policy-cancel]');
+  await click('[data-authorization-reload]');
+  await waitFor(`document.querySelector('${ruleForm} [name=requires_person]')?.checked===${original}`);
   assert.equal(await evaluate(accepted), original);
   assert.equal(boardSnapshot(browser.store, DEMO_PROJECT_ID).cursor, beforeRules);
   await evaluate(accepted + " = " + String(!original));
-  await command("Network.setBlockedURLs", { urls: [origin + prefix + "/api/plugins/io.molis.work.goals/policy-bindings"] }, sessionId);
-  await click('[data-policy-form] button[type=submit]');
-  await waitFor("!document.querySelector('[data-policy-error]').hidden && !document.querySelector('[data-policy-form] button[type=submit]').disabled");
+  await fill(ruleForm + " [name=reason]", "保留断线前的修改");
+  await command("Network.setBlockedURLs", { urls: [origin + rulePath] }, sessionId);
+  await click(ruleForm + ' button[type=submit]');
+  await waitFor(`document.querySelector('${ruleForm} [role=alert]:not([hidden])') && !document.querySelector('${ruleForm} button[type=submit]').disabled`);
   assert.equal(await evaluate(accepted), !original);
+  assert.equal(await evaluate(`document.querySelector('${ruleForm} [name=reason]').value`), "保留断线前的修改");
   await command("Network.setBlockedURLs", { urls: [] }, sessionId);
-  await navigate(() => click('[data-policy-form] button[type=submit]'));
-  await waitFor("!!document.querySelector('[data-work-surface=project-settings] [data-policy-form]')", 15_000);
+  await click(ruleForm + ' button[type=submit]');
+  await waitFor("!!document.querySelector('[data-authorization-detail] [role=status]')");
   assert.equal(await evaluate(accepted), !original);
-  assert.equal(await evaluate("document.querySelector('[data-project-rules-receipt]').hidden"), false);
   await reloadPage();
-  await waitFor("!!document.querySelector('[data-work-surface=project-settings] [data-policy-form]')", 15_000);
+  if (!await evaluate("!!document.querySelector('[data-authorization-settings]')")) {
+    await navigate(() => command("Page.navigate", { url: origin + prefix + "/settings/rules" }, sessionId));
+  }
+  await waitFor(`!!document.querySelector('${ruleForm}')`, 15_000);
   assert.equal(await evaluate(accepted), !original);
   await navigate(() => command("Page.navigate", { url: origin + prefix + "/settings/planning" }, sessionId));
   await waitFor("!!document.querySelector('[data-work-surface=project-settings] [data-planning-search]')", 15_000);
@@ -460,29 +471,31 @@ for (const mode of ["A", "B"] as const) test(`RAC-2848 RAC-2849 FSS-35 ${mode}: 
   await writeFile(join(REVIEW_EVIDENCE, "pg070-current", mode + "-traffic.json"), JSON.stringify(traffic.requests, null, 2));
 });
 
-for (const mode of ["B", "C"] as const) test(`RAC-2849 ${mode}: registered Goals rules save once; absent Coding and Shelf cause no new writes`, { timeout: 90_000 }, async t => {
+for (const mode of ["B", "C"] as const) test(`RAC-2849 ${mode}: platform project rules save once; absent Coding and Shelf cause no new writes`, { timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, true); if (!b) return;
   const traffic = await settingsTraffic(b); t.after(traffic.close); await b.setViewport(1440, 1000);
-  const path = "/projects/" + b.projectId + "/settings/rules";
+  const path = `/settings/authorizations?view=project-rules&project=${encodeURIComponent(b.projectId!)}`;
   const surface = await settingsSurface(b, path, mode === "B");
   if (mode === "C") assert.ok(traffic.responses.some(item => item.frame === surface.frameId && item.status === 200 && item.url === b.origin + path));
-  await surface.waitFor("!!document.querySelector('[data-project-rules-form] [name=human_approval]')");
-  assert.equal(await surface.evaluate("!!document.querySelector('[data-coding-method-library],[data-coding-mcp-settings],[data-shelf-settings]')"), false);
-  const before = boardSnapshot(b.store, b.projectId!);
-  const current = await surface.evaluate<boolean>("document.querySelector('[data-project-rules-form] [name=human_approval]').checked");
-  await surface.evaluate(`document.querySelector('[data-project-rules-form] [name=human_approval]').checked=${!current}`);
-  if (mode === "B") await b.navigate(() => surface.click("[data-project-rules-form] [type=submit]"));
-  else {
-    await surface.evaluate("globalThis.t393BeforeRulesSave=true");
-    await surface.click("[data-project-rules-form] [type=submit]");
-    await surface.waitFor("!globalThis.t393BeforeRulesSave && !!document.querySelector('[data-project-rules-form]')");
+  if (mode === "B") {
+    await surface.waitFor("!!document.querySelector('[data-work-surface=settings] [data-authorization-settings]')");
+    await surface.click('[data-authorization-view="rules"]');
+    await fillSettings(surface, '[data-authorization-project]', b.projectId!);
   }
-  await surface.waitFor(`document.querySelector('[data-project-rules-form] [name=human_approval]')?.checked===${!current}`);
-  const api = "/projects/" + b.projectId + "/api/plugins/io.molis.work.goals/policy-bindings";
+  const form = "[data-authorization-rule-form]", checkbox = `document.querySelector('${form} [name=requires_person]')`;
+  await surface.waitFor(`!!${checkbox}`);
+  assert.equal(await surface.evaluate("!!document.querySelector('[data-coding-method-library],[data-coding-mcp-settings],[data-shelf-settings]')"), false);
+  const current = await surface.evaluate<boolean>(checkbox + ".checked");
+  await surface.evaluate(`${checkbox}.checked=${!current}`);
+  const reason = "审批规则验证 " + mode;
+  await fillSettings(surface, form + " [name=reason]", reason);
+  await surface.click(form + " [type=submit]");
+  await surface.waitFor("!!document.querySelector('[data-authorization-detail] [role=status]')");
+  await surface.waitFor(`${checkbox}?.checked===${!current}`);
+  const api = "/api/settings/authorizations/project-rules";
   assert.equal(traffic.posts(api, surface.frameId).length, 1, "one intent reaches the registered rules client once");
-  const after = boardSnapshot(b.store, b.projectId!);
-  assert.ok(after.cursor > before.cursor);
-  assert.ok(goalsQueryOf(b.store).listPolicyHistory(b.projectId!).some(binding => binding.scope === "project_default" && binding.state === "active" && binding.policy.human_approval === !current));
+  const after = await projectRulesPage(b, b.projectId!).read();
+  assert.ok(after.rules.some(rule => rule.scope.kind === "project_default" && rule.state === "active" && rule.requires_person === !current && rule.reason === reason));
   assert.equal(traffic.requests.filter(item => item.method === "POST" && /\/api\/plugins\/io\.molis\.work\.(coding|shelf)\//u.test(item.url)).length, 0);
   assert.deepEqual(traffic.errors, []);
   await settingsShot(b, mode + "-goals-rules");

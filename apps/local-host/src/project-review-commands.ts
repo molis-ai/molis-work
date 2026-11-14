@@ -11,6 +11,7 @@ import { assertActionInput, withTrustedDecision } from "@molis-ai/molis-work-ker
 import { assertSandboxJson, canonicalJsonText, isRecord } from "@molis-ai/molis-work-plugin-sdk";
 import { projectApprovalRules, projectReviewDecisions, projectReviewPresentation, reviewRequirementCoverage } from "@molis-ai/molis-work-service-project-approvals";
 import { withProtectedHostAction } from "./plugin-consent-settings-entry.js";
+import { bindProjectReview } from "./project-review-effect.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
 
 const missing = () => new ActionError("actions.missing", "找不到当前项目和原安装的决定请求");
@@ -34,6 +35,7 @@ export async function readProjectReview(host: MolisWorkLocalHost, project: Local
   const held = await loadOffer(host, project, read, entry);
   const record = await inReviewLibrary(host, project, entry, decisions => decisions.forRequest(held.view.reference.id));
   held.assertCurrent();
+  if (record && !same(record.reference, held.view.reference)) throw stale();
   if (read.draft) holdDraft(host, project.project_id, held.caller.actor_id, held.view.reference, read);
   return presentReview(held, record);
 }
@@ -56,7 +58,10 @@ async function readByReference(host: MolisWorkLocalHost, project: LocalHostProje
   }
   const held = await loadOffer(host, project, heldDraft(host, project.project_id, entry.caller.actor_id, reference, locator), entry, registered);
   if (!same(held.view.reference, reference)) throw stale();
-  return presentReview(held, null);
+  const settled = await inReviewLibrary(host, project, entry, decisions => decisions.forRequest(reference.id));
+  held.assertCurrent();
+  if (settled && !same(settled.reference, reference)) throw stale();
+  return presentReview(held, settled);
 }
 
 function presentReview(held: Awaited<ReturnType<typeof loadOffer>>, record: ProjectTrustedDecision | null): ReviewRequest {
@@ -121,12 +126,16 @@ export async function decideProjectReview(host: MolisWorkLocalHost, project: Loc
     registered.assertCurrent();
     return record;
   };
-  return withProtectedHostAction(entry.action, () => withTrustedDecision({
-    actor_id: caller.actor_id, project_id: project.project_id, entry: entry.action, wholeSubject,
-    action: reference, input: frozenChoice, decision: command, decisionId, frozenChoice,
-    rulesRevision: held.rulesRevision, review: { publisher_signature: held.publisherSignature, review: coverage,
+  const attachExecution = bindProjectReview({
+    command, decisionId, frozenChoice, rulesRevision: held.rulesRevision, actor_id: caller.actor_id, deadline,
+    entry: { ...entry.action, ...(wholeSubject ? { whole_confirmation_prompted: true, prompted_subject_id: wholeSubject } : {}) },
+    review: { publisher_signature: held.publisherSignature, review: coverage,
       presentation: { summary: held.view.summary, approver: held.view.approver, requirements: held.view.requirements,
-        choices: held.view.choices, expires_at: held.view.expires_at } }, assertCurrent, beforeEffect, deadline,
+        choices: held.view.choices, expires_at: held.view.expires_at } },
+  });
+  return withProtectedHostAction(entry.action, () => withTrustedDecision({
+    actor_id: caller.actor_id, project_id: project.project_id, entry: entry.action,
+    action: reference, input: frozenChoice, attachExecution, assertCurrent, beforeEffect,
   }, async submitted => {
     try {
       const result = await host.actionClient(project).invoke(caller, reference, frozenChoice);

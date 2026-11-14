@@ -8,6 +8,7 @@ import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { projectApprovalRules } from "@molis-ai/molis-work-service-project-approvals";
 import { authorizationSettingsControl } from "./authorization-settings-control.js";
 import { entryUserAction } from "./entry-user-action.js";
+import { openProjectPersonContext } from "./local-web-actions.js";
 import { decideProjectReview, readProjectReview, type ProtectedReviewEntry } from "./project-review-commands.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import { webEntryDoor, webEntryProvider } from "./web-entry-actions.js";
@@ -20,12 +21,20 @@ interface Entry {
 }
 const door = webEntryDoor<Entry>("project:approvals", () => "当前操作需要受保护的项目审批入口");
 
+/** Resolve the person's authority once in the project that owns the review. */
+export function projectReviewPerson({ host, project }: Entry, signal: AbortSignal | undefined, assertCurrent: () => void) {
+  assertCurrent();
+  return host.withProject(project, ({ store }) => {
+    assertCurrent();
+    return openProjectPersonContext(host, project, store, signal).caller;
+  }, { activatePlugins: true });
+}
+
 async function controls({ host, project }: Entry, exposed: ActionExecutionContext): Promise<ProtectedReviewEntry> {
   const assertCurrent = () => { exposed.signal?.throwIfAborted(); requireSynchronous(exposed.assert_authority_current?.()); };
-  assertCurrent();
-  const caller = await host.localPersonContext(project, exposed.signal), action = exposed.user_action;
-  assertCurrent();
+  const action = exposed.user_action;
   if (action?.source !== "web") throw new ActionError("actions.forbidden", "原决定入口已关闭");
+  const caller = await projectReviewPerson({ host, project }, exposed.signal, assertCurrent);
   // A nested dispatch must carry the identical audit locator that the protected entry originally issued.
   return { caller, action: action as ProtectedReviewEntry["action"], assertCurrent };
 }
@@ -96,8 +105,7 @@ export async function invokeProjectReviewManagement(host: MolisWorkLocalHost, pr
     requireSynchronous(accountCurrent?.());
     if (host.lifecycle() !== "running") throw new ActionError("actions.host_closed", "管理入口所在的宿主正在关闭");
   };
-  assertCurrent();
-  const caller = await host.localPersonContext(project, signal);
+  const caller = await projectReviewPerson({ host, project }, signal, assertCurrent);
   const action = Object.freeze({ ...entryUserAction("management", project.project_id, { id: callId }), source: "management" as const });
   return (name === "read" ? readProjectReview : decideProjectReview)(host, project, input, { caller, action, assertCurrent });
 }

@@ -121,7 +121,7 @@ test("RAC-1511 the plugin prefix creates a Goal and a relation retry is only rep
 });
 
 /** RAC-1512: whole confirmation reaches the action policy through the Runtime route's own user_action. */
-test("RAC-1512 a whole proposal confirmation at the plugin prefix reaches the action policy with the page's own message", async t => {
+test("RAC-1512 a whole proposal confirmation reaches the original action with the protected page's own message", async t => {
   const served = await openTestHome(t);
   const project = await served.createProject("Goals prefix proposals");
   const base = page(served, project.project_id), prefix = `${base}${GOALS_PREFIX}`;
@@ -130,22 +130,28 @@ test("RAC-1512 a whole proposal confirmation at the plugin prefix reaches the ac
   const actions = bindActionClient(served.host.actionClient(project.reference), () => caller);
   const proposal = await actions.invoke(goalsActions.treeSubmit, proposalInput("prefix"));
   const proposalId = proposal.proposal.proposal_id;
-  const decisionPath = `${prefix}/goal-tree-proposals/${proposalId}/decision`;
+  const retired = `${prefix}/goal-tree-proposals/${proposalId}/decision`;
+  const decisionPath = `${base}/api/project-approvals/decide`;
   const bodyKey = randomUUID();
-  const decide = (confirmation: boolean, extra: Record<string, unknown> = {}) => request<DecisionReply>(served, "POST", decisionPath, {
-    body: { confirm_all_pending: true, reason: "Approve from the protected page", idempotency_key: bodyKey, ...extra },
-    headers: { "x-molis-work-idempotency-key": randomUUID(), ...(confirmation ? { "x-molis-work-whole-confirmation": "1" } : {}) },
+  const reviewed = await served.web.post<{ reference: object }>(`${base}/api/project-approvals/request`, {
+    action: { capability_id: goalsActions.treeDecide.capability_id, version: goalsActions.treeDecide.version, provider_id: "io.molis.work.goals" },
+    request_id: bodyKey, draft: { proposal_id: proposalId, confirm_all_pending: true, reason: "Approve from the protected page", idempotency_key: bodyKey },
   });
-  const decided = await decide(true);
+  const command = { reference: reviewed.reference, choice_id: "apply", request_key: bodyKey };
+  assert.equal((await request(served, "POST", retired, { body: command })).status, 404);
+  const decide = (extra: Record<string, unknown> = {}) => request<{ result: DecisionReply; record: object; replayed: boolean }>(served, "POST", decisionPath, {
+    body: { ...command, ...extra }, headers: { "x-molis-work-idempotency-key": randomUUID() },
+  });
+  const decided = await decide();
   assert.equal(decided.status, 200);
-  assert.ok(decided.body!.proposal.decisions.length > 0);
-  assert.ok(decided.body!.proposal.decisions.every(decision =>
+  assert.ok(decided.body!.result.proposal.decisions.length > 0);
+  assert.ok(decided.body!.result.proposal.decisions.every(decision =>
     decision.actor_id === "web-user" && decision.authority_source === "web" && decision.runtime_actor_id === null
     && /^web:.{8,}$/u.test(decision.message_ref)), "the page's message, not a Host-invented one, was recorded");
-  const replayed = await decide(true);
-  assert.equal(replayed.body!.replayed, true);
-  assert.equal((await decide(false)).status, 400);
-  assert.equal((await decide(false, { whole_confirmation_prompted: true })).status, 400,
+  const replayed = await decide();
+  assert.deepEqual(replayed.body, { record: decided.body!.record, replayed: true });
+  assert.equal((await decide({ choice_id: "not-reviewed" })).status, 409);
+  assert.equal((await decide({ whole_confirmation_prompted: true })).status, 400,
     "a body that claims the confirmation was prompted is not read");
 });
 

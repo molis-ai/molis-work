@@ -1,9 +1,10 @@
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ApprovalRuleOwner, ProjectApprovalRuleScope } from "@molis-ai/molis-work-contracts/services/project-approvals";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { GOALS_PROJECT_DATABASE_V2, GOALS_PROJECT_DATABASE_V3 } from "./project-database.js";
+import { GOALS_APPROVAL_TRANSFER_BASELINES, GOALS_PROJECT_DATABASE, type GoalsApprovalSource } from "./project-database.js";
 import { GOALS_TREE_EFFECTS_SQL } from "./project-database-governance.js";
 import { goalsApprovalTransferSync } from "./approval-transfer-sync.js";
+import { readGoalApprovalOutcome } from "./approval-outcomes.js";
 
 interface TransferConnection {
   exec(sql: string): unknown;
@@ -24,18 +25,22 @@ export const GOALS_APPROVAL_OUTCOMES_SQL = GOALS_TREE_EFFECTS_SQL;
 const errors = defineErrorCodes("goals", { approval_transfer_invalid: "invalid" });
 const invalid = () => errors.approval_transfer_invalid("旧 Goals 的审批出处、对象关联或规则不符，项目库已保留");
 
+export function isGoalsApprovalSource(version: number): version is GoalsApprovalSource {
+  return Object.hasOwn(GOALS_APPROVAL_TRANSFER_BASELINES, version);
+}
+
 /** The original declaration is frozen for maintenance; it does not use the current collection's row projection. */
-export function goalsApprovalTransferManifest(manifest: PluginManifest, version: 2 | 3 | 4): PluginManifest {
-  if (version !== 4) return {
-    ...manifest, databases: { ...manifest.databases, project: version === 2 ? GOALS_PROJECT_DATABASE_V2 : GOALS_PROJECT_DATABASE_V3 },
+export function goalsApprovalTransferManifest(manifest: PluginManifest, version: number): PluginManifest {
+  if (isGoalsApprovalSource(version)) return {
+    ...manifest, databases: { ...manifest.databases, project: GOALS_APPROVAL_TRANSFER_BASELINES[version] },
     sync: goalsApprovalTransferSync(version),
   };
-  const collection = manifest.sync?.collections.find(row => row.id === "project_goals");
-  if (!collection?.sections || collection.schema_version !== 2 || manifest.databases?.project?.version !== 4) throw invalid();
+  if (version !== GOALS_PROJECT_DATABASE.version || manifest.databases?.project?.version !== GOALS_PROJECT_DATABASE.version
+    || !manifest.sync?.collections.find(row => row.id === "project_goals")?.sections) throw invalid();
   return manifest;
 }
 
-/** Explicit v2 maintenance only. The Host verifies the original schema, publisher and project before reading. */
+/** The Host verifies the original schema, publisher and project before maintenance reads these records. */
 export function readGoalsApprovalTransfer(db: TransferConnection, projectId: string, owner: Owner) {
   const decisions = readDecisions(db, projectId);
   const rules = (db.prepare("SELECT * FROM policy_bindings ORDER BY created_at, rowid").all() as OriginalRule[]).map(row => {
@@ -78,7 +83,11 @@ function readDecisions(db: TransferConnection, projectId: string) {
      LIMIT 1
   `).get()) throw invalid();
   return [
-    ...events.map(row => exportedDecision(projectId, row, "event", row.recorded_at)),
+    ...events.map(row => {
+      const original = exportedDecision(projectId, row, "event", row.recorded_at);
+      const outcome = readGoalApprovalOutcome(db, projectId, row.decision_id, "goal");
+      return { ...original, ...(outcome ? { outcome_digest: outcome.digest } : {}) };
+    }),
     ...items.map(row => exportedDecision(projectId, row, "proposal-item", row.created_at)),
   ];
 }

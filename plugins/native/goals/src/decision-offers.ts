@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { ActionError, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionHandler, type ActionHandlerBinding, type InferActionInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { TrustedReviewOffer } from "@molis-ai/molis-work-contracts/services/project-approvals";
 import type { ReviewRequirement, ReviewTarget } from "@molis-ai/molis-work-contracts/platform/ui";
 import { canonicalJsonText, isRecord } from "@molis-ai/molis-work-plugin-sdk";
@@ -10,7 +10,7 @@ import { normalizeScope } from "./module/event-state-scope.js";
 import { resolveRecordedDecision } from "./module/event-state-authorization.js";
 
 type TreeDraft = Omit<GoalTreeProposalDecideInput, "authority" | "project_id" | "runtime_actor_id">;
-type Request = { request_id: string; draft?: Record<string, unknown> };
+type Request = InferActionInput<typeof import("@molis-ai/molis-work-contracts/services/project-approvals").TRUSTED_REVIEW_OWNER_DRAFT_INPUT_SCHEMA>;
 type Owner = ReviewTarget["owner"];
 type Choice = TrustedReviewOffer["request"]["choices"][number];
 const missing = () => new ActionError("actions.missing", "找不到本项目的原目标或待审提案");
@@ -136,7 +136,7 @@ function treeOffer(input: Request, readProposal: (id: string) => GoalTreeProposa
 export function goalsDecisionOfferHandlers(readState: (id: string) => GoalEventStateView,
   readProposal: (id: string) => GoalTreeProposalRecord, goalForRequest: (id: string) => string | null, owner: Owner): ActionHandlerBinding[] {
   return [
-    { ...goalEntryActions.eventReview, handle: (_caller, input) => eventOffer(input as Request, readState, goalForRequest, owner) },
-    { ...goalEntryActions.treeReview, handle: (_caller, input) => treeOffer(input as Request, readProposal, owner) },
+    bindActionHandler(goalEntryActions.eventReview, input => eventOffer(input, readState, goalForRequest, owner)),
+    bindActionHandler(goalEntryActions.treeReview, input => treeOffer(input, readProposal, owner)),
   ];
 }

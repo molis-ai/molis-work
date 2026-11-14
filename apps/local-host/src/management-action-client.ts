@@ -5,11 +5,14 @@ import { TRUSTED_REVIEW_COMMAND_SCHEMA, TRUSTED_REVIEW_READ_SCHEMA, trustedRevie
 import { ProjectsModule } from "@molis-ai/molis-work-module-projects";
 import { LocalSqliteStorage, upgradeFailedRefusal, upgradeInProgressRefusal } from "@molis-ai/molis-work-storage";
 import { currentCallId, markCallRecorded, newCallId, assertActionInput } from "@molis-ai/molis-work-kernel";
+import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
+import type { MolisWorkLocalHost } from "./project-host.js";
+import { invokeProjectReviewManagement } from "./project-review-entry.js";
 import { actionErrorFromResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { assertOwnedCatalog, assertCurrentCatalog } from "./catalog-schema.js";
 import { actionGatewayHomeId } from "./action-gateway.js";
 import { postToResidentHost, residentHostOrigin } from "./resident-host-request.js";
-import { goalsManagementContext, managementInputFields, requireManagementDefinition, type GoalsActionReference, type GoalsManagementActions } from "./goal-callers.js";
+import { bindGoalsManagementActions, goalsManagementContext, managementInputFields, requireManagementDefinition, type GoalsActionReference, type GoalsManagementActions } from "./goal-callers.js";
 
 export const MANAGEMENT_ACTION_PATH = "/api/internal/management-action";
 
@@ -55,6 +58,24 @@ export function upgradeOlderCatalog(home: string, upgrade: () => void): void {
   if (still) throw upgradeFailedRefusal(typeof still.details?.path === "string" ? still.details.path : "projects/catalog.db", "still_pending", "这个库升级没有成功，已放回升级之前的样子。");
 }
 
+function reviewOperation(reference: GoalsActionReference): keyof typeof trustedReviewActions | undefined {
+  return (Object.keys(trustedReviewActions) as Array<keyof typeof trustedReviewActions>).find(name => {
+    const action = trustedReviewActions[name];
+    return action.capability_id === reference.capability_id && action.version === reference.version;
+  });
+}
+
+/** The previously authorized standalone local entry. Production MCP forwards only to the resident. */
+export function bindStandaloneManagementActions(host: MolisWorkLocalHost, project: LocalHostProjectReference, signal?: AbortSignal): GoalsManagementActions {
+  const goals = bindGoalsManagementActions(host.actionClient(project), project, { signal });
+  return { ...goals, async invoke<Output>(reference: GoalsActionReference, input: object, evidence?: unknown) {
+    const name = reviewOperation(reference);
+    if (!name) return goals.invoke<Output>(reference, input, evidence);
+    if (evidence !== undefined) throw new ActionError("actions.input_invalid", "本人决定的出处由当前管理入口提供");
+    return await invokeProjectReviewManagement(host, project, name, input, currentCallId() ?? newCallId(), signal) as Output;
+  } };
+}
+
 /** Only a never-delivered call may use its original in-process path. Refusal and unknown delivery never fall back. */
 export function residentManagementActions(options: {
   home: string; origin: string; controlToken?:string; databasePath: string; projectId: string; signal?: AbortSignal;
@@ -66,8 +87,8 @@ export function residentManagementActions(options: {
   return { project_id: options.projectId, fields: managementInputFields, async invoke<Output = unknown>(reference: GoalsActionReference, input: object, evidence?: unknown): Promise<Output> {
     options.signal?.throwIfAborted();
     if (options.ensureResident) {
-      const matches = (action: GoalsActionReference) => action.capability_id === reference.capability_id && action.version === reference.version;
-      const schema = matches(trustedReviewActions.read) ? TRUSTED_REVIEW_READ_SCHEMA : matches(trustedReviewActions.decide) ? TRUSTED_REVIEW_COMMAND_SCHEMA : undefined;
+      const review = reviewOperation(reference);
+      const schema = review === "read" ? TRUSTED_REVIEW_READ_SCHEMA : review === "decide" ? TRUSTED_REVIEW_COMMAND_SCHEMA : undefined;
       if (schema) {
         if (evidence !== undefined) throw new ActionError("actions.input_invalid", "本人决定的出处由当前管理入口提供");
         assertActionInput(schema, input);

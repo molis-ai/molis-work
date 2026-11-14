@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginErrors, type HomePluginDatabaseDeclaration, type HomeStoreDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { reservedHomeName } from "./sandbox-home-names.js";
-import { openHomePluginDatabaseConnection } from "./plugin-database-connection.js";
+import { openHomePluginDatabaseConnection } from "./plugin-database.js";
 import { inspectPluginHomeSchema, type PluginProjectSchemaInspector } from "@molis-ai/molis-work-plugin-runtime";
 import { checkSqliteBaselineVersion, sqliteVersionRefusal, readStorageSpace, readDatabaseSpace, STORAGE_SPACE_SCHEMA_SQL, describeSqliteBaseline, describeSqliteSchema, homeSqlitePath, listSqliteObjects, snapshotFileStat, openBaselineHomeSqlite, openHomeSqliteFile, openReadOnlyHomeSqlite, type HomeStoreRegistry, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 

@@ -24,9 +24,9 @@ const GOALS_TABLES = [
   "acceptance_criteria", "boards", "goal_event_agreements", "goal_event_applied_decisions", "goal_event_closures", "goal_event_concerns",
   "goal_event_config_versions", "goal_event_configs", "goal_event_decision_requests", "goal_event_progress_summaries",
   "goal_event_requirement_bindings", "goal_event_requirement_conclusions", "goal_event_requirements", "goal_event_state_owners",
-  "goal_event_trusted_decisions", "goal_event_types", "goal_event_work_status", "goal_relations", "goal_trash_records",
-  "goal_trash_relation_records", "goal_tree_proposal_decisions", "goal_tree_proposal_items", "goal_tree_proposals",
-  "goal_work_event_judgments", "goal_work_events", "goals", "input_bindings", "planning_method_packs", "policy_bindings",
+  "goal_event_types", "goal_event_work_status", "goal_relations", "goal_trash_records",
+  "goal_trash_relation_records", "goal_tree_item_effects", "goal_tree_proposal_items", "goal_tree_proposals",
+  "goal_work_event_judgments", "goal_work_events", "goals", "input_bindings", "planning_method_packs",
   "project_guidance_entries", "project_guidance_revisions",
 ];
 
@@ -49,7 +49,7 @@ test("PLIB-12 Goals' Manifest declares its project library: the plugin entry's d
   // The same Manifest also declares the person's planning library in the Home (PG-094 S13), for the plugin's Home half.
   assert.deepEqual(manifest.databases, { project: GOALS_PROJECT_DATABASE, home: GOALS_HOME_DATABASE });
   assert.equal(GOALS_PROJECT_DATABASE.store_name, "goals");
-  assert.equal(GOALS_PROJECT_DATABASE.version, 3);
+  assert.equal(GOALS_PROJECT_DATABASE.version, 4);
   // A plugin's own tables in the library are its private storage (D23), and the Manifest declares that permission.
   assert.equal(GOALS_PROJECT_DATABASE.read_permission, "storage:private");
   assert.equal(GOALS_PROJECT_DATABASE.write_permission, "storage:private");
@@ -72,13 +72,13 @@ test("PLIB-12 on an empty library the declaration passes the SQL rules, creates 
     assert.deepEqual(tableNames(db), GOALS_TABLES);
     assert.equal(first.record.plugin_id, GOALS_PLUGIN_ID);
     assert.equal(first.record.store_name, "goals");
-    assert.equal(first.record.version, 3);
+    assert.equal(first.record.version, 4);
     assert.equal(first.record.created_at, "2026-10-20T01:00:00.000Z");
     // The ledger names every table and index the declaration made, none of SQLite's own.
     assert.ok(first.record.objects.length > GOALS_TABLES.length);
     for (const table of GOALS_TABLES) assert.ok(first.record.objects.includes(table), table);
     const rows = db.prepare("SELECT plugin_id, store_name, version FROM plugin_project_databases").all();
-    assert.deepEqual(rows.map(row => ({ ...row })), [{ plugin_id: GOALS_PLUGIN_ID, store_name: "goals", version: 3 }]);
+    assert.deepEqual(rows.map(row => ({ ...row })), [{ plugin_id: GOALS_PLUGIN_ID, store_name: "goals", version: 4 }]);
     assert.equal(db.isTransaction, false);
   } finally { db.close(); }
 });
@@ -103,10 +103,13 @@ test("RAC-2362 PLIB-13 Goals' complete current declaration matches the business 
     open(db);
     expected.exec(readFileSync(new URL("./fixtures/goal-event-history/approved.sql", import.meta.url), "utf8"));
     const current = describeSqliteSchema(expected).tables, declared = describeSqliteSchema(db).tables;
-    for (const table of GOALS_TABLES) {
+    for (const table of GOALS_TABLES.filter(name => name !== "goal_tree_item_effects")) {
       assert.ok(current[table], `${table} is in the independent current fixture`);
       assert.deepEqual(declared[table], current[table], `${table}: complete columns, checks, keys and indexes`);
     }
+    assert.deepEqual(declared.goal_tree_item_effects?.columns.map(column => column.name),
+      ["effect_id", "project_id", "proposal_id", "item_id", "approval_id", "result", "runtime_actor_id", "reason", "revision_proposal_id", "materialized_objects_json", "created_at"]);
+    for (const name of ["policy_bindings", "goal_event_trusted_decisions", "goal_tree_proposal_decisions"]) assert.equal(declared[name], undefined);
     assert.deepEqual(declared.boards!.columns.map(column => column.name), ["project_id", "active_goal_id", "created_at", "updated_at"]);
     assert.deepEqual(declared.boards!.foreign_keys, [{ table: "project_root", from: "project_id", to: "project_id", on_delete: "CASCADE", on_update: "NO ACTION" }]);
     assert.deepEqual(Object.keys(describeSqliteBaseline(GOALS_PROJECT_DATABASE).tables).sort(), GOALS_TABLES);

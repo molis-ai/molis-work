@@ -1,4 +1,4 @@
-import { goalEntryActions } from "./contract/goal-actions.js";
+import { goalTreeDecisionRef } from "./contract/goal-entry-actions.js";
 import { GOALS_PLUGIN_ID } from "./identity.js";
 /** Goal proposal decisions; Workbench supplies transport and cross-surface refresh/receipts. */
 export const GOALS_PROPOSAL_CLIENT_FACTORY_SCRIPT = `(host) => {
@@ -74,7 +74,7 @@ export const GOALS_PROPOSAL_CLIENT_FACTORY_SCRIPT = `(host) => {
         let retained = goalTreeDecisionForm.decisionRequest;
         if (retained?.encoded !== encoded) {
           const { reference } = await molisWorkRequest(route("/api/project-approvals/request"), { method: "POST",
-            body: { action: { capability_id: "${goalEntryActions.treeDecide.capability_id}", version: ${goalEntryActions.treeDecide.version},
+            body: { action: { capability_id: ${JSON.stringify(goalTreeDecisionRef.capability_id)}, version: ${JSON.stringify(goalTreeDecisionRef.version)},
               provider_id: "${GOALS_PLUGIN_ID}" }, request_id: key, draft } });
           if (!goalTreeDecisionForm.isConnected) return;
           retained = goalTreeDecisionForm.decisionRequest = { encoded, reference };

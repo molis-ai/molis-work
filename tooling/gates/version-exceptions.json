@@ -1,5 +1,17 @@
 [
   {
+    "file": "plugins/native/goals/src/approval-transfer-sync.ts",
+    "name": "schema_version",
+    "values": { "1": 1 },
+    "reason": "APR-19 显式项目库移交识别旧 Goals 的 project_goals@1，用原集合键验证触发器与同步账本；现行集合仍由 Manifest 标记管理。"
+  },
+  {
+    "file": "plugins/native/goals/src/project-database.ts",
+    "name": "version",
+    "values": { "1": 1, "2": 1, "3": 1 },
+    "reason": "APR-19 已批准的一次性移交要逐个核对 Goals v1／v2／v3 源结构；这些仅供维护读取，现行项目库仍由 GOALS_PROJECT_DATABASE 声明。"
+  },
+  {
     "file": "apps/local-host/src/project-layout.ts",
     "name": "version",
     "values": { "2": 1 },

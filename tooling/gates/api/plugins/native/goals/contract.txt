@@ -817,6 +817,7 @@ export type GoalEventRequirementSource = {
 
 export interface GoalEventRequirementStatus {
     requirement_id: string;
+    revision: number;
     goal_id: string;
     statement: string;
     origin: {
@@ -1587,17 +1588,6 @@ export interface GoalsBoardRecord {
 }
 
 export interface GoalsCommandApi {
-    saveProjectPolicy(input: {
-        project_id: string;
-        actor_id: string;
-        user_confirmed: boolean;
-        policy: GoalPolicy;
-        idempotency_key: string;
-    }): {
-        policy_binding_id: string;
-        observed_event_cursor: number;
-        replayed: boolean;
-    };
     validateGoalInput(input: CreateGoalInput): void;
     applyConfirmedRelations(input: ConfirmedRelationBatch): Array<{
         relation_id: string;
@@ -1685,7 +1675,6 @@ export interface GoalsQueryApi {
     activeReplacement(projectId: string, goalId: string): GoalReplacementFact | null;
     hasGoalIdentity(goalId: string): boolean;
     getRelation(projectId: string, relationId: string): GoalRelationRecord | null;
-    policyBindingState(projectId: string, bindingId: string): "active" | "replaced" | "withdrawn" | null;
     criterionGoalId(criterionId: string): string | null;
     getBoard(projectId: string): GoalsBoardRecord | null;
     getGoal(projectId: string, goalId: string): GoalRecord | null;
@@ -2265,7 +2254,168 @@ export declare const goalEntryActions: {
     }>;
     readonly treeRead: ActionDefinition<Business<GoalTreeProposalListQuery>, GoalTreeProposalListResult>;
     readonly treeCheck: ActionDefinition<Business<GoalTreeProposalCheckInput>, GoalTreeProposalCheckResult>;
-    readonly treeDecide: ActionDefinition<Business<GoalTreeProposalDecideInput>, GoalTreeProposalDecisionResult<never>>;
+    readonly treeDecide: {
+        action: {
+            subject_kinds: string[];
+            requires_trusted_decision: true;
+            trusted_decision_request: {
+                capability_id: string;
+                version: number;
+            };
+            title: string;
+            description: string;
+            local_id?: string;
+            kind: "query" | "judgment" | "operation" | "navigation";
+            scope: "home" | "project";
+            effect?: "read" | "write" | "irreversible";
+            external?: true;
+            draft?: true;
+            plugin?: false;
+            scheduling?: "concurrent";
+            authorship?: "session";
+            execution?: import("@molis-ai/molis-work-contracts/platform/actions").ActionExecutionPolicy;
+            audiences: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionAudience[];
+            permissions: readonly string[];
+            delegation?: import("@molis-ai/molis-work-contracts/platform/actions").ActionDelegationDeclaration | "confirmation-only";
+            trusted_decision_row?: import("@molis-ai/molis-work-contracts/services/project-approvals").TrustedReviewRow;
+            input_schema: import("@molis-ai/molis-work-contracts/platform/actions").ActionSchema;
+            output_schema?: import("@molis-ai/molis-work-contracts/platform/actions").ActionSchema;
+            result_view?: ActionResultView;
+            input_type?: string;
+            output_type?: string;
+            workflow_content?: import("@molis-ai/molis-work-contracts/platform/actions").WorkflowContentStation;
+            search_source?: import("@molis-ai/molis-work-contracts/platform/actions").SearchSourceDeclaration;
+            file_source?: import("@molis-ai/molis-work-contracts/platform/actions").FileSourceDeclaration;
+            composer_source?: import("@molis-ai/molis-work-contracts/platform/composer").ComposerSourceDeclaration;
+            thread_source?: {
+                readonly role: "context" | "reply";
+                readonly subject_kind: string;
+            };
+            home_aggregate?: true;
+            project_reach?: "person";
+            placement_relation?: import("@molis-ai/molis-work-contracts/platform/actions").PlacementRelationDeclaration;
+            subject_offer_choices?: readonly import("@molis-ai/molis-work-contracts/platform/actions").SubjectOfferChoice[];
+            fragment_offer_choices?: readonly import("@molis-ai/molis-work-contracts/platform/actions").FragmentOfferChoice[];
+            intake?: ActionIntake;
+            attach?: import("@molis-ai/molis-work-contracts/platform/actions").ActionAttach;
+            required_scene?: {
+                readonly scene_id: string;
+                readonly version: number;
+            };
+            result_scene?: import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneReference;
+            required_actions?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionReference[];
+            result_subject?: {
+                readonly id: string;
+                readonly revision?: string;
+            };
+            background_job?: {
+                readonly status: {
+                    readonly capability_id: string;
+                    readonly version: number;
+                };
+                readonly id: string;
+                readonly input: string;
+                readonly state: string;
+                readonly done: readonly string[];
+                readonly failed: readonly string[];
+            };
+            undo?: {
+                readonly capability_id: string;
+                readonly version: number;
+                readonly input: Readonly<Record<string, string | readonly [string]>>;
+            };
+        };
+        __types__?: {
+            input: Business<GoalTreeProposalDecideInput>;
+            output: GoalTreeProposalDecisionResult<never>;
+        } | undefined;
+        operation: "query" | "command";
+        provider_id?: string;
+        capability_id: string;
+        version: number;
+        action_provider?: import("@molis-ai/molis-work-contracts/platform/actions").ActionProvider;
+    };
+    readonly treeReview: {
+        action: {
+            audiences: readonly ["user"];
+            subject_kinds: string[];
+            title: string;
+            description: string;
+            local_id?: string;
+            kind: "query" | "judgment" | "operation" | "navigation";
+            scope: "home" | "project";
+            effect?: "read" | "write" | "irreversible";
+            external?: true;
+            draft?: true;
+            plugin?: false;
+            scheduling?: "concurrent";
+            authorship?: "session";
+            execution?: import("@molis-ai/molis-work-contracts/platform/actions").ActionExecutionPolicy;
+            permissions: readonly string[];
+            delegation?: import("@molis-ai/molis-work-contracts/platform/actions").ActionDelegationDeclaration | "confirmation-only";
+            requires_trusted_decision?: true;
+            trusted_decision_request?: Pick<import("@molis-ai/molis-work-contracts/platform/actions").ActionReference, "capability_id" | "version">;
+            trusted_decision_row?: import("@molis-ai/molis-work-contracts/services/project-approvals").TrustedReviewRow;
+            input_schema: import("@molis-ai/molis-work-contracts/platform/actions").ActionSchema;
+            output_schema?: import("@molis-ai/molis-work-contracts/platform/actions").ActionSchema;
+            result_view?: ActionResultView;
+            input_type?: string;
+            output_type?: string;
+            workflow_content?: import("@molis-ai/molis-work-contracts/platform/actions").WorkflowContentStation;
+            search_source?: import("@molis-ai/molis-work-contracts/platform/actions").SearchSourceDeclaration;
+            file_source?: import("@molis-ai/molis-work-contracts/platform/actions").FileSourceDeclaration;
+            composer_source?: import("@molis-ai/molis-work-contracts/platform/composer").ComposerSourceDeclaration;
+            thread_source?: {
+                readonly role: "context" | "reply";
+                readonly subject_kind: string;
+            };
+            home_aggregate?: true;
+            project_reach?: "person";
+            placement_relation?: import("@molis-ai/molis-work-contracts/platform/actions").PlacementRelationDeclaration;
+            subject_offer_choices?: readonly import("@molis-ai/molis-work-contracts/platform/actions").SubjectOfferChoice[];
+            fragment_offer_choices?: readonly import("@molis-ai/molis-work-contracts/platform/actions").FragmentOfferChoice[];
+            intake?: ActionIntake;
+            attach?: import("@molis-ai/molis-work-contracts/platform/actions").ActionAttach;
+            required_scene?: {
+                readonly scene_id: string;
+                readonly version: number;
+            };
+            result_scene?: import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneReference;
+            required_actions?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionReference[];
+            result_subject?: {
+                readonly id: string;
+                readonly revision?: string;
+            };
+            background_job?: {
+                readonly status: {
+                    readonly capability_id: string;
+                    readonly version: number;
+                };
+                readonly id: string;
+                readonly input: string;
+                readonly state: string;
+                readonly done: readonly string[];
+                readonly failed: readonly string[];
+            };
+            undo?: {
+                readonly capability_id: string;
+                readonly version: number;
+                readonly input: Readonly<Record<string, string | readonly [string]>>;
+            };
+        };
+        __types__?: {
+            input: {
+                readonly request_id: string;
+                readonly draft?: Record<string, unknown> | undefined;
+            };
+            output: TrustedReviewOffer;
+        } | undefined;
+        operation: "query" | "command";
+        provider_id?: string;
+        capability_id: string;
+        version: number;
+        action_provider?: import("@molis-ai/molis-work-contracts/platform/actions").ActionProvider;
+    };
     readonly active: ActionDefinition<{
         goal_id: string;
         reason: string;
@@ -2276,7 +2426,168 @@ export declare const goalEntryActions: {
         observed_event_cursor: number;
     }>;
     readonly snapshot: ActionDefinition<Record<string, never>, BoardSnapshot>;
-    readonly decide: ActionDefinition<GoalDecisionActionInput, GoalEventDecisionResult>;
+    readonly decide: {
+        action: {
+            subject_kinds: string[];
+            requires_trusted_decision: true;
+            trusted_decision_request: {
+                capability_id: string;
+                version: number;
+            };
+            title: string;
+            description: string;
+            local_id?: string;
+            kind: "query" | "judgment" | "operation" | "navigation";
+            scope: "home" | "project";
+            effect?: "read" | "write" | "irreversible";
+            external?: true;
+            draft?: true;
+            plugin?: false;
+            scheduling?: "concurrent";
+            authorship?: "session";
+            execution?: import("@molis-ai/molis-work-contracts/platform/actions").ActionExecutionPolicy;
+            audiences: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionAudience[];
+            permissions: readonly string[];
+            delegation?: import("@molis-ai/molis-work-contracts/platform/actions").ActionDelegationDeclaration | "confirmation-only";
+            trusted_decision_row?: import("@molis-ai/molis-work-contracts/services/project-approvals").TrustedReviewRow;
+            input_schema: import("@molis-ai/molis-work-contracts/platform/actions").ActionSchema;
+            output_schema?: import("@molis-ai/molis-work-contracts/platform/actions").ActionSchema;
+            result_view?: ActionResultView;
+            input_type?: string;
+            output_type?: string;
+            workflow_content?: import("@molis-ai/molis-work-contracts/platform/actions").WorkflowContentStation;
+            search_source?: import("@molis-ai/molis-work-contracts/platform/actions").SearchSourceDeclaration;
+            file_source?: import("@molis-ai/molis-work-contracts/platform/actions").FileSourceDeclaration;
+            composer_source?: import("@molis-ai/molis-work-contracts/platform/composer").ComposerSourceDeclaration;
+            thread_source?: {
+                readonly role: "context" | "reply";
+                readonly subject_kind: string;
+            };
+            home_aggregate?: true;
+            project_reach?: "person";
+            placement_relation?: import("@molis-ai/molis-work-contracts/platform/actions").PlacementRelationDeclaration;
+            subject_offer_choices?: readonly import("@molis-ai/molis-work-contracts/platform/actions").SubjectOfferChoice[];
+            fragment_offer_choices?: readonly import("@molis-ai/molis-work-contracts/platform/actions").FragmentOfferChoice[];
+            intake?: ActionIntake;
+            attach?: import("@molis-ai/molis-work-contracts/platform/actions").ActionAttach;
+            required_scene?: {
+                readonly scene_id: string;
+                readonly version: number;
+            };
+            result_scene?: import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneReference;
+            required_actions?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionReference[];
+            result_subject?: {
+                readonly id: string;
+                readonly revision?: string;
+            };
+            background_job?: {
+                readonly status: {
+                    readonly capability_id: string;
+                    readonly version: number;
+                };
+                readonly id: string;
+                readonly input: string;
+                readonly state: string;
+                readonly done: readonly string[];
+                readonly failed: readonly string[];
+            };
+            undo?: {
+                readonly capability_id: string;
+                readonly version: number;
+                readonly input: Readonly<Record<string, string | readonly [string]>>;
+            };
+        };
+        __types__?: {
+            input: GoalDecisionActionInput;
+            output: GoalEventDecisionResult;
+        } | undefined;
+        operation: "query" | "command";
+        provider_id?: string;
+        capability_id: string;
+        version: number;
+        action_provider?: import("@molis-ai/molis-work-contracts/platform/actions").ActionProvider;
+    };
+    readonly eventReview: {
+        action: {
+            audiences: readonly ["user"];
+            subject_kinds: string[];
+            title: string;
+            description: string;
+            local_id?: string;
+            kind: "query" | "judgment" | "operation" | "navigation";
+            scope: "home" | "project";
+            effect?: "read" | "write" | "irreversible";
+            external?: true;
+            draft?: true;
+            plugin?: false;
+            scheduling?: "concurrent";
+            authorship?: "session";
+            execution?: import("@molis-ai/molis-work-contracts/platform/actions").ActionExecutionPolicy;
+            permissions: readonly string[];
+            delegation?: import("@molis-ai/molis-work-contracts/platform/actions").ActionDelegationDeclaration | "confirmation-only";
+            requires_trusted_decision?: true;
+            trusted_decision_request?: Pick<import("@molis-ai/molis-work-contracts/platform/actions").ActionReference, "capability_id" | "version">;
+            trusted_decision_row?: import("@molis-ai/molis-work-contracts/services/project-approvals").TrustedReviewRow;
+            input_schema: import("@molis-ai/molis-work-contracts/platform/actions").ActionSchema;
+            output_schema?: import("@molis-ai/molis-work-contracts/platform/actions").ActionSchema;
+            result_view?: ActionResultView;
+            input_type?: string;
+            output_type?: string;
+            workflow_content?: import("@molis-ai/molis-work-contracts/platform/actions").WorkflowContentStation;
+            search_source?: import("@molis-ai/molis-work-contracts/platform/actions").SearchSourceDeclaration;
+            file_source?: import("@molis-ai/molis-work-contracts/platform/actions").FileSourceDeclaration;
+            composer_source?: import("@molis-ai/molis-work-contracts/platform/composer").ComposerSourceDeclaration;
+            thread_source?: {
+                readonly role: "context" | "reply";
+                readonly subject_kind: string;
+            };
+            home_aggregate?: true;
+            project_reach?: "person";
+            placement_relation?: import("@molis-ai/molis-work-contracts/platform/actions").PlacementRelationDeclaration;
+            subject_offer_choices?: readonly import("@molis-ai/molis-work-contracts/platform/actions").SubjectOfferChoice[];
+            fragment_offer_choices?: readonly import("@molis-ai/molis-work-contracts/platform/actions").FragmentOfferChoice[];
+            intake?: ActionIntake;
+            attach?: import("@molis-ai/molis-work-contracts/platform/actions").ActionAttach;
+            required_scene?: {
+                readonly scene_id: string;
+                readonly version: number;
+            };
+            result_scene?: import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneReference;
+            required_actions?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionReference[];
+            result_subject?: {
+                readonly id: string;
+                readonly revision?: string;
+            };
+            background_job?: {
+                readonly status: {
+                    readonly capability_id: string;
+                    readonly version: number;
+                };
+                readonly id: string;
+                readonly input: string;
+                readonly state: string;
+                readonly done: readonly string[];
+                readonly failed: readonly string[];
+            };
+            undo?: {
+                readonly capability_id: string;
+                readonly version: number;
+                readonly input: Readonly<Record<string, string | readonly [string]>>;
+            };
+        };
+        __types__?: {
+            input: {
+                readonly request_id: string;
+                readonly draft?: Record<string, unknown> | undefined;
+            };
+            output: TrustedReviewOffer;
+        } | undefined;
+        operation: "query" | "command";
+        provider_id?: string;
+        capability_id: string;
+        version: number;
+        action_provider?: import("@molis-ai/molis-work-contracts/platform/actions").ActionProvider;
+    };
     readonly guidanceRead: ActionDefinition<Record<string, never>, ProjectGuidanceView>;
     readonly create: ActionDefinition<GoalCreateActionInput, CreateGoalIntentResult>;
     readonly directoryItem: ActionDefinition<{
@@ -2316,6 +2627,11 @@ export declare const goalEventConcernStatuses: readonly ["open", "resolved", "ac
 export declare const goalEventDecisionEffectKinds: readonly ["accept_requirements", "reject_requirements", "accept_concerns", "reject_concerns", "authorize_action", "deny_action", "authorize_agreement_change"];
 
 export declare const goalEventDecisionPurposes: readonly ["suggestion", "requirement_acceptance", "action", "agreement_change"];
+
+export declare const goalEventDecisionRef: {
+    readonly capability_id: "goals.decisions.record";
+    readonly version: 1;
+};
 
 export declare const goalEventEvidenceKinds: readonly ["artifact_version", "command_receipt"];
 
@@ -2402,6 +2718,11 @@ export declare const goalStateSchema: Readonly<Record<string, unknown>>;
 export declare const goalTimelineSchema: Readonly<Record<string, unknown>>;
 
 export declare const goalTrashResultSchema: Readonly<Record<string, unknown>>;
+
+export declare const goalTreeDecisionRef: {
+    readonly capability_id: "goals.tree.decide";
+    readonly version: 1;
+};
 
 export declare const guidanceCommonSchema: {
     guidance_id: {

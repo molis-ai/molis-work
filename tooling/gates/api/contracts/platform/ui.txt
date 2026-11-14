@@ -525,7 +525,9 @@ export interface TrustedReviewDecisionRecord extends ReviewDecisionRecord<string
     };
 }, ReviewReference<Extract<ReviewOwner, {
     kind: "trusted-decision";
-}>>> {
+}> & {
+    readonly scope: "project";
+}>> {
     readonly decision_id: string;
 }
 

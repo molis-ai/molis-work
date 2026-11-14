@@ -6,10 +6,11 @@ import type { MolisWorkProjectCatalog } from "./project-catalog.js";
 import { assertPassiveProjectAvailable } from "./passive-sync-execution.js";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 
-/** Find the built-in document owner by its manifest and pin the discovered action to that provider. */
-export function registeredPagesProvider(): string | undefined {
-  return PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.project_plugin_id === "pages"
-    && entry.manifest.actions?.some(action => action.capability_id === "pages.create" && action.version === /* @version action.pages.create */ 1))?.manifest.plugin_id;
+/** Pin the save to the exact action declared by the document owner. */
+export function registeredPagesCreate() {
+  const manifest = PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.project_plugin_id === "pages")?.manifest;
+  const action = manifest?.actions?.find(action => action.capability_id === "pages.create" && action.version === /* @version action.pages.create */ 1);
+  return manifest && action ? { ...action, provider_id: manifest.plugin_id } : undefined;
 }
 
 export function automationProjectSnapshot(home: string, catalog: MolisWorkProjectCatalog, reference: LocalHostProjectReference, scan: boolean) {

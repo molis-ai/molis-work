@@ -33,15 +33,16 @@ function exact(input:unknown,keys:readonly string[]):Record<string,unknown>{
   return input as Record<string,unknown>;
 }
 function owner(db:ReplicaDatabase,context:Context,projectId:string,definition:SyncSectionsDefinition,parts:readonly ProjectReplicaDefinition[],
-  validateLinked: (facts: Readonly<Record<string, ProjectReplicaRows>>) => void) {
+  validateLinked: (facts: Readonly<Record<string, ProjectReplicaRows>>, previous?: () => Readonly<Record<string, ProjectReplicaRows>>) => void) {
   const sections=parts.map(d=>createProjectReplicaSection(db,d,projectId));
   const journal=definition.journal?createProjectReplicaJournal(db,projectId,parts):undefined;
+  const readFacts = () => Object.fromEntries(parts.map((d,i)=>[d.id,sections[i]!.read()]));
   const fields=[...new Set(parts.flatMap(d=>d.sequenceFields))];
   const key=JSON.stringify([projectId,definition.kind,projectId]);
   const check=(input:string)=>{context.authorize();if(input!==key)throw replicaError('replica_key_invalid');context.project(projectId);};
   return {authorize:context.authorize,conflictState:context.conflictState,authorizeKey:check,canUpload:()=>context.canUploadProject(projectId),
     read(input:string){
-      check(input);const facts=Object.fromEntries(parts.map((d,i)=>[d.id,sections[i]!.read()]));definition.validate?.(facts);validateLinked(facts);
+      check(input);const facts=readFacts();definition.validate?.(facts);validateLinked(facts);
       if(!Object.values(facts).some(part=>Object.values(part).some(rows=>rows.length)))return null;
       const history=journal?.read();return {...PROJECT_SECTIONS_INLINE_ENCODING,spaceId:context.spaceId,project:{id:projectId,title:context.project(projectId).title},
         facts:history?mapReplicaSequences(facts,fields,history.encode):facts,...(history?{journal:history.value}:{})};
@@ -60,12 +61,12 @@ function owner(db:ReplicaDatabase,context:Context,projectId:string,definition:Sy
         restored=mapReplicaSequences(facts,fields,decode) as Record<string,ProjectReplicaRows>;
       }
       parts.forEach((d,i)=>sections[i]!.validate(restored[d.id]));definition.validate?.(restored);
-      validateLinked(restored);
+      validateLinked(restored, readFacts);
       [...sections].reverse().forEach(s=>s.clear());
       if(journal){const decode=journal.apply(wire.journal);restored=mapReplicaSequences(facts,fields,decode) as Record<string,ProjectReplicaRows>;
         for(const rows of Object.values(restored).flatMap(part=>Object.values(part)))for(const row of rows)if('journal_seq' in row&&'event_id' in row&&row.journal_seq!==decode('@event:'+row.event_id))throw replicaError('replica_references_invalid');}
       definition.validate?.(restored);parts.forEach((d,i)=>sections[i]!.write(sections[i]!.validate(restored[d.id])));
-      if(db.prepare('PRAGMA foreign_key_check').get())throw replicaError('replica_references_invalid');context.authorize();validateLinked(restored);
+      if(db.prepare('PRAGMA foreign_key_check').get())throw replicaError('replica_references_invalid');context.authorize();
     },
   };
 }
@@ -88,11 +89,11 @@ export function createPluginSectionsBinding(port:Port,collectionId:string,defini
     const check=context.authorize;const guarded={...context,authorize(){grants();check();grants();}};
     guarded.authorize();
     const projectId = port.projectId();
-    const validateLinked = (facts: Readonly<Record<string, ProjectReplicaRows>>) => {
+    const validateLinked = (facts: Readonly<Record<string, ProjectReplicaRows>>, previous?: () => Readonly<Record<string, ProjectReplicaRows>>) => {
       if (!isGoalsApprovalCollection(identity)) return;
       const approvals = pluginSyncAuthority(port.home, projectApprovalSyncSelection);
       approvals.project(projectId);
-      verifyGoalsApprovalLinks(db, projectId, identity, facts);
+      verifyGoalsApprovalLinks(db, projectId, identity, facts, previous?.());
       approvals.authorize();
     };
     return createSqliteReplica(db,owner(db,guarded,projectId,definition,parts,validateLinked));}),

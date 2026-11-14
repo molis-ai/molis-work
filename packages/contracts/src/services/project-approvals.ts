@@ -149,6 +149,8 @@ export const projectApprovalRuleActions = {
 export type ProjectTrustedDecision = TrustedReviewDecisionRecord & {
   readonly request_key: string;
   readonly choice_fingerprint: string;
+  /** Digest of the original owner's applied facts, when its sync stream carries them separately. */
+  readonly outcome_digest?: string;
   readonly publisher_signature: string;
   readonly review: ProjectReviewCoverage;
   /** The reviewed facts and labels the person saw, for reopening the exact decision after the owner's current state moves. */
@@ -171,4 +173,6 @@ export interface ProjectDecisionHistory {
   readonly subject: "event" | "proposal-item";
   readonly recorded_at: string;
   readonly original: Readonly<Record<string, string | number | null>>;
+  /** Existing effects verified during the transfer of this history. */
+  readonly outcome_digest?: string;
 }

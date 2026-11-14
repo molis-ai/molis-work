@@ -100,7 +100,7 @@ export async function fixture(t: TestContext) {
   const replica = <T>(i: number, fn: (r: import('@molis-ai/molis-work-contracts/platform/sync-transport').SyncReplicaAdapter) => T) => registrations[i]!.withReplica(fn);
   const approvalReplica = <T>(i: number, fn: (r: import('@molis-ai/molis-work-contracts/platform/sync-transport').SyncReplicaAdapter) => T) => peers[i]!.approvals.withReplica(fn);
   t.after(() => { clients.forEach(c => c.close()); });
-  return { homes, space, project, clients, events, approvalEvents, edit, run, enable, replica, approvalReplica,
+  return { homes, space, project, host: runtimes[0]!.host, clients, events, approvalEvents, edit, run, enable, replica, approvalReplica,
     offline: () => { online = false; }, online: () => { online = true; }, drop: () => { drop = true; }, revoke: () => { active = false; } };
 }
 

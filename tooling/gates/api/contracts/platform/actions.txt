@@ -590,6 +590,9 @@ export interface ActionMetadata {
     readonly permissions: readonly string[];
     readonly subject_kinds: readonly string[];
     readonly delegation?: ActionDelegationDeclaration | "confirmation-only";
+    readonly requires_trusted_decision?: true;
+    readonly trusted_decision_request?: Pick<ActionReference, "capability_id" | "version">;
+    readonly trusted_decision_row?: import("@molis-ai/molis-work-contracts/services/project-approvals").TrustedReviewRow;
     readonly input_schema: ActionSchema;
     readonly output_schema?: ActionSchema;
     readonly result_view?: ActionResultView;

@@ -251,7 +251,7 @@ flowchart LR
 | --- | --- | --- |
 | 12-2 | 先落「插件声明可承接上手材料」的最小形式（从 44-1 前移），Coding 第一个声明 | 不在上手服务里再写死一个插件名（决定 43） |
 | 31-2 | 先落记忆 `applies` 的通用对象引用（从 44-1 的 C3 前移） | 导出 v2 一开始就不带 `goal_ids` |
-| 32-2、39-1 | 第 39 批先交共用审查合同。32-2 沿用并拥有要求、证据关联和认可等业务事实；认可入口先用平台已有的决定请求通道 | [授权需求 §3.5](../../agent-approval/spec.md#review-contract)、[决定 43 补充](decisions.md#decision-43-review-order) |
+| 32-2、39-1 | 第 39 批先交的共用审查合同已由 [#2069](https://github.com/molis-ai/molis-work/pull/2069) 合入。32-2 沿用并拥有要求、证据关联和认可等业务事实；认可入口先用平台已有的决定请求通道，APR-15 待本人操作 | [授权需求 §3.5](../../agent-approval/spec.md#review-contract)、[决定 43 补充](decisions.md#decision-43-review-order) |
 | 46-1 | 加 44-1；覆盖门禁（W4-7）另等 44-6 | 情境焦点（C4）与外壳替 Goals、Feed 声明对象 |
 | 46-2、73、SRV-2-3 | 加 44-5（SRV-2-3 另加 44-2、39-2） | 资产包、导出、同步按插件声明的段，不带固定 goals 段 |
 | 53-1 | 32 改为 32-2；加 44-1；`goals.events.acknowledge` 的拆分等 39-2、44-3 | 对话输入关联用主人声明的关联类型 |

@@ -30,11 +30,19 @@ import { homeStageHalves } from "./home-plugin-http.js";
 import { builtinMarketDirectory, mergePluginDirectories, runningPluginDirectory } from "./plugin-directory.js";
 
 
-/** The page still opens without the installed plugins' entries; why they are missing is written. */
 /** The project settings page each path opens; `/settings` alone opens 常规. */
 const SETTINGS_SECTIONS = new Map((["workspaces", "guidance", "memory", "knowledge", "plugins", "kit", "grants", "rules", "planning", "general"] as const)
   .map(section => [`/settings/${section}` as string, section] as const)).set("/settings", "general");
 const noInstalledStages = (error: unknown): [] => { hostLog.warn("plugins", "installed_stages_unavailable", error); return []; };
+
+function redirectProjectRules(response: ServerResponse, projectId: string, desktop: boolean): true {
+  const query = new URLSearchParams({ view: "project-rules", project: projectId });
+  if (desktop) query.set("desktop", "1");
+  response.writeHead(302, { location: `/settings/authorizations?${query}`, "cache-control": "no-store" });
+  response.end();
+  return true;
+}
+
 async function projectSettingsRequirements(homeDirectory: string | undefined, store: LocalProjectDatabase, projectId: string, withCatalog: LocalWebCatalogRunner) {
   const installed = new Set(readPluginRuntimeRecords(store.db).filter(record => record.state !== "uninstalled").map(record => record.plugin_id));
   return withCatalog({ homeDirectory }, catalog => catalog.projectPluginRequirements(projectId)
@@ -106,13 +114,7 @@ export function createLocalGoalsReadHttp(ports: {
         return true;
       }
       const embed = url.searchParams.get("embed") === "1";
-      if (open === "rules") {
-        const query = new URLSearchParams({ view: "project-rules", project: view.project.project_id });
-        if (isDesktopShellRequest(request, url)) query.set("desktop", "1");
-        response.writeHead(302, { location: `/settings/authorizations?${query}`, "cache-control": "no-store" });
-        response.end();
-        return true;
-      }
+      if (open === "rules") return redirectProjectRules(response, view.project.project_id, isDesktopShellRequest(request, url));
       let methods, guidance;
       try {
         // A project without Goals has none of Goals' settings pages (RAC-400). Whether Goals is here is the project's plugin list; a Goals read

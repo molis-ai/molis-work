@@ -73,7 +73,7 @@
 | [平台端到端效果评测](../../proactive-assistant/spec.md#14-molis-work-的端到端效果评测) | 横向能力（评测） | [21](batches/21.md)、[30](batches/30.md)、[63](batches/63.md)、[76](batches/76.md) | 直接做 |
 | [proactive-assistant](../../proactive-assistant/spec.md)及 [#1730 增量][PAEXT]（合入状态开工时核回） | 产品线（助理）、横向能力（后台任务） | [03](batches/03.md)、[21](batches/21.md)、[24](batches/24.md)、[32](batches/32.md)、[52](batches/52.md)、[57](batches/57.md)、[64](batches/64.md)、[76](batches/76.md) | 要决策：交互切片的界面定样；Memory 暂停只挡相关能力 |
 | [coding-harness-optimization](../../coding-harness-optimization/spec.md) | 体验与效果（性能、可靠性）、产品线（Coding） | [12](batches/12.md)、[33](batches/33.md)、[43](batches/43.md)、[48](batches/48.md)、[66](batches/66.md)、[67](batches/67.md)、[83](batches/83.md)、[86](batches/86.md) | 直接做 |
-| [agent-approval](../../agent-approval/spec.md) | 横向能力（授权与人审）、底层与架构 | [02](batches/02.md)、[24](batches/24.md)、[32](batches/32.md)、[39](batches/39.md)、[65](batches/65.md)、[66](batches/66.md) | 直接做：10-28 已对齐 |
+| [agent-approval](../../agent-approval/spec.md) | 横向能力（授权与人审）、底层与架构 | [02](batches/02.md)、[24](batches/24.md)、[32](batches/32.md)、[39](batches/39.md)、[65](batches/65.md)、[66](batches/66.md) | 共用审查合同已合入 [#2069](https://github.com/molis-ai/molis-work/pull/2069)。第 39 批其余交付见原需求验收账 |
 | [subagent-interaction](../../subagent-interaction/spec.md) | 产品线（助理、Coding）、横向能力（Prologue 子代理） | [31](batches/31.md)、[58](batches/58.md)、[59](batches/59.md) | 要决策：入口与动线（父子导航、直接对话）的界面定样 |
 | [coding-quality-assurance](../../coding-quality-assurance/spec.md) | 产品线（Coding） | [66](batches/66.md) | 直接做 |
 | [automation-recommender](../../automation-recommender/spec.md) | 产品线（Coding） | [39](batches/39.md)、[61](batches/61.md) | 直接做 |

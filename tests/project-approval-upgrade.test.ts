@@ -20,10 +20,10 @@ const project = "p-old";
 const time = "2026-11-12T10:30:00Z";
 const baseline = PROJECT_DATABASE_BASELINE;
 const inspector = { scratch: () => new LocalSqliteStorage(":memory:").db, objects: listSqliteObjects, shape: describeSqliteSchema };
-const prior = (version: 2 | 3) => goalsApprovalTransferManifest(goalsManifest, version);
+const prior = (version: 1 | 2 | 3) => goalsApprovalTransferManifest(goalsManifest, version);
 const tables = (db: ReturnType<typeof inspector.scratch>) => listSqliteObjects(db).filter(row => row.type === "table").map(row => row.name);
 
-function library(t: TestContext, version?: 2 | 3, location?: { path: string; projectId: string; space: StorageSpace }) {
+function library(t: TestContext, version?: 1 | 2 | 3, location?: { path: string; projectId: string; space: StorageSpace }) {
   const dir = location ? null : mkdtempSync(join(tmpdir(), "molis-project-approval-v3-"));
   const path = location?.path ?? join(dir!, "isolated-project.db"), project = location?.projectId ?? "p-old";
   const storage = new LocalSqliteStorage(path);
@@ -124,23 +124,23 @@ test("APR-19 and APR-17 the normal Home upgrade reopens a v3 project with its ap
     assert.equal((await web.web.post<ReviewRequest>(endpoint + "/request", { reference: prepared.reference })).decision?.decision_id, event.record.decision_id);
     await host.withProject(reference, ({ store }) => {
       assert.equal(store.db.pragma("user_version", { simple: true }), 4);
-      assert.equal(store.db.prepare("SELECT approval_id FROM goal_tree_item_effects WHERE item_id='item-new'").get()?.approval_id, result.record.decision_id);
+      assert.equal(store.db.prepare<[], { approval_id: string }>("SELECT approval_id FROM goal_tree_item_effects WHERE item_id='item-new'").get()?.approval_id, result.record.decision_id);
       assert.ok(store.db.prepare("SELECT goal_id FROM goals WHERE goal_id='goal-new'").get());
-      assert.equal(store.db.prepare("SELECT count(*) AS count FROM project_review_decisions").get()?.count, 4);
-      assert.equal(store.db.prepare("SELECT governance_decision_id FROM goal_event_applied_decisions WHERE goal_id=?").get(goal.goal_id)?.governance_decision_id,
+      assert.equal(store.db.prepare<[], { count: number }>("SELECT count(*) AS count FROM project_review_decisions").get()?.count, 4);
+      assert.equal(store.db.prepare<[string], { governance_decision_id: string }>("SELECT governance_decision_id FROM goal_event_applied_decisions WHERE goal_id=?").get(goal.goal_id)?.governance_decision_id,
         event.record.decision_id);
     });
   });
 });
 
-test("APR-19 moves exact v2/v3 approvals in the real SQLite upgrade transaction and preserves the old sync receipt in a backup", async t => {
-  for (const version of [2, 3] as const) {
+test("APR-19 moves v1–v3 approvals in the project upgrade transaction and preserves the old sync receipt in a backup", async t => {
+  for (const version of [1, 2, 3] as const) {
     const { db, path, storage, old, platformTables } = library(t, version);
     const source = db.prepare("SELECT * FROM goal_event_trusted_decisions").get();
     const backup = path + ".before";
     await db.backup(backup);
     assert.deepEqual(runSqliteUpgrade(db, path, baseline), { from: 3, to: 4 });
-    assert.equal(db.prepare("SELECT version FROM plugin_project_databases WHERE plugin_id=?").get(goalsManifest.plugin_id)?.version, 4);
+    assert.equal(db.prepare<[string], { version: number }>("SELECT version FROM plugin_project_databases WHERE plugin_id=?").get(goalsManifest.plugin_id)?.version, 4);
     assert.equal(tables(db).some(name => name.startsWith(old! + "_")), false);
     assert.equal(tables(db).some(name => ["goal_event_trusted_decisions","goal_tree_proposal_decisions","policy_bindings"].includes(name)), false);
     const historical = projectReviewDecisions(db, project).read("decision-event")!;
@@ -150,8 +150,8 @@ test("APR-19 moves exact v2/v3 approvals in the real SQLite upgrade transaction 
     assert.ok("kind" in dialogue && dialogue.kind === "history");
     assert.equal(dialogue.original.authority_source, "runtime_dialogue");
     assert.equal(dialogue.original.item_id, "item");
-    assert.equal(db.prepare("SELECT governance_decision_id FROM goal_event_applied_decisions WHERE decision_id='applied'").get()?.governance_decision_id, historical.decision_id);
-    assert.equal(db.prepare("SELECT cited_subjects_json FROM goal_event_concerns WHERE concern_id='concern'").get()?.cited_subjects_json,
+    assert.equal(db.prepare<[], { governance_decision_id: string }>("SELECT governance_decision_id FROM goal_event_applied_decisions WHERE decision_id='applied'").get()?.governance_decision_id, historical.decision_id);
+    assert.equal(db.prepare<[], { cited_subjects_json: string }>("SELECT cited_subjects_json FROM goal_event_concerns WHERE concern_id='concern'").get()?.cited_subjects_json,
       version === 3 ? '[{"kind":"risk","id":"risk-1"}]' : "[]");
     const rules = projectApprovalRules(db, project).read();
     assert.deepEqual(rules.rules.map(rule => [rule.id, rule.reason]), [["first","Original"],["second","Reconsidered"],["object-rule","Goal required"]]);
@@ -163,7 +163,7 @@ test("APR-19 moves exact v2/v3 approvals in the real SQLite upgrade transaction 
     assert.equal(approvalRequiresPerson(rules, { ...scoped, owner: { kind: "plugin", plugin_id: "third-party", publisher_signature: "other" } }), false);
     const selected = goalsApprovalTransferManifest(goalsManifest, 4), decl = selected.databases!.project!;
     const namespace = pluginSyncNamespace(selected, "project_goals");
-    assert.equal(db.prepare(`SELECT cursor FROM ${namespace}_replica_state WHERE id=1`).get()?.cursor, 0);
+    assert.equal(db.prepare<[], { cursor: number }>(`SELECT cursor FROM ${namespace}_replica_state WHERE id=1`).get()?.cursor, 0);
     const platform = new LocalSqliteStorage(":memory:");
     const added = (() => { try { platform.db.exec(baseline.schema); return tables(platform.db); } finally { platform.close(); } })();
     const audit = { manifests: [selected], platformTables: [...new Set([...platformTables, ...added])],
@@ -175,9 +175,9 @@ test("APR-19 moves exact v2/v3 approvals in the real SQLite upgrade transaction 
     const restored = new LocalSqliteStorage(path, { readonly: true }), original = new LocalSqliteStorage(backup, { readonly: true });
     try {
       assert.deepEqual(projectReviewDecisions(restored.db, project).read("decision-event"), historical);
-      assert.equal(original.db.prepare(`SELECT cursor FROM ${old}_replica_state`).get()?.cursor, 40);
-      assert.equal(original.db.prepare(`SELECT operation FROM ${old}_replica_outbox`).get()?.operation, "pending original send");
-      assert.equal(original.db.prepare(`SELECT event FROM ${old}_replica_conflicts`).get()?.event, "original competing update");
+      assert.equal(original.db.prepare<[], { cursor: number }>(`SELECT cursor FROM ${old}_replica_state`).get()?.cursor, 40);
+      assert.equal(original.db.prepare<[], { operation: string }>(`SELECT operation FROM ${old}_replica_outbox`).get()?.operation, "pending original send");
+      assert.equal(original.db.prepare<[], { event: string }>(`SELECT event FROM ${old}_replica_conflicts`).get()?.event, "original competing update");
     } finally { restored.close(); original.close(); }
   }
 });

@@ -150,6 +150,9 @@ test("APR-17/18 S-17 the real Web and management MCP reach one original review i
   assert.deepEqual(applied.decision, { reference: webReview.reference, decision_id: web.record.decision_id });
   assert.equal(applied.summary, webReview.summary);
   assert.ok(applied.choices.every(choice => !choice.availability.available));
+  await env.host.withProject(ref, runtime => runtime.store.db.prepare("UPDATE review_notes SET body='Edited after approval',revision=2 WHERE id='web'").run());
+  await assert.rejects(read("web"), { code: "actions.conflict" });
+  assert.deepEqual(await mcp<ReviewRequest>("molis_work_v1_review_request", { reference: webReview.reference }), applied);
   const replay = await mcp<{ record: ProjectTrustedDecision; replayed: boolean }>("molis_work_v1_review_decide", webCommand);
   assert.deepEqual(replay, { record: web.record, replayed: true });
   const mcpReview = await mcp<ReviewRequest>("molis_work_v1_review_request", lookup("mcp"));
@@ -210,6 +213,8 @@ test("APR-17/18 S-17 the real Web and management MCP reach one original review i
   const updated = await readRules(pid, next);
   assert.notEqual(updated.revision, following.revision);
   assert.equal(updated.rules.find(row => row.id === earlier.id)?.state, "withdrawn");
+  await assert.rejects(env.web.post(settings(), { ...edit, expected_revision: updated.revision }), { code: "actions.conflict" });
+  assert.deepEqual(await readRules(pid, next), updated, "running out of available rule orders does not modify any existing rule");
   await assert.rejects(env.web.post(settings(), { kind: "withdraw", id: earlier.id, expected_revision: following.revision,
     reason: "Stale page" }), { code: "actions.conflict" });
 });
@@ -271,7 +276,10 @@ operations["notes.accept"] = async ({ id, revision, accepted }, sdk) => {
 test("APR-17/18 S-17 a signed sandbox package commits its review and project write together through real Web and management MCP", {
   skip: process.platform !== "darwin", timeout: 90_000,
 }, async t => {
-  const env = await openTestHome(t), project = await env.createProject("Signed review");
+  let authorized = true;
+  const env = await openTestHome(t, { assertAccountCurrent() {
+    if (!authorized) throw new ActionError("actions.forbidden", "The original person lost access");
+  } }), project = await env.createProject("Signed review");
   const pid = project.project_id, reference = project.reference, caller = person(pid), client = env.host.actionClient(reference);
   await removeGoals(env, pid);
   const { preview_id } = await client.invoke(caller, pluginInstallActions.preview, { bundle: signedNotesReview() }) as { preview_id: string };
@@ -287,7 +295,7 @@ test("APR-17/18 S-17 a signed sandbox package commits its review and project wri
   }
   const action = { capability_id: row.capability_id, version: row.version, provider_id: row.provider.provider_id };
   await env.host.withProject(reference, runtime => {
-    runtime.store.db.exec("INSERT INTO fixture_review_notes VALUES ('a','Original text',1,NULL),('b','Was decided',1,'prior'),('c','Before permit',1,NULL),('d','After commit',1,NULL)");
+    runtime.store.db.exec("INSERT INTO fixture_review_notes VALUES ('a','Original text',1,NULL),('b','Was decided',1,'prior'),('c','Before permit',1,NULL),('d','After commit',1,NULL),('e','Receipt later',1,NULL)");
   });
   const webRead = (request_id: string) => env.web.post<ReviewRequest>(prefix + "/project-approvals/request", { action, request_id });
   const management = new LocalMcpServer(withCatalog, "management", null, {
@@ -303,16 +311,7 @@ test("APR-17/18 S-17 a signed sandbox package commits its review and project wri
   const lastCheck = await webRead("c");
   const baseEmit = ChildProcess.prototype.emit;
   let readyForPermit = false;
-  const localPerson = env.host.localPersonContext.bind(env.host);
   const request = { reference: lastCheck.reference, choice_id: "accept", request_key: "entry-closed-before-permit" };
-  let authorized = true;
-  const personContext = t.mock.method(env.host, "localPersonContext", async (...args: Parameters<typeof localPerson>) => {
-    const caller = await localPerson(...args);
-    return { ...caller, assert_authority_current: (...parameters: Parameters<NonNullable<typeof caller.assert_authority_current>>) => {
-      if (!authorized) throw new ActionError("actions.forbidden", "The original person lost access");
-      caller.assert_authority_current?.(...parameters);
-    } };
-  });
   const interception = t.mock.method(ChildProcess.prototype, "emit", function (this: ChildProcess, event: string, ...args: unknown[]) {
     if (event === "message" && (args[0] as { ready_to_commit?: boolean } | undefined)?.ready_to_commit) {
       readyForPermit = true;
@@ -322,7 +321,7 @@ test("APR-17/18 S-17 a signed sandbox package commits its review and project wri
   });
   try {
     await assert.rejects(env.web.post(prefix + "/project-approvals/decide", request), { code: "actions.forbidden" });
-  } finally { interception.mock.restore(); personContext.mock.restore(); }
+  } finally { authorized = true; interception.mock.restore(); }
   assert.equal(readyForPermit, true, "the real writer prepared its changes and requested its final permit");
   const approved = await webRead("a");
   const { record } = JSON.parse(await decide(approved, "exact-choice")) as { record: ProjectTrustedDecision };
@@ -335,14 +334,37 @@ test("APR-17/18 S-17 a signed sandbox package commits its review and project wri
   const recovered = JSON.parse(await decide(late, "lost-plugin-reply")) as { record: ProjectTrustedDecision; replayed: boolean };
   assert.equal(recovered.replayed, true);
   assert.equal(recovered.record.request_key, "lost-plugin-reply");
+  const receiptLater = await webRead("e");
+  const check = { reference: receiptLater.reference, choice_id: "accept", request_key: "lost-authority-after-permit" };
+  let prepared: { child: ChildProcess; id: number } | undefined, lostReceipt = false;
+  const afterPermit = t.mock.method(ChildProcess.prototype, "emit", function (this: ChildProcess, event: string, ...args: unknown[]) {
+    const message = args[0] as { id?: number; ready_to_commit?: boolean; ok?: boolean } | undefined;
+    if (event === "message" && typeof message?.id === "number") {
+      if (message.ready_to_commit) prepared = { child: this, id: message.id };
+      else if (prepared?.child === this && prepared.id === message.id && message.ok === true) {
+        lostReceipt = true;
+        authorized = false;
+      }
+    }
+    return Reflect.apply(baseEmit, this, [event, ...args]);
+  });
+  try {
+    await assert.rejects(env.web.post(prefix + "/project-approvals/decide", check), { code: "actions.outcome_unknown" });
+  } finally { authorized = true; afterPermit.mock.restore(); }
+  assert.equal(lostReceipt, true, "the original writer committed before the caller lost the ability to read its receipt");
+  const checked = await env.web.post<{ record: ProjectTrustedDecision; replayed: boolean }>(prefix + "/project-approvals/decide", check);
+  assert.equal(checked.replayed, true);
+  assert.equal(checked.record.request_key, check.request_key);
   await env.host.withProject(reference, runtime => {
     const { db } = runtime.store, history = projectReviewDecisions(db, pid);
     assert.deepEqual(db.prepare("SELECT id, accepted FROM fixture_review_notes ORDER BY id").all(),
-      [{ id: "a", accepted: "Original text" }, { id: "b", accepted: "prior" }, { id: "c", accepted: null }, { id: "d", accepted: "After commit" }]);
-    assert.deepEqual(db.prepare("SELECT id FROM fixture_review_audit ORDER BY id").all(), [{ id: "a" }, { id: "d" }]);
+      [{ id: "a", accepted: "Original text" }, { id: "b", accepted: "prior" }, { id: "c", accepted: null },
+        { id: "d", accepted: "After commit" }, { id: "e", accepted: "Receipt later" }]);
+    assert.deepEqual(db.prepare("SELECT id FROM fixture_review_audit ORDER BY id").all(), [{ id: "a" }, { id: "d" }, { id: "e" }]);
     assert.equal(history.forRequest(rejected.reference.id), null);
     assert.equal(history.forRequest(lastCheck.reference.id), null);
     assert.deepEqual(history.read(record.decision_id), record);
     assert.deepEqual(history.read(recovered.record.decision_id), recovered.record);
+    assert.deepEqual(history.read(checked.record.decision_id), checked.record);
   });
 });

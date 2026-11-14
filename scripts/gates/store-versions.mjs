@@ -47,6 +47,7 @@
 import ts from "typescript";
 import { VERSION_FIELD } from "../version-source.mjs";
 import { constantsIn, stepFroms, unwrapExpression, upgradesNameFor } from "./upgrade-steps.mjs";
+import { GOALS_APPROVAL_TRANSFER, hasGoalsApprovalTransfer } from "./goals-approval-transfer.mjs";
 
 export const CHECKLIST_FILE = "docs/releases/CHECKLIST.md";
 export const SPEC_FILE = "docs/system/CONTRACT-CHANGES.md";
@@ -180,6 +181,11 @@ function declaredSteps(file, source, name) {
 
 // What is wrong with the 维护 cell of a row whose version went up, once the origin is registered.
 function upgradePointerProblems(entry, definition, read) {
+  const transfer = GOALS_APPROVAL_TRANSFER;
+  if (entry.place === transfer.goalsStore && entry.from === transfer.from && entry.to === transfer.to && definition === transfer.goalsDefinition) {
+    if (!hasGoalsApprovalTransfer(read)) return [`${SPEC_FILE}: ${entry.place} needs the project library's verified approval transfer from ${entry.from}`];
+    definition = transfer.projectDefinition;
+  }
   const name = `\`${entry.place}\` ${entry.from} → ${entry.to}`;
   const wanted = `\`${definition}#${entry.from}→${entry.to}\``;
   const pointer = UPGRADE_POINTER.exec(entry.maintenance);

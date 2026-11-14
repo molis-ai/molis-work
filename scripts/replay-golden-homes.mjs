@@ -212,6 +212,7 @@ async function readEverything(manifest, homes) {
       for (const project of item.projects) {
         const { broken, read } = await readEveryParameterlessAction(session.host, project.database_path, project.project_id, { homeScope, unavailable: UNAVAILABLE,
           // An account Home's web surface wants a signed-in session; that this read is refused without the settings door is still asserted.
+          ...(item.account ? {} : { readProtectedPage: async (route, method) => { await session.http(route, { method }); } }),
           projectReachThroughSettings: async () => { if (!item.account) await session.http(`/projects/${encodeURIComponent(project.project_id)}/api/settings/plugin-project-reach/list`, { body: {} }); } });
         if (broken.length) readsFailed(`${item.path || "root"}/${project.project_id}`, broken);
         count += read.size; homeScope = false;

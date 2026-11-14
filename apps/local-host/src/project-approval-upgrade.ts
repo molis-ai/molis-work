@@ -1,9 +1,9 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { listProjectRoots } from "@molis-ai/molis-work-module-projects";
 import { inspectPluginProjectDatabase, listPluginProjectDatabases, transferPluginProjectDatabase } from "@molis-ai/molis-work-plugin-runtime";
-import { PROJECT_APPROVALS_SCHEMA_SQL, transferGoalsApprovalRecords } from "@molis-ai/molis-work-service-project-approvals";
+import { transferGoalsApprovalRecords } from "@molis-ai/molis-work-service-project-approvals";
 import { sqliteBaselineTriggers, type SqliteBaselineDatabase, type SqliteUpgradeStep } from "@molis-ai/molis-work-storage";
-import { GOALS_APPROVAL_OUTCOMES_SQL, GOALS_APPROVAL_TRANSFER_TABLES, goalsApprovalTransferManifest, readGoalsApprovalTransfer } from "./goal-callers.js";
+import { GOALS_APPROVAL_OUTCOMES_SQL, GOALS_APPROVAL_TRANSFER_SOURCE, GOALS_APPROVAL_TRANSFER_TABLES, goalsApprovalTransferManifest, isGoalsApprovalSource, readGoalsApprovalTransfer } from "./goal-callers.js";
 import { pluginSyncNamespace } from "./plugin-sync-database.js";
 import { builtinPluginByProjectKey } from "./plugin-registry.js";
 import { projectPluginPlatformExtension, projectPluginSchemaInspector } from "./project-plugin-databases.js";
@@ -14,7 +14,7 @@ const quote = (name: string) => '"' + name.replaceAll('"', '""') + '"';
 const originalCollection = "project_goals";
 const transportTables = ["replica_state", "replica_changes", "replica_heads", "replica_outbox", "replica_conflicts", "replica_resolutions",
   "aggregate_editor_versions", "context"];
-const originalManifest = () => goalsApprovalTransferManifest(builtinPluginByProjectKey("goals")!.manifest, 3);
+const originalManifest = () => goalsApprovalTransferManifest(builtinPluginByProjectKey("goals")!.manifest, GOALS_APPROVAL_TRANSFER_SOURCE);
 const oldTransportTables = () => {
   const namespace = pluginSyncNamespace(originalManifest(), originalCollection);
   return transportTables.map(name => namespace + "_" + name);
@@ -31,11 +31,10 @@ function transfer(db: SqliteBaselineDatabase) {
     const present = new Set(projectPluginSchemaInspector.objects(db).map(object => object.name.toLowerCase()));
     if (GOALS_APPROVAL_TRANSFER_TABLES.some(table => present.has(table))
       || [...present].some(name => name.startsWith(oldNamespace + "_"))) throw integrityRefusal();
-    db.exec(PROJECT_APPROVALS_SCHEMA_SQL);
     return;
   }
-  if (original.version !== 2 && original.version !== 3) throw integrityRefusal();
-  const manifest = original.version === 3 ? version3 : goalsApprovalTransferManifest(template, 2);
+  if (!isGoalsApprovalSource(original.version)) throw integrityRefusal();
+  const manifest = original.version === GOALS_APPROVAL_TRANSFER_SOURCE ? version3 : goalsApprovalTransferManifest(template, original.version);
   const declaration = manifest.databases!.project!;
   const owner = { plugin_id: manifest.plugin_id, publisher_signature: manifest.publisher.signature, declaration };
   const extension = projectPluginPlatformExtension(manifest);
@@ -47,16 +46,14 @@ function transfer(db: SqliteBaselineDatabase) {
   const projectId = roots[0]!.project_id;
   const context = db.prepare(`SELECT project_id FROM ${oldNamespace}_context WHERE id = 1`).get() as { project_id: string | null } | undefined;
   if (!context || (context.project_id != null && context.project_id !== projectId)) throw integrityRefusal();
-  const target = goalsApprovalTransferManifest(template, 4);
+  const target = goalsApprovalTransferManifest(template, template.databases!.project!.version);
   const updated = { path, ...projectPluginPlatformExtension(target) };
   if (!updated.platformSchema) throw integrityRefusal();
   const targetOwner = { kind: "plugin", plugin_id: owner.plugin_id, publisher_signature: owner.publisher_signature } as const;
-  db.exec(PROJECT_APPROVALS_SCHEMA_SQL);
-  transferGoalsApprovalRecords(db, projectId, targetOwner, readGoalsApprovalTransfer(db, projectId, targetOwner));
-
   // Preserve the transport ledger verbatim in the pre-upgrade project snapshot, including its cursor, outbox and conflicts.
   for (const name of triggers.keys()) db.exec(`DROP TRIGGER ${quote(name)}`);
-  if (original.version === 2) db.exec(version3.databases!.project!.upgrades!.find(step => step.from === 2)!.sql!);
+  for (const step of version3.databases!.project!.upgrades!) if (step.from >= original.version) db.exec(step.sql!);
+  transferGoalsApprovalRecords(db, projectId, targetOwner, readGoalsApprovalTransfer(db, projectId, targetOwner));
   for (const table of GOALS_APPROVAL_TRANSFER_TABLES) db.exec(`DROP TABLE ${quote(table)}`);
   for (const table of oldTransportTables()) db.exec(`DROP TABLE ${quote(table)}`);
   db.exec(GOALS_APPROVAL_OUTCOMES_SQL);
@@ -73,7 +70,7 @@ function assertTransferObjects(db: SqliteBaselineDatabase, original: readonly st
   const recorded = new Set(original.map(name => name.toLowerCase()));
   if (otherOwners.some(name => recorded.has(name.toLowerCase()))) throw integrityRefusal();
   // Inspect every trigger on a table this step can write or drop. Existing other owners are upgraded independently.
-  const writable = new Set([...GOALS_APPROVAL_TRANSFER_TABLES, ...oldTransportTables(), "plugin_project_databases", "goal_event_concerns"]);
+  const writable = new Set([...GOALS_APPROVAL_TRANSFER_TABLES, ...oldTransportTables(), "plugin_project_databases", "goal_event_concerns", "goal_work_event_judgments", "goal_event_requirement_conclusions"]);
   const allowed = new Set([...triggers.keys()].map(name => name.toLowerCase()));
   for (const object of projectPluginSchemaInspector.objects(db)) {
     const name = object.name.toLowerCase(), table = object.table.toLowerCase();
@@ -82,7 +79,9 @@ function assertTransferObjects(db: SqliteBaselineDatabase, original: readonly st
   }
 }
 
-export const projectApprovalUpgrade: SqliteUpgradeStep = {
-  from: 3, run: transfer,
-  get reduces_rows() { return [...GOALS_APPROVAL_TRANSFER_TABLES, ...oldTransportTables()]; },
-};
+/** The project baseline includes all writes and the old plugin transport is dropped only in its own transaction. */
+export const transferProjectApprovals: NonNullable<SqliteUpgradeStep["run"]> = transfer;
+
+export function projectApprovalUpgradeReductions(): readonly string[] {
+  return [...GOALS_APPROVAL_TRANSFER_TABLES, ...oldTransportTables()];
+}

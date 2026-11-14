@@ -597,6 +597,7 @@ export function checkMigratedGoalsCommandOwnership(repositoryRoot) {
       errors.push(`${relativePath}: App composition must not own Goal business implementations`);
     }
   }
+  errors.push(...checkStandaloneManagementPort(read("apps/local-host/src/management-action-client.ts")));
   errors.push(...checkGoalTransportCallers({
     cli: { dispatcher: read("apps/cli/src/command-dispatch.ts"), project: read("apps/local-host/src/cli-project.ts") },
     mcp: { dispatcher: read("apps/mcp/src/tool-dispatch.ts"), host: read("apps/local-host/src/mcp-v1-tool.ts") },
@@ -615,7 +616,7 @@ export function checkMigratedGoalsCommandOwnership(repositoryRoot) {
   // `relations` left the retired list when the workbench redesign brought Goal
   // relation editing back as a product feature. It stays here so it still has to
   // consume public operation ports instead of owning Store, SQL or Module rules.
-  for (const file of ["create", "policy-guidance", "lifecycle", "decisions", "events", "relations"]) {
+  for (const file of ["create", "policy-guidance", "lifecycle", "events", "relations"]) {
     const nativePath = `plugins/native/goals/src/http/${file}.ts`;
     const source = read(nativePath);
     errors.push(...checkGoalStorageOwnership(source).map(error => `${nativePath}: ${error}`));
@@ -623,7 +624,7 @@ export function checkMigratedGoalsCommandOwnership(repositoryRoot) {
       errors.push(`${nativePath}: Native Goal requests must consume public operation ports without Host or Module implementations`);
     }
   }
-  for (const file of ["draft", "risk-impact", "verification", "input"]) {
+  for (const file of ["draft", "risk-impact", "verification", "input", "decisions"]) {
     const nativePath = `plugins/native/goals/src/http/${file}.ts`;
     if (fs.existsSync(path.join(repositoryRoot, nativePath))) {
       errors.push(`${nativePath}: retired old protocol HTTP write adapter must stay removed`);
@@ -1160,9 +1161,10 @@ export const ENTRY_SOURCE_FILE = /\.(?:tsx?|jsx?|[cm][tj]s)$/u;
 const CLI_GOALS_TABLE = "GOALS";
 const MCP_GOALS_TABLE = "MANAGEMENT_GOAL_ACTIONS";
 /** The modules the CLI dispatcher may reach: the action contract and its own protocol file. */
-const CLI_DISPATCHER_MODULES = new Set(["@molis-ai/molis-work-contracts/platform/actions", "./protocol.js"]);
+const PROJECT_REVIEW_CONTRACT = "@molis-ai/molis-work-contracts/services/project-approvals";
+const CLI_DISPATCHER_MODULES = new Set([PROJECT_REVIEW_CONTRACT, "@molis-ai/molis-work-contracts/platform/actions", "./protocol.js"]);
 /** The modules the MCP dispatcher may reach: the action contract and the presentation error type. */
-const MCP_DISPATCHER_MODULES = new Set(["@molis-ai/molis-work-contracts/platform/actions", "./goal-presentation.js"]);
+const MCP_DISPATCHER_MODULES = new Set([PROJECT_REVIEW_CONTRACT, "@molis-ai/molis-work-contracts/platform/actions", "./goal-presentation.js"]);
 /**
  * A specifier that reaches Goals' contract: the Goals plugin package (its `/contract` subpath included), its source tree by path, or one of the
  * platform contracts' old Goals subpaths (`modules/goals`, `modules/goal-*`, `modules/governance-collaboration`, moved into the plugin by PG-111).
@@ -1191,14 +1193,85 @@ function moduleReferences(file) {
   return found;
 }
 
+export function checkStandaloneManagementPort(source) {
+  const file = ts.createSourceFile("apps/local-host/src/management-action-client.ts", source, ts.ScriptTarget.Latest, true);
+  const fn = file.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === "bindStandaloneManagementActions");
+  const compact = node => node?.getText(file).replace(/\s+/gu, "");
+  const parameters = fn?.parameters.map(parameter => compact(parameter.name)).join(",");
+  const [bind, result] = fn?.body?.statements ?? [];
+  const returned = result && ts.isReturnStatement(result) ? result.expression : undefined;
+  const [spread, invoke] = returned && ts.isObjectLiteralExpression(returned) ? returned.properties : [];
+  const calls = invoke && ts.isMethodDeclaration(invoke) ? invoke.body?.statements ?? [] : [];
+  const valid = parameters === "host,project,signal" && fn.body.statements.length === 2
+    && compact(bind) === "constgoals=bindGoalsManagementActions(host.actionClient(project),project,{signal});"
+    && returned && ts.isObjectLiteralExpression(returned) && returned.properties.length === 2
+    && compact(spread) === "...goals" && compact(invoke?.name) === "invoke"
+    && calls.length === 4 && compact(calls[0]) === "constname=reviewOperation(reference);"
+    && compact(calls[1]) === "if(!name)returngoals.invoke<Output>(reference,input,evidence);"
+    && compact(calls[2])?.startsWith('if(evidence!==undefined)thrownewActionError("actions.input_invalid",')
+    && compact(calls[3]) === "returnawaitinvokeProjectReviewManagement(host,project,name,input,currentCallId()??newCallId(),signal)asOutput;";
+  return valid ? [] :
+    [file.fileName + ": standalone management must keep the same project, original signal, protected review entry and source checks"];
+}
+
+function importsTrustedReviewActions(file) {
+  return file.statements.some(statement => ts.isImportDeclaration(statement)
+    && ts.isStringLiteralLike(statement.moduleSpecifier) && statement.moduleSpecifier.text === PROJECT_REVIEW_CONTRACT
+    && !statement.importClause?.isTypeOnly && statement.importClause?.namedBindings
+    && ts.isNamedImports(statement.importClause.namedBindings)
+    && statement.importClause.namedBindings.elements.some(item => item.name.text === "trustedReviewActions" && !item.propertyName && !item.isTypeOnly));
+}
+
+function checkTrustedReviewRoutes(file, port) {
+  const found = new Set(), errors = [];
+  const banned = new Set(["goal-tree-decide", "molis_work_v1_goal_tree_decide", "molis_work_v1_event_decide", "goals.tree.decide", "goals.decisions.record"]);
+  const names = port === "cli" ? { read: '"review-request"', decide: '"review-decide"' }
+    : { read: "MANAGEMENT_REVIEW_TOOL_NAMES.read", decide: "MANAGEMENT_REVIEW_TOOL_NAMES.decide" };
+  const visit = node => {
+    if (ts.isStringLiteralLike(node) && banned.has(node.text)) errors.push(`${file.fileName}: retired Goals decision reference ${node.text}`);
+    if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && node.expression.getText(file) === "actions.invoke") {
+      const action = node.arguments[0];
+      if (action && ts.isPropertyAccessExpression(action) && action.expression.getText(file) === "trustedReviewActions") {
+        if (port === "cli") for (let block = node.parent; block && !ts.isCaseBlock(block); block = block.parent) {
+          if (ts.isCaseClause(block) && block.expression.getText(file) === names[action.name.text]
+            && block.statements[0]?.getText() === "bound(project_id);") found.add(action.name.text);
+        }
+        // The two MCP cases share one binding and branch on the same registered tool names.
+        const branch = node.parent.parent;
+        if (port === "mcp" && ts.isConditionalExpression(branch) && branch.condition.getText(file) === "name === " + names.read
+          && (action.name.text === "read" ? branch.whenTrue : branch.whenFalse) === node.parent
+          && blockHasManagementBinding(branch)) found.add(action.name.text);
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(file);
+  if (!importsTrustedReviewActions(file)) errors.push(`${file.fileName}: import the platform's protected review contract`);
+  for (const name of ["read", "decide"]) if (!found.has(name)) errors.push(`${file.fileName}: call trustedReviewActions.${name} from its protected ${port} entry`);
+  return errors;
+}
+
+function blockHasManagementBinding(node) {
+  for (let at = node.parent; at; at = at.parent) {
+    if (ts.isCaseClause(at)) {
+      if (at.expression.getText() !== "MANAGEMENT_REVIEW_TOOL_NAMES.decide") return false;
+      const block = at.statements[0];
+      return ts.isBlock(block) && block.statements[0]?.getText() === "const actions = management();"
+        && block.statements.some(statement => statement.getText() === "bound(actions, project_id);")
+        && at.parent.clauses[at.parent.clauses.indexOf(at) - 1]?.getText() === "case MANAGEMENT_REVIEW_TOOL_NAMES.read:";
+    }
+  }
+  return false;
+}
+
 /**
  * The transport entries reach Goals through the platform, not through a Host client of their own, and name no Goals contract. `entries`: no
  * file of the CLI or MCP package references a Goals contract or the Goals package under any syntax. `cli`: the dispatcher is handed the
  * management port the Host builds (`CliManagementActions`), reaches only the action contract and its protocol file, calls each Goals action
  * by a `GOALS.<name>` entry of the id-and-version table it declares, holds no Host client under any spelling and reads the snapshot through
  * Goals' own action; `cli-project.ts` builds that port with
- * `bindGoalsManagementActions(<host>.actionClient(reference), reference)`, over the project's client (it starts the project's
- * plugins, Goals among them) and the very reference the command is bound to, and hands the dispatcher what it returned. `mcp`: the dispatcher takes only
+ * `bindStandaloneManagementActions(host, reference, signal)`, over the bound project and original signal, and hands the dispatcher what it returned.
+ * `mcp`: the dispatcher takes only
  * the Host's management port or null; mcp-v1-tool builds it only for management over the same client/reference. Each part is the source text of the file it names; a comment or a
  * string is not a caller.
  */
@@ -1235,7 +1308,8 @@ export function checkGoalTransportCallers({ cli, mcp, entries }) {
       if (action && ts.isPropertyAccessExpression(action) && ts.isIdentifier(action.expression) && action.expression.text === CLI_GOALS_TABLE) {
         called.add(action.name.text);
         if (action.name.text === "snapshot") snapshot = true;
-      } else errors.push(`${dispatcherPath}: invoke must name a Goals action of the ${CLI_GOALS_TABLE} table, never a descriptor taken from elsewhere`);
+      } else if (action?.getText(dispatcher) !== "trustedReviewActions.read" && action?.getText(dispatcher) !== "trustedReviewActions.decide")
+        errors.push(`${dispatcherPath}: invoke must name a Goals action of the ${CLI_GOALS_TABLE} table or a platform review action`);
     }
     ts.forEachChild(node, visit);
   };
@@ -1247,6 +1321,7 @@ export function checkGoalTransportCallers({ cli, mcp, entries }) {
   }
   if (!snapshot) errors.push(`${dispatcherPath}: the CLI snapshot must be read through ${CLI_GOALS_TABLE}.snapshot`);
 
+  errors.push(...checkTrustedReviewRoutes(dispatcher, "cli"));
   errors.push(...checkGoalsManagementWiring(cli.project, "cli"));
   errors.push(...checkMcpGoalTransportCallers(mcp));
   return errors;
@@ -1282,15 +1357,17 @@ function checkMcpGoalTransportCallers({ dispatcher: source, host: hostSource }) 
     if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === "invoke") {
       const action = node.arguments[0];
       if (action && ts.isPropertyAccessExpression(action) && ts.isIdentifier(action.expression) && action.expression.text === MCP_GOALS_TABLE) actions.add(action.name.text);
-      else errors.push(`${toolPath}: invoke must name a Goals action, never a typed descriptor or caller`);
+      else if (action?.getText(file) !== "trustedReviewActions.read" && action?.getText(file) !== "trustedReviewActions.decide")
+        errors.push(`${toolPath}: invoke must name a Goals action or a platform review action, never a typed descriptor or caller`);
     }
     ts.forEachChild(node, visit);
   };
   visit(file);
   if (!port) errors.push(`${toolPath}: declare the Host's McpManagementActions port`);
   if (!tableDeclared(file, MCP_GOALS_TABLE)) errors.push(`${toolPath}: declare the ${MCP_GOALS_TABLE} table of Goals action ids and versions the management tools call`);
-  for (const action of ["initialize", "decide", "treeDecide"]) if (!actions.has(action)) errors.push(`${toolPath}: the management tool must invoke ${MCP_GOALS_TABLE}.${action}`);
+  if (!actions.has("initialize")) errors.push(`${toolPath}: the management tool must invoke ${MCP_GOALS_TABLE}.initialize`);
 
+  errors.push(...checkTrustedReviewRoutes(file, "mcp"));
   errors.push(...checkGoalsManagementWiring(hostSource, "mcp"));
   return errors;
 }

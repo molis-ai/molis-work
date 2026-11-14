@@ -5,10 +5,9 @@ import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/p
 import type { AutomationRecommender, AutomationScanPorts } from "@molis-ai/molis-work-service-automation-recommender";
 import { webEntryDoor, webEntryProvider } from "./web-entry-actions.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
-import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
-import { localWebActionContext } from "./local-web-actions.js";
+import { bindLocalWebAction } from "./local-web-actions.js";
 import { HOST_PROVIDER_ID } from "./local-host.js";
-import { registeredPagesProvider } from "./automation-project.js";
+import { registeredPagesCreate } from "./automation-project.js";
 
 export interface RecommendationEntry {
   readonly service: AutomationRecommender;
@@ -51,16 +50,12 @@ export const invokeAutomationRecommendation = door.invoke;
 async function createReport(entry: RecommendationEntry, original: ActionExecutionContext,
   input: { title: string; markdown: string; request_id: string }, control: { beforeEffect(): void | Promise<void>; assertCurrent(): void }) {
   // Save is a fresh person action. The token chooses the frozen draft. The Pages owner still supplies the current write authority.
-  const caller = await localWebActionContext(entry.host, entry.project, LOCAL_OWNER_PERMISSIONS, original.signal, { assertCurrent: control.assertCurrent });
-  const registered = registeredPagesProvider();
-  const refs = caller.allowed_actions?.filter(ref => ref.capability_id === "pages.create" && ref.version === /* @version action.pages.create */ 1 && ref.provider_id === registered);
-  if (refs?.length !== 1 || !refs[0]?.provider_id) throw new ActionError("actions.service_unavailable", "当前项目无法新建 Pages 文稿，请在项目里启用文稿后重试");
-  const reference = refs[0];
+  const definition = registeredPagesCreate();
+  if (!definition) throw new ActionError("actions.service_unavailable", "当前项目无法新建 Pages 文稿，请在项目里启用文稿后重试");
+  const pages = bindLocalWebAction(entry.host, entry.project, definition, { signal: original.signal, assertCurrent: control.assertCurrent });
   await control.beforeEffect();
-  const output = await entry.host.actionClient(entry.project).invoke({ ...caller, allowed_actions: [reference],
-    validate_authority: async target => { await control.beforeEffect(); await caller.validate_authority?.(target); },
-    assert_authority_current: (target, required) => { control.assertCurrent(); caller.assert_authority_current?.(target, required); },
-  }, reference, input) as { document?: { id?: unknown } };
+  const output = await pages.invoke(definition, input, { beforeEffect: async () => { await control.beforeEffect(); },
+    assert_authority_current: control.assertCurrent }) as { document?: { id?: unknown } };
   if (typeof output.document?.id !== "string" || !output.document.id) throw new ActionError("actions.output_invalid", "文稿已请求保存，暂时无法读取文稿编号");
   return { document_id: output.document.id };
 }

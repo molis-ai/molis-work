@@ -152,7 +152,7 @@ export class CapabilityRegistry<Context> {
 }
 
 export { ActionService, actionSceneCompatibilityReason } from "./action-service.js";
-export { actionTrustedDecision, markTrustedDecisionRolledBack, markTrustedDecisionSubmitted, trustedDecisionSubmitted, withTrustedDecision } from "./action-trusted-decision.js";
+export { markTrustedDecisionRolledBack, markTrustedDecisionSubmitted, trustedDecisionSubmitted, withTrustedDecision } from "./action-trusted-decision.js";
 export { actionDirectoryLookup } from "./action-directory-lookup.js";
 export { forgetInDirectoryPass, inDirectoryPass, rememberInDirectoryPass } from "./directory-pass.js";
 export { registeredActionMetadata, sampleRetainedActionDirectory, type ActionSelection, type RegisteredActionMetadata, type RetainedActionDirectory } from "./action-metadata.js";

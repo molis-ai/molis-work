@@ -10,7 +10,7 @@ import type { ProjectTrustedDecision } from "@molis-ai/molis-work-contracts/serv
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { projectApprovalRules, projectReviewDecisions } from "@molis-ai/molis-work-service-project-approvals";
-import { goalsManifest } from "@molis-ai/molis-work-plugin-goals";
+import { goalsManifest, readGoalApprovalOutcome } from "@molis-ai/molis-work-plugin-goals";
 import {
   createGoalsApplication, GOALS_PLUGIN_ID, GoalInputBindings, GoalsModule, GovernanceCollaborationModule, GovernanceEventDecisions, GovernanceProvenance, readMolisWorkSnapshot,
   type GoalsApplication, type PlanningMethodPack,
@@ -38,7 +38,19 @@ export function fixtureApprovals(store: LocalProjectDatabase, clock: () => Date)
     clock().toISOString(), () => undefined).record;
   };
   const provenance = new GovernanceProvenance();
+  const finish = (project: string, id: string, kind: TestDecisionSubject["kind"]) => {
+    const decisions = history(project), record = decisions.findCommitted(id);
+    const outcome = readGoalApprovalOutcome(store.db, project, id, kind);
+    if (record && !record.outcome_digest && outcome) decisions.freezeOutcome(record, outcome.digest);
+  };
   return {
+    event<T extends { decision: { governance_decision_id: string } }>(project: string, run: () => T): T {
+      return store.db.transaction(() => {
+        const result = run();
+        finish(project, result.decision.governance_decision_id, "goal");
+        return result;
+      }).immediate();
+    },
     eventDecisions: new GovernanceEventDecisions((input: RecordGoalUserDecisionInput) => {
       const authority = provenance.validateEventDecisionAuthority(input.authority);
       return commit(input.project_id, { kind: "goal", id: input.goal_id }, authority, input.idempotency_key, input);
@@ -56,7 +68,11 @@ export function fixtureApprovals(store: LocalProjectDatabase, clock: () => Date)
       return store.db.transaction(() => {
         const authority = provenance.validateEventDecisionAuthority({ ...raw, authority_source: raw.authority_source as "web" | "management" });
         current = commit(project, { kind: "goal-tree-proposal", id }, authority, key, input);
-        try { return run(); } finally { current = undefined; }
+        try {
+          const result = run();
+          finish(project, current.decision_id, "goal-tree-proposal");
+          return result;
+        } finally { current = undefined; }
       }).immediate();
     },
   };
@@ -123,6 +139,8 @@ export class GoalProjectApplication {
         objectType: "inbox_entry", objectId: event.entry_id, type: event.type, reason: event.reason, payload: event.payload, at: event.at }); } });
     const application = createGoalsApplication({ goals: { ...this.goals, query: goalsModule.query, events: goalsModule.events }, governance: this.governance, attention, clock: this.clock });
     this.goalEvents = application.goalEvents;
+    const record = application.goalEvents.recordTrustedDecision.bind(application.goalEvents);
+    this.goalEvents.recordTrustedDecision = input => approvals.event(input.project_id, () => record(input));
     this.goalQueries = application.goalQueries;
     this.goalTree = application.goalTree;
     this.goalTreeSubmission = application.goalTreeSubmission;

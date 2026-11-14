@@ -1,13 +1,13 @@
 import { lstatSync, realpathSync } from "node:fs";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HomePluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { homeSqlitePath, openBaselineHomeSqlite, openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import { homeSqlitePath, openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { assertArtifactLibraryReady } from "./artifact-row-storage-policy.js";
 
-/** Opens the same declared library in the Host and in the bounded SQL worker. */
-export function openHomePluginDatabaseConnection(home: string, declaration: HomePluginDatabaseDeclaration,
-  partition?: { readonly project_id: string }): ReturnType<typeof openBaselineHomeSqlite> {
-  if (!declaration.project_rows?.artifact_join) return openBaselineHomeSqlite(home, declaration.store_name, declaration, partition?.project_id);
+/** A Home library joined into project artifacts must start in WAL at the real path. */
+export function prepareHomePluginDatabasePath(home: string, declaration: HomePluginDatabaseDeclaration,
+  partition?: { readonly project_id: string }): string {
+  if (!declaration.project_rows?.artifact_join) return home;
   const real = realpathSync(home);
   const path = homeSqlitePath(real, declaration.store_name, partition?.project_id);
   assertArtifactLibraryReady(path);
@@ -19,5 +19,5 @@ export function openHomePluginDatabaseConnection(home: string, declaration: Home
       db.exec("PRAGMA synchronous=FULL");
     }).close();
   }
-  return openBaselineHomeSqlite(real, declaration.store_name, declaration, partition?.project_id);
+  return real;
 }

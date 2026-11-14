@@ -5,6 +5,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { writeProjectRoot } from "@molis-ai/molis-work-module-projects";
 import { LocalProjectDatabase } from "./project-database.js";
 import { decideProjectReview, readProjectReview } from "./project-review-commands.js";
+import { projectReviewPerson } from "./project-review-entry.js";
 import { DEMO_PROJECT_ID } from "./demo-project-id.js";
 import { registerDemoDeliverable, DEMO_CORE_ARTIFACT_ID } from "./demo-deliverable.js";
 
@@ -121,13 +122,15 @@ async function withDemoGoals(databasePath: string, projectId: string, body: (act
     const project = molisWorkHostProjectReference({ projectId, databasePath });
     const client = host.actionClient(project);
     const caller = { actor_id: DEMO_ACTOR, actor_kind: "user" as const, audience: "user" as const, project_id: projectId, permissions: DEMO_PERMISSIONS };
+    const assertCurrent = () => { if (host.lifecycle() !== "running") throw new ActionError("actions.host_closed", "示例项目的宿主已关闭"); };
+    let reviewPerson: ReturnType<typeof projectReviewPerson> | undefined;
     await body(async (capability_id, version, input) => {
       if (capability_id !== DEMO_DECIDE) return await client.invoke(caller, { capability_id, version }, input) as never;
       // These fixed sample acts run in the seed's own Host and library with an explicitly named demo author.
       const request_id = String((input as { idempotency_key: string }).idempotency_key);
-      const entry = { caller: { ...await host.localPersonContext(project), actor_id: DEMO_ACTOR },
+      const entry = { caller: { ...await (reviewPerson ??= projectReviewPerson({ host, project }, undefined, assertCurrent)), actor_id: DEMO_ACTOR },
         action: Object.freeze({ source: "management" as const, conversation_ref: "demo:goals", message_ref: `demo:${request_id}` }),
-        assertCurrent: () => { if (host.lifecycle() !== "running") throw new ActionError("actions.host_closed", "示例项目的宿主已关闭"); },
+        assertCurrent,
       };
       const provider = host.inspectActionMetadata(entry.caller, project).find(row => row.capability_id === capability_id && row.version === version);
       if (!provider) throw new Error("示例决定的原动作未启动");

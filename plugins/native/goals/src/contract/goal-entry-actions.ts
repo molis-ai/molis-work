@@ -1,4 +1,4 @@
-import type { ActionDefinition, ActionIntake, ActionResultView } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionDefinition, ActionIntake, ActionResultView, InferActionInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import { TRUSTED_REVIEW_OWNER_DRAFT_INPUT_SCHEMA, type TrustedReviewOffer } from "@molis-ai/molis-work-contracts/services/project-approvals";
 import type { BoardSnapshot, CreateGoalIntentInput, CreateGoalIntentResult, GoalEventDecisionResult, GoalEventDirectoryItem, GoalsCommandApi,
   ProjectGuidanceView, RecordGoalUserDecisionInput } from "./goals.js";
@@ -65,9 +65,12 @@ const submit = goalAction<Business<GoalTreeProposalSubmitInput>, { proposal: Goa
   "提交新目标及父子或依赖关系的待确认提案；提交不会创建正式目标。五项及以上变化须提供整份 narrative 和逐项 explanation。用户通过 Web 或管理入口审批后落地", "command", tree.treeSubmitInputSchema, tree.treeSubmitResultSchema);
 const treeSubmit: ActionDefinition<Business<GoalTreeProposalSubmitInput>, { proposal: GoalTreeProposalRecord; replayed: boolean; observed_event_cursor: number }> = {
   ...submit, action: { ...submit.action, intake: GOALS_TREE_INTAKE, result_view: GOALS_TREE_SUBMIT_RESULT } };
-const treeDecide = goalAction<Business<GoalTreeProposalDecideInput>, GoalTreeProposalDecisionResult<never>>("goals.tree.decide", /* @version action.goals.tree.decide */ 1, "审批结构提案",
+export const goalTreeDecisionRef = { capability_id: "goals.tree.decide", version: /* @version action.goals.tree.decide */ 1 } as const;
+export const goalEventDecisionRef = { capability_id: "goals.decisions.record", version: /* @version action.goals.decisions.record */ 1 } as const;
+
+const treeDecide = goalAction<Business<GoalTreeProposalDecideInput>, GoalTreeProposalDecisionResult<never>>(goalTreeDecisionRef.capability_id, goalTreeDecisionRef.version, "审批结构提案",
   "保存用户通过受保护入口作出的逐项或整组决定；整组确认全有或全无。实际用户和操作出处由 Host 提供", "command", tree.treeDecideInputSchema, tree.treeDecisionResultSchema);
-const decide = goalAction<GoalDecisionActionInput, GoalEventDecisionResult>("goals.decisions.record", /* @version action.goals.decisions.record */ 1, "记录用户决定",
+const decide = goalAction<GoalDecisionActionInput, GoalEventDecisionResult>(goalEventDecisionRef.capability_id, goalEventDecisionRef.version, "记录用户决定",
   "保存用户本人通过受保护入口作出的决定；模型只能请求或引用决定。作者及操作出处由 Host 注入，仍核对原请求和当前承诺", "command",
   object({ goal_id: identifier, idempotency_key: identifier, request_id: identifier, selected_option_id: identifier,
     conclusion: identifier, accepts_requirements: boolean, effects: array({ ...effect, properties: { ...effect.properties as Record<string, unknown>, action: identifier } }), authorized_change: change,
@@ -78,7 +81,7 @@ const eventReview = reviewReader("goals.decisions.review", /* @version action.go
 const treeReview = reviewReader("goals.tree.review", /* @version action.goals.tree.review */ 1, "goal-tree-proposal", "查看目标树决定");
 
 function reviewReader(id: string, version: number, subject: string, title: string) {
-  const definition = goalAction<{ request_id: string; draft?: Record<string, unknown> }, TrustedReviewOffer>(id, version, title,
+  const definition = goalAction<InferActionInput<typeof TRUSTED_REVIEW_OWNER_DRAFT_INPUT_SCHEMA>, TrustedReviewOffer>(id, version, title,
     "查看原对象和已选事项，供本人确认。", "query", TRUSTED_REVIEW_OWNER_DRAFT_INPUT_SCHEMA, { type: "object" });
   return { ...definition, action: { ...definition.action, audiences: ["user"] as const, subject_kinds: [subject] } };
 }

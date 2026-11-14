@@ -1,10 +1,10 @@
 import { createHash, randomUUID } from "node:crypto";
 import { ActionError, requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ApprovalRuleOwner, ProjectApprovalRule, ProjectApprovalRuleChange, ProjectApprovalRulePage, ProjectApprovalRules, ProjectApprovalRuleScope } from "@molis-ai/molis-work-contracts/services/project-approvals";
-import { canonicalJsonText } from "@molis-ai/molis-work-plugin-sdk";
+import { canonicalJsonText, isRecord } from "@molis-ai/molis-work-plugin-sdk";
 import type { SqliteDatabase } from "@molis-ai/molis-work-storage";
 
-type RuleRow = Omit<ProjectApprovalRule, "scope" | "requires_person"> & { scope_json: string; requires_person: 0 | 1 | null };
+type RuleRow = Omit<ProjectApprovalRule, "scope" | "requires_person"> & { scope_json: string; requires_person: 0 | 1 | null; row_ref: string };
 type RuleChange = Exclude<ProjectApprovalRuleChange, { kind: "set" }> |
   (Omit<Extract<ProjectApprovalRuleChange, { kind: "set" }>, "scope"> & { readonly scope: ProjectApprovalRuleScope });
 
@@ -18,14 +18,33 @@ const scopeKey = (scope: ProjectApprovalRuleScope) => canonicalJsonText(scope, "
 const ownerKey = (owner: ApprovalRuleOwner) => canonicalJsonText(owner, "null");
 const revisionOf = (projectId: string, owner: ApprovalRuleOwner | undefined, rules: readonly ProjectApprovalRule[]) => createHash("sha256")
   .update(canonicalJsonText([projectId, owner ?? null, rules.map(rule => [rule.id, rule.revision, rule.scope, rule.requires_person])], "null")).digest("hex");
-const fields = `id, project_id, scope_json, rule_order AS "order", requires_person, revision, state, created_by, created_at,
+const fields = `id, project_id, scope_json, CAST(rowid AS TEXT) AS row_ref, rule_order AS "order", requires_person, revision, state, created_by, created_at,
   reason, changed_by, changed_at, change_reason`;
 const pageSize = 50;
 
-function decodeRule({ scope_json, requires_person, ...row }: RuleRow): ProjectApprovalRule {
-  let scope: ProjectApprovalRuleScope;
-  try { scope = JSON.parse(scope_json) as ProjectApprovalRuleScope; }
-  catch { throw new ActionError("actions.execution_failed", "项目审批规则无法读取"); }
+const named = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;
+const fieldsMatch = (value: Record<string, unknown>, keys: readonly string[]) => Object.keys(value).length === keys.length
+  && keys.every(key => Object.hasOwn(value, key));
+
+export function isApprovalRuleScope(scope: unknown): scope is ProjectApprovalRuleScope {
+  if (!isRecord(scope)) return false;
+  const owner = scope.owner, subject = scope.subject;
+  if (owner !== undefined && (!isRecord(owner) || (owner.kind === "system"
+    ? !fieldsMatch(owner, ["kind", "provider_id"]) || !named(owner.provider_id)
+    : owner.kind !== "plugin" || !fieldsMatch(owner, ["kind", "plugin_id", "publisher_signature"]) || !named(owner.plugin_id) || !named(owner.publisher_signature)))) return false;
+  if (scope.kind === "project_default") return fieldsMatch(scope, owner === undefined ? ["kind"] : ["kind", "owner"]);
+  return (scope.kind === "object" || scope.kind === "ancestor_minimum") && owner !== undefined
+    && fieldsMatch(scope, ["kind", "owner", "subject"]) && isRecord(subject) && fieldsMatch(subject, ["kind", "id"])
+    && named(subject.kind) && named(subject.id);
+}
+
+function decodeRule({ scope_json, requires_person, row_ref, ...row }: RuleRow): ProjectApprovalRule {
+  let scope: unknown;
+  try { scope = JSON.parse(scope_json); } catch { scope = undefined; }
+  if (!isApprovalRuleScope(scope)) throw new ActionError("actions.execution_failed", "项目审批规则无法读取", {
+    kind: "internal",
+    details: { storage: { table: "project_approval_rules", column: "scope_json", row_ref } },
+  });
   return { ...row, scope, requires_person: requires_person === null ? null : requires_person === 1 };
 }
 
@@ -69,14 +88,18 @@ export function projectApprovalRules(db: SqliteDatabase, projectId: string) {
       db.prepare(`UPDATE project_approval_rules SET state = 'withdrawn', revision = revision + 1,
         changed_by = ?, changed_at = ?, change_reason = ? WHERE project_id = ? AND id = ?`).run(actorId, at, change.reason, projectId, change.id);
     } else {
+      if (!isApprovalRuleScope(change.scope)) throw new ActionError("actions.input_invalid", "审批规则的范围不明");
       const scope = scopeKey(change.scope);
+      const { last } = db.prepare<[string], { last: number }>(`SELECT coalesce(max(rule_order), 0) AS last
+        FROM project_approval_rules WHERE project_id = ?`).get(projectId)!;
+      if (!Number.isSafeInteger(last + 1)) throw new ActionError("actions.conflict", "项目审批规则已达到可保存数量上限");
       db.prepare(`UPDATE project_approval_rules SET state = 'replaced', revision = revision + 1,
         changed_by = ?, changed_at = ?, change_reason = ? WHERE project_id = ? AND scope_json = ? AND state = 'active'`)
         .run(actorId, at, change.reason, projectId, scope);
       db.prepare(`INSERT INTO project_approval_rules
         (id, project_id, scope_json, rule_order, requires_person, revision, state, created_by, created_at, reason)
-        VALUES (?, ?, ?, (SELECT coalesce(max(rule_order), 0) + 1 FROM project_approval_rules WHERE project_id = ?), ?, 1, 'active', ?, ?, ?)`)
-        .run(randomUUID(), projectId, scope, projectId, change.requires_person ? 1 : 0, actorId, at, change.reason);
+        VALUES (?, ?, ?, ?, ?, 1, 'active', ?, ?, ?)`)
+        .run(randomUUID(), projectId, scope, last + 1, change.requires_person ? 1 : 0, actorId, at, change.reason);
     }
     requireSynchronous(assertCurrent());
     return read(false, owner);

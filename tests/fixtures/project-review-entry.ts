@@ -9,7 +9,12 @@ type Draft = { readonly idempotency_key: string; readonly request_id?: string };
 type ReviewAction = Pick<ActionDefinition, "capability_id" | "version">;
 type Receipt<Output> = { record: ProjectTrustedDecision; replayed: boolean; result?: Output };
 
-export function prepareGoalReview(action: ReviewAction, draft: Draft) {
+/** Low-level HTTP fixtures that own their loopback headers exercise the same read/decide pair. */
+export function prepareWebReview<Input extends Draft>(action: ReviewAction, draft: Input, post: (path: string, body: object) => Promise<Response>) {
+  return post("/api/project-approvals/request", prepareGoalReview(action, draft));
+}
+
+export function prepareGoalReview<Input extends Draft>(action: ReviewAction, draft: Input) {
   return { action: { capability_id: action.capability_id, version: action.version, provider_id: GOALS_PLUGIN_ID },
     request_id: draft.request_id ?? draft.idempotency_key, draft };
 }
@@ -22,7 +27,7 @@ export function webGoalReviews(web: Web, projectId: string) {
   const path = "/projects/" + encodeURIComponent(projectId) + "/api/project-approvals";
   const read = (input: ReturnType<typeof prepareGoalReview> | { reference: ReviewRequest["reference"] }) => web.post<ReviewRequest>(path + "/request", input);
   const submit = <Output = unknown>(command: TrustedReviewCommand) => web.post<Receipt<Output>>(path + "/decide", command);
-  return { read, submit, async prepare(action: ReviewAction, draft: Draft) {
+  return { read, submit, async prepare<Input extends Draft>(action: ReviewAction, draft: Input) {
     return answer(await read(prepareGoalReview(action, draft)), draft.idempotency_key);
   } };
 }
@@ -32,12 +37,12 @@ export function mcpGoalReviews(server: { callTool(name: string, input: object): 
   const call = async <Output>(name: string, payload: object) => JSON.parse(await server.callTool(name, { ...project, ...payload })) as Output;
   const read = (input: ReturnType<typeof prepareGoalReview> | { reference: ReviewRequest["reference"] }) => call<ReviewRequest>("molis_work_v1_review_request", input);
   const submit = <Output = unknown>(command: TrustedReviewCommand) => call<Receipt<Output>>("molis_work_v1_review_decide", command);
-  return { read, submit, async prepare(action: ReviewAction, draft: Draft) {
+  return { read, submit, async prepare<Input extends Draft>(action: ReviewAction, draft: Input) {
     return answer(await read(prepareGoalReview(action, draft)), draft.idempotency_key);
   } };
 }
 
-export function projectRulesPage(server: TestHostServer, projectId: string) {
+export function projectRulesPage(server: Pick<TestHostServer, "origin" | "controlToken" | "web">, projectId: string) {
   const path = "/api/settings/authorizations/project-rules?project=" + encodeURIComponent(projectId);
   const read = async () => {
     const response = await fetch(server.origin + path, { headers: { "x-molis-work-control-token": server.controlToken } });

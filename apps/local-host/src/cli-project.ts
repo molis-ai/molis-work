@@ -1,18 +1,15 @@
-import { currentCallId, newCallId, withCallId } from "@molis-ai/molis-work-kernel";
+import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import { existsSync, realpathSync } from "node:fs";
 import path from "node:path";
 import { readProductEnv, readStorageSpace, resolveHomeDirectory, resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
-import { catalogManagementProject, residentManagementActions, upgradeOlderCatalog } from "./management-action-client.js";
+import { bindStandaloneManagementActions, catalogManagementProject, residentManagementActions, upgradeOlderCatalog } from "./management-action-client.js";
 import {connectResidentAccount,type ResidentAccountConnection} from "./resident-account-connection.js";
 import {NATIVE_SESSION_FILE} from "./personal-native-session.js";
 import {WEB_CONTROL_TOKEN_RELATIVE_PATH} from "./web-control-token.js";
 import { homeHostUrl } from "./host-endpoint.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { trustedReviewActions } from "@molis-ai/molis-work-contracts/services/project-approvals";
 import { namedDatabasePath, prepareLocalProjectStorage } from "./project-storage.js";
 import { createMolisWorkLocalHost, molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
-import { bindGoalsManagementActions, type GoalsActionReference, type GoalsManagementActions } from "./goal-callers.js";
-import { invokeProjectReviewManagement } from "./project-review-entry.js";
 import { ensureStandaloneProjectRoot } from "./managed-project-database.js";
 import { ensureHomeStorageOwner } from "./home-storage-lifetime.js";
 import { preflightMemoryHome } from "./memory/memory-initialization.js";
@@ -63,18 +60,11 @@ export async function runV1Cli(args: string[], options: V1CliOptions = {}): Prom
     projectId: String(input.project_id ?? value(args, "--project-id") ?? `database:${databasePath}`),
   });
   let homeProject = false;
-  const fallback = (): GoalsManagementActions => {
+  const fallback = () => {
     if(!allowLocalFallback&&homeDatabase)throw new ActionError("actions.service_unavailable","当前账号宿主尚未连接，不能回退匿名业务。");
     if (homeProject || homeDatabase) ensureHomeStorageOwner(localHost ??= createMolisWorkLocalHost({ homeDirectory: home }), home, preflightMemoryHome);
     if (operation === "init" && homeDatabase) prepareLocalProjectStorage(databasePath, "create");
-    const host = localHost ??= createMolisWorkLocalHost();
-    const goals = bindGoalsManagementActions(host.actionClient(reference), reference, { signal: options.signal });
-    if (operation !== "review-request" && operation !== "review-decide") return goals;
-    return { ...goals, async invoke<Output>(action: GoalsActionReference, payload: object) {
-      const kind = operation === "review-request" ? "read" : "decide", expected = trustedReviewActions[kind];
-      if (action.capability_id !== expected.capability_id || action.version !== expected.version) throw new ActionError("actions.input_invalid", "管理操作与已选命令不一致");
-      return await invokeProjectReviewManagement(host, reference, kind, payload, currentCallId() ?? newCallId(), options.signal) as Output;
-    } };
+    return bindStandaloneManagementActions(localHost ??= createMolisWorkLocalHost(), reference, options.signal);
   };
   try {
     return await withCallId(newCallId(), async () => {

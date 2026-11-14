@@ -1,6 +1,10 @@
-// Goals project sync as shipped in v3. v2 differs by the risk-reference column; no live declaration is used to reconstruct either.
+// Original project_goals@1 declarations held by the verified Goals project libraries.
 import type { SyncSectionsDeclaration, PluginSyncDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-sync";
 import { syncSectionsTracking } from "@molis-ai/molis-work-plugin-sdk";
+import type { GoalsApprovalSource } from "./project-database.js";
+
+const EVIDENCE_COLUMNS_FROM = 2;
+const CITED_SUBJECTS_FROM = 3;
 
 const sections: SyncSectionsDeclaration = {
   kind: "project_goals", platform: ["goal-context"], journal: true, journalIgnoredTypes: ["board.created"],
@@ -51,14 +55,18 @@ const sections: SyncSectionsDeclaration = {
   ],
 };
 
-export function goalsApprovalTransferSync(version: 2 | 3): PluginSyncDeclaration {
-  const original = version === 3 ? sections : { ...sections, business: sections.business.map(section => ({
-    ...section, tables: section.tables.map(table => table.name === "goal_event_concerns"
-      ? { ...table, columns: table.columns.filter(column => column !== "cited_subjects_json") } : table),
+export function goalsApprovalTransferSync(version: GoalsApprovalSource): PluginSyncDeclaration {
+  const introduced = new Map<string, readonly string[]>([["goal_event_concerns", ["cited_subjects_json"]]]);
+  if (version < EVIDENCE_COLUMNS_FROM) {
+    introduced.set("goal_work_event_judgments", ["basis_json", "tier", "gap", "reporter_session"]);
+    introduced.set("goal_event_requirement_conclusions", ["checked_artifact_id", "checked_version"]);
+  }
+  const original = version >= CITED_SUBJECTS_FROM ? sections : { ...sections, business: sections.business.map(section => ({
+    ...section, tables: section.tables.map(table => ({ ...table, columns: table.columns.filter(column => !introduced.get(table.name)?.includes(column)) })),
   })) };
   const tracking = syncSectionsTracking(original).map(table => table.table === "boards" ? {
     ...table, existsAny: ["goals", "project_guidance_entries"].map(name => ({ table: name, match: [{ column: "project_id", rowColumn: "project_id" }] })),
   } : table);
-  return { protocol_version: 1, collections: [{ id: "project_goals", database: "project", title: "目标、关系与工作记录", schema_version: 1,
+  return { protocol_version: /* @version sync.protocol */ 1, collections: [{ id: "project_goals", database: "project", title: "目标、关系与工作记录", schema_version: 1,
     requires: [], sections: original, tracking }] };
 }

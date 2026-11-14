@@ -5,14 +5,25 @@ import { pluginSyncForVerifiedLibrary } from './plugin-sync-verified-library.js'
 import type { ReplicaDatabase } from '@molis-ai/molis-work-storage';
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HomePluginDatabaseDeclaration, PluginDatabase, PluginDatabaseDeclaration, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { openReadOnlyHomeSqlite } from "@molis-ai/molis-work-storage";
+import { openBaselineHomeSqlite, openReadOnlyHomeSqlite } from "@molis-ai/molis-work-storage";
 import type { PluginInstance } from "@molis-ai/molis-work-plugin-runtime";
 import { pluginDatabaseClient } from "./plugin-database-client.js";
 import { assertArtifactLibraryReady } from "./artifact-row-storage-policy.js";
 import { projectArtifactRoot } from "./plugin-artifact-root.js";
 import type { ArtifactHomeLibrary } from "./plugin-artifact-row-library.js";
 import { artifactRowReplication } from "./plugin-artifact-row-sql.js";
-import { openHomePluginDatabaseConnection } from "./plugin-database-connection.js";
+import { prepareHomePluginDatabasePath } from "./plugin-database-connection.js";
+
+/** The single typed declaration bridge used by the authorized Host client and the bounded SQL worker. */
+export function openPluginDatabaseConnection(home: string, declaration: PluginDatabaseDeclaration,
+  partition?: { readonly project_id: string }): ReturnType<typeof openBaselineHomeSqlite> {
+  return openBaselineHomeSqlite(home, declaration.store_name, declaration, partition?.project_id);
+}
+
+export function openHomePluginDatabaseConnection(home: string, declaration: HomePluginDatabaseDeclaration,
+  partition?: { readonly project_id: string }): ReturnType<typeof openBaselineHomeSqlite> {
+  return openPluginDatabaseConnection(prepareHomePluginDatabasePath(home, declaration, partition), declaration, partition);
+}
 
 /**
  * A plugin's library in the Home. The Host owns both connections; read calls use SQLite read-only enforcement, not only a SQL

@@ -1,6 +1,6 @@
 import { GOALS_PLUGIN_API } from "./plugin-api.js";
 import { GOALS_DELIVERABLES_SCRIPT } from "./event-document-deliverables.js";
-import { goalEntryActions } from "./contract/goal-actions.js";
+import { goalEventDecisionRef } from "./contract/goal-entry-actions.js";
 import { GOALS_PLUGIN_ID } from "./identity.js";
 
 /** Keep source indentation readable; omit it from the served program within the frozen asset budget. */
@@ -28,7 +28,7 @@ export const GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
       let retained = form.decisionRequest;
       if (retained?.encoded !== encoded) {
         const response = await molisWorkRequest(route("/api/project-approvals/request"), { method: "POST", as: "response",
-          body: { action: { capability_id: "${goalEntryActions.decide.capability_id}", version: ${goalEntryActions.decide.version},
+          body: { action: { capability_id: ${JSON.stringify(goalEventDecisionRef.capability_id)}, version: ${JSON.stringify(goalEventDecisionRef.version)},
             provider_id: "${GOALS_PLUGIN_ID}" }, request_id: body.request_id || key, draft: body } });
         if (!response.ok) return response;
         const { reference } = await response.json();

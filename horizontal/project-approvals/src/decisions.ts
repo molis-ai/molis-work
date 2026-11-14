@@ -1,12 +1,13 @@
 import { createHash, randomUUID } from "node:crypto";
 import { ActionError, requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ApprovalRuleOwner, ProjectDecisionHistory, ProjectTrustedDecision, TrustedReviewCommand } from "@molis-ai/molis-work-contracts/services/project-approvals";
-import { canonicalJsonText } from "@molis-ai/molis-work-plugin-sdk";
+import { canonicalJsonText, isRecord } from "@molis-ai/molis-work-plugin-sdk";
 import type { SqliteDatabase } from "@molis-ai/molis-work-storage";
 import { assertFrozenProjectReview, assertProjectReviewCoverage } from "./coverage.js";
 
 type Person = Pick<ProjectTrustedDecision, "actor_id" | "source">;
 type DecisionRow = { readonly record_json: string };
+type LocatedDecisionRow = DecisionRow & { readonly row_ref: string };
 type DecisionHistory = ProjectTrustedDecision | ProjectDecisionHistory;
 type Owner = Extract<ApprovalRuleOwner, { kind: "plugin" }>;
 
@@ -17,6 +18,31 @@ export function decisionOwnerMatches(record: DecisionHistory, owner: Owner): boo
 
 function fingerprint(input: TrustedReviewCommand, actorId: string, frozenChoice: unknown) {
   return createHash("sha256").update(canonicalJsonText([input.reference, input.choice_id, input.note ?? null, actorId, frozenChoice], "null")).digest("hex");
+}
+
+function unreadableDecision(row: LocatedDecisionRow) {
+  return new ActionError("actions.execution_failed", "项目审批记录无法读取", { kind: "internal",
+    details: { storage: { table: "project_review_decisions", column: "record_json", row_ref: row.row_ref } } });
+}
+
+function readLocatedDecision(row: LocatedDecisionRow): DecisionHistory {
+  try {
+    const record = JSON.parse(row.record_json) as DecisionHistory;
+    if (!record || typeof record !== "object" || Array.isArray(record)) throw unreadableDecision(row);
+    if ("kind" in record && record.kind === "history") {
+      if (!isRecord(record.original)) throw unreadableDecision(row);
+      // The original JSON cells were retained as text inside the historical record.
+      if (record.subject === "event") {
+        JSON.parse(String(record.original.scope_json));
+        if (record.original.change_json !== null) JSON.parse(String(record.original.change_json));
+      } else {
+        JSON.parse(String(record.original.materialized_objects_json));
+      }
+    }
+    return record;
+  } catch {
+    throw unreadableDecision(row);
+  }
 }
 
 /** The platform owns the immutable record. A business caller commits it inside the existing owner transaction. */
@@ -37,14 +63,27 @@ export function projectReviewDecisions(db: SqliteDatabase, projectId: string) {
     return record;
   }
   return {
-    read: (id: string) => readProjectReviewDecision(db, projectId, id),
+    freezeOutcome(record: ProjectTrustedDecision, digest: string): void {
+      if (!db.inTransaction || record.reference.owner.project_id !== projectId || !/^sha256:[a-f0-9]{64}$/u.test(digest)) {
+        throw new ActionError("actions.conflict", "目标结果需要在原决定事务中确认");
+      }
+      const saved = db.prepare(`UPDATE project_review_decisions SET record_json = ?
+        WHERE project_id = ? AND decision_id = ? AND request_id = ? AND record_json = ? AND json_type(record_json, '$.outcome_digest') IS NULL`)
+        .run(canonicalJsonText({ ...record, outcome_digest: digest }), projectId, record.decision_id, record.reference.id, canonicalJsonText(record));
+      if (Number(saved.changes) !== 1) throw new ActionError("actions.conflict", "原决定的业务结果已经确认或已失效");
+    },
+    read: (id: string, owner?: Owner) => readProjectReviewDecision(db, projectId, id, owner),
     transferred(owner: Owner, subject: ProjectDecisionHistory["subject"]): ProjectDecisionHistory[] {
-      const rows = db.prepare<[string, string, string, string], DecisionRow>(`
-        SELECT record_json FROM project_review_decisions WHERE project_id = ? AND request_id IS NULL
+      const rows = db.prepare<[string, string, string, string], LocatedDecisionRow>(`
+        SELECT record_json, CAST(rowid AS TEXT) AS row_ref FROM project_review_decisions WHERE project_id = ? AND request_id IS NULL
           AND json_extract(record_json, '$.owner.plugin_id') = ? AND json_extract(record_json, '$.owner.publisher_signature') = ?
           AND json_extract(record_json, '$.subject') = ? ORDER BY recorded_at, decision_id
       `).all(projectId, owner.plugin_id, owner.publisher_signature, subject);
-      return rows.map(row => JSON.parse(row.record_json) as ProjectDecisionHistory);
+      return rows.map(row => {
+        const record = readLocatedDecision(row);
+        if (!("kind" in record) || record.kind !== "history") throw unreadableDecision(row);
+        return record;
+      });
     },
     forRequest(id: string): ProjectTrustedDecision | null {
       const record = from(db.prepare<[string, string], DecisionRow>(`
@@ -59,10 +98,10 @@ export function projectReviewDecisions(db: SqliteDatabase, projectId: string) {
       return record && "request_key" in record ? record : null;
     },
     recent(limit: number): DecisionHistory[] {
-      return db.prepare<[string, number], DecisionRow>(`
-        SELECT record_json FROM project_review_decisions WHERE project_id = ?
+      return db.prepare<[string, number], LocatedDecisionRow>(`
+        SELECT record_json, CAST(rowid AS TEXT) AS row_ref FROM project_review_decisions WHERE project_id = ?
         ORDER BY recorded_at DESC, decision_id DESC LIMIT ?
-      `).all(projectId, limit).map(row => JSON.parse(row.record_json) as DecisionHistory);
+      `).all(projectId, limit).map(readLocatedDecision);
     },
     count(): number {
       return db.prepare<[string], { count: number }>("SELECT count(*) AS count FROM project_review_decisions WHERE project_id = ?").get(projectId)?.count ?? 0;
@@ -96,7 +135,11 @@ export function projectReviewDecisions(db: SqliteDatabase, projectId: string) {
   };
 }
 
-export function readProjectReviewDecision(db: { prepare(sql: string): { get(...params: string[]): unknown } }, projectId: string, id: string): DecisionHistory | null {
-  const row = db.prepare("SELECT record_json FROM project_review_decisions WHERE project_id = ? AND decision_id = ?").get(projectId, id) as DecisionRow | undefined;
-  return row ? JSON.parse(row.record_json) as DecisionHistory : null;
+export function readProjectReviewDecision(db: { prepare(sql: string): { get(...params: string[]): unknown } }, projectId: string, id: string, owner?: Owner): DecisionHistory | null {
+  const filter = owner ? `AND coalesce(json_extract(record_json, '$.owner.plugin_id'), json_extract(record_json, '$.reference.owner.plugin_id')) = ?
+    AND coalesce(json_extract(record_json, '$.owner.publisher_signature'), json_extract(record_json, '$.publisher_signature')) = ?` : "";
+  const row = db.prepare(`SELECT record_json, CAST(rowid AS TEXT) AS row_ref
+    FROM project_review_decisions WHERE project_id = ? AND decision_id = ? ${filter}`)
+    .get(projectId, id, ...(owner ? [owner.plugin_id, owner.publisher_signature] : [])) as LocatedDecisionRow | undefined;
+  return row ? readLocatedDecision(row) : null;
 }

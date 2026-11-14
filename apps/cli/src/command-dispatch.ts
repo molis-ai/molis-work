@@ -49,9 +49,12 @@ export async function dispatchCliProjectCommand(
     print(await actions.invoke(GOALS.treeCheck, payload));
     break;
   case "review-request":
+    bound(project_id);
+    print(await actions.invoke(trustedReviewActions.read, payload));
+    break;
   case "review-decide":
     bound(project_id);
-    print(await actions.invoke(operation === "review-request" ? trustedReviewActions.read : trustedReviewActions.decide, payload));
+    print(await actions.invoke(trustedReviewActions.decide, payload));
     break;
   case "active-goal":
     bound(String(project_id));

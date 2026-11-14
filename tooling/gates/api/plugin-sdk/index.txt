@@ -474,7 +474,8 @@ export interface SandboxManifestInput {
     };
     textDeclarations?: Pick<SandboxPackageManifest, 'plugin_id' | 'agent' | 'methods' | 'name_text' | 'summary' | 'summary_text'>;
     stageTitleText?: TextRef;
-    homeDatabase?: Pick<HomePluginDatabaseDeclaration, 'version' | 'schema'>;
+    homeDatabase?: Pick<PluginDatabaseDeclaration, 'version' | 'schema'>;
+    projectDatabase?: Pick<PluginDatabaseDeclaration, 'version' | 'schema'>;
     connections?: PluginManifest['connections'];
     ownerFiles?: readonly PluginOwnerFileEntry[];
 }
@@ -1093,7 +1094,7 @@ export declare function zonedParts(timeZone: string | undefined, { seconds, shor
 
 // Declarations the exports above refer to, which no entry exports itself:
 
-type DerivedEffects = Pick<SandboxEffects, 'storage' | 'background' | 'projects' | 'model' | 'modelSettings' | 'imageGeneration' | 'homeDatabase' | 'connections' | 'materials' | 'ownerFiles' | 'networkDomains' | 'secretRefs' | 'capabilities'>;
+type DerivedEffects = Pick<SandboxEffects, 'storage' | 'background' | 'projects' | 'model' | 'modelSettings' | 'imageGeneration' | 'homeDatabase' | 'projectDatabase' | 'connections' | 'materials' | 'ownerFiles' | 'networkDomains' | 'secretRefs' | 'capabilities'>;
 
 type LiteralSchemaDefinition<S extends ActionSchema, Output> = Omit<ActionDefinition<unknown, Output>, "action"> & {
     readonly action: Omit<ActionMetadata, "input_schema"> & {

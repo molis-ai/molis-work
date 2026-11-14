@@ -36,6 +36,7 @@ export interface PluginDatabaseConnections<Connection extends PluginDatabaseConn
   readonly approvalRules?: NonNullable<PluginProjectDatabase["approvalRules"]>;
   readonly approvalHistory?: NonNullable<PluginProjectDatabase["approvalHistory"]>;
   joinProjectDecision?(decision: ProjectReviewCommit, assertCurrent: () => void): ProjectTrustedDecision;
+  freezeProjectOutcome?(decision: ProjectTrustedDecision): void;
 }
 
 /** How many compiled statements each connection of a client keeps (`prepared`). */
@@ -156,6 +157,7 @@ export function pluginDatabaseClient<Connection extends PluginDatabaseConnection
         if (decision) record = connections.joinProjectDecision!(decision, check);
         result = write(handle as PluginProjectDatabaseTransaction);
         requireSynchronous(result, "插件数据库事务必须同步完成，不能包含异步等待");
+        if (record) connections.freezeProjectOutcome?.(record);
         check();
         writer.exec("COMMIT");
       } catch (error) {

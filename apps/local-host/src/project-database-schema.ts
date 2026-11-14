@@ -1,6 +1,6 @@
 import { ADOPTED_PROCESS_ITEMS_JOURNAL_SQL, ADOPTED_PROCESS_ITEMS_TRIGGERS_SQL, PROJECT_REPLICATION_SCHEMA_SQL } from './project-replication-schema.js';
 import { STORAGE_SPACE_SCHEMA_SQL } from "@molis-ai/molis-work-storage";
-import { LOCAL_JOURNAL_SCHEMA_SQL, LOCAL_OPAQUE_BLOB_SCHEMA_SQL, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { LOCAL_JOURNAL_SCHEMA_SQL, LOCAL_OPAQUE_BLOB_SCHEMA_SQL, type SqliteBaseline, type SqliteUpgradeStep } from "@molis-ai/molis-work-storage";
 import { MATERIAL_RECENT_USES_SCHEMA_SQL, PROJECT_ROOT_SCHEMA_SQL } from "@molis-ai/molis-work-module-projects";
 import { ARTIFACTS_SCHEMA_SQL, PROCESS_ITEMS_SCHEMA_SQL } from "@molis-ai/molis-work-module-artifacts";
 import { CONTEXT_LEDGER_SCHEMA } from "@molis-ai/molis-work-module-context-ledger";
@@ -8,7 +8,7 @@ import { ATTENTION_SCHEMA_SQL } from "@molis-ai/molis-work-module-attention-resu
 import { SCHEDULER_SCHEMA_SQL } from "@molis-ai/molis-work-service-scheduler";
 import { SURFACE_CORRECTIONS_SCHEMA_SQL } from "@molis-ai/molis-work-service-surfaces";
 import { PROJECT_APPROVALS_SCHEMA_SQL } from "@molis-ai/molis-work-service-project-approvals";
-import { projectApprovalUpgrade } from "./project-approval-upgrade.js";
+import { projectApprovalUpgradeReductions, transferProjectApprovals } from "./project-approval-upgrade.js";
 import {
   PLUGIN_EVENTS_SCHEMA_SQL,
   PLUGIN_NOTIFICATIONS_SCHEMA_SQL,
@@ -61,10 +61,7 @@ export const PROJECT_DATABASE_VERSION_2_SCHEMA = [
 
 export const PROJECT_DATABASE_VERSION_3_SCHEMA = `${PROJECT_DATABASE_VERSION_2_SCHEMA}\n${SURFACE_CORRECTIONS_SCHEMA_SQL}`;
 
-export const PROJECT_DATABASE_BASELINE: SqliteBaseline = {
-  version: /* @version database.project_database_baseline */ 4,
-  schema: `${PROJECT_DATABASE_VERSION_3_SCHEMA}\n${PROJECT_APPROVALS_SCHEMA_SQL}`,
-  upgrades: [
+const PROJECT_DATABASE_UPGRADES = [
     // 1 → 2 (specs/shared-sources-and-surfaces §2.1, §3): where a project was browsed is no setting any more, and 「最近用过」 starts empty.
     // The step also lands on the adopted process-items journal (user 2026-11-12, specs/batch-06-shared-tools/current-version-adoption.md):
     // the same trigger names now mark the new journal, the original journal stays untouched. Structure only; business rows are not converted.
@@ -72,6 +69,14 @@ export const PROJECT_DATABASE_BASELINE: SqliteBaseline = {
       reduces_rows: ["project_browsing_settings"] },
     // 2 → 3: the Host keeps the person's corrections of what a surface showed (batch 15).
     { from: 2, sql: SURFACE_CORRECTIONS_SCHEMA_SQL },
-    projectApprovalUpgrade,
-  ],
+    { from: 3, sql: PROJECT_APPROVALS_SCHEMA_SQL, run: transferProjectApprovals,
+      get reduces_rows() { return projectApprovalUpgradeReductions(); } },
+] satisfies readonly SqliteUpgradeStep[];
+
+export const projectApprovalUpgrade: SqliteUpgradeStep = PROJECT_DATABASE_UPGRADES[2]!;
+
+export const PROJECT_DATABASE_BASELINE: SqliteBaseline = {
+  version: /* @version database.project_database_baseline */ 4,
+  schema: `${PROJECT_DATABASE_VERSION_3_SCHEMA}\n${PROJECT_APPROVALS_SCHEMA_SQL}`,
+  upgrades: PROJECT_DATABASE_UPGRADES,
 };

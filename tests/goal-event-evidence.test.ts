@@ -5,9 +5,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
-import { LocalProjectDatabase, upgradePluginTables } from "@molis-ai/molis-work-app-local-host";
-import { describeSqliteSchema } from "@molis-ai/molis-work-storage";
-import { assessGoalReport, GOALS_PROJECT_DATABASE, goalsManifest, hostEventDecisionAuthority, type GoalEvidencePorts } from "@molis-ai/molis-work-plugin-goals";
+import { LocalProjectDatabase, PROJECT_DATABASE_BASELINE } from "@molis-ai/molis-work-app-local-host";
+import { describeSqliteSchema, runSqliteUpgrade } from "@molis-ai/molis-work-storage";
+import { assessGoalReport, goalsApprovalTransferManifest, GOALS_PROJECT_DATABASE, goalsManifest, hostEventDecisionAuthority, type GoalEvidencePorts } from "@molis-ai/molis-work-plugin-goals";
 import { goalEventAssessmentKey, type GoalEventJudgmentAssessment, type GoalEventJudgmentBasisInput } from "@molis-ai/molis-work-plugin-goals/contract";
 import { GoalProjectApplication } from "./fixtures/goal-application.js";
 
@@ -365,7 +365,10 @@ test("EVD-20: a library at Goals' version 1 is taken to the current version with
   const current = readFileSync(new URL("./fixtures/goal-event-history/approved-completed.sql", import.meta.url), "utf8");
   // The same library as it was at version 1: the six columns of the step to 2 and the concerns' cited objects of the step to 3 gone, the ledger at 1.
   const added = ["    basis_json TEXT,\n", "    tier TEXT NOT NULL DEFAULT 'self_reported',\n", "    gap TEXT,\n", "    reporter_session TEXT,\n", "    checked_artifact_id TEXT,\n", "    checked_version INTEGER,\n"];
-  let old = current.replace(`VALUES ('io.molis.work.goals','official-goals-binding','goals',${GOALS_PROJECT_DATABASE.version},`, "VALUES ('io.molis.work.goals','official-goals-binding','goals',1,");
+  const previous = goalsApprovalTransferManifest(goalsManifest, 3).databases!.project!.version;
+  const ledger = `VALUES ('io.molis.work.goals','official-goals-binding','goals',${previous},`;
+  assert.equal(current.split(ledger).length, 2);
+  let old = current.replace(ledger, "VALUES ('io.molis.work.goals','official-goals-binding','goals',1,");
   const cited = "    updated_at TEXT NOT NULL,\n    cited_subjects_json TEXT NOT NULL DEFAULT '[]'\n";
   assert.equal(old.split(cited).length, 2, cited);
   old = old.replace(cited, "    updated_at TEXT NOT NULL\n");
@@ -376,7 +379,8 @@ test("EVD-20: a library at Goals' version 1 is taken to the current version with
     const count = (db: DatabaseSync, table: string) => Number((db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get() as { n: number }).n);
     const judgments = count(before, "goal_work_event_judgments"), conclusions = count(before, "goal_event_requirement_conclusions");
     assert.ok(judgments > 0);
-    upgradePluginTables(before, "evidence-test", goalsManifest);
+    assert.deepEqual(runSqliteUpgrade(before, ":memory:", PROJECT_DATABASE_BASELINE), { from: 3, to: PROJECT_DATABASE_BASELINE.version });
+    runSqliteUpgrade(fresh, ":memory:", PROJECT_DATABASE_BASELINE);
     assert.equal((before.prepare("SELECT version FROM plugin_project_databases WHERE plugin_id = ?").get(goalsManifest.plugin_id) as { version: number }).version, GOALS_PROJECT_DATABASE.version);
     assert.equal(count(before, "goal_work_event_judgments"), judgments);
     assert.equal(count(before, "goal_event_requirement_conclusions"), conclusions);

@@ -38,9 +38,8 @@ export function buildGoalsDocumentCollection(ports: GoalsDocumentReadPorts, proj
   const { snapshot } = membership;
   const inputBindings = ports.inputs.list(projectId)
     .map(({ project_id: _projectId, ...binding }): GoalsInputBinding => binding);
-  const policyBindings = ports.goals.listPolicyHistory(projectId);
   const events = ports.events(projectId);
-  const index = createGoalDocumentIndex(snapshot, inputBindings, policyBindings, events, ports.goals.listWorkEventGoalLinks(projectId));
+  const index = createGoalDocumentIndex(snapshot, inputBindings, events, ports.goals.listWorkEventGoalLinks(projectId));
   const allGoals = snapshot.goals.map(goal => projectGoalDocument(goal, {
     projectId, snapshot, ports, index, capturePresentation,
   }));
@@ -50,7 +49,7 @@ export function buildGoalsDocumentCollection(ports: GoalsDocumentReadPorts, proj
   return {
     snapshot, active_goal_id,
     goals, archived_goals, trashed_goals,
-    counts, input_bindings: inputBindings, policy_bindings: policyBindings, events,
+    counts, input_bindings: inputBindings, events,
   };
 }
 
@@ -67,6 +66,6 @@ export function emptyGoalsDocumentCollection(projectId: string): GoalsDocumentCo
       planning_method_packs: [], project_guidance: [], goal_tree_proposals: [] },
     active_goal_id: null, goals: [], archived_goals: [], trashed_goals: [],
     counts: Object.fromEntries(GOALS_PRESENTATION_STATES.map(status => [status, 0])) as Record<GoalPresentationState, number>,
-    input_bindings: [], policy_bindings: [], events: [],
+    input_bindings: [], events: [],
   };
 }

@@ -46,7 +46,9 @@ export async function dispatchMcpProjectTool(
     const actions = management();
     const { database_path: _database, project_id, ...input } = arguments_;
     bound(actions, project_id);
-    result = await actions.invoke(name === MANAGEMENT_REVIEW_TOOL_NAMES.read ? trustedReviewActions.read : trustedReviewActions.decide, input);
+    result = name === MANAGEMENT_REVIEW_TOOL_NAMES.read
+      ? await actions.invoke(trustedReviewActions.read, input)
+      : await actions.invoke(trustedReviewActions.decide, input);
     break;
   }
   case MANAGEMENT_GOAL_TOOL_NAMES.initialize: {

@@ -61,7 +61,8 @@ export const goalsHostActions = {
   directoryItem: goalsActions.directoryItem, list: goalsActions.list, state: goalsActions.state,
 } as const;
 export { readGoalResumeFacts } from "@molis-ai/molis-work-plugin-goals/contract";
-export { GOALS_APPROVAL_OUTCOMES_SQL, GOALS_APPROVAL_TRANSFER_TABLES, goalsApprovalTransferManifest, readGoalsApprovalTransfer } from "@molis-ai/molis-work-plugin-goals";
+export { GOALS_APPROVAL_OUTCOMES_SQL, GOALS_APPROVAL_TRANSFER_SOURCE, GOALS_APPROVAL_TRANSFER_TABLES, goalsApprovalTransferManifest, isGoalsApprovalSource, readGoalsApprovalTransfer } from "@molis-ai/molis-work-plugin-goals";
+export { assertGoalApprovalHistory, goalApprovalOutcomes, readGoalApprovalOutcome } from "@molis-ai/molis-work-plugin-goals";
 
 /** What a management entry can do: Goals' actions as the person on this machine, origin management. */
 export interface GoalsManagementActions {

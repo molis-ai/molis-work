@@ -1,7 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { isDeepStrictEqual } from "node:util";
 import { ActionError, requireSynchronous, type ActionCallContext, type ActionExecutionContext, type ActionUserAction, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { ProjectTrustedDecision, TrustedReviewCommand } from "@molis-ai/molis-work-contracts/services/project-approvals";
 import { runningHandlerContext } from "./action-settlement.js";
 
 interface Authority {
@@ -10,13 +9,7 @@ interface Authority {
   readonly entry: ActionUserAction;
   readonly action: ExactActionReference;
   readonly input: unknown;
-  readonly decision?: TrustedReviewCommand;
-  readonly decisionId?: string;
-  readonly frozenChoice?: unknown;
-  readonly rulesRevision?: string;
-  readonly review?: Pick<ProjectTrustedDecision, "publisher_signature" | "review" | "presentation">;
-  readonly wholeSubject?: string;
-  readonly deadline?: number;
+  attachExecution?(execution: ActionExecutionContext): void;
   beforeEffect?(): Promise<void>;
   assertCurrent(): void;
 }
@@ -66,7 +59,10 @@ export function consumeTrustedDecision(context: ActionCallContext, originalActio
   const check = () => { requireSynchronous(authority.assertCurrent()); };
   check();
   return { input: freezeInput(structuredClone(authority.input)), check, beforeEffect: authority.beforeEffect,
-    attach(execution: ActionExecutionContext) { executing.set(execution, held); } };
+    attach(execution: ActionExecutionContext) {
+      executing.set(execution, held);
+      requireSynchronous(authority.attachExecution?.(execution));
+    } };
 }
 
 export function markTrustedDecisionSubmitted(execution: ActionExecutionContext): void {
@@ -83,18 +79,4 @@ export function trustedDecisionSubmitted(execution: ActionExecutionContext): boo
 export function markTrustedDecisionRolledBack(execution: ActionExecutionContext): void {
   const current = executing.get(execution);
   if (current) current.submitted = false;
-}
-
-/** The protected entry's reservation is available only to the Host at an active registered handler's effect boundary. */
-export function actionTrustedDecision(execution: ActionExecutionContext) {
-  const authority = executing.get(execution)?.authority;
-  if (!authority?.decision || !authority.decisionId || !authority.rulesRevision || !authority.review
-    || (authority.entry.source !== "web" && authority.entry.source !== "management")) return undefined;
-  requireSynchronous(execution.assert_authority_current?.());
-  const { source, conversation_ref, message_ref } = authority.entry;
-  const entry = { source, conversation_ref, message_ref,
-    ...(authority.wholeSubject ? { whole_confirmation_prompted: true, prompted_subject_id: authority.wholeSubject } : {}),
-  } satisfies ProjectTrustedDecision["source"]["entry"];
-  return { command: authority.decision, decisionId: authority.decisionId, frozenChoice: authority.frozenChoice, rulesRevision: authority.rulesRevision, review: authority.review,
-    actor_id: authority.actor_id, entry, ...(authority.deadline === undefined ? {} : { deadline: authority.deadline }) };
 }

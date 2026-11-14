@@ -10,7 +10,7 @@ type OriginalRule = {
   state: "active" | "replaced" | "withdrawn"; created_by: string; created_at: string; reason: string;
 };
 
-type OriginalDecision = { subject: ProjectDecisionHistory["subject"]; recorded_at: string; row: StoredDecision };
+type OriginalDecision = { subject: ProjectDecisionHistory["subject"]; recorded_at: string; row: StoredDecision; outcome_digest?: string };
 
 export interface GoalsApprovalTransfer {
   readonly rules: readonly OriginalRule[];
@@ -30,10 +30,11 @@ function transferDecisions(db: SqliteBaselineDatabase, projectId: string, owner:
     INSERT INTO project_review_decisions(decision_id, project_id, record_json, recorded_at) VALUES (?, ?, ?, ?)
   `);
   const read = db.prepare("SELECT record_json FROM project_review_decisions WHERE project_id = ? AND decision_id = ?");
-  for (const { row: original, subject, recorded_at } of decisions) {
+  for (const { row: original, subject, recorded_at, outcome_digest } of decisions) {
     if (original.project_id !== projectId || !original.decision_id || !recorded_at
       || !original.actor_id || !original.conversation_ref || !original.message_ref) throw corrupt();
-    const record: ProjectDecisionHistory = { kind: "history", decision_id: original.decision_id, project_id: projectId, owner, subject, recorded_at, original };
+    const record: ProjectDecisionHistory = { kind: "history", decision_id: original.decision_id, project_id: projectId, owner, subject,
+      recorded_at, original, ...(outcome_digest ? { outcome_digest } : {}) };
     const body = canonicalJsonText(record, "null");
     insert.run(record.decision_id, projectId, body, recorded_at);
     const saved = read.get(projectId, record.decision_id) as { record_json: string } | undefined;

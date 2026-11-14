@@ -18,7 +18,9 @@ export function accountEnvironment(name: string) {
   return { ...config, productOrigin, policyProfile: "unified-account-v2", redirectAllowlist: [productOrigin + "/account/callback"] };
 }
 
-export function connectorApplicationReference(profile: string, service: string): `OAUTH_APP_${string}` | undefined {
-  const prefix = releaseProfile(profile).connectors.applicationSecretPrefix;
-  return prefix ? `${prefix}${service.replaceAll("-", "_").toUpperCase()}` as `OAUTH_APP_${string}` : undefined;
+export function connectorApplicationReference(profile: string, service: string): string | undefined {
+  const { applicationRefs, applicationSecretPrefix: prefix } = releaseProfile(profile).connectors;
+  const references: Readonly<Record<string, string>> = applicationRefs;
+  if (Object.hasOwn(references, service)) return references[service];
+  return prefix ? `${prefix}${service.replaceAll("-", "_").toUpperCase()}` : undefined;
 }

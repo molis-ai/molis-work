@@ -24,7 +24,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: 24.15.0
+          node-version-file: .nvmrc
 
       # The version is the root package.json "packageManager" (pnpm@x.y.z), so local, CI and release use one pin.
       - name: Install pnpm

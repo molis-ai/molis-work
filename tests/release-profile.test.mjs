@@ -34,7 +34,7 @@ test("26-9 C-1: development keeps its Tauri, Node, ad-hoc and local Auth setting
 test("26-9 C-1: report identifies the unfilled production fields and a mismatched carrier", () => {
   assert.deepEqual(missingProfileValues("release"), [
     "accountEnvironment", "signingIdentity", "notarization", "publisherKeyRef", "entitlements",
-    "connectors.brokerOrigin", "connectors.services", "connectors.applications", "connectors.applicationSecretPrefix",
+    "connectors.brokerOrigin", "connectors.applicationRefs", "connectors.applications", "connectors.applicationSecretPrefix",
     "updateChannel", "symbolUploadTarget",
   ]);
   assert.deepEqual(carrierIssues("dev", path => JSON.stringify(path.endsWith("tauri.conf.json") ? {

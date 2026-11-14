@@ -54,7 +54,8 @@ test("SQLD-06 .nvmrc, every workflow's setup-node and engines.node name one Node
     const text = read(file);
     const setups = text.match(/uses: actions\/setup-node@/g)?.length ?? 0;
     if (setups === 0) continue;
-    const pins = [...text.matchAll(/^\s+node-version: (\S+)\s*$/gm)].map(match => match[1]);
+    const pins = [...text.matchAll(/^\s+node-version(-file)?: (\S+)\s*$/gm)].map(([, fileInput, value]) =>
+      fileInput && value === ".nvmrc" ? LOCKED : value);
     assert.equal(pins.length, setups, `${file}: every setup-node step names a version`);
     assert.deepEqual([...new Set(pins)], [LOCKED], `${file}: the exact patch version, not a range or a floating major`);
   }

@@ -8,8 +8,8 @@ export interface BrokerEnv {
   ENVELOPE_KEY: string;
   /** Worker Secret: JSON object keyed by service id. Never returned to clients. */
   OAUTH_APPS?: string;
-  /** Independently managed Worker Secrets; each replaces one complete app entry. */
-  [secret: `OAUTH_APP_${string}`]: string | undefined;
+  /** Individually named app Secrets are read through the release configuration. */
+  [binding: string]: unknown;
   AUTH_RATE_LIMITER: { limit(input: { key: string }): Promise<{ success: boolean }> };
 }
 interface App { clientId: string; clientSecret?: string; settings?: Record<string, string> }
@@ -58,7 +58,7 @@ function application(env: BrokerEnv, service: string): App {
   const secretName = connectorApplicationReference(env.MOLIS_WORK_RELEASE_PROFILE ?? "dev", service);
   if (!secretName) throw new Error("not_configured");
   const configured = env[secretName];
-  const raw = configured !== undefined
+  const raw = typeof configured === "string"
     ? JSON.parse(configured)
     : object(JSON.parse(env.OAUTH_APPS || "{}"))[service];
   const app = object(raw) as unknown as App;

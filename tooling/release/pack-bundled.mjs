@@ -1,3 +1,4 @@
+import { pathToFileURL } from "node:url";
 import { readdir, stat } from "node:fs/promises";
 import { resolve } from "node:path";
 import { BUNDLED_PACK_OPTIONS_FILE, keyFileSigner, packBundledContent } from "@molis-ai/molis-work-plugin-cli";
@@ -24,4 +25,11 @@ export async function packBundledReleasePackages(root, destination, profile, env
   });
   for (const source of sources) await packBundledContent(source, destination, signer);
   return destination;
+}
+
+if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
+  const [root, output, profile] = process.argv.slice(2);
+  if (!root || !output || !profile) throw new Error("Usage: pack-bundled.mjs <product-root> <output-directory> <profile>");
+  const packed = await packBundledReleasePackages(root, output, profile);
+  if (packed) process.stdout.write(packed + "\n");
 }

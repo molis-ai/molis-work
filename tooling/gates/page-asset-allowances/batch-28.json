@@ -1,6 +1,6 @@
 {
   "reason": "第 28 批外壳的界面阶段接入工作记录（OCL-07、OCL-10）：工作台加一份记录器脚本（展示的对象、每对象每分钟的停留、候选与定位的阶段，每 2 秒至多发一次、页面隐藏时立刻发），全局搜索、情境条、开场建议和首页建议各加几行调用；搜索面板随同一份全局搜索代码进入选择器页。对独立构建的 merge-base 6306758c22 实测：工作台脚本 +3765（合入 #2056 后对 63b86de1b8 重测为 +3774）、选择器搜索脚本 +607 字节；无新增资源，均低于 10 KB。 另：删项目确认框加一行「这个项目的工作记录与证据快照」、外壳上报入口被拒时的一句提示，中英文各 2 条进了工作台启动词包，词包内容变化得到新的内容寻址路径（四个首屏页面各算一条新入口）。CI 对 merge-base 6306758c22 实测各页冷、热增量如 pages：工作台两页冷轮 +3,898～3,902 B、热轮 +45～53 B，到达页与选择器页冷轮 +71～83 B（合入 #2056 后对 63b86de1b8 重测），都在 10 KB 以下。",
-  "review": "specs/post-anticorruption-roadmap/reference/batches/28.md，第 28 批 PR 的资源评审（评审台）。 页面级增量取自 PR #2059 的 Package boundaries 作业（run 43551199635）给出的草稿。",
+  "review": "specs/post-anticorruption-roadmap/reference/batches/28.md，第 28 批 PR 的资源评审（评审台）。 页面级增量取自 PR #2059 的 Package boundaries 作业（run 43551199635）给出的草稿。 2026-11-14 合入 main（含 #2062、#2045）后对 merge-base 392f3bdd71 重量：arrival-empty/en、chooser/en 冷加载 +72（原许可 71），按实测改为 72；其余数字不变，page-assets 通过。",
   "assets": {
     "/assets/molis-work-workbench.js": 3774,
     "/assets/molis-work-chooser-search.js": 607
@@ -36,7 +36,7 @@
       "warm": 0
     },
     "arrival-empty/en": {
-      "cold": 71,
+      "cold": 72,
       "warm": 0
     },
     "chooser/zh": {
@@ -44,7 +44,7 @@
       "warm": 0
     },
     "chooser/en": {
-      "cold": 71,
+      "cold": 72,
       "warm": 0
     },
     "workbench-default/zh": {

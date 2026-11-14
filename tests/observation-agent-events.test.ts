@@ -38,6 +38,7 @@ test("OCL-01 OCL-05 OCL-06 OCL-08: a round's main event path becomes its work re
   observer.event({ type: "usage-recorded", callId: "c1", receipt: usage(10) });
   observer.event({ type: "model-switched", from: { protocol: "openai-compatible", model: "m1" }, to: { protocol: "openai-compatible", model: "m2" } });
   observer.event({ type: "usage-recorded", callId: "c2", receipt: usage(20) });
+  observer.event({ type: "compaction-usage-recorded", callId: "c3", receipt: usage(30) });
   observer.event({ type: "compacted", replaced: 2 });
   observer.event({ type: "memory-recalled", injected: [{ id: "memory-1", version: 2 }], omitted: [], unavailable: [], retrieval: { outcome: "ready" } });
   observer.event({ type: "tripped", stage: "input", rail: "prompt", why: "blocked" });
@@ -56,7 +57,7 @@ test("OCL-01 OCL-05 OCL-06 OCL-08: a round's main event path becomes its work re
   assert.deepEqual(facts.map(line), [
     "agent.run:started:succeeded", "agent.instructions::succeeded", "agent.materials::succeeded", "agent.skill:effective:succeeded",
     "agent.reply::succeeded", "agent.prompt:system:succeeded", "agent.tool:read:succeeded",
-    "agent.usage:model:succeeded", "agent.model:switched:succeeded", "agent.usage:model:succeeded",
+    "agent.usage:model:succeeded", "agent.model:switched:succeeded", "agent.usage:model:succeeded", "agent.usage:compaction:succeeded",
     "agent.compaction::succeeded", "agent.memory:recalled:succeeded", "agent.guard:input:refused", "agent.guard:output:failed", "agent.guard:circuit:refused",
     "agent.waiting:approval:waiting", "agent.waiting:input:waiting", "agent.retry::waiting",
     "agent.changes::succeeded", "agent.subagent:started:succeeded", "agent.subagent:ended:succeeded", "agent.run:ended:succeeded",
@@ -68,9 +69,10 @@ test("OCL-01 OCL-05 OCL-06 OCL-08: a round's main event path becomes its work re
   const tool = factsOf("agent.tool")[0]!;
   assert.deepEqual(tool.evidence?.map(item => item.ref.kind), ["content", "content"], "a runtime tool's input and result are kept as evidence");
   const uses = factsOf("agent.usage");
-  assert.deepEqual(uses.map(fact => fact.conditions?.model), [{ provider: "openai-compatible", model_id: "m1" }, { provider: "openai-compatible", model_id: "m2" }],
-    "usage after a switch names the model in force, not only the round's starting model");
-  assert.equal(uses[0]!.detail?.model_call_id, "c1"); assert.equal(uses[1]!.detail?.model_call_id, "c2");
+  assert.deepEqual(uses.map(fact => fact.conditions?.model), [{ provider: "openai-compatible", model_id: "m1" }, { provider: "openai-compatible", model_id: "m2" },
+    { provider: "openai-compatible", model_id: "m1" }],
+  "a model call after a switch names the model in force; compaction keeps the model the round started with");
+  assert.equal(uses[0]!.detail?.model_call_id, "c1"); assert.equal(uses[1]!.detail?.model_call_id, "c2"); assert.equal(uses[2]!.detail?.model_call_id, undefined);
   assert.equal(factsOf("agent.compaction")[0]!.detail?.replaced, 2);
   assert.deepEqual(factsOf("agent.memory")[0]!.subjects?.at(-1), { kind: "memory", id: "memory-1", version: 2 });
   assert.deepEqual(factsOf("agent.guard").map(fact => [fact.stage, fact.outcome]), [["input", "refused"], ["output", "failed"], ["circuit", "refused"]]);

@@ -223,7 +223,7 @@
 
 ## 16 第 29 批合同设计：读取、用途权限、保留清理与空间提醒
 
-状态：第 29 批第一片（2026-11-14，第 29 批主会话）。承接 §1「留给 29」的全部能力，将 `@molis-ai/molis-work-contracts/services/observation` 的 `maturity` 从 `"partial"` 升为 `"complete"`。
+状态：第 29 批第一片（2026-11-14，第 29 批主会话）。承接 §1「留给 29」的全部能力，将 `@molis-ai/molis-work-contracts/services/observation` 的 `maturity` 从 `"partial"` 升为 `"implemented"`。
 
 ### 16.1 五类记录与用途分类
 
@@ -256,11 +256,16 @@
 3. **暂停记录（OCL-09、design §6）**：
    - 本人调 `observation.settings.set@1({ paused: true })` 时，先刷完队列中暂停前已发生的记录，记下 `paused_at`；暂停期间新的写入不再落库，所有读取动作返回的 `recording` 状态均带 `state: "paused"` 与 `paused_at`（消费者可见「记录截至何时」）；恢复记录时写入一段 `state: "by_rule", reason: "recording_paused"` 的覆盖缺口。
 4. **保留期限、手动清理与容量提醒（OCL-12、PWA-111、PWA-112）**：
-   - 自动清理期限默认 `"keep"`（一直保留），可选 `"365"`、`"180"`、`"90"`、`"30"`、`"manual"`。对比周报（14 天）、跨两个月比较（60 天）、效果评测样本（90 天）给出 `requirements` 与 `shortfall`，绝不静默延长用户所选期限。
+   - 自动清理期限默认 `"keep"`（一直保留），可选 `"365"`、`"180"`、`"90"`、`"30"`、`"manual"`。对比周报依据（7 天）、跨两个月比较（60 天）、评测样本原始记录（120 天，与定样 `docs/design/work-records/data.js` 一致）给出 `requirements` 与 `shortfall`，绝不静默延长用户所选期限。
    - 手动与自动清理在同一个 SQLite 事务中：删除命中范围的 `records` 与 `record_evidence`、回收不再被任何剩余记录引用的 `evidence_blobs`、在 `coverage_gaps` 记一段 `state: "expired"` 的缺口；绝不删除业务原对象、成果库版本、Pages 版本、已存简报及已留存评测样本。
    - 容量提醒线存于 `writer_state`（重启后保持），达到或超过提醒线只返回 `reminder_status: "near" | "exceeded"`，绝不自动删记录或阻断写入。
 5. **读取时核对对象主人可解析性（§13 偏离落地）**：
    - `observation.records.query@1` 传 `resolve_subjects: true` 或调 `observation.evidence.get@1` 时，由宿主注入的 `resolveSubject(project_id, subject)` 检查对应业务对象与版本是否仍存在，返回 `"resolved" | "missing" | "unverified"`，已删除或不可达的对象如实标为 `"missing"`。
+6. **合审（`f6bc4f4f9`）通过后收进实现的四点细节**：
+   - `observation.evidence.get@1` 先按 `record_id` 查出 `row.project_id` 再核对调用方项目归属与可读项目集合，防止凭 `record_id` 跨项目越权解封快照。
+   - 非 `user` 受众从 Home 上下文（`context.project_id === null`）调用读取动作且指定 `project_id` 或 `all_projects: true`（或目标记录属于项目）时一律拒 `observation.forbidden`。
+   - 五类记录绑定定样五色（`user`→`blue`、`ai`→`plum`、`content`→`slate`、`flow`→`ochre`、`present`→`clay`）。
+   - 暂停记录期间 `observation.report@1` 在调用 `writer.admit()` 之前短路返回，不消耗当日上报额度、不刷出额外 `lost` 缺口。
 
 ## 17 第 30 批预期与样本只读审阅（第 29 批可并行项）
 

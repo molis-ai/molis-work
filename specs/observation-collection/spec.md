@@ -212,7 +212,7 @@ flowchart LR
 | 1 | 事实主人 | 观测采集层（`horizontal/observation`）只拥有观察记录、证据快照、覆盖登记、记录开关、用途开关、保留期限与容量提醒线。业务对象与版本归各插件／平台主人；读取时如需核对对象与版本是否仍可解析，经宿主回调查询原主人，不在采集层复制业务事实。 |
 | 2 | 插件同等待遇 | 读取动作对插件、Agent、工作流、MCP 与本人走同一组动作合同与权限检查；插件记录按同一套五类归属、同一套保留与清理规则处理，不为特定内置插件开私路。 |
 | 3 | 能力注册 | 新增 8 个系统动作（`system.observation`）：`observation.records.query@1`、`observation.evidence.get@1`、`observation.coverage.get@1`（只读查询，按受众与用途检查）以及 `observation.settings.get@1`、`observation.settings.set@1`、`observation.space.get@1`、`observation.cleanup.preview@1`、`observation.cleanup.apply@1`（管理面，仅 `user` 受众）。全部同步读本地 SQLite，不等模型、不声明 `concurrent`。 |
-| 4 | 合同 | 在 `@molis-ai/molis-work-contracts/services/observation` 扩展读取与管理动作及类型，成熟度从 `"partial"` 升为 `"complete"`；更新 API 快照与 `tooling/gates/actions/host-actions.tsv`。无破坏性变更，不加历史兼容分支。 |
+| 4 | 合同 | 在 `@molis-ai/molis-work-contracts/services/observation` 扩展读取与管理动作及类型，成熟度从 `"partial"` 升为 `"implemented"`；更新 API 快照与 `tooling/gates/actions/host-actions.tsv`。无破坏性变更，不加历史兼容分支。 |
 | 5 | 放在哪个包 | 服务逻辑全部落在 `horizontal/observation`；组件板两个新标本（`分类条`、`种类色标记`）落在 `packages/design-system`、`packages/plugin-sdk/src/ui` 与 `apps/workbench/src/primitive-catalog.ts`；宿主只做动作绑定与 `/api/observation/*` 薄路由转发；设置界面落在 `apps/workbench`。 |
 | 6 | 表与存储 | 复用 `<Home>/observation/observation.db` 第 1 版基线的 `records`、`evidence_blobs`、`record_evidence`、`coverage`、`coverage_gaps`、`writer_state`，无需新增表或升库版本；暂停状态、用途开关、自动清理期限、容量提醒线与上次清理摘要存于 `writer_state`（表主人仍为 `horizontal/observation`）。 |
 | 7 | 兼容与迁移 | 不加。读取时只认现行取值；清理过的时间段在 `coverage_gaps` 记 `expired`，不从旧副本回填。 |

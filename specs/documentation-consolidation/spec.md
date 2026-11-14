@@ -68,7 +68,7 @@
 
 - `backlog-rows.mjs` 增加 `--index`（分组、计数、一行一条、筛选）；`BACKLOG.md` 头部显示总数。
 - 解决 BL-1071 编号复用；BL-1071～1077 随 #2020 带入 main 或明确「只在 #2020 分支」；1076/1077 写墓碑。
-- 修 `BACKLOG.md` 的 Memory 暂停表述；清 BL-928、BL-376、第 27 批 24 个编号在现行文档里的失效引用；缺失编号已列 [墓碑速查](../../docs/backlog-removed.md)（2026-11-13 为 171 个）；11 条 `src/en.ts` 遗留 BL 已合并为 [BL-b16-server-text-residue](../backlog/BL-b16-server-text-residue.md)。
+- 修 `BACKLOG.md` 的 Memory 暂停表述；清 BL-928、BL-376、第 27 批 24 个编号在现行文档里的失效引用；缺失编号已列 [墓碑速查](../../docs/backlog-removed.md)（2026-11-13 为 174 个）；11 条 `src/en.ts` 遗留 BL 已合并为 [BL-b16-server-text-residue](../backlog/BL-b16-server-text-residue.md)。
 - 类型归一（47 种取值/91 条非标准）并考虑加 type 门禁；门禁变更需用户批准。
 - 平台产品服务、Governance 归属、包数/子路径数、`RUNTIME-MIGRATION` 的「现在」表、终端 preferred workspace、typed/hybrid 表述统一。
 - PRODUCT 的 Session 段落、发布说明计数、product-operations 的 11-04 基线。

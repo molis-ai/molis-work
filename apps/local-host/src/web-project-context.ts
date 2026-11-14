@@ -1,5 +1,5 @@
 import { readOnlyAlwaysOnProjectPlugins } from "./always-on-plugins.js";
-import { requireSynchronous, type ActionReference, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { requireSynchronous, type ActionCallContext, type ActionReference, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginPageRequest } from "./plugin-page-authority.js";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { ProjectPluginMembership } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -11,6 +11,7 @@ import { bindLocalWebActions, localWebActionContext, type LocalWebEntry } from "
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import type { bindGoalsWebActions } from "./goal-callers.js";
 import { molisWorkHostProjectReference, type MolisWorkProjectRuntime } from "./project-host.js";
+import { projectPluginEpoch } from "./project-catalog.js";
 import type { ProjectPluginSurfacePorts } from "./project-plugin-stages.js";
 import type { ContextualHttpPorts } from "./contextual/contextual-http.js";
 import type { ResolvedWebBoardOptions } from "./web-types.js";
@@ -33,6 +34,11 @@ export interface ProjectRequestContext extends WebRequestContext {
   readonly userActions: (permissions: readonly string[], entry?: LocalWebEntry) => BoundActionClient;
   /** The plugins this project's page shows: personal ones included unless the person hid them here. */
   readonly shownPlugins: (projectId: string) => Promise<string[]>;
+  /**
+   * The plugins this project shows, read from the Catalog now: the protected page projection reads this before handing out page words,
+   * so the short display reuse above never decides whose words a page may show (S-ui-text-page).
+   */
+  readonly shownPluginsFresh: (projectId: string) => Promise<string[]>;
   /** The rendered selector keeps the revision of the same membership it displays. */
   readonly shownPluginSelection: (projectId: string, withRevision: boolean) => Promise<{ shown: string[]; revision?: string }>;
   /**
@@ -63,7 +69,7 @@ export function projectRequestContext(context: WebRequestContext, options: Resol
   const directory = homeDirectory ? () => readOnlyAlwaysOnProjectPlugins(homeDirectory) : undefined;
   const hostReference = molisWorkHostProjectReference({ databasePath: options.databasePath, projectId: options.projectId });
   const userActions = (permissions: readonly string[], entry: LocalWebEntry = {}) => bindLocalWebActions(localHost, hostReference, permissions, entry);
-  const selection = async (projectId: string, versioned: boolean): Promise<{ shown: string[]; revision?: string }> => {
+  const selection = async (projectId: string, versioned: boolean, fresh = false): Promise<{ shown: string[]; revision?: string }> => {
     const home = localHost.homePlugins;
     try { await home?.ready(); } catch { /* A failed Home retains its registered unavailable stages. */ }
     const withExternal = (plugins: readonly string[], hidden: readonly string[]) => {
@@ -78,19 +84,27 @@ export function projectRequestContext(context: WebRequestContext, options: Resol
       const { plugins, hidden, revision } = catalog.projectPluginMembershipWithRevision(projectId, directory);
       return { shown: withExternal(plugins, hidden), revision };
     });
-    const { plugins, hidden } = await observeProjectPluginMembership(composition, homeDirectory, projectId, directory);
+    // The protected page projection asks for the live membership even when a display read was cached inside the short window.
+    const { plugins, hidden } = fresh
+      ? await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => catalog.projectPluginMembership(projectId, directory))
+      : await observeProjectPluginMembership(composition, homeDirectory, projectId, directory);
     return { shown: withExternal(plugins, hidden) };
   };
   const goalsHere = async () => !options.project
     || (await observeProjectPluginMembership(composition, homeDirectory, options.projectId, directory)).plugins.includes("goals");
   return { ...context, options, hostReference, userActions, goalsHere,
     shownPlugins: async projectId => (await selection(projectId, false)).shown,
+    shownPluginsFresh: async projectId => (await selection(projectId, false, true)).shown,
     shownPluginSelection: selection,
   };
 }
 
 /** Presentation reads still waiting for the catalog, per running catalog owner and project: one membership reading serves all of them. */
 const queuedMembership = new WeakMap<object, Map<string, Promise<ProjectPluginMembership>>>();
+
+/** A successful membership write bumps the Catalog's epoch; a display read inside the same epoch reuses the membership (N44). */
+const membershipCache = new WeakMap<object, Map<string, { epoch: number; at: number; membership: ProjectPluginMembership }>>();
+const MEMBERSHIP_CACHE_MS = 1_000;
 
 /**
  * The project's plugin membership for a page: the Goals branch and the shown list (N44). Reads that queue before one starts share it; the
@@ -107,7 +121,14 @@ function observeProjectPluginMembership(composition: WebRequestContext["composit
   const drop = () => { if (pending && queued.get(key) === pending) queued.delete(key); };
   pending = composition.withCatalog({ homeDirectory: home }, catalog => {
     started = true; drop();
-    return catalog.projectPluginMembership(projectId, directory);
+    let cache = membershipCache.get(catalog);
+    if (!cache) membershipCache.set(catalog, cache = new Map());
+    const cached = cache.get(key);
+    if (cached && cached.epoch === projectPluginEpoch(catalog) && Date.now() - cached.at < MEMBERSHIP_CACHE_MS) return cached.membership;
+    const membership = catalog.projectPluginMembership(projectId, directory);
+    cache.set(key, { epoch: projectPluginEpoch(catalog), at: Date.now(), membership });
+    while (cache.size > 64) cache.delete(cache.keys().next().value!);
+    return membership;
   }).finally(() => drop());
   if (!started) queued.set(key, pending);
   return pending;
@@ -148,14 +169,25 @@ export function projectPluginServices({ localHost, hostReference, options, agent
 export function contextualPorts({ localHost, hostReference, serverOptions, request }: ProjectRequestContext): ContextualHttpPorts {
   const homeDirectory = serverOptions.homeDirectory;
   const page = pluginPageRequest(request);
-  const context = async (signal?: AbortSignal) => {
-    const caller = await localWebActionContext(localHost, hostReference, LOCAL_OWNER_PERMISSIONS,
-      signal && page ? AbortSignal.any([signal, page.signal]) : signal ?? page?.signal);
-    return { ...caller, validate_authority: async (reference: ActionReference) => {
-      page?.assertCurrent(); await caller.validate_authority?.(reference); page?.assertCurrent();
-    }, assert_authority_current: (reference?: ActionReference, permissions?: readonly string[]) => {
-      page?.assertCurrent(); requireSynchronous(caller.assert_authority_current?.(reference, permissions));
-    } };
+  // One request's prepared authority, shared by the discovery and the calls its route makes (N42). It never outlives the request;
+  // each call still re-checks the person's grants. A call brings its own signal when the page stops waiting for it, and gets the
+  // context prepared with that signal, so the cancellation reaches the call rather than being dropped by the sharing.
+  const contexts = new Map<AbortSignal | null, Promise<ActionCallContext>>();
+  const context = (signal?: AbortSignal) => {
+    const key = signal ?? null;
+    let pending = contexts.get(key);
+    if (!pending) {
+      pending = localWebActionContext(localHost, hostReference, LOCAL_OWNER_PERMISSIONS,
+        signal && page ? AbortSignal.any([signal, page.signal]) : signal ?? page?.signal).then(caller => ({ ...caller,
+        validate_authority: async (reference: ActionReference) => {
+          page?.assertCurrent(); await caller.validate_authority?.(reference); page?.assertCurrent();
+        }, assert_authority_current: (reference?: ActionReference, permissions?: readonly string[]) => {
+          page?.assertCurrent(); requireSynchronous(caller.assert_authority_current?.(reference, permissions));
+        } }));
+      contexts.set(key, pending);
+      pending.catch(() => { if (contexts.get(key) === pending) contexts.delete(key); });
+    }
+    return pending;
   };
   return {
     ...(homeDirectory ? { homeDirectory } : {}), scope: hostReference.project_id, actor_id: LOCAL_PERSON_ACTOR_ID,

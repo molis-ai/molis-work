@@ -16,6 +16,7 @@ import { pagesActions } from "@molis-ai/molis-work-plugin-pages";
 import { asOAuthAnswer, oauthNetwork } from "./fixtures/oauth-network.js";
 import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { TODO_ORGANIZE_BASIC } from "@molis-ai/molis-work-plugin-todo";
+import { readRecords } from "@molis-ai/molis-work-service-observation";
 import { withContextJourneys } from "../apps/local-host/dist/context-onboarding-store.js";
 import { readProjectArrival } from "../apps/local-host/dist/project-arrival.js";
 import { contextReferenceText, selectContextSources, stageContextFile, startContextJourney, waitContextJourney, adoptContextJourney, parseContextSummary, readContextJourney, removeIdleJourneyStaging, reopenContextJourney, updateContextDraft } from "../apps/local-host/dist/context-onboarding-service.js";
@@ -82,6 +83,13 @@ test('adoption resumes after the summary action fails without replacing imported
     store.update(source.id, { title: 'User edited source' }, failed.project_id);
     const resumed = await adoptContextJourney(dir, id, { title: 'Ignored new title', body: 'Ignored new body' }, ports);
     assert.equal(resumed.phase, 'complete', resumed.error ?? ''); assert.equal(resumed.project_id, failed.project_id);
+    // OCL-02 (observation-collection design §3「用户导入」): what the adoption did in the new project, the retry's calls included, is the
+    // person importing their own materials, kept apart from work they do there later.
+    const records = hosts.get(dir)!.observation!; records.layer.flush();
+    const calls = readRecords(records.layer.writer.database()!.db, { fact: 'action.call', project_id: resumed.project_id });
+    const imports = calls.filter(record => String(record.detail.action).startsWith('pages.documents.import@'));
+    assert.ok(imports.length >= 2, calls.map(record => record.detail.action).join(' '));
+    assert.deepEqual([...new Set(calls.map(record => record.source_class))], ['imported']);
     assert.equal(store.list(resumed.project_id).length, 2);
     assert.equal(store.get(source.id, resumed.project_id).title, 'User edited source');
     const summary = store.get(resumed.document_id!, resumed.project_id);

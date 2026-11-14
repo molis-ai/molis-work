@@ -186,6 +186,15 @@ ${TAB_WORKSPACE_DRAG_PART}
     if (state.exclusive) coverPlace = historyCoverPlace(state.exclusive);
     const dropParams = (...names) => { const url = new URL(location.href); names.forEach(name => url.searchParams.delete(name)); history.replaceState(history.state, "", url); };
     let requestedPlugin = paneParams.get("openPlugin"), requestedItem = paneParams.get("openItem");
+    // The shell's own materials surface is not a plugin: ?openPlugin=materials&openItem=<workspace:path> opens the main-area
+    // reader as the side panel's 「在主区打开」 does (BL-materials-object-link), with the same object id.
+    if (requestedPlugin === "materials" && requestedItem) {
+      ops.setExclusive(state, null);
+      const opened = ops.openItem(state, "materials", requestedItem, paneParams.get("openTitle") || undefined);
+      if (opened && paneParams.has("openView")) ops.writeView(state, ops.focused(state).id, paneParams.get("openView"));
+      dropParams("openPlugin", "openItem", "openTitle", "openView");
+      requestedPlugin = null;
+    }
     // A side-panel plugin takes the link there (plugin-place).
     if (requestedPlugin && openInSide(requestedPlugin, requestedItem || paneParams.get("openRecord"), paneParams.get("openTitle"))) { dropParams("openPlugin", "openItem", "openTitle", "openRecord"); requestedPlugin = null; }
     if (requestedPlugin && Object.hasOwn(PLUGIN_TAB_ICON, requestedPlugin) && requestedItem && offeredPlugin(requestedPlugin)) {

@@ -225,8 +225,32 @@ export const CRAFT_FINISH_CLIENT_SCRIPT = `
     node.setAttribute("data-craft-new", variant === "field" ? "field" : "");
     setTimeout(() => node.removeAttribute("data-craft-new"), 1700);
   };
-  /* Plugins may mark their own finish and arrival moments; both are presentation only. */
-  globalThis.molisCraft = Object.freeze({ celebrate, land });
+  /* A page reached by going forward or back arrives from that side. */
+  const turn = (node, back) => {
+    if (!node || reduced()) return;
+    node.setAttribute("data-craft-turn", back ? "back" : "forward");
+    setTimeout(() => node.removeAttribute("data-craft-turn"), 600);
+  };
+  /* It became the person's turn on this thing: one ring, once. */
+  const ask = (node) => {
+    if (!node || reduced()) return;
+    node.setAttribute("data-craft-ask", "");
+    setTimeout(() => node.removeAttribute("data-craft-ask"), 900);
+  };
+  /* The same object in a new place: "from" is the element that leaves, "change" redraws the page (it may return a promise),
+     and the element the new page marks data-craft-carried is where the object went. Without the browser's view transitions,
+     or with reduced motion, the change simply happens. */
+  const carry = (from, change) => {
+    if (!from || reduced() || typeof document.startViewTransition !== "function") return change();
+    const name = (node, value) => { if (node) node.style.viewTransitionName = value; };
+    const arrived = () => document.querySelector("[data-craft-carried]");
+    const clear = () => { name(from, ""); name(arrived(), ""); };
+    name(from, "craft-carried");
+    document.startViewTransition(() => Promise.resolve(change()).then(() => { name(from, ""); name(arrived(), "craft-carried"); }))
+      .finished.then(clear, clear);
+  };
+  /* Plugins may mark their own moments; all of them are presentation only. */
+  globalThis.molisCraft = Object.freeze({ celebrate, land, turn, ask, carry });
 
   if (!workbench) return;
 

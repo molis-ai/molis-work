@@ -47,7 +47,7 @@ export const contextOnboardingActions = {
     input_schema: { type: "object", properties: { journey }, required: ["journey"], additionalProperties: false } },
   (entry, input) => reopenContextJourney(entry.home, input.journey)),
   draft: door.define({ capability_id: "onboarding.context.draft", version: /* @version action.onboarding.context.draft */ 1, scope,
-    title: "保存整理草稿", description: "首次引导：保存本人改过的摘要标题与正文。",
+    title: "保存整理草稿", description: "首次引导：保存本人改过的摘要标题与正文。", draft: true,
     input_schema: { type: "object", properties: { journey, body }, required: ["journey", "body"], additionalProperties: false } },
   (entry, input) => updateContextDraft(entry.home, input.journey, { ...input.body })),
   adopt: door.define({ capability_id: "onboarding.context.adopt", version: /* @version action.onboarding.context.adopt */ 1, scope,

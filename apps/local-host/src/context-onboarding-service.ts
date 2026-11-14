@@ -21,6 +21,7 @@ import { hostLog } from "./host-log.js";
 import { artifactSubjectId, type ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { ONBOARDING_TAKE_MATERIALS_MAX, type OnboardingCodeRootTake, type OnboardingTakeResult } from "@molis-ai/molis-work-contracts/platform/plugin-onboarding";
 import type { OnboardingTaker } from "./onboarding-takers.js";
+import { withObservationSource } from "@molis-ai/molis-work-service-observation";
 
 export interface ContextOnboardingPorts {
   withCatalog: LocalWebCatalogRunner;
@@ -475,7 +476,9 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
   withContextJourneys(home, store => store.save(journey));
   // The fixed versions this round brought, for the plugin the folder goes to.
   const handed: { version: ArtifactReference; title: string }[] = [];
-  const job = Promise.resolve().then(async () => {
+  // The person brings their own materials in (design §3「用户导入」): everything this adoption records, the actions it calls included, is an
+  // import, kept apart from work done in the project later. The scope ends with the adoption.
+  const job = withObservationSource("imported", () => Promise.resolve().then(async () => {
     try {
       await ports.withCatalog({ homeDirectory: home }, async catalog => {
         await catalog.createProject({ display_name: journey.adoption!.title, actor_id: LOCAL_PERSON_ACTOR_ID, project_id: journey.project_id });
@@ -558,7 +561,7 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
       journey.error = diskFull(error) ? "磁盘空间不足，项目没有保存完；确认的内容仍在。腾出空间后可以继续保存。" : error instanceof Error ? error.message : "项目保存未完成，请重试";
     }
     withContextJourneys(home, store => store.save(journey));
-  }).finally(() => running.delete(key(home, id)));
+  })).finally(() => running.delete(key(home, id)));
   running.set(key(home, id), job); await job;
   return readContextJourney(home, id);
 }

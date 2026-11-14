@@ -17,6 +17,7 @@
 | [implicit-state-machines-2026-11-08](implicit-state-machines-2026-11-08.md) | Molis Work 隐式状态机盘点 | 审计报告（现行快照）。对象是本机 `main` 的 `5945c0271a`（2026-11-08）。只记录现状，不改代码，不含改造决定。 |
 | [page-asset-allowances-review-2026-11-11](page-asset-allowances-review-2026-11-11.md) | 已采用页面资源许可的评审记录（2026-11-11 审查修复） | — |
 | [performance-fix-review-2026-10-01](performance-fix-review-2026-10-01.md) | 性能修复复查（2026-10-01） | — |
+| [platform-capability-audit-2026-11-14](platform-capability-audit-2026-11-14.md) | 平台能力通用化审查 | 只读审查报告（2026-11-14）。10 处该是平台能力、现在各写一份的地方，已分进批次（决定 44），去处见路线书依赖图 11-14 一节。 |
 | [pr-review-2026-10-17-to-20-checklist](pr-review-2026-10-17-to-20-checklist.md) | 最近三天 PR 复审 checklist（227 个已合入 PR） | — |
 | [pr-review-2026-10-17-to-20](pr-review-2026-10-17-to-20.md) | 最近三天 PR 复审（2026-10-17 至 2026-10-20） | 报告完成；只审不改。审计基线为 `origin/main` `3ba9185d7`（2026-10-20 16:07 UTC，含 16:25Z 合入的 #828）。共 227 个已 |
 | [prologue-molis-work-assessment-2026-10-02](prologue-molis-work-assessment-2026-10-02.md) | Prologue 更新与 Molis Work 接入评估 | — |
@@ -37,3 +38,4 @@
 | [2026-11-10](daily-quality/2026-11-10.md) | 2026-11-10 每日质量报告：首次分类 | 本轮只做报告分类与高项静态复核；未改产品代码、未运行测试。分类不等于缺陷确认，完整修复方案与逐场景验收尚未完成。 |
 | [2026-11-11-feed-closure](daily-quality/2026-11-11-feed-closure.md) | 2026-11-11：Feed 分页验收与交付记录核回 | 用户已批准完整消费者改造，产品实现与本地定向验收已完成；待 CI Full 与合入，不把本地通过标为已上线。 |
 | [2026-11-11](daily-quality/2026-11-11.md) | 2026-11-11 日报：第一批高项复核 | 待 review；只做静态评估，未改产品代码、未运行测试。 |
+| [2026-11-12](daily-quality/2026-11-12.md) | 2026-11-12 日报：Feed 与故障说明 | 用户批准工作清单第 3、4、5 项；Feed 页外定位、组字查询、来源预览与材料分批读取见 FBR-08～11，PR #2045。 |

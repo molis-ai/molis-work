@@ -10,7 +10,7 @@
 - 做完一条就删掉对应条目文件，在提交说明里写编号。不改编号，不复用编号。
 - 只抽取与归并，不重新设计需求。几处说法冲突的，列在「待你决定」。
 
-新增条目使用 `BL-<语义名称>.md`，不争抢连续编号；旧编号不改、不复用。每个文件保留分组和原来的八列信息。统一查看：`node scripts/backlog-index.mjs`（摘要、分组计数、`--group/--type/--priority/--owner/--list` 筛选）或 `node scripts/gates/backlog-rows.mjs --report`（原始逐条）；不提交重复汇总表。以下各节保留分组说明，正文都在独立条目里。当前 517 条；计数由 `backlog-index` 现算。已删除、已并入或只在分支的历史编号见 [REMOVED.md](../docs/backlog-removed.md)。
+新增条目使用 `BL-<语义名称>.md`，不争抢连续编号；旧编号不改、不复用。每个文件保留分组和原来的八列信息。统一查看：`node scripts/backlog-index.mjs`（摘要、分组计数、`--group/--type/--priority/--owner/--list` 筛选）或 `node scripts/gates/backlog-rows.mjs --report`（原始逐条）；不提交重复汇总表。以下各节保留分组说明，正文都在独立条目里。当前 514 条；计数由 `backlog-index` 现算。已删除、已并入或只在分支的历史编号见 [REMOVED.md](../docs/backlog-removed.md)。
 
 类型：**待你验收**（做完了、等用户本人试用）、**待你决定**（要用户拍板）、**未实现**、**部分实现**、**明确后续做**（原 spec 写明了留到以后）、**已知缺口**（实现里如实标注的限制）。
 
@@ -64,7 +64,7 @@
 
 ### 首屏加载与资源
 
-数字来自[字体皮肤语言的首屏实测与资源预算方案](font-and-skin-system/resource-budget.md)。第一屏总字节门禁已随第 16 批 #2031 合入（`scripts/gates/first-screen.mjs`、`tooling/gates/first-screen.json`、CI 的 First-screen budgets）；后续改动在这项检查里看数字变化，排期由统筹定。
+数字来自[字体皮肤语言的首屏实测与资源预算方案](font-and-skin-system/resource-budget.md)。第一屏总字节门禁已随第 16 批 #2031 合入（`scripts/gates/first-screen.mjs`、`tooling/gates/first-screen.json`、CI 的 First-screen budgets）；后续改动在这项检查里看数字变化，排期由碰到这块的批次主会话定。
 
 
 ### 写后检查
@@ -89,4 +89,4 @@ Memory P0 已随 [#2020](https://github.com/molis-ai/molis-work/pull/2020) 合�
 
 ### 工程流程
 
-统筹在第 02 批接续工程验证与排期。产品体验仍由各自的主人验收。
+工程验证与排期由碰到它的批次主会话接续。产品体验仍由各自的主人验收。

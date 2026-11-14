@@ -131,6 +131,42 @@
     "ownerResolutions": 0,
     "shippedRegistrationRows": 0
   },
+  "memoryOverview": {
+    "prepareContext": 1,
+    "inspectActions": 0,
+    "discover": 0,
+    "discoverScenes": 0,
+    "projectPluginReads": 2,
+    "sqliteOpens": 2,
+    "actionDirectoryRows": 0,
+    "sceneDirectoryRows": 0,
+    "ownerResolutions": 0,
+    "shippedRegistrationRows": 176
+  },
+  "knowledgeUnknown": {
+    "prepareContext": 0,
+    "inspectActions": 0,
+    "discover": 0,
+    "discoverScenes": 0,
+    "projectPluginReads": 0,
+    "sqliteOpens": 0,
+    "actionDirectoryRows": 0,
+    "sceneDirectoryRows": 0,
+    "ownerResolutions": 0,
+    "shippedRegistrationRows": 66
+  },
+  "memoryUnknown": {
+    "prepareContext": 0,
+    "inspectActions": 0,
+    "discover": 0,
+    "discoverScenes": 0,
+    "projectPluginReads": 0,
+    "sqliteOpens": 0,
+    "actionDirectoryRows": 0,
+    "sceneDirectoryRows": 0,
+    "ownerResolutions": 0,
+    "shippedRegistrationRows": 66
+  },
   "goalPanes": {
     "prepareContext": 10,
     "inspectActions": 0,

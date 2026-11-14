@@ -41,7 +41,7 @@ async function generate(version, out) {
   const { assertGoldenVersionName, assertNoHomePath, captureHome, createTemporaryHome, GOLDEN_MANIFEST_VERSION, GOLDEN_TEST_KEY, writeManifest } = await import("./golden/layout.mjs");
   assertGoldenVersionName(version);
   const { refuseNetwork, refusedNetwork, enterHome, scriptModel } = await import("./golden/session.mjs");
-  const { holdAutomaticKnowledgeOrganization, populateHome, thirdPartySample } = await import("./golden/populate.mjs");
+  const { holdAutomaticKnowledgeOrganization, holdObservationRecords, populateHome, thirdPartySample } = await import("./golden/populate.mjs");
   const { homeLibrarySample } = await import("./golden/home-library-sample.mjs");
   const local = await import("@molis-ai/molis-work-app-local-host");
   const storage = await import("@molis-ai/molis-work-storage");
@@ -49,7 +49,7 @@ async function generate(version, out) {
   scriptModel();
 
   const generated = createTemporaryHome("golden-home-"), { home } = generated;
-  const resumeKnowledgeOrganization = holdAutomaticKnowledgeOrganization();
+  const resumeKnowledgeOrganization = holdAutomaticKnowledgeOrganization(), resumeObservationRecords = holdObservationRecords();
   const local_space = { spaceId: "space_golden_root_home", kind: "local", ownerUserId: null, teamId: null, issuer: null, applicationId: null };
   const account_space = storage.personalStorageSpace("https://golden.invalid", "io.molis.work.golden", "golden-person");
   const accountHome = path.join(home, "spaces", account_space.spaceId);
@@ -80,11 +80,12 @@ async function generate(version, out) {
         { path: "plugin-directories/plugin-directories.db", reason: "授权目录的行记本机的真实路径、设备号和 inode，只有桌面选择器能写；用主人的现行结构建空库" },
         { path: "plugin-originals/plugin-originals.db", reason: "原始文件的行记本机的真实路径，只有桌面入口带来的路径能写；用主人的现行结构建空库" },
         { path: withThirdParty ? `spaces/${account_space.spaceId}/plugin-libraries/plugin-libraries.db` : "plugin-libraries/plugin-libraries.db", reason: "台账的行要一个声明 Home 库的已签名沙箱包，这个 Home 没装；用主人的现行结构建空库" },
-        { path: "alchemist/projects/<project>/search.sqlite", reason: "行来自联网搜索，金样不联网；由主人的搜索入口建空库" }],
+        { path: "alchemist/projects/<project>/search.sqlite", reason: "行来自联网搜索，金样不联网；由主人的搜索入口建空库" },
+        { path: "observation/observation.db", reason: "工作记录按并发调用结束的先后编号、取编号，先后由机器决定；生成时不写记录，库由主人按现行结构建出；两个 Home 都如此" }],
       ...tree,
     });
     writeFileSync(path.join(out, "README.md"), README(version));
-  } finally { resumeKnowledgeOrganization(); generated.remove(); }
+  } finally { resumeKnowledgeOrganization(); resumeObservationRecords(); generated.remove(); }
 }
 
 async function check(version, directory) {

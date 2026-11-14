@@ -234,6 +234,10 @@
       "types": "./dist/services/placement.d.ts",
       "import": "./dist/services/placement.js"
     },
+    "./services/observation": {
+      "types": "./dist/services/observation.d.ts",
+      "import": "./dist/services/observation.js"
+    },
     "./services/surface-composition": {
       "types": "./dist/services/surface-composition.d.ts",
       "import": "./dist/services/surface-composition.js"

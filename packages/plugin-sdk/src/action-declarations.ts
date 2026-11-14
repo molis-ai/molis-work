@@ -92,6 +92,7 @@ function isCompleteBody(a: unknown): a is ActionBody {
   if (!a.audiences.every(audience => ACTION_AUDIENCES.includes(audience))) return false;
   if (a.effect !== undefined && !ACTION_EFFECTS.includes(String(a.effect))) return false;
   if (a.external !== undefined && a.external !== true) return false;
+  if (a.draft !== undefined && a.draft !== true) return false;
   if (a.plugin !== undefined && a.plugin !== false) return false;
   return isRecord(a.input_schema) && (a.output_schema === undefined || isRecord(a.output_schema));
 }

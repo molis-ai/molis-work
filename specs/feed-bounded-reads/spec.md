@@ -1,7 +1,7 @@
 
 # Feed 有界读取
 
-状态：已实现并合入 main（2026-11-11，[#2026](https://github.com/molis-ai/molis-work/pull/2026)，合入提交 `96a1c70c37`）；后续补修 PR [#2045](https://github.com/molis-ai/molis-work/pull/2045) 进行中，FBR 补修待验收，不归档。
+状态：已实现并合入 main（2026-11-11，[#2026](https://github.com/molis-ai/molis-work/pull/2026)，合入提交 `96a1c70c37`）；2026-11-13 日报补修 PR [#2045](https://github.com/molis-ai/molis-work/pull/2045) 随本 PR 合入，FBR-08～11 有测试引用，不归档。
 
 ## 批准范围
 
@@ -43,4 +43,17 @@ D0195、D0205、D0229、D0238：页面分页、来源按需读取、后台同步
 
 ## 验收与交付
 
-逐编号测试及公开合同影响记录于[11月11日日评记录](../../docs/reviews/daily-quality/2026-11-11-feed-closure.md)。FBR-01～07均有测试引用；核心规模场景含407条消息、406份单项材料和405个重复收据引用。没有改真实Home。独立工作树 `/private/tmp/molis-1111-feed`、分支 `codex/daily-quality-1111-feed`；共享核心改动的CI Full已执行并持续修复发现的遗漏，最终头完整结果见PR task list；本规范已随 #2026 合入；#2045 的补修待合入与验收，不归档，未执行真实 Home 操作。
+逐编号测试及公开合同影响记录于[11月11日日评记录](../../docs/reviews/daily-quality/2026-11-11-feed-closure.md)。FBR-01～07均有测试引用；核心规模场景含407条消息、406份单项材料和405个重复收据引用。没有改真实Home。独立工作树 `/private/tmp/molis-1111-feed`、分支 `codex/daily-quality-1111-feed`；共享核心改动的CI Full已执行并持续修复发现的遗漏，最终头完整结果见PR task list；本规范已随 #2026 合入；#2045 的补修随本 PR 合入，FBR-08～11 有测试引用，不归档，未执行真实 Home 操作。
+
+## 2026-11-13 日报补修
+
+用户批准日报工作清单第3、4、5项。Feed舞台读增加 `source_messages`（来源ID到最近三条标题），来源预览不依赖列表筛选；阶段一同步更新动作快照，消费者仅Feed舞台，不新增兼容路径。完整内容合同保持全量材料，但SQL分批读取。
+
+- FBR-08 / N1201：页外定位后折叠或翻页恢复普通查询；shell/frame 返回列表的 `itemId:null` 同视图路径也重新查询。
+- FBR-09 / N1202：组字期间不刷新，compositionend后查询。
+- FBR-10 / N1204：来源最近三条独立于当前消息分页和搜索。
+- FBR-11 / N1203：运行摘要保留HTTP状态用于拒绝分类，不带完整收据内容。
+
+本轮交付与测试见[11月12日日评记录](../../docs/reviews/daily-quality/2026-11-12.md)。
+
+本轮对 b81937325 的独立基线构建测量：Feed 脚本 48264→48604 字节（+340，其中 52 字节来自评审补修的 shell 返回列表刷新），其余资源无增长，无新增资源；任务增量记录 `tooling/gates/page-asset-allowances/feed-daily-1112.json` 随实现评审，不更改共享预算。

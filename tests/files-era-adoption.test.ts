@@ -20,6 +20,8 @@ import { serveTestHost } from "./fixtures/test-home.js";
 // fixed version reads back byte for byte, every Files line, output and default binding moves to the materials source, Coding's earlier
 // materials and the reading position are carried, the person's consents stay exactly as they were, and the materials service itself
 // reads the adopted lines as its own while the retired identity no longer names any of them.
+// BSH-07 / WMD-04: the adopted process items read back under system.materials; the old Files identity is refused by the forged/old
+// signature case in system-materials-source.test.ts, and Diff/Text Stats' default sources name the platform materials ports.
 
 const FIXTURE = join(dirname(fileURLToPath(import.meta.url)), "fixtures/files-era-home");
 const FILES = { id: "io.molis.work.files", signature: "official-files-binding" };
@@ -76,6 +78,8 @@ const membership = (home: string) => read(join(home, "projects/catalog.db"), row
 const consents = (home: string) => read(join(home, "plugin-runtime/plugin-runtime.db"), rows => rows("SELECT * FROM plugin_consents ORDER BY consent_id"));
 const install = (state: ReturnType<typeof library>, pluginId: string) => state.installs.find(row => row.plugin_id === pluginId)!.install_id as string;
 
+// GOLDEN-REPLAY adoption branch: scripts/replay-golden-homes.mjs runs adoptProjectDatabase for every library that still has
+// something to move, then retireFilesConsents. This exercises the same order directly, including the already-current no-op after adoption.
 test("BSH-14-F/M3 a Home the Files-era build made is adopted project by project and read back whole: versions, moves, carried values, consents, and the materials service reads every line", { timeout: 120_000 }, async t => {
   const root = await mkdtemp(join(tmpdir(), "files-era-adoption-"));
   // One cleanup, last opened first closed, and the Home removed only after the Host let go of it.

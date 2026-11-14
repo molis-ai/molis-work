@@ -1665,6 +1665,11 @@ test("FBR-01 FBR-02 FBR-04 FBR-05 owner pages include later data, facets and ded
   const searched = await f.client.invoke(caller(BODIES).context, feedQueryActions.snapshot, { filter: JSON.stringify({ search: "Bounded 404" }) }) as FeedDirectorySnapshot;
   assert.equal(searched.feed_items[0]?.title, "Bounded 404");
   assert.equal(searched.feed_items.length, 1);
+  // FBR-11 / N1203: directory summaries preserve refusal status without exposing the full receipt.
+  f.store.db.prepare("UPDATE feed_source_runs SET receipt_json = ? WHERE source_id = ?").run(JSON.stringify({ rss_http: { status: 403 }, retry_after_at: "2026-11-13T00:00:00Z", secret_body: "not-a-summary" }), source.source_id);
+  const summary = await read(0);
+  assert.ok(summary.runs.some(run => run.receipt?.rss_http && JSON.stringify(run.receipt.rss_http).includes("403")));
+  assert.equal(JSON.stringify(summary.runs).includes("not-a-summary"), false);
   const refs = Array.from({ length: 405 }, (_, n) => `molis-work-feed/sha256/${n.toString(16).padStart(64, "0")}`);
   // A single large receipt is expanded and deduplicated inside the owner database, never loaded as a JS snapshot.
   f.store.db.prepare("UPDATE feed_source_runs SET receipt_json = ? WHERE source_id = ?").run(JSON.stringify({ content_refs: [...refs, ...refs] }), source.source_id);

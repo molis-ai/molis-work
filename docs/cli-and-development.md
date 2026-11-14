@@ -295,20 +295,20 @@ macOS 首次准备 Node 24.15.x、pnpm 11.9.0，然后执行 `pnpm install --fro
 
 开发和评审时要看真实界面、走一遍动线，就用 dev 模式起 Auth 和 Molis Work 两个服务，用测试账号登录。整个环境只在本机，不碰日常 Home，也不连云端。
 
-**测试账号**（Auth 的本机种子自动创建，普通账号，只在本机 dev Auth 里有效）：
+**测试账号**（Auth 的 `npm run dev` 自动创建，普通账号，只在本机 LOCAL/MOCK 的 Auth 里有效）：
 
 | 账号 | 初始密码 |
 | --- | --- |
 | `preview@example.test` | `Molis-dev-2026!` |
 
-在页面里改过的密码，Auth 重启后仍保留；忘了就把 Auth 的本机状态搬开重建（见下面第 4 条）。
+在页面里改过的密码，Auth 重启后仍保留；忘了就把 Auth 的本机状态搬开重建（见下面「Auth 报外键错」）。
 
 **启动步骤**：
 
-1. Auth（仓库在 `~/code/auth`）：先拉到最新，首次装依赖并编译（约 2 分钟），再起 dev 服务，端口 8787。
+1. Auth（仓库在 `~/code/auth`）：在 main 上拉到最新，首次装依赖并编译（约 2 分钟），再起 dev 服务，端口 8787。
 
    ```bash
-   cd ~/code/auth && git pull && npm run setup && npm run dev
+   cd ~/code/auth && git switch main && git pull && npm run setup && npm run dev
    ```
 
    不是首次就省掉 `npm run setup`。Auth 落后时本机种子里没有 Work 的 dev 客户端，登录会 403。
@@ -323,10 +323,10 @@ macOS 首次准备 Node 24.15.x、pnpm 11.9.0，然后执行 `pnpm install --fro
 
 **常见问题**：
 
-4. Auth 报外键错：旧版本建过的 `worker/.wrangler/state` 和新种子对不上。把这个目录搬开（不删），再 `npm run dev` 重建。
-5. 主检出的 4207 常被日常 Home 的服务占用（`AGENTS.md`「协作」）：dev 的 4207 被占时启动器直接提示，先停自己起的那个，不停别人的服务；需要同时开时，在自己的工作树里起。
-6. 改了源码要重新 `pnpm build` 再 `pnpm dev`，否则看到的是旧构建。
-7. Claude 桌面应用的预览窗格：`.claude/launch.json` 里有 `auth-dev`、`molis-dev` 两条，`molis-dev` 指向的检出没了要改路径；窗格里的标签页不在前台时页面不出场、点击落不到，先切到前台再操作。
+- **Auth 报外键错**：旧版本建过的 `worker/.wrangler/state` 和新种子对不上。把这个目录搬开（不删），再 `npm run dev` 重建。
+- **4207 被占**：4207 是 Auth 里唯一登记的 dev 回调端口，换工作树也还是 4207。主检出的日常 Home 服务（`AGENTS.md`「协作」）占着它时，dev 登录环境不能同时开，先和占用者约时段；自己起的用完就停。启动器只提示，不停任何进程。
+- **看到的是旧界面**：改了源码要重新 `pnpm build` 再 `pnpm dev`。
+- **Claude 桌面应用的预览窗格**：`.claude/launch.json` 不入库，各人在本机自己写两条，分别在 `~/code/auth` 跑 `npm run dev`（端口 8787）、在本仓库的检出里跑 `pnpm dev`（端口 4207）；检出路径变了要跟着改。窗格里的标签页不在前台时页面不出场、点击落不到，先切到前台再操作。
 
 test/prod 只选择对应环境，不代表云端资源已经部署；prod 首次须由部署人员应用 Auth 的 worker/deploy/production/work-client.sql 并配置密钥和外部渠道。没有可用 Auth 时不会偷偷回退 dev。启动脚本只配置账号依赖，其他插件的外部服务仍按各自配置处理。
 ### 测试文件的类型盘点

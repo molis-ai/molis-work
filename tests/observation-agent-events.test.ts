@@ -93,6 +93,8 @@ test("OCL-08: a round's failures, cancellation, action tools and compaction vari
   observer.event({ type: "compaction-failed", why: "too large" });
   observer.event({ type: "compaction-cancelled" });
   observer.event({ type: "compaction-usage-recorded", callId: "c3", receipt: usage(30) });
+  observer.event({ type: "memory-recalled", injected: [{ id: "memory-2", version: 1 }], omitted: [], unavailable: [], retrieval: { outcome: "failed" } });
+  observer.event({ type: "memory-recalled", retrieval: { outcome: "cancelled" } });
   observer.event({ type: "subagent-ended", session: { id: "child-session" }, run: { id: "child-run" }, state: "failed" });
   observer.event({ type: "subagent-ended", session: { id: "child-session-2" }, run: { id: "child-run-2" }, state: "cancelled" });
   observer.event({ type: "failed", error: { code: "agent.timeout", safeMessage: "timed out" } });
@@ -104,6 +106,7 @@ test("OCL-08: a round's failures, cancellation, action tools and compaction vari
   assert.equal(factsOf("agent.tool")[1]!.detail?.code, "files.forbidden");
   assert.deepEqual(factsOf("agent.compaction").map(fact => [fact.stage, fact.outcome]), [[undefined, "no_action"], [undefined, "failed"], [undefined, "cancelled"]]);
   assert.deepEqual(factsOf("agent.usage").map(fact => [fact.stage, fact.detail?.model_call_id]), [["compaction", undefined]]);
+  assert.deepEqual(factsOf("agent.memory").map(fact => fact.outcome), ["failed", "cancelled"], "a recall that failed or was cancelled is not recorded as complete");
   assert.deepEqual(factsOf("agent.subagent").map(fact => [fact.stage, fact.outcome]), [["ended", "failed"], ["ended", "cancelled"]]);
   assert.deepEqual(factsOf("agent.run").map(fact => [fact.stage, fact.outcome, fact.detail?.code]).slice(-2), [["ended", "failed", "agent.timeout"], ["ended", "cancelled", undefined]]);
 });

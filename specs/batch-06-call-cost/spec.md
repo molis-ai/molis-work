@@ -129,3 +129,21 @@ BCC-03 的拒绝用例在旧构建上因缺来源仍准备一次上下文而失�
 **BCC-11（N55）。** 以相同实测比较缓存保留或缩减后的冷、热、过期与并发成本。不同 Home 的同一项目 ID 不共享结果。保留的复用只借用可信 Host、项目与当前本人权限内的展示读取，提交、停用或关闭后的下一次请求消费现行状态。拿同 Home 撤权前的旧候选和 brief 链接走实际 prepare、目标读取及写入口，断言原拒绝且无该次业务写入。区分界面一次加载、同轮在途合并与跨请求缓存，结论随实测落在本页。
 
 **N55 结论（2026-11-11）。** 跨 Home 共用的根因是 Contextual 候选的 3 秒目录只按项目 scope 作键；改为按 Home、项目与本人作键，三项计数不变（同一 Home 内的冷、热、过期、并发与上表相同），B 在 A 刚读过同一项目 ID 后仍为 0。`tests/contextual-directory-isolation.test.ts`（BCC-11）钉住冷、热、过期三步。简介的 5 秒结果本来按语言、Home 与项目作键，Assistant surface-kinds 按 Host 服务分开，判定服务按 Home 分开，均保留；实际 prepare、打开来源与执行继续现读（上表已证 prepare 独立拒绝）。三处复用均为跨请求的短时展示缓存，降低的是同一界面一次加载内的重复请求，量级见上表，保留。
+
+## N42 剩余调用点逐路由审计（2026-11-13，合后审计）
+
+按 `localWebActionContext` 的 27 个文件逐个看：先定方法、路由与必填项，再在真要调动作时建上下文；同一请求里重复建的收成一份。静态调用点不因“数字好看”而搬动，留下的每处写明边界。
+
+| 路由／入口 | 处理 |
+| --- | --- |
+| `side-files-http.ts`（首片）、`plugin-trust-http.ts`（未知路由懒建）、`task-grants-settings-http.ts`、`plugin-consent-settings-http.ts`、`plugin-permission-settings-http.ts`、`plugin-page-task-grants-http.ts`、`plugin-connection-slots-http.ts`、`kit-settings-http.ts`、`skill-settings-http.ts`、`characters-http.ts` | 已先校验（方法、路由、页面、项目、必填项或 body 形状）再建，保留 |
+| `knowledge-http.ts` | 未知路径与缺 `kind`／`id` 的卡片改为定路由后建；动作参数仍由动作合同校验 |
+| `memory/memory-host.ts`、`memory/memory-upkeep.ts` | 首次真要调动作时建；overview 的目标名称读取复用同一 caller；未知路径不建 |
+| `runtime-overview-http.ts` | Home 或项目的 discovery 与各来源 invoke 共用一份请求 caller |
+| `plugin-install-gateway.ts` | preview 与 confirm 共用一份，仅按步骤改 `user_action` |
+| `web-project-context.ts`（contextual） | discover／prepare／invoke 按请求与 signal 共用一份；带中止信号的调用仍拿带该信号的上下文 |
+| `home-plugin-http.ts` | 双实例项目半路由复用启动平台时准备的 caller |
+| `assistant-http.ts` | 保留既有 2 秒复用（同一 list／round 的连续调用；每次调用仍现读授权）与 thread／executor／card 各自的请求边界 |
+| `local-web-actions.ts`、`project-host.ts`、`web-request.ts`、`web-storage-resources.ts`、`web-capabilities.ts`、`home-aggregate.ts`、`agent-reference-kinds.ts`、`account-host.ts`、`assistant-executor-input.ts`、`assistant-connection-card.ts` | 定义、装配端口或每请求一次的懒建；保留并写明 |
+
+验证：`tests/call-budget.test.ts` 新增 `memoryOverview`、`knowledgeUnknown`、`memoryUnknown`（`prepareContext` 1／0／0，前者改动前为 2）；`tooling/gates/call-budget.json` 同步。定向用例 `knowledge-http`、`memory-command-context`、`memory-presets`、`memory-list-revocation`、`memory-review-forget-revocation`、`runtime-overview`、`contextual-*`、`security-invariants-plugin-install-cli`、`home-plugin-project-routes`、`dual-instance-coverage`、`security-invariants-surface-home-http` 全过。静态口径仍 32 处／27 文件；health 的 `localWebContextCalls` 为 32（另含 `plugin-install-gateway` 的 1 处 `localPersonContext`）。

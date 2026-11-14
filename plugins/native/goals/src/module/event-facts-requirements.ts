@@ -68,7 +68,6 @@ export function readCurrentGoalEventRequirements(
       origin: {
         kind: originKind,
         config_version: requirement.created_in_config_version,
-        ...(source?.kind === "planning" ? { planning: source } : {}),
         ...(source?.kind === "imported_acceptance_criterion"
           ? { decision_method: source.decision_method as GoalEventRequirementStatus["origin"]["decision_method"], pass_condition: source.pass_condition }
           : {}),

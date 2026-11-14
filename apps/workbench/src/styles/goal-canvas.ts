@@ -100,34 +100,6 @@ export const GOAL_CANVAS_STYLES = `
   body.immersive-workbench [data-goal-stage-list] .tree-created-meta .tree-avatar { display: grid !important; }
   body.immersive-workbench [data-goal-stage-list] .tree-created-meta .tree-created { display: block !important; }
   .goal-work-planning-toggle { display: inline-flex; align-items: center; gap: 8px; height: 28px; min-height: 28px; padding: 0 12px; border-radius: 6px; }
-  .goal-work-planning-toggle[aria-pressed="true"] { background: var(--nav-active); color: var(--ink); }
-  .goal-work-planning-pane,
-  .goal-work-rules-pane { display: none; min-width: 0; min-height: 0; overflow: auto; padding: 64px 48px 48px; background: var(--paper); }
-  /* The Goal chrome wraps to two rows beside the planning directory (16px inset + 60px), so the pane starts below it. */
-  .goal-canvas-shell[data-goal-planning="open"] .goal-work-planning-pane { overflow: hidden; padding: 84px 0 0; }
-  .goal-canvas-shell[data-goal-planning="open"] .goal-work-planning-pane,
-  .goal-canvas-shell[data-goal-planning="open"] [data-goal-stage-chrome] { visibility: visible; }
-  .goal-canvas-shell[data-goal-planning="open"] .goal-work-planning-pane { display: flex; flex-direction: column; overflow: hidden; }
-  .goal-canvas-shell[data-goal-planning="open"] .goal-work-planning-pane > .work-planning { flex: 1; min-height: 0; height: auto; overflow: hidden; }
-  .goal-canvas-shell[data-goal-planning="open"] .work-planning-layout,
-  .goal-canvas-shell[data-goal-planning="open"] .work-planning-directory,
-  .goal-canvas-shell[data-goal-planning="open"] .work-planning-stage { min-height: 0; }
-  .goal-canvas-shell[data-goal-planning="open"] .work-planning-directory { overflow: auto; overscroll-behavior: contain; }
-  .goal-canvas-shell[data-goal-planning="open"] .work-planning-detail { display: flex; flex-direction: column; overflow: hidden; padding: 0 32px; }
-  .goal-canvas-shell[data-goal-planning="open"] .work-planning-detail > :is(.planning-detail, .planning-edit) { display: flex; flex-direction: column; flex: 1; min-height: 0; width: 100%; max-width: none; height: auto; margin: 0; padding: 0; overflow: hidden; }
-  .goal-canvas-shell[data-goal-planning="open"] .planning-detail-scroll { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; }
-  .goal-canvas-shell[data-goal-planning="open"] .work-planning-detail :is(.mw-breadcrumb, .planning-back) { flex: none; margin: 0; padding: 12px 0 8px; background: var(--paper); }
-  .goal-work-planning-pane :is(.work-planning, .planning-detail, .planning-edit),
-  .goal-work-rules-pane .project-rules-document,
-  html[data-resolved-theme="dark"] .goal-work-rules-pane .project-rules-document { display: block; height: auto; overflow: visible; background: transparent; }
-  .goal-work-rules-pane.settings-stage :is(.mw-input, .mw-select, .mw-textarea) { width: 240px; min-height: var(--control-h, 28px); padding: 0 12px; border: 1px solid var(--control-input); border-radius: var(--radius-control, 8px); background-color: var(--paper); color: var(--ink); box-shadow: none; font-size: 13px; appearance: none; }
-  .goal-work-rules-pane.settings-stage .mw-textarea { width: 100%; min-height: 72px; height: auto; padding: 8px 12px; resize: vertical; }
-  .goal-work-rules-pane.settings-stage .mw-select { padding-right: 32px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394949c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 8px center; background-size: 14px 14px; }
-  .goal-work-rules-pane.settings-stage .setting-number .mw-input { width: 90px; }
-  .goal-work-rules-pane .settings-setting-row > .mw-select-picker { width: 240px; flex: none; margin-left: auto; }
-  .goal-work-rules-pane .settings-setting-row > .mw-select-picker > .mw-select-picker__trigger { width: 100%; }
-  .goal-work-planning-pane .settings-body,
-  .goal-work-rules-pane .settings-body { display: block; height: auto; min-height: 0; overflow: visible; overscroll-behavior: auto; flex: none; padding-bottom: 48px; }
   .goal-stage-list .goal-collection-fold { margin: 0 0 12px; border: 0; }
   .goal-stage-list .goal-collection-fold > summary { display: flex; align-items: center; gap: 8px; height: 32px; min-height: 32px; padding: 0 8px; border-radius: 6px; color: var(--muted); list-style: none; cursor: pointer; }
   .goal-stage-list .goal-collection-fold > summary::-webkit-details-marker, .goal-stage-list .goal-collection-fold > summary::marker { display: none; }

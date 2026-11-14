@@ -210,7 +210,8 @@ export class AssistantDispatch {
     // (`skill_round.named`, specs/capability-pack/contract-design.md §2.3). A Skill the page sent without the person choosing it is not one.
     const namedSkills = [...new Map(materials.flatMap(item => item.kind === "method" && item.method?.kind === "skill"
       ? [[JSON.stringify(item.method.ref), item.method.ref] as const] : [])).values()];
-    let base = await this.ports.authority(work, undefined, replyLocale, namedSkills);
+    const autoSkills = intent?.auto_skills !== false;
+    let base = await this.ports.authority(work, undefined, replyLocale, namedSkills, autoSkills);
     const original_input = !work.delegated_by && !work.reply_target ? intent?.original_input : undefined;
 
     const assertDispatchCurrent = () => {
@@ -241,7 +242,7 @@ export class AssistantDispatch {
       assertStartCurrent();
       work = this.store.update(this.actorId, work.work_id, null, { session_id: session.session_id });
       // Action ownership includes the newly created session, also on the very first round.
-      base = await this.ports.authority(work, undefined, replyLocale, namedSkills); authority = startAuthority();
+      base = await this.ports.authority(work, undefined, replyLocale, namedSkills, autoSkills); authority = startAuthority();
     }
     assertSendCurrent(stillCurrent);
     const session = await adapter.readSession(sessionRef(work));
@@ -282,10 +283,11 @@ export class AssistantDispatch {
     try {
       if (!work.reply_target) await this.link.memoryForRound(work, text, context);
       // Build the round's tools from the same frozen recipe that its materials and Runtime receive.
-      base = await this.ports.authority(work); authority = startAuthority();
+      // The same round as above: its named Skills and whether it may pick automatic ones travel with every call it makes.
+      base = await this.ports.authority(work, undefined, replyLocale, namedSkills, autoSkills); authority = startAuthority();
       const { offered, unavailable } = await this.actionTools(authority);
       this.titles.set(ownerOf(work), new Map(offered.map(view => [view.capability_id, { title: view.action.title, provider: view.provider.title }])));
-      prepared = work.thread_round ? threadReplyMaterials(work.thread_round) : await this.link.roundMaterials(work, materials, context, offered, unavailable, previousWaitWithdrawn);
+      prepared = work.thread_round ? threadReplyMaterials(work.thread_round) : await this.link.roundMaterials(work, materials, context, offered, unavailable, previousWaitWithdrawn, autoSkills);
       const ready = prepared;
       const knowledge = ready.knowledgeDispatch;
       if (knowledge) {

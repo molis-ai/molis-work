@@ -4,8 +4,6 @@ import { GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT } from "./event-document-cli
 import { GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT } from "./momentum-client.js";
 import { GOALS_NAVIGATION_CLIENT_FACTORY_SCRIPT } from "./navigation-client.js";
 import { GOALS_PANELS_CLIENT_FACTORY_SCRIPT } from "./panels-client.js";
-import { PLANNING_ADOPTION_CLIENT_SCRIPT, PLANNING_SETTINGS_CLIENT_SCRIPT } from "./planning-client.js";
-import { PLANNING_SETTINGS_STYLES } from "./planning-styles.js";
 import { GOALS_PROPOSAL_CLIENT_FACTORY_SCRIPT } from "./proposal-client.js";
 import { GOALS_REFRESH_CLIENT_FACTORY_SCRIPT } from "./refresh-client.js";
 import { GOALS_RELATION_CLIENT_FACTORY_SCRIPT } from "./relation-client.js";
@@ -29,7 +27,3 @@ export const GOALS_PAGE_CLIENTS = {
   goalsRelation: GOALS_RELATION_CLIENT_FACTORY_SCRIPT,
   goalsTree: GOALS_TREE_CLIENT_FACTORY_SCRIPT,
 } as const;
-
-/** The planners' settings CSS and the script that binds their forms. */
-export const GOALS_SETTINGS_STYLESHEET = PLANNING_SETTINGS_STYLES;
-export const GOALS_SETTINGS_CLIENT_SCRIPT = [PLANNING_SETTINGS_CLIENT_SCRIPT, PLANNING_ADOPTION_CLIENT_SCRIPT].map((script) => script.trim()).join("\n");

@@ -122,9 +122,6 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     globalThis.molisWorkBindProjectIdentity?.(root);
     globalThis.molisWorkBindProjectManager?.(root, { hash: root.dataset.settingsHash || "" });
     globalThis.molisWorkBindProjectGuidance?.(root);
-    globalThis.molisWorkBindProjectRules?.(root);
-    globalThis.molisWorkBindPlanningSettings?.(root);
-    globalThis.molisWorkBindPlanningAdoption?.(root);
     globalThis.molisWorkBindShelfSettings?.(root);
     globalThis.molisWorkBindModelSettings?.(root, { saved: modelSaved });
     globalThis.molisWorkBindConnectorsSettings?.(root, page);
@@ -310,11 +307,9 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     if (rest.startsWith("/kit")) return "kit";
     if (rest.startsWith("/grants")) return "grants";
     if (rest.startsWith("/rules")) return "rules";
-    if (rest.startsWith("/planning")) return "planning";
     return "";
   };
   const globalSectionFromPath = (pathname) => {
-    if (pathname.startsWith("/settings/planning")) return "planning";
     if (pathname.startsWith("/settings/runtimes")) return "runtimes";
     // Prompts have no row of their own: they belong to a role in a kit (09), so their page opens under 能力包.
     if (pathname.startsWith("/settings/prompts")) return "kit";
@@ -361,13 +356,11 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     if (url.origin !== location.origin) return false;
     const projectSection = projectSectionFromPath(url.pathname);
     if (!projectSection) return false;
-    const nested = /\\/settings\\/planning\\/.+/.test(url.pathname);
     const extra = keptAddress(url, PROJECT_DEFAULTS, PROJECT_QUERY_EXTRAS, projectSection);
     projectSettings ||= bindProject();
-    if (nested) projectSettings?.caches.delete("planning");
     const linkedItem = projectSection === "kit" && new URLSearchParams(extra).has("install");
     const memoryTarget = projectSection === "memory" && (url.searchParams.has("memory_session_kind") || url.searchParams.has("memory_session_id"));
-    openProjectSettings(projectSection, linkedItem || nested || memoryTarget ? url.pathname + (linkedItem || fromPage === true ? extra : url.search) : undefined);
+    openProjectSettings(projectSection, linkedItem || memoryTarget ? url.pathname + (linkedItem || fromPage === true ? extra : url.search) : undefined);
     return true;
   };
   const openGlobalSettingsFromUrl = (href, fromPage) => {

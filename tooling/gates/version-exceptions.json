@@ -30,6 +30,12 @@
     "reason": "Component board fixture package version for the install success example; not a product or contract version."
   },
   {
+    "file": "packages/design-system/src/primitives/catalog-skill-selection.ts",
+    "name": "version",
+    "values": { "3": 1 },
+    "reason": "Component board fixture: the sample Skill pack version shown in the Skill selection panel specimen; not a product or contract version."
+  },
+  {
     "file": "apps/local-host/src/agent-host-composition.ts",
     "name": "appVersion",
     "values": { "0.0.0": 1 },
@@ -731,12 +737,6 @@
     "file": "plugins/native/goals/src/momentum-ui.ts",
     "name": "io.molis.work.native.goals.momentum.v1",
     "values": { "io.molis.work.native.goals.momentum.v1": 1 },
-    "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
-  },
-  {
-    "file": "plugins/native/goals/src/planning-ui.ts",
-    "name": "io.molis.work.native.goals.planning.v1",
-    "values": { "io.molis.work.native.goals.planning.v1": 1 },
     "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
   },
   {

@@ -1,6 +1,9 @@
+import type { KitEntry } from "@molis-ai/molis-work-contracts/platform/kit-report";
 import type { KitCatalog } from "@molis-ai/molis-work-contracts/services/kit";
-import { renderAlert, renderEmpty, renderSkeleton } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { renderAlert, renderEmpty, renderSkeleton, type AttrValue } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { act, button, esc, kitOf, readText, post, skillUi, updateKitWords, type Kit } from "./common.js";
+import { ownership } from "./authoring.js";
+import { skillWriting, type WritingFocus } from "./writing.js";
 import { applyPicked, exportPack, handPackage, importPanel, readKitFile, type ExportPart } from "./files.js";
 import { packViews, type View } from "./view.js";
 
@@ -18,11 +21,10 @@ export function mountKit(root: HTMLElement): () => void {
   const selectedLanguage = () => document.documentElement.dataset.uiLanguageTag ?? document.documentElement.lang;
   let kit: Kit | undefined, failure: unknown, turn = 0, entering = false, requestedLanguage: string | undefined;
 
-  const say = (text: string, tone: "success" | "danger" = "success") => {
-    notice.hidden = false;
-    notice.innerHTML = renderAlert({ title: text, tone, role: tone === "danger" ? "alert" : "status" });
-  };
+  const say = (text: string, tone: "success" | "danger" = "success", next?: { label: string; attrs: Record<string, AttrValue> }) => notify(notice, text, tone, next);
 
+  const writing = skillWriting({ root, project, view, kit: () => kit, load: () => load(), draw: focus => draw(focus), say,
+    show(entry) { view.query = ""; search.value = ""; view.kind = "all"; kindSelect.value = "all"; view.group = "all"; groupSelect.value = "all"; open(entry.pack, entry.key); } });
   async function load(retitle = false): Promise<void> {
     const mine = ++turn, language = selectedLanguage();
     requestedLanguage = language;
@@ -60,17 +62,17 @@ export function mountKit(root: HTMLElement): () => void {
     if (importing) return importPanel(source, project, importing);
     const ids = [...body.querySelectorAll<HTMLElement>('[data-kit-act="pack"]')].map(row => row.dataset.kitV);
     const packs = ids.flatMap(id => source.catalog.packs.find(pack => pack.pack_id === id) ?? []);
-    const result = kitMarkup(source, view, pluginsHref, packs, false), region = document.createElement("div");
+    const result = kitMarkup(source, view, pluginsHref, packs, false, writing.markup()), region = document.createElement("div");
     region.innerHTML = result.html;
     if (result.entry?.kind === "skill") {
       const box = region.querySelector<HTMLElement>("[data-kit-skill]")!;
-      drawSkill(box, result.entry.skill, project, notice, () => {});
+      drawSkill(box, result.entry, writing.isMine(result.entry.skill), project, notice, () => {});
     }
     return region.innerHTML;
   }
 
   // ---------- drawing ----------
-  function draw(focus?: "detail" | "list" | "from" | "import"): void {
+  function draw(focus?: "detail" | "list" | "from" | "import" | WritingFocus): void {
     if (failure) {
       body.innerHTML = renderEmpty({ icon: "alert", title: readText("workbench.kit.read-failed"), body: (failure as Error)?.message || readText("workbench.kit.host-did-not-respond"), className: "mw-empty--error",
         action: `<div class="kit-chips">${button(readText("common.control.retry"), { icon: "refresh", attrs: act("retry") })}</div>` });
@@ -81,26 +83,27 @@ export function mountKit(root: HTMLElement): () => void {
         Array.from({ length: 6 }, () => `<li class="mw-item">${renderSkeleton({ className: "mw-mark" })}${renderSkeleton()}</li>`).join("")}</ul></section></div></div>`;
       return;
     }
-    if (view.importing) {
+    if (view.importing && !view.authoring) {
       body.innerHTML = importPanel(kit, project, view.importing);
       if (focus === "import") root.querySelector<HTMLElement>("#kit-import-title")?.focus();
       return;
     }
     const packs = packViews(kit, view, pluginsHref).shown();
     if (packs.length && !packs.some(pack => pack.pack_id === view.pack)) { view.pack = packs[0]!.pack_id; view.item = undefined; }
-    const { entry, html } = kitMarkup(kit, view, pluginsHref, packs, entering);
+    const { entry, html } = kitMarkup(kit, view, pluginsHref, packs, entering, writing.markup());
     body.innerHTML = html;
     entering = false;
     const skillBox = body.querySelector<HTMLElement>("[data-kit-skill]");
     // A Skill's state redraws the page (its row's word changes too); the focus stays on the choice it was on.
     // 08's own detail goes in after the way back, and what the kit adds stays last.
     if (skillBox && entry?.kind === "skill") {
-      drawSkill(skillBox, entry.skill, project, notice, () => {
+      drawSkill(skillBox, entry, writing.isMine(entry.skill), project, notice, () => {
         const kept = skillBox.contains(document.activeElement) && !document.activeElement?.closest(".mw-list-detail__trail, .kit-outer");
         draw();
         if (kept) body.querySelector<HTMLElement>("[data-kit-skill] input:checked")?.focus();
       });
     }
+    writing.focus(body, focus);
     if (focus === "detail") body.querySelector<HTMLElement>(".kit-detail h3")?.focus();
     if (focus === "list") body.querySelector<HTMLElement>(".mw-list-detail__list [aria-current='true']")?.focus();
     if (focus === "from") (body.querySelector<HTMLElement>(`.kit-detail [data-kit-act="item"][data-kit-v="${CSS.escape(view.from ?? "")}"]`) ?? body.querySelector<HTMLElement>(".kit-detail h3"))?.focus();
@@ -133,13 +136,17 @@ export function mountKit(root: HTMLElement): () => void {
       if (handPackage(view.importing)) { location.href = pluginsHref; return; }
       return say(readText("workbench.kit.package-not-retained"), "danger");
     }
+    return writing.run(name, value, origin);
   }
 
   root.addEventListener("click", event => {
     const origin = (event.target as Element).closest<HTMLElement>("[data-kit-act]");
     if (!origin || !root.contains(origin) || (origin as HTMLButtonElement).disabled) return;
+    const name = origin.dataset.kitAct!;
+    const go = () => { run(name, origin.dataset.kitV, origin).catch(cause => say((cause as Error)?.message || String(cause), "danger")); };
+    if (writing.holds(name, go)) return;
     notice.hidden = true;
-    run(origin.dataset.kitAct!, origin.dataset.kitV, origin).catch(cause => say((cause as Error)?.message || String(cause), "danger"));
+    go();
   });
   search.addEventListener("input", () => { view.query = search.value; draw(); });
   kindSelect.addEventListener("change", () => { view.kind = kindSelect.value as View["kind"]; view.item = undefined; draw(); });
@@ -164,19 +171,28 @@ export function mountKit(root: HTMLElement): () => void {
   };
 }
 
-function drawSkill(box: HTMLElement, skill: unknown, project: string, notice: HTMLElement, redraw: () => void): void {
+/** The page's notice under the toolbar. One that offers a next step is said where the person can see it, wherever the detail's focus scrolled the page. */
+function notify(notice: HTMLElement, text: string, tone: "success" | "danger", next?: { label: string; attrs: Record<string, AttrValue> }): void {
+  notice.hidden = false;
+  notice.innerHTML = renderAlert({ title: text, tone, role: tone === "danger" ? "alert" : "status", ...(next ? { actions: [{ label: next.label, variant: "secondary" as const, size: "sm" as const, attrs: next.attrs }] } : {}) });
+  if (next) notice.scrollIntoView({ block: "nearest" });
+}
+
+function drawSkill(box: HTMLElement, entry: Extract<KitEntry, { kind: "skill" }>, mine: boolean, project: string, notice: HTMLElement, redraw: () => void): void {
   const outer = box.querySelector(".kit-outer");
-  skillUi()?.detail(box, skill, project, { notice, redraw });
+  skillUi()?.detail(box, entry.skill, project, { notice, redraw });
+  // Whose it is, under 08's heading: change or delete one's own, or start a copy of any other (batch 41).
+  box.querySelector(":scope > header")?.insertAdjacentHTML("afterend", ownership(entry.key, mine));
   if (outer) box.append(outer);
 }
 
-function kitMarkup(kit: Kit, view: View, pluginsHref: string, packs: KitCatalog["packs"], entering: boolean) {
+function kitMarkup(kit: Kit, view: View, pluginsHref: string, packs: KitCatalog["packs"], entering: boolean, writing?: string) {
   const { packRow, packDetail, itemDetail, summary, onlyBuiltin } = packViews(kit, view, pluginsHref);
   const pack = packs.find(candidate => candidate.pack_id === view.pack);
-  const entry = pack && view.item ? kit.byKey.get(view.item) : undefined;
+  const entry = pack && view.item && !writing ? kit.byKey.get(view.item) : undefined;
   const clear = view.query ? button(readText("workbench.chooser.clear-search"), { icon: "x", attrs: act("clear-q") }) : view.kind !== "all" ? button(readText("workbench.kit.show-all-kinds"), { attrs: act("clear-k") }) : view.group !== "all" ? button(readText("workbench.kit.show-all-states"), { attrs: act("clear-g") }) : "";
   const list = packs.length ? `<ul class="mw-items">${packs.map(packRow).join("")}</ul>` : `<p class="kit-inline-empty">${esc(readText("workbench.kit.no-matches"))}${clear}</p>`;
-  const right = pack ? (entry ? itemDetail(pack, entry) : packDetail(pack))
-    : renderEmpty({ icon: "search", title: readText("workbench.kit.no-matches"), body: readText("workbench.kit.try-other-search"), action: clear ? `<div class="kit-chips">${clear}</div>` : "" });
-  return { entry, html: `${summary(packs)}${onlyBuiltin()}<div class="mw-list-detail" data-sticky-detail${view.detail && pack ? " data-detail" : ""}><div class="mw-list-detail__body"><section class="mw-list-detail__list" aria-label="${esc(readText("workbench.kit.title"))}">${list}</section><section class="mw-list-detail__detail kit-detail${entering ? " is-entering" : ""}"${entry?.kind === "skill" ? " data-kit-skill" : ""} aria-label="${esc(readText(entry ? "workbench.kit.entry-detail" : "workbench.kit.title"))}">${right}</section></div></div>` };
+  const right = writing ?? (pack ? (entry ? itemDetail(pack, entry) : packDetail(pack))
+    : renderEmpty({ icon: "search", title: readText("workbench.kit.no-matches"), body: readText("workbench.kit.try-other-search"), action: clear ? `<div class="kit-chips">${clear}</div>` : "" }));
+  return { entry, html: `${summary(packs)}${onlyBuiltin()}<div class="mw-list-detail" data-sticky-detail${view.detail && (pack || writing) ? " data-detail" : ""}><div class="mw-list-detail__body"><section class="mw-list-detail__list" aria-label="${esc(readText("workbench.kit.title"))}">${list}</section><section class="mw-list-detail__detail kit-detail${entering ? " is-entering" : ""}"${entry?.kind === "skill" ? " data-kit-skill" : ""} aria-label="${esc(readText(entry ? "workbench.kit.entry-detail" : "workbench.kit.title"))}">${right}</section></div></div>` };
 }

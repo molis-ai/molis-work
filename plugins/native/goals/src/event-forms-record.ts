@@ -35,20 +35,14 @@ export function createRecordForms(primitives: GoalsDocumentUiPrimitives, shared:
   }
 
   function renderPlanning(doc: GoalEventDocumentView, owned = true): string {
-    const adopted = doc.state.config.adopted_planning;
-    const source = adopted.length
-      ? adopted.map((item) => `${item.source} · ${item.method_id} v${item.version}`).join("；")
-      : uiText.text("goals.event-forms-record.no-template-used-blank-start-does-not-silently");
     const types = doc.types.length
       ? `<ul class="planning-types">${doc.types.map((type) => `<li><div><strong>${escapeHtml(type.name)}</strong><small>${escapeHtml(type.purpose)} · v${type.version}</small></div>${owned ? `<span><button type="button" class="mw-btn mw-btn--secondary" data-event-report="${escapeHtml(type.type_id)}">${uiText("goals.event-forms-record.capture")}</button><button type="button" class="mw-btn mw-btn--link" data-event-form-open="type-edit" data-type-id="${escapeHtml(type.type_id)}">${uiText("goals.event-forms-record.change-version")}</button></span>` : ""}</li>`).join("")}</ul>`
       : `<p class="form-note">${owned ? uiText("goals.event-forms-record.there-no-event-type-record-yet") : uiText("goals.event-forms-record.no-event-types-available")}</p>`;
     return `<div class="event-reader-panel" data-event-panel="planning">
-      <p class="reader-lead">${escapeHtml(source)}</p>
       <h3>${uiText("goals.event-forms-record.recordable-types")}</h3>
       ${types}
       ${owned ? `<div class="event-actions">
         <button type="button" class="mw-btn mw-btn--secondary" data-event-reader="type">${uiText("goals.event-forms-record.new-event-type")}</button>
-        <button type="button" class="mw-btn mw-btn--secondary" data-event-form-open="adopt">${uiText("goals.event-forms-record.adopt-planning-method")}</button>
         ${doc.transfer.kind === "resume_cancelled" || doc.transfer.kind === "reopen_event_completed"
           ? `<button type="button" class="mw-btn mw-btn--primary" data-event-form-open="resume">${doc.transfer.kind === "resume_cancelled" ? uiText("goals.event-forms-record.resume-explicitly") : uiText("goals.event-forms-record.continue-goal")}</button>` : ""}
       </div>` : ""}
@@ -78,19 +72,6 @@ export function createRecordForms(primitives: GoalsDocumentUiPrimitives, shared:
     </form>`;
   }
 
-  function renderAdoptForm(doc: GoalEventDocumentView): string {
-    const methods = doc.planning_methods.filter((item) => item.enabled !== false);
-    const options = methods.map((item) => `<option value="${escapeHtml(item.method_id)}" data-version="${item.version}" data-source="${item.scope === "project" ? "project" : item.scope === "personal" ? "personal" : "built_in"}">${escapeHtml(item.name)} · ${escapeHtml(item.scope)} v${item.version}</option>`).join("");
-    const defaults = methods.flatMap((item) => item.default_requirements.map((req) => `<label class="check-row" data-adopt-method="${escapeHtml(item.method_id)}"${item.method_id === methods[0]?.method_id ? '' : ' hidden'}><input type="checkbox" name="adopt_default_requirement_ids" value="${escapeHtml(req.requirement_id)}"><span>${escapeHtml(item.name)} · ${escapeHtml(req.statement)}</span></label>`)).join("");
-    return `<form class="event-form mw-form" data-event-form="adopt" data-config-version="${doc.state.config.version}" data-agreement-version="${doc.state.agreement.version}" hidden>
-      <header class="event-form-heading"><button type="button" class="mw-btn mw-btn--link" data-event-reader="planning">${uiText("goals.event-forms-record.back-record-templates")}</button><h2>${uiText("goals.event-forms-record.adopt-planning-method")}</h2>
-      <p class="form-lead">${uiText("goals.event-forms-record.applies-only-current-goal-blank-start-does-not")}</p></header>
-      <div class="event-form-body"><label><span>${uiText("goals.event-forms-record.method")}</span><select name="method_id">${options || `<option value="">${uiText("goals.event-forms-record.no-method-available-choose")}</option>`}</select></label>
-      ${defaults ? `<fieldset><legend>${uiText("goals.event-forms-record.also-adopt-its-completion-requirements-optional")}</legend>${defaults}<p class="form-note" data-adopt-empty${methods[0]?.default_requirements.length ? ' hidden' : ''}>${uiText("goals.event-forms-record.plan-carries-no-preset-completion-requirements")}</p></fieldset>` : ""}</div>
-      <div class="event-form-bottom"><p class="event-form-status" data-form-status role="status" hidden></p><footer class="event-form-actions mw-form__footer"><button class="mw-btn mw-btn--secondary" type="button" data-event-back>${uiText("goals.event-forms-record.cancel")}</button><button class="mw-btn mw-btn--primary mw-btn--lg" type="submit"${methods.length ? '' : ' disabled'}>${uiText("goals.event-forms-record.adopt-into-current-goal")}</button></footer></div>
-    </form>`;
-  }
-
   function renderNoteForm(doc?: GoalEventDocumentView | null): string {
     return `<form class="event-form mw-form" data-event-form="note" hidden>
       <header class="event-form-heading"><h2>${uiText("goals.event-forms-record.note")}</h2>
@@ -108,7 +89,6 @@ export function createRecordForms(primitives: GoalsDocumentUiPrimitives, shared:
     renderPlanning,
     renderProgressForm,
     renderResumeForm,
-    renderAdoptForm,
     renderNoteForm,
   };
 }

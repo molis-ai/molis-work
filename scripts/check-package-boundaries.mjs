@@ -436,8 +436,6 @@ export function checkMigratedGoalsCommandOwnership(repositoryRoot) {
     "plugins/native/goals/src/module/lifecycle-commands.ts",
     "plugins/native/goals/src/module/planning/engine.ts",
     "plugins/native/goals/src/module/planning/goal-graph.ts",
-    "plugins/native/goals/src/module/planning/method-catalog.ts",
-    "plugins/native/goals/src/module/planning/method-packs.ts",
     "plugins/native/goals/src/module/query.ts",
     "plugins/native/goals/src/module/repository.ts",
     "plugins/native/goals/src/contract/goals.ts",
@@ -451,6 +449,12 @@ export function checkMigratedGoalsCommandOwnership(repositoryRoot) {
     "plugins/native/goals/src/module/lifecycle-revisions.ts",
     "plugins/native/goals/src/module/planning/decomposition-coverage.ts",
     "plugins/native/goals/src/module/planning/decomposition-validation.ts",
+    // Planning and breakdown methods are Skills of the platform's catalog (plugins/content/planning-methods), not Goals' (batch 41, 2026-11-14).
+    "plugins/native/goals/src/module/planning/method-catalog.ts",
+    "plugins/native/goals/src/module/planning/method-packs.ts",
+    "plugins/native/goals/src/module/planning/personal-methods.ts",
+    "plugins/native/goals/src/module/planning/event-adoption.ts",
+    "plugins/native/goals/src/home-plugin.ts",
   ]) {
     if (fs.existsSync(path.join(repositoryRoot, relativePath))) {
       errors.push(`${relativePath}: retired Goals write owner must stay deleted`);
@@ -470,36 +474,11 @@ export function checkMigratedGoalsCommandOwnership(repositoryRoot) {
       errors.push(`plugins/native/goals: migrated Goal commands require ${capability} capability`);
     }
   }
-  const moduleManifest = readJson(path.join(repositoryRoot, "plugins/native/goals/package.json"));
-  if (!moduleManifest.files?.includes("methods")) {
-    errors.push("plugins/native/goals/package.json: Planning method assets must ship with the Goals package");
-  }
-  const planningMethodAssets = filesUnder(
-    path.join(repositoryRoot, "plugins/native/goals/methods"),
-    (filePath) => path.extname(filePath) === ".md",
-  );
-  const methodSources = planningMethodAssets.filter(file => !file.endsWith(".en.md") && !file.endsWith("runtime.zh.md"));
-  const methodTranslations = new Set(planningMethodAssets.filter(file => file.endsWith(".en.md")));
-  if (methodSources.length !== 37 || methodTranslations.size !== methodSources.length + 1 ||
-      !methodSources.every(file => methodTranslations.has(file.replace(/\.md$/u, ".en.md"))) ||
-      !planningMethodAssets.includes(path.join(repositoryRoot, "plugins/native/goals/methods/runtime.zh.md")) ||
-      !methodTranslations.has(path.join(repositoryRoot, "plugins/native/goals/methods/runtime.en.md"))) {
-    errors.push("plugins/native/goals/methods: all 37 owned methods and their shared instruction template must ship in both languages");
-  }
-  const legacyPlanningMethodAssets = filesUnder(
-    path.join(repositoryRoot, "skills/goal-advance/methods"),
-    (filePath) => path.extname(filePath) === ".md",
-  );
-  if (legacyPlanningMethodAssets.length > 0) {
-    errors.push("skills/goal-advance/methods: source assets must not duplicate Goals-owned Planning methods");
-  }
-  const homeInstaller = read("apps/local-host/src/installer/home-release.ts");
-  if (
-    !hasInText(homeInstaller, '"molis-work-plugin-goals"')
-    || !hasInCode(homeInstaller, "skillMethodsDirectory")
-    || !hasInCode(homeInstaller, "fs.symlink(")
-  ) {
-    errors.push("apps/local-host/src/installer/home-release.ts: installed Molis Work Skill must link to packaged Goals method assets");
+  // The methods moved out of Goals; neither Goals nor the installed Skill carries a copy.
+  for (const directory of ["plugins/native/goals/methods", "skills/goal-advance/methods"]) {
+    if (filesUnder(path.join(repositoryRoot, directory), (filePath) => path.extname(filePath) === ".md").length > 0) {
+      errors.push(`${directory}: planning methods are the Skills of plugins/content/planning-methods and must not be copied here`);
+    }
   }
 
   const factMaterializerPath = "plugins/native/goals/src/goal-tree-fact-materializer.ts";
@@ -523,8 +502,8 @@ export function checkMigratedGoalsCommandOwnership(repositoryRoot) {
       || /GOALS_PROJECT_DATABASE|GOAL_BOARDS_SCHEMA_SQL|GOALS_SCHEMA_SQL|GOAL_INPUT_BINDINGS_SCHEMA_SQL|GOAL_EVENT_FACTS_SCHEMA_SQL|GOAL_EVENT_STATE_SCHEMA_SQL|GOVERNANCE_SCHEMA_SQL|molis-work-module-goals|molis-work-plugin-goals|molis-work-module-governance-collaboration/u.test(baselineSchema)) {
     errors.push("apps/local-host/src/project-database-schema.ts: the project database baseline must not compose Goals' or Governance's schema; Goals declares its tables in its Manifest (databases.project)");
   }
-  if (!matchesInCode(read("plugins/native/goals/src/manifest.ts"), /databases:\s*\{\s*project:\s*GOALS_PROJECT_DATABASE\s*(?:,\s*home:\s*GOALS_HOME_DATABASE\s*)?\}/u)) {
-    errors.push("plugins/native/goals/src/manifest.ts: Goals' Manifest must declare its project library tables (databases.project: GOALS_PROJECT_DATABASE, and its Home library as databases.home)");
+  if (!matchesInCode(read("plugins/native/goals/src/manifest.ts"), /databases:\s*\{\s*project:\s*GOALS_PROJECT_DATABASE\s*\}/u)) {
+    errors.push("plugins/native/goals/src/manifest.ts: Goals' Manifest must declare its project library tables (databases.project: GOALS_PROJECT_DATABASE)");
   }
 
   for (const relativePath of [

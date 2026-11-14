@@ -16,7 +16,6 @@ import { handleObservationShellHttp } from "./observation-shell-entry.js";
 import { bindLocalWebActions, invokeLocalWebCatalogAction } from "./local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { seedDemoHomeSamples } from "./demo-plugin-seed.js";
-import { bindPersonalPlanningWebActions } from "./personal-planning-actions.js";
 import { handleFunctionsHttp } from "./judgment-rules-http.js";
 import { handleModelSettingsHttp } from "./web-model-settings.js";
 import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
@@ -124,8 +123,6 @@ export const CATALOG_ROUTES: readonly WebRoute<CatalogRequestContext>[] = [
     response.end();
     return true;
   } },
-  { id: "personal-planning", handle: ({ request, response, url, serverOptions, projects, controlToken, localHost, composition }) =>
-    composition.planningHttp.personal(request, response, url, serverOptions.homeDirectory, projects, controlToken, bindPersonalPlanningWebActions(localHost, request)) },
   { id: "model-settings", handle: ({ request, response, url, serverOptions, composition }) => handleModelSettingsHttp(request, response, url, composition.withCatalog, serverOptions.homeDirectory) },
   { id: "settings-page", handle: handleSettingsPage },
   { id: "plugin-settings-page", handle: handlePluginSettingsPage },

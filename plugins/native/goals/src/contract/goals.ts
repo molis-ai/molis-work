@@ -6,12 +6,6 @@ export interface GoalContextSnapshot {
   /** Only this Goal's cursor belongs in its context; unrelated project events do not. */
   state: Omit<GoalEventStateView, "observed_event_cursor">;
 }
-import type {
-  GoalEventAdoptedPlanningRequest,
-  GoalEventTypeDefinitionInput,
-  PlanningMethodDefaultRequirement,
-  ResolvedPlanningEventAdoption,
-} from "./goal-events.js";
 
 export type GoalDefinitionState = "draft" | "accepted";
 export type GoalDecompositionState =
@@ -161,86 +155,6 @@ export interface GoalRelationRecord {
   deactivated_at: string | null;
 }
 
-export type PlanningMethodScope = "built_in" | "personal" | "project";
-export type PlanningMethodKind =
-  | "meta"
-  | "work_type"
-  | "domain"
-  | "industry"
-  | "overlay"
-  | "custom";
-
-export interface PlanningCoverageRule {
-  area: string;
-  label: string;
-  question: string;
-}
-
-export interface PlanningDependencyRule {
-  rule_id: string;
-  statement: string;
-  direction_hint: string;
-}
-
-export interface PlanningMethodPack {
-  method_id: string;
-  version: number;
-  scope: PlanningMethodScope;
-  kind: PlanningMethodKind;
-  name: string;
-  summary: string;
-  /** Complete Runtime-facing guidance; structured fields support UI and checks. */
-  instructions: string;
-  applies_to: string[];
-  domain_tags: string[];
-  steps: string[];
-  required_coverage: PlanningCoverageRule[];
-  dependency_rules: PlanningDependencyRule[];
-  evidence_requirements: string[];
-  completion_checks: string[];
-  failure_modes: string[];
-  source_refs: string[];
-  confidence: number;
-  enabled: boolean;
-  created_at: string;
-  updated_at: string;
-  event_types: GoalEventTypeDefinitionInput[];
-  default_requirements: PlanningMethodDefaultRequirement[];
-}
-
-export type PlanningMethodPackInput = Omit<
-  PlanningMethodPack,
-  "scope" | "version" | "created_at" | "updated_at" | "instructions" | "event_types" | "default_requirements"
-> & {
-  version?: number;
-  instructions?: string;
-  event_types?: GoalEventTypeDefinitionInput[];
-  default_requirements?: PlanningMethodDefaultRequirement[];
-};
-
-export interface ResolvedPlanningMethodPack extends PlanningMethodPack {
-  overridden_scopes: PlanningMethodScope[];
-}
-
-export interface PlanningMethodPath {
-  method_id: string;
-  method_name: string;
-  kind: PlanningMethodKind;
-  steps: string[];
-  instructions: string;
-}
-
-export interface PlanningMethodComposition {
-  method_pack_ids: string[];
-  method_names: string[];
-  method_paths: PlanningMethodPath[];
-  required_coverage: PlanningCoverageRule[];
-  dependency_rules: PlanningDependencyRule[];
-  evidence_requirements: string[];
-  completion_checks: string[];
-  failure_modes: string[];
-}
-
 /** Structural input only; Proposal and Decision persistence remain Governance-owned. */
 export interface PlanningProposalItem {
   item_id?: string;
@@ -290,27 +204,10 @@ export interface GoalChangeImpact {
   graph_issues: PlanningGraphIssue[];
 }
 
-export interface SaveProjectPlanningMethodInput {
-  project_id: string;
-  method: PlanningMethodPackInput;
-  actor_id: string;
-  user_confirmed: boolean;
-}
-
 export interface GoalsPlanningApi {
   validateRelationAddition(projectId: string, input: AddGoalRelationInput): Pick<PlanningGraphIssue, "code" | "message"> | null;
   proposalGraphIssues(projectId: string, items: readonly PlanningProposalItem[]): PlanningGraphIssue[];
   wouldCreatePartOfCycle(projectId: string, fromGoalId: string, toGoalId: string): boolean;
-  effectiveMethods(projectId: string, locale?: string): PlanningMethodPack[];
-  projectComposition(projectId: string): PlanningMethodComposition;
-  saveProjectMethod(input: SaveProjectPlanningMethodInput): {
-    method: PlanningMethodPack;
-    observed_event_cursor: number;
-  };
-  resolveEventAdoption(
-    projectId: string,
-    requested: GoalEventAdoptedPlanningRequest[],
-  ): ResolvedPlanningEventAdoption;
   analyzeChange(projectId: string, changedGoalIds: readonly string[]): GoalChangeImpact;
   validateBoardGraph(projectId: string): {
     issues: PlanningGraphIssue[];
@@ -446,7 +343,6 @@ export interface GoalsQuerySnapshot {
   goals: GoalRecord[];
   relations: GoalRelationRecord[];
   policy_bindings: GoalPolicyBindingRecord[];
-  planning_method_packs: PlanningMethodPack[];
   project_guidance: ProjectGuidanceEntryRecord[];
 }
 
@@ -629,8 +525,6 @@ export type {
   GoalEventAcknowledgementReference,
   GoalEventAcknowledgementTreatment,
   GoalEventAcknowledgementsApi,
-  GoalEventAdoptedPlanningRef,
-  GoalEventAdoptedPlanningRequest,
   GoalEventAgreementChange,
   GoalEventAgreementResult,
   GoalEventAgreementView,
@@ -676,7 +570,6 @@ export type {
   GoalEventListPage,
   GoalEventListQuery,
   GoalEventMutationResult,
-  GoalEventPlanningMethodRef,
   GoalEventProgressResult,
   GoalEventProgressSummaryView,
   GoalProgressArtifactSource,
@@ -716,7 +609,6 @@ export type {
   GoalSystemWorkEventRecord,
   GoalWorkEventJudgment,
   GoalWorkEventRecord,
-  PlanningMethodDefaultRequirement,
   RecordGoalNoteInput,
   RecordGoalProgressSummaryInput,
   RecordGoalUserDecisionInput,
@@ -727,7 +619,6 @@ export type {
   ReportGoalWorkEventInput,
   RequestGoalDecisionInput,
   GoalCitedSubject,
-  ResolvedPlanningEventAdoption,
   ResumeGoalEventWorkInput,
   SetGoalEventAgreementInput,
   SubmitGoalEventClosureInput,
@@ -766,7 +657,6 @@ export interface BoardSnapshot {
   board: GoalsBoardRecord;
   goals: GoalRecord[];
   relations: GoalRelationRecord[];
-  planning_method_packs: PlanningMethodPack[];
   project_guidance: ProjectGuidanceEntryRecord[];
   goal_tree_proposals: GoalTreeProposalRecord[];
 }

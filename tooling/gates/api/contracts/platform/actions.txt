@@ -851,6 +851,8 @@ export interface ActionSkillRound {
     readonly consumer: "assistant" | "coding" | "agent";
     readonly named: readonly SkillRef[];
     readonly engine?: "builtin" | "local";
+    readonly round?: string;
+    readonly auto?: false;
 }
 
 export interface ActionSubject {

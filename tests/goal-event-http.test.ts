@@ -14,6 +14,7 @@ import { openTestHome, serveTestHost } from "./fixtures/test-home.js";
 import { goalsActions, hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
 import { GoalProjectApplication, goalApplicationOf, boardSnapshot } from "./fixtures/goal-application.js";
 import type { ReviewRequest } from "@molis-ai/molis-work-contracts/platform/ui";
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ProjectTrustedDecision } from "@molis-ai/molis-work-contracts/services/project-approvals";
 import { prepareWebReview, webGoalReviews } from "./fixtures/project-review-entry.js";
 
@@ -44,7 +45,6 @@ test("HTTP event APIs persist intent, blank planning, typed reports, decisions a
   });
   const goalId = created.goal.goal_id;
   const blank = app.goalEvents.readState(BOARD, goalId);
-  assert.equal(blank.config.adopted_planning.length, 0);
   assert.equal(blank.config.types.length, 0);
   app.goalEvents.configure({
     project_id: BOARD, goal_id: goalId, actor_id: "web-user", actor_kind: "user",
@@ -337,7 +337,9 @@ test("HTTP writes persist typed reports, scoped concerns and closure through the
         effects: [{ kind: "accept_requirements" }, { kind: "accept_concerns" }],
         scope: { requirement_ids: ["need"], concern_ids: [concernBody.concern.concern_id] },
     });
-    const decided = (await reviews.submit<{ decision: { decision_id: string } }>(command)).result!;
+    const decided = (await reviews.submit<{ decision: { decision_id: string; authority_source: string; actor_id: string } }>(command)).result!;
+    assert.equal(decided.decision.authority_source, "web");
+    assert.equal(decided.decision.actor_id, LOCAL_PERSON_ACTOR_ID);
     const accept = await fetchProject(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/event-concern`, {
       method: "POST",
       headers: { ...headers, "x-molis-work-idempotency-key": "http-accept" },

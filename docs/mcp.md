@@ -57,7 +57,7 @@ Web 是可选查看和用户确认界面，不是连接项目或推进 Goal 的�
 | 普通记录与历史 | `goals.note`、`goals.events.configure`、`goals.events.report`、`goals.progress.record`、`goals.events.acknowledge`（读到本人的笔记、要求或决定后说明怎么处理；只给 MCP 与助理、Agent）、`goals.events.list`、`goals.events.read` |
 | 约定、决定与收尾 | `goals.concerns.apply`、`goals.decisions.request`、`goals.decisions.cite`、`goals.agreement.set`、`goals.closure.submit`、`goals.work.resume` |
 | 结构提案 | `goals.tree.submit`、`goals.tree.read`、`goals.tree.check` |
-| 按需规划 | `goals.planning.catalog`（不含正文的目录）、`goals.planning.read`（可按 `method_ids` 读正文）、`goals.planning.save`、`goals.planning.impact`、`goals.planning.graph.check` |
+| 图检查与影响 | `goals.planning.impact`、`goals.planning.graph.check`（规划方法是技能目录里的技能，由 Molis Work 里的助理和 Coding 按任务选用；技能目录的动作不是 MCP 工具，外部 Runtime 读不到） |
 | 项目指导 | `goals.guidance.read`、`goals.guidance.add`、`goals.guidance.update` |
 | 回收站 | `goals.trash.set`（`trashed` 为真移入、为假恢复）、`goals.trash.list` |
 

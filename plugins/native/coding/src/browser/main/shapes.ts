@@ -146,6 +146,8 @@ export interface RunView {
   readonly step_board?: { terminal: boolean; nodes: { state: string }[] };
   readonly cards?: readonly RunCard[];
   readonly next_html?: string;
+  /** The round's Skill line (SKL-11), drawn by the Host: what it used and who chose each. */
+  readonly skills_html?: string;
   readonly started_at?: string | null;
   readonly ended_at?: string | null;
   /** Set on the summary of a round the page has not opened. */

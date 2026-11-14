@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
-import { goalsApprovalTransferManifest, goalsManifest } from "@molis-ai/molis-work-plugin-goals";
+import { goalsApprovalTransferManifest, GOALS_PROJECT_DATABASE, goalsManifest } from "@molis-ai/molis-work-plugin-goals";
 import { MolisWorkLocalHost, PROJECT_DATABASE_BASELINE, PROJECT_DATABASE_VERSION_3_SCHEMA, molisWorkHostProjectReference,
   pluginSyncDatabaseDeclaration, pluginSyncNamespace, projectApprovalUpgrade, runHomeUpgrade } from "@molis-ai/molis-work-app-local-host";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -20,10 +20,9 @@ const project = "p-old";
 const time = "2026-11-12T10:30:00Z";
 const baseline = PROJECT_DATABASE_BASELINE;
 const inspector = { scratch: () => new LocalSqliteStorage(":memory:").db, objects: listSqliteObjects, shape: describeSqliteSchema };
-const prior = (version: 1 | 2 | 3) => goalsApprovalTransferManifest(goalsManifest, version);
 const tables = (db: ReturnType<typeof inspector.scratch>) => listSqliteObjects(db).filter(row => row.type === "table").map(row => row.name);
 
-function library(t: TestContext, version?: 1 | 2 | 3, location?: { path: string; projectId: string; space: StorageSpace }) {
+function library(t: TestContext, version?: 1 | 2 | 3 | 4, location?: { path: string; projectId: string; space: StorageSpace }) {
   const dir = location ? null : mkdtempSync(join(tmpdir(), "molis-project-approval-v3-"));
   const path = location?.path ?? join(dir!, "isolated-project.db"), project = location?.projectId ?? "p-old";
   const storage = new LocalSqliteStorage(path);
@@ -34,7 +33,7 @@ function library(t: TestContext, version?: 1 | 2 | 3, location?: { path: string;
   db.prepare("INSERT INTO project_root(project_id, created_at) VALUES (?, ?)").run(project, time);
   const platformTables = tables(db);
   if (!version) return { path, db, storage, platformTables };
-  const manifest = prior(version), declaration = manifest.databases!.project!;
+  const manifest = goalsApprovalTransferManifest(goalsManifest, version), declaration = manifest.databases!.project!;
   const old = pluginSyncNamespace(manifest, "project_goals");
   openPluginProjectDatabase(db, { plugin_id: manifest.plugin_id, publisher_signature: manifest.publisher.signature, declaration }, inspector,
     { path, platformSchema: pluginSyncDatabaseDeclaration(manifest, declaration).schema.slice(declaration.schema.length),
@@ -64,7 +63,8 @@ function library(t: TestContext, version?: 1 | 2 | 3, location?: { path: string;
     ('object-rule',?,'goal','goal','{"human_approval":true}','active','local-person','Goal required',?)`).run(project,time,project,time,project,time);
   db.prepare(`INSERT INTO goal_event_concerns(concern_id,project_id,goal_id,event_id,title,statement,scope_json,blocks_closure,status,created_at,updated_at)
     VALUES ('concern',?,'goal','warning','Risk','Reason','{}',0,'open',?,?)`).run(project,time,time);
-  if (version === 3) db.prepare("UPDATE goal_event_concerns SET cited_subjects_json=? WHERE concern_id='concern'").run('[{"kind":"risk","id":"risk-1"}]');
+  if (version >= 3) db.prepare("UPDATE goal_event_concerns SET cited_subjects_json=? WHERE concern_id='concern'").run('[{"kind":"risk","id":"risk-1"}]');
+  if (version < 4) db.prepare("INSERT INTO planning_method_packs VALUES (?,'old-method',1,1,'{}',?,?)").run(project,time,time);
   db.prepare(`UPDATE ${old}_context SET project_id=? WHERE id=1`).run(project);
   db.prepare(`UPDATE ${old}_replica_state SET cursor=40 WHERE id=1`).run();
   db.prepare(`INSERT INTO ${old}_replica_outbox VALUES ('old-key',12,'pending original send')`).run();
@@ -72,11 +72,11 @@ function library(t: TestContext, version?: 1 | 2 | 3, location?: { path: string;
   return { path, db, storage, platformTables, old };
 }
 
-test("APR-19 and APR-17 the normal Home upgrade reopens a v3 project with its approval rules and historical proposal decision", { timeout: 30_000 }, async t => {
+test("APR-19 and APR-17 the normal Home upgrade reopens a v3 project with v4 Goals approval rules and a historical proposal decision", { timeout: 30_000 }, async t => {
   await t.test("upgraded project and receipt", async test => {
     const { home, project: registered } = await catalogHome(t), path = registered.database_path, projectId = registered.project_id;
     for (const filename of [path, path + "-wal", path + "-shm"]) rmSync(filename, { force: true });
-    const before = library(test, 3, { path, projectId, space: readStorageSpace(home)! });
+    const before = library(test, 4, { path, projectId, space: readStorageSpace(home)! });
     before.storage.close();
     runHomeUpgrade(home);
     const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
@@ -135,16 +135,17 @@ test("APR-19 and APR-17 the normal Home upgrade reopens a v3 project with its ap
   });
 });
 
-test("APR-19 moves v1–v3 approvals in the project upgrade transaction and preserves the old sync receipt in a backup", async t => {
-  for (const version of [1, 2, 3] as const) {
+test("APR-19 moves v1–v4 approvals to Goals v5 in the project upgrade transaction and preserves the old sync receipt in a backup", async t => {
+  for (const version of [1, 2, 3, 4] as const) {
     const { db, path, storage, old, platformTables } = library(t, version);
     const source = db.prepare("SELECT * FROM goal_event_trusted_decisions").get();
     const backup = path + ".before";
     await db.backup(backup);
     assert.deepEqual(runSqliteUpgrade(db, path, baseline), { from: 3, to: 4 });
-    assert.equal(db.prepare<[string], { version: number }>("SELECT version FROM plugin_project_databases WHERE plugin_id=?").get(goalsManifest.plugin_id)?.version, 4);
+    assert.equal(db.prepare<[string], { version: number }>("SELECT version FROM plugin_project_databases WHERE plugin_id=?").get(goalsManifest.plugin_id)?.version, 5);
     assert.equal(tables(db).some(name => name.startsWith(old! + "_")), false);
-    assert.equal(tables(db).some(name => ["goal_event_trusted_decisions","goal_tree_proposal_decisions","policy_bindings"].includes(name)), false);
+    assert.equal(tables(db).some(name => ["goal_event_trusted_decisions","goal_tree_proposal_decisions","policy_bindings","planning_method_packs"].includes(name)), false);
+    assert.equal(db.prepare("SELECT name FROM pragma_table_info('goal_event_config_versions') WHERE name = 'adopted_planning_json'").get(), undefined);
     const historical = projectReviewDecisions(db, project).read("decision-event")!;
     assert.ok("kind" in historical && historical.kind === "history");
     assert.deepEqual(historical.original, source);
@@ -154,7 +155,7 @@ test("APR-19 moves v1–v3 approvals in the project upgrade transaction and pres
     assert.equal(dialogue.original.item_id, "item");
     assert.equal(db.prepare<[], { governance_decision_id: string }>("SELECT governance_decision_id FROM goal_event_applied_decisions WHERE decision_id='applied'").get()?.governance_decision_id, historical.decision_id);
     assert.equal(db.prepare<[], { cited_subjects_json: string }>("SELECT cited_subjects_json FROM goal_event_concerns WHERE concern_id='concern'").get()?.cited_subjects_json,
-      version === 3 ? '[{"kind":"risk","id":"risk-1"}]' : "[]");
+      version >= 3 ? '[{"kind":"risk","id":"risk-1"}]' : "[]");
     const rules = projectApprovalRules(db, project).read();
     assert.deepEqual(rules.rules.map(rule => [rule.id, rule.reason]), [["first","Original"],["second","Reconsidered"],["object-rule","Goal required"]]);
     assert.equal(approvalRequiresPerson(rules), false);
@@ -163,7 +164,7 @@ test("APR-19 moves v1–v3 approvals in the project upgrade transaction and pres
     assert.equal(approvalRequiresPerson(rules, scoped), true);
     assert.equal(approvalRequiresPerson(rules, { ...scoped, subject: { ...scoped.subject, id: "another-goal" } }), true);
     assert.equal(approvalRequiresPerson(rules, { ...scoped, owner: { kind: "plugin", plugin_id: "third-party", publisher_signature: "other" } }), false);
-    const selected = goalsApprovalTransferManifest(goalsManifest, 4), decl = selected.databases!.project!;
+    const selected = goalsApprovalTransferManifest(goalsManifest, GOALS_PROJECT_DATABASE.version), decl = selected.databases!.project!;
     const namespace = pluginSyncNamespace(selected, "project_goals");
     assert.equal(db.prepare<[], { cursor: number }>(`SELECT cursor FROM ${namespace}_replica_state WHERE id=1`).get()?.cursor, 0);
     const platform = new LocalSqliteStorage(":memory:");
@@ -172,7 +173,7 @@ test("APR-19 moves v1–v3 approvals in the project upgrade transaction and pres
       platformTriggers: sqliteBaselineTriggers(baseline.schema),
       platformExtension: () => ({ platformSchema: pluginSyncDatabaseDeclaration(selected, decl).schema.slice(decl.schema.length),
         platformPrelude: PROJECT_DATABASE_BASELINE.schema }) };
-    assert.equal(inspectPluginProjectDatabaseSet(db, audit, inspector, path)[0]?.version, 4);
+    assert.equal(inspectPluginProjectDatabaseSet(db, audit, inspector, path)[0]?.version, 5);
     storage.close();
     const restored = new LocalSqliteStorage(path, { readonly: true }), original = new LocalSqliteStorage(backup, { readonly: true });
     try {
@@ -180,6 +181,7 @@ test("APR-19 moves v1–v3 approvals in the project upgrade transaction and pres
       assert.equal(original.db.prepare<[], { cursor: number }>(`SELECT cursor FROM ${old}_replica_state`).get()?.cursor, 40);
       assert.equal(original.db.prepare<[], { operation: string }>(`SELECT operation FROM ${old}_replica_outbox`).get()?.operation, "pending original send");
       assert.equal(original.db.prepare<[], { event: string }>(`SELECT event FROM ${old}_replica_conflicts`).get()?.event, "original competing update");
+      if (version < 4) assert.ok(original.db.prepare("SELECT 1 FROM planning_method_packs WHERE method_id='old-method'").get());
     } finally { restored.close(); original.close(); }
   }
 });
@@ -197,7 +199,7 @@ test("APR-19 keeps the complete old owner and schema on late failure, wrong publ
       UPDATE plugin_project_databases SET version=99; END;`,
     "injected write failure",
   ]) {
-    const { db, path, old } = library(t, 3);
+    const { db, path, old } = library(t, 4);
     const late = bad === "injected write failure";
     if (!late) db.exec(bad);
     const snapshot = () => ({ shape: describeSqliteSchema(db), ledger: db.prepare("SELECT * FROM plugin_project_databases").all(),

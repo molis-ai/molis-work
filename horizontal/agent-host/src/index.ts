@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { agentBodyIn } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 export {readSavedAgentHistory,savedAgentHistoryView,type PrologueSavedHistoryPort,type SavedHistoryOwner} from './adapters/prologue-saved-history.js';
 import { trustedOriginalInput } from "./original-inputs.js";
@@ -395,7 +396,9 @@ export class AgentHost implements AgentHostApi {
     const memory = authority.memory ? await authority.memory(request.task, character ? { character: { artifact_id: character.reference.artifact_id, title: character.title } } : {}).catch(() => null) : null;
     // What the round's own tool calls to `system.skills` read as: the frozen consumer and named list (§2.3). Only the Host's calls carry it,
     // and only where the composition asks for `system.skills`; a tool call into any other plugin's action never does (§2.6, S-skill-delegation).
-    const skillRound: ActionSkillRound = { consumer: workspace === "required" ? "coding" : "agent", named: structuredClone(authority.skillCatalog?.named ?? []) };
+    const skillRound: ActionSkillRound = { consumer: workspace === "required" ? "coding" : "agent", named: structuredClone(authority.skillCatalog?.named ?? []),
+      // This round's number for the catalog's count of its own picks (SKL-02), and the person's 「这次不用技能」 when they asked for it.
+      round: randomUUID(), ...(request.auto_skills === false ? { auto: false as const } : {}) };
     const source = { adapter, runtimeId, authority, session: session.session, validateCharacter, execution, skillRound, memory };
     const actions = await frozenActions(source, actionRefs, character);
     const gateway = request.action_gateway ? await frozenGateway(source, workspace) : undefined;

@@ -13,7 +13,7 @@ import { projectApprovalRules, projectReviewDecisions } from "@molis-ai/molis-wo
 import { goalsManifest, readGoalApprovalOutcome } from "@molis-ai/molis-work-plugin-goals";
 import {
   createGoalsApplication, GOALS_PLUGIN_ID, GoalInputBindings, GoalsModule, GovernanceCollaborationModule, GovernanceEventDecisions, GovernanceProvenance, readMolisWorkSnapshot,
-  type GoalsApplication, type PlanningMethodPack,
+  type GoalsApplication,
 } from "./goals-modules.js";
 import { goalsSqlite, governanceSqlite } from "./governance-sqlite.js";
 
@@ -112,7 +112,6 @@ export class GoalProjectApplication {
   constructor(
     readonly store: LocalProjectDatabase,
     private readonly clock: () => Date = () => new Date(),
-    private readonly personalPlanningMethodPacks: readonly PlanningMethodPack[] | (() => readonly PlanningMethodPack[]) = [],
     /** Writes the way the plugin does (events, receipts and ledger edges under Goals' own names), so a Host that runs the plugin over this library reads them. */
     readonly owned = true,
   ) {
@@ -127,7 +126,7 @@ export class GoalProjectApplication {
     let goalsModule!: GoalsModule;
     goalsModule = new GoalsModule(goalsSqlite(this.store.db), journal,
       { validateRelationGraph: (projectId, input) => goalsModule.planning.validateRelationAddition(projectId, input) },
-      { now: this.clock, personalPlanningMethodPacks: this.personalPlanningMethodPacks,
+      { now: this.clock,
         approvalRules: (project, history) => projectApprovalRules(store.db, project).read(history, approvalOwner).rules,
         deliverables: (_projectId, goalId) => this.confirmedDeliverables.get(goalId) ?? [] });
     this.goalsModule = goalsModule;

@@ -45,21 +45,6 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `      const surfaceLink = target.
       }
       if (handleMomentumSelectionClick(target, event)) return;
       if (handleMomentumZoomClick(target)) return;
-      const planningLink = target.closest("[data-goal-work-planning] a[href]");
-      if (planningLink && !planningLink.closest(".work-planning") && !(event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button === 1)) {
-        const url = new URL(planningLink.href, location.origin);
-        const prefix = document.body.dataset.routePrefix || "";
-        if (url.origin === location.origin && url.pathname.startsWith(prefix + "/settings/planning")) {
-          event.preventDefault();
-          const nested = url.pathname !== prefix + "/settings/planning";
-          void openGoalWorkPlanning(nested ? url.pathname + url.search : prefix + "/settings/planning?embed=1");
-          return;
-        }
-      }
-      if (target.closest("[data-open-work-planning]")) {
-        void openGoalWorkPlanning();
-        return;
-      }
       const goalLink = target.closest("[data-select-goal]");
       if (goalLink) {
         if (goalLink.closest("[data-goal-stage-list]")) {

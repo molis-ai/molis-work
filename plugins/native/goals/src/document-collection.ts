@@ -63,7 +63,7 @@ export function emptyGoalsDocumentCollection(projectId: string): GoalsDocumentCo
   const at = new Date(0).toISOString();
   return {
     snapshot: { cursor: 0, board: { project_id: projectId, active_goal_id: null, created_at: at, updated_at: at }, goals: [], relations: [],
-      planning_method_packs: [], project_guidance: [], goal_tree_proposals: [] },
+      project_guidance: [], goal_tree_proposals: [] },
     active_goal_id: null, goals: [], archived_goals: [], trashed_goals: [],
     counts: Object.fromEntries(GOALS_PRESENTATION_STATES.map(status => [status, 0])) as Record<GoalPresentationState, number>,
     input_bindings: [], events: [],

@@ -230,7 +230,7 @@ ${GOALS_DELIVERABLES_SCRIPT}
 
     const formPath = (kind) => ({
       report: "/event-report", note: "/event-note", type: "/event-configure", "type-edit": "/event-configure",
-      requirement: "/event-agree", adopt: "/event-configure", progress: "/event-progress",
+      requirement: "/event-agree", progress: "/event-progress",
       concern: "/event-concern", decision: "/event-decision", closure: "/event-close",
       resume: "/event-resume", agreement: "/event-agree",
     }[kind] || "/event-report");
@@ -264,16 +264,6 @@ ${GOALS_DELIVERABLES_SCRIPT}
             bound_type_id: text("bound_type_id") || undefined,
             human_decision_required: q(form, '[name="human_decision_required"]')?.checked === true,
           }],
-        };
-      }
-      if (kind === "adopt") {
-        const selected = q(form, '[name="method_id"] option:checked');
-        const defaults = checkedValues(form, "adopt_default_requirement_ids");
-        return {
-          expected_version: Number(form.dataset.configVersion || article.dataset.configVersion || 0),
-          ...(defaults.length ? { expected_agreement_version: Number(form.dataset.agreementVersion || article.dataset.agreementVersion || 0) } : {}),
-          adopted_planning: text("method_id") ? [{ method_id: text("method_id"), version: Number(selected?.dataset.version || 1), source: selected?.dataset.source || "built_in" }] : [],
-          adopt_default_requirement_ids: defaults,
         };
       }
       if (kind === "progress") return { summary: text("summary"), next_step: text("next_step") || undefined, next_actor: text("next_actor") || undefined, based_on_cursor: Number(data.get("based_on_cursor") || article.dataset.goalEventCursor || 0) };
@@ -691,15 +681,6 @@ ${GOALS_DELIVERABLES_SCRIPT}
         const verdict = q(form, "[data-judgment-verdict]");
         verdict.disabled = !input.value; verdict.closest("label").hidden = !input.value;
         if (!input.value) verdict.value = "";
-      }
-      if (form.dataset.eventForm === "adopt" && input.name === "method_id") {
-        let count = 0;
-        form.querySelectorAll("[data-adopt-method]").forEach(row => {
-          row.hidden = row.dataset.adoptMethod !== input.value;
-          const checkbox = q(row, "input"); checkbox.disabled = row.hidden;
-          if (row.hidden) checkbox.checked = false; else count++;
-        });
-        const empty = q(form, "[data-adopt-empty]"); if (empty) empty.hidden = count > 0;
       }
       if (form.dataset.eventForm === "concern" && (input.name === "concern_id" || input.name === "action" || input.name === "cited_decision_id")) {
         const existing = Boolean(q(form, '[name="concern_id"]')?.value);

@@ -530,14 +530,8 @@
     "action.goals.inputs.release": 1,
     "action.goals.list": 1,
     "action.goals.note": 1,
-    "action.goals.planning.apply": 1,
-    "action.goals.planning.catalog": 1,
     "action.goals.planning.graph.check": 1,
     "action.goals.planning.impact": 1,
-    "action.goals.planning.personal.list": 1,
-    "action.goals.planning.personal.save": 1,
-    "action.goals.planning.read": 1,
-    "action.goals.planning.save": 1,
     "action.goals.policy.resolve": 1,
     "action.goals.presentation.overview": 1,
     "action.goals.presentation.values": 1,
@@ -970,6 +964,10 @@
     "action.shelf.snapshot": 1,
     "action.shelf.subject.read": 1,
     "action.shelf.terminal.open": 1,
+    "action.skills.authored.draft": 1,
+    "action.skills.authored.read": 1,
+    "action.skills.authored.remove": 1,
+    "action.skills.authored.save": 1,
     "action.skills.body.read": 1,
     "action.skills.catalog.list": 1,
     "action.skills.import.confirm": 1,
@@ -1097,8 +1095,7 @@
     "database.feed_project_database": 2,
     "database.form_database": 1,
     "database.functions_store_baseline": 1,
-    "database.goals_home_database": 1,
-    "database.goals_project_database": 4,
+    "database.goals_project_database": 5,
     "database.home.catalog": 4,
     "database.home_plugin_runtime_baseline": 1,
     "database.images_database": 1,
@@ -1246,43 +1243,6 @@
     "method.design-accessibility.design-handoff": 1,
     "method.design-accessibility.design-system": 1,
     "method.design-accessibility.ux-copy": 1,
-    "method.goals.domain-ai-data-product": 2,
-    "method.goals.domain-app-product": 2,
-    "method.goals.domain-brand-communication": 2,
-    "method.goals.domain-customer-success-service": 2,
-    "method.goals.domain-data-analysis": 2,
-    "method.goals.domain-game-design": 2,
-    "method.goals.domain-growth-distribution": 2,
-    "method.goals.domain-market-analysis": 2,
-    "method.goals.domain-operations-organization": 2,
-    "method.goals.domain-pricing-monetization": 2,
-    "method.goals.domain-product-ux": 2,
-    "method.goals.domain-reliability-release": 2,
-    "method.goals.domain-research-content": 2,
-    "method.goals.domain-security-privacy": 2,
-    "method.goals.domain-software-development": 2,
-    "method.goals.industry-banking-payments": 2,
-    "method.goals.industry-developer-tools": 2,
-    "method.goals.industry-ecommerce": 2,
-    "method.goals.industry-education": 2,
-    "method.goals.industry-enterprise-saas": 2,
-    "method.goals.industry-games": 2,
-    "method.goals.industry-healthcare": 2,
-    "method.goals.industry-investing-wealth": 2,
-    "method.goals.meta-domain-pack-builder": 2,
-    "method.goals.overlay-ai-human-review": 2,
-    "method.goals.overlay-marketplace": 2,
-    "method.goals.overlay-minors": 2,
-    "method.goals.overlay-payments-assets": 2,
-    "method.goals.overlay-sensitive-data-privacy": 2,
-    "method.goals.overlay-ugc-trust-safety": 2,
-    "method.goals.work-analyze-decide": 2,
-    "method.goals.work-build-change": 2,
-    "method.goals.work-content-communication": 2,
-    "method.goals.work-design-plan": 2,
-    "method.goals.work-diagnose-fix": 2,
-    "method.goals.work-migrate-refactor": 2,
-    "method.goals.work-operate-process": 2,
     "method.issues-capture": 2,
     "method.meeting-notes": 2,
     "method.risk-review": 1,
@@ -1328,7 +1288,7 @@
     "prompt.coding-reviewer": 2,
     "prompt.coding-writer": 2,
     "prompt.coding-writers": 2,
-    "prompt.coding.auto-skill-catalog": 1,
+    "prompt.coding.auto-skill-catalog": 2,
     "prompt.coding.commit-draft": 2,
     "prompt.coding.history-summary": 1,
     "prompt.cognia-evidence": 2,
@@ -1384,6 +1344,7 @@
     "prompt.shelf.translate.ja": 2,
     "prompt.shelf.translate.ko": 2,
     "prompt.shelf.translate.zh": 2,
+    "prompt.skills.draft": 1,
     "prompt.task": 1,
     "prompt.todo-organizer": 2,
     "prompt.todo.organize.basic": 2,
@@ -1593,7 +1554,45 @@
     "action.work-brief.search.entries": 1,
     "action.work-brief.artifacts.preview": 1,
     "database.work_brief_database": 1,
-    "artifact.io.molis.work.work-brief.brief": 1
+    "artifact.io.molis.work.work-brief.brief": 1,
+    "method.planning-methods.domain-ai-data-product": 1,
+    "method.planning-methods.domain-app-product": 1,
+    "method.planning-methods.domain-brand-communication": 1,
+    "method.planning-methods.domain-customer-success-service": 1,
+    "method.planning-methods.domain-data-analysis": 1,
+    "method.planning-methods.domain-game-design": 1,
+    "method.planning-methods.domain-growth-distribution": 1,
+    "method.planning-methods.domain-market-analysis": 1,
+    "method.planning-methods.domain-operations-organization": 1,
+    "method.planning-methods.domain-pricing-monetization": 1,
+    "method.planning-methods.domain-product-ux": 1,
+    "method.planning-methods.domain-reliability-release": 1,
+    "method.planning-methods.domain-research-content": 1,
+    "method.planning-methods.domain-security-privacy": 1,
+    "method.planning-methods.domain-software-development": 1,
+    "method.planning-methods.industry-banking-payments": 1,
+    "method.planning-methods.industry-developer-tools": 1,
+    "method.planning-methods.industry-ecommerce": 1,
+    "method.planning-methods.industry-education": 1,
+    "method.planning-methods.industry-enterprise-saas": 1,
+    "method.planning-methods.industry-games": 1,
+    "method.planning-methods.industry-healthcare": 1,
+    "method.planning-methods.industry-investing-wealth": 1,
+    "method.planning-methods.meta-domain-pack-builder": 1,
+    "method.planning-methods.overlay-ai-human-review": 1,
+    "method.planning-methods.overlay-marketplace": 1,
+    "method.planning-methods.overlay-minors": 1,
+    "method.planning-methods.overlay-payments-assets": 1,
+    "method.planning-methods.overlay-sensitive-data-privacy": 1,
+    "method.planning-methods.overlay-ugc-trust-safety": 1,
+    "method.planning-methods.work-analyze-decide": 1,
+    "method.planning-methods.work-build-change": 1,
+    "method.planning-methods.work-content-communication": 1,
+    "method.planning-methods.work-design-plan": 1,
+    "method.planning-methods.work-diagnose-fix": 1,
+    "method.planning-methods.work-migrate-refactor": 1,
+    "method.planning-methods.work-operate-process": 1,
+    "plugin.content-planning-methods": "1.0.0"
   },
   "carriers": [
     {
@@ -1922,188 +1921,193 @@
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/native/goals/methods/domains/domain-ai-data-product.md",
-      "key": "method.goals.domain-ai-data-product",
+      "file": "plugins/content/planning-methods/pack-content.json",
+      "key": "plugin.content-planning-methods",
+      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
+    },
+    {
+      "file": "plugins/content/planning-methods/skills/domain-ai-data-product/SKILL.md",
+      "key": "method.planning-methods.domain-ai-data-product",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/native/goals/methods/domains/domain-app-product.md",
-      "key": "method.goals.domain-app-product",
+      "file": "plugins/content/planning-methods/skills/domain-app-product/SKILL.md",
+      "key": "method.planning-methods.domain-app-product",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/native/goals/methods/domains/domain-brand-communication.md",
-      "key": "method.goals.domain-brand-communication",
+      "file": "plugins/content/planning-methods/skills/domain-brand-communication/SKILL.md",
+      "key": "method.planning-methods.domain-brand-communication",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/native/goals/methods/domains/domain-customer-success-service.md",
-      "key": "method.goals.domain-customer-success-service",
+      "file": "plugins/content/planning-methods/skills/domain-customer-success-service/SKILL.md",
+      "key": "method.planning-methods.domain-customer-success-service",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/native/goals/methods/domains/domain-data-analysis.md",
-      "key": "method.goals.domain-data-analysis",
+      "file": "plugins/content/planning-methods/skills/domain-data-analysis/SKILL.md",
+      "key": "method.planning-methods.domain-data-analysis",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/native/goals/methods/domains/domain-game-design.md",
-      "key": "method.goals.domain-game-design",
+      "file": "plugins/content/planning-methods/skills/domain-game-design/SKILL.md",
+      "key": "method.planning-methods.domain-game-design",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/native/goals/methods/domains/domain-growth-distribution.md",
-      "key": "method.goals.domain-growth-distribution",
+      "file": "plugins/content/planning-methods/skills/domain-growth-distribution/SKILL.md",
+      "key": "method.planning-methods.domain-growth-distribution",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/native/goals/methods/domains/domain-market-analysis.md",
-      "key": "method.goals.domain-market-analysis",
+      "file": "plugins/content/planning-methods/skills/domain-market-analysis/SKILL.md",
+      "key": "method.planning-methods.domain-market-analysis",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/native/goals/methods/domains/domain-operations-organization.md",
-      "key": "method.goals.domain-operations-organization",
+      "file": "plugins/content/planning-methods/skills/domain-operations-organization/SKILL.md",
+      "key": "method.planning-methods.domain-operations-organization",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/native/goals/methods/domains/domain-pricing-monetization.md",
-      "key": "method.goals.domain-pricing-monetization",
+      "file": "plugins/content/planning-methods/skills/domain-pricing-monetization/SKILL.md",
+      "key": "method.planning-methods.domain-pricing-monetization",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/native/goals/methods/domains/domain-product-ux.md",
-      "key": "method.goals.domain-product-ux",
+      "file": "plugins/content/planning-methods/skills/domain-product-ux/SKILL.md",
+      "key": "method.planning-methods.domain-product-ux",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/native/goals/methods/domains/domain-reliability-release.md",
-      "key": "method.goals.domain-reliability-release",
+      "file": "plugins/content/planning-methods/skills/domain-reliability-release/SKILL.md",
+      "key": "method.planning-methods.domain-reliability-release",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/native/goals/methods/domains/domain-research-content.md",
-      "key": "method.goals.domain-research-content",
+      "file": "plugins/content/planning-methods/skills/domain-research-content/SKILL.md",
+      "key": "method.planning-methods.domain-research-content",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/native/goals/methods/domains/domain-security-privacy.md",
-      "key": "method.goals.domain-security-privacy",
+      "file": "plugins/content/planning-methods/skills/domain-security-privacy/SKILL.md",
+      "key": "method.planning-methods.domain-security-privacy",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/native/goals/methods/domains/domain-software-development.md",
-      "key": "method.goals.domain-software-development",
+      "file": "plugins/content/planning-methods/skills/domain-software-development/SKILL.md",
+      "key": "method.planning-methods.domain-software-development",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/native/goals/methods/industries/industry-banking-payments.md",
-      "key": "method.goals.industry-banking-payments",
+      "file": "plugins/content/planning-methods/skills/industry-banking-payments/SKILL.md",
+      "key": "method.planning-methods.industry-banking-payments",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/native/goals/methods/industries/industry-developer-tools.md",
-      "key": "method.goals.industry-developer-tools",
+      "file": "plugins/content/planning-methods/skills/industry-developer-tools/SKILL.md",
+      "key": "method.planning-methods.industry-developer-tools",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/native/goals/methods/industries/industry-ecommerce.md",
-      "key": "method.goals.industry-ecommerce",
+      "file": "plugins/content/planning-methods/skills/industry-ecommerce/SKILL.md",
+      "key": "method.planning-methods.industry-ecommerce",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/native/goals/methods/industries/industry-education.md",
-      "key": "method.goals.industry-education",
+      "file": "plugins/content/planning-methods/skills/industry-education/SKILL.md",
+      "key": "method.planning-methods.industry-education",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/native/goals/methods/industries/industry-enterprise-saas.md",
-      "key": "method.goals.industry-enterprise-saas",
+      "file": "plugins/content/planning-methods/skills/industry-enterprise-saas/SKILL.md",
+      "key": "method.planning-methods.industry-enterprise-saas",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/native/goals/methods/industries/industry-games.md",
-      "key": "method.goals.industry-games",
+      "file": "plugins/content/planning-methods/skills/industry-games/SKILL.md",
+      "key": "method.planning-methods.industry-games",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/native/goals/methods/industries/industry-healthcare.md",
-      "key": "method.goals.industry-healthcare",
+      "file": "plugins/content/planning-methods/skills/industry-healthcare/SKILL.md",
+      "key": "method.planning-methods.industry-healthcare",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/native/goals/methods/industries/industry-investing-wealth.md",
-      "key": "method.goals.industry-investing-wealth",
+      "file": "plugins/content/planning-methods/skills/industry-investing-wealth/SKILL.md",
+      "key": "method.planning-methods.industry-investing-wealth",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/native/goals/methods/meta/meta-domain-pack-builder.md",
-      "key": "method.goals.meta-domain-pack-builder",
+      "file": "plugins/content/planning-methods/skills/meta-domain-pack-builder/SKILL.md",
+      "key": "method.planning-methods.meta-domain-pack-builder",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/native/goals/methods/overlays/overlay-ai-human-review.md",
-      "key": "method.goals.overlay-ai-human-review",
+      "file": "plugins/content/planning-methods/skills/overlay-ai-human-review/SKILL.md",
+      "key": "method.planning-methods.overlay-ai-human-review",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/native/goals/methods/overlays/overlay-marketplace.md",
-      "key": "method.goals.overlay-marketplace",
+      "file": "plugins/content/planning-methods/skills/overlay-marketplace/SKILL.md",
+      "key": "method.planning-methods.overlay-marketplace",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/native/goals/methods/overlays/overlay-minors.md",
-      "key": "method.goals.overlay-minors",
+      "file": "plugins/content/planning-methods/skills/overlay-minors/SKILL.md",
+      "key": "method.planning-methods.overlay-minors",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/native/goals/methods/overlays/overlay-payments-assets.md",
-      "key": "method.goals.overlay-payments-assets",
+      "file": "plugins/content/planning-methods/skills/overlay-payments-assets/SKILL.md",
+      "key": "method.planning-methods.overlay-payments-assets",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/native/goals/methods/overlays/overlay-sensitive-data-privacy.md",
-      "key": "method.goals.overlay-sensitive-data-privacy",
+      "file": "plugins/content/planning-methods/skills/overlay-sensitive-data-privacy/SKILL.md",
+      "key": "method.planning-methods.overlay-sensitive-data-privacy",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/native/goals/methods/overlays/overlay-ugc-trust-safety.md",
-      "key": "method.goals.overlay-ugc-trust-safety",
+      "file": "plugins/content/planning-methods/skills/overlay-ugc-trust-safety/SKILL.md",
+      "key": "method.planning-methods.overlay-ugc-trust-safety",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/native/goals/methods/work-types/work-analyze-decide.md",
-      "key": "method.goals.work-analyze-decide",
+      "file": "plugins/content/planning-methods/skills/work-analyze-decide/SKILL.md",
+      "key": "method.planning-methods.work-analyze-decide",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/native/goals/methods/work-types/work-build-change.md",
-      "key": "method.goals.work-build-change",
+      "file": "plugins/content/planning-methods/skills/work-build-change/SKILL.md",
+      "key": "method.planning-methods.work-build-change",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/native/goals/methods/work-types/work-content-communication.md",
-      "key": "method.goals.work-content-communication",
+      "file": "plugins/content/planning-methods/skills/work-content-communication/SKILL.md",
+      "key": "method.planning-methods.work-content-communication",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/native/goals/methods/work-types/work-design-plan.md",
-      "key": "method.goals.work-design-plan",
+      "file": "plugins/content/planning-methods/skills/work-design-plan/SKILL.md",
+      "key": "method.planning-methods.work-design-plan",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/native/goals/methods/work-types/work-diagnose-fix.md",
-      "key": "method.goals.work-diagnose-fix",
+      "file": "plugins/content/planning-methods/skills/work-diagnose-fix/SKILL.md",
+      "key": "method.planning-methods.work-diagnose-fix",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/native/goals/methods/work-types/work-migrate-refactor.md",
-      "key": "method.goals.work-migrate-refactor",
+      "file": "plugins/content/planning-methods/skills/work-migrate-refactor/SKILL.md",
+      "key": "method.planning-methods.work-migrate-refactor",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/native/goals/methods/work-types/work-operate-process.md",
-      "key": "method.goals.work-operate-process",
+      "file": "plugins/content/planning-methods/skills/work-operate-process/SKILL.md",
+      "key": "method.planning-methods.work-operate-process",
       "pattern": "(^version: )\\d+()"
     },
     {

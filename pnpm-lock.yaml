@@ -1833,7 +1833,7 @@ packages:
     resolution: {integrity: sha512-rDS5/31E9HfPl/CIzGrn0DOlvBbXFseQ5URJ9sYMfstbKLD/c6Gm9vmRzRGDdAXyOIL4zmO37lc9RIwYqVruZw==}
 
   '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-surface-detach.tgz':
-    resolution: {integrity: sha512-OXGXUCxIdNVy3m6Ga46sDHEST0TGA4ysUW41dJ2hJxuEy+18gRctp0bmlG7pYG+aUKGPMKUvTIX6JmAzIgOAWw==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-surface-detach.tgz}
+    resolution: {integrity: sha512-3W25eHTHIPiRXfar9gx8LVuxPjr0u/fKYvLDckM4dBIHbGiBNo492WIs0R2/9KwWXWkYoQ4NeUzwa1+vFQluGg==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-surface-detach.tgz}
     version: 0.0.0-rc.1
 
   '@protobufjs/aspromise@1.1.2':

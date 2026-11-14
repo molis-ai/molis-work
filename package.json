@@ -43,7 +43,7 @@
     "web:personal": "node --env-file=.env.personal.local --import tsx apps/desktop/launchers/web/server.ts",
     "test:personal": "node scripts/run-tests.mjs tests/personal-auth.test.ts tests/personal-http.test.ts tests/desktop-shell-bootstrap.test.ts",
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
-    "build": "pnpm build:migrated-packages && pnpm clean && tsc -p tsconfig.json && pnpm build:pty-client && node apps/local-host/tooling/write-build-manifest.mjs .",
+    "build": "pnpm build:migrated-packages && pnpm clean && tsc -p tsconfig.json && pnpm build:pty-client && node scripts/build-bundled-drafts.mjs && node apps/local-host/tooling/write-build-manifest.mjs .",
     "build:migrated-packages": "pnpm workspace:build",
     "boundary:check": "pnpm --filter @molis-ai/molis-work-test-kit... run build && node scripts/check-package-boundaries.mjs",
     "health:check": "node scripts/check-health-gates.mjs",

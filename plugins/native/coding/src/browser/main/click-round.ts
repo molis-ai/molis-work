@@ -12,6 +12,7 @@ import { ownTask } from "./helpers.js";
 import { renderGoalFace } from "./goals.js";
 import { renderMcp } from "./methods.js";
 import type { Page } from "./page.js";
+import type { RoundSelection } from "./shapes.js";
 import { readCurrent } from "./read.js";
 import { api, sessionPath, status } from "./request.js";
 
@@ -104,7 +105,36 @@ function rename(page: Page) {
   status(page, uiText.text("coding.session.rename-hint"));
 }
 
+/** A press on a Skill of a round's line asks the shell's 「依据」 panel, which answers with `molis:skill-redo` (mount: `bindSkillRedo`). */
+function openSkillPick(_page: Page, target: HTMLButtonElement) {
+  const line = target.closest<HTMLElement>("[data-skill-round]"), box = target.getBoundingClientRect(), index = target.dataset.skillPick;
+  if (!line) return;
+  document.dispatchEvent(new CustomEvent("molis:skill-pick-open", { cancelable: true, detail: { reply: "coding:" + line.dataset.skillRound, consumer: "coding",
+    picks: JSON.parse(line.dataset.skillPicks || "[]"), index: index === "" ? null : Number(index), box: { x: box.left, y: box.top, width: box.width, height: box.height } } }));
+}
+
+/**
+ * 「换一个重做」 and 「这次不用技能」: the round's own task again as a new round, with exactly the Skills the person chose in the
+ * panel and no automatic ones. The session's other choices (model, tools, materials) are the ones it holds now.
+ */
+export function bindSkillRedo(page: Page) {
+  page.lifetime.listen(document, "molis:skill-redo", event => {
+    const { s } = page, detail = (event as CustomEvent<{ reply?: string; named?: Array<{ ref: RoundSelection["skills"][number] }> }>).detail;
+    const run = s.allRuns.find(item => "coding:" + item.ref.run_id === detail?.reply);
+    if (!run || run.light || s.sending) return;
+    const task = ownTask(run.turns.find(turn => turn.kind === "user")?.text || ""), id = s.current;
+    if (!task) return;
+    s.sending = true; controls(page);
+    void startRound(page, id, task, INTENT_BY_ROLE[run.frozen.role_id] || s.intent, page.refs.composerModels.value(),
+      { ...currentSelection(page, id), skills: (detail.named ?? []).map(skill => skill.ref) }, { auto_skills: false })
+      .then(async () => { s.follow.resume(); await refreshState(page); await readCurrent(page); })
+      .catch(error => status(page, errorMessage(error), true))
+      .finally(() => { s.sending = false; controls(page); });
+  });
+}
+
 export const ROUND_CLICKS: readonly ClickRule[] = [
+  ["[data-skill-pick]", openSkillPick],
   ["[data-coding-mcp-settings-link],[data-coding-mcp-close]", page => page.q<HTMLDialogElement>("[data-coding-mcp-dialog]").close()],
   ["[data-coding-nudge]", nudge],
   ["[data-coding-commit-round]", commitRound],

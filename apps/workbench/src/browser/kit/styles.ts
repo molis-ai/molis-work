@@ -15,6 +15,24 @@ const PAGE_STYLES = `
 .skill-full-text { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; }
 .kit-settings [data-kit-local-import] > select { margin-right: 8px; }
 .skill-import-row { padding-block: 12px; border-bottom: 1px solid var(--line); }
+.au-form, .au-ask { display: grid; gap: 16px; min-width: 0; max-width: 680px; }
+.au-form > header h3, .au-ask > h3 { margin: 0; color: var(--ink); font-size: 16px; font-weight: var(--weight-title, 600); line-height: 1.4; overflow-wrap: anywhere; }
+.au-ask > .kit-note { margin: -8px 0 0; }
+.au-field { display: grid; gap: 6px; min-width: 0; }
+.au-field :is(.mw-input, .mw-textarea) { width: 100%; box-sizing: border-box; }
+.au-field .mw-toggle-group { justify-self: start; max-width: 100%; flex-wrap: wrap; }
+.au-field .mw-toggle { white-space: nowrap; }
+.au-body { min-height: 260px; font-family: var(--font-mono); font-size: 12.5px; line-height: 1.7; resize: vertical; }
+.au-more > summary { padding: 4px 0; color: var(--ink-soft); font-size: 13px; cursor: pointer; }
+.au-more[open] > summary { margin-bottom: 10px; }
+.au-actions, .au-own { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-width: 0; }
+.au-drafting, .au-drafted { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0; color: var(--muted); font-size: 12px; }
+.au-drafting { color: var(--ink-soft); font-size: 13px; }
+.au-foot { position: sticky; bottom: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 12px 0; border-top: 1px solid var(--line); background: var(--paper); }
+.au-foot__state { flex: 1 1 auto; min-width: 8px; color: var(--muted); font-size: 12px; }
+.au-readonly { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 10px 12px; border-radius: var(--r-card, 12px); background: var(--surface-soft); box-shadow: inset 0 0 0 1px var(--line); color: var(--ink-soft); font-size: 13px; line-height: 1.5; }
+.au-readonly > span { flex: 1 1 200px; min-width: 0; }
+.au-failure:focus-visible, .mw-leave-bar:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; }
 .kit-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 16px; min-width: 0; }
 .kit-search { position: relative; display: inline-flex; align-items: center; flex: 1 1 240px; min-width: 0; max-width: 420px; }
 .kit-search > svg { position: absolute; left: 10px; width: 16px; height: 16px; color: var(--muted); pointer-events: none; }
@@ -73,7 +91,7 @@ const PAGE_STYLES = `
 .kit-card__head small { color: var(--muted); font-size: 12px; }
 .kit-import__foot { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; padding-top: 14px; border-top: 1px solid var(--line); }
 @media (prefers-reduced-motion: reduce) { .kit-import { animation: none; } }
-@media (max-width: 600px) { .kit-card > :not(.kit-card__head) { margin-left: 0; } .kit-import { padding: 14px; } }
+@media (max-width: 600px) { .au-foot { position: static; } .kit-card > :not(.kit-card__head) { margin-left: 0; } .kit-import { padding: 14px; } }
 `;
 
 export function addKitStyles(): void {

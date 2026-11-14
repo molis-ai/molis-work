@@ -33,7 +33,7 @@ test("RAC-803 the Host hand-writes no authority for Goals: no per-action provena
   assert.deepEqual(symbols, [], `a hand-written Goals authority is back in the Host: ${where(symbols)}`);
 
   // A person's act gets its provenance from `entryUserAction` alone; a literal `user_action` in a Goals caller is the old private road.
-  for (const name of ["goal-callers.ts", "personal-planning-actions.ts"]) {
+  for (const name of ["goal-callers.ts"]) {
     const source = text(join(HOST, name));
     assert.doesNotMatch(source, /user_action\s*:\s*\{/u, `${name} writes a user_action by hand`);
     assert.doesNotMatch(source, /source\s*:\s*"(?:web|management)"\s*,\s*conversation_ref/u, `${name} writes a provenance by hand`);

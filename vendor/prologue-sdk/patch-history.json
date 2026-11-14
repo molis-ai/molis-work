@@ -533,6 +533,24 @@
         "sha256": "942de9c594d8fc0bbb81d3b36d766761427ff51c2c4cee33aab342033c85846c",
         "gitBlob": "432e002ac4670ca228de8956dde71849186480fd"
       }
+    },
+    {
+      "file": "surface-detach-three-fixes.patch",
+      "bytes": 270962,
+      "sha256": "e5b4caf46a4dd590e7ea27f9fc2878faf78f9ccf1375b371d025e89a799532e3",
+      "gitBlob": "a2a26013e90f28a01cfb275e421e6f5471097ebe",
+      "diffEntries": 28,
+      "base": "c764d970b9ab934e9621bc5d38ae2471a440749a",
+      "commit": null,
+      "sourceKind": "molis-repo",
+      "source": "第 39 批隔离工作树的三个补丁。原补丁 vendor/prologue-sdk/surface-detach.patch 和 tgz 从 Molis 1d00d060e699a82facf6449d6150fc557456487c 取回，等于未发布 SDK 提交 00b917c59820250459deeda17ce0c4f84ac4717f 的源码树。",
+      "summary": "包含原观察目标、Surface 最终释放和 stdio 回复撤权检查。2026-11-15 由加入核对状态写入顺序修复的本批包替换。",
+      "package": {
+        "file": "prologue-sdk-0.0.0-rc.1-surface-detach-three-fixes.tgz",
+        "bytes": 1459117,
+        "sha256": "c4028217e259affdf02785364fb059d97d50d9ccd5bad1164d01853339c4253c",
+        "gitBlob": "5519919f60f86a032d0e608ffb3aaecf0c24c453"
+      }
     }
   ],
   "packagesWithoutPatch": [
@@ -847,6 +865,7 @@
     "2026-10-01 清理时这些工作树的未提交状态另存在开发机的 ~/code/prologue-cleanup-backup-20261001/wip.bundle，只在那台机器上，不属于本记录。",
     "最早的 prologue-sdk-0.0.0-rc.1.tgz 没有对应的源码提交，不能当作任何一个提交的构建；其余本地中间包不是依赖，也没有作为分发物提交过。",
     "2026-10-26 Foundation batch40 adopts merged Memory #107: clean source 1cc80b05253df798eeb34afff65d1bda06bee587, upstream merge ccafbb74fb9db0e3a124ec502c57291677487e23, whose complete trees are equal. Replaced #94 package, SHA256 119feb645c13f6d7ec1f288e42f0b68d95031e268826ca014da2c26346394bb1, remains recoverable from c61508d5e15ab4850d256843a0e4110f9ecf1e20:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-memory-p0.tgz. Main final103-bridge is retained as inactive LKG; the dated upstream audit above describes that earlier adoption and is not restated as an audit of this new source.",
-    "2026-11-14 batch39: approved local source 2805ef37, reconstructible from official 5cbf2601 with the adjacent patch. Earlier #107-based candidates and records remain in the batch39 history."
+    "2026-11-14 batch39: approved local source 2805ef37, reconstructible from official 5cbf2601 with the adjacent patch. Earlier #107-based candidates and records remain in the batch39 history.",
+    "2026-11-15 第 39 批：使用官方 c764d970 加同一评审代理复审的四项修复。相邻补丁可重建当前隔离提交 6ea6decc 的完整源码树。"
   ]
 }

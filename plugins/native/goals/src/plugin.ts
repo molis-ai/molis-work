@@ -14,18 +14,16 @@ import { createGoalsTerminalActionHandlers, goalsTerminalActions } from "./termi
 import { readMolisWorkSnapshot } from "./snapshot-query.js";
 import { goalsRoutes } from "./http/index.js";
 import { GOALS_CATCH_UP_JOB, goalsManifest } from "./manifest.js";
-import { personalPlanningActions } from "./personal-planning-actions.js";
 import { goalsTreeUiContribution } from "./tree-ui.js";
-import { goalsSettingsUiContribution } from "./settings-ui.js";
 import { goalsStageUiContribution } from "./page/workbench-stage.js";
-import { GoalsModule, GoalInputBindings, resolvePlanningMethodPacks } from "./module/index.js";
+import { GoalsModule, GoalInputBindings } from "./module/index.js";
 import { requestHash } from "./module/command-support.js";
 import { GovernanceCollaborationModule, GovernanceEventDecisions } from "./governance/index.js";
 import { createGoalsApplication } from "./goals-application.js";
 import { PluginSqlite } from "./plugin-sqlite.js";
 import { eventDecisionVersion, goalsDecisionOfferHandlers, treeDecisionVersion } from "./decision-offers.js";
 import { goalForDecisionRequest } from "./module/event-state-decision-records.js";
-import { attentionOver, journalOver, ledgerOver, PersonalMethodsSnapshot } from "./runtime-ports.js";
+import { attentionOver, journalOver, ledgerOver } from "./runtime-ports.js";
 
 const CHECK_EVIDENCE = { capability_id: "agent.evidence.check", version: /* @version action.agent.evidence.check */ 1 } as const;
 const READ_ARTIFACT = { capability_id: "artifacts.read", version: /* @version action.artifacts.read */ 1 } as const;
@@ -71,8 +69,7 @@ function projectGovernance(sqlite: PluginSqlite, projectId: string, journal: Ret
 function bindProjectWindows(window: {
   read<T>(body: () => T): T;
   write<T>(caller: ActionExecutionContext, body: () => T): Promise<T>;
-}, personal: PersonalMethodsSnapshot, loadPersonal: (caller: ActionExecutionContext) => Promise<NonNullable<Parameters<PersonalMethodsSnapshot["within"]>[0]>>,
-  before: ReadonlyMap<string, (caller: ActionExecutionContext, input: unknown) => Promise<unknown>>, ready: Promise<void>, assertReviewCurrent: () => void) {
+}, before: ReadonlyMap<string, (caller: ActionExecutionContext, input: unknown) => Promise<unknown>>, ready: Promise<void>, assertReviewCurrent: () => void) {
   return (binding: ActionHandlerBinding): ActionHandlerBinding => {
     if (SELF_WINDOWED.has(binding.capability_id)) return { ...binding, handle: async (caller, input) => { await ready; return binding.handle(caller, input); } };
     const definition = goalsManifest.actions!.find(entry => entry.capability_id === binding.capability_id && entry.version === binding.version);
@@ -85,18 +82,15 @@ function bindProjectWindows(window: {
       return handle(caller, input, prepared);
     };
     const run = definition.operation === "command"
-      ? (caller: ActionExecutionContext, input: unknown, packs: Parameters<PersonalMethodsSnapshot["within"]>[0], prepared: unknown) =>
-        window.write(caller, () => personal.within(packs, () => apply(caller, input, prepared)))
-      : async (caller: ActionExecutionContext, input: unknown, packs: Parameters<PersonalMethodsSnapshot["within"]>[0], prepared: unknown) =>
-        window.read(() => personal.within(packs, () => handle(caller, input, prepared)));
+      ? (caller: ActionExecutionContext, input: unknown, prepared: unknown) => window.write(caller, () => apply(caller, input, prepared))
+      : async (caller: ActionExecutionContext, input: unknown, prepared: unknown) => window.read(() => handle(caller, input, prepared));
     const prepare = before.get(binding.capability_id);
-    return { ...binding, handle: async (caller, input) => { await ready; const prepared = await prepare?.(caller, input); return personal.run(() => loadPersonal(caller), packs => run(caller, input, packs, prepared), caller); } };
+    return { ...binding, handle: async (caller, input) => { await ready; const prepared = await prepare?.(caller, input); return run(caller, input, prepared); } };
   };
 }
 
 /**
- * Goals as a Plugin Runtime plugin in a project (PG-094 S11): the project half of the dual-instance plugin whose Home half is
- * `createHomeGoalsPlugin`. Its modules are built once over `PluginSqlite`, and each call lends them the platform's handle for the
+ * Goals as a Plugin Runtime plugin in a project (PG-094 S11). Its modules are built once over `PluginSqlite`, and each call lends them the platform's handle for the
  * length of one synchronous window: a read window for a query, the transaction of `services.project_database` for a command (after
  * the caller's authority is asked again). Attention, the Context Ledger and the journal join that transaction, so a Goal, its
  * event, its reminder and its link are written together or not at all.
@@ -112,13 +106,13 @@ export function createGoalsPlugin(): PluginDefinition {
       throw new ActionError("actions.unredeemed", "Goals 需要项目库、项目审批规则、提醒、引用账本、动作目录与后台服务");
     }
     const directory = actions.directory;
-    const sqlite = new PluginSqlite(), personal = new PersonalMethodsSnapshot(), clock = () => new Date();
+    const sqlite = new PluginSqlite(), clock = () => new Date();
     const journal = journalOver(sqlite, projectId), attentionPort = attentionOver(sqlite, attention, projectId), ledgerApi = ledgerOver(sqlite, ledger, projectId);
 
     const governanceModule = projectGovernance(sqlite, projectId, journal, approvalHistory);
     const inputs = new GoalInputBindings(sqlite, ledgerApi);
     const goals: GoalsModule = new GoalsModule(sqlite, journal, { validateRelationGraph: (project, input) => goals.planning.validateRelationAddition(project, input) },
-      { now: clock, personalPlanningMethodPacks: () => personal.read(), deliverables: (project, goalId) => confirmedGoalDeliverables(ledgerApi, project, goalId),
+      { now: clock, deliverables: (project, goalId) => confirmedGoalDeliverables(ledgerApi, project, goalId),
         approvalRules: (project, history) => {
           if (project !== projectId) throw new ActionError("actions.scope_mismatch", "项目审批规则属于原项目");
           return approvalRules.read(history).rules;
@@ -161,7 +155,7 @@ export function createGoalsPlugin(): PluginDefinition {
         readMaterial: (caller, ref) => directory.invoke<MaterialsReadResult>(READ_MATERIAL, { ref, mode: "head" }, controlOf(caller)),
         pinned: (caller, versions) => directory.invoke<MaterialsPinnedResult>(READ_PINNED, { versions }, controlOf(caller)) },
       history: { snapshot, journalEvents: events },
-      planning: { planning: goals.planning, baseMethods: () => resolvePlanningMethodPacks(personal.read()) },
+      planning: { planning: goals.planning },
       guidance: { commands: goals.commands, read: project => application.goalQueries.readProjectGuidance(project) },
       lifecycle: { lifecycle: goals.lifecycle, setActiveGoal: (...args) => goals.commands.setActiveGoal(...args), eventCursor: () => journal.eventCursor(projectId) },
       configuration: { commands: goals.commands, query: goals.query, eventCursor: () => journal.eventCursor(projectId) },
@@ -189,10 +183,6 @@ export function createGoalsPlugin(): PluginDefinition {
       }),
       guidancePrefix: async caller => (await actions.invoke(goalsActions.guidanceRead, {}, controlOf(caller))).runtime_prompt_prefix }));
 
-    // The person's methods are the plugin's own data, in its other instance: asked as the plugin (its own action), never as the caller,
-    // whose grants (an agent's, say) need not reach a Home-wide action.
-    const loadPersonal = async (caller: ActionExecutionContext) => (await actions.invoke(personalPlanningActions.list, {}, controlOf(caller))).methods
-      .filter(method => method.scope === "personal");
     // What a call asks of other owners before its window opens (a window is synchronous). A report's cited evidence is looked up here.
     // What it worked out is handed to the handler as its third argument.
     const before = new Map<string, (caller: ActionExecutionContext, input: unknown) => Promise<unknown>>([[goalsEventActions.report.capability_id, async (caller, input): Promise<GoalReportTrust | undefined> => {
@@ -236,7 +226,7 @@ export function createGoalsPlugin(): PluginDefinition {
       }
     }).done.then(() => undefined, () => undefined);
 
-    const windowed = bindProjectWindows(window, personal, loadPersonal, before, ready, () => {
+    const windowed = bindProjectWindows(window, before, ready, () => {
       const proof = sqlite.currentDecision();
       if (!proof) throw new ActionError("actions.forbidden", "需要平台记录的原决定");
       const { subject, version } = proof.review.target;
@@ -245,7 +235,7 @@ export function createGoalsPlugin(): PluginDefinition {
       if (current !== version) throw new ActionError("actions.conflict", "原目标或提案已变化");
     });
 
-    return { kind: "app", sync: syncBindings(context), views: [goalsTreeUiContribution, goalsSettingsUiContribution, goalsStageUiContribution],
+    return { kind: "app", sync: syncBindings(context), views: [goalsTreeUiContribution, goalsStageUiContribution],
       actions: [...handlers.map(windowed), ...createGoalsPresentationHandlers(projectId, goals.query, application.goalEvents, window.read, ready)],
       routes: goalsRoutes({ actions: request => ({ discover: async () => [], invoke: (definition, input) => actions.invoke(definition, input, request.execution) }) }) };
   }, async health() { return problem ? { ok: false, message: problem } : { ok: true, message: "Goals 已接通" }; } };

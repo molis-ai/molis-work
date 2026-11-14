@@ -10,19 +10,28 @@ export declare const SKILLS_PROVIDER_ID = "system.skills";
 
 export declare const SKILLS_READ_PERMISSION = "skills:read";
 
+export declare const SKILL_AUTHORED_PLUGIN_IDS: {
+    readonly home: "io.molis.work.my-skills.home";
+    readonly project: "io.molis.work.my-skills.project";
+};
+
 export declare const SKILL_BODY_READ_MAX_REFS = 20;
 
 export declare const SKILL_CATALOG_ENTRY_SCHEMA: ActionSchema;
+
+export declare const SKILL_DRAFT_INTENT_CHARS = 1000;
 
 export declare const SKILL_EXCERPT_CHARS = 200;
 
 export declare const SKILL_INSTALL_PREVIEW_SCHEMA: ActionSchema;
 
-export declare const SKILL_READ_REFUSALS: readonly ["plugin_disabled", "publisher_revoked", "resource_invalid", "requires_unmet", "connection_missing", "native_only", "not_applicable", "not_current", "off", "not_named"];
+export declare const SKILL_READ_REFUSALS: readonly ["plugin_disabled", "publisher_revoked", "resource_invalid", "requires_unmet", "connection_missing", "native_only", "not_applicable", "not_current", "off", "not_named", "over_limit"];
 
 export declare const SKILL_REF_SCHEMA: ActionSchema;
 
 export declare const SKILL_RESOURCE_READ_MAX_BYTES: number;
+
+export declare const SKILL_ROUND_AUTO_LIMIT = 3;
 
 export declare const SKILL_SCOPES: readonly ["project", "home"];
 
@@ -31,6 +40,48 @@ export declare const SKILL_SETTINGS_LOCKED_REASONS: readonly ["plugin_disabled",
 export declare const SKILL_STATES: readonly ["off", "auto", "manual"];
 
 export declare const SKILL_UNAVAILABLE_REASONS: readonly ["plugin_disabled", "publisher_revoked", "resource_invalid", "requires_unmet", "connection_missing", "native_only", "not_applicable"];
+
+export interface SkillAuthoredFields {
+    name: string;
+    description: string;
+    when_not_to_use?: string;
+    argument_hint?: string;
+    applies_to: SkillAppliesTo;
+    body: string;
+}
+
+export interface SkillAuthoredReadRequest {
+    ref: SkillRef;
+}
+
+export interface SkillAuthoredRemoveRequest {
+    scope: SkillScope;
+    skill_id: string;
+    expected_version: number;
+}
+
+export interface SkillAuthoredRemoveResult {
+    skill_id: string;
+    remaining: number;
+}
+
+export interface SkillAuthoredSaveRequest extends SkillAuthoredFields {
+    scope: SkillScope;
+    skill_id?: string;
+    expected_version?: number;
+}
+
+export interface SkillAuthoredSaveResult extends SkillImportConfirmResult {
+    skill_id: string;
+    skill_version: number;
+}
+
+export interface SkillAuthoredSource extends SkillAuthoredFields {
+    skill_id: string;
+    version: number;
+    scope: SkillScope;
+    mine: boolean;
+}
 
 export type SkillAvailability = {
     available: true;
@@ -96,6 +147,10 @@ export interface SkillCatalogEntry {
 export interface SkillCatalogListRequest {
     applies_to?: Exclude<SkillAppliesTo, "both">;
     states?: SkillState[];
+}
+
+export interface SkillDraftRequest {
+    intent: string;
 }
 
 export interface SkillImportCandidate {
@@ -174,6 +229,12 @@ export interface SkillInstallPreview {
 
 export type SkillPackTrust = "host" | "pinned" | "home_local";
 
+export interface SkillPick {
+    ref: SkillRef;
+    name: string;
+    picked: "named" | "auto";
+}
+
 export type SkillReadRefusal = (typeof SKILL_READ_REFUSALS)[number];
 
 export interface SkillResourceContent {
@@ -220,6 +281,13 @@ export declare const servicesSkillsContract: {
     readonly ssot: "specs/skill-packs/contract-design.md";
 };
 
+export declare const skillAuthoringActions: {
+    read: ActionDefinition<SkillAuthoredReadRequest, SkillAuthoredSource>;
+    save: ActionDefinition<SkillAuthoredSaveRequest, SkillAuthoredSaveResult>;
+    remove: ActionDefinition<SkillAuthoredRemoveRequest, SkillAuthoredRemoveResult>;
+    draft: ActionDefinition<SkillDraftRequest, SkillAuthoredFields>;
+};
+
 export declare const skillCatalogActions: {
     list: ActionDefinition<SkillCatalogListRequest, {
         skills: SkillCatalogEntry[];
@@ -242,6 +310,12 @@ export declare const skillErrors: import("platform/action-errors").ErrorCodeRais
     readonly import_preview_unknown: "not_found";
     readonly import_skill_unknown: "invalid";
     readonly import_applies_to_invalid: "invalid";
+    readonly authored_unknown: "not_found";
+    readonly authored_conflict: "conflict";
+    readonly authored_name_taken: "conflict";
+    readonly authored_invalid: "invalid";
+    readonly authored_full: "conflict";
+    readonly draft_unreadable: "upstream";
 }>;
 
 export declare const skillImportActions: {

@@ -325,14 +325,6 @@ test("project settings preserve edits on failed saves, record guidance versions,
   }
   await waitFor(`!!document.querySelector('${ruleForm}')`, 15_000);
   assert.equal(await evaluate(accepted), !original);
-  await navigate(() => command("Page.navigate", { url: origin + prefix + "/settings/planning" }, sessionId));
-  await waitFor("!!document.querySelector('[data-work-surface=project-settings] [data-planning-search]')", 15_000);
-  await fill('[data-planning-search]', "软件");
-  assert.ok(await evaluate<number>("document.querySelectorAll('[data-planning-method]:not([hidden])').length") > 0);
-  await fill('[data-planning-search]', "没有这个方法xyz");
-  assert.equal(await evaluate("document.querySelectorAll('[data-planning-method]:not([hidden])').length"), 0);
-  await fill('[data-planning-search]', "");
-  assert.ok(await evaluate<number>("document.querySelectorAll('[data-planning-fold]').length") > 0);
 });
 
 type SettingsBrowser = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;

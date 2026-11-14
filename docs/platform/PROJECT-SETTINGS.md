@@ -63,7 +63,7 @@ Workspace 不再进入产品 catalog 或启动图，也没有 navigator view。�
 | 项目名称、项目维护、本地数据位置 | 项目设置 → 常规 | 保留；名称属于项目记录 |
 | 输入目录、输出目录 | 项目设置 → 输入与输出 | 目录分输入与输出两种角色；页面看哪个目录不记在项目里 |
 | 背景、共同要求、约束、协作方式、质量标准 | 项目设置 → 项目说明；Goals guidance | 保留原有长期说明契约，不纳入设置读取协议 |
-| Goals 工作规则、项目规划方法 | 原有 `/settings/rules`、`/settings/planning` 页面及 Goals 管理路径 | 保留业务 owner 和原有入口，不因“设置”改成通用 KV |
+| Goals 工作规则 | 原有 `/settings/rules` 页面及 Goals 管理路径（规划方法是技能目录里的技能，第 41 批起不在项目设置里） | 保留业务 owner 和原有入口，不因“设置”改成通用 KV |
 | 外观、模型、Runtime、MCP、Connector、诊断 | 全局设置 | 属于本机/用户，继续共用；不复制到每个项目 |
 | 插件专有长期偏好 | 插件 `settings` contribution / `storage:private` | 设置槽是呈现位置，私有存储不是跨插件配置接口 |
 | Coding 的执行位置、模型、材料、运行配置 | 会话 | 一轮在输出目录里跑，或在宿主为这个会话建的独立工作树里跑（开轮时冻结）；目录候选读项目的 `projects.directories.get` |

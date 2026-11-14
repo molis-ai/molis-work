@@ -111,7 +111,7 @@ export const goalEntryActions = {
     object({ goal_id: identifier, reason: identifier, idempotency_key: identifier }), object({ active_goal_id: text, observed_event_cursor: count, replayed: boolean })),
   /** The board in the snapshot no longer carries a name. */
   snapshot: goalAction<Record<string, never>, BoardSnapshot>("goals.snapshot.read", /* @version action.goals.snapshot.read */ 1, "读取项目目标完整快照",
-    "读取当前项目的目标资料：全部目标、关系、规划方法、项目长期说明和结构提案；不含事件正文，需要时用 goals.events.list 或 goals.history.list 读取", "query", object({}), boardSnapshotSchema),
+    "读取当前项目的目标资料：全部目标、关系、项目长期说明和结构提案；不含事件正文，需要时用 goals.events.list 或 goals.history.list 读取", "query", object({}), boardSnapshotSchema),
   decide: protectedDecision(decide, eventReview),
   eventReview,
   guidanceRead: goalAction<Record<string, never>, ProjectGuidanceView>("goals.guidance.read", /* @version action.goals.guidance.read */ 1, "读取项目长期说明", "读取已确认的长期说明、停用项、完整修订和当前 Runtime Prompt 前缀", "query",

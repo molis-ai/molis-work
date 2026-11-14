@@ -301,6 +301,7 @@ export interface PackagedSkillBody {
     skill_id: string;
     version: number;
     body: string;
+    body_by_locale?: Readonly<Record<string, string>>;
 }
 
 export interface PackagedSkills {
@@ -1043,6 +1044,8 @@ export declare function skillFromFolder(files: ReadonlyMap<string, Uint8Array>, 
     version?: number;
     applies_to?: SkillAppliesTo;
 }): FolderSkill;
+
+export declare function skillTranslationPath(skillId: string, locale: string): string;
 
 export declare function splitLines(text: string): DiffLine[];
 

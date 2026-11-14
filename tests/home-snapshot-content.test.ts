@@ -5,7 +5,7 @@ import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { createHomeSnapshot, homeStores, preflightConnectorPrivateStateRestore, readRuntimeConfigBackup, LocalProjectDatabase, MolisWorkLocalHost, molisWorkHostProjectReference, type HomeSnapshotManifest } from "@molis-ai/molis-work-app-local-host";
-import { personalPlanningActions, goalsActions } from "@molis-ai/molis-work-plugin-goals";
+import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { ArtifactsModule } from "@molis-ai/molis-work-module-artifacts";
 import { createEvidenceContentStore, createLazyFileSecretStore, createSearchOpaqueBlobStore, LocalSqliteStorage, openExistingHomePayload, snapshotFileDigest } from "@molis-ai/molis-work-storage";
 import { assertSnapshotFact } from "./fixtures/home-snapshot-facts.js";
@@ -108,10 +108,6 @@ test("RAC-104-S-01/04 RAC-106-S-03: a populated Home keeps every actual owner, W
   }
   const goalsHost = new MolisWorkLocalHost({ homeDirectory: f.home, completeText: null });
   try {
-    const { methods } = await goalsHost.homeActionClient().invoke({ actor_id: "web-user", actor_kind: "user", project_id: null,
-      audience: "user", permissions: ["goals:read"] }, personalPlanningActions.list, {}) as { methods: Array<{ method_id: string }> };
-    const expected = f.facts.find(fact => fact.table === "personal_planning_method_packs"); assert.ok(expected);
-    assert.deepEqual(methods.find(method => method.method_id === "snapshot-retained"), { ...JSON.parse(String(expected.expected)), overridden_scopes: [] }, "Goals reads its actual retained method after snapshot replay; no other scope overrides its unique id");
     const project = f.projects[0]!;
     const snapshot = await managementGoals(goalsHost.actionClient(molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path })), project.project_id)
       .invoke(goalsActions.snapshot, {});

@@ -31,7 +31,7 @@ import { builtinMarketDirectory, mergePluginDirectories, runningPluginDirectory 
 
 
 /** The project settings page each path opens; `/settings` alone opens 常规. */
-const SETTINGS_SECTIONS = new Map((["workspaces", "guidance", "memory", "knowledge", "plugins", "kit", "grants", "rules", "planning", "general"] as const)
+const SETTINGS_SECTIONS = new Map((["workspaces", "guidance", "memory", "knowledge", "plugins", "kit", "grants", "rules", "general"] as const)
   .map(section => [`/settings/${section}` as string, section] as const)).set("/settings", "general");
 const noInstalledStages = (error: unknown): [] => { hostLog.warn("plugins", "installed_stages_unavailable", error); return []; };
 
@@ -116,20 +116,16 @@ export function createLocalGoalsReadHttp(ports: {
       }
       const embed = url.searchParams.get("embed") === "1";
       if (open === "rules") return redirectProjectRules(response, view.project.project_id, isDesktopShellRequest(request, url));
-      let methods, guidance;
+      let guidance;
       try {
         // A project without Goals has none of Goals' settings pages (RAC-400). Whether Goals is here is the project's plugin list; a Goals read
         // refused in a project that has Goals is that refusal, shown with its code and operation number, not a project without Goals.
-        if (await goalsHere()) {
-          [methods, guidance] = await Promise.all([actions.invoke(goalsActions.planningRead, {}).then(value => value.methods),
-            actions.invoke(goalsActions.guidanceRead, {})]);
-        }
+        if (await goalsHere()) guidance = await actions.invoke(goalsActions.guidanceRead, {});
       }
       catch (error) { sendJson(response, actionHttpStatus(error), actionErrorBody(error)); return true; }
       const html = renderMolisWorkProjectSettingsHub(
         { ...view, project: { ...view.project, plugin_requirements: await projectSettingsRequirements(homeDirectory, store, view.project.project_id, withMolisWorkProjectCatalog) } },
         guidance ?? null,
-        methods ?? [],
         controlToken,
         isDesktopShellRequest(request, url),
         open,

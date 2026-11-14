@@ -15,8 +15,6 @@ test('GSYNC-01 GSYNC-02 GSYNC-03 GSYNC-04 restore completed Goals, graph, histor
     app.setActiveGoal(p, { goal_id: 'child', reason: '定位' }, { actor_id: 'alice', idempotency_key: 'active' });
     app.goals.commands.addProjectGuidance({ project_id: p, actor_id: 'alice', kind: 'quality_bar', content: '完整恢复事实', reason: '同步', confirmation_summary: '已确认', user_confirmed: true, idempotency_key: 'guidance' });
     app.saveProjectApproval(p, 'alice', true, 'Reviewed project rule');
-    const method = app.goals.planning.effectiveMethods(p)[0]!;
-    app.goals.planning.saveProjectMethod({ project_id: p, actor_id: 'alice', user_confirmed: true, method: { ...method, summary: '项目自定义方法', enabled: true } });
     app.goalTreeSubmission.submitGoalTreeProposal({ project_id: p, root_goal_id: 'goal-main', actor_id: 'runtime-1', summary: '待确认结构', idempotency_key: 'proposal', items: [{ item_id: 'proposed-child', kind: 'goal', operation: 'create', payload: { goal_id: 'proposed', title: '未执行的提案', outcome: '用户决定后创建' }, source_refs: ['conversation://plan'], reason: '候选', confidence: 1, affected_objects: [{ object_type: 'goal', object_id: 'proposed' }] }] });
     app.goalInputs.register({ binding_id: 'input', project_id: p, goal_id: 'goal-main', input_name: '资料', source_type: 'feed_item', source_ref: 'feed-item:missing-feed', snapshot_digest: null, state: 'confirmed', reason: '引用', created_by: 'alice', created_at: new Date().toISOString() });
     const ledger = createContextLedger(db.db, { authorize: () => true, initializeSchema: false }), access = { actor_id: 'alice', scope: { kind: 'personal' as const, id: p } };

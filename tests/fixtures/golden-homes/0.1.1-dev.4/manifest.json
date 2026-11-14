@@ -2050,8 +2050,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "fd32d25ab39b49dfb33b6bfa82cea9eab366a840a76570db337fe43d4edd79fd",
-      "expanded_sha256": "8c6a1ffbb3d3bd8fbe2709dad157c7e1ef21eba090e677259595e4730e4fbae2"
+      "sha256": "68e122ba85130cc861ec6d74a5754a5a71aa3cb620c34739230cd2be85c741c9",
+      "expanded_sha256": "829c2ec87b9a150436ae26928b8e05dd74c24d996d128be1273e61925cd674d9"
     },
     {
       "path": "sbxdb-7cca75c1b8e5c4f45a135088b2538bae/sbxdb-7cca75c1b8e5c4f45a135088b2538bae.db",
@@ -3077,8 +3077,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "944461907107394e9ebd37f852327306d0b5fab7a273bfc0e6f2245424a4d20f",
-      "expanded_sha256": "c3961d70f092e6520f11a8504b10cee9eeb7c02ddb28030d6094283c9f4f3d66"
+      "sha256": "97bdef7e6219e95b8516be20f665163d86bd16e345c260e66000c322d127cb85",
+      "expanded_sha256": "960b1096259af2253640e9f4e76f8c515984b3506402e6d5a9762181592536ca"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/sync/sync.db",
@@ -3233,8 +3233,8 @@
       "owner": "horizontal/agent-host",
       "mode": 384,
       "payload": "files/agent-runtime/records/io.molis.work~published-resource-chunk/5-28uxy-0.json",
-      "size": 501,
-      "sha256": "34a53bc55058c2269b9a40dc1c30071b548dd84fbc3b3ae811ba8bcb9f2929ec"
+      "size": 509,
+      "sha256": "0b2b143fb70019ca86b614098da1686fff2f24e10b420818eeb99997ddb82b4b"
     },
     {
       "path": "agent-runtime/records/io.molis.work~published-resource-chunk/6-76gb5-0.json",
@@ -3258,7 +3258,7 @@
       "mode": 384,
       "payload": "files/agent-runtime/records/io.molis.work~published-resource/5-28uxy.json",
       "size": 181,
-      "sha256": "f18b955294c620048b6c83241633852723d5e12ce3cac5b063fb55b62fbe73e3"
+      "sha256": "c90ecf38c27418373d8dbce915deb5f32bd12833caa87650a9225054bc113ac0"
     },
     {
       "path": "agent-runtime/records/io.molis.work~published-resource/6-76gb5.json",

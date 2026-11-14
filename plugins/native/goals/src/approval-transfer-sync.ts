@@ -61,8 +61,15 @@ export function goalsApprovalTransferSync(version: GoalsApprovalSource): PluginS
     introduced.set("goal_work_event_judgments", ["basis_json", "tier", "gap", "reporter_session"]);
     introduced.set("goal_event_requirement_conclusions", ["checked_artifact_id", "checked_version"]);
   }
-  const original = version >= CITED_SUBJECTS_FROM ? sections : { ...sections, business: sections.business.map(section => ({
-    ...section, tables: section.tables.map(table => ({ ...table, columns: table.columns.filter(column => !introduced.get(table.name)?.includes(column)) })),
+  if (version >= CITED_SUBJECTS_FROM) introduced.delete("goal_event_concerns");
+  const withoutPlanning = version === 4;
+  if (withoutPlanning) introduced.set("goal_event_config_versions", ["adopted_planning_json"]);
+  const original = { ...sections, business: sections.business.map(section => ({
+    ...section,
+    journalTypes: section.journalTypes.filter(type => !withoutPlanning || type !== "planning.%"),
+    tables: section.tables.filter(table => !withoutPlanning || table.name !== "planning_method_packs").map(table => ({
+      ...table, columns: table.columns.filter(column => !introduced.get(table.name)?.includes(column)),
+    })),
   })) };
   const tracking = syncSectionsTracking(original).map(table => table.table === "boards" ? {
     ...table, existsAny: ["goals", "project_guidance_entries"].map(name => ({ table: name, match: [{ column: "project_id", rowColumn: "project_id" }] })),

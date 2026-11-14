@@ -447,6 +447,21 @@ export declare const DOM_EVENTS: readonly [{
     readonly detail: "{ tab, target, open }";
     readonly summary: "A tab of the side panel is now shown (or the panel closed); the tab's owner loads what it was asked to show.";
 }, {
+    readonly name: "molis:skill-pick-open";
+    readonly kind: "request";
+    readonly owner: "skill-picks";
+    readonly on: "document";
+    readonly cancelable: true;
+    readonly detail: "{ reply, consumer: 'assistant' | 'coding', picks: SkillPick[], index: number | null, box: { x, y, width, height } }";
+    readonly summary: "Open the 「依据」 panel for one Skill of a round's line (index; null for 「选一个」), anchored at the pressed button's box. Sent by the page that shows the round: the Assistant, and Coding through its frame. The panel takes it with preventDefault(); reply is the page's own mark for the round.";
+}, {
+    readonly name: "molis:skill-redo";
+    readonly kind: "announcement";
+    readonly owner: "skill-picks";
+    readonly on: "document";
+    readonly detail: "{ reply, named: Array<{ ref: SkillRef, name }> }";
+    readonly summary: "The person asked for the round marked reply to run again with exactly these Skills and no automatic ones (an empty list: without Skills). The page that asked starts the round; nothing was changed in the Skill settings by this.";
+}, {
     readonly name: "molis:surface-focus";
     readonly kind: "request";
     readonly owner: "context-actions";
@@ -593,6 +608,10 @@ export declare const PAGE_STATE_OWNERS: {
     readonly "knowledge-picker": {
         readonly files: readonly ["apps/workbench/src/browser/knowledge/picker.ts", "apps/workbench/src/browser/plugin-frame/materials-picker.ts"];
         readonly state: "The one picker of project materials (specs/project-knowledge PMAT-17, materials-ui-contract §3): what it was asked for, the person's query, the file read beside the list and their picks until they confirm; for a plugin frame, the page's own request on the frame's behalf and the answer it relays into the frame.";
+    };
+    readonly "skill-picks": {
+        readonly files: readonly ["apps/workbench/src/browser/skill-picks.ts", "apps/workbench/src/browser/plugin-frame/skill-picks.ts"];
+        readonly state: "The one 「依据」 panel of a round's Skills (specs/prologue-strategies/skill.md §10): which round's line asked, the catalog as read when it opened, and the person's choice until they make it; for a plugin frame, the page's own mark for the round it asked about.";
     };
 };
 

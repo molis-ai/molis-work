@@ -2,12 +2,11 @@ import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { SKILL_SETTINGS_CLIENT_SCRIPT } from "./settings-skills.js";
 import { KIT_SETTINGS_LOADER_SCRIPT, renderKitSettings } from "./settings-kit.js";
 import type { ProjectGuidanceView } from "@molis-ai/molis-work-plugin-goals/contract";
-import type { PlanningMethodPack } from "@molis-ai/molis-work-plugin-goals/contract";
 import type { PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { MolisWorkWebView } from "./page-view.js";
 import { ACCOUNT_REGISTRATION_BODY, NO_FAVICON_LINK } from "./document-shell.js";
-import { type WebProjectNavigation, type createWorkbenchSettingsNavigation } from "./settings-navigation.js";
-import type { StagePageModel, StagePageDrawing, UiLocalePack, WorkbenchDocumentRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { createWorkbenchSettingsNavigation } from "./settings-navigation.js";
+import type { StagePageModel, StagePageDrawing, UiLocalePack } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createProjectSettingsFolds, type ProjectSettingsFoldId } from "./project-settings-folds.js";
 import { PROJECT_GUIDANCE_CLIENT_SCRIPT } from "./browser-assets.js";
@@ -23,8 +22,7 @@ import { PLUGIN_RETAINED_ICONS, PLUGIN_TRUST_SETTINGS_CLIENT_SCRIPT, renderPlugi
 import { renderTaskGrantsSettings, TASK_GRANTS_SETTINGS_CLIENT_SCRIPT } from "./settings-task-grants.js";
 import { appearanceClientTag, appearanceHead, type WorkbenchAppearancePorts } from "./appearance-document.js";
 import { renderAppearanceRecovery } from "./settings-appearance.js";
-import { renderInlinePageText, renderLanguageHead } from "./language-resource.js";
-import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
+import { renderLanguageHead } from "./language-resource.js";
 
 export interface ProjectSettingsPagePorts {
   accountRegistration?: boolean;
@@ -40,18 +38,17 @@ export interface ProjectSettingsPagePorts {
   withDesktopQuery(path: string): string;
   themeBootstrapScript: string;
   visualFoundationClientScript: string;
-  navigation: Pick<ReturnType<typeof createWorkbenchSettingsNavigation>, "renderProjectSettingsNavigation" | "renderSettingsNavigation">;
+  navigation: Pick<ReturnType<typeof createWorkbenchSettingsNavigation>, "renderProjectSettingsNavigation">;
   renderSettingsContent<Data>(pluginId: string, surface: string, model: (stage: StagePageModel) => StagePageModel<Data>, view?: MolisWorkWebView): string;
 }
 
 /** The settings pages whose content Goals owns: a project without Goals (`guidance` null in the hub) has none of them (RAC-400). */
-const GOALS_SETTINGS_SECTIONS: ReadonlySet<ProjectSettingsFoldId> = new Set(["guidance", "planning"]);
-const GOALS_SETTINGS_OWNER = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "goals")?.manifest;
+const GOALS_SETTINGS_SECTIONS: ReadonlySet<ProjectSettingsFoldId> = new Set(["guidance"]);
 
 /** Settings page composition consumes canonical Goals facts and platform presentation ports. */
 export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePorts) {
   const { readText, escapeHtml, icon, htmlLang, controlTokenMeta, renderIconSprite, withDesktopQuery, renderSettingsContent } = ports;
-  const { renderProjectSettingsNavigation, renderSettingsNavigation } = ports.navigation;
+  const { renderProjectSettingsNavigation } = ports.navigation;
   const THEME_BOOTSTRAP_SCRIPT = ports.themeBootstrapScript;
   const VISUAL_FOUNDATION_CLIENT_SCRIPT = ports.visualFoundationClientScript;
   const folds = createProjectSettingsFolds({ readText, escapeHtml, icon, withDesktopQuery, projectDeletionLabels: ports.projectDeletionLabels });
@@ -59,23 +56,6 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
     project = view?.project ?? null, document?: StagePageDrawing["document"]): string {
     return renderSettingsContent("goals", surface, stage => ({ ...stage, data, request,
       context: { ...stage.context!, project }, drawing: { ...stage.drawing!, ...(document ? { document } : {}) } }), view);
-  }
-
-  function languageHead(lang: string, planning: boolean): string {
-    if (!planning || !GOALS_SETTINGS_OWNER) return renderLanguageHead(lang);
-    // The planner is the only inline Goals client in these standalone documents. Its fixed words come from the registered Goals owner.
-    const packs = ports.catalogTextPacks(GOALS_SETTINGS_OWNER).map(pack => ({ ...pack, messages: Object.fromEntries(
-      Object.entries(pack.messages).filter(([key]) => key.startsWith("goals.planning-client.")),
-    ) })).filter(pack => Object.keys(pack.messages).length);
-    return renderInlinePageText([{ slot: "settings:planning", producer: GOALS_SETTINGS_OWNER.plugin_id, packs }]) + renderLanguageHead(lang);
-  }
-
-  function planningDocument(controlToken: string, desktopShell: boolean, navigation: string): NonNullable<StagePageDrawing["document"]> {
-    const appearance = ports.appearance?.current();
-    return { lang: htmlLang(), navigation_html: navigation, request_client: UI_REQUEST_CLIENT_SCRIPT,
-      foundation_client: VISUAL_FOUNDATION_CLIENT_SCRIPT,
-      render: (document: WorkbenchDocumentRenderRequest) => `<!doctype html>${document.preamble_html ?? ""}<html lang="${document.lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${NO_FAVICON_LINK}${controlTokenMeta(controlToken)}<title>${escapeHtml(document.title)}</title>${languageHead(document.lang, true)}<script>${THEME_BOOTSTRAP_SCRIPT}</script><link rel="stylesheet" href="/assets/molis-work-settings.css">${appearanceHead(appearance)}</head><body${ports.accountRegistration ? ACCOUNT_REGISTRATION_BODY : ''} class="settings-page planning-page project-preferences-page" data-desktop-shell="false"${desktopShell ? ' data-native-desktop="true"' : ""}>${renderIconSprite()}${document.body_html}${renderAppearanceRecovery(readText, appearance)}${appearanceClientTag(appearance)}</body></html>`,
-    };
   }
 
   function hubProject(view: MolisWorkWebView) {
@@ -86,7 +66,7 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
     };
   }
 
-  function renderHubSection(view: MolisWorkWebView, guidance: ProjectGuidanceView | null, methods: readonly PlanningMethodPack[], section: ProjectSettingsFoldId, desktopShell: boolean): string {
+  function renderHubSection(view: MolisWorkWebView, guidance: ProjectGuidanceView | null, section: ProjectSettingsFoldId, desktopShell: boolean): string {
     if (section === "workspaces") return renderProjectDirectoriesSection(readText, view.route_prefix || `/projects/${encodeURIComponent(view.project!.project_id)}`);
     if (section === "general" || guidance === null && GOALS_SETTINGS_SECTIONS.has(section)) return folds.renderGeneralPage(hubProject(view), desktopShell);
     if (section === "guidance") return content("guidance", { guidance: guidance! }, {}, view);
@@ -95,17 +75,13 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
     if (section === "kit") return renderKitSettings({ projectId: view.project!.project_id });
     if (section === "plugins") return renderPluginTrustSettings({ readText, projectId: escapeHtml(view.project!.project_id), chevron: icon("chevron-down"), kinds: Object.fromEntries(Object.entries(PLUGIN_RETAINED_ICONS).map(([kind, name]) => [kind, icon(name)])) });
     if (section === "grants") return renderTaskGrantsSettings({ readText, projectId: escapeHtml(view.project!.project_id) });
-    if (section === "rules") {
-      const href = `/settings/authorizations?view=project-rules&project=${encodeURIComponent(view.project!.project_id)}`;
-      return `<a class="mw-btn mw-btn--secondary" href="${escapeHtml(desktopShell ? withDesktopQuery(href) : href)}">${uiText("workbench.settings-navigation.access-approvals")}</a>`;
-    }
-    return content("project", { methods }, { desktop: String(desktopShell) }, view);
+    const href = `/settings/authorizations?view=project-rules&project=${encodeURIComponent(view.project!.project_id)}`;
+    return `<a class="mw-btn mw-btn--secondary" href="${escapeHtml(desktopShell ? withDesktopQuery(href) : href)}">${uiText("workbench.settings-navigation.access-approvals")}</a>`;
   }
 
   function renderMolisWorkProjectSettingsHub(
     view: MolisWorkWebView,
     guidance: ProjectGuidanceView | null,
-    methods: readonly PlanningMethodPack[],
     controlToken = "",
     desktopShell = false,
     open: ProjectSettingsFoldId = "general",
@@ -113,14 +89,14 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
   ): string {
     const project = view.project;
     if (!project) return "";
-    if (embed) return renderHubSection(view, guidance, methods, embed, desktopShell);
+    if (embed) return renderHubSection(view, guidance, embed, desktopShell);
     const appearance = ports.appearance?.current();
     const routePrefix = view.route_prefix || `/projects/${encodeURIComponent(project.project_id)}`;
     const projectReturnHref = desktopShell ? withDesktopQuery(routePrefix || "/") : routePrefix || "/";
-    const page = renderHubSection(view, guidance, methods, open, desktopShell), navigation = renderProjectSettingsNavigation(guidance === null && GOALS_SETTINGS_SECTIONS.has(open) ? "general" : open, project, desktopShell, [], { goals: guidance !== null });
+    const page = renderHubSection(view, guidance, open, desktopShell), navigation = renderProjectSettingsNavigation(guidance === null && GOALS_SETTINGS_SECTIONS.has(open) ? "general" : open, project, desktopShell, [], { goals: guidance !== null });
     return `<!doctype html>
 <html lang="${htmlLang()}">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${NO_FAVICON_LINK}${controlTokenMeta(controlToken)}<title>${uiText("workbench.project-settings-pages.project-settings")} · ${escapeHtml(project.display_name)} · Molis Work</title>${languageHead(htmlLang(), open === "planning" && guidance !== null)}<script>${THEME_BOOTSTRAP_SCRIPT}</script><link rel="stylesheet" href="/assets/molis-work-settings.css">${appearanceHead(appearance)}</head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${NO_FAVICON_LINK}${controlTokenMeta(controlToken)}<title>${uiText("workbench.project-settings-pages.project-settings")} · ${escapeHtml(project.display_name)} · Molis Work</title>${renderLanguageHead(htmlLang())}<script>${THEME_BOOTSTRAP_SCRIPT}</script><link rel="stylesheet" href="/assets/molis-work-settings.css">${appearanceHead(appearance)}</head>
 <body${ports.accountRegistration ? ACCOUNT_REGISTRATION_BODY : ''} class="settings-page project-preferences-page" data-route-prefix="${escapeHtml(routePrefix)}" data-settings-section="${open}" data-desktop-shell="false"${desktopShell ? ' data-native-desktop="true"' : ""}>
   <!-- THESIS: Project settings are a dedicated space for deliberate changes. OWN-WORLD: Coss neutral surfaces, fine dividers, 8px controls. STORY: Choose a category, edit the shared project contract, return to the same workspace. FIRST VIEWPORT: 224px rail, 840px content column, 24px title, settings rows with controls on the right. FORM: Independent preferences; project-settings-v2. Interaction: category navigation preserves workspace tabs; disclosures reveal advanced controls with 160ms arrow motion and reduced-motion support. FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance -->
   ${renderIconSprite()}
@@ -137,43 +113,28 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
   function renderMolisWorkProjectGeneralSettings(
     view: MolisWorkWebView,
     guidance: ProjectGuidanceView,
-    methods: readonly PlanningMethodPack[],
     controlToken = "",
     desktopShell = false,
   ): string {
-    return renderMolisWorkProjectSettingsHub(view, guidance, methods, controlToken, desktopShell, "general");
+    return renderMolisWorkProjectSettingsHub(view, guidance, controlToken, desktopShell, "general");
   }
 
   function renderMolisWorkProjectSettings(
     view: MolisWorkWebView,
     guidance: ProjectGuidanceView,
-    methods: readonly PlanningMethodPack[],
     controlToken = "",
     desktopShell = false,
   ): string {
-    return renderMolisWorkProjectSettingsHub(view, guidance, methods, controlToken, desktopShell, "rules");
+    return renderMolisWorkProjectSettingsHub(view, guidance, controlToken, desktopShell, "rules");
   }
 
   function renderMolisWorkProjectGuidanceSettings(
     view: MolisWorkWebView,
     guidance: ProjectGuidanceView,
-    methods: readonly PlanningMethodPack[],
     controlToken = "",
     desktopShell = false,
   ): string {
-    return renderMolisWorkProjectSettingsHub(view, guidance, methods, controlToken, desktopShell, "guidance");
-  }
-
-  function renderMolisWorkPlanningLibrary(methods: readonly PlanningMethodPack[], contextProject: WebProjectNavigation | null = null, controlToken = "", desktopShell = false, projects: readonly WebProjectNavigation[] = [], enabledPlugins?: readonly string[]): string {
-    const navigation = renderSettingsNavigation("planning", contextProject, desktopShell, projects, enabledPlugins);
-    return content("library", { methods }, { desktop: String(desktopShell) }, undefined, contextProject, planningDocument(controlToken, desktopShell, navigation));
-  }
-  function renderMolisWorkPlanningMethodPage(method: PlanningMethodPack | null, mode: "detail" | "edit" | "new", saveScope: "personal" | "project", project: WebProjectNavigation | null, controlToken = "", desktopShell = false, projects: readonly WebProjectNavigation[] = [], enabledPlugins?: readonly string[]): string {
-    const navigation = saveScope === "project" && project ? renderProjectSettingsNavigation("planning", project, desktopShell, projects) : renderSettingsNavigation("planning", project, desktopShell, projects, enabledPlugins);
-    return content("method", { method }, { mode, save_scope: saveScope, desktop: String(desktopShell) }, undefined, project, planningDocument(controlToken, desktopShell, navigation));
-  }
-  function renderMolisWorkPlanningSettings(view: MolisWorkWebView, methods: readonly PlanningMethodPack[], controlToken = "", desktopShell = false): string {
-    return renderMolisWorkProjectSettingsHub(view, { entries: [], inactive_entries: [], revisions: [], virtual_document: "", runtime_prompt_prefix: "" }, methods, controlToken, desktopShell, "planning");
+    return renderMolisWorkProjectSettingsHub(view, guidance, controlToken, desktopShell, "guidance");
   }
 
   return {
@@ -181,8 +142,5 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
     renderMolisWorkProjectGeneralSettings,
     renderMolisWorkProjectSettings,
     renderMolisWorkProjectGuidanceSettings,
-    renderMolisWorkPlanningLibrary,
-    renderMolisWorkPlanningMethodPage,
-    renderMolisWorkPlanningSettings,
   };
 }

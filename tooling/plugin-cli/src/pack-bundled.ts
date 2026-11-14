@@ -1,9 +1,11 @@
-import { mkdir, readFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { defineErrorCodes } from '@molis-ai/molis-work-contracts/platform/actions';
 import { pluginErrors, type PluginLocalesDeclaration, type PluginPackageBundle, type PluginPackageSigner } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { signPluginPackage, verifyPluginPackageSignature } from '@molis-ai/molis-work-plugin-runtime';
-import { contentPayloadFromFolder, type PackContentOptions } from './pack-content.js';
+import type { LocalPackageSignInput } from '@molis-ai/molis-work-contracts/platform/plugin-trust';
+import { completeContentPackagePayload } from '@molis-ai/molis-work-plugin-sdk';
+import { contentDraftFromFolder, contentPayloadFromFolder, type PackContentOptions } from './pack-content.js';
 import { writePluginPackageFile } from './package-files.js';
 
 // `pack-bundled`: a content package the installer ships uninstalled (specs/skill-packs/contract-design.md §3, 「随包带上、还没装」),
@@ -17,7 +19,7 @@ const bundledErrors = defineErrorCodes('plugin', { publisher_key_missing: 'inval
 
 /** The file beside `skills/` that writes the publishing choices `pack-content` takes as options. */
 export const BUNDLED_PACK_OPTIONS_FILE = 'pack-content.json';
-const OPTION_KEYS = new Set(['plugin_id', 'version', 'name', 'name_text', 'summary', 'summary_text', 'publisher_id', 'scope', 'compatible_from', 'locales']);
+const OPTION_KEYS = new Set(['plugin_id', 'version', 'name', 'name_text', 'summary', 'summary_text', 'publisher_id', 'scope', 'compatible_from', 'locales', 'system']);
 
 const invalid = (message: string): never => { throw pluginErrors.package_invalid(`${BUNDLED_PACK_OPTIONS_FILE}：${message}`); };
 const text = (value: unknown, key: string, required: boolean): string | undefined => {
@@ -45,6 +47,38 @@ export async function readBundledPackOptions(directory: string): Promise<Omit<Pa
     ...(fields.locales !== undefined ? { localeSource: { directory, declaration: fields.locales as PluginLocalesDeclaration } } : {}) };
 }
 
+/** How every Skill of a pack that comes with the system starts, before the person changes it. */
+export type SystemPackDefault = 'auto' | 'manual';
+
+/**
+ * `system` in `pack-content.json`: this pack is not installed by anyone, it comes with the system (用户 2026-11-14 定) — its Skills are
+ * in every Home's catalog from the first start, each in `default_state` until the person changes it. Absent: an ordinary bundled pack.
+ */
+export async function readSystemPackChoice(directory: string): Promise<{ default_state: SystemPackDefault } | undefined> {
+  const system = (JSON.parse(await readFile(join(directory, BUNDLED_PACK_OPTIONS_FILE), 'utf8')) as { system?: unknown }).system;
+  if (system === undefined) return undefined;
+  const state = system && typeof system === 'object' && !Array.isArray(system) && Object.keys(system).every(key => key === 'default_state') ? (system as { default_state?: unknown }).default_state : undefined;
+  if (state !== 'auto' && state !== 'manual') return invalid('system 要写成 { "default_state": "auto" } 或 { "default_state": "manual" }');
+  return { default_state: state };
+}
+
+/**
+ * Packs a pack that comes with the system: the same declaration and files as a draft, with how its Skills start, written to
+ * `<outputDirectory>/<plugin_id>.json` in the Host's build output. The Host reads it as its own content, as it reads a built-in
+ * plugin's methods; nobody installs or signs it.
+ */
+export async function packSystemPack(directory: string, outputDirectory: string): Promise<{ draft: LocalPackageSignInput; file: string }> {
+  const options = await readBundledPackOptions(directory), system = await readSystemPackChoice(directory);
+  if (!system) invalid('这个包没有写 system');
+  const draft = await contentDraftFromFolder(join(directory, 'skills'), options);
+  completeContentPackagePayload(draft, { publisher_id: options.publisherId, signature: 'ed25519:sha256:' + '0'.repeat(64) });
+  const file = join(outputDirectory, `${options.pluginId}.json`);
+  await mkdir(outputDirectory, { recursive: true });
+  await rm(file, { force: true });
+  await writeFile(file, JSON.stringify({ ...draft, default_state: system!.default_state }) + '\n', { flag: 'wx' });
+  return { draft, file };
+}
+
 /**
  * Packs the bundled package in `directory` (`skills/` and `pack-content.json`) and signs it with `signer`, whose identity becomes the
  * Manifest's publisher signature; the signed package is checked as the Host checks one before it is written to
@@ -62,4 +96,21 @@ export async function packBundledContent(directory: string, outputDirectory: str
   await mkdir(outputDirectory, { recursive: true });
   await writePluginPackageFile(file, bundle);
   return { bundle, file };
+}
+
+/**
+ * Packs the bundled package in `directory` without a publisher, for a release that has no publisher key of its own yet (batch 26,
+ * 26-1): the declaration and files the Host signs with the Home's own publisher identity when the person installs it (用户 2026-11-14
+ * 定). Written to `<outputDirectory>/<plugin_id>.draft.json`, replacing the one a previous build left; the draft is checked as the Host
+ * will check it once a publisher is filled in.
+ */
+export async function packBundledDraft(directory: string, outputDirectory: string): Promise<{ draft: LocalPackageSignInput; file: string }> {
+  const options = await readBundledPackOptions(directory);
+  const draft = await contentDraftFromFolder(join(directory, 'skills'), options);
+  completeContentPackagePayload(draft, { publisher_id: options.publisherId, signature: 'ed25519:sha256:' + '0'.repeat(64) });
+  const file = join(outputDirectory, `${options.pluginId}.draft.json`);
+  await mkdir(outputDirectory, { recursive: true });
+  await rm(file, { force: true });
+  await writeFile(file, JSON.stringify(draft) + '\n', { flag: 'wx' });
+  return { draft, file };
 }

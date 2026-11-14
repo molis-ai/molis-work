@@ -66,5 +66,5 @@ export function onboardingPlanningHint(intentFrame: OnboardingIntentFrame): stri
   const frame = onboardingIntentFrameDefinition(intentFrame);
   return frame.method_pack_id
     ? `用户选择「${frame.label}」作为这次工作的起点；优先检查 ${frame.method_pack_id}，但这只是规划线索，不锁定最终方法。Runtime 仍需结合项目要求和实际内容补充所有相关方法。`
-    : "用户没有预设这次工作的类型；Runtime 应根据实际内容识别相关工作类型，并结合项目要求补充规划方法。";
+    : "用户没有预设这次工作的类型；Runtime 应根据实际内容识别相关工作类型，并结合项目要求选用合适的拆解方法。";
 }

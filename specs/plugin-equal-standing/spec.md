@@ -71,7 +71,7 @@
 | --- | --- | --- | --- |
 | G1 | **项目指导**：每次 Agent Run、助理回合的项目层提示词 | Goals 的 guidance 动作；宿主 `goal-callers.ts` 的 `readProjectGuidance` 经 `goals.guidance.read` 读 | `agent-host-composition.ts:388`、`assistant/assistant-authority.ts:167`、`mcp-context-tools.ts:15`；项目没有 Goals 就没有项目指导 |
 | G2 | **可信用户决定、项目审批规则、策略绑定**（原 Governance Module，S9-3 并入） | `plugins/native/goals/src/governance/`、`contract/governance-collaboration.ts` | MCP 只为 Goals 开受保护的管理入口 `initialize`、`event_decide`、`goal_tree_decide`（`apps/mcp/src/tool-dispatch.ts:5`、`goal-tools.ts`）；设置页 rules 节；页面视图的 `policy_bindings`（`apps/workbench/src/page-view.ts:53`） |
-| G3 | **规划方法库**：37 个方法、个人副本、项目>个人>内置的取用顺序 | `plugins/native/goals/methods/`；Goals 的 Home 半实例 `home-plugin.ts`（`dual_instance`） | 设置页 planning 节、规划页（`web-planning.ts`）；待决 `BL-goals-methods-as-skills` |
+| G3 | **规划方法库**：37 个方法、个人副本、项目>个人>内置的取用顺序 | `plugins/native/goals/methods/`；Goals 的 Home 半实例 `home-plugin.ts`（`dual_instance`） | 设置页 planning 节、规划页（`web-planning.ts`）。**第 41 批已删**（2026-11-14）：方法是随系统自带的技能包，Goals 不读、不存、不采用，Home 半实例与规划页都没有了 |
 | G4 | **逐项依据与验收**：要求的认可、完成批准、证据档位 | Goals（第 24-3 批、[决定 25、35](../post-anticorruption-roadmap/reference/decisions.md)） | 第 66-3 批「Goals 依据三档与同一验收卡」、第 27-4 批 Goals 余项还要继续加；第 32-2 批助理后台任务的逐项认可原本也要用它 |
 | G5 | **工作终端与推进提示**：按 Goal 开、列、关工作终端，生成「推进这个 Goal」的提示 | Goals 的 `terminal-actions.ts`、路由 `/goals/:goalId/terminals`（`plugins/native/goals/src/manifest.ts:54-56`、`http/terminals.ts`）；工作台 `apps/workbench/src/terminal/client-prompt.ts` | 平台的启动终端服务（S-103）已在，但「对一个对象开工作终端」只有 Goals 能做 |
 
@@ -136,7 +136,7 @@
 | --- | --- | --- |
 | 项目指导 | 平台的项目服务（`modules/projects` 或 horizontal 新包），设置页「项目指导」由平台画 | 每个 Run 都要，与 Goal 无关；不能因为移除一个插件就没了 |
 | 可信用户决定、审批规则 | 平台的决定服务：任何插件声明「这个动作要可信用户决定」，平台给受保护的决定入口（含 MCP），记录归平台 | 授权与可信来源本是平台的事（PG-029）；今天只有 Goals 能用 |
-| 规划方法 | 变成技能，进能力包（`BL-goals-methods-as-skills`）；Goals 只消费 | 方法是给 Agent 的长内容，正属技能；Goals 随之不再需要 Home 半实例 |
+| 规划方法 | 变成技能（第 41 批已做：随系统自带的技能包）；Goals 不消费——用户 2026-11-14 定「和 Goals 没有关系」，助理用技能拆解后要不要写进 Goals 走 Goals 的普通动作 | 方法是给 Agent 的长内容，正属技能；Goals 随之不再需要 Home 半实例 |
 | 要求、证据、认可、完成批准、返工复核（D9，取代 D4） | 平台能力：任何对象（Goal、助理后台任务、待办……）都能挂一组要求，平台保存「要求→产物版本→证据→用户认可→返工复核」，依据档位（自报／机器核过／人验收）也由平台给；证据核验（`agent.evidence.check@1`、命令回执、成果版本）本就在平台；Goals 和第 32-2 批都只是消费方 | 一项事实一个主人；助理后台任务在没有 Goals 的项目里也要逐项认可 |
 | 工作终端与推进提示（D9） | 平台终端服务：任何插件声明「这类对象可以开工作终端」及其提示的取法，平台按对象开、列、关；Goals 删掉自己的终端动作和路由 | 终端执行本是平台能力，今天只有 Goals 能按对象用 |
 
@@ -222,7 +222,7 @@
 | 4 合同 | 改：placement、action-subjects、memory、contextual、dom-events、context-ledger、skills、Goals 公开 contract、MCP 受保护决定入口（D3）、Manifest 新声明；删：胶囊的宿主路由与原生桥（D6）、CLI 的 Goals 命令（D6b）、`goal-advance` Skill（D7）。首个外部安装之前，按阶段一不留兼容期，一个 PR 改完消费者；先单独开合同片（片 1） |
 | 5 放在哪个包 | 新平台服务放 `horizontal/` 新包或 `modules/projects`，不进宿主 |
 | 6 表与存储 | 项目指导、决定记录搬家涉及表的主人变更：升版本、写升级段、补金样（[升级链设计](../upgrade-continuity/upgrade-chain-design.md)）；真实 Home 不动，开工前弹窗问 |
-| 7 兼容与迁移 | 存量数据要搬（决定记录、项目指导、个人规划方法）：这是迁移逻辑，开工前按 `AGENTS.md` 写进 `docs/system/CONTRACT-CHANGES.md`「当前保留机制」并经用户确认 |
+| 7 兼容与迁移 | 存量数据要搬（决定记录、项目指导；个人规划方法不搬，用户 2026-11-14 定直接删）：这是迁移逻辑，开工前按 `AGENTS.md` 写进 `docs/system/CONTRACT-CHANGES.md`「当前保留机制」并经用户确认 |
 | 8 安全边界 | 碰：MCP 受保护决定入口（可信来源）、动作网关的可信身份；改动同步 `docs/system/SECURITY-INVARIANTS.md` 与拒绝测试 |
 | 9 调用次数 | 每页请求不再额外读 Goals；胶囊与接续摘要按已装插件汇总，限定一次批量读 |
 | 10 升级与数据 | 现有项目的 Goal、决定、指导、方法在升级后都在、能接着用；有金样回放证明 |
@@ -237,7 +237,7 @@
 1. **合同片**：C1～C6 与 Goals 公开 contract 收窄、新声明（设置节、接续摘要、上手承接、决定入口），一次改完消费者。
 2. **项目指导回平台**（D2）。
 3. **决定服务回平台**（D3），MCP 管理入口改通用。
-4. **规划方法进技能**（D5），删 Goals Home 半实例。
+4. **规划方法进技能**（D5），删 Goals Home 半实例。——第 41 批已做完。
 5. **宿主与工作台去私路**：H1～H9（H6、H7 除外）、Goals 样式随包、去常开且新项目不默认装（D1）。
 6. **删除**：桌面胶囊（D6）、CLI 的 Goals 命令（D6b）与 `goal-advance` Skill（D7），胶囊登记重做待办；可以最先做，不依赖别的片。
 7. **其他插件**：4.5 节各项。
@@ -317,7 +317,7 @@
 7. **PEQ-07** 工作台首屏不再默认 Goals：无历史时取首个已装插件，有历史时回到上次的面。
 8. **PEQ-08** Goals 的样式、Feed 的样式不在工作台与设计系统里；页面资源检查通过且工作台资源不变大。
 9. **PEQ-09** 项目上手、个人同步、Home 库快照、材料目录都按声明工作，不写死 Todo、Pages、Images、灵光。
-10. **PEQ-10** 升级金样：带 Goal、决定记录、项目指导、个人规划方法的旧 Home 升级后都能读、能继续用。
+10. **PEQ-10** 升级金样：带 Goal、决定记录、项目指导的旧 Home 升级后都能读、能继续用（个人规划方法不在内：第 41 批按用户决定删除，金样回放核对旧库文件已不在）。
 11. **PEQ-11** [人工] 用户在真实界面里添加、移除、再添加 Goals，走一遍日常动线。
 12. **PEQ-12** 新建项目里没有 Goals；Goals 的 Manifest 不声明 `always_on`，常开插件只有 Shelf。
 13. **PEQ-13** 仓库里没有桌面胶囊的窗口、宿主路由与 Goals 胶囊投影；重做待办已登记。
@@ -351,3 +351,4 @@
 | 2026-11-13 | 复查：Coding 的命令行入口放哪（弹窗） | 插件声明命令（推荐）；只给通用调用动作入口；平台 CLI 留 coding run 作例外 | 插件声明命令 | 84-1 先落「插件在 Manifest 声明命令、CLI 按已装插件生成子命令」，CLI 不写 Coding |
 | 2026-11-13 | 复查：审查合同稿谁先写（弹窗） | 32-2 先写共用合同稿（推荐）；拆一个设计小片提前 | 32-2 先写 | 32-2 开工前把审查合同写进授权需求书，39-1 沿用并补全 |
 | 2026-11-14 | 审查合同交付顺序（弹窗） | 39 先起草，或继续等 32-2 | 39 先起草并由同一只读代理合审 | 32-2 仍拥有要求与认可，44 消费对应平台能力，见[决定 43 补充](../post-anticorruption-roadmap/reference/decisions.md#decision-43-review-order) |
+| 2026-11-14 | 第 41 批的方法和个人存量 | 搬成技能、留只读或删除 | 方法归技能目录，删除旧个人方法库与相关代码 | 片 4 已合入，Goals 无方法库和 Home 实例，Goals 私有库由 v3 升至 v4 |

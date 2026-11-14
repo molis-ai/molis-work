@@ -262,7 +262,10 @@ export class AssistantService {
       assertSendCurrent(stillCurrent);
       assertInput();
       linkSent(this.store.relations, work, materials, created ? context : null);
-      const result = await this.dispatcher.dispatch(work, text, materials, context, input.work_id ? undefined : input.mode, writtenBy ?? input.written_by, stillCurrent, caller.beforeStart, assertInput, { id: input.request_id, target: input.target, delivery: input.delivery, byHost: Boolean(writtenBy ?? input.written_by) || input.reask !== undefined || !original_input, about: input.about, original_input, reply_locale: caller.reply_locale, draftCurrent }, { assertCurrent: () => { for (const item of handoffs) item.assertCurrent(); }, accepted: () => { for (const item of handoffs) item.accepted(); } });
+      const result = await this.dispatcher.dispatch(work, text, materials, context, input.work_id ? undefined : input.mode, writtenBy ?? input.written_by, stillCurrent, caller.beforeStart, assertInput,
+        { id: input.request_id, target: input.target, delivery: input.delivery, byHost: Boolean(writtenBy ?? input.written_by) || input.reask !== undefined || !original_input,
+          about: input.about, original_input, reply_locale: caller.reply_locale, draftCurrent, ...(input.auto_skills === false ? { auto_skills: false as const } : {}) },
+        { assertCurrent: () => { for (const item of handoffs) item.assertCurrent(); }, accepted: () => { for (const item of handoffs) item.accepted(); } });
       if (inputHold) { inputHold.accept(); const current = this.store.get(this.actorId, work.work_id); result.work = this.reads.publicWork(current, await this.reads.stateSafely(current)); }
       if (input.submission_id !== undefined) result.submission_id = input.submission_id;
       this.store.requests.finishRequest(this.actorId, input.request_id, result);

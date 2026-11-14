@@ -82,7 +82,9 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
   dispatched?: (view: ActionView) => void,
   pageContext?: () => ActionCallContext["page_context"], locale?: WebLocale,
   /** The Skills the person named for this round (its materials): the round's frozen list, so a `manual` one can be read. */
-  roundSkills: readonly SkillRef[] = [], holdActionPolicy?: (key: string, automatic?: boolean) => () => void): AgentStartAuthority {
+  roundSkills: readonly SkillRef[] = [],
+  /** False when the person asked for this round without automatic Skills (「这次不用技能」): only the named ones can be read. */
+  autoSkills = true, holdActionPolicy?: (key: string, automatic?: boolean) => () => void): AgentStartAuthority {
   const reference = work.project_ref;
   // This round's number: the request that sent the message when there is one, else a new one. The tools run later, in the Runtime's loop,
   // outside any scope, so the number goes into every call's context.
@@ -90,7 +92,8 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
   const base = (signal?: AbortSignal): ActionCallContext => ({ ...assistantActionContext(work, { call_id: callId, locale, signal }), page_context: pageContext?.(),
     // This round's Skill reads are the Assistant's (`skill_round`, specs/capability-pack/contract-design.md §2.3): the catalog lets
     // through the Skills `applies_to: assistant` and those the person named, and refuses the rest. Host-written, never from input.
-    skill_round: { consumer: "assistant", named: roundSkills } });
+    // The round's number lets the catalog count Skills the round reads of its own choice (SKL-02).
+    skill_round: { consumer: "assistant", named: roundSkills, round: callId, ...(autoSkills ? {} : { auto: false as const }) } });
   const accepted = <View extends Omit<ActionView, "availability">>(catalog: readonly View[], caller: ActionCallContext) => assistantActionRows(catalog, caller, disabled());
   let offered: readonly ActionView[] = [];
   const context = async (validate?: () => void | Promise<void>, signal?: AbortSignal): Promise<ActionCallContext> => {

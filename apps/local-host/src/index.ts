@@ -42,7 +42,7 @@ export { nativePluginReleaseArtifact } from "./native-plugin-release-artifact.js
 export { bindDeclaredDefaults } from "./plugin-default-bindings.js";
 export { homeStores } from "./home-stores.js";
 export { BROWSER_SITES_FILE, BrowserSiteDecisions } from "./browser/browser-surfaces.js";
-export { ensureHomeUpgraded, pendingUpgradeUnits, runHomeUpgrade, type HomeUpgradeReport } from "./home-upgrade.js";
+export { ensureHomeUpgraded, pendingUpgradeUnits, REMOVED_HOME_STORES, runHomeUpgrade, type HomeUpgradeReport } from "./home-upgrade.js";
 export { planHomeUpgrade, runUpgradeMaintenance, upgradeHomesForMaintenance, type HomeUpgradePlan, type UpgradeMaintenanceMessage, type UpgradeMaintenanceOptions } from "./upgrade-maintenance.js";
 export { configuredModelChoices } from "./configured-models.js";
 export { describePluginTablesRefusal, describeUnavailable, diagnosticId, dismissUpgradeNotice, rollbackHrefFor, upgradeNoticeFor, upgradeRefusal, type UnavailableOwner, type UnavailableReason } from "./home-unavailable-owners.js";
@@ -252,7 +252,6 @@ export { runLocalPluginDevelopment, developInPrivateHost, createPrivateDevelopme
 export { createLocalOnboardingHttp } from "./web-onboarding.js";
 export { handleLocalProjectReferenceHttp } from "./web-project-reference.js";
 export { readProjectReference } from "./project-file-reference.js";
-export { createLocalPlanningHttp } from "./web-planning.js";
 export { createLocalGoalsReadHttp } from "./web-goals-read.js";
 export { createLocalWebCoreFactory, createLocalWebServerFactory } from "./web-server.js";
 export type { WebServerOptions } from "./web-types.js";

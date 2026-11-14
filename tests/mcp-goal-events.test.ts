@@ -81,7 +81,6 @@ test("Runtime event tools create, configure, report and reopen without Claim or 
     assert.equal(configured.replayed, false);
     assert.equal(configured.config.version, 1);
     assert.equal(configured.config.types[0]?.type_id, "story-delivery");
-    assert.deepEqual(configured.config.adopted_planning, []);
 
     const reported = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.report__v1", {
       goal_id, idempotency_key: "report-1",

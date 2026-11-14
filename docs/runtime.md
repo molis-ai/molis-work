@@ -40,7 +40,7 @@ context_resolve → goals.list / goals.create → goals.state.read
 
 `goals.events.list`、`goals.events.latest`、`goals.events.read` 的输出包含 `input_acknowledged` 系统记录。
 
-`goals.events.configure` 可以登记局部类型，也可以采用合适的规划。类型的已发布版本不能重写；新增版本可以调整名称、字段和约束，旧报告始终按其保存的类型版本读取。专业方法可通过 `goals.planning.catalog` 按实际任务选择，不要求先规划才能记录。
+`goals.events.configure` 可以登记局部类型。类型的已发布版本不能重写；新增版本可以调整名称、字段和约束，旧报告始终按其保存的类型版本读取。拆解与规划的方法是技能目录里的技能，按实际任务选用，不要求先规划才能记录。
 
 一次 `goals.events.report` 可以保存多个事实及可选进展说明。整批输入有效才写入；某项非法时本批次全部回滚，先前成功调用的记录仍在。回执给出保存的事实、当前工作状态、差距和游标，通常无需立即重读全部历史。没有新事实时可单独用 `goals.progress.record`，遵循它的 `based_on_cursor` 约束。
 

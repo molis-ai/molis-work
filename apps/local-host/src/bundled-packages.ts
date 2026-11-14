@@ -11,6 +11,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
 import { pluginErrors, type PluginManifest, type PluginPackageBundle } from '@molis-ai/molis-work-contracts/platform/plugin';
+import type { LocalPackageSignInput } from '@molis-ai/molis-work-contracts/platform/plugin-trust';
+import { completeContentPackagePayload } from '@molis-ai/molis-work-plugin-sdk';
 import { verifyPluginPackageSignature } from '@molis-ai/molis-work-plugin-runtime';
 import { readKeptPackage, type KeptPackage } from './sandbox-package.js';
 
@@ -35,6 +37,23 @@ export interface BundledPackage {
   localePacks: KeptPackage["localePacks"];
 }
 
+/**
+ * One bundled package the release ships unsigned (`<plugin_id>.draft.json`): its declaration and files as `pack-bundled --draft` wrote
+ * them, with no publisher. Until Molis Work's own publisher key exists (batch 26, 26-1) the official packs ship this way, and this
+ * Home signs one with its own publisher identity when the person installs it — the trust of a Skill folder imported from this
+ * machine, no more (用户 2026-11-14 定). Lying here still installs nothing and registers nothing.
+ */
+export interface BundledDraft {
+  file: string;
+  draft: LocalPackageSignInput;
+  manifest: PluginManifest;
+  localePacks: KeptPackage["localePacks"];
+}
+
+/** The publisher a draft's Manifest is read under before this Home signs it; the signature in the installed package is the Home's. */
+const UNSIGNED = { publisher_id: 'molis-home', signature: 'ed25519:sha256:' + '0'.repeat(64) };
+const DRAFT_SUFFIX = '.draft.json';
+
 /** A file in the folder that is not a bundled package the Host takes, with the refusal reading it raised. */
 export interface BundledRefusal {
   file: string;
@@ -49,13 +68,24 @@ const refusal = (error: unknown): ActionError => error instanceof ActionError ? 
  * that is not a plugin with only declarations, or one not named `<plugin_id>.json`, is refused with its reason and taken no further. A
  * folder that is not there is no bundled package.
  */
-export async function readBundledPackages(directory: string): Promise<{ packages: BundledPackage[]; refused: BundledRefusal[] }> {
-  const packages: BundledPackage[] = [], refused: BundledRefusal[] = [];
+export async function readBundledPackages(directory: string): Promise<{ packages: BundledPackage[]; drafts: BundledDraft[]; refused: BundledRefusal[] }> {
+  const packages: BundledPackage[] = [], drafts: BundledDraft[] = [], refused: BundledRefusal[] = [];
   const folder = await lstat(directory).catch((error: NodeJS.ErrnoException) => { if (error.code === 'ENOENT') return undefined; throw error; });
-  if (!folder) return { packages, refused };
-  if (!folder.isDirectory()) return { packages, refused: [{ file: '.', error: pluginErrors.package_invalid('随包插件的位置不是一个目录') }] };
-  for (const file of (await readdir(directory)).sort()) {
+  if (!folder) return { packages, drafts, refused };
+  if (!folder.isDirectory()) return { packages, drafts, refused: [{ file: '.', error: pluginErrors.package_invalid('随包插件的位置不是一个目录') }] };
+  const files = (await readdir(directory)).sort();
+  // Signed packages first: a draft of a package that also lies here signed is refused, so one id is never offered under two publishers.
+  for (const file of [...files.filter(name => !name.endsWith(DRAFT_SUFFIX)), ...files.filter(name => name.endsWith(DRAFT_SUFFIX))]) {
     try {
+      if (file.endsWith(DRAFT_SUFFIX)) {
+        const draft = draftOf(JSON.parse(await readRegularFile(path.join(directory, file))) as unknown);
+        const { manifest, localePacks } = readKeptPackage(completeContentPackagePayload(draft, UNSIGNED));
+        if (manifest.kind !== 'content') throw pluginErrors.declaration_invalid('随安装包带上的只能是只有声明的插件（kind: "content"）');
+        if (file !== `${manifest.plugin_id}${DRAFT_SUFFIX}`) throw pluginErrors.package_invalid(`随包插件的待签文件要叫 ${manifest.plugin_id}${DRAFT_SUFFIX}`);
+        if (packages.some(item => item.manifest.plugin_id === manifest.plugin_id)) throw pluginErrors.package_invalid(`${manifest.plugin_id} 已经有签名的随包插件，不再认它的待签文件`);
+        drafts.push({ file, draft, manifest, localePacks });
+        continue;
+      }
       const { bundle, key_id } = verifyPluginPackageSignature(JSON.parse(await readRegularFile(path.join(directory, file))) as unknown);
       const { manifest, localePacks } = readKeptPackage(bundle.payload);
       if (manifest.kind !== 'content') throw pluginErrors.declaration_invalid('随安装包带上的只能是只有声明的插件（kind: "content"）');
@@ -63,7 +93,18 @@ export async function readBundledPackages(directory: string): Promise<{ packages
       packages.push({ file, bundle, manifest, key_id, localePacks });
     } catch (error) { refused.push({ file, error: refusal(error) }); }
   }
-  return { packages, refused };
+  return { packages, drafts, refused };
+}
+
+/** A draft file's two parts and nothing else: the declaration without a publisher, and the files without a Manifest (the signer writes both). */
+function draftOf(value: unknown): LocalPackageSignInput {
+  const fields = value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
+  const manifest = fields?.manifest, files = fields?.files;
+  if (!fields || Object.keys(fields).some(key => key !== 'manifest' && key !== 'files') || !manifest || typeof manifest !== 'object' || Array.isArray(manifest) || !Array.isArray(files)
+    || !files.every(file => file && typeof file === 'object' && typeof (file as { path?: unknown }).path === 'string' && typeof (file as { content_base64?: unknown }).content_base64 === 'string')) {
+    throw pluginErrors.package_invalid('待签的随包插件要是 { manifest, files }，文件各有 path 与 content_base64');
+  }
+  return { manifest: manifest as Record<string, unknown>, files: files as LocalPackageSignInput['files'] };
 }
 
 /** A regular file's text, read without following a link and only within the package limit. */

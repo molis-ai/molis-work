@@ -1,5 +1,4 @@
 import type {
-  GoalEventAdoptedPlanningRef,
   GoalEventTypeDefinition,
 } from "../contract/goals.js";
 import { storedJson } from "../stored-json.js";
@@ -49,31 +48,21 @@ export class GoalEventConfigRecords {
     goalId: string;
     version: number;
     actorId: string;
-    adoptedPlanning: GoalEventAdoptedPlanningRef[];
     createdAt: string;
     configEventId: string;
   }): void {
     this.db.prepare(`
       INSERT INTO goal_event_config_versions (
-        project_id, goal_id, version, actor_id, adopted_planning_json, created_at, config_event_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        project_id, goal_id, version, actor_id, created_at, config_event_id
+      ) VALUES (?, ?, ?, ?, ?, ?)
     `).run(
       input.projectId,
       input.goalId,
       input.version,
       input.actorId,
-      sqliteJson(input.adoptedPlanning),
       input.createdAt,
       input.configEventId,
     );
-  }
-
-  listAdoptedPlanning(projectId: string, goalId: string, version: number): GoalEventAdoptedPlanningRef[] {
-    const row = this.db.prepare(`
-      SELECT adopted_planning_json, rowid AS stored_row FROM goal_event_config_versions
-      WHERE project_id = ? AND goal_id = ? AND version = ?
-    `).get(projectId, goalId, version) as Row | undefined;
-    return row ? storedJson(row, "goal_event_config_versions", "adopted_planning_json", []) : [];
   }
 
   insertType(input: {

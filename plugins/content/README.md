@@ -5,10 +5,17 @@
 | 目录 | 内容 |
 | --- | --- |
 | `design-accessibility/` | 设计与无障碍（BL-165）：`accessibility-review`、`design-critique`、`design-handoff`、`design-system`、`ux-copy` 五个 Skill |
+| `planning-methods/` | 规划与拆解（第 41 批）：按工作类型、领域、行业、附加约束分的 37 个拆解方法，给个人助理用。**随系统自带**（见下） |
+
+两种提供方式（`pack-content.json` 决定，`pnpm build` 里的 `scripts/build-bundled-drafts.mjs` 照它打包）：
+
+- **随包带上、还没装**（默认）：打成 `apps/local-host/dist/bundled-plugins/<plugin_id>.draft.json`，本人在设置里安装时由这个 Home 的发布身份签名（官方密钥落地前，用户 2026-11-14 定；规则 `S-bundled-packages`）。技能装上后默认是关的。
+- **随系统自带**：`pack-content.json` 写 `"system": { "default_state": "auto" }`（或 `manual`），打成 `apps/local-host/dist/system-skills/<plugin_id>.json`。不用安装、不能卸载，每个 Home 的技能目录里从第一次启动就有，技能默认是写的那一档，本人可以在设置里逐个改（关掉也记住）。它是宿主自己的内容，和内置插件的技能同样对待（用户 2026-11-14 定，[Skill 策略](../../specs/prologue-strategies/skill.md)第 10 节）。
 
 每个包目录：
 
 - `skills/<skill_id>/SKILL.md`：frontmatter 每个值一行，写明 `name`、`version`、`description`、`when_to_use`、`when_not_to_use`、`argument_hint` 和 `applies_to`；附带文件只放在 `references/`，正文写明什么时候读它。
+- `skills/<skill_id>/SKILL.<语言>.md`（可选）：这个技能正文的译文，只有正文、不写 frontmatter；打包时记进声明的 `locales`，宿主按调用方的语言取，没有就用默认语言的 `SKILL.md`。译文的名称、说明写在语言文件里。所有语言共用一个 `version`。
 - `pack-content.json`：发布时的选择（插件 id、版本、名称、摘要、发布者与范围）。`name_text`、`summary_text` 引用 `locales` 声明的随包语言文件。宿主读取签名包里的声明和词，不读取此源文件。
 - `locales/<语言>.json`：同一个包的显示词。技能目录按 `<主人>.skill.<skill_id>.<字段>` 读 `name`、`description`、`when-to-use`、`when-not-to-use`。没有对应词就显示技能声明的原文。参数提示沿用声明，技能正文来自它的 `SKILL.md`。
 

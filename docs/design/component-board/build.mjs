@@ -19,13 +19,14 @@ const assets = await load('apps/workbench/dist/page-assets.js');
 const catalog = await load('apps/workbench/dist/primitive-catalog.js');
 const ds = await load('packages/design-system/dist/index.js');
 
-// 第 16 批起界面文字经 t() 取词：离线生成没有宿主给的文字上下文，这里装上工作台自己的中文词表（浏览器里的 window.MW 同样装一份）。
-const sdkUi = await load('packages/plugin-sdk/dist/ui.js');
-const words = await readFile(resolve(repo, 'apps/workbench/resources/locales/zh.json'), 'utf8');
-const pack = sdkUi.parseLocalePack(words);
-if (!pack.ok) throw new Error('工作台中文词表读不了：' + JSON.stringify(pack.problems ?? pack).slice(0, 400));
-sdkUi.installTextForTest({ locale: 'zh', packs: [pack.value] });
+// 组件板的文字走 t()（第 16 批起）：页面之外画它，先装上工作台自己的中文词表。
+const uiText = await load('packages/plugin-sdk/dist/ui.js');
+const localeFile = resolve(repo, 'apps/workbench/resources/locales/zh.json');
+const pack = uiText.parseLocalePack(await readFile(localeFile, 'utf8'), { file: localeFile });
+if (!pack.ok) throw new Error(`读不了 ${localeFile}`);
+const restoreText = uiText.installTextForTest({ locale: 'zh', packs: [pack.value] });
 const page = catalog.renderMolisWorkPrimitiveCatalog();
+restoreText();
 const specimenCss = [...page.matchAll(/<style>([\s\S]*?)<\/style>/g)].map((m) => m[1]).join('\n');
 // 字体：样式表按产品的 /assets/ 路径引用，这里拷到 dist/assets/ 并改成相对路径。
 const fonts = [...new Set([...assets.renderMolisWorkSettingsStylesheet().matchAll(/url\("\/assets\/([\w.-]+\.woff2)"\)/g)].map((m) => m[1]))];

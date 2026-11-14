@@ -148,7 +148,7 @@
 | `UNREGISTERED_MODEL_CALLS`（已是空表，`/diagnostics` 还在传）、`AgentRoleSkillsDeclaration`（公开合同，SDK 还在校验）、`AgentSkillsCapability`（没有实现者）、`builtin-registrations.ts` 的转发 | **已删**（#2015；#2019 收尾核过）：公开合同随删、快照已刷，`/diagnostics` 不再传未登记模型调用；`builtin-registrations.ts` 只剩 `homeAgentDefinitions` 一个入口，`builtinRegistrations` 的转发已删 |
 | 两条「MCP 工具登记成动作」的流水线（`external-mcp-actions.ts`、`connector-mcp-actions.ts`）各写一遍 | **不在本批**：它们是 MCP 调用链，四份 JSON（`config/*-mcp-actions.json`、`*-mcp-tools.json`）存着动作版本，流程与对外授权按这些版本固定引用，合并要改带版本文件的结构。记 [BL-mcp-action-pipelines-merge](../backlog/BL-mcp-action-pipelines-merge.md)，主人连接器线，去处第 62 批第 1 项 |
 | 提示词版本写法三种（`@version` 标记、创作台 `"designer/1"`、章节摘要） | **不在本批**：创作台是用户批过的构建期例外，随 BL-377 重做；章节摘要连着 `pnpm studio:replay`。记候选，主人创作台（写进 [BL-377](../backlog/BL-377.md)） |
-| Goals 的规划方法库（`plugins/native/goals/methods/`，37 个，自有启用与个人副本） | **不在本批**。已定：规划方法 41-2 起是能力包里的技能，不再是 Goals 的业务数据（见 [BL-goals-methods-as-skills](../backlog/BL-goals-methods-as-skills.md)，随第 41 批 41-2 做，走第 08 批的共同目录）（2026-11-13 按插件同等地位收口改，[决定 42](../post-anticorruption-roadmap/reference/decisions.md#decision-42)） |
+| Goals 的规划方法库（`plugins/native/goals/methods/`，37 个，自有启用与个人副本） | **不在本批**。已定：规划方法 41-2 起是能力包里的技能，不再是 Goals 的业务数据（见 BL-goals-methods-as-skills，第 41 批已做完并关闭：方法是随系统自带的技能包，Goals 不再有方法库，随第 41 批 41-2 做，走第 08 批的共同目录）（2026-11-13 按插件同等地位收口改，[决定 42](../post-anticorruption-roadmap/reference/decisions.md#decision-42)） |
 | 安装器 `runtime-config-adapters.ts` 手写的命令名与路径、Shelf 的 `SHELF_ENGINES` | **不在本批**：外部工具登记表的余项，归第 22 批（BL-955） |
 | 运行时登记的 MCP 动作不在动作快照里 | **不在本批**：记 [BL-runtime-mcp-actions-snapshot](../backlog/BL-runtime-mcp-actions-snapshot.md)，主人 C1（动作合同快照）；去处**第 62 批第 1 项**，与流水线合并一起做（合并后快照只量一条流水线），本批不改门禁 |
 

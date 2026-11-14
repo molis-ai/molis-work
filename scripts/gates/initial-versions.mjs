@@ -179,7 +179,7 @@ export function contentVersionKey(kind, id, owner, versions) {
   return names.map(name => kind + "." + name).find(key => Object.hasOwn(versions, key));
 }
 
-export function initialVersionProblems({ manifests, hostViews, registrations, methods = [], versionEntries = {}, chains = new Map(), currentContent = false }) {
+export function initialVersionProblems({ manifests, hostViews, registrations, versionEntries = {}, chains = new Map(), currentContent = false }) {
   const problems = new Set();
   const check = (owner, kind, id, version) => {
     if (version !== 1) problems.add(`${owner}: ${kind} ${id} = ${String(version)} (expected 1)`);
@@ -205,7 +205,6 @@ export function initialVersionProblems({ manifests, hostViews, registrations, me
   }
   for (const view of hostViews) check(view.provider.plugin_id ?? view.provider.provider_id, "action", view.capability_id, view.version);
   for (const owner of registrations) agent(owner.owner_id, owner);
-  for (const method of methods) content("goals", "method", "goals." + method.method_id, method.version);
   // Instructions a running plugin carries and the Markdown methods reach the register only while a Home runs; their source entries say the same.
   for (const [key, version] of Object.entries(versionEntries)) {
     const kind = /^(prompt|method)\./.exec(key)?.[1];
@@ -319,10 +318,9 @@ export function versionOriginProblems({ files, read }, { readBase, chains = new 
 // What a running Host registers, from this repository's build, on a throwaway Home.
 const builtDeclarations = () => withIsolatedHome(async home => {
   const { builtinRegistrations } = await import("../../apps/local-host/dist/agent-definitions/builtin-agents.js");
-  const { BUILTIN_PLANNING_METHOD_PACKS: methods } = await import("@molis-ai/molis-work-plugin-goals/module");
   const { manifests } = await loadManifests();
   const { hostViews } = await collectHost(home);
-  return { manifests, hostViews, registrations: builtinRegistrations(), methods };
+  return { manifests, hostViews, registrations: builtinRegistrations() };
 });
 
 /** Both halves over the repository at `root`: its tracked source and its two tables, and the `declarations` of a running Host. */

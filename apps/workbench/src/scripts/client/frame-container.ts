@@ -307,8 +307,6 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
   };
   const showBoard = (view) => {
     if (!enabled() || !boardTab(view)) return;
-    shell.removeAttribute("data-goal-planning");
-    shell.querySelectorAll("[data-open-work-planning]").forEach((row) => row.setAttribute("aria-pressed", "false"));
     const already = curTab === view && getSurface() === "goals";
     lastBoard = view;
     curTab = view;

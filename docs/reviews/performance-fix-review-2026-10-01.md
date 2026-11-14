@@ -32,7 +32,7 @@
 
 ## P2：复用外部 Host 重建 Web Server 后规划保存失效（新增回归）
 
-位置：[web-server.ts:87](../../apps/local-host/src/web-server.ts)、[关闭路径:276](../../apps/local-host/src/web-server.ts)，以及 [personal-planning-actions.ts:24](../../apps/local-host/src/personal-planning-actions.ts)。
+位置：[web-server.ts:87](../../apps/local-host/src/web-server.ts)、[关闭路径:276](../../apps/local-host/src/web-server.ts)，以及 personal-planning-actions.ts:24（第 41 批已删）。
 
 Server 把本实例的 Catalog runner 注入借用的 LocalHost。Server 关闭时保留外部 Host，却关闭 runner；个人规划的 `configure` 使用 `??=`，下一台 Server 注入新 runner 后，保存处理器仍引用已关闭的旧实例。
 

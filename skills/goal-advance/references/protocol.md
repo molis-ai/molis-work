@@ -14,7 +14,7 @@ Read before the first write. The connected Host supplies project and Runtime ide
 
 | Field | Meaning and use |
 | --- | --- |
-| config.version | Current local types, their versions, planning adoption and bindings. goals.events.configure.expected_version checks this value. |
+| config.version | Current local types, their versions and bindings. goals.events.configure.expected_version checks this value. |
 | agreement.version | Current result and completion requirements. A change to the commitment advances this independently. |
 | expected_config_version and expected_agreement_version | Read both from current state for goals.agreement.set and goals.closure.submit. Neither substitutes for the other. |
 | type_version | Published type definition under which a report was written. Old events keep that version; a type edit publishes a new version. |

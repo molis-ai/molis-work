@@ -40,7 +40,7 @@ context_resolve → goals.list / goals.create → goals.state.read
 
 The output of `goals.events.list`, `goals.events.latest` and `goals.events.read` includes the `input_acknowledged` system record.
 
-`goals.events.configure` can register local types or adopt a suitable plan. Published type versions cannot be rewritten. A new version may change names, fields, and constraints; older reports retain the meaning of their saved type version. Read professional methods through `goals.planning.catalog` when useful. Planning is not a prerequisite for recording work.
+`goals.events.configure` can register local types. Published type versions cannot be rewritten. A new version may change names, fields, and constraints; older reports retain the meaning of their saved type version. Planning and breakdown methods are Skills of the catalog, used when the task calls for one. Planning is not a prerequisite for recording work.
 
 One `goals.events.report` can save multiple facts and optional progress. The entire batch must be valid: an invalid item rolls back that batch, while earlier successful calls remain. Its receipt includes saved facts, current work status, gaps, and cursors, so a full history read is usually unnecessary. With no new facts, use `goals.progress.record` and follow its `based_on_cursor` contract.
 

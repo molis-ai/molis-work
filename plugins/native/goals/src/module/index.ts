@@ -6,7 +6,6 @@ import type {
   GoalEventAcknowledgementsApi,
   GoalEventFactsApi,
   GoalEventStateApi,
-  PlanningMethodPack,
   GoalsCommandApi,
   GoalsLifecycleApi,
   GoalsQueryApi,
@@ -40,7 +39,6 @@ export interface GoalsModuleHooks {
 }
 
 export interface GoalsModuleOptions extends GoalsCommandContextOptions {
-  personalPlanningMethodPacks?: readonly PlanningMethodPack[] | (() => readonly PlanningMethodPack[]);
   approvalRules?: GoalApprovalRules;
 }
 
@@ -61,10 +59,7 @@ export class GoalsModule {
     const repository = new GoalsRepository(db, journal, options.approvalRules ?? noApprovalRules);
     const context = new GoalsCommandContext(repository, options);
     const query = new GoalsQueryService(repository, options);
-    this.planning = new GoalsPlanningEngine(
-      context,
-      options.personalPlanningMethodPacks,
-    );
+    this.planning = new GoalsPlanningEngine(context);
     this.events = new GoalEventFacts(context);
     this.acknowledgements = new GoalEventAcknowledgements(context, new GoalEventFactsRepository(db), new GoalEventStateRepository(db));
     const lifecycle = new GoalLifecycleCommands(context, { validateRelationGraph: hooks.validateRelationGraph });
@@ -135,31 +130,6 @@ export {
   type PlanningRelationChange,
   type PlanningWorkStatus,
 } from "./planning/goal-graph.js";
-export {
-  loadPlanningMethodSources,
-  parsePlanningMethodMarkdown,
-  type ParsedPlanningMethodSource,
-} from "./planning/method-catalog.js";
-export { instantiatePlanningRequirementId, resolvePlanningEventAdoption } from "./planning/event-adoption.js";
-export {
-  BUILTIN_PLANNING_METHOD_PACKS,
-  PLANNING_METHOD_CATALOG_DIRECTORY,
-  compilePlanningMethodInstructions,
-  composePlanningMethodPacks,
-  loadBuiltinPlanningMethodPacks,
-  normalizePlanningMethodPack,
-  resolvePlanningMethodPacks,
-  validatePlanningMethodPack,
-  type PlanningCoverageRule,
-  type PlanningDependencyRule,
-  type PlanningMethodComposition,
-  type PlanningMethodKind,
-  type PlanningMethodPack,
-  type PlanningMethodPackInput,
-  type PlanningMethodPath,
-  type PlanningMethodScope,
-  type ResolvedPlanningMethodPack,
-} from "./planning/method-packs.js";
 export type {
   ConfigureGoalEventsApplicationInput,
   ConfigureGoalEventsInput,
@@ -173,11 +143,9 @@ export type {
   GoalWorkEventRecord,
   GoalsPlanningApi,
   GoalsQueryApi,
-  SaveProjectPlanningMethodInput,
 } from "../contract/goals.js";
 export type { GoalsJournal, GoalsSqliteDatabase } from "./repository.js";
 export { GoalInputBindings } from "./input-bindings.js";
-export { PersonalPlanningMethods } from "./planning/personal-methods.js";
 
 /** Read-only Module assembly; callers do not construct Goals repositories. */
 export function createGoalReadServices(db: GoalsSqliteDatabase, journal: GoalsJournal, approvalRules: GoalApprovalRules = noApprovalRules): {

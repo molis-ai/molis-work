@@ -35,7 +35,11 @@ const run = (run_id: string, phase: AgentRunView["phase"], extra: Partial<AgentR
   turns: [{ turn_id: `${run_id}-0`, kind: "user", text: "fix it", at: null }], activity: [], usage: { tokens: { input: 0, output: 0 } }, awaiting_input: [], ...extra,
 } as AgentRunView);
 
-type Round = { ref: { run_id: string }; awaiting_input: Array<AgentPendingQuestion & { html?: string }>; cards: Array<ActionCard & { run_id: string; html?: string }>; next_html?: string };
+const skillRef = (id: string) => ({ source: { kind: "plugin" as const, plugin_id: "fixture.pack", plugin_version: "1.0.0", publisher_signature: "sig" },
+  skill_id: id, version: 1, install_id: "install-1", installation_generation: "g1" });
+const lineNames = (html: string) => [...html.matchAll(/<button[^>]*data-skill-pick="(\d*)"[^>]*>([\s\S]*?)<\/button>/g)].map(match => [match[1], match[2]!.replace(/<[^>]*>/g, "").trim()]);
+
+type Round = { ref: { run_id: string }; skills_html?: string; awaiting_input: Array<AgentPendingQuestion & { html?: string }>; cards: Array<ActionCard & { run_id: string; html?: string }>; next_html?: string };
 type ReadBody = { runs: Round[] };
 const ids = (html: string) => [...html.matchAll(/data-ix-step-id="([^"]*)"/g)].map(match => match[1]!.replace(/&quot;/g, '"').replace(/&amp;/g, "&"));
 const strip = <T extends object>(value: T) => { const { html: _html, ...rest } = value as T & { html?: string }; return rest; };
@@ -49,6 +53,12 @@ test("PG062-11, PG062-12: Coding's routes answer its page with its questions, ca
   const runs = [
     run("ask", "awaiting-input", { awaiting_input: [question], offers: [offer] }),
     run("fixed", "reconcile-required", { activity: [{ call_id: "w1", name: "edit", target: "src/a.ts", state: "completed", summary: "", at: null }] } as Partial<AgentRunView>),
+    // SKL-11: a round the person named one catalog Skill for, that read a second one by itself (and the named one again: said once).
+    run("skilled", "completed", { skill_reads: [{ ref: skillRef("notes"), name: "会议纪要" }, { ref: skillRef("weekly"), name: "周报 <b>" }],
+      frozen: { ...run("x", "completed").frozen, skills: [
+        { ref: { owner_id: "io.molis.work.coding", skill_id: "own", version: 1 }, origin: "own", name: "自带", tools: [], named: false, body: "" },
+        { ref: skillRef("notes"), origin: "catalog", name: "会议纪要", tools: [], named: true, body: "" }] } } as never),
+    run("plain", "completed"),
   ];
   const host = () => ({ store, ...openProjectVersionStores(store), homeDirectory: home, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user",
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
@@ -88,6 +98,17 @@ test("PG062-11, PG062-12: Coding's routes answer its page with its questions, ca
       assert.equal(card!.html, runWithLocale(locale, () => assistantCardHtml(actionCardView(strip(card!) as ActionCard & { run_id: string }), readText, undefined, false)), `the card (${locale})`);
       assert.match(card!.html!, /Save &lt;b&gt;this&lt;\/b&gt; note/); assert.doesNotMatch(card!.html!, /<b>this/, "the card is escaped");
       assert.deepEqual(fixed.cards, [], "a round without suggestions has no cards");
+      // SKL-11, SKL-01: the Skills a round used, one line above its reply — the person's first, then what the AI read by itself, each
+      // said once with who chose it; the role's own Skills are not picks. A round that ended without any says so; a live one says nothing yet.
+      const skilled = page.runs.find(entry => entry.ref.run_id === "skilled")!;
+      assert.deepEqual(lineNames(skilled.skills_html!), locale === "zh" ? [["0", "会议纪要 · 你点名的"], ["1", "周报 &lt;b&gt; · 自动选的"]] : [["0", "会议纪要 · named by you"], ["1", "周报 &lt;b&gt; · picked by AI"]], `the line (${locale})`);
+      assert.match(skilled.skills_html!, /data-skill-round="skilled"/);
+      const carried = JSON.parse(skilled.skills_html!.match(/data-skill-picks="([^"]*)"/)![1]!.replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&")) as Array<{ ref: unknown; picked: string }>;
+      assert.deepEqual(carried.map(pick => [pick.ref, pick.picked]), [[skillRef("notes"), "named"], [skillRef("weekly"), "auto"]], "the line carries the exact references the panel opens with");
+      const plain = page.runs.find(entry => entry.ref.run_id === "plain")!;
+      assert.deepEqual(lineNames(plain.skills_html!), [["", locale === "zh" ? "选一个" : "Choose one"]], "an ended round that used none offers to choose one");
+      assert.match(plain.skills_html!, locale === "zh" ? /这一轮没用技能/ : /No skill was used this round/);
+      for (const live of [ask, fixed]) assert.equal(live.skills_html, undefined, "a round that is not over and has read none says nothing yet");
       // PG062-12: each round's row: the waiting round's question and card, the ended round's own follow-ups in Coding's words.
       assert.equal(card!.card_id, "card-offer-1");
       assert.deepEqual(ids(ask.next_html!), [NEXT_STEP.choose("p1", "pick", "retry"), NEXT_STEP.choose("p1", "pick", "fail"), NEXT_STEP.run("card-offer-1")],
@@ -105,9 +126,9 @@ test("PG062-11, PG062-12: Coding's routes answer its page with its questions, ca
     delete runs[0]!.offers;
     const caller = { actor_id: "web-user", project_id: DEMO_PROJECT_ID, audience: "agent" as const, permissions: ["artifact:read"] };
     const direct = await actions.client.invoke(caller, codingRouteActions["coding.read-session"]!.definition, { session_id: "app", window: 5 }) as ReadBody;
-    assert.equal(direct.runs.length, 2);
+    assert.equal(direct.runs.length, 4);
     for (const round of direct.runs) {
-      assert.equal(round.next_html, undefined, round.ref.run_id);
+      assert.equal(round.next_html, undefined, round.ref.run_id); assert.equal(round.skills_html, undefined, round.ref.run_id);
       assert.ok((round.awaiting_input ?? []).every(entry => entry.html === undefined) && (round.cards ?? []).every(entry => entry.html === undefined), round.ref.run_id);
     }
     assert.equal(direct.runs.find(entry => entry.ref.run_id === "ask")!.awaiting_input.length, 1, "the question itself is there");

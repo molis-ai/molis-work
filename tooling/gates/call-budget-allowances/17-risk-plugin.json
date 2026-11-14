@@ -1,5 +1,5 @@
 {
-  "reason": "第 17 批新增内置插件「风险」（specs/risk-plugin/implementation.md §10 第 7 条）。宿主每次检查线性扫一遍内置插件登记，多一个内置插件，各请求的 shippedRegistrationRows 就同比多 4～7%；开库、发现、准备上下文等其余各项实测不变。去掉线性扫描归已有的 N43／46（specs/batch-06-call-cost/spec.md「后续片只读核查」第 1 条）。对 main f972bc9e 实测。",
+  "reason": "第 17 批新增内置插件「风险」（specs/risk-plugin/implementation.md §10 第 7 条）。宿主每次检查线性扫一遍内置插件登记，多一个内置插件，各请求的 shippedRegistrationRows 就同比多 4～7%；开库、发现、准备上下文等其余各项实测不变。去掉线性扫描归已有的 N43／46（specs/batch-06-call-cost/spec.md「后续片只读核查」第 1 条）。对 main f972bc9e 实测；同步 main 392f3bdd71 后，它新增的 memoryOverview、knowledgeUnknown、memoryUnknown 三个场景同理（176→184、66→69），按本机实测加入。",
   "review": "随第 17 批 PR #2058 由评审台与统筹审。",
   "userApproval": "用户 2026-11-14 在第 17 批主会话弹窗里先选「按实测一次性放行（推荐）」，再选「加按任务的放行文件（推荐）」。",
   "counters": {
@@ -29,6 +29,15 @@
     },
     "goalPanes": {
       "shippedRegistrationRows": 5060
+    },
+    "memoryOverview": {
+      "shippedRegistrationRows": 184
+    },
+    "knowledgeUnknown": {
+      "shippedRegistrationRows": 69
+    },
+    "memoryUnknown": {
+      "shippedRegistrationRows": 69
     }
   }
 }

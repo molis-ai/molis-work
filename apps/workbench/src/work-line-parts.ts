@@ -1,4 +1,4 @@
-import { escapeHtml, icon, renderButton, renderStateRing, t as uiText, type PluginIconName, type StateRingState } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { escapeHtml, icon, renderButton, renderMenu, renderMenuItem, renderStateRing, t as uiText, type PluginIconName, type StateRingState } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 /**
  * The markup of the work line's parts (specs/work-line §4, scheme E of docs/design/work-line-32; rules in styles/work-line.ts).
@@ -217,6 +217,14 @@ export function renderTaskCard(card: TaskCardView): string {
     + `${fact("for-event", card.serves)}${renderButton({ variant: "secondary", size: "sm", label: uiText.text("workbench.work-line.change"), attrs: { "data-place-change": card.id, "aria-haspopup": "menu" } })}</dd>`
     + `${fact("returns-to", card.returnsTo)}</dd></dl>`
     + `<div class="work-card-section"><h4>${uiText("workbench.work-line.steps")}</h4>${steps}</div>${card.actions ? `<div class="work-card-actions">${card.actions}</div>` : ""}</div></section>`;
+}
+
+/** Where a task can go from its card (specs/work-line §4.5): an event of the line, an event of its own, or none. The one it is on now is ticked. */
+export function renderPlaceMenu(menu: { readonly task: string; readonly events: readonly { readonly id: string; readonly title: string; readonly current: boolean }[]; readonly own: boolean; readonly none: boolean }): string {
+  const to = (kind: string, label: string, checked: boolean, event?: string) => renderMenuItem({ label, checked, attrs: { "data-place-to": kind, ...(event ? { "data-place-event": event } : {}) } });
+  return renderMenu({ className: "work-place-menu", attrs: { "data-place-menu": menu.task, "aria-label": uiText.text("workbench.work-line.for-event") },
+    items: menu.events.map(event => to("event", event.title, event.current, event.id)).join("")
+      + to("new_event", uiText.text("workbench.work-line.register-as-event"), menu.own) + to("none", uiText.text("workbench.work-line.no-event"), menu.none) });
 }
 
 /** The task panel in its place by a dialog: beside it, or over its right side where there is no room (the layout script decides). `dialog` is the dialog's element id. */

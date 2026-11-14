@@ -7,18 +7,17 @@
  * stands beside the head and can be asked again, and the head counts what waits for the person from the same read. The page
  * is served with an empty line, so nothing here runs before the shell is drawn.
  *
- * It also keeps the background-task mark at the dialog's top right and the panel it opens (§6, WLN-34～WLN-36): every task the
- * person can read, from the task table, the ones that wait first; a row opens its task where its owner says, and stops it with
- * the command the row itself carries (the service asks the owner again before running it).
+ * The background-task mark at the dialog's top right and the panel it opens are in work-task-panel.ts; they paint from the same read.
  *
  * Bundled by esbuild into dist/work-bar-client.js and carried in workbench.js; the workbench's start calls the page global
  * `molisWorkBar` once its shell is drawn (not in a pane-embedded page, which has no bar).
  */
 import type { ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { StateRingState, UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
-import type { BackgroundTaskRow, BackgroundTasksReadResult, MainlineIssue, WorkLineEvent, WorkLineReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
+import type { BackgroundTasksReadResult, MainlineIssue, WorkLineEvent, WorkLineReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
 import { t as uiText, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { renderLineEvent, renderLineUnreadable, renderOwnerMark, renderTaskFloat, renderTaskMark, renderTaskPanel, type LineEventState, type LineEventView, type TaskRowView } from "../work-line-parts.js";
+import { renderLineEvent, renderLineUnreadable, renderOwnerMark, type LineEventState, type LineEventView } from "../work-line-parts.js";
+import { ASKS, FAILED, installTaskPanel } from "./work-task-panel.js";
 import { installWorkLineLayout } from "./work-line-layout.js";
 
 /** What the workbench gives the line: where its routes are, how a thing opens in the work area, and the dialog an event's tab opens in. */
@@ -34,9 +33,7 @@ export interface WorkBarHost {
 
 const RUNNING: ReadonlySet<StateRingState> = new Set(["doing", "starting", "running", "generating", "saving", "indexing", "syncing", "retrying"]);
 const QUEUED: ReadonlySet<StateRingState> = new Set(["queued", "waiting"]);
-const ASKS: ReadonlySet<StateRingState> = new Set(["answer", "approval", "reauth"]);
 const STOPPED: ReadonlySet<StateRingState> = new Set(["paused", "stopped", "cancelled", "interrupted"]);
-const FAILED: ReadonlySet<StateRingState> = new Set(["failed", "blocked", "unavailable", "quarantined"]);
 const CHECK: ReadonlySet<StateRingState> = new Set(["verify", "conflict", "partial", "disconnected"]);
 const DONE: ReadonlySet<StateRingState> = new Set(["done", "saved", "round-ended", "staged"]);
 
@@ -62,7 +59,7 @@ export interface WorkBarHandle {
   /** The event of this object on the line as last read, as a press on it would open it; null when the line does not show it. */
   event(subject: ActionSubject): LineEventPress | null;
 }
-type LineEventPress = Parameters<WorkBarHost["openEvent"]>[0];
+export type LineEventPress = Parameters<WorkBarHost["openEvent"]>[0];
 
 export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
   const bar = document.querySelector<HTMLElement>("[data-work-bar]"), line = bar?.querySelector<HTMLElement>("[data-work-line]");
@@ -120,49 +117,7 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
   };
   const unreadable = (issues: readonly MainlineIssue[]) => [...new Set(issues.map(issue => issue.title))].map(renderLineUnreadable).join("");
 
-  /* ─── Background tasks: the mark in the dialog's tab bar and the panel beside the dialog ─── */
-  const PANEL = "work-task-panel";
-  let tasks: BackgroundTaskRow[] = [], float: HTMLElement | null = null, tasksShown = "";
-  const asks = (task: BackgroundTaskRow) => task.waiting || ASKS.has(task.state);
-  const weight = (task: BackgroundTaskRow) => asks(task) ? 0 : FAILED.has(task.state) ? 1 : 2;
-  const row = (task: BackgroundTaskRow): TaskRowView => {
-    const event = task.serves.map(subject => [...events.values()].find(one => one.subject.kind === subject.kind && one.subject.id === subject.id)?.title).find(Boolean);
-    return { id: task.id, title: task.title, ring: task.state, step: [task.step?.text, task.executor.label].filter(Boolean).join(" · "), serves: event ?? null,
-      ...(task.commands.some(command => command.role === "stop") ? { control: "stop" as const } : {}) };
-  };
-  const paintTasks = () => {
-    const live = [...tasks].sort((a, b) => weight(a) - weight(b) || b.updated_at.localeCompare(a.updated_at));
-    const counts = { needsYou: live.filter(asks).length, failed: live.filter(task => !asks(task) && FAILED.has(task.state)).length, working: 0 };
-    counts.working = live.length - counts.needsYou - counts.failed;
-    for (const mark of document.querySelectorAll("[data-task-mark]"))
-      mark.outerHTML = renderTaskMark({ count: live.length, panel: PANEL, expanded: Boolean(float), ...(live[0] ? { lead: live[0].state } : {}), needsYou: counts.needsYou > 0, failed: counts.failed > 0 });
-    if (float) { float.innerHTML = renderTaskPanel({ id: PANEL, live: live.map(row), returned: [], counts }); installWorkLineLayout(document); }
-  };
-  const takeTasks = (result: BackgroundTasksReadResult) => {
-    const next = JSON.stringify(result.tasks.map(task => [task.id, task.title, task.state, task.step?.text, task.waiting, task.serves, task.commands.length]));
-    if (next === tasksShown) return;
-    tasksShown = next; tasks = result.tasks; paintTasks();
-  };
-  const showTasks = (open: boolean) => {
-    if (open === Boolean(float)) return;
-    if (open) { document.body.insertAdjacentHTML("beforeend", renderTaskFloat("assistant-panel", "")); float = document.body.lastElementChild as HTMLElement; again(); }
-    else { float?.remove(); float = null; }
-    paintTasks();
-    if (!open) document.querySelector<HTMLElement>("[data-task-mark]")?.focus();
-  };
-  document.addEventListener("click", event => {
-    const target = event.target instanceof Element ? event.target : null;
-    if (target?.closest("[data-task-mark]")) { showTasks(!float); return; }
-    if (!float) return;
-    if (target?.closest("[data-task-panel-close]") || !target?.closest("[data-work-task-float]")) { if (!target?.closest("[data-assistant-panel]") || target.closest("[data-task-panel-close]")) showTasks(false); return; }
-    const stop = target.closest<HTMLElement>('[data-task-control="stop"]'), task = tasks.find(one => one.id === (stop?.dataset.task ?? target.closest<HTMLElement>("[data-task-open]")?.dataset.taskOpen));
-    if (!task) return;
-    if (stop) {
-      const command = task.commands.find(one => one.role === "stop");
-      if (command) void request(host.route("/api/mainline/tasks/command"), { body: { source: task.source, subject: task.subject, command } }).catch(error => request.toast?.(document.querySelector("[data-toast]") as never, error)).finally(again);
-    } else if (task.open) { if (task.open.kind === "surface" || !task.open.id) host.openSurface(task.open.surface); else host.openItem(task.open.surface, task.open.id, task.open.title); }
-  });
-  document.addEventListener("keydown", event => { if (event.key === "Escape" && float) { event.stopPropagation(); showTasks(false); } }, true);
+  const panel = installTaskPanel(host, { events: () => events.values(), press, keyOf, hue, again, request });
 
   line.addEventListener("click", event => {
     const target = event.target instanceof Element ? event.target : null;
@@ -191,7 +146,7 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
   document.addEventListener("molis-work:attention", event => {
     const { line: read, tasks: table } = (event as CustomEvent<{ line?: WorkLineReadResult | null; tasks?: BackgroundTasksReadResult | null }>).detail ?? {};
     if (read) draw(read);
-    if (table) takeTasks(table);
+    if (table) panel.take(table);
   });
   return {
     event(subject) { const found = [...events.values()].find(one => keyOf(one.subject) === keyOf(subject)); return found ? press(found) : null; },

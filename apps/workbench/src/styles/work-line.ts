@@ -207,6 +207,7 @@ ${W} ${BUTTON_GROUNDS} .mw-btn--secondary:not(:disabled){border-color:var(--line
 .work-card-section{display:flex;flex-direction:column;gap:4px;padding:8px;border:1px solid var(--line);border-radius:var(--r-row,8px)}
 .work-card-section>h4{margin:0 0 2px;padding:0 2px;color:var(--muted);font-size:11px;font-weight:500}
 .work-card-actions{display:flex;align-items:center;gap:6px;min-width:0}
+.work-place-menu{position:static;display:flex;flex-direction:column;max-height:220px;overflow:auto;border:1px solid var(--line);border-radius:var(--r-row,8px);box-shadow:none}
 /* With the dialog closed: the latest reply above the composer, or only the mark once the person has clicked the work surface. */
 .work-reply-peek{display:flex;flex-direction:column;gap:6px;padding:10px 12px;border-radius:var(--r-card,12px);background:var(--popover);box-shadow:var(--lift-2);line-height:1.65;animation:craft-rise ${MOVE}}
 .work-reply-peek-head{display:flex;align-items:center;gap:6px;min-width:0;color:var(--muted);font-size:11px;white-space:nowrap}

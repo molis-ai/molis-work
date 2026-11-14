@@ -7919,6 +7919,8 @@
     "workbench.work-line.unreadable-retry": "读不到 · 重试",
     "workbench.work-line.waiting-for-you": "等你",
     "workbench.work-line.who": "谁在办",
+    "workbench.work-line.go-to-event": "到这个事件",
+    "workbench.work-line.register-as-event": "登记成新事件",
     "workbench.work-line.work-line": "事项线"
   }
 }

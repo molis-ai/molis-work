@@ -95,9 +95,9 @@ export function assistantLineRegistration(source: () => AssistantLineSource): { 
     if (!found) throw assistantErrors.not_found("没有这项助理任务，或你读不到它");
     return found.work;
   };
-  /** Only a task done for something else can be moved: a work the person started for one thing is the event itself. */
+  /** A work the person started for nothing else is the event itself: there is nothing to take it off, or to register. Hung on another event it is a task behind that one. */
   const movable = (work: StoredWork) => {
-    if (!work.delegated_by && !work.serves?.length) throw assistantErrors.invalid("这项工作本身就是线上的事件，不能挂到别的事件或移开");
+    if (!work.delegated_by && !work.serves?.length) throw assistantErrors.invalid("这项工作本身就是线上的事件");
     return work;
   };
   const answer = (work: StoredWork): TaskServesResult => ({ serves: servesOf(work) });
@@ -117,20 +117,22 @@ export function assistantLineRegistration(source: () => AssistantLineSource): { 
     }),
     bindActionHandler(A.servesList, async (input: TaskServesInput, caller) => answer(await task(caller, input.task))),
     bindActionHandler(A.servesBind, async (input: TaskServesBindInput, caller) => {
-      const work = movable(await task(caller, input.task));
+      const work = await task(caller, input.task);
       if (input.event.kind === ASSISTANT_WORK_KIND && input.event.id === work.work_id) throw assistantErrors.invalid("任务不能挂到它自己上");
       await caller.beforeEffect(); caller.signal?.throwIfAborted();
       return answer(source().place(work.work_id, { serves: [{ kind: input.event.kind, id: input.event.id }], line_event: false }));
     }),
     bindActionHandler(A.servesRelease, async (input: TaskServesInput, caller) => {
       const work = movable(await task(caller, input.task));
+      // Only a task the Assistant sent out can belong to no event: a work the person started, off its event, is an event itself.
+      if (!work.delegated_by) throw assistantErrors.invalid("这项工作是你单独交办的，不挂在别的事件上时它自己就是线上的事件：请改选「登记成新事件」");
       await caller.beforeEffect(); caller.signal?.throwIfAborted();
       return answer(source().place(work.work_id, { serves: [], line_event: false }));
     }),
     bindActionHandler(A.servesCreate, async (input: TaskServesInput, caller) => {
       const work = movable(await task(caller, input.task));
       await caller.beforeEffect(); caller.signal?.throwIfAborted();
-      return answer(source().place(work.work_id, { serves: [], line_event: true }));
+      return answer(source().place(work.work_id, { serves: [], line_event: Boolean(work.delegated_by) }));
     }),
   ] };
 }

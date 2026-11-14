@@ -8527,6 +8527,8 @@
     "workbench.work-line.unreadable-retry": "can’t be read · Retry",
     "workbench.work-line.waiting-for-you": "Needs you",
     "workbench.work-line.who": "Who",
+    "workbench.work-line.go-to-event": "Go to event",
+    "workbench.work-line.register-as-event": "Make it an event",
     "workbench.work-line.work-line": "Work line"
   }
 }

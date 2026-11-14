@@ -92,10 +92,14 @@ test("WLN-34 WLN-38: which event a task is done for is kept on the task; a work 
   assert.deepEqual(await invoke<TaskServesResult>("assistant.serves.bind", { task: subject("errand"), event: { kind: "todo_item", id: "t1" } }), { serves: [{ kind: "todo_item", id: "t1" }] });
   assert.deepEqual(await invoke<TaskServesResult>("assistant.serves.create", { task: subject("errand") }), { serves: [subject("errand")] });
   assert.deepEqual(await invoke<TaskServesResult>("assistant.serves.release", { task: subject("errand") }), { serves: [] });
-  // A work said in an event's tab can be moved off its event: it then stands on the line as its own event.
-  assert.deepEqual(await invoke<TaskServesResult>("assistant.serves.release", { task: subject("about-todo") }), { serves: [subject("about-todo")] });
-  assert.equal(placed.length, 4);
+  // A work said in an event's tab can be taken off its event by registering it: it then stands on the line as its own event.
+  assert.deepEqual(await invoke<TaskServesResult>("assistant.serves.create", { task: subject("about-todo") }), { serves: [subject("about-todo")] });
+  // …and, an event itself now, it can be hung on another event again: a task behind that one.
+  assert.deepEqual(await invoke<TaskServesResult>("assistant.serves.bind", { task: subject("about-todo"), event: { kind: "todo_item", id: "t1" } }), { serves: [{ kind: "todo_item", id: "t1" }] });
+  assert.equal(placed.length, 5);
   const before = effects();
+  // It cannot belong to no event at all: only a task the Assistant sent out can.
+  await assert.rejects(invoke("assistant.serves.release", { task: subject("about-todo") }), (error: unknown) => (error as { code?: string }).code === "assistant.invalid");
   // The refusals: each is checked before the effect gate, and writes nothing.
   await assert.rejects(invoke("assistant.serves.release", { task: subject("plan") }), (error: unknown) => (error as { code?: string }).code === "assistant.invalid");
   await assert.rejects(invoke("assistant.serves.bind", { task: subject("errand"), event: subject("errand") }), (error: unknown) => (error as { code?: string }).code === "assistant.invalid");
@@ -105,7 +109,7 @@ test("WLN-34 WLN-38: which event a task is done for is kept on the task; a work 
   const elsewhere: ActionCallContext = { actor_id: "local-person", project_id: "p2", audience: "user", permissions: [] };
   await assert.rejects(invoke("assistant.serves.release", { task: subject("errand") }, elsewhere), (error: unknown) => (error as { code?: string }).code === "assistant.not_found");
   await assert.rejects(invoke("assistant.events", WINDOW, { ...elsewhere, project_id: null }), (error: unknown) => (error as { code?: string }).code === "assistant.scope");
-  assert.equal(placed.length, 4, "a refused call keeps nothing");
+  assert.equal(placed.length, 5, "a refused call keeps nothing");
   assert.equal(effects(), before, "and passes no effect gate");
 });
 

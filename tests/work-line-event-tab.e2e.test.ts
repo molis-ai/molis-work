@@ -76,6 +76,39 @@ test("WLN-03 WLN-07 WLN-08 WLN-12 WLN-13: an event of the line opens as a tab of
   // The line now shows the event with a task behind it (the work serves it), and it is still the focused one.
   await waitFor(`${EVENT}?.getAttribute('aria-current') === 'true'`);
 
+  // WLN-36: the work is a task behind the event. Its row in the panel opens its card in the panel's place: whom it is done for,
+  // one step to that event's tab, and 「改」 to move it — off the event it stands on the line as an event of its own, and back.
+  const CARD = "document.querySelector('[data-work-task-float] [data-task-card]')";
+  await waitFor("document.querySelector('[data-task-mark] [data-background-tasks-count]')?.textContent === '1'", 20_000);
+  await click("[data-task-mark]");
+  await waitFor("document.querySelector('[data-work-task-float] [data-task-open]')");
+  assert.match(String(await evaluate("document.querySelector('[data-work-task-float] .work-task-row').textContent")), /先问预算.*给王总回电话/u, "the row names the event it is done for");
+  await click("[data-work-task-float] [data-task-open]");
+  await waitFor(`${CARD} && document.activeElement?.matches('[data-task-panel-list]')`);
+  assert.match(String(await evaluate(`${CARD}.querySelector('.work-task-facts').textContent`)), /为哪个事件给王总回电话/u);
+  await click("[data-work-task-float] [data-place-change]");
+  await waitFor("document.querySelector('[data-place-menu]')");
+  assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-place-menu] [aria-checked=\"true\"]')].map(item => item.textContent.trim())"), ["给王总回电话"], "the menu ticks where it is now");
+  await click('[data-place-menu] [data-place-to="new_event"]');
+  await waitFor(`${works}.then(list => list.some(work => work.work_id === ${JSON.stringify(made[0]!.work_id)} && !(work.serves || []).length))`, 15_000);
+  await waitFor(`/为哪个事件先问预算/u.test(${CARD}?.querySelector('.work-task-facts').textContent || '') && [...document.querySelectorAll('[data-work-line] [data-work-event]')].some(node => node.textContent.includes('先问预算'))`, 20_000);
+  await click("[data-work-task-float] [data-place-change]");
+  await click(`[data-place-menu] [data-place-event*="todo-planned:${item.id}"]`);
+  await waitFor(`${works}.then(list => list.some(work => work.work_id === ${JSON.stringify(made[0]!.work_id)} && (work.serves || []).some(one => one.id === ${JSON.stringify(item.id)})))`, 15_000);
+  await waitFor(`/为哪个事件给王总回电话/u.test(${CARD}?.querySelector('.work-task-facts').textContent || '')`, 20_000);
+  // One step from the card to the event's tab; the list is one press back.
+  await click(".assistant-tab[data-main] .assistant-tab-main");
+  await waitFor(`${TAB}?.hasAttribute('data-main')`);
+  await click("[data-work-task-float] [data-task-event]");
+  await waitFor(`${TAB}?.dataset.tab === ${JSON.stringify(`event:todo_item:${item.id}`)}`);
+  // (This Home has no model: the round could not start, so the Host keeps the words as the work's draft and the input still shows them.)
+  assert.equal(await evaluate("document.querySelector('[data-toast]:not([hidden])')?.textContent || ''"), "", "nothing was refused on the way");
+  await click("[data-work-task-float] [data-task-panel-list]");
+  await waitFor(`!${CARD} && document.querySelector('[data-work-task-float] [data-task-open]')`);
+  await writeFile(new URL("task-panel-1440.png", shot), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
+  await click("[data-work-task-float] [data-task-panel-close]");
+  await waitFor("!document.querySelector('[data-work-task-float]')");
+
   // Closing the tab goes back to now.
   await click(".assistant-tab[data-current] .assistant-tab-close");
   await waitFor(`${TAB}?.hasAttribute('data-main')`);

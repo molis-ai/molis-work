@@ -74,7 +74,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       shownPlugin: () => tabWorkspace?.shownPlugin?.() || null,
       registerCover: (kind, open) => tabWorkspace?.registerCover?.(kind, open),
     });
-    const workLine = document.body.hasAttribute('data-pane-embedded') ? null : globalThis.molisWorkBar?.({ route, openEvent: (event) => assistantIsland?.openEvent(event), toNow: () => assistantIsland?.toNow(), parked: (subject) => assistantIsland?.parked(subject),
+    const workLine = document.body.hasAttribute('data-pane-embedded') ? null : globalThis.molisWorkBar?.({ route, openEvent: (event) => assistantIsland?.openEvent(event), toNow: () => assistantIsland?.toNow(), parked: (subject) => assistantIsland?.parked(subject), dialog: (open) => assistantIsland?.dialog(open),
       positions: () => projectPositions, positionRead: (path, body, signal) => molisWorkRequest(route(path), { body, signal }),
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title), openSurface: (plugin) => openSurfaceEntry(plugin) });
     (${ATTENTION_FACTORY_SCRIPT})({ translate: readText, route, projectId: state.project?.project_id,

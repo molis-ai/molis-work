@@ -13,6 +13,7 @@ import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderEventCard } from "../work-line-parts.js";
 import type { createPositionViews } from "./project-position.js";
 import type { LineEventPress, WorkBarHost } from "./work-bar.js";
+import type { AcceptanceOverview } from "./work-acceptance.js";
 import { keepNote } from "./work-task-panel.js";
 
 export type PositionViews = ReturnType<typeof createPositionViews>;
@@ -28,6 +29,8 @@ export interface EventCardLine {
   rows(subject: ActionSubject): string;
   /** What those tasks ask the person to decide, drawn (WLN-10). */
   decisions(subject: ActionSubject): string;
+  /** What was asked of the event and of the tasks done for it, and how each item stands: the summary and the way into the requirement column (PWA-144). */
+  acceptance(slot: HTMLElement, subject: ActionSubject): AcceptanceOverview;
   press(event: WorkLineEvent): LineEventPress;
 }
 
@@ -37,10 +40,11 @@ export function installEventCards(host: WorkBarHost, line: EventCardLine): { mou
   const draw = (slot: HTMLElement, card: EventCardOpen, parked: boolean): EventCardHandle => {
     // (`park` is declared below: a card in a tab is parked by its own button.)
     slot.innerHTML = renderEventCard({ id: line.keyOf(card.subject), facts: "", parked, ...(parked ? { title: card.title, mark: card.mark } : {}),
-      body: `<div class="work-card-decisions" data-card-decisions hidden></div><div class="work-card-body" data-card-body></div><div class="work-card-section" data-card-tasks hidden></div>` });
+      body: `<div class="work-card-decisions" data-card-decisions hidden></div><div data-card-acceptance hidden></div><div class="work-card-body" data-card-body></div><div class="work-card-section" data-card-tasks hidden></div>` });
     const facts = slot.querySelector<HTMLElement>(".work-card-facts")!, tasks = slot.querySelector<HTMLElement>("[data-card-tasks]")!, decisions = slot.querySelector<HTMLElement>("[data-card-decisions]")!;
     const objects = card.composed ? host.positions?.()?.mount(slot.querySelector<HTMLElement>("[data-card-body]")!, ((body, signal) => host.positionRead!("/api/mainline/event/surfaces", body, signal)) as Parameters<PositionViews["mount"]>[1], { source: () => ({ subject: card.subject }) }) : undefined;
     const name = slot.querySelector<HTMLElement>("[data-card-name]"), gone = new AbortController();
+    const accepting = line.acceptance(slot.querySelector<HTMLElement>("[data-card-acceptance]")!, card.subject);
     let rows = "", named = "", asks = "";
     // 「停到侧边」: the card goes to the side panel and the dialog puts its tab away (WLN-14).
     if (!parked) slot.addEventListener("click", event => { if (event.target instanceof Element && event.target.closest("[data-event-park]")) { park(card); host.parked?.(card.subject); } }, { signal: gone.signal });
@@ -61,8 +65,8 @@ export function installEventCards(host: WorkBarHost, line: EventCardLine): { mou
       if (next === rows) return;
       rows = next; tasks.hidden = !rows; tasks.innerHTML = rows ? `<h4>${uiText("workbench.work-line.in-progress")}</h4>${rows}` : "";
     };
-    live.add(paint); paint(); void objects?.update();
-    return { update() { paint(); void objects?.update(); }, destroy() { gone.abort(); live.delete(paint); objects?.destroy(); slot.replaceChildren(); } };
+    live.add(paint); paint(); void objects?.update(); accepting.update();
+    return { update() { paint(); void objects?.update(); accepting.update(); }, destroy() { gone.abort(); live.delete(paint); objects?.destroy(); accepting.destroy(); slot.replaceChildren(); } };
   };
 
   // Parked cards (WLN-14): kept open in the side panel's 「对话」 page, the latest on top; the same card, so a press there is the press in the dialog.

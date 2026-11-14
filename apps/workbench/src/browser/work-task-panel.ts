@@ -39,7 +39,7 @@ export function keepNote(root: ParentNode, paint: () => void): void {
   if (had.focus) { now.focus(); now.setSelectionRange(had.at, had.at); }
 }
 
-export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take(result: BackgroundTasksReadResult): void; place(subject: ActionSubject): void; rows(subject: ActionSubject): string; decisions(subject: ActionSubject): string } {
+export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take(result: BackgroundTasksReadResult): void; place(subject: ActionSubject): void; rows(subject: ActionSubject): string; decisions(subject: ActionSubject): string; subjects(subject: ActionSubject): { provider_id: string; subject: ActionSubject }[] } {
   const { keyOf, press, hue, again, request } = line, events = { values: () => [...line.events()], get: (id: string) => [...line.events()].find(one => one.id === id) };
   const PANEL = "work-task-panel";
   // `carded`: the task whose card stands in the panel's place (WLN-36); `placing`: its 「改」 menu is open.
@@ -182,6 +182,8 @@ export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take
     // What the tasks done for one event ask the person, at the head of its card (WLN-10): the ones that wait first, each answered on its own.
     decisions: subject => decisionsOf([...tasks].filter(task => task.serves.some(one => keyOf(one) === keyOf(subject))).sort((a, b) => weight(a) - weight(b) || b.updated_at.localeCompare(a.updated_at)),
       task => keyOf(task.subject) !== keyOf(subject)),
+    // The tasks done for one event, as the objects requirements may hang on: each with the provider that reported it.
+    subjects: subject => [...tasks].filter(task => task.serves.some(one => keyOf(one) === keyOf(subject))).map(task => ({ provider_id: task.source.provider_id, subject: task.subject })),
     // 「改」 under a reply (WLN-32): the panel opens on that task's card with where it can go — at once when the table has the
     // task, else when the read this asks for brings it. A task that has ended is not in the table: the panel shows its list.
     place(subject) { wanted = keyOf(subject); if (float) again(); else showTasks(true); paintTasks(); },

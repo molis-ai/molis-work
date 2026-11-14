@@ -749,6 +749,8 @@ ${ASSISTANT_PAGE_MESSAGES_PART}
     ask: (text) => say(text, {}),
     /** The work line's press on an event: its tab in the dialog, opened and in front (specs/work-line §4.4). */
     openEvent,
+    /** The dialog put away or brought back with its tabs as they were: the requirement column takes its place while open. */
+    dialog: (open) => setPanel(open),
     /** The card of this event went to the side panel: its tab is put away and the dialog closes (WLN-14). */
     parked: (subject) => { if (subject.kind === WORK_KIND) closeTab(subject.id); else closeEvent(eventKey(subject)); setPanel(false); },
     /** Back to now (Esc on the line): the main conversation in front, the caret in the input. */

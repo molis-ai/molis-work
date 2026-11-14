@@ -17,6 +17,7 @@ import type { StateRingState, UiRequest } from "@molis-ai/molis-work-contracts/p
 import type { BackgroundTasksReadResult, MainlineIssue, WorkLineEvent, WorkLineReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
 import { t as uiText, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderLineEvent, renderLineUnreadable, renderOwnerMark, renderReplyPlaced, type LineEventState, type LineEventView } from "../work-line-parts.js";
+import { installAcceptance } from "./work-acceptance.js";
 import { installEventCards, type EventCardHandle, type EventCardOpen, type PositionViews } from "./work-event-card.js";
 import { ASKS, FAILED, installTaskPanel } from "./work-task-panel.js";
 import { installWorkLineLayout } from "./work-line-layout.js";
@@ -35,6 +36,8 @@ export interface WorkBarHost {
   positionRead?(path: string, body: unknown, signal: AbortSignal): Promise<unknown>;
   /** A card was parked in the side panel: the dialog puts that event's tab away and closes. */
   parked?(subject: ActionSubject): void;
+  /** The dialog put away or brought back, its tabs as they were: the requirement column takes its place while it is open. */
+  dialog?(open: boolean): void;
 }
 
 const RUNNING: ReadonlySet<StateRingState> = new Set(["doing", "starting", "running", "generating", "saving", "indexing", "syncing", "retrying"]);
@@ -134,7 +137,10 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
   const panel = installTaskPanel(host, { events: () => events.values(), press, keyOf, hue, again, request, repaint: () => cards.paint() });
 
   const eventOf = (subject: ActionSubject) => [...events.values()].find(one => keyOf(one.subject) === keyOf(subject));
+  // Requirements hang on the event's own object or on the tasks done for it; the card asks about both.
+  const acceptance = installAcceptance(host.route, request, open => host.dialog?.(open));
   const cards = installEventCards(host, { event: eventOf, keyOf, press, rows: panel.rows, decisions: panel.decisions,
+    acceptance: (slot, subject) => acceptance.overview(slot, () => { const event = eventOf(subject); return [...(event ? [{ provider_id: event.source.provider_id, subject }] : []), ...panel.subjects(subject)]; }),
     // Who registered it, then how it stands: the owner's own line about it, or that it waits for the person.
     facts: event => { const { stateLabel, note } = view(event, false); return [uiText.text("workbench.work-line.registered-by", { plugin: event.origin.title }), stateLabel || note].filter(Boolean).join(" · "); } });
 
@@ -167,6 +173,7 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
     if (read) draw(read);
     if (table) panel.take(table);
     cards.paint();
+    acceptance.refresh();
   });
   return {
     event(subject) { const found = eventOf(subject); return found ? press(found) : null; },

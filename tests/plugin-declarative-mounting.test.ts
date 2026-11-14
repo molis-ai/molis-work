@@ -307,7 +307,7 @@ test("the bundled catalog reproduces the shell's navigation exactly", async () =
   assert.deepEqual([...PROJECT_SCOPED_PLUGIN_IDS].sort(),
     // The workspace Plugin was retired: browsing roots come from project settings actions (action-architecture migration).
     // Files retired in batch 06: a project's folders are the platform's materials now, not a plugin a project enables.
-    ["coding", "diff", "feed", "git", "goals", "inbox", "schedule",
+    ["coding", "diff", "feed", "git", "goals", "inbox", "risk", "schedule",
       "text-stats"]);
   assert.deepEqual(
     railEntries(["coding"]).map((entry) => [entry.id, entry.label, entry.glyph]),
@@ -364,7 +364,7 @@ test("RAC-84 PG-060 a plugin's tab opens one object when a Manifest view of it a
   assert.deepEqual(objectTabs([entry("notes", [{}, { accepts_objects: true }]), entry("plain", [{}]), entry("bare", [])]), ["artifacts", "notes"]);
   // The shipped plugins: search, placement and side files open these as an object's tab (Artifacts is the platform's own).
   // Git and Diff take no object by id (no `molis-work:select-item`, no row to click), so they declare none.
-  assert.deepEqual(new Set(objectTabs(builtinPluginDirectory())), new Set(["artifacts", "goals", "inbox", "feed", "pages", "lingguang", "workflows", "coding"]));
+  assert.deepEqual(new Set(objectTabs(builtinPluginDirectory())), new Set(["artifacts", "goals", "inbox", "feed", "pages", "lingguang", "workflows", "coding", "risk"]));
   // The workbench writes no plugin's tab title: each is its navigator or island view's, in the page's language.
   const { installHostUiText, runWithLocale } = await import("@molis-ai/molis-work-app-local-host");
   installHostUiText();
@@ -392,4 +392,19 @@ test("PG-060 RAC-606 the side panel's 打开 opens an object-tab plugin's item a
   // `openItem` for the object's tab, `openPluginRecord` for a record-only plugin; no tab workspace yet: optional chaining
   // keeps it a no-op instead of throwing.
   assert.ok(CLIENT_SCRIPT.includes("? tabWorkspace?.openItem(plugin, id, title) : tabWorkspace?.openPluginRecord(plugin, id)"));
+});
+
+test("RISK-04 an item open lands in a plugin's opens_items side view; plugins without one, and side-only plugins, keep their place", async () => {
+  const { sideOpenedItemPlugins } = await import("@molis-ai/molis-work-app-workbench");
+  const entry = (id: string, slots: string[], views: Array<{ view_id: string; slot: string; opens_items?: boolean }>) => ({
+    project_plugin_id: id,
+    manifest: { ui: { views } },
+    workbench: { contributions: [{ descriptor: { surfaces: slots.map((target_slot_id) => ({ target_slot_id })) } }] },
+  });
+  assert.deepEqual(sideOpenedItemPlugins([
+    entry("risk", ["workbench.main", "workbench.side"], [{ view_id: "overview", slot: "stage" }, { view_id: "detail", slot: "side", opens_items: true }]),
+    entry("plain", ["workbench.main", "workbench.side"], [{ view_id: "side", slot: "side" }]),
+    entry("side-only", ["workbench.side"], [{ view_id: "pad", slot: "side", opens_items: true }]),
+  ]), { risk: "plugin:risk/detail" }, "a side-only plugin already opens everything in its side tab (sideOpenedPlugins)");
+  assert.deepEqual(sideOpenedItemPlugins(), { risk: "plugin:risk/record" }, "the shipped Risk plugin opens one risk in its side view first");
 });

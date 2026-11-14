@@ -1,7 +1,7 @@
 import { nullableSchema as nullable, arraySchema as array, objectSchema } from "@molis-ai/molis-work-plugin-sdk";
 export { nullable, array };
 import type { ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
-import { goalEventAcknowledgementCategories, goalEventAcknowledgementTreatments, goalEventClosureKinds, goalEventConcernStatuses, goalEventDecisionEffectKinds, goalEventDecisionPurposes,
+import { goalEventAcknowledgementCategories, goalEventAcknowledgementTreatments, goalEventClosureKinds, goalEventConcernStatuses, GOAL_CONCERN_CITED_SUBJECT_LIMIT, goalEventDecisionEffectKinds, goalEventDecisionPurposes,
   goalEventFieldFormats, goalEventJudgmentVerdicts, goalEventBasisGaps, goalEventBasisTiers, goalEventSatisfactionGrounds, GOAL_EVENT_EVIDENCE_MAX, goalEventRequirementCurrentStatuses, goalEventSemanticFamilies,
   goalEventTrustedAuthoritySources, goalEventTypeSourceKinds, goalEventUserConclusionVerdicts, goalEventWorkStatuses,
   goalIntentSourceKinds, goalDecisionMethods, goalDecompositionReviewStatuses } from "./goals.js";
@@ -44,8 +44,10 @@ export const artifactSource = object({ artifact_id: text, version: count, title:
 const progressFields = { summary: text, based_on_cursor: count, next_step: maybeText, next_actor: maybeText };
 export const progress = object({ ...progressFields, summary_id: text, event_id: text, recorded_at: text, actor_id: text, stale: boolean, stale_because_cursor: maybeCount,
   source: artifactSource }, [...Object.keys(progressFields), "summary_id", "event_id", "recorded_at", "actor_id", "stale", "stale_because_cursor"]);
+/** An object a concern cites (`GoalCitedSubject`); at most `GOAL_CONCERN_CITED_SUBJECT_LIMIT`. */
+export const citedSubjects = { ...array(object({ kind: text, id: text })), maxItems: GOAL_CONCERN_CITED_SUBJECT_LIMIT };
 export const concern = object({ concern_id: text, event_id: text, title: text, statement: text, scope, blocks_closure: boolean, status: concernStatus,
-  resolution_reason: maybeText, resolution_event_id: maybeText, cited_decision_id: maybeText, previous_status: nullable(concernStatus), created_at: text, updated_at: text });
+  resolution_reason: maybeText, resolution_event_id: maybeText, cited_decision_id: maybeText, cited_subjects: citedSubjects, previous_status: nullable(concernStatus), created_at: text, updated_at: text });
 export const option = object({ option_id: text, label: text, impact: text });
 export const effect = object({ kind: enumeration(goalEventDecisionEffectKinds), action: maybeText }, ["kind"]);
 export const change = object({ outcome: text, new_requirements: array(requirementInput),
@@ -57,7 +59,7 @@ const decisionFields = { decision_id: text, governance_decision_id: text, reques
   accepts_requirements: boolean, effects: array(effect), scope, authorized_change: nullable(change) };
 export const decision = object({ ...decisionFields, commitment, config_version: maybeCount, agreement_version: maybeCount, actor_id: text,
   authority_source: enumeration(goalEventTrustedAuthoritySources), recorded_at: text });
-export const reason = object({ code: text, message: text, requirement_id: text, concern_id: text, goal_id: text, risk_id: text, request_id: text }, ["code", "message"]);
+export const reason = object({ code: text, message: text, requirement_id: text, concern_id: text, goal_id: text, request_id: text }, ["code", "message"]);
 const closureFields = { kind: enumeration(goalEventClosureKinds), result: maybeText, reason: text, completion_applied: boolean,
   expected_config_version: count, expected_agreement_version: count, unmet_reasons: array(reason) };
 export const closure = object({ ...closureFields, closure_id: text, event_id: text, recorded: { const: true }, config_version: maybeCount, agreement_version: maybeCount,
@@ -103,7 +105,7 @@ const acknowledgementReference = object({ event_id: text, category: enumeration(
 const acknowledgementBy = object({ channel: enumeration(["mcp", "assistant", "agent"]), runtime_id: maybeText, session_id: maybeText });
 const systemPayload: ActionSchema = { anyOf: [
   operation("progress_summary", { ...progressFields, source: artifactSource }, Object.keys(progressFields)),
-  operation("concern_opened", { concern_id: text, title: text, statement: text, scope, blocks_closure: boolean }),
+  operation("concern_opened", { concern_id: text, title: text, statement: text, scope, blocks_closure: boolean, cited_subjects: citedSubjects }),
   operation(["concern_resolved", "concern_accepted", "concern_overturned"], { concern_id: text, status: concernStatus, reason: text,
     supporting_event_ids: strings, cited_decision_id: maybeText, previous_status: concernStatus }),
   operation("decision_requested", requestFields),

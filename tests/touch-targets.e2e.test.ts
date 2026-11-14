@@ -451,6 +451,9 @@ async function assertHomeToolsReachable(browser: Browser, width: number): Promis
       strip.scrollLeft = 0;
       await frame();
       // The order the glyphs are drawn in is the order the strip's arrows walk: ← from the current tab follows it to the Home tool.
+      // The keys are cancelable, as a real press is: the strip takes them (preventDefault), so the page's roving focus, which walks
+      // the DOM order, does not move the focus a second time. Before batch 17 they were not, and the walk passed only because the
+      // Home tool happened to be the last tab in the DOM.
       const ordered = tabs().sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left);
       const first = ordered[0] === button;
       let left = false, right = false;
@@ -461,12 +464,12 @@ async function assertHomeToolsReachable(browser: Browser, width: number): Promis
         let steps = 0, followed = true;
         while (document.activeElement !== button && steps <= ordered.length) {
           const from = ordered.indexOf(document.activeElement);
-          document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+          document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true }));
           steps += 1;
           followed = followed && document.activeElement === ordered[(from - 1 + ordered.length) % ordered.length];
         }
         left = followed && steps === startAt && document.activeElement === button;
-        button.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+        button.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }));
         right = document.activeElement === ordered[1];
         if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
       }

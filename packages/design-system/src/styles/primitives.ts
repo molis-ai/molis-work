@@ -559,6 +559,19 @@ ${BUTTON_STYLES}
   html[data-resolved-theme="dark"] input.mw-slider {
     border: 0; background: transparent; color: inherit; box-shadow: none;
   }
+  /* 3 × 3 position mark (renderSeverityGrid): the lit cell is filled, the rest are hollow, so it never relies on colour alone. */
+  .mw-severity-grid { --severity-cell: 5px; --severity-gap: 2px; --severity-tone: var(--tone-quiet, var(--ink-soft)); display: inline-flex; align-items: center; gap: 8px; flex: none; vertical-align: middle; }
+  .mw-severity-grid--large { --severity-cell: 12px; --severity-gap: 3px; --severity-corner: 4px; }
+  .mw-severity-grid--danger { --severity-tone: var(--tone-blocked, var(--red)); }
+  .mw-severity-grid--warning { --severity-tone: var(--tone-attention, var(--amber)); }
+  .mw-severity-grid__cells { display: inline-grid; grid-template-columns: repeat(3, var(--severity-cell)); gap: var(--severity-gap); }
+  .mw-severity-grid__cells > i { width: var(--severity-cell); height: var(--severity-cell); border-radius: var(--severity-corner, 0); box-shadow: inset 0 0 0 1px var(--line-strong); }
+  .mw-severity-grid__cells > i.is-lit { background: var(--severity-tone); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--severity-tone) 70%, var(--ink)); }
+  .mw-severity-grid__axes { display: inline-flex; flex-direction: column; gap: 2px; font-family: var(--type-note-font, var(--font)); font-size: var(--type-note-size, 12px); color: var(--muted); line-height: 1.3; }
+  @media (forced-colors: active) {
+    .mw-severity-grid__cells > i { forced-color-adjust: none; box-shadow: inset 0 0 0 1px GrayText; background: Canvas; }
+    .mw-severity-grid__cells > i.is-lit { background: CanvasText; box-shadow: none; }
+  }
   .mw-meter { width: 180px; height: 8px; border: 0; border-radius: 99px; background: var(--control-fill); }
   .mw-meter::-webkit-meter-bar { background: var(--control-fill); border-radius: 99px; }
   .mw-meter::-webkit-meter-optimum-value { background: var(--action); border-radius: 99px; }

@@ -14,7 +14,7 @@ const HTTP_ALLOWED: Record<string, readonly string[]> = {
   "event-progress": ["idempotency_key", "based_on_cursor", "summary", "next_step", "next_actor"],
   "event-concern": [
     "idempotency_key", "action", "concern_id", "title", "statement", "scope",
-    "blocks_closure", "reason", "supporting_event_ids", "cited_decision_id",
+    "blocks_closure", "reason", "supporting_event_ids", "cited_decision_id", "cited_subjects",
   ],
   "event-decision-request": [
     "idempotency_key", "question", "options", "purpose", "proposed_change", "scope",
@@ -109,6 +109,7 @@ const EVENT_WRITERS = {
     reason: optionalText(body.reason),
     supporting_event_ids: Array.isArray(body.supporting_event_ids) ? body.supporting_event_ids.map((value) => String(value)) : undefined,
     cited_decision_id: optionalText(body.cited_decision_id),
+    cited_subjects: Array.isArray(body.cited_subjects) ? body.cited_subjects as never : undefined,
   }),
   "event-decision-request": (actions, common, body) => actions.invoke(goalsActions.requestDecision, {
     ...common,

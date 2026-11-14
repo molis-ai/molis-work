@@ -12,7 +12,7 @@ import { createScheduledOperationManagement } from "./operation-management.js";
 import { scheduleErrors } from "./error.js";
 import type { scheduleRuntimeDatabase } from "./runtime-database.js";
 import { scheduleInstallations } from "./runtime-installations.js";
-import type { ScheduleTaskGrants } from "./task-grants.js";
+import { scheduleTaskReads, type ScheduleTaskGrants } from "./task-grants.js";
 import { createScheduleRunsHandlers } from "./missed-runs.js";
 
 export type ScheduleRuntime = ReturnType<typeof scheduleRuntimeDatabase>;
@@ -46,6 +46,7 @@ export async function scheduleRuntimeActions(projectId: string, services: Plugin
       return { model: services.model?.availability().available === true, workspace: workspace?.realpath_verified === true };
     },
     archived: taskId => grants.archived(taskId),
+    taskReads: async () => scheduleTaskReads(await grants.list()),
   });
   const pluginId = (installId: string) => services.installations!.get(installId)?.plugin_id ?? null;
   const operationHandlers = createScheduledOperationActionHandlers(projectId, { ...operations, pluginId }, write);

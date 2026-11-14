@@ -26,6 +26,7 @@ const goals_event_closure = defineErrorCodes("goals.event_closure", {
 
 const goals_event_concern = defineErrorCodes("goals.event_concern", {
   accept_requires_user_decision: "invalid",
+  cited_subject_invalid: "invalid",
   cross_goal_reference: "invalid",
   evidence_not_subsequent: "invalid",
   evidence_required: "invalid",
@@ -105,6 +106,7 @@ export const stateErrors = {
   "goals.event_closure.stale_version": goals_event_closure.stale_version,
   "goals.event_concern.accept_requires_user_decision": goals_event_concern.accept_requires_user_decision,
   "goals.event_concern.cross_goal_reference": goals_event_concern.cross_goal_reference,
+  "goals.event_concern.cited_subject_invalid": goals_event_concern.cited_subject_invalid,
   "goals.event_concern.evidence_not_subsequent": goals_event_concern.evidence_not_subsequent,
   "goals.event_concern.evidence_required": goals_event_concern.evidence_required,
   "goals.event_concern.id_required": goals_event_concern.id_required,

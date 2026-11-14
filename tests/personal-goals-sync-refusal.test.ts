@@ -18,6 +18,10 @@ test('GSYNC-05 invalid journal anchors, cross-project rows and decisions fail at
     w => { w.facts.governance!.goal_event_trusted_decisions![0]!.authority_source = 'runtime_dialogue'; },
     w => { w.facts.goals!.goal_event_applied_decisions![0]!.governance_decision_id = 'missing'; },
     w => { w.facts.goals!.goals![0]!.in_scope_json = '{invalid'; },
+    // RISK-01: a concern's cited objects arrive only as Goals writes them (a JSON list of at most 8 distinct, trimmed, nonempty {kind, id}).
+    ...['not json', '{"kind":"risk","id":"r"}', JSON.stringify(Array.from({ length: 9 }, (_, i) => ({ kind: 'risk', id: `r${i}` }))),
+      '[{"kind":"","id":"r"}]', '[{"kind":"risk","id":"r","title":"copied"}]', '[{"kind":" risk","id":"r"}]',
+      '[{"kind":"risk","id":"r "}]', '[{"kind":"risk","id":"r"},{"kind":"risk","id":"r"}]'].map(cited => (w: GoalWire) => { citeConcern(w, cited); }),
   ];
   let revision = f.events[0]!.revision;
   for (const edit of edits) {
@@ -50,3 +54,11 @@ test('GSYNC-05 malformed facts and foreign space roll back all Goal facts; revok
   assert.deepEqual(f.edit(1, app => app.goalEvents.readState(p, 'goal-main')), before.state);
   f.revoke(); assert.throws(() => f.replica(0, r => r.next()), /test_revoked/);
 });
+
+/** A concern on the wire's first event, complete but for what it cites. */
+function citeConcern(w: GoalWire, cited: string): void {
+  const goals = w.facts.goals!, event = goals.goal_work_events![0]!, at = String(event.created_at);
+  (goals.goal_event_concerns ??= []).push({ concern_id: 'concern-cited', project_id: goals.goals![0]!.project_id, goal_id: event.goal_id, event_id: event.event_id,
+    title: '供应商', statement: '可能延期', scope_json: '{}', blocks_closure: 0, status: 'open', resolution_reason: null, resolution_event_id: null,
+    cited_decision_id: null, previous_status: null, created_at: at, updated_at: at, cited_subjects_json: cited });
+}

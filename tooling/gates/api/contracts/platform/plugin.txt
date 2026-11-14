@@ -2959,6 +2959,12 @@ export interface PluginDatabase extends PluginDatabaseReader {
     transactionProjectRow?<T>(id: string, write: (transaction: PluginProjectRowTransaction) => T): Promise<T>;
 }
 
+export interface PluginDatabaseApproval {
+    readonly installId: string;
+    readonly key: string;
+    readonly value: string;
+}
+
 export interface PluginDatabaseDeclaration {
     readonly store_name: string;
     readonly version: number;
@@ -2987,6 +2993,14 @@ export interface PluginDatabaseUpgradeStep {
     readonly from: number;
     readonly sql: string;
     readonly reduces_rows?: readonly string[];
+}
+
+export interface PluginDatabaseVersionSwitch {
+    readonly previous: PluginManifest;
+    readonly current: PluginInstanceRecord;
+    readonly next: PluginInstanceRecord;
+    readonly approval?: PluginDatabaseApproval;
+    assertCurrent(): void;
 }
 
 export interface PluginDeclarationProblem {
@@ -3219,6 +3233,7 @@ export interface PluginExecutor {
     start(definition: PluginDefinition, context: PluginStartContext): Promise<PluginExecutorHandle>;
     stop(definition: PluginDefinition, context: PluginStartContext): Promise<void>;
     validateUpgrade?(definition: PluginDefinition, context: PluginUpgradeContext, from: PluginInstanceRecord): Promise<void>;
+    commitDatabaseUpgrade?(definition: PluginDefinition, change: PluginDatabaseVersionSwitch): Promise<void>;
     capturePrivateData?(installId: string): Promise<unknown> | unknown;
     restorePrivateData?(installId: string, snapshot: unknown): Promise<void> | void;
     uninstalled?(record: PluginInstanceRecord): Promise<void> | void;
@@ -3564,7 +3579,7 @@ export interface PluginLifecycleReceipt {
     replayed: boolean;
 }
 
-export type PluginLifecycleState = "installed" | "running" | "disabled" | "crashed" | "quarantined" | "uninstalled";
+export type PluginLifecycleState = keyof typeof STATE_VOCABULARIES.pluginLifecycle.states;
 
 export type PluginLocalPageRequest = Pick<MaterialExtractionOptions, "signal">;
 
@@ -3684,6 +3699,7 @@ export interface PluginManifest {
     methods?: import("@molis-ai/molis-work-contracts/platform/plugin-agent").PluginMethodDeclaration[];
     upgrade_compatibility?: PluginUpgradeCompatibilityDeclaration;
     databases?: import("platform/plugin-database").PluginManifestDatabases;
+    state_machines?: readonly import("platform/plugin-state-machines").StateMachineDeclaration[];
     owner_files?: import("platform/plugin-owner-files").PluginOwnerFilesDeclaration;
     model_configuration?: import("platform/plugin-model-configuration").PluginModelConfigurationDeclaration;
     image_generation?: import("platform/plugin-image-generation").PluginImageGenerationDeclaration;
@@ -4257,6 +4273,9 @@ export interface PluginRuntimeApi {
         deployment?: PluginDeployment;
         grants?: string[];
         assertCurrent?: () => void;
+        assertCommitted?: () => void;
+        previousManifest?: PluginManifest;
+        persistApproval?: PluginDatabaseApproval;
     }): Promise<PluginLifecycleReceipt>;
     rollback(input: {
         install_id: string;
@@ -4530,6 +4549,7 @@ export interface PluginUpgradeCompatibilityDeclaration {
 }
 
 export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
+    readonly assertCurrent?: () => void;
     readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "project_statements" | "database_statements" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "localTools" | "materials" | "connections" | "directory" | "background" | "scheduler" | "agents" | "installations" | "projects" | "notifications" | "attention" | "contextLedger" | "interaction" | "savedHistory" | "sync"> & {
         readonly storage?: Pick<PluginPrivateStorage, "get">;
     };
@@ -5123,6 +5143,14 @@ export declare const SKILL_RESOURCE_FOLDERS: {
 
 export declare const SKILL_TOOLS: readonly ["find-capabilities", "read-capability", "change-capability", "suggest-action", "ask-user", "update-todo", "find-tools", "context-remaining", "board-wait", "acknowledge-inputs"];
 
+export declare const STATE_MACHINE_DECLARATION_LIMITS: {
+    readonly machines: 32;
+    readonly states: 64;
+    readonly transitions: 256;
+    readonly id: number;
+    readonly localId: 64;
+};
+
 export declare const SUBJECT_CONTEXT_INPUT_SCHEMA: {
     readonly type: "object";
     readonly properties: {
@@ -5607,6 +5635,14 @@ export interface StageSceneMetadataAuthority {
         readonly version: number;
     }[];
     readonly actions: readonly ExactActionReference[];
+}
+
+export interface StateMachineDeclaration<State extends string = string> {
+    readonly machine_id: string;
+    readonly version: number;
+    readonly states: Readonly<Record<State, StateRingFamily>>;
+    readonly initial: State;
+    readonly terminal: readonly State[];
 }
 
 export interface SubjectActionOffer {
@@ -6399,6 +6435,7 @@ export declare const pluginErrors: import("platform/action-errors").ErrorCodeRai
     readonly storage_denied: "invalid";
     readonly storage_input_invalid: "invalid";
     readonly uninstall_cleanup_pending: "unavailable";
+    readonly upgrade_activation_failed: "unavailable";
     readonly upgrade_required: "invalid";
     readonly upgrade_rollback_failed: "invalid";
     readonly upgrade_validation_failed: "invalid";

@@ -252,7 +252,7 @@ Home 插件可声明 `ui.views.slot: "side"`，对应 contribution 的 `workbenc
 - `parsePluginManifest` 检查形状：除了下面的升级段（`upgrades`），只有这五个字段，`store_name` 合 Home 库同一条名字规则，`version` 是正整数，两个权限都在这份 Manifest 的 `permissions` 里；自己的表两项都写 `storage:private`。
 - `schema` 只能由 `CREATE TABLE` 和 `CREATE [UNIQUE] INDEX` 组成，名字不带库名；外键只指自己的表或 `project_root(project_id)`（项目本身，一库一行）；不用 `AUTOINCREMENT`。平台先在引号和注释之外的每个分号处切句（括号里的分号也切，什么都不执行），每句必须以 `CREATE TABLE` 或 `CREATE [UNIQUE] INDEX` 开头、表后紧跟列定义，所以 `ATTACH`、`PRAGMA`、视图、触发器、虚表、`TEMP` 表、`CREATE TABLE … AS SELECT`、增删改、`DROP` 和没闭合的引号或注释连内存库都不碰；再在空的内存库里试建，试建出来的只能有表和索引，不能有 `sqlite_` 开头的名字（SQLite 为主键和唯一约束自动建的索引除外）。`IF NOT EXISTS` 可以写，但第一次建表前库里有同名对象就拒，所以不会悄悄沿用别人的表。声明不合的拒绝码是 `plugin.project_database.declaration_invalid`。
 - 平台第一次为这个插件打开项目库时建表，在账本 `plugin_project_databases` 记下插件、发布者签名、库名、版本和表名；之后每次打开核对。账本每个插件一行（`plugin_id` 主键、`publisher_signature`、`store_name` 唯一、`version`、`tables_json`、`created_at`），打开函数 `openPluginProjectDatabase`（`packages/plugin-runtime/src/project-database.ts`）在一个 `BEGIN IMMEDIATE` 事务里按下面的结果办，任何拒绝都回滚、库原样不动：库里已有同名的表或索引（名字比较时 ASCII 不分大小写）、库名归了别的插件是 `plugin.project_database.object_taken`；发布者签名与账本不同是 `publisher_mismatch`（卸载不删表也不删行，同一个 id 换了发布者拿不走数据）；版本不同是 `version_mismatch`；版本相同但库名、对象名单或表的形状与声明不同（比如库被手改过）是 `shape_mismatch`；都一致就打开。被拒的插件只停它自己，项目与别的插件照常，库不修补、不重建、不补账本。
-- 改表就升 `version`，并在同一份声明里写从旧版本到新版本的升级段 `upgrades: [{ from, sql, reduces_rows? }]`（[升级链设计](../../specs/upgrade-continuity/upgrade-chain-design.md) §2.4）。段只有 SQL：`INSERT`、`UPDATE`、`DELETE`，`CREATE TABLE`、`CREATE [UNIQUE] INDEX`、`ALTER TABLE … ADD COLUMN / RENAME / DROP COLUMN`、`DROP TABLE`、`DROP INDEX`，不写 `IF [NOT] EXISTS`、库名、`AS SELECT`、触发器和 `PRAGMA`；回填只用确定的函数（`random()`、`datetime('now')`、`CURRENT_TIMESTAMP` 这类报 `plugin.project_database.upgrade_nondeterministic`）。平台在升级过程里跑，平台自己那一段之后、每个插件一个事务：段只能碰这个插件自己的表，碰了别的就整轮回滚（`plugin.project_database.upgrade_out_of_scope`），跑完的表必须正好是新声明建出来的样子，表的行数只在 `reduces_rows` 点名的表上可以变少（删掉的表也算；改名的表带着行走）。外键在段里是关的，最后统一 `foreign_key_check`；同步追踪和业务的触发器由平台在段前删、段后按声明建回，段里不用管。失败的插件只停它自己，同一个程序版本不再重试。2026-10-18 改：现在只有随宿主构建的插件能写段，装上的插件写了，安装与换版本都以 `plugin.upgrade_steps_unsupported` 拒绝（用户 2026-11-06 定，U4 打开）。新库或改了版本，照旧在 `docs/releases/CHECKLIST.md` §3 改那一行，改完跑 `node scripts/verify-release-versions.mjs`。
+- 改表就升 `version`，并在同一份声明里写从旧版本到新版本的升级段 `upgrades: [{ from, sql, reduces_rows? }]`（[升级链设计](../../specs/upgrade-continuity/upgrade-chain-design.md) §2.4）。段只有 SQL：`INSERT`、`UPDATE`、`DELETE`，`CREATE TABLE`、`CREATE [UNIQUE] INDEX`、`ALTER TABLE … ADD COLUMN / RENAME / DROP COLUMN`、`DROP TABLE`、`DROP INDEX`，不写 `IF [NOT] EXISTS`、库名、`AS SELECT`、触发器和 `PRAGMA`；回填只用确定的函数（`random()`、`datetime('now')`、`CURRENT_TIMESTAMP` 这类报 `plugin.project_database.upgrade_nondeterministic`）。平台在升级过程里跑，平台自己那一段之后、每个插件一个事务：段只能碰这个插件自己的表，碰了别的就整轮回滚（`plugin.project_database.upgrade_out_of_scope`），跑完的表必须正好是新声明建出来的样子，表的行数只在 `reduces_rows` 点名的表上可以变少（删掉的表也算；改名的表带着行走）。外键在段里是关的，最后统一 `foreign_key_check`；同步追踪和业务的触发器由平台在段前删、段后按声明建回，段里不用管。失败的插件只停它自己，同一个程序版本不再重试。已装签名包使用同一份检查，在确认升级时由有界 SQL Worker 执行。新库或改了版本，照旧在 `docs/releases/CHECKLIST.md` §3 改那一行，改完跑 `node scripts/verify-release-versions.mjs`。
 
 宿主开库时为 `BUILTIN_PLUGIN_CATALOG` 里声明了它的条目建表、核对（Coding、Feed、Goals、Schedule；Goals 的 31 张表含 `boards` 与治理的 4 张）；经 Plugin Runtime 启动的插件（含装进项目的与沙箱插件）启动时由平台用同一个打开函数建表或核对，被拒就不启动。Home 级插件没有项目库。恢复路径（`existingOnly`）只读已经在现行结构上的库，不给它建表也不写账本；这个插件平台的项目库不是文件（内存库、别的驱动）时，声明了 `databases.project` 的插件不启动，不退回到别的路。
 
@@ -326,7 +326,14 @@ SDK 导出的 `PLUGIN_ROUTE_STREAM_LIMITS` 固定进度上限：单行 65,536 UT
 
 打开舞台的那个 view（`stage` view，没有就是第一个 `navigator` view）可用 `stage_data: { action }` 声明本 Manifest 自己的只读、面向 `user`、只有一个版本的查询，规则与 `settings_data` 相同。宿主按页面上的这个人、只带这个动作自己的权限调用，结果交给舞台的 `StagePageModel.data`；整页与原地重画（`GET /api/stage/<project_plugin_id>`）走同一条路。插件不在或被拒时没有 `data`，其他失败照常报错。当前只对内置目录兑现（T-133）。
 
+## 状态与状态机
+
+手写插件在 Manifest 申报 `state_machines`；主人的代码通过 SDK 的 `/state-machine` 声明业务转换。校验只读静态声明，输出申报的机器、状态和家族。现行 Manifest 格式允许省略此字段。状态的家族从 UI 合同取，落库仍走普通写动作的授权与 CAS。例子见[状态机 Skill](../../skills/molis-plugin-dev/state-machine.md)，平台能力的现行取值见[平台词表](STATE-VOCABULARY.md)。创作台生成合同及启动核对见[第 47 批](../../specs/post-anticorruption-roadmap/reference/batches/47.md)。
+
 ## 插件版本升级
+
+签名沙箱包用打包命令的 `--project-database` 或 `--home-database` 提供 `version`、`schema` 与可选的 `upgrades`。改变已落库的结构时保留库名、提高库版本并给出从旧库版起的连续 SQL。包用 `--migratable-from` 列可以迁移的精确旧发行版本，合同声明 `validateUpgrade` 查询，输入原发行版字符串，返回布尔值。沙箱只给这个校验提供旧安装的私有 KV 读取；返回 false 或失败时拒绝提交。兼容来源可用 `--compatible-from`，沿用原结构。打包命令的 `--state-machines` 保留经同一规则校验的状态机元数据。
+
 
 插件发布新版本时，递增 Manifest `version`。`upgrade_compatibility` 只接受精确的 SemVer 来源版本；较高目标版本的来源必须早于目标版本，每个来源版本只能列在以下一项：
 
@@ -345,9 +352,9 @@ Runtime 管理的首方 Native 工厂会保存为单文件发行物，写入当�
 
 `install_id` 是稳定的数据命名空间，重装可沿用保留的数据；持久任务还必须绑定 Runtime 的 `installation_generation`。后者在确认重装时更新，重启、停用/启用和版本升级保持不变。Host 直接读安装记录的 `installation_generation`，不从任务输入接受安装世代。Schedule 提醒与定时操作都按此规则隔离：世代不符的记录保留，不自动投递或执行，等重装后确认归属。
 
-`migratable_from_versions` 表示发布者允许从列出的旧版本手动升级，但不能据此直接启动新实现。目标 `PluginDefinition` 必须实现 `validateUpgrade({ from, context })`：在切换前只读检查 `storage:private` 数据能否被目标实现处理。校验上下文只提供只读的 `get` 和必要身份，不暴露其他 Host 服务。Host 不执行数据迁移；预检通过后，目标版本按现有格式直接使用这些数据。需要转换格式的插件目前不受此协议支持。验证失败时旧安装记录、grant 与私有数据保持原样。
+`migratable_from_versions` 表示发布者允许从列出的旧版本手动升级，但不能据此直接启动新实现。目标 `PluginDefinition` 必须实现 `validateUpgrade({ from, context })`：在切换前只读检查 `storage:private` 数据能否被目标实现处理。校验上下文只提供只读的 `get` 和必要身份，不暴露其他 Host 服务。签名沙箱包以只读 `validateUpgrade` 查询声明同一项预检；该查询仅供升级入口使用。通过后，Host 按目标版本执行连续 SQL 升级段并核对结构。换版和 SQL 升级在同一个提交点保存；提交前失败时，旧安装版本、grant 与数据得以保留，失败的库对应插件显示暂不可用。提交后无法激活时保留新库和新安装版本，现有卡片显示 `plugin.upgrade_activation_failed` 对应的原因。
 
-无论升级方式，目标 Manifest 都必须保留旧安装的全部 grant 声明及必需权限；升级不会重新授权、改变签名身份或创建新私人库。常规启动不会把新 Manifest 写成已安装版本；未声明支持的来源版本可在市场显示为不可升级，不会在项目启动时被静默替换。显式升级目标必须高于当前版本。当前升级入口作用于当前项目的 Runtime 安装。
+无论升级方式，目标 Manifest 都必须保留旧安装的全部 grant 声明及必需权限；升级不会重新授权、改变签名身份或创建新私人库。常规启动不会把新 Manifest 写成已安装版本；未声明支持的来源版本可在市场显示为不可升级，不会在项目启动时被静默替换。显式升级目标必须高于当前版本。项目包在当前项目升级，声明 Home 作用域的签名包在 Home Runtime 升级。
 
 Native 作者必须让实现代码变化对应到新的 Manifest 版本或 Manifest 指纹；相同的版本和指纹表示同一发行物。不要把未声明兼容关系的新版代码依赖于启动时替换旧安装。发行物表现在只为 Runtime 管理的、不是 `host` 信任的 Native 插件恢复旧版；Coding 面板等内置插件启动时跟随当前构建，不靠它恢复。仍由 Host 构建期组合的其他插件没有安装记录，也不会获得这条版本化恢复能力。Native Plugin 与 Host 在同一进程运行，版本归档不构成 JavaScript 沙箱。
 
@@ -570,7 +577,7 @@ Host 解析 MCP 账号时可交出可信的同步 `assertCurrent`，闭包固定
 
 **安装**：`molis-work plugin install <signed-package.json> <project-id> [--pin-as <发布者名称>] [--confirm]`，交给这个 Home 的常驻 Host 去做（没有常驻 Host 就停下，不在命令自己的进程里装）。不带 `--confirm` 只预览：Host 验证签名，按上面的格式读一遍，再说明装上它意味着什么（发布者、有没有被固定过、要的权限）；加 `--confirm` 才装。发布者还没被固定时，`--confirm` 要同时给 `--pin-as` 名称，这是本人对这个公钥的信任，之后这个发布者的包不必再取名；固定可以撤销，已撤销的发布者的包在预览就被拒。界面里是同样的两个动作（`plugins.install.preview`、`plugins.install.confirm`），只接受本人的操作，Agent、MCP、工作流和插件都调不了。
 
-**拒绝**：包没有签名、内容被改、公钥不是清单里写的发布者，分别以 `plugin.signature_invalid`、`plugin.signer_mismatch` 拒绝；签名通过但不是上面的格式，以 `plugin.declaration_invalid` 拒绝，且发生在写入任何记录之前（固定的发布者、保存的包、安装记录都没有）。装好的包放在 Home 的 `plugin-packages/` 下，每次启动都重新验证签名和入口代码，被改过就不运行。从签名包装进来的插件：升级就是装它的更高版本的包（同一个发布者、清单的 `upgrade_compatibility.compatible_from_versions` 含当前版本，预览与确认照旧，数据保留）；停用、启用、卸载在项目设置的「插件」页，或经 `plugins.installed.{disable,enable,uninstall}@1`（只给本人）；回滚不支持，先卸载、再装旧的包。
+**拒绝**：包没有签名、内容被改、公钥不是清单里写的发布者，分别以 `plugin.signature_invalid`、`plugin.signer_mismatch` 拒绝；签名通过但不是上面的格式，以 `plugin.declaration_invalid` 拒绝，且发生在写入任何记录之前（固定的发布者、保存的包、安装记录都没有）。装好的包放在 Home 的 `plugin-packages/` 下，每次启动都重新验证签名和入口代码，被改过就不运行。同一发布者的高版本沿原预览和确认安装。清单的 `upgrade_compatibility` 须把当前版本列在兼容来源或可迁移来源之一，库结构变化使用上面的迁移预检与提交。停用、启用、卸载在项目设置的「插件」页，或经 `plugins.installed.{disable,enable,uninstall}@1`（只给本人）。旧版本如何读取升级后的数据，取决于它的库声明。
 
 ## 可复现验证
 

@@ -154,7 +154,7 @@ export interface PluginPlatform {
   router(): PluginRouteRouter;
   start(entries: readonly PluginPlatformEntry[], control?: { assertCurrent?: () => void }): Promise<PluginSupervisorReport>;
   upgradeCandidates(): PluginUpgradeCandidate[];
-  upgrade(pluginId: string, definition?: PluginDefinition, options?: { grants?: string[]; assertCurrent?: () => void }): Promise<ReturnType<PluginSupervisor["state"]>>;
+  upgrade(pluginId: string, definition?: PluginDefinition, options?: Parameters<PluginSupervisor["upgrade"]>[2]): Promise<ReturnType<PluginSupervisor["state"]>>;
   rollback(pluginId: string, definition: PluginDefinition): Promise<ReturnType<PluginSupervisor["state"]>>;
 }
 

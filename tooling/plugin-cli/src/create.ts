@@ -3,7 +3,7 @@ import { join, resolve } from "node:path";
 import { UI_FORMAT_VERSIONS } from "@molis-ai/molis-work-contracts/platform/ui";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { textKeyPrefix } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { samplePluginSource, samplePluginActions, sampleArtifactType, SAMPLE_ARTIFACT_TYPE_ID } from "./sample-source.js";
+import { samplePluginSource, sampleStateMachine, samplePluginActions, sampleArtifactType, SAMPLE_ARTIFACT_TYPE_ID } from "./sample-source.js";
 
 export interface CreatePluginProjectInput {
   directory: string;
@@ -28,6 +28,7 @@ export async function createPluginProject(input: CreatePluginProjectInput): Prom
     permissions: ["storage:private", "artifact:write", "artifact:read", "ui:register"].map(permission => ({
       permission, required: true, reason: "Save a personal result, consume its exact version and show the local sample" })),
     actions: samplePluginActions(input.plugin_id),
+    state_machines: [sampleStateMachine(input.plugin_id)],
     capabilities: { provides: [], consumes: [] },
     artifacts: { produces: [sampleArtifactType(input.plugin_id)],
       consumes: [{ artifact_type_id: SAMPLE_ARTIFACT_TYPE_ID, schema_version: 1 }] },
@@ -53,6 +54,7 @@ export async function createPluginProject(input: CreatePluginProjectInput): Prom
       + "The manifest registers health, results.read, results.publish and results.preview with the common action service.\n"
       + "Interface words use stable keys and the declared locales/en.json and locales/zh.json. Run molis-work plugin validate before packaging.\n"
       + "The saved result type has a display name and a preview action of its own, which every Artifact type a plugin pins must declare.\n"
+      + "The result state machine is declared in manifest.json. Each save checks the state before writing.\n"
       + "Each poll invokes the same registered publish action; the UI displays the original private counter.\n"
       + "Health can be explicitly authorized for MCP. Personal results use the local startup owner's identity and are not exposed to other clients.\n"
       + "It performs no network request, Team sharing, or Runtime configuration changes.\n",

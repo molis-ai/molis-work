@@ -81,7 +81,7 @@
 | [product-flow-governance](../../product-flow-governance/spec.md) | 跨线：体验与效果、横向能力（资料、目录、工作台） | [03](batches/03.md)、[05](batches/05.md)、[06](batches/06.md)、[07](batches/07.md)、[12](batches/12.md)、[13](batches/13.md)、[33](batches/33.md)、[39](batches/39.md)、[40](batches/40.md)、[57](batches/57.md) | 要决策：改变现行规则的整改 |
 | [onboarding-coverage](../../onboarding-coverage/spec.md) | 产品线（引导）、横向能力（场景与设置） | [04](batches/04.md)、[12](batches/12.md)、[13](batches/13.md)、[20](batches/20.md)、[33](batches/33.md)、[35](batches/35.md)、[36](batches/36.md)、[37](batches/37.md)、[38](batches/38.md)、[43](batches/43.md)、[45](batches/45.md)、[46](batches/46.md)、[57](batches/57.md)、[73](batches/73.md) | 要决策：首日旅程的界面定样；场景闭环是否拆分见[决定 19](decisions.md#decision-19) |
 | [font-and-skin-system](../../font-and-skin-system/spec.md) | 横向能力（外观与语言）、体验与效果 | [14](batches/14.md)、[16](batches/16.md)、[56](batches/56.md)、[71](batches/71.md) | 要决策：皮肤方向定样；资源／字体与维护条件（[决定 23](decisions.md#decision-23)）；首批语种已定：只做中文和英文（[需求书 §12](../../font-and-skin-system/spec.md#12-决策记录)，2026-11-04） |
-| [state-machine-platform](../../state-machine-platform/spec.md) | 横向能力（共享核心）、底层与架构 | [26](batches/26.md)、[27](batches/27.md)、[47](batches/47.md)、[48](batches/48.md)；迁移片进[统一待办](../../backlog/BL-state-machine-migration.md) | 要决策：新门禁用户 2026-11-08 已批先只报告；`AGENTS.md` 文字仍先给用户看；21 类家族已随 #1979 合入（`platform/ui-state-rings.ts`）；第三方最终强制随市场开放（暂缓项） |
+| [state-machine-platform](../../state-machine-platform/spec.md) | 横向能力（共享核心）、底层与架构 | [26-7](batches/26.md#batch-26-item-7) 合同与词表、[26-8](batches/26.md#batch-26-item-8) 只报告门禁与文档；[47](batches/47.md) 兑现、[48](batches/48.md) 预演；迁移片进[统一待办](../../backlog/BL-state-machine-migration.md) | 26-7／26-8 随 [#2079](https://github.com/molis-ai/molis-work/pull/2079) 交付，沿 #1979 的 21 类家族。文档写回已确认，新增检查先只报告；第三方最终强制随市场开放（暂缓项） |
 | [plugin-equal-standing](../../plugin-equal-standing/spec.md) | 底层与架构（合同、宿主装配、存储归属）、横向能力（项目指导、可信决定、要求认可、终端）、产品语义 | [44](batches/44.md)；片 3 在 [39-2](batches/39.md#batch-39-item-2)，片 4 在 [41-2](batches/41.md#batch-41-item-2)；平台要求认可能力在 [32-2](batches/32.md#batch-32-item-2) | 已决策：D1～D10、D6b（用户 2026-11-13，[决定 42](decisions.md#decision-42)）；存量搬迁的迁移逻辑开工前仍要用户确认 |
 | [risk-plugin](../../risk-plugin/spec.md) | 产品线（风险插件） | [03](batches/03.md)、[17](batches/17.md)、[19](batches/19.md) | 17 已合入（#2058）：记录、总览、关联、复查与给 Work Brief 的公开来源（[第 17 批收尾检查](batches/17.md#收尾检查)）；剩本人验收（RISK-06、RISK-09 的人工核对）、19 的简报接入与 [BL-risk-review-history-adopt](../../backlog/BL-risk-review-history-adopt.md) |
 | [prologue-strategies](../../prologue-strategies/spec.md) | 横向能力（AI 运行时） | [41](batches/41.md)、[42](batches/42.md)、[61](batches/61.md)、[62](batches/62.md) | 要决策：四份子策略整体评审（[决定 9](decisions.md#decision-9)）；引用声明的语义一致（[决定 16](decisions.md#decision-16)） |
@@ -150,7 +150,7 @@
 
 | 原需求／来源 | 类型 | 对应批次 | 决策 |
 | --- | --- | --- | --- |
-| 签名与公证（BL-021；产品建议 A1） | 发布、系统能力 | [26-9](batches/26.md#batch-26-item-9)（配置）、[REL-1](batches/rel-1.md)、[REL-2](batches/rel-2.md) | 要决策：凭据接入（你办）；现有个人 Apple 账号已定 |
+| 签名与公证（BL-021；产品建议 A1） | 发布、系统能力 | [26-9](batches/26.md#batch-26-item-9)（三档配置、检查和开发签名）、[REL-1](batches/rel-1.md)、[REL-2](batches/rel-2.md) | 配置与开发签包随 [#2079](https://github.com/molis-ai/molis-work/pull/2079) 交付。要决策：凭据接入（你办）；现有个人 Apple 账号已定 |
 | [升级持续可用 U0～U7](../../upgrade-continuity/spec.md)；BL-413、BL-487 随真实 Home 重建核回；原 BL-581／583 的旧目录维护已随 2026-11-07 的整体备份与搬开完成；BL-157 已移出 Backlog | 底层与架构、升级 | [02](batches/02.md)、[05](batches/05.md)、[25](batches/25.md)、[26](batches/26.md)、[REL-4](batches/rel-4.md)、[REL-5](batches/rel-5.md)、[73](batches/73.md)、[SRV-8](batches/srv-8.md) | 升级链起点已于 2026-11-07 登记；要决策：更新／回退界面定样；具体门禁改动按开发流程处理 |
 | 运行条件：常驻、休眠后补跑、错过的怎样显示（产品建议 A5；BL-030、BL-645、BL-352） | 发布、系统能力 | [25](batches/25.md) | 直接做 |
 | 对外许可口径（产品建议 A4，在官网仓库） | 发布、系统能力 | [02](batches/02.md) | [A4](decisions.md#policy-a4) 文案已合入官网 main。用户 11-04 决定，官网正式发布与线上验收留到产品完整开发后安排 |
@@ -172,7 +172,7 @@
    - **U2 金样 Home 与回放（C1 写回放，F 管发版留金样）：** 样本准备与 U1 设计可并行，实现由 C 轨写手按 storage 共用文件排队，门禁等 U1 合入后再打开。
 3. **阶段 1 后段：**
    - **U3 按主人隔离、较新的库只拒绝这一个（C1 与 D）**；
-   - **U4 插件声明升级段（C1）：** 走 Manifest 的合同快照排队，可延到阶段 2 前段。
+   - **U4 插件声明升级段（C1）：** [26-5](batches/26.md#batch-26-item-5) 随 [#2079](https://github.com/molis-ai/molis-work/pull/2079) 交付，使用已签名插件包的安装确认和现有 U3 失败说明。
 4. **阶段 2，M1 之前就位：**
    - **U5 合同过渡期（C1；A、E 接各自的保存引用；发行批 REL-4）：** M1 当天生效，可独立设计；实现与 U1～U4 按同一份合同快照排队；
    - **U6 演练与回退（F；发行批 REL-4）：** M1 的前置，与签名公证同在 F 轨；「回到上一版」已在 25-3。

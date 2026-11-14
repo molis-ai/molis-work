@@ -1494,7 +1494,7 @@ export interface AgentRunOffer extends AgentActionOffer {
     action_digest: string;
 }
 
-export type AgentRunPhase = "starting" | "running" | "awaiting-review" | "awaiting-input" | "paused" | "compacting" | "completed" | "failed" | "cancelled" | "stopped" | "reconcile-required";
+export type AgentRunPhase = keyof typeof STATE_VOCABULARIES.agentRun.states;
 
 export interface AgentRunRef {
     run_id: string;

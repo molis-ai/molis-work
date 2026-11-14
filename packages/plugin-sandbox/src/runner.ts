@@ -4,7 +4,7 @@ import { constants, promises as fs } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { createExecutionLifetime } from '@molis-ai/molis-work-plugin-sdk';
 import type { PluginConnectionsClient } from '@molis-ai/molis-work-contracts/platform/plugin-connections';
 import type { UiLocalePack } from '@molis-ai/molis-work-contracts/platform/ui';
@@ -29,6 +29,8 @@ export const DEFAULT_SANDBOX_LIMITS: Readonly<SandboxLimits> = Object.freeze({
 });
 export interface SandboxRunnerOptions {
   bundlePath: string; contract: SandboxPluginContract; identity: SandboxIdentity;
+  /** The digest of the executable bytes verified against the signed bundle. */
+  bundleSha256?: string;
   grants: SandboxEffects; services: SandboxServices; limits?: Partial<SandboxLimits>;
   /** Trusted release words and common words for this runner. The worker never requests paths or owners. */
   localePacks?(locale: string): readonly UiLocalePack[];
@@ -119,6 +121,8 @@ export async function createSandboxRunner(options: SandboxRunnerOptions): Promis
     if (length !== stat.size) throw new SandboxError('sandbox.invalid_bundle', 'Bundle changed while being staged');
     bundle = buffer.subarray(0, length);
   } finally { await source.close(); }
+  if (options.bundleSha256 && createHash('sha256').update(bundle).digest('hex') !== options.bundleSha256)
+    throw new SandboxError('sandbox.invalid_bundle', 'Bundle changed after its signature was checked');
   const directory = await fs.mkdtemp(join(tmpdir(), 'molis-plugin-sandbox-'));
   const workerPath = join(directory, 'worker.mjs'), bundlePath = join(directory, 'plugin.mjs');
   let child: ChildProcessWithoutNullStreams;

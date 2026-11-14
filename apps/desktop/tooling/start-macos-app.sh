@@ -1,7 +1,10 @@
 #!/bin/bash
 set -euo pipefail
 
-for APP in "${MOLIS_WORK_APP_DIR:-$HOME/Applications}/Molis Work.app" "/Applications/Molis Work.app"; do
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+APP_NAME="$(node "$SCRIPT_DIR/../../../tooling/release/profile.mjs" --profile "${MOLIS_WORK_RELEASE_PROFILE:-dev}" --app-name)"
+
+for APP in "${MOLIS_WORK_APP_DIR:-$HOME/Applications}/$APP_NAME.app" "/Applications/$APP_NAME.app"; do
   if [[ -d "$APP" ]]; then
     open "$APP"
     echo "Started Molis Work: $APP"
@@ -9,5 +12,5 @@ for APP in "${MOLIS_WORK_APP_DIR:-$HOME/Applications}/Molis Work.app" "/Applicat
   fi
 done
 
-echo "Molis Work.app is not installed. Run pnpm desktop:install:macos or drag it from the DMG into Applications." >&2
+echo "$APP_NAME.app is not installed. Run pnpm desktop:install:macos or drag it from the DMG into Applications." >&2
 exit 1

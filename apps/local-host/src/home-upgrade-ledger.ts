@@ -5,6 +5,10 @@ import { atomicWriteFileSync, readSnapshotFile, readStorageSpace, upgradeFailedR
 
 /** The upgrade's own directory in a Home: the record, the stamp, and one directory of snapshots per run. */
 export const UPGRADE_DIRECTORY = "upgrade";
+export const INSTALLED_PLUGIN_UPGRADE_FILE = "installed-plugin.json";
+export const hasInstalledPluginUpgrade = (home: string): boolean =>
+  !!lstatSync(join(home, UPGRADE_DIRECTORY, INSTALLED_PLUGIN_UPGRADE_FILE), { throwIfNoEntry: false });
+export const isInstalledPluginUpgradeRun = (runId: string): boolean => INSTALLED_RUN_ID.test(runId);
 const LEDGER = "ledger.json";
 const STAMP = "state.json";
 const LEDGER_SCHEMA_VERSION = /* @version format.home.upgrade.ledger */ 1;
@@ -14,6 +18,7 @@ const NOTICE_SCHEMA_VERSION = /* @version format.home.upgrade.notice */ 1;
 const MAXIMUM_BYTES = 16 * 1024 * 1024;
 const RUN_ID = /^[A-Za-z0-9_-]{1,128}$/;
 const SHA256 = /^[0-9a-f]{64}$/;
+const INSTALLED_RUN_ID = /^installed-plugin-[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u;
 /** A Home with no `storage-space.json` yet: a fresh account Home, or one the first open has not reached. */
 const UNBOUND_HOME = "unbound";
 
@@ -164,6 +169,11 @@ export function writeUpgradeNotice(root: string, notice: UpgradeNotice): void {
   atomicWriteFileSync(join(root, UPGRADE_DIRECTORY, NOTICE), `${JSON.stringify({ schema_version: NOTICE_SCHEMA_VERSION, ...notice })}\n`, { mode: 0o600, durable: true });
 }
 
+export function supersedeInstalledUpgradeNotice(root: string): void {
+  const notice = readUpgradeNotice(root);
+  if (notice && isInstalledPluginUpgradeRun(notice.run_id)) removeUpgradeNotice(root, notice.run_id);
+}
+
 /** The notice, if there is one to show: only for the round the record is at, so a later round leaves an old one unread. Any doubt is no notice. */
 export function readUpgradeNotice(root: string): UpgradeNotice | undefined {
   if (!plainDirectory(root)) return undefined;
@@ -173,7 +183,7 @@ export function readUpgradeNotice(root: string): UpgradeNotice | undefined {
     const notice = object(JSON.parse(readSnapshotFile(file, MAXIMUM_BYTES).toString("utf8")), ["schema_version", "run_id", "unavailable"]);
     const { schema_version, run_id, unavailable } = notice;
     if (schema_version !== NOTICE_SCHEMA_VERSION || typeof run_id !== "string" || !RUN_ID.test(run_id) || !Number.isSafeInteger(unavailable) || (unavailable as number) < 0) return undefined;
-    return readUpgradeLedger(root)?.run_id === run_id ? { run_id, unavailable: unavailable as number } : undefined;
+    return isInstalledPluginUpgradeRun(run_id) || readUpgradeLedger(root)?.run_id === run_id ? { run_id, unavailable: unavailable as number } : undefined;
   } catch { return undefined; }
 }
 
@@ -192,6 +202,10 @@ export function removeUpgradeTemporaries(root: string): void {
 
 /** For the offline maintenance operations: a round not done yet, or a record that cannot be read and so cannot say it is done (§6). */
 export function homeUpgradeUnfinished(home: string): boolean {
-  try { return readUpgradeLedger(realpathSync(home))?.units.some(unfinishedUnit) ?? false; }
+  try {
+    const root = realpathSync(home);
+    assertUpgradeDirectory(root);
+    return hasInstalledPluginUpgrade(root) || (readUpgradeLedger(root)?.units.some(unfinishedUnit) ?? false);
+  }
   catch { return true; }
 }

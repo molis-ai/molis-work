@@ -107,8 +107,8 @@ export function rollbackFooter(file: RollbackFile): RollbackFooter | undefined {
   });
 }
 
-export function rollbackMarkerBytes(file: RollbackFile): Buffer {
-  if (file.stat.size > 2 * (maximumPathBytes + 1)) throw rollbackRefused();
+export function rollbackMarkerBytes(file: RollbackFile, libraryCount = 2): Buffer {
+  if (file.stat.size > libraryCount * (maximumPathBytes + 1)) throw rollbackRefused();
   return readFilePart(file, read => read(file.stat.size, 0));
 }
 

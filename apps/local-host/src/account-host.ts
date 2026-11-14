@@ -8,6 +8,7 @@ import { accountActions, ACCOUNT_PERMISSIONS, accountErrors, createAccountAuthen
 import type { MolisWorkLocalHost } from "./project-host.js";
 import { retainHomeStorageResources } from "./home-storage-lifetime.js";
 import { createHostAccountStorage } from "./account-session-storage.js";
+import { configuredAccountEnvironment } from "./active-release-profile.js";
 import { handleAccountAuthenticationHttp } from "./account-auth-http.js";
 import { handleAccountCallbackHttp } from "./account-callback-http.js";
 import { readLocalWebBody, requestHost, sendLocalWebJson } from "./web-http.js";
@@ -50,7 +51,7 @@ export function accountSessionForHost(host: MolisWorkLocalHost): AccountSessionM
 
 /** One session authority per owning Host, shared by borrowed Web and desktop transports. */
 export function bindAccountHost(host: MolisWorkLocalHost, home: string, options?: AccountHostOptions, assertAccountCurrent?: () => void): AccountHostBinding {
-  const configuration = encodeConfiguration(options ? options.environment : process.env.MOLIS_WORK_ACCOUNT_CONFIG);
+  const configuration = encodeConfiguration(options ? options.environment : configuredAccountEnvironment());
   const storage = options?.storage, fetcher = options?.fetch, existing = accounts.get(host);
   if (existing) {
     if (existing.home !== home || existing.configuration !== configuration || existing.storage !== storage || existing.fetch !== fetcher

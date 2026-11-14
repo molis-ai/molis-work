@@ -1,25 +1,19 @@
 import { rollbackPreservingError } from "@molis-ai/molis-work-plugin-sdk";
-import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDatabaseDeclaration, PluginManifest, PluginSqlValue } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { PluginTrustLevel } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import { canonicalJsonText } from "@molis-ai/molis-work-plugin-sdk";
 import { inspectPluginProjectSchema, platformDeclaration, pluginProjectDatabaseErrors, statements, type DeclaredSchema, type PluginProjectSchemaInspector } from "./project-database.js";
 import type { PluginRuntimeDatabase } from "./repository.js";
 
 // A plugin's upgrade steps (specs/upgrade-continuity/upgrade-chain-design.md §2.4, S-147): SQL from its Manifest that takes its tables from
 // one version to the next, in a project's library or in its own library of the Home. Every plugin's steps go through the same three layers
-// and the same run; the one difference is the switch below, which refuses an installed plugin's steps until U4. Nothing here knows the Host:
+// and the same run. Nothing here knows the Host:
 // SQLite is lent, with its authorizer, through `PluginUpgradeInspector`, and the run takes one connection the caller opened and will close.
 //
 // 1. When the steps are declared, by their shape only: each statement is one a step may be, read word by word.
 // 2. When a statement runs, SQLite's own authorizer over the tables this plugin has at that moment: a schema change may touch only those,
 //    a statement of rows only their rows, by deterministic SQL.
 // 3. Before the commit, the library as a whole: nothing of anyone else changed, and this plugin's tables are exactly what its declaration makes.
-
-export const pluginUpgradeErrors = defineErrorCodes("plugin", {
-  /** An installed plugin declared upgrade steps; until U4 only a plugin of the Host's own build may (user 2026-11-06). */
-  upgrade_steps_unsupported: "invalid",
-});
 
 /** SQLite folds only ASCII letters when it compares names. */
 const fold = (name: string) => name.replace(/[A-Z]/gu, letter => letter.toLowerCase());
@@ -143,19 +137,10 @@ export function pluginUpgradeSteps(declaration: PluginDatabaseDeclaration): read
   });
 }
 
-// ---- The switch. ----
-
-/**
- * The one place that tells a plugin of the Host's own build from an installed one about upgrade steps (§2.4; 2026-10-18 改, user 2026-11-06).
- * Every plugin's steps go through the first layer first, so a step no plugin may write is refused as that; then an installed plugin whose
- * Manifest declares `upgrades` at all is refused, until U4 lets installed plugins upgrade their tables. Called on install and on a version change.
- */
-export function assertPluginUpgradeStepsAdmitted(manifest: PluginManifest, trust: PluginTrustLevel): void {
-  const declarations = [manifest.databases?.project, manifest.databases?.home].filter((declaration): declaration is PluginDatabaseDeclaration => declaration !== undefined);
-  for (const declaration of declarations) pluginUpgradeSteps(declaration);
-  if (trust !== "host" && declarations.some(declaration => declaration.upgrades !== undefined)) {
-    throw pluginUpgradeErrors.upgrade_steps_unsupported(`插件 ${manifest.plugin_id} 的 Manifest 写了升级段（databases 的 upgrades）。装上的插件现在还不能升级自己的表，去掉 upgrades 后再装`);
-  }
+/** At install and at a version change. Reads declarations and refuses illegal statement shapes before any SQL runs. */
+export function assertPluginUpgradeSteps(manifest: PluginManifest): void {
+  const declarations = [manifest.databases?.project, manifest.databases?.home];
+  for (const declaration of declarations) if (declaration) pluginUpgradeSteps(declaration);
 }
 
 // ---- Layers 2 and 3: the run. ----
@@ -186,7 +171,7 @@ export const PLUGIN_UPGRADE_NONDETERMINISTIC_FUNCTIONS: ReadonlySet<string> = ne
 ]);
 
 type Reason = "missing_step" | "version_changed" | "begin_failed" | "foreign_keys_state" | "out_of_scope" | "nondeterministic" | "step_failed"
-  | "transaction_ended" | "foreign_keys" | "structure" | "rows_reduced";
+  | "transaction_ended" | "foreign_keys" | "structure" | "rows_reduced" | "integrity";
 
 /** Fixed text only: what a step or SQLite said can quote the library's rows, so it travels as `cause`, never in the message. */
 const REASONS: Readonly<Record<Reason, string>> = {
@@ -201,6 +186,7 @@ const REASONS: Readonly<Record<Reason, string>> = {
   foreign_keys: "外键检查没有通过",
   structure: "升完的表、索引或触发器与声明不同",
   rows_reduced: "有表的行数变少了，而升级段没有声明",
+  integrity: "库的完整性检查没有通过",
 };
 
 interface Run {
@@ -217,6 +203,9 @@ interface Run {
   readonly start: (db: PluginRuntimeDatabase) => ReadonlySet<string>;
   /** Inside the transaction, after every check: the new version is written. */
   readonly finish: (db: PluginRuntimeDatabase) => void;
+  /** Installed releases re-check their full physical dataset before publication. */
+  readonly checkIntegrity?: boolean;
+  readonly beforeSteps?: () => void;
 }
 
 const OWN = Symbol("plugin upgrade failure");
@@ -337,6 +326,7 @@ function inTransaction(db: PluginRuntimeDatabase, run: Run, inspector: PluginUpg
   try { db.exec("BEGIN IMMEDIATE"); }
   catch (cause) { throw failure(run, "begin_failed", { cause }); }
   try {
+    run.beforeSteps?.();
     const start = run.start(db);
     const others = new Set([...tablesNow(db).keys()].filter(name => !start.has(name)));
     const before = othersOf(db, start);
@@ -363,6 +353,9 @@ function inTransaction(db: PluginRuntimeDatabase, run: Run, inspector: PluginUpg
     for (const [name, count] of counts) {
       const after = final.has(name) ? countRows(db, final.get(name)!) : 0;
       if (after < count && !reduces.has(name)) throw failure(run, "rows_reduced");
+    }
+    if (run.checkIntegrity && (db.prepare("PRAGMA main.integrity_check(1)").get() as { integrity_check?: string } | undefined)?.integrity_check !== "ok") {
+      throw failure(run, "integrity");
     }
     run.finish(db);
     db.exec("COMMIT");
@@ -403,18 +396,21 @@ export function pluginProjectTablesVersion(connection: PluginRuntimeDatabase, pl
  */
 export function upgradePluginProjectTables(connection: PluginRuntimeDatabase,
   owner: { readonly plugin_id: string; readonly publisher_signature: string; readonly declaration: PluginDatabaseDeclaration },
-  inspector: PluginUpgradeInspector, options: { readonly path: string; readonly platformSchema?: string; readonly platformPrelude?: string }): PluginUpgradeResult | undefined {
+  inspector: PluginUpgradeInspector, options: { readonly path: string; readonly platformSchema?: string; readonly platformPrelude?: string; readonly beforeCommit?: () => void; readonly beforeSteps?: () => void }): PluginUpgradeResult | undefined {
   const { declaration } = owner, found = pluginProjectTablesVersion(connection, owner.plugin_id), to = declaration.version;
   if (found === undefined || found === to) return found === undefined ? undefined : { from: to, to };
   const where = `项目库 ${options.path} 里插件 ${owner.plugin_id} 的表`;
-  if (found > to) throw pluginProjectDatabaseErrors.version_mismatch(`${where} 是第 ${found} 版，比这次声明的第 ${to} 版新，不读也不写`);
+  if (found > to) {
+    const refusal = options.beforeSteps ? pluginProjectDatabaseErrors.store_too_new : pluginProjectDatabaseErrors.version_mismatch;
+    throw refusal(`${where} 是第 ${found} 版，比这次声明的第 ${to} 版新，数据未改动`);
+  }
   // The first layer before anything else: a step no plugin may write is refused as that, without opening a scratch database for it.
   const label = { where, from: found, to }, steps = chain(declaration, found, label);
   const target = platformDeclaration(declaration, inspector, options.platformSchema, options.platformPrelude);
   const business = new Set(inspectPluginProjectSchema(declaration, inspector).tables.map(fold));
   const technical = new Set(target.tables.map(fold).filter(table => !business.has(table)));
   runSteps(connection, {
-    ...label, steps, target, technical,
+    ...label, steps, target, technical, checkIntegrity: options.beforeCommit !== undefined, beforeSteps: options.beforeSteps,
     start: db => {
       const row = db.prepare("SELECT publisher_signature, version, tables_json FROM plugin_project_databases WHERE plugin_id = ?").get(owner.plugin_id) as
         { publisher_signature: string; version: number; tables_json: string } | undefined;
@@ -428,6 +424,7 @@ export function upgradePluginProjectTables(connection: PluginRuntimeDatabase,
     },
     finish: db => {
       db.prepare("UPDATE plugin_project_databases SET version = ?, tables_json = ? WHERE plugin_id = ?").run(to, JSON.stringify(target.objects), owner.plugin_id);
+      options.beforeCommit?.();
     },
   }, inspector);
   return { from: found, to };
@@ -449,11 +446,11 @@ function libraryTarget(schema: string, inspector: PluginProjectSchemaInspector):
  * A plugin's own library in the Home, from its `user_version` to its declaration's (§2.4), by the same run: the file is this plugin's alone,
  * so the scope starts from every table but the platform's technical ones and the Home's binding, and the third layer has only those to keep
  * as they were. `schema` is the library's complete current statements, the platform's tables and triggers with the plugin's; `declaration`
- * is the plugin's own, with its steps. The caller has the file's snapshot and puts it back when this throws.
+ * is the plugin's own, with its steps. The caller holds the file snapshot and decides whether to restore it by the committed edition.
  */
 export function upgradePluginHomeLibrary(connection: PluginRuntimeDatabase,
   owner: { readonly plugin_id: string; readonly declaration: PluginDatabaseDeclaration; readonly schema: string },
-  inspector: PluginUpgradeInspector, options: { readonly path: string }): PluginUpgradeResult {
+  inspector: PluginUpgradeInspector, options: { readonly path: string; readonly beforeCommit?: () => void; readonly beforeSteps?: () => void }): PluginUpgradeResult {
   const { declaration } = owner, to = declaration.version;
   const found = Number((connection.prepare("PRAGMA user_version").get() as { user_version: number }).user_version);
   if (found === to) return { from: to, to };
@@ -463,13 +460,13 @@ export function upgradePluginHomeLibrary(connection: PluginRuntimeDatabase,
   const target = libraryTarget(owner.schema, inspector), business = new Set(libraryTarget(declaration.schema, inspector).tables.map(fold));
   const technical = new Set(target.tables.map(fold).filter(table => !business.has(table)));
   runSteps(connection, {
-    ...label, steps, target, technical,
+    ...label, steps, target, technical, checkIntegrity: options.beforeCommit !== undefined, beforeSteps: options.beforeSteps,
     start: db => {
       if (Number((db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version) !== found) throw failure(label, "version_changed");
       // The Home's binding is not the plugin's, nor in its declaration: out of scope, and kept as it was by the third layer.
       return new Set([...tablesNow(db).keys()].filter(table => !technical.has(table) && table !== "molis_storage_space"));
     },
-    finish: db => { db.exec(`PRAGMA user_version = ${to}`); },
+    finish: db => { db.exec(`PRAGMA user_version = ${to}`); options.beforeCommit?.(); },
   }, inspector);
   return { from: found, to };
 }

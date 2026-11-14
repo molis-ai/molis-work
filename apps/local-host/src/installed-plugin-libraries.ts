@@ -5,8 +5,8 @@ import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/pl
 import { pluginErrors, type HomePluginDatabaseDeclaration, type HomeStoreDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { reservedHomeName } from "./sandbox-home-names.js";
 import { openHomePluginDatabaseConnection } from "./plugin-database.js";
-import { inspectPluginHomeSchema, type PluginProjectSchemaInspector } from "@molis-ai/molis-work-plugin-runtime";
-import { checkSqliteBaselineVersion, sqliteVersionRefusal, readStorageSpace, readDatabaseSpace, STORAGE_SPACE_SCHEMA_SQL, describeSqliteBaseline, describeSqliteSchema, homeSqlitePath, listSqliteObjects, snapshotFileStat, openBaselineHomeSqlite, openHomeSqliteFile, openReadOnlyHomeSqlite, type HomeStoreRegistry, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { inspectPluginHomeSchema, pluginProjectDatabaseErrors, type PluginProjectSchemaInspector } from "@molis-ai/molis-work-plugin-runtime";
+import { checkSqliteBaselineVersion, sqliteVersionRefusal, readStorageSpace, readDatabaseSpace, STORAGE_SPACE_SCHEMA_SQL, describeSqliteBaseline, describeSqliteSchema, homeSqlitePath, listSqliteObjects, snapshotFileStat, openBaselineHomeSqlite, openHomeSqliteFile, openReadOnlyHomeSqlite, type HomeStoreRegistry, type SqliteBaseline, type SqliteBaselineDatabase, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 
 // A library in the Home for a plugin the Host did not ship (PG-022 P1b, specs/archive/repository-anti-corruption/slices/pg022-manifest-declarations.md).
 // The plugin declares it in its Manifest (`databases.home`), like a shipped one; what a shipped plugin has from the Host's store registry
@@ -22,6 +22,17 @@ export const installedLibraryErrors = defineErrorCodes("plugin.home_database", {
   version_mismatch: "conflict",
   shape_mismatch: "conflict",
 });
+
+/** An authorized migration keeps the old edition when it cannot prove the source structure or owner. */
+export function checkUpgradeInput<T>(check: () => T): T {
+  try { return check(); }
+  catch (error) {
+    if (error instanceof ActionError && ["shape_mismatch", "publisher_mismatch", "object_taken"].some(reason => error.code.endsWith("." + reason))) {
+      throw pluginProjectDatabaseErrors.upgrade_failed("现有库的结构或归属与原安装不符，插件库没有升级");
+    }
+    throw error;
+  }
+}
 
 /** A plugin library's name: one directory of the Home. */
 export const INSTALLED_LIBRARY_NAME = /^[a-z][a-z0-9-]*$/u;
@@ -52,7 +63,7 @@ export interface InstalledLibraryOwner {
 interface LedgerRow { plugin_id: string; publisher_signature: string; store_name: string; version: number; schema_digest: string }
 
 /** Actual installed library identities and versions, read by their owner for the Home registry's offline enumeration. */
-function matchesScopedLibrary(db: ReturnType<typeof openHomeSqliteFile>, baseline: SqliteBaseline, home: string): boolean {
+export function matchesScopedLibrary(db: SqliteBaselineDatabase, baseline: SqliteBaseline, home: string): boolean {
   const expected = readStorageSpace(home), actual = readDatabaseSpace(db);
   return expected !== null && JSON.stringify(expected) === JSON.stringify(actual)
     && JSON.stringify(describeSqliteSchema(db)) === JSON.stringify(describeSqliteBaseline({ ...baseline, schema: STORAGE_SPACE_SCHEMA_SQL + baseline.schema }));
@@ -93,6 +104,10 @@ function holderOf(name: string, reserved: HomeStoreRegistry): string | undefined
   const store = reserved.get(name) ?? reserved.stores.find(candidate => candidate.path.startsWith(`${name}/`));
   if (store) return `${store.owner} 的 ${store.path}`;
   return INSTALLER_DIRECTORIES.includes(name) ? "安装器的目录" : undefined;
+}
+
+export function installedHomeLibraryName(name: string, reserved: HomeStoreRegistry): boolean {
+  return INSTALLED_LIBRARY_NAME.test(name) && holderOf(name, reserved) === undefined;
 }
 
 const digestOf = (declaration: HomePluginDatabaseDeclaration) => createHash("sha256").update(declaration.schema).digest("hex");
@@ -218,6 +233,64 @@ export function openInstalledPluginLibrary<Opened extends { close(): void }>(hom
 /** Why a library an uninstall would have removed is kept (BL-915): no verified Manifest or ledger row to match, or another holder. */
 export type InstalledLibraryKept = { readonly reason: "ownership_unverified" | "other_holder"; readonly store_name: string };
 
+/** Confines a snapshot to a signed installed publisher's exact recorded library. Reads no package SQL. */
+export function installedLibraryUpgradeFile(home: string, owner: InstalledLibraryOwner, previous: HomePluginDatabaseDeclaration,
+  reserved: HomeStoreRegistry): string {
+  const row = installedLibrarySnapshots(home, reserved).find(candidate => candidate.plugin_id === owner.plugin_id);
+  if (row?.publisher_signature !== owner.publisher_signature) throw installedLibraryErrors.publisher_mismatch("原归属账本未记录此发布者");
+  if (row.store_name !== previous.store_name || row.version !== previous.version || row.schema_digest !== digestOf(previous)) {
+    throw installedLibraryErrors.shape_mismatch("库账本与已安装发行版的声明不一致");
+  }
+  const path = homeSqlitePath(home, row.store_name);
+  snapshotFileStat(path);
+  const db = openReadOnlyHomeSqlite(home, row.store_name);
+  try {
+    const actual = Number(db.prepare("PRAGMA user_version").get()?.user_version);
+    if (actual !== previous.version) throw sqliteVersionRefusal(path, actual, previous.version, home);
+    const storage = readStorageSpace(home);
+    if (!storage || JSON.stringify(storage) !== JSON.stringify(readDatabaseSpace(db))) throw installedLibraryErrors.shape_mismatch("库不属于当前空间");
+  } finally { db.close(); }
+  return path;
+}
+
+/** The ledger's attached alias for an atomic upgrade, used only by the SQL process. */
+export const INSTALLED_LIBRARY_UPGRADE_LEDGER = "installed_library_ledger";
+
+export function installedLibraryLedgerFile(home: string): string {
+  return homeSqlitePath(home, INSTALLED_LIBRARIES_HOME_STORE.path);
+}
+
+/** Checks the attached ledger and the original owned declaration before SQLite runs a migration. */
+export function checkInstalledLibraryUpgrade(home: string, owner: InstalledLibraryOwner, previous: HomePluginDatabaseDeclaration,
+  reserved: HomeStoreRegistry, database: ReturnType<typeof openHomeSqliteFile>): void {
+  if (!installedHomeLibraryName(previous.store_name, reserved) || previous.partition !== undefined) {
+    throw installedLibraryErrors.object_taken("所选库名不属于此已安装插件");
+  }
+  checkInstalledLibraryEdition(database, owner, previous, INSTALLED_LIBRARY_UPGRADE_LEDGER);
+  const actual = Number(database.prepare("PRAGMA main.user_version").get()?.user_version);
+  if (actual !== previous.version) throw sqliteVersionRefusal(homeSqlitePath(home, previous.store_name), actual, previous.version, home);
+  if (!matchesScopedLibrary(database, previous, home)) throw installedLibraryErrors.shape_mismatch("库结构或空间归属与已安装发行版不一致");
+}
+
+/** Compare an existing ledger row with the verified edition, in its own file or attached to the migration. */
+export function checkInstalledLibraryEdition(database: Pick<ReturnType<typeof openHomeSqliteFile>, "prepare"> | Pick<SqliteDatabase, "prepare">,
+  owner: InstalledLibraryOwner, declaration: HomePluginDatabaseDeclaration, alias: "main" | typeof INSTALLED_LIBRARY_UPGRADE_LEDGER = "main"): void {
+  const row = database.prepare(`SELECT publisher_signature, store_name, version, schema_digest FROM ${alias}.plugin_home_libraries WHERE plugin_id = ?`)
+    .get(owner.plugin_id) as Omit<LedgerRow, "plugin_id"> | undefined;
+  if (row?.publisher_signature !== owner.publisher_signature) throw installedLibraryErrors.publisher_mismatch("原归属账本未记录此发布者");
+  if (row.store_name !== declaration.store_name || row.version !== declaration.version || row.schema_digest !== digestOf(declaration)) {
+    throw installedLibraryErrors.shape_mismatch("库账本与已安装发行版的声明不一致");
+  }
+}
+
+/** Advances only the verified owner's ledger row within the transaction that runs its SQL. */
+export function advanceInstalledLibraryUpgrade(database: ReturnType<typeof openHomeSqliteFile>, owner: InstalledLibraryOwner,
+  previous: HomePluginDatabaseDeclaration, target: HomePluginDatabaseDeclaration): void {
+  const { changes } = database.prepare(`UPDATE installed_library_ledger.plugin_home_libraries SET version = ?, schema_digest = ?
+    WHERE plugin_id = ? AND publisher_signature = ? AND store_name = ? AND version = ? AND schema_digest = ?`)
+    .run(target.version, digestOf(target), owner.plugin_id, owner.publisher_signature, previous.store_name, previous.version, digestOf(previous));
+  if (Number(changes) !== 1) throw installedLibraryErrors.shape_mismatch("库账本已变化，无法提交升级");
+}
 /**
  * Removes the library of an installed plugin taken off without its data (BL-915 A, BL-628 §3.7), under the same ledger lock as opening it. Only
  * when the ledger row is the installation's (plugin, publisher) and the installation's own verified Manifest (`declaration`, from its release

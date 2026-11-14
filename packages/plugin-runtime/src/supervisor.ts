@@ -14,6 +14,7 @@ import { buildEventContract, type PluginEventContract } from "./event-contract.j
 import { pluginManifestDigest } from "./identity.js";
 import { persistReleaseArtifact, resolveInstalledEntry, startInstallInput } from "./supervisor-releases.js";
 import { UNSIGNED_TRUST, isHostTrust } from "./trust-rules.js";
+import { holdsFailedDatabaseUpgrade } from "./plugin-database-version.js";
 import type { PluginTrust } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import type { PluginActiveInstance, PluginContributionSource, PluginHostLifecycle } from "./lifecycle.js";
 import {
@@ -395,15 +396,16 @@ export class PluginSupervisor implements PluginHostLifecycle {
     return candidates.sort((left, right) => left.plugin_id.localeCompare(right.plugin_id));
   }
 
-  async upgrade(pluginId: string, definition?: PluginDefinition, options?: { grants?: string[]; assertCurrent?: () => void }): Promise<PluginSupervisorState> {
-    return this.#changeVersion(pluginId, definition, false, options?.grants, options?.assertCurrent);
+  async upgrade(pluginId: string, definition?: PluginDefinition, options?: Omit<Parameters<PluginRuntimeApi["upgrade"]>[0], "install_id" | "definition" | "deployment">): Promise<PluginSupervisorState> {
+    return this.#changeVersion(pluginId, definition, false, options);
   }
 
   async rollback(pluginId: string, definition: PluginDefinition): Promise<PluginSupervisorState> {
     return this.#changeVersion(pluginId, definition, true);
   }
 
-  async #changeVersion(pluginId: string, definition: PluginDefinition | undefined, rollbackCode: boolean, grants?: string[], assertCurrent?: () => void): Promise<PluginSupervisorState> {
+  async #changeVersion(pluginId: string, definition: PluginDefinition | undefined, rollbackCode: boolean, options?: Parameters<PluginSupervisor["upgrade"]>[2]): Promise<PluginSupervisorState> {
+    const { grants, assertCurrent, assertCommitted, previousManifest, persistApproval } = options ?? {};
     assertCurrent?.();
     const prior = this.#entries.get(pluginId), entry = definition ? { ...prior, definition: platformDefinition(definition) } : prior;
     // A switched-off install is not registered after a Host restart: the target stands in for its entry, and an
@@ -441,9 +443,9 @@ export class PluginSupervisor implements PluginHostLifecycle {
         install_id: current.install_id,
         definition: entry.definition,
         deployment: entry.deployment ?? "local",
-        ...(grants ? { grants } : {}), assertCurrent,
+        ...(grants ? { grants } : {}), assertCurrent, assertCommitted, previousManifest, persistApproval,
       });
-      assertCurrent?.();
+      (assertCommitted ?? assertCurrent)?.();
       this.#activeEntries.set(pluginId, { ...entry, grants: receipt.install.grants });
       if (off) { this.revoke(pluginId); return this.#revokedState(pluginId, receipt.install.install_id); }
       return this.#running(pluginId, receipt.install.install_id);
@@ -453,7 +455,8 @@ export class PluginSupervisor implements PluginHostLifecycle {
       // The failed attempt did not move the installation, so the old implementation, running or not, keeps its own
       // event declarations; only the candidate entry stays registered for a retry.
       if (recovered.version === current.version) { if (activeContract) this.#contracts.set(pluginId, activeContract); else this.#contracts.delete(pluginId); }
-      assertCurrent?.();
+      else this.#activeEntries.set(pluginId, { ...entry, grants: recovered.grants });
+      (recovered.version !== current.version ? assertCommitted ?? assertCurrent : assertCurrent)?.();
       if (off) { if (!prior) this.#entries.delete(pluginId); return failure; } // still switched off, as the person left it
       if (!this.#revoked.has(pluginId) && recovered.state === "running" && active?.status === "running" && active.install_id === current.install_id) {
         // Return the failed upgrade operation to its caller without marking the restored old implementation unhealthy.
@@ -502,6 +505,7 @@ export class PluginSupervisor implements PluginHostLifecycle {
         if (this.#revoked.has(pluginId) || (this.#epochs.get(pluginId) ?? 0) !== epoch) {
           return this.#revokedState(pluginId, installId);
         }
+        if (holdsFailedDatabaseUpgrade(record)) return this.#fail(pluginId, installId, record.last_error_code!, "插件库升级需要从安装入口重新确认");
         if (record.state === "crashed" || releaseQuarantine && record.state === "quarantined") {
           const receipt = await this.#runtime.recover(installId, { release_quarantine: releaseQuarantine });
           if (this.#revoked.has(pluginId) || (this.#epochs.get(pluginId) ?? 0) !== epoch) {

@@ -106,8 +106,7 @@ export const GOAL_CANVAS_STYLES = `
   /* The Goal chrome wraps to two rows beside the planning directory (16px inset + 60px), so the pane starts below it. */
   .goal-canvas-shell[data-goal-planning="open"] .goal-work-planning-pane { overflow: hidden; padding: 84px 0 0; }
   .goal-canvas-shell[data-goal-planning="open"] .goal-work-planning-pane,
-  .goal-canvas-shell[data-goal-rules="open"] .goal-work-rules-pane { display: block; position: absolute; inset: 0; z-index: 4; }
-  .goal-canvas-shell:is([data-goal-planning="open"], [data-goal-rules="open"]) [data-goal-stage-chrome] { visibility: visible; }
+  .goal-canvas-shell[data-goal-planning="open"] [data-goal-stage-chrome] { visibility: visible; }
   .goal-canvas-shell[data-goal-planning="open"] .goal-work-planning-pane { display: flex; flex-direction: column; overflow: hidden; }
   .goal-canvas-shell[data-goal-planning="open"] .goal-work-planning-pane > .work-planning { flex: 1; min-height: 0; height: auto; overflow: hidden; }
   .goal-canvas-shell[data-goal-planning="open"] .work-planning-layout,

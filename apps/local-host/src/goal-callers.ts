@@ -1,5 +1,5 @@
 import type { IncomingMessage } from "node:http";
-import { evidenceText, goalsActions, GOALS_PLUGIN_ID, managementEvidence } from "@molis-ai/molis-work-plugin-goals";
+import { goalsActions, GOALS_PLUGIN_ID } from "@molis-ai/molis-work-plugin-goals";
 import { ActionError, type ActionClient, type ActionCallContext, type ActionDefinition, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { entryUserAction, webEntryMessage } from "./entry-user-action.js";
@@ -61,12 +61,12 @@ export const goalsHostActions = {
   directoryItem: goalsActions.directoryItem, list: goalsActions.list, state: goalsActions.state,
 } as const;
 export { readGoalResumeFacts } from "@molis-ai/molis-work-plugin-goals/contract";
-export { GOALS_APPROVAL_TRANSFER_TABLES, goalsManifestAfterApprovalTransfer, readGoalsApprovalTransfer } from "@molis-ai/molis-work-plugin-goals";
+export { GOALS_APPROVAL_OUTCOMES_SQL, GOALS_APPROVAL_TRANSFER_TABLES, goalsApprovalTransferManifest, readGoalsApprovalTransfer } from "@molis-ai/molis-work-plugin-goals";
 
 /** What a management entry can do: Goals' actions as the person on this machine, origin management. */
 export interface GoalsManagementActions {
   readonly project_id: string;
-  /** `evidence` is for the two decisions only: the conversation and message a decision came from, never who made it. */
+  /** The protected project review service issues decision provenance. */
   invoke<Output = unknown>(reference: GoalsActionReference, input: object, evidence?: unknown): Promise<Output>;
   /** The business fields the action's input declares, from its definition; what a tool built over it may accept. */
   fields(reference: GoalsActionReference): readonly string[];
@@ -88,33 +88,13 @@ export function refusePayloadIdentity(input: object, more: readonly string[] = [
 const MANAGEMENT_REFUSED_IDENTITY: Readonly<Record<string, readonly string[]>> = {
   [goalsActions.treeSubmit.capability_id]: ["submitted_session_id"],
   [goalsActions.treeCheck.capability_id]: [],
-  [goalsActions.treeDecide.capability_id]: ["audit_actor_id", "runtime_actor_id"],
-  [goalsActions.decide.capability_id]: [],
 };
 
-/** What a management entry's evidence may not carry, and the refusal code of the door it came through (the command line's wire keeps them). */
-const EVIDENCE_REFUSAL: Readonly<Record<string, string>> = {
-  [goalsActions.treeDecide.capability_id]: "goals.goal_tree_proposal.authority_source_invalid",
-  [goalsActions.decide.capability_id]: "goals.event_decision_authority_invalid",
-};
-
-/**
- * The provenance a management call stores: the entry names itself, the project and the command's key, and passes on the evidence the
- * command was given (the conversation and message a decision came from, whether the person was asked to confirm the whole proposal).
- * Only the two decisions take evidence; the Host fixes the source and who acts, so evidence that names either is refused first.
- */
 function managementUserAction(projectId: string, capabilityId: string, input: unknown, evidence: unknown): NonNullable<ActionCallContext["user_action"]> {
   const named = (input as { idempotency_key?: unknown } | null | undefined)?.idempotency_key;
   const id = typeof named === "string" && named ? named : capabilityId;
-  const code = EVIDENCE_REFUSAL[capabilityId];
-  if (!code) {
-    if (evidence !== undefined) throw new ActionError("actions.input_invalid", "只有结构提案和事件决定带出处");
-    return entryUserAction("management", projectId, { id });
-  }
-  const given = managementEvidence(evidence, code);
-  const conversation_ref = evidenceText(given.conversation_ref), message_ref = evidenceText(given.message_ref);
-  const confirmation = capabilityId === goalsActions.treeDecide.capability_id ? { whole_confirmation_prompted: given.whole_confirmation_prompted === true, prompted_subject_id: evidenceText(given.prompted_proposal_id) } : {};
-  return entryUserAction("management", projectId, { id, ...(conversation_ref ? { conversation_ref } : {}), ...(message_ref ? { message_ref } : {}), ...confirmation });
+  if (evidence !== undefined) throw new ActionError("actions.input_invalid", "操作出处由当前管理入口提供");
+  return entryUserAction("management", projectId, { id });
 }
 
 /**
@@ -151,7 +131,7 @@ export function goalsManagementContext(projectId: string, reference: GoalsAction
 /** The existing CLI/MCP management action subset, resolved against the owner's definitions and exact version. */
 export function managementActionDefinition(reference: GoalsActionReference): ActionDefinition | undefined {
   return [goalsActions.initialize, goalsActions.active, goalsActions.snapshot, goalsActions.treeSubmit,
-    goalsActions.treeRead, goalsActions.treeCheck, goalsActions.treeDecide, goalsActions.decide]
+    goalsActions.treeRead, goalsActions.treeCheck]
     .find(entry => entry.capability_id === reference.capability_id && entry.version === reference.version);
 }
 

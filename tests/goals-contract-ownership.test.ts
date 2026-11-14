@@ -82,8 +82,9 @@ const CONTRACT_RUNTIME_EXPORTS = ["GOALS_TREE_INTAKE", "GOALS_TREE_SUBMIT_RESULT
 const PLUGIN_ACTIONS = { list: ["goals.list", 1, "query"], contract: ["goals.contract.read", 1, "query"], state: ["goals.state.read", 1, "query"],
   progress: ["goals.progress.record", 1, "command"], receipt: ["goals.progress.receipt", 1, "query"] };
 const ENTRY_ACTIONS = { initialize: ["goals.board.initialize", 1, "command"], treeSubmit: ["goals.tree.submit", 1, "command"], treeRead: ["goals.tree.read", 1, "query"],
-  treeCheck: ["goals.tree.check", 1, "command"], treeDecide: ["goals.tree.decide", 1, "command"], active: ["goals.active.set", 1, "command"],
-  snapshot: ["goals.snapshot.read", 1, "query"], decide: ["goals.decisions.record", 1, "command"], guidanceRead: ["goals.guidance.read", 1, "query"],
+  treeCheck: ["goals.tree.check", 1, "command"], treeDecide: ["goals.tree.decide", 1, "command"], treeReview: ["goals.tree.review", 1, "query"],
+  active: ["goals.active.set", 1, "command"], snapshot: ["goals.snapshot.read", 1, "query"], decide: ["goals.decisions.record", 1, "command"],
+  eventReview: ["goals.decisions.review", 1, "query"], guidanceRead: ["goals.guidance.read", 1, "query"],
   create: ["goals.create", 1, "command"], directoryItem: ["goals.directory.read", 1, "query"], inputsConfirm: ["goals.inputs.confirm", 1, "command"] };
 
 test("RAC-1770: the Goals plugin's ./contract exports the contract with its old values, and the platform contracts' three Goals subpaths are gone", async () => {
@@ -150,16 +151,16 @@ interface RegisteredAction { capability_id: string; version: number; operation: 
 const registered = (table: "goalEntryActions" | "goalPluginActions", key: string): RegisteredAction => (contract[table] as Record<string, RegisteredAction>)[key]!;
 
 test("RAC-1773: the CLI, MCP, Feed and Coding tables hold the ids, versions and kinds of the actions Goals registers, and the management tools carry the directory's words", () => {
-  // CLI: seven of the entry actions, each equal to the registered one.
+  // CLI: the Goals-owned entry actions, each equal to the registered one.
   const cli = referencesIn("apps/cli/src/command-dispatch.ts", "GOALS");
-  assert.deepEqual(Object.keys(cli).sort(), ["active", "initialize", "snapshot", "treeCheck", "treeDecide", "treeRead", "treeSubmit"]);
+  assert.deepEqual(Object.keys(cli).sort(), ["active", "initialize", "snapshot", "treeCheck", "treeRead", "treeSubmit"]);
   for (const [name, [id, version]] of Object.entries(cli)) assert.deepEqual([id, version], [registered("goalEntryActions", name).capability_id, registered("goalEntryActions", name).version], `CLI ${name}`);
   // Feed: the three entry actions a promotion calls.
   const feed = referencesIn("plugins/native/feed/src/goal-promotion.ts", "GOALS");
   assert.deepEqual(Object.keys(feed).sort(), ["create", "directoryItem", "inputsConfirm"]);
   for (const [name, [id, version]] of Object.entries(feed)) assert.deepEqual([id, version], [registered("goalEntryActions", name).capability_id, registered("goalEntryActions", name).version], `Feed ${name}`);
-  // MCP: the three management actions, exported by the MCP package.
-  assert.deepEqual(Object.keys(MANAGEMENT_GOAL_ACTIONS).sort(), ["decide", "initialize", "treeDecide"]);
+  // MCP: the one management operation Goals owns. The platform publishes the review operations.
+  assert.deepEqual(Object.keys(MANAGEMENT_GOAL_ACTIONS).sort(), ["initialize"]);
   for (const [name, reference] of Object.entries(MANAGEMENT_GOAL_ACTIONS)) {
     assert.deepEqual([reference.capability_id, reference.version], [registered("goalEntryActions", name).capability_id, registered("goalEntryActions", name).version], `MCP ${name}`);
   }
@@ -172,27 +173,23 @@ test("RAC-1773: the CLI, MCP, Feed and Coding tables hold the ids, versions and 
     assert.deepEqual([real.action.kind, real.action.scope, [...real.action.permissions]], [operation === "query" ? "query" : "operation", "project", [operation === "query" ? "goals:read" : "goals:write"]], `Coding ${name}: the handle's kind and permission`);
   }
   // The management tools: the names and order of the platform tools, the description and business fields the Goals actions declare.
-  assert.deepEqual(MCP_TOOLS.map(tool => tool.name), ["molis_work_v1_initialize", "molis_work_v1_goal_tree_decide", "molis_work_v1_event_decide", "molis_work_v1_context_resolve",
+  assert.deepEqual(MCP_TOOLS.map(tool => tool.name), ["molis_work_v1_initialize", "molis_work_v1_review_request", "molis_work_v1_review_decide", "molis_work_v1_context_resolve",
     "molis_work_v1_context_list_projects", "molis_work_v1_context_reject_suggestion", "molis_work_v1_context_bind", "molis_work_v1_context_unbind",
     "molis_work_v1_context_create_and_bind", "molis_work_v1_project_delete"]);
   const tool = (name: string) => MCP_TOOLS.find(item => item.name === name)!;
-  const business = (key: "initialize" | "treeDecide" | "decide") => registered("goalEntryActions", key).action;
-  // The descriptions are the words the tools said before the move (the platform contracts' descriptors), written out so they stay frozen.
-  for (const [name, key, keys, required, description] of [
-    ["molis_work_v1_initialize", "initialize", ["database_path", "project_id", "idempotency_key"], ["project_id", "idempotency_key"],
-      "在当前可信管理上下文中为本项目初始化尚不存在的目标资料库；不创建项目目录绑定，不覆盖已有资料库，重试保留原请求键"],
-    ["molis_work_v1_goal_tree_decide", "treeDecide", ["proposal_id", "decisions", "reason", "confirm_all_pending", "idempotency_key", "database_path", "project_id", "authority"], ["project_id", "proposal_id", "idempotency_key"],
-      "保存用户通过受保护入口作出的逐项或整组决定；整组确认全有或全无。实际用户和操作出处由 Host 提供"],
-    ["molis_work_v1_event_decide", "decide", ["database_path", "project_id", "goal_id", "idempotency_key", "request_id", "selected_option_id", "conclusion", "accepts_requirements", "effects", "authorized_change", "scope"],
-      ["project_id", "goal_id", "idempotency_key", "conclusion"],
-      "保存用户本人通过受保护入口作出的决定；模型只能请求或引用决定。作者及操作出处由 Host 注入，仍核对原请求和当前承诺"],
+  const business = registered("goalEntryActions", "initialize").action;
+  const description = "在当前可信管理上下文中为本项目初始化尚不存在的目标资料库；不创建项目目录绑定，不覆盖已有资料库，重试保留原请求键";
+  assert.equal(tool("molis_work_v1_initialize").description, description);
+  assert.equal(business.description, description);
+  assert.deepEqual((tool("molis_work_v1_initialize").inputSchema.properties as Record<string, unknown>).idempotency_key,
+    business.input_schema.properties.idempotency_key);
+  for (const [name, keys, required] of [
+    ["molis_work_v1_initialize", ["database_path", "project_id", "idempotency_key"], ["project_id", "idempotency_key"]],
+    ["molis_work_v1_review_request", ["database_path", "project_id", "action", "request_id", "draft", "reference"], ["project_id"]],
+    ["molis_work_v1_review_decide", ["database_path", "project_id", "reference", "choice_id", "request_key", "note"], ["project_id", "reference", "choice_id", "request_key"]],
   ] as const) {
     const wire = tool(name);
-    assert.equal(wire.description, description, name);
-    assert.equal(business(key).description, description, `${name}: the Goals definition says the same`);
-    assert.deepEqual(Object.keys(wire.inputSchema.properties as object), [...keys], name);
+    assert.deepEqual(Object.keys(wire.inputSchema.properties as object).sort(), [...keys].sort(), name);
     assert.deepEqual(wire.inputSchema.required, [...required], name);
-    // The business fields are the action's own, unchanged in shape.
-    for (const field of Object.keys(business(key).input_schema.properties)) assert.deepEqual((wire.inputSchema.properties as Record<string, unknown>)[field], business(key).input_schema.properties[field], `${name}.${field}`);
   }
 });

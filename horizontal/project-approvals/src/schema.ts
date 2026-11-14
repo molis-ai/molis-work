@@ -1,3 +1,8 @@
+import { replicaMarkSql, replicaSchemaSql } from "@molis-ai/molis-work-storage";
+
+export const PROJECT_APPROVALS_JOURNAL = "project_approvals";
+const mark = (row: "NEW" | "OLD") => replicaMarkSql(`json_array(${row}.project_id,'project_approvals',${row}.project_id)`, undefined, PROJECT_APPROVALS_JOURNAL);
+
 /** The project library creates these tables in the same transaction as its version. */
 export const PROJECT_APPROVALS_SCHEMA_SQL = `
 CREATE TABLE project_review_decisions (
@@ -31,4 +36,9 @@ CREATE TABLE project_approval_rules (
 );
 CREATE INDEX project_approval_rules_scope ON project_approval_rules(project_id, scope_json, state, id);
 CREATE INDEX project_approval_rules_order ON project_approval_rules(project_id, rule_order, id);
+${replicaSchemaSql(PROJECT_APPROVALS_JOURNAL)}
+INSERT INTO project_approvals_replica_state(id,device) VALUES(1,lower(hex(randomblob(16))));
+CREATE TRIGGER project_approvals_decisions_insert AFTER INSERT ON project_review_decisions BEGIN ${mark("NEW")} END;
+CREATE TRIGGER project_approvals_rules_insert AFTER INSERT ON project_approval_rules BEGIN ${mark("NEW")} END;
+CREATE TRIGGER project_approvals_rules_update AFTER UPDATE ON project_approval_rules BEGIN ${mark("NEW")} END;
 `;

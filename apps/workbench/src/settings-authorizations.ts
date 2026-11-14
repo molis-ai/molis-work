@@ -2,20 +2,21 @@ import { escapeHtml, renderButton, renderInput, t as uiText } from "@molis-ai/mo
 import { AUTHORIZATION_OWNERS } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { WebProjectNavigation } from "./settings-navigation.js";
 
-export function renderAuthorizationSettings(projects: readonly WebProjectNavigation[], current: string | null) {
+export function renderAuthorizationSettings(projects: readonly WebProjectNavigation[], current: string | null, rules = false) {
   const text = (key: string) => uiText.text("workbench.authorization." + key);
   const option = (id: string, title: string, selected?: boolean) =>
     `<option value="${escapeHtml(id)}"${selected ? " selected" : ""}>${escapeHtml(title)}</option>`;
   return `<section class="settings-document" data-authorization-settings aria-labelledby="settings-title">
     <header class="settings-heading"><h1 id="settings-title">${text("manage")}</h1></header>
     <div class="authorization-view" role="group" aria-label="${text("manage")}">
-      ${renderButton({ variant: "secondary", size: "sm", label: text("manage"), attrs: { "data-authorization-view": "grants", "aria-pressed": "true" } })}
+      ${renderButton({ variant: "secondary", size: "sm", label: text("manage"), attrs: { "data-authorization-view": "grants", "aria-pressed": String(!rules) } })}
       ${renderButton({ variant: "secondary", size: "sm", label: text("review-history"), attrs: { "data-authorization-view": "reviews", "aria-pressed": "false" } })}
+      ${renderButton({ variant: "secondary", size: "sm", label: text("project-rules"), attrs: { "data-authorization-view": "rules", "aria-pressed": String(rules) } })}
     </div>
     <div class="authorization-tools">
       ${renderInput({ type: "search", placeholder: text("search"), attrs: { "aria-label": text("search"), "data-authorization-search": true } })}
       <select class="mw-input" data-authorization-project aria-label="${escapeHtml(text("project"))}">${option("", text("all-projects"))}${option("home", text("personal"))}${projects.map(project => option(project.project_id, project.display_name, project.project_id === current)).join("")}</select>
-      <select class="mw-input" data-authorization-owner aria-label="${escapeHtml(text("owner"))}">${option("", text("all-owners"))}${AUTHORIZATION_OWNERS.map(owner => option(owner, text(owner))).join("")}</select>
+      <select class="mw-input" data-authorization-owner aria-label="${escapeHtml(text("owner"))}"${rules ? " hidden" : ""}>${option("", text("all-owners"))}${AUTHORIZATION_OWNERS.map(owner => option(owner, text(owner))).join("")}</select>
       <select class="mw-input" data-authorization-client aria-label="${escapeHtml(text("client"))}" hidden></select>
       ${renderButton({ variant: "ghost", icon: "refresh", iconOnly: true, label: text("refresh"), attrs: { "data-authorization-reload": true } })}
     </div>
@@ -71,7 +72,8 @@ globalThis.molisWorkBindAuthorizationSettings = (container = document) => {
   const focusDetails = () => detail.focus({ preventScroll: true });
   const showBanner = copy => { banner.textContent = copy; banner.hidden = false; };
   let rows = [], row = null, generation = 0, detailGeneration = 0, saving = false, removed;
-  let showing = "grants", sources = [], source = null;
+  let showing = root.querySelector(attribute("view") + '[aria-pressed="true"]').dataset.authorizationView;
+  let sources = [], source = null, policy = null, selectedRule = null;
   const identity = item => JSON.stringify([item.owner, item.id]);
   const path = "/api/settings/authorizations";
   const query = () => { const params = new URLSearchParams(); if (project.value) params.set("project", project.value === "home" ? "" : project.value); return params; };
@@ -86,6 +88,7 @@ globalThis.molisWorkBindAuthorizationSettings = (container = document) => {
   const searchText = () => search.value.trim().toLocaleLowerCase();
   function paintList() {
     if (showing === "reviews") return paintSources();
+    if (showing === "rules") return paintRules();
     const needle = searchText();
     const active = document.activeElement?.dataset.authorizationRow;
     list.replaceChildren();
@@ -238,10 +241,102 @@ globalThis.molisWorkBindAuthorizationSettings = (container = document) => {
       ["review-time", date(source.at)]]);
     if (source.detail) detail.append(el("p", "settings-form-error", source.detail));
   }
+  const scopeName = kind => text({ project_default: "project-default", ancestor_minimum: "ancestor-minimum", object: "object-rule" }[kind]);
+  const ruleName = rule => {
+    const { scope } = rule;
+    if (scope.kind === "project_default") return scope.owner?.plugin_id || scope.owner?.provider_id || text("project-default");
+    return scopeName(scope.kind) + " · " + scope.subject.id;
+  };
+  function paintRules() {
+    list.replaceChildren();
+    if (!policy) {
+      detail.replaceChildren(muted(text(!project.value || project.value === "home" ? "choose-rule-project" : "loading")));
+      return;
+    }
+    if (text("project-default").toLocaleLowerCase().includes(searchText())) {
+      rowButton(text("project-default"), text(policy.project_default_requires_person ? "person-required" : "no-extra-rule"), !selectedRule,
+        () => { selectedRule = null; paintRules(); focusDetails(); });
+    }
+    for (const rule of policy.rules) {
+      if (!ruleName(rule).toLocaleLowerCase().includes(searchText())) continue;
+      rowButton(ruleName(rule), text(rule.state), selectedRule === rule.id, () => { selectedRule = rule.id; paintRules(); focusDetails(); });
+    }
+    if (!list.children.length) list.append(muted(text("empty")));
+    if (policy.next_cursor) {
+      const more = button(globalThis.t.text("workbench.account.load-more"), () => { void loadRules(more); });
+      list.append(more);
+    }
+    const rule = policy.rules.find(rule => rule.id === selectedRule);
+    showFacts(rule ? ruleName(rule) : text("project-default"), rule ? [
+      ["status", text(rule.state)], ["rule-scope", scopeName(rule.scope.kind)], ["actor", rule.created_by], ["review-time", date(rule.created_at)],
+      ["decision", text(rule.requires_person ? "person-required" : rule.requires_person === false ? "no-extra-rule" : "follows-other-rules")],
+      ["change-reason", rule.change_reason || rule.reason],
+    ] : []);
+    if (rule && rule.state !== "active") return;
+    const revision = policy.revision;
+    const form = el("form", "authorization-scope");
+    form.setAttribute("data-authorization-rule-form", "");
+    const required = document.createElement("input"); required.type = "checkbox";
+    required.name = "requires_person";
+    required.checked = policy.project_default_requires_person;
+    if (!rule) {
+      const choice = el("label", "settings-check");
+      choice.append(required, document.createTextNode(text("person-required"))); form.append(choice);
+    }
+    const reason = document.createElement("input");
+    reason.name = "reason";
+    reason.className = "mw-input"; reason.maxLength = 2000; reason.required = true;
+    reason.placeholder = text("change-reason"); reason.setAttribute("aria-label", reason.placeholder);
+    const submit = el("button", "mw-btn mw-btn--secondary", text(rule ? "withdraw-rule" : "save-rule"));
+    submit.type = "submit";
+    const message = errorMessage();
+    form.append(reason, submit, message); detail.append(form);
+    form.addEventListener("submit", event => {
+      event.preventDefault();
+      if (saving || !reason.value.trim() || revision !== policy?.revision) return;
+      const change = rule ? { kind: "withdraw", id: rule.id } : { kind: "set", scope: { kind: "project_default" }, requires_person: required.checked };
+      void saveRule(form, message, { ...change, reason: reason.value.trim(), expected_revision: revision });
+    });
+  }
+  async function loadRules(control) {
+    const next = generation, current = policy, cursor = current.next_cursor, params = query();
+    control.disabled = true;
+    params.set("before_order", cursor.order); params.set("before_id", cursor.id);
+    try {
+      const page = await request(params, "/project-rules");
+      if (next !== generation || !root.isConnected || policy !== current) return;
+      if (page.revision !== current.revision) { await load(); return; }
+      policy = { ...page, rules: [...current.rules, ...page.rules] };
+      paintRules();
+    } catch (failure) {
+      if (next === generation && root.isConnected) problem(banner, failure);
+    } finally { control.disabled = false; }
+  }
+  async function saveRule(form, message, body) {
+    const next = generation, controls = form.querySelectorAll("button,input");
+    saving = true; controls.forEach(control => { control.disabled = true; });
+    try {
+      const current = await request(query(), "/project-rules", { method: "POST", body });
+      if (next !== generation || !root.isConnected) return;
+      policy = current; paintRules(); focusDetails();
+      const receipt = muted(text("updated")); receipt.setAttribute("role", "status"); detail.append(receipt);
+    } catch (failure) {
+      if (next !== generation || !root.isConnected) return;
+      problem(message, failure);
+    } finally { saving = false; controls.forEach(control => { control.disabled = false; }); }
+  }
   async function load() {
     const next = ++generation; ++detailGeneration; banner.hidden = true;
     list.setAttribute("aria-busy", "true");
     try {
+      if (showing === "rules") {
+        policy = null; selectedRule = null; paintRules();
+        if (!project.value || project.value === "home") return;
+        const snapshot = await request(query(), "/project-rules");
+        if (next !== generation || !root.isConnected) return;
+        policy = snapshot; paintRules();
+        return;
+      }
       if (showing === "reviews") {
         sources = []; source = null; paintSources();
         if (!project.value) return;
@@ -272,8 +367,8 @@ globalThis.molisWorkBindAuthorizationSettings = (container = document) => {
     if (saving || showing === mode.dataset.authorizationView) return;
     showing = mode.dataset.authorizationView;
     for (const option of modes) option.setAttribute("aria-pressed", String(option === mode));
-    owner.hidden = showing === "reviews";
-    client.hidden = showing === "reviews" || owner.value !== "mcp-client";
+    owner.hidden = showing !== "grants";
+    client.hidden = showing !== "grants" || owner.value !== "mcp-client";
     row = null; list.replaceChildren(); detail.replaceChildren();
     void load();
   });

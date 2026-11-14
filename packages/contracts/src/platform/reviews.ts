@@ -70,7 +70,7 @@ export interface TrustedReviewDecisionRecord extends ReviewDecisionRecord<string
   Extract<ReviewDecisionSource, { kind: "person" }> & {
     readonly entry: ActionUserAction & { readonly source: "web" | "management" };
   },
-  ReviewReference<Extract<ReviewOwner, { kind: "trusted-decision" }>>> {
+  ReviewReference<Extract<ReviewOwner, { kind: "trusted-decision" }> & { readonly scope: "project" }>> {
   readonly decision_id: string;
 }
 

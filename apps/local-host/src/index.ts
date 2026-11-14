@@ -85,8 +85,11 @@ export { createPersonalSync } from './personal-sync.js';
 export {createPersonalPluginRegistrations} from './personal-plugin-sync.js';
 export {createPersonalCatalogRegistration} from './personal-catalog-sync.js';
 export { discoverRuntimeSyncCollections } from './runtime-sync-discovery.js';
+export { createProjectApprovalSyncRegistration } from './personal-project-approval-sync.js';
+export { projectApprovalSyncSelection } from './platform-sync-catalog.js';
 export { isProjectPluginDatabaseRefusal, openProjectPluginDatabases, upgradePluginLibrary, upgradePluginTables } from "./project-plugin-databases.js";
-export { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
+export { PROJECT_DATABASE_BASELINE, PROJECT_DATABASE_VERSION_3_SCHEMA } from "./project-database-schema.js";
+export { projectApprovalUpgrade } from "./project-approval-upgrade.js";
 
 export { openProjectVersionStores, restoreArtifactVersions, assertRestorableArtifactVersions, WORK_ASSET_RESTORE_ACTOR_ID, type RestoredArtifactVersion, type ProjectVersionStores } from "./project-version-stores.js";
 

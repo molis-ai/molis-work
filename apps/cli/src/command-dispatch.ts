@@ -1,4 +1,5 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { trustedReviewActions } from "@molis-ai/molis-work-contracts/services/project-approvals";
 import { printCliJson as print } from "./protocol.js";
 
 /** The Goals actions a command calls, by the id and version the action directory lists them under; the Host finds each one. */
@@ -7,14 +8,13 @@ const GOALS = {
   treeSubmit: { capability_id: "goals.tree.submit", version: /* @version action.goals.tree.submit */ 1 },
   treeRead: { capability_id: "goals.tree.read", version: /* @version action.goals.tree.read */ 1 },
   treeCheck: { capability_id: "goals.tree.check", version: /* @version action.goals.tree.check */ 1 },
-  treeDecide: { capability_id: "goals.tree.decide", version: /* @version action.goals.tree.decide */ 1 },
   active: { capability_id: "goals.active.set", version: /* @version action.goals.active.set */ 1 },
   snapshot: { capability_id: "goals.snapshot.read", version: /* @version action.goals.snapshot.read */ 1 },
 } as const;
 
 /**
  * What a command may do, handed over by the Host: Goals' actions as the person on this machine, for the one project the command is
- * bound to. The CLI names no one and no entry; `evidence` is only where a decision came from (the payload's `authority`).
+ * bound to. The protected review operations take the original reference and obtain provenance from the Host.
  */
 export interface CliManagementActions {
   readonly project_id: string;
@@ -48,13 +48,11 @@ export async function dispatchCliProjectCommand(
     bound(project_id);
     print(await actions.invoke(GOALS.treeCheck, payload));
     break;
-  case "goal-tree-decide": {
-    // The decision is the person's: `authority` only points at the conversation it came from, and the Host builds who decides.
-    const { authority, ...decision } = payload;
+  case "review-request":
+  case "review-decide":
     bound(project_id);
-    print(await actions.invoke(GOALS.treeDecide, decision, authority));
+    print(await actions.invoke(operation === "review-request" ? trustedReviewActions.read : trustedReviewActions.decide, payload));
     break;
-  }
   case "active-goal":
     bound(String(project_id));
     print(await actions.invoke(GOALS.active, {

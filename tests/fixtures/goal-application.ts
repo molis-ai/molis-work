@@ -5,13 +5,68 @@ import { listProjectRoots, writeProjectRoot } from "@molis-ai/molis-work-module-
 import type { ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import type { GovernanceApplicationApi } from "@molis-ai/molis-work-plugin-goals/contract";
 import type { GoalEventAcknowledgementsApi, GoalInputBindingsApi, GoalsApplicationApi } from "@molis-ai/molis-work-plugin-goals/contract";
+import type { GoalEventTrustedAuthority, GoalTreeProposalDecisionAuthority, RecordGoalUserDecisionInput } from "@molis-ai/molis-work-plugin-goals/contract";
+import type { ProjectTrustedDecision } from "@molis-ai/molis-work-contracts/services/project-approvals";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { projectApprovalRules, projectReviewDecisions } from "@molis-ai/molis-work-service-project-approvals";
+import { goalsManifest } from "@molis-ai/molis-work-plugin-goals";
 import {
-  createGoalsApplication, GOALS_PLUGIN_ID, GoalInputBindings, GoalsModule, GovernanceCollaborationModule, readMolisWorkSnapshot,
+  createGoalsApplication, GOALS_PLUGIN_ID, GoalInputBindings, GoalsModule, GovernanceCollaborationModule, GovernanceEventDecisions, GovernanceProvenance, readMolisWorkSnapshot,
   type GoalsApplication, type PlanningMethodPack,
 } from "./goals-modules.js";
 import { goalsSqlite, governanceSqlite } from "./governance-sqlite.js";
+
+const approvalOwner = { kind: "plugin", plugin_id: GOALS_PLUGIN_ID, publisher_signature: goalsManifest.publisher.signature } as const;
+type TestDecisionSubject = { kind: "goal" | "goal-tree-proposal"; id: string };
+
+/** Unit fixtures compose the owners directly. The Web and management tests exercise the real protected dispatch. */
+export function fixtureApprovals(store: LocalProjectDatabase, clock: () => Date) {
+  let current: ProjectTrustedDecision | undefined;
+  const history = (project: string) => projectReviewDecisions(store.db, project);
+  const commit = (project: string, subject: TestDecisionSubject, identity: GoalEventTrustedAuthority, key: string,
+    choice: unknown, requirements: ProjectTrustedDecision["review"]["requirements"] = []) => {
+    const { actor_id, authority_source, conversation_ref, message_ref } = identity;
+    const owner = { scope: "project", project_id: project, plugin_id: GOALS_PLUGIN_ID,
+      install_id: "fixture-goals", installation_generation: "fixture-generation" } as const;
+    const receiptKey = JSON.stringify([subject.kind, subject.id, actor_id, key]);
+    return history(project).commit({ reference: { owner: { kind: "trusted-decision", ...owner },
+      id: receiptKey, version: key }, choice_id: "apply", request_key: receiptKey },
+    { actor_id, source: { kind: "person", actor_id, entry: { source: authority_source, conversation_ref, message_ref } } },
+    choice, { publisher_signature: approvalOwner.publisher_signature,
+      review: { target: { owner: { kind: "plugin", ...owner, provider_id: GOALS_PLUGIN_ID }, subject, version: key }, requirements } },
+    clock().toISOString(), () => undefined).record;
+  };
+  const provenance = new GovernanceProvenance();
+  return {
+    eventDecisions: new GovernanceEventDecisions((input: RecordGoalUserDecisionInput) => {
+      const authority = provenance.validateEventDecisionAuthority(input.authority);
+      return commit(input.project_id, { kind: "goal", id: input.goal_id }, authority, input.idempotency_key, input);
+    }, (project, id) => {
+      const record = history(project).read(id);
+      return record && "kind" in record ? record : null;
+    }),
+    treeApprovals: {
+      current: () => current,
+      read(project: string, id: string) { return history(project).findCommitted(id); },
+      transferred(project: string) { return history(project).transferred(approvalOwner, "proposal-item"); },
+    },
+    tree<T>(project: string, id: string, key: string, raw: GoalTreeProposalDecisionAuthority, input: unknown, run: () => T): T {
+      if (raw?.authority_source !== "web" && raw?.authority_source !== "management") return run();
+      return store.db.transaction(() => {
+        const authority = provenance.validateEventDecisionAuthority({ ...raw, authority_source: raw.authority_source as "web" | "management" });
+        current = commit(project, { kind: "goal-tree-proposal", id }, authority, key, input);
+        try { return run(); } finally { current = undefined; }
+      }).immediate();
+    },
+  };
+}
+
+export function fixtureProjectRule(store: LocalProjectDatabase, project: string, actor: string, requiresPerson: boolean, reason: string) {
+  const owner = projectApprovalRules(store.db, project);
+  return store.db.transaction(() => owner.commit({ kind: "set", scope: { kind: "project_default" }, reason,
+    expected_revision: owner.read(false).revision, requires_person: requiresPerson }, actor, new Date().toISOString(), () => undefined)).immediate();
+}
 
 /**
  * Goals' modules and application steps composed over one project library, as a test drives them directly. The Host used to build
@@ -46,7 +101,8 @@ export class GoalProjectApplication {
     readonly owned = true,
   ) {
     const journal = owned ? ownedJournal(this.store) : this.store;
-    const governanceModule = new GovernanceCollaborationModule({ db: governanceSqlite(this.store.db), journal, now: () => this.clock().toISOString() });
+    const approvals = fixtureApprovals(store, this.clock);
+    const governanceModule = new GovernanceCollaborationModule({ db: governanceSqlite(this.store.db), journal, ...approvals });
     this.governanceQuery = governanceModule.query;
     this.governance = { provenance: governanceModule.provenance, query: governanceModule.query, records: governanceModule.records,
       decisions: governanceModule.decisions, eventDecisions: governanceModule.eventDecisions };
@@ -56,6 +112,7 @@ export class GoalProjectApplication {
     goalsModule = new GoalsModule(goalsSqlite(this.store.db), journal,
       { validateRelationGraph: (projectId, input) => goalsModule.planning.validateRelationAddition(projectId, input) },
       { now: this.clock, personalPlanningMethodPacks: this.personalPlanningMethodPacks,
+        approvalRules: (project, history) => projectApprovalRules(store.db, project).read(history, approvalOwner).rules,
         deliverables: (_projectId, goalId) => this.confirmedDeliverables.get(goalId) ?? [] });
     this.goalsModule = goalsModule;
     this.goalAcknowledgements = goalsModule.acknowledgements;
@@ -70,7 +127,8 @@ export class GoalProjectApplication {
     this.goalTree = application.goalTree;
     this.goalTreeSubmission = application.goalTreeSubmission;
     this.goalTreeCheck = application.goalTreeCheck;
-    this.goalTreeDecision = application.goalTreeDecision;
+    this.goalTreeDecision = { decideGoalTreeProposal: input => approvals.tree(input.project_id, input.proposal_id, input.idempotency_key,
+      input.authority, input, () => application.goalTreeDecision.decideGoalTreeProposal(input)) } as GoalsApplication["goalTreeDecision"];
     this.goalDecisionAttention = application.goalDecisionAttention;
     this.projectOpened = projectId => { this.ensureBoard(projectId); application.projectOpened(projectId); };
   }
@@ -102,6 +160,9 @@ export class GoalProjectApplication {
   }
 
   readProjectGuidance(projectId: string) { return this.goalQueries.readProjectGuidance(projectId); }
+  saveProjectApproval(project: string, actor: string, requiresPerson: boolean, reason: string) {
+    return fixtureProjectRule(this.store, project, actor, requiresPerson, reason);
+  }
   setActiveGoal(projectId: string, input: { goal_id: string; reason: string }, write: { actor_id: string; actor_kind?: "user" | "runtime"; idempotency_key: string; reason?: string }) {
     return this.goals.commands.setActiveGoal(projectId, input, write);
   }

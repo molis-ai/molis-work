@@ -60,10 +60,6 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `      const surfaceLink = target.
         void openGoalWorkPlanning();
         return;
       }
-      if (target.closest("[data-open-work-rules]")) {
-        void openGoalWorkRules();
-        return;
-      }
       const goalLink = target.closest("[data-select-goal]");
       if (goalLink) {
         if (goalLink.closest("[data-goal-stage-list]")) {

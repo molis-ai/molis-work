@@ -40,7 +40,7 @@ export class GoalsQueryService implements GoalsQueryApi {
   listProjectIds() { return this.facts.listProjectIds(); }
 
   listActivePolicyBindings(projectId: string, goalId?: string) { return this.#repository.listActivePolicyBindings(projectId, goalId); }
-  listPolicyHistory(projectId: string) { return this.facts.listPolicyHistory(projectId); }
+  listPolicyHistory(projectId: string) { return this.#repository.listPolicyHistory(projectId); }
   listWorkEventGoalLinks(projectId: string) { return this.facts.listWorkEventGoalLinks(projectId); }
   listDependencies(projectId: string, goalId: string) { return this.facts.listDependencies(projectId, goalId); }
   activeReplacement(projectId: string, goalId: string) { return this.facts.activeReplacement(projectId, goalId); }
@@ -62,12 +62,6 @@ export class GoalsQueryService implements GoalsQueryApi {
     return this.#repository.getRelation(projectId, relationId);
   }
 
-
-  policyBindingState(projectId: string, bindingId: string): "active" | "replaced" | "withdrawn" | null {
-    const row = this.#repository.db.prepare("SELECT state FROM policy_bindings WHERE project_id = ? AND policy_binding_id = ?")
-      .get(projectId, bindingId) as { state: "active" | "replaced" | "withdrawn" } | undefined;
-    return row?.state ?? null;
-  }
 
   criterionGoalId(criterionId: string): string | null {
     return this.#repository.criterionGoalId(criterionId);

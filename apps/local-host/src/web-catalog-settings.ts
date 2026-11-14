@@ -109,6 +109,7 @@ export async function handleSettingsPage(ctx: CatalogRequestContext): Promise<bo
     } } : {}),
     ...(model_settings === undefined ? {} : { model_settings }),
     context_project: contextProject,
+    ...(section === "authorizations" && url.searchParams.get("view") === "project-rules" ? { show_project_approval_rules: true } : {}),
     enabled_plugins: membership.plugins,
     hidden_plugins: membership.hidden,
     shown_plugins: membership.shown,

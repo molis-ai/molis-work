@@ -21,9 +21,11 @@ import { goalsSettingsUiContribution } from "./settings-ui.js";
 import { goalsStageUiContribution } from "./page/workbench-stage.js";
 import { GoalsModule, GoalInputBindings, resolvePlanningMethodPacks } from "./module/index.js";
 import { requestHash } from "./module/command-support.js";
-import { GovernanceCollaborationModule } from "./governance/index.js";
+import { GovernanceCollaborationModule, GovernanceEventDecisions } from "./governance/index.js";
 import { createGoalsApplication } from "./goals-application.js";
 import { PluginSqlite } from "./plugin-sqlite.js";
+import { eventDecisionVersion, goalsDecisionOfferHandlers, treeDecisionVersion } from "./decision-offers.js";
+import { goalForDecisionRequest } from "./module/event-state-decision-records.js";
 import { attentionOver, journalOver, ledgerOver, PersonalMethodsSnapshot } from "./runtime-ports.js";
 
 const CHECK_EVIDENCE = { capability_id: "agent.evidence.check", version: /* @version action.agent.evidence.check */ 1 } as const;
@@ -57,19 +59,40 @@ export function createGoalsPlugin(): PluginDefinition {
     for (const permission of goalsManifest.permissions) if (permission.required) context.requireGrant(permission.permission);
     const projectId = context.project_id, services = context.services;
     const database = services?.project_database, attention = services?.attention, ledger = services?.contextLedger, actions = services?.actions, background = services?.background;
-    if (!projectId || !database || !attention || !ledger || !actions?.directory || !background) {
-      throw new ActionError("actions.unredeemed", "Goals 需要项目库、提醒、引用账本、动作目录与后台服务");
+    const approvalRules = database?.approvalRules, approvalHistory = database?.approvalHistory;
+    if (!projectId || !database || !approvalRules || !approvalHistory || !attention || !ledger || !actions?.directory || !background) {
+      throw new ActionError("actions.unredeemed", "Goals 需要项目库、项目审批规则、提醒、引用账本、动作目录与后台服务");
     }
     const directory = actions.directory;
     const sqlite = new PluginSqlite(), personal = new PersonalMethodsSnapshot(), clock = () => new Date();
     const journal = journalOver(sqlite, projectId), attentionPort = attentionOver(sqlite, attention, projectId), ledgerApi = ledgerOver(sqlite, ledger, projectId);
 
-    const governanceModule = new GovernanceCollaborationModule({ db: sqlite, journal, now: () => clock().toISOString() });
+    const eventDecisions = new GovernanceEventDecisions(() => {
+      const decision = sqlite.currentDecision();
+      if (!decision) throw new ActionError("actions.forbidden", "需要平台记录的本人决定");
+      return decision;
+    }, (project, id) => {
+      if (project !== projectId) return null;
+      const record = approvalHistory.read(id);
+      return record && "kind" in record ? record : null;
+    });
+    const governanceModule = new GovernanceCollaborationModule({ db: sqlite, journal, eventDecisions, treeApprovals: {
+      current: () => sqlite.currentDecision(),
+      read(project, id) {
+        const record = project === projectId ? approvalHistory.read(id) : null;
+        return record && "request_key" in record ? record : null;
+      },
+      transferred: project => project === projectId ? approvalHistory.transferred("proposal-item") : [],
+    } });
     const governance: GovernanceApplicationApi = { provenance: governanceModule.provenance, query: governanceModule.query, records: governanceModule.records,
       decisions: governanceModule.decisions, eventDecisions: governanceModule.eventDecisions };
     const inputs = new GoalInputBindings(sqlite, ledgerApi);
     const goals: GoalsModule = new GoalsModule(sqlite, journal, { validateRelationGraph: (project, input) => goals.planning.validateRelationAddition(project, input) },
-      { now: clock, personalPlanningMethodPacks: () => personal.read(), deliverables: (project, goalId) => confirmedGoalDeliverables(ledgerApi, project, goalId) });
+      { now: clock, personalPlanningMethodPacks: () => personal.read(), deliverables: (project, goalId) => confirmedGoalDeliverables(ledgerApi, project, goalId),
+        approvalRules: (project, history) => {
+          if (project !== projectId) throw new ActionError("actions.scope_mismatch", "项目审批规则属于原项目");
+          return approvalRules.read(history).rules;
+        } });
     const application = createGoalsApplication({ goals: { commands: goals.commands, lifecycle: goals.lifecycle, planning: goals.planning, query: goals.query, events: goals.events },
       governance, attention: attentionPort, clock });
     // The board of a project is made when Goals first starts over its root row (the catch-up below), before anyone has asked for it, so a
@@ -115,7 +138,15 @@ export function createGoalsPlugin(): PluginDefinition {
       tree: { submitGoalTreeProposal: input => application.goalTreeSubmission.submitGoalTreeProposal(input),
         listGoalTreeProposals: query => application.goalTree.listGoalTreeProposals(query),
         checkGoalTreeProposal: input => application.goalTreeCheck.checkGoalTreeProposal(input),
-        decideGoalTreeProposal: input => application.goalTreeDecision.decideGoalTreeProposal(input) } });
+        decideGoalTreeProposal: input => {
+          const entry = sqlite.currentDecision()?.source.entry;
+          return application.goalTreeDecision.decideGoalTreeProposal({ ...input, authority: { ...input.authority,
+            whole_confirmation_prompted: entry?.whole_confirmation_prompted, prompted_proposal_id: entry?.prompted_subject_id } });
+        } } });
+    handlers.push(...goalsDecisionOfferHandlers(id => application.goalEvents.readState(projectId, id),
+      id => application.goalTree.readNative(projectId, id), id => goalForDecisionRequest(sqlite, projectId, id),
+      { kind: "plugin", scope: "project", project_id: projectId, plugin_id: context.plugin_id,
+        install_id: context.install_id, installation_generation: context.installation_generation, provider_id: context.provider_id ?? context.plugin_id }));
     handlers.push(...createGoalsTerminalActionHandlers({ terminal: services.terminal,
       goal: goalId => window.read(() => {
         try {
@@ -159,9 +190,20 @@ export function createGoalsPlugin(): PluginDefinition {
       // Only a call with something prepared before its window gets a third argument; every other handler is called as the platform calls it.
       const handle = (caller: ActionExecutionContext, input: unknown, prepared: unknown) => prepared === undefined
         ? binding.handle(caller, input) : (binding.handle as (caller: ActionExecutionContext, input: unknown, prepared: unknown) => unknown)(caller, input, prepared);
+      const apply = (caller: ActionExecutionContext, input: unknown, prepared: unknown) => {
+        if (definition.action.requires_trusted_decision) {
+          const proof = sqlite.currentDecision();
+          if (!proof) throw new ActionError("actions.forbidden", "需要平台记录的原决定");
+          const { subject, version } = proof.review.target;
+          const current = subject.kind === "goal" ? eventDecisionVersion(application.goalEvents.readState(projectId, subject.id))
+            : treeDecisionVersion(application.goalTree.readNative(projectId, subject.id));
+          if (current !== version) throw new ActionError("actions.conflict", "原目标或提案已变化");
+        }
+        return handle(caller, input, prepared);
+      };
       const run = definition.operation === "command"
         ? (caller: ActionExecutionContext, input: unknown, packs: Parameters<PersonalMethodsSnapshot["within"]>[0], prepared: unknown) =>
-          window.write(caller, () => personal.within(packs, () => handle(caller, input, prepared)))
+          window.write(caller, () => personal.within(packs, () => apply(caller, input, prepared)))
         : async (caller: ActionExecutionContext, input: unknown, packs: Parameters<PersonalMethodsSnapshot["within"]>[0], prepared: unknown) =>
           window.read(() => personal.within(packs, () => handle(caller, input, prepared)));
       const prepare = before.get(binding.capability_id);

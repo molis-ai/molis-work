@@ -299,6 +299,10 @@ export interface ActionMetadata {
   readonly delegation?: ActionDelegationDeclaration | "confirmation-only";
   /** This project command can execute only with the platform's proof for one original person decision. */
   readonly requires_trusted_decision?: true;
+  /** Same-provider query that projects the exact request and prepares its option inputs. */
+  readonly trusted_decision_request?: Pick<ActionReference, "capability_id" | "version">;
+  /** Exact row and version check for a command whose project writer is a sandbox process. */
+  readonly trusted_decision_row?: import("../services/project-approvals.js").TrustedReviewRow;
   readonly input_schema: ActionSchema;
   readonly output_schema?: ActionSchema;
   /** Plain-language result and original-object link, declared by the provider for all consumers. */

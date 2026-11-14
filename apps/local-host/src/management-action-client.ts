@@ -1,6 +1,7 @@
 import { existsSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { TRUSTED_REVIEW_COMMAND_SCHEMA, TRUSTED_REVIEW_READ_SCHEMA, trustedReviewActions } from "@molis-ai/molis-work-contracts/services/project-approvals";
 import { ProjectsModule } from "@molis-ai/molis-work-module-projects";
 import { LocalSqliteStorage, upgradeFailedRefusal, upgradeInProgressRefusal } from "@molis-ai/molis-work-storage";
 import { currentCallId, markCallRecorded, newCallId, assertActionInput } from "@molis-ai/molis-work-kernel";
@@ -65,8 +66,15 @@ export function residentManagementActions(options: {
   return { project_id: options.projectId, fields: managementInputFields, async invoke<Output = unknown>(reference: GoalsActionReference, input: object, evidence?: unknown): Promise<Output> {
     options.signal?.throwIfAborted();
     if (options.ensureResident) {
-      goalsManagementContext(options.projectId, reference, input, evidence, options.signal);
-      assertActionInput(requireManagementDefinition(reference).action.input_schema, input);
+      const matches = (action: GoalsActionReference) => action.capability_id === reference.capability_id && action.version === reference.version;
+      const schema = matches(trustedReviewActions.read) ? TRUSTED_REVIEW_READ_SCHEMA : matches(trustedReviewActions.decide) ? TRUSTED_REVIEW_COMMAND_SCHEMA : undefined;
+      if (schema) {
+        if (evidence !== undefined) throw new ActionError("actions.input_invalid", "本人决定的出处由当前管理入口提供");
+        assertActionInput(schema, input);
+      } else {
+        goalsManagementContext(options.projectId, reference, input, evidence, options.signal);
+        assertActionInput(requireManagementDefinition(reference).action.input_schema, input);
+      }
       await options.ensureResident(); options.signal?.throwIfAborted();
     }
     const callId = currentCallId() ?? newCallId();

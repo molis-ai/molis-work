@@ -1,5 +1,5 @@
 import { Worker } from "node:worker_threads";
-import type { StatementFatal, StatementMemoryLimits, StatementReply, StatementRequest } from "./project-statement-protocol.js";
+import type { StatementCommitPermit, StatementFatal, StatementMemoryLimits, StatementReadyToCommit, StatementReply, StatementRequest } from "./project-statement-protocol.js";
 
 // This process's main thread never runs SQLite. Its timers and disconnect handler remain runnable while the SQL Worker is in
 // a native call or the Host is blocked in its own synchronous writer. Ending the entire process releases SQLite's locks.
@@ -30,10 +30,16 @@ function startEngine(limits: StatementMemoryLimits): Worker {
   const worker = new Worker(new URL("./project-statement-sql-worker.js", import.meta.url), {
     resourceLimits: { maxOldGenerationSizeMb: limits.heapMb },
   });
-  worker.on("message", (reply: StatementReply) => {
+  worker.on("message", (reply: StatementReply | StatementReadyToCommit) => {
     const request = pending;
     if (ending || !request || request.id !== reply.id) return;
     if (Date.now() >= request.deadline || (transaction && Date.now() >= transaction.deadline)) { timeout(); return; }
+    if ("ready_to_commit" in reply) {
+      if (request.op !== "commit" || !request.decision || !transaction) { end({ fatal: "process", message: "意外的事务提交请求" }); return; }
+      try { process.send?.(reply, error => { if (error) end({ fatal: "process", message: "宿主通道已经关闭" }); }); }
+      catch { end({ fatal: "process", message: "宿主通道已经关闭" }); }
+      return;
+    }
     clearTimeout(requestTimer);
     if ((request.op === "begin" && !reply.ok) || ((request.op === "commit" || request.op === "rollback") && reply.ok)) clearTransaction();
     pending = undefined;
@@ -52,8 +58,16 @@ function startEngine(limits: StatementMemoryLimits): Worker {
   return worker;
 }
 
-process.on("message", (request: StatementRequest) => {
+process.on("message", (request: StatementRequest | StatementCommitPermit) => {
   if (ending) return;
+  if ("commit_permit" in request) {
+    if (!engine || pending?.op !== "commit" || !pending.decision || pending.id !== request.commit_permit || !transaction) {
+      end({ fatal: "process", message: "项目提交许可与原事务不一致" }); return;
+    }
+    if (Date.now() >= pending.deadline || Date.now() >= transaction.deadline) { timeout(); return; }
+    engine.postMessage(request);
+    return;
+  }
   if (pending) { end({ fatal: "process", message: "项目库进程一次只处理一个请求" }); return; }
   if (Date.now() >= request.deadline || (transaction && Date.now() >= transaction.deadline)) { timeout(); return; }
   const preparation = request.op === "validate-home-schema" || request.op === "initialize-owned-home-library";

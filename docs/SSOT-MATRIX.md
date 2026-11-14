@@ -72,7 +72,7 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 | `apps/local-host` | 本地唯一业务 composition root 和 single writer | 唯一项目数据库和业务装配；统一动作服务的宿主侧（能力目录合成、系统动作、逐客户端 MCP 授权、调用记录、跨进程动作网关）；可信身份与 Web/CLI/MCP 装配；各 Native 插件的组合适配（注入存储位置、模型、Artifact 发布等端口）；凭据与本机 IO | `production` | AP2/Cutover；动作服务见 `specs/action-architecture/` | 共享核心：@yijunw0212 |
 | `apps/server` | 无桌面窗口的接续服务命令与生命周期 | 2026-11-09 用户批准改由现有产品 CLI 的 `molis-work server …` 组合公开 `runServer(args, ports)`，替代原独立 Node 路径；授权、动作网关证明与本机资产恢复适配留在 Host owner。移除对 desktop/Host 的反向 import。接续能力仍属实验范围，此次接线不代表完整 Server/Exchange 或 Team 控制面已经交付 | `experimental`（已接入产品 CLI；能力仍实验） | `docs/reviews/daily-quality/2026-11-08-medium-supplement.md`；`specs/archive/daily-quality-medium-20261108/spec.md` | 应用：@yijunw0212 |
 | `apps/cli` | 参数、协议和终端展示适配 | 协议参数、命令分发与公开应用 adapter；root bin 仅注入启动环境 | `production` | DV1/Cutover；CLI 协议和真实进程验证 | 应用：@yijunw0212 |
-| `apps/mcp` | MCP schema、audience 和 Capability 适配 | 平台工具只有项目连接工具（含 Goals 接续摘要）和受保护的管理入口（`initialize`、`event_decide`、`goal_tree_decide`）；Goals 与各插件的能力都是 Host 按动作目录合成、逐客户端授权的动作工具；Host 注入普通调用的项目与身份；用户决定仅受保护入口可执行 | `production` | DV1/DV2/Cutover；#269 | 应用：@yijunw0212 |
+| `apps/mcp` | MCP schema、audience 和 Capability 适配 | 平台工具包含项目连接与受保护的管理入口（`initialize`、`review_request`、`review_decide`）；业务能力由 Host 按动作目录合成、逐客户端授权；本人决定沿平台受保护入口固定原提供方与目标版本 | `production` | DV1/DV2/Cutover；#269 | 应用：@yijunw0212 |
 
 ## 4. Foundation 与 Tooling packages
 

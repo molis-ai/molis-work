@@ -5,18 +5,16 @@ import type {
 } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { StagePageModel } from "@molis-ai/molis-work-contracts/platform/ui";
 import { t as uiText, escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { createGoalsPage } from "./page/index.js";
 import { goalsPagePorts } from "./page/workbench-stage.js";
 import { createProjectGuidanceDocumentRenderer } from "./page/guidance-document.js";
 import { composePlanningMethodPacks } from "./module/planning/method-packs.js";
 import { createGoalsRendererFactories } from "./page/factories.js";
 import type { GoalsPlanningPrimitives } from "./planning-ui-model.js";
-import type { ProjectGuidanceView, PlanningMethodPack, GoalPolicyHistoryRecord } from "./contract/goals.js";
+import type { ProjectGuidanceView, PlanningMethodPack } from "./contract/goals.js";
 
 /** Existing owner facts, carried by the platform model; presentation selection is the requested surface. */
 interface GoalsSettingsData {
   guidance?: ProjectGuidanceView;
-  policy_bindings?: GoalPolicyHistoryRecord[];
   methods?: readonly PlanningMethodPack[];
   method?: PlanningMethodPack | null;
 }
@@ -39,7 +37,6 @@ function renderSettingsContent(surface: string, model: StagePageModel<GoalsSetti
     if (!data.guidance) throw new Error("Goals guidance data is missing");
     return createProjectGuidanceDocumentRenderer({ readText: ports.readText, escapeHtml, icon, formatDate: ports.formatDate, renderHint: ports.renderHint })(data.guidance);
   }
-  if (surface === "rules") return createGoalsPage(ports).goals.renderProjectPolicyDocument({ project, policy_bindings: data.policy_bindings ?? [] });
   const planning = planningRenderer(model, ports), desktop = model.request?.desktop === "true", methods = data.methods ?? [];
   if (surface === "library") return planning.renderLibrary(methods, project, desktop);
   if (surface === "method") {
@@ -66,7 +63,7 @@ export const goalsSettingsUiDescriptor: UiContributionDeclaration = {
   label: "Goals",
   surfaces: [
     { surface_id: "settings", target_slot_id: "workbench.settings", format: "declarative-html" },
-    ...["guidance", "rules", "library", "method", "project"].map(surface_id => ({ surface_id, target_slot_id: "workbench.settings", format: "declarative-html" })),
+    ...["guidance", "library", "method", "project"].map(surface_id => ({ surface_id, target_slot_id: "workbench.settings", format: "declarative-html" })),
   ],
   slots: [],
 };

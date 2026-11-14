@@ -4,14 +4,16 @@ import { pluginSyncLibraryManifest, pluginSyncDatabaseDeclaration, pluginSyncTri
 import { pluginSyncForVerifiedLibrary } from './plugin-sync-verified-library.js';
 import type { ReplicaDatabase } from '@molis-ai/molis-work-storage';
 import type { PluginManifest, PluginProjectDatabase, PluginProjectStatements } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { pluginStatementGuard, type PluginInstance } from "@molis-ai/molis-work-plugin-runtime";
-import { LocalSqliteStorage, replicaTriggerDefinitions, type LocalSqliteJournal } from "@molis-ai/molis-work-storage";
+import { assertPluginReadCurrent, pluginStatementGuard, type PluginInstance } from "@molis-ai/molis-work-plugin-runtime";
+import { LocalSqliteStorage, replicaTriggerDefinitions, type LocalSqliteJournal, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 import { pluginDatabaseClient, type PluginDatabaseConnection } from "./plugin-database-client.js";
 import { projectJournalBinding, type ProjectJournalBinding } from "./plugin-project-journal.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { isolatedProjectStatements } from "./plugin-project-isolation.js";
 import { openPluginTables } from "./project-plugin-databases.js";
 import { ProjectStatementProcess, type StatementLimits } from "./project-statement-process.js";
+import { commitProjectReview } from "./project-review-commit.js";
+import { decisionOwnerMatches, projectApprovalRules, projectReviewDecisions } from "@molis-ai/molis-work-service-project-approvals";
 
 /** The Host's own connection to a project's library, and the file it is. */
 export interface ProjectLibrary {
@@ -61,10 +63,28 @@ export function openPluginProjectLibrary(library: ProjectLibrary, manifest: Plug
     const reads = pluginStatementGuard(reader, record, triggers), writes = pluginStatementGuard(library.db, record, triggers);
     const journal = library.journal
       ? projectJournalBinding({ ...library.journal, reader: storage }, authorize, instance, manifest.plugin_id) : noJournal;
-    const client = pluginDatabaseClient({ reader, writer: library.db, inTransaction: () => library.db.inTransaction === true,
+    const rules = projectId && library.db.prepare("SELECT 1 FROM sqlite_schema WHERE type='table' AND name='project_approval_rules'").get()
+      ? projectApprovalRules(library.db as SqliteDatabase, projectId) : undefined;
+    const ruleOwner = { kind: "plugin", plugin_id: manifest.plugin_id, publisher_signature: manifest.publisher.signature } as const;
+    const checkRead = () => {
+      if (closed) throw new ActionError("actions.plugin_unavailable", "插件数据库已关闭");
+      authorize("storage:private"); authorize(declaration.read_permission); assertPluginReadCurrent(instance);
+    };
+    const approvalRules: PluginProjectDatabase["approvalRules"] = rules ? {
+      read(history = false) { checkRead(); return rules.read(history, ruleOwner); },
+    } : undefined;
+    const decisions = projectId && rules ? projectReviewDecisions(library.db as SqliteDatabase, projectId) : undefined;
+    const approvalHistory: PluginProjectDatabase["approvalHistory"] = decisions ? {
+      read(id) { checkRead(); const record = decisions.read(id); return record && decisionOwnerMatches(record, ruleOwner) ? record : null; },
+      transferred(subject) { checkRead(); return decisions.transferred(ruleOwner, subject); },
+    } : undefined;
+    const client = pluginDatabaseClient({ reader, writer: library.db, inTransaction: () => library.db.inTransaction === true, projectId,
+      ...(approvalRules ? { approvalRules: Object.freeze(approvalRules) } : {}),
+      ...(approvalHistory ? { approvalHistory: Object.freeze(approvalHistory) } : {}),
+      joinProjectDecision: (decision, check) => commitProjectReview(library.db as SqliteDatabase, decision, check),
       check: (connection, sql, parameters, mode) => (connection === reader ? reads : writes)(sql, parameters, mode) }, declaration, authorize, instance, () => closed, journal);
     const processes = new ProjectStatementProcess(library.path, record, statementLimits);
-    const statements = isolatedProjectStatements(processes, declaration, authorize, instance, () => closed);
+    const statements = isolatedProjectStatements(processes, declaration, authorize, instance, () => closed, projectId);
     const assertActive = () => { if (closed) throw new ActionError('actions.plugin_unavailable', '插件数据库已关闭'); authorize('storage:private'); };
     const sync = home ? pluginSyncForVerifiedLibrary({home, manifest, declaration, db: library.db, projectId, client,
       inTransaction: () => library.db.inTransaction === true, assertActive, authorize, guard: writes}) : undefined;

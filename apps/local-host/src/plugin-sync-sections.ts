@@ -9,6 +9,8 @@ import { createProjectGoalContent } from './project-goal-content.js';
 import { pluginSyncAuthority } from './plugin-sync-authority.js';
 import { createProjectEvidenceContent } from './project-replication-content.js';
 import { replicaError } from './project-replication-errors.js';
+import { projectApprovalSyncSelection } from './platform-sync-catalog.js';
+import { isGoalsApprovalCollection, verifyGoalsApprovalLinks } from './project-approval-sync-links.js';
 
 type Context = ReturnType<typeof pluginSyncAuthority>;
 interface Port { readonly home: string; readonly manifest: PluginManifest; projectId(): string; assertActive(): void; authorize(permission: string): void }
@@ -30,7 +32,8 @@ function exact(input:unknown,keys:readonly string[]):Record<string,unknown>{
   if(!input||typeof input!=='object'||Array.isArray(input)||Object.keys(input).length!==keys.length||keys.some(k=>!Object.hasOwn(input,k)))throw replicaError('replica_invalid');
   return input as Record<string,unknown>;
 }
-function owner(db:ReplicaDatabase,context:Context,projectId:string,definition:SyncSectionsDefinition,parts:readonly ProjectReplicaDefinition[]){
+function owner(db:ReplicaDatabase,context:Context,projectId:string,definition:SyncSectionsDefinition,parts:readonly ProjectReplicaDefinition[],
+  validateLinked: (facts: Readonly<Record<string, ProjectReplicaRows>>) => void) {
   const sections=parts.map(d=>createProjectReplicaSection(db,d,projectId));
   const journal=definition.journal?createProjectReplicaJournal(db,projectId,parts):undefined;
   const fields=[...new Set(parts.flatMap(d=>d.sequenceFields))];
@@ -38,7 +41,7 @@ function owner(db:ReplicaDatabase,context:Context,projectId:string,definition:Sy
   const check=(input:string)=>{context.authorize();if(input!==key)throw replicaError('replica_key_invalid');context.project(projectId);};
   return {authorize:context.authorize,conflictState:context.conflictState,authorizeKey:check,canUpload:()=>context.canUploadProject(projectId),
     read(input:string){
-      check(input);const facts=Object.fromEntries(parts.map((d,i)=>[d.id,sections[i]!.read()]));definition.validate?.(facts);
+      check(input);const facts=Object.fromEntries(parts.map((d,i)=>[d.id,sections[i]!.read()]));definition.validate?.(facts);validateLinked(facts);
       if(!Object.values(facts).some(part=>Object.values(part).some(rows=>rows.length)))return null;
       const history=journal?.read();return {...PROJECT_SECTIONS_INLINE_ENCODING,spaceId:context.spaceId,project:{id:projectId,title:context.project(projectId).title},
         facts:history?mapReplicaSequences(facts,fields,history.encode):facts,...(history?{journal:history.value}:{})};
@@ -57,16 +60,20 @@ function owner(db:ReplicaDatabase,context:Context,projectId:string,definition:Sy
         restored=mapReplicaSequences(facts,fields,decode) as Record<string,ProjectReplicaRows>;
       }
       parts.forEach((d,i)=>sections[i]!.validate(restored[d.id]));definition.validate?.(restored);
+      validateLinked(restored);
       [...sections].reverse().forEach(s=>s.clear());
       if(journal){const decode=journal.apply(wire.journal);restored=mapReplicaSequences(facts,fields,decode) as Record<string,ProjectReplicaRows>;
         for(const rows of Object.values(restored).flatMap(part=>Object.values(part)))for(const row of rows)if('journal_seq' in row&&'event_id' in row&&row.journal_seq!==decode('@event:'+row.event_id))throw replicaError('replica_references_invalid');}
       definition.validate?.(restored);parts.forEach((d,i)=>sections[i]!.write(sections[i]!.validate(restored[d.id])));
-      if(db.prepare('PRAGMA foreign_key_check').get())throw replicaError('replica_references_invalid');context.authorize();
+      if(db.prepare('PRAGMA foreign_key_check').get())throw replicaError('replica_references_invalid');context.authorize();validateLinked(restored);
     },
   };
 }
 export function createPluginSectionsBinding(port:Port,collectionId:string,definition:SyncSectionsDefinition,adapter:Adapter):PluginSyncBinding{
   const parts=definitions(port.manifest,definition);
+  const collection = port.manifest.sync!.collections.find(row => row.id === collectionId)!;
+  const identity = { plugin_id: port.manifest.plugin_id, publisher_id: port.manifest.publisher.publisher_id,
+    publisher_signature: port.manifest.publisher.signature, collection_id: collectionId, schema_version: collection.schema_version };
   const grants=()=>{
     port.assertActive();
     if(definition.journal)port.authorize('journal:project');
@@ -74,11 +81,21 @@ export function createPluginSectionsBinding(port:Port,collectionId:string,defini
     if(definition.platform.includes('attention')){port.authorize('attention:read');port.authorize('attention:write');}
     port.assertActive();
   };
-  const authority=()=>{port.assertActive();const collection=port.manifest.sync!.collections.find(c=>c.id===collectionId)!;
-    grants();const context=pluginSyncAuthority(port.home,{plugin_id:port.manifest.plugin_id,publisher_id:port.manifest.publisher.publisher_id,publisher_signature:port.manifest.publisher.signature,collection_id:collectionId,schema_version:collection.schema_version});context.authorize();return context;};
+  const authority=()=>{port.assertActive();grants();const context=pluginSyncAuthority(port.home,identity);context.authorize();return context;};
   const authorize=()=>{authority();grants();};
   const codec=()=>{const context=authority();return definition.journal?createProjectGoalContent(context.spaceId,key=>{const value:unknown=JSON.parse(key);if(!Array.isArray(value)||value.length!==3||value[1]!==definition.kind||value[0]!==value[2]||typeof value[0]!=='string')throw replicaError('replica_key_invalid');return value[0];},authorize):createProjectEvidenceContent(port.home,parts,definition.kind,context.spaceId,authorize);};
-  return {collection_id:collectionId,replica:adapter(collectionId,(db,context)=>{const check=context.authorize;const guarded={...context,authorize(){grants();check();grants();}};guarded.authorize();return createSqliteReplica(db,owner(db,guarded,port.projectId(),definition,parts));}),
+  return {collection_id:collectionId,replica:adapter(collectionId,(db,context)=>{
+    const check=context.authorize;const guarded={...context,authorize(){grants();check();grants();}};
+    guarded.authorize();
+    const projectId = port.projectId();
+    const validateLinked = (facts: Readonly<Record<string, ProjectReplicaRows>>) => {
+      if (!isGoalsApprovalCollection(identity)) return;
+      const approvals = pluginSyncAuthority(port.home, projectApprovalSyncSelection);
+      approvals.project(projectId);
+      verifyGoalsApprovalLinks(db, projectId, identity, facts);
+      approvals.authorize();
+    };
+    return createSqliteReplica(db,owner(db,guarded,projectId,definition,parts,validateLinked));}),
     content:{encode:(...args)=>codec().encode(...args),decode:(...args)=>codec().decode(...args)},
     locate:key=>{const value:unknown=JSON.parse(key);return Array.isArray(value)&&typeof value[0]==='string'?'/projects/'+encodeURIComponent(value[0])+'/':null;}};
 }

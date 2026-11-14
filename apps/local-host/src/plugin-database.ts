@@ -1,44 +1,18 @@
-import { lstatSync, realpathSync } from "node:fs";
-import { homeSqlitePath, nativeSqliteOwnerBoundary, openHomeSqliteDatabase, snapshotFileStat, sqliteBaselineTriggers } from '@molis-ai/molis-work-storage';
+import { realpathSync } from "node:fs";
+import { homeSqlitePath, nativeSqliteOwnerBoundary, snapshotFileStat, sqliteBaselineTriggers } from '@molis-ai/molis-work-storage';
 import { pluginSyncLibraryManifest, pluginSyncBusinessRecord, pluginSyncDatabaseDeclaration, pluginSyncTriggers, bindPluginSyncProject } from './plugin-sync-database.js';
 import { pluginSyncForVerifiedLibrary } from './plugin-sync-verified-library.js';
 import type { ReplicaDatabase } from '@molis-ai/molis-work-storage';
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HomePluginDatabaseDeclaration, PluginDatabase, PluginDatabaseDeclaration, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { openReadOnlyHomeSqlite, openBaselineHomeSqlite } from "@molis-ai/molis-work-storage";
+import { openReadOnlyHomeSqlite } from "@molis-ai/molis-work-storage";
 import type { PluginInstance } from "@molis-ai/molis-work-plugin-runtime";
 import { pluginDatabaseClient } from "./plugin-database-client.js";
 import { assertArtifactLibraryReady } from "./artifact-row-storage-policy.js";
 import { projectArtifactRoot } from "./plugin-artifact-root.js";
 import type { ArtifactHomeLibrary } from "./plugin-artifact-row-library.js";
 import { artifactRowReplication } from "./plugin-artifact-row-sql.js";
-
-/** The single typed declaration bridge used by the authorized Host client and the bounded SQL worker. */
-export function openPluginDatabaseConnection(home: string, declaration: PluginDatabaseDeclaration,
-  partition?: { readonly project_id: string }): ReturnType<typeof openBaselineHomeSqlite> {
-  return openBaselineHomeSqlite(home, declaration.store_name, declaration, partition?.project_id);
-}
-
-/**
- * A Home library's connection: one whose rows join the project's artifacts is first checked against the artifact library and, when
- * new, created in WAL at the Home's real path before any business schema; every library then opens through the declaration bridge.
- */
-export function openHomePluginDatabaseConnection(home: string, declaration: HomePluginDatabaseDeclaration,
-  partition?: { readonly project_id: string }): ReturnType<typeof openBaselineHomeSqlite> {
-  if (!declaration.project_rows?.artifact_join) return openPluginDatabaseConnection(home, declaration, partition);
-  const real = realpathSync(home);
-  const path = homeSqlitePath(real, declaration.store_name, partition?.project_id);
-  assertArtifactLibraryReady(path);
-  const existing = lstatSync(path, { throwIfNoEntry: false });
-  if (!existing || existing.size === 0) {
-    // The existing initializer establishes the space in WAL before the fresh file receives any business schema.
-    openHomeSqliteDatabase(real, declaration.store_name, partition?.project_id, db => {
-      if (db.prepare("PRAGMA journal_mode=WAL").get()?.journal_mode !== "wal") throw new ActionError("actions.service_unavailable", "插件库初始化日志模式暂不可用");
-      db.exec("PRAGMA synchronous=FULL");
-    }).close();
-  }
-  return openPluginDatabaseConnection(real, declaration, partition);
-}
+import { openHomePluginDatabaseConnection } from "./plugin-database-connection.js";
 
 /**
  * A plugin's library in the Home. The Host owns both connections; read calls use SQLite read-only enforcement, not only a SQL

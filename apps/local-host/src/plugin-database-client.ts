@@ -8,6 +8,8 @@ import type {
 import { assertPluginActionCurrent, assertPluginReadCurrent, type PluginInstance } from "@molis-ai/molis-work-plugin-runtime";
 import type { ProjectJournalBinding } from "./plugin-project-journal.js";
 import { assertReadStatement, assertWriteStatement } from "./project-statement-protocol.js";
+import { projectReviewCommitControl, projectReviewForWrite, type ProjectReviewCommit } from "./project-review-effect.js";
+import type { ProjectTrustedDecision } from "@molis-ai/molis-work-contracts/services/project-approvals";
 
 /** One SQLite connection: node:sqlite's `DatabaseSync` (a library in the Home), or the storage package's connection over it (the project's). */
 export interface PluginDatabaseConnection {
@@ -30,6 +32,10 @@ export interface PluginDatabaseConnections<Connection extends PluginDatabaseConn
   /** What each statement passes after the keyword filters, on the connection that will run it; a library in the Home has nothing more. */
   perform?<T>(connection: Connection, sql: string, parameters: readonly PluginSqlValue[], mode: "read" | "write", execute: () => T): T;
   check?(connection: Connection, sql: string, parameters: readonly PluginSqlValue[], mode: "read" | "write"): void;
+  readonly projectId?: string;
+  readonly approvalRules?: NonNullable<PluginProjectDatabase["approvalRules"]>;
+  readonly approvalHistory?: NonNullable<PluginProjectDatabase["approvalHistory"]>;
+  joinProjectDecision?(decision: ProjectReviewCommit, assertCurrent: () => void): ProjectTrustedDecision;
 }
 
 /** How many compiled statements each connection of a client keeps (`prepared`). */
@@ -93,10 +99,15 @@ export function pluginDatabaseClient<Connection extends PluginDatabaseConnection
   const client: PluginProjectDatabase | PluginDatabase = Object.freeze({
     ...reads(reader, permitRead),
     ...(journal ? { journal: journal.reader(permitRead) } : {}),
+    ...(connections.approvalRules ? { approvalRules: connections.approvalRules } : {}),
+    ...(connections.approvalHistory ? { approvalHistory: connections.approvalHistory } : {}),
     async transaction<T>(beforeEffect: () => Promise<void>, write: (transaction: PluginProjectDatabaseTransaction) => T): Promise<T> {
       permitWrite();
       await beforeEffect();
       permitWrite();
+      const decision = projectReviewForWrite(connections.projectId, instance);
+      if (decision && !connections.joinProjectDecision) throw new ActionError("actions.forbidden", "本人决定需要项目库事务");
+      const decisionControl = decision && projectReviewCommitControl(instance);
       // Outside the `try`: a writer already in someone else's transaction refuses this one and is not rolled back for it.
       writer.exec("BEGIN IMMEDIATE");
       let active = true;
@@ -108,8 +119,10 @@ export function pluginDatabaseClient<Connection extends PluginDatabaseConnection
         permitWrite();
       };
       let savepoints = 0;
+      let record: ProjectTrustedDecision | undefined;
       const handle: PluginDatabaseTransaction | PluginProjectDatabaseTransaction = Object.freeze({ ...reads(writer, check),
           ...(journal ? { journal: journal.writer(check) } : {}),
+          get decision() { check(); return record === undefined ? undefined : structuredClone(record); },
           run(sql: string, parameters: readonly PluginSqlValue[] = []) {
             check();
             assertWriteStatement(sql);
@@ -140,6 +153,7 @@ export function pluginDatabaseClient<Connection extends PluginDatabaseConnection
       const binding = bindPluginTransaction(handle, client, check);
       let result: T;
       try {
+        if (decision) record = connections.joinProjectDecision!(decision, check);
         result = write(handle as PluginProjectDatabaseTransaction);
         requireSynchronous(result, "插件数据库事务必须同步完成，不能包含异步等待");
         check();
@@ -149,6 +163,7 @@ export function pluginDatabaseClient<Connection extends PluginDatabaseConnection
         catch (rollbackError) { hostLog.error("plugin_database", "rollback_failed", rollbackError); }
         throw error;
       } finally { active = false; binding.close(); }
+      decisionControl?.submit();
       binding.committed();
       return result;
     },

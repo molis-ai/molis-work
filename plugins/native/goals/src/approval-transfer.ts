@@ -1,8 +1,9 @@
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ApprovalRuleOwner, ProjectApprovalRuleScope } from "@molis-ai/molis-work-contracts/services/project-approvals";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { syncSectionsTracking } from "@molis-ai/molis-work-plugin-sdk";
-import { GOALS_PROJECT_DATABASE_AFTER_APPROVAL_TRANSFER } from "./project-database.js";
+import { GOALS_PROJECT_DATABASE_V2, GOALS_PROJECT_DATABASE_V3 } from "./project-database.js";
+import { GOALS_TREE_EFFECTS_SQL } from "./project-database-governance.js";
+import { goalsApprovalTransferSync } from "./approval-transfer-sync.js";
 
 interface TransferConnection {
   exec(sql: string): unknown;
@@ -18,27 +19,20 @@ type OriginalRule = {
 type Owner = Extract<ApprovalRuleOwner, { kind: "plugin" }>;
 
 export const GOALS_APPROVAL_TRANSFER_TABLES = ["goal_event_trusted_decisions", "goal_tree_proposal_decisions", "policy_bindings"] as const;
+export const GOALS_APPROVAL_OUTCOMES_SQL = GOALS_TREE_EFFECTS_SQL;
 
 const errors = defineErrorCodes("goals", { approval_transfer_invalid: "invalid" });
 const invalid = () => errors.approval_transfer_invalid("旧 Goals 的审批出处、对象关联或规则不符，项目库已保留");
 
-/** Change only this owner's project collection, after the old definition has been verified. */
-export function goalsManifestAfterApprovalTransfer(manifest: PluginManifest): PluginManifest {
+/** The original declaration is frozen for maintenance; it does not use the current collection's row projection. */
+export function goalsApprovalTransferManifest(manifest: PluginManifest, version: 2 | 3 | 4): PluginManifest {
+  if (version !== 4) return {
+    ...manifest, databases: { ...manifest.databases, project: version === 2 ? GOALS_PROJECT_DATABASE_V2 : GOALS_PROJECT_DATABASE_V3 },
+    sync: goalsApprovalTransferSync(version),
+  };
   const collection = manifest.sync?.collections.find(row => row.id === "project_goals");
-  if (!collection?.sections || collection.schema_version !== 1) throw invalid();
-  const sections = {
-    ...collection.sections,
-    business: collection.sections.business.map(section => ({
-      ...section, tables: section.tables.filter(table => !GOALS_APPROVAL_TRANSFER_TABLES.some(old => old === table.name)),
-    })),
-  };
-  const tracking = syncSectionsTracking(sections).map(table =>
-    collection.tracking?.find(previous => previous.table === table.table) ?? table);
-  return {
-    ...manifest, databases: { ...manifest.databases, project: GOALS_PROJECT_DATABASE_AFTER_APPROVAL_TRANSFER },
-    sync: { ...manifest.sync!, collections: manifest.sync!.collections.map(row =>
-      row === collection ? { ...row, schema_version: 2, sections, tracking } : row) },
-  };
+  if (!collection?.sections || collection.schema_version !== 2 || manifest.databases?.project?.version !== 4) throw invalid();
+  return manifest;
 }
 
 /** Explicit v2 maintenance only. The Host verifies the original schema, publisher and project before reading. */
@@ -50,7 +44,7 @@ export function readGoalsApprovalTransfer(db: TransferConnection, projectId: str
     if (!policy || typeof policy !== "object" || Array.isArray(policy) || Object.keys(policy).some(key => key !== "human_approval")) throw invalid();
     const human = "human_approval" in policy ? policy.human_approval : null;
     if (human !== null && typeof human !== "boolean") throw invalid();
-    const scope: ProjectApprovalRuleScope = row.scope === "project_default" ? { kind: "project_default" }
+    const scope: ProjectApprovalRuleScope = row.scope === "project_default" ? { kind: "project_default", owner }
       : { kind: row.scope === "goal" ? "object" : "ancestor_minimum", owner, subject: { kind: "goal", id: row.goal_id! } };
     const { policy_binding_id, project_id, state, created_by, reason, created_at } = row;
     return { policy_binding_id, project_id, scope, requires_person: human, state, created_by, reason, created_at };
@@ -62,13 +56,19 @@ function readDecisions(db: TransferConnection, projectId: string) {
   const events = db.prepare("SELECT * FROM goal_event_trusted_decisions ORDER BY decision_id").all() as OriginalDecision[];
   const items = db.prepare("SELECT * FROM goal_tree_proposal_decisions ORDER BY decision_id").all() as OriginalDecision[];
   const applied = db.prepare(`
-    SELECT goal_id, actor_id, authority_source, conclusion, accepts_requirements, scope_json, governance_decision_id
-      FROM goal_event_applied_decisions WHERE project_id = ?
+    SELECT a.*, e.event_id AS observed_event_id, e.project_id AS observed_project, e.goal_id AS observed_goal,
+      e.kind AS observed_kind, e.actor_id AS observed_actor, e.payload_json AS observed_payload
+      FROM goal_event_applied_decisions a LEFT JOIN goal_work_events e ON e.event_id=a.event_id
+      WHERE a.project_id = ?
   `).all(projectId) as Array<Record<string, string | number | null> & { governance_decision_id: string }>;
   const originals = new Map(events.map(row => [row.decision_id, row]));
   for (const row of applied) {
     const original = originals.get(row.governance_decision_id);
-    if (!original || ["goal_id", "actor_id", "authority_source", "conclusion", "accepts_requirements", "scope_json"].some(key => row[key] !== original[key])) throw invalid();
+    const same = ["goal_id", "actor_id", "authority_source", "conclusion", "accepts_requirements", "scope_json", "request_id", "selected_option_id"];
+    if (!original || same.some(key => row[key] !== original[key]) || row.observed_event_id !== row.event_id
+      || row.observed_project !== projectId || row.observed_goal !== row.goal_id || row.observed_kind !== "system" || row.observed_actor !== row.actor_id) throw invalid();
+    const event = JSON.parse(String(row.observed_payload)) as { operation?: unknown; governance_decision_id?: unknown; decision_id?: unknown };
+    if (event?.operation !== "user_decision" || event.governance_decision_id !== row.governance_decision_id || event.decision_id !== row.decision_id) throw invalid();
   }
   if (db.prepare(`
     SELECT 1 FROM goal_tree_proposal_decisions d
@@ -85,5 +85,10 @@ function readDecisions(db: TransferConnection, projectId: string) {
 
 function exportedDecision(projectId: string, row: OriginalDecision, subject: "event" | "proposal-item", recorded_at: unknown) {
   if (row.project_id !== projectId || !row.actor_id || !row.conversation_ref || !row.message_ref || typeof recorded_at !== "string" || !recorded_at) throw invalid();
+  const parts = subject === "event" ? [row.scope_json, row.change_json] : [row.materialized_objects_json];
+  for (const value of parts) if (value !== null) {
+    if (typeof value !== "string") throw invalid();
+    try { JSON.parse(value); } catch { throw invalid(); }
+  }
   return { subject, recorded_at, row };
 }

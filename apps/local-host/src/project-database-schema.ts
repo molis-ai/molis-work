@@ -7,6 +7,8 @@ import { CONTEXT_LEDGER_SCHEMA } from "@molis-ai/molis-work-module-context-ledge
 import { ATTENTION_SCHEMA_SQL } from "@molis-ai/molis-work-module-attention-resumption";
 import { SCHEDULER_SCHEMA_SQL } from "@molis-ai/molis-work-service-scheduler";
 import { SURFACE_CORRECTIONS_SCHEMA_SQL } from "@molis-ai/molis-work-service-surfaces";
+import { PROJECT_APPROVALS_SCHEMA_SQL } from "@molis-ai/molis-work-service-project-approvals";
+import { projectApprovalUpgrade } from "./project-approval-upgrade.js";
 import {
   PLUGIN_EVENTS_SCHEMA_SQL,
   PLUGIN_NOTIFICATIONS_SCHEMA_SQL,
@@ -57,9 +59,11 @@ export const PROJECT_DATABASE_VERSION_2_SCHEMA = [
   PROJECT_REPLICATION_SCHEMA_SQL,
 ].join("\n");
 
+export const PROJECT_DATABASE_VERSION_3_SCHEMA = `${PROJECT_DATABASE_VERSION_2_SCHEMA}\n${SURFACE_CORRECTIONS_SCHEMA_SQL}`;
+
 export const PROJECT_DATABASE_BASELINE: SqliteBaseline = {
-  version: /* @version database.project_database_baseline */ 3,
-  schema: `${PROJECT_DATABASE_VERSION_2_SCHEMA}\n${SURFACE_CORRECTIONS_SCHEMA_SQL}`,
+  version: /* @version database.project_database_baseline */ 4,
+  schema: `${PROJECT_DATABASE_VERSION_3_SCHEMA}\n${PROJECT_APPROVALS_SCHEMA_SQL}`,
   upgrades: [
     // 1 → 2 (specs/shared-sources-and-surfaces §2.1, §3): where a project was browsed is no setting any more, and 「最近用过」 starts empty.
     // The step also lands on the adopted process-items journal (user 2026-11-12, specs/batch-06-shared-tools/current-version-adoption.md):
@@ -68,5 +72,6 @@ export const PROJECT_DATABASE_BASELINE: SqliteBaseline = {
       reduces_rows: ["project_browsing_settings"] },
     // 2 → 3: the Host keeps the person's corrections of what a surface showed (batch 15).
     { from: 2, sql: SURFACE_CORRECTIONS_SCHEMA_SQL },
+    projectApprovalUpgrade,
   ],
 };

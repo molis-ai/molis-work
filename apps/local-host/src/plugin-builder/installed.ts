@@ -5,6 +5,7 @@
  */
 import { pluginErrors, type PluginAppContribution, type PluginDefinition, type PluginManifest, type PluginStartContext } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
+import { trustedDecisionSubmitted } from '@molis-ai/molis-work-kernel';
 import { assertCapturedPluginActionCurrent, currentPluginAction, inPluginInstance, pluginManifestDigest } from '@molis-ai/molis-work-plugin-runtime';
 import { exposedActionReference } from './exposed-actions.js';
 import { rememberInstalledActionSource } from '../installed-action-registration.js';
@@ -12,7 +13,7 @@ import type { SandboxEffects, SandboxIdentity, SandboxJson } from '@molis-ai/mol
 import { createSandboxRunner, createBackgroundLane, SANDBOX_BACKGROUND_LIMITS, sandboxServicesFor, SandboxError, type SandboxBackgroundLane, type SandboxRunner, type SandboxServices, type SandboxServiceContext } from '@molis-ai/molis-work-plugin-sandbox';
 import { executionProjectReach } from '../plugin-project-reach-subject.js';
 import { resolvePluginComponentCall, validatePluginPresentation } from '@molis-ai/molis-work-design-system';
-import { actionErrorResponse, effectsFromContract, isRecord, sandboxPluginManifest, sandboxUiDeclaration, sandboxOperationEffects } from '@molis-ai/molis-work-plugin-sdk';
+import { actionErrorFromResponse, actionErrorResponse, effectsFromContract, isRecord, sandboxPluginManifest, sandboxUiDeclaration, sandboxOperationEffects } from '@molis-ai/molis-work-plugin-sdk';
 import { installedStageFrame } from '../installed-stage-section.js';
 import { releaseInstructions } from './prompts.js';
 import { releaseVersion, type InstalledRelease } from '../installed-release.js';
@@ -162,7 +163,9 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
               await request.execution?.beforeEffect(); request.execution?.signal?.throwIfAborted(); host.assertLive?.(identity);
             };
             await beforeEffect();
-            const lane: Lane = slowOperations({ operations: [operation] }, capabilities).has(call.operationId) ? 'slow' : 'quick', pending = open(lane), active = await pending;
+            // The owner's review query must stay runnable while its protected command waits at the final check.
+            const lane: Lane = operation.trusted_review ? 'review' : slowOperations({ operations: [operation] }, capabilities).has(call.operationId) ? 'slow' : 'quick';
+            const pending = open(lane), active = await pending;
             try { return { status: 200, body: { value: await active.call(call.operationId, call.input as SandboxJson, {
               signal: request.execution?.signal, beforeEffect, assert_authority_current: request.execution?.assert_authority_current,
               limits: capabilityLimits(operation.effects, capabilities), projectReach,
@@ -174,6 +177,8 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
               try { await beforeEffect(); } catch (current) { failure = current; }
               const gone = GONE.has((error as { code?: string }).code ?? '');
               if (gone && lanes.get(lane) === pending) lanes.delete(lane);
+              const original = currentPluginAction();
+              if (operation.trusted_review && original && !trustedDecisionSubmitted(original.caller) && failure instanceof ActionError) throw failure;
               if (policyChanged || error instanceof SandboxError && error.outcome === 'unknown') { outcomeUnknown = true; throw failure; }
               // A dead process restarts on the next call; the failed call itself is not replayed, so nothing is written twice.
               // When the Host's recheck refused, that refusal is why the runner retired the process (S-87): it stays the answer.
@@ -199,6 +204,7 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
           const body = response.body as { value?: unknown; error?: unknown; outcome?: string } | undefined;
           if (response.status !== 200) {
             if (body?.outcome === 'unknown') throw new ActionError('actions.outcome_unknown', String(body.error));
+            if (action.action.requires_trusted_decision === true) throw actionErrorFromResponse(response.status, body);
             throw new Error(String(body?.error ?? '插件操作未完成'));
           }
           return body?.value;

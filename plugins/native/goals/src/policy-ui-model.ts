@@ -20,14 +20,6 @@ export interface GoalsPolicyItem {
 }
 
 export interface GoalsPolicyUiPrimitives {
-  translate(text: string, values?: Record<string, string | number>): string;
   escapeHtml(value: unknown): string;
-  formatDate(value: string | null | undefined): string;
-  icon(name: "chevron-down" | "target" | "database" | "shield" | "history" | "arrow" | "folder" | "circle-alert"): string;
-  defaultPolicy: GoalPolicy;
-}
-
-/** Prefills editable fields only; resolved_policy from the Module remains authoritative. */
-export function mergeGoalPolicyFormValues(base: GoalPolicy, binding?: GoalsPolicyBinding): GoalPolicy {
-  return { human_approval: binding?.policy.human_approval ?? base.human_approval };
+  icon(name: "shield" | "folder"): string;
 }

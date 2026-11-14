@@ -1,4 +1,4 @@
-import { sandboxOperationActions, sandboxOperationPermissions, sandboxActionId } from '@molis-ai/molis-work-plugin-sdk';
+import { actionErrorFromResponse, sandboxOperationActions, sandboxOperationPermissions, sandboxActionId } from '@molis-ai/molis-work-plugin-sdk';
 /**
  * An installed generated plugin offers its functions to the rest of the product (D16): each operation becomes an
  * action of the project's unified directory, provided by the plugin itself, so a person, the Home AI, an external MCP
@@ -118,6 +118,7 @@ export function exposeInstalledPlugin(actions: ProjectActions, release: AgentRel
         throw error;
       }
       if (result.status !== 200 && body?.outcome === 'unknown') throw new ActionError('actions.outcome_unknown', String(body.error ?? '本次结果未知，请先检查结果再决定是否重试'));
+      if (result.status !== 200 && operation.trusted_review) throw actionErrorFromResponse(result.status, body);
       if (result.status !== 200) throw new Error(String(body?.error ?? '插件「' + title + '」没有完成这项功能'));
       return body?.value ?? null;
     },

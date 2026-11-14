@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {fixture,work,comparable} from './fixtures/personal-goals-sync.js';
+import {fixture,work,comparable,approvalSelections} from './fixtures/personal-goals-sync.js';
 import {boardSnapshot} from './fixtures/goal-application.js';
 import {goalSyncSelection as selection} from './fixtures/runtime-goal-sync.js';
 import {createContextLedger} from '@molis-ai/molis-work-module-context-ledger';
+import {projectApprovalRules, projectReviewDecisions} from '@molis-ai/molis-work-service-project-approvals';
 
 test('GSYNC-01 GSYNC-02 GSYNC-03 GSYNC-04 restore completed Goals, graph, history, proposal, guidance and precise references', async t => {
   const f = await fixture(t), p = f.project.project_id;
@@ -13,7 +14,7 @@ test('GSYNC-01 GSYNC-02 GSYNC-03 GSYNC-04 restore completed Goals, graph, histor
     app.goals.commands.addRelation(p, { from_goal_id: 'child', to_goal_id: 'goal-main', type: 'part_of', reason: '包含' }, { actor_id: 'alice', idempotency_key: 'relation' });
     app.setActiveGoal(p, { goal_id: 'child', reason: '定位' }, { actor_id: 'alice', idempotency_key: 'active' });
     app.goals.commands.addProjectGuidance({ project_id: p, actor_id: 'alice', kind: 'quality_bar', content: '完整恢复事实', reason: '同步', confirmation_summary: '已确认', user_confirmed: true, idempotency_key: 'guidance' });
-    app.goals.commands.saveProjectPolicy({ project_id: p, actor_id: 'alice', user_confirmed: true, policy: { human_approval: true }, idempotency_key: 'policy' });
+    app.saveProjectApproval(p, 'alice', true, 'Reviewed project rule');
     const method = app.goals.planning.effectiveMethods(p)[0]!;
     app.goals.planning.saveProjectMethod({ project_id: p, actor_id: 'alice', user_confirmed: true, method: { ...method, summary: '项目自定义方法', enabled: true } });
     app.goalTreeSubmission.submitGoalTreeProposal({ project_id: p, root_goal_id: 'goal-main', actor_id: 'runtime-1', summary: '待确认结构', idempotency_key: 'proposal', items: [{ item_id: 'proposed-child', kind: 'goal', operation: 'create', payload: { goal_id: 'proposed', title: '未执行的提案', outcome: '用户决定后创建' }, source_refs: ['conversation://plan'], reason: '候选', confidence: 1, affected_objects: [{ object_type: 'goal', object_id: 'proposed' }] }] });
@@ -24,13 +25,16 @@ test('GSYNC-01 GSYNC-02 GSYNC-03 GSYNC-04 restore completed Goals, graph, histor
     db.appendEvent({ eventId: 'local-only-source', projectId: p, actorId: 'alice', type: 'artifact.local_note', objectType: 'artifact', objectId: 'private', reason: 'not Goal', payload: {}, at: new Date().toISOString() });
   });
   assert.equal(f.events.length, 0);
-  await f.clients[0]!.save({...f.clients[0]!.policy(),selections:[selection]});
+  await f.clients[0]!.save({...f.clients[0]!.policy(),selections:approvalSelections});
   assert.ok(f.replica(0,replica=>replica.counts().pending)>0,'real user facts always create a local upload');
   await f.run();
   const conflicts = f.clients[1]!.status().collections[0]!.conflicts;
   assert.deepEqual(conflicts, []);
   const source = f.edit(0, app => app.goalEvents.readState(p, 'goal-main'));
   const restored = f.edit(1, (app, db) => {
+    const applied = app.goalEvents.readState(p, 'goal-main').applied_decisions[0]!;
+    assert.equal(projectReviewDecisions(db.db, p).findCommitted(applied.governance_decision_id)?.actor_id, 'alice');
+    assert.equal(projectApprovalRules(db.db, p).read().rules[0]?.requires_person, true);
     assert.equal(app.goalInputs.list(p)[0]!.source_ref, 'feed-item:missing-feed');
     assert.equal(boardSnapshot(db,p).goals.some(g => g.goal_id === 'proposed'), false, 'receiving a proposal does not execute it');
     assert.equal(db.readEventsDescending(p).some(e => e.event_id === 'local-only-source'), false);
@@ -47,6 +51,7 @@ test('GSYNC-01 GSYNC-02 GSYNC-03 GSYNC-04 restore completed Goals, graph, histor
   assert.deepEqual(targetEvents,sourceEvents,'all Goal journal events, and no foreign owner history, are restored');
   assert.deepEqual(comparable(targetSnapshot), comparable(sourceSnapshot));
   assert.ok(JSON.stringify(f.events[0]!.value).includes('@event:'));
+  assert.ok(f.approvalEvents.length > 0);
   const n = f.events.length; await f.run(); assert.equal(f.events.length, n, 'no replication echo');
   assert.equal(f.replica(1, r => r.counts().pending), 0);
 });

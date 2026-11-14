@@ -2,6 +2,8 @@ import type { ActionErrorKind } from "@molis-ai/molis-work-contracts/platform/ac
 import type { HomePluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginProjectDatabaseRecord } from "@molis-ai/molis-work-plugin-runtime";
 import type { InstalledLibraryOwner } from "./installed-plugin-libraries.js";
+import type { ProjectReviewCommit } from "./project-review-effect.js";
+import type { TrustedReviewRow } from "@molis-ai/molis-work-contracts/services/project-approvals";
 
 // What the Host and the process that runs a sandboxed plugin's statements say to each other (specs/archive/repository-anti-corruption/
 // slices/sandbox-project-database-limits.md §2). Every value is JSON; a row holds text, finite numbers and null, nothing else.
@@ -10,6 +12,13 @@ export type StatementValue = string | number | null;
 export type StatementRow = Record<string, StatementValue>;
 
 export interface StatementMemoryLimits { readonly heapMb: number; readonly rssMb: number; readonly sampleMs: number }
+export interface ReviewedStatementTarget {
+  readonly row: TrustedReviewRow;
+  readonly id: string;
+  readonly version: string;
+}
+export interface StatementReadyToCommit { readonly id: number; readonly ready_to_commit: true }
+export interface StatementCommitPermit { readonly commit_permit: number }
 /** Host-only preparation. The sandbox never supplies a path, owner, registry or a preparation command. */
 export type HomePreparationCall =
   | { readonly op: "validate-home-schema"; readonly declaration: HomePluginDatabaseDeclaration }
@@ -24,8 +33,9 @@ type StatementCommand =
   | { readonly op: "get"; readonly sql: string; readonly parameters: readonly StatementValue[]; readonly bytes: number }
   /** `rows` and `bytes` are the most one answer may carry; the process stops reading at the first row past either. */
   | { readonly op: "all"; readonly sql: string; readonly parameters: readonly StatementValue[]; readonly rows: number; readonly bytes: number }
-  | { readonly op: "begin"; readonly transactionDeadline: number }
-  | { readonly op: "commit" | "rollback" }
+  | { readonly op: "begin"; readonly transactionDeadline: number; readonly reviewed?: ReviewedStatementTarget }
+  | { readonly op: "commit"; readonly decision?: ProjectReviewCommit }
+  | { readonly op: "rollback" }
   | { readonly op: "run"; readonly sql: string; readonly parameters: readonly StatementValue[] }
   | HomePreparationCommand;
 
@@ -38,9 +48,9 @@ export type StatementStep = Exclude<StatementRequest, { readonly op: "open" } | 
 
 /** The process will end even if the Host cannot consume this notification. It also applies between two requests. */
 export interface StatementFatal { readonly fatal: "timeout" | "memory" | "process"; readonly message: string }
-export type StatementMessage = StatementReply | StatementFatal;
+export type StatementMessage = StatementReply | StatementFatal | StatementReadyToCommit;
 
-export type StatementFailure = "refused" | "too_large" | "error";
+export type StatementFailure = "refused" | "too_large" | "decision_conflict" | "decision_expired" | "error";
 export type StatementReply =
   | { readonly id: number; readonly ok: true; readonly row?: StatementRow | null; readonly rows?: StatementRow[]; readonly changes?: number }
   /** `refused` is the check of S-46 (`plugin.project_database.statement_refused`); `error` is anything else, SQLite's message included. */

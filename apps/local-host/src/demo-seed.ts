@@ -1,8 +1,10 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { writeProjectRoot } from "@molis-ai/molis-work-module-projects";
 import { LocalProjectDatabase } from "./project-database.js";
+import { decideProjectReview, readProjectReview } from "./project-review-commands.js";
 import { DEMO_PROJECT_ID } from "./demo-project-id.js";
 import { registerDemoDeliverable, DEMO_CORE_ARTIFACT_ID } from "./demo-deliverable.js";
 
@@ -26,9 +28,7 @@ type DemoAct = <Result = unknown>(capability: string, version: number, input: ob
 
 /** What the sample asks of the actions it calls: reading and writing Goals, the Context Ledger write and the artifact read a deliverable needs. */
 const DEMO_PERMISSIONS = ["goals:read", "goals:write", "context-ledger:write", "artifacts:read"];
-/** The person's decision: the one action the sample asks as the person through a protected entry, with `goals:decide`. */
 const DEMO_DECIDE = "goals.decisions.record";
-
 async function versions(act: DemoAct, goalId: string) {
   const state = await act<{ config: { version: number }; agreement: { version: number } }>("goals.state.read", /* @version action.goals.state.read */ 1, { goal_id: goalId });
   return {
@@ -75,14 +75,11 @@ async function reportProgress(
   });
 }
 
-/**
- * Completes a Goal the way a person would: they accept the requirements its reports back (a report alone is the reporter's own word and
- * meets nothing, PWA-144), then it is closed.
- */
+/** The demonstration records a sample decision on its own reported facts before completing them. */
 async function closeComplete(act: DemoAct, goalId: string, key: string, result: string, reason: string, requirementIds: string[]) {
-  await act("goals.decisions.record", /* @version action.goals.decisions.record */ 1, {
+  await act(DEMO_DECIDE, /* @version action.goals.decisions.record */ 1, {
     ...writeContext(goalId, `${key}-accept`),
-    conclusion: "看过报告，认可这些要求已经满足",
+    conclusion: "示例决定：认可报告中的要求已经满足",
     effects: [{ kind: "accept_requirements" }],
     scope: { requirement_ids: requirementIds },
   });
@@ -121,16 +118,23 @@ async function withDemoGoals(databasePath: string, projectId: string, body: (act
   const home = await fs.promises.mkdtemp(path.join(os.tmpdir(), "molis-work-demo-seed-"));
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   try {
-    const client = host.actionClient(molisWorkHostProjectReference({ projectId, databasePath }));
+    const project = molisWorkHostProjectReference({ projectId, databasePath });
+    const client = host.actionClient(project);
     const caller = { actor_id: DEMO_ACTOR, actor_kind: "user" as const, audience: "user" as const, project_id: projectId, permissions: DEMO_PERMISSIONS };
-    // The person's own decision comes through a protected entry that says where it came from; the sample's stands in for the web page.
-    const person = (key: string) => ({ ...caller, permissions: [...DEMO_PERMISSIONS, "goals:decide"],
-      user_action: { source: "web", conversation_ref: "demo:goals", message_ref: `demo:${key}` } });
-    await body(async (capability, version, input) => await client.invoke(
-      capability === DEMO_DECIDE ? person(String((input as { idempotency_key?: unknown }).idempotency_key)) : caller,
-      { capability_id: capability, version },
-      input,
-    ) as never);
+    await body(async (capability_id, version, input) => {
+      if (capability_id !== DEMO_DECIDE) return await client.invoke(caller, { capability_id, version }, input) as never;
+      // These fixed sample acts run in the seed's own Host and library with an explicitly named demo author.
+      const request_id = String((input as { idempotency_key: string }).idempotency_key);
+      const entry = { caller: { ...await host.localPersonContext(project), actor_id: DEMO_ACTOR },
+        action: Object.freeze({ source: "management" as const, conversation_ref: "demo:goals", message_ref: `demo:${request_id}` }),
+        assertCurrent: () => { if (host.lifecycle() !== "running") throw new ActionError("actions.host_closed", "示例项目的宿主已关闭"); },
+      };
+      const provider = host.inspectActionMetadata(entry.caller, project).find(row => row.capability_id === capability_id && row.version === version);
+      if (!provider) throw new Error("示例决定的原动作未启动");
+      const { provider_id } = provider.provider;
+      const { reference } = await readProjectReview(host, project, { action: { capability_id, version, provider_id }, request_id, draft: input }, entry);
+      return await decideProjectReview(host, project, { reference, choice_id: "apply", request_key: request_id }, entry) as never;
+    });
   } finally {
     await host.close();
     await fs.promises.rm(home, { recursive: true, force: true });

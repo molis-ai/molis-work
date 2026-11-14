@@ -82,7 +82,7 @@
 
 第 02 批 N30/N36/N37 的 Feed 清理以[本片需求](../../specs/post-anticorruption-roadmap/reference/batches/02.md#origin-reset-preflight)为准：证据正文只用 `feed/evidence/` 和 `system:feed:evidence-content-key:v1`，搜索意图只用 `feed-intent-v1`；环境口令的派生盐为 `molis-work-secretstore-v1`。删除第二密钥、恢复目录和命名空间绕行；旧盐不参与解密，缺钥或认证失败保留错误与原密文，不补副本、不就地迁移。该构建只在隔离 Home 验证，真实 Home 的切换仍要求原可恢复备份和重建窗口；代码合入不表示现场维护完成。
 
-第 39-2 批拟议移交（2026-11-14 用户批准在隔离库实现并验证）。在现有显式项目库升级入口的同一事务内将平台项目库由 3 升到 4、Goals 私有库由 2 升到 3，同时把 `goal_event_trusted_decisions`、`goal_tree_proposal_decisions` 和 `policy_bindings` 的所有权交平台。只有已验证的原 v3/v2 组合带 Goals 表时可以自动移交。未知组合、错误发布者、未记账旧表均拒。保留原主键、关系、历史来源和规则语义；旧资料只按原证据展示。消费者为 Goals、统一管理、保护决定的 Web／MCP 入口及同步恢复。同步写方和恢复边界见[移交设计](../../specs/agent-approval/trusted-decisions-design.md#3-存量交接方案)。最早支持的金样已包含平台事实时移除此转换段。
+第 39-2 批移交（2026-11-14 用户批准在隔离库实现并验证）。平台项目库 3→4 的显式升级事务同时更新 Goals 私有库到 v4，并将 `goal_event_trusted_decisions`、`goal_tree_proposal_decisions` 和 `policy_bindings` 交给平台。分别校验 Goals v2 和 v3 的旧库，保留第 17 批的风险引用。未知组合、错误发布者、未记账旧表均拒。保留原主键、关系、历史来源和规则语义，旧资料按原证据展示。消费者为 Goals、统一管理、保护决定的 Web／MCP 入口及同步恢复。同步写方和恢复边界见[移交设计](../../specs/agent-approval/trusted-decisions-design.md#3-存量交接方案)。最早支持的金样已包含平台事实时移除此转换段。
 
 ### 存储版本变更登记
 

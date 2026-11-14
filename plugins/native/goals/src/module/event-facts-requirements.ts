@@ -62,6 +62,7 @@ export function readCurrentGoalEventRequirements(
       : "goal_event_requirement" as const;
     return {
       requirement_id: requirement.requirement_id,
+      revision: requirement.revision,
       goal_id: goal.goal_id,
       statement: requirement.statement,
       origin: {

@@ -106,18 +106,25 @@ export function createLocalGoalsReadHttp(ports: {
         return true;
       }
       const embed = url.searchParams.get("embed") === "1";
-      let methods, guidance, policy;
+      if (open === "rules") {
+        const query = new URLSearchParams({ view: "project-rules", project: view.project.project_id });
+        if (isDesktopShellRequest(request, url)) query.set("desktop", "1");
+        response.writeHead(302, { location: `/settings/authorizations?${query}`, "cache-control": "no-store" });
+        response.end();
+        return true;
+      }
+      let methods, guidance;
       try {
         // A project without Goals has none of Goals' settings pages (RAC-400). Whether Goals is here is the project's plugin list; a Goals read
         // refused in a project that has Goals is that refusal, shown with its code and operation number, not a project without Goals.
         if (await goalsHere()) {
-          [methods, guidance, policy] = await Promise.all([actions.invoke(goalsActions.planningRead, {}).then(value => value.methods),
-            actions.invoke(goalsActions.guidanceRead, {}), actions.invoke(goalsActions.policyHistory, {})]);
+          [methods, guidance] = await Promise.all([actions.invoke(goalsActions.planningRead, {}).then(value => value.methods),
+            actions.invoke(goalsActions.guidanceRead, {})]);
         }
       }
       catch (error) { sendJson(response, actionHttpStatus(error), actionErrorBody(error)); return true; }
       const html = renderMolisWorkProjectSettingsHub(
-        { ...view, project: { ...view.project, plugin_requirements: await projectSettingsRequirements(homeDirectory, store, view.project.project_id, withMolisWorkProjectCatalog) }, policy_bindings: policy?.bindings ?? [] },
+        { ...view, project: { ...view.project, plugin_requirements: await projectSettingsRequirements(homeDirectory, store, view.project.project_id, withMolisWorkProjectCatalog) } },
         guidance ?? null,
         methods ?? [],
         controlToken,
@@ -246,14 +253,12 @@ async function withSelectedGoalDocument(
   if (!goalId) return eventView;
   const visible = collection === "trash" ? eventView.trashed_goals : collection === "archive" ? eventView.archived_goals : eventView.goals;
   if (!visible.some((item) => item.goal.goal_id === goalId)) return eventView;
-  const [relations, history, resolved] = await Promise.all([
+  const [relations, resolved] = await Promise.all([
     goalActions.invoke(goalsActions.relations, { goal_id: goalId }),
-    goalActions.invoke(goalsActions.policyHistory, {}),
     goalActions.invoke(goalsActions.policyResolve, { goal_id: goalId }),
   ]);
-  const policyBindings = history.bindings.filter(binding => binding.goal_id === null || binding.goal_id === goalId);
   const decorate = (item: GoalsWebView["goals"][number]) => item.goal.goal_id === goalId
-    ? { ...item, relations: relations.relations, policy_bindings: policyBindings, resolved_policy: resolved.policy } : item;
+    ? { ...item, relations: relations.relations, resolved_policy: resolved.policy } : item;
   return withGoalArtifactContext({ ...eventView, goals: eventView.goals.map(decorate), archived_goals: eventView.archived_goals.map(decorate),
     trashed_goals: eventView.trashed_goals.map(decorate) }, goalId, actions, readArtifactDisplay, collection);
 }

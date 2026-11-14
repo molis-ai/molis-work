@@ -50,17 +50,18 @@ export class ActionService implements ActionClient, ActionRegistryPort {
 
   registerProvider(registration: ActionProviderRegistration): () => void {
     const problems = inspectActionDeclarations(registration.definitions, registration.scenes);
-    // A background launcher may be replaced independently of its unchanged status query. Only an actual registered query
-    // of this provider and scope supplies that reference; callers cannot invent a declaration without a handler.
-    const statuses = problems.length ? [] : registration.definitions.flatMap(definition => {
-      const reference = definition.action.background_job?.status;
+    // A command may be replaced independently of its unchanged status or review query.
+    // Only an actual registered query of this provider and scope supplies either reference.
+    const readers = problems.length ? [] : registration.definitions.flatMap(definition => [
+      definition.action.background_job?.status, definition.action.trusted_decision_request,
+    ].flatMap(reference => {
       if (!reference || registration.definitions.some(item => item.capability_id === reference.capability_id && item.version === reference.version)) return [];
-      const target = this.registry.descriptor(reference, registration.provider.project_id);
-      return target?.operation === 'query' && target.action && target.action.scope === definition.action.scope
-        && target.action_provider?.provider_id === registration.provider.provider_id
-        && target.action_provider.project_id === registration.provider.project_id ? [{ ...target, action: target.action }] : [];
-    });
-    problems.push(...inspectActionCrossReferences(statuses.length ? [...registration.definitions, ...statuses] : registration.definitions));
+      const target = this.registry.descriptors(item => actionKey(item) === actionKey(reference) && item.operation === "query"
+        && item.action?.scope === definition.action.scope && item.action_provider?.provider_id === registration.provider.provider_id
+        && item.action_provider?.project_id === registration.provider.project_id)[0];
+      return target?.action ? [{ ...target, action: target.action }] : [];
+    }));
+    problems.push(...inspectActionCrossReferences(readers.length ? [...registration.definitions, ...readers] : registration.definitions));
     if (problems.length) throw new ActionError("actions.definition_invalid", problems.join("；"));
     const provider = structuredClone(registration.provider);
     if (!provider.provider_id || !provider.title) throw new ActionError("actions.provider_invalid", "能力来源缺少身份或名称");
@@ -133,7 +134,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
             if (!executing) throw new ActionError("actions.expired", "原调用已经结束，不能继续产生副作用");
             lifetime?.assertActive();
             context.signal?.throwIfAborted();
-            checkDecision?.();
+            checkDecision?.check();
             if (this.registry.registrationToken(registeredDefinition) !== registration) throw new ActionError("actions.provider_changed", "能力已重新加载，不能继续原副作用");
             assertAvailable(availability(context));
             requireSynchronous(this.effects.assertCurrent?.(context, reference), "最终运行环境检查必须同步完成");
@@ -141,10 +142,13 @@ export class ActionService implements ActionClient, ActionRegistryPort {
           // Copy the context so a concurrent/nested invocation cannot replace this call's check.
           try {
             const execution: ActionExecutionContext = { ...actionExecutionContext(context, reference,
-              definition.action.permissions, assertCurrent, (caller, target) => this.effects.beforeEffect?.(caller, target), this.registry, ref => this.actionDefinition(context, ref), this.effects.assertCurrent), ...(lifetime ? { signal: lifetime.signal } : {}) };
+              definition.action.permissions, assertCurrent, checkDecision?.beforeEffect ? async (caller, target) => {
+                await checkDecision.beforeEffect!(); await this.effects.beforeEffect?.(caller, target);
+              } : (caller, target) => this.effects.beforeEffect?.(caller, target), this.registry, ref => this.actionDefinition(context, ref), this.effects.assertCurrent), ...(lifetime ? { signal: lifetime.signal } : {}) };
+            checkDecision?.attach(execution);
             const checked = prepareSubjectStateResult(execution, definition, provider, input, this.registry, () => executing, value => checkedActionResult(definition, validateOutput, value), assertCurrent);
             // The call is settled by whoever dispatched it (ActionService.invoke / invokeSync), where refusals before this point are seen too.
-            const result = runActionHandler(context, execution, () => executing, () => handler.handle(execution, input));
+            const result = runActionHandler(context, execution, () => executing, () => handler.handle(execution, checkDecision ? checkDecision.input : input));
             if (handler.execution === "sync") {
               try { return checked(requireSynchronous(result)); }
               finally { executing = false; lifetime?.dispose(); }

@@ -52,7 +52,7 @@ Retrying the same input with the same idempotency key does not duplicate writes.
 
 Adding an initial outcome, taking notes, and working within existing authority do not create an extra approval step. Replacing a committed outcome, retiring or weakening requirements, or removing human acceptance requires a valid decision about that concrete change. An unrelated approval, a generic `authorize_action`, or a caller-supplied `user_confirmed` cannot approve a different change. An existing decision can be reused while its exact scope remains valid.
 
-The Runtime can request, read, and cite decisions. Protected Web or management entries record the user's actual choice; the Runtime has no `event_decide` or `goal_tree_decide` authority. When a choice is needed, present the concrete change and returned Goal page to the user. Other authorized work can continue.
+The Runtime can request, read, and cite decisions. Present the concrete change and the returned Goal page so the user can choose through the protected Web or management entry. Work already authorized can continue.
 
 The two versions serve different purposes: the configuration version identifies the current type configuration; the agreement version identifies the current outcome and commitments. Formal agreement changes and closure require the versions specified by the tool. Missing or stale versions are rejected before formal effects. Read `goals.state.read`, review the changes, then submit again. Ordinary reports use their actual type version without taking on the formal closure lock.
 

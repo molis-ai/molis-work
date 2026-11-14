@@ -1,5 +1,7 @@
 import { GOALS_PLUGIN_API } from "./plugin-api.js";
 import { GOALS_DELIVERABLES_SCRIPT } from "./event-document-deliverables.js";
+import { goalEntryActions } from "./contract/goal-actions.js";
+import { GOALS_PLUGIN_ID } from "./identity.js";
 
 /** Keep source indentation readable; omit it from the served program within the frozen asset budget. */
 export const GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
@@ -19,6 +21,23 @@ export const GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
       if (error?.code === "ui_host.outcome_unknown") error.message = globalThis.t.text("goals.event-document-client.could-not-reach-local-service-input-kept-please");
       throw error;
     });
+    const postDecision = async (form, goal, draft, key) => {
+      if (!form.dataset.reviewVersion) throw new Error(globalThis.t.text("goals.event-document-client.read-disconnected"));
+      const body = { ...draft, goal_id: goal, idempotency_key: key, observed_version: form.dataset.reviewVersion };
+      const encoded = JSON.stringify(body);
+      let retained = form.decisionRequest;
+      if (retained?.encoded !== encoded) {
+        const response = await molisWorkRequest(route("/api/project-approvals/request"), { method: "POST", as: "response",
+          body: { action: { capability_id: "${goalEntryActions.decide.capability_id}", version: ${goalEntryActions.decide.version},
+            provider_id: "${GOALS_PLUGIN_ID}" }, request_id: body.request_id || key, draft: body } });
+        if (!response.ok) return response;
+        const { reference } = await response.json();
+        if (!form.isConnected || goalId() !== goal) throw new Error(globalThis.t.text("goals.event-document-client.read-disconnected"));
+        retained = form.decisionRequest = { encoded, reference };
+      }
+      return molisWorkRequest(route("/api/project-approvals/decide"), { method: "POST", as: "response",
+        body: { reference: retained.reference, choice_id: "apply", request_key: key } });
+    };
     const captureRestore = () => ({
       goal: reading.goal || goalId(),
       item: reading.item,
@@ -357,11 +376,14 @@ ${GOALS_DELIVERABLES_SCRIPT}
       let typeSaved = false;
       try {
         if (kind === "closure") await saveDeliverables(form, currentGoal);
-        const response = await postForm(currentGoal, formPath(kind), { ...buildPayload(form, kind, article), idempotency_key: key });
-        const body = await response.json().catch(() => ({}));
+        const payload = buildPayload(form, kind, article);
+        const response = kind === "decision" ? await postDecision(form, currentGoal, payload, key)
+          : await postForm(currentGoal, formPath(kind), { ...payload, idempotency_key: key });
+        const reply = await response.json().catch(() => ({}));
+        const body = kind === "decision" && response.ok ? reply.result ?? { event_id: reply.record?.decision_id } : reply;
         if (goalId() !== currentGoal) return;
         if (response.status === 409) {
-          const versionConflict = /version_conflict|stale_version/.test(String(body.code || ""));
+          const versionConflict = kind === "decision" && body.code === "actions.conflict" || /version_conflict|stale_version/.test(String(body.code || ""));
           if (!versionConflict) {
             if (status) { status.hidden = false; status.textContent = body.error || globalThis.t.text("goals.event-document-client.saved-reading-current-facts-back"); }
             try {

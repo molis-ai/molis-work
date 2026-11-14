@@ -98,8 +98,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
       const shell = document.querySelector("[data-goal-canvas-shell]");
       if (!shell) return;
       shell.removeAttribute("data-goal-planning");
-      shell.removeAttribute("data-goal-rules");
-      shell.querySelectorAll("[data-open-work-planning], [data-open-work-rules]").forEach((row) => {
+      shell.querySelectorAll("[data-open-work-planning]").forEach((row) => {
         row.classList.remove("is-selected");
         row.setAttribute("aria-pressed", "false");
         row.removeAttribute("aria-current");
@@ -130,7 +129,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
       const html = await molisWorkRequest(path,{as:"text",headers:{Accept:"text/html"},fallback:globalThis.t.text("workbench.events-primary.couldn-t-load-settings")});
       if(!pane.isConnected)return;
       const parsed = new DOMParser().parseFromString(html, "text/html");
-      const content = parsed.querySelector(".work-planning, .planning-detail, .planning-edit, .project-rules-document, .settings-document") || parsed.querySelector(".settings-content") || parsed.body;
+      const content = parsed.querySelector(".work-planning, .planning-detail, .planning-edit, .settings-document") || parsed.querySelector(".settings-content") || parsed.body;
       const node = content.classList?.contains("settings-content") ? (content.firstElementChild || content) : content;
       pane.replaceChildren(document.importNode(node, true));
       bind?.(pane);
@@ -161,32 +160,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
       };
       await run();
     };
-    const openGoalWorkRules = async () => {
-      const shell = document.querySelector("[data-goal-canvas-shell]");
-      const pane = shell?.querySelector("[data-goal-work-rules]");
-      if (!shell || !pane) return;
-      if (shell.dataset.goalRules === "open") {
-        closeGoalOverlay();
-        return;
-      }
-      closeGoalOverlay();
-      shell.dataset.boardView = "list";
-      shell.dataset.goalRules = "open";
-      shell.querySelector("[data-open-work-rules]")?.setAttribute("aria-pressed", "true");
-      const prefix = document.body.dataset.routePrefix || "";
-      const run = async () => {
-        try {
-          await fillGoalOverlay(pane, prefix + "/settings/rules?embed=1", (root) => {
-            globalThis.molisWorkBindProjectRules?.(root);
-          });
-        } catch (error) {
-          pane.replaceChildren(settingsLoadFailed(error,run));
-        }
-      };
-      await run();
-    };
     globalThis.molisWorkOpenGoalWorkPlanning = () => openGoalWorkPlanning();
-    globalThis.molisWorkOpenGoalWorkRules = () => openGoalWorkRules();
     document.addEventListener("molis-work:goal-changed", closeGoalOverlay);
 
     document.addEventListener("click", async (event) => {
@@ -196,12 +170,4 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
       projectMenus.forEach((menu) => {
         if (menu.open && menu !== activeProjectMenu) menu.open = false;
       });
-      const policyCancel = target.closest("[data-policy-cancel]");
-      if (policyCancel) {
-        const form = policyCancel.closest("form");
-        form?.querySelectorAll("[aria-invalid]").forEach(field => field.removeAttribute("aria-invalid"));
-        const error = form?.querySelector("[data-policy-error]");
-        if (error) error.hidden = true;
-        return;
-      }
 `;

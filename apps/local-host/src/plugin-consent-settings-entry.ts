@@ -17,6 +17,13 @@ const webEntries = new WeakSet<ActionUserAction>();
 export function issueWebEntryAction(action: ActionUserAction): void { webEntries.add(action); }
 export function revokeWebEntryAction(action: ActionUserAction): void { webEntries.delete(action); }
 
+/** The protected review entry also issues a request-local immutable action to the management transport. */
+export async function withProtectedHostAction<T>(action: ActionUserAction, invoke: () => Promise<T>): Promise<T> {
+  if (webEntries.has(action)) return invoke();
+  webEntries.add(action);
+  try { return await invoke(); } finally { webEntries.delete(action); }
+}
+
 export async function withProjectReachSettingsEntry<Result>(caller: ActionCallContext,
   invoke: (caller: ActionCallContext) => Promise<Result>): Promise<Result> {
   if (!caller.project_id) throw new ActionError("actions.forbidden", "项目同意需要项目设置入口");

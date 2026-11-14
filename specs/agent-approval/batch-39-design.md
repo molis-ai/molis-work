@@ -144,7 +144,9 @@ APR-06 的具体接入要求为：可信 base 的检查器在 PR 检查和 `merg
 
 2026-11-14 只读核对 Molis Work：`main` 当前只要求由 GitHub Actions 发布的 `Verify`，队列配置为 ALLGREEN、SQUASH，最多同时构建和落地五项。实际历史队列运行与检查套件的 REST `pull_requests` 为空；队列为空时无法用 [MergeQueueEntry 的 GraphQL 字段](https://docs.github.com/en/graphql/reference/pulls#mergequeueentry)证明哪个原 PR 对应当次合并提交。GitHub 的[队列规则](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue)中，单次落地数限制不会改变合并检查的成员。建议先在隔离仓库用一个真实 PR 采集事件里的队列 head/base、条目 id/position 与原 PR id/head，确认完整成员归属及更新后的失效。检查发布使用独立可信 GitHub App，或已有受组织保护的可信工作流。原 `Verify` 保留。隔离试验权限和正式开启分别由用户决定。
 
-2026-11-14 用户选择保留私有试验仓，以只安装于该仓的独立 App 验证必需检查。已创建纯合成[试验 PR](https://github.com/molis-ai/batch39-approval-lab/pull/1)，可信基线政策要求一票。发布器用 App 身份发 `agent-approval-check` 状态和更新其一条固定说明，核对精确 repo、PR、head 和 base；评论采用精确 App id 和 bot id。发布器自己的说明不计作 Agent 产出的证据。App 注册需要组织账号二次验证。该私有仓所在的 GitHub Team 计划可测必需检查，真实 merge group 的队列验证及本人投票仍待完成。 [分支保护](https://docs.github.com/en/rest/branches/branch-protection#update-status-check-protection) · [合并队列规则](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/managing-a-branch-protection-rule)
+2026-11-14 用户选择保留私有试验仓，以只安装于该仓的独立 App 验证必需检查。已创建纯合成[试验 PR](https://github.com/molis-ai/batch39-approval-lab/pull/1)，可信基线政策要求一票。注册表单已备好，Contents 与 Pull requests 为只读，Commit statuses 与 Issues 为读写，Metadata 为必需的只读权限，关闭 webhook，安装范围为本组织的这一座试验仓。App 尚待注册和安装。发布器核对精确 repo、PR、head 和 base，再发布 `agent-approval-check`，以 App id 和 bot id 更新自身的同一条固定说明，并从计票输入排除自身说明。
+
+在同一 PR 依次记录缺票时的必需检查与合并拒绝、当前头的真人批准、合成新提交使旧票失效、再次批准，以及固定说明的原评论编号。私有 Team 仓用来收集必需检查证据；真实 merge group 的全组检查和本人投票仍待在有队列能力的已授权环境完成。 [分支保护](https://docs.github.com/en/rest/branches/branch-protection#update-status-check-protection) · [合并队列规则](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/managing-a-branch-protection-rule)
 
 ## 8. 拟修改面与合审问题
 

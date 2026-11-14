@@ -6,12 +6,13 @@ import type {
 import type { GovernanceJournal, GovernanceSqliteDatabase } from "./repository.js";
 import { GovernanceGoalTreeRecords } from "./goal-tree-records.js";
 import { GovernanceProposalOperationStore } from "./proposal-operation-store.js";
+import type { GoalTreeApprovalHistory } from "./mappers.js";
 
 export class GovernanceRecordStore implements GovernanceRecordsApi {
   private readonly proposalOperations: GovernanceProposalOperationStore;
   private readonly goalTrees: GovernanceGoalTreeRecords;
-  constructor(db: GovernanceSqliteDatabase, journal: GovernanceJournal) {
-    this.goalTrees = new GovernanceGoalTreeRecords(db, journal);
+  constructor(db: GovernanceSqliteDatabase, journal: GovernanceJournal, approvals?: GoalTreeApprovalHistory) {
+    this.goalTrees = new GovernanceGoalTreeRecords(db, journal, approvals);
     this.proposalOperations = new GovernanceProposalOperationStore(db, journal);
   }
 
@@ -81,6 +82,6 @@ export class GovernanceRecordStore implements GovernanceRecordsApi {
   }
 
   insertGoalTreeDecision(...args: Parameters<GovernanceRecordsApi["insertGoalTreeDecision"]>) {
-    return this.goalTrees.insertGoalTreeDecision(...args);
+    return this.goalTrees.insertItemEffect(...args);
   }
 }

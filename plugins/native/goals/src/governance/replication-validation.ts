@@ -10,12 +10,9 @@ export function validateGovernanceReplication(rows: ProjectReplicaRows): void {
   for (const row of rows.goal_tree_proposal_items!) {
     if (!proposals.has(row.proposal_id) || (row.revision_proposal_id && !proposals.has(row.revision_proposal_id))) invalid();
   }
-  for (const row of rows.goal_tree_proposal_decisions!) {
+  for (const row of rows.goal_tree_item_effects!) {
     if (!proposals.has(row.proposal_id) || items.get(row.item_id)?.proposal_id !== row.proposal_id) invalid();
-    if (!['web', 'management', 'runtime_dialogue'].includes(String(row.authority_source)) || !row.conversation_ref || !row.message_ref) invalid();
-  }
-  for (const row of rows.goal_event_trusted_decisions!) {
-    if (row.actor_kind !== 'user' || !['web', 'management'].includes(String(row.authority_source)) || !row.conversation_ref || !row.message_ref || !row.conclusion) invalid();
+    if (typeof row.approval_id !== 'string' || !row.approval_id || !['confirmed','rejected','revised','conflict'].includes(String(row.result))) invalid();
   }
 }
 function invalid(): never { throw errors.replica_governance_invalid('同步提案或决定的出处无效'); }

@@ -115,7 +115,7 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
         ? renderRuntimeSettings(view, primitives)
         : view.section === "assistant"
           ? renderAssistantSettings({ readText, projectId: contextProject?.project_id ?? null })
-        : view.section === "authorizations" ? renderAuthorizationSettings(view.projects, contextProject?.project_id ?? null)
+        : view.section === "authorizations" ? renderAuthorizationSettings(view.projects, contextProject?.project_id ?? null, view.show_project_approval_rules)
         : view.section === "kit" ? renderKitSettings({ projectId: null })
         : view.section === "prompts" ? renderPromptSettings({ readText, displayModel: view.agent_display_model })
         : view.section === "memory"

@@ -1,4 +1,5 @@
-import { GOALS_PLUGIN_API } from "./plugin-api.js";
+import { goalEntryActions } from "./contract/goal-actions.js";
+import { GOALS_PLUGIN_ID } from "./identity.js";
 /** Goal proposal decisions; Workbench supplies transport and cross-surface refresh/receipts. */
 export const GOALS_PROPOSAL_CLIENT_FACTORY_SCRIPT = `(host) => {
     const { translate: readText, route, decisionReceiptContext, refreshBoardWithDecisionReceipt } = host;
@@ -63,21 +64,25 @@ export const GOALS_PROPOSAL_CLIENT_FACTORY_SCRIPT = `(host) => {
       if (submitter) submitter.textContent = globalThis.t.text("goals.proposal-client.saving");
       errorBox.hidden = true;
       try {
+        if (!goalTreeDecisionForm.dataset.reviewVersion) throw new Error(globalThis.t.text("goals.proposal-client.molis-work-changed-ask-runtime-update-plan-before"));
         const key = goalTreeDecisionForm.dataset.idempotencyKey ||= crypto.randomUUID();
-        const result = await molisWorkRequest(route("${GOALS_PLUGIN_API}/goal-tree-proposals/" + encodeURIComponent(goalTreeDecisionForm.dataset.goalTreeProposalId) + "/decision"), {
-          method: "POST",
-          // Only this control, after the person was asked about the whole proposal, says so; the Host reads it from the header, never the body.
-          ...(decision === "confirm" ? { headers: { "x-molis-work-whole-confirmation": "1" } } : {}),
-          body: {
-            ...(decision === "confirm"
-              ? { confirm_all_pending: true }
-              : { decisions: itemIds.map((itemId) => ({ item_id: itemId, decision, reason })) }),
-            reason,
-            idempotency_key: key,
-          },
-          fallback: globalThis.t.text("goals.proposal-client.could-not-submit-plan-decision"),
-        });
-        if (result.conflict_item_ids?.length) {
+        const draft = { proposal_id: goalTreeDecisionForm.dataset.goalTreeProposalId, reason, idempotency_key: key,
+          observed_version: goalTreeDecisionForm.dataset.reviewVersion,
+          ...(decision === "confirm" ? { confirm_all_pending: true }
+            : { decisions: itemIds.map(itemId => ({ item_id: itemId, decision, reason })) }) };
+        const encoded = JSON.stringify(draft);
+        let retained = goalTreeDecisionForm.decisionRequest;
+        if (retained?.encoded !== encoded) {
+          const { reference } = await molisWorkRequest(route("/api/project-approvals/request"), { method: "POST",
+            body: { action: { capability_id: "${goalEntryActions.treeDecide.capability_id}", version: ${goalEntryActions.treeDecide.version},
+              provider_id: "${GOALS_PLUGIN_ID}" }, request_id: key, draft } });
+          if (!goalTreeDecisionForm.isConnected) return;
+          retained = goalTreeDecisionForm.decisionRequest = { encoded, reference };
+        }
+        const { result } = await molisWorkRequest(route("/api/project-approvals/decide"), { method: "POST",
+          body: { reference: retained.reference, choice_id: "apply", request_key: key },
+          fallback: globalThis.t.text("goals.proposal-client.could-not-submit-plan-decision") });
+        if (result?.conflict_item_ids?.length) {
           throw new Error(globalThis.t.text("goals.proposal-client.molis-work-changed-ask-runtime-update-plan-before"));
         }
         await refreshBoardWithDecisionReceipt(

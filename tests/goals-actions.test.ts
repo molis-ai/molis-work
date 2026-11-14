@@ -409,7 +409,7 @@ test("official MCP launcher: work records and tree proposals retain provenance a
       item_id: "public-tree", payload: { goal_id: "PUBLIC-TREE-CHILD", title: "Another pending proposal" } }] });
     assert.equal(publicProposal.proposal.submitted_by, sessionActor);
     assert.deepEqual(await invokePlanning(goalsActions.directoryItem, { goal_id: "MCP-TREE-CHILD" }), { result: null });
-    for (const tool of ["molis_work_v1_goal_tree_decide", molisWorkActionToolName(goalsActions.treeDecide)]) {
+    for (const tool of ["molis_work_v1_review_decide", molisWorkActionToolName(goalsActions.treeDecide)]) {
       assert.equal((await sdk.listTools()).tools.some(t => t.name === tool), false);
       assert.equal((await sdk.callTool({ name: tool, arguments: { ...treeQuery, idempotency_key: "forged-tree", confirm_all_pending: true,
         user_confirmed: true, authority: { actor_id: "user", actor_kind: "user", authority_source: "web" } } })).isError, true);

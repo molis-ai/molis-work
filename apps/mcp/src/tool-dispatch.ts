@@ -1,18 +1,17 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { trustedReviewActions } from "@molis-ai/molis-work-contracts/services/project-approvals";
 import type { McpPresentationErrorFactory } from "./goal-presentation.js";
 
-/** The three Goals actions the management tools call, by the id and version Goals registers them under. */
+/** Goals owns initialization. Review tools below use the platform's common references. */
 export const MANAGEMENT_GOAL_ACTIONS = {
   initialize: { capability_id: "goals.board.initialize", version: /* @version action.goals.board.initialize */ 1 },
-  decide: { capability_id: "goals.decisions.record", version: /* @version action.goals.decisions.record */ 1 },
-  treeDecide: { capability_id: "goals.tree.decide", version: /* @version action.goals.tree.decide */ 1 },
 } as const;
-/** The three management tools' names, one per Goals action they call. */
 export const MANAGEMENT_GOAL_TOOL_NAMES = {
   initialize: "molis_work_v1_initialize",
-  treeDecide: "molis_work_v1_goal_tree_decide",
-  decide: "molis_work_v1_event_decide",
 } as const satisfies Record<keyof typeof MANAGEMENT_GOAL_ACTIONS, string>;
+export const MANAGEMENT_REVIEW_TOOL_NAMES = {
+  read: "molis_work_v1_review_request", decide: "molis_work_v1_review_decide",
+} as const satisfies Record<keyof typeof trustedReviewActions, string>;
 type McpGoalActionReference = { readonly capability_id: string; readonly version: number };
 
 /** The Host's management port: the entry chooses a Goals action and business input, never a caller or permissions. */
@@ -28,7 +27,7 @@ export interface McpToolDispatchPorts {
   createError: McpPresentationErrorFactory;
 }
 
-/** Adapt the three management tool wires over the port the Host built; Runtime callers are given no management port. */
+/** Adapt the protected management tool wires over the port the Host built. */
 export async function dispatchMcpProjectTool(
   actions: McpManagementActions | null, name: string, arguments_: Record<string, unknown>, ports: McpToolDispatchPorts,
 ): Promise<string> {
@@ -42,35 +41,17 @@ export async function dispatchMcpProjectTool(
   };
   let result: unknown;
   switch (name) {
+  case MANAGEMENT_REVIEW_TOOL_NAMES.read:
+  case MANAGEMENT_REVIEW_TOOL_NAMES.decide: {
+    const actions = management();
+    const { database_path: _database, project_id, ...input } = arguments_;
+    bound(actions, project_id);
+    result = await actions.invoke(name === MANAGEMENT_REVIEW_TOOL_NAMES.read ? trustedReviewActions.read : trustedReviewActions.decide, input);
+    break;
+  }
   case MANAGEMENT_GOAL_TOOL_NAMES.initialize: {
     const actions = management(); bound(actions, String(arguments_.project_id));
     result = await actions.invoke(MANAGEMENT_GOAL_ACTIONS.initialize, { idempotency_key: String(arguments_.idempotency_key) });
-    break;
-  }
-  case MANAGEMENT_GOAL_TOOL_NAMES.decide: {
-    const actions = management();
-    // Event decisions accept the declared business fields plus the transport's project and database, with no authority or identity.
-    const eventFields = new Set(["database_path", "project_id", ...actions.fields(MANAGEMENT_GOAL_ACTIONS.decide)]);
-    const unexpected = Object.keys(arguments_).filter(key => !eventFields.has(key));
-    if (unexpected.length) throw ports.createError("mcp.unexpected_field", `不能使用未许可字段：${unexpected.join("、")}`, { fields: unexpected });
-    bound(actions, String(arguments_.project_id));
-    result = await actions.invoke(MANAGEMENT_GOAL_ACTIONS.decide, {
-      goal_id: String(arguments_.goal_id), idempotency_key: String(arguments_.idempotency_key ?? ""),
-      request_id: arguments_.request_id == null ? undefined : String(arguments_.request_id),
-      selected_option_id: arguments_.selected_option_id == null ? undefined : String(arguments_.selected_option_id),
-      conclusion: String(arguments_.conclusion ?? ""),
-      accepts_requirements: arguments_.accepts_requirements === true ? true : arguments_.accepts_requirements === false ? false : undefined,
-      effects: arguments_.effects, authorized_change: arguments_.authorized_change, scope: arguments_.scope,
-    });
-    break;
-  }
-  case MANAGEMENT_GOAL_TOOL_NAMES.treeDecide: {
-    if (ports.audience === "runtime") throw ports.createError("mcp.runtime_decide_unsupported",
-      "Runtime 不能写入 Goal Tree 决定。请让用户在 Web 或管理入口批准已保存的提案。");
-    const actions = management();
-    const { database_path: _database, web_base_url: _url, project_id, authority, ...decision } = arguments_;
-    bound(actions, project_id);
-    result = await actions.invoke(MANAGEMENT_GOAL_ACTIONS.treeDecide, decision, authority);
     break;
   }
   default:

@@ -31,6 +31,7 @@ export const GLOBAL_SETTINGS_QUERY_EXTRAS: Readonly<Record<string, string>> = {
   // access (MCP access, the page mcp-action-access.ts:49-51,63 renders): it reads client/client_custom (the client selector), project and
   // q/filter. It does not read format; that is web-mcp-action-settings.ts turning a request into an HTML fragment for its caller.
   access: "client client_custom q filter",
+  authorizations: "view",
   // history: web-capabilities.ts:27 reads q/kind for it.
   history: "q kind",
   // diagnostics: web-call-diagnostics.ts:20 reads call.

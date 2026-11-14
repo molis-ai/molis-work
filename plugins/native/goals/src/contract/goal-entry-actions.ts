@@ -1,4 +1,5 @@
 import type { ActionDefinition, ActionIntake, ActionResultView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { TRUSTED_REVIEW_OWNER_DRAFT_INPUT_SCHEMA, type TrustedReviewOffer } from "@molis-ai/molis-work-contracts/services/project-approvals";
 import type { BoardSnapshot, CreateGoalIntentInput, CreateGoalIntentResult, GoalEventDecisionResult, GoalEventDirectoryItem, GoalsCommandApi,
   ProjectGuidanceView, RecordGoalUserDecisionInput } from "./goals.js";
 import type { GoalTreeProposalCheckInput, GoalTreeProposalCheckResult, GoalTreeProposalDecideInput, GoalTreeProposalDecisionResult,
@@ -73,6 +74,21 @@ const decide = goalAction<GoalDecisionActionInput, GoalEventDecisionResult>("goa
     scope: { ...scope, required: [] } }, ["goal_id", "idempotency_key", "conclusion"]),
   object({ event_id: identifier, observed_event_cursor: count, replayed: boolean, recorded: { const: true }, decision }));
 
+const eventReview = reviewReader("goals.decisions.review", /* @version action.goals.decisions.review */ 1, "goal", "查看目标事件决定");
+const treeReview = reviewReader("goals.tree.review", /* @version action.goals.tree.review */ 1, "goal-tree-proposal", "查看目标树决定");
+
+function reviewReader(id: string, version: number, subject: string, title: string) {
+  const definition = goalAction<{ request_id: string; draft?: Record<string, unknown> }, TrustedReviewOffer>(id, version, title,
+    "查看原对象和已选事项，供本人确认。", "query", TRUSTED_REVIEW_OWNER_DRAFT_INPUT_SCHEMA, { type: "object" });
+  return { ...definition, action: { ...definition.action, audiences: ["user"] as const, subject_kinds: [subject] } };
+}
+
+function protectedDecision<I, O>(definition: ActionDefinition<I, O>, reader: typeof eventReview) {
+  const action = userOnly(definition, ["goals:decide"]);
+  return { ...action, action: { ...action.action, subject_kinds: reader.action.subject_kinds,
+    requires_trusted_decision: true as const, trusted_decision_request: { capability_id: reader.capability_id, version: reader.version } } };
+}
+
 /**
  * The Goals actions the platform's own entries call (command line, management MCP, onboarding, Feed promotion, project arrival); the plugin
  * declares and handles these same objects. Calls still go through the action gateway, which checks the caller and picks the provider.
@@ -85,14 +101,16 @@ export const goalEntryActions = {
     "读取当前项目的结构提案；可按提案 ID 或根目标筛选", "query", tree.treeReadInputSchema, tree.treeReadResultSchema),
   treeCheck: goalAction<Business<GoalTreeProposalCheckInput>, GoalTreeProposalCheckResult>("goals.tree.check", /* @version action.goals.tree.check */ 1, "检查结构提案",
     "检查提案的事实基线及目标关系约束，保存检查结果；预检回滚正式目标和关系变更", "command", tree.treeCheckInputSchema, tree.treeCheckResultSchema),
-  treeDecide: userOnly(treeDecide, ["goals:decide"]),
+  treeDecide: protectedDecision(treeDecide, treeReview),
+  treeReview,
   active: goalAction<{ goal_id: string; reason: string; idempotency_key: string }, ReturnType<GoalsCommandApi["setActiveGoal"]>>("goals.active.set", /* @version action.goals.active.set */ 1, "设为当前目标",
     "选择当前未完成且不在归档/回收站的目标；不启动工作，不改变完成状态", "command",
     object({ goal_id: identifier, reason: identifier, idempotency_key: identifier }), object({ active_goal_id: text, observed_event_cursor: count, replayed: boolean })),
   /** The board in the snapshot no longer carries a name. */
   snapshot: goalAction<Record<string, never>, BoardSnapshot>("goals.snapshot.read", /* @version action.goals.snapshot.read */ 1, "读取项目目标完整快照",
     "读取当前项目的目标资料：全部目标、关系、规划方法、项目长期说明和结构提案；不含事件正文，需要时用 goals.events.list 或 goals.history.list 读取", "query", object({}), boardSnapshotSchema),
-  decide: userOnly(decide, ["goals:decide"]),
+  decide: protectedDecision(decide, eventReview),
+  eventReview,
   guidanceRead: goalAction<Record<string, never>, ProjectGuidanceView>("goals.guidance.read", /* @version action.goals.guidance.read */ 1, "读取项目长期说明", "读取已确认的长期说明、停用项、完整修订和当前 Runtime Prompt 前缀", "query",
     object({}), object({ entries: array(projectGuidanceEntrySchema), inactive_entries: array(projectGuidanceEntrySchema), revisions: array(projectGuidanceRevisionSchema),
       virtual_document: text, runtime_prompt_prefix: text })),

@@ -4,7 +4,7 @@
  * Host rebuilds it from a sandbox package to check the package's own Manifest against it; this is the one place that writes it.
  */
 import { createHash } from 'node:crypto';
-import { PLUGIN_PROJECTS_EXIST_PERMISSION, pluginErrors, type HomePluginDatabaseDeclaration, type PluginManifest, type PluginOwnerFileEntry, type SandboxPackageManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
+import { PLUGIN_PROJECTS_EXIST_PERMISSION, pluginErrors, type PluginDatabaseDeclaration, type PluginManifest, type PluginOwnerFileEntry, type SandboxPackageManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { sandboxAgentDeclarations } from './sandbox-agent-declarations.js';
 import type { SandboxEffects, SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { PLUGIN_PRESENTATION_CAPABILITY, type TextRef } from '@molis-ai/molis-work-contracts/platform/ui';
@@ -20,8 +20,9 @@ import { sandboxLocaleProblems } from './locale-declarations.js';
 export const SANDBOX_IMAGE_PERMISSIONS = Object.freeze({ read: 'image-api:read', write: 'image-api:write', generate: 'image-api:generate' });
 const MODEL_READ = 'model:read', MODEL_INVOKE = 'model:invoke';
 
-type DerivedEffects = Pick<SandboxEffects, 'storage' | 'background' | 'projects' | 'model' | 'modelSettings' | 'imageGeneration' | 'homeDatabase' | 'connections' | 'materials' | 'ownerFiles' | 'networkDomains' | 'secretRefs' | 'capabilities'>;
+type DerivedEffects = Pick<SandboxEffects, 'storage' | 'background' | 'projects' | 'model' | 'modelSettings' | 'imageGeneration' | 'homeDatabase' | 'projectDatabase' | 'connections' | 'materials' | 'ownerFiles' | 'networkDomains' | 'secretRefs' | 'capabilities'>;
 const HOME_READ = 'home-database:read', HOME_WRITE = 'home-database:write', FILE_READ = 'owner-files:read', FILE_WRITE = 'owner-files:write';
+const PROJECT_READ = 'project-database:read', PROJECT_WRITE = 'project-database:write';
 
 /**
  * The Manifest's permission rows a contract's effects derive: the package writes only the effects, and the Host writes the rows (so the two never disagree).
@@ -76,7 +77,7 @@ export function sandboxOperationSwitches(effects: Partial<Record<keyof SandboxEf
 
 /** Exact per-operation service permissions. A read-only operation cannot borrow a write grant held by its installation. */
 export function sandboxOperationPermissions(effects: DerivedEffects | undefined): string[] {
-  return [...(effects?.background?.length || effects?.homeDatabase?.length || effects?.ownerFiles?.length ? ['storage:private'] : []), ...serviceRows(effects).map(row => row.permission)];
+  return [...(effects?.background?.length || effects?.homeDatabase?.length || effects?.projectDatabase?.length || effects?.ownerFiles?.length ? ['storage:private'] : []), ...serviceRows(effects).map(row => row.permission)];
 }
 
 function serviceRows(effects: DerivedEffects | undefined, shape = false): Array<{ permission: string; reason: string; required: false }> {
@@ -93,6 +94,10 @@ function serviceRows(effects: DerivedEffects | undefined, shape = false): Array<
   if (effects.homeDatabase?.length) {
     if (shape || effects.homeDatabase.includes('read')) add(HOME_READ, '读取这个插件自己的 Home 库');
     if (shape || effects.homeDatabase.includes('write')) add(HOME_WRITE, '写入这个插件自己的 Home 库');
+  }
+  if (effects.projectDatabase?.length) {
+    if (shape || effects.projectDatabase.includes('read')) add(PROJECT_READ, '读取这个插件自己的项目表');
+    if (shape || effects.projectDatabase.includes('write')) add(PROJECT_WRITE, '写入这个插件自己的项目表');
   }
   if (effects.ownerFiles?.length) {
     if (shape || effects.ownerFiles.includes('read')) add(FILE_READ, '读取这个插件自己声明的文件');
@@ -132,21 +137,28 @@ export interface SandboxManifestInput {
   textDeclarations?: Pick<SandboxPackageManifest, 'plugin_id' | 'agent' | 'methods' | 'name_text' | 'summary' | 'summary_text'>;
   stageTitleText?: TextRef;
   /** The author chooses only version/schema; the store and read/write names are deterministic platform output. */
-  homeDatabase?: Pick<HomePluginDatabaseDeclaration, 'version' | 'schema'>;
+  homeDatabase?: Pick<PluginDatabaseDeclaration, 'version' | 'schema'>;
+  projectDatabase?: Pick<PluginDatabaseDeclaration, 'version' | 'schema'>;
   connections?: PluginManifest['connections'];
   ownerFiles?: readonly PluginOwnerFileEntry[];
 }
 
 function sandboxResources(input: SandboxManifestInput): Pick<PluginManifest, 'databases' | 'connections' | 'owner_files'> {
-  const { effects, homeDatabase, connections, ownerFiles } = input;
+  const { effects, homeDatabase, projectDatabase, connections, ownerFiles } = input;
   const refuse = (message: string): never => { throw pluginErrors.declaration_invalid('沙箱资源：' + message); };
-  if (!!homeDatabase !== !!effects?.homeDatabase?.length || !!connections !== !!effects?.connections?.length || !!ownerFiles !== !!effects?.ownerFiles?.length) {
+  if (!!homeDatabase !== !!effects?.homeDatabase?.length || !!projectDatabase !== !!effects?.projectDatabase?.length
+    || !!connections !== !!effects?.connections?.length || !!ownerFiles !== !!effects?.ownerFiles?.length) {
     refuse('库、连接槽和文件条目必须与操作实际声明的 effects 一致');
   }
   if (homeDatabase && input.runtime?.scope !== 'home') refuse('Home 库只给 Home 范围的包');
+  if (projectDatabase && input.runtime?.scope === 'home') refuse('项目库只给项目范围的包');
+  const store = (database: Pick<PluginDatabaseDeclaration, 'version' | 'schema'>, read: string, write: string) => ({
+    store_name: 'sbxdb-' + createHash('sha256').update(input.pluginId).digest('hex').slice(0, 32),
+    version: database.version, schema: database.schema, read_permission: read, write_permission: write,
+  });
   const resources: Pick<PluginManifest, 'databases' | 'connections' | 'owner_files'> = {
-    ...(homeDatabase ? { databases: { home: { store_name: 'sbxdb-' + createHash('sha256').update(input.pluginId).digest('hex').slice(0, 32),
-      version: homeDatabase.version, schema: homeDatabase.schema, read_permission: HOME_READ, write_permission: HOME_WRITE } } } : {}),
+    ...(homeDatabase ? { databases: { home: store(homeDatabase, HOME_READ, HOME_WRITE) } } : {}),
+    ...(projectDatabase ? { databases: { project: store(projectDatabase, PROJECT_READ, PROJECT_WRITE) } } : {}),
     ...(connections ? { connections } : {}),
     ...(ownerFiles ? { owner_files: { store_name: 'files', entries: ownerFiles, read_permission: FILE_READ, write_permission: FILE_WRITE } } : {}),
   };
@@ -184,7 +196,7 @@ export function sandboxPluginManifest(input: SandboxManifestInput): PluginManife
   const { contribution_id: uiId } = sandboxUiDeclaration(input);
   if (input.effects?.background?.length && !input.contract) throw pluginErrors.declaration_invalid('后台操作需要完整合同来派生动作');
   const actions = input.contract && (input.contract.presentation !== undefined || input.contract.operations.some(operation =>
-    operation.background_job || operation.effects.background?.length || operation.external !== undefined || operation.read_protocol !== undefined))
+    operation.background_job || operation.effects.background?.length || operation.external !== undefined || operation.read_protocol !== undefined || operation.trusted_review !== undefined))
     ? sandboxOperationActions({ contract: input.contract, ...(input.actionIdentity ?? { buildId: sandboxPackageBuildId(input.pluginId, input.publisher.signature), version: 1 }),
       title: input.name, scope: input.runtime?.scope === 'home' ? 'home' : 'project' }) : undefined;
   return {

@@ -15,8 +15,7 @@ test('GSYNC-05 invalid journal anchors, cross-project rows and decisions fail at
     w => { w.facts.goals!.goals![0]!.project_id = 'foreign-project'; },
     w => { w.facts.goals!.goal_work_events![0]!.journal_seq = '@event:missing'; },
     w => { w.facts.goals!.goal_work_events![0]!.journal_seq = '@start'; },
-    w => { w.facts.governance!.goal_event_trusted_decisions![0]!.authority_source = 'runtime_dialogue'; },
-    w => { w.facts.goals!.goal_event_applied_decisions![0]!.governance_decision_id = 'missing'; },
+    w => { w.facts.goals!.goal_event_applied_decisions![0]!.authority_source = 'runtime_dialogue'; },
     w => { w.facts.goals!.goals![0]!.in_scope_json = '{invalid'; },
     // RISK-01: a concern's cited objects arrive only as Goals writes them (a JSON list of at most 8 distinct, trimmed, nonempty {kind, id}).
     ...['not json', '{"kind":"risk","id":"r"}', JSON.stringify(Array.from({ length: 9 }, (_, i) => ({ kind: 'risk', id: `r${i}` }))),
@@ -37,6 +36,27 @@ test('GSYNC-05 invalid journal anchors, cross-project rows and decisions fail at
   assert.deepEqual(comparable(f.edit(1, app => app.goalEvents.readState(p, 'goal-main'))), comparable(before.state));
   assert.ok(f.edit(1, (_app, db) => db.readEventsDescending(p).some(e => e.event_id === 'unrelated-target')));
   assert.equal(f.replica(1, r => r.next()), null);
+});
+
+test('APR-19 a received Goal outcome waits for its original decision before replacing any local facts', async t => {
+  const f = await fixture(t), p = f.project.project_id;
+  f.edit(0, app => work(app, p));
+  await f.enable();
+  const valid = f.events[0]!;
+  const decision = f.approvalEvents[0]!;
+  const original = f.edit(1, app => app.goalEvents.readState(p, 'goal-main'));
+  f.edit(1, (_app, store) => {
+    // The receiving test peer starts before its approvals stream has reached this project.
+    store.db.exec('DELETE FROM project_review_decisions');
+  });
+  const draft = { ...valid, operationId: 'incoming-goal-before-approval', revision: valid.revision + 1 };
+  f.replica(1, replica => replica.receive(draft));
+  assert.equal(f.replica(1, replica => replica.conflicts()[0]?.waiting), true);
+  assert.deepEqual(f.edit(1, app => app.goalEvents.readState(p, 'goal-main')), original);
+  f.approvalReplica(1, replica => replica.receive({ ...decision, operationId: 'delayed-approval', revision: decision.revision + 1 }));
+  f.replica(1, replica => replica.retryWaiting?.());
+  assert.deepEqual(f.replica(1, replica => replica.conflicts()), []);
+  assert.deepEqual(comparable(f.edit(1, app => app.goalEvents.readState(p, 'goal-main'))), comparable(original));
 });
 
 test('GSYNC-05 malformed facts and foreign space roll back all Goal facts; revoked authority cannot read an outbox', async t => {

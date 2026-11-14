@@ -158,7 +158,7 @@ interface FakeNode {
   hidden: boolean; open: boolean; value: string; textContent: string; checked: boolean; disabled: boolean; inert: boolean; scrollTop: number; tabIndex: number;
   dataset: Record<string, string>; listeners: Record<string, Listener[]>;
   classList: { toggle(): void; add(): void; remove(): void };
-  addEventListener(type: string, fn: Listener): void; removeEventListener(): void; setAttribute(): void; getAttribute(): null; reset(): void; focus(): void;
+  addEventListener(type: string, fn: Listener): void; removeEventListener(): void; setAttribute(): void; getAttribute(): null; hasAttribute(): boolean; reset(): void; focus(): void;
   showModal(): void; close(): void; closest(): null; remove(): void; append(): void; replaceChildren(): void; reportValidity(): boolean;
   querySelector(selector: string): FakeNode; querySelectorAll(selector: string): FakeNode[];
 }
@@ -167,7 +167,7 @@ function fakeNode(dataset: Record<string, string> = {}): FakeNode {
   const node: FakeNode = {
     hidden: false, open: false, value: "", textContent: "", checked: false, disabled: false, inert: false, scrollTop: 0, tabIndex: 0, dataset, listeners: {},
     classList: { toggle() {}, add() {}, remove() {} },
-    addEventListener(type, fn) { (node.listeners[type] ??= []).push(fn); }, removeEventListener() {}, setAttribute() {}, getAttribute() { return null; },
+    addEventListener(type, fn) { (node.listeners[type] ??= []).push(fn); }, removeEventListener() {}, setAttribute() {}, getAttribute() { return null; }, hasAttribute() { return false; },
     reset() {}, focus() {}, showModal() { node.open = true; }, close() { node.open = false; }, closest() { return null; }, remove() {}, append() {}, replaceChildren() {},
     reportValidity: () => true,
     querySelector(selector) { let found = parts.get(selector); if (!found) { found = fakeNode(); parts.set(selector, found); } return found; },

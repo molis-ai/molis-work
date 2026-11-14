@@ -51,8 +51,13 @@ export function createConnectorSourcePort(options: ConnectorSourcePortOptions): 
     async pull(target, request, run) {
       const registry = await integrationOf(request.integration_id, target.service_id), source_id = target.record_key!;
       run.current();
+      const source = pullClass(request.cursor, request.intent);
       const account = accountOf(home, target);
-      if (!account) return refusal(request.integration_id);
+      if (!account) {
+        const receipt = refusal(request.integration_id);
+        recordPull(home, target, null, request.integration_id, source, receipt);
+        return receipt;
+      }
       const marker = markerOf(account);
       // Register synchronously after reading the binding, before the first wait. A slot's ABA cannot revive this controller.
       return withConnectorRequest(home, account.connection_id, run.signal, async signal => {
@@ -66,7 +71,6 @@ export function createConnectorSourcePort(options: ConnectorSourcePortOptions): 
         connector.registerDriver(integration.connector_driver);
         connector.connect({ connection_id, driver_id: integration.connector_driver.driver_id });
         await run.beforeEffect(); current();
-        const source = pullClass(request.cursor, request.intent);
         const invoke = () => runWithMolisWorkHome(home, () => connector.invoke({ connection_id, cursor: request.cursor, intent: { ...request.intent } }, { signal, current, beforeEffect: async () => { current(); await run.beforeEffect(); current(); } }));
         const receipt = source ? await withObservationSource(source, invoke) : await invoke();
         recordPull(home, target, account.connection_id, request.integration_id, source, receipt);
@@ -97,15 +101,15 @@ function pullClass(cursor: unknown, intent: Readonly<Record<string, unknown>> | 
 }
 
 /** One pull from a bound account as a work record, in the call that asked for it; what the plugin made of the events is the plugin's. */
-function recordPull(home: string, target: PluginConnectionTarget, connectionId: string, integrationId: string, source: ObservationOwnerSourceClass | undefined,
-  receipt: Awaited<ReturnType<ConnectorHost["invoke"]>>): void {
+function recordPull(home: string, target: PluginConnectionTarget, connectionId: string | null, integrationId: string, source: ObservationOwnerSourceClass | undefined,
+  receipt: Pick<ConnectorPullReceipt, "driver_id" | "started_at" | "completed_at" | "result">): void {
   const live = liveObservation(home), call_id = currentCallId(), { result } = receipt;
   if (!live) return;
   try {
     live.sink("connections").bind({ kind: "background", entry: "background", actor_id: `plugin:${target.plugin_id}`, project_id: target.project_id ?? null,
       install_id: target.install_id, ...(call_id ? { call_id } : {}) }).record({ fact: "connections.pull", outcome: result.ok ? "succeeded" : "failed",
       occurred_at: receipt.started_at, ...(source ? { source_class: source } : {}),
-      subjects: [{ kind: "source", id: target.record_key ?? "" }, { kind: "connection", id: connectionId }],
+      subjects: [{ kind: "source", id: target.record_key ?? "" }, ...(connectionId ? [{ kind: "connection", id: connectionId }] : [])],
       detail: { integration_id: integrationId, driver_id: receipt.driver_id, mode: result.mode, completed_at: receipt.completed_at,
         ...(result.ok ? { events: result.events.length } : { failure: result.failure }) } });
   } catch (error) { hostLog.warn("observation", "connector_pull_record_failed", error); }

@@ -118,27 +118,29 @@ export const TAB_WORKSPACE_PLACES_PART = `  const coverLabel = (kind) => kind ==
     }
   };
   const goHistory = (delta) => {
+    // The shell's own back step is where a located target is left: tell the work records (OCL-07「返回」).
+    const stepped = (moved) => { if (moved) globalThis.molisWorkHistoryStep?.(delta); return moved; };
     const pane = ops.focused(state);
     if (sideColumn()) {
       prunePlaces("side", sideKept);
       const entry = paneHistory("side"), i = entry.index + delta;
-      if (i < 0 || i >= entry.stack.length) return false;
+      if (i < 0 || i >= entry.stack.length) return stepped(false);
       entry.index = i; historyLock = true;
       try { sidePane.open(entry.stack[i]); } finally { historyLock = false; persistHistory(); syncHistoryButtons(); }
-      return true;
+      return stepped(true);
     }
-    if (!pane) return false;
+    if (!pane) return stepped(false);
     pruneHistory(pane);
     const entry = paneHistory(pane.id);
     const i = entry.index + delta;
     if (i < 0 || i >= entry.stack.length) {
       // Back out of a cover that was restored with nothing before it.
-      if (delta < 0 && state.exclusive) return closeCover();
-      return false;
+      if (delta < 0 && state.exclusive) return stepped(closeCover());
+      return stepped(false);
     }
     entry.index = i;
     visitPlace(pane, entry.stack[i]);
-    return true;
+    return stepped(true);
   };
   /** Close the cover over the panes; they show exactly what they showed. Counts as a step back when it is one. */
   const closeCover = () => {

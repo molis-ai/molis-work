@@ -71,6 +71,7 @@ export type {
 export { PrologueAgentAdapter, PROLOGUE_RUNTIME_ID } from "./adapters/prologue.js";
 export { createPrologueNodeAdapter, SUBAGENT_DEFAULT_TURNS } from "./adapters/prologue-node.js";
 export { guardNodeDispatch } from "./adapters/prologue-dispatch.js";
+export { observeRun, type RoundObserver, type RunObservationStart } from "./adapters/prologue-run-observation.js";
 export { verifyPrologueNodeStorageContents, type PrologueNodeStorageVerificationOptions } from "./adapters/prologue-storage-verification.js";
 export { openPrologueMemoryRestore } from "./adapters/prologue-memory-restore.js";
 export { createPrologueSurfaces, surfaceRules } from "./adapters/prologue-surfaces.js";

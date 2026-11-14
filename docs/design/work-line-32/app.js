@@ -221,7 +221,7 @@
       if (cur ? !(cur.made === k || cur.tasks.some((x) => x.id === k)) : peerOf(i) !== S.to) continue;
       rounds.push(roundHtml(i));
     }
-    const head = cur ? `<div class="wl-evcard"><div class="fact">${esc(tx(SRC[cur.src].n))}${cur.sum ? " · " + esc(tx(cur.sum)) : ""}</div>${cardInner("focus").body}</div>` : "";
+    const head = cur ? `<div class="wl-evcard"><div class="wl-evhd"><span class="fact">${esc(tx(SRC[cur.src].n))}${cur.sum ? " · " + esc(tx(cur.sum)) : ""}</span>${iconBtn("sidebar", "park", tx(["停到侧边", "Park in the side panel"]))}</div>${cardInner("focus").body}</div>` : "";
     const empty = !rounds.length && !cur ? `<div class="assistant-empty"><strong>${S.to === "assistant" ? tx(["个人工作助理", "Your work assistant"]) : esc(peerName(S.to))}</strong><p>${S.to === "assistant" ? tx(["说要办的事。能放到后台办的，我接下来就去办，办完回到这里。", "Say what needs doing. What can run in the background, I take away and bring back here."]) : tx(["和它的对话单独一条。交给它办的事，办完回到这里，不回到助理那边。", "This is its own conversation. What you hand to it comes back here, not to the assistant."])}</p></div>` : "";
     return `<section class="assistant-panel" data-side="closed" aria-label="${esc(peerName(S.to))}"><header class="assistant-tabbar"><div class="assistant-tabs" role="tablist">${tabs}</div><span class="assistant-tabbar-actions">${tasksIcon()}<button type="button" class="dock-window-action" data-act="dlg" aria-label="${tx(["收起", "Minimise"])}" title="${tx(["收起", "Minimise"])}">${ic("chevron-down")}</button></span></header>
       <div class="assistant-body"><div class="assistant-main"><div class="assistant-thread" role="log">${head}${rounds.join("")}${empty}</div></div></div></section>`;
@@ -289,7 +289,7 @@
     const e = events().find((x) => x.id === S.focus); if (!e) return "";
     return { icon: own(e.src), title: tx(e.title), sub: `${tx(SRC[e.src].n)}${e.sum ? " · " + tx(e.sum) : ""}`, body: eventBody(e) };
   }
-  function cardHtml(inSide = false, only = S.scheme === "D" && inSide ? "focus" : undefined) {
+  function cardHtml(inSide = false, only = (S.scheme === "D" || S.scheme === "E") && inSide ? "focus" : undefined) {
     const c = cardInner(only); if (!c) return "";
     const inFloat = only === "task";
     return `<article class="wl-card" role="dialog" aria-label="${esc(c.title)}"><header class="ch">${c.icon}<span class="tt">${esc(c.title)}</span><span class="fact" style="white-space:nowrap">${esc(c.sub)}</span>${inFloat ? iconBtn("back", "tolist", tx(["回到任务列表", "Back to the list"])) : hdExtra}${inSide || inFloat ? "" : iconBtn("sidebar", "park", tx(["停到侧边", "Park in the side panel"]))}${iconBtn("x", inFloat ? "fclose" : "close", tx(["关闭", "Close"]))}</header><div class="cb">${c.body}</div></article>`;
@@ -369,6 +369,8 @@
     const m = document.getElementById("msg"); if (!m) return; m.style.height = "36px"; m.style.height = `${Math.min(116, Math.max(36, m.scrollHeight))}px`;
     const wide = !matchMedia("(max-width:760px)").matches, slot = document.querySelector(".wl-slot"), line = document.querySelector(".wl-line");
     document.documentElement.style.setProperty("--line-h", `${wide ? slot.offsetHeight + 20 : line.offsetHeight}px`);
+    // 多行输入让位：只让出比一行多出来的高度；对话框和任务浮窗浮着，不参与（方案 A～C 的常驻面板仍按原来的算法）
+    if (S.scheme === "E" || S.scheme === "D") document.querySelector(".wl-stage").style.setProperty("--yield", `${wide ? Math.max(0, document.querySelector(".wl-cap").offsetHeight - 48) : 0}px`);
   }
   document.addEventListener("input", (e) => { if (e.target.id === "msg") { draft = e.target.value; grow(); } });
   function toast(msg) { document.querySelector(".mw-toast")?.remove(); const el = document.createElement("div"); el.className = "mw-toast"; el.setAttribute("role", "status"); el.style.cssText = "position:fixed;left:50%;top:52px;transform:translateX(-50%);z-index:60"; el.textContent = msg; document.body.appendChild(el); clearTimeout(toastT); toastT = setTimeout(() => el.remove(), 2600); }
@@ -431,7 +433,7 @@
         if (S.scheme !== "D") S.task = null; S.focus = S.focus === id ? null : id; if ((S.scheme === "A" || S.scheme === "D") && S.side === "card") S.side = null; return render();
       case "task": S.task = S.task === id ? null : id; if (S.scheme === "C") S.side = "card"; if (S.scheme === "D" || S.scheme === "E") S.panel = true; return render();
       case "close": S.focus = null; if (S.scheme !== "D") S.task = null; if (S.side === "card") S.side = null; return render();
-      case "park": S.side = "card"; return render();
+      case "park": S.side = "card"; if (S.scheme === "E") S.dlg = false; return render();
       case "side": if (!id) { S.side = null; S.focus = S.scheme === "C" ? null : S.focus; if (S.scheme === "C") S.task = null; } else S.side = id; if (id && id !== "card" && S.scheme === "C") { S.focus = null; S.task = null; } return render();
       case "panel": if (S.scheme === "D" || S.scheme === "E") { const was = !!floatMode(); S.task = null; S.panel = !was; return render(); } S.panel = !S.panel; S.focus = null; S.task = null; return render();
       case "tolist": S.task = null; S.panel = true; return render();

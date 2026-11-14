@@ -146,19 +146,19 @@
 
 ### 发布与系统集成
 
-发布原要求见 [C 端 M1／M2](../../archive/repository-anti-corruption/c-end-readiness.md)，本表不另设发行门槛。
+发布原要求见 [C 端 M1／M2](../../archive/repository-anti-corruption/c-end-readiness.md)，本表不另设发行门槛。只为对外发行的事 2026-11-14 起在[发行批](release-batch.md#release-batch)（[决定 45](decisions.md#decision-45)），开工由你定；发行时才换的值收在 [26-9](batches/26.md#batch-26-item-9) 的发行配置里。
 
 | 原需求／来源 | 类型 | 对应批次 | 决策 |
 | --- | --- | --- | --- |
-| 签名与公证（BL-021；产品建议 A1） | 发布、系统能力 | [26](batches/26.md)、[57](batches/57.md) | 要决策：凭据接入（你办）；现有个人 Apple 账号已定 |
-| [升级持续可用 U0～U7](../../upgrade-continuity/spec.md)；BL-413、BL-487 随真实 Home 重建核回；原 BL-581／583 的旧目录维护已随 2026-11-07 的整体备份与搬开完成；BL-157 已移出 Backlog | 底层与架构、升级 | [02](batches/02.md)、[05](batches/05.md)、[25](batches/25.md)、[26](batches/26.md)、[57](batches/57.md)、[73](batches/73.md)、[SRV-8](batches/srv-8.md) | 升级链起点已于 2026-11-07 登记；要决策：更新／回退界面定样；具体门禁改动按开发流程处理 |
+| 签名与公证（BL-021；产品建议 A1） | 发布、系统能力 | [26-9](batches/26.md#batch-26-item-9)（配置）、[REL-1](batches/rel-1.md)、[REL-2](batches/rel-2.md) | 要决策：凭据接入（你办）；现有个人 Apple 账号已定 |
+| [升级持续可用 U0～U7](../../upgrade-continuity/spec.md)；BL-413、BL-487 随真实 Home 重建核回；原 BL-581／583 的旧目录维护已随 2026-11-07 的整体备份与搬开完成；BL-157 已移出 Backlog | 底层与架构、升级 | [02](batches/02.md)、[05](batches/05.md)、[25](batches/25.md)、[26](batches/26.md)、[REL-4](batches/rel-4.md)、[REL-5](batches/rel-5.md)、[73](batches/73.md)、[SRV-8](batches/srv-8.md) | 升级链起点已于 2026-11-07 登记；要决策：更新／回退界面定样；具体门禁改动按开发流程处理 |
 | 运行条件：常驻、休眠后补跑、错过的怎样显示（产品建议 A5；BL-030、BL-645、BL-352） | 发布、系统能力 | [25](batches/25.md) | 直接做 |
 | 对外许可口径（产品建议 A4，在官网仓库） | 发布、系统能力 | [02](batches/02.md) | [A4](decisions.md#policy-a4) 文案已合入官网 main。用户 11-04 决定，官网正式发布与线上验收留到产品完整开发后安排 |
-| 原生组件随包预置与首次自检（产品建议 H14） | 发布、系统能力 | [26](batches/26.md)、[54](batches/54.md)、[57](batches/57.md) | 直接做 |
+| 原生组件随包预置与首次自检（产品建议 H14） | 发布、系统能力 | [REL-2](batches/rel-2.md)、[54](batches/54.md)（开发阶段用本机已装组件） | 直接做 |
 | 「需要你」的菜单栏角标与系统通知（产品建议 B3），连同 Attention 还没有的稍后提醒与定时唤醒（[attention-resumption](../../../docs/modules/attention-resumption.md)） | 发布、系统能力 | [56](batches/56.md) | 要决策：界面定样 |
-| [合同兼容起点](../../../docs/system/CONTRACT-CHANGES.md)：M1 外发时记录版本、日期与提交 | 发布、系统能力 | [26](batches/26.md)、[57](batches/57.md) | 要决策：M1 的范围（[决定 18](decisions.md#decision-18)） |
+| [合同兼容起点](../../../docs/system/CONTRACT-CHANGES.md)：M1 外发时记录版本、日期与提交 | 发布、系统能力 | [REL-5](batches/rel-5.md) | 要决策：M1 的范围（[决定 18](decisions.md#decision-18)） |
 | 在别的应用里选中送进 Work：macOS App Intents、服务菜单、快捷指令（产品建议 F3） | 发布、系统能力 | [75](batches/75.md) | 直接做 |
-| 本机诊断（C-5A，M1）：结构化脱敏日志、落盘／轮转、Node／Rust 崩溃捕获、发布符号与诊断包 | 发布、系统能力 | [26](batches/26.md)、[57](batches/57.md) | 直接做：本机能力核回后补缺；日志端口沿 BL-812 决定，不等联网方案 |
+| 本机诊断（C-5A，M1）：结构化脱敏日志、落盘／轮转、Node／Rust 崩溃捕获、发布符号与诊断包 | 发布、系统能力 | [REL-3](batches/rel-3.md)、[REL-5](batches/rel-5.md) | 直接做：本机能力核回后补缺；日志端口沿 BL-812 决定，不等联网方案 |
 | 自动更新、定时在线备份、可选崩溃上报（M2；BL-115） | 发布、系统能力 | [SRV-8](batches/srv-8.md) | 要决策：服务端批何时开工（[决定 24](decisions.md#decision-24)）；账号与服务你办 |
 | 经同意、存在本机的使用统计（产品建议 I9；BL-169），建在工作记录上 | 发布、系统能力 | [75](batches/75.md) | 直接做 |
 
@@ -174,8 +174,8 @@
    - **U3 按主人隔离、较新的库只拒绝这一个（C1 与 D）**；
    - **U4 插件声明升级段（C1）：** 走 Manifest 的合同快照排队，可延到阶段 2 前段。
 4. **阶段 2，M1 之前就位：**
-   - **U5 合同过渡期（C1；A、E 接各自的保存引用）：** M1 当天生效，可独立设计；实现与 U1～U4 按同一份合同快照排队；
-   - **U6 演练与回退（F）：** M1 的前置，与签名公证同在 F 轨。
+   - **U5 合同过渡期（C1；A、E 接各自的保存引用；发行批 REL-4）：** M1 当天生效，可独立设计；实现与 U1～U4 按同一份合同快照排队；
+   - **U6 演练与回退（F；发行批 REL-4）：** M1 的前置，与签名公证同在 F 轨；「回到上一版」已在 25-3。
 5. **阶段 3：**
    - U6 接自动更新（M2，服务端批 SRV-8）；
    - **U7 整份导出与导入（F 与 C1）：** 和引导的完整导入导出一起。

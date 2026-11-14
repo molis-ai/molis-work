@@ -84,11 +84,7 @@ export const OBSERVATION_SERVICE_PREFIXES = {
   shell: "ui",
   agent: "agent",
   assistant: "assistant",
-  search: "search",
-  knowledge: "knowledge",
-  memory: "memory",
   scheduler: "scheduler",
-  onboarding: "onboarding",
   connections: "connections",
   grants: "grants",
 } as const;

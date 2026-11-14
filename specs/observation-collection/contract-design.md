@@ -28,7 +28,7 @@
 | --- | --- | --- |
 | `record_id`、`seq` | 采集层给的编号；`seq` 是落盘顺序，29 的增量读取拿它做游标 | 采集层 |
 | `owner` | `{ kind: "plugin", id: <plugin_id> }`、`{ kind: "service", id }` 或 `{ kind: "shell" }` | §4 |
-| **`fact`** | `<前缀>.<名字>`，小写点连接。插件的前缀就是它的 `plugin_id`（如 `workflows.step`）；平台的前缀在合同 `OBSERVATION_SERVICE_PREFIXES` 列明（出口 `action`、外壳 `ui`、`agent`、`assistant`、`search` …） | 写入方；不是自己前缀的整条拒收 |
+| **`fact`** | `<前缀>.<名字>`，小写点连接。插件的前缀就是它的 `plugin_id`（如 `workflows.step`）；平台的前缀在合同 `OBSERVATION_SERVICE_PREFIXES` 列明（出口 `action`、外壳 `ui`、`agent`、`assistant` …） | 写入方；不是自己前缀的整条拒收 |
 | `provider_id` | 动作调用记录：被调动作的提供方（清除插件用户数据时据此删，§6） | 出口 |
 | `actor` | `{ actor_id, actor_kind, audience, delegated_by }` | 调用上下文 |
 | `entry` | `workbench`、`cli`、`mcp`、`agent`、`workflow`、`plugin`、`schedule`、`background`、`desktop`、`assistant`、`host` | 调用上下文：本人的调用只经本机网页传输或管理命令进来，所以 `user` 受众是 `workbench`，`user_action.source = "management"` 是 `cli`；其余按受众；后台来源由装配给定；推不出是 `host` |
@@ -189,8 +189,9 @@
 | 2026-11-13 | **评审 B2（PR #2059）：`ActionMetadata.draft`。** 这一项随 `batch/28-services` 进来，合同稿第 3 版原来没有，这里补记：动作可以声明输入是本人还没发出的草稿；出口只在调用方是本人（`user` 受众）时按规则不记它的输入与结果，别的受众经同一动作写入的照常留内容，拒绝用例 S-observation-records 7。三个声明它的动作：`assistant.panel.works.draft@1`、`assistant.panel.works.question_draft@1`、`onboarding.context.draft@1`（受众都只有 `user`） | 原写法只看声明，沙箱或第三方插件声明了就能让 Agent、MCP、工作流对它的调用都不留内容，与 OCL-05 冲突；在声明时拒掉「draft + 非 user 受众」也行，但出口一处判断就够，且不改 Manifest 校验 |
 | 2026-11-13 | **用户定：每次唤醒自成一次操作。** 项目时钟每次唤醒用自己的调用号（`eachWakeup`），它起的动作、运行与 `scheduler.wakeup` 记录都在这一号下；同一轮到期的两个任务是两次操作，不再并成这一轮的号。旧用例 SYS-15-A1/S4 原断言唤醒起的那一轮沿用这一轮的号，改为断言它有自己的号、与这一轮的不同、两次唤醒彼此不同（`tests/schedule-task-runner.test.ts`） | 沿用这一轮的号时，生产里每轮本来就新起一个合成的号，同轮的几个任务会在工作记录里并成一次操作，按操作回看、评测都会把无关的任务连在一起 |
 | 2026-11-14 | **合后复核：外壳的上报路由有两个地址。** Home 的 `/api/observation/ui` 记不属于任何项目；项目的 `/projects/<id>/api/observation/ui` 记属于那个项目。项目身份来自地址与门签发的入口凭据，不从请求体读。§4 原来只写「宿主的界面阶段路由」，本版补上两个地址（代码在 `apps/local-host/src/observation-shell-entry.ts`，两处路由表各挂一次） | 只留 Home 地址时，项目身份只能从请求体或页面参数来，正是 S-observation-records 2 拒的那类；两个地址各自把项目钉在路径上 |
-| 2026-11-14 | **合后复核：检索、读取与记忆写入不设服务 sink。** 它们都经动作目录调用，`search.query`、`knowledge.*`、`memory.*` 的输入与结果由出口记（页面读取的结果按 §7 只留摘要）；§4 原把「一次检索」列进 sink 的例子，是写错了，本版改掉。`OBSERVATION_SERVICE_PREFIXES` 里保留的 `search`、`knowledge`、`memory`、`onboarding` 还没有 sink，也没有对应事实，见 BL-observation-b28-audit-followups ⑩ | 给检索再建一个 sink 要绕过动作目录、重复授权与结果证据；出口已经拿到同一份调用和结果 |
+| 2026-11-14 | **合后复核：检索、读取与记忆写入不设服务 sink。** 它们都经动作目录调用，`search.query`、`knowledge.*`、`memory.*` 的输入与结果由出口记（页面读取的结果按 §7 只留摘要）；§4 原把「一次检索」列进 sink 的例子，是写错了，本版改掉。`OBSERVATION_SERVICE_PREFIXES` 里保留的 `search`、`knowledge`、`memory`、`onboarding` 还没有 sink，也没有对应事实；后续整改已把它们删掉（见下一行） | 给检索再建一个 sink 要绕过动作目录、重复授权与结果证据；出口已经拿到同一份调用和结果 |
 | 2026-11-14 | **合后复核：Onboarding 采用只按 `imported` 记。** 采用是把本人带来的材料放进一个新项目，入口包在 `withObservationSource("imported")` 里；连接器首次同步与重连补读仍是 `first_read`／`catch_up`。§5 原写「Onboarding 采用（`first_read` 或 `imported`）」，但「首次读取现有项目」的入口还没有，代码不能凭空给另一个类别；这一入口出现时再接，记 BL ⑧ | 把新项目的导入说成「首次读取已有」会让本期成果与历史资料混在一起（OCL-02/13）；反过来把连接器首读说成导入也一样错，两边各自按实际入口给 |
+| 2026-11-14 | **后续整改：服务前缀只留真实接上的。** `OBSERVATION_SERVICE_PREFIXES` 删掉 `search`、`knowledge`、`memory`、`onboarding` 四个没有 sink、也没有事实的前缀；保留 `gateway`（动作出口）、`shell`、`agent`、`assistant`、`scheduler`、`connections`、`grants`。合同快照同步更新。 | 四个前缀原是给后续服务预留的名字，但没有消费者，留着会让合同看起来有第二份服务名单；检索、读取与记忆写入都走动作出口，不需要自己的服务前缀。 |
 
 ## 14 第 1 版合审退回的改法
 

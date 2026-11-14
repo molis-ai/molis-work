@@ -211,7 +211,14 @@ test("W3-07-6-01: nonempty and unsupported development state are refused before 
     const ordinary = join(directory, "ordinary"), marked = join(directory, "marked"); mkdirSync(ordinary); mkdirSync(marked);
     writeFileSync(join(ordinary, "keep.txt"), "preserve this ordinary directory");
     writeFileSync(join(marked, ".molis-work-plugin-development.json"), JSON.stringify({ kind: "foreign", schema_version: 1 }));
-    const input = { directory: join(directory, "does-not-exist"), grants: [], allow_unsigned_development: true as const };
+    // #2053 reads the language files before it touches the state directory, so the door needs a plugin to read. The state
+    // directory is still refused before any plugin code is loaded (the copy's index.mjs is only there for the last case).
+    const plugin = join(directory, "plugin");
+    mkdirSync(plugin);
+    for (const file of ["index.mjs", "manifest.json", "package.json", "locales"]) cpSync(join(root, "examples/plugin-sample", file), join(plugin, file), { recursive: true });
+    mkdirSync(join(plugin, "node_modules/@molis-ai"), { recursive: true });
+    symlinkSync(join(root, "packages/plugin-sdk"), join(plugin, "node_modules/@molis-ai/molis-work-plugin-sdk"), "dir");
+    const input = { directory: plugin, grants: [], allow_unsigned_development: true as const };
     await assert.rejects(runLocalPluginDevelopment({ ...input, state_directory: ordinary }), /非空的普通目录/);
     await assert.rejects(runLocalPluginDevelopment({ ...input, state_directory: marked }), /不是受支持/);
     assert.equal(readFileSync(join(ordinary, "keep.txt"), "utf8"), "preserve this ordinary directory");

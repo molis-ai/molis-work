@@ -1,0 +1,8 @@
+{
+  "reason": "第 28 批外壳的界面阶段接入工作记录（OCL-07、OCL-10）：工作台加一份记录器脚本（展示的对象、每对象每分钟的停留、候选与定位的阶段，每 2 秒至多发一次、页面隐藏时立刻发），全局搜索、情境条、开场建议和首页建议各加几行调用；搜索面板随同一份全局搜索代码进入选择器页。对独立构建的 merge-base 6306758c22 实测：工作台脚本 +3765、选择器搜索脚本 +607 字节；无新增资源，均低于 10 KB。",
+  "review": "specs/post-anticorruption-roadmap/reference/batches/28.md，第 28 批 PR 的资源评审（评审台）。",
+  "assets": {
+    "/assets/molis-work-workbench.js": 3765,
+    "/assets/molis-work-chooser-search.js": 607
+  }
+}

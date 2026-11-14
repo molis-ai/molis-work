@@ -29,6 +29,9 @@ const PAIRS_SCHEMA = {
 export async function runUpkeep(service: MemoryService, input: { homeDirectory: string; localHost: MolisWorkLocalHost; caller: MemoryCaller; projects: readonly string[];
   generate?: HostTextGeneration | undefined }): Promise<MemoryUpkeepReport> {
   const generate = "generate" in input ? input.generate : hostTextGeneration({ homeDirectory: input.homeDirectory });
+  // One upkeep pass checks many objects; the reads of one project share that project's person context (N42), and every read
+  // still re-checks the person's grants through the same caller.
+  const contextFor = upkeepContexts(input.localHost);
   return service.upkeep(input.caller, {
     projects: input.projects,
     ...(generate ? { tidy: async entries => {
@@ -37,11 +40,26 @@ export async function runUpkeep(service: MemoryService, input: { homeDirectory: 
       const found = result.structured as { duplicates?: Array<[string, string]>; conflicts?: Array<{ a: string; b: string; why: string }> } | undefined;
       return found && Array.isArray(found.duplicates) && Array.isArray(found.conflicts) ? { duplicates: found.duplicates, conflicts: found.conflicts } : null;
     } } : {}),
-    objectState: ref => objectState(input.localHost, ref),
+    objectState: ref => objectState(input.localHost, ref, contextFor),
   });
 }
 
 const memoryContext = (host: MolisWorkLocalHost, reference: LocalHostProjectReference | undefined) => localWebActionContext(host, reference, LOCAL_OWNER_PERMISSIONS);
+
+/** The person's context in each project (the Home's own under one key), prepared on first use and kept for one upkeep pass. */
+function upkeepContexts(host: MolisWorkLocalHost): (reference: LocalHostProjectReference | undefined) => Promise<ActionCallContext> {
+  const pending = new Map<string, Promise<ActionCallContext>>();
+  return reference => {
+    const key = reference?.project_id ?? "";
+    let context = pending.get(key);
+    if (!context) {
+      context = memoryContext(host, reference);
+      pending.set(key, context);
+      context.catch(() => { if (pending.get(key) === context) pending.delete(key); });
+    }
+    return context;
+  };
+}
 
 /**
  * The names of the objects memories are limited to (Goals, for now), read through their own plugins' readers; unreadable ones are
@@ -66,11 +84,12 @@ export async function subjectTitles(localHost: MolisWorkLocalHost, reference: Lo
 }
 
 /** Whether an object a memory rests on can still be read, asked of its own plugin's reader; unknown when that cannot be told. */
-async function objectState(localHost: MolisWorkLocalHost, ref: { kind: string; id: string; project_id: string | null }): Promise<"ok" | "missing" | "unknown"> {
+async function objectState(localHost: MolisWorkLocalHost, ref: { kind: string; id: string; project_id: string | null },
+  contextFor: (reference: LocalHostProjectReference | undefined) => Promise<ActionCallContext>): Promise<"ok" | "missing" | "unknown"> {
   const reference = ref.project_id ? localHost.projects().find(row => row.project_id === ref.project_id && row.state !== "closing") : undefined;
   if (ref.project_id && !reference) return "unknown";
   const client = reference ? localHost.actionClient(reference) : localHost.homeActionClient();
-  const context = await memoryContext(localHost, reference);
+  const context = await contextFor(reference);
   const views: readonly ActionView[] = await Promise.resolve(client.discover(context)).catch(() => []);
   const reader = views.find(view => isSubjectReader(view.action) && view.availability.available && view.action.subject_kinds.includes(ref.kind));
   if (!reader) return "unknown";

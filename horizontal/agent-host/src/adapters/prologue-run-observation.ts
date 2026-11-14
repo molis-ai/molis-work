@@ -58,6 +58,8 @@ export function observeRun(recorder: ObservationRecorder, ref: AgentRunRef, froz
   const record = (fact: string, outcome: ObservationOutcome, more: Omit<ObservationFactInput, "fact" | "outcome" | "work" | "subjects"> = {}) => put({ fact, outcome, work, subjects, ...more });
   const tools = new Map<string, { name: string; input?: Record<string, unknown> }>();
   let reply = "", reasoning = "";
+  /** The model in force for the next usage: the round's own until a switch says otherwise. */
+  let usageModel = conditions.model;
   const flushReply = () => {
     if (!reply && !reasoning) return;
     record("agent.reply", "succeeded", { evidence: [...(reply ? [text("reply", reply)] : []), ...(reasoning ? [text("reasoning", reasoning)] : [])] });
@@ -102,7 +104,7 @@ export function observeRun(recorder: ObservationRecorder, ref: AgentRunRef, froz
         return;
       }
       case "usage-recorded": case "compaction-usage-recorded": flushReply();
-        record("agent.usage", "succeeded", { stage: event.type === "usage-recorded" ? "model" : "compaction", conditions: { model: conditions.model },
+        record("agent.usage", "succeeded", { stage: event.type === "usage-recorded" ? "model" : "compaction", conditions: { model: usageModel },
           detail: { ...usageDetail(e.receipt as PrologueUsageReceipt), ...(event.type === "usage-recorded" && e.callId ? { model_call_id: String(e.callId) } : {}) } }); return;
       case "compacted": record("agent.compaction", "succeeded", { detail: e.replaced === undefined ? {} : { replaced: Number(e.replaced) } }); return;
       case "compaction-failed": record("agent.compaction", "failed", { detail: e.why ? { why: String(e.why) } : {} }); return;
@@ -121,7 +123,8 @@ export function observeRun(recorder: ObservationRecorder, ref: AgentRunRef, froz
       case "awaiting-input": flushReply(); record("agent.waiting", "waiting", { stage: "input", detail: { kind: String(e.kind), why: String(e.why) } }); return;
       case "retry-waiting": record("agent.retry", "waiting", { detail: { reason: String(e.reason), attempt: Number(e.attempt), wait_ms: Number(e.waitMs) } }); return;
       case "model-switched": { const to = e.to as { protocol: string; model: string };
-        record("agent.model", "succeeded", { stage: "switched", conditions: { model: { provider: to.protocol, model_id: to.model } } }); return; }
+        usageModel = { provider: to.protocol, model_id: to.model };
+        record("agent.model", "succeeded", { stage: "switched", conditions: { model: usageModel } }); return; }
       case "turn-changes": { const changes = (e.changes ?? []) as ReadonlyArray<{ path: string; digest: string; checkpointId: string }>;
         record("agent.changes", "succeeded", { detail: { files: changes.length },
           evidence: changes.map(change => ({ role: change.path, ref: { kind: "owner", owner: "agent-runtime", id: change.checkpointId, version: change.digest } })) }); return; }

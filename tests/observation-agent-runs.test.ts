@@ -178,6 +178,10 @@ test("OCL-01 OCL-05 OCL-09: a subagent's start, end and every request it sent ar
   const dispatched = parent.filter(record => record.fact === "agent.subagent").map(record => [record.stage, record.outcome, record.detail.child_run_id, record.subjects[1]]);
   assert.deepEqual(dispatched, [["started", "succeeded", child.child_run.run_id, { kind: "agent_session", id: child.child_run.session_id }],
     ["ended", "succeeded", child.child_run.run_id, { kind: "agent_session", id: child.child_run.session_id }]]);
+  // OCL-01: the runtime's own tools (dispatch/await) are the round's tool records; the action tools' content is the exit's.
+  const tools = parent.filter(record => record.fact === "agent.tool");
+  assert.ok(tools.some(record => record.stage === "dispatch-subagent" && record.outcome === "succeeded"), tools.map(record => record.stage).join(" "));
+  assert.ok(tools.some(record => record.stage === "await-subagents"), tools.map(record => record.stage).join(" "));
   const requests = own.filter(record => record.fact === "agent.model_request");
   assert.equal(requests.length, childBodies.length, "one record per request the child sent");
   assert.ok(childBodies.length > 0);

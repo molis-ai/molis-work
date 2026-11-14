@@ -1,3 +1,4 @@
+import { realpath } from "node:fs/promises";
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { ActionError, type ActionDefinition, type BoundActionClient, type HostOfferedOriginalFile } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { Readable } from "node:stream";
@@ -484,9 +485,12 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
         if (take) {
           catalog.addProjectPlugin({ project_id: journey.project_id, plugin_id: take.project_plugin_id, actor_id: LOCAL_PERSON_ACTOR_ID });
           // The person's code folder becomes the project's output: their choice, kept by Projects and written here, not by the plugin
-          // (and, with it, the project is trusted: batch12-design §3, user 2026-11-13). A retry finds it already the output.
-          await catalog.commit(() => catalog.changeDirectories({ project_id: journey.project_id, actor_id: LOCAL_PERSON_ACTOR_ID,
-            change: { kind: "set_output", target: { workspace_path: take.code_root } }, expected_revision: catalog.projectDirectories(journey.project_id).revision }));
+          // (and, with it, the project is trusted: batch12-design §3, user 2026-11-13). Once: a retry does not undo an output the person changed since.
+          if (!take.output_set) {
+            await catalog.commit(() => catalog.changeDirectories({ project_id: journey.project_id, actor_id: LOCAL_PERSON_ACTOR_ID,
+              change: { kind: "set_output", target: { workspace_path: take.code_root } }, expected_revision: catalog.projectDirectories(journey.project_id).revision }));
+            take.output_set = true; withContextJourneys(home, store => store.save(journey));
+          }
         }
       });
       // The chooser introduces the new project in the words the person accepted (a blank start has none). Safe to repeat.
@@ -561,21 +565,27 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
 
 /**
  * The folder goes to the plugin the person picked, by that plugin's own declared action, called as the person with its permissions
- * only (batch12-design §7.3, §7.7 C1). Once it answered, a retry does not call it again; it is asked again only when this step failed.
+ * only (batch12-design §7.3, §7.7 C1). Once it answered, a retry does not call it again. Only the folder the person picked goes: when
+ * the project's output is no longer it, nothing is handed. A plugin that is gone or refuses does not hold the round: the project and
+ * its materials are already made, so the round completes, `take_result.not_taken` says why, and the person lands on the plugin's page.
  */
 async function handToTaker(home: string, journey: ContextJourney, handed: readonly { version: ArtifactReference; title: string }[], ports: ContextOnboardingPorts): Promise<void> {
   const take = journey.adoption?.take;
   if (!take || journey.take_result) return;
+  const done = (result: NonNullable<ContextJourney["take_result"]>) => { journey.take_result = result; withContextJourneys(home, store => store.save(journey)); };
+  const notTaken = (why: "unavailable" | "moved" | "refused") => done({ open: null, materials: 0, of: handed.length, not_taken: why });
   const taker = ports.takers?.().find(one => one.plugin_id === take.plugin_id);
-  if (!taker || !ports.take) throw new Error("接手这个文件夹的插件现在不可用；项目和材料已经保存，可以稍后在项目里打开它");
+  if (!taker || !ports.take) return notTaken("unavailable");
   const output = await ports.withCatalog({ homeDirectory: home }, catalog => catalog.projectDirectories(journey.project_id).directories.find(folder => folder.roles.includes("output")));
-  if (!output) throw new Error("项目的输出文件夹没有设好，请重试");
+  if (!output || output.canonical_path !== await realpath(take.code_root).catch(() => null)) return notTaken("moved");
   const materials = handed.slice(0, ONBOARDING_TAKE_MATERIALS_MAX).map(item => ({ ref: { subject: { kind: "artifact", id: artifactSubjectId(item.version) }, pin: { mode: "fixed" as const, version: item.version } }, title: item.title.slice(0, 500) }));
-  const client = await ports.take(home, journey.project_id, taker.take);
-  const answered = await client.invoke(taker.take as ActionDefinition<OnboardingCodeRootTake, OnboardingTakeResult>,
-    { request_id: `onboarding:${journey.id}:take`, code_root: { workspace_id: output.workspace_id }, materials });
-  journey.take_result = { open: answered.open, materials: materials.length, of: handed.length };
-  withContextJourneys(home, store => store.save(journey));
+  let answered: OnboardingTakeResult;
+  try {
+    const client = await ports.take(home, journey.project_id, taker.take);
+    answered = await client.invoke(taker.take as ActionDefinition<OnboardingCodeRootTake, OnboardingTakeResult>,
+      { request_id: `onboarding:${journey.id}:take`, code_root: { workspace_id: output.workspace_id }, materials });
+  } catch { return notTaken("refused"); }
+  done({ open: answered.open, materials: materials.length, of: handed.length });
 }
 
 /** The drafts the person kept, from every batch, become the new project's todos; the rest stay in Todo's “待你确认”. Safe to repeat. */

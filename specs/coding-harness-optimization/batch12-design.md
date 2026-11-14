@@ -213,3 +213,10 @@ export interface OnboardingTakeResult {
 - **C2 形状由 SDK 的 Manifest 检查管**：点名的动作必须是 `scope: project` 的 `command`、受众正好 `["user"]`，输入是只含 `request_id`、`code_root`、`materials` 的封闭对象，输出与 `OnboardingTakeResult` 相同；不满足就 `plugin.manifest_invalid`。BCD-15 覆盖这些拒绝。
 - **C3 改掉的名字**：宿主 `codingRoot`→`codeRoot`、`CODING_PLUGIN` 删、`input.coding_root`→`input.take`、错误句改通用；存档 `adoption.coding_root`→`adoption.take`（只在本分支，不兼容）；页面 `codingPicked`／`codingFolder`／`codingChoice`／`cx-coding-root`／`data-coding-root` 改成 `take*`／`code-root`；语言键 `hand-folder-to-coding(-hint)` 换成通用句 `hand-folder-to(-hint)`，提示句不再描述某个插件；contracts `codeRootFile` 注释不点名 Coding。BCD-16 扫 `apps/local-host/src/*onboarding*`、`apps/workbench/src/scripts/context-onboarding*.ts` 与 `workbench.context-onboarding.*` 的键和文字，不分大小写不含 `coding`。
 - **采纳的非阻塞意见**：承接者多于一个时是单选组（N1，请求只带一个 `take`）；超过 30 份材料时如实说交了几份（N2）；Coding 先写 `onboarding:<request_id>` 再建会话、会话 id 由 `request_id` 推出，重试不会多建（N3）；落点 `openItem` 打不开时退回插件页（N5）。
+
+### 7.8 代码复查后补的（评审台 2026-11-13，头 `fa5450e6cb`「有条件通过」）
+
+- **承接失败不卡住这一轮（N-a）**：插件不在了、或承接动作拒绝时，项目和材料已经建好，这一轮照常完成，`take_result.not_taken` 记原因（`unavailable`／`refused`），人落在插件页。原来会一直停在失败、重试也一样失败。
+- **只交本人选的那个文件夹（N-b）**：交出前核对项目输出的 `canonical_path` 仍是 `realpath(code_root)`，不是就不交（`not_taken: "moved"`）。设输出只做一次（`adoption.take.output_set`），所以失败后重试不会把人改过的输出改回去。两条都由 ONB-44 用例钉住。
+- **会话名是译文（N-c）**：Coding 承接时新会话的名字取当时界面语言的「从上手开始」并存下来。这是人可以改的会话名，和 Coding 现有的默认会话名、「委派：」同一种做法，不是业务判断，列入 a-section-contract 第 14 节的存量，随第 16 批一起换。
+- **留给第 44 批**：勾选现在是互斥复选框，第 44 批加入 Todo、Pages 后改成单选组（N-d）；超过 30 份材料只交前 30 份时，页面要说出来（N-e）。

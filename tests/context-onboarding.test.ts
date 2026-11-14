@@ -883,7 +883,7 @@ test('ONB-44, BCD-16, BCD-17: the person\'s own code folder goes only to a plugi
     return adoptContextJourney(dir, id, { title: pick ? 'Ticked' : 'Not ticked', body: ready.summary!.body, ...pick ? { take: pick } : {} }, ports);
   };
   const unticked = await journeyOf(undefined), ticked = await journeyOf('test.taker');
-  assert.equal(ticked.phase, 'complete', ticked.error ?? ''); assert.deepEqual(ticked.adoption?.take, { plugin_id: 'test.taker', project_plugin_id: declared.project_plugin_id, code_root: folder });
+  assert.equal(ticked.phase, 'complete', ticked.error ?? ''); assert.deepEqual(ticked.adoption?.take, { plugin_id: 'test.taker', project_plugin_id: declared.project_plugin_id, code_root: folder, output_set: true });
   assert.deepEqual(ticked.take_result?.open, { item_id: 'session-1', title: 'From getting started' });
   await pagesPorts(dir).withCatalog({ homeDirectory: dir }, async catalog => {
     assert.ok(catalog.projectPluginMembership(ticked.project_id).plugins.includes(declared.project_plugin_id), 'the taker is in the project');
@@ -899,6 +899,31 @@ test('ONB-44, BCD-16, BCD-17: the person\'s own code folder goes only to a plugi
   });
   // BCD-17: a repeat does not call the taker again; a plugin that declares nothing, or a round with no such folder, is refused.
   assert.equal((await adoptContextJourney(dir, ticked.id, { take: 'test.taker' }, ports)).phase, 'complete'); assert.equal(calls.length, 1);
+  // A taker that refuses does not hold the round: the project and materials are made, it completes, and says nothing was handed.
+  const refusing = { ...ports, take: async (): Promise<BoundActionClient> => ({ discover: () => [], invoke: async () => { throw new Error('not now'); } }) };
+  const refusedId = randomUUID(); withContextJourneys(dir, s => s.create(refusedId));
+  selectContextSources(dir, refusedId, { sources: [{ kind: 'custom', selected: true, path: folder, metadata: meta(['package.json']), files: [await staged(dir, refusedId, 'package.json', '{"name":"my-app"}')] }] });
+  startContextJourney(dir, refusedId, refusing); const refusedReady = await waitContextJourney(dir, refusedId);
+  const refused = await adoptContextJourney(dir, refusedId, { title: 'Refused', body: refusedReady.summary!.body, take: 'test.taker' }, refusing);
+  assert.equal(refused.phase, 'complete', refused.error ?? ''); assert.deepEqual(refused.take_result, { open: null, materials: 0, of: refused.take_result!.of, not_taken: 'refused' });
+  // Only the folder the person picked goes (BCD-17): a round that failed after the folder became the output, and whose output the person
+  // changed before retrying, completes without handing anything over.
+  const movedId = randomUUID(), elsewhere = join(dir, 'elsewhere'); await mkdir(elsewhere); withContextJourneys(dir, s => s.create(movedId));
+  selectContextSources(dir, movedId, { sources: [{ kind: 'custom', selected: true, path: folder, metadata: meta(['package.json']), files: [await staged(dir, movedId, 'package.json', '{"name":"my-app"}')] }] });
+  startContextJourney(dir, movedId, ports); const movedReady = await waitContextJourney(dir, movedId);
+  const failing = { ...ports, actions: async (home: string, project: string, original?: { path: string; install_id: string }): Promise<BoundActionClient> => {
+    const client = await ports.actions(home, project, original);
+    return { discover: context => client.discover(context), invoke: async (definition, input) => {
+      if ((input as { request_id?: string }).request_id === movedId + ':summary') throw new Error('Summary storage temporarily unavailable');
+      return client.invoke(definition, input);
+    } };
+  } };
+  const failed = await adoptContextJourney(dir, movedId, { title: 'Moved', body: movedReady.summary!.body, take: 'test.taker' }, failing);
+  assert.equal(failed.phase, 'failed');
+  await pagesPorts(dir).withCatalog({ homeDirectory: dir }, catalog => catalog.commit(() => catalog.changeDirectories({ project_id: failed.project_id, actor_id: 'web-user',
+    change: { kind: 'set_output', target: { workspace_path: elsewhere } }, expected_revision: catalog.projectDirectories(failed.project_id).revision })));
+  const before = calls.length, moved = await adoptContextJourney(dir, movedId, {}, ports);
+  assert.equal(moved.phase, 'complete', moved.error ?? ''); assert.equal(moved.take_result?.not_taken, 'moved'); assert.equal(calls.length, before, 'nothing is handed');
   const other = randomUUID(); withContextJourneys(dir, s => s.create(other));
   selectContextSources(dir, other, { sources: [{ kind: 'custom', selected: true, path: folder, metadata: meta(['package.json']), files: [await staged(dir, other, 'package.json', '{"name":"my-app"}')] }] });
   startContextJourney(dir, other, ports); const otherReady = await waitContextJourney(dir, other);

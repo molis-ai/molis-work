@@ -59,7 +59,7 @@ test("ONB-44 ONB-46 a code folder ticked at review becomes Coding's working fold
   await child.waitFor(`document.querySelector('[data-coding-workspace-label]')?.title === ${JSON.stringify(await realpath(folder))}`, 20_000);
   // Both materials are in the project for Coding to cite: the folder's README and the pasted note, each in the 成果库 and in Pages.
   const adopted = withContextJourneys(homeDirectory, store => store.get(id));
-  assert.equal(adopted.phase, "complete"); assert.deepEqual(adopted.adoption?.take, { plugin_id: "io.molis.work.coding", project_plugin_id: "coding", code_root: folder });
+  assert.equal(adopted.phase, "complete"); assert.deepEqual(adopted.adoption?.take, { plugin_id: "io.molis.work.coding", project_plugin_id: "coding", code_root: folder, output_set: true });
   // BCD-17: the folder and the round's materials were handed over by Coding's declared take action, which opened its own session.
   assert.ok(adopted.take_result?.open?.item_id, "Coding answered the take with the session it opened");
   assert.equal(adopted.take_result?.materials, 3, "the README, the pasted note and the accepted summary");

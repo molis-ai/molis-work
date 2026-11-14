@@ -2,7 +2,7 @@
 
 状态：用户已定（2026-11-14）：**B 先说一句，助理起草**，保留「我自己写」。决定写进 [Skill 策略](../../../specs/prologue-strategies/skill.md)的决策记录；A、C 留着对照，不实现。
 
-这是参考原型，不是产品界面。
+这是参考原型，不是产品界面。产品实现在「能力包」设置页（`apps/workbench/src/browser/kit/authoring.ts`、`writing.ts`），第 41 批已做；下面「组件板新增」的 `au-count`、`au-leave` 在组件板里叫 `mw-text-count`（字数行）、`mw-leave-bar`（离开提示条），`au-steps` 只属于没选的方案 C，没有进组件板。
 
 - 来由：用户 2026-11-14 定「做技能目录的写入功能」——在设置里新建、修改自己的技能，不为规划方法单做一套（[Skill 策略 §10](../../../specs/prologue-strategies/skill.md)）。
 - 排期见[第 41 批](../../../specs/post-anticorruption-roadmap/reference/batches/41.md)。

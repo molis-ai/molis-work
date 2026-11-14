@@ -27,7 +27,7 @@ export function skillWriting(page: WritingPage) {
   const { root, project, view, draw, load, say } = page;
   const limits = JSON.parse(root.dataset.skillLimits ?? "{}") as SkillWritingLimits, ownPack = root.dataset.skillMine ?? "", pageScope: SkillScope = project ? "project" : "home";
   const written = (key: string, values?: Record<string, string | number>) => readText(`workbench.skill-authoring.${key}`, values);
-  const isMine = (skill: SkillCatalogEntry) => skill.pack.plugin_id === ownPack && skill.pack.trust !== "host";
+  const isMine = (skill: SkillCatalogEntry) => skill.pack.plugin_id === ownPack && skill.pack.trust === "home_local";
   const skillOf = (key?: string): SkillEntry | undefined => { const entry = key ? page.kit()?.byKey.get(key) : undefined; return entry?.kind === "skill" ? entry : undefined; };
   const ownSkills = (scope: SkillScope) => (page.kit()?.catalog.entries ?? []).flatMap(entry => entry.kind === "skill" && isMine(entry.skill) && entry.skill.pack.scope === scope ? [entry] : []);
   /** What the person leaves unsaved work for, kept until they answer the bar; and the Skill just deleted, for 撤销. */

@@ -87,16 +87,26 @@ export class SkillAuthoringService {
     });
   }
 
+  /** The package holding `skills` at the scope's next version, as it would be signed. */
+  private draftOf(skills: readonly FolderSkill[], scope: SkillScope, installed: Packaged | undefined) {
+    const retained = this.ports.retainedOf(SKILL_AUTHORED_PLUGIN_ID);
+    return contentPackageDraft({ plugin_id: SKILL_AUTHORED_PLUGIN_ID, name: PACKAGE_NAME, scope, ...(installed ? { compatible_from: [installed.manifest.version] } : {}),
+      version: nextVersion(installed ? [...retained, installed] : retained), skills });
+  }
+
+  /** Only a package this Home signed is the person's to rewrite or take off here: one of the same id from another publisher is an installed plugin like any other. */
+  private async assertOwn(installed: Packaged | undefined, draft: ReturnType<typeof contentPackageDraft>, caller: ActionExecutionContext): Promise<void> {
+    if (!installed) return;
+    const keyId = this.ports.publisherKeyId() ?? await this.ports.readSealedPublisherKeyId(draft, caller);
+    if (!(keyId && this.ports.retained(SKILL_AUTHORED_PLUGIN_ID, keyId).some(pkg => pkg.manifest.version === installed.manifest.version))) {
+      throw skillErrors.authored_unknown('这个范围里的「我的技能」包不是这台电脑签名的，不能在这里改；请到插件设置里处理它');
+    }
+  }
+
   /** Signs the package holding `skills` at its next version and installs it over the installed one. */
   private async publish(skills: readonly FolderSkill[], scope: SkillScope, installed: Packaged | undefined, who: Who, caller: ActionExecutionContext) {
-    const fields = { plugin_id: SKILL_AUTHORED_PLUGIN_ID, name: PACKAGE_NAME, scope, ...(installed ? { compatible_from: [installed.manifest.version] } : {}) };
-    const retained = this.ports.retainedOf(SKILL_AUTHORED_PLUGIN_ID);
-    const draft = contentPackageDraft({ ...fields, version: nextVersion(installed ? [...retained, installed] : retained), skills });
-    const keyId = this.ports.publisherKeyId() ?? await this.ports.readSealedPublisherKeyId(draft, caller);
-    // Only a package this Home signed is the person's to rewrite: one of the same id from another publisher is an installed plugin like any other.
-    if (installed && !(keyId && this.ports.retained(SKILL_AUTHORED_PLUGIN_ID, keyId).some(pkg => pkg.manifest.version === installed.manifest.version))) {
-      throw skillErrors.authored_unknown('这个范围里的「我的技能」包不是这台电脑签名的，不能在这里改');
-    }
+    const draft = this.draftOf(skills, scope, installed);
+    await this.assertOwn(installed, draft, caller);
     const { preview_id } = await this.ports.sign(draft, caller);
     const preview = this.ports.install.readPreview(preview_id, who);
     return this.ports.install.confirm({ preview_id, consent: true, ...(preview.publisher.pinned_label === null ? { pin_label: PIN_LABEL } : {}) }, who, caller);
@@ -132,7 +142,7 @@ export class SkillAuthoringService {
     if (current.version !== input.expected_version) throw skillErrors.authored_conflict('这个技能已经有更新的版本，请重新打开再删', { version: current.version });
     const rest = held.filter(skill => skill.declaration.skill_id !== input.skill_id);
     if (rest.length) await this.publish(rest, input.scope, installed, who, caller);
-    else await this.ports.uninstall(input.scope, who, caller);
+    else { await this.assertOwn(installed, this.draftOf(held, input.scope, installed), caller); await this.ports.uninstall(input.scope, who, caller); }
     return { skill_id: input.skill_id, remaining: rest.length };
   }
 }

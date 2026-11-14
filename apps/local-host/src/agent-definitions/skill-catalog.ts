@@ -155,7 +155,7 @@ export class SkillCatalog {
       try { skill.assertCurrent(); } catch { throw skillErrors.authored_unknown("这个技能已经不是目录里的当前版本，请刷新后再试"); }
       const d = skill.declaration, words = skill.display ?? d;
       const body = skill.body.replace(/^\uFEFF?---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/u, "").replace(/\r\n?/gu, "\n").trim();
-      return { skill_id: ref.skill_id, version: ref.version, scope: skill.pack.scope, mine: skill.pack.plugin_id === SKILL_AUTHORED_PLUGIN_ID && skill.pack.trust !== "host",
+      return { skill_id: ref.skill_id, version: ref.version, scope: skill.pack.scope, mine: skill.pack.plugin_id === SKILL_AUTHORED_PLUGIN_ID && skill.pack.trust === "home_local",
         name: words.name, description: words.description ?? "", applies_to: d.applies_to, body,
         ...(words.when_not_to_use ? { when_not_to_use: words.when_not_to_use } : {}), ...(d.argument_hint ? { argument_hint: d.argument_hint } : {}) };
     });

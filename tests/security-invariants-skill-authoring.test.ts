@@ -10,9 +10,11 @@ import { SKILL_LIMITS } from "@molis-ai/molis-work-contracts/platform/plugin-age
 import { SKILL_AUTHORED_PLUGIN_ID, SKILLS_PERMISSIONS, skillAuthoringActions, skillCatalogActions, type SkillAuthoredFields, type SkillAuthoredSaveResult, type SkillAuthoredSource,
   type SkillBodyReadResult, type SkillCatalogEntry } from "@molis-ai/molis-work-contracts/services/skills";
 import { DEMO_PROJECT_ID, MolisWorkLocalHost, PLUGIN_INSTALL_PERMISSIONS, handlePluginTrustHttp, molisWorkHostProjectReference, pluginInstallActions, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { signedContentPackage } from "./fixtures/content-package.js";
+import { newPublisher } from "./fixtures/sandbox-package.js";
 import { caller, mac } from "./fixtures/signed-package-host.js";
 
-// Batch 41, 41-2 (specs/prologue-strategies/skill.md §10, 定样 docs/design/skill-authoring 方案 B): the person writes Skills of their own in
+// S-skill-authoring. Batch 41, 41-2 (specs/prologue-strategies/skill.md §10, 定样 docs/design/skill-authoring 方案 B): the person writes Skills of their own in
 // settings. A scope's own Skills are one content package signed with this Home's publisher identity and installed through the one
 // install path; a new Skill is `off` until the person says otherwise; saving a change is the Skill's next version and keeps every
 // other Skill as it was; removing the last one takes the package off, through the project settings door (S-94). A draft is the text
@@ -52,7 +54,7 @@ async function harness(completeText: ((prompt: unknown) => Promise<string>) | nu
   const mine = async () => (await client.invoke(person, ref(skillCatalogActions.list), {}) as { skills: SkillCatalogEntry[] }).skills.filter(skill => skill.pack.plugin_id === SKILL_AUTHORED_PLUGIN_ID);
   const source = (entry: SkillCatalogEntry) => client.invoke(person, ref(skillAuthoringActions.read), { ref: entry.ref }) as Promise<SkillAuthoredSource>;
   const installed = async () => (await client.invoke(person, ref(pluginInstallActions.installed), {}) as { plugins: Array<{ plugin_id: string; version: string }> }).plugins.filter(row => row.plugin_id === SKILL_AUTHORED_PLUGIN_ID);
-  return { client, person, post, mine, source, installed,
+  return { client, person, post, mine, source, installed, reference, host,
     async close() { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); await host.close(); await rm(base, { recursive: true, force: true }); } };
 }
 
@@ -134,4 +136,21 @@ test("SKL-41-2-AU-03 a draft is the text model's proposal cut to the form's limi
   const none = await harness(null);
   try { await assert.rejects(none.post("draft", { intent: "帮我写周报" }), (error: unknown) => error instanceof ActionError && error.code !== "skills.draft_unreadable"); }
   finally { await none.close(); }
+});
+
+test("SKL-41-2-AU-04 a package of the same id from another publisher is not the person's: it reads as not mine, and saving into it or removing from it is refused and leaves it installed", mac, async () => {
+  const h = await harness();
+  try {
+    const bundle = signedContentPackage(newPublisher(), { pluginId: SKILL_AUTHORED_PLUGIN_ID, skills: [{ id: "foreign", body: "# 别人的\n\n照做。\n" }] });
+    const preview = await h.client.invoke(h.person, ref(pluginInstallActions.preview), { bundle }) as { preview_id: string };
+    await h.client.invoke(h.person, ref(pluginInstallActions.confirm), { preview_id: preview.preview_id, consent: true, pin_label: "Someone else" });
+    const [entry] = await h.mine();
+    assert.ok(entry, "the foreign package's Skill is in the catalog");
+    assert.equal((await h.source(entry)).mine, false);
+    await assert.rejects(h.post("save", { ...fields("mine"), scope: "project" }), refused("skills.authored_unknown"));
+    await assert.rejects(h.post("save", { ...fields("foreign"), scope: "project", skill_id: "foreign", expected_version: entry.ref.version }), refused("skills.authored_unknown"));
+    await assert.rejects(h.post("remove", { scope: "project", skill_id: "foreign", expected_version: entry.ref.version }), refused("skills.authored_unknown"));
+    assert.deepEqual((await h.mine()).map(skill => skill.ref.skill_id), ["foreign"], "nothing was rewritten or taken off");
+    assert.equal((await h.installed()).length, 1);
+  } finally { await h.close(); }
 });

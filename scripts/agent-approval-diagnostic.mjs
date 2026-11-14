@@ -116,19 +116,24 @@ export function approvalGithubRepository({fetch, origin, token, repository}) {
     }
     return result;
   };
+  const graphql = async (query, variables) => {
+    const endpoint = new URL(base);
+    endpoint.pathname = base.pathname.replace(/\/$/, "").replace(/\/api\/v3$/, "/api") + "/graphql";
+    const response = await fetch(endpoint, { method: "POST", redirect: "error", signal: AbortSignal.timeout(15_000),
+      headers: { ...headers, "content-type": "application/json" }, body: JSON.stringify({ query, variables }) });
+    if (!response.ok) throw new Error("GitHub GraphQL read failed (" + response.status + ")");
+    const result = await response.json();
+    if (result.errors?.length || !result.data) throw new Error("GitHub GraphQL facts were incomplete");
+    return result.data;
+  };
   // Read-only GraphQL query: REST timestamps cannot identify the editor of a vote.
   const commentFacts = async ids => {
     const answer = new Map();
-    const endpoint = new URL(base);
-    endpoint.pathname = base.pathname.replace(/\/$/, "").replace(/\/api\/v3$/, "/api") + "/graphql";
     for (let offset = 0; offset < ids.length; offset += 50) {
       const batch = ids.slice(offset, offset + 50);
-      const response = await fetch(endpoint, { method: "POST", redirect: "error", signal: AbortSignal.timeout(15_000),
-        headers: { ...headers, "content-type": "application/json" }, body: JSON.stringify({ variables: { ids: batch },
-          query: "query($ids: [ID!]!) { nodes(ids: $ids) { ... on IssueComment { id body isMinimized lastEditedAt editor { login } } } }" }) });
-      if (!response.ok) throw new Error("GitHub comment edit facts could not be read");
-      const result = await response.json(), rows = result.data?.nodes;
-      if (result.errors?.length || !Array.isArray(rows) || rows.length !== batch.length) throw new Error("GitHub comment edit facts were incomplete");
+      const { nodes: rows } = await graphql(
+        "query($ids: [ID!]!) { nodes(ids: $ids) { ... on IssueComment { id body isMinimized lastEditedAt editor { login } } } }", { ids: batch });
+      if (!Array.isArray(rows) || rows.length !== batch.length) throw new Error("GitHub comment edit facts were incomplete");
       for (const [index, node] of rows.entries()) {
         if (node?.id !== batch[index] || typeof node.body !== "string" || typeof node.isMinimized !== "boolean"
           || !(node.lastEditedAt === null || typeof node.lastEditedAt === "string") || !Object.hasOwn(node, "editor")) throw new Error("GitHub comment changed or could not be verified");
@@ -137,7 +142,16 @@ export function approvalGithubRepository({fetch, origin, token, repository}) {
     }
     return answer;
   };
-  return { one, pages, commentFacts, async write(resource, method, body) { return (await request(resource, { method, body })).body; } };
+  return { one, pages, graphql, commentFacts, async write(resource, method, body) { return (await request(resource, { method, body })).body; } };
+}
+
+export async function branchHead(one, branch) {
+  const name = "heads/" + branch;
+  const ref = await one("git/ref/" + name.split("/").map(encodeURIComponent).join("/"));
+  if (ref?.ref !== "refs/" + name || ref.object?.type !== "commit" || !SHA.test(ref.object.sha ?? "")) {
+    throw new Error("GitHub did not return the exact base branch head");
+  }
+  return ref.object.sha;
 }
 
 async function basePolicy(one, base) {
@@ -165,7 +179,8 @@ async function basePolicy(one, base) {
 }
 
 /** Read the current PR with fixed SHA policy and a complete commit comparison. Any ambiguous response fails closed. */
-export async function inspectAgentApprovals({ repository, pull, token, publisher, api = "https://api.github.com", fetch = globalThis.fetch }) {
+export async function inspectAgentApprovals({ repository, pull, token, publisher, target, requirePolicy = false,
+  api = "https://api.github.com", fetch = globalThis.fetch }) {
   if (!/^[a-z0-9_.-]+\/[a-z0-9_.-]+$/i.test(repository ?? "") || repository.split("/").some(part => part === "." || part === "..")
     || !id(pull) || !token) throw new Error("A repository, PR number and GitHub read credential are required");
   const { one, pages, commentFacts } = approvalGithubRepository({ fetch, origin: api, token, repository });
@@ -176,15 +191,21 @@ export async function inspectAgentApprovals({ repository, pull, token, publisher
       || typeof pr.base.ref !== "string" || !id(pr.commits)) {
       throw new Error("GitHub did not return the requested open PR and complete identity");
     }
-    const policy = await basePolicy(one, pr.base.sha);
-    const stamp = createHash("sha256").update(JSON.stringify([pr.id, pr.base.repo.id, pr.base.sha, pr.base.ref, pr.head.sha,
+    if (target && (pr.base.repo.id !== target.repositoryId || target.branch !== undefined && pr.base.ref !== target.branch
+      || target.head !== undefined && pr.head.sha !== target.head)) {
+      throw new Error("Original pull request does not match the publisher's target");
+    }
+    const policyBase = target?.base ?? await branchHead(one, pr.base.ref);
+    const policy = await basePolicy(one, policyBase);
+    const stamp = createHash("sha256").update(JSON.stringify([pr.id, pr.base.repo.id, pr.base.sha, pr.base.ref, pr.head.sha, policyBase,
       pr.head.repo?.id, pr.commits, pr.user?.id, pr.user?.type, policy])).digest("hex");
-    return { pr, policy, stamp };
+    return { pr, policy, stamp, policyBase };
   };
-  const { pr, policy, stamp } = await load(), configured = policyOf(policy);
+  const { pr, policy, stamp, policyBase } = await load(), configured = policyOf(policy);
   if (!configured) {
+    if (requirePolicy) throw new Error("No approval policy is configured on the current target branch");
     if ((await load()).stamp !== stamp) throw new Error("GitHub PR head, base or policy changed during inspection");
-    return { state: "disabled", head: pr.head.sha, base: pr.base.sha, pull };
+    return { state: "disabled", head: pr.head.sha, base: policyBase, branch: pr.base.ref, pull };
   }
   const compare = "compare/" + pr.base.sha + "..." + pr.head.sha + "?per_page=100";
   const readVotes = async () => {
@@ -234,7 +255,7 @@ export async function inspectAgentApprovals({ repository, pull, token, publisher
   if (final.stamp !== stamp || voteStamp(votes) !== voteStamp([reviews, comments]) || runStamp(agentRuns) !== runStamp(currentRuns) || access.some(current => !current)) {
     throw new Error("GitHub PR, approval policy, origin, votes or write permissions changed during inspection");
   }
-  return { ...result, base: pr.base.sha, pull };
+  return { ...result, base: policyBase, branch: pr.base.ref, pull };
 }
 
 if (isMainScript(import.meta.url)) {

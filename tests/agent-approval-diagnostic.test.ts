@@ -2,13 +2,15 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import test from "node:test";
 import { inspectAgentApprovals } from "../scripts/agent-approval-diagnostic.mjs";
-import { APPROVAL_CHECK, publishAgentApprovals } from "../scripts/agent-approval-publisher.mjs";
+import { APPROVAL_CHECK, mergeGroupMembers, publishAgentApprovals, publishMergeGroupApprovals } from "../scripts/agent-approval-publisher.mjs";
 
 const api = "https://git.example.test";
 const repository = "example/work";
 const prefix = "/repos/" + repository + "/";
 const base = "1".repeat(40), head = "2".repeat(40), old = "3".repeat(40);
 const tree = "4".repeat(40), github = "5".repeat(40), pull = 9;
+const earlierBase = "6".repeat(40), firstMerge = "7".repeat(40), groupHead = "8".repeat(40), otherHead = "9".repeat(40);
+const otherPull = 11, groupRef = "refs/heads/gh-readonly-queue/main/a-current-group";
 const date = (day: number) => `2026-10-${String(day).padStart(2, "0")}T12:00:00Z`;
 const user = (id: number, login: string, type = "User") => ({ id, login, type });
 const author = user(1, "author"), reviewer = user(2, "reviewer"), agent = user(3, "agent");
@@ -29,11 +31,22 @@ function fixture() {
     head: { sha: head, ref: "trusted/please-merge", repo: { id: 24, full_name: "fork/work" } } };
   const commit = { sha: old, author: agent, committer: author, commit: { verification: { verified: true } } };
   const second = { ...commit, sha: head, author };
+  const queueEntry = (number: number, position: number, original: string, predecessor: string, merge: string) => ({
+    id: "entry-" + number, position, state: "AWAITING_CHECKS", baseCommit: { oid: predecessor },
+    headCommit: { oid: merge, parents: { totalCount: 1, nodes: [{ oid: predecessor }] } },
+    pullRequest: { number, state: "OPEN", baseRefName: "main", headRefOid: original, repository: { databaseId: 23 } },
+  });
+  const queue = { databaseId: 23, nameWithOwner: repository, target: { target: { oid: base } }, group: { target: { oid: groupHead } },
+    mergeQueue: { configuration: { mergeMethod: "SQUASH" }, entries: { totalCount: 2, pageInfo: { hasNextPage: false, hasPreviousPage: false },
+      nodes: [queueEntry(pull, 1, head, base, firstMerge), queueEntry(otherPull, 2, otherHead, firstMerge, groupHead)] } } };
   const state = { pr, commits: [commit, second], configured: true, corruptBlob: false, missingTree: false, truncateCompare: false,
+    branchSha: base, queue, otherPr: { ...pr, id: 12, number: otherPull, commits: 1, head: { ...pr.head, sha: otherHead } },
+    otherReviews: [] as ReturnType<typeof review>[],
     reviews: [] as ReturnType<typeof review>[], comments: [] as ReturnType<typeof comment>[], edited: new Set<number>(),
     permissions: new Map([author, reviewer, writer, forkAuthor, agent, excluded, bot].map(account => [account.login,
       { user: account, permission: account === forkAuthor ? "read" : "write" }])),
     resolved: head, statuses: [] as Array<{ state: string; context: string; description: string; creator: typeof bot }>,
+    groupStatuses: [] as Array<{ state: string; context: string; description: string; creator: typeof bot }>,
     publishedComments: [] as Array<{ id: number; body: string; user: typeof bot; performed_via_github_app: { id: number } }>,
     checks: [] as Array<{ app: { id: number }; head_sha: string; pull_requests: Array<{ number: number; base: typeof pr.base; head: typeof pr.head }> }>,
     onRead: (_route: string, _count: number) => {} };
@@ -51,6 +64,10 @@ function fixture() {
       assert.equal(options?.method, "POST");
       const body = JSON.parse(String(options?.body)) as { query: string; variables: { ids: string[] } };
       assert.match(body.query, /^query\(/);
+      if (body.query.includes("mergeQueue(branch:")) {
+        assert.deepEqual(body.variables, { owner: "example", repo: "work", branch: "main", target: "refs/heads/main", group: groupRef });
+        return response({ data: { repository: state.queue } });
+      }
       return response({ data: { nodes: body.variables.ids.map(id => {
         const row = state.comments.find(item => item.node_id === id)!;
         return { id, body: row.body, isMinimized: false, lastEditedAt: state.edited.has(row.id) ? date(8) : null, editor: null };
@@ -72,8 +89,15 @@ function fixture() {
       state.statuses.unshift(saved);
       return response(saved);
     }
+    if (route === "statuses/" + groupHead && options?.method === "POST") {
+      const saved = { ...JSON.parse(String(options.body)), creator: bot };
+      state.groupStatuses.unshift(saved);
+      return response(saved);
+    }
     assert.equal(options?.method ?? "GET", "GET");
     if (route === "pulls/" + pull) return response(state.pr);
+    if (route === "pulls/" + otherPull) return response(state.otherPr);
+    if (route === "git/ref/heads/main") return response({ ref: "refs/heads/main", object: { type: "commit", sha: state.branchSha } });
     if (route === "git/commits/" + base) return response({ sha: base, tree: { sha: tree } });
     if (route === "git/trees/" + tree) return state.missingTree ? new Response(null, { status: 404 }) :
       response({ sha: tree, truncated: false, tree: [{ path: ".github", mode: "040000", type: "tree", sha: github }] });
@@ -81,21 +105,30 @@ function fixture() {
       ? [{ path: "agent-approval.json", mode: "100644", type: "blob", sha: blob, size: policy.length }] : [] });
     if (route === "git/blobs/" + blob) return response({ sha: blob, encoding: "base64", size: policy.length,
       content: (state.corruptBlob ? Buffer.alloc(policy.length, 32) : policy).toString("base64") });
-    if (route === "compare/" + base + "..." + head + "?per_page=100") return response({ commits: state.commits.slice(0, 1) },
-      state.truncateCompare ? undefined : "compare/" + base + "..." + head + "?per_page=100&page=2");
-    if (route === "compare/" + base + "..." + head + "?per_page=100&page=2") return response({ commits: state.commits.slice(1) });
+    const comparison = "compare/" + state.pr.base.sha + "..." + head + "?per_page=100";
+    if (route === comparison) return response({ commits: state.commits.slice(0, 1) }, state.truncateCompare ? undefined : comparison + "&page=2");
+    if (route === comparison + "&page=2") return response({ commits: state.commits.slice(1) });
+    if (route === "compare/" + state.otherPr.base.sha + "..." + otherHead + "?per_page=100") return response({ commits: [{ ...commit, sha: otherHead }] });
     if (route === "pulls/" + pull + "/reviews?per_page=100") return response(state.reviews);
+    if (route === "pulls/" + otherPull + "/reviews?per_page=100") return response(state.otherReviews);
     if (route === "issues/" + pull + "/comments?per_page=100") return response([...state.comments, ...state.publishedComments]);
+    if (route === "issues/" + otherPull + "/comments?per_page=100") return response([]);
     if (route === "commits/" + head + "/statuses?per_page=100") return response(state.statuses);
+    if (route === "commits/" + groupHead + "/statuses?per_page=100") return response(state.groupStatuses);
     if (route === "commits/" + head + "/check-runs?per_page=100&filter=all") return response({ check_runs: state.checks });
+    if (route === "commits/" + otherHead + "/check-runs?per_page=100&filter=all") return response({ check_runs: [] });
     if (route === "commits/" + head.slice(0, 12)) return state.resolved ? response({ sha: state.resolved }) : new Response(null, { status: 404 });
     const match = /^collaborators\/([^/]+)\/permission$/.exec(route);
     if (match) return response(state.permissions.get(match[1]!));
     assert.fail("Unexpected GitHub request " + route);
   };
+  const group = { repository, repositoryId: 23, targetBranch: "main", groupRef, groupHead, groupBase: firstMerge,
+    token: "app-fixture", api, fetch: fetchFixture };
   return { state, requests, inspect: () => inspectAgentApprovals({ repository, pull, token: "read-fixture", api, fetch: fetchFixture }),
-    publish: (repositoryId = 23) => publishAgentApprovals({ repository, repositoryId, pull, appId: app, appBotId: bot.id,
-      token: "app-fixture", api, fetch: fetchFixture }) };
+    publish: (repositoryId = 23, targetBranch = "main") => publishAgentApprovals({ repository, repositoryId, pull, appId: app, appBotId: bot.id, targetBranch,
+      token: "app-fixture", api, fetch: fetchFixture }),
+    members: (groupBase = firstMerge) => mergeGroupMembers({ ...group, groupBase }),
+    publishGroup: () => publishMergeGroupApprovals({ ...group, appId: app, appBotId: bot.id }) };
 }
 
 test("APR-01/02/04: counts current write permissions and two distinct accounts, including the PR author", async () => {
@@ -132,7 +165,7 @@ test("APR-03/05: rejects old, ambiguous, edited and withdrawn approvals and igno
 test("APR-01/09: reads only the exact base policy and refuses partial or inconsistent GitHub data", async () => {
   const { state, requests, inspect } = fixture();
   state.configured = false;
-  assert.deepEqual(await inspect(), { state: "disabled", base, head, pull });
+  assert.deepEqual(await inspect(), { state: "disabled", base, head, pull, branch: "main" });
   assert.equal([...requests.keys()].some(key => key.startsWith("compare/")), false);
   state.missingTree = true;
   await assert.rejects(inspect, /GitHub read failed \(404\)/);
@@ -143,6 +176,16 @@ test("APR-01/09: reads only the exact base policy and refuses partial or inconsi
   state.corruptBlob = false;
   state.truncateCompare = true;
   await assert.rejects(inspect, /complete PR head/);
+});
+
+test("APR-09 reads current branch policy even when GitHub's PR comparison has a different base", async () => {
+  const { state, inspect, requests } = fixture();
+  state.pr.base.sha = earlierBase;
+  const result = await inspect();
+  assert.equal(result.base, base);
+  assert.equal(result.state, "awaiting-approvals");
+  assert.ok(requests.has("compare/" + earlierBase + "..." + head + "?per_page=100"));
+  assert.equal(requests.has("git/commits/" + earlierBase), false);
 });
 
 test("APR-01/02: exact PR association and current facts are required through the final read", async () => {
@@ -187,7 +230,8 @@ test("APR-06: the independent publisher reuses only its own sticky comment and f
 test("APR-06: a different repository or a withdrawn vote cannot publish a stale result", async () => {
   const { state, publish } = fixture();
   state.reviews = [review(1, author, "APPROVED", 1), review(2, reviewer, "APPROVED", 2)];
-  await assert.rejects(publish(62), /PR changed/);
+  await assert.rejects(publish(62), /does not match the publisher/);
+  await assert.rejects(publish(23, "another"), /does not match the publisher/);
   assert.equal(state.publishedComments.length, 0);
   assert.equal(state.statuses.length, 0);
   state.onRead = route => {
@@ -199,4 +243,59 @@ test("APR-06: a different repository or a withdrawn vote cannot publish a stale 
   assert.equal((await publish()).published, "failure");
   assert.equal(state.publishedComments.length, 1);
   assert.match(state.publishedComments[0]!.body, /缺 1 票/u);
+});
+
+test("APR-06: an active required publisher leaves an unconfigured target without a status", async () => {
+  const { state, publish, publishGroup } = fixture();
+  state.configured = false;
+  await assert.rejects(publish, /No approval policy/);
+  await assert.rejects(publishGroup, /No approval policy/);
+  assert.equal(state.statuses.length + state.groupStatuses.length + state.publishedComments.length, 0);
+});
+
+test("APR-06: all original heads must be approved before the group status succeeds", async () => {
+  const { state, members, publishGroup, requests } = fixture();
+  state.pr.base.sha = earlierBase;
+  state.reviews = [review(1, author, "APPROVED", 1), review(2, reviewer, "APPROVED", 2)];
+  state.otherReviews = [review(3, author, "APPROVED", 3, otherHead), review(4, reviewer, "APPROVED", 4, head)];
+  assert.deepEqual((await members(base)).members.map(member => [member.pull, member.head, member.queueCommit]),
+    [[pull, head, firstMerge], [otherPull, otherHead, groupHead]]);
+  assert.equal((await publishGroup()).published, "failure");
+  assert.equal(state.groupStatuses[0]?.state, "failure");
+  assert.equal(state.statuses.length, 0);
+  state.otherReviews.push(review(5, reviewer, "APPROVED", 5, otherHead));
+  assert.equal((await publishGroup()).published, "success");
+  assert.equal(state.groupStatuses[0]?.state, "success");
+  assert.equal(requests.has("git/commits/" + firstMerge), false);
+  assert.equal(requests.has("git/commits/" + earlierBase), false);
+});
+
+test("APR-06: disappeared or incomplete groups and changed votes or members never publish a group pass", async () => {
+  const { state, publishGroup } = fixture();
+  state.reviews = [review(1, author, "APPROVED", 1), review(2, reviewer, "APPROVED", 2)];
+  state.otherReviews = [review(3, author, "APPROVED", 3, otherHead), review(4, reviewer, "APPROVED", 4, otherHead)];
+  const entries = state.queue.mergeQueue.entries;
+  entries.pageInfo.hasNextPage = true;
+  await assert.rejects(publishGroup, /could not be verified/);
+  entries.pageInfo.hasNextPage = false;
+  const first = entries.nodes.shift()!;
+  entries.totalCount = 1;
+  await assert.rejects(publishGroup, /does not prove every member/);
+  entries.nodes.unshift(first);
+  entries.totalCount = 2;
+  state.otherPr.head.sha = old;
+  await assert.rejects(publishGroup, /Original pull request does not match/);
+  state.otherPr.head.sha = otherHead;
+  state.onRead = route => {
+    if (route === "commits/" + groupHead + "/statuses?per_page=100") {
+      state.otherReviews.push(review(5, reviewer, "CHANGES_REQUESTED", 5, otherHead));
+    }
+  };
+  await assert.rejects(publishGroup, /Queued approvals changed/);
+  state.otherReviews.pop();
+  state.onRead = route => {
+    if (route === "commits/" + groupHead + "/statuses?per_page=100") state.queue.group.target.oid = firstMerge;
+  };
+  await assert.rejects(publishGroup, /could not be verified/);
+  assert.equal(state.groupStatuses.length, 0);
 });

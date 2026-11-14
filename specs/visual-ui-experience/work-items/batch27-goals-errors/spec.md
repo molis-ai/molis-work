@@ -2,6 +2,8 @@
 
 状态：已实现，2026-11-11 第 27 批（待公共 C 在整批最终头合审）。待办 BL-819、BL-821 随之删除。
 
+> 2026-11-14（第 41 批）：规划方法变成技能目录里的技能，Goals 的方法库、个人方法库（Home 库）、规划设置页与相应动作已删除；下文凡涉及个人方法、`planning_method_packs`、`personal_planning_method_packs` 与规划设置出口的读取点和验收（BGE-01、03、04、07 里有关个人方法的部分）随之不再存在，其余读取点照旧。
+
 ## 实现记录（2026-11-11）
 
 - **一处解码**：`plugins/native/goals/src/stored-json.ts` 的 `storedJson(row, 表, 列, 备用值)` 取代 Module 与 Governance 各一份的 `parseJson` 和 `rowJson`，`goals.storage.record_unreadable` 也只在这里声明一次（`command-error-codes.ts` 引用它，Governance 的重复声明删掉）。喂给它的每条 SELECT 投影 `rowid AS stored_row`（联表写 `t.rowid`）；没投影的语句第一次读就报 `TypeError`，所以现有的 Goals 用例都在替这一点把关，不必等到某一行坏了才发现。
@@ -20,7 +22,7 @@
 ## BL-819 项目读取 Home 的失败回执
 
 - 项目的 `goals.planning.catalog`、`goals.planning.read`、`goals.planning.apply`、`goals.document.read@1`、带非空方法采用请求的 `goals.events.configure@1` 会读个人方法，以上均为第 1 版。各自先在项目库窗口运行。第一次读空快照时抛 `goals.planning.personal_not_loaded`，读窗口结束，写事务回滚。项目实例在窗口外以现行 `services.actions.invoke` 调用同一插件的 Home 动作 `goals.planning.personal.list@1`，传 `{}` 与原调用的 control，依现有成功响应中的 `scope` 取个人方法。只在这次加载成功后重跑原项目处理器一次。无需个人方法的调用无需这次加载。 [项目装配](../../../../plugins/native/goals/src/plugin.ts) · [快照](../../../../plugins/native/goals/src/runtime-ports.ts) · [Host 动作客户端](../../../../apps/local-host/src/plugin-actions-client.ts)
-- Home 实例从 `personal_planning_method_packs.pack_json` 解码。任何一条不可解析，`personal.list` 整体抛出 `goals.storage.record_unreadable`，类别为 `internal`。Home 的 `personal.save@1` 先读全表确定版本，遇同一故障便在写前失败。内核在处理器成功返回时校验动作输出，处理器已抛的错误经结算原样上抛。项目侧的 `PersonalMethodsSnapshot.run` 只对加载错误检查 `kind === "cancelled"`，其余改成 `goals.planning.personal_unavailable`，类别为 `unavailable`。 [Home 装配](../../../../plugins/native/goals/src/home-plugin.ts) · [个人方法仓储](../../../../plugins/native/goals/src/module/planning/personal-methods.ts) · [动作结算](../../../../packages/kernel/src/action-settlement.ts)
+- Home 实例从 `personal_planning_method_packs.pack_json` 解码。任何一条不可解析，`personal.list` 整体抛出 `goals.storage.record_unreadable`，类别为 `internal`。Home 的 `personal.save@1` 先读全表确定版本，遇同一故障便在写前失败。内核在处理器成功返回时校验动作输出，处理器已抛的错误经结算原样上抛。项目侧的 `PersonalMethodsSnapshot.run` 只对加载错误检查 `kind === "cancelled"`，其余改成 `goals.planning.personal_unavailable`，类别为 `unavailable`。 Home 装配（第 41 批已删） · 个人方法仓储（第 41 批已删） · [动作结算](../../../../packages/kernel/src/action-settlement.ts)
 
 | 口径 | 用户看到什么 | 对调用方的影响 |
 | --- | --- | --- |
@@ -52,7 +54,7 @@
 | 同上 | `goal_tree_proposal_decisions.materialized_objects_json` | `decision_id` |
 | `governance/event-decisions.ts` | `goal_event_trusted_decisions.scope_json/change_json` | `decision_id` |
 
-表、列由对应 mapper 写成固定名称。上表的业务键仅用于说明现有读取路径，不进入错误详情。`method_id`、`goal_id`、`criterion_id` 等可来自业务输入，进了数据库也仍可能含用户内容。用户 2026-11-09 选择统一提供表、列和短期库行号，不披露业务键，即使某些键由 owner 生成也不另设例外。选择范围继续来自可信动作上下文和仓储参数。 [项目库声明](../../../../plugins/native/goals/src/project-database.ts) · [Home 库声明](../../../../plugins/native/goals/src/home-database.ts)
+表、列由对应 mapper 写成固定名称。上表的业务键仅用于说明现有读取路径，不进入错误详情。`method_id`、`goal_id`、`criterion_id` 等可来自业务输入，进了数据库也仍可能含用户内容。用户 2026-11-09 选择统一提供表、列和短期库行号，不披露业务键，即使某些键由 owner 生成也不另设例外。选择范围继续来自可信动作上下文和仓储参数。 [项目库声明](../../../../plugins/native/goals/src/project-database.ts) · Home 库声明（第 41 批已删）
 
 复用 `ActionError.details`，精确形状为 `{ storage: { table, column, row_ref } }`，三个值均为字符串。`row_ref` 从既有 SELECT 返回的同一行取得表限定的 SQLite `rowid`，使用十进制字符串；只供当前库的当次维护定位，不是跨重建稳定身份。消息与详情排除原 JSON、解析器原异常、业务键、其他列、SQL、凭据和绝对路径，不新增受限维护出口或额外查询。用 Home 实际 DDL 与原生 owner SQL 授权做的内存探针读到了自有表的行号，读取外表被拒；同一业务行另行重建时从行号 5 变成 1。项目库现行语句检查接受 `Rowid` 和 `Cast` 指令，实际查询仍须经原授权验证。此探针不代替实现后逐读取路径的验收。 [Home 语句授权](../../../../packages/storage/src/sqlite-owner-boundary.ts) · [项目语句检查](../../../../packages/plugin-runtime/src/project-database-statements.ts)
 
@@ -61,7 +63,7 @@
 | 现有出口 | 实际接收 |
 | --- | --- |
 | 进程内动作及通用 HTTP | `defineErrorCodes` 接受可选详情。SDK 的 `actionErrorResponse` 发送 `{ error, code, details? }`，由类别映射 500 或 503。SDK 的 `actionErrorFromResponse` 能按状态复原类别及详情。Goals 的 `goalsRoute` 失败出口及项目设置汇总也采用这个错误体。 [SDK](../../../../packages/plugin-sdk/src/errors.ts) · [Goals 路由](../../../../plugins/native/goals/src/http/failure.ts) · [项目设置汇总](../../../../apps/local-host/src/web-goals-read.ts) |
-| Home 与项目的专用规划设置页和 API | `web-planning.ts` 的读及相应保存或采用错误走 400 与 `{ error }`。原样透出后项目会收到记录读坏文案。已有 `method_not_found` 的 404 由专用路由处理。 [规划设置出口](../../../../apps/local-host/src/web-planning.ts) |
+| Home 与项目的专用规划设置页和 API | `web-planning.ts` 的读及相应保存或采用错误走 400 与 `{ error }`。原样透出后项目会收到记录读坏文案。已有 `method_not_found` 的 404 由专用路由处理。 规划设置出口（第 41 批已删） |
 | MCP 与助理 | MCP 的动作错误 JSON 会保留详情，只滤掉详情内伪装成 `code` 或 `call_id` 的键。助理的 HTTP 错误适配保留外部 owner 的详情。Agent 的通用工具网关把错误变成码与消息文本，工作流的步骤失败取错误消息。故详情要按技术调用方可读处理，普通提示及模型用语无需拼入位置。 [MCP](../../../../apps/mcp/src/tool-error.ts) · [助理](../../../../apps/local-host/src/assistant/assistant-error.ts) · [Agent](../../../../horizontal/agent-host/src/adapters/prologue-action-gateway.ts) · [工作流](../../../../plugins/native/workflows/src/step-runner.ts) |
 | 设置 › 诊断 | 调用结算只传码与消息，未执行与失败读的记录只留调用元数据和码，已执行的失败命令可留截断消息。现有诊断页按已有编号查这些行，无法从中取得 `details`。 [结算](../../../../packages/kernel/src/action-settlement.ts) · [调用记录](../../../../apps/local-host/src/action-call-log.ts) · [设置诊断](../../../../apps/local-host/src/web-call-diagnostics.ts) |
 
@@ -77,13 +79,13 @@ BL-819 落在 `plugins/native/goals/src/runtime-ports.ts` 的加载拒绝分支�
 
 | 编号 | 可观察结果与拟验证入口（实现后的证明见表后） |
 | --- | --- |
-| BGE-01 | 在隔离 Home 先用现行动作保存两个个人包并建项目，再只损坏一行的 JSON。真实 Home `personal.list` 与项目 `planning.read/apply` 分别断言已定的码和类别，项目快照仍可读。用真实设置 GET 与已有授权 MCP 动作对照其各自错误体，未授权 MCP 走原拒绝。采用 A 时基线的项目错误码和文案会使新断言失败。扩充 [Home 坏行测试](../../../../tests/goals-personal-methods-stored-json.test.ts) 和 [MCP 夹具](../../../../tests/goals-mcp-actions.test.ts) 所走的入口。 |
+| BGE-01 | 在隔离 Home 先用现行动作保存两个个人包并建项目，再只损坏一行的 JSON。真实 Home `personal.list` 与项目 `planning.read/apply` 分别断言已定的码和类别，项目快照仍可读。用真实设置 GET 与已有授权 MCP 动作对照其各自错误体，未授权 MCP 走原拒绝。采用 A 时基线的项目错误码和文案会使新断言失败。扩充 Home 坏行测试（第 41 批已删） 和 [MCP 夹具](../../../../tests/goals-mcp-actions.test.ts) 所走的入口。 |
 | BGE-02 | 无 Home 的项目经现有 CLI 测试夹具的真实动作入口采用方法仍以 `goals.planning.personal_unavailable` 拒绝，业务行逐列相同，项目可读。在同一缺失依赖上验收，无需用假的加载失败模拟断线。沿用 [PG094-CLI-03](../../../../tests/cli-home-owner-entry.test.ts)。 |
 | BGE-03 | 覆盖处理器前的取消、撤权与停用，并让嵌套 Home 读取与取消、撤权发生受控交错。沿已有 Host 验证栅栏先等确认进入读取，再取消（含只带 `actions.cancelled` 码）或撤销原调用授权。断言保留取消原因，撤权按既有拒绝边界落码，迟到的坏行详情和成功结果都无法交付，也不启动第二次项目写入。通过有信号的真实网关调用断开连接，覆盖入口自身的取消。处理器前的诊断行仍为未执行，只记允许的元数据与码。 [授权交错示例](../../../../tests/goal-pin-authority.test.ts) · [未执行诊断](../../../../tests/action-call-log.test.ts) |
-| BGE-04 | Home 坏行时同 id 和新 id 的保存都拒绝。项目采用或事件配置拒绝后逐列比较个人包、项目方法、Goal、事件、幂等和相关已加入事务的记录。先采集拒绝结果与写后状态，再断言，坏值和其他行保持原样。项目规则读坏仍阻断完成，治理提案的坏基线仍拒绝读取。 [RAC-1496](../../../../tests/goals-personal-methods-stored-json.test.ts) · [RAC-1261/1264](../../../../tests/goal-events-state.test.ts) · [RAC-1266/1267](../../../../tests/governance-collaboration-module.test.ts) |
-| BGE-05 | 逐一覆盖实际受改的读取点，按故障注入的 owner 表和列断言归属，并核对获批定位字段的精确值和各出口的可见范围。同一表列经多条路径读取时，每条路径都要覆盖。可按 owner 或读取入口分组验证。直接 Module、经 `rowJson` 的事件配置、Governance 与 Home 均走真实库行及各自入口。注入文本、路径及假密钥标记，消息、详情、HTTP/MCP 回执和诊断中均无原文。对全部业务键检验不披露，定位只使用已批准的短期行号；核对同库行定位及重建后行号不保证稳定。保留 [RAC-1269](../../../../tests/goals-stored-json.test.ts) 和 [RAC-1495](../../../../tests/goals-personal-methods-stored-json.test.ts) 对正文的拒绝。 |
+| BGE-04 | Home 坏行时同 id 和新 id 的保存都拒绝。项目采用或事件配置拒绝后逐列比较个人包、项目方法、Goal、事件、幂等和相关已加入事务的记录。先采集拒绝结果与写后状态，再断言，坏值和其他行保持原样。项目规则读坏仍阻断完成，治理提案的坏基线仍拒绝读取。 RAC-1496（第 41 批已删） · [RAC-1261/1264](../../../../tests/goal-events-state.test.ts) · [RAC-1266/1267](../../../../tests/governance-collaboration-module.test.ts) |
+| BGE-05 | 逐一覆盖实际受改的读取点，按故障注入的 owner 表和列断言归属，并核对获批定位字段的精确值和各出口的可见范围。同一表列经多条路径读取时，每条路径都要覆盖。可按 owner 或读取入口分组验证。直接 Module、经 `rowJson` 的事件配置、Governance 与 Home 均走真实库行及各自入口。注入文本、路径及假密钥标记，消息、详情、HTTP/MCP 回执和诊断中均无原文。对全部业务键检验不披露，定位只使用已批准的短期行号；核对同库行定位及重建后行号不保证稳定。保留 [RAC-1269](../../../../tests/goals-stored-json.test.ts) 和 RAC-1495（第 41 批已删） 对正文的拒绝。 |
 | BGE-06 | 现行的 SQL NULL 备用值及合法 JSON 保持原路径。用真实方法包仅改 `confidence` 为字符串，Home 列表仍由成功输出 schema 拒绝为 `actions.output_invalid`，项目嵌套仍走其他加载错误的映射。另核合法 JSON 文本 `null` 的现有过滤。形状检查只覆盖已有合同实际检查的边界。 [RAC-1268](../../../../tests/goals-stored-json.test.ts) · [方法成功 schema](../../../../plugins/native/goals/src/contract/goal-planning-action-schemas.ts) |
-| BGE-07 | 维护夹具恢复那一格的原值后，同一个 Host 的下一次调用读回两个方法和各自版本。原失败配置可沿原幂等键重试一次，成功产生一份业务结果，未损坏方法与既有项目副本保持原值。 [RAC-1497](../../../../tests/goals-personal-methods-stored-json.test.ts) · [打开项目即时读回](../../../../tests/goals-planning-actions.test.ts) |
+| BGE-07 | 维护夹具恢复那一格的原值后，同一个 Host 的下一次调用读回两个方法和各自版本。原失败配置可沿原幂等键重试一次，成功产生一份业务结果，未损坏方法与既有项目副本保持原值。 RAC-1497（第 41 批已删） · 打开项目即时读回（第 41 批已删） |
 
 实现后的证明：BGE-01、BGE-04、BGE-07 在 `tests/goals-personal-methods-stored-json.test.ts`「BGE-01 BGE-04 BGE-07」一例（项目读、采用、快照与修复后读回，采用被拒后逐列比较项目的规划与事件配置表）；BGE-03 在同文件「BGE-03」一例（经 Host 的可用性检查在 Home 读取那一刻取消或撤权，取消得 `actions.cancelled`、撤权得 `actions.forbidden`，都不带位置；同一 Host 上仍有效的调用照常拿到记录错误）；BGE-05 在 `tests/goals-stored-json.test.ts`（RAC-1260/1262/1263/1265 断言精确详情，规则表两条读取路径都指到同一行；RAC-1269 断言详情不带业务键；「BGE-05」一例把源码里每一处 `storedJson` 的表与列对照项目库和 Home 库的实际结构）与 RAC-1495；BGE-02 沿用 PG094-CLI-03；BGE-06 沿用 RAC-1268。MCP 与设置 GET 的错误体对照、受控交错之外的网关断连，没有另写用例：错误体由 SDK 的 `actionErrorResponse` 与 MCP 的 `tool-error.ts` 原样序列化 `details`，本片没有改它们。
 

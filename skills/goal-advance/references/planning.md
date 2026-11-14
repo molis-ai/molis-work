@@ -6,13 +6,11 @@ Read when the task benefits from professional methods, decomposition, a tree cha
 
 Start from the intended result and its consumer. Identify the work type, professional domain, industry or operating constraints that change how a good result is produced and judged.
 
-Call goals.planning.catalog for the lightweight catalog (methods without their instructions). Respect user-configured composition.method_pack_ids, then add methods whose distinct checks materially apply. Read the selected methods' instructions with goals.planning.read and their method_ids; an unknown method_id is refused. Do not load every method body by default.
+The planning and breakdown methods are Skills of the Skill catalog, not part of Goals. When the user or the Runtime has them, read the catalog with skills.catalog.list and a chosen method's instructions with skills.body.read; a Skill that is switched off or manual-only is not yours to pick. Add only methods whose distinct checks materially apply, and do not load every body by default.
 
 Work type, domain, industry and situational overlays are complementary lenses, not serial phases or one Goal each. If a needed provider or professional check is missing, consult the relevant additional method. Do not turn an example method bundle into a mandatory product/software/data checklist.
 
-If no method fits, use relevant professional evidence and explain the chosen approach. Saving a reusable project method through goals.planning.save is a separate, user-confirmed change; it is not a prerequisite for recording or planning the current Goal.
-
-goals.events.configure can adopt a saved method version and its useful types. Default requirements are separate choices: adopt_default_requirement_ids enables only the chosen ones, using the returned Goal-local IDs afterward. Omit adopted_planning to retain the current selection. A template-free Goal stays template-free unless adoption is intended.
+If no method fits, use relevant professional evidence and explain the chosen approach. Goals does not store, adopt or version methods: what a method suggests becomes part of a Goal only through the ordinary actions (requirements through goals.agreement.set, local types through goals.events.configure, structure through a tree proposal).
 
 ## Shape work around usable results
 

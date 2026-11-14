@@ -1088,7 +1088,7 @@ CPK-13、CPK-14 是第 3 稿新加的，同一提交写进能力包需求 §11�
 | 能力库、服务连接、对外接入、调用记录、AI 与执行工具 | **保留**，从 MCP 和工具详情链过去 |
 | Coding 的 MCP 页 | **保留**，能力包链过去 |
 | Coding 的方法页 | **删**（9-4、9-5） |
-| Goals 的规划方法库 | 本批保留，不并；41-2 起是能力包里的技能 |
+| Goals 的规划方法库 | 本批保留，不并；41-2 起是随系统自带的技能包（`plugins/content/planning-methods`），Goals 不再有方法库 |
 
 - 合并后「AI」组是：模型设置 · 助理 · 角色 · 能力包。
 - 设置页文档列今天被 `:is(body.project-preferences-page, …) .settings-content > .settings-document` 限在 760px，第 08 批 `.skill-settings` 写的 1100px 被它盖住。

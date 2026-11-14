@@ -117,7 +117,7 @@ node docs/design/capability-pack/shots.mjs .impeccable/qa/review/capability-pack
 | 能力库、服务连接、对外接入、调用记录、AI 与执行工具 | **保留**，从 MCP 和工具详情链过去 |
 | Coding 的 MCP 页 | **保留**，能力包链过去 |
 | Coding 的方法页 | **删**（9-4、9-5） |
-| Goals 的规划方法库 | **保留**，不并 |
+| Goals 的规划方法库 | 当时**保留**，不并；第 41 批起是随系统自带的技能包，Goals 不再有方法库 |
 
 合并后「AI」组是：模型设置 · 助理 · 角色 · 能力包（原型左栏就是这样）。另：设置页文档列被 `:is(body.project-preferences-page, …) .settings-content > .settings-document` 限在 760px，第 08 批 `.skill-settings` 写的 1100px 被它盖住；能力包要并排列表＋详情，原型放宽到 1100px，实现时同一处改法也让 08 的技能目录变宽。
 

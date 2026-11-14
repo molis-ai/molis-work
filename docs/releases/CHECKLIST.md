@@ -44,7 +44,7 @@
 | 项目库 | `projects/<project_id>/molis-work.db` | 3 | `user_version` | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE` | 低版本升级，高版本拒绝；2→3 只新建空的呈现纠正表 |
 | 项目库里 Coding 的表 | `projects/<project_id>/molis-work.db#coding` | 1 | `plugin_project_databases.version` | `plugins/native/coding/src/database.ts#CODING_PROJECT_DATABASE` | 低版本升级，高版本拒绝（只停 Coding） |
 | 项目库里 Feed 的表 | `projects/<project_id>/molis-work.db#feed` | 2 | `plugin_project_databases.version` | `plugins/native/feed/src/database.ts#FEED_PROJECT_DATABASE` | 低版本升级，高版本拒绝（只停 Feed） |
-| 项目库里 Goals 的表 | `projects/<project_id>/molis-work.db#goals` | 2 | `plugin_project_databases.version` | `plugins/native/goals/src/project-database.ts#GOALS_PROJECT_DATABASE` | 低版本升级，高版本拒绝（只停 Goals） |
+| 项目库里 Goals 的表 | `projects/<project_id>/molis-work.db#goals` | 3 | `plugin_project_databases.version` | `plugins/native/goals/src/project-database.ts#GOALS_PROJECT_DATABASE` | 低版本升级，高版本拒绝（只停 Goals） |
 | 项目库里 Inbox 的表 | `projects/<project_id>/molis-work.db#inbox` | 1 | `plugin_project_databases.version` | `plugins/native/inbox/src/database.ts#INBOX_PROJECT_DATABASE` | 低版本升级，高版本拒绝（只停 Inbox） |
 | 项目库里 Schedule 的表 | `projects/<project_id>/molis-work.db#schedule` | 2 | `plugin_project_databases.version` | `plugins/native/schedule/src/database.ts#SCHEDULE_PROJECT_DATABASE` | 低版本升级，高版本拒绝（只停 Schedule） |
 | 目录库 | `projects/catalog.db` | 3 | `catalog_meta.schema_version` | `apps/local-host/src/project-catalog-contract.ts#CATALOG_SCHEMA_VERSION` | 低版本升级，高版本拒绝 |
@@ -56,7 +56,6 @@
 | 插件的本机目录授权 | `plugin-directories/plugin-directories.db` | 1 | `user_version` | `apps/local-host/src/plugin-directory-store.ts#DIRECTORY_GRANTS_BASELINE` | 低版本升级，高版本拒绝 |
 | 插件原文件登记 | `plugin-originals/plugin-originals.db` | 1 | `user_version` | `apps/local-host/src/material-original-files.ts#ORIGINAL_FILES_BASELINE` | 低版本升级，高版本拒绝 |
 | Issue | `issues/issues.db` | 1 | `user_version` | `plugins/native/issues/src/database.ts#ISSUES_DATABASE` | 低版本升级，高版本拒绝 |
-| Goals 的个人方法 | `goals/goals.db` | 1 | `user_version` | `plugins/native/goals/src/home-database.ts#GOALS_HOME_DATABASE` | 低版本升级，高版本拒绝；旧数据搬迁已取消，干净Home创建当前库 |
 | Feed 的正文引用账 | `feed-content/feed-content.db` | 1 | `user_version` | `plugins/native/feed/src/content-ledger.ts#FEED_HOME_DATABASE` | 低版本升级，高版本拒绝 |
 | 记忆 | `memory/memory.db` | 2 | `user_version` | `packages/storage/src/adapters/memory-ledger.ts#MEMORY_LEDGER_BASELINE` | 低版本升级（1 → 2 清掉旧记忆的账本记录，保留开关并补空的按类别限制，下次启动永久删除两个旧布局记忆目录并建新的空遗忘文件；真实 Home 先备份），高版本拒绝；新Home创建完整reviewed偏好，不重设已有设置 |
 | 项目资料 | `knowledge/knowledge.db` | 1 | `user_version` | `packages/storage/src/adapters/knowledge-cards.ts#KNOWLEDGE_CARDS_BASELINE` | 低版本升级，高版本拒绝 |

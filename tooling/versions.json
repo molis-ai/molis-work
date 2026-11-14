@@ -1575,7 +1575,25 @@
     "type.signal.adapter.web-query": 1,
     "type.signal.adapter.youtube": 1,
     "type.signals.command": 1,
-    "type.workspace.ref": 1
+    "type.workspace.ref": 1,
+    "action.work-brief.briefs.list": 1,
+    "action.work-brief.briefs.get": 1,
+    "action.work-brief.briefs.save": 1,
+    "action.work-brief.briefs.refresh": 1,
+    "action.work-brief.briefs.edit": 1,
+    "action.work-brief.proposals.resolve": 1,
+    "action.work-brief.versions.fix": 1,
+    "action.work-brief.next.run": 1,
+    "action.work-brief.next.set": 1,
+    "action.work-brief.personal.get": 1,
+    "action.work-brief.personal.refresh": 1,
+    "action.work-brief.presentation.values": 1,
+    "action.work-brief.presentation.overview": 1,
+    "action.work-brief.subject.read": 1,
+    "action.work-brief.search.entries": 1,
+    "action.work-brief.artifacts.preview": 1,
+    "database.work_brief_database": 1,
+    "artifact.io.molis.work.work-brief.brief": 1
   },
   "carriers": [
     {

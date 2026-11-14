@@ -12,7 +12,7 @@ import { embeddedStageTextOwners, runtimeStageOwner } from "./project-plugin-sta
 import { homeStageHalves } from "./home-plugin-http.js";
 import { pageConnectionSlot } from "./plugin-connection-slots-http.js";
 import { pageConnectionNeed } from "./plugin-connection-need-http.js";
-import { pageTaskGrants } from "./plugin-page-task-grants-http.js";
+import { pagePerson, pageTaskGrants } from "./plugin-page-task-grants-http.js";
 import { stageObjectAction } from "@molis-ai/molis-work-app-workbench";
 import { registeredBuiltinText } from "./ui-text-provider.js";
 import { handlePageLocales } from "./web-ui-locales.js";
@@ -109,7 +109,10 @@ export async function handlePluginPageHttp(context: WebRequestContext, project?:
         if (shown && key && !(await shown()).includes(key)) throw new ActionError("actions.plugin_disabled", "此项目未启用该插件");
       };
       const beforeEffect = async () => { page.assertCurrent(); await beforeBackgroundEffect(); await page.beforeEffect(); };
-      const control = { project_id: page.project_id, signal: page.signal, assertCurrent: page.assertCurrent, beforeEffect, beforeBackgroundEffect };
+      // The person is the one this authenticated request belongs to, in the project the page was opened in and no other.
+      const person = (project?.project_id ?? null) === page.project_id
+        ? () => pagePerson(context, project, page.signal) : undefined;
+      const control = { project_id: page.project_id, signal: page.signal, assertCurrent: page.assertCurrent, beforeEffect, beforeBackgroundEffect, ...(person ? { person } : {}) };
       const result = submit && typeof component_id === "string"
         ? await page.invoke({ ...control, mode: "component_submit", component_id, payload: body.payload })
         : await page.invoke({ ...control, reference: body.reference as ActionReference, input: body.input, ...(availability ? { mode: "availability" } : {}) });

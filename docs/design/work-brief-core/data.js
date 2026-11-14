@@ -1,14 +1,14 @@
 // Sample data for the Work Brief core prototype (batch 19). Made-up project, people and numbers; nothing is read from a Home.
 window.WB = {
   project: { zh: "Atlas 迁移", en: "Atlas migration" },
-  // Sources = plugins that own the facts. hue = the component board's --hue-* token family; pulse: g(reen) / y(ellow) / r(ed) / na.
+  // Sources = plugins that own the facts. hue = the owner tile's hue, cool end only (DESIGN.md → Plugin identity); pulse = whose turn it is (DESIGN.md → Pairing): ok / moving / waiting (yours) / blocked / na.
   sources: {
-    goals: { zh: "Goals", en: "Goals", icon: "target", hue: "blue", pulse: "y", asOf: "09:00", fact: { zh: "3 个目标 · 1 条要求受阻", en: "3 goals · 1 requirement blocked" } },
-    todo: { zh: "待办", en: "To-dos", icon: "check", hue: "green", pulse: "r", asOf: "09:00", fact: { zh: "12 项 · 2 项逾期", en: "12 items · 2 overdue" } },
-    inbox: { zh: "Inbox", en: "Inbox", icon: "inbox", hue: "mint", pulse: "g", asOf: "08:58", fact: { zh: "本周 14 条 · 1 条要你回", en: "14 this week · 1 needs your reply" } },
-    coding: { zh: "Coding", en: "Coding", icon: "code", hue: "cyan", pulse: "y", asOf: "09:00", fact: { zh: "2 个会话 · 测试连续两天失败", en: "2 sessions · tests failing two days" } },
-    risks: { zh: "风险", en: "Risks", icon: "risk", hue: "orange", pulse: "y", asOf: "09:00", fact: { zh: "5 条未关闭 · 1 条新登记", en: "5 open · 1 new" } },
-    calendar: { zh: "日程", en: "Calendar", icon: "calendar", hue: "yellow", pulse: "na", asOf: "09:00", fact: { zh: "今天没有会议", en: "No meetings today" } },
+    goals: { zh: "Goals", en: "Goals", icon: "target", hue: "blue", pulse: "moving", asOf: "09:00", fact: { zh: "3 个目标 · 1 条要求受阻", en: "3 goals · 1 requirement blocked" } },
+    todo: { zh: "待办", en: "To-dos", icon: "check", hue: "indigo", pulse: "waiting", asOf: "09:00", fact: { zh: "12 项 · 2 项逾期", en: "12 items · 2 overdue" } },
+    inbox: { zh: "Inbox", en: "Inbox", icon: "inbox", hue: "purple", pulse: "waiting", asOf: "08:58", fact: { zh: "本周 14 条 · 1 条要你回", en: "14 this week · 1 needs your reply" } },
+    coding: { zh: "Coding", en: "Coding", icon: "code", hue: "slate", pulse: "blocked", asOf: "09:00", fact: { zh: "2 个会话 · 测试连续两天失败", en: "2 sessions · tests failing two days" } },
+    risks: { zh: "风险", en: "Risks", icon: "risk", hue: "steel", pulse: "moving", asOf: "09:00", fact: { zh: "5 条未关闭 · 1 条新登记", en: "5 open · 1 new" } },
+    calendar: { zh: "日程", en: "Calendar", icon: "calendar", hue: "blue", pulse: "na", asOf: "09:00", fact: { zh: "今天没有会议", en: "No meetings today" } },
   },
   objects: {
     g1: { src: "goals", zh: "数据同步迁到 v3 接口", en: "Move data sync to the v3 API" },

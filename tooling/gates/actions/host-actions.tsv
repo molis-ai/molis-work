@@ -450,6 +450,14 @@ sdk.artifacts.plugin-install-7d7b3314323c66d2f0199158cb692678.process-own	1	sdk.
 sdk.artifacts.plugin-install-7d7b3314323c66d2f0199158cb692678.publish	1	sdk.artifacts.plugin-install-7d7b3314323c66d2f0199158cb692678	command	operation	project	write	-	plugin	artifact:write	artifact	-	-	fac293a9dca6	1085d413a442	-
 sdk.artifacts.plugin-install-7d7b3314323c66d2f0199158cb692678.read	1	sdk.artifacts.plugin-install-7d7b3314323c66d2f0199158cb692678	query	query	project	read	-	plugin	artifact:read	artifact	-	-	71df1b1a1513	2859b2436279	-
 sdk.artifacts.plugin-install-7d7b3314323c66d2f0199158cb692678.record	1	sdk.artifacts.plugin-install-7d7b3314323c66d2f0199158cb692678	command	operation	project	write	-	plugin	artifact:write	artifact	-	-	4b70788eb322	594bfb4904e7	-
+sdk.artifacts.plugin-install-87f7cd49f3979409791d41e21b8fccc3.head	1	sdk.artifacts.plugin-install-87f7cd49f3979409791d41e21b8fccc3	query	query	project	read	-	plugin	artifact:read	artifact	-	-	dcd94c8d4806	de63eacfccec	-
+sdk.artifacts.plugin-install-87f7cd49f3979409791d41e21b8fccc3.list	1	sdk.artifacts.plugin-install-87f7cd49f3979409791d41e21b8fccc3	query	query	project	read	-	plugin	artifact:read	artifact	-	-	d746974fa9af	a8029c5dda0c	-
+sdk.artifacts.plugin-install-87f7cd49f3979409791d41e21b8fccc3.own	1	sdk.artifacts.plugin-install-87f7cd49f3979409791d41e21b8fccc3	query	query	project	read	-	plugin	artifact:read	artifact	-	-	71df1b1a1513	151cd0f968d2	-
+sdk.artifacts.plugin-install-87f7cd49f3979409791d41e21b8fccc3.process-head	1	sdk.artifacts.plugin-install-87f7cd49f3979409791d41e21b8fccc3	query	query	project	read	-	plugin	artifact:read	artifact	-	-	dcd94c8d4806	4f71dc751a95	-
+sdk.artifacts.plugin-install-87f7cd49f3979409791d41e21b8fccc3.process-own	1	sdk.artifacts.plugin-install-87f7cd49f3979409791d41e21b8fccc3	query	query	project	read	-	plugin	artifact:read	artifact	-	-	71df1b1a1513	04a5e3cfe9cb	-
+sdk.artifacts.plugin-install-87f7cd49f3979409791d41e21b8fccc3.publish	1	sdk.artifacts.plugin-install-87f7cd49f3979409791d41e21b8fccc3	command	operation	project	write	-	plugin	artifact:write	artifact	-	-	fac293a9dca6	1085d413a442	-
+sdk.artifacts.plugin-install-87f7cd49f3979409791d41e21b8fccc3.read	1	sdk.artifacts.plugin-install-87f7cd49f3979409791d41e21b8fccc3	query	query	project	read	-	plugin	artifact:read	artifact	-	-	71df1b1a1513	2859b2436279	-
+sdk.artifacts.plugin-install-87f7cd49f3979409791d41e21b8fccc3.record	1	sdk.artifacts.plugin-install-87f7cd49f3979409791d41e21b8fccc3	command	operation	project	write	-	plugin	artifact:write	artifact	-	-	4b70788eb322	594bfb4904e7	-
 sdk.artifacts.plugin-install-89fdd009a6009b63a534e1c415360402.head	1	sdk.artifacts.plugin-install-89fdd009a6009b63a534e1c415360402	query	query	project	read	-	plugin	artifact:read	artifact	-	-	dcd94c8d4806	de63eacfccec	-
 sdk.artifacts.plugin-install-89fdd009a6009b63a534e1c415360402.list	1	sdk.artifacts.plugin-install-89fdd009a6009b63a534e1c415360402	query	query	project	read	-	plugin	artifact:read	artifact	-	-	d746974fa9af	a8029c5dda0c	-
 sdk.artifacts.plugin-install-89fdd009a6009b63a534e1c415360402.own	1	sdk.artifacts.plugin-install-89fdd009a6009b63a534e1c415360402	query	query	project	read	-	plugin	artifact:read	artifact	-	-	71df1b1a1513	151cd0f968d2	-
@@ -519,5 +527,5 @@ skills.import.preview	1	plugin-install	command	operation	home	write	-	user	skill
 skills.kit.report	1	system.skills	query	query	home	read	concurrent	user	skills:read	-	molis.kit-report.input.v1	molis.kit-report.output.v1	d746974fa9af	d4b668a16eb1	-
 skills.resource.read	1	system.skills	query	query	home	read	-	agent,plugin,user	skills:read	-	-	-	69404a9dbf5f	b3b4ba8c0864	-
 skills.settings.set	1	system.skills	command	operation	home	write	-	user	skills:manage	-	-	-	94bf6ef0f64a	2b646704d211	-
-surfaces.compose	1	system.surfaces	query	query	project	read	concurrent	plugin,user	-	-	-	surfaces.description	ccf3f4c7b906	f59223c9f9fd	-
+surfaces.compose	1	system.surfaces	query	query	project	read	concurrent	plugin,user	-	-	-	surfaces.description	ccf3f4c7b906	77428bdfe59e	-
 surfaces.correct	1	system.surfaces	command	operation	project	write	-	user	-	-	-	-	bc75f60bd856	e2b416124e26	-

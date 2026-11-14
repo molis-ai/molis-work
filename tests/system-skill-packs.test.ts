@@ -66,9 +66,10 @@ test("SKL-41-2 in a new Home the pack's Skills are in the catalog with no instal
     assert.ok(zh.every(skill => skill.state === "auto" && skill.settings_revision === 0 && skill.pack.trust === "host" && skill.availability.available && skill.applies_to === "assistant" && !skill.enabled));
     const pick = (list: SkillCatalogEntry[]) => list.find(skill => skill.ref.skill_id === "work-analyze-decide")!;
     assert.deepEqual([pick(zh).pack.title, pick(zh).name, pick(en).pack.title, pick(en).name], ["规划与拆解", "分析与决策", "Planning and breakdown", "Analyze and decide"]);
-    const body = async (locale: string) => ((await client.invoke({ ...person, locale }, ref(skillCatalogActions.readBodies), { refs: [pick(zh).ref] }) as { results: SkillBodyReadResult[] }).results[0]) as { ok: true; body: string };
-    assert.match((await body("zh")).body, /## 怎样用这份方法/);
-    assert.match((await body("en")).body, /^# Analyze and decide\n[\s\S]*## How to use this method/);
+    const body = async (locale: string) => ((await client.invoke({ ...person, locale }, ref(skillCatalogActions.readBodies), { refs: [pick(zh).ref] }) as { results: SkillBodyReadResult[] }).results[0]!);
+    const text = (result: SkillBodyReadResult) => result.ok ? result.body : assert.fail(`refused: ${result.reason}`);
+    assert.match(text(await body("zh")), /## 怎样用这份方法/);
+    assert.match(text(await body("en")), /^# Analyze and decide\n[\s\S]*## How to use this method/);
 
     const agent = { ...person, audience: "agent" as const, skill_round: { consumer: "assistant" as const, named: [], auto: true } };
     const seen = async () => (await client.invoke(agent, ref(skillCatalogActions.list), {}) as { skills: SkillCatalogEntry[] }).skills.some(skill => skill.ref.skill_id === "work-analyze-decide" && skill.pack.plugin_id === PLUGIN_ID);
@@ -80,7 +81,8 @@ test("SKL-41-2 in a new Home the pack's Skills are in the catalog with no instal
     assert.ok(off.settings_revision > 0, "off is the person's choice here, so it is kept");
     assert.equal(pick(await ours("zh")).state, "off");
     assert.equal(await seen(), false);
-    assert.equal((await body("zh") as unknown as { ok: boolean; reason?: string }).reason, "off");
+    const closed = await body("zh");
+    assert.equal(closed.ok ? "read" : closed.reason, "off");
     assert.equal((await set("auto", off.settings_revision)).state, "auto");
     assert.equal(await seen(), true);
   } finally { await host.close(); await rm(base, { recursive: true, force: true }); }

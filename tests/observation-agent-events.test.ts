@@ -26,7 +26,7 @@ const usage = (tokens: number) => ({ input: { source: "reported" as const, token
   cacheRead: { source: "unknown" as const, tokens: undefined }, cacheWrite: { source: "unknown" as const, tokens: undefined },
   cost: { source: "unknown" as const, amount: undefined, currency: undefined } });
 
-test("OCL-01 OCL-05 OCL-06 OCL-08: every round event becomes its work record, with the model in force", () => {
+test("OCL-01 OCL-05 OCL-06 OCL-08: a round's main event path becomes its work records, with the model in force", () => {
   const facts: ObservationFactInput[] = [];
   const observer = observeRun({ record: fact => { facts.push(fact); } }, ref, frozen, start, model);
   observer.event({ type: "text-delta", text: "Ready to " });
@@ -80,4 +80,30 @@ test("OCL-01 OCL-05 OCL-06 OCL-08: every round event becomes its work record, wi
     ["started", "child-run", { kind: "agent_session", id: "child-session" }], ["ended", "child-run", { kind: "agent_session", id: "child-session" }]]);
   assert.equal(factsOf("agent.run").at(-1)!.stage, "ended");
   assert.ok(facts.every(fact => fact.work?.run_id === "run-1" && fact.subjects?.[0]?.id === "session-1"), "every record belongs to the round");
+});
+
+test("OCL-08: a round's failures, cancellation, action tools and compaction variants keep their outcomes", () => {
+  const facts: ObservationFactInput[] = [];
+  const observer = observeRun({ record: fact => { facts.push(fact); } }, ref, frozen, start, model);
+  observer.event({ type: "tool-call", call: { id: "a1", name: "molis-action-scope-notes", input: { note: "x" } } });
+  observer.event({ type: "tool-result", callId: "a1", name: "molis-action-scope-notes", text: "recorded", outcome: "returned" });
+  observer.event({ type: "tool-call", call: { id: "t2", name: "read", input: { path: "notes.md" } } });
+  observer.event({ type: "tool-result", callId: "t2", name: "read", text: "denied", outcome: "failed", errorCode: "files.forbidden" });
+  observer.event({ type: "compaction-skipped" });
+  observer.event({ type: "compaction-failed", why: "too large" });
+  observer.event({ type: "compaction-cancelled" });
+  observer.event({ type: "compaction-usage-recorded", callId: "c3", receipt: usage(30) });
+  observer.event({ type: "subagent-ended", session: { id: "child-session" }, run: { id: "child-run" }, state: "failed" });
+  observer.event({ type: "subagent-ended", session: { id: "child-session-2" }, run: { id: "child-run-2" }, state: "cancelled" });
+  observer.event({ type: "failed", error: { code: "agent.timeout", safeMessage: "timed out" } });
+  observer.event({ type: "cancelled" });
+  const factsOf = (name: string) => facts.filter(fact => fact.fact === name);
+  assert.deepEqual(factsOf("agent.tool").map(fact => [fact.stage, fact.outcome, fact.evidence?.map(item => item.ref.kind)]), [
+    ["molis-action-scope-notes", "succeeded", ["missing", "missing"]], ["read", "failed", ["content", "content"]]]);
+  assert.equal(factsOf("agent.tool")[0]!.evidence?.every(item => item.ref.kind === "missing" && item.ref.reason === "by_rule"), true);
+  assert.equal(factsOf("agent.tool")[1]!.detail?.code, "files.forbidden");
+  assert.deepEqual(factsOf("agent.compaction").map(fact => [fact.stage, fact.outcome]), [[undefined, "no_action"], [undefined, "failed"], [undefined, "cancelled"]]);
+  assert.deepEqual(factsOf("agent.usage").map(fact => [fact.stage, fact.detail?.model_call_id]), [["compaction", undefined]]);
+  assert.deepEqual(factsOf("agent.subagent").map(fact => [fact.stage, fact.outcome]), [["ended", "failed"], ["ended", "cancelled"]]);
+  assert.deepEqual(factsOf("agent.run").map(fact => [fact.stage, fact.outcome, fact.detail?.code]).slice(-2), [["ended", "failed", "agent.timeout"], ["ended", "cancelled", undefined]]);
 });

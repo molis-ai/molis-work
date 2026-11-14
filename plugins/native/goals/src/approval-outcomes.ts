@@ -38,15 +38,13 @@ function appliedEventFields(applied: ProjectReplicaRow): EventFields {
   };
 }
 
-function eventOutcome(applied: ProjectReplicaRow, event: ProjectReplicaRow | undefined, conclusions: Rows, source?: "transferred"): Outcome {
+function eventOutcome(applied: ProjectReplicaRow, event: ProjectReplicaRow | undefined, conclusions: Rows): Outcome {
   if (!event || event.event_id !== applied.event_id || event.kind !== "system" || event.project_id !== applied.project_id
     || event.goal_id !== applied.goal_id || event.actor_id !== applied.actor_id || event.actor_kind !== "user") throw invalid();
   const receipt: unknown = JSON.parse(String(event.payload_json));
   const expected = appliedEventFields(applied);
-  if (!isRecord(receipt) || Object.entries(expected).some(([key, value]) => {
-    if (source === "transferred" && !Object.hasOwn(receipt, key) && !["operation", "decision_id", "governance_decision_id"].includes(key)) return false;
-    return canonicalJsonText(receipt[key]) !== canonicalJsonText(value);
-  })) throw invalid();
+  if (!isRecord(receipt) || Object.entries(expected).some(([key, value]) => !Object.hasOwn(receipt, key)
+    || canonicalJsonText(receipt[key]) !== canonicalJsonText(value))) throw invalid();
   const { journal_seq, ...stableEvent } = event;
   const rows = conclusions.map(({ journal_seq: sequence, ...row }) => {
     if (sequence !== journal_seq || row.actor_id !== applied.actor_id || row.project_id !== applied.project_id || row.goal_id !== applied.goal_id) throw invalid();
@@ -63,7 +61,7 @@ function treeOutcome(effects: Rows): Outcome {
 }
 
 /** Read only this decision's immutable owner rows, in the transaction that applied them or transferred validated history. */
-export function readGoalApprovalOutcome(db: Reader, project: string, decision: string, subject: Outcome["kind"], source?: "transferred"): Outcome | null {
+export function readGoalApprovalOutcome(db: Reader, project: string, decision: string, subject: Outcome["kind"]): Outcome | null {
   if (subject === "goal-tree-proposal") {
     const effects = db.prepare("SELECT * FROM goal_tree_item_effects WHERE project_id = ? AND approval_id = ?").all(project, decision) as Rows;
     return effects.length ? treeOutcome(effects) : null;
@@ -75,12 +73,11 @@ export function readGoalApprovalOutcome(db: Reader, project: string, decision: s
   const key = String(row.decision_id);
   const event = db.prepare("SELECT * FROM goal_work_events WHERE project_id = ? AND event_id = ?").all(project, String(row.event_id))[0] as ProjectReplicaRow | undefined;
   const conclusions = db.prepare("SELECT * FROM goal_event_requirement_conclusions WHERE project_id = ? AND decision_id = ?").all(project, key) as Rows;
-  return eventOutcome(row, event, conclusions, source);
+  return eventOutcome(row, event, conclusions);
 }
 
 /** The same outcome from the wire after the owning replica has resolved stable journal anchors. */
-export function goalApprovalOutcomes(facts: Readonly<Record<string, ProjectReplicaRows>>,
-  source?: (id: string) => "transferred" | undefined): Map<string, Outcome> {
+export function goalApprovalOutcomes(facts: Readonly<Record<string, ProjectReplicaRows>>): Map<string, Outcome> {
   const goals = facts.goals!, governance = facts.governance!;
   const events = new Map(goals.goal_work_events!.map(row => [row.event_id, row]));
   const conclusions = by(goals.goal_event_requirement_conclusions!, "decision_id");
@@ -92,7 +89,7 @@ export function goalApprovalOutcomes(facts: Readonly<Record<string, ProjectRepli
   for (const row of goals.goal_event_applied_decisions!) {
     const id = row.governance_decision_id;
     if (typeof id !== "string" || !id) throw invalid();
-    put(id, eventOutcome(row, events.get(row.event_id), conclusions.get(row.decision_id!) ?? [], source?.(id)));
+    put(id, eventOutcome(row, events.get(row.event_id), conclusions.get(row.decision_id!) ?? []));
   }
   for (const [id, effects] of by(governance.goal_tree_item_effects!, "approval_id")) put(id, treeOutcome(effects));
   return outcomes;

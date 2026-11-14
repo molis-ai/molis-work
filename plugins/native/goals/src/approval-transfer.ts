@@ -88,7 +88,7 @@ function readDecisions(db: TransferConnection, projectId: string) {
   return [
     ...events.map(row => {
       const original = exportedDecision(projectId, row, "event", row.recorded_at);
-      const outcome = readGoalApprovalOutcome(db, projectId, row.decision_id, "goal", "transferred");
+      const outcome = readGoalApprovalOutcome(db, projectId, row.decision_id, "goal");
       return { ...original, ...(outcome ? { outcome_digest: outcome.digest } : {}) };
     }),
     ...items.map(row => exportedDecision(projectId, row, "proposal-item", row.created_at)),

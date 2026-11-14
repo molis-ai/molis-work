@@ -46,10 +46,12 @@ function library(t: TestContext, version?: 1 | 2 | 3, location?: { path: string;
     ('decision-event',?,'goal','local-person','user','web','web:projects','web:click-1','old-request','accept','Approved',1,'{}',NULL,?)`).run(project,time);
   db.prepare(`INSERT INTO goal_event_applied_decisions(decision_id,project_id,goal_id,governance_decision_id,event_id,conclusion,accepts_requirements,scope_json,actor_id,authority_source,recorded_at)
     VALUES ('applied',?,'goal','decision-event','event-1','Approved',1,'{}','local-person','web',?)`).run(project,time);
-  db.prepare("UPDATE goal_event_applied_decisions SET request_id='old-request',selected_option_id='accept' WHERE decision_id='applied'").run();
+  db.prepare("UPDATE goal_event_applied_decisions SET request_id='old-request',selected_option_id='accept',config_version=3,agreement_version=2 WHERE decision_id='applied'").run();
   db.prepare(`INSERT INTO goal_work_events(event_id,project_id,goal_id,kind,title,payload_json,actor_id,actor_kind,received_at,journal_seq)
     VALUES ('event-1',?,'goal','system','Decision',?,'local-person','user',?,1)`)
-    .run(project, JSON.stringify({ operation: "user_decision", decision_id: "applied", governance_decision_id: "decision-event" }), time);
+    .run(project, JSON.stringify({ operation: "user_decision", decision_id: "applied", governance_decision_id: "decision-event",
+      request_id: "old-request", selected_option_id: "accept", conclusion: "Approved", accepts_requirements: true,
+      effects: [], scope: {}, authorized_change: null, config_version: 3, agreement_version: 2 }), time);
   db.prepare(`INSERT INTO goal_tree_proposals(proposal_id,project_id,root_goal_id,submitted_by,state,version,base_event_cursor,summary,created_at,updated_at)
     VALUES ('proposal',?,'goal','author','partially_applied',3,0,'Plan',?,?)`).run(project,time,time);
   db.prepare(`INSERT INTO goal_tree_proposal_items(item_id,proposal_id,project_id,ordinal,kind,operation,payload_json,source_refs_json,reason,confidence,affected_objects_json,baseline_versions_json,state,created_at,updated_at)
@@ -189,6 +191,7 @@ test("APR-19 keeps the complete old owner and schema on late failure, wrong publ
     "UPDATE goal_event_applied_decisions SET selected_option_id='another-option'",
     `UPDATE goal_event_applied_decisions SET authorized_change_json='{"outcome":"Different approved result"}'`,
     `UPDATE goal_work_events SET payload_json=json_set(payload_json,'$.agreement_version',99) WHERE event_id='event-1'`,
+    `UPDATE goal_work_events SET payload_json=json_remove(payload_json,'$.effects') WHERE event_id='event-1'`,
     "DELETE FROM plugin_project_databases",
     `CREATE TRIGGER corrupt_provenance AFTER UPDATE ON plugin_project_databases BEGIN
       UPDATE plugin_project_databases SET version=99; END;`,

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import test from 'node:test';
+import test, { type TestContext } from 'node:test';
 import {fixture,work,comparable} from './fixtures/personal-goals-sync.js';
 import {goalWire} from './fixtures/runtime-goal-sync.js';
 import type {ProjectReplicaRows} from '@molis-ai/molis-work-contracts/platform/sync-transport';
@@ -7,6 +7,8 @@ import { MolisWorkServer } from '@molis-ai/molis-work-app-desktop';
 import { molisWorkHostProjectReference } from '@molis-ai/molis-work-app-local-host';
 import { goalsActions, goalsManifest } from '@molis-ai/molis-work-plugin-goals';
 import type { ReviewRequest } from '@molis-ai/molis-work-contracts/platform/ui';
+import type { ProjectTrustedDecision } from '@molis-ai/molis-work-contracts/services/project-approvals';
+import { projectReviewDecisions, transferGoalsApprovalRecords } from '@molis-ai/molis-work-service-project-approvals';
 import { mcpGoalReviews } from './fixtures/project-review-entry.js';
 
 type GoalWire = { spaceId: string; facts: Record<string, ProjectReplicaRows>; journal: { events: Array<Record<string, string>> } };
@@ -120,8 +122,8 @@ test('APR-19 Goal sync preserves the exact recorded outcome across invalid snaps
   assert.deepEqual(f.replica(1, replica => replica.conflicts()), []);
 });
 
-test('APR-19 a Goal Tree decision from the management entry preserves exact owner effects on another Home', async t => {
-  const f = await fixture(t), p = f.project.project_id, databasePath = f.project.database_path;
+async function confirmTree(t: TestContext, f: Awaited<ReturnType<typeof fixture>>) {
+  const p = f.project.project_id, databasePath = f.project.database_path;
   const reference = molisWorkHostProjectReference({ projectId: p, databasePath });
   const actions = f.host.actionClient(reference), caller = await f.host.localPersonContext(reference);
   const { proposal } = await actions.invoke(caller, goalsActions.treeSubmit, {
@@ -137,16 +139,22 @@ test('APR-19 a Goal Tree decision from the management entry preserves exact owne
   })) as ReviewRequest;
   const approved = JSON.parse(await server.callTool('molis_work_v1_review_decide', {
     project_id: p, database_path: databasePath, reference: read.reference, choice_id: 'confirm', request_key: 'tree-sync-approval',
-  })) as { result: { applied_item_ids: string[] }; record: { decision_id: string; outcome_digest: string } };
+  })) as { result: { applied_item_ids: string[] }; record: ProjectTrustedDecision };
   assert.deepEqual(approved.result.applied_item_ids, ['tree-sync-item']);
-  assert.match(approved.record.outcome_digest, /^sha256:[a-f0-9]{64}$/u);
+  assert.match(approved.record.outcome_digest ?? '', /^sha256:[a-f0-9]{64}$/u);
+  return { proposal, record: approved.record };
+}
+
+test('APR-19 a Goal Tree decision from the management entry preserves exact owner effects on another Home', async t => {
+  const f = await fixture(t), p = f.project.project_id;
+  const { proposal, record } = await confirmTree(t, f);
   await f.enable(true);
   const current = f.events.at(-1)!;
   assert.ok(current);
   const snapshot = (i: number) => f.edit(i, (app, store) => ({
     proposal: app.governance.query.getGoalTreeProposal(p, proposal.proposal_id),
     child: app.goalsQuery.getGoal(p, 'synced-child'),
-    approvals: store.db.prepare('SELECT record_json FROM project_review_decisions WHERE decision_id=?').all(approved.record.decision_id),
+    approvals: store.db.prepare('SELECT record_json FROM project_review_decisions WHERE decision_id=?').all(record.decision_id),
   }));
   const empty = snapshot(1);
   assert.equal(empty.proposal, null);
@@ -166,7 +174,7 @@ test('APR-19 a Goal Tree decision from the management entry preserves exact owne
   assert.equal(before.approvals.length, 1);
   assert.deepEqual(comparable(before), comparable(snapshot(0)));
   const effects = (wire: unknown) => (goalWire(wire) as GoalWire).facts.governance!.goal_tree_item_effects!;
-  assert.equal(effects(current.value)[0]?.approval_id, approved.record.decision_id);
+  assert.equal(effects(current.value)[0]?.approval_id, record.decision_id);
   let revision = recovered.revision;
   for (const edit of [
     (rows: ProjectReplicaRows) => { rows.goal_tree_item_effects![0]!.materialized_objects_json = '[]'; },
@@ -185,6 +193,53 @@ test('APR-19 a Goal Tree decision from the management entry preserves exact owne
   f.replica(1, replica => { replica.receive(recovery); replica.resolve(recovery.key, 'remote'); });
   assert.deepEqual(f.replica(1, replica => replica.conflicts()), []);
   assert.deepEqual(comparable(snapshot(1)), comparable(before));
+});
+
+test('APR-19 a retained Goal Tree proposal must carry each item with a transferred decision on first receipt', async t => {
+  const f = await fixture(t), p = f.project.project_id;
+  const { proposal, record } = await confirmTree(t, f);
+  const owner = { kind: 'plugin', plugin_id: goalsManifest.plugin_id, publisher_signature: goalsManifest.publisher.signature } as const;
+  const decisionId = 'transferred-tree-decision';
+  f.edit(0, (_app, { db }) => db.transaction(() => {
+    // Materialize the original producer's completed proposal, then represent its before-v4 decision through the platform's transfer.
+    const original = db.prepare<[string], Record<string, string | number | null> & { project_id: string; decision_id: string; created_at: string }>(`
+      SELECT ? AS decision_id, project_id, proposal_id, item_id, result AS decision, runtime_actor_id, reason,
+        revision_proposal_id, materialized_objects_json, created_at
+      FROM goal_tree_item_effects WHERE item_id='tree-sync-item'
+    `).get(decisionId);
+    assert.ok(original);
+    db.prepare('DELETE FROM goal_tree_item_effects WHERE approval_id=?').run(record.decision_id);
+    db.prepare('DELETE FROM project_review_decisions WHERE decision_id=?').run(record.decision_id);
+    transferGoalsApprovalRecords(db, p, owner, { rules: [], decisions: [{
+      subject: 'proposal-item', recorded_at: original.created_at, row: { ...original, actor_id: record.actor_id,
+        authority_source: 'management', conversation_ref: 'mcp:management', message_ref: 'mcp:original-decision' },
+    }] });
+  })());
+  await f.enable(true);
+  const original = f.events.at(-1)!;
+  const snapshot = () => f.edit(1, (app, { db }) => ({
+    proposal: app.governance.query.getGoalTreeProposal(p, proposal.proposal_id),
+    child: app.goalsQuery.getGoal(p, 'synced-child'),
+    history: projectReviewDecisions(db, p).read(decisionId),
+  }));
+  const before = snapshot();
+  assert.equal(before.proposal, null);
+  assert.equal(before.child, null);
+  assert.equal(before.history && 'kind' in before.history && before.history.kind, 'history');
+  const missingItem = structuredClone(original.value);
+  (goalWire(missingItem) as GoalWire).facts.governance!.goal_tree_proposal_items!.splice(0);
+  const refusal = { ...original, value: missingItem, revision: original.revision + 1, operationId: 'transferred-decision-missing-item' };
+  f.replica(1, replica => replica.receive(refusal));
+  assert.deepEqual(f.replica(1, replica => replica.conflicts().map(row => row.waiting)), [false]);
+  assert.throws(() => f.replica(1, replica => replica.resolve(refusal.key, 'remote')));
+  assert.deepEqual(snapshot(), before);
+  const recovery = { ...original, revision: refusal.revision + 1, operationId: 'transferred-decision-and-exact-item' };
+  f.replica(1, replica => { replica.receive(recovery); replica.resolve(recovery.key, 'remote'); });
+  assert.deepEqual(f.replica(1, replica => replica.conflicts()), []);
+  const after = snapshot();
+  assert.equal(after.child?.title, 'Synced child');
+  assert.equal(after.proposal?.decisions[0]?.decision_id, decisionId);
+  assert.deepEqual(after.history, before.history);
 });
 
 test('GSYNC-05 malformed facts and foreign space roll back all Goal facts; revoked authority cannot read an outbox', async t => {

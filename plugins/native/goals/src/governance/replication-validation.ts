@@ -37,13 +37,15 @@ export function validateGovernanceReplication(rows: ProjectReplicaRows): void {
 /** The Host supplies history from the platform owner, never from the incoming Goals snapshot. */
 export function verifyTreeItemDecisionHistory(rows: ProjectReplicaRows, transferred: readonly ProjectDecisionHistory[], waiting: () => never): void {
   const effects = new Set(rows.goal_tree_item_effects!.map(row => row.item_id));
+  const proposals = new Set(rows.goal_tree_proposals!.map(row => row.proposal_id));
   const superseded = new Set(rows.goal_tree_proposals!.map(row => row.supersedes_proposal_id).filter(Boolean));
   const key = (proposal: ProjectReplicaRow[string], item: ProjectReplicaRow[string]) => JSON.stringify([proposal, item]);
+  const existing = new Set(rows.goal_tree_proposal_items!.map(item => key(item.proposal_id!, item.item_id!)));
   const history = new Map<string, ProjectDecisionHistory["original"]>();
   for (const { original } of transferred) {
     if (!["confirmed", "rejected", "revised"].includes(String(original.decision))) continue;
     const id = key(original.proposal_id!, original.item_id!);
-    if (history.has(id)) invalid();
+    if (history.has(id) || (proposals.has(original.proposal_id) && !existing.has(id))) invalid();
     history.set(id, original);
   }
   for (const item of rows.goal_tree_proposal_items!) {

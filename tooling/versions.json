@@ -1033,6 +1033,7 @@
     "contract.io.molis.work.platform.plugin-agent": 1,
     "contract.io.molis.work.platform.plugin-events": 1,
     "contract.io.molis.work.platform.plugin-wiring": 1,
+    "contract.io.molis.work.platform.state-vocabulary": 1,
     "contract.io.molis.work.platform.storage": 1,
     "contract.io.molis.work.platform.testing": 1,
     "contract.io.molis.work.platform.tooling": 1,

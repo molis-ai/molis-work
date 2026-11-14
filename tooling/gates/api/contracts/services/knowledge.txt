@@ -107,7 +107,7 @@ export interface KnowledgeCardRecord extends KnowledgeCardFields {
     open: SearchOpenTarget | null;
 }
 
-export type KnowledgeCardState = "pending" | "ready" | "listed" | "failed" | "over_quota" | "missing";
+export type KnowledgeCardState = keyof typeof STATE_VOCABULARIES.knowledgeCard.states;
 
 export interface KnowledgeCardStorePort {
     get(projectId: string, subject: ActionSubject): KnowledgeCardRecord | null;

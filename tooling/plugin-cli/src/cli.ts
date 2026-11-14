@@ -132,7 +132,8 @@ export async function runPluginCli(args: readonly string[], output: PluginCliOut
     const sites = browserSiteDeclarations(manifest);
     // A language short of a word does not stop anything, and shows the default's word until someone adds it.
     const localeNotes = await validatePluginLocaleFiles(args[1]!, manifest);
-    output.stdout(`${JSON.stringify({ valid: true, plugin_id: manifest.plugin_id, version: manifest.version, ...(sites.length ? { browser_sites: sites } : {}), ...(localeNotes.length ? { locale_notes: localeNotes } : {}) })}\n`);
+    output.stdout(`${JSON.stringify({ valid: true, plugin_id: manifest.plugin_id, version: manifest.version, ...(sites.length ? { browser_sites: sites } : {}), ...(localeNotes.length ? { locale_notes: localeNotes } : {}),
+      ...(manifest.state_machines ? { state_machines: manifest.state_machines } : {}) })}\n`);
     return 0;
   } catch (error) {
     const code = error && typeof error === "object" && "code" in error ? error.code : "plugin.manifest_invalid";

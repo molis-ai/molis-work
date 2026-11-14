@@ -1,3 +1,5 @@
+export { STATE_MACHINE_DECLARATION_LIMITS, type StateMachineDeclaration } from "./plugin-state-machines.js";
+import type { STATE_VOCABULARIES } from "./state-vocabulary.js";
 export type { PluginBackgroundClient, PluginBackgroundExecution, PluginJobControl, PluginJobDeclaration, PluginKeptJob } from "./plugin-background.js";
 export type { PluginInteractionClient, PluginInteractionNextSteps, PluginInteractionStep } from "./plugin-interaction.js";
 import type { ConnectorDriver } from "../services/connector-host.js";
@@ -49,13 +51,7 @@ export const platformPluginContract = {
 /** The provider id the Host registers its plugin install service under (installing, and importing Skills as a package): one name, shared by the Host and the AI kit's reporter table (`services/kit`). */
 export const PLUGIN_INSTALL_PROVIDER_ID = "plugin-install";
 
-export type PluginLifecycleState =
-  | "installed"
-  | "running"
-  | "disabled"
-  | "crashed"
-  | "quarantined"
-  | "uninstalled";
+export type PluginLifecycleState = keyof typeof STATE_VOCABULARIES.pluginLifecycle.states;
 
 export interface PluginInstanceRecord {
   install_id: string;

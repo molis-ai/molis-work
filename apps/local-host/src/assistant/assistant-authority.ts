@@ -1,9 +1,9 @@
-import type { AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
+import { actionCancelledBeforeDispatch, type AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentActionOffer, AgentDelegation, AgentMemoryTools } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentPromptText } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { MEMORY_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/memory";
-import { ActionError, requireSynchronous, type ActionCallContext, type ActionReference, type ActionView, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { requireSynchronous, type ActionCallContext, type ActionReference, type ActionView, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { readProjectGuidance, type ProjectGuidanceFacts } from "../goal-callers.js";
 import { assertActionCommandInput, currentCallId, newCallId } from "@molis-ai/molis-work-kernel";
 import type { MolisWorkLocalHost } from "../project-host.js";
@@ -16,6 +16,12 @@ import { assistantActionDelegation } from "./assistant-action-delegation.js";
 
 /** The Assistant acts for the local person; its calls are audited as the Assistant's, and its grants are its own. */
 const ASSISTANT_ACTOR = LOCAL_PERSON_ACTOR_ID;
+
+function publishResult(publish: () => void, assertCurrent: () => void, capabilityId: string): void {
+  try { assertCurrent(); } catch { return; }
+  // A projection failure must not turn a committed operation into a retry.
+  try { publish(); } catch (error) { hostLog.warn("assistant", "relation_unrecorded", error, { step: "command", capability_id: capabilityId }); }
+}
 
 export const actionKey = (ref: Pick<ActionReference, "capability_id" | "version" | "provider_id">) => JSON.stringify([ref.capability_id, ref.version, ref.provider_id ?? ""]);
 
@@ -161,7 +167,7 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
       invoke: async (action, input, signal, memorySelection, review) => {
         memorySelection?.assert_current();
         const stoppedBeforeDispatch = (view: Omit<ActionView, "availability">) => {
-          const refused = Promise.reject(new ActionError("actions.cancelled", "这一轮停止时它还没有发出，没有执行"));
+          const refused = Promise.reject(actionCancelledBeforeDispatch("这一轮停止时它还没有发出，没有执行", review));
           refused.catch(() => undefined);
           unsettled?.(view, refused);
           return refused;
@@ -189,9 +195,10 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
         }
         review?.assertCurrent();
         if (view && view.operation === "command") dispatched?.(view);
-        const call = service().invoke({ ...caller, ...(memorySelection ? { memory_context_selection: memorySelection } : {}), assert_authority_current: (ref, required) => {
+        const assertCurrent: NonNullable<ActionCallContext["assert_authority_current"]> = (ref, required) => {
           memorySelection?.assert_current(); review?.assertCurrent(); caller.assert_authority_current?.(ref, required);
-        } }, action, input);
+        };
+        const call = service().invoke({ ...caller, ...(memorySelection ? { memory_context_selection: memorySelection } : {}), assert_authority_current: assertCurrent }, action, input);
         // The round may stop while the owner is still changing things: the call goes on, and how it ends is kept for the work.
         if (view && view.operation === "command" && unsettled && signal && !signal.aborted) {
           const left = () => unsettled(view, call);
@@ -199,13 +206,8 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
           call.then(() => signal.removeEventListener("abort", left), () => signal.removeEventListener("abort", left));
         }
         const output = await call;
-        if (view && view.operation === "command" && changed && !signal?.aborted) {
-          // A late result can settle its original receipt. Publishing cards, jobs and relations still needs current authority.
-          try { review?.assertCurrent(); requireSynchronous(caller.assert_authority_current?.(action, view.action.permissions)); }
-          catch { return output; }
-          // The change happened; a relation that failed to record is not a failed change.
-          try { changed(view, input, output); } catch (error) { hostLog.warn("assistant", "relation_unrecorded", error, { step: "command", capability_id: view.capability_id }); }
-        }
+        if (view?.operation === "command" && changed && !signal?.aborted) publishResult(() => changed(view, input, output),
+          () => requireSynchronous(assertCurrent(action, view.action.permissions)), view.capability_id);
         return output;
       },
     }),

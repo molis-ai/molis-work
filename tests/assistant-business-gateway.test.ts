@@ -724,6 +724,77 @@ test("APR-08/11 ADH-12: stopping a change preserves the original unknown effect,
   } finally { finish(); await f.close(); }
 });
 
+test("APR-08/11: stopping after the SDK permit but before ActionService invocation closes the original effect as unsent", { timeout: 60_000 }, async t => {
+  const entered = Promise.withResolvers<void>(), continueCall = Promise.withResolvers<void>();
+  const f = await fixture(t, [() => reply({ name: "change-capability", input: { capability_id: write.capability_id, version: 1, provider_id: "fixture.notes", input: { text: "unsent" } } })]);
+  const authority = f.ports.authority;
+  f.ports.authority = async (...scope) => {
+    const original = await authority(...scope);
+    return { ...original, actions: async (...runtime) => {
+      const client = await original.actions!(...runtime);
+      return { ...client, async invoke(...call) {
+        if (call[0].capability_id === write.capability_id && call[4]) {
+          entered.resolve();
+          await continueCall.promise;
+        }
+        return client.invoke(...call);
+      } };
+    } };
+  };
+  try {
+    const sent = await f.service.send({ text: "Save the note", request_id: "unsent-action-01" }, { project_ref: f.project });
+    const pending = await until(async () => (await f.service.read(sent.work.work_id)).reviews[0], "approval");
+    await f.service.outcomes.decide(sent.work.work_id, { review_id: pending.review_id, version: pending.version, decision: "approve" });
+    await entered.promise;
+    await f.service.control(sent.work.work_id, { kind: "stop" });
+    await f.queue.refresh(f.project.project_id);
+    assert.ok(f.queue.receipt(pending.review_id)?.effect_uncertain);
+    continueCall.resolve();
+    const refused = await until(async () => {
+      await f.queue.refresh(f.project.project_id);
+      const receipt = f.queue.receipt(pending.review_id);
+      return receipt?.effect_error ? receipt : undefined;
+    }, "the SDK's original not-dispatched receipt");
+    assert.match(refused.effect_error!, /未派出/);
+    assert.equal(refused.effect_uncertain, undefined);
+    assert.deepEqual(f.calls, []);
+    assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 0);
+    assert.equal(f.requests.length, 1);
+  } finally { continueCall.resolve(); await f.close(); }
+});
+
+test("APR-08/11: an owner reply after adapter shutdown cannot write through its released storage owner", { timeout: 60_000 }, async t => {
+  const entered = Promise.withResolvers<void>(), returnReceipt = Promise.withResolvers<void>();
+  const action = { ...write, capability_id: "fixture.closing.write" };
+  const f = await fixture(t, [() => reply({ name: "change-capability", input: { capability_id: action.capability_id, version: 1, provider_id: "fixture.closing", input: { text: "already committed" } } })]);
+  let next: Awaited<ReturnType<typeof createPrologueNodeAdapter>> | undefined;
+  f.local.actionRegistry(f.project).registerProvider({ provider: { provider_id: "fixture.closing", kind: "plugin", title: "Closing" }, definitions: [action],
+    handlers: [{ ...action, async handle(context) {
+      await context.beforeEffect();
+      f.notes.prepare("INSERT INTO notes VALUES (?, ?, ?, ?)").run("committed", context.project_id, context.actor_id, "original");
+      entered.resolve();
+      await returnReceipt.promise;
+      return { saved: true };
+    } }] });
+  const history = new AgentReviewQueue();
+  try {
+    const sent = await f.service.send({ text: "Save before close", request_id: "close-receipt-01" }, { project_ref: f.project });
+    const pending = await until(async () => (await f.service.read(sent.work.work_id)).reviews[0], "approval");
+    await f.service.outcomes.decide(sent.work.work_id, { review_id: pending.review_id, version: pending.version, decision: "approve" });
+    await entered.promise;
+    await f.service.control(sent.work.work_id, { kind: "stop" });
+    await f.adapter.close();
+    next = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-test", appVersion: "1.0.0" }, storageRoot: join(f.home, "sdk"), reviewQueue: history });
+    returnReceipt.resolve();
+    await until(() => f.store.unsettled("web-user", sent.work.work_id).some(change => change.state === "completed") || undefined, "the old action owner's reply");
+    await history.refresh(f.project.project_id);
+    const saved = history.receipt(pending.review_id);
+    assert.ok(saved?.effect_uncertain, "the old adapter never closed the original dispatch after losing storage ownership");
+    assert.equal(saved.effect_settled, false);
+    assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 1);
+  } finally { returnReceipt.resolve(); await next?.close(); history.close(); await f.close(); }
+});
+
 test("a round that reaches its step limit stops there, keeps what it did, says so in words, and the next round goes on", { timeout: 60_000 }, async t => {
   const script: Array<(body: any) => Response> = [() => reply({ name: "change-capability", input: { capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes", input: { text: "kept" } } })];
   for (let i = 0; i < 70; i++) script.push(() => reply({ name: "read-capability", input: { capability_id: "fixture.notes.count", version: 1, provider_id: "fixture.notes", input: {} } }));

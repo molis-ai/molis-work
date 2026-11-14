@@ -24,7 +24,7 @@ import { createNodeCoordination, createNodeInference, createNodeProjectWork } fr
 import { createWorkGraphs } from "./prologue-work-graphs.js";
 import { answerPending, createNodeGitReviews, createNodePort, createNodeRuntime, directoriesIdle, questionReader } from "./prologue-node-port.js";
 import { createPrologueRecovery } from "./prologue-recovery.js";
-import { withActionDispatchReceipts } from "./prologue-review-effects.js";
+import { actionDispatchReceipts } from "./prologue-review-effects.js";
 import { createApprovals, createPendingPort, createReviewMemory, restoreReviewHistory } from "./prologue-review-documents.js";
 import { createPrologueReviewDecisions } from "./prologue-review-decisions.js";
 import { createPrologueDelegations } from "./prologue-delegations.js";
@@ -163,8 +163,10 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   });
   const state = createRoundState();
   let runtime: Awaited<ReturnType<typeof createNodeRuntime>>;
-  const host = withActionDispatchReceipts(guardMcpDispatch(guardNodeDispatch(node, dispatchGuards), dispatchGuards), state, () => runtime);
+  const receiptBridge = actionDispatchReceipts(guardMcpDispatch(guardNodeDispatch(node, dispatchGuards), dispatchGuards), state, () => runtime);
+  const host = receiptBridge.host;
   onFailureClose(() => host.closeStorage(), true);
+  const closeReceipts = onFailureClose(receiptBridge.close);
   const effects = prologueEffects(host, options.app.appId);
   const closeEffects = onFailureClose(() => effects.close());
   const decisions = createPrologueReviewDecisions(effects, options.app.appId);
@@ -243,6 +245,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   const port = createNodePort({ runtime, effects, memoryAuthority, host, options, state, index, dispatchGuards, surfaces, mcpLibrary, platformMemory, credentials, stepBoards, projectWork, workGraphs, delegations,
     messages, waitsPort, checkpoints, approvals, schedule, recovery, readQuestion,
     shutdown: async () => {
+      await closeReceipts();
       for (const controller of state.actionControllers.values()) controller.abort();
       state.actionControllers.clear();
       await closeNodeResources(closeSurfaces, [closeMemoryAuthority, closeEffects, closeMcp, closeInference, closeStepBoards, closeMessages, closeWaits, closeChecks,

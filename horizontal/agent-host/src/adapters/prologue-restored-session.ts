@@ -60,11 +60,11 @@ export function restorePrologueRun(saved: PrologueRestoredSession["runs"][number
   if (!saved.events || !isEnded(state.phase)) {
     closeInterruptedPrologueStream(state, readCall);
     if (saved.terminal) {
-      // The runtime sealed the run; only its progress stopped short (the service went down while it was ending).
-      // Nothing is left to reconcile for it — an operation with an unknown outcome would still be open work, and that
-      // holds the whole session for checking — so it reads as ended, and says why the record is short.
+      // The run is sealed. Whether its effects still need checking comes from the original effect ledger.
       state.phase = saved.stop_intent === "stopped" ? "stopped" : "failed";
-      state.stop_reason = saved.stop_intent === "stopped"
+      state.stop_reason = saved.uncertain_effect
+        ? "原轮已结束，过程记录不完整，原操作结果仍需核对。不会自动重跑。"
+        : saved.stop_intent === "stopped"
         ? "已停止（服务在这一轮结束时中断，过程记录不完整；运行时确认它已结束，没有待核对的操作）"
         : "这一轮在服务中断时结束，过程记录不完整；运行时确认它已结束，没有待核对的操作。不会自动重跑。";
     } else {

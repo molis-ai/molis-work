@@ -540,7 +540,6 @@ function roundEnded(deps: RunDeps, started: Started, session: Session, stepBoard
   actionController.abort(); state.actionControllers.delete(started.run.ref.id); state.dispatchChecks.delete(started.run.ref.id);
   state.activeRuns.delete(started.run.ref.id);
   deps.options.reviewQueue?.permissions.releaseRun(started.run.ref.id);
-  if (state.actionReviews.get(session.ref.id)?.releaseRun(started.run.ref.id)) state.actionReviews.delete(session.ref.id);
   if (stepBoard) deps.stepBoards.unfollow(started.run.ref.id);
   deps.workGraphs.ended(started.run.ref, session.ref, type);
   if (state.liveSessions.get(session.ref.id) === started.run.ref.id) state.liveSessions.delete(session.ref.id);
@@ -579,6 +578,9 @@ function roundHandle(deps: RunDeps, input: PrologueStartInput, at: {
       subscribe: (listener: (event: PrologueEvent) => void) =>
         started.run.subscribe(withInteractionRepairLimit(stopForHost, (event) => {
           if (event.type === "completed" || event.type === "failed" || event.type === "cancelled") {
+            if (at.actionReviews.releaseRun(started.run.ref.id) && deps.state.actionReviews.get(at.session.ref.id) === at.actionReviews) {
+              deps.state.actionReviews.delete(at.session.ref.id);
+            }
             at.work?.release();
             roundEnded(deps, started, at.session, at.stepBoard, event.type, actionController, at.surface);
           }

@@ -1,5 +1,5 @@
 import type { Effect, EffectOrigin, PolicySnapshot } from "@prologue/sdk";
-import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentActionClient, AgentActionReviewControl, AgentDelegationActionChoice, ReviewDecisionSource } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { canonicalJsonText, extractActionDelegation, isRecord, redactSecrets } from "@molis-ai/molis-work-plugin-sdk";
 import { agentErrors } from "../errors.js";
@@ -8,6 +8,16 @@ import type { WorkDelegationPermission } from "../delegation-permissions.js";
 import type { WorkDelegationStore } from "../delegations.js";
 
 type AutomaticSource = Extract<ReviewDecisionSource, { kind: "delegation" | "policy" }>;
+type OriginalActionOutcome = "completed" | "not-dispatched";
+
+const unsentActions = new WeakMap<ActionError, AgentActionReviewControl>();
+
+/** The original Host client can prove that it never called the ActionService. */
+export function actionCancelledBeforeDispatch(message: string, review?: AgentActionReviewControl): ActionError {
+  const error = new ActionError("actions.cancelled", message);
+  if (review) unsentActions.set(error, review);
+  return error;
+}
 
 interface HeldActionReview {
   readonly tool: string;
@@ -38,6 +48,7 @@ export class PrologueActionReviews {
   readonly #ended = new Promise<void>(resolve => { this.#end = resolve; });
   readonly #listeners = new Set<() => void>();
   #hasReconciledResult = false;
+  #unverifiedResults = 0;
   #run?: string;
   #assertRunCurrent?: () => void;
   constructor(readonly session: string, assertRunCurrent: () => void,
@@ -119,21 +130,26 @@ export class PrologueActionReviews {
     return this.forCall(origin.toolCall, subject.name, JSON.parse(subject.input));
   }
 
-  /** Only a successful response to the original invocation can settle its dispatch after the SDK ended the Run. */
-  bindReceipt(effect: Effect, settle: () => Promise<boolean>): void {
+  /** A successful response or the original client's proof of no dispatch can settle the original effect. */
+  bindReceipt(effect: Effect, settle: (outcome: OriginalActionOutcome) => Promise<boolean>): void {
     const held = this.forEffect(effect);
     held.keepLateResult = result => {
       delete held.keepLateResult;
-      void result.then(async () => {
+      this.#unverifiedResults++;
+      const save = async (outcome: OriginalActionOutcome) => {
         await this.#ended;
-        if (!await settle()) return;
+        if (!await settle(outcome)) return;
+        this.#unverifiedResults--;
         this.#hasReconciledResult = true;
         for (const listener of this.#listeners) listener();
-      }).catch(() => { /* A failed, expired or unverifiable receipt leaves the original effect open. */ });
+      };
+      void result.then(() => save("completed"), error => {
+        if (error instanceof ActionError && unsentActions.get(error) === held.control) return save("not-dispatched");
+      }).catch(() => { /* An unverifiable receipt stays unknown. */ });
     };
   }
 
-  get hasReconciledResult(): boolean { return this.#hasReconciledResult; }
+  get hasReconciledResult(): boolean { return this.#hasReconciledResult && this.#unverifiedResults === 0; }
   observeReconciliation(listener: () => void): () => void {
     this.#listeners.add(listener);
     return () => { this.#listeners.delete(listener); };

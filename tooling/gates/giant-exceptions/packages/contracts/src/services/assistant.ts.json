@@ -1,0 +1,9 @@
+{
+  "exceptions": {
+    "file packages/contracts/src/services/assistant.ts": {
+      "kind": "cohesive-unit",
+      "reason": "助理面板、工作历史、提案和待办使用同一个对外合同入口。这个文件集中声明共享 DTO，新的决定版本与停止状态码是既有记录的组成部分。",
+      "size": 804
+    }
+  }
+}

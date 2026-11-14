@@ -186,7 +186,8 @@ test("OCL-15: a report over 1 MiB of content is turned down whole", t => {
   assert.equal(f.records().length, 0);
 });
 
-test("OCL-12: deleting a project drops its waiting and kept records, collects their bodies, and turns its later writes away", t => {
+// The clean-up half of OCL-12. Retention, expiry, quotas and the manual clean-up are batch 29's (contract-design §1).
+test("OCL-09 OCL-12 (clean-up only): deleting a project drops its waiting and kept records, collects their bodies, and turns its later writes away", t => {
   const f = fixture(t);
   f.layer.observed(agent({ project_id: "p2" }), write, done({ only: "p2" }, {}));
   f.layer.flush();
@@ -234,6 +235,30 @@ test("OCL-15: a batch that cannot be written is kept as a lost stretch, and the 
   assert.equal(lost.length, 1);
   assert.equal(lost[0]!.count, 1);
   assert.equal(f.records().length, 2);
+});
+
+test("OCL-15: a gap raised in a failed batch is retried, not dropped", t => {
+  const home = mkdtempSync(join(tmpdir(), "observation-gap-retry-"));
+  const env: ObservationEnvironment = { platformVersion: "0.test", now: () => new Date(), projectClass: () => "user" };
+  // A digest key that cannot be had: the record still goes in, its content as not_obtained, and the register keeps an
+  // `unavailable` stretch for it — raised while the batch is written, not before it.
+  const brokenKeys = { digest: () => { throw new Error("digest key unavailable"); }, seal: () => new Uint8Array(), open: () => new Uint8Array() };
+  const layer = new ObservationLayer({ home, env, keys: () => brokenKeys, flushDelayMs: 5 });
+  t.after(() => { layer.close(); rmSync(home, { recursive: true, force: true }); });
+  layer.observed(agent(), write, done({ secret: "first" }, {}));
+  layer.flush();
+  const db = layer.writer.database()!.db;
+  assert.ok(readCoverageGaps(db).some(gap => gap.state === "unavailable" && gap.reason === "evidence_key"));
+  db.exec("CREATE TRIGGER fail_gaps BEFORE INSERT ON coverage_gaps BEGIN SELECT RAISE(ABORT, 'disk full'); END");
+  layer.observed(agent(), write, done({ secret: "second" }, {}));
+  layer.flush();
+  db.exec("DROP TRIGGER fail_gaps");
+  layer.observed(agent(), write, done({ secret: "third" }, {}));
+  layer.flush();
+  const gaps = readCoverageGaps(db);
+  assert.ok(gaps.some(gap => gap.state === "unavailable" && gap.reason === "evidence_key" && gap.count > 0),
+    "the unavailable stretch the failed batch carried is written by the next batch");
+  assert.ok(gaps.some(gap => gap.state === "lost" && gap.reason === "write_failed"));
 });
 
 test("OCL-15: a run that ended without writing its queue shows the stretch since its last write as lost for an unknown reason", t => {

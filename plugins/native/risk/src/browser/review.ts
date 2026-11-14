@@ -14,7 +14,7 @@ const REVIEW_MARK: Record<RiskReview["state"], { tone: "progress" | "hold" | "do
 };
 
 /** The presets the schedule popover offers, in days from now; the round runs at nine in the morning, local time. */
-export const REVIEW_PRESETS = [3, 7, 14] as const;
+const REVIEW_PRESETS = [3, 7, 14] as const;
 
 export function reviewAt(days: number, now = new Date()): string {
   const at = new Date(now);

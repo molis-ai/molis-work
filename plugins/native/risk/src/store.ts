@@ -28,7 +28,7 @@ function cursorOf(cursor: string): [string, string] {
 const subjectOf = (row: PluginSqlRow): ActionSubject => ({ kind: text(row, "subject_kind"), id: text(row, "subject_id") });
 
 /** What a person or an Agent writes into a risk; the limits are the same whoever writes. */
-export interface RiskFields {
+interface RiskFields {
   title: string;
   statement: string;
   impact: RiskLevel;

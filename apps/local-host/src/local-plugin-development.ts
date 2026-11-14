@@ -32,21 +32,37 @@ export async function runLocalPluginDevelopment(input: {
   locale?: string;
 }): Promise<PluginDevelopmentResult> {
   const directory = resolve(input.state_directory);
-  // Checked before the state directory is made, so a wrong `--locale` leaves no directory with only a marker in it.
-  await refuseUnusableDevelopmentLanguage(input.directory, input.locale);
   const markerName = ".molis-work-plugin-development.json";
   const marker = { kind: "molis-work-plugin-development", schema_version: /* @version format.plugin.development-marker */ 1 };
-  await mkdir(directory, { recursive: true });
-  const names = await readdir(directory);
-  if (names.includes(markerName)) {
-    const existing = JSON.parse(await readFile(join(directory, markerName), "utf8")) as typeof marker;
-    if (existing.kind !== marker.kind || existing.schema_version !== marker.schema_version) throw new Error("不是受支持的 Plugin 开发状态目录");
-  } else {
-    if (names.length) throw new Error("Plugin 开发不能使用非空的普通目录或用户项目目录");
-    await writeFile(join(directory, markerName), JSON.stringify(marker) + "\n", { flag: "wx" });
+  // A state directory that is already there is judged before the plugin directory is read: a nonempty ordinary directory or an unsupported
+  // marker is refused without opening the plugin's code or manifest. A missing state directory is still created only after the language check,
+  // so a wrong `--locale` leaves nothing behind.
+  const existingNames = await readdir(directory).catch(error => {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw error;
+  });
+  if (existingNames !== null) {
+    if (existingNames.includes(markerName)) {
+      const existing = JSON.parse(await readFile(join(directory, markerName), "utf8")) as typeof marker;
+      if (existing.kind !== marker.kind || existing.schema_version !== marker.schema_version) throw new Error("不是受支持的 Plugin 开发状态目录");
+    } else if (existingNames.length) throw new Error("Plugin 开发不能使用非空的普通目录或用户项目目录");
   }
-  const host = createMolisWorkLocalHost({ homeDirectory: join(directory, "home") });
-  developmentHosts.add(host);
+  // An existing state directory is opened before the language check too: a Home that already holds unadopted files is refused
+  // (memory.unavailable) before the plugin directory is read. A new or empty directory is still made only after that check, so a wrong
+  // --locale leaves no marker behind.
+  let host: MolisWorkLocalHost;
+  if (existingNames?.includes(markerName)) {
+    host = createMolisWorkLocalHost({ homeDirectory: join(directory, "home") });
+    developmentHosts.add(host);
+    try { await refuseUnusableDevelopmentLanguage(input.directory, input.locale); }
+    catch (error) { await host.close(); throw error; }
+  } else {
+    await refuseUnusableDevelopmentLanguage(input.directory, input.locale);
+    await mkdir(directory, { recursive: true });
+    await writeFile(join(directory, markerName), JSON.stringify(marker) + "\n", { flag: "wx" });
+    host = createMolisWorkLocalHost({ homeDirectory: join(directory, "home") });
+    developmentHosts.add(host);
+  }
   const projectId = "plugin-development";
   try {
     const reference = molisWorkHostProjectReference({ databasePath: join(directory, "development.db"), projectId });

@@ -1,6 +1,6 @@
 # 观测和采集层：设计（第 21 批）
 
-状态：设计稿（2026-11-04，第 21 批），已随 #1773 合入；界面四块用户已定（2026-11-04），D1 用户 2026-11-05 定（[spec.md §9](spec.md#9-决策记录)）。不写采集实现，也不定表结构；合同设计稿与合同代码是第 28 批的第一片（用户 2026-11-05 定），先单独开小 PR。依据是 [盘点](inventory-2026-11.md)（main `aac9cfeec`）和[需求](spec.md)；评测案例见 [eval-cases.md](eval-cases.md)，界面原型见 [`docs/design/work-records/`](../../docs/design/work-records/README.md)。
+状态：设计稿（2026-11-04，第 21 批），已随 #1773 合入；界面四块用户已定（2026-11-04），D1 用户 2026-11-05 定（[spec.md §9](spec.md#9-决策记录)）。不写采集实现，也不定表结构；合同设计稿与合同代码是第 28 批的第一片（用户 2026-11-05 定），先单独开小 PR。依据是 [盘点](inventory-2026-11.md)（main `aac9cfeec`）和[需求](spec.md)；评测案例见 [eval-cases.md](eval-cases.md)，界面原型见 [`docs/design/work-records/`](../../docs/design/work-records/README.md)。2026-11-14 合后复核：第 28 批已按 §4 接入写入面，未接或只到部分的接入点与理由见[批次文件「本次复核整改」](../post-anticorruption-roadmap/reference/batches/28.md#batch-28-audit-2026-11-14)；读取与保留在 29、评测在 30。
 
 ## 1 放在哪里、归谁
 

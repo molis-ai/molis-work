@@ -8,6 +8,8 @@
 | --- | --- | --- |
 | 工作树 Git 元数据中的本地快查 | CI 不读，不入库；没有时默认对照 origin/main | `node scripts/check-health-gates.mjs --update --base origin/main` |
 | `page-asset-allowances/*.json` | 每项任务必要增长的独立一次性许可；不写绝对预算 | 经审阅后记录 reason、review、assets；大额或新资源加用户批准出处，见开发手册 |
+| `call-budget.json` | 宿主各请求场景的调用次数上限（`tests/call-budget.test.ts` 实测不许超过；门禁 `scripts/gates/call-budget.mjs` 对照 merge-base 只许变小，口径见 `specs/batch-06-call-cost/spec.md`） | 变小随改动写；变大只经下一行的许可 |
+| `call-budget-allowances/*.json` | 每项任务必要增长的独立一次性许可：`reason`、`review`、`userApproval`、`counters`（场景 → 计数 → 允许到的值） | 只认 merge-base 没有的文件；只能点名真变大的计数，预算必须正好等于许可值；已采用的不能改、不能删、不再放行 |
 | `giant-exceptions/**/*.json` | 按源码文件分开的巨大单元登记；重复 key 拒绝 | 保留 kind、reason、精确 size，仍须评审 |
 | `limits.json` | 巨大单元与 vendored SDK 的阈值，以及 `docs/` 下一个 `.json` 最多多少字节（`docsJsonBytes`，依据见 `scripts/gates/README.md`「文档里的原始数据」），只许收紧 | 人，过评审 |
 | `api/<包>/<subpath>.txt` | contracts 每个 subpath、插件 SDK，以及别的工作区包的 `./contract` 的公开 API 快照 | `pnpm api:update`（见下） |

@@ -16,7 +16,7 @@ import { roundAfterParkedAnswer, startRound } from "./start-round.js";
 import { codingSkillChoices } from "./skill-choices.js";
 import { codingInputPatch } from "./inputs.js";
 import type { CodingSessionRecord } from "./store.js";
-import { outputFolder, projectFolders } from "./project-folders.js";
+import { projectDirectories, projectFolders } from "./project-folders.js";
 import { ActionError, defineErrorCodes, parseExactActionReferences, searchEntriesPage } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginRouteBinding } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities as agent, isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -61,6 +61,7 @@ const readState = async (a: CodingActivation, api: Capabilities, execution: Codi
   // The MCP servers are the project's Runtime's, and only what its own capability matrix offers (PG-054).
   const { runtime: library } = projectRuntime(directory);
   const mcp = library && supports(library, "mcp") ? await actions.invoke(agent.listMcp, [library.runtime_id]) : [];
+  const folders = await unlessMissing(projectDirectories(api), null);
   const shown = await Promise.all(sessions.map(async record => ({ ...record, execution_state: await executionState(actions, record) })));
   return { sessions: shown, skills: await codingSkillChoices(a, actions), mcp, models: execution.models.list(),
     // The Runtime a new session runs on; the page reads the role matrix of the open session's Runtime, or this one when none is open.
@@ -68,8 +69,10 @@ const readState = async (a: CodingActivation, api: Capabilities, execution: Codi
     // Where the page's new rounds run unless the person picks another folder on the page: the project's output (SSC-17). Which folder
     // the page shows is the page's own state, never a setting (specs/shared-sources-and-surfaces §4).
     // A host without workspace settings offers none of these: sessions still list and open, and a round asks for a directory.
-    workspace: await unlessMissing(outputFolder(api), null),
-    workspaces: await unlessMissing(projectFolders(api), []),
+    workspace: folders?.directories.find(folder => folder.roles.includes("output")) ?? null,
+    workspaces: folders?.directories ?? [],
+    // Whether the next round reads the output's instruction files, and if not why (batch12-design §3.7): the rules menu's buttons.
+    ...(folders ? { instructions: folders.instructions } : {}),
     runtimes: await Promise.all(runtimes.map(async (runtime) => ({ ...runtime,
       roles: await actions.invoke(agent.availableRoles, [runtime.runtime_id]),
     }))),

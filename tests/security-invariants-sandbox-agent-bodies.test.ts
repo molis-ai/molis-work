@@ -193,7 +193,8 @@ test("RAC-2636/2641/2643 signed project install retains mixed declarations after
     // SKP-02: the package's method is a Skill of the shared catalog, `off` until the person turns it on; its role is offered once, as role material.
     const offered = await service.reads.methods(work);
     assert.equal(offered.filter(roleOf(PACKAGE_PLUGIN_ID)).length, 1);
-    assert.equal(offered.some(row => row.kind === "skill"), false);
+    // Skills that come with the system (the planning methods, `auto` by default since batch 41) are offered; the package's own is not.
+    assert.equal(offered.some(row => row.kind === "skill" && row.skill.pack.plugin_id === PACKAGE_PLUGIN_ID), false);
     const role = offered.find(roleOf(PACKAGE_PLUGIN_ID))!;
     assert.equal(role.default_ref!.source.plugin_version, "1.1.0"); assert.equal(role.default_ref!.source.publisher_signature, publisher.identity);
     const prompt = registry.prompts().find(row => row.owner_id === PACKAGE_PLUGIN_ID && row.kind === "agent")!;

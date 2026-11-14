@@ -53,16 +53,28 @@ export function openEdit(page: SchedulePage, button: HTMLElement): void {
   if (!detail || page.creating) return;
   field(form, "title").value = detail.querySelector("h1")?.textContent ?? "";
   field(form, "instructions").value = required<HTMLTextAreaElement>(detail, "[data-schedule-task-instructions]").value;
-  field(form, "time").value = required<HTMLInputElement>(detail, "[data-schedule-task-time]").value;
+  const time = required<HTMLInputElement>(detail, "[data-schedule-task-time]");
+  field(form, "time").value = time.value;
+  // A one-off task has no daily time to change (its time is set where it was scheduled, e.g. a risk's review): the field is
+  // left out, so an edit cannot look like it moved the time and then keep the old one.
+  setOnce(form, time.hasAttribute("data-schedule-task-once"));
   required<HTMLInputElement>(form, "[name=notify_important]").checked = required<HTMLInputElement>(detail, "[data-schedule-task-notify]").value === "true";
   hint(page);
   open(page, button.dataset.scheduleTaskEdit ?? "");
   field(form, "title").focus();
 }
 
+/** The daily-time field, shown for a daily task and a new one, left out (hidden and not sent) for a one-off task. */
+function setOnce(form: HTMLFormElement, once: boolean): void {
+  const input = field(form, "time") as HTMLInputElement;
+  input.disabled = once;
+  required(form, ".schedule-time-field").hidden = once;
+}
+
 function openNew(page: SchedulePage): void {
   if (page.creating) return;
   page.form.reset();
+  setOnce(page.form, false);
   open(page, "");
   void readHints(page, hint(page));
   field(page.form, "title").focus();

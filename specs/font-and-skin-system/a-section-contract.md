@@ -1160,7 +1160,7 @@ A 段的验收写在[需求书 §11](spec.md#11-验收标准) 的 FSS-42～FSS-7
 | 类 | 数 | 处理 |
 | --- | --- | --- |
 | 拿译文做判断 | **5 处：** `client/placement.ts:39`、`events-primary.ts:122`、`coding/src/browser/main/select.ts:111`、`main/run-facts.ts:43`、`goals/src/planning-client.ts:60`。`goals/src/relation-client.ts:17` 是按语言选标点，同样要改 | 比键或原值 |
-| 把译文交出去或存下 | `context-onboarding-service.ts:411,513-516`（`L` 算好标题正文交给动作）、`assistant-http.ts:446`（`L` 拼好的话发进对话） | 存键，或交原值 |
+| 把译文交出去或存下 | `context-onboarding-service.ts:411,513-516`（`L` 算好标题正文交给动作）、`assistant-http.ts:446`（`L` 拼好的话发进对话）、`coding/src/onboarding-take.ts`（上手承接的新会话名，第 12 批加，人可以改，和 Coding 默认会话名同一种做法） | 存键，或交原值 |
 | `Error(L(` | 165 处、74 个文件，多数是页面代码，服务端 20 处（`apps/local-host/src`）和 `goals/src/event-document-deliverables.ts:81` 优先查，**没有逐条分** | 开工前逐条分，会存的存错误码 |
 | 写死日期语言 | 带写死语言或 `\|\| "zh-CN"` 回退的 13 处（`agent-review-http.ts:96`、`assistant-followups.ts:223` 等），不带参数的 38 处 | 改 `format` |
 | 首屏写法（第 5.4 节） | 直接 `Intl`：`project-home.ts:72,100,110`；`.replace`：`project-home.ts:141`、`assistant-island.ts:125`；半句：`project-home.ts:222`、`assistant-tabs.ts:28`。半句全仓约 70 处（需求书 §6.1 第 3 条），`.replace` 不在这个数里，开工前数；CSS 变量里的字（`navigation-presentation.ts:9`） | 改 `format`、带参数、整句一个键 |

@@ -21,6 +21,8 @@ export function composeScheduledTaskPrompt(input: {
   title: string;
   instructions: string;
   history: readonly { kind: string; text: string }[];
+  /** The object the task is about; reading it still goes through the task's own grant. */
+  subject?: { kind: string; id: string } | null;
 }): string {
   const history = input.history.length === 0
     ? "（还没有历史回合）"
@@ -29,6 +31,7 @@ export function composeScheduledTaskPrompt(input: {
     `任务标题：${input.title}`,
     "任务说明：",
     input.instructions,
+    ...(input.subject ? [`任务关心的对象：${input.subject.kind} ${input.subject.id}`] : []),
     "历史对话：",
     history,
     "",

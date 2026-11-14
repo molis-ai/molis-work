@@ -96,6 +96,8 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       const tab = pane?.tabs.find(entry => entry.id === pane.activeTabId), surface = tab && (tab.plugin || (tab.owner && "system:" + tab.owner));
       return surface ? { surface, id: tab.itemId || tab.kind } : null;
     } });
+    // The shell's own back step after a locate is the return stage (OCL-07); only the top page records, so only it answers.
+    if (workRecords) globalThis.molisWorkHistoryStep = (delta) => { if (delta < 0) workRecords.returned(); };
     globalSearchPalette = (${GLOBAL_SEARCH_FACTORY_SCRIPT})({
       translate: readText, itemTabs, records: workRecords,
       route, projectId: state.project?.project_id || document.body.dataset.projectId || "",

@@ -22,7 +22,6 @@ import type { AppliedDecisionWithRound } from "./event-state-decision-records.js
 export interface GoalEventCompletionContext {
   open_dependencies: Array<{ goal_id: string; title: string }>;
   human_approval_required: boolean;
-  blocking_risks: Array<{ risk_id: string; description: string }>;
 }
 
 export function completionUnmetReasons(input: {
@@ -104,13 +103,6 @@ export function completionUnmetReasons(input: {
     reasons.push({
       code: "goals.event_closure.human_approval_required",
       message: "项目规定完成要你批准：认可要求不算批准，请在这一轮单独批准完成",
-    });
-  }
-  for (const risk of input.context.blocking_risks) {
-    reasons.push({
-      code: "goals.event_closure.blocking_risk",
-      message: `未解决的完成风险：${risk.description}`,
-      risk_id: risk.risk_id,
     });
   }
   for (const pending of input.pendingDecisions) {

@@ -810,8 +810,6 @@ export interface ActionSkillRound {
     readonly consumer: "assistant" | "coding" | "agent";
     readonly named: readonly SkillRef[];
     readonly engine?: "builtin" | "local";
-    readonly round?: string;
-    readonly auto?: false;
 }
 
 export interface ActionSubject {
@@ -943,7 +941,6 @@ export interface AgentSkillDeclaration {
     argument_hint?: string;
     native_only_reason?: string;
     body?: string;
-    locales?: string[];
     resources?: SkillResourceDeclaration[];
     connector_categories?: string[];
 }
@@ -3692,6 +3689,7 @@ export interface PluginManifest {
     image_generation?: import("platform/plugin-image-generation").PluginImageGenerationDeclaration;
     runtime?: PluginRuntimeDeclaration;
     local_tools?: import("platform/plugin-local-tools").PluginLocalToolsDeclaration;
+    onboarding?: import("@molis-ai/molis-work-contracts/platform/plugin-onboarding").PluginOnboardingDeclaration;
     attention?: import("@molis-ai/molis-work-contracts/platform/plugin-attention").PluginAttentionDeclaration;
     connections?: import("@molis-ai/molis-work-contracts/platform/plugin-connections").PluginConnectionsDeclaration;
     connection_services?: readonly import("@molis-ai/molis-work-contracts/platform/plugin-integrations").PluginConnectionServiceDeclaration[];
@@ -5499,7 +5497,6 @@ export interface SandboxAgentBody {
     name: string;
     purpose: string;
     body: string;
-    body_by_locale?: Readonly<Record<string, string>>;
 }
 
 export interface SandboxAgentBodyDeclaration {

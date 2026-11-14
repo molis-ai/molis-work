@@ -1,5 +1,10 @@
-import { projectDirectoryActions, type ProjectDirectory } from "@molis-ai/molis-work-contracts/modules/projects";
+import { projectDirectoryActions, type ProjectDirectories, type ProjectDirectory } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { PluginActionClient } from "@molis-ai/molis-work-contracts/platform/plugin";
+
+/** The project's folders and whether its rounds read the output's instruction files, in one read (`projects.directories.get@1`). */
+export function projectDirectories(api: PluginActionClient): Promise<ProjectDirectories> {
+  return api.invoke(projectDirectoryActions.get, {});
+}
 
 /** The project's folders with their roles, read now through `projects.directories.get@1` (specs/shared-sources-and-surfaces §3). */
 export async function projectFolders(api: PluginActionClient): Promise<ProjectDirectory[]> {

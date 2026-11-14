@@ -294,6 +294,7 @@
     "type": "application/json",
     "keys": [
       "directories",
+      "instructions",
       "page",
       "project_id",
       "revision",

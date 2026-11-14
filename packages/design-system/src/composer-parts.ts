@@ -1,5 +1,5 @@
 import type { AgentSteerMode } from "@molis-ai/molis-work-contracts/services/agent-inputs";
-import { escapeHtml, icon, renderButton, type MwComposerAiLabels, type MwComposerLabels } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { escapeHtml, icon, renderButton, type MwComposerAiLabels, type MwComposerLabels, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { ComposerChoice } from "./composer-rules.js";
 import { renderMenu, renderMenuGroup, renderMenuItem } from "./primitives/overlay.js";
 
@@ -123,4 +123,14 @@ export function renderComposerStrip(labels: MwComposerLabels, items: readonly Co
 /** The restored-draft line: when it was written, and how to throw it away. */
 export function renderComposerRestore(labels: MwComposerLabels, when: string, fill: Fill): string {
   return `<p class="mw-field__hint mw-composer__restore">${escapeHtml(fill(labels.restored, { time: when }))} · ${renderButton({ label: labels.clear, variant: "link", attrs: { "data-composer-clear": "" } })}</p>`;
+}
+
+/**
+ * The line above the box (`notice`): a standing condition, not a message, so it is no live region; the text area points at it with
+ * `aria-describedby` and it is read when the box has focus. `id` is the composer's own.
+ */
+export function renderComposerNotice(id: string, notice: { text: string; tone: "readonly" | "info"; icon?: string; action?: { label: string } | null }): string {
+  const mark = notice.icon ?? (notice.tone === "readonly" ? "lock" : "");
+  return `<div class="mw-composer__notice" id="${escapeHtml(id)}" data-tone="${notice.tone}">${mark ? icon(mark as PluginIconName) : ""}<span class="mw-composer__notice-text">${escapeHtml(notice.text)}</span>`
+    + `${notice.action ? renderButton({ label: notice.action.label, variant: "secondary", size: "sm", attrs: { "data-composer-notice": "" } }) : ""}</div>`;
 }

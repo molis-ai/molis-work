@@ -61,9 +61,10 @@ const tracked = (...directories: string[]) => execFileSync("git", ["ls-files", "
 
 // RAC-1770: the contract lives in the Goals plugin, with the runtime values it had; the platform contracts' three subpaths are gone.
 // Batch 06 (materials-ui-contract §1) added the receipt kind of a version the platform's materials service fixed and its locator.
-const CONTRACT_RUNTIME_EXPORTS = ["GOALS_TREE_INTAKE", "GOALS_TREE_SUBMIT_RESULT", "GOAL_EVENT_EVIDENCE_MAX", "GOAL_MATERIAL_SNAPSHOT_SOURCE", "GOAL_PLUGIN_OBJECT_SOURCE", "agreement", "array", "artifactSource", "binding",
-  "boardSnapshotSchema", "boolean", "change", "closure", "concern", "count", "decision", "decisionRequest", "effect", "enumeration", "eventType",
-  "goalAcceptanceCriterionSchema", "goalAction", "goalArchiveResultSchema", "goalConfigSchema", "goalConfirmedInputSchema", "goalContractSchema", "goalDecisionMethods",
+const CONTRACT_RUNTIME_EXPORTS = ["GOALS_TREE_INTAKE", "GOALS_TREE_SUBMIT_RESULT", "GOAL_CONCERN_CITED_SUBJECT_LIMIT", "GOAL_EVENT_EVIDENCE_MAX",
+  "GOAL_MATERIAL_SNAPSHOT_SOURCE", "GOAL_PLUGIN_OBJECT_SOURCE", "agreement", "array", "artifactSource", "binding", "boardSnapshotSchema", "boolean", "change",
+  "citedSubjects", "closure", "concern", "count", "decision", "decisionRequest", "effect", "enumeration", "eventType", "goalAcceptanceCriterionSchema",
+  "goalAction", "goalArchiveResultSchema", "goalConfigSchema", "goalConfirmedInputSchema", "goalContractSchema", "goalDecisionMethods",
   "goalDecompositionReviewSchema", "goalDecompositionReviewStatuses", "goalDirectoryItemSchema", "goalEntryActions", "goalEventAcknowledgementCategories",
   "goalEventAcknowledgementTreatments", "goalEventAssessmentKey", "goalEventBasisGaps", "goalEventBasisTiers", "goalEventClosureKinds", "goalEventConcernActions", "goalEventConcernStatuses", "goalEventDecisionEffectKinds",
   "goalEventDecisionPurposes", "goalEventEvidenceKinds", "goalEventFieldFormats", "goalEventJudgmentVerdicts", "goalEventPageSchema", "goalEventRequirementCurrentStatuses", "goalEventSatisfactionGrounds", "goalEventSchema",

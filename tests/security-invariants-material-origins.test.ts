@@ -26,7 +26,7 @@ function fixture() {
   const docs = path.join(root, "docs");
   mkdirSync(docs);
   for (let n = 1; n <= 7; n += 1) writeFileSync(path.join(docs, `${n}.md`), `file ${n}`);
-  const directories: ProjectDirectories = { project_id: "p", revision: "r1", source_links: [],
+  const directories: ProjectDirectories = { project_id: "p", revision: "r1", source_links: [], instructions: { off: false, trusted: false },
     directories: [{ workspace_id: "ws1", canonical_path: docs, realpath_verified: true, display_name: "docs", roles: ["input"], state: "ok" }] };
   return { root, directories, cleanup: () => rmSync(root, { recursive: true, force: true }) };
 }

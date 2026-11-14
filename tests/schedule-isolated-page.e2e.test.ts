@@ -25,6 +25,27 @@ test("SYS-15 Schedule isolated page creates, edits, pauses, reopens, resumes and
   await child.evaluate("document.querySelector('[data-schedule-create-form]').elements.title.value='Updated daily task'");
   await child.click('[data-schedule-create-form] button[type=submit]');
   await child.waitFor("document.querySelector('[data-schedule-detail] h1')?.textContent==='Updated daily task' && document.querySelector('[data-schedule-create-pane]').hidden");
+  // A daily task's edit offers its time; a one-off task's (marked by its detail, as a risk's review is) leaves the field out, so
+  // an edit cannot look like it moved the time and keep the old one (PR #2058 评审台小修).
+  const timeField = "(()=>{const input=document.querySelector('[data-schedule-create-form]').elements.time;return {disabled:input.disabled,shown:input.closest('.schedule-time-field').getClientRects().length>0};})()";
+  await child.click('[data-schedule-task-edit]');
+  await child.waitFor("!document.querySelector('[data-schedule-create-pane]').hidden");
+  assert.deepEqual(await child.evaluate(timeField), { disabled: false, shown: true }, "a daily task's edit shows its time");
+  await child.click('[data-schedule-create-close]');
+  await child.waitFor("document.querySelector('[data-schedule-create-pane]').hidden");
+  await child.evaluate("document.querySelector('[data-schedule-task-time]').setAttribute('data-schedule-task-once','')");
+  await child.click('[data-schedule-task-edit]');
+  await child.waitFor("!document.querySelector('[data-schedule-create-pane]').hidden");
+  assert.deepEqual(await child.evaluate(timeField), { disabled: true, shown: false }, "a one-off task's edit leaves the daily time out");
+  await child.click('[data-schedule-create-close]');
+  await child.waitFor("document.querySelector('[data-schedule-create-pane]').hidden");
+  await child.click('[data-schedule-new]');
+  await child.waitFor("!document.querySelector('[data-schedule-create-pane]').hidden");
+  assert.deepEqual(await child.evaluate(timeField), { disabled: false, shown: true }, "a new task asks for its time again");
+  await child.click('[data-schedule-create-close]');
+  await child.waitFor("document.querySelector('[data-schedule-create-pane]').hidden && document.querySelector('[data-schedule-row]')?.getClientRects().length");
+  await child.click('[data-schedule-row]');
+  await child.waitFor("document.querySelector('[data-schedule-task-enabled-action=false]')?.getClientRects().length");
   await child.click('[data-schedule-task-enabled-action=false]');
   await child.waitFor("document.querySelector('[data-schedule-task-enabled-action=true]')");
   await open();

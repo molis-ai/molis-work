@@ -9,7 +9,7 @@
 ## 三条写入路
 
 1. **动作调用出口。** kernel 结算每一次动作调用时，把输入、结果、起止时间、处理器是否已开始、调用层级（`invocation_id`、`parent_invocation_id`）交给 `CallReports.observed`。宿主把它转给 `ObservationLayer.observed`，记成一行 `action.call`。什么情况留什么内容，见[设计 §7](../../specs/observation-collection/contract-design.md)。
-2. **平台服务的 sink。** 宿主装配时给每个服务一个只认它前缀的 `ObservationSink`。服务在一件事开始时（一轮 Agent 运行、一次唤醒、一次检索）`bind(origin)`，之后在回调里随时 `record(fact)`：即使那时动作的异步上下文已经结束，身份也不会丢。
+2. **平台服务的 sink。** 宿主装配时给每个服务一个只认它前缀的 `ObservationSink`。服务在一件事开始时（一轮 Agent 运行、一次唤醒、一次连接器拉取）`bind(origin)`，之后在回调里随时 `record(fact)`：即使那时动作的异步上下文已经结束，身份也不会丢。检索、读取与记忆写入是动作调用，随出口记，不另设 sink。
 3. **上报动作。** 外壳只经宿主签发入口凭据的界面阶段路由上报 `ui.*`；插件在 Manifest `capabilities.consumes` 声明 `observation.report@1`，只能上报以自己 `plugin_id` 开头的事实。每次至多 100 条、1 MiB；每个上报方每天至多 20,000 条、64 MiB。
 
 ## 接入一种新事实
@@ -22,7 +22,7 @@
 - **草稿**：动作的输入是本人还没发出的草稿（输入框草稿、写到一半的回答），在定义上写 `draft: true`（沙箱包写在操作上）；出口只记存过，不留输入与结果。
 - **插件上报**：照工作流程插件（`plugins/native/workflows/src/observation.ts`）：Manifest 声明消费 `observation.report@1`，用 `context.services.actions.invoke` 以自己的安装身份调用，在业务写完之后 await、出错吞掉，从不让上报决定业务的成败；被取消或撤权的调用，上报也会被拒。
 - **外壳的界面阶段**：工作台页面脚本 `apps/workbench/src/scripts/client/work-records.ts` 是唯一的发送处（项目页发到 `/projects/<id>/api/observation/ui`，记在该项目下）；别的界面代码拿到它的 `record`、`subject`、`interaction(list)` 来记，不另开请求。高频的停留与滚动按对象每分钟汇总。
-- **宿主侧的记录器**：服务不在 Host 对象上时，用 `liveObservation(home)` 找到这个 Home 正在运行的采集层；授权变化走 `recordGrantChanges`，写在保存之后、从不抛错。
+- **宿主侧的记录器**：服务不在 Host 对象上时，用 `liveObservation(home)` 找到这个 Home 正在运行的采集层；没有运行层（命令行卸载）时，`recordGrantChanges` 直接开这个 Home 的库写同形记录。授权变化写在保存之后、从不抛错。
 
 ## 出了问题看哪里
 

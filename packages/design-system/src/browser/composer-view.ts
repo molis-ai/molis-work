@@ -1,5 +1,5 @@
 import { renderComposer, type MwComposerOptions } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { renderComposerRestore, renderComposerStrip } from "../composer-parts.js";
+import { renderComposerNotice, renderComposerRestore, renderComposerStrip } from "../composer-parts.js";
 import { composerDeliveries } from "../composer-rules.js";
 import { busy, sendable, type Composer, type ComposerBasics, type Status } from "./composer-state.js";
 
@@ -128,9 +128,31 @@ function draw(c: Composer, controls: boolean) {
     c.painted = end.outerHTML; shell.querySelector(".mw-composer__end")!.replaceWith(end);
   }
   if (controls) { c.close(); shell.querySelector(".mw-composer__start")!.replaceWith(next.querySelector(".mw-composer__start")!); }
+  notice(c);
   strip(c);
   c.box.querySelector(".mw-composer__restore")?.remove();
   if (c.restored) (c.box.querySelector(".mw-composer__files") ?? c.box).insertAdjacentHTML(c.box.querySelector(".mw-composer__files") ? "afterend" : "afterbegin", renderComposerRestore(c.labels, c.restored, c.fill));
+}
+
+/**
+ * The page's line above the box (`notice`), read again on every draw. The element stays while there is a line and its words change
+ * in place, so nothing is announced again and focus on its button is kept; the box's outline follows its tone (`data-notice`).
+ */
+function notice(c: Composer) {
+  const now = c.options.notice?.() ?? null, id = `${c.id}-notice`, field = c.field;
+  const had = c.shell.querySelector<HTMLElement>(":scope .mw-composer__notice");
+  const described = (field.getAttribute("aria-describedby") ?? "").split(" ").filter(one => one && one !== id);
+  if (!now) {
+    had?.remove(); delete c.shell.dataset.notice;
+    if (described.length) field.setAttribute("aria-describedby", described.join(" ")); else field.removeAttribute("aria-describedby");
+    return;
+  }
+  const fresh = document.createElement("template");
+  fresh.innerHTML = renderComposerNotice(id, { text: now.text, tone: now.tone, ...(now.icon ? { icon: now.icon } : {}), action: now.action ? { label: now.action.label } : null });
+  const next = fresh.content.firstElementChild as HTMLElement;
+  if (!had) c.box.before(next); else if (had.outerHTML !== next.outerHTML) same(had, next);
+  c.shell.dataset.notice = now.tone;
+  field.setAttribute("aria-describedby", [...described, id].join(" "));
 }
 
 /**

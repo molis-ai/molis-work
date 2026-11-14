@@ -1,0 +1,63 @@
+{
+  "reason": "第 12 批的首屏增量。工作台词包因本批新加的界面文字（项目设置「输入与输出」的读取说明文件开关与说明、引导复查页「交给声明可承接代码文件夹的插件」的勾选、composer 提示行）换了内容定址文件名，门禁把它算作新路径；到达页的热载增长是 arrival.css（+781，见同批 batch-12-coding-rules.json）与引导页程序里的承接勾选。没有新增别的路径，每页净增都在 10 KB 以内。",
+  "review": "本机对照 merge-base 6306758c 的隔离构建实测（node scripts/gates/first-screen.mjs --base origin/main）：到达页冷 zh +7445 / en +7529、热各 +4112；项目选择页冷 zh +4406 / en +4490；工作台默认冷 zh +4248 / en +4332；全部插件冷 zh +5181 / en +5297、热 zh +933 / en +965。许可按实测向上取整到 100 B。",
+  "userApproval": "用户于 2026-11-13 在第 12 批主会话弹窗批准（「照实测批准」）：工作台中英文词包换名，以及上列各页的首屏增长。",
+  "entryApprovals": [
+    {
+      "pages": [
+        "arrival-empty",
+        "chooser",
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "zh",
+      "entry": "/assets/locale/workbench.zh.<digest>.js",
+      "change": "new"
+    },
+    {
+      "pages": [
+        "arrival-empty",
+        "chooser",
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "en",
+      "entry": "/assets/locale/workbench.en.<digest>.js",
+      "change": "new"
+    }
+  ],
+  "pages": {
+    "arrival-empty/zh": {
+      "cold": 7500,
+      "warm": 4200
+    },
+    "arrival-empty/en": {
+      "cold": 7600,
+      "warm": 4200
+    },
+    "chooser/zh": {
+      "cold": 4500,
+      "warm": 0
+    },
+    "chooser/en": {
+      "cold": 4500,
+      "warm": 0
+    },
+    "workbench-default/zh": {
+      "cold": 4300,
+      "warm": 0
+    },
+    "workbench-default/en": {
+      "cold": 4400,
+      "warm": 0
+    },
+    "workbench-all-plugins/zh": {
+      "cold": 5200,
+      "warm": 1000
+    },
+    "workbench-all-plugins/en": {
+      "cold": 5300,
+      "warm": 1000
+    }
+  }
+}

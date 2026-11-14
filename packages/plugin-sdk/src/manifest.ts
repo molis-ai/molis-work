@@ -16,6 +16,7 @@ import { isRecord } from "./json-value.js";
 import { artifactDeclarationProblems } from "./artifact-declarations.js";
 import { backgroundDeclarationProblems } from "./background-declarations.js";
 import { demoSeedDeclarationProblems } from "./demo-seed-declarations.js";
+import { onboardingDeclarationProblems } from "./onboarding-declarations.js";
 import { notificationDeclarationProblems } from "./notification-declarations.js";
 import { attentionDeclarationProblems } from "./attention-declarations.js";
 import { readGroupDeclarationProblems } from "./read-group-declarations.js";
@@ -287,6 +288,7 @@ function assertDeclarations(parsed: PluginManifest, ui: Record<string, unknown>)
   problems.push(...backgroundDeclarationProblems(parsed.background, declaredPermissions, parsed.actions));
   problems.push(...notificationDeclarationProblems(parsed.notifications, parsed.actions));
   problems.push(...demoSeedDeclarationProblems(parsed.demo_seed, parsed.actions));
+  problems.push(...onboardingDeclarationProblems(parsed.onboarding, parsed.actions));
   problems.push(...connectionDeclarationProblems(parsed.connections, declaredPermissions));
   problems.push(...integrationDeclarationProblems(parsed));
   problems.push(...attentionDeclarationProblems(parsed.attention, declaredPermissions));
@@ -328,6 +330,11 @@ function inspectViewDeclarations(parsed: PluginManifest, ui: Record<string, unkn
     problems.push(...viewPlacementProblems(view, stations, readables));
   }
   problems.push(...stageDataPlacementProblems(views));
+  for (const view of views) {
+    if (view.opens_items !== undefined && typeof view.opens_items !== "boolean") problems.push(`视图 ${view.view_id} 的 opens_items 必须是布尔值`);
+    else if (view.opens_items === true && view.slot !== "side") problems.push(`视图 ${view.view_id} 的 opens_items 只能用在 side 视图上`);
+  }
+  if (views.filter((view) => view.opens_items === true).length > 1) problems.push("一个插件至多一个视图写 opens_items");
   return problems;
 }
 

@@ -112,13 +112,17 @@ export class ObservationWriter {
     const db = this.tryOpen();
     if (!db) { this.lose(batch, "store_unavailable"); return; }
     const now = this.options.env.now().toISOString(), gaps = this.gaps.splice(0);
+    // Gaps raised while the batch is written (a key that cannot be had) are written with it; if the transaction fails, every
+    // one of them goes back, not only those already waiting before it.
+    let pendingGaps: Gap[] = gaps;
     const quotas = [...this.quotas].filter(([, quota]) => quota.dirty);
     try {
       db.exec("BEGIN IMMEDIATE");
       const tallies = new Map<string, Tally>();
       for (const record of batch) this.write(db, record, now, tallies);
       for (const tally of tallies.values()) this.cover(db, tally, now);
-      for (const gap of [...gaps, ...this.gaps.splice(0)]) this.writeGap(db, gap);
+      pendingGaps = [...gaps, ...this.gaps.splice(0)];
+      for (const gap of pendingGaps) this.writeGap(db, gap);
       for (const [reporter, quota] of quotas) this.run(db, "INSERT INTO report_quota (reporter, day, facts, bytes) VALUES (?, ?, ?, ?) ON CONFLICT (reporter, day) DO UPDATE SET facts = excluded.facts, bytes = excluded.bytes",
         reporter, quota.day, quota.facts, quota.bytes);
       this.run(db, "INSERT INTO writer_state (key, value) VALUES ('last_write_at', ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value", now);
@@ -126,9 +130,9 @@ export class ObservationWriter {
       for (const [, quota] of quotas) quota.dirty = false;
     } catch {
       try { db.exec("ROLLBACK"); } catch { /* the transaction was not open: nothing to roll back */ }
-      // What was folded into a record of this batch would point at nothing; stretches already counted wait for the next write.
+      // What was folded into a record of this batch would point at nothing; the stretches the failed transaction carried wait for the next write.
       this.folds.clear();
-      this.gaps.unshift(...gaps);
+      this.gaps.unshift(...pendingGaps);
       this.lose(batch, "write_failed");
     }
   }

@@ -116,7 +116,7 @@ export type FrameUp =
   | { type: "review-show"; id: number; query: UiPageReviewQuery }
   | { type: "review-layout"; id: number; box: {x: number; y: number; width: number; height: number} | null }
   | { type: "review-close"; id: number }
-  | { type: "workspace"; id: number; operation: "add" | "set_output"; value: string }
+  | { type: "workspace"; id: number; operation: "add" | "set_output" | "read_instructions"; value: string }
   | { type: "embed-open"; id: number; target: { surface: string; itemId: string; title?: string } }
   | { type: "embed-layout"; id: number; box: {x: number; y: number; width: number; height: number} | null }
   | { type: "embed-close"; id: number }

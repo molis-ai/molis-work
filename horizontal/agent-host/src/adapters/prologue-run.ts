@@ -30,6 +30,7 @@ import type { createWorkGraphs } from "./prologue-work-graphs.js";
 import { createPrologueWriteCheckers } from "./prologue-write-checkers.js";
 import { withInteractionRepairLimit } from "./prologue-questions.js";
 import { roundReferenceKinds } from "./prologue-reference-kinds.js";
+import { roundInstructions } from "./prologue-run-instructions.js";
 import { runModelParams } from "./prologue-run-params.js";
 import { blockId, canTakeUp, collaborates, eligibleContinuation, planPrefix, readyStep, releaseStartClaim, sessionBlock } from "./prologue-collaboration.js";
 import type { PlanPlace } from "./prologue-plan-steps.js";
@@ -505,7 +506,9 @@ function sdkStart(deps: RunDeps, input: PrologueStartInput, index: SessionIndex,
       onStarted: watchChild(deps, input, index, parts.attemptIndex, { roles: childRoles, roots: childRoots, root }),
     } } : {}),
     // Packed against the model's own window when it states a smaller one than the runtime default.
-    ...(input.compaction || input.provenance.frozen.model_context ? { context: {
+    ...(input.compaction || input.provenance.frozen.model_context || input.project_trusted ? { context: {
+      // The repository's own instruction files come in only when the Host trusted the project (S-project-instructions-trust).
+      ...(input.project_trusted ? { projectTrusted: true } : {}),
       // A failed early compaction does not end a round whose history still fits the window (the person chose this).
       ...(input.compaction ? { compactAboveTokens: input.compaction.above_tokens, continueWhenCompactionFails: true } : {}),
       ...(input.provenance.frozen.model_context ? { windowTokens: input.provenance.frozen.model_context.window_tokens } : {}),
@@ -741,6 +744,10 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
   state.dispatchChecks.set(started.run.ref.id, dispatchGuard);
   await afterStart(deps, input, index, { started, session, root, attemptIndex, actionController, hasActions: Boolean(actionTools?.names.length), none: mode.none,
     project: materials.project, scopePaths: materials.scopePaths, plan, stepBoard: materials.stepBoard, stopping: () => stopping.current !== undefined });
+  // Which instruction files the runtime packed, written once into the round's record; a failed write leaves the round without it.
+  const read = roundInstructions(input, started.pack);
+  const instructions = read && await deps.index.update(input.session_id, saved => { saved.attempts[attemptIndex]!.frozen.instructions = structuredClone(read); })
+    .then(() => read, () => undefined);
   return { ...roundHandle(deps, input, { started, session, attemptIndex, actionController, stepBoard: materials.stepBoard, stopping }),
-    ...(surface.desktop_target ? { desktop_target: surface.desktop_target } : {}) };
+    ...(surface.desktop_target ? { desktop_target: surface.desktop_target } : {}), ...(instructions ? { instructions } : {}) };
 }

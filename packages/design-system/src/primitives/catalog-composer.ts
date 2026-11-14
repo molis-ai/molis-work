@@ -8,7 +8,7 @@
 // board, the SDK and the client cannot drift (UIC-13).
 import { escapeHtml, icon, renderButton, renderComposer, renderProgress, type MwComposerAiLabels, type MwComposerStatus } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderMenu, renderMenuGroup, renderMenuItem } from "./overlay.js";
-import { renderComposerDeliveryMenu } from "../composer-parts.js";
+import { renderComposerDeliveryMenu, renderComposerNotice } from "../composer-parts.js";
 import { section, specimen } from "./catalog-parts.js";
 import { composerRestRules, composerRestTouch } from "../composer-styles.js";
 
@@ -20,6 +20,7 @@ export const COMPOSER_BOARD_STYLES = `
   /* The specimen whose ▾ menu is open keeps room above itself for it (the menu hangs from the whole composer), so it stays in its cell. */
   .mw-catalog [data-catalog-menu-room] { margin-top: var(--catalog-menu-room, 240px); }
   .mw-catalog [data-catalog-focus] .mw-composer__box { box-shadow: 0 0 0 1px var(--line-strong), var(--lift-1); }
+  .mw-catalog [data-catalog-narrow] { width: 100%; max-width: 360px; }
   .mw-catalog [data-primitive="menu-desc"] .mw-menu { position: static; display: grid; width: min(340px, 100%); }
   .mw-catalog [data-primitive="menu-desc"] .mw-catalog__specimens { grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); align-items: start; }
   .mw-catalog-mic { display: grid; justify-items: center; align-content: center; gap: 8px; min-width: 72px; min-height: 80px; padding: 12px; border-radius: var(--r-card, 12px); background: var(--surface-soft); color: var(--ink); }
@@ -27,7 +28,7 @@ export const COMPOSER_BOARD_STYLES = `
   .mw-catalog-mic > span { color: var(--muted); font-size: 12px; font-weight: 400; font-variant-numeric: tabular-nums; }
   /* At rest where height is scarce (user 11-08): the page sheet's one row, shown here under the board's own mark at a phone's
      width, with a finger's targets and with a mouse's (a short window). */
-  .mw-catalog [data-catalog-compact] { display: grid; gap: 8px; max-width: 390px; }
+  .mw-catalog [data-catalog-compact] { display: grid; gap: 8px; width: 100%; max-width: 390px; }
   .mw-catalog [data-catalog-compact] > .mw-catalog__note { margin: 0; color: var(--muted); font-size: 12px; }${composerRestRules(".mw-catalog [data-catalog-compact] .mw-composer[data-rest]")}${composerRestTouch('.mw-catalog [data-catalog-compact="touch"] .mw-composer[data-rest]')}
   .mw-catalog [data-catalog-compact="touch"] .mw-composer__foot :is(.mw-btn--icon, .mw-btn--icon-only) { width: 44px; min-width: 44px; min-height: 44px; }
 `;
@@ -55,6 +56,8 @@ interface ShellOptions {
   readonly files?: string;
   readonly status?: MwComposerStatus;
   readonly focus?: boolean;
+  /** The page's line above the box (`notice`), as the client draws it. */
+  readonly notice?: { text: string; tone: "readonly" | "info"; icon?: string; action?: { label: string } | null };
   /** The board opens this one's ▾ menu; keep room above it so the menu stays inside the specimen. */
   readonly menuRoom?: boolean;
 }
@@ -104,10 +107,25 @@ function shell(say: Say, add: string, options: ShellOptions): string {
   const restored = options.restored
     ? `<p class="mw-field__hint mw-composer__restore">${escapeHtml(say("workbench.catalog-composer.restored-your-unsent-draft-11-02-am"))} · ${renderButton({ label: say("workbench.catalog-composer.clear-draft"), variant: "link" })}</p>` : "";
   const menu = deliveryMenu(say, add, "catalog-composer-running");
+  const notice = options.notice;
   return drawn
-    .replace('<div class="mw-composer__box">', (box) => `${box}${options.files ?? ""}${restored}`)
+    .replace('data-slot="composer"', (slot) => notice ? `${slot} data-notice="${notice.tone}"` : slot)
+    .replace('<div class="mw-composer__box">', (box) => `${notice ? renderComposerNotice("catalog-notice-" + notice.tone + (notice.action ? "-action" : ""), notice) : ""}${box}${options.files ?? ""}${restored}`)
     // The ▾'s menu, not ＋'s (both are empty in the first screen).
     .replace(/(data-compose-menu-toggle[^>]*>(?:(?!<\/button>)[\s\S])*<\/button>)<div class="mw-compose__menu" data-compose-menu hidden><\/div>/, (_, toggle: string) => `${toggle}<div class="mw-compose__menu" data-compose-menu hidden>${menu}</div>`);
+}
+
+/** The line above the box (batch12-design §2.3): read-only with its way out, a plain line, read-only with none, a narrow box, at rest. */
+function notices(say: Say, add: string): string {
+  const readonly = { text: say("workbench.catalog-composer.notice-readonly-text"), tone: "readonly" as const, action: { label: say("workbench.catalog-composer.notice-switch") } };
+  const info = { text: say("workbench.catalog-composer.notice-info-text"), tone: "info" as const, icon: "info" };
+  return [
+    specimen(escapeHtml(say("workbench.catalog-composer.notice-readonly")), shell(say, add, { notice: readonly, text: say("workbench.catalog-composer.notice-readonly-words") })),
+    specimen(escapeHtml(say("workbench.catalog-composer.notice-info")), shell(say, add, { notice: info })),
+    specimen(escapeHtml(say("workbench.catalog-composer.notice-readonly-alone")), shell(say, add, { notice: { ...readonly, action: null }, focus: true })),
+    specimen(escapeHtml(say("workbench.catalog-composer.notice-narrow")), `<div data-catalog-narrow>${shell(say, add, { notice: readonly })}</div>`),
+    specimen(escapeHtml(say("workbench.catalog-composer.notice-rest")), `<div data-catalog-compact="touch">${shell(say, add, { notice: readonly })}</div>`),
+  ].join("\n    ");
 }
 
 /** The attachment strip is the board's upload rows: one being read, one read, one refused with its reason. */
@@ -147,6 +165,7 @@ export function composerSection(say: Say, add = say("workbench.composer.next-bou
     ${specimen(escapeHtml(say("workbench.catalog-composer.working-running-delivery-menu")), shell(say, add, { state: "running", menuRoom: true, text: say("workbench.catalog-composer.attach-the-failure-screenshots-too"), status: { caption: say("workbench.settings-plugins.running"), text: say("workbench.catalog-composer.working-on-this-turn-a-new-message") } }))}
     ${specimen(escapeHtml(say("common.generated.failed")), shell(say, add, { state: "failed", text: task, status: { caption: say("common.generated.failed"), text: say("workbench.catalog-composer.not-sent-the-connection-was-reset-your"), action: say("common.control.retry") } }))}
     ${specimen(escapeHtml(say("workbench.catalog-composer.pending-confirmation")), shell(say, add, { state: "unknown", text: task, status: { caption: say("workbench.catalog-composer.pending-confirmation"), text: say("workbench.catalog-composer.could-not-confirm-it-arrived-checking-now-don"), action: say("workbench.settings-sync-history.details") } }))}
+    ${notices(say, add)}
     ${specimen(escapeHtml(say("workbench.context-bar.unavailable")), shell(say, add, { state: "disabled", placeholder: say("workbench.catalog-composer.this-session-has-ended"), status: { caption: say("workbench.context-bar.unavailable"), text: say("workbench.catalog-composer.the-session-has-ended-and-takes-no") } }))}
   </div>`);
 }

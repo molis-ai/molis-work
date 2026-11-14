@@ -287,6 +287,7 @@ export interface AgentFrozenRole {
     prompts: AgentPromptText[];
     skills?: AgentRoundSkill[];
     reply_locale?: UiLanguageTag;
+    instructions_trusted?: true;
     host_tools: string[];
 }
 
@@ -1477,6 +1478,16 @@ export interface AgentRunHandle {
     frozen: AgentFrozenStart;
 }
 
+export interface AgentRunInstructions {
+    trusted: boolean;
+    files: Array<{
+        path: string;
+        chars: number;
+        truncated: boolean;
+        sha256: string;
+    }>;
+}
+
 export interface AgentRunOffer extends AgentActionOffer {
     offer_id: string;
     offered_at: string;
@@ -1488,11 +1499,6 @@ export type AgentRunPhase = "starting" | "running" | "awaiting-review" | "awaiti
 export interface AgentRunRef {
     run_id: string;
     session_id: string;
-}
-
-export interface AgentRunSkillRead {
-    ref: import("@molis-ai/molis-work-contracts/services/agent-definitions").SkillRef;
-    name: string;
 }
 
 export interface AgentRunUsage {
@@ -1535,7 +1541,6 @@ export interface AgentRunView {
         requested?: string;
     };
     offers?: readonly AgentRunOffer[];
-    skill_reads?: readonly AgentRunSkillRead[];
     started_at: string;
     ended_at: string | null;
 }
@@ -2279,6 +2284,7 @@ interface AgentFrozenStartFields {
     }>;
     skills: AgentFrozenSkill[];
     reply_locale?: UiLanguageTag;
+    instructions?: AgentRunInstructions;
     mcp_tools: AgentMcpToolRef[];
     mcp_sources?: AgentMcpSourceRef[];
     host_tools: string[];
@@ -2339,7 +2345,6 @@ interface AgentStartInputFields {
     text_materials?: AgentTextMaterial[];
     image_materials?: AgentImageMaterial[];
     skills?: SkillRef[];
-    auto_skills?: false;
     mcp_tools?: AgentMcpToolRef[];
     mcp_sources?: AgentMcpSourceRef[];
     budget?: AgentRunBudget;

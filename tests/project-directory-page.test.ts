@@ -11,7 +11,7 @@ const directory = (workspaceId: string, roles: Array<"input" | "output"> = ["inp
   workspace_id: workspaceId, canonical_path: `/projects/p/${workspaceId}`, realpath_verified: true, display_name: workspaceId, roles, state: "ok",
 });
 const read = (overrides: Partial<ProjectDirectories> = {}): ProjectDirectories => ({
-  project_id: "p", directories: [directory("ws-input"), directory(DEFAULT_OUTPUT, ["output"])], source_links: [], revision: "r1", ...overrides,
+  project_id: "p", directories: [directory("ws-input"), directory(DEFAULT_OUTPUT, ["output"])], source_links: [], instructions: { off: false, trusted: false }, revision: "r1", ...overrides,
 });
 
 // The settings page's route answers projects.directories.get@1 plus this drawing half; it is page-only, not an action contract.

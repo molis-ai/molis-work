@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "golden_version": "0.1.1-dev.3",
-  "commit": "dc6ce247e88d6bd90ec5efdfc2c9455be11084a3",
+  "commit": "d574dd072961152cf76bab1acd5704fc64be2fbb",
   "node": "v24.15.0",
   "third_party": "generated-list",
   "home_library": "golden-home-library",
@@ -83,10 +83,6 @@
     {
       "path": "alchemist/projects/<project>/search.sqlite",
       "reason": "行来自联网搜索，金样不联网；由主人的搜索入口建空库"
-    },
-    {
-      "path": "observation/observation.db",
-      "reason": "工作记录按并发调用结束的先后编号、取编号，先后由机器决定；生成时不写记录，库由主人按现行结构建出；两个 Home 都如此"
     }
   ],
   "directories": [
@@ -112,6 +108,10 @@
     },
     {
       "path": "agent-runtime/records/io.molis.work~lineage",
+      "mode": 448
+    },
+    {
+      "path": "agent-runtime/records/io.molis.work~memories",
       "mode": 448
     },
     {
@@ -152,14 +152,6 @@
     },
     {
       "path": "alchemist/projects",
-      "mode": 493
-    },
-    {
-      "path": "alchemist/projects/goalboard-v1-demo",
-      "mode": 493
-    },
-    {
-      "path": "alchemist/projects/molis-work-v1-demo",
       "mode": 493
     },
     {
@@ -248,10 +240,6 @@
     },
     {
       "path": "memory",
-      "mode": 448
-    },
-    {
-      "path": "observation",
       "mode": 448
     },
     {
@@ -383,6 +371,10 @@
       "mode": 448
     },
     {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-runtime/records/io.molis.work~memories",
+      "mode": 448
+    },
+    {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-runtime/records/io.molis.work~queued-tasks",
       "mode": 448
     },
@@ -475,10 +467,6 @@
       "mode": 448
     },
     {
-      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/observation",
-      "mode": 448
-    },
-    {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/pages",
       "mode": 448
     },
@@ -550,7 +538,7 @@
         "install_declarations": 13,
         "molis_storage_space": 1
       },
-      "sha256": "d8880d8cc77ab44b0db6c6294f0e0b929f7988b7a468f86d18687e68dbcea4f3"
+      "sha256": "8965c7b51f3fb9ce71a10023e33fc9100c0948879adf8c600e07d3520e5c29bd"
     },
     {
       "path": "agent-definitions/agent-definitions.db",
@@ -562,133 +550,12 @@
         "molis_storage_space": 1,
         "prompt_history": 1,
         "prompt_overrides": 1,
-        "prompt_uses": 6,
+        "prompt_uses": 24,
         "skill_settings": 0,
         "skill_uses": 0,
         "sqlite_sequence": 0
       },
-      "sha256": "4c85a86e892b9ab3f89636e075604c16765c1bbc15dd21084ce48a3e25d36f0a"
-    },
-    {
-      "path": "agent-runtime/records.sqlite",
-      "owner": "horizontal/agent-host",
-      "mode": 420,
-      "payload": "stores/agent-runtime/records.sqlite.sql",
-      "schema_version": 1,
-      "tables": {
-        "records": 1
-      },
-      "sha256": "b9f825c3e9549494c20abbbf93c0170aca41183cc3a7b513c5bee5bf96b68378"
-    },
-    {
-      "path": "alchemist/projects/goalboard-v1-demo/studio.sqlite",
-      "owner": "apps/local-host",
-      "mode": 420,
-      "payload": "stores/alchemist/projects/goalboard-v1-demo/studio.sqlite.sql",
-      "schema_version": 1,
-      "tables": {
-        "action_proposals": 0,
-        "activity_events": 0,
-        "annotations": 0,
-        "claim_evidence": 0,
-        "claims": 0,
-        "conversation_messages": 0,
-        "decisions": 0,
-        "directions": 0,
-        "evidence": 0,
-        "exploration_runs": 0,
-        "idea_cards": 0,
-        "idea_versions": 0,
-        "ideas": 0,
-        "job_events": 0,
-        "jobs": 0,
-        "lens_reports": 0,
-        "lens_runs": 0,
-        "memory_rule_applications": 0,
-        "molis_storage_space": 1,
-        "mvp_scope_versions": 0,
-        "opportunities": 0,
-        "opportunity_signals": 0,
-        "pulse_report_signals": 0,
-        "pulse_reports": 0,
-        "pulse_runs": 0,
-        "replica_changes": 0,
-        "replica_conflicts": 0,
-        "replica_heads": 0,
-        "replica_outbox": 0,
-        "replica_resolutions": 0,
-        "replica_state": 0,
-        "research_plans": 0,
-        "research_playbook_revisions": 0,
-        "research_playbook_rules": 0,
-        "runtime_settings": 0,
-        "source_fetches": 0,
-        "source_settings": 0,
-        "sqlite_sequence": 0,
-        "studio_sync_identity": 1,
-        "supply_signals": 0,
-        "taste_rules": 0,
-        "ui_context": 0,
-        "work_reuse_receipts": 0,
-        "workspace_actors": 0,
-        "workspaces": 0
-      },
-      "sha256": "113ad0ad9c2485e0b2db4a8b4d0729d84d9d75a715c75566493071efd68429b0"
-    },
-    {
-      "path": "alchemist/projects/molis-work-v1-demo/studio.sqlite",
-      "owner": "apps/local-host",
-      "mode": 420,
-      "payload": "stores/alchemist/projects/molis-work-v1-demo/studio.sqlite.sql",
-      "schema_version": 1,
-      "tables": {
-        "action_proposals": 0,
-        "activity_events": 0,
-        "annotations": 0,
-        "claim_evidence": 0,
-        "claims": 0,
-        "conversation_messages": 0,
-        "decisions": 0,
-        "directions": 0,
-        "evidence": 0,
-        "exploration_runs": 0,
-        "idea_cards": 0,
-        "idea_versions": 0,
-        "ideas": 0,
-        "job_events": 0,
-        "jobs": 0,
-        "lens_reports": 0,
-        "lens_runs": 0,
-        "memory_rule_applications": 0,
-        "molis_storage_space": 1,
-        "mvp_scope_versions": 0,
-        "opportunities": 0,
-        "opportunity_signals": 0,
-        "pulse_report_signals": 0,
-        "pulse_reports": 0,
-        "pulse_runs": 0,
-        "replica_changes": 0,
-        "replica_conflicts": 0,
-        "replica_heads": 0,
-        "replica_outbox": 0,
-        "replica_resolutions": 0,
-        "replica_state": 0,
-        "research_plans": 0,
-        "research_playbook_revisions": 0,
-        "research_playbook_rules": 0,
-        "runtime_settings": 0,
-        "source_fetches": 0,
-        "source_settings": 0,
-        "sqlite_sequence": 0,
-        "studio_sync_identity": 1,
-        "supply_signals": 0,
-        "taste_rules": 0,
-        "ui_context": 0,
-        "work_reuse_receipts": 0,
-        "workspace_actors": 0,
-        "workspaces": 0
-      },
-      "sha256": "48cc8f8ddd433e61b624f6483823733d48ef113b39d9232eb938aca86c97e415"
+      "sha256": "3f7c36c38e0662edb30be4e6b5862887ce39d80a1cfa9652ce19cfb1d723b22b"
     },
     {
       "path": "alchemist/projects/personal/studio.sqlite",
@@ -833,7 +700,7 @@
         "context_edges": 0,
         "molis_storage_space": 1
       },
-      "sha256": "5b7d86914284246b5eca6019a707b5f7e75c7dd7b3eea57a4f04d598fe83197b"
+      "sha256": "016a3f5feb8e7d2eac3322cc600bd7914a23c142daaa1f73736659c9cd0a06e3"
     },
     {
       "path": "characters/characters.sqlite",
@@ -910,7 +777,7 @@
         "journeys": 1,
         "molis_storage_space": 1
       },
-      "sha256": "2430eec2cda196b3b6796bd4628250b901a2c53c5090c14d0d820de607203f7a"
+      "sha256": "5b57e07c7241a1a495544d22b2db6a928120db1b651c3faba90cca0b3a223071"
     },
     {
       "path": "dataset/dataset.db",
@@ -1071,12 +938,12 @@
       "payload": "stores/knowledge/knowledge.db.sql",
       "schema_version": 1,
       "tables": {
-        "knowledge_cards": 66,
+        "knowledge_cards": 15,
         "knowledge_receipts": 0,
-        "knowledge_usage": 0,
+        "knowledge_usage": 2,
         "molis_storage_space": 1
       },
-      "sha256": "228e33780c9843acded2ea4b9f871d5c79530b61220e119b4a152c7196287be6"
+      "sha256": "207d2e1764555cbc3c2b7ec8235c9bb2a26b0291efd2562020e0dd7c86d1df99"
     },
     {
       "path": "lingguang/lingguang.db",
@@ -1107,11 +974,11 @@
       "owner": "packages/storage",
       "mode": 384,
       "payload": "stores/memory/memory.db.sql",
-      "schema_version": 2,
+      "schema_version": 1,
       "tables": {
         "memory_candidates": 0,
         "memory_changes": 2,
-        "memory_markers": 7,
+        "memory_markers": 6,
         "memory_owners": 0,
         "memory_pairs": 0,
         "memory_prefs": 2,
@@ -1120,25 +987,7 @@
         "memory_uses": 1,
         "molis_storage_space": 1
       },
-      "sha256": "10ea013219f11ec68301b634cd1c426ae83324f5893c7fbe6a7a8de4333da5f1"
-    },
-    {
-      "path": "observation/observation.db",
-      "owner": "horizontal/observation",
-      "mode": 384,
-      "payload": "stores/observation/observation.db.sql",
-      "schema_version": 1,
-      "tables": {
-        "coverage": 0,
-        "coverage_gaps": 0,
-        "evidence_blobs": 0,
-        "molis_storage_space": 1,
-        "record_evidence": 0,
-        "records": 0,
-        "report_quota": 0,
-        "writer_state": 2
-      },
-      "sha256": "10acace415cdc6143ad18423b8f7a3984797bda80580c947dddd44b58c372704"
+      "sha256": "3399a3797741ed7e11eebd6ece0644d0ad2c1504ff3f1f675110986ff0883e42"
     },
     {
       "path": "pages/pages.db",
@@ -1232,8 +1081,8 @@
         "plugin_runtime_installs": 9,
         "plugin_runtime_release_artifacts": 8
       },
-      "sha256": "762846a281ff1beb93d3a068eda4a32178866f7ee9becbc46eda548be723c7ae",
-      "expanded_sha256": "1bd4d27d5f6df56a6cfa9d7d175969efbf52fa5e2fdf234589534da9a7d086b5"
+      "sha256": "8135b6ca2f9d47bf1d6ef7975f3cad2b129f9d98d2e0e7f1bfbf6c84813a9123",
+      "expanded_sha256": "2dc1e50543b195d747620b89186dd9fb489e0400c7f3fc0163f996838e908465"
     },
     {
       "path": "ppt/ppt.db",
@@ -1478,8 +1327,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "4ff168ad4d39f9972a5a19b2e717ae0987da7645b2bae52cf49c7aa0f2c5ff18",
-      "expanded_sha256": "421635efb242320298358786e93e3a2a976ab841b161e0478a1912e3c313f728"
+      "sha256": "9e6936001d270446a59a6a938cd582bedfc76beaef56d182ba0bc0280690cf8f",
+      "expanded_sha256": "57bdc5739d7fdaae78dab69183a0b5e144300c4b89ff8ea180845028a9455ce0"
     },
     {
       "path": "projects/molis-work-v1-demo/molis-work.db",
@@ -1496,13 +1345,13 @@
       },
       "tables": {
         "acceptance_criteria": 0,
-        "artifacts_replica_changes": 5,
+        "artifacts_replica_changes": 3,
         "artifacts_replica_conflicts": 0,
         "artifacts_replica_heads": 0,
         "artifacts_replica_outbox": 0,
         "artifacts_replica_resolutions": 0,
         "artifacts_replica_state": 1,
-        "attention_events": 7,
+        "attention_events": 0,
         "boards": 1,
         "builder_replica_changes": 0,
         "builder_replica_conflicts": 0,
@@ -1517,15 +1366,15 @@
         "coding_saved_history": 0,
         "coding_sessions": 0,
         "context_edges": 1,
-        "events": 112,
-        "feed_item_events": 6,
-        "feed_items": 6,
+        "events": 95,
+        "feed_item_events": 0,
+        "feed_items": 0,
         "feed_materials": 0,
         "feed_missed_pulls": 0,
-        "feed_out_rules": 1,
+        "feed_out_rules": 0,
         "feed_runtime_blobs": 0,
         "feed_source_runs": 0,
-        "feed_sources": 5,
+        "feed_sources": 0,
         "goal_event_agreements": 20,
         "goal_event_applied_decisions": 2,
         "goal_event_closures": 3,
@@ -1551,13 +1400,13 @@
         "goal_work_events": 45,
         "goals": 19,
         "idempotency_records": 96,
-        "inbox_entries": 5,
+        "inbox_entries": 0,
         "inbox_scene_bindings": 0,
         "input_bindings": 0,
-        "library_artifact_versions": 3,
-        "library_artifacts": 2,
+        "library_artifact_versions": 2,
+        "library_artifacts": 1,
         "listener_deliveries": 0,
-        "listener_instances": 5,
+        "listener_instances": 0,
         "material_recent_uses": 0,
         "molis_storage_space": 1,
         "planning_method_packs": 0,
@@ -1603,12 +1452,12 @@
         "signal_events": 0,
         "signal_revisions": 0,
         "signals": 0,
-        "source_events": 5,
-        "sqlite_sequence": 7,
+        "source_events": 0,
+        "sqlite_sequence": 3,
         "surface_corrections": 0,
         "sync_14ff60cd5b3b2f8842d99bea7ef6_aggregate_editor_versions": 0,
         "sync_14ff60cd5b3b2f8842d99bea7ef6_context": 1,
-        "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_changes": 10,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_changes": 0,
         "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_conflicts": 0,
         "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_heads": 0,
         "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_outbox": 0,
@@ -1616,7 +1465,7 @@
         "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_state": 1,
         "sync_21391483cd8d8dcc743c2ecd02ca_aggregate_editor_versions": 0,
         "sync_21391483cd8d8dcc743c2ecd02ca_context": 1,
-        "sync_21391483cd8d8dcc743c2ecd02ca_replica_changes": 14,
+        "sync_21391483cd8d8dcc743c2ecd02ca_replica_changes": 0,
         "sync_21391483cd8d8dcc743c2ecd02ca_replica_conflicts": 0,
         "sync_21391483cd8d8dcc743c2ecd02ca_replica_heads": 0,
         "sync_21391483cd8d8dcc743c2ecd02ca_replica_outbox": 0,
@@ -1624,7 +1473,7 @@
         "sync_21391483cd8d8dcc743c2ecd02ca_replica_state": 1,
         "sync_522a4260e0bcbee35d4d9f85406c_aggregate_editor_versions": 0,
         "sync_522a4260e0bcbee35d4d9f85406c_context": 1,
-        "sync_522a4260e0bcbee35d4d9f85406c_replica_changes": 12,
+        "sync_522a4260e0bcbee35d4d9f85406c_replica_changes": 0,
         "sync_522a4260e0bcbee35d4d9f85406c_replica_conflicts": 0,
         "sync_522a4260e0bcbee35d4d9f85406c_replica_heads": 0,
         "sync_522a4260e0bcbee35d4d9f85406c_replica_outbox": 0,
@@ -1632,7 +1481,7 @@
         "sync_522a4260e0bcbee35d4d9f85406c_replica_state": 1,
         "sync_daec9cf494e58d382d6262de3af9_aggregate_editor_versions": 0,
         "sync_daec9cf494e58d382d6262de3af9_context": 1,
-        "sync_daec9cf494e58d382d6262de3af9_replica_changes": 1,
+        "sync_daec9cf494e58d382d6262de3af9_replica_changes": 0,
         "sync_daec9cf494e58d382d6262de3af9_replica_conflicts": 0,
         "sync_daec9cf494e58d382d6262de3af9_replica_heads": 0,
         "sync_daec9cf494e58d382d6262de3af9_replica_outbox": 0,
@@ -1663,8 +1512,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "399ba030549b92f5132a21afc7b1ed31ad92c4564d87f82251e9590418e7fb0a",
-      "expanded_sha256": "b9b6161799e3be212af4f8b505bd24bb9d5f7214c1bc5e895a8c8c2c419ce235"
+      "sha256": "488c1ae9e2575fe026e7aa79858dfad88330adce9a822056f482e006f5af401c",
+      "expanded_sha256": "edb6e266c30354e9564b643cdf4e3aef2e624452c8fb12fc903d07669880608f"
     },
     {
       "path": "projects/personal/molis-work.db",
@@ -1848,8 +1697,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "749380012c012a68bc2f1c03fd1827aa01d8e8f266239f8827288f87276cb5c8",
-      "expanded_sha256": "50c9425299dbd632fec3610b231293d38525bb52c6f467139b82eb197ed33aa0"
+      "sha256": "e54fb6e9d441478620a4881058249d1efe29b5facdfe223372afb47302379555",
+      "expanded_sha256": "866dff76b6d5615d07f7415266384010ceb2715cbaeea63f00cca4b239c49979"
     },
     {
       "path": "projects/project-9624c68b-5d9a-4006-90c1-845a69f0de25/molis-work.db",
@@ -2033,8 +1882,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "66ed668efe2a7383e29bd483823d13ead6ce00cc5f453b4fa75aad037bc49727",
-      "expanded_sha256": "1641a71368931bf3acbba0b774568dfb7814085c5f6980c03fa7e6f61907bec7"
+      "sha256": "5a3cd45ad71460a542c6a2b88152ea4d14682b37ab61867462c4b1cbb854a37b",
+      "expanded_sha256": "16980c3c1fd470ca23afbe04a6e3e5475d792121028c78fe7944f107dfff09e1"
     },
     {
       "path": "sbxdb-7cca75c1b8e5c4f45a135088b2538bae/sbxdb-7cca75c1b8e5c4f45a135088b2538bae.db",
@@ -2072,7 +1921,7 @@
         "mw_sessions": 1,
         "sqlite_sequence": 2
       },
-      "sha256": "572f02a4b6304c56a74cc63e3999ebcab846af95b76a80519754935ea0d9b44c"
+      "sha256": "5760ec097e9b74ae0b5850aa1cb849c6e0049dc98ab73bedd269e30a1042450d"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-declarations/agent-declarations.db",
@@ -2084,7 +1933,7 @@
         "install_declarations": 13,
         "molis_storage_space": 1
       },
-      "sha256": "3b030387c87fa70ff062ee82b515c2b946e82819c98633eb39fcc737bfd50b4f"
+      "sha256": "6d97029e9899f04db5821893884a86ae7270879be34cf6c349aeddbabffceced"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-definitions/agent-definitions.db",
@@ -2102,17 +1951,6 @@
         "sqlite_sequence": 0
       },
       "sha256": "a0963d6be259b515adc6ca99f9cd0612ab1dfbf6279e798e7d673ddbd3e0dee0"
-    },
-    {
-      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-runtime/records.sqlite",
-      "owner": "horizontal/agent-host",
-      "mode": 420,
-      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-runtime/records.sqlite.sql",
-      "schema_version": 1,
-      "tables": {
-        "records": 1
-      },
-      "sha256": "c23ab8730945d5098cb46ea067252766c6a0d4d865b560bfc8619b1647e4d60a"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/alchemist/projects/personal/studio.sqlite",
@@ -2464,7 +2302,7 @@
         "knowledge_usage": 0,
         "molis_storage_space": 1
       },
-      "sha256": "66f4d6e80d98fe0816174dd3759836e0e9128542894c06db381e6401eaae6d29"
+      "sha256": "4edda24e7ae4cba72657a2a5e29f7d563779975d7e23a6b0f86a979cc7d3693d"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/lingguang/lingguang.db",
@@ -2495,11 +2333,11 @@
       "owner": "packages/storage",
       "mode": 384,
       "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/memory/memory.db.sql",
-      "schema_version": 2,
+      "schema_version": 1,
       "tables": {
         "memory_candidates": 0,
         "memory_changes": 2,
-        "memory_markers": 7,
+        "memory_markers": 6,
         "memory_owners": 0,
         "memory_pairs": 0,
         "memory_prefs": 2,
@@ -2508,25 +2346,7 @@
         "memory_uses": 0,
         "molis_storage_space": 1
       },
-      "sha256": "ae6c20d91e4cb6309f061c2e5651cbbd7f1d19b99546f69d750f73c2908ba0f1"
-    },
-    {
-      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/observation/observation.db",
-      "owner": "horizontal/observation",
-      "mode": 384,
-      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/observation/observation.db.sql",
-      "schema_version": 1,
-      "tables": {
-        "coverage": 0,
-        "coverage_gaps": 0,
-        "evidence_blobs": 0,
-        "molis_storage_space": 1,
-        "record_evidence": 0,
-        "records": 0,
-        "report_quota": 0,
-        "writer_state": 2
-      },
-      "sha256": "aff56bc770c473cd6b5e95d57c5bc4cf7c8598320f13dd6fde9c0e606893e563"
+      "sha256": "583a841306f5c707b0a164e2a972dec5262fbd87b6623e9b457b0b941216fea3"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/pages/pages.db",
@@ -2620,8 +2440,8 @@
         "plugin_runtime_installs": 8,
         "plugin_runtime_release_artifacts": 8
       },
-      "sha256": "a8039bc4967d5320cda822208bffe1cd82c67cfb5893d0478f4a650e8f0d7e01",
-      "expanded_sha256": "c104cb13eed1d3c9f3a48c60004de505c94e7cfdd0e659a0e997baf2965db56d"
+      "sha256": "43423ee9f4d7d3e288c68b72ecabc6c5925e9aad5003bf27b825d92032994530",
+      "expanded_sha256": "9f477e146d7dd03b3035a64c8203ae0e247912d2ed7f3b402fd6aabdf659ee25"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/ppt/ppt.db",
@@ -2866,8 +2686,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "9788b598b3e2601e6bd22adfda820fc3281f8d1eb28a13be4fbe7656a4cc97d1",
-      "expanded_sha256": "edb0927f1db1d06327699b7be14c3bcb415699536e4143c8c7b577ac02cdb0bc"
+      "sha256": "f1eef74109e2f7224164905bb866d9a6e08b818a799e2b79d6de54ebc651613d",
+      "expanded_sha256": "cececd8abb3d6fdcab5f7c7123fd653ccb36180ef394a2ef122c0ee6cc8d9904"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/projects/project-feb74c50-2ad2-4f8a-9993-93d07af8a7e4/molis-work.db",
@@ -3051,8 +2871,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "d8489cbdd569cdf5bea936e45714fd340af11784e508ec8a4a8dcfefd817ecdb",
-      "expanded_sha256": "0e289337c315bf599c66b14a4b93cb704ad10363d6afe3832a39a877c58f0f9c"
+      "sha256": "571d69620940df1343ac45ac33df6ac6e8fd8784f2cc66ecce10c9efe328ccd7",
+      "expanded_sha256": "3d9ae54b81bfaefd1bf1670bf8b6f9f11994ff8f1e28457a8d2af8f670c11267"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/sync/sync.db",
@@ -3179,28 +2999,36 @@
   ],
   "files": [
     {
-      "path": "agent-runtime/records/io.molis.work~idempotency/v2.11.agent-start.molis-work-3-74lyb-0c444af5-f4dc-4050-aac7-a86b90c0fbde.json",
+      "path": "agent-runtime/records/io.molis.work~idempotency/v2.11.agent-start.molis-work-3-74lyb-53d658bb-8bf8-4e15-bf27-90cf1c48ccb4.json",
       "owner": "horizontal/agent-host",
       "mode": 384,
-      "payload": "files/agent-runtime/records/io.molis.work~idempotency/v2.11.agent-start.molis-work-3-74lyb-0c444af5-f4dc-4050-aac7-a86b90c0fbde.json",
-      "size": 1594,
-      "sha256": "f6724c4e93afba10fe8bff291306a00bf256e8c86542d25e982b3852823e78f5"
+      "payload": "files/agent-runtime/records/io.molis.work~idempotency/v2.11.agent-start.molis-work-3-74lyb-53d658bb-8bf8-4e15-bf27-90cf1c48ccb4.json",
+      "size": 1503,
+      "sha256": "8cc6bba4364c1382e696a2772d6792a704009bbe3929d8b5657eb48b48686088"
     },
     {
       "path": "agent-runtime/records/io.molis.work~lineage/graph.json",
       "owner": "horizontal/agent-host",
       "mode": 384,
       "payload": "files/agent-runtime/records/io.molis.work~lineage/graph.json",
-      "size": 151,
-      "sha256": "0d49fcfa68771cb28299c6bca8cdf17a3de9b22b6eff5b70246144428f956379"
+      "size": 141,
+      "sha256": "5aabdb94e024d71e616438b59f913bc55ede161a51946633c5124094598cc323"
     },
     {
-      "path": "agent-runtime/records/io.molis.work~policy-snapshot/dcccc823.json",
+      "path": "agent-runtime/records/io.molis.work~memories/owner.user-web-user.once.user.8.web-user.efce355e-07b3-4ecf-93c9-c08c9292963b_3aappend.v1.json",
       "owner": "horizontal/agent-host",
       "mode": 384,
-      "payload": "files/agent-runtime/records/io.molis.work~policy-snapshot/dcccc823.json",
-      "size": 6040,
-      "sha256": "4820037ac04d26b6cc6dfa4187213374b73a43cf3d24b823f6af6da7202093ef"
+      "payload": "files/agent-runtime/records/io.molis.work~memories/owner.user-web-user.once.user.8.web-user.efce355e-07b3-4ecf-93c9-c08c9292963b_3aappend.v1.json",
+      "size": 2017,
+      "sha256": "74991728701c414702b85b8ce8bb0e52cb91169ebe3de9e6e8b7a6d12f18e264"
+    },
+    {
+      "path": "agent-runtime/records/io.molis.work~policy-snapshot/44bfa5a3.json",
+      "owner": "horizontal/agent-host",
+      "mode": 384,
+      "payload": "files/agent-runtime/records/io.molis.work~policy-snapshot/44bfa5a3.json",
+      "size": 5879,
+      "sha256": "62e0e7e6154969e54623d44b78d1d2a7a6ba86fef0de2428f094e7b01a0c06ed"
     },
     {
       "path": "agent-runtime/records/io.molis.work~published-resource-chunk/5-2b3g-0.json",
@@ -3208,7 +3036,7 @@
       "mode": 384,
       "payload": "files/agent-runtime/records/io.molis.work~published-resource-chunk/5-2b3g-0.json",
       "size": 509,
-      "sha256": "8bc8a5083782c914aa4b62cfdf60c83334eef7ca0154451f14b6aedef4647a69"
+      "sha256": "28c510d804101560596e5e46e03392170bcf88cd339df2d08f990fd8ba87b6f2"
     },
     {
       "path": "agent-runtime/records/io.molis.work~published-resource-chunk/6-84078-0.json",
@@ -3216,23 +3044,15 @@
       "mode": 384,
       "payload": "files/agent-runtime/records/io.molis.work~published-resource-chunk/6-84078-0.json",
       "size": 8661,
-      "sha256": "530698427c5cc7642095f6bbf3bc727440e253c342eb9b2490b99f22174013b1"
+      "sha256": "598377ab1304ca444e6e3a72f680fd7dbef2a0467a94ebc8461537d1478f7db3"
     },
     {
       "path": "agent-runtime/records/io.molis.work~published-resource-chunk/7-1g1bu-0.json",
       "owner": "horizontal/agent-host",
       "mode": 384,
       "payload": "files/agent-runtime/records/io.molis.work~published-resource-chunk/7-1g1bu-0.json",
-      "size": 23369,
-      "sha256": "946efc6fa27698d809a24ad7e9cc9a229cad36a11e0e0d6ec7e19404ee1f67f6"
-    },
-    {
-      "path": "agent-runtime/records/io.molis.work~published-resource-chunk/8-2cj26-0.json",
-      "owner": "horizontal/agent-host",
-      "mode": 384,
-      "payload": "files/agent-runtime/records/io.molis.work~published-resource-chunk/8-2cj26-0.json",
-      "size": 20157,
-      "sha256": "fc27a3a6447c2b71f3d030debc07fc84fdd85e089295f4b5973f59c8de72fe1a"
+      "size": 18929,
+      "sha256": "0bebdef09d4f9b3e65dbd4ad88a5099c9a6c9d98503738d164c10d6f01bf8c15"
     },
     {
       "path": "agent-runtime/records/io.molis.work~published-resource/5-2b3g.json",
@@ -3255,16 +3075,8 @@
       "owner": "horizontal/agent-host",
       "mode": 384,
       "payload": "files/agent-runtime/records/io.molis.work~published-resource/7-1g1bu.json",
-      "size": 183,
-      "sha256": "71d79d0925c8b13557d00e6957194e8376f7f80843a31cc9f326ff9461ab5f4a"
-    },
-    {
-      "path": "agent-runtime/records/io.molis.work~published-resource/8-2cj26.json",
-      "owner": "horizontal/agent-host",
-      "mode": 384,
-      "payload": "files/agent-runtime/records/io.molis.work~published-resource/8-2cj26.json",
       "size": 185,
-      "sha256": "aa27db5e37b32498905acfd03febc99c6388bc5f30444606d4edc9e62a8d2dcc"
+      "sha256": "d2fac325295715e17f620653effa83d6b23981c5d7d364fd2cb9cdbdaee1089e"
     },
     {
       "path": "agent-runtime/records/io.molis.work~queued-tasks/global.2-7iqf6.v1.json",
@@ -3272,15 +3084,15 @@
       "mode": 384,
       "payload": "files/agent-runtime/records/io.molis.work~queued-tasks/global.2-7iqf6.v1.json",
       "size": 485,
-      "sha256": "6bf6aaa229aef907540acddad50a049f52c6d9fe45c2f164cbeeab73f17f51ae"
+      "sha256": "2f7a2d98b82ba366478eb02bd95dca4a5f5b4c5a11d321c7a8a902c944f09c90"
     },
     {
-      "path": "agent-runtime/records/io.molis.work~runs/3-74lyb.b-3gbs7.json",
+      "path": "agent-runtime/records/io.molis.work~runs/3-74lyb.a-3gbs7.json",
       "owner": "horizontal/agent-host",
       "mode": 384,
-      "payload": "files/agent-runtime/records/io.molis.work~runs/3-74lyb.b-3gbs7.json",
-      "size": 3619,
-      "sha256": "8fa96b1147e81e2540c1cc128745a28b33ac5fa066c4962584aacdae8a89cec0"
+      "payload": "files/agent-runtime/records/io.molis.work~runs/3-74lyb.a-3gbs7.json",
+      "size": 2899,
+      "sha256": "e21cfd42ae5a5ca1b8583cf05233b513a84949d000df49e9722f7d7b29ac3eb9"
     },
     {
       "path": "agent-runtime/records/io.molis.work~sessions/1-8h5qv.json",
@@ -3288,7 +3100,7 @@
       "mode": 384,
       "payload": "files/agent-runtime/records/io.molis.work~sessions/1-8h5qv.json",
       "size": 200,
-      "sha256": "c2d168b1cec05ffb6375a27fa68fc30e341ed3a177e9b3f37fc6e2c259d5ccc5"
+      "sha256": "aa3eed200f48c956fe070855ac14df329dc96d51e5b21a0aaa12e6f8a4ea65b1"
     },
     {
       "path": "agent-runtime/records/io.molis.work~sessions/3-74lyb.json",
@@ -3296,7 +3108,7 @@
       "mode": 384,
       "payload": "files/agent-runtime/records/io.molis.work~sessions/3-74lyb.json",
       "size": 233,
-      "sha256": "a01d4cf26f00b67bf96355212d818a94b6486bedd3df07bd649f37b68196c11a"
+      "sha256": "97363b00af3ae38f04a1ad2ecebede6ea90a7de6bb4cf56bebfa962479a32784"
     },
     {
       "path": "agent-runtime/records/io.molis.work~taskboards/global.4-5c8fv.v1.json",
@@ -3304,7 +3116,7 @@
       "mode": 384,
       "payload": "files/agent-runtime/records/io.molis.work~taskboards/global.4-5c8fv.v1.json",
       "size": 1245,
-      "sha256": "44f7065c52bd2492238135095dc8322dab8744280613d288f7bd4eedd12dd2fb"
+      "sha256": "a68b167e56f7185518d0c1a5c7ee93dd1a0faff83d012c503a967b4eecc95027"
     },
     {
       "path": "agent-runtime/records/molis-agent-index-022e733141b0e17b8feffad3/1-8h5qv.json",
@@ -3312,15 +3124,15 @@
       "mode": 384,
       "payload": "files/agent-runtime/records/molis-agent-index-022e733141b0e17b8feffad3/1-8h5qv.json",
       "size": 482,
-      "sha256": "2ef10326746eca6ddc269aabd49419850689891c6729acbedfa47bb5ca5ca416"
+      "sha256": "a2b3a1a5fabcc586791f0f6f5eb17e478bc9d612c9eeaf0ae0ecd4cf55f84413"
     },
     {
       "path": "agent-runtime/records/molis-agent-index-022e733141b0e17b8feffad3/3-74lyb.json",
       "owner": "horizontal/agent-host",
       "mode": 384,
       "payload": "files/agent-runtime/records/molis-agent-index-022e733141b0e17b8feffad3/3-74lyb.json",
-      "size": 2998,
-      "sha256": "fba9d110f22be0253f546b591ada7a7a29ba2debebb62fbdc136e3077ac92a70"
+      "size": 2794,
+      "sha256": "5061dd575c9940f26f8342f118d87f34ba69b1f54037431c9e2b98f4466fd83f"
     },
     {
       "path": "agent-runtime/storage.key",
@@ -3328,7 +3140,7 @@
       "mode": 384,
       "payload": "files/agent-runtime/storage.key",
       "size": 32,
-      "sha256": "d00d46d1720bb74c2976e96d38ef93d5a1f09253fbf7e4048bacf6c00861281c",
+      "sha256": "46ccc7cb2a66c693e4457614fd87600e093b7c54d0720420da8e254301309910",
       "test_key": true
     },
     {
@@ -3345,7 +3157,7 @@
       "mode": 420,
       "payload": "files/config/mcp-tools.json",
       "size": 402,
-      "sha256": "6d52ba89e5cf5d162b66f3343fecfc337270b0ed2c61638dbfa72715ee42c586"
+      "sha256": "a605d8db1eca73f7c6110faa2f4ed38cad06855cd45ea382ca357daf2b01393e"
     },
     {
       "path": "config/onboarding.json",
@@ -3394,14 +3206,6 @@
       "payload": "files/jelly/preferences.json",
       "size": 94,
       "sha256": "c60aaf0cbe2864f839914ac0fe58c44290e49ff2ed1002f581575b8761f039d8"
-    },
-    {
-      "path": "memory-forgetting-v2.json",
-      "owner": "packages/storage",
-      "mode": 384,
-      "payload": "files/memory-forgetting-v2.json",
-      "size": 36,
-      "sha256": "0a62f1ff5a5293b01db04906e102555e30c076243690d694fa2b3a5fb76cb417"
     },
     {
       "path": "plugin-files/plugin-install-4d1a4ffe21b5bf34194c32df752c6416/files/notes.txt",
@@ -3476,12 +3280,20 @@
       "sha256": "22aca42073c15e57256b2e205614f3976e6828c635015a687e1adc038463de95"
     },
     {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-runtime/records/io.molis.work~memories/owner.user-web-user.once.user.8.web-user.6c391e81-8dd7-436f-b044-b3740bd3cd10_3aappend.v1.json",
+      "owner": "horizontal/agent-host",
+      "mode": 384,
+      "payload": "files/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-runtime/records/io.molis.work~memories/owner.user-web-user.once.user.8.web-user.6c391e81-8dd7-436f-b044-b3740bd3cd10_3aappend.v1.json",
+      "size": 2017,
+      "sha256": "6ce973e8ea16da3c6682d79b34821f3b1edca6fc5d6655ad24130294d20d97ab"
+    },
+    {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-runtime/records/io.molis.work~queued-tasks/global.2-6mt55.v1.json",
       "owner": "horizontal/agent-host",
       "mode": 384,
       "payload": "files/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-runtime/records/io.molis.work~queued-tasks/global.2-6mt55.v1.json",
       "size": 485,
-      "sha256": "0049f5cbacaa11e1d5ab68cd5c9c3f92142b8a74f29b6dae27d4dae1eb139f46"
+      "sha256": "bd040de5ec25284771b73faae29e258cdc8b67f6a1bc93549e9006e3e7acb93f"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-runtime/records/io.molis.work~sessions/1-4qfst.json",
@@ -3489,7 +3301,7 @@
       "mode": 384,
       "payload": "files/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-runtime/records/io.molis.work~sessions/1-4qfst.json",
       "size": 200,
-      "sha256": "91650f5fd651ad818b3b0e782ec1ea0c4694699c06c08033c757acbae7197050"
+      "sha256": "307f563614b1d6e47c157ecdcdb0252397ca5cb2fc62a57a0891999cf3e8b467"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-runtime/records/molis-agent-index-022e733141b0e17b8feffad3/1-4qfst.json",
@@ -3497,7 +3309,7 @@
       "mode": 384,
       "payload": "files/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-runtime/records/molis-agent-index-022e733141b0e17b8feffad3/1-4qfst.json",
       "size": 482,
-      "sha256": "17b2505e65d49745d698b4ea6529f39d3c96d1bd7cb337d0a8b4bd7a12e9c48f"
+      "sha256": "6a2ce4f7a9cdb8f9c3cb617e19e0e8d9c7508044d17e7802621d08843ab76594"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-runtime/storage.key",
@@ -3505,7 +3317,7 @@
       "mode": 384,
       "payload": "files/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-runtime/storage.key",
       "size": 32,
-      "sha256": "71f1c3ec4cc100ade78ba4f63eb75ead080b86845533c8fd6a780b462b73feaf",
+      "sha256": "633ef0c79027b4b264b3edf5d4e8128c9333de0a0755c1f82a624db4b325d3b4",
       "test_key": true
     },
     {
@@ -3515,14 +3327,6 @@
       "payload": "files/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/interface/state.json",
       "size": 1374,
       "sha256": "49af661e6620c8b302d380e5ddecb4c97fb58d013a9c84201e8a5424d4c010d5"
-    },
-    {
-      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/memory-forgetting-v2.json",
-      "owner": "packages/storage",
-      "mode": 384,
-      "payload": "files/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/memory-forgetting-v2.json",
-      "size": 36,
-      "sha256": "0a62f1ff5a5293b01db04906e102555e30c076243690d694fa2b3a5fb76cb417"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/storage-space.json",
@@ -3631,6 +3435,11 @@
       "bytes": 362881
     },
     {
+      "digest": "18548ac9e2e90255a6372869dc2d0ea506fbf927c19ff3f8ba547056a0b9026c",
+      "payload": "files/module-sources/18548ac9e2e90255a6372869dc2d0ea506fbf927c19ff3f8ba547056a0b9026c.br",
+      "bytes": 1558481
+    },
+    {
       "digest": "1bc2f973ce57d850873c13ca4c28a8ebdd4be10c43164ad3f8d11cc7f781e4d6",
       "payload": "files/module-sources/1bc2f973ce57d850873c13ca4c28a8ebdd4be10c43164ad3f8d11cc7f781e4d6.br",
       "bytes": 142092
@@ -3639,6 +3448,11 @@
       "digest": "20a3aff4433ca4eb309a67b207454ef700b738175477a6e8212f5f0008bcafd7",
       "payload": "files/module-sources/20a3aff4433ca4eb309a67b207454ef700b738175477a6e8212f5f0008bcafd7.br",
       "bytes": 166146
+    },
+    {
+      "digest": "24091cb7ce17c57e845d4a145cdc27412363fd75a38062345c4661d4d1fe126a",
+      "payload": "files/module-sources/24091cb7ce17c57e845d4a145cdc27412363fd75a38062345c4661d4d1fe126a.br",
+      "bytes": 885599
     },
     {
       "digest": "2a57aab829b2de0a47b9fde1ee7b420dc51abf5c024d73faabf1b9042ba24748",
@@ -3651,6 +3465,11 @@
       "bytes": 274919
     },
     {
+      "digest": "2e814638d41c761a8673c4a8ce16106986fa28bf9a5afe526886a0165447df90",
+      "payload": "files/module-sources/2e814638d41c761a8673c4a8ce16106986fa28bf9a5afe526886a0165447df90.br",
+      "bytes": 200472
+    },
+    {
       "digest": "335e5e3334abf34a43f1a4aa432ffee69d69e175e1853aed6e7538878f14d4d6",
       "payload": "files/module-sources/335e5e3334abf34a43f1a4aa432ffee69d69e175e1853aed6e7538878f14d4d6.br",
       "bytes": 154775
@@ -3659,11 +3478,6 @@
       "digest": "37de61a78ab7dc6991e92337cf3829b1551aa9043258744498f0ea54145e0310",
       "payload": "files/module-sources/37de61a78ab7dc6991e92337cf3829b1551aa9043258744498f0ea54145e0310.br",
       "bytes": 160954
-    },
-    {
-      "digest": "5eb20c305816501aa9ffdf8b809ce41e0200ca874584f7e7f8bde17f8c29dddd",
-      "payload": "files/module-sources/5eb20c305816501aa9ffdf8b809ce41e0200ca874584f7e7f8bde17f8c29dddd.br",
-      "bytes": 887116
     },
     {
       "digest": "61470a1d442847bc2f037af0bef6ebe51fb0ffb1cc42643acb2fcb04732ecaba",
@@ -3676,29 +3490,24 @@
       "bytes": 121826
     },
     {
-      "digest": "7d51f76e4a409f57b47aacd2f4e58648e1b0adb2bdce0891e10e33e50fc2fc38",
-      "payload": "files/module-sources/7d51f76e4a409f57b47aacd2f4e58648e1b0adb2bdce0891e10e33e50fc2fc38.br",
-      "bytes": 1395956
-    },
-    {
       "digest": "91b357573c692d51a066fd3c8a054cf8590e0a9a33b8ddbb63c8ada85cf3a134",
       "payload": "files/module-sources/91b357573c692d51a066fd3c8a054cf8590e0a9a33b8ddbb63c8ada85cf3a134.br",
       "bytes": 223357
     },
     {
-      "digest": "9952969ce10445efed5840991eced6632694d7078d03bcde1aa850c9a061af9f",
-      "payload": "files/module-sources/9952969ce10445efed5840991eced6632694d7078d03bcde1aa850c9a061af9f.br",
-      "bytes": 228296
+      "digest": "976513263aa416b24963ebcf3ecd0ab705924a93f53e8ac916ef281d14f04986",
+      "payload": "files/module-sources/976513263aa416b24963ebcf3ecd0ab705924a93f53e8ac916ef281d14f04986.br",
+      "bytes": 210495
     },
     {
-      "digest": "b8415c9454f3c1693de6fb65a65e92de66a06aac25adca08a0dc85cfe9639ab1",
-      "payload": "files/module-sources/b8415c9454f3c1693de6fb65a65e92de66a06aac25adca08a0dc85cfe9639ab1.br",
-      "bytes": 2014934
+      "digest": "adf7821788a6d7721a5b3c03d2a3e3b2af61b79daacc19c7308b4f5ae171fadc",
+      "payload": "files/module-sources/adf7821788a6d7721a5b3c03d2a3e3b2af61b79daacc19c7308b4f5ae171fadc.br",
+      "bytes": 1395314
     },
     {
-      "digest": "bfbe0ec8115d3826883756cc307ddd36cc4fe8a795ec8d2eb600f847e73f7783",
-      "payload": "files/module-sources/bfbe0ec8115d3826883756cc307ddd36cc4fe8a795ec8d2eb600f847e73f7783.br",
-      "bytes": 567698
+      "digest": "b41988ffdca7021470e04d519ed741164109156803a4b8c229df6220529af164",
+      "payload": "files/module-sources/b41988ffdca7021470e04d519ed741164109156803a4b8c229df6220529af164.br",
+      "bytes": 515098
     },
     {
       "digest": "c1ecac2672b8355fe998b45cd2c77544d1c41d310f4e074cf7e07701e0480f90",
@@ -3711,9 +3520,9 @@
       "bytes": 211193
     },
     {
-      "digest": "deb07295ca5a6424a2885836144053604a81290a62e56bf83526204562c740e0",
-      "payload": "files/module-sources/deb07295ca5a6424a2885836144053604a81290a62e56bf83526204562c740e0.br",
-      "bytes": 1559998
+      "digest": "d56f9e8a95e96ced53370e853eba08c3d54ecfffa0ebf2fd68f407aaf753a3a1",
+      "payload": "files/module-sources/d56f9e8a95e96ced53370e853eba08c3d54ecfffa0ebf2fd68f407aaf753a3a1.br",
+      "bytes": 228123
     },
     {
       "digest": "e11038e8c3c6e7937f29c71dda35b816f7156217903c235972cd35c9a3b2639d",
@@ -3721,14 +3530,9 @@
       "bytes": 766886
     },
     {
-      "digest": "e15a156c9db9e2d799ac0f90b57d6decb02383fb28cf019e485f6c6163447b82",
-      "payload": "files/module-sources/e15a156c9db9e2d799ac0f90b57d6decb02383fb28cf019e485f6c6163447b82.br",
-      "bytes": 209725
-    },
-    {
-      "digest": "ed519c51b3f18148f10c05cae35708050f38bcb0758cd4f592536894c590ba11",
-      "payload": "files/module-sources/ed519c51b3f18148f10c05cae35708050f38bcb0758cd4f592536894c590ba11.br",
-      "bytes": 210611
+      "digest": "ee136505914b525cbd8ddac9a393a1f7b353aff7e52e1ccf1756d4a056cb69dd",
+      "payload": "files/module-sources/ee136505914b525cbd8ddac9a393a1f7b353aff7e52e1ccf1756d4a056cb69dd.br",
+      "bytes": 1935187
     },
     {
       "digest": "ef6c423806276b5ed3e687d8022086d1a6c92d526b190d6d78ea1630fd27f54e",
@@ -3748,11 +3552,6 @@
       "bytes": 39624
     },
     {
-      "digest": "29f9cf3889684734e8704d6e034bf7ef08a6b89d7be61469e1d0bd0eef6f600a",
-      "payload": "files/release-manifests/29f9cf3889684734e8704d6e034bf7ef08a6b89d7be61469e1d0bd0eef6f600a.br",
-      "bytes": 92728
-    },
-    {
       "digest": "362a929d07cac541e6d545792d7f24f5685fc5d0bdcf0b9d5a440caf5f79d66c",
       "payload": "files/release-manifests/362a929d07cac541e6d545792d7f24f5685fc5d0bdcf0b9d5a440caf5f79d66c.br",
       "bytes": 26413
@@ -3761,6 +3560,11 @@
       "digest": "4b8a220732dccfe2aea15a66b7884dac51c87655e1dee963ef53a8807d6b8e7e",
       "payload": "files/release-manifests/4b8a220732dccfe2aea15a66b7884dac51c87655e1dee963ef53a8807d6b8e7e.br",
       "bytes": 48614
+    },
+    {
+      "digest": "4fb07157aeb399ea280fc60eda36df2095855264fa000cf79b2b392fcb69e62e",
+      "payload": "files/release-manifests/4fb07157aeb399ea280fc60eda36df2095855264fa000cf79b2b392fcb69e62e.br",
+      "bytes": 592887
     },
     {
       "digest": "678f99bed85fb6e1f8040b8c50040bc8155ebec05ab9e49a931630db3f0ab4f0",
@@ -3778,9 +3582,9 @@
       "bytes": 48349
     },
     {
-      "digest": "85f11a78a60d9508c369596fae48a701c886506d5d9b762c3f0fb42511c2e695",
-      "payload": "files/release-manifests/85f11a78a60d9508c369596fae48a701c886506d5d9b762c3f0fb42511c2e695.br",
-      "bytes": 64683
+      "digest": "8c81f1c1329bd752b7745de97c47456a519cbd15f111cdf34e7298ee88bbe6dd",
+      "payload": "files/release-manifests/8c81f1c1329bd752b7745de97c47456a519cbd15f111cdf34e7298ee88bbe6dd.br",
+      "bytes": 20088
     },
     {
       "digest": "8e9ae0decc80d2256c44e947bbbb48e7fa557f41605a5bca7abbe77e62fc5d69",
@@ -3791,16 +3595,6 @@
       "digest": "9cb233779475b19bfbad9c20ac403fbe457f2adc456fc05dd02637be0115094a",
       "payload": "files/release-manifests/9cb233779475b19bfbad9c20ac403fbe457f2adc456fc05dd02637be0115094a.br",
       "bytes": 38382
-    },
-    {
-      "digest": "9dc9703a83587a17250ea63c35768c9a686cd2797c4ebe76ea374a9a44817f20",
-      "payload": "files/release-manifests/9dc9703a83587a17250ea63c35768c9a686cd2797c4ebe76ea374a9a44817f20.br",
-      "bytes": 593263
-    },
-    {
-      "digest": "a409d219c194020f3d2d858e439c33c96896779958ec6f31cb27deb8654a54aa",
-      "payload": "files/release-manifests/a409d219c194020f3d2d858e439c33c96896779958ec6f31cb27deb8654a54aa.br",
-      "bytes": 20108
     },
     {
       "digest": "a86cc199b4a9a94740cb4691b2c94840aa5a9b41c3297d706ab6b14df254b0f4",
@@ -3823,6 +3617,11 @@
       "bytes": 32251
     },
     {
+      "digest": "d8010ea9a25e207b7c7fcd19b81c3d05eb49b67abd9712b79cef9cea812e9570",
+      "payload": "files/release-manifests/d8010ea9a25e207b7c7fcd19b81c3d05eb49b67abd9712b79cef9cea812e9570.br",
+      "bytes": 92577
+    },
+    {
       "digest": "e333b2d1ee155b7b61dc3807c1c8a4159da8c8d8cdbc75966d9e3d2996a11ca4",
       "payload": "files/release-manifests/e333b2d1ee155b7b61dc3807c1c8a4159da8c8d8cdbc75966d9e3d2996a11ca4.br",
       "bytes": 359323
@@ -3831,6 +3630,11 @@
       "digest": "e3d7d9417e556b247868eddb2adbb8ddee5e237c74709600f65e5198d3c69345",
       "payload": "files/release-manifests/e3d7d9417e556b247868eddb2adbb8ddee5e237c74709600f65e5198d3c69345.br",
       "bytes": 26760
+    },
+    {
+      "digest": "ee44ac5a91bc65f566133cd330d56c68d91d5889003376c50d69e2d38e5f34ba",
+      "payload": "files/release-manifests/ee44ac5a91bc65f566133cd330d56c68d91d5889003376c50d69e2d38e5f34ba.br",
+      "bytes": 59946
     },
     {
       "digest": "f8ba8da88bdfbbcc9b838452b95f5dc2c7d2f08b175dfa072175c4fe160a5ab2",
@@ -3867,12 +3671,12 @@
     {
       "entry": "database.memory_ledger_baseline",
       "path": "memory/memory.db",
-      "version": 2
+      "version": 1
     },
     {
       "entry": "database.memory_ledger_baseline",
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/memory/memory.db",
-      "version": 2
+      "version": 1
     },
     {
       "entry": "format.browser.site-decisions",

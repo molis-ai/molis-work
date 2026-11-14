@@ -1,11 +1,11 @@
 import { modelPromptText, type ModelPromptInput } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { MolisWorkLocalHost, homeAgentDefinitions, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, homeAgentDefinitions, molisWorkHostProjectReference, onboardingTakers } from "@molis-ai/molis-work-app-local-host";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
-import { mkdtemp, mkdir, writeFile, symlink, rm, stat } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, symlink, rm, stat, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
@@ -20,8 +20,9 @@ import { readRecords } from "@molis-ai/molis-work-service-observation";
 import { withContextJourneys } from "../apps/local-host/dist/context-onboarding-store.js";
 import { readProjectArrival } from "../apps/local-host/dist/project-arrival.js";
 import { contextReferenceText, selectContextSources, stageContextFile, startContextJourney, waitContextJourney, adoptContextJourney, parseContextSummary, readContextJourney, removeIdleJourneyStaging, reopenContextJourney, updateContextDraft } from "../apps/local-host/dist/context-onboarding-service.js";
-import { contextSources, readContextSource, readOnboardingGmail } from "../apps/local-host/dist/context-onboarding-sources.js";
+import { codeRoot, contextSources, readContextSource, readOnboardingGmail } from "../apps/local-host/dist/context-onboarding-sources.js";
 import { createContextOnboardingHttp } from "../apps/local-host/dist/web-context-onboarding.js";
+import { readFileSync, readdirSync } from "node:fs";
 import { handleConnectorApiMethodsHttp, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { handleLocalConnectorsSettingsHttp } from "../apps/local-host/dist/web-connectors-settings.js";
 import { serveTestHost } from "./fixtures/test-home.js";
@@ -837,4 +838,106 @@ test('RAC-2250 the draft\'s rename check counts 120 characters too',async t=>{
   const wide='🟢'.repeat(120);
   assert.equal(updateContextDraft(dir,id,{title:wide,body:'正文'}).summary?.title,wide);
   assert.throws(()=>updateContextDraft(dir,id,{title:'🟢'.repeat(121),body:'正文'}),/摘要内容过长或无效/);
+});
+
+test('ONB-37 a code folder\'s source, config, scripts, docs and files with no or a stranger suffix are taken; only build output, hidden folders, secrets and unreadable kinds are left out', async () => {
+  const { contextFileSkip } = await import('@molis-ai/molis-work-contracts/services/materials');
+  const taken = ['src/main.ts', 'src/app.tsx', 'lib/util.js', 'tool.py', 'src/lib.rs', 'cmd/main.go', 'App.java', 'core.c', 'core.hpp', 'View.swift', 'scripts/run.sh',
+    'index.html', 'site.css', 'config.yaml', 'Cargo.toml', 'pom.xml', 'package.json', 'README', 'LICENSE', 'Makefile', 'Dockerfile', '.gitignore', 'notes.weird-suffix', 'docs/guide.md', 'paper.pdf', 'brief.docx', 'yarn.lock'];
+  assert.deepEqual(taken.filter(path => contextFileSkip(path) !== null), [], 'ONB-37: every readable kind is taken, whatever its suffix');
+  assert.deepEqual(['node_modules/x/index.js', 'dist/app.js', '.git/config', 'src/.cache/a.txt', '.DS_Store'].map(contextFileSkip), ['ignored', 'ignored', 'ignored', 'ignored', 'ignored']);
+  assert.deepEqual(['.env', '.env.local', 'certs/server.pem', 'id_rsa'].map(contextFileSkip), ['secret', 'secret', 'secret', 'secret'], 'secrets are not sent because their folder was chosen');
+  assert.deepEqual(['logo.png', 'demo.mp4', 'bundle.zip', 'app.wasm', 'old.xlsx'].map(contextFileSkip), ['unreadable', 'unreadable', 'unreadable', 'unreadable', 'unreadable']);
+  // The Host checks a selection with the same rule: a code file and a file with no suffix are accepted, a secret is refused.
+  const metadata = (paths: string[]) => ({ files: paths.map(path => ({ path, size: 1, modified_ms: 1, identity: 'upload' })), skipped: 0, truncated: false });
+  assert.equal(contextSources([{ kind: 'custom', selected: true, metadata: metadata(['src/main.ts', 'README', '.gitignore']) }])[0]!.metadata!.files.length, 3);
+  assert.throws(() => contextSources([{ kind: 'custom', selected: true, metadata: metadata(['.env']) }]), /文件元数据无效/);
+});
+
+test('ONB-44, BCD-16, BCD-17: the person\'s own code folder goes only to a plugin that declares it takes one, and only when ticked', async t => {
+  const meta = (paths: string[]) => ({ files: paths.map(path => ({ path, size: 1, modified_ms: 1, identity: 'x' })), skipped: 0, truncated: false });
+  assert.equal(codeRoot({ sources: [{ kind: 'custom', selected: true, path: '/code/app', metadata: meta(['package.json', 'src/a.ts']) }] }), '/code/app');
+  assert.equal(codeRoot({ sources: [{ kind: 'custom', selected: true, path: '/code/app', metadata: meta(['notes.md', 'sub/package.json']) }] }), null, 'a build file deeper down does not make the folder a root');
+  assert.equal(codeRoot({ sources: [{ kind: 'custom', selected: false, path: '/code/app', metadata: meta(['package.json']) }] }), null);
+  for (const kind of ['downloads', 'documents', 'desktop'] as const)
+    assert.equal(codeRoot({ sources: [{ kind, selected: true, path: '/Users/x/' + kind, metadata: meta(['package.json']) }] }), null, kind + ' is never handed over');
+  // BCD-16: the takers are what Manifests declare. Of the plugins this build ships, Coding is the one that declares `code_root`.
+  assert.deepEqual(onboardingTakers('code_root').map(taker => [taker.plugin_id, taker.take.capability_id, taker.take.action.audiences]), [['io.molis.work.coding', 'coding.onboarding.take', ['user']]]);
+  // BCD-16: onboarding's Host code, page script and words name no plugin that takes a folder.
+  const sourcesOf = (dir: string, match: RegExp) => readdirSync(dir).filter(name => match.test(name)).map(name => [name, readFileSync(join(dir, name), 'utf8')] as const);
+  for (const [name, text] of [...sourcesOf('apps/local-host/src', /onboarding.*\.ts$/), ...sourcesOf('apps/workbench/src/scripts', /^context-onboarding.*\.ts$/)])
+    assert.doesNotMatch(text, /\bcoding\b/i, name + ' names a plugin');
+  for (const locale of ['zh', 'en']) {
+    const words = Object.entries(JSON.parse(readFileSync(`apps/workbench/resources/locales/${locale}.json`, 'utf8')).messages as Record<string, string>);
+    for (const [key, text] of words.filter(([key]) => key.startsWith('workbench.context-onboarding.'))) assert.doesNotMatch(key + ' ' + String(text), /\bcoding\b/i, key);
+  }
+
+  const dir = await home(t), folder = join(dir, 'my-app');
+  await new MolisWorkLocalHost({ homeDirectory: dir, completeText: null }).close();
+  await mkdir(folder); await writeFile(join(folder, 'package.json'), '{"name":"my-app"}'); await writeFile(join(folder, 'README.md'), '# My app\nShip the login page');
+  // A taker as onboarding sees one: its declared action, called through a client bound to that action alone (§7.7 C1).
+  const declared = onboardingTakers('code_root')[0]!, calls: { project: string; input: Record<string, unknown> }[] = [];
+  const taker = { ...declared, plugin_id: 'test.taker', name: 'Test taker' };
+  const take = async (_home: string, project: string, definition: { capability_id: string }): Promise<BoundActionClient> => {
+    assert.equal(definition.capability_id, 'coding.onboarding.take');
+    return { discover: () => [], invoke: async (_definition, input) => { calls.push({ project, input: input as Record<string, unknown> }); return { open: { item_id: 'session-1', title: 'From getting started' } } as never; } };
+  };
+  const ports = { ...pagesPorts(dir), model: async () => ({ completeText: async () => '# My app\nShip the login page. [S1]' }), takers: () => [taker], take };
+  const journeyOf = async (pick: string | undefined) => {
+    const id = randomUUID(); withContextJourneys(dir, s => s.create(id));
+    selectContextSources(dir, id, { sources: [{ kind: 'custom', selected: true, path: folder, metadata: meta(['package.json', 'README.md']),
+      files: [await staged(dir, id, 'package.json', '{"name":"my-app"}'), await staged(dir, id, 'README.md', '# My app\nShip the login page')] }] });
+    startContextJourney(dir, id, ports); const ready = await waitContextJourney(dir, id); assert.equal(ready.phase, 'review', ready.error ?? '');
+    return adoptContextJourney(dir, id, { title: pick ? 'Ticked' : 'Not ticked', body: ready.summary!.body, ...pick ? { take: pick } : {} }, ports);
+  };
+  const unticked = await journeyOf(undefined), ticked = await journeyOf('test.taker');
+  assert.equal(ticked.phase, 'complete', ticked.error ?? ''); assert.deepEqual(ticked.adoption?.take, { plugin_id: 'test.taker', project_plugin_id: declared.project_plugin_id, code_root: folder, output_set: true });
+  assert.deepEqual(ticked.take_result?.open, { item_id: 'session-1', title: 'From getting started' });
+  await pagesPorts(dir).withCatalog({ homeDirectory: dir }, async catalog => {
+    assert.ok(catalog.projectPluginMembership(ticked.project_id).plugins.includes(declared.project_plugin_id), 'the taker is in the project');
+    const output = catalog.projectDirectories(ticked.project_id).directories.find(d => d.roles.includes('output'))!;
+    assert.equal(output.canonical_path, await realpath(folder), 'the folder is the output, set by the Host');
+    assert.equal(calls.length, 1); assert.equal(calls[0]!.project, ticked.project_id);
+    assert.deepEqual(calls[0]!.input.code_root, { workspace_id: output.workspace_id });
+    assert.equal(calls[0]!.input.request_id, `onboarding:${ticked.id}:take`);
+    const materials = calls[0]!.input.materials as { ref: { pin: { mode: string } } }[];
+    assert.ok(materials.length >= 1 && materials.every(item => item.ref.pin.mode === 'fixed'), 'the round\'s fixed versions go with the folder');
+    assert.ok(!catalog.projectPluginMembership(unticked.project_id).plugins.includes(declared.project_plugin_id), 'not ticked: the taker is not added');
+    assert.notEqual(catalog.projectDirectories(unticked.project_id).directories.find(d => d.roles.includes('output'))!.canonical_path, await realpath(folder), 'a material folder is not made the output');
+  });
+  // BCD-17: a repeat does not call the taker again; a plugin that declares nothing, or a round with no such folder, is refused.
+  assert.equal((await adoptContextJourney(dir, ticked.id, { take: 'test.taker' }, ports)).phase, 'complete'); assert.equal(calls.length, 1);
+  // A taker that refuses does not hold the round: the project and materials are made, it completes, and says nothing was handed.
+  const refusing = { ...ports, take: async (): Promise<BoundActionClient> => ({ discover: () => [], invoke: async () => { throw new Error('not now'); } }) };
+  const refusedId = randomUUID(); withContextJourneys(dir, s => s.create(refusedId));
+  selectContextSources(dir, refusedId, { sources: [{ kind: 'custom', selected: true, path: folder, metadata: meta(['package.json']), files: [await staged(dir, refusedId, 'package.json', '{"name":"my-app"}')] }] });
+  startContextJourney(dir, refusedId, refusing); const refusedReady = await waitContextJourney(dir, refusedId);
+  const refused = await adoptContextJourney(dir, refusedId, { title: 'Refused', body: refusedReady.summary!.body, take: 'test.taker' }, refusing);
+  assert.equal(refused.phase, 'complete', refused.error ?? ''); assert.deepEqual(refused.take_result, { open: null, materials: 0, of: refused.take_result!.of, not_taken: 'refused' });
+  // Only the folder the person picked goes (BCD-17): a round that failed after the folder became the output, and whose output the person
+  // changed before retrying, completes without handing anything over.
+  const movedId = randomUUID(), elsewhere = join(dir, 'elsewhere'); await mkdir(elsewhere); withContextJourneys(dir, s => s.create(movedId));
+  selectContextSources(dir, movedId, { sources: [{ kind: 'custom', selected: true, path: folder, metadata: meta(['package.json']), files: [await staged(dir, movedId, 'package.json', '{"name":"my-app"}')] }] });
+  startContextJourney(dir, movedId, ports); const movedReady = await waitContextJourney(dir, movedId);
+  const failing = { ...ports, actions: async (home: string, project: string, original?: { path: string; install_id: string }): Promise<BoundActionClient> => {
+    const client = await ports.actions(home, project, original);
+    return { discover: context => client.discover(context), invoke: async (definition, input) => {
+      if ((input as { request_id?: string }).request_id === movedId + ':summary') throw new Error('Summary storage temporarily unavailable');
+      return client.invoke(definition, input);
+    } };
+  } };
+  const failed = await adoptContextJourney(dir, movedId, { title: 'Moved', body: movedReady.summary!.body, take: 'test.taker' }, failing);
+  assert.equal(failed.phase, 'failed');
+  await pagesPorts(dir).withCatalog({ homeDirectory: dir }, catalog => catalog.commit(() => catalog.changeDirectories({ project_id: failed.project_id, actor_id: 'web-user',
+    change: { kind: 'set_output', target: { workspace_path: elsewhere } }, expected_revision: catalog.projectDirectories(failed.project_id).revision })));
+  const before = calls.length, moved = await adoptContextJourney(dir, movedId, {}, ports);
+  assert.equal(moved.phase, 'complete', moved.error ?? ''); assert.equal(moved.take_result?.not_taken, 'moved'); assert.equal(calls.length, before, 'nothing is handed');
+  const other = randomUUID(); withContextJourneys(dir, s => s.create(other));
+  selectContextSources(dir, other, { sources: [{ kind: 'custom', selected: true, path: folder, metadata: meta(['package.json']), files: [await staged(dir, other, 'package.json', '{"name":"my-app"}')] }] });
+  startContextJourney(dir, other, ports); const otherReady = await waitContextJourney(dir, other);
+  await assert.rejects(adoptContextJourney(dir, other, { title: 'x', body: otherReady.summary!.body, take: 'io.molis.work.pages' }, ports), /不能这样交出去/);
+  const plain = randomUUID(); withContextJourneys(dir, s => s.create(plain));
+  selectContextSources(dir, plain, { sources: [{ kind: 'directory', selected: true, files: [await staged(dir, plain, 'brief.md', '# Brief\nLaunch')] }] });
+  startContextJourney(dir, plain, ports); const ready = await waitContextJourney(dir, plain);
+  await assert.rejects(adoptContextJourney(dir, plain, { title: 'x', body: ready.summary!.body, take: 'test.taker' }, ports), /不能这样交出去/);
 });

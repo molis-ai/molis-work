@@ -5,7 +5,7 @@ import type {
 
 /**
  * Package-internal reads of the library (contract-design §1): batch 29 turns these into read actions with their own audience rules. Until
- * then only tests and the Host's own checks call them; nothing here is offered to a plugin, an Agent or a page.
+ * then only tests call them; nothing here is offered to a plugin, an Agent or a page.
  */
 export interface RecordFilter {
   readonly project_id?: string | null;

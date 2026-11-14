@@ -1,19 +1,19 @@
 import { lstatSync, readdirSync, realpathSync, rmSync } from "node:fs";
 import { basename, dirname, join, relative } from "node:path";
 import { pluginErrors, type PluginDatabaseVersionSwitch, type PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { SqlitePluginRuntimeRepository, type PluginRuntimeDatabase } from "@molis-ai/molis-work-plugin-runtime";
+import { pluginManifestDigest, SqlitePluginRuntimeRepository, type PluginRuntimeDatabase } from "@molis-ai/molis-work-plugin-runtime";
 import { PLUGIN_ID } from "@molis-ai/molis-work-plugin-sdk";
 import {
   assertStorageOwner, atomicWriteFileSync, discardUnarmedInstalledUpgradeSnapshot, discardUpgradeSnapshot, homeSqlitePath, readDatabaseSpace, readSnapshotFile,
   readStorageSpace, recoverSqliteRollbackJournals, restoreUpgradeSnapshot, syncPath, upgradeFailedRefusal, verifyUpgradeSnapshot,
-  type RollbackLibrary, type SqliteBaseline, type SqliteDatabase, type StorageOwner, type UpgradeSnapshotUnit,
+  type RollbackLibrary, type SqliteDatabase, type StorageOwner, type UpgradeSnapshotUnit,
 } from "@molis-ai/molis-work-storage";
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
 import { HOME_PLUGIN_RUNTIME_HOME_STORE, openReadOnlyHomePluginStore } from "./home-plugin-store.js";
 import { homeStores } from "./home-stores.js";
-import { homeIdentity, INSTALLED_PLUGIN_UPGRADE_FILE, UPGRADE_DIRECTORY } from "./home-upgrade-ledger.js";
+import { homeIdentity, INSTALLED_PLUGIN_UPGRADE_FILE, isInstalledPluginUpgradeRun, supersedeInstalledUpgradeNotice, UPGRADE_DIRECTORY } from "./home-upgrade-ledger.js";
 import { INSTALLED_LIBRARIES_HOME_STORE, checkInstalledLibraryEdition, installedHomeLibraryName, installedLibrarySnapshots, matchesScopedLibrary } from "./installed-plugin-libraries.js";
-import { SandboxPackageStore } from "./sandbox-package-store.js";
+import { SandboxPackageStore, sandboxEditionKey } from "./sandbox-package-store.js";
 
 const VERSION = /* @version format.home.upgrade.installed_plugin */ 1;
 const SHA256 = /^[a-f0-9]{64}$/u;
@@ -24,7 +24,7 @@ const refused = () => upgradeFailedRefusal(`${UPGRADE_DIRECTORY}/${INSTALLED_PLU
 const journalFile = (home: string) => join(home, UPGRADE_DIRECTORY, INSTALLED_PLUGIN_UPGRADE_FILE);
 
 type Identity = Pick<PluginInstanceRecord, "install_id" | "installation_generation" | "plugin_id" | "publisher_signature">;
-type Edition = Pick<PluginInstanceRecord, "version" | "manifest_digest">;
+type Edition = { readonly package_key: string; readonly manifest_digest: string };
 interface PendingUpgrade {
   readonly schema_version: typeof VERSION;
   readonly home_identity: string;
@@ -37,8 +37,8 @@ interface PendingUpgrade {
 
 function validEdition(value: unknown): value is Edition {
   if (!value || typeof value !== "object") return false;
-  const { version, manifest_digest: digest } = value as Edition;
-  return Object.keys(value).length === 2 && typeof version === "string" && version.length <= 128 && typeof digest === "string" && SHA256.test(digest);
+  const { package_key: key, manifest_digest: digest } = value as Edition;
+  return Object.keys(value).length === 2 && typeof key === "string" && /^[a-f0-9]{32}$/u.test(key) && typeof digest === "string" && SHA256.test(digest);
 }
 
 function readPending(home: string): PendingUpgrade | undefined {
@@ -47,7 +47,7 @@ function readPending(home: string): PendingUpgrade | undefined {
   const pending = JSON.parse(readSnapshotFile(file, 4096).toString("utf8")) as Partial<PendingUpgrade> | null;
   const identity = pending?.install;
   if (!pending || Object.keys(pending).length !== 7 || pending.schema_version !== VERSION || pending.home_identity !== homeIdentity(home)
-    || typeof pending.run_id !== "string" || !pending.run_id.startsWith(RUN_PREFIX) || !UUID.test(pending.run_id.slice(RUN_PREFIX.length))
+    || typeof pending.run_id !== "string" || !isInstalledPluginUpgradeRun(pending.run_id)
     || typeof pending.snapshot_sha256 !== "string" || !SHA256.test(pending.snapshot_sha256)
     || !validEdition(pending.from) || !validEdition(pending.to)
     || pending.from.manifest_digest === pending.to.manifest_digest || !identity || Object.keys(identity).length !== 4
@@ -77,10 +77,13 @@ export function recordInstalledHomeUpgrade(unit: UpgradeSnapshotUnit, digest: st
   assertStorageOwner(unit.lockDirectory, unit.owner);
   assertNoInstalledHomeUpgrade(unit.home);
   const { install_id, installation_generation, plugin_id, publisher_signature } = current;
-  const edition = ({ version, manifest_digest }: Edition): Edition => ({ version, manifest_digest });
+  const edition = ({ version, manifest_digest }: PluginInstanceRecord): Edition => ({
+    package_key: sandboxEditionKey(plugin_id, publisher_signature, version), manifest_digest,
+  });
   const pending: PendingUpgrade = { schema_version: VERSION, home_identity: homeIdentity(unit.home), run_id: unit.runId, snapshot_sha256: digest,
     install: { install_id, installation_generation, plugin_id, publisher_signature }, from: edition(current), to: edition(next) };
   atomicWriteFileSync(journalFile(unit.home), JSON.stringify(pending) + "\n", { mode: 0o600, durable: true });
+  supersedeInstalledUpgradeNotice(unit.home);
 }
 
 export function finishInstalledHomeUpgrade(unit: UpgradeSnapshotUnit): void {
@@ -97,7 +100,7 @@ function recoveredEdition(db: PluginRuntimeDatabase, pending: PendingUpgrade): "
     || row.publisher_signature !== id.publisher_signature || row.publisher_trust !== "pinned" || row.execution !== "sandbox"
     || row.state === "uninstalled") throw refused();
   for (const edition of ["from", "to"] as const) {
-    if (row.version === pending[edition].version && row.manifest_digest === pending[edition].manifest_digest) return edition;
+    if (row.manifest_digest === pending[edition].manifest_digest && sandboxEditionKey(id.plugin_id, id.publisher_signature, row.version) === pending[edition].package_key) return edition;
   }
   throw refused();
 }
@@ -105,8 +108,11 @@ function recoveredEdition(db: PluginRuntimeDatabase, pending: PendingUpgrade): "
 function recoverPending(lock: Pick<UpgradeSnapshotUnit, "home" | "lockDirectory" | "owner">, pending: PendingUpgrade): void {
   const { home } = lock;
   const packages = new SandboxPackageStore(home), reserved = homeStores();
-  const previous = packages.installedManifest({ ...pending.install, ...pending.from })?.databases?.home;
-  const target = packages.installedManifest({ ...pending.install, ...pending.to })?.databases?.home;
+  const declaration = (edition: Edition) => {
+    const manifest = packages.snapshotEdition(pending.install.plugin_id, pending.install.publisher_signature, edition.package_key);
+    return manifest && pluginManifestDigest(manifest) === edition.manifest_digest ? manifest.databases?.home : undefined;
+  };
+  const previous = declaration(pending.from), target = declaration(pending.to);
   if (!previous || !target || previous.store_name !== target.store_name || previous.version >= target.version
     || !installedHomeLibraryName(previous.store_name, reserved) || previous.partition || target.partition) throw refused();
   const file = homeSqlitePath(home, previous.store_name), unit = { ...lock, runId: pending.run_id, relativePath: relative(home, file) };
@@ -116,7 +122,7 @@ function recoverPending(lock: Pick<UpgradeSnapshotUnit, "home" | "lockDirectory"
     if (JSON.stringify(readDatabaseSpace(db)) !== JSON.stringify(space)) throw refused();
   };
   const ledgers = [INSTALLED_LIBRARIES_HOME_STORE, HOME_PLUGIN_RUNTIME_HOME_STORE].map(store =>
-    ({ path: homeSqlitePath(home, store.path), baseline: store.library!.baseline as SqliteBaseline }));
+    ({ path: homeSqlitePath(home, store.path), baseline: store.library!.baseline }));
   const libraries: RollbackLibrary[] = [
     { path: file, kind: "home", version: target.version, baseline: target, before: previous, inspect(db) {
       libraryVersion = Number(db.pragma("user_version", { simple: true }));
@@ -147,13 +153,13 @@ function recoverPending(lock: Pick<UpgradeSnapshotUnit, "home" | "lockDirectory"
 }
 
 /** Reconcile one confirmed change before stores open. Package bytes and ledger ownership select the database. */
-export function recoverInstalledHomeUpgrade(home: string, owner: StorageOwner): void {
+export function recoverInstalledHomeUpgrade(home: string, owner: StorageOwner): { run_id: string; unavailable: number } | undefined {
   const lock = { home, lockDirectory: agentRuntimeDirectory(home), owner };
   assertStorageOwner(lock.lockDirectory, owner);
   const pending = readPending(home), directory = join(home, UPGRADE_DIRECTORY);
   recoveryFailures.delete(home);
   if (lstatSync(directory, { throwIfNoEntry: false })) {
-    for (const name of readdirSync(directory)) if (name !== pending?.run_id && name.startsWith(RUN_PREFIX) && UUID.test(name.slice(RUN_PREFIX.length))) {
+    for (const name of readdirSync(directory)) if (name !== pending?.run_id && isInstalledPluginUpgradeRun(name)) {
       discardUnarmedInstalledUpgradeSnapshot(lock, name);
     }
   }
@@ -169,6 +175,7 @@ export function recoverInstalledHomeUpgrade(home: string, owner: StorageOwner): 
     assertStorageOwner(lock.lockDirectory, owner);
     recoveryFailures.set(home, pending.install);
   }
+  return { run_id: pending.run_id, unavailable: recoveryFailures.has(home) ? 1 : 0 };
 }
 
 export function installedHomeUpgradeBlocked(home: string, record: PluginInstanceRecord): boolean {

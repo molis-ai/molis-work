@@ -129,7 +129,6 @@ export class HomePluginExecutor implements PluginExecutor {
     try {
       withdrawText = pluginTextFor(this.options, definition, context);
       const home = pluginHomeFor(this.options.home);
-      const record = this.options.record(context.install_id);
       if (record && installedHomeUpgradeBlocked(this.options.home, record)) throw pluginErrors.upgrade_validation_failed("等待 Home 插件库完成恢复");
       const library = homeLibraryFor(definition, this.options.database(definition), record);
       const declaration = library?.declaration;

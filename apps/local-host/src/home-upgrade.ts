@@ -12,7 +12,8 @@ import {
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
 import { hostLog } from "./host-log.js";
 import {
-  assertUpgradeDirectory, hasInstalledPluginUpgrade, homeIdentity, newUpgradeLedger, readUpgradeLedger, readUpgradeStamp, removeUpgradeStamp, removeUpgradeTemporaries, unfinishedUnit, UPGRADE_DIRECTORY, writeUpgradeLedger, writeUpgradeNotice, writeUpgradeStamp,
+  assertUpgradeDirectory, hasInstalledPluginUpgrade, homeIdentity, newUpgradeLedger, readUpgradeLedger, readUpgradeStamp, removeUpgradeStamp, removeUpgradeTemporaries,
+  supersedeInstalledUpgradeNotice, unfinishedUnit, UPGRADE_DIRECTORY, writeUpgradeLedger, writeUpgradeNotice, writeUpgradeStamp,
   type UpgradeLedger, type UpgradeUnit, type UpgradeUnitError,
 } from "./home-upgrade-ledger.js";
 import { homeUpgradeDescriptors, upgradeFingerprint, upgradeTarget, upgradeUnitFile, type HomeUpgradeDescriptor } from "./home-upgrade-stores.js";
@@ -376,7 +377,11 @@ export function ensureHomeUpgraded(home: string, owner: StorageOwner, options: {
   assertStorageOwner(lockDirectory, owner);
   const root = realpathSync(home), descriptors = homeUpgradeDescriptors();
   assertUpgradeDirectory(root);
-  recoverInstalledHomeUpgrade(root, owner);
+  const installed = recoverInstalledHomeUpgrade(root, owner);
+  if (installed) {
+    if (installed.unavailable === 0) writeUpgradeNotice(root, installed);
+    options.onUnitDone?.();
+  }
   recoverHomeArtifactRows(root, owner, options.expectedSpace);
   assertNoPendingArtifactRows(root, owner);
   const fingerprint = upgradeFingerprint(descriptors), identity = homeIdentity(root), stamp = readUpgradeStamp(root, identity);
@@ -388,6 +393,7 @@ export function ensureHomeUpgraded(home: string, owner: StorageOwner, options: {
   if (round.ledger?.units.some(unfinishedUnit)) return { ran: true, stamped: false, units: round.ledger.units };
   const { planned, settled, present, unversioned } = scan(round);
   if (planned.length > 0) {
+    supersedeInstalledUpgradeNotice(root);
     removeUpgradeStamp(root);
     round.ledger = newUpgradeLedger(identity, randomUUID(), stamp ?? null, fingerprint, [...settled, ...planned]);
     writeUpgradeLedger(root, round.ledger);
@@ -441,17 +447,19 @@ export function pendingUpgradeUnits(home: string): number {
   let root: string;
   try { root = realpathSync(home); } catch { return 0; }
   try {
+    assertUpgradeDirectory(root);
+    const installed = hasInstalledPluginUpgrade(root) ? 1 : 0;
     const identity = homeIdentity(root), fingerprint = upgradeFingerprint(descriptors);
-    if (readUpgradeStamp(root, identity) === fingerprint) return 0;
+    if (readUpgradeStamp(root, identity) === fingerprint) return installed;
     const ledger = readUpgradeLedger(root), unfinished = ledger?.units.filter(unfinishedUnit).length ?? 0;
-    if (unfinished > 0) return unfinished;
+    if (unfinished > 0) return unfinished + installed;
     const earlier = new Map((ledger?.to === fingerprint ? ledger.units : []).map(unit => [unit.relative_path, unit]));
     let older = 0;
     const stores = listStores(descriptors, root);
     for (const store of stores.values()) {
       if (lookAt(root, store, false).kind === "older" && !settledFailure(root, stores, store, earlier.get(store.relative_path), false)) older += 1;
     }
-    return older;
+    return older + installed;
   } catch { return 1; }
 }
 

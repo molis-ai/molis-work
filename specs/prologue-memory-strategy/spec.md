@@ -73,7 +73,7 @@ Assistant/Coding 跨主人回执与后续使用的本地接入已收束。人工
 - **设置与清除。** 移动记录的浏览器回归断言原处显示目标范围。会话学到的长期条目只读展示，入口指向其归属的记忆设置。清除把会话记忆、来源指向该会话的长期记忆和待认可建议固定到同一个版本化预览。全部固定范围接受遗忘后才开始 SDK 清理。清除只处理预览中的条目。页面重开后按同一预览继续原操作。新的条目由下次预览处理。
 - **候选。** 三处共用 14 天期限。本人认可与去重共用当前范围的候选读取结果，固定精确同文候选和原版本。原认可重试可续做作废。设置页在收到变更时空闲重读，标签页离开满 30 秒后回到页面时重读一次。未登记的后台候选到期见 [BL-memory-session-residues](../backlog/BL-memory-session-residues.md)。
 - **本机验证。** 构建、动作及公开 API 快照、健康、包边界、密钥、64 项页面资源与双语首屏检查通过。合并后 17 个定向文件通过，另完成 Memory 包 18 个定向文件及独立的 SDK、外观与恢复验证。会话清除 13/13、记忆服务 28/28、会话管理浏览器 7/7、遗忘设置浏览器 9/9、Coding 问答卡 6/6、SDK 来源 79/79、Home 恢复后遗忘检查 14/14。Goals 66 张页面逐字核对，16 张只增加「本会话记忆」入口，严格复验通过。
-- **BL-1071～1077。** BL-1071 的 SDK `770a2e27` 已随 #2020 合入。BL-1072 暖读增量 +31.1 ms，超过 30 ms。BL-1073 的最后一轮正式对照总 token 高 2.6%，对应 11-12 的 `677038240`。11-13 提示词的后续改动按用户决定记录差异，以工程验证结算。BL-1074 已由 [#2029](https://github.com/molis-ai/molis-work/pull/2029) 修复；原生 Linux no-fail-fast full suite [43546443501](https://github.com/molis-ai/molis-work/actions/runs/43546443501) 的 shard 21 首轮 `coding-question-card.e2e` 6/6，无 CDP 超时；2026-11-14 删除 BL。P0 本机和最终候选的 Linux 首轮 Coding 问答卡均为 6/6。BL-1075 的 MEM-43/44 移至 V0 后。BL-1076 按用户决定视作通过，完整本人走查及第 9、10 行和第 12 行另一半保留在 [BL-memory-own-app-walkthrough](../backlog/BL-memory-own-app-walkthrough.md)。BL-1077 已关闭，历史真实 Home 影响中的未知部分保留。
+- **BL-1071～1077。** BL-1071 的 SDK `770a2e27` 已随 #2020 合入。BL-1072 暖读增量 +31.1 ms，超过 30 ms。BL-1073 的最后一轮正式对照总 token 高 2.6%，对应 11-12 的 `677038240`。11-13 提示词的后续改动按用户决定记录差异，以工程验证结算。BL-1074 已由 [#2029](https://github.com/molis-ai/molis-work/pull/2029) 修复；原生 Linux no-fail-fast full suite [43546443501](https://github.com/molis-ai/molis-work/actions/runs/43546443501) 的 shard 21 首轮 `coding-question-card.e2e` 6/6，无 CDP 超时（同一 run 的 shard 7／17 是合并基线既有红，shard 26 的 `workbench-frame-container.e2e` 重试仍红，需在合并后的 main 上另核）；2026-11-14 删除 BL。P0 本机和最终候选的 Linux 首轮 Coding 问答卡均为 6/6。BL-1075 的 MEM-43/44 移至 V0 后。BL-1076 按用户决定视作通过，完整本人走查及第 9、10 行和第 12 行另一半保留在 [BL-memory-own-app-walkthrough](../backlog/BL-memory-own-app-walkthrough.md)。BL-1077 已关闭，历史真实 Home 影响中的未知部分保留。
 - **上轮 CI。** 代码与测试头 `33f774307` 的 Verify 通过，共 27 项通过、2 项按配置跳过。首轮 Skill 委派发生连接重置，仅重跑该安全分片及汇总后通过。macOS 签名金样回放通过。[Verify](https://github.com/molis-ai/molis-work/actions/runs/43376738539) · [首轮失败分片](https://github.com/molis-ai/molis-work/actions/runs/43376738539/job/131725226583)
 - **上轮 Linux 全量。** 代码与测试头 `33f774307` 的 32 个分片跑完，25 个通过、7 个失败。会话清除 13/13、会话管理 7/7、遗忘设置 9/9、助理候选卡 3/3、Coding 问答卡 6/6、SDK 来源 79/79、Home 恢复后遗忘检查 14/14 首轮通过。Goals 页面快照 70 项通过、2 项按原配置跳过。Golden Home 生成一致性 UPG2-02 首轮 41/42，自动重试通过。[候选全量](https://github.com/molis-ai/molis-work/actions/runs/43376728689)
   - 主干 `b81937325` 的 Linux 对照也复现 B27SRC-05（Coding 行高）、QA-033（Pages 查找）及跨位置呈现的 IUI-03、IUI-10（Inbox）。本机干净主干曾复现 Golden Home 的提示词使用记录差异。[主干全量](https://github.com/molis-ai/molis-work/actions/runs/43373326442)
@@ -138,7 +138,7 @@ Assistant/Coding 跨主人回执与后续使用的本地接入已收束。人工
   - 评审台在 Chrome 157 上实测：减少动效传不进跨进程框架，颜色方案能传进去。
   - 评审还查出 AC-27-5 的截图辅助函数改颜色方案时把静止冲掉了，已一并修好。评审台审过头 `607233a3`。
 - 本机通过的有 `coding-question-card.e2e`（6/6）和另外 6 个用这个辅助函数的浏览器文件。`home-package-project-reach.e2e` 本机缺专用测试浏览器，没跑起来。
-- 原生 Linux 的证据：已加 `full-suite` 标签，只看 `coding-question-card.e2e` 第一次跑的结果，重试后才过的不算。2026-11-14 原生 Linux no-fail-fast full suite 的 shard 21 首轮 `coding-question-card.e2e` 6/6，且无 CDP 超时；BL-1074 已删除，证据见 [#2029](https://github.com/molis-ai/molis-work/pull/2029) 与 [run 43546443501](https://github.com/molis-ai/molis-work/actions/runs/43546443501)。
+- 原生 Linux 的证据：已加 `full-suite` 标签，只看 `coding-question-card.e2e` 第一次跑的结果，重试后才过的不算。2026-11-14 原生 Linux no-fail-fast full suite 的 shard 21 首轮 `coding-question-card.e2e` 6/6，且无 CDP 超时；该 run 整体仍红在 shard 7／17（合并基线既有）与 shard 26 的 `workbench-frame-container.e2e`（该用例没有设页面 reduce，新逻辑只多一次页面读取，重试仍红，需在合并后的 main 上另核）；BL-1074 已删除，证据见 [#2029](https://github.com/molis-ai/molis-work/pull/2029) 与 [run 43546443501](https://github.com/molis-ai/molis-work/actions/runs/43546443501)。
 
 ### 本会话的用户决定（2026-11-11）
 
@@ -1249,6 +1249,8 @@ AgentHost 的 source Port 与授权共用已有 AsyncLocalStorage / Session owne
 | MEM-38 | P0 | 总 token 成本和最终注入均按 §9.2 优于 B1，时延不超冻结界；冷启动、稳态、后台成本单列 | 真实模型/Host 的代表性任务序列 |
 | MEM-39 | P0 | [人工] 用户在 Coding 与助理完成查看、纠正、改类、分类开关、撤销和遗忘后，确认记忆更容易控制、不会反复干扰 | 最终 App 非空场景实操及用户明确验收 |
 | MEM-40 | P0/P1 | 旧包不能在新格式上继续写；采用/回退失败不丢有效数据、不恢复已删除记忆；未授权不操作真实 Home | 隔离副本演练 + 版本拒绝用例 |
+
+**2026-11-14 复查补：** §14 的 MEM-45～63 是 P2 范围（`#2039` 补入），当前 `node scripts/check-spec-coverage.mjs` 报 17 条没有测试点名（MEM-45～54、56、57、59～63）；这不属 P0 门，实现这些 P2 项时补验收编号与测试，不要把「P0 的 40 条 0 条无证明」读成整个 spec 都有证明。
 
 ### 10.3 长期内容工具分工
 
@@ -2522,7 +2524,7 @@ SDK补丁与直接验证完成后，先独审可审查diff，再单独处理仍�
 
 收束顺序：上述窄提示修正及 MEM-35 组合定向现已完成；布局若获批，才执行已收束的隔离 SDK 正确性实现，之后按实际补丁处理采用和完整 Home 回归。正式性能、真实质量成本与本人验收各自保留原门和授权前置。V0仍未完成，后续提交、推送、Full及付费没有因一次提交/180读授权而恢复。
 
-**MEM-35 最窄补验合同。** 限6份现役文件的后续核对已确认：Assistant 本人 `remember(replaces)` 当次后续真实 Context 退出旧值已有 C1 证据；同来源遗忘后原操作/新操作、重开及完整 Home 恢复不能复学已有 R 证据，直接继承。缺的是两业务纠正后独立新任务及 Host 重开后的最终输入，以及本人后来新输入身份、同文明确表态的重记正控制。Sol High 只在现役 `tests/memory-run-expansion-boundaries.test.ts` 补两业务各两项；复用真实业务 HTTP/Action → 原 Memory/来源主人 → SDK/Node/SQLite → 本机脚本 Provider，核最终 Context 的身份/版本/正文、持久状态及原遗忘决定，不用模型回答替代。不改生产代码、共享 fixture、旧断言、超时、重试、标签或门槛，不新增测试框架；如出现产品失败先报告实际调用链，不自行改语义。统筹统一安排一次同源构建和明确文件定向运行，合成 Home、零付费、不运行 Full；这只补组合工程证据，不结算真实模型理解或独立 OS 重启/本人体验。
+**补验合同（MEM-35）。** 限6份现役文件的后续核对已确认：Assistant 本人 `remember(replaces)` 当次后续真实 Context 退出旧值已有 C1 证据；同来源遗忘后原操作/新操作、重开及完整 Home 恢复不能复学已有 R 证据，直接继承。缺的是两业务纠正后独立新任务及 Host 重开后的最终输入，以及本人后来新输入身份、同文明确表态的重记正控制。Sol High 只在现役 `tests/memory-run-expansion-boundaries.test.ts` 补两业务各两项；复用真实业务 HTTP/Action → 原 Memory/来源主人 → SDK/Node/SQLite → 本机脚本 Provider，核最终 Context 的身份/版本/正文、持久状态及原遗忘决定，不用模型回答替代。不改生产代码、共享 fixture、旧断言、超时、重试、标签或门槛，不新增测试框架；如出现产品失败先报告实际调用链，不自行改语义。统筹统一安排一次同源构建和明确文件定向运行，合成 Home、零付费、不运行 Full；这只补组合工程证据，不结算真实模型理解或独立 OS 重启/本人体验。
 
 **本片实际结果（2026-11-05）。** 助理登记提示升为 base32/work3，共用工具 pack2.4.9；长期内容用途、关记忆时仅使用本人本轮材料，以及同一 canonical Context 的 `memory.id/scope` 说明已对齐。工具名、输入字段/结构、执行器和权限未变，仅相关说明及版本变化。角色和有关工具说明合计增加739个Unicode字符，只在实际带入请求时计费；这不是token计量，不宣称节省费用或模型选择效果改善。
 

@@ -442,6 +442,7 @@
     "feed.factory.list-refresh-failed-input-kept": "Could not refresh the list. Your input is preserved.",
     "feed.sources.pull-failed-reason": "Pull failed. {reason}",
     "feed.sources.source-added": "The source was added.",
-    "feed.sources.source-added-pull-schedule-wasn-t-saved": "The source was added. Its pull schedule wasn’t saved."
+    "feed.sources.source-added-pull-schedule-wasn-t-saved": "The source was added. Its pull schedule wasn’t saved.",
+    "feed.runs.source-title": "Feed sources"
   }
 }

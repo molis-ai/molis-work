@@ -2,7 +2,7 @@
 // replaced; `home rollback` puts back the stores the newer one upgraded and swaps the program back, or refuses and changes nothing.
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { chmodSync, mkdirSync, readdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { installTextForTest, parseLocalePack } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderUpdateSettings } from "@molis-ai/molis-work-app-workbench";
@@ -174,6 +174,23 @@ test("UPGR-04 a store that cannot be put back part-way leaves the program as it 
   assert.deepEqual([...result.restored].sort(), ["alpha/alpha.db", "beta/beta.db"]);
   assert.deepEqual(files.map(sha256), before);
   assert.equal(installation(home).version, "1.0.0");
+});
+
+test("UPGR-04 a hold that cannot be written leaves the point and the program as they were", async t => {
+  const { home } = await homeAfterUpdate(t);
+  // A directory where the hold must be written makes the atomic rename fail after the stores are back (none move here) and before the program.
+  mkdirSync(join(home, "config", "rollback-hold.json"));
+  const installed = readFileSync(join(home, "config", "installation.json"), "utf8"), bin = launcher(home);
+  await assert.rejects(rollbackHome(home));
+  assert.equal(readFileSync(join(home, "config", "installation.json"), "utf8"), installed, "no program swap without a hold");
+  assert.equal(launcher(home), bin, "the launchers still name the newer program");
+  assert.ok(present(join(home, "releases", "previous", "rollback.json")), "the point is still there to go back to");
+  assert.equal(readRollbackHold(home), undefined, "a directory is not a hold");
+  rmSync(join(home, "config", "rollback-hold.json"), { recursive: true, force: true });
+  const result = await rollbackHome(home);
+  assert.equal(result.version, "1.0.0");
+  assert.equal(installation(home).version, "1.0.0", "after the obstacle is gone, going back finishes");
+  assert.equal(readRollbackHold(home)?.held_version, "1.0.0");
 });
 
 test("UPGR-04 going back runs only offline: a running Host holds the Home and nothing moves", async t => {

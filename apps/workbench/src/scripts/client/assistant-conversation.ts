@@ -278,7 +278,7 @@ export const ASSISTANT_CONVERSATION_PART = String.raw`  /* ─── Showing a t
     proc.memory(node, round.memories_used, put);
     const status = keyed(node, "data-entry", "status", () => el("p", "assistant-round-status")), phase = round.phase;
     status.dataset.phase = phase; status.dataset.mwState = ({starting:'starting',running:'running',compacting:'running',failed:'failed',stopped:'stopped',cancelled:'cancelled',paused:'paused','reconcile-required':'verify',unknown:'verify'})[phase] || 'idle';
-    const ownStop = round.stop_reason && round.stop_reason !== "已停止" ? round.stop_reason : "";
+    const ownStop = round.stop_reason && round.stop_reason_code !== "person" ? round.stop_reason : "";
     const retry = (phase === "running" || phase === "starting") && round.retry_wait ? round.retry_wait : null; retries.mark(status, retry);
     setText(status, retry ? retries.line(status) : phase === "running" || phase === "starting" || phase === "compacting" ? globalThis.t.text("workbench.assistant-conversation.working")
       : phase === "failed" ? (round.stop_reason ? globalThis.t.text("workbench.assistant-conversation.did-not-finish-reason", { reason: round.stop_reason }) : globalThis.t.text("workbench.assistant-conversation.turn-did-not-finish"))

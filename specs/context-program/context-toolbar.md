@@ -176,7 +176,7 @@ interface ContextToolItem {
 
 「通用动作」= 在项目里查找（选中一个词）、记成待办、记下灵光、拆成目标步骤（选一段）、记录进展（选中清单项且知道所属 Goal）、助理。声明了对象的插件选中文字时都能得到，条件是插件已启用且有对应权限。
 
-对象怎么来，有三种：①页面自报焦点（`molis:surface-focus`，只有 Pages）；②外壳替它声明（今天只有 Goals：`tab-workspace.ts:265`、Feed：`navigation-surfaces.ts`（07-1 由 `navigation-feed.ts` 改名，`CLIENT_NAVIGATION_SURFACES_SCRIPT`），这是第 44 批（44-6、片 7）要删的私路，迁完后改为由插件在 Manifest 声明对象与焦点2026-11-13 按插件同等地位收口改，[决定 42](../post-anticorruption-roadmap/reference/decisions.md#decision-42)）；③工作台按搜索来源命名（打开为条目标签时，`context-actions.ts:102–133`；只有一个种类、一个插件认领的表面才命名，`apps/local-host/src/contextual/contextual-http.ts:212`）。其余插件在自己的根元素上写 `data-assistant-context`。
+对象怎么来，有三种：①页面自报焦点（`molis:surface-focus`，只有 Pages）；②外壳替它声明（今天只有 Goals：`tab-workspace.ts:265`、Feed：`navigation-surfaces.ts`（07-1 由 `navigation-feed.ts` 改名，`CLIENT_NAVIGATION_SURFACES_SCRIPT`），这是第 44 批（44-6、片 7）要删的私路，迁完后改为由插件在 Manifest 声明对象与焦点（2026-11-13 按插件同等地位收口改，[决定 42](../post-anticorruption-roadmap/reference/decisions.md#decision-42)）；③工作台按搜索来源命名（打开为条目标签时，`context-actions.ts:102–133`；只有一个种类、一个插件认领的表面才命名，`apps/local-host/src/contextual/contextual-http.ts:212`）。其余插件在自己的根元素上写 `data-assistant-context`。
 
 | 插件 | 对象声明 | 自己作为提供方的选区动作 | 选中文字现在得到 | 缺口 |
 | --- | --- | --- | --- | --- |

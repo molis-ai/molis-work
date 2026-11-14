@@ -51,7 +51,7 @@
 | --- | --- | --- |
 | P0-1 | 新建本文，记录审计结论、P0/P1/P2 与验收 | 本文存在并进入 `specs/README` 索引 |
 | P0-2 | 重写路线书顶部状态与当前入口；修 `specs/README` 的路线书摘要 | 两处都写明 01 已交单、02～27 多批已合入、最近合入与实时入口 |
-| P0-3 | 修 6 份已完成 daily-quality/feed spec 的状态与 README 摘要；无剩余项的归档 | spec 状态、README、归档块、链接一致；门禁通过 |
+| P0-3 | 修 5 份已完成 daily-quality spec 的状态与 README 摘要，Feed 有界读取因 #2045 保留；无剩余项的归档 | spec 状态、README、归档块、链接一致；门禁通过 |
 | P0-4 | 修 draft-and-return、work-brief、第 15 批三份 spec 和 `specs/README` 的进度摘要；feed-bounded-reads 因 #2045 补修保留在「在做的」 | 已合入写「已合入 main + PR/提交/日期」，部分实现写清剩余 |
 | P0-5 | 回填批次 15/22/27 的合入记录 | 三份批次文件有合入 PR、提交号与日期；未结算项写明去向 |
 | P0-6 | 修 `specs/README` 的三处硬事实错误 | unified-account、unified-input、sqlite 三处与 spec/PR 一致 |
@@ -66,7 +66,7 @@
 
 ## P1：BL 清账与事实来源对齐
 
-- `backlog-rows.mjs` 增加 `--index`（分组、计数、一行一条、筛选）；`BACKLOG.md` 头部显示总数。
+- 新增 `scripts/backlog-index.mjs`（`backlog-rows.mjs` 仍只做 `--report`）实现分组、计数、一行一条与筛选；`BACKLOG.md` 头部显示总数。
 - 解决 BL-1071 编号复用；BL-1071～1077 随 #2020 带入 main 或明确「只在 #2020 分支」；1076/1077 写墓碑。
 - 修 `BACKLOG.md` 的 Memory 暂停表述；清 BL-928、BL-376、第 27 批 24 个编号在现行文档里的失效引用；缺失编号已列 [墓碑速查](../../docs/backlog-removed.md)（2026-11-13 为 174 个）；11 条 `src/en.ts` 遗留 BL 已合并为 [BL-b16-server-text-residue](../backlog/BL-b16-server-text-residue.md)。
 - 类型归一（47 种取值/91 条非标准）并考虑加 type 门禁；门禁变更需用户批准。
@@ -84,7 +84,7 @@
 
 1. **DOC-01** [人工] 本文记录的审计结论、P0/P1/P2 范围与当前 main 的事实一致；`node scripts/gates/doc-links.mjs` 能找到本文入口。
 2. **DOC-02** [人工] `specs/post-anticorruption-roadmap/spec.md` 与 `specs/README.md` 的路线书摘要都写明 01 已交单、02～27 多批已合入、当前实时入口，不再出现「其余批次尚未启动/尚未启动产品实施」。
-3. **DOC-03** [人工] 6 份归档 spec 顶部有归档判定、依据、日期和剩余事项说明；`specs/README` 不再列它们；仓库内所有指向它们的链接改为 `specs/archive/...`。
+3. **DOC-03** [人工] 5 份归档 spec（Feed 有界读取保留在「在做的」）顶部有归档判定、依据、日期和剩余事项说明；`specs/README` 不再列它们；仓库内所有指向它们的链接改为 `specs/archive/...`。
 4. **DOC-04** [人工] `draft-and-return`、`work-brief`、`intelligent-surfaces`、`shared-sources-and-surfaces`、`surface-composition` 的状态与 `specs/README` 摘要都反映 #1952/#2017 的合入事实；`feed-bounded-reads` 保留在「在做的」，状态反映 #2026 已合入、 #2045 补修在评审；部分实现的剩余项写清去向。
 5. **DOC-05** [人工] `batches/15.md`、`batches/22.md`、`batches/27.md` 都有合入 PR、提交号、日期；27 批的 Full/验收余项仍指向 `BL-batch27-acceptance`。
 6. **DOC-06** [人工] `specs/README` 中 unified-account、unified-input-voice、sqlite-driver-switch 三处与各自 spec/PR 的提交和范围一致。

@@ -4,6 +4,18 @@
 
 ## [Unreleased]
 
+### 合后复查修复（2026-11-14）
+
+- **`/rich-text`**：`renderRichText`／`richPlainText` 从 Marked 换成 Micromark + GFM；SDK 的 peer dependencies 从 `marked` 换成 `micromark`、`micromark-extension-gfm`、`sanitize-html`。用这个子路径的插件要改自己的 `package.json`（见 `docs/system/CONTRACT-CHANGES.md` 第 8 节）。
+- **固定成果库资料**：`materials.read` 读固定版本时要求 `artifact:read`（插件的 `artifacts:read` 也算；快照仍只要 `workspace:read`）；本人与助理已有这项权限，只有 `workspace:read` 的插件 caller 会被拒绝。
+- **页面写入取消**：引导、审批、助理面板三组每个 POST 都带 response close 的取消信号；等模型的写入在 `beforeEffect` 前检查，页面关掉后不再把回答、卡片或归档留到无页面的地方。
+- **运行面板与胶囊**：Schedule/Feed 的「运行」来源标题改用各自插件的语言包；胶囊在窗口获得焦点时比较外观 revision，换肤后无需重启（真实 Tauri 仍待实操验）。
+- **停止原因**：运行视图与助理轮次新增可选 `stop_reason_code`（`person`／`host`），页面用它判断是否显示原因，不再比较「已停止」这句译文；`stop_reason` 仍是给人看的理由。
+- **回退**：`rollbackHome` 先写 hold 再动 stores/program；写 hold 失败什么都不动。
+- **研究/文档**：IUI-01/04/09/20 与 MEM-35 的验收证据补齐或标人工；`#2029` 墓碑补 shard 7／17／26 的证据；LSP 帧体上限 16 MiB。
+- **组件板设计语言一章补英文**：`workbench.catalog.language.*` 170 个键进中英词包，四个章节函数经 `say` 翻译；隔离构建的页面资源仍通过（无新资源、无单项 >10 KB）。
+- **运行正文身份核对**：新增 `tests/security-invariants-running-plugin-text.test.ts`，用 Host 的公开读取入口覆盖发行物签名、安装号、状态、插件、世代、版本、签名与 Manifest 摘要不一致时的拒绝。
+
 ### 首页公共能力与智能呈现第一片（2026-11-13，#2017）
 
 - **组合服务**：新增 `horizontal/surfaces` 的 `surfaces.compose@1`／`surfaces.correct@1`，按插件 Manifest 的呈现声明做确定组合；宿主只装配，SDK 只留作者与平台共用的声明/描述校验。不调模型，不按插件名分支。

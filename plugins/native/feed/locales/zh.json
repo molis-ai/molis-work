@@ -394,6 +394,7 @@
     "feed.factory.list-refresh-failed-input-kept": "列表更新失败，当前输入已保留。",
     "feed.sources.pull-failed-reason": "拉取失败。{reason}",
     "feed.sources.source-added": "来源已添加。",
-    "feed.sources.source-added-pull-schedule-wasn-t-saved": "来源已添加，拉取计划未保存。"
+    "feed.sources.source-added-pull-schedule-wasn-t-saved": "来源已添加，拉取计划未保存。",
+    "feed.runs.source-title": "Feed 来源"
   }
 }

@@ -76,6 +76,20 @@ test("S-page-entry-actions 3: a door's credential is good for its own actions, d
   assert.equal(ran.length, 1, "no refused call reached a handler");
 });
 
+test("S-page-entry-actions 4: a request that closed before its action runs reaches no handler", async () => {
+  const service = new ActionService(), ran: string[] = [];
+  const door = webEntryDoor<string>("test:closed", () => "closed only");
+  const schema = { type: "object", properties: {}, additionalProperties: false } as const;
+  const action = door.define({ capability_id: "test.door.closed", version: 1, title: "Closed", description: "Closed", scope: "home", input_schema: schema },
+    entry => { ran.push(entry); return {}; });
+  service.registerProvider(webEntryProvider("system.test-closed", "Closed", [action]));
+  const host = { homeActionClient: () => service, actionClient: () => service };
+  const closed = new AbortController(); closed.abort();
+  await assert.rejects(door.invoke({ host, request: { headers: {} }, entry: "closed", signal: closed.signal }, action.definition, {}),
+    error => error instanceof Error && error.name === "AbortError");
+  assert.deepEqual(ran, [], "a closed request is refused before its handler");
+});
+
 /** The smallest input the schema accepts, so a refusal is the door's and not the schema's. */
 function minimalInput(schema: unknown): unknown {
   const shape = schema as { properties?: Record<string, { type?: unknown; enum?: unknown[]; pattern?: string }>; required?: string[] };

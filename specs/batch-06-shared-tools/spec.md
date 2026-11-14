@@ -86,7 +86,8 @@ readonly artifact_join?: {
 | Pages | `pages` | `updated_at`, `goal_id` |
 | PPT | `presentations` | `updated_at` |
 
-四张表已是 `project_rows.tables` 的直接根表，项目列为 `project_id`。其余现有字段分别为 `id`（TEXT 主键）、`version`（INTEGER）、`artifact_id`、`artifact_version` 与 `publication_pending_json`。SDK 验证字段形状、标识符与直接根表，Host 核现行 schema 的键、列与类型。项目、主键、版本、成果引用和 pending 不进入插件可写列名单。根行读取与 CAS 的两个身份键使用精确二进制匹配，更新冲突时回滚。被更新的列不能是外键目标，避免隐式更新其他行。声明和物理库仍归各自插件 owner。
+四张表已是 `project_rows.tables` 的直接根表，项目列为 `project_id`。
+`artifact_join` 是这条规则的一处有意例外：表仍归各插件 owner，Host 只按 Manifest 声明的表、主键列与可写列生成 SQL，并在 row authorizer 下执行；`tooling/gates/table-owners.json` 看不到动态表名，这条由 Manifest 形状校验与 `boundArtifactRootRow` 的列检查兜底，不在门禁里重复登记。其余现有字段分别为 `id`（TEXT 主键）、`version`（INTEGER）、`artifact_id`、`artifact_version` 与 `publication_pending_json`。SDK 验证字段形状、标识符与直接根表，Host 核现行 schema 的键、列与类型。项目、主键、版本、成果引用和 pending 不进入插件可写列名单。根行读取与 CAS 的两个身份键使用精确二进制匹配，更新冲突时回滚。被更新的列不能是外键目标，避免隐式更新其他行。声明和物理库仍归各自插件 owner。
 
 1. `*.promote` 与 `*.artifacts.pin` 共用原 owner 固定入口。四个插件的这八个动作当前都是串行，均已声明本库读写和 `artifact:write`。采用时只将这八个动作改成 concurrent。新事务要求仍在运行的本项目、本安装与世代的 concurrent command。Host 直接等待 Runtime 捕获的 `scope.caller.beforeEffect()`，随后检查仍是同一调用。每次根行／成果操作以及 COMMIT 前再查原调用、取消、当前授权、安装世代和事务存活。插件只给对象 id 和同步闭包。
 2. `artifacts.join` 仍凭当前活着的 Host 句柄。普通 Home 事务交给 join 时拒绝。Host 持当前真实 Home 租约，从 Catalog 项目连接、登记的 Home 库、同一空间和文件身份导出固定别名。核本项目磁盘 `main`、两库模式与同步级别后开始同步事务。根行按可信 `project_id + id` 读，CAS 加 `expected_version`。SQLite native authorizer 约束附属 schema、表和列；所需原生常量由 Storage 的 SQLite 驱动提供，缺失即拒绝。原版复制触发器按精确 SQL 核验，限制到同附属库的根行读取、技术表和 owner 声明的版本追踪表。根行句柄、writer 和回调同步失效。项目内个人分区沿 Catalog 归属核对。公开 `v1 --db` 的 Goals 管理入口和插件开发入口保持现行调用。移动测试用真实 Catalog 项目。

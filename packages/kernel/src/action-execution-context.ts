@@ -142,6 +142,8 @@ export function prepareSubjectStateResult(execution: ActionExecutionContext, def
   const capture = prepareSubjectStateCapture(execution, definition, provider, input, ref => registry.descriptor(ref, execution.project_id), active);
   Object.assign(execution, { subject_state_capture: undefined, provideSubjectState: capture.provideSubjectState });
   return value => {
+    // Only the delivery is gated. A query that keeps its own receipt (memory.recall writes a use row inside its handler, under its own
+    // beforeEffect and final checks) has already committed it; this check refuses to hand the value over, it does not roll that row back.
     if (definition.operation === "query") assertCurrent();
     const result = validate(value);
     capture.accept(result);

@@ -354,7 +354,7 @@ const runViewOutput = { type: "object", required: ["ref", "phase", "frozen", "tu
   command_outputs: { type: "array", items: { type: "object", required: ["call_id", "run_id"], properties: { call_id: { type: "string" }, run_id: { type: "string" } } } },
   class_restrictions: shape(["policy_version", "taxonomy_version", "personal", "project"], { policy_version: { const: CLASS_POLICY_VERSION }, taxonomy_version: { const: CLASS_TAXONOMY_VERSION },
     personal: memoryClassRestrictionsSchema, project: memoryClassRestrictionsSchema }), memory_scene: { enum: ["coding", "assistant", "common"] },
-  usage: usageOutput, awaiting_input: list(questionOutput), stop_reason: { type: "string" }, original_input: object,
+  usage: usageOutput, awaiting_input: list(questionOutput), stop_reason: { type: "string" }, stop_reason_code: { enum: ["person", "host"] }, original_input: object,
   memory_recalled: shape(["method", "omitted", "unavailable"], { method: { enum: ["pinned", "recall"] }, omitted: list(memoryRef), unavailable: strings }),
   todo: list(shape(["id", "text", "state"], { id: string, text: string, state: { enum: ["pending", "in-progress", "done", "abandoned"] } })),
   turn_changes: list(shape(["turn", "sequence", "at", "files"], { turn: number, sequence: number, at: { type: ["string", "null"] },

@@ -218,6 +218,12 @@ function materialsReader({ projectId, ports, cursors, folders, read }: Materials
 
   async function readRef(caller: ActionExecutionContext, ref: MaterialRef, withText: boolean, cursor?: string): Promise<MaterialsReadResult> {
     const title = (path: readonly string[]) => path.at(-1) ?? "资料";
+    // A fixed version is the 成果库's: the source owner checks its own permission, as every other reader of it does. snapshots are this
+    // service's own process items, so the action's workspace:read is the whole gate for them.
+    const artifactRead = caller.permissions.includes("artifact:read") || caller.permissions.includes("artifacts:read");
+    if (ref.pin.mode === "fixed" && !artifactRead) {
+      throw new ActionError("actions.forbidden", "读取成果库固定的资料需要 artifact:read（插件的 artifacts:read 也算）");
+    }
     if (ref.pin.mode === "snapshot" || ref.pin.mode === "fixed") {
       const system = ref.pin.mode === "snapshot", store = system ? ports.processItems : ports.artifacts;
       const { record, content, selection } = pinnedOf(caller, store.query.getArtifactVersion(projectId, ref.pin.version), ref.subject.id, system);

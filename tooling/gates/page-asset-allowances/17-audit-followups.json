@@ -1,9 +1,9 @@
 {
-  "reason": "第 17 批合后独立审计整改（PR #2075）：相对 main fdfaa0ee 的追加。risk.js +2,909（46,453→49,362；关联对象精确筛选、复查授权按 risk 组、侧栏展开/文案与暂停态）；workbench.js +509（侧栏帧的展开/去开授权通道）；plugin-frame.js +1（同批侧栏打开）。原来的 17-risk-plugin.json 是已采用许可，本次不改；没有新资源，三项都小于 10 KB。首屏冷启动追加：arrival-empty/chooser 各语言 +1，workbench-default/all-plugins 各语言 +510（workbench 的 509 加 plugin-frame 的 1）。",
+  "reason": "第 17 批合后独立审计整改（PR #2075）：相对 main fdfaa0ee 的追加。risk.js +2,909（46,453→49,362；关联对象精确筛选、复查授权按 risk 组、侧栏展开/文案与暂停态）；workbench.js +507（侧栏帧的展开/去开授权通道；相对 aad812）；plugin-frame.js +1（同批侧栏打开）。原来的 17-risk-plugin.json 是已采用许可，本次不改；没有新资源，三项都小于 10 KB。首屏冷启动追加：arrival-empty/chooser 各语言 +1，workbench-default/all-plugins 各语言 +508（workbench 的 507 加 plugin-frame 的 1）。",
   "review": "合后独立审计整改的代码逻辑复核与 risk-page.e2e 三宽度展开断言（PR #2075）。",
   "assets": {
     "/assets/molis-work-plugins/risk.js": 2909,
-    "/assets/molis-work-workbench.js": 509,
+    "/assets/molis-work-workbench.js": 507,
     "/assets/molis-work-plugin-frame.js": 1
   },
   "pages": {
@@ -24,19 +24,19 @@
       "warm": 0
     },
     "workbench-default/zh": {
-      "cold": 510,
+      "cold": 508,
       "warm": 0
     },
     "workbench-default/en": {
-      "cold": 510,
+      "cold": 508,
       "warm": 0
     },
     "workbench-all-plugins/zh": {
-      "cold": 510,
+      "cold": 508,
       "warm": 0
     },
     "workbench-all-plugins/en": {
-      "cold": 510,
+      "cold": 508,
       "warm": 0
     }
   }

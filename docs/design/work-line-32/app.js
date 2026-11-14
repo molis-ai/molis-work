@@ -3,7 +3,7 @@
 (() => {
   document.getElementById("icons").innerHTML = window.mwKitSprite;
   const KEY = "molis-proto.work-line-32.v1";
-  const fresh = () => ({ scheme: "A", lang: "zh", theme: "light", fault: "none", step: 0, side: null, focus: null, task: null, panel: false,
+  const fresh = () => ({ scheme: "E", dlg: false, tabs: [], lang: "zh", theme: "light", fault: "none", step: 0, side: null, focus: null, task: null, panel: false,
     to: "assistant", dest: {}, by: {}, decided: null, accepted: false, online: false, stopped: {}, checks: {}, retried: false });
   let S = load(), menu = null, beat = 2, beatT = null, toastT = null, seen = new Set(), firstDraw = true;
   function load() { try { return { ...fresh(), ...JSON.parse(localStorage.getItem(KEY) || "{}") }; } catch { return fresh(); } }
@@ -108,7 +108,7 @@
     const st = e.state === "queued" ? "running" : e.state ?? "", live = e.tasks.filter((k) => k.state !== "done");
     let tk = "";
     if (live.length) {
-      if (S.scheme === "A" || S.scheme === "D") tk = `<span class="tk">${ring(RING[live[0].state])}${live.length > 1 ? live.length : ""}</span>`;
+      if (S.scheme === "A" || S.scheme === "D" || S.scheme === "E") tk = `<span class="tk">${ring(RING[live[0].state])}${live.length > 1 ? live.length : ""}</span>`;
       else if (S.scheme === "B") tk = `<span class="tk">${live.map((k) => `<i class="${k.state === "wait" ? "y" : k.state === "queued" ? "q" : ""}"></i>`).join("")}</span>`;
       else tk = `<span class="tk">${ring(RING[live[0].state])}${tx([`${live.length} 项`, `${live.length}`])}</span>`;
     } else if (e.state === "done") tk = `<span class="tk">${ring("done")}</span>`;
@@ -123,7 +123,7 @@
     return `<div class="wl-track"><div class="wl-wing past">${head}<div class="wl-run">${issue}${past.map(evHtml).join("")}${act.map(evHtml).join("")}</div></div>
       <span class="wl-now">${tx(["现在", "Now"])}</span>
       <div class="wl-wing next"><div class="wl-run">${next.map(evHtml).join("")}</div><span class="wl-wlabel">${tx(["接下来", "Next"])}</span></div></div>
-      <div class="wl-slot">${stackHtml()}${capHtml()}</div>`;
+      <div class="wl-slot${S.scheme === "E" ? " bar-center" : ""}">${S.scheme === "E" && S.dlg ? dialogHtml() + floatHtml() : ""}${stackHtml()}${capHtml()}</div>`;
   }
   function capHtml() {
     const joined = S.scheme === "A" && panelShown() && !S.focus && !S.task;
@@ -137,7 +137,7 @@
   const panelShown = () => tasks().length > 0;
   // 方案 D：助理对话框右上角的图标，点开后任务浮窗贴在对话框右边；工作面不让位
   let hdExtra = "";
-  const floatMode = () => (S.scheme !== "D" ? null : S.task ? "task" : S.panel ? "list" : null);
+  const floatMode = () => (S.scheme !== "D" && S.scheme !== "E" ? null : S.task ? "task" : S.panel ? "list" : null);
   function tasksIcon() {
     const live = tasks().filter((k) => k.state !== "done"), you = live.filter((k) => k.state === "wait").length;
     const lead = live.find((k) => k.state === "wait") ?? live.find((k) => k.state === "failed") ?? live[0];
@@ -145,9 +145,10 @@
   }
   function floatHtml() {
     const mode = floatMode(); if (!mode) return "";
-    if (mode === "task") return `<div class="wl-tfloat">${cardHtml(false, "task")}</div>`;
+    const cls = `wl-tfloat${S.scheme === "E" && S.dlg ? " dlg" : ""}`;
+    if (mode === "task") return `<div class="${cls}">${cardHtml(false, "task")}</div>`;
     const ts = tasks(), live = ts.filter((k) => k.state !== "done"), done = ts.filter((k) => k.state === "done");
-    return `<div class="wl-tfloat"><article class="wl-card" role="dialog" aria-label="${tx(["后台任务", "Background tasks"])}"><header class="ch">${ic("activity")}<span class="tt">${tx(["后台任务", "Background tasks"])}</span><span class="wl-pline" style="width:auto;height:auto;padding:0;pointer-events:none">${ts.length ? countsHtml(ts) : ""}</span>${iconBtn("x", "fclose", tx(["关闭", "Close"]))}</header>
+    return `<div class="${cls}"><article class="wl-card" role="dialog" aria-label="${tx(["后台任务", "Background tasks"])}"><header class="ch">${ic("activity")}<span class="tt">${tx(["后台任务", "Background tasks"])}</span><span class="wl-pline" style="width:auto;height:auto;padding:0;pointer-events:none">${ts.length ? countsHtml(ts) : ""}</span>${iconBtn("x", "fclose", tx(["关闭", "Close"]))}</header>
       <div class="cb" style="padding:6px;gap:0">${ts.length ? live.map((k) => rowHtml(k)).join("") + (done.length ? `<div class="wl-lh">${tx(["刚交回的", "Just handed back"])}</div>${done.map((k) => rowHtml(k)).join("")}` : "") : `<div class="wl-empty">${tx(["没有在办的任务。能放到后台办的，说完就会出现在这里。", "Nothing running. Work that can go to the background shows up here."])}</div>`}</div>${bannerHtml()}</article></div>`;
   }
   function rowHtml(k, inCard = false) {
@@ -175,16 +176,46 @@
     const say = SAY[S.step], who = say.from ? tasks().find((k) => k.id === say.from)?.by ?? "assistant" : S.by[say.task] ?? "assistant";
     const k = say.task ? tasks().find((x) => x.id === say.task) : null;
     const text = S.step === 5 && S.fault === "fail" ? say.fail : say.a;
-    const hd = `<div class="hd">${who === "assistant" ? `<span class="who ai">AI</span>` : `<span class="who hu">${esc(peerName(who).slice(0, 1))}</span>`}<span>${esc(peerName(who))}</span>${say.from ? `<span class="wl-from">${ic("refresh", "sm")}${tx(["任务交回：", "Returned: "])}${esc(tx(tasks().find((x) => x.id === say.from).title))}</span>` : ""}<span class="grow"></span>${hdExtra}${iconBtn("message", "side", tx(["看全部对话", "Whole conversation"]), "chat")}</div>`;
+    const hd = `<div class="hd">${who === "assistant" ? `<span class="who ai">AI</span>` : `<span class="who hu">${esc(peerName(who).slice(0, 1))}</span>`}<span>${esc(peerName(who))}</span>${say.from ? `<span class="wl-from">${ic("refresh", "sm")}${tx(["任务交回：", "Returned: "])}${esc(tx(tasks().find((x) => x.id === say.from).title))}</span>` : ""}<span class="grow"></span>${hdExtra}${S.scheme === "E" ? iconBtn("chevron-up", "dlg", tx(["展开对话", "Open the conversation"])) : iconBtn("message", "side", tx(["看全部对话", "Whole conversation"]), "chat")}</div>`;
     if (beat === 0) return `<div class="wl-reply" role="status">${hd}<span class="wl-dots"><i></i><i></i><i></i></span></div>`;
     const dest = k && beat >= 2 ? `<div class="wl-dest">${ic(k.dest.kind === "none" ? "list" : "pin", "sm")}<span>${tx(["放到：", "Placed: "])}</span><b>${esc(destLabel(k.dest))}${k.dest.kind === "new" ? " · " + esc(q(tx(k.title))) : ""}</b><span class="grow"></span>${btn(tx(["改", "Change"]), "menu", { id: "dest:" + k.id })}</div>` : "";
     const auto = say.auto ? `<div class="wl-auto">${ic("zap", "sm")}${tx(["在你交办的范围内自己接着做了 · 第 1 次，最多 3 次", "Carried on within your request · 1 of 3 automatic rounds"])}</div>` : "";
     const act = S.step === 5 && S.fault !== "fail" && !S.decided ? `<div class="cf">${btn(tx(["去定", "Decide"]), "focus", { v: "primary", id: "ev_k1" })}</div>` : "";
     return `<div class="wl-reply" role="status">${hd}<p>${esc(tx(text))}</p>${dest}${auto}${act}</div>`;
   }
+  // 方案 E（整体版）：展开时就是产品里的助理对话框（同一套面板、标签、消息的类名与样式），任务图标在它右上角
+  function roundHtml(i) {
+    const say = SAY[i], latest = i === S.step, k = say.task ? tasks().find((x) => x.id === say.task) : null;
+    const text = i === 5 && S.fault === "fail" ? say.fail : say.a;
+    const from = say.from ? `<span class="wl-from">${ic("refresh", "sm")}${tx(["任务交回：", "Returned: "])}${esc(tx(tasks().find((x) => x.id === say.from).title))}</span>` : "";
+    const dest = k && (!latest || beat >= 2) ? `<div class="wl-dest">${ic(k.dest.kind === "none" ? "list" : "pin", "sm")}<span>${tx(["放到：", "Placed: "])}</span><b>${esc(destLabel(k.dest))}${k.dest.kind === "new" ? " · " + esc(q(tx(k.title))) : ""}</b><span class="grow"></span>${btn(tx(["改", "Change"]), "menu", { id: "dest:" + k.id })}</div>` : "";
+    const auto = say.auto ? `<div class="wl-auto">${ic("zap", "sm")}${tx(["在你交办的范围内自己接着做了 · 第 1 次，最多 3 次", "Carried on within your request · 1 of 3 automatic rounds"])}</div>` : "";
+    const act = i === 5 && latest && S.fault !== "fail" && !S.decided ? `<div class="cf">${btn(tx(["去定", "Decide"]), "focus", { v: "primary", id: "ev_k1" })}</div>` : "";
+    const body = latest && beat === 0 ? `<span class="wl-dots"><i></i><i></i><i></i></span>` : `${from}<p>${esc(tx(text))}</p>${dest}${auto}${act}`;
+    return `<div class="assistant-round">${say.u ? `<div class="assistant-msg assistant-msg--user">${esc(tx(say.u))}</div>` : ""}<div class="assistant-msg assistant-msg--assistant wl-amsg">${body}</div></div>`;
+  }
+  function dialogHtml() {
+    const evs = events(), cur = S.focus ? evs.find((e) => e.id === S.focus) : null;
+    const tab = (id, label, icon, on, closable) => `<div class="assistant-tab"${on ? " data-current" : ""}><button type="button" class="assistant-tab-main" role="tab" aria-selected="${on}" data-act="tab" data-id="${id}">${icon}<span class="assistant-tab-title">${esc(label)}</span></button>${closable ? `<button type="button" class="assistant-tab-close" data-act="tabclose" data-id="${id}" aria-label="${tx(["关闭", "Close"])}">${ic("x", "sm")}</button>` : ""}</div>`;
+    const tabs = tab("main", peerName(S.to), S.to === "assistant" ? ic("sparkles", "sm") : `<span class="who hu">${esc(peerName(S.to).slice(0, 1))}</span>`, !cur, false)
+      + S.tabs.map((id) => { const e = evs.find((x) => x.id === id); return e ? tab(id, tx(e.title), own(e.src), S.focus === id, true) : ""; }).join("");
+    const rounds = [];
+    for (let i = 1; i <= S.step; i++) { const k = SAY[i].task || SAY[i].from; if (cur && !(cur.made === k || cur.tasks.some((x) => x.id === k))) continue; rounds.push(roundHtml(i)); }
+    const head = cur ? `<div class="wl-evcard"><div class="fact">${esc(tx(SRC[cur.src].n))}${cur.sum ? " · " + esc(tx(cur.sum)) : ""}</div>${cardInner("focus").body}</div>` : "";
+    const empty = !rounds.length && !cur ? `<div class="assistant-empty"><strong>${tx(["个人工作助理", "Your work assistant"])}</strong><p>${tx(["说要办的事。能放到后台办的，我接下来就去办，办完回到这里。", "Say what needs doing. What can run in the background, I take away and bring back here."])}</p></div>` : "";
+    return `<section class="assistant-panel" data-side="closed" aria-label="${esc(peerName(S.to))}"><header class="assistant-tabbar"><div class="assistant-tabs" role="tablist">${tabs}</div><span class="assistant-tabbar-actions">${tasksIcon()}<button type="button" class="dock-window-action" data-act="dlg" aria-label="${tx(["收起", "Minimise"])}" title="${tx(["收起", "Minimise"])}">${ic("chevron-down")}</button></span></header>
+      <div class="assistant-body"><div class="assistant-main"><div class="assistant-thread" role="log">${head}${rounds.join("")}${empty}</div></div></div></section>`;
+  }
   function stackHtml() {
     const card = S.scheme === "A" ? cardHtml() : S.scheme === "B" && S.task ? cardHtml() : "";
     if (S.scheme === "A") return `<div class="wl-stack">${card}${replyHtml()}${panelHtml(!card)}</div>`;
+    if (S.scheme === "E") {
+      if (S.dlg) return "";
+      hdExtra = tasksIcon();
+      const peek = replyHtml() || (tasks().length ? `<div class="wl-reply"><div class="hd"><span class="who ai">AI</span><span>${esc(peerName(S.to))}</span><span class="grow"></span>${hdExtra}${iconBtn("chevron-up", "dlg", tx(["展开对话", "Open the conversation"]))}</div></div>` : "");
+      hdExtra = "";
+      return `<div class="wl-stack">${peek}${floatHtml()}</div>`;
+    }
     if (S.scheme === "D") {
       hdExtra = tasksIcon();
       const dialog = S.focus && S.side !== "card" ? cardHtml(false, "focus") : replyHtml() || (tasks().length ? `<div class="wl-reply"><div class="hd"><span class="who ai">AI</span><span>${esc(peerName(S.to))}</span><span class="grow"></span>${hdExtra}</div></div>` : "");
@@ -261,13 +292,14 @@
   }
   function topHtml() {
     const pins = [["goals", "target", "Goals"], ["pages", "note", "Pages"], ["todo", "check", tx(SRC.todo.n)], ["coding", "code", "Coding"], ["feed", "rss", "Feed"], ["inbox", "inbox", "Inbox"]];
-    const named = S.scheme === "B" || S.scheme === "D";
+    const named = S.scheme === "B" || S.scheme === "D" || S.scheme === "E";
     return `<div class="wl-pins" role="toolbar" aria-label="${tx(["固定的插件", "Pinned plugins"])}">${pins.map(([k, i, n]) => `<button type="button" class="wl-pin${named && k === "pages" ? " named" : ""}" data-act="sim" data-label="${n}" aria-current="${k === "pages"}" aria-label="${n}" title="${n}">${ic(i)}${named && k === "pages" ? `<span>${n}</span>` : ""}</button>`).join("")}</div>
       <span class="sepv"></span><div class="tabs" role="tablist">${[["定价页", "Pricing page"], ["发布说明", "Release notes"], ["用户访谈", "User interviews"]].map((n, i) => `<button type="button" class="tab" role="tab" aria-selected="${i === 0}" data-act="sim" data-label="${tx(n)}">${ic("note", "sm")}<span>${tx(n)}</span><span class="x">${ic("x", "sm")}</span></button>`).join("")}</div>
       <button type="button" class="more" data-act="sim" data-label="${tx(["其余 3 个标签", "3 more tabs"])}">+3</button>
       <div class="tools">${iconBtn("sidebar", "side", tx(["侧边", "Side panel"]), S.side || cardInSide() ? "" : "chat")}<span class="mono">Y</span></div>`;
   }
   function render(keep = true) {
+    document.body.classList.toggle("immersive-workbench", S.scheme === "E");
     const d = document.documentElement; d.lang = zh() ? "zh-CN" : "en"; d.dataset.theme = S.theme; d.dataset.resolvedTheme = S.theme;
     const P = { protoTitle: ["定样 · 模拟数据", "Specimen · sample data"], scheme: ["方案", "Option"], step: ["剧本", "Script"], prev: ["上一步", "Back"], next: ["下一步", "Next"], fault: ["情况", "Situation"], lang: ["语言", "Language"], theme: ["外观", "Theme"], light: ["浅", "Light"], dark: ["深", "Dark"], reset: ["重置", "Reset"] };
     for (const el of document.querySelectorAll("[data-t]")) el.textContent = tx(P[el.dataset.t]);
@@ -280,6 +312,7 @@
     if (S.scheme === "C" && (S.focus || S.task)) S.side = "card";
     const scroll = document.querySelector(".wl-plist")?.scrollTop ?? 0;
     const trackAt = document.querySelector(".wl-track")?.scrollLeft ?? 0;
+    const hadDlg = !!document.querySelector(".assistant-panel"), hadFloat = !!document.querySelector(".wl-tfloat"), hadPeek = !!document.querySelector(".wl-stack .wl-reply");
     document.getElementById("app").innerHTML = `<header class="wl-top">${topHtml()}</header>
       <div class="wl-stage"><div class="wl-main"><section class="pane"><div class="wl-doc"><h1>${tx(["定价页", "Pricing page"])}</h1><p class="fact">Pages · ${tx(["网站改版 v2", "Website v2"])}</p>${"<div class='ln'></div><div class='ln'></div><div class='ln s'></div>".repeat(4)}</div></section>${dock}</div>${sideHtml()}</div>
       <footer class="wl-line" aria-label="${tx(["事项线", "Work line"])}">${lineHtml()}</footer>`;
@@ -288,8 +321,16 @@
     // 让位只算常驻的部分（后台任务面板）；回应与卡是浮在工作面上的，不推版面。
     const stay = S.scheme === "C" ? stack : document.querySelector(".wl-stack .wl-panel, .wl-stack .wl-chips");
     stage.style.setProperty("--yield", `${stay && stay.offsetHeight ? stay.offsetHeight + 8 : 0}px`);
-    const tf = document.querySelector(".wl-tfloat"); // 右边放不下时，浮窗叠到对话框上面
-    if (tf && stack) tf.classList.toggle("over", innerWidth - stack.getBoundingClientRect().right < 330);
+    const tf = document.querySelector(".wl-tfloat"), host = document.querySelector(".assistant-panel") ?? stack; // 右边放不下时，浮窗叠到对话框上
+    if (tf && host) tf.classList.toggle("over", innerWidth - host.getBoundingClientRect().right < 350);
+    if (tf && tf.classList.contains("dlg") && !tf.classList.contains("over")) { // 浮窗的上沿对齐对话框的上沿，紧挨着右上角的图标
+      const slot = document.querySelector(".wl-slot"); tf.style.bottom = `${slot.offsetHeight + 8 + host.offsetHeight - tf.offsetHeight}px`;
+    }
+    const th = document.querySelector(".assistant-thread"); if (th) th.scrollTop = th.scrollHeight;
+    // 已经开着的面板、浮窗、回应框重画时不再重放进场动效
+    if (hadDlg) document.querySelector(".assistant-panel")?.classList.add("wl-still");
+    if (hadFloat) tf?.querySelector(".wl-card")?.classList.add("wl-still");
+    if (hadPeek && keep) document.querySelector(".wl-stack .wl-reply")?.classList.add("wl-still");
     const pastRun = document.querySelector(".wl-wing.past .wl-run"); if (pastRun) pastRun.scrollLeft = pastRun.scrollWidth;
     if (matchMedia("(max-width:760px)").matches) {
       const track = document.querySelector(".wl-track"), now = document.querySelector(".wl-now");
@@ -307,7 +348,7 @@
       if (S.step === 6 && !S.decided && S.fault !== "fail") S.decided = "contact";
       if (S.step === 6 && S.fault === "fail") S.retried = true;
     }
-    S.focus = null; S.task = null; if (S.side === "card") S.side = null;
+    S.focus = null; if (S.scheme !== "E") S.task = null; if (S.side === "card") S.side = null;
     clearTimeout(beatT);
     if (!animate || n === 0) { beat = 2; return render(); }
     beat = SAY[n].from ? 1 : 0; render();
@@ -348,13 +389,17 @@
     switch (act) {
       case "menu": return openMenu(b, id);
       case "send": if (S.step < 3) return goStep(S.step + 1); return toast(tx(["（原型只演示剧本里的三句；后面用「下一步」）", "(The prototype plays three scripted lines; use Next after that)"]));
-      case "focus": if (S.scheme !== "D") S.task = null; S.focus = S.focus === id ? null : id; if ((S.scheme === "A" || S.scheme === "D") && S.side === "card") S.side = null; return render();
-      case "task": S.task = S.task === id ? null : id; if (S.scheme === "C") S.side = "card"; if (S.scheme === "D") S.panel = true; return render();
+      case "focus": if (S.scheme === "E") { S.focus = id; S.dlg = true; if (!S.tabs.includes(id)) S.tabs.push(id); return render(); }
+        if (S.scheme !== "D") S.task = null; S.focus = S.focus === id ? null : id; if ((S.scheme === "A" || S.scheme === "D") && S.side === "card") S.side = null; return render();
+      case "task": S.task = S.task === id ? null : id; if (S.scheme === "C") S.side = "card"; if (S.scheme === "D" || S.scheme === "E") S.panel = true; return render();
       case "close": S.focus = null; if (S.scheme !== "D") S.task = null; if (S.side === "card") S.side = null; return render();
       case "park": S.side = "card"; return render();
       case "side": if (!id) { S.side = null; S.focus = S.scheme === "C" ? null : S.focus; if (S.scheme === "C") S.task = null; } else S.side = id; if (id && id !== "card" && S.scheme === "C") { S.focus = null; S.task = null; } return render();
-      case "panel": if (S.scheme === "D") { const was = !!floatMode(); S.task = null; S.panel = !was; return render(); } S.panel = !S.panel; S.focus = null; S.task = null; return render();
+      case "panel": if (S.scheme === "D" || S.scheme === "E") { const was = !!floatMode(); S.task = null; S.panel = !was; return render(); } S.panel = !S.panel; S.focus = null; S.task = null; return render();
       case "tolist": S.task = null; S.panel = true; return render();
+      case "dlg": S.dlg = !S.dlg; return render();
+      case "tab": S.focus = id === "main" ? null : id; return render();
+      case "tabclose": S.tabs = S.tabs.filter((x) => x !== id); if (S.focus === id) S.focus = null; return render();
       case "fclose": S.task = null; S.panel = false; return render();
       case "to": S.to = b.dataset.v; return render();
       case "place": { const v = b.dataset.v; S.dest[id] = v === "new" ? { kind: "new" } : v === "none" ? { kind: "none" } : { kind: "event", id: v.split(":")[1] }; if (S.focus === "ev_" + id && v !== "new") S.focus = null; render(); return toast(tx(["已改：", "Changed: "]) + destLabel(S.dest[id])); }
@@ -369,7 +414,7 @@
     }
   });
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") { if (document.querySelector(".wl-menu")) { document.querySelector(".wl-menu").remove(); menu = null; } else if (floatMode()) { S.task = null; S.panel = false; render(); } else if (S.focus || S.task) { S.focus = null; S.task = null; if (S.side === "card") S.side = null; render(); } else if (S.panel) { S.panel = false; render(); } }
+    if (e.key === "Escape") { if (document.querySelector(".wl-menu")) { document.querySelector(".wl-menu").remove(); menu = null; } else if (floatMode()) { S.task = null; S.panel = false; render(); } else if (S.scheme === "E" && S.dlg) { S.dlg = false; render(); } else if (S.focus || S.task) { S.focus = null; S.task = null; if (S.side === "card") S.side = null; render(); } else if (S.panel) { S.panel = false; render(); } }
     if (e.key === "Enter" && !e.shiftKey && e.target.id === "msg" && !e.isComposing) { e.preventDefault(); document.querySelector('[data-act="send"]').click(); }
     if ((e.key === "ArrowLeft" || e.key === "ArrowRight") && e.target.classList?.contains("wl-ev")) { const all = [...document.querySelectorAll(".wl-ev")], i = all.indexOf(e.target) + (e.key === "ArrowLeft" ? -1 : 1); all[i]?.focus(); }
   });

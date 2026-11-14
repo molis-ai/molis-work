@@ -1,7 +1,7 @@
 /*
  * Work Brief 原型的版式。控件、卡片、提示、状态都是组件板的 mw-*（dist/board.css），这里只排位置。
  * 只用组件板的令牌：--paper / --surface-soft / --line / --ink / --ink-soft / --muted / --accent / --accent-soft / --hue-* / --r-* / --lift-* / --dur-* / --ease-*。
- * 标「组件板新增」的三处（插件色标、提示里的按钮、句后角标）在 README 里写了理由，交 D 轨补标本。
+ * 2026-11-14 按现行设计语言对过（DESIGN.md → Pairing、Zones、Motion）：组件板新增只剩句后角标一处。
  */
 .wb-frame { min-width: 0; }
 .wb-sec .mw-items { width: 100%; grid-template-columns: minmax(0, 1fr); }
@@ -16,27 +16,22 @@
 .wb-pulse { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px 20px; }
 .wb-pulse li { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
 .wb-plug { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink); white-space: nowrap; }
-.wb-plug svg { width: 16px; height: 16px; flex: none; }
 
-/* 组件板新增 · 插件色标：Item Row 的 mw-mark / 插件名前的图标，用组件板的 --hue-* 着色 */
-[data-hue="blue"] { --wb-hue: var(--hue-blue); }
-[data-hue="green"] { --wb-hue: var(--hue-green); }
-[data-hue="mint"] { --wb-hue: var(--hue-mint); }
-[data-hue="cyan"] { --wb-hue: var(--hue-cyan); }
-[data-hue="orange"] { --wb-hue: var(--hue-orange); }
-[data-hue="yellow"] { --wb-hue: var(--hue-yellow); }
-.mw-mark[data-hue], .wb-plug[data-hue] > svg { color: var(--wb-hue); }
+/* 事实的主人领头：呈现形态里的主人色块（平台从冷色里分配，DESIGN.md → Plugin identity），不是新部件 */
+.wb-owner { display: inline-flex; flex: none; font-size: 14px; }
+.wb-owner .mw-presentation__owner { inline-size: 1.6em; block-size: 1.6em; }
 
 /* 现在怎么样：助理写的句子，句后角标 */
 .wb-claims { margin: 0; padding: 0 0 0 20px; display: grid; gap: 12px; }
-.wb-claims > li { padding-left: 4px; position: relative; }
+.wb-claims > li { padding-left: 4px; position: relative; border-radius: var(--r-control); }
 /* 句后角标的弹出层挂在整句下面，窄屏也不出界 */
 .wb-claims .wb-anchor { position: static; }
 .wb-claims > li::marker { color: var(--muted); font-size: 12px; }
 .wb-claim__text { max-width: 60ch; font-size: 14px; line-height: 1.65; color: var(--ink); }
 .wb-claim__text .mw-badge { margin-inline-end: 6px; vertical-align: 1px; }
 .wb-claim > .mw-alert, .wb-claim > .wb-now { margin-top: 8px; }
-.wb-now { margin: 0; font-size: 13px; line-height: 1.6; color: var(--ink-soft); padding-left: 10px; box-shadow: inset 2px 0 0 var(--accent); }
+.wb-now { margin: 0; font-size: 13px; line-height: 1.6; color: var(--ink-soft); padding: 8px 12px; border-radius: var(--r-control); background: var(--surface-soft); max-width: 60ch; }
+.wb-thennow { display: flex; }
 .wb-basis { margin: 4px 0 0; display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
 .wb-basis svg { width: 14px; height: 14px; flex: none; }
 
@@ -46,17 +41,12 @@
 .wb-fn:hover, .wb-fn[aria-expanded="true"] { background: color-mix(in srgb, var(--accent) 22%, transparent); }
 .wb-fn[data-stale] { background: var(--surface-soft); color: var(--muted); box-shadow: inset 0 0 0 1px var(--line-strong); }
 .wb-fn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.wb-pop { position: absolute; z-index: 30; top: calc(100% + 6px); left: 0; width: max-content; max-width: min(340px, calc(100vw - 32px)); animation: wb-arrive var(--dur-move) var(--ease-quint); }
+.wb-pop { position: absolute; z-index: 30; top: calc(100% + 6px); left: 0; width: max-content; max-width: min(340px, calc(100vw - 32px)); transform-origin: top left; animation: craft-drop var(--dur-move) var(--ease-quint); }
 .wb-pop--end { left: auto; right: 0; max-width: min(420px, calc(100vw - 32px)); }
 .wb-pop .mw-preview-card { box-shadow: none; padding: 0; background: none; }
 .wb-pop-foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .wb-pop-foot > .mw-btn { margin-inline-start: auto; }
 .wb-pop-note { margin: 0; max-width: 280px; font-size: 12px; color: var(--muted); }
-@keyframes wb-arrive { from { opacity: 0; transform: translateY(4px); } }
-
-/* 组件板新增 · 提示里的恢复按钮 */
-.wb-alert-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
-.mw-alert > p + .wb-alert-actions { margin-top: 0; }
 
 /* 冲突：两张 Preview Card 并排 */
 .wb-conflict { display: grid; gap: 10px; padding: 14px; border-radius: var(--r-card); background: var(--surface-soft); box-shadow: inset 0 0 0 1px var(--line); }
@@ -77,4 +67,7 @@
   .wb-conflict__pair { grid-template-columns: 1fr; }
   .wb-head-actions { justify-content: flex-start; }
   .wb-frame .mw-frame__header, .wb-frame .mw-frame__panel { padding-inline: 16px; }
+  /* 窄屏：标题一行，版本与刷新换到下一行，不把标题挤成竖排 */
+  .wb-frame .mw-frame__header { flex-wrap: wrap; }
+  .wb-frame .mw-frame__header > :first-child { flex: 1 1 100%; }
 }

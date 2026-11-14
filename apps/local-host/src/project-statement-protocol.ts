@@ -1,4 +1,4 @@
-import type { ActionErrorKind } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionErrorKind } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HomePluginDatabaseDeclaration, PluginDatabaseVersionSwitch, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginProjectDatabaseRecord } from "@molis-ai/molis-work-plugin-runtime";
 import type { InstalledLibraryOwner } from "./installed-plugin-libraries.js";
@@ -23,7 +23,7 @@ export interface StatementCommitPermit { readonly commit_permit: number }
 export type DatabaseUpgradeCall = {
   readonly target: PluginManifest;
   readonly change: Omit<PluginDatabaseVersionSwitch, "assertCurrent">;
-} & ({ readonly op: "upgrade-project-database"; readonly home: string; readonly path: string; readonly projectId: string }
+} & ({ readonly op: "upgrade-project-database"; readonly home: string; readonly path: string; readonly projectId: string; readonly platformVersion: number }
   | { readonly op: "upgrade-home-database"; readonly home: string; readonly reserved: readonly { readonly path: string; readonly owner: string }[] });
 export type HomePreparationCall =
   | { readonly op: "validate-home-schema"; readonly declaration: HomePluginDatabaseDeclaration }
@@ -69,6 +69,15 @@ export type StatementReply =
   | { readonly id: number; readonly ok: false; readonly kind: StatementFailure; readonly message: string;
       /** Only a Host preparation reply carries the original owner's coded refusal. Never an outcome marker from plugin JSON. */
       readonly preparationError?: { readonly code: string; readonly kind?: ActionErrorKind; readonly details?: Readonly<Record<string, unknown>> } };
+
+export function statementFailure(id: number, error: unknown): StatementReply {
+  const message = (error instanceof Error ? error.message : String(error)).slice(0, 2048);
+  if (error instanceof ActionError && error.code === "plugin.project_database.result_too_large") return { id, ok: false, kind: "too_large", message };
+  if (error instanceof ActionError && error.code === "plugin.project_database.statement_refused") return { id, ok: false, kind: "refused", message };
+  if (error instanceof ActionError && error.code === "actions.conflict") return { id, ok: false, kind: "decision_conflict", message };
+  if (error instanceof ActionError && error.code === "actions.expired") return { id, ok: false, kind: "decision_expired", message };
+  return { id, ok: false, kind: "error", message };
+}
 
 /** The client's own keyword filters (`pluginDatabaseClient`): the Host asks before it sends a statement, and the process asks again. */
 export function assertReadStatement(sql: string): void {

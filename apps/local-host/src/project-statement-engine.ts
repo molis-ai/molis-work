@@ -1,7 +1,7 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginProjectDatabaseErrors, pluginStatementGuard, type PluginProjectDatabaseRecord } from "@molis-ai/molis-work-plugin-runtime";
 import { LocalSqliteStorage, openHomeSqliteFile } from "@molis-ai/molis-work-storage";
-import { assertReadStatement, assertWriteStatement, type ReviewedStatementTarget, type StatementReply, type StatementStep, type StatementRow, type StatementValue } from "./project-statement-protocol.js";
+import { assertReadStatement, assertWriteStatement, statementFailure, type ReviewedStatementTarget, type StatementReply, type StatementStep, type StatementRow, type StatementValue } from "./project-statement-protocol.js";
 import { commitProjectReview } from "./project-review-commit.js";
 import type { ProjectReviewCommit } from "./project-review-effect.js";
 
@@ -122,7 +122,7 @@ export function openStatementEngine(path: string, record: PluginProjectDatabaseR
   };
   return {
     handle(request) {
-      try { return handle(request); } catch (error) { return failure(request.id, error); }
+      try { return handle(request); } catch (error) { return statementFailure(request.id, error); }
     },
     finishCommit(request) {
       try {
@@ -130,7 +130,7 @@ export function openStatementEngine(path: string, record: PluginProjectDatabaseR
         if (request.decision.deadline !== undefined && Date.now() >= request.decision.deadline) throw new ActionError("actions.expired", "原决定请求已过期");
         writer.exec("COMMIT");
         return { id: request.id, ok: true };
-      } catch (error) { return failure(request.id, error); }
+      } catch (error) { return statementFailure(request.id, error); }
     },
     close() { connections.close(); },
   };
@@ -157,15 +157,6 @@ function beginTransaction(connections: StatementConnections, reviewed?: Reviewed
     if (writer.inTransaction) writer.exec("ROLLBACK");
     throw error;
   }
-}
-
-export function failure(id: number, error: unknown): StatementReply {
-  const message = (error instanceof Error ? error.message : String(error)).slice(0, 2048);
-  if (error instanceof ActionError && error.code === "plugin.project_database.result_too_large") return { id, ok: false, kind: "too_large", message };
-  if (error instanceof ActionError && error.code === "plugin.project_database.statement_refused") return { id, ok: false, kind: "refused", message };
-  if (error instanceof ActionError && error.code === "actions.conflict") return { id, ok: false, kind: "decision_conflict", message };
-  if (error instanceof ActionError && error.code === "actions.expired") return { id, ok: false, kind: "decision_expired", message };
-  return { id, ok: false, kind: "error", message };
 }
 
 /** A row the channel can carry: text, finite numbers, null. A BLOB, an infinity or an integer past 2^53 is refused, not changed. */

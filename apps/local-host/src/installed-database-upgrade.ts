@@ -4,7 +4,8 @@ import { pathToFileURL } from "node:url";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import {
-  SqlitePluginPrivateStorage, SqlitePluginRuntimeRepository, pluginManifestDigest, pluginProjectDatabaseErrors, pluginProjectTablesVersion,
+  SqlitePluginPrivateStorage, SqlitePluginRuntimeRepository, inspectPluginProjectDatabase, pluginManifestDigest, pluginProjectDatabaseErrors,
+  pluginProjectTablesVersion, upgradePluginHomeLibrary, upgradePluginProjectTables,
   type PluginRuntimeDatabase,
 } from "@molis-ai/molis-work-plugin-runtime";
 import {
@@ -15,9 +16,8 @@ import {
   INSTALLED_LIBRARY_UPGRADE_LEDGER, advanceInstalledLibraryUpgrade, checkInstalledLibraryUpgrade, checkUpgradeInput,
   installedLibraryLedgerFile, installedLibrarySnapshots, validateInstalledSandboxHomeSchema,
 } from "./installed-plugin-libraries.js";
-import { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
 import { HOME_PLUGIN_RUNTIME_HOME_STORE, openReadOnlyHomePluginStore } from "./home-plugin-store.js";
-import { inspectInstalledProjectTables, upgradePluginLibrary, upgradePluginTables } from "./project-plugin-databases.js";
+import { pluginLibraryUpgradeInspector, projectPluginSchemaInspector } from "./plugin-library-inspection.js";
 import type { DatabaseUpgradeCall } from "./project-statement-protocol.js";
 
 type HomeCall = Extract<DatabaseUpgradeCall, { op: "upgrade-home-database" }>;
@@ -60,15 +60,18 @@ function upgradeProject(request: ProjectCall, publish: () => void): void {
   const db = openSqliteConnection(file, { fileMustExist: true, timeout: 1000 });
   try {
     assertBound(db, home);
-    if (db.pragma("user_version", { simple: true }) !== PROJECT_DATABASE_BASELINE.version) throw storageRefusal();
+    if (db.pragma("user_version", { simple: true }) !== request.platformVersion) throw storageRefusal();
     const roots = listProjectRoots(db);
     if (roots.length !== 1 || roots[0]?.project_id !== request.projectId) throw storageRefusal();
     const label = `projects/${request.projectId}/${basename(file)}`;
-    const previous = request.change.previous.databases!.project!;
+    const { current, previous: oldManifest } = request.change;
+    const previous = oldManifest.databases!.project!, declaration = request.target.databases!.project!;
+    const owner = { plugin_id: current.plugin_id, publisher_signature: current.publisher_signature };
     const found = pluginProjectTablesVersion(db, request.change.current.plugin_id);
     if (found !== undefined && found > previous.version) throw pluginProjectDatabaseErrors.store_too_new("项目插件库来自比当前安装更新的版本");
-    const result = upgradePluginTables(db, label, request.target, {
-      beforeSteps: () => { checkUpgradeInput(() => inspectInstalledProjectTables(db, label, request.change.previous)); },
+    const result = upgradePluginProjectTables(db, { ...owner, declaration }, pluginLibraryUpgradeInspector, {
+      path: label,
+      beforeSteps: () => { checkUpgradeInput(() => inspectPluginProjectDatabase(db, { ...owner, declaration: previous }, projectPluginSchemaInspector, label)); },
       beforeCommit: () => { stageInstallRow(db, request); publish(); },
     });
     if (!result || result.from === result.to) throw storageRefusal();
@@ -116,7 +119,8 @@ function upgradeHome(request: HomeCall, publish: () => void): void {
     requireRollbackJournal(db, "main");
     attachUpgradeDatabase(db, ledger, INSTALLED_LIBRARY_UPGRADE_LEDGER);
     attachUpgradeDatabase(db, runtime, RUNTIME);
-    const result = upgradePluginLibrary(db, `${previous.store_name}/${basename(library)}`, request.target, {
+    const result = upgradePluginHomeLibrary(db, { plugin_id: owner.plugin_id, declaration: target, schema: target.schema }, pluginLibraryUpgradeInspector, {
+      path: `${previous.store_name}/${basename(library)}`,
       beforeSteps: () => { checkUpgradeInput(() => checkInstalledLibraryUpgrade(home, owner, previous, reserved, db)); },
       beforeCommit: () => {
         advanceInstalledLibraryUpgrade(db, owner, previous, target);
@@ -131,6 +135,7 @@ function upgradeHome(request: HomeCall, publish: () => void): void {
 // Only the Host's private worker command reaches this function. SQL from the package gets no cross-database authority.
 export function upgradeInstalledDatabase(request: DatabaseUpgradeCall, publish: () => void): void {
   const { target, change: { previous, current } } = request;
+  if (previous.sync?.collections.length || target.sync?.collections.length) throw storageRefusal();
   if (current.publisher_trust !== "pinned" || current.plugin_id !== target.plugin_id || !target.databases) {
     throw pluginErrors.upgrade_validation_failed("插件库升级需要验证过的已安装发布者");
   }

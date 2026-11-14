@@ -4,11 +4,13 @@ import { PLATFORM_PLUGIN_REGISTRATIONS, runsOnlyInHome } from "./plugin-registry
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import {
-  inspectPluginProjectDatabase, openPluginProjectDatabase, upgradePluginHomeLibrary, upgradePluginProjectTables,
-  type PluginProjectDatabaseRecord, type PluginProjectSchemaInspector, type PluginRuntimeDatabase, type PluginUpgradeInspector,
+  openPluginProjectDatabase, upgradePluginHomeLibrary, upgradePluginProjectTables,
+  type PluginProjectDatabaseRecord, type PluginRuntimeDatabase,
 } from "@molis-ai/molis-work-plugin-runtime";
-import { describeSqliteSchema, listSqliteObjects, LocalSqliteStorage, nativeSqliteOwnerBoundary, nativeSqliteSchemaBoundary, sqliteErrorName } from "@molis-ai/molis-work-storage";
+import { sqliteErrorName } from "@molis-ai/molis-work-storage";
 import { hostLog } from "./host-log.js";
+import { pluginLibraryUpgradeInspector, projectPluginSchemaInspector } from "./plugin-library-inspection.js";
+export { projectPluginSchemaInspector } from "./plugin-library-inspection.js";
 
 // Plugins' own tables in a project's library (PG-020, specs/archive/plugin-project-database L1b). When the Host opens a library, every
 // built-in project plugin whose Manifest declares `databases.project` gets its tables there through the platform's one open
@@ -20,24 +22,6 @@ import { hostLog } from "./host-log.js";
 export type ProjectPluginDatabaseOutcome =
   | { readonly plugin_id: string; readonly record: PluginProjectDatabaseRecord }
   | { readonly plugin_id: string; readonly error: Error };
-
-/** What the Host lends the open function: an empty in-memory database on the same SQLite as the library, and storage's descriptions. */
-export const projectPluginSchemaInspector: PluginProjectSchemaInspector = {
-  scratch: () => new LocalSqliteStorage(":memory:").db,
-  objects: db => listSqliteObjects(db),
-  shape: db => describeSqliteSchema(db),
-};
-const inspector = projectPluginSchemaInspector;
-
-/**
- * The same, with SQLite's own authorizer over the tables in scope at each statement, for a plugin's upgrade steps (upgrade-chain-design §2.4,
- * second layer): storage's boundary for a statement of rows, with no trigger to trust (the run has dropped them), and its schema mode.
- */
-const upgradeInspector: PluginUpgradeInspector = {
-  ...inspector,
-  rows: (db, tables) => nativeSqliteOwnerBoundary(db, tables, new Map()),
-  schema: (db, tables) => nativeSqliteSchemaBoundary(db, tables),
-};
 
 const outcomes = new WeakMap<object, ReadonlyMap<string, ProjectPluginDatabaseOutcome>>();
 
@@ -58,7 +42,8 @@ export function projectPluginPlatformExtension(manifest: PluginManifest) {
 export function openPluginTables(db: PluginRuntimeDatabase, path: string, manifest: PluginManifest): PluginProjectDatabaseRecord {
   const declaration = manifest.databases?.project;
   if (!declaration) throw new Error(`插件 ${manifest.plugin_id} 的 Manifest 没有声明项目库`);
-  openPluginProjectDatabase(db, { plugin_id: manifest.plugin_id, publisher_signature: manifest.publisher.signature, declaration }, inspector, { path, ...projectPluginPlatformExtension(manifest) });
+  openPluginProjectDatabase(db, { plugin_id: manifest.plugin_id, publisher_signature: manifest.publisher.signature, declaration }, projectPluginSchemaInspector,
+    { path, ...projectPluginPlatformExtension(manifest) });
   return pluginSyncBusinessRecord(manifest, declaration);
 }
 
@@ -70,7 +55,7 @@ export function openPluginTables(db: PluginRuntimeDatabase, path: string, manife
 export function upgradePluginTables(db: PluginRuntimeDatabase, path: string, manifest: PluginManifest, control?: { beforeSteps?: () => void; beforeCommit: () => void }) {
   const declaration = manifest.databases?.project;
   if (!declaration) throw new Error(`插件 ${manifest.plugin_id} 的 Manifest 没有声明项目库`);
-  return upgradePluginProjectTables(db, { plugin_id: manifest.plugin_id, publisher_signature: manifest.publisher.signature, declaration }, upgradeInspector,
+  return upgradePluginProjectTables(db, { plugin_id: manifest.plugin_id, publisher_signature: manifest.publisher.signature, declaration }, pluginLibraryUpgradeInspector,
     { path, ...projectPluginPlatformExtension(manifest), ...control });
 }
 
@@ -78,13 +63,8 @@ export function upgradePluginTables(db: PluginRuntimeDatabase, path: string, man
 export function upgradePluginLibrary(db: PluginRuntimeDatabase, path: string, manifest: PluginManifest, control?: { beforeSteps?: () => void; beforeCommit: () => void }) {
   const declaration = manifest.databases?.home;
   if (!declaration) throw new Error(`插件 ${manifest.plugin_id} 的 Manifest 没有声明 Home 库`);
-  return upgradePluginHomeLibrary(db, { plugin_id: manifest.plugin_id, declaration, schema: pluginSyncDatabaseDeclaration(manifest, declaration).schema }, upgradeInspector, { path, ...control });
-}
-
-/** Signed installed project plugins have no platform sync extension. Compare the source baseline before changing a row. */
-export function inspectInstalledProjectTables(db: PluginRuntimeDatabase, path: string, manifest: PluginManifest): PluginProjectDatabaseRecord {
-  return inspectPluginProjectDatabase(db, { plugin_id: manifest.plugin_id, publisher_signature: manifest.publisher.signature,
-    declaration: manifest.databases!.project! }, inspector, path);
+  return upgradePluginHomeLibrary(db, { plugin_id: manifest.plugin_id, declaration, schema: pluginSyncDatabaseDeclaration(manifest, declaration).schema },
+    pluginLibraryUpgradeInspector, { path, ...control });
 }
 
 /** Open each plugin's tables in the library at `path`; what happened to each is kept with the connection. */

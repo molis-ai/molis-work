@@ -73,3 +73,14 @@ export {
   type MwTranscriptOptions,
   type MwTranscriptWho,
 } from "./session-sources.js";
+export { WORK_RECORDS_BOARD_STYLES } from "./catalog-work-records.js";
+export {
+  WORK_RECORD_STYLES,
+  renderCategoryBar,
+  renderKindMark,
+  type MwCategoryBarHue,
+  type MwCategoryBarOptions,
+  type MwCategorySegment,
+  type MwKindMarkHue,
+  type MwKindMarkOptions,
+} from "./work-records.js";

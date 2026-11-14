@@ -55,11 +55,34 @@ git log origin/main --first-parent --since=2026-09-28 --format=%H | while read m
    ```
 
 2. 只加自己的几行，写在自己的位置上。不顺手重排、重命名、换格式；那类改动单独一个 PR，不夹逻辑改动。
-3. 解冲突时两边的条目都要留，不整块取「我的」或「对方的」。解完重跑 `pnpm boundary:check` 和健康门禁。健康快查只在工作树的 Git 元数据里，不提交；需要刷新时运行 `node scripts/check-health-gates.mjs --update --base origin/main`。页面资源许可、安全不变量、待办和巨大单元例外按任务或源文件分别登记，改独立事项无需碰共享总表。`tooling/gates/api/` 下的快照冲突时同样不手工合并：合入 main 后重跑 `pnpm api:update`，再看 diff 里是否只剩自己的 API 变化。`tooling/gates/actions/` 下的动作合同快照同理：先 `pnpm build`，再 `pnpm actions:update`（行按名字排序，两个 PR 加不同的动作一般不冲突）。
+3. 解冲突时两边的条目都要留，不整块取「我的」或「对方的」。解完重跑 `pnpm boundary:check` 和健康门禁。健康快查只在工作树的 Git 元数据里，不提交；需要刷新时运行 `node scripts/check-health-gates.mjs --update --base origin/main`。页面资源许可、安全不变量、待办和巨大单元例外按任务或源文件分别登记，改独立事项无需碰共享总表。`tooling/gates/api/`、`tooling/gates/actions/`、`tooling/gates/schemas/stores.tsv` 这几份生成的快照不手工合并，几份 JSON 词表和登记表也不必逐行合，由合并驱动处理，见第 2.1 节；合完跑 `pnpm merge:regenerate`，再看 diff 里是否只剩自己的 API 与动作变化。
 4. 两个 PR 动同一个枢纽：先准备好的先合；后一个合入 main 再重跑相关用例。文字上没有冲突也一样，合并队列的 `Verify` 替代不了这一步。
 5. 门禁脚本、`tooling/gates/`、`limits.json`、CI 工作流的改动单独一个 PR：它们是唯一能放宽数字的地方（`AGENTS.md` 的健康门禁一条）。这几处在 `.github/CODEOWNERS` 里只请求 @yijunw0212 评审；这是请求，不是强制（必需批准数是 0，见第 3 节）。放宽数字的 PR 在描述里写清放宽哪一项、为什么。
 
 枢纽名单会随结构变短：翻译改用稳定键、词典按主人分（用户 2026-10-08 定，spec §1「界面翻译」），内置插件名单与路由改成声明式登记（路线图 W5-02、W5-03）落地后，对应文件不再逐个点名插件，就从上表删掉。
+
+### 2.1 自动合并的生成文件与 JSON 词表（2026-11-14）
+
+一周内 149 个合入 main 的 PR 里，冲突最多的是生成文件和只往里加条目的 JSON（`tooling/versions.json` 31 个、`tooling/gates/api/` 的快照 15～21 个、`tooling/gates/actions/*.tsv` 16～17 个、版本例外 18 个、Goals 页面金样 18 个、工作台语言文件 14 个）。根目录的 `.gitattributes` 给它们指了两个合并驱动（用户 2026-11-14 批准），实现在 `scripts/merge-drivers/`：
+
+| 驱动 | 文件 | 怎么合 |
+| --- | --- | --- |
+| `molis-json` | `tooling/versions.json`、`tooling/gates/version-exceptions.json`、`tooling/gates/error-owners.json`、所有 `locales/*.json`、`tests/fixtures/goals-page-golden/golden.json` | 按键三方合并：两边改的是不同的键就干净合入，同一个键两边改成不同的值才算冲突，这时退回 git 的逐行合并、照常留冲突标记。数组默认两边都改就冲突；`scripts/merge-drivers/rules.mjs` 的 `ARRAY_IDENTITIES` 写明了哪几个数组按什么认元素（版本例外按 file、name、entry、row，`carriers` 和错误主人的路径按元素本身），这几处两边各加各的也能合。没有重新排版：整块取自一边的值原样照抄，两边都动过的对象只按原来的空白重写，`JSON.stringify` 写的文件合完仍和它写的一样 |
+| `molis-snapshot` | `tooling/gates/api/**`、`tooling/gates/actions/*.tsv`、`tooling/gates/schemas/stores.tsv` | 取进来的一边让合并走完，把路径记进本工作树的待生成清单（`git rev-parse --git-path molis-merge-regenerate`，每个工作树一份），并打印一行提示。这时文件是旧的，要重新生成 |
+
+合完 main（或变基）之后跑：
+
+```sh
+pnpm merge:regenerate        # 按清单依次跑 versions:generate → build → api:update → actions:update → schemas:update 里需要的几步，成功后清空清单
+node scripts/regenerate-after-merge.mjs --dry-run   # 只看要跑什么
+node scripts/regenerate-after-merge.mjs --all       # 不看清单全跑一遍（变基之后、拿不准时）
+```
+
+生成出来的改动看一遍再随合并一起提交。忘了跑也漏不过去：快照与源码不符时 `pnpm health:check`（API 快照）和 `pnpm test:contracts`（动作与库结构快照）都会失败，版本产物过期时 `pnpm build` 直接报错，CI 里同样挡合并。
+
+驱动由 `scripts/setup-merge-drivers.mjs` 写进仓库的共享 Git 配置（所有工作树共用，命令是相对路径，每个工作树跑自己那份），根 `package.json` 的 `prepare` 让每次 `pnpm install` 都执行一遍，重复执行不改任何东西；不在 Git 检出里或写不进配置时只打印一行，不让安装失败。`node scripts/setup-merge-drivers.mjs --check` 查有没有登记。驱动出任何错（读不懂的 JSON、驱动自己的缺陷）都退回 git 不带驱动时的逐行合并；只在合并结果读回、核对无误后才写文件，不会留下写了一半的文件。
+
+没有交给驱动的：`tooling/gates/giant-exceptions/` 每个文件只有一个对象，冲突都在实测的 `size` 上，按键合也是冲突，要重新量；`tooling/gates/baseline.json` 和页面资源这类门禁数字要按 merge-base 重新量，不能取一边；`package.json`、`pnpm-lock.yaml` 由 pnpm 管；Goals 页面金样不是生成文件（按测试注释里的录制规程从参照构建录下来），所以不取一边、不自动重录，只按键合：两边改了不同的页面记录可以合，同一条记录两边都改仍是冲突，要按规程重录；`tests/goals-page-golden.test.ts` 会核对合出来的每一条。
 
 ## 3. 合并
 

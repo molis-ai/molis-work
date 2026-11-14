@@ -194,6 +194,7 @@ export const WORKSPACE_PACKAGES = [
       "@molis-ai/molis-work-integration-rss",
       "@molis-ai/molis-work-integration-youtube",
       "@molis-ai/molis-work-kernel",
+      "@molis-ai/molis-work-module-acceptance",
       "@molis-ai/molis-work-module-artifacts",
       "@molis-ai/molis-work-module-attention-resumption",
       "@molis-ai/molis-work-module-characters",
@@ -333,6 +334,15 @@ export const WORKSPACE_PACKAGES = [
     maturity: "slice",
     capabilities: [
       "context.edges.v1"
+    ]
+  }),
+  entry("modules/acceptance", "@molis-ai/molis-work-contracts/modules/acceptance", {
+    maturity: "slice",
+    capabilities: [
+      "acceptance.requirements.v1"
+    ],
+    extraWorkspaceDependencies: [
+      "@molis-ai/molis-work-storage"
     ]
   }),
   entry("modules/attention-resumption", "@molis-ai/molis-work-contracts/modules/attention-resumption", {

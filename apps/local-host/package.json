@@ -49,6 +49,7 @@
     "@molis-ai/molis-work-integration-rss": "workspace:*",
     "@molis-ai/molis-work-integration-youtube": "workspace:*",
     "@molis-ai/molis-work-kernel": "workspace:*",
+    "@molis-ai/molis-work-module-acceptance": "workspace:*",
     "@molis-ai/molis-work-module-artifacts": "workspace:*",
     "@molis-ai/molis-work-module-attention-resumption": "workspace:*",
     "@molis-ai/molis-work-module-characters": "workspace:*",

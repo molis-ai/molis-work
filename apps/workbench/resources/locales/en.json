@@ -5473,6 +5473,7 @@
     "workbench.project-brief.yesterday": "Yesterday",
     "workbench.project-brief.yesterday-time": "Yesterday {time}",
     "workbench.project-deletion-service.close-running-terminals-project-before-deleting": "Close the running terminals in this project before deleting it.",
+    "workbench.project-deletion.acceptance": "Requirements, delivered versions, checks and your decisions attached to objects in this project",
     "workbench.project-deletion.alchemist": "The Alchemist studio",
     "workbench.project-deletion.artifact-originals": "Large original files kept in Results",
     "workbench.project-deletion.assistant": "Assistant works in this project",

@@ -4,6 +4,11 @@
 # Manifest. provider is the id the Host registers them under. Same columns and reading as actions.tsv. When a plugin declares one of them in
 # its Manifest, the row moves to actions.tsv; a row with no Manifest is a contract nothing in the plugin's package carries.
 capability_id	version	provider	operation	kind	scope	effect	scheduling	audiences	permissions	subjects	input_type	output_type	input	output	traits
+acceptance.decide	1	system.acceptance	command	operation	project	write	concurrent	user	acceptance:decide	-	-	-	06fef9219267	a332b782d399	-
+acceptance.deliveries.record	1	system.acceptance	command	operation	project	write	concurrent	agent,user,workflow	acceptance:report	-	-	-	9e0a5488b919	a332b782d399	-
+acceptance.read	1	system.acceptance	query	query	project	read	concurrent	agent,user,workflow	acceptance:read	-	-	-	957937a761b3	a332b782d399	-
+acceptance.reports.submit	1	system.acceptance	command	operation	project	write	concurrent	agent,workflow	acceptance:report	-	-	-	7fefdb6244a1	a332b782d399	-
+acceptance.requirements.set	1	system.acceptance	command	operation	project	write	concurrent	agent,user,workflow	acceptance:report	-	-	-	4c232c4c5c32	a332b782d399	-
 account.entitlements.check	1	system.account	query	query	home	read	concurrent	user	account:read	-	-	-	4f580efa7d71	fed40eaf2d30	-
 account.features.list	1	system.account	query	query	home	read	concurrent	user	account:read	-	-	-	a5a61327c9d4	6204f82b0cd6	-
 account.invitation.accept	1	system.account	command	operation	home	write	concurrent	user	account:write	-	-	-	aa729be536c6	a7ec58073835	-

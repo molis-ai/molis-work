@@ -250,6 +250,14 @@
       ],
       "reason": "The AI kit (specs/capability-pack/contract-design.md §4, D-4): the report protocol, the kit.catalog.list contract, the gatherer (horizontal/kit/) and its Host wiring and reporters; its codes are kit.* like its action ids."
     },
+    "acceptance": {
+      "paths": [
+        "apps/local-host/src/acceptance-actions.ts",
+        "modules/acceptance/",
+        "packages/contracts/src/modules/acceptance.ts"
+      ],
+      "reason": "Requirements, evidence and acceptance (specs/proactive-assistant §7.3.1, modules/acceptance): the contract of its system actions, the module and its Host wiring; its codes are acceptance.*."
+    },
     "mainline": {
       "paths": [
         "apps/local-host/src/mainline-actions.ts",

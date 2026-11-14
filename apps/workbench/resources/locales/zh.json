@@ -5111,6 +5111,7 @@
     "workbench.project-brief.yesterday": "昨天",
     "workbench.project-brief.yesterday-time": "昨天 {time}",
     "workbench.project-deletion-service.close-running-terminals-project-before-deleting": "请先关闭这个项目中正在运行的终端，再删除项目。",
+    "workbench.project-deletion.acceptance": "挂在这个项目对象上的要求、交付版本、核验记录和你的认可",
     "workbench.project-deletion.alchemist": "炼金术士的研究空间",
     "workbench.project-deletion.artifact-originals": "成果库保存的大文件原件",
     "workbench.project-deletion.assistant": "助理在这个项目里的工作",

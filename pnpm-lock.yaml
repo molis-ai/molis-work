@@ -64,6 +64,9 @@ importers:
       '@molis-ai/molis-work-kernel':
         specifier: workspace:*
         version: link:packages/kernel
+      '@molis-ai/molis-work-module-acceptance':
+        specifier: workspace:*
+        version: link:modules/acceptance
       '@molis-ai/molis-work-module-artifacts':
         specifier: workspace:*
         version: link:modules/artifacts
@@ -347,6 +350,9 @@ importers:
       '@molis-ai/molis-work-kernel':
         specifier: workspace:*
         version: link:../../packages/kernel
+      '@molis-ai/molis-work-module-acceptance':
+        specifier: workspace:*
+        version: link:../../modules/acceptance
       '@molis-ai/molis-work-module-artifacts':
         specifier: workspace:*
         version: link:../../modules/artifacts
@@ -786,6 +792,15 @@ importers:
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../packages/plugin-sdk
+
+  modules/acceptance:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@molis-ai/molis-work-storage':
+        specifier: workspace:*
+        version: link:../../packages/storage
 
   modules/artifacts:
     dependencies:

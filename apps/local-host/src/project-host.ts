@@ -4,6 +4,7 @@ import { skillCatalogProviderFor } from "./agent-definitions/skill-catalog-host.
 import type { ProjectPluginHost } from "./project-plugin-ports.js";
 import { kitProviders } from "./kit-actions.js";
 import { mainlineProvider } from "./mainline-actions.js";
+import { acceptanceProvider } from "./acceptance-actions.js";
 import { withConnectorsKitReport } from "./kit-mcp-reports.js";
 import { accountActionProvider } from "@molis-ai/molis-work-service-account";
 import { accountSessionForHost } from "./account-host.js";
@@ -281,7 +282,7 @@ export class MolisWorkLocalHost {
       accountActionProvider(() => accountSessionForHost(this)), ...(this.observation ? [this.observation.provider] : []),
       actionUsagesProvider(callerClient, options.homeDirectory), contextOnboardingProvider(), agentReviewProvider(), assistantPanelProvider(), // the pages' writes, behind their doors (B9)
       mainlineProvider(callerClient), ...kitProviders({ clientFor: callerClient, library: async () => this.agents?.service.mcpLibrary(), plugins: this.plugins, home: options.homeDirectory }),
-      ...(options.homeDirectory ? [appearanceForHome(options.homeDirectory).provider(), skillCatalogProviderFor(options.homeDirectory, this.plugins), taskGrantActionProvider(taskGrantHostPorts(options.homeDirectory, this)), pluginConsentProvider(new HomeConsentLedger(options.homeDirectory), () => this.homePlugins!.projectReachConsents(),
+      ...(options.homeDirectory ? [acceptanceProvider(options.homeDirectory, callerClient), appearanceForHome(options.homeDirectory).provider(), skillCatalogProviderFor(options.homeDirectory, this.plugins), taskGrantActionProvider(taskGrantHostPorts(options.homeDirectory, this)), pluginConsentProvider(new HomeConsentLedger(options.homeDirectory), () => this.homePlugins!.projectReachConsents(),
         projectId => projectReachDetails(projectId, options.homeDirectory, this.catalogRunner, this, this.host, molisWorkHostProjectReference)), pluginInstallProviderFor(options.homeDirectory, this.plugins, projectId => this.catalogRunner ? this.catalogRunner({ homeDirectory: options.homeDirectory }, async catalog => {
         const project = catalog.getProject(projectId);
         return project ? molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path }) : null;

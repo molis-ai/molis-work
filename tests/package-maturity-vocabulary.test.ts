@@ -40,7 +40,7 @@ test("W5-15-03 the registry rejects any maturity word outside the vocabulary, wi
     assert.ok(PACKAGE_MATURITY.includes(item.maturity), `${item.path}: ${item.maturity}`);
     counts[item.maturity] = (counts[item.maturity] ?? 0) + 1;
   }
-  assert.deepEqual(counts, { production: 47, experimental: 3, slice: 20 });
+  assert.deepEqual(counts, { production: 47, experimental: 3, slice: 21 });
   assert.deepEqual(WORKSPACE_PACKAGES.filter(item => item.path === "horizontal/observation").map(item => item.maturity), ["slice"]);
   assert.deepEqual(WORKSPACE_PACKAGES.filter(item => item.path === "horizontal/account").map(item => item.maturity), ["slice"]);
   assert.deepEqual(WORKSPACE_PACKAGES.filter(item => item.path === "horizontal/appearance").map(item => item.maturity), ["slice"]);

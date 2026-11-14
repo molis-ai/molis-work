@@ -26,7 +26,7 @@ function packageAt(publisher: ReturnType<typeof newPublisher>, scope: Scope, ver
     const contract = JSON.parse(files[SANDBOX_PACKAGE_FILES.contract]!) as SandboxPluginContract;
     const effect = scope === "home" ? "homeDatabase" : "projectDatabase";
     for (const operation of contract.operations) operation.effects = { [effect]: [operation.kind === "query" ? "read" : "write"] };
-    if (!initial) contract.operations.push({ id: SANDBOX_VALIDATE_UPGRADE, kind: "query", input: { type: "string" }, output: { type: "boolean" },
+    if (!initial) contract.operations.unshift({ id: SANDBOX_VALIDATE_UPGRADE, kind: "query", input: { type: "string" }, output: { type: "boolean" },
       effects: {}, errors: [], examples: [{ input: "1.0.0", output: options.allow !== false }] });
     files[SANDBOX_PACKAGE_FILES.contract] = JSON.stringify(contract);
     files[SANDBOX_PACKAGE_FILES.entrypoint] = `export const operations = {
@@ -43,10 +43,14 @@ function packageAt(publisher: ReturnType<typeof newPublisher>, scope: Scope, ver
   }, { version });
 }
 
+function person(project: TestProject) {
+  return { actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user" as const, project_id: project.project_id, permissions: PLUGIN_INSTALL_PERMISSIONS,
+    user_action: { source: "management" as const, conversation_ref: "installed-upgrade", message_ref: "confirm" } };
+}
+
 async function install(home: TestHome, project: TestProject, bundle: PluginPackageBundle) {
   const client = home.host.actionClient(project.reference);
-  const caller = { actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user" as const, project_id: project.project_id, permissions: PLUGIN_INSTALL_PERMISSIONS,
-    user_action: { source: "management" as const, conversation_ref: "installed-upgrade", message_ref: "confirm" } };
+  const caller = person(project);
   const preview = await client.invoke(caller, pluginInstallActions.preview, { bundle }) as { preview_id: string };
   return client.invoke(caller, pluginInstallActions.confirm, { preview_id: preview.preview_id, consent: true, pin_label: "Test publisher" });
 }
@@ -114,6 +118,14 @@ for (const scope of ["project", "home"] as const) {
       plugin_id: PACKAGE_PLUGIN_ID, version: "1.2.0", publisher_key_id: publisher.identity,
     });
     assert.deepEqual(readDatabase(home, project, scope, initial, "SELECT * FROM upgrade_notes"), [{ id: 1, text: "kept", format: "plain" }]);
+    const client = home.host.actionClient(project.reference), caller = person(project);
+    const offered = (await client.discover(caller)).filter(view => view.provider.plugin_id === PACKAGE_PLUGIN_ID);
+    const read = offered.find(view => view.capability_id.endsWith(".notes.list")), add = offered.find(view => view.capability_id.endsWith(".notes.add"));
+    assert.ok(read && add);
+    assert.equal(offered.some(view => view.capability_id.toLowerCase().includes("validateupgrade")), false);
+    assert.notDeepEqual(read.action.permissions, add.action.permissions, "the query and command retain their own effect permissions");
+    assert.deepEqual(await client.invoke(caller, { capability_id: read.capability_id, version: read.version, provider_id: read.provider.provider_id }, {}),
+      [{ id: "1", text: "kept" }]);
     const runtimedb = new DatabaseSync(scope === "home" ? join(home.home, "plugin-runtime", "plugin-runtime.db") : project.database_path, { readOnly: true });
     try {
       const row = runtimedb.prepare("SELECT json_extract(record_json, '$.version') AS version FROM plugin_runtime_installs WHERE json_extract(record_json, '$.plugin_id') = ?").get(PACKAGE_PLUGIN_ID);

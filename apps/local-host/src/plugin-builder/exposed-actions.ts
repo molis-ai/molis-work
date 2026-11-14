@@ -100,9 +100,10 @@ export interface InstalledPluginActions {
 export function exposeInstalledPlugin(actions: ProjectActions, release: AgentRelease, call: InstalledOperationCall, availability?: (context: ActionCallContext) => ActionAvailability, plugin?: PluginInstance,
   operationAvailability?: (operationId: string, context: ActionCallContext) => ActionAvailability): InstalledPluginActions {
   const providerId = exposedProviderId(release), title = release.design.title;
+  const operations = release.design.contract.operations.filter(operation => operation.id !== SANDBOX_VALIDATE_UPGRADE);
   const definitions = sandboxOperationActions({ contract: release.design.contract, buildId: release.buildId, version: release.version, title,
     scope: actions.project_id === null ? 'home' : 'project' });
-  const handlers: ActionHandlerBinding[] = release.design.contract.operations.filter(operation => operation.id !== SANDBOX_VALIDATE_UPGRADE).map(operation => ({
+  const handlers: ActionHandlerBinding[] = operations.map(operation => ({
     capability_id: exposedActionId(release, operation.id), version: release.version,
     handle: async (context, input) => {
       await context.beforeEffect();
@@ -131,7 +132,7 @@ export function exposeInstalledPlugin(actions: ProjectActions, release: AgentRel
     try {
       // Register real status queries before launchers; cross-registration references never use placeholders.
       definitions.map((definition, index) => ({ definition, index })).sort((a, b) => Number(a.definition.operation !== 'query') - Number(b.definition.operation !== 'query')).forEach(({ definition, index }) => {
-        const operationId = release.design.contract.operations[index]!.id, selected = policies.get(operationId) ?? 'unknown';
+        const operationId = operations[index]!.id, selected = policies.get(operationId) ?? 'unknown';
         const previous = registrations.get(operationId);
         const policy = typeof selected === 'string' ? { ...(previous?.policy ?? { permissions: definition.action.permissions, binding: '', available: true, effect: definition.operation === 'query' ? 'read' as const : 'write' as const }), cost: selected } : selected;
         const { cost, permissions } = policy, binding = JSON.stringify([cost, permissions, policy.binding, policy.statusProblem ?? null]);

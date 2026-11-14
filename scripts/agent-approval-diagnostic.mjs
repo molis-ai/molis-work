@@ -46,8 +46,9 @@ export async function diagnoseAgentApprovals(snapshot, { permission, resolveComm
   if (agent(snapshot.author, policy)) reasons.add("pull-request");
   if (snapshot.commits.some(row => agent(row.author, policy) || agent(row.committer, policy))) reasons.add("commit");
   if ([...snapshot.reviews, ...snapshot.comments].some(row => agent(row.user, policy))) reasons.add("conversation");
-  if (snapshot.agentRuns.some(run => run.head_sha === head && policy.agent_check_app_ids.includes(run.app_id))) reasons.add("agent-run");
-  const unknown = !account(snapshot.author) || snapshot.commits.some(row => !account(row.author) || !account(row.committer) || row.commit?.verification?.verified !== true);
+  if (snapshot.agentRuns.some(run => run.association === "matched")) reasons.add("agent-run");
+  const unknown = snapshot.agentRuns.some(run => run.association === "unknown") || !account(snapshot.author)
+    || snapshot.commits.some(row => !account(row.author) || !account(row.committer) || row.commit?.verification?.verified !== true);
   if (!reasons.size && !unknown) return { state: "human", head };
   const reviews = latestReviews(snapshot.reviews), votes = new Map(), stale = new Map();
   const human = user => account(user) && user.type === "User" && LOGIN.test(user.login ?? "")
@@ -94,7 +95,9 @@ export function approvalGithubRepository({fetch, origin, token, repository}) {
   const headers = { accept: "application/vnd.github+json", authorization: "Bearer " + token, "x-github-api-version": "2022-11-28" };
   const request = async (resource, { method = "GET", body, missing = false } = {}) => {
     const url = new URL(resource, base.origin + prefix);
-    if (url.origin !== base.origin || !url.pathname.startsWith(prefix)) throw new Error("Unexpected GitHub API pagination target");
+    if (url.origin !== base.origin || (url.pathname !== prefix.slice(0, -1) && !url.pathname.startsWith(prefix))) {
+      throw new Error("Unexpected GitHub API pagination target");
+    }
     const response = await fetch(url, { method, redirect: "error", signal: AbortSignal.timeout(15_000),
       headers: body === undefined ? headers : { ...headers, "content-type": "application/json" },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
@@ -142,7 +145,8 @@ export function approvalGithubRepository({fetch, origin, token, repository}) {
     }
     return answer;
   };
-  return { one, pages, graphql, commentFacts, async write(resource, method, body) { return (await request(resource, { method, body })).body; } };
+  const facts = () => one(prefix.slice(0, -1));
+  return { one, pages, facts, graphql, commentFacts, async write(resource, method, body) { return (await request(resource, { method, body })).body; } };
 }
 
 export async function branchHead(one, branch) {
@@ -222,12 +226,17 @@ export async function inspectAgentApprovals({ repository, pull, token, publisher
     })];
   };
   const readAgentRuns = async () => {
-    if (!configured.agent_check_app_ids.length || !id(pr.head.repo?.id)) return [];
+    if (!configured.agent_check_app_ids.length) return [];
     const runs = await pages("commits/" + pr.head.sha + "/check-runs?per_page=100&filter=all", value => value.check_runs);
-    return runs.filter(run => configured.agent_check_app_ids.includes(run.app?.id) && run.head_sha === pr.head.sha
-      && run.pull_requests?.some(ref => ref.number === pull && ref.base?.repo?.id === pr.base.repo.id
-        && ref.base.sha === pr.base.sha && ref.head?.repo?.id === pr.head.repo.id && ref.head?.sha === pr.head.sha))
-      .map(run => ({ app_id: run.app.id, head_sha: run.head_sha }));
+    return runs.filter(run => configured.agent_check_app_ids.includes(run.app?.id) && run.head_sha === pr.head.sha)
+      .map(run => {
+        const related = Array.isArray(run.pull_requests) ? run.pull_requests : [];
+        const matches = id(pr.head.repo?.id) && related.some(ref => ref.number === pull && ref.base?.repo?.id === pr.base.repo.id
+          && ref.base.sha === pr.base.sha && ref.head?.repo?.id === pr.head.repo.id && ref.head?.sha === pr.head.sha);
+        const different = related.length > 0 && related.every(ref => id(ref.number) && id(ref.base?.repo?.id)
+          && (ref.number !== pull || ref.base.repo.id !== pr.base.repo.id));
+        return { app_id: run.app.id, association: matches ? "matched" : different ? "unrelated" : "unknown" };
+      });
   };
   const [commits, [reviews, comments], agentRuns] = await Promise.all([pages(compare, value => value.commits), readVotes(), readAgentRuns()]);
   const proof = new Map();
@@ -248,7 +257,7 @@ export async function inspectAgentApprovals({ repository, pull, token, publisher
     reviews.map(row => [row.id, row.user?.id, row.user?.login, row.user?.type, row.state, row.commit_id, row.submitted_at]),
     comments.map(row => [row.id, row.user?.id, row.user?.login, row.user?.type, row.body, row.created_at, row.updated_at, row.performed_via_github_app?.id, row.edited]),
   ]);
-  const runStamp = rows => JSON.stringify(rows.map(row => row.app_id).sort((a, b) => a - b));
+  const runStamp = rows => JSON.stringify(rows.map(row => row.app_id + ":" + row.association).sort());
   const [final, votes, currentRuns, access] = await Promise.all([
     load(), readVotes(), readAgentRuns(), Promise.all([...proof].map(async ([user, held]) => JSON.stringify(held) === JSON.stringify(await permission(user)))),
   ]);

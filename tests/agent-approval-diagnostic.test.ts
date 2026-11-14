@@ -33,11 +33,11 @@ function fixture() {
   const second = { ...commit, sha: head, author };
   const queueEntry = (number: number, position: number, original: string, predecessor: string, merge: string) => ({
     id: "entry-" + number, position, state: "AWAITING_CHECKS", baseCommit: { oid: predecessor },
-    headCommit: { oid: merge, parents: { totalCount: 1, nodes: [{ oid: predecessor }] } },
+    headCommit: { oid: merge, parents: { totalCount: 2, nodes: [{ oid: predecessor }, { oid: original }] } },
     pullRequest: { number, state: "OPEN", baseRefName: "main", headRefOid: original, repository: { databaseId: 23 } },
   });
   const queue = { databaseId: 23, nameWithOwner: repository, target: { target: { oid: base } }, group: { target: { oid: groupHead } },
-    mergeQueue: { configuration: { mergeMethod: "SQUASH" }, entries: { totalCount: 2, pageInfo: { hasNextPage: false, hasPreviousPage: false },
+    mergeQueue: { configuration: { mergeMethod: "MERGE" }, entries: { totalCount: 2, pageInfo: { hasNextPage: false, hasPreviousPage: false },
       nodes: [queueEntry(pull, 1, head, base, firstMerge), queueEntry(otherPull, 2, otherHead, firstMerge, groupHead)] } } };
   const state = { pr, commits: [commit, second], configured: true, corruptBlob: false, missingTree: false, truncateCompare: false,
     branchSha: base, queue, otherPr: { ...pr, id: 12, number: otherPull, commits: 1, head: { ...pr.head, sha: otherHead } },
@@ -73,6 +73,7 @@ function fixture() {
         return { id, body: row.body, isMinimized: false, lastEditedAt: state.edited.has(row.id) ? date(8) : null, editor: null };
       }) } });
     }
+    if (url.pathname === prefix.slice(0, -1)) return response({ id: 23, full_name: repository });
     assert.ok(url.pathname.startsWith(prefix));
     if (route === "issues/" + pull + "/comments" && options?.method === "POST") {
       const saved = { id: 501, body: JSON.parse(String(options.body)).body, user: bot, performed_via_github_app: { id: app } };
@@ -194,6 +195,10 @@ test("APR-01/02: exact PR association and current facts are required through the
   const run = { app: { id: 17 }, head_sha: head, pull_requests: [{ number: pull, base: state.pr.base, head: state.pr.head }] };
   state.checks = [{ ...run, pull_requests: [{ ...run.pull_requests[0]!, number: 10 }] }];
   assert.equal((await inspect()).state, "human");
+  state.checks = [{ ...run, pull_requests: [] }];
+  const unbound = await inspect();
+  assert.equal(unbound.state, "awaiting-approvals");
+  assert.equal(unbound.origin, "unknown");
   state.checks = [run];
   assert.deepEqual((await inspect()).reasons, ["agent-run"]);
   const permission = state.permissions.get(author.login)!;
@@ -270,6 +275,21 @@ test("APR-06: all original heads must be approved before the group status succee
   assert.equal(requests.has("git/commits/" + earlierBase), false);
 });
 
+test("APR-06: live PR heads alone cannot prove which version made a squash group", async () => {
+  const { state, members, publishGroup } = fixture();
+  state.queue.mergeQueue.configuration.mergeMethod = "SQUASH";
+  for (const entry of state.queue.mergeQueue.entries.nodes) {
+    entry.headCommit.parents.totalCount = 1;
+    entry.headCommit.parents.nodes.pop();
+  }
+  // Both views of the original PR agree, while its previously generated squash remains in the queue.
+  state.pr.head.sha = old;
+  state.queue.mergeQueue.entries.nodes[0]!.pullRequest.headRefOid = old;
+  assert.equal((await members()).members[0]?.head, old);
+  await assert.rejects(publishGroup, /does not prove the exact original/);
+  assert.equal(state.groupStatuses.length, 0);
+});
+
 test("APR-06: disappeared or incomplete groups and changed votes or members never publish a group pass", async () => {
   const { state, publishGroup } = fixture();
   state.reviews = [review(1, author, "APPROVED", 1), review(2, reviewer, "APPROVED", 2)];
@@ -285,17 +305,44 @@ test("APR-06: disappeared or incomplete groups and changed votes or members neve
   entries.totalCount = 2;
   state.otherPr.head.sha = old;
   await assert.rejects(publishGroup, /Original pull request does not match/);
+  entries.nodes[1]!.pullRequest.headRefOid = old;
+  await assert.rejects(publishGroup, /does not prove every member/);
+  entries.nodes[1]!.pullRequest.headRefOid = otherHead;
   state.otherPr.head.sha = otherHead;
+  let groupReviewReads = 0;
   state.onRead = route => {
-    if (route === "commits/" + groupHead + "/statuses?per_page=100") {
+    if (route === "pulls/" + otherPull + "/reviews?per_page=100" && ++groupReviewReads === 3) {
       state.otherReviews.push(review(5, reviewer, "CHANGES_REQUESTED", 5, otherHead));
     }
   };
   await assert.rejects(publishGroup, /Queued approvals changed/);
   state.otherReviews.pop();
   state.onRead = route => {
-    if (route === "commits/" + groupHead + "/statuses?per_page=100") state.queue.group.target.oid = firstMerge;
+    if (route === "pulls/" + otherPull + "/reviews?per_page=100") state.queue.group.target.oid = firstMerge;
   };
   await assert.rejects(publishGroup, /could not be verified/);
   assert.equal(state.groupStatuses.length, 0);
+});
+
+test("APR-06: a failed refresh invalidates an existing pass for the same merge-group SHA", async () => {
+  const { state, publishGroup } = fixture();
+  state.reviews = [review(1, author, "APPROVED", 1), review(2, reviewer, "APPROVED", 2)];
+  state.otherReviews = [review(3, author, "APPROVED", 3, otherHead), review(4, reviewer, "APPROVED", 4, otherHead)];
+  assert.equal((await publishGroup()).published, "success");
+  state.queue.mergeQueue.entries.pageInfo.hasNextPage = true;
+  await assert.rejects(publishGroup, /could not be verified/);
+  assert.deepEqual(state.groupStatuses.map(status => status.state), ["pending", "success"]);
+});
+
+test("APR-06: withdrawal observed just after publishing clears the queued pass", async () => {
+  const { state, publishGroup } = fixture();
+  state.reviews = [review(1, author, "APPROVED", 1), review(2, reviewer, "APPROVED", 2)];
+  state.otherReviews = [review(3, author, "APPROVED", 3, otherHead), review(4, reviewer, "APPROVED", 4, otherHead)];
+  state.onRead = route => {
+    if (route === "statuses/" + groupHead && state.otherReviews.length === 2) {
+      state.otherReviews.push(review(5, reviewer, "CHANGES_REQUESTED", 5, otherHead));
+    }
+  };
+  await assert.rejects(publishGroup, /Queued approvals changed/);
+  assert.deepEqual(state.groupStatuses.map(status => status.state), ["pending", "success"]);
 });

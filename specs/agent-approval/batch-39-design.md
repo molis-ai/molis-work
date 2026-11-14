@@ -144,7 +144,9 @@ APR-06 的具体接入要求为：可信 base 的检查器在 PR 检查和 `merg
 
 2026-11-15 只读核对 Molis Work。`main` 当前要求由 GitHub Actions 发布的 `Verify`，队列配置为 ALLGREEN、SQUASH。实际队列先以 #2064、#2079 的顺序生成合并组，随后改为 #2079、#2064。当前检查器从 [MergeQueueEntry](https://docs.github.com/en/graphql/reference/pulls#mergequeueentry) 读取条目、原 PR、base/head 和真实父提交，已在真实组 `605696e3` 上核对两项原 PR 与 SHA。GitHub 的 [队列规则](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue)与该观察一致。 [原组 #2079](https://github.com/molis-ai/molis-work/actions/runs/43631979571) · [改组后 #2064](https://github.com/molis-ai/molis-work/actions/runs/43633067092)
 
-检查器校验实时目标分支头、组引用、完整队列前缀与父提交链，按同一个目标分支头的政策检查各 PR 当前原头。原 PR 返回的历史 base 只用于还原该 PR 的提交集合。只支持已核实的 squash 链，证据不足、策略缺失或发布前组成员、原批准和权限变化都会拒绝发出通过状态。GitHub 的 status 写入没有原子条件提交。正式接入需可信 runner 订阅人审、PR 内容与合并组变化，串行重算受影响的同一提交状态，并与 GitHub 队列及 App 身份限制一起验收。正式接入仍由用户批准。
+检查器校验实时目标分支头、组引用、完整队列前缀与父提交链，按同一个目标分支头的政策检查各 PR 原头。原 PR 返回的历史 base 只用于还原提交集合。发布还须证明队列组包含所审的精确原头。双父提交的队列可以逐项核原头为第二父提交，已有隔离用例；正式仓采用 squash，只有前一队列提交一个父提交，活跃条目返回的 PR 当前头没有生成时的冻结证明，当前实现仅作成员诊断并保持待核对。补齐可信证明或改用已批准的其他队列设置前，真实 squash 组不能发布通过。
+
+发布器重算前把自己的旧通过设为待核对，在写入前后重读原批准与权限。缺证据、无策略或事实变化时保持待核对。正式接入仍需可信 runner 按审批、PR 和合并组变化及时重算受影响的提交，使用独立 App 的发布身份并验收。GitHub 的状态写入没有原子条件提交，外部变动能否及时中止合并需在真实队列实测。正式接入仍由用户批准。
 
 2026-11-14 用户选择保留私有试验仓，以只安装于该仓的独立 App 验证必需检查。已创建纯合成[试验 PR](https://github.com/molis-ai/batch39-approval-lab/pull/1)，可信基线政策要求一票。注册表单已备好，Contents 与 Pull requests 为只读，Commit statuses 与 Issues 为读写，Metadata 为必需的只读权限，关闭 webhook，安装范围为本组织的这一座试验仓。App 尚待注册和安装。发布器核对精确 repo、PR、head 和 base，再发布 `agent-approval-check`，以 App id 和 bot id 更新自身的同一条固定说明，并从计票输入排除自身说明。
 
@@ -157,7 +159,7 @@ node scripts/agent-approval-publisher.mjs OWNER/REPO REPO_ID PR APP_ID APP_BOT_I
 node scripts/agent-approval-publisher.mjs OWNER/REPO REPO_ID merge-group APP_ID APP_BOT_ID TARGET_BRANCH GROUP_REF GROUP_HEAD GROUP_BASE
 ```
 
-第一个命令更新 PR 的固定说明和该次 PR head 的状态，第二个在已核实的合并组提交上发状态。退出 0 表示本次发布通过，1 表示已发布缺票，2 表示来源、政策、权限、事件或网络发生变化需要核对。隔离用例覆盖两成员缺票／补票，以及组消失、缺成员、旧票和权限变化时的拒绝。
+第一个命令更新 PR 的固定说明和该次 PR head 的状态，第二个在能够证明各原头的合并组提交上发状态。退出 0 表示本次发布通过，1 表示已发布缺票，2 表示仍需核对来源、政策、权限、事件或网络。隔离用例覆盖两成员缺票／补票、旧通过回到待核对，以及组消失、缺成员、旧票和权限变化时的拒绝。
 
 ## 8. 拟修改面与合审问题
 

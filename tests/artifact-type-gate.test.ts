@@ -62,6 +62,7 @@ const NO_CONTINUE: Record<string, string> = {
   "io.molis.work.feed.capture": "捕获的消息是收到的内容记录，不是可以接着编辑的工作",
   "character.definition.v1": "角色版本由 Characters 自己的版本历史管理，固定版本只供引用与回看",
   "coding.report.v1": "执行报告是一次运行的记录；接着做是在 Coding 里新开任务，不从报告编辑",
+  "io.molis.work.work-brief.brief": "固定的简报版本是某一刻的记录，用来回看和引用（WBR-04）；接着做是在简报里刷新或修改，不从固定版本另起一份",
 };
 test("every visible 成果 type can be continued from, by a plugin that declares a continue action, or is a named exception", () => {
   const continued = new Set<string>(), problems: string[] = [];

@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { openCoding } from "./fixtures/coding-browser.js";
 import { CODING_COMPOSER, CODING_OPEN, codingControl } from "./fixtures/coding-composer.js";
 
@@ -9,9 +11,14 @@ const NOTICE = `${CODING_COMPOSER} .mw-composer__notice`;
 
 test("BCD-02 BCD-03: discuss, plan and review say they are read-only above the bar's box; 换成修改 switches to editing and the line goes", { timeout: 120_000 }, async t => {
   const opened = await openCoding(t); if (!opened) return;
-  const { start, owner } = opened;
+  const { start, owner, command, sessionId } = opened;
   await start("看看登录页的结构");
   await owner.waitFor(CODING_OPEN, 20_000);
+  const shot = async (name: string) => {
+    const directory = join(process.cwd(), ".impeccable/qa/review/coding-readonly-notice"); await mkdir(directory, { recursive: true });
+    const image = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId);
+    await writeFile(join(directory, `${name}.png`), Buffer.from(image.data, "base64"));
+  };
   const intent = () => owner.evaluate<string>(`document.querySelector(${JSON.stringify(codingControl("intent"))}).value`);
   const choose = (value: string) => owner.evaluate(`(()=>{const s=document.querySelector(${JSON.stringify(codingControl("intent"))});s.value=${JSON.stringify(value)};s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
   const line = () => owner.evaluate<{ text: string; tone: string; button: boolean } | null>(`(()=>{const n=document.querySelector(${JSON.stringify(NOTICE)});
@@ -21,6 +28,12 @@ test("BCD-02 BCD-03: discuss, plan and review say they are read-only above the b
     await owner.waitFor(`document.querySelector(${JSON.stringify(NOTICE)})?.textContent.includes('只读')`, 15_000);
     const seen = await line();
     assert.equal(seen?.tone, "readonly", mode); assert.ok(seen?.button, `${mode}: 换成修改 is offered`);
+    if (mode === "discuss") for (const [width, height] of [[1440, 900], [1024, 768], [390, 844]] as const) {
+      await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: width < 600 }, sessionId);
+      await new Promise(resolve => setTimeout(resolve, 300));
+      await shot(`zh-light-${width}-readonly`);
+    }
+    await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   }
   for (const mode of ["execute"]) {
     await choose(mode);

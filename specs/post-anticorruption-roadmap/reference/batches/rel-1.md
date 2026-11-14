@@ -19,7 +19,7 @@
 | 交付项 | 做什么、产出什么 | 该项前置 |
 | --- | --- | --- |
 | <a id="rel-1-item-1"></a>Apple 签名与公证凭据 | 核个人会员、记 Team ID、建 Developer ID Application 证书并导出、生成公证凭据（App 专用密码或 API 密钥，推荐后者），填进发行配置引用的 GitHub Secrets；原 26-1 的外部部分 | 用户本人办 |
-| <a id="rel-1-item-2"></a>公开主页、隐私政策与服务条款 | 以公司名义发布产品页、写明 OAuth 数据用途的隐私政策和服务条款，完成域名验证；工程起草，你定主体与定稿；它挡住 Google、Microsoft、Notion、Slack 等全部正式应用 | 法律主体由用户定 |
+| <a id="rel-1-item-2"></a>公开主页、隐私政策与服务条款 | 以公司名义发布产品页、写明 OAuth 数据用途的隐私政策和服务条款，完成域名验证；工程起草（未开工前也可以起草文档，不发布），你定主体与定稿；它挡住 Google、Microsoft、Notion、Slack 等全部正式应用 | 法律主体由用户定 |
 | <a id="rel-1-item-3"></a>正式 OAuth 应用 | 逐服务提交正式应用并完成服务侧准备，按服务各挡各的；开发阶段一直用测试应用，不等这一项（原 [26-2](26.md#batch-26-item-2)） | 本批第 2 项；账号与服务侧资格，只挡对应服务 |
 | <a id="rel-1-item-4"></a>Prologue SDK 再分发许可 | 拿到 `@prologue/sdk` 能随安装包再分发的书面答复；没答复之前，公证过的包只能内部用（`c-end-readiness.md` §6 第 1 条） | 上游答复 |
 
@@ -127,7 +127,7 @@ F 轨核（只做定样／只读核查，认领见 #1743）。依据只有两样
 ### 仓库现状与缺口
 
 - **已有**：Tauri v2 桌面壳（`apps/desktop/src-tauri/tauri.conf.json`，bundle id `com.molis.work`，产物是 app 和 dmg，最低 macOS 13，`macOSPrivateApi: true`）。构建脚本 `apps/desktop/tooling/build-macos-release.sh` 在没给签名身份时默认用 `-`（ad-hoc），最后只跑 `codesign --verify`。`tauri.macos.conf.json` 写死了 `signingIdentity: "-"`，但环境变量 `APPLE_SIGNING_IDENTITY` 可以覆盖它。发布工作流 `.github/workflows/release-macos.yml` 只能手动触发，arm64 和 x64 各构建一份；6 个 `APPLE_*` 凭据齐全时才导入证书，交给 Tauri 签名和公证；打 tag 的构建如果缺凭据会直接失败。
-- **随包带的原生组件**（全部要签名）：`prepare-macos-runtime.sh` 下载并校验 Node 24.14.0；运行时里有 `better_sqlite3.node`、`pty.node`、`spawn-helper`（`node-pty` 还会带上其他平台和另一架构的预编译文件）；`apps/local-host/native/materials/bin/jelly-material`；`jelly-whisper`（SwiftPM 包，运行时会从 Hugging Face 下载约 626 MB 的模型）；`apps/local-host/native/computer/bin/Molis Work Computer Helper.app`（bundle id `com.molis.work.computer-helper`，用到屏幕录制、辅助功能、输入监控）。
+- **随包带的原生组件**（全部要签名）：`prepare-macos-runtime.sh` 下载并校验 Node 24.14.0（11-04 的快照，现为 24.15.0）；运行时里有 `better_sqlite3.node`、`pty.node`、`spawn-helper`（`node-pty` 还会带上其他平台和另一架构的预编译文件）；`apps/local-host/native/materials/bin/jelly-material`；`jelly-whisper`（SwiftPM 包，运行时会从 Hugging Face 下载约 626 MB 的模型）；`apps/local-host/native/computer/bin/Molis Work Computer Helper.app`（bundle id `com.molis.work.computer-helper`，用到屏幕录制、辅助功能、输入监控）。
 - **缺口**：
   - main 上**没有** entitlements、`src-tauri/Info.plist`、对 Resources 里各个 Mach-O 逐个签名的步骤，也没有 `stapler` 和 `spctl` 校验。Tauri 只签 bundle 的标准位置，Resources 下的二进制它不签，这一点**属推断，未核实**。
   - Computer Helper 签名时用的是 `--timestamp=none`，也没加 `--options runtime`，**这样过不了公证**；而且它必须按 bundle 整体签名，不能只签里面的可执行文件。

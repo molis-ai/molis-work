@@ -12,7 +12,7 @@
 
 - **阶段／类型**：发行；底层与架构
 - **需求来源**：[升级 U5／U6][UPG]
-- **前置／待决**：开工由用户定；U5 的合同过渡清单等 [39-2](39.md#batch-39-item-2)、[44-1](44.md#batch-44-item-1) 合入后的合同再定内容，M1 当天生效前再核一遍，不为 Goal 一等字段单独写过渡；U4 在 [26-5](26.md#batch-26-item-5)
+- **前置／待决**：开工由用户定；U5 的合同过渡清单先定机制与登记；[26-7](26.md#batch-26-item-7) 的 `state_machines` 在 M1 前合入，进同一份合同形状（[状态机需求 §13](../../../state-machine-platform/spec.md)）；清单内容等 [39-2](39.md#batch-39-item-2)、[44-1](44.md#batch-44-item-1) 合入后的合同再定内容，M1 当天生效前再核一遍，不为 Goal 一等字段单独写过渡；U4 在 [26-5](26.md#batch-26-item-5)
 - **可并行项**：REL-2、REL-3
 - **UI 要求**：复用：升级失败与恢复已定样（[runtime-and-recovery](../../../../docs/design/runtime-and-recovery/README.md)，回退默认先另存一份）
 

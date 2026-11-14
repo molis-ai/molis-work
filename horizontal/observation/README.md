@@ -24,7 +24,7 @@
 | [src/evidence.ts](src/evidence.ts) | 证据快照：脱敏、HMAC 摘要、gzip、加密、回收 |
 | [src/keys.ts](src/keys.ts) | Home 密钥库里的证据密钥与摘要密钥 |
 | [src/lifecycle.ts](src/lifecycle.ts) | 删项目、清除插件数据 |
-| [src/queries.ts](src/queries.ts) | 包内读取（第 29 批改成读取动作之前只给测试与 Host 自查用） |
+| [src/queries.ts](src/queries.ts) | 包内读取（第 29 批改成读取动作之前只给测试用） |
 | [src/coverage-plan.ts](src/coverage-plan.ts) | 这一版接上了哪些入口与事实（`OBSERVATION_COVERAGE_PLAN`） |
 | [src/source-scope.ts](src/source-scope.ts) | 来源范围 `withObservationSource` |
 | [src/schema.ts](src/schema.ts) | 库 `<Home>/observation/observation.db` 的建表 |

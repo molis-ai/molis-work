@@ -32,6 +32,7 @@ export function createScheduleActionPorts(options: {
   operations?: ScheduledOperationManagement;
   readiness?: ScheduleActionPorts["readiness"];
   archived?: ScheduleActionPorts["archived"];
+  taskReads?: ScheduleActionPorts["taskReads"];
   now?: () => Date;
 }): ScheduleActionPorts {
   const now = options.now ?? (() => new Date());
@@ -65,7 +66,8 @@ export function createScheduleActionPorts(options: {
       if (!options.operations) throw scheduleErrors.task_invalid("当前宿主未提供定时操作恢复入口");
       return options.operations.recover(input);
     },
-    listTasks: () => listScheduleConversationTasks(options.db).map(viewOf),
+    listTasks: subject => listScheduleConversationTasks(options.db, subject).map(viewOf),
+    ...(options.taskReads ? { taskReads: options.taskReads } : {}),
     ...(options.readiness ? { readiness: options.readiness } : {}),
     ...(options.archived ? { archived: options.archived } : {}),
     createTask(input) {

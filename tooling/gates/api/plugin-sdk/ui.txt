@@ -747,6 +747,17 @@ export declare function renderSeparator(options?: {
     className?: string;
 }): string;
 
+export declare function renderSeverityGrid(options: {
+    row: number;
+    column: number;
+    tone?: Extract<MwTone, "neutral" | "warning" | "danger">;
+    size?: "small" | "large";
+    label: string;
+    rowLabel?: string;
+    columnLabel?: string;
+    className?: string;
+}): string;
+
 export declare function renderSheet(options: {
     labelledBy: string;
     title: string;

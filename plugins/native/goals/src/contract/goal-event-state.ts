@@ -8,6 +8,10 @@ export type GoalEventWorkStatus = (typeof goalEventWorkStatuses)[number];
 export const goalEventConcernStatuses = ["open", "resolved", "accepted", "overturned"] as const;
 export type GoalEventConcernStatus = (typeof goalEventConcernStatuses)[number];
 
+/** An object a concern cites: its owner's kind and id. Goals reads nothing of it; the page draws it by the platform's presentation. */
+export interface GoalCitedSubject { kind: string; id: string }
+export const GOAL_CONCERN_CITED_SUBJECT_LIMIT = 8;
+
 export const goalEventConcernActions = ["open", "resolve", "accept", "overturn"] as const;
 export type GoalEventConcernAction = (typeof goalEventConcernActions)[number];
 
@@ -149,6 +153,8 @@ export interface GoalEventConcernView {
   resolution_reason: string | null;
   resolution_event_id: string | null;
   cited_decision_id: string | null;
+  /** Objects the concern cites as its cause (a risk, a message): their owners' kind and id, nothing copied (specs/risk-plugin RISK-01, RISK-02). */
+  cited_subjects: GoalCitedSubject[];
   previous_status: GoalEventConcernStatus | null;
   created_at: string;
   updated_at: string;
@@ -236,7 +242,6 @@ export interface GoalEventUnmetReason {
   requirement_id?: string;
   concern_id?: string;
   goal_id?: string;
-  risk_id?: string;
   request_id?: string;
 }
 
@@ -324,6 +329,8 @@ export interface ApplyGoalConcernInput {
   reason?: string;
   supporting_event_ids?: string[];
   cited_decision_id?: string;
+  /** Only when opening: the objects this concern is about. Citing one opens, accepts or resolves nothing (RISK-02, RISK-03). */
+  cited_subjects?: GoalCitedSubject[];
 }
 
 export interface RequestGoalDecisionInput {
@@ -458,6 +465,7 @@ export type GoalEventSystemPayload =
       statement: string;
       scope: GoalEventScope;
       blocks_closure: boolean;
+      cited_subjects: GoalCitedSubject[];
     }
   | {
       operation: "concern_resolved" | "concern_accepted" | "concern_overturned";

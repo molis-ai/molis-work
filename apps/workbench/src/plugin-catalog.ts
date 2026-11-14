@@ -209,7 +209,7 @@ export function homeStarts(enabled: readonly ProjectPluginId[], directory: Plugi
  */
 interface PlacedPluginDeclarations {
   readonly project_plugin_id: string;
-  readonly manifest: { readonly ui: { readonly views?: readonly { readonly view_id: string; readonly slot: string }[] } };
+  readonly manifest: { readonly ui: { readonly views?: readonly { readonly view_id: string; readonly slot: string; readonly opens_items?: boolean }[] } };
   readonly workbench?: { readonly contributions: readonly { readonly descriptor: { readonly surfaces?: readonly { readonly target_slot_id: string }[] } }[] };
 }
 export function sideOpenedPlugins(entries: readonly PlacedPluginDeclarations[] = BUILTIN_PLUGIN_CATALOG): Record<string, string> {
@@ -218,6 +218,20 @@ export function sideOpenedPlugins(entries: readonly PlacedPluginDeclarations[] =
     const surfaces = (entry.workbench?.contributions ?? []).flatMap((contribution) => contribution.descriptor.surfaces ?? []);
     if (surfaces.some((surface) => surface.target_slot_id === "workbench.main" || surface.target_slot_id === "workbench.directory")) continue;
     const side = entry.manifest.ui.views?.find((view) => view.slot === "side");
+    if (side) placed[entry.project_plugin_id] = `plugin:${entry.project_plugin_id}/${side.view_id}`;
+  }
+  return placed;
+}
+
+/**
+ * Where an open that names an item lands (context-program §21.6): a plugin that also has a work-area place, and declares a side
+ * view with \`opens_items\`, takes such an open there first. Plugins whose only place is the side are in \`sideOpenedPlugins\`.
+ */
+export function sideOpenedItemPlugins(entries: readonly PlacedPluginDeclarations[] = BUILTIN_PLUGIN_CATALOG): Record<string, string> {
+  const sideOnly = sideOpenedPlugins(entries), placed: Record<string, string> = {};
+  for (const entry of entries) {
+    if (Object.hasOwn(sideOnly, entry.project_plugin_id)) continue;
+    const side = entry.manifest.ui.views?.find((view) => view.slot === "side" && view.opens_items === true);
     if (side) placed[entry.project_plugin_id] = `plugin:${entry.project_plugin_id}/${side.view_id}`;
   }
   return placed;

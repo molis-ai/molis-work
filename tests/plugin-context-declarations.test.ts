@@ -162,3 +162,10 @@ test("W1-04: the new checks come after every older one, so what an author read b
   assert.ok(order[1]! < order[0]!, "the action's own problem comes before the view's, as the older checks always did");
   assert.ok(order[0]! < order[2]!, "and the cross-declaration check closes the list");
 });
+
+test("RISK-04 opens_items is a boolean on one side view only", () => {
+  assert.equal(manifestProblems(manifest([reader, itemReader], [view({ opens_items: true })])), "");
+  assert.equal(manifestProblems(manifest([reader, itemReader], [view({ slot: "stage", opens_items: true })])), "视图 cell 的 opens_items 只能用在 side 视图上");
+  assert.equal(manifestProblems(manifest([reader, itemReader], [view({ opens_items: "yes" })])), "视图 cell 的 opens_items 必须是布尔值");
+  assert.equal(manifestProblems(manifest([reader, itemReader], [view({ opens_items: true }), view({ view_id: "other", opens_items: true })])), "一个插件至多一个视图写 opens_items");
+});

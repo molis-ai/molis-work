@@ -51,6 +51,7 @@
     "@molis-ai/molis-work-plugin-lingguang": "workspace:*",
     "@molis-ai/molis-work-plugin-pages": "workspace:*",
     "@molis-ai/molis-work-plugin-ppt": "workspace:*",
+    "@molis-ai/molis-work-plugin-risk": "workspace:*",
     "@molis-ai/molis-work-plugin-schedule": "workspace:*",
     "@molis-ai/molis-work-plugin-sdk": "workspace:*",
     "@molis-ai/molis-work-plugin-shelf": "workspace:*",

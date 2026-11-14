@@ -8,6 +8,7 @@ import {
   type GoalEventAcknowledgementReference,
   type GoalEventAcknowledgementTreatment,
   type GoalEventAgreementChange,
+  type GoalCitedSubject,
   type GoalProgressArtifactSource,
   type GoalEventConcernStatus,
   type GoalEventDecisionEffect,
@@ -43,6 +44,7 @@ export function parseGoalEventSystemPayload(raw: Record<string, unknown>): GoalE
         statement: text(raw.statement),
         scope: asScope(raw.scope),
         blocks_closure: raw.blocks_closure === true,
+        cited_subjects: asCitedSubjects(raw.cited_subjects),
       };
     case "concern_resolved":
     case "concern_accepted":
@@ -198,6 +200,14 @@ function asScope(value: unknown): GoalEventScope {
     concern_ids: asStringArray(raw.concern_ids),
     action: raw.action == null || raw.action === "" ? null : String(raw.action),
   };
+}
+
+function asCitedSubjects(value: unknown): GoalCitedSubject[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    const raw = asRecord(entry);
+    return typeof raw.kind === "string" && typeof raw.id === "string" ? [{ kind: raw.kind, id: raw.id }] : [];
+  });
 }
 
 function asConcernStatus(value: unknown): GoalEventConcernStatus {

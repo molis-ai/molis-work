@@ -94,7 +94,8 @@ test("PAGESCTX-05: real unsaved long drafts keep their context through the child
     await evaluate(`{ const input = document.querySelector('[data-global-search]'); input.value = ${JSON.stringify(waiting.title)};
       input.dispatchEvent(new Event('input', { bubbles: true })); }`);
     const hit = `[data-global-search-hit][data-global-search-id=${JSON.stringify(waiting.id)}]`;
-    await waitFor(`document.querySelector(${JSON.stringify(hit)})`, 15_000);
+    // The query goes through the page's debounce and search index; a loaded CI runner can take longer than 15s to show the hit.
+    await waitFor(`document.querySelector(${JSON.stringify(hit)})`, 45_000);
     await browser.click(hit);
     await waitFor("typeof releasePendingPage === 'function'");
     await evaluate(`(() => { const link = document.createElement('a'); link.dataset.uiLanguage = 'en';

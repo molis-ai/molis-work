@@ -1,0 +1,19 @@
+{
+  "reason": "组件板设计语言一章补英文：170 个 workbench.catalog.language.* 键进中英词包，四个章节函数经现有 say 翻译；另把低对比度标签与 Back/Forward 页码改成词包/前缀-数字-后缀，不再写死中文。没有新增资源或样式；工作台语言包的内容地址变更，首屏冷/热增长来自词包本身。",
+  "review": "PR #2064「合后复查修复」的组件板英文一节；batch 71 的设计语言增强建议。用户 2026-11-14 明确回复「收，allow，都确认」，允许词包增长和语言包内容地址变化；按 package boundaries 的隔离构建实测，增长均远低于单资源 10 KB。",
+  "userApproval": "用户 2026-11-14 回复「收，allow，都确认」：批准组件板设计语言一章英文翻译带来的工作台词包增长、语言包内容地址变化与首屏增长。",
+  "pages": {
+    "arrival-empty/zh": { "cold": 4072, "warm": 0 },
+    "arrival-empty/en": { "cold": 3982, "warm": 0 },
+    "chooser/zh": { "cold": 4440, "warm": 368 },
+    "chooser/en": { "cold": 4350, "warm": 368 },
+    "workbench-default/zh": { "cold": 4064, "warm": 0 },
+    "workbench-default/en": { "cold": 3974, "warm": 0 },
+    "workbench-all-plugins/zh": { "cold": 4064, "warm": 0 },
+    "workbench-all-plugins/en": { "cold": 3974, "warm": 0 }
+  },
+  "entryApprovals": [
+    { "pages": ["arrival-empty", "chooser", "workbench-default", "workbench-all-plugins"], "locale": "zh", "entry": "/assets/locale/workbench.zh.<digest>.js", "change": "new" },
+    { "pages": ["arrival-empty", "chooser", "workbench-default", "workbench-all-plugins"], "locale": "en", "entry": "/assets/locale/workbench.en.<digest>.js", "change": "new" }
+  ]
+}

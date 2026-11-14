@@ -236,6 +236,8 @@ export interface PluginManifest {
   upgrade_compatibility?: PluginUpgradeCompatibilityDeclaration;
   /** The plugin's own tables, by scope (PG-020, specs/archive/plugin-project-database). */
   databases?: import("./plugin-database.js").PluginManifestDatabases;
+  /** Bounded state metadata. Transitions are defined in implementation code. */
+  state_machines?: readonly import("./plugin-state-machines.js").StateMachineDeclaration[];
   /** The plugin's own files in the Home (`services.ownerFiles`, PG-102): a root and its top-level entries, like `databases.home` declared here and nowhere else. */
   owner_files?: import("./plugin-owner-files.js").PluginOwnerFilesDeclaration;
   /** The settings of the model this plugin uses (`services.model.configuration`, PG-102): where its choice is kept and the two actions that read and save it. */

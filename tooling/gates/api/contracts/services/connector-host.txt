@@ -284,7 +284,7 @@ export interface ConnectorConnectionRecord {
     readonly updated_at: string;
 }
 
-export type ConnectorConnectionState = "connected" | "reauth_required" | "disconnected";
+export type ConnectorConnectionState = keyof typeof STATE_VOCABULARIES.connectorConnection.states;
 
 export interface ConnectorConnectionStatus {
     configuration: {

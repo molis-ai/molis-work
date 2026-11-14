@@ -175,9 +175,8 @@ export interface PluginDatabaseDeclaration {
    * indexes and change their rows, by deterministic SQL; afterwards the tables must be exactly what `schema` makes, or none of it is
    * kept and the plugin stops.
    *
-   * 2026-10-18 改: for now only a plugin of the Host's own build may declare steps. An installed plugin whose Manifest has `upgrades`
-   * is refused at install and at a version change (`plugin.upgrade_steps_unsupported`), until U4 lets installed plugins upgrade their
-   * tables too (user 2026-11-06).
+   * A signed installed plugin's explicit package upgrade runs its steps in the bounded SQL process. Ordinary activation only checks
+   * the current version and declaration.
    */
   readonly upgrades?: readonly PluginDatabaseUpgradeStep[];
 }

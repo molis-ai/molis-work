@@ -5,7 +5,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
-pub const SELF_BUNDLE: &str = "com.molis.work";
 pub const FINDER_BUNDLE: &str = "com.apple.finder";
 
 pub const KVK_ANSI_A: u32 = 0x00;
@@ -892,6 +891,8 @@ pub fn existing_paths<P: AsRef<Path>>(paths: &[P]) -> Vec<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const SELF_BUNDLE: &str = "ai.example.work";
     use std::fs;
     use std::time::{SystemTime, UNIX_EPOCH};
 

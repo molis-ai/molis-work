@@ -54,7 +54,7 @@ export function roundDiagnostics(workId: string, work: StoredWork | null, round:
   const tokens = view?.usage?.tokens;
   return {
     work_id: workId, work_title: work?.title ?? "", project_id: work?.project_ref?.project_id ?? null, session_id: work?.session_id ?? null,
-    run_id: round.run_id, started_at: round.started_at, ended_at: view?.ended_at ?? null, phase: view?.phase ?? "unknown", stop_reason: view?.stop_reason ?? null,
+    run_id: round.run_id, started_at: round.started_at, ended_at: view?.ended_at ?? null, phase: view?.phase ?? "unknown", stop_reason: view?.stop_reason ?? null, ...(view?.stop_reason_code ? { stop_reason_code: view.stop_reason_code } : {}),
     frozen: frozen ? { model_id: frozen.model_id, role: { id: frozen.role_id, version: frozen.role_version }, execution: frozen.execution,
       character: frozen.character ? { artifact_id: frozen.character.reference.artifact_id, version: frozen.character.reference.version, title: frozen.character.title } : null,
       prompts: frozen.prompts.map(({ prompt_id, version, layer, user_revision }) => ({ prompt_id, version, layer, ...(user_revision !== undefined ? { user_revision } : {}) })),

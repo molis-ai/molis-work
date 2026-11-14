@@ -18,6 +18,10 @@ export interface PackSandboxOptions {
   scope?: 'project' | 'home';
   icon?: PluginIconName;
   upgradesFrom?: string[];
+  migratableFrom?: string[];
+  homeDatabase?: import('@molis-ai/molis-work-plugin-sdk').SandboxManifestInput['homeDatabase'];
+  projectDatabase?: import('@molis-ai/molis-work-plugin-sdk').SandboxManifestInput['projectDatabase'];
+  stateMachines?: SandboxPackageManifest['state_machines'];
   agent?: SandboxPackageManifest['agent'];
   methods?: SandboxPackageManifest['methods'];
 }
@@ -64,7 +68,12 @@ export async function packSandboxProject(directory: string, output: string, opti
     stageTitleText: options.stageTitleText,
     presentation: surface.presentation !== undefined, effects: effectsFromContract(contract),
     ...(options.scope === 'home' ? { runtime: { scope: 'home' } } : {}),
-    ...(options.icon ? { icon: options.icon } : {}), upgradesFrom: options.upgradesFrom,
+    ...(options.icon ? { icon: options.icon } : {}),
+    upgradeCompatibility: options.upgradesFrom?.length || options.migratableFrom?.length ? {
+      ...(options.upgradesFrom?.length ? { compatible_from_versions: options.upgradesFrom } : {}),
+      ...(options.migratableFrom?.length ? { migratable_from_versions: options.migratableFrom } : {}),
+    } : undefined,
+    homeDatabase: options.homeDatabase, projectDatabase: options.projectDatabase, stateMachines: options.stateMachines,
   });
   void projectedAgent; void projectedMethods;
   const manifest: SandboxPackageManifest = { ...fixed, ...(options.agent !== undefined ? { agent: options.agent } : {}), ...(options.methods !== undefined ? { methods: options.methods } : {}) };
@@ -84,7 +93,7 @@ export async function packSandboxProject(directory: string, output: string, opti
 
 /** Explicit publishing choices, never a user-supplied Manifest or derived permission list. */
 export function sandboxPackOptions(args: readonly string[]): PackSandboxOptions {
-  const allowed = new Set(['name', 'name-text', 'view-title-text', 'summary', 'summary-text', 'version', 'publisher-id', 'publisher-key-id', 'scope', 'icon', 'compatible-from', 'agent', 'methods']);
+  const allowed = new Set(['name', 'name-text', 'view-title-text', 'summary', 'summary-text', 'version', 'publisher-id', 'publisher-key-id', 'scope', 'icon', 'compatible-from', 'migratable-from', 'home-database', 'project-database', 'state-machines', 'agent', 'methods']);
   const fields = new Map<string, string>();
   for (let i = 0; i < args.length; i += 2) {
     const key = args[i]?.slice(2), value = args[i + 1];
@@ -102,5 +111,9 @@ export function sandboxPackOptions(args: readonly string[]): PackSandboxOptions 
     ...(fields.has('summary') ? { summary: need('summary') } : {}),
     ...(fields.has('summary-text') ? { summaryText: json('summary-text') as SandboxPackageManifest['summary_text'] } : {}),
     ...(icon ? { icon: icon as PluginIconName } : {}), ...(fields.has('compatible-from') ? { upgradesFrom: fields.get('compatible-from')!.split(',') } : {}),
+    ...(fields.has('migratable-from') ? { migratableFrom: fields.get('migratable-from')!.split(',') } : {}),
+    ...(fields.has('home-database') ? { homeDatabase: json('home-database') as PackSandboxOptions['homeDatabase'] } : {}),
+    ...(fields.has('project-database') ? { projectDatabase: json('project-database') as PackSandboxOptions['projectDatabase'] } : {}),
+    ...(fields.has('state-machines') ? { stateMachines: json('state-machines') as PackSandboxOptions['stateMachines'] } : {}),
     ...(fields.has('agent') ? { agent: json('agent') as SandboxPackageManifest['agent'] } : {}), ...(fields.has('methods') ? { methods: json('methods') as SandboxPackageManifest['methods'] } : {}) };
 }

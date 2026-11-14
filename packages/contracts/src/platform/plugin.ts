@@ -1,3 +1,5 @@
+export { STATE_MACHINE_DECLARATION_LIMITS, type StateMachineDeclaration } from "./plugin-state-machines.js";
+import type { STATE_VOCABULARIES } from "./state-vocabulary.js";
 export type { PluginBackgroundClient, PluginBackgroundExecution, PluginJobControl, PluginJobDeclaration, PluginKeptJob } from "./plugin-background.js";
 export type { PluginInteractionClient, PluginInteractionNextSteps, PluginInteractionStep } from "./plugin-interaction.js";
 import type { ConnectorDriver } from "../services/connector-host.js";
@@ -49,13 +51,7 @@ export const platformPluginContract = {
 /** The provider id the Host registers its plugin install service under (installing, and importing Skills as a package): one name, shared by the Host and the AI kit's reporter table (`services/kit`). */
 export const PLUGIN_INSTALL_PROVIDER_ID = "plugin-install";
 
-export type PluginLifecycleState =
-  | "installed"
-  | "running"
-  | "disabled"
-  | "crashed"
-  | "quarantined"
-  | "uninstalled";
+export type PluginLifecycleState = keyof typeof STATE_VOCABULARIES.pluginLifecycle.states;
 
 export interface PluginInstanceRecord {
   install_id: string;
@@ -163,6 +159,7 @@ export interface PluginStartContext {
 /** Restricted context for reading existing private data during upgrade preflight. */
 export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
   /** Preflight is deliberately read-only. Upgrade validation cannot mutate plugin data. */
+  readonly assertCurrent?: () => void;
   readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "project_statements" | "database_statements" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "localTools" | "materials" | "connections" | "directory" | "background" | "scheduler" | "agents" | "installations" | "projects" | "notifications" | "attention" | "contextLedger" | "interaction" | "savedHistory" | "sync"> & {
     readonly storage?: Pick<PluginPrivateStorage, "get">;
   };
@@ -204,11 +201,29 @@ export interface PluginExecutorHandle {
   contribution: PluginContribution;
 }
 
+/** Internal owner commit for an installed plugin with a changed SQLite declaration. */
+export interface PluginDatabaseApproval {
+  readonly installId: string;
+  readonly key: string;
+  readonly value: string;
+}
+
+export interface PluginDatabaseVersionSwitch {
+  readonly previous: PluginManifest;
+  readonly current: PluginInstanceRecord;
+  readonly next: PluginInstanceRecord;
+  readonly approval?: PluginDatabaseApproval;
+  /** Re-checks the live install and initiating authority at the commit boundary. */
+  assertCurrent(): void;
+}
+
 export interface PluginExecutor {
   start(definition: PluginDefinition, context: PluginStartContext): Promise<PluginExecutorHandle>;
   stop(definition: PluginDefinition, context: PluginStartContext): Promise<void>;
   /** Supplies only the target Manifest's declared private storage for preflight. */
   validateUpgrade?(definition: PluginDefinition, context: PluginUpgradeContext, from: PluginInstanceRecord): Promise<void>;
+  /** Saves the installed edition and adopted database structure together. No plugin code runs in the SQL worker. */
+  commitDatabaseUpgrade?(definition: PluginDefinition, change: PluginDatabaseVersionSwitch): Promise<void>;
   /** Host snapshot hooks keep persisted private data intact if candidate startup fails. */
   capturePrivateData?(installId: string): Promise<unknown> | unknown;
   restorePrivateData?(installId: string, snapshot: unknown): Promise<void> | void;
@@ -245,7 +260,8 @@ export interface PluginRuntimeApi {
     retain_private_data?: boolean;
   }): PluginLifecycleReceipt;
   /** Explicit, user-triggered replacement after version, grant and private-data preflight. */
-  upgrade(input: { install_id: string; definition: PluginDefinition; deployment?: PluginDeployment; grants?: string[]; assertCurrent?: () => void }): Promise<PluginLifecycleReceipt>;
+  upgrade(input: { install_id: string; definition: PluginDefinition; deployment?: PluginDeployment; grants?: string[]; assertCurrent?: () => void;
+    assertCommitted?: () => void; previousManifest?: PluginManifest; persistApproval?: PluginDatabaseApproval }): Promise<PluginLifecycleReceipt>;
   /** Generated plugins only: restore earlier code while retaining current private data. */
   rollback(input: { install_id: string; definition: PluginDefinition }): Promise<PluginLifecycleReceipt>;
   grant(installId: string, permissions: string[]): PluginLifecycleReceipt;

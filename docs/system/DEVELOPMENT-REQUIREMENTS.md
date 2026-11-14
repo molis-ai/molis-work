@@ -31,6 +31,8 @@
 
 ## 按层的通用要求
 
+平台包从 contracts 取公开状态词汇，SDK 提供定义与声明核对的基础函数。插件在 Manifest 声明自己的状态，内部转换留在事实主人包。
+
 - **App 与组合根**（`apps/*`）：只装配与做 IO，不写业务规则；不直接写业务数据库。一个 Home 只有一个执行进程，其他入口转发给它。App 之间只有登记的启动器边（`APP_IMPORT_ALLOWLIST`，见 [包边界规则](PACKAGE-BOUNDARIES.md)第 2 节）。
 - **平台包**（`packages/*`）：只依赖合同与更低层平台包；不拥有 Goal、Artifact、Feed、Session 等业务事实。
 - **Module**（`modules/*`，加上 `server`：它有群聊领域，按业务包检查）：自己的事实只由自己写；跨 Module 只走公开合同，不导入另一个 Module 的实现或 Store，也不导入 Horizontal Service、App 或 Plugin；入口不再新增 Repository/Store 导出；结果合同只认现行取值，存量数据由维护改成现行形状。

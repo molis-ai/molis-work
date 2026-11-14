@@ -1,0 +1,5 @@
+# S-installed-database-upgrade
+
+| ID | 不变量（拒绝什么） | 代码位置 | 测试（CI 里跑） | 测试（只在本机跑） |
+| --- | --- | --- | --- | --- |
+| S-installed-database-upgrade | 已装签名包的迁移只在同一发布者本人确认的版本切换中受理。预检只读私有 KV，且不回传校验器错误文本。SQL Worker 以现行安装和旧发行物核对库主人、结构和版本，临近提交复查启用状态和原授权。Home 恢复先在副本验证三库，按原安装的提交结果处理，未提交时恢复 checkpoint 快照。提交后启动失败保留新版本和稳定诊断，其他插件继续运行。 | `apps/local-host/src/project-statement-worker.ts`、`apps/local-host/src/installed-database-upgrade.ts`、`apps/local-host/src/installed-home-upgrade-recovery.ts`、`packages/plugin-runtime/src/index.ts` | `tests/security-invariants-installed-database-upgrade.test.ts`「refuses a signed migration validator with write access」 | `tests/security-invariants-installed-database-upgrade.test.ts`「an interrupted SQL worker leaves the old owned schema」「a failed Home upgrade is restored byte for byte」「a startup constraint and validator error」「switching the Home plugin off before publish」「activation failure after a committed migration」「a killed Host recovers the library」「cancellation after the SQL commit preserves the new installation」 |

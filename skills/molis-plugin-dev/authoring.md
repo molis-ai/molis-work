@@ -38,6 +38,8 @@ import { definePlugin, definePollingIntegrationPlugin } from "@molis-ai/molis-wo
 
 Manifest 的 `agent.prompts` 只声明提示词标识、版本等元信息；作者在 `PluginDefinition.agent_prompts` 提供对应的正文，按 `prompt_id` 和 `version` 与声明配齐。运行中的非沙箱插件会由 Host 登记角色和提示词；角色引用的提示词缺少正文时，登记报 `agent_definitions.invalid`，整个插件启动失败。当前检查针对角色引用的提示词，不保证所有未被角色引用的声明都经过同样检查。内置目录的过渡安排见 [elements.md 的 agent 块](elements.md#agent-块)。
 
+持久状态用 SDK 的 `/state-machine` 定义；命令校验会显示 Manifest 的状态机声明。见[状态与转换](state-machine.md)。
+
 ## CLI（第三方 / 本地样例）
 
 今天 `plugin create` 生成的是 **integration 样例**（私人计数 + Artifact + 一段 UI），不是 Native 一级入口插件。
@@ -86,7 +88,9 @@ pnpm --dir packages/plugin-sdk pack --pack-destination "$plugin_packages_dir"
 
 沙箱包用 `molis-work plugin pack-sandbox`，只有技能的内容包用 `molis-work plugin pack-content`。在安装版 CLI 运行 `molis-work plugin --help` 查看参数。公开 SDK 的 `sandboxPluginManifest`、`sandboxIntegrationManifest`、`effectsFromContract` 与 CLI 共用清单和效果的生成逻辑。角色资料与方法可在随包手册查看，完整格式留作源码树参考。[签名 app 包的文字资料](#签名-app-包的文字资料) · [源码树的沙箱包格式与安装](../../docs/platform/PLUGIN-DEVELOPMENT.md#沙箱包格式与安装)
 
-## 生命周期
+## 生命周期与对象状态
+
+插件的启动生命周期与对象各自管理。对象转换与旧状态升级按[状态与转换](state-machine.md)处理。
 
 状态：`installed` → `running` / `disabled` / `crashed` / `quarantined` / `uninstalled`。一个插件启动失败只影响自己。卸载不删已形成的 Artifact/Signal。崩溃可在上限内恢复。当前项目的插件市场支持 Runtime 插件手动升级：Manifest 用精确的 `upgrade_compatibility` 来源版本声明直接兼容或可迁移；可迁移版本还须实现只读 `validateUpgrade`。常规启动不写入新版本，升级保留 `install_id` 与既有 grant。独立进程沙箱和 Server entry 仍不是已上线承诺。[随包的版本升级约定](elements.md#版本升级) · [源码树的升级流程与 Manifest 片段](../../docs/platform/PLUGIN-DEVELOPMENT.md#插件版本升级)
 

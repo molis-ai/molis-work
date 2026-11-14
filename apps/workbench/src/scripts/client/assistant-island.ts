@@ -139,13 +139,13 @@ ${ASSISTANT_BROWSER_HANDBACK_PART}
   // the dialog shows it; a press on ＋ starts a separate work instead (fresh), which becomes an event on the line.
   let fresh = false;
   const mains = () => works.filter((work) => work.main && !work.archived).sort((a, b) => Number(Boolean(a.character)) - Number(Boolean(b.character)));
-  const mainId = () => mains().find((work) => !work.character)?.work_id || null;
+  const mainId = () => mains().find((work) => nextChar && !fresh ? work.character?.artifact_id === nextChar.artifact_id : !work.character)?.work_id || null;
   const startFresh = () => { fresh = true; if (curId || curEvent) return showWork(null); drawTabs(); render(); };
   // Events of the work line opened as tabs here, and the one in front (specs/work-line §4.4; the rest is in assistant-tabs.ts).
   const WORK_KIND = "assistant_work";
   let eventTabs = [], curEvent = null;
   // Words not yet sent with no work in front are kept per place: the event's tab, or a new work (WLN-13).
-  const newDraftKey = () => scoped(curEvent ? "event-draft:" + curEvent : "new-draft");
+  const newDraftKey = () => scoped(curEvent ? "event-draft:" + curEvent : nextChar && !fresh ? "talk-draft:" + nextChar.artifact_id : "new-draft");
   // A tab keeps its place; when there are too many, the one looked at longest ago (never the current one) closes.
   const openTab = (id) => {
     if (!id) return;

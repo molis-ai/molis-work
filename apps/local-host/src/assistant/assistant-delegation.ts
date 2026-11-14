@@ -123,7 +123,10 @@ export class AssistantDelegations {
         const materials: AssistantMaterial[] = (input.materials ?? []).slice(0, 4).map((material, index) => ({ material_id: `delegated-${index + 1}`, kind: "text", title: material.title.slice(0, 200),
           text: material.text.slice(0, 20_000), explicit: true, source: { surface: "assistant", title: parent.title } }));
         try {
-          const assigned = role ? await this.ports.chooseCharacter(child, role.reference) : child;
+          // A Character's own main conversation hands its parts to itself unless it names another role: the task is done, and
+          // reported back, by the one the person is talking to (WLN-40).
+          const carrier = role?.reference ?? (parent.main && parent.character ? { artifact_id: parent.character.artifact_id, version: parent.character.version } : undefined);
+          const assigned = carrier ? await this.ports.chooseCharacter(child, carrier) : child;
           // What being delegated means is the delegated role's own layer; the message is only this part's brief and its bar.
           await this.ports.dispatch(assigned, [`「${parent.title}」委托的子任务`, input.brief, `验收标准：${input.acceptance}`].join("\n\n"), materials, "assistant");
         } catch (error) {

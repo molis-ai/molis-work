@@ -11,7 +11,9 @@ export const ASSISTANT_TABS_PART = String.raw`  /* ─── Tabs ────�
     // The main conversations lead and stay (one per counterpart, the Assistant's first even before its first message); then the open works.
     const lead = mains(), own = lead.find((work) => !work.character), said = eventTabs.map((one) => aboutEvent(one.subject));
     const ids = tabs.filter((id) => !workById(id)?.main && !said.some((work) => work?.work_id === id));
-    const front = curEvent ? "event:" + curEvent : curId || (fresh ? "new" : "main");
+    // A Character chosen in 「发给」 that has no conversation yet has its tab from the choice on (WLN-40); its first words open the conversation.
+    const talk = !curId && !curEvent && !fresh && nextChar ? nextChar : null;
+    const front = curEvent ? "event:" + curEvent : curId || (fresh ? "new" : talk ? "talk" : "main");
     tabsEl.replaceChildren();
     const tab = (id, title, mark, closable, owner, work = workById(id)) => {
       const wrap = el("div", "assistant-tab"); wrap.dataset.tab = id;
@@ -26,20 +28,21 @@ export const ASSISTANT_TABS_PART = String.raw`  /* ─── Tabs ────�
       if (owner) { const shell = document.createElement("template"); shell.innerHTML = owner; if (shell.content.firstElementChild) main.append(shell.content.firstElementChild); }
       main.append(tabMark(mark, work), el("span", "assistant-tab-title", title));
       main.title = title + (mark ? " · " + globalThis.t.text(MARK_LABEL[mark]) : "");
-      main.addEventListener("click", () => { if (id === "main") { fresh = false; void switchTo(null); } else if (id.startsWith("event:")) void showEvent(id.slice(6)); else if (id !== "new") void switchTo(id); });
+      main.addEventListener("click", () => { if (id === "main") void talkTo(null); else if (id.startsWith("event:")) void showEvent(id.slice(6)); else if (id !== "new" && id !== "talk") void switchTo(id); });
       wrap.append(main);
       if (id !== "new") wrap.addEventListener("auxclick", (event) => { if (event.button !== 1) return; event.preventDefault(); closeTab(id); });
       if (closable) {
         const close = el("button", "assistant-tab-close", "×"); close.type = "button"; close.tabIndex = -1;
         close.setAttribute("aria-label", globalThis.t.text("workbench.assistant-tabs.close-tab-named", { title }));
         close.title = globalThis.t.text("workbench.assistant-tabs.close-tab-work-stays-all-work");
-        close.addEventListener("click", (event) => { event.stopPropagation(); if (id === "new") { fresh = false; void switchTo(tabs[tabs.length - 1] || null); } else closeTab(id); });
+        close.addEventListener("click", (event) => { event.stopPropagation(); if (id === "new") { fresh = false; void switchTo(tabs[tabs.length - 1] || null); } else if (id === "talk") void talkTo(null); else closeTab(id); });
         wrap.append(close);
       }
       tabsEl.append(wrap);
     };
     tab(own ? own.work_id : "main", globalThis.t.text("workbench.assistant-tabs.main-conversation"), markOf(own), false);
     lead.filter((work) => work.character).forEach((work) => tab(work.work_id, work.character.title, markOf(work), false));
+    if (talk) tab("talk", talk.title, "", true);
     ids.forEach((id) => { const work = workById(id); tab(id, work ? work.title : globalThis.t.text("workbench.assistant-tabs.loading"), markOf(work), true); });
     eventTabs.forEach((one, at) => tab("event:" + one.key, one.title, markOf(said[at]), true, one.mark, said[at]));
     if (!curId && !curEvent && fresh) tab("new", globalThis.t.text("workbench.assistant-tabs.new-work"), "", true);
@@ -146,6 +149,14 @@ export const ASSISTANT_TABS_PART = String.raw`  /* ─── Tabs ────�
       if (about) { eventObjects = host.positions.mount(eventCard, (body, signal) => host.positionRead("/api/mainline/event/surfaces", body, signal), { source: () => ({ subject: about.subject }) }); void eventObjects.update(); }
     } else if (eventObjects) void eventObjects.update(false);
     if (eventObjects) put(eventCard); else eventCard.remove();
+  }
+  // 「发给」 a counterpart (WLN-40): the Assistant (null) or a Character. Its standing main conversation comes in front; a Character
+  // not spoken to yet is kept as the one the next Send goes to, with a draft of its own, and the Host opens its conversation then.
+  function talkTo(ref) {
+    const standing = ref ? mains().find((work) => work.character?.artifact_id === ref.artifact_id) : null;
+    fresh = false; nextChar = ref && !standing ? ref : null;
+    if (nextChar) { nextScope = "project"; nextExec = "assistant"; }
+    return switchTo(standing ? standing.work_id : null).then(() => { drawTabs(); paintAim(); paintSum(); input.focus(); });
   }
   /* ─── Where a handed-out task went (WLN-32) ────────────────────────────── */
   // Under the reply that handed a task to the background: where it stands on the work line, with 「改」. The line draws the row

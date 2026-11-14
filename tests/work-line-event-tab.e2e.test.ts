@@ -243,3 +243,73 @@ test("WLN-32: the reply that handed a task out says where it went; 「改」 ope
   assert.equal(await evaluate("document.querySelector('[data-toast]:not([hidden])')?.textContent || ''"), "");
   assert.equal(await evaluate("document.documentElement.scrollWidth <= window.innerWidth"), true, "no sideways scroll");
 });
+
+// WLN-03, WLN-40: 「发给」 on a project lists who can be spoken to at now and the line's own events. The Characters the project
+// offers are the Host's answer; this project has published none, so the page's read of them is given one (nothing else is).
+test("WLN-03 WLN-40: 「发给」 lists the Assistant, the Characters and the line's events; a Character chosen there has its own tab and draft, and the next Send is its main conversation's", { timeout: 150_000 }, async t => {
+  const browser = await openGoalBrowser(t, true, undefined, null);
+  if (!browser) return;
+  const { command, sessionId, navigate, origin, projectId, homeDirectory, evaluate, waitFor, click } = browser;
+  const store = openTodoStore(homeDirectory);
+  const item = store.create({ title: "给王总回电话", placement: "project", planned_date: today() }, { projectId, projectIds: [], actor: "user" as const, actorId: "test" }).item;
+  store.close();
+  const editor = { artifact_id: "character:project:editor", version: 2 };
+  await command("Page.addScriptToEvaluateOnNewDocument", { source: `window.__sent = []; (() => { const real = window.fetch; window.fetch = async function (input, init) {
+    const url = new URL(typeof input === 'string' ? input : input.url, location.href);
+    if (/\\/api\\/assistant\\/send$/.test(url.pathname) && init && typeof init.body === 'string') window.__sent.push(JSON.parse(init.body));
+    if (/\\/api\\/assistant\\/characters$/.test(url.pathname)) return new Response(JSON.stringify({ characters: [{ reference: ${JSON.stringify(editor)}, title: "严格的编辑", available: true }] }), { status: 200, headers: { "content-type": "application/json" } });
+    return real.apply(this, arguments); }; })();` }, sessionId);
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
+  await waitFor(`document.querySelector('[data-work-line] [data-work-event*="todo-planned:${item.id}"]')?.textContent.includes('给王总回电话')`, 20_000);
+
+  const MENU = "document.querySelector('[data-assistant-send-to]')", TAG = "document.querySelector('[data-assistant-composer] [data-composer-receiver]')";
+  const rows = `[...${MENU}.querySelectorAll('[role=menuitemradio]')].map(item => item.getAttribute('aria-checked') + ':' + item.querySelector('[data-slot=menu-item-label] > span').textContent)`;
+  const open = async () => { await evaluate(`${TAG}.click()`); await waitFor(`${MENU}.matches(':popover-open') && ${MENU}.textContent.includes('严格的编辑')`, 15_000); };
+  const pick = (label: string) => evaluate(`[...${MENU}.querySelectorAll('[role=menuitemradio]')].find(item => item.textContent.includes(${JSON.stringify(label)})).click()`);
+
+  // At now the Assistant is ticked; the events are the line's.
+  await open();
+  assert.deepEqual(await evaluate(`[...${MENU}.querySelectorAll('.mw-menu__label')].map(node => node.textContent)`), ["现在", "线上的事件"]);
+  const listed = await evaluate<string[]>(rows);
+  assert.deepEqual(listed.slice(0, 2), ["true:助理", "false:严格的编辑"]);
+  const onLine = await evaluate<string[]>("[...document.querySelectorAll('[data-work-line] [data-work-event]:not([data-work-line-retry]) .work-event-name')].map(node => node.textContent)");
+  assert.deepEqual(listed.slice(2).map(row => row.slice(row.indexOf(":") + 1)).sort(), [...onLine].sort(), "the same events as the line");
+  assert.ok(listed.some(row => row === "false:给王总回电话"));
+  assert.equal(await evaluate(`${MENU}.scrollWidth <= ${MENU}.clientWidth && [...${MENU}.querySelectorAll('[role=menuitemradio]')].every(item => item.getBoundingClientRect().height >= 32)`), true);
+  const shot = new URL("../.impeccable/qa/review/work-line/", import.meta.url);
+  await mkdir(shot, { recursive: true });
+  await writeFile(new URL("send-to-1440.png", shot), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
+
+  // An event chosen here is the event's tab, as a press on the line.
+  await pick("给王总回电话");
+  await waitFor(`${TAB}?.dataset.tab === ${JSON.stringify(`event:todo_item:${item.id}`)} && !${MENU}.matches(':popover-open')`);
+  await open();
+  assert.ok((await evaluate<string[]>(rows)).includes("true:给王总回电话"), "the menu ticks what the tag shows");
+
+  // WLN-40: a Character chosen here is who the box speaks to: its own tab, its name in the tag, a draft of its own.
+  await pick("严格的编辑");
+  await waitFor(`${TAB}?.dataset.tab === 'talk' && ${TAG}.textContent.includes('严格的编辑')`);
+  assert.match(String(await evaluate(`${TAB}.textContent`)), /严格的编辑/u);
+  await evaluate(type("帮我改改周报开头"));
+  await open();
+  assert.deepEqual((await evaluate<string[]>(rows)).slice(0, 2), ["false:助理", "true:严格的编辑"]);
+  await pick("助理");
+  await waitFor(`${TAB}?.hasAttribute('data-main') && ${INPUT}.value === ''`);
+  assert.equal(await evaluate("Boolean(document.querySelector('.assistant-tab[data-tab=\"talk\"]'))"), false, "back with the Assistant, the Character's tab is not kept open for nothing");
+  await evaluate(type("今天有什么要办"));
+  await open(); await pick("严格的编辑");
+  await waitFor(`${TAB}?.dataset.tab === 'talk' && ${INPUT}.value === '帮我改改周报开头'`);
+  await open(); await pick("助理");
+  await waitFor(`${TAB}?.hasAttribute('data-main') && ${INPUT}.value === '今天有什么要办'`);
+
+  // The Send from the Character's tab is its main conversation's: main, with that Character, no work named and no event.
+  await open(); await pick("严格的编辑");
+  await waitFor(`${TAB}?.dataset.tab === 'talk' && ${INPUT}.value === '帮我改改周报开头'`);
+  await evaluate("document.querySelector('[data-assistant-composer] [data-composer-send]').click()");
+  await waitFor("window.__sent.length > 0");
+  const [sent] = await evaluate<Array<{ text: string; main?: boolean; character?: unknown; work_id?: string; for_event?: unknown }>>("window.__sent");
+  assert.deepEqual([sent!.text, sent!.main, sent!.character, sent!.work_id, sent!.for_event], ["帮我改改周报开头", true, editor, undefined, undefined]);
+  assert.equal(await evaluate("document.documentElement.scrollWidth <= window.innerWidth"), true, "no sideways scroll");
+});

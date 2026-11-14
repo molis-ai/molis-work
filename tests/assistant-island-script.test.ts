@@ -190,7 +190,7 @@ test("the page's glyph in 「发给」 is drawn from the assistant's own rendere
   assert.doesNotMatch(script, /keepGlyph|pageGlyphs|\.mw-composer__to svg/, "no composer DOM is read for a glyph");
   assert.match(script, /const glyphSprite = island\.querySelector\("\[data-assistant-glyphs\]"\)/);
   assert.match(script, /const pageGlyph = \(name\) => \{/);
-  assert.match(script, /mark = pageGlyph\(named\.icon\)/, "the 「发给」 row's mark comes from the receiver's icon name");
+  assert.match(script, /mark = named \? pageGlyph\(named\.icon\) : null/, "the 「发给」 row's mark comes from the receiver's icon name");
 });
 
 // E8 (2026-11-11 review): files the side pane takes are dropped silently when a page in front has the bar. The path is

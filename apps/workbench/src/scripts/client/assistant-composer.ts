@@ -132,13 +132,14 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   const receiverNow = () => {
     const work = getWork();
     // With a page in front that takes words, the tag opens 「发给」 (O4), so the person can go back to it.
-    const open = globalThis.molisBarReceivers?.front() ? openSendTo : openConversation;
+    const open = globalThis.molisBarReceivers?.front() || (project && host.lineEvents) ? openSendTo : openConversation;
     // A new work names where it will be put first (this project, or personal), so a personal request typed on a project page is not filed there unseen.
     const place = scopeLabel(nextScope === "project" && project ? { kind: "project", project_id: project.id } : { kind: "personal" });
     // An event's tab in front: the words are about that event (WLN-03); the cross goes back to now.
     const about = eventOf();
     if (about && !work?.reply_target) return { open, icon: "sparkles", label: about.title, reset: () => { void switchTo(null); input.focus(); }, resetLabel: readText("workbench.assistant-dock.start-new-work-instead") };
-    if (!work) return { open, icon: "sparkles", label: place + " · " + (nextExec !== "assistant" && executorOffer(nextExec) ? executorOffer(nextExec).title : readText("workbench.common.assistant")) };
+    if (!work) return { open, icon: "sparkles", label: place + " · " + (nextExec !== "assistant" && executorOffer(nextExec) ? executorOffer(nextExec).title : nextChar ? nextChar.title : readText("workbench.common.assistant")),
+      ...(nextChar && !fresh ? { reset: () => { void talkTo(null); }, resetLabel: readText("workbench.assistant-dock.start-new-work-instead") } : {}) };
     const where = work.scope?.project_id !== project?.id ? scopeLabel(work.scope, work.scope_title) : "";
     // With a page in front that takes words, say plainly that this Send goes to the Assistant, not to that page.
     const to = globalThis.molisBarReceivers?.front() ? readText("workbench.common.assistant") + " · " : "";
@@ -379,10 +380,28 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     group.append(head, ...items);
     return group;
   };
+  const whoMark = (name) => { const mark = el("span", "work-reply-who", Array.from(name)[0] || ""); mark.setAttribute("aria-hidden", "true"); return mark; };
   const paintSendTo = () => {
     const page = globalThis.molisBarReceivers?.front() || null, named = page?.options.receiver?.() || null;
-    if (!page || !named) return false;
-    const onPage = boundPage === page, mark = pageGlyph(named.icon), spark = glyphOf(sendToGlyphs.sparkles);
+    // On a project the line's events and who can be spoken to are listed too (specs/work-line §4.4, WLN-40): the same events as the line.
+    const line = project && host.lineEvents ? host.lineEvents() : null;
+    if (!named && !line) return false;
+    const onPage = Boolean(named) && boundPage === page, mark = named ? pageGlyph(named.icon) : null, spark = glyphOf(sendToGlyphs.sparkles);
+    if (line) {
+      const leave = () => { if (page) declined = page; };
+      const here = getWork(), now = !onPage && !curEvent && !fresh && (!here || here.main), to = now ? chosenCharacter() : null;
+      const spoken = mains().filter((work) => work.character).map((work) => work.character);
+      const offered = (characterChoices() || []).filter((one) => one.available && !spoken.some((had) => had.artifact_id === one.reference.artifact_id)).map((one) => ({ artifact_id: one.reference.artifact_id, version: one.reference.version, title: one.title }));
+      const talk = (ref) => () => { leave(); void talkTo(ref).then(syncComposer); };
+      sendTo.replaceChildren(
+        ...(named ? [sendToGroup(readText("workbench.assistant-composer.this-page"), [sendToItem(mark, named.label, named.detail || "", onPage, () => { declined = null; syncComposer(); })])] : []),
+        sendToGroup(readText("workbench.work-line.now"), [sendToItem(spark, readText("workbench.common.assistant"), readText("workbench.assistant-tabs.main-conversation"), now && !to, talk(null)),
+          ...[...spoken, ...offered].map((one) => sendToItem(whoMark(one.title), one.title, "", Boolean(now && to && to.artifact_id === one.artifact_id), talk(one)))]),
+        ...(line.length ? [sendToGroup(readText("workbench.work-line.events-on-line"), line.map((event) => sendToItem(glyphOf(event.mark), event.title, "",
+          !onPage && (curEvent ? curEvent === eventKey(event.subject) : event.subject.kind === WORK_KIND && event.subject.id === curId), () => { leave(); void openEvent(event); syncComposer(); })))] : []),
+        ...(named?.others?.length ? [sendToGroup(readText("workbench.assistant-composer.other-sessions"), named.others.map((one) => sendToItem(mark, one.label, one.detail || "", false, () => named.choose?.(one.id))))] : []));
+      return true;
+    }
     const recent = works.filter((work) => !work.reply_target).sort((a, b) => String(b.updated_at || "").localeCompare(String(a.updated_at || ""))).slice(0, 3);
     const assistant = (id) => () => { declined = page; void switchTo(id); syncComposer(); };
     sendTo.replaceChildren(

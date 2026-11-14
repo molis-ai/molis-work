@@ -21,7 +21,7 @@ function harness() {
     { work: base("main", "与助理的对话", 50, { main: true }), state: "running" },
     { work: base("report", "季度报告", 40), state: "completed" },
     { work: base("plan", "发布计划", 45), state: "waiting-input" },
-    { work: base("errand", "查一下汇率", 46, delegated("p-1")), state: "running" },
+    { work: base("errand", "查一下汇率", 46, { ...delegated("p-1"), character: { artifact_id: "character:project:editor", version: 2, title: "严格的编辑" } }), state: "running" },
     { work: base("tracked", "整理访谈", 47, { ...delegated("p-2"), line_event: true }), state: "waiting-review" },
     { work: base("for-plan", "补发布说明", 48, { ...delegated("p-3"), serves: [{ kind: ASSISTANT_WORK_KIND, id: "plan" }] }), state: "running" },
     { work: base("done-errand", "查了天气", 30, delegated("p-4")), state: "completed" },
@@ -82,7 +82,8 @@ test("WLN-39: every work under way is a row of the task table with whom it serve
     ["plan", "answer", true, ["plan"]], ["errand", "running", false, []], ["tracked", "approval", true, ["tracked"]], ["for-plan", "running", false, ["plan"]], ["about-todo", "running", false, ["t1"]]]);
   for (const task of table.tasks) {
     assert.deepEqual(task.commands.map(command => [command.role, command.action.capability_id, command.input]), [["stop", "assistant.background.stop", { work_id: task.subject.id }]]);
-    assert.equal(task.executor.kind, "assistant");
+    // WLN-40: a task a Character carries says so; the rest are the Assistant's.
+    assert.deepEqual(task.executor, task.subject.id === "errand" ? { kind: "character", label: "严格的编辑" } : { kind: "assistant", label: "助理" });
   }
 });
 

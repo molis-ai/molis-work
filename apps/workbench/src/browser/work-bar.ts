@@ -58,6 +58,8 @@ export interface WorkBarHandle {
   focus(subject: ActionSubject | null): void;
   /** The event of this object on the line as last read, as a press on it would open it; null when the line does not show it. */
   event(subject: ActionSubject): LineEventPress | null;
+  /** Every event the line last showed, as a press on it would open it: what 「发给」 lists (specs/work-line §4.4). */
+  events(): LineEventPress[];
   /** Under a reply that handed a task to the background: where the task stands on the line as last read, with 「改」 (WLN-32). */
   placed(task: { subject: ActionSubject; title: string; serves: readonly ActionSubject[]; own: boolean }): string;
   /** 「改」 was pressed: the task's card in the background-task panel, with where it can go. */
@@ -154,6 +156,7 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
   });
   return {
     event(subject) { const found = [...events.values()].find(one => keyOf(one.subject) === keyOf(subject)); return found ? press(found) : null; },
+    events: () => [...events.values()].map(press),
     placed(task) {
       const served = task.serves.map(subject => [...events.values()].find(one => keyOf(one.subject) === keyOf(subject))).find(Boolean);
       return renderReplyPlaced({ task: keyOf(task.subject), where: served ? { kind: "for-event", name: served.title } : task.own ? { kind: "new-event", name: task.title } : { kind: "none" } });

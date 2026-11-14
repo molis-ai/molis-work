@@ -8490,6 +8490,7 @@
     "workbench.work-line.earlier-events": "Earlier events",
     "workbench.work-line.earlier-events-n": "Earlier events · {n}",
     "workbench.work-line.earlier-events-n-attention": "Earlier events · {n}, {m} asking for attention",
+    "workbench.work-line.events-on-line": "On the line",
     "workbench.work-line.for-event": "For event",
     "workbench.work-line.handed-back-task": "Handed back · {task}",
     "workbench.work-line.head-with-waiting": "{name} · {n} waiting for you",

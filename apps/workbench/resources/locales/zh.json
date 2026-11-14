@@ -7888,6 +7888,7 @@
     "workbench.work-line.earlier-events": "更早的事件",
     "workbench.work-line.earlier-events-n": "更早的事件 · {n} 件",
     "workbench.work-line.earlier-events-n-attention": "更早的事件 · {n} 件，其中 {m} 件要留意",
+    "workbench.work-line.events-on-line": "线上的事件",
     "workbench.work-line.for-event": "为哪个事件",
     "workbench.work-line.handed-back-task": "任务交回 · {task}",
     "workbench.work-line.head-with-waiting": "{name} · {n} 件等你",

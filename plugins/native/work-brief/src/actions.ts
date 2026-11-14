@@ -88,7 +88,7 @@ export const workBriefActions = {
     "本人点了现行版里的一条下一步：以本人身份执行它准备好的那个动作，结果记在这条下一步上。它针对的对象在简报保存之后变过、或动作已不可用时不执行，以 work_brief.option_stale 拒绝。一条下一步只执行一次。",
     "command", PERSON, object({ brief_id: id, option_id: id }), object({ mark: loose }), { concurrent: true }),
   setNext: define<{ marks: NextMark[] }>()("next.set", /* @version action.work-brief.next.set */ 1, "处置简报的下一步",
-    "标一条下一步「暂不」（later）、记下已交给助理（handed），或撤回这个标记（state 为 null）。已执行过的不能改。只记这条下一步在这份简报里怎么处置了，不改任何业务对象。",
+    "标一条下一步「暂不」（later）、记下已交给助理（handed），或撤回这个标记（state 为 null）。已执行过的不能改；结果未确认的（unknown）只能在本人到原处核对后撤回。只记这条下一步在这份简报里怎么处置了，不改任何业务对象。",
     "command", PERSON, object({ brief_id: id, option_id: id, state: nullableSchema({ enum: ["later", "handed"] }) }), object({ marks: array(loose) })),
 };
 
@@ -98,7 +98,7 @@ export interface PersonalItem {
   kind: "attention" | "next" | "source";
   text: string;
   why?: string;
-  /** For a project's line: the project and the brief it is in. The page opens it there through the platform, never by an address. */
+  /** For a project's line: the project and the brief it is in. The page links to that project's home; the shell opens it (S-47), nothing of the project is read from here. */
   project_id?: string;
   brief_id?: string;
   subject?: { kind: string; id: string };

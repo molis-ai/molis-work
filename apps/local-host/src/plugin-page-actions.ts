@@ -26,7 +26,7 @@ export type PageActionRequest = ({
   assertCurrent(): void;
   beforeEffect(): Promise<void>;
   beforeBackgroundEffect(): Promise<void>;
-  /** The person whose page this is, as the Host's own local entry builds them. Read only for a plugin that holds `actions:delegate` (S-96). */
+  /** The person whose page this is, as the Host's own local entry builds them. Read only for a plugin that holds `actions:delegate` (S-43). */
   person?(): Promise<ActionCallContext>;
 };
 
@@ -94,7 +94,7 @@ export function pluginPageActions(manifest: PluginManifest, context: PluginStart
     if (request.mode === "availability") return view.availability;
     // The page's call of this installation's own action is the person's, as it is on the plugin's own routes: what the action then
     // reaches through its directory is checked against the person, never against the page. Only for an installation the person granted
-    // `actions:delegate` (user decision 2026-11-14, S-96); any other page keeps running with the installation's grants alone.
+    // `actions:delegate` (user decision 2026-11-14, S-43); any other page keeps running with the installation's grants alone.
     const person = own && request.person && declaresActionDelegation(manifest) && context.grants.includes(ACTIONS_DELEGATE_PERMISSION)
       ? await request.person() : undefined;
     if (person) { await request.beforeEffect(); check(undefined, view.action.permissions); }

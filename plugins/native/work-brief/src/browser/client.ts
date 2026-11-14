@@ -141,7 +141,7 @@ async function nextStep(page: BriefPage, action: string, optionId: string): Prom
     page.render();
     try {
       const { mark } = await page.call<{ mark: NextMark }>("work-brief.next.run", input);
-      page.toast(text(mark.state === "done" ? "next.done-toast" : "next.failed-toast"), mark.state !== "done");
+      page.toast(text(mark.state === "done" ? "next.done-toast" : mark.state === "unknown" ? "next.unknown-toast" : "next.failed-toast"), mark.state !== "done");
     } finally { page.state.busy = ""; await loadHead(page, { quiet: true }); }
     return;
   }

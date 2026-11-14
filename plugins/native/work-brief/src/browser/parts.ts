@@ -47,5 +47,6 @@ export function sourceMark(row: Pick<SourceRow, "read" | "turn">): string {
 }
 
 const NEXT = { later: { tone: "quiet", state: "paused" }, handed: { tone: "progress", state: "generating" }, running: { tone: "progress", state: "running" },
-  done: { tone: "done", state: "done" }, failed: { tone: "blocked", state: "failed" }, stale: { tone: "quiet", state: "stale" } } as const;
+  done: { tone: "done", state: "done" }, failed: { tone: "blocked", state: "failed" }, stale: { tone: "quiet", state: "stale" },
+  unknown: { tone: "attention", state: "unavailable" } } as const;
 export const nextMark = (state: NextMark["state"]) => renderStatusMark({ label: text(`next.state.${state}`), ...NEXT[state] });

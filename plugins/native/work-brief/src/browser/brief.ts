@@ -161,12 +161,13 @@ function nextCard(page: BriefPage, option: NextOption, mark: NextMark | undefine
   const state = mark?.state;
   const kicker = option.act.kind === "card" ? text("next.kicker", { provider: option.act.card.provider }) : text("next.kicker-assistant");
   const target = card?.target ? `<p class="wb-step__target">${esc(`${text("next.on")} ${card.target.title}`)}</p>` : "";
-  const outcome = state === "stale" ? text("next.stale-note") : (state === "done" || state === "failed") && card?.outcome ? card.outcome : "";
+  const outcome = state === "stale" ? text("next.stale-note") : state === "unknown" ? text("next.unknown-note") : (state === "done" || state === "failed") && card?.outcome ? card.outcome : "";
   const body = `<p class="wb-step__why">${esc(option.why)}</p>${target}${option.subject && !card?.target ? slot("next", option.subject) : ""}${outcome ? `<p class="wb-muted">${esc(outcome)}</p>` : ""}`;
   const run = option.act.kind === "card" ? act(text(state === "failed" ? "next.retry" : "next.do"), "run-next", { variant: primary ? "primary" : "secondary", value: option.option_id, disabled: busy, icon: state === "failed" ? "refresh" : undefined })
     : act(text("next.hand"), "hand-next", { variant: primary ? "primary" : "secondary", icon: "sparkles", value: option.option_id, disabled: busy });
   const footer = !state ? act(text("next.skip"), "skip-next", { variant: "ghost", value: option.option_id, disabled: busy }) + run
-    : state === "failed" ? run : state === "later" || state === "handed" ? act(text("next.undo"), "undo-next", { variant: "ghost", icon: "undo", value: option.option_id, disabled: busy }) : "";
+    : state === "failed" ? run : state === "later" || state === "handed" ? act(text("next.undo"), "undo-next", { variant: "ghost", icon: "undo", value: option.option_id, disabled: busy })
+    : state === "unknown" ? act(text("next.clear"), "undo-next", { variant: "ghost", icon: "check", value: option.option_id, disabled: busy }) : "";
   return renderCard({ className: "wb-step", title: option.text, description: kicker, action: state ? nextMark(state) : "", body, footer: footer ? `<div class="wb-actions wb-actions--end">${footer}</div>` : undefined });
 }
 

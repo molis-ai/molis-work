@@ -347,6 +347,8 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
     const proved = result.frame_path ? typeof result.frame_path === "string" && signedHomeStage(mount, result.owner_plugin_id, new URL(result.frame_path, location.origin).href)
       : nativeHomeMount(mount, result);
     if (!proved) return null;
+    // A page that is showing in a pane stays there: the home does not take it from under the person (it shows the basic home instead).
+    if (mount.parentElement !== box && mount.parentElement !== pool && !mount.hidden) return null;
     if (mount.parentElement !== box) box.append(mount);
     mount.hidden = false;
     host.prepareSurface?.(mount, "restore");

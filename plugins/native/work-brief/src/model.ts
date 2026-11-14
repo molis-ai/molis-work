@@ -61,7 +61,8 @@ export interface BriefVersion extends BriefVersionHead, BriefBody { brief_id: st
 export interface BriefEdit { edit_id: string; claim_id: string; text: string | null; base_version: number; actor_id: string; at: string }
 export interface ProposalConflict { claim_id: string; mine: string | null; theirs: string | null }
 export interface BriefProposal { proposal_id: string; base_version: number; created_at: string; produced_by: ProducedBy; body: BriefBody; conflicts: ProposalConflict[] }
-export type NextMarkState = "later" | "handed" | "running" | "done" | "failed" | "stale";
+/** `unknown`: the run ended without a result this brief could record (cancelled, the page closed, the target did not confirm). The person checks at the owner's and clears it. */
+export type NextMarkState = "later" | "handed" | "running" | "done" | "failed" | "stale" | "unknown";
 export interface NextMark { option_id: string; state: NextMarkState; card?: ActionCard; actor_id: string; at: string }
 
 /** One line of the comparison of two versions: nothing here is stored, it is computed from the two bodies. */
@@ -94,8 +95,9 @@ export function compareBriefBodies(before: BriefBody | null, after: BriefBody): 
     const cites = new Map(old.cites.map(cite => [subjectKey(cite.subject), cite]));
     for (const cite of claim.cites) {
       const prior = cites.get(subjectKey(cite.subject)); cites.delete(subjectKey(cite.subject));
+      // A basis that reads again after a gap is a change even when the object itself stayed the same: the gap note goes.
       const change = !prior ? "added" as const : cite.gap === "gone" || cite.gap === "unreadable" ? (prior.gap === cite.gap ? null : cite.gap)
-        : prior.revision !== cite.revision || prior.title !== cite.title ? "changed" as const : null;
+        : prior.gap || prior.revision !== cite.revision || prior.title !== cite.title ? "changed" as const : null;
       if (change) changes.push({ kind: "cite", claim_id: claim.claim_id, subject: cite.subject, change });
     }
     for (const prior of cites.values()) changes.push({ kind: "cite", claim_id: claim.claim_id, subject: prior.subject, change: "removed" });

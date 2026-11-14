@@ -5,6 +5,7 @@ import { workBriefActions, type BriefSaved, type BriefView } from "./actions.js"
 import { workBriefErrors } from "./error.js";
 import { compareBriefBodies, briefSubjectKey, sourceTurn, type AttentionItem, type BriefBody, type BriefRecord, type BriefVersion, type Cite, type Claim, type NextOption,
   type ProducedBy, type ProposalConflict, type SourceRow } from "./model.js";
+import { settledMarks } from "./next.js";
 import { overviewReaders, readBriefSources, readBriefSubjects, type BriefDirectory, type SubjectRead } from "./reading.js";
 import type { BriefStore } from "./store.js";
 
@@ -21,9 +22,12 @@ export interface BriefPorts {
 const EMPTY: BriefBody = { sources: [], claims: [], attention: [], next: [] };
 const digest = (value: unknown) => createHash("sha256").update(canonicalJsonText(value, "null")).digest("hex");
 
-/** Who made a version: the person for their own call, the assistant for an agent's, the task when the caller names the one it runs for. */
-function producedBy(caller: ActionExecutionContext, task: ActionSubject | undefined): ProducedBy {
-  if (task && caller.audience !== "user") return { kind: "task", subject: { kind: task.kind, id: task.id } };
+/**
+ * Who made a version: the person for their own call, the assistant for an agent's, the task when the caller names the one it runs
+ * for. The task is the caller's word: it is kept only when the caller can read that object now (`readable`).
+ */
+function producedBy(caller: ActionExecutionContext, task: ActionSubject | undefined, readable: boolean): ProducedBy {
+  if (task && readable && caller.audience !== "user") return { kind: "task", subject: { kind: task.kind, id: task.id } };
   return caller.audience === "user" ? { kind: "person" } : { kind: "assistant" };
 }
 
@@ -102,6 +106,15 @@ async function shownTo(version: BriefVersion, views: readonly ActionView[], read
     attention: version.attention.filter(item => readable(item.subject)),
     next: version.next.map(option => option.subject && !readable(option.subject) ? { ...option, subject: undefined } : option) };
 }
+/**
+ * A refresh by a caller other than the person does not write its own narrower reach into the brief everyone reads: a source it may
+ * not read, or is not offered, stays as the version before had it.
+ */
+function keptSources(read: readonly SourceRow[], before: readonly SourceRow[]): SourceRow[] {
+  const now = new Map(read.map(row => [row.plugin_id, row]));
+  const kept = before.map(old => { const row = now.get(old.plugin_id); now.delete(old.plugin_id); return !row || row.read === "unauthorized" ? old : row; });
+  return [...kept, ...now.values()].sort((a, b) => a.plugin_id < b.plugin_id ? -1 : a.plugin_id > b.plugin_id ? 1 : 0);
+}
 const subjectsOf = (version: BriefBody) => [...version.sources.flatMap(row => row.subjects), ...version.claims.flatMap(claim => claim.cites.map(cite => cite.subject)),
   ...version.attention.map(item => item.subject), ...version.next.flatMap(option => option.subject ? [option.subject] : [])];
 
@@ -119,7 +132,7 @@ export function createBriefHandlers(ports: BriefPorts): ActionHandlerBinding[] {
         if (!brief) return null;
         const shown = store.version(brief, version ?? brief.current_version), compared = compare_with ? store.version(brief, compare_with) : null;
         if (version && !shown || compare_with && !compared) throw workBriefErrors.not_found("这一版已不存在", { brief_id: brief.brief_id, version: shown ? compare_with : version });
-        return { brief, shown, compared, versions: store.versions(brief), proposal: store.proposal(brief.brief_id), edits: store.edits(brief.brief_id), marks: store.marks(brief.brief_id) };
+        return { brief, shown, compared, versions: store.versions(brief), proposal: store.proposal(brief.brief_id), edits: store.edits(brief.brief_id), marks: settledMarks(ports, brief.brief_id, store.marks(brief.brief_id)) };
       });
       if (!stored) return { brief: null, version: null, versions: [], proposal: null, edits: [], marks: [] };
       const { brief, shown, compared, versions, proposal, edits, marks } = stored;
@@ -146,7 +159,8 @@ export function createBriefHandlers(ports: BriefPorts): ActionHandlerBinding[] {
       const directory = ports.directory(), views = await directory.discover();
       const drafted = await checkedDraft(input.draft, before.current, views, ports, at);
       const sources = withTurns(await readBriefSources(directory, views, before.current?.sources ?? [], at), drafted.attention, before.current?.sources ?? []);
-      const body: BriefBody = { sources, ...drafted }, made = producedBy(caller, input.task);
+      const named = input.task ? (await readBriefSubjects(directory, views, [input.task])).get(briefSubjectKey(input.task))?.state === "ok" : false;
+      const body: BriefBody = { sources, ...drafted }, made = producedBy(caller, input.task, named);
       return write(caller, store => {
         const again = store.answered<BriefSaved>(caller.actor_id, input.request_id, hash);
         if (again) return again;
@@ -167,28 +181,34 @@ export function createBriefHandlers(ports: BriefPorts): ActionHandlerBinding[] {
     }),
 
     bindActionHandler(workBriefActions.refresh, async ({ brief_id, task }, caller) => {
-      const at = ports.now();
+      const at = ports.now(), person = caller.audience === "user";
       const before = read(store => { const brief = target(store, brief_id); return { brief, current: brief && store.version(brief) }; });
       const directory = ports.directory(), views = await directory.discover(), current = before.current;
-      const reads = await readBriefSubjects(directory, views, current?.claims.flatMap(claim => claim.cites.map(cite => cite.subject)) ?? []);
+      const reads = await readBriefSubjects(directory, views, [...current ? subjectsOf(current) : [], ...task ? [task] : []]);
+      // What this caller gets back is what it may see (contract-design §5), whatever is stored.
+      const shown = async (version: BriefVersion) => shownTo(version, views, version === current ? reads : await readBriefSubjects(directory, views, subjectsOf(version)));
       // What each sentence stands on, as it is now: a changed object is frozen anew, one gone or unreadable keeps its last words with the gap named.
       const claims = (current?.claims ?? []).map((claim): Claim => ({ ...claim, cites: claim.cites.map((cite): Cite => {
         const now = reads.get(briefSubjectKey(cite.subject));
-        if (now?.state !== "ok") return { ...cite, gap: now?.state ?? "unreadable" };
+        // Only the person's own refresh records a gap: another caller's narrower reach is not the brief's.
+        if (now?.state !== "ok") return person ? { ...cite, gap: now?.state ?? "unreadable" } : cite;
         const { gap: _gap, ...rest } = cite;
         return now.context.revision === cite.revision && now.context.title === cite.title ? rest : frozen(cite.subject, now, at);
       }) }));
       const attention = current?.attention ?? [];
-      const body: BriefBody = { sources: withTurns(await readBriefSources(directory, views, current?.sources ?? [], at), attention, current?.sources ?? []),
+      const rows = await readBriefSources(directory, views, current?.sources ?? [], at);
+      const body: BriefBody = { sources: withTurns(person ? rows : keptSources(rows, current?.sources ?? []), attention, current?.sources ?? []),
         claims, attention, next: current?.next ?? [] };
-      const changes = compareBriefBodies(current, body);
-      if (before.brief && current && !changes.length) return { brief: before.brief, version: current, changed: false, changes };
-      return write(caller, store => {
+      if (before.brief && current && !compareBriefBodies(current, body).length) return { brief: before.brief, version: await shown(current), changed: false, changes: [] };
+      const made = producedBy(caller, task, task ? reads.get(briefSubjectKey(task))?.state === "ok" : false);
+      const stored = await write(caller, store => {
         const existing = target(store, brief_id);
         if ((existing?.revision ?? 0) !== (before.brief?.revision ?? 0)) throw workBriefErrors.conflict("简报刚被别处更新，请重新读取后再试");
-        const brief = store.append(existing ?? store.create({ brief_id: ports.newId("brief"), scope: "home", title: "" }, at), existing?.revision ?? 1, body, producedBy(caller, task), at);
-        return { brief, version: store.version(brief)!, changed: true, changes };
+        const brief = store.append(existing ?? store.create({ brief_id: ports.newId("brief"), scope: "home", title: "" }, at), existing?.revision ?? 1, body, made, at);
+        return { brief, version: store.version(brief)! };
       });
+      const version = await shown(stored.version);
+      return { brief: stored.brief, version, changed: true, changes: compareBriefBodies(current && await shown(current), version) };
     }),
 
     bindActionHandler(workBriefActions.edit, ({ brief_id, expected_revision, version, claim_id, text }, caller) => write(caller, store => {
@@ -205,6 +225,9 @@ export function createBriefHandlers(ports: BriefPorts): ActionHandlerBinding[] {
         : text === null ? current.claims.filter(claim => claim.claim_id !== id) : current.claims.map(claim => claim.claim_id === id ? { ...claim, text, edited: true as const } : claim);
       const next = store.append(brief, expected_revision, { sources: current.sources, attention: current.attention, next: current.next, claims }, { kind: "person" }, at);
       store.recordEdit(brief_id, { edit_id: ports.newId("edit"), claim_id: id, text, base_version: next.current_version, actor_id: caller.actor_id, at });
+      // A proposal that waits is measured against the person's changes as they are now, so this one is neither lost nor an old wording (WBR-05).
+      const waiting = store.proposal(brief_id);
+      if (waiting) { store.dropProposal(brief_id); store.putProposal(brief_id, { ...waiting, conflicts: conflictsOf(store, brief_id, waiting.body.claims).conflicts }); }
       return saved(store, next);
     })),
 
@@ -212,6 +235,9 @@ export function createBriefHandlers(ports: BriefPorts): ActionHandlerBinding[] {
       const brief = store.get(brief_id), proposal = store.proposal(brief_id), at = ports.now();
       if (!proposal || proposal.proposal_id !== proposal_id) throw workBriefErrors.not_found("这份提案已不存在", { proposal_id });
       if (brief.revision !== expected_revision) throw workBriefErrors.conflict("简报刚被别处更新，请重新读取后再试", { brief_id });
+      // Every change of the person since the draft is in `conflicts` (an edit re-measures the proposal); one that is not would be lost, so it is refused.
+      const open = conflictsOf(store, brief_id, proposal.body.claims);
+      if (JSON.stringify(open.conflicts) !== JSON.stringify(proposal.conflicts)) throw workBriefErrors.conflict("简报刚被别处更新，请重新读取后再试", { brief_id });
       store.dropProposal(brief_id);
       if (discard) return saved(store, brief);
       const taken = new Map((choices ?? []).map(choice => [choice.claim_id, choice.take]));
@@ -228,7 +254,7 @@ export function createBriefHandlers(ports: BriefPorts): ActionHandlerBinding[] {
       }
       // The sources are the newest read, not the proposal's: a refresh may have run while it waited.
       const next = store.append(brief, expected_revision, { ...proposal.body, sources: withTurns(current.sources, proposal.body.attention, []), claims }, proposal.produced_by, at);
-      store.clearEdits(brief_id, proposal.conflicts.filter(conflict => taken.get(conflict.claim_id) === "theirs").map(conflict => conflict.claim_id));
+      store.clearEdits(brief_id, [...open.agreed, ...proposal.conflicts.filter(conflict => taken.get(conflict.claim_id) === "theirs").map(conflict => conflict.claim_id)]);
       return saved(store, next);
     })),
   ];

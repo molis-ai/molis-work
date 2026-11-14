@@ -164,6 +164,29 @@ test("WBR-04 WBR-27 a fixed version is an artifact and read-only; later changes 
   assert.deepEqual(second.artifact, { artifact_id: fixed.artifact.artifact_id, version: 2 });
 });
 
+test("WBR-05 a change the person makes while a proposal waits is measured against it: it is neither dropped by the merge nor merged in an older wording", { timeout: 90_000 }, async t => {
+  const { call, caller, risk } = await fixture(t);
+  const cite = { kind: "risk", id: (await risk("供应商延期")).risk_id };
+  const assistant: ActionCallContext = { ...caller, audience: "agent" };
+  const first = await call<BriefSaved>(workBriefActions.save, { request_id: once(), draft: { claims: [{ text: "交付有延期风险。", cites: [cite] }, { text: "预算充足。", cites: [cite] }] } }, assistant);
+  const id = first.brief.brief_id, [a, b] = first.version!.claims.map(claim => claim.claim_id) as [string, string];
+  const edited = await call<BriefSaved>(workBriefActions.edit, { brief_id: id, expected_revision: first.brief.revision, claim_id: a, text: "交付会晚两周。" });
+  const draft = { claims: [{ claim_id: a, text: "交付没有风险。", cites: [cite] }, { claim_id: b, text: "预算还有余量。", cites: [cite] }] };
+  const waiting = await call<BriefSaved>(workBriefActions.save, { request_id: once(), draft }, assistant);
+  assert.equal(waiting.brief.revision, edited.brief.revision, "a waiting proposal does not move the brief");
+  // The page still holds the revision from before the proposal: both of these go through, and the proposal follows them.
+  const second = await call<BriefSaved>(workBriefActions.edit, { brief_id: id, expected_revision: waiting.brief.revision, claim_id: b, text: "预算只剩一成。" });
+  assert.deepEqual(second.proposal!.conflicts, [{ claim_id: a, mine: "交付会晚两周。", theirs: "交付没有风险。" }, { claim_id: b, mine: "预算只剩一成。", theirs: "预算还有余量。" }]);
+  const third = await call<BriefSaved>(workBriefActions.edit, { brief_id: id, expected_revision: second.brief.revision, claim_id: a, text: "交付会晚三周。" });
+  assert.equal(third.proposal!.conflicts.find(conflict => conflict.claim_id === a)!.mine, "交付会晚三周。");
+  const resolve = (expected_revision: number, choices: unknown) => call<BriefSaved>(workBriefActions.resolve, { brief_id: id, proposal_id: waiting.proposal!.proposal_id, expected_revision, choices });
+  assert.equal(await code(resolve(waiting.brief.revision, [{ claim_id: a, take: "mine" }])), "work_brief.conflict", "choices made on what was read before the changes are refused");
+  assert.equal(await code(resolve(third.brief.revision, [{ claim_id: a, take: "mine" }])), "work_brief.invalid", "the new conflict needs its own choice");
+  assert.equal((await call<BriefView>(workBriefActions.get, {})).proposal!.proposal_id, waiting.proposal!.proposal_id, "a refused merge leaves the proposal");
+  const merged = await resolve(third.brief.revision, [{ claim_id: a, take: "mine" }, { claim_id: b, take: "mine" }]);
+  assert.deepEqual(merged.version!.claims.map(claim => claim.text), ["交付会晚三周。", "预算只剩一成。"]);
+});
+
 test("WBR-17 WBR-18 WBR-25 a brief cites a risk through the directory; a later refresh shows its new state and keeps the person's words; a caller without the source sees gaps only", { timeout: 90_000 }, async t => {
   const { call, caller, risk, here } = await fixture(t);
   const made = await risk("供应商延期"), other = await risk("汇率波动");
@@ -194,6 +217,22 @@ test("WBR-17 WBR-18 WBR-25 a brief cites a risk through the directory; a later r
   assert.deepEqual(masked.version!.attention, []);
   assert.equal(JSON.stringify(masked).includes("供应商"), masked.version!.claims[0]!.text.includes("供应商"), "no title of the source leaks");
   assert.equal(await code(call(workBriefActions.save, { request_id: once(), draft: { claims: [{ text: "读不到的依据。", cites: [cite] }] } }, narrow)), "work_brief.cite_unreadable");
+  // A refresh by an assistant or a workflow that reaches less gets back only what it may see, and writes none of its gaps into the brief.
+  const unseen = await call<BriefRefreshed>(workBriefActions.refresh, {}, { ...narrow, audience: "agent" });
+  assert.equal(unseen.changed, false);
+  assert.deepEqual(unseen.version.claims.map(claim => claim.cites.map(entry => [entry.gap, entry.title])), [[["unreadable", ""]], [["unreadable", ""]]]);
+  assert.deepEqual([unseen.version.attention, unseen.version.sources.find(entry => entry.plugin_id === RISK_ID)!.read], [[], "unauthorized"]);
+  assert.equal(JSON.stringify(unseen).includes("供应商延期两周"), false, "no title of the source leaks through a refresh");
+  const kept = await call<BriefView>(workBriefActions.get, {});
+  assert.equal(kept.brief!.current_version, moved.version.version, "the narrower caller's refresh saved nothing");
+  assert.deepEqual(kept.version!.claims.map(claim => claim.cites[0]!.gap), [undefined, undefined]);
+  // The person's own refresh with less reach does record the gaps; reading again clears them even though the objects did not change.
+  const lost = await call<BriefRefreshed>(workBriefActions.refresh, {}, narrow);
+  assert.equal(lost.changed, true);
+  const back = await call<BriefRefreshed>(workBriefActions.refresh, {});
+  assert.equal(back.changed, true, "a basis that reads again is a change");
+  assert.deepEqual(back.version.claims.map(claim => [claim.cites[0]!.gap, claim.cites[0]!.title]), [[undefined, "供应商延期两周"], [undefined, "汇率波动"]]);
+  assert.ok(back.changes.some(change => change.kind === "cite" && change.change === "changed"));
   void caller;
 });
 

@@ -1,4 +1,5 @@
 import { bindActionHandler, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { workBriefErrors } from "./error.js";
 import { workBriefPersonalActions, type PersonalItem, type PersonalView } from "./actions.js";
 import { compareBriefBodies, briefSubjectKey, sourceTurn, type AttentionItem, type BriefBody, type BriefVersion } from "./model.js";
 import { readBriefSources, readBriefSubjects, type BriefDirectory } from "./reading.js";
@@ -56,6 +57,7 @@ export function createPersonalHandlers(ports: PersonalPorts): ActionHandlerBindi
         return { ...ports.read(store => personalView(store, caller)), changed: false, changes };
       return ports.write(caller, store => {
         const existing = store.personal(caller.actor_id);
+        if ((existing?.revision ?? 0) !== (before.brief?.revision ?? 0)) throw workBriefErrors.conflict("个人简报刚被别处更新，请重新读取后再试");
         store.append(existing ?? store.create({ brief_id: ports.newId("brief"), scope: "personal", title: "", actor_id: caller.actor_id }, at), existing?.revision ?? 1, body, { kind: "person" }, at);
         return { ...personalView(store, caller), changed: true, changes };
       });

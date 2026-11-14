@@ -5,7 +5,7 @@ import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-ho
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { RISK_WRITE, riskActions, type RiskRecord } from "@molis-ai/molis-work-plugin-risk";
 import { WORK_BRIEF_WRITE, workBriefActions, type BriefSaved } from "@molis-ai/molis-work-plugin-work-brief";
-import { projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
+import { createProject, projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { person } from "./fixtures/home-runtime.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
@@ -163,9 +163,23 @@ for (const width of WIDTHS) test(`WBR-02 WBR-22 WBR-25 WBR-27 the brief on the p
   await screenshot("basic");
   await browser.evaluate(`${toggle}.click()`);
   await browser.waitFor("!document.querySelector('[data-home-lead]').hidden");
+
+  // WBR-24 an item of another project says so and takes the person there: the shell opens that project's home (S-47).
+  const made = await createProject(web, "另一个项目"), elsewhere = made.project_id;
+  for (const plugin_id of ["risk", "work-brief"]) await web.post(`/api/settings/projects/${elsewhere}/plugins`, { plugin_id, expected_revision: await projectPluginRevision(web, elsewhere) });
+  const there = localHost!.actionClient(molisWorkHostProjectReference({ databasePath: made.database_path, projectId: elsewhere })), them = person([...RISK_WRITE, ...WORK_BRIEF_WRITE], elsewhere);
+  const far = (await there.invoke(them, ref(riskActions.create), { title: "场地未定", statement: "活动场地还没签", impact: "medium", likelihood: "medium" }) as { risk: RiskRecord }).risk;
+  await there.invoke({ ...them, audience: "agent" }, ref(workBriefActions.save), { request_id: `far-${width}`, draft: { claims: [{ text: "场地还没签。", cites: [{ kind: "risk", id: far.risk_id }] }],
+    attention: [{ subject: { kind: "risk", id: far.risk_id }, why: "要定场地" }] } });
+  await click(act("mode", "personal"));
+  const jump = `.wb-personal a[href="/projects/${elsewhere}/"]`;
+  await waitFor(has(jump), 30_000);
+  await noOverflow();
+  await navigate(() => click(jump).catch(() => undefined));
+  await browser.waitFor(`location.pathname === ${JSON.stringify(`/projects/${elsewhere}/`)} && document.querySelector('[data-home-lead] iframe[data-plugin-frame]')`, 30_000);
 });
 
-for (const width of WIDTHS) test(`WBR-26 the brief in English on the dark theme at ${width}px: the page's words change, the person's sentences stay`, { timeout: 180_000 }, async t => {
+for (const width of WIDTHS) test(`WBR-22 the brief in English on the dark theme at ${width}px: the page's words change, the person's sentences stay`, { timeout: 180_000 }, async t => {
   const browser = await openGoalBrowser(t, true, undefined, null);
   if (!browser) return;
   const { command, sessionId, navigate, origin, projectId, web, localHost, databasePath } = browser;
@@ -189,4 +203,30 @@ for (const width of WIDTHS) test(`WBR-26 the brief in English on the dark theme 
   await mkdir(output, { recursive: true });
   await browser.evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   await writeFile(new URL(`brief-home-en-dark-${width}.png`, output), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
+});
+
+test("WBR-11 what other plugins and drafts wrote is shown as text: markup in a title, a sentence or a reason builds no element and runs nothing", { timeout: 180_000 }, async t => {
+  const browser = await openGoalBrowser(t, true, undefined, null);
+  if (!browser) return;
+  const { command, sessionId, navigate, origin, projectId, web, localHost, databasePath } = browser;
+  for (const plugin_id of ["risk", "work-brief"]) await web.post(`/api/settings/projects/${projectId}/plugins`, { plugin_id, expected_revision: await projectPluginRevision(web, projectId) });
+  const client = localHost!.actionClient(molisWorkHostProjectReference({ databasePath, projectId }));
+  const me: ActionCallContext = person([...RISK_WRITE, ...WORK_BRIEF_WRITE], projectId);
+  const mark = (name: string) => `<img src=x onerror="window.__wb_ran='${name}'"><script>window.__wb_ran='${name}'</script>`;
+  const supplier = (await client.invoke(me, ref(riskActions.create), { title: `延期 ${mark("title")}`, statement: mark("statement"), impact: "high", likelihood: "medium" }) as { risk: RiskRecord }).risk;
+  const cite = { kind: "risk", id: supplier.risk_id };
+  await client.invoke({ ...me, audience: "agent" }, ref(workBriefActions.save), { request_id: "markup", title: `简报 ${mark("brief")}`, draft: { claims: [{ text: `交付有风险 ${mark("claim")}`, cites: [cite] }],
+    attention: [{ subject: cite, why: `要决定 ${mark("why")}` }], next: [{ text: `起草 ${mark("next")}`, why: mark("next-why"), act: { kind: "assistant" } }] } });
+  await command("Emulation.setDeviceMetricsOverride", { width: 1024, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
+  await browser.waitFor("document.querySelector('[data-home-lead] iframe[data-plugin-frame]')");
+  const page = await pluginFrameBrowser(t, browser, "work-brief");
+  await page.waitFor("document.querySelectorAll('.wb-claims > li').length === 1 && document.querySelector('.wb-step')");
+  await page.click('.wb-fn[data-wb-value$=":0"]');
+  await page.waitFor("document.querySelector('.wb-pop')");
+  assert.match(await page.evaluate<string>("document.querySelector('.wb-claims > li').textContent"), /<img src=x onerror=/u, "the sentence shows its markup as written");
+  assert.match(await page.evaluate<string>("document.querySelector('.wb-pop').textContent"), /<img src=x/u, "the basis shows the owner's title as written");
+  assert.equal(await page.evaluate("document.querySelectorAll('img[src=\"x\"], .wb-frame script').length"), 0, "no element was built from content");
+  assert.equal(await page.evaluate("window.__wb_ran ?? null"), null);
+  assert.equal(await browser.evaluate("window.__wb_ran ?? null"), null, "nothing ran in the shell either");
 });

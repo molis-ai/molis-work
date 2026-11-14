@@ -26,10 +26,8 @@ const VERSIONS: Readonly<Record<string, number>> = {
 
 export const failureOf = (error: unknown) => error as Partial<UiRequestFailure> & { details?: Record<string, unknown> };
 export const isAbort = (error: unknown) => error instanceof Error && error.name === "AbortError";
-export const isPermission = (error: unknown) => {
-  const code = failureOf(error).code ?? "";
-  return code === "actions.forbidden" || code === "actions.permission_denied";
-};
+/** Refused for who may do it: the forbidden kind answers 403 (packages/contracts/src/platform/action-errors.ts). */
+export const isPermission = (error: unknown) => failureOf(error).status === 403;
 
 function initialState(): RiskPageState {
   return { view: "overview", filter: { status: "open", impact: "", owner_name: "", linked: "" }, rows: [], anyClosed: false, owners: [], next: null, overviewError: "",

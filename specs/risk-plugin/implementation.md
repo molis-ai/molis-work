@@ -165,3 +165,4 @@ Manifest：`permissions` 含 `actions:delegate`（转调 Schedule、读取器核
 4. 侧栏视图叫 `record`（设计稿写 `detail`）；没打开过东西时说「这里显示一条风险」。
 5. 加关联只找 Goal（`search.references` 的 `kinds: ["goal"]`），与设计的「关联 Goal」入口一致；别的种类由助理按动作加。
 6. 同步 main 时并入 RISK-09（没装 Goals 也完整）：`risk.list@1` 原版本内把 `goal_id` 换成通用的 `linked: { kind, id }`，`unlinked` 改为「true 没关联任何对象、false 有关联」，不再只看 Goal；总览筛选为「关联：不限／有关联／没有关联」，行里写「关联 N 个对象」。按种类筛（只列本项目确有关联的种类）没做：框里没有把种类说成人话的读法，原始种类名不进界面。
+7. CI 收口（2026-11-14）：调用预算 `tooling/gates/call-budget.json` 的 `shippedRegistrationRows` 各请求按实测放行（项目首页 2992→3197，两个 Goal 窗格 4796→5060，其余各请求同比 4～7%）。宿主每次检查线性扫一遍内置插件登记，多一个内置插件就多一份；开库、发现、准备上下文等其余各项不变。用户 11-14 弹窗选「按实测一次性放行」；去掉线性扫描归已有的 N43／46。另：风险进入演示项目（它的项目库让它属于项目级插件；空的总览带「新记风险」，不是打不开的入口），release 版本表加风险一行、Goals 与 Schedule 改 3，界面贡献 id 去掉 `.v1`。

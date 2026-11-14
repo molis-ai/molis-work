@@ -3,7 +3,7 @@ import { renderPluginStageShell, t as uiText } from "@molis-ai/molis-work-plugin
 
 export { RISK_STYLES } from "./styles.js";
 
-export const RISK_UI_CONTRIBUTION_ID = "io.molis.work.native.risk.ui.v1";
+export const RISK_UI_CONTRIBUTION_ID = "io.molis.work.native.risk.ui";
 /** Where the record shows each linked object: the shell draws it as its owner presents it, outside the page. */
 export const RISK_LINKS_SLOT = "risk.links";
 

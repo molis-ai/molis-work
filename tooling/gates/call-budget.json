@@ -9,7 +9,7 @@
     "actionDirectoryRows": 180,
     "sceneDirectoryRows": 0,
     "ownerResolutions": 113,
-    "shippedRegistrationRows": 2992
+    "shippedRegistrationRows": 3197
   },
   "projectBrief": {
     "prepareContext": 1,
@@ -21,7 +21,7 @@
     "actionDirectoryRows": 2367,
     "sceneDirectoryRows": 4,
     "ownerResolutions": 1441,
-    "shippedRegistrationRows": 770
+    "shippedRegistrationRows": 805
   },
   "rightSide": {
     "prepareContext": 4,
@@ -33,7 +33,7 @@
     "actionDirectoryRows": 4734,
     "sceneDirectoryRows": 6,
     "ownerResolutions": 2889,
-    "shippedRegistrationRows": 1584
+    "shippedRegistrationRows": 1656
   },
   "contextual": {
     "prepareContext": 1,
@@ -45,7 +45,7 @@
     "actionDirectoryRows": 789,
     "sceneDirectoryRows": 1,
     "ownerResolutions": 479,
-    "shippedRegistrationRows": 220
+    "shippedRegistrationRows": 230
   },
   "sideFileSources": {
     "prepareContext": 1,
@@ -57,7 +57,7 @@
     "actionDirectoryRows": 789,
     "sceneDirectoryRows": 1,
     "ownerResolutions": 479,
-    "shippedRegistrationRows": 198
+    "shippedRegistrationRows": 207
   },
   "sideFileFirstPages": {
     "prepareContext": 1,
@@ -69,7 +69,7 @@
     "actionDirectoryRows": 2141,
     "sceneDirectoryRows": 1,
     "ownerResolutions": 485,
-    "shippedRegistrationRows": 660
+    "shippedRegistrationRows": 690
   },
   "sideFileEntries": {
     "prepareContext": 1,
@@ -81,7 +81,7 @@
     "actionDirectoryRows": 789,
     "sceneDirectoryRows": 1,
     "ownerResolutions": 480,
-    "shippedRegistrationRows": 308
+    "shippedRegistrationRows": 322
   },
   "sideFilePreview": {
     "prepareContext": 1,
@@ -93,7 +93,7 @@
     "actionDirectoryRows": 789,
     "sceneDirectoryRows": 1,
     "ownerResolutions": 480,
-    "shippedRegistrationRows": 308
+    "shippedRegistrationRows": 322
   },
   "sideFileMissingSource": {
     "prepareContext": 0,
@@ -141,6 +141,6 @@
     "actionDirectoryRows": 360,
     "sceneDirectoryRows": 0,
     "ownerResolutions": 242,
-    "shippedRegistrationRows": 4796
+    "shippedRegistrationRows": 5060
   }
 }

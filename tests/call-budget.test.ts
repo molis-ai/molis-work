@@ -146,10 +146,14 @@ test("BCC-02 to BCC-06 · Host requests stay within budget and incomplete previe
     assert.match(await response.text(), message, path);
   }
 
-  const incomplete = {
+  // N42: a request whose route, method or required names this door can decide without them is refused before the person's context
+  // is prepared, so neither preparing it nor discovering actions is part of answering.
+  const refusedBeforeContext = {
     sideFileMissingSource: () => refusal(prefix + "/api/side/files/entries", 404, /文件来源已经不在/u),
     sideFileMissingKind: () => refusal(previewPath + missingKind, 400, /没有说明要预览哪个文件/u),
     sideFileMissingId: () => refusal(rawPath + missingId, 400, /没有说明要预览哪个文件/u),
+    knowledgeUnknown: () => refusal(prefix + "/api/knowledge/no-such-route", 404, /页面或接口不存在/u),
+    memoryUnknown: () => refusal(prefix + "/api/memory/no-such-route", 404, /页面或接口不存在/u),
   };
   const requests = {
     projectHome: async () => {
@@ -190,7 +194,13 @@ test("BCC-02 to BCC-06 · Host requests stay within budget and incomplete previe
       const { content } = await home.web.get<{ content: { data: string } }>(previewPath + previewQuery);
       assert.ok(content.data.includes(markdown));
     },
-    ...incomplete,
+    // N42: one person context serves the whole overview, the Goals titles it shows included (they read through the same caller).
+    memoryOverview: async () => {
+      const result = await home.web.get<{ scope: string; labels: { goals: Record<string, string> } }>(prefix + "/api/memory/overview");
+      assert.equal(result.scope, "project");
+      assert.deepEqual(result.labels.goals, {});
+    },
+    ...refusedBeforeContext,
     goalPanes: async () => {
       await Promise.all(goalIds.map(async goalId => {
         const response = await fetch(`${home.origin}${prefix}/api/goals/${goalId}/document?view=current`);
@@ -207,7 +217,7 @@ test("BCC-02 to BCC-06 · Host requests stay within budget and incomplete previe
     for (let sample = 0; sample < samples; sample++) {
       t.mock.timers.setTime(now += 60_000);
       const observed = await measure(request);
-      if (Object.hasOwn(incomplete, name)) {
+      if (Object.hasOwn(refusedBeforeContext, name)) {
         assert.equal(observed.prepareContext, 0, `${name} must refuse before preparing an action context`);
         assert.equal(observed.discover, 0, `${name} must refuse before discovering actions`);
       }
@@ -217,6 +227,7 @@ test("BCC-02 to BCC-06 · Host requests stay within budget and incomplete previe
   }
   assert.ok(measured.projectBrief!.actionDirectoryRows > 0 && measured.projectBrief!.sceneDirectoryRows > 0, "the measured brief uses both directories");
   assert.ok(measured.projectBrief!.ownerResolutions > 0 && measured.projectBrief!.shippedRegistrationRows > 0, "the measured brief checks plugin reach");
+  assert.equal(measured.memoryOverview!.prepareContext, 1, "the memory overview prepares one person context for its reads and the Goals titles");
 
   // BCC-06 (N43/46): the controlled counterexample. The production reach resolver is called once per built-in id during a projection;
   // repeating that resolution in one measured window must go over the committed project-home budget. Drive the public availability

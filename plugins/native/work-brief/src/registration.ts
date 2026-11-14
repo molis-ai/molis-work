@@ -1,6 +1,10 @@
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { createHomeWorkBriefPlugin } from "./home-plugin.js";
-import { createWorkBriefPlugin, WORK_BRIEF_CLIENT_FACTORY_SCRIPT, WORK_BRIEF_PROJECT_PLUGIN_ID, workBriefManifest, workBriefUiContribution } from "./index.js";
+import { WORK_BRIEF_CLIENT_FACTORY_SCRIPT } from "./client.js";
+import { WORK_BRIEF_PROJECT_PLUGIN_ID } from "./identity.js";
+import { workBriefManifest } from "./manifest.js";
+import { createWorkBriefPlugin } from "./plugin.js";
+import { workBriefUiContribution } from "./ui.js";
 
 /**
  * This plugin's entry in the built-in catalog (W5-02). `node scripts/generate-plugin-registry.mjs` lists it in

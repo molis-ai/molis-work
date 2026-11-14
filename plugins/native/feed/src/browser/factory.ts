@@ -146,7 +146,7 @@ export function feedClient(host: FeedHost): void {
     if (detail.invalidate) { if (scope.visible) void page.refresh("notice").catch(error => page.error(error)); return; }
     page.select(detail.view ?? "all", detail.intent, detail.panel);
     if (typeof detail.itemId === "string") void stage.open(detail.itemId).catch(error => page.error(error));
-    else if (detail.itemId === null) stage.collapse();
+    else if (detail.itemId === null) { if (stage.collapse() && scope.visible) void page.refresh().catch(error => page.error(error)); }
   });
   root.ownerDocument.addEventListener("molis-work:language-changed", () => {
     if (scope.visible) void page.refresh("language").catch(page.error);

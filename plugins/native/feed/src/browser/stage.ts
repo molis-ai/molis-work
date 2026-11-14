@@ -46,7 +46,7 @@ export function feedStage(page: FeedPage) {
   } catch { /* A missing preference never blocks the owner-rendered page. */ }
   const value = (name: string, fallback: string) => q<HTMLInputElement | HTMLSelectElement>("[data-feed-" + name + "]")?.value || fallback;
   const expanded = (open: boolean) => { host.root.dataset.expanded = String(open); const area = q("[data-feed-stage-workspace]"); if (area) area.hidden = !open; };
-  const collapse = () => { focusedItem = ""; selected = ""; detailRequest?.abort(); expanded(false); all("[data-feed-entry-detail], [data-feed-detail]").forEach(node => node.hidden = true); all(ENTRY).forEach(node => { node.classList.remove("is-selected", "is-open"); node.setAttribute("aria-selected", "false"); node.setAttribute("aria-expanded", "false"); }); host.root.setAttribute("data-assistant-context", JSON.stringify({ plugin_id: "io.molis.work.feed", surface_title: "Feed" })); };
+  const collapse = () => { const focused = Boolean(focusedItem); focusedItem = ""; selected = ""; detailRequest?.abort(); expanded(false); all("[data-feed-entry-detail], [data-feed-detail]").forEach(node => node.hidden = true); all(ENTRY).forEach(node => { node.classList.remove("is-selected", "is-open"); node.setAttribute("aria-selected", "false"); node.setAttribute("aria-expanded", "false"); }); host.root.setAttribute("data-assistant-context", JSON.stringify({ plugin_id: "io.molis.work.feed", surface_title: "Feed" })); return focused; };
   const placeholder = (text: string, retry = false) => {
     const empty = q("[data-feed-detail-empty]"); if (!empty) return;
     empty.hidden = false; const title = q("[data-feed-detail-empty-title]", empty); if (title) title.textContent = text;
@@ -142,7 +142,7 @@ export function feedStage(page: FeedPage) {
     if (materialPager) { if (materialPager.disabled || !selected) return; materialOffset = Number(materialPager.dataset.feedMaterialPage); const kept = scroll(); await select(selected, false, kept); return; }
     const pager = target.closest<HTMLButtonElement>("[data-feed-page]");
     if (pager) { if (pager.disabled) return; offset = Number(pager.dataset.feedPage); collapse(); const list = q(".feed-stage-tree"); if (list) list.scrollTop = 0; await page.refresh(); return; }
-    if (target.closest("[data-feed-collapse]")) { const focused = Boolean(focusedItem); collapse(); if (focused) await page.refresh(); return; }
+    if (target.closest("[data-feed-collapse]")) { if (collapse()) await page.refresh(); return; }
     if (target.closest("[data-retry-feed-detail]")) { if (selected) await select(selected, true); return; }
     const quickButton = target.closest<HTMLElement>("[data-feed-quick]"); if (quickButton) { quick = quickButton.dataset.feedQuick || "all"; reload(); return; }
     const option = target.closest<HTMLElement>("[data-feed-filter-option]");

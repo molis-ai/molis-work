@@ -368,6 +368,12 @@ test("FBR-07 FSS-35 the real Feed page reaches later messages and materials and 
   await child.evaluate(`pagingHost.root.dispatchEvent(new CustomEvent('molis-work:select-item',{detail:{view:${JSON.stringify(source.source_id)},itemId:${JSON.stringify(target.item_id)}}}))`);
   await child.waitFor(`JSON.parse(pagingHost.root.getAttribute('data-assistant-context')||'{}').object?.id===${JSON.stringify(target.item_id)}`);
   await child.waitFor("pagingPending===0 && document.querySelector('[data-feed-detail]')?.textContent.includes('Detail remains available')");
+  // FBR-08 / N1201: the shell's return-to-list event restores the list when the view is unchanged too.
+  await child.evaluate(`pagingHost.root.dispatchEvent(new CustomEvent('molis-work:select-item',{detail:{itemId:null,view:${JSON.stringify(source.source_id)}}}))`);
+  await child.waitFor("pagingPending===0 && document.querySelectorAll('[data-feed-entry-id]').length===200");
+  // Reopen the page-external item so the in-page collapse path is covered as well.
+  await child.evaluate(`pagingHost.root.dispatchEvent(new CustomEvent('molis-work:select-item',{detail:{view:${JSON.stringify(source.source_id)},itemId:${JSON.stringify(target.item_id)}}}))`);
+  await child.waitFor("pagingPending===0 && document.querySelector('[data-feed-detail]')?.textContent.includes('Detail remains available')");
   // FBR-08 / N1201: leaving a page-external detail restores the ordinary paged list.
   await child.click('[data-feed-collapse]');
   await child.waitFor("pagingPending===0 && document.querySelectorAll('[data-feed-entry-id]').length===200");

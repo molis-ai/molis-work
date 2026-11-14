@@ -159,6 +159,8 @@
 |  | [访谈初始化与工作记忆](reference/batches/64.md#batch-64-item-5) |
 |  | [回执阶段 5](reference/batches/64.md#batch-64-item-6) |
 |  | [安静准备与观察试用](reference/batches/64.md#batch-64-item-7) |
+|  | [记忆形成质量（P2-01）](reference/batches/64.md#batch-64-item-8)（2026-11-14 加，[决定 46](reference/decisions.md#decision-46) 拟定） |
+|  | [记忆整理（Dreaming）、按需原文与用户控制](reference/batches/64.md#batch-64-item-9)（同上） |
 | [65](reference/batches/65.md) | [公共搜索与联网设置](reference/batches/65.md#batch-65-item-1) |
 |  | [受限命令、依赖与 AI 低风险审批](reference/batches/65.md#batch-65-item-2) |
 |  | [Hooks 启用、变更、停用与恢复](reference/batches/65.md#batch-65-item-3) |

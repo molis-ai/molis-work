@@ -33,6 +33,10 @@
     "workbench-all-plugins/en": {
       "cold": 160,
       "warm": 0
+    },
+    "chooser/zh": {
+      "cold": 160,
+      "warm": 0
     }
   }
 }

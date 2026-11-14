@@ -1,6 +1,7 @@
 import { isDeepStrictEqual } from "node:util";
 import { ActionError, assertWorkEventWindow, ACTION_REFERENCE_SCHEMA, WORK_EVENTS_INPUT_TYPE, WORK_EVENTS_OUTPUT_TYPE, WORK_EVENT_WINDOW_SCHEMA, WORK_EVENT_SCHEMA, WORK_EVENT_SOURCE_SCHEMA, OPEN_TARGET_SCHEMA,
-  type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionReference, type ActionView, type WorkEventView, type WorkEventCollection, type WorkEventWindow, type OpenTarget } from "@molis-ai/molis-work-contracts/platform/actions";
+  type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionReference, type ActionView, type WorkEventView, type WorkEventWindow, type OpenTarget } from "@molis-ai/molis-work-contracts/platform/actions";
+import { gatherWorkEvents } from "@molis-ai/molis-work-service-mainline";
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { hostLog } from "./host-log.js";
 import { matchingActions, type HostActionClient } from "./local-host-types.js";
@@ -45,35 +46,25 @@ export function createHomeEventHandlers(client: HostActionClient, recommendation
       }
       return reaches?.(pluginId);
     };
-    for (const source of sources) {
-      if (!source.availability.available) {
-        if (pinned) throw new ActionError(source.availability.code, source.availability.reason);
+    // The registrants are asked by the mainline service's one gatherer (specs/work-line §5): once each, in parallel, each bounded.
+    for (const { view: source, events: said, failure } of await gatherWorkEvents(caller, client, window, sources)) {
+      if (failure?.kind === "unavailable") {
+        if (pinned) throw new ActionError(failure.code, failure.reason);
         // A source behind a plugin this project reaches that cannot answer (turned off, or refused by policy) is shown; one it does
         // not reach is not installed here and has nothing to report. Without the judgement, the old rule still turns off silently.
         const pluginId = source.provider.plugin_id;
         // Main already showed every unavailable source but `plugin_disabled`; the judgement only decides that ambiguous code.
         const judged = projectPlugins && caller.project_id && pluginId !== undefined ? await reachesOf(pluginId) : undefined;
-        if (source.availability.code !== "actions.plugin_disabled" || judged === true) {
-          issues.push(source.action.title + uiText.text("common.punctuation.label-separator") + source.availability.reason);
+        if (failure.code !== "actions.plugin_disabled" || judged === true) {
+          issues.push(source.action.title + uiText.text("common.punctuation.label-separator") + failure.reason);
           reported.add(sourceKey(source));
         }
-        continue;
-      }
-      const reference = { capability_id: source.capability_id, version: source.version, provider_id: source.provider.provider_id };
-      try {
-        const result = await client.invoke(caller, reference, window) as WorkEventCollection;
-        const ids = new Set<string>();
-        for (const event of result.events) {
-          if (ids.has(event.event_id) || !source.action.subject_kinds.includes(event.subject.kind)) throw new ActionError("actions.event_invalid", "插件事项身份重复或超出已声明的对象类型");
-          ids.add(event.event_id);
-        }
-        events.push(...result.events.map(event => ({ ...event, id: JSON.stringify([reference.provider_id, reference.capability_id, event.event_id]), source: reference, origin: result.source, suggested_behavior_ids: [] })));
-      } catch (error) {
-        if (pinned) throw error;
+      } else if (failure) {
+        if (pinned) throw failure.error;
         issues.push(source.action.title + uiText.text("common.punctuation.label-separator")
-          + (error instanceof ActionError ? error.message : uiText.text("workbench.home-event-actions.could-not-read-items")));
+          + (failure.error instanceof ActionError ? failure.error.message : uiText.text("workbench.home-event-actions.could-not-read-items")));
         reported.add(sourceKey(source));
-      }
+      } else events.push(...(said ?? []).map(event => ({ ...event, suggested_behavior_ids: [] })));
     }
     if (!pinned && directory.some(view => view.capability_id === recommendations.capability_id && view.version === recommendations.version && view.availability.available)) {
       try {

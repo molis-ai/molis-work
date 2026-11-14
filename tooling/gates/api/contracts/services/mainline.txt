@@ -290,7 +290,240 @@ export interface MainlineIssue {
     code: string;
 }
 
+export declare const WORK_LINE_EVENT_SCHEMA: {
+    properties: {
+        id: {
+            type: string;
+            minLength: number;
+            maxLength: number;
+        };
+        source: {
+            readonly required: readonly ["capability_id", "version", "provider_id"];
+            readonly type: "object";
+            readonly properties: {
+                readonly capability_id: {
+                    readonly type: "string";
+                    readonly minLength: 1;
+                };
+                readonly version: {
+                    readonly type: "integer";
+                    readonly minimum: 1;
+                };
+                readonly provider_id: {
+                    readonly type: "string";
+                    readonly minLength: 1;
+                };
+            };
+            readonly additionalProperties: false;
+        };
+        origin: {
+            type: string;
+            properties: {
+                surface: {
+                    pattern: string;
+                    minLength: 1;
+                    type: "string";
+                };
+                title: {
+                    readonly minLength: 1;
+                    readonly type: "string";
+                };
+                icon: {
+                    pattern: string;
+                    minLength: 1;
+                    type: "string";
+                };
+            };
+            required: string[];
+            additionalProperties: boolean;
+        };
+        wing: {
+            enum: string[];
+        };
+        rank: {
+            readonly type: "integer";
+            readonly minimum: 0;
+        };
+        line_state: {
+            enum: readonly ("partial" | "archived" | "unavailable" | "failed" | "done" | "conflict" | "cancelled" | "idle" | "connected" | "ready" | "running" | "doing" | "starting" | "generating" | "saving" | "indexing" | "saved" | "round-ended" | "staged" | "waiting" | "queued" | "answer" | "approval" | "reauth" | "paused" | "stopped" | "disabled" | "blocked" | "quarantined" | "syncing" | "retrying" | "interrupted" | "verify" | "stale" | "disconnected" | "unsaved" | "draft" | "unstaged" | "untracked" | "unread" | "read" | "material" | "trashed")[];
+        };
+        waiting: {
+            type: string;
+        };
+        tasks: {
+            type: string;
+            properties: {
+                running: {
+                    readonly type: "integer";
+                    readonly minimum: 0;
+                };
+                waiting: {
+                    readonly type: "integer";
+                    readonly minimum: 0;
+                };
+                refs: {
+                    type: string;
+                    items: {
+                        readonly type: "object";
+                        readonly properties: {
+                            readonly kind: {
+                                readonly type: "string";
+                                readonly minLength: 1;
+                            };
+                            readonly id: {
+                                readonly type: "string";
+                                readonly minLength: 1;
+                            };
+                        };
+                        readonly required: readonly ["kind", "id"];
+                        readonly additionalProperties: false;
+                    };
+                };
+            };
+            required: string[];
+            additionalProperties: boolean;
+        };
+        event_id: {
+            readonly minLength: 1;
+            readonly type: "string";
+        };
+        subject: {
+            readonly type: "object";
+            readonly properties: {
+                readonly kind: {
+                    readonly type: "string";
+                    readonly minLength: 1;
+                };
+                readonly id: {
+                    readonly type: "string";
+                    readonly minLength: 1;
+                };
+            };
+            readonly required: readonly ["kind", "id"];
+            readonly additionalProperties: false;
+        };
+        occurred_at: {
+            readonly format: "date-time";
+            readonly minLength: 1;
+            readonly type: "string";
+        };
+        scheduled_at: {
+            readonly format: "date-time";
+            readonly minLength: 1;
+            readonly type: "string";
+        };
+        state: {
+            enum: readonly ("partial" | "archived" | "unavailable" | "failed" | "done" | "conflict" | "cancelled" | "idle" | "connected" | "ready" | "running" | "doing" | "starting" | "generating" | "saving" | "indexing" | "saved" | "round-ended" | "staged" | "waiting" | "queued" | "answer" | "approval" | "reauth" | "paused" | "stopped" | "disabled" | "blocked" | "quarantined" | "syncing" | "retrying" | "interrupted" | "verify" | "stale" | "disconnected" | "unsaved" | "draft" | "unstaged" | "untracked" | "unread" | "read" | "material" | "trashed")[];
+        };
+        placement: {
+            enum: string[];
+        };
+        category: {
+            enum: string[];
+        };
+        title: {
+            readonly minLength: 1;
+            readonly type: "string";
+        };
+        summary: {
+            readonly type: "string";
+        };
+        content: {
+            readonly type: "string";
+        };
+        facts: {
+            type: string;
+            items: {
+                type: string;
+                items: {
+                    readonly type: "string";
+                };
+                minItems: number;
+                maxItems: number;
+            };
+        };
+        needs_attention: {
+            type: string;
+        };
+        open: {
+            anyOf: ({
+                readonly type: "object";
+                readonly properties: {
+                    readonly kind: {
+                        readonly enum: readonly ["item", "group", "surface"];
+                    };
+                    readonly surface: {
+                        pattern: string;
+                        minLength: 1;
+                        type: "string";
+                    };
+                    readonly id: {
+                        readonly type: readonly ["string", "null"];
+                        readonly minLength: 1;
+                    };
+                    readonly title: {
+                        readonly minLength: 1;
+                        readonly type: "string";
+                    };
+                    readonly label: {
+                        readonly minLength: 1;
+                        readonly type: "string";
+                    };
+                };
+                readonly required: readonly ["kind", "surface", "id", "title", "label"];
+                readonly additionalProperties: false;
+                readonly anyOf: readonly [{
+                    readonly properties: {
+                        readonly kind: {
+                            readonly const: "surface";
+                        };
+                        readonly id: {
+                            readonly type: "null";
+                        };
+                    };
+                }, {
+                    readonly properties: {
+                        readonly kind: {
+                            readonly enum: readonly ["item", "group"];
+                        };
+                        readonly id: {
+                            readonly minLength: 1;
+                            readonly type: "string";
+                        };
+                    };
+                }];
+            } | {
+                type: string;
+            })[];
+        };
+    };
+    required: string[];
+    type: string;
+    additionalProperties: boolean;
+};
+
+export interface WorkLineEvent extends WorkEvent {
+    id: string;
+    source: Required<ActionReference>;
+    origin: WorkEventCollection["source"];
+    wing: "done" | "now" | "next";
+    rank: number;
+    line_state?: StateRingState;
+    waiting: boolean;
+    tasks: {
+        running: number;
+        waiting: number;
+        refs: ActionSubject[];
+    };
+}
+
+export interface WorkLineReadResult {
+    events: WorkLineEvent[];
+    issues: MainlineIssue[];
+}
+
 export declare const mainlineActions: {
+    line: ActionDefinition<WorkEventWindow, WorkLineReadResult>;
     tasks: ActionDefinition<Record<string, never>, BackgroundTasksReadResult>;
     command: ActionDefinition<BackgroundTaskCommandRequest, BackgroundTaskCommandResult>;
 };

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import type { TestContext } from "node:test";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { molisWorkHostProjectReference, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
-import { defineBackgroundTasksAction, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { defineBackgroundTasksAction, defineWorkEventsAction, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { startProjectPlugins } from "./plugin-callers.js";
@@ -20,7 +20,9 @@ const READ = "homebg:read";
 
 export function backgroundPlugin(answer: (projectId: string) => unknown) {
   const state = { answer, calls: [] as Array<{ project: string | null; query_only: boolean }>, stops: [] as Array<{ project: string | null; job: string }>,
-    stop: (async job => ({ stopped: job })) as (job: string) => Promise<unknown> };
+    stop: (async job => ({ stopped: job })) as (job: string) => Promise<unknown>,
+    // What it registers on the work line (specs/work-line §5): nothing until a test sets it.
+    events: ((): unknown => ({ source: { surface: "example", title: "示例", icon: "list" }, events: [] })) as (projectId: string) => unknown, eventCalls: [] as Array<{ project: string | null; query_only: boolean }> };
   const query = defineBackgroundTasksAction("homebg.tasks", 1, ["homebg_task"], "示例后台任务", [READ]);
   // A third-party plugin may declare any schema for its answer; the page's rows are checked again by the Host.
   const declared = { ...query, action: { ...query.action, output_schema: { type: "object" as const } } };
@@ -28,10 +30,11 @@ export function backgroundPlugin(answer: (projectId: string) => unknown) {
   const stop = { capability_id: "homebg.stop", version: 1, operation: "command" as const, action: { title: "停止示例任务", description: "停止一个示例后台任务。", kind: "operation" as const, scope: "project" as const,
     effect: "write" as const, audiences: ["user" as const], permissions: [READ], subject_kinds: [],
     input_schema: { type: "object" as const, properties: { job: { type: "string" as const } }, required: ["job"], additionalProperties: false }, output_schema: { type: "object" as const } } };
+  const events = defineWorkEventsAction("homebg.events", 1, ["homebg_item"], "示例事件", [READ]);
   const definition: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: BACKGROUND_PLUGIN_ID, version: "1.0.0", name: "homebg", kind: "app",
     publisher: { publisher_id: "example", signature: "home-background" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [{ permission: READ, required: true, reason: "读自己的后台任务" }],
-    capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [declared, stop] },
+    capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [declared, stop, events] },
   async start() {
     return { kind: "app", views: [], actions: [{ ...declared, async handle(caller: ActionExecutionContext) {
       state.calls.push({ project: caller.project_id ?? null, query_only: caller.query_only === true });
@@ -40,6 +43,9 @@ export function backgroundPlugin(answer: (projectId: string) => unknown) {
       const job = (input as { job: string }).job;
       state.stops.push({ project: caller.project_id ?? null, job });
       return await state.stop(job);
+    } }, { ...events, async handle(caller: ActionExecutionContext) {
+      state.eventCalls.push({ project: caller.project_id ?? null, query_only: caller.query_only === true });
+      return await state.events(caller.project_id ?? "") as never;
     } }] };
   } };
   return { definition, state };

@@ -1,6 +1,8 @@
 import { inputSchemaFor } from "../platform/action-input.js";
-import { ACTION_REFERENCE_SCHEMA, ACTION_SUBJECT_SCHEMA, BACKGROUND_TASK_SCHEMA, WORK_EVENT_SOURCE_SCHEMA, defineErrorCodes,
-  type ActionDefinition, type ActionReference, type ActionSubject, type BackgroundTask, type BackgroundTaskCollection, type BackgroundTaskCommand } from "../platform/actions.js";
+import { ACTION_REFERENCE_SCHEMA, ACTION_SUBJECT_SCHEMA, BACKGROUND_TASK_SCHEMA, WORK_EVENT_SCHEMA, WORK_EVENT_SOURCE_SCHEMA, WORK_EVENT_WINDOW_SCHEMA, defineErrorCodes,
+  type ActionDefinition, type ActionReference, type ActionSubject, type BackgroundTask, type BackgroundTaskCollection, type BackgroundTaskCommand, type WorkEvent, type WorkEventCollection,
+  type WorkEventWindow } from "../platform/actions.js";
+import type { StateRingState } from "../platform/ui-state-rings.js";
 
 /**
  * The mainline service (specs/work-line §5–§6, `horizontal/mainline`): system actions that read, for one project, what its
@@ -26,6 +28,31 @@ export interface MainlineIssue { source: Required<ActionReference>; title: strin
 
 export interface BackgroundTasksReadResult { tasks: BackgroundTaskRow[]; issues: MainlineIssue[] }
 
+/**
+ * An event on the line: the registrant's own event, with who registered it, where it sits and what is being done behind it. The
+ * name and the state word are the registrant's, given in this read; nothing here is kept between reads (WLN-21).
+ */
+export interface WorkLineEvent extends WorkEvent {
+  /** The same for a registrant's event across reads. */
+  id: string;
+  source: Required<ActionReference>;
+  origin: WorkEventCollection["source"];
+  /** Behind now, beside it or ahead of it. An event with a task under way or waiting behind it is beside now, wherever its owner put it. */
+  wing: "done" | "now" | "next";
+  /** Its place in the wing, 0 nearest to now. */
+  rank: number;
+  /** What the line shows: the owner's state, unless a task behind it is being done or waits on the person (WLN-38). */
+  line_state?: StateRingState;
+  /** It, or a task behind it, waits on the person. */
+  waiting: boolean;
+  /**
+   * The tasks that say they serve it, from the task table read in the same call: how many, and which. No progress is copied. Only
+   * what the caller itself can read is counted: a task provider answers the person alone (S-49), so another audience gets none.
+   */
+  tasks: { running: number; waiting: number; refs: ActionSubject[] };
+}
+export interface WorkLineReadResult { events: WorkLineEvent[]; issues: MainlineIssue[] }
+
 /** One command of one row, as the reader was given it. It is run only if the provider, asked again, still offers exactly this. */
 export interface BackgroundTaskCommandRequest { source: Required<ActionReference>; subject: ActionSubject; command: BackgroundTaskCommand }
 export interface BackgroundTaskCommandResult { role: BackgroundTaskCommand["role"]; output: unknown }
@@ -46,12 +73,28 @@ const ISSUE_SCHEMA = { type: "object", properties: { source, title: { ...id, max
 const COMMAND_SCHEMA = { type: "object", properties: { role: { enum: ["stop", "pause", "resume"] }, action: ACTION_REFERENCE_SCHEMA, input: { type: "object" }, summary: { type: "string", maxLength: 1000 } },
   required: ["role", "action", "input", "summary"], additionalProperties: false } as const;
 
+const count = { type: "integer", minimum: 0 } as const;
+export const WORK_LINE_EVENT_SCHEMA = { ...WORK_EVENT_SCHEMA, properties: { ...WORK_EVENT_SCHEMA.properties, id: { type: "string", minLength: 1, maxLength: 1000 }, source, origin: WORK_EVENT_SOURCE_SCHEMA,
+  wing: { enum: ["done", "now", "next"] }, rank: count, line_state: WORK_EVENT_SCHEMA.properties.state, waiting: { type: "boolean" },
+  tasks: { type: "object", properties: { running: count, waiting: count, refs: { type: "array", items: ACTION_SUBJECT_SCHEMA } }, required: ["running", "waiting", "refs"], additionalProperties: false } },
+  required: [...WORK_EVENT_SCHEMA.required, "id", "source", "origin", "wing", "rank", "waiting", "tasks"] };
+
 const metadata = { scope: "project" as const, scheduling: "concurrent" as const, subject_kinds: [] };
 export const mainlineActions = {
+  /**
+   * The line of one project: every registrant asked once in parallel, the task table read once in the same call, each event placed
+   * and ordered. The Assistant and an outside Agent read this same answer; there is no second, textual form of it.
+   */
+  line: { capability_id: "mainline.line.read", version: /* @version action.mainline.line.read */ 1, operation: "query", action: { ...metadata,
+    title: "事项线", description: "从这个项目里已授权的登记方读取当前窗口里的事件，标出每件在线上的位置、先后和背后在办或等你的任务（只算调用方自己读得到的任务）；只读，不会执行事件上的动作。",
+    kind: "query", effect: "read", audiences: ["user", "agent", "workflow", "mcp"], permissions: [MAINLINE_READ_PERMISSION],
+    input_schema: inputSchemaFor<WorkEventWindow>()(WORK_EVENT_WINDOW_SCHEMA),
+    output_schema: { type: "object", properties: { events: { type: "array", items: WORK_LINE_EVENT_SCHEMA }, issues: { type: "array", items: ISSUE_SCHEMA } }, required: ["events", "issues"], additionalProperties: false } } } as ActionDefinition<WorkEventWindow, WorkLineReadResult>,
   /** The task panel's read: every provider of the table in this project, asked once each in parallel through the caller's client. */
   tasks: { capability_id: "background.tasks.read", version: /* @version action.background.tasks.read */ 1, operation: "query", action: { ...metadata,
     title: "后台任务", description: "从这个项目里已授权的提供方读取正在办、或等着你处理的后台任务，保留各自的对象与提供方身份；只读，不会执行任务上的动作。",
-    kind: "query", effect: "read", audiences: ["user", "agent", "workflow", "mcp"], permissions: [MAINLINE_READ_PERMISSION],
+    // The providers answer the person alone (S-49), so only the person has anything to read here.
+    kind: "query", effect: "read", audiences: ["user"], permissions: [MAINLINE_READ_PERMISSION],
     input_schema: inputSchemaFor<Record<string, never>>()({ type: "object", properties: {}, additionalProperties: false }),
     output_schema: { type: "object", properties: { tasks: { type: "array", items: BACKGROUND_TASK_ROW_SCHEMA }, issues: { type: "array", items: ISSUE_SCHEMA } }, required: ["tasks", "issues"], additionalProperties: false } } } as ActionDefinition<Record<string, never>, BackgroundTasksReadResult>,
   /**

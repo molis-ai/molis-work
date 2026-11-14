@@ -1,12 +1,15 @@
 import { isDeepStrictEqual } from "node:util";
-import { ActionError, BACKGROUND_TASKS_OUTPUT_TYPE, type ActionCallContext, type ActionClient, type ActionReference, type ActionSubject, type ActionView,
-  type BackgroundTask, type BackgroundTaskCollection, type BackgroundTaskCommand, type BackgroundTaskPhrase, type OpenTarget } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, BACKGROUND_TASKS_OUTPUT_TYPE, WORK_EVENTS_INPUT_TYPE, WORK_EVENTS_OUTPUT_TYPE, assertWorkEventWindow, type ActionCallContext, type ActionClient, type ActionReference,
+  type ActionSubject, type ActionView, type BackgroundTask, type BackgroundTaskCollection, type BackgroundTaskCommand, type BackgroundTaskPhrase, type OpenTarget, type WorkEvent,
+  type WorkEventCollection, type WorkEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 import { STATE_RING_FAMILIES, type StateRingState } from "@molis-ai/molis-work-contracts/platform/ui";
-import { mainlineErrors, type BackgroundTaskCommandRequest, type BackgroundTaskCommandResult, type BackgroundTaskRow, type BackgroundTasksReadResult, type MainlineIssue } from "@molis-ai/molis-work-contracts/services/mainline";
+import { mainlineErrors, type BackgroundTaskCommandRequest, type BackgroundTaskCommandResult, type BackgroundTaskRow, type BackgroundTasksReadResult, type MainlineIssue, type WorkLineEvent,
+  type WorkLineReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
 import { createExecutionLifetime, isHomeAggregateQuery } from "@molis-ai/molis-work-plugin-sdk";
 
-// The mainline service (specs/work-line §5–§6): it finds a project's task providers in the caller's own directory, asks each once and
-// checks every row before a page draws it. Nothing is stored: every call asks again, so a caller never gets what it may not read.
+// The mainline service (specs/work-line §5–§6): it finds a project's event registrants and task providers in the caller's own
+// directory, asks each once and checks every row before a page draws it. Nothing is stored: every call asks again, so a caller
+// never gets what it may not read.
 
 const TOKEN = /^[a-zA-Z0-9_-]{1,64}$/;
 const STATES: ReadonlySet<string> = new Set(STATE_RING_FAMILIES.flatMap(family => [...family.states]));
@@ -71,9 +74,9 @@ const isTaskSource = (view: ActionView) => view.action.output_type === BACKGROUN
 const referenceOf = (view: ActionView): Required<ActionReference> => ({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id });
 const same = (a: ActionReference, b: Required<ActionReference>) => a.capability_id === b.capability_id && a.version === b.version && a.provider_id === b.provider_id;
 
-/** One slow provider cannot keep the panel waiting or hold another's answer behind it. */
-async function beforeDeadline<T>(signal: AbortSignal | undefined, work: (signal: AbortSignal) => Promise<T>): Promise<T> {
-  const lifetime = createExecutionLifetime({ signal, timeout: { milliseconds: 2_000, reason: new ActionError("actions.timeout", "后台任务读取超时，请重试") } });
+/** One slow provider cannot keep the reader waiting or hold another's answer behind it. */
+async function beforeDeadline<T>(signal: AbortSignal | undefined, work: (signal: AbortSignal) => Promise<T>, milliseconds = 2_000, reason = "后台任务读取超时，请重试"): Promise<T> {
+  const lifetime = createExecutionLifetime({ signal, timeout: { milliseconds, reason: new ActionError("actions.timeout", reason) } });
   try { lifetime.assertActive(); return await lifetime.wait(work(lifetime.signal)); }
   finally { lifetime.dispose(); }
 }
@@ -82,9 +85,9 @@ async function beforeDeadline<T>(signal: AbortSignal | undefined, work: (signal:
  * `background.tasks.read@1`: every task provider of the caller's project, found once and asked in parallel, each call read-only and
  * bounded. A provider that is off in the project has nothing to report; one that cannot answer is an issue, by its code.
  */
-export async function readBackgroundTasks(caller: ActionCallContext, client: ActionClient): Promise<BackgroundTasksReadResult> {
+export async function readBackgroundTasks(caller: ActionCallContext, client: ActionClient, discovered?: readonly ActionView[]): Promise<BackgroundTasksReadResult> {
   const reader: ActionCallContext = { ...caller, query_only: true };
-  const sources = (await client.discover(reader)).filter(isTaskSource);
+  const sources = (discovered ?? await client.discover(reader)).filter(isTaskSource);
   const answers = await Promise.all(sources.map(async (view): Promise<{ tasks: BackgroundTaskRow[]; issues: MainlineIssue[] }> => {
     const source = referenceOf(view), issue = (code: string) => ({ tasks: [], issues: [{ source, title: view.action.title, code }] });
     if (!view.availability.available) return view.availability.code === "actions.plugin_disabled" ? { tasks: [], issues: [] } : issue(view.availability.code);
@@ -119,4 +122,85 @@ export async function runBackgroundTaskCommand(caller: ActionCallContext, client
     await caller.validate_authority?.(source);
   } };
   return { role: command.role, output: await client.invoke(guarded, command.action, command.input) };
+}
+
+/** An event registrant: a query with the event registry's two types (specs/work-line §5). There is no other list of registrants. */
+export const isWorkEventSource = ({ action }: Pick<ActionView, "action">): boolean => action.input_type === WORK_EVENTS_INPUT_TYPE && action.output_type === WORK_EVENTS_OUTPUT_TYPE;
+
+/** A registrant's event as a reader gets it, before it is placed. */
+export type GatheredWorkEvent = WorkEvent & { id: string; source: Required<ActionReference>; origin: WorkEventCollection["source"] };
+/** What one registrant said in a read, or why it said nothing. The error itself stays in the process: a reader that shows it chooses what of it to show. */
+export interface WorkEventSourceAnswer {
+  view: ActionView;
+  source: Required<ActionReference>;
+  events?: GatheredWorkEvent[];
+  failure?: { kind: "unavailable"; code: string; reason: string } | { kind: "failed"; code: string; error: unknown };
+}
+
+/** A registrant gets longer than a task provider: it may read its own store for a day's window. */
+const EVENT_SOURCE_MILLISECONDS = 5_000;
+
+/**
+ * Every given registrant asked once, in parallel, each bounded: the answers in the order the registrants were given. An event
+ * id said twice, or an object kind the registrant did not declare, voids that registrant's answer. Nothing is discovered here:
+ * the caller passes the registrants it found in its own directory, so a registrant it cannot see is not asked.
+ */
+export async function gatherWorkEvents(caller: ActionCallContext, client: Pick<ActionClient, "invoke">, window: WorkEventWindow, sources: readonly ActionView[]): Promise<WorkEventSourceAnswer[]> {
+  assertWorkEventWindow(window);
+  return await Promise.all(sources.map(async (view): Promise<WorkEventSourceAnswer> => {
+    const source = referenceOf(view);
+    if (!view.availability.available) return { view, source, failure: { kind: "unavailable", code: view.availability.code, reason: view.availability.reason } };
+    try {
+      const result = await beforeDeadline(caller.signal, signal => client.invoke({ ...caller, signal }, source, window), EVENT_SOURCE_MILLISECONDS, "事件读取超时，请重试") as WorkEventCollection;
+      const ids = new Set<string>();
+      for (const event of result.events) {
+        if (ids.has(event.event_id) || !view.action.subject_kinds.includes(event.subject.kind)) throw new ActionError("actions.event_invalid", "插件事项身份重复或超出已声明的对象类型");
+        ids.add(event.event_id);
+      }
+      return { view, source, events: result.events.map(event => ({ ...event, id: JSON.stringify([source.provider_id, source.capability_id, event.event_id]), source, origin: result.source })) };
+    } catch (error) {
+      caller.signal?.throwIfAborted();
+      return { view, source, failure: { kind: "failed", code: codeOf(error), error } };
+    }
+  }));
+}
+
+const FAMILY: ReadonlyMap<string, string> = new Map(STATE_RING_FAMILIES.flatMap(family => family.states.map(state => [state, family.key] as const)));
+/** A task not waiting on the person is under way while its ring is one of these looks; anything else has stopped moving. */
+const UNDER_WAY: ReadonlySet<string> = new Set(["running", "waiting", "syncing", "retrying"]);
+const WING = { occurred: "done", active: "now", today: "next" } as const;
+const subjectKey = (subject: ActionSubject) => JSON.stringify([subject.kind, subject.id]);
+
+/**
+ * `mainline.line.read@1`: one discovery, then every registrant and the task table in parallel. Each event is placed by its owner,
+ * moved beside now while a task behind it is under way or waits on the person, and ordered within its wing: what is done by when it
+ * happened (newest nearest), what is ahead by when it starts or falls due (soonest nearest), what is beside now with what waits
+ * first. A registrant that is off in the project says nothing; one that cannot answer is an issue by its code (WLN-37, WLN-38).
+ */
+export async function readWorkLine(caller: ActionCallContext, client: ActionClient, window: WorkEventWindow): Promise<WorkLineReadResult> {
+  assertWorkEventWindow(window);
+  const reader: ActionCallContext = { ...caller, query_only: true };
+  const directory = await client.discover(reader);
+  const [answers, table] = await Promise.all([gatherWorkEvents(reader, client, window, directory.filter(isWorkEventSource)), readBackgroundTasks(caller, client, directory)]);
+  const behind = new Map<string, BackgroundTaskRow[]>();
+  for (const task of table.tasks) for (const served of task.serves) behind.set(subjectKey(served), [...behind.get(subjectKey(served)) ?? [], task]);
+  const issues: MainlineIssue[] = answers.flatMap(answer => !answer.failure || answer.failure.code === "actions.plugin_disabled" ? [] : [{ source: answer.source, title: answer.view.action.title, code: answer.failure.code }]);
+  const events = answers.flatMap(answer => answer.events ?? []).map((event): WorkLineEvent => {
+    const tasks = behind.get(subjectKey(event.subject)) ?? [];
+    const waiting = tasks.filter(task => task.waiting).length, running = tasks.filter(task => !task.waiting && UNDER_WAY.has(FAMILY.get(task.state) ?? "")).length;
+    const state = waiting ? "answer" : running ? "running" : event.state;
+    return { ...event, wing: waiting || running ? "now" : WING[event.placement], rank: 0, ...(state ? { line_state: state } : {}), waiting: event.needs_attention || waiting > 0,
+      tasks: { running, waiting, refs: tasks.map(task => task.subject) } };
+  });
+  const ahead = (event: WorkLineEvent) => event.scheduled_at ?? event.occurred_at;
+  const order: Record<WorkLineEvent["wing"], (a: WorkLineEvent, b: WorkLineEvent) => number> = {
+    done: (a, b) => b.occurred_at.localeCompare(a.occurred_at),
+    now: (a, b) => Number(b.waiting) - Number(a.waiting) || b.occurred_at.localeCompare(a.occurred_at),
+    next: (a, b) => ahead(a).localeCompare(ahead(b)),
+  };
+  for (const wing of ["done", "now", "next"] as const) {
+    events.filter(event => event.wing === wing).sort((a, b) => order[wing](a, b) || a.id.localeCompare(b.id)).forEach((event, rank) => { event.rank = rank; });
+  }
+  const WINGS = ["done", "now", "next"];
+  return { events: events.sort((a, b) => WINGS.indexOf(a.wing) - WINGS.indexOf(b.wing) || a.rank - b.rank), issues: [...issues, ...table.issues] };
 }

@@ -46,7 +46,7 @@ export { planHomeUpgrade, runUpgradeMaintenance, upgradeHomesForMaintenance, typ
 export { configuredModelChoices } from "./configured-models.js";
 export { describePluginTablesRefusal, describeUnavailable, diagnosticId, dismissUpgradeNotice, rollbackHrefFor, upgradeNoticeFor, upgradeRefusal, type UnavailableOwner, type UnavailableReason } from "./home-unavailable-owners.js";
 export { homeUpgradeDescriptors, registerHomeUpgradeDescriptors, upgradeFingerprint, upgradeTarget, type HomeUpgradeDescriptor, type UpgradeBlock, type HomeUpgradeDescriptorSource, type HomeUpgradeFileDescriptor, type HomeUpgradeStoreDescriptor, type HomeUpgradeTablesDescriptor } from "./home-upgrade-stores.js";
-export { pluginTablesDescriptor, upgradePluginLibraryFile, type PluginTablesLibrary } from "./platform-upgrade-stores.js";
+export { pluginTablesDescriptor, projectDatabases, upgradePluginLibraryFile, type PluginTablesLibrary } from "./platform-upgrade-stores.js";
 export { acquireUpgradedHomeOwner } from "./home-storage-lifetime.js";
 export { catalogManagementProject, upgradeOlderCatalog } from "./management-action-client.js";
 export { createHomeSnapshot, type HomeSnapshotOptions } from "./home-snapshot.js";
@@ -163,7 +163,7 @@ export { installedStageSection } from "./workbench-renderer.js";
 export { createPluginConnectionsPort, createCallConnectionsPort, pluginSlotScope } from "./connector-plugin-requests.js";
 export { createConnectorSourcePort } from "./connector-source-pull.js";
 export { activateConnectorConnection } from "./connector-activation.js";
-export { LOCAL_OWNER_PERMISSIONS, localOwnerPermissionsOver } from "./local-owner-permissions.js";
+export { LOCAL_OWNER_PERMISSIONS, MATERIALS_OWNER_PERMISSIONS, localOwnerPermissionsOver } from "./local-owner-permissions.js";
 export { artifactActionProvider, artifactLinkSubjectsPort } from "./artifact-actions.js";
 export { HOST_PLUGIN_IDS } from "./host-plugin-ids.js";
 export { connectorRecordActions, CONNECTOR_RECORDS_READ } from "./connector-record-actions.js";
@@ -263,6 +263,7 @@ export type { LocalCliOptions } from "./cli-host.js";
 export { ModelProviderStore, createModelProviderTables, type ModelProviderSqlite, type ModelProviderStoreOptions, type ModelSecretPort } from "./model-provider-store.js";
 export { MINIMAX_ANTHROPIC_BASE_URL, MODEL_PROVIDER_TEMPLATES, modelProviderTemplate } from "./model-provider-templates.js";
 export {
+  codeIntelligenceConfig,
   composeAgentHost,
   workspaceRefFor,
   type WorkspaceLookupPorts,
@@ -318,7 +319,7 @@ export { deliveryNote, deliveryNoteHtml, deliverySteps, isOpenable, type Deliver
 export { assistantAuthority } from "./assistant/assistant-authority.js";
 export { purgeAssistantProject } from "./assistant/assistant-project-purge.js";
 export { logMemoryLearning, prologueMemoryBackend } from "./memory/memory-host.js";
-export { memoryRuntimePolicy, type MemoryRuntimePolicyOwner } from "./memory/memory-runtime-policy.js";
+export { memoryRuntimePolicy, type MemoryForgettingPhase, type MemoryRuntimePolicyOwner } from "./memory/memory-runtime-policy.js";
 export { memorySources, type MemorySourceOwner } from "./memory/memory-sources.js";
 export { memoryExtractor } from "./memory/memory-extractor.js";
 export { registerMemoryProjectDeletion } from "./memory/memory-project-deletion.js";
@@ -389,6 +390,10 @@ export { builtinSyncBindings } from "./builtin-sync.js";
 export { personalRuntimeSyncAuthority } from "./personal-runtime-sync-authority.js";
 export { bindPersonalSpaceAuthority, assertPersonalSpaceAuthority } from "./personal-space-authority.js";
 export { pluginSyncAuthority, withPluginSyncAuthority } from "./plugin-sync-authority.js";
+export { adoptionPending, adoptProjectDatabase, inspectProjectAdoption, processItemsNeverSynced, retireFilesConsents, type FilesConsentRetirement, type ProjectAdoptionReport } from "./process-items-adoption.js";
+export type { ProjectLayout } from "./project-layout.js";
+export { captureProcessItemsRecovery, verifyProcessItemsRecovery, type ProcessItemsRecoveryCapture } from "./process-items-recovery.js";
+export { processItemsMaintenance, type ProcessItemsMaintenance, type ProcessItemsMaintenancePorts, type ProcessItemsMaintenanceView } from "./process-items-maintenance.js";
 export { createProjectGoalContent } from "./project-goal-content.js";
 
 // Trusted embedders compile declared baselines and bind their existing account/copy lease.

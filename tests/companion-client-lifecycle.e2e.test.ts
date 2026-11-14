@@ -5,7 +5,6 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host";
-import { renderFilesBrowserDirectory, renderFilesBrowserResult } from "@molis-ai/molis-work-plugin-files";
 import { renderGitBrowserDirectory, renderGitBrowserResult } from "@molis-ai/molis-work-plugin-git";
 import { pluginSurfaceClients } from "@molis-ai/molis-work-app-workbench";
 import { AGENT_REVIEW_CLIENT_FACTORY_SCRIPT } from "../apps/workbench/dist/scripts/client/agent-review.js";
@@ -46,7 +45,7 @@ async function fixture(t: TestContext, markup: string, script: string, reply: (p
       response.setHeader("content-type", "text/html; charset=utf-8");
       response.end(`<!doctype html><section id="parent" hidden>${markup}</section><script>
         window.errors=[];addEventListener('error',event=>errors.push(event.message));addEventListener('unhandledrejection',event=>errors.push(String(event.reason)));
-        ${pageTextScript("zh", "coding", "files", "git", "diff")}
+        ${pageTextScript("zh", "coding", "git", "diff")}
         ${UI_REQUEST_CLIENT_SCRIPT}
         const actualMount=(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})();window.mountedScopes=new WeakMap();
         window.mount=root=>{const scope=actualMount(root);if(scope)mountedScopes.set(root,scope);return scope;};window.parentView=document.querySelector('#parent');
@@ -80,11 +79,9 @@ const companionHost = (name: string) => `root:document.querySelector('[data-comp
   return fixtureReviewShow(element,query.runIds.map(run_id=>({run_id})),query.sessionId,query.workspaceId,query,
     {lifetime:mountedScopes.get(element.closest('[data-companion]')),signal:options?.signal});
 }}`;
-const filesMarkup = () => withPageText("zh", ["files"], () => renderFilesBrowserDirectory() + renderFilesBrowserResult());
 const gitMarkup = () => withPageText("zh", ["git"], () => renderGitBrowserDirectory() + renderGitBrowserResult());
 const fixedMarkup = '<button data-companion-refresh><span class="mw-spinner" hidden></span>刷新</button><p data-companion-status></p><div data-companion-content></div>';
-const state = (name: string) => name === "files" ? { workspace: { workspace_id: "ws" } }
-  : name === "git" ? { workspace: { workspace_id: "ws" }, selected: null, view: { phase: "ready", head: "current", conflicts: [], staged: [], changes: [] } }
+const state = (name: string) => name === "git" ? { workspace: { workspace_id: "ws" }, selected: null, view: { phase: "ready", head: "current", conflicts: [], staged: [], changes: [] } }
   : { html: '<p data-current>current fixed content</p>' };
 
 test("GITREF-01 GITREF-03 Git refresh keeps current row identity and focus, updates order and clears invalid scopes", { timeout: 30_000 }, async t => {
@@ -214,10 +211,9 @@ test("W2-18-DIFF-FILE-01: a real Coding frozen output selects distinct files and
   assert.deepEqual(await page.evaluate("errors"), []);
 });
 
-for (const name of ["files", "git", "diff", "text-stats"]) {
+for (const name of ["git", "diff", "text-stats"]) {
   test(`${name} owns visible queries and listeners across hide, detach and remount`, { timeout: 30_000 }, async t => {
-    const body = name === "files" ? filesMarkup()
-      : name === "git" ? gitMarkup() : fixedMarkup;
+    const body = name === "git" ? gitMarkup() : fixedMarkup;
     const f = await fixture(t, `<section data-work-surface="${name}" data-companion="${name}">${body}</section>`, `
       const host={${companionHost(name)}};
       window.root=host.root;window.boot=()=>(${pageFactory(name)})(host);boot();
@@ -230,9 +226,8 @@ for (const name of ["files", "git", "diff", "text-stats"]) {
     }); if (!f) return;
     const { page, blocked, pending, aborted, count } = f;
     assert.equal(f.requests.length, 0, "initial hidden ancestor starts no queries");
-    const key = `GET /${name}/state`, refresh = name === "files" ? "[data-files-refresh]" : name === "git" ? "[data-git-refresh]" : "[data-companion-refresh]";
-    const ready = name === "files" ? "document.querySelector('[data-file-path]') && !document.querySelector('[data-files-refresh]').disabled"
-      : name === "git" ? "document.querySelector('[data-git-status]').textContent==='current' && !document.querySelector('[data-git-refresh]').disabled"
+    const key = `GET /${name}/state`, refresh = name === "git" ? "[data-git-refresh]" : "[data-companion-refresh]";
+    const ready = name === "git" ? "document.querySelector('[data-git-status]').textContent==='current' && !document.querySelector('[data-git-refresh]').disabled"
       : "document.querySelector('[data-current]') && !document.querySelector('[data-companion-refresh]').disabled";
     if(name === "git")blocked.add("GET /git/summary");
     await page.evaluate("parentView.hidden=false");
@@ -258,22 +253,12 @@ for (const name of ["files", "git", "diff", "text-stats"]) {
       pending.get(reviews)![0]!.end(JSON.stringify({ reviews: [], html: "", omitted: 0 }));await pause(80);
       assert.equal(count("GET /git/results"), 0, "no continuation of the old history action after hide");
     }
-    if (name === "files") {
-      const open = "POST /files/open";blocked.add(open);
-      await page.click("[data-file-path]");await until(() => pending.has(open));
-      await page.evaluate("parentView.hidden=true");await pause(80);
-      assert.equal(aborted.includes(open), false, "POST reading-position write survives hiding without replay");
-      await page.evaluate("parentView.hidden=false");await page.wait(ready);
-      pending.get(open)![0]!.end(JSON.stringify({ result: { outcome: "text", text: "stale file text", fingerprint: "old" } }));await pause(80);
-      assert.equal(await page.evaluate("document.querySelector('[data-files-text]').value.includes('stale file text')"), false);
-      assert.equal(count(open), 1);
-    }
     // Detach while a real HTTP read waits, then attach the same DOM and initialize twice.
     blocked.add(key);await page.click(refresh);await until(() => pending.get(key)!.length === 2);
     await page.evaluate("root.remove()");await until(() => aborted.filter(item => item === key).length === 2);
     blocked.delete(key);await page.evaluate("parentView.append(root);boot();boot()");await page.wait(ready);
     const before = count(key);await page.click(refresh);await page.wait(ready);await pause(100);
-    assert.equal(count(key) - before, name === "files" ? 2 : 1, "one click has one current refresh chain");
+    assert.equal(count(key) - before, 1, "one click has one current refresh chain");
     await page.evaluate("root.remove()");await pause(100);const detached = f.requests.length;
     await page.evaluate(`root.querySelector(${JSON.stringify(refresh)}).click()`);await pause(100);
     assert.equal(f.requests.length, detached, "disposed DOM no longer handles refresh");
@@ -316,9 +301,9 @@ test("Host reviews retain decisions across hiding without rendering stale result
   assert.deepEqual(await page.evaluate("errors"), []);
 });
 
-for (const name of ["files", "git"]) test(`${name} refreshes changed revisions, resumes after disconnect and stops while hidden`, { timeout: 30_000 }, async t => {
+for (const name of ["git"]) test(`${name} refreshes changed revisions, resumes after disconnect and stops while hidden`, { timeout: 30_000 }, async t => {
   let revision = 1;
-  const markup = name === "files" ? filesMarkup() : gitMarkup();
+  const markup = gitMarkup();
   const f = await fixture(t, `<section data-work-surface="${name}" data-companion="${name}">${markup}</section>`, `
     const host={${companionHost(name)}};
     window.boot=()=>(${pageFactory(name)})(host);boot();
@@ -330,7 +315,7 @@ for (const name of ["files", "git"]) test(`${name} refreshes changed revisions, 
     const value=state(path.split('/')[1]!);return name==='git' && path==='/git/state'?{...value,view:{...value.view,head:'version-'+revision}}:value;
   });if(!f)return;
   const {page,count,blocked,pending,aborted}=f, key=`GET /${name}/view-revision`;
-  const visible=(n:number)=>name==='files'?`!!document.querySelector('[data-file-path]')?.textContent.includes('version-${n}')`:`document.querySelector('[data-git-status]').textContent==='version-${n}'`;
+  const visible=(n:number)=>`document.querySelector('[data-git-status]').textContent==='version-${n}'`;
   await page.evaluate('parentView.hidden=false');await page.wait(visible(1));
   const before=count(`GET /${name}/state`);await pause(2200);
   assert.equal(count(`GET /${name}/state`),before,'unchanged revision makes no expensive state reads');

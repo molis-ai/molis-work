@@ -36,9 +36,9 @@
 - 来源默认只对本机用户（`FILE_SOURCE_AUDIENCES = ["user"]`）；给 Agent 或 MCP 用要自己放宽，且不能比原有读取更宽。
 - 只列当前存在、可读的文件；不要放已删除或归档的。
 - 项目作用域的来源只在该项目出现；`"home"` 作用域在个人范围出现。
-- 不为侧栏另存一份正文、不在动作里调用侧栏；同一份文件只由一个插件列出（Coding 的工作目录由 Files 列出，它每轮的固定变更经 Artifacts 列出）。
+- 不为侧栏另存一份正文、不在动作里调用侧栏；同一份文件只由一个来源列出（项目的文件夹由平台资料服务 `system.materials` 列出，Coding 每轮的固定变更经 Artifacts 列出）。
 
 ## 样例与验证
 
-- Files（`files.side.entries` / `files.side.content`，工作区文件，文本预览）、Pages（`pages.files.entries`，经 `pages.subject.read` 预览）、Artifacts（`artifacts.files.entries`）。
+- 平台资料服务（`materials.files.entries` / `materials.files.content`，项目的所有文件夹，文本与图片、PDF 原位预览）、Pages（`pages.files.entries`，经 `pages.subject.read` 预览）、Artifacts（`artifacts.files.entries`）。
 - 门禁：`inspectActionDeclarations` 校验协议形状（规范输入输出、查询类型、对本机用户开放、与角色一致）；测试 `tests/side-panel-platform.test.ts`。

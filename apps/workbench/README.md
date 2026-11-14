@@ -111,6 +111,8 @@ node scripts/run-tests.mjs tests/workbench-ui-platform.test.ts
   - 助理对话的滚动只有一个主人：设计系统的 `window.molisFollow`（VUX-26）。到底跟随、人往上滚就停，新内容不推走读者，「新消息」回到最新；明确发送也回到最新，跳到等人的卡之前先 `release()`。侧栏的 产出、变更、后台任务 是三个同样的折叠组，收起仍显示失败或进行中的数目，更新不擅自展开（VUX-08）。回归 `tests/assistant-scroll-follow.e2e.test.ts`、`tests/assistant-side-groups.e2e.test.ts`。
   - 助理侧栏的六组（工作环境、上下文、连接与工具、产出、变更、后台任务）在 `scripts/client/assistant-island.ts` 与 `assistant-side-context.ts`：上下文只读输入条与工作自己的轮次，工作环境与连接与工具读宿主的 `GET /api/assistant/works/<id>/surroundings`，只在工作、修订或状态变化时再问。改动跑 `node scripts/run-tests.mjs tests/assistant-side-groups.e2e.test.ts tests/client-script-undeclared.test.ts`。
   - 助理单轮记忆参考由 `assistant-process.ts` 展示：已提供、送达未确认、内容已更新、本轮参考记录未保存分别说明，未知不计入已提供；空引用移除旧正文，更新保留原折叠节点与展开状态。真实 Chrome 渲染合同回归 `tests/assistant-memory-usage.e2e.test.ts` 使用读取 DTO；SDK 派发事实另由 AgentHost 真实 Node/HTTP 回归证明。
+  - 助理记忆操作步骤按 Host 的原有界回执显示：候选是待认可建议，未停用不报成功，停用成功不说删除；缺少、截断或不完整结果保持未知。撤权停止时，原步骤分别保留实际结果，不依赖模型补一段结尾；失败说明不借作待认可数据。真实 WorkView/Chrome 路径见 `tests/assistant-process-info.e2e.test.ts`，公开 Run/持久化/恢复授权与后续消费见 `tests/memory-owner-routing.test.ts`，纯展示边界见 `tests/assistant-tool-words.test.ts`。
+  - 记忆设置页开着时，助理在一项工作里记下、替换或撤销记忆，由助理发 `molis-work:memory-changed`（登记在 dom-events），设置页空闲时自动重读，切回这个标签页时也重读；编辑框或确认框开着时等它们关掉再读，不丢正在改的内容。个人记忆页的「改为项目记忆」让本人选项目，移动请求走那个项目自己的路由，由它的授权与开关决定。回归 `tests/memory-settings-walkthrough-fixes.e2e.test.ts`。
   - 助理的用量框（`assistant-side-context.ts` 的用量工厂，VUX-11）分上下文窗口、本轮、账户额度与这项工作四处，数字只取运行时对这一轮的报告与轮次的 `model`：占比要已用与窗口都已知，没报的写「暂不可用」而不是 0，估算照口径标出。改动跑 `node scripts/run-tests.mjs tests/assistant-usage.e2e.test.ts`。
   - 助理操作卡按完整集合清理，逐张放到时间线时保留其他卡；刷新工作所得成功或失败只影响仍对应原工作 ID 的页面。回归 `tests/assistant-page-cards.e2e.test.ts` 验同一工作的两张页面卡、独立执行/忽略与重读；`tests/assistant-stale-refresh.e2e.test.ts` 验真实 owner 删除、迟到 404 与后选工作的草稿保持（W2-18-PAGE-CARDS-01、W2-18-ASSISTANT-404-01）。
   - 进入工作台之前的页面是一个框架（标题栏 · 舞台 · 常驻底栏，`arrival/shell.ts`）和一张样式表（`/assets/molis-work-arrival.css`，`styles/arrival.ts`）：页面之间是整页跳转，框架不动；控件与部件只用 design-system 的 `mw-*`，页面样式只排版，不另画一套。
@@ -135,9 +137,9 @@ node scripts/run-tests.mjs tests/workbench-ui-platform.test.ts
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。
 
-当前项目的输入目录与输出目录由项目设置的「工作目录」页统一维护（项目不记 Files/Git 的浏览选择，页面看哪个目录是页面自己的状态），Workspace 不再作为导航插件。页面与嵌入工作台共用 `project-settings-pages.ts` / `scripts/project-settings.ts`；协议和设置归属见 [PROJECT-SETTINGS.md](../../docs/platform/PROJECT-SETTINGS.md)。
+当前项目的输入目录与输出目录由项目设置的「工作目录」页统一维护（项目不记资料与 Git 的浏览选择，页面看哪个目录是页面自己的状态），Workspace 不再作为导航插件。页面与嵌入工作台共用 `project-settings-pages.ts` / `scripts/project-settings.ts`；协议和设置归属见 [PROJECT-SETTINGS.md](../../docs/platform/PROJECT-SETTINGS.md)。
 
-工作台从现有内置目录派生独立客户端资源，首次打开时装入惯有 surface DOM 并准备 `clientAssets` 后挂载。原 surface 根节点和已挂载实例持续保留；隐藏时使用原 UI Host 生命周期暂停读取。独立侧栏文档同样在执行工厂前加载插件声明的 `clientAssets`，不依赖主区先打开。Pages 编辑器由 Pages 的登记声明依赖。Coding 与伴随视图的装配在 Coding 包里（`plugins/native/coding/src/browser/workbench.ts`），工作台没有 Coding 专用脚本：Files、Git、Diff、Text Stats 各有自己的客户端包（`/assets/molis-work-plugins/<id>.js`）与样式（登记的 `stylesheet`），不借 Coding 的，打开一个伴随面只下载它自己的一份（`pluginSurfaceClients()` 是主区、侧栏文档和按需加载共用的一份名单）；Coding 的登记写 `clientUses: ["git", "files"]`，`plugin-workbench.ts` 把这两个包加进 Coding 的 `clientAssets`（挂载前先加载），并把这两个插件登记的客户端作为 `host.clients.git`、`host.clients.files`，以各自插件的身份，把宿主的评审动作作为 `host.reviews` 交给 Coding 的工厂（只是渲染钩子，不给决定权），两边写得不对应就在派生时抛错。失败保留内容并提供仅重载 UI 资源的按钮，不自动重试业务动作。分屏省略其他独立客户端 surface 的正文，通用 Goals/Feed/Inbox 与设置绑定保留；CSS 为保持现有全局层叠仍由 shell 按原顺序提供。回归见 `tests/workbench-deferred-clients.e2e.test.ts`、`tests/workbench-hidden-refresh.e2e.test.ts`。
+工作台从现有内置目录派生独立客户端资源，首次打开时装入惯有 surface DOM 并准备 `clientAssets` 后挂载。原 surface 根节点和已挂载实例持续保留；隐藏时使用原 UI Host 生命周期暂停读取。独立侧栏文档同样在执行工厂前加载插件声明的 `clientAssets`，不依赖主区先打开。Pages 编辑器由 Pages 的登记声明依赖。Coding 与伴随视图的装配在 Coding 包里（`plugins/native/coding/src/browser/workbench.ts`），工作台没有 Coding 专用脚本：Git、Diff、Text Stats 各有自己的客户端包（`/assets/molis-work-plugins/<id>.js`）与样式（登记的 `stylesheet`），不借 Coding 的，打开一个伴随面只下载它自己的一份（`pluginSurfaceClients()` 是主区、侧栏文档和按需加载共用的一份名单）；Coding 的登记写 `clientUses: ["git"]`，`plugin-workbench.ts` 把这个包加进 Coding 的 `clientAssets`（挂载前先加载），并把 Git 登记的客户端作为 `host.clients.git`，以 Git 插件的身份，把宿主的评审动作作为 `host.reviews` 交给 Coding 的工厂（只是渲染钩子，不给决定权），两边写得不对应就在派生时抛错。失败保留内容并提供仅重载 UI 资源的按钮，不自动重试业务动作。分屏省略其他独立客户端 surface 的正文，通用 Goals/Feed/Inbox 与设置绑定保留；CSS 为保持现有全局层叠仍由 shell 按原顺序提供。回归见 `tests/workbench-deferred-clients.e2e.test.ts`、`tests/workbench-hidden-refresh.e2e.test.ts`。
 
 插件样式（PG-070）：页面在框架里运行的插件（有客户端）把自己名字空间下的规则（`.<id>`、`.<id>-…`、`[data-<id>…]`，以及登记的 `stylesheetPrefixes`，类名早于 id 的插件用，如插件创作台的 `as-`/`pb-`）作为 `/assets/molis-work-plugins/<id>.css` 单独发，只由要用它的框架在工作台样式表之后链接（`FramePack.styles`，来自 `pluginSurfaceClients()` 的 `styles`）；有设置页的插件（Shelf、Coding）另外由外壳画的设置页链接（`pluginSettingsStyleLinks(contribution_id)`），工作台设置面板抓来的页面由 `scripts/client/settings-directory.ts` 的 `ensureStyleSheets` 先加载它的样式表。其余规则留在共用样式表：别的类的规则、名字只出现在 `:not()`/`:is()`/`:where()` 里的选择器、`stylesheetShared` 列出的类（宿主或共用库在框架之外也画的类）。没有客户端的插件（Feed、Goals 等，界面由外壳自己画）整张样式留在共用样式表，默认排在外壳各层之后；登记写 `stylesheetLayer: "beneath-shell"` 的（Goals，外壳的画布、密度、部件各层还要再改它的文档）排在外壳各层之前（PG-060，T-115）。插件设置页的规则（`settingsStylesheet`）同时进设置样式表和工作台样式表，设置页脚本（`settingsClient`）经登记聚合进入独立设置页、工作台脚本和项目设置整页；Coding 的四条私有设置规则随其已登记设置贡献的 section 内 `<style>` 携带，不进两张共用表。Characters 的项目页与全局项目入口也分别在自身 section 内携带所需静态样式，随抽取、缓存搬移与重开保留；它的事实仍归 Characters Module，页面归 Host；外壳画的插件页要用的工厂由登记的 `pageClients` 按名字给（`pluginPageClients`），工作台不 import 插件包。SDK 的 diff 视图（`mw-diff-*`）由 `packages/design-system/src/styles/diff-view.ts` 定义、随工作台样式表下发，Diff 插件没有自己的样式表。拆分在 `src/plugin-styles.ts` 里按名字做，不改任何一条规则适用的对象；`tests/plugin-styles.test.ts` 找出 `stylesheetShared` 必须列的类，以及哪个插件要在 `stylesheetUses` 里写上别人的样式表。设置样式表（`renderMolisWorkSettingsStylesheet()`）不带 Coding 的样式，Coding 的设置页使用自身贡献 section 携带的四条 `.coding-settings` 规则和它链接的 `coding.css`（PG-070，T-146 与 T393）。
 
@@ -154,6 +156,19 @@ node scripts/run-tests.mjs tests/workbench-ui-platform.test.ts
 
 失败的普通记忆命令保留在当前页面绑定的不可变快照里，包含原动作、完整请求、所见版本与操作号；多个失败分别显示“重试这次操作”。筛选、重新读取列表和其它操作成功都不丢失它们，重试成功只移除对应记录；改变内容、对象或动作形成新决定，不借重试读取最新版本。浏览器刷新或离页不承诺恢复，页面明确说明。该快照不授予权限，每次 HTTP 派发仍有新请求键，并重新经过 Host 当前授权。固定清空继续使用原独立预览。回归仍为上述 `tests/memory-settings-cas.e2e.test.ts`，覆盖重画、重读、多个失败、原版本重放、修改决定、请求键及实际响应诊断；不新增后台重试或持久恢复账。
 
+本人确认提交单条删除时，先清除当前记忆正文、候选、变动和配对投影，使在途列表、历史与配对结果失效；取消确认不清除显示、不提交。遗忘投影失效后的重试卡只显示动作名，完整原请求仍留在现页面绑定中。删除在途期不装回正文，开始和结束时均使旧 reader 失效；请求结束后的新成功管理读取由服务当前过滤决定可见，不让待重试 Map 充当授权。服务无法核实时仍无旧副本，不显示成功；版本冲突未接受删除时可以重新读取当前版本，原失败请求仍按原版本重试。刷新失败和离页同样丢弃旧读副本，重新进入只取服务当前结果。直接页面回归为 `tests/memory-settings-forgetting.e2e.test.ts`，分别验证成功、丢回应、决定已接受但物理清理失败；迟到历史在 Action 返回后的传输层控制。此片不增加离页后的原操作发现或持久重试入口，也不结算固定批量管理。
+
+Memory 设置的正式条目经 `/api/memory/page` 分页查询；筛选变化、翻页、离页与取消使旧响应失效，读取失败后旧列表不可继续操作。未知总数明确显示，空页未穷尽时可继续查找。查看可能重复项是独立显式读取，不让首屏借配对查询重新全量加载正式记忆。修改中保留原场景、生命周期和期限，明确改类交 `reclassify` 与原版本；扩大适用或期限时显示变化供本人确认。正式类别与自动形成类别分别列出，不在添加入口扩大形成白名单。
+
+本会话记忆从 Session 改为长期或短期同样须先确认扩大范围，取消不提交，确认携原版本及本次期限决定。切换个人/项目范围立即撤下旧正式条目、候选和打开的编辑器；新读取等待或失败时不再操作旧投影，重新读取会重取 overview、候选和原操作。已失败命令仍保留原请求、版本与受保护地址，显式重试不借新范围重绑。`tests/memory-session-ui-decisions.e2e.test.ts` 用实际 renderer/binder 与受控 HTTP 验证这两项 UI 决定，不替代真实 Host/SDK 联通旅程。
+
+### B4 原操作发现与固定选中批量（本地实施合同）
+
+按原 Memory V0 spec 末尾已批准合同：本人有界发现无正文原操作，原 change/clear 继续；选中 disable/remove 经 SDK 固定 preview/mutateBatch，原 marker 保存原 ID/version/operation 和真实完成投影。scope clear 与 remove batch 全部固定组接受后才物理清理，接受部分失败不伪称原子。页面不持久正文或命令，不追删新目标；缺原请求/结果标需对账。路径白名单与红绿验收沿统筹批准的 B4 提案，保留本包原开发要求；不改 SDK/vendor、Storage schema 或独立 forgetting v1。
+
+本片仅对已接受遗忘与已确认批量补离页发现，普通编辑等正文请求仍只留当前页。选中时可见序号；原计划保存无正文选择顺序，分组、部分失败及重启后的逐项结果沿同一次序。结果序号可标在当前仍获准展示的条目上，不恢复已遗忘正文。原清空的详细部分结果与导入原请求重试继续保留；列表刷新复用同身份重试行。
+
+原清空按钮与通用恢复卡共用原清空结果展示。complete:false 只更新真实已删除/冲突/未知/未执行计数，保留原 fingerprint 和重试入口，不提示完成；只有 complete:true 才移除原卡并显示清空完成。离页和 Host 重开后仍从服务核验的原计划继续，不重新预览后继范围。
 账号入口使用 `src/browser/account.ts` 的 typed 浏览器程序，构建后并入既有页面脚本；入口页与工作台共用弹窗，凭据仅经 Host 窄入口，不写浏览器持久存储。`src/browser/account-management.ts` 提供资料与登录方式管理，`src/browser/account-verification.ts` 共用当前/新身份验证表单。WORK-03 至 WORK-05 的注册登录、第三方回跳和资料安全联调及复现方式见 [账号规范](../../specs/unified-account/spec.md)。
 
 WORK-06 的个人/租户选择、定向邀请、角色管理、交接与平台租户操作经现有账号入口和同一动作目录接入，中央负责权限与版本；不切换本地 Home。专项验证：`MOLIS_AUTH_SOURCE=/absolute/path/to/auth node scripts/account-tenants.test.mjs`（临时 Home/D1、Chrome，外部服务 mock）。

@@ -6,7 +6,7 @@ import { acquireStorageOwner, acquireStorageOwnerForRecovery, assertStorageOwner
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
 import { readHomeRestoreArchive } from "./home-restore-archive.js";
 import { prepareRestoreMemory, assertCompleteRestoreMemory } from "./home-restore-memory.js";
-import type { HomeRestoreCatalogInspector, HomeRestoreControl, HomeRestoreResult } from "./home-restore-contract.js";
+import { isHomeRestoreCleanupFailure, type HomeRestoreCleanupFailure, type HomeRestoreCatalogInspector, type HomeRestoreControl, type HomeRestoreResult } from "./home-restore-contract.js";
 import { assertRestoreDependencies } from "./home-restore-dependencies.js";
 import { verifyCommittedHomeRestore } from "./home-restore-finish.js";
 import { homeRestoreErrors } from "./home-restore-input.js";
@@ -16,8 +16,11 @@ import { publishHomeRestore } from "./home-restore-publish.js";
 import { rollbackHomeRestore } from "./home-restore-rollback.js";
 import { collectRestoreStoreInputs } from "./home-restore-stores.js";
 import { planHomeRestoreTarget } from "./home-restore-target.js";
+import { memoryRestoreWritable, prepareHomeRestoreRetention, retainHomeRestoreMemory } from "./home-restore-retention.js";
+import { prepareHomeRestoreSessions, retainHomeRestoreSessions } from "./home-restore-sessions.js";
 import { homeSnapshotErrors } from "./home-store-snapshot.js";
 import { homeUpgradeUnfinished } from "./home-upgrade-ledger.js";
+import { assertArtifactSnapshotReady } from "./home-artifact-recovery.js";
 import { resolveConfiguredHome } from "./product-home.js";
 
 interface HomeRestoreBaseOptions {
@@ -35,12 +38,26 @@ function existingHome(requested?: string): string {
   return realpathSync(path);
 }
 
+/** The same local owner stays held until the original SDK resources actually close. */
+function retainFailedCleanup(cleanup: HomeRestoreCleanupFailure, release: () => void): Error {
+  const error = homeRestoreErrors.recovery_required("离线恢复未完成，资源关闭尚未确认，原 Home 仍由当前操作占用。请先显式关闭这些资源，再检查恢复状态；关闭不会继续恢复或清除恢复记录。");
+  let closing: Promise<void> | undefined;
+  const close = (): Promise<void> => {
+    if (!closing) closing = (async () => { await cleanup.close(); release(); })()
+      .catch(() => { closing = undefined; throw error; });
+    return closing;
+  };
+  return Object.defineProperty(error, "close", { value: close });
+}
+
 /** The exact original Home is held for all preflight and publication; no Host, SDK Runtime or business initializer starts. */
 export async function restoreHomeSnapshot(options: HomeRestoreOptions): Promise<HomeRestoreResult> {
   const home = existingHome(options.homeDirectory), root = agentRuntimeDirectory(home);
   options.signal?.throwIfAborted();
   const owner = acquireStorageOwner(root);
+  let cleanupOwnsLease = false;
   try {
+    assertArtifactSnapshotReady(home, owner);
     if (homeUpgradeUnfinished(home)) throw homeSnapshotErrors.maintenance_pending("上一轮升级还没有做完，所以没有恢复。先启动一次 Molis Work 让它做完，再来恢复。");
     const scope = snapshotSpaceDigest(home);
     const lease = () => {
@@ -50,8 +67,12 @@ export async function restoreHomeSnapshot(options: HomeRestoreOptions): Promise<
     const control: HomeRestoreControl = { signal: options.signal, assertCurrent() { options.signal?.throwIfAborted(); lease(); } };
     const archive = readHomeRestoreArchive(home, options.source), stores = collectRestoreStoreInputs(home, archive);
     const inspected = await inspectRestoreArchiveContents(home, archive, stores, options.inspectCatalog, control);
-    const inputs = await prepareRestoreMemory(archive.root + "/data", inspected, control, async () => { await planHomeRestoreTarget(home, inspected, control); });
-    const target = await planHomeRestoreTarget(home, inputs, control);
+    const prepared = await prepareRestoreMemory(archive.root + "/data", inspected, control, async () => { await planHomeRestoreTarget(home, inspected, control); });
+    const memory = prepareHomeRestoreRetention(home, owner, control, prepared);
+    const { inputs, sessions } = await prepareHomeRestoreSessions(home, memory.inputs, control), { retention } = memory;
+    const hasMemoryRetention = !!(retention.memories.length || retention.candidates.length || retention.sources.length);
+    const target = await planHomeRestoreTarget(home, inputs, control,
+      path => sessions.originalReservations.has(path) || hasMemoryRetention && memoryRestoreWritable(path));
     const preflightCurrent = () => {
       control.assertCurrent();
       try {
@@ -66,10 +87,19 @@ export async function restoreHomeSnapshot(options: HomeRestoreOptions): Promise<
     return await publishHomeRestore(home, inputs, target, control, { assertCurrent: lease }, async journal => {
       if (journal) verifyCommittedHomeRestore(journal, target.registry, options.inspectCatalog, control);
       assertRestoreDependencies(home, inputs.registry, stores.dependencies);
-      await inspectRestoreOwnerContents(home, home, inputs.registry, [...inputs.files.keys(), ...inputs.directories.keys()], control);
+      await inspectRestoreOwnerContents(home, home, inputs.registry, journal ? [...journal.files, ...journal.directories].map(node => node.path)
+        : [...inputs.files.keys(), ...inputs.directories.keys()], control);
       assertCompleteRestoreMemory(home, [archive.root]);
-    }, preflightCurrent);
-  } finally { owner.release(); }
+    }, preflightCurrent, async journal => {
+      const retained = await retainHomeRestoreMemory({ journal, registry: target.registry, retention, storageOwner: owner, control });
+      return retainHomeRestoreSessions({ journal: retained, registry: target.registry, sessions, control });
+    });
+  } catch (error) {
+    if (isHomeRestoreCleanupFailure(error)) {
+      cleanupOwnsLease = true; throw retainFailedCleanup(error, () => owner.release());
+    }
+    throw error;
+  } finally { if (!cleanupOwnsLease) owner.release(); }
 }
 
 /** Explicit reentry uses the same underlying SQLite acquisition, never a second lock or a same-PID exception. */
@@ -77,6 +107,7 @@ export async function recoverHomeRestore(options: HomeRestoreRecoveryOptions): P
   const home = existingHome(options.homeDirectory), root = agentRuntimeDirectory(home);
   options.signal?.throwIfAborted();
   const owner = acquireStorageOwnerForRecovery(root);
+  let cleanupOwnsLease = false;
   try {
     const pending = readHomeRestoreJournal(home);
     if (!pending) return { status: "no_recovery", home_directory: home };
@@ -90,6 +121,7 @@ export async function recoverHomeRestore(options: HomeRestoreRecoveryOptions): P
         await inspectRestoreOwnerContents(home, home, registry, [...journal.files, ...journal.directories].map(node => node.path), control);
         assertCompleteRestoreMemory(home, [journal.originals_directory]);
       } catch (error) {
+        if (isHomeRestoreCleanupFailure(error)) throw error;
         if (error === options.signal?.reason) throw error;
         throw homeRestoreErrors.changed(`已提交恢复的内容、owner 资格或原依赖已变化；保留阻断与原件 ${journal.originals_directory}`);
       }
@@ -100,5 +132,10 @@ export async function recoverHomeRestore(options: HomeRestoreRecoveryOptions): P
     try { await rollbackHomeRestore(journal, registry, control); writer.clear(); }
     catch { throw homeRestoreErrors.recovery_required(`原状态回滚未完成；保留 ${journal.originals_directory} 与阻断，保持其他入口关闭后重试 home restore --recover`); }
     return { status: "rolled_back", home_directory: home, originals_directory: journal.originals_directory };
-  } finally { owner.release(); }
+  } catch (error) {
+    if (isHomeRestoreCleanupFailure(error)) {
+      cleanupOwnsLease = true; throw retainFailedCleanup(error, () => owner.release());
+    }
+    throw error;
+  } finally { if (!cleanupOwnsLease) owner.release(); }
 }

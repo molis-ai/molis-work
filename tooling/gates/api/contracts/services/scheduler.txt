@@ -68,6 +68,7 @@ export interface ScheduleWakeupRecord {
 export interface ScheduleWakeupReply {
     detail?: string;
     status?: ScheduleWakeupStatus;
+    view_changed?: false;
 }
 
 export type ScheduleWakeupStatus = "ok" | "failed" | "plugin_unavailable";

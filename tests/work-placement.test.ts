@@ -33,6 +33,10 @@ import { chinesePagePacks, pageTextForPacks } from "./fixtures/page-text-packs.j
 
 const placementText = pageTextForPacks("zh", chinesePagePacks());
 
+/** Goals' input actions run their own windows; here they are the body itself, and the materials service is never asked. */
+const windows = { read: <T>(body: () => T): T => body(), write: async <T>(_caller: unknown, body: () => T): Promise<T> => body(),
+  readMaterial: async () => { throw new Error("no materials service in this test"); }, pinned: async () => ({ items: [] }) };
+
 /** The entries of a zip in stored order, read from local file headers (what Office and fflate write). */
 function unzipSync(bytes: Uint8Array): Record<string, Buffer> {
   const buffer = Buffer.from(bytes), files: Record<string, Buffer> = {};
@@ -326,21 +330,21 @@ test("RAC-129-PLACEMENT: copying makes an independent object that remembers its 
   assert.deepEqual(placementRelationsFor(f.ledger, "q4", [source, converted.object]), [], "the previous location no longer proves a relation in this project");
 });
 
-test("Goals keeps a Goal's materials: bind once, list both ways, release keeps history", () => {
+test("Goals keeps a Goal's materials: bind once, list both ways, release keeps history", async () => {
   const records: import("@molis-ai/molis-work-plugin-goals/contract").GoalInputBindingRecord[] = [];
   const inputs = { list: () => records, register: (record: typeof records[number]) => { records.push(record); },
     deactivate: (_board: string, id: string) => { const row = records.find(item => item.binding_id === id); if (!row || row.state === "inactive") return false; (row as { state: string }).state = "inactive"; return true; } };
-  const handlers = new Map(createGoalsInputActionHandlers("b", inputs, id => id === "g1").map(handler => [handler.capability_id, handler]));
+  const handlers = new Map(createGoalsInputActionHandlers("b", inputs, id => id === "g1", windows).map(handler => [handler.capability_id, handler]));
   const caller = { ...owner("q4"), actor_id: "web-user" } as never;
-  const bound = handlers.get(goalsInputActions.bind.capability_id)!.handle(caller, { goal_id: "g1", subject: { kind: "presentation", id: "d1" }, title: "Q4 发布评审" }) as { binding: { binding_id: string }; replayed: boolean };
+  const bound = await handlers.get(goalsInputActions.bind.capability_id)!.handle(caller, { goal_id: "g1", subject: { kind: "presentation", id: "d1" }, title: "Q4 发布评审" }) as { binding: { binding_id: string }; replayed: boolean };
   assert.equal(bound.replayed, false);
-  const repeat = handlers.get(goalsInputActions.bind.capability_id)!.handle(caller, { goal_id: "g1", subject: { kind: "presentation", id: "d1" }, title: "Q4 发布评审" }) as { replayed: boolean };
+  const repeat = await handlers.get(goalsInputActions.bind.capability_id)!.handle(caller, { goal_id: "g1", subject: { kind: "presentation", id: "d1" }, title: "Q4 发布评审" }) as { replayed: boolean };
   assert.equal(repeat.replayed, true);
-  assert.throws(() => handlers.get(goalsInputActions.bind.capability_id)!.handle(caller, { goal_id: "missing", subject: { kind: "presentation", id: "d1" }, title: "x" }), /找不到这个目标/);
-  const listed = handlers.get(goalsInputActions.list.capability_id)!.handle(caller, { subject: { kind: "presentation", id: "d1" } }) as { bindings: unknown[] };
+  await assert.rejects(async () => handlers.get(goalsInputActions.bind.capability_id)!.handle(caller, { goal_id: "missing", subject: { kind: "presentation", id: "d1" }, title: "x" }), /找不到这个目标/);
+  const listed = await handlers.get(goalsInputActions.list.capability_id)!.handle(caller, { subject: { kind: "presentation", id: "d1" } }) as { bindings: unknown[] };
   assert.equal(listed.bindings.length, 1);
   assert.deepEqual(handlers.get(goalsInputActions.release.capability_id)!.handle(caller, { goal_id: "g1", binding_id: bound.binding.binding_id }), { released: true });
-  assert.equal((handlers.get(goalsInputActions.list.capability_id)!.handle(caller, {}) as { bindings: unknown[] }).bindings.length, 0);
+  assert.equal((await handlers.get(goalsInputActions.list.capability_id)!.handle(caller, {}) as { bindings: unknown[] }).bindings.length, 0);
   assert.equal(records.length, 1, "the receipt stays as history");
 });
 
@@ -355,7 +359,7 @@ test("an object keeps showing the Goals it serves after it moves out of their pr
       deactivate: (_board: string, id: string) => { const row = rows.find(item => item.binding_id === id); if (!row || row.state === "inactive") return false; (row as { state: string }).state = "inactive"; return true; } };
     f.actions.registerProvider({ provider: { provider_id: "goals", plugin_id: "goals", title: "Goals", kind: "plugin", project_id: project },
       definitions: [...Object.values(goalsInputActions), goalReader],
-      handlers: [...createGoalsInputActionHandlers(project, inputs, id => id === project + "-goal"),
+      handlers: [...createGoalsInputActionHandlers(project, inputs, id => id === project + "-goal", windows),
         { ...goalReader, handle: (_caller, input) => { const id = (input as { subject_id: string }).subject_id;
           if (id !== project + "-goal") throw new ActionError("goals.not_found", "目标不存在");
           return subjectContext({ subject: { kind: "goal", id }, revision: "1", title: project === "q4" ? "Q4 发布评审" : "整理访谈", content: "", goal_ids: [id], open: { surface: "goals", id } }); } }] });

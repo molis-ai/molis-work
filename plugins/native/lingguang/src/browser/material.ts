@@ -1,4 +1,5 @@
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
+import type {} from "@molis-ai/molis-work-plugin-sdk";
 import { isAbort, required } from "./dom.js";
 import type { Failure, LingguangPage, Reading, Spark } from "./types.js";
 

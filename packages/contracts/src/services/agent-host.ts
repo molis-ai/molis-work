@@ -1,6 +1,8 @@
+import { memoryClassRestrictionsSchema } from "./memory.js";
 export type { AgentOriginalInputRef, AgentOriginalInputDraft, AgentOriginalInput } from "./agent-inputs.js";
 import type { ContractDescriptor } from "../platform/package.js";
-import type { AgentRuntimeAdapter, AgentRuntimeDescriptor, AgentRuntimeCapabilityMatrix, AgentSessionRef, AgentRunRef } from "./agent-host-runtime.js";
+import { MATERIAL_REF_SCHEMA } from "../platform/project-materials.js";
+import type { AgentRuntimeAdapter, AgentRuntimeDescriptor, AgentRuntimeCapabilityMatrix, AgentSessionRef, AgentRunRef, AgentSessionLifecycleView } from "./agent-host-runtime.js";
 import type { AgentReviewQueueApi, AgentReviewRequest, AgentReviewReceipt } from "./agent-host-reviews.js";
 import type { ActionDefinition, ActionView } from "../platform/actions.js";
 import type { AgentCreateSessionInput, AgentStartInput } from "./agent-host-start.js";
@@ -25,12 +27,16 @@ export type {
   AgentRunPhase,
   AgentRuntimeDiagnostics,
   AgentRuntimeAdapter,
+  AgentSessionLifecycleCapability,
+  AgentSessionWriteObservation,
+  AgentSessionLifecycleView,
 } from "./agent-host-runtime.js";
 export { agentTextMaterialContent, AGENT_REASONING_EFFORTS, parseAgentRunBudget } from "./agent-host-start.js";
 export type {
   AgentWorkingDirectory,
   AgentWorkspace,
   AgentTextMaterial,
+  AgentMaterialOrigin,
   AgentImageMaterial,
   AgentFrozenSkill,
   AgentRoundSkill,
@@ -146,8 +152,8 @@ export { agentOfferActions, type AgentActionOffer, type AgentOfferRunRequest, ty
 export { agentWriteCheckerActions, type AgentWriteChecker, type AgentWriteCheckerList, type AgentWriteCheckerSave, type AgentWriteCheckerStore, type AgentWriteCheckNote } from "./agent-host-write-checkers.js";
 
 // Memory and documents through the runtime: declared beside this file, part of the same contract.
-export type { AgentMemoryExecutionControl, AgentMemoryEntry, AgentMemoryMeta, AgentMemoryCandidateEntry, AgentPinnedMemory, AgentRecalledMemory, AgentMemoryRecallFact, AgentMemoryUseReceipt, AgentDocumentParser, AgentDocumentCapability, AgentMemoryCapability, AgentMemoryCandidateCapability,
-  AgentMemoryCaller, AgentMemoryMutation, AgentMemoryChange, AgentMemoryPreviewMutation, AgentMemorySourceRef, AgentMemorySourceIdentity, AgentMemorySourceSnapshot, AgentMemorySourceRequest, AgentMemoryPromotionIdentity, AgentMemoryPromotionRequest, AgentMemoryPromotionPreparation, AgentMemoryPromotionApplied, AgentMemoryPromotionReceipt, AgentMemoryPromotion, AgentMemoryPromotionPendingError, AgentMemoryDecisionReceipt, AgentMemoryScopePreview, AgentMemoryClearResult } from "./agent-host-memory.js";
+export type { AgentMemoryClassPolicy, AgentMemoryExecutionControl, AgentMemoryPageQuery, AgentMemoryPage, AgentMemoryEntry, AgentMemoryMeta, AgentMemoryCandidateEntry, AgentPinnedMemory, AgentRecalledMemory, AgentMemoryRecallFact, AgentMemoryUseReceipt, AgentDocumentParser, AgentDocumentCapability, AgentMemoryCapability, AgentMemoryCandidateCapability,
+  AgentMemoryCaller, AgentMemoryMutation, AgentMemoryChange, AgentMemoryPreviewMutation, AgentMemorySourceRef, AgentMemorySourceIdentity, AgentMemorySourceSnapshot, AgentMemorySourceRequest, AgentMemoryPromotionIdentity, AgentMemoryPromotionRequest, AgentMemoryPromotionPreparation, AgentMemoryPromotionApplied, AgentMemoryPromotionReceipt, AgentMemoryPromotion, AgentMemoryPromotionPendingError, AgentMemoryDecisionReceipt, AgentMemoryScopePreview, AgentMemoryBatchPreview, AgentMemoryClearResult } from "./agent-host-memory.js";
 
 export const servicesAgentHostContract = {
   contractId: /* @version contract.io.molis.work.service.agent-host "io.molis.work.service.agent-host.v{version}" */ "io.molis.work.service.agent-host.v1",
@@ -226,6 +232,9 @@ export interface AgentDraftTextResult {
 }
 
 /** The parts of a session-message or background-command action's input (BL-364): a runtime, a session, a message or task id. */
+/** The class-restriction snapshot a Run carries (AgentMemoryClassPolicy): its own format and the class taxonomy it refers to. */
+const CLASS_POLICY_VERSION = /* @version format.memory.class-policy */ 1;
+const CLASS_TAXONOMY_VERSION = /* @version format.memory.class-taxonomy */ 1;
 const runtimeId = { type: "string", minLength: 1, maxLength: 200 } as const;
 const entryId = { type: "string", minLength: 1, maxLength: 500 } as const;
 const attachments = { type: "array", maxItems: 50, items: { type: "object", required: ["kind", "id"], additionalProperties: false,
@@ -314,7 +323,8 @@ const stepBoardOutput = shape(["project_id", "version", "terminal", "nodes"], { 
   owner: shape(["kind", "label"], { kind: { enum: ["session", "subtask", "person", "none", "other"] }, label: string, title: string, subagent_id: string, actor_id: string, expired: { const: true } }),
   title: string, depends_on: strings, inserted: { type: "boolean" }, origins: objects })) });
 const memoryRef = shape(["memory_id", "version"], { memory_id: string, version: number });
-const materialFields = { material_id: { type: "string", minLength: 1, maxLength: 240 }, title: { type: "string", maxLength: 2000 } } as const;
+const materialFields = { material_id: { type: "string", minLength: 1, maxLength: 240 }, title: { type: "string", maxLength: 2000 },
+  material_ref: MATERIAL_REF_SCHEMA, read_revision: { type: "string", minLength: 1, maxLength: 200 } } as const;
 const materialSource = { source_artifact_id: { type: "string", minLength: 1, maxLength: 200 },
   source_version: { type: "integer", minimum: 1, maximum: Number.MAX_SAFE_INTEGER } } as const;
 const frozenOutput = shape(["role_id", "role_version", "execution", "model_id", "prompts", "skills", "mcp_tools", "host_tools", "text_materials", "budget"], {
@@ -340,6 +350,8 @@ const runRefOutput = { type: "object", required: ["run_id", "session_id"], addit
 const runViewOutput = { type: "object", required: ["ref", "phase", "frozen", "turns", "activity", "usage", "awaiting_input", "started_at", "ended_at"], additionalProperties: false, properties: {
   step_board: stepBoardOutput, step_board_error: { type: "string" }, ref: runRefOutput, phase: { enum: RUN_PHASES }, frozen: frozenOutput, turns: list(turnOutput), activity: list(activityOutput),
   command_outputs: { type: "array", items: { type: "object", required: ["call_id", "run_id"], properties: { call_id: { type: "string" }, run_id: { type: "string" } } } },
+  class_restrictions: shape(["policy_version", "taxonomy_version", "personal", "project"], { policy_version: { const: CLASS_POLICY_VERSION }, taxonomy_version: { const: CLASS_TAXONOMY_VERSION },
+    personal: memoryClassRestrictionsSchema, project: memoryClassRestrictionsSchema }), memory_scene: { enum: ["coding", "assistant", "common"] },
   usage: usageOutput, awaiting_input: list(questionOutput), stop_reason: { type: "string" }, original_input: object,
   memory_recalled: shape(["method", "omitted", "unavailable"], { method: { enum: ["pinned", "recall"] }, omitted: list(memoryRef), unavailable: strings }),
   todo: list(shape(["id", "text", "state"], { id: string, text: string, state: { enum: ["pending", "in-progress", "done", "abandoned"] } })),
@@ -357,7 +369,8 @@ const reviewRequestOutput = { type: "object", required: ["review_id", "run", "pr
   document: object, requested_at: { type: "string" }, expires_at: { type: ["string", "null"] } } } as const;
 const subagentOutput = { type: "object", required: ["subagent_id", "parent_run", "role_id", "task", "state", "result", "workspace_path"], additionalProperties: false, properties: {
   child_run: runRefOutput, activity: list(activityOutput), usage: usageOutput, host_tools: strings, error: { type: "string" }, subagent_id: { type: "string" }, parent_run: runRefOutput,
-  role_id: { type: "string" }, role_name: { type: "string" }, task: { type: "string" }, state: { type: "string" }, result: { type: ["string", "null"] }, workspace_path: { type: ["string", "null"] } } } as const;
+  role_id: { type: "string" }, role_name: { type: "string" }, task: { type: "string" }, continuation_task: { anyOf: [
+    shape(["status", "text"], { status: { const: "available" }, text: string }), shape(["status"], { status: { const: "unavailable" } })] }, state: { type: "string" }, result: { type: ["string", "null"] }, workspace_path: { type: ["string", "null"] } } } as const;
 /** A directory the Host granted, a fixed Artifact version: what a start names, never a raw path or a live object. */
 const runtimeOutput = { type: "object", required: ["runtime_id", "display_name", "provider_version", "capabilities"], additionalProperties: false, properties: {
   runtime_id: { type: "string" }, display_name: { type: "string" }, provider_version: { type: "string" }, capabilities: object,
@@ -407,6 +420,7 @@ const mcpServerInput = { type: "object", required: ["expected_version", "label",
   id: entryId, expected_version: { type: "integer", minimum: 0 }, label: text(2000), enabled: { type: "boolean" }, timeout_ms: { type: "integer", minimum: 1, maximum: 3_600_000 },
   transport: { enum: ["stdio", "http"] }, directory: directoryInput, executable: text(4096), argv: { type: "array", maxItems: 200, items: text(32_768) }, endpoint: text(4096),
   auth: { type: "object", required: ["kind"], additionalProperties: false, properties: { kind: { enum: ["none", "keep-existing", "replace-secret", "connection"] }, secret: text(65_536), connection_id: entryId } } } } as const;
+const sessionLifecycleOutput = { type: "object", required: ["session", "state"], additionalProperties: false, properties: { session: sessionRefOutput, state: { enum: ["active", "archived"] } } } as const;
 const pluginOnly = { scope: "project", audiences: ["plugin"], permissions: [], subject_kinds: [] } as const;
 
 export const agentHostCapabilities = {
@@ -447,6 +461,21 @@ export const agentHostCapabilities = {
     action: { title: "停下一个子任务", description: "本人停下自己会话里一轮派出的一个子任务。", kind: "operation", ...pluginOnly,
       input_schema: { type: "array", minItems: 3, maxItems: 3, items: [sessionRef, runRef, entryId], additionalItems: false } },
   } as ActionDefinition<[session: AgentSessionRef, run: AgentRunRef, subagentId: string], void>,
+  readSessionLifecycle: {
+    capability_id: "agent.session.lifecycle.read", version: /* @version action.agent.session.lifecycle.read */ 1, operation: "query",
+    action: { title: "读取会话归档状态", description: "读取或改变调用插件自己的原执行会话，不新建会话或修改记忆期限。", kind: "query", ...pluginOnly,
+      input_schema: { type: "array", minItems: 1, maxItems: 1, items: [sessionRef], additionalItems: false }, output_schema: sessionLifecycleOutput },
+  } as ActionDefinition<[session: AgentSessionRef], AgentSessionLifecycleView>,
+  archiveSession: {
+    capability_id: "agent.session.archive", version: /* @version action.agent.session.archive */ 1, operation: "command",
+    action: { title: "归档执行会话", description: "读取或改变调用插件自己的原执行会话，不新建会话或修改记忆期限。", kind: "operation", ...pluginOnly,
+      input_schema: { type: "array", minItems: 1, maxItems: 1, items: [sessionRef], additionalItems: false }, output_schema: sessionLifecycleOutput },
+  } as ActionDefinition<[session: AgentSessionRef], AgentSessionLifecycleView>,
+  unarchiveSession: {
+    capability_id: "agent.session.unarchive", version: /* @version action.agent.session.unarchive */ 1, operation: "command",
+    action: { title: "恢复执行会话", description: "读取或改变调用插件自己的原执行会话，不新建会话或修改记忆期限。", kind: "operation", ...pluginOnly,
+      input_schema: { type: "array", minItems: 1, maxItems: 1, items: [sessionRef], additionalItems: false }, output_schema: sessionLifecycleOutput },
+  } as ActionDefinition<[session: AgentSessionRef], AgentSessionLifecycleView>,
   readSession: {
     capability_id: "agent.session.read", version: /* @version action.agent.session.read */ 1, operation: "query",
     action: { title: "读 Agent 会话", description: "自己的一条会话：标题、各轮的引用和最近一轮。", kind: "query", ...pluginOnly,

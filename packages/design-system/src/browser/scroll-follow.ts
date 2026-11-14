@@ -13,7 +13,7 @@ import { FOLLOW_COOLDOWN_MS, FOLLOW_INPUT_WINDOW_MS, FOLLOW_NEAR_PX, followDista
  * - The page says so in words: `toLatest()` after "new messages" or an explicit send (the one smooth scroll), `resume()`
  *   when a fresh conversation opens (the next pin lands), `restore(top)` when it puts back a saved place (judged by where
  *   that is), `release()` before it scrolls to something to look at.
- * - `pin()` puts the end in view at most once a frame, directly, and not within 150ms of the person's input.
+ * - `pin()` puts the end in view at most once a frame, directly, outside the person's scroll and while no control is pressed.
  * - While following, the browser's own scroll anchoring is off (the pin owns that shift); while detached it is on, so an
  *   image decoding or a block opening above keeps the paragraph being read where it is. One mechanism per shift.
  * - `dispose()` lets go of every listener, observer and frame, for a view that unmounts.
@@ -26,7 +26,8 @@ function molisFollow(scroller: HTMLElement, options: { onChange?: (state: State)
   const known = owners.get(scroller);
   if (known) return known;
   let state: State = followDistance(scroller) <= FOLLOW_NEAR_PX ? FOLLOWING : DETACHED;
-  let lastInput = -Infinity, frame = 0, holding = false, before = followDistance(scroller), top = scroller.scrollTop;
+  let lastInput = -Infinity, frame = 0, before = followDistance(scroller), top = scroller.scrollTop;
+  let pressed: number | null = null, holdingScrollbar = false;
   scroller.dataset.follow = state;
   const set = (next: State) => {
     if (state === next) return;
@@ -40,10 +41,18 @@ function molisFollow(scroller: HTMLElement, options: { onChange?: (state: State)
 
   scroller.addEventListener("wheel", (event) => { if (event.deltaY < 0) leave(); else input(); }, passive);
   scroller.addEventListener("touchmove", input, passive);
-  // A press on the scroller itself is its scrollbar: the drag is the person's for as long as it lasts.
-  scroller.addEventListener("pointerdown", (event) => { if (event.target === scroller) { holding = true; input(); } }, { signal });
-  const releaseHold = () => { holding = false; };
-  for (const event of ["pointerup", "pointercancel", "lostpointercapture", "blur"]) addEventListener(event, releaseHold, { capture: true, signal });
+  // Keep the pressed target still until the browser can deliver its click. Only a scrollbar press owns the scroll itself.
+  scroller.addEventListener("pointerdown", event => {
+    if (event.button !== 0 || pressed !== null) return;
+    pressed = event.pointerId; holdingScrollbar = event.target === scroller;
+    if (holdingScrollbar) input();
+  }, { capture: true, signal });
+  const releaseHold = () => { pressed = null; holdingScrollbar = false; };
+  for (const event of ["pointerup", "pointercancel", "lostpointercapture"] as const) {
+    addEventListener(event, pointer => { if (pointer.pointerId === pressed) releaseHold(); }, { capture: true, signal });
+  }
+  // Focus moving between controls after pointerdown is not the window losing focus.
+  addEventListener("blur", releaseHold, { signal });
   scroller.addEventListener("keydown", (event) => {
     if (["PageUp", "ArrowUp", "Home"].includes(event.key) || (event.key === " " && event.shiftKey)) leave();
     else if (["PageDown", "ArrowDown", "End", " "].includes(event.key)) input();
@@ -56,7 +65,7 @@ function molisFollow(scroller: HTMLElement, options: { onChange?: (state: State)
   // moving towards the end, as on the way back to latest, changes nothing until it gets there. Away means upwards: content
   // growing while the person scrolls down also leaves the end further away, and that is not them leaving.
   scroller.addEventListener("scroll", () => {
-    const distance = followDistance(scroller), theirs = holding || performance.now() - lastInput <= FOLLOW_INPUT_WINDOW_MS;
+    const distance = followDistance(scroller), theirs = holdingScrollbar || performance.now() - lastInput <= FOLLOW_INPUT_WINDOW_MS;
     if (theirs && distance <= FOLLOW_NEAR_PX) set(FOLLOWING);
     else if (theirs && distance > before + 1 && scroller.scrollTop < top) set(DETACHED);
     before = distance; top = scroller.scrollTop;
@@ -69,7 +78,7 @@ function molisFollow(scroller: HTMLElement, options: { onChange?: (state: State)
       const land = () => {
         frame = 0;
         if (state !== FOLLOWING) return;
-        if (holding || performance.now() - lastInput < FOLLOW_COOLDOWN_MS) frame = requestAnimationFrame(land);
+        if (pressed !== null || performance.now() - lastInput < FOLLOW_COOLDOWN_MS) frame = requestAnimationFrame(land);
         else scroller.scrollTop = scroller.scrollHeight;
       };
       frame = requestAnimationFrame(land);

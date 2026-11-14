@@ -1,6 +1,17 @@
 import type { HostCapabilityInvocation, LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
-import type { ActionService, CallContext, CallDescription, CallOutcome } from "@molis-ai/molis-work-kernel";
-import type { ActionAvailability, ActionCallContext, ActionProvider, ActionSceneDefinition, ActionSceneView, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionSelection, CallContext, CallDescription, CallOutcome, SubjectOfferChoiceView } from "@molis-ai/molis-work-kernel";
+import type { ActionAvailability, ActionCallContext, ActionClient, ActionProvider, ActionReference, ActionSceneDefinition, ActionSceneUsage, ActionSceneView, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+
+/** Host composition can project a subset of its directory without changing the caller's authority. */
+export interface HostActionClient extends ActionClient {
+  discoverMatching?(caller: ActionCallContext, select: ActionSelection): ReturnType<ActionClient["discover"]>;
+}
+
+/** Standalone consumers can select from the ordinary client's authorized directory. */
+export async function matchingActions(client: HostActionClient, caller: ActionCallContext, select: ActionSelection): Promise<readonly ActionView[]> {
+  if (client.discoverMatching) return client.discoverMatching(caller, select);
+  return (await client.discover(caller)).filter(view => select(view, view.provider));
+}
 
 export interface LocalHostRuntimeFactory<Runtime> {
   open(reference: LocalHostProjectReference): Runtime | Promise<Runtime>;
@@ -11,7 +22,12 @@ export type ActionAvailabilityCheck = (context: ActionCallContext, action: Actio
 /** What an action the Host registers runs: its project's runtime, the input, and the call's own fences. */
 export type HostCapabilityHandler<Runtime, Input, Output> = (runtime: Runtime, input: Input, invocation: HostCapabilityInvocation) => Output | Promise<Output>;
 /** What one discovery reads once and shares across its actions' dependency checks. */
-export interface DiscoveryPass { actions(): readonly ActionView[]; scenes(): readonly ActionSceneView[]; usages(): ReturnType<ActionService["usages"]> }
+export interface DiscoveryPass {
+  actions(): (reference: ActionReference) => ActionView | undefined;
+  scene(reference: Pick<ActionSceneDefinition, "scene_id" | "version">): ActionSceneView | undefined;
+  bindings(reference: Pick<ActionSceneDefinition, "scene_id" | "version">): Promise<readonly ActionSceneUsage[]>;
+  choices(): readonly SubjectOfferChoiceView[];
+}
 export type ActionAvailabilityPolicy = ActionAvailabilityCheck & {
   /** One directory read may share a snapshot; invocation and effect checks always use the live function. */
   snapshotForDiscovery?(context: ActionCallContext): ActionAvailabilityCheck | Promise<ActionAvailabilityCheck>;

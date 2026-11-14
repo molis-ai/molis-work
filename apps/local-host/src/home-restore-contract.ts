@@ -3,6 +3,16 @@ import type { HomeSnapshotManifest } from "./home-snapshot-contract.js";
 import type { HomeSnapshotStoreRegistry } from "./home-store-snapshot.js";
 
 export interface HomeRestoreControl { readonly signal?: AbortSignal; assertCurrent(): void }
+/** Live cleanup only: no serialized capability, business replay or recovery completion. */
+export interface HomeRestoreCleanupFailure extends Error {
+  readonly code: "STORAGE_RECONCILE_REQUIRED";
+  close(): Promise<void>;
+}
+export function isHomeRestoreCleanupFailure(value: unknown): value is HomeRestoreCleanupFailure {
+  if (!(value instanceof Error) || !("code" in value) || value.code !== "STORAGE_RECONCILE_REQUIRED") return false;
+  const close = Object.getOwnPropertyDescriptor(value, "close");
+  return close?.enumerable === false && typeof close.value === "function";
+}
 export type HomeRestoreCatalogInspector = (database: SqliteDatabase) => Readonly<Record<string, string | number>>;
 
 export interface HomeRestoreIncomingFile {

@@ -19,7 +19,7 @@ test("RAC-711 the Host marks each built-in from its own registration: personal, 
     assert.deepEqual(entry.companions ?? [], companions, `${entry.id} brings along what the registration says`);
     if (companions.length === 0) assert.equal("companions" in entry, false, "no empty mark");
   }
-  assert.deepEqual(market.find(entry => entry.id === "text-stats")?.companions, ["files"]);
+  assert.deepEqual(market.find(entry => entry.id === "feed")?.companions, ["inbox"]);
   assert.equal(market.some(entry => entry.always_on === true), false, "without a Home nothing is 常开: a declaration alone is not agreement");
 });
 
@@ -56,10 +56,11 @@ test("RAC-710 forged marks are refused: honest changes still bring companions, h
     return request(plugins, { method, body });
   };
 
-  const added = await change("POST", "text-stats", { personal: true, companions: [] });
+  // The page claims Feed is personal and brings nothing along; the Host adds Inbox with it, as its registration says.
+  const added = await change("POST", "feed", { personal: true, companions: [] });
   assert.equal(added.status, 200);
   const membership = await added.json() as { plugins: string[]; hidden: string[] };
-  assert.ok(membership.plugins.includes("text-stats") && membership.plugins.includes("files"), "Files comes along whatever the page says");
+  assert.ok(membership.plugins.includes("feed") && membership.plugins.includes("inbox"), "Inbox comes along whatever the page says");
   assert.deepEqual(membership.hidden, []);
 
   const removed = await change("DELETE", "pages", { personal: false });

@@ -82,6 +82,21 @@ export function reportedTokenTotal(receipts: readonly PrologueUsageReceipt[], di
   return total;
 }
 
+/** OpenAI-compatible protocols report the whole prompt as input, cache reads inside it; the others report cache reads and writes apart. */
+export function promptIncludesCache(protocol: string): boolean { return protocol.startsWith("openai"); }
+
+/**
+ * The whole prompt these calls paid for, each cached token counted once: the input alone where it already includes the cache,
+ * otherwise input plus the cache reads and writes the Provider reported (an unreported part adds nothing, as for a Run's context).
+ * Undefined unless every call reported its input.
+ */
+export function reportedPromptTotal(receipts: readonly PrologueUsageReceipt[], includesCache: boolean): number | undefined {
+  const input = reportedTokenTotal(receipts, "input");
+  if (input === undefined || includesCache) return input;
+  return receipts.reduce((total, receipt) => total + [receipt.cacheRead, receipt.cacheWrite]
+    .reduce((sum, count) => sum + (count.source === "reported" && count.tokens !== undefined ? count.tokens : 0), 0), input);
+}
+
 // A registry symbol, so a refusal still reads as one when two copies of this module are loaded (source and build).
 const REFUSAL = Symbol.for("molis-work.agent-host.dispatch-refusal");
 /** What the Host's own dispatch check threw (a revoked source, a changed key): it reaches the caller unchanged. */

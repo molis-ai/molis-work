@@ -21,7 +21,7 @@ export async function seedEntryProject(homeDirectory: string): Promise<string> {
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
   try {
     const project = await catalog.createProject({ display_name: "Shutdown stream fixture", actor_id: "test-user" });
-    catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "files", actor_id: "test-user" });
+    catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "git", actor_id: "test-user" });
     const folder = join(homeDirectory, "entry-workspace");
     mkdirSync(folder, { recursive: true });
     await linkTerminalFolder(catalog, project.project_id, realpathSync(folder));

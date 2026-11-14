@@ -66,6 +66,7 @@ export interface PluginInstalledView {
     readonly permissions: readonly PluginInstalledPermissionView[];
     readonly jobs: readonly PluginJobView[];
     readonly consents: readonly PluginConsentRecord[];
+    readonly pending_defaults: readonly PluginPendingDefaultSource[];
     readonly recovery_error: string | null;
     readonly uninstall_target?: PluginUninstallTarget;
     readonly pending_keep_data?: boolean;
@@ -75,6 +76,13 @@ export interface PluginJobView {
     readonly job_id: string;
     readonly reason: string;
     readonly permissions: readonly string[];
+}
+
+export interface PluginPendingDefaultSource {
+    readonly port: string;
+    readonly source_plugin_id: string;
+    readonly source_name: string;
+    readonly source_port: string;
 }
 
 export interface PluginPermissionView {

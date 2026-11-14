@@ -1,3 +1,4 @@
+import { cutWithEllipsis } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { assistantErrors, whenThere } from "./assistant-errors.js";
 import { randomUUID } from "node:crypto";
 import type { AgentWorkGraphPort, AgentWorkNode } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
@@ -82,7 +83,7 @@ export class AssistantDelegations {
       const state = await this.ports.stateOf(host ?? await this.ports.host(), work);
       const reply = work.session_id ? await this.ports.lastReply(work).catch(() => undefined) : undefined;
       const results = store.relations.forWork(identity(work)).filter(row => row.relation === "result").map(row => ({ kind: row.object.kind, id: row.object.id, revision: row.object.revision }));
-      return { work_id: work.work_id, title: work.title, state, ...(reply ? { reply: reply.length > 1200 ? reply.slice(0, 1200) + "…" : reply } : {}),
+      return { work_id: work.work_id, title: work.title, state, ...(reply ? { reply: cutWithEllipsis(reply, 1200, { prefixLength: 1200 }) } : {}),
         ...(results.length ? { results } : {}), follow_ups: followUps(partSteps(nodes, work)),
         ...(work.delegated_by?.taken_back_at ? { taken_back: true, note: TAKEN_BACK_NOTE } : {}) };
     };
@@ -137,6 +138,8 @@ export class AssistantDelegations {
       follow_up: async (workId, text) => {
         const child = own(workId), { graph_id, node_id } = child.delegated_by!, graphs = await this.#graphs();
         if (child.delegated_by?.taken_back_at) throw assistantErrors.invalid("用户已把这个子任务收回到这项工作，这部分由你在这里继续，不要再对它追加");
+        // Put away is the person's decision, and its execution session is archived with it: an agent does not undo that.
+        if (child.archived) throw assistantErrors.invalid("用户已把这个子任务收起，不要再对它追加；还需要它时告诉用户，由用户先恢复它");
         const steps = partSteps(await graphs.read(graph_id), child);
         if (open(steps).length || !child.session_id) throw assistantErrors.state("这个子任务还在做：先用 check-delegated-work 等它交回，再按验收标准追加");
         if (followUps(steps) >= DELEGATION_LIMITS.followUps) throw assistantErrors.limit(`已经追加过 ${DELEGATION_LIMITS.followUps} 次；仍达不到验收时停止它，并把实际情况告诉用户`);

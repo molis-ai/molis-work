@@ -125,6 +125,23 @@ export function codingUiView(directory: () => readonly CodingSessionEntry[]): Ui
   };
 }
 
+/**
+ * The files face (design A, materials-ui-contract §5): where Coding works and the project's other folders, as a tree read through
+ * the platform; a file opens with the platform's 「打开资料」 and shows in the side panel's reader (browser/main/files-face.ts).
+ */
+function renderCodingFilesFace(p: CodingUiPrimitives): string {
+  return `<section class="coding-face-panel coding-files-face" data-coding-files-face hidden aria-label="${uiText("coding.files.label")}">
+      <template data-coding-files-icons><span data-icon="folder">${p.icon("folder")}</span><span data-icon="file">${p.icon("file")}</span></template>
+      <p class="coding-face-meta">${uiText("coding.files.where")}</p>
+      <div class="coding-files-where"><select class="mw-select" data-coding-files-folder aria-label="${uiText("coding.files.folder")}"></select><span class="mw-badge" data-coding-files-role></span></div>
+      <p class="coding-face-note" data-coding-files-note></p>
+      ${renderButton({label:uiText.text("coding.files.back"),icon:"back",variant:"ghost",attrs:{"data-coding-files-back":"",hidden:true}})}
+      <p class="coding-face-note" data-coding-files-status role="status"></p>
+      <div class="mw-dir__list coding-files-tree" data-coding-files-tree></div>
+      ${renderButton({label:uiText.text("coding.files.refresh"),icon:"refresh",variant:"ghost",attrs:{"data-coding-files-refresh":""}})}
+    </section>`;
+}
+
 export function renderCodingDirectory(model: CodingUiModel): string {
   const { primitives: p } = model;
   const faces = CODING_DIRECTORY_FACES.map((face) => `<button type="button" class="mw-toggle coding-face" data-coding-face="${face.face}" aria-pressed="${face.face === model.face}" title="${p.escape(uiText.text(face.label))}" aria-label="${p.escape(uiText.text(face.label))}">${p.icon(face.icon)}</button>`).join("");
@@ -137,7 +154,8 @@ export function renderCodingDirectory(model: CodingUiModel): string {
       tools: renderButton({label:uiText.text("coding.directory.search-toggle"),icon:"search",iconOnly:true,variant:"ghost",attrs:{"data-coding-search-toggle":"","aria-expanded":false}}),
       body: `<nav class="coding-faces" aria-label="${p.escape(uiText.text("coding.directory.faces"))}">${faces}</nav>
       <div class="coding-query" data-coding-query hidden><label class="coding-search"><span class="mw-sr-only">${p.escape(uiText.text("coding.directory.search-title"))}</span><input class="mw-input" data-coding-search aria-label="${p.escape(uiText.text("coding.directory.search-sessions"))}" placeholder="${p.escape(uiText.text("coding.directory.search-sessions"))}"></label><div class="coding-filters mw-toggle-group" role="group" aria-label="${p.escape(uiText.text("coding.directory.filters"))}">${filters}</div></div>
-      <div class="coding-session-list" data-coding-sessions>${groups || renderEmpty(p)}</div>
+      <button type="button" class="mw-toggle" data-coding-archived aria-pressed="false">${p.escape(uiText.text("coding.directory.archived"))}</button>
+      <div class="coding-session-list" data-coding-sessions>${groups || renderEmpty(p)}</div><button type="button" class="mw-btn mw-btn--ghost" data-coding-archived-more hidden>${p.escape(uiText.text("coding.directory.more"))}</button>
     <section class="coding-face-panel" data-coding-board-outline hidden aria-label="${p.escape(uiText.text("coding.outline.label"))}">
       <p class="coding-face-meta" data-coding-outline-meta hidden></p>
       <div class="coding-outline" data-coding-outline-list></div>
@@ -154,6 +172,7 @@ export function renderCodingDirectory(model: CodingUiModel): string {
       <p class="coding-face-note" data-coding-artifact-status role="status"></p><div class="coding-outline" data-coding-artifact-list></div>
       ${renderButton({label:uiText.text("coding.artifacts.refresh"),icon:"refresh",variant:"ghost",attrs:{"data-coding-artifact-refresh":""}})}
     </section>
+    ${renderCodingFilesFace(p)}
     ${model.nested?.[CODING_COMPANION_DIRECTORY_SLOT] ?? ""}`,
       add:{label:uiText.text("coding.directory.new"),attrs:{"data-coding-new":""}}
     })});
@@ -322,7 +341,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
           <div class="coding-context mw-toolbar" data-coding-context hidden aria-label="${p.escape(uiText.text("coding.context.label"))}">
           ${renderButton({label:uiText.text("coding.context.workspace"),icon:"folder",variant:"ghost",attrs:{"data-coding-workspace-open":""}})}
           ${renderButton({label:uiText.text("coding.goal.link"),icon:"target",variant:"ghost",disabled:true,attrs:{"data-coding-goal-open":""}})}
-          ${renderButton({label:uiText.text("coding.worktrees.title"),icon:"git-branch",variant:"ghost",attrs:{"data-coding-writer-directories-open":""}})}${renderButton({label:uiText.text("coding.context.open-beside"),icon:"columns",iconOnly:true,variant:"ghost",attrs:{"data-coding-open-beside":"",title:uiText.text("coding.context.open-beside-title")}})}${renderButton({label:uiText.text("coding.context.rename"),icon:"edit",iconOnly:true,variant:"ghost",attrs:{"data-coding-rename":"",hidden:true,title:uiText.text("coding.context.rename-title")}})}${renderButton({label:uiText.text("coding.context.archive"),variant:"ghost",attrs:{"data-coding-archive":"",hidden:true}})}<small data-coding-goal-label></small></div>
+          ${renderButton({label:uiText.text("coding.worktrees.title"),icon:"git-branch",variant:"ghost",attrs:{"data-coding-writer-directories-open":""}})}${renderButton({label:uiText.text("coding.context.open-beside"),icon:"columns",iconOnly:true,variant:"ghost",attrs:{"data-coding-open-beside":"",title:uiText.text("coding.context.open-beside-title")}})}<a class="mw-btn mw-btn--ghost" data-coding-memory-open data-memory-base="/projects/${project}/settings/memory?memory_session_kind=coding" hidden>${p.escape(uiText.text("coding.memory.session"))}</a>${renderButton({label:uiText.text("coding.context.rename"),icon:"edit",iconOnly:true,variant:"ghost",attrs:{"data-coding-rename":"",hidden:true,title:uiText.text("coding.context.rename-title")}})}${renderButton({label:uiText.text("coding.context.archive"),variant:"ghost",attrs:{"data-coding-archive":"",hidden:true}})}<small data-coding-goal-label></small></div>
           <div class="coding-input" data-coding-input>${renderComposer({ kind: "ai", labels: codingComposerLabels(uiText.text, true), placeholder: uiText.text("coding.composer.placeholder"), add: true,
             disabled: { caption: uiText.text("coding.composer.notice"), reason: uiText.text("coding.composer.reading-session") },
             controls: [{ kind: "select", id: "intent", label: uiText.text("coding.intent.label"), value: "discuss", options: codingIntentOptions(uiText.text, (intent) => !["parallel", "edit", "execute"].includes(intent)) },

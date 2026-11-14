@@ -5,6 +5,11 @@ import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import { assertEvaluationArm } from "../scripts/memory-evaluation/environment.mjs";
 import { createServer } from "node:http";
+import fs from "node:fs";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { acquireStorageOwner, inspectMemoryForgetting } from "@molis-ai/molis-work-storage";
 import { evaluationPerson } from "../scripts/memory-evaluation/originals.mjs";
 import { MEMORY_EVALUATION_CORPUS } from "./fixtures/memory-evaluation-corpus.js";
 import { memoryEvaluationEnvironment, replayMemoryEvaluationCase, scoreSelection } from "../scripts/memory-evaluation/replay.mjs";
@@ -147,4 +152,50 @@ test("MEM-36: initialization failure closes the actual server/SDK and releases t
     await next.close(); console.log('closed');`;
   const result = await promisify(execFile)(process.execPath, ["--import", "tsx", "--input-type=module", "-e", script], { cwd: root, timeout: 15_000 });
   assert.match(result.stdout, /closed/, "the child exits naturally: no leaked listener or Runtime after failed setup");
+});
+
+test("MEM-36: the evaluation Home keeps real forgetting decisions across close and reopen", async () => {
+  let env = await memoryEvaluationEnvironment(undefined, { seeds: [] });
+  try {
+    const caller = evaluationPerson(null, "assistant");
+    const forgotten = await env.memory.write(caller, { scope: "personal", kind: "preference", text: "以后摘要先写本轮风险" });
+    const survivor = await env.memory.write(caller, { scope: "personal", kind: "preference", text: "以后摘要附上下一步" });
+    assert.ok(forgotten.memory && survivor.memory);
+    assert.throws(() => acquireStorageOwner(join(env.home, "agent-runtime")), { code: "storage.owner.busy" }, "the environment and SDK share the live Home owner");
+    await env.memory.change({ ...caller, operation_id: "evaluation-forget" }, { action: "remove", memory_id: forgotten.memory.memory_id, expected_version: forgotten.memory.version });
+    assert.equal(env.memory.isForgotten("personal", caller.actor_id, "memory", forgotten.memory.memory_id), true);
+    assert.equal(env.memory.isForgotten("personal", caller.actor_id, "memory", survivor.memory.memory_id), false);
+    const decisions = inspectMemoryForgetting(env.home);
+    assert.ok(decisions.decisions.some(item => item.memories.some(one => one.memory_id === forgotten.memory!.memory_id)));
+    const facts = fs.readFileSync(join(env.home, "memory-forgetting-v2.json"), "utf8"), homeDirectory = env.home;
+    await env.close(false);
+    const released = acquireStorageOwner(join(homeDirectory, "agent-runtime")); released.release();
+    env = await memoryEvaluationEnvironment(undefined, { seeds: [], homeDirectory });
+    assert.equal(fs.readFileSync(join(homeDirectory, "memory-forgetting-v2.json"), "utf8"), facts, "reopening never reinitializes accepted decisions");
+    assert.deepEqual(inspectMemoryForgetting(homeDirectory), decisions);
+    const recalled = await env.memory.recall(caller, { query: "摘要" });
+    assert.equal(recalled.items.some(item => item.memory_id === forgotten.memory!.memory_id), false);
+    assert.ok(recalled.items.some(item => item.memory_id === survivor.memory!.memory_id));
+  } finally { await env.close(); }
+});
+
+test("MEM-36: a failed forgetting initialization releases the real Home owner and clock", async t => {
+  const homeDirectory = await mkdtemp(join(tmpdir(), "molis-evaluation-init-failure-"));
+  const before = Date.now(), rename = fs.renameSync;
+  let refused = 0;
+  const fault = t.mock.method(fs, "renameSync", (source: fs.PathLike, target: fs.PathLike) => {
+    if (String(target) === join(homeDirectory, "memory-forgetting-v2.json")) {
+      refused++; throw Object.assign(new Error("fixture forgetting initialization failure"), { code: "EIO" });
+    }
+    return rename(source, target);
+  });
+  try {
+    await assert.rejects(memoryEvaluationEnvironment(undefined, { seeds: [], homeDirectory }), /fixture forgetting initialization failure/);
+    assert.equal(refused, 1, "the failure comes from the actual public initializer's durable publication");
+    assert.ok(Date.now() >= before);
+    assert.equal(fs.existsSync(join(homeDirectory, "memory-forgetting-v2.json")), false);
+    assert.equal(fs.existsSync(join(homeDirectory, "memory")), false, "no business ledger was opened before initialization");
+    const owner = acquireStorageOwner(join(homeDirectory, "agent-runtime")); owner.release();
+  } finally { fault.mock.restore(); await rm(homeDirectory, { recursive: true, force: true }); }
+  const next = await memoryEvaluationEnvironment(undefined, { seeds: [] }); await next.close(); await next.close();
 });

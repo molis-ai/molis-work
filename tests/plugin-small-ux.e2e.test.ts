@@ -627,8 +627,9 @@ test("Text Stats is not in the plugin list unless developer mode is on, and is w
     await waitFor("document.querySelector('[data-plugin-picker-popover] [data-plugin-id=lingguang]')", 20_000);
   };
   await open();
-  assert.equal(await evaluate("Boolean(document.querySelector('[data-plugin-tile=files]'))"), true, "the list itself is there");
-  assert.equal(await evaluate("Boolean(document.querySelector('[data-market-plugin=files]'))"), true);
+  // Diff stands for any listed plugin (Files, which this used to name, retired in batch 06).
+  assert.equal(await evaluate("Boolean(document.querySelector('[data-plugin-tile=diff]'))"), true, "the list itself is there");
+  assert.equal(await evaluate("Boolean(document.querySelector('[data-market-plugin=diff]'))"), true);
   assert.equal(await evaluate("Boolean(document.querySelector('[data-plugin-tile=\"text-stats\"], [data-market-plugin=\"text-stats\"]'))"), false);
   process.env.MOLIS_WORK_DEVELOPER_MODE = "1";
   await open();

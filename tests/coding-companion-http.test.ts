@@ -1,7 +1,7 @@
 import { projectPluginRevisionAt } from "./fixtures/project-plugin-settings.js";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
@@ -12,7 +12,8 @@ import { directoriesWebOf, projectDirectoriesPath, readProjectDirectories, setPr
 
 const exec = promisify(execFile);
 
-// W5-02-REG-06: standalone enablement, real Files→Diff snapshots and Git→fixed Diff content through the generated startup list.
+// W5-02-REG-06: standalone enablement, real materials→Diff and →Text Stats snapshots (Files retired in batch 06) and Git→fixed Diff
+// content through the generated startup list.
 test("Standalone companion HTTP routes admit only enabled surfaces and their embedded readers", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "coding-companion-http-"));
   const token = "coding-companion-control-token-0123456789abcdef";
@@ -29,12 +30,13 @@ test("Standalone companion HTTP routes admit only enabled surfaces and their emb
   const directories = directoriesWebOf(request);
   const api = (project: string, plugin: string, suffix = "/state") => `/projects/${project}/api/plugins/io.molis.work.${plugin}${suffix}`;
   const projects = new Map<string, { id: string; directory: string; workspace: string }>();
-  const surfaces = ["coding", "workspace", "files", "git", "diff", "text-stats"];
+  const surfaces = ["coding", "workspace", "git", "diff", "text-stats"];
   const cases: Array<[string, string[]]> = [
     ["none", []],
-    ["files", ["files", "diff", "text-stats"]],
     ["git", ["git", "diff"]], ["diff", ["diff"]],
-    ["text-stats", ["files", "diff", "text-stats"]], ["coding", surfaces.filter(id => id !== "workspace")],
+    // Text Stats reads the platform's materials and brings nothing along. Coding embeds Git and Diff; its files face is its own and
+    // reads through the platform, so Text Stats stays off (WMD-05).
+    ["text-stats", ["text-stats"]], ["coding", ["coding", "git", "diff"]],
   ];
   try {
     for (const [plugin, allowed] of cases) {
@@ -56,7 +58,7 @@ test("Standalone companion HTTP routes admit only enabled surfaces and their emb
         // "workspace" is no plugin at all, so nothing answers it and it stays 404.
         assert.equal(result.status, allowed.includes(target) ? 200 : target === "workspace" ? 404 : 403, `${plugin} → ${target}: ${JSON.stringify(result.body)}`);
         if (!allowed.includes(target) && target !== "workspace") assert.equal(result.body.code, "actions.plugin_disabled");
-        if (["files", "git"].includes(target)) {
+        if (target === "git") {
           const hint = await request(api(id, target, "/view-revision"));
           assert.equal(hint.status, allowed.includes(target) ? 200 : 403, "refresh hints obey the same surface enablement");
           if (hint.status === 200) { assert.deepEqual(Object.keys(hint.body), ["revision"]);assert.equal(typeof hint.body.revision,"string"); }
@@ -66,7 +68,8 @@ test("Standalone companion HTTP routes admit only enabled surfaces and their emb
       assert.equal(session.status, plugin === "coding" ? 200 : 403, "companion access must never imply Coding execution access");
     }
 
-    const files = projects.get("files")!, other = projects.get("coding")!;
+    // Diff's project fixes versions in its own output; Text Stats' project is another one, so a refusal there is about the folder.
+    const files = projects.get("diff")!, other = projects.get("text-stats")!;
     // Changing which folder is the output needs the Home's control token, and names only this project's own folders.
     const setOutput = async (project: { id: string }, authorized = true) => request(projectDirectoriesPath(project.id), "POST",
       { change: "set_output", input: { workspace_id: files.workspace, expected_revision: (await readProjectDirectories(directories, project.id)).revision } }, authorized);
@@ -74,17 +77,20 @@ test("Standalone companion HTTP routes admit only enabled surfaces and their emb
     const elsewhere = await setOutput(other);
     assert.deepEqual([elsewhere.status, elsewhere.body.code], [400, "catalog.context.workspace_membership_not_found"], JSON.stringify(elsewhere.body));
     assert.equal((await readProjectDirectories(directories, other.id)).directories.some(item => item.workspace_id === files.workspace), false);
-    assert.equal((await request(api(other.id, "files", "/open"), "POST", { workspace_id: files.workspace, path: ["note.txt"] })).status, 400);
-    const open = () => request(api(files.id, "files", "/open"), "POST", { workspace_id: files.workspace, path: ["note.txt"] });
-    const first = await open(); assert.equal(first.status, 200); assert.equal(first.body.result.text, "中文🙂\nfirst\n");
-    const capture = (port: string, fingerprint: string) => request(api(files.id, "files", "/capture"), "POST", { workspace_id: files.workspace, path: ["note.txt"], port, fingerprint });
-    assert.equal((await capture("before", first.body.result.fingerprint)).status, 200);
+    // Diff and Text Stats read the versions fixed through the platform's materials service, as the reader's 固定快照 menu fixes them
+    // (materials-ui-contract §2).
+    const fixMaterial = (project: { id: string; workspace: string }, port: string, text: string) => request(`/projects/${project.id}/api/materials/capture`, "POST",
+      { workspace_id: project.workspace, path: ["note.txt"], fingerprint: createHash("sha256").update(text).digest("hex"), port });
+    const foreign = await fixMaterial({ id: other.id, workspace: files.workspace }, "before", "中文🙂\nfirst\n");
+    // Files answered 400 for another project's folder; the materials service names it: that folder is not this project's.
+    assert.deepEqual([foreign.status, (foreign.body as { code?: string }).code], [404, "actions.subject_unavailable"], `another project's folder is not this project's material: ${JSON.stringify(foreign.body)}`);
+    const fixedBefore = await fixMaterial(files, "before", "中文🙂\nfirst\n"); assert.equal(fixedBefore.status, 200, JSON.stringify(fixedBefore.body));
     await writeFile(path.join(files.directory, "note.txt"), "中文🙂\nsecond\n");
-    const second = await open(); assert.equal(second.status, 200);
-    assert.equal((await capture("after", second.body.result.fingerprint)).status, 200);
+    const fixedAfter = await fixMaterial(files, "after", "中文🙂\nsecond\n"); assert.equal(fixedAfter.status, 200, JSON.stringify(fixedAfter.body));
     const diff = await request(api(files.id, "diff")); assert.equal(diff.body.view.phase, "ready"); assert.equal(diff.body.view.identical, false);
-    assert.match(diff.body.html, /first/); assert.match(diff.body.html, /second/, "the default Files→Diff graph carries both captured texts");
-    const stats = await request(api(files.id, "text-stats")); assert.equal(stats.body.view.characters, 10); assert.equal(stats.body.view.lines, 2);
+    assert.match(diff.body.html, /first/); assert.match(diff.body.html, /second/, "the default materials→Diff graph carries both fixed texts");
+    const counted = await fixMaterial(other, "before", "中文🙂\nfirst\n"); assert.equal(counted.status, 200, JSON.stringify(counted.body));
+    const stats = await request(api(other.id, "text-stats")); assert.equal(stats.body.view.characters, 10); assert.equal(stats.body.view.lines, 2);
 
     const gitProject = projects.get("git")!;
     const git = (...args: string[]) => exec("git", args, { cwd: gitProject.directory });

@@ -3,7 +3,7 @@ use serde_json::{Value, json};
 use wasm_bindgen::JsValue;
 use worker::{D1Database, Request};
 
-async fn replay(
+pub(crate) async fn replay(
     db: &D1Database,
     space: &str,
     namespace: &str,
@@ -32,8 +32,24 @@ async fn replay(
     Ok(None)
 }
 
-pub(crate) async fn upload(req: &mut Request, db: &D1Database, space: &str) -> ApiResult<Value> {
-    let value = body(req).await?;
+pub(crate) async fn upload(
+    req: &mut Request,
+    db: &D1Database,
+    space: &str,
+    scope: &crate::cutover::Scope,
+) -> ApiResult<Value> {
+    let mut value = body(req).await?;
+    let namespace = scope.route(string(&value, "namespace", 2500)?)?;
+    // Seed operations are derived only by the seed route; a client cannot name one inside the private stream.
+    require(
+        !crate::cutover::internal(&namespace)
+            || !value["mutation"]["operationId"]
+                .as_str()
+                .is_some_and(|operation| operation.starts_with("seed:")),
+        400,
+        "INVALID_OPERATION",
+    )?;
+    value["namespace"] = json!(namespace);
     upload_value(value, db, space, "write", None).await
 }
 pub(crate) async fn upload_value(
@@ -99,6 +115,19 @@ pub(crate) async fn upload_value(
             return Ok(json!({"accepted":true,"revision":revision}));
         }
         let text = error.to_string();
+        for code in [
+            "SYNC_COLLECTION_SEALED",
+            "SYNC_CUTOVER_SEEDING",
+            "SYNC_ITEM_RETIRED",
+            "SYNC_SEED_MISMATCH",
+        ] {
+            if text.contains(code) {
+                return Err(Failure(409, code));
+            }
+        }
+        if text.contains("SYNC_CUTOVER_SCOPE") {
+            return Err(Failure(403, "SYNC_CUTOVER_SCOPE"));
+        }
         if text.contains("SYNC_RECOVERY_MISSING") {
             return Err(Failure(404, "SYNC_RECOVERY_MISSING"));
         }

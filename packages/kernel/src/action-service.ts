@@ -1,12 +1,13 @@
-import { actionExecutionContext, assertReadOnlyEffects, visibleAction } from "./action-execution-context.js";
+import { actionExecutionContext, assertReadOnlyEffects, visibleAction, prepareSubjectStateResult } from "./action-execution-context.js";
+import { actionDirectoryLookup, actionKey } from "./action-directory-lookup.js";
 import { assertSceneHandler, consumeScene, protectSceneReads, runSceneEffect } from "./action-scene-execution.js";
 import { inDirectoryPass, rememberInDirectoryPass } from "./directory-pass.js";
-import { discoveredActionViews, registeredActionMetadata, type ObserveActionRegistration } from "./action-metadata.js";
+import { discoveredActionViews, registeredActionMetadata, type ActionSelection, type ObserveActionRegistration } from "./action-metadata.js";
 import {
   ActionError, requireSynchronous,
   type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionClient, type ActionDefinition,
   type ActionProvider, type ActionProviderRegistration, type ActionReference, type ActionRegistryPort,
-  type ActionSceneTarget, type ActionSceneConfigureOptions, type ActionSceneBinding, type ActionSceneDefinition, type ActionSceneHandlerBinding, type ActionSceneUsage, type ActionView, type ActionSceneView,
+  type ActionSceneTarget, type ActionSceneConfigureOptions, type ActionSceneBinding, type ActionSceneDefinition, type ActionSceneHandlerBinding, type ActionSceneSelection, type ActionSceneUsage, type ActionView, type ActionSceneView, type ExactActionReference,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityDescriptor } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { CapabilityRegistry } from "./index.js";
@@ -127,20 +128,20 @@ export class ActionService implements ActionClient, ActionRegistryPort {
           const registration = this.registry.registrationToken(registeredDefinition);
           const reference = { capability_id: definition.capability_id, version: definition.version, provider_id: provider.provider_id };
           let executing = true;
-          const assertCurrent = () => {
+          const assertCurrent = () => inDirectoryPass(() => {
             if (!executing) throw new ActionError("actions.expired", "原调用已经结束，不能继续产生副作用");
             lifetime?.assertActive();
             context.signal?.throwIfAborted();
             if (this.registry.registrationToken(registeredDefinition) !== registration) throw new ActionError("actions.provider_changed", "能力已重新加载，不能继续原副作用");
             assertAvailable(availability(context));
             requireSynchronous(this.effects.assertCurrent?.(context, reference), "最终运行环境检查必须同步完成");
-          };
+          });
           // Copy the context so a concurrent/nested invocation cannot replace this call's check.
-          const execution: ActionExecutionContext = { ...actionExecutionContext(context, reference,
-            definition.action.permissions, assertCurrent, (caller, target) => this.effects.beforeEffect?.(caller, target), this.registry, ref => this.actionDefinition(context, ref), this.effects.assertCurrent), ...(lifetime ? { signal: lifetime.signal } : {}) };
-          const checked = (value: unknown) => checkedActionResult(definition, validateOutput, value);
-          // The call is settled by whoever dispatched it (ActionService.invoke / invokeSync), where refusals before this point are seen too.
           try {
+            const execution: ActionExecutionContext = { ...actionExecutionContext(context, reference,
+              definition.action.permissions, assertCurrent, (caller, target) => this.effects.beforeEffect?.(caller, target), this.registry, ref => this.actionDefinition(context, ref), this.effects.assertCurrent), ...(lifetime ? { signal: lifetime.signal } : {}) };
+            const checked = prepareSubjectStateResult(execution, definition, provider, input, this.registry, () => executing, value => checkedActionResult(definition, validateOutput, value), assertCurrent);
+            // The call is settled by whoever dispatched it (ActionService.invoke / invokeSync), where refusals before this point are seen too.
             const result = runActionHandler(context, execution, () => executing, () => handler.handle(execution, input));
             if (handler.execution === "sync") {
               try { return checked(requireSynchronous(result)); }
@@ -190,8 +191,16 @@ export class ActionService implements ActionClient, ActionRegistryPort {
     return dispose;
   }
 
-  discover(context: ActionCallContext, observe?: ObserveActionRegistration): ActionView[] {
-    return this.directory(context, false, observe);
+  discover(context: ActionCallContext, observe?: ObserveActionRegistration, select?: ActionSelection): ActionView[] {
+    return this.directory(context, false, observe, select);
+  }
+
+  /** Resolve one visible dependency without projecting unrelated registrations. */
+  discoverOne(context: ActionCallContext, reference: ActionReference): ActionView | undefined {
+    const descriptor = this.registry.descriptor(reference, context.project_id), provider = descriptor?.action_provider;
+    if (!descriptor?.action || !provider || !visibleAction(descriptor as ActionDefinition, provider, context)) return undefined;
+    return { capability_id: descriptor.capability_id, version: descriptor.version, operation: descriptor.operation,
+      provider, action: descriptor.action, availability: this.registry.availability(context, descriptor) };
   }
 
   /** Composition-only metadata inspection. Never grants execution or exposes handlers. */
@@ -199,9 +208,10 @@ export class ActionService implements ActionClient, ActionRegistryPort {
     return this.directory(context, true);
   }
 
-  private directory(context: ActionCallContext, inspection: boolean, observe?: ObserveActionRegistration): ActionView[] {
+  private directory(context: ActionCallContext, inspection: boolean, observe?: ObserveActionRegistration, select?: ActionSelection): ActionView[] {
     // Visibility is checked before any row is made. One pass: a provider is asked once for all its actions, the caller once for its authority.
-    const visible = inspection ? undefined : (definition: ActionDefinition, provider: ActionProvider) => visibleAction(definition, provider, context), caller = rowCaller(context);
+    const visible = inspection ? undefined : (definition: ActionDefinition, provider: ActionProvider) =>
+      (!select || select(definition, provider)) && visibleAction(definition, provider, context), caller = rowCaller(context);
     return inDirectoryPass(() => discoveredActionViews(this.registry, caller,
       registeredActionMetadata(this.registry, context, visible), observe));
   }
@@ -236,9 +246,10 @@ export class ActionService implements ActionClient, ActionRegistryPort {
     });
   }
 
-  private sceneDeclarations(context: ActionCallContext) {
-    return [...this.scenes.values()].filter(scene => sceneVisible(scene, context)).map(scene => ({ scene,
-      metadata: { definition: structuredClone(scene.definition), provider: structuredClone(scene.provider) } }));
+  private sceneDeclarations(context: ActionCallContext, selection?: ActionSceneSelection) {
+    const declared = selection ? new Set(selection.scenes.map(sceneKey)) : undefined;
+    return [...this.scenes.values()].filter(scene => (!selection || scene.provider.plugin_id === selection.plugin_id && declared!.has(sceneKey(scene.definition)))
+      && sceneVisible(scene, context)).map(scene => ({ scene, metadata: { definition: structuredClone(scene.definition), provider: structuredClone(scene.provider) } }));
   }
 
   /** Composition-only declarations. No handler, availability evaluation or execution authority is returned. */
@@ -249,23 +260,38 @@ export class ActionService implements ActionClient, ActionRegistryPort {
   discoverScenes(context: ActionCallContext, judgment?: ActionReference): ActionSceneView[] {
     const directory = judgment ? this.discover(context) : [];
     const fn = judgment ? directory.find(d => actionKey(d) === actionKey(judgment)) : undefined;
-    return this.sceneDeclarations(context).map(({ scene, metadata }) => {
+    return this.sceneProjection(context, directory)(judgment, fn);
+  }
+
+  discoverScenesFor(context: ActionCallContext, judgments: readonly ExactActionReference[], selection?: ActionSceneSelection): ActionSceneView[][] {
+    if (!judgments.length) return [];
+    return inDirectoryPass(() => {
+      const directory = this.discover(context), first = actionDirectoryLookup(directory);
+      const project = this.sceneProjection(context, directory, selection);
+      return judgments.map(judgment => project(judgment, first(judgment)));
+    });
+  }
+
+  private sceneProjection(context: ActionCallContext, directory: readonly ActionView[], selection?: ActionSceneSelection) {
+    const rows = this.sceneDeclarations(context, selection).map(({ scene, metadata }) => ({ scene,
+      view: { ...metadata, configuration_availability: scene.configurationAvailability(context), availability: scene.availability(context) } }));
+    return (judgment?: ActionReference, fn?: ActionView): ActionSceneView[] => rows.map(({ scene, view }) => {
       const reason = judgment ? actionSceneCompatibilityReason(scene.definition, fn, judgment, directory, scene.provider) : undefined;
-      return { ...metadata,
-        configuration_availability: scene.configurationAvailability(context), availability: scene.availability(context), compatible: !reason, ...(reason ? { reason } : {}) };
+      return { ...view, compatible: !reason, ...(reason ? { reason } : {}) };
     });
   }
 
   async usages(context: ActionCallContext, judgment?: ActionReference): Promise<ActionSceneUsage[]> {
-    const result: ActionSceneUsage[] = []; let known: ActionView[] | undefined;
+    const result: ActionSceneUsage[] = []; let known: ActionView[] | undefined, first: ReturnType<typeof actionDirectoryLookup> | undefined;
     for (const scene of this.scenes.values()) {
       if (!sceneVisible(scene, context)) continue;
       for (const binding of await scene.handler.bindings(context)) {
         if (!bindingBelongsTo(binding, scene.definition, context)) continue;
         if (judgment && actionKey(binding.function) !== actionKey(judgment)) continue;
         if (matchesStageMetadata(context, scene, binding)) { result.push(await this.stageMetadataUsage(context, scene, binding)); continue; }
-        const directory = known ??= this.discover(context); // one directory per call, shared by every binding
-        const fn = directory.find(d => actionKey(d) === actionKey(binding.function));
+        // Read only after the first ordinary binding callback, using the original caller's current authority.
+        const directory = known ??= this.discover(context);
+        const fn = (first ??= actionDirectoryLookup(directory))(binding.function);
         const reason = !binding.function.provider_id ? "旧绑定缺少原提供方身份，请重新选择判断规则" : actionSceneCompatibilityReason(scene.definition, fn, binding.function, directory, scene.provider);
         const state = scene.availability(context);
         const availability = !binding.enabled ? unavailable("actions.binding_disabled", "此使用位置已停用")
@@ -557,7 +583,6 @@ function rowCaller(context: ActionCallContext): ActionCallContext {
 }
 function assertAvailable(value: ActionAvailability): void { if (!value.available) throw new ActionError(value.code, value.reason, { kind: value.kind }); }
 function unavailable(code: string, reason: string): ActionAvailability { return { available: false, code, reason }; }
-function actionKey(v: ActionReference): string { return `${v.capability_id}@${v.version}`; }
 function sceneKey(v: { scene_id: string; version: number }): string { return `${v.scene_id}@${v.version}`; }
 function scopedSceneKey(v: { scene_id: string; version: number }, projectId?: string): string { return JSON.stringify([v.scene_id, v.version, projectId ?? null]); }
 function exactBindings<D, H>(definitions: readonly D[], handlers: readonly H[], key: (v: D | H) => string, label: string): Map<string, H> {

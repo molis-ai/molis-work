@@ -1,5 +1,7 @@
 # Home 数据：库与文件的 owner 表
 
+索引Home当前容器门：Memory ledger基线2与恢复journal schema 1，普通打开只认当前版本；旧Home的账本只经 [合同变更流程](CONTRACT-CHANGES.md)「当前保留机制」登记的 1 → 2 升级段进入第 2 版。`agent-runtime/records.sqlite` 是SDK拥有的Memory共享材料，原storage.key仍是密钥依赖；App不读写其业务SQL。普通snapshot源在任何SQLite连接前要求standalone且无精确 `records.sqlite-journal/-wal/-shm`；恢复target将这些侧车作为不透明原件保存并reset，不对它们做backup/recovery。SDK清理回执可以多条记录共用同一DB路径，不能据单条回执删除整库。Session恢复前后盘点保护该DB及三种侧车；关闭未确认、未知提交、prepared/publishing回滚和committed收尾仍归原publisher/journal，不新建恢复平台。此处只描述已批准本地实现，不授权操作真实Home或证明产品验收。
+
 一个 Home（默认 `~/.molis-work`，用 `MOLIS_WORK_HOME` 或入口的 `--home` 改写，解析在 `packages/storage/src/adapters/local-security-paths.ts:19`）下，每个库、每类文件归谁、怎样记版本、要不要备份、`uninstall --purge-user-data` 清不清。这是反腐败计划交付第 11 项（路线图 `specs/archive/repository-anti-corruption/roadmap-2026-10-07.md` §4.11，进度见 `specs/archive/repository-anti-corruption/spec.md`）。
 
 - 基线是 origin/main `15c20920`（2026-10-07）。每一行都由代码推出，并写出打开它的代码位置；代码改了，对应行跟着改，行号会漂移。
@@ -50,13 +52,15 @@ Home 里有 31 种 SQLite 文件：权威库 27 种（Home 级 24 种，按项�
 | 路径 | owner 与打开它的代码 | 种类 · 版本 | 备份 | 卸载 |
 | --- | --- | --- | --- | --- |
 | `projects/catalog.db` | 宿主；`apps/local-host/src/project-catalog.ts:246-248` 打开，`apps/local-host/src/catalog-schema.ts:11-22` 建表，表归各模块（4.1） | SQLite 自带版本 · WAL · `catalog_meta.schema_version` = 3（`apps/local-host/src/project-catalog-contract.ts` 的 `CATALOG_SCHEMA_VERSION`；第 2 版起工作目录用输入、输出两种角色，加来源链接表），旧版本升级，新版本拒绝（`assertCurrentCatalog`，`apps/local-host/src/catalog-schema.ts:32`） | 必备份。不存项目库绝对路径：由当前 Home 与 project_id 推导（`modules/projects/src/project-paths.ts`）；完整恢复仍遵守原 Home 路径与原 key 绑定（`docs/installation.md`） | purge（`installer/uninstall.ts:46`） |
-| `projects/<project_id>/molis-work.db`，旁边 `-wal`、`-shm` | 宿主；`apps/local-host/src/project-database.ts` 的 `LocalProjectDatabase` 套基线（`apps/local-host/src/project-database-schema.ts` 拼 15 段建表），再为声明了表的插件按声明建表（4.2）；文件名 `packages/storage/src/adapters/local-security-paths.ts:8` | SQLite 带版本 · WAL · `user_version` = 2（第 2 版去掉浏览目录设置、加「最近用过」），插件的表另记在 `plugin_project_databases.version` | 必备份，连同 `-wal`、`-shm`，或先 `LocalSqliteStorage.checkpoint()` | purge（`installer/uninstall.ts:46`，整个 `projects/`） |
+| `projects/<project_id>/molis-work.db` | 宿主；`apps/local-host/src/project-database.ts` 的 `LocalProjectDatabase` 套基线（`apps/local-host/src/project-database-schema.ts` 拼 15 段建表），再为声明了表的插件按声明建表（4.2）；文件名 `packages/storage/src/adapters/local-security-paths.ts:8` | SQLite 带版本 · `user_version` = 2（第 2 版去掉浏览目录设置、加「最近用过」）。新建和未登记库使用 WAL，持匹配 Home 租约的 Host 打开登记项目时采用 DELETE／EXTRA，插件的表另记在 `plugin_project_databases.version` | 必备份。离线入口按 owner 检查 SQLite 侧车，待恢复日志使备份和目标恢复拒绝 | purge（`installer/uninstall.ts:46`，整个 `projects/`） |
 | `projects/.staging-<project_id>-<uuid>/` | `apps/local-host/src/managed-project-files.ts:42`：新建项目库时的暂存目录 | 目录 | 临时 | purge（在 `projects/` 内） |
 | `projects/.staging-<project_id>/` | `apps/local-host/src/demo-project-lifecycle.ts:56`：新建示例项目的暂存目录，建成后改名为 `projects/<project_id>/`，失败时删（`:69`） | 目录 | 临时 | purge（在 `projects/` 内） |
 | `projects/.resetting-<project_id>-<uuid>/`、`projects/.reset-backup-<project_id>-<uuid>/` | `apps/local-host/src/demo-project-lifecycle.ts:87-88`：重置示例项目时的新库暂存目录，和被换下的旧库。成功后 `.reset-backup-*` 被删（`:121`），失败时尝试改回（`:113`）；改回也失败就抛 `AggregateError`，消息里写出两个路径（`:116`） | 目录 | 临时（进程在中途被杀时 `.reset-backup-*` 是示例项目的旧库，示例项目可重建） | purge（在 `projects/` 内） |
 | `projects/.deleting-<project_id>-<uuid>/` | `apps/local-host/src/managed-project-deletion.ts:43-44`：永久删除项目时，先把项目目录改名到这里，清理时删掉（`:128`）。路径由 `modules/projects/src/project-paths.ts` 推导；目录库回执 `project_deletions.staged_directory` 记的路径只认最后一段（S-102） | 目录 | 临时（进程在中途被杀时，这里是用户已确认删除的项目数据，下次清理按未完成的回执删掉） | purge（在 `projects/` 内） |
 
 
+
+Host 持同一 Home 租约，按实际 Catalog 成员和声明的 Home 库检查主文件与侧车。可信热日志先由 SQLite 恢复，旧发布记录必须为零才读取 U1 戳记或续跑升级。项目模式切换发生在托管打开时。关闭时等已安装项目插件的 SQL 子进程实际退出才归还租约。
 
 ### 3.2 助理与平台服务（Home 级）
 
@@ -87,10 +91,10 @@ Home 里有 31 种 SQLite 文件：权威库 27 种（Home 级 24 种，按项�
 | --- | --- | --- | --- |
 | `issues/issues.db` | Issue 业务 owner：`plugins/native/issues/src/store.ts`；Host 通过 `apps/local-host/src/plugin-database.ts` 打开 | 1 · WAL | `issues` |
 | `images/images.db` | `plugins/native/images/src/store.ts:50`、`:57`，基线 `:17` | 1 · 回滚 | `connections`、`jobs` |
-| `pages/pages.db` | `plugins/native/pages/src/store.ts`（`PAGES_DATABASE`） | 1 · 回滚 | `pages`、`folders`、`page_generations`、`page_changes`、`page_imports`、`page_comments` |
-| `form/form.db` | `plugins/native/form/src/store.ts:381`，基线 `:350` | 1 · 回滚 | `forms`、`submissions`、`form_copies` |
-| `dataset/dataset.db` | `plugins/native/dataset/src/store.ts:310`，基线 `:283` | 1 · 回滚 | `datasets`、`dataset_versions`、`dataset_receipts` |
-| `ppt/ppt.db` | `plugins/native/ppt/src/store.ts:239`，基线 `:218` | 1 · 回滚 | `presentations`、`presentation_copies` |
+| `pages/pages.db` | `plugins/native/pages/src/database.ts`（`PAGES_DATABASE`） | 1 · DELETE／EXTRA | `pages`、`folders`、`page_generations`、`page_changes`、`page_imports`、`page_comments` |
+| `form/form.db` | `plugins/native/form/src/database.ts`（`FORM_DATABASE`） | 1 · DELETE／EXTRA | `forms`、`submissions`、`form_copies` |
+| `dataset/dataset.db` | `plugins/native/dataset/src/database.ts`（`DATASET_DATABASE`） | 1 · DELETE／EXTRA | `datasets`、`dataset_versions`、`dataset_receipts` |
+| `ppt/ppt.db` | `plugins/native/ppt/src/database.ts`（`PPT_DATABASE`） | 1 · DELETE／EXTRA | `presentations`、`presentation_copies` |
 | `lingguang/lingguang.db` | `plugins/native/lingguang/src/store.ts:282`，基线 `:246` | 1 · 回滚 | `sparks`、`conversations`、`spark_requests`、`messages` |
 | `goals/goals.db` | Goals 的 Home 半：`plugins/native/goals/src/home-database.ts`（`GOALS_HOME_DATABASE`），由 Manifest 的 `databases.home` 登记；项目半的表在各项目库里 | 1 · 回滚 | `personal_planning_method_packs`（个人规划方法；当前事实归Goals Home半。旧目录表搬迁/旧名事件维护已于2026-10-30取消，旧Home整体搬开后新建，不转换旧事实） |
 | `feed-content/feed-content.db` | Feed 的 Home 半：`plugins/native/feed/src/content-ledger.ts`（`FEED_HOME_DATABASE`），由 Manifest 的 `databases.home` 登记 | 1 · 回滚 | `feed_content_holds`（各项目的 Feed 来源引用哪份正文） |
@@ -319,7 +323,7 @@ W5-16 新命令不导出 raw master、Keychain、会话/SDK/构建 run 的 `.key
 
 | 组 | 成员 | 为什么要同一时点 |
 | --- | --- | --- |
-| A 目录与项目 | `projects/catalog.db`、全部 `projects/<id>/molis-work.db`（带 `-wal`、`-shm`） | 目录库（现为 v2）按 Home 与 project_id 推导项目库位置；完整Home恢复仍按原路径与原key |
+| A 目录与项目 | `projects/catalog.db`、全部 `projects/<id>/molis-work.db` | 目录库（现为 v2）按 Home 与 project_id 推导项目库位置；完整Home恢复仍按原路径与原key |
 | B 会话（旧 Sessions，已下线） | `sessions/sessions.db`、`sessions/content/blobs/`、`sessions/content/content.key` | 退役目录不再登记、现行快照不读；旧Home整体搬开后保留，不改旧key、不删除 |
 | C Agent 与记忆 | `agent-runtime/`（`records/`、`checkpoints/`、`storage.key`）、`git-operation-details.json`、`memory/memory.db`、`assistant/assistant.db`、`agent-definitions/`、`agent-declarations/` | 记忆正文在 Prologue 条目，账本在 `memory.db`；Git 审查回执与细节分在两处 |
 | D 凭据 | `feed/secrets.json`、Keychain 里的主密钥（没有 Keychain 时是 `feed/secrets.key`）、`feed/evidence*/`、`alchemist/projects/*/search-content*/` 加同目录的 `search.sqlite`，以及存 `credential_ref` 的 `connectors/connectors.db` 和目录库的 `model_providers` | 引用与密文必须配对；证据索引 `search.sqlite` 和它指向的 `search-content*` 要取同一时点；主密钥不在 Home 里 |

@@ -25,6 +25,7 @@ Commands you run in the terminal panel, commands the host runs after you approve
 | 11 | On-device transcription model download | A model host (usually Hugging Face) | The model download request (about 626 MB, only if you explicitly allow it) |
 | 12 | Side-panel browser | The pages you or the assistant open | Ordinary browser visits |
 | 13 | Feed research-library source | `github.com` | `git fetch` |
+| 14 | Account avatars | `*.googleusercontent.com`, `avatars.githubusercontent.com` | Browser image requests when showing linked account avatars; no Auth token and no referrer |
 
 Only classes 9 and 10 send a **name** (a package name, a site name) to a third party that has nothing to do with the feature itself, and what they send contains none of your content. These three cases are described below.
 

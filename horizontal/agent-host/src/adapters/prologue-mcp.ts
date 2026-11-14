@@ -1,3 +1,5 @@
+import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { DispatchGuard } from "./prologue-node-kit.js";
 import { randomUUID } from "node:crypto";
 import { createPrologueError, isPrologueError, redactMcpError, type ExactRef, type Runtime, type ToolAbort } from "@prologue/sdk";
 import { realpath } from "node:fs/promises";
@@ -78,7 +80,7 @@ async function listMcpConfigurations(runtime: Runtime, view: (saved: Saved, vers
 }
 
 interface McpLibraryOptions {
-  withDispatchGuard<T>(guard: () => Promise<void>, operation: () => Promise<T>): Promise<T>;
+  withDispatchGuard<T>(guard: DispatchGuard, operation: () => Promise<T>): Promise<T>;
   resolveConnection?: (connectionId: string, endpoint: string) => HostMcpConnection | Promise<HostMcpConnection>;
   subscribeConnections?: (listener: (connectionId: string) => void) => () => void;
   saveConnection?: SaveMcpConnection;
@@ -151,7 +153,7 @@ interface McpState {
 }
 
 /** Connect one saved configuration over its transport and adopt its tools; a changed account or a cancel closes it again. */
-async function connectConfiguration(state: McpState, { saved }: Held, connectionId: string, abort: AbortController, dispatch: () => Promise<void>) {
+async function connectConfiguration(state: McpState, { saved }: Held, connectionId: string, abort: AbortController, dispatch: DispatchGuard) {
   const { runtime, linked, invalidated } = state, id = saved.id;
   if (!saved.enabled) throw new Error("请先启用这个 MCP 服务");
   if (findConnection(runtime, connectionId)?.health === "connected") throw new Error("这个 MCP 已连接");
@@ -175,7 +177,10 @@ async function connectConfiguration(state: McpState, { saved }: Held, connection
       linked.set(saved.id, { account: saved.auth_connection_id, credential: JSON.stringify(credentialRef), revision: host.revision });
     }
     if (invalidated.has(id)) throw new Error("MCP 账号已改变，请重新连接");
-    const check = async () => { await dispatch(); assertCurrent?.(); };
+    const check = async () => {
+      const fence = await dispatch(); assertCurrent?.();
+      return () => { requireSynchronous(fence?.(), "最终派发检查必须同步完成"); assertCurrent?.(); };
+    };
     await check();
     await state.withDispatchGuard(check, () => runtime.connectMcp({ ref: conn.ref, signal: abort.signal, transport: { kind: "http", endpoint: saved.endpoint!, requestTimeoutMs: saved.timeout_ms, ...(credentialRef ? { credentialRef } : {}) } }));
     assertCurrent?.();
@@ -310,7 +315,11 @@ export function createPrologueMcpLibrary(runtime: Runtime, options: McpLibraryOp
       await locked(id, action, async abort => {
         const cancelled = () => abort.abort();
         callOptions.signal?.addEventListener("abort", cancelled, { once: true });
-        const dispatch = async () => { await callOptions.beforeDispatch?.(); if (callOptions.signal?.aborted || abort.signal.aborted) throw createPrologueError("CANCELLED", "MCP connection cancelled before dispatch."); assertCurrent?.(); };
+        const dispatch = async () => {
+          await callOptions.beforeDispatch?.();
+          const fence = () => { if (callOptions.signal?.aborted || abort.signal.aborted) throw createPrologueError("CANCELLED", "MCP connection cancelled before dispatch."); assertCurrent?.(); };
+          fence(); return fence;
+        };
         try {
         const record = await held(owner, id);
         if (callOptions.expected_version !== undefined && record.version !== callOptions.expected_version) throw new Error("MCP 配置已变化，请重新读取后操作");
@@ -351,7 +360,7 @@ async function callMcpTool(runtime: Runtime, library: AgentMcpLibrary,
   prepare: (owner: AgentSkillOwner, ref: AgentMcpSourceRef, options: NonNullable<Parameters<NonNullable<AgentMcpLibrary["call"]>>[3]>) => Promise<void>,
   assertDirectory: (saved: Saved) => Promise<void>,
   resolveHost: McpState["resolveHost"],
-  withDispatchGuard: <T>(guard: () => Promise<void>, operation: () => Promise<T>) => Promise<T>,
+  withDispatchGuard: <T>(guard: DispatchGuard, operation: () => Promise<T>) => Promise<T>,
   ...[owner, ref, args, callOptions = {}]: Parameters<NonNullable<AgentMcpLibrary["call"]>>
 ) {
   const connection = (id: string) => runtime.mcp.list().find(item => item.id === id);
@@ -366,6 +375,7 @@ async function callMcpTool(runtime: Runtime, library: AgentMcpLibrary,
     assertSourceCurrent?.();
     try { await callOptions.beforeDispatch?.(); await assertDirectory((await held(owner, ref.server)).saved); }
     finally { assertActive(); assertSourceCurrent?.(); }
+    return () => { assertActive(); assertSourceCurrent?.(); };
   };
   return withDispatchGuard(beforeDispatch, async () => {
     await beforeDispatch();

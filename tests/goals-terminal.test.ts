@@ -50,7 +50,7 @@ async function served(t: TestContext) {
       const project = await catalog.createProject({ display_name: name, actor_id: "test-user" });
       const folder = await realpath(await mkdtemp(join(tmpdir(), "goals-terminal-workspace-")));
       folders.push(folder);
-      // The folder is the project's output: a terminal opens in the output (batch 05), the "preferred workspace" of these tests.
+      // The folder is the project's output: a terminal opens in the output (batch 05), the project's output directory.
       await catalog.commit(() => catalog.changeDirectories({ project_id: project.project_id, actor_id: "test-user",
         change: { kind: "set_output", target: { workspace_path: folder } }, expected_revision: catalog.projectDirectories(project.project_id).revision }));
       made.push({ ...project, workspace_id: catalog.listWorkspaceDirectory(project.project_id).find(record => record.canonical_path === folder)!.workspace_id });
@@ -120,13 +120,13 @@ test("RAC-2565 Goals registers every terminal action at the reset version 1; an 
   assert.equal(await runs(), before, "neither old reference started a terminal");
 });
 
-test("RAC-2562 Goals opens a Goal's terminal with a runtime recipe in the project's preferred workspace; the page attaches and writes; a parent Goal and another project's workspace are refused", { timeout: 60_000 }, async t => {
+test("RAC-2562 Goals opens a Goal's terminal with a runtime recipe in the project's output directory; the page attaches and writes; a parent Goal and another project's workspace are refused", { timeout: 60_000 }, async t => {
   const { f, folder, other, project, api } = await served(t);
   const opened = await json(await api("/LEAF/terminals", { method: "POST", body: { runtime: "codex" } }));
   assert.equal(opened.status, 200, JSON.stringify(opened.body));
   assert.equal(opened.body.started, true);
   assert.match(String(opened.body.key), /^t[0-9a-f]{12}$/u, "a new tab's key");
-  assert.deepEqual((await logged(1)).at(-1), `${folder}||LEAF|codex`, "the recipe ran in the preferred workspace, focused on the Goal");
+  assert.deepEqual((await logged(1)).at(-1), `${folder}||LEAF|codex`, "the recipe ran in the output directory, focused on the Goal");
   const panelId = String(opened.body.panel_id);
   const page = await goalsPage(t, f, project.project_id);
   page.send({ type: "spawn", panelId, attachOnly: true });

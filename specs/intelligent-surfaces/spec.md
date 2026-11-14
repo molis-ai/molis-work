@@ -1,7 +1,6 @@
 # 智能呈现与操作层（Intelligent UI）
 
-状态：第一片在第 15 批实施中（2026-11-09）。确定组合服务、公共四形态与组件板、基础首页及跨位置消费者已合回 `batch/15`。证据见 §16–17。实际文字及页面授权切换、项目成员接入、整批验证和本人验收待完成，后续三片仍按路线书推进。一层横向的平台能力：插件声明自己的对象能怎样展示、能做什么，以及别人可以把东西放在它的哪里；平台和助理把插件允许的内容、平台里调用方有权看的全部内容、接进来的 MCP 工具与 Skill 合在一起，按此刻的位置、对象和任务组合出最合适的展示与操作面，注入插件允许的位置、对话、项目讨论和其他入口。四片已排进[路线书](../post-anticorruption-roadmap/reference/requirements.md#section-3-3)「智能呈现怎样接进来」（阶段 1～4，11-02 写入）；按轨道：合同归 C1，组合服务归 C3（新的 `horizontal/` 包，用户 11-01 定新的平台服务不进宿主），模型调用归 C2（只经 `horizontal/agent-host`），共享组件与组件板归 D，各插件自己的声明归各自轨道，助理与对话归 A，项目讨论归 `packages/im-ui` 与 `server/src/im` 的主人。设计参考了 Molis-Club 的 Work 产品页各版（附录 A），不复刻。
-
+状态：第一片已随第 15 批 #2017 合入 main（2026-11-13，`b819373250`）；确定组合服务、公共四形态与组件板、基础首页及跨位置消费者已交付。证据见 §16–17。实际文字、页面授权与项目成员接入已随本批接回；整批验证与本人验收待完成，后续三片仍按路线书推进。本人实物验收见 [BL-surface-home-acceptance](../backlog/BL-surface-home-acceptance.md)，IUI-20 切换后复测见 [BL-surface-home-performance](../backlog/BL-surface-home-performance.md)。一层横向的平台能力：插件声明自己的对象能怎样展示、能做什么，以及别人可以把东西放在它的哪里；平台和助理把插件允许的内容、平台里调用方有权看的全部内容、接进来的 MCP 工具与 Skill 合在一起，按此刻的位置、对象和任务组合出最合适的展示与操作面，注入插件允许的位置、对话、项目讨论和其他入口。四片已排进[路线书](../post-anticorruption-roadmap/reference/requirements.md#section-3-3)「智能呈现怎样接进来」（阶段 1～4，11-02 写入）；按轨道：合同归 C1，组合服务归 C3（新的 `horizontal/` 包，用户 11-01 定新的平台服务不进宿主），模型调用归 C2（只经 `horizontal/agent-host`），共享组件与组件板归 D，各插件自己的声明归各自轨道，助理与对话归 A，项目讨论归 `packages/im-ui` 与 `server/src/im` 的主人。设计参考了 Molis-Club 的 Work 产品页各版（附录 A），不复刻。
 验收编号见 §14，前缀 `IUI`。
 
 ## 1. 要解决的问题
@@ -32,7 +31,7 @@ flowchart LR
   U --> F[结果回到主人，操作面跟着更新]
 ```
 
-- **三类输入**。一是插件声明的呈现与操作能力（§4）。二是平台里的内容：各插件的对象（经它们自己的读取动作）、对象间的引用（Context Ledger）、等你（Attention）、成果与过程项、搜索、工作记录（[观测和采集层](../observation-collection/spec.md)）、目标的要求与证据；只读调用方有权看的。三是接进来的能力：MCP 工具、技能包与 Skill、连接器、工作流程，都经同一个动作目录与授权（[Tool 策略](../prologue-tool-strategy/spec.md)、[MCP 策略](../prologue-mcp-strategy/spec.md)）。
+- **三类输入**。一是插件声明的呈现与操作能力（§4）。二是平台里的内容：各插件的对象（经它们自己的读取动作）、对象间的引用（Context Ledger）、等你（Attention）、成果与过程项、搜索、工作记录（[观测和采集层](../observation-collection/spec.md)）、目标的要求与证据；只读调用方有权看的。三是接进来的能力：MCP 工具、技能包与 Skill、连接器、工作流程，都经同一个动作目录与授权（[Tool 策略](../prologue-strategies/tool.md)、[MCP 策略](../prologue-strategies/mcp.md)）。
 - **两级组合**。确定组合不调模型：按声明和规则给出每个对象在这个位置的默认形态和操作，没有模型、离线、模型失败时都能用。助理组合经 agent-host：在确定组合给出的候选里挑选、排序，把几个插件的对象和外部能力拼成一个面，写一句为什么。
 - **输出是一份操作面描述**：结构化数据，不是 HTML 或代码。写的是放哪些对象（引用）、每个用什么形态、显示哪些字段、带哪些操作（每个是一个动作引用，加预备好的输入）、怎样分组、为什么。平台按 schema 和声明校验后用共享组件画；校验不过，退回确定组合。
 - **落点**：插件声明的挂载位、对话、项目讨论、首页与 Work Brief、侧栏与 Shelf、等你与通知、搜索、外部 Agent 读到的文本（§8）。插件没有开放的位置不注入。
@@ -63,7 +62,7 @@ flowchart LR
 ### 4.1 对象与字段
 
 - **对象类型**：复用搜索来源的 kind 和打开位置（`SearchSourceKind`、`SearchOpenTarget`），以及动作里的对象引用（`ActionSubject`），不另起一套身份。
-- **字段的语义角色**：标题、状态、摘要、正文片段、媒体（图像、截图组、图表、文件）、数值与进度、时间（到期、发生、更新）、人与 Agent（谁做的、谁在做、要谁）、出处（来自哪里、凭什么）、版本、关系（挂在哪个 Goal、对上哪条要求）、子项（数量和前几项）。平台按角色挑组件，插件不写样式。
+- **字段的语义角色**：标题、状态、摘要、正文片段、媒体（图像、截图组、图表、文件）、数值与进度、时间（到期、发生、更新）、人与 Agent（谁做的、谁在做、要谁）、出处（来自哪里、凭什么）、版本、关系（挂在哪个对象、对上哪条要求）、子项（数量和前几项）。平台按角色挑组件，插件不写样式。
 - **状态映射**：插件自己的状态映射到状态环的几种状态（[status-ring-system](../archive/status-ring-system/spec.md)），另外标出「要你决定」「要你验收」「失败」「部分完成」「过期」。
 
 ### 4.2 形态
@@ -95,7 +94,7 @@ flowchart LR
 ### 4.3 操作
 
 - 每个操作引用动作目录里的一个动作（`capability_id@version`），写明主操作还是次操作、在什么状态和位置下可用、预备输入从哪些字段来。
-- 平台给的通用操作不用声明：打开到准确位置并高亮、在侧栏速览、复制引用、放进（当前文档、输入框、Shelf）、交给（某个插件、助理、成员）、挂到 Goal、提醒我、分享到讨论。各自仍由主人执行，例如「挂到 Goal」由 Goals 落、「放进」由目标插件落。
+- 平台给的通用操作不用声明：打开到准确位置并高亮、在侧栏速览、复制引用、放进（当前文档、输入框、Shelf）、交给（某个插件、助理、成员）、挂到…、提醒我、分享到讨论。「挂到…」和「交给」的去处候选取声明了可挂接／可接收关系的已装插件（例如装着 Goals 时的 Goal），平台不写死名单。各自仍由主人执行，例如「挂到 Goal」由 Goals 落、「放进」由目标插件落。（2026-11-13 按插件同等地位收口改，[决定 42](../post-anticorruption-roadmap/reference/decisions.md#decision-42)）
 - 当前不可用的操作不显示；必须让人知道为什么不能做的（没有授权、对象被锁），写明原因与去处。
 
 ### 4.4 挂载位
@@ -137,7 +136,7 @@ flowchart LR
 
 **确定组合**：依据 1、2、3、5、6，从声明里选出形态与操作，结果可重复。
 
-**助理组合**：在确定组合的候选里，再按依据 4 和工作记录挑出几样、排先后、拼成一个面，给出一句理由（例如「这 3 条反馈对上了『手机排版』」）。只能引用候选里的对象和操作，输出过 schema；超出候选的内容一律丢掉并记录。
+**助理组合**：在确定组合的候选里，再按依据 4 和工作记录挑出几样、排先后、拼成一个面，给出一句理由（例如「这 3 条反馈对上了『手机排版』」）。只能引用候选里的对象和操作，输出过 schema；超出候选的内容一律丢掉并记录。通用操作（挂到、交给）的去处候选取声明了可挂接／可接收关系的已装插件，与确定组合同一份，助理只能在其中排序和拼合。（2026-11-13 按插件同等地位收口改，[决定 42](../post-anticorruption-roadmap/reference/decisions.md#decision-42)）
 
 **纠正**：用户换形态、移走或固定，按调用方和位置记住；同一位置下次先照纠正来。
 
@@ -201,7 +200,7 @@ flowchart LR
 - **项目讨论（IM）**：
   - 消息里贴的对象展开成卡片；
   - @ 一个插件或助理就能接走，例如「@Coding 一起改了吧」之后出一张「接了」的活卡，做完回到讨论；
-  - 讨论可以变成目标，由用户点同意；
+  - 讨论可以变成某个插件的对象（候选取声明了可由讨论创建的插件，如事项、待办），由用户点同意；
   - 话题有状态（讨论中、已有结论、你确认过）；
   - AI 按用户的规则开话题时，带上「你定的规则」；
   - 成员只看得到自己权限内的卡片内容，看不到的写明。
@@ -209,9 +208,9 @@ flowchart LR
 - **侧栏与 Shelf**：
   - Shelf 里的东西按种类显示缩略（截图组、文档、图表、PDF），并写明来自哪里（来自 Coding、来自助理、你放的），可以拿起来放进任何接受它的位置；
   - 记录栏是时间线：谁在哪天做了什么。
-  - 拿起与放下的行为归 [side-shelf](../side-shelf/spec.md)。
+  - 拿起与放下的行为归 [side-shelf](../context-program/side-shelf.md)。
 - **首页与 Work Brief**：目标卡（进度、继续这个目标）、事件行（例如「夜里两次提交，都过了发布前检查台」「41 条反馈整理好了，3 条要你看」）、等你列表；内容与版本归 Work Brief。
-- **等你与通知**：底栏的「等你 N」、菜单栏的胶囊、系统通知用最短的形态，一句话加一个主操作，点进去到对应的卡。
+- **等你与通知**：底栏的「等你 N」、系统通知用最短的形态（菜单栏胶囊随 44-7 删除，重做后再加；2026-11-13 按插件同等地位收口改，[决定 43](../post-anticorruption-roadmap/reference/decisions.md#decision-43)），一句话加一个主操作，点进去到对应的卡。
 - **事项线**（[work-line](../work-line/spec.md)，2026-11-12 加）：线上的节点用名字片的字段（图标、名字、状态），聚焦后的节点卡按种类用活卡、决定请求、验收卡或卡片；线只是落点，节点卡由组合服务给出，不另画。
 - **搜索**：行形态，带速览与打开定位；结果的来源与权限仍归系统搜索。
 - **外部 Agent 与终端**：经 MCP 读到的是文本形态；Agent 交回的结果在工作台里以卡片出现，写明是哪个 Agent、凭什么。
@@ -225,8 +224,9 @@ flowchart LR
 
 | 插件 | 对象 | 别处最常见的样子 | 常带的操作 |
 | --- | --- | --- | --- |
-| Goals | 目标、完成要求、定过的事、证据、验收 | 目标卡（进度、等你验收）、要求行（状态、依据、谁做）、证据链、交接卡 | 继续这个目标、验收、再改改、交给谁接着做 |
-| 待办 Todo | 待办、清单 | 行（勾选、到期）、嵌入清单 | 勾选、改日期、提醒我、挂到 Goal |
+| Goals | 目标（Goals 自己的事实） | 目标卡（进度）、交接卡 | 继续这个目标、再改改、交给谁接着做 |
+| 平台：要求与认可 | 要求、依据、认可、返工（32-2；定过的事＝可信决定记录归平台决定服务 39-2，同样不放 Goals 行） | 要求行（状态、依据、谁做）、证据链、验收卡 | 认可、退回、再复核 |
+| 待办 Todo | 待办、清单 | 行（勾选、到期）、嵌入清单 | 勾选、改日期、提醒我、挂到… |
 | Inbox | 进来的条目、分拣结果 | 行加判断标签与理由、分组摘要 | 交给某插件、记成想法、不用回 |
 | Feed | 来源、条目 | 卡片（来源、为什么值得收、反证） | 收进 Inbox、放进文稿、不再看这类 |
 | Pages 文稿 | 文稿、一节、一段 | 名字片、一节的速览、带版本的卡片 | 打开到这一段、放进、和上一版比 |
@@ -258,31 +258,31 @@ flowchart LR
 
 | 插件 | 已实现的 subject kind（源码读口） | 呈现缺口去处 |
 | --- | --- | --- |
-| Goals | [`goal`](../../plugins/native/goals/src/actions.ts)；要求、证据与验收尚无独立 reader | 15 首片；完整证据链与验收卡归 52 |
+| Goals | [`goal`](../../plugins/native/goals/src/actions.ts) | 15 首片；要求、证据与验收的 reader 归 32-2 的平台能力，53 接它 |
 | Inbox | [`inbox_entry`](../../plugins/native/inbox/src/content-actions.ts)；读取关联对象时仍经原主人核权 | 15 首片；事项壳不能代替 Feed／Goals 的对象主人 |
-| Coding | [`coding_session`](../../plugins/native/coding/src/routes-sessions.ts)；报告、变更集有读动作，尚无独立 reader | 15 首片；活卡与完整交回归 52 等后续片 |
-| Feed | [`feed_item`、`source`](../../plugins/native/feed/src/content-actions.ts) | 15/S-2 的归属与计数必须补两种对象的最小声明、values 和概况；完整插件呈现归 52 |
-| Todo | [`todo_item`](../../plugins/native/todo/src/search.ts)、[`todo_batch`](../../plugins/native/todo/src/organize-actions.ts)；清单无独立 reader | 52，核定清单粒度 |
-| Pages | [`pages_document`](../../plugins/native/pages/src/actions.ts)；节、段无独立 reader | 52，核定节、段定位 |
-| Dataset | [`dataset`](../../plugins/native/dataset/src/search.ts)；行、汇总无独立 reader | 52 |
-| Workflows | [`workflow`](../../plugins/native/workflows/src/search.ts)；运行、检查结果无独立 reader | 52 |
-| Form | [`form`](../../plugins/native/form/src/search.ts)；答卷有查询，单份答卷无独立 reader | 63 其余声明 |
-| PPT | [`presentation`](../../plugins/native/ppt/src/search.ts)；单页无独立 reader | 63，核定单页定位 |
-| Images | [`image_job`](../../plugins/native/images/src/search.ts)；单图无独立 reader | 63 |
-| Jelly | [`jelly_item`、`jelly_note`](../../plugins/native/jelly/src/search.ts) | 63 |
-| 灵光 | [`lingguang_spark`](../../plugins/native/lingguang/src/search.ts) | 63 |
-| Cognia | [`cognia_material`](../../plugins/native/cognia/src/search.ts)；问答无独立 reader | 63 |
-| Issues | 无；[现有列表和详情](../../plugins/native/issues/src/actions.ts)有提交者，未见负责人和处理状态 | 63，不以提交者代负责人 |
-| Diff | 无；[现有 state/compare](../../plugins/native/diff/src/actions.ts)读取固定输入或计算差异 | 63，核定固定变更与计算结果的对象身份 |
-| Git | 无；[现有动作](../../plugins/native/git/src/actions.ts)读仓库、分支及暂存状态 | 63，核定提交、分支的对象粒度 |
-| Schedule | [`schedule_task`](../../plugins/native/schedule/src/search.ts) | 63 |
-| Shelf | [`shelf_item`](../../plugins/native/shelf/src/search.ts)，当前 reader 不开放 plugin audience | 52 接挂载；Shelf 自有声明归 63 |
-| Files | 无；[现有目录和内容协议](../../plugins/native/files/src/actions.ts)不等于 subject reader | 06-1 退役交 knowledge 与平台资料服务，不给旧包新增呈现 |
-| 插件创作台 | 无；[自身页面](../../plugins/native/plugin-builder/src/registration.ts)读取构建和设计；生成设计的 `presentation` 是页面布局 | 67-4，不能把生成页面布局当创作台对象声明 |
-| Alchemist | [`alchemist-direction`、`alchemist-idea`、`alchemist-playbook`](../../plugins/native/alchemist/src/studio/server/services/workspace-operations.ts)，仍走现存 Host 特例 | 63 总清单列缺口；场景与产出身份随 BL-377 核定，具体实施批次待定 |
-| 文本统计 | 无；[现有 state/count](../../plugins/native/text-stats/src/actions.ts)读固定快照或计算输入文本 | 63 核定独立身份；15 首页按无概况处理 |
+| Coding | [`coding_session`](../../plugins/native/coding/src/routes-sessions.ts)；报告、变更集有读动作，尚无独立 reader | 15 首片；活卡与完整交回归 53 等后续片 |
+| Feed | [`feed_item`、`source`](../../plugins/native/feed/src/content-actions.ts) | 15/S-2 的归属与计数必须补两种对象的最小声明、values 和概况；完整插件呈现归 53 |
+| Todo | [`todo_item`](../../plugins/native/todo/src/search.ts)、[`todo_batch`](../../plugins/native/todo/src/organize-actions.ts)；清单无独立 reader | 53，核定清单粒度 |
+| Pages | [`pages_document`](../../plugins/native/pages/src/actions.ts)；节、段无独立 reader | 53，核定节、段定位 |
+| Dataset | [`dataset`](../../plugins/native/dataset/src/search.ts)；行、汇总无独立 reader | 53 |
+| Workflows | [`workflow`](../../plugins/native/workflows/src/search.ts)；运行、检查结果无独立 reader | 53 |
+| Form | [`form`](../../plugins/native/form/src/search.ts)；答卷有查询，单份答卷无独立 reader | 64 其余声明 |
+| PPT | [`presentation`](../../plugins/native/ppt/src/search.ts)；单页无独立 reader | 64，核定单页定位 |
+| Images | [`image_job`](../../plugins/native/images/src/search.ts)；单图无独立 reader | 64 |
+| Jelly | [`jelly_item`、`jelly_note`](../../plugins/native/jelly/src/search.ts) | 64 |
+| 灵光 | [`lingguang_spark`](../../plugins/native/lingguang/src/search.ts) | 64 |
+| Cognia | [`cognia_material`](../../plugins/native/cognia/src/search.ts)；问答无独立 reader | 64 |
+| Issues | 无；[现有列表和详情](../../plugins/native/issues/src/actions.ts)有提交者，未见负责人和处理状态 | 64，不以提交者代负责人 |
+| Diff | 无；[现有 state/compare](../../plugins/native/diff/src/actions.ts)读取固定输入或计算差异 | 64，核定固定变更与计算结果的对象身份 |
+| Git | 无；[现有动作](../../plugins/native/git/src/actions.ts)读仓库、分支及暂存状态 | 64，核定提交、分支的对象粒度 |
+| Schedule | [`schedule_task`](../../plugins/native/schedule/src/search.ts) | 64 |
+| Shelf | [`shelf_item`](../../plugins/native/shelf/src/search.ts)，当前 reader 不开放 plugin audience | 53 接挂载；Shelf 自有声明归 64 |
+| Files | 无；第 06 批已退役，目录和内容改由平台资料服务（`system.materials`，[`system-materials-actions.ts`](../../apps/local-host/src/system-materials-actions.ts)）给，它不是 subject reader | 06-1 退役交 knowledge 与平台资料服务，不给旧包新增呈现 |
+| 插件创作台 | 无；[自身页面](../../plugins/native/plugin-builder/src/registration.ts)读取构建和设计；生成设计的 `presentation` 是页面布局 | 68-4，不能把生成页面布局当创作台对象声明 |
+| Alchemist | [`alchemist-direction`、`alchemist-idea`、`alchemist-playbook`](../../plugins/native/alchemist/src/studio/server/services/workspace-operations.ts)，仍走现存 Host 特例 | 64 总清单列缺口；场景与产出身份随 BL-377 核定，具体实施批次待定 |
+| 文本统计 | 无；[现有 state/count](../../plugins/native/text-stats/src/actions.ts)读固定快照或计算输入文本 | 64 核定独立身份；15 首页按无概况处理 |
 
-排期依据：[52](../post-anticorruption-roadmap/reference/batches/52.md)、[63](../post-anticorruption-roadmap/reference/batches/63.md)、[67](../post-anticorruption-roadmap/reference/batches/67.md)、[06](../post-anticorruption-roadmap/reference/batches/06.md)。平台成果库的 `artifact` reader、角色的 `character` reader 不属于这 23 个插件；Skill、连接和 MCP 的列表／读取动作也不等于通用 subject reader。跨 Skill/MCP 操作面归 61／63，平台对象的具体呈现接点仍待核定。风险、Work Brief 和 Sessions 重做不在现行登记中，按各自批次声明，不补占位插件。
+排期依据：[53](../post-anticorruption-roadmap/reference/batches/53.md)、[64](../post-anticorruption-roadmap/reference/batches/64.md)、[68](../post-anticorruption-roadmap/reference/batches/68.md)、[06](../post-anticorruption-roadmap/reference/batches/06.md)。平台成果库的 `artifact` reader、角色的 `character` reader 不属于这 23 个插件；Skill、连接和 MCP 的列表／读取动作也不等于通用 subject reader。跨 Skill/MCP 操作面归 62／64，平台对象的具体呈现接点仍待核定。风险、Work Brief 和 Sessions 重做不在现行登记中，按各自批次声明，不补占位插件。
 
 现有组件板使用同一份 `inbox_item` 示例切换三个主人，证明共用 renderer 的显示与交互。IUI-21 补片在原「呈现形态」一节明确标示例，另外用现有只读行显示内置登记状态。工作台从生成的 `BUILTIN_PLUGIN_CATALOG` 投影插件身份、显示名和 `Manifest.presentation.objects` 是否有声明，组件板只按这份投影画一行一个插件。仅有概况的插件仍标明缺对象呈现，去处查本节。该清单只读构建登记，零运行时请求和业务副作用，也不另造资源或插件名单。真实浏览器核对名单与登记一致、中英缺口可读、窄屏可用；生产的 `inbox_entry`、`goal`、`coding_session` 消费与本人验收另验。
 
@@ -298,7 +298,7 @@ flowchart LR
 | --- | --- | --- |
 | [ai-interaction-experience](../ai-interaction-experience/spec.md) | 对话里交互卡的语义：Option、推荐行、补充信息、方案、确认、结果的生命周期 | 对象在对话里怎么呈现；跨插件、带 MCP 与 Skill 的操作面怎样拼 |
 | [context-program](../context-program/spec.md)、[情境动作](../archive/contextual-interaction/spec.md) | 浮条、快速创建、片段动作的声明与准备 | 片段动作出现在哪种形态里，以及和对象形态的组合 |
-| [side-shelf](../side-shelf/spec.md) | Shelf 的拿起、放下、材料篮 | Shelf 里东西的形态与出处 |
+| [side-shelf](../context-program/side-shelf.md) | Shelf 的拿起、放下、材料篮 | Shelf 里东西的形态与出处 |
 | [work-brief](../work-brief/spec.md) | 首页与简报的内容、版本、生成页面 | 首页上的对象卡与等你 |
 | [proactive-assistant](../proactive-assistant/spec.md) | 什么时候主动提出、做什么 | 提出来的东西长什么样、带什么操作 |
 | [项目讨论](../archive/molis-work-im/redesign-v2/spec.md) | 消息、话题、引用、草稿、成员权限 | 消息里对象卡的形态，@ 接走以后的活卡 |
@@ -309,7 +309,7 @@ flowchart LR
 | [字体、皮肤与语言](../font-and-skin-system/spec.md) | 文字与样式的格式和切换 | 不另定样式，用它的语义变量 |
 | [unified-input-voice](../unified-input-voice/spec.md) | 输入框、引用片与附件的行为 | 引用片里对象的形态 |
 | [plugin-builder-upgrade](../plugin-builder-upgrade/spec.md) | 生成插件、场景组装 | 生成插件同样写呈现声明；保存的操作面可以交给创作台 |
-| [Prologue 的 Tool、MCP、Skill 策略](../prologue-tool-strategy/spec.md) | 工具的发现、选择、授权与健康 | 工具与 Skill 的结果在操作面里怎么呈现 |
+| [Prologue 的 Tool、MCP、Skill 策略](../prologue-strategies/tool.md) | 工具的发现、选择、授权与健康 | 工具与 Skill 的结果在操作面里怎么呈现 |
 | [观测和采集层](../observation-collection/spec.md) | 工作记录 | 读它当组合依据；助理组合的记录交给它 |
 | [主线](../work-mainline/spec.md) | 事项的排列、切换与每件事项的工作台状态 | 切换器与列表里事项的形态、「设为事项」「放进事项」这一类操作的呈现 |
 | [事项线](../work-line/spec.md) | 线的排法、焦点、安放、后台任务列表 | 节点与节点卡的形态与操作；字段里的时间角色（发生于、排在）与「等你」的状态映射 |
@@ -390,7 +390,7 @@ flowchart LR
 | IUI-21 | [人工] 组件板有「呈现形态」一节：每种形态 × 常见状态 × 几个位置有样张，每个内置插件至少一行，没声明的标成缺口 |
 | IUI-22 | 插件开发 Skill 写清怎样声明与自查；创作台生成的插件带呈现声明并通过同一校验 |
 | IUI-23 | 助理组合的输入、候选、选择、理由与用户纠正进入工作记录，评测能读到；记录里没有对象正文 |
-| IUI-24 | [人工] §9 每个插件逐项核过：声明了、写明不适用，或列为缺口并有去处；不以几个样板插件代替全部完成 |
+| IUI-24 | [人工] §9 每个插件（含平台：要求与认可）逐项核过：声明了、写明不适用，或列为缺口并有去处；不以几个样板插件代替全部完成 |
 | IUI-25 | 用户能把一个操作面保存成视图，或交给 Work Brief、创作台；保存以后打开，显示的仍是主人的当前数据 |
 | IUI-26 | [人工] 中文与英文、浅色与深色、窄窗口与分屏、键盘与读屏下，各形态都能分辨对象、状态与后果；视觉部分按 VUX 验收 |
 
@@ -565,7 +565,7 @@ UPG-01 仅允许 `server/server.sqlite`、版本 1、本次准确基点结构与
 
 请求在进入原 `mutate` 前校验并归一化有序 `{kind,id}`，复用已有完整请求指纹，不另建幂等机制；消息与引用在原事务中提交。旧回执不能以读取兜底补新字段，旧结构整体拒绝已阻止旧消息／回执进入新读写路径。保留旧库拒绝证据和历史金样；金样中该库的验证应与已批准的拒绝语义一致，不能把旧夹具静默改成新结构、删断言或把整套回放退出当通过。其余库仍须按原合同成功回放，新结构 v1 仍须真实创建、发送、重开、分页、搜索、quote/share、幂等及拒绝路径验证。
 
-存储固定候选 `143d6bf34cb512f7e5b1efb38fd0722f0cc7f3d0` 尚在跨位置子分支，未合回主批。结构快照仅修改 server 一行，版本保持 1；UPG-01 例外绑定准确旧结构 `626a2905680637a9` → 新结构 `2c4efaa24415de5e`，同时限定 owner、库、版本和无升级段。数据库与门禁两份定向用例 14/14 通过：两份历史 SQL 库均在写连接前拒绝，原数据及 WAL 字节不变；非本次结构、反向、其他库、版本与升级段等反例仍拒绝。独立审查对该固定头已实现的存储和限定例外未发现 Blocker/P1，尚不覆盖后续双权限 HTTP 桥。
+存储固定候选 `143d6bf34cb512f7e5b1efb38fd0722f0cc7f3d0` 已随跨位置子分支合回本批，并由 `b819373250` 合入。结构快照仅修改 server 一行，版本保持 1；UPG-01 例外绑定准确旧结构 `626a2905680637a9` → 新结构 `2c4efaa24415de5e`，同时限定 owner、库、版本和无升级段。数据库与门禁两份定向用例 14/14 通过：两份历史 SQL 库均在写连接前拒绝，原数据及 WAL 字节不变；非本次结构、反向、其他库、版本与升级段等反例仍拒绝。独立审查对该固定头已实现的存储和限定例外未发现 Blocker/P1，尚不覆盖后续双权限 HTTP 桥。
 
 该子树整体构建后，两份未修改的历史金样 `0.1.0` 与 `0.1.1-dev.1` 均完整回放通过：各拒绝一次旧讨论库并保留原件，其余各完成 438 次读取、56 次写入，签包及独立 Home 库成功，未运行项为空。首次回放因缺少根 CLI 构建产物失败，完整构建后重跑关闭；不把首次失败计为通过。回放只在临时 Home 中保留被拒的旧库并创建当前结构库，未转换旧数据或触碰真实 Home。这一轮仅有普通讨论写入，对象引用的追加证据如下。
 
@@ -613,7 +613,7 @@ UPG-01 仅允许 `server/server.sqlite`、版本 1、本次准确基点结构与
 
 固定 `ccb6f64c1c` 的生产链核查和独立复核发现 P1。若 A 声明类型 K、唯一实际读取器属于 B 而 B 没有呈现声明，组合服务正确归属 B，给出空字段和通用打开候选。现有 SCS-13 用例只证明这一步。非首页会过滤未读到值的候选，首页找不到显示行也会省略，点击和挂载位还要求声明与 values。以没有呈现声明的 Pages 文档为例，原读取器已有真实标题、版本与打开位置，当前路径仍无法展示。修复须显示原主人给的当前名称、图标、主人和合法的打开，不借 A 的字段，不露原始 id。
 
-现有对象上下文协议能按准确引用从原主人读取，但每个调用只接一个对象并可能带最多 32,000 字符正文。搜索条目只支持按游标分页，不能给任意已知引用作通用精确读取；索引不能证明此刻权限与存在。用户于 2026-11-09 明确选择“允许这项窄例外，复用原读取器”，已登记在[组合服务 §8.1](../surface-composition/spec.md#81-一次组合)。缺有效呈现声明的候选去重，从本轮保留的唯一可用读取器各读至多一次。普通 values 仍合批。所有读取共用现有四个在途和整轮一秒截止，沿原目录和 HTTP 请求。直接引用保留原 50 件上限，挂载位继续受声明限制，Attention 沿原列表语义。截止后未证明可读的对象不进入内容、计数或可用操作。
+现有对象上下文协议能按准确引用从原主人读取，但每个调用只接一个对象并可能带最多 32,000 字符正文。搜索条目只支持按游标分页，不能给任意已知引用作通用精确读取；索引不能证明此刻权限与存在。用户于 2026-11-09 明确选择“允许这项窄例外，复用原读取器”，已登记在[组合服务 §8.1](../surface-composition/spec.md#81-一次组合)。缺有效呈现声明的候选去重，从本轮保留的唯一可用读取器各读至多一次。普通 values 仍合批。所有读取共用现有四个在途和整轮三秒截止，沿原目录和 HTTP 请求。直接引用保留原 50 件上限，挂载位继续受声明限制，Attention 沿原列表语义。截止后未证明可读的对象不进入内容、计数或可用操作。
 
 原生与签包使用相同资格：实际唯一且可用的原读取器、只读、不外发、无模型权限并明确免费。缺省成本仍为未知。原生 owner 的既有动作须先核实际处理器，只为已证实的本地无成本读取补声明，更新相应动作快照并在最终合审说明。公共 helper 保持现有成本规则。有效声明的 values 失败或被拒仍按原降级，不重试为无声明。读取只保留本次请求需要的引用、标题、版本和打开位置，立即丢弃正文。组合描述仍只给引用。显示与折叠使用本轮同一证明，打开时重新核原读取器和可达舞台。原作用域、目录与登记、安装、权限、讨论关系和页面绑定继续核到交付。成功但无合法打开位置不给按钮。歧义、撤权、失败或超时不返回旧值或对象数量。此次采用现有协议，批量摘要方案留待另有必要时评估。
 
@@ -621,9 +621,9 @@ UPG-01 仅允许 `server/server.sqlite`、版本 1、本次准确基点结构与
 
 **固定实现与定向证据。** 生产头 `25ff499243abbf1a6d144b860c41231e42d60e95` 经独立限定复核，无 Blocker 或 P1。`c5f9f525cf` 只补回 SCS-13 的歧义解除断言，已随 `1ad37d1de1` 合回本批，合回前后的生产与测试树一致。三次组合各只发现一次目录，B 的读取依次为 1、0、1，恢复时重新取原主人的当前标题与版本，A 的 values 始终零次。14 个原生成本声明已按实际动作快照核对。
 
-定向用例 9/9。服务用例验证普通 values 保持合批、无资格或歧义的读取器零调用、同 ref 原登记替换后拒绝、只统计已证可读的折叠项，以及普通 values 提前超时后仍共用四个真实在途和一秒截止。真实 Pages 经讨论搜索选中、发送、引用及点击后打开原文档，重复引用共用一次读取。读取返回后撤销 IM 项目 owner 权限，消息零写。外部签包的真实挂载位验证原绑定重读、错误舞台没有打开控件，opaque 子端只收到固定确认与高度。首轮两个计数断言因夹具覆盖了计数入口而失败，修正后服务用例 4/4，补回恢复轮单项 1/1。证据见[组合服务](../../tests/surface-composition.test.ts)、[截止与登记](../../tests/security-invariants-surface-composition.test.ts)、[讨论权限](../../tests/security-invariants-im-discussion-surfaces.test.ts)、[真实 Pages](../../tests/surface-cross-positions.e2e.test.ts)和[签包挂载位](../../tests/security-invariants-signed-surface-slots.e2e.test.ts)。
+定向用例 9/9。服务用例验证普通 values 保持合批、无资格或歧义的读取器零调用、同 ref 原登记替换后拒绝、只统计已证可读的折叠项，以及普通 values 提前超时后仍共用四个真实在途和三秒截止。真实 Pages 经讨论搜索选中、发送、引用及点击后打开原文档，重复引用共用一次读取。读取返回后撤销 IM 项目 owner 权限，消息零写。外部签包的真实挂载位验证原绑定重读、错误舞台没有打开控件，opaque 子端只收到固定确认与高度。首轮两个计数断言因夹具覆盖了计数入口而失败，修正后服务用例 4/4，补回恢复轮单项 1/1。证据见[组合服务](../../tests/surface-composition.test.ts)、[截止与登记](../../tests/security-invariants-surface-composition.test.ts)、[讨论权限](../../tests/security-invariants-im-discussion-surfaces.test.ts)、[真实 Pages](../../tests/surface-cross-positions.e2e.test.ts)和[签包挂载位](../../tests/security-invariants-signed-surface-slots.e2e.test.ts)。
 
-Node 24.15 整体构建、包边界、原动作快照与主线应用导入点门禁均通过。实际 Host 的 51 个资源路径一致，无漏测。相对上次已批准候选，工作台脚本减少 222 字节，gzip 增 107 字节，插件承载及其余原始字节数相同。第 16 批切换后的最终集成、整批验证和本人验收仍待完成。
+Node 24.15 整体构建、包边界、原动作快照与主线应用导入点门禁均通过。实际 Host 的 51 个资源路径一致，无漏测。相对上次已批准候选，工作台脚本减少 222 字节，gzip 增 107 字节，插件承载及其余原始字节数相同。第 16 批切换已随 `58af6ece64` 合入；最终集成与整批验证已随 `b819373250` 完成（全量证据见 15.md），本人验收仍待完成。
 
 ### 17.6 首页首屏测量（IUI-20）
 
@@ -638,7 +638,7 @@ Node 24.15 整体构建、包边界、原动作快照与主线应用导入点门
 
 每轮记录 24 个完成的资源计时条目，传输分别为 5,869,712 字节和 3,150,891 字节。首次记录 1 个 87 ms 长任务，重开为 0。账号状态和同步请求在该隔离场景分别返回 400，计入原始数据。每轮两次首页 POST 均返回 200，第一笔请求耗时分别为 127.0、56.2、48.5、51.5 ms。独立诊断的一次无交互导航中，第二笔由首次 Attention 的板游标更新触发，见[监听](../../apps/workbench/src/scripts/client/initialization.ts)和[板更新后重读](../../apps/workbench/src/scripts/client/refresh-decisions.ts)。当次两笔按顺序完成，排序参数和组合版本相同。采样和诊断分开保存，首轮造数错误也保留。
 
-旧版的同一业务观测点是待决定 Goal 的首页焦点标题，校准只运行了本批候选。正式联调用同一探针在第 16 批切换后的实际合并基点和最终候选复测，报告真实内容时点、公共控件、请求、长任务和波动。还要核实际变更时的刷新和折叠行为。此次样本不结算相对耗时、完整账户环境、原生壳或本人验收。
+旧版的同一业务观测点是待决定 Goal 的首页焦点标题，校准只运行了本批候选。正式联调用同一探针在第 16 批切换后的实际合并基点和最终候选复测，报告真实内容时点、公共控件、请求、长任务和波动。还要核实际变更时的刷新和折叠行为。此次样本不结算相对耗时、完整账户环境、原生壳或本人验收；第 16 批切换后的正式复测仍未做，记 `BL-surface-home-performance`。
 
 ## 附录 A：Molis-Club 演示里可参考的组件
 
@@ -678,5 +678,4 @@ Node 24.15 整体构建、包边界、原动作快照与主线应用导入点门
 | 角色：「按：我的做法 · 第 2 条」标在 AI 的产出上 | 产出带上依据的做法 | §9 角色与 Skill |
 | 外部终端：Claude Code 里「建好目标 · 3 条要求」，换 Codex、OpenCode 接着做读到同一页 | 文本形态 | IUI-19 |
 | 同一个助理在 Feed、Inbox、工作流程里判断的事不一样 | 位置决定判断 | §5 |
-| 菜单栏的「等你」胶囊 | 最短形态 | §8 等你与通知 |
 | 底栏的「等你 N」、插件钮与输入框同一行 | 最短形态 | §8 等你与通知 |

@@ -1,0 +1,39 @@
+{
+  "schema": "prologue-sdk-package-provenance-v1",
+  "package": {
+    "name": "@prologue/sdk",
+    "version": "0.0.0-rc.1",
+    "private": true,
+    "license": null
+  },
+  "source": {
+    "repository": "git+https://github.com/molis-ai/molis-prologue.git",
+    "path": "packages/sdk",
+    "commit": "5cbf26015895138c63f6a22e18bf6086a79223b3",
+    "dirty": false,
+    "dirtyPaths": [],
+    "patches": [],
+    "note": "Official main build. 5cbf2601 is the merge of PR #115 (an after-write check now names its Session and Run) on top of 1c0654b7 (the Slice-31 window, PR #114) and 770a2e27; the packed tree is the repository's public main branch at that merge, with no vendor patch and no dirty files."
+  },
+  "artifact": {
+    "file": "prologue-sdk-0.0.0-rc.1.tgz",
+    "bytes": 1448221,
+    "sha256": "2715d3c90530282fb7f8cc5cf0638a07a7b3b3ff90aeae0e6bde59b41d2d4cd5",
+    "integrity": "sha512-X/JtU8DPXIxPZITmxtuAo7SvBd7E6mNcX9IOsXUNVMoZIOLWLwIJe/zJqsnbFXWOwpe7OqfQtmxQ0w+mxHzAHA=="
+  },
+  "build": {
+    "node": "24.14.0",
+    "pnpm": "11.9.0",
+    "platform": "darwin",
+    "architecture": "arm64",
+    "steps": [
+      "Use the public main commit 5cbf26015895138c63f6a22e18bf6086a79223b3 (the merge of PR #115 on 1c0654b7).",
+      "pnpm install --frozen-lockfile --offline (existing store).",
+      "node scripts/public-api.mjs and node scripts/quality-ratchet.mjs pass against that commit.",
+      "pnpm build; pnpm -C packages/sdk pack --pack-destination <isolated-directory>, run twice from two separate builds; the two archives are byte-for-byte identical.",
+      "Molis Work installs this archive through horizontal/agent-host's file: dependency; the lockfile records the same integrity."
+    ],
+    "packedOn": "2026-11-13",
+    "note": "This is the official dependency: the package is built from main after the Slice-31 PR merged, so it can be rebuilt from a public commit as-is. The previous custom window package stays recorded in patch-history.json as replaced."
+  }
+}

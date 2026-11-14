@@ -340,15 +340,15 @@ for (const transport of ["route", "action"] as const) test(`SYS-15 S-47 ${transp
 });
 
 
-test("SYS-15-U5 S-47 Files and Git previews use declared public reads; raw foreign routes and undeclared consumers stay refused", async t => {
+test("SYS-15-U5 S-47 Coding and Git previews use declared public reads; raw foreign routes and undeclared consumers stay refused", async t => {
   const f = await serveHomeRuntime(t), project = await f.project("Companion page previews");
   const prefix = `/projects/${project.project_id}`;
-  for (const plugin_id of ["coding", "files", "git", "diff", "text-stats"]) {
+  for (const plugin_id of ["coding", "git", "diff", "text-stats"]) {
     const enabled = await f.request(`/api/settings/projects/${project.project_id}/plugins`, {method: "POST", body: {plugin_id, expected_revision: await projectPluginRevisionAt(f.origin, project.project_id) }});
     assert.equal(enabled.status, 200, await enabled.clone().text());
   }
   const rendered = await f.request(prefix + "/"); assert.equal(rendered.status, 200);
-  for (const [source, capabilities] of [["files", ["diff.state", "text-stats.state"]], ["git", ["diff.state"]], ["coding", ["diff.state", "text-stats.state"]]] as const) {
+  for (const [source, capabilities] of [["git", ["diff.state"]], ["coding", ["diff.state"]]] as const) {
     const opened = await f.request(prefix + "/api/host/plugin-pages", {method: "POST", body: {plugin_id: "io.molis.work." + source}});
     assert.equal(opened.status, 200, await opened.clone().text());
     const {page_id} = await opened.json(), headers = {"x-molis-plugin-page": page_id};
@@ -361,8 +361,7 @@ test("SYS-15-U5 S-47 Files and Git previews use declared public reads; raw forei
     // SYS-15-U7: embedding declares only a presentation invalidation hint; ordinary routes retain their own authority.
     assert.equal((await f.request(prefix + "/api/plugins/io.molis.work.git/view-revision", {headers})).status, source === "coding" || source === "git" ? 200 : 403);
     if (source === "coding") {
-      assert.equal((await f.request(prefix + "/api/plugins/io.molis.work.files/view-revision", {headers})).status, 200);
-      assert.equal((await f.request(prefix + "/api/plugins/io.molis.work.files/state", {headers})).status, 403);
+      assert.equal((await f.request(prefix + "/api/plugins/io.molis.work.git/state", {headers})).status, 403);
       assert.equal((await f.request(prefix + "/api/plugins/io.molis.work.pages/view-revision", {headers})).status, 403);
     }
     assert.equal((await f.request(prefix + "/api/host/plugin-page-actions", {method: "POST", headers,
@@ -734,4 +733,16 @@ test("RAC-2743 RAC-2744 S-47 the same factory follows replaced, added, removed a
   shell.replaceNavigation(["shelf"]);
   assert.equal(shell.open("/settings/shelf?project=p1&desktop=1&tab=old&filter=new#new"),
     "/settings/shelf?project=p1&desktop=1", "a reappearing row without declarations keeps only defaults");
+});
+
+
+test("A4-M S-47 memory settings retain only their two declared session navigation parameters", () => {
+  assert.equal(openSettingsAddress("/settings/memory?memory_session_kind=assistant&memory_session_id=work-1&session_ref=forged&scope=all&evil=1#raw"),
+    "/settings/memory?memory_session_kind=assistant&memory_session_id=work-1");
+  assert.equal(openSettingsAddress("/projects/p1/settings/memory?memory_session_kind=coding&memory_session_id=session-1&actor=forged&scope=all&evil=1#raw"),
+    "/projects/p1/settings/memory?memory_session_kind=coding&memory_session_id=session-1");
+  assert.deepEqual(PROJECT_SETTINGS_QUERY_EXTRAS.memory?.split(" "), ["memory_session_kind", "memory_session_id"], "the project memory declaration adds exactly the same two navigation names");
+  assert.deepEqual(GLOBAL_SETTINGS_QUERY_EXTRAS.memory?.split(" "), ["memory_session_kind", "memory_session_id"]);
+  // Another dialog page reads its own names only; the memory session names do not follow the person there.
+  assert.equal(openSettingsAddress("/settings/models?memory_session_kind=assistant&memory_session_id=work-1&evil=1"), "/settings/models");
 });

@@ -8,17 +8,13 @@ import type { FormRecord } from "@molis-ai/molis-work-plugin-form/contract";
 import { formActions as actions, formContentActions, FORM_ACTION_PERMISSIONS, FORM_ANSWER_FORMAT } from "@molis-ai/molis-work-plugin-form";
 import { openFormStore } from "./fixtures/plugin-home-stores.js";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import type { HostCompleteText } from "@molis-ai/molis-work-app-local-host";
 import { callerPlugin, projectPluginCaller, type CallerPlugin } from "./fixtures/plugin-callers.js";
-import { initializeBoard } from "./fixtures/goals-board.js";
+import { openTestHome } from "./fixtures/test-home.js";
 async function fixture(t: test.TestContext, completeText: HostCompleteText | null = null, plugin?: CallerPlugin) {
-  const home = await mkdtemp(join(tmpdir(), "form-actions-")),
-    host = new MolisWorkLocalHost({ homeDirectory: home, completeText, ...(plugin ? { pluginFixtures: { project: [plugin.definition] } } : {}) });
-  t.after(async () => { await host.close(); await rm(home, { recursive: true, force: true }); });
-  const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "a" });
-  await initializeBoard(host, ref, { actor_id: "owner", idempotency_key: "init" });
-  const caller: ActionCallContext = { actor_id: "owner", project_id: "a", audience: "user", permissions: FORM_ACTION_PERMISSIONS };
+  const { home, host, createProject } = await openTestHome(t, { host: { completeText, ...(plugin ? { pluginFixtures: { project: [plugin.definition] } } : {}) }, catalogPolicy: !plugin });
+  const { reference: ref } = await createProject("Form actions", ["form"]);
+  const caller: ActionCallContext = { actor_id: "owner", project_id: ref.project_id, audience: "user", permissions: FORM_ACTION_PERMISSIONS };
   const client = host.actionClient(ref), bound = bindActionClient(client, () => caller);
   return { home, host, ref, caller, client, bound };
 }
@@ -78,7 +74,7 @@ test("Form actions share original data, six question types and snapshot-backed s
   });
   const store = openFormStore(f.home);
   let foreign: string;
-  try { foreign = store.create({ project_id: "b" }).id; assert.equal(store.listSubmissions(id, "a").length, 1); } finally { store.close(); }
+  try { foreign = store.create({ project_id: "b" }).id; assert.equal(store.listSubmissions(id, f.ref.project_id).length, 1); } finally { store.close(); }
   for (const definition of [actions.get, actions.results, actions.delete]) await assert.rejects(f.bound.invoke(definition, { id: foreign }), { code: "form.not_found" });
   await f.host.closeProject(f.ref);
   assert.deepEqual((await invoke("results", { id })).submissions[0], first);
@@ -102,28 +98,29 @@ test("Form deletion rolls back earlier rows when an undeclared trigger refuses t
   } finally { db.close(); }
 });
 
-test("Form fixed publication survives partial success, actor isolation, restart and later edits", async t => {
-  const f = await fixture(t); const { form } = await f.bound.invoke(actions.create, { title: "Original snapshot" });
-  const db = openHomeSqliteDatabase(f.home, "form");
+test("BSH-03 Form refuses the joined row write and the next pin uses the edited draft", async t => {
+  const { bound, home, host, ref } = await fixture(t);
+  const { form } = await bound.invoke(actions.create, { title: "Initial draft" });
+  const id = form.id, sentinel = (await bound.invoke(actions.create, { title: "Constraint fixture" })).form;
+  await bound.invoke(actions.promote, { id: sentinel.id });
+  const db = openHomeSqliteDatabase(home, "form");
   try {
-    const sentinel = (await f.bound.invoke(actions.create, { title: "Published constraint fixture" })).form;
-    await f.bound.invoke(actions.promote, { id: sentinel.id });
-    db.exec("CREATE UNIQUE INDEX fail_form_publication ON forms ((1)) WHERE artifact_version > 0");
-    await assert.rejects(f.bound.invoke(actions.promote, { id: form.id }), /UNIQUE constraint failed/);
-    assert.equal((await f.bound.invoke(actions.get, { id: form.id })).form.publication_pending!.version, 1);
-    await assert.rejects(f.bound.invoke(actions.delete, { id: form.id }), { code: "form.publication_pending" });
-    await f.bound.invoke(actions.update, { id: form.id, title: "Later edit" });
-    await assert.rejects(f.client.invoke({ ...f.caller, actor_id: "other" }, actions.promote, { id: form.id }), { code: "form.publication_owner" });
-    db.exec("DROP INDEX fail_form_publication");
+    db.exec("CREATE UNIQUE INDEX fail_publication ON forms ((1)) WHERE artifact_version > 0");
+    await assert.rejects(bound.invoke(actions.promote, { id }), /UNIQUE constraint failed/u);
+    assert.deepEqual((await bound.invoke(actions.get, { id })).form, form);
+    assert.equal(await host.withProject(ref, ({ artifacts }) => artifacts.query.latestArtifactVersion(ref.project_id, "form-" + id)), null);
+    db.exec("DROP INDEX fail_publication");
   } finally { db.close(); }
-  await f.host.closeProject(f.ref);
-  const restored = await f.bound.invoke(actions.promote, { id: form.id });
-  assert.equal(restored.form.title, "Later edit"); assert.equal(restored.recovered, true); assert.equal(restored.artifact.version, 1);
-  await f.host.withProject(f.ref, runtime => {
-    assert.equal((runtime.artifacts.query.getArtifactVersion(f.ref.project_id, restored.artifact)!.payload as any).title, "Original snapshot");
-    assert.equal(runtime.artifacts.query.getArtifactVersion(f.ref.project_id, { ...restored.artifact, version: 2 }), null);
-  });
-  assert.equal((await f.bound.invoke(actions.promote, { id: form.id })).artifact.version, 2);
+  const edited = (await bound.invoke(actions.update, { id, title: "Later edit", expected_version: form.version })).form;
+  await host.closeProject(ref);
+  const pinned = await bound.invoke(actions.promote, { id, expected_version: edited.version });
+  assert.equal(pinned.recovered, false);
+  assert.equal(pinned.artifact.version, 1);
+  assert.equal(pinned.form.title, "Later edit");
+  assert.equal(pinned.form.publication_pending, undefined);
+  const first = await host.withProject(ref, ({ artifacts }) => artifacts.query.getArtifactVersion(ref.project_id, pinned.artifact));
+  assert.equal(first?.title, "Later edit");
+  assert.equal((await bound.invoke(actions.promote, { id })).artifact.version, 2);
 });
 
 for (const mode of ["missing", "failure", "empty", "cancel", "edit", "delete", "success"] as const) test(`Form explicit AI ${mode} preserves data and checks grants`, async t => {

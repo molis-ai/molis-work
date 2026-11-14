@@ -4,6 +4,8 @@
 
 状态：执行中，本线 2026-10-20 交接后停（见下一节）。W0～W3（含助理整合 W3-A1～A3c、落点 W3-B1～B3、右栏 W3-C、W3-C2）、W2' 右栏改版、W4-1 两个创建入口与下一步行的结果位，以及交接时在途的 W4-2（#801）、W4-6a（#804）与 QA-013～018 的修补（#830、#831）都已合入 main；W4 其余各片、W5～W7 与收尾没开工，记在 `specs/BACKLOG.md`；真实 Jev 评估、桌面原生拖出未做，没有一骏本人验收。
 
+三份完整子需求书已并入本目录：[情境浮条](context-toolbar.md)、[快速创建](quick-create.md)、[Side Shelf](side-shelf.md)；本总纲管整体状态与接续，子文档管各自细节。
+
 ## 交接（2026-10-20）
 
 情境线（会话 ⑧）按用户 2026-10-19 的重新安排收尾：除防腐线外，各线把手头的片做完、开 PR 交 ⑤（评审、修意见、合并），写交接，然后停。本线不再开新片。
@@ -77,9 +79,9 @@
 
 | 子需求书 | 管什么 |
 | --- | --- |
-| [side-shelf](../side-shelf/spec.md) | 右栏（Shelf 成为一格）、左右互动、落点、助理接入 |
-| [context-toolbar](../context-toolbar/spec.md) | 情境浮条（取代底部动作条）、工具与面板槽、选区能力 F1–F13、手册与覆盖率门禁、存量补齐 |
-| [quick-create](../quick-create/spec.md) | 创建入口 `ItemIntake`、追加和放进 `ItemAttach`、批量、选中文字运行工作流、起草服务 |
+| [side-shelf](side-shelf.md) | 右栏（Shelf 成为一格）、左右互动、落点、拖放与助理接入 |
+| [context-toolbar](context-toolbar.md) | 情境浮条（取代底部动作条）、工具与面板槽、选区能力 F1–F13、手册与覆盖率门禁、存量补齐 |
+| [quick-create](quick-create.md) | 创建入口 `ItemIntake`、追加和放进 `ItemAttach`、批量、选中文字运行工作流、起草服务 |
 
 承接已合入 main 的 [contextual-interaction](../archive/contextual-interaction/spec.md)：候选派生、Jev 判断、陈列方案、冻结、记忆信号，都沿用。
 
@@ -299,7 +301,7 @@ interface ItemAttach {
 | 家族 | 合并后的做法 | 细节在 | 波次 |
 | --- | --- | --- | --- |
 | F1 创建 Item（含插件页和右栏格的「✦ 一句话新建」） | 创建入口 `ItemIntake`；「记成待办」「记下灵光」并入，旧的删掉 | quick-create §3–§6.1 | W4 |
-| F2 追加到已有 Item | 与「放进左边」合成 `ItemAttach`（本文 3.4）。目标是落点时用 `positions`；目标由 `find` 找到时，一律放末尾或建关联 | quick-create §6.2、本文 3.4 | 落点部分 W3；`find` 部分与 F1 同在 W4 |
+| F2 追加到已有 Item | 与「放进左边」合成 `ItemAttach`（本文 3.4）。目标是落点时用 `positions`；目标由 `find` 找到时，一律放末尾或建关联（关联类型由目标对象的主人插件声明，`ItemAttach` 不写死 goal 或别的插件名2026-11-13 按插件同等地位收口改，[决定 42](../post-anticorruption-roadmap/reference/decisions.md#decision-42)） | quick-create §6.2、本文 3.4 | 落点部分 W3；`find` 部分与 F1 同在 W4 |
 | F3 一次提取多个 Item | `ItemIntake.multiple`，一张批量卡片可逐条取消 | quick-create §6.2 | W4（与 F1、F2 同一套起草与卡片） |
 | F4 任意文本框润色、翻译 | 依赖 G1；写作类动作改为不挑对象的提供方 | context-toolbar §10.7 | W7 第一批 |
 | F5 只读问答、旁问（btw） | 并入旁问：`result` 动作 + 面板槽内联答复；Coding 与助理各提供一个（8.5） | context-toolbar §10.3、本文 8.5 | W7 |
@@ -318,7 +320,7 @@ interface ItemAttach {
 | 清单 | 细节在 | 波次 |
 | --- | --- | --- |
 | 「放进左边」**第一批（W3）**：Pages 插入到光标处（没有光标放文末）、替换选中的文字、作为引用插入（带出处）。都是确定性的 `ItemAttach` 声明，预览就是将写入的内容 | side-shelf 5.4（2026-10-12 已分批，§14）。与 context-toolbar §10.4 的「Pages 追加到文档」是同一批 | W3 |
-| 「放进左边」**第二批**：Pages 整理成要点后插入（要 W1 起草服务）；Goals 作为依据附上（要 Goals 报告落点）；Coding 放进当前会话的下一轮材料（要 Coding 自己名下的文字摘录过程项 `coding.text-excerpt.v1`，8.5） | 同上；与 context-toolbar §10.4 的「Goals 作为证据」「Coding 放进某个会话的下一轮」是同一批，合并为一份 | 前置条件到位后，W3 之后 |
+| 「放进左边」**第二批**：Pages 整理成要点后插入（要 W1 起草服务）；作为依据附上（落点是声明了要求的对象，内容交平台要求—认可能力保存为证据，要 32-2 的平台能力2026-11-13 按插件同等地位收口改，[决定 42](../post-anticorruption-roadmap/reference/decisions.md#decision-42)）；Coding 放进当前会话的下一轮材料（要 Coding 自己名下的文字摘录过程项 `coding.text-excerpt.v1`，8.5） | 同上；与 context-toolbar §10.4 的「Goals 作为证据」「Coding 放进某个会话的下一轮」是同一批，合并为一份 | 前置条件到位后，W3 之后 |
 | 各插件的创建入口（Todo、灵光、Pages、Inbox、Goals 先，其余按 ● ◐ ○） | quick-create §7 | W4 起 |
 | context-toolbar §10.4 第一张表里不属于创建入口的去处：Coding「补充给正在运行的这一轮」（`steer`，只许本机本人，必须出卡片）；Schedule、Jelly 识别出时间后建事项或提醒；Text stats 统计这段文字（纯计算动作的样板） | context-toolbar §10.4 | W7 起 |
 | 各插件自己对象上的专属动作与工具（Todo 拆成子待办、Feed 建规则、Inbox 转待办、Dataset 核对数字、PPT 扩写……） | context-toolbar §10.4 第二张表 | W7 起，按 context-toolbar §11.6 的波次 |

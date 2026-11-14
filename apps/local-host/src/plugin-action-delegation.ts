@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { ActionError, requireSynchronous, withControlChecks, type ActionCallContext, type ActionClient, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginActionDirectory, PluginExecutionControl, PluginManifest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { assertActionInput } from "@molis-ai/molis-work-kernel";
@@ -51,8 +52,11 @@ export function pluginActionDirectory(context: PluginStartContext, manifest: Plu
     const signal = control?.signal && inherited.signal ? AbortSignal.any([inherited.signal, control.signal]) : control?.signal ?? inherited.signal;
     // The grant and the original's own fence go first, then the plugin's control, then the original's checks of the target: joined
     // by the same `withControlChecks` every client that forwards a control uses.
-    const fence = { beforeEffect: async () => { await check(); await control?.beforeEffect(); },
-      assert_authority_current: () => { source(); requireSynchronous(control?.assert_authority_current?.()); } };
+    // The plugin's control is the delegating handler's own (Workflows reads its run's status in it): it runs in that handler's scope,
+    // taken here, so the read checks of BL-943 see the delegating plugin and not the target the nested call is running in.
+    const delegating = AsyncLocalStorage.snapshot();
+    const fence = { beforeEffect: async () => { await check(); if (control) await delegating(() => control.beforeEffect()); },
+      assert_authority_current: () => { source(); requireSynchronous(control?.assert_authority_current ? delegating(() => control.assert_authority_current!()) : undefined); } };
     const own: ActionCallContext = { ...inherited, validate_authority: async target => { await original.validate_authority?.(target); source(); },
       assert_authority_current: original.assert_authority_current };
     const caller: ActionCallContext = { ...inherited, ...(plugin ? { plugin_install_id, host_plugin } : { audience: "workflow" as const }), locale: activeLocale() ?? undefined,

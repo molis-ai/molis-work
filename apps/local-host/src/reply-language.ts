@@ -13,7 +13,7 @@ const REPLY_WORDS = new Map(WORKBENCH_LANGUAGES.languages.map(({ tag }) => {
 
 /** What a round is told about the language to reply in. */
 export function replyLanguagePrompt(locale: WebLocale): AgentPromptText {
-  return { prompt_id: "reply-language", version: /* @version prompt.reply-language */ 1, body: REPLY_WORDS.get(locale) ?? REPLY_WORDS.get(DEFAULT_WEB_LOCALE)! };
+  return { prompt_id: "reply-language", version: /* @version prompt.reply-language */ 2, body: REPLY_WORDS.get(locale) ?? REPLY_WORDS.get(DEFAULT_WEB_LOCALE)! };
 }
 
 /** The current call's language, or this Home's most recent language when a round did not come from a page. */

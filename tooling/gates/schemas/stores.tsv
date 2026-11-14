@@ -22,7 +22,7 @@ issues/issues.db	io.molis.work.issues	1	2ebbffe4d0eb92a4	-
 jelly/jelly.db	io.molis.work.jelly	1	f8ed975502abc63b	-
 knowledge/knowledge.db	packages/storage	1	2adbf0ecde034d1b	-
 lingguang/lingguang.db	io.molis.work.lingguang	1	6a6ba024b4fde7ba	-
-memory/memory.db	packages/storage	1	17c9d78d1f64f5b8	-
+memory/memory.db	packages/storage	2	17c9d78d1f64f5b8	1
 pages/pages.db	io.molis.work.pages	1	3070ef951cd25cad	-
 placement/placement.db	apps/local-host	1	cc231f53373dbc13	-
 plugin-directories/plugin-directories.db	apps/local-host	1	4e3877ad46125b3e	-
@@ -30,7 +30,7 @@ plugin-libraries/plugin-libraries.db	apps/local-host	1	3f1e077abbfc48cb	-
 plugin-originals/plugin-originals.db	apps/local-host	1	3ad6632f1b839415	-
 plugin-runtime/plugin-runtime.db	apps/local-host	1	e69c29d592801ef1	-
 ppt/ppt.db	io.molis.work.ppt	1	f3762d71cb86ab0f	-
-projects/*/molis-work.db	apps/local-host	3	8692b6c37da54b0a	1,2
+projects/*/molis-work.db	apps/local-host	3	052d02d66e597812	1,2
 projects/*/molis-work.db#io.molis.work.coding	io.molis.work.coding	1	7554f5bd7e17b35e	-
 projects/*/molis-work.db#io.molis.work.feed	io.molis.work.feed	2	a2446b1f1b0d700d	1
 projects/*/molis-work.db#io.molis.work.goals	io.molis.work.goals	2	acd0b4c100229f63	1

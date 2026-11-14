@@ -12,10 +12,10 @@ import { ActionService } from "@molis-ai/molis-work-kernel";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { MemoryPluginRuntimeRepository, PluginRuntime, SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
-import { filesActions, filesManifest, FILES_ACTIONS } from "@molis-ai/molis-work-plugin-files";
 import { gitActions, gitManifest, GIT_ACTIONS } from "@molis-ai/molis-work-plugin-git";
 import { codingManifest } from "@molis-ai/molis-work-plugin-coding";
 import { workspaceReadActions } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { materialsFileSource } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { HOST_WORKSPACE_CHANGED_EVENT, type PluginDefinition, type PluginManifest, type PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { DEMO_PROJECT_ID, HOST_PROVIDER_ID, LocalProjectDatabase, MolisWorkLocalHost, PluginHostExecutor, molisWorkHostProjectReference, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
@@ -34,9 +34,7 @@ interface Reply {
 }
 
 const readFile = workspaceReadActions.file, readGit = workspaceReadActions.git;
-const sideEntries = FILES_ACTIONS.find(definition => definition.capability_id === "files.side.entries")!;
-const sideContent = FILES_ACTIONS.find(definition => definition.capability_id === "files.side.content")!;
-const WORKSPACE_FILE_KIND = sideEntries.action.file_source!.kinds[0]!.kind;
+const WORKSPACE_FILE_KIND = materialsFileSource.entries.action.file_source!.kinds[0]!.kind;
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
 
 test("a Runtime plugin reaches an action only when its Manifest consumes it: as the plugin audience, with its own grants, that exact action", async () => {
@@ -150,7 +148,7 @@ test("one read action serves everyone: the whole file is for plugins, and a call
   const projectId = project.project_id;
   catalog.changeDirectories({ project_id: projectId, actor_id: "web-user", change: { kind: "set_output", target: { workspace_path: folder } },
     expected_revision: catalog.projectDirectories(projectId).revision });
-  for (const plugin_id of ["files", "git"]) catalog.addProjectPlugin({ project_id: projectId, plugin_id, actor_id: "web-user" });
+  for (const plugin_id of ["git"]) catalog.addProjectPlugin({ project_id: projectId, plugin_id, actor_id: "web-user" });
   catalog.close();
   const workspace = (await withMolisWorkProjectCatalog({ homeDirectory: home }, item => item.listWorkspaceDirectory(projectId))).find(item => item.canonical_path === folder)!;
   const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId });
@@ -189,9 +187,8 @@ test("one read action serves everyone: the whole file is for plugins, and a call
     assert.deepEqual(registered.filter(id => /^projects\.workspace\.(file|files|git)\./u.test(id) && /read|inspect/u.test(id)).sort(), [readFile.capability_id, readGit.capability_id].sort());
 
     // What reads the folder declares the read as its dependency and the permission with it; the ones that do not, do not.
-    const reading = [filesActions.directory, filesActions.open, filesActions.capture, sideEntries, sideContent,
-      gitActions.state, gitActions.selectDiff, gitActions.summary, gitActions.prSupport, gitActions.conflict];
-    const others = [...FILES_ACTIONS, ...GIT_ACTIONS].filter(definition => !reading.includes(definition as never));
+    const reading = [gitActions.state, gitActions.selectDiff, gitActions.summary, gitActions.prSupport, gitActions.conflict];
+    const others = GIT_ACTIONS.filter(definition => !reading.includes(definition as never));
     for (const definition of reading) {
       const wanted = definition.capability_id.startsWith("git.") ? readGit : readFile;
       assert.deepEqual(definition.action.required_actions, [{ capability_id: wanted.capability_id, version: 1 }], definition.capability_id);
@@ -201,22 +198,26 @@ test("one read action serves everyone: the whole file is for plugins, and a call
       assert.equal(definition.action.required_actions, undefined, definition.capability_id);
       assert.ok(!definition.action.permissions.includes("workspace:read"), definition.capability_id);
     }
-    // The three plugins that call the reads list them, and hold the permission for them.
-    for (const [manifest, ids] of [[filesManifest, [readFile.capability_id]], [gitManifest, [readGit.capability_id]], [codingManifest, [readFile.capability_id]]] as const) {
+    // The side panel's folder source is the platform's: it reads through the same action and asks the same permission.
+    const sideSource = Object.values(materialsFileSource);
+    for (const definition of sideSource) {
+      assert.ok(definition.action.required_actions?.some(item => item.capability_id === readFile.capability_id && item.version === readFile.version), definition.capability_id);
+      assert.ok(definition.action.permissions.includes("workspace:read"), definition.capability_id);
+    }
+    // The two plugins that call the reads list them, and hold the permission for them.
+    for (const [manifest, ids] of [[gitManifest, [readGit.capability_id]], [codingManifest, [readFile.capability_id]]] as const) {
       for (const id of ids) assert.ok(manifest.capabilities.consumes.includes(id), `${manifest.plugin_id} consumes ${id}`);
       assert.ok(manifest.permissions.some(item => item.permission === "workspace:read" && item.required), `${manifest.plugin_id} holds workspace:read`);
     }
 
     // A caller without the permission neither sees nor runs them; with it they are available.
     const directory = await client.discover(person(everything));
-    for (const definition of reading) assert.equal(directory.find(row => row.capability_id === definition.capability_id)?.availability.available, true, definition.capability_id);
+    for (const definition of [...reading, ...sideSource]) assert.equal(directory.find(row => row.capability_id === definition.capability_id)?.availability.available, true, definition.capability_id);
     const without = await client.discover(person(everything.filter(permission => permission !== "workspace:read")));
-    for (const definition of reading) assert.equal(without.some(row => row.capability_id === definition.capability_id), false, definition.capability_id);
-    await assert.rejects(client.invoke(person(everything.filter(permission => permission !== "workspace:read")), filesActions.directory, { workspace_id: workspace.workspace_id, path: [] }), { code: "actions.forbidden" });
+    for (const definition of [...reading, ...sideSource]) assert.equal(without.some(row => row.capability_id === definition.capability_id), false, definition.capability_id);
+    await assert.rejects(client.invoke(person(everything.filter(permission => permission !== "workspace:read")), gitActions.summary, {}), { code: "actions.forbidden" });
 
     // The plugin's own client is never the way around it: the dependents answer the person who holds the permission, with their own text.
-    const listed = await client.invoke(person(everything), filesActions.directory, { workspace_id: workspace.workspace_id, path: [] }) as { result: { outcome: string; entries: Array<{ name: string }> } };
-    assert.equal(listed.result.outcome, "directory"); assert.deepEqual(listed.result.entries.map(entry => entry.name), [".git", "chart.png"]);
     const status = await client.invoke(person(everything), gitActions.summary, {}) as { summary: { branch: string } | null };
     assert.equal(status.summary?.branch, "main");
 
@@ -234,7 +235,7 @@ test("one read action serves everyone: the whole file is for plugins, and a call
   }
 });
 
-test("Files, Git and Coding read the linked folder through the one action in a real Host, the whole file included", { timeout: 120_000 }, async () => {
+test("Git and Coding read the linked folder through the one action in a real Host, the whole file included", { timeout: 120_000 }, async () => {
   const root = await realpath(await mkdtemp(join(tmpdir(), "workspace-read-http-")));
   const token = "workspace-read-control-token-0123456789abcdef";
   const server = createMolisWorkWebServer({ homeDirectory: root, controlToken: token });
@@ -250,7 +251,7 @@ test("Files, Git and Coding read the linked folder through the one action in a r
     const created = await request("/api/settings/projects", "POST", { display_name: "读取同一个动作", user_confirmed: true });
     assert.equal(created.status, 201);
     const id = created.body.project.project_id as string;
-    for (const pluginId of ["coding", "files", "git"]) assert.equal((await request(`/api/settings/projects/${id}/plugins`, "POST", { plugin_id: pluginId, expected_revision: await projectPluginRevisionAt(origin, id) })).status, 200);
+    for (const pluginId of ["coding", "git"]) assert.equal((await request(`/api/settings/projects/${id}/plugins`, "POST", { plugin_id: pluginId, expected_revision: await projectPluginRevisionAt(origin, id) })).status, 200);
     const directory = path.join(root, "repository"); await mkdir(join(directory, "src"), { recursive: true });
     await writeFile(join(directory, "note.txt"), "中文🙂\nfirst\n");
     await writeFile(join(directory, "chart.png"), PNG);
@@ -260,7 +261,7 @@ test("Files, Git and Coding read the linked folder through the one action in a r
     const workspace = (await setProjectOutputFolder(directoriesWebOf(request), id, directory)).workspace_id;
     const plugin = (name: string, suffix: string) => `/projects/${id}/api/plugins/io.molis.work.${name}${suffix}`;
 
-    // Files: the side panel previews a picture in the linked folder whole, which only a plugin may ask the Host for.
+    // The side panel lists the project's folders and previews a picture whole: the platform's materials service, not a plugin, reads it.
     const sources = (await request(`/projects/${id}/api/side/files/sources`)).body.sources as Array<{ id: string; plugin_id: string; kinds: Array<{ kind: string }> }>;
     const source = sources.find(item => item.kinds.some(kind => kind.kind === WORKSPACE_FILE_KIND));
     assert.ok(source, JSON.stringify(sources));
@@ -277,11 +278,7 @@ test("Files, Git and Coding read the linked folder through the one action in a r
     const textPreview = await request(`/projects/${id}/api/side/files/content?source=${encodeURIComponent(source.id)}&kind=${WORKSPACE_FILE_KIND}&id=${encodeURIComponent(text.subject.id)}`);
     assert.equal(textPreview.body.content.data, "中文🙂\nfirst\n");
 
-    // Files and Git, through their own routes.
-    const opened = await request(plugin("files", "/open"), "POST", { workspace_id: workspace, path: ["note.txt"] });
-    assert.equal(opened.status, 200, JSON.stringify(opened.body)); assert.equal(opened.body.result.text, "中文🙂\nfirst\n");
-    const listed = await request(plugin("files", "/directory?path=[]&workspace_id=" + workspace));
-    assert.equal(listed.status, 200); assert.equal(listed.body.result.outcome, "directory");
+    // Git, through its own route.
     const gitState = await request(plugin("git", "/state"));
     assert.equal(gitState.status, 200, JSON.stringify(gitState.body)); assert.equal(gitState.body.view.phase, "ready");
 
@@ -303,8 +300,8 @@ test("Files, Git and Coding read the linked folder through the one action in a r
   }
 });
 
-test("a Home that installed Files, Git and Coding before the read permission existed follows the new Manifest and holds it, without asking", () => {
-  for (const manifest of [filesManifest, gitManifest, codingManifest] as readonly PluginManifest[]) {
+test("a Home that installed Git and Coding before the read permission existed follows the new Manifest and holds it, without asking", () => {
+  for (const manifest of [gitManifest, codingManifest] as readonly PluginManifest[]) {
     // The Manifest as the Home last saw it: no read permission, no read dependency on any action, no read id consumed, and no
     // subscription to the Host's workspace broadcast, which needs that permission (BL-379).
     const before: PluginManifest = { ...manifest, permissions: manifest.permissions.filter(item => item.permission !== "workspace:read"),

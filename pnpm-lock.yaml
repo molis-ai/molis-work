@@ -115,9 +115,6 @@ importers:
       '@molis-ai/molis-work-plugin-feed':
         specifier: workspace:*
         version: link:plugins/native/feed
-      '@molis-ai/molis-work-plugin-files':
-        specifier: workspace:*
-        version: link:plugins/native/files
       '@molis-ai/molis-work-plugin-form':
         specifier: workspace:*
         version: link:plugins/native/form
@@ -389,9 +386,6 @@ importers:
       '@molis-ai/molis-work-plugin-feed':
         specifier: workspace:*
         version: link:../../plugins/native/feed
-      '@molis-ai/molis-work-plugin-files':
-        specifier: workspace:*
-        version: link:../../plugins/native/files
       '@molis-ai/molis-work-plugin-form':
         specifier: workspace:*
         version: link:../../plugins/native/form
@@ -576,9 +570,6 @@ importers:
       '@molis-ai/molis-work-plugin-feed':
         specifier: workspace:*
         version: link:../../plugins/native/feed
-      '@molis-ai/molis-work-plugin-files':
-        specifier: workspace:*
-        version: link:../../plugins/native/files
       '@molis-ai/molis-work-plugin-form':
         specifier: workspace:*
         version: link:../../plugins/native/form
@@ -664,8 +655,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/storage
       '@prologue/sdk':
-        specifier: file:../../vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-memory-p0.tgz
-        version: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-memory-p0.tgz
+        specifier: file:../../vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1.tgz
+        version: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1.tgz
 
   horizontal/appearance:
     dependencies:
@@ -1058,19 +1049,6 @@ importers:
       sanitize-html:
         specifier: ^2.17.7
         version: 2.17.7
-    devDependencies:
-      esbuild:
-        specifier: ^0.28.2
-        version: 0.28.2
-
-  plugins/native/files:
-    dependencies:
-      '@molis-ai/molis-work-contracts':
-        specifier: workspace:*
-        version: link:../../../packages/contracts
-      '@molis-ai/molis-work-plugin-sdk':
-        specifier: workspace:*
-        version: link:../../../packages/plugin-sdk
     devDependencies:
       esbuild:
         specifier: ^0.28.2
@@ -1756,8 +1734,8 @@ packages:
   '@oxc-project/types@0.150.0':
     resolution: {integrity: sha512-rDS5/31E9HfPl/CIzGrn0DOlvBbXFseQ5URJ9sYMfstbKLD/c6Gm9vmRzRGDdAXyOIL4zmO37lc9RIwYqVruZw==}
 
-  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-memory-p0.tgz':
-    resolution: {integrity: sha512-LPbQWH3HFyVKlmSQnFb6wuKGBLuZS5zrqHX1SEMuBb6ila2gIDi1WPHcnPhcyn/yXj1zUV8mgCbKqViRnKmcfQ==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-memory-p0.tgz}
+  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1.tgz':
+    resolution: {integrity: sha512-X/JtU8DPXIxPZITmxtuAo7SvBd7E6mNcX9IOsXUNVMoZIOLWLwIJe/zJqsnbFXWOwpe7OqfQtmxQ0w+mxHzAHA==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1.tgz}
     version: 0.0.0-rc.1
 
   '@protobufjs/aspromise@1.1.2':
@@ -3617,7 +3595,7 @@ snapshots:
 
   '@oxc-project/types@0.150.0': {}
 
-  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-memory-p0.tgz':
+  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1.tgz':
     dependencies:
       '@tauri-apps/api': 2.11.1
 

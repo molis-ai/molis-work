@@ -79,6 +79,20 @@ export async function pluginFrameBrowser(t: TestContext, browser: Browser, surfa
   const owner = `const owner = ${ownerFrame ? `document.querySelector(${JSON.stringify(ownerFrame)})` : "null"};
     const doc = owner ? owner.contentDocument : document;
     if (!doc) throw Error('Missing trusted owner document');`;
+  // Emulation set on the page does not reach a plugin frame: each frame is its own out-of-process target. Before every
+  // command into a frame, the frame takes the page's current prefers-reduced-motion, so a page held still also holds the
+  // frame still and a press and its release land on the same unmoved element (BL-1074). A page left as it is leaves its
+  // frames as they are, for tests about motion.
+  const heldStill = new Set<string>();
+  async function followPageMotion(session: string) {
+    // A frame in the page's own process already has the page's media, and setting it here would replace the page's
+    // other emulated features (setEmulatedMedia sets all of them at once).
+    if (session === browser.sessionId) return;
+    const still = await browser.evaluate<boolean>("matchMedia('(prefers-reduced-motion: reduce)').matches");
+    if (still === heldStill.has(session)) return;
+    await browser.command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: still ? "reduce" : "no-preference" }] }, session);
+    if (still) heldStill.add(session); else heldStill.delete(session);
+  }
   async function context() {
     const object = await browser.command<{ result: { objectId?: string } }>("Runtime.evaluate", {
       expression: `(()=>{${owner}return doc.querySelector(${JSON.stringify(selector)});})()`, returnByValue: false,
@@ -89,6 +103,7 @@ export async function pluginFrameBrowser(t: TestContext, browser: Browser, surfa
     assert.ok(node.frameId, "frame owner must identify a real child");
     const current = contexts.get(node.frameId);
     assert.ok(current, `Missing child execution context: ${node.frameId}`);
+    await followPageMotion(current.session);
     return { ...current, frameId: node.frameId };
   }
   async function evaluate<T = unknown>(expression: string, timeoutMs?: number): Promise<T> {
@@ -123,7 +138,9 @@ export async function pluginFrameBrowser(t: TestContext, browser: Browser, surfa
       await new Promise(resolve => setTimeout(resolve, 40));
     }
   }
-  async function withPoint<T>(target: string, consume: (position: {x:number; y:number}, delivered: () => Promise<boolean>) => Promise<T>): Promise<T> {
+  // `at: "start"` takes the point 1px inside the target's left edge instead of its centre: in a text block that puts the caret before its
+  // first character, where a centre click puts it after the text a short line ends with.
+  async function withPoint<T>(target: string, consume: (position: {x:number; y:number}, delivered: () => Promise<boolean>) => Promise<T>, at: "center" | "start" = "center"): Promise<T> {
     const deadline = Date.now() + 10000;
     const remaining = () => Math.max(1, deadline - Date.now());
     // The page's own wait for a hittable target ends this much before the protocol call's, so its reason is reported.
@@ -213,7 +230,7 @@ export async function pluginFrameBrowser(t: TestContext, browser: Browser, surfa
           while(Date.now()<deadline){const element=[...document.querySelectorAll(${JSON.stringify(target)})].find(node=>node.getClientRects().length);
             if(element){element.scrollIntoView({block:'center',behavior:'instant'});
               await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
-              const box=element.getBoundingClientRect(),x=box.x+box.width/2;
+              const box=element.getBoundingClientRect(),x=box.x+(${JSON.stringify(at)}==='start'?Math.min(1,box.width/2):box.width/2);
               const y=[box.y+box.height/2,box.top+8,box.bottom-8].find(y=>element.contains(document.elementFromPoint(x,y)));
               if(element.isConnected&&box.width&&box.height&&!element.disabled&&y!==undefined)return{x,y};
               last=JSON.stringify({target:element.outerHTML,box:box.toJSON()});}
@@ -264,10 +281,10 @@ export async function pluginFrameBrowser(t: TestContext, browser: Browser, surfa
     }
   }
   // Public coordinates are only a snapshot; click keeps its receipt alive while consuming them.
-  async function point(target: string): Promise<{ x: number; y: number }> {
-    return withPoint(target, async position => position);
+  async function point(target: string, at: "center" | "start" = "center"): Promise<{ x: number; y: number }> {
+    return withPoint(target, async position => position, at);
   }
-  async function click(target: string, clickCount = 1): Promise<void> {
+  async function click(target: string, clickCount = 1, at: "center" | "start" = "center"): Promise<void> {
     for (let count = 1; count <= clickCount; count++) {
       await withPoint(target, async (position, delivered) => {
         const input = {...position, button: "left", clickCount: count};
@@ -275,7 +292,7 @@ export async function pluginFrameBrowser(t: TestContext, browser: Browser, surfa
         finally { await browser.command("Input.dispatchMouseEvent", {type:"mouseReleased", ...input}, browser.sessionId); }
         // Never retry after a press: a side effect may already have happened on the wrong element.
         if (!await delivered()) throw new Error("Input was not delivered to plugin frame: " + target + "; pointerdown/pointerup target mismatch");
-      });
+      }, at);
     }
   }
   async function command<T = Record<string, unknown>>(method: string, params: Record<string, unknown> = {}): Promise<T> {

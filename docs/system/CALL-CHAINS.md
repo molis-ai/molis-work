@@ -30,7 +30,7 @@
 | 外部 Runtime（MCP） | `runtime:<runtime_id>`（无 Runtime 标识时 `local-mcp`），`mcp`；会话作审计作者 | 每个客户端、每个项目、每个动作的显式授权（`{home}/config/mcp-tools.json`） | 同上，经常驻 Host | 文本 `错误: …` 加 `{"code":…}`，`isError: true`；这次操作留了行时，这个 JSON 里还有 `call_id` | 每条 MCP 消息一个（`handleMessage` 打开作用域）；经网关的由 MCP 进程在 `invoke` 的 `call_id` 里给，常驻宿主在同一个编号下运行；错误文本和留了行的命令的结果（`_meta`）带它，别的什么都不带 |
 | 助理 | `web-user`，`agent`；`audit_actor_id` 为 `assistant:<work_id>` | 本工作范围内对 `agent` 开放、且人没关掉的动作 | 同上 | 工具结果里的文字；对界面是共同 `ActionError`，保留实际 owner 的 code/kind/details，失败 Send 的工作与修复入口放在 details | 一轮一个：`assistantAuthority` 开头取，页面发消息开的一轮与那次请求同号，定时器和定时队列开的一轮是新号；工具调用显式带它 |
 | Agent（Coding、定时任务、Character） | `agent:<runtime_id>`，`agent`；`runtime_session_id` 为宿主核过的这一轮会话，`audit_actor_id` 为 `agent:<runtime_id>:<会话>`；人点这一轮的建议执行的动作同样带 | Manifest 角色的精确 `action_tools` 或能力网关 | 同上 | 工具结果 | 一轮一个：`startAuthority` 在 `agent.run.start` 那次调用的作用域里取，Coding 的一轮与点「开始」的那次请求同号；定时任务的一轮沿用那次 tick 的编号；工具调用显式带它，冻结记录也带 |
-| Runtime 内置插件（Coding、Files 等） | `web-user`（`LOCAL_PERSON_ACTOR_ID`），`user`（`apps/local-host/src/plugin-executor.ts` 的 `actionCaller`） | 安装时用户确认的 grant；`allowed_actions` 只含本插件 Manifest 声明的动作 | 同上 | 抛给插件代码 | 沿用调用它的那次操作的编号（嵌套调用共用） |
+| Runtime 内置插件（Coding、Git 等） | `web-user`（`LOCAL_PERSON_ACTOR_ID`），`user`（`apps/local-host/src/plugin-executor.ts` 的 `actionCaller`） | 安装时用户确认的 grant；`allowed_actions` 只含本插件 Manifest 声明的动作 | 同上 | 抛给插件代码 | 沿用调用它的那次操作的编号（嵌套调用共用） |
 | 创作台生成的插件（沙箱进程） | `plugin:<插件 id>`，`actor_kind` 为 `runtime`，受众 `plugin`（`apps/local-host/src/plugin-builder/catalog.ts` 的 `catalogCapabilities`） | 每次调用只带被调那一项能力自己的权限，先由沙箱 broker 对照该安装的 grant；能调用的是目录里对 `plugin` 受众开放的能力：声明了 `plugin` 受众，或对 `agent` 开放且没有 `plugin: false`，撤不回的除外（`actionReachesAudience`），不限于自己声明的动作 | 同上 | 抛给沙箱里的插件代码；不确定的结局报 `unknown` | 沿用调起这次操作的编号：沙箱在 `call()` 记下当时的异步上下文，SDK 调用在其中重进，同一次操作里的调用同号 |
 | 工作流 | 沿用触发运行的调用者，Workflows 插件把受众改成 `workflow` | 调用者原有的权限 | 同上 | 步骤状态 | 内核补：沿用此刻打开的作用域里的编号，没有就新生成；比触发它的请求活得久的步骤拿到新编号 |
 | 后台定时器 | 到期拉取（连同它触发的判断）：`web-user`，`user`，权限为本机用户的权限集（`LOCAL_OWNER_PERMISSIONS`）；Schedule 唤醒投递提醒或定时操作结果后的判断（项目运行环境打开时装配的触发器）：`workflow-events`，`workflow` | 前者是权限集，后者是触发器写死的权限串 | 到期拉取是 concurrent | 只记在来源状态与事件里 | 每次一个新编号：Feed 的每次拉取、Schedule 的每次 tick、助理的两个定时器各开自己的作用域；Schedule 到点跑的 Agent 一轮沿用那次 tick 的编号 |
@@ -118,7 +118,7 @@
 | 种类 | 谁装配 | 项目里「添加或移除」怎样生效 |
 | --- | --- | --- |
 | 构建期内置插件（只剩用户批过的两个例外 Alchemist、插件创作台，见 `tests/builtin-plugin-assembly-gate.test.ts` 的 `APPROVED_BUILD_TIME_EXCEPTIONS`） | 项目运行环境打开时由 Host 注册动作提供方（`apps/local-host/src/project-host.ts`） | 只改项目目录库里的成员关系；动作仍在注册表里，但每次调用的宿主层可用性检查返回 `actions.plugin_disabled` |
-| Runtime 内置插件（Coding、Files、Diff、Git、Text Stats、Shelf 等） | `apps/local-host/src/project-plugins.ts` 的监督器条目；对该项目第一次发现或调用动作时（`prepareProjectPlugins`）一起启动；Host 自己调 Goals 的 `actionClient(reference, false)` 不触发这一步，不会因此启动它们 | 成员关系同上；Runtime 管自己的状态机 |
+| Runtime 内置插件（Coding、Diff、Git、Text Stats、Shelf 等） | `apps/local-host/src/project-plugins.ts` 的监督器条目；对该项目第一次发现或调用动作时（`prepareProjectPlugins`）一起启动；Host 自己调 Goals 的 `actionClient(reference, false)` 不触发这一步，不会因此启动它们 | 成员关系同上；Runtime 管自己的状态机 |
 | 创作台生成的插件 | `apps/local-host/src/installed-plugin-host.ts`（`lifecycle`），在隔离沙箱进程里运行；已安装的在同一时机恢复 | 创作台的安装、启用、停用、卸载、升级、回滚 |
 
 下表是 Runtime 管理的插件（后两种）的链路；第一种只有第 1、7 行里「成员关系」的那一半。
@@ -308,7 +308,7 @@
 | Agent 审批（`apps/local-host/src/agent-review-http.ts`，`POST /api/agent/reviews/decide`、`/recovery`） | `agent.reviews.decide`、`agent.reviews.recover`。项目归属、插件页的页面授权核对、桌面持有轮次的自批等待期都在处理器里，HTTP 的状态码与错误体不变 | `horizontal/agent-host/src/reviews.ts`，执行与恢复归原操作的主人 |
 | 助理面板（`apps/local-host/src/assistant/assistant-http.ts`，相对 `/api/assistant`：`send`、`cards`、`attachments`、`notices`、`followups/remove`，`works/<id>/` 下的 `control`、`draft`、`rename`、`mode`、`take-back`、`undo/<undo>`、`budget`、`results`、`handover`、`recovery`、`archive`、`reviews/<review>`、`answer`、`question-draft`、`cards/<card>/run`、`dismiss`、`redo`） | `assistant.panel.*`，每个路径一个（`assistantPanelActions`）。两条记忆建议 `memory-candidates/<candidate>/accept`、`discard` 不另起动作，走 Memory 现有的 `memory.candidates.accept`、`discard`，面板带上它看到的版本（`expected_version`） | 助理服务 `apps/local-host/src/assistant/assistant-service.ts`；实际运行归 Agent Host 或执行方插件，记忆归 Memory |
 
-已经走动作的不变：原评论 `POST /threads/start`、`/retry`、`/stop` 和 `GET`／`POST /threads/status` 走 `assistant.threads.*`，从工作面板停止一项原评论回复也沿原项目调用 `assistant.threads.stop`；`GET`／`POST /works/<id>/cards/<card>/connection` 走 `connectors.authorization.read`／`connectors.authorization.cancel`。助理的设置写入（`capabilities`、`memories`、`memory-prefs`、`rules`、`budget`）见上表。
+已经走动作的不变：原评论 `POST /threads/start`、`/retry`、`/stop` 和 `GET`／`POST /threads/status` 走 `assistant.threads.*`，从工作面板停止一项原评论回复也沿原项目调用 `assistant.threads.stop`；`GET`／`POST /works/<id>/cards/<card>/connection` 走 `connectors.authorization.read`／`connectors.authorization.cancel`。助理的设置写入（`capabilities`、`memories`、`memory-prefs`、`rules`、`budget`）仍走 HTTP，见 §10.1 的「设置 › 助理」两行；B9 只把面板写入（send、cards、attachments、notices、followups/remove、works/…）改成动作。
 
 读取仍是 HTTP。读的时候会做的恢复与结算登记如下，归各自主人，不是本人的新决定：
 
@@ -332,7 +332,7 @@
 | `POST /builds` | 创作台创建构建记录并启动设计作业 | 固定项目、现有模型检查与任务归属 |
 | `POST /builds/<id>/action` | 创作台处理范围、选择、意见、组件、检查、暂停、续跑、撤销和删除。启用依赖插件交项目目录，发布交创作台发布流程，安装、升级、回滚、启停和卸载交现有插件生命周期 | 区分草稿、项目登记和安装效果。保持所见 revision、同一构建的执行令牌、权限确认、安装失败回滚和密钥封存 |
 | `POST /builds/<id>/call` | 按界面组件的 `read` 或 `submit` 绑定，把操作交给创作台试用或验收沙箱 | 构建、试用身份、操作声明与取消沿现行核对 |
-| `POST /api/plugins/<generated>/call` | 当前已装生成插件的请求交现有安装平台路由，由已装插件执行其声明操作 | HTTP 传输沿原安装和页面授权，另见 [46 批的迁移边界](../../specs/post-anticorruption-roadmap/reference/batches/46.md#batch-46-item-1) |
+| `POST /api/plugins/<generated>/call` | 当前已装生成插件的请求交现有安装平台路由，由已装插件执行其声明操作 | HTTP 传输沿原安装和页面授权，另见 [46 批的迁移边界](../../specs/post-anticorruption-roadmap/reference/batches/47.md#batch-47-item-1) |
 | 首次读取创作台 | `ensureStudio` 初次打开时，创作台初始化会恢复已持久化的构建，先把旧活动阶段标记暂停，再从原检查点续跑 | 把初始化恢复与普通状态、预览、下载及事件流分开盘点，避免一次读取另起一轮恢复 |
 
 ### 10.2 已定要修的偏离
@@ -358,7 +358,7 @@ B9 其余三组的写入已接入动作，见 §10.1.1；插件创作台一组�
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | 页面发请求 | `apps/workbench/src/scripts/client/assistant-composer.ts`，经 `packages/ui-host/src/request-client.ts` | 输入框的 `+` 菜单打开、按 `query` 变化 → `POST` `/api/composer/sources`、`/api/composer/pick` | 页面会话凭据加一次性键；页面只带自己的请求，不带身份 | 助手把失败变成带 `code` 的 `Error`；页面忽略已过期的选取 | 无 |
 | 2 | 路由与绑定 | `apps/local-host/src/web-catalog-routes.ts`（没有项目时只列 Home 来源）、`apps/local-host/src/web-project-platform-routes.ts`（项目里列本项目来源）→ `apps/local-host/src/composer-sources-http.ts` | 路径加项目 → 绑定的动作客户端 | 项目由 Host 按路径给；`bindLocalWebActions` 按页面内置权限集与 Runtime grant 造调用者；插件页面没有进这个入口的路（页面授权只到它自己的路由） | 405 只收 `POST`；请求关闭时 `actions.cancelled`（`AbortController` 转成 `caller.signal`） | 无 |
-| 3 | 列来源 | `apps/local-host/src/composer-sources-http.ts` 的 `isSource`，按 `view.action.composer_source` 从动作目录挑；声明形状在 `packages/contracts/src/platform/composer.ts`；来源名按声明的 `title_text`、插件名按 Manifest 的 `name_text`，由同文件 `sourceWords` 从内置插件的语言文件取当前语言的词（缺词时用原文 `title` 与插件名） | 目录 → 每个可用来源的 `capability_id`、`version`、`provider_id`、标题（按页面语言取插件语言文件里的词） | 只列此刻发现得到、对这个层（`plain`／`ai`）开放且被授权的来源；只按登记与声明取词，不按插件名开分支 | 来源停用、卸载或不再授权就不列，不报错 | 无 |
+| 3 | 列来源 | `apps/local-host/src/composer-sources-http.ts` 的 `isSource`，按 `view.action.composer_source` 从动作目录挑；声明形状在 `packages/contracts/src/platform/composer.ts`；来源名按声明的 `title_text`、插件名按 Manifest 的 `name_text`，由同文件 `sourceWords` 从此刻运行的发行物取当前语言的词（`apps/local-host/src/running-plugin-text.ts` 的 `runningPluginText`：安装记录正在运行这份 Manifest，读这个运行实例的语言文件，与插件目录同源；内置、装上的和 `molis-work plugin dev` 跑的插件一样；运行的 Manifest 没有声明这个来源、或缺词时用原文 `title` 与插件名） | 目录 → 每个可用来源的 `capability_id`、`version`、`provider_id`、标题（按页面语言取插件语言文件里的词） | 只列此刻发现得到、对这个层（`plain`／`ai`）开放且被授权的来源；只按登记与声明取词，不按插件名开分支 | 来源停用、卸载或不再授权就不列，不报错 | 无 |
 | 4 | 选一项 | 同一文件：只调第 3 步列出的那一个精确能力 | 查询词、`limit`、当前对象（只在来源自己的 `subject_kinds` 内）→ 资料引用 | 调用者仍是页面这个人；来源不能借这次调用拿到别的东西 | 来源不在了 → `composer.source_unavailable`；来源返回不属于自己的资料 → 同一个码 | 无（只读；不写业务数据） |
 | 5 | 收下与显示 | 页面把 `MaterialRef` 放进这次输入，不落业务数据 | 资料引用 → 输入里的 `@` 项 | — | 页面重画时丢弃过期结果 | 无 |
 

@@ -2,7 +2,7 @@ import { isDeepStrictEqual } from "node:util";
 import type { AgentMemoryMeta, AgentMemorySourceRef } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { MemoryApproval, MemoryBasis, MemoryEvidence, MemoryLedgerPort, MemoryMetaRecord, MemorySource, MemoryWriteResult } from "@molis-ai/molis-work-contracts/services/memory";
 import type { MemoryBackendEntry } from "./backend.js";
-import type { MemoryCaller } from "./service.js";
+import type { MemoryCaller, MemoryService } from "./service.js";
 import type { MemoryOperations } from "./operations.js";
 import type { MemoryPromotion } from "./promotion.js";
 import type { Located, MemoryScopeCommands } from "./scope-commands.js";
@@ -22,6 +22,7 @@ interface Input {
 interface Ports {
   ledger: MemoryLedgerPort; operations: MemoryOperations; scopes: MemoryScopeCommands; promotions: MemoryPromotion;
   beforeEffect?: () => void | Promise<void>;
+  isForgotten: MemoryService["isForgotten"];
   saveFacts(caller: MemoryCaller, located: Located, meta: MemoryMetaRecord, before?: MemoryMetaRecord): Promise<MemoryBackendEntry>;
 }
 
@@ -89,6 +90,8 @@ export class MemoryDuplicates {
       throw memoryErrors.conflict("原目标在完成前已变化，不能补记完成");
     await this.ports.beforeEffect?.();
     caller.signal?.throwIfAborted();
+    if (this.ports.isForgotten(current.scope, current.owner, "memory", current.entry.memory_id))
+      throw memoryErrors.conflict("原重复项已经接受遗忘，不能补入来源或返回旧正文");
     ledger.transaction(() => {
       const result = { outcome: "duplicate" as const, memory_id: current.entry.memory_id, version: current.entry.version };
       if (adopting) disownAutomatic(ledger, current.entry.memory_id);
@@ -111,6 +114,8 @@ export class MemoryDuplicates {
   }
 
   private result(one: Located, appliesText: string): MemoryWriteResult {
+    if (this.ports.isForgotten(one.scope, one.owner, "memory", one.entry.memory_id))
+      throw memoryErrors.conflict("原重复项已经接受遗忘，不能返回旧正文");
     return { outcome: "duplicate", reason: one.meta.state === "disabled" ? "已经记着这一条（目前停用）" : "已经记着这一条了", applies_text: appliesText,
       memory: this.ports.scopes.item(one), candidate: null, change_id: null };
   }

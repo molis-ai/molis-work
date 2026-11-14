@@ -9,7 +9,7 @@ import test from "node:test";
 import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { definePlugin } from "@molis-ai/molis-work-plugin-sdk";
 import { type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { molisWorkHostProjectReference, scheduleServiceFor } from "@molis-ai/molis-work-app-local-host";
 import { feedCaptureScene, feedContentActions } from "@molis-ai/molis-work-plugin-feed";
 import { addProjectPlugin } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
@@ -218,9 +218,9 @@ test("Feed discovers an installed plugin judgment, previews without admission, s
 });
 
 test("FBR-07 FSS-35 the real Feed page reaches later messages and materials and keeps its place when language changes", { timeout: 120000 }, async t => {
-  const b = await openGoalBrowser(t, true); if (!b) return;
+  const b = await openGoalBrowser(t, true, undefined, null); if (!b) return;
   await b.setViewport(1440, 960);
-  const { projectId, store, command, sessionId } = b; assert.ok(projectId);
+  const { projectId, store, command, sessionId, localHost, databasePath } = b; assert.ok(projectId); assert.ok(localHost);
   await addProjectPlugin(b.web, projectId, "feed");
   const feed = createLocalFeedApplication(store.db);
   const source = createLocalFeedSourceService(store.db, projectId).register({ kind: "web_query", query: "bounded-browser", name: "Bounded source" }).source;
@@ -279,6 +279,25 @@ test("FBR-07 FSS-35 the real Feed page reaches later messages and materials and 
   await child.waitFor("document.querySelector('.feed-materials')?.open === true");
   await child.click('[data-feed-material-page="200"]');
   await child.waitFor("document.querySelector('[data-feed-detail]')?.textContent.includes('Material 204')");
+  // Drive the real wakeup while the reader is on two later pages. A successful empty tick is not a Feed view change.
+  const revision = async () => (await b.web.get<{ revision: string }>(
+    `/projects/${projectId}/api/plugins/io.molis.work.feed/view-revision`)).revision;
+  const project = molisWorkHostProjectReference({ databasePath, projectId });
+  const wake = () => localHost.withProject(project, async runtime => {
+    const clock = scheduleServiceFor(runtime.store.db), jobs = () => clock.list("io.molis.work.feed");
+    const job = jobs().find(job => job.capability_id === "feed.sources.wake");
+    assert.ok(job?.next_due_at, "the running Feed installed its wakeup");
+    const at = new Date(Math.max(Date.now(), Date.parse(job.next_due_at)) + 1);
+    const result = await clock.tick(at);
+    assert.equal(result.failed, 0);
+    const receipt = clock.get(job.job_id)?.last_wakeup;
+    assert.equal(receipt?.due_at, job.next_due_at, "the registered Feed action actually ran");
+    assert.equal(receipt?.status, "ok");
+    return receipt?.detail;
+  }, { activatePlugins: true });
+  const beforeEmptyWake = await revision();
+  assert.match(await wake() ?? "", /^到期 0，/);
+  assert.equal(await revision(), beforeEmptyWake, "an empty wakeup does not invalidate the reader");
   await child.evaluate(`(() => {
     window.pagingSurface = pagingHost.root;
     const search=document.querySelector('[data-feed-search]'); search.focus(); search.setSelectionRange(1, 5, 'backward');
@@ -357,4 +376,11 @@ test("FBR-07 FSS-35 the real Feed page reaches later messages and materials and 
   await mkdir(reviewEvidenceUrl("feed-capture/"), { recursive: true });
   const screenshot = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId);
   await writeFile(reviewEvidenceUrl("feed-capture/bounded-pages.png"), Buffer.from(screenshot.data, "base64"));
+  // A missed due pull still writes Feed's own schedule facts, without network. That wakeup must still invalidate its views.
+  const beforeChangedWake = await revision();
+  const overdue = createLocalFeedSourceService(store.db, projectId, undefined, () => new Date(Date.now() - 20 * 60_000));
+  const scheduled = overdue.configureSchedule(source.source_id, { mode: "interval", enabled: true, interval_minutes: 5 });
+  assert.match(await wake() ?? "", /^到期 1，完成 0，失败 0，跳过 1$/);
+  assert.notDeepEqual(feed.sources.get(projectId, source.source_id).schedule, scheduled.schedule);
+  assert.notEqual(await revision(), beforeChangedWake, "a wakeup that updated the source still invalidates the reader");
 });

@@ -11,18 +11,15 @@ import { renderGoalFace } from "./goals.js";
 import type { Page } from "./page.js";
 import { readCurrent } from "./read.js";
 import { select, create } from "./select.js";
-import { status } from "./request.js";
 
-/** Brings a face to the directory column: the Files face is the companions' (the Host shows them), every other hides them and shows its own panel. */
+/** Brings a face to the directory column: each face shows its own panel; under the files face the embedded Git shows its changes too. */
 async function openFace(page: Page, target: HTMLButtonElement) {
-  const { directory, host, s } = page, { taskboard } = page.refs, face = target.dataset.codingFace || "", handled = host.onDirectoryFace?.(face) ?? false;
-  if (face === "files" && !handled) {
-    status(page, uiText.text("coding.face.files-unavailable"));
-    return;
-  }
+  const { directory, host, s } = page, { taskboard } = page.refs, face = target.dataset.codingFace || "";
+  host.onDirectoryFace?.(face);
   directory.dataset.codingCurrentFace = face;
   directory.querySelector<HTMLElement>("[data-coding-artifact-directory]")!.hidden = face !== "artifacts";
   directory.querySelector<HTMLElement>("[data-coding-goal-face]")!.hidden = face !== "goals";
+  page.refs.filesFace.show(face === "files");
   directory.querySelectorAll("[data-coding-face]").forEach(button => button.setAttribute("aria-pressed", String(button === target)));
   directory.querySelector(".mw-dir__label")!.textContent = face === "taskboard" ? "TaskBoard" : face === "goals" ? uiText.text("coding.face.goals") : face === "artifacts" ? uiText.text("coding.face.artifacts") : face === "files" ? uiText.text("coding.face.files") : uiText.text("coding.face.sessions");
   if (face === "taskboard") {

@@ -27,6 +27,22 @@ export const GOAL_PLUGIN_OBJECT_SOURCE = "plugin_object";
 export function goalPluginObjectRef(subject: { kind: string; id: string }): string {
   return JSON.stringify([subject.kind, subject.id]);
 }
+/**
+ * A version the platform's materials service fixed (a snapshot or a quote of a project-folder file, source_type `material_snapshot`),
+ * kept by its opaque process-item id and version only: never a path. What file it stands for is read back from that version under the
+ * reader's own authority (`materials.pinned`).
+ */
+export const GOAL_MATERIAL_SNAPSHOT_SOURCE = "material_snapshot";
+export function goalMaterialSnapshotRef(version: { artifact_id: string; version: number }): string {
+  return JSON.stringify([version.artifact_id, version.version]);
+}
+export function parseGoalMaterialSnapshotRef(ref: string): { artifact_id: string; version: number } | null {
+  try {
+    const value: unknown = JSON.parse(ref);
+    return Array.isArray(value) && value.length === 2 && typeof value[0] === "string" && value[0] && Number.isSafeInteger(value[1]) && value[1] > 0
+      ? { artifact_id: value[0], version: value[1] } : null;
+  } catch { return null; }
+}
 export function parseGoalPluginObjectRef(ref: string): { kind: string; id: string } | null {
   try {
     const value: unknown = JSON.parse(ref);

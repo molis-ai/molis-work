@@ -28,8 +28,11 @@ test("Memory retries preserve their operation identity while HTTP calls and auth
   assert.ok(firstCall); assert.ok(secondCall); assert.notEqual(firstCall, secondCall);
   assert.notEqual(firstCall, operation_id); assert.notEqual(secondCall, operation_id);
   const unprivileged = bindActionClient(env.host.homeActionClient(), () => ({ ...person(MEMORY_PERMISSIONS), audience: "agent", actor_kind: "runtime", call_id: "unprivileged-command" }));
-  await assert.rejects(unprivileged.invoke(memoryActions.write, { scope: "personal", text: "May not claim a person." }), /原话/);
-  assert.equal(seen.at(-1)!.person, false); assert.equal(seen.at(-1)!.operation_id, "unprivileged-command");
+  // A runtime caller without its Run's memory snapshot is refused before the Service; it never reaches a write as a person.
+  const reached = seen.length;
+  await assert.rejects(unprivileged.invoke(memoryActions.write, { scope: "personal", text: "May not claim a person." }),
+    { code: "memory.unavailable", message: /记忆权限快照不可用/ });
+  assert.equal(seen.length, reached, "the refused runtime command does not reach the memory Service");
   const changed = await env.request("/api/memory/items", { method: "POST", body: { ...body, text: "Changed command must be rejected." } });
   assert.notEqual(changed.status, 200);
   const list = await env.request("/api/memory/overview?scope=personal");

@@ -219,6 +219,11 @@ export class AssistantStore {
   update(actorId: string, workId: string, expected: number | null, patch: Partial<Pick<StoredWork, "title" | "session_id" | "draft" | "archived" | "executor" | "handover_brief" | "character" | "graph_id" | "delegated_by" | "budget_tokens" | "question_drafts" | "reply_target" | "thread_round" | "continuation_hold">>, touch = true): StoredWork {
     const current = this.get(actorId, workId);
     if (expected !== null && current.revision !== expected) throw assistantErrors.conflict("这项工作已在别处更新，请刷新后再改");
+    if (Object.hasOwn(patch, "session_id")) {
+      if (typeof patch.session_id !== "string" || !patch.session_id.trim() || current.session_id !== null && current.session_id !== patch.session_id)
+        throw assistantErrors.conflict("原助理执行会话已经固定，不能改绑或清空");
+      if (current.session_id === patch.session_id && Object.keys(patch).length === 1) return current;
+    }
     const next: StoredWork = { ...current, ...patch, draft_revision: current.draft_revision + (Object.hasOwn(patch, "draft") ? 1 : 0), revision: current.revision + 1, updated_at: touch ? this.now().toISOString() : current.updated_at };
     const changed = this.db.prepare("UPDATE assistant_works SET revision=?, updated_at=?, archived=?, body=? WHERE work_id=? AND actor_id=? AND revision=?")
       .run(next.revision, next.updated_at, next.archived ? 1 : 0, JSON.stringify(next), workId, actorId, current.revision).changes;

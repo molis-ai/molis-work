@@ -28,6 +28,7 @@ import { childNativeFiles } from "./native-files.js";
 import { pageEventSource } from "./events.js";
 import { createFrameFetch } from "./fetch.js";
 import { childContext } from "./context-child.js";
+import { childMaterialsPicker } from "./materials-picker.js";
 import { frameAppearance } from "./appearance.js";
 import { frameLanguage } from "./language-child.js";
 import type { FrameStageWords } from "./language.js";
@@ -75,7 +76,7 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
   if (!scope) throw new Error("Cannot mount plugin document");
   const updateAppearance = frameAppearance(config.origin, config.appearance, scope);
   childComposer(port, scope, config.bar);
-  childIntake(port, scope);
+  childIntake(port, scope); childMaterialsPicker(port, scope);
   childContext(port, scope, root); ui.surfaceFocus({ surfaceOnly: true });
   globalThis.EventSource = pageEventSource(scope, config.origin);
   const copyText = childCopy(port, scope);

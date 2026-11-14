@@ -1,5 +1,6 @@
 import { initializeDemoPlugins } from "./plugin-demo-seed.js";
 import { PLUGIN_PRESENTATION_CAPABILITY } from '@molis-ai/molis-work-contracts/platform/ui';
+import { SYSTEM_OUTPUT_SOURCES } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import { openPluginInstallationDirectory } from "./plugin-installation-directory.js";
 import { installedArtifacts, supervisedArtifacts } from "./artifact-type-registry.js";
 import { declarationOwnersFor } from "./declaration-owners.js";
@@ -128,6 +129,9 @@ export interface PluginPlatformOptions {
 
 export interface PluginPlatform {
   readonly runtime: PluginRuntime;
+  invokeOwnedAction<Input, Output>(expected: { actor_id: string; project_id: string; plugin_id: string; install_id: string; installation_generation: string },
+    reference: import("@molis-ai/molis-work-contracts/platform/actions").ExactActionReference, input: Input,
+    control: import("@molis-ai/molis-work-contracts/platform/plugin").PluginExecutionControl): Promise<Output>;
   dualInstance(pluginId: string): boolean;
   readonly supervisor: PluginSupervisor;
   readonly events: PluginEventBus;
@@ -224,7 +228,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     projectId: options.project_id,
     lifecycle: supervisor,
     canReadCommitted: () => options.db.inTransaction !== true,
-    repository: new SqlitePluginWiringRepository(options.db),
+    repository: new SqlitePluginWiringRepository(options.db), systemSources: SYSTEM_OUTPUT_SOURCES, // and the platform's materials service
     // A port carries a process item it recorded, or a 成果 it pinned and selected.
     artifacts: {
       read: (reference) => options.processItems.query.getArtifactVersion(options.project_id, reference)
@@ -261,6 +265,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
 
   return {
     runtime,
+    invokeOwnedAction: (expected, reference, input, control) => executor.invokeOwnedAction(expected, reference, input, control),
     supervisor,
     events,
     hostEvents,

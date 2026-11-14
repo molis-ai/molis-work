@@ -397,10 +397,23 @@ export type ActionAvailability = {
 };
 
 export interface ActionCallContext extends ActionCallOrigin, ActionDelegationSource {
+    readonly subject_state_capture?: import("platform/action-subjects").SubjectStateCapture;
     readonly actor_id: string;
     readonly stage_scene_metadata?: StageSceneMetadataAuthority;
     readonly memory_read_mode?: "explicit" | "task";
     readonly memory_operation_id?: string;
+    readonly memory_context_selection?: {
+        assert_current(): void;
+    };
+    readonly memory_session?: import("services/memory-session").MemorySessionBinding & {
+        beforeEffect(): void | Promise<void>;
+        assertCurrent(): void;
+    };
+    readonly runtime_memory?: {
+        readonly plugin_id: string;
+        readonly current_scene: string;
+        readonly class_restrictions: import("services/agent-host-memory").AgentMemoryClassPolicy;
+    };
     readonly assistant_reply?: import("@molis-ai/molis-work-contracts/services/assistant").AssistantReplyDelivery;
     readonly page_context?: {
         readonly url: string | null;
@@ -432,6 +445,11 @@ export interface ActionCallContext extends ActionCallOrigin, ActionDelegationSou
     readonly allowed_actions?: readonly ActionReference[];
     readonly validate_authority?: (reference: ActionReference) => void | Promise<void>;
     readonly assert_authority_current?: (reference?: ActionReference, requiredPermissions?: readonly string[]) => void;
+    readonly assert_memory_sources_current?: (sources: readonly Readonly<{
+        event_id: string;
+        version: string;
+        session_id: string;
+    }>[]) => void;
     readonly validate_permissions?: (permissions: readonly string[]) => void | Promise<void>;
     readonly signal?: AbortSignal;
     readonly retain_background_authority?: (references: readonly ActionReference[], additionalPermissions?: readonly string[]) => RetainedActionAuthority;
@@ -481,6 +499,7 @@ export interface ActionErrorOptions {
 }
 
 export interface ActionExecutionContext extends ActionCallContext, ActionPersonEntry {
+    readonly provideSubjectState?: (current: () => import("platform/action-subjects").ActionSubjectCurrentState) => void;
     readonly beforeEffect: () => Promise<void>;
     readonly current_action?: ExactActionReference;
     readonly retainAuthority?: (references: readonly ActionReference[], options?: {
@@ -659,6 +678,7 @@ export interface ActionSceneBinding {
 
 export interface ActionSceneClient {
     discoverScenes(context: ActionCallContext, judgment?: ActionReference): readonly ActionSceneView[] | Promise<readonly ActionSceneView[]>;
+    discoverScenesFor(context: ActionCallContext, judgments: readonly ExactActionReference[], selection?: ActionSceneSelection): readonly (readonly ActionSceneView[])[] | Promise<readonly (readonly ActionSceneView[])[]>;
     usages(context: ActionCallContext, judgment?: ActionReference): Promise<readonly ActionSceneUsage[]>;
     targets(context: ActionCallContext, judgment?: ActionReference, scene?: Pick<ActionSceneTarget, "scene_id" | "scene_version" | "provider_id">): Promise<readonly ActionSceneTarget[]>;
     bind(context: ActionCallContext, binding: ActionSceneBinding, options?: ActionSceneConfigureOptions): Promise<void>;
@@ -741,6 +761,14 @@ export interface ActionSceneReference {
     readonly provider_id: string;
 }
 
+export interface ActionSceneSelection {
+    readonly plugin_id: string;
+    readonly scenes: readonly {
+        readonly scene_id: string;
+        readonly version: number;
+    }[];
+}
+
 export interface ActionSceneTarget extends ActionSceneTargetDefinition {
     readonly scene_id: string;
     readonly scene_version: number;
@@ -802,6 +830,18 @@ export interface ActionSubjectContext {
     project_id?: string | null;
     offset?: number;
     length?: number;
+}
+
+export interface ActionSubjectCurrentState extends ActionSubjectState {
+    execution_session: Readonly<{
+        runtime_id: string;
+        session_id: string;
+    }> | null;
+}
+
+export interface ActionSubjectState {
+    subject: ActionSubject;
+    state: "active" | "archived" | "deleted";
 }
 
 export interface ActionUsage {
@@ -1021,7 +1061,7 @@ export declare const BUSINESS_HOST_TOOLS: readonly ["ask-user", "update-todo", "
 
 export interface BoundActionClient {
     discover(): Promise<readonly ActionView[]>;
-    invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "locale" | "assert_authority_current" | "retainBackgroundAuthority" | "query_only">, transport?: ActionInvokeTransport): Promise<Output>;
+    invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "locale" | "assert_authority_current" | "retainBackgroundAuthority" | "query_only" | "assert_memory_sources_current">, transport?: ActionInvokeTransport): Promise<Output>;
 }
 
 export declare const CONTENT_PACKAGE_FILES: {
@@ -2819,7 +2859,7 @@ export interface PluginArtifactClient {
     head(artifactId: string): ArtifactLineHead | null;
     readOwn(reference: ArtifactReference): ArtifactVersionRecord | null;
     listConsumable(): PluginConsumableVersion[];
-    join?<T>(transaction: PluginDatabaseTransaction, write: (writer: PluginArtifactWriter) => T): T;
+    join?<T>(transaction: PluginDatabaseTransaction | PluginProjectRowTransaction, write: (writer: PluginArtifactWriter) => T): T;
 }
 
 export interface PluginArtifactPublishInput extends PluginProcessItemInput {
@@ -2915,6 +2955,7 @@ export type PluginContribution = PluginIntegrationContribution | PluginAppContri
 
 export interface PluginDatabase extends PluginDatabaseReader {
     transaction<T>(beforeEffect: () => Promise<void>, write: (transaction: PluginDatabaseTransaction) => T): Promise<T>;
+    transactionProjectRow?<T>(id: string, write: (transaction: PluginProjectRowTransaction) => T): Promise<T>;
 }
 
 export interface PluginDatabaseDeclaration {
@@ -3168,7 +3209,7 @@ export interface PluginEventsRepository {
     deleteCursors(projectId: string, subscriberPluginId: string): void;
 }
 
-export type PluginExecutionControl = Pick<import("@molis-ai/molis-work-contracts/platform/actions").ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "locale" | "assert_authority_current" | "retainBackgroundAuthority" | "query_only"> & {
+export type PluginExecutionControl = Pick<import("@molis-ai/molis-work-contracts/platform/actions").ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "locale" | "assert_authority_current" | "retainBackgroundAuthority" | "query_only" | "assert_memory_sources_current"> & {
     readonly project_id?: string;
     readonly project_title?: string;
 };
@@ -4073,10 +4114,24 @@ export interface PluginProjectDatabaseTransaction extends PluginDatabaseTransact
 
 export type PluginProjectRow = Record<string, null | number | string>;
 
+export interface PluginProjectRowTransaction {
+    read(): PluginSqlRow | null;
+    compareAndSet(expectedVersion: number, changes: Readonly<PluginSqlRow>): boolean;
+}
+
 export interface PluginProjectRowsDeclaration {
     readonly label: string | TextRef;
     readonly order?: number;
     readonly tables: readonly PluginProjectRowsTable[];
+    readonly artifact_join?: {
+        readonly table: string;
+        readonly id_column: string;
+        readonly version_column: string;
+        readonly artifact_id_column: string;
+        readonly artifact_version_column: string;
+        readonly write_columns: readonly string[];
+        readonly pending_column?: string;
+    };
     readonly files?: readonly PluginProjectRowsFiles[];
 }
 
@@ -4238,6 +4293,7 @@ export interface PluginRuntimeRepository {
 
 export interface PluginSceneClient {
     discoverScenes(judgment?: ActionReference): Promise<readonly ActionSceneView[]>;
+    discoverScenesFor(judgments: readonly ExactActionReference[]): Promise<readonly (readonly ActionSceneView[])[]>;
     usages(judgment?: ActionReference): Promise<readonly ActionSceneUsage[]>;
     targets(judgment?: ActionReference, scene?: Pick<ActionSceneTarget, "scene_id" | "scene_version" | "provider_id">): Promise<readonly ActionSceneTarget[]>;
     bind(binding: ActionSceneBinding, options?: ActionSceneConfigureOptions): Promise<void>;
@@ -4755,6 +4811,11 @@ export declare const RUN_MISSED_GRACE_MS: number;
 export interface RetainedActionAuthority {
     (): Promise<void>;
     readonly assertCurrent: () => void;
+}
+
+export interface RetainedSubjectState {
+    authority: RetainedActionAuthority;
+    current(): ActionSubjectCurrentState;
 }
 
 export interface RunDecided {
@@ -5382,6 +5443,49 @@ export declare const SUBJECT_OFFER_SCHEMA: {
 
 export declare const SUBJECT_REFERENCE_TYPE = "molis.subject-reference.v1";
 
+export declare const SUBJECT_STATE_INPUT_SCHEMA: {
+    type: string;
+    properties: {
+        subject_id: {
+            type: string;
+            minLength: number;
+            maxLength: number;
+        };
+    };
+    required: string[];
+    additionalProperties: boolean;
+};
+
+export declare const SUBJECT_STATE_OUTPUT_SCHEMA: {
+    type: string;
+    properties: {
+        subject: {
+            type: string;
+            properties: {
+                kind: {
+                    type: string;
+                    minLength: number;
+                    maxLength: number;
+                };
+                id: {
+                    type: string;
+                    minLength: number;
+                    maxLength: number;
+                };
+            };
+            required: string[];
+            additionalProperties: boolean;
+        };
+        state: {
+            enum: string[];
+        };
+    };
+    required: string[];
+    additionalProperties: boolean;
+};
+
+export declare const SUBJECT_STATE_TYPE = "molis.subject-state.v1";
+
 export declare const SURFACE_BROWSER_PERMISSION = "surface:browser";
 
 export interface SandboxAgentBody {
@@ -5547,6 +5651,17 @@ export type SubjectReaderLookup = {
     found: "none";
 };
 
+export interface SubjectStateCapture {
+    subject: ActionSubject;
+    reader: ExactActionReference;
+    source: ExactActionReference;
+    accept(control: RetainedSubjectState): void;
+}
+
+export interface SubjectStateRequest {
+    subject_id: string;
+}
+
 export interface SyncActionClient {
     invokeSync(context: ActionCallContext, reference: ActionReference, input: unknown): unknown;
 }
@@ -5677,6 +5792,17 @@ export interface SyncTrackedTable {
         readonly column: string;
         readonly rowColumn: string;
     };
+}
+
+export interface SystemOutputSource {
+    readonly plugin_id: string;
+    readonly name: string;
+    readonly signature: string;
+    readonly process_items: readonly {
+        readonly artifact_type_id: string;
+        readonly schema_version: number;
+    }[];
+    readonly outputs: readonly PluginPortDeclaration[];
 }
 
 export declare const UI_SUBJECT_CONTEXT_KINDS: readonly ["goal"];

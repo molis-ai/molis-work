@@ -93,14 +93,15 @@ function listenProgress(page: Page) {
   lifetime.listen(q("[data-coding-progress-form]"), "submit", event => { event.preventDefault(); void saveProgress(page); });
 }
 
-interface KnowledgePicked { readonly request_id?: string; readonly picks?: { readonly kind: string; readonly id: string; readonly title: string }[] }
+interface KnowledgePicked { readonly request_id?: string; readonly outcome?: string; readonly items?: { readonly ref: unknown; readonly title: string; readonly hint?: string }[] }
 
-/** Materials are picked in the one picker of project knowledge (specs/project-knowledge PMAT-17); the page holds it, this surface asks for it and
- *  keeps the whole choice it hears back for the session that asked. */
+/** Materials are picked in the one picker of project materials (specs/project-knowledge PMAT-17, materials-ui-contract §3); the page holds it,
+ *  this surface asks for it and keeps the whole confirmed choice, each piece by its exact reference, for the session that asked. A picker
+ *  closed or taken over leaves what was chosen as it was. */
 async function takeMaterials(page: Page, picked: KnowledgePicked) {
   const { input, lifetime, refs, s } = page, [owner, id, ticket] = String(picked.request_id || "").split(":");
-  if (owner !== "coding" || id !== s.current || Number(ticket) !== s.materialTicket) return;
-  const selection = (picked.picks || []).map(pick => ({ kind: pick.kind, id: pick.id, title: pick.title }));
+  if (owner !== "coding" || id !== s.current || Number(ticket) !== s.materialTicket || picked.outcome !== "confirmed") return;
+  const selection = (picked.items || []).map(item => ({ ref: item.ref, title: item.hint ? item.title + " · " + item.hint : item.title }));
   try {
     await refs.draft.save(id, input.value, { materials: selection });
     s.materialSelections.set(id, selection);

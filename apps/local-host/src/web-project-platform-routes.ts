@@ -6,7 +6,7 @@ import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contrac
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { projectSettingsCapabilities, type ProjectDirectories } from "@molis-ai/molis-work-contracts/modules/projects";
 import { agentWriteCheckerActions, hostsAgentSessions, resolveProjectRuntime, type AgentWriteCheckerList } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
+import { builtinPluginByManifestId } from "./plugin-registry.js";
 import { pluginReachable, projectReachablePlugins, reachEntry } from "./project-action-availability.js";
 import { homePluginsOutsideBuild } from "./home-registration.js";
 import { t as uiText, escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
@@ -25,14 +25,16 @@ import { computerHolderFor } from "./computer/computer-surfaces.js";
 import { inspectGitIndex } from "./workspace-git-index.js";
 import { isPluginEventManagementPath } from "./plugin-event-http.js";
 import { handleProjectPluginHttp, pluginEventsPending } from "./project-plugin-http.js";
-import { assistantNotices, handleAssistantHttp } from "./assistant/assistant-http.js";
+import { assistantNotices, assistantServiceFor, handleAssistantHttp } from "./assistant/assistant-http.js";
 import { handleAttentionHttp } from "./attention-http.js";
 import { handleMemoryHttp } from "./memory/memory-host.js";
 import { handleHomeDockJudgmentHttp } from "./home-dock-http.js";
 import { handleSearchHttp } from "./search-http.js";
 import { handleComposerSourcesHttp } from "./composer-sources-http.js";
+import { runningPluginTextIn } from "./running-plugin-text.js";
 import { handleDirectoryGrantHttp } from "./plugin-directory-http.js";
 import { handleKnowledgeHttp } from "./knowledge-http.js";
+import { handleMaterialsHttp } from "./materials-http.js";
 import { handlePluginTrustHttp } from "./plugin-trust-http.js";
 import { handlePlacementHttp } from "./placement-http.js";
 import { handleContextualHttp } from "./contextual/contextual-http.js";
@@ -150,8 +152,8 @@ export const pluginStudioRoute: WebRoute<ProjectRuntimeContext> = { id: "plugin-
     homeActions: { registry: localHost.actionRegistry(), client: localHost.homeActionClient(), inspect: caller => localHost.inspectActions(caller), project_id: null },
     // A generated plugin's design may need a built-in plugin this project has not enabled; the person enables it here.
     ...(options.project ? { enablePlugin: async (pluginId: string) => {
-      const entry = PLATFORM_PLUGIN_REGISTRATIONS.find(item => item.manifest.plugin_id === pluginId && !item.personal);
-      if (!entry) throw new Error('这个插件不能在项目里启用：' + pluginId);
+      const entry = builtinPluginByManifestId(pluginId);
+      if (!entry || entry.personal) throw new Error('这个插件不能在项目里启用：' + pluginId);
       await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => catalog.commit(() => catalog.addProjectPlugin({ project_id: options.project!.project_id, plugin_id: entry.project_plugin_id, actor_id: LOCAL_PERSON_ACTOR_ID })));
     } } : {}),
     ...(pluginServices.dependencyCheck ? { dependencyCheck: pluginServices.dependencyCheck } : {}) }, controlToken) };
@@ -166,7 +168,7 @@ export const runtimePluginsRoute: WebRoute<ProjectRuntimeContext> = { id: "runti
   const runtimePluginRoute = runtimeUpdatesRoute ? null : /^\/api\/plugins\/([^/]+)\//u.exec(url.pathname);
   if (runtimePluginRoute && !PLUGIN_ID.test(runtimePluginRoute[1]!)) return false;
   const runtimeEntry = runtimePluginRoute
-    ? PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.manifest.plugin_id === runtimePluginRoute[1]) : undefined;
+    ? builtinPluginByManifestId(runtimePluginRoute[1]!) : undefined;
   if (!runtimeUpdatesRoute && !(runtimePluginRoute && (!runtimeEntry || runtimeEntry.manifest.kind === "app" || runtimeEntry.manifest.routes?.length))) return false;
   // The same list the action layer reads (PG-013): a personal plugin the project hides is as unreachable here as one it never enabled,
   // a personal Home plugin outside the build included (by its plugin id, from the Host's own Home registration, #679).
@@ -238,11 +240,15 @@ export const directoryRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
   { id: "search", handle: ({ request, response, url, localHost, hostReference }) =>
     handleSearchHttp(request, response, url, () => bindLocalWebActions(localHost, hostReference, LOCAL_OWNER_PERMISSIONS)) },
   // The unified input's `+` sources (S-composer-source-call): every plugin's `composer_source`, as the person, in this project.
-  { id: "composer-sources", handle: ({ request, response, url, localHost, hostReference }) =>
-    handleComposerSourcesHttp(request, response, url, (signal) => bindLocalWebActions(localHost, hostReference, LOCAL_OWNER_PERMISSIONS, { signal })) },
+  { id: "composer-sources", handle: ({ request, response, url, store, localHost, hostReference }) =>
+    handleComposerSourcesHttp(request, response, url, (signal) => bindLocalWebActions(localHost, hostReference, LOCAL_OWNER_PERMISSIONS, { signal }),
+      runningPluginTextIn({ store, localHost, projectId: hostReference.project_id })) },
   // Project knowledge's management page and side panel tab (specs/project-knowledge §8), as the person.
   { id: "knowledge", handle: ({ request, response, url, localHost, hostReference }) =>
     handleKnowledgeHttp(request, response, url, { localHost, projectRef: hostReference }) },
+  // The side panel's reader of the project's folders: open, read on, fix a snapshot or a quote (Files retirement), as the person.
+  { id: "materials", handle: ({ request, response, url, localHost, hostReference }) =>
+    handleMaterialsHttp(request, response, url, { localHost, projectRef: hostReference }) },
   // A project's plugins: what is installed with what it asked for, installing a signed package, taking an agreement back (ac-trust T7), as the person.
   { id: "plugin-trust", handle: ({ request, response, url, localHost, hostReference }) =>
     handleSkillSettingsHttp(request, response, url, localHost, hostReference).then(handled => handled || handlePluginTrustHttp(request, response, url, { localHost, projectRef: hostReference })) },
@@ -261,8 +267,11 @@ export const directoryRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
 
 /** This project's memories (and the person's own), the Assistant scoped to this project, and what needs the person's attention. */
 export const projectAssistantRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
-  { id: "memory", handle: async ({ request, response, url, serverOptions, localHost, hostReference }) => Boolean(serverOptions.homeDirectory)
-    && url.pathname.startsWith("/api/memory/") && await handleMemoryHttp(request, response, url, { localHost, projectRef: hostReference }) },
+  { id: "memory", handle: async context => {
+    const { request, response, url, serverOptions, localHost, hostReference } = context, assistant = projectAssistant(context);
+    return Boolean(serverOptions.homeDirectory) && url.pathname.startsWith("/api/memory/") && await handleMemoryHttp(request, response, url,
+      { localHost, projectRef: hostReference, ...(assistant ? { assistantBinding: id => assistantServiceFor(assistant).service.memorySessionBinding(id) } : {}) });
+  } },
   { id: "assistant", handle: async context => {
     const assistant = projectAssistant(context);
     return Boolean(assistant) && context.url.pathname.startsWith("/api/assistant/") && await handleAssistantHttp(context.request, context.response, context.url, assistant!);

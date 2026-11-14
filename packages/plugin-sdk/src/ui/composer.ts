@@ -129,7 +129,7 @@ export type MwComposerOptions = {
   add?: boolean;
   /** Scene controls, the same ones the client is given, drawn in the bottom bar from the first paint. */
   controls?: readonly ComposerControl[];
-  /** The microphone's name, given only by a page that takes voice (batch 53): without it nothing is drawn in its place. */
+  /** The microphone's name, given only by a page that takes voice (batch 54): without it nothing is drawn in its place. */
   voice?: string;
   attrs?: Record<string, AttrValue>;
 } & (

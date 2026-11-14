@@ -100,7 +100,7 @@ async function listenDispatcher(
 test("Home 存储登记列出全部个人库、讨论库 server/ 和 Home 里的其余数据", () => {
   assert.ok(homeStores().get("config/native-session-token")?.snapshot.omit, "本机账号桥接凭据必须排除在离线快照之外");
   assert.deepEqual(homeStores().stores.map(store => store.path).sort(), ["spaces", "storage-space.json", "config/native-session-token", "config/mcp-client-credentials", "sync", "projects", "outputs", "logs", "backups", "shelf", "plugin-runtime", "plugin-libraries", "plugin-packages", "assistant",
-    "placement", "agent-definitions", "agent-declarations", "connectors", "runtime", "context-onboarding", "alchemist", "plugin-originals", "plugin-directories", "functions", "characters", "memory", "search", "knowledge", "feed", "feed-content", "server",
+    "placement", "agent-definitions", "agent-declarations", "connectors", "runtime", "context-onboarding", "alchemist", "plugin-originals", "plugin-directories", "functions", "characters", "memory", "memory-forgetting-v2.json", "search", "knowledge", "feed", "feed-content", "server",
     "issues", "goals", "cognia", "images", "jelly", "lingguang", "todo", "pages", "form", "dataset", "ppt", "workflows", "artifacts", "agent-runtime", "runtime-config-backups",
     "runtime-integrations", "runtime-integration-attempts", "browser", "plugin-builder", "plugin-files", "cache", "git-operation-details.json", "config/onboarding.json", "config/plugin-publisher.json",
     "config/project-arrival.json", "config/ui-locale.json", "config/mcp-tools.json", "config/external-mcp-tools.json", "config/connector-mcp-tools.json", "config/external-mcp-actions.json", "config/connector-mcp-actions.json", "computer", "directory-access", "interface", "upgrade", "run", "config/desktop.json"].sort());
@@ -201,29 +201,36 @@ test("个人插件 Manifest 声明 storage:private，Pages 另有 artifact:write
 test("客户端使用当前插件路径", () => {
   // W5-01-PAGES-02: the Runtime client uses its Manifest route, including the resource path.
   // RAC-158: Pages' page names its routes under the plugin ("/pages") and asks the shared host for the full path.
-  assert.match(readFileSync(fileURLToPath(new URL("../plugins/native/pages/src/browser/request.ts", import.meta.url)), "utf8"), /host\.pluginRoute\("\/pages" \+ tail\)/);
-  assert.match(PAGES_CLIENT_FACTORY_SCRIPT, /\.pluginRoute\("\/pages"/);
+  // Since 06-2 the shared SDK request (`pluginRequest`) builds every plugin path through `host.pluginRoute`; Pages and Forms hand it theirs.
+  const source = (path: string) => readFileSync(fileURLToPath(new URL(path, import.meta.url)), "utf8");
+  assert.match(source("../packages/plugin-sdk/src/browser.ts"), /: host\.pluginRoute\(path\);/);
+  assert.match(source("../plugins/native/pages/src/browser/request.ts"), /pluginRequest\(host,[\s\S]*request\(method, "\/pages" \+ tail, body\)/);
+  // The bundled page carries the shared request: it builds the path with `pluginRoute` and is handed "/pages" + tail.
+  const sharedRoute = /\?\w+\.route\(\w+\):\w+\.pluginRoute\(\w+\)/;
+  assert.match(PAGES_CLIENT_FACTORY_SCRIPT, sharedRoute);
+  assert.match(PAGES_CLIENT_FACTORY_SCRIPT, /\w+\(\w+,"\/pages"\+\w+,\w+\)/);
   assert.ok(pagesManifest.routes?.some(route => route.method === "GET" && route.path === "/pages"), "and the Manifest declares that collection route");
   // RAC-132: Forms uses the Manifest route supplied by the shared client host (W4-04): its page calls the routes its Manifest declares, under the project, with no short path to rewrite to.
-  assert.match(readFileSync(fileURLToPath(new URL("../plugins/native/form/src/browser/request.ts", import.meta.url)), "utf8"), /host\.pluginRoute\("\/forms"/);
-  assert.match(FORM_CLIENT_FACTORY_SCRIPT, /\.pluginRoute\("\/forms"/);
+  assert.match(source("../plugins/native/form/src/browser/request.ts"), /pluginRequest\(host,[\s\S]*request<T>\(method, "\/forms" \+ path, body\)/);
+  assert.match(FORM_CLIENT_FACTORY_SCRIPT, sharedRoute);
+  assert.match(FORM_CLIENT_FACTORY_SCRIPT, /\w+\(\w+,"\/forms"\+\w+,\w+\)/);
   // W5-01-DATASET-05: the Runtime client uses the exact declared collection route.
   // RAC-150: Dataset's page names its routes under the plugin ("/datasets") and asks the shared host for the full path.
   const datasetBrowser = (file: string) => readFileSync(fileURLToPath(new URL(`../plugins/native/dataset/src/browser/${file}`, import.meta.url)), "utf8");
   assert.match(datasetBrowser("page.ts"), /api: "\/datasets"/);
-  assert.match(datasetBrowser("request.ts"), /host\.pluginRoute\(path\)/);
+  assert.match(datasetBrowser("request.ts"), /pluginRequest\(host, \{/); // the shared request builds the path with `host.pluginRoute`
   assert.ok(datasetManifest.routes?.some(route => route.method === "GET" && route.path === "/datasets"), "and the Manifest declares that collection route");
   // W5-01-PPT-02: the Runtime client uses its Manifest route, including the resource path. RAC-150: PPT's page names its routes
   // under the plugin ("/ppt") and asks the shared host for the full path.
   const pptBrowser = (file: string) => readFileSync(fileURLToPath(new URL(`../plugins/native/ppt/src/browser/${file}`, import.meta.url)), "utf8");
   assert.match(pptBrowser("page.ts"), /api: "\/ppt"/);
-  assert.match(pptBrowser("request.ts"), /host\.pluginRoute\(path\)/);
+  assert.match(pptBrowser("request.ts"), /pluginRequest\(host, \{/); // the shared request builds the path with `host.pluginRoute`
   assert.ok(pptManifest.routes?.some(route => route.method === "GET" && route.path === "/ppt"), "and the Manifest declares that collection route");
   // RAC-31: the Runtime client targets its declared route; the HTTP discovery test rejects the removed URL.
   // RAC-146: 灵光's page names its routes under the plugin ("/sparks") and asks the shared host for the full path.
   const lingguangBrowser = (file: string) => readFileSync(fileURLToPath(new URL(`../plugins/native/lingguang/src/browser/${file}`, import.meta.url)), "utf8");
   assert.match(lingguangBrowser("page.ts"), /api: "\/sparks"/);
-  assert.match(lingguangBrowser("request.ts"), /host\.pluginRoute\(path\)/);
+  assert.match(lingguangBrowser("request.ts"), /pluginRequest\(host, \{/); // the shared request builds the path with `host.pluginRoute`
   assert.ok(lingguangManifest.routes?.some(route => route.method === "GET" && route.path === "/sparks"), "and the Manifest declares that collection route");
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /\/api\/functions/);
 });

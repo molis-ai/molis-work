@@ -25,7 +25,7 @@ export type {
   PluginRuntimeReleaseArtifactRepository,
 } from "./release-artifacts.js";
 
-export { assertPluginActionCurrent, assertCapturedPluginActionCurrent, inPluginInstance, markPluginActionChecked, pluginActionBeforeEffect, reservePluginInvocationPlace, pluginSceneEffectPassed, currentPluginAction, currentPluginInvocation, insideOpenPluginCall, lastBegunPluginInvocation, pluginInvocationReadOnly, outsidePluginAction, runInPluginAction, withPluginPermissionChecks, assertPluginRoutePermissions } from "./action-scope.js";
+export { assertPluginActionCurrent, assertPluginReadCurrent, currentTurn, assertCapturedPluginActionCurrent, inPluginInstance, markPluginActionChecked, pluginActionBeforeEffect, reservePluginInvocationPlace, pluginSceneEffectPassed, currentPluginAction, currentPluginInvocation, insideOpenPluginCall, lastBegunPluginInvocation, pluginInvocationReadOnly, outsidePluginAction, runInPluginAction, withPluginPermissionChecks, assertPluginRoutePermissions } from "./action-scope.js";
 export { currentPluginTextCall, pluginActivationOpen } from "./action-scope.js";
 export type { PluginInstance } from "./action-scope.js";
 export { inertAfterStop, StoppedServiceCalls, type StoppedServiceCall } from "./stopped-services.js";
@@ -45,7 +45,7 @@ export type { PluginModelDispatch, PluginModelGate, PluginModelPort } from "./mo
 export { MemoryPluginRuntimeRepository } from "./memory-repository.js";
 export { NativePluginExecutor } from "./native-executor.js";
 export { pluginManifestDigest } from "./identity.js";
-export { loadDevelopmentLocalePacks, loadDevelopmentPlugin } from "./development-loader.js";
+export { loadDevelopmentLocalePacks, loadDevelopmentPlugin, readDevelopmentManifest } from "./development-loader.js";
 export { assertPluginLocales, inspectPluginLocales, refuseLocaleProblems, pluginLocaleFilePaths, pluginLocaleReader, type PluginLocaleManifest, type PluginLocaleRead, type PluginLocaleReader } from "./locale-packs.js";
 export { assertContributionMatchesManifest, offeredManifest, viewContributionId, type RedemptionScope } from "./contribution.js";
 export { bindRuntimeSyncCollection } from './sync-binding.js';
@@ -69,6 +69,9 @@ export type { PluginWiringServicesInput } from "./services.js";
 export { PluginInputGraph } from "./wiring.js";
 export type { PluginArtifactReaderPort, PluginInputFailure } from "./wiring.js";
 export { MemoryPluginWiringRepository, SqlitePluginWiringRepository, PLUGIN_WIRING_SCHEMA_SQL } from "./wiring-repository.js";
+export { planWiringReassignment, reassignWiringSource, type WiringReassignmentPlan } from "./wiring-reassignment.js";
+export { planRetiredInstalls, retireInstalls, type RetiredInstallPlan, type RetiredPlugin } from "./retired-install.js";
+export { applyPrivateValueAdoption, applyPrivateValueMove, planPrivateValueAdoption, planPrivateValueMove, type PrivateValueAdoptionPlan, type PrivateValueChange, type PrivateValueMove } from "./private-value-adoption.js";
 export type { PluginWiringDatabase } from "./wiring-repository.js";
 export { PluginSupervisor } from "./supervisor.js";
 export type {

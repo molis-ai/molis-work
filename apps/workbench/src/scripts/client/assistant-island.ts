@@ -104,6 +104,7 @@ ${ASSISTANT_BROWSER_HANDBACK_PART}
   const scopeLabel = (scope, title) => !scope ? "" : scope.kind === "personal" ? readText("workbench.assistant-island.personal")
     : title || (project && scope.project_id === project.id ? (project.title || readText("workbench.assistant-island.project")) : readText("workbench.assistant-island.another-project"));
   const getWork = () => works.find((work) => work.work_id === curId) || (view && view.work.work_id === curId ? view.work : null);
+
   const isLive = (state) => state === "running" || state === "waiting-input" || state === "waiting-review" || state === "paused";
   let presentation, stepRow;
   const setPanel = (open) => { if (!presentation?.show(open) && panel) panel.hidden = !open; };
@@ -237,6 +238,11 @@ ${ASSISTANT_SIDE_PATH_PART}
       jobs.map((j) => [j.job_id, j.state]), unsettled.map((u) => [u.change_id, u.state, u.detail]), kept.map((m) => [m.change_id, m.state, m.undoable, m.text])]);
     if (node.dataset.signature === signature) return;
     node.dataset.signature = signature;
+    // A memory kept, replaced or undone in this work changes what the memory settings show: tell them to read again.
+    const memorySignature = JSON.stringify([work && work.work_id, kept.map((m) => [m.change_id, m.state])]);
+    if (node.dataset.memorySignature && node.dataset.memorySignature !== memorySignature && JSON.parse(node.dataset.memorySignature)[0] === (work && work.work_id))
+      document.dispatchEvent(new CustomEvent("molis-work:memory-changed", { detail: { work_id: work.work_id } }));
+    node.dataset.memorySignature = memorySignature;
     keepFocus(node.parentNode, () => {
       const UNDO = { available: "workbench.assistant-island.can-be-undone", undone: "workbench.assistant-island.undone", failed: "workbench.assistant-island.could-not-undo" };
       const made = results.map((o) => pickable(objectCard(o, "done"), o, objectTitle(o))), fixed = made.filter((_, i) => results[i].subject.kind === ${JSON.stringify(ARTIFACT_SUBJECT_KIND)});
@@ -261,7 +267,7 @@ ${ASSISTANT_SIDE_PATH_PART}
         auto_disabled: "workbench.assistant-island.switched-off-its-own", disabled: "workbench.assistant-island.switched-off-assistant-asked" };
       // What undoing did depends on the kind: a memory kept on its own is deleted (its words go with it), a replacement
       // goes back to the earlier version, a memory switched off is on again. The last two keep the words they undid.
-      const UNDONE = { auto_replaced: "workbench.assistant-island.undone-back-earlier-one", auto_disabled: "workbench.assistant-island.undone-switched-again", disabled: "workbench.assistant-island.undone-switched-again" };
+      const UNDONE = { auto_replaced: "workbench.assistant-island.undone-back-earlier-one", replaced: "workbench.assistant-island.undone-back-earlier-one", auto_disabled: "workbench.assistant-island.undone-switched-again", disabled: "workbench.assistant-island.undone-switched-again" };
       const remembered = kept.map((change) => {
         const undone = change.state === "undone";
         const actions = [];
@@ -425,6 +431,13 @@ ${ASSISTANT_TABS_PART}
       const index = works.findIndex((row) => row.work_id === work.work_id);
       if (index >= 0) works[index] = Object.assign({}, works[index], work, { draft: works[index].draft, draft_revision: works[index].draft_revision });
       else works.unshift(work);
+    }
+    const memoryButton = island.querySelector("[data-assistant-memory]");
+    if (memoryButton) {
+      memoryButton.hidden = !work;
+      if (work) memoryButton.href = (work.scope.kind === "project" ? "/projects/" + encodeURIComponent(work.scope.project_id) : "")
+        + "/settings/memory?memory_session_kind=assistant&memory_session_id=" + encodeURIComponent(work.work_id);
+      else memoryButton.removeAttribute("href");
     }
     renderAttention(work); renderPath(work); surroundings.paint(work); sideContext.paint(); renderResults(work); renderUsage(work);
     if (empty) empty.hidden = Boolean(curId);
@@ -625,6 +638,9 @@ ${ASSISTANT_PAGE_MESSAGES_PART}
   presentation = (${ASSISTANT_STAGE_FACTORY})({island,panel,input,current:getWork,switchTo,showProblem:showError,readText,el});
   /* ─── Head controls ────────────────────────────────────────────────────── */
   island.querySelector("[data-assistant-panel-close]")?.addEventListener("click", () => setPanel(false));
+  island.querySelector("[data-assistant-memory]")?.addEventListener("click", (event) => {
+    if (!event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey && event.button === 0) setPanel(false);
+  });
   /** Pause, resume or stop the work in front: the summary's and the strip's buttons, and the composer's stop. */
   async function control(kind, extra) {
     if (!curId) return;

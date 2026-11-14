@@ -29,7 +29,7 @@ import { buildGoalsDocumentCollection, readGoalsMembership } from "./document-co
 import type { GoalContractView } from "./goal-entry-contract.js";
 
 import { goalsBoardActions, createGoalsBoardActionHandlers } from "./library-actions.js";
-import { goalsInputActions, createGoalsInputActionHandlers } from "./input-actions.js";
+import { goalsInputActions, createGoalsInputActionHandlers, type GoalsInputPorts } from "./input-actions.js";
 import { goalsDeliverableActions, goalsArtifactInputActions, createGoalsDeliverableActionHandlers, type GoalDeliverablePorts } from "./deliverable-actions.js";
 import { boundGoalObjects } from "./input-actions.js";
 export { goalsDeliverableActions, goalsArtifactInputActions, createGoalsDeliverableActionHandlers, type GoalDeliverable, type GoalDeliverablePorts } from "./deliverable-actions.js";
@@ -106,7 +106,7 @@ export const GOALS_ACTIONS: readonly ActionDefinition[] = Object.values(goalsAct
 export const GOALS_ACTION_PERMISSIONS = ["goals:read", "goals:write", "goals:decide", "attention:write", "context-ledger:write", "artifacts:read"] as const;
 
 /** The plugin keeps its original transaction, event history and idempotency owner. */
-export function createGoalsActionHandlers({ events, acknowledgements, projectId, history, planning, guidance, lifecycle, tree, configuration, readGoal, readContract, collection, board, deliverables, capsuleMenu }: {
+export function createGoalsActionHandlers({ events, acknowledgements, projectId, history, planning, guidance, lifecycle, tree, configuration, readGoal, readContract, collection, board, deliverables, materials, capsuleMenu }: {
   capsuleMenu?(): GoalCapsuleMenu;
   events: GoalEventApplication; acknowledgements: GoalEventAcknowledgementsApi; projectId: string; history: GoalHistoryQueryPorts; planning: GoalsPlanningActionPorts;
   guidance: GoalsGuidanceActionPorts; lifecycle: GoalsLifecycleActionPorts; tree: GoalTreeApplicationApi; configuration: GoalsConfigurationActionPorts;
@@ -116,6 +116,8 @@ export function createGoalsActionHandlers({ events, acknowledgements, projectId,
   board: GoalsBoardPorts;
   /** The 成果库 and context ledger for a Goal's deliverables (artifact-positioning A5), and the owners that pin work objects. */
   deliverables: Omit<GoalDeliverablePorts, "projectId" | "goalExists" | "boundObjects">;
+  /** The platform's materials service, as the caller, for inputs bound by an exact fixed version. */
+  materials: Pick<GoalsInputPorts, "readMaterial" | "pinned">;
 }): ActionHandlerBinding[] {
   const goalExists = (goalId: string) => Boolean(readGoal(goalId) && events.readDirectoryItem(projectId, goalId));
   const currentGoal = (goalId: string) => {
@@ -127,7 +129,8 @@ export function createGoalsActionHandlers({ events, acknowledgements, projectId,
   return [
     { ...goalsActions.capsuleMenu, handle: () => { if (!capsuleMenu) throw new ActionError("actions.unavailable", "工作摘要暂不可用"); return capsuleMenu(); } },
     ...createGoalsDeliverableActionHandlers({ ...deliverables, projectId, goalExists, boundObjects: goalId => boundGoalObjects(collection.inputs.list(projectId), goalId) }),
-    ...createGoalsInputActionHandlers(projectId, collection.inputs, goalId => Boolean(readGoal(goalId) && events.readDirectoryItem(projectId, goalId))),
+    ...createGoalsInputActionHandlers(projectId, collection.inputs, goalId => Boolean(readGoal(goalId) && events.readDirectoryItem(projectId, goalId)),
+      { read: deliverables.read, write: deliverables.write, ...materials }),
     { ...goalsActions.subject, handle: (_caller, input) => {
       const id = (input as { subject_id: string }).subject_id;
       const goal = readGoal(id);

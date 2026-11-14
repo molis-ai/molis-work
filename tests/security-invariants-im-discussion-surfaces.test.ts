@@ -106,7 +106,8 @@ test("IUI-02 IUI-03 IUI-10 IUI-21 ordered discussion objects belong to the origi
   // Where each counted read came from, so a failed count names the caller instead of only the number.
   const readSources: string[] = [];
   callLog.record = function (caller, action, outcome) {
-    if (action.capability_id === "pages.subject.read" && outcome.ok) {
+    // Discussion's owner proof is read-only. Index catch-up reads the same Pages object with its own owner context.
+    if (caller.project_id === project.project_id && caller.query_only && caller.read_only_effects && action.capability_id === "pages.subject.read" && outcome.ok) {
       pageReads++;
       readSources.push(String(new Error().stack).split("\n").filter(line => /handleImRequest|im-discussion-surfaces|surface-|home-|search/u.test(line)).map(line => line.trim()).join(" < "));
       if (withdraw) db.db.prepare("DELETE FROM mw_access WHERE project_id=? AND member_id=?").run(project.project_id, owner.id);
@@ -119,7 +120,7 @@ test("IUI-02 IUI-03 IUI-10 IUI-21 ordered discussion objects belong to the origi
     const quoted = await send({ client_id: randomUUID(), body: "Pages quote", quote_id: posted.message.id });
     const views = [{ message_id: posted.message.id, part: "message" }, { message_id: quoted.message.id, part: "quote" }];
     const read = await json<SurfaceHomeDisplay>(await post(surfaces, { views }));
-    assert.equal(pageReads, 2, "original and quote share one owner read");
+    assert.equal(pageReads, 2, "original and quote share one owner read: " + readSources.join(" || "));
     assert.deepEqual(read.groups.map(group => group.items.map(item => [item.subject, item.owner_plugin_id, item.fields, item.actions])),
       views.map(() => [[pageSubject, "io.molis.work.pages", [], [{ ref: "open", primary: false }]]]));
     assert.equal(read.display.rows.length, 1);

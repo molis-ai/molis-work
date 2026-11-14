@@ -18,7 +18,7 @@ import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 // and the to-do composer's project choice pushed the plugin column sideways at 390 px (and an opened page at every width);
 // Workflows gave its names a third of the row and cut them while the row stood half empty (1440, 820).
 
-const SURFACES = ["project", "todo", "pages", "coding", "ppt", "workflows", "feed", "goals", "issues", "im", "shelf", "lingguang", "form", "jelly", "files", "git"];
+const SURFACES = ["project", "todo", "pages", "coding", "ppt", "workflows", "feed", "goals", "issues", "im", "shelf", "lingguang", "form", "jelly", "git"];
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 test("VUX-40 (Chinese): long Chinese names, mixed Latin and full-width marks fit the project page and every plugin at 1440, 820 and 390 px", { timeout: 1_800_000 }, async (t) => {

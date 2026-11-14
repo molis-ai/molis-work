@@ -9,11 +9,24 @@ import { runningProjectPlatform } from './project-plugins.js';
 import { runtimeSyncRegistration, type RuntimeSyncOwner } from './runtime-sync-registration.js';
 import type { LocalWebCatalogRunner } from './web-project-settings.js';
 import type { SpaceWebSurface } from './space-web-server.js';
+import { ensureHomeStorageOwner } from './home-storage-lifetime.js';
+import { withPassiveProjectChange } from './passive-sync-execution.js';
 
 export function runtimeSyncSurface(server: SpaceWebSurface, home: string, host: MolisWorkLocalHost, withCatalog: LocalWebCatalogRunner, readCatalog?:import('./personal-runtime-sync-authority.js').SyncCatalogReader): SpaceWebSurface {
   server.withSyncCatalog=withCatalog;
   server.readSyncCatalog=readCatalog;
   server.discoverSync = authorize => discoverRuntimeSyncCollections(home, ensureStorageSpace(home).spaceId, host, withCatalog, authorize);
+  server.processItemsMaintenance = {
+    home, owner: () => ensureHomeStorageOwner(host, home),
+    // A project's library is adopted only while its runtime is closed and no new operation on it can start (the passive hold that
+    // sync's own project changes use); a project that is not open is only held.
+    holdProject: (projectId, work) => withPassiveProjectChange(home, projectId, async () => {
+      const project = await withCatalog({ homeDirectory: home }, catalog => catalog.listProjects().find(row => row.project_id === projectId));
+      if (project) await host.closeProject(molisWorkHostProjectReference({ databasePath: project.database_path, projectId }));
+      return work();
+    }),
+    names: async () => new Map((await withCatalog({ homeDirectory: home }, catalog => catalog.listProjects())).map(row => [row.project_id, row.display_name])),
+  };
   return server;
 }
 

@@ -2,7 +2,7 @@ import {createStaticPersonalSync as createPersonalSync} from './fixtures/static-
 import {defaultPrefs} from '@molis-ai/molis-work-service-memory';
 import {LOCAL_PERSON_ACTOR_ID} from '@molis-ai/molis-work-contracts/platform/actions';
 import {syncRoundResponse} from './fixtures/sync-round.js';
-import {syncNamespace} from '@molis-ai/molis-work-module-sync-replication';
+import {PROCESS_ITEMS_NAMESPACE,syncNamespace} from '@molis-ai/molis-work-module-sync-replication';
 import type {SyncEvent} from '@molis-ai/molis-work-contracts/platform/sync-transport';
 import {createServer} from 'node:http';
 import {once} from 'node:events';
@@ -14,7 +14,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import {createProjectsSchema,ProjectsModule,projectReplicationOwner,validatePortableProject,projectPluginRequirements,installProjectReplicationJournal} from '@molis-ai/molis-work-module-projects';
-import {sqliteErrorName,replicaSchemaSql,replicaMarkSql,initializeReplica,borrowedReplicaDatabase,createSqliteReplica,ensureStorageSpace,personalStorageSpace,inspectCatalogFile,openMemoryLedger} from '@molis-ai/molis-work-storage';
+import {sqliteErrorName,replicaSchemaSql,replicaMarkSql,initializeReplica,borrowedReplicaDatabase,createSqliteReplica,ensureStorageSpace,personalStorageSpace,inspectCatalogFile,openMemoryLedger,acquireStorageOwner,initializeMemoryForgetting} from '@molis-ai/molis-work-storage';
 import {createSyncConflictState} from '@molis-ai/molis-work-plugin-sdk';
 import {createPersonalCatalogRegistration,CATALOG_SCHEMA_VERSION,ProjectDeletionService,handleProjectRecycleHttp} from '@molis-ai/molis-work-app-local-host';
 import {withMolisWorkProjectCatalog,openMolisWorkProjectCatalog} from '@molis-ai/molis-work-app-desktop';
@@ -208,6 +208,7 @@ test('PCSYNC-20 actual Host passive creation and fresh catalog journal round-tri
 
 for(const mode of ['DELETE','WAL'])test(`PCSYNC-20 frozen v22 ${mode} catalog is rejected byte-for-byte before writable PRAGMAs or new sidecars`,async t=>{
   const f=homes(t),home=f.make('old'),directory=join(home,'projects');
+  const owner=acquireStorageOwner(join(home,'agent-runtime'));try{initializeMemoryForgetting({homeDirectory:home,storageOwner:owner,assertCurrent(){}});}finally{owner.release();}
   const memory=openMemoryLedger({homeDirectory:home});
   try{memory.transaction(()=>{
     memory.savePrefs(LOCAL_PERSON_ACTOR_ID,'personal',defaultPrefs('personal','reviewed'));
@@ -334,7 +335,8 @@ test('PCSYNC-20 composed personal sync checks all static owners and receives pro
  const service=new ProjectDeletionService((options,read)=>runtimeCatalog(options,read),{isPanelAlive:()=>false,isProjectBusy:()=>false,async releaseProject(){releases++;}});
  const sync=await createPersonalSync(home,f.space,{userId:'alice',applicationId:'work',authOrigin:'https://auth.example.test',signal:new AbortController().signal,assertCurrent(){},async accessToken(){return 'synthetic-test-token';}},withMolisWorkProjectCatalog,()=>{},undefined,service);assert.ok(sync);t.after(()=>sync.close());
  runtimeCatalog=sync.withCatalog;
- await sync.save({...sync.policy(),selections:sync.status().collections.map(c=>c.selection)});await sync.run();assert.equal(sync.status().error,null,'all fresh owners must settle before lifecycle delivery');
+ // Process items move only on an adopted cutover (specs/batch-06-shared-tools/sync-cutover.md); that path has its own tests.
+ await sync.save({...sync.policy(),selections:sync.status().collections.map(c=>c.selection).filter(s=>syncNamespace(s)!==PROCESS_ITEMS_NAMESPACE)});await sync.run();assert.equal(sync.status().error,null,'all fresh owners must settle before lifecycle delivery');
  const catalog=sync.status().collections.find(c=>c.selection.collection_id==='projects')!,stream=events(syncNamespace(catalog.selection)),initial=stream.find(e=>e.key===p.project_id)!;assert.ok(initial);
  const revision=(stream.at(-1)?.revision??0)+1;stream.push({key:p.project_id,operationId:'remote-delete',base:initial.revision,revision,value:null});await sync.run();
  assert.equal(sync.status().error,null);await sync.withCatalog({homeDirectory:home},c=>assert.equal(c.recycle.isRecycled(p.project_id),true));assert.equal(releases,1);

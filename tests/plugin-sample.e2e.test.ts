@@ -152,6 +152,8 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
     assert.equal(JSON.parse(undeclared.stderr).code, "actions.input_invalid");
     assert.match(undeclared.stderr, /fr/);
     assert.match(undeclared.stderr, /en、zh/, "the error lists the languages it can draw in");
+    // BL-plugin-dev-state-dir-before-locale-check: the language is checked before the state directory is made, so a refusal leaves none behind.
+    assert.equal(existsSync(join(directory, "state-fr")), false, "a refused --locale makes no state directory");
     // FSS-60 FSS-62 (#1976 review ① item 4): dev compares the language it draws in with the default, as validate does. Arguments that differ
     // would leave `{name}` on the page, so the run stops and names both files; a language short of a key only shows the default's word.
     writeFileSync(zhPath, zhSource.replace("来源：{name}", "来源：{who}"));
@@ -160,6 +162,7 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
     assert.equal(JSON.parse(differingArgs.stderr).code, "plugin.package_invalid");
     assert.match(differingArgs.stderr, /locales\/zh\.json notes\.main\.source/);
     assert.match(differingArgs.stderr, /locales\/en\.json/);
+    assert.equal(existsSync(join(directory, "state-zh-args")), false, "a broken language file makes no state directory");
     writeFileSync(zhPath, zhSource.replace(/\n\s*"notes\.main\.title": "[^"]*"/u, "").replace(/,(\s*\})/u, "$1"));
     const shortOfOne = devIn("zh", "state-zh-short");
     assert.equal(shortOfOne.status, 0, shortOfOne.stderr);
@@ -183,6 +186,7 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
     assert.equal(noLanguages.status, 1, noLanguages.stderr);
     assert.equal(JSON.parse(noLanguages.stderr).code, "actions.input_invalid");
     assert.match(noLanguages.stderr, /ui\.locales/);
+    assert.equal(existsSync(join(directory, "state-unlocalized")), false);
     writeFileSync(manifestPath, originalManifest);
 
     const repositorySample = join(directory, "repository-sample");

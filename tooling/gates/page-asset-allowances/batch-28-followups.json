@@ -1,8 +1,8 @@
 {
-  "reason": "第 28 批合后复核整改：OCL-07 的定位阶段补「加载」（打开目标前）与「返回」（外壳的历史后退 step），并接通工作记录的 return 阶段；全局搜索脚本加两处阶段上报，工作台脚本加返回状态与后退回调。对 origin/main d2cb8c5542 的隔离构建实测：/assets/molis-work-workbench.js +358 字节、/assets/molis-work-chooser-search.js +42 字节；无新增资源，均低于 10 KB。省法试过把 returning 状态并入现有 ui.locate 记录（省一条方法但要多带一个 stage 判断）和把回调放进 tab-workspace 现有 host 选项（工作台脚本仍要接同一函数），字节数相近，保留语义清楚的一版。",
-  "review": "第 28 批合后复核整改 PR 的只读评审（按 batch-runbook 第九节）；用户 2026-11-14「修复发现的所有问题」点名。页面级增量按本 PR 对 origin/main d2cb8c5542 的隔离构建实测，不是旧基点。",
+  "reason": "第 28 批合后复核整改：OCL-07 的定位阶段补「加载」（打开目标前）与「返回」（外壳的历史后退 step），并接通工作记录的 return 阶段；全局搜索脚本加两处阶段上报，工作台脚本加返回状态与后退回调。对 origin/main ba405b5c2b 的隔离构建实测：/assets/molis-work-workbench.js +355 字节、/assets/molis-work-chooser-search.js +42 字节；无新增资源，均低于 10 KB。省法试过把 returning 状态并入现有 ui.locate 记录（省一条方法但要多带一个 stage 判断）和把回调放进 tab-workspace 现有 host 选项（工作台脚本仍要接同一函数），字节数相近，保留语义清楚的一版。",
+  "review": "第 28 批合后复核整改 PR 的只读评审（按 batch-runbook 第九节）；用户 2026-11-14「修复发现的所有问题」点名。页面级增量按本 PR 对 origin/main ba405b5c2b 的隔离构建实测，不是旧基点。",
   "assets": {
-    "/assets/molis-work-workbench.js": 358,
+    "/assets/molis-work-workbench.js": 355,
     "/assets/molis-work-chooser-search.js": 42
   }
 }

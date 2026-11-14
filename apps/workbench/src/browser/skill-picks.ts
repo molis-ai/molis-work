@@ -63,6 +63,8 @@ export function mountSkillPicks(ports: Ports): void {
       runs = new Map();
       body.innerHTML = renderSkillWhy({ ...options, groups: groups.map(group => ({ ...group, actions: group.actions.map(({ run, ...words }) => { const id = String(runs.size); runs.set(id, run); return { id, ...words }; }) })) });
       place();
+      // The keyboard lands on the first thing that can be done; closing the panel gives focus back to the button (the popover's own rule).
+      body.querySelector<HTMLElement>("[role=menuitem]")?.focus({ preventScroll: true });
     };
     body.addEventListener("click", event => { const id = (event.target as Element).closest<HTMLElement>("[data-skill-why-action]")?.dataset.skillWhyAction; if (id !== undefined) runs.get(id)?.(); });
     const close = () => pop.hidePopover();

@@ -1,7 +1,7 @@
 {
   "reason": "第 12 批：Coding 规则菜单与「规则 N」、讨论/规划/评审下的只读提示行、命令结局只按回执写（成功/退出 N/已取消/超时/被系统结束/结果未知）、会话列表状态词改用字面键；平台 composer 加 notice 提示行并经插件框桥画在底栏；项目设置「输入与输出」加读取说明文件开关；引导复查页「交给声明可承接代码文件夹的插件」的勾选（声明见 batch12-design §7）。对独立构建的 main 6306758c22 实测。",
   "review": "第 12 批 PR（batch/12），资源评审由本批评审台在 PR 评论里给出。",
-  "userApproval": "用户 2026-11-13 在第 12 批主会话弹窗批准 coding.js +11431 字节（超过 10 KB 的一项）；之后评审台的 S1–S7 修复（规则对话框的提示行、焦点与样式）和上手承接的会话名使 coding.js 再涨 244 字节、coding.css 再涨 178 字节，在 PR 里写明、交用户复核；其余各项在 1.2 KB 以内，按评审放行。",
+  "userApproval": "用户 2026-11-13 在第 12 批主会话弹窗批准 coding.js +11431 字节（超过 10 KB 的一项）；评审小修 S1～S7 与上手承接的会话名使数字变为 coding.js +11675、coding.css +573，用户 2026-11-13 再次确认批准（「Approve both」）。其余各项在 1.2 KB 以内，按评审放行。",
   "assets": {
     "/assets/molis-work-plugins/coding.js": 11675,
     "/assets/molis-work-plugins/coding.css": 573,

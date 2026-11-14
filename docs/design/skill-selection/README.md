@@ -49,8 +49,9 @@ python3 -m http.server 4422 --bind 127.0.0.1 --directory docs/design
 
 ## 组件板新增
 
-定下后先补成组件板标本再进产品：
+已补成组件板标本（`packages/design-system/src/primitives/catalog-skill-selection.ts`），产品用的是同一份标记：
 
-- `sel-line`：一轮用了哪些技能的那一行（技能按钮带来路）。
-- `sel-why`：依据面板（事实表＋两组菜单项）。
-- `sel-steps`：几个技能各自的结果，一项一行，状态在前。
+- 选用行（SDK `/ui` 的 `renderSkillLine`，原型里的 `sel-line`）：一轮用了哪些技能的那一行，技能按钮带来路。
+- 依据面板（SDK `/ui` 的 `renderSkillWhy`，原型里的 `sel-why`）：事实表加几组菜单项。
+
+原型里的 `sel-steps`（几个技能各自的结果）没有进产品，也不进组件板：Molis 现在没有分步执行技能这回事，随第 62 批的方法链做。产品里与这份原型不同的地方记在[第 41 批](../../../specs/post-anticorruption-roadmap/reference/batches/41.md)的「进展」。

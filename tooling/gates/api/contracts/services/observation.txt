@@ -37,11 +37,7 @@ export declare const OBSERVATION_SERVICE_PREFIXES: {
     readonly shell: "ui";
     readonly agent: "agent";
     readonly assistant: "assistant";
-    readonly search: "search";
-    readonly knowledge: "knowledge";
-    readonly memory: "memory";
     readonly scheduler: "scheduler";
-    readonly onboarding: "onboarding";
     readonly connections: "connections";
     readonly grants: "grants";
 };

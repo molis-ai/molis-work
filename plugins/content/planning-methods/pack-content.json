@@ -1,0 +1,24 @@
+{
+  "plugin_id": "io.molis.work.content.planning-methods",
+  "version": "1.0.0",
+  "name": "规划与拆解",
+  "summary": "把目标拆成可独立交付、可验收的结果，理清依赖和完成证据；按工作类型、领域、行业和附加约束各有方法。",
+  "publisher_id": "molis-work",
+  "scope": "home",
+  "name_text": {
+    "key": "planning-methods.directory.name"
+  },
+  "summary_text": {
+    "key": "planning-methods.directory.summary"
+  },
+  "locales": {
+    "default": "zh",
+    "available": [
+      "zh",
+      "en"
+    ]
+  },
+  "system": {
+    "default_state": "auto"
+  }
+}

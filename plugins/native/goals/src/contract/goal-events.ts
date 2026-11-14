@@ -44,27 +44,16 @@ export type GoalEventFieldFormat = (typeof goalEventFieldFormats)[number];
 export const goalEventJudgmentVerdicts = ["supports", "contradicts", "unknown"] as const;
 export type GoalEventJudgmentVerdict = (typeof goalEventJudgmentVerdicts)[number];
 
-export const goalEventTypeSourceKinds = ["local", "planning", "runtime"] as const;
+export const goalEventTypeSourceKinds = ["local", "runtime"] as const;
 export type GoalEventTypeSourceKind = (typeof goalEventTypeSourceKinds)[number];
-
-export interface GoalEventPlanningMethodRef {
-  method_id: string;
-  version: number;
-  source: "built_in" | "personal" | "project";
-  name?: string;
-}
 
 export interface GoalEventTypeSource {
   kind: GoalEventTypeSourceKind;
-  method_id?: string;
-  method_version?: number;
   label?: string;
-  contributing_methods?: GoalEventPlanningMethodRef[];
 }
 
 export interface GoalEventFieldSource {
-  kind: "local" | "planning";
-  method_id?: string;
+  kind: "local";
   label?: string;
 }
 
@@ -87,23 +76,12 @@ export interface GoalEventTypeDefinition {
   fields: GoalEventFieldDefinition[];
 }
 
-export interface GoalEventAdoptedPlanningRef {
-  method_id: string;
-  version: number;
-  source: "built_in" | "personal" | "project";
-}
-
 export interface GoalEventRequirementBinding {
   type_id: string;
   requirement_id: string;
 }
 
 export type GoalEventRequirementSource =
-  | {
-      kind: "planning";
-      template_requirement_id: string;
-      methods: GoalEventPlanningMethodRef[];
-    }
   | { kind: "create_input" }
   | {
       kind: "imported_acceptance_criterion";
@@ -154,7 +132,6 @@ export interface ConfigureGoalEventsInput {
   expected_version: number;
   idempotency_key: string;
   types?: GoalEventTypeDefinitionInput[];
-  adopted_planning?: GoalEventAdoptedPlanningRef[];
   requirement_bindings?: GoalEventRequirementBinding[];
 }
 
@@ -163,7 +140,6 @@ export interface GoalEventConfigView {
   goal_id: string;
   version: number;
   types: GoalEventTypeDefinition[];
-  adopted_planning: GoalEventAdoptedPlanningRef[];
   extra_requirements: GoalEventExtraRequirement[];
   requirement_bindings: GoalEventRequirementBinding[];
   updated_at: string | null;
@@ -272,7 +248,6 @@ export interface GoalEventConfigurationPayload {
   types: GoalEventTypeDefinition[];
   extra_requirements: GoalEventExtraRequirement[];
   requirement_bindings: GoalEventRequirementBinding[];
-  adopted_planning: GoalEventAdoptedPlanningRef[];
 }
 
 export interface GoalWorkEventBase {
@@ -328,31 +303,14 @@ export interface ReportGoalEventsResult extends ReportGoalEventsRecordedResult {
   can_record: boolean;
 }
 
-export interface GoalEventAdoptedPlanningRequest {
-  method_id: string;
-  version?: number;
-  source?: "built_in" | "personal" | "project";
-}
-
-export interface PlanningMethodDefaultRequirement {
-  requirement_id: string;
-  statement: string;
-  bound_type_id?: string;
-  applies_when?: string;
-  sources?: GoalEventPlanningMethodRef[];
-}
-
 export interface ConfigureGoalEventsApplicationInput {
   project_id: string;
   goal_id: string;
   actor_id: string;
   actor_kind?: "user" | "runtime";
   expected_version: number;
-  expected_agreement_version?: number;
   idempotency_key: string;
   types?: GoalEventTypeDefinitionInput[];
-  adopted_planning?: GoalEventAdoptedPlanningRequest[];
-  adopt_default_requirement_ids?: string[];
   requirement_bindings?: GoalEventRequirementBinding[];
 }
 
@@ -470,12 +428,6 @@ export interface GoalEventDirectoryPage {
   observed_event_cursor: number;
 }
 
-export interface ResolvedPlanningEventAdoption {
-  adopted_planning: GoalEventAdoptedPlanningRef[];
-  types: GoalEventTypeDefinitionInput[];
-  default_requirements: PlanningMethodDefaultRequirement[];
-}
-
 export interface GoalEventListQuery {
   after_cursor?: number;
   limit?: number;
@@ -548,7 +500,6 @@ export interface GoalEventRequirementStatus {
     decision_method?: GoalAcceptanceCriterion["decision_method"];
     pass_condition?: string;
     config_version?: number;
-    planning?: Extract<GoalEventRequirementSource, { kind: "planning" }>;
     policy_binding_ids?: string[];
   };
   bound_type_ids: string[];
@@ -580,10 +531,6 @@ export interface GoalEventFactsApi {
   /** The calls that remember a createIntent request and the artifacts it recorded. */
   readonly intent: GoalEventIntentApi;
   configure(input: ConfigureGoalEventsInput): ConfigureGoalEventsResult;
-  configureRequested(
-    input: ConfigureGoalEventsApplicationInput,
-    resolveAdoption: (projectId: string, requested: GoalEventAdoptedPlanningRequest[]) => ResolvedPlanningEventAdoption,
-  ): ConfigureGoalEventsResult;
   report(input: ReportGoalEventsInput): ReportGoalEventsRecordedResult;
   readConfig(projectId: string, goalId: string): GoalEventConfigView;
   listEvents(projectId: string, goalId: string, query?: GoalEventListQuery): GoalEventListPage;

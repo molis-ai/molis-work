@@ -11,7 +11,7 @@ import { renderMolisWorkWeb, type MolisWorkWebView } from "./workbench-renderer-
 function view(enabled: string[], developer?: boolean): MolisWorkWebView {
   return {
     snapshot: { board: { project_id: "board-dev", title: "开发者模式", active_goal_id: null, created_at: "2026-10-09T00:00:00.000Z", updated_at: "2026-10-09T00:00:00.000Z" },
-      cursor: 0, goals: [], relations: [], goal_tree_proposals: [], planning_method_packs: [] },
+      cursor: 0, goals: [], relations: [], goal_tree_proposals: [] },
     project: { project_id: "project-dev", display_name: "开发者模式" }, projects: [{ project_id: "project-dev", display_name: "开发者模式" }],
     route_prefix: "/projects/project-dev", demo: false, active_goal_id: null, goals: [], archived_goals: [], trashed_goals: [], counts: {},
     input_bindings: [], policy_bindings: [], events: [], feed: { sources: [], feed_items: [], inbox_entries: [], runs: [], out_rules: [] },

@@ -61,9 +61,6 @@ export const AGENT_TOOLS: readonly AgentToolEntry[] = [
   runtime("read-mcp-resource", false, "Read one resource of the round's MCP servers."),
   // 代码理解：官方编码包声明的工具，执行器由宿主按人配置的语言服务器提供（code-intelligence）。
   runtime("find-symbol", false, "Find a symbol's definition and references, or list a file's top-level definitions.", { runtime_name: "coding.find-symbol" }),
-  // Skill 的两件只读入口：找只回元数据，读按精确版本取正文或某一份参考/脚本。
-  runtime("find-skills", false, "List the skills this round may use, by their metadata only."),
-  runtime("read-skill", false, "Read a registered skill's body or one of its own references or scripts."),
   ...Object.entries(BUSINESS).map(([name, entry]) => runtime(name, entry.writes, entry.description, { origin: "business", ...(entry.unasked ? { unasked: true } : {}) })),
   ...Object.entries(SUBAGENT).map(([name, [writes, description, unasked]]) => runtime(name, writes, description, { origin: "subagent", ...(unasked ? { unasked } : {}) })),
   ...STEP_TOOLS.map(name => runtime(name, name !== "board-read", name === "board-read" ? "Read the steps of the round's confirmed plan." : "Report progress on the round's own plan steps.",
@@ -92,6 +89,8 @@ export const RUNTIME_TOOLS_NOT_OFFERED: ReadonlyArray<{ runtime_name: string; wh
     why: "Not offered yet: no role needs it, and its reach outside the round has no Host policy." })),
   ...["bounded-script", "run-script", "invoke-skill"].map(runtime_name => ({ runtime_name,
     why: "Skill scripts do not run yet: the Node Host has no command sandbox (SKP-09, BL-skill-scripts-sandbox)." })),
+  ...["find-skills", "read-skill"].map(runtime_name => ({ runtime_name,
+    why: "A round finds and reads Skills through the shared catalog (skills.catalog.list, skills.body.read), which keeps the person's settings, the round's limit and what it used (SKL-02); a second way in would pass them by." })),
   ...["hand-off", "session-list", "session-create", "session-fork", "session-wait", "session-archive", "session-inject"].map(runtime_name => ({ runtime_name,
     why: "Sessions are the plugin's to open and close; a round only messages another one (session-send)." })),
   ...["leave-plan", "board-plan", "board-revise"].map(runtime_name => ({ runtime_name,

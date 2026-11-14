@@ -16,6 +16,7 @@ export { renderMenu, renderMenuItem, renderPopover, renderPreviewCard, renderShe
 export { presentationOwnerHue, renderPresentationForm, type PresentationFormValues } from "./ui/presentation-form.js";
 export * from "./ui/return-trip.js";
 export * from "./ui/resume-prompt.js";
+export * from "./ui/skill-line.js";
 export * from "./ui/field.js";
 export * from "./ui/calendar.js";
 export * from "./ui/directory.js";

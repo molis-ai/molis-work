@@ -5,7 +5,7 @@ import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
 import { declaredStageContributionId, stageDataAction, viewContributionId } from "./declared-stages.js";
 import type { MolisWorkWebView } from "./page-view.js";
 import { createRendererHelpers, type RendererLocale } from "./renderer-helpers.js";
-import { createArtifactReferenceRenderer, mountContributionsOf, renderWorkbenchContribution } from "./ui-composition.js";
+import { createArtifactReferenceRenderer, mountContributionsOf, renderWorkbenchContribution, WORKBENCH_UI_SLOTS } from "./ui-composition.js";
 import { renderTerminalPane } from "./terminal/pane.js";
 import { creatableKinds, pluginDirectoryFor } from "./plugin-catalog.js";
 import { shownPagePlugins } from "./page-plugin-visibility.js";
@@ -68,9 +68,13 @@ export function createWorkbenchStageRenderers(ports: {
 
   function declaredSettingsSurface<Data>(pluginId: string, surface: string, model: (stage: StagePageModel) => StagePageModel<Data>, view?: MolisWorkWebView): string {
     const entry = BUILTIN_PLUGIN_CATALOG.find(item => item.project_plugin_id === pluginId);
-    const settings = entry?.manifest.ui.views?.find(item => item.slot === "settings");
-    if (!entry || !settings) return "";
-    return renderWorkbenchContribution(viewContributionId(entry.manifest, settings), surface, model(sharedStageModel(pluginId, view)));
+    if (!entry) return "";
+    // The plugin's settings page when it has one; otherwise the contribution of its registration that declares this surface for the
+    // settings slot (a plugin may draw part of a project's settings without a row of its own in the settings directory).
+    const settings = entry.manifest.ui.views?.find(item => item.slot === "settings");
+    const contributionId = settings ? viewContributionId(entry.manifest, settings) : entry.workbench.contributions.find(item =>
+      item.descriptor.surfaces?.some(declared => declared.surface_id === surface && declared.target_slot_id === WORKBENCH_UI_SLOTS.settings.slot_id))?.descriptor.contribution_id;
+    return contributionId ? renderWorkbenchContribution(contributionId, surface, model(sharedStageModel(pluginId, view))) : "";
   }
 
   /**

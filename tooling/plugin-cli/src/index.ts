@@ -5,6 +5,6 @@ export { createPluginProject } from "./create.js";
 export type { CreatePluginProjectInput } from "./create.js";
 export { packPluginProject, readPluginPackageFile } from "./package-files.js";
 export { packSandboxProject, sandboxPackOptions, type PackSandboxOptions } from "./pack-sandbox.js";
-export { contentPackOptions, contentPayloadFromFolder, packContentProject, type PackContentOptions } from "./pack-content.js";
-export { BUNDLED_PACK_OPTIONS_FILE, packBundledContent, readBundledPackOptions } from "./pack-bundled.js";
+export { contentPackOptions, contentPayloadFromFolder, packContentProject, type PackContentOptions, contentDraftFromFolder } from "./pack-content.js";
+export { BUNDLED_PACK_OPTIONS_FILE, packBundledContent, packBundledDraft, packSystemPack, readBundledPackOptions, readSystemPackChoice, type SystemPackDefault } from "./pack-bundled.js";
 export { keyFileSigner, readPublisherIdentity, signPluginPackageFile, verifyPluginPackageFile } from "./package-signing.js";

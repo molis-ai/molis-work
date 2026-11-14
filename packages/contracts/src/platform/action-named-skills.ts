@@ -21,4 +21,12 @@ export interface ActionSkillRound {
   readonly named: readonly SkillRef[];
   /** `local`: a local Agent engine runs the round, so a `native_only` Skill may be read. */
   readonly engine?: "builtin" | "local";
+  /**
+   * The round these reads belong to, as its owner numbers it. Only a call that carries it is a round's own pick: the catalog lets a
+   * round read at most `SKILL_ROUND_AUTO_LIMIT` different `auto` Skills the person did not name (the next is `over_limit`) and
+   * records each as used. A read without it (the freeze of the named list, the person's preview) counts and records nothing.
+   */
+  readonly round?: string;
+  /** `false`: the person asked for this round without automatic Skills, so an `auto` Skill outside `named` is `not_named`. */
+  readonly auto?: false;
 }

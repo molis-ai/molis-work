@@ -151,6 +151,10 @@ export const PAGE_STATE_OWNERS = {
     files: ["apps/workbench/src/browser/knowledge/picker.ts", "apps/workbench/src/browser/plugin-frame/materials-picker.ts"],
     state: "The one picker of project materials (specs/project-knowledge PMAT-17, materials-ui-contract §3): what it was asked for, the person's query, the file read beside the list and their picks until they confirm; for a plugin frame, the page's own request on the frame's behalf and the answer it relays into the frame.",
   },
+  "skill-picks": {
+    files: ["apps/workbench/src/browser/skill-picks.ts", "apps/workbench/src/browser/plugin-frame/skill-picks.ts"],
+    state: "The one 「依据」 panel of a round's Skills (specs/prologue-strategies/skill.md §10): which round's line asked, the catalog as read when it opened, and the person's choice until they make it; for a plugin frame, the page's own mark for the round it asked about.",
+  },
 } as const satisfies Readonly<Record<string, PageStateOwner>>;
 
 export type PageStateOwnerId = keyof typeof PAGE_STATE_OWNERS;
@@ -490,6 +494,16 @@ export const DOM_EVENTS = [
     name: "molis:side-shown", kind: "announcement", owner: "side-panel", on: "document",
     detail: "{ tab, target, open }",
     summary: "A tab of the side panel is now shown (or the panel closed); the tab's owner loads what it was asked to show.",
+  },
+  {
+    name: "molis:skill-pick-open", kind: "request", owner: "skill-picks", on: "document", cancelable: true,
+    detail: "{ reply, consumer: 'assistant' | 'coding', picks: SkillPick[], index: number | null, box: { x, y, width, height } }",
+    summary: "Open the 「依据」 panel for one Skill of a round's line (index; null for 「选一个」), anchored at the pressed button's box. Sent by the page that shows the round: the Assistant, and Coding through its frame. The panel takes it with preventDefault(); reply is the page's own mark for the round.",
+  },
+  {
+    name: "molis:skill-redo", kind: "announcement", owner: "skill-picks", on: "document",
+    detail: "{ reply, named: Array<{ ref: SkillRef, name }> }",
+    summary: "The person asked for the round marked reply to run again with exactly these Skills and no automatic ones (an empty list: without Skills). The page that asked starts the round; nothing was changed in the Skill settings by this.",
   },
   {
     name: "molis:surface-focus", kind: "request", owner: "context-actions", on: "element", bubbles: true,

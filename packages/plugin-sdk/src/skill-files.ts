@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { SKILL_LIMITS, type AgentSkillDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import type { PluginDeclarationProblem } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { skillTranslationPath } from "./skill-declarations.js";
 
 // The files Manifest `methods` declare, read from a signed package's files: each Skill's body at `skills/<skill_id>/SKILL.md` and each
 // of its resources. A content package and a sandbox app package ship them the same way and are read by this one function
@@ -11,6 +12,8 @@ export interface PackagedSkillBody {
   skill_id: string;
   version: number;
   body: string;
+  /** The declared translations (`locales`), by language. */
+  body_by_locale?: Readonly<Record<string, string>>;
 }
 
 /** What `readPackagedSkills` found: every declared path, each body that passed, and what did not. */
@@ -34,7 +37,15 @@ export function readPackagedSkills(methods: readonly AgentSkillDeclaration[], fi
       paths.add(skill.body);
       const bytes = files.get(skill.body);
       const body = bytes ? bodyText(bytes) : { reason: "包里找不到" };
-      if (typeof body === "string") bodies.push({ skill_id: skill.skill_id, version: skill.version, body });
+      const translated: Record<string, string> = {};
+      for (const locale of skill.locales ?? []) {
+        const path = skillTranslationPath(skill.skill_id, locale), found = files.get(path);
+        paths.add(path);
+        const text = found ? bodyText(found) : { reason: "包里找不到" };
+        if (typeof text === "string") translated[locale] = text;
+        else say(path, text.reason);
+      }
+      if (typeof body === "string") bodies.push({ skill_id: skill.skill_id, version: skill.version, body, ...(skill.locales?.length ? { body_by_locale: translated } : {}) });
       else say(skill.body, body.reason);
     }
     for (const resource of skill.resources ?? []) {

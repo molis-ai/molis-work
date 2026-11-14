@@ -82,6 +82,7 @@ export type {
   AgentTurnView,
   AgentToolActivityState,
   AgentToolActivity,
+  AgentRunSkillRead,
   AgentTokenCount,
   AgentUsageCoverage,
   AgentRunUsage,
@@ -360,7 +361,8 @@ const runViewOutput = { type: "object", required: ["ref", "phase", "frozen", "tu
   turn_changes: list(shape(["turn", "sequence", "at", "files"], { turn: number, sequence: number, at: { type: ["string", "null"] },
     files: list(shape(["path", "byte_length", "digest", "checkpoint_id"], { path: string, byte_length: number, digest: string, checkpoint_id: string })) })),
   sleeping_until: { type: "string" }, retry_wait: shape(["until", "reason"], { until: string, reason: { enum: ["rate-limited", "unavailable", "not-sent"] } }),
-  model_switch: shape([], { now: string, requested: string }), offers: list(offerOutput), started_at: { type: "string" }, ended_at: { type: ["string", "null"] } } } as const;
+  model_switch: shape([], { now: string, requested: string }), offers: list(offerOutput),
+  skill_reads: list(shape(["ref", "name"], { ref: skillRefSchema, name: string })), started_at: { type: "string" }, ended_at: { type: ["string", "null"] } } } as const;
 const sessionViewOutput = { type: "object", required: ["owner", "session", "title", "runs", "latest_run"], additionalProperties: false, properties: {
   workspace: { enum: ["required", "none", "business"] }, checkpoint_busy: { type: "boolean" }, recovery: { type: "object", required: ["required", "reason"], properties: { required: { const: true }, reason: { type: "string" } } },
   owner: { type: "object", required: ["project_id", "plugin_id", "install_id"], properties: { project_id: { type: "string" }, plugin_id: { type: "string" }, install_id: { type: "string" }, actor_id: { type: "string" } } },
@@ -412,7 +414,7 @@ const startInput = { type: "object", required: ["session", "task", "role_id"], a
   ] } },
   image_materials: { type: "array", maxItems: 50, items: { type: "object", required: ["material_id", "title", "resource", "media_type"], additionalProperties: false, properties: { material_id: entryId, title: text(2000),
     resource: { type: "object", required: ["id", "revision"], additionalProperties: false, properties: { id: entryId, revision: count } }, media_type: entryId } } },
-  skills: { type: "array", maxItems: SKILL_REFS_MAX, items: skillRefSchema },
+  skills: { type: "array", maxItems: SKILL_REFS_MAX, items: skillRefSchema }, auto_skills: { const: false },
   mcp_tools: { type: "array", maxItems: 500, items: { type: "object", required: ["server", "tool", "version", "configuration_version"], additionalProperties: false, properties: { ...mcpRef, tool: entryId, version: entryId } } },
   mcp_sources: { type: "array", maxItems: 200, items: { type: "object", required: ["server", "configuration_version"], additionalProperties: false, properties: mcpRef } },
   budget: { type: "object", additionalProperties: false, properties: { max_turns: count, max_output_tokens: count, max_total_tokens: count, max_duration_ms: { type: "integer", minimum: 1, maximum: 2_147_483_647 } } },

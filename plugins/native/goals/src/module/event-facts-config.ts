@@ -227,8 +227,5 @@ export function configurationPayload(raw: Record<string, unknown>): GoalEventCon
     requirement_bindings: Array.isArray(raw.requirement_bindings)
       ? raw.requirement_bindings as GoalEventConfigurationPayload["requirement_bindings"]
       : [],
-    adopted_planning: Array.isArray(raw.adopted_planning)
-      ? raw.adopted_planning as GoalEventConfigurationPayload["adopted_planning"]
-      : [],
   };
 }

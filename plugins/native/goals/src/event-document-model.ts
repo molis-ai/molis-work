@@ -6,7 +6,6 @@ import type {
   GoalEventTypeDefinition,
   GoalRecord,
   GoalRelationRecord,
-  PlanningMethodPack,
 } from "./contract/goals.js";
 import type { GoalEventApplication } from "./goal-event-application.js";
 import type { GoalsDecisionEvent } from "./decision-view.js";
@@ -41,7 +40,6 @@ export interface GoalEventDocumentView {
     promised_outputs: string[];
   };
   relations: GoalRelationRecord[];
-  planning_methods: PlanningMethodPack[];
   transfer: {
     available: boolean;
     kind: "resume_cancelled" | "reopen_event_completed" | null;
@@ -151,7 +149,6 @@ export function createGoalEventDocumentView(input: {
   snapshot: BoardSnapshot;
   relations: readonly GoalRelationRecord[];
   events?: readonly GoalsDecisionEvent[];
-  planning_methods?: readonly PlanningMethodPack[];
 }): GoalEventDocumentView {
   const state = input.ports.readState(input.projectId, input.goal.goal_id);
   const timeline = listGoalDocumentHistory({
@@ -177,7 +174,6 @@ export function createGoalEventDocumentView(input: {
       promised_outputs: [...input.goal.promised_outputs],
     },
     relations: [...input.relations],
-    planning_methods: [...(input.planning_methods ?? [])],
     transfer: transferFor(owned, state.work_status),
     types: state.config.types,
   };

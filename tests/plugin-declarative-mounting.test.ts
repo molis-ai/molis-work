@@ -295,8 +295,8 @@ test("the bundled catalog reproduces the shell's navigation exactly", async () =
 
   assert.deepEqual(
     settingsEntries(everything).map((entry) => entry.plugin_id),
-    ["io.molis.work.shelf", "io.molis.work.goals"],
-    "设置目录同样由 Manifest 决定",
+    ["io.molis.work.shelf"],
+    "设置目录同样由 Manifest 决定（Goals 的规划设置页第 41 批随方法库删了）",
   );
 
   // Coding and the workspace family joined the catalog; all of them are project

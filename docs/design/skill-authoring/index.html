@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>写自己的技能 · Molis Work 原型</title>
+  <!-- 组件板现行的样式、主题与渲染函数：先按 ../component-board/README.md 生成 dist/ -->
+  <script src="../component-board/dist/board-head.js"></script>
+  <link rel="stylesheet" href="../component-board/dist/board.css">
+  <link rel="stylesheet" href="../component-board/proto.css">
+  <link rel="stylesheet" href="../skill-packs/skills.css">
+  <link rel="stylesheet" href="authoring.css?v=1">
+</head>
+<body class="proto-page immersive-workbench">
+  <div class="proto-strip" id="strip" role="region" aria-label="原型控制（不是产品界面）"></div>
+  <main class="proto-stage" id="app"></main>
+  <div class="proto-toasts" id="toasts" aria-live="polite"></div>
+  <script src="../component-board/dist/board.js"></script>
+  <script src="app.js?v=1"></script>
+</body>
+</html>

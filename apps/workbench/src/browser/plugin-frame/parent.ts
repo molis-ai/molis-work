@@ -28,6 +28,7 @@ import { pagePresentation } from "./presentation.js";
 import { pageConnectionSlot } from "./connection-slot.js";
 import { pageFilePicker } from "./file-picker.js";
 import { pageMaterialsPicker } from "./materials-picker.js";
+import { pageSkillPicks } from "./skill-picks.js";
 import { pageWorkspaces } from "./workspaces.js";
 import { pageFrameAssets } from "./frame-assets.js";
 import type { FrameConfig, FrameHost, FramePack, FrameScope, FrameUp } from "./types.js";
@@ -289,6 +290,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   const connectionSlot = pageConnectionSlot(port, scope, frame, root, grant.page_id, route, uiText.text);
   const pickFile = pageFilePicker(port, scope, frame, grant.page_id, route, uiText.text);
   const pickMaterials = pageMaterialsPicker(port, scope, grant.page_id, route, text => host.showToast?.(text, true));
+  const pickSkill = pageSkillPicks(port, scope, frame, grant.page_id);
   const composer = pageComposer(port, scope, root, frame, pack, visible);
   port.onmessage = (event: MessageEvent<FrameUp>) => {
     const message = event.data;
@@ -347,6 +349,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
     if (message.type === "native-files") { void handoffPageFiles(port, scope, grant.page_id, route, message); return; }
     if (message.type === "native-file-pick") { void pickFile(message); return; } else if (message.type.startsWith("composer-")) { composer(message as Extract<FrameUp, { type: `composer-${string}` }>); return; }
     if (message.type === "knowledge-pick") { pickMaterials(message); return; }
+    if (message.type === "skill-pick") { pickSkill(message); return; }
     if (["ui", "link", "refresh-shell"].includes(message.type) && (!root.isConnected || !visible())) return;
     if (message.type === "refresh-shell") {
       if (shellRefreshed) return;

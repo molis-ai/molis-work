@@ -378,15 +378,11 @@ test("global settings retain project context through sections, planning cancel a
     await shown('[data-settings-panel=appearance]');
     const address=`/projects/${projectId}/${desktop?'?desktop=1':''}`;
     assert.equal(await evaluate('location.pathname + location.search'),address);
-    for(const section of ['runtimes','planning']){
+    for(const section of ['runtimes','models']){
       await click(`[data-directory-panel=settings] [data-settings-section="${section}"]`);
       await shown(`[data-settings-panel="${section}"]`);
       assert.equal(await evaluate('location.pathname + location.search'),address);
     }
-    await click('[data-work-surface=settings] a[href^="/settings/planning/new"]');
-    await shown('[data-planning-edit-form]');
-    await click('.planning-edit-footer a');
-    await waitFor("!document.querySelector('[data-work-surface=settings] [data-planning-edit-form]')",15_000);
     await click('[data-directory-panel=settings] [data-settings-section="diagnostics"]');
     await shown('[data-settings-panel="diagnostics"]');
     await click('[data-cover-close]');

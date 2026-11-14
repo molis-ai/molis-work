@@ -18,9 +18,17 @@ import { scopeInstallations } from "../scope-installations.js";
 import type { ProjectPluginHost } from "../project-plugin-ports.js";
 import { isDeepStrictEqual } from "node:util";
 import type { CatalogSkill } from "./skill-catalog.js";
+import { SYSTEM_PACK_SIGNATURE, systemPackInstallId, systemSkillPacks, type SystemSkillPack } from "./system-skill-packs.js";
 
 /** The catalog reads existing owners once per call: installations, verified packages, declarations, and scoped settings. */
-export function skillCatalogProviderFor(home: string, source: ProjectPluginHost) {
+/** A system pack's name and what it is, in the caller's language: its own words, as an installed package's are read. */
+export function systemSkillPackWords(pack: SystemSkillPack, callerLocale?: string): { name: string; summary?: string } {
+  const { manifest, localePacks: reader } = pack;
+  const locale = matchLocale(callerLocale ?? activeLocale(), manifest.ui.locales?.available ?? [], reader?.default ?? DEFAULT_WEB_LOCALE);
+  return projectDirectoryWords({ ...manifest, ui: {} }, reader ? directoryWordResolver(reader, locale) : undefined);
+}
+
+export function skillCatalogProviderFor(home: string, source: ProjectPluginHost, systemSkillsDirectory?: string) {
   const definitions = homeAgentDefinitions(home), packages = new SandboxPackageStore(home), ledger = new HomeConsentLedger(home);
   const publishers = () => new Map(ledger.publishers().map(pin => [pin.key_id, pin]));
   const withSkills = async <Result>(caller: ActionCallContext, use: (skills: readonly CatalogSkill[]) => Result): Promise<Result> => {
@@ -48,7 +56,7 @@ export function skillCatalogProviderFor(home: string, source: ProjectPluginHost)
           const kept = packages.load(record.plugin_id, record.publisher_signature, record.version).packaged;
           if (kept?.manifest.kind === "content" && pluginManifestDigest(kept.manifest) === record.manifest_digest) reader = kept.localePacks ?? null;
           bodies = (kept?.agentBodies ?? []).filter(body => body.kind === "method").map(body => ({ skill_id: body.entry_id, version: manifest.methods!.find(method => method.skill_id === body.entry_id)!.version,
-            name: body.name, summary: body.purpose, tools: [], body: body.body }));
+            name: body.name, summary: body.purpose, tools: [], body: body.body, ...(body.body_by_locale ? { body_by_locale: body.body_by_locale } : {}) }));
         } catch { availability = { available: false, reason: "resource_invalid" }; bodies = []; }
       }
       const locale = matchLocale(caller.locale ?? activeLocale(), manifest.ui.locales?.available ?? [], reader?.default ?? DEFAULT_WEB_LOCALE);
@@ -76,9 +84,29 @@ export function skillCatalogProviderFor(home: string, source: ProjectPluginHost)
           } });
       }
     }
+    // The packs that come with the system: the Host's own content, in every scope, with no installation to check or publisher to pin.
+    for (const pack of systemSkillPacks(systemSkillsDirectory)) {
+      const { manifest, localePacks: reader } = pack;
+      const locale = matchLocale(caller.locale ?? activeLocale(), manifest.ui.locales?.available ?? [], reader?.default ?? DEFAULT_WEB_LOCALE);
+      const title = systemSkillPackWords(pack, caller.locale).name;
+      for (const declaration of manifest.methods ?? []) {
+        const body = pack.bodies.find(item => item.kind === "method" && item.entry_id === declaration.skill_id);
+        result.push({ declaration, display: skillDisplayWords(declaration, reader, locale), body: body ? agentBodyIn(body, caller.locale) : "",
+          availability: body ? { available: true } : { available: false, reason: "resource_invalid" }, default_state: pack.default_state,
+          ref: { source: { kind: "plugin", plugin_id: manifest.plugin_id, plugin_version: manifest.version, publisher_signature: SYSTEM_PACK_SIGNATURE },
+            skill_id: declaration.skill_id, version: declaration.version, install_id: systemPackInstallId(manifest.plugin_id), installation_generation: manifest.version },
+          pack: { plugin_id: manifest.plugin_id, title, version: manifest.version, publisher_label: "Molis Work", trust: "host", scope: "home" },
+          assertCurrent: () => {}, assertPublisher: () => {} });
+      }
+    }
     return use(result);
   };
-  return skillCatalogProvider({ definitions, withSkills, resource: (skill, path) => packages.skillResource(skill.ref.source.plugin_id,
-    skill.ref.source.publisher_signature, skill.ref.source.plugin_version, skill.ref.skill_id, path),
+  return skillCatalogProvider({ definitions, withSkills, resource: (skill, path) => {
+    const system = systemSkillPacks(systemSkillsDirectory).find(pack => systemPackInstallId(pack.manifest.plugin_id) === skill.ref.install_id);
+    if (!system) return packages.skillResource(skill.ref.source.plugin_id, skill.ref.source.publisher_signature, skill.ref.source.plugin_version, skill.ref.skill_id, path);
+    const bytes = system.file(path);
+    if (!bytes) throw skillErrors.read_refused("技能的附带文件缺失", { reason: "resource_invalid" });
+    return bytes;
+  },
     publishers });
 }

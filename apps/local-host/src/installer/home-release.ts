@@ -68,21 +68,6 @@ export async function createRelease(
   for (const dependency of source.runtimeDependencies) {
     await copyRuntimeDependency(dependency, path.join(embeddedNodeModules, ...dependency.name.split("/")));
   }
-  const planningMethodsDirectory = path.join(
-    embeddedNodeModules,
-    "@molis-ai",
-    "molis-work-plugin-goals",
-    "methods",
-  );
-  if ((await pathState(planningMethodsDirectory))?.isDirectory()) {
-    const skillMethodsDirectory = path.join(stagingDirectory, "skills", "goal-advance", "methods");
-    await fs.rm(skillMethodsDirectory, { recursive: true, force: true });
-    await fs.symlink(
-      path.relative(path.dirname(skillMethodsDirectory), planningMethodsDirectory),
-      skillMethodsDirectory,
-      "dir",
-    );
-  }
   await assertContainedDependencyLinks(embeddedNodeModules);
   await writeAtomic(
     path.join(stagingDirectory, "package.json"),

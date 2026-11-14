@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { assertNoPendingArtifactRows, recoverHomeArtifactRows } from "./home-artifact-recovery.js";
 import { recoverInstalledHomeUpgrade } from "./installed-home-upgrade-recovery.js";
-import { lstatSync, realpathSync } from "node:fs";
+import { lstatSync, realpathSync, rmSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative } from "node:path";
 import {
   acquireStorageOwner, assertNoPendingHomeRestore, entryAt, assertStorageOwner, assertUpgradeDiskSpace, captureUpgradeFileSnapshot, captureUpgradeSnapshot, onStorageOwnerRelease, onUpgradePending,
@@ -367,6 +367,13 @@ function runPlanned(round: Round, planned: readonly UpgradeUnit[]): void {
 }
 
 /**
+ * Directories of a Home that held a store this build no longer has. Nothing reads them, and an entry the store registry does not name
+ * stops the Home's snapshot, so a round removes them before it lists the stores. `goals` held the Goals plugin's library of the person's
+ * planning methods until the methods became Skills of the catalog (batch 41; 用户 2026-11-14: 开发阶段没有用户，直接删).
+ */
+export const REMOVED_HOME_STORES: readonly string[] = ["goals"];
+
+/**
  * The upgrade process (upgrade-chain-design §2.2, §3, §6). The caller holds this Home's lock and has opened no business store. A stamp that
  * matches costs one small file and opens nothing; otherwise every store's version is read, the older ones are upgraded one at a time, and a
  * store that fails is put back and stays alone. All of it is synchronous. Only what is wrong with the whole Home throws: a record that
@@ -388,6 +395,7 @@ export function ensureHomeUpgraded(home: string, owner: StorageOwner, options: {
   if (stamp === fingerprint) return NOTHING;
   const previous = readUpgradeLedger(root);
   removeUpgradeTemporaries(root);
+  for (const path of REMOVED_HOME_STORES) rmSync(join(root, path), { recursive: true, force: true });
   const round: Round = { root, lockDirectory, owner, identity, fingerprint, expectedSpace: options.expectedSpace, stores: listStores(descriptors, root), ledger: undefined, waiting: [], onUnitDone: options.onUnitDone };
   const resumed = finishInterrupted(round, previous);
   if (round.ledger?.units.some(unfinishedUnit)) return { ran: true, stamped: false, units: round.ledger.units };

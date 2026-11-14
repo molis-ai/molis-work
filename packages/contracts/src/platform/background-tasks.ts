@@ -1,0 +1,74 @@
+import { inputSchemaFor } from "./action-input.js";
+import { ACTION_REFERENCE_SCHEMA } from "./action-offers.js";
+import { ACTION_SUBJECT_SCHEMA } from "./action-subjects.js";
+import type { ActionDefinition, ActionReference, ActionSubject } from "./actions.js";
+import { STATE_RING_FAMILIES, type StateRingState } from "./ui-state-rings.js";
+import { OPEN_TARGET_SCHEMA, WORK_EVENT_SOURCE_SCHEMA, type OpenTarget } from "./work-events.js";
+
+/**
+ * The table of background tasks (specs/work-line §6): the work that is being done or waits on the person behind the events of
+ * the line, whoever does it. A provider declares one project-scope, read-only query of these types with `home_aggregate`; the
+ * Host asks it in every open project (S-49), and the task panel, the line and the Home's title bar read the same answers. The page
+ * knows no provider: what a row is, whom it serves, where it opens and how it is stopped all come from the row.
+ */
+export const BACKGROUND_TASKS_INPUT_TYPE = /* @version type.molis.background-tasks.query "molis.background-tasks.query.v{version}" */ "molis.background-tasks.query.v1";
+export const BACKGROUND_TASKS_OUTPUT_TYPE = /* @version type.molis.background-tasks.collection "molis.background-tasks.collection.v{version}" */ "molis.background-tasks.collection.v1";
+
+/** A sentence the page may have a translation for; `{n}` in it is `count`. */
+export interface BackgroundTaskPhrase { text: string; count?: number }
+
+/** What the person may do to a task: an action through the gateway with the input the provider wrote, so it is authorized and leaves its diagnostic line like any call. */
+export interface BackgroundTaskCommand { role: "stop" | "pause" | "resume"; action: ActionReference; input: Record<string, unknown>; summary: string }
+
+export interface BackgroundTaskExecutor { kind: "assistant" | "character" | "plugin" | "platform"; label: string }
+
+export interface BackgroundTask {
+  /** The task itself: what a relation attaches and what opens. */
+  subject: ActionSubject;
+  title: string;
+  /** The state ring's value for where it stands. */
+  state: StateRingState;
+  /** The step under way, or why it waits. */
+  step?: BackgroundTaskPhrase;
+  /** Further lines its card lists under the step. */
+  details: BackgroundTaskPhrase[];
+  /** It waits on the person: the page counts these. */
+  waiting: boolean;
+  started_at?: string;
+  updated_at: string;
+  executor: BackgroundTaskExecutor;
+  /** The events it is done for; empty when it belongs to none. */
+  serves: ActionSubject[];
+  scope: "project" | "personal";
+  commands: BackgroundTaskCommand[];
+  open: OpenTarget | null;
+}
+
+export interface BackgroundTaskCollection {
+  /** Who answers: the workbench surface its tasks open on, with its name and glyph. */
+  source: { surface: string; title: string; icon: string };
+  tasks: BackgroundTask[];
+}
+
+const text = { type: "string" };
+const id = { ...text, minLength: 1, maxLength: 200 };
+const instant = { ...id, format: "date-time" };
+const phrase = { type: "object", properties: { text: { ...id, maxLength: 200 }, count: { type: "integer", minimum: 0 } }, required: ["text"], additionalProperties: false };
+const BACKGROUND_TASK_STATES: readonly StateRingState[] = STATE_RING_FAMILIES.flatMap(family => [...family.states]);
+export const BACKGROUND_TASK_SCHEMA = { type: "object", properties: {
+  subject: ACTION_SUBJECT_SCHEMA, title: { ...text, maxLength: 500 }, state: { enum: BACKGROUND_TASK_STATES }, step: phrase, details: { type: "array", maxItems: 8, items: phrase },
+  waiting: { type: "boolean" }, started_at: instant, updated_at: instant,
+  executor: { type: "object", properties: { kind: { enum: ["assistant", "character", "plugin", "platform"] }, label: { ...id, maxLength: 120 } }, required: ["kind", "label"], additionalProperties: false },
+  serves: { type: "array", maxItems: 20, items: ACTION_SUBJECT_SCHEMA }, scope: { enum: ["project", "personal"] },
+  commands: { type: "array", maxItems: 50, items: { type: "object", properties: { role: { enum: ["stop", "pause", "resume"] }, action: ACTION_REFERENCE_SCHEMA, input: { type: "object" }, summary: { ...text, maxLength: 1000 } },
+    required: ["role", "action", "input", "summary"], additionalProperties: false } },
+  open: { anyOf: [{ type: "null" }, OPEN_TARGET_SCHEMA] } },
+  required: ["subject", "title", "state", "details", "waiting", "updated_at", "executor", "serves", "scope", "commands", "open"], additionalProperties: false };
+export const BACKGROUND_TASK_COLLECTION_SCHEMA = { type: "object", properties: { source: WORK_EVENT_SOURCE_SCHEMA, tasks: { type: "array", maxItems: 500, items: BACKGROUND_TASK_SCHEMA } }, required: ["source", "tasks"], additionalProperties: false };
+
+export function defineBackgroundTasksAction(capabilityId: string, version: number, kinds: string[], title: string, permissions: string[]): ActionDefinition<Record<string, never>, BackgroundTaskCollection> {
+  return { capability_id: capabilityId, version: version, operation: "query", action: { title, description: "读取本项目里正在办、或等着你处理的后台任务，给后台任务面板、事项线与首页标题栏；只读，不会执行任务上的动作。",
+    kind: "query", scope: "project", scheduling: "concurrent", audiences: ["user"], permissions, subject_kinds: kinds, home_aggregate: true,
+    input_type: BACKGROUND_TASKS_INPUT_TYPE, output_type: BACKGROUND_TASKS_OUTPUT_TYPE,
+    input_schema: inputSchemaFor<Record<string, never>>()({ type: "object", properties: {}, additionalProperties: false }), output_schema: BACKGROUND_TASK_COLLECTION_SCHEMA } };
+}

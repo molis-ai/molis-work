@@ -5,8 +5,8 @@
  * comes back or moves to another plugin, and when a reader asks (`molis-work:attention-refresh`, after the person acted on something). The Assistant's bell, with the plugin
  * notification count, paints from `molis-work:attention`; this module paints the right side's background-tasks tab: its
  * badge counts the tasks not finished (running plus waiting on the person), and its view lists them, in this project and every
- * other open one, with the background commands they left running (each can be stopped here). It knows no plugin: each row names the surface and item it opens, the words under its title, whether
- * it waits on the person and the URL that stops each command, as the plugin that owns the task said them (PG-043). A task here
+ * other open one, with the background commands they left running (stopping one is the task panel's, by the row's own action). It knows no plugin: each row names where it opens, the words under its title and whether
+ * it waits on the person, as the provider that owns the task said them (PG-043, specs/work-line §6). A task here
  * opens in place, one elsewhere opens its project on it.
  *
  * The notices asked for are those of the plugin in front (the person's rules hold some while it matches). Each read
@@ -27,7 +27,7 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
   const when = (at) => { const date = new Date(at); return Number.isNaN(date.getTime()) ? "" : globalThis.t.text("common.generated.formatted", { value: { kind: "date", at: date.toISOString(), style: "time" } }); };
   const hrefFor = (task) => {
     const url = new URL("/projects/" + encodeURIComponent(task.project_id) + "/", location.origin);
-    url.searchParams.set("openPlugin", task.surface); url.searchParams.set("openItem", task.id); url.searchParams.set("openTitle", task.title);
+    url.searchParams.set("openPlugin", task.open ? task.open.surface : task.origin.surface); if (task.open && task.open.id) { url.searchParams.set("openItem", task.open.id); url.searchParams.set("openTitle", task.open.title); }
     const desktop = new URLSearchParams(location.search).get("desktop"); if (desktop) url.searchParams.set("desktop", desktop);
     return url.pathname + url.search;
   };
@@ -43,28 +43,20 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
       const head = node("span", undefined, "background-task-head");
       head.append(node("span", task.title, "background-task-title"), node("time", when(task.updated_at)));
       const detail = node("span", undefined, "background-task-detail");
-      detail.append(node("span", task.standing.map(phrase => phrase.text).join(" · ")));
+      detail.append(node("span", [task.step, ...task.details].filter(Boolean).map(phrase => phrase.text).join(" · ")));
       if (task.project_id !== projectId) detail.append(node("span", task.project_name, "background-task-project"));
       row.append(head, detail);
       row.addEventListener("click", (event) => {
         if (task.project_id !== projectId || event.metaKey || event.ctrlKey || event.shiftKey) return;
-        event.preventDefault(); openItem(task.surface, task.id, task.title);
+        if (!task.open || !task.open.id) return;
+        event.preventDefault(); openItem(task.open.surface, task.open.id, task.open.title);
       });
       list.append(row);
-      // Commands it left running: stopping one is the same reviewed stop the task's own panel offers.
+      // Commands it left running are listed; stopping one moves to the task panel with the row's own action (specs/work-line §6).
       for (const command of task.commands || []) {
         const line = node("div", undefined, "background-task-command");
-        const stop = node("button", globalThis.t.text("workbench.attention.stop"), "mw-btn mw-btn--ghost"); stop.type = "button";
-        const feedback = node("div", "", "background-task-detail"); feedback.setAttribute("role", "alert");
-        stop.addEventListener("click", async () => {
-          stop.disabled = true; feedback.replaceChildren();
-          try {
-            await molisWorkRequest(command.stop_url, { body: {} });
-            line.remove(); key = ""; void read();
-          } catch (error) { if (!list.contains(feedback)) list.append(feedback); molisWorkRequest.show(feedback, error); stop.disabled = false; }
-        });
-        line.append(node("span", globalThis.t.text("workbench.attention.background-command"), "background-task-command-label"), node("code", command.summary), stop);
-        list.append(line, feedback);
+        line.append(node("span", globalThis.t.text("workbench.attention.background-command"), "background-task-command-label"), node("code", command.summary));
+        list.append(line);
       }
     }
   };

@@ -105,6 +105,11 @@ export type { ArtifactReferrer } from "@molis-ai/molis-work-contracts/platform/a
 export type { ArtifactReferrersInput } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { ArtifactReferrersResult } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
+export type { BackgroundTask } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { BackgroundTaskCollection } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { BackgroundTaskCommand } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { BackgroundTaskExecutor } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { BackgroundTaskPhrase } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export interface CardAuthority {
     discover(): Promise<readonly ActionView[]>;
@@ -232,10 +237,6 @@ export interface GitUpstream {
     behind: number;
 }
 
-export type { HomeBackgroundTask } from "@molis-ai/molis-work-contracts/platform/actions";
-export type { HomeBackgroundTaskCollection } from "@molis-ai/molis-work-contracts/platform/actions";
-export type { HomeBackgroundTaskCommand } from "@molis-ai/molis-work-contracts/platform/actions";
-export type { HomeBackgroundTaskPhrase } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { InferActionInput } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 export type { InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
@@ -757,12 +758,12 @@ export { defineArtifactLinkSubjectsAction } from "@molis-ai/molis-work-contracts
 export { defineArtifactPinAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineArtifactPreviewAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineArtifactReferrersAction } from "@molis-ai/molis-work-contracts/platform/actions";
+export { defineBackgroundTasksAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineDueRemindersAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineFileContentAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineFileEntriesAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineFragmentOffersAction } from "@molis-ai/molis-work-contracts/platform/actions";
-export { defineHomeBackgroundTasksAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineInstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 export { defineKitReportAction } from "@molis-ai/molis-work-contracts/platform/kit-report";
 export { defineObjectCopyAction } from "@molis-ai/molis-work-contracts/platform/actions";

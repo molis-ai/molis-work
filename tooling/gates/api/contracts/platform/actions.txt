@@ -946,6 +946,502 @@ export interface ArtifactReferrersResult {
     referrers: ArtifactReferrer[];
 }
 
+export declare const BACKGROUND_TASKS_INPUT_TYPE = "molis.background-tasks.query.v1";
+
+export declare const BACKGROUND_TASKS_OUTPUT_TYPE = "molis.background-tasks.collection.v1";
+
+export declare const BACKGROUND_TASK_COLLECTION_SCHEMA: {
+    type: string;
+    properties: {
+        source: {
+            type: string;
+            properties: {
+                surface: {
+                    pattern: string;
+                    minLength: 1;
+                    type: "string";
+                };
+                title: {
+                    readonly minLength: 1;
+                    readonly type: "string";
+                };
+                icon: {
+                    pattern: string;
+                    minLength: 1;
+                    type: "string";
+                };
+            };
+            required: string[];
+            additionalProperties: boolean;
+        };
+        tasks: {
+            type: string;
+            maxItems: number;
+            items: {
+                type: string;
+                properties: {
+                    subject: {
+                        readonly type: "object";
+                        readonly properties: {
+                            readonly kind: {
+                                readonly type: "string";
+                                readonly minLength: 1;
+                            };
+                            readonly id: {
+                                readonly type: "string";
+                                readonly minLength: 1;
+                            };
+                        };
+                        readonly required: readonly ["kind", "id"];
+                        readonly additionalProperties: false;
+                    };
+                    title: {
+                        maxLength: number;
+                        type: string;
+                    };
+                    state: {
+                        enum: readonly ("partial" | "archived" | "unavailable" | "failed" | "done" | "conflict" | "cancelled" | "idle" | "connected" | "ready" | "running" | "doing" | "starting" | "generating" | "saving" | "indexing" | "saved" | "round-ended" | "staged" | "waiting" | "queued" | "answer" | "approval" | "reauth" | "paused" | "stopped" | "disabled" | "blocked" | "quarantined" | "syncing" | "retrying" | "interrupted" | "verify" | "stale" | "disconnected" | "unsaved" | "draft" | "unstaged" | "untracked" | "unread" | "read" | "material" | "trashed")[];
+                    };
+                    step: {
+                        type: string;
+                        properties: {
+                            text: {
+                                maxLength: number;
+                                minLength: number;
+                                type: string;
+                            };
+                            count: {
+                                type: string;
+                                minimum: number;
+                            };
+                        };
+                        required: string[];
+                        additionalProperties: boolean;
+                    };
+                    details: {
+                        type: string;
+                        maxItems: number;
+                        items: {
+                            type: string;
+                            properties: {
+                                text: {
+                                    maxLength: number;
+                                    minLength: number;
+                                    type: string;
+                                };
+                                count: {
+                                    type: string;
+                                    minimum: number;
+                                };
+                            };
+                            required: string[];
+                            additionalProperties: boolean;
+                        };
+                    };
+                    waiting: {
+                        type: string;
+                    };
+                    started_at: {
+                        format: string;
+                        minLength: number;
+                        maxLength: number;
+                        type: string;
+                    };
+                    updated_at: {
+                        format: string;
+                        minLength: number;
+                        maxLength: number;
+                        type: string;
+                    };
+                    executor: {
+                        type: string;
+                        properties: {
+                            kind: {
+                                enum: string[];
+                            };
+                            label: {
+                                maxLength: number;
+                                minLength: number;
+                                type: string;
+                            };
+                        };
+                        required: string[];
+                        additionalProperties: boolean;
+                    };
+                    serves: {
+                        type: string;
+                        maxItems: number;
+                        items: {
+                            readonly type: "object";
+                            readonly properties: {
+                                readonly kind: {
+                                    readonly type: "string";
+                                    readonly minLength: 1;
+                                };
+                                readonly id: {
+                                    readonly type: "string";
+                                    readonly minLength: 1;
+                                };
+                            };
+                            readonly required: readonly ["kind", "id"];
+                            readonly additionalProperties: false;
+                        };
+                    };
+                    scope: {
+                        enum: string[];
+                    };
+                    commands: {
+                        type: string;
+                        maxItems: number;
+                        items: {
+                            type: string;
+                            properties: {
+                                role: {
+                                    enum: string[];
+                                };
+                                action: {
+                                    readonly type: "object";
+                                    readonly properties: {
+                                        readonly capability_id: {
+                                            readonly type: "string";
+                                            readonly minLength: 1;
+                                        };
+                                        readonly version: {
+                                            readonly type: "integer";
+                                            readonly minimum: 1;
+                                        };
+                                        readonly provider_id: {
+                                            readonly type: "string";
+                                            readonly minLength: 1;
+                                        };
+                                    };
+                                    readonly required: readonly ["capability_id", "version"];
+                                    readonly additionalProperties: false;
+                                };
+                                input: {
+                                    type: string;
+                                };
+                                summary: {
+                                    maxLength: number;
+                                    type: string;
+                                };
+                            };
+                            required: string[];
+                            additionalProperties: boolean;
+                        };
+                    };
+                    open: {
+                        anyOf: ({
+                            readonly type: "object";
+                            readonly properties: {
+                                readonly kind: {
+                                    readonly enum: readonly ["item", "group", "surface"];
+                                };
+                                readonly surface: {
+                                    pattern: string;
+                                    minLength: 1;
+                                    type: "string";
+                                };
+                                readonly id: {
+                                    readonly type: readonly ["string", "null"];
+                                    readonly minLength: 1;
+                                };
+                                readonly title: {
+                                    readonly minLength: 1;
+                                    readonly type: "string";
+                                };
+                                readonly label: {
+                                    readonly minLength: 1;
+                                    readonly type: "string";
+                                };
+                            };
+                            readonly required: readonly ["kind", "surface", "id", "title", "label"];
+                            readonly additionalProperties: false;
+                            readonly anyOf: readonly [{
+                                readonly properties: {
+                                    readonly kind: {
+                                        readonly const: "surface";
+                                    };
+                                    readonly id: {
+                                        readonly type: "null";
+                                    };
+                                };
+                            }, {
+                                readonly properties: {
+                                    readonly kind: {
+                                        readonly enum: readonly ["item", "group"];
+                                    };
+                                    readonly id: {
+                                        readonly minLength: 1;
+                                        readonly type: "string";
+                                    };
+                                };
+                            }];
+                        } | {
+                            type: string;
+                        })[];
+                    };
+                };
+                required: string[];
+                additionalProperties: boolean;
+            };
+        };
+    };
+    required: string[];
+    additionalProperties: boolean;
+};
+
+export declare const BACKGROUND_TASK_SCHEMA: {
+    type: string;
+    properties: {
+        subject: {
+            readonly type: "object";
+            readonly properties: {
+                readonly kind: {
+                    readonly type: "string";
+                    readonly minLength: 1;
+                };
+                readonly id: {
+                    readonly type: "string";
+                    readonly minLength: 1;
+                };
+            };
+            readonly required: readonly ["kind", "id"];
+            readonly additionalProperties: false;
+        };
+        title: {
+            maxLength: number;
+            type: string;
+        };
+        state: {
+            enum: readonly ("partial" | "archived" | "unavailable" | "failed" | "done" | "conflict" | "cancelled" | "idle" | "connected" | "ready" | "running" | "doing" | "starting" | "generating" | "saving" | "indexing" | "saved" | "round-ended" | "staged" | "waiting" | "queued" | "answer" | "approval" | "reauth" | "paused" | "stopped" | "disabled" | "blocked" | "quarantined" | "syncing" | "retrying" | "interrupted" | "verify" | "stale" | "disconnected" | "unsaved" | "draft" | "unstaged" | "untracked" | "unread" | "read" | "material" | "trashed")[];
+        };
+        step: {
+            type: string;
+            properties: {
+                text: {
+                    maxLength: number;
+                    minLength: number;
+                    type: string;
+                };
+                count: {
+                    type: string;
+                    minimum: number;
+                };
+            };
+            required: string[];
+            additionalProperties: boolean;
+        };
+        details: {
+            type: string;
+            maxItems: number;
+            items: {
+                type: string;
+                properties: {
+                    text: {
+                        maxLength: number;
+                        minLength: number;
+                        type: string;
+                    };
+                    count: {
+                        type: string;
+                        minimum: number;
+                    };
+                };
+                required: string[];
+                additionalProperties: boolean;
+            };
+        };
+        waiting: {
+            type: string;
+        };
+        started_at: {
+            format: string;
+            minLength: number;
+            maxLength: number;
+            type: string;
+        };
+        updated_at: {
+            format: string;
+            minLength: number;
+            maxLength: number;
+            type: string;
+        };
+        executor: {
+            type: string;
+            properties: {
+                kind: {
+                    enum: string[];
+                };
+                label: {
+                    maxLength: number;
+                    minLength: number;
+                    type: string;
+                };
+            };
+            required: string[];
+            additionalProperties: boolean;
+        };
+        serves: {
+            type: string;
+            maxItems: number;
+            items: {
+                readonly type: "object";
+                readonly properties: {
+                    readonly kind: {
+                        readonly type: "string";
+                        readonly minLength: 1;
+                    };
+                    readonly id: {
+                        readonly type: "string";
+                        readonly minLength: 1;
+                    };
+                };
+                readonly required: readonly ["kind", "id"];
+                readonly additionalProperties: false;
+            };
+        };
+        scope: {
+            enum: string[];
+        };
+        commands: {
+            type: string;
+            maxItems: number;
+            items: {
+                type: string;
+                properties: {
+                    role: {
+                        enum: string[];
+                    };
+                    action: {
+                        readonly type: "object";
+                        readonly properties: {
+                            readonly capability_id: {
+                                readonly type: "string";
+                                readonly minLength: 1;
+                            };
+                            readonly version: {
+                                readonly type: "integer";
+                                readonly minimum: 1;
+                            };
+                            readonly provider_id: {
+                                readonly type: "string";
+                                readonly minLength: 1;
+                            };
+                        };
+                        readonly required: readonly ["capability_id", "version"];
+                        readonly additionalProperties: false;
+                    };
+                    input: {
+                        type: string;
+                    };
+                    summary: {
+                        maxLength: number;
+                        type: string;
+                    };
+                };
+                required: string[];
+                additionalProperties: boolean;
+            };
+        };
+        open: {
+            anyOf: ({
+                readonly type: "object";
+                readonly properties: {
+                    readonly kind: {
+                        readonly enum: readonly ["item", "group", "surface"];
+                    };
+                    readonly surface: {
+                        pattern: string;
+                        minLength: 1;
+                        type: "string";
+                    };
+                    readonly id: {
+                        readonly type: readonly ["string", "null"];
+                        readonly minLength: 1;
+                    };
+                    readonly title: {
+                        readonly minLength: 1;
+                        readonly type: "string";
+                    };
+                    readonly label: {
+                        readonly minLength: 1;
+                        readonly type: "string";
+                    };
+                };
+                readonly required: readonly ["kind", "surface", "id", "title", "label"];
+                readonly additionalProperties: false;
+                readonly anyOf: readonly [{
+                    readonly properties: {
+                        readonly kind: {
+                            readonly const: "surface";
+                        };
+                        readonly id: {
+                            readonly type: "null";
+                        };
+                    };
+                }, {
+                    readonly properties: {
+                        readonly kind: {
+                            readonly enum: readonly ["item", "group"];
+                        };
+                        readonly id: {
+                            readonly minLength: 1;
+                            readonly type: "string";
+                        };
+                    };
+                }];
+            } | {
+                type: string;
+            })[];
+        };
+    };
+    required: string[];
+    additionalProperties: boolean;
+};
+
+export interface BackgroundTask {
+    subject: ActionSubject;
+    title: string;
+    state: StateRingState;
+    step?: BackgroundTaskPhrase;
+    details: BackgroundTaskPhrase[];
+    waiting: boolean;
+    started_at?: string;
+    updated_at: string;
+    executor: BackgroundTaskExecutor;
+    serves: ActionSubject[];
+    scope: "project" | "personal";
+    commands: BackgroundTaskCommand[];
+    open: OpenTarget | null;
+}
+
+export interface BackgroundTaskCollection {
+    source: {
+        surface: string;
+        title: string;
+        icon: string;
+    };
+    tasks: BackgroundTask[];
+}
+
+export interface BackgroundTaskCommand {
+    role: "stop" | "pause" | "resume";
+    action: ActionReference;
+    input: Record<string, unknown>;
+    summary: string;
+}
+
+export interface BackgroundTaskExecutor {
+    kind: "assistant" | "character" | "plugin" | "platform";
+    label: string;
+}
+
+export interface BackgroundTaskPhrase {
+    text: string;
+    count?: number;
+}
+
 export interface BoundActionClient {
     discover(): Promise<readonly ActionView[]>;
     invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "locale" | "assert_authority_current" | "retainBackgroundAuthority" | "query_only" | "assert_memory_sources_current">, transport?: ActionInvokeTransport): Promise<Output>;
@@ -1794,38 +2290,6 @@ export interface FragmentTarget {
     };
     readonly text: string;
     readonly truncated?: boolean;
-}
-
-export declare const HOME_BACKGROUND_TASKS_INPUT_TYPE = "molis.home-background-tasks.query.v1";
-
-export declare const HOME_BACKGROUND_TASKS_OUTPUT_TYPE = "molis.home-background-tasks.collection.v1";
-
-export interface HomeBackgroundTask {
-    id: string;
-    title: string;
-    state: string;
-    updated_at: string;
-    waiting: boolean;
-    standing: HomeBackgroundTaskPhrase[];
-    commands: HomeBackgroundTaskCommand[];
-}
-
-export interface HomeBackgroundTaskCollection {
-    source: {
-        surface: string;
-    };
-    tasks: HomeBackgroundTask[];
-}
-
-export interface HomeBackgroundTaskCommand {
-    task_id: string;
-    summary: string;
-    stop_path: string;
-}
-
-export interface HomeBackgroundTaskPhrase {
-    text: string;
-    count?: number;
 }
 
 export interface HomePageSubject {
@@ -3827,6 +4291,8 @@ export declare function defineArtifactPreviewAction(capabilityId: string, versio
 
 export declare function defineArtifactReferrersAction(capabilityId: string, version: number, objectTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactReferrersInput, ArtifactReferrersResult>;
 
+export declare function defineBackgroundTasksAction(capabilityId: string, version: number, kinds: string[], title: string, permissions: string[]): ActionDefinition<Record<string, never>, BackgroundTaskCollection>;
+
 export declare function defineDueRemindersAction(capabilityId: string, version: number, kinds: string[], title: string, permissions: string[]): ActionDefinition<DueReminderWindow, DueReminderCollection>;
 
 export declare function defineErrorCodes<const Reasons extends Readonly<Record<string, ActionErrorKind>>>(prefix: string, reasons: Reasons): ErrorCodeRaisers<Reasons>;
@@ -3838,8 +4304,6 @@ export declare function defineFileEntriesAction(capabilityId: string, version: n
 export declare function defineFragmentOffersAction(capabilityId: string, version: number, kinds: string[], title: string, permissions: string[], choices: readonly FragmentOfferChoice[], scope?: "project" | "home"): ActionDefinition<FragmentOffersInput, {
     offers: FragmentActionOffer[];
 }>;
-
-export declare function defineHomeBackgroundTasksAction(capabilityId: string, version: number, title: string, permissions: string[]): ActionDefinition<Record<string, never>, HomeBackgroundTaskCollection>;
 
 export declare function defineObjectCopyAction(capabilityId: string, version: number, kinds: readonly string[], title: string, permissions: readonly string[]): ActionDefinition<PlacementCopyInput, PlacementResult>;
 

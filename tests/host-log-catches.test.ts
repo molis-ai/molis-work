@@ -58,7 +58,7 @@ test("RAC-2494 an owner's preview refused to an MCP client is an answer, told by
 });
 
 test("W5-13-06 W5-01-CODING-49 the Home's background list: a project where the plugin is off lists nothing quietly; one whose answer cannot be read is written once until it reads again", async t => {
-  const empty = { source: { surface: "example" }, tasks: [] };
+  const empty = { source: { surface: "example", title: "示例", icon: "list" }, tasks: [] };
   const plugin = backgroundPlugin(() => empty);
   const rig = await backgroundRig(t, plugin, ["Fine", "Off", "Broken"], { off: ["Off"] });
   const broken = rig.project("Broken").project_id;
@@ -75,7 +75,7 @@ test("W5-13-06 W5-01-CODING-49 the Home's background list: a project where the p
   plugin.state.answer = project => { if (project === broken) throw new Error("读不了"); return empty; };
   assert.equal((await ask()).entries.length, 1);
   // An answer the page cannot draw is a failure of the same kind, written the same way.
-  plugin.state.answer = project => project === broken ? { source: { surface: "../x" }, tasks: [] } : empty;
+  plugin.state.answer = project => project === broken ? { source: { ...empty.source, surface: "../x" }, tasks: [] } : empty;
   assert.deepEqual((await ask()).entries, [], "the project is still unread, so it is not written again");
 });
 

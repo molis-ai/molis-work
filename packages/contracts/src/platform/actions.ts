@@ -11,7 +11,7 @@ import type { ActionDelegationSource, ActionPersonEntry } from "./action-source.
 import type { UiLanguageTag } from "./ui-text.js";
 import type { ActionResultView } from "./action-result.js";
 import type { SubjectOfferChoice } from "./action-offers.js";
-export * from "./home-background-tasks.js";
+export * from "./background-tasks.js";
 export * from "./work-events.js";
 export * from "./due-reminders.js";
 export * from "./scheduled-runs.js";

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import type { TestContext } from "node:test";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { molisWorkHostProjectReference, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
-import { defineHomeBackgroundTasksAction, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { defineBackgroundTasksAction, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { startProjectPlugins } from "./plugin-callers.js";
@@ -20,7 +20,7 @@ const READ = "homebg:read";
 
 export function backgroundPlugin(answer: (projectId: string) => unknown) {
   const state = { answer, calls: [] as Array<{ project: string | null; query_only: boolean }> };
-  const query = defineHomeBackgroundTasksAction("homebg.tasks", 1, "示例后台任务", [READ]);
+  const query = defineBackgroundTasksAction("homebg.tasks", 1, ["homebg_task"], "示例后台任务", [READ]);
   // A third-party plugin may declare any schema for its answer; the page's rows are checked again by the Host.
   const declared = { ...query, action: { ...query.action, output_schema: { type: "object" as const } } };
   const definition: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: BACKGROUND_PLUGIN_ID, version: "1.0.0", name: "homebg", kind: "app",

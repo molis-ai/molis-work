@@ -16,7 +16,7 @@ import { codingSurface } from "./routes.js";
 import { codingGoalTitles } from "./goal-titles.js";
 import { codingArtifactPreviewHandler } from "./artifact-preview.js";
 import { codingResultDocumentHandler } from "./results-document.js";
-import { codingHomeBackgroundTasksHandler } from "./home-background.js";
+import { codingBackgroundTasksHandler } from "./home-background.js";
 import { CODING_INSTRUCTIONS } from "./prompts.js";
 
 /**
@@ -63,7 +63,7 @@ export function createCodingPlugin(ports: CodingPluginPorts = {}): PluginDefinit
         // The page's session directory is read from this store at render, not by the Host from Coding's tables.
         views: [codingUiView(() => toDirectoryEntries(sessions.list(context.project_id ?? ""), goalTitles.known)), codingSettingsContribution],
         routes: surface.routes,
-        actions: [...surface.actions, ...createCodingPresentationHandlers(context.project_id ?? "", sessions, context.actor_id), codingArtifactPreviewHandler, codingResultDocumentHandler(context), codingHomeBackgroundTasksHandler(context, sessions, startedAt)],
+        actions: [...surface.actions, ...createCodingPresentationHandlers(context.project_id ?? "", sessions, context.actor_id), codingArtifactPreviewHandler, codingResultDocumentHandler(context), codingBackgroundTasksHandler(context, sessions, startedAt)],
       };
     },
     // The rounds' followers and the wake loop are the activation's jobs: the platform stops them before this runs (PG-038).

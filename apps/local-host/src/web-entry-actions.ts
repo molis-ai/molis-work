@@ -20,6 +20,11 @@ export interface WebEntryDoor<Entry> {
   /** One action of this door: the handler first checks the call came through it, then gets this request's entry. */
   define<const S extends ActionSchema, Output>(spec: WebEntryActionSpec<S>, handle: (entry: Entry, input: InferActionInput<S>, caller: ActionExecutionContext) => Output | Promise<Output>):
     { readonly definition: ActionDefinition<InferActionInput<S>, Output>; readonly handler: ActionHandlerBinding };
+  /**
+   * The entry of a call that came through this door; throws the door's refusal for any other. For an action that serves the person through
+   * this door and other callers its own way, so it cannot be one of `define`'s (`observation.report@1`).
+   */
+  entryOf(caller: ActionCallContext): Entry;
   /** Calls one of this door's actions as the person, for the request being answered. */
   invoke<Input, Output>(call: WebEntryCall<Entry>, definition: ActionDefinition<Input, Output>, input: Input): Promise<Output>;
 }
@@ -34,6 +39,8 @@ export interface WebEntryActionSpec<S extends ActionSchema> {
   readonly effect?: "read" | "write" | "irreversible";
   /** Waits for a model or another service (the Host bills it as metered). */
   readonly metered?: boolean;
+  /** Its input is the person's unsent draft (`ActionMetadata.draft`). */
+  readonly draft?: true;
 }
 
 export interface WebEntryCall<Entry> {
@@ -60,11 +67,12 @@ export function webEntryDoor<Entry>(scope: string, refusal: () => string): WebEn
     const definition: ActionDefinition<InferActionInput<S>, Output> = { capability_id: spec.capability_id, version: spec.version, operation: "command",
       action: { title: spec.title, description: spec.description, kind: "operation", scope: spec.scope, effect: spec.effect ?? "write", scheduling: "concurrent",
         audiences: ["user"], permissions: [], subject_kinds: [], input_schema: spec.input_schema, output_schema: { type: "object" },
-        execution: { cost: spec.metered ? "metered" : "none" } } };
+        execution: { cost: spec.metered ? "metered" : "none" }, ...(spec.draft ? { draft: true as const } : {}) } };
     return defineAction<InferActionInput<S>, Output>(definition, (caller, input) => handle(entryOf(caller), input, caller));
   }
   return {
     define,
+    entryOf,
     invoke: async (call, definition, input) => {
       const user_action: ActionUserAction = Object.freeze(entryUserAction("web", scope, webEntryMessage(call.request)));
       issued.set(user_action, { entry: call.entry, project_id: call.reference?.project_id ?? null });

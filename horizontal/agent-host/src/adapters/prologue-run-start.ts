@@ -158,7 +158,7 @@ export async function startPrologueRun(context: RunStartContext, request: AgentS
   };
   store.rememberRun(session, record);
   memoryBinding.bind(record, started.memory);
-  store.follow(record, request.task, started.run, context.ports);
+  store.follow(record, { task: request.task, prompts: role.prompts, skills: role.skills ?? [], materials: textMaterials }, started.run, context.ports);
   store.publish(ref.run_id);
   return { ref, frozen };
 }

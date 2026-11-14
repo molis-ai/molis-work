@@ -1,3 +1,4 @@
+import { observationPluginDataCleared } from "./observation-host.js";
 import { ActionError, requireSynchronous, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginExecutionControl } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { outsidePluginAction } from "@molis-ai/molis-work-plugin-runtime";
@@ -128,6 +129,8 @@ export class PluginHostExecutor implements PluginExecutor {
     if (this.options.home) directoryForHome(this.options.home.directory).forgetInstallation(record.install_id, this.options.project_id);
     // A sandboxed installation that keeps no data keeps no files either (S-64); one that keeps it leaves its folder to the same installation id.
     if (record.execution === "sandbox" && !record.retain_private_data) removeSandboxOwnerFiles({ home: this.options.home, project_id: this.options.project_id }, record.install_id);
+    // Its work records in this project, and the content of the calls it answered or made, go with its data (observation-collection §6).
+    if (this.options.home && !record.retain_private_data) observationPluginDataCleared(this.options.home.directory, record, this.options.project_id);
     // File registrations and record bindings are authorization, removed on every uninstall even when private data is kept (BL-356).
     forgetInstallationRecords({ home: this.options.home, project_id: this.options.project_id }, record);
   }
@@ -143,6 +146,7 @@ export class PluginHostExecutor implements PluginExecutor {
 
   keptDataDiscarded(record: PluginInstanceRecord): void {
     discardInstallationOwnerData({ home: this.options.home, project_id: this.options.project_id }, record, this.options.deleteInstallationData);
+    if (this.options.home) observationPluginDataCleared(this.options.home.directory, record, this.options.project_id);
   }
 
   /** How many service calls an instance's code made after it stopped, each doing nothing (BL-411); in memory, from this process. */

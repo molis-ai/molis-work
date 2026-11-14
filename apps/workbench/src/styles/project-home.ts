@@ -15,9 +15,13 @@ export const PROJECT_HOME_STYLES = PRESENTATION_FORM_STYLES + `
 .inbox-object-title .mw-presentation__tag strong{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere}
   .immersive-plugin-stage > .immersive-home, .tab-pane-body > .immersive-home { container-type: inline-size; padding: 0; min-block-size: 0; block-size: 100%; overflow: hidden; display: flex; flex-direction: column; position: relative; }
   .immersive-home .home-scroll { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; width: 100%; max-width: 1280px; margin: 0 auto; padding: clamp(1rem, 4cqi, 3.5rem); }
-  .immersive-home .home-heading h1 { margin: 0; font-family: var(--type-display-font); font-size: var(--type-display-size); line-height: var(--type-display-line-height); }
-  .immersive-home .home-heading p, .home-read-state { color: var(--muted); }
+  /* Where am I: the page's kind as a quiet line, then the project's own name. */
+  .immersive-home .home-heading { display: grid; gap: .25rem; }
+  .immersive-home .home-heading h1 { margin: 0; font-family: var(--type-display-font); font-size: var(--type-display-size); line-height: max(var(--type-display-line-height), 1.3); overflow-wrap: anywhere; text-wrap: balance; }
+  .immersive-home .home-heading p, .home-read-state { margin: 0; color: var(--muted); }
+  .immersive-home .home-heading__place { font-size: var(--type-note-size, 12px); line-height: var(--type-note-line-height, 1.6); }
   .home-read-state { min-block-size: 1.6em; margin-block: .5rem 1rem; }
+  .home-read-state:empty { min-block-size: 0; margin-block: .4rem .9rem; }
   .home-read-state p { display: inline; margin-inline-end: .6em; }
   .home-groups { display: grid; gap: 1.4rem; }
   .home-groups h2 { font-size: var(--type-title-size, 1rem); margin: 0 0 .7rem; }
@@ -30,6 +34,27 @@ export const PROJECT_HOME_STYLES = PRESENTATION_FORM_STYLES + `
   .home-plugin-card__actions { display: flex; flex-wrap: wrap; gap: .45rem; }
   .home-rows { display: grid; min-inline-size: 0; gap: .45rem; }
   .home-row { min-inline-size: 0; }
+  /* Why the page is arranged this way is one small line under the heading, its scope beside it, not a paragraph of its own. */
+  .home-groups > .surface-correction-reason { font-size: var(--type-note-size, 12px); line-height: var(--type-note-line-height, 1.6); margin-block-end: -.5rem; }
+  .home-groups > .surface-correction-reason > div { display: flex; flex-wrap: wrap; align-items: baseline; gap: .1rem .7rem; min-inline-size: 0; }
+  /* Nothing waiting: one line with a settled mark. */
+  .home-clear p { display: flex; align-items: center; gap: .45em; margin: 0; color: var(--muted); }
+  .home-clear svg { flex: none; inline-size: 1.1em; block-size: 1.1em; color: var(--green); }
+  /* A group's rows are one list: a single edge around it and hairlines between rows, instead of a box for every row
+     (and, in a plugin's card, a box inside a box). */
+  .home-groups > section:is([data-home-group=attention], [data-home-group=continue]) .home-rows {
+    gap: 0; border-radius: var(--sk-r-card, var(--r-card)); box-shadow: 0 0 0 1px var(--line); background: var(--paper);
+  }
+  .home-groups :is([data-home-group=attention], [data-home-group=continue], .home-plugin-card) .home-row + .home-row { border-block-start: 1px solid var(--line); }
+  .home-groups :is([data-home-group=attention], [data-home-group=continue], .home-plugin-card) .mw-presentation--row .mw-item { border: 0; border-radius: 0; padding: 8px 8px 8px 12px; }
+  .home-groups > section:is([data-home-group=attention], [data-home-group=continue]) .home-row:first-child .mw-item { border-start-start-radius: var(--sk-r-card, var(--r-card)); border-start-end-radius: var(--sk-r-card, var(--r-card)); }
+  .home-groups > section:is([data-home-group=attention], [data-home-group=continue]) .home-row:last-child .mw-item { border-end-start-radius: var(--sk-r-card, var(--r-card)); border-end-end-radius: var(--sk-r-card, var(--r-card)); }
+  .home-plugin-card .home-rows { gap: 0; margin-inline: -.9rem; }
+  .home-plugin-card .mw-presentation--row .mw-item { padding-inline: .9rem .6rem; }
+  .home-rows:empty { display: none; }
+  @media (hover: hover) and (pointer: fine) {
+    .home-groups .home-row:hover .mw-presentation--row .mw-item { background: var(--nav-hover); }
+  }
   .home-row .mw-presentation__row-title[aria-haspopup] { cursor: pointer; }
   .home-row .mw-presentation__more { z-index: 1; }
   .home-row .mw-presentation__more[open] { z-index: 2; }

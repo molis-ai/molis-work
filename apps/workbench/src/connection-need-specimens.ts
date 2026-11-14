@@ -70,6 +70,5 @@ export function renderConnectionNeedSection(readText: Say): string {
 
 /** The board's layout for the section; the card's own styles are the shell's. */
 export const CONNECTION_NEED_SECTION_STYLES = CONNECTION_NEED_AREA_STYLES
-  + `#connection-need .mw-catalog__specimen{margin:0}`
   + `.mw-cn-board__stage{display:flex;flex-wrap:wrap;align-items:flex-start;gap:16px;max-width:100%;overflow-x:auto;padding:16px;border-radius:var(--r-card);background:var(--paper);box-shadow:inset 0 0 0 1px var(--line)}`
   + `.mw-cn-board__stage>.mw-platform-area{flex:none}`;

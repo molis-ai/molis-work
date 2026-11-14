@@ -62,7 +62,9 @@ export const ASSISTANT_PROCESS_FACTORY_SCRIPT = String.raw`(input) => {
     "auto-continue": "refresh", compact: "refresh", "browser-list": "globe", "browser-look": "globe", "browser-act": "globe", "computer-list": "system", "computer-look": "system", "computer-act": "system", "ended-on-promise": "alert" };
   const verbGlyph = (item) => item.state === "started" ? spinner() : item.state === "failed" || item.state === "unknown" ? spinner(item.state === "failed" ? "failed" : "verify") : glyph(VERB_GLYPH[item.verb] || "circle");
   // form: 0 bare, 1 under way, 2 done. A line starts with its verb, so it starts with a capital where the language has them.
-  const verb = (item, form = 0) => { const key = VERBS[item.verb]?.[form]; return key ? globalThis.t.text(key) : item.verb; };
+  // A step with no word of its own (a runtime tool, an MCP tool, a step the runtime adds) is said plainly, never by its internal name.
+  const OTHER = ["workbench.assistant-process.other.bare", "workbench.assistant-process.other.started", "workbench.assistant-process.other.completed"];
+  const verb = (item, form = 0) => globalThis.t.text((VERBS[item.verb] ?? OTHER)[form]);
   const capital = (text) => text.charAt(0).toUpperCase() + text.slice(1);
   const activityLine = (item) => {
     const what = item.target ? (item.verb === "ask" ? globalThis.t.text("workbench.assistant-process.target-named", { target: item.target }) : " " + item.target) : "";

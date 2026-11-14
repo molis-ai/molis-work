@@ -58,6 +58,9 @@ async function openCoding(t: TestContext, ask: object) {
   };
   const b = await openGoalBrowser(t, "seeded", undefined, undefined, undefined, undefined, { prepareHome }); if (!b) return null;
   const { command, sessionId, homeDirectory } = b;
+  // Hold the page still before opening the frame, so the frame is held still too: clicks into the card must not land
+  // while it is still rising into place (BL-1074, pointerdown/pointerup on different elements on native Linux).
+  await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   const frame = await pluginFrameBrowser(t, b, "coding");
   const { click, evaluate, waitFor } = frame;
 
@@ -83,6 +86,7 @@ async function openCoding(t: TestContext, ask: object) {
   await b.click(`[data-plugin-strip] [data-plugin-id="coding"]`);
   await b.waitFor(`document.querySelector('[data-work-surface="coding"]')?.getBoundingClientRect().width > 100`);
   await b.waitFor("document.querySelector('[data-work-surface=coding]')?.dataset.uiClientState === 'ready'");
+  assert.equal(await evaluate<boolean>("matchMedia('(prefers-reduced-motion: reduce)').matches"), true, "the Coding frame is held still with its page");
   await click(`${coding} [data-coding-new]`);
   await b.waitFor(`${CODING_TAKEN} && !document.querySelector('${CODING_COMPOSER} .mw-composer__input').disabled && document.querySelector('${CODING_COMPOSER} [data-composer-control=model]').options.length >= 1`);
   await barFill(`${CODING_COMPOSER} [data-composer-control=model]`, JSON.stringify(["local-only", "fixture-plain"]));
@@ -180,14 +184,15 @@ test("AC-27-5: Coding answers words, a number, a date and a date and time, and a
   const evidence = reviewEvidenceUrl("ai-interaction/"); await mkdir(evidence, { recursive: true });
   const shot = async (name: string, width: number, scheme: "light" | "dark") => {
     await command("Emulation.setDeviceMetricsOverride", { width, height: 900, deviceScaleFactor: 1, mobile: width < 768 }, sessionId);
-    await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: scheme }] }, sessionId);
+    // setEmulatedMedia replaces every feature: keep the page held still while changing its colour scheme.
+    await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }, { name: "prefers-color-scheme", value: scheme }] }, sessionId);
     await evaluate(`document.querySelector(${JSON.stringify(card)}).scrollIntoView({ block: 'center' })`);
     await waitFor(`document.getAnimations().every(animation => animation.playState !== 'running' || animation.effect?.getTiming().iterations === Infinity)`, 5_000);
     await writeFile(new URL(`coding-typed-question-${name}.png`, evidence), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
   };
   const views = async (state: string) => { await shot(`${state}-light`, 1360, "light"); await shot(`${state}-dark`, 1360, "dark"); await shot(`${state}-390`, 390, "light");
     await command("Emulation.setDeviceMetricsOverride", { width: 1360, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
-    await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "light" }] }, sessionId); };
+    await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }, { name: "prefers-color-scheme", value: "light" }] }, sessionId); };
   await fill(`${card} [data-ix-field="t0"] input`, "Q4 发布复盘");
   await fill(`${card} [data-ix-field="n1"] input`, "240");
   await fill(`${card} [data-ix-field="w3"] [data-ix-part="date"]`, "2026-10-23");

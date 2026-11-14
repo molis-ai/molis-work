@@ -68,7 +68,7 @@
 
 - `backlog-rows.mjs` 增加 `--index`（分组、计数、一行一条、筛选）；`BACKLOG.md` 头部显示总数。
 - 解决 BL-1071 编号复用；BL-1071～1077 随 #2020 带入 main 或明确「只在 #2020 分支」；1076/1077 写墓碑。
-- 修 `BACKLOG.md` 的 Memory 暂停表述；清 BL-928、BL-376、第 27 批 24 个编号在现行文档里的失效引用；缺失编号已列 [墓碑速查](../../docs/backlog-removed.md)（2026-11-13 为 171 个）；11 条 `src/en.ts` 遗留 BL 已合并为 [BL-b16-server-text-residue](../backlog/BL-b16-server-text-residue.md)。
+- 修 `BACKLOG.md` 的 Memory 暂停表述；清 BL-928、BL-376、第 27 批 24 个编号在现行文档里的失效引用；缺失编号已列 [墓碑速查](../../docs/backlog-removed.md)（2026-11-13 为 174 个）；11 条 `src/en.ts` 遗留 BL 已合并为 [BL-b16-server-text-residue](../backlog/BL-b16-server-text-residue.md)。
 - 类型归一（47 种取值/91 条非标准）并考虑加 type 门禁；门禁变更需用户批准。
 - 平台产品服务、Governance 归属、包数/子路径数、`RUNTIME-MIGRATION` 的「现在」表、终端 preferred workspace、typed/hybrid 表述统一。
 - PRODUCT 的 Session 段落、发布说明计数、product-operations 的 11-04 基线。
@@ -96,7 +96,7 @@
 - 2026-11-13：P0 完成。路线书顶部状态与 `specs/README` 摘要已更新；D0002、D0071、D0039、D0244、D0038 五份 spec 归档并更新全部指向链接；Feed 有界读取因 #2045 保留；draft-and-return、work-brief、intelligent-surfaces、shared-sources-and-surfaces、surface-composition 的状态已跟 #1952/#2017；批次 15/22/27 已补合入提交；`specs/README` 的 unified-account、unified-input-voice、sqlite-driver-switch 三处硬错误已修。
 - 2026-11-13：P1 主体完成：
   - 新增 `scripts/backlog-index.mjs`，BACKLOG 头部改为摘要/筛选入口；类型统一回六类（原 91 条非标准已全部映射），分组子标题补齐。
-  - 新增 [BL-memory-p0-closure](../backlog/BL-memory-p0-closure.md)，把 #2020 分支的 P0 收口接进 main；[BACKLOG.md](../BACKLOG.md) 的 Memory 暂停改为已解除；BL-1071 复用、1076/1077 关闭、BL-928/376/701/915/901 等已记入 [墓碑](../../docs/backlog-removed.md)。
+  - 新增 [BL-memory-p0-closure 的收口记录](../prologue-memory-strategy/spec.md#p0-收尾与验收边界2026-11-13)，把 #2020 分支的 P0 收口接进 main；[BACKLOG.md](../BACKLOG.md) 的 Memory 暂停改为已解除；BL-1071 复用、1076/1077 关闭、BL-928/376/701/915/901 等已记入 [墓碑](../../docs/backlog-removed.md)。
   - 11 条 `src/en.ts` 遗留 BL 合并为 [BL-b16-server-text-residue](../backlog/BL-b16-server-text-residue.md)。
   - 新增 [BL-draft-return-acceptance](../backlog/BL-draft-return-acceptance.md)、[BL-daily-a1-residuals](../backlog/BL-daily-a1-residuals.md)、[BL-sqlite-sqld11](../backlog/BL-sqlite-sqld11.md)、[BL-capability-cpk11](../backlog/BL-capability-cpk11.md)；`specs/README` 对应摘要已指向它们。
   - 平台产品服务、Governance、包数/子路径、`RUNTIME-MIGRATION` 的「现在」表、终端输出目录、typed/hybrid、PLUGIN-PLATFORM 装配措辞、PRODUCT 的 Session、发布计数与 product-operations 基线告警已对齐。

@@ -8,13 +8,16 @@
 | --- | --- | --- |
 | BL-041、BL-102、BL-112、BL-138、BL-910、BL-958 | 第 27 批验收集中跟踪 | 第 27 批 #2010 收成 [BL-batch27-acceptance](../specs/backlog/BL-batch27-acceptance.md)；原条目删除 |
 | BL-091、BL-096、BL-103、BL-131、BL-367、BL-569、BL-701、BL-803、BL-819、BL-821、BL-901、BL-911、BL-913、BL-914、BL-915、BL-918、BL-919、BL-920 | 已完成并删除 | 第 27 批 #2010（`539d2d7d46`，2026-11-12）；验收余项见 BL-batch27-acceptance |
+| BL-plugin-dev-state-dir-before-locale-check、BL-catalog-specimen-default-margin | 已完成并删除 | 第 14 批登记的两条小缺口，2026-11-13 14／27 收口 PR 修掉；见 [14.md 合入记录](../specs/post-anticorruption-roadmap/reference/batches/14.md#实现进度与合入记录) |
 | BL-376 | 已并入 BL-377 | [BACKLOG.md](../specs/BACKLOG.md) 顶部说明；Alchemist 由 [BL-377](../specs/backlog/BL-377.md) 整体重做，编号不复用 |
 | BL-928 | 已完成并删除 | 真实 Home 干净重建，2026-11-07 #1914（`d125b36f5c`） |
 | BL-linux-ci-browser-reds | 已完成并删除 | 2026-11-13 #2044 放宽首页截止、#2046 修其余 Linux 浏览器用例；批次 15 已记「BL 已删」 |
 | BL-side-files-merged-reads | 已完成并删除 | 第 06 批 N52 已并入并完成；批次 06 与依赖表保留历史说明 |
-| BL-1071 | 历史已删除，编号已被 Memory 分支复用一次 | 2026-11-07 #1921 删除 S-102 的条目；Memory 分支又用同名编号，违反「不复用」，后续不再使用此号 |
-| BL-1072、BL-1073、BL-1075 | 只在 #2020 分支 | [BL-memory-p0-closure](../specs/backlog/BL-memory-p0-closure.md) 跟踪；合入后转统一待办 |
-| BL-1076、BL-1077 | 已在 #2020 分支关闭 | 2026-11-11/11-13 的 Memory 收口记录；main 不再引用为未完成 |
+| BL-1074 | 已完成并删除 | [#2029](https://github.com/molis-ai/molis-work/pull/2029) 修复跨进程插件框架不跟随页面 reduced-motion；原生 Linux no-fail-fast full suite [43546443501](https://github.com/molis-ai/molis-work/actions/runs/43546443501) 的 shard 21 首轮 `coding-question-card.e2e` 6/6，无 CDP 超时；2026-11-14 删除 |
+| BL-1071 | 已关闭；两个历史事项曾同号 | 2026-11-07 #1921 删除 S-102 的条目；Memory 的 SDK 采用随 [#2020](https://github.com/molis-ai/molis-work/pull/2020) 合入。编号不再复用 |
+| BL-memory-p0-closure | 已完成并删除 | Memory P0 经 [#2020](https://github.com/molis-ai/molis-work/pull/2020) 合入；继续跟踪的事项已列在 [BACKLOG](../specs/BACKLOG.md) |
+| BL-1076、BL-1077 | 已按用户决定关闭 | 随 [#2020](https://github.com/molis-ai/molis-work/pull/2020) 合入；[本人走查](../specs/backlog/BL-memory-own-app-walkthrough.md)另列，历史真实 Home 影响仍未知 |
+| BL-feed-wake-resets-page、BL-assistant-card-press-scrolls | 已修复并删除 | 随 [#2020](https://github.com/molis-ai/molis-work/pull/2020) 合入，Feed FBR-07/FSS-35 与助理 AC-05 在[最终 Linux 全量](https://github.com/molis-ai/molis-work/actions/runs/43467505571)首轮通过 |
 | BL-coding-skill-auto | 已完成并删除 | 2026-11-11 第 09 批审计整改补做，见 [specs/README](../specs/README.md) 与 [第 09 批](../specs/post-anticorruption-roadmap/reference/batches/09.md) |
 
 其余在 git 历史中曾经出现、后来随事项完成或总表迁移删除的编号，按同一规则处理：先查对应 PR/提交，不为历史编号新建文件，也不复用编号。
@@ -25,7 +28,7 @@ BL-455、BL-456、BL-457、BL-459、BL-460、BL-461、BL-462、BL-463、BL-464�
 
 ## 缺失编号速查（2026-11-13）
 
-共 171 个编号在非归档文档里被引用，但 main 的 specs/backlog 没有对应文件。
+共 174 个编号在非归档文档里被引用，但 main 的 specs/backlog 没有对应文件。
 
 | 编号 | 引用文件数 | 处置 |
 | --- | ---: | --- |
@@ -34,25 +37,25 @@ BL-455、BL-456、BL-457、BL-459、BL-460、BL-461、BL-462、BL-463、BL-464�
 | BL-701 | 11 | 已完成/并入/验收条目；见上表 |
 | BL-491 | 10 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |
 | BL-910 | 10 | 已完成/并入/验收条目；见上表 |
+| BL-1071 | 9 | 历史已删，Memory 分支复用；见上表 |
 | BL-108 | 9 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |
 | BL-321 | 9 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |
 | BL-376 | 9 | 已完成/并入/验收条目；见上表 |
 | BL-530 | 9 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |
 | BL-628 | 9 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |
 | BL-914 | 9 | 已完成/并入/验收条目；见上表 |
+| BL-1076 | 8 | 只在 #2020 分支；见 BL-memory-p0-closure |
 | BL-157 | 8 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |
 | BL-301 | 8 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |
 | BL-303 | 8 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |
+| BL-911 | 8 | 已完成/并入/验收条目；见上表 |
 | BL-144 | 7 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |
 | BL-309 | 7 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |
 | BL-803 | 7 | 已完成/并入/验收条目；见上表 |
 | BL-901 | 7 | 已完成/并入/验收条目；见上表 |
-| BL-911 | 7 | 已完成/并入/验收条目；见上表 |
 | BL-912 | 7 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |
 | BL-928 | 7 | 已完成/并入/验收条目；见上表 |
 | BL-102 | 6 | 已完成/并入/验收条目；见上表 |
-| BL-1071 | 6 | 历史已删，Memory 分支复用；见上表 |
-| BL-1073 | 6 | 只在 #2020 分支；见 BL-memory-p0-closure |
 | BL-131 | 6 | 已完成/并入/验收条目；见上表 |
 | BL-145 | 6 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |
 | BL-149 | 6 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |
@@ -89,6 +92,7 @@ BL-455、BL-456、BL-457、BL-459、BL-460、BL-461、BL-462、BL-463、BL-464�
 | BL-091 | 4 | 已完成/并入/验收条目；见上表 |
 | BL-103 | 4 | 已完成/并入/验收条目；见上表 |
 | BL-1058 | 4 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |
+| BL-1077 | 4 | 只在 #2020 分支；见 BL-memory-p0-closure |
 | BL-112 | 4 | 已完成/并入/验收条目；见上表 |
 | BL-150 | 4 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |
 | BL-154 | 4 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |
@@ -104,8 +108,9 @@ BL-455、BL-456、BL-457、BL-459、BL-460、BL-461、BL-462、BL-463、BL-464�
 | BL-713 | 4 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |
 | BL-790 | 4 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |
 | BL-821 | 4 | 已完成/并入/验收条目；见上表 |
+| BL-assistant-card-press-scrolls | 4 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |
+| BL-feed-wake-resets-page | 4 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |
 | BL-side-files-merged-reads | 4 | 已完成/并入/验收条目；见上表 |
-| BL-1077 | 3 | 只在 #2020 分支；见 BL-memory-p0-closure |
 | BL-121 | 3 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |
 | BL-130 | 3 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |
 | BL-141 | 3 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |
@@ -140,12 +145,13 @@ BL-455、BL-456、BL-457、BL-459、BL-460、BL-461、BL-462、BL-463、BL-464�
 | BL-936 | 3 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |
 | BL-browser-site-decisions-unreadable | 3 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |
 | BL-composer-source-refresh | 3 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |
+| BL-linux-ci-browser-reds | 3 | 已完成/并入/验收条目；见上表 |
+| BL-memory-p0-closure | 3 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |
 | BL-083 | 2 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |
 | BL-088 | 2 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |
 | BL-1036 | 2 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |
 | BL-1067 | 2 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |
-| BL-1072 | 2 | 只在 #2020 分支；见 BL-memory-p0-closure |
-| BL-1075 | 2 | 只在 #2020 分支；见 BL-memory-p0-closure |
+| BL-1074 | 2 | 已完成并删除；见上表 |
 | BL-114 | 2 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |
 | BL-132 | 2 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |
 | BL-147 | 2 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |
@@ -185,18 +191,18 @@ BL-455、BL-456、BL-457、BL-459、BL-460、BL-461、BL-462、BL-463、BL-464�
 | BL-939 | 2 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |
 | BL-956 | 2 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |
 | BL-background-inherits-page-locale | 2 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |
+| BL-catalog-specimen-default-margin | 2 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |
 | BL-coding-write-check-row-acceptance | 2 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |
 | BL-computer-records-shape | 2 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |
 | BL-contract-comment-stale-versions | 2 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |
 | BL-first-screen-gate-prework | 2 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |
 | BL-json-parse-copies | 2 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |
-| BL-linux-ci-browser-reds | 2 | 已完成/并入/验收条目；见上表 |
 | BL-local-protection-version-check | 2 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |
 | BL-memory-p2 | 2 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |
 | BL-model-preference-save-overwrite | 2 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |
 | BL-phone-home-tools-stay-visible | 2 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |
+| BL-plugin-dev-state-dir-before-locale-check | 2 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |
 | BL-020 | 1 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |
 | BL-090 | 1 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |
 | BL-099 | 1 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |
 | BL-100 | 1 | 历史/旧总表；按 git 历史或 PR 查，不新建同号 |
-| BL-1076 | 1 | 只在 #2020 分支；见 BL-memory-p0-closure |

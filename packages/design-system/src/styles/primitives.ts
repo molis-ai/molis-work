@@ -784,7 +784,7 @@ ${BUTTON_STYLES}
   .mw-catalog__specimens {
     display: grid; gap: 24px;
   }
-  .mw-catalog__specimen { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; min-width: 0; }
+  .mw-catalog__specimen { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; min-width: 0; margin: 0; }
   .mw-catalog__toasts { display: grid; justify-items: start; gap: 8px; }
   .mw-catalog__toasts > .mw-toast { max-width: 100%; }
   .mw-catalog__specimen figcaption,

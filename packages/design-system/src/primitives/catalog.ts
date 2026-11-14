@@ -21,25 +21,36 @@ import { PRESENTATION_FORM_STYLES } from "../styles/presentation.js";
 import { componentText, PLUGIN_COMPONENTS } from "../plugin-components.js";
 import { itemChoiceSection, itemDetailsSection, listDetailSection, SKILL_PACK_BOARD_STYLES, statusLinkSection } from "./catalog-skill-packs.js";
 import { CAPABILITY_PACK_BOARD_STYLES, cellGridSection, detailTrailSection, iconCountsSection, itemGroupSection, nowBlockSection, stateRowsSection, stickyDetailSection, usageSection } from "./catalog-capability-packs.js";
+import { LANGUAGE_BOARD_STYLES, languageSection, motionGrammarSpecimens, pairingSection, zonesSection } from "./catalog-language.js";
 
 export const PRIMITIVE_CATALOG_IDS = PLUGIN_COMPONENTS.map(({ kind }) => kind);
 const catalogComponents = new Map(PLUGIN_COMPONENTS.map(component => [component.kind, component]));
 
 
-/** Section index derived from the rendered sections, so a new section cannot be left out of it. */
+/** A chapter starts where this mark stands among the sections; the index puts its name over the sections that follow. */
+const chapter = (name: string) => `<!--chapter:${name}-->`;
+/** The index's group heading; the workbench heads its own sections with the same one. */
+export const catalogIndexGroup = (name: string) => `<p class="mw-catalog__index-group" data-catalog-group>${escapeHtml(name)}</p>`;
+
+/**
+ * Section index derived from the rendered sections, so a new section cannot be left out of it. Seventy names in one column
+ * are found by reading every one of them; the index is cut into chapters, and a field at its head narrows it to what was typed.
+ */
 function catalogIndex(sections: string, say: Say): string {
   const specimens = new Set([...sections.matchAll(/data-primitive="([^"]+)"/gu)].map(([, id]) => id));
   for (const kind of PRIMITIVE_CATALOG_IDS) {
     if (!specimens.has(kind)) throw new Error(`组件板缺少 ${kind} 的标本。`);
   }
-  const entries = [...sections.matchAll(/<section class="mw-catalog__section" id="([^"]+)"[^>]*><h2>([^<]+)<\/h2>/g)];
-  const links = entries.map(([, id, title]) => {
-    const component = catalogComponents.get(id);
-    const short = component ? escapeHtml(componentText(component.name, say)) : title.split(" / ")[0];
+  const entries = [...sections.matchAll(/<!--chapter:([^>]+)-->|<section class="mw-catalog__section" id="([^"]+)"[^>]*><h2>([^<]+)<\/h2>/g)];
+  const links = entries.map(([, group, id, title]) => {
+    if (group) return catalogIndexGroup(group);
+    const component = catalogComponents.get(id!);
+    const short = component ? escapeHtml(componentText(component.name, say)) : title!.split(" / ")[0];
     const description = component ? escapeHtml(componentText(component.description, say)) : title;
     return `<a href="#${id}" title="${description}">${short}</a>`;
   }).join("");
-  return `<nav class="mw-catalog__index" data-catalog-index aria-label="控件目录" style="grid-row: 1 / span ${entries.length}">${links}</nav>`;
+  const find = `<div class="mw-catalog__index-find"><input class="mw-input" type="search" data-catalog-find placeholder="找标本" aria-label="在目录里找标本" autocomplete="off"></div>`;
+  return `<nav class="mw-catalog__index" data-catalog-index aria-label="控件目录" style="grid-row: 1 / span ${entries.filter(([, group]) => !group).length}">${find}${links}<p class="mw-catalog__index-none" data-catalog-none hidden>没有这个名字的标本</p></nav>`;
 }
 
 function swatch(token: string, label: string, role: string, fillToken?: string): string {
@@ -109,7 +120,7 @@ function craftSection(): string {
       ${specimen("空间 · 桌面、工作面与常驻底栏", `<div class="mw-craft-space" aria-hidden="true"><i class="mw-craft-space__dir"></i><div class="mw-craft-space__main"><i class="mw-craft-space__tabs"></i><div class="mw-craft-space__sheet"><b></b><b></b><b></b></div></div><div class="mw-craft-space__bar"><i></i><em></em><i></i></div></div>`)}
       ${specimen("层次：工作面、抬升与浮层", `<div class="mw-craft-row">${lifts}</div>`)}
       ${specimen("圆角", `<div class="mw-craft-row">${radii}</div>`)}
-      ${specimen("动效时长", `<table class="mw-table mw-craft-motion"><thead><tr><th>Token</th><th>时长</th><th>用在哪里</th></tr></thead><tbody>${motion}</tbody></table>`)}
+      ${specimen("动效时长", `<div class="mw-lang-scroll"><table class="mw-table mw-craft-motion"><thead><tr><th>Token</th><th>时长</th><th>用在哪里</th></tr></thead><tbody>${motion}</tbody></table></div>`)}
       ${specimen("试一下", `<div class="mw-craft-row">
         ${renderButton({ label: "按一下", variant: "primary" })}
         ${renderButton({ label: "重放到达", variant: "secondary", attrs: { "data-craft-demo": "rise" } })}
@@ -148,7 +159,7 @@ function iconInventorySection(pluginIcons: readonly CatalogPluginIcon[]): string
 function motionSection(): string {
   const demo = (id: string, label: string) => renderButton({ label, variant: "secondary", size: "sm", attrs: { "data-motion-demo": id } });
   return section("motion", "动效标本", `
-    <div class="mw-catalog__specimens mw-motion-grid">
+    <div class="mw-catalog__specimens mw-motion-grid">${motionGrammarSpecimens()}
       ${specimen("按压回弹 · 130ms spring", `<div class="mw-craft-row">${renderButton({ label: "按住再松开", variant: "primary" })}</div>`)}
       ${specimen("悬停 · 130ms", `<div class="mw-motion-rows"><button type="button" class="mw-motion-row">移上来看洗底</button><button type="button" class="mw-motion-row">同一种灰，全站一致</button></div>`)}
       ${specimen("菜单开合 · 进 250ms，出 130ms", `<details class="mw-motion-menu"><summary class="mw-btn mw-btn--secondary mw-btn--sm">打开菜单</summary><div class="mw-menu"><button type="button" class="mw-menu__item">重命名</button><button type="button" class="mw-menu__item">移动到…</button></div></details>`)}
@@ -229,21 +240,28 @@ export function renderPrimitiveCatalog(options: {
   readonly presentationPlugins?: readonly CatalogPresentationPlugin[];
 } = {}): string {
   const say = options.say ?? t;
+  // Chapters, in the order a designer reads the board: the language first, then what it is made of, then what is built from it.
   const sections = `
+    ${chapter("设计语言")}
+    ${languageSection()}
     ${paletteSection()}
+    ${pairingSection()}
     ${typefaceSection(say)}
     ${lookSections(say)}
+    ${craftSection()}
+    ${zonesSection()}
+    ${motionSection()}
+    ${chapter("图标与状态")}
     ${iconSection()}
     ${micSection(say)}
     ${iconInventorySection(options.plugins ?? [])}${renderStateRingCatalog()}
-    ${craftSection()}
-    ${motionSection()}
-    ${arrivalSection()}
-    ${choiceSection(say)}
-    ${composeSection(say)}
-    ${renderCatalogExamples(section)}
+    ${badgeSection()}
+    ${severityGridSection()}
+    ${statSection()}
+    ${chapter("控件")}
     ${buttonSection(say)}
     ${buttonGroupSection()}
+    ${choiceSection(say)}
     ${fieldSection()}
     ${groupsSection()}
     ${advancedFieldSection()}
@@ -251,17 +269,16 @@ export function renderPrimitiveCatalog(options: {
     ${formSection(say)}
     ${dropZoneSection()}
     ${composerSection(say, options.delivery)}
-    ${badgeSection()}
-    ${severityGridSection()}
-    ${statSection()}
+    ${calendarSection()}
+    ${tabsSection(say)}
+    ${separatorSection()}
+    ${chapter("反馈与浮层")}
     ${feedbackSection()}
     ${keepEditsSections(say)}
-    ${separatorSection()}
-    ${calendarSection()}
     ${overlaySection(say)}
     ${menuSection()}
     ${menuDescSection(say, options.delivery)}
-    ${tabsSection(say)}
+    ${chapter("列表与条目")}
     ${directorySection()}
     ${rowsSection(say)}
     ${itemChoiceSection(say)}
@@ -276,12 +293,16 @@ export function renderPrimitiveCatalog(options: {
     ${stateRowsSection(say)}
     ${usageSection(say)}
     ${stickyDetailSection(say)}
-    ${options.presentationLocale ? presentationSection(options.presentationLocale, options.presentationPlugins) : ""}
+    ${dataTableSection()}
     ${layoutSection()}
-    ${dataTableSection()}`;
+    ${chapter("模式与场景")}
+    ${arrivalSection()}
+    ${composeSection(say)}
+    ${renderCatalogExamples(section)}
+    ${options.presentationLocale ? presentationSection(options.presentationLocale, options.presentationPlugins) : ""}`;
   return `<div class="mw-catalog">
     ${catalogIndex(sections, say)}
-    <style>${COMPOSER_STYLES}${CATALOG_PATTERN_STYLES}${COMPOSER_BOARD_STYLES}${KEEP_EDITS_BOARD_STYLES}${APPEARANCE_BOARD_STYLES}${SKILL_PACK_BOARD_STYLES}${CAPABILITY_PACK_BOARD_STYLES}${options.presentationLocale ? PRESENTATION_FORM_STYLES + PRESENTATION_BOARD_STYLES : ""}</style>
+    <style>${COMPOSER_STYLES}${CATALOG_PATTERN_STYLES}${COMPOSER_BOARD_STYLES}${KEEP_EDITS_BOARD_STYLES}${APPEARANCE_BOARD_STYLES}${SKILL_PACK_BOARD_STYLES}${CAPABILITY_PACK_BOARD_STYLES}${LANGUAGE_BOARD_STYLES}${options.presentationLocale ? PRESENTATION_FORM_STYLES + PRESENTATION_BOARD_STYLES : ""}</style>
     ${sections}
   </div>
   <script>${CATALOG_CLIENT_SCRIPT}</script>`;

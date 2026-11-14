@@ -1,0 +1,18 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.work-brief",
+  "locale": "en",
+  "messages": {
+    "work-brief.artifacts.type-title": "Brief",
+    "work-brief.directory.summary": "How the project stands, what needs you and what to do next, every sentence traceable to its source.",
+    "work-brief.page.loading": "Reading the brief…",
+    "work-brief.presentation.empty": "No brief yet",
+    "work-brief.presentation.home-title": "Project brief",
+    "work-brief.presentation.nothing-waiting": "Nothing needs you",
+    "work-brief.presentation.summary": "{count} briefs",
+    "work-brief.presentation.summary-waiting": "{count} need you",
+    "work-brief.presentation.waiting": "{count} need you",
+    "work-brief.project-deletion.data": "Briefs, their versions and edits",
+    "work-brief.view.brief": "Brief"
+  }
+}

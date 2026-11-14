@@ -1,0 +1,18 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.work-brief",
+  "locale": "zh",
+  "messages": {
+    "work-brief.artifacts.type-title": "简报",
+    "work-brief.directory.summary": "项目此刻怎么样、要你处理什么、下一步做什么，每句话都能核对来源。",
+    "work-brief.page.loading": "正在读取简报…",
+    "work-brief.presentation.empty": "还没有简报",
+    "work-brief.presentation.home-title": "项目简报",
+    "work-brief.presentation.nothing-waiting": "没有要你处理的",
+    "work-brief.presentation.summary": "{count} 份简报",
+    "work-brief.presentation.summary-waiting": "{count} 件要你处理",
+    "work-brief.presentation.waiting": "{count} 件要你处理",
+    "work-brief.project-deletion.data": "简报、它的版本与修改",
+    "work-brief.view.brief": "简报"
+  }
+}

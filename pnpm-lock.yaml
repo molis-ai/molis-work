@@ -169,6 +169,9 @@ importers:
       '@molis-ai/molis-work-plugin-todo':
         specifier: workspace:*
         version: link:plugins/native/todo
+      '@molis-ai/molis-work-plugin-work-brief':
+        specifier: workspace:*
+        version: link:plugins/native/work-brief
       '@molis-ai/molis-work-plugin-workflows':
         specifier: workspace:*
         version: link:plugins/native/workflows
@@ -446,6 +449,9 @@ importers:
       '@molis-ai/molis-work-plugin-todo':
         specifier: workspace:*
         version: link:../../plugins/native/todo
+      '@molis-ai/molis-work-plugin-work-brief':
+        specifier: workspace:*
+        version: link:../../plugins/native/work-brief
       '@molis-ai/molis-work-plugin-workflows':
         specifier: workspace:*
         version: link:../../plugins/native/workflows
@@ -630,6 +636,9 @@ importers:
       '@molis-ai/molis-work-plugin-todo':
         specifier: workspace:*
         version: link:../../plugins/native/todo
+      '@molis-ai/molis-work-plugin-work-brief':
+        specifier: workspace:*
+        version: link:../../plugins/native/work-brief
       '@molis-ai/molis-work-plugin-workflows':
         specifier: workspace:*
         version: link:../../plugins/native/workflows
@@ -1322,6 +1331,19 @@ importers:
         version: 0.28.2
 
   plugins/native/todo:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../../packages/contracts
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../../../packages/plugin-sdk
+    devDependencies:
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
+
+  plugins/native/work-brief:
     dependencies:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*

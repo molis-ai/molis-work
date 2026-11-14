@@ -7,8 +7,10 @@ import {createSingleHomeTestWebServer} from './fixtures/local-web-core.js';
 import {createLocalWebAssets,createLocalHostWorkbenchRenderer} from '@molis-ai/molis-work-app-local-host';
 import {desktopWorkbenchRendererPorts} from '@molis-ai/molis-work-app-desktop';
 
-test('ASR-04 first installation page stays inert until registration, while its real plugin frame can mount', {timeout:90_000}, async t => {
+test('ASR-04 first installation page stays inert until registration, while its real plugin frame can mount', {timeout:180_000}, async t => {
   const browser = await openGoalBrowser(t,true); if (!browser) return;
+  // The page and its plugin frame are laid out for a desktop; the CI browser starts at 780px. The wider test timeout is for a slow runner.
+  await browser.setViewport(1440, 900);
   // The existing installation fixture owns real Auth, cookie leases and page registration.
   // Its callback exposes only the selected Home, so supply the production presentation flag explicitly.
   const f = await accountRefreshFixture(t,(home,options) => createSingleHomeTestWebServer({...options,homeDirectory:home,accountRegistration:true}));

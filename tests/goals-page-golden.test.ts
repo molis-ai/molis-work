@@ -137,6 +137,9 @@ const pages: Record<string, Draw> = {
 // test fails there on those 16 and on the eight refresh-*, +2163 zh on page-current; this branch draws the same pages less the planning
 // entry 41-2 removed, +1997 zh / +2185 en against its own records). No Goals markup of this batch changed with the merge; the 16 were
 // recorded with MOLIS_WORK_GOLDEN_RECORD=1 and the other 36 records did not change.
+// Batch 41 merged with main 4e2d506adc (batch 19, Work Brief): both sides had recorded the 16 page-* records, main for its new plugin in the
+// switcher and Home plugin list (+2193 zh / +2403 en on every page), this branch for the removed planning entry. No Goals markup of this
+// batch changed with the merge; the 16 were recorded with MOLIS_WORK_GOLDEN_RECORD=1 and the other 36 records did not change.
 // Batch 08 (Skills): all 66 normalized draws were checked against the old records before updating. Removing only the new
 // Skills navigation restores every old hash and length: 16 whole pages have two directory buttons (706 zh / 722 en characters),
 // six personal planning records one link (92 zh / 96 en), and twelve project planning/settings records one link with its line

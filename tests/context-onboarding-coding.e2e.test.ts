@@ -16,7 +16,7 @@ const NOTE = "Design review: keep the login button on the left.";
 
 /**
  * ONB-44, ONB-46 (the page half): a round that read the person's own code folder and a pasted note reaches review; the person ticks
- * handing the folder to Coding, adopts, and lands in Coding working in that folder. Reading and the model's summary of the same kind
+ * handing the folder to Coding (the plugin that declares it takes one), adopts, and lands in the session Coding opened in that folder. Reading and the model's summary of the same kind
  * of round are walked in tests/context-onboarding.test.ts (ONB-44), and Coding reading the adopted materials in
  * tests/coding-material-consumption.test.ts.
  */
@@ -48,16 +48,20 @@ test("ONB-44 ONB-46 a code folder ticked at review becomes Coding's working fold
   });
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/onboarding?mode=new-project&journey=${id}` }, sessionId));
-  await waitFor("Boolean(document.querySelector('[data-coding-root]'))");
+  const box = "[data-take='io.molis.work.coding']";
+  await waitFor(`Boolean(document.querySelector(${JSON.stringify(box)}))`);
   const folderName = folder.split("/").at(-1)!;
-  assert.equal(await evaluate("document.querySelector('[data-coding-root]').checked"), false, "not ticked by itself: a material folder is not made a working folder unasked");
-  assert.match(String(await evaluate("document.querySelector('#cx-coding-root').closest('label').textContent")), new RegExp(`Coding.*${folderName}`));
-  await click("[data-coding-root]");
+  assert.equal(await evaluate(`document.querySelector(${JSON.stringify(box)}).checked`), false, "not ticked by itself: a material folder is not made a working folder unasked");
+  assert.match(String(await evaluate(`document.querySelector(${JSON.stringify(box)}).closest('label').textContent`)), new RegExp(`Coding.*${folderName}`));
+  await click(box);
   await navigate(() => click("[data-action=adopt]"));
   await waitFor("location.pathname.startsWith('/projects/') && document.body.dataset.desktopSurface === 'coding'", 20_000);
   await child.waitFor(`document.querySelector('[data-coding-workspace-label]')?.title === ${JSON.stringify(await realpath(folder))}`, 20_000);
   // Both materials are in the project for Coding to cite: the folder's README and the pasted note, each in the 成果库 and in Pages.
   const adopted = withContextJourneys(homeDirectory, store => store.get(id));
-  assert.equal(adopted.phase, "complete"); assert.equal(adopted.adoption?.coding_root, folder);
+  assert.equal(adopted.phase, "complete"); assert.deepEqual(adopted.adoption?.take, { plugin_id: "io.molis.work.coding", project_plugin_id: "coding", code_root: folder });
+  // BCD-17: the folder and the round's materials were handed over by Coding's declared take action, which opened its own session.
+  assert.ok(adopted.take_result?.open?.item_id, "Coding answered the take with the session it opened");
+  assert.equal(adopted.take_result?.materials, 3, "the README, the pasted note and the accepted summary");
   assert.deepEqual(adopted.summary!.references.map(ref => [ref.path, Boolean(ref.artifact), Boolean(ref.documents?.length)]), [["README.md", true, true], ["网页内容.md", true, true]]);
 });

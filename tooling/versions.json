@@ -265,6 +265,7 @@
     "action.coding.executor.session.update": 1,
     "action.coding.executor.state": 1,
     "action.coding.home.background-tasks": 1,
+    "action.coding.onboarding.take": 1,
     "action.coding.plans.confirm": 1,
     "action.coding.plans.read": 1,
     "action.coding.plans.save": 1,

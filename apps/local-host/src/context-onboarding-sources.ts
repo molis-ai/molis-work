@@ -13,10 +13,10 @@ const isContextDirectory = (kind: ContextSourceKind) => CONTEXT_DIRECTORY_KINDS.
 /** A file onboarding takes in: the page's own rule (`contextFileSkip`), checked again here, so a selection cannot name another. */
 const supportedContextFile = (path: string) => contextFileSkip(path) === null;
 /**
- * The folder this round may hand to Coding: the person's own chosen folder (`custom`, never Downloads, Documents or Desktop), still
- * selected, read from its path, with a build or package file at its top (ONB-44). Null when there is none.
+ * The folder this round may hand to a plugin that takes a code folder: the person's own chosen folder (`custom`, never Downloads,
+ * Documents or Desktop), still selected, read from its path, with a build or package file at its top (ONB-44). Null when there is none.
  */
-export function codingRoot(journey: Pick<ContextJourney, "sources">): string | null {
+export function codeRoot(journey: Pick<ContextJourney, "sources">): string | null {
   const source = journey.sources.find(s => s.kind === "custom" && s.selected && s.path);
   return source?.path && source.metadata?.files.some(file => codeRootFile(file.path)) ? source.path : null;
 }

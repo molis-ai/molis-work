@@ -1912,6 +1912,7 @@
     "coding.rules.open-settings": "Choose a folder in project settings",
     "coding.rules.foot": "Rules can only constrain Coding; they never give it more permissions. A changed instruction file applies from the next round.",
     "coding.call.find-symbol": "Find symbol",
-    "coding.call.find-symbol.doing": "Finding a symbol"
+    "coding.call.find-symbol.doing": "Finding a symbol",
+    "coding.onboarding.session-title": "From getting started"
   }
 }

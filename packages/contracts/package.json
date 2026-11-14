@@ -298,6 +298,10 @@
       "types": "./dist/platform/presentation.d.ts",
       "import": "./dist/platform/presentation.js"
     },
+    "./platform/plugin-onboarding": {
+      "types": "./dist/platform/plugin-onboarding.d.ts",
+      "import": "./dist/platform/plugin-onboarding.js"
+    },
     "./platform/plugin-attention": {
       "types": "./dist/platform/plugin-attention.d.ts",
       "import": "./dist/platform/plugin-attention.js"

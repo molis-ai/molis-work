@@ -1792,6 +1792,7 @@
     "coding.rules.open-settings": "去项目设置选文件夹",
     "coding.rules.foot": "规则只能约束 Coding，不能给它多开权限。改了说明文件，下一轮起生效。",
     "coding.call.find-symbol": "查符号",
-    "coding.call.find-symbol.doing": "正在查符号"
+    "coding.call.find-symbol.doing": "正在查符号",
+    "coding.onboarding.session-title": "从上手开始"
   }
 }

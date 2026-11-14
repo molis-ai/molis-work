@@ -100,8 +100,9 @@ export function contextFileSkip(path: string): "ignored" | "secret" | "unreadabl
 
 /**
  * Whether a file at the top of a folder marks it as the root of code: a build or package file (ONB-44). Only a folder the person
- * chose themself (`custom`) and whose own top holds one is offered to Coding as its working folder at adoption, and only when the
- * person ticks it; Downloads, Documents and Desktop are never offered, however much code they hold. Self-contained for the same
+ * chose themself (`custom`) and whose own top holds one is offered at adoption to a plugin that declares it takes a code folder
+ * (batch12-design §7), and only when the person ticks it; Downloads, Documents and Desktop are never offered, however much code
+ * they hold. Self-contained for the same
  * reason as `contextFileSkip`: the onboarding page runs it as its source text.
  */
 export function codeRootFile(path: string): boolean {

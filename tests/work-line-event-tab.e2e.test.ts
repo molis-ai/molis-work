@@ -409,6 +409,10 @@ test("WLN-10: a waiting task's question heads the event's card with what would c
   await evaluate("document.querySelector('[data-assistant-composer] [data-composer-send]').click()");
   await waitFor(`${CARD}?.querySelector('[data-card-tasks] .work-task-row-title')?.textContent === '先问预算'`, 25_000);
   assert.equal(await evaluate(`${CARD}.querySelector('[data-card-decisions]').hidden`), true, "a task that asks nothing puts nothing at the head of the card");
+  // S-49 (user decision 2026-11-15): the Assistant's own Agent is offered the reading copy of the task table in this project; the table's own read and its commands stay the person's.
+  const offered = await evaluate<Array<{ capability_id: string }>>(`fetch(${JSON.stringify(`/projects/${projectId}/api/assistant/capabilities`)}).then(response => response.json()).then(body => body.capabilities.map(one => ({ capability_id: one.capability_id })))`);
+  assert.ok(offered.some(one => one.capability_id === "assistant.background.read"), "assistant.background.read is among what the Assistant may use here");
+  assert.ok(!offered.some(one => ["background.tasks.read", "background.tasks.command", "background.tasks.decide", "assistant.background.decide", "assistant.background.stop"].includes(one.capability_id)), "nothing that acts on a task is offered to it");
 
   // The task stops on two questions: both head the card, above what the owner shows and 「在办」, the first with the one primary button.
   const again = "document.dispatchEvent(new CustomEvent('molis-work:attention-refresh'))";

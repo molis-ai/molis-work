@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ASSISTANT_LINE_ACTIONS, ASSISTANT_WORK_KIND, assistantLineRegistration, type AssistantLineSource } from "@molis-ai/molis-work-app-local-host";
+import { ASSISTANT_LINE_ACTIONS, ASSISTANT_TASK_TABLE_ACTION, ASSISTANT_WORK_KIND, assistantLineRegistration, type AssistantLineSource } from "@molis-ai/molis-work-app-local-host";
 import { BACKGROUND_TASKS_OUTPUT_TYPE, WORK_EVENTS_OUTPUT_TYPE, TASK_SERVES_RELATION, type ActionCallContext, type BackgroundTaskCollection, type TaskServesResult, type WorkEventCollection } from "@molis-ai/molis-work-contracts/platform/actions";
 import { isWorkEventSource } from "@molis-ai/molis-work-service-mainline";
 
@@ -30,7 +30,7 @@ function harness() {
     // Said by the person in a plugin event's tab (specs/work-line §4.4): a work done for that event, not an event of its own.
     { work: base("about-todo", "先问预算", 49, { serves: [{ kind: "todo_item", id: "t1" }] }), state: "running" },
   ];
-  const placed: Array<{ work_id: string; to: { serves: unknown[]; line_event: boolean } }> = [], stopped: string[] = [], asked: string[] = [], decided: Array<{ work_id: string; review_id: string; decision: string; note?: string }> = [];
+  const placed: Array<{ work_id: string; to: { serves: unknown[]; line_event: boolean } }> = [], stopped: string[] = [], asked: string[] = [], tables: string[] = [], decided: Array<{ work_id: string; review_id: string; decision: string; note?: string }> = [];
   const source: AssistantLineSource = {
     works: async project => { asked.push(project); return project === "p1" ? works : []; },
     place: (workId, to) => {
@@ -42,6 +42,14 @@ function harness() {
     },
     stop: async workId => { stopped.push(workId); },
     decide: async (workId, input) => { decided.push({ work_id: workId, ...input }); },
+    // The project's whole table as the person reads it: the Assistant's rows and another provider's, with what can be done to them.
+    table: async project => { tables.push(project); return { issues: [{ source: { capability_id: "broken.tasks", version: 1, provider_id: "broken" }, title: "坏掉的提供方", code: "broken.secret_detail" }], tasks: [
+      { id: "row-1", source: { capability_id: "coding.background.tasks", version: 1, provider_id: "coding" }, origin: { surface: "coding", title: "Coding", icon: "code" }, subject: { kind: "coding_session", id: "s1" }, title: "修登录",
+        state: "running", step: { text: "跑了 {n} 项", count: 3 }, details: [], waiting: false, updated_at: at(48), executor: { kind: "plugin", label: "Coding" }, serves: [{ kind: "coding_session", id: "s1" }], scope: "project",
+        commands: [{ role: "stop", action: { capability_id: "coding.background.stop", version: 1, provider_id: "coding" }, input: { session_id: "s1", task_id: "t1" }, summary: "停止 dev server" }], decisions: [], open: null },
+      { id: "row-2", source: { capability_id: "assistant.background.tasks", version: 1, provider_id: "io.molis.work.assistant.rules" }, origin: { surface: "assistant", title: "助理", icon: "assistant" }, subject: subject("tracked"), title: "整理访谈",
+        state: "approval", details: [], waiting: true, updated_at: at(47), executor: { kind: "assistant", label: "助理" }, serves: [subject("tracked")], scope: "project", commands: [],
+        decisions: [{ id: "r1", ask: "把访谈整理成三段", changes: [{ label: "标题", value: "访谈纪要" }], answers: [{ role: "approve", action: { capability_id: "assistant.background.decide", version: 1, provider_id: "io.molis.work.assistant.rules" }, input: { work_id: "tracked", review_id: "r1", decision: "approve" }, summary: "同意" }] }], open: null }] }; },
   };
   const registration = assistantLineRegistration(() => source);
   let effects = 0;
@@ -50,7 +58,7 @@ function harness() {
     const handler = registration.handlers.find(one => one.capability_id === capability)!;
     return handler.handle({ ...caller, beforeEffect: async () => { effects++; } } as Parameters<typeof handler.handle>[0], input) as Promise<T>;
   };
-  return { registration, invoke, placed, stopped, asked, decided, effects: () => effects };
+  return { registration, invoke, placed, stopped, asked, decided, tables, effects: () => effects };
 }
 const subject = (id: string) => ({ kind: ASSISTANT_WORK_KIND, id });
 
@@ -64,7 +72,7 @@ test("WLN-37: the Assistant registers its events and tasks by the same typed act
   assert.deepEqual([A.servesList, A.servesBind, A.servesRelease, A.servesCreate].map(one => [one.action.placement_relation?.relation, one.action.placement_relation?.role]),
     [[TASK_SERVES_RELATION, "list"], [TASK_SERVES_RELATION, "bind"], [TASK_SERVES_RELATION, "release"], [TASK_SERVES_RELATION, "create"]]);
   for (const one of Object.values(A)) assert.deepEqual(one.action.subject_kinds, [ASSISTANT_WORK_KIND]);
-  assert.equal(harness().registration.definitions.length, Object.keys(A).length);
+  assert.equal(harness().registration.definitions.length, Object.keys(A).length + 1, "and the reading copy of the task table for its own Agent");
 });
 
 test("WLN-37 WLN-38: a work the person started and a background task registered as an event are events; the main conversation and a passing errand are not", async () => {
@@ -146,4 +154,26 @@ test("WLN-10, PWA-135: a work that waits on a confirmation lists each held effec
   await assert.rejects(invoke("assistant.background.decide", { work_id: "main", review_id: "r1", decision: "approve" }), missing);
   await assert.rejects(invoke("assistant.background.decide", { work_id: "nope", review_id: "r1", decision: "approve" }), missing);
   assert.deepEqual(decided, [{ work_id: "tracked", review_id: "r1", decision: "approve" }, { work_id: "tracked", review_id: "r2", decision: "reject", note: "别动这个文件" }]);
+});
+
+test("S-49 WLN-39: the Assistant's own round reads its project's task table as a copy with no command and no answer in it; another Agent, a call a plugin handed on, a workflow, an MCP client, the page and a personal round are refused and the table is not read", async () => {
+  const { invoke, tables } = harness();
+  const T = ASSISTANT_TASK_TABLE_ACTION;
+  assert.deepEqual([T.action.audiences, T.action.kind, T.action.effect, T.action.scope], [["agent"], "query", "read", "project"], "offered to Agents only, a read, in a project");
+  const round = (more: Partial<ActionCallContext> = {}): ActionCallContext => ({ actor_id: "local-person", actor_kind: "runtime", project_id: "p1", audience: "agent", permissions: [], skill_round: { consumer: "assistant", named: [] }, ...more });
+  const table = await invoke<{ tasks: Array<Record<string, unknown>>; unreadable: string[] }>(T.capability_id, {}, round());
+  assert.deepEqual(table, { unreadable: ["坏掉的提供方"], tasks: [
+    { subject: { kind: "coding_session", id: "s1" }, title: "修登录", state: "running", step: "跑了 3 项", waiting: false, who: "Coding", from: "Coding", serves: [{ kind: "coding_session", id: "s1" }], asks: [], updated_at: at(48) },
+    { subject: subject("tracked"), title: "整理访谈", state: "approval", waiting: true, who: "助理", from: "助理", serves: [subject("tracked")], asks: ["把访谈整理成三段"], updated_at: at(47) }] });
+  const copy = JSON.stringify(table);
+  for (const kept of ["commands", "decisions", "answers", "coding.background.stop", "assistant.background.decide", "review_id", "task_id", "broken.secret_detail", "source"]) assert.ok(!copy.includes(kept), `the copy carries no ${kept}`);
+  assert.deepEqual(tables, ["p1"], "read once, in the round's own project");
+
+  const refused = (error: unknown) => ["assistant.scope"].includes((error as { code?: string }).code ?? "");
+  for (const [why, caller] of [
+    ["another plugin's Agent", round({ skill_round: { consumer: "coding", named: [] } })], ["an Agent that is not the Assistant's round", round({ skill_round: { consumer: "agent", named: [] } })],
+    ["an Agent call with no round", round({ skill_round: undefined })], ["a call a plugin handed on", round({ host_plugin: { plugin_id: "x", install_id: "i", project_id: "p1" } as never })],
+    ["a delegated call", round({ delegated_by: "someone" as never })], ["a workflow", round({ audience: "workflow" })], ["an MCP client", round({ audience: "mcp" })], ["the page", round({ audience: "user" })],
+    ["a personal round, which has no project", round({ project_id: null })]] as const) await assert.rejects(invoke(T.capability_id, {}, caller as ActionCallContext), refused, why);
+  assert.deepEqual(tables, ["p1"], "no refused call read the table");
 });

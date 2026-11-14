@@ -1,7 +1,7 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { pluginInstallRecords } from "../plugin-install-records.js";
 import { HomeConsentLedger } from "../home-plugin-store.js";
-import { assistantLineRegistration, assistantLineSource } from "./assistant-line-actions.js";
+import { assistantLineRegistration, assistantLineSource, personTaskTable } from "./assistant-line-actions.js";
 import { assistantRelatedRegistration, relatedWorks, type RelatedWorksSource } from "./assistant-related-action.js";
 import { executorInputActions } from "./assistant-executor-input.js";
 import { AssistantThreads } from "./assistant-threads.js";
@@ -251,7 +251,7 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
   projectDeletedHooksFor(ports.homeDirectory).register({ id: "assistant", label: { key: "workbench.project-deletion.assistant" }, alive: () => ports.localHost.lifecycle() === "running",
     clear: async projectId => { await purgeAssistantProject(ports.homeDirectory, projectId, { stop: async id => { await service.control(id, { kind: "stop" }); }, dropFollowUp: async id => { await service.followUps.remove(id); } }); } });
   // The person's attention rules are the Assistant's own actions: found like any capability, changed only on confirmation.
-  const threadActions = assistantThreadRegistration(threads), relatedActions = assistantRelatedRegistration(() => relatedSource(service)), lineActions = assistantLineRegistration(() => assistantLineSource(store, service, WEB_ACTOR));
+  const threadActions = assistantThreadRegistration(threads), relatedActions = assistantRelatedRegistration(() => relatedSource(service)), lineActions = assistantLineRegistration(() => assistantLineSource(store, personTaskTable(ports.projectReference, personClient), service, WEB_ACTOR));
   try { registerAssistantRuleActions(ports.localHost.actionRegistry(), () => service, ports.homeDirectory,
     { definitions: [...threadActions.definitions, ...relatedActions.definitions, ...lineActions.definitions], handlers: [...threadActions.handlers, ...relatedActions.handlers, ...lineActions.handlers] }); }
   catch (error) { hostLog.warn("assistant", "rule_actions_registration_failed", error); }

@@ -4,7 +4,7 @@ import { bindActionHandler, defineBackgroundTasksAction, inputSchemaFor, defineT
 import type { StateRingState } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { AssistantPendingReview, AssistantScope, AssistantSendInput, AssistantWorkState } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { AgentActionClient } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { MAINLINE_PROVIDER_ID, mainlineActions, type WorkLineReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
+import { MAINLINE_PROVIDER_ID, mainlineActions, type BackgroundTasksReadResult, type WorkLineReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
 import { assistantErrors } from "./assistant-errors.js";
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
 
@@ -47,10 +47,45 @@ export const ASSISTANT_LINE_ACTIONS = {
   servesCreate: own(defineTaskServesAction("create", "assistant.serves.create", /* @version action.assistant.serves.create */ 1, [ASSISTANT_WORK_KIND], "把助理任务登记成事件", [])),
 } as const;
 
+/**
+ * The task table for the Assistant's own Agent (user decision 2026-11-15; S-49): what is being done in the round's project and
+ * what waits on the person, so it can say where things stand. The task providers answer the person alone, and still do: the
+ * Assistant service reads the table as the person, in the project of the round that asks, and hands on a reading copy — names,
+ * states, steps, whom each is done for, what each asks — with no command and no answer in it. Only the Assistant's own round may
+ * call it; another plugin's Agent, a workflow, an MCP client and a page are refused, and a personal round has no project to read.
+ */
+export interface AssistantTaskTableRow { subject: ActionSubject; title: string; state: StateRingState; step?: string; waiting: boolean; who: string; from: string; serves: ActionSubject[]; asks: string[]; updated_at: string }
+export interface AssistantTaskTable { tasks: AssistantTaskTableRow[]; unreadable: string[] }
+const SUBJECT = { type: "object", properties: { kind: { type: "string" }, id: { type: "string" } }, required: ["kind", "id"], additionalProperties: false } as const;
+export const ASSISTANT_TASK_TABLE_ACTION = own({ capability_id: "assistant.background.read", version: /* @version action.assistant.background.read */ 1, operation: "query", action: { title: "后台任务办到哪了",
+  description: "读取这个项目里此刻正在办、或等着用户处理的后台任务：各是什么、办到哪一步、谁在办、为线上的哪个事件办、在等用户定什么。只读：不能停止任务，也不能替用户回答它问的事。用户问「现在后台有哪些在办」「那件事办得怎样了」时用。",
+  kind: "query", effect: "read", scope: "project", scheduling: "concurrent", audiences: ["agent"], permissions: [], subject_kinds: [],
+  input_schema: inputSchemaFor<Record<string, never>>()({ type: "object", properties: {}, additionalProperties: false }),
+  output_schema: { type: "object", properties: { tasks: { type: "array", maxItems: 500, items: { type: "object", properties: { subject: SUBJECT, title: { type: "string" }, state: { type: "string" }, step: { type: "string" },
+    waiting: { type: "boolean" }, who: { type: "string" }, from: { type: "string" }, serves: { type: "array", items: SUBJECT }, asks: { type: "array", items: { type: "string" } }, updated_at: { type: "string" } },
+    required: ["subject", "title", "state", "waiting", "who", "from", "serves", "asks", "updated_at"], additionalProperties: false } }, unreadable: { type: "array", items: { type: "string" } } },
+    required: ["tasks", "unreadable"], additionalProperties: false } } } as ActionDefinition<Record<string, never>, AssistantTaskTable>);
+/** The reading copy of the table: what a row says, never what can be done to it. */
+export function assistantTaskTable(table: BackgroundTasksReadResult): AssistantTaskTable {
+  return { tasks: table.tasks.map(task => ({ subject: { kind: task.subject.kind, id: task.subject.id }, title: task.title, state: task.state,
+    ...(task.step ? { step: task.step.text.replace("{n}", String(task.step.count ?? "")) } : {}), waiting: task.waiting, who: task.executor.label, from: task.origin.title,
+    serves: task.serves.map(one => ({ kind: one.kind, id: one.id })), asks: task.decisions.map(decision => decision.ask), updated_at: task.updated_at })),
+    unreadable: table.issues.map(issue => issue.title) };
+}
+
+/** How the Assistant service reads that table: as the person, in that project, through the mainline service — the providers answer nobody else (S-49). */
+export const personTaskTable = <Reference>(reference: ((projectId: string) => Promise<Reference>) | undefined,
+  client: (reference: Reference) => { invoke(action: { capability_id: string; version: number; provider_id: string }, input: unknown): Promise<unknown> }): AssistantLineSource["table"] => async projectId => {
+  if (!reference) throw assistantErrors.scope("当前宿主未提供项目上下文");
+  return await client(await reference(projectId)).invoke({ capability_id: mainlineActions.tasks.capability_id, version: mainlineActions.tasks.version, provider_id: MAINLINE_PROVIDER_ID }, {}) as BackgroundTasksReadResult;
+};
+
 /** What the line needs of the Assistant service: the person's works in a project with their state now, the task's own record, and its stop. */
 export interface AssistantLineSource {
   /** `reviews`: the effects held for the person's confirmation, read for a work that waits on one. */
   works(projectId: string): Promise<Array<{ work: StoredWork; state: AssistantWorkState; reviews?: readonly AssistantPendingReview[] }>>;
+  /** The project's task table, read as the person (every provider the person can read there). */
+  table(projectId: string): Promise<BackgroundTasksReadResult>;
   /** Record the person's answer to one held effect of a work; the work goes on as that answer says. */
   decide(workId: string, input: { review_id: string; decision: "approve" | "reject"; note?: string }): Promise<void>;
   /** Keep which events a background task is done for; `line_event` makes it an event of its own. */
@@ -134,7 +169,7 @@ export function assistantLineRegistration(source: () => AssistantLineSource): { 
   };
   const answer = (work: StoredWork): TaskServesResult => ({ serves: servesOf(work) });
   const A = ASSISTANT_LINE_ACTIONS;
-  const definitions: ActionDefinition[] = [A.events, A.tasks, A.stop, A.decide, A.servesList, A.servesBind, A.servesRelease, A.servesCreate];
+  const definitions: ActionDefinition[] = [A.events, A.tasks, ASSISTANT_TASK_TABLE_ACTION as ActionDefinition, A.stop, A.decide, A.servesList, A.servesBind, A.servesRelease, A.servesCreate];
   return { definitions, handlers: [
     bindActionHandler(A.events, async (window, caller): Promise<WorkEventCollection> => {
       assertWorkEventWindow(window);
@@ -146,6 +181,11 @@ export function assistantLineRegistration(source: () => AssistantLineSource): { 
       await caller.beforeEffect(); caller.signal?.throwIfAborted();
       await source().stop(work.work_id);
       return { stopped: true };
+    }),
+    // Only the Assistant's own round (the Host writes `skill_round`; no input can), in its project. What it gets is a copy to read.
+    bindActionHandler(ASSISTANT_TASK_TABLE_ACTION, async (_input, caller): Promise<AssistantTaskTable> => {
+      if (caller.audience !== "agent" || caller.skill_round?.consumer !== "assistant" || caller.host_plugin || caller.delegated_by) throw assistantErrors.scope("后台任务总表只给助理自己的这一轮读");
+      return assistantTaskTable(await source().table(project(caller)));
     }),
     // The answer is for one held effect of the caller's own work; whether that effect is still held is the review queue's to say.
     bindActionHandler(A.decide, async (input, caller) => {
@@ -178,7 +218,7 @@ export function assistantLineRegistration(source: () => AssistantLineSource): { 
 
 const ENDED_STATES: readonly AssistantWorkState[] = ["idle", "completed", "failed", "stopped"];
 /** The line's source over the Assistant's own store and service: nothing here is a second record of a work. */
-export function assistantLineSource(store: Pick<AssistantStore, "list" | "observed" | "update">, service: { reads: { stateSafely(work: StoredWork): Promise<AssistantWorkState> }; control(workId: string, control: { kind: "stop" }): Promise<unknown>;
+export function assistantLineSource(store: Pick<AssistantStore, "list" | "observed" | "update">, table: AssistantLineSource["table"], service: { reads: { stateSafely(work: StoredWork): Promise<AssistantWorkState> }; control(workId: string, control: { kind: "stop" }): Promise<unknown>;
   read(workId: string): Promise<{ reviews: AssistantPendingReview[] }>; outcomes: { decide(workId: string, input: { review_id: string; decision: "approve" | "reject"; note?: string }): Promise<unknown> } }, actorId: string): AssistantLineSource {
   return {
     // A work last seen ended is read from that record; one that may be under way is read from its session.
@@ -189,6 +229,7 @@ export function assistantLineSource(store: Pick<AssistantStore, "list" | "observ
       return state === "waiting-review" ? { work, state, reviews: await service.read(work.work_id).then(view => view.reviews, () => []) } : { work, state };
     })),
     decide: async (workId, input) => { await service.outcomes.decide(workId, input); },
+    table,
     place: (workId, to) => store.update(actorId, workId, null, { serves: to.serves.length ? to.serves.map(one => ({ kind: one.kind, id: one.id })) : undefined, line_event: to.line_event ? true : undefined }, false),
     stop: async workId => { await service.control(workId, { kind: "stop" }); },
   };

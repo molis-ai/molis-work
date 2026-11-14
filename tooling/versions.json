@@ -189,6 +189,7 @@
     "action.artifacts.search.entries": 1,
     "action.artifacts.subject.read": 1,
     "action.assistant.background.decide": 1,
+    "action.assistant.background.read": 1,
     "action.assistant.background.stop": 1,
     "action.assistant.background.tasks": 1,
     "action.assistant.events": 1,

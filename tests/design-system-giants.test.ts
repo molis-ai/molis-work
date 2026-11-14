@@ -19,7 +19,11 @@ test("RAC-370 the component board lists every primitive's section once and carri
   for (const id of ["palette", "typeface", "icons", "icon-inventory", "craft", "motion", "arrival", "choice", "compose", "button", "field", "form", "overlay", "menu", "tabs", "directory", "layout"]) {
     assert.ok(sections.includes(id), `the board lost the ${id} section`);
   }
-  assert.ok(sections.indexOf("choice") < sections.indexOf("compose") && sections.indexOf("compose") < sections.indexOf("button"), "the sections changed order");
+  // #2056 grouped the board into chapters read in order: the design language, what it is made of, then what is built from it.
+  // One section from each chapter stands for that chapter here; the earlier choice < compose < button order predates the chapters.
+  for (const [before, after] of [["language", "icons"], ["icons", "button"], ["button", "feedback"], ["feedback", "directory"], ["directory", "arrival"]]) {
+    assert.ok(sections.indexOf(before!) < sections.indexOf(after!), `the ${before} chapter comes after ${after}`);
+  }
   const scripts = [...board.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((match) => match[1]!);
   assert.ok(scripts.some((script) => script.includes("data-compose-menu") && script.includes("data-catalog-open")), "the demo script is not on the board");
   assert.match(read("packages/design-system/package.json"), /src\/browser\/catalog\.ts[^&]*--outfile=dist\/catalog-client\.js/, "the demo script is built from TypeScript");

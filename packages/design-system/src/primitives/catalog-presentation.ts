@@ -34,6 +34,9 @@ const owner = (id: string, name: string, icon: PresentationFormValues["ownerDisp
 const inbox = owner(declaration.owner, "Inbox", "inbox");
 const goals = owner("io.molis.work.goals", "Goals", "target");
 const coding = owner("io.molis.work.coding", "Coding", "code");
+// The five cool owner hues are shared by more than one plugin, and Inbox, Goals and Coding all hash to indigo. The board's sample
+// rows must still show a second owner's own hue, so the acceptance row belongs to Pages (blue), whose words are a layout review.
+const pages = owner("io.molis.work.pages", "Pages", "note");
 const at = "2026-11-08T17:40:00Z";
 
 export interface CatalogPresentationPlugin {
@@ -65,7 +68,7 @@ export function presentationSection(locale: string, plugins: readonly CatalogPre
   const sheet = renderSheet({ labelledBy: "presentation-sheet-title", title: peekLabel, body: '<div data-presentation-peek-body></div>',
     footer: "", closeLabel, className: "mw-presentation-board__sheet", attrs: { id: "presentation-sheet" } });
   const variants = [
-    ["acceptance", "Check the revised mobile layout", goals],
+    ["acceptance", "Check the revised mobile layout", pages],
     ["running", "Check the layout against long customer names", coding],
     ["failed", "Export the mobile preview", coding],
     ["partial", "Verify the three pricing breakpoints", coding],

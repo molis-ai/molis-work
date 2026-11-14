@@ -328,6 +328,36 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
     };
     if (paneFrame.contentDocument?.body?.hasAttribute("data-pane-embedded")) select(); else paneFrame.addEventListener("load", select, { once: true });
   };
+  // The mounted main page of the exact release the homepage's reply names, or nothing.
+  const nativeHomeMount = (mount, result) => {
+    if (typeof result.producer !== "string") return null;
+    const proof = JSON.parse(result.producer), installation = result.installation;
+    if (!Array.isArray(proof) || [installation.scope, installation.install_id, installation.installation_generation, installation.version,
+      installation.manifest_digest].some((value, index) => value !== proof[index])) return null;
+    return [mount, ...mount.querySelectorAll("[data-plugin-producer]")].find(node => node.dataset.pluginOwner === result.owner_plugin_id
+      && node.dataset.pluginProducer === result.producer && node.dataset.pluginSlot === "workbench.main") || null;
+  };
+  // The home shows one plugin's main page in place of its groups (a \`lead\` group). The page is found by the same proof as a home
+  // navigation and moved into the home's box; the panes take it back by mounting it when that plugin's own page is opened.
+  const adoptHomeLead = (box, result) => {
+    if (!box?.isConnected || !result || result.kind !== "stage" || !result.installation || typeof result.shell_key !== "string"
+      || typeof result.owner_plugin_id !== "string") return null;
+    const plugin = result.shell_key, mount = findTopLevelSurface(plugin);
+    if (!mount || removedPlugin(plugin)) return null;
+    const proved = result.frame_path ? typeof result.frame_path === "string" && signedHomeStage(mount, result.owner_plugin_id, new URL(result.frame_path, location.origin).href)
+      : nativeHomeMount(mount, result);
+    if (!proved) return null;
+    if (mount.parentElement !== box) box.append(mount);
+    mount.hidden = false;
+    host.prepareSurface?.(mount, "restore");
+    if (surfaceShows.get(plugin) !== "page") { surfaceShows.set(plugin, "page"); selectItem(mount, null, undefined); }
+    return mount;
+  };
+  // A page with a live frame stays where it is, hidden, as in the panes: moving it would reload it.
+  const releaseHomeLead = (node) => {
+    if (!node?.parentElement?.hasAttribute("data-home-lead")) return;
+    if (node.querySelector("iframe[data-plugin-frame]")) node.hidden = true; else { node.hidden = true; pool.append(node); }
+  };
   // Only the shell calls this with the protected homepage's reply. It binds the reply back to this pane and its actual mount.
   const openHomeNavigation = (result, pane, home = true) => {
     if (!result || !pane || state.exclusive || pane !== ops.focused(state) || home && ops.shownPlugin(pane) !== "home") return false;
@@ -347,12 +377,7 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
         selection.panel ? { panel: selection.panel } : { itemId: result.item_id });
       return true;
     }
-    if (typeof result.producer !== "string") return false;
-    const proof = JSON.parse(result.producer), installation = result.installation;
-    if (!Array.isArray(proof) || [installation.scope, installation.install_id, installation.installation_generation, installation.version,
-      installation.manifest_digest].some((value, index) => value !== proof[index])) return false;
-    const mounted = [mount, ...mount.querySelectorAll("[data-plugin-producer]")].find(node => node.dataset.pluginOwner === result.owner_plugin_id
-      && node.dataset.pluginProducer === result.producer && node.dataset.pluginSlot === "workbench.main");
+    const mounted = nativeHomeMount(mount, result);
     if (!mounted) return false;
     const subview = selection.surface !== mounted.dataset.pluginSurface;
     if (subview && !ownSurfaces(mounted).some(node => node.dataset.pluginSurface === selection.surface && node.dataset.pluginSlot === "workbench.main")) return false;

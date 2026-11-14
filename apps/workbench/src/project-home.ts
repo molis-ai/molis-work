@@ -6,9 +6,13 @@ import type { ImmersiveShellPrimitives } from "./immersive-shell.js";
  * the view opens for a quick look. The server draws only the frame; every row comes from the owners' presentations.
  * The heading is the project's own name under a quiet line that says which page this is: the name answers "where am I",
  * and the rows below answer what to do, so the page carries no sentence about itself.
+ * `data-home-lead` holds the one plugin page a `lead` group names; while it is shown the groups are put away, and the thin bar above
+ * switches between that page and these groups (specs/work-brief/contract-design.md §2).
  */
 export function renderProjectHome(name: string, { escapeHtml: e }: ImmersiveShellPrimitives): string {
   return `<section class="desktop-work-surface immersive-home" data-work-surface="home" data-work-surface-label="${uiText("workbench.project-home.project-home")}" aria-label="${e(name)} · ${uiText("workbench.project-home.project-home")}" hidden>
+    <div class="home-lead-bar" data-home-lead-bar hidden></div>
+    <div class="home-lead" data-home-lead hidden></div>
     <div class="home-scroll" data-home-scroll>
       <header class="home-heading"><p class="home-heading__place">${uiText("workbench.project-home.project-home")}</p><h1>${e(name)}</h1></header>
       <div class="home-read-state" data-home-status aria-live="polite"></div>

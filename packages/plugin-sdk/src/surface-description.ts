@@ -19,8 +19,8 @@ export interface CheckedSurfaceDescription { readonly description: SurfaceDescri
 // The message names the part and never echoes a value: a description names other owners' objects.
 const malformed = (part: string) => new ActionError("actions.output_invalid", `操作面描述不合格：${part}`);
 
-const GROUP_KINDS = ["attention", "continue", "plugin", "slot"] as const;
-const GROUP_KEYS = ["kind", "owner_plugin_id", "state", "read_at", "excluded", "hidden_above", "overflow", "plugin_card", "title", "items"] as const;
+const GROUP_KINDS = ["attention", "continue", "plugin", "slot", "lead"] as const;
+const GROUP_KEYS = ["kind", "owner_plugin_id", "state", "read_at", "excluded", "hidden_above", "overflow", "plugin_card", "lead", "title", "items"] as const;
 const GROUP_STATES = ["ok", "unreadable", "stale", "disabled", "undeclared"] as const;
 
 function closed(value: unknown, part: string, keys: readonly string[]): Record<string, unknown> {
@@ -89,8 +89,10 @@ function candidateGroup(group: SurfaceGroup, at: string): CandidateGroup {
   const kind = oneOf(group.kind, GROUP_KINDS, `${at}.kind`);
   const state = oneOf(group.state, GROUP_STATES, `${at}.state`);
   if ((state === "disabled" || state === "undeclared") && kind !== "plugin") throw malformed(`${at}.state：${state} 只用在 plugin 组`);
-  if ((kind === "plugin") !== (group.owner_plugin_id !== undefined)) throw malformed(`${at}.owner_plugin_id：plugin 组必有，别的组不写`);
-  const ownerId = kind === "plugin" ? text(group.owner_plugin_id, `${at}.owner_plugin_id`, 200) : undefined;
+  const owned = kind === "plugin" || kind === "lead";
+  if (owned !== (group.owner_plugin_id !== undefined)) throw malformed(`${at}.owner_plugin_id：plugin 组与 lead 组必有，别的组不写`);
+  const ownerId = owned ? text(group.owner_plugin_id, `${at}.owner_plugin_id`, 200) : undefined;
+  const lead = checkedLead(group, kind, state, `${at}.lead`);
   const owner = ownerId === undefined ? {} : { owner_plugin_id: ownerId };
   if ((state === "stale") !== (group.read_at !== undefined)) throw malformed(`${at}.read_at：stale 必有，别的状态不写`);
   const readAt = group.read_at === undefined ? {} : { read_at: timestamp(group.read_at, `${at}.read_at`) };
@@ -100,7 +102,17 @@ function candidateGroup(group: SurfaceGroup, at: string): CandidateGroup {
   const card = group.plugin_card === undefined ? {} : { plugin_card: checkedPluginCard(group.plugin_card, ownerId, state, `${at}.plugin_card`) };
   if (!Array.isArray(group.items)) throw malformed(`${at}.items`);
   if (kind === "plugin" && group.items.some(item => item.owner_plugin_id !== ownerId)) throw malformed(`${at}.items：plugin 组只放这个插件的东西`);
-  return { facts: { kind, ...owner, state, ...readAt, ...excluded, ...hidden, ...folded, ...card }, offered: new Map(group.items.map(item => [subjectKey(item.subject), item])) };
+  return { facts: { kind, ...owner, state, ...readAt, ...excluded, ...hidden, ...folded, ...card, ...lead }, offered: new Map(group.items.map(item => [subjectKey(item.subject), item])) };
+}
+
+/** A `lead` group is the Host's choice of one main-area view: `ok`, no items, and nothing a description could add to. Other groups carry none. */
+function checkedLead(group: SurfaceGroup, kind: SurfaceGroup["kind"], state: SurfaceGroup["state"], at: string): { lead?: NonNullable<SurfaceGroup["lead"]> } {
+  if ((kind === "lead") !== (group.lead !== undefined)) throw malformed(`${at}：lead 组必有，别的组不写`);
+  if (group.lead === undefined) return {};
+  if (state !== "ok" || !Array.isArray(group.items) || group.items.length > 0) throw malformed(`${at}：lead 组只有 ok 状态，不放条目`);
+  const lead = closed(group.lead, at, ["installation", "view_id"]);
+  checkInstallation(lead.installation, `${at}.installation`);
+  return { lead: { installation: lead.installation as SurfaceInstallationRef, view_id: text(lead.view_id, `${at}.view_id`, PRESENTATION_LIMITS.start_view_id) } };
 }
 
 /** A group of the value: the candidates' group of the same kind and owner, once. The value gives its title and picks and orders its items. */
@@ -111,6 +123,7 @@ function checkedGroup(value: unknown, at: string, pass: Pass): SurfaceGroup {
   if (pass.placed.has(candidate)) throw malformed(`${at}：同一组放了两次`);
   if (group.plugin_card !== undefined && (candidate.facts.plugin_card === undefined
     || canonicalJsonText(group.plugin_card) !== canonicalJsonText(candidate.facts.plugin_card))) throw malformed(`${at}.plugin_card`);
+  if (group.lead !== undefined && canonicalJsonText(group.lead) !== canonicalJsonText(candidate.facts.lead ?? null)) throw malformed(`${at}.lead`);
   pass.placed.add(candidate);
   const title = group.title === undefined ? {} : { title: ownedText(group.title, `${at}.title`) };
   if (!Array.isArray(group.items)) throw malformed(`${at}.items`);

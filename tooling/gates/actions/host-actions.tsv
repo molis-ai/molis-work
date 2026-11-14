@@ -501,5 +501,5 @@ skills.import.preview	1	plugin-install	command	operation	home	write	-	user	skill
 skills.kit.report	1	system.skills	query	query	home	read	concurrent	user	skills:read	-	molis.kit-report.input.v1	molis.kit-report.output.v1	d746974fa9af	d4b668a16eb1	-
 skills.resource.read	1	system.skills	query	query	home	read	-	agent,plugin,user	skills:read	-	-	-	69404a9dbf5f	b3b4ba8c0864	-
 skills.settings.set	1	system.skills	command	operation	home	write	-	user	skills:manage	-	-	-	94bf6ef0f64a	2b646704d211	-
-surfaces.compose	1	system.surfaces	query	query	project	read	concurrent	plugin,user	-	-	-	surfaces.description	ccf3f4c7b906	f59223c9f9fd	-
+surfaces.compose	1	system.surfaces	query	query	project	read	concurrent	plugin,user	-	-	-	surfaces.description	ccf3f4c7b906	77428bdfe59e	-
 surfaces.correct	1	system.surfaces	command	operation	project	write	-	user	-	-	-	-	bc75f60bd856	e2b416124e26	-

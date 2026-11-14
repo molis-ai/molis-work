@@ -113,6 +113,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       order: () => tabWorkspace?.homeOrder?.() ?? [],
       navigationFrom: (source) => tabWorkspace?.homeNavigationFrom(source) ?? (() => false),
       market: () => tabWorkspace?.setExclusive("market"),
+      lead: { adopt: (box, target) => tabWorkspace?.adoptHomeLead(box, target) ?? null, release: (node) => tabWorkspace?.releaseHomeLead(node) },
       offers: (offerHost) => positionOffers({ ...offerHost, records: workRecords }),
       projectKey: state.project?.project_id || "",
       translate: readText,

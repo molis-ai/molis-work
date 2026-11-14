@@ -224,7 +224,8 @@ async function auditInbox(t: TestContext, b: Browser, entryId: string) {
   await frame.waitFor(`!${node(back)} || !${node(back)}.getClientRects().length`);
 }
 
-test("B27-NAMES-01 · existing named Dataset, Jelly, Feed and Inbox controls", { timeout: 120_000 }, async t => {
+// The first workbench view draws every plugin frame; on a slow machine the four audits need more than 120s together.
+test("B27-NAMES-01 · existing named Dataset, Jelly, Feed and Inbox controls", { timeout: 240_000 }, async t => {
   const b = await openGoalBrowser(t, true, undefined, null);
   if (!b) return;
   const project = b.projectId!;

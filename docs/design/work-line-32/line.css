@@ -1,0 +1,167 @@
+/* 第 32 批定样：事项线外壳、事件、事件卡、后台任务面板、回应与去处。
+   只做编排：颜色、阴影、圆角、时长与曲线都引用 ../kit/kit.css 的变量；别名与原型条来自 ../workbench-shared-paths/styles.css，
+   插件色块 .own 与 .who 来自 ../intelligent-surfaces-forms/forms.css。标 [组件板新增] 的是要补标本的部件。不是产品样式。 */
+.wl{position:fixed;inset:40px 0 0 0;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:44px minmax(0,1fr) 68px}
+@keyframes wl-pop{from{opacity:0;transform:translateY(6px) scale(.97)}}
+@keyframes wl-rise{from{opacity:0;transform:translateY(10px)}}
+@keyframes wl-turn{0%,100%{box-shadow:inset 0 0 0 1px var(--amber)}50%{box-shadow:inset 0 0 0 1px var(--amber),0 0 0 4px color-mix(in srgb,var(--amber) 18%,transparent)}}
+@media (prefers-reduced-motion:reduce){.wl *{animation:none!important;transition:none!important}}
+
+/* 顶部一条：固定插件 + 标签 + 工具 */
+.wl-top{display:flex;align-items:center;gap:4px;padding:0 14px;min-width:0}
+.wl-pins{display:flex;gap:2px;padding:3px;border-radius:11px;background:var(--fill);flex:none}
+.wl-pin{width:30px;height:30px;border:0;border-radius:8px;background:transparent;color:var(--ink-soft);display:grid;place-items:center;position:relative}
+.wl-pin:hover{background:var(--hover)}.wl-pin[aria-current=true]{background:var(--paper);box-shadow:var(--lift-1);color:var(--ink)}
+.wl-pin.named{width:auto;padding:0 10px 0 8px;display:inline-flex;gap:6px;font-size:12px;font-weight:500}
+.wl-top .sepv{width:1px;height:16px;background:var(--line-strong);margin:0 6px;flex:none}
+.wl-top .tabs{flex:1}.wl-top .tools{display:flex;gap:4px;align-items:center;flex:none}
+.wl-top .more{height:28px;padding:0 8px;border-radius:var(--r-control);border:1px solid var(--line-strong);background:var(--paper);font-size:12px;color:var(--ink-soft);flex:none}
+
+/* 工作面与侧边 */
+.wl-stage{display:flex;gap:8px;padding:0 14px;min-height:0;padding-bottom:var(--yield,0px);transition:padding-bottom var(--dur-move) var(--ease)}
+.wl-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px;min-height:0}
+.wl-main>.pane{flex:1}
+.wl-doc{padding:28px max(28px,calc(50% - 340px));overflow:auto}.wl-doc h1{margin:0 0 4px;font-size:22px;font-weight:600}
+.wl-doc .ln{height:10px;border-radius:5px;background:var(--rail);margin:13px 0;max-width:62ch}.wl-doc .ln.s{max-width:38ch}
+.wl-side{flex:none;width:var(--side-w);display:flex;flex-direction:column;min-height:0}
+.wl-side .shead{display:flex;align-items:center;gap:6px;height:44px;padding:0 8px 0 12px;border-bottom:1px solid var(--line);flex:none}
+.wl-side .sbody{flex:1;min-height:0;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:10px}
+.wl-msg{display:flex;gap:8px;align-items:flex-start;line-height:1.65}.wl-msg.me{justify-content:flex-end}
+.wl-msg.me .bub{background:var(--accent-soft);padding:6px 10px;border-radius:12px 12px 4px 12px;max-width:85%}
+.wl-msg .tx{flex:1;min-width:0}
+
+/* [组件板新增] 线 */
+.wl-line{position:relative;display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,540px) minmax(0,1fr);align-items:center;gap:12px;padding:0 14px}
+.wl-line:before{content:"";position:absolute;left:14px;right:14px;top:50%;height:1px;background:var(--line-strong);pointer-events:none}
+.wl-track{display:contents}.wl-now{display:none}
+.wl-wing{position:relative;display:flex;align-items:center;gap:8px;height:44px;min-width:0}
+.wl-wing.past{grid-column:1;grid-row:1}.wl-wing.next{grid-column:3;grid-row:1}.wl-slot{grid-column:2;grid-row:1;position:relative}
+.wl-run{flex:1;min-width:0;display:flex;align-items:center;gap:8px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;height:44px;padding:0 2px}
+.wl-wing.past .wl-run>:first-child{margin-left:auto}
+.wl-wing.past .wl-run{-webkit-mask-image:linear-gradient(90deg,transparent,#000 32px);mask-image:linear-gradient(90deg,transparent,#000 32px)}
+.wl-wing.next .wl-run{-webkit-mask-image:linear-gradient(270deg,transparent,#000 32px);mask-image:linear-gradient(270deg,transparent,#000 32px)}
+.wl-wlabel{font-size:11px;color:var(--faint);background:var(--desk);padding:0 6px;flex:none;position:relative}
+/* [组件板新增] 线头 */
+.wl-head{flex:none;display:inline-flex;align-items:center;gap:7px;height:34px;max-width:200px;padding:0 8px 0 9px;border-radius:var(--r-control);border:1px solid var(--line-strong);background:var(--paper);font-weight:600;font-size:12.5px;position:relative}
+.wl-head .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.wl-head:hover{background:var(--soft)}
+.wl-count{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--amber-soft);color:var(--amber);font-size:11px;font-weight:600;flex:none}
+/* [组件板新增] 事件（线上的一项） */
+.wl-ev{flex:none;display:inline-flex;align-items:center;gap:7px;height:32px;max-width:230px;padding:0 10px 0 6px;border-radius:16px;border:0;box-shadow:inset 0 0 0 1px var(--line-strong);background:var(--paper);font-size:12.5px;font-weight:500;white-space:nowrap;position:relative;transition:box-shadow var(--dur-hover) var(--ease),background var(--dur-hover) var(--ease)}
+.wl-ev .nm{overflow:hidden;text-overflow:ellipsis;flex:0 1 auto;min-width:3em}.wl-ev small{font-size:11.5px;font-weight:400;color:var(--muted);flex:0 3 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.wl-ev:hover{background:var(--soft)}.wl-ev:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wl-ev[aria-current=true]{box-shadow:inset 0 0 0 1.5px var(--ink)}
+.wl-ev.fresh{animation:wl-pop var(--dur-move) var(--ease-spring,var(--ease))}
+.wl-ev[data-state=wait]{background:var(--amber-soft);box-shadow:inset 0 0 0 1px var(--amber);animation:wl-turn 1.8s ease-in-out 3}
+.wl-ev[data-state=failed]{box-shadow:inset 0 0 0 1px var(--red)}
+.wl-ev[data-state=wait] small,.wl-ev[data-state=failed] small{flex:none;color:inherit}
+.wl-ev[data-state=done]{color:var(--ink-soft);background:transparent}
+.wl-wing.past .wl-ev:not([data-state=wait]):not([data-state=failed]):not([aria-current=true]) small{display:none}
+.wl-wing.past .wl-ev{max-width:190px}
+.wl-ev[data-state=stale]{box-shadow:inset 0 0 0 1px var(--line-strong);border-style:dashed;color:var(--muted)}
+.wl-ev.issue{background:transparent;box-shadow:none;border:1px dashed var(--line-strong);color:var(--muted)}
+.wl-ev .tk{display:inline-flex;align-items:center;gap:3px;flex:none;font-size:11px;color:var(--muted)}
+.wl-ev .tk i{width:5px;height:5px;border-radius:50%;background:var(--accent)}.wl-ev .tk i.y{background:var(--amber)}.wl-ev .tk i.q{background:var(--faint)}
+
+/* 输入 */
+.wl-cap{display:flex;align-items:flex-end;gap:4px;min-height:48px;padding:6px;border-radius:var(--r-composer);background:var(--paper);box-shadow:var(--lift-2);position:relative;z-index:3}
+.wl-cap:focus-within{box-shadow:var(--lift-2),0 0 0 3px color-mix(in srgb,var(--accent) 16%,transparent)}
+.wl-cap.joined{border-top-left-radius:0;border-top-right-radius:0}
+.wl-cap textarea{flex:1;min-width:0;height:36px;max-height:120px;border:0;outline:0;resize:none;background:transparent;color:var(--ink);font:inherit;line-height:20px;padding:8px 6px}
+.wl-cap textarea::placeholder{color:var(--faint)}
+.wl-cbtn{width:36px;height:36px;border-radius:11px;border:0;background:transparent;color:var(--ink-soft);display:grid;place-items:center;flex:none}
+.wl-cbtn:hover{background:var(--hover)}.wl-cbtn.go{background:var(--action);color:var(--action-ink)}.wl-cbtn.go:disabled{opacity:.3;cursor:default}
+/* [组件板新增] 发给 */
+.wl-to{flex:none;display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 8px;border-radius:11px;border:1px solid var(--line-strong);background:var(--paper);font-size:12px;font-weight:500;max-width:150px}
+.wl-to span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.wl-to:hover{background:var(--soft)}
+.wl-to[data-to=char]{background:color-mix(in srgb,var(--hue-pink) 10%,var(--paper));border-color:color-mix(in srgb,var(--hue-pink) 40%,var(--line-strong))}
+
+/* 输入框上方的一摞：回应与去处、后台任务面板、事件卡 */
+.wl-stack{position:absolute;left:0;right:0;bottom:100%;display:flex;flex-direction:column;gap:8px;z-index:4;pointer-events:none}
+.wl-stack>*{pointer-events:auto}
+.wl-stack.wide{left:50%;right:auto;width:min(980px,calc(100vw - 28px));transform:translateX(-50%)}
+/* [组件板新增] 回应与去处 */
+.wl-reply{background:var(--popover);border-radius:var(--r-card);box-shadow:var(--lift-2);padding:10px 12px;display:flex;flex-direction:column;gap:6px;line-height:1.65;animation:wl-rise var(--dur-move) var(--ease)}
+.wl-reply .hd{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted);min-width:0;white-space:nowrap}
+.wl-reply .hd .grow{flex:1}.wl-reply p{margin:0}
+.wl-from{display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 7px;border-radius:var(--r-tag);background:var(--accent-soft);color:var(--accent-strong);font-size:11px;font-weight:500;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.wl-dest{display:flex;align-items:center;gap:8px;min-height:30px;padding:3px 4px 3px 9px;border-radius:var(--r-control);background:var(--soft);font-size:12px;color:var(--ink-soft);animation:wl-pop var(--dur-move) var(--ease);white-space:nowrap;min-width:0}
+.wl-dest b{font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;min-width:0}.wl-dest .grow{flex:1}
+.wl-auto{font-size:11.5px;color:var(--muted);display:flex;align-items:center;gap:5px}
+.wl-dots{display:inline-flex;gap:3px;height:20px;align-items:center}.wl-dots i{width:5px;height:5px;border-radius:50%;background:var(--faint);animation:wl-blink 1s infinite}.wl-dots i:nth-child(2){animation-delay:.2s}.wl-dots i:nth-child(3){animation-delay:.4s}
+@keyframes wl-blink{50%{opacity:.25}}
+/* [组件板新增] 后台任务面板 */
+.wl-panel{background:var(--popover);border-radius:var(--r-card);box-shadow:var(--lift-2);overflow:hidden;display:flex;flex-direction:column}
+.wl-panel.joined{border-bottom-left-radius:0;border-bottom-right-radius:0;margin-bottom:-8px;box-shadow:var(--lift-2);border-bottom:1px solid var(--line)}
+.wl-pline{display:flex;align-items:center;gap:8px;height:36px;padding:0 10px 0 12px;border:0;background:transparent;width:100%;text-align:left;font-size:12px;white-space:nowrap;min-width:0}
+.wl-pline:hover{background:var(--hover)}.wl-pline b{font-weight:600}.wl-pline .you{color:var(--amber)}
+.wl-pline .cur{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;color:var(--muted)}
+.wl-pline .chev{transition:transform var(--dur-move) var(--ease);color:var(--faint)}.wl-pline[aria-expanded=true] .chev{transform:rotate(180deg)}
+.wl-plist{max-height:min(38vh,244px);overflow:auto;padding:4px 6px 6px;border-top:1px solid var(--line);animation:wl-rise var(--dur-move) var(--ease)}
+.wl-trow{display:flex;align-items:center;gap:4px;border-radius:var(--r-row)}
+.wl-trow:hover{background:var(--hover)}
+.wl-trow .main{flex:1;min-width:0;display:flex;align-items:center;gap:9px;min-height:44px;padding:4px 6px;border:0;background:transparent;text-align:left}
+.wl-trow .tx{flex:1;min-width:0;display:flex;flex-direction:column}
+.wl-trow strong{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wl-trow .fact{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11.5px}
+.wl-trow.done strong{color:var(--muted)}
+.wl-serve{flex:none;display:inline-flex;align-items:center;gap:4px;height:22px;max-width:150px;padding:0 7px;border-radius:var(--r-tag);background:var(--fill);font-size:11px;color:var(--ink-soft);white-space:nowrap}
+.wl-serve span{overflow:hidden;text-overflow:ellipsis}.wl-serve.none{background:transparent;box-shadow:inset 0 0 0 1px var(--line);color:var(--muted)}
+.wl-pbanner{display:flex;align-items:center;gap:8px;padding:7px 12px;font-size:12px;background:var(--amber-soft);color:var(--amber);border-top:1px solid var(--line)}
+.wl-pbanner .grow{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wl-lh{padding:8px 8px 2px;font-size:11px;font-weight:500;color:var(--muted)}
+/* 方案 B：一排任务片 */
+.wl-chips{display:flex;align-items:center;gap:6px;overflow-x:auto;scrollbar-width:none;padding:2px}
+.wl-tchip{flex:none;display:inline-flex;align-items:center;gap:7px;height:32px;max-width:240px;padding:0 10px 0 8px;border-radius:10px;border:1px solid var(--line-strong);background:var(--popover);box-shadow:var(--lift-1);font-size:12px;font-weight:500;white-space:nowrap}
+.wl-tchip span{overflow:hidden;text-overflow:ellipsis}.wl-tchip small{color:var(--muted);font-weight:400;overflow:hidden;text-overflow:ellipsis}
+.wl-tchip[data-state=wait]{border-color:var(--amber);background:var(--amber-soft)}.wl-tchip[data-state=failed]{border-color:var(--red)}
+/* 方案 C：对话与任务并排 */
+.wl-deck{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:8px;align-items:end}
+.wl-deck .wl-panel{align-self:stretch}.wl-deck .wl-plist{max-height:132px;border-top:0;animation:none}
+.wl-deck .ph{display:flex;align-items:center;gap:8px;height:34px;padding:0 12px;font-size:12px;font-weight:600;border-bottom:1px solid var(--line);white-space:nowrap}
+.wl-empty{padding:14px 12px;font-size:12px;color:var(--muted)}
+
+/* [组件板新增] 事件卡与任务卡 */
+.wl-card{background:var(--popover);border-radius:var(--r-card);box-shadow:var(--lift-3);display:flex;flex-direction:column;max-height:min(58vh,520px);overflow:hidden;animation:wl-rise var(--dur-move) var(--ease);transform-origin:50% 100%}
+.wl-card .ch{display:flex;align-items:center;gap:8px;height:44px;padding:0 8px 0 12px;border-bottom:1px solid var(--line);flex:none;min-width:0}
+.wl-card .ch .tt{flex:1;min-width:0;font-weight:600;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wl-card .cb{padding:12px 14px 14px;overflow:auto;display:flex;flex-direction:column;gap:12px}
+.wl-card .cf{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.wl-card .quote{padding:8px 10px;border-radius:var(--r-row);background:var(--soft);color:var(--ink-soft);line-height:1.6}
+.wl-sec{display:flex;flex-direction:column;gap:4px;padding:8px;border-radius:var(--r-row);border:1px solid var(--line)}
+.wl-sec>h4{margin:0 0 2px;padding:0 2px;font-size:11px;font-weight:500;color:var(--muted)}
+.wl-kv{display:grid;grid-template-columns:72px minmax(0,1fr);gap:5px 10px;font-size:12px;margin:0}.wl-kv dt{color:var(--muted)}.wl-kv dd{margin:0;min-width:0}
+.wl-step{display:flex;gap:8px;align-items:center;padding:5px 8px;border-radius:var(--r-row);font-size:12.5px;white-space:nowrap}
+.wl-step.cur{background:var(--accent-soft)}.wl-step.todo{color:var(--muted)}.wl-step span{overflow:hidden;text-overflow:ellipsis}
+.wl-req{display:flex;align-items:center;gap:8px;padding:5px 6px;font-size:12.5px;white-space:nowrap;min-width:0}
+.wl-req .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.wl-check{display:flex;align-items:center;gap:8px;padding:5px 6px;border:0;background:transparent;border-radius:var(--r-row);text-align:left;font-size:12.5px;width:100%}
+.wl-check:hover{background:var(--hover)}.wl-check[aria-checked=true] span{color:var(--muted);text-decoration:line-through}
+.wl-check .box{width:16px;height:16px;border-radius:5px;box-shadow:inset 0 0 0 1.5px var(--line-strong);display:grid;place-items:center;flex:none}
+.wl-check[aria-checked=true] .box{background:var(--green);box-shadow:none;color:var(--paper)}
+.wl-decide{border:1px solid color-mix(in srgb,var(--amber) 45%,var(--line));border-radius:var(--r-row);padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.wl-decide .q{font-weight:600}.wl-decide.answered{border-color:var(--line);background:var(--soft)}
+.wl-dock{flex:none;max-height:46%;display:flex}.wl-dock .wl-card{flex:1;max-height:none;box-shadow:var(--sheet-shadow);border-radius:var(--r-sheet)}
+/* 菜单：用组件板的 .mw-menu，这里只管放在哪 */
+.wl-menu{position:absolute;z-index:40;min-width:240px;max-width:320px;animation:wl-pop var(--dur-hover) var(--ease)}
+.wl-menu .mw-menu__item[aria-disabled=true]{opacity:.55;cursor:default}
+
+@media (max-width:1180px){
+  .wl{--side-w:320px}.wl-ev small{display:none}.wl-ev[data-state=wait] small,.wl-ev[aria-current=true] small{display:inline}
+  .wl-ev{max-width:170px}.wl-head .nm{display:none}.wl-wlabel{display:none}
+  .wl-line{grid-template-columns:minmax(0,1fr) minmax(300px,440px) minmax(0,1fr)}
+}
+@media (max-width:760px){
+  .wl{grid-template-rows:44px minmax(0,1fr) auto}
+  .wl-top{padding:0 8px}.wl-pins .wl-pin:not([aria-current=true]),.wl-top .tabs .tab:not([aria-selected=true]),.wl-top .sepv{display:none}
+  .wl-stage{padding:0 8px;padding-bottom:var(--yield,0px)}
+  .wl-side{position:fixed;inset:88px 8px 124px 8px;width:auto;z-index:30;box-shadow:var(--lift-3)}
+  .wl-line{display:flex;flex-direction:column;align-items:stretch;gap:6px;padding:6px 8px 8px}.wl-line:before{top:22px;left:8px;right:8px}
+  .wl-track{display:flex;align-items:center;gap:8px;min-width:0;overflow-x:auto;scrollbar-width:none;scroll-snap-type:x proximity;height:40px}
+  .wl-wing{flex:none;height:40px}.wl-run{overflow:visible;flex:none;-webkit-mask-image:none!important;mask-image:none!important}
+  .wl-now{display:inline-flex;flex:none;align-items:center;height:22px;padding:0 8px;border-radius:11px;background:var(--action);color:var(--action-ink);font-size:11px;font-weight:600;scroll-snap-align:center;position:relative}
+  .wl-slot{position:static}.wl-stack,.wl-stack.wide{left:8px;right:8px;width:auto;transform:none}
+  .wl-head .nm{display:inline;max-width:6em}.wl-ev,.wl-head{height:36px}.wl-ev small{display:none}.wl-ev[data-state=wait] small{display:inline}
+  .wl-deck{grid-template-columns:1fr}.wl-trow .main{min-height:48px}.wl-trow .mw-btn{display:none}.wl-serve{max-width:96px}
+  .wl-to span{display:none}.wl-cbtn,.wl-to{height:40px}.wl-cbtn{width:40px}
+  .wl-dock{max-height:60%}.wl-card{max-height:62vh}
+}

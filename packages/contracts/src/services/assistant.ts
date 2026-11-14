@@ -338,6 +338,8 @@ export interface AssistantRound {
    */
   model?: { model_id: string; now?: string; window_tokens?: number };
   stop_reason?: string;
+  /** Why it stopped without reading the person's language: "person" for the person's own stop, "host" for a Host/runtime stop. */
+  stop_reason_code?: "person" | "host";
   /** While a model call of this round waits to try again: when and why, as the runtime said (the page counts down to it). */
   retry_wait?: AgentRetryWait;
   ended_at: string | null;
@@ -741,6 +743,8 @@ export interface AssistantRoundDiagnostics {
   phase: AgentRunPhase | "unknown";
   /** The runtime's own reason, not rewritten for the person. */
   stop_reason: string | null;
+  /** Why it stopped without reading the person's language. */
+  stop_reason_code?: "person" | "host";
   /** Frozen at the start; null when the runtime no longer has the run. */
   frozen: {
     model_id: string;

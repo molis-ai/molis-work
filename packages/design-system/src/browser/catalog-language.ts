@@ -75,7 +75,7 @@ function wireMotion(): void {
       const node = document.querySelector<HTMLElement>("[data-lang-page]");
       if (!node) return;
       page = Math.max(1, page + (demo === "back" ? -1 : 1));
-      node.textContent = "第 " + page + " 页";
+      node.textContent = (node.dataset.pageTemplate || "Page {page}").replace("{page}", String(page));
       craft()?.turn?.(node, demo === "back");
     }
     const stage = origin.closest<HTMLElement>("[data-lang-carry]");

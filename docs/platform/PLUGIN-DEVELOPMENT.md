@@ -198,7 +198,7 @@ Host 绑定 `context.actor_id` 为 Home 所有人；实际动作 caller 保留�
 
 Home 的 `services.storage` 复用安装隔离 KV 与原子 `compareAndSet`；升级校验只给 `get`，候选启动失败恢复原 KV。`services.model` 和指令登记使用项目执行器同一入口与限制；只在自己的 concurrent 动作中调用，停用、取消、撤权或动作结束后的结果不交付。数据库、模型、动作和 KV 句柄随实例与安装世代失效，停止钩子开始时也不能继续写。普通关闭保留启用意图，用户停用跨重启保留，重装不继承旧授权。
 
-Home 动作/场景可以声明 Home 或项目 scope。项目作用域必须经真实项目的动作/场景客户端；缺项目拒绝。`/api/plugins/<id>/…` 与真实 `/projects/<id>` 前缀后的同一路由访问同一个 Home 实例：不带前缀时调用不在任何项目里；带前缀时宿主先核对项目存在、并且显示这个插件，再把项目放进它自己发出的调用控制，插件的动作在 `caller.project_id` 里看到它，每次写之前再核对一次，请求结束后这份控制作废（`docs/system/SECURITY-INVARIANTS.md` S-31）。项目不能从 body/query 或插件自己造的控制里来。API 归实际 Runtime 注册，目录只供现有页面；共用 `plugin-route-operations.ts` 的重启/解除隔离/升级/视图版本与分发，保留当前网页授权、断开取消、`beforeEffect`、client_reported 页面上下文；读体上限是路由声明的 `max_body_bytes`，没声明时 12 MiB。项目 Files/wiring/Coding 钩子仍只属于项目。
+Home 动作/场景可以声明 Home 或项目 scope。项目作用域必须经真实项目的动作/场景客户端；缺项目拒绝。`/api/plugins/<id>/…` 与真实 `/projects/<id>` 前缀后的同一路由访问同一个 Home 实例：不带前缀时调用不在任何项目里；带前缀时宿主先核对项目存在、并且显示这个插件，再把项目放进它自己发出的调用控制，插件的动作在 `caller.project_id` 里看到它，每次写之前再核对一次，请求结束后这份控制作废（`docs/system/SECURITY-INVARIANTS.md` S-31）。项目不能从 body/query 或插件自己造的控制里来。API 归实际 Runtime 注册，目录只供现有页面；共用 `plugin-route-operations.ts` 的重启/解除隔离/升级/视图版本与分发，保留当前网页授权、断开取消、`beforeEffect`、client_reported 页面上下文；读体上限是路由声明的 `max_body_bytes`，没声明时 12 MiB。项目资料/wiring/Coding 钩子仍只属于项目。
 
 Home 库初始化失败由它自身的页面/API 明确报告，Goals 页面与其他项目动作仍可用；普通 ready 保持失败，不自动重试。受保护的 POST retry 才重试，并发 retry 共用一次启动；清理失败或关闭不能再开第二实例。`pluginFixtures.home` 与 `.project` 沿用 definition 或 `{ definition, database?, files? }` 夹具形状，不是 bundled、不接受沙箱或内置同名伪造，实际两份启动名单不能重复插件身份。
 

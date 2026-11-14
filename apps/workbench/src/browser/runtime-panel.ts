@@ -22,6 +22,22 @@ const text = (key: string, values?: Record<string, string | number>) => globalTh
 const escape = (value: string) => value.replace(/[&<>"']/gu, character => `&#${character.charCodeAt(0)};`);
 const NEXT_SHOWN = 5, QUIT_HOURS = 24, REFRESH_MS = 30_000;
 
+// The capsule is long-lived: on focus, compare the appearance revision it was drawn with to the Home's current one (the same
+// `/api/ui/appearance` the appearance picker reads). Only the capsule does this; the Home page is redrawn on its own.
+if (location.pathname === "/desktop/capsule") {
+  const drawn = document.querySelector("#ui-environment")?.getAttribute("data-selection-revision") ?? "";
+  let checking = false;
+  addEventListener("focus", async () => {
+    if (!page.molisWorkRequest || !drawn || checking) return;
+    checking = true;
+    try {
+      const answer = await page.molisWorkRequest<{ current: { selection_revision: number | null } }>("/api/ui/appearance");
+      if (String(answer.current.selection_revision ?? "") !== drawn) location.reload();
+    } catch { /* the next focus tries again */ }
+    finally { checking = false; }
+  });
+}
+
 const language = () => document.documentElement.lang || undefined;
 function when(value: string): string {
   const at = new Date(value), now = new Date();

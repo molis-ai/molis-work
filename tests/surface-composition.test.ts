@@ -51,7 +51,7 @@ function harness(changes: Partial<SurfaceComposePorts> = {}) {
   return { calls, counts, compose: (request: SurfaceRequest) => service.compose(request, ports), setCorrections: (value: SurfaceCorrectionsSnapshot) => { snapshot = value; } };
 }
 
-test("SCS-01 SCS-09 SCS-14 conversation mixes mentions and deliveries, folds only readable items, and expands in place", async () => {
+test("IUI-04 SCS-01 SCS-09 SCS-14 conversation mixes mentions and deliveries, folds only readable items, and expands in place", async () => {
   const h = harness();
   const subjects = Array.from({ length: 9 }, (_, index) => note(String(index)));
   const request = { slot: { kind: "conversation" }, subjects, delivery_subjects: [subjects[1]!] } as const;

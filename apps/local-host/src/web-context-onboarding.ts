@@ -7,12 +7,15 @@ import { withContextJourneys } from "./context-onboarding-store.js";
 import { codeRoot } from "./context-onboarding-sources.js";
 import { contextReferenceText, contextModel, readContextJourney, type ContextOnboardingPorts } from "./context-onboarding-service.js";
 import { contextOnboardingActions as actions, contextOnboardingDoor as door, type ContextOnboardingEntry } from "./context-onboarding-actions.js";
+import { responseAbortSignal } from "./web-entry-actions.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
 
 /** Reads stay HTTP; each write is the person's call of its `onboarding.context.*` action through the page's door (B9). */
 export function createContextOnboardingHttp(ports: ContextOnboardingPorts, host: MolisWorkLocalHost) {
   return async (req: IncomingMessage, res: ServerResponse, url: URL, home: string): Promise<boolean> => {
-    const as = (entry: Partial<ContextOnboardingEntry> = {}) => ({ host, request: req, entry: { home, ports, ...entry } });
+    let signal: AbortSignal | undefined;
+    // Only a write needs the request's signal; reads and non-onboarding routes do not attach a close listener.
+    const as = (entry: Partial<ContextOnboardingEntry> = {}) => ({ host, request: req, entry: { home, ports, ...entry }, signal: signal ??= responseAbortSignal(res) });
     const prefix = "/api/onboarding/context";
     if (url.pathname !== prefix && !url.pathname.startsWith(prefix + "/")) return false;
     try {

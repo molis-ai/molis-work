@@ -5,7 +5,7 @@ import type { ActionCallContext, ActionExecutionContext } from "@molis-ai/molis-
 import type { PluginMethodDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import type { PluginPublisherPin } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
-import { SKILL_EXCERPT_CHARS, SKILL_ROUND_AUTO_LIMIT, SKILL_SETTINGS_LOCKED_REASONS, skillErrors, type SkillAvailability, type SkillBodyReadResult,
+import { SKILL_AUTHORED_PLUGIN_ID, SKILL_EXCERPT_CHARS, SKILL_ROUND_AUTO_LIMIT, SKILL_SETTINGS_LOCKED_REASONS, skillErrors, type SkillAuthoredSource, type SkillAvailability, type SkillBodyReadResult,
   type SkillCatalogEntry, type SkillCatalogListRequest, type SkillReadRefusal, type SkillResourceContent, type SkillSettingsSetRequest } from "@molis-ai/molis-work-contracts/services/skills";
 import type { AgentDefinitions } from "./agent-definitions.js";
 import { USES_KEPT, type SkillSetting } from "./skill-settings.js";
@@ -140,6 +140,24 @@ export class SkillCatalog {
           ?? (round?.round && !round.named.some(named => isDeepStrictEqual(named, ref)) ? this.pick(skill!, caller, round.round) : undefined);
         return reason ? { ref, ok: false as const, reason } : { ref, ok: true as const, name: (skill!.display ?? skill!.declaration).name, body: skill!.body };
       }) };
+    });
+  }
+
+  /**
+   * One Skill as the fields the settings form edits (batch 41): the person's own view, whatever state the Skill is in, since nothing is
+   * used and no round reads it. `mine` says it sits in the package of Skills written in settings; whether this Home may rewrite that
+   * package is the save's to check. The body is without its frontmatter, which an imported Skill's file carries.
+   */
+  readSource(caller: ActionCallContext, ref: SkillRef): Promise<SkillAuthoredSource> {
+    return this.withSnapshot(caller, skills => {
+      const skill = skills.find(item => isDeepStrictEqual(item.ref, ref));
+      if (!skill) throw skillErrors.authored_unknown("这个技能已经不是目录里的当前版本，请刷新后再试");
+      try { skill.assertCurrent(); } catch { throw skillErrors.authored_unknown("这个技能已经不是目录里的当前版本，请刷新后再试"); }
+      const d = skill.declaration, words = skill.display ?? d;
+      const body = skill.body.replace(/^\uFEFF?---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/u, "").replace(/\r\n?/gu, "\n").trim();
+      return { skill_id: ref.skill_id, version: ref.version, scope: skill.pack.scope, mine: skill.pack.plugin_id === SKILL_AUTHORED_PLUGIN_ID && skill.pack.trust !== "host",
+        name: words.name, description: words.description ?? "", applies_to: d.applies_to, body,
+        ...(words.when_not_to_use ? { when_not_to_use: words.when_not_to_use } : {}), ...(d.argument_hint ? { argument_hint: d.argument_hint } : {}) };
     });
   }
 

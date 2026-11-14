@@ -3,10 +3,12 @@ import { PLUGIN_INSTALL_PROVIDER_ID } from "@molis-ai/molis-work-contracts/platf
 import { PLUGIN_INSTALL_WRITE, type PluginInstalledPermissionView, type PluginInstalledView, type PluginPublisherPin, type PluginUninstallResult, type PluginUninstallTarget, type ProjectPluginInstalledView } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 export { PLUGIN_INSTALL_PROVIDER_ID };
 import { SKILL_LIMITS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
-import { SKILL_INSTALL_PREVIEW_SCHEMA, skillImportActions } from "@molis-ai/molis-work-contracts/services/skills";
+import { SKILL_INSTALL_PREVIEW_SCHEMA, skillAuthoringActions, skillImportActions, type SkillAuthoredFields } from "@molis-ai/molis-work-contracts/services/skills";
 import { PROJECT_INSTALLATION } from "@molis-ai/molis-work-contracts/services/surface-composition";
 import { assertHomePluginPermissionSettingsEntry, assertPluginConsentSettingsEntry, assertPluginPermissionSettingsEntry } from "./plugin-consent-settings-entry.js";
 import type { BundledPluginList, PluginInstallPreviewInput, PluginInstallPreviewResult, PluginInstallService, ProjectPackageControl } from "./plugin-install-service.js";
+import type { ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { SkillAuthoringService } from "./skill-authoring.js";
 import type { SkillImportService } from "./skill-import.js";
 
 // Installing a plugin from a signed package, as the person's own act (ac-trust T2, specs/archive/repository-anti-corruption/slices/ac-trust-install.md
@@ -175,8 +177,19 @@ export const pluginControlActions = {
 };
 
 /** Importing Skills from this machine is installing the content package the import makes, so this provider offers it too (batch 08, 08-8). */
-export const pluginInstallDefinitions = (imports?: SkillImportService) =>
-  [...Object.values(pluginInstallActions), ...Object.values(pluginControlActions), ...imports ? Object.values(skillImportActions) : []] as ActionDefinition[];
+export const pluginInstallDefinitions = (imports?: SkillImportService, authoring?: SkillAuthoring) =>
+  [...Object.values(pluginInstallActions), ...Object.values(pluginControlActions), ...imports ? Object.values(skillImportActions) : [],
+    ...authoring ? [skillAuthoringActions.save, skillAuthoringActions.remove, skillAuthoringActions.draft] : []] as ActionDefinition[];
+
+/**
+ * Writing Skills of one's own (batch 41): saving and removing are installing and taking off the scope's package of own Skills, so this
+ * provider offers them; drafting asks the text model and writes nothing. `skills.authored.read` is the catalog's (`system.skills`).
+ */
+export interface SkillAuthoring {
+  service: SkillAuthoringService;
+  draft(intent: string, caller: Parameters<ActionHandlerBinding["handle"]>[0]): Promise<SkillAuthoredFields>;
+  draftAvailability(): ActionAvailability;
+}
 
 export function pluginInstallPerson(caller: Parameters<ActionHandlerBinding["handle"]>[0]): { project_id: string; actor_id: string } {
   if (!caller.user_action) throw new ActionError("actions.forbidden", "安装插件只接受本人在界面或命令行里的操作");
@@ -184,7 +197,7 @@ export function pluginInstallPerson(caller: Parameters<ActionHandlerBinding["han
   return { project_id: caller.project_id, actor_id: caller.actor_id };
 }
 
-export function pluginInstallHandlers(service: PluginInstallService, imports?: SkillImportService): ActionHandlerBinding[] {
+export function pluginInstallHandlers(service: PluginInstallService, imports?: SkillImportService, authoring?: SkillAuthoring): ActionHandlerBinding[] {
   return [
     { capability_id: pluginInstallActions.preview.capability_id, version: pluginInstallActions.preview.version, handle: async (caller, input) => {
       const who = pluginInstallPerson(caller); await caller.beforeEffect();
@@ -246,6 +259,20 @@ export function pluginInstallHandlers(service: PluginInstallService, imports?: S
         const who = pluginInstallPerson(caller); await caller.beforeEffect();
         return imports.confirm(input, who, caller);
       }),
+    ] : [],
+    ...authoring ? [
+      bindActionHandler(skillAuthoringActions.save, async (input, caller) => {
+        const who = pluginInstallPerson(caller); await caller.beforeEffect();
+        return authoring.service.save(input, who, caller);
+      }),
+      bindActionHandler(skillAuthoringActions.remove, async (input, caller) => {
+        // Removing the last one takes the package off, which is the project settings door's alone (S-94); so every removal asks that door.
+        assertPluginPermissionSettingsEntry(caller);
+        const who = pluginInstallPerson(caller); await caller.beforeEffect();
+        return authoring.service.remove(input, who, caller);
+      }),
+      { ...bindActionHandler(skillAuthoringActions.draft, async (input, caller) => { pluginInstallPerson(caller); return authoring.draft(input.intent, caller); }),
+        availability: () => authoring.draftAvailability() },
     ] : [],
   ];
 }

@@ -1,6 +1,6 @@
 import { bindActionHandler, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import { defineKitReportAction } from "@molis-ai/molis-work-contracts/platform/kit-report";
-import { SKILLS_PROVIDER_ID, SKILLS_READ_PERMISSION, skillCatalogActions } from "@molis-ai/molis-work-contracts/services/skills";
+import { SKILLS_PROVIDER_ID, SKILLS_READ_PERMISSION, skillAuthoringActions, skillCatalogActions } from "@molis-ai/molis-work-contracts/services/skills";
 import { SkillCatalog, type SkillCatalogPorts } from "./skill-catalog.js";
 
 /** The catalog's Skills as AI kit entries (specs/capability-pack/contract-design.md §4.8): only this provider reports Skills. */
@@ -8,7 +8,9 @@ const skillsKitReport = defineKitReportAction("skills.kit.report", /* @version a
 
 export function skillCatalogProvider(ports: SkillCatalogPorts): ActionProviderRegistration {
   const catalog = new SkillCatalog(ports);
-  return { provider: { provider_id: SKILLS_PROVIDER_ID, title: "技能", kind: "system" }, definitions: [...Object.values(skillCatalogActions), skillsKitReport], handlers: [
+  return { provider: { provider_id: SKILLS_PROVIDER_ID, title: "技能", kind: "system" }, definitions: [...Object.values(skillCatalogActions), skillAuthoringActions.read, skillsKitReport], handlers: [
+    // The person's own read for the settings form (batch 41); saving and removing are the install provider's.
+    bindActionHandler(skillAuthoringActions.read, (input, caller) => catalog.readSource(caller, input.ref)),
     bindActionHandler(skillsKitReport, (_input, caller) => catalog.kitReport(caller)),
     bindActionHandler(skillCatalogActions.list, (input, caller) => catalog.list(caller, input)),
     bindActionHandler(skillCatalogActions.readBodies, (input, caller) => catalog.readBodies(caller, input.refs)),

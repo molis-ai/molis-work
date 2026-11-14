@@ -259,6 +259,60 @@ export interface SkillImportConfirmResult {
 }
 
 /**
+ * The package a person's own Skills are kept in (specs/prologue-strategies/skill.md §10, batch 41: 「在设置里写自己的技能」): one content
+ * plugin per scope, signed with this Home's publisher identity and installed as an import is, so a Skill written here is treated as one
+ * imported from this machine. Saving a Skill makes the package's next version; nothing else is kept.
+ */
+export const SKILL_AUTHORED_PLUGIN_ID = "io.molis.work.my-skills";
+/** What the person writes about a Skill of their own: the form's fields, nothing the Host fills in. */
+export interface SkillAuthoredFields {
+  name: string;
+  /** 「什么时候用它」: what an AI reads to decide whether to pick it. */
+  description: string;
+  when_not_to_use?: string;
+  argument_hint?: string;
+  applies_to: SkillAppliesTo;
+  /** 「怎么做」: the body, Markdown, without frontmatter. Only text: a Skill with files is imported from this machine instead. */
+  body: string;
+}
+export interface SkillAuthoredReadRequest {
+  ref: SkillRef;
+}
+/** One catalog Skill as the form's fields: the person's own to change, any other to start a copy from (`mine: false`). */
+export interface SkillAuthoredSource extends SkillAuthoredFields {
+  skill_id: string;
+  version: number;
+  scope: SkillScope;
+  mine: boolean;
+}
+export interface SkillAuthoredSaveRequest extends SkillAuthoredFields {
+  scope: SkillScope;
+  /** One of the person's own Skills in this scope, to save its next version; absent for a new Skill, whose id the Host makes. */
+  skill_id?: string;
+  /** The version read, with `skill_id`: saving over a version that is no longer the current one is refused. */
+  expected_version?: number;
+}
+export interface SkillAuthoredSaveResult extends SkillImportConfirmResult {
+  skill_id: string;
+  skill_version: number;
+}
+export interface SkillAuthoredRemoveRequest {
+  scope: SkillScope;
+  skill_id: string;
+  expected_version: number;
+}
+export interface SkillAuthoredRemoveResult {
+  skill_id: string;
+  /** How many of the person's own Skills this scope still has; at none, the package is uninstalled. */
+  remaining: number;
+}
+/** Most characters of the sentence a draft starts from. */
+export const SKILL_DRAFT_INTENT_CHARS = 1000;
+export interface SkillDraftRequest {
+  intent: string;
+}
+
+/**
  * The refusals of the actions below, declared once. A reference no longer current, off, not named, or unavailable is `read_refused`
  * with `details.reason` a `SkillReadRefusal`; `skills.body.read` answers the same reasons item by item instead of refusing the call.
  */
@@ -282,6 +336,18 @@ export const skillErrors = defineErrorCodes("skills", {
   import_skill_unknown: "invalid",
   /** The confirmation's `applies_to` misses a chosen Skill that writes none, names one that writes its own or is not chosen, or repeats one. */
   import_applies_to_invalid: "invalid",
+  /** `skill_id` is not one of the person's own Skills in this scope, or the reference is not in the catalog. */
+  authored_unknown: "not_found",
+  /** `expected_version` is not the Skill's current version (`details.version`). */
+  authored_conflict: "conflict",
+  /** Another of the person's own Skills in this scope has this name. */
+  authored_name_taken: "conflict",
+  /** A field is empty or over its limit, or `skill_id` came without `expected_version` (`details.field`). */
+  authored_invalid: "invalid",
+  /** This scope's package is full (`SKILL_LIMITS.skillsPerPackage`). */
+  authored_full: "conflict",
+  /** The model answered with something that is not a draft. */
+  draft_unreadable: "upstream",
 });
 
 // The input schemas keep their literal types so `inputSchemaFor` holds each to its handwritten request interface
@@ -377,4 +443,36 @@ export const skillImportActions = {
       skill_ids: { type: "array", minItems: 1, maxItems: SKILL_LIMITS.skillsPerPackage, uniqueItems: true, items: id }, scope,
       applies_to: { type: "array", maxItems: SKILL_LIMITS.skillsPerPackage, items: object({ skill_id: id, applies_to: appliesTo }) } }, ["preview_id", "skill_ids", "scope"])),
     output_schema: object({ plugin_id: text, version: text, publisher_key_id: text }) } } as ActionDefinition<SkillImportConfirmRequest, SkillImportConfirmResult>,
+};
+
+const authoredFields = { name: { type: "string", minLength: 1, maxLength: 80 }, description: { type: "string", minLength: 1, maxLength: SKILL_LIMITS.descriptionChars },
+  when_not_to_use: { type: "string", maxLength: SKILL_LIMITS.whenChars }, argument_hint: { type: "string", maxLength: SKILL_LIMITS.argumentHintChars },
+  applies_to: appliesTo, body: { type: "string", minLength: 1, maxLength: SKILL_LIMITS.bodyChars } } as const;
+const authoredRequired = ["name", "description", "applies_to", "body"] as const;
+const skillIdText = { type: "string", minLength: 1, maxLength: SKILL_LIMITS.skillIdChars, pattern: "^[a-z0-9][a-z0-9-]*$" } as const;
+
+/**
+ * Writing Skills of one's own in settings (specs/prologue-strategies/skill.md §10, batch 41): the person's, no MCP tool, never handed
+ * to an Agent, a workflow or a plugin, as importing is. Saving signs and installs the scope's package of own Skills at its next
+ * version; a new Skill is `off` until `skills.settings.set` says otherwise. `draft` only proposes the form's fields from one sentence
+ * and writes nothing.
+ */
+export const skillAuthoringActions = {
+  read: { capability_id: "skills.authored.read", version: /* @version action.skills.authored.read */ 1, operation: "query", action: { ...person, kind: "query" as const, effect: "read" as const,
+    title: "读取一个技能的可编辑内容", description: "本人在设置里按精确引用读一个技能的名称、什么时候用、什么时候不用、参数提示、给谁用和正文（不带 frontmatter），用来修改自己写的技能，或从别的技能起一份自己的。不看它在这个范围里是不是关着。",
+    input_schema: inputSchemaFor<SkillAuthoredReadRequest>()(object({ ref: skillRef })),
+    output_schema: object({ ...authoredFields, skill_id: skillIdText, version: skillVersion, scope, mine: { type: "boolean" } }, [...authoredRequired, "skill_id", "version", "scope", "mine"]) } } as ActionDefinition<SkillAuthoredReadRequest, SkillAuthoredSource>,
+  save: { capability_id: "skills.authored.save", version: /* @version action.skills.authored.save */ 1, operation: "command", action: { ...person,
+    title: "保存自己写的技能", description: "本人在设置里新建一个技能，或把自己写的一个技能保存为下一版：只有正文、没有附带文件。做成这个范围里「我的技能」包的下一个版本，用这个 Home 的发布身份签名并安装。新建的技能是关着的，要用再由 skills.settings.set 打开；修改时按读到的 expected_version 提交。同一范围里自己的技能不能重名。",
+    input_schema: inputSchemaFor<SkillAuthoredSaveRequest>()(object({ ...authoredFields, scope, skill_id: skillIdText, expected_version: skillVersion }, [...authoredRequired, "scope"])),
+    output_schema: object({ plugin_id: text, version: text, publisher_key_id: text, skill_id: skillIdText, skill_version: skillVersion }) } } as ActionDefinition<SkillAuthoredSaveRequest, SkillAuthoredSaveResult>,
+  remove: { capability_id: "skills.authored.remove", version: /* @version action.skills.authored.remove */ 1, operation: "command", action: { ...person,
+    title: "删除自己写的技能", description: "本人在设置里删除自己写的一个技能，按读到的 expected_version 提交：这个范围里「我的技能」包出下一个不含它的版本；删到一个不剩时卸载这个包。别人的包和装来的技能不能这样删。",
+    input_schema: inputSchemaFor<SkillAuthoredRemoveRequest>()(object({ scope, skill_id: skillIdText, expected_version: skillVersion })),
+    output_schema: object({ skill_id: skillIdText, remaining: count }) } } as ActionDefinition<SkillAuthoredRemoveRequest, SkillAuthoredRemoveResult>,
+  draft: { capability_id: "skills.authored.draft", version: /* @version action.skills.authored.draft */ 1, operation: "query", action: { ...person, kind: "query" as const, effect: "read" as const,
+    scheduling: "concurrent" as const, execution: { cost: "metered" as const }, permissions: [SKILLS_MANAGE_PERMISSION, "model:invoke"],
+    title: "起草一个技能", description: `本人用一句话（至多 ${SKILL_DRAFT_INTENT_CHARS} 字）说想让技能做什么，由文字模型起草名称、什么时候用、什么时候不用、给谁用和正文，交回表单由本人改；什么都不保存。没有配置文字模型时说明去哪里配置。`,
+    input_schema: inputSchemaFor<SkillDraftRequest>()(object({ intent: { type: "string", minLength: 1, maxLength: SKILL_DRAFT_INTENT_CHARS } })),
+    output_schema: object({ ...authoredFields }, [...authoredRequired]) } } as ActionDefinition<SkillDraftRequest, SkillAuthoredFields>,
 };

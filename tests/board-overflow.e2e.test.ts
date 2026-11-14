@@ -41,8 +41,9 @@ test("BQN-01, BQN-02: the narrow question gives its title room and keeps its con
   await evaluate("document.fonts.ready.then(() => true)");
   for (const width of [348, 390, 436, 1024]) {
     await command("Emulation.setDeviceMetricsOverride", { width, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
-    const view = await evaluate<{ spill: string[]; lines: number; titleFits: boolean; dates: [number, number][]; badgeBelow: boolean; collapse: number[]; operationBadgeBeside: boolean }>(`(() => {
+    const view = await evaluate<{ spill: string[]; lines: number; titleFits: boolean; dates: [number, number][]; badgeBelow: boolean; contentWidth: number; collapse: number[]; operationBadgeBeside: boolean }>(`(() => {
       const card = ${card}, box = card.getBoundingClientRect(), title = card.querySelector('h3'), head = title.parentElement;
+      const style = getComputedStyle(card), contentWidth = Math.round(box.width - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight));
       const badge = card.querySelector('[data-ix-badge]').getBoundingClientRect(), close = card.querySelector('[data-ix-action=collapse]').getBoundingClientRect();
       const range = document.createRange(); range.selectNodeContents(title);
       const lines = [...range.getClientRects()], heading = head.getBoundingClientRect();
@@ -57,7 +58,7 @@ test("BQN-01, BQN-02: the narrow question gives its title room and keeps its con
         return [measure.measureText(input.value).width, input.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight)];
       });
       const operation = document.querySelector('[data-ix-operation=ix-op-ready]');
-      return { spill, lines: lines.length, titleFits: lines.every(line => line.left >= heading.left - 1 && line.right <= heading.right + 1), dates, badgeBelow: badge.top >= heading.bottom - 1,
+      return { spill, lines: lines.length, titleFits: lines.every(line => line.left >= heading.left - 1 && line.right <= heading.right + 1), dates, badgeBelow: badge.top >= heading.bottom - 1, contentWidth,
         collapse: [close.width, close.height],
         operationBadgeBeside: operation.querySelector('[data-ix-badge]').getBoundingClientRect().top < operation.querySelector('h3').getBoundingClientRect().bottom };
     })()`);
@@ -67,7 +68,10 @@ test("BQN-01, BQN-02: the narrow question gives its title room and keeps its con
     if (width <= 436) for (const [text, room] of view.dates) {
       assert.ok(text <= room + 1, `${width}px: the ${text}px date fits its ${room}px input area`);
     }
-    assert.equal(view.badgeBelow, width <= 436, `${width}px: the badge yields only in the narrow question`);
+    // BQN-01/02 switch at a card content width of 330px (batch27-question-narrow spec), not at a window width. At 436px
+    // the board's card is 380px wide, 356px of content, so its badge rightly stays beside the title; 348 and 390 are under
+    // the switch. Measure the card itself rather than assuming a window width maps to one card width.
+    assert.equal(view.badgeBelow, view.contentWidth <= 330, `${width}px: a ${view.contentWidth}px-content question ${view.badgeBelow ? "yields its badge" : "keeps its badge beside the title"}`);
     assert.equal(view.operationBadgeBeside, true, `${width}px: operation cards keep their heading layout`);
     if (width < 600) assert.ok(view.collapse.every(side => side >= 44), `${width}px: collapse remains a 44px target`);
   }

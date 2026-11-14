@@ -128,23 +128,26 @@
   function capHtml() {
     const joined = S.scheme === "A" && panelShown() && !S.focus && !S.task;
     const line = S.step < 3 ? tx(SAY[S.step + 1].u) : "";
-    const ts = tasks(), live = ts.filter((k) => k.state !== "done"), you = live.filter((k) => k.state === "wait").length;
-    const lead = live.find((k) => k.state === "wait") ?? live.find((k) => k.state === "failed") ?? live[0];
-    const tab = S.scheme !== "D" ? "" : `<button type="button" class="wl-tab" data-act="panel" aria-expanded="${floatOpen() === "list"}" data-you="${you > 0}" title="${tx(["后台任务", "Background tasks"])}" aria-label="${tx(["后台任务", "Background tasks"])}${live.length ? " " + live.length : ""}">${lead ? ring(RING[lead.state]) : ic("activity", "sm")}${live.length ? `<b>${live.length}</b>` : ""}${you ? `<span class="you">${tx(["等你", "you"])} ${you}</span>` : ""}</button>`;
-    return `<div class="wl-cap${joined ? " joined" : ""}">${tab}
+    return `<div class="wl-cap${joined ? " joined" : ""}">
       <button type="button" class="wl-cbtn" data-act="sim" data-label="${tx(["手边：Shelf、灵光、资料", "At hand: Shelf, sparks, materials"])}" aria-label="${tx(["手边", "At hand"])}">${ic("plus")}</button>
       <button type="button" class="wl-to" data-act="menu" data-id="to" data-to="${S.to === "assistant" ? "assistant" : "char"}" aria-haspopup="menu" title="${tx(["发给", "Send to"])}">${S.to === "assistant" ? ic("sparkles", "sm") : `<span class="who hu">${esc(peerName(S.to).slice(0, 1))}</span>`}<span>${esc(peerName(S.to))}</span>${ic("chevron-down", "sm")}</button>
       <textarea id="msg" rows="1" placeholder="${tx(["对", "Say something to "]) + esc(peerName(S.to)) + tx(["说点什么…", "…"])}">${esc(line)}</textarea>
       <button type="button" class="wl-cbtn go" data-act="send" aria-label="${tx(["发送", "Send"])}">${ic("arrow")}</button></div>`;
   }
   const panelShown = () => tasks().length > 0;
-  // 方案 D：右侧浮窗里是什么——一张卡、任务列表，或没开
-  const floatOpen = () => S.scheme !== "D" || S.side === "card" ? null : S.focus || S.task ? "card" : S.panel ? "list" : null;
+  // 方案 D：助理对话框右上角的图标，点开后任务浮窗贴在对话框右边；工作面不让位
+  let hdExtra = "";
+  const floatMode = () => (S.scheme !== "D" ? null : S.task ? "task" : S.panel ? "list" : null);
+  function tasksIcon() {
+    const live = tasks().filter((k) => k.state !== "done"), you = live.filter((k) => k.state === "wait").length;
+    const lead = live.find((k) => k.state === "wait") ?? live.find((k) => k.state === "failed") ?? live[0];
+    return `<button type="button" class="wl-tico" data-act="panel" aria-expanded="${!!floatMode()}" data-you="${you > 0}" title="${tx(["后台任务", "Background tasks"])}" aria-label="${tx(["后台任务", "Background tasks"])}${live.length ? " " + live.length : ""}">${lead ? ring(RING[lead.state]) : ic("activity", "sm")}${live.length ? `<b>${live.length}</b>` : ""}</button>`;
+  }
   function floatHtml() {
-    const mode = floatOpen(); if (!mode) return "";
-    if (mode === "card") return `<div class="wl-float">${cardHtml()}</div>`;
+    const mode = floatMode(); if (!mode) return "";
+    if (mode === "task") return `<div class="wl-tfloat">${cardHtml(false, "task")}</div>`;
     const ts = tasks(), live = ts.filter((k) => k.state !== "done"), done = ts.filter((k) => k.state === "done");
-    return `<div class="wl-float"><article class="wl-card" role="dialog" aria-label="${tx(["后台任务", "Background tasks"])}"><header class="ch">${ic("activity")}<span class="tt">${tx(["后台任务", "Background tasks"])}</span><span class="wl-pline" style="width:auto;height:auto;padding:0;pointer-events:none">${ts.length ? countsHtml(ts) : ""}</span>${iconBtn("x", "close", tx(["关闭", "Close"]))}</header>
+    return `<div class="wl-tfloat"><article class="wl-card" role="dialog" aria-label="${tx(["后台任务", "Background tasks"])}"><header class="ch">${ic("activity")}<span class="tt">${tx(["后台任务", "Background tasks"])}</span><span class="wl-pline" style="width:auto;height:auto;padding:0;pointer-events:none">${ts.length ? countsHtml(ts) : ""}</span>${iconBtn("x", "fclose", tx(["关闭", "Close"]))}</header>
       <div class="cb" style="padding:6px;gap:0">${ts.length ? live.map((k) => rowHtml(k)).join("") + (done.length ? `<div class="wl-lh">${tx(["刚交回的", "Just handed back"])}</div>${done.map((k) => rowHtml(k)).join("")}` : "") : `<div class="wl-empty">${tx(["没有在办的任务。能放到后台办的，说完就会出现在这里。", "Nothing running. Work that can go to the background shows up here."])}</div>`}</div>${bannerHtml()}</article></div>`;
   }
   function rowHtml(k, inCard = false) {
@@ -172,7 +175,7 @@
     const say = SAY[S.step], who = say.from ? tasks().find((k) => k.id === say.from)?.by ?? "assistant" : S.by[say.task] ?? "assistant";
     const k = say.task ? tasks().find((x) => x.id === say.task) : null;
     const text = S.step === 5 && S.fault === "fail" ? say.fail : say.a;
-    const hd = `<div class="hd">${who === "assistant" ? `<span class="who ai">AI</span>` : `<span class="who hu">${esc(peerName(who).slice(0, 1))}</span>`}<span>${esc(peerName(who))}</span>${say.from ? `<span class="wl-from">${ic("refresh", "sm")}${tx(["任务交回：", "Returned: "])}${esc(tx(tasks().find((x) => x.id === say.from).title))}</span>` : ""}<span class="grow"></span>${iconBtn("message", "side", tx(["看全部对话", "Whole conversation"]), "chat")}</div>`;
+    const hd = `<div class="hd">${who === "assistant" ? `<span class="who ai">AI</span>` : `<span class="who hu">${esc(peerName(who).slice(0, 1))}</span>`}<span>${esc(peerName(who))}</span>${say.from ? `<span class="wl-from">${ic("refresh", "sm")}${tx(["任务交回：", "Returned: "])}${esc(tx(tasks().find((x) => x.id === say.from).title))}</span>` : ""}<span class="grow"></span>${hdExtra}${iconBtn("message", "side", tx(["看全部对话", "Whole conversation"]), "chat")}</div>`;
     if (beat === 0) return `<div class="wl-reply" role="status">${hd}<span class="wl-dots"><i></i><i></i><i></i></span></div>`;
     const dest = k && beat >= 2 ? `<div class="wl-dest">${ic(k.dest.kind === "none" ? "list" : "pin", "sm")}<span>${tx(["放到：", "Placed: "])}</span><b>${esc(destLabel(k.dest))}${k.dest.kind === "new" ? " · " + esc(q(tx(k.title))) : ""}</b><span class="grow"></span>${btn(tx(["改", "Change"]), "menu", { id: "dest:" + k.id })}</div>` : "";
     const auto = say.auto ? `<div class="wl-auto">${ic("zap", "sm")}${tx(["在你交办的范围内自己接着做了 · 第 1 次，最多 3 次", "Carried on within your request · 1 of 3 automatic rounds"])}</div>` : "";
@@ -182,7 +185,12 @@
   function stackHtml() {
     const card = S.scheme === "A" ? cardHtml() : S.scheme === "B" && S.task ? cardHtml() : "";
     if (S.scheme === "A") return `<div class="wl-stack">${card}${replyHtml()}${panelHtml(!card)}</div>`;
-    if (S.scheme === "D") return `<div class="wl-stack tabbed">${replyHtml()}</div>`;
+    if (S.scheme === "D") {
+      hdExtra = tasksIcon();
+      const dialog = S.focus && S.side !== "card" ? cardHtml(false, "focus") : replyHtml() || (tasks().length ? `<div class="wl-reply"><div class="hd"><span class="who ai">AI</span><span>${esc(peerName(S.to))}</span><span class="grow"></span>${hdExtra}</div></div>` : "");
+      hdExtra = "";
+      return `<div class="wl-stack">${dialog}${floatHtml()}</div>`;
+    }
     if (S.scheme === "B") {
       const ts = tasks(), chips = ts.length ? `<div class="wl-chips" role="group" aria-label="${tx(["后台任务", "Background tasks"])}">${ts.map((k) => `<button type="button" class="wl-tchip" data-act="task" data-id="${k.id}" data-state="${k.state}">${ring(RING[k.state])}<span>${esc(tx(k.title))}</span><small>${esc(k.state === "running" ? stepLine(k) : tx(STATE[k.state]))}</small></button>`).join("")}</div>` : "";
       return `<div class="wl-stack">${card}${replyHtml()}${chips}${offline() ? `<section class="wl-panel">${bannerHtml()}</section>` : ""}</div>`;
@@ -218,8 +226,9 @@
       cod1: ["Coding 会话已结束：改了 3 个文件，测试通过。", "The Coding session ended: 3 files changed, tests pass."], inbox2: ["供应商在等报价单的回复，周五前要给。", "The vendor is waiting for a reply to the quote, due Friday."], todo2: ["三位试用用户，各约 15 分钟。", "Three trial users, about 15 minutes each."] }[e.id];
     return `<p style="margin:0;line-height:1.65">${tx(sum)}</p><div class="cf">${e.id === "inbox2" ? btn(tx(["让助理起草回复", "Draft a reply"]), "sim", { v: "primary", icon: "sparkles" }) : ""}${btn(tx(["在", "Open in "]) + tx(SRC[e.src].n) + tx(["里打开", ""]), "sim", { icon: "external" })}</div>`;
   }
-  function cardInner() {
-    if (S.task) {
+  function cardInner(only) {
+    if (only === "task" && !S.task) return "";
+    if (S.task && only !== "focus") {
       const k = tasks().find((x) => x.id === S.task); if (!k) return "";
       const steps = k.steps.map((s, i) => `<div class="wl-step ${k.state === "done" || i < k.cur ? "" : i === k.cur ? "cur" : "todo"}">${k.state === "done" || i < k.cur ? ring("done") : i === k.cur ? ring(RING[k.state]) : ring("none")}<span>${tx(s)}</span></div>`).join("");
       return { icon: `<span class="own" style="--hue:var(--hue-${k.who === "coding" ? "purple" : "blue"})">${ic(k.who === "coding" ? "code" : "sparkles")}</span>`, title: tx(k.title), sub: tx(STATE[k.state]),
@@ -229,9 +238,10 @@
     const e = events().find((x) => x.id === S.focus); if (!e) return "";
     return { icon: own(e.src), title: tx(e.title), sub: `${tx(SRC[e.src].n)}${e.sum ? " · " + tx(e.sum) : ""}`, body: eventBody(e) };
   }
-  function cardHtml(inSide = false) {
-    const c = cardInner(); if (!c) return "";
-    return `<article class="wl-card" role="dialog" aria-label="${esc(c.title)}"><header class="ch">${c.icon}<span class="tt">${esc(c.title)}</span><span class="fact" style="white-space:nowrap">${esc(c.sub)}</span>${S.scheme === "D" && S.task && !inSide ? iconBtn("back", "tolist", tx(["回到任务列表", "Back to the list"])) : ""}${inSide ? "" : iconBtn("sidebar", "park", tx(["停到侧边", "Park in the side panel"]))}${iconBtn("x", "close", tx(["关闭", "Close"]))}</header><div class="cb">${c.body}</div></article>`;
+  function cardHtml(inSide = false, only = S.scheme === "D" && inSide ? "focus" : undefined) {
+    const c = cardInner(only); if (!c) return "";
+    const inFloat = only === "task";
+    return `<article class="wl-card" role="dialog" aria-label="${esc(c.title)}"><header class="ch">${c.icon}<span class="tt">${esc(c.title)}</span><span class="fact" style="white-space:nowrap">${esc(c.sub)}</span>${inFloat ? iconBtn("back", "tolist", tx(["回到任务列表", "Back to the list"])) : hdExtra}${inSide || inFloat ? "" : iconBtn("sidebar", "park", tx(["停到侧边", "Park in the side panel"]))}${iconBtn("x", inFloat ? "fclose" : "close", tx(["关闭", "Close"]))}</header><div class="cb">${c.body}</div></article>`;
   }
   const cardInSide = () => (S.focus || S.task) && (S.side === "card" || (S.scheme === "C" && !S.task) || (S.scheme === "C" && S.task));
   function sideHtml() {
@@ -272,12 +282,14 @@
     const trackAt = document.querySelector(".wl-track")?.scrollLeft ?? 0;
     document.getElementById("app").innerHTML = `<header class="wl-top">${topHtml()}</header>
       <div class="wl-stage"><div class="wl-main"><section class="pane"><div class="wl-doc"><h1>${tx(["定价页", "Pricing page"])}</h1><p class="fact">Pages · ${tx(["网站改版 v2", "Website v2"])}</p>${"<div class='ln'></div><div class='ln'></div><div class='ln s'></div>".repeat(4)}</div></section>${dock}</div>${sideHtml()}</div>
-      <footer class="wl-line" aria-label="${tx(["事项线", "Work line"])}">${lineHtml()}</footer>${floatHtml()}`;
+      <footer class="wl-line" aria-label="${tx(["事项线", "Work line"])}">${lineHtml()}</footer>`;
     const pl = document.querySelector(".wl-plist"); if (pl && keep) pl.scrollTop = scroll;
     const stack = document.querySelector(".wl-stack"), stage = document.querySelector(".wl-stage");
     // 让位只算常驻的部分（后台任务面板）；回应与卡是浮在工作面上的，不推版面。
     const stay = S.scheme === "C" ? stack : document.querySelector(".wl-stack .wl-panel, .wl-stack .wl-chips");
     stage.style.setProperty("--yield", `${stay && stay.offsetHeight ? stay.offsetHeight + 8 : 0}px`);
+    const tf = document.querySelector(".wl-tfloat"); // 右边放不下时，浮窗叠到对话框上面
+    if (tf && stack) tf.classList.toggle("over", innerWidth - stack.getBoundingClientRect().right < 330);
     const pastRun = document.querySelector(".wl-wing.past .wl-run"); if (pastRun) pastRun.scrollLeft = pastRun.scrollWidth;
     if (matchMedia("(max-width:760px)").matches) {
       const track = document.querySelector(".wl-track"), now = document.querySelector(".wl-now");
@@ -336,13 +348,14 @@
     switch (act) {
       case "menu": return openMenu(b, id);
       case "send": if (S.step < 3) return goStep(S.step + 1); return toast(tx(["（原型只演示剧本里的三句；后面用「下一步」）", "(The prototype plays three scripted lines; use Next after that)"]));
-      case "focus": S.task = null; S.focus = S.focus === id ? null : id; if ((S.scheme === "A" || S.scheme === "D") && S.side === "card") S.side = null; return render();
-      case "task": S.task = S.task === id ? null : id; if (S.scheme === "C") S.side = "card"; return render();
-      case "close": S.focus = null; S.task = null; if (S.scheme === "D") S.panel = false; if (S.side === "card") S.side = null; return render();
+      case "focus": if (S.scheme !== "D") S.task = null; S.focus = S.focus === id ? null : id; if ((S.scheme === "A" || S.scheme === "D") && S.side === "card") S.side = null; return render();
+      case "task": S.task = S.task === id ? null : id; if (S.scheme === "C") S.side = "card"; if (S.scheme === "D") S.panel = true; return render();
+      case "close": S.focus = null; if (S.scheme !== "D") S.task = null; if (S.side === "card") S.side = null; return render();
       case "park": S.side = "card"; return render();
       case "side": if (!id) { S.side = null; S.focus = S.scheme === "C" ? null : S.focus; if (S.scheme === "C") S.task = null; } else S.side = id; if (id && id !== "card" && S.scheme === "C") { S.focus = null; S.task = null; } return render();
-      case "panel": S.panel = S.scheme === "D" ? floatOpen() !== "list" : !S.panel; S.focus = null; S.task = null; if (S.scheme === "D" && S.side === "card") S.side = null; return render();
-      case "tolist": S.task = null; S.focus = null; S.panel = true; return render();
+      case "panel": if (S.scheme === "D") { const was = !!floatMode(); S.task = null; S.panel = !was; return render(); } S.panel = !S.panel; S.focus = null; S.task = null; return render();
+      case "tolist": S.task = null; S.panel = true; return render();
+      case "fclose": S.task = null; S.panel = false; return render();
       case "to": S.to = b.dataset.v; return render();
       case "place": { const v = b.dataset.v; S.dest[id] = v === "new" ? { kind: "new" } : v === "none" ? { kind: "none" } : { kind: "event", id: v.split(":")[1] }; if (S.focus === "ev_" + id && v !== "new") S.focus = null; render(); return toast(tx(["已改：", "Changed: "]) + destLabel(S.dest[id])); }
       case "decide": S.decided = b.dataset.v; render(); return toast(tx(["收到，任务接着办", "Got it; the task continues"]));
@@ -356,7 +369,7 @@
     }
   });
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") { if (document.querySelector(".wl-menu")) { document.querySelector(".wl-menu").remove(); menu = null; } else if (S.focus || S.task) { S.focus = null; S.task = null; if (S.side === "card") S.side = null; render(); } else if (S.panel) { S.panel = false; render(); } }
+    if (e.key === "Escape") { if (document.querySelector(".wl-menu")) { document.querySelector(".wl-menu").remove(); menu = null; } else if (floatMode()) { S.task = null; S.panel = false; render(); } else if (S.focus || S.task) { S.focus = null; S.task = null; if (S.side === "card") S.side = null; render(); } else if (S.panel) { S.panel = false; render(); } }
     if (e.key === "Enter" && !e.shiftKey && e.target.id === "msg" && !e.isComposing) { e.preventDefault(); document.querySelector('[data-act="send"]').click(); }
     if ((e.key === "ArrowLeft" || e.key === "ArrowRight") && e.target.classList?.contains("wl-ev")) { const all = [...document.querySelectorAll(".wl-ev")], i = all.indexOf(e.target) + (e.key === "ArrowLeft" ? -1 : 1); all[i]?.focus(); }
   });

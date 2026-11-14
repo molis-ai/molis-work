@@ -109,14 +109,14 @@
 .wl-pbanner{display:flex;align-items:center;gap:8px;padding:7px 12px;font-size:12px;background:var(--amber-soft);color:var(--amber);border-top:1px solid var(--line)}
 .wl-pbanner .grow{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .wl-lh{padding:8px 8px 2px;font-size:11px;font-weight:500;color:var(--muted)}
-/* 方案 D（用户 2026-11-14 提）：输入框右上角一个图标，点开是右侧的浮窗，不占工作面 */
-.wl-tab{position:absolute;right:16px;bottom:100%;display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px 0 8px;border:1px solid var(--line-strong);border-bottom:0;border-radius:10px 10px 0 0;background:var(--paper);font-size:12px;color:var(--ink-soft);white-space:nowrap}
-.wl-tab:hover{background:var(--soft)}.wl-tab[aria-expanded=true]{color:var(--ink);box-shadow:inset 0 2px 0 var(--accent)}
-.wl-tab b{font-weight:600;color:var(--ink)}.wl-tab .you{color:var(--amber);font-weight:500}
-.wl-tab[data-you=true]{border-color:var(--amber);background:var(--amber-soft)}
-.wl-stack.tabbed{bottom:calc(100% + 34px)}
-.wl-float{position:fixed;right:14px;bottom:78px;width:min(400px,calc(100vw - 28px));z-index:30;display:flex}
-.wl-float .wl-card{flex:1;max-height:min(64vh,560px);transform-origin:100% 100%}
+/* 方案 D（用户 2026-11-14 提）：助理对话框右上角一个图标，点开后任务浮窗贴在对话框右边，不占工作面 */
+.wl-tico{flex:none;display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 8px 0 6px;border-radius:8px;border:1px solid var(--line-strong);background:var(--paper);font-size:12px;color:var(--ink-soft)}
+.wl-tico:hover{background:var(--soft)}.wl-tico b{font-weight:600;color:var(--ink)}
+.wl-tico[aria-expanded=true]{background:var(--active);color:var(--ink)}
+.wl-tico[data-you=true]{border-color:var(--amber);background:var(--amber-soft)}
+.wl-tfloat{position:absolute;left:calc(100% + 10px);bottom:0;width:340px;display:flex;z-index:5}
+.wl-tfloat .wl-card{flex:1;max-height:min(56vh,480px);transform-origin:0 100%}
+.wl-tfloat.over{position:static;width:auto;order:-1}
 /* 方案 B：一排任务片 */
 .wl-chips{display:flex;align-items:center;gap:6px;overflow-x:auto;scrollbar-width:none;padding:2px}
 .wl-tchip{flex:none;display:inline-flex;align-items:center;gap:7px;height:32px;max-width:240px;padding:0 10px 0 8px;border-radius:10px;border:1px solid var(--line-strong);background:var(--popover);box-shadow:var(--lift-1);font-size:12px;font-weight:500;white-space:nowrap}
@@ -172,5 +172,5 @@
   .wl-deck{grid-template-columns:1fr}.wl-trow .main{min-height:48px}.wl-trow .mw-btn{display:none}.wl-serve{max-width:96px}
   .wl-to span{display:none}.wl-cbtn,.wl-to{height:40px}.wl-cbtn{width:40px}
   .wl-dock{max-height:60%}.wl-card{max-height:62vh}
-  .wl-float{left:8px;right:8px;width:auto;bottom:118px}.wl-tab{height:32px}
+  .wl-tico{height:32px}
 }

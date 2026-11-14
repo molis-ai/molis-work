@@ -116,8 +116,8 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
   // 2.5 times slower than a development Mac (one command or wait that takes 4 s there takes 10 s here).
   const browser = await ChromeHarness.start(directory, { executable: chrome, commandTimeoutMs: 15_000, profileTimeouts, ...(chromeArgs ? { extraArgs: chromeArgs } : {}) });
   harness = browser;
-  /** A page load may take far longer than any other command. */
-  async function command<T = unknown>(method: string, params: Record<string, unknown> = {}, sessionId?: string, timeoutMs = method === "Page.navigate" || method === "Page.reload" ? 30_000 : undefined): Promise<T> {
+  /** A page load may take far longer than any other command: the first workbench view draws every plugin frame at once. */
+  async function command<T = unknown>(method: string, params: Record<string, unknown> = {}, sessionId?: string, timeoutMs = method === "Page.navigate" || method === "Page.reload" ? 60_000 : undefined): Promise<T> {
     try { return await browser.command<T>(method, params, sessionId, timeoutMs); }
     catch (error) {
       if (profileTimeouts && error instanceof Error && "diagnostics" in error) {
@@ -258,7 +258,8 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
     // Hidden plugin frames and optional external assets must not block interaction with an initialized page.
     // Feature tests below still wait for the state they operate on (loaded rows, saved results, etc.).
     const loaded = new Promise<void>((resolve, reject) => {
-      timer = setTimeout(() => reject(timeoutError), 30_000);
+      // A full workbench page can take over 30s to reach DOMContentLoaded on a slow machine; this still stops a real hang.
+      timer = setTimeout(() => reject(timeoutError), 60_000);
       stopListening = browser.on("Page.domContentEventFired", (_event, eventSession) => { if (eventSession === targetSessionId) resolve(); });
     });
     try {

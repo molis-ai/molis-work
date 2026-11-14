@@ -109,11 +109,19 @@ test("placement journey: no project yet — start in the personal space, finish 
     await press(`[data-pages-export="${format}"]`);
     await card("已导出");
     let file = "";
+    // A brand-new Home's onboarding can download a browser component into the same download folder (a CRX). Wait for the
+    // file that carries what was written instead of taking the first name with the right extension; the assertions below
+    // still require the title and the body, so a stray download cannot satisfy this.
     for (let tries = 0; !file; tries++) {
-      const name = (await readdir(downloads)).find(entry => entry.endsWith("." + format));
-      if (name) file = await readFile(join(downloads, name), "utf8");
-      else if (tries > 50) assert.fail(`no .${format} file was downloaded`);
-      else await new Promise(resolve => setTimeout(resolve, 100));
+      const names = (await readdir(downloads)).filter(entry => entry.endsWith("." + format));
+      for (const name of names) {
+        const text = await readFile(join(downloads, name), "utf8");
+        if (text.includes("复利来自长期坚持")) { file = text; break; }
+      }
+      if (!file) {
+        if (tries > 50) assert.fail(`no .${format} file was downloaded`);
+        else await new Promise(resolve => setTimeout(resolve, 100));
+      }
     }
     assert.match(file, /读书笔记：长期主义/u, `the ${format} file carries the title`);
     assert.match(file, /复利来自长期坚持/u, `the ${format} file carries what was written`);

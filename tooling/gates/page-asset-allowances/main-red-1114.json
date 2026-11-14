@@ -1,0 +1,55 @@
+{
+  "reason": "修 main 4417d2bc 上的红（#2057）。样式侧：Goals 列表的列名在手机与窄容器里没有藏住——两条隐藏规则写在基础 display:grid 规则之前，媒体/容器查询不增加特异度，于是被基础规则按源码顺序覆盖，窄列里横向滚出 676px；把隐藏规则移到基础规则之后，并把容器阈值从 640 调到 720，覆盖五列行与列名网格实际需要的宽度。首页设置的作用范围小字补回字号阶上的 note 字号（<small> 的浏览器默认在小字上落到 10px，不在 11/12/13/15… 的阶上）。首页的「更多操作」菜单在 390px 会换行到行首、再右对齐出屏 120px，给作用范围容器里的原因文字加 flex:1 1 0，让菜单留在行尾。英文词包侧：workbench.settings-sync.adopt-refusal.unsettled 改成 one/other 复数，内容变了，英文工作台词包的内容寻址路径随之变为 /assets/locale/workbench.en.0d51885b451604dc5d670bbb.js（同一份词包，不是新功能资源）。工作台样式表净增 278 字节；中文首屏页冷启动各 +278，英文各 +294（其中英文词包 +16），热启动 +0。",
+  "review": "修 main 红的 PR（fix/main-red-1114）与只读评审子代理；本机 pnpm workspace:build 后 node scripts/gates/page-assets.mjs --base origin/main 与 node scripts/gates/first-screen.mjs --base origin/main 实测（对照 merge-base f1475240d3）：/assets/molis-work-workbench.css 1131155 → 1131433（+278）；中文四个首屏页冷 +278、英文 +294、热 +0；英文词包新路径 /assets/locale/workbench.en.0d51885b451604dc5d670bbb.js 新增 16 字节。许可按实测写，没有新增其他资源，单个资源远低于 10 KB。",
+  "userApproval": "用户于 2026-11-14 弹窗批准（选择「批准这个英文词包新路径与页面预算」）：英文工作台词包因复数句修正换内容寻址路径，允许新增该路径与 8 个首屏页的增量预算。",
+  "entryApprovals": [
+    {
+      "pages": [
+        "arrival-empty",
+        "chooser",
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "en",
+      "entry": "/assets/locale/workbench.en.<digest>.js",
+      "change": "new"
+    }
+  ],
+  "assets": {
+    "/assets/molis-work-workbench.css": 278
+  },
+  "pages": {
+    "arrival-empty/zh": {
+      "cold": 278,
+      "warm": 0
+    },
+    "arrival-empty/en": {
+      "cold": 294,
+      "warm": 0
+    },
+    "chooser/zh": {
+      "cold": 278,
+      "warm": 0
+    },
+    "chooser/en": {
+      "cold": 294,
+      "warm": 0
+    },
+    "workbench-default/zh": {
+      "cold": 278,
+      "warm": 0
+    },
+    "workbench-default/en": {
+      "cold": 294,
+      "warm": 0
+    },
+    "workbench-all-plugins/zh": {
+      "cold": 278,
+      "warm": 0
+    },
+    "workbench-all-plugins/en": {
+      "cold": 294,
+      "warm": 0
+    }
+  }
+}

@@ -299,7 +299,7 @@ test("a git config in the scanner's environment does not change which lines it r
   repo.write("README.md", "# project\n");
   const base = repo.commit("base");
   repo.git("checkout", "-q", "-b", "feature");
-  // A textconv filter from a user's attributes file rewrites the patch git shows (the repository itself has no .gitattributes),
+  // A textconv filter from a user's attributes file rewrites the patch git shows (the repository's own .gitattributes names only merge drivers),
   // and diff.noprefix drops the b/ prefix of every header; the scan must read the real added lines under both.
   writeFileSync(join(repo.root, ".git", "info", "attributes"), "*.ts diff=mask\n");
   repo.git("config", "diff.mask.textconv", "sed -e s/AKIA/xxxx/");

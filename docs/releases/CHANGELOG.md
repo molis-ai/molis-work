@@ -9,7 +9,7 @@
 - **新插件「风险」**：风险独立记录（标题、描述、影响 × 可能性、处置、负责人、状态、进展、通用关联对象），项目总览按状态分组、已关闭收起，两栏详情与从别处点开先进右栏、可展开整页；Goal 的顾虑可以引用任意对象（`cited_subjects`），但 Goals 只存 `{kind,id}`，不复制风险。风险插件不调 AI。
 - **复查**：详情里安排一次性复查，Schedule 登记一次性对象任务，到点由后台助理看一轮，结果留在 Schedule；改期、暂停、取消、关闭归档不另建任务，停用/撤权后的迟到结果不写业务记录。复查段只显示最后一轮结论，没有历次结果与“采纳/不采纳”（[BL-risk-review-history-adopt](../../specs/backlog/BL-risk-review-history-adopt.md)）。
 - **合同与存储**：Goals 项目库 2→3（`cited_subjects_json`），Schedule 项目库 2→3（`repeat`、`run_at`、`subject_kind`、`subject_id`）；Goals 顾虑、`Schedule.tasks.*`、Manifest `opens_items` 与 SDK `renderSeverityGrid` 都在原版本 @1 上改，没有读取兼容。旧 `concern_opened` 缺 `cited_subjects` 读作“没有引用对象”，是该可选字段的缺省。
-- **页面资源**：新增按需下发的 `risk.js` 46,453 字节；合后审计整改再追加 2,909（合计 49,362）；三张样式各 +1,275；`workbench.js` 原 1,238、整改再 +509（合计 1,702）；`plugin-frame.js` 原 +82、整改再 +1（合计 +83）；`schedule.js` +376（用户 2026-11-13 批准新增资源）。
+- **页面资源**：新增按需下发的 `risk.js` 46,453 字节；合后审计整改再追加 2,909（合计 49,362）；三张样式各 +1,275；`workbench.js` 原 1,238、整改再 +509（合计 1,702）；`plugin-frame.js` 原 +82、整改再 +1（合计 +83）；`schedule.js` +376（用户 2026-11-13 批准新增资源；整改首屏冷启动追加 +1/+510 见 `17-audit-followups.json`）。
 - **未完成/待验收**：RISK-05 侧栏展开、RISK-06 实物与历次结果取舍、RISK-09 真没装 Goals；第 19 批 Work Brief 的简报侧接入。
 
 ### 首页公共能力与智能呈现第一片（2026-11-13，#2017）

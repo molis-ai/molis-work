@@ -1,4 +1,5 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { renderEnvChecklist, type MwEnvCheckRowOptions, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { setContentHtml } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { codingIntentOptions } from "../../composer-labels.js";
 import { el, errorMessage } from "../dom.js";
 import { renderDirectory } from "./directory.js";
@@ -93,56 +94,210 @@ function drawWorkspaces(page: Page, result: StateRead) {
   if (workspacesChanged || prevWorking !== s.workspaceId) page.refs.filesFace?.follow(s.workspaceId);
 }
 
-function drawEnvironmentReadiness(page: Page, readiness: StateRead["environment_readiness"]) {
-  const composer = page.q("[data-coding-composer]"), contextBar = page.q("[data-coding-context]");
-  let bar = composer.querySelector<HTMLDetailsElement>("[data-coding-env-bar]");
-  if (!readiness || !readiness.workspace_id) {
-    bar?.remove();
-    return;
+export function buildEnvironmentChecklistHtml(readiness: StateRead["environment_readiness"]): string {
+  if (!readiness || !readiness.workspace_id) return "";
+  const rows: MwEnvCheckRowOptions[] = [];
+  const branch = readiness.branch || uiText.text("coding.env.git.detached");
+  if (!readiness.is_git_repo) {
+    rows.push({ state: "idle", label: uiText.text("coding.env.row.git"), value: uiText.text("coding.env.git.not-repo-detail") });
+  } else if (readiness.git_conflicted_count > 0 || readiness.git_merging) {
+    rows.push({
+      state: "failed",
+      label: uiText.text("coding.env.row.git"),
+      value: uiText.text("coding.env.git.conflict", { branch, count: readiness.git_conflicted_count }),
+      badge: { label: uiText.text("coding.env.badge.missing"), tone: "danger" },
+      recovery: {
+        tone: "danger",
+        title: uiText.text("coding.env.recovery.conflict-title"),
+        body: uiText.text("coding.env.recovery.conflict-body"),
+        actions: [
+          { label: uiText.text("coding.env.action.open-files"), variant: "secondary", attrs: { "data-coding-env-action": "open-files" } },
+          { label: uiText.text("coding.env.action.switch-workspace"), variant: "ghost", attrs: { "data-coding-env-action": "open-workspace" } },
+        ],
+      },
+    });
+  } else if (readiness.dirty_count > 0) {
+    rows.push({
+      state: "partial",
+      label: uiText.text("coding.env.row.git"),
+      value: uiText.text("coding.env.git.dirty", { branch, count: readiness.dirty_count }),
+      badge: { label: uiText.text("coding.env.badge.pre-existing"), tone: "warning" },
+    });
+  } else {
+    rows.push({
+      state: "done",
+      label: uiText.text("coding.env.row.git"),
+      value: uiText.text("coding.env.git.clean", { branch }),
+      status: { label: uiText.text("coding.env.badge.ready"), tone: "done" },
+    });
   }
-  const key = JSON.stringify(readiness);
-  if (bar && bar.dataset.signature === key) return;
-  const wasOpen = bar?.open ?? false;
-  if (!bar) {
-    bar = el("details", "", "coding-env-bar");
-    bar.dataset.codingEnvBar = "";
-    composer.insertBefore(bar, contextBar);
+  if (!readiness.deps_manager) {
+    rows.push({ state: "idle", label: uiText.text("coding.env.row.deps"), value: uiText.text("coding.env.deps-none") });
+  } else if (readiness.deps_manager === "cargo") {
+    rows.push({ state: "done", label: uiText.text("coding.env.row.deps"), value: uiText.text("coding.env.deps.cargo-ok"), status: { label: uiText.text("coding.env.badge.ready"), tone: "done" } });
+  } else if (readiness.deps_manager === "python") {
+    rows.push({
+      state: readiness.deps_installed ? "done" : "idle",
+      label: uiText.text("coding.env.row.deps"),
+      value: readiness.deps_installed ? uiText.text("coding.env.deps.python-ok") : uiText.text("coding.env.deps.python-info"),
+      ...(readiness.deps_installed ? { status: { label: uiText.text("coding.env.badge.ready"), tone: "done" } } : { badge: { label: uiText.text("coding.env.badge.missing"), tone: "neutral" } }),
+    });
+  } else if (readiness.deps_installed) {
+    rows.push({
+      state: "done",
+      label: uiText.text("coding.env.row.deps"),
+      value: uiText.text("coding.env.deps.node-ok", { manifest: readiness.deps_manager }),
+      status: { label: uiText.text("coding.env.badge.ready"), tone: "done" },
+    });
+  } else {
+    rows.push({
+      state: "verify",
+      label: uiText.text("coding.env.row.deps"),
+      value: uiText.text("coding.env.deps.node-missing", { manifest: readiness.deps_manager }),
+      badge: { label: uiText.text("coding.env.badge.missing"), tone: "warning" },
+      recovery: {
+        tone: "warning",
+        title: uiText.text("coding.env.recovery.deps-title"),
+        body: uiText.text("coding.env.recovery.deps-body"),
+        actions: [
+          { label: uiText.text("coding.env.action.prepare-deps"), variant: "secondary", attrs: { "data-coding-env-action": "install-deps", "data-manifest": readiness.deps_manager } },
+        ],
+      },
+    });
   }
-  const ready = readiness.status === "ready";
-  bar.dataset.signature = key;
-  bar.dataset.ready = String(ready);
-  bar.open = wasOpen;
-  const gitShort = readiness.is_git_repo
-    ? uiText.text("coding.env.git-branch", { branch: readiness.branch || "HEAD", dirty: readiness.dirty_count })
-    : uiText.text("coding.env.not-git");
-  const depsShort = !readiness.deps_manager
-    ? uiText.text("coding.env.deps-none")
-    : readiness.deps_installed
-      ? uiText.text("coding.env.deps-ok", { manager: readiness.deps_manager })
-      : uiText.text("coding.env.deps-missing", { manager: readiness.deps_manager });
-  const summary = el("summary");
-  summary.append(
-    el("strong", ready ? uiText.text("coding.env.ready") : uiText.text("coding.env.needs-prep")),
-    el("span", gitShort),
-    el("span", depsShort),
-  );
-  if (readiness.script_names.length) summary.append(el("span", uiText.text("coding.env.scripts-count", { count: readiness.script_names.length })));
-  if (readiness.env_keys.length) summary.append(el("span", uiText.text("coding.env.keys-count", { count: readiness.env_keys.length })));
-  if (readiness.worktrees.active) summary.append(el("span", uiText.text("coding.env.worktrees-count", { count: readiness.worktrees.active })));
-  const list = el("ul");
-  list.append(el("li", uiText.text("coding.env.git-detail", { summary: readiness.is_git_repo ? gitShort : uiText.text("coding.env.not-git") })));
-  list.append(el("li", depsShort));
-  if (readiness.script_names.length) {
-    const ports = readiness.ports.length ? " · " + uiText.text("coding.env.ports", { ports: readiness.ports.join(", ") }) : "";
-    list.append(el("li", uiText.text("coding.env.scripts-detail", { script_names: readiness.script_names.join(", ") }) + ports));
+  if (readiness.package_json_invalid) {
+    rows.push({
+      state: "verify",
+      label: uiText.text("coding.env.row.scripts"),
+      value: uiText.text("coding.env.scripts.invalid-pkg"),
+      badge: { label: uiText.text("coding.env.badge.missing"), tone: "warning" },
+    });
+  } else if (readiness.script_names.length) {
+    const scripts = uiText.text("coding.env.scripts.summary", { scripts: readiness.script_names.join(", ") });
+    const scriptsValue = readiness.ports.length
+      ? uiText.text("coding.env.scripts.summary-ports", { scripts, ports: uiText.text("coding.env.scripts.ports", { ports: readiness.ports.join(", ") }) })
+      : scripts;
+    rows.push({
+      state: "done",
+      label: uiText.text("coding.env.row.scripts"),
+      value: scriptsValue,
+      status: { label: uiText.text("coding.env.badge.ready"), tone: "done" },
+    });
+  }
+  const hasBaselineTest = readiness.script_names.includes("test") || readiness.deps_manager === "cargo";
+  const baselineCmd = readiness.deps_manager === "cargo"
+    ? "cargo test"
+    : readiness.deps_manager === "pnpm"
+      ? "pnpm test"
+      : readiness.deps_manager === "yarn"
+        ? "yarn test"
+        : readiness.deps_manager === "bun"
+          ? "bun test"
+          : "npm test";
+  if (hasBaselineTest) {
+    const blockedByDeps = Boolean(readiness.deps_manager && !readiness.deps_installed && readiness.deps_manager !== "cargo");
+    rows.push(blockedByDeps
+      ? {
+          state: "idle",
+          label: uiText.text("coding.env.row.baseline"),
+          value: uiText.text("coding.env.baseline.after-deps", { command: baselineCmd }),
+        }
+      : {
+          state: "ready",
+          label: uiText.text("coding.env.row.baseline"),
+          value: uiText.text("coding.env.baseline.ready", { command: baselineCmd }),
+          status: { label: uiText.text("coding.env.badge.ready"), tone: "done" },
+        });
   }
   if (readiness.env_template) {
-    list.append(el("li", uiText.text("coding.env.example-keys", { file: readiness.env_template, keys: readiness.env_keys.join(", ") || uiText.text("coding.plan.none") })));
+    const shownKeys = readiness.env_keys.length > 5
+      ? uiText.text("coding.env.vars.more", { keys: readiness.env_keys.slice(0, 5).join(", "), count: readiness.env_keys.length })
+      : readiness.env_keys.join(", ");
+    if (!readiness.has_local_env && readiness.env_keys.length > 0) {
+      rows.push({
+        state: "verify",
+        label: uiText.text("coding.env.row.env"),
+        value: uiText.text("coding.env.vars.missing", { file: readiness.env_template, keys: shownKeys }),
+        badge: { label: uiText.text("coding.env.badge.missing"), tone: "warning" },
+        recovery: {
+          tone: "warning",
+          title: uiText.text("coding.env.recovery.env-title"),
+          body: uiText.text("coding.env.recovery.env-body", { file: readiness.env_template, keys: shownKeys }),
+          actions: [
+            { label: uiText.text("coding.env.action.open-files"), variant: "secondary", attrs: { "data-coding-env-action": "open-files" } },
+          ],
+        },
+      });
+    } else {
+      rows.push({
+        state: "done",
+        label: uiText.text("coding.env.row.env"),
+        value: readiness.has_local_env
+          ? uiText.text("coding.env.vars.present", { file: readiness.env_template })
+          : uiText.text("coding.env.vars.checked", { file: readiness.env_template }),
+        status: { label: uiText.text("coding.env.badge.ready"), tone: "done" },
+      });
+    }
   }
-  if (readiness.worktrees.active) {
-    list.append(el("li", uiText.text("coding.env.worktrees-detail", { count: readiness.worktrees.active })));
+  if (readiness.worktrees.active > 0) {
+    if (readiness.worktrees.problem_count > 0) {
+      rows.push({
+        state: "verify",
+        label: uiText.text("coding.env.row.worktrees"),
+        value: uiText.text("coding.env.worktrees.problem", { total: readiness.worktrees.active, problems: readiness.worktrees.problem_count }),
+        badge: { label: uiText.text("coding.env.badge.missing"), tone: "warning" },
+        recovery: {
+          tone: "warning",
+          title: uiText.text("coding.env.recovery.worktree-title"),
+          body: uiText.text("coding.env.recovery.worktree-body"),
+          actions: [
+            { label: uiText.text("coding.env.action.open-files"), variant: "secondary", attrs: { "data-coding-env-action": "open-files" } },
+          ],
+        },
+      });
+    } else if (readiness.worktrees.cleanup_count > 0) {
+      rows.push({
+        state: "ready",
+        label: uiText.text("coding.env.row.worktrees"),
+        value: uiText.text("coding.env.worktrees.cleanup", { total: readiness.worktrees.active }),
+      });
+    } else {
+      rows.push({
+        state: "done",
+        label: uiText.text("coding.env.row.worktrees"),
+        value: uiText.text("coding.env.worktrees.ready", { total: readiness.worktrees.active }),
+        status: { label: uiText.text("coding.env.badge.ready"), tone: "done" },
+      });
+    }
   }
-  bar.replaceChildren(summary, list);
+  const attentionCount = rows.filter(row => row.state === "failed" || row.state === "verify").length;
+  const canRunBaseline = hasBaselineTest && (!readiness.deps_manager || readiness.deps_installed || readiness.deps_manager === "cargo");
+  return renderEnvChecklist({
+    title: uiText.text("coding.env.title"),
+    statusLabel: attentionCount > 0 ? uiText.text("coding.env.status.attention", { count: attentionCount }) : uiText.text("coding.env.status.ready"),
+    statusTone: rows.some(row => row.state === "failed") ? "blocked" : attentionCount > 0 ? "attention" : "done",
+    rows,
+    footer: {
+      title: uiText.text("coding.env.footer.title"),
+      detail: uiText.text("coding.env.footer.detail"),
+      ...(canRunBaseline ? { action: { label: uiText.text("coding.env.action.run-baseline"), variant: "ghost", attrs: { "data-coding-env-action": "run-baseline", "data-command": baselineCmd } } } : {}),
+    },
+  });
+}
+
+export function drawEnvironmentReadiness(page: Page, readiness: StateRead["environment_readiness"]) {
+  page.q("[data-coding-composer]").querySelector("[data-coding-env-bar]")?.remove();
+  const mounted = page.turns.querySelector<HTMLElement>("[data-coding-env-checklist]");
+  if (!mounted) return;
+  const html = buildEnvironmentChecklistHtml(readiness);
+  if (!html) {
+    mounted.remove();
+    return;
+  }
+  if (mounted.dataset.html !== html) {
+    mounted.dataset.html = html;
+    setContentHtml(mounted, html);
+  }
 }
 
 async function readState(page: Page) {

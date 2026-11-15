@@ -167,6 +167,7 @@ export interface RunView {
   readonly skills_html?: string;
   readonly started_at?: string | null;
   readonly ended_at?: string | null;
+  readonly code_revision?: string | null;
   /** Set on the summary of a round the page has not opened. */
   readonly light?: boolean;
   readonly fingerprint?: string;
@@ -306,15 +307,21 @@ export interface StateRead {
   readonly environment_readiness?: {
     readonly workspace_id: string;
     readonly status: "ready" | "attention";
+    readonly summary?: string;
     readonly branch: string | null;
+    readonly head_commit: string | null;
     readonly dirty_count: number;
+    readonly git_conflicted_count: number;
+    readonly git_merging: boolean;
     readonly is_git_repo: boolean;
     readonly deps_manager: string | null;
     readonly deps_installed: boolean;
     readonly script_names: readonly string[];
     readonly ports: readonly number[];
+    readonly package_json_invalid?: boolean;
     readonly env_template: string | null;
     readonly env_keys: readonly string[];
+    readonly has_local_env: boolean;
     readonly worktrees: { readonly active: number; readonly problem_count: number; readonly cleanup_count: number };
     readonly checked_at: string;
   } | null;

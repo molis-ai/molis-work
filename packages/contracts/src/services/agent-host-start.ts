@@ -134,10 +134,24 @@ export type AgentReasoningEffort = "low" | "medium" | "high";
 
 export const AGENT_REASONING_EFFORTS: readonly AgentReasoningEffort[] = ["low", "medium", "high"];
 
+/** Common initial Fibonacci presets; any positive deduplicated Fibonacci integer passes `isValidFibonacciStoryPoints` (CHO-29). */
 export const FIBONACCI_STORY_POINTS = [1, 2, 3, 5, 8, 13, 21, 34, 55] as const;
 /** Positive deduplicated Fibonacci story-point estimate (`1, 2, 3, 5, 8, 13, 21, 34, 55, ...`, CHO-29). */
 export type AgentStoryPoints = number;
 export type AgentEstimateSource = "agent" | "human";
+
+export function isValidFibonacciStoryPoints(value: unknown): value is AgentStoryPoints {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1) return false;
+  if (value === 1) return true;
+  let prev = 1;
+  let curr = 2;
+  while (curr < value) {
+    const next = prev + curr;
+    prev = curr;
+    curr = next;
+  }
+  return curr === value;
+}
 
 export interface AgentRunBudget {
   max_turns?: number;
@@ -229,9 +243,10 @@ interface AgentFrozenStartFields {
   ending_review?: { prompt_id: string; version: number; user_revision?: number };
   /**
    * The window this Run was packed against (the model's own, narrowed only by an explicit budget cap), and whether the provider's input
-   * count already includes cached prompt tokens. `stated_window_tokens` is recorded when a budget cap narrowed the model's stated window.
+   * count already includes cached prompt tokens. `stated_window_tokens` is recorded when a budget cap narrowed the model's stated window;
+   * `window_unknown` is set when neither model metadata nor an explicit budget cap supplied a window size, so the runtime used its conservative fallback (CHO-08).
    */
-  model_context?: { window_tokens: number; prompt_includes_cache: boolean; stated_window_tokens?: number };
+  model_context?: { window_tokens: number; prompt_includes_cache: boolean; stated_window_tokens?: number; window_unknown?: true };
   /** Present when this Run started from the Host's digest of earlier rounds instead of their verbatim history. */
   history?: "digest";
   /** Present when the model was asked to think before answering (the provider's setting when the Run started). */

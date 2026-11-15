@@ -98,7 +98,12 @@ export function createNodeCoordination(runtime: Runtime, index: SessionIndexStor
   }, async sessionId => {
     const saved = await index.read(sessionId);
     return saved ? projectWork.projectId(saved.owner.project_id) : undefined;
-  }, sessionId => state.liveSessions.has(sessionId));
+  }, sessionId => state.liveSessions.has(sessionId), async (run, stepId, entry) => {
+    await index.update(run.session_id, saved => {
+      const attempt = saved.attempts.find(item => item.run_id === run.run_id);
+      if (attempt) (attempt.reconciled_steps ??= {})[stepId] = entry;
+    });
+  });
   return { messages, waitsPort, stepBoards };
 }
 

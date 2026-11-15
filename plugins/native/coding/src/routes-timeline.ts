@@ -63,6 +63,7 @@ function stepAmendment(value: unknown): AgentStepAmendment {
     case "move": if (entry.direction !== "up" && entry.direction !== "down") throw codingFailure("coding.server.move-direction"); return { kind: "move", node: id("node"), direction: entry.direction };
     case "assign": if (entry.to !== "me" && entry.to !== "session") throw codingFailure("coding.server.reassign-target"); return { kind: "assign", node: id("node"), to: entry.to };
     case "resolve": if (entry.state !== "succeeded" && entry.state !== "failed") throw codingFailure("coding.server.result"); return { kind: "resolve", node: id("node"), state: entry.state, note: words("note", "coding.field.result-note", 500) };
+    case "reconcile": if (entry.action !== "confirm-done" && entry.action !== "rerun") throw codingFailure("coding.server.plan-change"); return { kind: "reconcile", node: id("node"), action: entry.action, note: words("note", "coding.field.result-note", 500) };
     default: throw codingFailure("coding.server.plan-change");
   }
 }
@@ -87,6 +88,9 @@ function amendmentNote(amendment: AgentStepAmendment, board: AgentStepBoard): st
       ? `我把${name(amendment.node)}改派给我自己处理。你（以及原来负责它的子任务）不要再报告这一步；等它完成后再继续依赖它的步骤。${tail}`
       : `我把${name(amendment.node)}交回本会话，由你负责报告和完成。${tail}`;
     case "resolve": return `我处理的${name(amendment.node)}${amendment.state === "succeeded" ? "已经完成" : "失败了"}：${amendment.note}。${amendment.state === "succeeded" ? "依赖它的步骤现在可以继续。" : "请看依赖它的步骤怎么办，需要我决定就说明。"}${tail}`;
+    case "reconcile": return amendment.action === "confirm-done"
+      ? `我核对了命令结果未知的${name(amendment.node)}，确认已完成：${amendment.note}。依赖它的步骤可以继续。${tail}`
+      : `我核对了命令结果未知的${name(amendment.node)}，决定重新运行：${amendment.note}。请重新执行这一步。${tail}`;
   }
 }
 

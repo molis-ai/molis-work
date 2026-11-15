@@ -1,7 +1,8 @@
 import { cutWithEllipsis } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { randomUUID } from "node:crypto";
 import { createPrologueError, DEFAULT_TOOL_LIMITS, type ScenarioPack, type ToolRunner } from "@prologue/sdk";
-import { ActionError, actionEffect, actionFieldLabelSource, actionFieldValue, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, actionEffect, actionFieldLabelSource, actionFieldValue, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { KNOWLEDGE_PROVIDER_ID, knowledgeActions } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { presentToolReview, reviewField, reviewText, type ToolReviewField } from "../review-presentation.js";
 import type { AgentActionClient, AgentActionOffer, AgentFrozenRole } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { CAPABILITY_PARAMETERS, declaredCapabilities, SUGGEST_PARAMETERS } from "./prologue-gateway-declared.js";
@@ -186,7 +187,37 @@ function guardGatewayTool(run: GatewayToolRun, runSignal?: AbortSignal): ToolRun
  * uninstalled or changed since the round began is refused, and one installed since is found. Reads run at once;
  * a change is a separate tool whose every call is held for the person's review of its exact arguments.
  */
-export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL_LIMITS.maxTimeoutMs, runSignal?: AbortSignal) {
+export function withPinnedKnowledgeRevision(
+  reference: ExactActionReference,
+  input: unknown,
+  pinned: ReadonlyMap<string, string> | undefined,
+): unknown {
+  if (!pinned?.size || reference.provider_id !== KNOWLEDGE_PROVIDER_ID || reference.capability_id !== knowledgeActions.read.capability_id) return input;
+  if (!input || typeof input !== "object" || Array.isArray(input)) return input;
+  const record = input as Record<string, unknown>;
+  const rawSubject = record.subject;
+  let expected: string | undefined;
+  if (typeof rawSubject === "string") {
+    expected = pinned.get(`ref:${rawSubject.trim().toLowerCase()}`);
+  } else if (rawSubject && typeof rawSubject === "object" && !Array.isArray(rawSubject)) {
+    const candidate = rawSubject as { kind?: unknown; id?: unknown };
+    if (typeof candidate.kind === "string" && typeof candidate.id === "string") {
+      expected = pinned.get(`subject:${candidate.kind}\u0000${candidate.id}`);
+    }
+  }
+  if (expected === undefined) return input;
+  if (record.expected_revision !== undefined && record.expected_revision !== expected) {
+    throw new ActionError("knowledge.revision_changed", "本轮材料已锁定在开始时的版本，不能在续读时改用其他 expected_revision");
+  }
+  return { ...record, expected_revision: expected };
+}
+
+export function prologueActionGateway(
+  gateway: Gateway,
+  timeoutMs = DEFAULT_TOOL_LIMITS.maxTimeoutMs,
+  runSignal?: AbortSignal,
+  pinnedRevisions?: ReadonlyMap<string, string>,
+) {
   // Capability ids this round has seen offered (found or used), which the round's replies do not show the person.
   const known = new Set<string>();
   // Exact identities this round has seen offered: one missing later was taken away, not guessed.
@@ -212,8 +243,13 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
     if (signal.aborted) follow(); else signal.addEventListener("abort", follow, { once: true });
     const deadline = write && timeoutMs > 10_000 ? setTimeout(() => local.abort(new ActionError("actions.timeout", "ran out of time")), timeoutMs - 5_000) : undefined;
     try {
-      const call = gateway.client.invoke({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id },
-        gatewayInput(view, args), local.signal);
+      const reference = { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id };
+      const rawInput = gatewayInput(view, args);
+      const call = gateway.client.invoke(
+        reference,
+        write ? rawInput : withPinnedKnowledgeRevision(reference, rawInput, pinnedRevisions),
+        local.signal,
+      );
       call.catch(() => undefined);
       // A change is not waited on past a stop or deadline: its owner may still finish it, so it ends as "not known".
       const result = write ? await Promise.race([call, abortedBy(local.signal)]) : await call;

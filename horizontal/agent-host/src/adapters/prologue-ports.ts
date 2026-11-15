@@ -103,6 +103,7 @@ export interface PrologueStartInput {
   workspace?: "required" | "none" | "business";
   root_path?: string;
   model: PrologueModelConfiguration;
+  model_selection?: AgentStartRequest["model_selection"];
   /** The Host trusted the project: the runtime may give the round the repository's instruction files. Never from the request. */
   project_trusted?: true;
   /** Character frozen from the Plugin's own role declaration. */

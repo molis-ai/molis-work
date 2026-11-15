@@ -460,10 +460,10 @@ ${CODING_FOOTNOTE_STYLES}
 @media (prefers-reduced-motion: reduce) { .coding-tools-summary.is-live > span:last-child, .coding-run-footer[data-state=live] .coding-live-text, .coding-inline-review, .coding-run-card { animation:none; } }
 
 /* A new session opens like a blank page: the question, the composer, and a few ways in. */
-.coding-dialogue > .coding-turns[data-coding-welcoming] { display:flex; flex-direction:column; justify-content:flex-end; }
+.coding-dialogue > .coding-turns[data-coding-welcoming] { display:flex; flex-direction:column; }
 .coding-turns[data-coding-welcoming] ~ .coding-composer { margin-bottom:clamp(24px, 18vh, 180px); }
 .coding-turns[data-coding-welcoming] ~ .coding-status:empty { display:none; }
-.coding-welcome { width:min(100%, var(--coding-reading)); margin:0 auto; padding:0 0 16px; text-align:left; animation:craft-rise var(--dur-move) var(--ease-quint); }
+.coding-welcome { width:min(100%, var(--coding-reading)); margin:auto auto 0; padding:0 0 16px; text-align:left; animation:craft-rise var(--dur-move) var(--ease-quint); }
 .coding-welcome h2 { margin:8px 0; font-size:24px; font-weight:500; letter-spacing:-.01em; color:var(--ink); }
 .coding-welcome > p { margin:0; color:var(--muted); font-size:13px; line-height:1.6; }
 .coding-welcome-kicker { display:inline-flex; align-items:center; gap:8px; margin:0 !important; padding:4px 12px 4px 8px; border-radius:999px; background:var(--rail); color:var(--muted) !important; font-size:12px !important; }
@@ -727,18 +727,7 @@ dialog.mw-dialog--form.coding-rules { width:min(560px,calc(100vw - 32px)); }
 .coding-rules__foot > p { margin:0; font-size:12px; line-height:1.5; color:var(--muted); }
 .coding-rules__error, .coding-rules__note { margin:0; font-size:12px; line-height:1.5; color:var(--red,var(--danger)); }
 .coding-rules__note { color:var(--muted); }
-.coding-run-digest { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:8px 12px; width:100%; margin:4px 0 8px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:color-mix(in srgb,var(--line) 20%,var(--paper)); font-size:12px; }
-.coding-run-digest > div { min-width:0; }
-.coding-run-digest dt { font-weight:600; color:var(--muted); margin-bottom:2px; }
-.coding-run-digest dd { margin:0; color:var(--ink); overflow-wrap:anywhere; }
-.coding-child-budget { display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; margin:6px 0 0 24px; padding:6px 10px; border:1px solid var(--line); border-radius:8px; font-size:12px; color:var(--muted); }
-.coding-child-budget[data-exhausted=true] { border-color:color-mix(in srgb,var(--amber) 45%,var(--line)); color:var(--ink); }
-.coding-env-bar, .coding-round-materials { box-sizing:border-box; min-width:0; max-width:min(100%,76ch); margin:0 auto 8px; padding:6px 10px; border:1px solid var(--line); border-radius:10px; background:var(--paper); font-size:12px; color:var(--muted); overflow-wrap:anywhere; }
-.coding-composer > .coding-env-bar { margin:0; }
-.coding-env-bar > summary, .coding-round-materials > summary { display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; cursor:pointer; color:var(--ink); font-weight:500; }
-.coding-env-bar ul, .coding-round-materials ul { margin:8px 0 0; padding-left:18px; display:grid; gap:4px; }
-.coding-material-recovery { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px 12px; margin:0 0 8px; padding:8px 12px; border:1px solid color-mix(in srgb,var(--amber) 50%,var(--line)); border-radius:10px; background:color-mix(in srgb,var(--amber) 6%,var(--paper)); font-size:12px; color:var(--ink); }
-.coding-material-recovery-copy { display:grid; gap:2px; min-width:0; flex:1 1 18em; }
-.coding-material-recovery-copy > small { color:var(--muted); font-size:11px; }
-.coding-material-recovery-acts { display:inline-flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.coding-env-checklist, .coding-round-materials, .coding-material-recovery { box-sizing:border-box; min-width:0; width:min(100%,var(--coding-reading)); margin:0 auto 10px; overflow-wrap:anywhere; }
+.coding-child-budget { min-width:0; margin:6px 0 0 24px; }
+.coding-run-card > .mw-report-card { margin:4px 0 8px; }
 ` + CODING_TIMELINE_STYLES;

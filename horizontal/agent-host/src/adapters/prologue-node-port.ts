@@ -305,10 +305,10 @@ async function continueSubagentAttempt(
   const parentIndex = await deps.index.read(parentRun.session_id);
   const parentAttempt = parentIndex?.attempts.find(item => item.run_id === parentRun.run_id);
   if (!parentIndex || !parentAttempt) throw new Error("父任务执行记录不可用，不能重试子任务");
-  const model = await deps.options.modelConfiguration();
+  const model = await deps.options.modelConfiguration(parentAttempt.model_selection);
   if (!model) throw agentErrors.model_not_configured("当前未配置可用模型，不能重试子任务");
   const credentialRef = await deps.credentials.prologueRefFor(model.credential_ref);
-  const params = runModelParams(model, null, undefined);
+  const params = runModelParams(model, parentAttempt.frozen.budget ?? null, parentAttempt.frozen.reasoning_effort);
   const cache = model.prompt_cache === undefined || model.prompt_cache === "off" ? {} : { promptCache: model.prompt_cache };
   const retryText = reason?.trim()
     ? `${baseTask}\n\n[第 ${attemptNumber} 次尝试（来源：${source}）补充说明：${reason.trim()}]`

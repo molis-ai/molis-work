@@ -12,23 +12,26 @@ export function effectiveContextWindow(
   statedWindow: number | undefined,
   defaultWindow: number | undefined,
   budgetCap?: number,
-): { window_tokens: number; stated_window_tokens?: number } | undefined {
+): { window_tokens: number; stated_window_tokens?: number; window_unknown?: true } | undefined {
   const base = statedWindow ?? defaultWindow;
   const windowTokens = base !== undefined
     ? (budgetCap !== undefined ? Math.min(base, budgetCap) : base)
     : budgetCap;
   if (windowTokens === undefined) return undefined;
+  const windowUnknown = statedWindow === undefined && budgetCap === undefined;
   return {
     window_tokens: windowTokens,
     ...(statedWindow !== undefined && statedWindow !== windowTokens ? { stated_window_tokens: statedWindow } : {}),
+    ...(windowUnknown ? { window_unknown: true as const } : {}),
   };
 }
 
 export function effectiveCompactionAboveTokens(
   compaction: { above_tokens: number; window_ratio?: number },
   windowTokens: number | undefined,
+  windowUnknown?: boolean,
 ): number {
-  if (compaction.window_ratio !== undefined && windowTokens !== undefined) {
+  if (compaction.window_ratio !== undefined && windowTokens !== undefined && !windowUnknown) {
     return Math.max(1, Math.floor(windowTokens * compaction.window_ratio));
   }
   return compaction.above_tokens;
@@ -49,7 +52,9 @@ export function freezeRunStart(input: { request: AgentStartRequest; role: NonNul
   const resolvedWindow = defaultWindow !== undefined || model.context_tokens !== undefined || request.budget?.context_window_tokens !== undefined
     ? effectiveContextWindow(model.context_tokens, defaultWindow, request.budget?.context_window_tokens)
     : undefined;
-  const compactionAboveTokens = role.compaction ? effectiveCompactionAboveTokens(role.compaction, resolvedWindow?.window_tokens) : undefined;
+  const compactionAboveTokens = role.compaction
+    ? effectiveCompactionAboveTokens(role.compaction, resolvedWindow?.window_tokens, resolvedWindow?.window_unknown)
+    : undefined;
   return {
     ...(role.subagent_workspaces ? { subagent_workspaces: structuredClone(role.subagent_workspaces) } : {}),
     ...(role.directories ? { directories: structuredClone(role.directories) } : {}),

@@ -4,7 +4,15 @@
  * upload persistence across refreshes, joined into the onboarding browser program (33-2, ONB-35..46, C1..C11).
  */
 export const CONTEXT_ONBOARDING_RECOVERY_PART = String.raw`
-  let stopCounting = false, pausedScan = null, mrFilter = 'all', scopeVisible = {};
+  let stopCounting = false, pausedScan = null, mrFilter = 'all', scopeVisible = {}, scanningDirId = '', partialRestoredKinds = new Set();
+  if (native && globalThis.__TAURI__?.event?.listen) {
+    globalThis.__TAURI__.event.listen('molis:directory-scan-progress', ev => {
+      const p = ev?.payload;
+      if (!p || !scanningDirId || p.id !== scanningDirId) return;
+      counting = { done: p.visited || 0, total: p.visited || 0, kept: p.kept || 0, bytes: p.bytes || 0, nativeDir: true };
+      render();
+    }).catch(() => {});
+  }
   function uploadDb() {
     if (typeof indexedDB === 'undefined') return Promise.resolve(null);
     return new Promise(resolve => {
@@ -16,17 +24,19 @@ export const CONTEXT_ONBOARDING_RECOVERY_PART = String.raw`
       } catch { resolve(null); }
     });
   }
-  async function saveUploadFiles(kind, list) {
+  async function saveUploadFiles(kind, list, partial) {
+    if (partial) partialRestoredKinds.add(kind); else partialRestoredKinds.delete(kind);
     const db = await uploadDb(); if (!db || !journey) return;
     await new Promise(resolve => {
       try {
         const tx = db.transaction('uploads', 'readwrite');
-        tx.objectStore('uploads').put({ key: journey.id + ':' + kind, files: list });
+        tx.objectStore('uploads').put({ key: journey.id + ':' + kind, files: list, partial: Boolean(partial) });
         tx.oncomplete = tx.onerror = tx.onabort = () => resolve();
       } catch { resolve(); }
     });
   }
   async function dropUploadFiles(kind) {
+    partialRestoredKinds.delete(kind);
     const db = await uploadDb(); if (!db || !journey) return;
     await new Promise(resolve => {
       try {
@@ -37,6 +47,7 @@ export const CONTEXT_ONBOARDING_RECOVERY_PART = String.raw`
     });
   }
   async function clearJourneyUploads(id) {
+    partialRestoredKinds.clear();
     const db = await uploadDb(); if (!db || !id) return;
     await new Promise(resolve => {
       try {
@@ -47,6 +58,7 @@ export const CONTEXT_ONBOARDING_RECOVERY_PART = String.raw`
     });
   }
   async function restoreUploadFiles() {
+    partialRestoredKinds.clear();
     const db = await uploadDb(); if (!db || !journey) return;
     await new Promise(resolve => {
       try {
@@ -54,7 +66,11 @@ export const CONTEXT_ONBOARDING_RECOVERY_PART = String.raw`
         req.onsuccess = () => {
           const cur = req.result; if (!cur) return;
           const k = String(cur.key), prefix = journey.id + ':';
-          if (k.startsWith(prefix) && Array.isArray(cur.value?.files) && cur.value.files.length) uploads.set(k.slice(prefix.length), cur.value.files);
+          if (k.startsWith(prefix)) {
+            const srcKind = k.slice(prefix.length);
+            if (Array.isArray(cur.value?.files) && cur.value.files.length) uploads.set(srcKind, cur.value.files);
+            if (cur.value?.partial) partialRestoredKinds.add(srcKind);
+          }
           cur.continue();
         };
         tx.oncomplete = tx.onerror = tx.onabort = () => resolve();
@@ -123,7 +139,7 @@ export const CONTEXT_ONBOARDING_RECOVERY_PART = String.raw`
     };
     s.excluded = []; s.selected = chosen.length > 0 || total === 0; error = '';
     if (total > 2500) { counting = { done: index, total, kept: chosen.length, bytes, saving: true }; render(); await new Promise(resolve => setTimeout(resolve, 0)); }
-    await saveUploadFiles(s.kind, chosen);
+    await saveUploadFiles(s.kind, chosen, stoppedEarly);
   }
   function acceptUpload(el) { return runUploadCount(el, null); }
   function invalidateSourceForEdit(s) {
@@ -139,8 +155,17 @@ export const CONTEXT_ONBOARDING_RECOVERY_PART = String.raw`
     }).join('') + '</ul>' + picked().map(issues).join('');
   }
   function mrTrack(step, stopAt, isErr, labelText, tone) {
-    const cells = [1,2,3,4,5].map(i => '<i' + (stopAt === i ? ' class="is-stop"' : i <= step ? ' class="is-on"' : '') + '></i>').join('');
-    return '<span class="mw-mr-cells" data-slot="materials-track"><span class="mw-mr-track' + (isErr ? ' is-err' : '') + '" aria-hidden="true">' + cells + '</span>' + status(labelText, tone || 'idle', null) + '</span>';
+    const ariaLabel = stopAt
+      ? globalThis.t.text("workbench.context-onboarding.mr-track-stopped-aria", { step, stop: stopAt, state: labelText })
+      : globalThis.t.text("workbench.context-onboarding.mr-track-aria", { step, state: labelText });
+    return recParts.renderMaterialsTrack({
+      step,
+      ...(stopAt ? { stopAt } : {}),
+      ...(isErr ? { error: true } : {}),
+      label: labelText,
+      tone: tone || 'idle',
+      ariaLabel,
+    });
   }
   function verificationPanel() {
     const srcs = picked();
@@ -171,12 +196,13 @@ export const CONTEXT_ONBOARDING_RECOVERY_PART = String.raw`
     const readCount = nonDupRefs.length;
     const usedCount = journey.summary ? nonDupRefs.filter(x => x.r.used_in_summary).length : 0;
     const projectCount = journey.phase === 'complete' ? nonDupRefs.filter(x => x.r.adopted).length : nonDupRefs.length;
-    const funnel = '<ol class="mw-mr-funnel" data-slot="materials-funnel" aria-label="' + esc(readText("workbench.context-onboarding.mr-funnel-label")) + '">'
-      + '<li><b>' + discovered + '</b><span>' + esc(readText("workbench.context-onboarding.mr-step-discovered")) + '</span></li>'
-      + '<li><b>' + selectedCount + '</b><span>' + esc(readText("workbench.context-onboarding.mr-step-selected")) + '</span></li>'
-      + '<li><b>' + readCount + '</b><span>' + esc(readText("workbench.context-onboarding.mr-step-read")) + '</span></li>'
-      + '<li><b>' + (journey.summary ? usedCount : '—') + '</b><span>' + esc(readText("workbench.context-onboarding.mr-step-used")) + '</span></li>'
-      + '<li><b>' + projectCount + '</b><span>' + esc(readText("workbench.context-onboarding.mr-step-adopted")) + '</span></li></ol>';
+    const funnel = recParts.renderMaterialsFunnel([
+      { label: readText("workbench.context-onboarding.mr-step-discovered"), value: discovered },
+      { label: readText("workbench.context-onboarding.mr-step-selected"), value: selectedCount },
+      { label: readText("workbench.context-onboarding.mr-step-read"), value: readCount },
+      { label: readText("workbench.context-onboarding.mr-step-used"), value: journey.summary ? usedCount : '—' },
+      { label: readText("workbench.context-onboarding.mr-step-adopted"), value: projectCount },
+    ], readText("workbench.context-onboarding.mr-funnel-label"));
     const attentionCount = heldRows.length + issueRows.length;
     const unusedRows = refRows.filter(x => x.r.duplicate_of || (journey.summary && !x.r.used_in_summary));
     const filterBar = '<div class="ob-mr-bar">' + toggles(readText("workbench.context-onboarding.mr-filter-label"), [
@@ -190,19 +216,22 @@ export const CONTEXT_ONBOARDING_RECOVERY_PART = String.raw`
         const namesList = h.preview_names?.length ? h.preview_names : h.variables;
         const vars = namesList?.length ? namesList.join(', ') : readText("workbench.context-onboarding.mr-secret-content");
         items.push(fileRow({ cls: 'is-issue', name: h.path, size: readText(names[s.kind]) + ' · ' + size(h.size_bytes || 0), state: mrTrack(2, 3, false, readText("workbench.context-onboarding.secret-awaiting-choice"), 'attention') })
-          + '<li class="mw-mr-why" data-slot="material-issue-row"><span>' + esc(globalThis.t.text("workbench.context-onboarding.mr-secret-why", { vars })) + '</span><span class="mw-mr-why__acts">'
-          + btn({ variant: 'secondary', size: 'sm', label: readText("workbench.context-onboarding.secret-strip"), attrs: { 'data-secret-key': h.key, 'data-secret-decision': 'strip' } })
-          + btn({ variant: 'ghost', size: 'sm', label: readText("workbench.context-onboarding.secret-exclude"), attrs: { 'data-secret-key': h.key, 'data-secret-decision': 'exclude' } })
-          + btn({ variant: 'ghost', size: 'sm', label: readText("workbench.context-onboarding.secret-raw"), attrs: { 'data-secret-key': h.key, 'data-secret-decision': 'raw' } })
-          + '</span></li>');
+          + recParts.renderMaterialIssueRow({
+            reason: globalThis.t.text("workbench.context-onboarding.mr-secret-why", { vars }),
+            actions: [
+              { variant: 'secondary', size: 'sm', label: readText("workbench.context-onboarding.secret-strip"), attrs: { 'data-secret-key': h.key, 'data-secret-decision': 'strip' } },
+              { variant: 'ghost', size: 'sm', label: readText("workbench.context-onboarding.secret-exclude"), attrs: { 'data-secret-key': h.key, 'data-secret-decision': 'exclude' } },
+              { variant: 'ghost', size: 'sm', label: readText("workbench.context-onboarding.secret-raw"), attrs: { 'data-secret-key': h.key, 'data-secret-decision': 'raw' } },
+            ],
+          }));
       }
       for (const { s, iss } of issueRows) {
         const reauth = directory(s) && grants[s.kind]?.state === 'unavailable';
         const act = reauth
-          ? btn({ variant: 'secondary', size: 'sm', label: readText("workbench.context-onboarding.choose-authorize"), attrs: { 'data-authorize': s.kind } })
-          : btn({ variant: 'ghost', size: 'sm', label: readText("workbench.context-onboarding.adjust-sources"), attrs: { 'data-action': 'restart' } });
+          ? { variant: 'secondary', size: 'sm', label: readText("workbench.context-onboarding.choose-authorize"), attrs: { 'data-authorize': s.kind } }
+          : { variant: 'ghost', size: 'sm', label: readText("workbench.context-onboarding.adjust-sources"), attrs: { 'data-action': 'restart' } };
         items.push(fileRow({ cls: 'is-issue', name: iss.path, size: readText(names[s.kind]), state: mrTrack(2, 3, true, readText("workbench.context-onboarding.not-read"), 'blocked') })
-          + '<li class="mw-mr-why is-err" data-slot="material-issue-row"><span>' + esc(iss.reason) + '</span><span class="mw-mr-why__acts">' + act + '</span></li>');
+          + recParts.renderMaterialIssueRow({ reason: iss.reason, error: true, actions: [act] }));
       }
     }
     const shownRefs = mrFilter === 'attention' ? [] : mrFilter === 'unused' ? unusedRows : refRows;
@@ -240,16 +269,14 @@ export const CONTEXT_ONBOARDING_RECOVERY_PART = String.raw`
     const modelChanged = Boolean(journey.model && config.model && journey.model !== config.model);
     if (!d && !(modelChanged && (journey.last_read_paths?.length || journey.stale_summary))) return '';
     const rows = [];
-    if (d?.added_count) rows.push(['add', 'plus', globalThis.t.text("workbench.context-onboarding.delta-added", { n: d.added_count }), (d.added || []).slice(0, 3).join(', ')]);
-    if (d?.removed_count) rows.push(['rem', 'x', globalThis.t.text("workbench.context-onboarding.delta-removed", { n: d.removed_count }), (d.removed || []).slice(0, 3).join(', ')]);
+    if (d?.added_count) rows.push({ kind: 'add', glyph: 'plus', title: globalThis.t.text("workbench.context-onboarding.delta-added", { n: d.added_count }), detail: (d.added || []).slice(0, 3).join(', ') });
+    if (d?.removed_count) rows.push({ kind: 'rem', glyph: 'x', title: globalThis.t.text("workbench.context-onboarding.delta-removed", { n: d.removed_count }), detail: (d.removed || []).slice(0, 3).join(', ') });
     const reused = d ? d.reused : (journey.last_read_paths?.length || 0);
-    if (reused > 0) rows.push(['keep', 'check', globalThis.t.text("workbench.context-onboarding.delta-reused", { n: reused }), readText("workbench.context-onboarding.delta-no-reread")]);
-    if (modelChanged) rows.push(['redo', 'refresh', globalThis.t.text("workbench.context-onboarding.delta-model-changed", { model: config.model }), readText("workbench.context-onboarding.delta-summary-redone")]);
-    else if (d && (d.added_count || d.removed_count)) rows.push(['redo', 'refresh', readText("workbench.context-onboarding.delta-summary-redone"), '']);
+    if (reused > 0) rows.push({ kind: 'keep', glyph: 'check', title: globalThis.t.text("workbench.context-onboarding.delta-reused", { n: reused }), detail: readText("workbench.context-onboarding.delta-no-reread") });
+    if (modelChanged) rows.push({ kind: 'redo', glyph: 'refresh', title: globalThis.t.text("workbench.context-onboarding.delta-model-changed", { model: config.model }), detail: readText("workbench.context-onboarding.delta-summary-redone") });
+    else if (d && (d.added_count || d.removed_count)) rows.push({ kind: 'redo', glyph: 'refresh', title: readText("workbench.context-onboarding.delta-summary-redone") });
     if (!rows.length) return '';
-    return '<div class="mw-mr-delta" data-slot="scope-delta-card"><div class="mw-mr-delta__head"><span>' + esc(readText("workbench.context-onboarding.delta-title")) + '</span></div>'
-      + rows.map(([kind, ic, head, tail]) => '<div class="mw-mr-delta__row is-' + kind + '"><span class="mw-mr-delta__tile" aria-hidden="true">' + glyph(ic) + '</span><span class="mw-mr-delta__copy"><b>' + esc(head) + '</b>' + (tail ? '<small>' + esc(tail) + '</small>' : '') + '</span></div>').join('')
-      + '</div>';
+    return recParts.renderScopeDeltaCard({ title: readText("workbench.context-onboarding.delta-title"), items: rows });
   }
   function staleSummaryCard() {
     const st = journey.stale_summary;

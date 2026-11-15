@@ -33,6 +33,7 @@ import { inputsPort } from "./prologue-inputs.js";
 import { settleProloguePending } from "./prologue-stream.js";
 import { guardedCheckpoints, guardedRecovery, guardedSubagents, prologueDescriptor, PROLOGUE_RUNTIME_ID } from "./prologue-adapter-capabilities.js";
 import type { PrologueAdapterOptions, PrologueAdapterPorts, PrologueRuntimePort } from "./prologue-ports.js";
+import { applyUnknownCommandOutcomes } from "./prologue-plan-steps.js";
 import { isEnded, PrologueRunStore } from "./prologue-run-store.js";
 import { startPrologueRun } from "./prologue-run-start.js";
 
@@ -234,10 +235,30 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     const record = this.#store.requireRun(run.run_id);
     await this.#memoryUsage.record(record, session.owner);
     const view = structuredClone(record.view);
+    if (this.#runtime.readCommandOutput && view.command_outputs?.length) {
+      const knownOutputs = new Set(view.command_outputs.map(ref => ref.call_id));
+      await Promise.all(view.activity.map(async item => {
+        if (item.name !== "start-command" || !knownOutputs.has(item.call_id) || /^exit \S+/.test(item.output ?? "")) return;
+        try {
+          const receipt = await this.#runtime.readCommandOutput!(run.session_id, { run_id: run.run_id, call_id: item.call_id });
+          const header = receipt.exit_code !== null
+            ? `exit ${receipt.exit_code}`
+            : receipt.timed_out || receipt.stop_reason === "timed-out"
+              ? "exit timed-out"
+              : receipt.cancelled || receipt.stop_reason === "cancelled"
+                ? "exit cancelled"
+                : "exit none";
+          item.output = item.output ? `${header}\n${item.output}` : header;
+        } catch {
+          // Receipt unreadable stays unknown; never synthesize success.
+        }
+      }));
+    }
     if (view.frozen.execution_plan) {
       try {
         view.step_board = await this.#runtime.readStepBoard?.(run);
         if (!view.step_board) throw new Error("原步骤图不可读取");
+        view.step_board = applyUnknownCommandOutcomes(view, view.step_board);
       } catch { view.step_board_error = "原步骤回报暂不可读；不能据此判断完成情况。"; }
     }
     if (this.#runtime.readPendingQuestion) {

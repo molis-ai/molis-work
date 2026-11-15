@@ -86,6 +86,16 @@ function samples(): readonly string[] {
     icon("folder", "extra"),
     // UIC-13 (K2): the unified input's shell and the parts its client puts in, in every state, are served like every other part.
     ...composerSamples(),
+    sdkUi.renderFileKind(".env.local"),
+    sdkUi.renderFileKind("README"),
+    sdkUi.renderEnvChecklist({ title: "准备", statusLabel: "就绪", statusTone: "done", rows: [{ state: "done", label: "依赖", value: "ok", status: { label: "已齐", tone: "done" } }, { state: "blocked", label: "端口", value: "3000", recovery: { title: "冲突", body: "换端口", actions: [{ label: "改用 3001" }] } }], footer: { title: "收拾", detail: "已清理" } }),
+    sdkUi.renderTaskAttemptBudget({ headerText: "第 2 次", budgetPercent: 90, retryReasonLabel: "验证没过", summaryText: "修空值", pastSummaryLabel: "前 1 次", pastAttempts: [{ state: "blocked", text: "退出码 1" }], actions: [{ label: "再给 3 次" }] }),
+    sdkUi.renderRoundReportCard({ statusLabel: "完成", statusTone: "done", accepted: true, finishedAtLabel: "14:32", headings: { delivered: "交付", verified: "验证", remaining: "未完", cleanup: "收拾" }, delivered: [{ state: "done", text: "a.ts" }], verified: [{ state: "done", text: "pnpm test", codeRevision: "a1b2c3d" }], remaining: [{ state: "idle", text: "无", quiet: true }], cleanup: [{ state: "done", text: "已清" }], actions: [{ label: "重跑" }] }),
+    sdkUi.renderMaterialsFunnel([{ label: "发现", value: 3 }], "五步"),
+    sdkUi.renderMaterialsTrack({ step: 2, stopAt: 3, error: true, label: "未读", tone: "blocked", ariaLabel: "2/5" }),
+    sdkUi.renderMaterialIssueRow({ reason: "疑似密钥", error: true, actions: [{ label: "只发变量名" }] }),
+    sdkUi.renderScopeDeltaCard({ title: "这次只做这些", subtitle: "复用", items: [{ kind: "add", glyph: "plus", title: "新加", detail: "a.md" }, { kind: "rem", glyph: "x", title: "移出" }, { kind: "keep", glyph: "check", title: "保留" }, { kind: "redo", glyph: "refresh", title: "重写" }] }),
+    sdkUi.renderCodingRoundMaterials({ title: "材料", summaryLabel: "全文", summaryTone: "done", items: [{ state: "done", name: "a.md", how: "#r1", statusLabel: "全文", statusTone: "done" }], recovery: { title: "读不到", body: "已删", actions: [{ label: "去掉" }] }, footer: { title: "其余", detail: "按需读" } }),
   ];
 }
 

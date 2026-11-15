@@ -82,6 +82,7 @@ function startInput(request: AgentStartRequest, role: FrozenRole, model: Prologu
     session_id: request.session.session_id,
     ...(request.workspace === "none" ? { workspace: "none" } : request.workspace === "business" ? { workspace: "business" } : { root_path: request.directory.canonical_path }),
     model,
+    ...(request.model_selection ? { model_selection: structuredClone(request.model_selection) } : {}),
     character: {
       id: role.role_id,
       version: role.version,

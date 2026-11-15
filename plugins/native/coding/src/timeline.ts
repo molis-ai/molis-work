@@ -1,4 +1,4 @@
-import { dateArg, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { dateArg, renderRoundReportCard, type MwRoundReportCheck, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 /**
  * How one round reads in the conversation: each tool call is a row that says what it touched and how it
  * ended, consecutive calls fold into one summary, and a round closes with what actually happened.
@@ -33,6 +33,7 @@ export interface TimelineRun {
   step_board?: { terminal: boolean; nodes: Array<{ state: string }> };
   turns?: Array<{ kind: string; text: string; at?: string | null }>;
   turn_changes?: TimelineTurnChanges[];
+  code_revision?: string | null;
   /** The after-write checks whose receipts the round holds, by the write's call id; absent when the reader did not look. */
   write_checks?: TimelineWriteCheck[];
 }
@@ -92,7 +93,7 @@ function endedRoundExtras(
   lastEnd: CommandEnd | null,
   left: number,
   stalled: boolean,
-  escape: (value: unknown) => string,
+  stoppedAtLabel: string,
 ) {
   const unknownCmds = run.activity.filter(item => (item.name === "run-command" || item.name === "start-command")
     && (item.state === "unknown" || item.state === "started" || (item.state === "completed" && (commandEnd(item) === "unknown" || commandEnd(item) === "signal")))).length;
@@ -138,7 +139,67 @@ function endedRoundExtras(
     : editedSize
       ? uiText.text("coding.round.card.where-dirty", { count: editedSize })
       : uiText.text("coding.round.card.where-clean");
-  const digestGrid = showDigest ? `<dl class="coding-run-digest" data-coding-round-digest><div><dt>${escape(uiText.text("coding.round.card.delivered"))}</dt><dd>${escape(deliveredText)}</dd></div><div><dt>${escape(uiText.text("coding.round.card.verified"))}</dt><dd>${escape(verifiedText)}</dd></div><div><dt>${escape(uiText.text("coding.round.card.remaining"))}</dt><dd>${escape(remainingText)}</dd></div><div><dt>${escape(uiText.text("coding.round.card.where"))}</dt><dd>${escape(whereText)}</dd></div></dl>` : "";
+  const codeRevision = run.code_revision || (lastCommand?.at ? /^\d{4}-\d{2}-\d{2}T(\d{2}:\d{2})/.exec(lastCommand.at)?.[1] : undefined) || undefined;
+  const delivered: MwRoundReportCheck[] = [
+    { state: editedSize > 0 ? "done" : "idle", text: deliveredText, quiet: !editedSize },
+    { state: lastCheckpoint ? "done" : editedSize > 0 ? "partial" : "idle", text: whereText, quiet: !editedSize },
+  ];
+  const verified: MwRoundReportCheck[] = staleCheck
+    ? [{
+        state: "stale",
+        text: verifiedText,
+        ...(codeRevision ? { codeRevision } : {}),
+        status: { label: uiText.text("coding.round.card.result-stale"), tone: "attention" },
+        ...(lastCommand ? { action: { label: uiText.text("coding.round.card.rerun-check"), variant: "secondary", attrs: { "data-coding-rerun-checks": run.ref.run_id } } } : {}),
+      }]
+    : unknownCmds > 0
+      ? [{ state: "verify", text: verifiedText, ...(codeRevision ? { codeRevision } : {}) }]
+      : lastCommand
+        ? [{
+            state: lastEnd === 0 ? "done" : "failed",
+            text: verifiedText,
+            ...(codeRevision ? { codeRevision } : {}),
+            ...(failBeforeEdit && editedSize > 0 ? { badge: { label: uiText.text("coding.round.pre-existing-fail"), tone: "warning" } } : {}),
+          }]
+        : [{ state: "idle", text: verifiedText, quiet: true }];
+  const remaining: MwRoundReportCheck[] = [
+    {
+      state: left > 0 || unknownCmds > 0 || run.phase !== "completed" ? "verify" : "done",
+      text: remainingText,
+      quiet: left === 0 && unknownCmds === 0 && run.phase === "completed",
+    },
+  ];
+  const cleanup: MwRoundReportCheck[] | undefined = commandsCount > 0
+    ? [{ state: "done", text: uiText.text("coding.round.card.cleanup-commands", { count: commandsCount }), quiet: true }]
+    : undefined;
+  const statusTone = run.phase === "reconcile-required" || unknownCmds > 0
+    ? "attention"
+    : tone === "done"
+      ? "done"
+      : tone === "partial"
+        ? "progress"
+        : tone === "failed"
+          ? "blocked"
+          : "quiet";
+  const digestGrid = showDigest
+    ? renderRoundReportCard({
+        statusLabel: title,
+        statusTone,
+        finishedAtLabel: stoppedAtLabel,
+        headings: {
+          delivered: uiText.text("coding.round.card.delivered"),
+          verified: uiText.text("coding.round.card.verified"),
+          remaining: uiText.text("coding.round.card.remaining"),
+          ...(commandsCount > 0 ? { cleanup: uiText.text("coding.round.card.cleanup") } : {}),
+        },
+        codeRevisionTitle: uiText.text("coding.round.card.code-version-title"),
+        delivered,
+        verified,
+        remaining,
+        ...(cleanup ? { cleanup } : {}),
+        attrs: { "data-coding-round-digest": "" },
+      })
+    : "";
   const ringState = run.phase === "reconcile-required" || unknownCmds > 0 ? "verify" : tone === "done" ? "round-ended" : tone === "partial" && !stalled ? "partial" : tone === "failed" ? "failed" : "stopped";
   return { tone, title, ringState, digestGrid, extraFacts };
 }
@@ -322,15 +383,16 @@ export function createCodingTimeline(words: TimelineWords) {
     // Thinking is not doing: a round whose only activity is the model's reasoning still did nothing.
     const acted = run.activity.some(item => item.name !== "reasoning");
     const stalled = latest && run.phase === "completed" && !acted && said.length < 160 && /^(好的[，,]?\s*)?(我先|我来|我会|让我|现在开始|接下来我|首先我)/.test(said);
-    const extra = endedRoundExtras(run, edited.size, commands.length, lastCommand, lastEnd, left, stalled, escape);
-    const { tone, title, ringState, digestGrid } = extra;
     // A round cut off by a restart has no end time. Its last recorded moment is when it stopped; measuring to now
     // would keep the card changing every second, and each redraw replaces its buttons under the pointer. A recovered
     // round may have kept no moment after its start at all, and then it shows no duration rather than "0 s".
     const stoppedAt = run.ended_at ?? [...run.activity.map(item => item.at), ...(run.turns ?? []).map(turn => turn.at)]
       .filter((at): at is string => typeof at === "string" && (!run.started_at || at > run.started_at)).sort().at(-1);
+    const took = stoppedAt && duration(run.started_at, stoppedAt) ? uiText.text("coding.round.took", { duration: duration(run.started_at, stoppedAt) }) : "";
+    const extra = endedRoundExtras(run, edited.size, commands.length, lastCommand, lastEnd, left, stalled, took);
+    const { tone, title, ringState, digestGrid } = extra;
     const facts = [
-      stoppedAt && duration(run.started_at, stoppedAt) && uiText.text("coding.round.took", { duration: duration(run.started_at, stoppedAt) }),
+      took,
       edited.size ? tally(KIND.edit!, edited.size) : uiText.text("coding.round.no-edits"),
       dispatched && tally(KIND["dispatch-subagent"]!, dispatched),
       commands.length ? tally(KIND["run-command"]!, commands.length) : "",

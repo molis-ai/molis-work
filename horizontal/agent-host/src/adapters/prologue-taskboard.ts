@@ -1,7 +1,7 @@
 import { APP_MODE_SURFACE_TOOLS, SYSTEM_TOOL_NAMES, type ExactRef, type Runtime, type PolicyRule } from "@prologue/sdk";
 import type { AgentExecutionPlan, AgentRunRef, AgentStepAmendment, AgentStepBoard } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { blockId, isBlock, isPlanStep, PROJECT_STEP } from "./prologue-collaboration.js";
-import { amendPlan, finished, fullId, localId, shape, stepLine, summary, type PlanPlace, type RoundLedger } from "./prologue-plan-steps.js";
+import { amendPlan, finished, fullId, localId, shape, stepLine, summary, type PlanPlace, type ReconciledStepMap, type RoundLedger } from "./prologue-plan-steps.js";
 import { MOLIS_ACTION_TOOL_PREFIX, SUGGEST_TOOL_PREFIX } from "./prologue-action-tools.js";
 import { AGENT_TOOLS } from "../tool-catalog.js";
 
@@ -17,6 +17,7 @@ interface PrologueStepBinding {
   frozen: { execution_plan?: AgentExecutionPlan };
   /** The SDK session the round ran in: the steps' first holder. */
   session?: ExactRef<"session">;
+  reconciled_steps?: ReconciledStepMap;
 }
 
 /** Where a round's confirmed plan is, from its saved start; none for a round without one (or one saved before plans moved onto the project board). */
@@ -56,7 +57,9 @@ export function createPrologueTaskBoards(runtime: Runtime, original: (run: Agent
   /** The project's work board a session stands on. */
   projectBoard?: (session: string) => Promise<string | undefined>,
   /** Whether a session has a round running now: a claim held by one that has not, and gone quiet, is marked expired. */
-  alive?: (session: string) => boolean) {
+  alive?: (session: string) => boolean,
+  /** Persist a human reconciliation decision on a step whose command ended with an unknown outcome (BL-222). */
+  onReconcileStep?: (run: AgentRunRef, stepId: string, entry: { action: "confirm-done" | "rerun"; note: string; at_ms: number }) => Promise<void>) {
   const hook = "molis-confirmed-plan-scope";
   runtime.hooks.register({ id: hook, event: "tool-before", blocking: true, handler: async context => {
     if (!context.toolName?.startsWith("board-") || context.toolName === "board-wait") return { kind: "allow" };
@@ -177,14 +180,25 @@ export function createPrologueTaskBoards(runtime: Runtime, original: (run: Agent
       if (!attempt?.frozen.execution_plan) return undefined;
       const place = placeOf(attempt);
       if (!place) throw new Error("原计划没有可读取的任务图");
-      return shape(runtime, runtime.boards.get(place.ref), place, run.session_id, alive);
+      return shape(runtime, runtime.boards.get(place.ref), place, run.session_id, alive, attempt.reconciled_steps);
     },
     /** A person's change to the running plan (prologue-plan-steps.ts). */
     async amend(run: AgentRunRef, amendment: AgentStepAmendment, expectedVersion: number, actor: string, ledger: RoundLedger): Promise<AgentStepBoard> {
       const attempt = await original(run), place = placeOf(attempt);
       if (!place) throw new Error("这一轮没有确认计划的任务图");
-      const board = await amendPlan(runtime, place, amendment, expectedVersion, actor, attempt!.session, ledger);
-      return shape(runtime, board, place, run.session_id, alive);
+      const board = await amendPlan(
+        runtime,
+        place,
+        amendment,
+        expectedVersion,
+        actor,
+        attempt!.session,
+        ledger,
+        attempt!.reconciled_steps,
+        onReconcileStep ? (stepId, entry) => onReconcileStep(run, stepId, entry) : undefined,
+      );
+      const updatedAttempt = await original(run);
+      return shape(runtime, board, place, run.session_id, alive, updatedAttempt?.reconciled_steps ?? attempt!.reconciled_steps);
     },
     close() { runtime.hooks.unregister(hook); unsubscribe(); for (const id of [...following.keys()]) stopFollowing(id); },
   };

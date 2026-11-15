@@ -15,9 +15,9 @@ export function scopeRemoved(node: StepNode): boolean {
   return Boolean(node.scope_removed);
 }
 
-/** A step that is over for the plan's purposes: it succeeded, was skipped, or was removed from scope. */
+/** A step that is over for the plan's purposes: it succeeded without an unknown command outcome, was skipped, or was removed from scope. */
 export function settled(node: StepNode): boolean {
-  return node.state === "succeeded" || skipped(node) || scopeRemoved(node);
+  return (node.state === "succeeded" && !node.unknown_outcome) || skipped(node) || scopeRemoved(node);
 }
 
 /** How a step reads, the same on the board and on the plan card in the conversation: its title, what finishes it, and its plan estimate. */
@@ -28,24 +28,25 @@ export function stepOf(plan: PlanEntry["plan"], node: StepNode): {
   readonly estimate_source?: "agent" | "human";
   readonly estimate_reason?: string;
 } {
-  if (node.inserted) return { title: node.title || node.id, acceptance: insertedAcceptance(node.reports) || "", ...(node.story_points !== undefined ? { story_points: node.story_points } : {}), ...(node.estimate_source ? { estimate_source: node.estimate_source } : {}), ...(node.estimate_reason ? { estimate_reason: node.estimate_reason } : {}) };
+  if (node.inserted) return { title: node.title || node.id, acceptance: insertedAcceptance(node.reports) || "", ...(typeof node.story_points === "number" ? { story_points: node.story_points } : {}), ...(node.estimate_source ? { estimate_source: node.estimate_source } : {}), ...(node.estimate_reason ? { estimate_reason: node.estimate_reason } : {}) };
   return plan?.content.steps[Number(node.id.replace("step-", "")) - 1] || { title: node.title || node.id, acceptance: "" };
 }
 
 /** Story-point badge text & tooltip for one step (supports parent rollup over active leaves). */
 export function stepPointsBadge(nodes: readonly StepNode[], node: StepNode, plan?: PlanEntry["plan"]): { readonly text: string; readonly title: string; readonly pending: boolean } {
   const children = nodes.filter(other => other.parent_id === node.id);
+  const effectivePoints = (entry: StepNode): number | undefined => entry.story_points === null ? undefined : (entry.story_points ?? stepOf(plan, entry).story_points);
   if (children.length > 0) {
     const activeChildren = children.filter(other => !skipped(other) && !scopeRemoved(other));
-    const estimated = activeChildren.filter(other => (other.story_points ?? stepOf(plan, other).story_points) !== undefined);
-    const sum = estimated.reduce((acc, other) => acc + (other.story_points ?? stepOf(plan, other).story_points ?? 0), 0);
+    const estimated = activeChildren.filter(other => effectivePoints(other) !== undefined);
+    const sum = estimated.reduce((acc, other) => acc + (effectivePoints(other) ?? 0), 0);
     if (sum > 0) {
       return { text: uiText.text("coding.board.points", { points: sum }), title: uiText.text("coding.board.points-rollup", { points: sum, count: activeChildren.length }), pending: false };
     }
     return { text: uiText.text("coding.board.points-pending"), title: uiText.text("coding.board.points-pending-hint"), pending: true };
   }
   const planStep = stepOf(plan, node);
-  const pts = node.story_points ?? planStep.story_points;
+  const pts = effectivePoints(node);
   if (pts === undefined) {
     return { text: uiText.text("coding.board.points-pending"), title: uiText.text("coding.board.points-pending-hint"), pending: true };
   }
@@ -55,25 +56,30 @@ export function stepPointsBadge(nodes: readonly StepNode[], node: StepNode, plan
   if (reason) parts.push(reason);
   if (pts >= 13) parts.push(uiText.text("coding.board.split-hint"));
   if (node.progress !== undefined && node.progress > 0 && node.state !== "succeeded") {
-    parts.push(uiText.text("coding.board.progress-basis", { percent: node.progress, basis: node.progress_basis || "" }));
+    const pct = node.progress <= 1 ? Math.round(node.progress * 100) : Math.round(node.progress);
+    parts.push(uiText.text("coding.board.progress-basis", { percent: pct, basis: node.progress_basis || "" }));
   }
   return { text: uiText.text("coding.board.points", { points: pts }), title: parts.join(" · "), pending: false };
 }
 
 /** Formats the weighted story-point progress summary of a board. */
-export function formatBoardProgressSummary(summary: BoardProgressSummary | undefined): string {
+export function formatBoardProgressSummary(summary: BoardProgressSummary | undefined, nodes?: readonly StepNode[]): string {
   if (!summary) return "";
-  if (summary.active_count === 0) {
-    return [uiText.text("coding.board.summary.empty"), summary.removed_points > 0 ? uiText.text("coding.board.summary.removed", { points: summary.removed_points }) : ""].filter(Boolean).join(" · ");
+  const activeLeaves = summary.estimated_leaves + summary.unestimated_leaves;
+  if (activeLeaves === 0) {
+    return [uiText.text("coding.board.summary.empty"), summary.removed_scope_points > 0 ? uiText.text("coding.board.summary.removed", { points: summary.removed_scope_points }) : ""].filter(Boolean).join(" · ");
   }
-  if (summary.total_points === 0) {
-    return [uiText.text("coding.board.summary.unestimated"), summary.unestimated_count > 0 ? uiText.text("coding.board.summary.unestimated-more", { count: summary.unestimated_count }) : "", summary.removed_points > 0 ? uiText.text("coding.board.summary.removed", { points: summary.removed_points }) : ""].filter(Boolean).join(" · ");
+  if (summary.total_points === 0 || summary.weighted_percent === null) {
+    return [uiText.text("coding.board.summary.unestimated"), summary.unestimated_leaves > 0 ? uiText.text("coding.board.summary.unestimated-more", { count: summary.unestimated_leaves }) : "", summary.removed_scope_points > 0 ? uiText.text("coding.board.summary.removed", { points: summary.removed_scope_points }) : ""].filter(Boolean).join(" · ");
   }
-  const completed = Math.round(summary.discounted_points * 10) / 10;
+  const completed = Math.round(summary.completed_points * 10) / 10;
+  const hasDiscounted = nodes
+    ? nodes.some(node => !scopeRemoved(node) && !skipped(node) && node.progress !== undefined && node.progress > 0 && node.progress < 1 && node.state !== "succeeded")
+    : !Number.isInteger(summary.completed_points);
   return [
-    uiText.text("coding.board.summary.weighted", { percent: summary.weighted_percent ?? 0, completed, total: summary.total_points }),
-    summary.has_discounted_progress ? uiText.text("coding.board.summary.discounted") : "",
-    summary.unestimated_count > 0 ? uiText.text("coding.board.summary.unestimated-more", { count: summary.unestimated_count }) : "",
-    summary.removed_points > 0 ? uiText.text("coding.board.summary.removed", { points: summary.removed_points }) : "",
+    uiText.text("coding.board.summary.weighted", { percent: summary.weighted_percent, completed, total: summary.total_points }),
+    hasDiscounted ? uiText.text("coding.board.summary.discounted") : "",
+    summary.unestimated_leaves > 0 ? uiText.text("coding.board.summary.unestimated-more", { count: summary.unestimated_leaves }) : "",
+    summary.removed_scope_points > 0 ? uiText.text("coding.board.summary.removed", { points: summary.removed_scope_points }) : "",
   ].filter(Boolean).join(" · ");
 }

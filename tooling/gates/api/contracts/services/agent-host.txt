@@ -1897,7 +1897,10 @@ export type AgentStepAmendment = {
     acceptance: string;
     mine?: true;
     origin?: string;
+    parent_id?: string;
     story_points?: import("services/agent-host-start").AgentStoryPoints | null;
+    estimate_source?: import("services/agent-host-start").AgentEstimateSource;
+    estimate_reason?: string;
 } | {
     kind: "unblock";
     node: string;
@@ -1929,6 +1932,11 @@ export type AgentStepAmendment = {
     kind: "remove-scope";
     node: string;
     reason: string;
+} | {
+    kind: "reconcile";
+    node: string;
+    action: "confirm-done" | "rerun";
+    note: string;
 };
 
 export interface AgentStepBoard {
@@ -1958,6 +1966,7 @@ export interface AgentStepBoard {
         progress?: number;
         progress_basis?: string;
         scope_removed?: true;
+        unknown_outcome?: true;
     }>;
 }
 
@@ -2388,6 +2397,8 @@ export declare const hostsAgentSessions: (runtime: AgentRuntimeDescriptor) => bo
 
 export declare function isTerminalAgentPhase(phase: AgentRunPhase): boolean;
 
+export declare function isValidFibonacciStoryPoints(value: unknown): value is AgentStoryPoints;
+
 export declare function parseAgentRunBudget(value: AgentRunBudget | undefined): AgentRunBudget | undefined;
 
 export declare function resolveProjectRuntime(runtimes: readonly AgentRuntimeDescriptor[], pickedId: string | null): ProjectRuntimeResolution;
@@ -2437,6 +2448,7 @@ interface AgentFrozenStartFields {
         window_tokens: number;
         prompt_includes_cache: boolean;
         stated_window_tokens?: number;
+        window_unknown?: true;
     };
     history?: "digest";
     thinking?: "adaptive";

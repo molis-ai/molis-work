@@ -135,8 +135,8 @@ function roundGateway(deps: RunDeps, input: PrologueStartInput, none: boolean) {
       ...(memory.propose ? { propose: memory.propose.bind(memory) } : {}),
     } } : {}),
   } } : input.action_gateway;
-  const gatewayTools = none || !gatewayForRun ? undefined : prologueActionGateway(gatewayForRun, Math.min(60_000, runtime.tools.limits.maxTimeoutMs), actionController.signal);
   const pinnedRevisions = none ? undefined : pinnedMaterialRevisions(input.text_materials);
+  const gatewayTools = none || !gatewayForRun ? undefined : prologueActionGateway(gatewayForRun, Math.min(60_000, runtime.tools.limits.maxTimeoutMs), actionController.signal, pinnedRevisions);
   const actionTools = none ? undefined : gatewayTools ? { ...gatewayTools, scope: "gateway" }
     : prologueActionTools(input.actions, Math.min(60_000, runtime.tools.limits.maxTimeoutMs), actionController.signal, input.character.tools.includes(SUGGEST_HOST_TOOL),
       // The symbol tool is part of this pack's identity (the catalog allows one registration per name and `prepare` compares content).
@@ -703,6 +703,7 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
   // Exchange our reference for one Prologue can resolve, before the Run is started rather than when it first calls out.
   const credentialRef = await deps.credentials.prologueRefFor(input.model.credential_ref);
   const { attemptIndex, abandon } = await recordAttempt(deps, input, { ...input.provenance, task: input.task, ...(root ? { root_ref: root.ref } : {}),
+    ...(input.model_selection ? { model_selection: structuredClone(input.model_selection) } : {}),
     ...(actionTools?.names.length ? { action_tool_scope: actionTools.scope } : {}),
     ...(materials.stepBoard ? { step_board: materials.stepBoard.ref, step_prefix: materials.stepBoard.prefix } : {}), ...(childRoles.size ? { subagent_roles: [...childRoles], subagent_roots: childRoots } : {}),
     ...(surface.desktop_target ? { desktop_target: surface.desktop_target } : {}) });

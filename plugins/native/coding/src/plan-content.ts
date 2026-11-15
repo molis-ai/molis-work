@@ -2,6 +2,9 @@
  * What a plan is and how an answer is read as one: the Host reads a planner's answer with it (plans.ts), the routes check a plan a person
  * edited, and the page (src/browser/plans.ts) tells a plan from any other answer with the same functions. Pure, so the page's bundle takes it.
  */
+import { isValidFibonacciStoryPoints } from "@molis-ai/molis-work-contracts/services/agent-host";
+export { isValidFibonacciStoryPoints };
+
 export interface CodingPlanStep {
   title: string;
   acceptance: string;
@@ -21,19 +24,6 @@ export interface CodingPlanContent {
   steps: CodingPlanStep[];
   blockers: string;
   change_reason: string;
-}
-
-/** Positive deduplicated Fibonacci story-point estimate (`1, 2, 3, 5, 8, 13, 21, 34, 55, ...`, CHO-29). */
-export function isValidFibonacciStoryPoints(value: unknown): value is number {
-  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1) return false;
-  if (value === 1) return true;
-  let prev = 1, curr = 2;
-  while (curr < value) {
-    const next = prev + curr;
-    prev = curr;
-    curr = next;
-  }
-  return curr === value;
 }
 
 export function parseCodingPlan(value: unknown, defaultEstimateSource?: "agent" | "human"): CodingPlanContent {

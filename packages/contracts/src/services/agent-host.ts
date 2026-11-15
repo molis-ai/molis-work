@@ -31,7 +31,7 @@ export type {
   AgentSessionWriteObservation,
   AgentSessionLifecycleView,
 } from "./agent-host-runtime.js";
-export { agentTextMaterialContent, AGENT_REASONING_EFFORTS, FIBONACCI_STORY_POINTS, parseAgentRunBudget } from "./agent-host-start.js";
+export { agentTextMaterialContent, AGENT_REASONING_EFFORTS, FIBONACCI_STORY_POINTS, isValidFibonacciStoryPoints, parseAgentRunBudget } from "./agent-host-start.js";
 export type {
   AgentWorkingDirectory,
   AgentWorkspace,
@@ -334,8 +334,8 @@ const stepBoardOutput = shape(["project_id", "version", "terminal", "nodes"], { 
     reports: list(shape(["note", "at_ms"], { note: string, at_ms: number, by: shape(["kind", "label"], { kind: { enum: ["session", "subtask", "person", "handover", "other"] }, label: string, title: string }), inputs: objects })),
     owner: shape(["kind", "label"], { kind: { enum: ["session", "subtask", "person", "none", "other"] }, label: string, title: string, subagent_id: string, actor_id: string, expired: { const: true } }),
     title: string, depends_on: strings, parent_id: string, inserted: { type: "boolean" }, origins: objects,
-    story_points: { enum: [1, 2, 3, 5, 8, 13, 21, 34, 55, null] }, estimate_source: { enum: ["agent", "human"] }, estimate_reason: string,
-    progress: number, progress_basis: string, scope_removed: { const: true } })) });
+    story_points: { anyOf: [{ type: "integer", minimum: 1, maximum: Number.MAX_SAFE_INTEGER }, { type: "null" }] }, estimate_source: { enum: ["agent", "human"] }, estimate_reason: string,
+    progress: number, progress_basis: string, scope_removed: { const: true }, unknown_outcome: { const: true } })) });
 const memoryRef = shape(["memory_id", "version"], { memory_id: string, version: number });
 const materialDelivery = { enum: ["full", "clipped", "on-demand"] } as const;
 const materialChars = { type: "integer", minimum: 0, maximum: Number.MAX_SAFE_INTEGER } as const;
@@ -364,7 +364,7 @@ const frozenOutput = shape(["role_id", "role_version", "execution", "model_id", 
     { type: "object", required: ["material_id", "source_artifact_id", "source_version"], additionalProperties: false, properties: { ...materialFields, ...materialSource } },
   ] }),
   compaction: shape(["prompt_id", "version", "above_tokens"], { prompt_id: string, version: number, above_tokens: number }),
-  model_context: shape(["window_tokens", "prompt_includes_cache"], { window_tokens: number, prompt_includes_cache: { type: "boolean" }, stated_window_tokens: number }),
+  model_context: shape(["window_tokens", "prompt_includes_cache"], { window_tokens: number, prompt_includes_cache: { type: "boolean" }, stated_window_tokens: number, window_unknown: { const: true } }),
   history: { const: "digest" }, thinking: { const: "adaptive" }, reasoning_effort: { enum: ["low", "medium", "high"] } });
 const offerOutput = shape(["offer_id", "title", "summary", "reference", "offered_at"], { offer_id: string, title: string, summary: string, offered_at: string, input: {}, editable: strings,
   reference: shape(["capability_id", "version", "provider_id"], { capability_id: string, version: number, provider_id: string }),
@@ -392,11 +392,20 @@ const sessionViewOutput = { type: "object", required: ["owner", "session", "titl
 const reviewRequestOutput = { type: "object", required: ["review_id", "run", "project_id", "plugin_id", "kind", "document", "requested_at", "expires_at"], additionalProperties: false, properties: {
   review_id: { type: "string" }, run: { anyOf: [runRefOutput, { type: "null" }] }, operation: object, project_id: { type: "string" }, plugin_id: { type: "string" }, kind: { type: "string" },
   document: object, requested_at: { type: "string" }, expires_at: { type: ["string", "null"] } } } as const;
+const subagentBudgetOutput = shape(["attempt", "max_attempts", "max_turns"], {
+  attempt: number, max_attempts: number, max_turns: number, used_tokens: number, exhausted: { const: true },
+  retry_source: { enum: ["check-failed", "model-error", "user-requested"] }, retry_reason: string,
+  prior_attempts: list(shape(["attempt", "run_id", "state"], {
+    attempt: number, run_id: string, state: string,
+    source: { enum: ["initial", "check-failed", "model-error", "user-requested"] },
+    reason: string, summary: string, error: string,
+  })),
+});
 const subagentOutput = { type: "object", required: ["subagent_id", "parent_run", "role_id", "task", "state", "result", "workspace_path"], additionalProperties: false, properties: {
   child_run: runRefOutput, activity: list(activityOutput), usage: usageOutput, host_tools: strings, error: { type: "string" }, subagent_id: { type: "string" }, parent_run: runRefOutput,
   role_id: { type: "string" }, role_name: { type: "string" }, task: { type: "string" }, continuation_task: { anyOf: [
     shape(["status", "text"], { status: { const: "available" }, text: string }), shape(["status"], { status: { const: "unavailable" } })] }, state: { type: "string" }, result: { type: ["string", "null"] }, workspace_path: { type: ["string", "null"] },
-  node_id: { type: "string" }, budget: object } } as const;
+  node_id: { type: "string" }, budget: subagentBudgetOutput } } as const;
 /** A directory the Host granted, a fixed Artifact version: what a start names, never a raw path or a live object. */
 const runtimeOutput = { type: "object", required: ["runtime_id", "display_name", "provider_version", "capabilities"], additionalProperties: false, properties: {
   runtime_id: { type: "string" }, display_name: { type: "string" }, provider_version: { type: "string" }, capabilities: object,
@@ -424,7 +433,7 @@ const startInput = { type: "object", required: ["session", "task", "role_id"], a
   execution_plan: { type: "object", required: ["source", "title", "steps"], additionalProperties: false, properties: { source: artifactInput, title: text(2000),
     steps: { type: "array", maxItems: 500, items: { type: "object", required: ["id", "title", "acceptance"], additionalProperties: false, properties: {
       id: entryId, title: text(2000), acceptance: text(1_000_000), depends_on: ids(500), parent_id: entryId,
-      story_points: { enum: [1, 2, 3, 5, 8, 13, 21, 34, 55, null] }, estimate_source: { enum: ["agent", "human"] }, estimate_reason: text(2000) } } } } },
+      story_points: { anyOf: [{ type: "integer", minimum: 1, maximum: Number.MAX_SAFE_INTEGER }, { type: "null" }] }, estimate_source: { enum: ["agent", "human"] }, estimate_reason: text(2000) } } } } },
   continue_step_board_of: entryId, queued_work_id: entryId, queued: { anyOf: [{ enum: ["carry", "leave"] }, ids(500)] }, session_title: text(2000), browser: { const: false },
   history: { enum: ["session", "digest"] },
   subagent_workspaces: { type: "array", maxItems: 50, items: { type: "object", required: ["worktree_id", "directory"], additionalProperties: false, properties: { worktree_id: entryId, directory: directoryInput } } },

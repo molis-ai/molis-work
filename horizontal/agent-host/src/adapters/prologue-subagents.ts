@@ -207,7 +207,7 @@ export function createPrologueSubagents(
         if (!current) throw new Error("子任务状态读取失败");
         if (current.budget && current.budget.attempt >= current.budget.max_attempts) {
           throw agentErrors.capability_unavailable(
-            `这个子任务已用完 ${current.budget.attempt}/${current.budget.max_attempts} 次尝试预算；如需继续，请先点「增加 1 次」或直接终止`,
+            `这个子任务已用完 ${current.budget.attempt}/${current.budget.max_attempts} 次尝试预算；如需继续，请先点「再给 3 次」或直接终止`,
           );
         }
         if (current.continuation_task?.status !== "available") {

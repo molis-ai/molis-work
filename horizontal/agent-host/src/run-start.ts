@@ -457,7 +457,7 @@ export interface StartFrozen {
  */
 export function widensFrozen(handle: AgentRunHandle, expected: StartFrozen): boolean {
   const { request, role, execution, workspace, actionRefs, gateway, character, characterSkillIds, childWorkspaces, hostTools, mcp, sources, compaction, skills, replyLocale } = expected;
-  const expectedAboveTokens = compaction && (compaction.window_ratio !== undefined && handle.frozen.model_context !== undefined
+  const expectedAboveTokens = compaction && (compaction.window_ratio !== undefined && handle.frozen.model_context !== undefined && !handle.frozen.model_context.window_unknown
     ? Math.max(1, Math.floor(handle.frozen.model_context.window_tokens * compaction.window_ratio))
     : compaction.above_tokens);
   return (handle.frozen.workspace ?? "required") !== workspace

@@ -7,14 +7,14 @@ export type StepReportAuthor = NonNullable<AgentStepBoard["nodes"][number]["repo
 export interface StepReport { readonly by?: StepReportAuthor; readonly note: string; readonly at_ms?: number; readonly inputs?: readonly { readonly input_id: string }[] }
 
 export interface BoardProgressSummary {
-  readonly total_points: number;
-  readonly completed_points: number;
-  readonly discounted_points: number;
   readonly weighted_percent: number | null;
-  readonly has_discounted_progress: boolean;
-  readonly unestimated_count: number;
-  readonly removed_points: number;
-  readonly active_count: number;
+  readonly completed_points: number;
+  readonly total_points: number;
+  readonly estimated_leaves: number;
+  readonly unestimated_leaves: number;
+  readonly completed_unestimated_leaves: number;
+  readonly removed_scope_leaves: number;
+  readonly removed_scope_points: number;
 }
 
 export interface StepNode {
@@ -23,12 +23,13 @@ export interface StepNode {
   readonly state: string;
   readonly inserted?: boolean;
   readonly parent_id?: string;
-  readonly story_points?: number;
+  readonly story_points?: number | null;
   readonly estimate_source?: "agent" | "human";
   readonly estimate_reason?: string;
   readonly progress?: number;
   readonly progress_basis?: string;
   readonly scope_removed?: boolean;
+  readonly unknown_outcome?: boolean;
   readonly owner?: AgentStepBoard["nodes"][number]["owner"];
   readonly depends_on?: readonly string[];
   /** The supplements that asked for the step. */
@@ -66,6 +67,7 @@ export type Amendment =
   | { kind: "skip"; node: string; reason: string }
   | { kind: "remove-scope"; node: string; reason: string }
   | { kind: "estimate"; node: string; story_points: number | null; reason?: string }
-  | { kind: "progress"; node: string; percent: number; basis: string }
+  | { kind: "progress"; node: string; progress: number; basis: string }
   | { kind: "assign"; node: string; to: "me" | "session" }
-  | { kind: "resolve"; node: string; state: "succeeded" | "failed"; note: string };
+  | { kind: "resolve"; node: string; state: "succeeded" | "failed"; note: string }
+  | { kind: "reconcile"; node: string; action: "confirm-done" | "rerun"; note: string };

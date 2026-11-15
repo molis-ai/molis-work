@@ -45,6 +45,10 @@ export interface SessionIndex {
     subagent_attempt_reasons?: Record<string, string>;
     subagent_retry_tasks?: Record<string, string>;
     subagent_nodes?: Record<string, string>;
+    /** Parent model selection frozen at round start so subagent retries inherit the exact chosen model (BL-051). */
+    model_selection?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentStartRequest["model_selection"];
+    /** Human reconciliation decisions on steps whose command ended with an unknown outcome (BL-222). */
+    reconciled_steps?: Record<string, { action: "confirm-done" | "rerun"; note: string; at_ms: number }>;
     /** Trusted applicability facts for this attempt; body-free and never inferred from the model's query. */
     memory_context?: { class_restrictions?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentMemoryClassPolicy; consumer: string; current_scene: string; facts?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecalledMemory["facts"]; usage?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecalledMemory["usage"] };
     /** The round's after-write checks, by the SDK's key for each: which checker answered (prologue-after-write.ts). */

@@ -303,7 +303,7 @@ export function renderPrimitiveCatalog(options: {
     ${layoutSection()}
     ${chapter("模式与场景")}
     ${arrivalSection()}
-    ${recoverySections()}
+    ${recoverySections(say)}
     ${composeSection(say)}
     ${renderCatalogExamples(section)}
     ${options.presentationLocale ? presentationSection(options.presentationLocale, options.presentationPlugins) : ""}`;

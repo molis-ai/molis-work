@@ -1,20 +1,7 @@
-import { FIBONACCI_STORY_POINTS, type AgentExecutionPlan, type AgentStartRequest, type AgentStoryPoints } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { FIBONACCI_STORY_POINTS, isValidFibonacciStoryPoints, type AgentExecutionPlan, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 
-export { FIBONACCI_STORY_POINTS };
+export { FIBONACCI_STORY_POINTS, isValidFibonacciStoryPoints };
 export const STEP_TOOLS = ["board-read", "board-report"];
-
-export function isValidFibonacciStoryPoints(value: unknown): value is AgentStoryPoints {
-  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1) return false;
-  let prev = 1;
-  let curr = 2;
-  if (value === 1) return true;
-  while (curr < value) {
-    const next = prev + curr;
-    prev = curr;
-    curr = next;
-  }
-  return curr === value;
-}
 
 /** The caller owns plan semantics; Host binds bounded steps to a frozen material. */
 export function freezeExecutionPlan(request: AgentStartRequest): AgentExecutionPlan | undefined {

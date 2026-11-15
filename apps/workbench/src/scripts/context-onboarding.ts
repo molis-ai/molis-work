@@ -42,9 +42,10 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   const ready = s => s.references?.length || s.held_secrets?.length ? true : directory(s) ? native && grants[s.kind]?.state==='ready' : s.kind==='gmail' ? Boolean(s.connection_id && connected().some(c=>c.connection_id===s.connection_id)) : s.kind==='browser' ? Boolean(s.text?.trim()) : Boolean(s.files?.length||uploads.has(s.kind)||stagedReady(s));
   const readable = () => picked().filter(ready);
   const sourceStatus = s => s.references?.length ? "workbench.context-onboarding.staged" : directory(s) ? (grants[s.kind]?.state==='ready'?"workbench.context-onboarding.authorized":grants[s.kind]?.state==='unavailable'?"workbench.context-onboarding.reauthorization-required":"workbench.context-onboarding.awaiting-authorization") : ready(s)?"workbench.context-onboarding.added":s.kind==='gmail'?(config.gmail_configured?"workbench.context-onboarding.awaiting-connection":"workbench.context-onboarding.unavailable-now"):"workbench.context-onboarding.awaiting-material";
-  const startLabel = () => busy ? (counting && !counting.saving ? globalThis.t.text("workbench.context-onboarding.counting-done-total", counting) : preparing?readText("workbench.context-onboarding.preparing"):uploading?globalThis.t.text("workbench.context-onboarding.uploading-k-n", uploading):readingLocal?readText("workbench.context-onboarding.reading-now"):readText("workbench.context-onboarding.saving")) : readText("workbench.context-onboarding.confirm-scope");
+  const startLabel = () => busy ? (counting && !counting.saving ? (counting.nativeDir ? globalThis.t.text("workbench.context-onboarding.counting-folder-progress", {done:counting.done, kept:counting.kept, size:size(counting.bytes)}) : globalThis.t.text("workbench.context-onboarding.counting-done-total", counting)) : preparing?readText("workbench.context-onboarding.preparing"):uploading?globalThis.t.text("workbench.context-onboarding.uploading-k-n", uploading):readingLocal?readText("workbench.context-onboarding.reading-now"):readText("workbench.context-onboarding.saving")) : readText("workbench.context-onboarding.confirm-scope");
 
   /* ───────── Markup: the design system's parts, drawn in the browser (same classes as primitives/*.ts) ───────── */
+  const recParts = globalThis.molisRecoveryParts;
   const attrs = map => Object.keys(map || {}).filter(k => map[k] !== undefined && map[k] !== null && map[k] !== false).map(k => map[k] === true ? ' ' + k : ' ' + k + '="' + esc(map[k]) + '"').join('');
   // md is the default height, left to the button so it follows the person's density.
   const btn = o => '<button type="' + (o.type || 'button') + '" class="mw-btn mw-btn--' + (o.variant || 'secondary') + (o.size && o.size !== 'md' ? ' mw-btn--' + o.size : '') + (o.cls ? ' ' + o.cls : '') + '" data-slot="button"' + (o.disabled ? ' disabled' : '') + attrs(o.attrs) + '>' + (o.icon ? glyph(o.icon) : '') + '<span data-slot="button-label">' + esc(o.label) + '</span>' + (o.key ? '<kbd class="mw-btn__key" aria-hidden="true">' + esc(o.key) + '</kbd>' : '') + '</button>';
@@ -54,7 +55,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   const barStatus = o => '<div class="mw-bar-status" data-slot="bar-status" role="status" aria-live="polite"><span class="mw-bar-status__tile" aria-hidden="true">' + (o.spin ? '<span class="mw-spinner" data-slot="spinner" aria-hidden="true"></span>' : glyph(o.glyph || 'info')) + '</span><span class="mw-bar-status__text"><strong>' + esc(o.title) + '</strong>' + (o.caption ? '<small>' + esc(o.caption) + '</small>' : '') + '</span></div>';
   const dirRow = o => '<button type="button" class="mw-dir-row mw-dir-row--meta directory-list-row' + (o.selected ? ' is-selected' : '') + (o.cls ? ' ' + o.cls : '') + '" data-slot="directory-row" title="' + esc(o.title) + '"' + attrs(o.attrs) + '><span class="mw-dir-row__icon">' + glyph(o.icon) + '</span><span class="mw-dir-row__copy"><span class="mw-dir-row__headline"><strong>' + esc(o.title) + '</strong>' + (o.count === undefined ? '' : '<span class="mw-dir-row__count">' + esc(o.count) + '</span>') + '</span><small>' + esc(o.caption) + '</small></span>' + (o.end || '') + '</button>';
   const note = (text, icon, cls) => '<p class="ob-note' + (cls ? ' ' + cls : '') + '">' + glyph(icon || 'shield') + '<span>' + esc(text) + '</span></p>';
-  const kindChip = name => { const dot = name.lastIndexOf('.'); const ext = (dot > 0 ? name.slice(dot + 1) : 'txt').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 4) || 'txt'; return '<span class="mw-file-kind mw-file-kind--' + ext + '" data-slot="file-kind">' + ext.toUpperCase() + '</span>'; };
+  const kindChip = name => recParts.renderFileKind(name);
   const fileRow = o => '<li class="mw-file-row' + (o.cls ? ' ' + o.cls : '') + '" data-slot="file-row">' + (o.check ? '<label class="mw-file-row__label"><input class="mw-check" type="checkbox"' + (o.check.checked ? ' checked' : '') + attrs(o.check.attrs) + '>' + (o.chip || kindChip(o.name)) + '<span class="mw-file-row__name">' + esc(o.name) + '</span></label>' : '<span class="mw-file-row__label">' + (o.chip || kindChip(o.name)) + '<span class="mw-file-row__name">' + esc(o.name) + '</span></span>') + (o.size ? '<span class="mw-file-row__size" title="' + esc(o.size) + '">' + esc(o.size) + '</span>' : '') + (o.state || '') + (o.remove ? '<button type="button" class="mw-btn mw-btn--ghost mw-btn--icon-only mw-btn--sm mw-file-row__x" data-slot="button" aria-label="' + esc(o.remove.label) + '" title="' + esc(o.remove.label) + '"' + attrs(o.remove.attrs) + '>' + glyph('x') + '</button>' : '') + '</li>';
   // Time range and refresh stay outside the checkbox label: a button inside the label is the checkbox, so it neither changes the range nor folds the list.
   const fileGroup = o => {
@@ -215,9 +216,10 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   function sourcesView() {
     const total = selectionTotal(), any = picked().filter(ready);
     const countUi = counting && !counting.saving
-      ? note(globalThis.t.text("workbench.context-onboarding.counting-chosen-files-they-appear-right-when-count"), 'clock') + meter(counting.done, counting.total, globalThis.t.text("workbench.context-onboarding.count"), globalThis.t.text("workbench.context-onboarding.seen-done-total-keeping-kept-size", {done:counting.done, total:counting.total, kept:counting.kept, size:size(counting.bytes)})) + '<div class="ob-cfg-actions">' + btn({variant:'secondary', size:'sm', label:readText("workbench.context-onboarding.stop-counting"), attrs:{'data-action':'stop-scan'}}) + '</div>'
+      ? note(globalThis.t.text("workbench.context-onboarding.counting-chosen-files-they-appear-right-when-count"), 'clock') + (counting.nativeDir ? note(globalThis.t.text("workbench.context-onboarding.counting-folder-progress", {done:counting.done, kept:counting.kept, size:size(counting.bytes)}), 'folder') : meter(counting.done, counting.total, globalThis.t.text("workbench.context-onboarding.count"), globalThis.t.text("workbench.context-onboarding.seen-done-total-keeping-kept-size", {done:counting.done, total:counting.total, kept:counting.kept, size:size(counting.bytes)}))) + '<div class="ob-cfg-actions">' + btn({variant:'secondary', size:'sm', label:readText("workbench.context-onboarding.stop-counting"), attrs:{'data-action':'stop-scan'}}) + '</div>'
       : counting && counting.saving ? note(globalThis.t.text("workbench.context-onboarding.list-large-being-saved"), 'clock')
-      : pausedScan ? '<div class="ob-cfg-actions">' + btn({variant:'secondary', size:'sm', label:readText("workbench.context-onboarding.continue-counting"), attrs:{'data-action':'continue-scan'}}) + '</div>' : '';
+      : pausedScan ? '<div class="ob-cfg-actions">' + btn({variant:'secondary', size:'sm', label:readText("workbench.context-onboarding.continue-counting"), attrs:{'data-action':'continue-scan'}}) + '</div>'
+      : (partialRestoredKinds.size > 0 || picked().some(s => s.metadata?.truncated && !s.references?.length)) ? note(readText("workbench.context-onboarding.partial-scan-saved-note"), 'info') : '';
     const left = question(globalThis.t.text("workbench.context-onboarding.bring-existing-materials"), globalThis.t.text("workbench.context-onboarding.files-pages-chats-become-new-project-s-background")) + resumeNotice()
       + (journey.summary ? '<p class="cx-hint ob-note">' + glyph('info') + '<span>' + globalThis.t.text("workbench.context-onboarding.materials-already-read-kept-starting-again-replaces-current") + '</span></p>' : '')
       + (journey.oauth_status === 'pending' ? '<div class="ob-notice" role="status"><span data-mw-state="reauth" aria-hidden="true"></span>' + '<span>' + globalThis.t.text("workbench.context-onboarding.finish-google-authorization-browser-continues-afterwards") + '</span>' + btn({variant:'secondary', size:'sm', label:globalThis.t.text("workbench.context-onboarding.skip-gmail-continue"), attrs:{'data-action':'skip-auth'}}) + '</div>' : '')
@@ -254,11 +256,12 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
       .concat(shownItems.map((file, i) => fileRow({name:file.path, size:size(file.size), state:'<span class="mw-file-row__state">' + globalThis.t.text("workbench.context-onboarding.not-read") + '</span>', check:{checked:selected.includes(file), attrs:{id:'cx-f-' + s.kind + '-' + i, 'data-file':s.kind, 'data-index':i}}})))
       .concat(items.length > limit ? ['<li class="ob-more-row">' + btn({variant:'ghost', size:'sm', label:globalThis.t.text("workbench.context-onboarding.show-more-files", {n:items.length - limit}), attrs:{'data-more-files':s.kind}}) + '</li>'] : []);
     const tools = directory(s) ? toggles(readText("workbench.context-onboarding.source-time-range", { source: readText(names[s.kind]) }), RANGES.map(days => ({label:rangeLabel(days), current:(s.days ?? 30) === days, attrs:{'data-range':s.kind, 'data-days':String(days)}}))) + btn({variant:'ghost', size:'sm', icon:'refresh', label:globalThis.t.text("workbench.context-onboarding.refresh-preview"), attrs:{'data-refresh':s.kind}}) : '';
-    const seen = s.metadata.skipped || 0;
-    const emptyKey = s.metadata.total_entries === 0 || (!seen && (!directory(s) || (s.days ?? 30) === 0)) ? "workbench.context-onboarding.folder-is-empty" : "workbench.context-onboarding.no-supported-files-time-range-widen-skip";
+    const seen = s.metadata.skipped || 0, sr = s.metadata.skipped_reasons;
+    const onlyFiltered = seen > 0 && (!directory(s) || (s.days ?? 30) === 0 || Boolean(sr && !sr.time && ((sr.ignored || 0) + (sr.secret || 0) + (sr.unreadable || 0) > 0)));
+    const emptyKey = s.metadata.total_entries === 0 || (!seen && (!directory(s) || (s.days ?? 30) === 0)) ? "workbench.context-onboarding.folder-is-empty" : onlyFiltered ? "workbench.context-onboarding.no-supported-files-filtered" : "workbench.context-onboarding.no-supported-files-time-range-widen-skip";
     return fileGroup({...add, icon:sourceIcons[s.kind], title:directory(s) ? globalThis.t.text("workbench.context-onboarding.folder") + ' · ' + globalThis.t.text(names[s.kind]) : globalThis.t.text(names[s.kind]), caption:s.kind === 'gmail' ? gmailCaption() : (grants[s.kind]?.path || s.path || ''), count:items.length ? selected.length + '/' + items.length : (seen ? String(seen) : '0/0'),
       check:{checked:items.length ? selected.length === items.length : s.selected, mixed:items.length > 0 && selected.length > 0 && selected.length < items.length, attrs:{id:'cx-all-' + s.kind, 'data-files-all':s.kind}}, tools, rows,
-      note:[s.metadata.truncated ? globalThis.t.text("workbench.context-onboarding.folder-has-too-many-entries-scan-them-all") : (!items.length ? globalThis.t.text(emptyKey) : ''), seen ? seen + ' ' + globalThis.t.text("workbench.context-onboarding.items-left-out-time-type-access") : ''].filter(Boolean).join(' ')});
+      note:[s.metadata.cancelled ? globalThis.t.text("workbench.context-onboarding.partial-scan-saved-note") : s.metadata.truncated ? globalThis.t.text("workbench.context-onboarding.folder-has-too-many-entries-scan-them-all") : (!items.length ? globalThis.t.text(emptyKey) : ''), seen ? seen + ' ' + globalThis.t.text("workbench.context-onboarding.items-left-out-time-type-access") : ''].filter(Boolean).join(' ')});
   }
   function scopeView() {
     const total = selectionTotal(), missing = picked().some(s => !previewReady(s)), queued = total.count > QUEUED.count || total.bytes > QUEUED.bytes;
@@ -554,8 +557,10 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
   }
   async function metadata(s) {
     if(s.references?.length)return;
+    scanningDirId=s.kind;
     try { s.metadata=await invoke('context_directory_preview',{id:s.kind,days:s.days??30});delete s.error; }
     catch(e){delete s.metadata;s.error=String(e?.message||e);await refreshGrants();}
+    finally{scanningDirId='';counting=null;}
   }
   async function prepare() {
     const wasBusy=busy;busy=true;
@@ -636,7 +641,7 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
     if(e.target.id==='cx-blank-name'){updateBlankName(e.target);return;}
     if(e.target.dataset.field&&e.target.tagName!=='SELECT'){
       const s=source(e.target.dataset.kind);if(s[e.target.dataset.field]!==e.target.value)invalidateSource(s);
-      s[e.target.dataset.field]=e.target.value;if(s.kind==='browser'&&e.target.dataset.field==='text')s.selected=Boolean(s.text?.trim());refreshSelection();clearTimeout(inputTimer);inputTimer=setTimeout(()=>save().catch(e=>{error=keepFailure(e);render();}),400);
+      s[e.target.dataset.field]=e.target.value;if(s.kind==='browser'&&e.target.dataset.field==='text')s.selected=Boolean(s.text?.trim());refreshSelection();clearTimeout(inputTimer);inputTimer=setTimeout(()=>{inputTimer=0;save().catch(e=>{error=keepFailure(e);render();});},400);
     }
   });
   root.addEventListener('change',async e=>{
@@ -649,7 +654,7 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
       if(el.dataset.take!==undefined){takePicked=el.checked?el.dataset.take:'';document.querySelectorAll('[data-take]').forEach(box=>{if(box!==el)box.checked=false;});return;}if(el.dataset.draft){if(el.checked)todoPicked.add(el.dataset.draft);else todoPicked.delete(el.dataset.draft);render();return;}
       if(el.id==='cx-project-title'||el.id==='cx-summary-editor'){preserveEdits();await saveDraft();return;}
       if(el.dataset.filesAll!==undefined){const s=source(el.dataset.filesAll);if(!s.metadata.files.length)s.selected=el.checked;else{const all=included(s).length===s.metadata.files.length;invalidateSourceForEdit(s);s.excluded=all?s.metadata.files.map(f=>f.path):[];}changed=true;}
-      else if(el.dataset.field){const s=source(el.dataset.kind);invalidateSource(s);s[el.dataset.field]=el.dataset.field==='days'?Number(el.value):el.value;if(el.dataset.field==='connection_id')s.selected=Boolean(el.value);changed=true;}
+      else if(el.dataset.field){if(el.tagName!=='SELECT'){if(inputTimer){clearTimeout(inputTimer);inputTimer=0;await save();}return;}const s=source(el.dataset.kind);invalidateSource(s);s[el.dataset.field]=el.dataset.field==='days'?Number(el.value):el.value;if(el.dataset.field==='connection_id')s.selected=Boolean(el.value);changed=true;}
       else if(el.dataset.file||el.dataset.folder){
         const s=source(el.dataset.file||el.dataset.folder);invalidateSourceForEdit(s);const path=el.dataset.folder?el.dataset.path:s.metadata.files[Number(el.dataset.index)].path;
         let excluded=new Set(s.excluded||[]);
@@ -668,7 +673,7 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
     // Size and “未读取” sit outside the name's label; the whole row is the choice.
     const rowHit=e.target.closest('.mw-file-row'); if(rowHit && !e.target.closest('label,button,a,input')){const box=rowHit.querySelector('input.mw-check'); if(box){box.click(); return;}}
     const b=e.target.closest('button');if(!b||b.disabled)return;
-    if(b.dataset.action==='stop-scan'){stopCounting=true;return;}
+    if(b.dataset.action==='stop-scan'){stopCounting=true;if(scanningDirId&&native){invoke('context_directory_preview',{id:scanningDirId,days:0,cancel:true}).catch(()=>{});}return;}
     if(b.dataset.action==='continue-scan'){if(pausedScan){busy=true;error='';try{await runUploadCount(null,pausedScan);await save();}catch(err){error=keepFailure(err);}finally{busy=false;counting=null;render();}}return;}
     if(b.dataset.moreFiles){scopeVisible[b.dataset.moreFiles]=(scopeVisible[b.dataset.moreFiles]||200)+400;render();return;}
     if(b.dataset.mrFilter){mrFilter=b.dataset.mrFilter;render();return;}

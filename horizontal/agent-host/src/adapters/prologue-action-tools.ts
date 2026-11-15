@@ -3,9 +3,8 @@ import { isDeepStrictEqual } from "node:util";
 import { DEFAULT_TOOL_LIMITS, type ScenarioPack, type ToolRunner } from "@prologue/sdk";
 import { compareCodeUnits } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionError, actionEffect, type ActionSubject, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
-import { KNOWLEDGE_PROVIDER_ID, knowledgeActions } from "@molis-ai/molis-work-contracts/services/knowledge";
 import type { AgentFrozenRole, AgentRunOffer, AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { capabilityInput, GATEWAY_TOOLS, offerWords } from "./prologue-action-gateway.js";
+import { capabilityInput, GATEWAY_TOOLS, offerWords, withPinnedKnowledgeRevision } from "./prologue-action-gateway.js";
 import { actionDigest } from "../action-digest.js";
 import { afterWriteTool } from "./prologue-after-write.js";
 
@@ -34,8 +33,11 @@ function knowledgeSubjectHashRef(subject: ActionSubject): string {
 /** Build round-pinned revisions from text materials so mid-round `knowledge.read` on the same piece cannot silently mix two revisions (C13). */
 export function pinnedMaterialRevisions(materials: readonly AgentTextMaterial[] | undefined): ReadonlyMap<string, string> {
   const map = new Map<string, string>();
-  const pinOne = (entry: { material_ref?: AgentTextMaterial["material_ref"]; read_revision?: string }) => {
-    const subject = entry.material_ref?.subject;
+  const pinOne = (entry: { material_ref?: AgentTextMaterial["material_ref"]; source_artifact_id?: string; source_version?: number; read_revision?: string }) => {
+    const subject = entry.material_ref?.subject
+      ?? (entry.source_artifact_id && entry.source_version !== undefined
+        ? { kind: "artifact", id: `${entry.source_artifact_id}@${entry.source_version}` }
+        : undefined);
     const rev = entry.read_revision ?? (entry.material_ref?.pin.mode === "current" ? entry.material_ref.pin.read_revision : undefined);
     if (!subject || !rev) return;
     map.set(`subject:${subject.kind}\u0000${subject.id}`, rev);
@@ -46,28 +48,6 @@ export function pinnedMaterialRevisions(materials: readonly AgentTextMaterial[] 
     for (const overflow of item.overflow_materials ?? []) pinOne(overflow);
   }
   return map;
-}
-
-function withPinnedKnowledgeRevision(
-  reference: ExactActionReference,
-  input: unknown,
-  pinned: ReadonlyMap<string, string> | undefined,
-): unknown {
-  if (!pinned?.size || reference.provider_id !== KNOWLEDGE_PROVIDER_ID || reference.capability_id !== knowledgeActions.read.capability_id) return input;
-  if (!input || typeof input !== "object" || Array.isArray(input)) return input;
-  const record = input as Record<string, unknown>;
-  if (record.expected_revision !== undefined) return input;
-  const rawSubject = record.subject;
-  let expected: string | undefined;
-  if (typeof rawSubject === "string") {
-    expected = pinned.get(`ref:${rawSubject.trim().toLowerCase()}`);
-  } else if (rawSubject && typeof rawSubject === "object" && !Array.isArray(rawSubject)) {
-    const candidate = rawSubject as { kind?: unknown; id?: unknown };
-    if (typeof candidate.kind === "string" && typeof candidate.id === "string") {
-      expected = pinned.get(`subject:${candidate.kind}\u0000${candidate.id}`);
-    }
-  }
-  return expected === undefined ? input : { ...record, expected_revision: expected };
 }
 
 /**

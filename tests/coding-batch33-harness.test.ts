@@ -6,7 +6,7 @@ import test from "node:test";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { artifactSubjectId, type ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { AgentRunRef, AgentRunView, AgentStepBoard } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { knowledgeActions } from "@molis-ai/molis-work-contracts/services/knowledge";
+import { KNOWLEDGE_PROVIDER_ID, knowledgeActions } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { ensureSystemAgentService, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import {
   renderCodingRoundMaterials,
@@ -28,11 +28,17 @@ import {
   parseCodingPlan,
 } from "@molis-ai/molis-work-plugin-coding";
 import {
+  applyUnknownCommandOutcomes,
   computeWeightedStepBoardProgress,
   effectiveCompactionAboveTokens,
   effectiveContextWindow,
+  pinnedMaterialRevisions,
   SUBAGENT_DEFAULT_MAX_ATTEMPTS,
+  withPinnedKnowledgeRevision,
 } from "@molis-ai/molis-work-service-agent-host";
+import { formatBoardProgressSummary, stepPointsBadge } from "../plugins/native/coding/src/browser/taskboard-steps.js";
+import { buildEnvironmentChecklistHtml } from "../plugins/native/coding/src/browser/main/configuration.js";
+import { buildRoundMaterialsHtml } from "../plugins/native/coding/src/browser/main/run-block.js";
 import { cogniaModelResponse, cogniaScriptedResponse } from "./fixtures/cognia-model-response.js";
 import { codingProductHost } from "./fixtures/coding-product-host.js";
 import { withPageText } from "./fixtures/page-text.js";
@@ -104,21 +110,37 @@ test("Batch 33 component catalog specimens (#recovery-closures) and ENV file mar
   ]) {
     assert.ok(catalogHtml.includes(primitive), `missing catalog specimen ${primitive}`);
   }
+  assert.ok(renderFileKind(".env").includes("mw-file-kind--env"), "bare .env renders mw-file-kind--env");
   assert.ok(renderFileKind(".env.local").includes(">ENV<"), ".env.local renders ENV mark instead of LOCAL");
   assert.ok(renderEnvChecklist({ title: "准备清单", statusLabel: "就绪", statusTone: "done", rows: [{ state: "done", label: "依赖", value: "pnpm" }] }).includes("data-slot=\"env-checklist\""));
-  assert.ok(renderTaskAttemptBudget({ attempt: 2, maxAttempts: 2, budgetPercent: 90, summaryText: "检查未过" }).includes("is-hot"));
-  assert.ok(renderRoundReportCard({ statusLabel: "本轮结束", statusTone: "done", finishedAtLabel: "刚刚", delivered: [], verified: [], remaining: [] }).includes("data-slot=\"round-report-card\""));
-  assert.ok(renderMaterialsFunnel([{ label: "已发现", value: 5 }]).includes("mw-mr-funnel"));
+  assert.ok(renderTaskAttemptBudget({ headerText: "第 2 次，共 2 次", budgetPercent: 90, summaryText: "检查未过" }).includes("is-hot"));
+  assert.ok(renderRoundReportCard({
+    statusLabel: "本轮结束",
+    statusTone: "done",
+    finishedAtLabel: "刚刚",
+    headings: { delivered: "交付了什么", verified: "怎么验证的", remaining: "没做完的" },
+    delivered: [],
+    verified: [],
+    remaining: [],
+  }).includes("data-slot=\"round-report-card\""));
+  assert.ok(renderMaterialsFunnel([{ label: "已发现", value: 5 }], "材料核对统计").includes("mw-mr-funnel"));
   assert.ok(renderMaterialsTrack({ step: 3, label: "已读取" }).includes("mw-mr-cells"));
   assert.ok(renderScopeDeltaCard({ title: "这次只做这些", items: [{ kind: "add", glyph: "plus", title: "新增 1 份", detail: "spec.md" }] }).includes("data-slot=\"scope-delta-card\""));
   assert.ok(renderCodingRoundMaterials({ title: "本轮材料", summaryLabel: "2 份", summaryTone: "done", items: [{ state: "done", name: "spec.md", how: "全文", statusLabel: "全文", statusTone: "done" }] }).includes("data-slot=\"coding-round-materials\""));
+
+  const enCatalogHtml = withPageText("en", [], renderPrimitiveCatalog);
+  const enStart = enCatalogHtml.indexOf("id=\"recovery-closures\"");
+  assert.ok(enStart >= 0, "English catalog includes #recovery-closures");
+  const nextSec = enCatalogHtml.indexOf("<section class=\"mw-catalog__section\"", enStart + 1);
+  const enRecoverySlice = enCatalogHtml.slice(enStart, nextSec > enStart ? nextSec : undefined);
+  assert.equal(/[\u3400-\u9fff]/u.test(enRecoverySlice), false, `English #recovery-closures must contain zero Han characters: ${enRecoverySlice.match(/[\u3400-\u9fff]+/gu)?.join(", ") ?? ""}`);
 });
 
 test("CHO-08, CHO-09, CHO-10: context window scaling, proportional compaction threshold, and digest verification retention", () => {
   assert.deepEqual(effectiveContextWindow(1_000_000, 200_000), { window_tokens: 1_000_000 });
   assert.deepEqual(effectiveContextWindow(64_000, 200_000), { window_tokens: 64_000 });
   assert.deepEqual(effectiveContextWindow(1_000_000, 200_000, 128_000), { window_tokens: 128_000, stated_window_tokens: 1_000_000 });
-  assert.deepEqual(effectiveContextWindow(undefined, 200_000), { window_tokens: 200_000 });
+  assert.deepEqual(effectiveContextWindow(undefined, 200_000), { window_tokens: 200_000, window_unknown: true });
   assert.equal(effectiveCompactionAboveTokens({ above_tokens: 150_000, window_ratio: 0.75 }, 1_000_000), 750_000);
   assert.equal(effectiveCompactionAboveTokens({ above_tokens: 150_000, window_ratio: 0.75 }, 64_000), 48_000);
   assert.equal(effectiveCompactionAboveTokens({ above_tokens: 150_000 }, 1_000_000), 150_000);
@@ -171,6 +193,7 @@ test("CHO-11, CHO-12, BL-222: round 4-section digest reports stale checks, unkno
     timeline.renderFooter(block, {
       ref: { run_id: "r-stale" },
       phase: "completed",
+      code_revision: "e8b410c",
       started_at: "2026-11-14T10:00:00.000Z",
       ended_at: "2026-11-14T10:00:12.000Z",
       activity: [
@@ -181,7 +204,11 @@ test("CHO-11, CHO-12, BL-222: round 4-section digest reports stale checks, unkno
       turn_changes: [{ turn: 1, sequence: 1, files: [{ path: "src/app.ts", byte_length: 42, digest: "d1", checkpoint_id: "cp-1" }] }],
     }, 0, true, false);
     const staleHtml = block.lastElementChild!.innerHTML;
-    assert.ok(staleHtml.includes("data-coding-round-digest"), "renders 4-section round digest");
+    assert.ok(staleHtml.includes("data-slot=\"round-report-card\""), "renders shared round-report-card primitive");
+    assert.ok(staleHtml.includes("data-coding-round-digest"), "renders round digest attribute");
+    assert.ok(staleHtml.includes("e8b410c"), "renders code revision badge on verified check");
+    assert.ok(staleHtml.includes("data-coding-rerun-checks=\"r-stale\""), "offers rerun-checks button on stale verification");
+    assert.match(staleHtml, /结果已过期/);
     assert.match(staleHtml, /改代码前跑过，改后未重跑/);
     assert.match(staleHtml, /开始前已红/);
 
@@ -199,6 +226,89 @@ test("CHO-11, CHO-12, BL-222: round 4-section digest reports stale checks, unkno
     assert.ok(unknownHtml.includes("data-mw-state=\"verify\""), "unknown command end marks verify ring instead of done (BL-222)");
     assert.ok(!unknownHtml.includes("data-tone=\"done\""), "round with unknown command receipt never claims done");
     assert.match(unknownHtml, /结果未知/);
+  });
+});
+
+test("B1, B5 & B7: withPinnedKnowledgeRevision gateway pinning, client progress formatting, open env checklist, and live round materials continuation", () => {
+  const knowledgeReadRef = { provider_id: KNOWLEDGE_PROVIDER_ID, capability_id: knowledgeActions.read.capability_id, version: 1 };
+  const pinnedMap = pinnedMaterialRevisions([
+    { material_id: "m1", title: "spec.md", text: "body", source_artifact_id: "art-1", source_version: 1, read_revision: "rev-initial" },
+  ]);
+  const injected = withPinnedKnowledgeRevision(knowledgeReadRef, { subject: { kind: "artifact", id: "art-1@1" } }, pinnedMap) as { expected_revision?: string };
+  assert.equal(injected.expected_revision, "rev-initial", "injects pinned expected_revision onto knowledge.read@1");
+  const sameOk = withPinnedKnowledgeRevision(knowledgeReadRef, { subject: { kind: "artifact", id: "art-1@1" }, expected_revision: "rev-initial" }, pinnedMap) as { expected_revision?: string };
+  assert.equal(sameOk.expected_revision, "rev-initial");
+  assert.throws(
+    () => withPinnedKnowledgeRevision(knowledgeReadRef, { subject: { kind: "artifact", id: "art-1@1" }, expected_revision: "rev-other" }, pinnedMap),
+    (err: { code?: string }) => err.code === "knowledge.revision_changed",
+  );
+
+  const packs = chinesePagePacks("coding");
+  withPagePacks("zh", packs, () => {
+    const sampleNodes = [
+      { id: "step-1", title: "拆解 CSV 解析器", state: "running" as const, story_points: 2, progress: 0.5, progress_basis: "解析器主函数与 6 个单测已绿", reports: [], owner: { kind: "session" as const, label: "本会话" } },
+      { id: "step-2", title: "接入流式输出", state: "not-started" as const, story_points: 3, reports: [], owner: { kind: "session" as const, label: "本会话" } },
+      { id: "step-3", title: "补齐端到端回归", state: "not-started" as const, story_points: 8, estimate_source: "human" as const, reports: [], owner: { kind: "session" as const, label: "本会话" } },
+    ];
+    const summary = computeWeightedStepBoardProgress(sampleNodes);
+    const summaryText = formatBoardProgressSummary(summary, sampleNodes);
+    assert.equal(summaryText.includes("NaN"), false, `summary must never contain NaN: ${summaryText}`);
+    assert.match(summaryText, /1 \/ 13 点/);
+    const badge = stepPointsBadge(sampleNodes, sampleNodes[0]!);
+    assert.match(badge.text, /2/);
+    assert.match(badge.title, /50%/);
+    assert.match(badge.title, /解析器主函数与 6 个单测已绿/);
+    assert.equal(badge.title.includes("0.5%"), false);
+
+    const envHtml = buildEnvironmentChecklistHtml({
+      workspace_id: "ws-1",
+      status: "attention",
+      branch: "main",
+      head_commit: "e8b410caabbcc",
+      dirty_count: 2,
+      git_conflicted_count: 0,
+      git_merging: false,
+      is_git_repo: true,
+      deps_manager: "pnpm",
+      deps_installed: false,
+      script_names: ["test", "dev"],
+      ports: [5173],
+      env_template: ".env.example",
+      env_keys: ["DATABASE_URL"],
+      has_local_env: false,
+      worktrees: { active: 1, problem_count: 0, cleanup_count: 0 },
+      checked_at: "2026-11-14T10:00:00.000Z",
+    });
+    assert.ok(envHtml.includes("data-slot=\"env-checklist\""), "renders open env-checklist primitive");
+    assert.ok(!envHtml.startsWith("<details"), "env checklist is never a collapsed details bar");
+    assert.match(envHtml, /开始前已有/);
+    assert.match(envHtml, /基线测试/);
+    assert.match(envHtml, /pnpm test/);
+    assert.ok(envHtml.includes("data-slot=\"env-recovery\""), "attaches inline recovery alert for missing deps/env");
+    assert.ok(envHtml.includes("data-coding-env-action=\"install-deps\""), "attaches actionable dependency recovery button");
+    assert.ok(envHtml.includes("data-coding-env-action=\"open-files\""), "attaches actionable env/files recovery button");
+
+    const baseFrozen = {
+      model_id: "m",
+      role_id: "reader",
+      role_version: 1,
+      skills: [],
+      text_materials: [{
+        material_id: "mat-pdf",
+        title: "architecture.pdf",
+        source_artifact_id: "art-pdf",
+        read_revision: "r1",
+        delivery: "clipped" as const,
+      }],
+    };
+    const beforeHtml = buildRoundMaterialsHtml({ frozen: baseFrozen, activity: [] });
+    assert.ok(beforeHtml.includes("data-slot=\"coding-round-materials\""));
+    assert.match(beforeHtml, /前 12,000 字/);
+    const afterHtml = buildRoundMaterialsHtml({
+      frozen: baseFrozen,
+      activity: [{ call_id: "k1", name: "knowledge.read@1", target: "art-pdf", state: "completed" }],
+    });
+    assert.match(afterHtml, /已接着读/);
   });
 });
 
@@ -391,6 +501,41 @@ test("CHO-34, CHO-35: Coding plan confirmation, TaskBoard Fibonacci amendments, 
   const persisted = reread.body.taskboard_plans[0]?.board;
   assert.equal(persisted?.progress_summary?.total_points, 13);
   assert.equal(persisted?.progress_summary?.completed_points, 1);
+  assert.equal(persisted?.progress_summary?.weighted_percent, 7.7);
+
+  // B3: skip stays in denominator (scope_removed undefined), whereas remove-scope drops points from denominator.
+  const skipped = await call<{ board: AgentStepBoard }>(project.project_id, `${CODING_PREFIX}/sessions/${sid}/runs/${runId}/plan-amendments`, {
+    expected_version: persisted!.version,
+    amendment: { kind: "skip", node: "step-2", reason: "暂缓流式背压验证" },
+  });
+  assert.equal(skipped.status, 200, JSON.stringify(skipped.body));
+  assert.equal(skipped.body.board.nodes.find(n => n.id === "step-2")?.scope_removed, undefined, "skip must NOT mark scope_removed");
+  assert.equal(skipped.body.board.progress_summary?.total_points, 13, "skipped step stays in denominator");
+
+  const removedScope = await call<{ board: AgentStepBoard }>(project.project_id, `${CODING_PREFIX}/sessions/${sid}/runs/${runId}/plan-amendments`, {
+    expected_version: skipped.body.board.version,
+    amendment: { kind: "remove-scope", node: "step-3", reason: "拆分到下一批独立交付" },
+  });
+  assert.equal(removedScope.status, 200, JSON.stringify(removedScope.body));
+  assert.equal(removedScope.body.board.nodes.find(n => n.id === "step-3")?.scope_removed, true);
+  assert.equal(removedScope.body.board.progress_summary?.total_points, 5);
+  assert.equal(removedScope.body.board.progress_summary?.removed_scope_points, 8);
+
+  // B4: unknown command outcome deducts points & blocks terminal until explicit reconcile (confirm-done / rerun).
+  const projectedUnknown = applyUnknownCommandOutcomes(
+    {
+      phase: "completed",
+      activity: [{ name: "start-command", state: "started", at: "2099-01-01T00:00:00.000Z" }],
+    },
+    {
+      ...removedScope.body.board,
+      terminal: true,
+      nodes: removedScope.body.board.nodes.map(n => n.id === "step-1" ? { ...n, state: "succeeded", progress: undefined } : n),
+    },
+  );
+  assert.equal(projectedUnknown.terminal, false, "unknown command outcome reopens terminal board for reconciliation");
+  assert.equal(projectedUnknown.nodes.find(n => n.id === "step-1")?.unknown_outcome, true);
+  assert.equal(projectedUnknown.progress_summary?.completed_points, 0, "unknown_outcome step is not counted as completed");
 });
 
 test("C12, C13, C14: Coding round materials structured failure recovery, mid-round revision pinning, and >30 on-demand overflow", { timeout: 60_000 }, async t => {

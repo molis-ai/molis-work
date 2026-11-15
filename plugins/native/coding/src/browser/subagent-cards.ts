@@ -1,5 +1,5 @@
 import { cutWithEllipsis } from "@molis-ai/molis-work-plugin-sdk/whole-units";
-import { format, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { format, renderTaskAttemptBudget, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { setContentHtml } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { el, errorMessage, part } from "./dom.js";
 import type { Child } from "./subagents.js";
@@ -157,32 +157,71 @@ function stopButton(ports: SubagentCardPorts, run: CardsRun, child: Child) {
   });
 }
 
-function drawBudget(node: HTMLElement, child: Child) {
+function drawBudget(ports: SubagentCardPorts, node: HTMLElement, run: CardsRun, child: Child) {
   let box = node.querySelector<HTMLElement>(".coding-child-budget");
   const budget = child.budget;
   if (!budget) {
     box?.remove();
     return;
   }
+  const ended = ["failed", "cancelled"].includes(child.state);
+  const sig = JSON.stringify([budget, ended]);
+  if (box && box.dataset.signature === sig) return;
   if (!box) {
     box = el("div", "", "coding-child-budget");
     box.dataset.codingChildBudget = "";
     part(node, ".coding-child-foot").before(box);
   }
+  box.dataset.signature = sig;
   box.dataset.exhausted = String(Boolean(budget.exhausted));
-  const reasons: Readonly<Record<string, string>> = {
-    verification_failed: uiText.text("coding.card.budget.reason.verification"),
-    provider_error: uiText.text("coding.card.budget.reason.provider"),
-    user_requested: uiText.text("coding.card.budget.reason.user"),
+  const sources: Readonly<Record<string, string>> = {
+    "check-failed": uiText.text("coding.card.budget.reason.verification"),
+    "model-error": uiText.text("coding.card.budget.reason.provider"),
+    "user-requested": uiText.text("coding.card.budget.reason.user"),
   };
-  box.replaceChildren(
-    el("strong", uiText.text("coding.card.budget.count", { attempt: budget.attempt, max: budget.max_attempts })),
-  );
-  if (budget.retry_reason && reasons[budget.retry_reason]) {
-    box.append(el("span", reasons[budget.retry_reason]!));
-  }
-  if (budget.exhausted) {
-    box.append(el("span", uiText.text("coding.card.budget.exhausted")));
+  const states: Readonly<Record<string, string>> = {
+    running: uiText.text("coding.state.running"),
+    completed: uiText.text("coding.card.state.completed"),
+    failed: uiText.text("coding.phase.failed"),
+    cancelled: uiText.text("coding.phase.stopped"),
+    "reconcile-required": uiText.text("coding.card.state.reconcile"),
+  };
+  const headerText = [
+    uiText.text("coding.card.budget.count", { attempt: budget.attempt, max: budget.max_attempts }),
+    budget.exhausted ? uiText.text("coding.card.budget.exhausted") : "",
+  ].filter(Boolean).join(" · ");
+  const pastAttempts = budget.prior_attempts?.map(item => {
+    const stateWord = states[item.state] || item.state;
+    const detail = item.reason || item.error || (item.source ? sources[item.source] : "") || "";
+    return {
+      state: (item.state === "completed" ? "done" : item.state === "cancelled" ? "stopped" : "failed") as "done" | "stopped" | "failed",
+      text: uiText.text("coding.card.budget.past-line", { attempt: item.attempt, state: stateWord, detail: detail ? " · " + detail : "" }),
+    };
+  });
+  setContentHtml(box, renderTaskAttemptBudget({
+    headerText,
+    budgetPercent: budget.max_attempts > 0 ? Math.round((budget.attempt / budget.max_attempts) * 100) : 0,
+    meterLabel: uiText.text("coding.card.budget.meter-label"),
+    ...(budget.retry_source && sources[budget.retry_source] ? { retryReasonLabel: sources[budget.retry_source], retryReasonTone: budget.retry_source === "user-requested" ? "info" : "warning" } : {}),
+    ...(budget.retry_reason ? { summaryText: budget.retry_reason } : {}),
+    ...(pastAttempts?.length ? { pastSummaryLabel: uiText.text("coding.card.budget.past-summary", { count: pastAttempts.length }), pastAttempts } : {}),
+    ...(ended && budget.exhausted ? { actions: [{ label: uiText.text("coding.card.extend-budget"), variant: "secondary", attrs: { "data-coding-extend-budget": child.subagent_id } }] } : {}),
+  }));
+  const extendBtn = box.querySelector<HTMLButtonElement>("[data-coding-extend-budget]");
+  if (extendBtn) {
+    ports.lifetime.listen(extendBtn, "click", async () => {
+      extendBtn.disabled = true;
+      const id = ports.current();
+      try {
+        await ports.api("/sessions/" + encodeURIComponent(id) + "/runs/" + encodeURIComponent(run.ref.run_id) + "/subagents/" + encodeURIComponent(child.subagent_id), "POST", { action: "extend-budget", extend_attempts: 3 });
+        ports.status(uiText.text("coding.card.budget-extended"));
+      } catch (error) {
+        if (!ports.lifetime.alive) return;
+        ports.status(errorMessage(error), true);
+        extendBtn.disabled = false;
+      }
+      if (id === ports.current()) await ports.refresh();
+    });
   }
 }
 
@@ -234,23 +273,6 @@ function retryButton(ports: SubagentCardPorts, run: CardsRun, child: Child) {
   });
 }
 
-function extendBudgetButton(ports: SubagentCardPorts, run: CardsRun, child: Child) {
-  const { lifetime, api, current, status, refresh } = ports;
-  return button(uiText.text("coding.card.extend-budget"), async extend => {
-    extend.disabled = true;
-    const id = current();
-    try {
-      await api("/sessions/" + encodeURIComponent(id) + "/runs/" + encodeURIComponent(run.ref.run_id) + "/subagents/" + encodeURIComponent(child.subagent_id), "POST", { action: "extend-budget", extend_attempts: 3 });
-      status(uiText.text("coding.card.budget-extended"));
-    } catch (error) {
-      if (!lifetime.alive) return;
-      status(errorMessage(error), true);
-      extend.disabled = false;
-    }
-    if (id === current()) await refresh();
-  });
-}
-
 /** The buttons a child in its state is offered, drawn again only when what they depend on changed. */
 function drawFoot(ports: SubagentCardPorts, node: HTMLElement, run: CardsRun, child: Child, edited: readonly string[]) {
   const foot = part(node, ".coding-child-foot"), key = JSON.stringify([child.state, child.verdict?.status, child.integration_available, edited.length > 0, child.budget?.attempt, child.budget?.max_attempts, child.budget?.exhausted]);
@@ -266,9 +288,8 @@ function drawFoot(ports: SubagentCardPorts, node: HTMLElement, run: CardsRun, ch
   const ended = ["failed", "cancelled"].includes(child.state);
   // A child that ended badly may still have written real work in its own directory; the person looks before deciding.
   if (ended && child.integration_available && edited.length) add(button(uiText.text("coding.sub.look"), () => ports.openInPanel(child.subagent_id)));
-  if (ended) {
-    if (child.budget?.exhausted) add(extendBudgetButton(ports, run, child));
-    else add(retryButton(ports, run, child));
+  if (ended && !child.budget?.exhausted) {
+    add(retryButton(ports, run, child));
   }
 }
 
@@ -286,7 +307,7 @@ function card(ports: SubagentCardPorts, section: HTMLElement, run: CardsRun, chi
   drawChanged(ports.translate, node, child, edited);
   drawResult(ports.translate, node, child);
   drawError(ports, node, child);
-  drawBudget(node, child);
+  drawBudget(ports, node, run, child);
   drawFoot(ports, node, run, child, edited);
 }
 

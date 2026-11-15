@@ -56,7 +56,19 @@ export const contextOnboardingActions = {
   (entry, input) => adoptContextJourney(entry.home, input.journey, { ...input.body }, entry.ports)),
   secret: door.define({ capability_id: "onboarding.context.secret", version: /* @version action.onboarding.context.secret */ 1, scope,
     title: "决定疑似密钥材料的发送方式", description: "首次引导：对默认拦截的疑似密钥材料选择只发变量名、原样发送或不发。",
-    input_schema: { type: "object", properties: { journey, body }, required: ["journey", "body"], additionalProperties: false } },
+    input_schema: { type: "object", properties: {
+      journey,
+      body: {
+        type: "object",
+        required: ["key", "decision"],
+        additionalProperties: false,
+        properties: {
+          key: { type: "string", minLength: 1, maxLength: 500 },
+          decision: { enum: ["strip", "raw", "exclude"] },
+          reorganize: { type: "boolean" },
+        },
+      },
+    }, required: ["journey", "body"], additionalProperties: false } },
   async (entry, input) => structuredClone(await decideContextSecret(entry.home, input.journey, { ...input.body }, entry.ports))),
 };
 

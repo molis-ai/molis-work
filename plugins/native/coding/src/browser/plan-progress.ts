@@ -132,12 +132,13 @@ function openForm(ports: ProgressPorts, card: HTMLElement, row: HTMLElement, fie
 function stateMark(d: Drawing, node: StepNode, decided: string | null) {
   const { ports, run } = d, { word } = ports;
   const removed = scopeRemoved(node);
+  const unknownOutcome = Boolean(node.unknown_outcome);
   const state = el("span", "", "coding-board-state coding-plan-state");
-  state.dataset.tone = decided === "accepted" ? "accepted" : decided === "needs-work" ? "attention" : skipped(node) || removed ? "quiet" : TONE[node.state] || "idle";
+  state.dataset.tone = decided === "accepted" ? "accepted" : decided === "needs-work" || unknownOutcome ? "attention" : skipped(node) || removed ? "quiet" : TONE[node.state] || "idle";
   const running = node.owner?.kind === "person" ? "doing" : ["starting", "running", "compacting"].includes(run.phase) ? "running" : ({ paused: "paused", pausing: "paused", "awaiting-input": "answer", "awaiting-review": "approval" } as Readonly<Record<string, string>>)[run.phase] || "doing";
-  state.dataset.mwState = decided === "accepted" ? "done" : decided === "needs-work" ? "blocked" : skipped(node) || removed ? "cancelled" : node.state === "running" ? running : MARK[node.state] || "idle";
+  state.dataset.mwState = decided === "accepted" ? "done" : decided === "needs-work" ? "blocked" : unknownOutcome ? "verify" : skipped(node) || removed ? "cancelled" : node.state === "running" ? running : MARK[node.state] || "idle";
   const yours = node.owner?.kind === "person" && ["succeeded", "failed"].includes(node.state);
-  state.append(el("span", decided === "accepted" ? uiText.text("coding.board.state.accepted") : decided === "needs-work" ? uiText.text("coding.board.state.needs-work") : removed ? uiText.text("coding.board.state.removed") : skipped(node) ? uiText.text("coding.plan.you-skipped") : yours ? (node.state === "succeeded" ? uiText.text("coding.board.state.you-done") : uiText.text("coding.board.state.you-failed")) : word(node.state)));
+  state.append(el("span", decided === "accepted" ? uiText.text("coding.board.state.accepted") : decided === "needs-work" ? uiText.text("coding.board.state.needs-work") : removed ? uiText.text("coding.board.state.removed") : unknownOutcome ? uiText.text("coding.board.state.unknown-outcome") : skipped(node) ? uiText.text("coding.plan.you-skipped") : yours ? (node.state === "succeeded" ? uiText.text("coding.board.state.you-done") : uiText.text("coding.board.state.you-failed")) : word(node.state)));
   if (decided) state.dataset.verdict = decided;
   return state;
 }
@@ -207,6 +208,10 @@ function stepTools(d: Drawing, row: HTMLElement, node: StepNode, index: number, 
     tools.append(button);
   };
   const form = (fields: readonly FormField[], submit: (values: string[]) => Promise<void>, label: string) => openForm(ports, card, row, fields, submit, label);
+  if (node.unknown_outcome) {
+    tool(uiText.text("coding.board.reconcile-confirm"), "check", () => form([["note", uiText.text("coding.board.reconcile-confirm-note"), 500]], ([note]) => change({ kind: "reconcile", node: node.id, action: "confirm-done", note: note ?? "" }), uiText.text("coding.board.reconcile-confirm")));
+    tool(uiText.text("coding.board.reconcile-rerun"), "undo", () => form([["note", uiText.text("coding.board.reconcile-rerun-note"), 500]], ([note]) => change({ kind: "reconcile", node: node.id, action: "rerun", note: note ?? "" }), uiText.text("coding.board.reconcile-rerun")));
+  }
   const waiting = WAITING.includes(node.state);
   const before = board.nodes[index - 1], after = board.nodes[index + 1];
   if (waiting && before && WAITING.includes(before.state)) tool(uiText.text("coding.board.move-up"), "chevron-up", () => void change({ kind: "move", node: node.id, direction: "up" }));
@@ -214,12 +219,18 @@ function stepTools(d: Drawing, row: HTMLElement, node: StepNode, index: number, 
   if (node.state === "blocked") tool(uiText.text("coding.board.decide"), "edit", () => form([["note", uiText.text("coding.plan.decide-note"), 500]], ([note]) => change({ kind: "unblock", node: node.id, note: note ?? "" }), uiText.text("coding.board.decide-ok")));
   if (waiting || node.state === "blocked" || node.state === "failed") tool(node.state === "failed" ? uiText.text("coding.board.pass-over") : uiText.text("coding.board.skip"), "minus", () => form([["reason", uiText.text("coding.board.skip-reason"), 300]], ([reason]) => change({ kind: "skip", node: node.id, reason: reason ?? "" }), uiText.text("coding.board.skip")));
   if (node.state !== "cancelled") {
-    tool(uiText.text("coding.board.estimate"), "edit", () => form([["points", uiText.text("coding.board.estimate-points"), 10, node.story_points !== undefined ? String(node.story_points) : "", true], ["reason", uiText.text("coding.board.estimate-reason"), 300, node.estimate_reason || "", true]], ([pts, reason]) => {
+    tool(uiText.text("coding.board.estimate"), "edit", () => form([["points", uiText.text("coding.board.estimate-points"), 10, typeof node.story_points === "number" ? String(node.story_points) : "", true], ["reason", uiText.text("coding.board.estimate-reason"), 300, node.estimate_reason || "", true]], ([pts, reason]) => {
       const cleaned = (pts ?? "").trim();
       const parsed = !cleaned || cleaned === "0" || cleaned === "-" ? null : Number(cleaned);
       return change({ kind: "estimate", node: node.id, story_points: parsed, ...(reason ? { reason } : {}) });
     }, uiText.text("coding.board.estimate-ok")));
     if (node.state !== "succeeded") {
+      const initPct = node.progress !== undefined && node.progress > 0 ? String(node.progress <= 1 ? Math.round(node.progress * 100) : Math.round(node.progress)) : "";
+      tool(uiText.text("coding.board.progress-edit"), "edit", () => form([["percent", uiText.text("coding.board.progress-percent"), 4, initPct], ["basis", uiText.text("coding.board.progress-basis-input"), 300, node.progress_basis || ""]], ([pctText, basis]) => {
+        const raw = Number(pctText);
+        const fraction = Number.isFinite(raw) ? Math.max(0.01, Math.min(0.99, raw > 1 ? raw / 100 : raw)) : 0;
+        return change({ kind: "progress", node: node.id, progress: fraction, basis: basis ?? "" });
+      }, uiText.text("coding.board.progress-save")));
       tool(uiText.text("coding.board.remove-scope"), "x", () => form([["reason", uiText.text("coding.board.remove-scope-reason"), 300]], ([reason]) => change({ kind: "remove-scope", node: node.id, reason: reason ?? "" }), uiText.text("coding.board.remove-scope")));
     }
     tool(uiText.text("coding.board.insert"), "plus", () => d.insert(row, node.id, uiText.text("coding.board.insert-ok")));
@@ -255,8 +266,8 @@ const offersOf = (run: ProgressRun, board: Board) => {
 };
 
 function drawHead(_L: Translate, card: HTMLElement, entry: PlanEntry, board: Board) {
-  const total = board.nodes.filter(node => !skipped(node) && !scopeRemoved(node)).length, done = board.nodes.filter(node => node.state === "succeeded").length;
-  const weighted = formatBoardProgressSummary(board.progress_summary);
+  const total = board.nodes.filter(node => !skipped(node) && !scopeRemoved(node)).length, done = board.nodes.filter(node => node.state === "succeeded" && !node.unknown_outcome).length;
+  const weighted = formatBoardProgressSummary(board.progress_summary, board.nodes);
   const head = el("header", "", "coding-plan-head");
   head.innerHTML = svg("list");
   head.append(el("strong", entry.plan?.content.title || uiText.text("coding.plan.this-turn")), el("span", uiText.text("coding.board.steps-done", { done, total }), "coding-plan-count"));
@@ -282,7 +293,8 @@ function drawCard(ports: ProgressPorts, card: HTMLElement, run: ProgressRun, ent
   drawHead(readText, card, entry, board);
   // The latest round's unfinished graph stays open to change after the round ends: a blocked step is decided, a
   // step skipped or added, and "继续计划" carries on from the graph as changed.
-  const editable = (live || latest) && !board.terminal, list = el("ul", "", "coding-board-tree coding-board--compact coding-plan-steps");
+  const hasUnknown = board.nodes.some(node => node.unknown_outcome);
+  const editable = (live || latest) && (!board.terminal || hasUnknown), list = el("ul", "", "coding-board-tree coding-board--compact coding-plan-steps");
   card.dataset.live = String(Boolean(live));
   const role = run.frozen?.role_id ? ports.roleLabel(run.frozen.role_id) : undefined, who = run.frozen?.character?.title || role || "Agent";
   const d: Drawing = {
@@ -313,7 +325,7 @@ export function planProgress(ports: ProgressPorts): PlanProgress {
         card.dataset.codingPlanProgress = run.ref.run_id;
         card.setAttribute("aria-label", uiText.text("coding.plan.progress"));
       }
-      const signature = JSON.stringify([board.version, board.terminal, live, latest, run.phase, entry.verdicts, offersOf(run, board).map(turn => turn.steer?.id)]);
+      const signature = JSON.stringify([board.version, board.terminal, board.progress_summary, board.nodes.map(node => [node.id, node.state, node.unknown_outcome, node.scope_removed, node.story_points, node.progress]), live, latest, run.phase, entry.verdicts, offersOf(run, board).map(turn => turn.steer?.id)]);
       // Never rebuild under the person's hands: an open form keeps the card as it is until they finish.
       if (card.dataset.editing === "true" || card.dataset.busy === "true" || card.dataset.signature === signature) return card;
       card.dataset.signature = signature;

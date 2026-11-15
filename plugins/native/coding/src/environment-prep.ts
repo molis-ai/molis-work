@@ -2,6 +2,7 @@ import { workspaceReadActions, writerDirectoryCapabilities } from "@molis-ai/mol
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { CodingBeforeWrite } from "./route-entry.js";
 import { codingActionControl } from "./route-entry.js";
+import { codingText } from "./words.js";
 
 /**
  * Environment readiness inspection for the authorized Coding workspace (`CHO-13`, `spec.md:188-200,334`):
@@ -22,14 +23,19 @@ export interface CodingEnvironmentReadiness {
   status: "ready" | "attention";
   summary: string;
   branch: string | null;
+  head_commit: string | null;
   dirty_count: number;
+  git_conflicted_count: number;
+  git_merging: boolean;
   is_git_repo: boolean;
   deps_manager: string | null;
   deps_installed: boolean;
   script_names: string[];
   ports: number[];
+  package_json_invalid?: boolean;
   env_template: string | null;
   env_keys: string[];
+  has_local_env: boolean;
   items: CodingEnvironmentCheckItem[];
   worktrees: {
     active: number;
@@ -74,48 +80,57 @@ async function inspectGitSummary(
   workspaceId: string,
   control: ControlArg,
   items: CodingEnvironmentCheckItem[],
-): Promise<{ isGitRepo: boolean; branch: string | null; dirtyCount: number }> {
+): Promise<{ isGitRepo: boolean; branch: string | null; headCommit: string | null; dirtyCount: number; conflictedCount: number; merging: boolean }> {
+  const rowLabel = codingText("coding.env.row.git");
   try {
     const git = await actions.invoke(workspaceReadActions.git, { workspace_id: workspaceId, kind: "summary" }, control);
     if (git.outcome === "summary") {
       const branch = git.branch;
+      const branchLabel = git.branch ?? codingText("coding.env.git.detached");
       const dirtyCount = git.unstaged + git.staged.length + git.conflicted.length;
       if (git.conflicted.length > 0 || git.merging) {
         items.push({
           id: "git",
-          label: "代码仓库",
+          label: rowLabel,
           status: "warn",
-          detail: `${git.branch ?? "游离 HEAD"} · 存在未解决合并冲突（${git.conflicted.length} 个文件）`,
+          detail: codingText("coding.env.git.conflict", { branch: branchLabel, count: git.conflicted.length }),
         });
       } else if (dirtyCount > 0) {
         items.push({
           id: "git",
-          label: "代码仓库",
+          label: rowLabel,
           status: "info",
-          detail: `${git.branch ?? "游离 HEAD"} · 已有 ${dirtyCount} 处未提交改动（开始前已存在）`,
+          detail: codingText("coding.env.git.dirty", { branch: branchLabel, count: dirtyCount }),
         });
       } else {
         items.push({
           id: "git",
-          label: "代码仓库",
+          label: rowLabel,
           status: "ok",
-          detail: `${git.branch ?? "游离 HEAD"} · 工作区干净`,
+          detail: codingText("coding.env.git.clean", { branch: branchLabel }),
         });
       }
-      return { isGitRepo: true, branch, dirtyCount };
+      return {
+        isGitRepo: true,
+        branch,
+        headCommit: git.head_commit,
+        dirtyCount,
+        conflictedCount: git.conflicted.length,
+        merging: Boolean(git.merging),
+      };
     }
     if (git.outcome === "not-a-repository") {
       items.push({
         id: "git",
-        label: "代码仓库",
+        label: rowLabel,
         status: "info",
-        detail: "非 Git 仓库目录（仍可读写文件，不支持工作树隔离）",
+        detail: codingText("coding.env.git.not-repo-detail"),
       });
     }
   } catch {
     /* Git summary is advisory; non-git or restricted setups still allow normal workspace reads */
   }
-  return { isGitRepo: false, branch: null, dirtyCount: 0 };
+  return { isGitRepo: false, branch: null, headCommit: null, dirtyCount: 0, conflictedCount: 0, merging: false };
 }
 
 interface RootInspection {
@@ -123,8 +138,10 @@ interface RootInspection {
   depsInstalled: boolean;
   scriptNames: string[];
   ports: number[];
+  packageJsonInvalid?: boolean;
   envTemplate: string | null;
   envKeys: string[];
+  hasLocalEnv: boolean;
 }
 
 async function inspectRootDirectory(
@@ -133,23 +150,35 @@ async function inspectRootDirectory(
   control: ControlArg,
   items: CodingEnvironmentCheckItem[],
 ): Promise<RootInspection> {
-  const found: RootInspection = { depsManager: null, depsInstalled: false, scriptNames: [], ports: [], envTemplate: null, envKeys: [] };
+  const found: RootInspection = {
+    depsManager: null,
+    depsInstalled: false,
+    scriptNames: [],
+    ports: [],
+    envTemplate: null,
+    envKeys: [],
+    hasLocalEnv: false,
+  };
   try {
     const root = await actions.invoke(workspaceReadActions.file, { workspace_id: workspaceId, path: [], kind: "directory" }, control);
     if (root.outcome !== "directory") return found;
     const entryMap = new Map(root.entries.map(entry => [entry.name, entry.kind]));
+    found.hasLocalEnv = [...ENV_FILES].some(name => entryMap.get(name) === "file");
     const lockfile = LOCKFILES.find(name => entryMap.get(name) === "file");
+    const depsLabel = codingText("coding.env.row.deps");
+    const scriptsLabel = codingText("coding.env.row.scripts");
     if (entryMap.get("package.json") === "file") {
       const hasNodeModules = entryMap.get("node_modules") === "directory";
+      const manifest = lockfile ?? "package.json";
       found.depsManager = lockfile?.startsWith("pnpm") ? "pnpm" : lockfile?.startsWith("yarn") ? "yarn" : lockfile?.startsWith("bun") ? "bun" : "npm";
       found.depsInstalled = hasNodeModules;
       items.push({
         id: "deps",
-        label: "依赖环境",
+        label: depsLabel,
         status: hasNodeModules ? "ok" : "warn",
         detail: hasNodeModules
-          ? `已就绪（${lockfile ?? "package.json"} · node_modules 已存在）`
-          : `检测到 ${lockfile ?? "package.json"}，尚未安装 node_modules（需要时经审批安装）`,
+          ? codingText("coding.env.deps.node-ok", { manifest })
+          : codingText("coding.env.deps.node-missing", { manifest }),
       });
       const pkgRead = await actions.invoke(workspaceReadActions.file, { workspace_id: workspaceId, path: ["package.json"], kind: "text" }, control);
       if (pkgRead.outcome === "text") {
@@ -162,51 +191,57 @@ async function inspectRootDirectory(
           found.ports = ports;
           if (knownScripts.length || ports.length) {
             const parts = [
-              knownScripts.length ? `脚本：${knownScripts.join(" / ")}` : "",
-              ports.length ? `常见端口 ${ports.join(", ")}（冲突时可自动换用空闲端口）` : "",
+              knownScripts.length ? codingText("coding.env.scripts.summary", { scripts: knownScripts.join(" / ") }) : "",
+              ports.length ? codingText("coding.env.scripts.ports", { ports: ports.join(", ") }) : "",
             ].filter(Boolean);
-            items.push({ id: "scripts", label: "检查与服务", status: "ok", detail: parts.join(" · ") });
+            items.push({ id: "scripts", label: scriptsLabel, status: "ok", detail: parts.join(" · ") });
           }
         } catch {
-          items.push({ id: "scripts", label: "检查与服务", status: "warn", detail: "package.json 格式无法解析" });
+          found.packageJsonInvalid = true;
+          items.push({ id: "scripts", label: scriptsLabel, status: "warn", detail: codingText("coding.env.scripts.invalid-pkg") });
         }
       }
     } else if (entryMap.get("Cargo.toml") === "file") {
       found.depsManager = "cargo";
       found.depsInstalled = true;
-      items.push({ id: "deps", label: "依赖环境", status: "ok", detail: "Rust 工作区（Cargo.toml）" });
+      items.push({ id: "deps", label: depsLabel, status: "ok", detail: codingText("coding.env.deps.cargo-ok") });
     } else if (entryMap.get("pyproject.toml") === "file" || entryMap.get("requirements.txt") === "file") {
       const hasVenv = entryMap.get(".venv") === "directory" || entryMap.get("venv") === "directory";
       found.depsManager = "python";
       found.depsInstalled = hasVenv;
       items.push({
         id: "deps",
-        label: "依赖环境",
+        label: depsLabel,
         status: hasVenv ? "ok" : "info",
-        detail: hasVenv ? "Python 虚拟环境已存在" : "检测到 Python 依赖声明（未见本地 .venv）",
+        detail: hasVenv ? codingText("coding.env.deps.python-ok") : codingText("coding.env.deps.python-info"),
       });
     }
 
     const templateName = ENV_TEMPLATES.find(name => entryMap.get(name) === "file");
     if (templateName) {
       found.envTemplate = templateName;
-      const hasLocalEnv = [...ENV_FILES].some(name => entryMap.get(name) === "file");
       const tplRead = await actions.invoke(workspaceReadActions.file, { workspace_id: workspaceId, path: [templateName], kind: "text" }, control);
       const keys = tplRead.outcome === "text" ? parseEnvExampleKeys(tplRead.text) : [];
       found.envKeys = keys;
-      if (!hasLocalEnv && keys.length > 0) {
+      const envLabel = codingText("coding.env.row.env");
+      if (!found.hasLocalEnv && keys.length > 0) {
+        const keyPreview = keys.length > 5
+          ? codingText("coding.env.vars.more", { keys: keys.slice(0, 5).join(", "), count: keys.length })
+          : keys.join(", ");
         items.push({
           id: "env",
-          label: "环境变量",
+          label: envLabel,
           status: "warn",
-          detail: `未见本地 .env，${templateName} 声明了 ${keys.slice(0, 5).join(", ")}${keys.length > 5 ? ` 等 ${keys.length} 项` : ""}（仅核对变量名，不读取密钥值）`,
+          detail: codingText("coding.env.vars.missing", { file: templateName, keys: keyPreview }),
         });
       } else {
         items.push({
           id: "env",
-          label: "环境变量",
+          label: envLabel,
           status: "ok",
-          detail: hasLocalEnv ? `已存在本地环境文件（参考 ${templateName}，不读取密钥值）` : `已核对 ${templateName}`,
+          detail: found.hasLocalEnv
+            ? codingText("coding.env.vars.present", { file: templateName })
+            : codingText("coding.env.vars.checked", { file: templateName }),
         });
       }
     }
@@ -226,7 +261,7 @@ export async function inspectCodingEnvironment(
   if (!actions || !workspaceId) return null;
   const control = codingActionControl(beforeWrite);
   const items: CodingEnvironmentCheckItem[] = [];
-  const { isGitRepo, branch, dirtyCount } = await inspectGitSummary(actions, workspaceId, control, items);
+  const gitInfo = await inspectGitSummary(actions, workspaceId, control, items);
   const root = await inspectRootDirectory(actions, workspaceId, control, items);
 
   // 3. Isolated worktrees & cleanup state
@@ -239,13 +274,13 @@ export async function inspectCodingEnvironment(
     if (listed.length > 0) {
       items.push({
         id: "worktrees",
-        label: "并行工作树",
+        label: codingText("coding.env.row.worktrees"),
         status: problemCount > 0 ? "warn" : "info",
         detail: problemCount > 0
-          ? `${listed.length} 个独立目录（${problemCount} 个分支状态异常，待处理）`
+          ? codingText("coding.env.worktrees.problem", { total: listed.length, problems: problemCount })
           : cleanupCount > 0
-            ? `保留 ${listed.length} 个独立工作树（当前无运行中轮次，整合后可清理）`
-            : `${listed.length} 个独立工作树就绪`,
+            ? codingText("coding.env.worktrees.cleanup", { total: listed.length })
+            : codingText("coding.env.worktrees.ready", { total: listed.length }),
       });
     }
   } catch {
@@ -255,25 +290,30 @@ export async function inspectCodingEnvironment(
   const warnings = items.filter(item => item.status === "warn");
   const status = warnings.length > 0 ? "attention" : "ready";
   const summaryParts = [
-    status === "ready" ? "环境就绪" : `${warnings.length} 项环境待留意`,
-    branch ? branch : "",
-    dirtyCount > 0 ? `${dirtyCount} 处既有改动` : "",
-    items.find(item => item.id === "deps")?.status === "ok" ? "依赖齐全" : "",
+    status === "ready" ? codingText("coding.env.ready") : codingText("coding.env.status.attention", { count: warnings.length }),
+    gitInfo.branch ? gitInfo.branch : "",
+    gitInfo.dirtyCount > 0 ? codingText("coding.env.summary.existing-dirty", { count: gitInfo.dirtyCount }) : "",
+    items.find(item => item.id === "deps")?.status === "ok" ? codingText("coding.env.summary.deps-ready") : "",
   ].filter(Boolean);
 
   return {
     workspace_id: workspaceId,
     status,
     summary: summaryParts.join(" · "),
-    branch,
-    dirty_count: dirtyCount,
-    is_git_repo: isGitRepo,
+    branch: gitInfo.branch,
+    head_commit: gitInfo.headCommit,
+    dirty_count: gitInfo.dirtyCount,
+    git_conflicted_count: gitInfo.conflictedCount,
+    git_merging: gitInfo.merging,
+    is_git_repo: gitInfo.isGitRepo,
     deps_manager: root.depsManager,
     deps_installed: root.depsInstalled,
     script_names: root.scriptNames,
     ports: root.ports,
+    ...(root.packageJsonInvalid ? { package_json_invalid: true } : {}),
     env_template: root.envTemplate,
     env_keys: root.envKeys,
+    has_local_env: root.hasLocalEnv,
     items,
     worktrees,
     checked_at: new Date().toISOString(),

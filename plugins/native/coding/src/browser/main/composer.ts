@@ -1,4 +1,5 @@
-import { format, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { format, renderCodingRoundMaterials, type MwCodingRoundMaterialItem, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { setContentHtml } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { el, errorMessage } from "../dom.js";
 import { refreshState } from "./configuration.js";
 import { terminal } from "./composer-state.js";
@@ -55,8 +56,8 @@ function failedMaterialsOf(error: unknown): readonly FailedMaterialItem[] | null
 }
 
 function showMaterialRecovery(page: Page, id: string, failed: readonly FailedMaterialItem[] | null) {
-  const composer = page.q("[data-coding-composer]"), inputBox = page.q("[data-coding-input]");
-  let bar = composer.querySelector<HTMLElement>("[data-coding-material-recovery]");
+  page.q("[data-coding-composer]").querySelector("[data-coding-material-recovery]")?.remove();
+  let bar = page.turns.querySelector<HTMLElement>(":scope > [data-coding-material-recovery]");
   if (!failed?.length) {
     bar?.remove();
     return;
@@ -64,7 +65,7 @@ function showMaterialRecovery(page: Page, id: string, failed: readonly FailedMat
   if (!bar) {
     bar = el("div", "", "coding-material-recovery");
     bar.dataset.codingMaterialRecovery = "";
-    composer.insertBefore(bar, inputBox);
+    page.turns.append(bar);
   }
   const allChosen = page.s.materialSelections.get(id) || [];
   const badKeys = new Set(failed.flatMap(item => item.key ? [item.key] : []));
@@ -81,48 +82,63 @@ function showMaterialRecovery(page: Page, id: string, failed: readonly FailedMat
     }
     return true;
   });
-  const names = failed.map(item => {
+  const items: MwCodingRoundMaterialItem[] = failed.map(item => {
     const why = item.failure_kind === "not_found"
       ? uiText.text("coding.material.reason.deleted")
       : item.failure_kind === "forbidden"
         ? uiText.text("coding.material.reason.forbidden")
         : item.reason;
-    return (item.title || item.artifact_id || "") + (why ? " (" + why + ")" : "");
-  }).join(uiText.text("coding.list.joiner"));
-  const drop = el("button", uiText.text("coding.material.drop-and-start"), "mw-btn mw-btn--primary mw-btn--sm");
-  drop.type = "button";
-  drop.dataset.codingDropFailedMaterials = "";
-  page.lifetime.listen(drop, "click", () => {
-    page.s.materialSelections.set(id, keptSelection);
-    bar?.remove();
-    controls(page);
-    void page.refs.draft.flush().then(() => {
-      page.q<HTMLButtonElement>("[data-coding-input] [data-composer-send]").click();
-    }).catch(error => status(page, errorMessage(error), true));
+    return {
+      state: "failed",
+      name: item.title || item.artifact_id || "",
+      how: why,
+      statusLabel: uiText.text("coding.material.status.unreadable"),
+      statusTone: "blocked",
+    };
   });
-  const alt = el("button", keptSelection.length ? uiText.text("coding.material.pick-another") : uiText.text("coding.material.start-without"), "mw-btn mw-btn--secondary mw-btn--sm");
-  alt.type = "button";
-  alt.dataset.codingReplaceFailedMaterials = "";
-  page.lifetime.listen(alt, "click", () => {
-    if (keptSelection.length) {
-      void openMaterials(page);
-      return;
-    }
-    page.s.materialSelections.set(id, []);
-    bar?.remove();
-    controls(page);
-    void page.refs.draft.flush().then(() => {
-      page.q<HTMLButtonElement>("[data-coding-input] [data-composer-send]").click();
-    }).catch(error => status(page, errorMessage(error), true));
-  });
-  const copy = el("div", "", "coding-material-recovery-copy");
-  copy.append(
-    el("strong", uiText.text("coding.material.unreadable-banner", { materials: names })),
-    el("small", uiText.text("coding.material.kept-summary", { kept: keptSelection.length })),
-  );
-  const acts = el("div", "", "coding-material-recovery-acts");
-  acts.append(drop, alt);
-  bar.replaceChildren(copy, acts);
+  const names = items.map(item => item.name + (item.how ? " (" + item.how + ")" : "")).join(uiText.text("coding.list.joiner"));
+  setContentHtml(bar, renderCodingRoundMaterials({
+    title: uiText.text("coding.material.round-title"),
+    summaryLabel: uiText.text("coding.material.status.unreadable"),
+    summaryTone: "blocked",
+    items,
+    recovery: {
+      tone: "warning",
+      title: uiText.text("coding.material.recovery.title"),
+      body: uiText.text("coding.material.unreadable-banner", { materials: names }) + " " + uiText.text("coding.material.kept-summary", { kept: keptSelection.length }),
+      actions: [
+        { label: uiText.text("coding.material.drop-and-start"), variant: "primary", attrs: { "data-coding-drop-failed-materials": "" } },
+        { label: keptSelection.length ? uiText.text("coding.material.pick-another") : uiText.text("coding.material.start-without"), variant: "secondary", attrs: { "data-coding-replace-failed-materials": "" } },
+      ],
+    },
+  }));
+  const drop = bar.querySelector<HTMLButtonElement>("[data-coding-drop-failed-materials]");
+  if (drop) {
+    page.lifetime.listen(drop, "click", () => {
+      page.s.materialSelections.set(id, keptSelection);
+      bar?.remove();
+      controls(page);
+      void page.refs.draft.flush().then(() => {
+        page.q<HTMLButtonElement>("[data-coding-input] [data-composer-send]").click();
+      }).catch(error => status(page, errorMessage(error), true));
+    });
+  }
+  const alt = bar.querySelector<HTMLButtonElement>("[data-coding-replace-failed-materials]");
+  if (alt) {
+    page.lifetime.listen(alt, "click", () => {
+      if (keptSelection.length) {
+        void openMaterials(page);
+        return;
+      }
+      page.s.materialSelections.set(id, []);
+      bar?.remove();
+      controls(page);
+      void page.refs.draft.flush().then(() => {
+        page.q<HTMLButtonElement>("[data-coding-input] [data-composer-send]").click();
+      }).catch(error => status(page, errorMessage(error), true));
+    });
+  }
+  page.s.follow.pin();
 }
 
 /** One way to start a round, shared by the composer and by continuing from a breakpoint. */

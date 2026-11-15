@@ -1,6 +1,8 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { renderCodingRoundMaterials, type MwCodingRoundMaterialItem, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { setContentHtml } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { el } from "../dom.js";
 import { changesBlock, changesRow } from "./boundary.js";
+import { buildEnvironmentChecklistHtml } from "./configuration.js";
 import { terminal } from "./composer-state.js";
 import { showReviews } from "./helpers.js";
 import { offerApproval } from "./report.js";
@@ -65,60 +67,153 @@ function entryNodes(page: Page, block: HTMLElement, run: RunView, all: readonly 
   return ordered;
 }
 
-function placeRoundMaterials(block: HTMLElement, run: RunView, ordered: HTMLElement[]) {
+export function buildRoundMaterialsHtml(run: Pick<RunView, "frozen" | "activity">): string {
   const raw = run.frozen?.text_materials || [];
   const inline = raw.filter(item => !item.material_id.startsWith("coding-materials-overflow"));
   const overflow = raw.find(item => item.material_id.startsWith("coding-materials-overflow"))?.overflow_materials || [];
-  if (!inline.length && !overflow.length) {
-    block.querySelector(":scope > [data-coding-round-materials]")?.remove();
+  if (!inline.length && !overflow.length) return "";
+  const wasContinuedRead = (item: { readonly material_id?: string; readonly title?: string; readonly source_artifact_id?: string }): boolean => {
+    const tokens = [item.source_artifact_id, item.material_id, item.title].filter((entry): entry is string => Boolean(entry && entry.length >= 2));
+    if (!tokens.length) return false;
+    return (run.activity || []).some(act => {
+      if (act.state !== "completed") return false;
+      const isReadTool = act.name === "read" || act.name.includes("knowledge.read") || act.name === "molis-action" || act.name.startsWith("knowledge");
+      if (!isReadTool) return false;
+      const hay = `${act.target || ""}\n${act.output || ""}`;
+      return tokens.some(tok => hay.includes(tok));
+    });
+  };
+  const pinned = uiText.text("coding.material.pinned-note");
+  const items: MwCodingRoundMaterialItem[] = [];
+  for (const item of inline) {
+    const ver = item.read_revision ? " · #" + item.read_revision : item.source_version !== undefined ? " · v" + item.source_version : "";
+    const name = (item.title || item.material_id) + ver;
+    const clipped = item.delivery === "clipped" || item.delivery === "truncated";
+    if ((clipped || item.delivery === "on-demand") && wasContinuedRead(item)) {
+      items.push({
+        state: "done",
+        name,
+        how: uiText.text("coding.material.delivery.continued-how"),
+        statusLabel: uiText.text("coding.material.delivery.continued"),
+        statusTone: "progress",
+      });
+    } else if (clipped) {
+      items.push({
+        state: "partial",
+        name,
+        how: uiText.text("coding.material.delivery.truncated") + " · " + pinned,
+        statusLabel: uiText.text("coding.material.status.truncated"),
+        statusTone: "attention",
+      });
+    } else if (item.delivery === "on-demand") {
+      items.push({
+        state: "material",
+        name,
+        how: uiText.text("coding.material.delivery.on-demand") + " · " + pinned,
+        statusLabel: uiText.text("coding.material.status.on-demand"),
+        statusTone: "quiet",
+      });
+    } else {
+      items.push({
+        state: "done",
+        name,
+        how: uiText.text("coding.material.delivery.inline") + " · " + pinned,
+        statusLabel: uiText.text("coding.material.status.inline"),
+        statusTone: "done",
+      });
+    }
+  }
+  for (const item of overflow) {
+    const ver = item.read_revision ? " · #" + item.read_revision : item.source_version !== undefined ? " · v" + item.source_version : "";
+    const name = (item.title || item.material_id || "") + ver;
+    if (wasContinuedRead(item)) {
+      items.push({
+        state: "done",
+        name,
+        how: uiText.text("coding.material.delivery.continued-how"),
+        statusLabel: uiText.text("coding.material.delivery.continued"),
+        statusTone: "progress",
+      });
+    } else {
+      items.push({
+        state: "material",
+        name,
+        how: uiText.text("coding.material.delivery.on-demand") + " · " + pinned,
+        statusLabel: uiText.text("coding.material.status.on-demand"),
+        statusTone: "quiet",
+      });
+    }
+  }
+  const hasDeferred = overflow.length > 0 || inline.some(item => item.delivery === "clipped" || item.delivery === "truncated" || item.delivery === "on-demand");
+  return renderCodingRoundMaterials({
+    title: uiText.text("coding.material.round-title"),
+    summaryLabel: overflow.length
+      ? uiText.text("coding.material.round-overflow-summary", { inline: inline.length, rest: overflow.length })
+      : uiText.text("coding.material.round-summary", { count: inline.length + overflow.length }),
+    summaryTone: hasDeferred ? "progress" : "done",
+    items,
+    footer: { title: uiText.text("coding.material.footer.title"), detail: uiText.text("coding.material.footer.detail") },
+  });
+}
+
+function placeEnvChecklist(page: Page, block: HTMLElement, ordered: HTMLElement[], last: boolean) {
+  if (!last) {
+    block.querySelector(":scope > [data-coding-env-checklist]")?.remove();
     return;
   }
-  let box = block.querySelector<HTMLDetailsElement>(":scope > [data-coding-round-materials]");
-  const sig = JSON.stringify([inline, overflow]);
-  if (!box) {
-    box = el("details", "", "coding-round-materials");
-    box.dataset.codingRoundMaterials = "";
+  const html = buildEnvironmentChecklistHtml(page.s.state.environment_readiness);
+  if (!html) {
+    block.querySelector(":scope > [data-coding-env-checklist]")?.remove();
+    return;
   }
-  if (box.dataset.signature !== sig) {
-    box.dataset.signature = sig;
-    const total = inline.length + overflow.length;
-    const summary = el("summary");
-    summary.append(
-      el("strong", overflow.length
-        ? uiText.text("coding.material.round-overflow-summary", { inline: inline.length, rest: overflow.length })
-        : uiText.text("coding.material.round-summary", { count: total })),
-      el("span", uiText.text("coding.material.pinned-note")),
-    );
-    const list = el("ul");
-    for (const item of inline) {
-      const mode = item.delivery === "clipped" || item.delivery === "truncated"
-        ? uiText.text("coding.material.delivery.truncated")
-        : item.delivery === "on-demand"
-          ? uiText.text("coding.material.delivery.on-demand")
-          : uiText.text("coding.material.delivery.inline");
-      const ver = item.read_revision ? " · #" + item.read_revision : item.source_version !== undefined ? " · v" + item.source_version : "";
-      list.append(el("li", (item.title || item.material_id) + ver + " — " + mode));
-    }
-    for (const item of overflow) {
-      const ver = item.read_revision ? " · #" + item.read_revision : item.source_version !== undefined ? " · v" + item.source_version : "";
-      list.append(el("li", (item.title || item.material_id || "") + ver + " — " + uiText.text("coding.material.delivery.on-demand")));
-    }
-    box.replaceChildren(summary, list);
+  let box = block.querySelector<HTMLElement>(":scope > [data-coding-env-checklist]");
+  if (!box) {
+    box = el("div", "", "coding-env-checklist");
+    box.dataset.codingEnvChecklist = "";
+  }
+  if (box.dataset.html !== html) {
+    box.dataset.html = html;
+    setContentHtml(box, html);
   }
   const userIdx = ordered.findIndex(node => node.dataset.kind === "user");
   ordered.splice(userIdx >= 0 ? userIdx + 1 : 0, 0, box);
 }
 
+function placeRoundMaterials(block: HTMLElement, run: RunView, ordered: HTMLElement[]) {
+  const html = buildRoundMaterialsHtml(run);
+  if (!html) {
+    block.querySelector(":scope > [data-coding-round-materials]")?.remove();
+    return;
+  }
+  let box = block.querySelector<HTMLElement>(":scope > [data-coding-round-materials]");
+  if (!box || box.tagName !== "DIV") {
+    box?.remove();
+    box = el("div", "", "coding-round-materials");
+    box.dataset.codingRoundMaterials = "";
+  }
+  if (box.dataset.html !== html) {
+    box.dataset.html = html;
+    setContentHtml(box, html);
+  }
+  const envIdx = ordered.findIndex(node => node.hasAttribute("data-coding-env-checklist"));
+  const userIdx = ordered.findIndex(node => node.dataset.kind === "user");
+  const anchor = envIdx >= 0 ? envIdx : userIdx;
+  ordered.splice(anchor >= 0 ? anchor + 1 : 0, 0, box);
+}
+
 /** The plan sits right under the task it came from, and the subtasks right after the step that sent them. */
 function placeCards(page: Page, block: HTMLElement, run: RunView, all: readonly RunView[], ordered: HTMLElement[], stand: GraphStand) {
   const { s } = page, { planProgress, subagentCards } = page.refs, last = run === all.at(-1);
+  placeEnvChecklist(page, block, ordered, last);
   placeRoundMaterials(block, run, ordered);
   if (stand.laterOnSameGraph) block.querySelector(":scope > .coding-plan-progress")?.remove();
   const planCard = stand.laterOnSameGraph ? null : planProgress.render(run, stand.entry, last && !terminal(run.phase), last || stand.latest);
   if (planCard) {
-    const afterIdx = ordered.findIndex(node => node.hasAttribute("data-coding-round-materials"));
+    const matIdx = ordered.findIndex(node => node.hasAttribute("data-coding-round-materials"));
+    const envIdx = ordered.findIndex(node => node.hasAttribute("data-coding-env-checklist"));
     const userIdx = ordered.findIndex(node => node.dataset.kind === "user");
-    ordered.splice((afterIdx >= 0 ? afterIdx : userIdx) + 1, 0, planCard);
+    const anchor = matIdx >= 0 ? matIdx : envIdx >= 0 ? envIdx : userIdx;
+    ordered.splice(anchor >= 0 ? anchor + 1 : 0, 0, planCard);
   }
   const children = subagentCards.render(run, s.subagentGroups.find(group => group.run_id === run.ref.run_id));
   if (children) {
@@ -187,5 +282,6 @@ export function drawRun(page: Page, block: HTMLElement, run: RunView, all: reado
   settle(block, ordered);
   placeReview(page, block, run, all);
   const settled = !s.recovery && !s.checkpointBusy, last = run === all.at(-1);
-  timeline.renderFooter(block, run, all.indexOf(run), last && (run.phase === "reconcile-required" || settled), !last && stand.latest && settled);
+  const headRev = !run.code_revision && last ? s.state.environment_readiness?.head_commit?.slice(0, 7) ?? null : run.code_revision;
+  timeline.renderFooter(block, headRev ? { ...run, code_revision: headRev } : run, all.indexOf(run), last && (run.phase === "reconcile-required" || settled), !last && stand.latest && settled);
 }

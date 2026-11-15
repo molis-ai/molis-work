@@ -1,4 +1,4 @@
-import { format, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { format, renderTaskAttemptBudget, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { setContentHtml } from "@molis-ai/molis-work-plugin-sdk/browser";
 import type { AgentRunUsage } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { el, errorMessage } from "./dom.js";
@@ -29,10 +29,21 @@ export interface Child {
   readonly budget?: {
     readonly attempt: number;
     readonly max_attempts: number;
-    readonly remaining_attempts: number;
-    readonly exhausted: boolean;
-    readonly retry_reason?: "verification_failed" | "provider_error" | "user_requested";
-    readonly prior_attempts?: readonly { readonly subagent_id: string; readonly attempt: number; readonly state: string; readonly error?: string; readonly retry_reason?: string }[];
+    readonly max_turns?: number;
+    readonly used_tokens?: number;
+    readonly remaining_attempts?: number;
+    readonly exhausted?: boolean;
+    readonly retry_source?: "check-failed" | "model-error" | "user-requested";
+    readonly retry_reason?: string;
+    readonly prior_attempts?: readonly {
+      readonly attempt: number;
+      readonly run_id?: string;
+      readonly subagent_id?: string;
+      readonly state: string;
+      readonly source?: "check-failed" | "model-error" | "user-requested";
+      readonly reason?: string;
+      readonly error?: string;
+    }[];
   };
   readonly verdict?: { readonly status: string; readonly notes?: string; readonly revision?: number };
 }
@@ -222,11 +233,34 @@ function offers(panel: Panel, row: HTMLElement, id: string, group: SubagentGroup
 /** What the subagent reported, then what it did and used. */
 function outcome(panel: Panel, row: HTMLElement, child: Child) {
   if (child.budget) {
-    const line = [
-      uiText.text("coding.card.budget.count", { attempt: child.budget.attempt, max: child.budget.max_attempts }),
-      child.budget.exhausted ? uiText.text("coding.card.budget.exhausted") : "",
+    const budget = child.budget;
+    const sources: Readonly<Record<string, string>> = {
+      "check-failed": uiText.text("coding.card.budget.reason.verification"),
+      "model-error": uiText.text("coding.card.budget.reason.provider"),
+      "user-requested": uiText.text("coding.card.budget.reason.user"),
+    };
+    const headerText = [
+      uiText.text("coding.card.budget.count", { attempt: budget.attempt, max: budget.max_attempts }),
+      budget.exhausted ? uiText.text("coding.card.budget.exhausted") : "",
     ].filter(Boolean).join(" · ");
-    row.append(el("p", line));
+    const pastAttempts = budget.prior_attempts?.map(item => {
+      const stateWord = panel.states[item.state] || item.state;
+      const detail = item.reason || item.error || (item.source ? sources[item.source] : "") || "";
+      return {
+        state: (item.state === "completed" ? "done" : item.state === "cancelled" ? "stopped" : "failed") as "done" | "stopped" | "failed",
+        text: uiText.text("coding.card.budget.past-line", { attempt: item.attempt, state: stateWord, detail: detail ? " · " + detail : "" }),
+      };
+    });
+    const wrap = el("div");
+    setContentHtml(wrap, renderTaskAttemptBudget({
+      headerText,
+      budgetPercent: budget.max_attempts > 0 ? Math.round((budget.attempt / budget.max_attempts) * 100) : 0,
+      meterLabel: uiText.text("coding.card.budget.meter-label"),
+      ...(budget.retry_source && sources[budget.retry_source] ? { retryReasonLabel: sources[budget.retry_source], retryReasonTone: budget.retry_source === "user-requested" ? "info" : "warning" } : {}),
+      ...(budget.retry_reason ? { summaryText: budget.retry_reason } : {}),
+      ...(pastAttempts?.length ? { pastSummaryLabel: uiText.text("coding.card.budget.past-summary", { count: pastAttempts.length }), pastAttempts } : {}),
+    }));
+    row.append(wrap);
   }
   if (child.result) row.append(resultBox(child));
   if (child.error) row.append(el("p", uiText.text("coding.sub.error", { error: child.error })));

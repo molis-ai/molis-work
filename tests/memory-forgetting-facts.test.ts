@@ -163,16 +163,16 @@ test("Ledger marker statement reuse still reads each identity and current forget
   const read = ledger.forgetting.read;
   t.mock.method(ledger.forgetting, "read", () => { factReads++; return read(); });
   for (const id of ["canonical", "marker", "other"]) ledger.addRevision(id, {
-    version: 1, text: id, kind: "fact", applies: {}, change: "created", by: "person", at: "2026-11-06T00:00:00Z",
+    version: 1, change: "created", by: id, at: "2026-11-06T00:00:00Z",
   });
   const before = { queries, factReads };
-  for (const id of ["marker", "other", "marker"]) assert.equal(ledger.revisions(id)[0]?.text, id);
+  for (const id of ["marker", "other", "marker"]) assert.equal(ledger.revisions(id)[0]?.by, id);
   assert.equal(compilations, 1, "one live DB owner reuses only the compiled marker SELECT");
   assert.equal(queries - before.queries, 3, "each check still queries its own current marker");
   assert.equal(factReads - before.factReads, 3, "each check still crosses the accepted-facts currentness gate");
   ledger.setMarker("", "memory-forgotten:marker", { state: "forgotten" }, "2026-11-06T00:00:00Z");
   assert.deepEqual(ledger.revisions("marker"), []);
-  assert.equal(ledger.revisions("other")[0]?.text, "other");
+  assert.equal(ledger.revisions("other")[0]?.by, "other");
   ledger.forgetting.accept(selection());
   assert.deepEqual(ledger.revisions("canonical"), [], "later accepted facts are immediately visible");
   f.close();
@@ -182,7 +182,7 @@ test("Ledger marker statement reuse still reads each identity and current forget
   f.reopen(); ledger = openMemoryLedger(f.input());
   assert.deepEqual(ledger.revisions("marker"), []);
   assert.deepEqual(ledger.revisions("canonical"), []);
-  assert.equal(ledger.revisions("other")[0]?.text, "other");
+  assert.equal(ledger.revisions("other")[0]?.by, "other");
   assert.equal(compilations, 2, "reopened ledger owns its own statement");
 });
 
@@ -330,7 +330,7 @@ for (const phase of ["serialization", "sql"] as const)
 test(`receipt set queries cannot revive a marker forgotten reentrantly during ${phase}`, t => {
   const f = storage(t); initializeMemoryForgetting(f.input());
   const ledger = openMemoryLedger(f.input()); t.after(() => ledger.close());
-  ledger.addRevision("target-200", { version: 1, text: "Original history", kind: "fact", applies: {}, change: "created", by: "person", at: "2026-11-07T00:00:00Z" });
+  ledger.addRevision("target-200", { version: 1, change: "created", by: "person", at: "2026-11-07T00:00:00Z" });
   let injected = false;
   const forget = () => { if (!injected) { injected = true; ledger.forget("target-200", "related"); } };
   const prepare = DatabaseSync.prototype.prepare;
@@ -357,7 +357,7 @@ test(`receipt set queries cannot revive a marker forgotten reentrantly during ${
     assert.equal(persisted.prepare("SELECT COUNT(*) AS count FROM memory_uses WHERE receipt_id='reentrant-set'").get()!.count, 0,
       "neither the already-written chunk nor the later chunk survives the changed marker gate");
     assert.equal(ledger.marker("person-a", "caught-marker-refusal"), null);
-    assert.equal(ledger.revisions("target-200")[0]?.text, "Original history", "the enclosing SQL transaction also rolls back its reentrant cleanup");
+    assert.equal(ledger.revisions("target-200")[0]?.version, 1, "the enclosing SQL transaction also rolls back its reentrant cleanup");
     ledger.forget("target-200", "related");
     ledger.recordUses(uses.map(use => ({ ...use, receipt_id: "after-forgetting" })));
     const rows = persisted.prepare("SELECT memory_id FROM memory_uses WHERE receipt_id='after-forgetting'").all();

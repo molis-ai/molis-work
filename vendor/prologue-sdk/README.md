@@ -1,16 +1,28 @@
 # Prologue SDK 构建来源
 
-本目录沿用 [AGENTS.md](../../AGENTS.md) 的受控包规则。当前唯一依赖是 `prologue-sdk-0.0.0-rc.1-surface-detach.tgz`。
+本目录沿用 [AGENTS.md](../../AGENTS.md) 的受控包规则。当前唯一运行依赖为 `prologue-sdk-0.0.0-rc.1-surface-detach.tgz`。
 
-## 当前合成包（第 39 批）
+## 当前包（第 39 批）
 
-以第 28 批采用的官方提交 `c764d970b9ab934e9621bc5d38ae2471a440749a` 为底座，应用用户批准的 Surface 最终释放、原观察目标与单条取消、stdio MCP 回复授权复核、以及审批效果持久化成功后再发布四项修复。两条独立冻结安装和构建路径生成的包逐字节一致。**1,459,128 字节**，SHA-256 `77f964bd23e64cc44fa298c56e1a2c413e011000f81760b076a24f08d9ddd5ae`，版本为 `0.0.0-rc.1`。
+以第 31 批在 [#2081](https://github.com/molis-ai/molis-work/pull/2081) 采用的 Memory P1 提交 `4a4d1d3c8cc5840f4abe522e748abaee588db7de` 为底座，叠加用户批准的四项修复。它们分别处理 Surface 最终释放、原观察目标与单条取消、stdio MCP 回复授权复核，以及审批效果持久化成功后再发布。版本保持 `0.0.0-rc.1`，包为 **1,471,493 字节**，SHA-256 `18a7047ee4cd0e110fe5b84e394ffaa2d850924083a0cccbdd78be41121b8ef7`。
 
-从上游准确底座执行 `git apply --index --whitespace=error <surface-detach.patch>`，树为 `372ed68d264a272c8143da23bedab5f1678bda0a`，与本地未发布提交 `6ea6decc163627bfea655aabf6633886ef249ad5` 相同。相对上一份候选，包里只有效果核对模块的 JavaScript 变化。148 条定向用例、92 条 Surface 单测、全量类型、公开 API、质量数字和文档链接检查通过。具体命令与范围见相邻来源记录。
+从准确底座执行 `git apply --index --whitespace=error <surface-detach.patch>` 得到源码树 `98c5da99ab482bba448d00c2e4592e85c65fba87`，与隔离提交 `9ef6ffd7cad7ec8ddfb265e7f07d18f3dbe9ce62` 一致。两次独立冻结安装、构建和打包产生逐字节相同的归档。与第 31 批原包的包清单逐字节一致。Memory P1 的版本历史、v2 导入导出、通用对象适用条件及模型请求观测均保留。403 条定向用例、类型检查、公开 API、质量数字和文档链接检查通过；同一代理复审了源码和公共合同。具体重建命令见相邻来源记录。
+
+第 31 批原包和第 39 批在 `c764d970` 上的中间包可按 [历史记录](patch-history.json) 的 Git blob 取回。
+
+## 上一份：memory-p1 4a4d1d3c（2026-11-14，第 31 批换）
+
+原包为 **1,463,621 字节**，SHA-256 `1264b32b65e66adce32ae83c935abc85c46bcae4b77520470d2e265bab87c8bb`。来源为 `molis-ai/molis-prologue` 基于公开 main `4493a5eb418af29a253d38499682dc2be99697b1`（PR #121 `018947ae58` 与 PR #120 `7e2de40bca`）构建的 **Memory P1 提交 `4a4d1d3c8cc5840f4abe522e748abaee588db7de`**，没有 vendor 补丁、没有脏文件。比上一份（`c764d970`）包含 PR #120/#121（含空 `resident` 零读取零授权回执、开场召回收任务语境、会话检索覆盖）以及 Memory P1 三项能力与通用对象适用条件：
+
+- 有界版本历史与恢复（MEM-10、MEM-19）：单条记忆密文记录内持有最近 N 版（默认 20，`config.memory.maxRevisionsPerEntry` 可配）正本快照与 `prunedThroughVersion`；公开 `runtime.memory.history` 与 `runtime.memory.restore`（含 `preview`/`mutateBatch` 的 `{ kind: "restore", version, note? }`），超出保留窗口的版本以 `MEMORY_REVISION_PRUNED` 明确拒绝，删除/清洗一并清掉历史正文。
+- 导出包 v2 与有界批量导入（MEM-11）：`MEMORY_EXPORT_VERSION = 2`，携带完整 `meta`、稳定 `key` 与 `state`（`disabled`/`paused`），写出前过敏感扫描与路径清洗，未知版本（含 v1）整包拒绝，`import` 支持 `maxEntries` 有界批量导入。
+- 通用对象适用条件：`appliesWhen.objects` 与 `CallerContext.facts.objects`（`{ plugin, kind, id }`），替代单列 `goals`。
+
+上一份（`c764d970`，1,450,940 字节，SHA-256 `1cafead30e065c7e12d41dc7b684210b3021f3900e4cc8ce89351fff16ea8207`）在 `patch-history.json` 里记作 `prologue-sdk-0.0.0-rc.1-main-c764d970.tgz`，可从 Molis `605696e3cf` 取回；下面它那一节保留原样。
 
 ## 上一份：official main c764d970（2026-11-13，第 28 批换）
 
-该官方包为 **1,450,940 字节**，SHA-256 `1cafead30e065c7e12d41dc7b684210b3021f3900e4cc8ce89351fff16ea8207`。来源为上游 `molis-ai/molis-prologue` 的 **main 合并提交 `c764d970b9ab934e9621bc5d38ae2471a440749a`**（PR [#119](https://github.com/molis-ai/molis-prologue/pull/119)），没有 vendor 补丁、没有脏文件。比上一份（`5cbf2601`）多三项，都在 main 上：
+当前包为 **1,450,940 字节**，SHA-256 `1cafead30e065c7e12d41dc7b684210b3021f3900e4cc8ce89351fff16ea8207`。来源为上游 `molis-ai/molis-prologue` 的 **main 合并提交 `c764d970b9ab934e9621bc5d38ae2471a440749a`**（PR [#119](https://github.com/molis-ai/molis-prologue/pull/119)），没有 vendor 补丁、没有脏文件。比上一份（`5cbf2601`）多三项，都在 main 上：
 
 - #119（第 28 批，用户批准改上游）：`CreateRuntimeInput.onModelRequest`。一轮 Agent 循环的每次模型请求在结局定下时交给 App 一次：交给 Host 的原字节（拷贝，附件仍是占位）、这一跑与会话、调用号（与 `usage-recorded`、`memory-context` 同一个）、目标的协议与模型、只含协议主机路径的地址、结局（与 `memory-context` 同三种）。观察方同步调用、不等、抛错被吞；不给就不复制。压缩摘要、循环外的单次调用、回复里图片的下载不交。Molis 的 agent-host 用它记 `agent.model_request`。
 - #117：`runtime.memory.listScopes` 一次读几个完整的授权集合；`memory.modelOrigin`（默认 `description`，与以前相同）只改模型看到的来源标签。Molis 没有设置它，默认行为不变。
@@ -39,13 +51,7 @@
 
 下面「保留的上一主线依赖」与更早各节保留原样，作为历史记录。
 
-## 第 39 批移植前的构建记录
-
-旧实验包及当时的补丁保留在本批本地检查点 `53c7b4115d4fcd081730b972f344800b88089abc`。取该提交的补丁，在准确基线 `1cc80b05253df798eeb34afff65d1bda06bee587` 执行 `git apply --check --whitespace=error` 再应用。构建使用 Node 24.15.0、pnpm 11.9.0、冻结依赖及本节开头的同一组构建命令。历史补丁与对应来源记录一起核对。
-
-本次实际从最终提交与基线加补丁分别导出两棵无旧 dist 的源码树，复制同一份已冻结安装的依赖后独立构建，两份完整 tgz 逐字节一致；这不声称两次独立解析或重新安装了依赖。上一版的最终释放通过 41 条新增用例。本次补充的 47 条新增用例、定向类型检查、SDK 构建、公开 API、质量数字与文档链接检查通过，同一只读代理审过补充实现与公共合同。应用接线、原有受影响回归、完整产品实操和本人验收仍需各自证据。
-
-相邻 `.sha256`、`.provenance.json` 记录实际产物、源码及制包步骤；`patch-history.json` 保留历史补丁和已替换包。此前 memory-p0 的 1,397,575 字节产物及 sidecars 可从 Molis `5f9dc2a037c450ac654f0c1ecc70929164d3d36a` 取回，其 SHA-256 为 `6893801bb36df43630c0ea1cfe44eb08c2fcd0b57ae0b0abbffab42623ad5a78`。来源验证不是应用采用、性能或用户验收结果；Memory 仍以[原需求](../../specs/prologue-memory-strategy/spec.md)为准。
+相邻 `.sha256`、`.provenance.json` 记录实际产物和来源；`patch-history.json` 保留历史补丁、已替换包及此前上游祖先审计。旧 #94 的包和 sidecars 可从 Molis `c61508d5e15ab4850d256843a0e4110f9ecf1e20` 取回。来源记录不是应用采用、性能或用户验收结果；以 [Memory spec](../../specs/prologue-memory-strategy/spec.md) 为准。
 
 快照命令输出的 `manifest.json` 与 `data/` 是离线备份载荷，不含原 Home 密钥，不能直接当作 `recover-home` 的完整 T0/T1 工作副本。本次不增加解包、补密钥或另一套恢复流程。
 
@@ -441,13 +447,13 @@ shasum -a 256 /absolute/path/to/prologue-sdk-0.0.0-rc.1-side-panel-memory.tgz   
 
 包的依赖与 assistant-intake 相同，没有新增。记忆线已改用本包，memory-platform.tgz 与 memory-platform.patch 已删除（经用户同意，2026-10-01），其源码是上游 main 里的 `9773d59a`（PR #2）。assistant-intake.tgz 换包后不再被依赖，用户 2026-09-30 决定删除，已删掉，它的 SHA-256 与来源记在 `patch-history.json` 的 `packagesWithoutPatch`。
 
-## 已删除的历史补丁（2026-10-08）
+## 历史包和补丁
 
-26 份补丁（合计 2,791,897 字节）是历史包的重建材料。重建当前包用不着它们（当前包不加任何补丁），按决定从树里删掉；Git 历史不改写。记录在 [`patch-history.json`](patch-history.json)：
+28 份补丁（合计 3,352,257 字节）是已替换包的重建材料。第 39 批早期的两份补丁仍可按记录从其原提交取回。记录在 [`patch-history.json`](patch-history.json)：
 
 - `patches`：26 项，每项有 `bytes`、`sha256`、`gitBlob`（补丁在 Git 里的对象号）、`base`（基线提交）、`commit`（补丁重建出其树的上游提交，没有则为 `null`）、`sourceKind`、`source`、`summary`，以及它产出的包 `package`（文件名、字节数、SHA-256、`gitBlob`）；
-- `packagesWithoutPatch`：37 个没有补丁的历史包（文件名、字节数、SHA-256、`gitBlob`、提交、说明），含本次换掉的 attachment-order、之前的 after-write-check-marker、after-write-check-key、after-write-check、parked-run、app-wait-ends-step、mcp-schema-annotations、app-tools-waits 与 mcp-refresh，以及 2026-10-12 换掉的 dirty 候选 a0-s1 和 adoption-receipts-fields、2026-10-13 换掉的 adoption-receipts-handling 与 main 上的 computer-use、2026-10-14 换掉的 interim-p1-cu，同日换掉的 interim-p1-cu-image，2026-10-15 换掉的 interim-p1-cu-image-acceptance，2026-10-16 换掉的 collaboration、found-tools 与 find-tools-deferral，2026-10-17 换掉的 parameter-branches 与 reference-kinds，以及随 #472 进入 main 历史的 molis-adoption、2026-11-12 换下的 memory-p0 第一版（记录名 `prologue-sdk-0.0.0-rc.1-memory-p0-107.tgz`）与第二版（main #2020 采用的同名包，1,428,464 字节，上游 #113 `770a2e27`）、final103-bridge，以及 2026-11-13 由官方 main 包换下的 window31，与同日第 28 批由 `c764d970` 官方包换下的 `5cbf2601` 官方包（记录名 `prologue-sdk-0.0.0-rc.1-main-5cbf2601.tgz`）；换掉的 side-panel-memory 包记在 `patches` 里 `side-panel-memory.patch` 的 `package`；
-- `upstream`：50 个 Prologue 提交的审计（2026-10-25 对当时的 main `f1753ec8fa2cbca45667e60e101b93702acc6640` 复核 42 个；2026-11-12/13 补入 `1cc80b05`、`4537a570`、主线合并提交 `1c0654b7`、写后检查身份修复 `5cbf2601`、测试补充 `bdf80c6f` 与第二版 memory-p0 的来源 `770a2e27`；第 28 批再补入 `14e13911`（#117）与当前包来源 `c764d970`（#119）；`checkedOn` 为 2026-11-13，`mainHead` 为 `c764d970b9ab934e9621bc5d38ae2471a440749a`）：历史 `08b84296`、`923e5a40`、`4007a93c` 与当前 `ba75c9f8` 四个过渡源不是 main 祖先，其余均为祖先；当前 ba75 是本节说明的 base2c7 + final103 适配，不是 main 升级。更早 `21cdfbf8`、`d4a2f41b` 是 Molis 提交，不是 Prologue 提交。
+- `packagesWithoutPatch`：39 个没有补丁的历史包（文件名、字节数、SHA-256、`gitBlob`、提交、说明），含本次换掉的 attachment-order、之前的 after-write-check-marker、after-write-check-key、after-write-check、parked-run、app-wait-ends-step、mcp-schema-annotations、app-tools-waits 与 mcp-refresh，以及 2026-10-12 换掉的 dirty 候选 a0-s1 和 adoption-receipts-fields、2026-10-13 换掉的 adoption-receipts-handling 与 main 上的 computer-use、2026-10-14 换掉的 interim-p1-cu，同日换掉的 interim-p1-cu-image，2026-10-15 换掉的 interim-p1-cu-image-acceptance，2026-10-16 换掉的 collaboration、found-tools 与 find-tools-deferral，2026-10-17 换掉的 parameter-branches 与 reference-kinds，以及随 #472 进入 main 历史的 molis-adoption、2026-11-12 换下的 memory-p0 第一版（记录名 `prologue-sdk-0.0.0-rc.1-memory-p0-107.tgz`）与第二版（main #2020 采用的同名包，1,428,464 字节，上游 #113 `770a2e27`）、final103-bridge，以及 2026-11-13 由官方 main 包换下的 window31、同日第 28 批由 `c764d970` 官方包换下的 `5cbf2601` 官方包（记录名 `prologue-sdk-0.0.0-rc.1-main-5cbf2601.tgz`），与 2026-11-14 第 31 批换下的 `c764d970` 官方包（记录名 `prologue-sdk-0.0.0-rc.1-main-c764d970.tgz`）；第 39 批换下的原 Memory P1 包（记录名 `prologue-sdk-0.0.0-rc.1-memory-p1-4a4d1d3c.tgz`）也在本表；换掉的 side-panel-memory 包记在 `patches` 里 `side-panel-memory.patch` 的 `package`；
+- `upstream`：54 个 Prologue 提交的审计（2026-10-25 对当时的 main `f1753ec8fa2cbca45667e60e101b93702acc6640` 复核 42 个；2026-11-12/13 补入 `1cc80b05`、`4537a570`、主线合并提交 `1c0654b7`、写后检查身份修复 `5cbf2601`、测试补充 `bdf80c6f` 与第二版 memory-p0 的来源 `770a2e27`；第 28 批补入 `14e13911`（#117）与 `c764d970`（#119）；第 31 批再补入 `7e2de40b`（#120）、`018947ae`、`4493a5eb`（#121）与第 31 批原包来源 `4a4d1d3c8cc5840f4abe522e748abaee588db7de`；`checkedOn` 为 2026-11-14，`mainHead` 为 `4493a5eb418af29a253d38499682dc2be99697b1`）：历史 `08b84296`、`923e5a40`、`4007a93c` 与当前 `ba75c9f8` 四个过渡源不是 main 祖先，其余主线提交均为祖先；当前 ba75 是本节说明的 base2c7 + final103 适配，不是 main 升级。更早 `21cdfbf8`、`d4a2f41b` 是 Molis 提交，不是 Prologue 提交。
 
 怎么取回并核对：
 

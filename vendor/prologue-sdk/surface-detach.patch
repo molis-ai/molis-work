@@ -671,10 +671,10 @@ index 0000000000000000000000000000000000000000..6d91f9dd2001c2c4ffb4793a9469d061
 +  readPending(id: string): Promise<HeldPending | undefined>;
 +}
 diff --git a/packages/sdk/src/effect-policy/core/stored-policy.ts b/packages/sdk/src/effect-policy/core/stored-policy.ts
-index d1dfeb8c350ce908b300f2c1ea93e44ddcf86694..4092339c7aa7a3beed57c4ccfcd761cb55ccae4d 100644
+index 5a61b84e6a818457a521d036f5bf9b510d6ea44b..8438a143fbb4cd733b9b0d664f235f5d44f5fd2c 100644
 --- a/packages/sdk/src/effect-policy/core/stored-policy.ts
 +++ b/packages/sdk/src/effect-policy/core/stored-policy.ts
-@@ -39,66 +39,8 @@ import {
+@@ -40,66 +40,8 @@ import {
    type QuestionnaireValue,
  } from "./questionnaire.js";
  
@@ -743,10 +743,11 @@ index d1dfeb8c350ce908b300f2c1ea93e44ddcf86694..4092339c7aa7a3beed57c4ccfcd761cb
  
  const EFFECT_KIND = "effects";
  const PENDING_KIND = "pendings";
-@@ -769,9 +711,44 @@ function effectBody(record: StoredEffectRecord): unknown {
+@@ -769,9 +711,45 @@ function effectBody(record: StoredEffectRecord): unknown {
+     preparedAtMs: record.preparedAtMs,
    };
  }
- 
++
 +async function readStoredPending(storage: Pick<HostStorage, "get" | "readSecure">, id: string): Promise<HeldPending | undefined> {
 +  let record: StorageRecord | undefined;
 +  try {
@@ -789,7 +790,7 @@ index d1dfeb8c350ce908b300f2c1ea93e44ddcf86694..4092339c7aa7a3beed57c4ccfcd761cb
   * 完整提案和回答走 secureBody；元数据只留索引和安全身份/期限。
   * 联合变化走一次 commitBatch。恢复只在这一层解码校验。
   */
-@@ -816,6 +793,7 @@ export function createStoredPolicy(
+@@ -816,6 +794,7 @@ export function createStoredPolicy(
          if (records.length === 0) {
            return;
          }
@@ -797,7 +798,7 @@ index d1dfeb8c350ce908b300f2c1ea93e44ddcf86694..4092339c7aa7a3beed57c4ccfcd761cb
          const committed = await storage.commitBatch(records);
          for (const one of committed) {
            if (one.kind === PENDING_KIND) {
-@@ -895,42 +873,6 @@ export function createStoredPolicy(
+@@ -895,42 +874,6 @@ export function createStoredPolicy(
        };
      },
  
@@ -842,10 +843,10 @@ index d1dfeb8c350ce908b300f2c1ea93e44ddcf86694..4092339c7aa7a3beed57c4ccfcd761cb
    };
  }
 diff --git a/packages/sdk/src/index.ts b/packages/sdk/src/index.ts
-index a297d00924ddaadf58d1c67f32f8dde3c2107a9a..9598ca577d9832cd7aefb4468ef7849c92842ceb 100644
+index 406af7b45ee7d495bc803e83fc33d69015759f8a..f52c800645f829fea65137f5604a28dc169e76fa 100644
 --- a/packages/sdk/src/index.ts
 +++ b/packages/sdk/src/index.ts
-@@ -713,6 +713,8 @@ export type {
+@@ -714,6 +714,8 @@ export type {
    UiLimits,
    UiProposal,
    UiReceipt,
@@ -3931,10 +3932,10 @@ index 2615e8e010caa44e065add80cca4f0680fe1ab0a..f88c59ec02d25c5f093ec2a7c2e33671
      /*
       * MCP 服务端也会发请求（要我们调模型、列根目录），而那些**带 id**。
 diff --git a/packages/sdk/test/public-api.snapshot.txt b/packages/sdk/test/public-api.snapshot.txt
-index 48b6020eecb38bbb0f5c816198b3c790750f6672..70b2bf115c7bb2cb0caea9de771b06a69e13f5df 100644
+index 2950718e941735fe07b5c397e9a979b8d34af2c1..5ba08ccaa9d764702ccbe0ff2b58a2db757f47ff 100644
 --- a/packages/sdk/test/public-api.snapshot.txt
 +++ b/packages/sdk/test/public-api.snapshot.txt
-@@ -1233,10 +1233,12 @@ UiActPicture
+@@ -1243,10 +1243,12 @@ UiActPicture
  UiAssessment
  UiControl
  UiControlDeps
@@ -3947,7 +3948,7 @@ index 48b6020eecb38bbb0f5c816198b3c790750f6672..70b2bf115c7bb2cb0caea9de771b06a6
  UiSurface
  UiTarget
  unifiedDiff
-@@ -3227,6 +3229,7 @@ export interface SystemToolInput {
+@@ -3244,6 +3246,7 @@ export interface SystemToolInput {
      readonly onCommandReceipt?: (callId: string, record: import("../../workspace/core/index.js").WorkspaceCommandRecord) => Promise<void>;
      readonly surfaces?: {
          readonly control: UiControl;
@@ -3955,7 +3956,7 @@ index 48b6020eecb38bbb0f5c816198b3c790750f6672..70b2bf115c7bb2cb0caea9de771b06a6
          readonly stageText: (body: string) => Promise<ExactRef<"resource">>;
          readonly readText?: (ref: ExactRef<"resource">, maxChars: number) => Promise<{
              readonly text: string;
-@@ -4693,7 +4696,7 @@ effect-policy/core/chain.d.ts :: EffectChain
+@@ -4710,7 +4713,7 @@ effect-policy/core/chain.d.ts :: EffectChain
  export interface EffectChain {
      evaluate(proposal: EffectProposal): PolicyDecision;
      restriction(proposal: EffectProposal): PolicyOutcome | undefined;
@@ -3964,7 +3965,7 @@ index 48b6020eecb38bbb0f5c816198b3c790750f6672..70b2bf115c7bb2cb0caea9de771b06a6
      get(ref: ExactRef<"effect">): Effect | undefined;
      openEffects(): readonly Effect[];
      find(inputFingerprint: string): Effect | undefined;
-@@ -6869,6 +6872,11 @@ export interface StdioServerSpec {
+@@ -6886,6 +6889,11 @@ export interface StdioServerSpec {
      readonly cwd?: string;
      readonly envAllowlist?: readonly string[];
      readonly requestTimeoutMs?: number;
@@ -3976,7 +3977,7 @@ index 48b6020eecb38bbb0f5c816198b3c790750f6672..70b2bf115c7bb2cb0caea9de771b06a6
  }
  
  memory/core/access.d.ts :: MemoryAccessRequest
-@@ -14495,18 +14503,18 @@ export interface SystemToolAvailability {
+@@ -14601,18 +14609,18 @@ export interface SystemToolAvailability {
  tool/core/system.d.ts :: SystemToolName
  export type SystemToolName = (typeof SYSTEM_TOOL_NAMES)[number];
  
@@ -4001,7 +4002,7 @@ index 48b6020eecb38bbb0f5c816198b3c790750f6672..70b2bf115c7bb2cb0caea9de771b06a6
  export interface Observation {
      readonly ref: ExactRef<"observation">;
      readonly targetRef: ExactRef<"ui-target">;
-@@ -14516,29 +14524,29 @@ export interface Observation {
+@@ -14622,29 +14630,29 @@ export interface Observation {
      readonly expiresAtMs: number;
  }
  
@@ -4038,7 +4039,7 @@ index 48b6020eecb38bbb0f5c816198b3c790750f6672..70b2bf115c7bb2cb0caea9de771b06a6
  export type UiAction = Readonly<{
      what: "pointer";
      x: number;
-@@ -14588,18 +14596,18 @@ export type UiAction = Readonly<{
+@@ -14694,18 +14702,18 @@ export type UiAction = Readonly<{
      path: readonly string[];
  }>;
  
@@ -4060,7 +4061,7 @@ index 48b6020eecb38bbb0f5c816198b3c790750f6672..70b2bf115c7bb2cb0caea9de771b06a6
  export interface UiControl {
      attach(surface: UiSurface, options?: {
          readonly owner?: ExactRef<"session">;
-@@ -14607,10 +14615,12 @@ export interface UiControl {
+@@ -14713,10 +14721,12 @@ export interface UiControl {
      targetOfObservation(ref: ExactRef<"observation">): UiTarget | undefined;
      get(ref: ExactRef<"ui-target">): UiTarget | undefined;
      list(): readonly UiTarget[];
@@ -4073,7 +4074,7 @@ index 48b6020eecb38bbb0f5c816198b3c790750f6672..70b2bf115c7bb2cb0caea9de771b06a6
      }): Promise<Observation>;
      prepare(input: {
          readonly observationRef: ExactRef<"observation">;
-@@ -14619,6 +14629,7 @@ export interface UiControl {
+@@ -14725,6 +14735,7 @@ export interface UiControl {
          readonly nowMs: number;
          readonly gate?: EffectGate;
          readonly clockMs?: () => Promise<number>;
@@ -4081,7 +4082,7 @@ index 48b6020eecb38bbb0f5c816198b3c790750f6672..70b2bf115c7bb2cb0caea9de771b06a6
      }): Promise<UiProposal>;
      perform(input: {
          readonly effectRef: ExactRef<"effect">;
-@@ -14626,9 +14637,10 @@ export interface UiControl {
+@@ -14732,9 +14743,10 @@ export interface UiControl {
          readonly cancelled?: () => boolean;
      }): Promise<UiReceipt>;
      close(ref: ExactRef<"ui-target">): Promise<UiTarget>;
@@ -4093,7 +4094,7 @@ index 48b6020eecb38bbb0f5c816198b3c790750f6672..70b2bf115c7bb2cb0caea9de771b06a6
  export interface UiControlDeps {
      readonly chain: EffectChain;
      readonly store: ResourceStore;
-@@ -14638,23 +14650,30 @@ export interface UiControlDeps {
+@@ -14744,23 +14756,30 @@ export interface UiControlDeps {
      readonly redactScreenshot?: (bytes: Uint8Array) => Promise<Uint8Array>;
  }
  
@@ -4128,7 +4129,7 @@ index 48b6020eecb38bbb0f5c816198b3c790750f6672..70b2bf115c7bb2cb0caea9de771b06a6
  export interface UiReceipt {
      readonly effectRef: ExactRef<"effect">;
      readonly state: EffectState;
-@@ -14664,19 +14683,26 @@ export interface UiReceipt {
+@@ -14770,19 +14789,26 @@ export interface UiReceipt {
      readonly modelImage?: Uint8Array;
  }
  

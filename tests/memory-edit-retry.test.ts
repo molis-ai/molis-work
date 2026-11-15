@@ -3,7 +3,8 @@ import test from "node:test";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { MemoryChangeRequest, MemoryLedgerPort } from "@molis-ai/molis-work-contracts/services/memory";
 import type { MemoryCaller } from "@molis-ai/molis-work-service-memory";
-import { memoryServiceHome } from "./fixtures/memory-service-home.js";
+import { MemoryService } from "@molis-ai/molis-work-service-memory";
+import { memoryServiceHome, observeMemoryBackend } from "./fixtures/memory-service-home.js";
 
 const START = Date.parse("2026-11-05T08:00:00.000Z"), DAY = 86_400_000;
 const caller = (operation_id: string): MemoryCaller => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-a",
@@ -99,8 +100,9 @@ test("restore binds the selected revision even when history text and metadata ma
   const first = (await service.write(caller("seed"), { scope: "project", text: "两版同文也不能换恢复来源", kind: "convention" })).memory!;
   const second = (await service.change(caller("same-content-edit"), { action: "update", memory_id: first.memory_id,
     expected_version: first.version, text: first.text })).memory!;
-  const revisions = f.ledger().revisions(first.memory_id);
-  assert.equal(revisions[0]!.text, revisions[1]!.text); assert.deepEqual(revisions[0]!.snapshot, revisions[1]!.snapshot);
+  const revisions = (await f.raw().history({ scope: "project", owner: "project-a", memory_id: first.memory_id })).revisions;
+  assert.equal(revisions[0]!.text, revisions[1]!.text);
+  assert.deepEqual({ origin: revisions[0]!.origin, meta: revisions[0]!.meta }, { origin: revisions[1]!.origin, meta: revisions[1]!.meta });
   const changed = (await service.change(caller("current-edit"), { action: "reclassify", memory_id: first.memory_id,
     expected_version: second.version, text: "恢复前的后继正文", kind: "habit", classification: { scenes: ["assistant"], lifecycle: "short-term" },
     expires_at: new Date(START + 4 * DAY).toISOString() })).memory!;
@@ -116,7 +118,7 @@ test("restore binds the selected revision even when history text and metadata ma
   await assert.rejects(service.change(who, request), /Restore history projection interrupted/); fault.mock.restore(); assert.ok(failed);
   const committed = (await f.raw().list("project", "project-a"))[0]!;
   assert.equal(committed.version, disabled.version + 1); assert.equal(committed.text, first.text);
-  assert.deepEqual(committed.meta, revisions[0]!.snapshot!.meta); assert.equal(committed.origin, revisions[0]!.snapshot!.origin);
+  assert.deepEqual(committed.meta, revisions[0]!.meta); assert.equal(committed.origin, revisions[0]!.origin);
   assert.deepEqual(committed.disabled, before.disabled, "full restore preserves the SDK's current disabled state");
   const partialHistory = f.ledger().revisions(first.memory_id), partialChanges = await service.changes(caller("changes"), { scope: "project" });
   const marker = f.ledger().marker(who.actor_id, `memory-operation:${who.operation_id}:change-request`); assert.ok(marker);
@@ -138,12 +140,27 @@ test("restore binds the selected revision even when history text and metadata ma
 });
 
 test("missing original edit facts and incomplete history snapshots refuse writes through the existing ledger boundary", { timeout: 60_000 }, async t => {
-  const f = await memoryServiceHome(t, { projects: ["project-a"], now: () => new Date(START) }), service = await f.open();
-  const saved = (await service.write(caller("seed"), { scope: "project", text: "不完整事实不能恢复或覆盖当前值" })).memory!;
-  const revision = f.ledger().revisions(saved.memory_id)[0]!, { snapshot: _snapshot, ...bodyOnly } = revision;
-  f.ledger().addRevision(saved.memory_id, { ...bodyOnly, version: 90 });
-  f.ledger().addRevision(saved.memory_id, { ...bodyOnly, version: 91, snapshot: { origin: revision.snapshot!.origin,
-    meta: { kind: "preference", source: "manual", classification: { scenes: ["unknown-scene"], lifecycle: "long-term" } } } });
+  const f = await memoryServiceHome(t, { projects: ["project-a"], now: () => new Date(START) }), baseService = await f.open();
+  const saved = (await baseService.write(caller("seed"), { scope: "project", text: "不完整事实不能恢复或覆盖当前值" })).memory!;
+  const revision = f.ledger().revisions(saved.memory_id)[0]!;
+  const service = new MemoryService({
+    ledger: f.ledger(),
+    now: () => new Date(START),
+    backend: observeMemoryBackend(f.raw(), bound => ({
+      ...bound,
+      history: async input => {
+        const page = await bound.history(input);
+        return {
+          ...page,
+          revisions: [
+            ...page.revisions,
+            { version: 90, text: saved.text, origin: saved.origin, tags: [], meta: {} as never, created_at_ms: START, updated_at_ms: START },
+            { version: 91, text: saved.text, origin: saved.origin, tags: [], meta: { kind: "preference", source: "manual", classification: { scenes: ["unknown-scene"], lifecycle: "long-term" } } as never, created_at_ms: START, updated_at_ms: START },
+          ],
+        };
+      },
+    })),
+  });
   const original = await f.raw().list("project", "project-a"), history = f.ledger().revisions(saved.memory_id);
   const changes = await service.changes(caller("changes"), { scope: "project" });
   for (const version of [90, 91]) await assert.rejects(service.change(caller(`incomplete-${version}`), {
@@ -160,4 +177,39 @@ test("missing original edit facts and incomplete history snapshots refuse writes
   assert.deepEqual(await f.raw().list("project", "project-a"), original);
   assert.deepEqual(f.ledger().revisions(saved.memory_id), history);
   assert.deepEqual(await service.changes(caller("changes"), { scope: "project" }), changes);
+});
+
+test("MEM-10 MEM-19 bounded 20-revision history window prunes older versions, allows restoring retained versions while preserving state, and rejects pruned versions", { timeout: 60_000 }, async t => {
+  let step = 0;
+  const f = await memoryServiceHome(t, { projects: ["project-a"], now: () => new Date(START + (++step) * 1000) });
+  const service = await f.open();
+  const created = (await service.write(caller("seed-v1"), { scope: "project", text: "第 1 版正文", kind: "convention" })).memory!;
+  for (let v = 2; v <= 22; v++) {
+    await service.change(caller(`edit-v${v}`), { action: "update", memory_id: created.memory_id, expected_version: v - 1, text: `第 ${v} 版正文` });
+  }
+  const history22 = await service.history(caller("read-history-22"), created.memory_id);
+  assert.equal(history22.pruned_through_version, 2);
+  assert.equal(history22.revisions.length, 20);
+  assert.equal(history22.revisions[0]!.version, 3);
+  assert.equal(history22.revisions[19]!.version, 22);
+  assert.equal(history22.revisions[0]!.text, "第 3 版正文");
+  for (const row of f.ledger().revisions(created.memory_id)) {
+    assert.deepEqual(Object.keys(row).sort(), ["at", "by", "change", "version"]);
+  }
+  // Switch off the entry and verify restore preserves current disabled state while creating version 23.
+  const disabled = (await service.change(caller("disable-before-restore"), { action: "disable", memory_id: created.memory_id, expected_version: 22 })).memory!;
+  assert.equal(disabled.state, "disabled");
+  assert.equal(disabled.version, 23);
+  const restored = await service.change(caller("restore-v4"), { action: "restore", memory_id: created.memory_id, expected_version: 23, version: 4 });
+  assert.equal(restored.memory!.version, 24);
+  assert.equal(restored.memory!.text, "第 4 版正文");
+  assert.equal(restored.memory!.state, "disabled");
+  // Restoring a pruned version (<= pruned_through_version) is rejected with memory.conflict and leaves current version untouched.
+  await assert.rejects(
+    service.change(caller("restore-pruned-v2"), { action: "restore", memory_id: created.memory_id, expected_version: 24, version: 2 }),
+    { code: "memory.conflict", message: /保留窗口/ },
+  );
+  const current = (await service.list(caller("list-after-pruned"), { scope: "project" })).items.find(item => item.memory_id === created.memory_id)!;
+  assert.equal(current.version, 24);
+  assert.equal(current.text, "第 4 版正文");
 });

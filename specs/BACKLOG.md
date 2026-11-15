@@ -81,7 +81,7 @@
 
 ### 记忆误记与默认设置
 
-Memory P0 已随 [#2020](https://github.com/molis-ai/molis-work/pull/2020) 合入 main。暖读延迟 [BL-1072](backlog/BL-1072.md)、总 token [BL-1073](backlog/BL-1073.md) 与[本人走查](backlog/BL-memory-own-app-walkthrough.md)继续跟踪。P1 的[短合同](backlog/BL-memory-p1-contract.md)确认后进入第 31 批；P2 按触发条件登记，2026-11-14 起整理、去重、衰减拟由 64-9 承接（[决定 46](post-anticorruption-roadmap/reference/decisions.md#decision-46)，待用户确认），主题导览按 [BL-memory-topic-guide](backlog/BL-memory-topic-guide.md) 触发。
+Memory P0 已随 [#2020](https://github.com/molis-ai/molis-work/pull/2020) 合入 main；Memory P1（有界历史与恢复、导出 v2、历史正文单一写主人与通用关联对象适用条件）及短合同已随第 31 批落地。暖读延迟 [BL-1072](backlog/BL-1072.md)、总 token [BL-1073](backlog/BL-1073.md) 与[本人走查](backlog/BL-memory-own-app-walkthrough.md)继续跟踪；P2 按触发条件登记，2026-11-14 起整理、去重、衰减拟由 64-9 承接（[决定 46](post-anticorruption-roadmap/reference/decisions.md#decision-46)，待用户确认），主题导览按 [BL-memory-topic-guide](backlog/BL-memory-topic-guide.md) 触发。
 
 
 ### 模型本身的能力

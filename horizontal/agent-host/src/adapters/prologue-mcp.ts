@@ -193,7 +193,7 @@ async function connectConfiguration(state: McpState, { saved }: Held, connection
     const transport: Extract<McpTransport, { kind: "stdio" }> = { source: id, connection: connectionId, kind: "stdio", control, identity, responses: new Map() };
     await connectTransport(state, transport, dispatch,
       () => runtime.connectMcp({ ref: conn.ref, signal: abort.signal, transport: { kind: "stdio", rootRef: root.ref,
-        executable: saved.executable!, argv: saved.argv!, cwd: ".", requestTimeoutMs: saved.timeout_ms, envAllowlist: [],
+        executable: saved.executable!, argv: saved.argv!, cwd: ".", requestTimeoutMs: saved.timeout_ms,
         assertResponseCurrent: request => {
           if (request.method !== "tools/call") return;
           const check = transport.responses.get(request.requestId);

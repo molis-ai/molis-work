@@ -34,7 +34,7 @@ export interface AgentMemoryMeta {
   kind?: string;
   source?: string;
   basis?: "explicit" | "repeated" | "inferred";
-  applies_when?: { plugins?: string[]; object_kinds?: string[]; goals?: string[]; task?: string; from_ms?: number; until_ms?: number };
+  applies_when?: { plugins?: string[]; object_kinds?: string[]; objects?: Array<{ plugin_id: string; kind: string; id: string }>; task?: string; from_ms?: number; until_ms?: number };
   evidence?: Array<{ kind: string; text?: string; ref?: string; at_ms?: number }>;
   expires_at_ms?: number;
   /** Who approved it: the person, or a Host policy at a version. Candidates settle this themselves. */
@@ -86,7 +86,7 @@ export interface AgentRecalledMemory {
   budget_tokens: number;
   budget_chars: number;
   /** Trusted applicability facts, independently of model/search query input. */
-  facts?: { plugins?: string[]; object_kinds?: string[]; goals?: string[] };
+  facts?: { plugins?: string[]; object_kinds?: string[]; objects?: Array<{ plugin_id: string; kind: string; id: string }> };
   /** Host display provenance, persisted with the attempt and never sent as model input. */
   usage?: { title: string; work_id?: string };
   /** App ledger correlation only; SDK per-retrieval/per-request receipts remain distinct. */
@@ -225,6 +225,7 @@ export interface AgentMemoryMutation {
 export interface AgentMemoryChange { text: string; origin?: string; meta?: AgentMemoryMeta }
 /** The actual maintenance command, checked before preparing App history; execution still rechecks authority. */
 export type AgentMemoryPreviewMutation = { kind: "update"; change: AgentMemoryChange }
+  | { kind: "restore"; version: number; note?: string }
   | { kind: "pause" | "disable"; reason: string } | { kind: "resume" | "remove" };
 /** Supplied only by trusted App/Host code, independently of business/model input. */
 export interface AgentMemoryCaller {
@@ -319,6 +320,26 @@ export interface AgentMemoryCapability {
   /** Append maps operation_id to SDK idempotencyKey; it has no synthetic expected version. */
   write(input: { scope: AgentMemoryEntry["scope"]; owner: string; text: string; origin: string; tags?: string[]; meta?: AgentMemoryMeta; operation_id: string; signal?: AbortSignal }): Promise<AgentMemoryEntry>;
   update(input: AgentMemoryLocation & AgentMemoryMutation & { change: AgentMemoryChange }): Promise<AgentMemoryEntry>;
+  history(input: AgentMemoryLocation & { limit?: number; before_version?: number; signal?: AbortSignal }): Promise<{
+    memory_id: string;
+    scope: AgentMemoryEntry["scope"];
+    owner: string;
+    current_version: number;
+    pruned_through_version?: number;
+    revisions: Array<{
+      version: number;
+      text: string;
+      origin: string;
+      tags: string[];
+      meta: AgentMemoryMeta;
+      key?: { domain: string; key: string };
+      created_at_ms: number;
+      updated_at_ms: number;
+      restored_from_version?: number;
+      note?: string;
+    }>;
+  }>;
+  restore(input: AgentMemoryLocation & AgentMemoryMutation & { version: number; note?: string }): Promise<AgentMemoryEntry>;
   renew(input: AgentMemoryLocation & AgentMemoryMutation & { expires_at_ms: number }): Promise<AgentMemoryEntry>;
   setMeta(input: AgentMemoryLocation & AgentMemoryMutation & { meta: AgentMemoryMeta }): Promise<AgentMemoryEntry>;
   pause(input: AgentMemoryLocation & AgentMemoryMutation & { reason: string }): Promise<AgentMemoryEntry>;
@@ -331,6 +352,8 @@ export interface AgentMemoryCapability {
   recall(input: { scope: AgentMemoryEntry["scope"]; owner: string; keywords?: string[]; text?: string; kinds?: string[]; limit?: number }): Promise<Array<{ entry: AgentMemoryEntry; score: number }>>;
   candidates: AgentMemoryCandidateCapability;
   screen?(text: string): Promise<{ hold: boolean; reasons: string[]; redacted: string }>;
+  exportScope?(input: { scope: AgentMemoryEntry["scope"]; owner: string; signal?: AbortSignal }): Promise<unknown>;
+  importScope?(input: { scope: AgentMemoryEntry["scope"]; owner: string; pack: unknown; max_entries?: number; signal?: AbortSignal }): Promise<unknown>;
   previewBatch(input: { scope: AgentMemoryEntry["scope"]; owner: string; action: "disable" | "remove"; operation_id: string;
     items: readonly { memory_id: string; version: number }[]; signal?: AbortSignal }): Promise<AgentMemoryBatchPreview>;
   applyBatch(input: { preview: AgentMemoryBatchPreview; signal?: AbortSignal }): Promise<AgentMemoryClearResult>;

@@ -28,7 +28,7 @@ export function memoryRunRecipe(caller: MemoryCaller, request: MemoryRecallReque
   const plugin = caller.plugin_id ?? request.situation?.plugin_id;
   const facts = { ...(plugin ? { plugins: [plugin] } : {}),
     ...(request.situation?.object_kind ? { object_kinds: [request.situation.object_kind] } : {}),
-    ...(request.situation?.goal_id ? { goals: [request.situation.goal_id] } : {}) };
+    ...(request.situation?.objects?.length ? { objects: request.situation.objects.map(obj => ({ plugin_id: obj.plugin_id, kind: obj.kind, id: obj.id })) } : {}) };
   const class_restrictions: AgentRecalledMemory["class_restrictions"] = {
     policy_version: /* @version format.memory.class-policy */ 1, taxonomy_version: /* @version format.memory.class-taxonomy */ 1,
     personal: structuredClone(sources.preferences.prefsFor(caller.actor_id, "personal", null).class_restrictions),

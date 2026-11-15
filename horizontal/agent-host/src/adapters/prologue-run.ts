@@ -482,7 +482,7 @@ function sdkStart(deps: RunDeps, input: PrologueStartInput, index: SessionIndex,
         addressable: !!input.action_gateway || !!input.actions?.tools.some(tool => (tool.provider_id ?? tool.provider.provider_id) === MEMORY_PROVIDER_ID),
         ...(input.memory.facts ? { facts: { ...(input.memory.facts.plugins ? { plugins: input.memory.facts.plugins } : {}),
           ...(input.memory.facts.object_kinds ? { objectKinds: input.memory.facts.object_kinds } : {}),
-          ...(input.memory.facts.goals ? { goals: input.memory.facts.goals } : {}) } } : {}),
+          ...(input.memory.facts.objects ? { objects: input.memory.facts.objects.map(obj => ({ plugin: obj.plugin_id, kind: obj.kind, id: obj.id })) } : {}) } } : {}),
         scopes: input.memory.scopes, resident: parts.pinnedMemory, task: input.memory.task, skip: input.memory.skip,
         budgetChars: input.memory.budget_chars, budgetTokens: input.memory.budget_tokens } } : {}),
       // This round's project's kinds replace the Runtime's built-in ones; its subagents keep them (BL-152).

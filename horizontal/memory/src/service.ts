@@ -64,7 +64,7 @@ import { memoryUses } from "./usage.js";
 import { assertFormationFacts, automaticMemoryHold, CANDIDATE_TTL_MS, MEMORY_GATE_POLICY, MEMORY_GATE_VERSION, MEMORY_GATE_RULE } from "./policy.js";
 import { memoryErrors } from "./errors.js";
 import { applies, disownAutomatic, isExpired, personOnly, placeOf, visibleTo } from "./places.js";
-import { MAX_TEXT, candidateView, changeView, revisionView, pairKey, useTitle } from "./shapes.js";
+import { MAX_TEXT, candidateView, changeView, pairKey, useTitle } from "./shapes.js";
 import { UNCHECKED, UNSAID, theirWords } from "./spoken.js";
 import { keywordScore, looksLikeInstruction, looksLikeSecret, recallKeywords, sameText, sameWords, similarity } from "./text.js";
 import { fromEntryMeta, restoredEntryFacts, toEntryMeta } from "./facts.js";
@@ -290,9 +290,13 @@ export class MemoryService {
     return { items, counts: { personal, project, auto_this_week, pending } };
   }
 
-  async history(caller: MemoryCaller, memoryId: string): Promise<MemoryHistoryResponse> {
-    const located = await this.scopeCommands.find(caller, memoryId);
-    return { memory_id: located.entry.memory_id, revisions: this.ports.ledger.revisions(located.entry.memory_id).map(revisionView) };
+  /**
+   * Read the bounded revision history of one memory entry from Prologue Memory,
+   * joining each canonical SDK revision with the Host ledger's change attribution
+   * (`{ version, change, by, at }`) while surfacing `pruned_through_version`.
+   */
+  history(caller: MemoryCaller, memoryId: string): Promise<MemoryHistoryResponse> {
+    return this.managementPages.history(caller, memoryId);
   }
 
   /**
@@ -530,8 +534,7 @@ export class MemoryService {
       const change = this.ports.ledger.transaction(() => {
         this.operations.committed(caller, commitMark, { memory_id: updated.memory_id, version: updated.version });
         this.promotions.link(caller.actor_id, updated.memory_id, input.sources ?? []);
-        this.ports.ledger.addRevision(updated.memory_id, { version: updated.version, text: updated.text, kind: input.kind, applies: input.applies,
-          snapshot: { origin: updated.origin, meta: updated.meta }, change: "replaced", by: automatic ? "policy" : "person", at });
+        this.ports.ledger.addRevision(updated.memory_id, { version: updated.version, change: "replaced", by: automatic ? "policy" : "person", at });
         if (!automatic) disownAutomatic(this.ports.ledger, updated.memory_id);
         return this.recordChange(caller, { kind: automatic ? "auto_replaced" : "replaced", scope: input.scope, owner: where.owner, memory_id: updated.memory_id, text,
           applied_version: updated.version, by: automatic ? "policy" : "person", rule: automatic ? rule : null, reason: input.why ? `依据：${input.why}` : null,
@@ -572,8 +575,7 @@ export class MemoryService {
       this.operations.committed(caller, creation, { memory_id: entry.memory_id, version: creation.result?.version ?? entry.version });
       this.operations.committed(caller, commitMark, { memory_id: entry.memory_id, version: creation.result?.version ?? entry.version });
       this.promotions.link(caller.actor_id, entry.memory_id, input.sources ?? []);
-      if (entry.version === 1) this.ports.ledger.addRevision(entry.memory_id, { version: 1, text: entry.text, kind: input.kind, applies: input.applies,
-        snapshot: { origin: entry.origin, meta: entry.meta }, change: "created", by: automatic ? "policy" : "person", at });
+      if (entry.version === 1) this.ports.ledger.addRevision(entry.memory_id, { version: 1, change: "created", by: automatic ? "policy" : "person", at });
       if (automatic && input.candidate_id) this.markCandidateKept(caller.actor_id, input.candidate_id, entry.memory_id);
       return this.recordChange(caller, { kind, scope: input.scope, owner: where.owner, memory_id: entry.memory_id, text,
         applied_version: creation.result?.version ?? entry.version, by: automatic ? "policy" : "person", rule: automatic ? rule : null,
@@ -802,16 +804,14 @@ export class MemoryService {
       const entry = await backend.candidates.settleInto({ scope: record.scope, owner: record.owner, candidate_id: candidateId,
         candidate_expected_version: decision.expected_version!, operation_id: decision.operation_id, ...(caller.signal ? { signal: caller.signal } : {}),
         target: { memory_id: target.entry.memory_id, expected_version: targetCondition.expected_version, change: { text, meta: toEntryMeta(meta, target.entry.meta) } }, by: { by: "person" } });
-      revision = { version: entry.version, text: entry.text, kind: meta.kind, applies: meta.applies,
-        snapshot: { origin: entry.origin, meta: entry.meta }, change: "replaced", by: "person", at };
+      revision = { version: entry.version, change: "replaced", by: "person", at };
       located = { scope: record.scope, owner: record.owner, entry, meta: fromEntryMeta({ ...entry, scope: record.scope, owner: record.owner })! };
       change = "replaced";
     } else {
       const entry = await backend.candidates.accept({ scope: record.scope, owner: record.owner, candidate_id: candidateId,
         expected_version: decision.expected_version!, operation_id: decision.operation_id, ...(caller.signal ? { signal: caller.signal } : {}), text, origin, meta: toEntryMeta(facts, candidate.meta) });
       if (entry.version !== 1) throw memoryErrors.conflict("候选接受后的正式记忆已有后继版本，不能把当前正文补作原接受历史");
-      revision = { version: entry.version, text: entry.text, kind: record.kind, applies: record.applies,
-        snapshot: { origin: entry.origin, meta: entry.meta }, change: "created", by: "person", at };
+      revision = { version: entry.version, change: "created", by: "person", at };
       located = { scope: record.scope, owner: record.owner, entry, meta: fromEntryMeta({ ...entry, scope: record.scope, owner: record.owner })! };
       change = "accepted";
     }

@@ -9,29 +9,29 @@
   "source": {
     "repository": "git+https://github.com/molis-ai/molis-prologue.git",
     "path": "packages/sdk",
-    "commit": "6ea6decc163627bfea655aabf6633886ef249ad5",
-    "tree": "372ed68d264a272c8143da23bedab5f1678bda0a",
+    "commit": "9ef6ffd7cad7ec8ddfb265e7f07d18f3dbe9ce62",
+    "tree": "98c5da99ab482bba448d00c2e4592e85c65fba87",
     "dirty": false,
     "dirtyPaths": [],
     "patches": [],
     "publication": "unpublished-local-commit",
-    "base": "c764d970b9ab934e9621bc5d38ae2471a440749a",
-    "note": "Clean unpublished source in an isolated Prologue worktree. The adjacent patch recreates the exact tree from the official Slice 28 base c764d970. It contains the approved Surface detach, original target and call cancellation, per-request stdio reply validation, and durable reconciliation changes. The model request observer and Memory changes remain in the base."
+    "base": "4a4d1d3c8cc5840f4abe522e748abaee588db7de",
+    "note": "Batch 31 Memory P1 build 4a4d1d3c8cc5840f4abe522e748abaee588db7de on public main 4493a5eb418af29a253d38499682dc2be99697b1; the source also retains c764d970 model request observation and its ancestors 14e13911 and 5cbf2601. This exact unpublished local port is reconstructed by the adjacent patch. It contains the approved Surface detach, original target and call cancellation, per-request stdio reply validation, and durable reconciliation changes."
   },
   "alsoBuildableFrom": {
-    "base": "c764d970b9ab934e9621bc5d38ae2471a440749a",
+    "base": "4a4d1d3c8cc5840f4abe522e748abaee588db7de",
     "patch": {
       "file": "surface-detach.patch",
-      "bytes": 289398,
-      "sha256": "5f9f2b742a22ddbc99b67c45c7cc689d4254361abc043f7fa7154ddda97e3e3f"
+      "bytes": 289438,
+      "sha256": "27ba2abd4a02d0075fcbb49cffcf9a7e3bde1d3ec8023f2a294bd98e1b2d8960"
     },
-    "sourceTree": "372ed68d264a272c8143da23bedab5f1678bda0a"
+    "sourceTree": "98c5da99ab482bba448d00c2e4592e85c65fba87"
   },
   "artifact": {
     "file": "prologue-sdk-0.0.0-rc.1-surface-detach.tgz",
-    "bytes": 1459128,
-    "sha256": "77f964bd23e64cc44fa298c56e1a2c413e011000f81760b076a24f08d9ddd5ae",
-    "integrity": "sha512-3W25eHTHIPiRXfar9gx8LVuxPjr0u/fKYvLDckM4dBIHbGiBNo492WIs0R2/9KwWXWkYoQ4NeUzwa1+vFQluGg=="
+    "bytes": 1471493,
+    "sha256": "18a7047ee4cd0e110fe5b84e394ffaa2d850924083a0cccbdd78be41121b8ef7",
+    "integrity": "sha512-2haAWrBnTrtyYBb2ocwSe6V92YEJWiK3pa4BfJN7SNYTgtpg5VyKXNduNEqEUPnK0IYR7qbJCn+o8E9KzeTQOQ=="
   },
   "build": {
     "node": "24.15.0",
@@ -39,18 +39,18 @@
     "platform": "darwin",
     "architecture": "arm64",
     "steps": [
-      "Use clean local commit 6ea6decc163627bfea655aabf6633886ef249ad5 or apply surface-detach.patch (git apply --index --whitespace=error) to the public clean commit c764d970b9ab934e9621bc5d38ae2471a440749a. Verify its tree equals 372ed68d264a272c8143da23bedab5f1678bda0a.",
+      "Use clean local commit 9ef6ffd7cad7ec8ddfb265e7f07d18f3dbe9ce62 or apply surface-detach.patch with git apply --index --whitespace=error to 4a4d1d3c8cc5840f4abe522e748abaee588db7de; verify its tree equals 98c5da99ab482bba448d00c2e4592e85c65fba87.",
       "In both isolated source trees: pnpm --config.engine-strict=false install --frozen-lockfile --offline --ignore-scripts.",
       "In each independent build: node node_modules/typescript/bin/tsc -p packages/sdk/tsconfig.build.json; node scripts/public-api.mjs; pnpm --config.engine-strict=false -C packages/sdk pack --out <distinct-external-file>.",
-      "Compare the complete archives byte-for-byte and the packed package manifest to the official base, then update this package and lockfile integrity using the original bytes."
+      "Compare the complete archives byte-for-byte and the packed package manifest to the original Batch 31 package, then update the Work lockfile integrity using the original archive bytes."
     ],
     "packedOn": "2026-11-15",
     "dependencies": {
       "method": "independent frozen offline installs using the same local pnpm cache",
       "lockSha256": "6cbb6e1e8e0e7fd456fbd01ee88d5fc0d536ad2894dd5da8827939f03374166b"
     },
-    "archiveFiles": 850,
-    "distFiles": 848,
-    "note": "Both independent frozen offline installs and builds produced identical archives. Relative to the previous Molis candidate only dist/effect-policy/core/dispatch.js differs. The SDK quality ratchet, full TypeScript check, public API and document links passed. The same read-only reviewer checked the fix and test changes. 148 targeted tests and another 92 Surface unit tests passed. Native interactive tests were not run for this rebuild."
+    "archiveFiles": 854,
+    "distFiles": 852,
+    "note": "Both independent frozen offline builds produced identical archives. The package manifest matches Batch 31's original package. The only changed archive entries are in composition, effect policy, Surface, stdio and the public export entry. The same read-only reviewer accepted the port and checked the public contract. Typecheck, public API, quality ratchet, document links and 403 targeted tests passed. Native desktop interaction is pending."
   }
 }

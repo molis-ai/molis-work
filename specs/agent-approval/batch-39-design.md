@@ -146,11 +146,15 @@ APR-06 的具体接入要求为：可信 base 的检查器在 PR 检查和 `merg
 
 检查器校验实时目标分支头、组引用、完整队列前缀与父提交链，按同一个目标分支头的政策检查各 PR 原头。原 PR 返回的历史 base 只用于还原提交集合。发布还须证明队列组包含所审的精确原头。双父提交的队列可以逐项核原头为第二父提交，已有隔离用例；正式仓采用 squash，只有前一队列提交一个父提交，活跃条目返回的 PR 当前头没有生成时的冻结证明，当前实现仅作成员诊断并保持待核对。补齐可信证明或改用已批准的其他队列设置前，真实 squash 组不能发布通过。
 
-上述两个真实合并组的 GitHub Actions run 与 Check Suite 的 `pull_requests` 均为空。读到的真实队列成员和顺序可以用于诊断，原头证明仍缺。私有试验 PR 从可信目标分支读到一票要求和零票当前批准，检查器返回 `awaiting-approvals`。试验提交尚无已登记 Agent 身份，待独立 App 注册后才可验证发布检查、固定说明和分支保护。
+上述两个真实合并组的 GitHub Actions run 与 Check Suite 的 `pull_requests` 均为空。读到的真实队列成员和顺序可以用于诊断，原头证明仍缺。
 
 发布器重算前把自己的旧通过设为待核对，在写入前后重读原批准与权限。缺证据、无策略或事实变化时保持待核对。正式接入仍需可信 runner 按审批、PR 和合并组变化及时重算受影响的提交，使用独立 App 的发布身份并验收。GitHub 的状态写入没有原子条件提交，外部变动能否及时中止合并需在真实队列实测。正式接入仍由用户批准。
 
-2026-11-14 用户选择保留私有试验仓，以只安装于该仓的独立 App 验证必需检查。已创建纯合成[试验 PR](https://github.com/molis-ai/batch39-approval-lab/pull/1)，可信基线政策要求一票。注册表单已备好，Contents 与 Pull requests 为只读，Commit statuses 与 Issues 为读写，Metadata 为必需的只读权限，关闭 webhook，安装范围为本组织的这一座试验仓。App 尚待注册和安装。发布器核对精确 repo、PR、head 和 base，再发布 `agent-approval-check`，以 App id 和 bot id 更新自身的同一条固定说明，并从计票输入排除自身说明。
+2026-11-14 用户选择保留私有试验仓，以只安装于该仓的独立 App 验证必需检查。已创建纯合成[试验 PR](https://github.com/molis-ai/batch39-approval-lab/pull/1)，可信基线政策要求一票。发布器核对精确 repo、PR、head 和 base，再发布 `agent-approval-check`，以 App id 和 bot id 更新自身的同一条固定说明，并从计票输入排除自身说明。
+
+2026-11-15 已注册组织私有 App，且只安装在试验仓。GitHub 对 Issues 读写权限发出的 PR 评论请求返回 403。经用户批准，安装采用 Pull requests 与 Commit statuses 读写，Contents 与 Metadata 只读，Issues 权限移除。Webhook 关闭。短时令牌限定试验仓，发布尝试结束后均主动撤销。
+
+同日在原试验 PR 的提交 `e3206cbe8a2d17fc5e25ec1a17ecd9d23db4c642` 证明 GitHub 识别了合成 Agent 作者，独立 App 更新[固定说明](https://github.com/molis-ai/batch39-approval-lab/pull/1#issuecomment-6888231876)并发布缺一票的失败状态。试验分支保护固定了 App 身份，并对管理员生效。GitHub 返回 `BLOCKED`。下一步读回本版批准，再验证新提交使旧票失效及重新批准。
 
 在同一 PR 依次记录缺票时的必需检查与合并拒绝、当前头的真人批准、合成新提交使旧票失效、再次批准，以及固定说明的原评论编号。私有 Team 仓用来收集必需检查证据；真实 merge group 的全组检查和本人投票仍待在有队列能力的已授权环境完成。 [分支保护](https://docs.github.com/en/rest/branches/branch-protection#update-status-check-protection) · [合并队列规则](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/managing-a-branch-protection-rule)
 

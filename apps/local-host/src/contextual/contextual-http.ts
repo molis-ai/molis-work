@@ -80,7 +80,9 @@ export async function recallForJudgment(focus: SurfaceFocus, caller: Caller): Pr
   if (!view) return { state: "ok", items: [] };
   const query = cutHead([focus.surroundings?.heading_path.at(-1), ...focus.targets.map(target => target.text)].filter(Boolean).join(" "), 300);
   const out = await caller.actions.invoke({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }, {
-    query, situation: { plugin_id: focus.plugin_id, object_kind: focus.object.kind, ...(focus.goal ? { goal_id: focus.goal.id } : {}) },
+    query, situation: { plugin_id: focus.plugin_id, object_kind: focus.object.kind,
+      objects: [{ plugin_id: focus.plugin_id, kind: focus.object.kind, id: focus.object.id },
+        ...(focus.goal ? [{ plugin_id: "io.molis.work.goals", kind: "goal", id: focus.goal.id }] : [])] },
     limit: 6, budget_chars: 800, used_for: "给选中的内容排动作" }) as { state?: string; items?: readonly { kind?: unknown; text?: unknown }[] };
   if (out.state === "off") return { state: "off", items: [] };
   return { state: "ok", items: (out.items ?? []).filter(item => typeof item.text === "string" && item.text)

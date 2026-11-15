@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from "node:util";
 import { MEMORY_FORMAL_KINDS, type MemoryChangeRequest, type MemoryChangeResult, type MemoryChangeRecord, type MemoryLedgerPort, type MemoryMetaRecord } from "@molis-ai/molis-work-contracts/services/memory";
 import type { MemoryBackendPort } from "./backend.js";
 import type { MemoryCaller } from "./service.js";
@@ -41,28 +42,38 @@ export class MemoryEdits {
         const mark = this.ports.operations.find(caller, `update:${entry.memory_id}`)!;
         const change = this.ports.ledger.transaction(() => {
           this.ports.operations.committed(caller, mark, { memory_id: entry.memory_id, version: entry.version });
-          this.ports.ledger.addRevision(entry.memory_id, { version: entry.version, text: entry.text, kind: meta.kind, applies: meta.applies,
-            snapshot: { origin: entry.origin, meta: entry.meta }, change: "edited", by, at });
+          this.ports.ledger.addRevision(entry.memory_id, { version: entry.version, change: "edited", by, at });
           if (!undoing) disownAutomatic(this.ports.ledger, entry.memory_id);
           return this.ports.record(caller, { kind: "edited", scope, owner, memory_id: entry.memory_id, text: entry.text, by, rule: null, reason: null, undo: null });
         });
         return { memory: this.ports.scopes.item({ scope, owner, project, entry, meta: fromEntryMeta({ ...entry, scope, owner })! }), change: changeView(change) };
       }
       case "restore": {
-        const revision = this.ports.ledger.revisions(located.entry.memory_id).find(one => one.version === request.version);
+        const sdkHistory = await this.ports.backend.withCaller(caller).history({
+          scope,
+          owner,
+          memory_id: located.entry.memory_id,
+          ...(caller.signal ? { signal: caller.signal } : {}),
+        });
+        if (request.version !== undefined && sdkHistory.pruned_through_version !== undefined && request.version <= sdkHistory.pruned_through_version) {
+          throw memoryErrors.conflict("这一版历史已超出保留窗口，不能恢复");
+        }
+        const revision = sdkHistory.revisions.find(one => one.version === request.version);
         if (!revision) throw memoryErrors.not_found("没有这个历史版本");
         if (!completeRevisionSnapshot(revision)) throw memoryErrors.invalid("这版没有完整的可恢复快照；如需采用旧正文，请明确使用这段旧文字");
-        const retained = revision.snapshot!.meta;
+        const retained = revision.meta;
         const restored = caller.memory_session ? { ...retained, classification: located.entry.meta.classification,
           session_ref: located.entry.meta.session_ref, expires_at_ms: located.entry.meta.expires_at_ms } : retained;
-        const entry = await this.ports.backend.withCaller(caller).update({ scope, owner, memory_id: located.entry.memory_id,
-          ...this.ports.operations.formal(caller, located, "restore", original!.expected_version!), change: { text: revision.text,
-            origin: revision.snapshot!.origin, meta: restored } });
+        const condition = this.ports.operations.formal(caller, located, "restore", original!.expected_version!);
+        const entry = isDeepStrictEqual(restored, retained)
+          ? await this.ports.backend.withCaller(caller).restore({ scope, owner, memory_id: located.entry.memory_id,
+            ...condition, version: revision.version })
+          : await this.ports.backend.withCaller(caller).update({ scope, owner, memory_id: located.entry.memory_id,
+            ...condition, change: { text: revision.text, origin: revision.origin, meta: restored } });
         const mark = this.ports.operations.find(caller, `restore:${entry.memory_id}`)!;
         const change = this.ports.ledger.transaction(() => {
           this.ports.operations.committed(caller, mark, { memory_id: entry.memory_id, version: entry.version });
-          this.ports.ledger.addRevision(entry.memory_id, { version: entry.version, text: entry.text, kind: revision.kind, applies: revision.applies,
-            snapshot: { origin: entry.origin, meta: entry.meta }, change: "restored", by, at });
+          this.ports.ledger.addRevision(entry.memory_id, { version: entry.version, change: "restored", by, at });
           if (!undoing) disownAutomatic(this.ports.ledger, entry.memory_id);
           return this.ports.record(caller, { kind: "restored", scope, owner, memory_id: entry.memory_id, text: entry.text, by, rule: null, reason: `回到第 ${revision.version} 版`, undo: null });
         });
@@ -88,8 +99,7 @@ export class MemoryEdits {
     await this.ports.beforeEffect?.(); caller.signal?.throwIfAborted();
     const change = this.ports.ledger.transaction(() => {
       this.ports.operations.committed(caller, mark, { memory_id: entry.memory_id, version: entry.version });
-      this.ports.ledger.addRevision(entry.memory_id, { version: entry.version, text: entry.text, kind: facts.kind, applies: facts.applies,
-        snapshot: { origin: entry.origin, meta: entry.meta }, change: "edited", by: "person", at });
+      this.ports.ledger.addRevision(entry.memory_id, { version: entry.version, change: "edited", by: "person", at });
       disownAutomatic(this.ports.ledger, entry.memory_id);
       return this.ports.record(caller, { kind: "edited", scope: located.scope, owner: located.owner, memory_id: entry.memory_id,
         text: entry.text, by: "person", rule: null, reason: `续期至 ${expiry}`, undo: null });
@@ -100,20 +110,26 @@ export class MemoryEdits {
   /** Only the original Session's accepted classification CAS can recover its ledger projection after detaching. */
   async recoverClassification(caller: MemoryCaller, request: MemoryChangeRequest): Promise<Located | undefined> {
     const priorRequest = this.ports.operations.find(caller, "change-request"), classification = this.ports.operations.find(caller, `reclassify:${request.memory_id}`);
-    const priorMeta = request.action === "reclassify" && caller.memory_session ? this.ports.ledger.revisions(request.memory_id)
-      .find(one => one.version === request.expected_version)?.snapshot?.meta : undefined;
     const recoverClassification = caller.person && caller.memory_session && request.action === "reclassify" && request.classification?.lifecycle !== "session"
       && priorRequest?.kind === "reclassify" && classification?.kind === "reclassify" && classification.phase !== "closed" && priorRequest.phase !== "closed"
       && priorRequest.memory_id === request.memory_id && classification.memory_id === request.memory_id && priorRequest.expected_version === request.expected_version
-      && classification.expected_version === request.expected_version && priorRequest.scope === classification.scope && priorRequest.owner === classification.owner
-      && priorMeta?.classification?.lifecycle === "session" && priorMeta.session_ref?.id === caller.memory_session.session.session_id
-      && priorMeta.session_ref.revision === 1;
-      if (recoverClassification
-        && this.ports.scopes.scopesFor(caller, undefined, true).some(one => one.scope === classification!.scope && one.owner === classification!.owner)) {
-        const recovered = (await this.ports.scopes.located(caller, classification!.scope, classification!.owner, true)).find(one => one.entry.memory_id === request.memory_id
-          && one.entry.version === request.expected_version! + 1 && !one.entry.meta.session_ref && one.entry.meta.classification?.lifecycle !== "session");
-        if (recovered) return recovered; // The original SDK operation still verifies the complete command.
+      && classification.expected_version === request.expected_version && priorRequest.scope === classification.scope && priorRequest.owner === classification.owner;
+    if (recoverClassification
+      && this.ports.scopes.scopesFor(caller, undefined, true).some(one => one.scope === classification!.scope && one.owner === classification!.owner)) {
+      const recovered = (await this.ports.scopes.located(caller, classification!.scope, classification!.owner, true)).find(one => one.entry.memory_id === request.memory_id
+        && one.entry.version === request.expected_version! + 1 && !one.entry.meta.session_ref && one.entry.meta.classification?.lifecycle !== "session");
+      if (recovered) {
+        const sdkHistory = await this.ports.backend.withCaller(caller).history({
+          scope: classification!.scope,
+          owner: classification!.owner,
+          memory_id: request.memory_id,
+          ...(caller.signal ? { signal: caller.signal } : {}),
+        }).catch(() => undefined);
+        const priorMeta = sdkHistory?.revisions.find(one => one.version === request.expected_version)?.meta;
+        if (priorMeta?.classification?.lifecycle === "session" && priorMeta.session_ref?.id === caller.memory_session!.session.session_id
+          && priorMeta.session_ref.revision === 1) return recovered; // The original SDK operation still verifies the complete command.
       }
+    }
     return undefined;
   }
 
@@ -151,8 +167,7 @@ export class MemoryEdits {
     await this.ports.beforeEffect?.(); caller.signal?.throwIfAborted();
     const change = this.ports.ledger.transaction(() => {
       this.ports.operations.committed(caller, mark, { memory_id: entry.memory_id, version: entry.version });
-      this.ports.ledger.addRevision(entry.memory_id, { version: entry.version, text: entry.text, kind: facts.kind, applies: facts.applies,
-        snapshot: { origin: entry.origin, meta: entry.meta }, change: "edited", by: "person", at });
+      this.ports.ledger.addRevision(entry.memory_id, { version: entry.version, change: "edited", by: "person", at });
       disownAutomatic(this.ports.ledger, entry.memory_id);
       return this.ports.record(caller, { kind: "edited", scope: located.scope, owner: located.owner, memory_id: entry.memory_id,
         text: entry.text, by: "person", rule: null, reason: null, undo: null });

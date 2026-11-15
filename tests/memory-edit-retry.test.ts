@@ -227,3 +227,18 @@ test("MEM-10 MEM-19 bounded 20-revision history window prunes older versions, al
     assert.ok(row.version > stateHistory.pruned_through_version, "ledger revisions <= pruned_through_version are pruned");
   }
 });
+
+test("MEM-10 the public history page honors before_version and a tail limit", { timeout: 60_000 }, async t => {
+  const f = await memoryServiceHome(t, { projects: ["project-a"], now: () => new Date(START) });
+  const service = await f.open();
+  const created = (await service.write(caller("seed-page"), { scope: "project", text: "第 1 版", kind: "convention" })).memory!;
+  for (let version = 2; version <= 6; version++) {
+    await service.change(caller(`edit-page-${version}`), { action: "update", memory_id: created.memory_id, expected_version: version - 1, text: `第 ${version} 版` });
+  }
+  const bounded = await f.raw().history({ scope: "project", owner: "project-a", memory_id: created.memory_id, before_version: 6, limit: 2 });
+  assert.deepEqual(bounded.revisions.map(revision => revision.version), [4, 5]);
+  const none = await f.raw().history({ scope: "project", owner: "project-a", memory_id: created.memory_id, limit: 0 });
+  assert.deepEqual(none.revisions, []);
+  const all = await f.raw().history({ scope: "project", owner: "project-a", memory_id: created.memory_id });
+  assert.deepEqual(all.revisions.map(revision => revision.version), [1, 2, 3, 4, 5, 6]);
+});

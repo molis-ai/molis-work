@@ -86,6 +86,7 @@ test("WLN-37 WLN-38: a work the person started and a background task registered 
   assert.deepEqual(later.events.map(event => event.subject.id), ["plan", "tracked"]);
 });
 
+// PWA-138: task rows are the real works, with the owner's own controls.
 test("WLN-39: every work under way is a row of the task table with whom it serves and its stop; the conversation itself and ended works are not", async () => {
   const { invoke } = harness();
   const table = await invoke<BackgroundTaskCollection>("assistant.background.tasks", {});
@@ -125,6 +126,7 @@ test("WLN-34 WLN-38: which event a task is done for is kept on the task; a work 
   assert.equal(effects(), before, "and passes no effect gate");
 });
 
+// PWA-134: a row's stop stops that work only.
 test("WLN-39: the stop on a row stops that work; a work of another project is not found and nothing is stopped", async () => {
   const { invoke, stopped } = harness();
   assert.deepEqual(await invoke("assistant.background.stop", { work_id: "errand" }), { stopped: true });

@@ -200,6 +200,7 @@ test("RC-06: words that reach a round as it ends are said to wait for the next r
 
 // specs/unified-input-voice/implementation-plan.md K0b (UIC-03), UIV-17: the executor's control carries the delivery as chosen;
 // interrupt and after-run never start a round in the plugin's session — one that has ended keeps them for the next (`queued`).
+// PWA-130: the same delivery semantics on an executor's round.
 test("UIC-03 UIV-17: an executor's round gets the delivery as chosen, and interrupt or after-run never start a round there", async () => {
   const { exec, store, service, caller, plugin, project } = fixture();
   const first = await service.send({ executor: plugin, scope: project, text: "加一个 subtract 函数", request_id: randomUUID() }, caller);

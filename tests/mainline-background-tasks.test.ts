@@ -54,6 +54,7 @@ test("WLN-39 background.tasks.read lists the project's task providers through th
   await assert.rejects(client.invoke(person(a.project_id, ["homebg:read"]), mainlineActions.tasks, {}), code("actions.forbidden"), "the read itself needs its own permission");
 });
 
+// PWA-138: a command asks the owner again and runs only what the task still offers.
 test("WLN-39, WLN-34 background.tasks.command asks the provider again and runs only what the task still offers, as the person: a changed, invented or foreign command is refused and nothing is called; only the person may ask", { timeout: 60_000 }, async t => {
   const plugin = backgroundPlugin(() => ({ source: SOURCE, tasks: [task("j1"), task("j2", {}, [])] }));
   const rig = await backgroundRig(t, plugin, ["A"]);

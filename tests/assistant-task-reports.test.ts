@@ -95,6 +95,7 @@ test("PWA-156 the report's round runs as a read-only role with no host tools, an
   assert.equal(roundStartInput(work, round).browser, undefined, "a main conversation's own round keeps the side panel");
 });
 
+// PWA-133: a task no conversation started reports back to the main conversation once.
 test("PWA-155 PWA-157 the Assistant tells the person once and starts one round that only reports, in the project's main conversation", async () => {
   const db = new DatabaseSync(":memory:"), store = new AssistantStore(db);
   let latest: { phase: AgentRunView["phase"] } | null = null, continuation: string | undefined, refuse: Error | undefined;

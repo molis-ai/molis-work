@@ -42,6 +42,7 @@ async function fixture(t: TestContext, line: Array<{ kind: string; id: string }>
   return { service, store, requests, done };
 }
 
+// PWA-129: new words at 「现在」 go to the scope's main conversation, not to the latest task.
 test("WLN-15: what is said at 「现在」 goes to one standing main conversation per scope: opened once, found again, and carried by the main-conversation role", { timeout: 90_000 }, async t => {
   const { service, store, requests, done } = await fixture(t);
   const board = { project_id: "board", storage_key: "memory:board" }, other = { project_id: "other", storage_key: "memory:other" };

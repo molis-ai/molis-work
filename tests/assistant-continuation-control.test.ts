@@ -112,6 +112,7 @@ test("ASC-34: a newer Send whose setup hold fails invalidates the older Send bef
   } finally { service.continuations.close(); db.close(); }
 });
 
+// PWA-136: a late acceptance does not resume a work its parent stopped.
 test("ASC-34: late Send acceptance preserves a delegated work stopped directly by its parent", async () => {
   const db = new DatabaseSync(":memory:"), store = new AssistantStore(db);
   const host = new AgentHost({ reviews: new AgentReviewQueue() });

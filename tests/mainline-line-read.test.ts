@@ -107,6 +107,7 @@ test("WLN-37 the mainline service and its Host wiring name no plugin: a registra
   }
 });
 
+// PWA-138: the head, the marks and the panel count from one read of the same facts.
 test("WLN-39 attention.waiting.read counts what waits on the person once per object, from the same line and task table: the number at the head of the line, the marks on events and the panel's waiting rows agree", { timeout: 60_000 }, async t => {
   const plugin = backgroundPlugin(() => ({ source: SOURCE, tasks: [
     task("t-wait", ["e-task"], { waiting: true, state: "answer", updated_at: at(9) }), task("t-wait-2", ["e-task"], { waiting: true, state: "approval", updated_at: at(8) }),

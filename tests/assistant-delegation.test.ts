@@ -36,6 +36,7 @@ function reply(tool?: { name: string; input: unknown }, text = "好的。"): Res
   return new Response(events.join(""), { headers: { "content-type": "text/event-stream" } });
 }
 
+// PWA-127: explicitly handed-off work runs in the background as a work of its own, with nothing proactive switched on in this fixture.
 test("a work hands an independent part to a work of its own, waits for it, reads back what it did; one level deep and bounded", { timeout: 90_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-delegation-"));
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
@@ -186,6 +187,7 @@ test("a sub-task whose session opened under the Assistant's own role carries its
   } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
 
+// PWA-134: stopping a work stops its sub-tasks (the subtree), nothing else.
 test("stopping a work also stops the sub-tasks it handed out that are still running, even after its own round ended", { timeout: 60_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-delegation-stop-"));
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
@@ -225,6 +227,7 @@ test("stopping a work also stops the sub-tasks it handed out that are still runn
   } finally { releaseChild(); service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
 
+// PWA-134: taking a sub-task back acts on that sub-task.
 test("the person takes a sub-task back: it stops, the board says so, no more follow-ups go to it, and the delegating work finishes that part", { timeout: 60_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-delegation-takeback-"));
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
@@ -371,6 +374,7 @@ test("a sub-task the person put away still counts for the work that handed it ou
 });
 
 // W2-18-A4-LIMITS-01, PWA-131: five parts with a step still going leave no room for a sixth; it is refused, not shown as running.
+// PWA-128: no room for another sub-task is said as refused, not shown as running.
 test("W2-18-A4-LIMITS-01 five sub-tasks still going leave no room for another one", { timeout: 60_000 }, async t => {
   const f = await delegationFixture(t, [() => reply({ name: "delegate-work", input: { title: "起草", brief: "起草一段话。", acceptance: "一段话" } }), () => reply(undefined, "已交给子任务。")],
     async () => reply(undefined, "草稿。"));

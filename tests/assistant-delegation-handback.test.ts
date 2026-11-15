@@ -76,6 +76,7 @@ async function fixture(t: TestContext, name: string, children: string[], options
 // specs/prologue-adoption §4.6 (item 14), specs/work-line/contract-design.md §9 (PWA-156): each sub-task that finishes
 // after its delegating work's round ended hands its result back once, and the work goes on by itself in one round the
 // Host writes — with that result as material, started like any other round — while the others are still under way.
+// PWA-133: each finished sub-task hands back once, to the work that sent it.
 test("WLN-RETURN-02: each sub-task that finishes hands back once: the work goes on by itself in one Host-written round per result, without waiting for the rest", { timeout: 90_000 }, async t => {
   const { service, parentId, children, release, later, rounds, root } = await fixture(t, "once", ["开头", "结尾"]);
   assert.equal((await root()).state, "waiting", "the work's root waits for its parts");
@@ -117,6 +118,7 @@ test("WLN-RETURN-02: each sub-task that finishes hands back once: the work goes 
 // PA-08 (specs/prologue-adoption §5.3): both sub-tasks' results and the person's own round arrive together. Both results
 // land in the same tick; the hand-back they set going is held at its start (the barrier) while the person's round goes in.
 // The parent Session gains one Run, the continuation is taken up once, and the Host coming back starts nothing.
+// PWA-128 PWA-133: the person's own round runs while sub-tasks are out; results arriving together are one round, each named.
 test("PA-08: two sub-task results and the person's own round arriving together start one parent Run; the continuation is taken up once and the Host coming back starts nothing", { timeout: 90_000 }, async t => {
   const { service, open, hooks, adapter, store, parentId, release, later, rounds, root } = await fixture(t, "together", ["开头", "结尾"]);
   const parentSession = { session_id: store.get("web-user", parentId).session_id! };
@@ -174,6 +176,7 @@ test("no hand-back round when the person stopped the delegating work; their next
   assert.match(later[0]!, /「结尾」：被停止了/);
 });
 
+// PWA-134: stopping a sub-task does not move or stop the work that sent it.
 test("a sub-task someone stopped is not news enough to move its delegating work on", { timeout: 90_000 }, async t => {
   const { service, parentId, children, rounds, later, root } = await fixture(t, "child-stopped", ["开头"]);
   await service.control(children[0]!.work_id, { kind: "stop" });

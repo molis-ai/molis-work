@@ -76,7 +76,9 @@ test("the bar's context and status blocks name the thing and keep the spinner th
 test("a file's kind is its extension, in the colour of its kind", () => {
   assert.match(renderFileKind("访谈-0926.pdf"), /mw-file-kind--pdf" data-slot="file-kind">PDF</);
   assert.match(renderFileKind("README"), /mw-file-kind--txt/, "no extension reads as plain text");
-  assert.match(renderFileKind(".env"), /mw-file-kind--txt/);
+  assert.match(renderFileKind(".gitignore"), /mw-file-kind--txt/, "a plain dotfile without extension reads as plain text");
+  assert.match(renderFileKind(".env"), /mw-file-kind--env" data-slot="file-kind">ENV</);
+  assert.match(renderFileKind(".env.local"), /mw-file-kind--env" data-slot="file-kind">ENV</);
   assert.match(renderFileKind("a.b.markdown"), /mw-file-kind--mark" data-slot="file-kind">MARK</, "long extensions are cut to four");
 });
 

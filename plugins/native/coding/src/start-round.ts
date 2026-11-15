@@ -240,8 +240,8 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
   if (plan) text_materials.unshift(planMaterial(plan));
   // 「请 AI 重新问」: the closed question and the person's draft, read here, never from the request.
   if (body.reask !== undefined) text_materials.push(await reaskMaterial(context, record, body.reask, codingActions(context, beforeWrite)));
-  if (text_materials.length > 30) throw codingFailure("coding.server.materials-30");
   text_materials.push(...roundMaterials);
+  if (text_materials.length > 36) throw codingFailure("coding.server.materials-30");
   await beforeWrite(); beforeWrite.assert_current();
   const session = record.runtime_session_id ? { runtime_id: record.runtime_id, session_id: record.runtime_session_id }
     : await codingActions(a.context, beforeWrite).invoke(agent.createSession, [record.runtime_id, { directory, title: record.title }]);

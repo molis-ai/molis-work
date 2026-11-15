@@ -160,3 +160,22 @@ test("D0244-04 S-41 the real search catalog cannot revive a held organizer after
   f.search.markRegistration("pages", "a"); release.resolve(); await work;
   assert.deepEqual(f.cards.list("a"), before, "the new registration never authorizes an old draft or a failure record");
 });
+
+test("S-41 C13 knowledge.read refuses a drifted expected_revision only after caller authorization passes", async t => {
+  const f = await fixture(t);
+  const pagesOnly = f.access(agent("a", ["pages:read", "search:read"]));
+  await assert.rejects(
+    () => f.knowledge.read(pagesOnly, { subject: { kind: "goal", id: "g1" }, expected_revision: "stale-revision" }),
+    (error: unknown) => error instanceof ActionError && error.code.startsWith("actions.") && error.code !== "knowledge.revision_changed",
+    "unauthorized callers never learn whether expected_revision matched",
+  );
+  const authorized = f.access(agent("a"));
+  const current = await f.knowledge.read(authorized, { subject: { kind: "goal", id: "g1" } });
+  const pinned = await f.knowledge.read(authorized, { subject: { kind: "goal", id: "g1" }, expected_revision: current.revision });
+  assert.equal(pinned.revision, current.revision);
+  await assert.rejects(
+    () => f.knowledge.read(authorized, { subject: { kind: "goal", id: "g1" }, expected_revision: `${current.revision}-stale` }),
+    refused("knowledge.revision_changed"),
+    "a round with a pinned revision refuses drifted content instead of stitching two revisions together",
+  );
+});

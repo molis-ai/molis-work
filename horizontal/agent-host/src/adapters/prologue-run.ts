@@ -12,7 +12,7 @@ import { agentErrors } from "../errors.js";
 import { assertChildRoleTools } from "../child-role-tools.js";
 import { gatewayProblem, prologueActionGateway } from "./prologue-action-gateway.js";
 import { MEMORY_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/memory";
-import { prologueActionTools, SUGGEST_HOST_TOOL } from "./prologue-action-tools.js";
+import { pinnedMaterialRevisions, prologueActionTools, SUGGEST_HOST_TOOL } from "./prologue-action-tools.js";
 import { createCodeIntelligence, unavailableSymbolIndex, unconfiguredSymbolIndex } from "../code-intelligence/index.js";
 import { FIND_SYMBOL_HOST_TOOL, FIND_SYMBOL_TOOL, withSymbolTool } from "../code-intelligence/coding-tools.js";
 import { AFTER_WRITE_EXECUTOR, afterWriteExecutor } from "./prologue-after-write.js";
@@ -135,11 +135,12 @@ function roundGateway(deps: RunDeps, input: PrologueStartInput, none: boolean) {
       ...(memory.propose ? { propose: memory.propose.bind(memory) } : {}),
     } } : {}),
   } } : input.action_gateway;
-  const gatewayTools = none || !gatewayForRun ? undefined : prologueActionGateway(gatewayForRun, Math.min(60_000, runtime.tools.limits.maxTimeoutMs), actionController.signal);
+  const pinnedRevisions = none ? undefined : pinnedMaterialRevisions(input.text_materials);
+  const gatewayTools = none || !gatewayForRun ? undefined : prologueActionGateway(gatewayForRun, Math.min(60_000, runtime.tools.limits.maxTimeoutMs), actionController.signal, pinnedRevisions);
   const actionTools = none ? undefined : gatewayTools ? { ...gatewayTools, scope: "gateway" }
     : prologueActionTools(input.actions, Math.min(60_000, runtime.tools.limits.maxTimeoutMs), actionController.signal, input.character.tools.includes(SUGGEST_HOST_TOOL),
       // The symbol tool is part of this pack's identity (the catalog allows one registration per name and `prepare` compares content).
-      !none && input.root_path !== undefined && input.character.tools.includes(FIND_SYMBOL_HOST_TOOL));
+      !none && input.root_path !== undefined && input.character.tools.includes(FIND_SYMBOL_HOST_TOOL), pinnedRevisions);
   if (input.action_gateway) {
     state.gatewayRuns.set(input.session_id, { ...input.action_gateway, declare: gatewayTools?.declare });
     if (gatewayTools) { state.gatewayKnown.set(input.session_id, gatewayTools.known); state.gatewayOffered.set(input.session_id, gatewayTools.offered); }
@@ -252,7 +253,7 @@ async function childSetup(deps: RunDeps, input: PrologueStartInput) {
       + "核对子任务成果时，可以给 read、list、search 加 workspace 参数（上面的标识）只读查看对应目录；不加就是主工作区。你的查看不代替子任务自己的先读后改，也不能在这些目录里写入或运行命令。"
     : "本轮没有分配独立子目录，不得填写 workspace 参数；所有子任务沿用当前授权目录，都不能修改文件；开放了运行命令的子角色可以运行检查命令，每条都经用户审查。";
   // Facts only: a named role brings the tools it declares, whatever `tools` says; runTools below always holds them all.
-  const childInstructions = childRoles.size ? childScope + "可分派的固定子角色（character 用这里的引用，别的会被拒绝）：\n" + [...childRoles].map(([ref, role]) => `${ref}: ${role.name}; tools=${JSON.stringify(role.host_tools.map(prologueToolName))}`).join("\n") + "\n给子任务写清任务、必要上下文、依据路径与完成条件；不继承父聊天或材料。子任务不能再次分派。需要用户信息时作为阻塞返回给父任务。" : "";
+  const childInstructions = childRoles.size ? childScope + "可分派的固定子角色（character 用这里的引用，别的会被拒绝）：\n" + [...childRoles].map(([ref, role]) => `${ref}: ${role.name}; tools=${JSON.stringify(role.host_tools.map(prologueToolName))}`).join("\n") + "\nidempotencyKey 必须以字母或数字开头，只含字母、数字、点、下划线、冒号或连字符（最长 128 字符）。给子任务写清任务、必要上下文、依据路径与完成条件；不继承父聊天或材料。子任务不能再次分派。需要用户信息时作为阻塞返回给父任务。" : "";
   return { childRoots, childRoles, childInstructions };
 }
 
@@ -282,7 +283,7 @@ async function roundMaterials(deps: RunDeps, input: PrologueStartInput, index: S
   // A round without a plan of its own still starts knowing where the session's unfinished plan stands.
   const earlier = plan ? undefined : [...index.attempts].reverse().map(placeOf).find(Boolean);
   // The plan as it stands travels with this round's task, where it reads as newer than the conversation before it.
-  const digest = stepBoard ? stepBoards.digest(stepBoard, session.ref.id) : earlier ? stepBoards.standing(earlier, session.ref.id) : "";
+  const digest = stepBoard ? await stepBoards.digest(stepBoard, session.ref.id) : earlier ? await stepBoards.standing(earlier, session.ref.id) : "";
   if (digest) textResources.push({ ref: await stageTextResource(runtime, digest, "coding-board-digest"), as: "original" });
   // What other sessions in the project are doing, and where it overlaps this round, as the round starts.
   const project = index.owner.project_id, workText = `${input.task}\n${(plan?.steps ?? []).map(step => `${step.title}\n${step.acceptance}`).join("\n")}`;
@@ -704,6 +705,8 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
   // Exchange our reference for one Prologue can resolve, before the Run is started rather than when it first calls out.
   const credentialRef = await deps.credentials.prologueRefFor(input.model.credential_ref);
   const { attemptIndex, abandon } = await recordAttempt(deps, input, { ...input.provenance, task: input.task, ...(root ? { root_ref: root.ref } : {}),
+    ...(input.model_selection ? { model_selection: structuredClone(input.model_selection) } : {}),
+    frozen_model: structuredClone(input.model),
     ...(actionTools?.names.length ? { action_tool_scope: actionTools.scope } : {}),
     ...(materials.stepBoard ? { step_board: materials.stepBoard.ref, step_prefix: materials.stepBoard.prefix } : {}), ...(childRoles.size ? { subagent_roles: [...childRoles], subagent_roots: childRoots } : {}),
     ...(surface.desktop_target ? { desktop_target: surface.desktop_target } : {}) });

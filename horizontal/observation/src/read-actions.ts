@@ -18,6 +18,7 @@ import {
   type ObservationSourceClass,
   type ObservationSubject,
   type ObservationSubjectResolution,
+  type ObservationSubjectResolutionStatus,
 } from "@molis-ai/molis-work-contracts/services/observation";
 import {
   authorizeObservationScope,
@@ -136,6 +137,24 @@ export interface ReadActionDeps {
   readonly writer: ObservationWriter;
 }
 
+/**
+ * Resolve subjects once per call: a page of records often carries the same object more than once,
+ * and each resolution asks its owner. Reusing the promise also keeps one answer per (project, kind,
+ * id, version) inside the call; across calls the owner is asked again.
+ */
+function subjectResolver(deps: ReadActionDeps, caller: ActionCallContext) {
+  const seen = new Map<string, Promise<ObservationSubjectResolutionStatus>>();
+  return (projectId: string | null, subject: ObservationSubject): Promise<ObservationSubjectResolutionStatus> => {
+    const key = JSON.stringify([projectId, subject.kind, subject.id, subject.version ?? null]);
+    let status = seen.get(key);
+    if (!status) {
+      status = Promise.resolve(deps.env.resolveSubject ? deps.env.resolveSubject(projectId, subject, caller) : "unverified");
+      seen.set(key, status);
+    }
+    return status;
+  };
+}
+
 export async function handleRecordsQuery(
   deps: ReadActionDeps,
   caller: ActionCallContext,
@@ -168,7 +187,7 @@ export async function handleRecordsQuery(
   if (input.source_classes && input.source_classes.length > 0) {
     baseWhere.push(`source_class IN (${input.source_classes.map(() => "?").join(", ")})`);
     baseParams.push(...input.source_classes);
-  } else if (input.include_simulated === false || (input.include_simulated !== true && effectiveUse === "assistant")) {
+  } else if (input.include_simulated === false || (input.include_simulated !== true && effectiveUse !== "lookback")) {
     baseWhere.push(`source_class NOT IN (${SIMULATED_SOURCE_CLASSES.map(() => "?").join(", ")})`);
     baseParams.push(...SIMULATED_SOURCE_CLASSES);
   }
@@ -244,15 +263,13 @@ export async function handleRecordsQuery(
   const next_seq = page.length > 0 ? page.at(-1)!.row.seq : null;
 
   const records: ObservationQueriedRecord[] = [];
+  const resolve = subjectResolver(deps, caller);
   for (const item of page) {
     let subject_status: ObservationSubjectResolution[] | undefined;
     if (input.resolve_subjects === true) {
       subject_status = [];
       for (const subject of item.base.subjects) {
-        const status = deps.env.resolveSubject
-          ? await deps.env.resolveSubject(item.row.project_id, subject, caller)
-          : "unverified";
-        subject_status.push({ ...subject, status });
+        subject_status.push({ ...subject, status: await resolve(item.row.project_id, subject) });
       }
     }
     records.push({
@@ -299,6 +316,7 @@ export async function handleEvidenceGet(
   const parsed = JSON.parse(row.evidence) as readonly ObservationEvidence[];
   const filtered = input.role !== undefined ? parsed.filter((item) => item.role === input.role) : parsed;
   const items: ObservationEvidenceItemView[] = [];
+  const resolve = subjectResolver(deps, caller);
 
   for (const item of filtered) {
     if (item.ref.kind === "missing") {
@@ -306,9 +324,7 @@ export async function handleEvidenceGet(
       continue;
     }
     if (item.ref.kind === "owner") {
-      const owner_resolvable = deps.env.resolveSubject
-        ? await deps.env.resolveSubject(row.project_id, { kind: item.ref.owner, id: item.ref.id, version: item.ref.version }, caller)
-        : "unverified";
+      const owner_resolvable = await resolve(row.project_id, { kind: item.ref.owner, id: item.ref.id, version: item.ref.version });
       items.push({ role: item.role, status: "owner_ref", ref: item.ref, owner_resolvable });
       continue;
     }

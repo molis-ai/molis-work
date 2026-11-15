@@ -7,6 +7,7 @@ import { codingRouteEntry } from "./route-entry.js";
 import type { CodingExecution } from "./routes.js";
 import { summaryCache } from "./session-window.js";
 import { writeCheckCache } from "./write-checks.js";
+import type { CodingEnvironmentReadiness } from "./environment-prep.js";
 import { startRound } from "./start-round.js";
 import { codingWakeLoop } from "./wake-loop.js";
 import { codingText } from "./words.js";
@@ -29,6 +30,7 @@ export interface CodingActivation {
   /** The after-write checks of the rounds the timeline shows, each receipt read once. */
   readonly writeChecks: ReturnType<typeof writeCheckCache>;
   readonly fileIndexes: Map<string, { at: number; value: Promise<{ files: string[]; truncated: boolean }> }>;
+  readonly environmentChecks: Map<string, { at: number; value: Promise<CodingEnvironmentReadiness | null> }>;
   /** The follower of each session's latest round, by session (start-round.ts). */
   readonly following: Map<string, PluginKeptJob>;
   /** The directory read under way, and the one queued behind it (coding.state). */
@@ -48,7 +50,7 @@ export function startCodingActivation(context: PluginStartContext, execution: Co
   const waits = codingWakeLoop<CodingExecution>({ context, projectId, busy, records: from => from.sessions.list(projectId),
     record: (from, id) => from.sessions.get(projectId, id),
     startRound: (record, body, api, from, beforeWrite) => startRound(activation, record, body, api, from, beforeWrite) });
-  const activation: CodingActivation = { context, execution, projectId, busy, summaries: summaryCache(), writeChecks: writeCheckCache(), fileIndexes: new Map(), following: new Map(),
+  const activation: CodingActivation = { context, execution, projectId, busy, summaries: summaryCache(), writeChecks: writeCheckCache(), fileIndexes: new Map(), environmentChecks: new Map(), following: new Map(),
     state: { read: null, next: null }, route: codingRouteEntry(context, execution, actions, failure), waits };
   // The loops' job is kept while the activation starts, the one place outside a command it may be kept from: a later
   // `coding.state` read only wakes it. Idle, it asks the Agent runtime nothing.

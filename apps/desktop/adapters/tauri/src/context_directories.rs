@@ -11,6 +11,8 @@ pub(crate) const IDS: [&str; 4] = ["downloads", "documents", "desktop", "custom"
 pub(crate) struct ContextDirectoryState {
     // Serializes record changes and access, including forget versus an in-flight read.
     operation: Mutex<()>,
+    // Lets the page cancel an in-flight directory preview without waiting for the operation lock.
+    pub(crate) cancel_scan: std::sync::atomic::AtomicBool,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -31,11 +33,34 @@ pub(crate) struct FilePreview {
     pub identity: String,
 }
 
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
+pub(crate) struct SkippedReasons {
+    pub ignored: usize,
+    pub secret: usize,
+    pub unreadable: usize,
+    pub time: usize,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub(crate) struct DirectoryScanProgress {
+    pub id: String,
+    pub visited: usize,
+    pub kept: usize,
+    pub bytes: u64,
+    pub current_path: String,
+}
+
 #[derive(Debug, Serialize)]
 pub(crate) struct DirectoryPreview {
     pub files: Vec<FilePreview>,
     pub skipped: usize,
     pub truncated: bool,
+    pub cancelled: bool,
+    pub total_entries: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub skipped_reasons: Option<SkippedReasons>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub ignored_rules: Vec<String>,
 }
 
 /// One chosen file as the page gets it back: the digest the Host staged it under, or why the file itself was not sent.
@@ -268,28 +293,69 @@ pub async fn context_directory_forget(
     .await
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn context_directory_preview(
     app: AppHandle,
     window: WebviewWindow,
     id: String,
     days: u16,
+    cancel: Option<bool>,
+    resume_offset: Option<usize>,
 ) -> Result<DirectoryPreview, String> {
     valid_id(&id)?;
+    if cancel == Some(true) {
+        validate_caller(&window)?;
+        app.state::<ContextDirectoryState>()
+            .cancel_scan
+            .store(true, std::sync::atomic::Ordering::SeqCst);
+        return Ok(DirectoryPreview {
+            files: Vec::new(),
+            skipped: 0,
+            truncated: true,
+            cancelled: true,
+            total_entries: 0,
+            skipped_reasons: None,
+            ignored_rules: Vec::new(),
+        });
+    }
     if ![0, 7, 30, 90].contains(&days) {
         return Err("请选择最近 7、30、90 天或全部".into());
     }
-    operation(app, window, move |_, _, path| {
+    let offset = resume_offset.unwrap_or(0);
+    operation(app, window, move |app, window, path| {
+        let state = app.state::<ContextDirectoryState>();
+        state
+            .cancel_scan
+            .store(false, std::sync::atomic::Ordering::SeqCst);
         let records = load_records(path)?;
         let record = records.get(&id).ok_or("请先连接这个目录")?;
         #[cfg(target_os = "macos")]
         {
+            use tauri::Emitter;
             let scope = crate::context_directories_macos::access(record)?;
-            crate::context_directory_files::preview(&scope.directory, days)
+            let progress_id = id.clone();
+            crate::context_directory_files::preview_with_progress(
+                &scope.directory,
+                days,
+                offset,
+                &state.cancel_scan,
+                |visited, kept, bytes, current_path| {
+                    let _ = window.emit(
+                        "molis:directory-scan-progress",
+                        DirectoryScanProgress {
+                            id: progress_id.clone(),
+                            visited,
+                            kept,
+                            bytes,
+                            current_path: current_path.to_string(),
+                        },
+                    );
+                },
+            )
         }
         #[cfg(not(target_os = "macos"))]
         {
-            let _ = record;
+            let _ = (app, window, record, offset);
             Err("目录授权仅支持 macOS 桌面应用".into())
         }
     })

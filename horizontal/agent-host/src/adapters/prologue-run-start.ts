@@ -82,6 +82,7 @@ function startInput(request: AgentStartRequest, role: FrozenRole, model: Prologu
     session_id: request.session.session_id,
     ...(request.workspace === "none" ? { workspace: "none" } : request.workspace === "business" ? { workspace: "business" } : { root_path: request.directory.canonical_path }),
     model,
+    ...(request.model_selection ? { model_selection: structuredClone(request.model_selection) } : {}),
     character: {
       id: role.role_id,
       version: role.version,
@@ -89,7 +90,7 @@ function startInput(request: AgentStartRequest, role: FrozenRole, model: Prologu
       instructions: role.prompts.map((prompt) => prompt.body).join("\n\n"),
       tools: [...role.host_tools],
     },
-    ...(role.compaction ? { compaction: { prompt: role.compaction.prompt.body, above_tokens: role.compaction.above_tokens } } : {}), ...(role.ending_review ? { ending_review: { prompt: role.ending_review.prompt.body } } : {}),
+    ...(role.compaction ? { compaction: { prompt: role.compaction.prompt.body, above_tokens: provenance.frozen.compaction?.above_tokens ?? role.compaction.above_tokens } } : {}), ...(role.ending_review ? { ending_review: { prompt: role.ending_review.prompt.body } } : {}),
     task: request.task,
     ...(role.memory ? { memory: structuredClone(role.memory) } : {}),
     ...(role.subagents ? { subagents: structuredClone(role.subagents) } : {}),

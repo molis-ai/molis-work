@@ -4,6 +4,15 @@
 
 ## [Unreleased]
 
+### 工作记录：历史查询与记录管理（2026-11-15，#2084、#2088）
+
+- **公共动作**：`system.observation` 新增 8 个 `@1` 动作：只读 `records.query`／`evidence.get`／`coverage.get`，本人管理 `settings.get/set`／`space.get`／`cleanup.preview/apply`；按受众、用途开关、S-74 与模拟来源隔离裁决；支持当时证据快照解封、主人版本引用核对、`after_seq` 增量与迟到标记。既有 `observation.report@1` 形状不变，合同成熟度升为 `implemented`。
+- **设置界面**：全局设置「个人 → 工作记录」四个页签（记了什么、保留与清理、占用、覆盖与缺口）、暂停／恢复、用途开关、保留期限缩短提示、手动清理预览与执行、容量提醒；按需资源 `/assets/molis-work-work-records.js`；`observation` 库升级失败只阻断该设置页。
+- **组件板**：`#kind-mark`（五种 `--mark-*` 色相与独立字形）与 `#category-bar`（比例轨道与零值图例），组件板与产品页共用 `@molis-ai/molis-work-design-system/work-records`。
+- **合后小修 #2088**：`purged`/全部写入缺口原因的徽章、影响说明与横幅判定；收敛 5 个包内未跨文件 `export` 与 6 个不可达短名分支；同步 `CALL-CHAINS.md`、observation spec §10、design README 与 29.md 的旧字面量/合入号。
+- **合后审计收口**：OCL-05 的主人对版本引用比较当前 revision，改写后标 `unverified`；OCL-13 的默认模拟隔离扩到 `assistant`／`evaluation`／`export`（本机回看保留并标注来源）；覆盖横幅考虑 unavailable/redacted entry；保留需求改从服务端 `requirements` 取。
+- **未完成/待验收**：本人实物与连续工作走查（`BL-work-records-acceptance`）；评测样本留存与回放归第 30 批。
+
 ### Work Brief 首页与简报核心（2026-11-14，#2077）
 
 - **首页主区内容**：插件可在呈现声明里写 `presentation.overview.lead: { view_id }`，`surfaces.compose@1` 的 `home` 描述多一个 `kind: "lead"` 的组；首页把该主区视图收进主区，细栏「看基础首页／回到」只是页面状态，移除/停用/打不开回基础首页。第三方插件同一条合同，不按插件名分支。

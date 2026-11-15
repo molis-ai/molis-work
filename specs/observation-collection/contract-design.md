@@ -272,7 +272,7 @@
 对 `specs/observation-collection/eval-cases.md`（EC-01～EC-18）及 `specs/proactive-assistant/spec.md` §14／[BL-328](../../docs/backlog-removed.md) 做只读核查，确认第 29 批读取合同对第 30 批「最小真实评测路径」的支撑完备性：
 
 1. **证据链完整性**：EC-01～EC-06、EC-08～EC-09 需要的请求原话、检索候选、模型完整请求（`agent.model_request`）、工具入参与结果、交付物引用与最终状态，均可通过 `observation.records.query@1`（按 `call_id`、`run_id`、`work_ref` 或 `after_seq`）与 `observation.evidence.get@1`（`use: "evaluation"`）一次取回。
-2. **模拟与回放隔离**：`source_class = "replay"` 已在合同闭集内，`withObservationSource("replay", run)` 可直接包住第 30 批的隔离回放；`observation.records.query@1` 在 `use: "assistant"` 下默认过滤 `replay`/`demo`/`trial`/`system_check`，而在 `use: "evaluation"` 下可按 `source_classes: ["real"]` 或 `["replay"]` 精确对比原过程与回放结果（PWA-53、OCL-13）。
+2. **模拟与回放隔离**：`source_class = "replay"` 已在合同闭集内，`withObservationSource("replay", run)` 可直接包住第 30 批的隔离回放；`observation.records.query@1` 在 `use: "assistant"`、`"evaluation"`、`"export"` 下默认过滤 `replay`/`demo`/`trial`/`system_check`；本人 `use: "lookback"` 保留原始记录并标注 `source_class`。`use: "evaluation"` 仍可按 `source_classes: ["real"]` 或 `["replay"]`（或 `include_simulated: true`）精确对比原过程与回放结果（PWA-53、OCL-13）。
 3. **未知与缺口不误判为失败**：`observation.coverage.get@1` 返回 `activity_summary`、`entries` 与 `gaps`，使第 30 批评测器在遇到 `not_connected`、`unavailable`、`lost`、`expired`、`recording_paused` 时能够将样本判定为「未知（insufficient_evidence）」，而不会误判为业务失败或拒绝（PWA-55、OCL-08、EC-16）。
 4. **留存衔接**：`ObservationSettingsView.evaluation_holds` 已在合同预留 `{ count, bytes, retention_days }`，第 30 批只需增加评测样本留存关联，即可无缝接入手动清理的保留豁免与到期提醒。
 

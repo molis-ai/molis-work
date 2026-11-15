@@ -60,7 +60,7 @@ export async function codingSdkRuntime(t: TestContext, options: { modelEndpoint?
     router.dispatch({ method, pathname: prefix + path, actor_id: "web-user", ...(body === undefined ? {} : { body }) }));
   const create = (id: string) => sessions.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: id, title: id, runtime_id: "prologue", at: new Date().toISOString() });
   const reopenSdk = async () => { await adapter.close(); adapter = await makeAdapter(); agentHost = new AgentHost({ reviews }); agentHost.register(adapter); };
-  return { home, store, sessions, service, reviews, platform, call, create, reopenSdk, get adapter() { return adapter; } };
+  return { home, store, artifacts, sessions, service, reviews, platform, call, create, reopenSdk, get adapter() { return adapter; } };
 }
 
 export function codingToolResponse(name: string, input: unknown): Response {

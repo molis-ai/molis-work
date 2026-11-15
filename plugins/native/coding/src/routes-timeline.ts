@@ -15,6 +15,7 @@ import type { PluginRouteBinding } from "@molis-ai/molis-work-contracts/platform
 import { agentHostCapabilities as agent, isTerminalAgentPhase, type AgentRunView, type AgentStepAmendment, type AgentStepBoard } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentCollaborationActions } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import { agentInputActions } from "@molis-ai/molis-work-contracts/services/agent-inputs";
+import { isValidFibonacciStoryPoints } from "./plan-content.js";
 import { codingFailure, codingText } from "./words.js";
 
 /** Coding routes for a session's timeline: its rounds as they run and as recorded, the TaskBoard, recovery and rewind, messages and background commands. */
@@ -33,11 +34,36 @@ function stepAmendment(value: unknown): AgentStepAmendment {
   const words = (key: string, label: string, max: number) => { const found = entry[key]; if (typeof found !== "string" || !found.trim() || found.length > max) throw codingFailure("coding.server.fill-in", { label: { key: label }, max }); return found.trim(); };
   switch (entry.kind) {
     case "skip": return { kind: "skip", node: id("node"), reason: words("reason", "coding.field.skip-reason", 300) };
-    case "insert": return { kind: "insert", after: id("after"), title: words("title", "coding.field.new-step", 120), acceptance: words("acceptance", "coding.field.acceptance", 300), ...(entry.mine === true ? { mine: true as const } : {}), ...origin(entry.origin) };
+    case "remove-scope": return { kind: "remove-scope", node: id("node"), reason: words("reason", "coding.field.skip-reason", 300) };
+    case "estimate": {
+      const points = entry.story_points === null ? null : entry.story_points;
+      if (points !== null && !isValidFibonacciStoryPoints(points)) throw codingFailure("coding.server.plan-story-points", { step: 1 });
+      const reason = typeof entry.reason === "string" && entry.reason.trim() ? entry.reason.trim().slice(0, 500) : undefined;
+      return { kind: "estimate", node: id("node"), story_points: points, ...(reason ? { reason } : {}) };
+    }
+    case "progress": {
+      const progress = Number(entry.progress);
+      if (!Number.isFinite(progress) || progress < 0 || progress > 1) throw codingFailure("coding.server.plan-change");
+      return { kind: "progress", node: id("node"), progress, basis: words("basis", "coding.field.result-note", 300) };
+    }
+    case "insert": {
+      const points = entry.story_points === undefined || entry.story_points === null ? undefined : entry.story_points;
+      if (points !== undefined && !isValidFibonacciStoryPoints(points)) throw codingFailure("coding.server.plan-story-points", { step: 1 });
+      const estimateReason = typeof entry.estimate_reason === "string" && entry.estimate_reason.trim() ? entry.estimate_reason.trim().slice(0, 500) : undefined;
+      const parentId = entry.parent_id === undefined ? undefined : id("parent_id");
+      return {
+        kind: "insert", after: id("after"), title: words("title", "coding.field.new-step", 120), acceptance: words("acceptance", "coding.field.acceptance", 300),
+        ...(entry.mine === true ? { mine: true as const } : {}), ...origin(entry.origin),
+        ...(parentId ? { parent_id: parentId } : {}),
+        ...(points !== undefined ? { story_points: points, estimate_source: "human" as const } : {}),
+        ...(estimateReason ? { estimate_reason: estimateReason } : {}),
+      };
+    }
     case "unblock": return { kind: "unblock", node: id("node"), note: words("note", "coding.field.decision", 500) };
     case "move": if (entry.direction !== "up" && entry.direction !== "down") throw codingFailure("coding.server.move-direction"); return { kind: "move", node: id("node"), direction: entry.direction };
     case "assign": if (entry.to !== "me" && entry.to !== "session") throw codingFailure("coding.server.reassign-target"); return { kind: "assign", node: id("node"), to: entry.to };
     case "resolve": if (entry.state !== "succeeded" && entry.state !== "failed") throw codingFailure("coding.server.result"); return { kind: "resolve", node: id("node"), state: entry.state, note: words("note", "coding.field.result-note", 500) };
+    case "reconcile": if (entry.action !== "confirm-done" && entry.action !== "rerun") throw codingFailure("coding.server.plan-change"); return { kind: "reconcile", node: id("node"), action: entry.action, note: words("note", "coding.field.result-note", 500) };
     default: throw codingFailure("coding.server.plan-change");
   }
 }
@@ -48,15 +74,23 @@ function amendmentNote(amendment: AgentStepAmendment, board: AgentStepBoard): st
   const tail = "请先用 board-read 读取最新版本，按新的顺序继续；不要重做已完成的步骤。";
   switch (amendment.kind) {
     case "skip": return `我调整了本轮计划：跳过${name(amendment.node)}，原因：${amendment.reason}。${tail}`;
+    case "remove-scope": return `我调整了本轮计划：将${name(amendment.node)}移出本轮范围，原因：${amendment.reason}。${tail}`;
+    case "estimate": return amendment.story_points === null
+      ? `我清除了${name(amendment.node)}的故事点数估算（改为待估算）。${tail}`
+      : `我把${name(amendment.node)}的故事点数设为 ${amendment.story_points} 点${amendment.reason ? `（${amendment.reason}）` : ""}。${tail}`;
+    case "progress": return `我更新了${name(amendment.node)}的部分完成依据（${Math.round(amendment.progress * 100)}%）：${amendment.basis}。${tail}`;
     case "insert": return amendment.mine
-      ? `我调整了本轮计划：在${name(amendment.after)}之后插入新步骤「${amendment.title}」，完成条件：${amendment.acceptance}，由我自己处理。你不要报告这一步；等它完成后再继续依赖它的步骤。${tail}`
-      : `我调整了本轮计划：在${name(amendment.after)}之后插入新步骤「${amendment.title}」，完成条件：${amendment.acceptance}。新步骤在任务图里的编号以 board-read 为准（user- 开头），轮到它时照常报告 running 与结果。${tail}`;
+      ? `我调整了本轮计划：在${name(amendment.after)}之后插入新步骤「${amendment.title}」${amendment.story_points ? `（${amendment.story_points} 点）` : ""}，完成条件：${amendment.acceptance}，由我自己处理。你不要报告这一步；等它完成后再继续依赖它的步骤。${tail}`
+      : `我调整了本轮计划：在${name(amendment.after)}之后插入新步骤「${amendment.title}」${amendment.story_points ? `（${amendment.story_points} 点）` : ""}，完成条件：${amendment.acceptance}。新步骤在任务图里的编号以 board-read 为准（user- 开头），轮到它时照常报告 running 与结果。${tail}`;
     case "unblock": return `关于受阻的${name(amendment.node)}，我的决定：${amendment.note}。请按这个决定继续。${tail}`;
     case "move": return `我调整了本轮计划顺序：把${name(amendment.node)}${amendment.direction === "up" ? "提前" : "推后"}一步。${tail}`;
     case "assign": return amendment.to === "me"
       ? `我把${name(amendment.node)}改派给我自己处理。你（以及原来负责它的子任务）不要再报告这一步；等它完成后再继续依赖它的步骤。${tail}`
       : `我把${name(amendment.node)}交回本会话，由你负责报告和完成。${tail}`;
     case "resolve": return `我处理的${name(amendment.node)}${amendment.state === "succeeded" ? "已经完成" : "失败了"}：${amendment.note}。${amendment.state === "succeeded" ? "依赖它的步骤现在可以继续。" : "请看依赖它的步骤怎么办，需要我决定就说明。"}${tail}`;
+    case "reconcile": return amendment.action === "confirm-done"
+      ? `我核对了命令结果未知的${name(amendment.node)}，确认已完成：${amendment.note}。依赖它的步骤可以继续。${tail}`
+      : `我核对了命令结果未知的${name(amendment.node)}，决定重新运行：${amendment.note}。请重新执行这一步。${tail}`;
   }
 }
 
@@ -101,7 +135,7 @@ const ROUTES: RouteMaker[] = [
       const board = entry?.board, node = board?.nodes.find(node => node.id === request.params.stepId);
       if (!board || !node || entry?.board_error || !node.reports.length) throw codingFailure("coding.server.step-no-report");
       if (body.project_id !== board.project_id || body.board_version !== board.version) throw codingFailure("coding.server.step-report-changed");
-      if (!["accepted", "needs-work"].includes(String(body.action)) || body.action === "accepted" && node.state !== "succeeded") throw codingFailure("coding.server.accept-succeeded-only");
+      if (!["accepted", "needs-work"].includes(String(body.action)) || body.action === "accepted" && (node.state !== "succeeded" || Boolean(node.unknown_outcome))) throw codingFailure("coding.server.accept-succeeded-only");
       const notes = typeof body.notes === "string" ? body.notes.trim() : "";
       if (notes.length > 4000 || body.action === "needs-work" && !notes) throw codingFailure("coding.server.rework-reason");
       await beforeWrite(); beforeWrite.assert_current();

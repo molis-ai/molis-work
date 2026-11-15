@@ -168,15 +168,34 @@ type Piece = { ref: { subject: { kind: string; id: string }; pin: { mode: string
 const pick = (reference: ArtifactReference, title: string): Piece => ({
   ref: { subject: { kind: "artifact", id: artifactSubjectId(reference) }, pin: { mode: "fixed", version: { artifact_id: reference.artifact_id, version: reference.version } } }, title });
 
-// W2-18-CODING-DELIVERY-01: actual SDK letters, fixed reports and the next SDK Run's frozen material version.
-test("30 materials refuse a new delivery without committing receipts; removing one permits acceptance and actual consumption", { timeout: 120_000 }, async t => {
+// W2-18-CODING-DELIVERY-01: actual SDK letters, fixed reports and the next SDK Run's frozen material version (capacity 200 per C14).
+test("200 materials refuse a new delivery without committing receipts; removing one permits acceptance and actual consumption", { timeout: 120_000 }, async t => {
   const fixture = await codingSdkRuntime(t); await fixture.create("A"); body(await fixture.call("/sessions/A", { configuration }, "PATCH"));
   t.mock.method(globalThis, "fetch", async () => cogniaModelResponse("DELIVERED_FIXED_TEXT"));
   const delegated = body<Delegated>(await fixture.call("/sessions/A/delegations", { title: "Report", task: "Produce fixed reports." })), target = delegated.session.session_id;
-  const references: Piece[] = [];
-  for (let index = 0; index < 30; index++) {
-    const ref = await start(fixture, target, `Fixed report ${index}`);
-    references.push(pick(body<{ reference: ArtifactReference }>(await fixture.call(`/sessions/${target}/runs/${ref.run_id}/report`, {})).reference, `Fixed report ${index}`));
+  const firstRun = await start(fixture, target, "Fixed report 0");
+  const firstRef = body<{ reference: ArtifactReference }>(await fixture.call(`/sessions/${target}/runs/${firstRun.run_id}/report`, {})).reference;
+  const template = fixture.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, firstRef)!;
+  const references: Piece[] = [pick(firstRef, "Fixed report 0")];
+  for (let index = 1; index < 200; index++) {
+    const seeded = fixture.artifacts.commands.registerVersion({
+      project_id: DEMO_PROJECT_ID,
+      artifact_id: `coding-report-seed-${index}`,
+      version: 1,
+      actor_id: template.created_by,
+      artifact_type_id: template.artifact_type_id,
+      schema_version: template.schema_version,
+      producer: {
+        plugin_id: template.producer_plugin_id,
+        plugin_version: template.producer_plugin_version,
+        binding_signature: template.producer_binding_signature,
+      },
+      title: `Fixed report ${index}`,
+      media_type: template.media_type,
+      origin: template.origin,
+      content: { kind: "inline", payload: template.payload },
+    }).artifact;
+    references.push(pick({ artifact_id: seeded.artifact_id, version: seeded.version }, `Fixed report ${index}`));
   }
   body(await fixture.call("/sessions/A", { materials: references }, "PATCH"));
   const deliveredRun = await start(fixture, target, "The new delivered report."), result = body<{ delegation: { deliveries: Array<{ delivery_id: string; artifact: ArtifactReference }> } }>(
@@ -188,10 +207,11 @@ test("30 materials refuse a new delivery without committing receipts; removing o
   assert.deepEqual(body<{ materials: Piece[] }>(await fixture.call("/sessions/A")).materials, references);
   body(await fixture.call("/sessions/A", { materials: references.slice(1) }, "PATCH")); body(await fixture.call(path, { decision: "accept" }));
   const material = body<{ materials: Piece[] }>(await fixture.call("/sessions/A")).materials;
-  assert.equal(material.length, 30); assert.deepEqual([material.at(-1)!.ref.subject.kind, material.at(-1)!.ref.subject.id], ["artifact", artifactSubjectId(delivery.artifact)]);
+  assert.equal(material.length, 200); assert.deepEqual([material.at(-1)!.ref.subject.kind, material.at(-1)!.ref.subject.id], ["artifact", artifactSubjectId(delivery.artifact)]);
   const consumed = await start(fixture, "A", "Read all accepted materials.");
   const frozen = (await fixture.adapter.read(consumed)).frozen.text_materials;
-  assert.ok(frozen.some(item => item.source_artifact_id === delivery.artifact.artifact_id && item.source_version === delivery.artifact.version));
+  assert.ok(frozen.some(item => (item.source_artifact_id === delivery.artifact.artifact_id && item.source_version === delivery.artifact.version)
+    || item.overflow_materials?.some(entry => entry.source_artifact_id === delivery.artifact.artifact_id && entry.source_version === delivery.artifact.version)));
   // Already present at capacity: taking this exact version records acceptance and never adds a duplicate.
   const next = body<Delegated>(await fixture.call("/sessions/A/delegations", { title: "Existing", task: "Produce one report." }));
   const existingRun = await start(fixture, next.session.session_id, "Existing fixed report."), existing = pick(body<{ reference: ArtifactReference }>(await fixture.call(`/sessions/${next.session.session_id}/runs/${existingRun.run_id}/report`, {})).reference, "Existing fixed report");

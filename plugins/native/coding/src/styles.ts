@@ -460,10 +460,10 @@ ${CODING_FOOTNOTE_STYLES}
 @media (prefers-reduced-motion: reduce) { .coding-tools-summary.is-live > span:last-child, .coding-run-footer[data-state=live] .coding-live-text, .coding-inline-review, .coding-run-card { animation:none; } }
 
 /* A new session opens like a blank page: the question, the composer, and a few ways in. */
-.coding-dialogue > .coding-turns[data-coding-welcoming] { display:flex; flex-direction:column; justify-content:flex-end; }
+.coding-dialogue > .coding-turns[data-coding-welcoming] { display:flex; flex-direction:column; }
 .coding-turns[data-coding-welcoming] ~ .coding-composer { margin-bottom:clamp(24px, 18vh, 180px); }
 .coding-turns[data-coding-welcoming] ~ .coding-status:empty { display:none; }
-.coding-welcome { width:min(100%, var(--coding-reading)); margin:0 auto; padding:0 0 16px; text-align:left; animation:craft-rise var(--dur-move) var(--ease-quint); }
+.coding-welcome { width:min(100%, var(--coding-reading)); margin:auto auto 0; padding:0 0 16px; text-align:left; animation:craft-rise var(--dur-move) var(--ease-quint); }
 .coding-welcome h2 { margin:8px 0; font-size:24px; font-weight:500; letter-spacing:-.01em; color:var(--ink); }
 .coding-welcome > p { margin:0; color:var(--muted); font-size:13px; line-height:1.6; }
 .coding-welcome-kicker { display:inline-flex; align-items:center; gap:8px; margin:0 !important; padding:4px 12px 4px 8px; border-radius:999px; background:var(--rail); color:var(--muted) !important; font-size:12px !important; }
@@ -727,4 +727,7 @@ dialog.mw-dialog--form.coding-rules { width:min(560px,calc(100vw - 32px)); }
 .coding-rules__foot > p { margin:0; font-size:12px; line-height:1.5; color:var(--muted); }
 .coding-rules__error, .coding-rules__note { margin:0; font-size:12px; line-height:1.5; color:var(--red,var(--danger)); }
 .coding-rules__note { color:var(--muted); }
+.coding-env-checklist, .coding-round-materials, .coding-material-recovery { box-sizing:border-box; min-width:0; width:min(100%,var(--coding-reading)); margin:0 auto 10px; overflow-wrap:anywhere; }
+.coding-child-budget { min-width:0; margin:6px 0 0 24px; }
+.coding-run-card > .mw-report-card { margin:4px 0 8px; }
 ` + CODING_TIMELINE_STYLES;

@@ -1920,10 +1920,251 @@
     "coding.call.find-symbol": "Find symbol",
     "coding.call.find-symbol.doing": "Finding a symbol",
     "coding.onboarding.session-title": "From getting started",
+    "coding.board.estimate": "Estimate",
+    "coding.board.estimate-ok": "Save estimate",
+    "coding.board.estimate-points": "Fibonacci points (1, 2, 3, 5, 8, 13, 21…; 0 clears)",
+    "coding.board.estimate-reason": "Estimate reason (optional)",
+    "coding.board.points": "{points} pt",
+    "coding.board.points-by-agent": "Estimated by Agent",
+    "coding.board.points-by-user": "Set by you",
+    "coding.board.points-pending": "Pending estimate",
+    "coding.board.points-pending-hint": "No Fibonacci story-point estimate yet",
+    "coding.board.points-rollup": "Rolled up from {count} sub-steps: {points} pt",
+    "coding.board.progress-basis": "{percent}% done · {basis}",
+    "coding.board.remove-scope": "Remove from scope",
+    "coding.board.remove-scope-reason": "Reason for removing from scope",
+    "coding.board.split-hint": "Consider splitting further",
+    "coding.board.state.removed": "Out of scope",
+    "coding.board.summary.discounted": "includes discounted progress",
+    "coding.board.summary.empty": "No tasks",
+    "coding.board.summary.removed": "{points} pt removed from scope",
+    "coding.board.summary.unestimated": "Pending estimate",
+    "coding.board.summary.unestimated-more": "{count} unestimated",
+    "coding.board.summary.weighted": "Estimated progress {percent}% · {completed} / {total} pt",
+    "coding.card.budget-extended": "Added 3 more attempts.",
+    "coding.card.budget.count": "Attempt {attempt} of {max}",
+    "coding.card.budget.exhausted": "Attempt limit reached; paused",
+    "coding.card.budget.reason.provider": "Model service error",
+    "coding.card.budget.reason.user": "Retried by you",
+    "coding.card.budget.reason.verification": "Check failed",
+    "coding.card.extend-budget": "Allow 3 more",
+    "coding.card.retry-prompt": "Please dispatch the sub-task “{role}” again with its original assignment and a fresh idempotencyKey (reusing the old key returns the stopped result without re-running){reason}. Original assignment:\n{task}",
+    "coding.card.retry-reason-suffix": "; why the last attempt stopped: {error}",
+    "coding.env.deps-missing": "{manager} · dependencies not installed",
+    "coding.env.deps-none": "No package manifest",
+    "coding.env.deps-ok": "{manager} · dependencies ready",
+    "coding.env.example-keys": "Env template ({file}, variable names only, never reads .env values): {keys}",
+    "coding.env.git-branch": "Branch {branch} · {dirty} uncommitted",
+    "coding.env.git-detail": "Git: {summary}",
+    "coding.env.keys-count": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "{count} env key",
+        "other": "{count} env keys"
+      }
+    },
+    "coding.env.needs-prep": "Environment needs setup",
+    "coding.env.not-git": "Not a Git repo",
+    "coding.env.ports": "Ports {ports}",
+    "coding.env.ready": "Environment ready",
+    "coding.env.scripts-count": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "{count} script",
+        "other": "{count} scripts"
+      }
+    },
+    "coding.env.scripts-detail": "Scripts: {script_names}",
+    "coding.env.worktrees-count": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "{count} worktree",
+        "other": "{count} worktrees"
+      }
+    },
+    "coding.env.worktrees-detail": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "{count} separate worktree registered",
+        "other": "{count} separate worktrees registered"
+      }
+    },
+    "coding.field.plan-estimate-reason": "Estimate reason",
+    "coding.material.delivery.inline": "Full text",
+    "coding.material.delivery.on-demand": "Listed; read on demand",
+    "coding.material.delivery.truncated": "First 12,000 chars; read more on demand",
+    "coding.material.drop-and-start": "Remove and start",
+    "coding.material.kept-summary": "This round has not started. The other {kept} materials and your draft are still in place.",
+    "coding.material.pick-another": "Pick another",
+    "coding.material.pinned-note": "Pinned to start revision",
+    "coding.material.reason.deleted": "Not found in project (may have been deleted)",
+    "coding.material.reason.forbidden": "Read permission is turned off",
+    "coding.material.round-overflow-summary": "Read {inline}; {rest} more on demand",
+    "coding.material.round-summary": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "{count} material in this round",
+        "other": "{count} materials in this round"
+      }
+    },
+    "coding.material.start-without": "Start without materials",
+    "coding.material.unreadable-banner": "Unreadable materials: {materials}. Your draft and other materials are kept.",
+    "coding.plan.points-field": "Story points (Fibonacci, optional)",
+    "coding.plan.points-reason-field": "Estimate reason (optional)",
+    "coding.recovery.check-first": "Check first: the actions below were sent before the interruption with an unknown outcome and are never re-run automatically.",
+    "coding.recovery.kept-label": "What is kept",
+    "coding.recovery.none-confirmed": "No confirmed operations yet",
+    "coding.recovery.none-uncertain": "No operations have an unknown outcome; ready to close or continue.",
+    "coding.recovery.stopped-turn": "This turn stopped before finishing when the service restarted or disconnected.",
+    "coding.recovery.uncertain-label": "What is uncertain",
+    "coding.recovery.where-stopped": "Where it stopped",
+    "coding.round.card.delivered": "Delivered",
+    "coding.round.card.delivered-files": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "Changed {count} file",
+        "other": "Changed {count} files"
+      }
+    },
+    "coding.round.card.interrupted-left": "Stopped early; remaining work continues next",
+    "coding.round.card.no-verify": "No check commands ran in this round",
+    "coding.round.card.nothing-left": "No open blockers recorded in this round",
+    "coding.round.card.reconcile-left": "Operations with unknown outcomes need checking first",
+    "coding.round.card.remaining": "Remaining",
+    "coding.round.card.verified": "How it was verified",
+    "coding.round.card.where": "Where code stands",
+    "coding.round.card.where-checkpoint": "Working tree has {count} changed files from this round (checkpoint available)",
+    "coding.round.card.where-clean": "Working tree untouched in this round",
+    "coding.round.card.where-dirty": "Working tree has {count} changed files from this round",
+    "coding.round.done-unknown-cmd": "Turn ended ({count} command outcomes unknown)",
+    "coding.round.pre-existing-fail": "Already failing before edits",
+    "coding.round.stale-check": "Ran before later edits; not re-run after",
+    "coding.round.unknown-cmd-note": "{count} command outcomes unknown; check first",
+    "coding.server.plan-parent": "Parent step number must point to an earlier top-level step",
+    "coding.server.plan-story-points": "Story points must be a positive Fibonacci number (1, 2, 3, 5, 8, 13, 21, 34…)",
     "coding.skills.used": "Used",
     "coding.skills.auto": "picked by AI",
     "coding.skills.named": "named by you",
     "coding.skills.none": "No skill was used this round",
-    "coding.skills.choose": "Choose one"
+    "coding.skills.choose": "Choose one",
+    "coding.board.progress-basis-input": "Progress basis (e.g. 2/4 tests passing)",
+    "coding.board.progress-edit": "Log progress",
+    "coding.board.progress-percent": "Completion percent (1-99)",
+    "coding.board.progress-save": "Save progress",
+    "coding.board.reconcile-confirm": "Confirm done",
+    "coding.board.reconcile-confirm-note": "Check note (confirm operation finished)",
+    "coding.board.reconcile-rerun": "Run again",
+    "coding.board.reconcile-rerun-note": "Re-run note (why this step should run again)",
+    "coding.board.state.unknown-outcome": "Outcome unknown; check",
+    "coding.card.budget.meter-label": "Sub-task attempt budget",
+    "coding.card.budget.past-line": "Attempt {attempt} · {state}{detail}",
+    "coding.card.budget.past-summary": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "Previous {count} attempt",
+        "other": "{count} previous attempts"
+      }
+    },
+    "coding.env.action.install-deps-prompt": "Please prepare and install workspace dependencies ({manifest}) first, then continue.",
+    "coding.env.action.open-files": "Inspect files and Git",
+    "coding.env.action.prepare-deps": "Prepare dependency install",
+    "coding.env.action.run-baseline": "Run baseline check",
+    "coding.env.action.run-baseline-prompt": "Please run the baseline tests ({command}) first to confirm current test status.",
+    "coding.env.action.switch-workspace": "Switch folder",
+    "coding.env.badge.missing": "Needs setup",
+    "coding.env.baseline.after-deps": "Run baseline check ({command}) after dependencies are installed",
+    "coding.env.baseline.ready": "Ready to run baseline check ({command})",
+    "coding.env.row.baseline": "Baseline tests",
+    "coding.env.scripts.summary-ports": "{scriptList} · {ports}",
+    "coding.env.badge.pre-existing": "Pre-existing",
+    "coding.env.badge.ready": "Ready",
+    "coding.env.deps.cargo-ok": "Rust workspace (Cargo.toml)",
+    "coding.env.deps.node-missing": "Found {manifest}; node_modules not installed",
+    "coding.env.deps.node-ok": "Ready ({manifest} · node_modules present)",
+    "coding.env.deps.python-info": "Python manifest found (no local .venv)",
+    "coding.env.deps.python-ok": "Python virtual environment ready",
+    "coding.env.footer.detail": "Temporary processes started in this round are stopped at the end; unintegrated worktrees stay for your review",
+    "coding.env.footer.title": "End-of-round cleanup",
+    "coding.env.git.clean": "{branch} · clean working tree",
+    "coding.env.git.conflict": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "{branch} · unresolved merge conflicts ({count} file)",
+        "other": "{branch} · unresolved merge conflicts ({count} files)"
+      }
+    },
+    "coding.env.git.detached": "Detached HEAD",
+    "coding.env.git.dirty": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "{branch} · {count} uncommitted change",
+        "other": "{branch} · {count} uncommitted changes"
+      }
+    },
+    "coding.env.git.not-repo-detail": "Not a Git repository (files remain readable; worktree isolation unavailable)",
+    "coding.env.recovery.conflict-body": "Unresolved merge conflicts are present in the working tree. Check or resolve them before applying edits.",
+    "coding.env.recovery.conflict-title": "Resolve merge conflicts first",
+    "coding.env.recovery.deps-body": "If this round runs tests or builds, it will request approval to install dependencies first rather than downloading silently.",
+    "coding.env.recovery.deps-title": "Dependencies are not installed yet",
+    "coding.env.recovery.env-body": "Checked variable names in {file} ({keys}) without reading .env values. Prepare required variables locally or in secret settings before running checks.",
+    "coding.env.recovery.env-title": "Local environment configuration missing",
+    "coding.env.recovery.worktree-body": "A separate worktree has an abnormal branch state; its files are kept intact and never deleted automatically.",
+    "coding.env.recovery.worktree-title": "Separate worktree needs checking",
+    "coding.env.row.deps": "Dependencies",
+    "coding.env.row.env": "Environment keys",
+    "coding.env.row.git": "Repository",
+    "coding.env.row.scripts": "Checks and services",
+    "coding.env.row.worktrees": "Parallel worktrees",
+    "coding.env.scripts.invalid-pkg": "package.json could not be parsed",
+    "coding.env.scripts.ports": "Ports {ports} (switches to free port if busy)",
+    "coding.env.scripts.summary": "Scripts {scriptList}",
+    "coding.env.status.attention": "{count} need attention",
+    "coding.env.status.ready": "All ready",
+    "coding.env.summary.deps-ready": "Dependencies ready",
+    "coding.env.summary.existing-dirty": "{count} existing changes",
+    "coding.env.title": "Environment checklist",
+    "coding.env.vars.checked": "Checked {file} (secret values never read)",
+    "coding.env.vars.missing": "No local .env found; {file} declares {keys}",
+    "coding.env.vars.more": "{keys} ({count} total)",
+    "coding.env.vars.present": "Local env file present (checked against {file}; values never read)",
+    "coding.env.worktrees.cleanup": {
+      "plural_arg": "total",
+      "forms": {
+        "one": "{total} worktree kept (idle; clean up after integration)",
+        "other": "{total} worktrees kept (idle; clean up after integration)"
+      }
+    },
+    "coding.env.worktrees.problem": {
+      "plural_arg": "total",
+      "forms": {
+        "one": "{total} worktree (attention needed: {problems})",
+        "other": "{total} worktrees (attention needed: {problems})"
+      }
+    },
+    "coding.env.worktrees.ready": {
+      "plural_arg": "total",
+      "forms": {
+        "one": "{total} worktree ready",
+        "other": "{total} worktrees ready"
+      }
+    },
+    "coding.material.delivery.continued": "Read more",
+    "coding.material.delivery.continued-how": "Read on demand during this round (pinned to start revision)",
+    "coding.material.footer.detail": "External edits during this round do not leak into current context; updates apply next round",
+    "coding.material.footer.title": "Pinned revision",
+    "coding.material.recovery.title": "Some materials cannot be read; this round has not started",
+    "coding.material.round-title": "Materials in this round",
+    "coding.material.status.inline": "Full text",
+    "coding.material.status.on-demand": "On demand",
+    "coding.material.status.truncated": "First 12,000 chars",
+    "coding.material.status.unreadable": "Unreadable",
+    "coding.round.card.accept": "Accept round result",
+    "coding.round.card.accepted": "Round result accepted",
+    "coding.round.card.cleanup": "Cleaned up at round end",
+    "coding.round.card.cleanup-commands": "{count} check commands from this round have exited",
+    "coding.round.card.code-version-title": "Code revision verified by this check",
+    "coding.round.card.rerun-check": "Re-run checks",
+    "coding.round.card.result-stale": "Result outdated",
+    "coding.round.rerun-prompt": "Code changed after the last check; please re-run the verification command ({command}) against the current code."
   }
 }

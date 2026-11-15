@@ -187,6 +187,7 @@ export const evaluationActions = {
       audiences: ["user"],
       permissions: [],
       subject_kinds: [],
+      scheduling: "concurrent",
       input_schema: inputSchemaFor<EvaluationSampleInput>()(closedObjectSchema({
         sample_id: token,
         version: { type: "integer", minimum: 1 },
@@ -270,6 +271,7 @@ export const evaluationActions = {
       audiences: ["user"],
       permissions: [],
       subject_kinds: [],
+      scheduling: "concurrent",
       input_schema: inputSchemaFor<EvaluationSampleRemoveInput>()(closedObjectSchema({
         sample_id: token,
         version: { type: "integer", minimum: 1 },
@@ -295,7 +297,7 @@ export const evaluationActions = {
       audiences: ["user"],
       permissions: [],
       subject_kinds: [],
-      execution: { scheduling: "concurrent" },
+      scheduling: "concurrent",
       input_schema: inputSchemaFor<EvaluationRunExecuteInput>()(closedObjectSchema({
         sample_id: token,
         sample_version: { type: "integer", minimum: 1 },

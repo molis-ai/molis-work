@@ -18,6 +18,15 @@ function number(value: unknown): number {
 /** An event of one owner: its type and its object type both begin with the namespace (bound four times: the text and its length, for each column). */
 const OWNED = "substr(type, 1, length(?)) = ? AND substr(object_type, 1, length(?)) = ?";
 
+/** Who hears that a project's journal gained an event (the Host's change word to its pages, WLN-27). */
+const APPENDED = new Set<(projectId: string) => void>();
+
+/** Hear every event appended to any project's journal in this process, by project id. A listener never fails a write. */
+export function onEventAppended(listener: (projectId: string) => void): () => void {
+  APPENDED.add(listener);
+  return () => { APPENDED.delete(listener); };
+}
+
 /** The existing local connection and journal primitives; no Module business queries. */
 export class LocalSqliteJournal {
   constructor(readonly db: SqliteDatabase) {}
@@ -94,6 +103,7 @@ export class LocalSqliteJournal {
         json(input.payload),
         input.at,
       );
+    for (const listener of APPENDED) { try { listener(input.projectId); } catch { /* a listener never fails a write */ } }
     return Number(result.lastInsertRowid);
   }
 

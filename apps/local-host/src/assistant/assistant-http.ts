@@ -2,6 +2,9 @@ import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { pluginInstallRecords } from "../plugin-install-records.js";
 import { HomeConsentLedger } from "../home-plugin-store.js";
 import { assistantLineRegistration, assistantLineSource, personTaskTable } from "./assistant-line-actions.js";
+import { AssistantTaskReports } from "./assistant-task-reports.js";
+import { onAttentionChangeOf } from "../attention-changes.js";
+import { homeAggregatePorts } from "../home-aggregate.js";
 import { assistantRelatedRegistration, relatedWorks, type RelatedWorksSource } from "./assistant-related-action.js";
 import { executorInputActions } from "./assistant-executor-input.js";
 import { AssistantThreads } from "./assistant-threads.js";
@@ -16,7 +19,7 @@ import { ASSISTANT_INSTALL_ID, type AssistantControl, type AssistantHandover, ty
 import { dispatchNativePluginJsonHttp, type NativePluginJsonResult, writeNativePluginJsonResponse } from "../native-plugin-http.js";
 import { activeLocale, readText, pageLocale, type WebLocale } from "../web-locale.js";
 import { modelRoundLocale } from "../reply-language.js";
-import { lastUsedLocale, rememberUiLocale } from "../ui-locale-memory.js";
+import { lastUsedLocale, rememberUiLocale, runBackgroundWorkIn } from "../ui-locale-memory.js";
 import { bindLocalWebActions, localWebActionContext } from "../local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS, MATERIALS_OWNER_PERMISSIONS } from "../local-owner-permissions.js";
 import { materialsActions } from "@molis-ai/molis-work-contracts/platform/project-materials";
@@ -93,11 +96,12 @@ function pageRoundLanguage(ports: Pick<AssistantHttpPorts, "homeDirectory">): { 
 const questionDrafts = (store: AssistantStore) => new AssistantQuestionDrafts({ store, actorId: WEB_ACTOR, fail: (code, message) => assistantErrors[code.slice("assistant.".length) as keyof typeof assistantErrors](message) });
 
 /** One Assistant per Home. Its store is opened once and lives as long as the Host that serves it. */
-const services = new WeakMap<MolisWorkLocalHost, { home: string; service: AssistantService; store: AssistantStore; threads: AssistantThreads; surroundings: ReturnType<typeof assistantSurroundings> }>();
+const services = new WeakMap<MolisWorkLocalHost, { home: string; service: AssistantService; store: AssistantStore; threads: AssistantThreads; surroundings: ReturnType<typeof assistantSurroundings>; reports: AssistantTaskReports }>();
 
 /** The Host owns the shared Assistant; closing a borrowed HTTP transport does not release it. */
 export function closeAssistantService(host: MolisWorkLocalHost): void {
   services.get(host)?.service.continuations.close();
+  services.get(host)?.reports.close();
   services.delete(host);
 }
 
@@ -244,7 +248,17 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
     client: project => ports.localHost.actionClient(project), caller: project => localWebActionContext(ports.localHost, project, LOCAL_OWNER_PERMISSIONS),
     alive: () => ports.localHost.lifecycle() === "running",
   });
-  const entry = { home: ports.homeDirectory, service, store, threads, surroundings };
+  // Tasks no conversation started report here once they end (`reports_to: "assistant"`), read where something changed.
+  // Only a project open now is read (the Home never opens one to read it), kept open while it is, in the language last used.
+  const aggregate = homeAggregatePorts(ports.localHost), tableOf = personTaskTable(ports.projectReference, personClient);
+  const openTable = async (projectId: string) => {
+    const reference = aggregate.openProjects().find(one => one.project_id === projectId);
+    const read = reference && await aggregate.whileOpen(reference, () => runBackgroundWorkIn(ports.homeDirectory, () => tableOf(projectId)));
+    return read ?? { tasks: [], issues: [] };
+  };
+  const reports = new AssistantTaskReports({ table: openTable, changes: onAttentionChangeOf, report: report => service.reportTask(report) });
+  reports.start();
+  const entry = { home: ports.homeDirectory, service, store, threads, surroundings, reports };
   services.set(ports.localHost, entry);
   // The runtime looks at the background jobs these works follow with the work's own authority, from its first look on.
   registerWorkAuthority(ports.localHost, at => service.jobs.authority(at));

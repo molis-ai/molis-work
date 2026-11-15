@@ -153,7 +153,7 @@ assistant.panel.works.undo	1	system.assistant-panel	command	operation	home	write
 attention.waiting.read	1	system.mainline	query	query	project	read	concurrent	agent,mcp,user,workflow	mainline:read	-	-	-	88db02166b7c	6c35b8e1ec1c	-
 background.tasks.command	1	system.mainline	command	operation	project	write	concurrent	user	mainline:control	-	-	-	b72eab443ba0	5eeca3761a19	-
 background.tasks.decide	1	system.mainline	command	operation	project	write	concurrent	user	mainline:control	-	-	-	8d4343f573d8	92203e6141bb	-
-background.tasks.read	1	system.mainline	query	query	project	read	concurrent	user	mainline:read	-	-	-	99334726611c	bdfc64487419	-
+background.tasks.read	1	system.mainline	query	query	project	read	concurrent	user	mainline:read	-	-	-	99334726611c	d072140c46ab	-
 characters.actions.catalog	1	io.molis.work.characters	query	query	project	read	-	agent,mcp,user,workflow	artifact:read	character	-	-	d746974fa9af	42fe29f1a110	-
 characters.artifacts.preview	1	io.molis.work.characters	query	query	project	read	concurrent	user,workflow	artifact:read	artifact	molis.artifacts.preview.request.v1	molis.artifacts.preview.v1	b5dd5a809ad7	3197f1792222	5e0374458cf9
 characters.create	1	io.molis.work.characters	command	operation	project	write	-	agent,mcp,user,workflow	-	character	-	-	d746974fa9af	478e0598d946	-

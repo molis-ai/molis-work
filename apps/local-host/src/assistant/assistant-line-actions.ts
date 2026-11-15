@@ -227,7 +227,7 @@ export function assistantLineSource(store: Pick<AssistantStore, "list" | "observ
     works: async projectId => Promise.all(store.list(actorId, { limit: 500 }).filter(work => work.project_ref?.project_id === projectId).map(async work => {
       const seen = store.observed(actorId, work.work_id);
       const state = seen !== null && ENDED_STATES.includes(seen) ? seen : await service.reads.stateSafely(work);
-      // What is held is read only for a work that waits on a confirmation; a work whose view cannot be read still shows as waiting, with 「去定」.
+      // What is held is read only for a work that waits on a confirmation; a work whose view cannot be read still shows as waiting, with 「去处理」.
       return state === "waiting-review" ? { work, state, reviews: await service.read(work.work_id).then(view => view.reviews, () => []) } : { work, state };
     })),
     decide: async (workId, input) => { await service.outcomes.decide(workId, input); },

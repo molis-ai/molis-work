@@ -30,6 +30,8 @@ export interface PluginDatabaseConnections<Connection extends PluginDatabaseConn
   /** What each statement passes after the keyword filters, on the connection that will run it; a library in the Home has nothing more. */
   perform?<T>(connection: Connection, sql: string, parameters: readonly PluginSqlValue[], mode: "read" | "write", execute: () => T): T;
   check?(connection: Connection, sql: string, parameters: readonly PluginSqlValue[], mode: "read" | "write"): void;
+  /** Told after a transaction committed (the Host's change word to its pages, WLN-27); never fails the write. */
+  committed?(): void;
 }
 
 /** How many compiled statements each connection of a client keeps (`prepared`). */
@@ -144,6 +146,7 @@ export function pluginDatabaseClient<Connection extends PluginDatabaseConnection
         requireSynchronous(result, "插件数据库事务必须同步完成，不能包含异步等待");
         check();
         writer.exec("COMMIT");
+        try { connections.committed?.(); } catch { /* the write is done */ }
       } catch (error) {
         try { if (connections.inTransaction()) writer.exec("ROLLBACK"); }
         catch (rollbackError) { hostLog.error("plugin_database", "rollback_failed", rollbackError); }

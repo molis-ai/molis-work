@@ -328,6 +328,9 @@ export declare const BACKGROUND_TASK_ROW_SCHEMA: {
                 type: string;
             })[];
         };
+        reports_to: {
+            enum: string[];
+        };
     };
     required: string[];
     type: string;

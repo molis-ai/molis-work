@@ -13,6 +13,8 @@ export const ASSISTANT_ROLE_ID = "assistant";
 export const ASSISTANT_DELEGATED_ROLE_ID = "assistant-delegated";
 /** The Assistant in the standing main conversation of a scope. */
 export const ASSISTANT_MAIN_ROLE_ID = "assistant-main";
+/** A round in a main conversation that only reports a task no conversation started (`reports_to: "assistant"`): it reads, nothing else. */
+export const ASSISTANT_REPORT_ROLE_ID = "assistant-report";
 
 /** How a long work's older history is trimmed: which original passages to keep, never a rewrite of them. */
 const ASSISTANT_COMPACTION = [
@@ -84,6 +86,11 @@ export const ASSISTANT_AGENT: AgentManifest = {
     // puts long work in the background, says where it went and takes results back. Which work is one is the Host's record.
     role_id: ASSISTANT_MAIN_ROLE_ID, version: /* @version role.assistant-main */ 1, name: "主对话里的个人助理", workspace: "business", execution: "operate",
     prompts: ["assistant-base", "assistant-work", "assistant-main"], host_tools: [...BUSINESS_HOST_TOOLS],
+  }, {
+    // A report of a task no conversation started (specs/work-line contract-design §9): the main conversation's words, read-only
+    // execution (queries only, a browser only looked at), and no host tools — it waits on nothing, asks nothing, plans nothing.
+    role_id: ASSISTANT_REPORT_ROLE_ID, version: /* @version role.assistant-report */ 1, name: "主对话里的汇报", workspace: "business", execution: "read-only",
+    prompts: ["assistant-base", "assistant-work", "assistant-main"], host_tools: [],
   }, {
     // Delegating one level deep, and keeping or forgetting on the person's words, are the Host's checks on the work itself
     // (`assistant-delegation.ts`, `assistant-memory-tools.ts`); this role carries only what being delegated means for the reply.

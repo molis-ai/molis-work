@@ -473,7 +473,8 @@ ${ASSISTANT_TABS_PART}
     const putPageCards = (before) => {
       while (placed < fromPages.length && (before === null || fromPages[placed].created_at < before)) { placeCard(thread, work, fromPages[placed], put); placed += 1; }
     };
-    placedRows(work, rounds, -1); rounds.forEach((round, at) => { putPageCards(round.started_at); put(renderRound(work, round)); placedRows(work, rounds, at, put); });
+    placedRows(work, rounds, -1); waitingRows(work, rounds); waitingRows(work, rounds, -1, put);
+    rounds.forEach((round, at) => { putPageCards(round.started_at); put(renderRound(work, round)); placedRows(work, rounds, at, put); waitingRows(work, rounds, at, put); });
     putPageCards(null);
     conversationSurface(work, rounds, put);
     receipts.after(thread, put, work && view);

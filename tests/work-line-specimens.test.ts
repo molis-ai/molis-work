@@ -118,6 +118,21 @@ test("WLN-32: a reply says where the work went in one of five ways, each with a 
   assert.match(reply, /class="work-reply-returned" data-state="failed">[\s\S]*?任务失败 · 写讲稿提纲[\s\S]*?data-task-control="retry"[\s\S]*?data-task-open="t-talk"/u, "a failed task says so and offers retry and the task");
 });
 
+test("WLN-06: a task that waits on the person is the platform's own row in the conversation, with 「去处理」, folded with nothing to press once it no longer waits", () => {
+  for (const locale of ["zh", "en"] as const) {
+    const html = main(frame(locale));
+    const reply = html.slice(html.indexOf('data-nav-specimen="wl-reply"'), html.indexOf('data-nav-specimen="wl-event-card"'));
+    const rows = tags(reply, /<div class="work-reply-waiting"[^>]*>[\s\S]*?<\/div>/gu);
+    const open = rows.find(row => row.includes('data-waiting="open"')), settled = rows.find(row => row.includes('data-waiting="settled"'));
+    assert.ok(open && settled, locale);
+    assert.match(open, /role="status"/u);
+    assert.match(open, new RegExp(`<button[^>]*data-waiting-go="t-quote"[^>]*>[\\s\\S]*?${locale === "zh" ? "去处理" : "Handle"}`, "u"), "the one button says 「去处理」");
+    assert.doesNotMatch(open, /去定|>Decide</u);
+    assert.doesNotMatch(settled, /<button/u, "a folded row offers nothing to press");
+    assert.match(settled, locale === "zh" ? /不再等你了/u : /no longer needs you/u, "and says so in words");
+  }
+});
+
 test("WLN-35: the panel is placed by the product's rule next to the dialog it belongs to, and the mark names it", () => {
   const html = main(frame("zh"));
   const floats = [...html.matchAll(/<div class="work-task-float" data-work-task-float="([^"]+)"><section class="work-task-panel" id="([^"]+)"/gu)];

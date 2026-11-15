@@ -120,10 +120,11 @@ export function codingWakeLoop<Execution>(deps: CodingWakeDeps<Execution>) {
   const loop = async (control: PluginJobControl, execution: Execution, runtimeId: string, recovery: boolean) => {
     const api = context.services!.actions!, pause = (ms: number) => rest(ms, undefined, { signal: control.signal, ref: false });
     const held = new Set<string>();
-    let served = false, settling = 0;
+    let served = false, settling = 0, armed: Promise<void> | undefined;
     // Transient read failures back off while the job runs; a Host without a task graph ends the loop.
     for (let failures = 0; !control.signal.aborted;) {
-      const next = hearNext(runtimeId, control.signal);
+      // Armed before the read, so a word that comes during it is not lost; one not heard yet is kept, never armed twice.
+      const next = armed ??= hearNext(runtimeId, control.signal).finally(() => { armed = undefined; });
       let ready: CodingWaitView[], claimed: ReadonlySet<string>;
       try { ({ ready, claimed } = await readyOf(runtimeId, held)); failures = 0; served = true; }
       catch (error) {

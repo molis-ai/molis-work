@@ -2,9 +2,8 @@
  * What waits on the person, read once for the whole page (W4-10): `/api/attention` answers the Assistant's notices for the
  * plugin in front and the plugin deliveries waiting in the market in one request; on a project page also the project's work line
  * and the tasks behind it (the bottom line and the task panel paint from them, browser/work-bar.ts), on the Home page the
- * background tasks of every open project. It is read on a
- * beat while the page is visible (15 seconds after the last read ends, longer after a failure: see below), at once when the person
- * comes back or moves to another plugin, and when a reader asks (`molis-work:attention-refresh`, after the person acted on something). The Assistant's bell, with the plugin
+ * background tasks of every open project. It is read again whenever the Host says something it shows may have changed (one stream,
+ * `GET /api/attention/events`, WLN-27: no beat), when the person moves to another plugin, and when a reader asks (`molis-work:attention-refresh`, after the person acted on something). The Assistant's bell, with the plugin
  * notification count, paints from `molis-work:attention`; this module paints the Home page's background-tasks tab (a project page has none: specs/work-line §4.5): its
  * badge counts the tasks not finished (running plus waiting on the person), and its view lists them, in this project and every
  * other open one, with the background commands they left running and a button to stop each (the row's own command, through the mainline service). It knows no plugin: each row names where it opens, the words under its title and whether
@@ -14,9 +13,9 @@
  * The notices asked for are those of the plugin in front (the person's rules hold some while it matches). Each read
  * carries when it started: a count the market reports later than that is newer than its answer (assistant-island.ts).
  * A failed read leaves what the page last showed: each part is a convenience. A 404 (the project or Home is gone) stops the reads
- * of that address; the beat goes on, and reads the address again once it names another project (the chooser's).
- * One beat is waiting at a time, 15 seconds after the last read ends; a read that failed waits twice as long as the last before the
- * next (up to two minutes), so a host that is not answering is not asked every 15 seconds; a hidden page waits for nothing (N54).
+ * and the stream of that address, until it names another project (the chooser's). A lost stream is said once
+ * (`molis-work:attention-unreachable`, as of the last read) and connected again, twice as long after each loss (up to two minutes);
+ * a hidden page keeps no stream (N54).
  */
 export const ATTENTION_FACTORY_SCRIPT = `(host) => {
   const { translate: readText, projectId, openItem, route } = host;
@@ -73,18 +72,14 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
     }
   };
   const surface = () => { const shown = document.querySelector(".plugin-rail-items [aria-current][data-plugin-id]"); return shown ? shown.dataset.pluginId : ""; };
-  // A 404 means the project (or Home) this address reads is gone: an old tab stops asking it instead of reading a 404 every
-  // 15 seconds (N54). It is kept by address: the project chooser's route follows the project chosen, and another one is asked.
+  // A 404 means the project (or Home) this address reads is gone: an old tab stops asking it (N54). It is kept by address: the
+  // project chooser's route follows the project chosen, and another one is asked.
   const gone = new Set();
-  const BEAT = 15000, LONGEST = 120000;
-  let beat = 0, wait = BEAT, heard = null;
-  // The beat keeps going past a gone address: the chooser's route may follow another project by the next beat (N54).
-  const schedule = () => { clearTimeout(beat); if (!document.hidden) beat = setTimeout(read, wait); };
+  const LONGEST = 120000;
+  let heard = null, stream = null, streamAt = "", retry = 0, delay = 1000, lost = false;
   const read = async () => {
-    if (document.hidden) { clearTimeout(beat); return; }
-    if (gone.has(route("/api/attention"))) { schedule(); return; }
+    if (document.hidden || gone.has(route("/api/attention"))) return;
     if (reading) { again = true; return; }
-    clearTimeout(beat);
     reading = true; again = false;
     const started = performance.now();
     try {
@@ -92,16 +87,55 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
       const rows = data.background_tasks, next = JSON.stringify(rows);
       if (Array.isArray(rows) && next !== key) { key = next; tasks = rows; render(); }
       document.dispatchEvent(new CustomEvent("molis-work:attention", { detail: Object.assign(data, { started }) }));
-      wait = BEAT; heard = new Date().toISOString();
+      heard = new Date().toISOString();
     } catch (error) {
-      // Any other failure keeps what it showed and is asked again on a later beat.
-      if (error && error.status === 404) gone.add(route("/api/attention"));
-      else { wait = Math.min(wait * 2, LONGEST); document.dispatchEvent(new CustomEvent("molis-work:attention-unreachable", { detail: { since: heard } })); }
+      // Any other failure keeps what it showed; the next word from the stream reads again.
+      if (error && error.status === 404) { gone.add(route("/api/attention")); close(); }
+      else document.dispatchEvent(new CustomEvent("molis-work:attention-unreachable", { detail: { since: heard } }));
     }
-    finally { reading = false; if (again) void read(); else schedule(); }
+    // Words that came while reading are one more read, half a second after this one began at the soonest: a round that writes
+    // all the time is read at most twice a second, never back to back.
+    finally { reading = false; if (again) { reading = true; setTimeout(() => { reading = false; void read(); }, Math.max(0, 500 - (performance.now() - started))); } else if (route("/api/attention/events") !== streamAt) void listen(); }
+  };
+  const close = () => { clearTimeout(retry); if (stream) { const open = stream; stream = null; open.abort(); } };
+  // The Host's word that something here may have changed (WLN-27): one stream, read again on each word. There is no beat; a lost
+  // stream is the page losing the Host (said once, as of the last read), and it connects again, waiting twice as long each time.
+  const listen = async () => {
+    clearTimeout(retry);
+    const address = route("/api/attention/events");
+    if (document.hidden || gone.has(route("/api/attention"))) { close(); return; }
+    if (stream && streamAt === address) return;
+    close();
+    const connection = new AbortController(); stream = connection; streamAt = address;
+    try {
+      const reply = await molisWorkRequest(address, { as: "response", signal: connection.signal, headers: { accept: "text/event-stream" } });
+      if (reply.status === 404) { gone.add(route("/api/attention")); return; }
+      if (reply.status !== 200 || !reply.body) throw new Error("no stream");
+      delay = 1000; lost = false;
+      const reader = reply.body.getReader(), decoder = new TextDecoder();
+      let buffer = "";
+      for (;;) {
+        const part = await reader.read(); if (part.done) break;
+        buffer += decoder.decode(part.value, { stream: true });
+        for (let end = buffer.indexOf("\\n\\n"); end >= 0; end = buffer.indexOf("\\n\\n")) {
+          const block = buffer.slice(0, end); buffer = buffer.slice(end + 2);
+          if (/^event: changed$/m.test(block)) void read();
+        }
+      }
+    } catch { /* told below */ }
+    finally {
+      if (stream === connection) {
+        stream = null;
+        if (!connection.signal.aborted && !document.hidden && !gone.has(route("/api/attention"))) {
+          if (!lost) { lost = true; document.dispatchEvent(new CustomEvent("molis-work:attention-unreachable", { detail: { since: heard } })); }
+          retry = setTimeout(listen, delay); delay = Math.min(delay * 2, LONGEST);
+        }
+      }
+    }
   };
   document.addEventListener("molis-work:attention-refresh", read);
-  document.addEventListener("visibilitychange", () => { if (!document.hidden) void read(); });
+  // A hidden page hears nothing (N54); coming back it connects again, and the stream's first word reads.
+  document.addEventListener("visibilitychange", () => { if (document.hidden) close(); else void listen(); });
   document.querySelector(".plugin-rail-items")?.addEventListener("click", () => setTimeout(read, 300));
-  void read();
+  void listen();
 }`;

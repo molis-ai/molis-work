@@ -311,6 +311,7 @@ export { ASSISTANT_STORE_BASELINE, ASSISTANT_STORE_NAME, AssistantStore } from "
 export { raiseConnectionNotice } from "./assistant/assistant-connection-notices.js";
 export { assistantConnectionCard } from "./assistant/assistant-connection-card.js";
 export { AssistantService } from "./assistant/assistant-service.js";
+export { AssistantTaskReports, reportOnlyAuthority, type TaskReport } from "./assistant/assistant-task-reports.js";
 // The Home's one Assistant as the Host composes it, its person clients included: what a check of who it calls as runs against.
 export { assistantPanelActions, assistantPanelProvider, assistantServiceFor, closeAssistantService, type AssistantHttpPorts } from "./assistant/assistant-http.js";
 export { assistantSurroundings, repositoryName } from "./assistant/assistant-surroundings.js";
@@ -370,6 +371,7 @@ export { lastUsedLocale, readUiLocale, rememberUiLocale, UI_LOCALE_RELATIVE_PATH
 export { replyLanguage, replyLanguagePrompt } from "./reply-language.js";
 export { hostTextProblems, installHostUiText } from "./ui-text-provider.js";
 export { handleAttentionHttp, type AttentionSources } from "./attention-http.js";
+export { attentionChanged, onAttentionChange, onAttentionChangeOf } from "./attention-changes.js";
 export { handleBrowserHttp } from "./browser/browser-http.js";
 export { homeBackgroundTasks, type HomeBackgroundTaskRow } from "./home-background-tasks.js";
 export { startWebProjectSchedulers } from "./web-project-schedulers.js";

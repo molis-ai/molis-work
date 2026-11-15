@@ -7,6 +7,7 @@ import { whenThere } from "./assistant-errors.js";
 import { agentContinuationStarts } from "../agent-continuation-starts.js";
 import { DELEGATION_LIMITS } from "./assistant-delegation.js";
 import { assistantWords } from "./assistant-saved-text.js";
+import { repeatingFailure } from "../host-log.js";
 
 const owner = (work: StoredWork) => work.project_ref?.project_id ?? ASSISTANT_PERSONAL_OWNER;
 const RUNTIME = "prologue";
@@ -26,6 +27,9 @@ type Ports = {
  */
 export class AssistantContinuations {
   private readonly busy = new Map<string, number>();
+  private readonly starts = new Map<string, Promise<AgentContinuationStartAnswer>>();
+  /** The runtime could not be reached to serve the starter: written when it starts failing, again once it has been served. */
+  private readonly starterFailures = repeatingFailure("assistant", "continuation_starter_failed");
   private readonly inputs = new Map<string, symbol>();
   private readonly stopped = new AbortController();
   private readonly observers = new Set<() => void>();
@@ -45,7 +49,8 @@ export class AssistantContinuations {
     this.serving ??= this.ports.host().then(host => {
       if (this.stopped.signal.aborted) return;
       this.withdraw_ = agentContinuationStarts(host).serveAssistant(request => this.startFor(request));
-    }).catch(error => { this.serving = undefined; throw error; });
+      this.starterFailures.worked("home");
+    }).catch(error => { this.serving = undefined; this.starterFailures.failed("home", error); throw error; });
     void this.serving.then(() => this.takeUpWaiting()).catch(() => undefined);
   }
   async view(work: StoredWork): Promise<AgentCollaborationSessionView | undefined> {
@@ -120,6 +125,17 @@ export class AssistantContinuations {
     const later = (code: string): AgentContinuationStartAnswer => ({ later: { code } });
     const work = this.works().find(one => owner(one) === request.project_id && one.session_id === request.session_id);
     if (!work || this.stopped.signal.aborted) return later("assistant.continuation_not_mine");
+    // One start of a work at a time: the runtime's ask and the Host's own take-up after attaching may come together, and the
+    // second waits for the first instead of both stepping back from each other.
+    const before = this.starts.get(work.work_id);
+    if (before) { await before.catch(() => undefined); return later("assistant.start_in_progress"); }
+    const started = this.startWork(request, work);
+    this.starts.set(work.work_id, started);
+    try { return await started; } finally { if (this.starts.get(work.work_id) === started) this.starts.delete(work.work_id); }
+  }
+
+  private async startWork(request: AgentContinuationStartRequest, work: StoredWork): Promise<AgentContinuationStartAnswer> {
+    const later = (code: string): AgentContinuationStartAnswer => ({ later: { code } });
     const view = await this.view(work);
     if (!view?.wait || view.wait.wait_id !== request.wait_id) return later("assistant.handback_by_delegations");
     if (work.continuation_hold || view.wait.state !== "satisfied") {

@@ -5,7 +5,8 @@ import { createServer } from "node:http";
 import test, { type TestContext } from "node:test";
 import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { setTimeout as pause } from "node:timers/promises";
-import { handleAttentionHttp, type AttentionSources } from "@molis-ai/molis-work-app-local-host";
+import { attentionChanged, handleAttentionHttp, onAttentionChange, type AttentionSources } from "@molis-ai/molis-work-app-local-host";
+import { LOCAL_JOURNAL_SCHEMA_SQL, LocalSqliteJournal } from "@molis-ai/molis-work-storage";
 import { CODING_FILE_CHANGED_EVENT } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { SqlitePluginEventsRepository, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { openTestHome } from "./fixtures/test-home.js";
@@ -164,3 +165,69 @@ test("W4-10-01 QA-022 where a page has no plugins, no board or no line, those pa
   const plugin = await serveAttention(t, { notices: async () => [], mainline: null });
   assert.deepEqual(await plugin(), { background_tasks: null, notices: [], plugin_events_pending: 0, board_cursor: null, line: null, tasks: null });
 });
+
+// WLN-27 (user decision 2026-11-15): the page reads again on the Host's word that something it shows may have changed, not on a
+// beat. The word carries nothing; a project's page hears its own project's changes and those of no one project, the Home page all.
+test("WLN-27 the attention stream says changed once on opening and on each change of its own, and lets go when the page goes", async t => {
+  const projectA = `wln27-a-${randomUUID()}`, projectB = `wln27-b-${randomUUID()}`;
+  let listening = 0;
+  const counted = (projectId: string | null) => (listener: () => void) => { listening++; const stop = onAttentionChange(projectId, listener); return () => { listening--; stop(); }; };
+  const page = await serveAttentionStream(t, { notices: async () => [], changes: counted(projectA) });
+  const homePage = await serveAttentionStream(t, { notices: async () => [], changes: counted(null) });
+  const a = await page.open(), home = await homePage.open();
+  await a.next("the stream opens with a word, so a page that comes back reads at once");
+  await home.next("the Home page's too");
+  attentionChanged(projectB);
+  await home.next("the Home page hears every project's change");
+  attentionChanged(projectA);
+  await a.next("a change in its own project");
+  await home.next("and the Home page hears it too");
+  assert.equal(a.heard(), 2, "another project's change said nothing to this project's page");
+  // A journal event of the project is a change of it (the Host's modules and plugins write through the journal).
+  const journal = new LocalSqliteJournal(openTestSqlite(":memory:") as never);
+  journal.db.exec(`CREATE TABLE project_root (project_id TEXT PRIMARY KEY); INSERT INTO project_root VALUES ('${projectA}');`);
+  journal.db.exec(LOCAL_JOURNAL_SCHEMA_SQL);
+  journal.appendEvent({ eventId: randomUUID(), projectId: projectA, actorId: "web-user", type: "test.changed", objectType: "test", objectId: "o1", reason: "", payload: null, at: new Date().toISOString() });
+  await a.next("a journal event of its project");
+  attentionChanged(null);
+  await a.next("a change of no one project (the Assistant's store) reaches every page");
+  // Two changes in one turn are one word.
+  attentionChanged(projectA); attentionChanged(projectA);
+  await a.next("the changes of one turn");
+  await pause(30);
+  const before = a.heard();
+  await pause(30);
+  assert.equal(a.heard(), before, "said once for the turn");
+  a.close(); home.close();
+  for (let i = 0; i < 100 && listening; i++) await pause(10);
+  assert.equal(listening, 0, "a page that goes stops hearing");
+});
+
+/** The stream route alone over loopback: `open` reads its `changed` words as they come. */
+async function serveAttentionStream(t: TestContext, sources: AttentionSources) {
+  const server = createServer((request, response) => { void handleAttentionHttp(request, response, new URL(request.url ?? "/", "http://127.0.0.1"), sources); });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => new Promise<void>(resolve => { server.closeAllConnections(); server.close(() => resolve()); }));
+  const address = server.address();
+  assert.ok(address && typeof address === "object");
+  return {
+    async open() {
+      const control = new AbortController();
+      const response = await fetch(`http://127.0.0.1:${address.port}/api/attention/events`, { signal: control.signal });
+      assert.equal(response.status, 200);
+      assert.match(response.headers.get("content-type") ?? "", /^text\/event-stream/);
+      let count = 0, consumed = 0, buffer = "";
+      void (async () => {
+        const reader = response.body!.getReader(), decoder = new TextDecoder();
+        try { for (;;) { const part = await reader.read(); if (part.done) break; buffer += decoder.decode(part.value, { stream: true });
+          for (let end = buffer.indexOf("\n\n"); end >= 0; end = buffer.indexOf("\n\n")) { if (/^event: changed$/m.test(buffer.slice(0, end))) count++; buffer = buffer.slice(end + 2); } } }
+        catch { /* closed */ }
+      })();
+      return {
+        heard: () => count,
+        async next(what: string) { for (let i = 0; i < 200 && count <= consumed; i++) await pause(5); assert.ok(count > consumed, what); consumed = count; },
+        close: () => control.abort(),
+      };
+    },
+  };
+}

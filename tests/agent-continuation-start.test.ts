@@ -17,7 +17,7 @@ const checks = { forRun: () => undefined } as never;
 /** The installation a session belongs to, as a start request names it. */
 const PLUGIN = { plugin_id: OWNER.plugin_id, install_id: OWNER.install_id };
 
-test("S-continuation-start the runtime's start ask names the owner the session index holds, and no owner is asked for a session the index does not know", async () => {
+test("S-continuation-start the runtime's start ask names the owner the session index holds, and no owner is asked for a session the index does not know (PWA-155)", async () => {
   const owners = new Map([["s1", OWNER]]);
   const starts = createContinuationStarts(async id => owners.get(id));
   const host = createCollaborationHost(checks, starts);
@@ -53,7 +53,7 @@ function fakeHost() {
 const request = (owner: { plugin_id: string; install_id: string }, project_id = "p"): AgentContinuationStartRequest => ({ runtime_id: "prologue", project_id, session_id: "s1", owner,
   request_key: "k1", wait_id: "w1", graph_id: "g1", node_id: "n1" });
 
-test("the Home serves its starter once the runtime is there, however many times it is asked for", () => {
+test("PWA-155 the Home serves its starter once the runtime is there, however many times it is asked for", () => {
   const { host, runtimes, served } = fakeHost();
   const hub = agentContinuationStarts(host);
   assert.equal(served.length, 0, "no runtime yet: nothing served, nothing thrown (a project's plugins still start)");
@@ -64,7 +64,7 @@ test("the Home serves its starter once the runtime is there, however many times 
   assert.equal(served.length, 1, "and only once");
 });
 
-test("S-continuation-start a plugin's continuation is told only to the projects that own it, and the Assistant's only to a served Assistant", async () => {
+test("S-continuation-start a plugin's continuation is told only to the projects that own it, and the Assistant's only to a served Assistant (PWA-155)", async () => {
   const { host, runtimes, ask } = fakeHost();
   runtimes.push("prologue");
   const hub = agentContinuationStarts(host);
@@ -88,7 +88,7 @@ test("S-continuation-start a plugin's continuation is told only to the projects 
   assert.equal(inP.length, 2, "a stopped listener hears nothing more");
 });
 
-test("S-continuation-start the forwarder addresses host.agent.continuation.ready@1 to the installation that owns the session, and nothing after it stops", () => {
+test("S-continuation-start the forwarder addresses host.agent.continuation.ready@1 to the installation that owns the session, and nothing after it stops (PWA-155)", () => {
   const sent: Array<{ recipient: unknown; input: { event_type_id: string; payload: unknown; correlation_id: unknown } }> = [];
   const forwarder = continuationForwarder({ notify: (recipient, input) => { sent.push({ recipient, input: input as never }); return true; } });
   let listener: ((request: AgentContinuationStartRequest) => void) | undefined;

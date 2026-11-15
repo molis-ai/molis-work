@@ -147,7 +147,7 @@ export function renderTaskRow(row: TaskRowView): string {
   const none = row.serves === null ? uiText.text("workbench.work-line.no-event") : "";
   const serves = row.serves === undefined ? ""
     : `<span class="work-task-serves"${row.serves === null ? ' data-serves="none"' : ""} title="${escapeHtml(row.serves ?? none)}">${row.serves === null ? "" : icon("link")}${text("work-task-serves-name", row.serves ?? none)}</span>`;
-  const control = row.control ? renderButton({ variant: row.control === "decide" ? "primary" : "secondary", size: "sm", label: uiText.text(`workbench.work-line.${row.control === "decide" ? "go-decide" : row.control}`), attrs: { "data-task-control": row.control, "data-task": row.id } }) : "";
+  const control = row.control ? renderButton({ variant: row.control === "decide" ? "primary" : "secondary", size: "sm", label: uiText.text(`workbench.work-line.${row.control === "decide" ? "go-handle" : row.control}`), attrs: { "data-task-control": row.control, "data-task": row.id } }) : "";
   return `<div class="work-task-row" data-state="${row.done ? "done" : "live"}"><button type="button" class="work-task-row-main" data-task-open="${escapeHtml(row.id)}">${ring(row.ring)}`
     + `<span class="work-task-row-text"><span class="work-task-row-title" title="${escapeHtml(row.title)}">${escapeHtml(row.title)}</span><span class="work-task-row-step" title="${escapeHtml(row.step)}">${escapeHtml(row.step)}</span>${serves}</span></button>${control}</div>`;
 }
@@ -182,7 +182,7 @@ export function renderTaskDecision(view: TaskDecisionView): string {
       + `<div class="work-card-actions">${button("send", "primary", { "data-decision-send": "" })}${button("cancel", "secondary", { "data-decision-cancel": "" })}</div>`
     : `<div class="work-card-actions">${view.answers.length
       ? view.answers.map(role => button(role, role === "approve" && view.lead ? "primary" : "secondary", { "data-decision-answer": role })).join("")
-      : renderButton({ variant: view.lead ? "primary" : "secondary", size: "sm", label: say("go-decide"), attrs: { "data-decision-go": "" } })}</div>`;
+      : renderButton({ variant: view.lead ? "primary" : "secondary", size: "sm", label: say("go-handle"), attrs: { "data-decision-go": "" } })}</div>`;
   return `<section class="work-decision" data-task-decision="${escapeHtml(view.id)}" data-task="${escapeHtml(view.task)}" aria-label="${escapeHtml(view.ask)}"${view.busy ? ' aria-busy="true"' : ""}>`
     + `<div class="work-decision-ask">${ring("approval")}<strong title="${escapeHtml(view.ask)}">${escapeHtml(view.ask)}</strong></div>`
     + (why ? `<p class="work-decision-why" title="${escapeHtml(why)}">${escapeHtml(why)}</p>` : "")
@@ -289,6 +289,17 @@ export function renderReplyPlaced(placed: { readonly task: string; readonly wher
   const where = placed.where.kind === "none" ? uiText.text("workbench.work-line.placed-none") : uiText.text(`workbench.work-line.placed-${placed.where.kind}`, { name: placed.where.name });
   return `<div class="work-reply-placed" data-placed="${placed.where.kind}">${icon(PLACED_GLYPH[placed.where.kind])}<span class="work-reply-placed-where" title="${escapeHtml(where)}">${escapeHtml(where)}</span>`
     + `${renderButton({ variant: "secondary", size: "sm", label: uiText.text("workbench.work-line.change"), attrs: { "data-place-change": placed.task, "aria-haspopup": "menu" } })}</div>`;
+}
+
+/**
+ * In the main conversation, where a task done for an event on the line waits on the person (WLN-06; user decision 2026-11-15):
+ * the platform writes this row itself, with no model, at once — one per task and decision — with 「去处理」, which opens the
+ * event's tab. Once the task no longer waits it folds into a line that says so, with nothing to press.
+ */
+export function renderReplyWaiting(row: { readonly key: string; readonly task: string; readonly event: string; readonly settled: boolean }): string {
+  const words = row.settled ? uiText.text("workbench.work-line.waiting-settled", { task: row.task }) : uiText.text("workbench.work-line.waiting-on-you", { task: row.task, event: row.event });
+  return `<div class="work-reply-waiting" role="status" data-waiting="${row.settled ? "settled" : "open"}">${ring(row.settled ? "done" : "answer")}<span class="work-reply-waiting-text" title="${escapeHtml(words)}">${escapeHtml(words)}</span>`
+    + (row.settled ? "" : renderButton({ variant: "secondary", size: "sm", label: uiText.text("workbench.work-line.go-handle"), attrs: { "data-waiting-go": row.key, "aria-label": uiText.text("workbench.work-line.go-handle-task", { task: row.task }) } })) + "</div>";
 }
 
 /** Above a reply the Assistant gave by itself: which task handed back, or which task failed. */

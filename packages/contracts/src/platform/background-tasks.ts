@@ -67,6 +67,14 @@ export interface BackgroundTask {
   /** What it waits on the person to decide, each answered on its own; empty when it asks nothing that can be listed. */
   decisions: BackgroundTaskDecision[];
   open: OpenTarget | null;
+  /**
+   * A task no conversation started (a plugin's own, a schedule's, an outside Agent's through MCP) that the scope's Assistant should
+   * report on once it ends (specs/work-line contract-design §9; user decision 2026-11-15): when the table shows it ended — a done
+   * or failed state — the Assistant runs one round in that scope's main conversation that only reports and advises. That round
+   * has no authority to carry the task on: it may read, but it starts no task and runs no command. A row that leaves the table
+   * without having been shown ended is not reported. A task a conversation sent out never says this: it returns to that conversation.
+   */
+  reports_to?: "assistant";
 }
 
 export interface BackgroundTaskCollection {
@@ -91,7 +99,7 @@ export const BACKGROUND_TASK_SCHEMA = { type: "object", properties: {
   executor: { type: "object", properties: { kind: { enum: ["assistant", "character", "plugin", "platform"] }, label: { ...id, maxLength: 120 } }, required: ["kind", "label"], additionalProperties: false },
   serves: { type: "array", maxItems: 20, items: ACTION_SUBJECT_SCHEMA }, scope: { enum: ["project", "personal"] },
   commands: { type: "array", maxItems: 50, items: command(["stop", "pause", "resume"]) }, decisions: { type: "array", maxItems: 10, items: BACKGROUND_TASK_DECISION_SCHEMA },
-  open: { anyOf: [{ type: "null" }, OPEN_TARGET_SCHEMA] } },
+  open: { anyOf: [{ type: "null" }, OPEN_TARGET_SCHEMA] }, reports_to: { enum: ["assistant"] } },
   required: ["subject", "title", "state", "details", "waiting", "updated_at", "executor", "serves", "scope", "commands", "decisions", "open"], additionalProperties: false };
 export const BACKGROUND_TASK_COLLECTION_SCHEMA = { type: "object", properties: { source: WORK_EVENT_SOURCE_SCHEMA, tasks: { type: "array", maxItems: 500, items: BACKGROUND_TASK_SCHEMA } }, required: ["source", "tasks"], additionalProperties: false };
 

@@ -1262,6 +1262,9 @@ export declare const BACKGROUND_TASK_COLLECTION_SCHEMA: {
                             type: string;
                         })[];
                     };
+                    reports_to: {
+                        enum: string[];
+                    };
                 };
                 required: string[];
                 additionalProperties: boolean;
@@ -1637,6 +1640,9 @@ export declare const BACKGROUND_TASK_SCHEMA: {
                 type: string;
             })[];
         };
+        reports_to: {
+            enum: string[];
+        };
     };
     required: string[];
     additionalProperties: boolean;
@@ -1657,6 +1663,7 @@ export interface BackgroundTask {
     commands: BackgroundTaskCommand[];
     decisions: BackgroundTaskDecision[];
     open: OpenTarget | null;
+    reports_to?: "assistant";
 }
 
 export interface BackgroundTaskAnswer {

@@ -142,6 +142,21 @@ test("WLN-04 WLN-06: the input takes the next request at once while the first is
   await waitFor(`document.querySelector('[data-assistant-attention-count]')?.textContent === '等你 ' + ${count}`, 10_000);
   assert.deepEqual(await evaluate<string[]>("[...document.querySelectorAll('.assistant-tab')].map(tab => tab.dataset.tab ?? '')"), tabs, "no tab is opened for it");
   assert.equal(await evaluate(`document.activeElement === ${INPUT} && ${INPUT}.value === '还没写完的一句'`), true, "the keyboard stays where the person was writing");
+  // WLN-06 (user decision 2026-11-15): the main conversation has the platform's own row, at once and with no round of the model,
+  // with 「去处理」; one for the task and its decision. No longer waiting, it folds and offers nothing to press; waiting again, the
+  // same row opens again, and 「去处理」 opens the event's tab.
+  const ROWS = "[...document.querySelectorAll('[data-assistant-thread] .work-reply-waiting')]", ROW = `${ROWS}[0]`;
+  await waitFor(`${ROW}?.dataset.waiting === 'open' && ${ROW}.textContent.includes('核对报价单') && ${ROW}.querySelector('[data-waiting-go]')?.textContent.includes('去处理')`, 10_000);
+  assert.equal(await evaluate(`${ROWS}.length`), 1, "one row for the task and its decision");
+  assert.equal(await evaluate(`document.activeElement === ${INPUT}`), true, "the row takes no focus");
+  waiting = false;
+  await evaluate("document.dispatchEvent(new CustomEvent('molis-work:attention-refresh'))");
+  await waitFor(`${ROW}?.dataset.waiting === 'settled' && !${ROW}.querySelector('[data-waiting-go]')`, 20_000);
+  waiting = true;
+  await evaluate("document.dispatchEvent(new CustomEvent('molis-work:attention-refresh'))");
+  await waitFor(`${ROW}?.dataset.waiting === 'open' && ${ROWS}.length === 1`, 20_000);
+  await evaluate(`${ROW}.querySelector('[data-waiting-go]').click()`);
+  await waitFor(`[...document.querySelectorAll('.assistant-tab')].length === ${tabs.length + 1}`, 10_000);
 });
 
 test("WLN-05 WLN-29: a line not heard from keeps what it showed, says it is being checked as of the last read, and the task mark and panel say the connection is lost; heard again, all of that goes; a reload shows the last line at once, being checked", { timeout: 150_000 }, async t => {

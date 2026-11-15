@@ -25,8 +25,8 @@ const ELLIPSIS = "overflow:hidden;text-overflow:ellipsis;white-space:nowrap";
 const PRESSABLE = ":is(.work-line-head,.work-line-earlier,.work-event,.work-task-mark)";
 /** An event whose note is a detail (a step, a due time): dropped where the line is short. One that needs attention keeps its note. */
 const QUIET = ".work-event:not([data-attn],[aria-current])";
-const BUTTON_GROUNDS = ":is(.work-reply-placed,.work-reply-actions,.work-task-row,.work-task-banner,.work-task-facts,.work-card-actions)";
-const ANIMATED = ":is(.work-event[data-fresh],.work-task-panel,.work-reply-placed,.work-reply-peek,.work-reply-mini)";
+const BUTTON_GROUNDS = ":is(.work-reply-placed,.work-reply-waiting,.work-reply-actions,.work-task-row,.work-task-banner,.work-task-facts,.work-card-actions)";
+const ANIMATED = ":is(.work-event[data-fresh],.work-task-panel,.work-reply-placed,.work-reply-waiting[data-waiting=\"open\"],.work-reply-peek,.work-reply-mini)";
 
 const SHEET = `
 /* The shell around the line (WLN-16). The bottom is the line and nothing else; the plugins chosen to stay, the start page's ＋,
@@ -220,6 +220,12 @@ ${W} ${BUTTON_GROUNDS} .mw-btn--secondary:not(:disabled){border-color:var(--line
 .work-reply-placed{display:flex;align-items:center;gap:8px;min-height:32px;min-width:0;padding:3px 4px 3px 9px;border:1px solid var(--line);border-radius:var(--r-control,8px);color:var(--ink);font-size:12px;white-space:nowrap;animation:craft-rise-from-bar ${MOVE}}
 .work-reply-placed>svg{flex:none;width:14px;height:14px;color:var(--ink-soft)}
 .assistant-placed{margin:6px 0 2px;min-width:0}
+.work-reply-waiting{display:flex;align-items:center;gap:8px;min-height:32px;min-width:0;padding:3px 4px 3px 9px;border:1px solid var(--line-strong);border-radius:var(--r-control,8px);color:var(--ink);font-size:12px;white-space:nowrap}
+.work-reply-waiting[data-waiting="open"]{animation:craft-rise-from-bar ${MOVE}}
+.work-reply-waiting[data-waiting="settled"]{min-height:24px;padding:2px 9px;border-color:var(--line);color:var(--ink-soft)}
+.work-reply-waiting-text{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;font-weight:500}
+.work-reply-waiting[data-waiting="settled"] .work-reply-waiting-text{font-weight:400}
+.assistant-waiting{margin:6px 0 2px;min-width:0}
 .assistant-send-to{max-height:min(60vh,440px);overflow:auto}
 .work-card-name{flex:0 1 auto;display:flex;align-items:center;gap:6px;min-width:0}
 .work-card-name>strong{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}

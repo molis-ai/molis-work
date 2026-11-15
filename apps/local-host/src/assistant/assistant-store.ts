@@ -11,6 +11,7 @@ import { AssistantUsageLedger } from "./assistant-usage-ledger.js";
 import type { AssistantCharacter, AssistantContextSnapshot, AssistantUnsettledChange, AssistantNotice, AssistantRule, AssistantWorkState, AssistantExecutor, AssistantMaterial, AssistantScope, AssistantSurfaceRef, AssistantWork, AssistantUndoable } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { eachListener } from "../host-log.js";
+import { attentionChanged } from "../attention-changes.js";
 
 /** The Home SQLite handle, as the storage package opens it (the App boundary does not import `node:sqlite`). */
 type DatabaseSync = ReturnType<typeof openHomeSqliteDatabase>;
@@ -186,6 +187,7 @@ export class AssistantStore {
 
   #changed(workId: string): void {
     eachListener("assistant", "work_changes", this.#changes, listener => listener(workId)); // A listener never fails a write.
+    attentionChanged(null);
   }
 
   create(input: { actor_id: string; title: string; scope: AssistantScope; scope_title?: string; origin: AssistantSurfaceRef | null; project_ref?: LocalHostProjectReference; executor?: AssistantExecutor;
@@ -289,6 +291,7 @@ export class AssistantStore {
     const stored: StoredNotice = { ...notice, notice_id: randomUUID(), state: "new", created_at: this.now().toISOString() };
     const changed = this.db.prepare("INSERT OR IGNORE INTO assistant_notices(notice_id,actor_id,work_id,kind,state,dedupe,created_at,body) VALUES (?,?,?,?,?,?,?,?)")
       .run(stored.notice_id, actorId, stored.work_id, stored.kind, stored.state, dedupe, stored.created_at, JSON.stringify(stored)).changes;
+    if (changed) attentionChanged(null);
     return changed ? stored : null;
   }
 
@@ -304,6 +307,7 @@ export class AssistantStore {
 
   /** Mark notices seen, dismissed or resolved: one, or every open one of a work (optionally only of some kinds). */
   settleNotices(actorId: string, target: { notice_id?: string; work_id?: string; kinds?: readonly string[] }, state: Exclude<StoredNotice["state"], "new">): number {
+    attentionChanged(null);
     if (target.notice_id) return Number(this.db.prepare("UPDATE assistant_notices SET state=? WHERE actor_id=? AND notice_id=? AND state='new'").run(state, actorId, target.notice_id).changes);
     if (!target.work_id) return 0;
     const kinds = target.kinds?.length ? target.kinds : null;
@@ -316,6 +320,7 @@ export class AssistantStore {
    * `connection:<id>:`), leaving those that start with `keep` when it is given. The keys stay, so a key already used never raises again.
    */
   settleNoticesByDedupe(actorId: string, prefix: string, state: Exclude<StoredNotice["state"], "new">, keep?: string): number {
+    attentionChanged(null);
     const like = (value: string) => `${value.replace(/[\\%_]/g, character => `\\${character}`)}%`;
     return Number(this.db.prepare(`UPDATE assistant_notices SET state=? WHERE actor_id=? AND state='new' AND dedupe LIKE ? ESCAPE '\\'${keep ? " AND dedupe NOT LIKE ? ESCAPE '\\'" : ""}`)
       .run(state, actorId, like(prefix), ...(keep ? [like(keep)] : [])).changes);
@@ -328,7 +333,8 @@ export class AssistantStore {
   }
 
   observe(actorId: string, workId: string, state: AssistantWorkState): void {
-    this.db.prepare("INSERT INTO assistant_observed(actor_id,work_id,state) VALUES (?,?,?) ON CONFLICT(actor_id,work_id) DO UPDATE SET state=excluded.state").run(actorId, workId, state);
+    const changed = this.db.prepare("INSERT INTO assistant_observed(actor_id,work_id,state) VALUES (?,?,?) ON CONFLICT(actor_id,work_id) DO UPDATE SET state=excluded.state WHERE state <> excluded.state").run(actorId, workId, state).changes;
+    if (changed) attentionChanged(null);
   }
 
   /** Changes left running when a round ended, newest last; `untold` only those the next round has not been told of. */

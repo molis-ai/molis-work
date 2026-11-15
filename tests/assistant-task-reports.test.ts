@@ -1,0 +1,129 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { DatabaseSync } from "node:sqlite";
+import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { BackgroundTaskRow, BackgroundTasksReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
+import type { AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
+import { backgroundTaskRow } from "@molis-ai/molis-work-service-mainline";
+import { AssistantService, AssistantStore, AssistantTaskReports, reportOnlyAuthority, type TaskReport } from "@molis-ai/molis-work-app-local-host";
+import { ASSISTANT_AGENT, ASSISTANT_REPORT_ROLE_ID } from "../apps/local-host/dist/assistant/assistant-agent.js";
+import { roundStartInput } from "../apps/local-host/dist/assistant/assistant-round-start.js";
+
+// specs/work-line contract-design §9 and spec.md (user decision 2026-11-15): a task no conversation started marks its row
+// `reports_to: "assistant"`; once the table shows it ended, the scope's Assistant runs one round in the main conversation that
+// only reports (PWA-155), once across restarts (PWA-157), and that round can read but not act.
+
+const SOURCE = { capability_id: "demo.tasks", version: 1, provider_id: "plugin:demo" };
+const ORIGIN = { surface: "demo", title: "示例", icon: "list" };
+const task = (over: Record<string, unknown> = {}) => ({ subject: { kind: "demo_task", id: "t1" }, title: "整理周报", state: "done", details: [], waiting: false, updated_at: "2026-11-15T10:00:00.000Z",
+  executor: { kind: "plugin", label: "示例" }, serves: [], scope: "project", commands: [], decisions: [], open: null, reports_to: "assistant", ...over });
+const row = (over: Record<string, unknown> = {}) => backgroundTaskRow(task(over), SOURCE, ORIGIN, ["demo_task"])!;
+const table = (...tasks: BackgroundTaskRow[]): BackgroundTasksReadResult => ({ tasks, issues: [] } as unknown as BackgroundTasksReadResult);
+
+test("PWA-155 a row may say it reports to the Assistant, and says nothing else there", () => {
+  assert.equal(row().reports_to, "assistant");
+  assert.equal(backgroundTaskRow(task({ reports_to: undefined }), SOURCE, ORIGIN, ["demo_task"])?.reports_to, undefined);
+  assert.equal(backgroundTaskRow(task({ reports_to: "goals" }), SOURCE, ORIGIN, ["demo_task"]), null, "only the Assistant is a place to report to");
+});
+
+function reports(tables: Map<string, BackgroundTasksReadResult>, answer: (report: TaskReport) => "reported" | "later" | "none" = () => "reported") {
+  let listener: ((projectId: string | null) => void) | undefined;
+  const asked: TaskReport[] = [], read: string[] = [];
+  const watcher = new AssistantTaskReports({ table: async id => { read.push(id); return tables.get(id) ?? table(); },
+    changes: next => { listener = next; return () => { listener = undefined; }; }, report: async report => { asked.push(report); return answer(report); } });
+  watcher.start();
+  return { watcher, asked, read, change: async (projectId: string | null) => { listener?.(projectId); await watcher.idle(); }, listening: () => Boolean(listener) };
+}
+
+test("PWA-155 PWA-157 an ended task that reports to the Assistant is reported once, from the project that changed, and nothing else is", async () => {
+  const tables = new Map([["p", table(row(), row({ subject: { kind: "demo_task", id: "t2" }, state: "running" }), row({ subject: { kind: "demo_task", id: "t3" }, reports_to: undefined }))]]);
+  const { watcher, asked, read, change, listening } = reports(tables);
+  await change(null);
+  assert.deepEqual(read, [], "the Assistant's own store changing reads no table while nothing waits");
+  await change("p");
+  assert.deepEqual(asked.map(one => [one.project_id, one.row.subject.id, one.end]), [["p", "t1", "done"]], "only the ended row that reports here: not the running one, not the unmarked one");
+  await change("p");
+  assert.equal(asked.length, 1, "the same end is reported once");
+  tables.set("p", table(row({ state: "failed", updated_at: "2026-11-15T11:00:00.000Z" })));
+  await change("p");
+  assert.deepEqual(asked.map(one => one.end), ["done", "failed"], "a new end of it is a new report");
+  watcher.close();
+  assert.equal(listening(), false, "closed, it hears nothing more");
+});
+
+test("PWA-157 a main conversation busy answering is reported to once its round ends, not in the middle of it", async () => {
+  let busy = true;
+  const { asked, change } = reports(new Map([["p", table(row())]]), () => busy ? "later" : "reported");
+  await change("p");
+  assert.equal(asked.length, 1);
+  busy = false;
+  await change(null);
+  assert.equal(asked.length, 2, "the Assistant's store changed (its round ended): looked at again");
+  await change(null);
+  assert.equal(asked.length, 2, "and once reported, not again");
+});
+
+const view = (id: string, operation: "query" | "command") => ({ capability_id: id, version: 1, operation, provider: { provider_id: "plugin:demo" }, action: { title: id } }) as unknown as ActionView;
+
+test("PWA-156 the report's round reads and does nothing else: no command, no sub-task, no proposal, no delivery, no memory", async () => {
+  const invoked: string[] = [];
+  const full = { manifest: {}, prompts: {}, authorizedDirectories: [], actions: async () => ({
+    discover: async () => [view("demo.read", "query"), view("demo.write", "command")],
+    delegate: {}, deliver: {}, memory: { list: async () => [] }, offer: async () => ({ offer_id: "o" }), direct: () => true,
+    invoke: async (reference: { capability_id: string }) => { invoked.push(reference.capability_id); return { ok: true }; } }) } as unknown as AgentStartAuthority;
+  const client = await reportOnlyAuthority(full).actions!("prologue");
+  assert.deepEqual((await client.discover()).map(one => one.capability_id), ["demo.read"], "only what reads is offered");
+  for (const missing of ["delegate", "deliver", "memory", "offer"] as const) assert.equal(client[missing], undefined, `${missing} is not given`);
+  assert.equal(client.direct?.(view("demo.write", "command")), false);
+  assert.deepEqual(await client.invoke({ capability_id: "demo.read", version: 1, provider_id: "plugin:demo" }, {}), { ok: true });
+  await assert.rejects(client.invoke({ capability_id: "demo.write", version: 1, provider_id: "plugin:demo" }, {}), (error: { code?: string }) => error.code === "assistant.action_revoked");
+  assert.deepEqual(invoked, ["demo.read"], "a command is refused before it reaches its provider");
+});
+
+test("PWA-156 the report's round runs as a read-only role with no host tools, and never drives the side panel's browser", () => {
+  const role = ASSISTANT_AGENT.roles.find(one => one.role_id === ASSISTANT_REPORT_ROLE_ID);
+  assert.equal(role?.execution, "read-only", "queries only, a browser only looked at");
+  assert.deepEqual(role?.host_tools, [], "it waits on nothing and asks nothing: no host tool, so it takes up no continuation of the conversation");
+  const work = { work_id: "w", title: "主对话", scope: { kind: "project", project_id: "p" }, project_ref: { project_id: "p", storage_key: "memory:p" }, main: true } as never;
+  const round = { actor_id: "user", session: { runtime_id: "prologue", session_id: "s" }, role_id: ASSISTANT_REPORT_ROLE_ID, task: "t", text_materials: [], materials: [] } as never;
+  assert.equal(roundStartInput(work, { ...(round as object), report_only: true } as never).browser, false);
+  assert.equal(roundStartInput(work, round).browser, undefined, "a main conversation's own round keeps the side panel");
+});
+
+test("PWA-155 PWA-157 the Assistant tells the person once and starts one round that only reports, in the project's main conversation", async () => {
+  const db = new DatabaseSync(":memory:"), store = new AssistantStore(db);
+  let latest: { phase: string } | null = null;
+  const host = { adapter: () => ({ readSession: async () => ({ latest_run: latest }) }) };
+  const service = new AssistantService(store, { pages: async () => ["home"], host: async () => host as never, authority: async () => { throw new Error("not reached"); } }, "user");
+  const started: Array<{ text: string; intent: unknown }> = [];
+  (service as unknown as { dispatcher: { dispatch(...args: unknown[]): Promise<unknown> } }).dispatcher.dispatch = async (...args) => { started.push({ text: args[1] as string, intent: args[9] }); return {}; };
+  const report: TaskReport = { project_id: "p", row: row(), end: "done" };
+  try {
+    assert.equal(await service.reportTask(report), "none", "no main conversation in the project yet: nothing to report to");
+    const main = store.create({ actor_id: "user", title: "主对话", scope: { kind: "project", project_id: "p" }, project_ref: { project_id: "p", storage_key: "memory:p" }, origin: null, main: true });
+    store.update("user", main.work_id, null, { session_id: "s-main" });
+    latest = { phase: "running" };
+    assert.equal(await service.reportTask(report), "later", "answering now: later");
+    latest = { phase: "completed" };
+    const views = service.continuations as unknown as { view(work: unknown): Promise<unknown> }, view = views.view.bind(views);
+    views.view = async () => ({ continuation: { state: "eligible" } });
+    assert.equal(await service.reportTask(report), "later", "a continuation the conversation may take up is left to it");
+    views.view = view;
+    assert.equal(await service.reportTask(report), "reported");
+    assert.equal(started.length, 1);
+    assert.deepEqual(started[0]!.intent, { byHost: true, report_only: true }, "a round that only reports");
+    assert.match(started[0]!.text, /整理周报[\s\S]*只汇报/u);
+    const notices = () => (db.prepare("SELECT kind, work_id FROM assistant_notices").all() as Array<{ kind: string; work_id: string }>).map(one => [one.kind, one.work_id]);
+    assert.deepEqual(notices(), [["completed", main.work_id]]);
+    // A round that began in between: the report waits for it, nothing is marked told.
+    const other: TaskReport = { project_id: "p", row: row({ subject: { kind: "demo_task", id: "t9" } }), end: "failed" };
+    (service as unknown as { dispatcher: { dispatch(): Promise<unknown> } }).dispatcher.dispatch = async () => { throw Object.assign(new Error("busy"), { code: "assistant.state" }); };
+    assert.equal(await service.reportTask(other), "later");
+    assert.equal(notices().length, 1);
+    // Restarted: the same end is not reported again.
+    const again = new AssistantService(new AssistantStore(db), { pages: async () => ["home"], host: async () => host as never, authority: async () => { throw new Error("not reached"); } }, "user");
+    try { assert.equal(await again.reportTask(report), "none"); } finally { again.continuations.close(); }
+    assert.equal(started.length, 1);
+    assert.equal(notices().length, 1);
+  } finally { service.continuations.close(); db.close(); }
+});

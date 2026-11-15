@@ -3,7 +3,7 @@ import { assistantComposerLabels } from "./assistant-composer-labels.js";
 import type { WebLocale } from "./i18n.js";
 import {
   renderEventCard, renderLineEvent, renderLineHead, renderLineUnreadable, renderOwnerMark, renderReplyCarried, renderReplyMini, renderReplyPeek, renderReplyPlaced,
-  renderReplyReturned, renderReplyWho, renderTabUnread, renderTaskCard, renderTaskFloat, renderTaskMark, renderTaskPanel, renderTaskRow, renderTaskSteps, renderWorkLine,
+  renderReplyReturned, renderReplyWaiting, renderReplyWho, renderTabUnread, renderTaskCard, renderTaskFloat, renderTaskMark, renderTaskPanel, renderTaskRow, renderTaskSteps, renderWorkLine,
   type LineEventState, type LineEventView, type LineOwnerView, type TaskRowView,
 } from "./work-line-parts.js";
 
@@ -101,10 +101,12 @@ function replies(all = true): string {
     + renderReplyPlaced({ task: "t-quote", where: { kind: "supplement", name: e.quote.title } }) + renderReplyPlaced({ task: "t-links", where: { kind: "for-event", name: e.review.title } })
     + renderReplyPlaced({ task: "t-list", where: { kind: "other-item", name: nav("roll-out-brand-guide") } }));
   const returned = round("", renderReplyReturned(e.fix.title) + p("returned-reply") + renderReplyCarried(1, 3));
-  const waiting = round("", renderReplyReturned(say("compare-three-quotes")) + p("needs-you-reply") + `<div class="work-reply-actions">${button("primary", "go-decide", { "data-event-open": "quote" })}</div>`);
+  // A task that waits on the person: the platform's own row, no reply of the Assistant's (WLN-06); folded once it no longer waits.
+  const waitingRow = (settled: boolean) => `<div class="assistant-waiting">${renderReplyWaiting({ key: "t-quote", task: say("compare-three-quotes"), event: e.quote.title, settled })}</div>`;
+  const waiting = waitingRow(false);
   const failed = round("", renderReplyReturned(say("write-talk-outline"), true) + p("failed-reply")
     + `<div class="work-reply-actions">${button("secondary", "retry-this-step", { "data-task-control": "retry", "data-task": "t-talk" })}${button("secondary", "view-task", { "data-task-open": "t-talk" })}</div>`);
-  return all ? placed + more + returned + waiting + failed : placed + returned + waiting;
+  return all ? placed + more + returned + waiting + failed + waitingRow(true) : placed + returned + waiting;
 }
 
 function eventCard(): string {

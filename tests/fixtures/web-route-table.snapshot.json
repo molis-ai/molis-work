@@ -150,8 +150,10 @@
     "keys": [
       "background_tasks",
       "board_cursor",
+      "line",
       "notices",
-      "plugin_events_pending"
+      "plugin_events_pending",
+      "tasks"
     ]
   },
   "GET /api/side/files/sources": {
@@ -785,8 +787,10 @@
     "keys": [
       "background_tasks",
       "board_cursor",
+      "line",
       "notices",
-      "plugin_events_pending"
+      "plugin_events_pending",
+      "tasks"
     ]
   },
   "GET <project>/api/workflows": {

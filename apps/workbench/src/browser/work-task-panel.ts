@@ -118,7 +118,7 @@ function installDecisionKeys(close: () => boolean): void {
   }, true);
 }
 
-export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take(result: BackgroundTasksReadResult): void; offline(since: string | null): void; place(subject: ActionSubject): void; rows(subject: ActionSubject): string; decisions(subject: ActionSubject): string; subjects(subject: ActionSubject): { provider_id: string; subject: ActionSubject }[] } {
+export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take(result: BackgroundTasksReadResult): void; offline(since: string | null): void; place(subject: ActionSubject): void; rows(subject: ActionSubject): string; decisions(subject: ActionSubject): string; subjects(subject: ActionSubject): { provider_id: string; subject: ActionSubject }[]; waiting(): { key: string; provider: string; title: string; event: WorkLineEvent }[]; unreadable(): ReadonlySet<string> } {
   const { keyOf, press, hue, again, request } = line, events = { values: () => [...line.events()], get: (id: string) => [...line.events()].find(one => one.id === id) };
   const PANEL = "work-task-panel";
   // `carded`: the task whose card stands in the panel's place (WLN-36); `placing`: its 「改」 menu is open.
@@ -167,7 +167,9 @@ export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take
     const slot = shown ? float?.querySelector<HTMLElement>("[data-task-acceptance]") : null;
     if (shown && slot) { accepting = line.acceptance(slot, { provider_id: shown.source.provider_id, subject: shown.subject }); accepting.update(); }
   };
+  let unread: ReadonlySet<string> = new Set();
   const takeTasks = (result: BackgroundTasksReadResult) => {
+    unread = new Set(result.issues.map(issue => issue.source.provider_id));
     const next = JSON.stringify(result.tasks.map(task => [task.id, task.title, task.state, task.step?.text, task.waiting, task.serves, task.commands.length, task.decisions.map(one => [one.id, one.ask, one.why, one.changes, one.answers.map(answer => answer.role)])]));
     if (next === tasksShown) return;
     tasksShown = next; tasks = result.tasks; paintTasks();
@@ -239,6 +241,10 @@ export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take
     // What the tasks done for one event ask the person, at the head of its card (WLN-10): the ones that wait first, each answered on its own.
     decisions: subject => decisionsOf([...tasks].filter(task => task.serves.some(one => keyOf(one) === keyOf(subject))).sort((a, b) => weight(a) - weight(b) || b.updated_at.localeCompare(a.updated_at)),
       task => keyOf(task.subject) !== keyOf(subject)),
+    // The tasks that wait on the person and are done for an event on the line, one per task and the decision it asks first (WLN-06).
+    waiting: () => [...tasks].filter(asks).flatMap(task => { const event = servedBy(task); return event ? [{ key: `${keyOf(task.subject)}|${task.decisions[0]?.id ?? ""}`, provider: task.source.provider_id, title: task.title, event }] : []; }),
+    // The providers the last table could not read: what they reported before is not known to have ended.
+    unreadable: () => unread,
     // The tasks done for one event, as the objects requirements may hang on: each with the provider that reported it.
     subjects: subject => [...tasks].filter(task => task.serves.some(one => keyOf(one) === keyOf(subject))).map(task => ({ provider_id: task.source.provider_id, subject: task.subject })),
     // 「改」 under a reply (WLN-32): the panel opens on that task's card with where it can go — at once when the table has the

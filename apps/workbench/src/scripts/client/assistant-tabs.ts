@@ -176,14 +176,41 @@ export const ASSISTANT_TABS_PART = String.raw`  /* ─── Tabs ────�
       put(row);
     });
   }
+  /* ─── A task waits on the person (WLN-06) ──────────────────────────────── */
+  // In a main conversation at now, the platform's own row for each task done for an event on the line that waits on the person:
+  // written at once, with no model, where the conversation stood when this page first heard it wait; folded once it no longer
+  // waits. 「去处理」 opens the event's tab; nothing opens or takes the caret by itself.
+  let waitingNow = [], waitingShown = "";
+  const waitingHere = () => Boolean(host.lineWaiting) && !curEvent && (!curId || Boolean(workById(curId)?.main));
+  function waitingRows(work, rounds, at, put) {
+    // (Without a placer: the rows are read again, and those of tasks this page no longer shows here go.)
+    if (!put) {
+      waitingNow = waitingHere() ? host.lineWaiting() : [];
+      waitingShown = JSON.stringify(waitingNow.map((row) => [row.key, row.settled]));
+      [...thread.children].forEach((node) => { if (node.dataset.waitingTask && !waitingNow.some((row) => row.key === node.dataset.waitingTask)) node.remove(); });
+      return;
+    }
+    const from = at < 0 ? "" : rounds[at].started_at, until = rounds[at + 1]?.started_at;
+    waitingNow.filter((row) => row.at >= from && (!until || row.at < until)).forEach((one) => {
+      const row = keyed(thread, "data-waiting-task", one.key, () => el("div", "assistant-waiting"));
+      if (row.shown !== one.html) { row.innerHTML = one.html; row.shown = one.html; }
+      put(row);
+    });
+  }
   thread.addEventListener("click", (event) => {
     const row = event.target.closest && event.target.closest("[data-place-change]")?.closest("[data-placed-task]");
-    if (row) { event.stopPropagation(); host.linePlace?.({ kind: WORK_KIND, id: row.dataset.placedTask }); }
+    if (row) { event.stopPropagation(); host.linePlace?.({ kind: WORK_KIND, id: row.dataset.placedTask }); return; }
+    const go = event.target.closest && event.target.closest("[data-waiting-go]");
+    if (go) { event.stopPropagation(); host.lineWaitingGo?.(go.dataset.waitingGo); }
   });
   // The task table says a task of this conversation stands somewhere else now (changed here or anywhere): read the work again.
   function placedMoved(event) {
     // (A work of the Assistant's own gets its card once the line has read it.)
     if (!cardFor && curId && !curEvent) eventSurface(placer(thread));
+    // A task came to wait on the person, or no longer does: the line takes the table first, then the rows are drawn again.
+    if (host.lineWaiting) setTimeout(() => {
+      if (waitingHere() && JSON.stringify(host.lineWaiting().map((row) => [row.key, row.settled])) !== waitingShown) render();
+    }, 0);
     const table = event.detail?.tasks, handed = curId && view?.delegated;
     if (!table || !handed) return;
     if (handed.some((child) => { const task = table.tasks.find((one) => one.subject.kind === WORK_KIND && one.subject.id === child.work_id); return task && String(task.serves.map(eventKey).sort()) !== String(ownKeys(child)); })) void reload();

@@ -1372,6 +1372,7 @@
     "role.assistant": 1,
     "role.assistant-delegated": 1,
     "role.assistant-main": 1,
+    "role.assistant-report": 1,
     "role.brief": 1,
     "role.builder": 1,
     "role.coder": 1,

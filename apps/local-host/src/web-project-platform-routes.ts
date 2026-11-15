@@ -30,6 +30,7 @@ import { isPluginEventManagementPath } from "./plugin-event-http.js";
 import { handleProjectPluginHttp, pluginEventsPending } from "./project-plugin-http.js";
 import { assistantNotices, assistantServiceFor, handleAssistantHttp } from "./assistant/assistant-http.js";
 import { handleAttentionHttp } from "./attention-http.js";
+import { onAttentionChange } from "./attention-changes.js";
 import { handleMemoryHttp } from "./memory/memory-host.js";
 import { handleHomeDockJudgmentHttp } from "./home-dock-http.js";
 import { handleSearchHttp } from "./search-http.js";
@@ -289,7 +290,7 @@ export const projectAssistantRoutes: readonly WebRoute<ProjectRuntimeContext>[] 
     const { request, response, url, store, options, pluginPorts, localHost, hostReference } = context;
     return Boolean(assistant) && await handleAttentionHttp(request, response, url, {
       notices: surface => assistantNotices(assistant!, surface), boardCursor: () => store.eventCursor(options.projectId),
-      mainline: mainlineAttention(request, localHost, hostReference),
+      mainline: mainlineAttention(request, localHost, hostReference), changes: listener => onAttentionChange(options.projectId, listener),
       ...(options.project ? { pluginEventsPending: () => pluginEventsPending(pluginPorts) } : {}) });
   } },
 ];

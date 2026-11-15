@@ -16,7 +16,7 @@ import type { ActionSubject } from "@molis-ai/molis-work-contracts/platform/acti
 import type { StateRingState, UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { BackgroundTasksReadResult, MainlineIssue, WorkLineEvent, WorkLineReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
 import { format, t as uiText, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { renderLineChecking, renderLineEvent, renderLineUnreadable, renderOwnerMark, renderReplyPlaced, type LineEventState, type LineEventView } from "../work-line-parts.js";
+import { renderLineChecking, renderLineEvent, renderLineUnreadable, renderOwnerMark, renderReplyPlaced, renderReplyWaiting, type LineEventState, type LineEventView } from "../work-line-parts.js";
 import { installAcceptance } from "./work-acceptance.js";
 import { installEventCards, type EventCardHandle, type EventCardOpen, type PositionViews } from "./work-event-card.js";
 import { ASKS, FAILED, installTaskPanel } from "./work-task-panel.js";
@@ -75,6 +75,13 @@ export interface WorkBarHandle {
   placed(task: { subject: ActionSubject; title: string; serves: readonly ActionSubject[]; own: boolean }): string;
   /** 「改」 was pressed: the task's card in the background-task panel, with where it can go. */
   place(subject: ActionSubject): void;
+  /**
+   * The rows the main conversation shows for tasks that wait on the person (WLN-06): one per task and decision, from when this
+   * page first heard it wait (`at`), folded once it no longer waits. Kept for this page only: the table is what says it waits.
+   */
+  waiting(): { key: string; at: string; settled: boolean; html: string }[];
+  /** 「去处理」 on such a row: the event's tab, as a press on the event opens it. */
+  goWaiting(key: string): void;
   /** The event card in a place the caller gives (an event's tab). Parked cards are the line's own, in the side panel. */
   card(slot: HTMLElement, card: EventCardOpen): EventCardHandle;
 }
@@ -144,6 +151,8 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
   };
   const unreadable = (issues: readonly MainlineIssue[]) => [...new Set(issues.map(issue => issue.title))].map(renderLineUnreadable).join("");
 
+  // The tasks this page heard wait on the person, by task and decision (WLN-06): the row stays, folded, once the task no longer waits.
+  const asked = new Map<string, { at: string; provider: string; title: string; event: WorkLineEvent; settled: boolean }>();
   const panel = installTaskPanel(host, { events: () => events.values(), press, keyOf, hue, again, request, repaint: () => cards.paint(), acceptance: (slot, target) => acceptance.overview(slot, () => [target]) });
 
   const eventOf = (subject: ActionSubject) => [...events.values()].find(one => keyOf(one.subject) === keyOf(subject));
@@ -206,6 +215,15 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
       return renderReplyPlaced({ task: keyOf(task.subject), where: served ? { kind: "for-event", name: served.title } : task.own ? { kind: "new-event", name: task.title } : { kind: "none" } });
     },
     place: subject => panel.place(subject),
+    waiting() {
+      const now = panel.waiting(), live = new Set(now.map(one => one.key));
+      for (const one of now) asked.set(one.key, { at: asked.get(one.key)?.at ?? new Date().toISOString(), provider: one.provider, title: one.title, event: one.event, settled: false });
+      // A task that is not in the table because its provider could not be read is not known to wait no longer: its row stays as it was.
+      const unread = panel.unreadable();
+      for (const [key, one] of asked) if (!live.has(key) && !unread.has(one.provider)) one.settled = true;
+      return [...asked].map(([key, one]) => ({ key, at: one.at, settled: one.settled, html: renderReplyWaiting({ key, task: one.title, event: one.event.title, settled: one.settled }) }));
+    },
+    goWaiting(key) { const one = asked.get(key); if (one && !one.settled) host.openEvent(press(events.get(one.event.id) ?? one.event)); },
     // The outline moves with the dialog's current tab; the event keeps its place on the line (WLN-07).
     focus(subject) {
       focused = subject ? keyOf(subject) : "";

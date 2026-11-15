@@ -62,7 +62,8 @@ test("W5-13-06 W5-01-CODING-49 the Home's background list: a project where the p
   const plugin = backgroundPlugin(() => empty);
   const rig = await backgroundRig(t, plugin, ["Fine", "Off", "Broken"], { off: ["Off"] });
   const broken = rig.project("Broken").project_id;
-  const ask = () => capturedAsync(() => homeBackgroundTasks(homeAggregatePorts(rig.host), rig.catalog));
+  // Read as a page reads it, in its language: a provider says its words in the reader's language (Images' title among them).
+  const ask = () => capturedAsync(() => runWithLocale("zh", () => homeBackgroundTasks(homeAggregatePorts(rig.host), rig.catalog)));
   plugin.state.answer = project => { if (project === broken) throw new Error("读不了"); return empty; };
   const first = await ask();
   assert.deepEqual(first.value, []);

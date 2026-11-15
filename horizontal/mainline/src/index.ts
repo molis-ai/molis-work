@@ -66,14 +66,15 @@ export function backgroundTaskRow(task: unknown, source: Required<ActionReferenc
   if (!subject || !kinds.includes(subject.kind) || typeof task.title !== "string" || task.title.length > 500 || !STATES.has(task.state as string) || typeof task.waiting !== "boolean" || !text(task.updated_at, 64)
     || !Array.isArray(task.details) || task.details.length > 8 || !Array.isArray(task.serves) || task.serves.length > 20 || !Array.isArray(task.commands) || !Array.isArray(task.decisions) || task.decisions.length > 10 || (task.scope !== "project" && task.scope !== "personal")
     || !executor || !["assistant", "character", "plugin", "platform"].includes(executor.kind as string) || !text(executor.label, 120)
-    || (task.started_at !== undefined && !text(task.started_at, 64)) || (task.open !== null && !openOf(task.open))) return null;
+    || (task.started_at !== undefined && !text(task.started_at, 64)) || (task.open !== null && !openOf(task.open)) || (task.reports_to !== undefined && task.reports_to !== "assistant")) return null;
   const details = task.details.map(phraseOf), serves = task.serves.map(subjectOf), step = task.step === undefined ? undefined : phraseOf(task.step);
   const decisions = task.decisions.map(decision => decisionOf(decision, source));
   if (details.includes(null) || serves.includes(null) || step === null || decisions.includes(null) || new Set(decisions.map(decision => decision!.id)).size !== decisions.length) return null;
   return { id: JSON.stringify([source.provider_id, source.capability_id, subject.kind, subject.id]), source, origin, subject, title: task.title, state: task.state as StateRingState,
     ...(step ? { step } : {}), details: details as BackgroundTaskPhrase[], waiting: task.waiting, ...(task.started_at === undefined ? {} : { started_at: task.started_at as string }), updated_at: task.updated_at,
     executor: { kind: executor.kind as BackgroundTask["executor"]["kind"], label: executor.label as string }, serves: serves as ActionSubject[], scope: task.scope,
-    commands: task.commands.flatMap(command => { const offered = commandOf(command, source); return offered ? [offered] : []; }), decisions: decisions as BackgroundTaskDecision[], open: openOf(task.open) };
+    commands: task.commands.flatMap(command => { const offered = commandOf(command, source); return offered ? [offered] : []; }), decisions: decisions as BackgroundTaskDecision[], open: openOf(task.open),
+    ...(task.reports_to === "assistant" ? { reports_to: "assistant" as const } : {}) };
 }
 
 /** The rows of one provider's answer, or null when the answer as a whole cannot be read. */

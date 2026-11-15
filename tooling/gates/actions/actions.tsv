@@ -74,7 +74,7 @@ alchemist.workspace.read	1	io.molis.work.alchemist	io.molis.work.alchemist	query
 coding.artifacts.list	1	io.molis.work.coding	io.molis.work.coding	query	query	project	read	-	agent,mcp,user,workflow	artifact:read	coding_session	-	-	d746974fa9af	a2c799262a3c	-
 coding.artifacts.preview	1	io.molis.work.coding	io.molis.work.coding	query	query	project	read	concurrent	user,workflow	artifact:read	artifact	molis.artifacts.preview.request.v1	molis.artifacts.preview.v1	b5dd5a809ad7	3197f1792222	5e0374458cf9
 coding.background.stop	1	io.molis.work.coding	io.molis.work.coding	command	operation	project	write	-	user	artifact:read,storage:private	coding_session	-	-	0f7d69110b59	a2c799262a3c	-
-coding.background.tasks	1	io.molis.work.coding	io.molis.work.coding	query	query	project	read	concurrent	user	artifact:read	coding_session	molis.background-tasks.query.v1	molis.background-tasks.collection.v1	99334726611c	9c48a12980c2	c54c2003ed18
+coding.background.tasks	1	io.molis.work.coding	io.molis.work.coding	query	query	project	read	concurrent	user	artifact:read	coding_session	molis.background-tasks.query.v1	molis.background-tasks.collection.v1	99334726611c	e14c5d1a531c	c54c2003ed18
 coding.changesets.read	1	io.molis.work.coding	io.molis.work.coding	query	query	project	read	-	agent,mcp,user,workflow	artifact:read	coding_session	-	-	251a5e9a8685	a2c799262a3c	-
 coding.changesets.save	1	io.molis.work.coding	io.molis.work.coding	command	operation	project	write	-	user	artifact:read,artifact:write	coding_session	-	-	993e3b323156	a2c799262a3c	-
 coding.events	1	io.molis.work.coding	io.molis.work.coding	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	artifact:read	coding_session	molis.work-events.window.v1	molis.work-events.collection.v1	88db02166b7c	1d2773da740c	-
@@ -325,7 +325,7 @@ goals.tree.decide	1	io.molis.work.goals	io.molis.work.goals	command	operation	pr
 goals.tree.read	1	io.molis.work.goals	io.molis.work.goals	query	query	project	read	-	agent,mcp,user,workflow	goals:read	goal	-	-	8b806aee7aad	d51688131353	-
 goals.tree.submit	1	io.molis.work.goals	io.molis.work.goals	command	operation	project	write	concurrent	agent,mcp,user,workflow	attention:write,goals:write	goal	-	-	142c25e7d19c	ec42af7be833	553218cb7ac7
 goals.work.resume	1	io.molis.work.goals	io.molis.work.goals	command	operation	project	write	-	agent,mcp,user,workflow	goals:write	goal	-	-	f67091d4e5d0	d4193c249847	9a20bdba744a
-images.background.tasks	1	io.molis.work.images	io.molis.work.images	query	query	project	read	concurrent	user	images:read	image_job	molis.background-tasks.query.v1	molis.background-tasks.collection.v1	99334726611c	9c48a12980c2	c54c2003ed18
+images.background.tasks	1	io.molis.work.images	io.molis.work.images	query	query	project	read	concurrent	user	images:read	image_job	molis.background-tasks.query.v1	molis.background-tasks.collection.v1	99334726611c	e14c5d1a531c	c54c2003ed18
 images.connection.usages	1	io.molis.work.images	io.molis.work.images	query	query	home	read	-	agent,mcp,user	images:connections:read	connector	molis.connector-usages.input.v1	molis.connector-usages.output.v1	a343ab264882	6bcb6c85f884	-
 images.connections.delete	1	io.molis.work.images	io.molis.work.images	command	operation	home	irreversible	-	agent,mcp,user,workflow	images:connections:write	image	-	-	61f64d4ce922	07a9ad95ba37	-
 images.connections.list	1	io.molis.work.images	io.molis.work.images	query	query	home	read	-	agent,mcp,user,workflow	images:connections:read	image	-	-	d746974fa9af	4fae8819083d	-

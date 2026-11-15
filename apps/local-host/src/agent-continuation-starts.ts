@@ -4,6 +4,8 @@ import { ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/ass
 import { HOST_AGENT_CONTINUATION_READY_EVENT, type HostAgentContinuationReadyPayload } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginHostEvents } from "@molis-ai/molis-work-plugin-runtime";
 
+import { attentionChanged } from "./attention-changes.js";
+
 const RUNTIME = "prologue";
 
 /**
@@ -46,6 +48,8 @@ export function agentContinuationStarts(host: AgentHost): AgentContinuationStart
     if (served || !host.descriptors().some(descriptor => descriptor.runtime_id === RUNTIME)) return;
     served = true;
     host.adapter(RUNTIME).collaboration?.serveStarts(async request => {
+      // A wait is over: what the pages show of it may have changed.
+      attentionChanged(request.owner.plugin_id === ASSISTANT_PLUGIN_ID ? null : request.project_id);
       if (request.owner.plugin_id === ASSISTANT_PLUGIN_ID) return assistant ? assistant(request) : { later: { code: "assistant.not_attached" } };
       const listeners = projects.get(request.project_id);
       // The owner's project is not open now: it reads the continuation when it next starts and takes it up then.

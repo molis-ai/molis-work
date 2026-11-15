@@ -12,20 +12,20 @@ const MIME: Record<string, string> = {
   markdown: "text/markdown",
 };
 
-const KNOWN_DOC_EXTENSIONS = new Set(["md", "markdown", "txt", "csv", "json", "html", "htm", "pdf", "docx"]);
+const KNOWN_DOC_EXTENSIONS = new Set(["md", "markdown", "txt", "log", "csv", "json", "html", "htm", "pdf", "docx"]);
 
 /** True when a file had no standard document suffix and was accepted by content inspection (ONB-37). */
-export function isRecognizedByContent(filename: string): boolean {
+function isRecognizedByContent(filename: string): boolean {
   const ext = filename.toLowerCase().match(/\.([a-z0-9]+)$/u)?.[1] ?? "";
   return !ext || !KNOWN_DOC_EXTENSIONS.has(ext);
 }
 
 /** Stable approval key bound to `(kind, path, sha256)` so a modified file never inherits an old raw-send approval (S-onboarding-secret-hold). */
-export function secretMaterialKey(kind: ContextSourceKind, filePath: string, sha256: string): string {
+function secretMaterialKey(kind: ContextSourceKind, filePath: string, sha256: string): string {
   return createHash("sha256").update(JSON.stringify(["secret-hold", kind, filePath, sha256])).digest("hex");
 }
 
-const SECRET_FILENAME_RE = /^(?:credentials(?:[._-].*)?\.json|service[-_]account(?:[._-].*)?\.json|client_secret(?:[._-].*)?\.json|(?:.*\b)?(?:secrets?|tokens?|apikeys?|credentials)\.(?:json|ya?ml|toml|ini|conf|cfg|properties|txt)|.*\.tfstate(?:\.backup)?|.*\.tfvars|\.(?:npmrc|netrc|pypirc|pgpass)|auth\.json)$/iu;
+const SECRET_FILENAME_RE = /^(?:\.env(?:\.(?!(?:example|sample|template)$).+)?|.*\.(?:pem|key|p12|pfx|keystore|jks)|id_(?:rsa|ed25519|ecdsa|dsa)(?:\.pub)?|credentials.*\.json|service[-_]account.*\.json|client_secret.*\.json|secrets?\..+|(?:.*\b)?(?:tokens?|apikeys?|credentials)(?:[._-][a-z0-9_-]+)*\.(?:json|ya?ml|toml|ini|conf|cfg|properties|txt|env)|.*\.tfstate(?:\..+)?|.*\.tfvars|\.(?:npmrc|netrc|pypirc|pgpass)|auth\.json)$/iu;
 const PEM_KEY_RE = /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z0-9 ]*PRIVATE KEY-----|$)/gu;
 const KNOWN_TOKEN_PATTERNS: ReadonlyArray<{ label: string; pattern: RegExp }> = [
   { label: "API_TOKEN", pattern: /\bsk-(?:proj-|ant-|live-|test-)?[A-Za-z0-9_-]{20,}\b/gu },
@@ -35,10 +35,14 @@ const KNOWN_TOKEN_PATTERNS: ReadonlyArray<{ label: string; pattern: RegExp }> = 
   { label: "GOOGLE_API_KEY", pattern: /\bAIza[0-9A-Za-z_-]{32,}\b/gu },
   { label: "SLACK_TOKEN", pattern: /\bxox[baprs]-[0-9A-Za-z-]{16,}\b/gu },
   { label: "STRIPE_LIVE_KEY", pattern: /\b(?:rk|pk)_live_[0-9A-Za-z]{20,}\b/gu },
+  { label: "NPM_TOKEN", pattern: /\bnpm_[A-Za-z0-9]{20,}\b/gu },
 ];
-const SECRET_ASSIGNMENT_RE = /(?:^|[\s,{])["']?([A-Za-z0-9_.-]*(?:API_KEY|SECRET_KEY|ACCESS_TOKEN|PRIVATE_KEY|CLIENT_SECRET|AUTH_TOKEN|BEARER_TOKEN|DATABASE_URL|WEBHOOK_SECRET|PASSWORD|PASSWD|apiKey|secretKey|accessToken|privateKey|clientSecret|authToken)[A-Za-z0-9_.-]*)["']?\s*(?:=|:)\s*["']?([^\s"',;}{]{10,})["']?/gmu;
-const CREDENTIAL_URI_RE = /\b(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|redis|rediss|amqp):\/\/[^:\s/@]+:([^@\s/]{6,})@[^\s"']+/giu;
-const PLACEHOLDER_VALUE_RE = /^(?:your[_-]|example|changeme|placeholder|dummy|fake|mock|test[_-]?key|todo|xxx+|\*+|null|undefined|true|false|<[^>]+>|\$\{[^}]+\}|\$[A-Za-z_]|process\.env|os\.environ|os\.getenv|System\.getenv)/iu;
+const SECRET_ASSIGNMENT_RE = /(?:^|[\s,{:/])["']?([A-Za-z0-9_.-]*(?:API[_-]?KEY|SECRET[_-]?KEY|PRIVATE[_-]?KEY|ENCRYPTION[_-]?KEY|SIGNING[_-]?KEY|MASTER[_-]?KEY|ACCESS[_-]?KEY|CLIENT[_-]?SECRET|WEBHOOK[_-]?SECRET|JWT[_-]?SECRET|SESSION[_-]?SECRET|APP[_-]?SECRET|AUTH[_-]?SECRET|COOKIE[_-]?SECRET|NEXTAUTH[_-]?SECRET|ACCESS[_-]?TOKEN|REFRESH[_-]?TOKEN|AUTH[_-]?TOKEN|BEARER[_-]?TOKEN|SESSION[_-]?TOKEN|BOT[_-]?TOKEN|API[_-]?TOKEN|_authToken|_password|_auth|DATABASE_URL|REDIS_URL|MONGODB_URI|PASSWORD|PASSWD|DB_PASS)|(?:[A-Za-z0-9_.-]+[_.-])?(?:SECRET|PASS(?:WORD)?|TOKEN))["']?\s*(?:=|:)\s*(?:"([^"\r\n]{4,})"|'([^'\r\n]{4,})'|([^\s"',;}{()#]{4,})(?!\s*\())/gimu;
+const CREDENTIAL_URI_RE = /\b(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|redis|rediss|amqp):\/\/[^:\s/@]+:([^@\s/]{3,})@[^\s"']+/giu;
+const NETRC_PASSWORD_RE = /\bmachine\s+\S+[\s\S]{0,160}?\bpassword\s+([^\s#\r\n]{4,})/giu;
+const PGPASS_LINE_RE = /^[^:\s#]+:\d+:[^:\s]+:[^:\s]+:([^\s:#]{4,})$/gmu;
+const PLACEHOLDER_VALUE_RE = /^(?:your[_-]|example|changeme|placeholder|dummy|fake|mock|test[_-]?key|todo|none|xxx+|\*+|null|undefined|true|false|string|number|boolean|bigint|symbol|object|unknown|never|void|any|<[^>]+>|\$\{[^}]+\}|\$[A-Za-z_]|process\.env|os\.environ|os\.getenv|System\.getenv)/iu;
+const CODE_MEMBER_ACCESS_RE = /^[a-z_$][A-Za-z0-9_$]*(?:\.[A-Za-z_$][A-Za-z0-9_$]*)+$/u;
 
 /**
  * Inspects a file's path and extracted text for credentials or secret material before anything is staged as readable text or sent
@@ -56,14 +60,23 @@ export function detectMaterialSecret(filePath: string, text: string): { reason: 
   }
   for (const match of text.matchAll(SECRET_ASSIGNMENT_RE)) {
     const keyName = match[1]?.trim() ?? "";
-    const rawValue = match[2]?.trim() ?? "";
+    const quotedValue = match[2] ?? match[3];
+    const unquotedValue = match[4];
+    const rawValue = (quotedValue ?? unquotedValue ?? "").trim();
     if (!keyName || !rawValue || PLACEHOLDER_VALUE_RE.test(rawValue)) continue;
-    if (/^(?:export|const|let|var|type|interface)\b/u.test(rawValue)) continue;
+    if (unquotedValue !== undefined) {
+      if (/^(?:export|const|let|var|type|interface|function|return|await)\b/u.test(rawValue)) continue;
+      if (!byName && CODE_MEMBER_ACCESS_RE.test(rawValue)) continue;
+    }
     names.add(keyName.slice(0, 48));
     if (names.size >= 6) break;
   }
   if (CREDENTIAL_URI_RE.test(text)) names.add("DATABASE_URL");
   CREDENTIAL_URI_RE.lastIndex = 0;
+  if (NETRC_PASSWORD_RE.test(text)) names.add("NETRC_PASSWORD");
+  NETRC_PASSWORD_RE.lastIndex = 0;
+  if (PGPASS_LINE_RE.test(text)) names.add("PGPASS_PASSWORD");
+  PGPASS_LINE_RE.lastIndex = 0;
   if (!byName && names.size === 0) return null;
   const previewNames = [...names].slice(0, 6);
   const reason = previewNames.length
@@ -81,22 +94,40 @@ export function stripMaterialSecrets(text: string): string {
     out = out.replace(pattern, "<REDACTED>");
   }
   out = out.replace(CREDENTIAL_URI_RE, (full, pass: string) => full.replace(`:${pass}@`, ":<REDACTED>@"));
-  out = out.replace(SECRET_ASSIGNMENT_RE, (full, _keyName: string, rawValue: string) => {
-    if (PLACEHOLDER_VALUE_RE.test(rawValue)) return full;
+  out = out.replace(/\b(password|account)\s+(?!<REDACTED>)([^\s#\r\n]+)/giu, "$1 <REDACTED>");
+  out = out.replace(/^([^:\s#]+:\d+:[^:\s]+:[^:\s]+:)(?!<REDACTED>)([^\r\n#]+)(\s*#.*)?$/gmu, "$1<REDACTED>$3");
+  out = out.replace(/^(\s*(?:\/\/[^\s=:]+:)?_(?:authToken|password|auth)\s*=\s*)(?!<REDACTED>)([^\r\n#]+)(\s*#.*)?$/gimu, "$1<REDACTED>$3");
+  out = out.replace(SECRET_ASSIGNMENT_RE, (full, _keyName: string, q1?: string, q2?: string, unquoted?: string) => {
+    const rawValue = (q1 ?? q2 ?? unquoted ?? "").trim();
+    if (!rawValue || PLACEHOLDER_VALUE_RE.test(rawValue)) return full;
     const idx = full.lastIndexOf(rawValue);
     return idx >= 0 ? full.slice(0, idx) + "<REDACTED>" + full.slice(idx + rawValue.length) : full;
   });
-  // For strict secret-named files with generic `key = value` / `"key": "string"` lines, redact remaining literal string values too.
-  out = out.replace(/^(\s*["']?[A-Za-z0-9_.-]{1,64}["']?\s*(?:=|:)\s*)(["'])(?!<REDACTED>)([^"'\r\n]{6,})\2/gmu, "$1$2<REDACTED>$2");
-  out = out.replace(/^(\s*(?:export\s+)?[A-Z][A-Z0-9_]{1,63}\s*=\s*)(?!<REDACTED>)([^\s#'"\r\n]{8,})/gmu, "$1<REDACTED>");
+  // Held secret files chosen for "strip" keep only variable/key/structure names: redact remaining quoted or scalar key-value assignments of any length.
+  out = out.replace(/^(\s*(?:-\s+)?["']?[A-Za-z0-9_./@-]{1,96}["']?\s*(?:=|:)\s*)(["'])(?!<REDACTED>\2)([^"'\r\n]+)\2/gmu, "$1$2<REDACTED>$2");
+  out = out.replace(/^(\s*(?:export\s+|-\s+)?[A-Za-z_][A-Za-z0-9_.-]{0,95}\s*(?:=|:)\s*)(?!<REDACTED>\b)(?![{[|>]\s*(?:#.*)?$)([^\s#'"{\[\r\n][^\r\n#]*?)(\s*(?:,\s*)?(?:#.*)?)$/gmu, "$1<REDACTED>$3");
   return out.trim() || "# Redacted configuration\n<REDACTED>";
 }
 
-export type PreparedContextDocumentResult =
+type PreparedContextDocumentResult =
   | { reference: ContextReference }
   | { issue: { path: string; reason: string } }
   | { secret_hold: HeldSecretMaterial }
   | { excluded_secret: { key: string; path: string } };
+
+function extractMaterialBody(
+  filename: string,
+  extension: string,
+  result: Awaited<ReturnType<typeof readWholeMaterial>>,
+): { body: string; title: string } {
+  if (extension === "pdf" && result.coverage.status !== "sufficient") {
+    throw new Error(result.coverage.issues.join("；") || "PDF 没有可读取的文本层");
+  }
+  const body = result.text.trim();
+  if (!body) throw new Error("文件没有可读取的正文");
+  const title = [...(result.title || filename.replace(/\.[^.]+$/u, ""))].slice(0, 500).join("");
+  return { body, title };
+}
 
 /**
  * One file read in full after the explicit start (no limits, user 2026-10-22): its bytes come from the journey's staging (or are staged
@@ -120,9 +151,7 @@ export async function prepareContextDocument(
     const extension = filename.toLowerCase().match(/\.([a-z0-9]+)$/u)?.[1] ?? "";
     const result = await readWholeMaterial({ file_name: filename, bytes }, signal);
     signal?.throwIfAborted();
-    if (extension === "pdf" && result.coverage.status !== "sufficient") throw new Error(result.coverage.issues.join("；") || "PDF 没有可读取的文本层");
-    const body = result.text.trim();
-    if (!body) throw new Error("文件没有可读取的正文");
+    const { body, title } = extractMaterialBody(filename, extension, result);
     const detected = detectMaterialSecret(file.path, body);
     let finalBody = body;
     let secretMode: "strip" | "raw" | undefined;
@@ -147,27 +176,114 @@ export async function prepareContextDocument(
       secretMode = decision;
       finalBody = decision === "strip" ? stripMaterialSecrets(body) : body;
     }
-    const title = [...(result.title || filename.replace(/\.[^.]+$/u, ""))].slice(0, 500).join("");
-    const recognizedByContent = isRecognizedByContent(filename);
+    return await stageContextReference(home, journeyId, {
+      kind,
+      path: file.path,
+      filename,
+      extension,
+      sha256,
+      size_bytes: bytes.length,
+      title,
+      finalBody,
+      recognizedByContent: isRecognizedByContent(filename),
+      ...(secretMode ? { secretMode } : {}),
+    });
+  } catch (error) {
+    signal?.throwIfAborted();
+    return formatDocumentReadIssue(file.path, error);
+  }
+}
+
+interface ContextReferenceDraft {
+  kind: ContextSourceKind;
+  path: string;
+  filename: string;
+  extension: string;
+  sha256: string;
+  size_bytes: number;
+  title: string;
+  finalBody: string;
+  recognizedByContent: boolean;
+  secretMode?: "strip" | "raw";
+}
+
+async function stageContextReference(
+  home: string,
+  journeyId: string,
+  draft: ContextReferenceDraft,
+): Promise<{ reference: ContextReference }> {
+  return {
+    reference: {
+      source_id: createHash("sha256").update(JSON.stringify(draft.secretMode ? [draft.kind, draft.path, draft.sha256, draft.secretMode] : [draft.kind, draft.path, draft.sha256])).digest("hex"),
+      version: 1,
+      label: "",
+      title: draft.title,
+      path: draft.path,
+      text: await stageContextText(home, journeyId, draft.finalBody),
+      original: { filename: draft.filename, mime: MIME[draft.extension] ?? "text/plain", sha256: draft.sha256, size_bytes: draft.size_bytes },
+      ...(draft.recognizedByContent ? { recognized_by_content: true } : {}),
+      ...(draft.secretMode ? { secret_mode: draft.secretMode } : {}),
+    },
+  };
+}
+
+function formatDocumentReadIssue(path: string, error: unknown): { issue: { path: string; reason: string } } {
+  // A full disk is not this file's fault: the round stops and goes on at this file once there is room.
+  if (diskFull(error)) throw error;
+  const message = error instanceof Error ? error.message : "无法读取文件";
+  // Whole characters, not UTF-16 units: unit 600 can fall inside a two-unit character. The first slice bounds what is spread.
+  return { issue: { path, reason: unreadableReason(error) ?? (/password/iu.test(message) ? "PDF 已加密，请解密后导入" : [...message.slice(0, 1_200)].slice(0, 600).join("")) } };
+}
+
+export type PreparedHeldSecretInMemory =
+  | { draft: ContextReferenceDraft & { secretMode: "strip" | "raw" } }
+  | { issue: { path: string; reason: string } };
+
+/**
+ * Reads and redacts/validates a held secret material in memory without writing to `texts/` on disk,
+ * so `beforeEffect()` runs before any disk mutation (`AGENTS.md`, `S-onboarding-secret-hold`).
+ */
+export async function readHeldSecretMaterialInMemory(
+  home: string,
+  journeyId: string,
+  held: HeldSecretMaterial,
+  decision: "strip" | "raw",
+  signal?: AbortSignal,
+): Promise<PreparedHeldSecretInMemory> {
+  signal?.throwIfAborted();
+  try {
+    const bytes = await readStagedFile(home, journeyId, held.sha256);
+    const filename = held.path.split("/").at(-1)!;
+    const extension = filename.toLowerCase().match(/\.([a-z0-9]+)$/u)?.[1] ?? "";
+    const result = await readWholeMaterial({ file_name: filename, bytes }, signal);
+    signal?.throwIfAborted();
+    const { body, title } = extractMaterialBody(filename, extension, result);
+    const finalBody = decision === "strip" ? stripMaterialSecrets(body) : body;
     return {
-      reference: {
-        source_id: createHash("sha256").update(JSON.stringify(secretMode ? [kind, file.path, sha256, secretMode] : [kind, file.path, sha256])).digest("hex"),
-        version: 1,
-        label: "",
+      draft: {
+        kind: held.kind,
+        path: held.path,
+        filename,
+        extension,
+        sha256: held.sha256,
+        size_bytes: bytes.length,
         title,
-        path: file.path,
-        text: await stageContextText(home, journeyId, finalBody),
-        original: { filename, mime: MIME[extension] ?? "text/plain", sha256, size_bytes: bytes.length },
-        ...(recognizedByContent ? { recognized_by_content: true } : {}),
-        ...(secretMode ? { secret_mode: secretMode } : {}),
+        finalBody,
+        recognizedByContent: isRecognizedByContent(filename),
+        secretMode: decision,
       },
     };
   } catch (error) {
     signal?.throwIfAborted();
-    // A full disk is not this file's fault: the round stops and goes on at this file once there is room.
-    if (diskFull(error)) throw error;
-    const message = error instanceof Error ? error.message : "无法读取文件";
-    // Whole characters, not UTF-16 units: unit 600 can fall inside a two-unit character. The first slice bounds what is spread.
-    return { issue: { path: file.path, reason: unreadableReason(error) ?? (/password/iu.test(message) ? "PDF 已加密，请解密后导入" : [...message.slice(0, 1_200)].slice(0, 600).join("")) } };
+    return formatDocumentReadIssue(held.path, error);
   }
+}
+
+export async function stagePreparedHeldSecretReference(
+  home: string,
+  journeyId: string,
+  prepared: PreparedHeldSecretInMemory,
+): Promise<{ reference: ContextReference } | { issue: { path: string; reason: string } }> {
+  if ("issue" in prepared) return prepared;
+  return await stageContextReference(home, journeyId, prepared.draft);
 }

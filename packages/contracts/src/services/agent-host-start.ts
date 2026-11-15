@@ -1,6 +1,6 @@
 /** The agent-host contract (`services/agent-host`): what a run is started with, frozen when it starts — workspace, materials, references, budget, the Character and its role, the action client — and the authority checks the Host adds. */
 import type { UiLanguageTag } from "../platform/ui-text.js";
-import type { ActionCallOrigin, ExactActionReference, ActionView } from "../platform/actions.js";
+import type { ActionCallOrigin, ActionSubject, ExactActionReference, ActionView } from "../platform/actions.js";
 import type { ArtifactReference, ArtifactProducerIdentity } from "../modules/artifacts.js";
 import type { MaterialRef } from "../platform/project-materials.js";
 import type { CharacterContent } from "../modules/characters.js";
@@ -39,11 +39,17 @@ type AgentMaterialSource =
   | { source_artifact_id: string; source_version: number }
   | { source_artifact_id?: never; source_version?: never };
 
+export type AgentMaterialDeliveryMode = "full" | "clipped" | "on-demand";
+
 export interface AgentMaterialChecklistItem {
+  material_id?: string;
   title: string;
+  subject?: ActionSubject;
   material_ref?: MaterialRef;
+  source_artifact_id?: string;
+  source_version?: number;
   read_revision?: string;
-  delivery: "full" | "clipped" | "on-demand";
+  delivery: AgentMaterialDeliveryMode;
   total_chars?: number;
   delivered_chars?: number;
 }
@@ -54,9 +60,10 @@ export interface AgentMaterialChecklistItem {
  * says the source version was not recorded; it is never guessed from the file as it is now.
  */
 export interface AgentMaterialOrigin {
+  subject?: ActionSubject;
   material_ref?: MaterialRef;
   read_revision?: string;
-  delivery?: "full" | "clipped" | "on-demand";
+  delivery?: AgentMaterialDeliveryMode;
   total_chars?: number;
   delivered_chars?: number;
   overflow_materials?: AgentMaterialChecklistItem[];
@@ -82,19 +89,20 @@ export interface AgentImageMaterial {
 
 /** Metadata and verbatim body share one data resource, never a role/system prompt. */
 export function agentTextMaterialContent(material: AgentTextMaterial): string {
-  if (!material || typeof material.title !== "string" || material.title.length > 2000
-    || typeof material.material_id !== "string" || !material.material_id || material.material_id.length > 240
-    || typeof material.text !== "string") throw new Error("固定材料的标题、来源或版本无效");
+  const okStr = (v: unknown, max: number) => typeof v === "string" && v.length > 0 && v.length <= max;
+  if (!material || typeof material.title !== "string" || material.title.length > 2000 || !okStr(material.material_id, 240) || typeof material.text !== "string") {
+    throw new Error("固定材料的标题、来源或版本无效");
+  }
   const sourced = "source_artifact_id" in material || "source_version" in material;
-  if (sourced && (typeof material.source_artifact_id !== "string" || !material.source_artifact_id || material.source_artifact_id.length > 200
-    || typeof material.source_version !== "number" || !Number.isSafeInteger(material.source_version) || material.source_version < 1)) throw new Error("固定材料的标题、来源或版本无效");
-  if (material.material_ref !== undefined && (!material.material_ref || typeof material.material_ref !== "object")
-    || material.read_revision !== undefined && (typeof material.read_revision !== "string" || !material.read_revision || material.read_revision.length > 200)) throw new Error("材料的来源引用或读取版本无效");
-  const header = JSON.stringify(sourced
-    ? { title: material.title, artifact_id: material.source_artifact_id, version: material.source_version }
-    : { title: material.title, material_id: material.material_id });
+  if (sourced && (!okStr(material.source_artifact_id, 200) || typeof material.source_version !== "number" || !Number.isSafeInteger(material.source_version) || material.source_version < 1)) {
+    throw new Error("固定材料的标题、来源或版本无效");
+  }
+  const badSubj = material.subject !== undefined && (!material.subject || typeof material.subject !== "object" || !okStr(material.subject.kind, 200) || !okStr(material.subject.id, 16_584));
+  if (badSubj || (material.material_ref !== undefined && (!material.material_ref || typeof material.material_ref !== "object")) || (material.read_revision !== undefined && !okStr(material.read_revision, 200))) {
+    throw new Error("材料的来源引用或读取版本无效");
+  }
+  const header = JSON.stringify(sourced ? { title: material.title, artifact_id: material.source_artifact_id, version: material.source_version } : { title: material.title, material_id: material.material_id });
   const content = `${header}\n\n${material.text}`;
-  // Prologue's required text resources reject more than 20,000 UTF-16 units.
   if (content.length > 20_000) throw new Error("材料连同来源超过 20,000 字符，请在文件中选择较小片段后重新保存");
   return content;
 }

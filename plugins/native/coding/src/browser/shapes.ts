@@ -1,21 +1,12 @@
 /** The JSON the Coding routes answer, as far as the page reads it (src/routes-*.ts write it). */
-import type { AgentStepBoard } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentStepBoard, AgentStepProgressSummary } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 /** Who the Host says made a report: a kind the page words itself, the Host's own label, and a subtask's title. */
 export type StepReportAuthor = NonNullable<AgentStepBoard["nodes"][number]["reports"][number]["by"]>;
 
 export interface StepReport { readonly by?: StepReportAuthor; readonly note: string; readonly at_ms?: number; readonly inputs?: readonly { readonly input_id: string }[] }
 
-export interface BoardProgressSummary {
-  readonly weighted_percent: number | null;
-  readonly completed_points: number;
-  readonly total_points: number;
-  readonly estimated_leaves: number;
-  readonly unestimated_leaves: number;
-  readonly completed_unestimated_leaves: number;
-  readonly removed_scope_leaves: number;
-  readonly removed_scope_points: number;
-}
+export type BoardProgressSummary = AgentStepProgressSummary;
 
 export interface StepNode {
   readonly id: string;
@@ -28,6 +19,7 @@ export interface StepNode {
   readonly estimate_reason?: string;
   readonly progress?: number;
   readonly progress_basis?: string;
+  readonly skipped?: boolean;
   readonly scope_removed?: boolean;
   readonly unknown_outcome?: boolean;
   readonly owner?: AgentStepBoard["nodes"][number]["owner"];

@@ -204,7 +204,8 @@ export async function createPluginBuilderAgent(options: PluginBuilderAgentOption
       const abort = new AbortController();
       const windowTokens = model.context_tokens ?? DEFAULT_CONTEXT_WINDOW_TOKENS;
       const effort = model.reasoning_effort ? request.reasoningEffort : undefined;
-      const outputCeiling = model.thinking ? Math.max(MAX_OUTPUT_TOKENS[request.role], 32_768) : MAX_OUTPUT_TOKENS[request.role];
+      const rawCeiling = model.thinking ? Math.max(MAX_OUTPUT_TOKENS[request.role], 32_768) : MAX_OUTPUT_TOKENS[request.role];
+      const outputCeiling = Math.min(rawCeiling, Math.max(1_024, Math.floor(windowTokens / 2)));
       const modelParams = runModelParams(model, { max_output_tokens: outputCeiling }, effort);
       const record: BuilderAgentRecord = { id: randomUUID(), role: request.role, promptVersion: request.promptVersion,
         contractRevision: request.contractRevision, instruction: request.instruction, input: request.task, output: '',

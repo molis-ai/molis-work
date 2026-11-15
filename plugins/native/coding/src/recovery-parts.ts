@@ -1,3 +1,8 @@
+import type {
+  AgentMaterialChecklistItem,
+  AgentMaterialDeliveryMode,
+  AgentStepProgressSummary,
+} from "@molis-ai/molis-work-contracts/services/agent-host";
 import {
   renderCodingRoundMaterials,
   renderEnvChecklist,
@@ -7,16 +12,7 @@ import {
 } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { insertedAcceptance } from "./inserted-step.js";
 
-export interface CodingBoardProgressSummary {
-  readonly weighted_percent: number | null;
-  readonly completed_points: number;
-  readonly total_points: number;
-  readonly estimated_leaves: number;
-  readonly unestimated_leaves: number;
-  readonly completed_unestimated_leaves: number;
-  readonly removed_scope_leaves: number;
-  readonly removed_scope_points: number;
-}
+export type CodingBoardProgressSummary = AgentStepProgressSummary;
 
 export interface CodingStepNode {
   readonly id: string;
@@ -29,6 +25,7 @@ export interface CodingStepNode {
   readonly estimate_reason?: string;
   readonly progress?: number;
   readonly progress_basis?: string;
+  readonly skipped?: boolean;
   readonly scope_removed?: boolean;
   readonly unknown_outcome?: boolean;
   readonly reports: readonly { readonly note: string }[];
@@ -50,8 +47,8 @@ export interface CodingPlanLookup {
 
 export interface CodingEnvironmentReadinessInput {
   readonly workspace_id: string;
+  readonly canonical_path?: string;
   readonly status: "ready" | "attention";
-  readonly summary?: string;
   readonly branch: string | null;
   readonly head_commit: string | null;
   readonly dirty_count: number;
@@ -75,20 +72,15 @@ export interface CodingRoundMaterialsRunInput {
     readonly text_materials?: readonly {
       readonly material_id: string;
       readonly title?: string;
+      readonly subject?: { readonly kind: string; readonly id: string };
+      readonly material_ref?: { readonly subject?: { readonly kind: string; readonly id: string } };
       readonly source_artifact_id?: string;
       readonly source_version?: number;
       readonly read_revision?: string;
-      readonly delivery?: "full" | "clipped" | "on-demand" | "inline" | "truncated";
+      readonly delivery?: AgentMaterialDeliveryMode;
       readonly total_chars?: number;
       readonly delivered_chars?: number;
-      readonly overflow_materials?: readonly {
-        readonly material_id?: string;
-        readonly title: string;
-        readonly source_artifact_id?: string;
-        readonly source_version?: number;
-        readonly read_revision?: string;
-        readonly total_chars?: number;
-      }[];
+      readonly overflow_materials?: readonly AgentMaterialChecklistItem[];
     }[];
   };
   readonly activity?: readonly {
@@ -99,19 +91,31 @@ export interface CodingRoundMaterialsRunInput {
   }[];
 }
 
-/** How the note of a step the person skipped starts (horizontal/agent-host words it when the skip is applied). */
-const SKIPPED_NOTE_HEAD = "用户跳过";
-
-export function skippedStep(node: CodingStepNode): boolean {
-  return node.state === "cancelled" && !node.scope_removed && node.reports.some(report => report.note.startsWith(SKIPPED_NOTE_HEAD));
+/** Parses an inline manual step-progress percentage (`0..99`, optional trailing `%`) into a `0..0.99` fraction, or `null` when invalid. */
+export function parseStepProgressPercent(rawText: string): number | null {
+  const cleaned = rawText.trim().replace(/%$/u, "").trim();
+  if (!cleaned) return null;
+  const pct = Number(cleaned);
+  if (!Number.isFinite(pct) || pct < 0 || pct > 99) return null;
+  return Math.round(pct * 100) / 10_000;
 }
 
-export function scopeRemovedStep(node: CodingStepNode): boolean {
+export function skippedStep(node: { readonly skipped?: boolean }): boolean {
+  return Boolean(node.skipped);
+}
+
+export function scopeRemovedStep(node: { readonly scope_removed?: boolean }): boolean {
   return Boolean(node.scope_removed);
 }
 
-export function settledStep(node: CodingStepNode): boolean {
+export function settledStep(node: { readonly state: string; readonly unknown_outcome?: boolean; readonly skipped?: boolean; readonly scope_removed?: boolean }): boolean {
   return (node.state === "succeeded" && !node.unknown_outcome) || skippedStep(node) || scopeRemovedStep(node);
+}
+
+/** Active leaf steps only: excludes parent containers (`parent_id` targets), `skipped`, and `scope_removed` steps. */
+export function activeLeafSteps<T extends { readonly id: string; readonly parent_id?: string; readonly skipped?: boolean; readonly scope_removed?: boolean }>(nodes: readonly T[]): T[] {
+  const parentIds = new Set(nodes.flatMap(node => node.parent_id ? [node.parent_id] : []));
+  return nodes.filter(node => !parentIds.has(node.id) && !node.skipped && !node.scope_removed);
 }
 
 export function planStepOf(plan: CodingPlanLookup | undefined, node: CodingStepNode): {
@@ -168,7 +172,7 @@ export function stepPointsBadge(
   if (reason) parts.push(reason);
   if (pts >= 13) parts.push(uiText.text("coding.board.split-hint"));
   if (node.progress !== undefined && node.progress > 0 && node.state !== "succeeded") {
-    const pct = node.progress <= 1 ? Math.round(node.progress * 100) : Math.round(node.progress);
+    const pct = Math.round(node.progress * 100);
     parts.push(uiText.text("coding.board.progress-basis", { percent: pct, basis: node.progress_basis || "" }));
   }
   return { text: uiText.text("coding.board.points", { points: pts }), title: parts.join(" · "), pending: false };
@@ -191,7 +195,7 @@ export function formatBoardProgressSummary(
   }
   const completed = Math.round(summary.completed_points * 10) / 10;
   const hasDiscounted = nodes
-    ? nodes.some(node => !scopeRemovedStep(node) && !skippedStep(node) && node.progress !== undefined && node.progress > 0 && node.progress < 1 && node.state !== "succeeded")
+    ? activeLeafSteps(nodes).some(node => node.progress !== undefined && node.progress > 0 && node.progress < 1 && node.state !== "succeeded")
     : !Number.isInteger(summary.completed_points);
   return [
     uiText.text("coding.board.summary.weighted", { percent: summary.weighted_percent, completed, total: summary.total_points }),
@@ -410,14 +414,38 @@ export function buildEnvironmentChecklistHtml(readiness: CodingEnvironmentReadin
 
 function wasMaterialContinuedRead(
   activity: CodingRoundMaterialsRunInput["activity"],
-  item: { readonly material_id?: string; readonly title?: string; readonly source_artifact_id?: string },
+  item: {
+    readonly material_id?: string;
+    readonly title?: string;
+    readonly source_artifact_id?: string;
+    readonly subject?: { readonly id: string };
+    readonly material_ref?: { readonly subject?: { readonly id: string } };
+  },
 ): boolean {
-  const tokens = [item.source_artifact_id, item.material_id, item.title].filter((entry): entry is string => Boolean(entry && entry.length >= 2));
+  const tokenSet = new Set<string>();
+  const addToken = (candidate: string | undefined, minLength: number) => {
+    const trimmed = candidate?.trim();
+    if (trimmed && trimmed.length >= minLength) tokenSet.add(trimmed);
+  };
+  addToken(item.source_artifact_id, 3);
+  addToken(item.material_id, 3);
+  if (item.material_id) {
+    const beforeRev = item.material_id.split("@")[0];
+    addToken(beforeRev, 4);
+    const colon = beforeRev?.indexOf(":") ?? -1;
+    if (beforeRev && colon > 0) addToken(beforeRev.slice(colon + 1), 4);
+  }
+  addToken(item.subject?.id ?? item.material_ref?.subject?.id, 4);
+  addToken(item.title, 6);
+  const tokens = [...tokenSet];
   if (!tokens.length) return false;
   return (activity || []).some(act => {
     if (act.state !== "completed") return false;
-    const isReadTool = act.name === "read" || act.name.includes("knowledge.read") || act.name === "molis-action" || act.name.startsWith("knowledge");
-    if (!isReadTool) return false;
+    const isMaterialReadTool = act.name.startsWith("molis-action-")
+      || act.name === "read-capability"
+      || act.name.includes("knowledge.read")
+      || act.name.includes("materials.read");
+    if (!isMaterialReadTool) return false;
     const hay = `${act.target || ""}\n${act.output || ""}`;
     return tokens.some(tok => hay.includes(tok));
   });
@@ -433,7 +461,7 @@ export function buildRoundMaterialsHtml(run: CodingRoundMaterialsRunInput): stri
   for (const item of inline) {
     const ver = item.read_revision ? " · #" + item.read_revision : item.source_version !== undefined ? " · v" + item.source_version : "";
     const name = (item.title || item.material_id) + ver;
-    const clipped = item.delivery === "clipped" || item.delivery === "truncated";
+    const clipped = item.delivery === "clipped";
     if ((clipped || item.delivery === "on-demand") && wasMaterialContinuedRead(run.activity, item)) {
       items.push({
         state: "done",
@@ -487,7 +515,7 @@ export function buildRoundMaterialsHtml(run: CodingRoundMaterialsRunInput): stri
           statusTone: "quiet",
         });
   }
-  const hasDeferred = overflow.length > 0 || inline.some(item => item.delivery === "clipped" || item.delivery === "truncated" || item.delivery === "on-demand");
+  const hasDeferred = overflow.length > 0 || inline.some(item => item.delivery === "clipped" || item.delivery === "on-demand");
   return renderCodingRoundMaterials({
     title: uiText.text("coding.material.round-title"),
     summaryLabel: overflow.length

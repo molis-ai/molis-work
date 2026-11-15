@@ -2,6 +2,7 @@ import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { el } from "./dom.js";
 import type { Amendment, StepNode } from "./shapes.js";
 import { svg } from "./taskboard-format.js";
+import { parseStepProgressPercent } from "./taskboard-steps.js";
 import type { BoardRow, RowEdit, RowView } from "./taskboard-types.js";
 
 /** An input of the inline form: its name, placeholder, longest text, starting value and whether it may be left empty. */
@@ -13,7 +14,7 @@ interface Question {
   /** A labelled checkbox after the inputs, off by default. */
   readonly check?: readonly [name: string, label: string];
   readonly submit: string;
-  readonly build: (texts: readonly string[], checked: boolean) => Amendment;
+  readonly build: (texts: readonly string[], checked: boolean) => Amendment | null;
 }
 
 /** What the tools of one step row share. */
@@ -101,9 +102,11 @@ function ask(tools: Tools, question: Question) {
   ports.lifetime.listen(form, "submit", async event => {
     event.preventDefault();
     if (texts.some((input, idx) => !question.fields[idx]?.[4] && !input.value.trim())) return;
+    const built = question.build(texts.map(input => input.value.trim()), box?.checked ?? false);
+    if (!built) return;
     ok.disabled = true;
     delete board.dataset.editing;
-    await change(tools, question.build(texts.map(input => input.value.trim()), box?.checked ?? false));
+    await change(tools, built);
   });
   entry.after(form);
   texts[0]?.focus();
@@ -117,9 +120,21 @@ function moveTools(tools: Tools) {
   if (WAITING.includes(nodes[index + 1]?.state ?? "")) add(tools, uiText.text("coding.board.move-down"), "chevron-down", () => void change(tools, { kind: "move", node: node.id, direction: "down" }));
 }
 
-/** Decide a blocked step, skip or pass over one, insert a step after it. */
+/** Decide a blocked step, reconcile an unknown outcome, skip or pass over one, record points/progress, or insert a step after it. */
 function stepTools(tools: Tools) {
   const { node } = tools;
+  if (node.unknown_outcome) {
+    add(tools, uiText.text("coding.board.reconcile-confirm"), "check", () => ask(tools, {
+      fields: [["note", uiText.text("coding.board.reconcile-confirm-note"), 500]],
+      submit: uiText.text("coding.board.reconcile-confirm"),
+      build: ([note]) => ({ kind: "reconcile", node: node.id, action: "confirm-done", note: note! }),
+    }));
+    add(tools, uiText.text("coding.board.reconcile-rerun"), "undo", () => ask(tools, {
+      fields: [["note", uiText.text("coding.board.reconcile-rerun-note"), 500]],
+      submit: uiText.text("coding.board.reconcile-rerun"),
+      build: ([note]) => ({ kind: "reconcile", node: node.id, action: "rerun", note: note! }),
+    }));
+  }
   if (node.state === "blocked") {
     add(tools, uiText.text("coding.board.decide"), "edit", () => ask(tools, {
       fields: [["note", uiText.text("coding.board.decide-note"), 500]], submit: uiText.text("coding.board.decide-ok"), build: ([note]) => ({ kind: "unblock", node: node.id, note: note! }),
@@ -133,7 +148,7 @@ function stepTools(tools: Tools) {
   }
   if (node.state !== "cancelled") {
     add(tools, uiText.text("coding.board.estimate"), "edit", () => ask(tools, {
-      fields: [["points", uiText.text("coding.board.estimate-points"), 10, node.story_points !== undefined ? String(node.story_points) : "", true], ["reason", uiText.text("coding.board.estimate-reason"), 300, node.estimate_reason || "", true]],
+      fields: [["points", uiText.text("coding.board.estimate-points"), 10, typeof node.story_points === "number" ? String(node.story_points) : "", true], ["reason", uiText.text("coding.board.estimate-reason"), 300, node.estimate_reason || "", true]],
       submit: uiText.text("coding.board.estimate-ok"),
       build: ([pts, reason]) => {
         const cleaned = (pts ?? "").trim();
@@ -142,6 +157,19 @@ function stepTools(tools: Tools) {
       },
     }));
     if (node.state !== "succeeded") {
+      const initPct = node.progress !== undefined ? String(Math.round(node.progress * 100)) : "";
+      add(tools, uiText.text("coding.board.progress-edit"), "edit", () => ask(tools, {
+        fields: [["percent", uiText.text("coding.board.progress-percent"), 6, initPct], ["basis", uiText.text("coding.board.progress-basis-input"), 300, node.progress_basis || ""]],
+        submit: uiText.text("coding.board.progress-save"),
+        build: ([pctText, basis]) => {
+          const fraction = parseStepProgressPercent(pctText ?? "");
+          if (fraction === null) {
+            tools.view.ports.status(uiText.text("coding.board.progress-percent"), true);
+            return null;
+          }
+          return { kind: "progress", node: node.id, progress: fraction, basis: basis! };
+        },
+      }));
       add(tools, uiText.text("coding.board.remove-scope"), "x", () => ask(tools, {
         fields: [["reason", uiText.text("coding.board.remove-scope-reason"), 300]], submit: uiText.text("coding.board.remove-scope"),
         build: ([reason]) => ({ kind: "remove-scope", node: node.id, reason: reason! }),

@@ -8,7 +8,7 @@ import { withContextJourneys, type ContextJourney } from "./context-onboarding-s
 import { readStagedText, stagedFilePath } from "./context-onboarding-staging.js";
 
 /** A ProseMirror document as the `pages.documents.*` actions carry it; the journey passes it on without reading into it. */
-export type ProseDocument = { readonly type: "doc"; readonly content?: readonly unknown[] };
+type ProseDocument = { readonly type: "doc"; readonly content?: readonly unknown[] };
 type PageBody = (markdown: string) => Promise<ProseDocument>;
 type PagesImport = { request_id: string; request_hash: string; documents: { title: string; body: ProseDocument }[] };
 const PAGES_PLUGIN_ID = "io.molis.work.pages";

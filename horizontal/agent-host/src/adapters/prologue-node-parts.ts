@@ -7,10 +7,10 @@ import { createPrologueInference } from "./prologue-inference.js";
 import { createSessionMessages } from "./prologue-messages.js";
 import { createProjectWork } from "./prologue-project-work.js";
 import { createPrologueTaskBoards } from "./prologue-taskboard.js";
-import { applyUnknownCommandOutcomes, shape, type PlanPlace, type ReconciledStepMap } from "./prologue-plan-steps.js";
+import { applyUnknownCommandOutcomes, mergeReconciledSteps, shape, type PlanPlace, type ReconciledStepMap } from "./prologue-plan-steps.js";
 import { restorePrologueRun } from "./prologue-restored-session.js";
 import { createPrologueWaits } from "./prologue-waits.js";
-import { readResource, type CommandEvent, type DispatchGuards, type NodeHost, type PrologueNodeAdapterOptions, type RoundState } from "./prologue-node-kit.js";
+import { readResource, unexecutedApprovalCallOf, type CommandEvent, type DispatchGuards, type NodeHost, type PrologueNodeAdapterOptions, type RoundState } from "./prologue-node-kit.js";
 import type { SessionIndexStore } from "./prologue-session-index.js";
 
 /**
@@ -92,7 +92,7 @@ export function createNodeCoordination(runtime: Runtime, index: SessionIndexStor
     const saved = await index.read(run.session_id), attempt = saved?.attempts.find(item => item.run_id === run.run_id);
     if (!attempt || !saved) return undefined;
     const mergedReconciled: ReconciledStepMap | undefined = attempt.step_prefix
-      ? Object.assign({}, ...saved.attempts.filter(item => item.step_prefix === attempt.step_prefix).map(item => item.reconciled_steps))
+      ? mergeReconciledSteps(saved.attempts.filter(item => item.step_prefix === attempt.step_prefix).map(item => item.reconciled_steps))
       : attempt.reconciled_steps;
     return {
       ...attempt,
@@ -127,42 +127,56 @@ async function readPlanUnknownStepIds(
   const saved = await index.read(sessionId).catch(() => undefined);
   const attempts = saved?.attempts.filter(item => item.step_prefix === place.prefix && item.run_id) ?? [];
   if (!saved || !attempts.length) return new Set();
-  const reconciled: ReconciledStepMap = Object.assign({}, ...attempts.map(item => item.reconciled_steps));
+  const reconciled = mergeReconciledSteps(attempts.map(item => item.reconciled_steps));
   let projected = shape(runtime, runtime.boards.get(place.ref), place, sessionId, id => state.liveSessions.has(id), reconciled);
   const sdkSession = await runtime.sessions.open(saved.ref).catch(() => undefined);
-  const terminal = (await sdkSession?.terminalRuns().catch(() => undefined)) ?? [];
+  if (!sdkSession) return new Set(projected.nodes.filter(node => node.unknown_outcome).map(node => node.id));
+  const terminal = (await sdkSession.terminalRuns().catch(() => undefined)) ?? [];
   for (const attempt of attempts) {
+    if (state.activeRuns.get(attempt.run_id!)?.live()) continue;
     const savedRun = terminal.find(run => run.id === attempt.run_id);
-    const events = savedRun ? await sdkSession!.replay(savedRun).catch(() => undefined) : undefined;
+    const attemptRunRef = savedRun ?? { kind: "run" as const, id: attempt.run_id!, revision: 1 };
+    let events: Awaited<ReturnType<typeof sdkSession.replay>> | undefined;
+    if (savedRun) {
+      events = await sdkSession.replay(savedRun).catch(() => undefined);
+    } else {
+      try {
+        events = await sdkSession.readRunProgress(attemptRunRef);
+      } catch (err) {
+        if ((err as { code?: string } | null)?.code === "RUN_NOT_REPLAYABLE") {
+          events = await sdkSession.replay(attemptRunRef).catch(() => undefined);
+        }
+      }
+    }
     if (!events) continue;
+    const runRef = { session_id: sessionId, run_id: attempt.run_id! };
     const { state: stream } = restorePrologueRun({
-      ref: { session_id: sessionId, run_id: attempt.run_id! },
+      ref: runRef,
       frozen: attempt.frozen,
       started_at: attempt.started_at,
       task: attempt.task,
       events,
-      terminal: true,
+      ...(savedRun ? { terminal: true } : {}),
       ...(attempt.timing ? { timing: attempt.timing } : {}),
       ...(attempt.stop_intent ? { stop_intent: attempt.stop_intent } : {}),
       ...(attempt.stop_reason ? { stop_reason: attempt.stop_reason } : {}),
-    });
+    }, waiting => unexecutedApprovalCallOf(runtime, runRef, waiting));
     const receipts = new Map<string, CommandEvent>();
     for (const ev of events) if (ev.type === "command-receipt") receipts.set(ev.callId, ev);
     for (const item of stream.activity) {
       const ev = item.name === "start-command" && !/^exit \S+/.test(item.output ?? "") ? receipts.get(item.call_id) : undefined;
       if (!ev) continue;
-      try {
-        const rec = await readResource(runtime, ev.receiptRef);
-        const r = rec?.receipt;
-        const header = r?.exitCode !== undefined && Number.isInteger(r.exitCode)
-          ? `exit ${r.exitCode}`
-          : r?.timedOut || r?.stopReason === "timed-out"
-            ? "exit timed-out"
-            : r?.cancelled || r?.stopReason === "cancelled"
-              ? "exit cancelled"
-              : "exit none";
-        item.output = item.output ? `${header}\n${item.output}` : header;
-      } catch { /* missing receipt remains unknown */ }
+      const rec = await readResource(runtime, ev.receiptRef).catch(() => undefined);
+      if (!rec) continue;
+      const r = rec.receipt;
+      const header = r?.exitCode !== undefined && Number.isInteger(r.exitCode)
+        ? `exit ${r.exitCode}`
+        : r?.timedOut || r?.stopReason === "timed-out"
+          ? "exit timed-out"
+          : r?.cancelled || r?.stopReason === "cancelled"
+            ? "exit cancelled"
+            : "exit none";
+      item.output = item.output ? `${header}\n${item.output}` : header;
     }
     projected = applyUnknownCommandOutcomes({ phase: stream.phase, activity: stream.activity }, projected, reconciled);
   }

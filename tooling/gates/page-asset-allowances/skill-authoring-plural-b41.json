@@ -10,7 +10,6 @@
       "change": "new"
     }
   ],
-  "assets": {},
   "pages": {
     "arrival-empty/en": { "cold": 26, "warm": 0 },
     "chooser/en": { "cold": 26, "warm": 0 },

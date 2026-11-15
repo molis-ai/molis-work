@@ -89,7 +89,7 @@ export function renderTaskAttemptBudget(options: MwTaskAttemptBudgetOptions): st
     ? `<div class="mw-attempt__acts">${options.actions.map((act) => renderButton({ ...act, size: act.size ?? "sm" })).join("")}</div>`
     : "";
   const meterAttr = options.meterLabel ? ` aria-label="${escapeHtml(options.meterLabel)}"` : "";
-  return `<div class="mw-attempt" data-slot="task-attempt-budget"${renderAttrs(options.attrs)}><div class="mw-attempt__line"><span class="mw-rec-grow">${escapeHtml(options.headerText)}</span>${options.retryReasonLabel ? renderBadge({ label: options.retryReasonLabel, tone: options.retryReasonTone ?? "warning" }) : ""}</div><div class="mw-attempt__meter" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"${meterAttr}><i class="${cx(hot && "is-hot")}" style="width:${pct}%"></i></div>${why}${past}${acts}</div>`;
+  return `<div class="mw-attempt" data-slot="task-attempt-budget"${renderAttrs(options.attrs)}><div class="mw-attempt__line"><span class="mw-rec-grow">${escapeHtml(options.headerText)}</span>${options.retryReasonLabel ? renderBadge({ label: options.retryReasonLabel, tone: options.retryReasonTone ?? "warning" }) : ""}</div><div class="mw-attempt__meter" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"${meterAttr}><i class="${cx(hot && "is-hot")}" style="transform:scaleX(${pct / 100})"></i></div>${why}${past}${acts}</div>`;
 }
 
 export interface MwRoundReportCheck {
@@ -233,5 +233,5 @@ export function renderCodingRoundMaterials(options: MwCodingRoundMaterialsOption
   const foot = options.footer
     ? `<div class="mw-rec-list__foot"><b>${escapeHtml(options.footer.title)}</b><span>${escapeHtml(options.footer.detail)}</span></div>`
     : "";
-  return `<div class="mw-rec-list" data-slot="coding-round-materials"${renderAttrs(options.attrs)}><div class="mw-rec-list__head"><span class="mw-rec-grow">${icon("file")}<span>${escapeHtml(options.title)}</span></span>${renderStatusMark({ label: options.summaryLabel, tone: options.summaryTone, plain: true })}</div>${rows}${recovery}${foot}</div>`;
+  return `<div class="mw-rec-list" data-slot="round-materials"${renderAttrs(options.attrs)}><div class="mw-rec-list__head"><span class="mw-rec-grow">${icon("file")}<span>${escapeHtml(options.title)}</span></span>${renderStatusMark({ label: options.summaryLabel, tone: options.summaryTone, plain: true })}</div>${rows}${recovery}${foot}</div>`;
 }

@@ -61,7 +61,7 @@ test("Batch 33 component catalog specimens (#recovery-closures) pass layout audi
   await mkdir(output, { recursive: true });
 
   await b.navigate(() => command("Page.navigate", { url: `${b.origin}/__ui/catalog?lang=zh#recovery-closures` }, sessionId));
-  await waitFor("Boolean(document.getElementById('recovery-closures')) && Boolean(document.querySelector('[data-primitive=\"coding-round-materials\"]'))");
+  await waitFor("Boolean(document.getElementById('recovery-closures')) && Boolean(document.querySelector('[data-primitive=\"round-materials\"]'))");
   await evaluate("document.getElementById('recovery-closures').setAttribute('data-audit-scope', '')");
 
   for (const width of [1440, 1024, 390, 320]) {
@@ -80,7 +80,7 @@ test("Batch 33 component catalog specimens (#recovery-closures) pass layout audi
 
   // B6: English catalog #recovery-closures renders with zero Han characters and clean layout.
   await b.navigate(() => command("Page.navigate", { url: `${b.origin}/__ui/catalog?lang=en#recovery-closures` }, sessionId));
-  await waitFor("Boolean(document.getElementById('recovery-closures')) && Boolean(document.querySelector('[data-primitive=\"coding-round-materials\"]'))");
+  await waitFor("Boolean(document.getElementById('recovery-closures')) && Boolean(document.querySelector('[data-primitive=\"round-materials\"]'))");
   await evaluate("document.getElementById('recovery-closures').setAttribute('data-audit-scope', '')");
   const enHan = await evaluate<string[]>(`(() => {
     const scope = document.getElementById('recovery-closures');

@@ -1,5 +1,5 @@
 import { setContentHtml } from "@molis-ai/molis-work-plugin-sdk/browser";
-import { buildRoundMaterialsHtml } from "../../recovery-client.js";
+import { buildRoundMaterialsHtml } from "../../recovery-parts.js";
 import { el } from "../dom.js";
 import { changesBlock, changesRow } from "./boundary.js";
 import { buildEnvironmentChecklistHtml } from "./configuration.js";

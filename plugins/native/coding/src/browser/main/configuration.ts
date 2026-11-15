@@ -1,7 +1,7 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { setContentHtml } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { codingIntentOptions } from "../../composer-labels.js";
-import { buildEnvironmentChecklistHtml } from "../../recovery-client.js";
+import { buildEnvironmentChecklistHtml } from "../../recovery-parts.js";
 import { el, errorMessage } from "../dom.js";
 import { renderDirectory } from "./directory.js";
 import { controls } from "./controls.js";

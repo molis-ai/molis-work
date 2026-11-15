@@ -108,7 +108,7 @@ test("Batch 33 component catalog specimens (#recovery-closures) and ENV file mar
     "data-primitive=\"round-report-card\"",
     "data-primitive=\"materials-funnel-track\"",
     "data-primitive=\"scope-delta-card\"",
-    "data-primitive=\"coding-round-materials\"",
+    "data-primitive=\"round-materials\"",
   ]) {
     assert.ok(catalogHtml.includes(primitive), `missing catalog specimen ${primitive}`);
   }
@@ -128,7 +128,7 @@ test("Batch 33 component catalog specimens (#recovery-closures) and ENV file mar
   assert.ok(renderMaterialsFunnel([{ label: "已发现", value: 5 }], "材料核对统计").includes("mw-mr-funnel"));
   assert.ok(renderMaterialsTrack({ step: 3, label: "已读取" }).includes("mw-mr-cells"));
   assert.ok(renderScopeDeltaCard({ title: "这次只做这些", items: [{ kind: "add", glyph: "plus", title: "新增 1 份", detail: "spec.md" }] }).includes("data-slot=\"scope-delta-card\""));
-  assert.ok(renderCodingRoundMaterials({ title: "本轮材料", summaryLabel: "2 份", summaryTone: "done", items: [{ state: "done", name: "spec.md", how: "全文", statusLabel: "全文", statusTone: "done" }] }).includes("data-slot=\"coding-round-materials\""));
+  assert.ok(renderCodingRoundMaterials({ title: "本轮材料", summaryLabel: "2 份", summaryTone: "done", items: [{ state: "done", name: "spec.md", how: "全文", statusLabel: "全文", statusTone: "done" }] }).includes("data-slot=\"round-materials\""));
 
   const enCatalogHtml = withPageText("en", [], renderPrimitiveCatalog);
   const enStart = enCatalogHtml.indexOf("id=\"recovery-closures\"");
@@ -304,7 +304,7 @@ test("B1, B5 & B7: withPinnedKnowledgeRevision gateway pinning, client progress 
       }],
     };
     const beforeHtml = buildRoundMaterialsHtml({ frozen: baseFrozen, activity: [] });
-    assert.ok(beforeHtml.includes("data-slot=\"coding-round-materials\""));
+    assert.ok(beforeHtml.includes("data-slot=\"round-materials\""));
     assert.match(beforeHtml, /前 12,000 字/);
     const afterHtml = buildRoundMaterialsHtml({
       frozen: baseFrozen,

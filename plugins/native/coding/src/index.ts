@@ -174,7 +174,7 @@ export {
   buildRoundMaterialsHtml,
   formatBoardProgressSummary,
   stepPointsBadge,
-} from "./recovery-client.js";
+} from "./recovery-parts.js";
 
 export { CODING_STYLES } from "./styles.js";
 export { CODING_WORKBENCH_CLIENT_FACTORY_SCRIPT } from "./workbench-client.js";

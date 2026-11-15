@@ -5,4 +5,4 @@ export {
   settledStep as settled,
   skippedStep as skipped,
   stepPointsBadge,
-} from "../recovery-client.js";
+} from "../recovery-parts.js";

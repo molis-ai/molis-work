@@ -59,7 +59,9 @@ export {
 export const RECOVERY_STAGE_PARTS_STYLES = `
 .mw-rec-list,.mw-attempt,.mw-report-card{border-radius:var(--r-card,12px);background:var(--paper);box-shadow:0 0 0 1px color-mix(in srgb,var(--ink) 6%,transparent),var(--shadow-soft);min-width:0}
 .mw-rec-list{overflow:hidden}
-.mw-rec-list__head,.mw-rec-row,.mw-rec-list__foot,.mw-attempt__line,.mw-attempt summary,.mw-attempt__past,.mw-attempt__acts,.mw-report-card__head,.mw-report-card__chk{display:flex;align-items:center;min-width:0}
+.mw-rec-list__head,.mw-rec-row,.mw-rec-list__foot,.mw-attempt__line,.mw-attempt summary,.mw-attempt__acts,.mw-report-card__head{display:flex;align-items:center;min-width:0}
+.mw-attempt__past,.mw-report-card__chk{display:flex;align-items:flex-start;min-width:0}
+.mw-attempt__past>.mw-state-ring,.mw-report-card__chk>.mw-state-ring{flex:none;margin-top:calc((1lh - 1em - 2px)/2)}
 .mw-rec-list__head,.mw-rec-list__foot,.mw-attempt,.mw-report-card__head,.mw-report-card h3,.mw-rec-row__kv>span,.mw-rec-row__mrow>span{font-size:12px;color:var(--muted)}
 .mw-rec-list__head,.mw-rec-row__kv>b,.mw-rec-row__mrow>b,.mw-rec-list__foot>b,.mw-report-card h3{font-weight:var(--weight-control,500)}
 .mw-rec-list__head>.mw-rec-grow,.mw-rec-row__kv,.mw-rec-row__kv>span,.mw-rec-row__mrow,.mw-rec-row__mrow>span,.mw-rec-list__foot>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -80,7 +82,7 @@ export const RECOVERY_STAGE_PARTS_STYLES = `
 .mw-attempt{display:grid;gap:8px;padding:8px 12px 12px}
 .mw-attempt__line{flex-wrap:wrap;gap:6px;color:var(--ink-soft);font-variant-numeric:tabular-nums}
 .mw-attempt__meter{height:4px;border-radius:999px;background:var(--rail);overflow:hidden;display:flex}
-.mw-attempt__meter>i{display:block;height:100%;background:var(--green);transition:width var(--dur-arrive,420ms) var(--ease-quint)}
+.mw-attempt__meter>i{display:block;width:100%;height:100%;background:var(--green);transform-origin:0 50%;transition:transform var(--dur-arrive,420ms) var(--ease-quint)}
 .mw-attempt__meter>i.is-hot{background:var(--amber)}
 .mw-attempt__why{line-height:1.5}
 .mw-attempt summary{min-height:32px;cursor:pointer}
@@ -91,10 +93,11 @@ export const RECOVERY_STAGE_PARTS_STYLES = `
 .mw-report-card__head{flex-wrap:wrap;gap:8px;min-height:40px}
 .mw-report-card>section{display:grid;gap:2px;padding:8px 0 4px}
 .mw-report-card h3{margin:0 0 4px}
-.mw-report-card__chk{flex-wrap:wrap;gap:8px;min-height:32px;font-size:13px;color:var(--ink-soft)}
+.mw-report-card__chk{flex-wrap:wrap;gap:8px;padding:6px 0;line-height:20px;font-size:13px;color:var(--ink-soft)}
 .mw-report-card__chk>.mw-rec-grow{flex:1 1 12em;min-width:0}
+.mw-report-card__chk>.mw-btn{margin-block:-4px}
 .mw-report-card__chk.is-quiet{color:var(--muted)}
-.mw-report-card__ver{display:inline-flex;align-items:center;gap:4px;flex:none;font:500 11px var(--font-mono);color:var(--muted);font-variant-numeric:tabular-nums}
+.mw-report-card__ver{display:inline-flex;align-items:center;gap:4px;flex:none;font:500 11px/20px var(--font-mono);color:var(--muted);font-variant-numeric:tabular-nums}
 .mw-report-card__ver>svg{width:12px;height:12px}
 .mw-report-card__acts{padding-top:8px}
 @media (max-width:760px){.mw-rec-row__kv>b{width:72px}}
@@ -105,7 +108,7 @@ export const RECOVERY_STAGE_PARTS_STYLES = `
 export const MATERIALS_RECOVERY_PARTS_STYLES = `
 .mw-file-kind--env{background:color-mix(in srgb,var(--amber) 12%,transparent);color:var(--amber)}
 .mw-file-kind--txt{color:var(--mark-text,var(--ink-soft))}
-.mw-mr-funnel>li>b,.mw-mr-funnel>li>span,.mw-mr-delta__copy>small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mw-mr-funnel>li>b,.mw-mr-funnel>li>span,.mw-mr-delta__copy>small{overflow-wrap:anywhere}
 .mw-mr-cells,.mw-mr-why,.mw-mr-delta__head,.mw-mr-delta__row{font-size:12px}
 .mw-mr-why,.mw-mr-delta__head,.mw-mr-delta__row{display:flex;align-items:center;gap:8px;min-width:0}
 .mw-mr-funnel{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;padding:8px 10px;border-radius:var(--r-row,10px);background:var(--surface-soft);margin:0;list-style:none}
@@ -121,10 +124,11 @@ export const MATERIALS_RECOVERY_PARTS_STYLES = `
 .mw-mr-why{list-style:none;flex-wrap:wrap;gap:6px 10px;margin:-1px 0 4px;padding:2px 8px 8px 40px;border-radius:0 0 var(--r-row,10px) var(--r-row,10px);background:color-mix(in srgb,var(--amber) 8%,transparent);color:var(--ink-soft);line-height:1.5}
 .mw-mr-why.is-err{color:var(--red)}
 .mw-mr-why>span{flex:1 1 12em;min-width:0;overflow-wrap:anywhere}
-.mw-mr-why__acts{display:inline-flex;flex-wrap:wrap;gap:6px}
+.mw-mr-why__acts{display:inline-flex;flex-wrap:wrap;gap:8px}
 .mw-mr-delta{display:grid;gap:6px;padding:10px 12px;border-radius:var(--r-card,12px);background:var(--surface-soft);box-shadow:inset 0 0 0 1px var(--line);min-width:0}
 .mw-mr-delta__head{justify-content:space-between;font-weight:var(--weight-title,600);color:var(--ink)}
-.mw-mr-delta__head>small{font-weight:var(--weight-body,400);color:var(--muted)}
+.mw-mr-delta__head>small,.mw-mr-delta__copy>small{font-size:11px;color:var(--muted)}
+.mw-mr-delta__head>small{font-weight:var(--weight-body,400)}
 .mw-mr-delta__row{min-height:26px;color:var(--ink-soft)}
 .mw-mr-delta__tile{width:20px;height:20px;border-radius:var(--r-tag,6px);display:grid;place-items:center;flex:none;background:var(--rail);color:var(--ink-soft)}
 .mw-mr-delta__tile>svg{width:12px;height:12px}
@@ -133,7 +137,7 @@ export const MATERIALS_RECOVERY_PARTS_STYLES = `
 .mw-mr-delta__row.is-keep .mw-mr-delta__tile{background:var(--green-soft);color:var(--green)}
 .mw-mr-delta__copy{flex:1;min-width:0;display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}
 .mw-mr-delta__copy>b{font-weight:var(--weight-control,500);color:var(--ink);overflow-wrap:anywhere}
-.mw-mr-delta__copy>small{color:var(--muted);max-width:100%}
+.mw-mr-delta__copy>small{max-width:100%}
 @media (max-width:760px){.mw-mr-funnel{grid-template-columns:repeat(3,minmax(0,1fr))}.mw-mr-why{padding-left:8px}}
 @media (max-width:560px){.mw-mr-cells{gap:4px}.mw-mr-cells .mw-mr-track>i{width:5px}.mw-mr-cells .mw-status{min-width:0;padding-inline:4px}}
 @media (max-width:380px){.mw-mr-cells .mw-mr-track{display:none}}
@@ -260,6 +264,6 @@ export function recoverySections(say: Say = t): string {
     ${mark("round-report-card", specimen(c("specimen-report"), reportCard))}
     ${mark("materials-funnel-track", specimen(c("specimen-funnel"), `<div style="display:grid;gap:10px">${funnel}${trackRows}</div>`))}
     ${mark("scope-delta-card", specimen(c("specimen-delta"), scopeDelta))}
-    ${mark("coding-round-materials", specimen(c("specimen-materials"), roundMaterials))}
+    ${mark("round-materials", specimen(c("specimen-materials"), roundMaterials))}
   </div>`);
 }

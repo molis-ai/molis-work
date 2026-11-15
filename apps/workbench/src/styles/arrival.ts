@@ -284,8 +284,7 @@ export const ARRIVAL_STYLES = String.raw`
   .ob-mr-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; min-width: 0; }
   .ob-mr-bar .mw-toggle-group { flex-wrap: wrap; max-width: 100%; }
   .ob-mr-box { display: grid; min-width: 0; min-height: 0; }
-  .ob-mr-list { min-width: 0; min-height: 0; max-height: min(360px, 48vh); overflow: auto; overscroll-behavior: contain; border-radius: var(--r-card, 12px); background: var(--paper); box-shadow: inset 0 0 0 1px var(--line); padding: 4px 10px 6px; scrollbar-width: none; }
-  .ob-mr-list::-webkit-scrollbar { display: none; }
+  .ob-mr-list { min-width: 0; min-height: 0; max-height: min(360px, 48vh); overflow: auto; overscroll-behavior: contain; border-radius: var(--r-card, 12px); background: var(--paper); box-shadow: inset 0 0 0 1px var(--line); padding: 4px 10px 6px; }
   .ob-mr-list .mw-file-row { grid-template-columns: minmax(0, 1fr) auto auto; min-height: 34px; box-sizing: border-box; }
   .ob-mr-list .mw-file-row__size { max-width: 11em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .ob-mr-list .mw-file-row.is-issue { background: color-mix(in srgb, var(--amber) 8%, transparent); border-bottom-left-radius: 0; border-bottom-right-radius: 0; }

@@ -198,6 +198,7 @@ function fromMaterials(material: CodingPickedMaterial, read: MaterialsReadResult
     overflow: {
       title,
       material_ref: pinnedRef,
+      ...(inline.source_artifact_id !== undefined ? { source_artifact_id: inline.source_artifact_id, source_version: inline.source_version } : {}),
       read_revision: read.read_revision,
       delivery: "on-demand",
       total_chars: text.length,
@@ -223,6 +224,7 @@ function fromKnowledge(material: CodingMaterial, read: KnowledgeReadResponse): {
     overflow: {
       title,
       ...("ref" in material ? { material_ref: readRef(material.ref, read.revision) } : {}),
+      ...(inline.source_artifact_id !== undefined ? { source_artifact_id: inline.source_artifact_id, source_version: inline.source_version } : {}),
       read_revision: read.revision,
       delivery: "on-demand",
       total_chars: totalChars,

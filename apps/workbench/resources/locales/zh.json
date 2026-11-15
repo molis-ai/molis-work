@@ -5129,6 +5129,7 @@
     "workbench.project-deletion.confirm-project-deletion-provide-valid-deletion-request-key": "请明确确认删除项目，并提供有效的删除请求键。",
     "workbench.project-deletion.data": "插件在此项目中的数据",
     "workbench.project-deletion.external-rows": "{name} 的项目数据：{detail}",
+    "workbench.project-deletion.external-sessions": "这个项目的外部会话 AI 读取许可与归属建议",
     "workbench.project-deletion.files-default-output-folder-can-only-be-kept": "默认输出目录里的文件只能选择留下或删除。",
     "workbench.project-deletion.judgment-rules": "判断规则在这个项目里的场景绑定和判断记录",
     "workbench.project-deletion.knowledge": "项目资料的卡片与整理记录",

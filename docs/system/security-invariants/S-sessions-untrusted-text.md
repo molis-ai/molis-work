@@ -1,0 +1,5 @@
+# S-sessions-untrusted-text
+
+| ID | 不变量（拒绝什么） | 代码位置 | 测试（CI 里跑） | 测试（只在本机跑） |
+| --- | --- | --- | --- | --- |
+| S-sessions-untrusted-text | 外部会话标题、目录、对话正文、工具输入输出与建议证据一律作为非可信纯文本处理，不渲染 HTML、不读二进制附件、有界截断且进入模型时关进非可信数据围栏（第 34 批，设计 `specs/sessions-rebuild/contract-design.md` §5.3、§6.4、§9.4）：① 会话中的提示词注入、`<script>`／HTML 标签、伪造 JSON 指令或工具调用只作为纯文本分段返回，绝不触发动作调用、不改写 `session_attributions` 或读取范围；② 图片、音频、PDF、内联 base64 二进制块不解码不回传，统一记为纯文本占位 `[附件未读取]`；③ 单条消息超 64 KB、单页超 256 KB、全文扫描超 32 MB 时按 UTF-8 字符边界干净截断并标 `truncated: true`，不把超大文件整份读入内存；④ 模型归属建议把标题与首尾摘录先脱敏再装入 Prologue `fencedMaterials` JSON 围栏，且返回的项目 ID 必须在当次现存项目集合内核实。 | `horizontal/sessions/src/adapters/shared.ts`、`horizontal/sessions/src/suggest.ts`、`apps/local-host/src/sessions-ports.ts` | `tests/security-invariants-external-sessions.test.ts`「S-sessions-untrusted-text 1: prompt-injection, HTML, script and tool payloads stay plain text data and never trigger attribution or actions」「S-sessions-untrusted-text 2: binary attachments stay unread markers and oversized entries and pages stop cleanly at byte caps」 | — |

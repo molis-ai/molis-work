@@ -5491,6 +5491,7 @@
     "workbench.project-deletion.confirm-project-deletion-provide-valid-deletion-request-key": "Confirm project deletion and provide a valid deletion request key.",
     "workbench.project-deletion.data": "Plugin data in this project",
     "workbench.project-deletion.external-rows": "Project data of {name}: {detail}",
+    "workbench.project-deletion.external-sessions": "External session AI read permit and filing suggestions for this project",
     "workbench.project-deletion.files-default-output-folder-can-only-be-kept": "The files in the default output folder can only be kept or deleted.",
     "workbench.project-deletion.judgment-rules": "Function bindings and judgments made in this project",
     "workbench.project-deletion.knowledge": "Project knowledge cards and organizing records",

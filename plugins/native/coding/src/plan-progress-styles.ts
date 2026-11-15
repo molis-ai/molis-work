@@ -4,7 +4,10 @@ export const CODING_PLAN_PROGRESS_STYLES = `/* Running plan: the round's own ste
 .coding-plan-head svg { width:14px; height:14px; color:var(--muted); flex:none; }
 .coding-plan-head strong { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:600; }
 .coding-plan-count { flex:none; font-size:12px; color:var(--muted); font-variant-numeric:tabular-nums; }
+.coding-plan-weighted { flex:none; font-size:11px; color:var(--ink-soft,var(--muted)); font-variant-numeric:tabular-nums; }
 .coding-plan-revision { flex:none; font-size:11px; color:var(--faint); }
+.coding-plan-points { display:inline-flex; align-items:center; margin-left:6px; padding:0 6px; border-radius:999px; background:color-mix(in srgb,var(--line) 45%,transparent); color:var(--muted); font-size:11px; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.coding-plan-points[data-pending=true] { background:transparent; border:1px dashed var(--line); color:var(--faint); }
 /* The plan card in the conversation uses the TaskBoard's rows, without the progress column. */
 .coding-plan-steps { margin:4px 0 0; }
 .coding-board--compact .coding-board-entry { grid-template-columns:minmax(0,1fr) 7.5rem 7rem auto; padding:0 8px; }

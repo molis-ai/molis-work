@@ -5,13 +5,41 @@ import type { Readable } from "node:stream";
 import { fencedMaterials, instructed, type InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { ONBOARDING_NOTES, ONBOARDING_OWNER, ONBOARDING_PROPOSAL } from "./agent-definitions/system-prompts.js";
 import { createHash, randomUUID } from "node:crypto";
-import { withContextJourneys, type CallTiming, type ContextJourney, type ContextReference, type ImportFile, type OnboardingTodoBatch } from "./context-onboarding-store.js";
+import {
+  withContextJourneys,
+  type CallTiming,
+  type ContextJourney,
+  type ContextReference,
+  type ImportFile,
+  type OnboardingTodoBatch,
+} from "./context-onboarding-store.js";
 import { codeRoot, contextFilePath, contextSources, readContextSource } from "./context-onboarding-sources.js";
-import { diskFull, dropStagedNotes, readStagedNote, readStagedText, removeJourneyStaging, stageContextUpload, stageNote, stagedFilePath, stagedFileSize, stagedJourneyIds, isStagedDigest } from "./context-onboarding-staging.js";
+import {
+  applyHeldSecretDecision,
+  classifyContextModelFailure,
+  computeScopeDelta,
+  deduplicateSelectedReferences,
+  mergeSourceIncrementally,
+} from "./context-onboarding-delta.js";
+import { importAdoptedMaterialsAndSummary } from "./context-onboarding-adopt.js";
+export { classifyContextModelFailure };
+import {
+  diskFull,
+  dropStagedNotes,
+  hasStagedText,
+  isStagedDigest,
+  readStagedNote,
+  readStagedText,
+  removeJourneyStaging,
+  stageContextUpload,
+  stageNote,
+  stagedFileSize,
+  stagedJourneyIds,
+} from "./context-onboarding-staging.js";
 import type { PeriodicTasks } from "./periodic-tasks.js";
 import { configuredTextPort, type TextModelPort } from "./configured-text-port.js";
 import { prepareContextDocument } from "./context-onboarding-documents.js";
-import { ARTIFACTS_PLUGIN_ID, artifactsActions } from "@molis-ai/molis-work-module-artifacts";
+import { ARTIFACTS_PLUGIN_ID } from "@molis-ai/molis-work-module-artifacts";
 import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { assertOnboardingWritable, completeMolisWorkOnboarding } from "./onboarding.js";
 import { descriptionFromSummary, setProjectDescription } from "./project-arrival.js";
@@ -36,10 +64,14 @@ export interface ContextOnboardingPorts {
   /** The person's call of one taker's own declared action in the new project, with that action's permissions only (§7.7 C1). */
   take?: (home: string, projectId: string, definition: ActionDefinition) => Promise<BoundActionClient>;
 }
+
 // The local Host is the single writer. Persistent checkpoints survive restarts;
-// this map prevents two requests starting the same job in the current process.
+// these maps prevent duplicate runs in the current process and cancel superseded organize passes (ONB-45, C8, C11).
 const running = new Map<string, Promise<void>>();
+const controllers = new Map<string, AbortController>();
 const key = (home: string, id: string) => home + ":" + id;
+const STALE_EPOCH = Symbol("stale_epoch");
+
 export function readContextJourney(home: string, id: string): ContextJourney {
   const journey = withContextJourneys(home, store => store.get(id));
   if (journey.staging_removed && journey.phase !== "complete") {
@@ -59,6 +91,7 @@ export function readContextJourney(home: string, id: string): ContextJourney {
   }
   return journey;
 }
+
 const IDLE_STAGING_MS = 30 * 24 * 60 * 60_000;
 /**
  * What onboarding keeps on disk for rounds that will not use it (user 2026-10-22): the staging of a round left unfinished for 30
@@ -85,16 +118,20 @@ export function registerOnboardingStagingCleanup(home: string, periodic: Periodi
     onError: error => hostLog.warn("onboarding", "staging_cleanup_failed", error) });
   void run().catch(error => hostLog.warn("onboarding", "staging_cleanup_failed", error));
 }
+
 export function selectContextSources(home: string, id: string, input: Record<string, unknown>): ContextJourney {
   const journey = readContextJourney(home, id);
   if (journey.requires_reselection) throw new Error(journey.error!);
   if (journey.phase !== "selecting" || journey.adoption) throw new Error("整理已经开始；请返回清单调整范围");
   journey.sources = contextSources(input.sources).map(next => {
     const previous = journey.sources.find(s => s.kind === next.kind);
-    const scope = (s: typeof next) => JSON.stringify([s.path, s.files, s.text, s.url, s.connection_id, s.days, s.metadata, s.excluded]);
-    // Completed imports are fixed snapshots. Only a changed scope invalidates them.
-    return previous && scope(previous) === scope(next) ? { ...previous, ...next } : next;
+    return mergeSourceIncrementally(previous, next);
   });
+  journey.scope_delta = computeScopeDelta(journey);
+  if (journey.summary && journey.scope_delta && (journey.scope_delta.added_count > 0 || journey.scope_delta.removed_count > 0)) {
+    journey.stale_summary = { title: journey.summary.title, body: journey.summary.body, at: journey.updated_at, model: journey.model };
+    journey.summary = null;
+  }
   journey.auto_start = input.auto_start === true;
   journey.previewed = input.previewed === true;
   if (journey.oauth_status === "pending" && !journey.sources.some(s => s.kind === "gmail" && s.selected)) {
@@ -102,6 +139,41 @@ export function selectContextSources(home: string, id: string, input: Record<str
   }
   return withContextJourneys(home, store => store.save(journey));
 }
+
+/**
+ * Records the person's explicit choice (`strip` | `raw` | `exclude`) for a held secret-like file (`C2`, `S-onboarding-secret-hold`).
+ * Unapproved secret-like files never enter `references` or model synthesis; `"strip"` stages variable names without values; `"raw"`
+ * approves only that exact `(kind, path, sha256)` digest.
+ */
+export async function decideContextSecret(
+  home: string,
+  id: string,
+  input: Record<string, unknown>,
+  ports: ContextOnboardingPorts,
+): Promise<ContextJourney> {
+  const sKey = typeof input.key === "string" && isStagedDigest(input.key) ? input.key : "";
+  const decision = input.decision === "strip" || input.decision === "raw" || input.decision === "exclude" ? input.decision : null;
+  if (!sKey || !decision) throw new Error("密钥处理选项无效");
+  const journey = readContextJourney(home, id);
+  if (journey.requires_reselection) throw new Error(journey.error!);
+  if (journey.adoption || journey.phase === "complete") throw new Error("当前正在保存或已经采用，不能更改来源");
+  if (running.has(key(home, id))) {
+    controllers.get(key(home, id))?.abort();
+    controllers.delete(key(home, id));
+    running.delete(key(home, id));
+  }
+  journey.epoch = (journey.epoch ?? 0) + 1;
+  await applyHeldSecretDecision(home, journey, sKey, decision);
+  const reorganize = input.reorganize !== false && (decision === "strip" || decision === "raw") && journey.phase !== "selecting";
+  if (reorganize && journey.summary) {
+    journey.stale_summary = { title: journey.summary.title, body: journey.summary.body, at: journey.updated_at, model: journey.model };
+    journey.summary = null;
+    journey.phase = "failed";
+  }
+  withContextJourneys(home, store => store.save(journey));
+  return reorganize ? startContextJourney(home, id, ports) : readContextJourney(home, id);
+}
+
 /**
  * One file the person chose, sent as the raw body while the round is still being chosen: staged in the journey under its digest,
  * any size. The selection then names it by that digest; its bytes never pass through the selection or the journey's row.
@@ -119,40 +191,91 @@ export async function stageContextFile(home: string, id: string, path: unknown, 
 /** The whole text read out of one of this round's materials (the cite dialog shows it); only a material of this journey. */
 export async function contextReferenceText(home: string, id: string, sha256: string): Promise<string> {
   const journey = readContextJourney(home, id);
-  const refs = [...journey.summary?.references ?? [], ...journey.sources.flatMap(s => s.references ?? [])];
+  const refs = [...journey.summary?.references ?? [], ...journey.sources.flatMap(s => [...(s.references ?? []), ...(s.reused_references ?? [])])];
   const ref = isStagedDigest(sha256) ? refs.find(r => r.text?.sha256 === sha256) : undefined;
   if (!ref) throw new Error("找不到这份材料的正文");
   return readStagedText(home, id, ref.text);
 }
+
+/**
+ * Returns a round to source selection (`ONB-40`, `ONB-45`, `C8`, `C11`):
+ * - Refuses only when adoption is already accepted/saving or the project is complete.
+ * - When `organize()` is actively running in `reading`, cancels the active pass and bumps `epoch` so any late response from the
+ *   cancelled pass is discarded and never overwrites the new scope.
+ */
 export function reopenContextJourney(home: string, id: string): ContextJourney {
+  const existing = withContextJourneys(home, store => store.get(id));
+  if (existing.adoption || existing.phase === "complete") throw new Error("当前正在保存或已经采用，不能更改来源");
+  const k = key(home, id);
+  if (running.has(k)) {
+    controllers.get(k)?.abort();
+    controllers.delete(k);
+    running.delete(k);
+  }
   const journey = readContextJourney(home, id);
-  if (running.has(key(home, id)) || journey.adoption || journey.phase === "complete") throw new Error("当前正在保存或已经采用，不能更改来源");
-  journey.phase = "selecting"; journey.error = null; journey.auto_start = false;
+  if (journey.adoption || journey.phase === "complete") throw new Error("当前正在保存或已经采用，不能更改来源");
+  journey.epoch = (journey.epoch ?? 0) + 1;
+  journey.phase = "selecting";
+  journey.error = null;
+  journey.failure_kind = null;
+  journey.auto_start = false;
   return withContextJourneys(home, store => store.save(journey));
 }
+
 /** Onboarding's own calls: its instructions, recorded under its own owner, with no other feature's role in front of them. */
 export async function contextModel(home: string, ports: ContextOnboardingPorts): Promise<TextModelPort> {
   return ports.model ? ports.model(home)
     : configuredTextPort(home, { owner: ONBOARDING_OWNER, timeoutMs: 180_000, unavailableReason: "材料已保存。请在设置中连接文字模型，再回来继续整理。" });
 }
+
 export function startContextJourney(home: string, id: string, ports: ContextOnboardingPorts): ContextJourney {
-  if (running.has(key(home, id))) return readContextJourney(home, id);
+  const k = key(home, id);
+  if (running.has(k)) return readContextJourney(home, id);
   const journey = readContextJourney(home, id);
   if (journey.requires_reselection) throw new Error(journey.error!);
   if (journey.phase === "complete" || (journey.phase === "review" && journey.summary)) return journey;
   if (journey.adoption) throw new Error("已确认项目内容，请继续保存项目");
   if (!journey.sources.some(s => s.selected)) throw new Error("请选择至少一个来源，或创建空白项目");
-  journey.phase = "reading"; journey.summary = null; journey.error = null; journey.auto_start = false; journey.needs_model = false;
+  const runEpoch = (journey.epoch ?? 0) + 1;
+  journey.epoch = runEpoch;
+  if (journey.summary) {
+    journey.stale_summary = { title: journey.summary.title, body: journey.summary.body, at: journey.updated_at, model: journey.model };
+  }
+  journey.phase = "reading";
+  journey.summary = null;
+  journey.error = null;
+  journey.failure_kind = null;
+  journey.late_ignored = null;
+  journey.auto_start = false;
+  journey.needs_model = false;
   withContextJourneys(home, store => store.save(journey));
-  const job = Promise.resolve().then(() => organize(home, journey, ports)).finally(() => running.delete(key(home, id)));
-  running.set(key(home, id), job);
+  const working = structuredClone(journey);
+  const controller = new AbortController();
+  controllers.set(k, controller);
+  const job = Promise.resolve()
+    .then(() => organize(home, working, runEpoch, controller.signal, ports))
+    .finally(() => {
+      if (running.get(k) === job) running.delete(k);
+      if (controllers.get(k) === controller) controllers.delete(k);
+    });
+  running.set(k, job);
   return journey;
 }
+
 export async function waitContextJourney(home: string, id: string): Promise<ContextJourney> {
   await running.get(key(home, id)); return readContextJourney(home, id);
 }
-async function organize(home: string, journey: ContextJourney, ports: ContextOnboardingPorts): Promise<void> {
-  const save = () => withContextJourneys(home, store => store.save(journey));
+
+async function organize(home: string, journey: ContextJourney, runEpoch: number, signal: AbortSignal, ports: ContextOnboardingPorts): Promise<void> {
+  const isCurrent = () => {
+    const latest = withContextJourneys(home, store => store.find(journey.id));
+    return Boolean(latest && (latest.epoch ?? 0) === runEpoch);
+  };
+  const save = () => {
+    if (!isCurrent()) throw STALE_EPOCH;
+    return withContextJourneys(home, store => store.save(journey));
+  };
+  let reachedModel = false;
   try {
     // Bytes, not files, say how far reading has come (2026-10-22): one large file can be most of the wait. Staged files are counted
     // from the disk before reading starts, what the Host reads itself (mail, pasted text) as it is read; every pass counts again,
@@ -166,11 +289,16 @@ async function organize(home: string, journey: ContextJourney, ports: ContextOnb
     save();
     // Reading is a queue: one file at a time, each saved as it is read, so a restart resumes after the last one (no limits, 2026-10-22).
     for (const source of journey.sources.filter(s => s.selected)) {
+      signal.throwIfAborted();
       if (source.references) continue;
       source.error = undefined; save();
       try {
         const input = await (ports.readSource ?? readContextSource)(home, source);
-        const reading = source.reading?.total === input.files.length ? source.reading : { done: 0, total: input.files.length, references: [], issues: [] };
+        signal.throwIfAborted();
+        const reusedByPath = new Map((source.reused_references ?? []).map(r => [r.path, r]));
+        const reading = source.reading?.total === input.files.length
+          ? source.reading
+          : { done: 0, total: input.files.length, references: [], issues: [], held_secrets: [] };
         const counted = Boolean(source.files?.length);
         const sizeOf = async (file: ImportFile) => { if (counted) return stagedSize(file); const size = file.bytes?.length ?? 0; bytes.total += size; return size; };
         for (const file of input.files.slice(0, reading.done)) bytes.done += await sizeOf(file);
@@ -179,36 +307,99 @@ async function organize(home: string, journey: ContextJourney, ports: ContextOnb
         // write per file would cost the square of the file count. A restart reads those few files again, which staging makes cheap.
         let saved = Date.now();
         for (const file of input.files.slice(reading.done)) {
-          const read = await prepareContextDocument(home, journey.id, source.kind, file);
-          if ("reference" in read) reading.references.push(read.reference); else reading.issues.push(read.issue);
+          signal.throwIfAborted();
+          const prevRef = !file.bytes && !file.reason ? reusedByPath.get(file.path) : undefined;
+          const canReuse = prevRef
+            && (!file.staged || prevRef.original.sha256 === file.staged)
+            && await hasStagedText(home, journey.id, prevRef.text);
+          if (canReuse && prevRef) {
+            reading.references.push(prevRef);
+          } else {
+            const read = await prepareContextDocument(home, journey.id, source.kind, file, signal, journey.secret_decisions);
+            if ("reference" in read) reading.references.push(read.reference);
+            else if ("secret_hold" in read) (reading.held_secrets ??= []).push(read.secret_hold);
+            else if ("issue" in read) reading.issues.push(read.issue);
+          }
           bytes.done += await sizeOf(file); reading.done++;
           if (reading.done % 100 === 0 || Date.now() - saved >= 1000) { save(); saved = Date.now(); }
         }
-        source.references = reading.references; source.issues = reading.issues; source.skipped = reading.issues.length;
-        source.reading = undefined; source.files = undefined; source.text = undefined;
+        source.references = reading.references;
+        source.issues = reading.issues;
+        source.skipped = reading.issues.length;
+        source.held_secrets = reading.held_secrets?.length ? reading.held_secrets : undefined;
+        source.reused_references = undefined;
+        source.reading = undefined;
+        source.files = undefined;
+        source.text = undefined;
       } catch (error) {
+        if (error === STALE_EPOCH || signal.aborted) throw error;
         // The disk is full: the whole round stops at this file, and 继续整理 goes on from it.
         if (diskFull(error)) throw new Error("磁盘空间不足，已读取的材料仍在。腾出空间后点「继续整理」，会从这份文件接着读。");
         source.error = error instanceof Error ? error.message : "读取失败，请重试";
       }
       save();
     }
-    bytes.done = bytes.total; save();
-    const refs = journey.sources.filter(s => s.selected).flatMap(s => s.references ?? []);
-    const unique = [...new Map(refs.map(r => [r.source_id + ":" + r.version, r])).values()].map((r, i) => ({ ...r, label: "S" + (i + 1) }));
-    if (!unique.length) throw new Error("还没有读到正文，请检查来源范围后重试");
-    const ai = await contextModel(home, ports); journey.model = ai.runtimeLabel ?? null; save();
+    bytes.done = bytes.total;
+    const selectedSources = journey.sources.filter(s => s.selected);
+    journey.last_read_paths = selectedSources.flatMap(s => (s.references ?? []).map(r => `${s.kind}:${r.path}`));
+    const unique = deduplicateSelectedReferences(selectedSources);
+    save();
+    if (!unique.length) {
+      if (selectedSources.some(s => s.held_secrets?.length)) {
+        throw new Error("检测到疑似密钥文件，默认未发送给模型；请先选择只发变量名、不发或原样发送。");
+      }
+      throw new Error("还没有读到正文，请检查来源范围后重试");
+    }
+    const ai = await contextModel(home, ports);
+    signal.throwIfAborted();
+    journey.model = ai.runtimeLabel ?? null; save();
     if (!ai.completeText) { journey.needs_model = true; throw new Error(ai.unavailableReason ?? "材料已保存。请在设置中连接文字模型，再回来继续整理。"); }
+    reachedModel = true;
     // Todo drafts come from the same materials, beside the overview; a failure there never stops the overview.
-    const drafts = draftTodos(home, journey, unique, ports, save);
-    const raw = await summarizeContext(home, unique, ai, journey, save);
+    const drafts = draftTodos(home, journey, unique, signal, ports, save);
+    const raw = await summarizeContext(home, unique, ai, journey, signal, save);
     await drafts;
-    journey.summary = parseContextSummary(raw, unique); journey.phase = "review"; journey.error = null; save();
+    if (!isCurrent()) throw STALE_EPOCH;
+    const parsed = parseContextSummary(raw, unique);
+    const citedLabels = new Set(parsed.references.filter(r => r.used_in_summary).map(r => r.label));
+    for (const source of selectedSources) {
+      for (const ref of source.references ?? []) {
+        ref.used_in_summary = !ref.duplicate_of && citedLabels.has(ref.label);
+      }
+    }
+    journey.summary = parsed;
+    journey.stale_summary = null;
+    journey.scope_delta = null;
+    journey.failure_kind = null;
+    journey.phase = "review";
+    journey.error = null;
+    save();
   } catch (error) {
+    if (error === STALE_EPOCH || !isCurrent()) {
+      // Late response from a superseded scope/model pass is discarded and noted without touching the current round (ONB-45, C11).
+      if (reachedModel) {
+        withContextJourneys(home, store => {
+          const cur = store.find(journey.id);
+          if (cur && (cur.epoch ?? 0) !== runEpoch && cur.phase !== "complete") {
+            cur.late_ignored = { at: new Date().toISOString(), model: journey.model ?? null };
+            store.save(cur);
+          }
+        });
+      }
+      return;
+    }
+    if (signal.aborted) return;
     // Whole characters, not UTF-16 units: unit 600 can fall inside a two-unit character. The first slice bounds what is spread.
-    journey.phase = "failed"; journey.error = error instanceof Error ? [...error.message.slice(0, 1_200)].slice(0, 600).join("") : "整理失败，材料已保留"; save();
+    journey.phase = "failed";
+    journey.failure_kind = classifyContextModelFailure(error, journey.needs_model === true);
+    journey.error = error instanceof Error ? [...error.message.slice(0, 1_200)].slice(0, 600).join("") : "整理失败，材料已保留";
+    withContextJourneys(home, store => {
+      const cur = store.find(journey.id);
+      if (cur && (cur.epoch ?? 0) === runEpoch) store.save(journey);
+    });
   }
 }
+
 type Evidence = { body: string; labels: string[]; title?: string; part?: number };
 const BATCH_LIMIT = 80_000;
 /** A batch's note is at most 8,000 characters of at most 80,000 in: a round's notes are about a tenth of its input until measured. */
@@ -260,7 +451,14 @@ async function* batchesOf(items: AsyncIterable<Evidence>): AsyncGenerator<Eviden
  * batches need them, each batch's note is staged under the batch's digest, and the checkpoint keeps only the round and counts.
  * A round that is one batch is the final proposal. Only bounded batches ever go to a model.
  */
-async function summarizeContext(home: string, references: ContextReference[], ai: TextModelPort, journey: ContextJourney, save: () => unknown): Promise<string> {
+async function summarizeContext(
+  home: string,
+  references: ContextReference[],
+  ai: TextModelPort,
+  journey: ContextJourney,
+  signal: AbortSignal,
+  save: () => unknown,
+): Promise<string> {
   const cacheKey = JSON.stringify([journey.model, references.map(r => [r.source_id, r.version, r.label])]);
   if (journey.synthesis?.key !== cacheKey || !Array.isArray(journey.synthesis.notes)) journey.synthesis = { key: cacheKey, stage: 1, completed: 0, total: 0, notes: [], batches: { done: 0, all: 0 }, timing: { ms: 0, calls: 0 } };
   const checkpoint = journey.synthesis;
@@ -272,6 +470,7 @@ async function summarizeContext(home: string, references: ContextReference[], ai
   const wrap = (instruction: InstructionPrompt, data: unknown) => instructed(instruction, fencedMaterials(data, "MATERIALS_" + randomUUID()));
   let evidence = () => materialEvidence(home, journey.id, references), stage = 1;
   for (;;) {
+    signal.throwIfAborted();
     let total = 0;
     for await (const _ of batchesOf(evidence())) total++;
     if (total <= 1) break;
@@ -279,42 +478,49 @@ async function summarizeContext(home: string, references: ContextReference[], ai
     const notes: { labels: string[]; key: string }[] = [];
     let inSize = 0, outSize = 0;
     for await (const batch of batchesOf(evidence())) {
-      const key = createHash("sha256").update(cacheKey + JSON.stringify(batch)).digest("hex");
+      signal.throwIfAborted();
+      const bKey = createHash("sha256").update(cacheKey + JSON.stringify(batch)).digest("hex");
       const labels = [...new Set(batch.flatMap(item => item.labels))];
-      let note = await readStagedNote(home, journey.id, key);
+      let note = await readStagedNote(home, journey.id, bKey);
       if (note === null) {
-        note = await timedCall(checkpoint.timing, () => ai.completeText!(wrap(ONBOARDING_NOTES, batch), { signal: AbortSignal.timeout(180_000) }));
+        note = await timedCall(checkpoint.timing, () => ai.completeText!(wrap(ONBOARDING_NOTES, batch), { signal: AbortSignal.any([signal, AbortSignal.timeout(180_000)]) }));
+        signal.throwIfAborted();
         parseContextSummary(note, references.filter(r => labels.includes(r.label)));
         if (note.length > 8_000) throw new Error("分批整理结果过长，请重试；已完成批次和原文已保留。");
-        await stageNote(home, journey.id, key, note);
-        checkpoint.notes.push(key);
+        await stageNote(home, journey.id, bKey, note);
+        checkpoint.notes.push(bKey);
       }
-      notes.push({ labels, key }); inSize += JSON.stringify(batch).length; outSize += JSON.stringify({ labels, body: note }).length;
+      notes.push({ labels, key: bKey }); inSize += JSON.stringify(batch).length; outSize += JSON.stringify({ labels, body: note }).length;
       checkpoint.completed++; shrink = Math.min(0.5, Math.max(0.02, outSize / inSize)); count(); save();
     }
     before += total;
     if (outSize >= inSize) {
       const keys = notes.map(note => note.key);
       await dropStagedNotes(home, journey.id, keys);
-      checkpoint.notes = checkpoint.notes.filter(key => !keys.includes(key)); checkpoint.completed = 0; save();
+      checkpoint.notes = checkpoint.notes.filter(k => !keys.includes(k)); checkpoint.completed = 0; save();
       throw new Error("模型未能归纳长材料，请重试或更换模型；原文与此前完成的批次已保留。");
     }
     evidence = () => noteEvidence(home, journey.id, notes);
   }
   const final: Evidence[] = [];
   for await (const item of evidence()) final.push(item);
+  signal.throwIfAborted();
   checkpoint.stage = stage; checkpoint.completed = 0; checkpoint.total = 1; checkpoint.batches = { done: before, all: before + 1 }; save();
-  const result = await timedCall(checkpoint.timing, () => ai.completeText!(wrap(ONBOARDING_PROPOSAL, final), { signal: AbortSignal.timeout(180_000) }));
+  const result = await timedCall(checkpoint.timing, () => ai.completeText!(wrap(ONBOARDING_PROPOSAL, final), { signal: AbortSignal.any([signal, AbortSignal.timeout(180_000)]) }));
+  signal.throwIfAborted();
   checkpoint.completed = 1; checkpoint.batches = { done: before + 1, all: before + 1 }; save();
   return result;
 }
+
 export function parseContextSummary(raw: string, references: ContextReference[]): NonNullable<ContextJourney["summary"]> {
   const parts = /^# ([^\r\n]{1,120})\r?\n([\s\S]+)$/u.exec(raw.trim());
   if (!parts || parts[2]!.length > 100_000) throw new Error("模型没有返回有效摘要，请重试。材料已保留。");
   const body = parts[2]!.trim(), labels = [...body.matchAll(/\[S(\d+)\]/gu)].map(m => "S" + m[1]);
   if (!labels.length || labels.some(label => !references.some(r => r.label === label))) throw new Error("摘要缺少有效来源，未采用模型结果。请重新整理。");
-  return { title: parts[1]!.trim(), body, references };
+  const cited = new Set(labels);
+  return { title: parts[1]!.trim(), body, references: references.map(r => ({ ...r, used_in_summary: cited.has(r.label) })) };
 }
+
 /**
  * A text in parts of at most `size` characters or UTF-16 units (`unit`), cut after a line end where there is one in the second half of
  * the part, and never inside a surrogate pair. A 🟢 is one character and two units. Todo's organizer reads whole characters, so its
@@ -362,9 +568,7 @@ function partTitle(title: string, part: number, parts: number, max: number): str
  * The providers the journey pins: the Todo and Pages that ship with the Host (#1207). It finds their actions in the catalog by
  * `capability_id@version` and declares the fields it uses below; it imports neither plugin's contract (PG-111).
  */
-const TODO_PLUGIN_ID = "io.molis.work.todo", PAGES_PLUGIN_ID = "io.molis.work.pages";
-/** A ProseMirror document as the `pages.documents.*` actions carry it; the journey passes it on without reading into it. */
-type ProseDocument = { readonly type: "doc"; readonly content?: readonly unknown[] };
+const TODO_PLUGIN_ID = "io.molis.work.todo";
 /** What Todo's organizer reads of one material (`todo.organize.extract` cuts a longer one), so longer text goes in parts of this many characters (a 🟢 is one character, two UTF-16 units); pinned to Todo's own number by `tests/context-onboarding-todo.test.ts`. */
 export const TODO_PART_CHARS = 60_000;
 const TODO_MATERIALS = 50;
@@ -389,51 +593,45 @@ async function* todoBatches(home: string, id: string, references: ContextReferen
  * kept as it lands, so a retry goes on after the last one; the batches' drafts are one list to confirm. A failure never stops the
  * overview.
  */
-async function draftTodos(home: string, journey: ContextJourney, references: ContextReference[], ports: ContextOnboardingPorts, save: () => unknown): Promise<void> {
+async function draftTodos(
+  home: string,
+  journey: ContextJourney,
+  references: ContextReference[],
+  signal: AbortSignal,
+  ports: ContextOnboardingPorts,
+  save: () => unknown,
+): Promise<void> {
   if (!ports.homeActions) return;
   // Batches belong to the materials they came from; after the person chose again, the drafts start over.
-  const key = createHash("sha256").update(JSON.stringify(references.map(r => [r.source_id, r.version]))).digest("hex").slice(0, 16);
-  if (journey.todo?.key === key && journey.todo.status === "ready") return;
+  const bKey = createHash("sha256").update(JSON.stringify(references.map(r => [r.source_id, r.version]))).digest("hex").slice(0, 16);
+  if (journey.todo?.key === bKey && journey.todo.status === "ready") return;
   let total = 0;
   for await (const _ of todoBatches(home, journey.id, references)) total++;
-  const todo: NonNullable<ContextJourney["todo"]> = journey.todo = { status: "pending", key, batches: journey.todo?.key === key ? journey.todo.batches : [], total, error: null, timing: journey.todo?.key === key ? journey.todo.timing : { ms: 0, calls: 0 } }; save();
+  const todo: NonNullable<ContextJourney["todo"]> = journey.todo = { status: "pending", key: bKey, batches: journey.todo?.key === bKey ? journey.todo.batches : [], total, error: null, timing: journey.todo?.key === bKey ? journey.todo.timing : { ms: 0, calls: 0 } }; save();
   try {
     const completed = todo.batches.length;
     if (total > completed) {
-      const firstActions = ports.homeActions(home, AbortSignal.timeout(20 * 60_000));
+      const firstActions = ports.homeActions(home, AbortSignal.any([signal, AbortSignal.timeout(20 * 60_000)]));
       const extract = await shipped<TodoExtract, { batch: OnboardingTodoBatch }>(firstActions, "todo.organize.extract", /* @version action.todo.organize.extract */ 1, TODO_PLUGIN_ID);
       let index = 0;
       for await (const materials of todoBatches(home, journey.id, references)) {
+        signal.throwIfAborted();
         if (++index <= completed) continue;
         // Discover once, but keep each batch's own cancellation window.
-        const todoActions = index === completed + 1 ? firstActions : ports.homeActions(home, AbortSignal.timeout(20 * 60_000));
+        const todoActions = index === completed + 1 ? firstActions : ports.homeActions(home, AbortSignal.any([signal, AbortSignal.timeout(20 * 60_000)]));
         // The journey id and the batch number make a retried pass return the same drafts instead of organizing twice.
         const { batch } = await timedCall(todo.timing, () => todoActions.invoke(extract, { origin: "onboarding",
-          title: total > 1 ? uiText.text("workbench.context-onboarding-service.todos-found-while-getting-started-batch-k-n", { k: index, n: total }) : uiText.text("workbench.context-onboarding-service.todos-found-while-getting-started"), request_id: `onboarding:${journey.id}:${key}:${index}`, materials }));
+          title: total > 1 ? uiText.text("workbench.context-onboarding-service.todos-found-while-getting-started-batch-k-n", { k: index, n: total }) : uiText.text("workbench.context-onboarding-service.todos-found-while-getting-started"), request_id: `onboarding:${journey.id}:${bKey}:${index}`, materials }));
         todo.batches.push(batch); save();
       }
     }
     todo.status = "ready";
   } catch (error) {
+    if (error === STALE_EPOCH || signal.aborted) return;
     // Whole characters, not UTF-16 units: unit 300 can fall inside a two-unit character. The first slice bounds what is spread.
     todo.status = "failed"; todo.error = error instanceof Error ? [...error.message.slice(0, 600)].slice(0, 300).join("") : "待办草稿没整理成";
   }
   save();
-}
-/** Markdown as a Pages body, made by Pages' own public action; throws `pages.body_too_large` when the text converts to more than a document holds. */
-type PageBody = (markdown: string) => Promise<ProseDocument>;
-/** A Pages document's body is at most 1,500,000 characters encoded; parts start at 400,000 UTF-16 units and halve until each fits. */
-const PAGE_PART_CHARS = 400_000, PAGE_BODY_MAX = 1_400_000;
-async function* pageParts(pageBody: PageBody, text: string): AsyncGenerator<ProseDocument> {
-  for (const part of textParts(text, PAGE_PART_CHARS, "units")) {
-    let body: ProseDocument | null = null;
-    // Pages refuses a part that converts to more than a document holds; such a part is halved like one over our own bound.
-    try { body = await pageBody(part); }
-    catch (error) { if ((error as { code?: unknown }).code !== "pages.body_too_large" || part.length < 2) throw error; }
-    if (body && (part.length < 2 || JSON.stringify(body).length <= PAGE_BODY_MAX)) { yield body; continue; }
-    const half = cutHead(part, Math.ceil(part.length / 2)).length;
-    yield* pageParts(pageBody, part.slice(0, half)); yield* pageParts(pageBody, part.slice(half));
-  }
 }
 /**
  * One action of a plugin that ships with the Host, found in the caller's directory by its public identity (PG-031): the Host names the
@@ -445,7 +643,6 @@ async function shipped<I, O>(actions: BoundActionClient, capability_id: string, 
   if (!view) throw new ActionError("actions.dependency_missing", `${capability_id}@${version} 未在当前项目登记或未获授权`);
   return { ...view, provider_id } as ActionDefinition<I, O>;
 }
-type PagesImport = { request_id: string; request_hash: string; documents: { title: string; body: ProseDocument }[] };
 type TodoExtract = { origin: "onboarding"; title: string; request_id: string; materials: { title: string; text: string }[] };
 type TodoDecision = { candidate_id: string; action: "add" | "merge" | "update" | "complete" | "reopen" };
 export async function adoptContextJourney(home: string, id: string, input: Record<string, unknown>, ports: ContextOnboardingPorts): Promise<ContextJourney> {
@@ -474,8 +671,6 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
   journey.adoption ??= { title, body, blank: input.blank === true, todo_selected: todoSelected, ...(taker && root ? { take: { plugin_id: taker.plugin_id, project_plugin_id: taker.project_plugin_id, code_root: root } } : {}) };
   journey.phase = "adopting"; journey.error = null;
   withContextJourneys(home, store => store.save(journey));
-  // The fixed versions this round brought, for the plugin the folder goes to.
-  const handed: { version: ArtifactReference; title: string }[] = [];
   // The person brings their own materials in (design §3「用户导入」): everything this adoption records, the actions it calls included, is an
   // import, kept apart from work done in the project later. The scope ends with the adoption.
   const job = withObservationSource("imported", () => Promise.resolve().then(async () => {
@@ -501,57 +696,7 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
       if (!ports.actions) throw new Error("当前环境没有提供动作服务，已确认内容仍保留");
       const client = await ports.actions(home, journey.project_id);
       const actions = Object.assign(client, { forOriginal: (path: string) => ports.actions!(home, journey.project_id, { path, install_id: ARTIFACTS_PLUGIN_ID }) });
-      {
-        // Pages' own public actions: it turns the markdown into its body, and an import with the same request id and hash returns the
-        // documents it made the first time on a retry.
-        const fromMarkdown = await shipped<{ markdown: string }, { body: ProseDocument }>(actions, "pages.documents.body_from_markdown", /* @version action.pages.documents.body_from_markdown */ 1, PAGES_PLUGIN_ID);
-        const importDocuments = await shipped<PagesImport, { documents: { id: string }[] }>(actions, "pages.documents.import", /* @version action.pages.documents.import */ 1, PAGES_PLUGIN_ID);
-        const pageBody: PageBody = async markdown => (await actions.invoke(fromMarkdown, { markdown })).body;
-        handed.length = 0;
-        const refs = journey.adoption!.blank ? [] : journey.summary?.references ?? journey.sources.filter(s => s.selected).flatMap(s => s.references ?? []);
-        if (!journey.summary) refs.forEach((ref, index) => { ref.label = "S" + (index + 1); });
-        journey.artifact_references = refs.flatMap(ref => ref.artifact ? [ref.artifact] : []);
-        // One material at a time, each saved as it lands, so a retry goes on after the last one; its staged original is offered to
-        // the 成果库 by the Host (any size), and its whole text becomes its Pages documents.
-        for (const ref of refs) {
-          if (!ref.artifact) {
-            const offered = await actions.forOriginal(await stagedFilePath(home, id, ref.original.sha256));
-            const registered = await offered.invoke(artifactsActions.importFile, { source: "file", filename: "material.md", title: ref.title,
-              source_id: "onboarding:" + id + ":" + ref.source_id, content: await readStagedText(home, id, ref.text), original_file: { filename: ref.original.filename, mime: ref.original.mime } });
-            ref.artifact = { artifact_id: registered.artifact_id, version: registered.version };
-            journey.artifact_references.push(ref.artifact);
-            withContextJourneys(home, store => store.save(journey));
-          }
-          if (!ref.documents) {
-            // The whole text, in as many documents as Pages needs (“第 k / N 部分”); each part's request is its own, so a retry goes on.
-            const parts: ProseDocument[] = [], documents: string[] = [];
-            for await (const body of pageParts(pageBody, `原标题：${ref.title}\n\n来源：${ref.path} · 版本 ${ref.version}\n\n${await readStagedText(home, id, ref.text)}`)) parts.push(body);
-            for (const [index, body] of parts.entries()) {
-              documents.push((await actions.invoke(importDocuments, { request_id: id + ":sources:" + ref.label + (parts.length > 1 ? ":" + (index + 1) : ""), request_hash: id,
-                documents: [{ title: partTitle(`[${ref.label}] ${ref.title}`, index + 1, parts.length, 80), body }] })).documents[0]!.id);
-            }
-            ref.documents = documents;
-            withContextJourneys(home, store => store.save(journey));
-          }
-          if (ref.artifact) handed.push({ version: ref.artifact, title: ref.title });
-        }
-        const sources = refs.map(r => `[${r.label}] [${r.title.replace(/[\[\]]/gu, "")}](/projects/${journey.project_id}/?openPlugin=pages&openItem=${r.documents![0]}&openTitle=${encodeURIComponent(r.title)}) · ${r.path} · 版本 ${r.version}`).join("\n\n");
-        // The page is the person's, written in the interface language they made the project in (user decision 2026-10-15).
-        const text = journey.adoption!.body + (sources ? "\n\n## " + uiText.text("workbench.context-onboarding-service.sources") + "\n\n" + sources : "");
-        const summaryTitle = uiText.text("workbench.context-onboarding-service.title-work-summary", { title: journey.adoption!.title });
-        // Pages holds 80 whole characters of a title: a longer one is cut by pageTitle, and the project's name then leads the body instead.
-        const summaryText = [...summaryTitle].length > 80 ? `${uiText.text("workbench.context-onboarding-service.project-title", { title: journey.adoption!.title })}\n\n${text}` : text;
-        // Only what the person accepted: the take's mutable bookkeeping (`output_set`) is not part of the import's identity.
-        const imported = { title: journey.adoption!.title, body: journey.adoption!.body, blank: journey.adoption!.blank, todo_selected: journey.adoption!.todo_selected ?? [] };
-        const summary = (await actions.invoke(importDocuments, { request_id: id + ":summary", request_hash: createHash("sha256").update(JSON.stringify(imported)).digest("hex"), documents: [{ title: pageTitle(summaryTitle), body: summaryText ? await pageBody(summaryText) : { type: "doc", content: [{ type: "paragraph" }] } }] })).documents[0]!;
-        journey.document_id = summary.id;
-        if (text.trim()) {
-          const artifact = await actions.invoke(artifactsActions.importFile, { source: "file", filename: "summary.md", title: summaryTitle.length <= 200 ? summaryTitle : cutHead(summaryTitle, 199) + "…",
-            source_id: "onboarding:" + id + ":summary", content: text });
-          journey.artifact_references.push({ artifact_id: artifact.artifact_id, version: artifact.version });
-          handed.push({ version: { artifact_id: artifact.artifact_id, version: artifact.version }, title: summaryTitle });
-        }
-      }
+      const handed = await importAdoptedMaterialsAndSummary({ home, id, journey, actions, shipped });
       await adoptTodoDrafts(journey, actions);
       await handToTaker(home, journey, handed, ports);
       completeMolisWorkOnboarding(home, journey.project_id); journey.phase = "complete"; journey.error = null;
@@ -617,12 +762,6 @@ async function adoptTodoDrafts(journey: ContextJourney, actions: BoundActionClie
   }
   journey.todo = { ...journey.todo, batches, added: batches.flatMap(batch => batch.candidates.flatMap(candidate => selected.has(candidate.candidate_id) && candidate.decision?.item_id ? [candidate.decision.item_id] : [])) };
 }
-
-function pageTitle(title: string): string {
-  return partTitle(title, 1, 1, 80);
-}
-
-
 
 export function updateContextDraft(home: string, id: string, input: Record<string, unknown>): ContextJourney {
   const journey = readContextJourney(home, id);

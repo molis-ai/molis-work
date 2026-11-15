@@ -96,7 +96,7 @@ function minimalInput(schema: unknown): unknown {
   const input: Record<string, unknown> = {};
   for (const name of shape.required ?? []) {
     const property = shape.properties?.[name] ?? {};
-    input[name] = property.enum ? property.enum[0] : property.type === "object" ? {} : Array.isArray(property.type) && property.type.includes("null") ? null : "x";
+    input[name] = property.enum ? property.enum[0] : property.type === "object" ? minimalInput(property) : Array.isArray(property.type) && property.type.includes("null") ? null : "x";
   }
   return input;
 }

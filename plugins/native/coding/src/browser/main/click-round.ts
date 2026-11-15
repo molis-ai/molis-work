@@ -5,7 +5,7 @@ import { errorMessage } from "../dom.js";
 import { commitRound } from "./click-commit.js";
 import type { ClickRule } from "./click-types.js";
 import { continueRound, currentSelection, recoverAndContinue, startRound } from "./composer.js";
-import { refreshState } from "./configuration.js";
+import { chooseIntent, refreshState } from "./configuration.js";
 import { shut } from "./composer-state.js";
 import { controls } from "./controls.js";
 import { ownTask } from "./helpers.js";
@@ -31,6 +31,30 @@ async function nudge(page: Page, target: HTMLButtonElement) {
   try {
     await startRound(page, id, "上一轮你说「" + said + "」之后就结束了，没有调用任何工具，所以还什么都没做。请直接调用工具执行下一步，完成原任务：\n" + asked, intent, modelValue, currentSelection(page, id), { continued_from: run.ref });
     status(page, uiText.text("coding.run.nudged"));
+    s.follow.resume();
+    await refreshState(page);
+    await readCurrent(page);
+  } catch (error) {
+    status(page, errorMessage(error), true);
+  } finally {
+    s.sending = false;
+    controls(page);
+  }
+}
+
+async function rerunChecks(page: Page, target: HTMLButtonElement) {
+  const { s } = page;
+  if (s.sending) return;
+  const run = s.allRuns.find(item => item.ref.run_id === target.dataset.codingRerunChecks);
+  if (!run || run.light) return;
+  const lastCmd = [...run.activity].reverse().find(item => (item.name === "run-command" || item.name === "start-command") && item.target);
+  const command = lastCmd?.target || "npm test";
+  const intent = INTENT_BY_ROLE[run.frozen.role_id] || s.intent;
+  const id = s.current, modelValue = page.refs.composerModels.value();
+  s.sending = true;
+  controls(page);
+  try {
+    await startRound(page, id, uiText.text("coding.round.rerun-prompt", { command }), intent === "discuss" ? "execute" : intent, modelValue, currentSelection(page, id), { continued_from: run.ref });
     s.follow.resume();
     await refreshState(page);
     await readCurrent(page);
@@ -133,10 +157,36 @@ export function bindSkillRedo(page: Page) {
   });
 }
 
+function handleEnvAction(page: Page, target: HTMLButtonElement) {
+  const kind = target.dataset.codingEnvAction;
+  if (kind === "open-files") {
+    page.directory.querySelector<HTMLButtonElement>("[data-coding-face=files]")?.click();
+    return;
+  }
+  if (kind === "open-workspace") {
+    page.q<HTMLDialogElement>("[data-coding-workspace-dialog]").showModal();
+    return;
+  }
+  if (shut(page)) return;
+  const wanted = page.s.intents.find(option => option.value === "execute" && !option.disabled);
+  if (wanted) chooseIntent(page, wanted.value);
+  const prompt = kind === "install-deps"
+    ? uiText.text("coding.env.action.install-deps-prompt", { manifest: target.dataset.manifest || "npm" })
+    : uiText.text("coding.env.action.run-baseline-prompt", { command: target.dataset.command || "npm test" });
+  const existing = page.input.value.trim();
+  page.input.value = existing ? existing + "\n" + prompt : prompt;
+  window.molisFit?.(page.input);
+  page.input.dispatchEvent(new Event("input", { bubbles: true }));
+  page.input.focus();
+  page.input.setSelectionRange(page.input.value.length, page.input.value.length);
+}
+
 export const ROUND_CLICKS: readonly ClickRule[] = [
+  ["[data-coding-env-action]", handleEnvAction],
   ["[data-skill-pick]", openSkillPick],
   ["[data-coding-mcp-settings-link],[data-coding-mcp-close]", page => page.q<HTMLDialogElement>("[data-coding-mcp-dialog]").close()],
   ["[data-coding-nudge]", nudge],
+  ["[data-coding-rerun-checks]", rerunChecks],
   ["[data-coding-commit-round]", commitRound],
   ["[data-coding-method-close]", page => {
     page.q<HTMLDialogElement>("[data-coding-method-dialog]").close();

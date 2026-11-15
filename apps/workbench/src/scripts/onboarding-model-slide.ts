@@ -58,14 +58,14 @@ export const ONBOARDING_MODEL_SLIDE_CLIENT = String.raw`
     return draw.stageHead(globalThis.t.text("workbench.onboarding-model-slide.common-providers"), draw.esc(connected)) + draw.note(lead, draft ? 'key' : connected ? 'check' : 'key')
       + problemLine
       + (errorText && !draft ? '<p class="ob-error" role="alert">' + draw.esc(errorText) + '</p>' : '')
-      + choices + form;
+      + choices + form + (host.staleSummaryHtml ? host.staleSummaryHtml() : '');
   };
   const view = () => {
     const offer = host.startOffer();
     const proceed = draw.primary(offer.label, 'start', { disabled: offer.disabled || saving });
     return {
       kind: 'onboard', view: 'model', step: 'model',
-      left: draw.question(globalThis.t.text("workbench.onboarding-model-slide.connect-text-model"), globalThis.t.text("workbench.onboarding-model-slide.originals-kept-device-connect-write-summary-later")),
+      left: draw.question(globalThis.t.text("workbench.onboarding-model-slide.connect-text-model"), globalThis.t.text("workbench.onboarding-model-slide.originals-kept-device-connect-write-summary-later")) + (host.scopeDeltaHtml ? host.scopeDeltaHtml() : ''),
       right: right(),
       bar: {
         start: draw.exitButton() + draw.stepsBar('model'),

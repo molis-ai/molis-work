@@ -7,6 +7,7 @@ export declare const AGENT_PROMPT_LAYERS: readonly AgentPromptLayer[];
 export interface AgentCompactionDeclaration {
     prompt_id: string;
     above_tokens: number;
+    window_ratio?: number;
 }
 
 export interface AgentEndingReviewDeclaration {

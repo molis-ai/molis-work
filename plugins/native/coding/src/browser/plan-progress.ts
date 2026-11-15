@@ -2,7 +2,7 @@ import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { stepActorText } from "./step-actor.js";
 import { el, errorMessage } from "./dom.js";
 import type { Amendment, PlanEntry, StepNode } from "./shapes.js";
-import { settled, skipped, stepOf } from "./taskboard-steps.js";
+import { formatBoardProgressSummary, scopeRemoved, settled, skipped, stepOf, stepPointsBadge } from "./taskboard-steps.js";
 import type { PagePorts, Translate } from "./types.js";
 
 /** The round the progress belongs to, as far as the card reads it. */
@@ -29,8 +29,8 @@ export interface PlanProgress {
   render(run: ProgressRun, entry: PlanEntry | undefined, live: boolean, latest?: boolean): HTMLElement | null;
 }
 
-/** An input of the inline form: its name, placeholder, longest text and starting text. */
-type FormField = readonly [name: string, placeholder: string, max: number, value?: string];
+/** An input of the inline form: its name, placeholder, longest text, starting text and whether it may be left empty. */
+type FormField = readonly [name: string, placeholder: string, max: number, value?: string, optional?: boolean];
 
 type Board = NonNullable<PlanEntry["board"]>;
 
@@ -91,12 +91,12 @@ function openForm(ports: ProgressPorts, card: HTMLElement, row: HTMLElement, fie
   card.querySelector(".coding-plan-form")?.remove();
   card.dataset.editing = "true";
   const box = el("form", "", "coding-plan-form");
-  const inputs = fields.map(([name, placeholder, max, value]) => {
+  const inputs = fields.map(([name, placeholder, max, value, optional]) => {
     const input = el("input", "", "mw-input");
     input.name = name;
     input.placeholder = placeholder;
     input.maxLength = max;
-    input.required = true;
+    input.required = !optional;
     input.value = value || "";
     box.append(input);
     return input;
@@ -120,7 +120,7 @@ function openForm(ports: ProgressPorts, card: HTMLElement, row: HTMLElement, fie
   });
   lifetime.listen(box, "submit", event => {
     event.preventDefault();
-    if (inputs.some(input => !input.value.trim())) return;
+    if (inputs.some((input, idx) => !fields[idx]?.[4] && !input.value.trim())) return;
     ok.disabled = true;
     void submit(inputs.map(input => input.value.trim()));
   });
@@ -131,12 +131,14 @@ function openForm(ports: ProgressPorts, card: HTMLElement, row: HTMLElement, fie
 /** The step's state: the verdict when the person has given one, else what the graph says. */
 function stateMark(d: Drawing, node: StepNode, decided: string | null) {
   const { ports, run } = d, { word } = ports;
+  const removed = scopeRemoved(node);
+  const unknownOutcome = Boolean(node.unknown_outcome);
   const state = el("span", "", "coding-board-state coding-plan-state");
-  state.dataset.tone = decided === "accepted" ? "accepted" : decided === "needs-work" ? "attention" : skipped(node) ? "quiet" : TONE[node.state] || "idle";
+  state.dataset.tone = decided === "accepted" ? "accepted" : decided === "needs-work" || unknownOutcome ? "attention" : skipped(node) || removed ? "quiet" : TONE[node.state] || "idle";
   const running = node.owner?.kind === "person" ? "doing" : ["starting", "running", "compacting"].includes(run.phase) ? "running" : ({ paused: "paused", pausing: "paused", "awaiting-input": "answer", "awaiting-review": "approval" } as Readonly<Record<string, string>>)[run.phase] || "doing";
-  state.dataset.mwState = decided === "accepted" ? "done" : decided === "needs-work" ? "blocked" : skipped(node) ? "cancelled" : node.state === "running" ? running : MARK[node.state] || "idle";
+  state.dataset.mwState = decided === "accepted" ? "done" : decided === "needs-work" ? "blocked" : unknownOutcome ? "verify" : skipped(node) || removed ? "cancelled" : node.state === "running" ? running : MARK[node.state] || "idle";
   const yours = node.owner?.kind === "person" && ["succeeded", "failed"].includes(node.state);
-  state.append(el("span", decided === "accepted" ? uiText.text("coding.board.state.accepted") : decided === "needs-work" ? uiText.text("coding.board.state.needs-work") : skipped(node) ? uiText.text("coding.plan.you-skipped") : yours ? (node.state === "succeeded" ? uiText.text("coding.board.state.you-done") : uiText.text("coding.board.state.you-failed")) : word(node.state)));
+  state.append(el("span", decided === "accepted" ? uiText.text("coding.board.state.accepted") : decided === "needs-work" ? uiText.text("coding.board.state.needs-work") : removed ? uiText.text("coding.board.state.removed") : unknownOutcome ? uiText.text("coding.board.state.unknown-outcome") : skipped(node) ? uiText.text("coding.plan.you-skipped") : yours ? (node.state === "succeeded" ? uiText.text("coding.board.state.you-done") : uiText.text("coding.board.state.you-failed")) : word(node.state)));
   if (decided) state.dataset.verdict = decided;
   return state;
 }
@@ -180,6 +182,13 @@ function stepLead(d: Drawing, node: StepNode, index: number, step: { readonly ti
   main.append(el("span", node.inserted ? uiText.text("coding.board.inserted") : "S" + (index + 1), "coding-board-key"), name);
   lifetime.listen(main, "click", () => openStep(d.run.ref.run_id, node.id));
   lead.append(el("span", "", "coding-board-guide"), main);
+  const pts = stepPointsBadge(d.board.nodes, node, d.entry.plan);
+  if (!pts.pending || d.board.nodes.some(other => other.story_points !== undefined)) {
+    const badge = el("span", pts.text, "coding-plan-points");
+    badge.title = pts.title;
+    if (pts.pending) badge.dataset.pending = "true";
+    lead.append(badge);
+  }
   const source = from(node);
   if (source) lead.append(source);
   return lead;
@@ -199,13 +208,33 @@ function stepTools(d: Drawing, row: HTMLElement, node: StepNode, index: number, 
     tools.append(button);
   };
   const form = (fields: readonly FormField[], submit: (values: string[]) => Promise<void>, label: string) => openForm(ports, card, row, fields, submit, label);
+  if (node.unknown_outcome) {
+    tool(uiText.text("coding.board.reconcile-confirm"), "check", () => form([["note", uiText.text("coding.board.reconcile-confirm-note"), 500]], ([note]) => change({ kind: "reconcile", node: node.id, action: "confirm-done", note: note ?? "" }), uiText.text("coding.board.reconcile-confirm")));
+    tool(uiText.text("coding.board.reconcile-rerun"), "undo", () => form([["note", uiText.text("coding.board.reconcile-rerun-note"), 500]], ([note]) => change({ kind: "reconcile", node: node.id, action: "rerun", note: note ?? "" }), uiText.text("coding.board.reconcile-rerun")));
+  }
   const waiting = WAITING.includes(node.state);
   const before = board.nodes[index - 1], after = board.nodes[index + 1];
   if (waiting && before && WAITING.includes(before.state)) tool(uiText.text("coding.board.move-up"), "chevron-up", () => void change({ kind: "move", node: node.id, direction: "up" }));
   if (waiting && after && WAITING.includes(after.state)) tool(uiText.text("coding.board.move-down"), "chevron-down", () => void change({ kind: "move", node: node.id, direction: "down" }));
   if (node.state === "blocked") tool(uiText.text("coding.board.decide"), "edit", () => form([["note", uiText.text("coding.plan.decide-note"), 500]], ([note]) => change({ kind: "unblock", node: node.id, note: note ?? "" }), uiText.text("coding.board.decide-ok")));
   if (waiting || node.state === "blocked" || node.state === "failed") tool(node.state === "failed" ? uiText.text("coding.board.pass-over") : uiText.text("coding.board.skip"), "minus", () => form([["reason", uiText.text("coding.board.skip-reason"), 300]], ([reason]) => change({ kind: "skip", node: node.id, reason: reason ?? "" }), uiText.text("coding.board.skip")));
-  if (node.state !== "cancelled") tool(uiText.text("coding.board.insert"), "plus", () => d.insert(row, node.id, uiText.text("coding.board.insert-ok")));
+  if (node.state !== "cancelled") {
+    tool(uiText.text("coding.board.estimate"), "edit", () => form([["points", uiText.text("coding.board.estimate-points"), 10, typeof node.story_points === "number" ? String(node.story_points) : "", true], ["reason", uiText.text("coding.board.estimate-reason"), 300, node.estimate_reason || "", true]], ([pts, reason]) => {
+      const cleaned = (pts ?? "").trim();
+      const parsed = !cleaned || cleaned === "0" || cleaned === "-" ? null : Number(cleaned);
+      return change({ kind: "estimate", node: node.id, story_points: parsed, ...(reason ? { reason } : {}) });
+    }, uiText.text("coding.board.estimate-ok")));
+    if (node.state !== "succeeded") {
+      const initPct = node.progress !== undefined && node.progress > 0 ? String(node.progress <= 1 ? Math.round(node.progress * 100) : Math.round(node.progress)) : "";
+      tool(uiText.text("coding.board.progress-edit"), "edit", () => form([["percent", uiText.text("coding.board.progress-percent"), 4, initPct], ["basis", uiText.text("coding.board.progress-basis-input"), 300, node.progress_basis || ""]], ([pctText, basis]) => {
+        const raw = Number(pctText);
+        const fraction = Number.isFinite(raw) ? Math.max(0.01, Math.min(0.99, raw > 1 ? raw / 100 : raw)) : 0;
+        return change({ kind: "progress", node: node.id, progress: fraction, basis: basis ?? "" });
+      }, uiText.text("coding.board.progress-save")));
+      tool(uiText.text("coding.board.remove-scope"), "x", () => form([["reason", uiText.text("coding.board.remove-scope-reason"), 300]], ([reason]) => change({ kind: "remove-scope", node: node.id, reason: reason ?? "" }), uiText.text("coding.board.remove-scope")));
+    }
+    tool(uiText.text("coding.board.insert"), "plus", () => d.insert(row, node.id, uiText.text("coding.board.insert-ok")));
+  }
   const open = !["succeeded", "failed", "cancelled"].includes(node.state), kind = node.owner?.kind;
   if (open && kind !== "person") tool(uiText.text("coding.board.mine"), "user", () => void change({ kind: "assign", node: node.id, to: "me" }));
   if (open && kind && kind !== "session") tool(kind === "none" ? uiText.text("coding.board.give-session") : uiText.text("coding.board.return-session"), "undo", () => void change({ kind: "assign", node: node.id, to: "session" }));
@@ -237,10 +266,13 @@ const offersOf = (run: ProgressRun, board: Board) => {
 };
 
 function drawHead(_L: Translate, card: HTMLElement, entry: PlanEntry, board: Board) {
-  const total = board.nodes.filter(node => !skipped(node)).length, done = board.nodes.filter(node => node.state === "succeeded").length;
+  const total = board.nodes.filter(node => !skipped(node) && !scopeRemoved(node)).length, done = board.nodes.filter(node => node.state === "succeeded" && !node.unknown_outcome).length;
+  const weighted = formatBoardProgressSummary(board.progress_summary, board.nodes);
   const head = el("header", "", "coding-plan-head");
   head.innerHTML = svg("list");
-  head.append(el("strong", entry.plan?.content.title || uiText.text("coding.plan.this-turn")), el("span", uiText.text("coding.board.steps-done", { done, total }), "coding-plan-count"), el("span", entry.revision ? uiText.text("coding.board.plan-revision", { revision: entry.revision }) : "", "coding-plan-revision"));
+  head.append(el("strong", entry.plan?.content.title || uiText.text("coding.plan.this-turn")), el("span", uiText.text("coding.board.steps-done", { done, total }), "coding-plan-count"));
+  if (weighted) head.append(el("span", weighted, "coding-plan-weighted"));
+  head.append(el("span", entry.revision ? uiText.text("coding.board.plan-revision", { revision: entry.revision }) : "", "coding-plan-revision"));
   card.append(head);
 }
 
@@ -261,7 +293,8 @@ function drawCard(ports: ProgressPorts, card: HTMLElement, run: ProgressRun, ent
   drawHead(readText, card, entry, board);
   // The latest round's unfinished graph stays open to change after the round ends: a blocked step is decided, a
   // step skipped or added, and "继续计划" carries on from the graph as changed.
-  const editable = (live || latest) && !board.terminal, list = el("ul", "", "coding-board-tree coding-board--compact coding-plan-steps");
+  const hasUnknown = board.nodes.some(node => node.unknown_outcome);
+  const editable = (live || latest) && (!board.terminal || hasUnknown), list = el("ul", "", "coding-board-tree coding-board--compact coding-plan-steps");
   card.dataset.live = String(Boolean(live));
   const role = run.frozen?.role_id ? ports.roleLabel(run.frozen.role_id) : undefined, who = run.frozen?.character?.title || role || "Agent";
   const d: Drawing = {
@@ -292,7 +325,7 @@ export function planProgress(ports: ProgressPorts): PlanProgress {
         card.dataset.codingPlanProgress = run.ref.run_id;
         card.setAttribute("aria-label", uiText.text("coding.plan.progress"));
       }
-      const signature = JSON.stringify([board.version, board.terminal, live, latest, run.phase, entry.verdicts, offersOf(run, board).map(turn => turn.steer?.id)]);
+      const signature = JSON.stringify([board.version, board.terminal, board.progress_summary, board.nodes.map(node => [node.id, node.state, node.unknown_outcome, node.scope_removed, node.story_points, node.progress]), live, latest, run.phase, entry.verdicts, offersOf(run, board).map(turn => turn.steer?.id)]);
       // Never rebuild under the person's hands: an open form keeps the card as it is until they finish.
       if (card.dataset.editing === "true" || card.dataset.busy === "true" || card.dataset.signature === signature) return card;
       card.dataset.signature = signature;

@@ -3,7 +3,7 @@ import { errorMessage, el, part } from "./dom.js";
 import { svg } from "./taskboard-format.js";
 import { drawOutlineRow } from "./taskboard-outline.js";
 import { drawRow } from "./taskboard-rows.js";
-import { settled, skipped } from "./taskboard-steps.js";
+import { formatBoardProgressSummary, scopeRemoved, settled, skipped } from "./taskboard-steps.js";
 import { buildTree } from "./taskboard-tree.js";
 import type { BoardData, BoardGroup, BoardTarget, RowView, TaskboardPorts, TreeInput } from "./taskboard-types.js";
 import { boardWords } from "./taskboard-words.js";
@@ -52,10 +52,11 @@ function summary(_state: State, data: BoardData) {
   const latest = (data.taskboard_plans || []).filter(entry => entry.board).at(-1)?.board;
   const unfinished = latest ? latest.nodes.filter(node => !["succeeded", "failed", "cancelled"].includes(node.state)) : [];
   const count = (kind: string) => unfinished.filter(node => node.owner?.kind === kind).length;
-  const done = latest ? latest.nodes.filter(node => settled(node) && !skipped(node)).length : 0, total = latest ? latest.nodes.filter(node => !skipped(node)).length : 0;
+  const done = latest ? latest.nodes.filter(node => settled(node) && !skipped(node) && !scopeRemoved(node)).length : 0, total = latest ? latest.nodes.filter(node => !skipped(node) && !scopeRemoved(node)).length : 0;
   const plan = data.plan ? uiText.text("coding.board.plan-revision", { revision: data.plan.revision }) + " · " + (data.plan.confirmed ? uiText.text("coding.board.plan.confirmed") : uiText.text("coding.board.plan.unconfirmed")) : "";
+  const weighted = formatBoardProgressSummary(latest?.progress_summary);
   const steps = latest ? uiText.text("coding.board.steps-done", { done, total }) + (latest.nodes.some(skipped) ? " · " + uiText.text("coding.board.steps-skipped", { count: latest.nodes.filter(skipped).length }) : "") : "";
-  const text = [plan, steps, count("subtask") ? uiText.text("coding.board.steps-subtask", { count: count("subtask") }) : "", count("person") ? uiText.text("coding.board.steps-person", { count: count("person") }) : "", count("none") ? uiText.text("coding.board.steps-none", { count: count("none") }) : ""].filter(Boolean).join(" · ");
+  const text = [plan, weighted, steps, count("subtask") ? uiText.text("coding.board.steps-subtask", { count: count("subtask") }) : "", count("person") ? uiText.text("coding.board.steps-person", { count: count("person") }) : "", count("none") ? uiText.text("coding.board.steps-none", { count: count("none") }) : ""].filter(Boolean).join(" · ");
   return { latest, done, total, text };
 }
 

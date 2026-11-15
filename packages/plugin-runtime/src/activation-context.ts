@@ -4,7 +4,7 @@ import { endPluginActivation, outsidePluginAction, requirePluginPermission } fro
 
 /** Every activation owns a fresh grant snapshot and revocation cell, including Home activations. */
 export function createActivationContext(record: PluginInstanceRecord, definition: PluginDefinition, providerId: string,
-  permissionBound?: (permission: string) => (() => void) | undefined) {
+  permissionBound?: (permission: string) => (() => void) | undefined, hostStartedAt?: string) {
   let active = true;
   const grants = Object.freeze([...record.grants]);
   const context: PluginStartContext = Object.freeze({
@@ -15,6 +15,7 @@ export function createActivationContext(record: PluginInstanceRecord, definition
     // Authenticate the running implementation; the stored version changes only on explicit upgrade.
     version: definition.manifest.version,
     deployment: record.deployment,
+    ...(hostStartedAt ? { host_started_at: hostStartedAt } : {}),
     grants,
     requireGrant(permission: string) {
       if (!active || !grants.includes(permission)) {

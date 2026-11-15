@@ -19,9 +19,9 @@ const namesItself = (title: string, version?: number) => `(() => {
 // The workbench's fallback runs 250 ms after it opens an item and then reads the surfaces: give it time to (not) land.
 const pastFallback = () => new Promise(resolve => setTimeout(resolve, 1200));
 
-test("PAGESCTX-05: real unsaved long drafts keep their context through the child observer and parent, then save and switch cleanly", { timeout: 90000 }, async t => {
+test("PAGESCTX-05: real unsaved long drafts keep their context through the child observer and parent, then save and switch cleanly", { timeout: 120000 }, async t => {
   const browser = await openGoalBrowser(t, true, undefined, null);if (!browser) return;
-  const { command, sessionId, evaluate, waitFor, navigate, origin, projectId, homeDirectory } = browser;
+  const { command, sessionId, evaluate, waitFor, navigate, origin, projectId, homeDirectory, web } = browser;
   await pluginFrameInitScript(t, browser, `window.molisWorkbenchPluginFactories=new Proxy({}, {set(target,key,factory){
     target[key]=host=>{if(key==='pages'&&!host.side){const editor=window.MolisWorkPagesEditor;
       window.MolisWorkPagesEditor={...editor,mount(...args){return window.contextBudgetEditor=editor.mount(...args);}};}return factory(host);};return true;
@@ -89,13 +89,21 @@ test("PAGESCTX-05: real unsaved long drafts keep their context through the child
     await pages.evaluate(`window.pagesLocaleChanged = false; document.addEventListener('molis-work:language-changed', event => {
       if (event.detail?.tag === 'en') window.pagesLocaleChanged = true;
     })`);
+    // The palette stops re-asking after roughly ten attempts while a loaded runner is still building the first index. Warm
+    // the project's index here until the page created outside the directory is searchable, so the palette's own query below
+    // only has to render a ready result; tests/system-search-lifecycle.test.ts holds the index build itself.
+    for (const deadline = Date.now() + 45_000; ;) {
+      const found = await web.post<{ status: string; hits: Array<{ subject: { id: string } }> }>(`/projects/${encodeURIComponent(projectId!)}/api/search/query`, { query: waiting.title, scope: "all", limit: 20 });
+      if (found.hits.some(hit => hit.subject.id === waiting.id)) break;
+      if (Date.now() > deadline) assert.fail("the page created outside the directory never entered the search index");
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
     await browser.click("[data-global-search-open]");
     await waitFor("document.querySelector('[data-global-search-dialog]').open");
     await evaluate(`{ const input = document.querySelector('[data-global-search]'); input.value = ${JSON.stringify(waiting.title)};
       input.dispatchEvent(new Event('input', { bubbles: true })); }`);
     const hit = `[data-global-search-hit][data-global-search-id=${JSON.stringify(waiting.id)}]`;
-    // The query goes through the page's debounce and search index; a loaded CI runner can take longer than 15s to show the hit.
-    await waitFor(`document.querySelector(${JSON.stringify(hit)})`, 45_000);
+    await waitFor(`document.querySelector(${JSON.stringify(hit)})`, 15_000);
     await browser.click(hit);
     await waitFor("typeof releasePendingPage === 'function'");
     await evaluate(`(() => { const link = document.createElement('a'); link.dataset.uiLanguage = 'en';

@@ -348,6 +348,7 @@ export interface KnowledgeReadRequest {
     line?: number;
     max_lines?: number;
     max_chars?: number;
+    expected_revision?: string;
 }
 
 export interface KnowledgeReadResponse {

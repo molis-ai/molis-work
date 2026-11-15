@@ -115,6 +115,8 @@ export function computeObservationSpace(db: DatabaseSync): ObservationSpaceView 
         ? "near"
         : "ok";
 
+  // This banner is the disk / write / queue failure notice. Record-assembly failures (`exit_failed`, `record_failed`) are shown in
+  // Coverage & gaps with their own wording; they are not “disk or write failed”.
   const lossAgg = db.prepare(
     "SELECT COALESCE(SUM(count), 0) AS lost_count, COUNT(*) AS rows FROM coverage_gaps WHERE state = 'lost' AND reason IN ('write_failed', 'store_unavailable', 'queue_full')",
   ).get() as { lost_count: number; rows: number };

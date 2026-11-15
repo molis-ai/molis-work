@@ -248,6 +248,13 @@ export class KnowledgeService {
   async read(access: KnowledgeAccess, input: KnowledgeReadRequest): Promise<KnowledgeReadResponse> {
     if (input.line !== undefined && (input.anchor !== undefined || input.offset !== undefined)) throw knowledgeErrors.invalid("按行读（line）时不再给 anchor 或 offset");
     const context = await this.originals.read(access, namedSubject(this.options.cards, this.project(access), input.subject), knowledgeActions.read);
+    if (input.expected_revision !== undefined && context.revision !== input.expected_revision) {
+      throw knowledgeErrors.revision_changed("这份资料在这一轮进行期间被修改了；为避免同一轮把新旧两个版本拼在一起，请在新一轮重新读取", {
+        subject: context.subject,
+        expected_revision: input.expected_revision,
+        actual_revision: context.revision,
+      });
+    }
     const lines = lineStarts(context.content);
     if (input.line !== undefined && input.line > lines.length) throw knowledgeErrors.invalid(`这份资料现在只有 ${lines.length} 行`, { line: input.line, total_lines: lines.length, revision: context.revision });
     const range = input.line !== undefined ? { start: lines[input.line - 1]!, end: context.content.length } : rangeOf(context.content, input.anchor);

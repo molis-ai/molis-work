@@ -127,12 +127,13 @@ export function createHostObservation(home: string, ports: HostObservationPorts 
       && (subject.kind === "artifact" || subject.kind === "artifacts" || subject.kind === "process_item" || subject.kind === "process_items")
     ) {
       if (!openRef || !ports.withOpenProject) return "unverified";
+      const parsedVersion = subject.version !== undefined ? Number(subject.version) : NaN;
+      if (subject.version !== undefined && (!Number.isInteger(parsedVersion) || parsedVersion <= 0)) return "unverified";
       const found = await ports.withOpenProject(openRef, runtime => {
         const store = subject.kind === "process_item" || subject.kind === "process_items"
           ? runtime.processItems.query
           : runtime.artifacts.query;
-        const parsedVersion = subject.version !== undefined ? Number(subject.version) : NaN;
-        const record = Number.isInteger(parsedVersion) && parsedVersion > 0
+        const record = subject.version !== undefined
           ? store.getArtifactVersion(projectId, { artifact_id: subject.id, version: parsedVersion })
           : store.latestArtifactVersion(projectId, subject.id);
         return record !== null && record.availability === "available";
@@ -161,7 +162,10 @@ export function createHostObservation(home: string, ports: HostObservationPorts 
         }
       }
       if (lookup.found !== "one") return "unverified";
-      await resolveActionSubject(client, nested, { kind: resolvedKind, id: subject.id });
+      const { context } = await resolveActionSubject(client, nested, { kind: resolvedKind, id: subject.id });
+      // The owner reader returns its current revision. A recorded version that is not that revision
+      // can no longer be checked through this reader; never report the current object as the old version.
+      if (subject.version !== undefined && String(context.revision) !== String(subject.version)) return "unverified";
       return "resolved";
     } catch (error) {
       if (/not_found$/u.test(String((error as { code?: unknown }).code ?? ""))) return "missing";

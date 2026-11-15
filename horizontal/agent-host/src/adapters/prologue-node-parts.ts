@@ -7,8 +7,10 @@ import { createPrologueInference } from "./prologue-inference.js";
 import { createSessionMessages } from "./prologue-messages.js";
 import { createProjectWork } from "./prologue-project-work.js";
 import { createPrologueTaskBoards } from "./prologue-taskboard.js";
+import { applyUnknownCommandOutcomes, shape, type PlanPlace, type ReconciledStepMap } from "./prologue-plan-steps.js";
+import { restorePrologueRun } from "./prologue-restored-session.js";
 import { createPrologueWaits } from "./prologue-waits.js";
-import type { DispatchGuards, NodeHost, PrologueNodeAdapterOptions, RoundState } from "./prologue-node-kit.js";
+import { readResource, type CommandEvent, type DispatchGuards, type NodeHost, type PrologueNodeAdapterOptions, type RoundState } from "./prologue-node-kit.js";
 import type { SessionIndexStore } from "./prologue-session-index.js";
 
 /**
@@ -87,8 +89,16 @@ export function createNodeCoordination(runtime: Runtime, index: SessionIndexStor
     },
   });
   const stepBoards = createPrologueTaskBoards(runtime, async run => {
-    const saved = await index.read(run.session_id), attempt = saved?.attempts.find(attempt => attempt.run_id === run.run_id);
-    return attempt && { ...attempt, session: saved!.ref };
+    const saved = await index.read(run.session_id), attempt = saved?.attempts.find(item => item.run_id === run.run_id);
+    if (!attempt || !saved) return undefined;
+    const mergedReconciled: ReconciledStepMap | undefined = attempt.step_prefix
+      ? Object.assign({}, ...saved.attempts.filter(item => item.step_prefix === attempt.step_prefix).map(item => item.reconciled_steps))
+      : attempt.reconciled_steps;
+    return {
+      ...attempt,
+      session: saved.ref,
+      ...(mergedReconciled && Object.keys(mergedReconciled).length ? { reconciled_steps: mergedReconciled } : {}),
+    };
   }, async (run, text) => {
     // Only a round still running hears about changes; a settled one reads the graph when it next starts.
     const active = state.activeRuns.get(run.run_id);
@@ -98,8 +108,65 @@ export function createNodeCoordination(runtime: Runtime, index: SessionIndexStor
   }, async sessionId => {
     const saved = await index.read(sessionId);
     return saved ? projectWork.projectId(saved.owner.project_id) : undefined;
-  }, sessionId => state.liveSessions.has(sessionId));
+  }, sessionId => state.liveSessions.has(sessionId), async (run, stepId, entry) => {
+    await index.update(run.session_id, saved => {
+      const attempt = saved.attempts.find(item => item.run_id === run.run_id);
+      if (attempt) (attempt.reconciled_steps ??= {})[stepId] = entry;
+    });
+  }, (place, sessionId) => readPlanUnknownStepIds(runtime, index, state, place, sessionId));
   return { messages, waitsPort, stepBoards };
+}
+
+async function readPlanUnknownStepIds(
+  runtime: Runtime,
+  index: SessionIndexStore,
+  state: RoundState,
+  place: PlanPlace,
+  sessionId: string,
+): Promise<ReadonlySet<string>> {
+  const saved = await index.read(sessionId).catch(() => undefined);
+  const attempts = saved?.attempts.filter(item => item.step_prefix === place.prefix && item.run_id) ?? [];
+  if (!saved || !attempts.length) return new Set();
+  const reconciled: ReconciledStepMap = Object.assign({}, ...attempts.map(item => item.reconciled_steps));
+  let projected = shape(runtime, runtime.boards.get(place.ref), place, sessionId, id => state.liveSessions.has(id), reconciled);
+  const sdkSession = await runtime.sessions.open(saved.ref).catch(() => undefined);
+  const terminal = (await sdkSession?.terminalRuns().catch(() => undefined)) ?? [];
+  for (const attempt of attempts) {
+    const savedRun = terminal.find(run => run.id === attempt.run_id);
+    const events = savedRun ? await sdkSession!.replay(savedRun).catch(() => undefined) : undefined;
+    if (!events) continue;
+    const { state: stream } = restorePrologueRun({
+      ref: { session_id: sessionId, run_id: attempt.run_id! },
+      frozen: attempt.frozen,
+      started_at: attempt.started_at,
+      task: attempt.task,
+      events,
+      terminal: true,
+      ...(attempt.timing ? { timing: attempt.timing } : {}),
+      ...(attempt.stop_intent ? { stop_intent: attempt.stop_intent } : {}),
+      ...(attempt.stop_reason ? { stop_reason: attempt.stop_reason } : {}),
+    });
+    const receipts = new Map<string, CommandEvent>();
+    for (const ev of events) if (ev.type === "command-receipt") receipts.set(ev.callId, ev);
+    for (const item of stream.activity) {
+      const ev = item.name === "start-command" && !/^exit \S+/.test(item.output ?? "") ? receipts.get(item.call_id) : undefined;
+      if (!ev) continue;
+      try {
+        const rec = await readResource(runtime, ev.receiptRef);
+        const r = rec?.receipt;
+        const header = r?.exitCode !== undefined && Number.isInteger(r.exitCode)
+          ? `exit ${r.exitCode}`
+          : r?.timedOut || r?.stopReason === "timed-out"
+            ? "exit timed-out"
+            : r?.cancelled || r?.stopReason === "cancelled"
+              ? "exit cancelled"
+              : "exit none";
+        item.output = item.output ? `${header}\n${item.output}` : header;
+      } catch { /* missing receipt remains unknown */ }
+    }
+    projected = applyUnknownCommandOutcomes({ phase: stream.phase, activity: stream.activity }, projected, reconciled);
+  }
+  return new Set(projected.nodes.filter(node => node.unknown_outcome).map(node => node.id));
 }
 
 /** The inference client, and the plugin builder agents it hands out (closed with the runtime). */

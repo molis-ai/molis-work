@@ -21,6 +21,8 @@ import type { SettingsVersionClaims } from "./declaration-owners.js";
  */
 export interface PluginPlatformHome {
   readonly directory: string;
+  /** When the Home's Host process started (`BL-540`); invariant across project close/reopen and plugin restarts. */
+  readonly startedAt?: string;
   /**
    * The Host's model injection, read when a call needs it and never kept: a function stands in for the model (tests), `null`
    * says there is none, `undefined` says the Host was given nothing to inject. A project's platform can be started from the
@@ -43,7 +45,7 @@ type HomeSideOptions = Pick<MolisWorkLocalHostOptions, "completeText" | "pluginF
  * What each Home's Host was built with, by resolved path. A Home has one open Host at a time (its Agent service binds the
  * Home's inference once), so there is one entry per Home, and it leaves with its Host.
  */
-const sides = new Map<string, { host: MolisWorkLocalHost; options: HomeSideOptions; settingsVersionClaims: SettingsVersionClaims; catalog?: LocalWebCatalogRunner }>();
+const sides = new Map<string, { host: MolisWorkLocalHost; options: HomeSideOptions; settingsVersionClaims: SettingsVersionClaims; startedAt: string; catalog?: LocalWebCatalogRunner }>();
 
 /** Project activations read the same catalog owner that settings commit to. */
 export function bindPluginCatalog(host: MolisWorkLocalHost, home: string, catalog: LocalWebCatalogRunner): void {
@@ -61,7 +63,7 @@ export function pluginCatalogFor(home: string): LocalWebCatalogRunner | undefine
  */
 export function bindHomeSide(host: MolisWorkLocalHost, homeDirectory: string, options: HomeSideOptions, settingsVersionClaims: SettingsVersionClaims): void {
   ensureSystemAgentService(host, homeDirectory, undefined, { workspaceFor: options.workspaceFor, workspacesFor: options.workspacesFor, directoriesFor: options.directoriesFor, prepareDirectory: options.prepareDirectory });
-  sides.set(path.resolve(homeDirectory), { host, options, settingsVersionClaims });
+  sides.set(path.resolve(homeDirectory), { host, options, settingsVersionClaims, startedAt: new Date().toISOString() });
 }
 
 /** A closing Host stops offering its Home's inference at once (its successor can bind before teardown finishes) and leaves the Home side. */
@@ -74,8 +76,9 @@ export function releaseHomeSide(host: MolisWorkLocalHost): void {
 /** The Home for a platform to be given: what it reads of the Host is looked up on each call. */
 export function pluginHomeFor(homeDirectory: string): PluginPlatformHome {
   const directory = path.resolve(homeDirectory);
-  const settingsVersionClaims = sides.get(directory)?.settingsVersionClaims;
-  return { directory, ...(settingsVersionClaims ? { settingsVersionClaims } : {}), completeText: () => sides.get(directory)?.options.completeText, stores: storesWithFixtures(sides.get(directory)?.options.pluginFixtures),
+  const side = sides.get(directory);
+  const settingsVersionClaims = side?.settingsVersionClaims;
+  return { directory, ...(side?.startedAt ? { startedAt: side.startedAt } : {}), ...(settingsVersionClaims ? { settingsVersionClaims } : {}), completeText: () => sides.get(directory)?.options.completeText, stores: storesWithFixtures(sides.get(directory)?.options.pluginFixtures),
     consents: new HomeConsentLedger(directory), capturePermission(project, permission) {
       const owner = sides.get(directory)?.host.homePlugins;
       if (!owner) throw pluginErrors.grant_denied("个人空间插件权限当前不可用");

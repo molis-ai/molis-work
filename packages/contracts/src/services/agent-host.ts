@@ -27,6 +27,7 @@ export type {
   AgentWorkingDirectory,
   AgentWorkspace,
   AgentTextMaterial,
+  AgentMaterialDeliveryMode,
   AgentMaterialChecklistItem,
   AgentMaterialOrigin,
   AgentImageMaterial,

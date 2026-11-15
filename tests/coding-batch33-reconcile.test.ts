@@ -156,17 +156,26 @@ test("BL-222, CHO-12, CHO-35: succeeded step with unknown command outcome deduct
         workspace_id: workspaceId, provider_id: "fixture", model_id: "fixture-model",
       });
       assert.equal(continuedRun.status, 200, JSON.stringify(continuedRun.body));
-      assert.equal((await settle(continuedRun.body.run.ref)).phase, "completed");
+      const continuedEnded = await settle(continuedRun.body.run.ref);
+      assert.equal(continuedEnded.phase, "completed");
       assert.match(probeText, /rerun--step-1--1/, "continue_step_board_of resumes from the replacement ready node");
     } else {
-      const reconciled = await call<{ board: AgentStepBoard }>(project.project_id, `${CODING_PREFIX}/sessions/${sid}/runs/${runId}/plan-amendments`, {
+      const skippedStep2 = await call<{ board: AgentStepBoard }>(project.project_id, `${CODING_PREFIX}/sessions/${sid}/runs/${runId}/plan-amendments`, {
         expected_version: initialBoard.version,
+        amendment: { kind: "skip", node: "step-2", reason: "本轮暂缓下游联调" },
+      });
+      assert.equal(skippedStep2.status, 200, JSON.stringify(skippedStep2.body));
+      assert.equal(skippedStep2.body.board.nodes.find(n => n.id === "step-2")?.skipped, true, "skip persists explicit skipped boolean");
+
+      const reconciled = await call<{ board: AgentStepBoard }>(project.project_id, `${CODING_PREFIX}/sessions/${sid}/runs/${runId}/plan-amendments`, {
+        expected_version: skippedStep2.body.board.version,
         amendment: { kind: "reconcile", node: "step-1", action: "confirm-done", note: "已人工确认构建产物完整" },
       });
       assert.equal(reconciled.status, 200, JSON.stringify(reconciled.body));
       const step1Confirmed = reconciled.body.board.nodes.find(n => n.id === "step-1")!;
       assert.equal(step1Confirmed.state, "succeeded");
       assert.equal(step1Confirmed.unknown_outcome, undefined);
+      assert.equal(reconciled.body.board.nodes.find(n => n.id === "step-2")?.skipped, true, "skipped boolean survives board reload");
       assert.equal(reconciled.body.board.progress_summary?.completed_points, 3);
 
       const accepted = await call(project.project_id, `${CODING_PREFIX}/sessions/${sid}/runs/${runId}/steps/step-1`, {

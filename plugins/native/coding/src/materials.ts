@@ -115,7 +115,19 @@ function classifyMaterialReadError(error: unknown): { failure_kind: "not_found" 
  */
 export async function resolveMaterials(context: PluginStartContext, materials: readonly CodingMaterial[], control?: Control): Promise<AgentTextMaterial[]> {
   const actions = context.services?.actions;
-  if (materials.length && !actions) throw new Error("现在读不到项目资料，请稍后再试或移除材料");
+  if (materials.length && !actions) {
+    throw Object.assign(codingMaterialErrors.material_unreadable("现在读不到项目资料，请稍后再试或移除材料"), {
+      details: {
+        failed_materials: materials.map((material, index): CodingFailedMaterial => ({
+          index,
+          key: materialKey(material),
+          title: material.title,
+          reason: "项目资料服务暂不可用",
+          failure_kind: "unavailable",
+        })),
+      },
+    });
+  }
   const resolved: Array<{ material: CodingMaterial; inline: AgentTextMaterial; overflow: AgentMaterialChecklistItem & { pointer: string } }> = [];
   const failed: CodingFailedMaterial[] = [];
   for (let index = 0; index < materials.length; index += 1) {
@@ -196,6 +208,7 @@ function fromMaterials(material: CodingPickedMaterial, read: MaterialsReadResult
   return {
     inline,
     overflow: {
+      material_id: inline.material_id,
       title,
       material_ref: pinnedRef,
       ...(inline.source_artifact_id !== undefined ? { source_artifact_id: inline.source_artifact_id, source_version: inline.source_version } : {}),
@@ -222,6 +235,7 @@ function fromKnowledge(material: CodingMaterial, read: KnowledgeReadResponse): {
   return {
     inline,
     overflow: {
+      material_id: inline.material_id,
       title,
       ...("ref" in material ? { material_ref: readRef(material.ref, read.revision) } : {}),
       ...(inline.source_artifact_id !== undefined ? { source_artifact_id: inline.source_artifact_id, source_version: inline.source_version } : {}),

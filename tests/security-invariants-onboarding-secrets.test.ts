@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { importedDocumentFile } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { contextFileSkip } from "@molis-ai/molis-work-contracts/services/materials";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import {
   MolisWorkLocalHost,
@@ -262,5 +263,15 @@ test("S-onboarding-secret-hold exclude drops the held secret file and byte edits
   assert.equal(srcAfterEdit.held_secrets?.some(h => h.path === ".env.local"), true, "edited secret file is held again until re-confirmed");
   for (const wireBody of seenWireBodies()) {
     assert.equal(wireBody.includes(newToken), false, "edited secret token must never leak via stale raw approval");
+  }
+  for (const secretPath of [
+    "config/client_secret_web.json",
+    "auth.json",
+    ".npmrc",
+    ".netrc",
+    ".pypirc",
+    ".pgpass",
+  ]) {
+    assert.equal(contextFileSkip(secretPath), "secret", `${secretPath} must classify as secret in contextFileSkip`);
   }
 });

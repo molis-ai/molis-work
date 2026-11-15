@@ -88,7 +88,8 @@ export function contextFileSkip(path: string): "ignored" | "secret" | "unreadabl
   // Hidden files that only say how a project is kept; any other hidden file may hold a credential and is not sent.
   const hiddenKept = [".gitignore", ".gitattributes", ".editorconfig", ".dockerignore", ".prettierrc", ".eslintrc", ".nvmrc", ".node-version", ".tool-versions"];
   if (/^\.env(\..*)?$/u.test(name) || /\.(pem|key|p12|pfx|keystore|jks)$/u.test(name) || /^id_(rsa|ed25519|ecdsa|dsa)(\.pub)?$/u.test(name)
-    || /^credentials.*\.json$/u.test(name) || /^service-account.*\.json$/u.test(name) || /^secrets?\.[a-z0-9]+$/u.test(name)
+    || /^credentials.*\.json$/u.test(name) || /^service-account.*\.json$/u.test(name) || /^client_secret.*\.json$/u.test(name)
+    || name === "auth.json" || /^\.(npmrc|netrc|pypirc|pgpass)$/u.test(name) || /^secrets?\.[a-z0-9]+$/u.test(name)
     || /\.tfstate(\..*)?$/u.test(name) || /\.tfvars$/u.test(name)) return "secret";
   if (name.startsWith(".") && !hiddenKept.some(kept => name === kept || name.startsWith(kept + "."))) return "ignored";
   const extension = /\.([a-z0-9]+)$/u.exec(name)?.[1] ?? "";
@@ -98,6 +99,22 @@ export function contextFileSkip(path: string): "ignored" | "secret" | "unreadabl
     "exe", "dll", "so", "dylib", "a", "o", "obj", "class", "pyc", "wasm", "bin", "dat", "db", "sqlite", "sqlite3",
     "woff", "woff2", "ttf", "otf", "eot", "doc", "xls", "xlsx", "ppt", "pptx", "numbers", "pages"];
   return unreadable.includes(extension) ? "unreadable" : null;
+}
+
+/**
+ * Which rule name (`node_modules`, `.git`, `.DS_Store`, ...) caused `contextFileSkip` to return `"ignored"`.
+ * Self-contained for the same reason as `contextFileSkip`: the onboarding page runs it as its source text.
+ */
+export function contextSkipRuleName(path: string): string {
+  const parts = String(path || "").split("/");
+  const ignoredFolders = ["node_modules", "vendor", "dist", "build", "target", "out", "coverage", "__pycache__", "venv", "pods", "carthage"];
+  for (const part of parts.slice(0, -1)) {
+    const low = part.toLowerCase();
+    if (part.startsWith(".")) return part;
+    if (ignoredFolders.includes(low)) return low;
+  }
+  const last = parts.at(-1) ?? "";
+  return last.startsWith(".") ? last : "";
 }
 
 /**

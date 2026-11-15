@@ -18,6 +18,27 @@ export interface OnboardingTodoCandidate {
 }
 
 export type ContextSourceKind = "files" | "directory" | "downloads" | "documents" | "desktop" | "custom" | "browser" | "gmail" | "chat";
+export type SecretSendDecision = "strip" | "raw" | "exclude";
+export type ContextModelFailureKind = "connection" | "auth" | "rate_limit" | "timeout" | "context_limit" | "invalid_output" | "unknown";
+
+export interface HeldSecretMaterial {
+  key: string;
+  kind: ContextSourceKind;
+  path: string;
+  filename: string;
+  sha256: string;
+  size_bytes: number;
+  reason: string;
+  preview_names: string[];
+}
+
+export interface ContextSkippedReasons {
+  ignored: number;
+  secret: number;
+  unreadable: number;
+  time?: number;
+}
+
 /**
  * One file of a source: staged in the journey by digest (an upload, a folder read), or bytes the Host itself read for this pass
  * (pasted web text, mail) that are staged before reading, or the reason it was not read. Bytes never reach the journey's row.
@@ -32,23 +53,68 @@ export interface ContextReference {
   artifact?: ArtifactReference;
   /** The Pages documents adoption made from it, one per part of a long text. */
   documents?: string[];
+  /** True when the file had no standard document suffix and was recognized as readable text by its content (ONB-37). */
+  recognized_by_content?: boolean;
+  /** True when the summary cited this material's `[S<n>]` label (ONB-38, C3). */
+  used_in_summary?: boolean;
+  /** True once adoption imported this material into the project (ONB-38). */
+  adopted?: boolean;
+  /** Path of an earlier selected material with identical content digest (ONB-35). */
+  duplicate_of?: string;
+  /** How a secret-like file was explicitly approved by the person (C2, S-onboarding-secret-hold). */
+  secret_mode?: "strip" | "raw";
 }
 export interface ContextSource {
   kind: ContextSourceKind; selected: boolean; path?: string; files?: ImportFile[];
+  /** Staged digests by relative path so browser uploads survive refresh and scope toggles before start (ONB-36, C6, C7). */
+  staged_digests?: Record<string, string>;
   text?: string; url?: string; connection_id?: string; days?: 0 | 7 | 30 | 90;
-  metadata?: { files: ContextFileMetadata[]; skipped: number; truncated: boolean };
+  metadata?: {
+    files: ContextFileMetadata[];
+    skipped: number;
+    truncated: boolean;
+    total_entries?: number;
+    skipped_reasons?: ContextSkippedReasons;
+    ignored_rules?: string[];
+  };
   excluded?: string[];
   references?: ContextReference[]; skipped?: number; issues?: { path: string; reason: string }[]; error?: string;
+  /** Secret-like files held before model synthesis until the person chooses strip, raw, or exclude (C2). */
+  held_secrets?: HeldSecretMaterial[];
+  /** Already-read references retained for unchanged files when scope expands (ONB-40, C7). */
+  reused_references?: ContextReference[];
   /** Reading in progress, one file at a time: what is read so far survives a restart, and reading resumes after it. */
-  reading?: { done: number; total: number; references: ContextReference[]; issues: { path: string; reason: string }[] };
+  reading?: { done: number; total: number; references: ContextReference[]; issues: { path: string; reason: string }[]; held_secrets?: HeldSecretMaterial[] };
 }
 /** How long the model calls of a phase took so far, so the page can say how long the rest may take. */
 export interface CallTiming { ms: number; calls: number }
+export interface ContextScopeDelta {
+  added: string[];
+  added_count: number;
+  removed: string[];
+  removed_count: number;
+  reused: number;
+  previous_model: string | null;
+}
 export interface ContextJourney {
   id: string; phase: "selecting" | "reading" | "review" | "failed" | "adopting" | "complete";
   sources: ContextSource[]; model: string | null; error: string | null;
   summary: { title: string; body: string; references: ContextReference[] } | null;
   project_id: string; document_id: string | null; updated_at: string;
+  /** Monotonic generation incremented when starting or reopening so late responses from older passes never overwrite newer scope (ONB-45, C11). */
+  epoch?: number;
+  /** Classified model/service failure kind for clear recovery guidance while preserving exact `error` text (ONB-41, C9). */
+  failure_kind?: ContextModelFailureKind | null;
+  /** Per-file decisions (`strip` | `raw` | `exclude`) keyed by `(kind, path, sha256)` digest (C2). */
+  secret_decisions?: Record<string, SecretSendDecision>;
+  /** Paths included in the most recent read pass, used to compute incremental scope deltas (ONB-40, C7). */
+  last_read_paths?: string[];
+  /** Incremental work summary when scope or model changes ("这次只做这些", ONB-40, ONB-42). */
+  scope_delta?: ContextScopeDelta | null;
+  /** Previous summary kept dimmed as non-adoptable reference while re-organizing after a scope/model change (ONB-40, ONB-42). */
+  stale_summary?: { title: string; body: string; at: string; model: string | null } | null;
+  /** Recorded when an outdated pass's model response arrived late and was discarded (ONB-45, C11). */
+  late_ignored?: { at: string; model: string | null } | null;
   /**
    * `take`: the person's own code folder, made the project's output and handed to the plugin they picked among those that declare they
    * take one (ONB-44, batch12-design §7); `code_root` is the folder as this round read it, never a path from a request.

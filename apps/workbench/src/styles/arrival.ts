@@ -279,6 +279,48 @@ export const ARRIVAL_STYLES = String.raw`
   .cx-dialog { width: min(560px, calc(100vw - 48px)); max-height: min(calc(100dvh - 96px), 720px); padding: 20px 24px; border: 0; border-radius: var(--r-dialog, 16px); background: var(--paper); color: var(--ink); box-shadow: var(--lift-3); }
   .cx-dialog::backdrop { background: var(--scrim); }
   .cx-source-body { max-height: 320px; overflow: auto; white-space: pre-wrap; font-size: 13px; line-height: 1.7; }
+  /* Materials verification (33-2 B) & scope/model delta card (33-2 A), on semantic tokens only. */
+  .ob-mr { display: grid; gap: 10px; margin-top: 12px; min-width: 0; }
+  .mw-mr-funnel { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; padding: 8px 10px; border-radius: var(--r-row, 10px); background: var(--surface-soft); margin: 0; list-style: none; }
+  .mw-mr-funnel > li { display: grid; gap: 2px; min-width: 0; padding: 4px 6px; border-radius: var(--r-tag, 6px); font-size: 11px; color: var(--muted); }
+  .mw-mr-funnel > li > b { font-size: 15px; font-weight: var(--weight-title, 600); color: var(--ink); font-variant-numeric: tabular-nums; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mw-mr-funnel > li > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ob-mr-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; min-width: 0; }
+  .ob-mr-bar .mw-toggle-group { flex-wrap: wrap; max-width: 100%; }
+  .ob-mr-box { display: grid; min-width: 0; min-height: 0; }
+  .ob-mr-list { min-width: 0; min-height: 0; max-height: min(360px, 48vh); overflow: auto; overscroll-behavior: contain; border-radius: var(--r-card, 12px); background: var(--paper); box-shadow: inset 0 0 0 1px var(--line); padding: 4px 10px 6px; scrollbar-width: none; }
+  .ob-mr-list::-webkit-scrollbar { display: none; }
+  .ob-mr-list .mw-file-row { grid-template-columns: minmax(0, 1fr) auto auto; min-height: 34px; box-sizing: border-box; }
+  .ob-mr-list .mw-file-row__size { max-width: 11em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ob-mr-list .mw-file-row.is-issue { background: color-mix(in srgb, var(--amber) 8%, transparent); border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+  .mw-mr-cells { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .mw-mr-track { display: inline-flex; gap: 3px; align-items: center; }
+  .mw-mr-track > i { width: 8px; height: 4px; border-radius: 2px; background: var(--line-strong); }
+  .mw-mr-track > i.is-on { background: var(--green); }
+  .mw-mr-track > i.is-stop { background: var(--amber); }
+  .mw-mr-track.is-err > i.is-stop { background: var(--red); }
+  .mw-mr-why { list-style: none; display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin: -1px 0 4px; padding: 2px 8px 8px 40px; border-radius: 0 0 var(--r-row, 10px) var(--r-row, 10px); background: color-mix(in srgb, var(--amber) 8%, transparent); font-size: 12px; color: var(--ink-soft); line-height: 1.5; }
+  .mw-mr-why.is-err { color: var(--red); }
+  .mw-mr-why > span { flex: 1 1 12em; min-width: 0; overflow-wrap: anywhere; }
+  .mw-mr-why__acts { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+  .mw-mr-delta { display: grid; gap: 6px; padding: 10px 12px; border-radius: var(--r-card, 12px); background: var(--surface-soft); box-shadow: inset 0 0 0 1px var(--line); min-width: 0; }
+  .mw-mr-delta__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; font-weight: var(--weight-title, 600); color: var(--ink); }
+  .mw-mr-delta__head > small { font-weight: var(--weight-body, 400); color: var(--muted); }
+  .mw-mr-delta__row { display: flex; align-items: center; gap: 8px; min-height: 26px; font-size: 12px; color: var(--ink-soft); min-width: 0; }
+  .mw-mr-delta__tile { width: 20px; height: 20px; border-radius: var(--r-tag, 6px); display: grid; place-items: center; flex: none; background: var(--rail); color: var(--ink-soft); }
+  .mw-mr-delta__tile > svg { width: 12px; height: 12px; }
+  .mw-mr-delta__row.is-add .mw-mr-delta__tile { background: var(--accent-soft); color: var(--accent-strong); }
+  .mw-mr-delta__row.is-rem .mw-mr-delta__tile { background: var(--amber-soft); color: var(--amber); }
+  .mw-mr-delta__row.is-keep .mw-mr-delta__tile { background: var(--green-soft); color: var(--green); }
+  .mw-mr-delta__row.is-redo .mw-mr-delta__tile { background: var(--accent-soft); color: var(--accent-strong); }
+  .mw-mr-delta__copy { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+  .mw-mr-delta__copy > b { font-weight: var(--weight-control, 500); color: var(--ink); overflow-wrap: anywhere; }
+  .mw-mr-delta__copy > small { color: var(--muted); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ob-stale { display: grid; gap: 6px; margin-top: 12px; padding: 12px 14px; border-radius: var(--r-card, 12px); background: var(--surface-soft); box-shadow: inset 0 0 0 1px var(--line); opacity: .68; }
+  .ob-stale__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+  .ob-stale__head > strong { color: var(--ink-soft); font-weight: var(--weight-control, 500); }
+  .ob-stale > p { font-size: 12px; line-height: 1.6; color: var(--muted); overflow-wrap: anywhere; }
+  .ob-more-row { list-style: none; padding: 6px 0 2px; display: flex; justify-content: center; }
 
   /* ───────── The hand-off between screens: a quiet stage while the next one is made ───────── */
   @media (max-width: 980px) {
@@ -298,6 +340,18 @@ export const ARRIVAL_STYLES = String.raw`
     .stage-sheet { border-radius: var(--r-sheet, 14px) var(--r-sheet, 14px) 0 0; }
     .stage-single { padding: 0; }
     .mw-caption { display: none; }
+    .mw-mr-funnel { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .mw-mr-why { padding-left: 8px; }
+  }
+  @media (max-width: 560px) {
+    .ob-mr-list .mw-file-kind, .ob-mr-list .mw-file-row__size { display: none; }
+    .ob-mr-list .mw-file-row { grid-template-columns: minmax(0, 1fr) auto; column-gap: 6px; }
+    .mw-mr-cells { gap: 4px; }
+    .mw-mr-cells .mw-mr-track > i { width: 5px; }
+    .mw-mr-cells .mw-status { min-width: 0; padding-inline: 4px; }
+  }
+  @media (max-width: 380px) {
+    .mw-mr-cells .mw-mr-track { display: none; }
   }
   /* Narrow and tall (a phone upright): the directory stacks over the sheet and is capped, so the sheet keeps most of the stage; the directory keeps room for two rows and its footnote steps aside.
      Narrow and short (a phone on its side): the two columns stay, each scrolling on its own. */

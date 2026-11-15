@@ -57,7 +57,7 @@ export async function readStanding(ports: DeliveryPorts, work: StoredWork): Prom
   if (!work.delegated_by?.requirements || !ports.acceptance) return undefined;
   try {
     const port = await ports.acceptance(work);
-    return port ? standing(await port.invoke(acceptanceActions.read, { subject: acceptanceSubjectOf(work) })) : undefined;
+    return port ? standing((await port.invoke(acceptanceActions.read, { subjects: [acceptanceSubjectOf(work)] })).views[0]!) : undefined;
   } catch (error) { if (error instanceof ActionError) return undefined; throw error; }
 }
 
@@ -71,7 +71,7 @@ export function deliveryOf(ports: DeliveryPorts, work: StoredWork): AgentDeliver
   return { report: async (input, signal) => {
     const now = ports.store.get(ports.actorId, work.work_id), port = await ports.acceptance!(now, signal);
     if (!port) throw assistantErrors.scope("这项工作现在记不了交付：什么都没有记。在答复里照实说明做了什么");
-    const subject = acceptanceSubjectOf(now), before = await port.invoke(acceptanceActions.read, { subject });
+    const subject = acceptanceSubjectOf(now), before = (await port.invoke(acceptanceActions.read, { subjects: [subject] })).views[0]!;
     const ids = new Set(before.requirements.map(item => item.id));
     const unknown = [...input.checks.map(check => check.requirement_id), ...(input.touched ?? [])].find(id => !ids.has(id));
     if (unknown !== undefined) throw assistantErrors.invalid(`清单里没有「${unknown}」这一项：什么都没有记。要求的编号是 ${[...ids].join(", ")}`);

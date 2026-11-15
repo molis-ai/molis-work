@@ -2,7 +2,7 @@
 
 把一件工作要满足的各项要求挂到任何插件的对象上（助理的后台任务、待办、Goal……），记下每次交付的确切版本、每项要求的核对结果与证据、用户本人的认可或退回，并从这些记录现算每项此刻的状态。平台能力，不认识 Goals；没有 Goals 的项目照样完整可用（[主动助理](../../specs/proactive-assistant/spec.md) §7.3.1，PWA-144～147；[授权需求书](../../specs/agent-approval/spec.md) §3.5 的共用审查合同）。
 
-包名：`@molis-ai/molis-work-module-acceptance`。工作区内部包，由 Host 装配成 `system.acceptance` 的五个动作：`acceptance.requirements.set@1`、`acceptance.deliveries.record@1`、`acceptance.reports.submit@1`、`acceptance.read@1`、`acceptance.decide@1`。
+包名：`@molis-ai/molis-work-module-acceptance`。工作区内部包，由 Host 装配成 `system.acceptance` 的五个动作：`acceptance.requirements.set@1`、`acceptance.deliveries.record@1`、`acceptance.reports.submit@1`、`acceptance.read@1`、`acceptance.decide@1`。`acceptance.read@1` 一次读一个或几个对象（`subjects`，至多 32 个），按所问的顺序返回 `views`，只开一次库。
 
 ## 一次典型调用
 

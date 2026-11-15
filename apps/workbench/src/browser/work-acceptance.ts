@@ -7,7 +7,7 @@
  * closes; a dialog opened meanwhile closes the column. A part of the work bar's bundle.
  */
 import type { ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { AcceptanceView } from "@molis-ai/molis-work-contracts/modules/acceptance";
+import { ACCEPTANCE_READ_MAX, type AcceptanceReadResult, type AcceptanceView } from "@molis-ai/molis-work-contracts/modules/acceptance";
 import { renderAcceptanceOverview, renderRequirementColumn, type RequirementColumnUi } from "../work-acceptance-parts.js";
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -19,7 +19,27 @@ export function installAcceptance(route: (path: string) => string, request: UiRe
   const keyOf = (target: AcceptanceTarget) => `${target.provider_id}\u001f${target.subject.kind}\u001f${target.subject.id}`;
   const known = new Map<string, { target: AcceptanceTarget; view: AcceptanceView }>(), slots = new Set<() => void>();
   const post = (path: string, body: unknown) => request(route(`/api/acceptance/${path}`), { body }) as Promise<AcceptanceView>;
-  const read = async (target: AcceptanceTarget) => { const view = await post("read", { subject: target }); known.set(keyOf(target), { target, view }); return view; };
+  // Every read asked for in the same turn (each card on the line, the open column) goes out as one request, each object once, so a
+  // page of cards costs one call and one look at the store, not one per object.
+  let queued = new Map<string, { target: AcceptanceTarget; reply: Promise<AcceptanceView>; done(view: AcceptanceView): void; failed(error: unknown): void }>();
+  const flush = () => {
+    const batch = [...queued.values()]; queued = new Map();
+    for (let at = 0; at < batch.length; at += ACCEPTANCE_READ_MAX) {
+      const part = batch.slice(at, at + ACCEPTANCE_READ_MAX);
+      (request(route("/api/acceptance/read"), { body: { subjects: part.map(one => one.target) } }) as Promise<AcceptanceReadResult>).then(
+        ({ views }) => part.forEach((one, index) => { known.set(keyOf(one.target), { target: one.target, view: views[index]! }); one.done(views[index]!); }),
+        error => part.forEach(one => one.failed(error)));
+    }
+  };
+  const read = (target: AcceptanceTarget): Promise<AcceptanceView> => {
+    const key = keyOf(target), waiting = queued.get(key);
+    if (waiting) return waiting.reply;
+    if (!queued.size) queueMicrotask(flush);
+    let done!: (view: AcceptanceView) => void, failed!: (error: unknown) => void;
+    const reply = new Promise<AcceptanceView>((resolve, reject) => { done = resolve; failed = reject; });
+    queued.set(key, { target, reply, done, failed });
+    return reply;
+  };
 
   const column = document.createElement("aside");
   column.className = "work-reqs"; column.hidden = true; column.dataset.acceptanceColumn = ""; column.setAttribute("aria-label", uiText.text("workbench.acceptance.title"));

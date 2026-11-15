@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { acceptanceErrors, type AcceptanceDecideRequest, type AcceptanceDeliverRequest, type AcceptanceEvidenceRef, type AcceptanceGap, type AcceptanceReadRequest, type AcceptanceReportInput,
+import { acceptanceErrors, type AcceptanceDecideRequest, type AcceptanceDeliverRequest, type AcceptanceEvidenceRef, type AcceptanceGap, type AcceptanceReadRequest, type AcceptanceReadResult, type AcceptanceReportInput,
   type AcceptanceReportRequest, type AcceptanceSetRequest, type AcceptanceSubject, type AcceptanceTier, type AcceptanceView } from "@molis-ai/molis-work-contracts/modules/acceptance";
 import { acceptanceView, currentRequirements, standsOn, type DeliveryRow } from "./state.js";
 import { openStore, type AcceptanceStore } from "./store.js";
@@ -73,7 +73,8 @@ export class AcceptanceService {
     return subjectNo;
   }
 
-  read(caller: AcceptanceCaller, request: AcceptanceReadRequest): AcceptanceView { return this.view(caller, this.subject(request.subject)); }
+  /** Every object asked for, out of the one open store, in the order asked. */
+  read(caller: AcceptanceCaller, request: AcceptanceReadRequest): AcceptanceReadResult { return { views: request.subjects.map(subject => this.view(caller, this.subject(subject))) }; }
 
   /**
    * The list as it should stand. A requirement whose words or whose need of the person changed gets its next version, and what was

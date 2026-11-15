@@ -7,7 +7,7 @@ import { DatabaseSync } from "node:sqlite";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { AssistantService, AssistantStore, LocalHost, assistantAuthority, installHostUiText } from "@molis-ai/molis-work-app-local-host";
 import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { ACCEPTANCE_DECIDE_PERMISSION, ACCEPTANCE_PROVIDER_ID, ACCEPTANCE_READ_PERMISSION, acceptanceActions, type AcceptanceView } from "@molis-ai/molis-work-contracts/modules/acceptance";
+import { ACCEPTANCE_DECIDE_PERMISSION, ACCEPTANCE_PROVIDER_ID, ACCEPTANCE_READ_PERMISSION, acceptanceActions, type AcceptanceReadResult, type AcceptanceView } from "@molis-ai/molis-work-contracts/modules/acceptance";
 import { backgroundPlugin, backgroundRig } from "./fixtures/home-background-plugin.js";
 import { reply } from "./fixtures/fixture-replies.js";
 import { roundParts } from "./fixtures/round-parts.js";
@@ -95,15 +95,16 @@ test("PWA-144 PWA-145 PWA-146 S-assistant-delivery-own-object: a sub-task handed
   // What the platform kept, read as the person: one delivered version made in the sub-task's own round, a check per reported item.
   const person: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: project.project_id, permissions: [ACCEPTANCE_READ_PERMISSION, ACCEPTANCE_DECIDE_PERMISSION] };
   const subject = { provider_id: "io.molis.work.assistant.rules", subject: { kind: "assistant_work", id: pricing.work_id } };
-  const asPerson = (action: { capability_id: string; version: number }, input: unknown) => local.actionClient(project).invoke(person, { capability_id: action.capability_id, version: action.version, provider_id: ACCEPTANCE_PROVIDER_ID }, input) as Promise<AcceptanceView>;
-  const read = () => asPerson(acceptanceActions.read, { subject });
+  const asPerson = <T = AcceptanceView>(action: { capability_id: string; version: number }, input: unknown) => local.actionClient(project).invoke(person, { capability_id: action.capability_id, version: action.version, provider_id: ACCEPTANCE_PROVIDER_ID }, input) as Promise<T>;
+  const readOf = async (one: typeof subject) => (await asPerson<AcceptanceReadResult>(acceptanceActions.read, { subjects: [one] })).views[0]!;
+  const read = () => readOf(subject);
   const afterFirst = await read();
   assert.equal(afterFirst.version, "v1");
   assert.equal(afterFirst.round, 1, "the two refused reports left no delivery behind");
   const told = requests.filter(request => request.child).map(request => request.raw);
   assert.ok(told.some(raw => raw.includes('The \\"report-delivery\\" tool does not accept: subject')), "a report that names an object is refused");
   assert.ok(told.some(raw => raw.includes("清单里没有「r9」这一项")), "a report of a requirement that is not on the list is refused");
-  assert.deepEqual((await asPerson(acceptanceActions.read, { subject: OTHER })).requirements, [], "nothing was written on the object the report named");
+  assert.deepEqual((await readOf(OTHER)).requirements, [], "nothing was written on the object the report named");
   assert.deepEqual(afterFirst.requirements.map(item => [item.id, item.statement, item.requires_person]), [["r1", "有三档价格", false], ["r2", "年付有折扣", false], ["r3", "文案由本人看过", true]]);
   // The sub-task's own word verifies nothing; what it reported as falling short reads as that; with no machine check every item waits for the person.
   assert.deepEqual(afterFirst.requirements.map(item => [item.id, item.verified, item.gap, item.person]), [["r1", false, "self_only", "pending"], ["r2", false, "contradicted", "pending"], ["r3", false, "evidence_missing", "pending"]]);

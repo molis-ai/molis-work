@@ -40,7 +40,8 @@ function rig(t: TestContext) {
   let tick = 0;
   const { service, close } = openAcceptance(home, () => new Date(Date.UTC(2026, 10, 15, 8, 0, tick++)).toISOString());
   t.after(() => { close(); rmSync(home, { recursive: true, force: true }); });
-  return { home, service };
+  const readOne = (caller: AcceptanceCaller, subject: typeof SUBJECT) => service.read(caller, { subjects: [subject] }).views[0]!;
+  return { home, service, readOne };
 }
 const item = (view: AcceptanceView, id: string): AcceptanceRequirementState => view.requirements.find(one => one.id === id)!;
 const report = (requirement_id: string, version: string, extra: Partial<AcceptanceReportInput> = {}): AcceptanceReportInput =>
@@ -56,16 +57,16 @@ const SIX = [
 
 /** v2 then v3 delivered (v3 made in run-3 of the maker's session), with the six requirements reported the way the specimen shows them. */
 async function delivered(t: TestContext) {
-  const { home, service } = rig(t);
+  const { home, service, readOne } = rig(t);
   const world = platform({ "s-maker": ["run-3"], "s-other": ["run-9"] }, { c1: {}, c3: {}, cfail: { exit_code: 1 }, clate: { changed_after: true }, ctime: { timed_out: true } }, ["shot@1"]);
   service.set(agent(), { subject: SUBJECT, requirements: SIX });
   await service.deliver(agent(), { subject: SUBJECT, version: "v2" }, world.ports(agent()));
   await service.deliver(agent(), { subject: SUBJECT, version: "v3", touches: SIX.map(one => one.id), made_in: { run_id: "run-3" }, summary: "改成三档" }, world.ports(agent()));
-  return { home, service, world };
+  return { home, service, world, readOne };
 }
 
 test("PWA-144 APR-14 each requirement shows what was checked, on which version, how and with what evidence; self-report alone, missing evidence, evidence of an earlier version and evidence of another object are saved and never pass, and the work being done hides none of them", async t => {
-  const { service, world } = await delivered(t);
+  const { service, world, readOne } = await delivered(t);
   const view = await service.report(agent(), { subject: SUBJECT, reports: [
     report("r1", "v3", { evidence: [receipt("c1"), { kind: "artifact_version", artifact_id: "shot", version: 1 }], method: "三种宽度截图比对" }),
     report("r2", "v3", { method: "执行者说明", observed: "已按决定改" }),
@@ -98,25 +99,25 @@ test("PWA-144 APR-14 each requirement shows what was checked, on which version, 
   assert.equal((await weigh({ evidence: [receipt("c1")] }, agent(null))).gap, "evidence_missing", "a caller the Host bound to no session");
   assert.equal((await weigh({ evidence: [{ kind: "artifact_version", artifact_id: "gone", version: 1 }, receipt("c1")] })).gap, "evidence_unreadable");
   assert.equal((await weigh({ evidence: [{ kind: "artifact_version", artifact_id: "broken", version: 1 }] })).gap, "evidence_unreadable", "a lookup that fails is evidence that could not be read");
-  assert.deepEqual([(await weigh({ evidence: [{ kind: "artifact_version", artifact_id: "shot", version: 1 }] })).gap, item(await service.read(me(), { subject: SUBJECT }), "r6").check?.tier], ["self_only", "self_reported"],
+  assert.deepEqual([(await weigh({ evidence: [{ kind: "artifact_version", artifact_id: "shot", version: 1 }] })).gap, item(await readOne(me(), SUBJECT), "r6").check?.tier], ["self_only", "self_reported"],
     "a readable picture is still the reporter's own word");
   assert.equal((await weigh({ checked: { version: "v9" } })).gap, "wrong_object", "a version that was never delivered");
   const forged = await weigh({ ...({ tier: "machine_checked", gap: null } as object) });
   assert.deepEqual([forged.verified, forged.check?.tier], [false, "self_reported"], "a tier written into the report is not read");
   assert.equal((await weigh({ verdict: "contradicts", evidence: [receipt("c1")] })).gap, "contradicted");
   // The earlier reports are all still there.
-  assert.equal(item(await service.read(me(), { subject: SUBJECT }), "r6").history.filter(entry => entry.type === "check").length, 13);
+  assert.equal(item(await readOne(me(), SUBJECT), "r6").history.filter(entry => entry.type === "check").length, 13);
 
   await assert.rejects(service.report(agent(), { subject: SUBJECT, reports: [report("nope", "v3")] }, world.ports(agent())), code("acceptance.requirement_unknown"));
   await assert.rejects(service.report(agent(), { subject: { ...SUBJECT, subject: { kind: "assistant.work", id: "w2" } }, reports: [report("r1", "v3")] }, world.ports(agent())), code("acceptance.subject_unknown"));
 });
 
 test("PWA-145 that the work ran, what was verified and what the person accepted are three separate readings; engineering evidence and trying the product stand apart; the person is asked only where it was agreed or where the check has a gap; only the person decides", async t => {
-  const { service } = rig(t);
+  const { service, readOne } = rig(t);
   const world = platform({ "s-maker": ["run-1"] }, { build: {}, tried: {} });
   const subject = SUBJECT, ports = world.ports(agent());
   service.set(agent(), { subject, requirements: [{ id: "a", statement: "构建通过", requires_person: false }, { id: "b", statement: "新手引导走得通", requires_person: true }, { id: "c", statement: "文案无错字", requires_person: false }] });
-  const before = service.read(me(), { subject });
+  const before = readOne(me(), subject);
   assert.deepEqual([before.version, before.round, before.counts.verified, before.complete], [null, 0, 0, false]);
   assert.deepEqual(before.requirements.map(one => [one.person, one.gap, one.satisfied]), [["not_needed", null, false], ["pending", null, false], ["not_needed", null, false]], "nothing is asked of the person before there is something to look at");
 
@@ -138,7 +139,7 @@ test("PWA-145 that the work ran, what was verified and what the person accepted 
 
   // The refusal: an Agent, however it is asked, cannot accept; nothing is written.
   assert.throws(() => service.decide(agent(), { subject, version: "build-12", accepts: [{ id: "b", version: 1 }], returns: [] }), code("acceptance.scope"));
-  assert.equal(item(service.read(me(), { subject }), "b").decision, null);
+  assert.equal(item(readOne(me(), subject), "b").decision, null);
 
   // The person accepts the one that waits on them; the unrelated gap still blocks only itself.
   const accepted = service.decide(me(), { subject, version: "build-12", accepts: [{ id: "b", version: 1 }], returns: [] });
@@ -150,7 +151,7 @@ test("PWA-145 that the work ran, what was verified and what the person accepted 
 });
 
 test("PWA-146 rework keeps every round: what was accepted and not touched stays accepted, only the returned and the changed are checked again, a gap is not closed by delivering again, a changed requirement is recorded apart from the fix, and a selection that moved is not applied", async t => {
-  const { service, world } = await delivered(t);
+  const { service, world, readOne } = await delivered(t);
   const ports = world.ports(agent());
   await service.report(agent(), { subject: SUBJECT, reports: [report("r1", "v3", { evidence: [receipt("c1")] }), report("r2", "v3"), report("r3", "v3", { evidence: [receipt("c3")] }), report("r4", "v2", { evidence: [receipt("c1")] })] }, ports);
 
@@ -167,10 +168,10 @@ test("PWA-146 rework keeps every round: what was accepted and not touched stays 
   assert.deepEqual([item(changed, "r5").version, item(changed, "r5").statement, item(changed, "r3").version, item(changed, "r3").person], [2, "390 宽时按钮不小于 44", 1, "accepted"], "only the changed requirement gets a new version");
 
   // A selection frozen before the change is not applied, whole: the delivered version or a requirement moved.
-  const untouched = JSON.stringify(service.read(me(), { subject: SUBJECT }));
+  const untouched = JSON.stringify(readOne(me(), SUBJECT));
   assert.throws(() => service.decide(me(), { subject: SUBJECT, version: "v3", accepts: [{ id: "r1", version: 1 }, { id: "r5", version: 1 }], returns: [] }), code("acceptance.selection_changed"));
   assert.throws(() => service.decide(me(), { subject: SUBJECT, version: "v2", accepts: [{ id: "r1", version: 1 }], returns: [] }), code("acceptance.selection_changed"));
-  assert.equal(JSON.stringify(service.read(me(), { subject: SUBJECT })), untouched, "a refused selection writes nothing, not even its unaffected items");
+  assert.equal(JSON.stringify(readOne(me(), SUBJECT)), untouched, "a refused selection writes nothing, not even its unaffected items");
 
   // Rework comes back as v4 and says what it touched. Delivering closes nothing.
   await assert.rejects(service.deliver(agent(), { subject: SUBJECT, version: "v4" }, ports), code("acceptance.invalid"), "a later delivery must say what it touched");
@@ -198,19 +199,22 @@ test("PWA-146 rework keeps every round: what was accepted and not touched stays 
 });
 
 test("PWA-144 APR-15 the record is the project's and goes with it: the same object in another project has nothing, a withdrawn requirement leaves the list and keeps its record, and deleting the project clears only that project", async t => {
-  const { home, service } = rig(t);
+  const { home, service, readOne } = rig(t);
   const world = platform({ "s-maker": ["run-1"] });
   service.set(agent(), { subject: SUBJECT, requirements: SIX.slice(0, 2) });
   service.set(agent("s-maker", "p2"), { subject: SUBJECT, requirements: SIX.slice(0, 3) });
-  assert.deepEqual([service.read(me(), { subject: SUBJECT }).requirements.length, service.read(me("p2"), { subject: SUBJECT }).requirements.length, service.read(me("p3"), { subject: SUBJECT }).requirements.length], [2, 3, 0]);
+  assert.deepEqual([readOne(me(), SUBJECT).requirements.length, readOne(me("p2"), SUBJECT).requirements.length, readOne(me("p3"), SUBJECT).requirements.length], [2, 3, 0]);
+  // One read answers for several objects, in the order asked, an object with nothing hung on it as an empty view: a page reads all its cards at once.
+  const OTHER = { provider_id: SUBJECT.provider_id, subject: { kind: "assistant.work", id: "w2" } };
+  assert.deepEqual(service.read(me(), { subjects: [OTHER, SUBJECT] }).views.map(view => [view.subject.subject.id, view.requirements.length]), [["w2", 0], ["w1", 2]]);
   assert.deepEqual(service.set(agent(), { subject: SUBJECT, requirements: [SIX[1]!, { ...SIX[0]!, id: "r7" }] }).requirements.map(one => [one.id, one.version]), [["r2", 1], ["r7", 1]], "r1 is withdrawn, r2 is unchanged");
   assert.throws(() => service.set(agent(), { subject: SUBJECT, requirements: [SIX[0]!, SIX[0]!] }), code("acceptance.invalid"));
-  assert.throws(() => service.read({ ...me(), project_id: "p1" }, { subject: { provider_id: " ", subject: { kind: "k", id: "i" } } }), code("acceptance.scope"));
+  assert.throws(() => readOne({ ...me(), project_id: "p1" }, { provider_id: " ", subject: { kind: "k", id: "i" } }), code("acceptance.scope"));
   await service.deliver(agent(), { subject: SUBJECT, version: "v1" }, world.ports(agent()));
   await assert.rejects(service.deliver(agent(), { subject: SUBJECT, version: "v1", touches: [] }, world.ports(agent())), code("acceptance.invalid"), "a version is delivered once");
   await assert.rejects(service.report(agent("s-maker", "p2"), { subject: SUBJECT, reports: [report("r1", "v1")] }, world.ports(agent())), code("acceptance.version_unknown"), "nothing delivered in the other project");
 
   purgeAcceptanceProject(home, "p1");
-  assert.deepEqual([service.read(me(), { subject: SUBJECT }).requirements.length, service.read(me("p2"), { subject: SUBJECT }).requirements.length], [0, 3]);
+  assert.deepEqual([readOne(me(), SUBJECT).requirements.length, readOne(me("p2"), SUBJECT).requirements.length], [0, 3]);
   purgeAcceptanceProject(home, "p1");
 });

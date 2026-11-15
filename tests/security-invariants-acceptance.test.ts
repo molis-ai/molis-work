@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { ACCEPTANCE_DECIDE_PERMISSION, ACCEPTANCE_PROVIDER_ID, ACCEPTANCE_READ_PERMISSION, ACCEPTANCE_REPORT_PERMISSION, acceptanceActions, type AcceptanceView } from "@molis-ai/molis-work-contracts/modules/acceptance";
+import { ACCEPTANCE_DECIDE_PERMISSION, ACCEPTANCE_PROVIDER_ID, ACCEPTANCE_READ_PERMISSION, ACCEPTANCE_REPORT_PERMISSION, acceptanceActions, type AcceptanceReadResult, type AcceptanceView } from "@molis-ai/molis-work-contracts/modules/acceptance";
 import { backgroundPlugin, backgroundRig } from "./fixtures/home-background-plugin.js";
 
 /*
@@ -23,7 +23,7 @@ async function rig(t: Parameters<typeof backgroundRig>[0]) {
   const a = built.project("A"), b = built.project("B"), client = built.host.actionClient(a);
   const call = <T = AcceptanceView>(caller: ActionCallContext, action: { capability_id: string; version: number }, input: unknown) =>
     client.invoke(caller, { capability_id: action.capability_id, version: action.version, provider_id: ACCEPTANCE_PROVIDER_ID }, input) as Promise<T>;
-  const read = () => call(person(a.project_id), acceptanceActions.read, { subject: SUBJECT });
+  const read = async () => (await call<AcceptanceReadResult>(person(a.project_id), acceptanceActions.read, { subjects: [SUBJECT] })).views[0]!;
   return { ...built, a, b, client, call, read };
 }
 
@@ -51,9 +51,9 @@ test("S-acceptance-person-decides APR-15: only the person's own page call accept
   // After a delivery only the person changes what is asked.
   await assert.rejects(call(agent(a.project_id), acceptanceActions.set, { subject: SUBJECT, requirements: [{ ...REQUIREMENTS[0]!, statement: "随便" }, REQUIREMENTS[1]!] }), code("acceptance.requirements_fixed"));
   // The record is the project's: the same object read in another project has nothing, and a call outside a project is refused.
-  const elsewhere = await host.actionClient(b).invoke(person(b.project_id), { capability_id: acceptanceActions.read.capability_id, version: 1, provider_id: ACCEPTANCE_PROVIDER_ID }, { subject: SUBJECT }) as AcceptanceView;
+  const elsewhere = (await host.actionClient(b).invoke(person(b.project_id), { capability_id: acceptanceActions.read.capability_id, version: 1, provider_id: ACCEPTANCE_PROVIDER_ID }, { subjects: [SUBJECT] }) as AcceptanceReadResult).views[0]!;
   assert.deepEqual([elsewhere.requirements.length, elsewhere.version], [0, null]);
-  await assert.rejects(call(person(a.project_id, { permissions: [] }), acceptanceActions.read, { subject: SUBJECT }), code("actions.forbidden"));
+  await assert.rejects(call(person(a.project_id, { permissions: [] }), acceptanceActions.read, { subjects: [SUBJECT] }), code("actions.forbidden"));
 });
 
 test("S-acceptance-evidence-tier PWA-144: the tier of a check is the platform's own finding; a report cannot carry one, the person cannot report, and evidence the Agent Host does not confirm as the caller's own round stays the reporter's word and satisfies nothing", { timeout: 60_000 }, async t => {

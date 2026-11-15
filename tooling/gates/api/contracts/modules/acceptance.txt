@@ -8,6 +8,8 @@ export declare const ACCEPTANCE_EVIDENCE_MAX = 8;
 
 export declare const ACCEPTANCE_PROVIDER_ID = "system.acceptance";
 
+export declare const ACCEPTANCE_READ_MAX = 32;
+
 export declare const ACCEPTANCE_READ_PERMISSION = "acceptance:read";
 
 export declare const ACCEPTANCE_REPORT_PERMISSION = "acceptance:report";
@@ -96,7 +98,11 @@ export interface AcceptancePersonDecision {
 }
 
 export interface AcceptanceReadRequest {
-    subject: AcceptanceSubject;
+    subjects: AcceptanceSubject[];
+}
+
+export interface AcceptanceReadResult {
+    views: AcceptanceView[];
 }
 
 export interface AcceptanceReportInput {
@@ -180,7 +186,7 @@ export declare const acceptanceActions: {
     set: ActionDefinition<AcceptanceSetRequest, AcceptanceView>;
     deliver: ActionDefinition<AcceptanceDeliverRequest, AcceptanceView>;
     report: ActionDefinition<AcceptanceReportRequest, AcceptanceView>;
-    read: ActionDefinition<AcceptanceReadRequest, AcceptanceView>;
+    read: ActionDefinition<AcceptanceReadRequest, AcceptanceReadResult>;
     decide: ActionDefinition<AcceptanceDecideRequest, AcceptanceView>;
 };
 

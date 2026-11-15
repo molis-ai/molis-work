@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
-import type { AcceptanceView } from "@molis-ai/molis-work-contracts/modules/acceptance";
+import type { AcceptanceReadResult, AcceptanceView } from "@molis-ai/molis-work-contracts/modules/acceptance";
 import { openAcceptance, type AcceptanceCaller, type AcceptanceEvidencePorts } from "@molis-ai/molis-work-module-acceptance";
 import { openTodoStore } from "./fixtures/plugin-home-stores.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
@@ -61,7 +61,10 @@ test("PWA-144 PWA-145 PWA-146: the event's card sums up its requirements in thre
   await open("zh", 1440, 900);
   await waitFor("document.querySelector('[data-assistant-event-card] [data-card-acceptance]')");
   assert.equal(await evaluate("document.querySelector('[data-card-acceptance]').hidden"), true, "an object with no requirements shows no summary");
-  const target = (await evaluate<Array<{ door: string; body: { subject: { provider_id: string; subject: { kind: string; id: string } } } }>>("window.__acceptance")).find(one => one.door === "read")!.body.subject;
+  const reads = (await evaluate<Array<{ door: string; body: { subjects: Array<{ provider_id: string; subject: { kind: string; id: string } }> } }>>("window.__acceptance")).filter(one => one.door === "read");
+  // Each read asks for every card shown at once (here the line has one), not one request per object.
+  const target = reads[0]!.body.subjects[0]!;
+  assert.ok(reads.every(one => JSON.stringify(one.body.subjects) === JSON.stringify([target])), JSON.stringify(reads));
   assert.deepEqual(target.subject, { kind: "todo_item", id: todo.id }, "the card asks about the event's own object, under the provider that reported it");
 
   // The person says what is asked, through their own door; the work is then delivered and reported the way an executor would.
@@ -79,8 +82,8 @@ test("PWA-144 PWA-145 PWA-146: the event's card sums up its requirements in thre
       { requirement_id: "r3", verdict: "supports", checked: { version: "v1" }, method: "整页截图", observed: "与定样一致", evidence: [{ kind: "command_receipt", run_id: "run-1", call_id: "c3" }] },
     ] }, ports);
   } finally { acceptance.close(); }
-  const stands = await door<AcceptanceView>("read", { subject: target });
-  assert.deepEqual(stands.body.counts, { total: 4, verified: 2, needs_person: 3, accepted: 0, satisfied: 1 });
+  const stands = await door<AcceptanceReadResult>("read", { subjects: [target] });
+  assert.deepEqual(stands.body.views[0]!.counts, { total: 4, verified: 2, needs_person: 3, accepted: 0, satisfied: 1 });
 
   // PWA-144: the card's summary keeps the three readings apart — delivered is not verified, verified is not accepted.
   await open("zh", 1440, 900);

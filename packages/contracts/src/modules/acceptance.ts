@@ -17,6 +17,8 @@ export const ACCEPTANCE_REPORT_PERMISSION = "acceptance:report";
 export const ACCEPTANCE_DECIDE_PERMISSION = "acceptance:decide";
 export const ACCEPTANCE_REQUIREMENT_MAX = 40;
 export const ACCEPTANCE_EVIDENCE_MAX = 8;
+/** Objects one read answers for: a page reads every card it shows in one call. */
+export const ACCEPTANCE_READ_MAX = 32;
 
 /** The object requirements hang on: whose it is and which one. The record is kept per project; the object stays with its owner. */
 export interface AcceptanceSubject { provider_id: string; subject: ActionSubject }
@@ -131,7 +133,9 @@ export interface AcceptanceDeliverRequest {
   made_in?: { run_id: string };
 }
 export interface AcceptanceReportRequest { subject: AcceptanceSubject; reports: AcceptanceReportInput[] }
-export interface AcceptanceReadRequest { subject: AcceptanceSubject }
+/** Several objects at once; the views come back in the order asked, an object with nothing hung on it as an empty view. */
+export interface AcceptanceReadRequest { subjects: AcceptanceSubject[] }
+export interface AcceptanceReadResult { views: AcceptanceView[] }
 /** The person's selection, frozen: each item names the requirement version it is about, and `version` the delivery being looked at. */
 export interface AcceptanceDecideRequest {
   subject: AcceptanceSubject;
@@ -193,9 +197,10 @@ export const acceptanceActions = {
     input_schema: inputSchemaFor<AcceptanceReportRequest>()({ type: "object", properties: { subject: SUBJECT, reports: { type: "array", minItems: 1, maxItems: ACCEPTANCE_REQUIREMENT_MAX * 2, items: REPORT } },
       required: ["subject", "reports"], additionalProperties: false } as const), output_schema: VIEW } } as ActionDefinition<AcceptanceReportRequest, AcceptanceView>,
   read: { capability_id: "acceptance.read", version: /* @version action.acceptance.read */ 1, operation: "query", action: { ...metadata,
-    title: "逐项看要求、证据与认可", description: "读取一件工作的各项要求此刻的状态：所核版本、方法、证据与可信层级、缺口、用户的认可或退回、各轮的记录，以及执行、核验、认可三个各自的进度。只读。",
+    title: "逐项看要求、证据与认可", description: "读取一件或几件工作（subjects，至多 32 个）的各项要求此刻的状态：所核版本、方法、证据与可信层级、缺口、用户的认可或退回、各轮的记录，以及执行、核验、认可三个各自的进度。按所问的顺序返回 views；没挂要求的对象返回空的一份。只读。",
     kind: "query", effect: "read", audiences: ["user", "agent", "workflow"], permissions: [ACCEPTANCE_READ_PERMISSION],
-    input_schema: inputSchemaFor<AcceptanceReadRequest>()({ type: "object", properties: { subject: SUBJECT }, required: ["subject"], additionalProperties: false } as const), output_schema: VIEW } } as ActionDefinition<AcceptanceReadRequest, AcceptanceView>,
+    input_schema: inputSchemaFor<AcceptanceReadRequest>()({ type: "object", properties: { subjects: { type: "array", minItems: 1, maxItems: ACCEPTANCE_READ_MAX, items: SUBJECT } }, required: ["subjects"], additionalProperties: false } as const),
+    output_schema: { type: "object", properties: { views: { type: "array", items: VIEW } }, required: ["views"], additionalProperties: false } } } as ActionDefinition<AcceptanceReadRequest, AcceptanceReadResult>,
   decide: { capability_id: "acceptance.decide", version: /* @version action.acceptance.decide */ 1, operation: "command", action: { ...metadata,
     title: "认可或退回各项要求", description: "用户本人对列出的要求逐项认可或退回（退回要写原因），一次可以定多项。每项写明所针对的要求版本和正在看的交付版本；其中任何一项在显示之后变过，整次决定不生效。没列出的要求不受影响。",
     kind: "operation", effect: "write", audiences: ["user"], permissions: [ACCEPTANCE_DECIDE_PERMISSION],

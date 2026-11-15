@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { AcceptanceView } from "@molis-ai/molis-work-contracts/modules/acceptance";
+import type { AcceptanceReadResult, AcceptanceView } from "@molis-ai/molis-work-contracts/modules/acceptance";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 
 // S-work-line-person-doors: the workbench's own doors to the work line, the task table and the requirement column answer the
@@ -20,7 +20,7 @@ test("S-work-line-person-doors WLN-39 PWA-144: a plugin's page gets nothing thro
     const answered = await post(path, body);
     assert.equal(answered.status, 200, `${path}: ${await answered.clone().text()}`);
   }
-  const before = await (await post("/api/acceptance/read", { subject: SUBJECT })).json() as AcceptanceView;
+  const before = (await (await post("/api/acceptance/read", { subjects: [SUBJECT] })).json() as AcceptanceReadResult).views[0]!;
   assert.deepEqual(before.requirements.map(one => [one.id, one.version, one.statement]), [["r1", 1, "三档并排"]]);
 
   const opened = await post("/api/host/plugin-pages", { plugin_id: "io.molis.work.goals" });
@@ -35,16 +35,16 @@ test("S-work-line-person-doors WLN-39 PWA-144: a plugin's page gets nothing thro
     ["/api/mainline/open", { subject: SUBJECT.subject }],
     ["/api/mainline/shelve", { title: "x", text: "x" }],
     ["/api/mainline/event/surfaces", { subject: SUBJECT.subject }],
-    ["/api/acceptance/read", { subject: SUBJECT }],
+    ["/api/acceptance/read", { subjects: [SUBJECT] }],
     ["/api/acceptance/decide", { subject: SUBJECT, version: "v1", accepts: [{ id: "r1", version: 1 }], returns: [] }],
     ["/api/acceptance/requirements", { subject: SUBJECT, requirements: [{ ...ASKED[0], statement: "插件页面改的" }, { id: "r2", statement: "多出来的一项", requires_person: false }] }],
   ];
   for (const header of ["x-molis-plugin-page", "x-molis-context-page"]) {
     for (const [path, body] of doors) {
       const refused = await post(path, body, { [header]: page_id });
-      const answer = await refused.json().catch(() => ({})) as { error?: { code?: string }; requirements?: unknown; events?: unknown; tasks?: unknown };
+      const answer = await refused.json().catch(() => ({})) as { error?: { code?: string }; requirements?: unknown; views?: unknown; events?: unknown; tasks?: unknown };
       assert.ok(refused.status >= 400, `${header} ${path} answered ${refused.status}`);
-      assert.ok(answer.requirements === undefined && answer.events === undefined && answer.tasks === undefined, `${header} ${path} read nothing`);
+      assert.ok(answer.requirements === undefined && answer.views === undefined && answer.events === undefined && answer.tasks === undefined, `${header} ${path} read nothing`);
     }
   }
   // The same page's attention read has no line and no tasks in it.
@@ -55,7 +55,7 @@ test("S-work-line-person-doors WLN-39 PWA-144: a plugin's page gets nothing thro
   } else assert.ok(attention.status >= 400);
 
   // Nothing a refused request carried was written.
-  const after = await (await post("/api/acceptance/read", { subject: SUBJECT })).json() as AcceptanceView;
+  const after = (await (await post("/api/acceptance/read", { subjects: [SUBJECT] })).json() as AcceptanceReadResult).views[0]!;
   assert.deepEqual(after, before);
 });
 
@@ -65,12 +65,12 @@ test("S-work-line-person-doors PWA-144: the person's doors take who is asking fr
   assert.equal((await post(project.project_id, "/api/acceptance/requirements", { subject: SUBJECT, requirements: ASKED })).status, 200);
   // Extra fields that claim an identity are not part of the contract: the input is refused as invalid, nothing is read for them.
   for (const claim of [{ actor_id: "agent:assistant" }, { audience: "agent" }, { project_id: other.project_id }, { person: true }]) {
-    const refused = await post(project.project_id, "/api/acceptance/read", { subject: SUBJECT, ...claim });
+    const refused = await post(project.project_id, "/api/acceptance/read", { subjects: [SUBJECT], ...claim });
     assert.ok(refused.status >= 400, `a claim of ${Object.keys(claim)[0]} in the body is refused (${refused.status})`);
   }
-  const elsewhere = await (await post(other.project_id, "/api/acceptance/read", { subject: SUBJECT })).json() as AcceptanceView;
+  const elsewhere = (await (await post(other.project_id, "/api/acceptance/read", { subjects: [SUBJECT] })).json() as AcceptanceReadResult).views[0]!;
   assert.deepEqual(elsewhere.requirements, [], "the other project has nothing on that object");
   // Without the page's control token there is no door at all.
-  const anonymous = await f.request(`/projects/${project.project_id}/api/acceptance/read`, { method: "POST", body: { subject: SUBJECT }, authorized: false });
+  const anonymous = await f.request(`/projects/${project.project_id}/api/acceptance/read`, { method: "POST", body: { subjects: [SUBJECT] }, authorized: false });
   assert.ok(anonymous.status >= 400);
 });

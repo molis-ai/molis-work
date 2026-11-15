@@ -12,6 +12,7 @@ import type { AssistantCharacterChoice, AssistantCharacterRef, AssistantMaterial
 import { assistantWords } from "./assistant-saved-text.js";
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
 import { identity } from "./assistant-relations.js";
+import { promptTitle } from "./assistant-work-title.js";
 
 /**
  * How much one work may hand out: the Assistant's own product rule, defined here and nowhere else. `active` sub-tasks
@@ -127,13 +128,13 @@ export class AssistantDelegations {
         const hung = listed.length > 0 && Boolean(parent.project_ref && this.ports.acceptance);
         const node_id = `p-${randomUUID().slice(0, 12)}`;
         const child = store.create({ actor_id: actorId, title: input.title.slice(0, 80), scope: parent.scope, ...(parent.scope_title ? { scope_title: parent.scope_title } : {}),
-          origin: { surface: "assistant", title: `「${parent.title}」委托` }, ...(parent.project_ref ? { project_ref: parent.project_ref } : {}),
-          delegated_by: { graph_id, node_id, title: parent.title, acceptance: input.acceptance.slice(0, 2000), ...(hung ? { requirements: listed.length } : {}) },
+          origin: { surface: "assistant", title: `「${promptTitle(parent)}」委托` }, ...(parent.project_ref ? { project_ref: parent.project_ref } : {}),
+          delegated_by: { graph_id, node_id, title: promptTitle(parent), acceptance: input.acceptance.slice(0, 2000), ...(hung ? { requirements: listed.length } : {}) },
           // Done for the event the round named; else, unless it is registered as an event of its own, for the event this work is (or is done for).
           ...(input.for_event ? { serves: [{ kind: input.for_event.kind, id: input.for_event.id }] } : input.track || !parent.project_ref ? {} : { serves: eventBehind(parent) }),
           ...(input.track && parent.project_ref ? { line_event: true as const } : {}) });
         const materials: AssistantMaterial[] = (input.materials ?? []).slice(0, 4).map((material, index) => ({ material_id: `delegated-${index + 1}`, kind: "text", title: material.title.slice(0, 200),
-          text: material.text.slice(0, 20_000), explicit: true, source: { surface: "assistant", title: parent.title } }));
+          text: material.text.slice(0, 20_000), explicit: true, source: { surface: "assistant", title: promptTitle(parent) } }));
         try {
           // A Character's own main conversation hands its parts to itself unless it names another role: the task is done, and
           // reported back, by the one the person is talking to (WLN-40).
@@ -142,7 +143,7 @@ export class AssistantDelegations {
           // What being delegated means is the delegated role's own layer; the message is only this part's brief and its bar.
           // Written as the sub-task itself, before its first round: what it is measured against stands before it starts.
           if (hung) await hangRequirements(this.ports, child, listed);
-          await this.ports.dispatch(assigned, [`「${parent.title}」委托的子任务`, input.brief, `验收标准：${input.acceptance}`, requirementsBrief(listed, hung)].filter(Boolean).join("\n\n"), materials, "assistant");
+          await this.ports.dispatch(assigned, [`「${promptTitle(parent)}」委托的子任务`, input.brief, `验收标准：${input.acceptance}`, requirementsBrief(listed, hung)].filter(Boolean).join("\n\n"), materials, "assistant");
         } catch (error) {
           // A part that never started leaves no step behind on the graph.
           await graphs.end({ graph_id, node_id, note: "子任务没能开始" }).catch(() => undefined);
@@ -376,7 +377,7 @@ async function placeOn(graphsOf: () => Promise<AgentWorkGraphPort>, ports: Deleg
   if (!work.session_id || !work.delegated_by && work.graph_id) return { work };
   const graphs = await graphsOf();
   if (!work.delegated_by) {
-    const { graph_id } = await graphs.open({ key: `assistant-work:${work.work_id}`, session_id: work.session_id, title: work.title });
+    const { graph_id } = await graphs.open({ key: `assistant-work:${work.work_id}`, session_id: work.session_id, title: promptTitle(work) });
     return { work: ports.store.update(ports.actorId, work.work_id, null, { graph_id }, false) };
   }
   const { graph_id, node_id } = work.delegated_by, steps = partSteps(await graphs.read(graph_id), work);
@@ -385,7 +386,7 @@ async function placeOn(graphsOf: () => Promise<AgentWorkGraphPort>, ports: Deleg
   // starts, so it cannot have ended first); one the person starts later, on a step under it (its result reaches the
   // delegating work as material of its next round, which does not wait for it).
   const added = steps.length ? { graph_id, node_id: `${node_id}.r${steps.filter(step => /\.r\d+$/.test(step.node_id)).length + 1}`, under: node_id, session_id: work.session_id, title: "用户接着做" }
-    : { graph_id, node_id, session_id: work.session_id, title: work.title, wait_reason: WAITS_FOR_PARTS };
+    : { graph_id, node_id, session_id: work.session_id, title: promptTitle(work), wait_reason: WAITS_FOR_PARTS };
   await graphs.add(added);
   return { work, added: { graph_id, node_id: added.node_id } };
 }

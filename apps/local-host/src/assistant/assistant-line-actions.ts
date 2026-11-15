@@ -8,6 +8,7 @@ import type { AgentActionClient } from "@molis-ai/molis-work-contracts/services/
 import { MAINLINE_PROVIDER_ID, mainlineActions, type BackgroundTasksReadResult, type WorkLineReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
 import { assistantErrors } from "./assistant-errors.js";
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
+import { workTitle } from "./assistant-work-title.js";
 
 /**
  * The Assistant on the work line (specs/work-line §5, §6; contract-design §2, §4, §5): it reports its works like any registrant
@@ -101,7 +102,7 @@ const RING: Readonly<Record<AssistantWorkState, StateRingState>> = { idle: "idle
   completed: "done", failed: "failed", stopped: "stopped", "needs-check": "verify" };
 /** The state as one phrase, said in the reader's language when the line or the table is read (not kept). */
 const words = (state: AssistantWorkState) => uiText.text(`workbench.assistant-line.state-${state}`);
-const nameOf = (work: StoredWork) => work.title || uiText.text("workbench.assistant-line.untitled");
+const nameOf = (work: StoredWork) => workTitle(work) || uiText.text("workbench.assistant-line.untitled");
 /** How many ended works the line is told of at most; what is under way is always told. */
 const ENDED_SHOWN = 20;
 
@@ -276,8 +277,6 @@ export async function eventServes(input: AssistantSendInput, actions: (() => Pro
   if (!events.some(event => event.kind === wanted.kind && event.id === wanted.id)) throw assistantErrors.not_found("事项线上没有这个事件，或你读不到它");
   return [{ kind: wanted.kind, id: wanted.id }];
 }
-/** The main conversation's name until its counterpart is a Character; the page names the tab by the counterpart. */
-export const MAIN_TITLE = "与助理的对话";
 
 /** The events the work line shows to a work, read with the work's own authority (a sub-task is hung only on one of these). */
 export async function lineEventsFor(actions: Pick<AgentActionClient, "invoke"> | undefined): Promise<ActionSubject[]> {

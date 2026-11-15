@@ -18,7 +18,7 @@ function harness() {
     project_ref: { project_id: "p1", storage_key: "memory:p1" }, ...more });
   const delegated = (node: string) => ({ delegated_by: { graph_id: "g-main", node_id: node, title: "与助理的对话", acceptance: "完成" } });
   const works: Works = [
-    { work: base("main", "与助理的对话", 50, { main: true }), state: "running" },
+    { work: base("main", "", 50, { main: true }), state: "running" },
     { work: base("report", "季度报告", 40), state: "completed" },
     { work: base("plan", "发布计划", 45), state: "waiting-input" },
     { work: base("errand", "查一下汇率", 46, { ...delegated("p-1"), character: { artifact_id: "character:project:editor", version: 2, title: "严格的编辑" } }), state: "running" },

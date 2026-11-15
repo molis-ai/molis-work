@@ -27,6 +27,7 @@ import { stateOf, spokenTurns, roundDiagnostics, stopInWords, presentActivity, t
 import type { AssistantDispatch } from "./assistant-dispatch.js";
 import type { AssistantOutcomes } from "./assistant-outcomes.js";
 import type { AssistantRoundMaterials } from "./assistant-round-materials.js";
+import { workTitle } from "./assistant-work-title.js";
 
 /** A signed role in one installation, as a work offers it. */
 const roleMethod = (role: SignedRoleView, installation: SignedAgentInstallation): Extract<AssistantMethod, { kind: "role" }> => ({ kind: "role", method_id: `signed/${role.role_id}`,
@@ -233,7 +234,7 @@ export class AssistantWorkReads {
     for (const row of rows) {
       const work = whenThere(() => this.store.get(this.actorId, row.work_id));
       if (!work || work.archived) continue;
-      out.push({ work_id: work.work_id, title: work.title, state: await this.stateSafely(work), relation: row.relation, recorded_revision: row.object.revision, updated_at: work.updated_at });
+      out.push({ work_id: work.work_id, title: workTitle(work), state: await this.stateSafely(work), relation: row.relation, recorded_revision: row.object.revision, updated_at: work.updated_at });
     }
     return out.sort((a, b) => b.updated_at.localeCompare(a.updated_at));
   }

@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
-import { AssistantService, AssistantStore, LocalHost, assistantAuthority, installHostUiText } from "@molis-ai/molis-work-app-local-host";
+import { AssistantService, AssistantStore, LocalHost, assistantAuthority, installHostUiText, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { reply } from "./fixtures/fixture-replies.js";
 import { answeringEndingReviews } from "./fixtures/ending-review.js";
@@ -49,6 +49,14 @@ test("WLN-15: what is said at 「现在」 goes to one standing main conversatio
   const first = await service.send({ text: "帮我看看今天有什么要办", main: true, request_id: "req-main-0001" }, { project_ref: board });
   assert.equal(first.work.main, true);
   assert.equal(first.work.title, "与助理的对话", "named for the conversation, not for the first thing said in it");
+  // Nothing is stored in a language: the name is the reader's (specs/work-line §12, 2026-11-15).
+  assert.equal(store.get("web-user", first.work.work_id).title, "", "the main conversation stores no title");
+  assert.equal((await runWithLocale("en", () => service.read(first.work.work_id))).work.title, "Conversation with the Assistant");
+  // A notice about it was written with the empty title; each reader gets the name in their own language, in the notice and its words.
+  store.raiseNotice("web-user", { kind: "completed", work_id: first.work.work_id, work_title: "", text: { owner: "workbench", key: "workbench.assistant-notice.completed", args: [{ name: "title", kind: "text", text: "" }] } }, "main-notice");
+  const noticeIn = (locale: "zh" | "en") => runWithLocale(locale, () => service.notices.notices(null).find(one => one.work_id === first.work.work_id)!);
+  assert.deepEqual([noticeIn("zh").work_title, noticeIn("en").work_title], ["与助理的对话", "Conversation with the Assistant"]);
+  assert.deepEqual(noticeIn("en").text, { owner: "workbench", key: "workbench.assistant-notice.completed", args: [{ name: "title", kind: "text", text: "Conversation with the Assistant" }] });
   await done(first.work.work_id, 1);
   assert.match(requests[0]!, /这是你和用户的主对话/, "the round is told how a main conversation works");
   // Said again without naming a work: the same conversation.

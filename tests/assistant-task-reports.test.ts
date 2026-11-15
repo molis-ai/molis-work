@@ -109,7 +109,7 @@ test("PWA-155 PWA-157 the Assistant tells the person once and starts one round t
   try {
     assert.equal(reportRounds.reportsTo("p"), false);
     assert.equal(await reportRounds.report(report), "none", "no main conversation in the project yet: nothing to report to");
-    const main = store.create({ actor_id: "user", title: "主对话", scope: { kind: "project", project_id: "p" }, project_ref: { project_id: "p", storage_key: "memory:p" }, origin: null, main: true });
+    const main = store.create({ actor_id: "user", title: "", scope: { kind: "project", project_id: "p" }, project_ref: { project_id: "p", storage_key: "memory:p" }, origin: null, main: true });
     store.update("user", main.work_id, null, { session_id: "s-main" });
     assert.equal(reportRounds.reportsTo("p"), true);
     assert.equal(await reportRounds.report({ project_id: "p", row: row({ subject: { kind: "demo_task", id: "t0" }, updated_at: "2020-01-01T00:00:00.000Z" }), end: "done" }), "none",
@@ -145,7 +145,7 @@ test("PWA-156 the Assistant starts a report as the Host, with a round that only 
   const intents: unknown[] = [];
   service.dispatcher.dispatch = async (...args: Parameters<typeof service.dispatcher.dispatch>) => { intents.push(args[9]); return {} as never; };
   try {
-    const main = store.create({ actor_id: "user", title: "主对话", scope: { kind: "project", project_id: "p" }, project_ref: { project_id: "p", storage_key: "memory:p" }, origin: null, main: true });
+    const main = store.create({ actor_id: "user", title: "", scope: { kind: "project", project_id: "p" }, project_ref: { project_id: "p", storage_key: "memory:p" }, origin: null, main: true });
     store.update("user", main.work_id, null, { session_id: "s-main" });
     assert.equal(await service.reports.report({ project_id: "p", row: row({ updated_at: new Date(Date.now() + 60_000).toISOString() }), end: "done" }), "reported");
     assert.deepEqual(intents, [{ byHost: true, report_only: true }], "as the Host, a round that only reports");

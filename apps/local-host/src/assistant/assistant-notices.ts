@@ -13,6 +13,7 @@ import { memoryLearningSources } from "./assistant-inputs.js";
 import { RUNTIME, type AssistantServicePorts } from "./assistant-service-shared.js";
 import type { AssistantWorkReads } from "./assistant-work-reads.js";
 import { assistantWords } from "./assistant-saved-text.js";
+import { filledNotice } from "./assistant-work-title.js";
 
 /** The rule that holds a notice of this kind on this surface now, if any. Rules apply exactly as written. */
 export function holdingRule(rules: readonly AssistantRule[], kind: AssistantNoticeKind, surface: string | null): AssistantRule | undefined {
@@ -71,7 +72,9 @@ export class AssistantNotices {
         if (shownMaterial.has(notice.work_id)) return [];
         shownMaterial.set(notice.work_id, 1);
       }
-      const { state: _state, ...view } = notice;
+      const { state: _state, ...stored } = notice;
+      // A main conversation's notice names it in the reader's language: its stored title is empty.
+      const view = filledNotice(stored, notice.work_id ? whenThere(() => this.store.get(this.actorId, notice.work_id)) : null);
       const count = notice.kind === "material" ? open.filter(item => item.kind === "material" && item.work_id === notice.work_id && Date.parse(item.created_at) >= stale).length : 1;
       const shown = count > 1 ? { ...view, additional_count: count - 1 } : view;
       const rule = holdingRule(rules, notice.kind, surface);

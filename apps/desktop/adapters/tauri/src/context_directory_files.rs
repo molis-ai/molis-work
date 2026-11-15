@@ -73,7 +73,14 @@ fn skipped_file(name: &str) -> bool {
         )
         || ["id_rsa", "id_ed25519", "id_ecdsa", "id_dsa"]
             .iter()
-            .any(|key| name == *key || name == format!("{key}.pub"));
+            .any(|key| name == *key || name == format!("{key}.pub"))
+        || (name.starts_with("credentials") && name.ends_with(".json"))
+        || (name.starts_with("service-account") && name.ends_with(".json"))
+        || name.starts_with("secrets.")
+        || name.starts_with("secret.")
+        || extension == "tfstate"
+        || extension == "tfvars"
+        || name.contains(".tfstate.");
     let hidden = name.starts_with('.')
         && !HIDDEN_KEPT
             .iter()
@@ -216,8 +223,8 @@ fn scan(directory: &File, prefix: &str, depth: usize, output: &mut Scan) -> Resu
         };
         match info.st_mode & libc::S_IFMT {
             libc::S_IFDIR => {
-                // Only a folder by these names is left out, as the host's rule does; a file named `build` or `out` is read.
-                if IGNORED_FOLDERS.contains(&name.to_ascii_lowercase().as_str()) {
+                // A hidden folder and a folder by these names are left out, as the host's rule does; a file named `build` or `out` is read.
+                if ignored_folder(name) {
                     output.skipped += 1;
                     continue;
                 }
@@ -497,6 +504,11 @@ mod tests {
             "bundle.zip",
             "app.wasm",
             "old.xlsx",
+            "credentials.json",
+            "service-account-prod.json",
+            "secrets.yaml",
+            "prod.tfstate",
+            "prod.tfvars",
         ] {
             assert!(relative_components(path).is_err(), "{path} is left out");
         }
@@ -529,6 +541,8 @@ mod tests {
         std::fs::write(fixture.0.join("out"), "notes").unwrap();
         std::fs::create_dir(fixture.0.join("target")).unwrap();
         std::fs::write(fixture.0.join("target/app.rs"), "excluded").unwrap();
+        std::fs::create_dir(fixture.0.join(".gitignore")).unwrap();
+        std::fs::write(fixture.0.join(".gitignore/note.txt"), "excluded").unwrap();
         let preview = preview(&fixture.root(), 0).unwrap();
         let mut paths: Vec<_> = preview
             .files
@@ -537,7 +551,7 @@ mod tests {
             .collect();
         paths.sort();
         assert_eq!(paths, ["build", "out"]);
-        assert_eq!(preview.skipped, 1);
+        assert_eq!(preview.skipped, 2);
     }
     #[test]
     fn previews_and_reads_any_number_of_files_of_any_size() {

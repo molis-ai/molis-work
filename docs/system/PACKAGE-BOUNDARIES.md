@@ -280,7 +280,7 @@ Repository 仅内部可见是目标约束；当前 Goals/Artifacts 等 public en
 | `modules/projects` | 模块 | 8 | 1,215 | `repository.ts` 470 | 1 | 1 | 1 | 在用 | 中 | 已审 |
 | `modules/sync-replication` | 模块 | 21 | 875 | `index.ts` 272 | 1 | 2 | 1 | 在用 | 深 | 待审 |
 | `modules/shelf` | 模块 | 36 | 3,634 | `contract.ts` 364 | 2 | 2 | 2 | 在用 | 中 | 已审 |
-| `packages/contracts` | 基础 | 160 | 24,111 | `platform/ui.ts` 800 | 75 | 0 | 65 | 在用 | 深 | 待审 |
+| `packages/contracts` | 基础 | 174 | 26,182 | `services/memory.ts` 850 | 77 | 0 | 67 | 在用 | 深 | 待审 |
 | `packages/design-system` | 基础 | 137 | 19,778 | `styles/primitives.ts` 1,161 | 2 | 2 | 5 | 在用 | 深 | 已审 |
 | `packages/im-ui` | 基础 | 24 | 1,920 | `views.ts` 171 | 1 | 3 | 3 | 在用 | 中 | 已审 |
 | `packages/kernel` | 基础 | 14 | 1,879 | `action-service.ts` 487 | 2 | 2 | 1 | 在用 | 深 | 已审 |

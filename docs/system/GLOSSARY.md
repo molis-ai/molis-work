@@ -76,6 +76,7 @@
 | 顾虑（Concern） | Goals 里对当前 Goal 的一条具体问题，走要求—证据—认可；可以引用一条风险（`cited_subjects`），但不复制风险字段或状态 | 问题与风险（Goal 页面） | 风险（指它时）、Goal 风险 |
 | 复查（Review） | 风险详情里按需安排的一次性 Schedule 对象任务；到点由后台助理读一轮，结果留在 Schedule，风险插件不调 AI、不自动改处置 | 复查 | 自动跟踪、定时复查 |
 | 过程项（process item） | 交给别的插件接着用的数据，在 Manifest 的 `process_items.produces` 声明；不进成果库、侧栏文件和搜索 | 界面里没有单独的词 | 不要叫成果 |
+| 可承接上手材料（`onboarding.takes`） | 插件在 Manifest 里声明自己能接上手交来的材料，并点名自己的一个项目动作来接；第 12 批只支持 `kind: "code_root"`（本人选的代码根目录＋固定版本材料），Coding 是第一个声明者；平台按声明找承接者，不按插件名写名单。这个声明是过渡形状，第 44 批 44-1 收进统一的「能接收什么」声明 | 上手承接、交给插件 | 不要叫「交给 Coding」（只有第一个声明者）；不是权限声明 |
 | 只有声明的插件（content） | Manifest 写 `kind: "content"` 的插件：只有身份与展示、`methods`（技能）、`blueprint`（场景包）、`requires`、`upgrade_compatibility`、界面文字和范围（`runtime: { scope: "home" }`）；入口、权限、能力、成果类型、界面贡献都是空列表，其余键一出现就由 SDK 的 `inspectContentPlugin` 点名拒绝（`plugin.declaration_invalid`）。只从签名的内容包（`CONTENT_PACKAGE_FILES`）安装，不起进程、不挂路由、不进 MCP 工具表；技能包和场景包都用它（`specs/skill-packs/contract-design.md` 第 3 节）。不是场景包建议（第 20 批 `BlueprintProposal`）里的 `content` | 还没有界面；文档与将来的界面都叫「只有声明的插件」 | 内容插件；技能包（只指带技能的那种）；内容包（指它的安装包，不指插件）；`pack.json`、`SkillPackRegistry`（2026-10-19 删掉的第二条安装路） |
 | 场景包（blueprint） | 内容包的场景正文，定义起步步骤，以及角色、Skill、能力、账号、设置和内容建议。默认正文在 `blueprint.json`，Manifest 的 `blueprint.locales` 列出随包译文。 | 场景包 | 场景套组；场景方案、方案（不再用） |
 | 发布者签名 | 插件包由谁发布的签名；它只决定安装信任：要不要首次确认、跑不跑沙箱、动作提供方身份。官方、个人、创作台生成和第三方插件在别处待遇一样 | 界面里没有单独的词 | 官方插件、第三方插件（不是待遇上的分类） |
@@ -249,7 +250,7 @@
 
 - 定义：项目关联的本机文件夹，每个带角色 `roles`：**输入**（只读，可多个）与**输出**（唯一，可写；同一个文件夹可以两者都是）。读写经动作：读是 `projects.directories.get@1`（受众含 user、plugin、agent、workflow、mcp），改是本人的 `projects.directories.{add_input,remove_input,set_output,repair,map_source,unmap_source}@1`（权限 `projects:settings`），都带读到的 `expected_revision`，过期以 `actions.conflict` 拒绝。只作输入的目录谁都只能读：Git、终端、Character、Agent 的会话与轮次不在那里写或跑（`projects.directory_input_only`）。
 - 默认输出目录：没选过输出的项目，输出是 Home 的 `outputs/<project_id>/`，目录库里是真实的一行（`canonical_path` 是 `project-output:<project_id>`，不存路径）；文件夹第一次写或运行时才建。
-- 存储：目录库 `projects/catalog.db` 的 `workspaces`、`workspace_project_memberships`（`role_input`、`role_output` 两列）和 `workspace_source_links`（另一台设备的目录对应到本机的哪个文件夹）；项目库的 `material_recent_uses` 是「最近用过」。两份库第 2 版起这样，1→2 的段在 `modules/projects/src/catalog-upgrade.ts` 与 `apps/local-host/src/project-database-schema.ts`。
+- 存储：目录库 `projects/catalog.db` 的 `workspaces`、`workspace_project_memberships`（`role_input`、`role_output` 两列）、`workspace_source_links`（另一台设备的目录对应到本机的哪个文件夹）和 `project_instruction_settings`（关读取的开关与本人确认过的输出；目录库第 4 版）；项目库的 `material_recent_uses` 是「最近用过」。1→2 的段在 `modules/projects/src/catalog-upgrade.ts` 与 `apps/local-host/src/project-database-schema.ts`。
 - 旧称：「工作区」「工作目录」在指项目文件夹时退役；「浏览目录 / 首选工作区」是已删除的旧设置，不再有。
 
 **目标资料库（Goals 根记录）**

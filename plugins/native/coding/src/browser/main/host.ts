@@ -1,5 +1,5 @@
 import type { InteractionClient, InteractionClientHost } from "@molis-ai/molis-work-plugin-sdk/page-globals";
-import type { UiPageDrafts, UiPageReturns } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { UiPageDrafts, UiPageInstructionSettings, UiPageReturns } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { ReceiptActions } from "../input-receipts.js";
 import type { Lifetime, ReceiptLinks, ShowReviews } from "../types.js";
 
@@ -35,7 +35,7 @@ export interface CodingHost {
   invokeAction<Output = unknown>(reference: import("@molis-ai/molis-work-contracts/platform/actions").ActionReference, input: unknown): Promise<Output>;
   addWorkspace(path: string): Promise<{ readonly workspace_id: string }>;
   /** Turns on reading the output's instruction files after the Host's own dialog (`UiPageWorkspaces.readInstructions`); refused when declined. */
-  readInstructions(): Promise<void>;
+  readInstructions(): Promise<UiPageInstructionSettings>;
   confirm(question: string): Promise<boolean>;
   /** The platform's drafts and the way to the settings and back (specs/draft-and-return §2.4); main/returns.ts uses them. */
   readonly drafts: UiPageDrafts;

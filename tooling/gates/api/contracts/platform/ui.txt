@@ -969,6 +969,12 @@ export interface UiPageFiles<Element = unknown> {
     loadMedia(element: Element, path: string): void;
 }
 
+export interface UiPageInstructionSettings {
+    readonly off: boolean;
+    readonly trusted: boolean;
+    readonly why_not?: "default_output" | "off" | "not_chosen";
+}
+
 export interface UiPageInteraction {
     read(): Record<string, unknown>;
     showErrors(errors: Record<string, string>, options?: {
@@ -1068,7 +1074,7 @@ export interface UiPageWorkspaces {
         workspace_id: string;
     }>;
     setOutput(workspaceId: string): Promise<void>;
-    readInstructions(): Promise<void>;
+    readInstructions(): Promise<UiPageInstructionSettings>;
 }
 
 export interface UiPluginClientHost<Element = unknown, Dialog = Element, Media = Element> extends UiPageFiles<Media>, UiPageDialogs, UiPageActions {

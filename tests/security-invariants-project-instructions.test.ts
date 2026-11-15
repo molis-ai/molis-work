@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
 import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -79,4 +82,13 @@ test("BCD-05 BCD-07 S-project-instructions-trust a trusted project's round is gi
     assert.ok(requests.length >= 1 && requests.every(body => !body.includes("OUTPUT_RULE") && !body.includes(INPUT_RULE)), "untrusted: no instruction file comes in");
     assert.deepEqual((await adapter.read(untrusted.ref)).frozen.instructions, { trusted: false, files: [] });
   } finally { await adapter.close(); }
+});
+
+
+test("S9: the vendored runtime's instruction-file cut sentence is the one the round record recognizes", () => {
+  // The record treats "item.truncated" OR this exact runtime sentence as cut. If a new SDK package changes the sentence, this fails
+  // here instead of the rule being silently recorded as untruncated.
+  const entry = createRequire(new URL("../horizontal/agent-host/package.json", import.meta.url)).resolve("@prologue/sdk");
+  const source = readFileSync(join(dirname(entry), "context/core/instructions.js"), "utf8");
+  assert.match(source, /\[truncated: this instruction file was cut at \$\{limit\} characters\]/);
 });

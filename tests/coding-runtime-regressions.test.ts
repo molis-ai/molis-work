@@ -75,7 +75,7 @@ test("revocation after an actual SDK send flush preserves the outbox but returns
 // W2-18-CODING-BACKGROUND-01: real SDK command observation, owner cache preservation on failure, and recovery.
 test("a failed SDK background read preserves the last actual command observation and marks it unreadable", { timeout: 30_000 }, async t => {
   const fixture = await codingSdkRuntime(t); await fixture.create("A"); let turn = 0;
-  t.mock.method(globalThis, "fetch", async () => ++turn === 1 ? codingToolResponse("start-command", { executable: process.execPath, argv: ["-e", "setTimeout(()=>{},30000)"] }) : cogniaModelResponse("The command is running in the background."));
+  t.mock.method(globalThis, "fetch", async () => ++turn === 1 ? codingToolResponse("start-command", { executable: "node", argv: ["-e", "setTimeout(()=>{},30000)"] }) : cogniaModelResponse("The command is running in the background."));
   const started = body<Started>(await fixture.call("/sessions/A/runs", { ...configuration, task: "Start a controlled background command.", intent: "execute" }));
   await until("command approval did not appear", () => fixture.reviews.list(DEMO_PROJECT_ID, "pending").length > 0);
   for (const review of fixture.reviews.list(DEMO_PROJECT_ID, "pending")) await fixture.reviews.respond({ review_id: review.review_id, actor_id: "web-user", decision: "approve" });
@@ -102,7 +102,7 @@ test("Coding activation resumes a persisted SDK wait without opening a page and 
   t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
     const wire = typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array);
     const messages = JSON.stringify(JSON.parse(wire).messages); requests.push(messages); turn++;
-    if (turn === 1) return codingToolResponse("start-command", { executable: process.execPath, argv: ["-e", "setTimeout(()=>{},4000)"] });
+    if (turn === 1) return codingToolResponse("start-command", { executable: "node", argv: ["-e", "setTimeout(()=>{},4000)"] });
     if (turn === 2) { const task = messages.match(/started (\S+) in the background/)?.[1]; assert.ok(task); return codingToolResponse("await-commands", { handles: [task], park: true, reason: "Wait for the controlled command." }); }
     return cogniaModelResponse(turn === 3 ? "Parked without polling." : "WOKE_FROM_PERSISTED_COMMAND");
   });

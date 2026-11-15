@@ -162,17 +162,18 @@ test("Ledger marker statement reuse still reads each identity and current forget
   });
   const read = ledger.forgetting.read;
   t.mock.method(ledger.forgetting, "read", () => { factReads++; return read(); });
-  for (const id of ["canonical", "marker", "other"]) ledger.addRevision(id, {
-    version: 1, change: "created", by: id, at: "2026-11-06T00:00:00Z",
+  const actorOf = { canonical: "person", marker: "policy", other: "maintenance" } as const;
+  for (const id of ["canonical", "marker", "other"] as const) ledger.addRevision(id, {
+    version: 1, change: "created", by: actorOf[id], at: "2026-11-06T00:00:00Z",
   });
   const before = { queries, factReads };
-  for (const id of ["marker", "other", "marker"]) assert.equal(ledger.revisions(id)[0]?.by, id);
+  for (const id of ["marker", "other", "marker"] as const) assert.equal(ledger.revisions(id)[0]?.by, actorOf[id]);
   assert.equal(compilations, 1, "one live DB owner reuses only the compiled marker SELECT");
   assert.equal(queries - before.queries, 3, "each check still queries its own current marker");
   assert.equal(factReads - before.factReads, 3, "each check still crosses the accepted-facts currentness gate");
   ledger.setMarker("", "memory-forgotten:marker", { state: "forgotten" }, "2026-11-06T00:00:00Z");
   assert.deepEqual(ledger.revisions("marker"), []);
-  assert.equal(ledger.revisions("other")[0]?.by, "other");
+  assert.equal(ledger.revisions("other")[0]?.by, actorOf.other);
   ledger.forgetting.accept(selection());
   assert.deepEqual(ledger.revisions("canonical"), [], "later accepted facts are immediately visible");
   f.close();
@@ -182,7 +183,7 @@ test("Ledger marker statement reuse still reads each identity and current forget
   f.reopen(); ledger = openMemoryLedger(f.input());
   assert.deepEqual(ledger.revisions("marker"), []);
   assert.deepEqual(ledger.revisions("canonical"), []);
-  assert.equal(ledger.revisions("other")[0]?.by, "other");
+  assert.equal(ledger.revisions("other")[0]?.by, actorOf.other);
   assert.equal(compilations, 2, "reopened ledger owns its own statement");
 });
 

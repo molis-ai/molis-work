@@ -289,9 +289,14 @@ export class MemoryScopeCommands {
           const located = (await this.located(child, scope, where.owner)).find(one => one.entry.memory_id === res.memory!.memory_id);
           if (located) {
             const state = item.state.disabled ? "disabled" : "paused";
-            const reason = (item.state.disabled ? item.state.disabled.reason : item.state.paused?.reason) ?? (state === "disabled" ? "你停用了" : "依据当前不可用");
+            const rawReason = item.state.disabled ? item.state.disabled.reason : item.state.paused?.reason;
+            const reason = rawReason?.trim() || (state === "disabled" ? "你停用了" : "依据当前不可用");
             const req = { scope, owner: where.owner, memory_id: located.entry.memory_id, ...this.ports.operations.formal(child, located, state), reason };
-            await (state === "disabled" ? this.ports.backend.withCaller(child).disable(req) : this.ports.backend.withCaller(child).pause(req));
+            const updated = await (state === "disabled" ? this.ports.backend.withCaller(child).disable(req) : this.ports.backend.withCaller(child).pause(req));
+            this.ports.ledger.transaction(() => {
+              const mark = this.ports.operations.find(child, `${state}:${located.entry.memory_id}`);
+              if (mark) this.ports.operations.committed(child, mark, { memory_id: updated.memory_id, version: updated.version });
+            });
           }
         }
         return res;

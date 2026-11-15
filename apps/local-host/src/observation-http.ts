@@ -4,7 +4,7 @@ import { ActionError, type ActionDefinition } from "@molis-ai/molis-work-contrac
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { observationActions } from "@molis-ai/molis-work-contracts/services/observation";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
-import { localWebActionContext } from "./local-web-actions.js";
+import { bindLocalWebActions } from "./local-web-actions.js";
 import { dispatchNativePluginJsonHttp } from "./native-plugin-http.js";
 import { pluginPageRequest } from "./plugin-page-authority.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
@@ -59,16 +59,15 @@ export async function handleObservationHttp(
         if (pluginPageRequest(request)) {
           throw new ActionError("actions.forbidden", "插件页面不能代本人读取或管理工作记录");
         }
-        const caller = {
-          ...await localWebActionContext(host, project, LOCAL_OWNER_PERMISSIONS, controller.signal),
-          user_action: {
-            source: "web" as const,
+        const actions = bindLocalWebActions(host, project, LOCAL_OWNER_PERMISSIONS, {
+          signal: controller.signal,
+          user_action: () => ({
+            source: "web",
             conversation_ref: `web:${project?.project_id ?? "home"}`,
             message_ref: `web:${randomUUID()}`,
-          },
-        };
-        const client = project ? host.actionClient(project) : host.homeActionClient();
-        const answer = await client.invoke(caller, { capability_id: definition.capability_id, version: definition.version }, body);
+          }),
+        });
+        const answer = await actions.invoke(definition, body);
         return { status: 200, body: answer };
       },
     });

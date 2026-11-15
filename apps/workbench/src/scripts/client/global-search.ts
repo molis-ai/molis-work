@@ -253,33 +253,35 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
     const documents = () => [document, ...[...document.querySelectorAll("iframe[data-pane-tab]")].map((frame) => { try { return frame.contentDocument; } catch { return null; } }).filter(Boolean)];
     const attempt = () => {
       for (const doc of documents()) {
-        const root = doc.querySelector('[data-work-surface="' + surface + '"]:not([hidden])') || (doc !== document ? doc.body : null);
-        if (!root) continue;
-        if (!seen) { seen = true; report("visible"); }
-        if (!needle) return true;
-        const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-          const at = String(node.nodeValue || "").toLowerCase().indexOf(needle);
-          const parent = node.parentElement;
-          if (at < 0 || !parent || !parent.getClientRects().length || parent.closest("[data-global-search-dialog], script, style, [hidden]")) continue;
-          const range = doc.createRange();
-          range.setStart(node, at); range.setEnd(node, at + needle.length);
-          parent.scrollIntoView({ block: "center", behavior: "instant" });
-          const view = doc.defaultView;
-          if (view?.CSS?.highlights && view.Highlight) {
-            if (!doc.querySelector("style[data-search-hit-style]")) {
-              const style = doc.createElement("style"); style.dataset.searchHitStyle = "";
-              style.textContent = "::highlight(molis-search-hit){background:color-mix(in srgb, #f5c542 55%, transparent);color:inherit}";
-              doc.head.append(style);
+        const roots = [...doc.querySelectorAll((surface === "goals" ? '[data-goal-frame-surface], ' : '') + '[data-work-surface="' + surface + '"]')].filter((el) => !el.closest("[hidden]") && el.getClientRects().length);
+        if (!roots.length && doc !== document && doc.body) roots.push(doc.body);
+        for (const root of roots) {
+          if (!seen) { seen = true; report("visible"); }
+          if (!needle) return true;
+          const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+          for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+            const at = String(node.nodeValue || "").toLowerCase().indexOf(needle);
+            const parent = node.parentElement;
+            if (at < 0 || !parent || !parent.getClientRects().length || parent.closest("[data-global-search-dialog], script, style, [hidden]")) continue;
+            const range = doc.createRange();
+            range.setStart(node, at); range.setEnd(node, at + needle.length);
+            parent.scrollIntoView({ block: "center", behavior: "instant" });
+            const view = doc.defaultView;
+            if (view?.CSS?.highlights && view.Highlight) {
+              if (!doc.querySelector("style[data-search-hit-style]")) {
+                const style = doc.createElement("style"); style.dataset.searchHitStyle = "";
+                style.textContent = "::highlight(molis-search-hit){background:color-mix(in srgb, #f5c542 55%, transparent);color:inherit}";
+                doc.head.append(style);
+              }
+              view.CSS.highlights.set("molis-search-hit", new view.Highlight(range));
+              doc.documentElement.dataset.searchHit = needle;
+              setTimeout(() => { view.CSS.highlights.delete("molis-search-hit"); delete doc.documentElement.dataset.searchHit; }, 6000);
+            } else {
+              const selection = view?.getSelection?.(); selection?.removeAllRanges(); selection?.addRange(range);
             }
-            view.CSS.highlights.set("molis-search-hit", new view.Highlight(range));
-            doc.documentElement.dataset.searchHit = needle;
-            setTimeout(() => { view.CSS.highlights.delete("molis-search-hit"); delete doc.documentElement.dataset.searchHit; }, 6000);
-          } else {
-            const selection = view?.getSelection?.(); selection?.removeAllRanges(); selection?.addRange(range);
+            report("highlighted");
+            return true;
           }
-          report("highlighted");
-          return true;
         }
       }
       return false;

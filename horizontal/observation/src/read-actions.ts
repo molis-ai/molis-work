@@ -344,6 +344,63 @@ export async function handleEvidenceGet(
   };
 }
 
+function mergeCoverageEntries(
+  measuredRows: readonly (CoverageRow & { updated_at: string })[],
+  platformVersionFilter: string | undefined,
+  currentPlatformVersion: string,
+  baselineSince: string,
+  defaultProjectId: string,
+): ObservationCoverageEntryView[] {
+  const seenKeys = new Set<string>();
+  const entries: ObservationCoverageEntryView[] = [];
+  for (const row of measuredRows) {
+    const key = `${row.owner}\u0000${row.fact}\u0000${row.entry}`;
+    seenKeys.add(key);
+    entries.push({
+      owner: row.owner,
+      fact: row.fact,
+      entry: row.entry,
+      project_id: row.project_id,
+      kind: classifyCoverageKind(row.owner, row.fact, row.entry),
+      scope_group: classifyScopeGroup(row.owner, row.entry),
+      state: row.state,
+      since: row.since,
+      since_version: row.since_version,
+      reason: row.reason,
+      truncated: row.truncated,
+      redacted: row.redacted,
+      by_rule: row.by_rule,
+      updated_at: row.updated_at,
+    });
+  }
+
+  if (platformVersionFilter === undefined || platformVersionFilter === currentPlatformVersion) {
+    for (const plan of OBSERVATION_COVERAGE_PLAN) {
+      for (const entry of plan.entries) {
+        const key = `${plan.owner}\u0000${plan.fact}\u0000${entry}`;
+        if (seenKeys.has(key)) continue;
+        entries.push({
+          owner: plan.owner,
+          fact: plan.fact,
+          entry,
+          project_id: defaultProjectId,
+          kind: classifyCoverageKind(plan.owner, plan.fact, entry),
+          scope_group: classifyScopeGroup(plan.owner, entry),
+          state: plan.state,
+          since: baselineSince,
+          since_version: currentPlatformVersion,
+          reason: plan.reason ?? null,
+          truncated: 0,
+          redacted: 0,
+          by_rule: 0,
+          updated_at: baselineSince,
+        });
+      }
+    }
+  }
+  return entries;
+}
+
 export async function handleCoverageGet(
   deps: ReadActionDeps,
   caller: ActionCallContext,
@@ -380,54 +437,13 @@ export async function handleCoverageGet(
   const nowIso = deps.env.now().toISOString();
   const baselineSince = recording.complete_since ?? recording.earliest_record_at ?? nowIso;
   const defaultProjectId = scope.kind === "single" ? scope.project_id : "";
-
-  const seenKeys = new Set<string>();
-  const entries: ObservationCoverageEntryView[] = [];
-  for (const row of measuredRows) {
-    const key = `${row.owner}\u0000${row.fact}\u0000${row.entry}`;
-    seenKeys.add(key);
-    entries.push({
-      owner: row.owner,
-      fact: row.fact,
-      entry: row.entry,
-      project_id: row.project_id,
-      kind: classifyCoverageKind(row.owner, row.fact, row.entry),
-      scope_group: classifyScopeGroup(row.owner, row.entry),
-      state: row.state,
-      since: row.since,
-      since_version: row.since_version,
-      reason: row.reason,
-      truncated: row.truncated,
-      redacted: row.redacted,
-      by_rule: row.by_rule,
-      updated_at: row.updated_at,
-    });
-  }
-
-  if (input.platform_version === undefined || input.platform_version === deps.env.platformVersion) {
-    for (const plan of OBSERVATION_COVERAGE_PLAN) {
-      for (const entry of plan.entries) {
-        const key = `${plan.owner}\u0000${plan.fact}\u0000${entry}`;
-        if (seenKeys.has(key)) continue;
-        entries.push({
-          owner: plan.owner,
-          fact: plan.fact,
-          entry,
-          project_id: defaultProjectId,
-          kind: classifyCoverageKind(plan.owner, plan.fact, entry),
-          scope_group: classifyScopeGroup(plan.owner, entry),
-          state: plan.state,
-          since: baselineSince,
-          since_version: deps.env.platformVersion,
-          reason: plan.reason ?? null,
-          truncated: 0,
-          redacted: 0,
-          by_rule: 0,
-          updated_at: baselineSince,
-        });
-      }
-    }
-  }
+  const entries = mergeCoverageEntries(
+    measuredRows,
+    input.platform_version,
+    deps.env.platformVersion,
+    baselineSince,
+    defaultProjectId,
+  );
 
   const gapWhere: string[] = [];
   const gapParams: (string | number)[] = [];

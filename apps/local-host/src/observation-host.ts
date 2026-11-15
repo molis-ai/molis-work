@@ -22,6 +22,7 @@ import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
 import { observationShellDoor } from "./observation-shell-entry.js";
 import { liveObservation, setLiveObservation } from "./observation-live.js";
 import type { ProjectVersionStores } from "./project-version-stores.js";
+import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 
 /**
  * The observation layer of the running Host (specs/observation-collection/contract-design.md §2): one per Home, in the process that runs the
@@ -80,6 +81,23 @@ export interface HostObservationPorts {
   readonly actionClientFor?: (reference?: LocalHostProjectReference) => ActionClient;
   readonly readableProjects?: ObservationEnvironment["readableProjects"];
   readonly resolveSubject?: ObservationEnvironment["resolveSubject"];
+}
+
+export function hostObservationPorts(
+  homeDirectory: string,
+  localHost: { actionClient(reference: LocalHostProjectReference): ActionClient; homeActionClient(): ActionClient },
+  host: { projects(): LocalHostStatus["projects"]; withExistingRuntime<T>(reference: LocalHostProjectReference, fn: (runtime: ProjectVersionStores) => T | Promise<T>): Promise<T | null> },
+  catalogRunner: () => LocalWebCatalogRunner | undefined,
+): HostObservationPorts {
+  return {
+    catalogProjects: () => {
+      const runner = catalogRunner();
+      return runner ? runner({ homeDirectory }, catalog => catalog.listProjects().map(project => project.project_id)) : Promise.resolve(undefined);
+    },
+    openProjects: () => host.projects(),
+    withOpenProject: (reference, fn) => host.withExistingRuntime(reference, fn),
+    actionClientFor: reference => reference ? localHost.actionClient(reference) : localHost.homeActionClient(),
+  };
 }
 
 export function createHostObservation(home: string, ports: HostObservationPorts = {}): HostObservation {

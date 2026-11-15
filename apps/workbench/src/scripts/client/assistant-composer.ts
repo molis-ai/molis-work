@@ -148,7 +148,8 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     const to = globalThis.molisBarReceivers?.front() ? readText("workbench.common.assistant") + " · " : "";
     return { open, icon: "sparkles", label: to + (work.reply_target ? readText("workbench.assistant-composer.original-comment-title", { title: work.reply_target.title }) : (where ? where + " · " : "") + work.title),
       // Words carried from this work into a new one are no longer this work's draft: they would come back on returning to it.
-      reset: () => { const from = curId, carried = String(input.value || ""); void switchTo(null).then(() => {
+      // The cross starts a separate new work (its label says so), the main conversation's included: 「现在」 would only lead back here.
+      reset: () => { const from = curId, carried = String(input.value || ""); void Promise.resolve(startFresh()).then(() => {
         if (from && carried.trim() && String(input.value || "") === carried) void draftFor(from).write("").catch(() => undefined); }); input.focus(); }, resetLabel: readText("workbench.assistant-dock.start-new-work-instead") };
   };
   /* The choices that are the next Send's, in the bar only once they differ from the default and while the side pane, where they

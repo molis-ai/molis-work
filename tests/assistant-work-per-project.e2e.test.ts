@@ -78,8 +78,9 @@ test("§12.1: each project keeps its own work in the bar, and a work opened from
   await click(`#row-${projectId}`);
   await waitFor(`document.querySelector('[data-assistant-composer] [data-composer-receiver]').textContent === ${JSON.stringify(`${TITLE}`)}`);
   await click(`#row-${other}`);
-  await waitFor("!document.querySelector('[data-assistant-composer] .mw-composer__to [data-tag-remove]')");
-  assert.equal(await chip(), null, "selecting another project takes A's work off the bar");
+  // B has its own main conversation now (what was said there above, WLN-06): the bar goes to it, not to A's work.
+  await waitFor(`${CURRENT_WORK} === ${JSON.stringify(inOther)}`);
+  assert.notEqual(await chip(), TITLE, "selecting another project takes A's work off the bar");
 });
 
 test("§12.1: a personal work started on a project page stays that project's, and says it is personal", { timeout: 120_000 }, async t => {

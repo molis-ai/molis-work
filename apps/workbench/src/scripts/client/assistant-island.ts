@@ -138,7 +138,9 @@ ${ASSISTANT_BROWSER_HANDBACK_PART}
   // The main conversation (specs/work-line §3.2): one standing work per counterpart, the Assistant's first. With no work in front
   // the dialog shows it; a press on ＋ starts a separate work instead (fresh), which becomes an event on the line.
   let fresh = false;
-  const mains = () => works.filter((work) => work.main && !work.archived).sort((a, b) => Number(Boolean(a.character)) - Number(Boolean(b.character)));
+  // Only this place's: the list holds the works of every project, and another project's main conversation is not this one's.
+  const mineHere = (work) => project ? work.scope?.kind === "project" && work.scope.project_id === project.id : work.scope?.kind === "personal";
+  const mains = () => works.filter((work) => work.main && !work.archived && mineHere(work)).sort((a, b) => Number(Boolean(a.character)) - Number(Boolean(b.character)));
   const mainId = () => mains().find((work) => nextChar && !fresh ? work.character?.artifact_id === nextChar.artifact_id : !work.character)?.work_id || null;
   const startFresh = () => { fresh = true; if (curId || curEvent) return showWork(null); drawTabs(); render(); };
   // Events of the work line opened as tabs here, and the one in front (specs/work-line §4.4; the rest is in assistant-tabs.ts).
@@ -605,7 +607,10 @@ ${ASSISTANT_TABS_PART}
       // An event's tab takes the conversation about it once there is one (said elsewhere), unless words are being written here.
       const about = !curId && curEvent && !String(input.value || "").trim() ? aboutEvent(eventOf().subject) : null;
       if (about) { curId = about.work_id; remember(); queueMicrotask(() => { if (curId === about.work_id && !view) reload().then(poll); }); }
-      if (!curId && !fresh && !curEvent) { const main = mainId(); if (main) { curId = main; remember(); queueMicrotask(() => { if (curId === main && !view) reload().then(poll); }); } }
+      // Not while words written before it existed wait here, or a Send of them is unconfirmed (its first Send is what opened it): they
+      // stay with what they were written for until sent or checked, and the reply then brings the main conversation in front.
+      const held = String(input.value || "").trim() || store.get(newDraftKey()) || store.get(scoped("unsent") + ":new");
+      if (!curId && !fresh && !curEvent && !held) { const main = mainId(); if (main) { curId = main; remember(); queueMicrotask(() => { if (curId === main && !view) reload().then(poll); }); } }
       // A tab whose work is gone closes; the work in front always has one.
       const kept = tabs.filter((id) => works.some((work) => work.work_id === id));
       if (kept.length !== tabs.length) { tabs = kept; saveTabs(); }
@@ -704,8 +709,12 @@ ${ASSISTANT_PAGE_MESSAGES_PART}
       if (height) document.body.style.setProperty("--dock-h", height + "px"); else document.body.style.removeProperty("--dock-h");
       bar.toggleAttribute("data-dock-hidden", !height);
       if (titlebar) document.body.style.setProperty("--workbench-titlebar-bottom", Math.ceil(titlebar.getBoundingClientRect().bottom) + "px");
+      // How far the input sits below the bar's top (the line stacks over it at a phone's width): what rides above the bar starts there.
+      const inset = parseFloat(getComputedStyle(bar).paddingTop) || 0;
+      island.style.setProperty("--center-rise", Math.max(0, Math.round(island.getBoundingClientRect().top - bar.getBoundingClientRect().top - inset)) + "px");
     });
     watcher.observe(bar);
+    watcher.observe(island);
     if (titlebar) watcher.observe(titlebar);
     watchers.push(watcher);
   }

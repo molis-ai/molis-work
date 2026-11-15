@@ -43,9 +43,10 @@ export const CRAFT_PAGES_STYLES = `  /* A phone: two rows at the foot, the Assis
     html ${SHELL} .workbench-header .plugin-picker-extend { flex: 1 1 100%; }
     html ${SHELL} .workbench-header .plugin-picker-extend .plugin-picker-extend-btn { flex: 1 1 0; justify-content: center; }
     ${SHELL} .assistant-panel { position: fixed; left: 10px; right: 10px; bottom: calc(var(--dock-h) + 6px + var(--next-row, 0px) + var(--context-row, 0px)); width: auto; height: min(70dvh, 560px); }
-    /* The next steps' band, from the panel's edge down to the input, is the bar's own ground: the page does not show between the steps. */
-    ${ASSIST} .bar-center > .assistant-next-row { inset: auto -8px 100%; max-width: none; padding: 8px 8px 6px; background: var(--desk); }
-    ${ASSIST} .bar-center > .assistant-context-strip { inset: auto -8px calc(100% + var(--next-row, 0px)); max-width: none; padding: 6px 8px 0; background: var(--desk); }
+    /* The next steps' band, from the panel's edge down to the bar, is the bar's own ground: the page does not show between the steps.
+       It sits on the bar's top edge, above what of the line stacks over the input at this width (--center-rise, measured). */
+    ${ASSIST} .bar-center > .assistant-next-row { inset: auto -8px calc(100% + var(--center-rise, 0px)); max-width: none; padding: 8px 8px 6px; background: var(--desk); }
+    ${ASSIST} .bar-center > .assistant-context-strip { inset: auto -8px calc(100% + var(--center-rise, 0px) + var(--next-row, 0px)); max-width: none; padding: 6px 8px 0; background: var(--desk); }
     ${SHELL} .account-global-popover { position: fixed; left: 10px; bottom: calc(var(--dock-h) + 6px); width: min(300px, calc(100vw - 20px)); }
     html ${SHELL} .workbench-header .titlebar-end .navigator-project-menu-popover { position: fixed; right: 10px; left: auto; top: calc(var(--desktop-titlebar-height) + 6px); }
     ${SHELL} .bar-start .plugin-picker { max-width: none; padding-right: 0; }

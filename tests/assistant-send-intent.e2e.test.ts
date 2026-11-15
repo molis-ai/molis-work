@@ -359,7 +359,9 @@ for (const stage of ["Request", "Response"]) test(`B10-R3: after reload a lost $
     await browser.waitFor("document.querySelector('[data-assistant-composer] textarea').value === ''");
     assert.equal(await browser.evaluate("document.querySelectorAll('[data-assistant-composer] .mw-upload').length"), 0);
     const work = await waitWork(browser, await browser.evaluate<string>(CURRENT_WORK), view => view.work.state === "completed");
-    assert.equal(work.rounds.length, 1); assert.equal(work.rounds[0]!.materials?.[0]?.title, "new-after-reload.txt");
+    // What is said at 「现在」 goes to the project's main conversation (WLN-06): after a lost Response its first round is there
+    // already and the new content is its next round; a lost Request never reached it, so the new content is its first.
+    assert.equal(work.rounds.length, stage === "Response" ? 2 : 1); assert.equal(work.rounds.at(-1)!.materials?.[0]?.title, "new-after-reload.txt");
     assert.match(JSON.stringify(browser.model!.requests.at(-1)), /刷新后新加的正文/, "the submitted attachment reaches the actual model request");
   } finally { await barrier.close(); }
 });

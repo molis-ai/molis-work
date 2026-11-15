@@ -1,5 +1,5 @@
 import { WORKBENCH, SHELL, ASSIST, RAIL_LINK, PAGES } from "./craft-finish-selectors.js";
-import { composerRestRules, composerRestTouch } from "../composer-styles.js";
+import { composerFoldRules, composerRestRules, composerRestTouch } from "../composer-styles.js";
 
 /** The finish layer, first part: tokens, the desk and sheet, titlebar tabs, the plugin rail and the bottom bar down to the switcher and the work tabs. */
 export const CRAFT_BAR_STYLES = `
@@ -331,6 +331,9 @@ export const CRAFT_BAR_STYLES = `
   ${SHELL} .assistant-composer :is(.mw-compose__menu, .mw-composer__controls) { z-index: 60; }
   /* At rest the bar's input is one row at every size (user 2026-11-10, one input): ＋, who it goes to, the hint, the scene
      controls, send; writing grows it. Only the bar has this class, so the short scope. */${composerRestRules(".assistant-composer > .mw-composer[data-rest]")}
+  /* Where the one row cannot hold them and still leave the words their room, the scene controls wait behind 更多 (the bar has no
+     side columns since its plugin icons moved up, so its box is wider than the narrow box's 480px, but not wide enough for them). */
+  @container mw-composer (max-width: 600px) {${composerFoldRules(".assistant-composer > .mw-composer[data-rest]")} }
   @media (min-width: 601px) { ${SHELL} .assistant-composer > .mw-composer[data-rest] > .mw-composer__box { box-sizing: border-box; min-height: var(--bar-row); } }
   /* A fine pointer keeps the bar's sizes from 601px (touch-targets.ts): at rest the box's buttons follow --bar-row rather than the
      narrow window's 44px controls, so in a short window the input is the Dock's height too and the work keeps those 8px. */

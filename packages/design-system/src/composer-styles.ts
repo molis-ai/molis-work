@@ -81,9 +81,7 @@ export const COMPOSER_STYLES = `${COMPOSER_PATTERN_STYLES}
     .mw-composer__status { display: block; }
     .mw-composer__status > .mw-status { margin-right: 8px; vertical-align: 1px; }
     .mw-composer__status .mw-btn--link { margin-left: 8px; vertical-align: baseline; }
-    .mw-composer__more { display: block; }
-    .mw-composer__controls { position: absolute; bottom: calc(100% + 6px); left: 0; z-index: 5; display: none; flex-wrap: wrap; max-width: 100%; padding: 6px; border-radius: var(--r-card, 12px); background: var(--popover, var(--paper)); box-shadow: var(--lift-3); animation: craft-rise-from-bar var(--dur-move, 250ms) var(--ease-quint); }
-    .mw-composer__more:has(> [aria-expanded="true"]) + .mw-composer__controls { display: flex; }
+${composerFoldRules("")}
     .mw-composer__notice { flex-wrap: wrap; }
     .mw-composer__notice-text { flex-basis: calc(100% - 22px); }
     .mw-composer__notice > .mw-btn { margin-inline-start: 22px; }
@@ -104,6 +102,15 @@ export const COMPOSER_STYLES = `${COMPOSER_PATTERN_STYLES}
   }
   @media (max-width: 600px), (max-height: 560px) and (pointer: coarse) {${composerRestTouch(".mw-composer[data-rest]")}
   }`;
+
+/** The scene controls folded behind 更多, opened above the box (a narrow box; the bar's box at rest, craft-finish-bar.ts). */
+export function composerFoldRules(scope: string): string {
+  const at = scope ? scope + " " : "";
+  return `
+    ${at}.mw-composer__more { display: block; }
+    ${at}.mw-composer__controls { position: absolute; bottom: calc(100% + 6px); left: 0; z-index: 5; display: none; flex-wrap: wrap; max-width: 100%; padding: 6px; border-radius: var(--r-card, 12px); background: var(--popover, var(--paper)); box-shadow: var(--lift-3); animation: craft-rise-from-bar var(--dur-move, 250ms) var(--ease-quint); }
+    ${at}.mw-composer__more:has(> [aria-expanded="true"]) + .mw-composer__controls { display: flex; }`;
+}
 
 /**
  * The composer at rest where height is scarce (user 2026-11-08): nothing written, attached or said (`data-rest`, kept by the

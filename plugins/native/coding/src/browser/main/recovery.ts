@@ -13,12 +13,44 @@ function recoverySection(page: Page, run: RecoveryRun, index: number): HTMLEleme
   const child = run.subagent ? s.subagentGroups.flatMap(group => group.children || []).find(entry => entry.subagent_id === run.subagent?.subagent_id) : null;
   // Subtasks of one role read alike; the directory each one worked in tells them apart.
   const where = child?.workspace_path ? child.workspace_path.split("/").at(-1) || "" : "", role = child?.role_name || uiText.text("coding.results.subagents");
-  section.append(el("h4", !run.subagent ? uiText.text("coding.recovery.turn", { number: index + 1 }) : where ? uiText.text("coding.recovery.subtask-where", { role, where }) : uiText.text("coding.recovery.subtask", { role, where })));
-  if (run.subagent) section.append(el("p", uiText.text("coding.recovery.subtask-note")));
-  for (const operation of run.operations) section.append(el("p", uiText.text("coding.goal.field", { label: labels[operation.outcome], value: operation.summary })));
-  if (!run.operations.length) section.append(el("p", uiText.text("coding.recovery.no-operations")));
-  if (run.waiting) section.append(el("p", uiText.text("coding.recovery.waiting", { count: run.waiting })));
-  for (const message of run.blockers) section.append(el("p", message));
+  const title = !run.subagent ? uiText.text("coding.recovery.turn", { number: index + 1 }) : where ? uiText.text("coding.recovery.subtask-where", { role, where }) : uiText.text("coding.recovery.subtask", { role, where });
+  section.append(el("h4", title));
+
+  // 1. 停在哪
+  const stoppedBox = el("div");
+  stoppedBox.dataset.codingRecoveryGroup = "where";
+  stoppedBox.append(el("strong", uiText.text("coding.recovery.where-stopped")), el("p", run.subagent ? uiText.text("coding.recovery.subtask-note") : uiText.text("coding.recovery.stopped-turn")));
+  if (run.waiting) stoppedBox.append(el("p", uiText.text("coding.recovery.waiting", { count: run.waiting })));
+  section.append(stoppedBox);
+
+  // 2. 哪些已保留
+  const knownOps = run.operations.filter(op => op.outcome !== "unknown");
+  const unknownOps = run.operations.filter(op => op.outcome === "unknown");
+  const keptBox = el("div");
+  keptBox.dataset.codingRecoveryGroup = "kept";
+  keptBox.append(el("strong", uiText.text("coding.recovery.kept-label")));
+  if (knownOps.length) {
+    for (const operation of knownOps) keptBox.append(el("p", uiText.text("coding.goal.field", { label: labels[operation.outcome], value: operation.summary })));
+  } else if (!unknownOps.length) {
+    keptBox.append(el("p", uiText.text("coding.recovery.no-operations")));
+  } else {
+    keptBox.append(el("p", uiText.text("coding.recovery.none-confirmed")));
+  }
+  section.append(keptBox);
+
+  // 3. 不确定的是什么
+  const uncertainBox = el("div");
+  uncertainBox.dataset.codingRecoveryGroup = "uncertain";
+  uncertainBox.append(el("strong", uiText.text("coding.recovery.uncertain-label")));
+  if (unknownOps.length || run.blockers.length || !run.can_close) {
+    uncertainBox.append(el("p", uiText.text("coding.recovery.check-first")));
+    for (const operation of unknownOps) uncertainBox.append(el("p", uiText.text("coding.goal.field", { label: labels.unknown, value: operation.summary })));
+    for (const message of run.blockers) uncertainBox.append(el("p", message));
+  } else {
+    uncertainBox.append(el("p", uiText.text("coding.recovery.none-uncertain")));
+  }
+  section.append(uncertainBox);
+
   const button = el("button", uiText.text("coding.recovery.end"), "mw-btn");
   button.type = "button";
   button.dataset.codingRecover = run.run_id;

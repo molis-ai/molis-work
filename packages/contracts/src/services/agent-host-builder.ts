@@ -22,6 +22,7 @@ export interface BuilderAgentRequest {
   operationIds?: readonly string[];
   /** When set, the only files (relative to the build directory) this code run may write: its own operation's, while others are written alongside it. */
   writable?: readonly string[];
+  reasoningEffort?: 'low' | 'medium' | 'high';
   signal?: AbortSignal;
   checks?(operationIds: readonly string[], signal: AbortSignal): Promise<unknown>;
   onActivity?(activity: BuilderAgentActivity): void;
@@ -38,6 +39,11 @@ export interface BuilderAgentRecord {
   configuredModel: string;
   /** Empty means the provider did not report its actual model; never substitute the requested model. */
   reportedModels: string[];
+  /** Effective model call parameters sent for this run (CHO-09). */
+  thinking?: 'adaptive';
+  reasoningEffort?: 'low' | 'medium' | 'high';
+  maxOutputTokens?: number;
+  windowTokens?: number;
   sessionId?: string;
   runId?: string;
   phase: 'running' | 'completed' | 'failed' | 'cancelled' | 'interrupted';

@@ -1,5 +1,9 @@
+import { setContentHtml } from "@molis-ai/molis-work-plugin-sdk/browser";
+import { buildRoundMaterialsHtml } from "../../recovery-parts.js";
 import { el } from "../dom.js";
 import { changesBlock, changesRow } from "./boundary.js";
+import { buildEnvironmentChecklistHtml } from "./configuration.js";
+export { buildRoundMaterialsHtml };
 import { terminal } from "./composer-state.js";
 import { showReviews } from "./helpers.js";
 import { offerApproval } from "./report.js";
@@ -64,12 +68,65 @@ function entryNodes(page: Page, block: HTMLElement, run: RunView, all: readonly 
   return ordered;
 }
 
+function placeEnvChecklist(page: Page, block: HTMLElement, ordered: HTMLElement[], last: boolean) {
+  if (!last) {
+    block.querySelector(":scope > [data-coding-env-checklist]")?.remove();
+    return;
+  }
+  const html = buildEnvironmentChecklistHtml(page.s.state.environment_readiness);
+  if (!html) {
+    block.querySelector(":scope > [data-coding-env-checklist]")?.remove();
+    return;
+  }
+  let box = block.querySelector<HTMLElement>(":scope > [data-coding-env-checklist]");
+  if (!box) {
+    box = el("div", "", "coding-env-checklist");
+    box.dataset.codingEnvChecklist = "";
+  }
+  if (box.dataset.html !== html) {
+    box.dataset.html = html;
+    setContentHtml(box, html);
+  }
+  const userIdx = ordered.findIndex(node => node.dataset.kind === "user");
+  ordered.splice(userIdx >= 0 ? userIdx + 1 : 0, 0, box);
+}
+
+function placeRoundMaterials(block: HTMLElement, run: RunView, ordered: HTMLElement[]) {
+  const html = buildRoundMaterialsHtml(run);
+  if (!html) {
+    block.querySelector(":scope > [data-coding-round-materials]")?.remove();
+    return;
+  }
+  let box = block.querySelector<HTMLElement>(":scope > [data-coding-round-materials]");
+  if (!box || box.tagName !== "DIV") {
+    box?.remove();
+    box = el("div", "", "coding-round-materials");
+    box.dataset.codingRoundMaterials = "";
+  }
+  if (box.dataset.html !== html) {
+    box.dataset.html = html;
+    setContentHtml(box, html);
+  }
+  const envIdx = ordered.findIndex(node => node.hasAttribute("data-coding-env-checklist"));
+  const userIdx = ordered.findIndex(node => node.dataset.kind === "user");
+  const anchor = envIdx >= 0 ? envIdx : userIdx;
+  ordered.splice(anchor >= 0 ? anchor + 1 : 0, 0, box);
+}
+
 /** The plan sits right under the task it came from, and the subtasks right after the step that sent them. */
 function placeCards(page: Page, block: HTMLElement, run: RunView, all: readonly RunView[], ordered: HTMLElement[], stand: GraphStand) {
   const { s } = page, { planProgress, subagentCards } = page.refs, last = run === all.at(-1);
+  placeEnvChecklist(page, block, ordered, last);
+  placeRoundMaterials(block, run, ordered);
   if (stand.laterOnSameGraph) block.querySelector(":scope > .coding-plan-progress")?.remove();
   const planCard = stand.laterOnSameGraph ? null : planProgress.render(run, stand.entry, last && !terminal(run.phase), last || stand.latest);
-  if (planCard) ordered.splice(ordered.findIndex(node => node.dataset.kind === "user") + 1, 0, planCard);
+  if (planCard) {
+    const matIdx = ordered.findIndex(node => node.hasAttribute("data-coding-round-materials"));
+    const envIdx = ordered.findIndex(node => node.hasAttribute("data-coding-env-checklist"));
+    const userIdx = ordered.findIndex(node => node.dataset.kind === "user");
+    const anchor = matIdx >= 0 ? matIdx : envIdx >= 0 ? envIdx : userIdx;
+    ordered.splice(anchor >= 0 ? anchor + 1 : 0, 0, planCard);
+  }
   const children = subagentCards.render(run, s.subagentGroups.find(group => group.run_id === run.ref.run_id));
   if (children) {
     const at = ordered.map(node => node.classList.contains("coding-activity") && Boolean(node.querySelector('[data-kind="dispatch-subagent"]'))).lastIndexOf(true);
@@ -137,5 +194,6 @@ export function drawRun(page: Page, block: HTMLElement, run: RunView, all: reado
   settle(block, ordered);
   placeReview(page, block, run, all);
   const settled = !s.recovery && !s.checkpointBusy, last = run === all.at(-1);
-  timeline.renderFooter(block, run, all.indexOf(run), last && (run.phase === "reconcile-required" || settled), !last && stand.latest && settled);
+  const headRev = !run.code_revision && last ? s.state.environment_readiness?.head_commit?.slice(0, 7) ?? null : run.code_revision;
+  timeline.renderFooter(block, headRev ? { ...run, code_revision: headRev } : run, all.indexOf(run), last && (run.phase === "reconcile-required" || settled), !last && stand.latest && settled);
 }

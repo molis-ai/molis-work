@@ -877,6 +877,7 @@ export interface ActionView extends ActionReference {
 export interface AgentCompactionDeclaration {
     prompt_id: string;
     above_tokens: number;
+    window_ratio?: number;
 }
 
 export interface AgentEndingReviewDeclaration {
@@ -4776,6 +4777,7 @@ export interface PluginStartContext {
     readonly sync?: import('./plugin-sync.js').PluginSyncContext;
     readonly copy?: import('./plugin-sync.js').PluginSyncContext;
     input_group?: string;
+    readonly host_started_at?: string;
     readonly services?: PluginHostServices;
     requireGrant(permission: string): void;
 }

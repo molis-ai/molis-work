@@ -40,10 +40,12 @@ export interface CodingExecution {
   readonly locale?: ActionLocale;
 }
 
-// A refused answer's problems, with the questions they are about, for the Host to word beside each field.
+// A refused answer's problems (or structured recovery details such as unreadable materials), for the Host/page to show.
 const problemsOf = (error: unknown) => {
-  const { problems, questions } = error as { problems?: unknown; questions?: unknown };
-  return Array.isArray(problems) ? { details: { problems, ...(Array.isArray(questions) ? { questions } : {}) } } : {};
+  const { problems, questions, details } = error as { problems?: unknown; questions?: unknown; details?: unknown };
+  if (Array.isArray(problems)) return { details: { problems, ...(Array.isArray(questions) ? { questions } : {}) } };
+  if (details && typeof details === "object" && !Array.isArray(details)) return { details };
+  return {};
 };
 
 // Every code Coding names carries its kind, so a coded failure answers by kind (D26) as the SDK's edge does. A plain error

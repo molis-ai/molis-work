@@ -26,7 +26,8 @@ export async function switchRunModel(input: {
   const frozen = view.frozen;
   if (frozen.image_materials?.length && next!.vision === false) refuse(`模型设置里标注「${next!.model}」不支持看图，而这一轮带着图片`);
   const window = frozen.model_context?.window_tokens;
-  if (window !== undefined && input.defaultWindow !== undefined && Math.min(next!.context_tokens ?? input.defaultWindow, input.defaultWindow) < window) {
+  const nextWindow = next!.context_tokens ?? input.defaultWindow;
+  if (window !== undefined && nextWindow !== undefined && nextWindow < window) {
     refuse(`「${next!.model}」的上下文窗口比这一轮整理上下文所按的窗口小，换过去可能放不下`);
   }
   if (frozen.thinking && next!.protocol !== "anthropic-compatible") refuse(`这一轮开着思考，「${next!.model}」的接口格式没有思考档`);

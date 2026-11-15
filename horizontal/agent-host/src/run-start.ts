@@ -367,12 +367,20 @@ export async function frozenMcp(request: AgentStartRequest, execution: AgentRole
 
 /** The prompts sent beside the round — context compaction and the ending review — at the versions the manifest declares. */
 export function frozenSidePrompts(adapter: AgentRuntimeAdapter, authority: PromptAuthority) {
-  let compaction: { prompt: AgentPromptText; above_tokens: number } | undefined;
+  let compaction: { prompt: AgentPromptText; above_tokens: number; window_ratio?: number } | undefined;
   const declaredCompaction = authority.manifest.compaction;
   if (declaredCompaction && adapter.descriptor.capabilities.compaction !== "unsupported") {
     const prompt = declaredSidePrompt(authority, declaredCompaction.prompt_id);
-    if (!prompt || !Number.isSafeInteger(declaredCompaction.above_tokens) || declaredCompaction.above_tokens < 1) throw agentErrors.capability_unavailable("上下文整理声明缺少对应版本的正文或有效阈值");
-    compaction = { prompt, above_tokens: declaredCompaction.above_tokens };
+    const validRatio = declaredCompaction.window_ratio === undefined
+      || (typeof declaredCompaction.window_ratio === "number" && Number.isFinite(declaredCompaction.window_ratio) && declaredCompaction.window_ratio > 0 && declaredCompaction.window_ratio < 1);
+    if (!prompt || !Number.isSafeInteger(declaredCompaction.above_tokens) || declaredCompaction.above_tokens < 1 || !validRatio) {
+      throw agentErrors.capability_unavailable("上下文整理声明缺少对应版本的正文或有效阈值");
+    }
+    compaction = {
+      prompt,
+      above_tokens: declaredCompaction.above_tokens,
+      ...(declaredCompaction.window_ratio !== undefined ? { window_ratio: declaredCompaction.window_ratio } : {}),
+    };
   }
   const endingReview = declaredSidePrompt(authority, authority.manifest.ending_review?.prompt_id);
   if (authority.manifest.ending_review && !endingReview) throw agentErrors.capability_unavailable("收尾核对声明缺少对应版本的正文");
@@ -439,7 +447,7 @@ export interface StartFrozen {
   hostTools: readonly string[];
   mcp: unknown;
   sources: unknown;
-  compaction: { prompt: AgentPromptText; above_tokens: number } | undefined;
+  compaction: { prompt: AgentPromptText; above_tokens: number; window_ratio?: number } | undefined;
   skills: readonly AgentRoundSkill[];
   replyLocale: UiLanguageTag | undefined;
 }
@@ -450,6 +458,9 @@ export interface StartFrozen {
  */
 export function widensFrozen(handle: AgentRunHandle, expected: StartFrozen): boolean {
   const { request, role, execution, workspace, actionRefs, gateway, character, characterSkillIds, childWorkspaces, hostTools, mcp, sources, compaction, skills, replyLocale } = expected;
+  const expectedAboveTokens = compaction && (compaction.window_ratio !== undefined && handle.frozen.model_context !== undefined && !handle.frozen.model_context.window_unknown
+    ? Math.max(1, Math.floor(handle.frozen.model_context.window_tokens * compaction.window_ratio))
+    : compaction.above_tokens);
   return (handle.frozen.workspace ?? "required") !== workspace
     || JSON.stringify(handle.frozen.directory) !== JSON.stringify(request.directory)
     || workspace === "none" && handle.frozen.host_tools.length !== 0
@@ -461,7 +472,7 @@ export function widensFrozen(handle: AgentRunHandle, expected: StartFrozen): boo
     || character !== undefined && JSON.stringify(handle.frozen.host_tools) !== JSON.stringify(hostTools)
     || JSON.stringify(handle.frozen.mcp_sources ?? []) !== JSON.stringify(sources)
     || JSON.stringify(handle.frozen.mcp_tools) !== JSON.stringify(mcp)
-    || JSON.stringify(handle.frozen.compaction) !== JSON.stringify(compaction && { prompt_id: compaction.prompt.prompt_id, version: compaction.prompt.version, above_tokens: compaction.above_tokens })
+    || JSON.stringify(handle.frozen.compaction) !== JSON.stringify(compaction && { prompt_id: compaction.prompt.prompt_id, version: compaction.prompt.version, above_tokens: expectedAboveTokens })
     || handle.frozen.role_id !== role.role_id
     || handle.frozen.role_version !== role.version
     || handle.frozen.execution !== execution

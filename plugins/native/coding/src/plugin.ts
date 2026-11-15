@@ -54,11 +54,12 @@ export function createCodingPlugin(ports: CodingPluginPorts = {}): PluginDefinit
       // (goal-titles.ts); the routes and the directory share this one cache.
       const sessions = new CodingSessionStore(database), goalTitles = codingGoalTitles(context);
       const surface = codingSurface(context, sessions, goalTitles);
-      // No round survives the Home process: what the Home lists as under way from before this process started was cut off
+      // No round survives the Home process: what the Home lists as under way from before this Home Host started was cut off
       // (home-background.ts). Stopping and starting Coding again is not a restart: it stops only this activation's background jobs
-      // (the follower and the wake loop, PG-038, S-52), while the round itself stays in the Home-level agent host. So the boundary is
-      // when this process started, not when this activation did.
-      const startedAt = new Date(Date.now() - process.uptime() * 1000).toISOString();
+      // (the follower and the wake loop, PG-038, S-52), while the round itself stays in the Home-level agent host. The platform stamps
+      // `host_started_at` from the Home Host instance (BL-540), so Coding never reads `process`.
+      if (!context.host_started_at) throw new Error("宿主没有提供启动时刻（host_started_at），Coding 无法判断后台中断边界");
+      const startedAt = context.host_started_at;
       return {
         kind: "app",
         sync:syncBindings(context),

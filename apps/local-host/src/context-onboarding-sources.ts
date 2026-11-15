@@ -10,8 +10,11 @@ import { isStagedDigest } from "./context-onboarding-staging.js";
 const CONTEXT_DIRECTORY_KINDS = ["downloads", "documents", "desktop", "custom"] as const;
 const KINDS: ContextSourceKind[] = ["files", "directory", ...CONTEXT_DIRECTORY_KINDS, "browser", "gmail", "chat"];
 const isContextDirectory = (kind: ContextSourceKind) => CONTEXT_DIRECTORY_KINDS.some(id => id === kind);
-/** A file onboarding takes in: the page's own rule (`contextFileSkip`), checked again here, so a selection cannot name another. */
-const supportedContextFile = (path: string) => contextFileSkip(path) === null;
+/** A file onboarding takes in: the page's own rule (`contextFileSkip`), checked again here; explicit file picks may stage secret-like files so `prepareContextDocument` can hold them for the person's 3-way choice (`C2`, `S-onboarding-secret-hold`). */
+const supportedContextFile = (path: string, allowSecretName = false) => {
+  const skip = contextFileSkip(path);
+  return skip === null || (allowSecretName && skip === "secret");
+};
 /**
  * The folder this round may hand to a plugin that takes a code folder: the person's own chosen folder (`custom`, never Downloads,
  * Documents or Desktop), still selected, read from its path, with a build or package file at its top (ONB-44). Null when there is none.
@@ -25,10 +28,10 @@ function relativePath(value: unknown): string {
     || value.split("/").some(part => !part || part === "." || part === "..")) throw new Error("文件范围无效");
   return value;
 }
-/** A file's place in its source, as the person chose it: a relative path of a kind onboarding reads. */
+/** A file's place in its source, as the person chose it: a relative path of a kind onboarding reads or holds for secret review. */
 export function contextFilePath(value: unknown): string {
   const path = relativePath(value);
-  if (!supportedContextFile(path)) throw new Error("文件类型无效");
+  if (!supportedContextFile(path, true)) throw new Error("文件类型无效");
   return path;
 }
 export function includedContextFiles(source: ContextSource): ContextFileMetadata[] {
@@ -63,11 +66,45 @@ export function contextSources(value: unknown): ContextSource[] {
       const metadata = source.metadata as Record<string, unknown>;
       if (!metadata || !Array.isArray(metadata.files)) throw new Error("文件预览无效");
       const paths = new Set<string>();
-      result.metadata = { files: metadata.files.map((file: ContextFileMetadata) => {
-        const path = relativePath(file?.path);
-        if (paths.has(path) || !supportedContextFile(path) || !Number.isSafeInteger(file.size) || file.size < 0 || !Number.isSafeInteger(file.modified_ms) || file.modified_ms < 0 || typeof file.identity !== "string" || file.identity.length > 200) throw new Error("文件元数据无效");
-        paths.add(path); return { path, size: file.size, modified_ms: file.modified_ms, identity: file.identity };
-      }), skipped: Number.isSafeInteger(metadata.skipped) && Number(metadata.skipped) >= 0 ? Number(metadata.skipped) : 0, truncated: metadata.truncated === true };
+      const rawReasons = metadata.skipped_reasons && typeof metadata.skipped_reasons === "object"
+        ? metadata.skipped_reasons as Record<string, unknown>
+        : null;
+      const safeCount = (n: unknown) => Number.isSafeInteger(n) && Number(n) >= 0 ? Number(n) : 0;
+      const skippedReasons = rawReasons
+        ? {
+            ignored: safeCount(rawReasons.ignored),
+            secret: safeCount(rawReasons.secret),
+            unreadable: safeCount(rawReasons.unreadable),
+            ...(rawReasons.time !== undefined ? { time: safeCount(rawReasons.time) } : {}),
+          }
+        : undefined;
+      const ignoredRules = Array.isArray(metadata.ignored_rules)
+        ? metadata.ignored_rules.filter((r): r is string => typeof r === "string" && r.length > 0 && r.length <= 120).slice(0, 32)
+        : undefined;
+      const allowSecret = result.kind === "files";
+      result.metadata = {
+        files: metadata.files.map((file: ContextFileMetadata) => {
+          const path = relativePath(file?.path);
+          if (paths.has(path) || !supportedContextFile(path, allowSecret) || !Number.isSafeInteger(file.size) || file.size < 0 || !Number.isSafeInteger(file.modified_ms) || file.modified_ms < 0 || typeof file.identity !== "string" || file.identity.length > 200) throw new Error("文件元数据无效");
+          paths.add(path); return { path, size: file.size, modified_ms: file.modified_ms, identity: file.identity };
+        }),
+        skipped: safeCount(metadata.skipped),
+        truncated: metadata.truncated === true,
+        ...(metadata.cancelled === true ? { cancelled: true } : {}),
+        ...(metadata.total_entries !== undefined ? { total_entries: safeCount(metadata.total_entries) } : {}),
+        ...(skippedReasons ? { skipped_reasons: skippedReasons } : {}),
+        ...(ignoredRules?.length ? { ignored_rules: ignoredRules } : {}),
+      };
+    }
+    if (source.staged_digests !== undefined) {
+      if (!source.staged_digests || typeof source.staged_digests !== "object" || Array.isArray(source.staged_digests)) throw new Error("文件暂存索引无效");
+      const digests: Record<string, string> = {};
+      for (const [rawPath, digest] of Object.entries(source.staged_digests as Record<string, unknown>)) {
+        const path = relativePath(rawPath);
+        if (!supportedContextFile(path, result.kind === "files") || !isStagedDigest(digest)) throw new Error("文件暂存索引无效");
+        digests[path] = digest;
+      }
+      result.staged_digests = digests;
     }
     if (source.excluded !== undefined) {
       if (!Array.isArray(source.excluded)) throw new Error("排除范围无效");
@@ -78,7 +115,7 @@ export function contextSources(value: unknown): ContextSource[] {
       const paths = new Set<string>();
       result.files = source.files.map((file: ImportFile) => {
         const path = relativePath(file?.path);
-        if (paths.has(path) || !supportedContextFile(path)) throw new Error("文件类型无效或重复");
+        if (paths.has(path) || !supportedContextFile(path, result.kind === "files")) throw new Error("文件类型无效或重复");
         paths.add(path);
         if ((isContextDirectory(result.kind) || result.metadata) && !includedContextFiles(result).some(f => f.path === path)) throw new Error("文件不在本次预览选定范围内");
         if (typeof file.reason === "string" && file.reason.length <= 600 && file.staged === undefined) return { path, reason: file.reason };
@@ -96,8 +133,12 @@ export async function readContextSource(home: string, source: ContextSource): Pr
     return { name: "浏览器内容", locator: "upload", files: [{ path: "网页内容.md", bytes: Buffer.from(`# 网页内容\n\n${source.url ? `原网址：${source.url}\n\n` : ""}${source.text}`) }] };
   }
   if (source.kind === "gmail") return readOnboardingGmail(home, source);
-  if (!source.files?.length) throw new Error(isContextDirectory(source.kind) ? "请返回预览，在应用中读取已选文件" : "请选择要整理的文件");
-  return { name: source.kind === "chat" ? "聊天记录导出" : "本地文件", locator: "upload", files: source.files };
+  const derivedFiles = !source.files?.length && source.staged_digests && source.metadata
+    ? includedContextFiles(source).flatMap(f => source.staged_digests?.[f.path] ? [{ path: f.path, staged: source.staged_digests[f.path]! }] : [])
+    : undefined;
+  const files = source.files?.length ? source.files : derivedFiles;
+  if (!files?.length) throw new Error(isContextDirectory(source.kind) ? "请返回预览，在应用中读取已选文件" : "请选择要整理的文件");
+  return { name: source.kind === "chat" ? "聊天记录导出" : "本地文件", locator: "upload", files };
 }
 
 interface GmailPart { mimeType?: string; filename?: string; body?: { data?: string }; parts?: GmailPart[]; headers?: { name: string; value: string }[] }

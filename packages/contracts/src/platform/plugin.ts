@@ -151,6 +151,8 @@ export interface PluginStartContext {
   readonly copy?: import('./plugin-sync.js').PluginSyncContext;
   /** Input group the Host validated at activation. Undefined means no selection; never the first group. */
   input_group?: string;
+  /** When the Home process itself started, supplied by the Host so plugins do not read child-process uptime (BL-540). */
+  readonly host_started_at?: string;
   /** Available when running through the application Host, not a bare reference executor. */
   readonly services?: PluginHostServices;
   requireGrant(permission: string): void;

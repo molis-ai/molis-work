@@ -97,7 +97,7 @@ test("RAC-2923 PMAT-18 Coding keeps fixed knowledge versions and live Page revis
     assert.deepEqual([created, starts.length], [0, 0]);
     // Malformed, duplicated or too many picks are refused as they are.
     for (const materials of [[{ kind: "page", id: "p1", title: "" }], [{ ref: { subject: { kind: "page", id: "p1" }, pin: { mode: "loose" } }, title: "" }], [pick("page", "p1"), pick("page", "p1")],
-      Array.from({ length: 31 }, (_, index) => pick("page", `p${index}`))]) {
+      Array.from({ length: 201 }, (_, index) => pick("page", `p${index}`))]) {
       assert.equal((await request("", "PATCH", { materials })).status, 400, JSON.stringify(materials).slice(0, 80));
     }
 

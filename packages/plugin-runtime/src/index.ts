@@ -72,12 +72,12 @@ export class PluginRuntime implements PluginRuntimeApi {
   private readonly locks = new InstallLocks();
   /** Concurrent `start` calls share one attempt and therefore one registration. */
   private readonly starting = new Map<string, Promise<PluginLifecycleReceipt>>();
-  private readonly actionDisposers = new Map<string, () => void>();
+  private readonly actionDisposers = new Map<string, () => void>(); private readonly startedAt: string;
 
   constructor(
     private readonly repository: PluginRuntimeRepository = new MemoryPluginRuntimeRepository(),
     private readonly executor: PluginExecutor = new NativePluginExecutor(),
-    private readonly options: { now?: () => Date; maxRecoveryAttempts?: number; redemption?(definition: PluginDefinition): RedemptionScope; declarationOwners?: DeclarationOwners; assertPresentation?: PresentationAdmission; reservedRuleKeys?(): ReadonlySet<string>;
+    private readonly options: { now?: () => Date; hostStartedAt?: string; maxRecoveryAttempts?: number; redemption?(definition: PluginDefinition): RedemptionScope; declarationOwners?: DeclarationOwners; assertPresentation?: PresentationAdmission; reservedRuleKeys?(): ReadonlySet<string>;
       /** Where consents are recorded (the Home's ledger). Without one a Runtime records none, so nothing it installs has any consent in effect. */
       consents?: PluginConsentLedger;
       /** A trusted project half's optional permissions may be bounded by its Home owner. Captures no caller identity. */
@@ -87,7 +87,7 @@ export class PluginRuntime implements PluginRuntimeApi {
       /** The Host's actual shipped `plugin_id`s; required even for a Host shipping no plugins (S-75). `inProcess`: the definitions its own code lets run in the process without `host` trust, exactly these objects (BL-588, S-75 ⑥); none given, nothing is checked (a test's bare Runtime; a gate has every production construction name it). */
       hostIds: ReadonlySet<string>; scope?: "home" | "project"; inProcess?: InProcessAdmission;
       actions?: PluginRuntimeActions },
-  ) { if (!options?.hostIds) throw pluginErrors.state_invalid("Runtime 需要宿主明确给出随构建发布的插件 ID 名单"); }
+  ) { if (!options?.hostIds) throw pluginErrors.state_invalid("Runtime 需要宿主明确给出随构建发布的插件 ID 名单"); this.startedAt = options.hostStartedAt ?? (options.now?.() ?? new Date()).toISOString(); }
 
   /** Capture the original activation, grants and optional upper bound; used by owners and route admission. */
   capturePermission(installId: string, permission: string): () => void {
@@ -739,7 +739,7 @@ export class PluginRuntime implements PluginRuntimeApi {
 
   private activateContext(record: PluginInstanceRecord, definition: PluginDefinition): PluginStartContext {
     this.revokeContext(record.install_id);
-    const activation = createActivationContext(record, definition, actionProviderId(this.options.actions, record, definition), permission => this.permissionBound(record, definition, permission));
+    const activation = createActivationContext(record, definition, actionProviderId(this.options.actions, record, definition), permission => this.permissionBound(record, definition, permission), this.startedAt);
     this.contexts.set(record.install_id, activation);
     return activation.context;
   }
@@ -774,15 +774,10 @@ export { createPluginMaterialsClient, type PluginMaterialsPort, type PluginMater
 export { createPluginConnectionsClient, createCallConnectionsClient, type PluginConnectionsPort, type PluginConnectionDispatch, type PluginConnectionTarget, type PluginConnectionsGate,
   type CallConnection, type CallConnectionsPort } from "./connections-service.js";
 export { createPluginSourcePullClient, createPluginConnectorSourceClient, type PluginConnectorPort, type PluginSourcePullPort, type PluginSourcePullRun, type PluginSourcePullGate } from "./source-pull-service.js";
-
 export { createPluginSyncService, assertPluginSyncDeclarations, type PluginSyncServicePort } from './plugin-sync-service.js';
-
 export { validateSyncSections } from "./sync-sections-validation.js";
-
 export { privateValueReplicationJournalSql } from './private-replication-journal.js';
-
 export { inspectPluginProjectDatabaseSet } from "./project-snapshot.js";
-
 /** The Manifest as far as grants go: its own rows, then those the Host projected onto this definition (BL-701). */
 function grantCeiling(options: { permissionDeclarations?(definition: PluginDefinition): readonly PluginPermissionDeclaration[] | undefined }, definition: PluginDefinition): PluginManifest {
   const projected = options.permissionDeclarations?.(definitionOrigin(definition));

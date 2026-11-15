@@ -156,9 +156,13 @@ export async function releaseStartClaim(runtime: Runtime, at: At): Promise<void>
   await runtime.boards.releaseContinuation({ ref, nodeId: at.node, revision: continuation.revision, to: "eligible" }).catch(CONTINUATION_CONFLICT);
 }
 
+/** Valid `idempotencyKey` format for `dispatch-subagent` (BL-051): alphanumeric start, bounded identifier chars. */
+export const SUBAGENT_KEY_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/;
+
 /** What the Host asks of a parent round before its child is let out: the round's own pre-dispatch check (authority, install, cancel). */
 export interface DispatchChecks {
   forRun(runId: string): import("./prologue-node-kit.js").DispatchGuard | undefined;
+  onAdmitted?(request: { parentRunId: string; parentSessionId: string; childSessionId: string; node: string }): void;
 }
 
 /**
@@ -186,12 +190,25 @@ export function createCollaborationHost(checks: DispatchChecks, starts: Continua
       } finally { done(); }
     },
     async admitDispatch(request) {
+      if (!SUBAGENT_KEY_PATTERN.test(request.key)) {
+        return {
+          admit: false,
+          code: "agent.subagent_key_invalid",
+          note: "idempotencyKey 必须以字母或数字开头，只含字母、数字、点、下划线、冒号或连字符（最长 128 字符）",
+        };
+      }
       const check = checks.forRun(request.parent.run.id);
       if (!check) return { admit: false, code: "agent.collaboration_not_bound", note: "这一轮没有可用的派出检查" };
       try { const fence = await check(); requireSynchronous(fence?.(), "最终派发检查必须同步完成"); } catch (error) {
         return { admit: false, code: (error as { code?: unknown }).code === undefined ? "agent.dispatch_refused" : String((error as { code: unknown }).code).slice(0, 64),
           note: (error instanceof Error ? error.message : String(error)).slice(0, 200) };
       }
+      checks.onAdmitted?.({
+        parentRunId: request.parent.run.id,
+        parentSessionId: request.parent.session.id,
+        childSessionId: request.child.session.id,
+        node: request.node,
+      });
       return { admit: true };
     },
   };

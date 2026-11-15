@@ -44,7 +44,7 @@ test("a round the runtime refuses while packing its context leaves the session u
     window = undefined;
     const first = await settle((await start()).ref);
     assert.equal(first.phase, "completed");
-    assert.deepEqual(first.frozen.model_context, { window_tokens: 120_000, prompt_includes_cache: false }, "no stated window: the runtime default");
+    assert.deepEqual(first.frozen.model_context, { window_tokens: 120_000, window_unknown: true, prompt_includes_cache: false }, "no stated window: the runtime default, marked unknown");
     assert.deepEqual(first.usage.context, { tokens: 1234, coverage: "partial" }, "Anthropic-style cache fields were not reported, so the prompt is at least this");
 
     window = 64_000;

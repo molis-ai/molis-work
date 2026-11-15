@@ -3,7 +3,7 @@ import { bindActionHandler, defineBackgroundTasksAction, inputSchemaFor, defineT
   type ActionDefinition, type ActionHandlerBinding, type ActionSubject, type BackgroundTask, type BackgroundTaskCollection, type BackgroundTaskDecision, type OpenTarget,
   type TaskServesBindInput, type TaskServesInput, type TaskServesResult, type WorkEvent, type WorkEventCollection, type WorkEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { StateRingState } from "@molis-ai/molis-work-contracts/platform/ui";
-import type { AssistantPendingReview, AssistantScope, AssistantSendInput, AssistantWorkState } from "@molis-ai/molis-work-contracts/services/assistant";
+import { ASSISTANT_NEXT_STEP_REVIEW, type AssistantPendingReview, type AssistantScope, type AssistantSendInput, type AssistantWorkState } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { AgentActionClient } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { MAINLINE_PROVIDER_ID, mainlineActions, type BackgroundTasksReadResult, type WorkLineReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
 import { assistantErrors } from "./assistant-errors.js";
@@ -141,7 +141,10 @@ function decisionsOf(work: StoredWork, reviews: readonly AssistantPendingReview[
     const said = { name, what: review.summary.slice(0, 200) || uiText.text("workbench.assistant-line.this-step") };
     return { id: review.review_id, ask: review.summary.slice(0, 1000) || uiText.text("workbench.assistant-line.step-to-approve"), why: uiText.text("workbench.assistant-line.why-ask"),
       changes: review.fields.slice(0, 20).map(field => ({ label: field.label.slice(0, 200) || uiText.text("workbench.assistant-line.content"), value: field.value.slice(0, 2000) })),
-      answers: [{ role: "approve", action, input: input("approve"), summary: uiText.text("workbench.assistant-line.approve-step", said) },
+      // 「接着做下一步？」 (PWA-156) is a yes or a no; what to do instead the person says in the conversation.
+      answers: review.kind === ASSISTANT_NEXT_STEP_REVIEW ? [{ role: "approve", action, input: input("approve"), summary: uiText.text("workbench.assistant-step-gate.go-on", { name }) },
+        { role: "reject", action, input: input("reject"), summary: uiText.text("workbench.assistant-step-gate.not-now", { name }) }]
+        : [{ role: "approve", action, input: input("approve"), summary: uiText.text("workbench.assistant-line.approve-step", said) },
         { role: "revise", action, input: input("reject"), summary: uiText.text("workbench.assistant-line.revise-step", said) },
         { role: "reject", action, input: input("reject"), summary: uiText.text("workbench.assistant-line.reject-step", said) }] };
   });
@@ -230,7 +233,8 @@ export function assistantLineSource(store: Pick<AssistantStore, "list" | "observ
     // A work last seen ended is read from that record; one that may be under way is read from its session.
     works: async projectId => Promise.all(store.list(actorId, { limit: 500 }).filter(work => work.project_ref?.project_id === projectId).map(async work => {
       const seen = store.observed.of(actorId, work.work_id);
-      const state = seen !== null && ENDED_STATES.includes(seen) ? seen : await service.reads.stateSafely(work);
+      // A step held for the person's yes (PWA-156) is read from the work even when its last round was seen ending.
+      const state = seen !== null && ENDED_STATES.includes(seen) && !work.step_gate ? seen : await service.reads.stateSafely(work);
       // What is held is read only for a work that waits on a confirmation; a work whose view cannot be read still shows as waiting, with 「去处理」.
       return state === "waiting-review" ? { work, state, reviews: await service.read(work.work_id).then(view => view.reviews, () => []) } : { work, state };
     })),

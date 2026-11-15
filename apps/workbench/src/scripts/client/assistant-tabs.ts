@@ -1,5 +1,13 @@
 /** The tab strip: drawing it and its keys, the new-messages pill, and a new work's empty conversation. A part of ASSISTANT_ISLAND_FACTORY_SCRIPT, joined in place. */
 export const ASSISTANT_TABS_PART = String.raw`  /* ─── Tabs ─────────────────────────────────────────────────────────────── */
+  // The main conversation (specs/work-line §3.2): one standing work per counterpart, the Assistant's first. With no work in front
+  // the dialog shows it; a press on ＋ starts a separate work instead (fresh), which becomes an event on the line. Declared as
+  // functions, so the script above this part may call them.
+  // Only this place's: the list holds the works of every project, and another project's main conversation is not this one's.
+  function mineHere(work) { return project ? work.scope?.kind === "project" && work.scope.project_id === project.id : work.scope?.kind === "personal"; }
+  function mains() { return works.filter((work) => work.main && !work.archived && mineHere(work)).sort((a, b) => Number(Boolean(a.character)) - Number(Boolean(b.character))); }
+  function mainId() { return mains().find((work) => nextChar && !fresh ? work.character?.artifact_id === nextChar.artifact_id : !work.character)?.work_id || null; }
+  function startFresh() { fresh = true; if (curId || curEvent) return showWork(null); drawTabs(); render(); }
   // A tab's mark says at a glance which work waits on the person, which runs, and which has news not yet seen.
   const markOf = (work) => !work ? "" : WAITING.has(work.state) || urgentWorks.has(work.work_id) ? "waiting" : work.state === "running" ? "running"
     : unreadWorks.has(work.work_id) ? "unread" : work.state === "failed" ? "failed" : "";

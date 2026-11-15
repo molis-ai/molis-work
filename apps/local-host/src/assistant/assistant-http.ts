@@ -344,6 +344,8 @@ export const assistantPanelActions = {
   undo: panel("works.undo", /* @version action.assistant.panel.works.undo */ 1, "撤销一项已做的操作", ofItem, (entry, input) => of(entry).service.outcomes.undo(input.work_id, input.item)),
   budget: panel("works.budget", /* @version action.assistant.panel.works.budget */ 1, "设定工作用量上限", ofWork,
     (entry, input) => of(entry).service.budget.saveWorkBudget(input.work_id, input.body.budget_tokens)),
+  askEachStep: panel("works.ask_each_step", /* @version action.assistant.panel.works.ask_each_step */ 1, "设定每步先问我", ofWork,
+    async (entry, input) => { await of(entry).service.continuations.stepGate.set(input.work_id, input.body.on); return of(entry).service.read(input.work_id); }),
   results: panel("works.results", /* @version action.assistant.panel.works.results */ 1, "交回页面里的结果", ofWork, (entry, input) => of(entry).service.outcomes.receiveResult(input.work_id, input.body)),
   handover: panel("works.handover", /* @version action.assistant.panel.works.handover */ 1, "转交给执行方", ofWork, (entry, input) => of(entry).service.dispatcher.handover(input.work_id,
     { to: pageBody<Pick<AssistantHandover, "to">>(input.body).to, ...(typeof input.body.mode === "string" ? { mode: input.body.mode } : {}) })),
@@ -394,7 +396,7 @@ async function panelWrite(parts: readonly string[], body: Readonly<Record<string
   if (parts[0] !== "works" || !parts[1]) return undefined;
   const work_id = parts[1];
   if (parts.length === 3) {
-    const own = named<Panel<typeof ofWork>>({ control: a.control, draft: a.draft, rename: a.rename, mode: a.mode, "take-back": a.takeBack, budget: a.budget,
+    const own = named<Panel<typeof ofWork>>({ control: a.control, draft: a.draft, rename: a.rename, mode: a.mode, "take-back": a.takeBack, budget: a.budget, "ask-each-step": a.askEachStep,
       results: a.results, handover: a.handover, recovery: a.recovery, archive: a.archive, answer: a.answer, "question-draft": a.questionDraft }, parts[2]);
     return own && run(own.definition, { work_id, body });
   }

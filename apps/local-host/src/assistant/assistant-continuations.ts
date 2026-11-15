@@ -8,6 +8,7 @@ import { agentContinuationStarts } from "../agent-continuation-starts.js";
 import { DELEGATION_LIMITS } from "./assistant-delegation.js";
 import { assistantWords } from "./assistant-saved-text.js";
 import { repeatingFailure } from "../host-log.js";
+import { AssistantStepGate } from "./assistant-step-gate.js";
 
 const owner = (work: StoredWork) => work.project_ref?.project_id ?? ASSISTANT_PERSONAL_OWNER;
 const RUNTIME = "prologue";
@@ -35,7 +36,15 @@ export class AssistantContinuations {
   private readonly observers = new Set<() => void>();
   private serving: Promise<void> | undefined;
   private withdraw_: (() => void) | undefined;
-  constructor(private readonly ports: Ports) {}
+  /**
+   * 「每步先问我」 (PWA-156): the steps a work would go on to by itself, held for the person's yes. A yes to a hand-back reads the
+   * work's graph again (as a round ending does); a yes to a continuation takes it up here.
+   */
+  readonly stepGate: AssistantStepGate;
+  constructor(private readonly ports: Ports) {
+    this.stepGate = new AssistantStepGate({ store: ports.store, actorId: ports.actorId, now: () => new Date(),
+      goOn: async (work, gate) => { if (gate.path === "hand-back") await ports.changed(work, () => !this.stopped.signal.aborted); else await this.takeUp(work); } });
+  }
   close(): void { this.stopped.abort(); this.withdraw_?.(); for (const off of this.observers) off(); this.observers.clear(); }
   private works() { return this.ports.store.list(this.ports.actorId, { limit: Number.MAX_SAFE_INTEGER }).filter(work => work.executor.kind === "assistant" && work.session_id && !work.reply_target); }
   /** The existing observed-state projection makes an interrupted or waiting work start the runtime on Host restart. */
@@ -61,6 +70,8 @@ export class AssistantContinuations {
   }
   async state(work: StoredWork, fallback: AssistantWorkState): Promise<AssistantWorkState> {
     if (work.continuation_hold && work.executor.kind === "assistant") return work.continuation_hold === "input" ? "paused" : work.continuation_hold;
+    // A step held for the person's yes waits on them, whatever the session last said (PWA-156).
+    if (work.step_gate && work.executor.kind === "assistant") return "waiting-review";
     if (!["completed", "idle"].includes(fallback)) return fallback;
     const view = await this.view(work).catch(() => undefined);
     return view?.wait?.state === "waiting" || view?.continuation?.state === "eligible" ? "waiting-input"
@@ -73,7 +84,7 @@ export class AssistantContinuations {
     const current = () => this.inputs.get(work.work_id) === token;
     const end = () => { if (current()) this.inputs.delete(work.work_id); this.end(work.work_id); };
     try {
-      const updated = this.ports.store.update(this.ports.actorId, work.work_id, null, { ...(writeDraft ? { draft: text } : {}), continuation_hold: "input" }, false);
+      const updated = this.ports.store.update(this.ports.actorId, work.work_id, null, { ...(writeDraft ? { draft: text } : {}), continuation_hold: "input", step_gate: undefined }, false);
       if (updated.session_id) this.ports.holdSetups?.(updated.session_id, String(updated.revision));
       return { work: updated, current, accept: () => {
         if (current() && this.ports.store.get(this.ports.actorId, work.work_id).continuation_hold === "input")
@@ -110,13 +121,18 @@ export class AssistantContinuations {
   private async takeUpWaiting(): Promise<void> {
     for (const work of this.works()) {
       if (this.stopped.signal.aborted) return;
-      const view = await this.view(work).catch(() => undefined), next = view?.continuation;
-      if (!view?.wait || !next || next.state !== "eligible" || !next.auto) continue;
-      // The Host asking itself: `startFor` finds the work by project and session and never reads `owner`, which names a plugin's
-      // installation only on a runtime's own ask.
-      await this.startFor({ runtime_id: RUNTIME, project_id: owner(work), session_id: work.session_id!, owner: { plugin_id: "", install_id: "" },
-        request_key: next.request_key, wait_id: view.wait.wait_id, graph_id: next.graph_id, node_id: next.node_id }).catch(() => undefined);
+      await this.takeUp(work).catch(() => undefined);
     }
+  }
+
+  /** Start the work's continuation if it may go on now (after the Host attached, or once the person said yes to it). */
+  async takeUp(work: StoredWork): Promise<AgentContinuationStartAnswer | undefined> {
+    const view = await this.view(work), next = view?.continuation;
+    if (!view?.wait || !next || next.state !== "eligible" || !next.auto) return undefined;
+    // The Host asking itself: `startFor` finds the work by project and session and never reads `owner`, which names a plugin's
+    // installation only on a runtime's own ask.
+    return this.startFor({ runtime_id: RUNTIME, project_id: owner(work), session_id: work.session_id!, owner: { plugin_id: "", install_id: "" },
+      request_key: next.request_key, wait_id: view.wait.wait_id, graph_id: next.graph_id, node_id: next.node_id });
   }
 
   /**
@@ -156,6 +172,10 @@ export class AssistantContinuations {
       this.ports.notify?.(work, { label: assistantWords("workbench.assistant-notice.handoff-blocked", { title: work.title }),
         original: `已经连续自己接着做了 ${DELEGATION_LIMITS.autoRounds} 轮，先停下来等你看一眼；你再说一句，它就接着做` }, `auto-cap-${request.request_key}`.slice(0, 80));
       return { refused: { code: "assistant.auto_round_cap", note: "连续自己接着做的轮数到了上限，等用户看一眼" } };
+    }
+    if (!this.stepGate.pass(work, "continuation", request.request_key, session.latest_run?.ref.run_id ?? null)) {
+      await this.ports.changed(this.ports.store.get(this.ports.actorId, work.work_id), () => !this.stopped.signal.aborted).catch(() => undefined);
+      return later("assistant.step_asked");
     }
     const revision = work.revision;
     const current = () => {

@@ -9290,6 +9290,18 @@
     "workbench.mainline.missed-ask": "This run didn’t happen when it was due. Run it once now?",
     "workbench.mainline.run-now": "Run it now",
     "workbench.mainline.skip-once": "Skip this one",
-    "workbench.mainline.open": "Open"
+    "workbench.mainline.open": "Open",
+    "workbench.assistant-step-gate.ask": "Go on to the next step?",
+    "workbench.assistant-step-gate.why-label": "Why it asks",
+    "workbench.assistant-step-gate.why-hand-back": "The sub-tasks it handed out are back. Ask before each step is on, so it asks you before going on.",
+    "workbench.assistant-step-gate.why-continuation": "What it was waiting for has happened. Ask before each step is on, so it asks you before going on.",
+    "workbench.assistant-step-gate.go-on": "Let “{name}” go on",
+    "workbench.assistant-step-gate.not-now": "Hold “{name}” for now",
+    "workbench.assistant-step-gate.kicker": "Asks before going on",
+    "workbench.assistant-step-gate.go-on-short": "Go on",
+    "workbench.assistant-step-gate.not-now-short": "Not now",
+    "workbench.assistant-step-gate.hint": "If not now, it waits for your next word.",
+    "workbench.assistant-side-path.ask-each-step": "Ask before each step",
+    "workbench.assistant-side-path.ask-each-step-hint": "Asks you before it goes on by itself"
   }
 }

@@ -6,6 +6,7 @@ export type { AssistantMemory, AssistantMemoryCandidate, AssistantMemoryPrefs, A
 import type { AssistantCard, AssistantPreparedCard } from "./assistant-cards.js";
 export type { AssistantCard, AssistantPreparedCard } from "./assistant-cards.js";
 import type { AssistantActivity } from "./assistant-activity.js";
+import type { AssistantPendingReview } from "./assistant-review.js";
 export type { AssistantActivity, AssistantActivityFailure } from "./assistant-activity.js";
 import type { ContractDescriptor } from "../platform/package.js";
 import type { DirectoryReadOrigin } from "../platform/plugin-directory.js";
@@ -295,6 +296,7 @@ export interface AssistantWork {
   delegated_by?: { work_id: string; title: string; acceptance: string; taken_back_at?: string };
   /** The person's cap on this work's tokens (input plus output, its sub-tasks included). Absent means no cap of its own. */
   budget_tokens?: number;
+  ask_each_step?: true; // 「每步先问我」 (PWA-156): before each step it would go on to by itself (a part handed back, a wait that ended), it asks the person first.
   main?: true; // The standing conversation of its scope with one counterpart (the Assistant, or `character`): what is said at 「现在」 goes here and its background tasks report back to it (specs/work-line §3.2).
   serves?: Array<{ kind: string; id: string }>; line_event?: true; // On a background task: the events on the work line it is done for (the `serves` relation), and whether it is an event in its own right.
 }
@@ -349,16 +351,7 @@ export interface AssistantRound {
 }
 
 /** An effect held for the person's decision in this work, exactly as the Runtime will execute it. */
-export interface AssistantPendingReview {
-  review_id: string;
-  /** What is held: a business change, a file edit, a command, an MCP call… The fields read accordingly. */
-  kind: string;
-  run_id: string | null;
-  summary: string;
-  fields: Array<{ label: string; value: string }>;
-  requested_at: string;
-  expires_at: string | null;
-}
+export { ASSISTANT_NEXT_STEP_REVIEW, type AssistantPendingReview } from "./assistant-review.js";
 
 /**
  * How a work relates to an object, as Context Ledger edges the Assistant owns. The object itself, its content and its

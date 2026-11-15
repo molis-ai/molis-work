@@ -8574,6 +8574,18 @@
     "workbench.mainline.missed-ask": "这一次到点时没有运行，现在补做一次吗？",
     "workbench.mainline.run-now": "现在做一次",
     "workbench.mainline.skip-once": "跳过这一次",
-    "workbench.mainline.open": "打开"
+    "workbench.mainline.open": "打开",
+    "workbench.assistant-step-gate.ask": "接着做下一步？",
+    "workbench.assistant-step-gate.why-label": "为什么问",
+    "workbench.assistant-step-gate.why-hand-back": "交出去的子任务交回了结果。你开着「每步先问我」，它先问你再接着做。",
+    "workbench.assistant-step-gate.why-continuation": "它等的事有结果了。你开着「每步先问我」，它先问你再接着做。",
+    "workbench.assistant-step-gate.go-on": "让「{name}」接着做",
+    "workbench.assistant-step-gate.not-now": "「{name}」先不做",
+    "workbench.assistant-step-gate.kicker": "接着做之前先问你",
+    "workbench.assistant-step-gate.go-on-short": "接着做",
+    "workbench.assistant-step-gate.not-now-short": "先不做",
+    "workbench.assistant-step-gate.hint": "先不做的话，它等你再说一句。",
+    "workbench.assistant-side-path.ask-each-step": "每步先问我",
+    "workbench.assistant-side-path.ask-each-step-hint": "自己接着做之前，先问你一句"
   }
 }

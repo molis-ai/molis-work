@@ -277,3 +277,24 @@ test("W2-18-HANDBACK-RESTART-01: a part's round that ended just before the Host 
   await pause(500);
   assert.equal(store.rounds(parent.work_id).length, 2, "taken up once");
 });
+
+// PWA-156 每步先问我 (user decision 2026-11-15): with it on, a part handed back does not start the work's next round by itself;
+// the work asks 「接着做下一步？」 and the hand-back round starts on the person's yes, as it would have.
+test("PWA-156: with 每步先问我 on, a part handed back waits for the person's yes before the work goes on", { timeout: 90_000 }, async t => {
+  const { service, store, parentId, release, later, rounds } = await fixture(t, "ask-first", ["开头"]);
+  await service.continuations.stepGate.set(parentId, true);
+  release("开头");
+  const asking = await until(async () => { const view = await service.read(parentId); return view.reviews.some(review => review.kind === "next-step") ? view : undefined; }, "the ask");
+  assert.equal(asking.work.state, "waiting-review", "the work waits on the person");
+  const ask = asking.reviews.find(review => review.kind === "next-step")!;
+  assert.match(ask.fields[0]!.value, /子任务交回/, "it says why it asks");
+  await pause(300);
+  assert.equal(rounds().length, 1, "no hand-back round started by itself");
+  assert.equal(later.length, 0, "no model request");
+  await service.outcomes.decide(parentId, { review_id: ask.review_id, decision: "approve" });
+  await until(async () => rounds().length === 2 && (await service.read(parentId)).work.state === "completed", "the hand-back round after the yes");
+  assert.equal(rounds()[1]!.written_by, "host");
+  assert.match(rounds()[1]!.text, /^（子任务都已交回）请核对「开头」的结果/);
+  assert.match(later[0]!, /「开头」的草稿：三句话/, "the result came as the round's material");
+  assert.equal(store.get("web-user", parentId).step_gate, undefined);
+});

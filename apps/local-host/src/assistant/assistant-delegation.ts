@@ -13,6 +13,7 @@ import { assistantWords } from "./assistant-saved-text.js";
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
 import { identity } from "./assistant-relations.js";
 import { promptTitle } from "./assistant-work-title.js";
+import type { AssistantStepGate } from "./assistant-step-gate.js";
 
 /**
  * How much one work may hand out: the Assistant's own product rule, defined here and nowhere else. `active` sub-tasks
@@ -36,6 +37,8 @@ const lastEnded = (steps: readonly AgentWorkNode[]) => steps.filter(step => step
 
 /** What delegation needs from the Assistant service: its store and the round starts, state reads and checks it already has. */
 interface DelegationPorts {
+  /** 「每步先问我」 (PWA-156): whether the hand-back may start now, or waits for the person's yes. */
+  stepGate?: Pick<AssistantStepGate, "pass">;
   store: AssistantStore;
   actorId: string;
   host(): Promise<AgentHost>;
@@ -357,6 +360,7 @@ export class AssistantDelegations {
         this.ports.notify(parent, { label: assistantWords("workbench.assistant-notice.handoff-blocked", { title: parent.title }), original: `已经连续自己接着做了 ${DELEGATION_LIMITS.autoRounds} 轮，先停下来等你看一眼；你再说一句，它就接着做` }, key);
         return;
       }
+      if (this.ports.stepGate && !this.ports.stepGate.pass(parent, "hand-back", ready.request_key, latest.ref.run_id)) return;
       const nodes = await (await this.#graphs(host)).read(parent.graph_id!);
       const under = store.delegatedBy(actorId, parent).filter(child => !child.delegated_by?.taken_back_at && open(partSteps(nodes, child)).length).length;
       const names = back.map(item => `「${item.child.title}」`).join("");

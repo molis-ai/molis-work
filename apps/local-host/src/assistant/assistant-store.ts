@@ -95,6 +95,13 @@ export interface StoredWork extends Omit<AssistantWork, "state" | "delegated_by"
   question_drafts?: Record<string, Record<string, unknown>>;
   /** The person's explicit choice to hold automatic continuation; the SDK still owns the actual wait. */
   continuation_hold?: "input" | "paused" | "stopped";
+  /**
+   * 「每步先问我」 (PWA-156): the step the work would go on to by itself, held for the person's yes — the hand-back of its parts or
+   * the runtime's continuation of a wait, by that continuation's request key. Cleared by the answer, by the person's next word, and by a stop.
+   */
+  step_gate?: { id: string; path: "hand-back" | "continuation"; request_key: string; run_id: string | null; asked_at: string };
+  /** The person's answer to the latest ask, for the continuation it was about: a yes lets that one start, a no keeps it from asking again. */
+  step_answer?: { request_key: string; decision: "approve" | "reject" };
 }
 
 /** A change that can be taken back: the public view plus the exact undo to run. */
@@ -223,7 +230,7 @@ export class AssistantStore {
   }
 
   /** Optimistic: a caller holding an older revision gets a conflict instead of overwriting a newer change. */
-  update(actorId: string, workId: string, expected: number | null, patch: Partial<Pick<StoredWork, "title" | "session_id" | "draft" | "archived" | "executor" | "handover_brief" | "character" | "graph_id" | "delegated_by" | "budget_tokens" | "question_drafts" | "reply_target" | "thread_round" | "continuation_hold" | "serves" | "line_event">>, touch = true): StoredWork {
+  update(actorId: string, workId: string, expected: number | null, patch: Partial<Pick<StoredWork, "title" | "session_id" | "draft" | "archived" | "executor" | "handover_brief" | "character" | "graph_id" | "delegated_by" | "budget_tokens" | "question_drafts" | "reply_target" | "thread_round" | "continuation_hold" | "serves" | "line_event" | "ask_each_step" | "step_gate" | "step_answer">>, touch = true): StoredWork {
     const current = this.get(actorId, workId);
     if (expected !== null && current.revision !== expected) throw assistantErrors.conflict("这项工作已在别处更新，请刷新后再改");
     if (Object.hasOwn(patch, "session_id")) {

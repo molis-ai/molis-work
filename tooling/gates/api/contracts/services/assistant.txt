@@ -8,6 +8,8 @@ export declare const ASSISTANT_INSTALL_ID = "system";
 
 export declare const ASSISTANT_MESSAGE_EVENT = "molis:assistant-message";
 
+export declare const ASSISTANT_NEXT_STEP_REVIEW = "next-step";
+
 export declare const ASSISTANT_PERSONAL_OWNER = "home";
 
 export declare const ASSISTANT_PLUGIN_ID = "io.molis.work.assistant";
@@ -760,6 +762,7 @@ export interface AssistantWork {
         taken_back_at?: string;
     };
     budget_tokens?: number;
+    ask_each_step?: true;
     main?: true;
     serves?: Array<{
         kind: string;

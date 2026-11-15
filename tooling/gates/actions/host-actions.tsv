@@ -135,6 +135,7 @@ assistant.panel.notices	1	system.assistant-panel	command	operation	home	write	co
 assistant.panel.send	1	system.assistant-panel	command	operation	home	write	concurrent	user	-	-	-	-	9c9f40d3e446	a2c799262a3c	613063238287
 assistant.panel.works.answer	1	system.assistant-panel	command	operation	home	write	concurrent	user	-	-	-	-	55c2e9d410a1	a2c799262a3c	613063238287
 assistant.panel.works.archive	1	system.assistant-panel	command	operation	home	write	concurrent	user	-	-	-	-	55c2e9d410a1	a2c799262a3c	3cfff55e5308
+assistant.panel.works.ask_each_step	1	system.assistant-panel	command	operation	home	write	concurrent	user	-	-	-	-	55c2e9d410a1	a2c799262a3c	3cfff55e5308
 assistant.panel.works.budget	1	system.assistant-panel	command	operation	home	write	concurrent	user	-	-	-	-	55c2e9d410a1	a2c799262a3c	3cfff55e5308
 assistant.panel.works.cards.dismiss	1	system.assistant-panel	command	operation	home	write	concurrent	user	-	-	-	-	77f500e02234	a2c799262a3c	3cfff55e5308
 assistant.panel.works.cards.redo	1	system.assistant-panel	command	operation	home	write	concurrent	user	-	-	-	-	77f500e02234	a2c799262a3c	613063238287

@@ -208,6 +208,7 @@
     "action.assistant.panel.send": 1,
     "action.assistant.panel.works.answer": 1,
     "action.assistant.panel.works.archive": 1,
+    "action.assistant.panel.works.ask_each_step": 1,
     "action.assistant.panel.works.budget": 1,
     "action.assistant.panel.works.cards.dismiss": 1,
     "action.assistant.panel.works.cards.redo": 1,

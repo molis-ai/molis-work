@@ -17,7 +17,7 @@ export function workView(work: StoredWork, state: AssistantWorkState, delegated_
     session_id: work.session_id, draft: work.draft, draft_revision: work.draft_revision, created_at: work.created_at, updated_at: work.updated_at, archived: work.archived,
   };
   const optional: { [K in OptionalOf<AssistantWork>]-?: AssistantWork[K] | undefined } = {
-    reply_target: work.reply_target, scope_title: work.scope_title, character: work.character, delegated_by, budget_tokens: work.budget_tokens,
+    reply_target: work.reply_target, scope_title: work.scope_title, character: work.character, delegated_by, budget_tokens: work.budget_tokens, ask_each_step: work.ask_each_step,
     main: work.main, serves: work.serves, line_event: work.line_event,
   };
   // An optional field is in the view only when the work has it.

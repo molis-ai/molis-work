@@ -135,14 +135,7 @@ ${ASSISTANT_BROWSER_HANDBACK_PART}
   let tabs = savedTabs();
   const seenAt = new Map();
   const saveTabs = () => store.set(scoped("tabs"), tabs.length ? JSON.stringify(tabs) : null);
-  // The main conversation (specs/work-line §3.2): one standing work per counterpart, the Assistant's first. With no work in front
-  // the dialog shows it; a press on ＋ starts a separate work instead (fresh), which becomes an event on the line.
-  let fresh = false;
-  // Only this place's: the list holds the works of every project, and another project's main conversation is not this one's.
-  const mineHere = (work) => project ? work.scope?.kind === "project" && work.scope.project_id === project.id : work.scope?.kind === "personal";
-  const mains = () => works.filter((work) => work.main && !work.archived && mineHere(work)).sort((a, b) => Number(Boolean(a.character)) - Number(Boolean(b.character)));
-  const mainId = () => mains().find((work) => nextChar && !fresh ? work.character?.artifact_id === nextChar.artifact_id : !work.character)?.work_id || null;
-  const startFresh = () => { fresh = true; if (curId || curEvent) return showWork(null); drawTabs(); render(); };
+  let fresh = false; // A press on ＋ starts a separate work instead of the main conversation (mains() and the rest: assistant-tabs.ts).
   // Events of the work line opened as tabs here, and the one in front (specs/work-line §4.4; the rest is in assistant-tabs.ts).
   const WORK_KIND = "assistant_work";
   let eventTabs = [], curEvent = null;

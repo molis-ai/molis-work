@@ -1,0 +1,66 @@
+{
+  "reason": "第 29 批合后五维复查修复（2026-11-15）：补齐全局设置「工作记录 → 覆盖与缺口」（apps/workbench/src/browser/work-records/gaps.ts）对 `purged` 覆盖状态徽章／影响说明及全部写入层缺口原因（`queue_full`、`store_unavailable`、`plugin_data_cleared`、`report_quota`、`evidence_key`、`unknown_exit`、`exit_failed`／`record_failed`、`fact_not_owned`）的 9 条中英文词条（含 5 条英文单复数形式 FSS-39），并清理初版 6 个不可达短名分支。按需资源 `/assets/molis-work-work-records.js` 47,283 → 48,024 B（+741 B），其余静态资源 0 B；工作台启动词包内容寻址路径更新，首屏各页冷轮 +287 B（中文）／+308 B（英文），热轮 0 B。",
+  "review": "fix/29-audit-followups（第 29 批合后五维复查修复），隔离构建对照 fbc95f41ce10896fa14e1e7080d4eb08e99dfc41 实测。",
+  "userApproval": "用户 2026-11-15 指令立即修复第 29 批合后五维复查发现项；沿用第 29 批页面资源批准（决定 47），无新增静态资源，按需包仅 +741 B、启动词包首屏冷轮 +287～308 B（热轮 0 B），远低于 10 KB。",
+  "assets": {
+    "/assets/molis-work-work-records.js": 741
+  },
+  "entryApprovals": [
+    {
+      "pages": [
+        "arrival-empty",
+        "chooser",
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "zh",
+      "entry": "/assets/locale/workbench.zh.<digest>.js",
+      "change": "new"
+    },
+    {
+      "pages": [
+        "arrival-empty",
+        "chooser",
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "en",
+      "entry": "/assets/locale/workbench.en.<digest>.js",
+      "change": "new"
+    }
+  ],
+  "pages": {
+    "arrival-empty/zh": {
+      "cold": 287,
+      "warm": 0
+    },
+    "arrival-empty/en": {
+      "cold": 308,
+      "warm": 0
+    },
+    "chooser/zh": {
+      "cold": 287,
+      "warm": 0
+    },
+    "chooser/en": {
+      "cold": 308,
+      "warm": 0
+    },
+    "workbench-default/zh": {
+      "cold": 287,
+      "warm": 0
+    },
+    "workbench-default/en": {
+      "cold": 308,
+      "warm": 0
+    },
+    "workbench-all-plugins/zh": {
+      "cold": 287,
+      "warm": 0
+    },
+    "workbench-all-plugins/en": {
+      "cold": 308,
+      "warm": 0
+    }
+  }
+}

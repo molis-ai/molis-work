@@ -40,7 +40,7 @@ function parseIsoTimestamp(raw: string, endOfDayForDateOnly = false): string {
   return new Date(ms).toISOString();
 }
 
-export interface ResolvedCleanupScope {
+interface ResolvedCleanupScope {
   readonly scope: ObservationCleanupPreview["scope"];
   readonly resolved_since?: string;
   readonly resolved_until: string;
@@ -48,7 +48,7 @@ export interface ResolvedCleanupScope {
   readonly kinds: readonly ObservationRecordKind[];
 }
 
-export function resolveCleanupScope(input: ObservationCleanupScopeInput, now: Date): ResolvedCleanupScope {
+function resolveCleanupScope(input: ObservationCleanupScopeInput, now: Date): ResolvedCleanupScope {
   const nowMs = now.getTime();
   let resolved_since: string | undefined;
   let resolved_until: string;

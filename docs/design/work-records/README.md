@@ -1,6 +1,6 @@
 # 工作记录：可点的定样（路线书第 21 批）
 
-状态：用户已定（2026-11-04）：记了什么 A 分类清单、保留与清理 A 期限加手动清理、占用 A 数字加分类条、覆盖与缺口 B 先列缺口，都是推荐方案；决定记在[原需求 §9](../../../specs/observation-collection/spec.md#9-决策记录)。同日按用户的定样规则（[开发流程 §5](../../../specs/post-anticorruption-roadmap/reference/development-workflow.md)：界面与原型按组件板实件做）把四个方案用组件板实件重做，版式和取舍不变。产品代码还没写。
+状态：用户已定（2026-11-04）：记了什么 A 分类清单、保留与清理 A 期限加手动清理、占用 A 数字加分类条、覆盖与缺口 B 先列缺口，都是推荐方案；决定记在[原需求 §9](../../../specs/observation-collection/spec.md#9-决策记录)。同日按用户的定样规则（[开发流程 §5](../../../specs/post-anticorruption-roadmap/reference/development-workflow.md)：界面与原型按组件板实件做）把四个方案用组件板实件重做，版式和取舍不变。产品代码已随第 29 批接入全局设置「个人 → 工作记录」（[#2084](https://github.com/molis-ai/molis-work/pull/2084)，`fbc95f41ce`）。
 
 这是参考原型，不是产品界面。需求来源是[观测和采集层](../../../specs/observation-collection/spec.md)（§2.1、§2.5、§2.6，OCL-02、09、11、12），设计见 [design.md](../../../specs/observation-collection/design.md) §6～8，排期见[第 21 批](../../../specs/post-anticorruption-roadmap/reference/batches/21.md)。
 
@@ -66,4 +66,4 @@ python3 -m http.server 4421 --bind 127.0.0.1 --directory docs/design/work-record
 
 工作记录的可点定样：记了什么、保留与清理、占用、覆盖与缺口四块定下的方案，用组件板实件画（样式是组件板现行样式的生成快照），含首次接入、暂停、期限过短、清理失败、磁盘满、断线与截断等状态
 
-用户已定（2026-11-04，四块都选推荐方案，同日按组件板实件重做并确认）；产品未实现；里面是示例数据
+用户已定（2026-11-04，四块都选推荐方案，同日按组件板实件重做并确认）；产品已随第 29 批接入全局设置「个人 → 工作记录」（[#2084](https://github.com/molis-ai/molis-work/pull/2084)）；本目录内是示例数据

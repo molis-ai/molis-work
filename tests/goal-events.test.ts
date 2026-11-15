@@ -151,7 +151,7 @@ test("registers fields, reports work, and reopens the same facts from SQLite", (
       expected_version: 0,
       idempotency_key: "cfg-v1",
       types: [storyDelivery(1)],
-      adopted_planning: [],
+      
     });
     assert.equal(configured.replayed, false);
     assert.equal(configured.config.version, 1);

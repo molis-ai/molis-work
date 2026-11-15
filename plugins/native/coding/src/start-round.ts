@@ -153,9 +153,11 @@ async function roundCharacter(context: PluginStartContext, record: CodingSession
  * anything to read. Only metadata; the round reads a body when the model picks it, and the Host writes that call's `skill_round`.
  */
 async function roundActions(context: PluginStartContext, offered: readonly ActionView[], characterTools: readonly ExactActionReference[] | null | undefined,
-  chosen: readonly ExactActionReference[], selected: readonly SkillRef[], words: string, locale: CodingExecution["locale"], beforeWrite: CodingBeforeWrite) {
+  chosen: readonly ExactActionReference[], selected: readonly SkillRef[], words: string, locale: CodingExecution["locale"], beforeWrite: CodingBeforeWrite,
+  /** False for 「这次不用技能」 (`auto_skills: false`): no automatic Skill is listed, and the catalog refuses one the round asks for anyway. */
+  autoSkills = true) {
   const control = codingActionControl(beforeWrite);
-  const auto = await autoSkillsOf(context.services?.actions, control);
+  const auto = autoSkills ? await autoSkillsOf(context.services?.actions, control) : [];
   const action_tools = withSkillTools(withKnowledgeTools(chosen, offered, characterTools), offered, characterTools, auto.length > 0);
   const materials: AgentTextMaterial[] = [];
   const catalog = await knowledgeCatalogMaterial(context.services?.actions, action_tools, words, control);
@@ -231,7 +233,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
   const chosenSkills = skillSelection(body.skills ?? []);
   const { action_tools, materials: roundMaterials } = await roundActions(context,
     await codingActions(context, beforeWrite).invoke(agent.listActions, [record.runtime_id]), characterTools, chosenActions, chosenSkills,
-    `${record.title}\n${task}`, execution.locale, beforeWrite);
+    `${record.title}\n${task}`, execution.locale, beforeWrite, body.auto_skills !== false);
   const goal = await resolveGoalContext(context, record.session_id, record.goal_id ?? null, codingActionControl(beforeWrite));
   const text_materials = await resolveMaterials(context, materialSelection(body.materials ?? savedMaterials(context, record.session_id)), codingActionControl(beforeWrite));
   if (goal) text_materials.unshift(goal.material);
@@ -273,7 +275,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
     // What waits in the session comes in with the round: asked for the next round, or unread when its round ended (specs/ai-input-receipts §4.8).
     queued: "carry",
     budget: { max_turns: Math.max(60, plan ? 8 + plan.content.steps.length * 3 : 0) },
-    model_selection: { provider_id: model.provider_id, model_id: model.model_id }, ...(effort ? { reasoning_effort: effort } : {}), skills: chosenSkills, action_tools, mcp_tools: mcpSelection(body.mcp_tools ?? []), mcp_sources: mcpSources(body.mcp_sources ?? []) }]);
+    model_selection: { provider_id: model.provider_id, model_id: model.model_id }, ...(effort ? { reasoning_effort: effort } : {}), skills: chosenSkills, ...(body.auto_skills === false ? { auto_skills: false as const } : {}), action_tools, mcp_tools: mcpSelection(body.mcp_tools ?? []), mcp_sources: mcpSources(body.mcp_sources ?? []) }]);
   const follower = follow(a, execution, record.session_id, session, workspace.workspace_id);
   let run, receipted = false;
   try { run = await start(history).catch(async error => {

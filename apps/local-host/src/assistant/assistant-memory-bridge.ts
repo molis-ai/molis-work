@@ -105,9 +105,10 @@ export class AssistantMemoryBridge {
     if (prepared !== undefined) return prepared ? structuredClone(prepared) : null;
     const memory = this.ports.memory?.();
     if (!memory) return null;
-    // Where the person is (plugin, object kind, Goal) decides which limited memories apply; the page's claim only narrows.
+    // Where the person is (plugin, object kind, associated object) decides which limited memories apply; the page's claim only narrows.
     const situation = context ? { ...(context.source.plugin_id ? { plugin_id: context.source.plugin_id } : {}), ...(context.object ? { object_kind: context.object.kind } : {}),
-      ...(context.object?.kind === "goal" ? { goal_id: context.object.id } : {}) } : {};
+      ...(context.object && (context.object.kind === "goal" || context.source.plugin_id)
+        ? { objects: [{ plugin_id: context.object.kind === "goal" ? "io.molis.work.goals" : context.source.plugin_id!, kind: context.object.kind, id: context.object.id }] } : {}) } : {};
     const chosen = await memory.forRun(this.memoryCaller(work, null), { query: `${task} ${work.title}`.slice(0, 2000), limit: 16, budget_chars: 3000,
       ...(Object.keys(situation).length ? { situation } : {}) }).catch(() => null);
     if (chosen) this.recalled.set(work.work_id, chosen.receipt_id);

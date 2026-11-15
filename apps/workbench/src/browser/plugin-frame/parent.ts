@@ -28,6 +28,7 @@ import { pagePresentation } from "./presentation.js";
 import { pageConnectionSlot } from "./connection-slot.js";
 import { pageFilePicker } from "./file-picker.js";
 import { pageMaterialsPicker } from "./materials-picker.js";
+import { pageSkillPicks } from "./skill-picks.js";
 import { pageWorkspaces } from "./workspaces.js";
 import { pageFrameAssets } from "./frame-assets.js";
 import type { FrameConfig, FrameHost, FramePack, FrameScope, FrameUp } from "./types.js";
@@ -56,7 +57,34 @@ function directoryLayout(root: HTMLElement): void {
   document.head.append(style);
 }
 
-/** A page never navigates a document: an object link opens in the workbench, a settings address opens its settings (returns.ts). */
+/**
+ * Another project's home, and nothing else of it: the bare `/projects/<id>/`, no query, no fragment (user decision 2026-11-14, S-47).
+ * Whether the person may enter it is the server's answer to that address, as for an address they typed.
+ */
+function otherProjectHome(url: URL, prefix: string): string | null {
+  if (!/^\/projects\/[A-Za-z0-9._~%-]{1,200}\/$/u.test(url.pathname) || url.search || url.hash) return null;
+  // The project this page is in, however its id is spelled, is not another project: a page cannot reload its own shell this way.
+  const id = (path: string) => { try { return decodeURIComponent(path.split("/")[2] ?? ""); } catch { return null; } };
+  const target = id(url.pathname);
+  return target && target !== id(prefix + "/") ? url.pathname : null;
+}
+const PROJECT_JUMP_KEY = "molis-work:page-project-jump", PROJECT_JUMP_COOLDOWN_MS = 5000;
+function openProjectHome(path: string): void {
+  // One jump per five seconds for the whole tab, kept across the load it causes: two pages cannot bounce the person between projects.
+  try {
+    const last = Number(sessionStorage.getItem(PROJECT_JUMP_KEY) ?? 0);
+    if (Date.now() - last < PROJECT_JUMP_COOLDOWN_MS) return;
+    sessionStorage.setItem(PROJECT_JUMP_KEY, String(Date.now()));
+  } catch { /* Without storage the jump still happens; the shell's own load is the limit. */ }
+  let shell: Window = window;
+  try { if (window.top && window.top.location.origin === location.origin) shell = window.top; } catch { /* A foreign embedder keeps its own document. */ }
+  shell.location.assign(path);
+}
+
+/**
+ * A page navigates the owner document in one case only, the bare home of another project. Otherwise an object link opens in the
+ * workbench and a settings address opens its settings (returns.ts); any other address changes nothing.
+ */
 function navigate(root: HTMLElement, message: Extract<FrameUp, { type: "link" }>, prefix: string, openSettings: (url: URL) => void): void {
   const url = new URL(message.url);
   const objectLink = url.pathname === prefix + "/" && /^[a-z][a-z0-9-]{0,100}$/u.test(url.searchParams.get("openPlugin") ?? "")
@@ -65,6 +93,8 @@ function navigate(root: HTMLElement, message: Extract<FrameUp, { type: "link" }>
     if (["https:", "http:", "mailto:"].includes(url.protocol)) window.open(url.href, "_blank", "noopener,noreferrer");
     return;
   }
+  const project = objectLink ? null : otherProjectHome(url, prefix);
+  if (project) { openProjectHome(project); return; }
   if (!objectLink) { openSettings(url); return; }
   const link = document.createElement("a"); link.href = url.pathname + url.search; link.hidden = true; root.append(link); link.click(); link.remove();
 }
@@ -260,6 +290,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   const connectionSlot = pageConnectionSlot(port, scope, frame, root, grant.page_id, route, uiText.text);
   const pickFile = pageFilePicker(port, scope, frame, grant.page_id, route, uiText.text);
   const pickMaterials = pageMaterialsPicker(port, scope, grant.page_id, route, text => host.showToast?.(text, true));
+  const pickSkill = pageSkillPicks(port, scope, frame, grant.page_id);
   const composer = pageComposer(port, scope, root, frame, pack, visible);
   port.onmessage = (event: MessageEvent<FrameUp>) => {
     const message = event.data;
@@ -318,6 +349,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
     if (message.type === "native-files") { void handoffPageFiles(port, scope, grant.page_id, route, message); return; }
     if (message.type === "native-file-pick") { void pickFile(message); return; } else if (message.type.startsWith("composer-")) { composer(message as Extract<FrameUp, { type: `composer-${string}` }>); return; }
     if (message.type === "knowledge-pick") { pickMaterials(message); return; }
+    if (message.type === "skill-pick") { pickSkill(message); return; }
     if (["ui", "link", "refresh-shell"].includes(message.type) && (!root.isConnected || !visible())) return;
     if (message.type === "refresh-shell") {
       if (shellRefreshed) return;

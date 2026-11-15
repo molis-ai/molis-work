@@ -923,3 +923,21 @@ test("moving a memory to the other scope says so on the earlier changes it leave
   await memory.change(person(), { memory_id: other.memory_id, action: "remove", expected_version: other.version });
   for (const item of (await memory.changes(person(), { scope: "project" })).filter(one => one.memory_id === other.memory_id)) assert.equal(item.moved_to, undefined);
 });
+
+test("MEM-10 MEM-11 generic applies.objects filters recall and forRun for both non-Goal objects and Goals", { timeout: 60_000 }, async t => {
+  const env = await memoryHome(t);
+  const memory = await env.open();
+  const docObj = { plugin_id: "io.molis.work.pages", kind: "doc", id: "doc-arch" };
+  const goalObj = { plugin_id: "io.molis.work.goals", kind: "goal", id: "goal-q4" };
+  await memory.write(person(), { scope: "project", text: "架构文档用 Mermaid 画图", kind: "convention", applies: { objects: [docObj] } });
+  await memory.write(person(), { scope: "project", text: "Q4 目标周报附里程碑表", kind: "convention", applies: { objects: [goalObj] } });
+
+  const docRecall = await memory.recall(assistant(), { query: "架构文档里程碑", situation: { objects: [docObj] } });
+  assert.deepEqual(docRecall.items.map(item => item.text), ["架构文档用 Mermaid 画图"]);
+
+  const goalRecall = await memory.recall(assistant(), { query: "架构文档里程碑", situation: { objects: [goalObj] } });
+  assert.deepEqual(goalRecall.items.map(item => item.text), ["Q4 目标周报附里程碑表"]);
+
+  const recipe = await memory.forRun(assistant(), { query: "架构文档", situation: { objects: [docObj] } });
+  assert.deepEqual(recipe?.facts?.objects, [docObj]);
+});

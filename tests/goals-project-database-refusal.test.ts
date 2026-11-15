@@ -150,7 +150,7 @@ for(const personal of [false,true]) for (const { change, sql, code } of cases) {
 
     const open = await directory(home, projectId, databasePath);
     assert.equal(open.plugins.has(GOALS_PLUGIN_ID), false, "the refused project's Goals actions are not in the directory");
-    assert.equal(open.homeGoals, true, "the independent Home instance remains available");
+    assert.equal(open.homeGoals, false, "and Goals has no Home instance to answer in its place (batch 41: its Home half went with the method library)");
     assert.deepEqual([...open.plugins].sort(), [...OTHERS].sort(), "the other plugins' actions are");
     assert.deepEqual(open.goalsCall, { code: "actions.missing" }, "and a call to a Goals action is refused: there is nothing registered to answer it");
     const panel = await codingPanel(databasePath, projectId);

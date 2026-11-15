@@ -32,7 +32,6 @@ import {
   type GoalEventWorkGap,
   type GoalRecord,
   type GoalsCommandApi,
-  type GoalsPlanningApi,
   type GoalsQueryApi,
   type GoalWorkEventRecord,
   type RecordGoalProgressSummaryInput,
@@ -53,11 +52,10 @@ export interface GoalEventApplicationPorts {
   query: Pick<GoalsQueryApi, "getGoal" | "listGoals">;
   commands: Pick<GoalsCommandApi, "createGoal" | "addRelation">;
   events: GoalEventFactsApi;
-  planning: Pick<GoalsPlanningApi, "resolveEventAdoption">;
   recordTrustedDecision?: (input: RecordGoalUserDecisionInput) => GoalEventTrustedDecisionRecord;
 }
 
-/** Compose intent, planning adoption, event facts and typed state effects without a second state machine. */
+/** Compose intent, event facts and typed state effects without a second state machine. */
 export class GoalEventApplication {
   constructor(private readonly ports: GoalEventApplicationPorts) {}
 
@@ -235,10 +233,7 @@ export class GoalEventApplication {
   }
 
   configure(input: ConfigureGoalEventsApplicationInput): ConfigureGoalEventsResult {
-    return this.ports.events.configureRequested(
-      input,
-      (projectId, requested) => this.ports.planning.resolveEventAdoption(projectId, requested),
-    );
+    return this.ports.events.configure(input);
   }
 
   report(input: ReportGoalEventsInput): ReportGoalEventsResult {

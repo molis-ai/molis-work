@@ -6,8 +6,6 @@ import type { GoalsDocumentUiPrimitives } from "../document-ui-model.js";
 import { GOALS_FACTORS_UI_CONTRIBUTION_ID, GOALS_FACTORS_UI_SURFACE, type GoalsFactorsRenderer, type GoalsFactorsPrimitives } from "../factors-ui.js";
 import { GOALS_MOMENTUM_UI_CONTRIBUTION_ID, GOALS_MOMENTUM_UI_SURFACES, type GoalsMomentumRenderer } from "../momentum-ui.js";
 import type { GoalsMomentumUiPrimitives } from "../momentum-ui-model.js";
-import { GOALS_PLANNING_UI_CONTRIBUTION_ID, GOALS_PLANNING_UI_SURFACES, type GoalsPlanningRenderer } from "../planning-ui.js";
-import type { GoalsPlanningPrimitives } from "../planning-ui-model.js";
 import { GOALS_POLICY_UI_CONTRIBUTION_ID, GOALS_POLICY_UI_SURFACES, type GoalsPolicyRenderer } from "../policy-ui.js";
 import type { GoalsPolicyUiPrimitives } from "../policy-ui-model.js";
 import { GOALS_PROPOSAL_UI_CONTRIBUTION_ID, GOALS_PROPOSAL_UI_SURFACES, type GoalsProposalRenderer } from "../proposal-ui.js";
@@ -30,7 +28,6 @@ export function createGoalsRendererFactories(mount: MountSurface) {
     momentum: surfaceRenderers<GoalsMomentumRenderer, GoalsMomentumUiPrimitives>(mount, GOALS_MOMENTUM_UI_CONTRIBUTION_ID, GOALS_MOMENTUM_UI_SURFACES),
     document: surfaceRenderers<GoalsDocumentRenderer, GoalsDocumentUiPrimitives>(mount, GOALS_DOCUMENT_UI_CONTRIBUTION_ID, GOALS_DOCUMENT_UI_SURFACES),
     context: surfaceRenderers<GoalsContextRenderer, GoalsContextUiPrimitives>(mount, GOALS_CONTEXT_UI_CONTRIBUTION_ID, GOALS_CONTEXT_UI_SURFACES),
-    planning: surfaceRenderers<GoalsPlanningRenderer, GoalsPlanningPrimitives>(mount, GOALS_PLANNING_UI_CONTRIBUTION_ID, GOALS_PLANNING_UI_SURFACES),
     status: surfaceRenderers<GoalsStatusRenderer, GoalsStatusPrimitives>(mount, GOALS_STATUS_UI_CONTRIBUTION_ID, GOALS_STATUS_UI_SURFACES),
     factors: surfaceRenderer<GoalsFactorsRenderer, GoalsFactorsPrimitives>(mount, GOALS_FACTORS_UI_CONTRIBUTION_ID, GOALS_FACTORS_UI_SURFACE),
     dialogs: surfaceRenderers<GoalsDialogsRenderer, GoalsDialogPrimitives>(mount, GOALS_DIALOGS_UI_CONTRIBUTION_ID, GOALS_DIALOGS_UI_SURFACES),

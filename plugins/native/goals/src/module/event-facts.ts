@@ -1,9 +1,7 @@
 import type {
-  ConfigureGoalEventsApplicationInput,
   ConfigureGoalEventsInput,
   ConfigureGoalEventsResult,
   GoalIntentSourceKind,
-  GoalEventAdoptedPlanningRequest,
   GoalEventConfigView,
   GoalEventFactsApi,
   GoalEventIntentApi,
@@ -19,7 +17,6 @@ import type {
   GoalWorkEventRecord,
   ReportGoalEventsInput,
   ReportGoalEventsRecordedResult,
-  ResolvedPlanningEventAdoption,
 } from "../contract/goals.js";
 import { GoalsCommandContext } from "./command-support.js";
 import { GoalEventConfiguration } from "./event-facts-configure.js";
@@ -74,13 +71,6 @@ export class GoalEventFacts implements GoalEventFactsApi {
 
   configure(input: ConfigureGoalEventsInput): ConfigureGoalEventsResult {
     return this.configuration.configure(input);
-  }
-
-  configureRequested(
-    input: ConfigureGoalEventsApplicationInput,
-    resolveAdoption: (projectId: string, requested: GoalEventAdoptedPlanningRequest[]) => ResolvedPlanningEventAdoption,
-  ): ConfigureGoalEventsResult {
-    return this.configuration.configureRequested(input, resolveAdoption);
   }
 
   report(input: ReportGoalEventsInput): ReportGoalEventsRecordedResult {

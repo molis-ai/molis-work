@@ -146,6 +146,10 @@
       "types": "./dist/platform/tooling.d.ts",
       "import": "./dist/platform/tooling.js"
     },
+    "./platform/state-vocabulary": {
+      "types": "./dist/platform/state-vocabulary.d.ts",
+      "import": "./dist/platform/state-vocabulary.js"
+    },
     "./platform/ui": {
       "types": "./dist/platform/ui.d.ts",
       "import": "./dist/platform/ui.js"

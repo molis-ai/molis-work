@@ -57,7 +57,8 @@ test("old unknown facts stay unknown through state edits, content edits, history
   await f.close(); service = await f.open();
   const reopened = (await service.list(caller("reopen"))).items[0]!;
   assert.deepEqual([reopened.basis, reopened.approved_by, reopened.created_at, reopened.evidence], [null, null, null, item.evidence]);
-  assert.deepEqual(f.ledger().revisions(item.memory_id)[0]!.snapshot!.meta, before.meta);
+  assert.equal(f.ledger().revisions(item.memory_id)[0]!.version, edited.memory!.version);
+  assert.deepEqual((await f.raw().history({ scope: "project", owner: "project-a", memory_id: item.memory_id })).revisions.at(-1)!.meta, before.meta);
 });
 
 test("unknown basis export and import stay unknown and do not become inferred candidates", async t => {

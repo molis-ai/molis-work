@@ -29,7 +29,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   const root = document.querySelector("[data-tab-workspace]");
   const panesEl = document.querySelector("[data-tab-panes]");
   const pool = document.querySelector("[data-surface-pool]");
-  if (!root || !panesEl || !pool) return { pluginTitle: (plugin) => plugin, homeOrder: () => [], homeNavigationFrom: () => () => false, apply() {}, openPlugin() {}, openPluginRecord() {}, openItem() {}, openBeside() {}, setExclusive() {}, restore() {}, isExclusive() { return false; },
+  if (!root || !panesEl || !pool) return { pluginTitle: (plugin) => plugin, homeOrder: () => [], homeNavigationFrom: () => () => false, adoptHomeLead: () => null, releaseHomeLead() {}, apply() {}, openPlugin() {}, openPluginRecord() {}, openItem() {}, openBeside() {}, setExclusive() {}, restore() {}, isExclusive() { return false; },
     leavePlugin() { return false; }, closeCover() { return false; }, openCover() {}, registerCover() {}, noteCover() {}, coverPlace() { return ""; }, goHistory() { return false; }, shownPlugin() { return null; }, exclusive() { return null; } };
   const PLUGIN_TAB_ICON = ${JSON.stringify(pluginTabGlyphs())}, RECORD_ROWS = ${JSON.stringify(recordRows())};
   // A plugin whose only place is a side view (plugin-place) opens there: the right side is a pane of this workspace, so it is
@@ -715,7 +715,7 @@ ${TAB_WORKSPACE_DRAG_PART}
     apply(); persist();
     if (loadingGoalId === goalId) loadingGoalId = loading;
   });
-  return { apply, readView, writeView, openView, homeOrder, homeNavigationFrom, positionNavigationFrom, invalidateView, openPlugin, openPluginRecord, openItem, openBeside, openBehind: pluginGroups.openBehind, openGoalWork, closeItem, setExclusive, restore, landAtProjectRoot,
+  return { apply, readView, writeView, openView, homeOrder, homeNavigationFrom, adoptHomeLead, releaseHomeLead, positionNavigationFrom, invalidateView, openPlugin, openPluginRecord, openItem, openBeside, openBehind: pluginGroups.openBehind, openGoalWork, closeItem, setExclusive, restore, landAtProjectRoot,
     pluginTitle: ops.pluginTitle, leavePlugin, closeCover, openCover, registerCover, noteCover, coverPlace: restoredCoverPlace, goHistory,
     shownPlugin: () => state.exclusive ? null : ops.shownPlugin(ops.focused(state)),
     exclusive: () => state.exclusive, isExclusive: () => Boolean(state.exclusive), isEmbedded: () => embedded, state: () => state };

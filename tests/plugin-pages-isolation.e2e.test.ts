@@ -1,12 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { BUILTIN_PLUGIN_CATALOG, pluginSurfaceClients } from "@molis-ai/molis-work-app-workbench";
+import { projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 
 // SYS-15: every registered client must actually open through the common isolated document.
 for (const pack of pluginSurfaceClients()) test(`SYS-15 ${pack.id} opens its isolated registered page`, { timeout: 25_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded", undefined, null); if (!browser) return;
+  // The seeded project leaves Work Brief out (it fills the home, WBR-22); its own page is opened with it added.
+  if (pack.id === "work-brief") await browser.web.post(`/api/settings/projects/${browser.projectId}/plugins`, { plugin_id: pack.id, expected_revision: await projectPluginRevision(browser.web, browser.projectId!) });
   const child = await pluginFrameBrowser(t, browser, pack.id);
   const registration = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === pack.id)!;
   const setting = registration.manifest.ui?.views?.some(view => view.slot === "settings") && ["characters", "plugin-builder"].includes(pack.id);

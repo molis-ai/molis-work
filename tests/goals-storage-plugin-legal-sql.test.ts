@@ -137,7 +137,6 @@ test("RAC-284 unsupported statement methods refuse journal SQL before reading or
 // RAC-794: a preview never submits transaction SQL through the plugin statement port.
 test("RAC-285 no free-form exec and the platform savepoint rolls back real preview writes", () => {
   const withExec = MODULES.flatMap(directory => sources(directory))
-    .filter(path => !path.endsWith("planning/personal-methods.ts"))
     .filter(path => /\.(?:exec|pragma)\(/u.test(readFileSync(path, "utf8")));
   assert.deepEqual(withExec, [], "the plugin has no free-form transaction SQL");
   const { store, dispose } = library();

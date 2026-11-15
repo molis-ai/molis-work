@@ -15,6 +15,11 @@ import { SandboxError } from './schema.js';
 // effects before each call. What the sandbox is not given yet is a refusal with a code at the start (`assertSandboxDeclarations`), not a silent absence.
 
 const ENTRIES = 'sandbox:entries';
+const readEntries = (storage: Pick<PluginPrivateStorage, "get">) => {
+  const raw = storage.get(ENTRIES);
+  return { raw, working: new Map<string, SandboxJson>(raw ? JSON.parse(raw) as Array<[string, SandboxJson]> : []) };
+};
+
 
 /** The sandbox's storage transactions over the installation's private store: serialized and atomically committed. */
 export function storageTransactions(storage: PluginPrivateStorage): NonNullable<SandboxServices['storage']> {
@@ -25,8 +30,7 @@ export function storageTransactions(storage: PluginPrivateStorage): NonNullable<
       const run = async () => {
         await context.beforeEffect?.();
         context.signal.throwIfAborted();
-        const raw = storage.get(ENTRIES);
-        const working = new Map<string, SandboxJson>(raw ? JSON.parse(raw) as Array<[string, SandboxJson]> : []);
+        const { raw, working } = readEntries(storage);
         const before = JSON.stringify([...working]);
         const result = mutate(working);
         await context.beforeEffect?.();
@@ -40,6 +44,15 @@ export function storageTransactions(storage: PluginPrivateStorage): NonNullable<
       return next;
     },
   };
+}
+
+/** Same data shape as the normal broker; validation gets no writer or other service. */
+export function readOnlySandboxStorage(storage: Pick<PluginPrivateStorage, "get">): NonNullable<SandboxServices["storage"]> {
+  return { async transaction(context, query) {
+    await context.beforeEffect?.();
+    context.signal.throwIfAborted();
+    return query(readEntries(storage).working);
+  } };
 }
 
 type HostServices = NonNullable<PluginStartContext['services']>;

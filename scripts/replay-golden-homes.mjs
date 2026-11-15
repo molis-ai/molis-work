@@ -65,12 +65,22 @@ const homesOf = (manifest, home) => manifest.homes.map(item => {
 /**
  * The tables an owner's upgrade steps say they delete or merge, from the version the golden recorded on: they may lose rows or go (§4 step 5,
  * the declaration beside the step). Read from the descriptors the upgrade itself runs, so a step that does not declare it fails here.
+ * A plugin's tables in a project's library have their own version (`plugin_tables`) and their own steps, in its Manifest's
+ * `databases.project`: its declared reductions count from the version the golden recorded for that plugin.
  */
 function declaredReductions(entry) {
   const relative = entry.path.replace(/^spaces\/[^/]+\//u, "");
   const descriptor = local.homeUpgradeDescriptors().find(item => "baseline" in item && relativePathPattern(item.pattern).test(relative));
-  return new Set((descriptor?.baseline.upgrades ?? []).filter(step => step.from >= entry.schema_version).flatMap(step => step.reduces_rows ?? []));
+  const reduced = new Set((descriptor?.baseline.upgrades ?? []).filter(step => step.from >= entry.schema_version).flatMap(step => step.reduces_rows ?? []));
+  for (const [pluginId, recorded] of Object.entries(entry.plugin_tables ?? {})) {
+    const declaration = local.PLATFORM_PLUGIN_REGISTRATIONS.find(item => item.manifest.plugin_id === pluginId)?.manifest.databases?.project;
+    for (const step of declaration?.upgrades ?? []) if (step.from >= recorded) for (const table of step.reduces_rows ?? []) reduced.add(table);
+  }
+  return reduced;
 }
+
+/** Whether a recorded store lies in a directory the upgrade round removes, in the root Home or an account's. */
+const removedStore = recorded => local.REMOVED_HOME_STORES.some(root => { const relative = recorded.replace(/^spaces\/[^/]+\//u, ""); return relative === root || relative.startsWith(root + "/"); });
 
 /**
  * Every recorded table of every library still has at least its recorded rows (§4 step 5), less what the Files retirement's adoption declared it
@@ -79,6 +89,11 @@ function declaredReductions(entry) {
  */
 function assertRowsKept(manifest, home, retainedDiscussion, retired = new Map()) {
   for (const entry of manifest.stores) {
+    // A store the build no longer has is removed by the upgrade round (`REMOVED_HOME_STORES`, named beside the round): it must be gone, not kept.
+    if (removedStore(entry.path)) {
+      if (existsSync(path.join(home, entry.path))) throw goldenFailure("golden.removed_store_kept", entry.path);
+      continue;
+    }
     const retained = retainedDiscussion.get(entry.path);
     retained?.assertKept();
     const db = new DatabaseSync(retained?.file ?? path.join(home, entry.path), { readOnly: true });

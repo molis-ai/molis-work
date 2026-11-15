@@ -54,7 +54,7 @@ function emptyView(): MolisWorkWebView {
       goals: [],
       relations: [],
       goal_tree_proposals: [],
-      planning_method_packs: [],
+      
     },
     project: { project_id: PROJECT, display_name: "Stages" },
     projects: [{ project_id: PROJECT, display_name: "Stages" }],

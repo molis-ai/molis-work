@@ -33,9 +33,9 @@ export const SETTINGS_STYLES = `
   .settings-content { container: settings-content / inline-size; min-width: 0; min-height: 0; overflow: hidden; display: flex; flex-direction: column; background: var(--paper); }
   .settings-content > .project-manager { flex: 1; min-width: 0; min-height: 0; overflow: hidden; display: grid; grid-template-columns: 264px minmax(0, 1fr); caret-color: var(--ink); }
   .settings-content > .project-manager ::selection { background: color-mix(in srgb, var(--blue) 28%, transparent); color: var(--ink); }
-  .settings-content > :is(.settings-document, .guidance-document, .planning-catalog, .planning-detail, .planning-edit, .work-planning) { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+  .settings-content > :is(.settings-document, .guidance-document) { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
   .settings-document { width: min(100%, 960px); min-height: 0; margin-inline: auto; padding: 32px clamp(20px, 5cqi, 48px) 0; }
-  .settings-heading, .guidance-page-header, .planning-page-header, .planning-detail-header, .planning-library-tools, .planning-back { flex: none; }
+  .settings-heading, .guidance-page-header { flex: none; }
   .settings-body { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding-bottom: 80px; }
   .settings-heading { max-width: 72ch; padding-bottom: 24px; border-bottom: 1px solid var(--line-strong); }
   .settings-heading h1 { margin: 0; font-family: var(--type-display-font); font-size: var(--type-display-size); line-height: var(--type-display-line-height); font-weight: var(--type-display-weight); letter-spacing: var(--tracking-display); }
@@ -452,8 +452,7 @@ export const SETTINGS_STYLES = `
   .project-settings-fold[open] > summary .project-settings-fold-chevron { transform: rotate(90deg); color: var(--ink-soft); }
   .project-settings-fold-body { padding: 4px 0 32px; min-width: 0; }
   .project-settings-fold-body > .guidance-document,
-  .project-settings-fold-body > .settings-document,
-  .project-settings-fold-body > .work-planning {
+  .project-settings-fold-body > .settings-document {
     width: 100%;
     max-width: none;
     min-height: 0;
@@ -465,10 +464,8 @@ export const SETTINGS_STYLES = `
   .project-settings-fold-body .settings-body { height: auto; overflow: visible; padding-bottom: 0; }
   .project-settings-fold-body .guidance-page-header { padding: 0 0 16px; border: 0; justify-content: flex-start; }
   .project-settings-fold-body .guidance-page-header > div,
-  .project-settings-fold-body .settings-heading,
-  .project-settings-fold-body .planning-page-header > div:first-child { display: none; }
+  .project-settings-fold-body .settings-heading { display: none; }
   .project-settings-fold-body .guidance-document:has(.guidance-empty) .guidance-page-header { display: none; }
-  .project-settings-fold-body .planning-page-header { padding: 0 0 16px; border: 0; justify-content: flex-start; gap: 12px; }
   .project-settings-fold-body .guidance-layout { grid-template-columns: minmax(0, 1fr); gap: 32px; }
   .project-settings-fold-body .guidance-aside { padding-top: 0; position: static; display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
   .project-settings-fold-body .guidance-aside section { padding: 0; border-top: 0; }

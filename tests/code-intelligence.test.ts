@@ -11,6 +11,7 @@ import { createCodeIntelligence, languageServersFrom } from "@molis-ai/molis-wor
 
 const here = fileURLToPath(new URL(".", import.meta.url));
 const fake = join(here, "fixtures/fake-lsp-server.mjs");
+const overlong = join(here, "fixtures/overlong-lsp-server.mjs");
 
 function workspace(): { readonly root: string; readonly log: string; close(): void } {
   const root = mkdtempSync(join(tmpdir(), "molis-code-intelligence-"));
@@ -35,6 +36,15 @@ test("A4-1 语言服务器：配置写错了就拒，不静默跳过", () => {
   assert.throws(() => languageServersFrom({ servers: [{ command: "x", extensions: [".ts"], args: ["a", 1] }] }), /args/);
   const parsed = languageServersFrom({ servers: [{ command: "srv", extensions: [".TS"], args: ["--stdio"] }] });
   assert.deepEqual(parsed, [{ command: "srv", extensions: [".ts"], args: ["--stdio"] }]);
+});
+
+test("A4-1 语言服务器：帧体超过上限就拒绝，不无界等待", { timeout: 15_000 }, async () => {
+  const home = workspace();
+  try {
+    const intelligence = createCodeIntelligence({ servers: languageServersFrom({ servers: [{ extensions: [".ts"], command: process.execPath, args: [overlong] }] }),
+      rootPath: home.root, timeoutMs: 3_000 });
+    await assert.rejects(intelligence.symbolIndex({ args: { path: "src/a.ts", symbol: "greet" } } as never), /frame body of 999999999 bytes/u);
+  } finally { home.close(); }
 });
 
 test("A4-1 查定义与引用：按文件类型起服务器，会话结束关掉它", { timeout: 30_000 }, async () => {
@@ -110,6 +120,7 @@ test("A4-1 服务器崩溃重启后重新打开同一份文档", { timeout: 30_0
     const first = await intelligence.symbolIndex({ args: { path: "src/a.ts", symbol: "greet" } } as never);
     assert.match(first, /symbol greet in src\/a\.ts/);
     for (let i = 0; i < 100 && !readFileSync(home.log, "utf8").includes("exited-after-definition"); i++) await new Promise((resolve) => setTimeout(resolve, 20));
+    await new Promise((resolve) => setTimeout(resolve, 50));
     const second = await intelligence.symbolIndex({ args: { path: "src/a.ts", symbol: "greet" } } as never);
     assert.match(second, /symbol greet in src\/a\.ts/);
     const opened = readFileSync(home.log, "utf8").split("\n").filter((line) => line.startsWith("opened:file://"));

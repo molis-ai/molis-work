@@ -3,7 +3,7 @@ import { ActionError, requireSynchronous, type ExactActionReference } from "@mol
 import type { PluginExecutionControl } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { outsidePluginAction } from "@molis-ai/molis-work-plugin-runtime";
 import type { ArtifactsApplicationApi, ProcessItemsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import type { PluginDatabaseDeclaration, PluginDefinition, PluginExecutor, PluginInstanceRecord, PluginManifest, PluginPrivateStorage, PluginStartContext, PluginUpgradeContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginDatabaseDeclaration, PluginDatabaseVersionSwitch, PluginDefinition, PluginExecutor, PluginInstanceRecord, PluginManifest, PluginPrivateStorage, PluginStartContext, PluginUpgradeContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { UiHostApi } from "@molis-ai/molis-work-contracts/platform/ui";
 import { StoppedServiceCalls, type PluginEventBus, type PluginHostEvents, type PluginInputGraph, type PluginInstance } from "@molis-ai/molis-work-plugin-runtime";
 import type { PluginTextReader } from "@molis-ai/molis-work-ui-host";
@@ -17,6 +17,8 @@ import { discardInstallationOwnerData, forgetInstallationRecords, forgetLeftover
 import { directoryForHome } from "./plugin-directory-service.js";
 import type { SurfaceInstallRegistry } from "./surface-installation.js";
 import { awaitPluginStopHook, type PluginStopExecution } from "./plugin-stop-hook.js";
+
+import { commitInstalledDatabaseUpgrade } from "./plugin-sandbox-database-upgrade.js";
 
 export interface PluginHostExecutorOptions {
   project_id: string;
@@ -226,6 +228,15 @@ export class PluginHostExecutor implements PluginExecutor {
 
   async stopProjectJobs(projectId: string): Promise<void> {
     await Promise.all([...this.sessions.values()].map(held => held.session.stopProjectJobs(projectId)));
+  }
+
+  async commitDatabaseUpgrade(definition: PluginDefinition, change: PluginDatabaseVersionSwitch): Promise<void> {
+    const { home, projectLibrary, project_id: projectId } = this.options;
+    if (!home || !projectLibrary?.path) throw new ActionError("actions.service_unavailable", "项目库升级缺少当前 Home 或项目");
+    const { assertCurrent, ...expected } = change;
+    await commitInstalledDatabaseUpgrade({
+      op: "upgrade-project-database", home: home.directory, path: projectLibrary.path, projectId, target: definition.manifest, change: expected,
+    }, () => { assertCurrent(); home.assertStorageOwner(); });
   }
 
   async validateUpgrade(definition: PluginDefinition, context: PluginUpgradeContext, from: PluginInstanceRecord): Promise<void> {

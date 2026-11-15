@@ -32,8 +32,17 @@ function graphStand(page: Page, run: RunView, all: readonly RunView[]): GraphSta
 function entryNodes(page: Page, block: HTMLElement, run: RunView, all: readonly RunView[], groups: readonly Group[]): HTMLElement[] {
   const { s } = page, { timeline, turnChanges } = page.refs, ordered: HTMLElement[] = [];
   const lastActivity = groups.filter(group => group.kind === "activity").at(-1);
+  let skills = block.querySelector<HTMLElement>(":scope > [data-coding-skills]");
+  if (!run.skills_html) { skills?.remove(); skills = null; }
   for (const entry of groups) {
     if (entry.kind === "turn") {
+      // The Skills the round used sit right above its first reply (SKL-11); the shell's panel opens from the line's buttons.
+      if (entry.value.kind === "assistant" && run.skills_html && !ordered.some(node => node === skills)) {
+        skills ??= el("div", "", "coding-round-skills");
+        skills.dataset.codingSkills = "";
+        if (skills.dataset.html !== run.skills_html) { skills.dataset.html = run.skills_html; skills.innerHTML = run.skills_html; }
+        ordered.push(skills);
+      }
       ordered.push(turnNode(page, block, entry.value, run, all));
     } else if (entry.kind === "activity") {
       const key = entry.values[0]!.call_id;

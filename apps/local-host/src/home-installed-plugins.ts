@@ -8,14 +8,17 @@ import { reconcileSkillSettings } from "./agent-definitions/skill-settings-lifec
  */
 import { pluginErrors, type PluginContribution, type PluginManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxEffects, SandboxIdentity } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import { holdsFailedDatabaseUpgrade } from '@molis-ai/molis-work-plugin-runtime';
 import type { CallConnectionsPort, PluginLocaleReader, SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
 import { installedDefinitions } from './installed-plugin-definition.js';
 import { installedPluginExposure } from './installed-plugin-exposure.js';
 import { PUBLISHER_REVOKED_MESSAGE, publisherStanding, publisherStops } from './installed-publisher-standing.js';
 import { INSTALLED_MODEL_KEY, sandboxDeclaration, sandboxGrants, staleInstallation } from './installed-plugin-host.js';
 import { APPROVED_KEY, installedLifecycle, type InstalledPluginPlatform, isPendingUninstall, onlyOne, uninstallInstalledRecord, type InstalledLifecycleContext } from './installed-plugin-lifecycle.js';
-import { installedVersion, type InstalledRelease } from './installed-release.js';
+import { HOME_INSTALL_SCOPE, installedVersion, type InstalledRelease } from './installed-release.js';
 import { assertHomePackageAllowed } from './home-package-admission.js';
+import { isPluginTableRefusal } from './home-unavailable-owners.js';
+import { installedHomeUpgradeBlocked } from './installed-home-upgrade-recovery.js';
 import { configuredModelChoices } from './configured-models.js';
 import { capabilityCatalog, catalogCapabilities, installedCapabilityCatalog, registerPlatformCapabilities, type CatalogCapability, type ProjectActions } from './plugin-builder/catalog.js';
 import { createPluginModelGeneration } from './plugin-builder/model.js';
@@ -35,7 +38,7 @@ import { RecoveryErrors } from './installed-recovery-errors.js';
 import type { PluginUninstallTarget } from '@molis-ai/molis-work-contracts/platform/plugin-trust';
 
 /** What the Home's installs are kept under where a project's id would go: the approval, the secrets and the prompt registrations. Not a project's id. */
-export const HOME_INSTALL_SCOPE = '~home';
+export { HOME_INSTALL_SCOPE };
 
 export type HomeInstalledPlatform = InstalledPluginPlatform & Pick<PluginPlatform, 'router'>;
 
@@ -190,7 +193,7 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
     updatePluginAgentDefinitions(pluginHomeFor(home), value, record.install_id, state, restored); reconcileSkillSettings(home, "home", record.install_id, (value.manifest.methods ?? []).map(method => method.skill_id));
   };
   const stops = publisherStops({ standing, platform, recoveryErrors, withdraw: id => { withdraw(id); declared.release(id); }, records });
-  const lifecycleContext: InstalledLifecycleContext = { platform, project_id: null, storage, privateStorage: options.privateStorage, secrets, recoveryErrors, closed: isClosed, trusted: standing.trusted, recordFor, releaseFor, approvedFor,
+  const lifecycleContext: InstalledLifecycleContext = { platform, home, library: null, project_id: null, storage, privateStorage: options.privateStorage, secrets, recoveryErrors, closed: isClosed, trusted: standing.trusted, recordFor, releaseFor, approvedFor,
     definition, expose, withdraw, registerPrompts,
     async forget(pluginId, installId) { declared.release(pluginId); forgetPluginAgentDefinitions(pluginHomeFor(home), installId); forgetDefinitions(pluginId); await forgetTaskGrantSubjects(home, subject => subject.plugin_install_id === installId, "uninstalled"); } };
   const lifecycle = installedLifecycle(lifecycleContext);
@@ -208,7 +211,9 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
         if (!release) { if (!recoveryErrors.has(record.plugin_id)) recoveryErrors.set(record.plugin_id, '找不到已安装版本 ' + record.version + ' 的发布记录'); continue; }
         if (!approved) throw new Error('找不到此安装的批准记录，请先卸载并重新确认安装');
         assertHomePackageAllowed(release.packaged!.manifest);
-        registerPrompts(release, record.state === 'disabled' || record.state === 'quarantined' ? 'disabled' : 'enabled');
+        const blocked = installedHomeUpgradeBlocked(home, record);
+        registerPrompts(release, blocked || record.state === 'disabled' || record.state === 'quarantined' || holdsFailedDatabaseUpgrade(record) ? 'disabled' : 'enabled');
+        if (blocked) throw pluginErrors.upgrade_validation_failed('等待 Home 插件库完成恢复');
         if (record.state === 'disabled' || record.state === 'quarantined') {
           const restored = definition(release, approved); platform.runtime.register(restored);
           await platform.start([{ definition: restored, grants: record.grants, enabled: false, ...release.packaged ? { trust: release.packaged.trust } : {} }]); continue;
@@ -243,10 +248,12 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
      * (no page) and one whose release cannot be read back (no Manifest to draw) are not.
      */
     pages: (): { key: string; manifest: PluginManifest }[] => records().flatMap(item => {
-      if (item.state !== 'running' && (!recoveryErrors.has(item.plugin_id) || item.state === 'disabled' || item.state === 'quarantined')) return [];
+      const failedUpgrade = (item.state === 'disabled' || item.state === 'crashed') && item.last_error_code && isPluginTableRefusal(item.last_error_code);
+      if (!failedUpgrade && item.state !== 'running' && (!recoveryErrors.has(item.plugin_id) || item.state === 'disabled' || item.state === 'quarantined')) return [];
       // Like `running`: a publisher the person took back has no page until its installation is stopped and says why.
       if (item.state === 'running' && !standing.trusted(item)) return [];
       const manifest = releaseFor(item.plugin_id)?.packaged?.manifest;
+      if (failedUpgrade && !manifest?.databases?.home) return [];
       return manifest?.kind === 'app' && manifest.ui?.views?.some(view => view.slot === 'stage') ? [{ key: item.plugin_id, manifest }] : [];
     }),
     refreshPublicActions: async () => { await stops.reconcile(); if (exposed.size) await catalog(); },

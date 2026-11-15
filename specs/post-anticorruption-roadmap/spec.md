@@ -67,7 +67,7 @@
 |  | [按主人隔离升级失败 U3](reference/batches/25.md#batch-25-item-2) |
 | [26](reference/batches/26.md) | [插件升级 U4](reference/batches/26.md#batch-26-item-5) |
 |  | [状态与状态机合同与词表](reference/batches/26.md#batch-26-item-7) |
-|  | [状态词汇门禁与文档](reference/batches/26.md#batch-26-item-8)（原 27-6） |
+|  | [状态词汇门禁与文档](reference/batches/26.md#batch-26-item-8)（原 27-6）；[47](reference/batches/47.md)消费 26-5、26-7、26-8 |
 |  | [发行配置收拢](reference/batches/26.md#batch-26-item-9) |
 |  | 签名公证、正式 OAuth、原生组件预置、日志诊断、U5、U6 移到[发行批](#release-batch)（2026-11-14） |
 | [27](reference/batches/27.md) | [基础交互体验债](reference/batches/27.md#batch-27-item-1) |
@@ -159,6 +159,8 @@
 |  | [访谈初始化与工作记忆](reference/batches/64.md#batch-64-item-5) |
 |  | [回执阶段 5](reference/batches/64.md#batch-64-item-6) |
 |  | [安静准备与观察试用](reference/batches/64.md#batch-64-item-7) |
+|  | [记忆形成质量（P2-01）](reference/batches/64.md#batch-64-item-8)（2026-11-14 加，[决定 46](reference/decisions.md#decision-46) 拟定） |
+|  | [记忆整理（Dreaming）、按需原文与用户控制](reference/batches/64.md#batch-64-item-9)（同上） |
 | [65](reference/batches/65.md) | [公共搜索与联网设置](reference/batches/65.md#batch-65-item-1) |
 |  | [受限命令、依赖与 AI 低风险审批](reference/batches/65.md#batch-65-item-2) |
 |  | [Hooks 启用、变更、停用与恢复](reference/batches/65.md#batch-65-item-3) |

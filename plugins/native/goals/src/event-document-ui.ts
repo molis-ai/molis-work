@@ -89,7 +89,6 @@ export function renderGoalEventDocument(
         ${owned && doc ? forms.renderTypeEditForms(doc) : ""}
         ${owned && doc ? doc.types.map((type) => forms.renderReportForm(doc, type)).join("") : ""}
         ${owned && doc ? forms.renderRequirementForm(doc) : ""}
-        ${owned && doc ? forms.renderAdoptForm(doc) : ""}
         ${owned && state ? forms.renderAgreementForm(state) : ""}
         ${owned && state ? forms.renderProgressForm(state) : ""}
         ${owned && state ? forms.renderConcernForm(state) : ""}

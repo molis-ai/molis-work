@@ -38,7 +38,7 @@ const read = (path: string) => readFile(join(repoRoot, path), "utf8");
 /** The row of a backlog record (one row per file, its id in the first cell). */
 async function backlogRow(file: string, id: string): Promise<string> {
   const line = (await read(file)).split("\n").find(candidate => candidate.startsWith(`| ${id} |`));
-  assert.ok(line, `${file}: its record row is in specs/backlog/ (CPK-08: a BL the close-out table left open keeps its record)`);
+  assert.ok(line, `${file}: its record row is there (CPK-08: a BL the close-out table left open keeps its record)`);
   return line;
 }
 
@@ -61,7 +61,8 @@ test("CPK-08: every BL the close-out table left open names the batch that picks 
   const destinations: ReadonlyArray<readonly [id: string, file: string, batch: RegExp]> = [
     ["BL-skill-scripts-sandbox", "specs/backlog/BL-skill-scripts-sandbox.md", /去处第 62 批第 1 项/u],
     ["BL-runtime-mcp-actions-snapshot", "specs/backlog/BL-runtime-mcp-actions-snapshot.md", /去处第 62 批第 1 项/u],
-    ["BL-goals-methods-as-skills", "specs/backlog/BL-goals-methods-as-skills.md", /去处第 41 批/u],
+    // Done in batch 41 (41-2): its record is the row the removed-backlog table keeps.
+    ["BL-goals-methods-as-skills", "docs/backlog-removed.md", /已完成并删除.*第 41 批第 2 项/u],
     ["BL-mcp-action-pipelines-merge", "specs/backlog/BL-mcp-action-pipelines-merge.md", /第 62 批第 1 项/u],
   ];
   for (const [id, file, batch] of destinations) {

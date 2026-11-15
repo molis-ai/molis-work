@@ -6,7 +6,7 @@
 // 插件 SDK `@molis-ai/molis-work-plugin-sdk/ui` 的全部 render* 与设计系统的菜单、弹出层、交互卡等渲染函数，原型用它们画出与产品同一份的 mw-* 结构）、
 // catalog.html（离线组件板；其中条件、助理、插件行三节是 iframe，只在产品的 /__ui/catalog 里能看）。
 import { build } from 'esbuild';
-import { copyFile, mkdir, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -19,16 +19,23 @@ const assets = await load('apps/workbench/dist/page-assets.js');
 const catalog = await load('apps/workbench/dist/primitive-catalog.js');
 const ds = await load('packages/design-system/dist/index.js');
 
+// 组件板的文字走 t()（第 16 批起）：页面之外画它，先装上工作台自己的中文词表。
+const uiText = await load('packages/plugin-sdk/dist/ui.js');
+const localeFile = resolve(repo, 'apps/workbench/resources/locales/zh.json');
+const pack = uiText.parseLocalePack(await readFile(localeFile, 'utf8'), { file: localeFile });
+if (!pack.ok) throw new Error(`读不了 ${localeFile}`);
+const restoreText = uiText.installTextForTest({ locale: 'zh', packs: [pack.value] });
 const page = catalog.renderMolisWorkPrimitiveCatalog();
+restoreText();
 const specimenCss = [...page.matchAll(/<style>([\s\S]*?)<\/style>/g)].map((m) => m[1]).join('\n');
 // 字体：样式表按产品的 /assets/ 路径引用，这里拷到 dist/assets/ 并改成相对路径。
 const fonts = [...new Set([...assets.renderMolisWorkSettingsStylesheet().matchAll(/url\("\/assets\/([\w.-]+\.woff2)"\)/g)].map((m) => m[1]))];
-const css = `/* 生成文件，勿手改：node docs/design/component-board/build.mjs */\n${assets.renderMolisWorkSettingsStylesheet()}\n/* 组件板页面的标本样式 */\n${specimenCss}\n`;
+const css = `/* 生成文件，勿手改：node docs/design/component-board/build.mjs */\n${assets.renderMolisWorkSettingsStylesheet()}\n/* 组件板页面的标本样式 */\n${specimenCss}\n/* 呈现形态（名字片、行、卡片、速览；主人色块） */\n${ds.PRESENTATION_FORM_STYLES}\n`;
 const head = `${ds.THEME_BOOTSTRAP_SCRIPT}\n`;
 const DS_EXPORTS = ['renderInteractionOperation', 'renderInteractionBadge', 'renderInteractionOptions', 'renderInteractionNextSteps', 'renderMenu', 'renderMenuGroup', 'renderMenuItem', 'renderPopover', 'renderPreviewCard', 'renderToggleGroup', 'renderTooltip', 'renderHint', 'renderTabs', 'renderToolbar', 'renderSheet', 'renderDialog', 'renderCollapsible', 'renderBriefStatus'];
 const bundle = await build({
   stdin: {
-    contents: `import * as ui from '@molis-ai/molis-work-plugin-sdk/ui';\nimport { ${DS_EXPORTS.join(', ')} } from '@molis-ai/molis-work-design-system';\nwindow.MW = { ...ui, ${DS_EXPORTS.join(', ')} };\n`,
+    contents: `import * as ui from '@molis-ai/molis-work-plugin-sdk/ui';\nimport { ${DS_EXPORTS.join(', ')} } from '@molis-ai/molis-work-design-system';\nconst pack = ui.parseLocalePack(${JSON.stringify(words)});\nif (pack.ok) ui.installTextForTest({ locale: 'zh', packs: [pack.value] });\nwindow.MW = { ...ui, ${DS_EXPORTS.join(', ')} };\n`,
     resolveDir: resolve(repo, 'apps/workbench'),
     loader: 'js',
   },

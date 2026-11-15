@@ -1,6 +1,6 @@
 import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { SurfaceHomeDisplay, SurfaceHomeRowDisplay } from "@molis-ai/molis-work-design-system";
-import { homeButton, homeWord, isPlacementControl, renderHome, renderHomePeek, subjectKey, type HomeControl } from "./project-home-render.js";
+import { homeButton, homeLeadName, homeLeadWord, homeWord, isPlacementControl, renderHome, renderHomePeek, subjectKey, type HomeControl } from "./project-home-render.js";
 import { createPositionCorrections } from "./project-position-corrections.js";
 import { positionMenuKey } from "./project-position-menu.js";
 import { createPositionPeek } from "./project-position-peek.js";
@@ -20,6 +20,8 @@ interface HomeHost {
     refresh: () => Promise<void>; translate: HomeHost["translate"] }): { refresh(): void; clear(): void };
   /** Reads the displayed language's words for this response's grants into the page (surface-composition §14.6). */
   words(text: NonNullable<SurfaceHomeDisplay["surface_text"]>, signal: AbortSignal): Promise<void>;
+  /** Puts the proved main page of the lead plugin into the box and gives its node, or null when that page is not mounted here. */
+  lead: { adopt(box: HTMLElement, target: unknown): HTMLElement | null; release(node: HTMLElement): void };
 
 }
 type ClickResult = { kind: "stage" | "settings" } | { kind: "peek"; row: SurfaceHomeRowDisplay }
@@ -76,12 +78,14 @@ export function reconcileSurfaceRows(root: HTMLElement, html: string, rowMarkup:
 }
 
 export { createPositionViews } from "./project-position.js";
+export { mountSkillPicks } from "./skill-picks.js";
 export { presentationWord, renderHomePeek, renderPositionGroup, surfaceCorrectionWord } from "./project-home-render.js";
 
 function bindHomeControls(root: HTMLElement, peek: HTMLDialogElement, act: (key: string, focus: HTMLElement) => Promise<void>, closePeek: () => void, onClose: () => void,
   correct: ReturnType<typeof createPositionCorrections>["handle"]) {
   root.addEventListener("click", event => {
-    if (!(event.target instanceof Element)) return;
+    // The plugin's page shown as the home handles its own clicks.
+    if (!(event.target instanceof Element) || event.target.closest("[data-home-lead]")) return;
     const button = event.target.closest<HTMLElement>("[data-home-control], [data-presentation-action]");
     if (button) {
       const key = button.dataset.homeControl ?? button.dataset.presentationAction ?? "";
@@ -96,6 +100,7 @@ function bindHomeControls(root: HTMLElement, peek: HTMLDialogElement, act: (key:
     }
   });
   root.addEventListener("keydown", event => {
+    if (event.target instanceof Element && event.target.closest("[data-home-lead]")) return;
     positionMenuKey(event);
     if (!(event.target instanceof HTMLElement)) return;
     const key = event.target.closest<HTMLElement>("[data-home-row-peek]")?.dataset.homeRowPeek;
@@ -116,6 +121,58 @@ function releaseHomeText(host: HomeHost, old: SurfaceHomeDisplay | null) {
 /** The grants differ on every read; what is shown does not have to. */
 const sameShown = (a: SurfaceHomeDisplay | null, b: SurfaceHomeDisplay) =>
   !!a && JSON.stringify({ ...a, surface_text: undefined }) === JSON.stringify({ ...b, surface_text: undefined });
+
+/**
+ * The plugin page a `lead` group names, shown in place of the groups, and the thin bar that switches between the two. Whether this person
+ * is looking at the basic home is page state: it lasts for the browser session and is never sent anywhere.
+ */
+function createHomeLead(root: HTMLElement, host: HomeHost) {
+  const box = root.querySelector<HTMLElement>("[data-home-lead]")!, bar = root.querySelector<HTMLElement>("[data-home-lead-bar]")!;
+  const basicKey = "molis-work-home-basic:" + host.projectKey;
+  const stored = (write?: boolean) => {
+    try {
+      if (write === undefined) return sessionStorage.getItem(basicKey) === "1";
+      if (write) sessionStorage.setItem(basicKey, "1"); else sessionStorage.removeItem(basicKey);
+    } catch { /* Storage may be blocked; the choice then lasts until the page is left. */ }
+    return Boolean(write);
+  };
+  let basic = stored(), node: HTMLElement | null = null;
+  /** Shows the page, or the groups with the way back; a page that is not there leaves the basic home and says so. */
+  const show = (shown: SurfaceHomeDisplay | null) => {
+    const lead = shown?.lead, name = shown ? homeLeadName(shown) : "";
+    const next = lead && !basic ? host.lead.adopt(box, lead.target) : null;
+    if (node && node !== next) host.lead.release(node);
+    node = next;
+    root.toggleAttribute("data-home-leading", Boolean(node));
+    box.hidden = !node; bar.hidden = !lead;
+    bar.innerHTML = !lead ? "" : (!node && !basic ? "<p>" + escapeHtml(homeLeadWord("lead-failed", name)) + "</p>" : "")
+      + '<button type="button" class="mw-btn mw-btn--ghost" data-home-control="lead-toggle">'
+      + escapeHtml(node ? homeWord("lead-basic") : homeLeadWord("lead-back", name)) + "</button>";
+  };
+  /** With the page shown this goes to the groups; otherwise back to the page, which is also the retry after a failure. */
+  const toggle = (shown: SurfaceHomeDisplay | null) => {
+    basic = stored(Boolean(node));
+    show(shown);
+    bar.querySelector<HTMLElement>("[data-home-control]")?.focus({ preventScroll: true });
+  };
+  return { show, toggle };
+}
+
+/** When the home is shown, hidden or has to read again: the page, its holder, the plugin list, the place and the Dock. */
+function watchHome(holder: Element | null, visibility: () => void, reload: () => void, reread: () => void, leave: () => void) {
+  const observer = new MutationObserver(visibility);
+  observer.observe(document.body, { subtree: true, attributes: true, attributeFilter: ["hidden"] });
+  if (holder) observer.observe(holder, { attributes: true, attributeFilter: ["hidden"] });
+  document.addEventListener("visibilitychange", visibility);
+  document.addEventListener("molis-work:plugins-changed", reload);
+  document.addEventListener("molis-work:place-changed", visibility);
+  document.addEventListener("click", event => {
+    if (event.target instanceof Element && event.target.closest("[data-dock-choice]")) queueMicrotask(reread);
+  });
+  window.addEventListener("pagehide", leave);
+  window.addEventListener("pageshow", visibility);
+  queueMicrotask(visibility);
+}
 
 export function mountHome(host: HomeHost) {
   const surface = document.querySelector<HTMLElement>('[data-work-surface="home"]');
@@ -141,6 +198,8 @@ export function mountHome(host: HomeHost) {
   const placement = createPositionPeek(groups, (body, signal) => host.read(body.click ? "/click" : "", body.click ?? body, signal), host,
     { source: () => ({}), expanded: () => false, visible, displayed: () => display ?? undefined, lookup: key => controls.get(key),
       navigate: async () => { /* Placement offers have no peek navigation. */ } });
+  const lead = createHomeLead(root, host);
+  const showLead = lead.show;
   const caption = (word?: string, button?: string) => {
     status.innerHTML = (word ? "<p>" + escapeHtml(homeWord(word)) + "</p>" : "") + (button ? homeButton(button, homeWord(button === "refresh" ? "retry" : "open-result")) : "");
   };
@@ -153,7 +212,7 @@ export function mountHome(host: HomeHost) {
   const cancel = (release: boolean) => {
     reading?.abort(); reading = null; clicking?.abort(); clicking = null;
     closePeek(); placement.close(false); needsRead = true;
-    if (release) { releaseText(display); display = null; controls.clear(); corrections.clear(); groups.replaceChildren(); }
+    if (release) { releaseText(display); display = null; controls.clear(); corrections.clear(); groups.replaceChildren(); showLead(null); }
   };
   const releaseText = (old: SurfaceHomeDisplay | null) => releaseHomeText(host, old);
   const unsafe = (error: unknown) => [401, 403, 404, 409].includes(Number((error as { status?: unknown })?.status));
@@ -185,11 +244,12 @@ export function mountHome(host: HomeHost) {
         reconcileSurfaceRows(groups, html, rowMarkup);
       }
       corrections.afterPaint();
+      showLead(result);
       if (inspected?.read.state === "ok") offers.refresh();
       caption(receipt ? "open-failed" : undefined, receipt ? "open-result" : undefined);
     } catch (error) {
       if (request.signal.aborted || reading !== request || !visible()) return;
-      if (unsafe(error)) { releaseText(display); display = null; controls.clear(); corrections.clear(); groups.replaceChildren(); closePeek(); }
+      if (unsafe(error)) { releaseText(display); display = null; controls.clear(); corrections.clear(); groups.replaceChildren(); closePeek(); showLead(null); }
       caption("refresh-failed", "refresh");
     } finally { if (reading === request) reading = null; }
   }
@@ -198,6 +258,7 @@ export function mountHome(host: HomeHost) {
     if (!visible() || clicking) return;
     if (key === "refresh") { await sync(); return; }
     if (key === "market") { host.market(); return; }
+    if (key === "lead-toggle") { lead.toggle(display); return; }
     const control = key === "open-result" ? receipt : controls.get(key) ?? peekControls.get(key);
     if (!control) return;
     if (isPlacementControl(control.target.kind)) { placement.open(key, focus); return; }
@@ -252,17 +313,6 @@ export function mountHome(host: HomeHost) {
     if (shown && needsRead) void sync();
     else if (!shown) cancel(true);
   };
-  const observer = new MutationObserver(visibility);
-  observer.observe(document.body, { subtree: true, attributes: true, attributeFilter: ["hidden"] });
-  if (holder) observer.observe(holder, { attributes: true, attributeFilter: ["hidden"] });
-  document.addEventListener("visibilitychange", visibility);
-  document.addEventListener("molis-work:plugins-changed", () => { cancel(true); if (visible()) void sync(); });
-  document.addEventListener("molis-work:place-changed", visibility);
-  document.addEventListener("click", event => {
-    if (event.target instanceof Element && event.target.closest("[data-dock-choice]")) queueMicrotask(() => { void sync(); });
-  });
-  window.addEventListener("pagehide", () => { shown = false; cancel(true); });
-  window.addEventListener("pageshow", visibility);
-  queueMicrotask(visibility);
+  watchHome(holder, visibility, () => { cancel(true); if (visible()) void sync(); }, () => { void sync(); }, () => { shown = false; cancel(true); });
   return { sync };
 }

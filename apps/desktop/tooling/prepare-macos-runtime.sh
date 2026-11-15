@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 RESOURCE_DIR="$REPO_ROOT/apps/desktop/src-tauri/resources/molis-work-runtime"
 # The repository's locked Node (.nvmrc). Its SQLite is the one plugin statements are reviewed against (S-46); the payload smoke checks it.
-NODE_VERSION="${MOLIS_WORK_NODE_VERSION:-24.15.0}"
+NODE_VERSION="$(node "$REPO_ROOT/tooling/release/profile.mjs" --profile "${MOLIS_WORK_RELEASE_PROFILE:-dev}" --node)"
 REQUESTED_ARCH="${MOLIS_WORK_MACOS_ARCH:-$(uname -m)}"
 
 case "$REQUESTED_ARCH" in

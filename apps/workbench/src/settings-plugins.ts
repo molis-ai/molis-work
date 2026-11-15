@@ -376,6 +376,7 @@ review(await api("/install/preview", { bundle }));
 api("/bundled/list", {}).then(data => {
 const box = $("bundled"); if (!data.plugins.length && !data.refused.length) return; box.hidden = false;
 box.append(el("h3", "", readText("workbench.settings-plugins.included-with-this-release")));
+if (data.plugins.some(item => item.signed_here)) box.append(el("p", "settings-muted", readText("workbench.settings-plugins.signed-on-this-computer")));
 for (const item of data.plugins) { const pick = button(item.name + " · " + item.version, "mw-btn--secondary"); pick.disabled = item.publisher.revoked;
 pick.addEventListener("click", async () => { pick.disabled = true; try { review(await api("/install/preview", { bundled: { plugin_id: item.plugin_id, version: item.version } })); } catch (cause) { fail(cause, badPackage(cause)); } finally { pick.disabled = item.publisher.revoked; } }); box.append(pick); }
 for (const item of data.refused) box.append(el("p", "settings-form-error", item.file + " · " + item.message));

@@ -1,0 +1,75 @@
+/*
+ * 技能选用原型（路线书第 41 批）的版式。只排位置，只用组件板令牌，不写 hex。
+ * 「组件板新增」的部件在这里标出：sel-line（一轮用了哪些技能的那一行）、sel-why（依据面板）、sel-steps（几个技能各自的结果）。
+ */
+.sel-sheet { max-width: 760px; padding: 0; }
+.sel-head { display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 16px; border-bottom: 1px solid var(--line); font-weight: var(--weight-title); }
+.sel-head small { font-weight: 400; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sel-thread { display: flex; flex-direction: column; gap: 14px; padding: 18px 16px 12px; }
+.sel-thread:empty { display: none; }
+.sel-me { align-self: flex-end; max-width: 85%; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.sel-me .bub { background: var(--accent-soft); padding: 7px 11px; border-radius: 12px 12px 4px 12px; line-height: 1.6; }
+.sel-chip { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 8px; border-radius: var(--r-control); border: 1px solid var(--line-strong); background: var(--paper); font-size: 12px; color: var(--ink-soft); white-space: nowrap; }
+.sel-reply { display: flex; flex-direction: column; gap: 8px; min-width: 0; position: relative; }
+.sel-reply p { margin: 0; line-height: 1.75; }
+.sel-reply ul { margin: 0; padding-left: 20px; line-height: 1.75; }
+.sel-reply.is-redo { animation: sel-in var(--dur-move) var(--ease); }
+@keyframes sel-in { from { opacity: 0; transform: translateY(4px); } }
+@media (prefers-reduced-motion: reduce) { .sel-reply.is-redo, .sel-why { animation: none !important; } }
+
+/* 组件板新增 · sel-line：一轮用了哪些技能。每个技能一个有边界的按钮，一行排开，放不下就换行，不截字。 */
+.sel-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.sel-line > span { white-space: nowrap; }
+.sel-line .mw-btn { max-width: 100%; }
+.sel-pick { position: relative; display: inline-flex; }
+.sel-origin { color: var(--muted); font-weight: 400; }
+
+/* 组件板新增 · sel-why：依据面板。锚在技能按钮下面；窄屏占满一行。 */
+.sel-why { position: absolute; left: 0; top: calc(100% + 6px); z-index: 20; width: min(420px, calc(100vw - 48px)); padding: 12px; display: flex; flex-direction: column; gap: 10px;
+  background: var(--popover); border-radius: var(--r-card); box-shadow: var(--lift-3); animation: sel-in var(--dur-move) var(--ease); }
+.sel-why { white-space: normal; color: var(--ink); font-size: 13px; }
+.sel-why h4 { margin: 0; font-size: 13px; font-weight: var(--weight-title); display: flex; align-items: center; gap: 6px; }
+.sel-why h4 .grow { flex: 1; }
+.sel-why dl { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; font-size: 12.5px; }
+.sel-why dt { color: var(--muted); white-space: nowrap; }
+.sel-why dd { margin: 0; min-width: 0; color: var(--ink-soft); overflow-wrap: anywhere; }
+.sel-why .mw-menu[data-slot] { position: static; box-shadow: none; padding: 0; background: transparent; width: 100%; animation: none; border: 0; }
+.sel-why hr { border: 0; border-top: 1px solid var(--line); margin: 0; }
+.sel-sub { font-size: 11.5px; color: var(--muted); margin: 0; }
+
+/* 方案 B：回复下面的一张选用卡，始终摊开。 */
+.sel-card { border: 1px solid var(--line); border-radius: var(--r-card); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; background: var(--surface-soft); }
+.sel-card__row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.sel-card__row strong { font-weight: var(--weight-title); }
+.sel-card__row .grow { flex: 1; min-width: 8px; }
+.sel-card p { font-size: 12.5px; color: var(--ink-soft); }
+.sel-card .sel-pick .sel-why { top: calc(100% + 6px); left: auto; right: 0; }
+
+/* 组件板新增 · sel-steps：几个技能各自的结果，一项一行。 */
+.sel-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: var(--r-card); overflow: hidden; }
+.sel-steps li { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 4px 12px; border-top: 1px solid var(--line); }
+.sel-steps li:first-child { border-top: 0; }
+.sel-steps .name { font-weight: var(--weight-control); white-space: nowrap; }
+.sel-steps .fact { flex: 1; min-width: 0; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* 输入栏（方案 C 的发送前一步，也用来放「/ 点名」的标签）。 */
+.sel-composer { border-top: 1px solid var(--line); padding: 10px 16px 14px; display: flex; flex-direction: column; gap: 8px; }
+.sel-will { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.sel-inrow { display: flex; gap: 8px; align-items: flex-end; }
+.sel-inrow .mw-textarea { flex: 1; min-height: 40px; resize: none; }
+
+/* Coding：这一轮用了什么，一项一行，标签在左。 */
+.sel-facts { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 14px; padding: 14px 16px; font-size: 13px; align-items: center; }
+.sel-facts dt { color: var(--muted); white-space: nowrap; }
+.sel-facts dd { margin: 0; min-width: 0; }
+.sel-run { padding: 14px 16px 4px; display: flex; align-items: center; gap: 8px; }
+
+@media (max-width: 640px) {
+  .sel-thread { padding: 14px 12px 10px; }
+  .sel-why { position: static; width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box; margin-top: 6px; box-shadow: none; border: 1px solid var(--line); }
+  .sel-pick:has(.sel-why) { width: 100%; }
+  .sel-pick { display: flex; flex-direction: column; align-items: flex-start; max-width: 100%; }
+  .sel-line { align-items: flex-start; }
+  .sel-facts { grid-template-columns: minmax(0, 1fr); gap: 2px 0; }
+  .sel-facts dd { margin-bottom: 8px; }
+}

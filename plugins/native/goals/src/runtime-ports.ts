@@ -1,8 +1,6 @@
-import { defineErrorCodes, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { actionErrorKind } from "@molis-ai/molis-work-plugin-sdk";
+import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginAttentionClient, PluginContextLedgerClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { ContextAccess, ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
-import type { PlanningMethodPack } from "./contract/goals.js";
 import type { GoalDecisionAttentionPort } from "./goal-decision-attention.js";
 import type { GoalsEventInput, GoalsIdempotencyInput, GoalsJournal } from "./module/repository.js";
 import type { GovernanceJournal } from "./governance/repository.js";
@@ -79,47 +77,4 @@ export function ledgerOver(sqlite: PluginSqlite, ledger: PluginContextLedgerClie
       remove: (access, key, cause, recordedAt) => { scoped(access); return ledger.join(sqlite.joined("撤引用"), writer => writer.remove(key, cause, recordedAt)); },
     },
   };
-}
-
-const personalErrors = defineErrorCodes("goals.planning", { personal_not_loaded: "internal", personal_unavailable: "unavailable" });
-
-/**
- * The person's own planning methods, as one call sees them. They live in the Home half, so a project's call asks for them (`load`)
- * outside any database window, and the window then reads this snapshot. A call that never reaches them never asks: the first read
- * with none loaded raises `goals.planning.personal_not_loaded`, and `run` loads once and runs the call again from the start (what
- * the first attempt wrote is rolled back with its failed transaction).
- *
- * When the load fails (BL-819): a cancelled call stays cancelled, and the call's authority is asked once more, so a revoked one is
- * told it was revoked; then a broken record in the Home's own table reaches the caller as it is (`goals.storage.record_unreadable`,
- * with where it is), and anything else is the Home being unavailable.
- */
-export class PersonalMethodsSnapshot {
-  private packs: readonly PlanningMethodPack[] | null = null;
-
-  read(): readonly PlanningMethodPack[] {
-    if (!this.packs) throw personalErrors.personal_not_loaded("这次调用还没有读取个人规划方法");
-    return this.packs;
-  }
-
-  /** Runs the synchronous `body` with `packs` as the snapshot, and with none after. */
-  within<T>(packs: readonly PlanningMethodPack[] | null, body: () => T): T {
-    this.packs = packs;
-    try { return body(); } finally { this.packs = null; }
-  }
-
-  async run<T>(load: () => Promise<readonly PlanningMethodPack[]>, attempt: (packs: readonly PlanningMethodPack[] | null) => Promise<T>,
-    call: Pick<ActionExecutionContext, "signal" | "assert_authority_current"> = {}): Promise<T> {
-    try { return await attempt(null); } catch (error) {
-      if ((error as { code?: unknown } | null)?.code !== "goals.planning.personal_not_loaded") throw error;
-    }
-    let packs: readonly PlanningMethodPack[];
-    try { packs = await load(); } catch (error) {
-      if (actionErrorKind(error) === "cancelled") throw error;
-      if (call.signal?.aborted) throw call.signal.reason ?? error;
-      call.assert_authority_current?.();
-      if ((error as { code?: unknown } | null)?.code === "goals.storage.record_unreadable" && actionErrorKind(error) === "internal") throw error;
-      throw personalErrors.personal_unavailable("读不到个人规划方法：Home 的 Goals 没有回应");
-    }
-    return attempt(packs);
-  }
 }

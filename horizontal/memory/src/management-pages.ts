@@ -1,8 +1,8 @@
-import { MEMORY_KINDS, MEMORY_SOURCES, type MemoryChange, type MemoryScope, type MemoryLedgerPort, type MemoryManagementItem, type MemoryManagementKind, type MemoryPageRequest, type MemoryPageResponse } from "@molis-ai/molis-work-contracts/services/memory";
+import { MEMORY_KINDS, MEMORY_SOURCES, type MemoryChange, type MemoryHistoryResponse, type MemoryScope, type MemoryLedgerPort, type MemoryManagementItem, type MemoryManagementKind, type MemoryPageRequest, type MemoryPageResponse } from "@molis-ai/molis-work-contracts/services/memory";
 import type { MemoryBackendPort } from "./backend.js";
 import type { MemoryCaller, MemoryService } from "./service.js";
 import { MemoryScopeCommands } from "./scope-commands.js";
-import { changeView } from "./shapes.js";
+import { changeView, revisionView } from "./shapes.js";
 import { fromEntryMeta } from "./facts.js";
 import { isExpired, personOnly, visibleTo } from "./places.js";
 import { memoryErrors } from "./errors.js";
@@ -38,6 +38,24 @@ export class MemoryManagementPages {
     caller.signal?.throwIfAborted(); unchanged();
     return changes.filter(change => change.memory_id && identities.has(JSON.stringify([change.scope, change.owner, change.memory_id])))
       .slice(0, filter.limit ?? 50).map(changeView);
+  }
+
+  async history(caller: MemoryCaller, memoryId: string): Promise<MemoryHistoryResponse> {
+    const located = await this.ports.scopes.find(caller, memoryId);
+    const byVersion = new Map(this.ports.ledger.revisions(located.entry.memory_id).map(rev => [rev.version, rev]));
+    if (located.entry.version <= 1) {
+      return { memory_id: located.entry.memory_id, pruned_through_version: 0,
+        revisions: [revisionView(located.entry, byVersion.get(located.entry.version))] };
+    }
+    const holder = caller.person && caller.project_id === null && located.project ? { ...caller, project_id: located.project } : caller;
+    const sdkHistory = await this.ports.backend.withCaller(holder).history({
+      scope: located.scope, owner: located.owner, memory_id: located.entry.memory_id, ...(caller.signal ? { signal: caller.signal } : {}),
+    });
+    const sorted = [...sdkHistory.revisions].sort((a, b) => a.version - b.version);
+    const visible = byVersion.size > 0 ? sorted.filter(rev => byVersion.has(rev.version)) : sorted;
+    return { memory_id: located.entry.memory_id,
+      ...(sdkHistory.pruned_through_version === undefined ? {} : { pruned_through_version: sdkHistory.pruned_through_version }),
+      revisions: visible.map(rev => revisionView(rev, byVersion.get(rev.version))) };
   }
 
   async page(caller: MemoryCaller, request: MemoryPageRequest = {}): Promise<MemoryPageResponse> {

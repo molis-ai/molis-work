@@ -223,6 +223,22 @@ ${BUTTON_STYLES}
   .mw-return-bar[data-return-bar-state=gone] svg { display: none; }
   .mw-resume-prompt { display: grid; gap: 8px; animation: craft-rise var(--dur-arrive) var(--ease-quint) both; }
   @media (prefers-reduced-motion: reduce) { .mw-resume-prompt { animation: none; } }
+  /* The Skills one round used (specs/prologue-strategies/skill.md §10): a line above the reply, each Skill a bounded button; it wraps, never cuts a name. */
+  .mw-skill-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+  .mw-skill-line > span { white-space: nowrap; }
+  .mw-skill-line .mw-btn { max-width: 100%; }
+  /* Its 「依据」 panel, the shell's: why the Skill was used, then what to do about it — this round, and from now on. */
+  .mw-skill-why { position: fixed; margin: 0; inset: auto; width: min(420px, calc(100vw - 16px)); padding: 12px; overflow: auto; color: var(--ink); font-size: 13px; }
+  .mw-skill-why__body { display: grid; gap: 10px; }
+  .mw-skill-why h4 { margin: 0; font-size: 13px; font-weight: var(--weight-title); overflow-wrap: anywhere; }
+  .mw-skill-why__reason, .mw-skill-why__empty { margin: 0; color: var(--ink-soft); }
+  .mw-skill-why__facts { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; font-size: 12px; }
+  .mw-skill-why__facts dt { color: var(--muted); white-space: nowrap; }
+  .mw-skill-why__facts dd { margin: 0; min-width: 0; color: var(--ink-soft); overflow-wrap: anywhere; }
+  .mw-skill-why__group { display: grid; gap: 2px; padding-top: 8px; border-top: 1px solid var(--line); }
+  .mw-skill-why__body > .mw-skill-why__group:first-child { padding-top: 0; border-top: 0; }
+  .mw-skill-why__label { margin: 0 0 2px; font-size: 11px; color: var(--muted); }
+  .mw-skill-why .mw-alert { margin-top: 10px; }
 
   .mw-empty {
     display: grid; justify-items: start; align-content: start; gap: 8px; padding: 16px 12px; color: var(--ink-soft);

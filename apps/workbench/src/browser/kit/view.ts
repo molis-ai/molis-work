@@ -4,6 +4,7 @@ import { renderCells, renderDetailTrail, renderIconCounts, renderItemGroup, rend
 import { dateArg, icon, renderAlert, renderButton } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { act, button, countOf, entriesOf, esc, goTo, isReference, itemsOf, joined, KIND_GLYPH, KINDS, readText, mcpRows, note, section, statusLine, type Kit } from "./common.js";
 import { entryDetail, entryRow, mcpSub, promptSub, skillOuter } from "./details.js";
+import type { Authoring } from "./authoring.js";
 import { exportMenu, type Importing } from "./files.js";
 import { entryMark, packState, type PackGroup } from "./states.js";
 
@@ -21,6 +22,8 @@ export interface View {
   /** Narrow: the detail side is the one shown. */
   detail: boolean;
   importing?: Importing;
+  /** A Skill of the person's own being written, in the detail's place. */
+  authoring?: Authoring;
 }
 
 const TRUST: Record<string, string> = { host: "workbench.settings-skills.included-with-the-app", pinned: "workbench.settings-skills.trusted-publisher", home_local: "workbench.kit.this-computer" };

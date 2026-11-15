@@ -28,6 +28,13 @@ export const INFORMATION_PLANNER = defineInstructionPrompt({
   ...promptBody("information.plan"),
 });
 
+/** Settings › 能力包 › 新建技能: one sentence becomes the form's fields for the person to change (batch 41, 定样 B). It only proposes. */
+export const SKILL_DRAFT = defineInstructionPrompt({
+  owner_id: "system:skills", prompt_id: "skills.draft", version: /* @version prompt.skills.draft */ 1, title: "起草技能",
+  purpose: "把用户一句话写成一个技能的初稿：名称、什么时候用、什么时候不用、给谁用和正文；只起草，由用户改完再保存", used_by: ["设置里的新建技能"],
+  ...promptBody("skills.draft"),
+});
+
 /** The platform memory draws out, when a work ends, what may be worth keeping (specs/archive/memory-system §6.1). It only proposes. */
 const MEMORY_OWNER = "system:memory";
 export const MEMORY_EXTRACT = defineInstructionPrompt({

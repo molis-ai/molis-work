@@ -4,7 +4,7 @@ import { PLATFORM_PLUGIN_REGISTRATIONS, runsOnlyInHome } from "./plugin-registry
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import {
-  openPluginProjectDatabase, upgradePluginHomeLibrary, upgradePluginProjectTables,
+  inspectPluginProjectDatabase, openPluginProjectDatabase, upgradePluginHomeLibrary, upgradePluginProjectTables,
   type PluginProjectDatabaseRecord, type PluginProjectSchemaInspector, type PluginRuntimeDatabase, type PluginUpgradeInspector,
 } from "@molis-ai/molis-work-plugin-runtime";
 import { describeSqliteSchema, listSqliteObjects, LocalSqliteStorage, nativeSqliteOwnerBoundary, nativeSqliteSchemaBoundary, sqliteErrorName } from "@molis-ai/molis-work-storage";
@@ -66,18 +66,24 @@ export function openPluginTables(db: PluginRuntimeDatabase, path: string, manife
  * platform function as every plugin's (§2.4). The upgrade process calls it on a connection of its own, which it closes; `path` names the
  * library in messages. Nothing to do when the plugin has no tables there yet or they are current.
  */
-export function upgradePluginTables(db: PluginRuntimeDatabase, path: string, manifest: PluginManifest): void {
+export function upgradePluginTables(db: PluginRuntimeDatabase, path: string, manifest: PluginManifest, control?: { beforeSteps?: () => void; beforeCommit: () => void }) {
   const declaration = manifest.databases?.project;
   if (!declaration) throw new Error(`插件 ${manifest.plugin_id} 的 Manifest 没有声明项目库`);
-  upgradePluginProjectTables(db, { plugin_id: manifest.plugin_id, publisher_signature: manifest.publisher.signature, declaration }, upgradeInspector,
-    { path, ...projectPluginPlatformExtension(manifest) });
+  return upgradePluginProjectTables(db, { plugin_id: manifest.plugin_id, publisher_signature: manifest.publisher.signature, declaration }, upgradeInspector,
+    { path, ...projectPluginPlatformExtension(manifest), ...control });
 }
 
 /** A plugin's own library in the Home on `db`, by the same function (§2.4): the plugin's steps, and the library's complete statements as the platform composes them. */
-export function upgradePluginLibrary(db: PluginRuntimeDatabase, path: string, manifest: PluginManifest): void {
+export function upgradePluginLibrary(db: PluginRuntimeDatabase, path: string, manifest: PluginManifest, control?: { beforeSteps?: () => void; beforeCommit: () => void }) {
   const declaration = manifest.databases?.home;
   if (!declaration) throw new Error(`插件 ${manifest.plugin_id} 的 Manifest 没有声明 Home 库`);
-  upgradePluginHomeLibrary(db, { plugin_id: manifest.plugin_id, declaration, schema: pluginSyncDatabaseDeclaration(manifest, declaration).schema }, upgradeInspector, { path });
+  return upgradePluginHomeLibrary(db, { plugin_id: manifest.plugin_id, declaration, schema: pluginSyncDatabaseDeclaration(manifest, declaration).schema }, upgradeInspector, { path, ...control });
+}
+
+/** Signed installed project plugins have no platform sync extension. Compare the source baseline before changing a row. */
+export function inspectInstalledProjectTables(db: PluginRuntimeDatabase, path: string, manifest: PluginManifest): PluginProjectDatabaseRecord {
+  return inspectPluginProjectDatabase(db, { plugin_id: manifest.plugin_id, publisher_signature: manifest.publisher.signature,
+    declaration: manifest.databases!.project! }, inspector, path);
 }
 
 /** Open each plugin's tables in the library at `path`; what happened to each is kept with the connection. */

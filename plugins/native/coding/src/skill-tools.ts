@@ -3,7 +3,7 @@ import { agentBodyIn } from "@molis-ai/molis-work-contracts/platform/model-promp
 import type { PluginActionClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
-import { skillRefKey } from "@molis-ai/molis-work-plugin-sdk/skill-ref";
+import { skillChoiceRow, skillRefKey } from "@molis-ai/molis-work-plugin-sdk/skill-ref";
 import { SKILLS_PROVIDER_ID, skillCatalogActions, type SkillCatalogEntry } from "@molis-ai/molis-work-contracts/services/skills";
 import readNativeMarkdown from "./native-markdown.js";
 
@@ -62,7 +62,7 @@ export function autoSkillMaterial(entries: readonly SkillCatalogEntry[], tools: 
   const chosen = new Set(selected.map(skillRefKey)), listed: object[] = [];
   for (const entry of entries) {
     if (chosen.has(skillRefKey(entry.ref))) continue;
-    const row = { ref: entry.ref, name: entry.name, description: entry.description, ...(entry.when_to_use ? { when_to_use: entry.when_to_use } : {}) };
+    const row = skillChoiceRow(entry);
     if (JSON.stringify([...listed, row]).length > LISTED_MAX_CHARS) break;
     listed.push(row);
   }

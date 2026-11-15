@@ -1,0 +1,63 @@
+{
+  "reason": "第 19 批首页主区内容：「看基础首页／回到」等几句话进了工作台启动词包，词包内容变化得到新的内容寻址路径（四个首屏页面中英各算一条新入口）；工作台脚本、样式与页面帧脚本的增长与 batch-19-work-brief.json 的 assets 额度是同一份代码。「装全部插件」的首屏最大（冷 +8 KB 上下）：那一页的首页直接是简报页，多加载 work-brief.js。各页都在 10 KB 以下。",
+  "review": "随第 19 批 PR #2077 评审；同步 main 后在合并队列的基点上重量（中文各页冷加载比 aad8124116 上多 4 字节）；用 node scripts/gates/first-screen.mjs --base origin/main 实测，各页冷、热增量如 pages。",
+  "userApproval": "用户 2026-11-14 在第 19 批主会话弹窗里对首屏字节门选「放行（推荐）」：批准中英词包的新入口与各页 1.3～8.0 KB 的冷加载增长。",
+  "entryApprovals": [
+    {
+      "pages": [
+        "arrival-empty",
+        "chooser",
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "zh",
+      "entry": "/assets/locale/workbench.zh.<digest>.js",
+      "change": "new"
+    },
+    {
+      "pages": [
+        "arrival-empty",
+        "chooser",
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "en",
+      "entry": "/assets/locale/workbench.en.<digest>.js",
+      "change": "new"
+    }
+  ],
+  "pages": {
+    "arrival-empty/zh": {
+      "cold": 1339,
+      "warm": 0
+    },
+    "arrival-empty/en": {
+      "cold": 1327,
+      "warm": 0
+    },
+    "chooser/zh": {
+      "cold": 1397,
+      "warm": 58
+    },
+    "chooser/en": {
+      "cold": 1385,
+      "warm": 58
+    },
+    "workbench-default/zh": {
+      "cold": 5851,
+      "warm": 2510
+    },
+    "workbench-default/en": {
+      "cold": 5824,
+      "warm": 2495
+    },
+    "workbench-all-plugins/zh": {
+      "cold": 8031,
+      "warm": 4690
+    },
+    "workbench-all-plugins/en": {
+      "cold": 8037,
+      "warm": 4708
+    }
+  }
+}

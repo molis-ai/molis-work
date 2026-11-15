@@ -4,7 +4,7 @@ import { agentBodyIn } from "@molis-ai/molis-work-contracts/platform/model-promp
 import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import type { AgentRoundSkill } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { SKILL_BODY_READ_MAX_REFS, type SkillBodyReadResult, type SkillCatalogEntry } from "@molis-ai/molis-work-contracts/services/skills";
-import { skillRefKey } from "@molis-ai/molis-work-plugin-sdk/skill-ref";
+import { namedSkillsRefused, skillRefKey } from "@molis-ai/molis-work-plugin-sdk/skill-ref";
 import { agentErrors } from "./errors.js";
 
 /**
@@ -82,13 +82,17 @@ async function catalogSkills(refs: readonly SkillRef[], input: RoundSkillsInput,
   const [entries, bodies] = await readCatalog(() => Promise.all([catalog.list(input.consumer, refs), catalog.readBodies(input.consumer, refs)]));
   const entryOf = new Map(entries.map(entry => [skillRefKey(entry.ref), entry]));
   const bodyOf = new Map(bodies.map(result => [skillRefKey(result.ref), result]));
-  return refs.map(ref => {
+  // SKL-16: every Skill that cannot be read is said at once, with its own reason; the round does not start on the rest. A list without
+  // a reference the body read accepted means the catalog changed between the two reads.
+  const refused = refs.flatMap(ref => {
     const key = skillRefKey(ref), entry = entryOf.get(key), result = bodyOf.get(key);
-    const name = entry?.name ?? ref.skill_id;
-    if (!result || !result.ok) throw agentErrors.capability_unavailable(`技能“${name}”现在不能用（${result?.reason ?? "not_current"}），请重新选择`);
-    // The body read checked this reference against the catalog; a list without it means the catalog changed between the two reads.
-    if (!entry) throw agentErrors.capability_unavailable(`技能“${name}”现在不能用（not_current），请重新选择`);
-    return { ref: structuredClone(ref), origin: "catalog", name: entry.name, tools: [...entry.tools], named: named.has(key), body: result.body };
+    if (result?.ok && entry) return [];
+    return [{ name: entry?.name ?? ref.skill_id, reason: result && !result.ok ? result.reason : "not_current" as const, ...(result && !result.ok && result.detail ? { detail: result.detail } : {}) }];
+  });
+  if (refused.length) throw agentErrors.capability_unavailable(namedSkillsRefused(refused));
+  return refs.flatMap(ref => {
+    const key = skillRefKey(ref), entry = entryOf.get(key), result = bodyOf.get(key);
+    return entry && result?.ok ? [{ ref: structuredClone(ref), origin: "catalog" as const, name: entry.name, tools: [...entry.tools], named: named.has(key), body: result.body }] : [];
   });
 }
 

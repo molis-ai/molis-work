@@ -3,7 +3,7 @@ import { homedir } from "node:os";
 import { ActionError, bindActionHandler, retainActionAuthority, type ActionExecutionContext, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { localPackageSignAction, type LocalPackageSignInput, type LocalPackageSignResult } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
-import { skillImportActions } from "@molis-ai/molis-work-contracts/services/skills";
+import { SKILL_AUTHORED_PLUGIN_IDS, skillImportActions } from "@molis-ai/molis-work-contracts/services/skills";
 import { completeContentPackagePayload } from "@molis-ai/molis-work-plugin-sdk";
 import { parsePluginPackage, signPluginPackage } from "@molis-ai/molis-work-plugin-runtime";
 import { pluginKitHeaders, pluginsKitReport } from "./kit-actions.js";
@@ -16,7 +16,11 @@ import { SandboxPackageStore } from "./sandbox-package-store.js";
 import { PLUGIN_INSTALL_PROVIDER_ID, pluginInstallDefinitions, pluginInstallHandlers, pluginInstallPerson } from "./plugin-install-actions.js";
 import { PluginInstallService, assertInstallAuthority } from "./plugin-install-service.js";
 import { studioPublisherIdentity, localPublisherKeyId, readSealedLocalPublisherKeyId } from "./plugin-builder/publisher-identity.js";
-import { SkillImportService, localSkillScan } from "./skill-import.js";
+import { SkillImportService, localSkillScan, type SkillImportPorts } from "./skill-import.js";
+import { SkillAuthoringService, draftSkill } from "./skill-authoring.js";
+import { resolveModelPrompt } from "./agent-definitions/instructions.js";
+import { hostCompleteText, textModelAvailability, type HostCompleteText } from "./host-complete-text.js";
+import type { SkillAuthoring } from "./plugin-install-actions.js";
 import { bundledPackagesDirectory } from "./bundled-packages.js";
 
 const LOCAL_PUBLISHER_ID = "molis-home";
@@ -43,8 +47,8 @@ async function signLocalPackage(home: string, service: PluginInstallService, inp
 }
 
 /** The Host's own provider of installing a plugin from a signed package, and of importing Skills as one; it grants nothing to a plugin. */
-export function pluginInstallProvider(service: PluginInstallService, imports?: SkillImportService, home?: string): ActionProviderRegistration {
-  const definitions = pluginInstallDefinitions(imports), handlers = pluginInstallHandlers(service, imports);
+export function pluginInstallProvider(service: PluginInstallService, imports?: SkillImportService, home?: string, authoring?: SkillAuthoring): ActionProviderRegistration {
+  const definitions = pluginInstallDefinitions(imports, authoring), handlers = pluginInstallHandlers(service, imports, authoring);
   if (home) {
     definitions.push(localPackageSignAction);
     handlers.push(bindActionHandler(localPackageSignAction, (input, caller) => signLocalPackage(home, service, input, caller)));
@@ -59,8 +63,14 @@ export function pluginInstallProvider(service: PluginInstallService, imports?: S
 export function skillImportFor(home: string, source: ProjectPluginHost, install: PluginInstallService, userHome = homedir(),
   /** The project's reference from the catalog: resolving it does not open the project's Runtime. */
   resolveProject?: (projectId: string) => Promise<LocalHostProjectReference | null>): SkillImportService {
+  return new SkillImportService({ ...skillPackagePorts(home, source, install, resolveProject), scan: localSkillScan(userHome) });
+}
+
+/** What making, signing and installing a package of Skills needs of this Home: shared by importing Skills and by writing one's own. */
+function skillPackagePorts(home: string, source: ProjectPluginHost, install: PluginInstallService,
+  resolveProject?: (projectId: string) => Promise<LocalHostProjectReference | null>): Omit<SkillImportPorts, "scan"> {
   const packages = new SandboxPackageStore(home);
-  return new SkillImportService({ install,
+  return { install,
     publisherKeyId: () => localPublisherKeyId(home),
     readSealedPublisherKeyId: async (input, caller) => {
       preflight(input);
@@ -80,24 +90,49 @@ export function skillImportFor(home: string, source: ProjectPluginHost, install:
       const open = caller.project_id ? source.host.projects().find(row => row.project_id === caller.project_id) : undefined;
       const project = open ?? (caller.project_id && resolveProject ? await resolveProject(caller.project_id) : null);
       if (!project) throw new ActionError("actions.scope_mismatch", "导入技能需要一个打开的项目");
-      const nested = retainActionAuthority(caller, confirmingImport, caller.beforeEffect);
+      // The action that is running signs: confirming an import, or saving or removing a Skill of one's own (same provider).
+      const running = caller.current_action;
+      const nested = retainActionAuthority(caller, running ? { capability_id: running.capability_id, version: running.version, provider_id: PLUGIN_INSTALL_PROVIDER_ID } : confirmingImport, caller.beforeEffect);
       return await source.host.actionClient(project).invoke(nested, signing, input) as LocalPackageSignResult;
     },
-    scan: localSkillScan(userHome),
     installed: async (pluginId, scope, projectId) => {
       const rows = scope === "home" ? await installedHomePlugins(source.homePlugins()) : await installedPluginsInProject(source, projectId);
       const row = rows.find(({ record }) => record.plugin_id === pluginId && record.state !== "uninstalled" && record.publisher_trust === "pinned");
       return row && packages.load(pluginId, row.record.publisher_signature, row.record.version).packaged;
-    } });
+    } };
+}
+
+/**
+ * Writing Skills of one's own over the Home (batch 41): the same package ports as an import, taking the package off through the
+ * install service, and the configured text model for a draft (`completion`: the Host's injected one, `null` for none, absent for the
+ * person's configured model).
+ */
+export function skillAuthoringFor(home: string, source: ProjectPluginHost, install: PluginInstallService,
+  resolveProject?: (projectId: string) => Promise<LocalHostProjectReference | null>, completion?: HostCompleteText | null): SkillAuthoring {
+  const model = () => completion === undefined ? hostCompleteText({ homeDirectory: home }) : completion ?? undefined;
+  return {
+    service: new SkillAuthoringService({ ...skillPackagePorts(home, source, install, resolveProject),
+      uninstall: async (scope, who, caller) => {
+        if (scope === "home") await install.controlHome("uninstall", { plugin_id: SKILL_AUTHORED_PLUGIN_IDS.home, keep_data: false }, caller);
+        else await install.control({ action: "uninstall", plugin_id: SKILL_AUTHORED_PLUGIN_IDS.project, keep_data: false }, who, caller);
+      },
+      installedPublisher: async (scope, projectId) => {
+        const rows = scope === "home" ? await installedHomePlugins(source.homePlugins()) : await installedPluginsInProject(source, projectId);
+        return rows.find(({ record }) => record.plugin_id === SKILL_AUTHORED_PLUGIN_IDS[scope] && record.state !== "uninstalled" && record.publisher_trust === "pinned")?.record.publisher_signature;
+      } }),
+    draft: (intent, caller) => draftSkill(intent, model(), { signal: caller.signal, beforeDispatch: caller.beforeEffect }, prompt => resolveModelPrompt(home, prompt, "system.skills")),
+    draftAvailability: () => textModelAvailability(model, "起草技能"),
+  };
 }
 
 /** The install provider over the Home: its ledger, its kept packages, and the project the plugin is installed in. */
 export function pluginInstallProviderFor(home: string, source: ProjectPluginHost,
-  resolveProject?: (projectId: string) => Promise<LocalHostProjectReference | null>): ActionProviderRegistration {
-  const service = pluginInstallServiceFor(home, source), provider = pluginInstallProvider(service, skillImportFor(home, source, service, homedir(), resolveProject), home);
+  resolveProject?: (projectId: string) => Promise<LocalHostProjectReference | null>, completion?: HostCompleteText | null, systemSkillsDirectory?: string): ActionProviderRegistration {
+  const service = pluginInstallServiceFor(home, source);
+  const provider = pluginInstallProvider(service, skillImportFor(home, source, service, homedir(), resolveProject), home, skillAuthoringFor(home, source, service, resolveProject, completion));
   // The AI kit's pack headers and a content package's export come from the install records and packages this provider owns (§4.6, §4.9).
   return { ...provider, definitions: [...provider.definitions, pluginsKitReport, pluginPackageExport],
-    handlers: [...provider.handlers, bindActionHandler(pluginsKitReport, (_input, caller) => pluginKitHeaders(home, source, caller)), pluginPackageExportHandler(home, source)] };
+    handlers: [...provider.handlers, bindActionHandler(pluginsKitReport, (_input, caller) => pluginKitHeaders(home, source, caller, systemSkillsDirectory)), pluginPackageExportHandler(home, source)] };
 }
 
 function pluginInstallServiceFor(home: string, source: ProjectPluginHost): PluginInstallService {
@@ -119,5 +154,12 @@ function pluginInstallServiceFor(home: string, source: ProjectPluginHost): Plugi
     regrant: (projectId, installId, permission, granted, expected) => regrantPluginInProject(source, projectId, installId, permission, granted, expected),
     homeInstalled: () => installedHomePlugins(source.homePlugins()), homeRegrant: (installId, permission, granted, expected) => regrantHomePlugin(source.homePlugins(), installId, permission, granted, expected),
     homeControl: (pluginId, action, input, caller) => controlHomePackage(source.homePlugins(), pluginId, action, input, caller),
-    bundledDirectory: source.options.bundledPluginsDirectory ?? bundledPackagesDirectory() });
+    bundledDirectory: source.options.bundledPluginsDirectory ?? bundledPackagesDirectory(),
+    // The official packs ship unsigned until batch 26's publisher key: this Home signs one as it signs an import from this machine.
+    localSigner: { keyId: () => localPublisherKeyId(home), sign: async (draft, caller) => {
+      const input = structuredClone(draft);
+      preflight(input);
+      const signer = await studioPublisherIdentity(home, { beforeEffect: caller.beforeEffect, assertCurrent: () => assertInstallAuthority(caller) });
+      return signPluginPackage({ payload: completeContentPackagePayload(input, { publisher_id: LOCAL_PUBLISHER_ID, signature: signer.publisher_identity }), signature: null, publisher_key: null }, signer);
+    } } });
 }

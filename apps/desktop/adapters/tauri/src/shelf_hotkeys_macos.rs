@@ -5,7 +5,7 @@ use crate::shelf_hotkeys::{
     self, capture_decision, capture_failure, capture_hotkey_message, classify_front, decide_front,
     document_title, html_to_markdown, paths_from_text, website_markdown, BrowserKind,
     CaptureDecision, FrontFileFailure, FrontFileKind, HotKeyAvailability, HotKeyChord,
-    ToggleAction, FINDER_BUNDLE, HOTKEY_CAPTURE, HOTKEY_FILES, HOTKEY_TOGGLE, SELF_BUNDLE,
+    ToggleAction, FINDER_BUNDLE, HOTKEY_CAPTURE, HOTKEY_FILES, HOTKEY_TOGGLE,
 };
 use crate::{shelf_clipboard_macos, shelf_http};
 use objc2::msg_send;
@@ -268,7 +268,9 @@ fn dispatch(id: u32) {
 }
 
 fn on_toggle() {
-    let Some(host) = host() else { return };
+    let Some(host) = host() else {
+        return;
+    };
     let Some(window) = host.app.get_webview_window("main") else {
         return;
     };
@@ -300,7 +302,9 @@ fn start_io(
         + Send
         + 'static,
 ) {
-    let Some(host) = host() else { return };
+    let Some(host) = host() else {
+        return;
+    };
     if IO_RUNNING.swap(true, Ordering::AcqRel) {
         notice("正在收取，请稍候再试");
         return;
@@ -357,7 +361,10 @@ fn on_files() {
     let front = front_app();
     let bundle = front.as_ref().map(|(bundle, _)| bundle.as_str());
     let pid = front.as_ref().map(|(_, pid)| *pid).unwrap_or(0);
-    let kind = classify_front(bundle, SELF_BUNDLE);
+    let Some(host) = host() else {
+        return;
+    };
+    let kind = classify_front(bundle, &host.app.config().identifier);
     let capture_label = shelf_hotkeys::current_capture().label();
     if let Err(fail) = decide_front(kind, ax_trusted(), true) {
         notice(&fail.message(&capture_label));
@@ -644,7 +651,9 @@ fn show_shelf(window: &WebviewWindow) {
 }
 
 fn show_shelf_refresh() {
-    let Some(host) = host() else { return };
+    let Some(host) = host() else {
+        return;
+    };
     if let Some(window) = host.app.get_webview_window("main") {
         show_shelf(&window);
     }
@@ -655,7 +664,9 @@ fn notice(message: &str) {
 }
 
 fn show_notice(message: &str, partial: bool, warning: Option<&str>) {
-    let Some(host) = host() else { return };
+    let Some(host) = host() else {
+        return;
+    };
     let Some(window) = host.app.get_webview_window("main") else {
         return;
     };

@@ -71,8 +71,7 @@ export class MemoryMoves {
       caller.signal?.throwIfAborted();
       ledger.transaction(() => {
         operations.committed(caller, move, { memory_id: destination.entry.memory_id, version: destination.entry.version });
-        ledger.addRevision(destination.entry.memory_id, { version: destination.entry.version, text: destination.entry.text,
-          kind: destination.meta.kind, applies: destination.meta.applies, snapshot: { origin: destination.entry.origin, meta: destination.entry.meta },
+        ledger.addRevision(destination.entry.memory_id, { version: destination.entry.version,
           change: "created", by: "person", at: stamp.at });
       });
     }

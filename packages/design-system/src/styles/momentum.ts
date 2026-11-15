@@ -309,7 +309,6 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
     background: var(--page) !important;
     color: var(--faint) !important;
   }
-  html[data-resolved-theme="dark"] .planning-form footer button[type="submit"],
   html[data-resolved-theme="dark"] .runtime-plan-shell > footer .runtime-plan-apply {
     color: var(--action-ink) !important;
   }

@@ -65,7 +65,6 @@ export interface BoardSnapshot {
     board: GoalsBoardRecord;
     goals: GoalRecord[];
     relations: GoalRelationRecord[];
-    planning_method_packs: PlanningMethodPack[];
     project_guidance: ProjectGuidanceEntryRecord[];
     goal_tree_proposals: GoalTreeProposalRecord[];
 }
@@ -86,11 +85,8 @@ export interface ConfigureGoalEventsApplicationInput {
     actor_id: string;
     actor_kind?: "user" | "runtime";
     expected_version: number;
-    expected_agreement_version?: number;
     idempotency_key: string;
     types?: GoalEventTypeDefinitionInput[];
-    adopted_planning?: GoalEventAdoptedPlanningRequest[];
-    adopt_default_requirement_ids?: string[];
     requirement_bindings?: GoalEventRequirementBinding[];
 }
 
@@ -102,7 +98,6 @@ export interface ConfigureGoalEventsInput {
     expected_version: number;
     idempotency_key: string;
     types?: GoalEventTypeDefinitionInput[];
-    adopted_planning?: GoalEventAdoptedPlanningRef[];
     requirement_bindings?: GoalEventRequirementBinding[];
 }
 
@@ -381,18 +376,6 @@ export interface GoalEventAcknowledgementsApi {
     acknowledge(input: AcknowledgeGoalEventInput): GoalEventMutationResult;
 }
 
-export interface GoalEventAdoptedPlanningRef {
-    method_id: string;
-    version: number;
-    source: "built_in" | "personal" | "project";
-}
-
-export interface GoalEventAdoptedPlanningRequest {
-    method_id: string;
-    version?: number;
-    source?: "built_in" | "personal" | "project";
-}
-
 export interface GoalEventAgreementChange {
     outcome?: string;
     new_requirements?: GoalEventExtraRequirementInput[];
@@ -496,7 +479,6 @@ export interface GoalEventConfigView {
     goal_id: string;
     version: number;
     types: GoalEventTypeDefinition[];
-    adopted_planning: GoalEventAdoptedPlanningRef[];
     extra_requirements: GoalEventExtraRequirement[];
     requirement_bindings: GoalEventRequirementBinding[];
     updated_at: string | null;
@@ -508,7 +490,6 @@ export interface GoalEventConfigurationPayload {
     types: GoalEventTypeDefinition[];
     extra_requirements: GoalEventExtraRequirement[];
     requirement_bindings: GoalEventRequirementBinding[];
-    adopted_planning: GoalEventAdoptedPlanningRef[];
 }
 
 export interface GoalEventDecisionCommitment {
@@ -613,7 +594,6 @@ export interface GoalEventFactsApi {
     readonly state: GoalEventStateApi;
     readonly intent: GoalEventIntentApi;
     configure(input: ConfigureGoalEventsInput): ConfigureGoalEventsResult;
-    configureRequested(input: ConfigureGoalEventsApplicationInput, resolveAdoption: (projectId: string, requested: GoalEventAdoptedPlanningRequest[]) => ResolvedPlanningEventAdoption): ConfigureGoalEventsResult;
     report(input: ReportGoalEventsInput): ReportGoalEventsRecordedResult;
     readConfig(projectId: string, goalId: string): GoalEventConfigView;
     listEvents(projectId: string, goalId: string, query?: GoalEventListQuery): GoalEventListPage;
@@ -642,8 +622,7 @@ export interface GoalEventFieldDefinition {
 export type GoalEventFieldFormat = (typeof goalEventFieldFormats)[number];
 
 export interface GoalEventFieldSource {
-    kind: "local" | "planning";
-    method_id?: string;
+    kind: "local";
     label?: string;
 }
 
@@ -726,13 +705,6 @@ export interface GoalEventMutationResult {
     recorded: true;
 }
 
-export interface GoalEventPlanningMethodRef {
-    method_id: string;
-    version: number;
-    source: "built_in" | "personal" | "project";
-    name?: string;
-}
-
 export interface GoalEventProgressResult extends GoalEventMutationResult {
     progress_summary: GoalEventProgressSummaryView;
 }
@@ -801,10 +773,6 @@ export interface GoalEventRequirementRevisionInput {
 }
 
 export type GoalEventRequirementSource = {
-    kind: "planning";
-    template_requirement_id: string;
-    methods: GoalEventPlanningMethodRef[];
-} | {
     kind: "create_input";
 } | {
     kind: "imported_acceptance_criterion";
@@ -824,9 +792,6 @@ export interface GoalEventRequirementStatus {
         decision_method?: GoalAcceptanceCriterion["decision_method"];
         pass_condition?: string;
         config_version?: number;
-        planning?: Extract<GoalEventRequirementSource, {
-            kind: "planning";
-        }>;
         policy_binding_ids?: string[];
     };
     bound_type_ids: string[];
@@ -1076,10 +1041,7 @@ export interface GoalEventTypeDefinitionInput {
 
 export interface GoalEventTypeSource {
     kind: GoalEventTypeSourceKind;
-    method_id?: string;
-    method_version?: number;
     label?: string;
-    contributing_methods?: GoalEventPlanningMethodRef[];
 }
 
 export type GoalEventTypeSourceKind = (typeof goalEventTypeSourceKinds)[number];
@@ -1662,13 +1624,6 @@ export interface GoalsPlanningApi {
     validateRelationAddition(projectId: string, input: AddGoalRelationInput): Pick<PlanningGraphIssue, "code" | "message"> | null;
     proposalGraphIssues(projectId: string, items: readonly PlanningProposalItem[]): PlanningGraphIssue[];
     wouldCreatePartOfCycle(projectId: string, fromGoalId: string, toGoalId: string): boolean;
-    effectiveMethods(projectId: string, locale?: string): PlanningMethodPack[];
-    projectComposition(projectId: string): PlanningMethodComposition;
-    saveProjectMethod(input: SaveProjectPlanningMethodInput): {
-        method: PlanningMethodPack;
-        observed_event_cursor: number;
-    };
-    resolveEventAdoption(projectId: string, requested: GoalEventAdoptedPlanningRequest[]): ResolvedPlanningEventAdoption;
     analyzeChange(projectId: string, changedGoalIds: readonly string[]): GoalChangeImpact;
     validateBoardGraph(projectId: string): {
         issues: PlanningGraphIssue[];
@@ -1707,7 +1662,6 @@ export interface GoalsQuerySnapshot {
     goals: GoalRecord[];
     relations: GoalRelationRecord[];
     policy_bindings: GoalPolicyBindingRecord[];
-    planning_method_packs: PlanningMethodPack[];
     project_guidance: ProjectGuidanceEntryRecord[];
 }
 
@@ -1868,18 +1822,6 @@ export type NewNativeGoalTreeProposal = Omit<GoalTreeProposalRecord, "items" | "
 
 export type NewNativeGoalTreeProposalItem = Omit<GoalTreeProposalItemRecord, "decision" | "materialized_objects" | "revision_proposal_id" | "conflict">;
 
-export interface PlanningCoverageRule {
-    area: string;
-    label: string;
-    question: string;
-}
-
-export interface PlanningDependencyRule {
-    rule_id: string;
-    statement: string;
-    direction_hint: string;
-}
-
 export interface PlanningGraphIssue {
     code: "goals.planning.goal_missing" | "goals.planning.goal_trashed" | "goals.planning.relation_self_reference" | "goals.planning.relation_duplicate" | "goals.planning.part_of_cycle" | "goals.planning.dependency_cycle" | "goals.planning.execution_cycle";
     message: string;
@@ -1887,69 +1829,6 @@ export interface PlanningGraphIssue {
     relation_ids: string[];
     path: string[];
 }
-
-export interface PlanningMethodComposition {
-    method_pack_ids: string[];
-    method_names: string[];
-    method_paths: PlanningMethodPath[];
-    required_coverage: PlanningCoverageRule[];
-    dependency_rules: PlanningDependencyRule[];
-    evidence_requirements: string[];
-    completion_checks: string[];
-    failure_modes: string[];
-}
-
-export interface PlanningMethodDefaultRequirement {
-    requirement_id: string;
-    statement: string;
-    bound_type_id?: string;
-    applies_when?: string;
-    sources?: GoalEventPlanningMethodRef[];
-}
-
-export type PlanningMethodKind = "meta" | "work_type" | "domain" | "industry" | "overlay" | "custom";
-
-export interface PlanningMethodPack {
-    method_id: string;
-    version: number;
-    scope: PlanningMethodScope;
-    kind: PlanningMethodKind;
-    name: string;
-    summary: string;
-    instructions: string;
-    applies_to: string[];
-    domain_tags: string[];
-    steps: string[];
-    required_coverage: PlanningCoverageRule[];
-    dependency_rules: PlanningDependencyRule[];
-    evidence_requirements: string[];
-    completion_checks: string[];
-    failure_modes: string[];
-    source_refs: string[];
-    confidence: number;
-    enabled: boolean;
-    created_at: string;
-    updated_at: string;
-    event_types: GoalEventTypeDefinitionInput[];
-    default_requirements: PlanningMethodDefaultRequirement[];
-}
-
-export type PlanningMethodPackInput = Omit<PlanningMethodPack, "scope" | "version" | "created_at" | "updated_at" | "instructions" | "event_types" | "default_requirements"> & {
-    version?: number;
-    instructions?: string;
-    event_types?: GoalEventTypeDefinitionInput[];
-    default_requirements?: PlanningMethodDefaultRequirement[];
-};
-
-export interface PlanningMethodPath {
-    method_id: string;
-    method_name: string;
-    kind: PlanningMethodKind;
-    steps: string[];
-    instructions: string;
-}
-
-export type PlanningMethodScope = "built_in" | "personal" | "project";
 
 export interface PlanningMetric {
     goal_id: string;
@@ -2118,16 +1997,6 @@ export interface RequestGoalDecisionInput {
     scope?: Partial<GoalEventScope>;
 }
 
-export interface ResolvedPlanningEventAdoption {
-    adopted_planning: GoalEventAdoptedPlanningRef[];
-    types: GoalEventTypeDefinitionInput[];
-    default_requirements: PlanningMethodDefaultRequirement[];
-}
-
-export interface ResolvedPlanningMethodPack extends PlanningMethodPack {
-    overridden_scopes: PlanningMethodScope[];
-}
-
 export interface ResumeGoalEventWorkInput {
     project_id: string;
     goal_id: string;
@@ -2135,13 +2004,6 @@ export interface ResumeGoalEventWorkInput {
     actor_kind?: "user" | "runtime";
     idempotency_key: string;
     reason: string;
-}
-
-export interface SaveProjectPlanningMethodInput {
-    project_id: string;
-    method: PlanningMethodPackInput;
-    actor_id: string;
-    user_confirmed: boolean;
 }
 
 export interface SetGoalEventAgreementInput {
@@ -2337,7 +2199,7 @@ export declare const goalEventSystemOperations: readonly ["progress_summary", "c
 
 export declare const goalEventTrustedAuthoritySources: readonly ["web", "management"];
 
-export declare const goalEventTypeSourceKinds: readonly ["local", "planning", "runtime"];
+export declare const goalEventTypeSourceKinds: readonly ["local", "runtime"];
 
 export declare const goalEventUserConclusionVerdicts: readonly ["accepted", "rejected"];
 
@@ -2470,19 +2332,9 @@ export declare function parseGoalPluginObjectRef(ref: string): {
     id: string;
 } | null;
 
-export declare const planningCompositionSchema: Readonly<Record<string, unknown>>;
-
 export declare const planningGraphIssueSchema: Readonly<Record<string, unknown>>;
 
 export declare const planningImpactSchema: Readonly<Record<string, unknown>>;
-
-export declare const planningMethodInputSchema: Readonly<Record<string, unknown>>;
-
-export declare const planningMethodSchema: Readonly<Record<string, unknown>>;
-
-export declare const planningMethodSummarySchema: Readonly<Record<string, unknown>>;
-
-export declare const planningSavedSchema: Readonly<Record<string, unknown>>;
 
 export declare const progress: Readonly<Record<string, unknown>>;
 

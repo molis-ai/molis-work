@@ -41,7 +41,6 @@ test("HTTP event APIs persist intent, blank planning, typed reports, decisions a
   });
   const goalId = created.goal.goal_id;
   const blank = app.goalEvents.readState(BOARD, goalId);
-  assert.equal(blank.config.adopted_planning.length, 0);
   assert.equal(blank.config.types.length, 0);
   app.goalEvents.configure({
     project_id: BOARD, goal_id: goalId, actor_id: "web-user", actor_kind: "user",

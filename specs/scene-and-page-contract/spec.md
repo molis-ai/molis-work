@@ -360,6 +360,7 @@ type CharacterTemplateAdoptionInput = { origin: BlueprintPartOrigin; request_id:
 - 基础首页：首页服务直接画 `surfaces.compose` 给的描述（第 15 批 S-2 的内容）。
 - 生成页面：页面要放插件卡片时，同样经页面网关调 `surfaces.compose@1` 与各主人的 values 动作，这两个也要在页面声明、本人批准的动作里；页面拿到的只是描述和值，渲染用 SDK 的 `renderPresentationForm`。
 - 所以 05② 的 `SurfaceSlotKind` 的 `home` 就是首页的组合位置，没有第二个「首页」：不在 `UI_VIEW_SLOTS` 里加 `home`，也没有 `projects.home`。
+- 首页主区内容（第 19 批）：插件在呈现声明里写 `overview.lead: { view_id }`，`home` 描述里就多一个 `kind: "lead"` 的组，首页把那个主区视图收进主区，细栏可切回基础首页。它不是第二个首页，也不是新的视图位置：视图还是插件自己的主区视图，装载、凭据和页面网关都是主区现有的那一套。已采用的生成页面优先于主区内容（第 37 批）。写法见 [确定组合 §7.4](../surface-composition/spec.md) 与 [Work Brief 合同设计](../work-brief/contract-design.md) 第 2 节。
 
 ### 6.3 生成页面的形状
 

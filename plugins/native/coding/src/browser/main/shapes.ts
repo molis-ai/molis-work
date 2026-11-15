@@ -1,4 +1,12 @@
-import type { AgentRunInstructions, AgentRunUsage, AgentMcpServerView as McpServer, AgentMcpSourceRef as McpSourceRef, AgentMcpToolRef as McpToolRef } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type {
+  AgentMaterialChecklistItem,
+  AgentMaterialDeliveryMode,
+  AgentRunInstructions,
+  AgentRunUsage,
+  AgentMcpServerView as McpServer,
+  AgentMcpSourceRef as McpSourceRef,
+  AgentMcpToolRef as McpToolRef,
+} from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import type { ProjectDirectories } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { RunCard } from "../actions.js";
@@ -126,20 +134,14 @@ export interface FrozenSetup {
   readonly text_materials: readonly {
     readonly material_id: string;
     readonly title?: string;
+    readonly material_ref?: { readonly subject?: { readonly kind: string; readonly id: string } };
     readonly source_artifact_id?: string;
     readonly source_version?: number;
     readonly read_revision?: string;
-    readonly delivery?: "full" | "clipped" | "on-demand";
+    readonly delivery?: AgentMaterialDeliveryMode;
     readonly total_chars?: number;
     readonly delivered_chars?: number;
-    readonly overflow_materials?: readonly {
-      readonly material_id?: string;
-      readonly title: string;
-      readonly source_artifact_id?: string;
-      readonly source_version?: number;
-      readonly read_revision?: string;
-      readonly total_chars?: number;
-    }[];
+    readonly overflow_materials?: readonly AgentMaterialChecklistItem[];
   }[];
   readonly compaction?: { readonly above_tokens: number; readonly version: number };
   readonly model_context?: { readonly window_tokens?: number };
@@ -161,7 +163,17 @@ export interface RunView {
   readonly command_outputs?: readonly CommandOutput[];
   readonly frozen: FrozenSetup;
   readonly usage: AgentRunUsage;
-  readonly step_board?: { terminal: boolean; nodes: { state: string }[] };
+  readonly step_board?: {
+    terminal: boolean;
+    nodes: {
+      id?: string;
+      parent_id?: string;
+      state: string;
+      skipped?: boolean;
+      scope_removed?: boolean;
+      unknown_outcome?: boolean;
+    }[];
+  };
   readonly cards?: readonly RunCard[];
   readonly next_html?: string;
   /** The round's Skill line (SKL-11), drawn by the Host: what it used and who chose each. */
@@ -307,8 +319,8 @@ export interface StateRead {
   instructions?: ProjectDirectories["instructions"];
   readonly environment_readiness?: {
     readonly workspace_id: string;
+    readonly canonical_path?: string;
     readonly status: "ready" | "attention";
-    readonly summary?: string;
     readonly branch: string | null;
     readonly head_commit: string | null;
     readonly dirty_count: number;

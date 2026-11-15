@@ -107,11 +107,12 @@ const stepBoardOutput = shape(["project_id", "version", "terminal", "nodes"], { 
     owner: shape(["kind", "label"], { kind: { enum: ["session", "subtask", "person", "none", "other"] }, label: string, title: string, subagent_id: string, actor_id: string, expired: { const: true } }),
     title: string, depends_on: strings, parent_id: string, inserted: { type: "boolean" }, origins: objects,
     story_points: { anyOf: [{ type: "integer", minimum: 1, maximum: Number.MAX_SAFE_INTEGER }, { type: "null" }] }, estimate_source: { enum: ["agent", "human"] }, estimate_reason: string,
-    progress: number, progress_basis: string, scope_removed: { const: true }, unknown_outcome: { const: true } })) });
+    progress: number, progress_basis: string, skipped: { const: true }, scope_removed: { const: true }, unknown_outcome: { const: true } })) });
 const memoryRef = shape(["memory_id", "version"], { memory_id: string, version: number });
 const materialDelivery = { enum: ["full", "clipped", "on-demand"] } as const;
 const materialChars = { type: "integer", minimum: 0, maximum: Number.MAX_SAFE_INTEGER } as const;
 const materialOverflowItem = { type: "object", required: ["title", "delivery"], additionalProperties: false, properties: {
+  material_id: { type: "string", minLength: 1, maxLength: 240 },
   title: { type: "string", maxLength: 2000 }, material_ref: MATERIAL_REF_SCHEMA, read_revision: { type: "string", minLength: 1, maxLength: 200 },
   delivery: materialDelivery, total_chars: materialChars, delivered_chars: materialChars,
   source_artifact_id: { type: "string", minLength: 1, maxLength: 200 }, source_version: { type: "integer", minimum: 1, maximum: Number.MAX_SAFE_INTEGER } } } as const;
@@ -164,13 +165,15 @@ const sessionViewOutput = { type: "object", required: ["owner", "session", "titl
 const reviewRequestOutput = { type: "object", required: ["review_id", "run", "project_id", "plugin_id", "kind", "document", "requested_at", "expires_at"], additionalProperties: false, properties: {
   review_id: { type: "string" }, run: { anyOf: [runRefOutput, { type: "null" }] }, operation: object, project_id: { type: "string" }, plugin_id: { type: "string" }, kind: { type: "string" },
   document: object, requested_at: { type: "string" }, expires_at: { type: ["string", "null"] } } } as const;
-const subagentBudgetOutput = shape(["attempt", "max_attempts", "max_turns"], {
-  attempt: number, max_attempts: number, max_turns: number, used_tokens: number, exhausted: { const: true },
-  retry_source: { enum: ["check-failed", "model-error", "user-requested"] }, retry_reason: string,
+const subagentState = { enum: ["running", "completed", "failed", "cancelled", "reconcile-required"] } as const;
+const subagentRetrySource = { enum: ["check-failed", "model-error", "user-requested"] } as const;
+const subagentBudgetOutput = shape(["attempt", "max_attempts"], {
+  attempt: number, max_attempts: number, max_turns: number, max_total_tokens: number, used_tokens: number, exhausted: { const: true },
+  retry_source: subagentRetrySource, retry_reason: string,
   prior_attempts: list(shape(["attempt", "run_id", "state"], {
-    attempt: number, run_id: string, state: string,
-    source: { enum: ["initial", "check-failed", "model-error", "user-requested"] },
-    reason: string, summary: string, error: string,
+    attempt: number, run_id: string, state: subagentState,
+    source: subagentRetrySource,
+    reason: string, usage: usageOutput, error: string,
   })),
 });
 const subagentOutput = { type: "object", required: ["subagent_id", "parent_run", "role_id", "task", "state", "result", "workspace_path"], additionalProperties: false, properties: {

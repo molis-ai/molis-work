@@ -7,7 +7,7 @@ import { errorMessage } from "../dom.js";
 import { terminal } from "./composer-state.js";
 import { boardUpdate } from "./board.js";
 import { jsonComparisonText } from "@molis-ai/molis-work-plugin-sdk/browser";
-import { applyConfiguration, retitle } from "./configuration.js";
+import { applyConfiguration, refreshState, retitle } from "./configuration.js";
 import { controls } from "./controls.js";
 import { renderDirectory } from "./directory.js";
 import { showReviews } from "./helpers.js";
@@ -94,6 +94,9 @@ function adoptConfiguration(page: Page, id: string, data: SessionData, fresh: bo
   }
   applyConfiguration(page);
   void followWorkspace(page);
+  if (s.workspaceId && s.stateLoaded && s.state.environment_readiness?.workspace_id !== s.workspaceId) {
+    void refreshState(page);
+  }
 }
 
 /** The session's own choices (tools, methods, materials, character) are taken from the first read and kept by the page after. */

@@ -66,12 +66,20 @@ function entryNodes(page: Page, block: HTMLElement, run: RunView, all: readonly 
   return ordered;
 }
 
-function placeEnvChecklist(page: Page, block: HTMLElement, ordered: HTMLElement[], last: boolean) {
-  if (!last) {
+function readinessMatchesRun(run: RunView, readiness: Page["s"]["state"]["environment_readiness"]): boolean {
+  if (!readiness) return false;
+  if (run.frozen?.directories?.execution.kind === "worktree") return false;
+  const runDir = run.frozen?.directory?.canonical_path;
+  return !runDir || !readiness.canonical_path || runDir === readiness.canonical_path;
+}
+
+function placeEnvChecklist(page: Page, block: HTMLElement, run: RunView, ordered: HTMLElement[], last: boolean) {
+  const readiness = page.s.state.environment_readiness;
+  if (!last || !readinessMatchesRun(run, readiness)) {
     block.querySelector(":scope > [data-coding-env-checklist]")?.remove();
     return;
   }
-  const html = buildEnvironmentChecklistHtml(page.s.state.environment_readiness);
+  const html = buildEnvironmentChecklistHtml(readiness);
   if (!html) {
     block.querySelector(":scope > [data-coding-env-checklist]")?.remove();
     return;
@@ -114,7 +122,7 @@ function placeRoundMaterials(block: HTMLElement, run: RunView, ordered: HTMLElem
 /** The plan sits right under the task it came from, and the subtasks right after the step that sent them. */
 function placeCards(page: Page, block: HTMLElement, run: RunView, all: readonly RunView[], ordered: HTMLElement[], stand: GraphStand) {
   const { s } = page, { planProgress, subagentCards } = page.refs, last = run === all.at(-1);
-  placeEnvChecklist(page, block, ordered, last);
+  placeEnvChecklist(page, block, run, ordered, last);
   placeRoundMaterials(block, run, ordered);
   if (stand.laterOnSameGraph) block.querySelector(":scope > .coding-plan-progress")?.remove();
   const planCard = stand.laterOnSameGraph ? null : planProgress.render(run, stand.entry, last && !terminal(run.phase), last || stand.latest);
@@ -192,7 +200,7 @@ export function drawRun(page: Page, block: HTMLElement, run: RunView, all: reado
   settle(block, ordered);
   placeReview(page, block, run, all);
   const settled = !s.recovery && !s.checkpointBusy, last = run === all.at(-1);
-  // Only the revision recorded when the round started names what it tested; the current workspace HEAD may have moved.
+  // Only the revision recorded when the round started names what it tested; the current HEAD may have moved.
   const headRev = run.code_revision ?? null;
   timeline.renderFooter(block, headRev ? { ...run, code_revision: headRev } : run, all.indexOf(run), last && (run.phase === "reconcile-required" || settled), !last && stand.latest && settled);
 }

@@ -3,8 +3,9 @@ import { isDeepStrictEqual } from "node:util";
 import { DEFAULT_TOOL_LIMITS, type ScenarioPack, type ToolRunner } from "@prologue/sdk";
 import { compareCodeUnits } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionError, actionEffect, type ActionSubject, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { knowledgeRefFromDigestHex, knowledgeSubjectHashInput } from "@molis-ai/molis-work-contracts/services/knowledge";
 import type { AgentFrozenRole, AgentRunOffer, AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { capabilityInput, GATEWAY_TOOLS, offerWords, withPinnedKnowledgeRevision } from "./prologue-action-gateway.js";
+import { assertPinnedMaterialResult, capabilityInput, GATEWAY_TOOLS, offerWords, withPinnedKnowledgeRevision } from "./prologue-action-gateway.js";
 import { actionDigest } from "../action-digest.js";
 import { afterWriteTool } from "./prologue-after-write.js";
 
@@ -27,18 +28,26 @@ export const SUGGEST_TOOL_PREFIX = "molis-suggest-";
 const SUGGEST_RESULT_BYTES = 32 * 1024;
 
 function knowledgeSubjectHashRef(subject: ActionSubject): string {
-  return `k${createHash("sha256").update(`${subject.kind}\u0000${subject.id}`).digest("hex").slice(0, 7)}`;
+  return knowledgeRefFromDigestHex(createHash("sha256").update(knowledgeSubjectHashInput(subject)).digest("hex"));
 }
 
 /** Build round-pinned revisions from text materials so mid-round `knowledge.read` on the same piece cannot silently mix two revisions (C13). */
 export function pinnedMaterialRevisions(materials: readonly AgentTextMaterial[] | undefined): ReadonlyMap<string, string> {
   const map = new Map<string, string>();
-  const pinOne = (entry: { material_ref?: AgentTextMaterial["material_ref"]; source_artifact_id?: string; source_version?: number; read_revision?: string }) => {
-    const subject = entry.material_ref?.subject
+  const pinOne = (entry: { material_id?: string; material_ref?: AgentTextMaterial["material_ref"]; source_artifact_id?: string; source_version?: number; read_revision?: string }) => {
+    const rev = entry.read_revision ?? (entry.material_ref?.pin.mode === "current" ? entry.material_ref.pin.read_revision : undefined);
+    let subject: ActionSubject | undefined = entry.material_ref?.subject
       ?? (entry.source_artifact_id && entry.source_version !== undefined
         ? { kind: "artifact", id: `${entry.source_artifact_id}@${entry.source_version}` }
         : undefined);
-    const rev = entry.read_revision ?? (entry.material_ref?.pin.mode === "current" ? entry.material_ref.pin.read_revision : undefined);
+    if (!subject && rev && entry.material_id) {
+      const suffix = `@${rev.slice(0, 64)}`;
+      if (entry.material_id.endsWith(suffix)) {
+        const key = entry.material_id.slice(0, -suffix.length);
+        const colon = key.indexOf(":");
+        if (colon > 0 && colon < key.length - 1) subject = { kind: key.slice(0, colon), id: key.slice(colon + 1) };
+      }
+    }
     if (!subject || !rev) return;
     map.set(`subject:${subject.kind}\u0000${subject.id}`, rev);
     map.set(`ref:${knowledgeSubjectHashRef(subject)}`, rev);
@@ -91,8 +100,10 @@ export function prologueActionTools(
         await currentAction(actions!, view);
         abort.signal.throwIfAborted();
         const rawInput = wrapped ? call.args.input : call.args;
-        const result = await actions!.client.invoke(reference, withPinnedKnowledgeRevision(reference, rawInput, pinnedRevisions), abort.signal);
+        const preparedInput = withPinnedKnowledgeRevision(reference, rawInput, pinnedRevisions);
+        const result = await actions!.client.invoke(reference, preparedInput, abort.signal);
         abort.signal.throwIfAborted();
+        assertPinnedMaterialResult(reference, preparedInput, result, pinnedRevisions);
         return JSON.stringify(result) ?? "null";
       } finally { unsubscribe?.(); call.signal?.removeEventListener("abort", stop); runSignal?.removeEventListener("abort", stop); }
     };

@@ -39,16 +39,18 @@ type AgentMaterialSource =
   | { source_artifact_id: string; source_version: number }
   | { source_artifact_id?: never; source_version?: never };
 
+export type AgentMaterialDeliveryMode = "full" | "clipped" | "on-demand";
+
 export interface AgentMaterialChecklistItem {
+  material_id?: string;
   title: string;
   material_ref?: MaterialRef;
-  read_revision?: string;
-  delivery: "full" | "clipped" | "on-demand";
-  total_chars?: number;
-  delivered_chars?: number;
-  /** The fixed 成果 version a material is, when it is one; the same fields the action's overflow schema allows. */
   source_artifact_id?: string;
   source_version?: number;
+  read_revision?: string;
+  delivery: AgentMaterialDeliveryMode;
+  total_chars?: number;
+  delivered_chars?: number;
 }
 
 /**
@@ -59,7 +61,7 @@ export interface AgentMaterialChecklistItem {
 export interface AgentMaterialOrigin {
   material_ref?: MaterialRef;
   read_revision?: string;
-  delivery?: "full" | "clipped" | "on-demand";
+  delivery?: AgentMaterialDeliveryMode;
   total_chars?: number;
   delivered_chars?: number;
   overflow_materials?: AgentMaterialChecklistItem[];

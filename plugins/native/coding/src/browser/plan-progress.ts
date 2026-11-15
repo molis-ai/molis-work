@@ -2,7 +2,7 @@ import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { stepActorText } from "./step-actor.js";
 import { el, errorMessage } from "./dom.js";
 import type { Amendment, PlanEntry, StepNode } from "./shapes.js";
-import { formatBoardProgressSummary, scopeRemoved, settled, skipped, stepOf, stepPointsBadge } from "./taskboard-steps.js";
+import { activeLeafSteps, formatBoardProgressSummary, scopeRemoved, settled, skipped, stepOf, stepPointsBadge } from "./taskboard-steps.js";
 import type { PagePorts, Translate } from "./types.js";
 
 /** The round the progress belongs to, as far as the card reads it. */
@@ -225,7 +225,7 @@ function stepTools(d: Drawing, row: HTMLElement, node: StepNode, index: number, 
       return change({ kind: "estimate", node: node.id, story_points: parsed, ...(reason ? { reason } : {}) });
     }, uiText.text("coding.board.estimate-ok")));
     if (node.state !== "succeeded") {
-      const initPct = node.progress !== undefined && node.progress > 0 ? String(node.progress <= 1 ? Math.round(node.progress * 100) : Math.round(node.progress)) : "";
+      const initPct = node.progress !== undefined && node.progress > 0 ? String(Math.round(node.progress * 100)) : "";
       tool(uiText.text("coding.board.progress-edit"), "edit", () => form([["percent", uiText.text("coding.board.progress-percent"), 4, initPct], ["basis", uiText.text("coding.board.progress-basis-input"), 300, node.progress_basis || ""]], ([pctText, basis]) => {
         const raw = Number(pctText);
         const fraction = Number.isFinite(raw) ? Math.max(0.01, Math.min(0.99, raw > 1 ? raw / 100 : raw)) : 0;
@@ -266,7 +266,7 @@ const offersOf = (run: ProgressRun, board: Board) => {
 };
 
 function drawHead(_L: Translate, card: HTMLElement, entry: PlanEntry, board: Board) {
-  const total = board.nodes.filter(node => !skipped(node) && !scopeRemoved(node)).length, done = board.nodes.filter(node => node.state === "succeeded" && !node.unknown_outcome).length;
+  const activeLeaves = activeLeafSteps(board.nodes), total = activeLeaves.length, done = activeLeaves.filter(settled).length;
   const weighted = formatBoardProgressSummary(board.progress_summary, board.nodes);
   const head = el("header", "", "coding-plan-head");
   head.innerHTML = svg("list");
@@ -325,7 +325,7 @@ export function planProgress(ports: ProgressPorts): PlanProgress {
         card.dataset.codingPlanProgress = run.ref.run_id;
         card.setAttribute("aria-label", uiText.text("coding.plan.progress"));
       }
-      const signature = JSON.stringify([board.version, board.terminal, board.progress_summary, board.nodes.map(node => [node.id, node.state, node.unknown_outcome, node.scope_removed, node.story_points, node.progress]), live, latest, run.phase, entry.verdicts, offersOf(run, board).map(turn => turn.steer?.id)]);
+      const signature = JSON.stringify([board.version, board.terminal, board.progress_summary, board.nodes.map(node => [node.id, node.state, node.skipped, node.unknown_outcome, node.scope_removed, node.story_points, node.progress]), live, latest, run.phase, entry.verdicts, offersOf(run, board).map(turn => turn.steer?.id)]);
       // Never rebuild under the person's hands: an open form keeps the card as it is until they finish.
       if (card.dataset.editing === "true" || card.dataset.busy === "true" || card.dataset.signature === signature) return card;
       card.dataset.signature = signature;

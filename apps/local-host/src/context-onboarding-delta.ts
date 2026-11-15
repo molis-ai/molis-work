@@ -130,20 +130,33 @@ export function mergeSourceIncrementally(previous: ContextSource | undefined, ne
   return withDigests;
 }
 
-function selectedPathTags(sources: readonly ContextSource[]): string[] {
+export function readScopePathTags(sources: readonly ContextSource[]): string[] {
   const out: string[] = [];
   for (const s of sources) {
     if (!s.selected) continue;
-    if (s.references?.length) {
-      for (const r of s.references) out.push(`${s.kind}:${r.path}`);
+    if (s.kind === "gmail") {
+      if (s.connection_id || s.references?.length || s.issues?.length || s.held_secrets?.length) {
+        out.push(`gmail:Gmail（最近 ${s.days === 7 ? 7 : 30} 天）`);
+      }
+    } else if (s.kind === "browser") {
+      if (s.text?.trim() || s.references?.length) {
+        out.push("browser:网页内容.md");
+      }
     } else if (s.metadata) {
       for (const f of includedContextFiles(s)) out.push(`${s.kind}:${f.path}`);
     } else if (s.files?.length) {
       for (const f of s.files) out.push(`${s.kind}:${f.path}`);
-    } else if (s.kind === "browser" && s.text?.trim()) {
-      out.push("browser:网页内容.md");
-    } else if (s.kind === "gmail" && s.connection_id) {
-      out.push(`gmail:${s.connection_id}:${s.days ?? 30}`);
+    } else if (s.references?.length || s.held_secrets?.length || s.issues?.length) {
+      const seen = new Set<string>();
+      for (const p of [
+        ...(s.references ?? []).map(r => r.path),
+        ...(s.held_secrets ?? []).map(h => h.path),
+        ...(s.issues ?? []).map(iss => iss.path),
+      ]) {
+        if (!p || seen.has(p)) continue;
+        seen.add(p);
+        out.push(`${s.kind}:${p}`);
+      }
     }
   }
   return out;
@@ -154,7 +167,7 @@ export function computeScopeDelta(journey: ContextJourney): ContextJourney["scop
   const prev = journey.last_read_paths;
   if (!prev?.length) return null;
   const prevSet = new Set(prev);
-  const current = selectedPathTags(journey.sources);
+  const current = readScopePathTags(journey.sources);
   const currSet = new Set(current);
   const stripKind = (tag: string) => tag.slice(tag.indexOf(":") + 1);
   const added = current.filter(t => !prevSet.has(t)).map(stripKind);
@@ -193,44 +206,64 @@ export function deduplicateSelectedReferences(selectedSources: readonly ContextS
   return unique;
 }
 
-/** Applies a user's `strip` | `raw` | `exclude` choice to a held secret material (`C2`, `S-onboarding-secret-hold`). */
-export async function applyHeldSecretDecision(
+/** Prepares stripped/raw material outside store mutation so cancelled callers never write business state (`S-onboarding-secret-hold`). */
+export async function prepareHeldSecretDecision(
   home: string,
+  journey: Readonly<ContextJourney>,
+  secretKey: string,
+  decision: SecretSendDecision,
+  signal?: AbortSignal,
+): Promise<{ readonly prepared?: Awaited<ReturnType<typeof prepareContextDocument>> }> {
+  signal?.throwIfAborted();
+  let heldItem: HeldSecretMaterial | undefined;
+  for (const s of journey.sources) {
+    heldItem = s.held_secrets?.find(h => h.key === secretKey) ?? s.reading?.held_secrets?.find(h => h.key === secretKey);
+    if (heldItem) break;
+  }
+  if (!heldItem || decision === "exclude") return {};
+  const prepared = await prepareContextDocument(
+    home,
+    journey.id,
+    heldItem.kind,
+    { path: heldItem.path, staged: heldItem.sha256 },
+    signal,
+    { ...(journey.secret_decisions ?? {}), [secretKey]: decision },
+  );
+  signal?.throwIfAborted();
+  return { prepared };
+}
+
+/** Commits a user's `strip` | `raw` | `exclude` choice to a held secret material (`C2`, `S-onboarding-secret-hold`). */
+export function commitHeldSecretDecision(
   journey: ContextJourney,
   secretKey: string,
   decision: SecretSendDecision,
-): Promise<void> {
+  prepared?: Awaited<ReturnType<typeof prepareContextDocument>>,
+): void {
   journey.secret_decisions = { ...(journey.secret_decisions ?? {}), [secretKey]: decision };
-  let heldFound: { source: ContextSource; item: HeldSecretMaterial } | null = null;
+  let heldSource: ContextSource | null = null;
   for (const s of journey.sources) {
     const idx = s.held_secrets?.findIndex(h => h.key === secretKey) ?? -1;
     if (idx >= 0 && s.held_secrets) {
-      const [item] = s.held_secrets.splice(idx, 1);
-      if (item) heldFound = { source: s, item };
+      s.held_secrets.splice(idx, 1);
+      if (!s.held_secrets.length) s.held_secrets = undefined;
+      heldSource = s;
       break;
     }
     const rIdx = s.reading?.held_secrets?.findIndex(h => h.key === secretKey) ?? -1;
     if (rIdx >= 0 && s.reading?.held_secrets) {
-      const [item] = s.reading.held_secrets.splice(rIdx, 1);
-      if (item) heldFound = { source: s, item };
+      s.reading.held_secrets.splice(rIdx, 1);
+      heldSource = s;
       break;
     }
   }
-  if (!heldFound || decision === "exclude") return;
-  const prepared = await prepareContextDocument(
-    home,
-    journey.id,
-    heldFound.item.kind,
-    { path: heldFound.item.path, staged: heldFound.item.sha256 },
-    undefined,
-    journey.secret_decisions,
-  );
+  if (!heldSource || decision === "exclude" || !prepared) return;
   if ("reference" in prepared) {
-    if (heldFound.source.references) heldFound.source.references.push(prepared.reference);
-    else if (heldFound.source.reading) heldFound.source.reading.references.push(prepared.reference);
-    else heldFound.source.references = [prepared.reference];
+    if (heldSource.references) heldSource.references.push(prepared.reference);
+    else if (heldSource.reading) heldSource.reading.references.push(prepared.reference);
+    else heldSource.references = [prepared.reference];
   } else if ("issue" in prepared) {
-    (heldFound.source.issues ??= []).push(prepared.issue);
-    heldFound.source.skipped = heldFound.source.issues.length;
+    (heldSource.issues ??= []).push(prepared.issue);
+    heldSource.skipped = heldSource.issues.length;
   }
 }

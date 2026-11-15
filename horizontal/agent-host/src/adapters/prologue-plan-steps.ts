@@ -16,11 +16,12 @@ import { checkOrigin } from "../input-origin.js";
 import {
   applyUnknownCommandOutcomes,
   computeWeightedStepBoardProgress,
+  mergeReconciledSteps,
   type ReconciledStepEntry,
   type ReconciledStepMap,
 } from "./prologue-plan-progress.js";
 
-export { applyUnknownCommandOutcomes, computeWeightedStepBoardProgress, type ReconciledStepEntry, type ReconciledStepMap };
+export { applyUnknownCommandOutcomes, computeWeightedStepBoardProgress, mergeReconciledSteps, type ReconciledStepEntry, type ReconciledStepMap };
 
 type SdkBoard = ReturnType<Runtime["boards"]["get"]>;
 type TaskNode = SdkBoard["nodes"][number];
@@ -250,11 +251,17 @@ interface ParsedNodeMetrics {
   estimate_reason?: string;
   progress?: number;
   progress_basis?: string;
+  skipped?: true;
   scope_removed?: true;
   unknown_outcome?: true;
 }
 
-function parseNodeMetrics(chain: readonly TaskNode[], place: PlanPlace, reconciledSteps?: ReconciledStepMap): ParsedNodeMetrics {
+function parseNodeMetrics(
+  chain: readonly TaskNode[],
+  place: PlanPlace,
+  reconciledSteps?: ReconciledStepMap,
+  unknownStepIds?: ReadonlySet<string>,
+): ParsedNodeMetrics {
   const origNode = chain[0]!, activeNode = chain.at(-1)!;
   const local = canonicalLocalId(place, origNode.id);
   const confirmed = local ? place.plan.steps.find(step => step.id === local) : undefined;
@@ -265,12 +272,14 @@ function parseNodeMetrics(chain: readonly TaskNode[], place: PlanPlace, reconcil
   let estimateReason: string | undefined = confirmed?.estimate_reason;
   let reportedProgress: number | undefined;
   let progressBasis: string | undefined;
+  let skipped = false;
   let scopeRemoved = false;
   let unknownOutcome = false;
 
   for (const chainNode of chain) {
     for (const entry of chainNode.reports) {
       const note = entry.note.trim();
+      if (note.startsWith("用户跳过：")) skipped = true;
       if (note.startsWith("用户移出本轮范围：")) scopeRemoved = true;
       if (note.startsWith("命令结果未知：") || note.startsWith("结果未知，待核对")) unknownOutcome = true;
       if (note.startsWith("用户核对完成：")) unknownOutcome = false;
@@ -326,6 +335,7 @@ function parseNodeMetrics(chain: readonly TaskNode[], place: PlanPlace, reconcil
   const saved = local ? reconciledSteps?.[local] : undefined;
   if (saved?.action === "confirm-done") unknownOutcome = false;
   else if (saved?.action === "rerun" && chain.length === 1 && activeNode.state === "succeeded") unknownOutcome = true;
+  if (local && unknownStepIds?.has(local)) unknownOutcome = true;
   if (activeNode.state === "needs-reconciliation") unknownOutcome = true;
   const effectiveProgress = activeNode.state === "succeeded" && !unknownOutcome ? 1 : reportedProgress;
   return {
@@ -335,6 +345,7 @@ function parseNodeMetrics(chain: readonly TaskNode[], place: PlanPlace, reconcil
     ...(estimateReason ? { estimate_reason: estimateReason } : {}),
     ...(effectiveProgress !== undefined ? { progress: effectiveProgress } : {}),
     ...(progressBasis ? { progress_basis: progressBasis } : {}),
+    ...(skipped ? { skipped: true as const } : {}),
     ...(scopeRemoved ? { scope_removed: true as const } : {}),
     ...(unknownOutcome ? { unknown_outcome: true as const } : {}),
   };
@@ -348,6 +359,7 @@ export function shape(
   session: string,
   alive?: (session: string) => boolean,
   reconciledSteps?: ReconciledStepMap,
+  unknownStepIds?: ReadonlySet<string>,
 ): AgentStepBoard {
   const missing = place.plan.steps.find(step => !board.nodes.some(node => node.id === fullId(place, step.id)));
   if (missing) throw new Error("原步骤图与确认计划不一致");
@@ -355,7 +367,7 @@ export function shape(
     const id = canonicalLocalId(place, activeNode.id) ?? activeNode.id;
     const chain = stepChain(board, place, id);
     const origNode = chain[0] ?? activeNode;
-    const metrics = parseNodeMetrics(chain, place, reconciledSteps);
+    const metrics = parseNodeMetrics(chain, place, reconciledSteps, unknownStepIds);
     const baseReports = chain.flatMap(entry => entry.reports).map(report => {
       const by = reportBy(runtime, report, session);
       return {
@@ -396,7 +408,7 @@ export function shape(
   return {
     project_id: board.ref.id,
     version: planVersion(board, place, reconciledSteps),
-    terminal: finished(board, place, reconciledSteps),
+    terminal: finished(board, place, reconciledSteps, unknownStepIds),
     progress_summary: computeWeightedStepBoardProgress(shapedNodes),
     nodes: shapedNodes,
   };
@@ -513,6 +525,18 @@ async function removeStepFromScope(options: {
  * (what changed in other sessions' blocks does not stop them); each write gives the board's version as it is then, and
  * the SDK compares only the steps it touches (P2k).
  */
+/** A failed step is terminal on the SDK board; bring it back before recording the person's own decision as a skip. */
+async function reviveFailedStep(runtime: Runtime, ref: ExactRef<"task-board">, target: TaskNode, place: PlanPlace, reason: string, person: { kind: "human"; id: string }): Promise<SdkBoard> {
+  return runtime.boards.retry({
+    ref,
+    expectedVersion: runtime.boards.get(ref).version,
+    nodeId: target.id,
+    note: `用户决定越过失败的「${title(target, place)}」：${reason}`,
+    atMs: Date.now(),
+    human: person,
+  });
+}
+
 export async function amendPlan(
   runtime: Runtime,
   place: PlanPlace,
@@ -523,10 +547,11 @@ export async function amendPlan(
   ledger: RoundLedger,
   reconciledSteps?: ReconciledStepMap,
   onReconcile?: (stepId: string, entry: { action: "confirm-done" | "rerun"; note: string; at_ms: number }) => Promise<void>,
+  unknownStepIds?: ReadonlySet<string>,
 ): Promise<SdkBoard> {
   const ref = place.ref;
   let board = runtime.boards.get(ref);
-  if (amendment.kind !== "reconcile" && finished(board, place, reconciledSteps)) {
+  if (amendment.kind !== "reconcile" && finished(board, place, reconciledSteps, unknownStepIds)) {
     throw new Error("任务图已经结束，不能再调整；请调整计划后开始新一轮");
   }
   if (planVersion(board, place, reconciledSteps) !== expectedVersion) throw new Error("任务图刚刚有更新，请刷新后再调整");
@@ -563,16 +588,7 @@ export async function amendPlan(
       const after = dependents(target!.id);
       // A failed step is terminal on the SDK board: bring it back, then record the person's own decision as a skip.
       // Leaving it failed would keep `finished()` false forever, including for a failed last step.
-      if (target!.state === "failed") {
-        board = await runtime.boards.retry({
-          ref,
-          expectedVersion: runtime.boards.get(ref).version,
-          nodeId: target!.id,
-          note: `用户决定越过失败的「${title(target!, place)}」：${reason}`,
-          atMs: Date.now(),
-          human: person,
-        });
-      }
+      if (target!.state === "failed") board = await reviveFailedStep(runtime, ref, target!, place, reason, person);
       await report(target!.id, `用户跳过：${reason}`, "cancelled");
       for (const id of after) await rewire(id, replaced(node(id).dependsOn, target!.id, target!.dependsOn));
       break;

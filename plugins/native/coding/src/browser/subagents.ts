@@ -1,6 +1,6 @@
 import { format, renderTaskAttemptBudget, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { setContentHtml } from "@molis-ai/molis-work-plugin-sdk/browser";
-import type { AgentRunUsage } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentRunUsage, AgentSubagentBudgetView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { el, errorMessage } from "./dom.js";
 import type { PagePorts } from "./types.js";
 
@@ -25,23 +25,8 @@ export interface Child {
   readonly integration_available?: boolean;
   /** The run the subagent is executing (while it runs). */
   readonly child_run?: { readonly run_id: string };
-  readonly budget?: {
-    readonly attempt: number;
-    readonly max_attempts: number;
-    readonly max_turns?: number;
-    readonly used_tokens?: number;
-    readonly exhausted?: boolean;
-    readonly retry_source?: "check-failed" | "model-error" | "user-requested";
-    readonly retry_reason?: string;
-    readonly prior_attempts?: readonly {
-      readonly attempt: number;
-      readonly run_id?: string;
-      readonly state: string;
-      readonly source?: "check-failed" | "model-error" | "user-requested";
-      readonly reason?: string;
-      readonly error?: string;
-    }[];
-  };
+  readonly retry_of?: string;
+  readonly budget?: AgentSubagentBudgetView;
   readonly verdict?: { readonly status: string; readonly notes?: string; readonly revision?: number };
 }
 

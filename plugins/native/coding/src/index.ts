@@ -170,6 +170,7 @@ export { codingTimelineWords } from "./timeline-words.js";
 export { createCodingTurnChanges } from "./turn-changes-client.js";
 export { codingQuestionAnswered } from "./question-answered-client.js";
 export {
+  activeLeafSteps,
   buildEnvironmentChecklistHtml,
   buildRoundMaterialsHtml,
   formatBoardProgressSummary,

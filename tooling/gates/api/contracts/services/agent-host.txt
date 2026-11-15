@@ -382,20 +382,23 @@ export interface AgentImageMaterial {
 }
 
 export interface AgentMaterialChecklistItem {
+    material_id?: string;
     title: string;
     material_ref?: MaterialRef;
-    read_revision?: string;
-    delivery: "full" | "clipped" | "on-demand";
-    total_chars?: number;
-    delivered_chars?: number;
     source_artifact_id?: string;
     source_version?: number;
+    read_revision?: string;
+    delivery: AgentMaterialDeliveryMode;
+    total_chars?: number;
+    delivered_chars?: number;
 }
+
+export type AgentMaterialDeliveryMode = "full" | "clipped" | "on-demand";
 
 export interface AgentMaterialOrigin {
     material_ref?: MaterialRef;
     read_revision?: string;
-    delivery?: "full" | "clipped" | "on-demand";
+    delivery?: AgentMaterialDeliveryMode;
     total_chars?: number;
     delivered_chars?: number;
     overflow_materials?: AgentMaterialChecklistItem[];
@@ -1955,6 +1958,7 @@ export interface AgentStepBoard {
         estimate_reason?: string;
         progress?: number;
         progress_basis?: string;
+        skipped?: true;
         scope_removed?: true;
         unknown_outcome?: true;
     }>;

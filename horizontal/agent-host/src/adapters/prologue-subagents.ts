@@ -20,7 +20,7 @@ export interface PrologueSubagentRoot {
   path: string;
 }
 
-export interface PrologueSubagentProvenance {
+interface PrologueSubagentProvenance {
   path: string;
   roles: Array<[string, AgentFrozenSubagentRole]>;
   roots?: PrologueSubagentRoot[];
@@ -176,26 +176,26 @@ export function createPrologueSubagents(
     list,
     async cancel(run, id, _actor) {
       const child = owned(run).find(child => child.ref.id === id);
-      if (!child) throw new Error("子任务不属于这一轮执行");
+      if (!child) throw agentErrors.collaboration_unknown("子任务不属于这一轮执行");
       await runtime.subagents.cancel(child.ref);
     },
     ...(hooks.extendBudget ? {
       async extendBudget(run, id, addAttempts, _actor) {
         const child = owned(run).find(entry => entry.ref.id === id);
-        if (!child) throw new Error("子任务不属于这一轮执行");
+        if (!child) throw agentErrors.collaboration_unknown("子任务不属于这一轮执行");
         if (!Number.isSafeInteger(addAttempts) || addAttempts < 1 || addAttempts > 10) {
-          throw new Error("每次增加的尝试预算需为 1–10 次整数");
+          throw agentErrors.collaboration_unknown("每次增加的尝试预算需为 1–10 次整数");
         }
         await hooks.extendBudget!(run, child.ref.id, addAttempts);
         const updated = (await list(run)).find(entry => entry.subagent_id === id);
-        if (!updated) throw new Error("子任务状态读取失败");
+        if (!updated) throw agentErrors.control_failed("子任务状态读取失败");
         return updated;
       },
     } : {}),
     ...(hooks.continueChild ? {
       async retry(run, id, input) {
         const child = owned(run).find(entry => entry.ref.id === id);
-        if (!child) throw new Error("子任务不属于这一轮执行");
+        if (!child) throw agentErrors.collaboration_unknown("子任务不属于这一轮执行");
         if (child.state === "running") {
           throw agentErrors.session_busy("这个子任务仍在执行中；请等它结束或先终止后再重试");
         }
@@ -204,7 +204,7 @@ export function createPrologueSubagents(
           await hooks.extendBudget(run, child.ref.id, input.extend_attempts);
         }
         const current = (await list(run)).find(entry => entry.subagent_id === id);
-        if (!current) throw new Error("子任务状态读取失败");
+        if (!current) throw agentErrors.control_failed("子任务状态读取失败");
         if (current.budget && current.budget.attempt >= current.budget.max_attempts) {
           throw agentErrors.capability_unavailable(
             `这个子任务已用完 ${current.budget.attempt}/${current.budget.max_attempts} 次尝试预算；如需继续，请先点「再给 3 次」或直接终止`,
@@ -223,7 +223,7 @@ export function createPrologueSubagents(
           attemptNumber: (current.budget?.attempt ?? 1) + 1,
         });
         const refreshed = (await list(run)).find(entry => entry.subagent_id === id);
-        if (!refreshed) throw new Error("重试后读取子任务状态失败");
+        if (!refreshed) throw agentErrors.control_failed("重试后读取子任务状态失败");
         return refreshed;
       },
     } : {}),
@@ -252,7 +252,7 @@ export function exactCharacterKey(ref: ExactRef<"character">): string { return r
 export function runLineage(runtime: Runtime, runId: string, depth = 8): string[] {
   const lineage: string[] = [], children = runtime.subagents.list();
   for (let at = runId; lineage.length < depth;) {
-    const child = children.find(one => one.run.id === at);
+    const child = children.find(one => one.run.id === at || one.attempts?.some(attempt => attempt.id === at));
     if (!child) break;
     lineage.push(at = child.parentRun.id);
   }

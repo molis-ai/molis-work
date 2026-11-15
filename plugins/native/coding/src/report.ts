@@ -1,6 +1,7 @@
 import { codingReportStepsMarkdown, type CodingReportSteps } from "./report-steps.js";
 import { codingReportInputsMarkdown } from "./report-inputs.js";
 import { requestText } from "./continuation.js";
+import { activeLeafSteps } from "./recovery-parts.js";
 import type { ArtifactReference, FixedVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { PluginArtifactClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { AgentCommandOutput, AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -113,7 +114,7 @@ export function createCodingExecutionReport(input: {
   const unknownCmdCount = input.commands.filter(({ output }) => !output || (!output.timed_out && !output.cancelled && output.exit_code === null)).length;
   const failedCmdCount = input.commands.filter(({ output }) => Boolean(output && (output.timed_out || (output.exit_code !== null && output.exit_code !== 0)))).length;
   const passedCmdCount = input.commands.filter(({ output }) => Boolean(output && !output.timed_out && !output.cancelled && output.exit_code === 0)).length;
-  const openSteps = (run.step_board?.nodes ?? []).filter(node => !["succeeded", "cancelled"].includes(node.state));
+  const openSteps = activeLeafSteps(run.step_board?.nodes ?? []).filter(node => node.unknown_outcome || !["succeeded", "cancelled"].includes(node.state));
   const deliveredSummary = changedFiles.length
     ? `本轮已写入 ${changedFiles.length} 个文件：${changedFiles.slice(0, 12).join(codingText("coding.list.joiner"))}${changedFiles.length > 12 ? ` 等 ${changedFiles.length} 个` : ""}。`
     : "本轮没有写入工作区文件。";

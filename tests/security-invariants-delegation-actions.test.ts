@@ -38,7 +38,8 @@ async function fixture(t: TestContext) {
   const service = new ActionService(), provider = { provider_id: pagesManifest.plugin_id, title: "Pages", kind: "plugin" as const, project_id: "a" };
   const unregister = service.registerProvider({ provider, definitions: PAGES_ACTIONS, handlers: createPagesActionHandlers({ ...ownPagesStores(run => run(pages)),
     modelAvailability: () => ({ available: false, code: "actions.connection_required", reason: "fixture" }),
-    prepareImport: async () => { throw new Error("unused"); }, publishArtifact: () => { throw new Error("not expected"); } }) });
+    prepareImport: async () => { throw new Error("unused"); },
+    promote: async () => assert.fail("a permission decision must not publish a document") }) });
   t.after(async () => { await store.close(); unregister(); pages.close(); db.close(); });
   const caller: ActionCallContext = { actor_id: "person", audience: "agent", actor_kind: "runtime", project_id: "a", permissions: PAGES_ACTION_PERMISSIONS,
     assert_authority_current: () => { if (!flags.action) throw new Error("original action revoked"); } };

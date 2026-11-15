@@ -5,11 +5,12 @@ import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/p
 import type { AgentHostComposition } from "./agent-host-composition.js";
 import { observeReviewSettlements, type AgentWritePlaces } from "./review-settlement-events.js";
 import { ensureInstalledPlugins, runningInstalledPluginPlatform } from "./installed-plugin-host.js";
-import { installedPluginEntries } from "./plugin-installation-directory.js";
+import { installedPluginEntries, installedPluginManifest } from "./plugin-installation-directory.js";
+import { pluginInstallRecords } from "./plugin-install-records.js";
 import { assertPermissionSwitchTarget, type InstalledPluginEntry, type PermissionSwitchTarget } from "./plugin-installed-view.js";
 import type { InstalledRelease } from "./installed-release.js";
 import type { LocalHost } from "./local-host.js";
-import type { MolisWorkLocalHostOptions, MolisWorkProjectRuntime } from "./project-host.js";
+import type { MolisWorkLocalHost, MolisWorkLocalHostOptions, MolisWorkProjectRuntime } from "./project-host.js";
 import { ensureProjectPlugins, runningProjectPlatform } from "./project-plugins.js";
 import { hostDependencyCheck } from "./plugin-actions-client.js";
 import type { HomePluginHost } from "./home-plugins.js";
@@ -18,6 +19,7 @@ import type { SurfaceInstallCatalog } from "./surface-installation.js";
 import type { PluginUninstallTarget } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import { controlOutcome, type PackageControlOutcome } from "./uninstall-retained.js";
 import { isPendingUninstall } from "./installed-plugin-lifecycle.js";
+import { runningPluginTextIn } from "./running-plugin-text.js";
 
 /**
  * What the project's plugin ports are read from. `agents` is read when a call needs it, not when the Host is built: the
@@ -154,6 +156,15 @@ export async function installationPresentationCatalog(source: ProjectPluginHost,
   }));
   if (!catalog) throw pluginErrors.declaration_invalid("呈现声明的安装范围不可读");
   return catalog;
+}
+
+/** The installation facts and live display words behind an already prepared action directory. */
+export function projectActionInstallationsIn({ store, project_id }: MolisWorkProjectRuntime, localHost: MolisWorkLocalHost) {
+  return {
+    get: pluginInstallRecords(store.db).get,
+    manifest: (id: string) => installedPluginManifest(store.db, id)?.manifest,
+    text: runningPluginTextIn({ store, localHost, projectId: project_id }),
+  };
 }
 
 /** The plugins installed in a project, each with the Manifest it was installed with; the project's built-in plugins are started first so they are listed too. */

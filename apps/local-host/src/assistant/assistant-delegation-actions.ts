@@ -70,9 +70,9 @@ async function proposal(ports: Ports, input: AgentDelegationProposal, caller: Ac
 
 async function prepare(ports: Ports, input: AgentDelegationProposal, caller: ActionExecutionContext) {
   const held = await proposal(ports, structuredClone(input), caller, true);
-  held.assertCurrent();
-  const candidates = caller.audience === "user" ? held.resolved.candidates
+  const candidates = caller.audience === "user" ? held.resolved.displayCandidates()
     : held.resolved.candidates.map(({ exact_parameters: _parameters, ...candidate }) => candidate);
+  held.assertCurrent();
   return { ...projection(held.store, held.subject, held.state), candidate_digest: held.candidate_digest, candidates };
 }
 

@@ -2,10 +2,14 @@ import { actionEffect, type ActionCallContext, type ActionExecutionContext, type
 import { isDeepStrictEqual } from "node:util";
 import type { PresentationValues } from "@molis-ai/molis-work-contracts/platform/presentation";
 import { PRESENTATION_LIMITS } from "@molis-ai/molis-work-contracts/platform/presentation";
+import type { TextRef } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { AgentDelegationActionChoice, AgentDelegationCandidate, AgentDelegationOperationScope, AgentDelegationScope } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { canonicalJsonText, redactSecrets } from "@molis-ai/molis-work-plugin-sdk";
+import { tryOwnedTextRef, UI_TEXT_UNAVAILABLE } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { actionDigest } from "@molis-ai/molis-work-service-agent-host";
+import type { DirectoryWordResolver } from "@molis-ai/molis-work-ui-host";
 import type { MolisWorkLocalHost } from "../project-host.js";
+import { directoryWordResolver } from "../ui-text-provider.js";
 import { assistantActionOwners } from "./assistant-action-delegation.js";
 import { actionKey, actionReference, assistantActionContext, assistantActionRows, assistantActionScope } from "./assistant-authority.js";
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
@@ -15,7 +19,8 @@ type Owners = Awaited<ReturnType<typeof assistantActionOwners>>;
 type Owner = NonNullable<ReturnType<Owners["owner"]>>;
 type DisplayOperation = NonNullable<AgentDelegationCandidate["operations"]>[number];
 type TargetValue = DisplayOperation["targets"][number]["values"][number];
-type Binding = { scope: AgentDelegationScope; operations?: readonly DisplayOperation[] };
+type ScopeWord = (value?: TextRef) => string | undefined;
+type Binding = { scope: AgentDelegationScope; operations?: readonly DisplayOperation[]; word?: ScopeWord };
 type Candidate = Pick<AgentDelegationCandidate, "action" | "title" | "provider_title">;
 type CandidateResolution = { candidate: Candidate; binding: Binding } | { unavailable: AgentDelegationCandidate };
 type Target = { kind: string; id: string; field: string; assign(label: string): void };
@@ -61,7 +66,7 @@ class CandidateTargets {
 }
 
 function objectBinding(view: ActionView, choice: Extract<AgentDelegationActionChoice, { kind: "objects" }>, targets: CandidateTargets,
-  identity: Omit<Extract<AgentDelegationScope, { kind: "action-objects" }>, "kind" | "operations">): Binding | string {
+  identity: Omit<Extract<AgentDelegationScope, { kind: "action-objects" }>, "kind" | "operations">, word: ScopeWord): Binding | string {
   const declaration = view.action.delegation;
   if (!declaration || declaration === "confirmation-only") return "这项操作没有可选的对象范围";
   const operations: AgentDelegationOperationScope[] = [], display: DisplayOperation[] = [];
@@ -75,10 +80,11 @@ function objectBinding(view: ActionView, choice: Extract<AgentDelegationActionCh
       const target = targetByKey.get(key);
       if (!target || !operation.targets.includes(key) || !ids.length || ids.some(id => id !== id.trim() || id === "*" || target.allowed_values && !target.allowed_values.includes(id))) return "这项操作不能授权给所选目标";
       const empty = ids.length === 1 && ids[0] === "";
-      if (ids.includes("") && (!empty || !target.empty_title)) return "根目录或不关联需要单独选择";
+      if (!empty && ids.includes("")) return "根目录或不关联需要单独选择";
+      const emptyTitle = empty ? target.empty_title : undefined;
       const owner = empty ? undefined : targets.owner(target.kind), field = owner?.titleField();
-      if (!empty && (!owner || !field)) return "无法确认目标归属或名称";
-      const values: Array<{ id: string; label: TargetValue["label"] }> = ids.map(id => ({ id, label: empty ? target.empty_title! : "" }));
+      if (empty ? !word(emptyTitle) : !owner || !field) return "无法确认目标归属或名称";
+      const values: Array<{ id: string; label: TargetValue["label"] }> = ids.map(id => ({ id, label: emptyTitle ?? "" }));
       if (owner && field) reads.push([owner, values.map(value => ({ kind: target.kind, id: value.id, field, assign: label => { value.label = label; } }))]);
       resolved.push([key, { owner: owner?.identity ?? null, ids }]);
       shown.push({ key, title: target.title, ...(target.title_text ? { title_text: target.title_text } : {}), values });
@@ -87,7 +93,26 @@ function objectBinding(view: ActionView, choice: Extract<AgentDelegationActionCh
     display.push({ key: row.key, title: operation.title, ...(operation.title_text ? { title_text: operation.title_text } : {}), targets: shown });
   }
   for (const [owner, rows] of reads) targets.add(owner, rows);
-  return { scope: { kind: "action-objects", ...identity, operations }, operations: display };
+  return { scope: { kind: "action-objects", ...identity, operations }, operations: display, word };
+}
+
+function scopeWords(owner: string, resolve: DirectoryWordResolver): ScopeWord {
+  return value => {
+    const ref = value && tryOwnedTextRef(value, owner);
+    if (!ref || !("key" in ref)) return undefined;
+    const title = resolve(ref, ref.fallback ?? UI_TEXT_UNAVAILABLE), actual = title.trim();
+    return actual && actual !== UI_TEXT_UNAVAILABLE ? title : undefined;
+  };
+}
+
+function displayOperations(operations: readonly DisplayOperation[], word: ScopeWord): DisplayOperation[] {
+  return operations.map(({ title_text, ...operation }) => ({
+    ...operation, title: word(title_text) ?? operation.title,
+    targets: operation.targets.map(({ title_text, ...target }) => ({
+      ...target, title: word(title_text) ?? target.title,
+      values: target.values.map(({ id, label }) => ({ id, label: typeof label === "string" ? label : word(label) ?? UI_TEXT_UNAVAILABLE })),
+    })),
+  }));
 }
 
 /** Read the Assistant's real action directory once, and read names by target owner, without running the proposed action. */
@@ -95,7 +120,7 @@ export async function resolveAssistantDelegationChoices(host: MolisWorkLocalHost
   caller: ActionExecutionContext, choices: readonly AgentDelegationActionChoice[]) {
   const checks = new Set<() => void>(), scopes: AgentDelegationScope[] = [];
   const assertCurrent = () => { for (const check of checks) check(); };
-  if (!choices.length) return { candidates: [], scopes, assertCurrent };
+  if (!choices.length) return { candidates: [], scopes, assertCurrent, displayCandidates: () => [] };
   const base = assistantActionContext(work, { call_id: caller.call_id, locale: caller.locale, signal: caller.signal });
   const metadata = await host.inspectPreparedActionMetadata(base, work.project_ref);
   const context = assistantActionScope(base, assistantActionRows(metadata, base, store.disabledActions(work.actor_id)));
@@ -143,7 +168,11 @@ export async function resolveAssistantDelegationChoices(host: MolisWorkLocalHost
       provider.assertCurrent();
     };
     let binding: Binding | string;
-    if (choice.kind === "objects") binding = objectBinding(view, choice, targets, identity);
+    if (choice.kind === "objects") {
+      const source = await provider.text();
+      const word = scopeWords(provider.pluginId, directoryWordResolver(source?.reader ?? null, caller.locale));
+      binding = objectBinding(view, choice, targets, identity, word);
+    }
     else if (view.action.delegation !== undefined) binding = "请使用这项操作声明的范围";
     else {
       const inputJson = canonicalJsonText(choice.input);
@@ -173,5 +202,12 @@ export async function resolveAssistantDelegationChoices(host: MolisWorkLocalHost
       ...(scope.kind === "action-exact" || scope.kind === "mcp-exact" ? { exact_parameters: scope.input_json } : {}) };
   });
   assertCurrent();
-  return { candidates, scopes, assertCurrent };
+  // The proposal digest uses the declaration and current object names. Localize those declarations only for display.
+  const displayCandidates = () => candidates.map((candidate, index) => {
+    const row = resolved[index]!;
+    return candidate.operations && "binding" in row && row.binding.word
+      ? { ...candidate, operations: displayOperations(candidate.operations, row.binding.word) }
+      : candidate;
+  });
+  return { candidates, scopes, assertCurrent, displayCandidates };
 }

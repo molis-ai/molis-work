@@ -6,8 +6,7 @@ export const ASSISTANT_PERMISSIONS_PART = String.raw`
     const save = form.querySelector("[data-permission-save]"), error = form.querySelector("[data-permission-error]");
     const status = form.querySelector("[data-permission-status]");
     let openPermission, snapshot, readVersion = 0, busy = false, selection = null;
-    const field = name => new FormData(form).get(name);
-    const mode = () => field("mode"), lifetime = () => field("lifetime");
+    const mode = () => form.elements.mode.value, lifetime = () => form.elements.lifetime.value;
     const choice = () => snapshot?.automatic?.candidates?.[0];
     const present = value => typeof value === "string" ? value : globalThis.say.text(value);
     const selected = () => selection ?? choice()?.operations?.map(row => row.key) ?? [];
@@ -23,7 +22,7 @@ export const ASSISTANT_PERMISSIONS_PART = String.raw`
       form.querySelector("[data-permission-lifetime-note]").textContent = permissionText(lifetime() + "-end");
       form.querySelector("[data-permission-work]").textContent = openPermission?.work.title ?? "";
       scope.replaceChildren();
-      if (auto && allowed) {
+      if (auto && enabled) {
         scope.append(el("h4", "", allowed.title));
         if (allowed.provider_title && allowed.provider_title !== allowed.title) scope.append(el("p", "settings-muted", allowed.provider_title));
         if (allowed.exact_parameters) scope.append(el("pre", "", allowed.exact_parameters));

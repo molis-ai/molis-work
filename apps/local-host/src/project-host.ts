@@ -59,7 +59,7 @@ import { seedSceneRules, type FunctionsHostOptions } from "./judgment-rules-host
 import { admitProviderRules } from "./scene-rule-admission.js";
 import { releaseAgentStudio } from "./plugin-builder/agent-surface.js";
 import { releaseInstalledPlugins } from "./installed-plugin-host.js";
-import { prepareProjectActionDirectory, withPreparedProject } from "./project-plugin-ports.js";
+import { prepareProjectActionDirectory, projectActionInstallationsIn, withPreparedProject } from "./project-plugin-ports.js";
 import path from "node:path";
 import { preflightMemoryHome, prepareMemoryHome } from "./memory/memory-initialization.js";
 import { closeConnectorResources } from "./connector-lifecycle.js";
@@ -82,7 +82,6 @@ import { createPlacementHost, type PlacementHost, type PlacementProjectRecord } 
 import { isPersonalSpace } from "./personal-space.js";
 import { registerProjectRuntimeOwner } from "./project-deleted-runtime.js";
 import { installedPluginManifest, installedPluginManifestFor } from "./plugin-installation-directory.js";
-import { pluginInstallRecords } from "./plugin-install-records.js";
 import { capturePluginSceneAuthority, localWebActionContext } from "./local-web-actions.js";
 import { HomePluginHost } from "./home-plugins.js";
 import { homePackageProjectActions, homeProjectReach, projectReachDetails } from "./project-reach.js";
@@ -427,10 +426,10 @@ export class MolisWorkLocalHost {
 
   /** A directory has already prepared these providers. Observe the same installation owner without reactivating plugins. */
   projectActionInstallations(project: LocalHostProjectReference) {
-    return this.host.withExistingRuntime(project, ({ store }) => ({
-      get: pluginInstallRecords(store.db).get,
-      manifest: (id: string) => installedPluginManifest(store.db, id)?.manifest,
-    }));
+    return this.host.withExistingRuntime(
+      project,
+      runtime => projectActionInstallationsIn(runtime, this),
+    );
   }
 
   async automationRecommendationEntry(reference: LocalHostProjectReference, scan: boolean): Promise<RecommendationEntry> {

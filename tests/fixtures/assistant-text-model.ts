@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { randomUUID } from "node:crypto";
 import type { TestContext } from "node:test";
+import type { ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { withConnectorConnections, type MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { runWithMolisWorkHome, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
@@ -14,14 +15,15 @@ import { asideReply } from "./ending-review.js";
 export async function assistantTextModel(t: TestContext, home: string, text: string, pace?: { pieces: number; pause: number }, withCatalog: ReturnType<MolisWorkLocalHost["configurePersonalPlanning"]> = withMolisWorkProjectCatalog) {
   const prior = process.env.MOLIS_WORK_SECRET_BACKEND; process.env.MOLIS_WORK_SECRET_BACKEND = "file";
   const finish = Promise.withResolvers<void>();
-  let first = true, nextReview: string | null = null;
+  let first = true, nextReview: (ExactActionReference & { input: Record<string, unknown> }) | null = null;
+  const change = (action: ExactActionReference, input: Record<string, unknown>) => { nextReview = { ...action, input }; };
   const model = createServer(async (request, response) => {
     const chunks: Buffer[] = []; for await (const chunk of request) chunks.push(Buffer.from(chunk));
     const raw = Buffer.concat(chunks).toString("utf8");
     // The ending review (D1②) and knowledge's background cards are answered aside: neither is held as the first reply nor spends a scripted turn.
     const review = asideReply(raw);
-    const title = review ? null : nextReview; if (!review) nextReview = null;
-    const tool = title ? { name: "change-capability", input: { capability_id: "todo.items.create", version: 1, provider_id: "io.molis.work.todo", input: { title } } } : null;
+    const pending = review ? null : nextReview; if (!review) nextReview = null;
+    const tool = pending ? { name: "change-capability", input: pending } : null;
     response.writeHead(200, { "content-type": "text/event-stream" });
     const emit = (type: string, value: object) => response.write(`event: ${type}\ndata: ${JSON.stringify({ type, ...value })}\n\n`);
     emit("message_start", { message: { id: randomUUID(), type: "message", role: "assistant", model: "fixture-model", content: [], stop_reason: null, usage: { input_tokens: 20, output_tokens: 0 } } });
@@ -52,5 +54,6 @@ export async function assistantTextModel(t: TestContext, home: string, text: str
     const connection = withConnectorConnections(home, store => { const created = store.createToken({ serviceId: "model-api", displayName: "local-only", token: "fixture-local-model-key" }); store.assertTarget(created.connection_id, "model-api", base); return created; });
     catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: "local-only", display_name: "本机 HTTP 模型", base_url: base, api_format: "anthropic-messages", models: [{ model_id: "fixture-model", enabled: true }] });
   }));
-  return { finish: () => finish.resolve(), review: (title: string) => { nextReview = title; } };
+  return { finish: () => finish.resolve(), change,
+    review: (title: string) => change({ capability_id: "todo.items.create", version: 1, provider_id: "io.molis.work.todo" }, { title }) };
 }

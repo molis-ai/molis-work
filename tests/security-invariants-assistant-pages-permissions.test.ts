@@ -8,7 +8,8 @@ import { setTimeout as delay } from "node:timers/promises";
 import test, { type TestContext } from "node:test";
 import { MolisWorkLocalHost, assistantServiceFor, ensureSystemAgentService, installHostUiText, molisWorkHostProjectReference, runWithLocale, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionDefinition, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentDelegationActions, type AgentDelegationActionChoice } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { PAGES_ACTION_PERMISSIONS, PAGES_HOME_STORE, PAGES_PLUGIN_ID, PAGES_PROJECT_PLUGIN_ID, pagesActions } from "@molis-ai/molis-work-plugin-pages";
 import { TODO_ACTION_PERMISSIONS, TODO_PLUGIN_ID, TODO_PROJECT_PLUGIN_ID, todoActions } from "@molis-ai/molis-work-plugin-todo";
@@ -36,7 +37,7 @@ async function until<T>(label: string, check: () => T | undefined | Promise<T | 
   }
 }
 
-async function fixture(t: TestContext) {
+async function fixture(t: TestContext, homePlugins: readonly PluginDefinition[] = []) {
   const home = await mkdtemp(join(tmpdir(), "molis-pages-permission-"));
   // Both the real Memory policy and the plugin supervisor must see the same project's catalog record.
   await runWithMolisWorkHome(home, () => seedConfiguredModels(home, [{ provider_id: "fixture", model_id: "fixture" }]));
@@ -60,7 +61,7 @@ async function fixture(t: TestContext) {
   let policy: (caller: ActionCallContext, view: ActionView) => void | Promise<void> = () => {};
   let local: MolisWorkLocalHost | undefined;
   const open = async () => {
-    local = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: async (caller, view) => {
+    local = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: { home: homePlugins }, actionAvailability: async (caller, view) => {
       await policy(caller, view);
       return { available: true };
     } });
@@ -407,6 +408,66 @@ test("APR-07/08/11 H1: the actual permission picker uses the live original Pages
   assert.deepEqual((await f.person.invoke(pagesActions.get, { id: document.id })).document.body, body("Next round only"));
   await f.agents.agentHost.reviews.refresh(f.projectId);
   assert.ok(f.reviews().some(row => row.source?.kind === "delegation" && row.source.delegation.id === saved.selection.id && row.effect_settled));
+}));
+
+test("APR-11: an empty target needs a label from its own provider before it can be granted", { timeout: 45_000 }, async t => runWithLocale("en", async () => {
+  const pluginId = "io.molis.work.fixture.permission-location";
+  const action: ActionDefinition = { capability_id: "fixture.permission_location.move", version: 1, operation: "command", action: {
+    title: "Move a note", description: "Set the note's folder or collection", kind: "operation", scope: "home", audiences: ["user", "agent"],
+    permissions: [], subject_kinds: [],
+    input_schema: { type: "object", properties: { folder: { type: "string" }, collection: { type: "string" } }, additionalProperties: false },
+    delegation: {
+      targets: [
+        { key: "folder", field: "folder", kind: "fixture-folder", title: "Folder", empty_title: { key: "permission-location.scope.root" } },
+        { key: "collection", field: "collection", kind: "fixture-collection", title: "Collection",
+          empty_title: { key: "permission-location.scope.collection", fallback: "No collection" } },
+      ],
+      operations: [
+        { key: "folder", title: "Choose folder", fields: ["folder"], targets: ["folder"], when: ["folder"] },
+        { key: "collection", title: "Choose collection", fields: ["collection"], targets: ["collection"], when: ["collection"] },
+      ],
+      control_fields: [],
+    },
+  } };
+  const plugin: PluginDefinition = {
+    manifest: { schema_version: 1, host_api_version: 1, plugin_id: pluginId, name: "Note location", kind: "app", version: "1.0.0",
+      publisher: { publisher_id: "fixture", signature: "fixture-permission-location" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
+      capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, permissions: [], ui: { contributions: [] }, actions: [action] },
+    async start() { return { kind: "app", actions: [{ ...action, handle: () => assert.fail("declaring a scope does not run the action") }] }; },
+  };
+  const f = await fixture(t, [plugin]);
+  const work = f.store.create({ actor_id: person, title: "Move a note", scope: { kind: "personal" }, origin: null });
+  const client = bindActionClient(f.host.homeActionClient(), () => ({ ...f.caller, project_id: null }));
+  const view = (await client.discover()).find(row => row.capability_id === action.capability_id);
+  assert.ok(view?.availability.available && view.provider.plugin_id === pluginId, JSON.stringify(view));
+  const proposal = (key: "folder" | "collection") => ({ work_id: work.work_id, lifetime: "work" as const, choices: [{
+    kind: "objects" as const, action: { capability_id: action.capability_id, version: action.version, provider_id: view.provider.provider_id },
+    operations: [{ key, targets: [{ key, ids: [""] }] }],
+  }] });
+  const unnamed = proposal("folder"), preview = await client.invoke(agentDelegationActions.prepare, unnamed);
+  assert.equal(preview.candidates[0]?.state, "unavailable");
+  assert.equal(preview.candidates[0]?.operations, undefined);
+  await assert.rejects(client.invoke(agentDelegationActions.grant, { ...unnamed, mode: "automatic",
+    expires_at: null, expected_version: preview.storage_version, candidate_digest: preview.candidate_digest }), { code: "assistant.invalid" });
+  const named = proposal("collection"), available = await client.invoke(agentDelegationActions.prepare, named);
+  assert.equal(available.storage_version, preview.storage_version);
+  assert.equal(available.selection, null);
+  assert.equal(available.candidates[0]?.state, "ready");
+  assert.deepEqual(available.candidates[0]?.operations?.[0]?.targets[0]?.values, [{ id: "", label: "No collection" }]);
+  const saved = await client.invoke(agentDelegationActions.grant, { ...named, mode: "automatic", expires_at: null,
+    expected_version: available.storage_version, candidate_digest: available.candidate_digest });
+  assert.equal(saved.selection?.mode, "automatic");
+
+  const pages = { work_id: createWork(f, "File a page").work_id, lifetime: "work" as const, choices: [{
+    kind: "objects" as const, action: { capability_id: pagesActions.create.capability_id, version: pagesActions.create.version, provider_id: PAGES_PLUGIN_ID },
+    operations: [{ key: "create", targets: [{ key: "folder", ids: [""] }, { key: "goal", ids: [""] }] }],
+  }] };
+  const labels = (candidate: typeof available) => candidate.candidates[0]?.operations?.[0]?.targets.map(target => target.values[0]?.label);
+  const english = await f.person.invoke(agentDelegationActions.prepare, pages);
+  const chinese = await runWithLocale("zh", () => f.person.invoke(agentDelegationActions.prepare, pages));
+  assert.deepEqual(labels(english), ["Root folder", "No Goal"]);
+  assert.deepEqual(labels(chinese), ["根目录", "不关联 Goal"]);
+  assert.equal(english.candidate_digest, chinese.candidate_digest);
 }));
 
 test("APR-07/08/11 ASC-51/52: Assistant reuses one real connector MCP tool across restart and refuses changed account, input and dispatch authority", { timeout: 90_000 }, async t => runWithLocale("en", async () => {

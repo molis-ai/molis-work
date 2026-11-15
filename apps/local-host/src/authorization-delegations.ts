@@ -87,7 +87,8 @@ export async function readWorkAuthorization(store: WorkDelegationStore, host: Mo
     }));
   if (!context || !choices.length) return { ...view, candidates: summaries(), availability: "unknown" };
   try {
-    const { candidates } = await resolveAssistantDelegationChoices(host, assistant, context, caller, choices.map(row => row.candidate));
+    const resolved = await resolveAssistantDelegationChoices(host, assistant, context, caller, choices.map(row => row.candidate));
+    const candidates = resolved.displayCandidates();
     return { ...view, availability: candidates.some(row => row.state !== "ready") ? "unavailable" : candidates.length === row.scopes.length ? "available" : "unknown",
       candidates: summaries(new Map(candidates.map((row, index) => [choices[index]!.scope_index, row]))) };
   } catch { return { ...view, candidates: summaries(), availability: "unknown" }; }

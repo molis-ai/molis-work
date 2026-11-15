@@ -3,6 +3,7 @@ import { isPresentationValuesAction } from "@molis-ai/molis-work-contracts/platf
 import type { AgentActionReviewAuthority, AgentDelegationTargetOwner } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { extractActionDelegation } from "@molis-ai/molis-work-plugin-sdk";
 import type { MolisWorkLocalHost } from "../project-host.js";
+import { runningHomePluginText } from "../running-plugin-text.js";
 import type { StoredWork } from "./assistant-store.js";
 
 type Host = Pick<MolisWorkLocalHost, "homePlugins" | "projectActionInstallations">;
@@ -12,6 +13,7 @@ type Owner = { readonly identity: AgentDelegationTargetOwner; assertCurrent(): v
 export async function assistantActionOwners(host: Host, work: StoredWork, catalog: readonly ActionView[]) {
   const project = work.project_ref;
   const records = project && await host.projectActionInstallations(project);
+  const homeText = runningHomePluginText(host);
   const capture = (provider: ActionProvider) => {
     const installId = provider.plugin_install_id;
     if (provider.kind !== "plugin" || !installId || provider.project_id && provider.project_id !== project?.project_id) return undefined;
@@ -21,7 +23,9 @@ export async function assistantActionOwners(host: Host, work: StoredWork, catalo
     const generation = original.installation_generation;
     return {
       generation,
+      pluginId: original.plugin_id,
       manifest: () => provider.project_id ? records?.manifest(installId) : host.homePlugins?.manifest(original.plugin_id),
+      text: () => (provider.project_id ? records?.text : homeText)?.({ plugin_id: original.plugin_id, install_id: installId }),
       assertCurrent() {
         const current = read();
         if (!current || current.state !== "running" || current.install_id !== installId || current.plugin_id !== original.plugin_id

@@ -234,6 +234,10 @@ BL-360 工程证据：`agent-review-decisions.test.ts` 验证逐决定可用性�
 
 补验 APR-07／08／11 时，原 HTTP 设置入口按已读取的授权版本撤权。问卷写入、Home 判断规则和 Goals 便笺三条真实调用均拒绝在途旧授权，并核对原业务记录。Coding 路由测试核对先结束原工作授权，再归档执行会话；重试可补齐本地归档，重复请求仍拒绝。对应测试为 `tests/mcp-effect-authority.test.ts`、`tests/mcp-scene-effect-authority.test.ts`、`tests/goals-mcp-actions.test.ts` 和 `tests/coding-session-effect-control.test.ts`。
 
+H1／APR-11 的 Pages 权限动线在实际工作台、临时 Home 和本机脚本模型上通过。助理提出编辑原文稿并移动到指定文件夹。权限弹层显示两个操作和实际对象名称，保存后结束原待批，原文稿保持原样。管理页用中英文读到相同的授权，收窄只保留编辑并在重开后读回。下一轮正文写入一次，移动留待审批。撤销后再次编辑也留待审批，两次拒绝后均读回同一版文稿。回归入口为 `tests/authorization-settings.e2e.test.ts`。
+
+同一授权预览和保存都核对原插件为空目标提供的名称。`tests/security-invariants-assistant-pages-permissions.test.ts` 验证无名称的空目标不可授予，拒绝后授权状态未变，合法默认名称可授予。实际 Pages 根目录和不关联 Goal 的词从原安装读出，两种语言的候选摘要一致。
+
 APR-10 的隔离实操用本机脚本模型发起两种待审操作。`tests/assistant-text-html.e2e.test.ts` 在专用 Chromium 读取原工作台卡片，确认待审及拒绝后无待办、批准后只写一条。请求等待期间，批准和拒绝按钮暂停提交，权限按钮保持启用。`tests/coding-git-diff-product.test.ts` 在临时 Git 工作区用实际 SDK 发起写入，批准前文件和暂存区保持原内容，批准后只改原文件，另行批准的暂存读取同一份审查结果。本人操作和真实 PR 验收仍待完成。
 
 截至 2026-11-15，项目审批与迁移已完成上述隔离验证，最终提交仍需补齐验收及复审。整批完成还取决于 APR-15 的第 32-2 批入口及本人认可、GitHub App 发布及真实队列、最终产品实操与用户验收。#2069 的 [full-suite](https://github.com/molis-ai/molis-work/actions/runs/43586585774) 和[合并队列 CI](https://github.com/molis-ai/molis-work/actions/runs/43588084577) 仅覆盖先交的共用合同。

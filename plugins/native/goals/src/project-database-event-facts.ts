@@ -17,7 +17,6 @@ export const GOALS_EVENT_FACTS_SQL = `
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
     version INTEGER NOT NULL,
     actor_id TEXT NOT NULL,
-    adopted_planning_json TEXT NOT NULL DEFAULT '[]',
     created_at TEXT NOT NULL,
     config_event_id TEXT NOT NULL,
     PRIMARY KEY (project_id, goal_id, version)

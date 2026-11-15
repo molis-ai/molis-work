@@ -24,13 +24,11 @@ export function contentVersionChanges({ files, read }, readBase) {
     if (ambiguous) { errors.push(file + ": ambiguous content id (" + key + " or a translation of " + ambiguous + ")"); continue; }
     if (key) groups.set(key, [...(groups.get(key) ?? []), file]);
   }
-  const shared = ["zh", "en"].map(locale => "plugins/native/goals/methods/runtime." + locale + ".md");
-  const sharedChanged = shared.some(file => body(read(file)) !== body(readBase(file)));
   for (const [key, paths] of groups) {
     const next = current[key], previous = before[key];
     if (!Number.isSafeInteger(next) || next < 1) { errors.push(key + " has no positive content version in tooling/versions.json"); continue; }
     if (previous === undefined) continue;
-    const changed = (key.startsWith("method.goals.") && sharedChanged) || paths.some(file => body(read(file)) !== body(readBase(file)));
+    const changed = paths.some(file => body(read(file)) !== body(readBase(file)));
     if (changed && next <= previous) errors.push(key + " changed content without advancing its version");
     if (!changed && next !== previous) errors.push(key + " advanced without changing its content");
   }

@@ -38,7 +38,7 @@ for (const state of ["active", "paused", "disabled"] as const) test(`MEM-15 expl
   await f.close(); const reopened = await f.open();
   assert.deepEqual((await f.raw().list("project", "project-a"))[0], stored);
   const replayed = await reopened.change(who, request); assert.equal(replayed.memory!.version, stored.version);
-  assert.deepEqual(f.ledger().revisions(original.memory_id).map(row => row.snapshot?.meta.expires_at_ms === undefined ? null : new Date(row.snapshot.meta.expires_at_ms).toISOString()),
+  assert.deepEqual((await reopened.history(who, original.memory_id)).revisions.map(row => row.expires_at),
     [f.saved.expires_at, request.expires_at]);
   await assert.rejects(reopened.change(who, renewal(original.memory_id, original.version, START + 2 * DAY)), { code: "memory.conflict" });
 });

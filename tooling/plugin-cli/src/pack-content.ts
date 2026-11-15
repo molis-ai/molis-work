@@ -2,6 +2,7 @@ import { constants } from 'node:fs';
 import { lstat, open, readdir, realpath } from 'node:fs/promises';
 import { join } from 'node:path';
 import { pluginErrors, type PluginPackageBundle, type PluginPackagePayload, type PluginManifest, type PluginLocalesDeclaration } from '@molis-ai/molis-work-contracts/platform/plugin';
+import type { LocalPackageSignInput } from '@molis-ai/molis-work-contracts/platform/plugin-trust';
 import { SKILL_LIMITS } from '@molis-ai/molis-work-contracts/platform/plugin-agent';
 import { completeContentPackagePayload, contentPackageDraft, parsePluginManifest, skillFromFolder } from '@molis-ai/molis-work-plugin-sdk';
 import { parsePluginPackage } from '@molis-ai/molis-work-plugin-runtime';
@@ -58,6 +59,14 @@ export async function packContentProject(directory: string, output: string, opti
 
 /** The unsigned payload of the content package the Skill folders under `directory` make, written by nothing yet. */
 export async function contentPayloadFromFolder(directory: string, options: PackContentOptions): Promise<PluginPackagePayload> {
+  return completeContentPackagePayload(await contentDraftFromFolder(directory, options), { publisher_id: options.publisherId, signature: options.publisherKeyId });
+}
+
+/**
+ * The same package before anyone publishes it: its declaration without a publisher and its files without `manifest.json`, the two
+ * things whoever signs it writes (`completeContentPackagePayload`). The locale files it declares are packed with it.
+ */
+export async function contentDraftFromFolder(directory: string, options: Omit<PackContentOptions, 'publisherKeyId'> & { publisherKeyId?: string }): Promise<LocalPackageSignInput> {
   const root = await realpath(directory), budget = { files: 0, bytes: 0 }, skills = [];
   for (const name of (await readdir(root)).sort()) {
     const path = join(root, name), stat = await lstat(path);
@@ -66,18 +75,19 @@ export async function contentPayloadFromFolder(directory: string, options: PackC
     skills.push(skillFromFolder(await folderFiles(path, budget)));
   }
   if (!skills.length) invalid('目录里没有技能：每个技能是一个带 SKILL.md 的子目录');
-  const publisher = { publisher_id: options.publisherId, signature: options.publisherKeyId };
+  // Only read to check the locale declaration: a draft carries no publisher, so any well-formed one does.
+  const publisher = { publisher_id: options.publisherId, signature: options.publisherKeyId ?? 'ed25519:sha256:' + '0'.repeat(64) };
   const localeSource = options.localeSource;
   const draft = contentPackageDraft({ plugin_id: options.pluginId, version: options.version, name: options.name,
     ...(options.nameText !== undefined ? { name_text: options.nameText } : {}), ...(options.summary ? { summary: options.summary } : {}),
     ...(options.summaryText !== undefined ? { summary_text: options.summaryText } : {}),
     ...(localeSource ? { locales: localeSource.declaration } : {}), scope: options.scope ?? 'project',
     ...(options.upgradesFrom ? { compatible_from: options.upgradesFrom } : {}), skills });
-  if (!localeSource) return completeContentPackagePayload(draft, publisher);
+  if (!localeSource) return draft;
   const manifest = parsePluginManifest({ ...draft.manifest, publisher });
   const files = [...draft.files];
   await packDeclaredLocales(manifest, files, await packageFileReader(localeSource.directory));
-  return completeContentPackagePayload({ ...draft, files }, publisher);
+  return { ...draft, files };
 }
 
 /** The publishing choices `pack-content` takes; the Manifest is written from them and from the Skills, never taken from the author. */

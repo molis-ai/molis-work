@@ -143,8 +143,10 @@ test("Goal document HTTP routes retain bad-encoding, collection, offset, missing
     ["/api/goals/V1/document?view=", 400, "Goal 正文集合无效"],
     ["/api/goals/missing/document", 404, { error: "找不到这个 Goal: missing", code: "goals.not_found" }],
     ["/api/goals/V1/document?offset=-1", 200, null],
-    ["/api/plugins/io.molis.work.goals/goals/V1/records", 404, "插件没有这个入口"],
-    ["/api/plugins/io.molis.work.goals/goals/V1/quick-record", 404, "插件没有这个入口"],
+    // Outside a project there is no Goals instance to ask since batch 41 (its Home half went with the method library), so the Host's
+    // own 404 answers instead of the plugin's.
+    ["/api/plugins/io.molis.work.goals/goals/V1/records", 404, "页面或接口不存在"],
+    ["/api/plugins/io.molis.work.goals/goals/V1/quick-record", 404, "页面或接口不存在"],
     ["/api/goals/V1/panels/completion", 404, "页面或接口不存在"],
     ["/goals/%", 404, "Goal 页面不存在"], ["/archive/goals/%", 404, "Goal 页面不存在"],
     ["/trash/goals/%", 404, "Goal 页面不存在"], ["/goals/missing", 404, "找不到这个 Goal: missing"],

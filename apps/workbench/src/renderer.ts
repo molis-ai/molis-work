@@ -56,10 +56,10 @@ export function createWorkbenchRenderer(ports: WorkbenchRendererPorts) {
     nativeDesktopBootstrapScript: NATIVE_DESKTOP_BOOTSTRAP_SCRIPT, accountRegistration, appearance: ports.appearance,
   });
 
-  const { renderMolisWorkProjectSettingsHub, renderMolisWorkProjectGeneralSettings, renderMolisWorkProjectSettings, renderMolisWorkProjectGuidanceSettings, renderMolisWorkPlanningLibrary, renderMolisWorkPlanningMethodPage, renderMolisWorkPlanningSettings } = createWorkbenchProjectSettingsPages({
+  const { renderMolisWorkProjectSettingsHub, renderMolisWorkProjectGeneralSettings, renderMolisWorkProjectSettings, renderMolisWorkProjectGuidanceSettings } = createWorkbenchProjectSettingsPages({
     readText, escapeHtml, icon, htmlLang, controlTokenMeta, renderIconSprite, withDesktopQuery, accountRegistration,
     themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT, visualFoundationClientScript: VISUAL_FOUNDATION_CLIENT_SCRIPT,
-    navigation: { renderProjectSettingsNavigation, renderSettingsNavigation }, renderSettingsContent: stages.declaredSettingsSurface, appearance: ports.appearance, projectDeletionLabels: ports.projectDeletionLabels,
+    navigation: { renderProjectSettingsNavigation }, renderSettingsContent: stages.declaredSettingsSurface, appearance: ports.appearance, projectDeletionLabels: ports.projectDeletionLabels,
     catalogTextPacks: ports.catalogTextPacks,
   });
 
@@ -82,9 +82,6 @@ export function createWorkbenchRenderer(ports: WorkbenchRendererPorts) {
     renderMolisWorkProjectGeneralSettings,
     renderMolisWorkProjectSettings,
     renderMolisWorkProjectGuidanceSettings,
-    renderMolisWorkPlanningLibrary,
-    renderMolisWorkPlanningMethodPage,
-    renderMolisWorkPlanningSettings,
     renderMolisWorkWorkbenchStylesheet: (): string => renderWorkbenchCss(),
     renderMolisWorkArrivalStylesheet: (): string => renderArrivalCss(),
     renderMolisWorkSettingsStylesheet: (): string => renderSettingsCss(),

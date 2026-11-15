@@ -5,7 +5,7 @@ import { packPluginProject } from "./package-files.js";
 import { packSandboxProject, sandboxPackOptions } from "./pack-sandbox.js";
 import { contentPackOptions, packContentProject } from "./pack-content.js";
 import { keyFileSigner, readPublisherIdentity, signPluginPackageFile, verifyPluginPackageFile } from "./package-signing.js";
-import { packBundledContent } from "./pack-bundled.js";
+import { packBundledContent, packBundledDraft } from "./pack-bundled.js";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDevelopmentResult } from "@molis-ai/molis-work-contracts/platform/tooling";
 
@@ -17,6 +17,7 @@ const COMMANDS: readonly { line: string; host?: true }[] = [
   { line: "pack-sandbox <directory> <output.json> --name <name> --version <version> --publisher-id <id> --publisher-key-id <fingerprint> [--name-text <JSON>] [--view-title-text <JSON>] [--summary <text>] [--summary-text <JSON>] [--scope project|home] [--icon <icon>] [--compatible-from <versions>] [--migratable-from <versions>] [--home-database <JSON> | --project-database <JSON>] [--state-machines <JSON>] [--agent <JSON>] [--methods <JSON>]" },
   { line: "pack-content <skills-directory> <output.json> --plugin-id <id> --name <name> --version <version> --publisher-id <id> --publisher-key-id <fingerprint> [--scope project|home] [--compatible-from <versions>]" },
   { line: "pack-bundled <pack-directory> <output-directory> --publisher-key <private-key.pem>" },
+  { line: "pack-bundled <pack-directory> <output-directory> --draft" },
   { line: "identity <public-key.pem>" },
   { line: "sign <input.json> <private-key.pem> <output.json>" },
   { line: "verify <input.json> <trusted-public-key.pem>" },
@@ -77,6 +78,12 @@ export async function runPluginCli(args: readonly string[], output: PluginCliOut
   }
   if (args[0] === "pack-bundled") {
     try {
+      // `--draft`: no publisher key yet; the Home that installs it signs it with its own identity.
+      if (args[1] && args[2] && args.length === 4 && args[3] === "--draft") {
+        const { draft, file } = await packBundledDraft(args[1], args[2]);
+        output.stdout(`${JSON.stringify({ packed: true, plugin_id: draft.manifest.plugin_id, version: draft.manifest.version, output: file, signed: false })}\n`);
+        return 0;
+      }
       if (!args[1] || !args[2] || (args.length !== 3 && (args.length !== 5 || args[3] !== "--publisher-key"))) throw new Error("pack-bundled 需要包目录、输出目录和 --publisher-key <私钥>");
       const { bundle, file } = await packBundledContent(args[1], args[2], args[4] ? await keyFileSigner(args[4]) : undefined);
       output.stdout(`${JSON.stringify({ packed: true, plugin_id: bundle.payload.manifest.plugin_id, version: bundle.payload.manifest.version, publisher_key_id: bundle.payload.manifest.publisher.signature, output: file, signed: true })}\n`);

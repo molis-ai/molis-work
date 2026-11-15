@@ -252,7 +252,12 @@ export class MemoryScopeCommands {
       // Redacting an identifier would change its meaning; an unsafe constraint makes this export unavailable.
       const encoded = JSON.stringify(constraints);
       if (await clean(encoded) !== encoded) throw memoryErrors.unavailable("分类或会话约束包含不能导出的内容，没有生成记忆包");
-      entries.push({ text: await clean(located.entry.text), kind: located.meta.kind, source: located.meta.source, basis: located.meta.basis, applies: { ...applies, ...task }, origin: await clean(located.entry.origin), expires_at: located.meta.expires_at, ...constraints });
+      const state = located.entry.disabled
+        ? { state: { disabled: { reason: await clean(located.entry.disabled.reason), at: located.entry.disabled.at_ms > 0 ? new Date(located.entry.disabled.at_ms).toISOString() : null } } }
+        : located.entry.paused
+          ? { state: { paused: { reason: await clean(located.entry.paused.reason), at: located.entry.paused.at_ms > 0 ? new Date(located.entry.paused.at_ms).toISOString() : null } } }
+          : {};
+      entries.push({ text: await clean(located.entry.text), kind: located.meta.kind, source: located.meta.source, basis: located.meta.basis, applies: { ...applies, ...task }, origin: await clean(located.entry.origin), expires_at: located.meta.expires_at, ...constraints, ...state });
     }
     if (selected.some(one => this.ports.hidden(one.scope, one.owner, one.entry.memory_id)))
       throw memoryErrors.conflict("导出期间记忆已被遗忘，没有生成记忆包");
@@ -278,7 +283,19 @@ export class MemoryScopeCommands {
       const stamp = this.ports.operations.begin(child, "import", { kind: "import", scope, owner: where.owner });
       const date = new Intl.DateTimeFormat("zh-CN", { timeZone: this.ports.timeZone, dateStyle: "medium" }).format(new Date(stamp.at));
       const origin = `${date} · 导入 · 原出处：${item.origin.slice(0, 120)}`;
-      const result = await this.ports.importEntry(child, scope, item, origin).catch(() => {
+      const result = await (async () => {
+        const res = await this.ports.importEntry(child, scope, item, origin);
+        if (res.outcome === "written" && res.memory && (item.state?.disabled || item.state?.paused)) {
+          const located = (await this.located(child, scope, where.owner)).find(one => one.entry.memory_id === res.memory!.memory_id);
+          if (located) {
+            const state = item.state.disabled ? "disabled" : "paused";
+            const reason = (item.state.disabled ? item.state.disabled.reason : item.state.paused?.reason) ?? (state === "disabled" ? "你停用了" : "依据当前不可用");
+            const req = { scope, owner: where.owner, memory_id: located.entry.memory_id, ...this.ports.operations.formal(child, located, state), reason };
+            await (state === "disabled" ? this.ports.backend.withCaller(child).disable(req) : this.ports.backend.withCaller(child).pause(req));
+          }
+        }
+        return res;
+      })().catch(() => {
           throw memoryErrors.conflict("导入没有全部完成；已提交条目保留，请携原操作号和原文件重试或核对", {
             operation_id: caller.operation_id, completed_memory_ids: [...written], skipped, refused, failed_index: index,
             failed_operation_id: child.operation_id, failed_outcome: "unknown", not_started: entries.length - index - 1,

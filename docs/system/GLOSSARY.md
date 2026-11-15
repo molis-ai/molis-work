@@ -72,7 +72,11 @@
 | 字体方案 | 一套字族、字重、字距与离线字体的描述（`fonts/<id>.json`）；皮肤推荐一个 | 字体 | 字体栈（那是方案算出来的一个值） |
 | 展示快照 | 一页用的规格、皮肤、字体、语言的身份与问题，不带令牌值和译文（`UiEnvironmentSnapshot`，`resolveUiEnvironment` 算）；首屏与已打开入口共用 | 无 | — |
 | 成果（Artifact） | 人要留存、引用的固定版本与导入文件，存在成果库；类型在 Manifest 的 `artifacts.produces` 声明 | 成果 | 交给别的插件接着用的数据不是成果，叫过程项 |
+| 风险（Risk） | 项目里独立记录的一件可能出问题的事：标题、描述、影响 × 可能性、处置、负责人、状态、进展和关联对象；事实归风险插件，Goal 的顾虑只引用 | 风险 | 隐患、问题（Goal 的顾虑不是风险） |
+| 顾虑（Concern） | Goals 里对当前 Goal 的一条具体问题，走要求—证据—认可；可以引用一条风险（`cited_subjects`），但不复制风险字段或状态 | 问题与风险（Goal 页面） | 风险（指它时）、Goal 风险 |
+| 复查（Review） | 风险详情里按需安排的一次性 Schedule 对象任务；到点由后台助理读一轮，结果留在 Schedule，风险插件不调 AI、不自动改处置 | 复查 | 自动跟踪、定时复查 |
 | 过程项（process item） | 交给别的插件接着用的数据，在 Manifest 的 `process_items.produces` 声明；不进成果库、侧栏文件和搜索 | 界面里没有单独的词 | 不要叫成果 |
+| 可承接上手材料（`onboarding.takes`） | 插件在 Manifest 里声明自己能接上手交来的材料，并点名自己的一个项目动作来接；第 12 批只支持 `kind: "code_root"`（本人选的代码根目录＋固定版本材料），Coding 是第一个声明者；平台按声明找承接者，不按插件名写名单。这个声明是过渡形状，第 44 批 44-1 收进统一的「能接收什么」声明 | 上手承接、交给插件 | 不要叫「交给 Coding」（只有第一个声明者）；不是权限声明 |
 | 只有声明的插件（content） | Manifest 写 `kind: "content"` 的插件：只有身份与展示、`methods`（技能）、`blueprint`（场景包）、`requires`、`upgrade_compatibility`、界面文字和范围（`runtime: { scope: "home" }`）；入口、权限、能力、成果类型、界面贡献都是空列表，其余键一出现就由 SDK 的 `inspectContentPlugin` 点名拒绝（`plugin.declaration_invalid`）。只从签名的内容包（`CONTENT_PACKAGE_FILES`）安装，不起进程、不挂路由、不进 MCP 工具表；技能包和场景包都用它（`specs/skill-packs/contract-design.md` 第 3 节）。不是场景包建议（第 20 批 `BlueprintProposal`）里的 `content` | 还没有界面；文档与将来的界面都叫「只有声明的插件」 | 内容插件；技能包（只指带技能的那种）；内容包（指它的安装包，不指插件）；`pack.json`、`SkillPackRegistry`（2026-10-19 删掉的第二条安装路） |
 | 场景包（blueprint） | 内容包的场景正文，定义起步步骤，以及角色、Skill、能力、账号、设置和内容建议。默认正文在 `blueprint.json`，Manifest 的 `blueprint.locales` 列出随包译文。 | 场景包 | 场景套组；场景方案、方案（不再用） |
 | 发布者签名 | 插件包由谁发布的签名；它只决定安装信任：要不要首次确认、跑不跑沙箱、动作提供方身份。官方、个人、创作台生成和第三方插件在别处待遇一样 | 界面里没有单独的词 | 官方插件、第三方插件（不是待遇上的分类） |
@@ -234,7 +238,7 @@
 
 **其余三种「方法」（必须写全名）**
 
-- 规划方法（planning method）：Goals 拥有、规划时可选采用的方法包（类型 `PlanningMethodPack` 在 `plugins/native/goals/src/contract/goals.ts`，解析与内置包在 `plugins/native/goals/src/module/planning/method-packs.ts`），按「项目 > 个人 > 内置冷启包」生效；内置包是 `plugins/native/goals/methods/` 下的 Markdown。
+- 规划方法（planning method）：拆解与规划用的方法，是技能目录里随系统自带的一包技能（`plugins/content/planning-methods`，37 个，给个人助理用，默认「自动」；用户 2026-11-14 定，第 41 批）。和 Goals 没有关系：助理用它拆解，结果要不要写进 Goals 由助理用 Goals 自己的动作决定。Goals 只留图检查与变更影响（`goals.planning.graph.check`、`goals.planning.impact`），不存、不采用方法。旧称：Goals 的方法库、个人方法、`PlanningMethodPack`（已删）。
 - 研究方法（research method）：炼金术士里用户确认保存、可在新研究里沿用的做法，代码里叫 playbook（`memory.playbook.*`，`plugins/native/alchemist/src/studio/shared/contracts/actions.ts`）。
 - 连接方式（connection method）：一个服务可用的授权途径，`ConnectorMethodOption`（`kind` 为 `oauth`、`cli`、`token`、`mcp`，`packages/contracts/src/services/connector-host.ts`）。
 
@@ -255,7 +259,7 @@
 
 - 定义：项目关联的本机文件夹，每个带角色 `roles`：**输入**（只读，可多个）与**输出**（唯一，可写；同一个文件夹可以两者都是）。读写经动作：读是 `projects.directories.get@1`（受众含 user、plugin、agent、workflow、mcp），改是本人的 `projects.directories.{add_input,remove_input,set_output,repair,map_source,unmap_source}@1`（权限 `projects:settings`），都带读到的 `expected_revision`，过期以 `actions.conflict` 拒绝。只作输入的目录谁都只能读：Git、终端、Character、Agent 的会话与轮次不在那里写或跑（`projects.directory_input_only`）。
 - 默认输出目录：没选过输出的项目，输出是 Home 的 `outputs/<project_id>/`，目录库里是真实的一行（`canonical_path` 是 `project-output:<project_id>`，不存路径）；文件夹第一次写或运行时才建。
-- 存储：目录库 `projects/catalog.db` 的 `workspaces`、`workspace_project_memberships`（`role_input`、`role_output` 两列）和 `workspace_source_links`（另一台设备的目录对应到本机的哪个文件夹）；项目库的 `material_recent_uses` 是「最近用过」。两份库第 2 版起这样，1→2 的段在 `modules/projects/src/catalog-upgrade.ts` 与 `apps/local-host/src/project-database-schema.ts`。
+- 存储：目录库 `projects/catalog.db` 的 `workspaces`、`workspace_project_memberships`（`role_input`、`role_output` 两列）、`workspace_source_links`（另一台设备的目录对应到本机的哪个文件夹）和 `project_instruction_settings`（关读取的开关与本人确认过的输出；目录库第 4 版）；项目库的 `material_recent_uses` 是「最近用过」。1→2 的段在 `modules/projects/src/catalog-upgrade.ts` 与 `apps/local-host/src/project-database-schema.ts`。
 - 旧称：「工作区」「工作目录」在指项目文件夹时退役；「浏览目录 / 首选工作区」是已删除的旧设置，不再有。
 
 **目标资料库（Goals 根记录）**
@@ -358,11 +362,11 @@
 
 - 讲产品时先写界面显示名；要精确指代时写 `project_plugin_id`。路径、包名、`plugin_id` 只在讲代码或身份时写。
 - `manifest.name` 应与界面显示名一致，因为上面几处会把它直接显示出来。曾经只有 `characters` 不一致（名称 Characters，界面「角色」）；它按 2.3 的决定并入宿主后（CHR-1，2026-10-22）这个差异已消失。
-- 内置插件清单以各包 `src/registration.ts` 为准，`apps/workbench/src/builtin-plugins.ts` 的 `BUILTIN_PLUGIN_CATALOG` 从它们生成（现行代码共 22 个：项目插件 8 个，个人插件 14 个；Files 第 06 批退役，项目文件夹的阅读与快照归平台资料服务；Characters 按 2.3 的决定并入宿主后（CHR-1，2026-10-22）已不在其中）。官方集成的 `plugin_id` 是 `io.molis.work.integration.<连接器>`（`plugins/official-integrations/*/src/index.ts`）。
+- 内置插件清单以各包 `src/registration.ts` 为准，`apps/workbench/src/builtin-plugins.ts` 的 `BUILTIN_PLUGIN_CATALOG` 从它们生成（现行代码共 24 个：项目插件 10 个，个人插件 14 个；Files 第 06 批退役，项目文件夹的阅读与快照归平台资料服务；Characters 按 2.3 的决定并入宿主后（CHR-1，2026-10-22）已不在其中）。官方集成的 `plugin_id` 是 `io.molis.work.integration.<连接器>`（`plugins/official-integrations/*/src/index.ts`）。
 
 ### 3.3 内置插件的名字对照
 
-规则上 `plugin_id` 是 `io.molis.work.<project_plugin_id>`，目录和包名与 `project_plugin_id` 相同，界面 UI 声明（`UiContributionDeclaration`）里没有 `plugin_id`，登记时由平台按 Manifest 填（PG-098，2026-10-25）。下表列出全部 25 个，凡不规则的在最后一栏写明（2026-10-08 核对每个插件的 Manifest）；表后第 1–4 条是跨插件的说明。
+规则上 `plugin_id` 是 `io.molis.work.<project_plugin_id>`，目录和包名与 `project_plugin_id` 相同，界面 UI 声明（`UiContributionDeclaration`）里没有 `plugin_id`，登记时由平台按 Manifest 填（PG-098，2026-10-25）。下表列出全部内置插件（含平台的成果入口 成果/artifacts），凡不规则的在最后一栏写明（2026-10-08 核对每个插件的 Manifest）；表后第 1–4 条是跨插件的说明。
 
 | `project_plugin_id` | `manifest.name` | 界面显示名 | 不规则之处 |
 | --- | --- | --- | --- |
@@ -389,8 +393,10 @@
 | `alchemist` | 炼金术士 | 炼金术士 | |
 | `workflows` | 工作流程 | 工作流程 | Manifest 的 `plugin_id` 是 `io.molis.work.native.workflows`，比其他插件多一段 `.native.`（表后第 1 条） |
 | `issues` | Issue | Issue | |
+| `risk` | 风险 | 风险 | |
+| `work-brief` | Work Brief | Work Brief | |
 
-中文界面里显示名中英文混用：16 个用英文（Goals、Inbox、Feed、Schedule、Coding、Git、Diff、Text stats、Cognia、Jelly、Shelf、Pages、Forms、Dataset、PPT、Issue），7 个用中文（成果、插件创作工作台、图片、灵光、待办、炼金术士、工作流程）。Characters 是设置的一节而不是插件（2.3，CHR-1，2026-10-22 已并入宿主），不在这张清单里。实验插件（`experiments`）2026-10-10 已删（`specs/archive/repository-anti-corruption/spec.md` §1），不在清单里。
+中文界面里显示名中英文混用：17 个用英文（Goals、Inbox、Feed、Schedule、Coding、Git、Diff、Text stats、Cognia、Jelly、Shelf、Pages、Forms、Dataset、PPT、Issue、Work Brief），8 个用中文（成果、插件创作工作台、图片、灵光、待办、炼金术士、工作流程、风险）。Characters 是设置的一节而不是插件（2.3，CHR-1，2026-10-22 已并入宿主），不在这张清单里。实验插件（`experiments`）2026-10-10 已删（`specs/archive/repository-anti-corruption/spec.md` §1），不在清单里。
 
 表外的几处不规则：
 
@@ -546,7 +552,6 @@ B　说工作者本身的（做事、用自己的权限、请求授权和提问�
 - 设计系统的「组件板」、Goals 的「看板」视图及其 CSS：不指项目。
 - `agent.skills.*` 宿主能力 id、`skill_id`、`AgentSkill*` 类型：与本表的 Skill 一致，不用改。
 - 类型名 `HostCapabilityDescriptor`、`CapabilityRegistry`：本表把 capability 定义为注册表条目，这两个名字与定义一致。
-- Goals 里规划方法的 `method_id`（`plugins/native/goals`（含 `src/module/`）、`apps/local-host/src/web-planning.ts` 以及 Goals 的库表与事件）：它指规划方法，写在 Goals 的库和事件里，建议不改；读到 `method_id` 时看所在包：助理一侧是 Skill（R-B5），Goals 一侧是规划方法。
 - 构建期 UI 描述和内置插件的 `contribution_id` 里的 `.native.` 段（3.3 第 4 条）：贡献 id 的命名空间，不是插件 id。
 - R-B 里用户不确认改名的项，在这里补一行。
 - R-B1 `capability_id`：保持原名——就是动作的 id；写在工作流步骤、MCP 授权、判断规则、场景绑定、Character 的动作范围里，改名收益小而数据和外部授权都要动。

@@ -102,6 +102,8 @@ test("SKP-02 SKP-04 SKC-07 a round lists the catalog's Skills for the Assistant;
     assert.ok(first.includes("先读 references/template.md"), "with its body from the catalog");
     const round = (await service.read(sent.work.work_id)).rounds[0]!;
     assert.deepEqual(round.materials.map(item => [item.kind, item.method?.kind === "skill" && item.method.ref]), [["method", skill.ref]]);
+    // SKL-11, SKL-01: the round's own record says which Skills it used and who chose each; the person's is 「named」.
+    assert.deepEqual(round.skills, [{ ref: skill.ref, name: skill.name, picked: "named" }]);
     const uses = homeAgentDefinitions(h.home).skills.uses(skill.ref.install_id, skill.ref.skill_id);
     assert.deepEqual(uses.map(use => [use.caller, use.ref]), [["assistant", skill.ref]]);
 
@@ -114,6 +116,12 @@ test("SKP-02 SKP-04 SKC-07 a round lists the catalog's Skills for the Assistant;
     assert.ok(second.includes(`capability_id 为 ${skillCatalogActions.readBodies.capability_id}，version 为 ${skillCatalogActions.readBodies.version}，provider_id 为 ${SKILLS_PROVIDER_ID}`),
       "and reads its body from the shared catalog");
     assert.equal(homeAgentDefinitions(h.home).skills.uses(skill.ref.install_id, skill.ref.skill_id).length, 1, "a listed Skill is not a use");
+    assert.deepEqual((await service.read(sent.work.work_id)).rounds[1]!.skills, [], "a round that read none used none");
+
+    // SKL-11 「这次不用技能」: the round is not offered the Skills it could pick by itself, so it has none to read.
+    await service.send({ text: "这次直接写", request_id: "method-send-plain", work_id: sent.work.work_id, auto_skills: false }, {});
+    await until(async () => { const view = await service.read(sent.work.work_id); return view.rounds.length === 3 && view.work.state === "completed"; }, "third round");
+    assert.ok(!requests.at(-1)!.includes(skill.ref.installation_generation), "a round told not to pick Skills is not shown any to pick");
 
     // A choice that is no longer current is refused, never swapped for another version.
     const stale: SkillRef = { ...skill.ref, installation_generation: "old" };

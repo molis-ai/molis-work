@@ -20,6 +20,7 @@ export { parsePluginManifest, comparePluginVersions } from "./manifest.js";
 export { inspectContentPlugin } from "./content-plugin.js";
 export { completeContentPackagePayload, parseContentPackage, type ContentPackage } from "./content-package.js";
 export { readPackagedSkills, type PackagedSkillBody, type PackagedSkills } from "./skill-files.js";
+export { skillTranslationPath } from "./skill-declarations.js";
 /** The one refusal of a declaration or package check (`plugin.declaration_invalid`): outside paths quoted and cut short, at most 30 problems listed. */
 export { refuseDeclarations } from "./declaration-problems.js";
 export { inspectCharacterTemplateAdoption, inspectRoleTemplate, type RoleTemplateInspectionOptions } from "./role-template.js";

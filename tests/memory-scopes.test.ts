@@ -89,14 +89,14 @@ test("memories limited to a plugin, an object kind or a Goal come only where tha
   const person = personIn("project-q4");
   await service.write(person, { scope: "project", text: "表格插件里金额保留两位小数", applies: { plugin_ids: ["tables"] } });
   await service.write(person, { scope: "project", text: "改 Goal 的描述时保留原来的量化指标", applies: { object_kinds: ["goal"] } });
-  await service.write(person, { scope: "project", text: "发布里程碑这个 Goal 用英文写进展", applies: { goal_ids: ["goal-launch"] } });
+  await service.write(person, { scope: "project", text: "发布里程碑这个 Goal 用英文写进展", applies: { objects: [{ plugin_id: "io.molis.work.goals", kind: "goal", id: "goal-launch" }] } });
   await service.write(person, { scope: "project", text: "周报先写风险" });
   const at = (situation: object) => service.recall(work(null), { query: "金额 描述 进展 风险 周报", situation } as never).then(result => texts(result.items));
   assert.deepEqual(await at({}), ["周报先写风险"], "no plugin, object or Goal: only the unlimited one");
   assert.deepEqual(await at({ plugin_id: "tables" }), ["周报先写风险", "表格插件里金额保留两位小数"]);
   assert.deepEqual(await at({ plugin_id: "pages" }), ["周报先写风险"], "another plugin never gets it");
-  assert.deepEqual(await at({ object_kind: "goal", goal_id: "goal-other" }), ["周报先写风险", "改 Goal 的描述时保留原来的量化指标"]);
-  assert.deepEqual(await at({ object_kind: "goal", goal_id: "goal-launch" }), ["发布里程碑这个 Goal 用英文写进展", "周报先写风险", "改 Goal 的描述时保留原来的量化指标"]);
+  assert.deepEqual(await at({ object_kind: "goal", objects: [{ plugin_id: "io.molis.work.goals", kind: "goal", id: "goal-other" }] }), ["周报先写风险", "改 Goal 的描述时保留原来的量化指标"]);
+  assert.deepEqual(await at({ object_kind: "goal", objects: [{ plugin_id: "io.molis.work.goals", kind: "goal", id: "goal-launch" }] }), ["发布里程碑这个 Goal 用英文写进展", "周报先写风险", "改 Goal 的描述时保留原来的量化指标"]);
 
   // A plugin keeps its own memories (namespace = its identity from the Host); only it reads them.
   const tables: MemoryCaller = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-q4", consumer: "plugin", plugin_id: "tables" };

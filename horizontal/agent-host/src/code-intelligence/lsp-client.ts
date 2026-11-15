@@ -103,6 +103,7 @@ function connect(child: ChildProcess, spec: LanguageServerSpec & { readonly time
     }
   });
   child.stderr!.on("data", (chunk: Buffer) => { stderr = (stderr + chunk.toString("utf8")).slice(-4_000); });
+  child.stdin!.on("error", () => { alive = false; });
   child.on("exit", () => { alive = false; failAll(new Error(`the language server exited${stderr ? `: ${stderr.trim().split("\n").at(-1)}` : ""}`)); });
   child.on("error", (error) => { alive = false; failAll(new Error(`the language server could not start: ${error.message}`)); });
   const request = <T>(method: string, params: unknown, timeoutMs = spec.timeoutMs): Promise<T> => new Promise<T>((resolve, reject) => {

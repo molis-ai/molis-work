@@ -73,6 +73,7 @@ export interface AgentSkillDeclaration {
     argument_hint?: string;
     native_only_reason?: string;
     body?: string;
+    locales?: string[];
     resources?: SkillResourceDeclaration[];
     connector_categories?: string[];
 }

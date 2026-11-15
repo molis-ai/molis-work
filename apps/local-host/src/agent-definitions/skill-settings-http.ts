@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { SKILLS_PERMISSIONS, skillCatalogActions, type SkillCatalogEntry } from "@molis-ai/molis-work-contracts/services/skills";
+import { SKILLS_PERMISSIONS, skillAuthoringActions, skillCatalogActions, type SkillCatalogEntry } from "@molis-ai/molis-work-contracts/services/skills";
 import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { isDeepStrictEqual } from "node:util";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
@@ -19,7 +19,8 @@ export async function handleSkillSettingsHttp(request: IncomingMessage, response
   request.once("aborted", cancel); response.once("close", disconnected);
   try { return await dispatchNativePluginJsonHttp(request, response, url, { prefix: "/api/skills", maxBodyBytes: 32_000,
     async handle({ method, pathname, body }) {
-      const definition = pathname === "/api/skills/list" ? skillCatalogActions.list : pathname === "/api/skills/set" ? skillCatalogActions.setState : pathname === "/api/skills/body" ? skillCatalogActions.readBodies : undefined;
+      const definition = pathname === "/api/skills/list" ? skillCatalogActions.list : pathname === "/api/skills/set" ? skillCatalogActions.setState : pathname === "/api/skills/body" ? skillCatalogActions.readBodies
+        : pathname === "/api/skills/source" ? skillAuthoringActions.read : undefined;
       if (!definition || method !== "POST") return null;
       if (pluginPageRequest(request)) throw new ActionError("actions.forbidden", "插件页面不能代本人管理技能");
       const caller = { ...await localWebActionContext(host, project, SKILLS_PERMISSIONS, controller.signal),

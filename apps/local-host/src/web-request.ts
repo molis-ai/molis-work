@@ -13,7 +13,6 @@ import { handleCharactersHttp, hostCharactersInvoke } from "./characters-http.js
 import { pluginRouteControl } from "./plugin-route-control.js";
 import { bindLocalWebAction, bindLocalWebActions, localWebActionContext } from "./local-web-actions.js";
 import { arriveAtProjectPage } from "./web-settings-arrival.js";
-import { bindPersonalPlanningWebActions } from "./personal-planning-actions.js";
 import { ARTIFACT_ACTION_PERMISSIONS } from "@molis-ai/molis-work-module-artifacts";
 import { readArtifactDisplayFor } from "./artifact-display-words.js";
 import { ALCHEMIST_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-alchemist";
@@ -230,12 +229,10 @@ const ownerRead = (owner: RuntimeStageOwner) => ({ manifest: owner.entry.manifes
 /** The person in this project, capped by one plugin's permissions and reaching each provider by its own authority (PG-008). */
 const asPerson = ({ localHost, hostReference }: ProjectRuntimeContext, permissions: readonly string[]) => bindLocalWebActions(localHost, hostReference, permissions);
 
-/** The Goals settings and planning pages: the project's work and its Goals, read by their owners. */
-const planningRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
+/** The Goals settings pages: the project's guidance and rules, read by their owner. */
+const goalsSettingsRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
   { id: "goals-settings", handle: ({ request, response, url, readWebView, controlToken, goalActions, composition, goalsHere, store, serverOptions }) =>
     composition.goalsReadHttp.settings(request, response, url, readWebView, controlToken, goalActions, goalsHere, store, serverOptions.homeDirectory) },
-  { id: "planning", handle: ({ request, response, url, controlToken, readWebView, goalActions, composition, localHost }) =>
-    composition.planningHttp.project(request, response, url, controlToken, readWebView, goalActions, bindPersonalPlanningWebActions(localHost, request)) },
 ];
 
 /** The stages the project page redraws in place, and the home dock's judgment; both drop the page's cached view when they change it. */
@@ -306,7 +303,7 @@ const PROJECT_RUNTIME_ROUTES: readonly WebRoute<ProjectRuntimeContext>[] = [
   { id: "characters", handle: ({ request, response, url, localHost, hostReference }) => handleCharactersHttp(request, response, url, hostCharactersInvoke(localHost, hostReference)) },
   runtimePluginsRoute,
   workspaceMembershipRoute,
-  ...planningRoutes,
+  ...goalsSettingsRoutes,
   ...projectProbeRoutes,
   { id: "goal-fragments", handle: context => context.composition.goalsReadHttp.fragments(context.request, context.response, context.url, context.readWebView, context.goalActions,
     asPerson(context, ARTIFACT_ACTION_PERMISSIONS), context.readArtifactDisplay) },

@@ -87,7 +87,8 @@ test("event document writes planning, report, concern, decision and closure thro
   const headerBeforeHistory = await evaluate("document.querySelector('[data-current-summary]')?.textContent");
   await openPlanning();
   await waitDom("document.querySelector('[data-event-reader-root]') && !document.querySelector('[data-event-reader-root]').hasAttribute('hidden')");
-  assert.match(await evaluate("document.querySelector('[data-event-panel=planning]')?.textContent || ''"), /未采用模板|空白起点/);
+  // Batch 41 (41-2): the panel no longer says which planning method was adopted; the methods are Skills of the catalog.
+  assert.doesNotMatch(await evaluate("document.querySelector('[data-event-panel=planning]')?.textContent || ''"), /未采用模板|空白起点/);
   await click("[data-goal-event-document]:not([hidden]) [data-event-panel='planning'] [data-event-reader='type']");
   await waitDom("document.querySelector('[data-event-form=type]') && document.querySelector('[data-event-form=type]').hidden === false");
   await evaluate(`(() => {
@@ -112,15 +113,6 @@ test("event document writes planning, report, concern, decision and closure thro
   const typeId = app.goalEvents.readState(DEMO_PROJECT_ID, goalId).config.types.find((type) => type.name === "进展记录")?.type_id;
   assert.ok(typeId);
   await waitDom(`document.querySelector('[data-event-report="${typeId}"]')`);
-  await openNamedForm("adopt");
-  const methodId = await evaluate(`document.querySelector('[data-event-form="adopt"] [name="method_id"] option[value]:not([value=""])')?.value || ""`) as string;
-  assert.ok(methodId, "adopt form must list current effective planning methods");
-  await submitSuccess('[data-event-form="adopt"] button[type="submit"]');
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    if (app.goalEvents.readState(DEMO_PROJECT_ID, goalId).config.adopted_planning.length) break;
-    await evaluate("new Promise((resolve) => setTimeout(resolve, 250))");
-  }
-  assert.ok(app.goalEvents.readState(DEMO_PROJECT_ID, goalId).config.adopted_planning.length);
   await openNamedForm("agreement");
   await evaluate(`document.querySelector('[data-event-form="agreement"] [name="outcome"]').value='经页面修改后的约定'`);
   await submitSuccess('[data-event-form="agreement"] button[type="submit"]');

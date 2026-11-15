@@ -226,7 +226,6 @@ tests/goals-document-ui.test.ts
 tests/goals-kanban-ui.test.ts
 tests/goals-momentum-ui.test.ts
 tests/goals-navigation-model.test.ts
-tests/goals-planning-ui.test.ts
 tests/goals-policy-ui.test.ts
 tests/goals-query-facts.test.ts
 tests/goals-query-module.test.ts

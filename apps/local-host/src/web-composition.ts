@@ -8,7 +8,6 @@ import { createLocalWebAssets } from "./web-assets.js";
 import { createLocalArtifactHttp } from "./artifact-library-http.js";
 import { createLocalHostCapsule } from "./capsule.js";
 import { createLocalOnboardingHttp } from "./web-onboarding.js";
-import { createLocalPlanningHttp } from "./web-planning.js";
 import { createLocalGoalsReadHttp } from "./web-goals-read.js";
 import { registerConnectorDevicePolling } from "./connector-device-oauth.js";
 import { registerOnboardingStagingCleanup } from "./context-onboarding-service.js";
@@ -44,7 +43,6 @@ export function createLocalWebComposition(platform: LocalWebPlatform, home: stri
   const { servePtyClient, serveWorkbenchAsset } = createLocalWebAssets({ ptyClientFilePath: platform.ptyClientFilePath, renderer: workbenchRenderer });
   const handleArtifactNativePluginHttp = createLocalArtifactHttp();
   const { buildCapsuleSnapshot, buildCapsuleMenu, renderCapsuleShell } = createLocalHostCapsule(platform.renderDesktopCapsuleShell, appearance);
-  const planningHttp = createLocalPlanningHttp({ withCatalog, renderer: workbenchRenderer, isDesktopShellRequest, pageCsp: PAGE_CSP });
   const goalsReadHttp = createLocalGoalsReadHttp({ withCatalog, renderer: workbenchRenderer, isDesktopShellRequest, pageCsp: PAGE_CSP });
   const handleOnboarding = createLocalOnboardingHttp({
     withCatalog, renderOnboarding: workbenchRenderer.renderMolisWorkOnboarding,
@@ -59,7 +57,7 @@ export function createLocalWebComposition(platform: LocalWebPlatform, home: stri
     desktopRuntimeAvailability: platform.cliAvailability,
     projectSettings,
     servePtyClient, serveWorkbenchAsset, handleArtifactNativePluginHttp,
-    buildCapsuleSnapshot, buildCapsuleMenu, renderCapsuleShell, planningHttp, goalsReadHttp, handleOnboarding,
+    buildCapsuleSnapshot, buildCapsuleMenu, renderCapsuleShell, goalsReadHttp, handleOnboarding,
     /** This server's periodic tasks (W4-09): registered by their owners, listed in Settings › 诊断, stopped when the server closes. */
     periodicTasks,
   };

@@ -1,7 +1,9 @@
 import { createHash } from "node:crypto";
-import { MEMORY_FORMAL_KINDS, type MemoryCandidate, type MemoryCandidateRecord, type MemoryChange, type MemoryChangeRecord, type MemoryExportPackage, type MemoryRevision, type MemoryRevisionView, type MemoryScope } from "@molis-ai/molis-work-contracts/services/memory";
+import type { AgentMemoryMeta } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { MEMORY_FORMAL_KINDS, type MemoryCandidate, type MemoryCandidateRecord, type MemoryChange, type MemoryChangeRecord, type MemoryExportPackage, type MemoryFormalKind, type MemoryRevision, type MemoryRevisionView, type MemoryScope } from "@molis-ai/molis-work-contracts/services/memory";
 import { completeRevisionSnapshot } from "./classification.js";
 import { memoryErrors } from "./errors.js";
+import { fromAppliesWhen } from "./facts.js";
 import { CONSUMER_LABELS } from "./prefs.js";
 import type { MemoryCaller } from "./service.js";
 
@@ -32,13 +34,22 @@ export function changeView(record: MemoryChangeRecord): MemoryChange {
   return view;
 }
 
-/** Restore's canonical snapshot stays in the ledger; history exposes the existing revision contract. */
-export function revisionView(record: MemoryRevision): MemoryRevisionView {
-  const { snapshot, ...view } = record;
-  const expiry = snapshot?.meta.expires_at_ms;
-  return { ...view, classification: snapshot?.meta.classification ?? null,
+/** Restore's canonical snapshot stays in Prologue Memory; history joins SDK revision contents with ledger attribution. */
+export function revisionView(sdkRev: { version: number; text: string; origin: string; meta: AgentMemoryMeta; created_at_ms: number; updated_at_ms: number }, ledgerRev?: MemoryRevision): MemoryRevisionView {
+  const expiry = sdkRev.meta.expires_at_ms;
+  const fallbackBy = sdkRev.meta.approved_by?.by ?? "person";
+  return {
+    version: sdkRev.version,
+    text: sdkRev.text,
+    kind: (sdkRev.meta.kind ?? "fact") as MemoryFormalKind,
+    applies: fromAppliesWhen(sdkRev.meta.applies_when),
+    change: ledgerRev?.change ?? (sdkRev.version <= 1 ? "created" : "edited"),
+    by: ledgerRev?.by ?? fallbackBy,
+    at: ledgerRev?.at ?? new Date(sdkRev.updated_at_ms || sdkRev.created_at_ms || 0).toISOString(),
+    classification: sdkRev.meta.classification ?? null,
     expires_at: expiry === undefined || !Number.isFinite(new Date(expiry).getTime()) ? null : new Date(expiry).toISOString(),
-    snapshot_available: completeRevisionSnapshot(record) };
+    snapshot_available: completeRevisionSnapshot(sdkRev),
+  };
 }
 
 /** A package is read whole before anything is written: one malformed entry and the whole import is refused. */
@@ -55,7 +66,14 @@ export function readPackage(pack: unknown): MemoryExportPackage["entries"] {
     if (typeof item.text !== "string" || !item.text.trim() || item.text.length > MAX_TEXT) refuse(`${at}的内容不合格`);
     if (!MEMORY_FORMAL_KINDS.includes(item.kind)) refuse(`${at}的类别不认识`);
     if (typeof item.origin !== "string") refuse(`${at}缺少出处`);
-    if (item.applies !== undefined && (typeof item.applies !== "object" || item.applies === null || Array.isArray(item.applies))) refuse(`${at}的适用情境损坏`);
+    if (item.applies !== undefined) {
+      if (typeof item.applies !== "object" || item.applies === null || Array.isArray(item.applies) || "goal_ids" in item.applies) refuse(`${at}的适用情境损坏`);
+      if (item.applies.objects !== undefined && (!Array.isArray(item.applies.objects) || item.applies.objects.length > 20
+        || item.applies.objects.some(obj => !obj || typeof obj !== "object" || Array.isArray(obj)
+          || typeof obj.plugin_id !== "string" || !obj.plugin_id.trim()
+          || typeof obj.kind !== "string" || !obj.kind.trim()
+          || typeof obj.id !== "string" || !obj.id.trim()))) refuse(`${at}的适用情境损坏`);
+    }
     if (item.expires_at !== null && item.expires_at !== undefined && (typeof item.expires_at !== "string" || !Number.isFinite(Date.parse(item.expires_at)))) refuse(`${at}的有效期损坏`);
     const classification = item.classification;
     if (!classification || typeof classification !== "object" || Array.isArray(classification)
@@ -68,8 +86,17 @@ export function readPackage(pack: unknown): MemoryExportPackage["entries"] {
       || !Number.isSafeInteger(session.revision) || session.revision < 1)) refuse(`${at}的会话关联损坏`);
     if (item.namespace !== undefined && (typeof item.namespace !== "string" || !item.namespace.trim())) refuse(`${at}的命名空间损坏`);
     if (item.basis !== null && !["explicit", "repeated", "inferred"].includes(item.basis)) refuse(`${at}的依据类别损坏`);
+    if (item.state !== undefined) {
+      if (!item.state || typeof item.state !== "object" || Array.isArray(item.state)) refuse(`${at}的状态损坏`);
+      for (const mark of [item.state.disabled, item.state.paused]) {
+        if (mark !== undefined && (!mark || typeof mark !== "object" || Array.isArray(mark)
+          || (mark.reason !== undefined && typeof mark.reason !== "string")
+          || (mark.at !== null && (typeof mark.at !== "string" || !Number.isFinite(Date.parse(mark.at)))))) refuse(`${at}的状态损坏`);
+      }
+    }
     return { text: item.text.trim(), kind: item.kind, source: "imported", basis: item.basis, applies: structuredClone(item.applies ?? {}), origin: item.origin, expires_at: item.expires_at ?? null,
-      classification: structuredClone(classification!), ...(session ? { session_ref: { ...session } } : {}), ...(item.namespace ? { namespace: item.namespace } : {}) };
+      classification: structuredClone(classification!), ...(session ? { session_ref: { ...session } } : {}), ...(item.namespace ? { namespace: item.namespace } : {}),
+      ...(item.state ? { state: structuredClone(item.state) } : {}) };
   });
 }
 

@@ -127,6 +127,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       order: () => tabWorkspace?.homeOrder?.() ?? [],
       navigationFrom: (source) => tabWorkspace?.homeNavigationFrom(source) ?? (() => false),
       market: () => tabWorkspace?.setExclusive("market"),
+      lead: { adopt: (box, target) => tabWorkspace?.adoptHomeLead(box, target) ?? null, release: (node) => tabWorkspace?.releaseHomeLead(node) },
       offers: (offerHost) => positionOffers({ ...offerHost, records: workRecords }),
       projectKey: state.project?.project_id || "",
       translate: readText,
@@ -185,6 +186,8 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     globalThis.molisPlacement = (${PLACEMENT_FACTORY_SCRIPT})({ translate: readText, route, headers: () => molisWorkControlHeaders(), itemTabs,
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title), openPluginRecord: (plugin, id) => tabWorkspace?.openPluginRecord(plugin, id),
       openGoalWork: () => tabWorkspace?.openGoalWork(), closeItem: (plugin, id) => tabWorkspace?.closeItem(plugin, id), projectTitle: state.project?.display_name || "" });
+    // The 「依据」 panel of a round's Skills (browser/skill-picks.ts): asked for by the Assistant's line and by Coding's through its frame.
+    globalThis.molisWorkHomeView?.mountSkillPicks({ project: state.project?.project_id || null, card: (...args) => globalThis.molisPlacement.card(...args) });
     ${CONNECTORS_SETTINGS_CLIENT_SCRIPT}
     ${SYNC_SETTINGS_CLIENT_SCRIPT}
     const settingsDirectory = (${SETTINGS_DIRECTORY_FACTORY_SCRIPT})({

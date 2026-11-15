@@ -66,6 +66,10 @@ export class RiskStore {
     else if (status === "closed") where.push("status = 'closed'");
     if (filter.impact) { where.push("impact = ?"); parameters.push(filter.impact); }
     if (filter.owner_name) { where.push("owner_name = ?"); parameters.push(filter.owner_name); }
+    if (filter.keyword) {
+      where.push("(instr(title, ?) > 0 OR instr(statement, ?) > 0 OR instr(treatment, ?) > 0)");
+      parameters.push(filter.keyword, filter.keyword, filter.keyword);
+    }
     if (filter.linked) { where.push("risk_id IN (SELECT risk_id FROM risk_links WHERE subject_kind = ? AND subject_id = ?)"); parameters.push(filter.linked.kind, filter.linked.id); }
     if (filter.unlinked !== undefined) where.push(`${filter.unlinked ? "NOT " : ""}EXISTS (SELECT 1 FROM risk_links WHERE risk_links.risk_id = risk_items.risk_id)`);
     if (page.cursor) {
@@ -153,7 +157,8 @@ export class RiskStore {
   }
 
   addNote(tx: PluginDatabaseTransaction, riskId: string, note: string, actorId: string, now: string): RiskEvent {
-    this.get(riskId, tx);
+    const risk = this.get(riskId, tx);
+    if (risk.status === "closed") throw riskErrors.closed("这条风险已关闭，重新打开后才能记进展");
     const text = limitedNote(note);
     if (!text.trim()) throw riskErrors.invalid("进展不能是空的");
     const eventId = this.event(tx, riskId, "note", { text }, actorId, now);

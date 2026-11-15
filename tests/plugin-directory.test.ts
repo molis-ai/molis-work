@@ -40,7 +40,7 @@ function view(directory?: readonly PluginDirectoryEntry[]): MolisWorkWebView {
   return {
     snapshot: {
       board: { project_id: PROJECT, title: "Directory", active_goal_id: null, created_at: "2026-10-25T00:00:00.000Z", updated_at: "2026-10-25T00:00:00.000Z" },
-      cursor: 0, goals: [], relations: [], goal_tree_proposals: [], planning_method_packs: [],
+      cursor: 0, goals: [], relations: [], goal_tree_proposals: [], 
     },
     project: { project_id: PROJECT, display_name: "Directory" },
     projects: [{ project_id: PROJECT, display_name: "Directory" }],

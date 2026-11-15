@@ -247,8 +247,7 @@ const providerIdOf = (view) => (typeof view.provider?.provider_id === "string" &
  * scopes, so one registration appears several times; `declared` are the Manifest rows of buildRows. A view is a Manifest's own
  * when its provider's `plugin_id` is the Manifest that declares that `capability_id@version`; it must then hold exactly the
  * declaration the Manifest holds, and the same provider id in every view. Any other registration is a Host row, including one
- * under a Home-level provider of an `capability_id@version` a Manifest also declares (the Goals plugin declares
- * goals.planning.personal.*, which the Host registers as io.molis.work.goals.home). Returns `{ rows, registered, problems }`:
+ * under a Home-level provider of an `capability_id@version` a Manifest also declares (none today). Returns `{ rows, registered, problems }`:
  * `registered` maps each Manifest action's `capability_id@version` to the provider id the Host registers it under (its plugin's
  * registration, or, where the plugin registers none, the provider(s) that do); `problems` also names a Manifest action that no
  * view registers.

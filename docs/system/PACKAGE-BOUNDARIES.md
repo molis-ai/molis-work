@@ -282,7 +282,7 @@ Repository 仅内部可见是目标约束；当前 Goals/Artifacts 等 public en
 | `modules/projects` | 模块 | 8 | 1,215 | `repository.ts` 470 | 1 | 1 | 1 | 在用 | 中 | 已审 |
 | `modules/sync-replication` | 模块 | 21 | 875 | `index.ts` 272 | 1 | 2 | 1 | 在用 | 深 | 待审 |
 | `modules/shelf` | 模块 | 36 | 3,634 | `contract.ts` 364 | 2 | 2 | 2 | 在用 | 中 | 已审 |
-| `packages/contracts` | 基础 | 160 | 24,111 | `platform/ui.ts` 800 | 75 | 0 | 65 | 在用 | 深 | 待审 |
+| `packages/contracts` | 基础 | 174 | 26,182 | `services/memory.ts` 850 | 77 | 0 | 67 | 在用 | 深 | 待审 |
 | `packages/design-system` | 基础 | 137 | 19,778 | `styles/primitives.ts` 1,161 | 2 | 2 | 5 | 在用 | 深 | 已审 |
 | `packages/im-ui` | 基础 | 24 | 1,920 | `views.ts` 171 | 1 | 3 | 3 | 在用 | 中 | 已审 |
 | `packages/kernel` | 基础 | 14 | 1,879 | `action-service.ts` 487 | 2 | 2 | 1 | 在用 | 深 | 已审 |
@@ -309,11 +309,12 @@ Repository 仅内部可见是目标约束；当前 Goals/Artifacts 等 public en
 | `plugins/native/pages` | 内置插件 | 119 | 17,374 | `styles.ts` 771 | 5 | 2 | 2 | Runtime | 深 | 待审 |
 | `plugins/native/plugin-builder` | 内置插件 | 19 | 2,960 | `agent-authoring.ts` 800 | 2 | 2 | 2 | 构建期 | 中 | 已审 |
 | `plugins/native/ppt` | 内置插件 | 36 | 2,853 | `store.ts` 295 | 3 | 2 | 2 | Runtime | 中 | 待审 |
-| `plugins/native/risk` | 内置插件 | 14 | 686 | `store.ts` 207 | 2 | 2 | 2 | Runtime | 浅 | 待审 |
+| `plugins/native/risk` | 内置插件 | 26 | 1,995 | `browser/client.ts` 361 | 2 | 2 | 2 | Runtime | 中 | 待审 |
 | `plugins/native/schedule` | 内置插件 | 46 | 3,103 | `tasks.ts` 300 | 2 | 2 | 2 | Runtime | 中 | 待审 |
 | `plugins/native/shelf` | 内置插件 | 62 | 6,298 | `styles.ts` 647 | 2 | 3 | 2 | Runtime | 中 | 已审 |
 | `plugins/native/text-stats` | 内置插件 | 16 | 553 | `core.ts` 105 | 2 | 2 | 2 | Runtime | 浅 | 已审 |
 | `plugins/native/todo` | 内置插件 | 49 | 5,225 | `organize.ts` 328 | 3 | 2 | 2 | Runtime | 中 | 待审 |
+| `plugins/native/work-brief` | 内置插件 | 26 | 2,084 | `briefs.ts` 263 | 2 | 2 | 2 | Runtime | 中 | 已审 |
 | `plugins/native/workflows` | 内置插件 | 44 | 4,602 | `model.ts` 438 | 2 | 2 | 2 | Runtime | 中 | 待审 |
 | `plugins/official-integrations/catalog` | 官方接入 | 10 | 2,184 | `catalog.ts` 1,013 | 1 | 2 | 1 | 在用 | 中 | 已审 |
 | `plugins/official-integrations/github` | 官方接入 | 6 | 960 | `provider.ts` 592 | 1 | 2 | 1 | 在用 | 浅 | 已审 |

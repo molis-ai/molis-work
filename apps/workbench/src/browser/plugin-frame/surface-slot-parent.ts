@@ -1,3 +1,4 @@
+import { SURFACE_SLOTS_MAX } from "@molis-ai/molis-work-contracts/platform/ui";
 import { escapeHtml, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { SurfaceDisplayCorrection, SurfaceHomeDisplay, SurfaceHomeRowDisplay } from "@molis-ai/molis-work-design-system";
 import type { FramedSurfaceControl } from "../project-home-render.js";
@@ -241,7 +242,7 @@ export function pageSurfaceSlots(port: MessagePort, scope: FrameScope, areas: Pa
   });
   return (message: SurfaceSlotUp) => {
     if (message.type === "surface-slot-open") {
-      if (!Number.isSafeInteger(message.id) || message.id <= last || entries.size >= 4 || !scope.alive) {
+      if (!Number.isSafeInteger(message.id) || message.id <= last || entries.size >= SURFACE_SLOTS_MAX || !scope.alive) {
         send({ type: "surface-slot-ready", id: message.id, error: "unavailable" }); return;
       }
       last = message.id;

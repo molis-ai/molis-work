@@ -76,6 +76,10 @@
     {
       "path": "spaces/<spaceId>/sync/device.json",
       "reason": "登录后才写，金样不登录（UPG2-06）"
+    },
+    {
+      "path": "work-brief/work-brief.db",
+      "reason": "第 19 批新增的 Home 库；现有金样没有安装或启用 Work Brief，也没有种子简报。首个真实简报保存后再纳入金样；加入前由 tests/work-brief-plugin.test.ts 与库结构快照覆盖创建、读写和删项目。"
     }
   ],
   "writes": {
@@ -177,11 +181,6 @@
         "lingguang.ts"
       ]
     },
-    "goals/goals.db": {
-      "cases": [
-        "goals-home.ts"
-      ]
-    },
     "feed-content/feed-content.db": {
       "none": "正文只在 Feed 真的拉到内容时写，要联网；金样不联网，这个库只有结构和空间行，没有业务行（feed.ts 写的是项目那一半）"
     },
@@ -204,6 +203,9 @@
       "cases": [
         "workflows.ts"
       ]
+    },
+    "work-brief/work-brief.db": {
+      "none": "Work Brief 的库只在插件运行时保存或刷新时写；现有金样不安装 Work Brief，生成时也没有种子简报。首个真实简报的保存路径由 tests/work-brief-plugin.test.ts 覆盖。"
     },
     "plugin-runtime/plugin-runtime.db": {
       "none": "没有最小写入用例：回放的第三方样本那一步装、写、升级，这个库就写过了（§4 第 7 步）"

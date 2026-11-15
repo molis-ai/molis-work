@@ -28,6 +28,11 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
   // 「请 AI 重新问」 on a closed question: the page names only the question; the Host writes the round and reads the draft (D5).
   const reaskQuestion = (work, round, question) => api("/send", "POST", { work_id: work.work_id, request_id: crypto.randomUUID(),
     written_by: "page", reask: { run_id: round.run_id, pending_id: question.pending_id } }).then(reload).then(poll, showError);
+  // 「换一个重做」 and 「这次不用技能」 from a round's Skill line: the same words again as a new round, with exactly the Skills the
+  // person chose and no automatic ones. The round they asked about stays as it is.
+  // SKL-11: the same sentence again with the Skills picked in the panel. The person did not type it a second time, so it goes out as the page's.
+  const redoWithSkills = (work, round, named) => api("/send", "POST", { work_id: work.work_id, request_id: crypto.randomUUID(), text: round.text, written_by: "page", auto_skills: false,
+    materials: named.map((skill, index) => ({ material_id: "redo-skill-" + index, kind: "method", title: readText("workbench.assistant-composer.method-title", { name: skill.name }), explicit: true, method: { kind: "skill", ref: skill.ref } })) }).then(reload).then(poll, showError);
   async function acceptSent(res, intent) {
       forgetIntent(intent);
       const visible = sendTarget() === intent.target && host.route("/api/assistant/send") === intent.route;

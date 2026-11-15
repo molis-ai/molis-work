@@ -154,7 +154,7 @@ Coding 输入框底部「规则 N」（N = 本轮实际读到的仓库说明文�
 onboarding?: { takes: ReadonlyArray<{ kind: "code_root"; capability_id: string; version: number }> };
 ```
 
-- 写法照 `demo_seed`：声明点名插件**自己**的一个动作（`actions` 里有同一 `capability_id@version`，manifest 校验拒绝点名别人的或不存在的，错误码沿用 `plugin.manifest_invalid`）。同一 kind 一个插件最多一条。
+- 写法照 `demo_seed`：声明点名插件**自己**的一个动作（`actions` 里有同一 `capability_id@version`，manifest 校验拒绝点名别人的或不存在的，错误码沿用 SDK 声明检查的 `plugin.declaration_invalid`）。同一 kind 一个插件最多一条。
 - 不分内置与装上的插件（插件同等待遇）：Manifest 解析与校验在 SDK 一处（`parseManifest` 与声明检查），平台各层取同一份。
 
 ### 7.2 承接动作的合同（`packages/contracts/src/platform/onboarding.ts`，新 subpath 之下导出）
@@ -179,15 +179,15 @@ export interface OnboardingTakeResult {
 
 ### 7.3 平台怎样找承接者、怎样调（`apps/local-host`）
 
-- 新函数 `onboardingTakers(kind)`（与 `artifactProducerSources()` 同法）：本构建带的插件登记（`PLATFORM_PLUGIN_REGISTRATIONS`，已装的读已装 Manifest）加上 Home 里装上且在生效的插件；挑出声明了这个 kind 的，返回 `{ plugin_id, project_plugin_id, name, name_text?, take }`。个人插件（`personal`）与常开以外的规则不变：只列能加进项目的插件。
+- 新函数 `onboardingTakers(kind)`（与 `artifactProducerSources()` 同法）：本构建带的插件登记（`PLATFORM_PLUGIN_REGISTRATIONS`，已装的读已装 Manifest）加上 Home 里装上且在生效的插件；挑出声明了这个 kind 的，返回 `{ plugin_id, project_plugin_id, name, name_text?, take }`。个人注册（`personal`）与常开以外的规则不变：只列能加进项目的插件；个人注册也是项目插件（Pages、Todo 就是），声明了同一 kind 也可列。
 - 复查页：journey 读回时多一个 `takers: [{ plugin_id, name }]`（只在有代码根时给）。页面每个承接者一行勾选「把 {folder} 交给 {plugin}」，插件名取 Manifest 的显示名；默认不勾（ONB-44 不变）。一个也没有就不出这一行。
-- 采用：请求带 `take: { plugin_id }`（替换现在的 `coding_root: true`）。宿主只认 `onboardingTakers("code_root")` 里有的 `plugin_id`，代码根仍只从这一轮本人选的文件夹算（`codingRoot`，改名 `codeRoot`），不从请求读路径。顺序：建项目 → 加 Pages → 加这个插件（`project_plugin_id`）→ 把文件夹设为输出（本人的选择，归 Projects，由宿主写，不交给插件）→ 导入材料（现有 Pages／成果库步骤）→ 以本人身份调插件的承接动作，`request_id = onboarding:<journey>:take`，`materials` 是这一轮导入的成果版本（`journey.artifact_references`），超过 30 份只给前 30 份。
+- 采用：请求带 `take: "<plugin_id>"`（替换现在的 `coding_root: true`）。宿主只认 `onboardingTakers("code_root")` 里有的 `plugin_id`，代码根仍只从这一轮本人选的文件夹算（`codingRoot`，改名 `codeRoot`），不从请求读路径。顺序：建项目 → 加 Pages → 加这个插件（`project_plugin_id`）→ 把文件夹设为输出（本人的选择，归 Projects，由宿主写，不交给插件）→ 导入材料（现有 Pages／成果库步骤）→ 以本人身份调插件的承接动作，`request_id = onboarding:<journey>:take`，`materials` 是这一轮导入的成果版本（`journey.artifact_references`），超过 30 份只给前 30 份。
 - 记录：`journey.adoption.take = { plugin_id, project_plugin_id, code_root }`；承接返回后 `journey.take_result = { open }`。重试时已有结果就不再调；调用失败时 journey 记失败、已建的项目与材料保留，重试从承接这一步接着做（同现有 Pages 步骤）。
 - 落点：完成后页面去 `/projects/<id>/?openPlugin=<project_plugin_id>`，有 `open` 时加 `&openItem=<item_id>&openTitle=<title>`；宿主和页面里没有 `coding` 字样。
 
 ### 7.4 Coding 怎么承接（`plugins/native/coding`）
 
-- Manifest：`onboarding: { takes: [{ kind: "code_root", capability_id: "coding.onboarding.take", version: 1 }] }`，动作在 `registration` 里声明一次。
+- Manifest：`onboarding: { takes: [{ kind: "code_root", capability_id: "coding.onboarding.take", version: 1 }] }`，动作在 Manifest 的 `actions` 里声明一次、在 `routes.ts` 里绑定。
 - 处理器：读 `projects.directories.get@1`，确认 `code_root.workspace_id` 是现在的输出（不是就拒 `coding.onboarding_root_mismatch`，conflict）；建一个会话（标题「从上手开始」），把 `materials` 存为这个会话下一轮的材料（`materials:<session>`，与委派建会话同法）；同一 `request_id` 重试返回同一会话（存 `onboarding:<request_id>` → session_id）。返回 `{ open: { item_id: session_id, title } }`。
 - 不碰输出目录与信任：输出由宿主设，信任仍按 §3（本人选的输出即信任）。
 
@@ -210,7 +210,7 @@ export interface OnboardingTakeResult {
 ### 7.7 合审条件（合同台 2026-11-13「有条件通过」，头 `93ca673772`）
 
 - **C1 权限来自声明**：上手服务调承接动作用 `bindLocalWebAction(host, ref, definition)`（`local-web-actions.ts`），只带被点名动作自己声明的权限、只能调这一个动作，与 `plugin-demo-seed.ts` 同法；`web-onboarding.ts` 的固定权限名单不加任何承接者的权限。
-- **C2 形状由 SDK 的 Manifest 检查管**：点名的动作必须是 `scope: project` 的 `command`、受众正好 `["user"]`，输入是只含 `request_id`、`code_root`、`materials` 的封闭对象，输出与 `OnboardingTakeResult` 相同；不满足就 `plugin.manifest_invalid`。BCD-15 覆盖这些拒绝。
+- **C2 形状由 SDK 的 Manifest 检查管**：点名的动作必须是 `scope: project` 的 `command`、受众正好 `["user"]`，输入是只含 `request_id`、`code_root`、`materials` 的封闭对象，输出与 `OnboardingTakeResult` 相同；不满足就 `plugin.declaration_invalid`（与 SDK 其他声明检查同一个码）。BCD-15 覆盖这些拒绝并钉住这个码。
 - **C3 改掉的名字**：宿主 `codingRoot`→`codeRoot`、`CODING_PLUGIN` 删、`input.coding_root`→`input.take`、错误句改通用；存档 `adoption.coding_root`→`adoption.take`（只在本分支，不兼容）；页面 `codingPicked`／`codingFolder`／`codingChoice`／`cx-coding-root`／`data-coding-root` 改成 `take*`／`code-root`；语言键 `hand-folder-to-coding(-hint)` 换成通用句 `hand-folder-to(-hint)`，提示句不再描述某个插件；contracts `codeRootFile` 注释不点名 Coding。BCD-16 扫 `apps/local-host/src/*onboarding*`、`apps/workbench/src/scripts/context-onboarding*.ts` 与 `workbench.context-onboarding.*` 的键和文字，不分大小写不含 `coding`。
 - **采纳的非阻塞意见**：承接者多于一个时是单选组（N1，请求只带一个 `take`）；超过 30 份材料时如实说交了几份（N2）；Coding 先写 `onboarding:<request_id>` 再建会话、会话 id 由 `request_id` 推出，重试不会多建（N3）；落点 `openItem` 打不开时退回插件页（N5）。
 
@@ -219,4 +219,5 @@ export interface OnboardingTakeResult {
 - **承接失败不卡住这一轮（N-a）**：插件不在了、或承接动作拒绝时，项目和材料已经建好，这一轮照常完成，`take_result.not_taken` 记原因（`unavailable`／`refused`），人落在插件页。原来会一直停在失败、重试也一样失败。
 - **只交本人选的那个文件夹（N-b）**：交出前核对项目输出的 `canonical_path` 仍是 `realpath(code_root)`，不是就不交（`not_taken: "moved"`）。设输出只做一次（`adoption.take.output_set`），所以失败后重试不会把人改过的输出改回去。两条都由 ONB-44 用例钉住。
 - **会话名是译文（N-c）**：Coding 承接时新会话的名字取当时界面语言的「从上手开始」并存下来。这是人可以改的会话名，和 Coding 现有的默认会话名、「委派：」同一种做法，不是业务判断，列入 a-section-contract 第 14 节的存量，随第 16 批一起换。
-- **留给第 44 批**：勾选现在是互斥复选框，第 44 批加入 Todo、Pages 后改成单选组（N-d）；超过 30 份材料只交前 30 份时，页面要说出来（N-e）。
+- **S4 已修**：`UiPageWorkspaces.readInstructions()` 现在返回 `UiPageInstructionSettings`（`ProjectDirectories.instructions` 的形状），框桥把回执交给页面；Coding 直接更新 `instructions` 再画规则菜单，不再整页重读。公开 API 快照已随改。
+- **留给第 44 批**：勾选现在是互斥复选框，第 44 批加入 Todo、Pages 后改成单选组（N-d）；超过 30 份材料只交前 30 份时，页面要说出来（N-e）；承接失败/不可用时页面要说出 `not_taken` 的原因。

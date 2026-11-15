@@ -106,8 +106,6 @@ export class GoalsQueryService implements GoalsQueryApi {
       goals: this.#repository.listGoals(projectId),
       relations: this.#repository.listRelations(projectId),
       policy_bindings: this.#repository.listActivePolicyBindings(projectId),
-      // Packs saved before later fields existed are completed on the way out, as the planning engine does.
-      planning_method_packs: this.#repository.listPlanningMethodPacks(projectId),
       project_guidance: this.#repository.listProjectGuidanceEntries(projectId),
     };
   }

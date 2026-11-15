@@ -34,11 +34,11 @@ W5-16 A：Home 的排他使用由 storage 的同一 SQLite owner 提供，锁仍
 
 ## 2. 总览
 
-Home 里有 31 种 SQLite 文件：权威库 27 种（Home 级 24 种，按项目 3 种）、派生库 1 种、锁库 3 种。27 种权威库按版本方案分：
+Home 里有 32 种 SQLite 文件：权威库 28 种（Home 级 25 种，按项目 3 种）、派生库 1 种、锁库 3 种。28 种权威库按版本方案分：
 
 | 版本方案 | 个数 | 哪些 |
 | --- | --- | --- |
-| `PRAGMA user_version`，经 `applySqliteBaseline` | 26 | 项目库（1）、Alchemist 工作室库与搜索库、assistant（1）、memory（1）、placement、agent-definitions、agent-declarations、connectors、context-onboarding、plugin-originals、functions（1）、11 个个人插件库、Home Runtime 安装库、server、characters |
+| `PRAGMA user_version`，经 `applySqliteBaseline` | 27 | 项目库（1）、Alchemist 工作室库与搜索库、assistant（1）、memory（1）、placement、agent-definitions、agent-declarations、connectors、context-onboarding、plugin-originals、functions（1）、12 个个人插件库、Home Runtime 安装库、server、characters |
 | 自己的 meta 表 | 1 | `projects/catalog.db`（catalog_meta）；退役Sessions登记与reader已删除 |
 
 派生库 `search/search.db` 用 `search_meta`，版本不符就重建，不属于“拒绝”。
@@ -51,7 +51,7 @@ Home 里有 31 种 SQLite 文件：权威库 27 种（Home 级 24 种，按项�
 
 | 路径 | owner 与打开它的代码 | 种类 · 版本 | 备份 | 卸载 |
 | --- | --- | --- | --- | --- |
-| `projects/catalog.db` | 宿主；`apps/local-host/src/project-catalog.ts:246-248` 打开，`apps/local-host/src/catalog-schema.ts:11-22` 建表，表归各模块（4.1） | SQLite 自带版本 · WAL · `catalog_meta.schema_version` = 3（`apps/local-host/src/project-catalog-contract.ts` 的 `CATALOG_SCHEMA_VERSION`；第 2 版起工作目录用输入、输出两种角色并加来源链接表，第 3 版移除退役的桌面面板表），旧版本升级，新版本拒绝（`assertCurrentCatalog`，`apps/local-host/src/catalog-schema.ts:32`） | 必备份。不存项目库绝对路径：由当前 Home 与 project_id 推导（`modules/projects/src/project-paths.ts`）；完整恢复仍遵守原 Home 路径与原 key 绑定（`docs/installation.md`） | purge（`installer/uninstall.ts:46`） |
+| `projects/catalog.db` | 宿主；`apps/local-host/src/project-catalog.ts:246-248` 打开，`apps/local-host/src/catalog-schema.ts:11-22` 建表，表归各模块（4.1） | SQLite 自带版本 · WAL · `catalog_meta.schema_version` = 4（`apps/local-host/src/project-catalog-contract.ts` 的 `CATALOG_SCHEMA_VERSION`；第 2 版起工作目录用输入、输出两种角色并加来源链接表，第 3 版移除退役的桌面面板表，第 4 版加 `project_instruction_settings`），旧版本升级，新版本拒绝（`assertCurrentCatalog`，`apps/local-host/src/catalog-schema.ts:32`） | 必备份。不存项目库绝对路径：由当前 Home 与 project_id 推导（`modules/projects/src/project-paths.ts`）；完整恢复仍遵守原 Home 路径与原 key 绑定（`docs/installation.md`） | purge（`installer/uninstall.ts:46`） |
 | `projects/<project_id>/molis-work.db` | 宿主；`apps/local-host/src/project-database.ts` 的 `LocalProjectDatabase` 套基线（`apps/local-host/src/project-database-schema.ts` 拼 19 段建表），再为声明了表的插件按声明建表（4.2）；文件名 `packages/storage/src/adapters/local-security-paths.ts:8` | SQLite 带版本 · `user_version` = 3（1→2 去掉浏览目录设置、加「最近用过」并把过程项触发器接到采用后日志；2→3 加 `surface_corrections`）。新建和未登记库使用 WAL，持匹配 Home 租约的 Host 打开登记项目时采用 DELETE／EXTRA，插件的表另记在 `plugin_project_databases.version`。旧布局第 2 版普通打开拒绝，只由显式采用程序换日志后在同一事务里走完 2→3；真实 Home 采用另授权 | 必备份。离线入口按 owner 检查 SQLite 侧车，待恢复日志使备份和目标恢复拒绝 | purge（`installer/uninstall.ts:46`，整个 `projects/`） |
 | `projects/.staging-<project_id>-<uuid>/` | `apps/local-host/src/managed-project-files.ts:42`：新建项目库时的暂存目录 | 目录 | 临时 | purge（在 `projects/` 内） |
 | `projects/.staging-<project_id>/` | `apps/local-host/src/demo-project-lifecycle.ts:56`：新建示例项目的暂存目录，建成后改名为 `projects/<project_id>/`，失败时删（`:69`） | 目录 | 临时 | purge（在 `projects/` 内） |
@@ -96,12 +96,12 @@ Host 持同一 Home 租约，按实际 Catalog 成员和声明的 Home 库检查
 | `dataset/dataset.db` | `plugins/native/dataset/src/database.ts`（`DATASET_DATABASE`） | 1 · DELETE／EXTRA | `datasets`、`dataset_versions`、`dataset_receipts` |
 | `ppt/ppt.db` | `plugins/native/ppt/src/database.ts`（`PPT_DATABASE`） | 1 · DELETE／EXTRA | `presentations`、`presentation_copies` |
 | `lingguang/lingguang.db` | `plugins/native/lingguang/src/store.ts:282`，基线 `:246` | 1 · 回滚 | `sparks`、`conversations`、`spark_requests`、`messages` |
-| `goals/goals.db` | Goals 的 Home 半：`plugins/native/goals/src/home-database.ts`（`GOALS_HOME_DATABASE`），由 Manifest 的 `databases.home` 登记；项目半的表在各项目库里 | 1 · 回滚 | `personal_planning_method_packs`（个人规划方法；当前事实归Goals Home半。旧目录表搬迁/旧名事件维护已于2026-10-30取消，旧Home整体搬开后新建，不转换旧事实） |
 | `feed-content/feed-content.db` | Feed 的 Home 半：`plugins/native/feed/src/content-ledger.ts`（`FEED_HOME_DATABASE`），由 Manifest 的 `databases.home` 登记 | 1 · 回滚 | `feed_content_holds`（各项目的 Feed 来源引用哪份正文） |
 | `todo/todo.db` | `plugins/native/todo/src/store.ts:522-524`，基线 `:464` | 1 · WAL | `todo_items`、`todo_changes`、`todo_requests`、`todo_batches`、`todo_source_memory` |
 | `jelly/jelly.db` | `plugins/native/jelly/src/store.ts:97-100`，基线 `:89` | 1 · WAL | `jelly_workspace`、`jelly_note_versions`、`jelly_history`、`jelly_previews` |
 | `cognia/cognia.db` | `plugins/native/cognia/src/store.ts:146-148`，基线 `:136` | 1 · WAL | `cognia_domains`、`cognia_sources`、`cognia_materials`、`cognia_versions`、`cognia_previews`、`cognia_drafts` |
 | `workflows/workflows.db` | `plugins/native/workflows/src/store.ts:195-197`，基线 `:166` | 1 · WAL | `workflows`、`instances` |
+| `work-brief/work-brief.db` | Work Brief owner：`plugins/native/work-brief/src/database.ts`（`WORK_BRIEF_DATABASE`），由 Manifest 的 `databases.home` 登记；项目半与 Home 半共用一个库，项目的行由 `project_rows` 随项目删除 | 1 · WAL | `briefs`、`brief_versions`、`brief_edits`、`brief_proposals`、`brief_next_marks`、`brief_requests` |
 
 Issue 与 Home Runtime 最初为新库，无历史盖版本；Home Runtime 当前把安装、发行物与安装隔离 KV 放在同一库，错版或结构不完整的库拒绝，不就地迁移或补表。基线、拒绝与保存重启见 `tests/home-store-baselines.test.ts`、`tests/home-plugin-private-store.test.ts`、`tests/issue-home-runtime.test.ts`。任何其他 Home 的 v1 数据仍须独立列出与演练后取得具体维护授权。以下是已有库的基线来源：
 
@@ -131,12 +131,12 @@ server 库的表：`mw_server_identity`、`mw_members`、`mw_sessions`、`mw_pro
 
 一个 SQLite 文件里可以有多个 owner 的表。结构由宿主按 owner 导出的建表语句拼出；owner 导出，宿主只拼装。
 
-### 4.1 `projects/catalog.db`（v3；W5-17 由可信 Home 与 project_id 推导路径，旧 Home 整体搬开后新建）
+### 4.1 `projects/catalog.db`（v4；W5-17 由可信 Home 与 project_id 推导路径，旧 Home 整体搬开后新建）
 
 | owner | 表 |
 | --- | --- |
 | `packages/storage` | `catalog_meta`（`src/catalog-metadata.ts`） |
-| `modules/projects` | `projects`、`project_plugins`、`project_plugin_exclusions`、`project_events`、`project_deletions`、`workspaces`、`workspace_project_memberships`（`role_input`、`role_output` 两列记这个文件夹对项目是输入、输出或两者）、`workspace_source_links`（另一台设备的目录对应到本机哪个文件夹，只在本机、不同步）（`src/repository.ts`），`project_deletion_steps`（`src/deletion-steps.ts`），`project_recycle` 与 `project_recycle_receipts`（`src/recycle.ts`，原项目事实保留，观察时刻不是服务端到期时刻） |
+| `modules/projects` | `projects`、`project_plugins`、`project_plugin_exclusions`、`project_events`、`project_deletions`、`workspaces`、`workspace_project_memberships`（`role_input`、`role_output` 两列记这个文件夹对项目是输入、输出或两者）、`workspace_source_links`（另一台设备的目录对应到本机哪个文件夹，只在本机、不同步）（`src/repository.ts`），`project_deletion_steps`（`src/deletion-steps.ts`），`project_recycle` 与 `project_recycle_receipts`（`src/recycle.ts`，原项目事实保留，观察时刻不是服务端到期时刻），`project_instruction_settings`（`src/repository.ts` 建、`src/workspace-repository.ts` 读写：项目关读取的开关与本人确认过的输出；外键随项目删除） |
 | `modules/private-work-context` | `runtime_context_bindings`、`runtime_context_binding_events`、`runtime_context_setup_requests`、`runtime_context_suggestion_rejections` |
 | `modules/context-ledger` | `context_edges` |
 | `apps/local-host`（退役表升级） | `goal_desktop_panels`、`goal_desktop_panel_aliases`：已不再建表；`src/project-catalog-contract.ts` 的目录库 2→3 升级删除空表，有记录时拒绝升级并保留原库，等待明确的恢复决定 |
@@ -177,7 +177,7 @@ server 库的表：`mw_server_identity`、`mw_members`、`mw_sessions`、`mw_pro
 | --- | --- | --- |
 | Coding（`plugins/native/coding/src/database.ts`） | `coding` | `coding_sessions`、`coding_plan_drafts` |
 | Feed（`plugins/native/feed/src/database.ts`；语句分在 `out-rules.ts` 与 `store/` 下） | `feed`（版本 1，现行完整声明） | `feed_out_rules`、`feed_items`、`feed_materials`、`feed_item_events`、`feed_sources`、`source_events`、`signals`、`signal_revisions`、`signal_events`、`listener_instances`、`listener_deliveries`、`feed_source_runs` |
-| Goals（`plugins/native/goals/src/project-database.ts`；语句分在同目录的 `project-database-{goals,event-facts,event-state,governance}.ts`） | `goals` | `boards`、`goals`、`acceptance_criteria`、`goal_relations`、`goal_trash_records`、`goal_trash_relation_records`、`policy_bindings`、`project_guidance_entries`、`project_guidance_revisions`、`planning_method_packs`、`input_bindings`、`goal_event_configs`、`goal_event_config_versions`、`goal_event_types`、`goal_event_requirements`、`goal_event_requirement_bindings`、`goal_work_events`、`goal_work_event_judgments`、`goal_event_state_owners`、`goal_event_agreements`、`goal_event_progress_summaries`、`goal_event_concerns`、`goal_event_decision_requests`、`goal_event_applied_decisions`、`goal_event_requirement_conclusions`、`goal_event_closures`、`goal_event_work_status`、`goal_tree_proposals`、`goal_tree_proposal_items`、`goal_tree_proposal_decisions`、`goal_event_trusted_decisions`（31 张，含 governance 的 4 张） |
+| Goals（`plugins/native/goals/src/project-database.ts`；语句分在同目录的 `project-database-{goals,event-facts,event-state,governance}.ts`） | `goals` | `boards`、`goals`、`acceptance_criteria`、`goal_relations`、`goal_trash_records`、`goal_trash_relation_records`、`policy_bindings`、`project_guidance_entries`、`project_guidance_revisions`、`input_bindings`、`goal_event_configs`、`goal_event_config_versions`、`goal_event_types`、`goal_event_requirements`、`goal_event_requirement_bindings`、`goal_work_events`、`goal_work_event_judgments`、`goal_event_state_owners`、`goal_event_agreements`、`goal_event_progress_summaries`、`goal_event_concerns`、`goal_event_decision_requests`、`goal_event_applied_decisions`、`goal_event_requirement_conclusions`、`goal_event_closures`、`goal_event_work_status`、`goal_tree_proposals`、`goal_tree_proposal_items`、`goal_tree_proposal_decisions`、`goal_event_trusted_decisions`（30 张，含 governance 的 4 张） |
 | Schedule（`plugins/native/schedule/src/database.ts`） | `schedule` | `schedule_conversation_tasks`、`schedule_conversation_turns`、`schedule_plugin_reminders`、`schedule_operations`、`schedule_operation_occurrences` |
 
 各插件的库版本记在账本行里，发版时按 `docs/releases/CHECKLIST.md` §3 各一行核对。`boards` 的 `project_id` 指向 `project_root`，不再存项目名（名字的主人是目录库）。Goal 与 Governance 两个存储模块已并入插件包（`src/module/`、`src/governance/`，S9-3），读写这些表的 SQL 与建表的包是同一个包，`tooling/gates/table-owners.json` 的 `shared` 里这批登记已删。
@@ -323,7 +323,7 @@ W5-16 新命令不导出 raw master、Keychain、会话/SDK/构建 run 的 `.key
 
 | 组 | 成员 | 为什么要同一时点 |
 | --- | --- | --- |
-| A 目录与项目 | `projects/catalog.db`、全部 `projects/<id>/molis-work.db` | 目录库（现为 v2）按 Home 与 project_id 推导项目库位置；完整Home恢复仍按原路径与原key |
+| A 目录与项目 | `projects/catalog.db`、全部 `projects/<id>/molis-work.db` | 目录库（现为 v4）按 Home 与 project_id 推导项目库位置；完整Home恢复仍按原路径与原key |
 | B 会话（旧 Sessions，已下线） | `sessions/sessions.db`、`sessions/content/blobs/`、`sessions/content/content.key` | 退役目录不再登记、现行快照不读；旧Home整体搬开后保留，不改旧key、不删除 |
 | C Agent 与记忆 | `agent-runtime/`（`records/`、`checkpoints/`、`storage.key`）、`git-operation-details.json`、`memory/memory.db`、`assistant/assistant.db`、`agent-definitions/`、`agent-declarations/` | 记忆正文在 Prologue 条目，账本在 `memory.db`；Git 审查回执与细节分在两处 |
 | D 凭据 | `feed/secrets.json`、Keychain 里的主密钥（没有 Keychain 时是 `feed/secrets.key`）、`feed/evidence*/`、`alchemist/projects/*/search-content*/` 加同目录的 `search.sqlite`，以及存 `credential_ref` 的 `connectors/connectors.db` 和目录库的 `model_providers` | 引用与密文必须配对；证据索引 `search.sqlite` 和它指向的 `search-content*` 要取同一时点；主密钥不在 Home 里 |

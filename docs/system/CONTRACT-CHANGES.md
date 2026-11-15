@@ -1,5 +1,7 @@
 # 合同变更流程
 
+2026-11-14 第 12 批合后审计：`UiPageWorkspaces.readInstructions()` 的返回从 `Promise<void>` 改为 `Promise<UiPageInstructionSettings>`（`off`/`trusted`/`why_not`，与 `ProjectDirectories.instructions` 同形），工作台框桥把回执交给页面，Coding 直接更新规则菜单而不再整页重读；`contracts/platform/ui` 的 API 快照随改。阶段一原地改，不保留旧返回值读取；调用方只有本仓库的工作台框桥与 Coding。
+
 2026-11-05索引Home增量：Memory ledger现行索引采用格式为2，DDL/业务行不变，仅授权隔离的真正空容器建2；Home恢复journal现行schema为1（#1837 统一起点；用户 2026-11-12 定保持 1），形状和原phase不变，但旧App不得按旧路径权限回滚新索引材料。普通打开拒绝旧/未来版本、不兜底；旧Home的记忆账本只经下方「当前保留机制」登记的 1 → 2 升级段进入第 2 版。生产/冷维护显式 `indexed-v1`，snapshot新增SDK共享DB及精确侧车拒入/目标reset；MemoryRestoreSdkPort签名不变，purge材料语义为SDK已确认的现存权威文件，不能假设一条独占一文件或删除共享DB。公开API没有因此新增类型；原API快照由统筹核对。新容器不得交旧App或改版本回退，回退使用原隔离树和原Home。
 
 状态：现行（2026-10-08 入库；同日用户定了读取兼容的起点；2026-10-29 用户定 1.0.0 之前都是开发版本）。分两个阶段：现在在**阶段一，不留兼容期**；**阶段二，读取兼容**从第一个装到开发机之外的版本开始，这个版本不早于 1.0.0。
@@ -72,9 +74,10 @@
 | 记忆新一代起点（Memory V0，用户 2026-11-07 定不迁移） | `memory` 1 → 2 只删账本里关于旧记忆的行（历史、候选、变更、信号、使用、配对、标记），保留归属标题和每个开关；偏好里唯一新增的 `class_restrictions` 在缺少时补成空列表（不限制任何类别，用户 2026-11-11 定），不改其他字段；并留一个标记；持主人锁的下一次启动只凭这个标记，先永久删除 `agent-runtime/records/` 下旧布局的 `io.molis.work~memories` 与 `io.molis.work~memory-candidates` 两个目录（SDK 索引库在它们存在时拒绝挂载；不是普通目录的拒绝、不删；用户 2026-11-11 定），再写空的 `memory-forgetting-v2.json`，最后删标记；中途停下的下一次启动重做。其他 SDK 记录不动，旧记忆不读、不搬；别的缺遗忘文件的 Home 照旧拒绝。真实 Home 升级前按发布检查单先做完整备份 | 记忆账本（`packages/storage`）；最早支持的金样不再需要第 1 版时删除此升级段与标记处理 |
 | Files 退役与过程项同步切换（第 06 批，用户 2026-11-09 批准隔离实现） | 用户随后明确取消新增升版：06 批当时项目库保持 2（第 15 批 #2017 已升到第 3 版；11-13 用户决定同版本例外改指第 3 版）、过程项同步保持 1、D1 保持 6。精确旧 Files 身份、三类过程项及相关端口／绑定的功能转换仍做，同版本按账号 cutoverId 派生私有同步分区，公开集合不变；原不同版本 namespace 方案不再执行。显式隔离 owner 采用不伪装 U1 同版本升级，普通打开只检当前结构、不补 DDL；[同版本采用设计](../../specs/batch-06-shared-tools/current-version-adoption.md)已独立复核。2026-11-12 起：项目库采用程序在 `apps/local-host/src/process-items-adoption.ts`（只在隔离 Home 测过）；现有 1→2 步骤直接升到新布局，只动结构（用户 11-12 定）；旧布局第 2 版只走显式采用，采用中换日志后在同一事务走完 2→3，落到第 3 版现行（用户 11-13 定）。项目库结构快照的同版本变化只按 `tooling/gates/schemas/same-version-exceptions.json` 的唯一一条放行（用户 11-11 定，11-13 改指第 3 版）。同一采用事务里，项目库按 spec「本库安装清理」把 Files 的官方安装记成已卸载（私有值保留）、删去它作为订阅方的事件游标（Runtime 的 `retired-install.ts`）；全部项目采用后，Home 步骤除撤同意外，由 Projects 的 `plugin-retirement.ts` 把 `files` 移出各项目成员（本地与可同步两份），每个项目记一条普通的移除事件（11-12 起，只在隔离 Home 测过）。限定旧源预检、封前容量预留、冻结值播种、精确旧回执与保留期内受权历史读取。脏旧设备在改属前保全原值、操作与同步恢复数据，恢复件登记首版格式，走本人显式接管；普通读写不兜底旧业务结构。真实部署、真实 Home 与云端迁移另授权；[完整合同及验收](../../specs/batch-06-shared-tools/sync-cutover.md) | 成果／过程项 owner 管业务图，Runtime 管端口与同意，sync-replication 管恢复件和客户端，Rust 同步 owner 管 D1／R2，Host 的实际 Home owner 控制本地采用窗口。消费者为资料、Coding、Diff、Text Stats 与同步设置。支持的旧源全部迁完且无待接管恢复件后移除专用转换和旧源捕获入口；已有恢复件在用户处置前保留。永久封印、原回执及仍有效的历史权利按其合同继续履行，不随转换代码删除。 |
 | 技能设置与用量建表（08-7，用户 2026-11-06 同意） | `agent-definitions` 1 → 2 只创建空的 `skill_settings`、`skill_uses` 及用量索引；既有提示词覆盖、历史和用量不变。由 U1 升级执行，普通打开仍拒绝旧版本 | 宿主 Agent 定义；最早支持的金样不再需要第 1 版时移除此升级段，不保留旧结构读取 |
+| Goals 方法库删除（第 41 批第 2 项，用户 2026-11-14 定「和 Goals 没有关系」「直接删，没有用户」） | 项目库 Goals 的表 3 → 4 只删 `planning_method_packs` 表和 `goal_event_config_versions.adopted_planning_json` 列，别的行不动（同一版里删表删列，有意不走「先扩后收」：没有用户，回退靠升级前的快照）；Home 库 `goals/goals.db` 由升级轮连目录删除（`REMOVED_HOME_STORES`）。不搬成技能、不留读取旧方法的代码；往 `REMOVED_HOME_STORES` 加新项要另经用户确认 | Goals 插件 owner（升级段）与宿主升级 owner（删除表）；统一起点重置、这一段不再有 Home 需要走时，删段与表项 |
 | 插件升级声明（`upgrade_compatibility.compatible_from_versions`、`migratable_from_versions`）、同版本重装与发行物留存 | 插件版本之间的升级是现行产品功能，不是读取旧业务数据；内置插件为过去版本写的旧声明不因此保留 | Manifest 合同与 plugin SDK，使用规则见 [插件开发手册](../platform/PLUGIN-DEVELOPMENT.md)；随该现行升级功能或相应发行物生命周期处理，不作为永久历史读取许可 |
 | pdfjs 的 `legacy/build` 路径 | 第三方包给 Node 的构建名，不是本产品的旧格式读取分支 | 引用 pdfjs 的现行功能及该依赖；上游构建入口改变或功能移除时随之修改 |
-| 产品文案中的「回填」与规划方法说明 | 给人看的现行文字，不是数据转换逻辑 | 各文案的功能 owner；随文案修改或功能移除，不据词面保留旧读取代码 |
+| 产品文案中的「回填」说明 | 给人看的现行文字，不是数据转换逻辑 | 各文案的功能 owner；随文案修改或功能移除，不据词面保留旧读取代码 |
 | 各库的版本号与基线 | 一份当前 schema 加版本，版本不符就拒绝；可由权威事实重建的派生库按自身既有合同重建，不算兼容 | 各库 owner 及 [Home 数据表](HOME-DATA.md)；库移除时移除，不留已移除库的读取路径 |
 | Goal 事件历史、成果的固定版本 | 现行历史记录和固定版本功能，不是旧格式 | Goals 与成果事实 owner；按对应功能和留存合同处理，不因防腐清理删除用户历史 |
 | 库与带版本文件的升级链（`SqliteBaseline.upgrades`、`VersionedFile.upgrades`、`PluginDatabaseDeclaration.upgrades`、升级记录、升级快照） | 统一起点之后，让 `n → n+1` 的结构变更不再要求重建 Home。只在持存储主人锁的升级过程里执行（安装器自己的 `config/installation.json`、`release.json` 在安装器读它们时升，这时还没有宿主），读写路径只认现行版本，不做读时兼容、不做回写回退。比程序新的库只拒绝。起点：第 02 批的统一起点；段的跑法和范围检查对所有插件同一份。已装签名包由明确确认的版本切换驱动，读取旧库只供校验，SQL 由独立有界进程执行，库版本、归属账本、安装行和批准记录一起提交（第 26 批 U4） | `packages/storage` 负责机制，各库主人负责自己的段。某段在最早支持的金样都用不到时删段；机制随产品保留，不是过渡期 |
@@ -182,6 +185,7 @@
 | `projects/<project_id>/molis-work.db#feed` | 1 → 2 | 第 25 批第 1 项（错过的拉取：晚过宽限的来源不拉、记错过、推到下一时刻，加错过表） | `plugins/native/feed/src/database.ts#FEED_PROJECT_DATABASE#1→2` |
 | `projects/<project_id>/molis-work.db#goals` | 2 → 3 | 第 17 批 #2058（顾虑引用对象 `cited_subjects`，删 `blocking_risks`） | `plugins/native/goals/src/project-database.ts#GOALS_PROJECT_DATABASE#2→3` |
 | `projects/<project_id>/molis-work.db#schedule` | 2 → 3 | 第 17 批 #2058（一次性对象任务 `repeat`／`run_at`／`subject`） | `plugins/native/schedule/src/database.ts#SCHEDULE_PROJECT_DATABASE#2→3` |
+| `projects/<project_id>/molis-work.db#goals` | 3 → 4 | 第 41 批第 2 项（用户 2026-11-14：规划与拆解方法是随系统自带的技能，和 Goals 没有关系，不迁移）：删 `planning_method_packs` 表和 `goal_event_config_versions.adopted_planning_json` 列，升级段声明 `reduces_rows`；同批删掉 Goals 的 Home 库 `goals/goals.db`（宿主 `REMOVED_HOME_STORES`，升级轮里连目录删除，个人方法不搬） | `plugins/native/goals/src/project-database.ts#GOALS_PROJECT_DATABASE#3→4` |
 
 ## 4. 阶段二：起点之后，读取兼容
 
@@ -296,3 +300,13 @@ Casebook 已于 2026-10-10 按用户决定删除，不再有对外合同 id；�
   - **改形状**：`molis-work:knowledge-pick` 的 `selected` 从 `{ kind, id, title }` 改为 `{ ref: MaterialRef, title }`，`molis-work:knowledge-picked` 从 `picks` 改为 `outcome + items`；`knowledge.cards` 的 `limit` 上限 200→500 并新增 `subjects`；`PluginInstalledView.pending_defaults` 必填、由宿主给；`PluginArtifactClient.join` 接受 `PluginProjectRowTransaction`；新增 `PluginDatabase.transactionProjectRow` 与 `PluginProjectRowsDeclaration.artifact_join`；新增 `ActionSceneClient.discoverScenesFor`、`PluginSceneClient.discoverScenesFor`、`ActionSceneSelection`；`AgentMaterialOrigin`／`AgentTextMaterial` 扩展；Goals 合同新增 `material_snapshot` 引用。都在原版本 @1 上改，动作与 API 快照随之刷新。
   - **SDK 只增**：`/browser` 新增 `pluginRequest`、`requiredQuery`、`textCell`、`isAbort`、`codeOf`；index 新增 `zonedParts`、`isTimeZone`、`projectRouteFields`；`/whole-units` 新增 `cutWithEllipsis`。
   - **存储与采用**：项目库同版本采用（`process_items_adopted` 日志）只在 1→2 新布局与 2→3 现行库上；同版本例外只有 `tooling/gates/schemas/same-version-exceptions.json` 的一条（v3 那对哈希）；旧布局 v2 普通打开拒绝，采用程序换日志后在同一事务走完 2→3；真实 Home 采用另授权。见上文「当前保留机制」的 Files 退役一条。
+
+- **第 17 批：风险插件、Goals 顾虑引用任意对象、侧栏 `opens_items`、Schedule 一次性对象任务**（[#2058](https://github.com/molis-ai/molis-work/pull/2058)，`3b296a6337`，2026-11-14；阶段一在原版本改，不留兼容）：
+  - **新插件**：`io.molis.work.risk` 声明 16 个 `risk.*@1` 动作（记录、读取、列表、状态、关联、进展、复查、搜索、读取器、呈现），项目库 `risk` 第 1 版；插件不调 AI，复查只登记 Schedule 任务。
+  - **Goals 顾虑**：`goals.concerns.apply@1` 输入与 `concern_opened` 系统载荷多可选 `cited_subjects`（至多 8 个 `{kind,id}`，只在 open 时收）；`GoalEventConcernView` 多 `cited_subjects`；`GoalEventUnmetReason` 删 `risk_id`，Goals 里恒为空的 `blocking_risks` 死路径删除。Goals 项目库 2→3，加 `cited_subjects_json TEXT NOT NULL DEFAULT '[]'`；同步列清单和导入校验一起改，格式版本不升。
+  - **Manifest**：`UiViewDeclaration` 多可选 `opens_items`（只 `side` 视图、一个插件至多一个）；SDK Manifest 检查在 `packages/plugin-sdk/src/manifest.ts`。
+  - **SDK `/ui`**：新增 `renderSeverityGrid`，样式在 design-system `primitives.ts`。
+  - **Schedule**：`schedule.tasks.create@1`／`update@1` 多可选 `repeat`、`at`、`subject`；`tasks.list@1` 多可选 `subject`，按对象筛时输出 `reads`（含每个类别的 provider/group/state）；任务库 2→3 加四列；便携格式在原版本加列并校验；一次性任务跑完即停、错过的运行不补跑。
+  - **风险复查方法**：`method.risk-review` 正文改用 `risk.list` 的 `keyword`／`linked` 查同一件事，版本 1→2；固定引用这个方法的调用方按新版本取。
+  - **调用方影响**：`risk.list@1` 原版本内把 `goal_id` 换成 `linked`，`unlinked` 改为“没关联任何对象/有关联”；风险写动作的受众含 `plugin`；Goals/Schedule 库升级只由升级链做；没有读取兼容，旧 `concern_opened` 缺 `cited_subjects` 是可选字段的缺省，不是旧形状兜底。页面资源许可见 `tooling/gates/page-asset-allowances/17-risk-plugin.json`。
+- **首页主区内容：Manifest 的 `presentation.overview.lead`，`surfaces.compose@1` 的 `lead` 组**（第 19 批，WBR-22／23，2026-11-14）：声明了首页概况的插件可以再写 `lead: { view_id }`，指向本 Manifest 自己 navigator 或 stage 槽位的一个视图；装了它的项目，首页主区显示这个视图，细栏可切回基础首页，打不开或移除后回基础首页。`surfaces.compose@1` 版本不变，`home` 描述里可能多一个 `kind: "lead"` 的组（带 `lead` 与 `owner_plugin_id`，状态只有 ok，不放条目）：按 `SurfaceGroup.kind` 穷举分支的调用方要认这个值，重排描述时不能改写它。概况动作（`definePresentationOverviewAction`）的受众同时加了 `workflow`：持有 `actions:delegate` 的插件可经目录读别的插件的概况，权限检查不变。

@@ -1,4 +1,5 @@
-import { outputFolder, projectFolders } from "./project-folders.js";
+import { projectDirectories } from "./project-folders.js";
+import type { ProjectDirectories } from "@molis-ai/molis-work-contracts/modules/projects";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { PluginActionClient } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -41,10 +42,15 @@ const known = (mode: string) => {
   if (!CODING_EXECUTOR_MODES.some(entry => entry.id === mode)) throw executorErrors.executor_mode_unknown(`Coding 没有「${mode}」这种方式`);
 };
 /**
- * The directory a round the Assistant starts runs in: the project's output (SSC-17). Not the folder a panel shows — looking around there
- * must not move where work runs (batch 12 item 1, BL-023).
+ * The project's output: where a round the Assistant starts runs (SSC-17). Not the folder a panel shows — looking around there must not
+ * move where work runs (batch 12 item 1, BL-023). One read of the directories gives both the output and the list.
  */
-const currentWorkspace = async (api: PluginActionClient) => await unlessMissing(outputFolder(api), null);
+const outputOf = (directories: ProjectDirectories) =>
+  directories.directories.find(folder => folder.roles.includes("output")) ?? null;
+const currentWorkspace = async (api: PluginActionClient) => {
+  const directories = await unlessMissing(projectDirectories(api), null);
+  return directories ? outputOf(directories) : null;
+};
 /** The session's next-round settings as Coding keeps them, or null when none were chosen. */
 const kept = (a: CodingActivation, sessionId: string): Settings | null => {
   const saved = a.context.services?.storage?.get(`configuration:${sessionId}`);
@@ -84,7 +90,8 @@ export function codingExecutor(a: CodingActivation): void {
   const { action } = a.route;
   action(codingExecutorActions.state, async (_input, { api, beforeWrite }) => {
     const actions = codingActions(a.context, beforeWrite);
-    const workspace = await currentWorkspace(api), workspaces = await unlessMissing(projectFolders(api), []);
+    const directories = await unlessMissing(projectDirectories(api), null), workspace = directories ? outputOf(directories) : null,
+      workspaces = directories?.directories ?? [];
     const { runtime } = projectRuntime(await runtimeDirectory(actions, api));
     return { modes: CODING_EXECUTOR_MODES.map(({ id, key }) => ({ id, title: t.text(key) })), default_mode: DEFAULT_MODE, images: false, workspace_id: workspace?.workspace_id ?? null,
       workspaces: workspaces.map(row => ({ workspace_id: row.workspace_id, path: row.canonical_path,

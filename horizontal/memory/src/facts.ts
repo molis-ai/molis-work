@@ -1,6 +1,6 @@
 import type { AgentMemoryMeta } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { isDeepStrictEqual } from "node:util";
-import type { MemoryApplies, MemoryEvidence, MemoryFormalKind, MemoryMetaRecord, MemoryRevision, MemoryScope, MemorySource, MemoryState } from "@molis-ai/molis-work-contracts/services/memory";
+import type { MemoryApplies, MemoryEvidence, MemoryFormalKind, MemoryMetaRecord, MemoryScope, MemorySource, MemoryState } from "@molis-ai/molis-work-contracts/services/memory";
 import { memoryErrors } from "./errors.js";
 
 /**
@@ -34,7 +34,7 @@ function provenance(meta: AgentMemoryMeta): Pick<MemoryMetaRecord, "basis" | "ev
 }
 
 /** Undo reconstructs only the classified, authorized snapshot; absent provenance remains absent. */
-export function restoredEntryFacts(snapshot: MemoryRevision["snapshot"]) {
+export function restoredEntryFacts(snapshot: { origin: string; meta: AgentMemoryMeta } | undefined) {
   if (!snapshot?.meta.classification) throw memoryErrors.invalid("原变动缺少分类快照，请明确分类后恢复，不能推断旧记忆用途");
   if (typeof snapshot.meta.source !== "string" || typeof snapshot.meta.kind !== "string")
     throw memoryErrors.invalid("原变动缺少可恢复的记忆事实，不能替它补造来源");
@@ -59,7 +59,7 @@ export function toEntryMeta(record: Pick<MemoryMetaRecord, "kind" | "source" | "
   const when = {
     ...(applies.plugin_ids?.length ? { plugins: applies.plugin_ids.slice(0, 20) } : {}),
     ...(applies.object_kinds?.length ? { object_kinds: applies.object_kinds.slice(0, 20) } : {}),
-    ...(applies.goal_ids?.length ? { goals: applies.goal_ids.slice(0, 20) } : {}),
+    ...(applies.objects?.length ? { objects: applies.objects.slice(0, 20).map(obj => ({ plugin_id: obj.plugin_id, kind: obj.kind, id: obj.id })) } : {}),
     ...(applies.task ? { task: applies.task.slice(0, 200) } : {}),
     ...(time(applies.from) !== undefined ? { from_ms: time(applies.from)! } : {}),
     ...(time(applies.until) !== undefined ? { until_ms: time(applies.until)! } : {}),
@@ -79,19 +79,22 @@ export function toEntryMeta(record: Pick<MemoryMetaRecord, "kind" | "source" | "
   };
 }
 
-/** The facts an entry carries, when the platform wrote them (`source` is always there then); null for older entries. */
-export function fromEntryMeta(input: { memory_id: string; scope: MemoryScope; owner: string; meta: AgentMemoryMeta; paused?: { reason: string }; disabled?: { reason: string }; created_at_ms: number; updated_at_ms: number }): MemoryMetaRecord | null {
-  const meta = input.meta;
-  if (!meta || typeof meta.source !== "string" || typeof meta.kind !== "string") return null;
-  const when = meta.applies_when ?? {};
-  const applies: MemoryApplies = {
+export function fromAppliesWhen(when: AgentMemoryMeta["applies_when"] = {}): MemoryApplies {
+  return {
     ...(when.plugins?.length ? { plugin_ids: [...when.plugins] } : {}),
     ...(when.object_kinds?.length ? { object_kinds: [...when.object_kinds] } : {}),
-    ...(when.goals?.length ? { goal_ids: [...when.goals] } : {}),
+    ...(when.objects?.length ? { objects: when.objects.map(obj => ({ plugin_id: obj.plugin_id, kind: obj.kind, id: obj.id })) } : {}),
     ...(when.task ? { task: when.task } : {}),
     ...(when.from_ms !== undefined ? { from: iso(when.from_ms)! } : {}),
     ...(when.until_ms !== undefined ? { until: iso(when.until_ms)! } : {}),
   };
+}
+
+/** The facts an entry carries, when the platform wrote them (`source` is always there then); null for older entries. */
+export function fromEntryMeta(input: { memory_id: string; scope: MemoryScope; owner: string; meta: AgentMemoryMeta; paused?: { reason: string }; disabled?: { reason: string }; created_at_ms: number; updated_at_ms: number }): MemoryMetaRecord | null {
+  const meta = input.meta;
+  if (!meta || typeof meta.source !== "string" || typeof meta.kind !== "string") return null;
+  const applies = fromAppliesWhen(meta.applies_when);
   const { state, state_reason } = stateOf(input.paused, input.disabled);
   return {
     memory_id: input.memory_id, scope: input.scope, owner: input.owner, kind: meta.kind as MemoryFormalKind, source: meta.source as MemorySource,

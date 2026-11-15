@@ -1,11 +1,12 @@
 import { pluginErrors, type SandboxAgentBody, type SandboxPackageManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { AgentSkillDeclaration } from '@molis-ai/molis-work-contracts/platform/plugin-agent';
-import { readPackagedSkills, refuseDeclarations, sandboxRoleIdentity, type PackagedSkillBody } from '@molis-ai/molis-work-plugin-sdk';
+import { readPackagedSkills, refuseDeclarations, sandboxRoleIdentity, skillTranslationPath, type PackagedSkillBody } from '@molis-ai/molis-work-plugin-sdk';
 
 /** Every file the package's text declarations name: each role material's body, and each method's body and resources. */
 export function sandboxAgentBodyPaths(manifest: SandboxPackageManifest): string[] {
   return [...(manifest.agent ?? []).map(item => item.body),
-    ...(manifest.methods ?? []).flatMap(method => [...(method.body ? [method.body] : []), ...(method.resources ?? []).map(resource => resource.path)])];
+    ...(manifest.methods ?? []).flatMap(method => [...(method.body ? [method.body] : []), ...(method.locales ?? []).map(locale => skillTranslationPath(method.skill_id, locale)),
+      ...(method.resources ?? []).map(resource => resource.path)])];
 }
 
 /**
@@ -32,5 +33,5 @@ export function readSandboxAgentBodies(manifest: SandboxPackageManifest, files: 
 /** Each declared method with the body its package ships, read and checked by `readPackagedSkills`: a sandbox package's and a content package's alike. */
 export function packagedMethodBodies(methods: readonly AgentSkillDeclaration[], bodies: readonly PackagedSkillBody[]): SandboxAgentBody[] {
   return methods.map(method => ({ kind: 'method', entry_id: method.skill_id, name: method.name, purpose: method.summary,
-    body: bodies.find(item => item.skill_id === method.skill_id)!.body }));
+    ...(({ body, body_by_locale }) => ({ body, ...(body_by_locale ? { body_by_locale } : {}) }))(bodies.find(item => item.skill_id === method.skill_id)!) }));
 }

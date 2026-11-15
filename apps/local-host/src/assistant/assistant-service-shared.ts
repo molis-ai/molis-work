@@ -42,7 +42,8 @@ export interface AssistantServicePorts extends AssistantLandingPorts, AssistantR
   host(): Promise<AgentHost>;
   /** The language the person last used, read when a round no page started begins. Absent: such a round is told no language. */
   lastLocale?(): WebLocale;
-  authority(work: StoredWork, origin?: { source: "card" }, locale?: WebLocale, namedSkills?: readonly SkillRef[]): Promise<AgentStartAuthority>;
+  /** `namedSkills` and `autoSkills` are the round's own (`skill_round`): the Skills the person named, and false for 「这次不用技能」. */
+  authority(work: StoredWork, origin?: { source: "card" }, locale?: WebLocale, namedSkills?: readonly SkillRef[], autoSkills?: boolean): Promise<AgentStartAuthority>;
   /** How the person names a project, for the round's own description of where it runs. */
   projectTitle?(projectId: string): Promise<string | null>;
   /** IANA zone the person works in, so "tomorrow" means their tomorrow. */

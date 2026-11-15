@@ -14,20 +14,17 @@ export const PROJECT_SETTINGS_PAGE_STYLES = `
   :is(body.project-preferences-page, .settings-stage) .settings-content { display: block; overflow: auto; overflow-anchor: none; overscroll-behavior: contain; scrollbar-gutter: stable; padding: 32px clamp(24px, 4vw, 48px) 48px; margin: 0; border: 0; border-radius: 0; box-shadow: none; background: var(--page); }
   html[data-resolved-theme="dark"] :is(body.project-preferences-page, .settings-stage) .settings-content { box-shadow: none; }
   html[data-resolved-theme="dark"] :is(body.project-preferences-page, .settings-stage) .settings-content > :is(.settings-document, .appearance-document) { background: transparent; }
-  :is(body.project-preferences-page, .settings-stage) .settings-content > :is(.project-settings-page, .settings-document, .guidance-document, .work-planning, .planning-catalog, .planning-detail, .planning-edit, [data-settings-panel], [data-settings-loading]) { display: block; width: 100%; max-width: 760px; height: auto; min-height: 0; overflow: visible; margin-inline: auto; padding: 0; background: transparent; border: 0; box-shadow: none; }
-  :is(body.project-preferences-page, .settings-stage) .settings-content > .work-planning { max-width: none; }
+  :is(body.project-preferences-page, .settings-stage) .settings-content > :is(.project-settings-page, .settings-document, .guidance-document, [data-settings-panel], [data-settings-loading]) { display: block; width: 100%; max-width: 760px; height: auto; min-height: 0; overflow: visible; margin-inline: auto; padding: 0; background: transparent; border: 0; box-shadow: none; }
   :is(.project-preferences-page, .settings-stage) .settings-body { display: block; overflow: visible; min-height: 0; padding: 0; }
-  :is(.project-preferences-page, .settings-stage) :is(.settings-page-heading, .settings-heading, .guidance-page-header, .planning-page-header, .planning-detail-header) { max-width: none; margin: 0 0 24px; padding: 0; border: 0; }
-  :is(.project-preferences-page, .settings-stage) :is(.guidance-page-header, .planning-page-header) { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
-  :is(.project-preferences-page, .settings-stage) .settings-page-heading, :is(.project-preferences-page, .settings-stage) .settings-heading, :is(.project-preferences-page, .settings-stage) .planning-detail-header { display: block; }
-  :is(.project-preferences-page, .settings-stage) .planning-detail-lede { margin-top: 8px; }
-  :is(.project-preferences-page, .settings-stage) .planning-detail-lede p { margin: 0; }
-  :is(.project-preferences-page, .settings-stage) :is(.settings-page-heading, .settings-heading, .guidance-page-header, .planning-page-header, .planning-detail-header) h1 { margin: 0; font-size: 30px; font-weight: var(--weight-title, 600); line-height: 1.2; letter-spacing: -.03em; }
-  :is(.project-preferences-page, .settings-stage) :is(.settings-page-heading, .settings-heading, .guidance-page-header, .planning-page-header, .planning-detail-header) p { max-width: 54ch; margin: 8px 0 0; font-size: 15px; line-height: 1.5; color: var(--muted); }
+  :is(.project-preferences-page, .settings-stage) :is(.settings-page-heading, .settings-heading, .guidance-page-header) { max-width: none; margin: 0 0 24px; padding: 0; border: 0; }
+  :is(.project-preferences-page, .settings-stage) :is(.guidance-page-header) { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+  :is(.project-preferences-page, .settings-stage) .settings-page-heading, :is(.project-preferences-page, .settings-stage) .settings-heading { display: block; }
+  :is(.project-preferences-page, .settings-stage) :is(.settings-page-heading, .settings-heading, .guidance-page-header) h1 { margin: 0; font-size: 30px; font-weight: var(--weight-title, 600); line-height: 1.2; letter-spacing: -.03em; }
+  :is(.project-preferences-page, .settings-stage) :is(.settings-page-heading, .settings-heading, .guidance-page-header) p { max-width: 54ch; margin: 8px 0 0; font-size: 15px; line-height: 1.5; color: var(--muted); }
   :is(.project-preferences-page, .settings-stage) .settings-heading-title { display: flex; align-items: center; gap: 8px; min-width: 0; }
   :is(.project-preferences-page, .settings-stage) .settings-section { margin: 0 0 12px; padding: 4px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); }
   :is(.project-preferences-page, .settings-stage) .settings-section + .settings-section { margin-top: 0; }
-  :is(.project-preferences-page, .settings-stage) :is(.settings-section > h2, .work-planning-section-header h2) { margin: 12px 0 4px; font-size: 13px; font-weight: var(--weight-title, 600); letter-spacing: -.01em; }
+  :is(.project-preferences-page, .settings-stage) :is(.settings-section > h2) { margin: 12px 0 4px; font-size: 13px; font-weight: var(--weight-title, 600); letter-spacing: -.01em; }
   .settings-setting-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-width: 0; margin: 0; padding: 12px 0; border-bottom: 1px solid var(--line); }
   :is(.project-preferences-page, .settings-stage) .settings-section > :last-child { border-bottom: 0; }
   :is(.project-preferences-page, .settings-stage) .settings-section > [data-runtime-row] { display: contents; }
@@ -123,29 +120,8 @@ export const PROJECT_SETTINGS_PAGE_STYLES = `
   :is(.project-preferences-page, .settings-stage) .guidance-inactive-list li:first-child { padding-top: 0; border-top: 0; }
   :is(.project-preferences-page, .settings-stage) :is(.guidance-history, .guidance-inactive) > :not(summary) p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
   :is(.project-preferences-page, .settings-stage) .settings-footnote { margin: 12px 0 0; }
-  :is(.project-preferences-page, .settings-stage) .planning-page-header > div:last-child:not(:first-child) { display: flex; flex-wrap: wrap; flex: none; gap: 8px; align-items: center; }
-  :is(.project-preferences-page, .settings-stage) .planning-page-header { flex-wrap: wrap; }
   :is(.project-preferences-page, .settings-stage) .mw-btn { min-height: 32px; }
-  :is(.project-preferences-page, .settings-stage) .work-planning-section-header { margin: 0 0 12px; }
-  :is(.project-preferences-page, .settings-stage) .work-planning-section-header p { margin: 4px 0 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
-  :is(.project-preferences-page, .settings-stage) .planning-composition-section { padding: 0 0 24px; margin: 0; border-bottom: 1px solid var(--line); }
-  :is(.project-preferences-page, .settings-stage) .work-planning-empty { text-align: left; padding: 12px 0; background: transparent; border: 0; border-radius: 0; }
-  :is(.project-preferences-page, .settings-stage) .work-planning-empty h3 { margin: 0 0 8px; font-size: 13px; }
-  :is(.project-preferences-page, .settings-stage) .work-planning-empty p { margin: 0; font-size: 12px; line-height: 1.7; color: var(--muted); }
-  :is(.project-preferences-page, .settings-stage) .planning-adoption-section { margin-top: 32px; }
-  :is(.project-preferences-page, .settings-stage) .planning-adoption-tools { grid-template-columns: 1fr; display: grid; gap: 12px; margin-bottom: 8px; }
   :is(.project-preferences-page, .settings-stage) [data-planning-search] { width: 100%; }
-  :is(.project-preferences-page, .settings-stage) .planning-filters { display: flex; flex-wrap: wrap; gap: 4px; }
-  :is(.project-preferences-page, .settings-stage) .planning-adoption-grid { display: block; }
-  :is(.project-preferences-page, .settings-stage) .planning-adoption-card { display: grid; min-height: 0; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto; align-content: start; gap: 8px 24px; padding: 16px 0; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent; box-shadow: none; }
-  :is(.project-preferences-page, .settings-stage) .planning-adoption-card[hidden] { display: none; }
-  :is(.project-preferences-page, .settings-stage) .planning-adoption-card > header { grid-column: 1; display: flex; justify-content: flex-start; gap: 8px; }
-  :is(.project-preferences-page, .settings-stage) .planning-adoption-copy { grid-column: 1; }
-  :is(.project-preferences-page, .settings-stage) .planning-adoption-copy h3 { margin: 0 0 4px; font-size: 15px; font-weight: var(--weight-title, 600); }
-  :is(.project-preferences-page, .settings-stage) .planning-adoption-copy p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.7; }
-  :is(.project-preferences-page, .settings-stage) .planning-adoption-card > footer { grid-column: 2; grid-row: 1 / 3; flex-direction: column-reverse; align-items: flex-end; justify-content: center; gap: 8px; margin: 0; padding: 0; border: 0; }
-  :is(.project-preferences-page, .settings-stage) .planning-adoption-card > footer > span { font-size: 11px; color: var(--muted); }
-  :is(.project-preferences-page, .settings-stage) .planning-card-kind, :is(.project-preferences-page, .settings-stage) .planning-card-scope { padding: 0; background: transparent; border: 0; color: var(--muted); font-size: 11px; }
   @media (max-width: 760px) {
     :is(body.project-preferences-page, .settings-stage) { --control-h: 44px; }
     :is(.project-preferences-page, .settings-stage) .project-preferences-chrome > a { width: 44px; height: 44px; }
@@ -157,22 +133,18 @@ export const PROJECT_SETTINGS_PAGE_STYLES = `
     :is(body.project-preferences-page, .settings-stage) .settings-navigation--codex .settings-nav-body > a { flex: none; min-height: 44px; padding: 0 8px; border: 1px solid var(--line-strong); font-size: 12px; white-space: nowrap; }
     :is(body.project-preferences-page, .settings-stage) .settings-navigation--codex .settings-nav-body > a svg { display: none; }
     :is(body.project-preferences-page, .settings-stage) .settings-content { padding: 24px 24px 48px; scrollbar-gutter: auto; }
-    :is(.project-preferences-page, .settings-stage) :is(.guidance-page-header, .planning-page-header) { gap: 16px; flex-wrap: wrap; }
-    :is(.project-preferences-page, .settings-stage) :is(.settings-page-heading, .settings-heading, .guidance-page-header, .planning-page-header, .planning-detail-header) h1 { font-size: 20px; }
+    :is(.project-preferences-page, .settings-stage) :is(.guidance-page-header) { gap: 16px; flex-wrap: wrap; }
+    :is(.project-preferences-page, .settings-stage) :is(.settings-page-heading, .settings-heading, .guidance-page-header) h1 { font-size: 20px; }
     .settings-setting-row { gap: 16px; }
     :is(.project-preferences-page, .settings-stage) .settings-setting-row:not(.settings-toggle-row) { align-items: stretch; flex-direction: column; }
     .setting-value { flex: auto; }
     .project-name-form .setting-value input { flex: 1; width: 100%; }
     :is(.project-preferences-page, .settings-stage) :is(input:not([type=checkbox]):not([type=radio]), select, textarea) { font-size: 16px; min-height: 44px; }
     :is(.project-preferences-page, .settings-stage) button { min-height: 44px; }
-    :is(body.project-preferences-page, .settings-stage) .planning-filters button { min-height: 44px; }
     :is(.project-preferences-page, .settings-stage) .settings-save-footer { flex-direction: column; align-items: stretch; }
     :is(.project-preferences-page, .settings-stage) .guidance-page-header { flex-direction: row; }
     :is(.project-preferences-page, .settings-stage) .guidance-entry footer { flex-wrap: wrap; }
     :is(.project-preferences-page, .settings-stage) .guidance-editor { padding: 16px; }
-    :is(.project-preferences-page, .settings-stage) .planning-adoption-card { gap: 8px 12px; }
-    :is(.project-preferences-page, .settings-stage) .planning-adoption-card > footer { grid-row: auto; grid-column: 1 / -1; flex-direction: row; align-items: center; justify-content: space-between; }
-    :is(.project-preferences-page, .settings-stage) .planning-adoption-card > header, :is(.project-preferences-page, .settings-stage) .planning-adoption-copy { grid-column: 1 / -1; }
     .settings-data-list > div { grid-template-columns: 1fr; gap: 4px; }
   }
   @media (prefers-reduced-motion: reduce) {
@@ -201,11 +173,6 @@ export const PROJECT_SETTINGS_PAGE_STYLES = `
   :is(.project-preferences-page, .settings-stage) .launcher-section ul { padding: 0; border: 0; background: transparent; }
   :is(.project-preferences-page, .settings-stage) .launcher-section li { border-radius: 0; border-bottom: 1px solid var(--line); padding: 16px 0; }
   :is(.project-preferences-page, .settings-stage) .launcher-section li:last-child { border-bottom: 0; }
-  :is(.project-preferences-page, .settings-stage) .planning-card-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-  :is(.project-preferences-page, .settings-stage) .planning-card { min-height: 0; padding: 24px; border: 1px solid var(--line); border-radius: 10px; box-shadow: none; background: var(--paper); }
-  :is(.project-preferences-page, .settings-stage) .planning-library-note { margin: 24px 0; padding: 12px 0; border: 0; background: transparent; }
-  :is(.project-preferences-page, .settings-stage) .planning-detail-layout { grid-template-columns: minmax(0, 1fr); }
-  :is(.project-preferences-page, .settings-stage) .planning-edit-section { padding: 24px 0; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent; }
   :is(body.project-preferences-page, .settings-stage) .settings-shell--standalone { grid-template-columns: minmax(0, 1fr); }
   @media (max-width: 760px) {
     :is(.project-preferences-page, .settings-stage) .settings-nav-group-label { display: none; }
@@ -213,7 +180,6 @@ export const PROJECT_SETTINGS_PAGE_STYLES = `
     .settings-segmented > :is(button, a) { flex: 1; min-height: 44px; padding: 0 8px; }
     :is(.project-preferences-page, .settings-stage) .settings-record > header { flex-direction: column; align-items: stretch; gap: 16px; }
     :is(.project-preferences-page, .settings-stage) .settings-record-action { justify-content: space-between; }
-    :is(.project-preferences-page, .settings-stage) .planning-card-grid { grid-template-columns: minmax(0, 1fr); }
     :is(.project-preferences-page, .settings-stage) .diagnostics-summary dl > div { grid-template-columns: minmax(0, 1fr); gap: 4px; }
   }
 
@@ -249,26 +215,6 @@ export const PROJECT_SETTINGS_PAGE_STYLES = `
     :is(.project-preferences-page, .settings-stage) .guidance-editor-actions { padding: 12px 0; }
   }
 
-  :is(body.settings-page, .settings-stage) .settings-content:has(> .planning-edit:not([hidden])) { display: flex; flex-direction: column; align-items: center; overflow: hidden; padding-block: 16px 12px; }
-  :is(body.settings-page, .settings-stage) .settings-content > .planning-edit { display: flex; flex-direction: column; flex: 1; height: 100%; min-height: 0; overflow: hidden; padding-block: 0; }
-  .planning-edit .planning-page-header { margin-bottom: 12px; }
-  .planning-edit .planning-save-context { flex: none; margin-block: 0 12px; padding: 12px 0; border: 0; border-radius: 0; background: transparent; }
-  :is(body.settings-page, .settings-stage) .planning-edit > .planning-detail-scroll,
-  :is(body.settings-page, .settings-stage) .planning-edit > .settings-body,
-  :is(body.settings-page, .settings-stage) .planning-edit > .planning-detail-scroll > .settings-body { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; padding: 0; }
-  .planning-edit .planning-edit-form { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
-  .planning-edit-fields { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding: 4px 4px 16px; }
-  .planning-edit .planning-edit-section { padding-block: 16px; }
-  .planning-edit .planning-edit-section:first-child { padding-top: 0; }
-  .planning-edit .planning-edit-footer { flex: none; border-top: 1px solid var(--line); padding-top: 12px; }
-  .planning-edit .planning-form-error { flex: none; margin-top: 8px; }
-  .planning-edit [aria-disabled="true"] { opacity: .5; cursor: wait; }
-  .planning-edit-form label { font-size: 13px; }
-  .planning-edit-form label > small { font-size: 12px; }
   @media (max-height: 600px) {
-    .planning-edit .planning-page-header p, .planning-edit .planning-save-context p { display: none; }
-    .planning-edit .planning-page-header h1 { font-size: 20px; }
-    .planning-edit .planning-page-header { margin-bottom: 8px; }
-    .planning-edit .planning-save-context { padding: 4px 0; margin-bottom: 8px; }
   }
 `;

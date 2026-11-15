@@ -3,7 +3,7 @@ import { t as uiText, icon as uiIcon, renderAlert, renderButton, renderStatusMar
 import type { PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 /** Standalone hub / embed fold stack. Workbench exclusive settings use project-settings-stage. */
-export type ProjectSettingsFoldId = "general" | "workspaces" | "guidance" | "memory" | "knowledge" | "plugins" | "kit" | "grants" | "rules" | "planning";
+export type ProjectSettingsFoldId = "general" | "workspaces" | "guidance" | "memory" | "knowledge" | "plugins" | "kit" | "grants" | "rules";
 
 export interface ProjectSettingsFoldProject {
   project_id: string;
@@ -171,7 +171,6 @@ export function createProjectSettingsFolds(primitives: ProjectSettingsFoldsPrimi
       general: ProjectSettingsFoldContent;
       guidance: ProjectSettingsFoldContent;
       rules: ProjectSettingsFoldContent;
-      planning: ProjectSettingsFoldContent;
       desktopShell?: boolean;
       headingTag?: "h1" | "h2";
       showOpenTree?: boolean;
@@ -186,7 +185,6 @@ export function createProjectSettingsFolds(primitives: ProjectSettingsFoldsPrimi
       <div class="project-settings-stack mw-accordion" data-slot="accordion" role="region" aria-label="${uiText("workbench.project-settings-folds.project-settings")}">
         ${renderFold("guidance", uiText.text("workbench.project-settings-folds.project-guidance"), options.guidance, open === "guidance")}
         ${renderFold("rules", uiText.text("workbench.project-settings-folds.work-rules"), options.rules, open === "rules")}
-        ${renderFold("planning", uiText.text("workbench.project-settings-folds.work-planning"), options.planning, open === "planning")}
       </div>
       ${renderDanger(project)}
     </div>`;

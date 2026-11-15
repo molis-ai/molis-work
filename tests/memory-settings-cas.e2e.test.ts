@@ -33,14 +33,14 @@ async function open(t: TestContext, answer: (request: Request) => { status?: num
   const project = { project_id: "project", display_name: "测试项目" };
   const view: MolisWorkWebView & { feed: FeedSnapshot } = {
     snapshot: { board: { project_id: "project", active_goal_id: null, created_at: "2026-10-23T00:00:00Z", updated_at: "2026-10-23T00:00:00Z" },
-      cursor: 0, goals: [], relations: [], goal_tree_proposals: [], planning_method_packs: [], project_guidance: [] },
+      cursor: 0, goals: [], relations: [], goal_tree_proposals: [], project_guidance: [] },
     project, projects: [project], route_prefix: "/projects/project", demo: false, active_goal_id: null, goals: [], archived_goals: [], trashed_goals: [],
     counts: { waiting_for_human: 0, executing: 0, execution_blocked: 0, execution_pending: 0, satisfied: 0, invalidated: 0, trashed: 0, archived: 0 },
     input_bindings: [], policy_bindings: [], events: [], feed: { sources: [], feed_items: [], inbox_entries: [], runs: [], out_rules: [] },
   };
   const guidance = { entries: [], inactive_entries: [], revisions: [], virtual_document: "", runtime_prompt_prefix: "" };
-  const html = runWithLocale("zh", () => renderer.renderMolisWorkProjectSettingsHub(view, guidance, [], "", false, section));
-  const guidanceHtml = guidanceFlow ? runWithLocale("zh", () => renderer.renderMolisWorkProjectGuidanceSettings(view, guidance, [])) : html;
+  const html = runWithLocale("zh", () => renderer.renderMolisWorkProjectSettingsHub(view, guidance, "", false, section));
+  const guidanceHtml = guidanceFlow ? runWithLocale("zh", () => renderer.renderMolisWorkProjectGuidanceSettings(view, guidance)) : html;
   const server = createServer(async (request, response) => {
     requests.push({ method: request.method ?? "GET", url: request.url ?? "/" }); visits.push(request.url ?? "/");
     const path = new URL(request.url!, "http://local").pathname;

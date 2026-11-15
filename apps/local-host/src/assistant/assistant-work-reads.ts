@@ -1,7 +1,8 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { AssistantMethodSelection } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { SignedAgentInstallation, SignedAgentReference, SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
-import type { SkillCatalogEntry } from "@molis-ai/molis-work-contracts/services/skills";
+import type { SkillCatalogEntry, SkillPick } from "@molis-ai/molis-work-contracts/services/skills";
+import { namedSkillsRefused, skillRefKey } from "@molis-ai/molis-work-plugin-sdk/skill-ref";
 import type { SignedRoleView } from "../agent-definitions/agent-definitions.js";
 import type { MethodHandoff, ReadRoleMaterial } from "./assistant-signed-materials.js";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
@@ -190,13 +191,14 @@ export class AssistantWorkReads {
    * The bodies of the Skills the person chose for one round, in one catalog read with them named (§2.3); a refused one refuses the
    * round, never swapped for another version. Each is recorded as used once the round accepts it.
    */
-  async readSkills(work: StoredWork, refs: readonly SkillRef[]): Promise<{ skills: Array<{ ref: SkillRef; name: string; body: string }>; handoff: MethodHandoff }> {
+  async readSkills(work: StoredWork, refs: readonly SkillRef[], names: ReadonlyMap<string, string> = new Map()): Promise<{ skills: Array<{ ref: SkillRef; name: string; body: string }>; handoff: MethodHandoff }> {
     const port = this.ports.methods;
     if (!port) throw assistantErrors.invalid("技能目录未装配");
-    const skills = (await port.readSkills(work.project_ref, refs)).map(result => {
-      if (!result.ok) throw assistantErrors.invalid(`技能「${result.ref.skill_id}」现在不能用（${result.reason}），请重新选择`);
-      return { ref: result.ref, name: result.name, body: result.body };
-    });
+    const results = await port.readSkills(work.project_ref, refs);
+    // SKL-16: every named Skill that cannot be read is said at once, with its own reason; the round does not start on the rest.
+    const refused = results.flatMap(result => result.ok ? [] : [{ name: names.get(skillRefKey(result.ref)) ?? result.ref.skill_id, reason: result.reason, ...(result.detail ? { detail: result.detail } : {}) }]);
+    if (refused.length) throw assistantErrors.invalid(namedSkillsRefused(refused));
+    const skills = results.flatMap(result => result.ok ? [{ ref: result.ref, name: result.name, body: result.body }] : []);
     const scope_ref = work.project_ref?.project_id ?? "home";
     return { skills, handoff: { assertCurrent: () => {}, accepted: () => {
       const at = this.now().toISOString();
@@ -306,10 +308,21 @@ export class AssistantWorkReads {
       phase: view?.phase ?? "unknown", turns: spokenTurns(view?.turns ?? []), activity: presentActivity(view?.activity ?? [], titles, view ? isTerminalAgentPhase(view.phase) : false), awaiting_input: view?.awaiting_input ?? [],
       ...(view?.usage ? { usage: view.usage } : {}), ...roundModel(view), ...(view?.stop_reason ? { stop_reason: stopInWords(view.stop_reason, round.work_budget) } : {}),
       ...(view?.stop_reason_code ? { stop_reason_code: view.stop_reason_code } : {}),
-      ...(view?.todo?.length ? { steps: view.todo.map(({ id, text, state }) => ({ id, text, state })) } : {}), ...(view?.retry_wait ? { retry_wait: { ...view.retry_wait } } : {}), ended_at: view?.ended_at ?? null };
+      ...(view?.todo?.length ? { steps: view.todo.map(({ id, text, state }) => ({ id, text, state })) } : {}), ...(view?.retry_wait ? { retry_wait: { ...view.retry_wait } } : {}), ended_at: view?.ended_at ?? null,
+      ...(view && round.executor !== "plugin" ? { skills: roundSkillPicks(round, view) } : {}) };
   }
 
   publicWork(work: StoredWork, state: AssistantWorkState): AssistantWork {
     return workView(work, state, this.link.delegations.shown(work));
   }
+}
+
+/**
+ * The Skills one round used (SKL-11): those the person named for it (its materials, as stored), then those the round read of its own
+ * choice (the runtime's record of its catalog reads). A named one the round read again is listed once, as named.
+ */
+export function roundSkillPicks(round: Pick<StoredRound, "materials">, view: Pick<AgentRunView, "skill_reads">): SkillPick[] {
+  const named = new Map(round.materials.flatMap(item => item.kind === "method" && item.method?.kind === "skill"
+    ? [[skillRefKey(item.method.ref), { ref: item.method.ref, name: (item.method as { name?: string }).name ?? item.title, picked: "named" as const }] as const] : []));
+  return [...named.values(), ...(view.skill_reads ?? []).filter(read => !named.has(skillRefKey(read.ref))).map(read => ({ ...read, picked: "auto" as const }))];
 }

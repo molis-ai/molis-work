@@ -687,6 +687,36 @@ export interface AgentMemoryCapability {
     update(input: AgentMemoryLocation & AgentMemoryMutation & {
         change: AgentMemoryChange;
     }): Promise<AgentMemoryEntry>;
+    history(input: AgentMemoryLocation & {
+        limit?: number;
+        before_version?: number;
+        signal?: AbortSignal;
+    }): Promise<{
+        memory_id: string;
+        scope: AgentMemoryEntry["scope"];
+        owner: string;
+        current_version: number;
+        pruned_through_version?: number;
+        revisions: Array<{
+            version: number;
+            text: string;
+            origin: string;
+            tags: string[];
+            meta: AgentMemoryMeta;
+            key?: {
+                domain: string;
+                key: string;
+            };
+            created_at_ms: number;
+            updated_at_ms: number;
+            restored_from_version?: number;
+            note?: string;
+        }>;
+    }>;
+    restore(input: AgentMemoryLocation & AgentMemoryMutation & {
+        version: number;
+        note?: string;
+    }): Promise<AgentMemoryEntry>;
     renew(input: AgentMemoryLocation & AgentMemoryMutation & {
         expires_at_ms: number;
     }): Promise<AgentMemoryEntry>;
@@ -722,6 +752,18 @@ export interface AgentMemoryCapability {
         reasons: string[];
         redacted: string;
     }>;
+    exportScope?(input: {
+        scope: AgentMemoryEntry["scope"];
+        owner: string;
+        signal?: AbortSignal;
+    }): Promise<unknown>;
+    importScope?(input: {
+        scope: AgentMemoryEntry["scope"];
+        owner: string;
+        pack: unknown;
+        max_entries?: number;
+        signal?: AbortSignal;
+    }): Promise<unknown>;
     previewBatch(input: {
         scope: AgentMemoryEntry["scope"];
         owner: string;
@@ -940,7 +982,11 @@ export interface AgentMemoryMeta {
     applies_when?: {
         plugins?: string[];
         object_kinds?: string[];
-        goals?: string[];
+        objects?: Array<{
+            plugin_id: string;
+            kind: string;
+            id: string;
+        }>;
         task?: string;
         from_ms?: number;
         until_ms?: number;
@@ -1012,6 +1058,10 @@ export interface AgentMemoryPageQuery {
 export type AgentMemoryPreviewMutation = {
     kind: "update";
     change: AgentMemoryChange;
+} | {
+    kind: "restore";
+    version: number;
+    note?: string;
 } | {
     kind: "pause" | "disable";
     reason: string;
@@ -1362,7 +1412,11 @@ export interface AgentRecalledMemory {
     facts?: {
         plugins?: string[];
         object_kinds?: string[];
-        goals?: string[];
+        objects?: Array<{
+            plugin_id: string;
+            kind: string;
+            id: string;
+        }>;
     };
     usage?: {
         title: string;
@@ -1558,6 +1612,11 @@ export interface AgentRunRef {
     session_id: string;
 }
 
+export interface AgentRunSkillRead {
+    ref: import("@molis-ai/molis-work-contracts/services/agent-definitions").SkillRef;
+    name: string;
+}
+
 export interface AgentRunUsage {
     compaction?: {
         recorded_calls: number;
@@ -1599,6 +1658,7 @@ export interface AgentRunView {
         requested?: string;
     };
     offers?: readonly AgentRunOffer[];
+    skill_reads?: readonly AgentRunSkillRead[];
     started_at: string;
     ended_at: string | null;
 }
@@ -2403,6 +2463,7 @@ interface AgentStartInputFields {
     text_materials?: AgentTextMaterial[];
     image_materials?: AgentImageMaterial[];
     skills?: SkillRef[];
+    auto_skills?: false;
     mcp_tools?: AgentMcpToolRef[];
     mcp_sources?: AgentMcpSourceRef[];
     budget?: AgentRunBudget;

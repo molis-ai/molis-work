@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { ActionError, type ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { UiSlotDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
+import { SURFACE_SLOTS_MAX, type UiSlotDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { SurfaceInstallationRef } from "@molis-ai/molis-work-contracts/services/surface-composition";
 import type { RenderedSurfaceSlot } from "./surface-slot-http.js";
 
@@ -42,7 +42,7 @@ export function pageSurfaceSlotState() {
     reserve(mount: number, pluginId: string, source: SurfaceSlotSource, slotId: string, subjects: readonly ActionSubject[], current: () => void) {
       current();
       const declared = source.slots.filter(slot => slot.slot_id === slotId && slot.accepts_forms?.length);
-      if (mount <= lastMount || slots.size >= 4 || declared.length !== 1) throw denied();
+      if (mount <= lastMount || slots.size >= SURFACE_SLOTS_MAX || declared.length !== 1) throw denied();
       lastMount = mount;
       const id = randomUUID(), lifetime = new AbortController();
       const slot: SurfaceSlotRecord = { id, pluginId, source, slot: declared[0]!, subjects, signal: lifetime.signal,

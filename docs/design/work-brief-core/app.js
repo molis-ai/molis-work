@@ -23,7 +23,7 @@
       st_next_normal: "正常", st_next_stale: "对象已变，选项失效", st_next_running: "交给助理，进行中", st_next_partial: "部分完成", st_next_revoked: "授权已撤回", st_next_handled: "都处理过了",
       brief: "项目简报", basicHome: "项目首页", asOf: "截至 {t}", refresh: "刷新", refreshing: "正在刷新", versions: "版本",
       pulse: "各来源", now: "现在怎么样", attention: "要你处理", changes: "和上次比", nextH: "下一步",
-      p_g: "正常", p_y: "注意", p_r: "要处理", p_na: "无数据", p_fail: "读不到", p_noauth: "未授权", p_stale: "过期",
+      p_ok: "正常", p_moving: "有变化", p_waiting: "等你", p_blocked: "卡住了", p_na: "无数据", p_fail: "读不到", p_noauth: "未授权", p_stale: "过期",
       reply: "回复", decide: "去决定",
       v_current: "当前", v_shared: "已分享 · 固定", v_label: "第 {v} 版", v_open: "查看",
       oldT: "你在看第 2 版（11-01，已分享）", oldD: "已分享的版本固定不变，之后的刷新没有改它。", gapT: "你在看第 1 版（10-28）", backCur: "回到当前版本", then: "当时", nowT: "现在", nowIs: "现在：", thenNow: "当时／现在",
@@ -55,7 +55,7 @@
       st_next_normal: "Normal", st_next_stale: "Item changed, option invalid", st_next_running: "With the assistant", st_next_partial: "Partly done", st_next_revoked: "Permission revoked", st_next_handled: "All handled",
       brief: "Project brief", basicHome: "Project home", asOf: "As of {t}", refresh: "Refresh", refreshing: "Refreshing", versions: "Versions",
       pulse: "Sources", now: "Where things stand", attention: "Needs you", changes: "Since last time", nextH: "Next steps",
-      p_g: "Fine", p_y: "Watch", p_r: "Act", p_na: "No data", p_fail: "Unreadable", p_noauth: "No permission", p_stale: "Out of date",
+      p_ok: "Fine", p_moving: "Changed", p_waiting: "Your turn", p_blocked: "Blocked", p_na: "No data", p_fail: "Unreadable", p_noauth: "No permission", p_stale: "Out of date",
       reply: "Reply", decide: "Decide",
       v_current: "Current", v_shared: "Shared · fixed", v_label: "Version {v}", v_open: "View",
       oldT: "You're reading version 2 (11-01, shared)", oldD: "A shared version is fixed. Later refreshes didn't change it.", gapT: "You're reading version 1 (10-28)", backCur: "Back to current", then: "Then", nowT: "Now", nowIs: "Now: ", thenNow: "Then / Now",
@@ -100,11 +100,13 @@
   const act = (a, v, more) => ({ "data-act": a, ...(v === undefined ? {} : { "data-v": v }), ...more });
   const button = (label, o = {}) => M.renderButton({ label, variant: o.variant ?? "secondary", size: "sm", icon: o.icon, iconOnly: o.iconOnly, loading: o.loading, disabled: o.disabled, attrs: o.attrs });
   const badge = (label, tone) => M.renderBadge({ label, tone });
-  // A plugin's mark: the board's Item Row mark, tinted with that plugin's --hue-* token (component-board addition, see README).
-  const mark = (src) => `<span class="mw-mark" data-hue="${S(src).hue}">${M.icon(S(src).icon)}</span>`;
-  const plug = (src) => `<span class="wb-plug" data-hue="${S(src).hue}">${M.icon(S(src).icon)}<span>${esc(L(S(src)))}</span></span>`;
-  // The alert, with its recovery button inside (component-board addition: the board's alert has no action slot).
-  const alert = (tone, title, body, actions = "") => `<div class="mw-alert mw-alert--${tone}" data-slot="alert" role="status"><strong>${esc(title)}</strong>${body ? `<p>${esc(body)}</p>` : ""}${actions ? `<div class="wb-alert-actions">${actions}</div>` : ""}</div>`;
+  // The plugin that owns a fact leads it: the presentation forms' owner tile, in the platform-assigned cool hue (DESIGN.md → Plugin identity).
+  const tile = (src) => `<span class="wb-owner" style="--presentation-hue:var(--hue-${S(src).hue});--presentation-soft:var(--hue-${S(src).hue}-soft)"><span class="mw-presentation__owner" aria-hidden="true">${M.icon(S(src).icon)}</span></span>`;
+  const mark = tile;
+  const plug = (src) => `<span class="wb-plug">${tile(src)}<span>${esc(L(S(src)))}</span></span>`;
+  // The board's alert; its recovery buttons go in the alert's own action row.
+  const alert = (tone, title, body, actions = []) => M.renderAlert({ title, body: body || undefined, tone, actions });
+  const abtn = (label, o = {}) => ({ label, variant: o.variant ?? "secondary", size: "sm", icon: o.icon, attrs: o.attrs });
   const items = (rows) => `<ul class="mw-items">${rows.join("")}</ul>`;
   const item = (lead, title, sub, end = "") => `<li class="mw-item">${lead}<span><strong>${esc(title)}</strong>${sub ? `<small>${esc(sub)}</small>` : ""}</span>${end ? `<span class="mw-item__end">${end}</span>` : ""}</li>`;
   const plainMark = (name) => `<span class="mw-mark">${M.icon(name)}</span>`;
@@ -120,12 +122,13 @@
   const readMark = (s) => s === "fail" ? M.renderStatusMark({ label: t("p_fail"), tone: "blocked", state: "unavailable" })
     : s === "noauth" ? M.renderStatusMark({ label: t("p_noauth"), tone: "attention", state: "reauth" })
     : M.renderStatusMark({ label: t("p_stale"), tone: "quiet", state: "stale" });
-  const PULSE_TONE = { g: "success", y: "warning", r: "danger", na: "neutral" };
-  const pulseOf = (id) => (srcState(id) === "ok" ? badge(t("p_" + S(id).pulse), PULSE_TONE[S(id).pulse]) : readMark(srcState(id)));
+  // One meaning per colour: grey at rest, mist blue moving, amber your turn, red cannot go on. Nothing else on the page is warm.
+  const PULSE = { ok: { tone: "idle", state: "ready" }, moving: { tone: "progress", state: "unread" }, waiting: { tone: "attention", state: "answer" }, blocked: { tone: "blocked", state: "blocked" }, na: { tone: "quiet", state: "idle" } };
+  const pulseOf = (id) => (srcState(id) === "ok" ? M.renderStatusMark({ label: t("p_" + S(id).pulse), ...PULSE[S(id).pulse] }) : readMark(srcState(id)));
   const srcGap = (id) => {
     const s = srcState(id), p = L(S(id));
-    if (s === "fail") return alert("danger", t("failT", { p }), t("failNote"), button(t("retry"), { icon: "refresh", attrs: act("sim", undefined, { "data-n": t("retry") }) }));
-    if (s === "noauth") return alert("warning", t("noauthT", { p }), t("noauthNote", { p }), button(t("grant"), { icon: "lock", attrs: act("grant") }));
+    if (s === "fail") return alert("danger", t("failT", { p }), t("failNote"), [abtn(t("retry"), { icon: "refresh", attrs: act("sim", undefined, { "data-n": t("retry") }) })]);
+    if (s === "noauth") return alert("warning", t("noauthT", { p }), t("noauthNote", { p }), [abtn(t("grant"), { icon: "lock", attrs: act("grant") })]);
     if (s === "stale") return alert("info", t("staleT", { p }), t("staleNote", { t: t("yest") }));
     return "";
   };
@@ -160,7 +163,7 @@
     const s = vst();
     if (viewingOld()) {
       const thenNow = M.renderToggleGroup({ label: t("thenNow"), items: [{ value: "then", label: t("then"), current: ui.view === "then", attrs: act("view", "then") }, { value: "now", label: t("nowT"), current: ui.view === "now", attrs: act("view", "now") }] });
-      return alert("warning", s === "gap" ? t("gapT") : t("oldT"), t("oldD"), `${thenNow}${button(t("backCur"), { attrs: act("state", "current") })}`);
+      return `${alert("info", s === "gap" ? t("gapT") : t("oldT"), t("oldD"), [abtn(t("backCur"), { attrs: act("state", "current") })])}<div class="wb-thennow">${thenNow}</div>`;
     }
     if (s === "delta") return alert("info", t("deltaT"), t("deltaD"));
     if (s === "conflict" && !ui.resolved) return alert("warning", t("conflictCount"), "");
@@ -182,13 +185,13 @@
     if (old) {
       if (!c.old) return "";
       text = L(c.old);
-      if (ui.view === "now" && L(c.old) !== L(c.text)) after = `<p class="wb-now"><strong>${esc(t("nowIs"))}</strong>${esc(L(c.text))}</p>`;
+      if (ui.view === "now" && L(c.old) !== L(c.text)) after = `<p class="wb-now" data-craft-turn><strong>${esc(t("nowIs"))}</strong>${esc(L(c.text))}</p>`;
       if (c.id === "c4" && vst() === "gap") after += alert("info", t("gapNoteT"), t("gapNote"));
     }
     const fresh = vst() === "delta" && !old;
     const tag = fresh && c.old && L(c.old) !== L(c.text) ? badge(t("changed"), "info") : fresh && !c.old ? badge(t("added"), "info") : "";
     const staleSrc = c.refs.map((r) => O(r).src).find((s) => srcState(s) === "stale");
-    return `<li class="wb-claim"><div class="wb-claim__text">${tag}${esc(text)}${footnotes(c, idx)}</div>${staleSrc && !old ? srcGap(staleSrc) : ""}${after}</li>`;
+    return `<li class="wb-claim"${tag ? " data-craft-new" : ""}><div class="wb-claim__text">${tag}${esc(text)}${footnotes(c, idx)}</div>${staleSrc && !old ? srcGap(staleSrc) : ""}${after}</li>`;
   }
   function ownerClaim() {
     if (!(P.area === "source" && st() === "owner")) return "";
@@ -207,6 +210,8 @@
     if (s === "handled") return n.id === "n2" ? "skipped" : "done";
     return ui.res[n.id] || "";
   }
+  const firstOpen = () => (W.next.find((n) => !nextState(n)) || {}).id;
+  const conflictOpen = () => vst() === "conflict" && !ui.resolved;
   function nextCard(n) {
     const x = nextState(n), o = O(n.obj);
     const view = {
@@ -216,9 +221,10 @@
       target: { prefix: t("onTarget"), label: `${L(S(o.src))} · ${L(o)}`, changed: x === "stale" },
       impact: L(n.why),
     };
-    const own = { id: "do", label: L(n.btn), variant: "primary", icon: n.act === "assistant" ? "sparkles" : S(o.src).icon, attrs: act("do", n.id) };
+    const own = { id: "do", label: L(n.btn), variant: n.id === firstOpen() && !conflictOpen() ? "primary" : "secondary", icon: n.act === "assistant" ? "sparkles" : S(o.src).icon, attrs: act("do", n.id) };
     const skip = { id: "skip", label: t("skip"), variant: "ghost", attrs: act("skip", n.id) };
-    if (!x) Object.assign(view, { badge: { label: t("waitBadge"), tone: "waiting" }, actions: [skip, own] });
+    // A suggestion is not waiting on the person: no amber here. Amber stays with 要你处理 and the sources that wait for you.
+    if (!x) Object.assign(view, { actions: [skip, own] });
     if (x === "stale") Object.assign(view, { badge: { label: t("staleBadge"), tone: "quiet", state: "stale" }, status: { text: t("staleOpt") }, recovery: [{ id: "reprepare", label: t("reprepare"), variant: "secondary", attrs: act("sim", undefined, { "data-n": t("reprepare") }) }] });
     if (x === "running") Object.assign(view, { badge: { label: t("runBadge"), tone: "progress", state: "generating" }, status: { text: t("running"), busy: true } });
     if (x === "done") Object.assign(view, { badge: { label: t("doneBadge"), tone: "done", state: "done" }, result: { title: n.id === "n1" ? t("doneN1") : t("doneOther"), body: n.id === "n1" ? t("doneN1D") : t("doneOtherD"), actions: [{ id: "open", label: t("openIt"), variant: "secondary", attrs: act("sim", undefined, { "data-n": L(o) }) }] } });
@@ -233,7 +239,7 @@
   /* ---------- page ---------- */
   const sec = (k, body) => `<section class="wb-sec" aria-labelledby="wb-${k}"><h3 class="wb-h" id="wb-${k}">${esc(t(k))}</h3>${body}</section>`;
   const pulseRow = () => `<ul class="wb-pulse">${Object.keys(W.sources).map((id) => `<li>${plug(id)}${pulseOf(id)}</li>`).join("")}</ul>`;
-  const attentionRows = () => items(W.attention.map((a) => item(mark(O(a.obj).src), L(a.text), `${L(S(O(a.obj).src))} · ${L(O(a.obj))}`, button(a.kind === "decide" ? t("decide") : t("reply"), { attrs: act("sim", undefined, { "data-n": L(O(a.obj)) }) }))));
+  const attentionRows = () => items(W.attention.map((a) => item(mark(O(a.obj).src), L(a.text), `${L(S(O(a.obj).src))} · ${L(O(a.obj))}`, `${M.renderStatusMark({ label: t("waitBadge"), tone: "attention", state: "answer" })}${button(a.kind === "decide" ? t("decide") : t("reply"), { attrs: act("sim", undefined, { "data-n": L(O(a.obj)) }) })}`)));
   const CHANGE_ICON = { add: "plus", done: "check", worse: "arrow" };
   const changeRows = () => items(W.changes.map((c) => item(plainMark(CHANGE_ICON[c.kind]), L(c.text), `${L(S(O(c.obj).src))} · ${L(O(c.obj))}`)));
   function headerActions() {
@@ -256,7 +262,7 @@
       body: items(Object.keys(W.objects).filter((o) => O(o).src === id).slice(0, 2).map((o) => item("", L(O(o)), ""))),
       footer: button(t("cont"), { icon: "chevron-right", attrs: act("sim", undefined, { "data-n": L(S(id)) }) }),
     })).join("");
-    const fail = st() === "loadfail" ? alert("danger", t("loadfailT"), t("loadfailD"), button(t("retry"), { icon: "refresh", attrs: act("sim", undefined, { "data-n": t("retry") }) })) : "";
+    const fail = st() === "loadfail" ? alert("danger", t("loadfailT"), t("loadfailD"), [abtn(t("retry"), { icon: "refresh", attrs: act("sim", undefined, { "data-n": t("retry") }) })]) : "";
     const opt = st() === "basic" ? `<p class="wb-basis">${M.icon("package")}${M.renderButton({ label: t("basicOpt"), variant: "link", size: "sm", attrs: act("sim", undefined, { "data-n": "Work Brief" }) })}</p>` : "";
     return frame(t("basicHome"), L(W.project), "", `${fail}<p class="wb-muted">${esc(t("basicNote"))}</p><div class="wb-cards">${cards}</div>${opt}`);
   }

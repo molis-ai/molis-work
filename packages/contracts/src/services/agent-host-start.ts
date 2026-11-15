@@ -482,6 +482,8 @@ interface AgentStartInputFields {
    * this round has it (specs/capability-pack/contract-design.md §3.1).
    */
   skills?: SkillRef[];
+  /** `false`: the person asked for this round without automatic Skills; only those in `skills` can be read (`skill_round.auto`). */
+  auto_skills?: false;
   mcp_tools?: AgentMcpToolRef[];
   mcp_sources?: AgentMcpSourceRef[];
   budget?: AgentRunBudget;

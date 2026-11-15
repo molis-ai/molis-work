@@ -37,14 +37,13 @@ const without = (source, needle) => source.split(needle).join("");
 // a pattern (`pattern`). The `needle` is in the file as it stands.
 const ROWS = [
   { check: checkMigratedGoalsCommandOwnership, file: "plugins/native/goals/src/goal-tree-fact-materializer.ts", needle: "this.createIntent(", kind: "code" },
-  { check: checkMigratedGoalsCommandOwnership, file: "apps/local-host/src/installer/home-release.ts", needle: "skillMethodsDirectory", kind: "code" },
+  { check: checkMigratedGoalsCommandOwnership, file: "apps/local-host/src/project-database.ts", needle: "PROJECT_DATABASE_BASELINE", kind: "code" },
   { check: checkMigratedGoalsCommandOwnership, file: "tests/goals-query-module.test.ts", needle: "goals.query.readGoal", kind: "code" },
   { check: checkMigratedGovernanceOwnership, file: "plugins/native/goals/src/contract/governance-collaboration.ts", needle: "interface GovernanceQueryApi", kind: "code" },
   { check: checkArtifactsOwnership, file: "modules/artifacts/src/index.ts", needle: "class ArtifactsModule", kind: "code" },
   { check: checkArtifactsOwnership, file: "modules/artifacts/src/repository.ts", needle: "export const ARTIFACT_TABLES", kind: "code" },
   { check: checkPrivateWorkContextOwnership, file: "modules/private-work-context/src/index.ts", needle: "createRuntimeContextModule", kind: "code" },
   { check: checkRuntimeHostOwnership, file: "horizontal/runtime-host/src/index.ts", needle: "MolisWorkPtyHost", kind: "code" },
-  { check: checkMigratedGoalsCommandOwnership, file: "apps/local-host/src/installer/home-release.ts", needle: '"molis-work-plugin-goals"', kind: "text" },
   { check: checkMigratedGovernanceOwnership, file: "tests/governance-collaboration-module.test.ts", needle: "runtime_dialogue", kind: "text" },
   { check: checkArtifactsOwnership, file: "modules/artifacts/src/service.ts", needle: "artifacts.artifact.version_not_increasing", kind: "text" },
   { check: checkArtifactsOwnership, file: "modules/artifacts/src/repository.ts", needle: "PRIMARY KEY (artifact_id, version)", kind: "text" },
@@ -192,7 +191,7 @@ test("RAC-2014 an import is the statement, written with double quotes: the same 
 
 test("RAC-2015 the pattern for the Goals Manifest's tables is read on the code: a comment that shows it does not stand in", () => {
   const file = "plugins/native/goals/src/manifest.ts", source = read(file);
-  const found = /databases:\s*\{\s*project:\s*GOALS_PROJECT_DATABASE\s*(?:,\s*home:\s*GOALS_HOME_DATABASE\s*)?\}/u.exec(source);
+  const found = /databases:\s*\{\s*project:\s*GOALS_PROJECT_DATABASE\s*\}/u.exec(source);
   assert.ok(found, "the Manifest declares its tables as it did");
   for (const name of ["a line comment", "a block comment", "a string", "template text"]) {
     assert.ok(checkWith(checkMigratedGoalsCommandOwnership, file, without(source, found[0]) + stand[name](found[0])).length > 0, name);

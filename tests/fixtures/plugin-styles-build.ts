@@ -29,7 +29,7 @@ export function pluginStylesBuildFixture(parent: string) {
   };
   put("package.json", '{"type":"module","private":true}\n');
   put("apps/workbench/dist/plugin-styles.js", `export { splitPluginStylesheet } from ${JSON.stringify(workbenchEntry)};\n`);
-  put("plugins/native/goals/dist/index.js", 'export const GOALS_DOCUMENT_STYLES = "", TRASH_GOAL_STYLES = "", PLANNING_SETTINGS_STYLES = "";\n');
+  put("plugins/native/goals/dist/index.js", 'export const GOALS_DOCUMENT_STYLES = "", TRASH_GOAL_STYLES = "";\n');
   writeBuild();
   writeBudget({ probe: 1 });
   git("init", "-q", "-b", "main");

@@ -267,6 +267,16 @@ function assertDeclarations(parsed: PluginManifest, ui: Record<string, unknown>)
     parsed.methods,
   ));
   problems.push(...inspectSkillDeclarations(parsed.methods));
+  // A translated body is one of the package's languages, never its default: the file list is derived from this, no more and no less.
+  for (const method of Array.isArray(parsed.methods) ? parsed.methods : []) {
+    if (!Array.isArray(method?.locales)) continue;
+    const declared = parsed.ui?.locales;
+    if (!declared) problems.push(`方法 ${method.skill_id} 写了 locales，但插件没有声明 ui.locales`);
+    else for (const locale of method.locales) {
+      if (locale === declared.default) problems.push(`方法 ${method.skill_id} 的 locales 只列译文，不写默认语言 ${locale}`);
+      else if (!declared.available.includes(locale)) problems.push(`方法 ${method.skill_id} 的 locales 里的 ${locale} 不在 ui.locales.available 里`);
+    }
+  }
   problems.push(...inspectViewDeclarations(parsed, ui));
   problems.push(...pageRouteProblems(parsed));
   problems.push(...subjectContextProblems(parsed));

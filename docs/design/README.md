@@ -45,6 +45,8 @@
 - [服务与模型连接：可点的定样（路线书第 13 批）](service-connections/README.md)
 - [外部会话：可点的定样（路线书第 22 批）](sessions-sources/README.md)
 - [技能包：安装预览、启用和管理的可点定样（路线书第 08 批）](skill-packs/README.md)
+- [技能选用：选用解释、改选与停用的可点定样（路线书第 41 批）](skill-selection/README.md)
+- [写自己的技能：新建、修改和「改一份我的」的可点定样（路线书第 41 批第 2 项，待定）](skill-authoring/README.md)
 - [Molis Work 高保真交互原型](soft-workbench/README.md)
 - [设计讨论交接与研究资料](ui-renewal-2026-09-21/README.md)
 - [统一输入框定样](unified-input/README.md)

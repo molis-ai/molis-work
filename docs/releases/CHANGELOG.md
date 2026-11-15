@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+### Work Brief 首页与简报核心（2026-11-14，#2077）
+
+- **首页主区内容**：插件可在呈现声明里写 `presentation.overview.lead: { view_id }`，`surfaces.compose@1` 的 `home` 描述多一个 `kind: "lead"` 的组；首页把该主区视图收进主区，细栏「看基础首页／回到」只是页面状态，移除/停用/打不开回基础首页。第三方插件同一条合同，不按插件名分支。
+- **Work Brief 插件**：项目简报（各来源、逐句依据与缺口、刷新只报变化、本人修改与提案、版本与当时/现在、固定成成果、下一步）、个人简报（跨项目汇总、项目/个人标签与跳转）、风险接续（WBR-17/18）、首页概况与对象读取器、搜索来源；项目里没有 Goals 也完整。库为 `work-brief/work-brief.db` 第 1 版。
+- **安全与合同**：概况动作受众加 `workflow`；插件页面调本安装自己的动作且安装持有 `actions:delegate` 时带本人调用者（S-43）；页面链接只对另一个项目的裸首页让外壳跳转（S-47）。两处公开 API 与动作/库快照随批更新。
+- **未完成/待验收**：本人实物验收（`BL-b19-work-brief-acceptance`）、决定卡（39-2）、定时生成（52）、生成页面（37）；32 的通用打开与「等你」统一读取仍是最薄接法。
+
 ### 合后复查修复（2026-11-14）
 
 - **`/rich-text`**：`renderRichText`／`richPlainText` 从 Marked 换成 Micromark + GFM；SDK 的 peer dependencies 从 `marked` 换成 `micromark`、`micromark-extension-gfm`、`sanitize-html`。用这个子路径的插件要改自己的 `package.json`（见 `docs/system/CONTRACT-CHANGES.md` 第 8 节）。
@@ -15,6 +22,14 @@
 - **研究/文档**：IUI-01/04/09/20 与 MEM-35 的验收证据补齐或标人工；`#2029` 墓碑补 shard 7／17／26 的证据；LSP 帧体上限 16 MiB。
 - **组件板设计语言一章补英文**：`workbench.catalog.language.*` 170 个键进中英词包，四个章节函数经 `say` 翻译；隔离构建的页面资源仍通过（无新资源、无单项 >10 KB）。
 - **运行正文身份核对**：新增 `tests/security-invariants-running-plugin-text.test.ts`，用 Host 的公开读取入口覆盖发行物签名、安装号、状态、插件、世代、版本、签名与 Manifest 摘要不一致时的拒绝。
+
+### 风险插件基础完整路径（2026-11-14，#2058）
+
+- **新插件「风险」**：风险独立记录（标题、描述、影响 × 可能性、处置、负责人、状态、进展、通用关联对象），项目总览按状态分组、已关闭收起，两栏详情与从别处点开先进右栏、可展开整页；Goal 的顾虑可以引用任意对象（`cited_subjects`），但 Goals 只存 `{kind,id}`，不复制风险。风险插件不调 AI。
+- **复查**：详情里安排一次性复查，Schedule 登记一次性对象任务，到点由后台助理看一轮，结果留在 Schedule；改期、暂停、取消、关闭归档不另建任务，停用/撤权后的迟到结果不写业务记录。复查段只显示最后一轮结论，没有历次结果与“采纳/不采纳”（[BL-risk-review-history-adopt](../../specs/backlog/BL-risk-review-history-adopt.md)）。
+- **合同与存储**：Goals 项目库 2→3（`cited_subjects_json`），Schedule 项目库 2→3（`repeat`、`run_at`、`subject_kind`、`subject_id`）；Goals 顾虑、`Schedule.tasks.*`、Manifest `opens_items` 与 SDK `renderSeverityGrid` 都在原版本 @1 上改，没有读取兼容。旧 `concern_opened` 缺 `cited_subjects` 读作“没有引用对象”，是该可选字段的缺省。
+- **页面资源**：新增按需下发的 `risk.js` 46,453 字节；合后审计整改再追加 2,909（合计 49,362）；三张样式各 +1,275；`workbench.js` 原 1,238、整改相对 ddd7ba3f 再 +534；`plugin-frame.js` 原 +82、整改再 +1（合计 +83）；`schedule.js` +376（用户 2026-11-13 批准新增资源；整改首屏冷启动追加 +1/+535 见 `17-audit-followups.json`）。
+- **未完成/待验收**：RISK-05 侧栏展开、RISK-06 实物与历次结果取舍、RISK-09 真没装 Goals；第 19 批 Work Brief 的简报侧接入。
 
 ### 首页公共能力与智能呈现第一片（2026-11-13，#2017）
 

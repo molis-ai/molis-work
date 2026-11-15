@@ -15,7 +15,7 @@ import { GOALS_GOVERNANCE_SQL } from "./project-database-governance.js";
  */
 export const GOALS_PROJECT_DATABASE: PluginDatabaseDeclaration = {
   store_name: "goals",
-  version: /* @version database.goals_project_database */ 3,
+  version: /* @version database.goals_project_database */ 4,
   // 1 → 2 (2026-11-11, evidence contract): what a judgment checked and how far Goals found it backed, and the version a conclusion was about.
   // The new columns carry no CHECK: a step may not add a column with one (SQLite checks the whole library for it, which the platform's
   // authorizer over a plugin's step refuses), and the tables after the step must be exactly what `schema` makes. Goals alone writes them.
@@ -35,6 +35,15 @@ export const GOALS_PROJECT_DATABASE: PluginDatabaseDeclaration = {
     sql: `
       ALTER TABLE goal_event_concerns ADD COLUMN cited_subjects_json TEXT NOT NULL DEFAULT '[]';
     `,
+  }, {
+    // 3 → 4 (2026-11-14, 用户定): planning and breakdown methods are Skills of the platform's catalog, not something Goals keeps or
+    // a Goal adopts. The project's method table and the column naming what a configuration adopted go; nothing replaces them.
+    from: 3,
+    sql: `
+      DROP TABLE planning_method_packs;
+      ALTER TABLE goal_event_config_versions DROP COLUMN adopted_planning_json;
+    `,
+    reduces_rows: ["planning_method_packs"],
   }],
   schema: [GOALS_BOARDS_SQL, GOALS_TABLES_SQL, GOALS_INPUT_BINDINGS_SQL, GOALS_EVENT_FACTS_SQL, GOALS_EVENT_STATE_SQL, GOALS_GOVERNANCE_SQL].join("\n"),
   // A plugin's own tables in the project's library are its private storage (D23), not Goals' action permissions.

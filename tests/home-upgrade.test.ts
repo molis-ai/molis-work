@@ -8,7 +8,7 @@ import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 import test, { type TestContext } from "node:test";
-import { acquireUpgradedHomeOwner, dismissUpgradeNotice, ensureHomeUpgraded, runHomeUpgrade, upgradeNoticeFor, type HomeUpgradeDescriptor } from "@molis-ai/molis-work-app-local-host";
+import { acquireUpgradedHomeOwner, dismissUpgradeNotice, ensureHomeUpgraded, REMOVED_HOME_STORES, runHomeUpgrade, upgradeNoticeFor, type HomeUpgradeDescriptor } from "@molis-ai/molis-work-app-local-host";
 import { acquireStorageOwner, openBaselineHomeSqlite, personalStorageSpace, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import {
   ADD_TAG, BASELINE_V2, failingBaseline, ledgerFile, ledgerOf, notesDescriptor, notesOf, onStore, openNode, present, relativeStore, seedStore, sha256, stampFile, storePath, unitOf, upgradeTestHome, useDescriptors, V1, V2, versionOf, writeLedger,
@@ -453,4 +453,19 @@ test("UPG1-05: a resumed round holds the same lock rules: another holder stops i
     assert.throws(() => runHomeUpgrade(home), { code: "storage.owner.busy" });
     assert.throws(() => ensureHomeUpgraded(dirname(home), owner), { code: "storage.owner.invalid" });
   } finally { owner.release(); }
+});
+
+test("SKL-41-2: a round removes the directory of a store this build no longer has (the Goals plugin's method library), and only that", t => {
+  const { home } = upgradeTestHome(t);
+  const kept = seedStore(home, "first"), bodies = () => notesOf(kept).map(note => note.body), notes = bodies();
+  useDescriptors(t, notesDescriptor("first"));
+  assert.deepEqual([...REMOVED_HOME_STORES], ["goals"]);
+  mkdirSync(join(home, "goals"));
+  writeFileSync(join(home, "goals", "goals.db"), "what an earlier build left");
+  writeFileSync(join(home, "goals", "goals.db-wal"), "");
+  const report = runHomeUpgrade(home);
+  assert.deepEqual(report.units.map(unit => [unit.relative_path, unit.state]), [["first/first.db", "committed"]]);
+  assert.equal(present(join(home, "goals")), false, "the directory is gone with everything in it");
+  assert.deepEqual(bodies(), notes, "a store the build still has keeps its rows");
+  assert.equal(runHomeUpgrade(home).ran, false, "nothing left to do on the next start");
 });

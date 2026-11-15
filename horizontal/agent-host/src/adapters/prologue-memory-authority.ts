@@ -126,7 +126,7 @@ export function createPrologueMemoryAuthority(options: PrologueMemoryOptions | u
       ...(caller.facts ? { facts: {
         ...(caller.facts.plugins ? { plugins: caller.facts.plugins } : {}),
         ...(caller.facts.object_kinds ? { objectKinds: caller.facts.object_kinds } : {}),
-        ...(caller.facts.goals ? { goals: caller.facts.goals } : {}),
+        ...(caller.facts.objects ? { objects: caller.facts.objects.map(obj => ({ plugin: obj.plugin_id, kind: obj.kind, id: obj.id })) } : {}),
       } } : caller.plugin_id ? { facts: { plugins: [caller.plugin_id] } } : {}) };
   };
   const runCaller = (current: AgentMemoryCaller | undefined, frame: RunFrame): AgentMemoryCaller | undefined => {

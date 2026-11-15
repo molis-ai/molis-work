@@ -93,6 +93,22 @@ function openFor(entries: readonly HomePlugin[]): SurfacePluginCard["open"] {
   return { kind: "stage", installation: installation(plugin), view_id: plugin.home.stage_view_id! };
 }
 
+/**
+ * The home's main content: the one running installation of a plugin whose overview declares `lead` and whose selected main-area view is
+ * that view. Several plugins may declare one; the person's pinned order, then the Dock order, then the plugin id picks a single group.
+ */
+function leadGroup(groups: ReadonlyMap<string, HomePlugin[]>, rank: (owner: string) => number): SurfaceGroup | undefined {
+  const candidates = [...groups].flatMap(([owner, entries]) => {
+    const running = entries.filter(plugin => plugin.state === "running" && !plugin.home.unavailable && plugin.home.stage_view_id);
+    if (running.length !== 1) return [];
+    const plugin = running[0]!, viewId = plugin.presentation?.overview?.lead?.view_id;
+    return viewId && viewId === plugin.home.stage_view_id ? [{ owner, plugin, viewId }] : [];
+  });
+  candidates.sort((a, b) => rank(a.owner) - rank(b.owner) || a.plugin.home.order - b.plugin.home.order || compareCodeUnits(a.owner, b.owner));
+  const first = candidates[0];
+  return first && { kind: "lead", owner_plugin_id: first.owner, state: "ok", items: [], lead: { installation: installation(first.plugin), view_id: first.viewId } };
+}
+
 function startsFor(overview: OverviewAnswer, read: ComposeRead, home: SurfaceHomePorts, considered: Set<ActionView>, used: ActionView[]): SurfaceHomeStart[] {
   const { job: { plugin, declaration }, answer } = overview;
   const starts: SurfaceHomeStart[] = [];
@@ -196,6 +212,7 @@ export async function composeHome(read: ComposeRead, home: SurfaceHomePorts) {
   const catalog = read.plugins.map(plugin => [plugin.plugin_id, plugin.scope, plugin.install_id, plugin.state, plugin.revision, plugin.home])
     .sort((a, b) => compareCodeUnits(JSON.stringify(a), JSON.stringify(b)));
   const cardAuthority = [...considered].sort((a, b) => compareCodeUnits(viewKey(a), viewKey(b))).map(viewRevision);
-  return { groups: [attentionGroup, ...pluginGroups], simpler: displayed.some(row => row.simpler), adjusted: displayed.some(row => row.adjusted),
+  const lead = leadGroup(groups, rank);
+  return { groups: [...(lead ? [lead] : []), attentionGroup, ...pluginGroups], simpler: displayed.some(row => row.simpler), adjusted: displayed.some(row => row.adjusted),
     facts: { ...objects.facts, catalog, cardAuthority, operations: retainDisplayedOperations(objectRead, displayed) } };
 }

@@ -48,7 +48,13 @@ export async function createMolisWorkRuntimePayload(options: MolisWorkRuntimePay
       const host = path.join(staged, "node_modules", "@molis-ai", "molis-work-app-local-host", "dist");
       await fs.writeFile(path.join(host, "selected-release-profile"), distribution.profile + "\n", { flag: "wx" });
       if (distribution.signedPackages) {
-        await fs.cp(distribution.signedPackages, path.join(host, "bundled-plugins"), { recursive: true, force: false, errorOnExist: true });
+        // The build already put the unsigned drafts (`<plugin_id>.draft.json`, batch 41) in this folder: each signed package goes in beside
+        // them, and still never over a file that is there. The Host refuses a draft whose package also lies here signed.
+        const bundled = path.join(host, "bundled-plugins");
+        await fs.mkdir(bundled, { recursive: true });
+        for (const name of (await fs.readdir(distribution.signedPackages)).sort()) {
+          await fs.cp(path.join(distribution.signedPackages, name), path.join(bundled, name), { recursive: true, force: false, errorOnExist: true });
+        }
       }
     }
     await fs.rename(staged, destination);

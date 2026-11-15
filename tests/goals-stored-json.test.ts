@@ -2,7 +2,6 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
-import { GOALS_HOME_DATABASE } from "@molis-ai/molis-work-plugin-goals";
 import { GoalsModule } from "./fixtures/goals-modules.js";
 import { GoalProjectApplication } from "./fixtures/goal-application.js";
 import { pluginLegalSql } from "./fixtures/plugin-legal-sql.js";
@@ -81,21 +80,6 @@ test("RAC-1262: an unreadable Goal list column stops the snapshot and the Goal l
     locatedAt(captured(() => criterionColumn.goals.query.snapshot(BOARD)), criterionColumn.store, "acceptance_criteria", "required_evidence_json", "criterion_id = ?", "criterion-evidence");
     locatedAt(captured(() => criterionColumn.goals.query.listGoals(BOARD)), criterionColumn.store, "acceptance_criteria", "required_evidence_json", "criterion_id = ?", "criterion-evidence");
   } finally { criterionColumn.close(); }
-});
-
-test("RAC-1263: a readable method pack is kept and an unreadable one stops the snapshot", () => {
-  const data = fixture();
-  try {
-    const at = "2026-09-03T00:00:00.000Z";
-    data.store.db.prepare(`INSERT INTO planning_method_packs (
-      project_id, method_id, version, enabled, pack_json, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?)`).run(BOARD, "pack-one", 1, 1, '{"method_id":"pack-one","version":1,"enabled":true}', at, at);
-    const readable = data.goals.query.snapshot(BOARD);
-    assert.equal(readable.planning_method_packs.length, 1);
-    assert.equal(readable.planning_method_packs[0]?.method_id, "pack-one");
-    data.store.db.prepare("UPDATE planning_method_packs SET pack_json = ? WHERE project_id = ?").run('{"unreadable":', BOARD);
-    locatedAt(captured(() => data.goals.query.snapshot(BOARD)), data.store, "planning_method_packs", "pack_json", "method_id = ?", "pack-one");
-  } finally { data.close(); }
 });
 
 test("RAC-1265: unreadable guidance source refs stop the snapshot and the guidance read", () => {
@@ -181,15 +165,12 @@ test("BGE-05: every stored-JSON read in Goals names a real table and column of t
   // maintenance at nothing. A read that forgot `rowid AS stored_row` fails on its first read, so every Goals test reading that path catches it.
   const reads = sourceFiles(GOALS_SRC).flatMap(file => [...readFileSync(file, "utf8").matchAll(/storedJson(?:<[^(]*>)?\(row, "(\w+)", "(\w+)"/g)]
     .map(match => ({ file, table: match[1]!, column: match[2]! })));
-  assert.ok(reads.length >= 41, `读到 ${reads.length} 处，设计时数到 41 处（含两条路径都读的规则表）`);
+  assert.ok(reads.length >= 39, `读到 ${reads.length} 处，现在应有 39 处（含两条路径都读的规则表；方法包的两处随第 41 批删除）`);
   const project = new LocalProjectDatabase(":memory:");
-  const home = new DatabaseSync(":memory:");
   try {
-    home.exec(GOALS_HOME_DATABASE.schema);
     const columns = (db: DatabaseSync, table: string) => (db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>).map(row => row.name);
     for (const read of reads) {
-      const db = read.table.startsWith("personal_") ? home : project.db;
-      assert.ok(columns(db, read.table).includes(read.column), `${read.file} 读的 ${read.table}.${read.column} 不在库结构里`);
+      assert.ok(columns(project.db, read.table).includes(read.column), `${read.file} 读的 ${read.table}.${read.column} 不在库结构里`);
     }
-  } finally { project.close(); home.close(); }
+  } finally { project.close(); }
 });

@@ -153,6 +153,8 @@ C1 管合同与快照，C2 管 AI 运行时与换包，C3 管独立平台服务�
 | [64-5](batches/64.md#batch-64-item-5) | 访谈初始化与工作记忆 | A | 是 | C2 |
 | [64-6](batches/64.md#batch-64-item-6) | 回执阶段 5 | A | 是 | C2 |
 | [64-7](batches/64.md#batch-64-item-7) | 安静准备与观察试用 | A | 是 | C、C3 |
+| [64-8](batches/64.md#batch-64-item-8) | 记忆形成质量（P2-01） | C2 | 是 | A、B |
+| [64-9](batches/64.md#batch-64-item-9) | 记忆整理（Dreaming）、按需原文与用户控制 | C2 | 是 | A、B、C1 |
 | [66-1](batches/66.md#batch-66-item-1) | Coding 自检、评审与有界迭代 | B | 是 | C2 |
 | [66-2](batches/66.md#batch-66-item-2) | 简化与安全专科评审 | B | 是 | — |
 | [66-3](batches/66.md#batch-66-item-3) | 依据三档与同一验收卡 | E | 是 | — |

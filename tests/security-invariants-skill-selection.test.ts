@@ -5,7 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { SkillCatalog, homeAgentDefinitions, type CatalogSkill } from "@molis-ai/molis-work-app-local-host";
 import type { ActionCallContext, ActionSkillRound } from "@molis-ai/molis-work-contracts/platform/actions";
-import { SKILL_ROUND_AUTO_LIMIT, SKILLS_PERMISSIONS, SKILLS_PROVIDER_ID, skillCatalogActions } from "@molis-ai/molis-work-contracts/services/skills";
+import { SKILL_AUTHORED_PLUGIN_IDS, SKILL_ROUND_AUTO_LIMIT, SKILLS_PERMISSIONS, SKILLS_PROVIDER_ID, skillCatalogActions } from "@molis-ai/molis-work-contracts/services/skills";
 import { createHash } from "node:crypto";
 import { applyRunEvent, emptyPrologueStreamState, type PrologueEvent } from "@molis-ai/molis-work-service-agent-host";
 
@@ -28,6 +28,18 @@ async function withCatalog(run: (catalog: SkillCatalog, skills: CatalogSkill[], 
 const agent = (round: ActionSkillRound): ActionCallContext => ({ actor_id: "assistant", project_id: "project-a", audience: "agent", permissions: [...SKILLS_PERMISSIONS], skill_round: round });
 const outcome = async (catalog: SkillCatalog, caller: ActionCallContext, ...skills: CatalogSkill[]) =>
   (await catalog.readBodies(caller, skills.map(skill => skill.ref))).results.map(result => result.ok ? "ok" : result.reason);
+
+test("S-skill-catalog: readSource strips frontmatter only from an installed package, not from a system pack or a Skill written in settings", async () => {
+  await withCatalog(async (catalog, [system, mine, installed]) => {
+    system!.pack.trust = "host"; system!.body = "---\n\n# system body";
+    mine!.pack.plugin_id = SKILL_AUTHORED_PLUGIN_IDS.project; mine!.pack.trust = "home_local"; mine!.body = "---\n\n# written body";
+    installed!.body = "---\nversion: 1\n---\n\n# imported body";
+    const caller = agent({ consumer: "assistant", named: [], round: "source-round" });
+    assert.equal((await catalog.readSource(caller, system!.ref)).body, "---\n\n# system body");
+    assert.equal((await catalog.readSource(caller, mine!.ref)).body, "---\n\n# written body");
+    assert.equal((await catalog.readSource(caller, installed!.ref)).body, "# imported body");
+  });
+});
 
 test("SKL-02: a round reads at most three automatic Skills of its own choice; the next is refused as over_limit", async () => {
   await withCatalog(async (catalog, [a, b, c, d], definitions) => {
@@ -58,6 +70,22 @@ test("SKL-11: a round the person asked to run without automatic Skills reads onl
     await assert.rejects(catalog.readResource(round, a!.ref, "skills/a/references/x.md"), (error: { details?: { reason?: string } }) => error.details?.reason === "not_named");
     assert.equal(definitions.skills.uses("install", "a").length, 0, "a refused read is no use");
   });
+});
+
+test("S-skill-catalog: a refused resource read takes no choice and records no use", async () => {
+  const home = await mkdtemp(join(tmpdir(), "skill-selection-resource-"));
+  try {
+    const definitions = homeAgentDefinitions(home), skills = ["a", "b", "c", "d"].map(skillOf), a = skills[0]!;
+    a.declaration.resources = [{ path: "skills/a/references/x.md", role: "reference", media_type: "text/markdown", bytes: 3, sha256: "0".repeat(64) }];
+    for (const skill of skills) definitions.skills.set("project-a", "install", skill.ref.skill_id, "auto", 0, "person");
+    const catalog = new SkillCatalog({ definitions, withSkills: async (_caller, use) => use(skills), resource: () => { throw new Error("the file is missing"); }, publishers: () => new Map() });
+    const round = agent({ consumer: "assistant", named: [], round: "resource-round" });
+    await assert.rejects(catalog.readResource(round, a.ref, "skills/a/references/x.md"),
+      (error: { details?: { reason?: string } }) => error.details?.reason === "resource_invalid");
+    assert.equal(definitions.skills.uses("install", "a").length, 0, "a refused resource read is no use");
+    assert.deepEqual(await outcome(catalog, round, skills[1]!, skills[2]!, skills[3]!), ["ok", "ok", "ok"],
+      "the refused read did not take one of the round's three choices");
+  } finally { await rm(home, { recursive: true, force: true }); }
 });
 
 test("SKL-02: a read that is no round's own (no round number) is neither counted nor recorded", async () => {

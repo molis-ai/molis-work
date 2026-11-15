@@ -87,6 +87,12 @@ export interface SkillPick {
   picked: "named" | "auto";
 }
 
+/** Who a round's Skill line belongs to: the Assistant, Coding, or a plugin's own Agent round (batch 41). */
+export const SKILL_PICK_CONSUMERS = ["assistant", "coding", "agent"] as const;
+export type SkillPickConsumer = (typeof SKILL_PICK_CONSUMERS)[number];
+export const isSkillPickConsumer = (value: unknown): value is SkillPickConsumer =>
+  typeof value === "string" && (SKILL_PICK_CONSUMERS as readonly string[]).includes(value);
+
 export type SkillAvailability = { available: true } | { available: false; reason: SkillUnavailableReason; detail?: string };
 
 /** A file a Skill ships besides its body, as the catalog and the install preview list it. */

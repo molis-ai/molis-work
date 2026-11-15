@@ -2,7 +2,7 @@
 
 **白话：** 把这台电脑上发生的工作——本人在界面上的操作、每次动作调用、各种 AI 的运行、工作流的每一步、定时与后台执行——逐条记下来，留下当时的材料，并如实登记哪些记了、哪些没记、为什么。
 
-**提供：** 工作记录、证据快照、覆盖登记与缺口；系统动作 `observation.report@1`；来源范围 `withObservationSource`。读取动作、保留期清理与用途开关归第 29 批，评测留存归第 30 批。
+**提供：** 工作记录、证据快照、覆盖登记与缺口；系统动作 `observation.report@1`、读取动作（`records.query@1`、`evidence.get@1`、`coverage.get@1`）、记录管理与清理动作（`settings.get/set@1`、`space.get@1`、`cleanup.preview/apply@1`）；用途开关、暂停／恢复、自动与手动清理、空间占用与容量提醒线；来源范围 `withObservationSource`。评测样本留存与对比执行归第 30 批。
 
 **不拥有：** 任何业务事实。记录只说「发生了什么、当时用的是什么」，业务状态永远向主人读。
 
@@ -23,6 +23,12 @@
 - **插件上报**：照工作流程插件（`plugins/native/workflows/src/observation.ts`）：Manifest 声明消费 `observation.report@1`，用 `context.services.actions.invoke` 以自己的安装身份调用，在业务写完之后 await、出错吞掉，从不让上报决定业务的成败；被取消或撤权的调用，上报也会被拒。
 - **外壳的界面阶段**：工作台页面脚本 `apps/workbench/src/scripts/client/work-records.ts` 是唯一的发送处（项目页发到 `/projects/<id>/api/observation/ui`，记在该项目下）；别的界面代码拿到它的 `record`、`subject`、`interaction(list)` 来记，不另开请求。高频的停留与滚动按对象每分钟汇总。
 - **宿主侧的记录器**：服务不在 Host 对象上时，用 `liveObservation(home)` 找到这个 Home 正在运行的采集层；没有运行层（命令行卸载）时，`recordGrantChanges` 直接开这个 Home 的库写同形记录。授权变化写在保存之后、从不抛错。
+
+## 读取、用途开关与清理
+
+- **统一读取动作**：页面、主动助理、效果评测、工作流、插件与 MCP 共用 `observation.records.query@1`（按 `work_ref`、`call_id`、`run_id`、`subject`、时间、平台版本或 `after_seq` 增量游标查询，返回 `kind`、`late` 与可选 `subject_status`）、`observation.evidence.get@1`（按 `record_id` 解封快照或核对主人版本引用）与 `observation.coverage.get@1`（查看覆盖登记、缺口与无活动区分）。
+- **跨项目与用途边界**：非本人受众只能读当前 `context.project_id`，不得跨项目或传 `use: "lookback"`；本人跨项目读取由宿主现算当前可读且未关闭的项目集合（`S-74`）。关掉某项用途开关（`assistant`、`evaluation`、`export`）后，对应 `use` 的查询与证据读取立即拒 `observation.use_disabled`。
+- **暂停、保留期与手动清理**：管理动作（`settings.get/set@1`、`space.get@1`、`cleanup.preview/apply@1`）仅对本人开放。暂停记录前先刷完已入队记录并记下 `paused_at`，恢复时记一段 `by_rule: recording_paused` 缺口；自动到期清理与手动范围清理均在单事务内删除记录、回收无引用快照并记 `expired` 缺口，绝不删业务原内容、成果库版本、Pages 版本或已存简报；容量提醒线到达后只提醒不删记录、不阻断写入。
 
 ## 出了问题看哪里
 

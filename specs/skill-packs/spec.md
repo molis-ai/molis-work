@@ -239,6 +239,12 @@ argument_hint: "<周期，可选>"
 - 安装：`plugins.install.preview` 的输入加了 `bundled: { plugin_id, version }`，与 `bundle` 二选一（原版本改，阶段一）；宿主按引用从同一个目录取包，之后验签、读法、预览、确认与别的包完全同一条路，发布者不预先固定。
 - 验收：「能装上、过校验」由 `tests/security-invariants-bundled-packages.test.ts` 与 `tests/design-accessibility-pack.test.ts` 证明（真实宿主里列出、装前不登记、预览加确认装上、改过即拒）；五个技能从已验证包登记并进入 08-7 的统一目录。D 轨已审五篇正文与四份参考材料，两处 WCAG 摘要修正后复核通过；本人验收仍单列。安全边界见 [S-bundled-packages](../../docs/system/security-invariants/S-bundled-packages.md)。
 
+### 2026-11-14 第 41 批：随系统自带的技能包与自写技能
+
+- **随系统自带**：`plugins/content/<包>/pack-content.json` 写 `system.default_state`（`auto`／`manual`），`pnpm build` 打成 `apps/local-host/dist/system-skills/<plugin_id>.json`。它不安装、不签名、不固定发布者，每个 Home 的技能目录直接读，来源显示 Molis Work；技能默认档由包声明，本人关掉时在 `skill_settings` 记 `off`。它是构建产物信任，和安装包共用同一目录，是读取路径的明确例外。
+- **译文**：技能正文可带 `SKILL.<语言>.md`，在 Manifest 声明的 `locales` 内；缺文件、写默认语言或包没声明的语言，打包与装入拒绝。读正文按调用方语言，没有就用默认语言。
+- **自己写的技能**：`skills.authored.read/save/remove/draft@1` 只给本人；每个范围一个内容包（`io.molis.work.my-skills.project`／`.home`），用这个 Home 的发布身份签名、走与导入同一条安装路径；保存是包的下一版，删最后一个就卸载；S-skill-authoring 记拒绝。
+
 **不在本批的验收编号：**
 
 - **消费方，在第 09 批**：助理的 `methods()` 改读目录，`SignedAgentReference` 的方法引用改用 `SkillRef`（9-2）；助理交活时带 `SkillRef`（9-3）；Coding 读目录并删旧路（9-4，SKC-11）；agent-host 按 `SkillRef` 冻结、`tools` 的两道检查（9-5，SKC-13）；真实验证（9-6，SKP-12 与 ADH-23）。SKP-02～07、SKP-10 的消费方一侧（`/` 点名、AI 自动选用，9-2／9-4）、SKC-07 的消费方部分，以及 SKC-06 委派之后仍成立的部分，都随 09 验。**2026-11-11 补记：** 第 09 批已合入（#2015 + 收尾 #2019），上述消费方接入完成；SKP-10 的 Coding「自动」档在 2026-11-11 审计整改补做（记 BL-coding-skill-auto），SKP-09 的脚本执行仍记 BL-skill-scripts-sandbox；SKP-12 的真实项目/卸载/业务事实按用户 2026-11-10「视作我通过了」（**未实际走查**）、2026-11-11 追认视作通过。

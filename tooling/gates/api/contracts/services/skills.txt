@@ -25,6 +25,8 @@ export declare const SKILL_EXCERPT_CHARS = 200;
 
 export declare const SKILL_INSTALL_PREVIEW_SCHEMA: ActionSchema;
 
+export declare const SKILL_PICK_CONSUMERS: readonly ["assistant", "coding", "agent"];
+
 export declare const SKILL_READ_REFUSALS: readonly ["plugin_disabled", "publisher_revoked", "resource_invalid", "requires_unmet", "connection_missing", "native_only", "not_applicable", "not_current", "off", "not_named", "over_limit"];
 
 export declare const SKILL_REF_SCHEMA: ActionSchema;
@@ -235,6 +237,8 @@ export interface SkillPick {
     picked: "named" | "auto";
 }
 
+export type SkillPickConsumer = (typeof SKILL_PICK_CONSUMERS)[number];
+
 export type SkillReadRefusal = (typeof SKILL_READ_REFUSALS)[number];
 
 export interface SkillResourceContent {
@@ -272,6 +276,8 @@ export interface SkillSettingsSetRequest {
 export type SkillState = (typeof SKILL_STATES)[number];
 
 export type SkillUnavailableReason = (typeof SKILL_UNAVAILABLE_REASONS)[number];
+
+export declare const isSkillPickConsumer: (value: unknown) => value is SkillPickConsumer;
 
 export declare const servicesSkillsContract: {
     readonly contractId: "io.molis.work.service.skills.v1";

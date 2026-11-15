@@ -1,4 +1,5 @@
 import type { MaterialRef } from "@molis-ai/molis-work-contracts/platform/project-materials";
+import type { SkillPickConsumer } from "@molis-ai/molis-work-contracts/services/skills";
 import type {} from "@molis-ai/molis-work-plugin-sdk";
 import type { HostReviewFactory } from "./review-slots.js";
 import type { UiRequest, UiClientScope, UiClientTranslate, UiPluginClientHost, UiPageView, UiPageReviewQuery, UiPageReviewOutcome, UiPageMessage, UiPageTerminal, UiTerminalCommand, UiTerminalEvent, UiPageInstructionSettings } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -131,7 +132,7 @@ export type FrameUp =
   | { type: "shortcut"; keys: string } | { type: "close-side" }
   | { type: "native-files"; id: number; operation: "copy" | "drag" | "open"; paths: readonly string[]; itemIds?: readonly string[] }
   | { type: "native-file-pick"; id: number; query: string }
-  | { type: "skill-pick"; reply: string; consumer: "assistant" | "coding"; picks: import("@molis-ai/molis-work-contracts/services/skills").SkillPick[]; index: number | null; box: { x: number; y: number; width: number; height: number } }
+  | { type: "skill-pick"; reply: string; consumer: SkillPickConsumer; picks: import("@molis-ai/molis-work-contracts/services/skills").SkillPick[]; index: number | null; box: { x: number; y: number; width: number; height: number } }
   | { type: "knowledge-pick"; request_id: string; selected: Array<{ ref: MaterialRef; title: string }>; max?: number }
   | { type: "terminal"; id: number; command: UiTerminalCommand }
   | { type: "download"; filename: string; mime: string; bytes: ArrayBuffer } | { type: "print"; html: string }

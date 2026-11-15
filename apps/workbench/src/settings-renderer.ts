@@ -17,6 +17,7 @@ import { renderConnectorsSettings } from "./settings-connectors.js";
 import { renderPromptSettings } from "./settings-prompts.js";
 import { renderAssistantSettings } from "./settings-assistant.js";
 import { renderMemorySettings } from "./settings-memory.js";
+import { renderWorkRecordsSettings } from "./settings-work-records.js";
 import { renderLocalDirectorySettings } from "./settings-local-directories.js";
 import { renderDiagnosticsSettings } from "./settings-call-diagnostics.js";
 import { renderUpdateSettings } from "./settings-update.js";
@@ -86,6 +87,8 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
       ? uiText.text("workbench.settings-renderer.prompts")
     : view.section === "memory"
       ? uiText.text("workbench.settings-renderer.memory")
+    : view.section === "work-records"
+      ? uiText.text("workbench.settings-renderer.work-records")
     : view.section === "mcp"
       ? "MCP"
       : view.section === "connectors"
@@ -116,6 +119,8 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
         : view.section === "prompts" ? renderPromptSettings({ readText, displayModel: view.agent_display_model })
         : view.section === "memory"
           ? renderMemorySettings({ readText, scope: "personal", projectId: null, projects: view.projects })
+        : view.section === "work-records"
+          ? renderWorkRecordsSettings({ projects: view.projects })
         : view.section === "directories" ? renderLocalDirectorySettings({ readText })
         : view.section === "mcp"
           ? renderMcpSettings(view, desktopShell, primitives)

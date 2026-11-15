@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
-import type { ActionDefinition, ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionDefinition, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
-import { WORKFLOWS_PLUGIN_ID, workflowsManifest, type WorkflowInstance } from "@molis-ai/molis-work-plugin-workflows";
+import { feedManifest } from "@molis-ai/molis-work-plugin-feed";
+import { WORKFLOWS_ACTION_PERMISSIONS, WORKFLOWS_PLUGIN_ID, workflowsActions, workflowsManifest, type WorkflowInstance } from "@molis-ai/molis-work-plugin-workflows";
 import { readRecords } from "@molis-ai/molis-work-service-observation";
 import { openTestHome } from "./fixtures/test-home.js";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
@@ -77,4 +78,93 @@ test("OCL-03 OCL-08 EC-06: a failed step and its retry are two records of one ru
   assert.deepEqual(steps[1]!.evidence.map(item => item.ref), [{ kind: "owner", owner: WORKFLOWS_PLUGIN_ID, id: `${run}:0`, version: (retried.body.instance as WorkflowInstance).updated_at }],
     "the handoff text is the run's, named and not copied");
   assert.ok(!JSON.stringify(steps).includes("客户的周报导出一直失败"));
+});
+
+test("OCL-11 S-35: a continuation cancelled or losing authority mid-handoff records no failed workflow step", { timeout: 120_000 }, async t => {
+  const served = await openTestHome(t, { catalogPolicy: false });
+  const project = await served.createProject("Workflow cancel records", ["feed"]);
+  const seed = new LocalProjectDatabase(project.database_path);
+  try {
+    const source = createLocalFeedSourceService(seed.db, project.project_id).register({
+      kind: "research_library", repository: "molis-ai/research-library", research_source: "twitter-ai-observation",
+    }).source;
+    const feed = createLocalFeedApplication(seed.db);
+    feed.ingestItem({ source, externalId: "note-cancel", title: "中途取消", summary: "s1", body: "b1", occurredAt: new Date().toISOString(), attention: false });
+    feed.ingestItem({ source, externalId: "note-revoke", title: "中途撤权", summary: "s2", body: "b2", occurredAt: new Date().toISOString(), attention: false });
+  } finally { seed.close(); }
+
+  let mode: "abort" | "revoke" = "abort";
+  let stepEntered = 0;
+  const controller = new AbortController();
+  let revoked = false;
+  t.after(served.host.actionRegistry(project.reference).registerProvider({
+    provider: { provider_id: "platform", title: "台面", kind: "system" },
+    definitions: [STEP],
+    handlers: [{
+      ...STEP,
+      handle: async () => {
+        stepEntered += 1;
+        if (mode === "abort") controller.abort();
+        else revoked = true;
+        throw new Error("交接进行中调用已失效");
+      },
+    }],
+  }));
+
+  const root = `${served.origin}/projects/${project.project_id}/api/plugins/${WORKFLOWS_PLUGIN_ID}`;
+  const call = async (method: "GET" | "POST", pathname: string, body: Record<string, unknown> = {}) => {
+    const response = await fetch(root + pathname, {
+      method,
+      headers: {
+        origin: served.origin, "content-type": "application/json",
+        "x-molis-work-control-token": served.controlToken, "x-molis-work-idempotency-key": randomUUID(),
+      },
+      ...(method === "POST" ? { body: JSON.stringify(body) } : {}),
+    });
+    return { status: response.status, body: await response.json() as Record<string, unknown> };
+  };
+  const created = await call("POST", "/workflows", {
+    title: "取消核验",
+    chain: {
+      stations: [
+        { plugin: "feed" },
+        { plugin: "action", action: { ref: { capability_id: STEP.capability_id, version: 1, provider_id: "platform" }, title: "建工单", group: "台面", mapping: { title: { from: "title" } } } },
+      ],
+      links: [{ kind: "function", title_template: "工单：{标题}", body_template: "{正文}", instructions: "" }],
+    },
+  });
+  assert.equal(created.status, 200);
+  const workflowId = (created.body.workflow as { workflow_id: string }).workflow_id;
+  const items = (await call("GET", "/workflows/stations/feed/items")).body.items as Array<{ item_id: string }>;
+  const runCancel = ((await call("POST", `/workflows/${workflowId}/instances`, { item_id: items[0]!.item_id })).body.instance as WorkflowInstance).instance_id;
+  const runRevoke = ((await call("POST", `/workflows/${workflowId}/instances`, { item_id: items[1]!.item_id })).body.instance as WorkflowInstance).instance_id;
+
+  const client = served.host.actionClient(project.reference);
+  const feedPermissions = feedManifest.actions!.filter(definition => definition.action.workflow_content?.id === "feed").flatMap(definition => definition.action.permissions);
+  const baseCaller = {
+    actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user" as const, audience: "user" as const,
+    project_id: project.project_id, permissions: [...new Set([...WORKFLOWS_ACTION_PERMISSIONS, "model:invoke", ...feedPermissions])],
+    user_action: { source: "web" as const, conversation_ref: "test-wf", message_ref: "msg-1" },
+  };
+  mode = "abort";
+  await assert.rejects(client.invoke({ ...baseCaller, idempotency_key: randomUUID(), signal: controller.signal }, workflowsActions.continue, { id: runCancel }));
+  assert.equal(stepEntered, 1, "STEP handler was entered after attempted_at was committed");
+  // `attempted_at` had already been committed before `STEP.handle` threw, so `stillCurrent(original)` is what held back the step report.
+  const unconfirmedCancel = await call("POST", `/workflows/instances/${runCancel}/continue`, {});
+  assert.match(JSON.stringify(unconfirmedCancel.body), /workflows\.uncertain/u);
+
+  mode = "revoke";
+  await assert.rejects(client.invoke({
+    ...baseCaller,
+    idempotency_key: randomUUID(),
+    assert_authority_current: () => { if (revoked) throw new ActionError("actions.forbidden", "权限已收回"); },
+  }, workflowsActions.continue, { id: runRevoke }));
+  assert.equal(stepEntered, 2, "STEP handler was entered on the revoked continuation too");
+  const unconfirmedRevoke = await call("POST", `/workflows/instances/${runRevoke}/continue`, {});
+  assert.match(JSON.stringify(unconfirmedRevoke.body), /workflows\.uncertain/u);
+
+  const layer = served.host.observation!.layer;
+  layer.flush();
+  const steps = readRecords(layer.writer.database()!.db, { limit: 5000 }).filter(record => record.fact === "io.molis.work.native.workflows.step");
+  assert.deepEqual(steps, [], "neither an aborted continuation nor one that lost authority mid-flight reports a failed workflow step");
 });

@@ -108,6 +108,7 @@ F2 创建目标地图里的全部 package。每个 package 必须有：
 - 归属：技能的声明和正文归提供它的插件（Manifest 的 `methods`，内容包里验签的正文与资源，SDK 的 `skill-declarations.ts`、`skill-files.ts` 读写）；目录、开关与用量归 `apps/local-host/src/agent-definitions/`（`skill-catalog*.ts`、`skill-settings*.ts`，Agent 定义库里的 `skill_settings`、`skill_uses` 两张表）；合同在 `packages/contracts/src/services/skills.ts` 与 `services/agent-definitions.ts`（`SkillRef`）；一轮冻结与读正文在 `horizontal/agent-host`。
 - 消费者：助理、Coding、委派（都只认目录给的 `SkillRef`，在一轮开始时由宿主核对）和能力包（`horizontal/kit` 读 `skills.kit.report`）。
 - 能力包（`horizontal/kit`）是包，因为它汇总好几个主人的上报（八个 `*.kit.report` 动作）、自己不存东西，只做汇总；技能目录只有一个主人，所以不是包。
+- 随系统自带的技能包（`plugins/content/<包>` 写 `system`）是构建产物，不是 workspace 包，也不进安装记录：`pnpm build` 打到 `apps/local-host/dist/system-skills/`，技能目录直接读，和安装包共用同一目录；自己写的技能是每范围一个签名内容包（`io.molis.work.my-skills.*`），走同一条安装路径，同样不新增包。
 
 ## 5. Adapter 放置
 
@@ -266,7 +267,7 @@ Repository 仅内部可见是目标约束；当前 Goals/Artifacts 等 public en
 | `horizontal/knowledge` | 横向 | 11 | 1,388 | `index.ts` 426 | 1 | 2 | 1 | 在用 | 浅 | 待审 |
 | `horizontal/mainline` | 横向 | 1 | 269 | `index.ts` 269 | 1 | 2 | 1 | 在用 | 浅 | 待审 |
 | `horizontal/memory` | 横向 | 23 | 3,180 | `service.ts` 1,151 | 1 | 1 | 1 | 在用 | 中 | 已审 |
-| `horizontal/observation` | 横向 | 14 | 1,128 | `writer.ts` 249 | 1 | 3 | 1 | 在用 | 中 | 待审 |
+| `horizontal/observation` | 横向 | 21 | 2,721 | `read-actions.ts` 520 | 1 | 3 | 1 | 在用 | 中 | 待审 |
 | `horizontal/placement` | 横向 | 6 | 908 | `index.ts` 617 | 1 | 2 | 1 | 在用 | 中 | 已审 |
 | `horizontal/runtime-host` | 横向 | 2 | 436 | `adapters/terminal-pty.ts` 424 | 1 | 1 | 2 | 在用 | 浅 | 已审 |
 | `horizontal/scheduler` | 横向 | 2 | 622 | `index.ts` 541 | 1 | 2 | 1 | 在用 | 中 | 已审 |

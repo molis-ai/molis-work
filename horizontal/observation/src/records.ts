@@ -4,6 +4,7 @@ import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/
 import {
   OBSERVATION_LIMITS, OBSERVATION_OWNER_SOURCE_CLASSES, OBSERVATION_SERVICE_PREFIXES, type ObservationBackgroundOrigin, type ObservationConditions, type ObservationDetail, type ObservationEntry,
   type ObservationFactInput, type ObservationMissingInput, type ObservationOwner, type ObservationOwnerVersionRef, type ObservationSourceClass, type ObservationSubject,
+  type ObservationSubjectResolutionStatus,
 } from "@molis-ai/molis-work-contracts/services/observation";
 import { currentObservationSource } from "./source-scope.js";
 
@@ -13,6 +14,14 @@ export interface ObservationEnvironment {
   now(): Date;
   /** The project's data class from the catalog; undefined for the Home itself or a project the catalog does not have. */
   projectClass(projectId: string): "user" | "regenerable_demo" | undefined;
+  /** Live non-closing project ids the person may read across right now (S-74); worked out on every call. */
+  readableProjects?(): Promise<readonly string[] | undefined> | readonly string[] | undefined;
+  /** Check whether a recorded subject or owner version reference still exists in its owner (contract-design §13, §16.3.5). */
+  resolveSubject?(
+    projectId: string | null,
+    subject: { readonly kind: string; readonly id: string; readonly version?: string | number },
+    caller?: ActionCallContext,
+  ): Promise<ObservationSubjectResolutionStatus> | ObservationSubjectResolutionStatus;
 }
 
 export type Origin = ActionCallContext | ObservationBackgroundOrigin;

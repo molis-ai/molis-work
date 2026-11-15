@@ -467,7 +467,7 @@ P1 冻结的是语义（§4.6.9）。这一节写 P3 在 Molis 一侧具体怎�
 
 #### 4.6.11 结果回流要补的（2026-11-14，路线书第 32 批）
 
-[主动助理](../proactive-assistant/spec.md) §7.5.4 要求任务的结果回到派出它的对话，由它判断并推进。对照 Prologue `5cbf2601`（现用的包）与 Molis main `392f3bdd71` 核过，接续的合同（§4.6.2、§4.6.4）够用，差的是下面几处。用户 2026-11-14 授权修改 Prologue 代码，改动随第 32 批换一次包（[路线书决定 47](../post-anticorruption-roadmap/reference/decisions.md#decision-47)），不新增模块，落在现有 `orchestration`、`composition`。
+[主动助理](../proactive-assistant/spec.md) §7.5.4 要求任务的结果回到派出它的对话，由它判断并推进。对照 Prologue `5cbf2601`（现用的包）与 Molis main `392f3bdd71` 核过，接续的合同（§4.6.2、§4.6.4）够用，差的是下面几处。用户 2026-11-14 授权修改 Prologue 代码，改动随第 32 批换一次包（[路线书决定 48](../post-anticorruption-roadmap/reference/decisions.md#decision-48)），不新增模块，落在现有 `orchestration`、`composition`。
 
 | 缺口 | 现状 | 要补成 | 落在哪 |
 | --- | --- | --- | --- |

@@ -19,7 +19,7 @@
 | 9 | 安全不变量与拒绝测试 | 扩充 `S-observation-records`（留存动作的本人受众、`use: "evaluation"` 关闭拦截、跨项目隔离、删项目与清除插件数据优先于样本留存），并补 `tests/security-invariants-evaluation.test.ts`（评测结论与人工纠正不改写原记录与业务库、回放阻断外部副作用且不混入真实工作查询、CLI 拒绝指向真实 `~/.molis-work`）。 |
 | 10 | 界面与页面资源影响 | 本批界面要求为「无需新增产品 UI」；删项目登记 `EVALUATION_OWNER` 采用 `label: null`，不触碰 `apps/workbench` 启动词包与前端 bundle，页面资源增量为 0。 |
 | 11 | 宿主薄装配（C3） | `apps/local-host/src/evaluation-host.ts` 仅做薄装配（把 Home 路径、系统时钟、`ActionClient` 与 `withObservationSource("replay", ...)` 注入 `EvaluationService`，注册 `system.evaluation` 提供方，接入删项目与 `close()`），全部评测状态机与规则留在 `horizontal/evaluation`。 |
-| 12 | 模型设置与隔离 Home CLI | 命令行入口 `scripts/run-evaluation.mts`（`pnpm eval:run`）严格拒绝 `~/.molis-work` 及其父子路径；默认创建一次性临时 Home 并在 `finally` 删除。支持 `--mode deterministic`（零外部成本，跑真实插件与替身模型端到端工作＋隔离回放＋双次复现核对）与 `--mode live`（默认按用户要求配置 **Gemini 系列模型**：`openai-chat-completions` + `https://generativelanguage.googleapis.com/v1beta/openai` + 默认 `gemini-2.5-flash`，支持切换 `gemini-2.5-pro` 等；内联读取 `GEMINI_API_KEY`／`MOLIS_EVAL_API_KEY` 仅写入临时 Home 的文件密钥库 `MOLIS_WORK_SECRET_BACKEND=file`，不碰钥匙串、不打日志）。 |
+| 12 | 模型设置与隔离 Home CLI | 命令行入口 `scripts/run-evaluation.mts`（`pnpm eval:run`）严格拒绝 `~/.molis-work` 及其父子路径；默认创建一次性临时 Home 并在 `finally` 删除。支持 `--mode stand-in`（零外部成本，跑真实插件与替身模型端到端工作＋隔离回放＋双次复现核对）与 `--mode live`（默认按用户要求配置 **Gemini 系列模型**：`openai-chat-completions` + `https://generativelanguage.googleapis.com/v1beta/openai` + 默认 `gemini-2.5-flash`，支持切换 `gemini-2.5-pro` 等；内联读取 `GEMINI_API_KEY`／`MOLIS_EVAL_API_KEY` 仅写入临时 Home 的文件密钥库 `MOLIS_WORK_SECRET_BACKEND=file`，不碰钥匙串、不打日志）。 |
 | 13 | 门禁影响 | `table-owners` 0 违规、`store-schemas`／`store-versions`／`golden-homes`／`backlog-rows`／`backlog-refs`／`api`／`actions`／`boundary:check`／`page-assets:check`／`secrets:check` 全绿。 |
 | 14 | 路线书映射与 Backlog 清理 | 收口并 `git rm specs/backlog/BL-328.md`，记入 [docs/backlog-removed.md](../../docs/backlog-removed.md) 墓碑表；更新 [BL-observation-b28-known-limits.md](../backlog/BL-observation-b28-known-limits.md) ⑤；更新 [requirements.md](../post-anticorruption-roadmap/reference/requirements.md) 中 `PWA-51`～`PWA-56`、`OCL-12`～`14`/`17` 与 `BL-328` 行。 |
 | 15 | 哪些需要用户拍板 | 无。D1-Q2 已在 [contract-design.md](contract-design.md) §6 定好样本留存归第 30 批升级段，模型系列用户已明确指定按 Gemini 系列设置，无新增 UI 或保留兼容机制。 |
@@ -158,19 +158,19 @@ CREATE INDEX evaluation_hold_records_record ON evaluation_hold_records (record_i
 
 ## 5. 内置代表性真实评测样本集与隔离 Home 命令（收口 `BL-328`）
 
-1. **内置标准评测样本包（`horizontal/evaluation/src/canonical-samples.ts`）**：
+1. **内置标准评测样本集（`scripts/evaluation/suite.mts`）**：
    直接对齐 [eval-cases.md](eval-cases.md) 与主动助理 §14，覆盖不同工作方式与结局：
-   - `ec-01-manual-pages-versions`（手动插件多版本编辑，无 AI 参与，核对同一工作流中两个不同 `owner_version_ref` 与对象可解析性）；
-   - `ec-02-assistant-turn-skill-delivery`（助理理解→读取资料与方法版本→调用真实插件动作交付，核对模型请求、Skill 版本、工具关联与非自述成功）；
-   - `ec-06-workflow-failure-and-retry`（工作流交接中途失败后重试恢复，保留原失败记录并核对最终完成，不掩盖失败）；
-   - `ec-08-refusal-minimal-record`（处理器开始前被拒只留最小诊断行且不泄露敏感输入证据）；
-   - `ec-09-interleaved-tasks-and-stop`（任务 A 运行中交错发起任务 B 并由本人停止 A，核对调用归属不串、停止发起方准确）；
-   - `ec-16-cleanup-gap-and-hold-survival`（清理后未留存样本因 `expired` 缺口如实判 `unknown`，而挂载 `evaluation_holds` 的回归样本在清理后仍完整可评 `passed`）；
-   - `ec-18-replay-and-demo-isolation`（`demo` 与 `replay` 记录可单独评测，但默认 `"real"` 查询与指标完全隔离）；
-   - `pwa-55-56-opportunity-and-unexposed-window`（独立机会依据检出“应发现而漏掉”为 `failed`、“识别后合理保持安静”为 `passed`，以及“未实际曝光／观察截止时刻未到”严格判为 `unknown`）。
+   - `ec-01-pages-evolution`（Pages 多版本修订与成果发布链路，核对同一工作流中两个独立对象版本、`owner` 引用实时可解析性与修订输入快照）；
+   - `ec-02-model-round`（Prologue 真实模型回合完整事实序列＋带版本评测器规则核对中文摘要要点与等价变化）；
+   - `ec-02-no-self-cert`（`tuning` 组：底层动作失败时拦截模型自证成功，并配 `human_reference` 人工复查只追加评测库不改写历史记录）；
+   - `ec-06-quiet-restraint`（独立机会依据下专注编辑期间保持 `quiet` 姿态、不打扰不计负向率）；
+   - `ec-08-unexposed-opportunity`（尚未向用户曝光的机会严格归入 `unknown` `unexposed`，不补成失败）；
+   - `ec-09-interleaved-isolation`（主次 `work_ref` 穿插执行时不串用调用号或目标对象）；
+   - `ec-16-held` 与 `ec-16-unheld`（7 天到期清理后，挂 `evaluation_holds` 的回归样本完整存活判 `passed`，未留存样本因 `coverage_gap_expired` 如实判 `unknown`）；
+   - `ec-18-replay-compare`（`tuning` 组隔离回放阻断外部副作用、保持 `source_class: "replay"` 与真实工作查询隔离，并完成前后两版六阶段差异对比 `materials` 由 `failed` 提升至 `passed`）。
 
 2. **隔离 Home 可复现 CLI（`scripts/run-evaluation.mts`，`pnpm eval:run`）**：
-   - **安全护栏**：检查 `--home`、`MOLIS_WORK_HOME` 与默认路径，凡解析后等于、包含或位于真实 `~/.molis-work` 下立即拒绝退出（附测试钉死）；默认在系统临时目录创建一次性 `<tmpdir>/molis-eval-<uuid>`，结束时无论成败自动清理（传 `--keep-temp-home` 仅允许保留在显式非真实临时目录供排查）。
+   - **安全护栏**：检查 `--home`、`MOLIS_WORK_HOME` 与默认路径，凡解析后等于、包含或位于真实 `~/.molis-work` 下立即拒绝退出（附测试钉死）；默认在系统临时目录创建一次性 `<tmpdir>/molis-eval-<uuid>`，结束时无论成败自动清理（传 `--keep-home` 仅允许保留在显式非真实临时目录供排查）。
    - **两种运行模式**：
-     - `--mode deterministic`（默认）：在隔离临时 Home 启动真实 `MolisWorkLocalHost`，驱动真实插件（Pages、Todo、Workflows 等）、权限拒绝、并发交错、清理与留存、以及隔离 `replay`，跑完内置样本集＋版本前后对比＋人工纠正演练，并支持 `--verify-reproducible` 连跑两轮独立临时 Home 校验每个样本结论、阶段定位与统计口径 100% 一致。
-     - `--mode live`（真实模型模式，默认 **Gemini 系列**）：默认设置 `api_format = "openai-chat-completions"`、`base_url = "https://generativelanguage.googleapis.com/v1beta/openai"`、`model = "gemini-2.5-flash"`（可通过 `--model gemini-2.5-pro` 等参数切换任意 Gemini 模型）；从环境变量 `GEMINI_API_KEY`（或 `MOLIS_EVAL_API_KEY`）单次内联读取密钥，仅写入临时 Home 的文件密钥库（`MOLIS_WORK_SECRET_BACKEND=file`）并固定 `model-api` 连接目标源，经 `AgentHost` 跑真实模型轮次后用同一套 `system.evaluation` 判定并输出结构化报告（含耗时、请求数、模型标识与可比条件）；未提供密钥时明确输出 `SKIP (missing GEMINI_API_KEY)` 而不静默伪造通过。
+     - `--mode stand-in`（默认）：在隔离临时 Home 启动真实 `MolisWorkLocalHost` 与 Prologue Runtime，驱动真实插件（Pages、Todo）、模型回合、并发交错、清理与留存、以及隔离 `replay`，跑完内置样本集＋版本前后对比＋人工纠正演练，并支持 `--verify-reproducible` 连跑两轮独立临时 Home 校验可复现摘要（`reproducibility_digest`）100% 一致。
+     - `--mode live`（真实模型模式，默认 **Gemini 系列**）：默认设置 `api_format = "openai-chat-completions"`、`base_url = "https://generativelanguage.googleapis.com/v1beta/openai"`、`model = "gemini-2.5-flash"`（可通过 `--model gemini-2.5-pro` 等参数切换任意 Gemini 模型）；从环境变量 `GEMINI_API_KEY`（或 `MOLIS_EVAL_API_KEY`）单次内联读取密钥，仅写入临时 Home 的文件密钥库（`MOLIS_WORK_SECRET_BACKEND=file`）并配置隔离模型提供方，经 `AgentHost` 跑真实模型轮次后用同一套 `system.evaluation` 判定并输出结构化报告；未提供密钥时明确输出 `SKIP:`（加 `--require-live` 则非零退出拒绝）而不静默伪造通过。

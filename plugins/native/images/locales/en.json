@@ -15,6 +15,14 @@
     "images.account.saved": "Account connection saved; the key is managed in Connectors.",
     "images.account.unavailable": "Connection unavailable",
     "images.background.generating": "Generating with {model}",
+    "images.background.done": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "Generated {count} image",
+        "other": "Generated {count} images"
+      }
+    },
+    "images.background.failed": "Not generated",
     "images.background.open": "Open Images",
     "images.background.stop-summary": "Stop waiting on this computer; the vendor may still generate or charge",
     "images.capability-library.images-jobs-start-v1.title": "Generate image",

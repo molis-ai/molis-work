@@ -221,6 +221,9 @@ test("W5-01-CODING-37, WLN-34 a plugin's answer is checked before the page draws
     fixtureTask({ title: 7 }), fixtureTask({ state: "" }), fixtureTask({ state: "made-up" }), fixtureTask({ details: Array(9).fill({ text: "x" }) }), fixtureTask({ details: [{ text: "x", count: 1.5 }] }), fixtureTask({ scope: "everywhere" }),
     fixtureTask({ executor: { kind: "person", label: "x" } }), fixtureTask({ serves: [{ kind: "note" }] }), fixtureTask({ open: { kind: "item", surface: "../x", id: "1", title: "t", label: "l" } }), null] });
   assert.deepEqual(mixed.map(item => item.subject.id), ["j"], "only the well-formed task of a mixed answer is kept; a kind the provider did not declare is not");
+  // PWA-155: a row a plugin keeps a short while after it ended (to hand back to the Assistant) is not on the Home's list of what is running.
+  const ended = await ask({ source: SOURCE, tasks: ["done", "saved", "partial", "failed", "running"].map(state => fixtureTask({ subject: { kind: "homebg_task", id: state }, state })) });
+  assert.deepEqual(ended.map(item => item.subject.id).sort(), ["failed", "running"], "PWA-155 ended rows (done, saved, partial) are left out of the Home list; a failed one still waits for the person");
 
   // The refusal: a row cannot put another provider's action behind a button the person presses.
   const own = mixed[0]!.source.provider_id;

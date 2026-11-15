@@ -99,9 +99,9 @@ test("PWA-156 the report's round runs as a read-only role with no host tools, an
 test("PWA-155 PWA-157 the Assistant tells the person once and starts one round that only reports, in the project's main conversation", async () => {
   const db = new DatabaseSync(":memory:"), store = new AssistantStore(db);
   let latest: { phase: AgentRunView["phase"] } | null = null, continuation: string | undefined, refuse: Error | undefined;
-  const started: string[] = [];
+  const started: string[] = [], followed = new Set<string>();
   const rounds = (on: AssistantStore) => new AssistantReportRounds({ store: on, actorId: "user", session: async () => ({ latest_run: latest }), continuation: async () => continuation,
-    start: async (_work, text) => { if (refuse) throw refuse; started.push(text); } });
+    start: async (_work, text) => { if (refuse) throw refuse; started.push(text); }, follows: async (_project, job) => followed.has(job) });
   const reportRounds = rounds(store);
   // Ends after the main conversation exists (an end from before it is not news to it, below).
   const later = (minutes: number) => new Date(Date.now() + minutes * 60_000).toISOString();
@@ -131,6 +131,10 @@ test("PWA-155 PWA-157 the Assistant tells the person once and starts one round t
     assert.equal(await reportRounds.report(other), "later");
     assert.equal(notices().length, 1);
     refuse = undefined;
+    // PWA-155: a job a conversation started and follows is that conversation's news, whatever its row says.
+    followed.add("t7");
+    assert.equal(await reportRounds.report({ project_id: "p", row: row({ subject: { kind: "demo_task", id: "t7" }, updated_at: later(3) }), end: "done" }), "none");
+    assert.deepEqual([started.length, notices().length], [1, 1]);
     // Restarted: the same end is not reported again.
     assert.equal(await rounds(new AssistantStore(db)).report(report), "none");
     assert.equal(started.length, 1);

@@ -1,4 +1,4 @@
-import type { ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { BACKGROUND_TASK_DONE_STATES, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { StateRingState } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { BackgroundTaskRow, BackgroundTasksReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
 import type { AgentActionClient } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -19,7 +19,7 @@ import type { AssistantStore, StoredWork } from "./assistant-store.js";
  */
 
 /** The states a report is for: what ended well, and what ended without being done. */
-const DONE: ReadonlySet<StateRingState> = new Set(["done", "saved", "partial"]);
+const DONE = BACKGROUND_TASK_DONE_STATES;
 const FAILED: ReadonlySet<StateRingState> = new Set(["failed"]);
 export const reportedEnd = (row: Pick<BackgroundTaskRow, "state">): "done" | "failed" | null => DONE.has(row.state) ? "done" : FAILED.has(row.state) ? "failed" : null;
 
@@ -107,6 +107,8 @@ interface ReportRoundPorts {
   continuation(work: StoredWork): Promise<string | undefined>;
   /** Start the round that only reports, as the Host (`report_only`). */
   start(work: StoredWork, text: string): Promise<unknown>;
+  /** Whether one of this person's works in the project follows the job a row is about: then it is that conversation's news. */
+  follows(projectId: string, jobId: string): Promise<boolean>;
 }
 
 /**
@@ -131,6 +133,8 @@ export class AssistantReportRounds {
     if (!main || Date.parse(row.updated_at) < Date.parse(main.created_at)) return "none";
     const key = `task-report-${createHash("sha256").update(JSON.stringify([report.project_id, row.id, end, row.updated_at])).digest("base64url").slice(0, 32)}`;
     if (this.ports.store.noticeRaised(this.ports.actorId, key)) return "none";
+    // A job a conversation started and follows returns to it (assistant-jobs.ts): its provider may not know who started it.
+    if (await this.ports.follows(report.project_id, row.subject.id)) return "none";
     if (main.session_id) {
       const session = await this.ports.session(main);
       if (session.recovery || (session.latest_run && !isTerminalAgentPhase(session.latest_run.phase))) return "later";

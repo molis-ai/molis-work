@@ -72,10 +72,16 @@ export interface BackgroundTask {
    * report on once it ends (specs/work-line contract-design §9; user decision 2026-11-15): when the table shows it ended — a done
    * or failed state — the Assistant runs one round in that scope's main conversation that only reports and advises. That round
    * has no authority to carry the task on: it may read, but it starts no task and runs no command. A row that leaves the table
-   * without having been shown ended is not reported. A task a conversation sent out never says this: it returns to that conversation.
+   * without having been shown ended is not reported, so a provider keeps an ended row a short while for it to be seen (and lists it
+   * in an ended state: the panel shows it among what just came back, the Home's list of unfinished work leaves it out). A task a
+   * conversation sent out returns to that conversation: one whose provider cannot tell who started it may still say this, and a
+   * job a conversation follows as its own is not reported to the Assistant again.
    */
   reports_to?: "assistant";
 }
+
+/** The ring states a task ended well in. A row in one stays in the table only while its owner keeps it to be reported (`reports_to`). */
+export const BACKGROUND_TASK_DONE_STATES: ReadonlySet<StateRingState> = new Set(["done", "saved", "partial"]);
 
 export interface BackgroundTaskCollection {
   /** Who answers: the workbench surface its tasks open on, with its name and glyph. */

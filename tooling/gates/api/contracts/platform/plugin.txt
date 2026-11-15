@@ -1470,6 +1470,8 @@ export declare const BACKGROUND_TASK_DECISION_SCHEMA: {
     additionalProperties: boolean;
 };
 
+export declare const BACKGROUND_TASK_DONE_STATES: ReadonlySet<StateRingState>;
+
 export declare const BACKGROUND_TASK_SCHEMA: {
     type: string;
     properties: {

@@ -1,4 +1,4 @@
-import { ActionError, BACKGROUND_TASKS_OUTPUT_TYPE, type BackgroundTaskCollection } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, BACKGROUND_TASK_DONE_STATES, BACKGROUND_TASKS_OUTPUT_TYPE, type BackgroundTaskCollection } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { BackgroundTaskRow } from "@molis-ai/molis-work-contracts/services/mainline";
 import { backgroundTaskOrigin, backgroundTaskRow } from "@molis-ai/molis-work-service-mainline";
 import { collectHomeAggregate, type HomeAggregatePorts } from "./home-aggregate.js";
@@ -28,7 +28,8 @@ export async function homeBackgroundTasks(ports: HomeAggregatePorts, projects: R
     if (!origin || !tasks) { unreadable.failed(key, new ActionError("actions.output_invalid", "后台任务的回答读不了"), { project_id: answer.project_id }); continue; }
     unreadable.worked(key); unreadable.worked(`${answer.project_id}:`);
     const project = { project_id: answer.project_id, project_name: names.get(answer.project_id) ?? answer.project_id };
-    for (const task of tasks) { const row = backgroundTaskRow(task, answer.source, origin, answer.subject_kinds); if (row) rows.push({ ...row, ...project }); }
+    // What ended is kept by its owner only to be reported (`reports_to`): this list is what is still being done or waits on the person.
+    for (const task of tasks) { const row = backgroundTaskRow(task, answer.source, origin, answer.subject_kinds); if (row && !BACKGROUND_TASK_DONE_STATES.has(row.state)) rows.push({ ...row, ...project }); }
   }
   for (const issue of issues) unreadable.failed(`${issue.project_id}:${issue.source?.capability_id ?? ""}`, new ActionError(issue.code, "后台任务读不出来"), { project_id: issue.project_id });
   return rows.sort((a, b) => b.updated_at.localeCompare(a.updated_at) || a.project_id.localeCompare(b.project_id));

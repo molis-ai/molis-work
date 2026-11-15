@@ -5,7 +5,7 @@
  * one step to that event's tab, and its stop — the command the row itself carries, which the service checks with the owner again.
  * A part of the work bar's bundle (work-bar.ts), which owns the line and hands this what the line last showed.
  */
-import type { ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
+import { BACKGROUND_TASK_DONE_STATES, type ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { StateRingState, UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { BackgroundTaskRow, BackgroundTasksReadResult, WorkLineEvent } from "@molis-ai/molis-work-contracts/services/mainline";
 import { escapeHtml, renderButton, t as uiText, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
@@ -152,7 +152,10 @@ export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take
       steps: task.step ? [{ name: task.step.text, at: "current", ring: task.state, who: task.executor.label }] : [], actions });
   };
   const paintTasks = () => {
-    const live = [...tasks].sort((a, b) => weight(a) - weight(b) || b.updated_at.localeCompare(a.updated_at));
+    // A task that ended stays in the table only to be reported (`reports_to`): it is among what just came back, not what is under way.
+    const ended = (task: BackgroundTaskRow) => BACKGROUND_TASK_DONE_STATES.has(task.state);
+    const live = tasks.filter(task => !ended(task)).sort((a, b) => weight(a) - weight(b) || b.updated_at.localeCompare(a.updated_at));
+    const returned = tasks.filter(ended).sort((a, b) => b.updated_at.localeCompare(a.updated_at));
     const counts = { needsYou: live.filter(asks).length, failed: live.filter(task => !asks(task) && FAILED.has(task.state)).length, working: 0 };
     counts.working = live.length - counts.needsYou - counts.failed;
     for (const mark of document.querySelectorAll("[data-task-mark]"))
@@ -161,7 +164,7 @@ export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take
     if (asked) { carded = asked.id; placing = true; wanted = ""; }
     const shown = tasks.find(task => task.id === carded);
     if (!shown) { carded = ""; placing = false; }
-    if (float) { const on = float; keepNote(on, () => { on.innerHTML = shown ? card(shown) : renderTaskPanel({ id: PANEL, live: live.map(row), returned: [], counts, ...(offlineSince === null ? {} : { offlineSince }) }); }); installWorkLineLayout(document); }
+    if (float) { const on = float; keepNote(on, () => { on.innerHTML = shown ? card(shown) : renderTaskPanel({ id: PANEL, live: live.map(row), returned: returned.map(row), counts, ...(offlineSince === null ? {} : { offlineSince }) }); }); installWorkLineLayout(document); }
     // A task's card sums up the requirements hung on the task itself: a task done for no event has no event card to say it.
     accepting?.destroy(); accepting = undefined;
     const slot = shown ? float?.querySelector<HTMLElement>("[data-task-acceptance]") : null;

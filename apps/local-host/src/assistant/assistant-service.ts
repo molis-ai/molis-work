@@ -131,7 +131,11 @@ export class AssistantService {
     this.notices = new AssistantNotices(store, ports, actorId, now, { assistantPart: (...a) => this.reads.assistantPart(...a), workObjects: (...a) => this.reads.workObjects(...a), continuations: this.continuations, followUps: this.followUps, jobs: this.jobs, delegations: this.delegations });
     this.reports = new AssistantReportRounds({ store, actorId, session: async work => (await this.ports.host()).adapter(RUNTIME).readSession(sessionRef(work)),
       continuation: async work => (await this.continuations.view(work).catch(() => undefined))?.continuation?.state,
-      start: (work, text) => this.hostStarted(() => this.dispatcher.dispatch(work, text, [], null, undefined, "host", undefined, undefined, undefined, { byHost: true, report_only: true })) });
+      start: (work, text) => this.hostStarted(() => this.dispatcher.dispatch(work, text, [], null, undefined, "host", undefined, undefined, undefined, { byHost: true, report_only: true })),
+      follows: async (projectId, jobId) => {
+        for (const work of store.list(actorId)) if (work.project_ref?.project_id === projectId && (await this.jobs.views(work).catch(() => [])).some(job => job.job_id === jobId)) return true;
+        return false;
+      } });
   }
 
   async list(): Promise<AssistantWork[]> {

@@ -15,6 +15,13 @@
     "images.account.saved": "账号连接已保存；密钥在 Connectors 中管理。",
     "images.account.unavailable": "连接不可用",
     "images.background.generating": "正在用 {model} 生成",
+    "images.background.done": {
+      "plural_arg": "count",
+      "forms": {
+        "other": "生成好了 {count} 张"
+      }
+    },
+    "images.background.failed": "没有生成出来",
     "images.background.open": "打开图片",
     "images.background.stop-summary": "停止本机等待；厂商可能仍在生成或计费",
     "images.capability-library.images-jobs-start-v1.title": "生成图片",

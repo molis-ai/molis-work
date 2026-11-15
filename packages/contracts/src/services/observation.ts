@@ -2,6 +2,19 @@ import type { ActionCallContext, ActionDefinition } from "../platform/actions.js
 import { inputSchemaFor } from "../platform/action-input.js";
 import { closedObjectSchema } from "../platform/closed-object-schema.js";
 import type { ContractDescriptor } from "../platform/package.js";
+import { observationHoldActions } from "./observation-holds.js";
+import { OBSERVATION_LIMITS } from "./observation-types.js";
+
+export { OBSERVATION_LIMITS } from "./observation-types.js";
+export type {
+  ObservationHoldListInput,
+  ObservationHoldListOutput,
+  ObservationHoldPutInput,
+  ObservationHoldPutResult,
+  ObservationHoldReleaseInput,
+  ObservationHoldReleaseResult,
+  ObservationHoldView,
+} from "./observation-holds.js";
 
 // The observation layer's write, read and management contract (specs/observation-collection/contract-design.md, batches 28 & 29):
 // what one record of the work says, the classes of where it came from, the three ways facts come in, what the coverage register can say,
@@ -48,29 +61,6 @@ export type ObservationWriterMissingReason = (typeof OBSERVATION_WRITER_MISSING_
 /** What the coverage register says about one kind of fact (design §8; the ten states the settings page shows). */
 export const OBSERVATION_COVERAGE_STATES = ["complete", "not_connected", "unavailable", "lost", "truncated", "redacted", "expired", "purged", "not_applicable", "by_rule"] as const;
 export type ObservationCoverageState = (typeof OBSERVATION_COVERAGE_STATES)[number];
-
-export const OBSERVATION_LIMITS = {
-  facts_per_report: 100,
-  fact_name: 96,
-  stage: 64,
-  subjects: 16,
-  evidence: 16,
-  detail_keys: 32,
-  detail_text: 512,
-  ref_text: 256,
-  /** All content of one report together, as its texts' UTF-8 bytes; a larger report is turned down whole. */
-  report_content_bytes: 1024 * 1024,
-  /** Reports per actor, project and installation over a rolling minute (the platform's `max_calls_per_minute`). */
-  reports_per_minute: 60,
-  /**
-   * What one reporter (a plugin installation, or the shell) may have accepted in a UTC day, all its projects together. Past either, every
-   * report is turned down until the day ends, and the coverage register keeps one `lost` stretch for that reporter, not one per fact name.
-   */
-  facts_per_reporter_day: 20_000,
-  content_bytes_per_reporter_day: 64 * 1024 * 1024,
-  /** A snapshot larger than this, uncompressed, keeps only its digest and length, and is `missing: truncated`. */
-  snapshot_bytes: 4 * 1024 * 1024,
-} as const;
 
 /** A fact name: `<owner prefix>.<name>`, lower case, dot-joined. A plugin's prefix is its own `plugin_id`; the services' are listed below. */
 export const OBSERVATION_FACT_PATTERN = "^[a-z][a-z0-9-]*(\\.[a-z][a-z0-9_-]*)+$";
@@ -736,4 +726,5 @@ export const observationActions = {
         cleaned_at: { type: "string" },
       }) },
   } as ActionDefinition<ObservationCleanupScopeInput, ObservationCleanupResult>,
+  ...observationHoldActions,
 };

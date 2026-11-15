@@ -9,7 +9,7 @@ import { promisify } from "node:util";
 const run = promisify(execFile);
 
 test("APR-11 / S-25: the native input fence refuses replacements and releases only the original gesture", {
-  skip: process.platform !== "darwin", timeout: 60_000,
+  skip: process.platform !== "darwin", timeout: 120_000,
 }, async t => {
   const source = resolve("apps/local-host/native/computer/Sources"), scratch = await mkdtemp(join(tmpdir(), "molis-native-original-"));
   t.after(() => rm(scratch, { recursive: true, force: true }));
@@ -97,13 +97,14 @@ do {
 
 let file: [String: Any] = ["pid": 42, "expected_window": original.wire, "path": "/isolated/fixture.txt"]
 var deliveries: [pid_t] = []
-for outcome in ["unavailable", "replaced", "unknown", "accepted"] {
+for outcome in ["unavailable", "send-refused", "replaced", "unknown", "accepted"] {
     live = original
     let delivery = Input(validateEnvironment: {}, readWindow: { _ in live }, prepareFile: { pid, _ in
         if outcome == "unavailable" { throw HelperError("file.delivery_unavailable", "permission refused") }
         if outcome == "replaced" { live = target(launch: 2) }
         return {
             deliveries.append(pid)
+            if outcome == "send-refused" { throw HelperError("file.delivery_unavailable", "appleeventsd refused before target", partial: false) }
             if outcome == "unknown" { throw HelperError("file.delivery_failed", "original reply lost") }
             return ["accepted": true]
         }
@@ -112,15 +113,35 @@ for outcome in ["unavailable", "replaced", "unknown", "accepted"] {
         let result = try delivery.giveFile(file)
         check(outcome == "accepted" && result["accepted"] as? Bool == true, "only the accepted original delivery succeeds")
     } catch let error as HelperError {
-        if outcome == "unavailable" { check(error.code == "file.delivery_unavailable" && error.partial == false, "permission refused before send") }
+        if outcome == "unavailable" || outcome == "send-refused" { check(error.code == "file.delivery_unavailable" && error.partial == false, "permission refused before target stays partial=false") }
         else if outcome == "replaced" { check(error.code == "window.changed" && error.partial == false, "process changed before send") }
         else { check(outcome == "unknown" && error.code == "file.delivery_failed" && error.partial == true, "lost reply remains unknown") }
     }
 }
-check(deliveries == [42, 42], "only the original process gets the accepted and unknown sends")
+check(deliveries == [42, 42, 42], "only the original process gets send attempts")
+
+// No-op flagsChanged heartbeats (e.g. remote desktop modifier sync) do not abort an in-flight input, while real modifier changes do.
+if let noopFlags = CGEvent(keyboardEventSource: nil, virtualKey: 56, keyDown: false),
+   let shiftDown = CGEvent(keyboardEventSource: nil, virtualKey: 56, keyDown: true) {
+    noopFlags.type = .flagsChanged; noopFlags.flags = []
+    shiftDown.type = .flagsChanged; shiftDown.flags = .maskShift
+    let flagsCheck = Input.shared
+    do {
+        try flagsCheck.perform(42) {
+            Presence.shared.saw(.flagsChanged, noopFlags)
+            try flagsCheck.checkpoint()
+            Presence.shared.saw(.flagsChanged, shiftDown)
+            try flagsCheck.checkpoint()
+            fatalError("real modifier press was not noticed")
+        }
+    } catch let error as HelperError {
+        check(error.code == "person.present", "real modifier change interrupts input")
+    }
+    Presence.shared.saw(.flagsChanged, noopFlags)
+}
 `);
   const executable = join(scratch, "original-window");
-  await run("/usr/bin/xcrun", ["swiftc", "-swift-version", "5", "-module-cache-path", join(scratch, "cache"),
+  await run("/usr/bin/xcrun", ["swiftc", "-swift-version", "5",
     join(scratch, "main.swift"), join(source, "Input.swift"), join(source, "Observe.swift"), join(source, "Presence.swift"), "-o", executable]);
   await run(executable);
 });

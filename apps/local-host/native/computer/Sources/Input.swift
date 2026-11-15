@@ -61,7 +61,7 @@ final class Input {
             lock.lock(); running = false; self.validateTarget = {}; lock.unlock()
         }
         do { try validateTarget(); return try body() }
-        catch let error as HelperError { throw HelperError(error.code, error.message, partial: didChange) }
+        catch let error as HelperError { throw HelperError(error.code, error.message, partial: error.partial ?? didChange) }
     }
 
     private func checkLocked() throws {

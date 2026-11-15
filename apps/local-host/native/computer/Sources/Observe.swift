@@ -587,10 +587,12 @@ enum Observe {
         guard FileManager.default.fileExists(atPath: path, isDirectory: &directory), !directory.boolValue else {
             throw HelperError("file.missing", "没有这个文件")
         }
+        guard let app = NSRunningApplication(processIdentifier: pid), !app.isTerminated else {
+            throw HelperError("app.gone", "应用已经退出")
+        }
         let target = NSAppleEventDescriptor(processIdentifier: pid)
-        guard let address = target.aeDesc,
-              AEDeterminePermissionToAutomateTarget(address, AEEventClass(kCoreEventClass), AEEventID(kAEOpenDocuments), false) == noErr else {
-            throw HelperError("file.delivery_unavailable", "系统不允许将文件直接交给原应用进程，请在应用中自行打开")
+        guard target.aeDesc != nil else {
+            throw HelperError("file.delivery_unavailable", "系统不允许将文件直接交给原应用进程，请在应用中自行打开", partial: false)
         }
         let documents = NSAppleEventDescriptor.list()
         documents.insert(NSAppleEventDescriptor(fileURL: URL(fileURLWithPath: path)), at: 1)
@@ -602,9 +604,17 @@ enum Observe {
             do {
                 let reply = try event.sendEvent(options: options, timeout: 5)
                 if let status = reply.paramDescriptor(forKeyword: AEKeyword(keyErrorNumber)), status.int32Value != 0 {
+                    if status.int32Value == Int32(errAEEventNotPermitted) || status.int32Value == Int32(errAEEventWouldRequireUserConsent) {
+                        throw HelperError("file.delivery_unavailable", "系统不允许将文件直接交给原应用进程，请在应用中自行打开", partial: false)
+                    }
                     throw HelperError("file.delivery_failed", "原应用未确认接收文件")
                 }
                 return ["accepted": true]
+            } catch let error as HelperError {
+                throw error
+            } catch let error as NSError where error.domain == NSOSStatusErrorDomain
+                && (error.code == Int(errAEEventNotPermitted) || error.code == Int(errAEEventWouldRequireUserConsent) || error.code == Int(procNotFound)) {
+                throw HelperError("file.delivery_unavailable", "系统不允许将文件直接交给原应用进程，请在应用中自行打开", partial: false)
             } catch {
                 throw HelperError("file.delivery_failed", "无法确认原应用已接收文件")
             }

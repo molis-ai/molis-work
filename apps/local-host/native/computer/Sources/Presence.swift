@@ -8,6 +8,8 @@ final class Presence {
 
     private let stateLock = NSLock()
     private var savedScreensaver = false, savedDisplaysAsleep = false
+    private var savedModifierFlags: CGEventFlags = []
+    private static let modifierMask: CGEventFlags = [.maskAlphaShift, .maskShift, .maskControl, .maskAlternate, .maskCommand, .maskSecondaryFn]
     private var savedTap: CFMachPort?
     private var screensaver: Bool {
         get { stateLock.lock(); defer { stateLock.unlock() }; return savedScreensaver }
@@ -156,12 +158,20 @@ final class Presence {
         if Thread.isMainThread { update() } else { DispatchQueue.main.sync(execute: update) }
     }
 
-    fileprivate func saw(_ type: CGEventType, _ event: CGEvent) {
+    func saw(_ type: CGEventType, _ event: CGEvent) {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
             if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
             return
         }
         if event.getIntegerValueField(.eventSourceUserData) == SYNTHETIC_MARKER { return }
+        if type == .flagsChanged {
+            let modifiers = event.flags.intersection(Presence.modifierMask)
+            stateLock.lock()
+            let unchanged = modifiers == savedModifierFlags
+            savedModifierFlags = modifiers
+            stateLock.unlock()
+            if unchanged { return }
+        }
         Input.shared.personTouched()
         let now = Date().timeIntervalSince1970
         let kind: String

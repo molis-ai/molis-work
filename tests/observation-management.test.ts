@@ -12,6 +12,7 @@ import {
   observationKeys,
   readCoverageGaps,
   readRecords,
+  withObservationSource,
   type ExitAction,
   type ExitObservation,
   type ObservationEnvironment,
@@ -31,17 +32,18 @@ function memorySecrets() {
   };
 }
 
-function createFixture(t: test.TestContext, options: { now?: () => Date; platformVersion?: string } = {}) {
+function createFixture(t: test.TestContext, options: { now?: () => Date; platformVersion?: string; demoProjects?: readonly string[] } = {}) {
   const home = mkdtempSync(join(tmpdir(), "observation-mgmt-"));
   const secrets = memorySecrets();
   let currentNow = options.now ?? (() => new Date("2026-11-14T12:00:00.000Z"));
   let currentVersion = options.platformVersion ?? "0.29.0";
   const projects = new Set(["p1", "p2"]);
+  const demoProjects = new Set(options.demoProjects ?? []);
   const env: ObservationEnvironment = {
     get platformVersion() { return currentVersion; },
     now: () => currentNow(),
-    projectClass: id => (projects.has(id) ? "user" : undefined),
-    readableProjects: async () => [...projects],
+    projectClass: id => (demoProjects.has(id) ? "regenerable_demo" : projects.has(id) ? "user" : undefined),
+    readableProjects: async () => [...projects, ...demoProjects],
   } as ObservationEnvironment;
 
   let layer: ObservationLayer | undefined;
@@ -208,7 +210,7 @@ test("OCL-01 OCL-02 OCL-04 OCL-06 OCL-14: records.query filters by work, subject
   assert.deepEqual(pagedIds, allOnce.records.map(r => r.record_id));
 });
 
-test("OCL-05: real Host resolves live vs deleted subjects on records.query and owner refs on evidence.get without copying plugin tables", { timeout: 120_000 }, async t => {
+test("OCL-05: real Host resolves live, rewritten and deleted subjects on records.query and owner refs on evidence.get without copying plugin tables", { timeout: 120_000 }, async t => {
   const served = await openTestHome(t, { catalogPolicy: false });
   const project = await served.createProject("Subject resolution", ["todo"]);
   const client = served.host.actionClient(project.reference);
@@ -227,7 +229,7 @@ test("OCL-05: real Host resolves live vs deleted subjects on records.query and o
   layer.sink("assistant").bind({ kind: "background", entry: "background", actor_id: LOCAL_PERSON_ACTOR_ID, project_id: project.project_id }).record({
     fact: "assistant.todo_linked",
     outcome: "succeeded",
-    subjects: [{ kind: "todo_item", id: todoId }],
+    subjects: [{ kind: "todo_item", id: todoId, version: created.item.revision }],
     evidence: [{ role: "target", ref: { kind: "owner", owner: "todo_item", id: todoId, version: created.item.revision } }],
   });
   layer.flush();
@@ -264,8 +266,29 @@ test("OCL-05: real Host resolves live vs deleted subjects on records.query and o
   assert.equal(ownerBefore.items[0]?.status, "owner_ref");
   if (ownerBefore.items[0]?.status === "owner_ref") assert.equal(ownerBefore.items[0].owner_resolvable, "resolved");
 
+  // Rewrite the Todo item: the recorded version is no longer the current revision. The owner reader cannot read the old version,
+  // so neither call may report the current object as `"resolved"`; it must say it cannot verify it.
+  const updated = await client.invoke(personCaller, todoActions.update, { id: todoId, expected_revision: created.item.revision, title: "改写后的标题" });
+  assert.ok(updated.item.revision > created.item.revision, "the business object was rewritten");
+  const resolvedAfterRewrite = await client.invoke(personCaller, observationActions.recordsQuery, {
+    use: "lookback",
+    subject: { kind: "todo_item", id: todoId },
+    resolve_subjects: true,
+  });
+  assert.equal(resolvedAfterRewrite.records.length, 1, "rewriting the business object keeps the historical record");
+  assert.equal(resolvedAfterRewrite.records[0]?.subject_status?.find(item => item.kind === "todo_item" && item.id === todoId)?.status, "unverified",
+    "a rewritten object is not reported as the recorded version");
+
+  const ownerAfterRewrite = await client.invoke(personCaller, observationActions.evidenceGet, {
+    use: "lookback",
+    record_id: ownerRecord.record_id,
+  });
+  assert.equal(ownerAfterRewrite.items[0]?.status, "owner_ref");
+  if (ownerAfterRewrite.items[0]?.status === "owner_ref") assert.equal(ownerAfterRewrite.items[0].owner_resolvable, "unverified",
+    "the recorded owner version is not replaced by the current revision");
+
   // Delete the Todo item; subsequent resolution reports `"missing"` on both `records.query` and `evidence.get`, while the history record itself remains!
-  await client.invoke(personCaller, todoActions.remove, { id: todoId });
+  await client.invoke(personCaller, todoActions.remove, { id: todoId, expected_revision: updated.item.revision });
   const resolvedAfter = await client.invoke(personCaller, observationActions.recordsQuery, {
     use: "lookback",
     subject: { kind: "todo_item", id: todoId },
@@ -280,6 +303,42 @@ test("OCL-05: real Host resolves live vs deleted subjects on records.query and o
   });
   assert.equal(ownerAfter.items[0]?.status, "owner_ref");
   if (ownerAfter.items[0]?.status === "owner_ref") assert.equal(ownerAfter.items[0].owner_resolvable, "missing");
+});
+
+test("OCL-13: simulated, demo and replay records are excluded by default from assistant, evaluation and export, while lookback keeps them with their source class", async t => {
+  const f = createFixture(t, { demoProjects: ["demo-p1"] });
+  const at = Date.parse("2026-11-14T12:00:00.000Z");
+  for (const sourceClass of ["trial", "replay", "system_check"] as const) {
+    await withObservationSource(sourceClass, () => f.layer.observed(agent({ call_id: `call-${sourceClass}` }), writeAction, exitDone(at - 5, at, { body: sourceClass }, { ok: true })));
+  }
+  f.layer.observed(agent({ call_id: "call-real" }), writeAction, exitDone(at - 5, at, { body: "real" }, { ok: true }));
+  f.layer.observed(agent({ call_id: "call-demo", project_id: "demo-p1" }), writeAction, exitDone(at - 5, at, { body: "demo" }, { ok: true }));
+  f.layer.flush();
+  await f.service.invoke(person(), observationActions.settingsSet, { uses: { export: true } });
+
+  const assistant = await f.service.invoke(agent(), observationActions.recordsQuery, { use: "assistant" });
+  assert.deepEqual(assistant.records.map(record => record.source_class), ["real"], "assistant sees only real work by default");
+
+  const evaluation = await f.service.invoke(person(), observationActions.recordsQuery, { use: "evaluation" });
+  assert.deepEqual(evaluation.records.map(record => record.source_class), ["real"], "evaluation sees only real work by default");
+
+  const comparison = await f.service.invoke(person(), observationActions.recordsQuery, { use: "evaluation", source_classes: ["replay"] });
+  assert.deepEqual(comparison.records.map(record => record.source_class), ["replay"], "an explicit source class still allows a replay comparison");
+
+  const included = await f.service.invoke(person(), observationActions.recordsQuery, { use: "evaluation", include_simulated: true });
+  assert.equal(included.records.length, 4, "an explicit include_simulated keeps every stored class");
+
+  const exported = await f.service.invoke(person(), observationActions.recordsQuery, { use: "export" });
+  assert.deepEqual(exported.records.map(record => record.source_class), ["real"], "export sees only real work by default");
+
+  const lookback = await f.service.invoke(person(), observationActions.recordsQuery, { use: "lookback" });
+  assert.deepEqual(lookback.records.map(record => record.source_class).sort(), ["real", "replay", "system_check", "trial"],
+    "the person's lookback keeps simulated records and their source class");
+
+  const demoAssistant = await f.service.invoke(person({ project_id: "demo-p1" }), observationActions.recordsQuery, { use: "assistant", project_id: "demo-p1" });
+  assert.deepEqual(demoAssistant.records, [], "a demo project's records are not assistant work by default");
+  const demoLookback = await f.service.invoke(person({ project_id: "demo-p1" }), observationActions.recordsQuery, { use: "lookback", project_id: "demo-p1" });
+  assert.deepEqual(demoLookback.records.map(record => record.source_class), ["demo"], "lookback keeps the demo class visible");
 });
 
 test("OCL-08: coverage.get merges declared plan with measured counts, scopes versions to project and distinguishes quiet windows from gaps", async t => {

@@ -42,7 +42,7 @@ python3 -m http.server 4421 --bind 127.0.0.1 --directory docs/design/work-record
 | 占用 A | 用量 Stat；提醒线 Settings Row + Number Field + Switch，下一行 Meter（满格就是提醒线）；到期清理 Settings Row；接近、超过、磁盘不足用 Alert；正在计算 Spinner |
 | 覆盖与缺口 B | 总况 Alert（全都完整时是 Settings Row + Status mark）；来源 Toggle Group + 版本 Select；每处缺口 Item Row + Status mark，末尾图标按钮展开影响与处理；「完整」「不适用」Collapsible |
 
-状态颜色用 Status mark 的语气：完整 done；暂不可用、截断 attention；丢失 blocked；已脱敏、到期清除 hold；未接入 idle；不适用、按规则不记 quiet。按钮只用 primary、secondary、ghost、danger 四种。
+状态颜色用 Status mark 的语气：完整 done；暂不可用、截断 attention；丢失 blocked；已脱敏、到期清除、已清除（`purged`）hold；未接入 idle；不适用、按规则不记 quiet。按钮只用 primary、secondary、ghost、danger 四种。
 
 **组件板新增**（进产品前由 D 轨先在组件板补标本，再用）：
 

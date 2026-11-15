@@ -20,7 +20,7 @@ const exact = (view: ActionView) => ({ capability_id: view.capability_id, versio
 const ownerOf = (view: ActionView) => view.provider.plugin_id ?? view.provider.provider_id;
 
 /** Runs `work` over `items`, a few at a time, keeping their order. */
-export async function mapLimited<Item, Result>(items: readonly Item[], work: (item: Item) => Promise<Result>, limit = 6): Promise<Result[]> {
+async function mapLimited<Item, Result>(items: readonly Item[], work: (item: Item) => Promise<Result>, limit = 6): Promise<Result[]> {
   const results = new Array<Result>(items.length);
   let next = 0;
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, async () => {
@@ -32,7 +32,7 @@ export async function mapLimited<Item, Result>(items: readonly Item[], work: (it
 export type SubjectRead = { state: "ok"; context: ActionSubjectContext; owner_plugin_id: string } | { state: "gone" | "unreadable" };
 
 /** One object as its owner reads it for this caller now. A refusal or a missing reader is `unreadable`; an owner's "not found" is `gone`. */
-export async function readBriefSubject(directory: BriefDirectory, views: readonly ActionView[], subject: ActionSubject): Promise<SubjectRead> {
+async function readBriefSubject(directory: BriefDirectory, views: readonly ActionView[], subject: ActionSubject): Promise<SubjectRead> {
   const lookup = findSubjectReader(views, subject.kind);
   if (lookup.found !== "one") return { state: "unreadable" };
   try {

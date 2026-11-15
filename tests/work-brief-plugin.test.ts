@@ -6,6 +6,7 @@ import { WORK_BRIEF_PLUGIN_ID, WORK_BRIEF_VIEW_ID, WORK_BRIEF_WRITE, workBriefAc
 import type { PresentationOverview } from "@molis-ai/molis-work-contracts/platform/presentation";
 import { surfaceCompositionActions, type SurfaceDescription } from "@molis-ai/molis-work-contracts/services/surface-composition";
 import { takeBackGoals } from "./fixtures/goals-agreement.js";
+import { defineSubjectContextAction, subjectContext } from "@molis-ai/molis-work-plugin-sdk";
 import { person, serveHomeRuntime } from "./fixtures/home-runtime.js";
 
 // Work Brief in a project that has no Goals: its sources are whatever the directory offers (here Risk), read as the caller.
@@ -332,4 +333,26 @@ test("WBR-24 the personal brief gathers what waits in the briefs of the projects
   const after = await personal();
   assert.deepEqual(lines(after), [["project", "attention", second.here.project_id, "要决定是否对冲"], ["project", "next", second.here.project_id, "让助理跟进"]].sort());
   assert.equal((await second.call<BriefView>(workBriefActions.get, {})).version!.claims.length, 1);
+});
+
+
+test("WBR-03 a basis that is gone keeps the gone gap and withholds its title, then comes back when it reads again", { timeout: 90_000 }, async t => {
+  const { call, host, here } = await fixture(t);
+  const reader = defineSubjectContextAction("probe.subject.read", 1, "probe", "Probe", []);
+  let gone = false;
+  const remove = host.actionRegistry(here.reference).registerProvider({ provider: { provider_id: "probe", title: "Probe", kind: "system", project_id: here.project_id },
+    definitions: [reader], handlers: [{ ...reader, handle: () => {
+      if (gone) throw new ActionError("probe.not_found", "探针已不在", { kind: "not_found" });
+      return subjectContext({ subject: { kind: "probe", id: "p1" }, revision: "1", title: "探针", content: "探针的正文" });
+    } }] });
+  t.after(remove);
+  const saved = await call<BriefSaved>(workBriefActions.save, { request_id: once(), draft: { claims: [{ text: "探针还在。", cites: [{ kind: "probe", id: "p1" }] }] } });
+  assert.equal(saved.version!.claims[0]!.cites[0]!.title, "探针");
+  gone = true;
+  const masked = await call<BriefView>(workBriefActions.get, {});
+  const cited = masked.version!.claims[0]!.cites[0]!;
+  assert.deepEqual([cited.gap, cited.title], ["gone", ""]);
+  gone = false;
+  const back = await call<BriefView>(workBriefActions.get, {});
+  assert.deepEqual([back.version!.claims[0]!.cites[0]!.gap, back.version!.claims[0]!.cites[0]!.title], [undefined, "探针"]);
 });

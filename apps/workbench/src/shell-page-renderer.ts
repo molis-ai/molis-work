@@ -19,6 +19,7 @@ import { renderDeclaredStages, type RenderedStagePage } from "./declared-stages.
 import { homeToolKeysScript, homePluginSideTabs } from "./home-plugin-navigation.js";
 import { renderPersonalMenuItems, renderProjectSettingsDirectorySection, renderProjectSettingsWorkSurface, renderSettingsDirectorySection, renderSettingsWorkSurface } from "./settings-directory.js";
 import { renderAppearanceRecovery, renderRuntimePlanDialog } from "./settings-appearance.js";
+import { renderSessionsOverlays, renderSessionsStage } from "./sessions/ui.js";
 import { appearanceHead, type WorkbenchAppearancePorts } from "./appearance-document.js";
 import { knowledgeClientTag } from "./settings-knowledge.js";
 import { renderInlinePageText } from "./language-resource.js";
@@ -245,7 +246,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
             ${renderProjectHome(view.project?.display_name || title, primitives)}
             ${page?.html ?? ""}
             <section class="desktop-work-surface immersive-artifact-surface plugin-stage-shell" data-work-surface="artifacts" data-work-surface-label="${uiText("workbench.artifacts.navigation-name")}" data-artifact-stage-shell data-expanded="false" hidden><div class="plugin-stage-list feed-stage-tree" data-artifact-directory></div><div class="plugin-stage-workspace" data-artifact-stage-workspace hidden><div data-artifact-detail></div></div></section>
-            ${view.project ? renderMaterialsStage() : ""}
+            ${view.project ? renderMaterialsStage() : ""}${renderSessionsStage()}
             <section class="desktop-work-surface immersive-market" data-work-surface="market" data-work-surface-label="${uiText("workbench.shell-page-renderer.plugin-market")}" hidden>${renderPluginMarket(primitives, { developerMode: view.developer_mode, marksFromHost: Boolean(view.plugin_directory) }, directory)}</section>
             ${settingsSurfaces}
             ${(view.unavailable_plugin_stages ?? []).map(stage => renderUnavailablePluginStage(stage, readText)).join("")}${(view.plugin_stages ?? []).map(defer).join("")}
@@ -254,7 +255,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
         </div>
       </div>
       ${[...(view.plugin_overlays ?? []), ...declared.overlays].join("")}
-      ${renderRuntimePlanDialog({ readText, icon })}
+      ${renderRuntimePlanDialog({ readText, icon })}${renderSessionsOverlays()}
     </main>
   </div>
   ${page?.before_global_search ?? ""}

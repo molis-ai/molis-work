@@ -277,6 +277,7 @@ test("the bundled catalog reproduces the shell's navigation exactly", async () =
       ["ppt", "PPT", "presentation"], // its own glyph; "image" belongs to 图片 (spec → 第三轮 · 图标)
       ["alchemist", "炼金术士", "zap"],
       ["artifacts", "成果", "package"],
+      ["sessions", "外部会话", "history"],
     ],
     "侧栏轨只挂 Manifest 声明了 navigator 的插件；灵光在岛上，Shelf 是侧栏的格",
   );
@@ -288,10 +289,10 @@ test("the bundled catalog reproduces the shell's navigation exactly", async () =
 
   assert.deepEqual(
     railEntries(["goals", "pages"]).map((entry) => entry.id),
-    ["goals", "pages", "artifacts"],
-    "平台成果入口始终存在，插件保持已启用集合和声明顺序",
+    ["goals", "pages", "artifacts", "sessions"],
+    "平台成果与外部会话入口始终存在，插件保持已启用集合和声明顺序",
   );
-  assert.deepEqual(railEntries([]).map(entry => [entry.id, entry.chosen]), [["artifacts", false]]);
+  assert.deepEqual(railEntries([]).map(entry => [entry.id, entry.chosen]), [["artifacts", false], ["sessions", false]]);
 
   assert.deepEqual(
     settingsEntries(everything).map((entry) => entry.plugin_id),
@@ -311,7 +312,7 @@ test("the bundled catalog reproduces the shell's navigation exactly", async () =
       "text-stats", "work-brief"]);
   assert.deepEqual(
     railEntries(["coding"]).map((entry) => [entry.id, entry.label, entry.glyph]),
-    [["coding", "Coding", "code"], ["artifacts", "成果", "package"]],
+    [["coding", "Coding", "code"], ["artifacts", "成果", "package"], ["sessions", "外部会话", "history"]],
     "新插件的导航同样只由它自己的 Manifest 推导",
   );
   assert.equal(BUILTIN_PLUGIN_REGISTRY.has("shelf"), false, "个人插件不是项目可启用项");

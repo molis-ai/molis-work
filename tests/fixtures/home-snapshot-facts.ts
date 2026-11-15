@@ -44,6 +44,7 @@ function libraryFacts(project: string): Record<string, Seed> {
     "feed-content": { table: "feed_content_holds", values: { content_ref: "molis-work-feed/sha256/" + "5".repeat(64), project_id: project, source_id: id }, field: "source_id" },
     observation: { table: "records", values: { record_id: id, owner_kind: "plugin", owner_id: "io.snapshot.fixture", fact: "io.snapshot.fixture.saved", outcome: "succeeded", actor_id: actor,
       audience: "plugin", entry: "plugin", project_id: project, occurred_at: at, received_at: at, source_class: "real", subjects: "[]", conditions: "{}", detail: JSON.stringify({ note: title }), evidence: "[]" }, field: "detail" },
+    "external-sessions": { table: "external_sessions", values: { session_key: id, entry_id: "claude-code", location_key: "local", native_id: id, seen_via: "file", title, activity: "idle", last_activity_at: at }, field: "title" },
   };
 }
 

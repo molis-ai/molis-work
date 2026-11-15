@@ -1205,7 +1205,7 @@ C-2、C-3 只有定义，宿主还没登记，所以不动 `tooling/gates/action
 | 11 | 盘点 §4、§5 | 待核项已查到：Amp 的 `threads` 命令、Qoder CN、Pi、`gh agent-task`；Codex 有 `thread/*` 协议和 `codex queue`，Claude Agent SDK 有列表与读取函数 | 矩阵已更新；盘点是 11-03 的记录，不改 |
 | 12 | 核查 §3.2 | 说 `isTerminalSessionId` 不动；服务包要同一规则 | 第 4.3 节只搬定义，行为不动 |
 | 13 | 本机 | `claude --help` 被本机的包装命令盖住 | `claude-code` 一行只写官 |
-| 14 | [定样](../../docs/design/sessions-sources/README.md) | D2、D4、D8 让用户看过的样多了三处：Sheet 写明含 worktree，读取范围里多一个项目许可开关，待归类写明发给模型的内容（含项目名和目录） | 2026-11-12 转第 34 批定样（S-5 才进产品，见第 34 批 UI 要求） |
+| 14 | [定样](../../docs/design/sessions-sources/README.md) | D2、D4、D8 让用户看过的样多了三处：Sheet 写明含 worktree，读取范围里多一个项目许可开关，待归类写明发给模型的内容（含项目名和目录） | 已定（用户 2026-11-15 确认块 1 方案 A，含改归属 Dialog 第 8.2 节说明），落在片 S-5 |
 | 15 | [核查 §1](source-contract-checks-2026-11.md#1-第-20-批要的历史读取能力)、第 20 批 | 核查说就绪只看读取范围；D4 之后还要看项目许可 | 就绪说法以第 6.5 节为准。第 20 批合入时 Sessions 服务还没有，2026-11-12 转第 34 批接服务时一并做；核查是 11-04 的记录，不改 |
 | 16 | 需求 SRB-09、第 35 批 | 冷启动由 AI 读历史整理，而项目许可默认关 | 2026-11-12 已写进第 35 批交付项，列在第 10.2 节 |
 | 17 | 需求 SRB-16 | 写「自动归入不扩大读取权限」，而 D4 让项目 AI 读到含自动归入的会话 | 已裁定：授权来自项目许可，归属只定范围，写在第 11 节 SRB-16 一行 |
@@ -1215,12 +1215,12 @@ C-2、C-3 只有定义，宿主还没登记，所以不动 `tooling/gates/action
 | 21 | `bound_by` 存量 | 两种存量行：P-1 之前终端面板带 `cwd` 写下的目录关系，`bound_by` 是本人的 id，按白名单算本人建的；目录库 1→2 升级补出的默认输出目录，原来记 `molis-work-upgrade`。`context_bind` 的旧行不是本人 id，白名单下自动不算 | 已定（用户 2026-11-09）：终端旧关系接受、不修存量，不加维护逻辑，也不写 `docs/system/CONTRACT-CHANGES.md`；只影响 2026-10-31 以后在终端面板带过 `cwd` 的开发机 Home，这些目录会被当成本人连的，进「只读项目连着的目录」和自动归入。默认输出目录和新建项目一样处理：项目原有关系里有一条本人建的就记本人（#2001 的 `c398e173a`） |
 | 22 | 已定裁定之间 | 第一版让 `reported` 进项目 AI 的可读范围，和 P4 的本意有张力 | 已定（2026-11-06）：收紧，`reported` 不进，本人确认后才算（第 7.4 节、S-sessions-person-decides） |
 | 23 | 绑定指向另一个项目 | 会话在本人连的 A 目录下，工具绑到 B | 已定（2026-11-06）：仍 `automatic` 归 A，行上标「工具另报」，打开后写「工具报的是另一个项目」，写在第 8.2 节、S-sessions-person-decides |
-| 24 | 项目设置 | 工具带进来的目录和本人连的看起来一样，「本人再连一次」没有入口 | **要进定样**：两种目录分开显示，后者给确认入口；2026-11-12 转第 34 批定样，实现列在片 S-5 |
+| 24 | 项目设置 | 工具带进来的目录和本人连的看起来一样，「本人再连一次」没有入口 | 已定（用户 2026-11-15 确认块 3 方案 A：同一张「读取的文件夹」列表内标 `工具带入 · 待确认`、后果说明与行尾「确认连入」按钮），落在片 S-5 |
 | 25 | 需求 §2「开放工具同走公共接入合同」 | 登记表在合同里、适配在服务包里，第三方插件现在贡献不了来源适配 | 本批不做；要开放成扩展点在第 60 批之后另议 |
 | 26 | 第 5.1 节云端的 `location_key`（公共合同台合审） | `copilot-coding-agent` 走 `gh`，账号在 `gh` 里，这一行原来写的 `connection:` + `connection_id` 取不到 | 已答（C-2）：走 `auth_method: "cli"` 的连接，不另立规则，规则和类型的改动写在第 5.1 节 |
 | 27 | `codex-cloud` | 命令 `codex cloud list` 核完之后，`CONNECTOR_CLIS` 里没有 `codex`，没有可选连接 | 第 34 批复核：`codex cloud` 只有状态与差异、没有对话读取口，且本批不新增 `codex` CLI 连接器，保持缺口（`adapter: "none"`，`tool_gap`） |
 | 28 | `gh agent-task` 的权限 | `CONNECTOR_CLIS.github` 登录时要的 scope 是 `notifications,read:user`，这组 scope 能不能读 `agent-task` 没实测 | 第 34 批核查：`gh agent-task` 需要 `repo`（组织仓另需 `read:org`），终端自行 `gh auth login` 的用户默认已有；不静默把 `CONNECTOR_CLIS.github` 扩成带完整仓写权限的 `repo`，权限不足时报 `needs_login`（`login_expired`）并说明刷权限命令或由定样确认 |
-| 29 | 定样 | 云端来源没有可选连接时读取范围这一行怎样给去连接的入口，以及 `account_changed` 的两条出路（第 5.1 节），定样都没画 | 第 34 批定样确认后落入片 S-5 |
+| 29 | 定样 | 云端来源没有可选连接时读取范围这一行怎样给去连接的入口，以及 `account_changed` 的两条出路（第 5.1 节），定样都没画 | 已定（用户 2026-11-15 确认块 2 方案 A：Sheet 行内选连接／无连接去设置＋`account_changed` 双出口恢复卡），落在片 S-5 |
 | 30 | 连接的使用方（S-1） | `session_read_scopes.connection_id` 是对连接的长期引用，`services/connector-usages.ts` 要每个使用方报告，否则连接页显示没人在用，删连接时也没有提示 | 已定并落地：`sessionsActions.connectorUsages`（`sessions.connector.usages@1`），第 12 个动作；只报告，不声明 switch |
 | 31 | `sessions.scope.set@1` 的边界（S-1） | 三处没写：整份替换时没列出的来源怎样算；同一 `entry_id` 同一连接写两行；本机来源带了 `connection_id` | 已定（第 7.2 节）：未列出的已有来源按 `allowed: false` 收起（保留原 `directories`）；同一 `(entry_id, location_key)` 重复或本机来源带 `connection_id` 报 `actions.input_invalid` |
 | 32 | 没有登记行的 `entry_id`（S-1） | schema 只核写法，文件头说服务会答，没说答什么 | 已定：报 `sessions.source_unsupported` |
@@ -1230,7 +1230,7 @@ C-2、C-3 只有定义，宿主还没登记，所以不动 `tooling/gates/action
 | 36 | S-sessions-read-only-commands 与 `cli` 连接（S-1） | S-sessions-read-only-commands 要求最小环境，`cliEnvironment` 在没有受管安装时传整份 `process.env` | 已定：`sessions-ports.ts` 对 `commands.run` 与 `connections.command` 统一构造最小环境白名单（仅保留 `PATH`、`HOME`、`USER`、`TMPDIR`、`LANG`、XDG／代理／平台系统目录及 `gh` 认证所需 `GH_CONFIG_DIR`），不透传整份 `process.env`，与 `S-sessions-read-only-commands` 一致 |
 | 37 | 动作总数 | 批次文件、需求 §7 第 3 项都写 10 个；对象读取器没算，第 6.4 节要它 | 合同里 11 个，加第 30 行是 12 个；批次文件与需求 §7 已改 |
 | 38 | `sessions.suggestion_unavailable` | 第 9.3 节声明了，但第 8.4 节写模型没配或失败时逐条 `status: "failed"`，现在没有路径抛它 | 第 34 批核实无整次抛错路径，已从 `sessionsErrors` 与第 9.3 节删去（共 14 个错误码） |
-| 39 | 搜索结果的打开位置 | `search_source` 和 `open` 要写一个界面位置，入口随第 03 批，还没定 | 先写 `sessions`，片 S-5 按确认的入口位置对齐 |
+| 39 | 搜索结果的打开位置 | `search_source` 和 `open` 要写一个界面位置，入口随第 03 批，还没定 | 已定：工作台主导航平台入口 `sessions`（`data-work-surface="sessions"`），全局搜索命中点击后切到 `sessions` 并直接打开对应 `session_key` |
 | 40 | 插件经 Knowledge 读到外部会话（S-4） | `knowledge.search` 只留当前项目的结果，外部会话进不来；但 `knowledge.read`、`outline`、`grep` 没有这道过滤，以本人身份代插件读，能到 `sessions.subject.read@1`（第 6.4 节） | 已在登记读取器前堵住：`apps/local-host/src/knowledge-actions.ts` 替插件代读对象读取器和搜索来源时按 `actionReachesAudience(action, capabilityId, "plugin")` 过滤，拒绝测试在 `S-sessions-person-decides` |
 | 41 | 引用种类（S-4） | `projectReferenceKinds`、`pluginReferenceKinds` 会把 `external_session` 自动列进引用种类，不用谁新加入口（第 6.4 节） | 已在登记读取器前堵住：`apps/local-host/src/agent-question-surfaces.ts` 只把 `action.audiences.includes("agent")` 的对象读取器纳入引用种类，拒绝测试在 `S-sessions-person-decides` |
 | 42 | 本人亲手给的算不算 AI 读 | 第 7.4 节原来没写这种情况。`readReferences` 的注释写本人亲手选就放行，这和第 7.4 节的许可有张力 | **已定并落地（用户 2026-11-07）：** 本人明确动作给的内容放行、标不可信、只进这一轮，不记成工作对象（不调 `linkSent`、不进 `landing`），后面轮次不再带着 |

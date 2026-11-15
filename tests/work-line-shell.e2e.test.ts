@@ -138,6 +138,8 @@ test("WLN-04 WLN-06: the input takes the next request at once while the first is
   await evaluate("document.dispatchEvent(new CustomEvent('molis-work:attention-refresh'))");
   await waitFor(`${EVENT}?.dataset.state === 'wait' && ${count} === ${before + 1} && Boolean(document.querySelector('[data-task-mark][data-needs-you]'))`, 20_000);
   assert.equal(await evaluate(`${EVENT}.textContent.includes('等你')`), true, "the state is said in words, not by colour alone");
+  // WLN-39: the composer's 「等你」 is the head's number, not a count of its own.
+  await waitFor(`document.querySelector('[data-assistant-attention-count]')?.textContent === '等你 ' + ${count}`, 10_000);
   assert.deepEqual(await evaluate<string[]>("[...document.querySelectorAll('.assistant-tab')].map(tab => tab.dataset.tab ?? '')"), tabs, "no tab is opened for it");
   assert.equal(await evaluate(`document.activeElement === ${INPUT} && ${INPUT}.value === '还没写完的一句'`), true, "the keyboard stays where the person was writing");
 });

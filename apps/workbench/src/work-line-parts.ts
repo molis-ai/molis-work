@@ -75,7 +75,7 @@ export function renderLineChecking(since: string): string {
 export function renderLineHead(head: { readonly name: string; readonly waiting: number; readonly ring?: StateRingState; readonly menu?: string }): string {
   const waiting = head.waiting > 0 ? `<span class="work-line-count" aria-hidden="true">${head.waiting}</span>` : "";
   const label = head.waiting > 0 ? uiText.text("workbench.work-line.head-with-waiting", { name: head.name, n: head.waiting }) : head.name;
-  return `<button type="button" class="work-line-head" data-work-line-head${head.menu !== undefined ? ` aria-haspopup="menu" aria-expanded="false"${attr("aria-controls", head.menu || undefined)}` : ""} aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">`
+  return `<button type="button" class="work-line-head" data-work-line-head data-waiting="${head.waiting}"${head.menu !== undefined ? ` aria-haspopup="menu" aria-expanded="false"${attr("aria-controls", head.menu || undefined)}` : ""} aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">`
     + `${head.ring ? ring(head.ring) : icon("folder")}${text("work-line-head-name", head.name)}${waiting}${head.menu !== undefined ? icon("chevron-down") : ""}</button>`;
 }
 

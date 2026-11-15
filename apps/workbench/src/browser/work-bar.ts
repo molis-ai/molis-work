@@ -114,7 +114,7 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
   const press = (event: WorkLineEvent): LineEventPress => ({ subject: event.subject, title: event.title, mark: renderOwnerMark(view(event, false).owner) });
   const paintHead = (waiting: number) => {
     const label = waiting > 0 ? uiText.text("workbench.work-line.head-with-waiting", { name, n: waiting }) : name;
-    head.setAttribute("aria-label", label); head.title = label;
+    head.setAttribute("aria-label", label); head.title = label; head.dataset.waiting = String(waiting);
     let count = head.querySelector<HTMLElement>(".work-line-count");
     if (waiting > 0 && !count) { count = document.createElement("span"); count.className = "work-line-count"; count.setAttribute("aria-hidden", "true"); head.querySelector(".work-line-head-name")?.after(count); }
     if (count) { count.textContent = String(waiting); count.hidden = waiting === 0; }

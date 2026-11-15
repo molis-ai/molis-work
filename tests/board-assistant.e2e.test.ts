@@ -44,8 +44,9 @@ test("VUX-39 the board's Assistant section drives the shipped island through sev
     const out = { tabs: [...d.querySelectorAll('.assistant-tab-title')].map((n) => n.textContent), groups: [...d.querySelectorAll('.assistant-works-group')].map((n) => n.textContent),
       states: [...d.querySelectorAll('.assistant-works-meta')].map((n) => n.textContent.split(' · ')[0]) };
     d.querySelector('[data-assistant-works-toggle]').click(); return out;`);
-  assert.deepEqual(works.tabs, ["登录兼容旧的 session cookie", "安排试用复盘", "给王一骏回邮件", "整理上周的 Feed 摘要", "检查依赖更新", "写本周周报"],
-    "six tabs at most; the work cut off and the two sub-tasks are in the list");
+  // The main conversation leads (specs/work-line §4.2), then six works at most.
+  assert.deepEqual(works.tabs, ["主对话", "登录兼容旧的 session cookie", "安排试用复盘", "给王一骏回邮件", "整理上周的 Feed 摘要", "检查依赖更新", "写本周周报"],
+    "the main conversation and six works at most; the work cut off and the two sub-tasks are in the list");
   assert.deepEqual(works.groups, ["等你", "进行中", "最近"]);
   assert.deepEqual([...works.states].sort(), ["已停止", "已完成", "没有完成", "等你回答", "等你确认", "进行中", "需要核对", "进行中", "已完成"].sort(),
     "running, waiting on an answer and a confirmation, failed, stopped, done, cut off and to be checked, and the plan's running and finished sub-tasks");
@@ -300,10 +301,12 @@ test("VUX-39 the board's Assistant shows delegated sub-tasks, the bell's notices
   t.diagnostic("bell: " + JSON.stringify(first));
   assert.deepEqual(first.rows, ["「安排试用复盘」等你确认创建日程", "「整理上周的 Feed 摘要」没有完成：模型服务暂时不可用", "到时间了：订会议室"]);
   assert.deepEqual(first.folds, ["有 1 条新结果", "按你的规则暂缓 1 条"]);
-  assert.equal(first.count, "等你 3");
+  // The count is the work line's head (WLN-39; user 2026-11-15): nothing waits on this frame's line, so the bell has no number
+  // of its own and stays in reach for what its list holds.
+  assert.equal(first.count, "");
   // 知道了 on the reminder settles it; the count follows.
   await inFrame("d.querySelector('[data-notice-id=n-room][data-notice-action=dismiss]').click();");
-  await waitFor(inside("d.querySelector('[data-assistant-attention-count]').textContent === '等你 2'"), 10_000);
+  await waitFor(inside("!d.querySelector('[data-notice-id=n-room]') && !d.querySelector('[data-assistant-attention]').hidden"), 10_000);
   // 打开 on the failure opens its work.
   await inFrame("d.querySelector('[data-notice-id=n-digest][data-notice-action=open]').click();");
   await waitFor(inside("d.querySelector('[data-assistant-thread]').textContent.includes('Feed 里和试用有关的整理成摘要')"), 10_000);

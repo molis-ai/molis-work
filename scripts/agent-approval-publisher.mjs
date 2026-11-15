@@ -16,7 +16,6 @@ const queueQuery = `query($owner: String!, $repo: String!, $branch: String!, $ta
     target: ref(qualifiedName: $target) { target { oid } }
     group: ref(qualifiedName: $group) { target { oid } }
     mergeQueue(branch: $branch) {
-      configuration { mergeMethod }
       entries(first: 100) {
         totalCount pageInfo { hasNextPage hasPreviousPage }
         nodes {
@@ -26,7 +25,7 @@ const queueQuery = `query($owner: String!, $repo: String!, $branch: String!, $ta
             number state baseRefName headRefOid repository { databaseId }
             commits(last: 1) { nodes { commit { oid committedDate pushedDate } } }
             timelineItems(last: 20, itemTypes: [HEAD_REF_FORCE_PUSHED_EVENT]) {
-              totalCount pageInfo { hasPreviousPage }
+              filteredCount pageInfo { hasPreviousPage hasNextPage }
               nodes { __typename ... on HeadRefForcePushedEvent { createdAt } }
             }
           }
@@ -157,19 +156,22 @@ export async function mergeGroupMembers({ repository, repositoryId, targetBranch
   const { repository: facts } = await github.graphql(queueQuery, { owner, repo, branch: targetBranch, target: "refs/heads/" + targetBranch, group: groupRef });
   const root = facts?.target?.target?.oid;
   const entries = facts?.mergeQueue?.entries;
-  const method = facts?.mergeQueue?.configuration?.mergeMethod;
   const nodes = entries?.nodes;
   if (facts?.databaseId !== repositoryId || facts.nameWithOwner?.toLowerCase() !== repository.toLowerCase()
-    || !sha(root) || facts.group?.target?.oid !== groupHead || !["MERGE", "SQUASH"].includes(method)
+    || !sha(root) || facts.group?.target?.oid !== groupHead
     || !Array.isArray(nodes) || entries.totalCount !== nodes.length
     || entries.pageInfo?.hasNextPage !== false || entries.pageInfo.hasPreviousPage !== false) {
     throw new Error("The current merge group or its queue membership could not be verified");
   }
   const index = nodes.findIndex(entry => entry?.headCommit?.oid === groupHead);
   if (index < 0) throw new Error("The merge-group commit is absent from the active queue");
+  const parentCount = nodes[index]?.headCommit?.parents?.totalCount;
+  if (parentCount !== 1 && parentCount !== 2) {
+    throw new Error("The current merge group or its queue membership could not be verified");
+  }
+  const method = parentCount === 2 ? "MERGE" : "SQUASH";
   const byPull = new Set(), byEntry = new Set(), commits = new Set([root]);
   const members = [], squash = [];
-  const parentCount = method === "MERGE" ? 2 : 1;
   let base = root;
   for (const entry of nodes.slice(0, index + 1)) {
     const pr = entry?.pullRequest, head = entry?.headCommit, parents = head?.parents;

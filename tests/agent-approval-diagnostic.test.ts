@@ -50,7 +50,12 @@ interface QueueEntryNode {
     headRefOid: string;
     repository: { databaseId: number };
     commits?: { nodes: Array<{ commit: { oid: string; committedDate: string; pushedDate: string | null } }> };
-    timelineItems?: { totalCount: number; pageInfo: { hasPreviousPage: boolean }; nodes: Array<{ __typename: string; createdAt: string }> };
+    timelineItems?: {
+      filteredCount: number;
+      totalCount?: number;
+      pageInfo: { hasPreviousPage: boolean; hasNextPage: boolean };
+      nodes: Array<{ __typename: string; createdAt: string }>;
+    };
   };
 }
 
@@ -97,6 +102,7 @@ function fixture() {
       const body = JSON.parse(String(options?.body)) as { query: string; variables: { ids: string[] } };
       assert.match(body.query, /^query\(/);
       if (body.query.includes("mergeQueue(branch:")) {
+        assert.equal(body.query.includes("configuration"), false);
         assert.deepEqual(body.variables, { owner: "example", repo: "work", branch: "main", target: "refs/heads/main", group: groupRef });
         return response({ data: { repository: state.queue } });
       }
@@ -229,7 +235,9 @@ async function squashFixture(cleanup: (fn: () => Promise<void>) => void) {
     pullRequest: {
       number, state: "OPEN", baseRefName: "main", headRefOid: headSha, repository: { databaseId: 23 },
       commits: { nodes: [{ commit: { oid: headSha, committedDate: committedAt, pushedDate: committedAt } }] },
-      timelineItems: { totalCount: 1, pageInfo: { hasPreviousPage: false }, nodes: [{ __typename: "HeadRefForcePushedEvent", createdAt: date(2) }] },
+      timelineItems: number === pull
+        ? { filteredCount: 1, totalCount: 5, pageInfo: { hasPreviousPage: false, hasNextPage: false }, nodes: [{ __typename: "HeadRefForcePushedEvent", createdAt: date(2) }] }
+        : { filteredCount: 0, totalCount: 4, pageInfo: { hasPreviousPage: false, hasNextPage: false }, nodes: [] },
     },
   });
   state.queue = {
@@ -516,12 +524,13 @@ test("APR-06: squash proof refuses swapped PR heads, post-enqueue force-pushes a
   state.queue.group.target.oid = second.oid;
 
   nodes[0]!.pullRequest.timelineItems = {
-    totalCount: 2, pageInfo: { hasPreviousPage: false },
+    filteredCount: 2, totalCount: 6, pageInfo: { hasPreviousPage: false, hasNextPage: false },
     nodes: [{ __typename: "HeadRefForcePushedEvent", createdAt: date(2) }, { __typename: "HeadRefForcePushedEvent", createdAt: first.stamp }],
   };
   await assert.rejects(() => publishSquash(), /does not prove the exact original/);
   nodes[0]!.pullRequest.timelineItems = {
-    totalCount: 1, pageInfo: { hasPreviousPage: false }, nodes: [{ __typename: "HeadRefForcePushedEvent", createdAt: date(2) }],
+    filteredCount: 1, totalCount: 5, pageInfo: { hasPreviousPage: false, hasNextPage: false },
+    nodes: [{ __typename: "HeadRefForcePushedEvent", createdAt: date(2) }],
   };
 
   state.pr.head.sha = lateSameTree9;

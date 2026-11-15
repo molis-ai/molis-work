@@ -17,11 +17,13 @@ function epochSeconds(value) {
 
 function validForcePushes(forcePushes, enqueuedSeconds) {
   const nodes = forcePushes?.nodes;
-  if (!Array.isArray(nodes) || !Number.isSafeInteger(forcePushes?.totalCount) || forcePushes.totalCount < 0) return false;
-  if (forcePushes.totalCount === 0 ? nodes.length !== 0 : nodes.length === 0) return false;
+  const count = forcePushes?.filteredCount;
+  if (!Array.isArray(nodes) || !Number.isSafeInteger(count) || count < 0) return false;
+  if (forcePushes.pageInfo?.hasNextPage !== false) return false;
+  if (count === 0 ? nodes.length !== 0 : nodes.length === 0) return false;
   return nodes.every(node => {
     const at = epochSeconds(node?.createdAt);
-    return Number.isSafeInteger(at) && at < enqueuedSeconds;
+    return node?.__typename === "HeadRefForcePushedEvent" && Number.isSafeInteger(at) && at < enqueuedSeconds;
   });
 }
 

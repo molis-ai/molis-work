@@ -146,7 +146,9 @@ APR-06 的具体接入要求为：可信 base 的检查器在 PR 检查和 `merg
 
 检查器校验实时目标分支头、组引用、完整队列前缀与父提交链，按同一个目标分支头的政策检查各 PR 原头。原 PR 返回的历史 base 只用于还原提交集合。发布还须证明队列组包含所审的精确原头。双父提交的队列可以逐项核原头为第二父提交，已有隔离用例；squash 队列只有前一队列提交一个父提交，`scripts/agent-approval-squash-proof.mjs` 在隔离裸仓库中禁用自定义合并驱动、钩子与外部配置，逐项核对队列提交单父节点、树哈希、无属性三路合并树（`git --attr-source=4b825dc642cb6eb9a060e54bf8d69288fbee4904 merge-tree --write-tree`）、提交标题编号、入队及推送时间戳与强推时间线；仅靠实时 API 头而无 Git 树证明时继续拒绝发布通过。已在正式仓真实组 `605696e3`（前序 `#2079` `844c7329`、原头 `#2064` `2043a261`）和隔离双成员用例验证逐字节树一致与换头／强推／晚提交拒绝。
 
-上述两个真实合并组的 GitHub Actions run 与 Check Suite 的 `pull_requests` 均为空。#2064 与 #2079 的历史入队和出队事件也没有提交编号。改组后的提交 `605696e3` 只有一个 Git 父节点，GitHub 的提交关联查询仅返回已合并的 #2064；因此原头证明不依赖这些关联查询，而以 GraphQL 队列条目时序加隔离 Git 三路合并树核验，仍待在已批准的真实队列环境中完成事件接入、状态发布与合并实测。
+上述两个真实合并组的 GitHub Actions run 与 Check Suite 的 `pull_requests` 均为空。#2064 与 #2079 的历史入队和出队事件也没有提交编号。改组后的提交 `605696e3` 只有一个 Git 父节点，GitHub 的提交关联查询仅返回已合并的 #2064；因此原头证明不依赖这些关联查询，而以 GraphQL 队列条目时序（使用父提交数区分双父合并与单父 squash，不请求需要额外管理权限的 `mergeQueue.configuration`；强推事件按 `timelineItems.filteredCount` 与 `hasNextPage` 核对）加隔离 Git 三路合并树核验。
+
+2026-11-15 按用户授权（A2）在纯合成、零业务代码的临时公开试验仓 `molis-ai/batch39-mq-lab`（`repoId=1458609687`，规则集 `27305064` 固定 `integration_id=5765361` 的 `agent-approval-check` 与 `SQUASH`、`ALLGREEN` 合并队列，接入 `pull_request`、`pull_request_review`、`issue_comment`、`merge_group` 事件工作流）完成端到端真实合并队列实测：未批准的合成 Agent PR `#3`（`6b933d272e4e9bc407c4edf9733e17a87a60b233`）发布失败状态后，入队请求被 GitHub 以 `Required status check "agent-approval-check" is failing` 拒绝；真人 `@yijunw0212` 批准 PR `#1`（`7faaab3c46115b51abd9a8b433a58ea09da3174e`）与 PR `#2`（`3b652faf0731ee08060fb2e5e1f73a7244e970ed`）并同时入队后，真实 `merge_group`（`checks_requested`）运行 `43698572683` 与 `43698573429` 分别生成单成员队列提交 `62d007115263f8a898b27a6f953dc0ec740086ba`（树 `bd2feeae275d9f524e165844dd060924c82e4ad0`）与双成员前缀队列提交 `e18fd9ea808b0217732827be17ad304de1a7ac62`（父节点 `62d00711...`、树 `c86fb2a286f30f3cb49b3476efee9c6f206bd5da`）。发布器用单仓短时安装令牌逐项证明两步无属性三路合并树与原 PR 批准、发布 `success` 并立即撤销令牌（`204`），GitHub 合并队列随即于 `2026-11-15T09:25:00Z` 将 `#1` 与 `#2` 按 squash 合并入 `main`，`#3` 保持未合并。取证后已立即关闭 `#3` 并将该临时仓收窄为私有，待收尾一并删除。
 
 发布器重算前把自己的旧通过设为待核对，在写入前后重读原批准与权限。缺证据、无策略或事实变化时保持待核对。正式接入仍需可信 runner 按审批、PR 和合并组变化及时重算受影响的提交，使用独立 App 的发布身份并验收。GitHub 的状态写入没有原子条件提交，外部变动能否及时中止合并需在真实队列实测。正式接入仍由用户批准。
 
@@ -154,7 +156,7 @@ APR-06 的具体接入要求为：可信 base 的检查器在 PR 检查和 `merg
 
 2026-11-15 已注册组织私有 App，且只安装在试验仓。GitHub 对 Issues 读写权限发出的 PR 评论请求返回 403。经用户批准，安装采用 Pull requests 与 Commit statuses 读写，Contents 与 Metadata 只读，Issues 权限移除。Webhook 关闭。短时令牌限定试验仓，发布尝试结束后均主动撤销。
 
-同日在原试验 PR 的提交 `e3206cbe8a2d17fc5e25ec1a17ecd9d23db4c642` 证明 GitHub 识别了合成 Agent 作者，独立 App 更新[固定说明](https://github.com/molis-ai/batch39-approval-lab/pull/1#issuecomment-6888231876)并发布缺一票的失败状态。试验分支保护固定了 App 身份，并对管理员生效。GitHub 返回 `BLOCKED`。下一步读回本版批准，再验证新提交使旧票失效及重新批准。
+同日在原试验 PR 的提交 `e3206cbe8a2d17fc5e25ec1a17ecd9d23db4c642` 证明 GitHub 识别了合成 Agent 作者，独立 App 更新[固定说明](https://github.com/molis-ai/batch39-approval-lab/pull/1#issuecomment-6888231876)并发布缺一票的失败状态。试验分支保护固定了 App 身份，并对管理员生效。GitHub 返回 `BLOCKED`。随后真人 `@yijunw0212` 发 `/approve e3206cbe8a2d17fc5e25ec1a17ecd9d23db4c642`（`#issuecomment-6892104879`），独立 App 原地更新同一条固定说明（`IC_kwDOVt0jMs8AAAABmpITxA`）为「已取得本版所需的 1 票。批准人：@yijunw0212。」并发布 `success`，PR 状态变为 `CLEAN`／`MERGEABLE`；接着推送第二个合成 Agent 提交 `6db35a1153d2029f1c2d2e1b5eb3b4d990953eef`，独立 App 将同一固定说明更新为「缺 1 票……已过期：@yijunw0212 · `e3206cbe8a2d17fc5e25ec1a17ecd9d23db4c642`」并发布 `failure`，PR 重新变为 `BLOCKED`，现待本人对 `6db35a1153d2029f1c2d2e1b5eb3b4d990953eef` 作第二轮批准以完成闭环。
 
 试验 App 用限定该仓的只读短时令牌成功读取 PR 作者的写权限、审查列表和固定说明的编辑及隐藏事实，读取后已撤销该令牌。隔离发布器回归覆盖已签名且关联真人账号的提交记录，在启用人审的目标上直接通过，并保留同一条固定说明。对需要人审的改动，补足当前版票数后，固定说明同时保留旧版的过期票。真实投票和合并队列继续按下列步骤取证。
 

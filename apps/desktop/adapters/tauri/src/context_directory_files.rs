@@ -68,7 +68,10 @@ fn file_skip_reason(name: &str) -> Option<&'static str> {
         .extension()
         .and_then(|value| value.to_str())
         .unwrap_or("");
-    let env_template = matches!(lower.as_str(), ".env.example" | ".env.sample" | ".env.template");
+    let env_template = matches!(
+        lower.as_str(),
+        ".env.example" | ".env.sample" | ".env.template"
+    );
     let secret = (!env_template && (lower == ".env" || lower.starts_with(".env.")))
         || matches!(
             extension,
@@ -689,10 +692,18 @@ mod tests {
             ".pgpass",
             "secrets.prod.yaml",
         ] {
-            assert_eq!(file_skip_reason(secret_name), Some("secret"), "{secret_name} is secret");
+            assert_eq!(
+                file_skip_reason(secret_name),
+                Some("secret"),
+                "{secret_name} is secret"
+            );
         }
         for safe_template in [".env.example", ".env.sample", ".env.template"] {
-            assert_eq!(file_skip_reason(safe_template), None, "{safe_template} is allowed template");
+            assert_eq!(
+                file_skip_reason(safe_template),
+                None,
+                "{safe_template} is allowed template"
+            );
         }
     }
     #[test]

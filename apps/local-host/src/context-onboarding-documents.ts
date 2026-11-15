@@ -176,45 +176,67 @@ export async function prepareContextDocument(
       secretMode = decision;
       finalBody = decision === "strip" ? stripMaterialSecrets(body) : body;
     }
-    const recognizedByContent = isRecognizedByContent(filename);
-    return {
-      reference: {
-        source_id: createHash("sha256").update(JSON.stringify(secretMode ? [kind, file.path, sha256, secretMode] : [kind, file.path, sha256])).digest("hex"),
-        version: 1,
-        label: "",
-        title,
-        path: file.path,
-        text: await stageContextText(home, journeyId, finalBody),
-        original: { filename, mime: MIME[extension] ?? "text/plain", sha256, size_bytes: bytes.length },
-        ...(recognizedByContent ? { recognized_by_content: true } : {}),
-        ...(secretMode ? { secret_mode: secretMode } : {}),
-      },
-    };
+    return await stageContextReference(home, journeyId, {
+      kind,
+      path: file.path,
+      filename,
+      extension,
+      sha256,
+      size_bytes: bytes.length,
+      title,
+      finalBody,
+      recognizedByContent: isRecognizedByContent(filename),
+      ...(secretMode ? { secretMode } : {}),
+    });
   } catch (error) {
     signal?.throwIfAborted();
-    // A full disk is not this file's fault: the round stops and goes on at this file once there is room.
-    if (diskFull(error)) throw error;
-    const message = error instanceof Error ? error.message : "无法读取文件";
-    // Whole characters, not UTF-16 units: unit 600 can fall inside a two-unit character. The first slice bounds what is spread.
-    return { issue: { path: file.path, reason: unreadableReason(error) ?? (/password/iu.test(message) ? "PDF 已加密，请解密后导入" : [...message.slice(0, 1_200)].slice(0, 600).join("")) } };
+    return formatDocumentReadIssue(file.path, error);
   }
 }
 
+interface ContextReferenceDraft {
+  kind: ContextSourceKind;
+  path: string;
+  filename: string;
+  extension: string;
+  sha256: string;
+  size_bytes: number;
+  title: string;
+  finalBody: string;
+  recognizedByContent: boolean;
+  secretMode?: "strip" | "raw";
+}
+
+async function stageContextReference(
+  home: string,
+  journeyId: string,
+  draft: ContextReferenceDraft,
+): Promise<{ reference: ContextReference }> {
+  return {
+    reference: {
+      source_id: createHash("sha256").update(JSON.stringify(draft.secretMode ? [draft.kind, draft.path, draft.sha256, draft.secretMode] : [draft.kind, draft.path, draft.sha256])).digest("hex"),
+      version: 1,
+      label: "",
+      title: draft.title,
+      path: draft.path,
+      text: await stageContextText(home, journeyId, draft.finalBody),
+      original: { filename: draft.filename, mime: MIME[draft.extension] ?? "text/plain", sha256: draft.sha256, size_bytes: draft.size_bytes },
+      ...(draft.recognizedByContent ? { recognized_by_content: true } : {}),
+      ...(draft.secretMode ? { secret_mode: draft.secretMode } : {}),
+    },
+  };
+}
+
+function formatDocumentReadIssue(path: string, error: unknown): { issue: { path: string; reason: string } } {
+  // A full disk is not this file's fault: the round stops and goes on at this file once there is room.
+  if (diskFull(error)) throw error;
+  const message = error instanceof Error ? error.message : "无法读取文件";
+  // Whole characters, not UTF-16 units: unit 600 can fall inside a two-unit character. The first slice bounds what is spread.
+  return { issue: { path, reason: unreadableReason(error) ?? (/password/iu.test(message) ? "PDF 已加密，请解密后导入" : [...message.slice(0, 1_200)].slice(0, 600).join("")) } };
+}
+
 export type PreparedHeldSecretInMemory =
-  | {
-      draft: {
-        kind: ContextSourceKind;
-        path: string;
-        filename: string;
-        extension: string;
-        sha256: string;
-        size_bytes: number;
-        title: string;
-        finalBody: string;
-        recognizedByContent: boolean;
-        secretMode: "strip" | "raw";
-      };
-    }
+  | { draft: ContextReferenceDraft & { secretMode: "strip" | "raw" } }
   | { issue: { path: string; reason: string } };
 
 /**
@@ -253,9 +275,7 @@ export async function readHeldSecretMaterialInMemory(
     };
   } catch (error) {
     signal?.throwIfAborted();
-    if (diskFull(error)) throw error;
-    const message = error instanceof Error ? error.message : "无法读取文件";
-    return { issue: { path: held.path, reason: unreadableReason(error) ?? (/password/iu.test(message) ? "PDF 已加密，请解密后导入" : [...message.slice(0, 1_200)].slice(0, 600).join("")) } };
+    return formatDocumentReadIssue(held.path, error);
   }
 }
 
@@ -265,18 +285,5 @@ export async function stagePreparedHeldSecretReference(
   prepared: PreparedHeldSecretInMemory,
 ): Promise<{ reference: ContextReference } | { issue: { path: string; reason: string } }> {
   if ("issue" in prepared) return prepared;
-  const { draft } = prepared;
-  return {
-    reference: {
-      source_id: createHash("sha256").update(JSON.stringify([draft.kind, draft.path, draft.sha256, draft.secretMode])).digest("hex"),
-      version: 1,
-      label: "",
-      title: draft.title,
-      path: draft.path,
-      text: await stageContextText(home, journeyId, draft.finalBody),
-      original: { filename: draft.filename, mime: MIME[draft.extension] ?? "text/plain", sha256: draft.sha256, size_bytes: draft.size_bytes },
-      ...(draft.recognizedByContent ? { recognized_by_content: true } : {}),
-      secret_mode: draft.secretMode,
-    },
-  };
+  return await stageContextReference(home, journeyId, prepared.draft);
 }

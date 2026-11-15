@@ -7,7 +7,7 @@ import { createPrologueInference } from "./prologue-inference.js";
 import { createSessionMessages } from "./prologue-messages.js";
 import { createProjectWork } from "./prologue-project-work.js";
 import { createPrologueTaskBoards } from "./prologue-taskboard.js";
-import { applyUnknownCommandOutcomes, shape, type PlanPlace, type ReconciledStepMap } from "./prologue-plan-steps.js";
+import { applyUnknownCommandOutcomes, mergeReconciledSteps, shape, type PlanPlace, type ReconciledStepMap } from "./prologue-plan-steps.js";
 import { restorePrologueRun } from "./prologue-restored-session.js";
 import { createPrologueWaits } from "./prologue-waits.js";
 import { readResource, type CommandEvent, type DispatchGuards, type NodeHost, type PrologueNodeAdapterOptions, type RoundState } from "./prologue-node-kit.js";
@@ -92,7 +92,7 @@ export function createNodeCoordination(runtime: Runtime, index: SessionIndexStor
     const saved = await index.read(run.session_id), attempt = saved?.attempts.find(item => item.run_id === run.run_id);
     if (!attempt || !saved) return undefined;
     const mergedReconciled: ReconciledStepMap | undefined = attempt.step_prefix
-      ? Object.assign({}, ...saved.attempts.filter(item => item.step_prefix === attempt.step_prefix).map(item => item.reconciled_steps))
+      ? mergeReconciledSteps(saved.attempts.filter(item => item.step_prefix === attempt.step_prefix).map(item => item.reconciled_steps))
       : attempt.reconciled_steps;
     return {
       ...attempt,
@@ -127,7 +127,7 @@ async function readPlanUnknownStepIds(
   const saved = await index.read(sessionId).catch(() => undefined);
   const attempts = saved?.attempts.filter(item => item.step_prefix === place.prefix && item.run_id) ?? [];
   if (!saved || !attempts.length) return new Set();
-  const reconciled: ReconciledStepMap = Object.assign({}, ...attempts.map(item => item.reconciled_steps));
+  const reconciled = mergeReconciledSteps(attempts.map(item => item.reconciled_steps));
   let projected = shape(runtime, runtime.boards.get(place.ref), place, sessionId, id => state.liveSessions.has(id), reconciled);
   const sdkSession = await runtime.sessions.open(saved.ref).catch(() => undefined);
   const terminal = (await sdkSession?.terminalRuns().catch(() => undefined)) ?? [];

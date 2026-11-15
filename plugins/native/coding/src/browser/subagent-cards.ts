@@ -233,12 +233,27 @@ const retryRequest = (role: string, child: Child) => uiText.text("coding.card.re
 });
 
 /**
- * Retries a failed or stopped child: when tracked by the Host's attempt budget, dispatches within that budget (or offers +3 attempts
- * when exhausted); otherwise steers a live parent with `source: "host"` (BL-182) or prefills the composer.
+ * Retries a failed or stopped child: while the parent round is still live, steers the parent with `source: "host"` (BL-182);
+ * once the parent has ended, dispatches within the Host's attempt budget (or prefills the composer when no budget is attached).
  */
 function retryButton(ports: SubagentCardPorts, run: CardsRun, child: Child) {
   const { lifetime, api, current, status, refresh } = ports;
   return button(uiText.text("coding.card.retry"), async retry => {
+    const ask = retryRequest(ports.roleName(child.role_id) || child.role_name, child);
+    if (ports.parentLive(run)) {
+      retry.disabled = true;
+      const id = current();
+      try {
+        await api("/sessions/" + encodeURIComponent(id) + "/control", "POST", { kind: "steer", source: "host", run_id: run.ref.run_id, text: ask });
+        status(uiText.text("coding.card.retry-asked"));
+      } catch (error) {
+        if (!lifetime.alive) return;
+        status(errorMessage(error), true);
+        retry.disabled = false;
+      }
+      if (id === current()) await refresh();
+      return;
+    }
     if (child.budget && !child.budget.exhausted) {
       retry.disabled = true;
       const id = current();
@@ -253,23 +268,8 @@ function retryButton(ports: SubagentCardPorts, run: CardsRun, child: Child) {
       if (id === current()) await refresh();
       return;
     }
-    const ask = retryRequest(ports.roleName(child.role_id) || child.role_name, child);
-    if (!ports.parentLive(run)) {
-      ports.prefill(ask);
-      status(uiText.text("coding.card.retry-prefilled"));
-      return;
-    }
-    retry.disabled = true;
-    const id = current();
-    try {
-      await api("/sessions/" + encodeURIComponent(id) + "/control", "POST", { kind: "steer", source: "host", run_id: run.ref.run_id, text: ask });
-      status(uiText.text("coding.card.retry-asked"));
-    } catch (error) {
-      if (!lifetime.alive) return;
-      status(errorMessage(error), true);
-      retry.disabled = false;
-    }
-    if (id === current()) await refresh();
+    ports.prefill(ask);
+    status(uiText.text("coding.card.retry-prefilled"));
   });
 }
 

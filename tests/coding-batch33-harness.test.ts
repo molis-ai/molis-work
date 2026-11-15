@@ -4,6 +4,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { MATERIALS_PROVIDER_ID, materialsActions } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import { artifactSubjectId, type ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { AgentRunRef, AgentRunView, AgentStepBoard } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { KNOWLEDGE_PROVIDER_ID, knowledgeActions } from "@molis-ai/molis-work-contracts/services/knowledge";
@@ -21,8 +22,10 @@ import {
   renderTaskAttemptBudget,
 } from "@molis-ai/molis-work-design-system";
 import {
+  activeLeafSteps,
   buildEnvironmentChecklistHtml,
   buildRoundMaterialsHtml,
+  codingContinuation,
   codingHistoryDigest,
   codingTimelineWords,
   createCodingTimeline,
@@ -34,6 +37,7 @@ import {
 } from "@molis-ai/molis-work-plugin-coding";
 import {
   applyUnknownCommandOutcomes,
+  assertPinnedMaterialResult,
   computeWeightedStepBoardProgress,
   effectiveCompactionAboveTokens,
   effectiveContextWindow,
@@ -314,6 +318,170 @@ test("B1, B5 & B7: withPinnedKnowledgeRevision gateway pinning, client progress 
   });
 });
 
+test("Audit hardening: activeLeafSteps, start-command exit digest, material continuation precision, CodingRecordedMaterial pinning, and parent removed_scope_points", () => {
+  const nodes = [
+    { id: "epic-1", title: "父分组", state: "running" as const, story_points: 8, reports: [], owner: { kind: "session" as const, label: "本会话" } },
+    { id: "step-1", parent_id: "epic-1", title: "完成叶步", state: "succeeded" as const, story_points: 3, reports: [], owner: { kind: "session" as const, label: "本会话" } },
+    { id: "step-2", parent_id: "epic-1", title: "未知结果叶步", state: "succeeded" as const, unknown_outcome: true, story_points: 5, reports: [], owner: { kind: "session" as const, label: "本会话" } },
+    { id: "step-3", title: "用户跳过步", state: "cancelled" as const, skipped: true, story_points: 2, reports: [], owner: { kind: "session" as const, label: "本会话" } },
+    { id: "epic-removed", title: "移除的父分组", state: "cancelled" as const, scope_removed: true, story_points: 13, reports: [], owner: { kind: "session" as const, label: "本会话" } },
+    { id: "step-4", parent_id: "epic-removed", title: "移除的叶步", state: "cancelled" as const, scope_removed: true, story_points: 5, reports: [], owner: { kind: "session" as const, label: "本会话" } },
+  ];
+  const leaves = activeLeafSteps(nodes);
+  assert.deepEqual(leaves.map(n => n.id), ["step-1", "step-2"], "activeLeafSteps excludes parent containers, skipped, and scope_removed");
+
+  const progress = computeWeightedStepBoardProgress(nodes);
+  assert.equal(progress.removed_scope_points, 5, "removed_scope_points counts leaf points only, never double-counting parent container");
+  assert.equal(progress.completed_points, 3, "unknown_outcome leaf is excluded from completed_points");
+  assert.equal(progress.total_points, 10, "total_points includes active leaves (3+5) plus skipped leaf (2)");
+
+  const packs = chinesePagePacks("coding");
+  withPagePacks("zh", packs, () => {
+    const summaryLine = formatBoardProgressSummary(progress, nodes);
+    assert.match(summaryLine, /预计进度 30%/);
+    assert.match(summaryLine, /3 \/ 10 点/);
+    assert.match(summaryLine, /移出范围 5 点/);
+    const parentBadge = stepPointsBadge(nodes, nodes[0]!);
+    assert.match(parentBadge.text, /8/);
+    assert.match(parentBadge.title, /2/);
+
+    const hasEnvHtml = buildEnvironmentChecklistHtml({
+      workspace_id: "ws-env",
+      status: "attention",
+      branch: "main",
+      head_commit: "e8b410caabbcc",
+      dirty_count: 0,
+      git_conflicted_count: 0,
+      git_merging: false,
+      is_git_repo: true,
+      deps_manager: "pnpm",
+      deps_installed: false,
+      script_names: ["test", "dev"],
+      ports: [5173],
+      env_template: ".env.example",
+      env_keys: ["DATABASE_URL", "STRIPE_SECRET_KEY"],
+      has_local_env: true,
+      worktrees: { active: 0, problem_count: 0, cleanup_count: 0 },
+      checked_at: "2026-11-15T00:00:00.000Z",
+    });
+    assert.match(hasEnvHtml, /node_modules/);
+    assert.match(hasEnvHtml, /5173/);
+    assert.match(hasEnvHtml, /不读取密钥值/);
+    const missingEnvHtml = buildEnvironmentChecklistHtml({
+      workspace_id: "ws-env",
+      status: "attention",
+      branch: "main",
+      head_commit: "e8b410caabbcc",
+      dirty_count: 0,
+      git_conflicted_count: 0,
+      git_merging: false,
+      is_git_repo: true,
+      deps_manager: "pnpm",
+      deps_installed: true,
+      script_names: ["test"],
+      ports: [],
+      env_template: ".env.example",
+      env_keys: ["DATABASE_URL", "STRIPE_SECRET_KEY"],
+      has_local_env: false,
+      worktrees: { active: 0, problem_count: 0, cleanup_count: 0 },
+      checked_at: "2026-11-15T00:00:00.000Z",
+    });
+    assert.match(missingEnvHtml, /DATABASE_URL/);
+    assert.match(missingEnvHtml, /STRIPE_SECRET_KEY/);
+
+    // wasMaterialContinuedRead must NOT match workspace `read` tool or 2-char short titles, only knowledge/materials actions.
+    const frozenShort = {
+      model_id: "m",
+      role_id: "reader",
+      role_version: 1,
+      skills: [],
+      text_materials: [{
+        material_id: "page:p-short@rev1",
+        title: "go",
+        read_revision: "rev1",
+        delivery: "clipped" as const,
+      }],
+    };
+    const workspaceReadHtml = buildRoundMaterialsHtml({
+      frozen: frozenShort,
+      activity: [{ name: "read", target: "src/go.ts", output: "package go", state: "completed" }],
+    });
+    assert.doesNotMatch(workspaceReadHtml, /已接着读/, "workspace read tool and 2-char title must not false-positive continued read");
+
+    const gatewayReadHtml = buildRoundMaterialsHtml({
+      frozen: frozenShort,
+      activity: [{ name: "read-capability", target: "knowledge.read", output: "{\"subject\":{\"kind\":\"page\",\"id\":\"p-short\"}}", state: "completed" }],
+    });
+    assert.match(gatewayReadHtml, /已接着读/, "gateway read-capability matching subject id marks continued read");
+  });
+
+  // start-command with exit 0 / exit 1 in output is classified accurately in codingHistoryDigest, while no exit line stays unknown.
+  const sampleRun: AgentRunView = {
+    ref: { session_id: "s-audit", run_id: "r-audit" },
+    phase: "stopped",
+    started_at: "2026-11-15T00:00:00.000Z",
+    ended_at: "2026-11-15T00:01:00.000Z",
+    usage: { tokens: { input: 10, output: 10 } },
+    awaiting_input: [],
+    turns: [{ turn_id: "t1", kind: "user", text: "验证历史摘要与断点续接", at: null }],
+    activity: [
+      { call_id: "sc-ok", name: "start-command", target: "pnpm build", state: "completed", summary: "", at: null, output: "exit 0\nbuilt" },
+      { call_id: "ed-1", name: "edit", target: "src/index.ts", state: "completed", summary: "", at: null },
+      { call_id: "sc-fail", name: "start-command", target: "pnpm typecheck", state: "completed", summary: "", at: null, output: "exit 1\nts error" },
+      { call_id: "sc-bg", name: "start-command", target: "pnpm preview", state: "completed", summary: "", at: null, output: "started pid 42" },
+    ],
+    step_board: {
+      project_id: "p1",
+      version: 1,
+      terminal: false,
+      nodes,
+    },
+    frozen: { workspace: "none", role_id: "writer", role_version: 1, execution: "workspace-write", model_id: "m", prompts: [], skills: [], mcp_tools: [], mcp_sources: [], host_tools: [], text_materials: [], budget: null },
+  };
+  const digest = codingHistoryDigest([sampleRun], "下一步");
+  assert.doesNotMatch(digest, /pnpm build/, "start-command with exit 0 is ok and never misclassified as failed or unknown");
+  assert.match(digest, /验证提醒：最后一次通过的检查之后又改过文件/, "start-command exit 0 sets lastPassIndex so subsequent edit triggers staleAfterEdit");
+  assert.match(digest, /失败命令：pnpm typecheck/);
+  assert.match(digest, /结果未知（待核对，不视作已完成）：pnpm preview/);
+  assert.match(digest, /未完成计划步骤：「未知结果叶步」（needs-reconciliation）/);
+  assert.doesNotMatch(digest, /父分组/, "digest excludes parent container steps");
+
+  const cont = codingContinuation({ number: 1, run: sampleRun, reviews: [], commands: [] });
+  assert.ok(cont, "stopped run produces continuation");
+  assert.match(cont.task, /「未知结果叶步」（step-2）：需核对（结果未知）/, "continuation treats unknown_outcome leaf as needing reconciliation");
+  assert.doesNotMatch(cont.task, /父分组/, "continuation excludes parent container steps");
+  assert.match(cont.task, /「用户跳过步」（step-3）：已取消/, "continuation preserves skipped step cancellation notice so model does not redo it");
+
+  // CodingRecordedMaterial (material_id = kind:id@rev, material_ref = undefined) pins both inline and overflow subjects.
+  const knowledgeReadRef = { provider_id: KNOWLEDGE_PROVIDER_ID, capability_id: knowledgeActions.read.capability_id, version: 1 };
+  const materialsReadRef = { provider_id: MATERIALS_PROVIDER_ID, capability_id: materialsActions.read.capability_id, version: 1 };
+  const recordedPinned = pinnedMaterialRevisions([
+    { material_id: "page:doc-inline@rev-inline", title: "inline.md", text: "body", read_revision: "rev-inline" },
+    {
+      material_id: "coding-materials-overflow",
+      title: "目录",
+      text: "overflow",
+      delivery: "on-demand",
+      overflow_materials: [
+        { material_id: "page:doc-overflow@rev-overflow", title: "overflow.md", read_revision: "rev-overflow", delivery: "on-demand" },
+      ],
+    },
+  ]);
+  const injectedInline = withPinnedKnowledgeRevision(knowledgeReadRef, { subject: { kind: "page", id: "doc-inline" } }, recordedPinned) as { expected_revision?: string };
+  assert.equal(injectedInline.expected_revision, "rev-inline");
+  const injectedOverflow = withPinnedKnowledgeRevision(knowledgeReadRef, { subject: { kind: "page", id: "doc-overflow" } }, recordedPinned) as { expected_revision?: string };
+  assert.equal(injectedOverflow.expected_revision, "rev-overflow");
+  assert.throws(
+    () => assertPinnedMaterialResult(
+      materialsReadRef,
+      { ref: { subject: { kind: "page", id: "doc-overflow" }, pin: { mode: "current", read_revision: "rev-overflow" } }, mode: "text" },
+      { state: "ok", read_revision: "rev-mutated" },
+      recordedPinned,
+    ),
+    (err: { code?: string }) => err.code === "agent.pinned_revision_mismatch",
+  );
+});
+
 test("CHO-13: Coding /state inspects git, missing deps, scripts/ports, and .env.example keys without reading .env secrets", { timeout: 45_000 }, async t => {
   const { home, project, other, directory, call } = await codingProductHost(t, () => cogniaModelResponse("ok"));
   execFileSync("git", ["init", "-b", "main"], { cwd: directory, stdio: "ignore" });
@@ -322,20 +490,45 @@ test("CHO-13: Coding /state inspects git, missing deps, scripts/ports, and .env.
   await writeFile(join(directory, "pnpm-lock.yaml"), "lockfileVersion: '9.0'\n", "utf8");
   await writeFile(join(directory, ".env.example"), "DATABASE_URL=\nSTRIPE_SECRET_KEY=\n", "utf8");
 
+  interface EnvReadiness {
+    workspace_id: string;
+    canonical_path: string;
+    status: "ready" | "attention";
+    branch: string | null;
+    head_commit: string | null;
+    dirty_count: number;
+    git_conflicted_count: number;
+    git_merging: boolean;
+    is_git_repo: boolean;
+    deps_manager: string | null;
+    deps_installed: boolean;
+    script_names: string[];
+    ports: number[];
+    env_template: string | null;
+    env_keys: string[];
+    has_local_env: boolean;
+    worktrees: { active: number; problem_count: number; cleanup_count: number };
+    checked_at: string;
+  }
   interface StateBody {
-    environment_readiness?: {
-      status: string;
-      branch: string | null;
-      dirty_count: number;
-      items: Array<{ id: string; status: string; detail: string }>;
-    };
+    workspaces?: Array<{ workspace_id: string }>;
+    environment_readiness?: EnvReadiness;
   }
   const missingEnvState = await call<StateBody>(project.project_id, `${CODING_PREFIX}/state`);
   assert.equal(missingEnvState.status, 200);
-  const missingById = new Map((missingEnvState.body.environment_readiness?.items ?? []).map(item => [item.id, item]));
-  assert.equal(missingById.get("env")?.status, "warn");
-  assert.match(missingById.get("env")?.detail ?? "", /DATABASE_URL/);
-  assert.match(missingById.get("env")?.detail ?? "", /STRIPE_SECRET_KEY/);
+  const missingEnv = missingEnvState.body.environment_readiness!;
+  assert.ok(missingEnv, "environment_readiness is returned on /state");
+  assert.equal(missingEnv.has_local_env, false);
+  assert.deepEqual(missingEnv.env_keys, ["DATABASE_URL", "STRIPE_SECRET_KEY"]);
+  assert.equal(Object.hasOwn(missingEnv, "items"), false, "server never returns pre-translated items");
+  assert.equal(Object.hasOwn(missingEnv, "summary"), false, "server never returns pre-translated summary");
+
+  const targetWsId = missingEnvState.body.workspaces?.[0]?.workspace_id;
+  if (targetWsId) {
+    const explicitWsState = await call<StateBody>(project.project_id, `${CODING_PREFIX}/state?workspace_id=${encodeURIComponent(targetWsId)}`);
+    assert.equal(explicitWsState.status, 200);
+    assert.equal(explicitWsState.body.environment_readiness?.workspace_id, targetWsId);
+  }
 
   const envDir = join(home, "work-with-env");
   await mkdir(envDir);
@@ -358,12 +551,11 @@ test("CHO-13: Coding /state inspects git, missing deps, scripts/ports, and .env.
   assert.equal(env.status, "attention", "missing node_modules marks attention");
   const serialized = JSON.stringify(state.body);
   assert.equal(serialized.includes(rawEnvToken), false, ".env secret values are never read or returned");
-  const byId = new Map(env.items.map(item => [item.id, item]));
-  assert.equal(byId.get("deps")?.status, "warn");
-  assert.match(byId.get("deps")?.detail ?? "", /node_modules/);
-  assert.match(byId.get("scripts")?.detail ?? "", /5173/);
-  assert.equal(byId.get("env")?.status, "ok");
-  assert.match(byId.get("env")?.detail ?? "", /不读取密钥值/);
+  assert.equal(env.deps_manager, "pnpm");
+  assert.equal(env.deps_installed, false);
+  assert.deepEqual(env.ports, [5173]);
+  assert.equal(env.has_local_env, true);
+  assert.deepEqual(env.env_keys, ["DATABASE_URL", "STRIPE_SECRET_KEY"]);
 });
 
 test("CHO-29, CHO-30, CHO-31, CHO-32, CHO-33: Fibonacci story points validation and leaf-only weighted progress", () => {
@@ -511,6 +703,7 @@ test("CHO-34, CHO-35: Coding plan confirmation, TaskBoard Fibonacci amendments, 
     amendment: { kind: "skip", node: "step-2", reason: "暂缓流式背压验证" },
   });
   assert.equal(skipped.status, 200, JSON.stringify(skipped.body));
+  assert.equal(skipped.body.board.nodes.find(n => n.id === "step-2")?.skipped, true, "skip persists explicit skipped: true boolean");
   assert.equal(skipped.body.board.nodes.find(n => n.id === "step-2")?.scope_removed, undefined, "skip must NOT mark scope_removed");
   assert.equal(skipped.body.board.progress_summary?.total_points, 13, "skipped step stays in denominator");
 
@@ -598,13 +791,13 @@ test("C12, C13, C14: Coding round materials structured failure recovery, mid-rou
     (err: { code?: string }) => err.code === "knowledge.revision_changed",
   );
 
-  // C14: >30 materials succeed in a single round; first 30 inline + remaining 5 in an on-demand directory with pinned revisions.
+  // C14: >36 materials (40 materials) succeed in a single round; first 30 inline + remaining 10 in an on-demand directory with pinned revisions.
   const extraRefs: ArtifactReference[] = [healthy];
-  for (let i = 2; i <= 35; i += 1) {
+  for (let i = 2; i <= 40; i += 1) {
     extraRefs.push(await admitMaterial(`doc-${i}.md`, `# 文档 ${i}\n用于大材料清单按需读取测试。`));
   }
   const bigRun = await call<{ run: { ref: AgentRunRef } }>(project.project_id, `${CODING_PREFIX}/sessions/${sid}/runs`, {
-    task: "综合 35 份资料说明架构", intent: "discuss", workspace_id: workspaceId, provider_id: "fixture", model_id: "fixture-model",
+    task: "综合 40 份资料说明架构", intent: "discuss", workspace_id: workspaceId, provider_id: "fixture", model_id: "fixture-model",
     materials: extraRefs.map((ref, idx) => fixedRef(ref, `doc-${idx + 1}.md`)),
   });
   assert.equal(bigRun.status, 200, JSON.stringify(bigRun.body));
@@ -614,7 +807,7 @@ test("C12, C13, C14: Coding round materials structured failure recovery, mid-rou
   assert.ok(inlineMaterials.length >= 30 && inlineMaterials.length <= 31, `expected 30 inline user materials (+ optional project guidance), got ${inlineMaterials.length}`);
   const overflow = bigEnded.frozen.text_materials.find(item => item.delivery === "on-demand");
   assert.ok(overflow, "expected on-demand overflow directory material");
-  assert.equal(overflow.overflow_materials?.length, 5);
+  assert.equal(overflow.overflow_materials?.length, 10);
   assert.ok(overflow.overflow_materials?.every(item => Boolean(item.read_revision)));
 });
 
@@ -720,7 +913,10 @@ test("BL-051, BL-182: subagent attempt budget tracking, exhaustion guard, +3 bud
   assert.equal(retry1.body.subagent.budget.retry_source, "check-failed");
   assert.equal(retry1.body.subagent.budget.prior_attempts?.length, 1);
   await settleChild(parentEnded.ref, childId);
-  const retryModels = providerRequests.slice(reqCountBeforeRetry).map(raw => (JSON.parse(raw) as { model?: string }).model);
+  const retryModels = providerRequests
+    .slice(reqCountBeforeRetry)
+    .filter(raw => raw.includes("CHILD_CHECK"))
+    .map(raw => (JSON.parse(raw) as { model?: string }).model);
   assert.ok(retryModels.length >= 1 && retryModels.every(m => m === "fixture-model"), `expected frozen fixture-model on retry, got ${JSON.stringify(retryModels)}`);
 
   // Attempt 3 without extending budget is refused (budget exhausted at 2/2).
@@ -750,4 +946,13 @@ test("BL-051, BL-182: subagent attempt budget tracking, exhaustion guard, +3 bud
   assert.equal(retry2.body.subagent.budget.attempt, 3);
   assert.equal(retry2.body.subagent.budget.retry_source, "model-error");
   await settleChild(parentEnded.ref, childId);
+
+  // Invalid subagent id / already-completed state check rejects cleanly without leaking execution slots.
+  const unknownChild = await call<{ error: string }>(
+    project.project_id,
+    `${CODING_PREFIX}/sessions/${sid}/runs/${runId}/subagents/nonexistent-subagent`,
+    { action: "retry", source: "user-requested" },
+  );
+  assert.equal(unknownChild.status, 400);
+  assert.ok(unknownChild.body.error.length > 0);
 });

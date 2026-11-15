@@ -79,6 +79,9 @@ fn file_skip_reason(name: &str) -> Option<&'static str> {
             .any(|key| lower == *key || lower == format!("{key}.pub"))
         || (lower.starts_with("credentials") && lower.ends_with(".json"))
         || (lower.starts_with("service-account") && lower.ends_with(".json"))
+        || (lower.starts_with("client_secret") && lower.ends_with(".json"))
+        || lower == "auth.json"
+        || matches!(lower.as_str(), ".npmrc" | ".netrc" | ".pypirc" | ".pgpass")
         || lower.starts_with("secrets.")
         || lower.starts_with("secret.")
         || extension == "tfstate"
@@ -651,11 +654,30 @@ mod tests {
             "old.xlsx",
             "credentials.json",
             "service-account-prod.json",
+            "client_secret_app.json",
+            "auth.json",
+            ".npmrc",
+            ".netrc",
+            ".pypirc",
+            ".pgpass",
             "secrets.yaml",
             "prod.tfstate",
             "prod.tfvars",
         ] {
             assert!(relative_components(path).is_err(), "{path} is left out");
+        }
+        for secret_name in [
+            ".env",
+            ".env.local",
+            "credentials.json",
+            "client_secret_app.json",
+            "auth.json",
+            ".npmrc",
+            ".netrc",
+            ".pypirc",
+            ".pgpass",
+        ] {
+            assert_eq!(file_skip_reason(secret_name), Some("secret"), "{secret_name} is secret");
         }
     }
     #[test]

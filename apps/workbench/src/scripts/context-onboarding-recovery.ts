@@ -77,32 +77,42 @@ export const CONTEXT_ONBOARDING_RECOVERY_PART = String.raw`
     partialRestoredKinds.clear();
     if (journey) await withUploads('readonly', st => { const p = journey.id + ':', r = st.openCursor(); r.onsuccess = () => { const c = r.result; if (!c) return; const k = String(c.key); if (k.startsWith(p)) { const sk = k.slice(p.length); if (Array.isArray(c.value?.files) && c.value.files.length) uploads.set(sk, c.value.files); if (c.value?.partial) partialRestoredKinds.add(sk); } c.continue(); }; });
   }
-  function skipRuleName(path) {
-    const parts = String(path || '').split('/');
-    const folders = ['node_modules','vendor','dist','build','target','out','coverage','__pycache__','venv','pods','carthage'];
-    for (const part of parts.slice(0, -1)) {
-      const low = part.toLowerCase();
-      if (part.startsWith('.')) return part;
-      if (folders.includes(low)) return low;
-    }
-    const last = parts[parts.length - 1] || '';
-    return last.startsWith('.') ? last : '';
-  }
   async function runUploadCount(el, resumeFrom) {
     const kind = resumeFrom ? resumeFrom.kind : el.dataset.upload;
+    const s = source(kind);
     const list = resumeFrom ? resumeFrom.list : el.files, total = list.length;
-    const chosen = resumeFrom ? resumeFrom.chosen : [];
-    const reasons = resumeFrom ? resumeFrom.reasons : { ignored: 0, secret: 0, unreadable: 0 };
-    const ruleSet = new Set(resumeFrom ? resumeFrom.rules : []);
-    let bytes = resumeFrom ? resumeFrom.bytes : 0, index = resumeFrom ? resumeFrom.index : 0, drawn = 0;
+    const prevMeta = !resumeFrom && s.kind !== 'directory' && uploads.has(s.kind) ? s.metadata : null;
+    const prevFiles = prevMeta ? (uploads.get(s.kind) || []) : [];
+    const prevKeys = new Set(prevFiles.map(f => (f.webkitRelativePath || f.name) + '\0' + (f.size || 0)));
+    const chosen = resumeFrom ? resumeFrom.chosen : [...prevFiles];
+    const reasons = resumeFrom ? resumeFrom.reasons : { ignored: prevMeta?.skipped_reasons?.ignored || 0, secret: prevMeta?.skipped_reasons?.secret || 0, unreadable: prevMeta?.skipped_reasons?.unreadable || 0 };
+    const ruleSet = new Set(resumeFrom ? resumeFrom.rules : (prevMeta?.ignored_rules || []));
+    const baseEntries = resumeFrom ? (resumeFrom.baseEntries || 0) : (prevMeta ? (prevMeta.total_entries || (prevFiles.length + (prevMeta.skipped || 0))) : 0);
+    let dupEntries = resumeFrom ? (resumeFrom.dupEntries || 0) : 0;
+    let bytes = resumeFrom ? resumeFrom.bytes : prevFiles.reduce((n, f) => n + (f.size || 0), 0), index = resumeFrom ? resumeFrom.index : 0, drawn = 0;
     stopCounting = false; pausedScan = null;
     const allowSecret = kind === 'files';
+    const applyUploadMeta = partial => {
+      const skippedCount = (reasons.ignored || 0) + (reasons.secret || 0) + (reasons.unreadable || 0);
+      invalidateSource(s); uploads.set(s.kind, [...chosen]);
+      s.metadata = {
+        files: chosen.map(f => ({ path: f.webkitRelativePath || f.name, size: f.size, modified_ms: f.lastModified, identity: 'upload' })),
+        skipped: skippedCount,
+        truncated: Boolean(partial),
+        ...(partial ? { cancelled: true } : {}),
+        total_entries: baseEntries + index - dupEntries,
+        ...(skippedCount ? { skipped_reasons: { ...reasons } } : {}),
+        ...(ruleSet.size ? { ignored_rules: [...ruleSet] } : {}),
+      };
+      s.excluded = []; s.selected = chosen.length > 0 || total === 0;
+    };
     const take = file => {
       const path = file.webkitRelativePath || file.name;
+      if (!resumeFrom && prevKeys.has(path + '\0' + (file.size || 0))) { dupEntries++; return; }
       const skipped = contextFileSkip(path);
       if (skipped && !(allowSecret && skipped === 'secret')) {
         reasons[skipped] = (reasons[skipped] || 0) + 1;
-        if (skipped === 'ignored') { const rule = skipRuleName(path); if (rule && ruleSet.size < 24) ruleSet.add(rule); }
+        if (skipped === 'ignored') { const rule = contextSkipRuleName(path); if (rule && ruleSet.size < 24) ruleSet.add(rule); }
         return;
       }
       chosen.push(file); bytes += file.size || 0;
@@ -113,31 +123,21 @@ export const CONTEXT_ONBOARDING_RECOVERY_PART = String.raw`
         const end = Math.min(index + 2500, total);
         for (; index < end; index++) take(list[index]);
         counting = { done: index, total, kept: chosen.length, bytes };
+        if (index < total && index % 5000 === 0) {
+          applyUploadMeta(true);
+          await saveUploadFiles(s.kind, [...chosen], true);
+          save().catch(() => {});
+        }
         if (Date.now() - drawn >= 250 || index === total) { drawn = Date.now(); render(); await new Promise(resolve => setTimeout(resolve, 0)); }
         if (stopCounting && index < total) {
-          pausedScan = { kind, list, index, chosen: [...chosen], bytes, reasons: { ...reasons }, rules: [...ruleSet] };
+          pausedScan = { kind, list, index, chosen: [...chosen], bytes, reasons: { ...reasons }, rules: [...ruleSet], baseEntries, dupEntries };
           break;
         }
       }
     } else for (; index < total; index++) take(list[index]);
     const stoppedEarly = index < total;
     if (!chosen.length && total > 0 && !stoppedEarly) throw new Error(readText("workbench.context-onboarding.no-supported-files-found"));
-    const s = source(kind);
-    if (s.kind !== 'directory' && !resumeFrom && uploads.has(s.kind)) {
-      const had = uploads.get(s.kind);
-      chosen.unshift(...had.filter(f => !chosen.some(c => c.name === f.name && c.size === f.size)));
-    }
-    invalidateSource(s); uploads.set(s.kind, chosen);
-    const skippedCount = (reasons.ignored || 0) + (reasons.secret || 0) + (reasons.unreadable || 0);
-    s.metadata = {
-      files: chosen.map(f => ({ path: f.webkitRelativePath || f.name, size: f.size, modified_ms: f.lastModified, identity: 'upload' })),
-      skipped: skippedCount,
-      truncated: stoppedEarly,
-      total_entries: index,
-      ...(skippedCount ? { skipped_reasons: reasons } : {}),
-      ...(ruleSet.size ? { ignored_rules: [...ruleSet] } : {}),
-    };
-    s.excluded = []; s.selected = chosen.length > 0 || total === 0; error = '';
+    applyUploadMeta(stoppedEarly); error = '';
     if (total > 2500) { counting = { done: index, total, kept: chosen.length, bytes, saving: true }; render(); await new Promise(resolve => setTimeout(resolve, 0)); }
     await saveUploadFiles(s.kind, chosen, stoppedEarly);
   }
@@ -186,7 +186,7 @@ export const CONTEXT_ONBOARDING_RECOVERY_PART = String.raw`
     const nonDupRefs = refRows.filter(x => !x.r.duplicate_of);
     const readCount = nonDupRefs.length;
     const usedCount = journey.summary ? nonDupRefs.filter(x => x.r.used_in_summary).length : 0;
-    const projectCount = journey.phase === 'complete' ? nonDupRefs.filter(x => x.r.adopted).length : nonDupRefs.length;
+    const projectCount = journey.phase === 'complete' ? nonDupRefs.filter(x => x.r.adopted).length : '—';
     const funnel = recParts.renderMaterialsFunnel([
       { label: readText("workbench.context-onboarding.mr-step-discovered"), value: discovered },
       { label: readText("workbench.context-onboarding.mr-step-selected"), value: selectedCount },
@@ -204,7 +204,7 @@ export const CONTEXT_ONBOARDING_RECOVERY_PART = String.raw`
     const items = [];
     if (mrFilter === 'all' || mrFilter === 'attention') {
       for (const { s, h } of heldRows) {
-        const namesList = h.preview_names?.length ? h.preview_names : h.variables;
+        const namesList = h.preview_names;
         const vars = namesList?.length ? namesList.join(', ') : readText("workbench.context-onboarding.mr-secret-content");
         items.push(fileRow({ cls: 'is-issue', name: h.path, size: readText(names[s.kind]) + ' · ' + size(h.size_bytes || 0), state: mrTrack(2, 3, false, readText("workbench.context-onboarding.secret-awaiting-choice"), 'attention') })
           + recParts.renderMaterialIssueRow({
@@ -228,7 +228,7 @@ export const CONTEXT_ONBOARDING_RECOVERY_PART = String.raw`
     const shownRefs = mrFilter === 'attention' ? [] : mrFilter === 'unused' ? unusedRows : refRows;
     for (const { s, r } of shownRefs.slice(0, 200)) {
       const dup = Boolean(r.duplicate_of);
-      const step = dup ? 3 : journey.summary ? (r.used_in_summary ? 5 : 3) : 3;
+      const step = dup ? 3 : journey.phase === 'complete' && r.adopted ? 5 : journey.summary && r.used_in_summary ? 4 : 3;
       const stopAt = dup ? 4 : (!dup && journey.summary && !r.used_in_summary ? 4 : 0);
       const noteParts = [readText(names[s.kind]), size(r.original?.size_bytes || r.text?.bytes || 0)];
       if (r.recognized_by_content) noteParts.push(readText("workbench.context-onboarding.mr-by-content"));

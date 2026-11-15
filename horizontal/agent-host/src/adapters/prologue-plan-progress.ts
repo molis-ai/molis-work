@@ -13,6 +13,18 @@ export interface ReconciledStepEntry {
 
 export type ReconciledStepMap = Record<string, ReconciledStepEntry>;
 
+export function mergeReconciledSteps(maps: ReadonlyArray<ReconciledStepMap | undefined>): ReconciledStepMap {
+  const merged: ReconciledStepMap = {};
+  for (const map of maps) {
+    if (!map) continue;
+    for (const [stepId, entry] of Object.entries(map)) {
+      const existing = merged[stepId];
+      if (!existing || entry.at_ms >= existing.at_ms) merged[stepId] = entry;
+    }
+  }
+  return merged;
+}
+
 /**
  * Leaf-only Fibonacci story-point weighted progress (`Σ(sᵢ × pᵢ) / Σsᵢ`, CHO-29..33):
  * - Parent nodes (`id` referenced by any child's `parent_id`) never double-count on top of their children (CHO-31).

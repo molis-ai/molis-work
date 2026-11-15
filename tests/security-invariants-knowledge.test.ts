@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { MATERIALS_PROVIDER_ID, materialsActions } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import { workspaceReadActions } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { projectDirectoryActions } from "@molis-ai/molis-work-contracts/modules/projects";
+import { assertPinnedMaterialResult, pinnedMaterialRevisions, withPinnedKnowledgeRevision } from "@molis-ai/molis-work-service-agent-host";
 import { KnowledgeOrganizer, KnowledgeService, knowledgeCatalog, locateSections, type KnowledgeLocateDraftInput } from "@molis-ai/molis-work-service-knowledge";
 import { openKnowledgeCards } from "@molis-ai/molis-work-storage";
 import { person, referenceOwners } from "./fixtures/reference-owners.js";
@@ -177,5 +179,34 @@ test("S-41 C13 knowledge.read refuses a drifted expected_revision only after cal
     () => f.knowledge.read(authorized, { subject: { kind: "goal", id: "g1" }, expected_revision: `${current.revision}-stale` }),
     refused("knowledge.revision_changed"),
     "a round with a pinned revision refuses drifted content instead of stitching two revisions together",
+  );
+});
+
+test("S-41 C13 materials.read refuses a drifted revision or mismatched pin on a round-pinned subject", () => {
+  const matRef = { provider_id: MATERIALS_PROVIDER_ID, capability_id: materialsActions.read.capability_id, version: 1 };
+  const pinned = pinnedMaterialRevisions([
+    {
+      material_id: "workspace_file:ws1:docs/spec.md@sha-round-start",
+      title: "spec.md",
+      text: "initial body",
+      read_revision: "sha-round-start",
+    },
+  ]);
+  assert.throws(
+    () => withPinnedKnowledgeRevision(
+      matRef,
+      { ref: { subject: { kind: "workspace_file", id: "ws1:docs/spec.md" }, pin: { mode: "current", read_revision: "sha-other" } }, mode: "text" },
+      pinned,
+    ),
+    refused("agent.pinned_revision_mismatch"),
+  );
+  const validInput = withPinnedKnowledgeRevision(
+    matRef,
+    { ref: { subject: { kind: "workspace_file", id: "ws1:docs/spec.md" }, pin: { mode: "current", read_revision: "sha-round-start" } }, mode: "text" },
+    pinned,
+  );
+  assert.throws(
+    () => assertPinnedMaterialResult(matRef, validInput, { state: "changed", read_revision: "sha-mutated" }, pinned),
+    refused("agent.pinned_revision_mismatch"),
   );
 });

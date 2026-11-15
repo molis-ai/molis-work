@@ -113,3 +113,16 @@ test("OCL-07: a locate's loading and return stages are recorded for the chosen i
   assert.equal(new Set(locate.map(fact => (fact.work as { work_ref: string }).work_ref)).size, 1, "all stages belong to the same interaction");
   assert.deepEqual(Array.from(locate.at(-1)!.subjects as Array<Record<string, unknown>>, item => ({ ...item })), [{ kind: "pages_document", id: "doc-3", version: "4" }]);
 });
+
+test("OCL-10: hiding the page drains every queued batch of UI stages at once with keepalive instead of stranding batches past 100", () => {
+  const p = page();
+  for (let i = 0; i < 235; i += 1) {
+    const search = p.records.interaction("search");
+    search.presented([p.records.subject("goal", `g-${i}`)], { scope: "project" });
+  }
+  assert.equal(p.sent.length, 0);
+  p.hide();
+  assert.equal(p.sent.length, 3, "235 queued facts flush immediately in three 100/100/35 batches on visibilitychange");
+  assert.deepEqual(p.sent.map(report => report.body.facts.length), [100, 100, 35]);
+  assert.ok(p.sent.every(report => report.keepalive === true));
+});

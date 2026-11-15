@@ -22,6 +22,7 @@ import { componentText, PLUGIN_COMPONENTS } from "../plugin-components.js";
 import { SKILL_SELECTION_BOARD_STYLES, skillLineSection, skillWhySection } from "./catalog-skill-selection.js";
 import { itemChoiceSection, itemDetailsSection, listDetailSection, SKILL_PACK_BOARD_STYLES, statusLinkSection } from "./catalog-skill-packs.js";
 import { CAPABILITY_PACK_BOARD_STYLES, cellGridSection, detailTrailSection, iconCountsSection, itemGroupSection, leaveBarSection, nowBlockSection, stateRowsSection, stickyDetailSection, textCountSection, usageSection } from "./catalog-capability-packs.js";
+import { WORK_RECORDS_BOARD_STYLES, categoryBarSection, kindMarkSection } from "./catalog-work-records.js";
 import { LANGUAGE_BOARD_STYLES, languageSection, motionGrammarSpecimens, pairingSection, zonesSection } from "./catalog-language.js";
 
 export const PRIMITIVE_CATALOG_IDS = PLUGIN_COMPONENTS.map(({ kind }) => kind);
@@ -298,6 +299,8 @@ export function renderPrimitiveCatalog(options: {
     ${stickyDetailSection(say)}
     ${textCountSection(say)}
     ${leaveBarSection(say)}
+    ${kindMarkSection(say)}
+    ${categoryBarSection(say)}
     ${dataTableSection()}
     ${layoutSection()}
     ${chapter("模式与场景")}
@@ -307,7 +310,7 @@ export function renderPrimitiveCatalog(options: {
     ${options.presentationLocale ? presentationSection(options.presentationLocale, options.presentationPlugins) : ""}`;
   return `<div class="mw-catalog">
     ${catalogIndex(sections, say)}
-    <style>${COMPOSER_STYLES}${CATALOG_PATTERN_STYLES}${COMPOSER_BOARD_STYLES}${KEEP_EDITS_BOARD_STYLES}${APPEARANCE_BOARD_STYLES}${SKILL_PACK_BOARD_STYLES}${SKILL_SELECTION_BOARD_STYLES}${CAPABILITY_PACK_BOARD_STYLES}${LANGUAGE_BOARD_STYLES}${options.presentationLocale ? PRESENTATION_FORM_STYLES + PRESENTATION_BOARD_STYLES : ""}</style>
+    <style>${COMPOSER_STYLES}${CATALOG_PATTERN_STYLES}${COMPOSER_BOARD_STYLES}${KEEP_EDITS_BOARD_STYLES}${APPEARANCE_BOARD_STYLES}${SKILL_PACK_BOARD_STYLES}${SKILL_SELECTION_BOARD_STYLES}${CAPABILITY_PACK_BOARD_STYLES}${WORK_RECORDS_BOARD_STYLES}${LANGUAGE_BOARD_STYLES}${options.presentationLocale ? PRESENTATION_FORM_STYLES + PRESENTATION_BOARD_STYLES : ""}</style>
     ${sections}
   </div>
   <script>${CATALOG_CLIENT_SCRIPT}</script>`;

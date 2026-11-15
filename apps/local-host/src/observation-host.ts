@@ -1,7 +1,16 @@
 import { currentCallId, refusalExpected, type CallObserved } from "@molis-ai/molis-work-kernel";
 import type { ScheduleWakeupEnded } from "@molis-ai/molis-work-service-scheduler";
-import type { ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
-import { OBSERVATION_PROVIDER_ID, type ObservationService } from "@molis-ai/molis-work-contracts/services/observation";
+import {
+  findSubjectReader,
+  isSubjectReader,
+  retainActionAuthority,
+  resolveActionSubject,
+  type ActionClient,
+  type ActionExecutionContext,
+  type ActionProviderRegistration,
+} from "@molis-ai/molis-work-contracts/platform/actions";
+import type { LocalHostProjectReference, LocalHostStatus } from "@molis-ai/molis-work-contracts/platform/app-host";
+import { OBSERVATION_PROVIDER_ID, observationActions, type ObservationService } from "@molis-ai/molis-work-contracts/services/observation";
 import { createLazyFileSecretStore } from "@molis-ai/molis-work-storage";
 import { ObservationLayer, observationKeys, purgeObservationPluginFile, type ObservationEnvironment, type PluginPurge } from "@molis-ai/molis-work-service-observation";
 import type { PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -12,6 +21,8 @@ import { OBSERVATION_OWNER } from "./project-deleted-owners.js";
 import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
 import { observationShellDoor } from "./observation-shell-entry.js";
 import { liveObservation, setLiveObservation } from "./observation-live.js";
+import type { ProjectVersionStores } from "./project-version-stores.js";
+import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 
 /**
  * The observation layer of the running Host (specs/observation-collection/contract-design.md §2): one per Home, in the process that runs the
@@ -63,18 +74,118 @@ export function scheduleWakeupRecords(home: string, projectId: string): (ended: 
   };
 }
 
-export function createHostObservation(home: string): HostObservation {
+export interface HostObservationPorts {
+  readonly catalogProjects?: () => Promise<readonly string[] | undefined>;
+  readonly openProjects?: () => LocalHostStatus["projects"];
+  readonly withOpenProject?: <T>(reference: LocalHostProjectReference, fn: (runtime: ProjectVersionStores) => T | Promise<T>) => Promise<T | null>;
+  readonly actionClientFor?: (reference?: LocalHostProjectReference) => ActionClient;
+  readonly readableProjects?: ObservationEnvironment["readableProjects"];
+  readonly resolveSubject?: ObservationEnvironment["resolveSubject"];
+}
+
+export function hostObservationPorts(
+  homeDirectory: string,
+  localHost: { actionClient(reference: LocalHostProjectReference): ActionClient; homeActionClient(): ActionClient },
+  host: { projects(): LocalHostStatus["projects"]; withExistingRuntime<T>(reference: LocalHostProjectReference, fn: (runtime: ProjectVersionStores) => T | Promise<T>): Promise<T | null> },
+  catalogRunner: () => LocalWebCatalogRunner | undefined,
+): HostObservationPorts {
+  return {
+    catalogProjects: () => {
+      const runner = catalogRunner();
+      return runner ? runner({ homeDirectory }, catalog => catalog.listProjects().map(project => project.project_id)) : Promise.resolve(undefined);
+    },
+    openProjects: () => host.projects(),
+    withOpenProject: (reference, fn) => host.withExistingRuntime(reference, fn),
+    actionClientFor: reference => reference ? localHost.actionClient(reference) : localHost.homeActionClient(),
+  };
+}
+
+export function createHostObservation(home: string, ports: HostObservationPorts = {}): HostObservation {
   const projects = new Map<string, "user" | "regenerable_demo">();
-  const env: ObservationEnvironment = { platformVersion: PRODUCT_VERSION, now: () => new Date(), projectClass: id => projects.get(id) };
+  let seenAnyProject = false;
+  const defaultReadableProjects: NonNullable<ObservationEnvironment["readableProjects"]> = async () => {
+    const open = ports.openProjects?.() ?? [];
+    const closing = new Set(open.filter(project => project.state === "closing").map(project => project.project_id));
+    const catalogIds = await ports.catalogProjects?.();
+    if (catalogIds !== undefined) {
+      return catalogIds.filter(id => !closing.has(id));
+    }
+    if (open.length > 0 || seenAnyProject) {
+      return open.filter(project => project.state !== "closing").map(project => project.project_id);
+    }
+    return undefined;
+  };
+  const readableProjects = ports.readableProjects ?? ((ports.catalogProjects || ports.openProjects) ? defaultReadableProjects : undefined);
+  const defaultResolveSubject: NonNullable<ObservationEnvironment["resolveSubject"]> = async (projectId, subject, caller) => {
+    const live = readableProjects ? await readableProjects() : undefined;
+    if (projectId !== null && live !== undefined && !live.includes(projectId)) return "missing";
+    const openRef = projectId !== null
+      ? (ports.openProjects?.() ?? []).find(project => project.project_id === projectId && project.state === "ready")
+      : undefined;
+    if (
+      projectId !== null
+      && (subject.kind === "artifact" || subject.kind === "artifacts" || subject.kind === "process_item" || subject.kind === "process_items")
+    ) {
+      if (!openRef || !ports.withOpenProject) return "unverified";
+      const found = await ports.withOpenProject(openRef, runtime => {
+        const store = subject.kind === "process_item" || subject.kind === "process_items"
+          ? runtime.processItems.query
+          : runtime.artifacts.query;
+        const parsedVersion = subject.version !== undefined ? Number(subject.version) : NaN;
+        const record = Number.isInteger(parsedVersion) && parsedVersion > 0
+          ? store.getArtifactVersion(projectId, { artifact_id: subject.id, version: parsedVersion })
+          : store.latestArtifactVersion(projectId, subject.id);
+        return record !== null && record.availability === "available";
+      });
+      if (found === null) return "unverified";
+      return found ? "resolved" : "missing";
+    }
+    if (!ports.actionClientFor || !caller) return "unverified";
+    try {
+      const client = ports.actionClientFor(openRef);
+      const scopedCaller = caller.project_id === projectId ? caller : { ...caller, project_id: projectId };
+      const origin = (scopedCaller as Partial<ActionExecutionContext>).current_action ?? { ...observationActions.recordsQuery, provider_id: OBSERVATION_PROVIDER_ID };
+      const nested = retainActionAuthority(scopedCaller, origin);
+      const views = await client.discover(nested);
+      let resolvedKind = subject.kind;
+      let lookup = findSubjectReader(views, resolvedKind);
+      if (lookup.found === "none") {
+        const providerReaders = views.filter(view =>
+          isSubjectReader(view.action)
+          && view.action.subject_kinds.length === 1
+          && (view.provider.plugin_id === subject.kind || view.provider.provider_id === subject.kind || view.capability_id.startsWith(`${subject.kind}.`)),
+        );
+        if (providerReaders.length === 1) {
+          resolvedKind = providerReaders[0]!.action.subject_kinds[0]!;
+          lookup = findSubjectReader(views, resolvedKind);
+        }
+      }
+      if (lookup.found !== "one") return "unverified";
+      await resolveActionSubject(client, nested, { kind: resolvedKind, id: subject.id });
+      return "resolved";
+    } catch (error) {
+      if (/not_found$/u.test(String((error as { code?: unknown }).code ?? ""))) return "missing";
+      return "unverified";
+    }
+  };
+  const resolveSubject = ports.resolveSubject ?? ((ports.actionClientFor || ports.withOpenProject) ? defaultResolveSubject : undefined);
+
+  const env: ObservationEnvironment = {
+    platformVersion: PRODUCT_VERSION,
+    now: () => new Date(),
+    projectClass: id => projects.get(id),
+    ...(readableProjects ? { readableProjects } : {}),
+    ...(resolveSubject ? { resolveSubject } : {}),
+  };
   const secrets = createLazyFileSecretStore(home);
   const layer = new ObservationLayer({ home, env, keys: hasEvidence => observationKeys(secrets, hasEvidence) });
-  const report = layer.reportAction(caller => { observationShellDoor.entryOf(caller); });
+  const bound = layer.actions(caller => { observationShellDoor.entryOf(caller); });
   let closed = false, stepDown = () => {};
   const disposeOwner = projectDeletedHooksFor(home).register({ ...OBSERVATION_OWNER, survivesRebuild: false, alive: () => !closed,
-    clear: projectId => { projects.delete(projectId); layer.clearProject(projectId); } });
+    clear: projectId => { seenAnyProject = true; projects.delete(projectId); layer.clearProject(projectId); } });
   const host: HostObservation = {
     layer,
-    provider: { provider: { provider_id: OBSERVATION_PROVIDER_ID, title: "工作记录", kind: "system" }, definitions: [report.definition], handlers: [report.handler] },
+    provider: { provider: { provider_id: OBSERVATION_PROVIDER_ID, title: "工作记录", kind: "system" }, definitions: bound.definitions, handlers: bound.handlers },
     // A refusal its caller was looking for is not the person's work (the diagnostic log leaves it out the same way, §4).
     observed: (caller, action, observation) => {
       if (!observation.outcome.ok && observation.outcome.refused && refusalExpected(observation.outcome.code)) return;
@@ -82,6 +193,7 @@ export function createHostObservation(home: string): HostObservation {
     },
     sink: service => layer.sink(service),
     projectOpened: async projectId => {
+      seenAnyProject = true;
       try { projects.set(projectId, await isRegenerableDemo(home, projectId) ? "regenerable_demo" : "user"); }
       catch { projects.delete(projectId); }
     },

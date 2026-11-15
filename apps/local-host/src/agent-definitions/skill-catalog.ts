@@ -156,10 +156,11 @@ export class SkillCatalog {
       const d = skill.declaration, words = skill.display ?? d;
       // An imported package keeps a frontmatter block before the body; a Skill written in settings is stored as the body itself,
       // so a leading horizontal rule is content and is not stripped (BL-skill-authoring-b41-followups ②).
-      const authored = skill.pack.plugin_id === SKILL_AUTHORED_PLUGIN_IDS[skill.pack.scope];
-      const body = (authored ? skill.body : skill.body.replace(/^\uFEFF?---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/u, ""))
+      const mine = skill.pack.plugin_id === SKILL_AUTHORED_PLUGIN_IDS[skill.pack.scope] && skill.pack.trust === "home_local";
+      const installed = skill.pack.trust !== "host" && !mine;
+      const body = (installed ? skill.body.replace(/^\uFEFF?---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/u, "") : skill.body)
         .replace(/\r\n?/gu, "\n").trim();
-      return { skill_id: ref.skill_id, version: ref.version, scope: skill.pack.scope, mine: skill.pack.plugin_id === SKILL_AUTHORED_PLUGIN_IDS[skill.pack.scope] && skill.pack.trust === "home_local",
+      return { skill_id: ref.skill_id, version: ref.version, scope: skill.pack.scope, mine,
         name: words.name, description: words.description ?? "", applies_to: d.applies_to, body,
         ...(words.when_not_to_use ? { when_not_to_use: words.when_not_to_use } : {}), ...(d.argument_hint ? { argument_hint: d.argument_hint } : {}) };
     });

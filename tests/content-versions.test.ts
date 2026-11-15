@@ -16,7 +16,7 @@ const run = (currentBody: string, currentEnglish: string, version: number, files
 };
 
 test("content versions: a content pack Skill body that changes must advance its version, in either language", () => {
-  assert.deepEqual(run(body.replace("先", "先"), englishBody, 1), [], "unchanged body at the same version passes");
+  assert.deepEqual(run(body, englishBody, 1), [], "unchanged body at the same version passes");
   assert.match(run(body.replace("设计与规划", "设计和规划"), englishBody, 1)[0] ?? "", /changed content without advancing its version/u);
   assert.deepEqual(run(body.replace("设计与规划", "设计和规划"), englishBody, 2), [], "a changed default body at the next version passes");
   assert.match(run(body, englishBody.replace("Design", "Designing"), 1, [english])[0] ?? "", /changed content without advancing its version/u);

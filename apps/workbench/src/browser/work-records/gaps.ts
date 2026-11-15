@@ -19,11 +19,11 @@ import {
 } from "./common.js";
 
 function ownerLabel(owner: string | undefined): string {
-  if (!owner || owner === "*") return readText("workbench.catalog-work-records.gap-all-sources");
-  if (owner === "shell" || owner === "workbench") return readText("workbench.settings-work-records.src-workbench");
+  if (!owner) return readText("workbench.catalog-work-records.gap-all-sources");
+  if (owner === "shell") return readText("workbench.settings-work-records.src-workbench");
   if (owner === "service:gateway") return readText("workbench.settings-work-records.src-gateway");
   if (owner === "service:agent") return readText("workbench.settings-work-records.src-agent");
-  if (owner === "service:assistant" || owner === "assistant") return readText("workbench.settings-work-records.src-assistant");
+  if (owner === "service:assistant") return readText("workbench.settings-work-records.src-assistant");
   if (owner === "service:scheduler") return readText("workbench.settings-work-records.src-scheduler");
   if (owner === "service:grants") return readText("workbench.settings-work-records.src-grants");
   if (owner === "service:connections") return readText("workbench.settings-work-records.src-connections");
@@ -35,9 +35,9 @@ function ownerLabel(owner: string | undefined): string {
 
 function reasonCause(reason: string | null | undefined, count: number): string {
   if (reason === "recording_paused") return readText("workbench.settings-work-records.cause-paused");
-  if (reason === "manual_cleanup" || reason === "cleanup") return readText("workbench.settings-work-records.cause-manual-cleanup");
-  if (reason === "retention_expired" || reason === "auto_cleanup") return readText("workbench.settings-work-records.cause-auto-cleanup");
-  if (reason === "storage_failed" || reason === "write_failed" || reason === "store_unavailable") return readText("workbench.settings-work-records.cause-storage-failed", { count: fmtNum(count || 1) });
+  if (reason === "manual_cleanup") return readText("workbench.settings-work-records.cause-manual-cleanup");
+  if (reason === "retention_expired") return readText("workbench.settings-work-records.cause-auto-cleanup");
+  if (reason === "write_failed" || reason === "store_unavailable") return readText("workbench.settings-work-records.cause-storage-failed", { count: fmtNum(count || 1) });
   if (reason === "queue_full") return readText("workbench.settings-work-records.cause-queue-full", { count: fmtNum(count || 1) });
   if (reason === "plugin_data_cleared") return readText("workbench.settings-work-records.cause-plugin-cleared");
   if (reason === "report_quota") return readText("workbench.settings-work-records.cause-report-quota", { count: fmtNum(count || 1) });
@@ -149,7 +149,7 @@ export function renderGapsTab(S: WorkRecordsState): string {
     };
   });
 
-  const hasExpiredOnly = gaps.some((g) => g.state === "expired") && !gaps.some((g) => g.state === "lost" || g.state === "unavailable" || g.state === "purged");
+  const hasExpiredOnly = gaps.some((g) => g.state === "expired") && !gaps.some((g) => g.state === "lost" || g.state === "unavailable" || g.state === "purged") && !entries.some((e) => e.truncated > 0);
   const sinceWord = cov.recording.complete_since ? fmtDate(cov.recording.complete_since, "month-day") : "";
   const headSub = sinceWord
     ? readText("workbench.settings-work-records.cov-sub-since", { since: sinceWord, count: fmtNum(notConnRows.length) })

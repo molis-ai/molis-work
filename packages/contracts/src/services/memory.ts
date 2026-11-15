@@ -808,6 +808,7 @@ export interface MemoryLedgerPort {
     prefs_keys: readonly string[]; signal_prefixes: readonly string[]; marker_keys: readonly string[] }): void;
   revisions(memoryId: string): MemoryRevision[];
   addRevision(memoryId: string, revision: MemoryRevision): void;
+  pruneRevisions?(memoryId: string, throughVersion: number): void;
   /** The Host's notes about candidates (why, from which work, why held back); the candidates themselves are Prologue's. */
   candidates(actorId: string): MemoryCandidateRecord[];
   saveCandidate(record: MemoryCandidateRecord): void;
@@ -824,7 +825,6 @@ export interface MemoryLedgerPort {
   recordUses(uses: readonly MemoryUseRecord[]): void;
   lastUse(memoryId: string): MemoryUseRecord | null;
   uses(filter: { receipt_id?: string; work_id?: string; memory_id?: string; limit?: number }): MemoryUseRecord[];
-  /** Scopes that hold memories besides the person's and the projects' (Characters), with their project and name. */
   /** Owners that stand for something (a Character in a project): its id, as the owner is only a short storage key. */
   owners(projectId: string): Array<{ scope: MemoryScope; owner: string; title: string; subject: string | null }>;
   noteOwner(input: { scope: MemoryScope; owner: string; project_id: string | null; title: string; subject?: string | null }): void;

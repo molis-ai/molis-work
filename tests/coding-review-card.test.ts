@@ -75,37 +75,139 @@ test("每种操作类型都有中文说法，不直接把内部 kind 甩给用�
   }
 });
 
-test("A4-1 Coding index → 审查卡：从符号索引定位定义与引用后进入待审卡片摘要，仅指向宿主审查面", { timeout: 30_000 }, async () => {
-  const { mkdirSync, mkdtempSync, rmSync, writeFileSync } = await import("node:fs");
+test("A4-1 Coding index → 审查卡：真实 writer 轮次调用 coding.find-symbol 定位定义后产生待审编辑并渲染审查卡，仅指向宿主审查面", { timeout: 45_000 }, async (t) => {
+  const { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } = await import("node:fs");
   const { tmpdir } = await import("node:os");
   const { join } = await import("node:path");
   const { fileURLToPath } = await import("node:url");
-  const { createCodeIntelligence, languageServersFrom } = await import("@molis-ai/molis-work-service-agent-host");
+  const { AgentHost, AgentReviewQueue, createPrologueNodeAdapter, languageServersFrom } = await import("@molis-ai/molis-work-service-agent-host");
+  const { codingAgentManifest, codingPrompts } = await import("@molis-ai/molis-work-plugin-coding");
   const root = mkdtempSync(join(tmpdir(), "molis-coding-index-review-"));
+  const runtimeDir = mkdtempSync(join(tmpdir(), "molis-coding-index-runtime-"));
   const fakeLsp = join(fileURLToPath(new URL(".", import.meta.url)), "fixtures/fake-lsp-server.mjs");
-  try {
-    mkdirSync(join(root, "src"), { recursive: true });
-    writeFileSync(join(root, "src/a.ts"), "export function greet(): string {\n  return 'hi';\n}\n\nexport const x = greet();\n");
-    process.env.FAKE_LSP_LOG = join(root, "server.log");
-    const intelligence = createCodeIntelligence({
+  let turn = 0;
+  let observedIndexOutput = "";
+  const sse = (frames: ReadonlyArray<Record<string, unknown>>) => new Response(
+    frames.map((frame) => `event: ${String(frame.type)}\ndata: ${JSON.stringify(frame)}\n\n`).join(""),
+    { headers: { "content-type": "text/event-stream" } },
+  );
+  t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
+    const body = JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array)) as {
+      messages: unknown;
+      tools?: Array<{ name: string }>;
+    };
+    if (!body.tools?.length) {
+      return sse([
+        { type: "message_start", message: { id: "m-rev", type: "message", role: "assistant", model: "fixture", content: [], usage: { input_tokens: 10, output_tokens: 0 } } },
+        { type: "content_block_start", index: 0, content_block: { type: "text", text: "" } },
+        { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: '{"last":"blocker","changed":""}' } },
+        { type: "content_block_stop", index: 0 },
+        { type: "message_delta", delta: { stop_reason: "end_turn" }, usage: { output_tokens: 5 } },
+        { type: "message_stop" },
+      ]);
+    }
+    turn += 1;
+    const symbolTool = body.tools.find((tool) => tool.name.includes("find-symbol"))?.name;
+    assert.ok(symbolTool, "writer role receives scoped coding.find-symbol tool");
+    if (turn === 1) {
+      return sse([
+        { type: "message_start", message: { id: "m1", type: "message", role: "assistant", model: "fixture", content: [], usage: { input_tokens: 12, output_tokens: 0 } } },
+        { type: "content_block_start", index: 0, content_block: { type: "tool_use", id: "call-sym", name: symbolTool, input: { path: "src/a.ts", symbol: "greet" } } },
+        { type: "content_block_stop", index: 0 },
+        { type: "message_delta", delta: { stop_reason: "tool_use" }, usage: { output_tokens: 8 } },
+        { type: "message_stop" },
+      ]);
+    }
+    if (turn === 2) {
+      observedIndexOutput = JSON.stringify(body.messages);
+      return sse([
+        { type: "message_start", message: { id: "m2", type: "message", role: "assistant", model: "fixture", content: [], usage: { input_tokens: 15, output_tokens: 0 } } },
+        { type: "content_block_start", index: 0, content_block: { type: "tool_use", id: "call-read", name: "read", input: { path: "src/a.ts" } } },
+        { type: "content_block_stop", index: 0 },
+        { type: "message_delta", delta: { stop_reason: "tool_use" }, usage: { output_tokens: 8 } },
+        { type: "message_stop" },
+      ]);
+    }
+    if (turn === 3) {
+      return sse([
+        { type: "message_start", message: { id: "m3", type: "message", role: "assistant", model: "fixture", content: [], usage: { input_tokens: 18, output_tokens: 0 } } },
+        { type: "content_block_start", index: 0, content_block: { type: "tool_use", id: "call-write", name: "write", input: { path: "src/a.ts", text: "export function greet(): string {\n  return 'hello';\n}\n" } } },
+        { type: "content_block_stop", index: 0 },
+        { type: "message_delta", delta: { stop_reason: "tool_use" }, usage: { output_tokens: 10 } },
+        { type: "message_stop" },
+      ]);
+    }
+    return sse([
+      { type: "message_start", message: { id: "m4", type: "message", role: "assistant", model: "fixture", content: [], usage: { input_tokens: 20, output_tokens: 0 } } },
+      { type: "content_block_start", index: 0, content_block: { type: "text", text: "" } },
+      { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "Pending user approval; write not applied." } },
+      { type: "content_block_stop", index: 0 },
+      { type: "message_delta", delta: { stop_reason: "end_turn" }, usage: { output_tokens: 5 } },
+      { type: "message_stop" },
+    ]);
+  });
+
+  mkdirSync(join(root, "src"), { recursive: true });
+  writeFileSync(join(root, "src/a.ts"), "export function greet(): string {\n  return 'hi';\n}\n\nexport const x = greet();\n");
+  process.env.FAKE_LSP_LOG = join(root, "server.log");
+  const queue = new AgentReviewQueue();
+  const adapter = await createPrologueNodeAdapter({
+    app: { appId: "io.molis.work.coding-index-review", appVersion: "1.0.0" },
+    storageRoot: join(runtimeDir, "sdk"),
+    reviewQueue: queue,
+    codeIntelligence: {
       servers: languageServersFrom({ servers: [{ extensions: [".ts"], command: process.execPath, args: [fakeLsp], languageId: "typescript" }] }),
-      rootPath: root,
+    },
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }),
+    resolveCredential: () => "test-only",
+  });
+  try {
+    const host = new AgentHost({ reviews: queue });
+    host.register(adapter);
+    const owner = { project_id: "proj-card", plugin_id: "io.molis.work.coding", install_id: "inst-card", actor_id: "user" };
+    const directory = { canonical_path: root, realpath_verified: true };
+    const session = await adapter.createSession({ ...owner, directory, title: "Index to review card" });
+    const handle = await host.start("prologue", { ...owner, session, directory, role_id: "writer", task: "Find greet and update it." }, {
+      manifest: codingAgentManifest,
+      prompts: codingPrompts,
+      authorizedDirectories: [root],
     });
-    const indexed = await intelligence.symbolIndex({ args: { path: "src/a.ts", symbol: "greet" } } as never);
-    await intelligence.close();
-    assert.match(indexed, /symbol greet in src\/a\.ts/);
-    assert.match(indexed, /a\.ts:3:10/);
+    let pendingReviews = queue.list("proj-card", "pending");
+    for (const deadline = Date.now() + 20_000; pendingReviews.length === 0;) {
+      if (Date.now() > deadline) assert.fail("writer round did not reach pending text-edit review");
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      pendingReviews = queue.list("proj-card", "pending");
+    }
+    assert.match(observedIndexOutput, /symbol greet in src\/a\.ts/);
+    assert.match(observedIndexOutput, /src\/a\.ts:3:10/);
+    assert.match(readFileSync(join(root, "src/a.ts"), "utf8"), /return 'hi'/, "file on disk is untouched while awaiting Host review");
+    const realPending: CodingPendingReview[] = pendingReviews.map((review) => ({
+      review_id: review.review_id,
+      kind: review.kind as CodingPendingReview["kind"],
+      summary: review.document.kind === "text-edit" ? review.document.target_path : review.kind,
+    }));
     const html = renderPendingReviewCard({
-      pending: [{ review_id: "r-index-1", kind: "text-edit", summary: `基于符号索引（${indexed.split("\n")[0]}）更新 src/a.ts:3:10` }],
+      pending: realPending,
       review_href: "/reviews",
       primitives: p,
     });
-    assert.match(html, /symbol greet in src\/a\.ts/);
-    assert.match(html, /src\/a\.ts:3:10/);
+    assert.match(html, /1 项操作等你决定/);
+    assert.match(html, /src\/a\.ts/);
     assert.match(html, /href="\/reviews"/);
     assert.deepEqual(html.match(/<(button|input)\b[^>]*>/g) ?? [], []);
+    for (const review of pendingReviews) {
+      await queue.respond({ review_id: review.review_id, decision: "reject", actor_id: "user" });
+    }
+    for (const deadline = Date.now() + 20_000;;) {
+      const view = await adapter.read(handle.ref);
+      if (["completed", "failed", "cancelled", "stopped"].includes(view.phase)) break;
+      if (Date.now() > deadline) assert.fail(`run did not settle after review rejection: ${view.phase}`);
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
   } finally {
     delete process.env.FAKE_LSP_LOG;
+    await adapter.close();
+    rmSync(runtimeDir, { recursive: true, force: true });
     rmSync(root, { recursive: true, force: true });
   }
 });

@@ -12,6 +12,7 @@ import { existsSync } from "node:fs";
 import { readFile, realpath } from "node:fs/promises";
 import { delimiter } from "node:path";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import type { ToolRunner } from "@prologue/sdk";
 import { fileUri, startLanguageServer, type LanguageServerSpec, type LspClient } from "./lsp-client.js";
 import { ensureTool, type ToolInstallSpec } from "./tool-fetcher.js";
@@ -115,6 +116,35 @@ async function insideRoot(rootPath: string, requested: string): Promise<string> 
 }
 
 /**
+ * Q5: an applicable local command is used first; only when it is not there is the tool fetched into the isolated root.
+ * `command` is either an absolute path or a name looked up on PATH.
+ */
+function localCommand(command: string): string | undefined {
+  if (command.startsWith("/")) return existsSync(command) ? command : undefined;
+  for (const directory of (process.env.PATH ?? "").split(delimiter)) {
+    const candidate = path.join(directory, command);
+    if (candidate.length > directory.length && existsSync(candidate)) return candidate;
+  }
+  return undefined;
+}
+
+async function resolveSpec(
+  spec: LanguageServerSpec,
+  tools: { readonly root: string; readonly allow: () => boolean | Promise<boolean>; readonly registry?: string } | undefined,
+): Promise<LanguageServerSpec> {
+  const local = localCommand(spec.command);
+  if (local !== undefined) return { ...spec, command: local };
+  if (spec.install === undefined) return spec;
+  if (tools === undefined) throw new Error(`no ${spec.install.package} is installed and this Host has no tools directory to fetch it into`);
+  const tool = await ensureTool(spec.install, {
+    toolsRoot: tools.root,
+    allow: tools.allow,
+    ...(tools.registry === undefined ? {} : { registry: tools.registry }),
+  });
+  return { ...spec, command: tool.command };
+}
+
+/**
  * One round's code intelligence: servers start on first use and are closed together. `servers` is what the person's
  * configuration lists; `rootPath` is this round's directory.
  */
@@ -126,6 +156,8 @@ export function createCodeIntelligence(input: {
   readonly tools?: { readonly root: string; readonly allow: () => boolean | Promise<boolean>; readonly registry?: string };
 }): CodeIntelligence {
   const clients = new Map<string, LspClient>();
+  const starting = new Map<string, Promise<LspClient>>();
+  const spawning = new Set<LspClient>();
   const texts = new Map<string, string>();
   const versions = new Map<string, number>();
   const openWith = new Map<string, LspClient>();
@@ -133,40 +165,58 @@ export function createCodeIntelligence(input: {
   const MAX_OPEN_DOCUMENTS = 64;
   let closed = false;
 
+  const ensureClient = (key: string, resolved: LanguageServerSpec, spec: LanguageServerSpec): Promise<LspClient> => {
+    const existing = clients.get(key);
+    if (existing !== undefined && existing.alive) return Promise.resolve(existing);
+    const inFlight = starting.get(key);
+    if (inFlight !== undefined) return inFlight;
+    const launch = (async () => {
+      if (closed) throw new Error("this round has ended; code intelligence is closed");
+      const client = startLanguageServer(resolved, { cwd: input.rootPath, ...(input.timeoutMs === undefined ? {} : { timeoutMs: input.timeoutMs }) });
+      spawning.add(client);
+      try {
+        await client.request("initialize", {
+          processId: process.pid,
+          rootUri: fileUri(input.rootPath),
+          capabilities: {
+            textDocument: {
+              definition: { linkSupport: false },
+              references: {},
+              documentSymbol: { hierarchicalDocumentSymbolSupport: true },
+            },
+          },
+          workspaceFolders: [{ uri: fileUri(input.rootPath), name: path.basename(input.rootPath) || "work" }],
+          ...(spec.initializationOptions === undefined ? {} : { initializationOptions: spec.initializationOptions }),
+        });
+        if (closed) throw new Error("this round has ended; code intelligence is closed");
+        client.notify("initialized", {});
+        clients.set(key, client);
+        return client;
+      } catch (error) {
+        // A server that never finished its handshake (or raced with round close) is not reusable.
+        if (clients.get(key) === client) clients.delete(key);
+        await client.close().catch(() => undefined);
+        if (closed) throw new Error("this round has ended; code intelligence is closed");
+        throw error;
+      } finally {
+        spawning.delete(client);
+        starting.delete(key);
+      }
+    })();
+    starting.set(key, launch);
+    return launch;
+  };
+
   const clientFor = async (file: string): Promise<{ readonly client: LspClient; readonly languageId: string }> => {
     if (closed) throw new Error("this round has ended; code intelligence is closed");
     const found = serverFor(input.servers, file);
     if (found === undefined) {
       throw new Error(`no language server is configured for ${path.extname(file) || "this file"}; coding.find-symbol reports itself unavailable`);
     }
-    const resolved = await resolveSpec(found.spec, input);
+    const resolved = await resolveSpec(found.spec, input.tools);
+    if (closed) throw new Error("this round has ended; code intelligence is closed");
     const key = `${resolved.command}\u0000${(resolved.args ?? []).join("\u0000")}`;
-    let client = clients.get(key);
-    if (client === undefined || !client.alive) {
-      client = startLanguageServer(resolved, { cwd: input.rootPath, ...(input.timeoutMs === undefined ? {} : { timeoutMs: input.timeoutMs }) });
-      clients.set(key, client);
-      try {
-        await client.request("initialize", {
-        processId: process.pid,
-        rootUri: fileUri(input.rootPath),
-        capabilities: {
-          textDocument: {
-            definition: { linkSupport: false },
-            references: {},
-            documentSymbol: { hierarchicalDocumentSymbolSupport: true },
-          },
-        },
-        workspaceFolders: [{ uri: fileUri(input.rootPath), name: path.basename(input.rootPath) || "work" }],
-        ...(found.spec.initializationOptions === undefined ? {} : { initializationOptions: found.spec.initializationOptions }),
-      });
-        client.notify("initialized", {});
-      } catch (error) {
-        // A server that never finished its handshake is not reusable: forget it and let the next call start a fresh one.
-        clients.delete(key);
-        await client.close().catch(() => undefined);
-        throw error;
-      }
-    }
+    const client = await ensureClient(key, resolved, found.spec);
     return { client, languageId: found.languageId };
   };
 
@@ -196,37 +246,13 @@ export function createCodeIntelligence(input: {
     return { client, text };
   };
 
-  /**
-   * Q5: an applicable local command is used first; only when it is not there is the tool fetched into the isolated root.
-   * `command` is either an absolute path or a name looked up on PATH.
-   */
-  const localCommand = (command: string): string | undefined => {
-    if (command.startsWith("/")) return existsSync(command) ? command : undefined;
-    for (const directory of (process.env.PATH ?? "").split(delimiter)) {
-      const candidate = path.join(directory, command);
-      if (candidate.length > directory.length && existsSync(candidate)) return candidate;
-    }
-    return undefined;
-  };
-  const resolveSpec = async (spec: LanguageServerSpec, options: typeof input): Promise<LanguageServerSpec> => {
-    const local = localCommand(spec.command);
-    if (local !== undefined) return { ...spec, command: local };
-    if (spec.install === undefined) return spec;
-    if (options.tools === undefined) throw new Error(`no ${spec.install.package} is installed and this Host has no tools directory to fetch it into`);
-    const tool = await ensureTool(spec.install, {
-      toolsRoot: options.tools.root,
-      allow: options.tools.allow,
-      ...(options.tools.registry === undefined ? {} : { registry: options.tools.registry }),
-    });
-    return { ...spec, command: tool.command };
-  };
-
   const symbolIndex: ToolRunner = async (call) => {
     const args = (call.args ?? {}) as { readonly symbol?: unknown; readonly path?: unknown };
     const requested = typeof args.path === "string" && args.path.length > 0 ? args.path : undefined;
     if (requested === undefined) throw new Error("coding.find-symbol needs a path inside this round's directory");
     const symbol = typeof args.symbol === "string" && args.symbol.trim().length > 0 ? args.symbol.trim() : undefined;
     if (symbol !== undefined && symbol.length > MAX_SYMBOL_CHARS) throw new Error("coding.find-symbol takes a symbol name of at most 200 characters");
+    const realRoot = await realpath(path.resolve(input.rootPath));
     const absolute = await insideRoot(input.rootPath, requested);
     const { client, text } = await open(absolute);
     const position = symbol === undefined ? { line: 0, character: 0 } : findSymbolPosition(text, symbol);
@@ -243,8 +269,8 @@ export function createCodeIntelligence(input: {
     });
     return [
       `symbol ${symbol} in ${requested}`,
-      describe("definition", definitions, input.rootPath),
-      describe("references", references, input.rootPath),
+      await describe("definition", definitions, realRoot),
+      await describe("references", references, realRoot),
     ].join("\n");
   };
 
@@ -252,8 +278,11 @@ export function createCodeIntelligence(input: {
     symbolIndex,
     async close() {
       closed = true;
-      await Promise.all([...clients.values()].map((client) => client.close().catch(() => undefined)));
+      await Promise.all([...clients.values(), ...spawning.values()].map((client) => client.close().catch(() => undefined)));
+      await Promise.allSettled([...starting.values()]);
+      await Promise.all([...clients.values(), ...spawning.values()].map((client) => client.close().catch(() => undefined)));
       clients.clear();
+      spawning.clear();
       texts.clear();
       versions.clear();
       openWith.clear();
@@ -281,23 +310,31 @@ function findSymbolPosition(text: string, symbol: string): { readonly line: numb
   return undefined;
 }
 
-function describe(label: string, found: readonly LocationLike[] | LocationLike | null | undefined, rootPath: string): string {
+async function describe(label: string, found: readonly LocationLike[] | LocationLike | null | undefined, realRoot: string): Promise<string> {
   const list = found === null || found === undefined ? [] : Array.isArray(found) ? found : [found];
   if (list.length === 0) return `  ${label}: none`;
-  return [`  ${label}:`, ...list.slice(0, MAX_RESULTS).map((one) => `    ${describeLocation(one, rootPath)}`)].join("\n");
+  const lines = await Promise.all(list.slice(0, MAX_RESULTS).map(async (one) => `    ${await describeLocation(one, realRoot)}`));
+  return [`  ${label}:`, ...lines].join("\n");
 }
 
-function describeLocation(one: LocationLike, rootPath: string): string {
+async function describeLocation(one: LocationLike, realRoot: string): Promise<string> {
   const uri = typeof one.uri === "string" ? one.uri : typeof one.targetUri === "string" ? one.targetUri : "";
   const range = one.range ?? one.targetSelectionRange ?? one.targetRange;
   const line = typeof range?.start?.line === "number" ? range.start.line + 1 : undefined;
   const character = typeof range?.start?.character === "number" ? range.start.character + 1 : undefined;
-  let decoded = uri;
-  if (uri.startsWith("file://")) {
+  const suffix = line === undefined ? "" : `:${line}${character === undefined ? "" : `:${character}`}`;
+  if (!uri.startsWith("file://")) return `${uri || "(nowhere)"}${suffix}`;
+  let decoded: string;
+  try { decoded = fileURLToPath(uri); } catch {
     try { decoded = decodeURIComponent(uri.slice("file://".length)); } catch { decoded = uri.slice("file://".length); }
   }
-  return `${decoded || "(nowhere)"}${line === undefined ? "" : `:${line}${character === undefined ? "" : `:${character}`}`}`
-    + (decoded && path.isAbsolute(decoded) && path.relative(path.resolve(rootPath), decoded).startsWith("..") ? " (outside this round's directory)" : "");
+  if (!decoded || !path.isAbsolute(decoded)) return `${decoded || "(nowhere)"}${suffix}`;
+  const resolved = await realpath(decoded).catch(() => path.resolve(decoded));
+  const rel = path.relative(realRoot, resolved);
+  if (rel !== "" && !rel.startsWith("..") && !path.isAbsolute(rel)) {
+    return `${rel.split(path.sep).join("/")}${suffix}`;
+  }
+  return `${path.basename(decoded) || "(outside)"}${suffix} (outside this round's directory)`;
 }
 
 function describeSymbols(symbols: readonly unknown[], requested: string): string {

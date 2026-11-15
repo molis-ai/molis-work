@@ -33,7 +33,7 @@ interface Step {
   at: string;
   authority: ReturnType<typeof authority>;
   drop?: { memory_id: string; expected_version: number; operation_id: string };
-  merge?: { change: { text: string; meta: AgentMemoryMeta }; removed: UpkeepSnapshot };
+  merge?: { removed: UpkeepSnapshot };
   phase: "pending" | "committed" | "closed";
 }
 interface Ports {
@@ -103,7 +103,7 @@ export class MemoryUpkeep {
       const backend = this.ports.backend.withCaller(caller);
       await backend.previewMutation({ ...this.condition(step, caller), mutation: { kind: "update", change } });
       await backend.previewMutation({ ...this.dropCondition(step, caller), mutation: { kind: "remove" } });
-      step = this.prepare(caller, { ...step, merge: { change, removed } }, { version: keep.entry.version, change: "restored", by: "maintenance", at: this.ports.now().toISOString() });
+      step = this.prepare(caller, { ...step, merge: { removed } }, { version: keep.entry.version, change: "restored", by: "maintenance", at: this.ports.now().toISOString() });
     }
     if (step.phase === "committed") return false;
     keep.entry = await this.apply(caller, step);
@@ -139,7 +139,8 @@ export class MemoryUpkeep {
       if (existing) return existing;
       const pending = this.pending(caller);
       this.assertCapacity(caller);
-      if (this.ports.ledger.revisions(step.memory_id).some(item => item.version > step.expected_version))
+      if (this.ports.ledger.revisions(step.memory_id).some(item => item.version > step.expected_version)
+        || (step.drop && this.ports.ledger.revisions(step.drop.memory_id).some(item => item.version > step.drop!.expected_version)))
         throw memoryErrors.conflict("目标已有后继历史，请重新读取后维护，不能登记过时计划");
       this.ports.ledger.addRevision(step.memory_id, revision);
       this.ports.ledger.setMarker(caller.actor_id, keyOf(step.operation_id), step, step.at);
@@ -202,11 +203,11 @@ export class MemoryUpkeep {
     const backend = this.ports.backend.withCaller(caller), condition = this.condition(step, caller);
     let entry: MemoryBackendEntry, removed: UpkeepSnapshot | undefined;
     if (step.kind === "merge") {
-      await this.snapshot(caller, step);
+      const before = await this.snapshot(caller, step);
       if (!step.merge || !this.ports.ledger.revisions(step.drop!.memory_id).some(item => item.version === step.drop!.expected_version))
         throw memoryErrors.conflict("维护未执行：原版本没有可核对的安全历史快照");
       removed = step.merge.removed;
-      const change = step.merge.change;
+      const change = this.merged(step, before, removed);
       entry = await backend.update({ ...condition, change });
       this.ports.ledger.transaction(() => {
         this.assertOpen(caller, step);

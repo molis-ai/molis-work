@@ -22,6 +22,7 @@
 - **研究/文档**：IUI-01/04/09/20 与 MEM-35 的验收证据补齐或标人工；`#2029` 墓碑补 shard 7／17／26 的证据；LSP 帧体上限 16 MiB。
 - **组件板设计语言一章补英文**：`workbench.catalog.language.*` 170 个键进中英词包，四个章节函数经 `say` 翻译；隔离构建的页面资源仍通过（无新资源、无单项 >10 KB）。
 - **运行正文身份核对**：新增 `tests/security-invariants-running-plugin-text.test.ts`，用 Host 的公开读取入口覆盖发行物签名、安装号、状态、插件、世代、版本、签名与 Manifest 摘要不一致时的拒绝。
+- **第 31 批（SDK 窗口一与 Memory P1）及合后复查收口**：换入上游 `molis-prologue` 正式 main 构建（App 模式有界子代理、Skill 自动选用、子代理续跑与写后检查、空 `resident` 零读取零授权回执、Memory P1 有界 20 版历史与恢复、Export v2 严谨状态与输入不可变对账）；`memory/memory.db` 升到第 3 版（`2 → 3` 清洗 `memory_revisions` 只留四键无正文归因并清掉非 `pending` 的 `memory_markers` 暂态 `merge` 字段，读取拒绝残留正文）；记忆适用条件 `applies.goal_ids` 切为通用对象引用 `applies.objects`；记忆包严格校验 `state` 互斥与非空原因并拒绝旧 `goal_ids`；宿主侧 LSP 代码智能按服务器键合并并发启动、损坏帧终止子进程、符号结果统一输出相对授权根路径，并接入 Coding 全部 7 个主角色（规划、阅读、评审、协调、并行写入、构建、改写）。
 
 ### 风险插件基础完整路径（2026-11-14，#2058）
 
@@ -73,6 +74,8 @@
 - 平台内部createUiRequest工厂显式接收共享UI_HOST_CLIENT_CODES；序列化脚本与所有平台调用方已更新。外部插件仍使用现有SDK页面端口。
 
 ### 升级须知（需要动手）
+
+- **第 31 批：记忆适用情境 `applies.goal_ids` 改为 `applies.objects`，导出包拒绝旧 `goal_ids`（阶段一不留兼容）**（#2081 及复查修复，2026-11-15）：`memory.save@1`、`memory.propose@1`、`memory.change@1`、`memory.list@1`、`memory.get@1`、`memory.export@1`、`memory.import@1` 的适用条件删掉 `goal_ids`，改为通用关联对象 `objects: [{ plugin_id, kind, id }]`；固定构造旧字段的调用方与工作流绑定要改用 `objects`，带 `applies.goal_ids` 的旧导出包在导入预检即整包拒绝。`memory/memory.db` 由升级链自动走 `2 → 3` 清洗重复历史正文，无需手工操作。
 
 - **第 41 批：Skill 选用、规划方法变成系统技能包、在设置里写自己的技能**（[#2078](https://github.com/molis-ai/molis-work/pull/2078) + 收尾 [#2083](https://github.com/molis-ai/molis-work/pull/2083)，2026-11-15；阶段一在原版本改，没有读取兼容）：Goals 的 `goals.planning.catalog/read/save/apply/personal.list/personal.save` 六个动作删除，MCP 同名工具随之消失；工作流、固定引用或外部 Runtime 里固定了这些动作的要重选。`goals.events.configure` 不再收 `adopted_planning`、`adopt_default_requirement_ids`；`goals.snapshot.read`／`goals.document.read` 不再带方法。取舍是「规划与拆解」成为随系统自带的技能包（`plugins/content/planning-methods`，37 个），由宿主里的助理和 Coding 按任务选用；`skills.catalog.list`／`skills.body.read` 不是 MCP 工具，外部 Runtime 读不到。Goals 项目库 3→4 删 `planning_method_packs` 表和 `adopted_planning_json` 列；旧 Home 库 `goals/goals.db` 在升级轮连目录删除，**升级前先用旧版程序做完整备份**。新动作 `skills.authored.read/save/remove/draft@1` 只给本人，插件 Agent 轮也能用「依据」面板（`SkillPickConsumer` 含 `agent`），自写技能是每个范围一个内容包（`io.molis.work.my-skills.project`／`.home`），走和本机导入同一条安装路径。页面资源：`/assets/molis-work-kit.js` +16,528 字节（用户批准 +15.8 KB，整改多 714 B 后认可）；工作台英文词包换内容寻址路径、四个页面英文冷启动各 +26 B（用户 2026-11-15 批准）；合后审计修第三方 agent 受众，插件框脚本再 +17 B、八个首屏冷启动各 +17 B（另立 `skill-selection-b41-audit.json`，无新增资源）。
 

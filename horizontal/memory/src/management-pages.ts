@@ -51,8 +51,13 @@ export class MemoryManagementPages {
     const sdkHistory = await this.ports.backend.withCaller(holder).history({
       scope: located.scope, owner: located.owner, memory_id: located.entry.memory_id, ...(caller.signal ? { signal: caller.signal } : {}),
     });
+    if (sdkHistory.pruned_through_version && sdkHistory.pruned_through_version > 0) {
+      this.ports.ledger.pruneRevisions?.(located.entry.memory_id, sdkHistory.pruned_through_version);
+      for (const version of [...byVersion.keys()]) if (version <= sdkHistory.pruned_through_version) byVersion.delete(version);
+    }
     const sorted = [...sdkHistory.revisions].sort((a, b) => a.version - b.version);
-    const visible = byVersion.size > 0 ? sorted.filter(rev => byVersion.has(rev.version)) : sorted;
+    const tracked = sorted.filter(rev => byVersion.has(rev.version));
+    const visible = tracked.length > 0 ? tracked : sorted.slice(-1);
     return { memory_id: located.entry.memory_id,
       ...(sdkHistory.pruned_through_version === undefined ? {} : { pruned_through_version: sdkHistory.pruned_through_version }),
       revisions: visible.map(rev => revisionView(rev, byVersion.get(rev.version))) };

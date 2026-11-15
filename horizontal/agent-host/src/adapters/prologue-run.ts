@@ -220,7 +220,7 @@ async function roundChecks(deps: RunDeps, input: PrologueStartInput, index: Sess
 /** What a parent that hands its children their own directories may hold: reading, dispatching, asking the person, the board,
  * the project's sessions and saying how it handles a supplement (receipts 3e-0b); no tool that writes or runs anything.
  * The names are read from the Agent Host's one tool set (`AGENT_TOOLS`), so this can never name a tool the set no longer has. */
-const WORKSPACE_PARENT_TOOL_NAMES: readonly string[] = ["read-file", "list", "search", "context-remaining", "dispatch-subagent", "await-subagents", "steer-subagent", "ask-user", "acknowledge-inputs", "board-read", "board-report", "session-send"];
+const WORKSPACE_PARENT_TOOL_NAMES: readonly string[] = ["read-file", "list", "search", "find-symbol", "context-remaining", "dispatch-subagent", "await-subagents", "steer-subagent", "ask-user", "acknowledge-inputs", "board-read", "board-report", "session-send"];
 const WORKSPACE_PARENT_TOOLS: readonly string[] = WORKSPACE_PARENT_TOOL_NAMES.map(name => {
   const entry = AGENT_TOOLS.find(tool => tool.name === name);
   if (!entry) throw new Error(`workspace parent tool ${name} is not in AGENT_TOOLS`);
@@ -688,7 +688,9 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
   if (bindActions && session) state.actionToolSessions.add(input.session_id);
   if (session === undefined) throw new Error("agent.session_unknown");
   const root = mode.none || mode.business ? undefined : await runtime.workspace.authorize({ path: input.root_path! });
-  const methods = inlineMethods(runtime, state.registeredMethods, input.skills ?? [], hostSystemTools(input), prologueToolName);
+  const resolveHostTool = (tool: string) => tool === FIND_SYMBOL_HOST_TOOL && symbolToolName !== undefined ? symbolToolName : prologueToolName(tool);
+  const methods = inlineMethods(runtime, state.registeredMethods, input.skills ?? [],
+    hostSystemTools(input).filter(tool => tool !== FIND_SYMBOL_HOST_TOOL || symbolToolName !== undefined), resolveHostTool);
   const textResources: Array<{ ref: ExactRef<"resource">; as: "original" }> = [];
   for (const material of input.text_materials ?? []) textResources.push({ ref: await stageTextResource(runtime, agentTextMaterialContent(material), "coding-material"), as: "original" });
   const { childRoots, childRoles, childInstructions } = await childSetup(deps, input);

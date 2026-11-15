@@ -37,7 +37,7 @@ export const MEMORY_LEDGER_STORE = "memory";
 const FORGETTING_PENDING = "memory-generation:forgetting-pending";
 
 /** The memory ledger's one current schema (repository-anti-corruption §4.1). */
-export const MEMORY_LEDGER_BASELINE: SqliteBaseline = { version: /* @version database.memory_ledger_baseline */ 2, schema: `
+export const MEMORY_LEDGER_BASELINE: SqliteBaseline = { version: /* @version database.memory_ledger_baseline */ 3, schema: `
 CREATE TABLE memory_revisions (
   memory_id TEXT NOT NULL, version INTEGER NOT NULL, body TEXT NOT NULL, PRIMARY KEY (memory_id, version)
 );
@@ -82,6 +82,10 @@ DELETE FROM memory_revisions; DELETE FROM memory_candidates; DELETE FROM memory_
 DELETE FROM memory_uses; DELETE FROM memory_pairs; DELETE FROM memory_markers;
 INSERT INTO memory_markers(actor_id,key,at,body) VALUES ('', '${FORGETTING_PENDING}', strftime('%Y-%m-%dT%H:%M:%fZ','now'), '{}');`,
     reduces_rows: ["memory_revisions", "memory_candidates", "memory_changes", "memory_signal_events", "memory_uses", "memory_pairs", "memory_markers"] },
+  // 2 → 3 (specs/prologue-memory-strategy MEM-10, 2026-11-15): historical memory text and snapshots live solely in Prologue's encrypted record;
+  // rewrite revision bodies in memory_revisions to pure change attribution and clear any non-pending merge payload in memory_markers.
+  { from: 2, sql: `UPDATE memory_revisions SET body = json_object('version', json_extract(body, '$.version'), 'change', json_extract(body, '$.change'), 'by', json_extract(body, '$.by'), 'at', json_extract(body, '$.at'));
+UPDATE memory_markers SET body = json_remove(body, '$.merge') WHERE json_extract(body, '$.phase') != 'pending' AND json_type(body, '$.merge') IS NOT NULL;` },
 ] };
 
 /**
@@ -101,6 +105,21 @@ export function finishMemoryLedgerUpgrade(homeDirectory: string, start: () => vo
 const parse = <T>(row: Record<string, unknown> | undefined): T | null => row ? JSON.parse(String(row.body)) as T : null;
 
 const inspectionErrors = defineErrorCodes("storage.memory", { invalid: "invalid", changed: "conflict" });
+const REVISION_CHANGES: ReadonlySet<string> = new Set(["created", "edited", "replaced", "restored", "merged"]);
+const REVISION_ACTORS: ReadonlySet<string> = new Set(["person", "policy", "maintenance"]);
+
+function parseRevisionBody(body: string): MemoryRevision {
+  const raw = JSON.parse(body) as Record<string, unknown>;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)
+    || Object.keys(raw).some(key => key !== "version" && key !== "change" && key !== "by" && key !== "at")
+    || typeof raw.version !== "number" || !Number.isSafeInteger(raw.version) || raw.version < 1
+    || typeof raw.change !== "string" || !REVISION_CHANGES.has(raw.change)
+    || typeof raw.by !== "string" || !REVISION_ACTORS.has(raw.by)
+    || typeof raw.at !== "string" || !raw.at) {
+    throw inspectionErrors.invalid("记忆版本账本不是完整的现行结构");
+  }
+  return { version: raw.version, change: raw.change as MemoryRevision["change"], by: raw.by as MemoryRevision["by"], at: raw.at };
+}
 export type MemoryLedgerInspection = { readonly state: "absent" } | { readonly state: "complete";
   readonly personal: MemoryPrefs; readonly project_default: MemoryPrefs };
 
@@ -193,18 +212,16 @@ export function openMemoryLedger(options: { homeDirectory: string; storageOwner?
     },
     forget: retention.forget,
     forgetScopes: retention.forgetScopes,
-    revisions: memoryId => retention.isForgotten(memoryId)
-      ? []
-      : db.prepare("SELECT body FROM memory_revisions WHERE memory_id=? ORDER BY version").all(memoryId).map(row => {
-          const raw = JSON.parse(String(row.body)) as MemoryRevision;
-          return { version: raw.version, change: raw.change, by: raw.by, at: raw.at };
-        }),
+    revisions: memoryId => retention.isForgotten(memoryId) ? []
+      : db.prepare("SELECT body FROM memory_revisions WHERE memory_id=? ORDER BY version").all(memoryId).map(row => parseRevisionBody(String(row.body))),
+    pruneRevisions: (memoryId, throughVersion) => {
+      if (Number.isSafeInteger(throughVersion) && throughVersion > 0) db.prepare("DELETE FROM memory_revisions WHERE memory_id=? AND version<=?").run(memoryId, throughVersion);
+    },
     addRevision: (memoryId, revision) => ledger.transaction(() => {
       retention.assertNotForgotten(memoryId);
       // Historical text and snapshots stay in Prologue's single encrypted record; the ledger keeps only change attribution.
       const stored: MemoryRevision = { version: revision.version, change: revision.change, by: revision.by, at: revision.at };
-      const before = parse<MemoryRevision>(db.prepare("SELECT body FROM memory_revisions WHERE memory_id=? AND version=?").get(memoryId, stored.version));
-      if (before) return;
+      if (db.prepare("SELECT 1 FROM memory_revisions WHERE memory_id=? AND version=?").get(memoryId, stored.version)) return;
       db.prepare("INSERT INTO memory_revisions(memory_id,version,body) VALUES (?,?,?)")
         .run(memoryId, stored.version, JSON.stringify(stored));
     }),

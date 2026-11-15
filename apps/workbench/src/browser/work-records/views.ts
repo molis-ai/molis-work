@@ -96,11 +96,16 @@ export function renderCleanTab(S: WorkRecordsState): string {
   const savedMode = settings.retention.mode;
   const curMode = S.draftPeriod ?? savedMode;
   const days = periodDays(curMode);
-  const reqs = [
-    { id: "weekly_report", days: 7, name: readText("workbench.settings-work-records.need-weekly") },
-    { id: "cross_period_compare", days: 60, name: readText("workbench.settings-work-records.need-compare") },
-    { id: "evaluation_samples", days: 120, name: readText("workbench.settings-work-records.need-eval") },
-  ];
+  // The server owns the retention needs. Recompute only `kept` for the unsaved draft mode; never keep a second copy of the day counts here.
+  const reqs = settings.retention.requirements.map((requirement) => ({
+    id: requirement.consumer,
+    days: requirement.need_days,
+    name: requirement.consumer === "weekly_report"
+      ? readText("workbench.settings-work-records.need-weekly")
+      : requirement.consumer === "cross_period_compare"
+        ? readText("workbench.settings-work-records.need-compare")
+        : readText("workbench.settings-work-records.need-eval"),
+  }));
   const lose = reqs.some((r) => days < r.days);
   const top = S.cleanupDone
     ? alertHtml(

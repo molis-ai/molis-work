@@ -149,7 +149,9 @@ export function renderGapsTab(S: WorkRecordsState): string {
     };
   });
 
-  const hasExpiredOnly = gaps.some((g) => g.state === "expired") && !gaps.some((g) => g.state === "lost" || g.state === "unavailable" || g.state === "purged") && !entries.some((e) => e.truncated > 0);
+  const hasExpiredOnly = gaps.some((g) => g.state === "expired")
+    && !gaps.some((g) => g.state === "lost" || g.state === "unavailable" || g.state === "purged")
+    && !entries.some((e) => e.state === "unavailable" || e.truncated > 0 || e.redacted > 0);
   const sinceWord = cov.recording.complete_since ? fmtDate(cov.recording.complete_since, "month-day") : "";
   const headSub = sinceWord
     ? readText("workbench.settings-work-records.cov-sub-since", { since: sinceWord, count: fmtNum(notConnRows.length) })

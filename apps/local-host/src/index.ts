@@ -302,6 +302,7 @@ export { CONNECTORS_BASELINE } from "./connectors-store.js";
 export { CONTEXT_ONBOARDING_BASELINE, withContextJourneys } from "./context-onboarding-store.js";
 // An onboarding round run with the caller's own ports (a stub model), for checking the page while it organizes.
 export { startContextJourney, waitContextJourney } from "./context-onboarding-service.js";
+export { classifyContextModelFailure } from "./context-onboarding-delta.js";
 export { AGENT_DEFINITIONS_BASELINE } from "./agent-definitions/agent-definitions.js";
 export { homeAgentDefinitions } from "./agent-definitions/builtin-registrations.js";
 export { PLACEMENT_BASELINE } from "./placement-actions.js";

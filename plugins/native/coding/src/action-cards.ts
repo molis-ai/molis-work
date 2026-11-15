@@ -113,5 +113,8 @@ export async function landRoundOffers(context: PluginStartContext, record: Codin
 export async function runsWithCards(context: PluginStartContext, record: CodingSessionRecord, runs: readonly AgentRunView[],
   beforeWrite: CodingBeforeWrite): Promise<Array<AgentRunView & { cards: CodingActionCard[] }>> {
   const cards = await landRoundOffers(context, record, runs, beforeWrite);
-  return runs.map(run => Object.assign({ ...run }, { cards: cards.filter(card => card.run_id === run.ref.run_id) }));
+  return runs.map(run => {
+    const revision = context.services?.storage?.get(`code-revision:${record.session_id}:${run.ref.run_id}`);
+    return Object.assign({ ...run }, { cards: cards.filter(card => card.run_id === run.ref.run_id) }, revision ? { code_revision: revision } : {});
+  });
 }

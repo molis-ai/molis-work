@@ -22,7 +22,6 @@ import {
   mergeSourceIncrementally,
 } from "./context-onboarding-delta.js";
 import { importAdoptedMaterialsAndSummary } from "./context-onboarding-adopt.js";
-export { classifyContextModelFailure };
 import {
   diskFull,
   dropStagedNotes,

@@ -35,7 +35,7 @@ export interface PlansClient {
 }
 
 type PlanField<Kind extends "input" | "textarea"> = { node: HTMLLabelElement; input: HTMLElementTagNameMap[Kind] };
-type StepFields = { title: HTMLInputElement; acceptance: HTMLTextAreaElement; after: HTMLInputElement; points: HTMLInputElement; estimateReason: HTMLInputElement; basePoints?: number; baseSource?: "agent" | "human" };
+type StepFields = { title: HTMLInputElement; acceptance: HTMLTextAreaElement; after: HTMLInputElement; points: HTMLInputElement; estimateReason: HTMLInputElement; basePoints?: number; baseSource?: "agent" | "human"; baseParent?: number };
 
 /** The plan being edited: its inputs, and what it was opened from. */
 interface Editor {
@@ -105,7 +105,7 @@ function describe(_L: PlanPorts["translate"], parent: HTMLElement, content: Codi
 }
 
 /** The plan as the editor compares it with what it was opened from. */
-const shape = (content: Partial<CodingPlanContent> | undefined) => JSON.stringify({ title: content?.title || "", steps: (content?.steps || []).map(step => ({ title: step.title || "", acceptance: step.acceptance || "", ...(step.after ? { after: step.after } : {}), ...(step.story_points !== undefined ? { story_points: step.story_points } : {}), ...(step.estimate_reason ? { estimate_reason: step.estimate_reason } : {}) })), blockers: content?.blockers || "", change_reason: content?.change_reason || "" });
+const shape = (content: Partial<CodingPlanContent> | undefined) => JSON.stringify({ title: content?.title || "", steps: (content?.steps || []).map(step => ({ title: step.title || "", acceptance: step.acceptance || "", ...(step.after ? { after: step.after } : {}), ...(step.parent !== undefined ? { parent: step.parent } : {}), ...(step.story_points !== undefined ? { story_points: step.story_points } : {}), ...(step.estimate_reason ? { estimate_reason: step.estimate_reason } : {}) })), blockers: content?.blockers || "", change_reason: content?.change_reason || "" });
 
 // A step's waits are typed as earlier step numbers: empty keeps the default (the step before), 无 means none.
 const afterOf = (text: string): number[] | undefined => {
@@ -127,6 +127,7 @@ function values(editor: Editor): CodingPlanContent {
       title: step.title.value,
       acceptance: step.acceptance.value,
       ...(after === undefined ? {} : { after }),
+      ...(step.baseParent !== undefined ? { parent: step.baseParent } : {}),
       ...(parsedPoints === undefined ? {} : { story_points: parsedPoints, estimate_source: estimateSource }),
       ...(parsedPoints !== undefined && reason ? { estimate_reason: reason } : {}),
     };
@@ -150,9 +151,11 @@ function remember(state: Plans) {
 function renumber(state: Plans, editor: Editor, map: (n: number) => number | null) {
   for (const step of editor.steps) {
     const after = afterOf(step.after.value);
-    if (!after?.length) continue;
-    const next = after.map(map).filter((n): n is number => n !== null);
-    step.after.value = next.length ? afterText(state.ports.translate, next) : "";
+    if (after?.length) {
+      const next = after.map(map).filter((n): n is number => n !== null);
+      step.after.value = next.length ? afterText(state.ports.translate, next) : "";
+    }
+    if (step.baseParent !== undefined) step.baseParent = map(step.baseParent) ?? undefined;
   }
 }
 
@@ -180,7 +183,7 @@ function addStep(state: Plans, editor: Editor, steps: HTMLElement, value: Edited
   points.node.dataset.codingPlanPoints = "";
   const estimateReason = field(uiText.text("coding.plan.points-reason-field"), value.estimate_reason || "", "input");
   estimateReason.node.dataset.codingPlanPointsReason = "";
-  const entry: StepFields = { title: title.input, acceptance: acceptance.input, after: after.input, points: points.input, estimateReason: estimateReason.input, basePoints: value.story_points, baseSource: value.estimate_source };
+  const entry: StepFields = { title: title.input, acceptance: acceptance.input, after: after.input, points: points.input, estimateReason: estimateReason.input, basePoints: value.story_points, baseSource: value.estimate_source, ...(value.parent !== undefined ? { baseParent: value.parent } : {}) };
   editor.steps.push(entry);
   row.append(title.node, acceptance.node, after.node, points.node, estimateReason.node);
   row.append(button(state, uiText.text("coding.plan.move-up"), () => {

@@ -25,20 +25,17 @@ export interface Child {
   readonly integration_available?: boolean;
   /** The run the subagent is executing (while it runs). */
   readonly child_run?: { readonly run_id: string };
-  readonly retry_of?: string;
   readonly budget?: {
     readonly attempt: number;
     readonly max_attempts: number;
     readonly max_turns?: number;
     readonly used_tokens?: number;
-    readonly remaining_attempts?: number;
     readonly exhausted?: boolean;
     readonly retry_source?: "check-failed" | "model-error" | "user-requested";
     readonly retry_reason?: string;
     readonly prior_attempts?: readonly {
       readonly attempt: number;
       readonly run_id?: string;
-      readonly subagent_id?: string;
       readonly state: string;
       readonly source?: "check-failed" | "model-error" | "user-requested";
       readonly reason?: string;

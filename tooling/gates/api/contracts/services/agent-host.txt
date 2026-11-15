@@ -369,7 +369,7 @@ export interface AgentHostApi {
 
 export type AgentHostCapabilityId = (typeof agentHostCapabilities)[keyof typeof agentHostCapabilities]["capability_id"];
 
-export type AgentHostErrorCode = "agent.runtime_unknown" | "agent.runtime_duplicate" | "agent.capability_unavailable" | "agent.role_not_declared" | "agent.role_not_frozen" | "agent.role_execution_exceeded" | "agent.directory_unauthorized" | "agent.model_not_configured" | "agent.session_unknown" | "agent.session_busy" | "agent.run_unknown" | "agent.review_unknown" | "agent.review_already_decided" | "agent.review_expired" | "agent.review_not_approved" | "agent.pending_unknown" | "agent.pending_not_open" | "agent.answer_invalid" | "agent.pinned_revision_mismatch";
+export type AgentHostErrorCode = "agent.runtime_unknown" | "agent.runtime_duplicate" | "agent.capability_unavailable" | "agent.role_not_declared" | "agent.role_not_frozen" | "agent.role_execution_exceeded" | "agent.directory_unauthorized" | "agent.model_not_configured" | "agent.session_unknown" | "agent.session_busy" | "agent.run_unknown" | "agent.review_unknown" | "agent.review_already_decided" | "agent.review_expired" | "agent.review_not_approved" | "agent.pending_unknown" | "agent.pending_not_open" | "agent.answer_invalid" | "agent.pinned_revision_mismatch" | "agent.subagent_key_invalid";
 
 export interface AgentImageMaterial {
     material_id: string;
@@ -388,6 +388,8 @@ export interface AgentMaterialChecklistItem {
     delivery: "full" | "clipped" | "on-demand";
     total_chars?: number;
     delivered_chars?: number;
+    source_artifact_id?: string;
+    source_version?: number;
 }
 
 export interface AgentMaterialOrigin {

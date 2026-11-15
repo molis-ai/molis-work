@@ -1,9 +1,7 @@
 import { setContentHtml } from "@molis-ai/molis-work-plugin-sdk/browser";
-import { buildRoundMaterialsHtml } from "../../recovery-parts.js";
+import { buildEnvironmentChecklistHtml, buildRoundMaterialsHtml } from "../../recovery-parts.js";
 import { el } from "../dom.js";
 import { changesBlock, changesRow } from "./boundary.js";
-import { buildEnvironmentChecklistHtml } from "./configuration.js";
-export { buildRoundMaterialsHtml };
 import { terminal } from "./composer-state.js";
 import { showReviews } from "./helpers.js";
 import { offerApproval } from "./report.js";
@@ -194,6 +192,7 @@ export function drawRun(page: Page, block: HTMLElement, run: RunView, all: reado
   settle(block, ordered);
   placeReview(page, block, run, all);
   const settled = !s.recovery && !s.checkpointBusy, last = run === all.at(-1);
-  const headRev = !run.code_revision && last ? s.state.environment_readiness?.head_commit?.slice(0, 7) ?? null : run.code_revision;
+  // Only the revision recorded when the round started names what it tested; the current workspace HEAD may have moved.
+  const headRev = run.code_revision ?? null;
   timeline.renderFooter(block, headRev ? { ...run, code_revision: headRev } : run, all.indexOf(run), last && (run.phase === "reconcile-required" || settled), !last && stand.latest && settled);
 }

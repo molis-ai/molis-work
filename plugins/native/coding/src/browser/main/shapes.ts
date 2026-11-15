@@ -129,7 +129,7 @@ export interface FrozenSetup {
     readonly source_artifact_id?: string;
     readonly source_version?: number;
     readonly read_revision?: string;
-    readonly delivery?: "full" | "clipped" | "on-demand" | "inline" | "truncated";
+    readonly delivery?: "full" | "clipped" | "on-demand";
     readonly total_chars?: number;
     readonly delivered_chars?: number;
     readonly overflow_materials?: readonly {

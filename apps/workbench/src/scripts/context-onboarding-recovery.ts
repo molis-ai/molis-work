@@ -4,7 +4,7 @@
  * upload persistence across refreshes, joined into the onboarding browser program (33-2, ONB-35..46, C1..C11).
  */
 export const CONTEXT_ONBOARDING_RECOVERY_PART = String.raw`
-  let stopCounting = false, pausedScan = null, mrFilter = 'all', scopeVisible = {}, scanningDirId = '', scanResumeBase = { kept: 0, bytes: 0 }, partialRestoredKinds = new Set();
+  let stopCounting = false, pausedScan = null, pausedUploads = new Map(), mrFilter = 'all', scopeVisible = {}, scanningDirId = '', scanResumeBase = { kept: 0, bytes: 0 }, partialRestoredKinds = new Set();
   if (native && globalThis.__TAURI__?.event?.listen) {
     globalThis.__TAURI__.event.listen('molis:directory-scan-progress', ev => {
       const p = ev?.payload;
@@ -61,21 +61,28 @@ export const CONTEXT_ONBOARDING_RECOVERY_PART = String.raw`
       catch { res(); }
     });
   }
-  async function saveUploadFiles(kind, list, partial) {
+  async function saveUploadFiles(kind, list, chosen, partial, state) {
     if (partial) partialRestoredKinds.add(kind); else partialRestoredKinds.delete(kind);
-    if (journey) await withUploads('readwrite', st => st.put({ key: journey.id + ':' + kind, files: list, partial: Boolean(partial) }));
+    if (!partial) pausedUploads.delete(kind);
+    if (journey) await withUploads('readwrite', st => st.put({
+      key: journey.id + ':' + kind, files: chosen, partial: Boolean(partial),
+      ...(partial ? { all: list, index: state.index, total: state.total, bytes: state.bytes, reasons: state.reasons, rules: state.rules } : {}),
+    }));
   }
   async function dropUploadFiles(kind) {
-    partialRestoredKinds.delete(kind);
+    partialRestoredKinds.delete(kind); pausedUploads.delete(kind);
     if (journey) await withUploads('readwrite', st => st.delete(journey.id + ':' + kind));
   }
   async function clearJourneyUploads(id) {
-    partialRestoredKinds.clear();
+    partialRestoredKinds.clear(); pausedUploads.clear();
     if (id) await withUploads('readwrite', st => { const r = st.openCursor(); r.onsuccess = () => { const c = r.result; if (!c) return; if (String(c.key).startsWith(id + ':')) c.delete(); c.continue(); }; });
   }
   async function restoreUploadFiles() {
-    partialRestoredKinds.clear();
-    if (journey) await withUploads('readonly', st => { const p = journey.id + ':', r = st.openCursor(); r.onsuccess = () => { const c = r.result; if (!c) return; const k = String(c.key); if (k.startsWith(p)) { const sk = k.slice(p.length); if (Array.isArray(c.value?.files) && c.value.files.length) uploads.set(sk, c.value.files); if (c.value?.partial) partialRestoredKinds.add(sk); } c.continue(); }; });
+    partialRestoredKinds.clear(); pausedUploads.clear();
+    if (journey) await withUploads('readonly', st => { const p = journey.id + ':', r = st.openCursor(); r.onsuccess = () => { const c = r.result; if (!c) return; const k = String(c.key); if (k.startsWith(p)) { const sk = k.slice(p.length); if (Array.isArray(c.value?.files) && c.value.files.length) uploads.set(sk, c.value.files); if (c.value?.partial) {
+      partialRestoredKinds.add(sk);
+      if (Array.isArray(c.value.all)) pausedUploads.set(sk, { kind: sk, list: c.value.all, index: c.value.index || 0, chosen: c.value.files || [], bytes: c.value.bytes || 0, reasons: c.value.reasons || { ignored: 0, secret: 0, unreadable: 0 }, rules: c.value.rules || [] });
+    } } c.continue(); }; });
   }
   function skipRuleName(path) {
     const parts = String(path || '').split('/');
@@ -90,7 +97,7 @@ export const CONTEXT_ONBOARDING_RECOVERY_PART = String.raw`
   }
   async function runUploadCount(el, resumeFrom) {
     const kind = resumeFrom ? resumeFrom.kind : el.dataset.upload;
-    const list = resumeFrom ? resumeFrom.list : el.files, total = list.length;
+    const list = resumeFrom ? resumeFrom.list : [...el.files], total = list.length;
     const chosen = resumeFrom ? resumeFrom.chosen : [];
     const reasons = resumeFrom ? resumeFrom.reasons : { ignored: 0, secret: 0, unreadable: 0 };
     const ruleSet = new Set(resumeFrom ? resumeFrom.rules : []);
@@ -139,7 +146,7 @@ export const CONTEXT_ONBOARDING_RECOVERY_PART = String.raw`
     };
     s.excluded = []; s.selected = chosen.length > 0 || total === 0; error = '';
     if (total > 2500) { counting = { done: index, total, kept: chosen.length, bytes, saving: true }; render(); await new Promise(resolve => setTimeout(resolve, 0)); }
-    await saveUploadFiles(s.kind, chosen, stoppedEarly);
+    await saveUploadFiles(s.kind, list, chosen, stoppedEarly, { index, total, bytes, reasons: { ...reasons }, rules: [...ruleSet] });
   }
   function acceptUpload(el) { return runUploadCount(el, null); }
   function invalidateSourceForEdit(s) {
@@ -186,7 +193,7 @@ export const CONTEXT_ONBOARDING_RECOVERY_PART = String.raw`
     const nonDupRefs = refRows.filter(x => !x.r.duplicate_of);
     const readCount = nonDupRefs.length;
     const usedCount = journey.summary ? nonDupRefs.filter(x => x.r.used_in_summary).length : 0;
-    const projectCount = journey.phase === 'complete' ? nonDupRefs.filter(x => x.r.adopted).length : nonDupRefs.length;
+    const projectCount = journey.phase === 'complete' ? nonDupRefs.filter(x => x.r.adopted).length : '—';
     const funnel = recParts.renderMaterialsFunnel([
       { label: readText("workbench.context-onboarding.mr-step-discovered"), value: discovered },
       { label: readText("workbench.context-onboarding.mr-step-selected"), value: selectedCount },
@@ -228,7 +235,7 @@ export const CONTEXT_ONBOARDING_RECOVERY_PART = String.raw`
     const shownRefs = mrFilter === 'attention' ? [] : mrFilter === 'unused' ? unusedRows : refRows;
     for (const { s, r } of shownRefs.slice(0, 200)) {
       const dup = Boolean(r.duplicate_of);
-      const step = dup ? 3 : journey.summary ? (r.used_in_summary ? 5 : 3) : 3;
+      const step = dup ? 3 : journey.phase === 'complete' && r.adopted ? 5 : journey.summary ? (r.used_in_summary ? 4 : 3) : 3;
       const stopAt = dup ? 4 : (!dup && journey.summary && !r.used_in_summary ? 4 : 0);
       const noteParts = [readText(names[s.kind]), size(r.original?.size_bytes || r.text?.bytes || 0)];
       if (r.recognized_by_content) noteParts.push(readText("workbench.context-onboarding.mr-by-content"));

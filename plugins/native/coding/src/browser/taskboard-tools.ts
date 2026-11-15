@@ -120,6 +120,16 @@ function moveTools(tools: Tools) {
 /** Decide a blocked step, skip or pass over one, insert a step after it. */
 function stepTools(tools: Tools) {
   const { node } = tools;
+  if (node.unknown_outcome) {
+    add(tools, uiText.text("coding.board.reconcile-confirm"), "check", () => ask(tools, {
+      fields: [["note", uiText.text("coding.board.reconcile-confirm-note"), 500]], submit: uiText.text("coding.board.reconcile-confirm"),
+      build: ([note]) => ({ kind: "reconcile", node: node.id, action: "confirm-done", note: note! }),
+    }));
+    add(tools, uiText.text("coding.board.reconcile-rerun"), "undo", () => ask(tools, {
+      fields: [["note", uiText.text("coding.board.reconcile-rerun-note"), 500]], submit: uiText.text("coding.board.reconcile-rerun"),
+      build: ([note]) => ({ kind: "reconcile", node: node.id, action: "rerun", note: note! }),
+    }));
+  }
   if (node.state === "blocked") {
     add(tools, uiText.text("coding.board.decide"), "edit", () => ask(tools, {
       fields: [["note", uiText.text("coding.board.decide-note"), 500]], submit: uiText.text("coding.board.decide-ok"), build: ([note]) => ({ kind: "unblock", node: node.id, note: note! }),
@@ -142,6 +152,15 @@ function stepTools(tools: Tools) {
       },
     }));
     if (node.state !== "succeeded") {
+      const initial = node.progress !== undefined && node.progress > 0 ? String(node.progress <= 1 ? Math.round(node.progress * 100) : Math.round(node.progress)) : "";
+      add(tools, uiText.text("coding.board.progress-edit"), "edit", () => ask(tools, {
+        fields: [["percent", uiText.text("coding.board.progress-percent"), 4, initial], ["basis", uiText.text("coding.board.progress-basis-input"), 300, node.progress_basis || ""]],
+        submit: uiText.text("coding.board.progress-save"),
+        build: ([pctText, basis]) => {
+          const raw = Number(pctText), fraction = Number.isFinite(raw) ? Math.max(0.01, Math.min(0.99, raw > 1 ? raw / 100 : raw)) : 0.01;
+          return { kind: "progress", node: node.id, progress: fraction, basis: basis ?? "" };
+        },
+      }));
       add(tools, uiText.text("coding.board.remove-scope"), "x", () => ask(tools, {
         fields: [["reason", uiText.text("coding.board.remove-scope-reason"), 300]], submit: uiText.text("coding.board.remove-scope"),
         build: ([reason]) => ({ kind: "remove-scope", node: node.id, reason: reason! }),

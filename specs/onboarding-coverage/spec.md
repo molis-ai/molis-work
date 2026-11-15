@@ -375,7 +375,7 @@ node scripts/run-tests.mjs tests/onboarding-journey.e2e.test.ts tests/model-sett
 node scripts/check-spec-coverage.mjs
 ```
 
-用户报告中的故障本轮未复现，§3.14 与 ONB-35～46 均为待实现/验证要求，不能因文档检查通过而关闭。新增场景需用真实内容与可用能力走完整路径，覆盖更正、跳过、无模型、依赖失败、采用中断、撤权、重启与页面恢复。文档检查、工程测试、自动化实操和一骏本人验收分别记录；没有证据的项目继续标为未验证。
+用户报告中的故障已随第 33 批 #2082 实现；§3.14 与 ONB-35～46 的工程与自动化实操证据见 §12，本人实物验收仍未执行，不能因工程测试通过而写成已验收。新增场景需用真实内容与可用能力走完整路径，覆盖更正、跳过、无模型、依赖失败、采用中断、撤权、重启与页面恢复。文档检查、工程测试、自动化实操和一骏本人验收分别记录；没有证据的项目继续标为未验证。
 
 ## 9. 开工前检查（路线书第 04 批：全程定样）
 
@@ -447,7 +447,7 @@ node scripts/check-spec-coverage.mjs
 
 2026-11-15 开工前检查与验证记录，覆盖 `33-2`（ONB-35～46、C1～C14）与同批 `33-1`；完整 15 项结论合记于 [Coding 与 Agent 工作流优化需求书 §12](../coding-harness-optimization/spec.md#batch-33-preflight)。`BL-106`、`BL-107` 留归后续第 45／57 批按原排期处理，不随本批关闭。
 
-- **工程通过：** `tests/context-onboarding-batch33.test.ts`（4/4，覆盖 `ONB-35～46`、`C1～C11`）、`tests/security-invariants-onboarding-secrets.test.ts`（3/3，覆盖 `S-onboarding-secret-hold` 疑似密钥文件阻断外发与阻断导入）、`cargo +1.96.0 test context_director`（15/15，覆盖桌面 Tauri 大目录确定性遍历、分批进度事件、取消令牌、`resume_offset` 继续清点无重无漏及 `total_entries / skipped_reasons / ignored_rules` 统计，`C4`）、`tests/sdk-ui-markup.test.ts`（8/8，覆盖五格漏斗、五格进度条 `aria-label`、增量改范围卡、`.env* -> ENV` 原语及工作台独立样式表覆盖）。
+- **工程通过：** `tests/context-onboarding-batch33.test.ts`（5/5，覆盖 `ONB-35～46`、`C1～C11`，含 C11 真实迟到响应与 C9 六类分类）、`tests/security-invariants-onboarding-secrets.test.ts`（4/4，覆盖 `S-onboarding-secret-hold` 疑似密钥文件阻断外发与阻断导入，含显式 `.env` 短值）、`tests/context-onboarding-documents.test.ts`（18/18，含 `.env` 文件名与 strip 短值/小写/JSON 脱敏）、`cargo +1.96.0 test context_director`（15/15，覆盖桌面 Tauri 大目录确定性遍历、分批进度事件、取消令牌、`resume_offset` 继续清点无重无漏及 `total_entries / skipped_reasons / ignored_rules` 统计，`C4`）、`tests/sdk-ui-markup.test.ts`（8/8，覆盖五格漏斗、五格进度条 `aria-label`、增量改范围卡、`.env* -> ENV` 原语及工作台独立样式表覆盖）。
 - **实操（自动化浏览器）：** `tests/context-onboarding-recovery.e2e.test.ts`（2/2，覆盖组件板 `#recovery-closures` 中英文、1440／1024／390／320 浅深双色布局与无裸中文审计，以及 `/onboarding` 浏览器上传 IndexedDB 跨刷新保留、桌面目录 `resume_offset` 继续清点、`.env* -> ENV` 标签、疑似密钥选择、五格核对漏斗与增量改范围卡）、`tests/onboarding-journey.e2e.test.ts`（14/14）。
 - **本人验收：** 未执行（含 `ONB-49[人工]`），集中登记于 [BL-batch33-acceptance](../backlog/BL-batch33-acceptance.md)。
 

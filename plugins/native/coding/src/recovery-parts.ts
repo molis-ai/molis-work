@@ -78,7 +78,7 @@ export interface CodingRoundMaterialsRunInput {
       readonly source_artifact_id?: string;
       readonly source_version?: number;
       readonly read_revision?: string;
-      readonly delivery?: "full" | "clipped" | "on-demand" | "inline" | "truncated";
+      readonly delivery?: "full" | "clipped" | "on-demand";
       readonly total_chars?: number;
       readonly delivered_chars?: number;
       readonly overflow_materials?: readonly {
@@ -416,7 +416,7 @@ function wasMaterialContinuedRead(
   if (!tokens.length) return false;
   return (activity || []).some(act => {
     if (act.state !== "completed") return false;
-    const isReadTool = act.name === "read" || act.name.includes("knowledge.read") || act.name === "molis-action" || act.name.startsWith("knowledge");
+    const isReadTool = act.name === "read" || act.name.includes("knowledge.read") || act.name.startsWith("molis-action-") || act.name.startsWith("knowledge");
     if (!isReadTool) return false;
     const hay = `${act.target || ""}\n${act.output || ""}`;
     return tokens.some(tok => hay.includes(tok));
@@ -433,7 +433,7 @@ export function buildRoundMaterialsHtml(run: CodingRoundMaterialsRunInput): stri
   for (const item of inline) {
     const ver = item.read_revision ? " · #" + item.read_revision : item.source_version !== undefined ? " · v" + item.source_version : "";
     const name = (item.title || item.material_id) + ver;
-    const clipped = item.delivery === "clipped" || item.delivery === "truncated";
+    const clipped = item.delivery === "clipped";
     if ((clipped || item.delivery === "on-demand") && wasMaterialContinuedRead(run.activity, item)) {
       items.push({
         state: "done",
@@ -487,7 +487,7 @@ export function buildRoundMaterialsHtml(run: CodingRoundMaterialsRunInput): stri
           statusTone: "quiet",
         });
   }
-  const hasDeferred = overflow.length > 0 || inline.some(item => item.delivery === "clipped" || item.delivery === "truncated" || item.delivery === "on-demand");
+  const hasDeferred = overflow.length > 0 || inline.some(item => item.delivery === "clipped" || item.delivery === "on-demand");
   return renderCodingRoundMaterials({
     title: uiText.text("coding.material.round-title"),
     summaryLabel: overflow.length

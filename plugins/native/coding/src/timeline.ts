@@ -139,7 +139,7 @@ function endedRoundExtras(
     : editedSize
       ? uiText.text("coding.round.card.where-dirty", { count: editedSize })
       : uiText.text("coding.round.card.where-clean");
-  const codeRevision = run.code_revision || (lastCommand?.at ? /^\d{4}-\d{2}-\d{2}T(\d{2}:\d{2})/.exec(lastCommand.at)?.[1] : undefined) || undefined;
+  const codeRevision = run.code_revision || undefined;
   const delivered: MwRoundReportCheck[] = [
     { state: editedSize > 0 ? "done" : "idle", text: deliveredText, quiet: !editedSize },
     { state: lastCheckpoint ? "done" : editedSize > 0 ? "partial" : "idle", text: whereText, quiet: !editedSize },

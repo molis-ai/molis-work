@@ -1,0 +1,17 @@
+{
+  "reason": "第 33 批合后审计修复：coding.js +867 B（S-onboarding-secret-hold 的 .env/短值脱敏测试不打包；C3 第五格、C6 续扫、C12 真实工具名识别、C14 head 核对、TaskBoard 核对/折扣入口、计划编辑器 parent、failed 越过、CHO-11 每轮 code revision）。不新增资源，不超 10 KB 单资源线。",
+  "review": "第 33 批合后独立只读审计（2026-11-15）与对应定向用例；页面资源对照 c067437460 在隔离工作树实测，coding.js 356,649 → 357,516（+867 B），其余受门禁资源未增长。",
+  "assets": {
+    "/assets/molis-work-plugins/coding.js": 867
+  },
+  "pages": {
+    "arrival-empty/zh": {
+      "cold": 1264,
+      "warm": 1264
+    },
+    "arrival-empty/en": {
+      "cold": 1264,
+      "warm": 1264
+    }
+  }
+}

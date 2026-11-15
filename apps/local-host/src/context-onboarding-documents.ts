@@ -25,7 +25,7 @@ export function secretMaterialKey(kind: ContextSourceKind, filePath: string, sha
   return createHash("sha256").update(JSON.stringify(["secret-hold", kind, filePath, sha256])).digest("hex");
 }
 
-const SECRET_FILENAME_RE = /^(?:credentials(?:[._-].*)?\.json|service[-_]account(?:[._-].*)?\.json|client_secret(?:[._-].*)?\.json|(?:.*\b)?(?:secrets?|tokens?|apikeys?|credentials)\.(?:json|ya?ml|toml|ini|conf|cfg|properties|txt)|.*\.tfstate(?:\.backup)?|.*\.tfvars|\.(?:npmrc|netrc|pypirc|pgpass)|auth\.json)$/iu;
+const SECRET_FILENAME_RE = /^(?:\.env(?:\..*)?|credentials(?:[._-].*)?\.json|service[-_]account(?:[._-].*)?\.json|client_secret(?:[._-].*)?\.json|(?:.*\b)?(?:secrets?|tokens?|apikeys?|credentials)\.(?:json|ya?ml|toml|ini|conf|cfg|properties|txt)|.*\.tfstate(?:\.backup)?|.*\.tfvars|.*\.(?:pem|key|p12|pfx|keystore|jks)|id_(?:rsa|ed25519|ecdsa|dsa)(?:\.pub)?|\.(?:npmrc|netrc|pypirc|pgpass)|auth\.json)$/iu;
 const PEM_KEY_RE = /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z0-9 ]*PRIVATE KEY-----|$)/gu;
 const KNOWN_TOKEN_PATTERNS: ReadonlyArray<{ label: string; pattern: RegExp }> = [
   { label: "API_TOKEN", pattern: /\bsk-(?:proj-|ant-|live-|test-)?[A-Za-z0-9_-]{20,}\b/gu },
@@ -36,7 +36,7 @@ const KNOWN_TOKEN_PATTERNS: ReadonlyArray<{ label: string; pattern: RegExp }> = 
   { label: "SLACK_TOKEN", pattern: /\bxox[baprs]-[0-9A-Za-z-]{16,}\b/gu },
   { label: "STRIPE_LIVE_KEY", pattern: /\b(?:rk|pk)_live_[0-9A-Za-z]{20,}\b/gu },
 ];
-const SECRET_ASSIGNMENT_RE = /(?:^|[\s,{])["']?([A-Za-z0-9_.-]*(?:API_KEY|SECRET_KEY|ACCESS_TOKEN|PRIVATE_KEY|CLIENT_SECRET|AUTH_TOKEN|BEARER_TOKEN|DATABASE_URL|WEBHOOK_SECRET|PASSWORD|PASSWD|apiKey|secretKey|accessToken|privateKey|clientSecret|authToken)[A-Za-z0-9_.-]*)["']?\s*(?:=|:)\s*["']?([^\s"',;}{]{10,})["']?/gmu;
+const SECRET_ASSIGNMENT_RE = /(?:^|[\s,{])["']?([A-Za-z0-9_.-]*(?:API_KEY|SECRET|TOKEN|PRIVATE_KEY|CLIENT_KEY|ACCESS_KEY|AUTH_TOKEN|AUTHORIZATION|DATABASE_URL|WEBHOOK_SECRET|PASSWORD|PASSWD|apiKey|secretKey|accessToken|privateKey|clientSecret|authToken)[A-Za-z0-9_.-]*)["']?\s*(?:=|:)\s*["']?([^\s"',;}{]{6,})["']?/gimu;
 const CREDENTIAL_URI_RE = /\b(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|redis|rediss|amqp):\/\/[^:\s/@]+:([^@\s/]{6,})@[^\s"']+/giu;
 const PLACEHOLDER_VALUE_RE = /^(?:your[_-]|example|changeme|placeholder|dummy|fake|mock|test[_-]?key|todo|xxx+|\*+|null|undefined|true|false|<[^>]+>|\$\{[^}]+\}|\$[A-Za-z_]|process\.env|os\.environ|os\.getenv|System\.getenv)/iu;
 
@@ -86,17 +86,26 @@ export function stripMaterialSecrets(text: string): string {
     const idx = full.lastIndexOf(rawValue);
     return idx >= 0 ? full.slice(0, idx) + "<REDACTED>" + full.slice(idx + rawValue.length) : full;
   });
-  // For strict secret-named files with generic `key = value` / `"key": "string"` lines, redact remaining literal string values too.
-  out = out.replace(/^(\s*["']?[A-Za-z0-9_.-]{1,64}["']?\s*(?:=|:)\s*)(["'])(?!<REDACTED>)([^"'\r\n]{6,})\2/gmu, "$1$2<REDACTED>$2");
-  out = out.replace(/^(\s*(?:export\s+)?[A-Z][A-Z0-9_]{1,63}\s*=\s*)(?!<REDACTED>)([^\s#'"\r\n]{8,})/gmu, "$1<REDACTED>");
+  // For a file the person chose to send with variable names only, every literal value in a key/value line is removed,
+  // whatever the key's case or the value's length. JSON on one line is covered by the leading `{`/`,` forms.
+  const redact = (full: string, head: string, quote: string, value: string) =>
+    PLACEHOLDER_VALUE_RE.test(value.trim()) || value.trim() === "<REDACTED>" ? full : `${head}${quote}<REDACTED>${quote}`;
+  out = out.replace(/^(\s*(?:export\s+)?["']?[A-Za-z_][A-Za-z0-9_.-]{0,63}["']?\s*=\s*)(["'])([^"'\r\n]*)\2/gmu, redact);
+  out = out.replace(/^(\s*(?:export\s+)?["']?[A-Za-z_][A-Za-z0-9_.-]{0,63}["']?\s*=\s*)(?!["'])([^\s#\r\n]+)/gmu,
+    (full, head: string, value: string) => PLACEHOLDER_VALUE_RE.test(value.trim()) ? full : `${head}<REDACTED>`);
+  out = out.replace(/^(\s*["']?[A-Za-z_][A-Za-z0-9_.-]{0,63}["']?\s*:\s*)(["'])([^"'\r\n]*)\2/gmu, redact);
+  out = out.replace(/^(\s*["']?[A-Za-z_][A-Za-z0-9_.-]{0,63}["']?\s*:\s*)(?!["'])([^\s#\r\n,}]+)/gmu,
+    (full, head: string, value: string) => PLACEHOLDER_VALUE_RE.test(value.trim()) ? full : `${head}<REDACTED>`);
+  out = out.replace(/([{,]\s*["']?[A-Za-z_][A-Za-z0-9_.-]{0,63}["']?\s*:\s*)(["'])([^"'\r\n]*)\2/gu, redact);
+  out = out.replace(/([{,]\s*["']?[A-Za-z_][A-Za-z0-9_.-]{0,63}["']?\s*:\s*)(?!["'<])([^\s,}]+)/gu,
+    (full, head: string, value: string) => PLACEHOLDER_VALUE_RE.test(value.trim()) ? full : `${head}"<REDACTED>"`);
   return out.trim() || "# Redacted configuration\n<REDACTED>";
 }
 
 export type PreparedContextDocumentResult =
   | { reference: ContextReference }
   | { issue: { path: string; reason: string } }
-  | { secret_hold: HeldSecretMaterial }
-  | { excluded_secret: { key: string; path: string } };
+  | { secret_hold: HeldSecretMaterial };
 
 /**
  * One file read in full after the explicit start (no limits, user 2026-10-22): its bytes come from the journey's staging (or are staged
@@ -129,7 +138,7 @@ export async function prepareContextDocument(
     if (detected) {
       const sKey = secretMaterialKey(kind, file.path, sha256);
       const decision = secretDecisions?.[sKey];
-      if (decision === "exclude") return { excluded_secret: { key: sKey, path: file.path } };
+      if (decision === "exclude") return { issue: { path: file.path, reason: "按你的选择没有发送" } };
       if (decision !== "strip" && decision !== "raw") {
         return {
           secret_hold: {

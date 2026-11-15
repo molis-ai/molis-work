@@ -46,6 +46,9 @@ export interface AgentMaterialChecklistItem {
   delivery: "full" | "clipped" | "on-demand";
   total_chars?: number;
   delivered_chars?: number;
+  /** The fixed 成果 version a material is, when it is one; the same fields the action's overflow schema allows. */
+  source_artifact_id?: string;
+  source_version?: number;
 }
 
 /**

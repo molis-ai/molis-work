@@ -188,6 +188,8 @@ test("ONB-36, ONB-38, ONB-39, ONB-40, ONB-42, C2, C3, C6: real browser upload pe
 
   // C2 & ONB-38: .env.local is held for explicit user decision while README + Dockerfile finish; 5-number funnel & 5-cell track render!
   await waitFor("Boolean(document.querySelector('[data-action=adopt]:not(:disabled)')) && Boolean(document.querySelector('[data-slot=\"materials-verification\"]')) && Boolean(document.querySelector('[data-secret-decision=\"strip\"]'))", 20_000);
+  assert.equal(await evaluate("Array.from(document.querySelectorAll('.mw-mr-funnel li b')).at(-1)?.textContent"), "—", "C3: the fifth funnel stage is not claimed as adopted before adoption");
+  assert.equal(await evaluate("Array.from(document.querySelectorAll('.mw-mr-cells')).some(cell => cell.querySelectorAll('.mw-mr-track i.is-on').length === 5)"), false, "C3: no material row shows all five stages before adoption");
 
   for (const width of [1440, 1024, 390, 320]) {
     for (const theme of ["light", "dark"] as const) {

@@ -264,3 +264,32 @@ test("S-onboarding-secret-hold exclude drops the held secret file and byte edits
     assert.equal(wireBody.includes(newToken), false, "edited secret token must never leak via stale raw approval");
   }
 });
+
+test("S-onboarding-secret-hold: an explicitly picked .env with short/generic values is held and strip removes them", async t => {
+  const { dir, served, seenWireBodies, stageFile } = await setupOnboardingHarness(t);
+  const id = randomUUID();
+  await served.web.post("/api/onboarding/context", { id });
+  const dotenv = await stageFile(id, ".env", "FOO=short\nJWT_SECRET=abc123\n");
+  await served.web.post(`/api/onboarding/context/${id}/selection`, {
+    sources: [{ kind: "files", selected: true, files: [{ path: dotenv.path, staged: dotenv.staged }] }],
+  });
+
+  await served.web.post(`/api/onboarding/context/${id}/start`, {});
+  await waitContextJourney(dir, id);
+  const first = await served.web.get<JourneyView>(`/api/onboarding/context/${id}`);
+  assert.equal(first.phase, "failed");
+  assert.equal(seenWireBodies().length, 0);
+  const held = first.sources.find(s => s.kind === "files")!.held_secrets?.find(h => h.path === ".env");
+  assert.ok(held, ".env is held by its filename even when values are short and generic");
+
+  await served.web.post(`/api/onboarding/context/${id}/secret`, { key: held.key, decision: "strip" });
+  await waitContextJourney(dir, id);
+  const second = await served.web.get<JourneyView>(`/api/onboarding/context/${id}`);
+  assert.equal(second.phase, "review");
+  assert.ok(seenWireBodies().some(body => body.includes("FOO=<REDACTED>")));
+  assert.ok(seenWireBodies().some(body => body.includes("JWT_SECRET=<REDACTED>")));
+  for (const body of seenWireBodies()) {
+    assert.equal(body.includes("short"), false);
+    assert.equal(body.includes("abc123"), false);
+  }
+});

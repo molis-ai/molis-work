@@ -10,7 +10,6 @@ import { api, status } from "./request.js";
 import { surfaceChanged } from "./select.js";
 import type { StateRead } from "./shapes.js";
 import { showWorkspace } from "./workspace.js";
-export { buildEnvironmentChecklistHtml };
 
 /** Puts the session's remembered start (intent, model, directory, effort) back on the composer. */
 export function applyConfiguration(page: Page) {

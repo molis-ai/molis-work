@@ -194,10 +194,18 @@ export class AssistantService {
    * reports and advises — it reads, and starts nothing and changes nothing (`report_only`). A project with no main conversation yet
    * has the notice only; a main conversation answering now is reported to once its round ends.
    */
+  /** Whether a project has a main conversation a report could go to: without one its table is not read for reports at all. */
+  reportsTo(projectId: string): boolean {
+    const main = mainWorkOf(this.store, this.actorId, { kind: "project", project_id: projectId }, null);
+    return Boolean(main && !main.archived);
+  }
+
   async reportTask(report: TaskReport): Promise<"reported" | "later" | "none"> {
     const main = mainWorkOf(this.store, this.actorId, { kind: "project", project_id: report.project_id }, null);
     if (!main || main.archived) return "none";
     const { row, end } = report, failed = end === "failed";
+    // An end from before the main conversation existed is not news to it: its table was not read then (`reportsTo`), and is not told now.
+    if (Date.parse(row.updated_at) < Date.parse(main.created_at)) return "none";
     const key = `task-report-${createHash("sha256").update(JSON.stringify([report.project_id, row.id, end, row.updated_at])).digest("base64url").slice(0, 32)}`;
     if (this.store.noticeRaised(this.actorId, key)) return "none";
     if (main.session_id) {

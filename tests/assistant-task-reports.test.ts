@@ -26,11 +26,11 @@ test("PWA-155 a row may say it reports to the Assistant, and says nothing else t
   assert.equal(backgroundTaskRow(task({ reports_to: "goals" }), SOURCE, ORIGIN, ["demo_task"]), null, "only the Assistant is a place to report to");
 });
 
-function reports(tables: Map<string, BackgroundTasksReadResult>, answer: (report: TaskReport) => "reported" | "later" | "none" = () => "reported") {
+function reports(tables: Map<string, BackgroundTasksReadResult>, answer: (report: TaskReport) => "reported" | "later" | "none" = () => "reported", without = new Set<string>()) {
   let listener: ((projectId: string | null) => void) | undefined;
   const asked: TaskReport[] = [], read: string[] = [];
   const watcher = new AssistantTaskReports({ table: async id => { read.push(id); return tables.get(id) ?? table(); },
-    changes: next => { listener = next; return () => { listener = undefined; }; }, report: async report => { asked.push(report); return answer(report); } });
+    reportsTo: id => !without.has(id), changes: next => { listener = next; return () => { listener = undefined; }; }, report: async report => { asked.push(report); return answer(report); } });
   watcher.start();
   return { watcher, asked, read, change: async (projectId: string | null) => { listener?.(projectId); await watcher.idle(); }, listening: () => Boolean(listener) };
 }
@@ -49,6 +49,12 @@ test("PWA-155 PWA-157 an ended task that reports to the Assistant is reported on
   assert.deepEqual(asked.map(one => one.end), ["done", "failed"], "a new end of it is a new report");
   watcher.close();
   assert.equal(listening(), false, "closed, it hears nothing more");
+});
+
+test("PWA-155 a project with no main conversation to report to is not read at all", async () => {
+  const { asked, read, change } = reports(new Map([["p", table(row())]]), () => "reported", new Set(["p"]));
+  await change("p");
+  assert.deepEqual([read, asked.length], [[], 0], "nothing could be told there, so its table is not read");
 });
 
 test("PWA-157 a main conversation busy answering is reported to once its round ends, not in the middle of it", async () => {
@@ -97,11 +103,17 @@ test("PWA-155 PWA-157 the Assistant tells the person once and starts one round t
   const service = new AssistantService(store, { pages: async () => ["home"], host: async () => host as never, authority: async () => { throw new Error("not reached"); } }, "user");
   const started: Array<{ text: string; intent: unknown }> = [];
   (service as unknown as { dispatcher: { dispatch(...args: unknown[]): Promise<unknown> } }).dispatcher.dispatch = async (...args) => { started.push({ text: args[1] as string, intent: args[9] }); return {}; };
-  const report: TaskReport = { project_id: "p", row: row(), end: "done" };
+  // Ends after the main conversation exists (an end from before it is not news to it, below).
+  const later = (minutes: number) => new Date(Date.now() + minutes * 60_000).toISOString();
+  const report: TaskReport = { project_id: "p", row: row({ updated_at: later(1) }), end: "done" };
   try {
+    assert.equal(service.reportsTo("p"), false);
     assert.equal(await service.reportTask(report), "none", "no main conversation in the project yet: nothing to report to");
     const main = store.create({ actor_id: "user", title: "主对话", scope: { kind: "project", project_id: "p" }, project_ref: { project_id: "p", storage_key: "memory:p" }, origin: null, main: true });
     store.update("user", main.work_id, null, { session_id: "s-main" });
+    assert.equal(service.reportsTo("p"), true);
+    assert.equal(await service.reportTask({ project_id: "p", row: row({ subject: { kind: "demo_task", id: "t0" }, updated_at: "2020-01-01T00:00:00.000Z" }), end: "done" }), "none",
+      "a task that ended before the main conversation existed is not told to it");
     latest = { phase: "running" };
     assert.equal(await service.reportTask(report), "later", "answering now: later");
     latest = { phase: "completed" };
@@ -116,7 +128,7 @@ test("PWA-155 PWA-157 the Assistant tells the person once and starts one round t
     const notices = () => (db.prepare("SELECT kind, work_id FROM assistant_notices").all() as Array<{ kind: string; work_id: string }>).map(one => [one.kind, one.work_id]);
     assert.deepEqual(notices(), [["completed", main.work_id]]);
     // A round that began in between: the report waits for it, nothing is marked told.
-    const other: TaskReport = { project_id: "p", row: row({ subject: { kind: "demo_task", id: "t9" } }), end: "failed" };
+    const other: TaskReport = { project_id: "p", row: row({ subject: { kind: "demo_task", id: "t9" }, updated_at: later(2) }), end: "failed" };
     (service as unknown as { dispatcher: { dispatch(): Promise<unknown> } }).dispatcher.dispatch = async () => { throw Object.assign(new Error("busy"), { code: "assistant.state" }); };
     assert.equal(await service.reportTask(other), "later");
     assert.equal(notices().length, 1);

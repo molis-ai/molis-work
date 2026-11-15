@@ -256,7 +256,7 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
     const read = reference && await aggregate.whileOpen(reference, () => runBackgroundWorkIn(ports.homeDirectory, () => tableOf(projectId)));
     return read ?? { tasks: [], issues: [] };
   };
-  const reports = new AssistantTaskReports({ table: openTable, changes: onAttentionChangeOf, report: report => service.reportTask(report) });
+  const reports = new AssistantTaskReports({ table: openTable, changes: onAttentionChangeOf, reportsTo: projectId => service.reportsTo(projectId), report: report => service.reportTask(report) });
   reports.start();
   const entry = { home: ports.homeDirectory, service, store, threads, surroundings, reports };
   services.set(ports.localHost, entry);

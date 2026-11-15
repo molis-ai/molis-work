@@ -24,6 +24,8 @@ export interface TaskReport { project_id: string; row: BackgroundTaskRow; end: "
 interface ReportPorts {
   /** The project's table, read as the person (the same read the task panel makes). */
   table(projectId: string): Promise<BackgroundTasksReadResult>;
+  /** Whether the project has a main conversation to report to: a project without one is not read (nothing could be told). */
+  reportsTo(projectId: string): boolean;
   /** Which project changed (`null`: the Assistant's own store). */
   changes(listener: (projectId: string | null) => void): () => void;
   /**
@@ -76,6 +78,7 @@ export class AssistantTaskReports {
   }
 
   async #lookAt(projectId: string): Promise<void> {
+    if (!this.ports.reportsTo(projectId)) { this.#pending.delete(projectId); return; }
     const table = await this.ports.table(projectId);
     let later = false;
     for (const row of table.tasks) {

@@ -30,7 +30,7 @@ export interface TimelineRun {
   activity: TimelineActivity[];
   usage?: { tokens?: { input?: number; output?: number } };
   stop_reason?: string | null;
-  step_board?: { terminal: boolean; nodes: Array<{ state: string }> };
+  step_board?: { terminal: boolean; nodes: Array<{ state: string; scope_removed?: boolean; unknown_outcome?: boolean }> };
   turns?: Array<{ kind: string; text: string; at?: string | null }>;
   turn_changes?: TimelineTurnChanges[];
   code_revision?: string | null;
@@ -375,9 +375,9 @@ export function createCodingTimeline(words: TimelineWords) {
     const edited = new Set(run.activity.filter(item => ["edit", "write"].includes(item.name) && item.state === "completed" && item.target).map(item => item.target));
     const commands = run.activity.filter(item => (item.name === "run-command" || item.name === "start-command") && item.state === "completed"), dispatched = run.activity.filter(item => item.name === "dispatch-subagent" && item.state === "completed").length;
     const lastCommand = commands.at(-1), lastEnd = lastCommand ? commandEnd(lastCommand) : null;
-    // A plan round is only done when its plan is: an ended round with steps left says so and offers to continue.
-    const left = run.step_board && !run.step_board.terminal ? run.step_board.nodes.filter(node => !["succeeded", "cancelled"].includes(node.state)).length : 0;
-    const completedFraction = run.step_board?.nodes.length ? run.step_board.nodes.filter(node => node.state === "succeeded").length / run.step_board.nodes.length : undefined;
+    const activeNodes = run.step_board?.nodes.filter(node => !node.scope_removed) ?? [];
+    const left = run.step_board && !run.step_board.terminal ? activeNodes.filter(node => node.unknown_outcome || !["succeeded", "cancelled"].includes(node.state)).length : 0;
+    const completedFraction = activeNodes.length ? activeNodes.filter(node => node.state === "succeeded" && !node.unknown_outcome).length / activeNodes.length : undefined;
     // A round that ended on an announcement ("我先读……") without calling a single tool did nothing; it says so plainly
     const said = [...(run.turns ?? [])].reverse().find(turn => turn.kind === "assistant")?.text.trim() ?? "";
     // Thinking is not doing: a round whose only activity is the model's reasoning still did nothing.

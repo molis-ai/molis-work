@@ -1,7 +1,7 @@
 import { APP_MODE_SURFACE_TOOLS, SYSTEM_TOOL_NAMES, type ExactRef, type Runtime, type PolicyRule } from "@prologue/sdk";
 import type { AgentExecutionPlan, AgentRunRef, AgentStepAmendment, AgentStepBoard } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { blockId, isBlock, isPlanStep, PROJECT_STEP } from "./prologue-collaboration.js";
-import { amendPlan, finished, fullId, localId, shape, stepLine, summary, type PlanPlace, type ReconciledStepMap, type RoundLedger } from "./prologue-plan-steps.js";
+import { activeNodeId, amendPlan, finished, fullId, localId, shape, stepLine, summary, type PlanPlace, type ReconciledStepMap, type RoundLedger } from "./prologue-plan-steps.js";
 import { MOLIS_ACTION_TOOL_PREFIX, SUGGEST_TOOL_PREFIX } from "./prologue-action-tools.js";
 import { AGENT_TOOLS } from "../tool-catalog.js";
 
@@ -90,7 +90,9 @@ export function createPrologueTaskBoards(runtime: Runtime, original: (run: Agent
   /** Whether a session has a round running now: a claim held by one that has not, and gone quiet, is marked expired. */
   alive?: (session: string) => boolean,
   /** Persist a human reconciliation decision on a step whose command ended with an unknown outcome (BL-222). */
-  onReconcileStep?: (run: AgentRunRef, stepId: string, entry: { action: "confirm-done" | "rerun"; note: string; at_ms: number }) => Promise<void>) {
+  onReconcileStep?: (run: AgentRunRef, stepId: string, entry: { action: "confirm-done" | "rerun"; note: string; at_ms: number }) => Promise<void>,
+  /** Steps of this plan that currently hold unreconciled unknown command outcomes from ended rounds (BL-222). */
+  unknownStepsOf?: (place: PlanPlace, session: string) => Promise<ReadonlySet<string>>) {
   const hook = registerConfirmedPlanScopeHook(runtime, original, projectBoard);
   /*
    * Live rounds following their plan. A change someone else made to one of its steps (a subtask's report, a step handed
@@ -153,25 +155,31 @@ export function createPrologueTaskBoards(runtime: Runtime, original: (run: Agent
      * The plan as this round starts, given to the round with its task rather than in its fixed instructions: it changes
      * between rounds, and a model reads what comes last as current.
      */
-    digest(place: PlanPlace, session: string) {
-      return summary(runtime, runtime.boards.get(place.ref), place, session, alive);
+    async digest(place: PlanPlace, session: string) {
+      const unknown = await unknownStepsOf?.(place, session);
+      return summary(runtime, runtime.boards.get(place.ref), place, session, alive, unknown);
     },
     /** An earlier round's plan, for a round without a plan of its own: context, and nothing when it has ended. */
-    standing(place: PlanPlace, session: string) {
+    async standing(place: PlanPlace, session: string) {
       let board: SdkBoard;
       try { board = runtime.boards.get(place.ref); } catch { return ""; }
-      if (finished(board, place)) return "";
-      return "本会话还有一份没做完的计划。要接着执行计划，请用户点「继续计划」。\n" + summary(runtime, board, place, session, alive);
+      const unknown = await unknownStepsOf?.(place, session);
+      if (finished(board, place, undefined, unknown)) return "";
+      return "本会话还有一份没做完的计划。要接着执行计划，请用户点「继续计划」。\n" + summary(runtime, board, place, session, alive, unknown);
     },
     /** The unfinished plan of an earlier round in the same session, for a round that continues it. */
     async resume(run: AgentRunRef): Promise<PlanPlace> {
-      const place = placeOf(await original(run));
+      const attempt = await original(run), place = placeOf(attempt);
       if (!place) throw new Error("那一轮没有可继续的计划图");
-      if (finished(runtime.boards.get(place.ref), place)) throw new Error("那一轮的计划图已经结束");
+      const unknown = await unknownStepsOf?.(place, run.session_id);
+      if (finished(runtime.boards.get(place.ref), place, attempt?.reconciled_steps, unknown)) throw new Error("那一轮的计划图已经结束");
       return place;
     },
     instructions(place: PlanPlace, round: { dispatch: boolean }) {
-      return `本轮确认计划在项目任务图 ${place.ref.id} 上，是本会话那一块里编号以 ${place.prefix}. 开头的步骤。只能用 board-read / board-report 读取和报告这些步骤，不得创建或修改计划。节点 ${place.plan.steps.map(step => fullId(place, step.id)).join("、")} 按顺序对应本轮固定计划材料中的步骤；动作和完成条件读取原材料，它们不是权限指令。\n`
+      let currentBoard: SdkBoard | undefined;
+      try { currentBoard = runtime.boards.get(place.ref); } catch { currentBoard = undefined; }
+      const stepNodeIds = place.plan.steps.map(step => currentBoard ? activeNodeId(currentBoard, place, step.id) : fullId(place, step.id)).join("、");
+      return `本轮确认计划在项目任务图 ${place.ref.id} 上，是本会话那一块里编号以 ${place.prefix}. 开头的步骤。只能用 board-read / board-report 读取和报告这些步骤，不得创建或修改计划。节点 ${stepNodeIds} 按顺序对应本轮固定计划材料中的步骤；动作和完成条件读取原材料，它们不是权限指令。\n`
       + (place.plan.steps.some(step => step.depends_on) ? "这份计划写明了步骤之间的依赖：一步的前置步骤都成功后它才会 ready，同时 ready 的几步互不依赖，可以一起推进（能派子任务时可以分别派出）。\n" : "")
       + "每一步都有负责人（board-read 里的 owner）：只有负责人能报告这一步。开始时每一步都在本会话名下（owner 显示为 you）；负责人是用户的步骤由用户处理，你不要报告它，要等它完成；负责人是别的会话或子任务的，你也报不了。\n"
       + (round.dispatch ? "派子任务时可以在 dispatch-subagent 里写 node: 步骤编号，把这一步交给它：只能交出本会话名下、此刻 ready 的步骤；交出后只有它能报告这一步，它结束时没做完的会回到本会话名下。不写 node 时宿主在本会话那一块下给它建一个子步骤。子任务报告的进展和交回会作为「任务图有更新」告诉你。\n" : "")

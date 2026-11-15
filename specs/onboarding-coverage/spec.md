@@ -447,7 +447,7 @@ node scripts/check-spec-coverage.mjs
 
 2026-11-15 开工前检查与验证记录，覆盖 `33-2`（ONB-35～46、C1～C14）与同批 `33-1`；完整 15 项结论合记于 [Coding 与 Agent 工作流优化需求书 §12](../coding-harness-optimization/spec.md#batch-33-preflight)。`BL-106`、`BL-107` 留归后续第 45／57 批按原排期处理，不随本批关闭。
 
-- **工程通过：** `tests/context-onboarding-batch33.test.ts`（4/4，覆盖 `ONB-35～46`、`C1～C11`）、`tests/security-invariants-onboarding-secrets.test.ts`（3/3，覆盖 `S-onboarding-secret-hold` 疑似密钥文件阻断外发与阻断导入）、`cargo +1.96.0 test context_director`（14/14，覆盖桌面 Tauri 大目录分批进度事件、取消令牌、`resume_offset` 继续清点及 `total_entries / skipped_reasons / ignored_rules` 统计，`C4`）、`tests/sdk-ui-markup.test.ts`（8/8，覆盖五格漏斗、五格进度条 `aria-label`、增量改范围卡与 `.env* -> ENV` 原语）。
-- **实操（自动化浏览器）：** `tests/context-onboarding-recovery.e2e.test.ts`（2/2，覆盖组件板 `#recovery-closures` 中英文、1440／1024／390／320 浅深双色布局与无裸中文审计，以及 `/onboarding` 浏览器上传 IndexedDB 跨刷新保留、`.env* -> ENV` 标签、疑似密钥选择、五格核对漏斗与增量改范围卡）、`tests/onboarding-journey.e2e.test.ts`（14/14）。
+- **工程通过：** `tests/context-onboarding-batch33.test.ts`（4/4，覆盖 `ONB-35～46`、`C1～C11`）、`tests/security-invariants-onboarding-secrets.test.ts`（3/3，覆盖 `S-onboarding-secret-hold` 疑似密钥文件阻断外发与阻断导入）、`cargo +1.96.0 test context_director`（15/15，覆盖桌面 Tauri 大目录确定性遍历、分批进度事件、取消令牌、`resume_offset` 继续清点无重无漏及 `total_entries / skipped_reasons / ignored_rules` 统计，`C4`）、`tests/sdk-ui-markup.test.ts`（8/8，覆盖五格漏斗、五格进度条 `aria-label`、增量改范围卡、`.env* -> ENV` 原语及工作台独立样式表覆盖）。
+- **实操（自动化浏览器）：** `tests/context-onboarding-recovery.e2e.test.ts`（2/2，覆盖组件板 `#recovery-closures` 中英文、1440／1024／390／320 浅深双色布局与无裸中文审计，以及 `/onboarding` 浏览器上传 IndexedDB 跨刷新保留、桌面目录 `resume_offset` 继续清点、`.env* -> ENV` 标签、疑似密钥选择、五格核对漏斗与增量改范围卡）、`tests/onboarding-journey.e2e.test.ts`（14/14）。
 - **本人验收：** 未执行（含 `ONB-49[人工]`），集中登记于 [BL-batch33-acceptance](../backlog/BL-batch33-acceptance.md)。
 

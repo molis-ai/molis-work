@@ -135,7 +135,7 @@ const ROUTES: RouteMaker[] = [
       const board = entry?.board, node = board?.nodes.find(node => node.id === request.params.stepId);
       if (!board || !node || entry?.board_error || !node.reports.length) throw codingFailure("coding.server.step-no-report");
       if (body.project_id !== board.project_id || body.board_version !== board.version) throw codingFailure("coding.server.step-report-changed");
-      if (!["accepted", "needs-work"].includes(String(body.action)) || body.action === "accepted" && node.state !== "succeeded") throw codingFailure("coding.server.accept-succeeded-only");
+      if (!["accepted", "needs-work"].includes(String(body.action)) || body.action === "accepted" && (node.state !== "succeeded" || Boolean(node.unknown_outcome))) throw codingFailure("coding.server.accept-succeeded-only");
       const notes = typeof body.notes === "string" ? body.notes.trim() : "";
       if (notes.length > 4000 || body.action === "needs-work" && !notes) throw codingFailure("coding.server.rework-reason");
       await beforeWrite(); beforeWrite.assert_current();

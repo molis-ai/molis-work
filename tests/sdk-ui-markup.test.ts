@@ -124,17 +124,22 @@ function classesOf(html: string): Set<string> {
 }
 
 // RAC-551
-test("every class a /ui part writes has a rule in the host's style sheets", () => {
-  const sheets = [renderMolisWorkWorkbenchStylesheet(), renderMolisWorkArrivalStylesheet(), renderMolisWorkSettingsStylesheet()].join("\n");
-  const defined = (token: string): boolean => new RegExp(`\\.${token.replace(/[\\^$*+?.()|[\]{}]/gu, "\\$&")}(?![\\w-])`, "u").test(sheets);
+test("every class a /ui part writes has a rule in the host's style sheets and in the workbench stylesheet alone", () => {
+  const workbenchSheet = renderMolisWorkWorkbenchStylesheet();
+  const sheets = [workbenchSheet, renderMolisWorkArrivalStylesheet(), renderMolisWorkSettingsStylesheet()].join("\n");
+  const rulePattern = (token: string): RegExp => new RegExp(`\\.${token.replace(/[\\^$*+?.()|[\]{}]/gu, "\\$&")}(?![\\w-])`, "u");
+  const defined = (token: string): boolean => rulePattern(token).test(sheets);
+  const definedInWorkbench = (token: string): boolean => rulePattern(token).test(workbenchSheet);
   const written = new Set<string>();
   for (const html of samples()) for (const token of classesOf(html)) written.add(token);
   assert.ok(written.size > 40, `expected the samples to exercise the parts, saw ${written.size} classes`);
   // `extra` is the sample caller's own class name, not the part's. An alert's `info` and `neutral` tones are the base look, so
-  // the host has no rule that adds to it; every other class is the part's and the host defines each.
+  // the host has no rule that adds to it; every other class is the part's and the workbench sheet (where plugins mount) defines each.
   const BASE_LOOK = new Set(["extra", "mw-alert--info", "mw-alert--neutral"]);
   const missing = [...written].filter((token) => !BASE_LOOK.has(token) && !defined(token)).sort();
   assert.deepEqual(missing, []);
+  const missingInWorkbench = [...written].filter((token) => !BASE_LOOK.has(token) && !definedInWorkbench(token)).sort();
+  assert.deepEqual(missingInWorkbench, []);
 });
 
 // RAC-766

@@ -90,6 +90,7 @@ export function contextSources(value: unknown): ContextSource[] {
         }),
         skipped: safeCount(metadata.skipped),
         truncated: metadata.truncated === true,
+        ...(metadata.cancelled === true ? { cancelled: true } : {}),
         ...(metadata.total_entries !== undefined ? { total_entries: safeCount(metadata.total_entries) } : {}),
         ...(skippedReasons ? { skipped_reasons: skippedReasons } : {}),
         ...(ignoredRules?.length ? { ignored_rules: ignoredRules } : {}),

@@ -368,7 +368,7 @@ node scripts/check-spec-coverage.mjs
 
 ### 12.1 第 33 批验证与证据分级（2026-11-15）
 
-- **工程通过：** `tests/coding-batch33-harness.test.ts`（9/9，覆盖 `CHO-08～13`、`CHO-29～35`、`C12～C14`、`BL-051`、`BL-182`、`BL-222`、`BL-540`，含计划进度汇总无 `NaN`、0..1 折扣进度百分数换算、失败尾步 `remove-scope` 与 `skip` 区分、含未知结局命令的步骤扣除、子任务重试保留父轮冻结模型与额度条/历次记录、业务网关钉版本拒绝、环境准备清单与轮次材料清单共用原语渲染）、`tests/security-invariants-knowledge.test.ts`（10/10，含 `S-41` `expected_revision` 版本漂移拒绝与未授权优先拒绝不探版本）、`tests/coding-onboarding-take.test.ts`（1/1）、`tests/sdk-ui-markup.test.ts`（8/8，覆盖恢复闭环原语双语渲染无裸中文）、`tests/ui-text-locale-files.test.ts`（21/21）及公开合同、健康门禁与页面资源/首屏预算全绿。
+- **工程通过：** `tests/coding-batch33-harness.test.ts`（9/9）与 `tests/coding-batch33-reconcile.test.ts`（1/1，覆盖 `CHO-08～13`、`CHO-29～35`、`C12～C14`、`BL-051`、`BL-182`、`BL-222`、`BL-540`，含计划进度汇总无 `NaN`、0..1 折扣进度百分数换算、失败尾步 `remove-scope` 与 `skip` 区分、含未知结局命令的步骤扣除与 `rerun` 重置就绪／`confirm-done` 结清对账及 `stepBoards.resume` 续跑、子任务重试在默认模型漂移后仍保留父轮冻结模型与额度条/历次记录、业务网关钉版本拒绝、环境准备清单与轮次材料清单共用原语渲染）、`tests/security-invariants-knowledge.test.ts`（10/10，含 `S-41` `expected_revision` 版本漂移拒绝与未授权优先拒绝不探版本）、`tests/coding-onboarding-take.test.ts`（1/1）、`tests/sdk-ui-markup.test.ts`（8/8，覆盖恢复闭环原语双语渲染无裸中文及工作台样式表独立覆盖）、`tests/ui-text-locale-files.test.ts`（21/21）及公开合同、健康门禁与页面资源/首屏预算全绿。
 - **实操（自动化浏览器）：** `tests/coding-workbench.e2e.test.ts`（2/2，覆盖 1360／1024／390、深色与文件面同步）、`tests/context-onboarding-recovery.e2e.test.ts`（2/2，覆盖 `/__ui/catalog#recovery-closures` 中英文、1440／1024／390／320 浅深双色零溢出与无裸中文审计）。
 - **本人验收：** 未执行，集中登记于 [BL-batch33-acceptance](../backlog/BL-batch33-acceptance.md)。
 

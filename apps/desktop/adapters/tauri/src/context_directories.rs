@@ -293,13 +293,14 @@ pub async fn context_directory_forget(
     .await
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn context_directory_preview(
     app: AppHandle,
     window: WebviewWindow,
     id: String,
     days: u16,
     cancel: Option<bool>,
+    resume_offset: Option<usize>,
 ) -> Result<DirectoryPreview, String> {
     valid_id(&id)?;
     if cancel == Some(true) {
@@ -320,6 +321,7 @@ pub async fn context_directory_preview(
     if ![0, 7, 30, 90].contains(&days) {
         return Err("请选择最近 7、30、90 天或全部".into());
     }
+    let offset = resume_offset.unwrap_or(0);
     operation(app, window, move |app, window, path| {
         let state = app.state::<ContextDirectoryState>();
         state
@@ -335,6 +337,7 @@ pub async fn context_directory_preview(
             crate::context_directory_files::preview_with_progress(
                 &scope.directory,
                 days,
+                offset,
                 &state.cancel_scan,
                 |visited, kept, bytes, current_path| {
                     let _ = window.emit(
@@ -352,7 +355,7 @@ pub async fn context_directory_preview(
         }
         #[cfg(not(target_os = "macos"))]
         {
-            let _ = (app, window, record);
+            let _ = (app, window, record, offset);
             Err("目录授权仅支持 macOS 桌面应用".into())
         }
     })

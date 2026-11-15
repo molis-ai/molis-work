@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { ExactRef } from "@prologue/sdk";
 import type { AgentReviewReceipt, AgentRunRef, AgentWriteCheckNote } from "@molis-ai/molis-work-contracts/services/agent-host";
-import type { PrologueRestoredSession, PrologueRunTiming, PrologueStartInput } from "./prologue.js";
+import type { PrologueModelConfiguration, PrologueRestoredSession, PrologueRunTiming, PrologueStartInput } from "./prologue.js";
 import type { PrologueRewindIntent } from "./prologue-checkpoints.js";
 import type { PrologueSubagentRoot } from "./prologue-subagents.js";
 import type { NodeHost } from "./prologue-node-kit.js";
@@ -45,8 +45,9 @@ export interface SessionIndex {
     subagent_attempt_reasons?: Record<string, string>;
     subagent_retry_tasks?: Record<string, string>;
     subagent_nodes?: Record<string, string>;
-    /** Parent model selection frozen at round start so subagent retries inherit the exact chosen model (BL-051). */
+    /** Parent model selection and resolved model frozen at round start so subagent retries inherit the exact chosen model (BL-051). */
     model_selection?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentStartRequest["model_selection"];
+    frozen_model?: PrologueModelConfiguration;
     /** Human reconciliation decisions on steps whose command ended with an unknown outcome (BL-222). */
     reconciled_steps?: Record<string, { action: "confirm-done" | "rerun"; note: string; at_ms: number }>;
     /** Trusted applicability facts for this attempt; body-free and never inferred from the model's query. */

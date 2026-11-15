@@ -208,12 +208,14 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   function resumeNotice() {
     return config.resume && config.resume.id !== journey.id ? '<p class="ob-resume cx-resume">' + glyph('history') + '<span>' + globalThis.t.text("workbench.context-onboarding.have-unfinished-import-last-time") + (config.resume.title ? ' · ' + esc(config.resume.title) : '') + '</span>' + btn({variant:'link', size:'sm', label:globalThis.t.text("workbench.context-onboarding.continue-where-left-off"), attrs:{'data-action':'resume'}}) + '</p>' : '';
   }
+  const docState = s => s.error ? 'failed' : s.references?.length ? 'done' : ready(s) ? 'ready' : 'pending';
+${CONTEXT_ONBOARDING_RECOVERY_PART}
   function sourcesView() {
-    const total = selectionTotal(), any = picked().filter(ready);
+    const total = selectionTotal(), any = picked().filter(ready), pausedDir = pausedNativeDir();
     const countUi = counting && !counting.saving
       ? note(globalThis.t.text("workbench.context-onboarding.counting-chosen-files-they-appear-right-when-count"), 'clock') + (counting.nativeDir ? note(globalThis.t.text("workbench.context-onboarding.counting-folder-progress", {done:counting.done, kept:counting.kept, size:size(counting.bytes)}), 'folder') : meter(counting.done, counting.total, globalThis.t.text("workbench.context-onboarding.count"), globalThis.t.text("workbench.context-onboarding.seen-done-total-keeping-kept-size", {done:counting.done, total:counting.total, kept:counting.kept, size:size(counting.bytes)}))) + '<div class="ob-cfg-actions">' + btn({variant:'secondary', size:'sm', label:readText("workbench.context-onboarding.stop-counting"), attrs:{'data-action':'stop-scan'}}) + '</div>'
       : counting && counting.saving ? note(globalThis.t.text("workbench.context-onboarding.list-large-being-saved"), 'clock')
-      : pausedScan ? '<div class="ob-cfg-actions">' + btn({variant:'secondary', size:'sm', label:readText("workbench.context-onboarding.continue-counting"), attrs:{'data-action':'continue-scan'}}) + '</div>'
+      : (pausedScan || pausedDir) ? (pausedDir ? note(readText("workbench.context-onboarding.partial-scan-saved-note"), 'info') : '') + '<div class="ob-cfg-actions">' + btn({variant:'secondary', size:'sm', label:readText("workbench.context-onboarding.continue-counting"), attrs:{'data-action':'continue-scan', ...(pausedDir && !pausedScan ? {'data-continue-dir': pausedDir.kind} : {})}}) + '</div>'
       : (partialRestoredKinds.size > 0 || picked().some(s => s.metadata?.truncated && !s.references?.length)) ? note(readText("workbench.context-onboarding.partial-scan-saved-note"), 'info') : '';
     const left = question(globalThis.t.text("workbench.context-onboarding.bring-existing-materials"), globalThis.t.text("workbench.context-onboarding.files-pages-chats-become-new-project-s-background")) + resumeNotice()
       + (journey.summary ? '<p class="cx-hint ob-note">' + glyph('info') + '<span>' + globalThis.t.text("workbench.context-onboarding.materials-already-read-kept-starting-again-replaces-current") + '</span></p>' : '')
@@ -249,7 +251,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
     const rows = folders.map(folder => fileRow({name:folder + '/', chip:'<span class="mw-file-kind" data-slot="file-kind">' + glyph('folder') + '</span>', size:globalThis.t.text("workbench.context-onboarding.include-subfolders"), check:{checked:!(s.excluded||[]).includes(folder), attrs:{id:'cx-d-' + s.kind + '-' + folders.indexOf(folder), 'data-folder':s.kind, 'data-path':folder}}}))
       .concat(shownItems.map((file, i) => fileRow({name:file.path, size:size(file.size), state:'<span class="mw-file-row__state">' + globalThis.t.text("workbench.context-onboarding.not-read") + '</span>', check:{checked:selected.includes(file), attrs:{id:'cx-f-' + s.kind + '-' + i, 'data-file':s.kind, 'data-index':i}}})))
       .concat(items.length > limit ? ['<li class="ob-more-row">' + btn({variant:'ghost', size:'sm', label:globalThis.t.text("workbench.context-onboarding.show-more-files", {n:items.length - limit}), attrs:{'data-more-files':s.kind}}) + '</li>'] : []);
-    const tools = directory(s) ? toggles(readText("workbench.context-onboarding.source-time-range", { source: readText(names[s.kind]) }), RANGES.map(days => ({label:rangeLabel(days), current:(s.days ?? 30) === days, attrs:{'data-range':s.kind, 'data-days':String(days)}}))) + btn({variant:'ghost', size:'sm', icon:'refresh', label:globalThis.t.text("workbench.context-onboarding.refresh-preview"), attrs:{'data-refresh':s.kind}}) : '';
+    const tools = directory(s) ? toggles(readText("workbench.context-onboarding.source-time-range", { source: readText(names[s.kind]) }), RANGES.map(days => ({label:rangeLabel(days), current:(s.days ?? 30) === days, attrs:{'data-range':s.kind, 'data-days':String(days)}}))) + (native && s.metadata?.cancelled ? btn({variant:'secondary', size:'sm', label:readText("workbench.context-onboarding.continue-counting"), attrs:{'data-action':'continue-scan', 'data-continue-dir':s.kind}}) : '') + btn({variant:'ghost', size:'sm', icon:'refresh', label:globalThis.t.text("workbench.context-onboarding.refresh-preview"), attrs:{'data-refresh':s.kind}}) : '';
     const seen = s.metadata.skipped || 0, sr = s.metadata.skipped_reasons;
     const onlyFiltered = seen > 0 && (!directory(s) || (s.days ?? 30) === 0 || Boolean(sr && !sr.time && ((sr.ignored || 0) + (sr.secret || 0) + (sr.unreadable || 0) > 0)));
     const emptyKey = s.metadata.total_entries === 0 || (!seen && (!directory(s) || (s.days ?? 30) === 0)) ? "workbench.context-onboarding.folder-is-empty" : onlyFiltered ? "workbench.context-onboarding.no-supported-files-filtered" : "workbench.context-onboarding.no-supported-files-time-range-widen-skip";
@@ -272,8 +274,6 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   }
 
   /* ───────── Reading: the Host reads and sorts; the person may leave and come back ───────── */
-  const docState = s => s.error ? 'failed' : s.references?.length ? 'done' : ready(s) ? 'ready' : 'pending';
-${CONTEXT_ONBOARDING_RECOVERY_PART}
   function readingView() {
     const done = picked().filter(s=>s.references||s.error).length, total = Math.max(1, picked().length);
     const materialsReady = journey.phase==='failed' && journey.needs_model && picked().some(s=>s.references?.length||s.held_secrets?.length);
@@ -554,19 +554,12 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
     }
     await save();
   }
-  async function metadata(s) {
-    if(s.references?.length)return;
-    scanningDirId=s.kind;
-    try { s.metadata=await invoke('context_directory_preview',{id:s.kind,days:s.days??30});delete s.error; }
-    catch(e){delete s.metadata;s.error=String(e?.message||e);await refreshGrants();}
-    finally{scanningDirId='';counting=null;}
-  }
   async function prepare() {
     const wasBusy=busy;busy=true;
     try { await saveQueue; journey.auto_start=false; await refreshGrants();
     for(const s of picked()) {
       preparing=names[s.kind];render();
-      if(directory(s)&&native){if(grants[s.kind]?.state!=='ready')await authorize(s.kind);if(ready(s))await metadata(s);}
+      if(directory(s)&&native){if(grants[s.kind]?.state!=='ready')await authorize(s.kind);if(ready(s)&&!s.metadata?.cancelled)await metadata(s);}
     }
     preparing='';journey.previewed=true;reviewFiles=false;await save();
     const gmail=source('gmail');if(gmail?.selected&&!ready(gmail)&&config.gmail_configured&&!connected().length&&journey.oauth_status!=='pending')await connect(true);
@@ -673,7 +666,7 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
     const rowHit=e.target.closest('.mw-file-row'); if(rowHit && !e.target.closest('label,button,a,input')){const box=rowHit.querySelector('input.mw-check'); if(box){box.click(); return;}}
     const b=e.target.closest('button');if(!b||b.disabled)return;
     if(b.dataset.action==='stop-scan'){stopCounting=true;if(scanningDirId&&native){invoke('context_directory_preview',{id:scanningDirId,days:0,cancel:true}).catch(()=>{});}return;}
-    if(b.dataset.action==='continue-scan'){if(pausedScan){busy=true;error='';try{await runUploadCount(null,pausedScan);await save();}catch(err){error=keepFailure(err);}finally{busy=false;counting=null;render();}}return;}
+    if(b.dataset.action==='continue-scan'){const dirTarget=b.dataset.continueDir?source(b.dataset.continueDir):pausedNativeDir();if(pausedScan||dirTarget){busy=true;error='';render();try{if(pausedScan)await runUploadCount(null,pausedScan);else if(dirTarget)await metadata(dirTarget,dirTarget.metadata?.total_entries||0);await save();}catch(err){error=keepFailure(err);}finally{busy=false;counting=null;render();}}return;}
     if(b.dataset.moreFiles){scopeVisible[b.dataset.moreFiles]=(scopeVisible[b.dataset.moreFiles]||200)+400;render();return;}
     if(b.dataset.mrFilter){mrFilter=b.dataset.mrFilter;render();return;}
     if(b.dataset.secretKey){busy=true;error='';render();try{journey=await api(endpoint('secret'),{key:b.dataset.secretKey,decision:b.dataset.secretDecision});if(journey.phase==='reading')timer=setTimeout(poll,800);}catch(err){error=keepFailure(err);}finally{busy=false;render();}return;}

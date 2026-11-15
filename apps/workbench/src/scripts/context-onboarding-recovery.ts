@@ -4,14 +4,59 @@
  * upload persistence across refreshes, joined into the onboarding browser program (33-2, ONB-35..46, C1..C11).
  */
 export const CONTEXT_ONBOARDING_RECOVERY_PART = String.raw`
-  let stopCounting = false, pausedScan = null, mrFilter = 'all', scopeVisible = {}, scanningDirId = '', partialRestoredKinds = new Set();
+  let stopCounting = false, pausedScan = null, mrFilter = 'all', scopeVisible = {}, scanningDirId = '', scanResumeBase = { kept: 0, bytes: 0 }, partialRestoredKinds = new Set();
   if (native && globalThis.__TAURI__?.event?.listen) {
     globalThis.__TAURI__.event.listen('molis:directory-scan-progress', ev => {
       const p = ev?.payload;
       if (!p || !scanningDirId || p.id !== scanningDirId) return;
-      counting = { done: p.visited || 0, total: p.visited || 0, kept: p.kept || 0, bytes: p.bytes || 0, nativeDir: true };
+      counting = { done: p.visited || 0, total: p.visited || 0, kept: (scanResumeBase.kept || 0) + (p.kept || 0), bytes: (scanResumeBase.bytes || 0) + (p.bytes || 0), nativeDir: true };
       render();
     }).catch(() => {});
+  }
+  function pausedNativeDir() {
+    return native && journey ? picked().find(s => directory(s) && s.metadata?.cancelled && !s.references?.length) || null : null;
+  }
+  function mergeDirMetadata(prev, next) {
+    const seenPaths = new Set(), mergedFiles = [];
+    for (const f of [...(prev?.files || []), ...(next?.files || [])]) {
+      if (!f?.path || seenPaths.has(f.path)) continue;
+      seenPaths.add(f.path);
+      mergedFiles.push(f);
+    }
+    mergedFiles.sort((a, b) => ((b.modified_ms || 0) - (a.modified_ms || 0)) || (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+    const pr = prev?.skipped_reasons || {}, nr = next?.skipped_reasons || {};
+    const skipped = (prev?.skipped || 0) + (next?.skipped || 0);
+    const reasons = { ignored: (pr.ignored || 0) + (nr.ignored || 0), secret: (pr.secret || 0) + (nr.secret || 0), unreadable: (pr.unreadable || 0) + (nr.unreadable || 0), time: (pr.time || 0) + (nr.time || 0) };
+    const rules = [...new Set([...(prev?.ignored_rules || []), ...(next?.ignored_rules || [])])].slice(0, 24);
+    return {
+      files: mergedFiles,
+      skipped,
+      truncated: Boolean(next?.truncated),
+      cancelled: Boolean(next?.cancelled),
+      total_entries: Math.max(prev?.total_entries || 0, next?.total_entries || 0),
+      ...(skipped > 0 ? { skipped_reasons: reasons } : {}),
+      ...(rules.length ? { ignored_rules: rules } : {}),
+    };
+  }
+  async function metadata(s, resumeOffset = 0) {
+    if (s.references?.length) return;
+    const prev = resumeOffset > 0 ? s.metadata : null;
+    const prevFiles = prev?.files || [];
+    scanResumeBase = prev ? { kept: prevFiles.length, bytes: prevFiles.reduce((n, f) => n + (f.size || 0), 0) } : { kept: 0, bytes: 0 };
+    scanningDirId = s.kind;
+    try {
+      const next = await invoke('context_directory_preview', { id: s.kind, days: s.days ?? 30, ...(resumeOffset > 0 ? { resume_offset: resumeOffset } : {}) });
+      s.metadata = prev ? mergeDirMetadata(prev, next) : next;
+      delete s.error;
+    } catch (e) {
+      if (!prev) delete s.metadata;
+      s.error = String(e?.message || e);
+      await refreshGrants();
+    } finally {
+      scanningDirId = '';
+      scanResumeBase = { kept: 0, bytes: 0 };
+      counting = null;
+    }
   }
   function uploadDb() {
     if (typeof indexedDB === 'undefined') return Promise.resolve(null);
@@ -302,4 +347,4 @@ export const CONTEXT_ONBOARDING_RECOVERY_PART = String.raw`
       : '';
     return msg ? note(msg, 'alert', 'is-warn') : '';
   }
-`;
+`.replace(/^[ \t]+/gm, "");

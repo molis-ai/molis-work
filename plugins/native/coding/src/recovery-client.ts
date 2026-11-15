@@ -180,19 +180,14 @@ export function formatBoardProgressSummary(
   nodes?: readonly CodingStepNode[],
 ): string {
   if (!summary) return "";
+  const removed = summary.removed_scope_points > 0 ? uiText.text("coding.board.summary.removed", { points: summary.removed_scope_points }) : "";
+  const unestimatedMore = summary.unestimated_leaves > 0 ? uiText.text("coding.board.summary.unestimated-more", { count: summary.unestimated_leaves }) : "";
   const activeLeaves = summary.estimated_leaves + summary.unestimated_leaves;
   if (activeLeaves === 0) {
-    return [
-      uiText.text("coding.board.summary.empty"),
-      summary.removed_scope_points > 0 ? uiText.text("coding.board.summary.removed", { points: summary.removed_scope_points }) : "",
-    ].filter(Boolean).join(" · ");
+    return [uiText.text("coding.board.summary.empty"), removed].filter(Boolean).join(" · ");
   }
   if (summary.total_points === 0 || summary.weighted_percent === null) {
-    return [
-      uiText.text("coding.board.summary.unestimated"),
-      summary.unestimated_leaves > 0 ? uiText.text("coding.board.summary.unestimated-more", { count: summary.unestimated_leaves }) : "",
-      summary.removed_scope_points > 0 ? uiText.text("coding.board.summary.removed", { points: summary.removed_scope_points }) : "",
-    ].filter(Boolean).join(" · ");
+    return [uiText.text("coding.board.summary.unestimated"), unestimatedMore, removed].filter(Boolean).join(" · ");
   }
   const completed = Math.round(summary.completed_points * 10) / 10;
   const hasDiscounted = nodes
@@ -201,20 +196,21 @@ export function formatBoardProgressSummary(
   return [
     uiText.text("coding.board.summary.weighted", { percent: summary.weighted_percent, completed, total: summary.total_points }),
     hasDiscounted ? uiText.text("coding.board.summary.discounted") : "",
-    summary.unestimated_leaves > 0 ? uiText.text("coding.board.summary.unestimated-more", { count: summary.unestimated_leaves }) : "",
-    summary.removed_scope_points > 0 ? uiText.text("coding.board.summary.removed", { points: summary.removed_scope_points }) : "",
+    unestimatedMore,
+    removed,
   ].filter(Boolean).join(" · ");
 }
 
 function gitReadinessRow(readiness: CodingEnvironmentReadinessInput): MwEnvCheckRowOptions {
+  const label = uiText.text("coding.env.row.git");
   const branch = readiness.branch || uiText.text("coding.env.git.detached");
   if (!readiness.is_git_repo) {
-    return { state: "idle", label: uiText.text("coding.env.row.git"), value: uiText.text("coding.env.git.not-repo-detail") };
+    return { state: "idle", label, value: uiText.text("coding.env.git.not-repo-detail") };
   }
   if (readiness.git_conflicted_count > 0 || readiness.git_merging) {
     return {
       state: "failed",
-      label: uiText.text("coding.env.row.git"),
+      label,
       value: uiText.text("coding.env.git.conflict", { branch, count: readiness.git_conflicted_count }),
       badge: { label: uiText.text("coding.env.badge.missing"), tone: "danger" },
       recovery: {
@@ -231,52 +227,44 @@ function gitReadinessRow(readiness: CodingEnvironmentReadinessInput): MwEnvCheck
   if (readiness.dirty_count > 0) {
     return {
       state: "partial",
-      label: uiText.text("coding.env.row.git"),
+      label,
       value: uiText.text("coding.env.git.dirty", { branch, count: readiness.dirty_count }),
       badge: { label: uiText.text("coding.env.badge.pre-existing"), tone: "warning" },
     };
   }
   return {
     state: "done",
-    label: uiText.text("coding.env.row.git"),
+    label,
     value: uiText.text("coding.env.git.clean", { branch }),
     status: { label: uiText.text("coding.env.badge.ready"), tone: "done" },
   };
 }
 
 function depsReadinessRow(readiness: CodingEnvironmentReadinessInput): MwEnvCheckRowOptions {
+  const label = uiText.text("coding.env.row.deps");
+  const readyStatus = { label: uiText.text("coding.env.badge.ready"), tone: "done" as const };
   if (!readiness.deps_manager) {
-    return { state: "idle", label: uiText.text("coding.env.row.deps"), value: uiText.text("coding.env.deps-none") };
+    return { state: "idle", label, value: uiText.text("coding.env.deps-none") };
   }
   if (readiness.deps_manager === "cargo") {
-    return {
-      state: "done",
-      label: uiText.text("coding.env.row.deps"),
-      value: uiText.text("coding.env.deps.cargo-ok"),
-      status: { label: uiText.text("coding.env.badge.ready"), tone: "done" },
-    };
+    return { state: "done", label, value: uiText.text("coding.env.deps.cargo-ok"), status: readyStatus };
   }
   if (readiness.deps_manager === "python") {
     return {
       state: readiness.deps_installed ? "done" : "idle",
-      label: uiText.text("coding.env.row.deps"),
+      label,
       value: readiness.deps_installed ? uiText.text("coding.env.deps.python-ok") : uiText.text("coding.env.deps.python-info"),
       ...(readiness.deps_installed
-        ? { status: { label: uiText.text("coding.env.badge.ready"), tone: "done" } }
+        ? { status: readyStatus }
         : { badge: { label: uiText.text("coding.env.badge.missing"), tone: "neutral" } }),
     };
   }
   if (readiness.deps_installed) {
-    return {
-      state: "done",
-      label: uiText.text("coding.env.row.deps"),
-      value: uiText.text("coding.env.deps.node-ok", { manifest: readiness.deps_manager }),
-      status: { label: uiText.text("coding.env.badge.ready"), tone: "done" },
-    };
+    return { state: "done", label, value: uiText.text("coding.env.deps.node-ok", { manifest: readiness.deps_manager }), status: readyStatus };
   }
   return {
     state: "verify",
-    label: uiText.text("coding.env.row.deps"),
+    label,
     value: uiText.text("coding.env.deps.node-missing", { manifest: readiness.deps_manager }),
     badge: { label: uiText.text("coding.env.badge.missing"), tone: "warning" },
     recovery: {

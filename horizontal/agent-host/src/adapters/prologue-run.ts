@@ -283,7 +283,7 @@ async function roundMaterials(deps: RunDeps, input: PrologueStartInput, index: S
   // A round without a plan of its own still starts knowing where the session's unfinished plan stands.
   const earlier = plan ? undefined : [...index.attempts].reverse().map(placeOf).find(Boolean);
   // The plan as it stands travels with this round's task, where it reads as newer than the conversation before it.
-  const digest = stepBoard ? stepBoards.digest(stepBoard, session.ref.id) : earlier ? stepBoards.standing(earlier, session.ref.id) : "";
+  const digest = stepBoard ? await stepBoards.digest(stepBoard, session.ref.id) : earlier ? await stepBoards.standing(earlier, session.ref.id) : "";
   if (digest) textResources.push({ ref: await stageTextResource(runtime, digest, "coding-board-digest"), as: "original" });
   // What other sessions in the project are doing, and where it overlaps this round, as the round starts.
   const project = index.owner.project_id, workText = `${input.task}\n${(plan?.steps ?? []).map(step => `${step.title}\n${step.acceptance}`).join("\n")}`;
@@ -704,6 +704,7 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
   const credentialRef = await deps.credentials.prologueRefFor(input.model.credential_ref);
   const { attemptIndex, abandon } = await recordAttempt(deps, input, { ...input.provenance, task: input.task, ...(root ? { root_ref: root.ref } : {}),
     ...(input.model_selection ? { model_selection: structuredClone(input.model_selection) } : {}),
+    frozen_model: structuredClone(input.model),
     ...(actionTools?.names.length ? { action_tool_scope: actionTools.scope } : {}),
     ...(materials.stepBoard ? { step_board: materials.stepBoard.ref, step_prefix: materials.stepBoard.prefix } : {}), ...(childRoles.size ? { subagent_roles: [...childRoles], subagent_roots: childRoots } : {}),
     ...(surface.desktop_target ? { desktop_target: surface.desktop_target } : {}) });

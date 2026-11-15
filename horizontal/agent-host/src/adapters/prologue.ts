@@ -57,7 +57,9 @@ async function readOpenStepCounts(
   if (!planned || !readStepBoard) return undefined;
   try {
     const board = await readStepBoard(planned);
-    const open = board && !board.terminal ? board.nodes.filter(node => !["succeeded", "failed", "cancelled"].includes(node.state)) : [];
+    const open = board && !board.terminal
+      ? board.nodes.filter(node => !node.scope_removed && (node.unknown_outcome || !["succeeded", "failed", "cancelled"].includes(node.state)))
+      : [];
     const count = (kind: string) => open.filter(node => node.owner?.kind === kind).length;
     return open.length ? { mine: count("person"), subtasks: count("subtask"), unowned: count("none") } : undefined;
   } catch {
@@ -214,7 +216,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     const latest = record?.runs.at(-1);
     const planned = record ? [...record.runs].reverse().find(ref => this.#store.requireRun(ref.run_id).view.frozen.execution_plan) : projected?.planned;
     // Who holds the unfinished steps of the latest planned round: a directory shows what waits on the person.
-    const steps = await readOpenStepCounts(this.#runtime.readStepBoard, planned);
+    const steps = await readOpenStepCounts(record ? async ref => (await this.read(ref)).step_board : this.#runtime.readStepBoard, planned);
     // A live run may end while the step graph is being read; sample its phase at return.
     const facts = record ?? projected!;
     const phase = record ? (latest ? this.#store.requireRun(latest.run_id).view.phase : null)
@@ -313,7 +315,10 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       if (later.some(view => view.frozen.execution_plan || !isEnded(view.phase))) throw agentErrors.session_busy("这一轮之后已有新的计划轮或仍在进行的一轮，它的计划图不再调整；请在最新的计划轮上调整");
       if (!current.step_board || current.step_board.terminal) throw agentErrors.session_busy("这一轮的计划图已经结束，不再调整；请调整计划后开始新一轮");
     }
-    return this.#runtime.collaboration!.revise(run, amendment, expectedVersion, actorId, () => this.#store.requireRun(run.run_id).state.turns);
+    await this.#runtime.collaboration!.revise(run, amendment, expectedVersion, actorId, () => this.#store.requireRun(run.run_id).state.turns);
+    const updated = await this.read(run);
+    if (!updated.step_board) throw new Error(updated.step_board_error ?? "原步骤图不可读取");
+    return updated.step_board;
   }
 
   async control(run: AgentRunRef, control: AgentRunControl): Promise<void> {

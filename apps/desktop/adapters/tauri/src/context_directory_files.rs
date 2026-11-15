@@ -163,6 +163,7 @@ struct Scan<'a> {
     bytes: u64,
     skipped: usize,
     visited: usize,
+    resume_offset: usize,
     truncated: bool,
     cancelled: bool,
     since_ms: u64,
@@ -179,6 +180,18 @@ impl Scan<'_> {
         }
         if !self.ignored_rules.iter().any(|existing| existing == rule) {
             self.ignored_rules.push(rule.to_string());
+        }
+    }
+
+    fn record_skipped_file(&mut self, name: &str, reason: &str) {
+        self.skipped += 1;
+        match reason {
+            "secret" => self.reasons.secret += 1,
+            "ignored" => {
+                self.reasons.ignored += 1;
+                self.record_rule(name);
+            }
+            _ => self.reasons.unreadable += 1,
         }
     }
 }
@@ -202,50 +215,61 @@ fn scan(directory: &File, prefix: &str, depth: usize, output: &mut Scan<'_>) -> 
         }
         return Err("无法预览目录，请重新选择".into());
     }
-    let stream = DirectoryStream(stream);
-    loop {
+    // Collect and sort entries deterministically so a cancelled scan can resume from `resume_offset` without duplicating or dropping items.
+    let mut raw_entries: Vec<(Vec<u8>, u8)> = Vec::new();
+    {
+        let stream = DirectoryStream(stream);
+        loop {
+            unsafe {
+                *libc::__error() = 0;
+            }
+            let entry = unsafe { libc::readdir(stream.0) };
+            if entry.is_null() {
+                if unsafe { *libc::__error() } != 0 {
+                    return Err("部分目录无法访问，请刷新预览".into());
+                }
+                break;
+            }
+            let name_bytes = unsafe { CStr::from_ptr((*entry).d_name.as_ptr()) }.to_bytes();
+            if name_bytes == b"." || name_bytes == b".." {
+                continue;
+            }
+            raw_entries.push((name_bytes.to_vec(), unsafe { (*entry).d_type }));
+        }
+    }
+    raw_entries.sort_unstable_by(|left, right| left.0.cmp(&right.0));
+    for (raw_name, d_type) in raw_entries {
         if output.cancel.load(Ordering::Relaxed) {
             output.cancelled = true;
             output.truncated = true;
             break;
         }
-        unsafe {
-            *libc::__error() = 0;
-        }
-        let entry = unsafe { libc::readdir(stream.0) };
-        if entry.is_null() {
-            if unsafe { *libc::__error() } != 0 {
-                return Err("部分目录无法访问，请刷新预览".into());
-            }
-            break;
-        }
-        let name = unsafe { CStr::from_ptr((*entry).d_name.as_ptr()) };
-        if name.to_bytes() == b"." || name.to_bytes() == b".." {
-            continue;
-        }
-        if output.visited >= MAX_ENTRIES {
+        if output.visited.saturating_sub(output.resume_offset) >= MAX_ENTRIES {
             output.truncated = true;
             break;
         }
         output.visited += 1;
-        let Ok(name) = name.to_str() else {
-            output.skipped += 1;
-            output.reasons.unreadable += 1;
+        let skipping_prior = output.visited <= output.resume_offset;
+        let Ok(name) = std::str::from_utf8(&raw_name) else {
+            if !skipping_prior {
+                output.skipped += 1;
+                output.reasons.unreadable += 1;
+            }
             continue;
         };
-        if name.starts_with('.') {
-            if let Some(reason) = file_skip_reason(name) {
-                output.skipped += 1;
-                match reason {
-                    "secret" => output.reasons.secret += 1,
-                    "ignored" => {
-                        output.reasons.ignored += 1;
-                        output.record_rule(name);
-                    }
-                    _ => output.reasons.unreadable += 1,
-                }
-                continue;
-            }
+        if skipping_prior
+            && ((d_type != libc::DT_DIR && d_type != libc::DT_UNKNOWN)
+                || ignored_folder(name)
+                || depth >= MAX_DEPTH)
+        {
+            continue;
+        }
+        if let Some(reason) = (!skipping_prior && name.starts_with('.'))
+            .then(|| file_skip_reason(name))
+            .flatten()
+        {
+            output.record_skipped_file(name, reason);
+            continue;
         }
         let component = CString::new(name).map_err(|_| "文件名称无效")?;
         let mut info = std::mem::MaybeUninit::<libc::stat>::uninit();
@@ -258,14 +282,18 @@ fn scan(directory: &File, prefix: &str, depth: usize, output: &mut Scan<'_>) -> 
             )
         };
         if result != 0 {
-            output.skipped += 1;
-            output.reasons.unreadable += 1;
+            if !skipping_prior {
+                output.skipped += 1;
+                output.reasons.unreadable += 1;
+            }
             continue;
         }
         let info = unsafe { info.assume_init() };
         if info.st_flags & libc::UF_HIDDEN != 0 {
-            output.skipped += 1;
-            output.reasons.ignored += 1;
+            if !skipping_prior {
+                output.skipped += 1;
+                output.reasons.ignored += 1;
+            }
             continue;
         }
         let path = if prefix.is_empty() {
@@ -278,76 +306,81 @@ fn scan(directory: &File, prefix: &str, depth: usize, output: &mut Scan<'_>) -> 
                 // A hidden folder and a folder by these names are left out, as the host's rule does; a file named `build` or `out` is read.
                 let lower = name.to_ascii_lowercase();
                 if ignored_folder(name) {
-                    output.skipped += 1;
-                    output.reasons.ignored += 1;
-                    output.record_rule(if name.starts_with('.') { name } else { &lower });
+                    if !skipping_prior {
+                        output.skipped += 1;
+                        output.reasons.ignored += 1;
+                        output.record_rule(if name.starts_with('.') { name } else { &lower });
+                    }
                     continue;
                 }
                 if depth >= MAX_DEPTH {
-                    output.skipped += 1;
-                    output.reasons.ignored += 1;
-                    output.truncated = true;
+                    if !skipping_prior {
+                        output.skipped += 1;
+                        output.reasons.ignored += 1;
+                        output.truncated = true;
+                    }
                     continue;
                 }
                 match open_child(directory, name, true) {
                     Ok(child) => {
-                        if scan(&child, &path, depth + 1, output).is_err() {
+                        if scan(&child, &path, depth + 1, output).is_err() && !skipping_prior {
                             output.skipped += 1;
                             output.reasons.unreadable += 1;
                         }
                     }
                     Err(_) => {
-                        output.skipped += 1;
-                        output.reasons.unreadable += 1;
+                        if !skipping_prior {
+                            output.skipped += 1;
+                            output.reasons.unreadable += 1;
+                        }
                     }
                 }
-                if output.cancelled || (output.visited >= MAX_ENTRIES && output.truncated) {
+                if output.cancelled
+                    || (output.visited.saturating_sub(output.resume_offset) >= MAX_ENTRIES
+                        && output.truncated)
+                {
                     break;
                 }
             }
-            libc::S_IFREG => match file_skip_reason(name) {
-                Some(reason) => {
-                    output.skipped += 1;
-                    match reason {
-                        "secret" => output.reasons.secret += 1,
-                        "ignored" => {
-                            output.reasons.ignored += 1;
-                            output.record_rule(name);
+            libc::S_IFREG => {
+                if !skipping_prior {
+                    match file_skip_reason(name) {
+                        Some(reason) => output.record_skipped_file(name, reason),
+                        None => {
+                            let modified_ms = modified_ms(info.st_mtime, info.st_mtime_nsec);
+                            if modified_ms < output.since_ms {
+                                output.skipped += 1;
+                                output.reasons.time += 1;
+                            } else {
+                                let size = info.st_size.max(0) as u64;
+                                output.bytes = output.bytes.saturating_add(size);
+                                output.files.push(FilePreview {
+                                    path: path.clone(),
+                                    size,
+                                    modified_ms,
+                                    identity: format!(
+                                        "{}:{}:{}:{}:{}:{}",
+                                        info.st_dev,
+                                        info.st_ino,
+                                        info.st_mtime,
+                                        info.st_mtime_nsec,
+                                        info.st_ctime,
+                                        info.st_ctime_nsec
+                                    ),
+                                });
+                            }
                         }
-                        _ => output.reasons.unreadable += 1,
                     }
                 }
-                None => {
-                    let modified_ms = modified_ms(info.st_mtime, info.st_mtime_nsec);
-                    if modified_ms < output.since_ms {
-                        output.skipped += 1;
-                        output.reasons.time += 1;
-                        continue;
-                    }
-                    let size = info.st_size.max(0) as u64;
-                    output.bytes = output.bytes.saturating_add(size);
-                    output.files.push(FilePreview {
-                        path: path.clone(),
-                        size,
-                        modified_ms,
-                        identity: format!(
-                            "{}:{}:{}:{}:{}:{}",
-                            info.st_dev,
-                            info.st_ino,
-                            info.st_mtime,
-                            info.st_mtime_nsec,
-                            info.st_ctime,
-                            info.st_ctime_nsec
-                        ),
-                    });
-                }
-            },
+            }
             _ => {
-                output.skipped += 1;
-                output.reasons.unreadable += 1;
+                if !skipping_prior {
+                    output.skipped += 1;
+                    output.reasons.unreadable += 1;
+                }
             }
         }
-        if output.visited % PROGRESS_STRIDE == 0 {
+        if !skipping_prior && output.visited % PROGRESS_STRIDE == 0 {
             (output.on_progress)(output.visited, output.files.len(), output.bytes, &path);
         }
     }
@@ -357,6 +390,7 @@ fn scan(directory: &File, prefix: &str, depth: usize, output: &mut Scan<'_>) -> 
 pub(crate) fn preview_with_progress<F>(
     directory: &File,
     days: u16,
+    resume_offset: usize,
     cancel: &AtomicBool,
     mut on_progress: F,
 ) -> Result<DirectoryPreview, String>
@@ -380,6 +414,7 @@ where
         bytes: 0,
         skipped: 0,
         visited: 0,
+        resume_offset,
         truncated: false,
         cancelled: false,
         since_ms,
@@ -413,7 +448,7 @@ where
 
 #[cfg(test)]
 pub(crate) fn preview(directory: &File, days: u16) -> Result<DirectoryPreview, String> {
-    preview_with_progress(directory, days, &AtomicBool::new(false), |_, _, _, _| {})
+    preview_with_progress(directory, days, 0, &AtomicBool::new(false), |_, _, _, _| {})
 }
 
 fn relative_components(path: &str) -> Result<Vec<&str>, String> {
@@ -836,6 +871,7 @@ mod tests {
         let full = preview_with_progress(
             &fixture.root(),
             0,
+            0,
             &AtomicBool::new(false),
             |visited, kept, _bytes, path| {
                 ticks += 1;
@@ -851,7 +887,7 @@ mod tests {
         assert!(ticks >= 40);
 
         let cancel = AtomicBool::new(false);
-        let partial = preview_with_progress(&fixture.root(), 0, &cancel, |visited, _, _, _| {
+        let partial = preview_with_progress(&fixture.root(), 0, 0, &cancel, |visited, _, _, _| {
             if visited >= 500 {
                 cancel.store(true, Ordering::SeqCst);
             }
@@ -861,5 +897,87 @@ mod tests {
         assert!(partial.truncated);
         assert!(!partial.files.is_empty());
         assert!(partial.files.len() < 10_500);
+    }
+    #[test]
+    fn cancels_and_resumes_from_offset_without_duplicating_or_dropping_files() {
+        let fixture = Fixture::new();
+        std::fs::create_dir(fixture.0.join("alpha")).unwrap();
+        std::fs::create_dir(fixture.0.join("beta")).unwrap();
+        std::fs::create_dir(fixture.0.join("node_modules")).unwrap();
+        std::fs::write(fixture.0.join("node_modules/pkg.js"), "ignored").unwrap();
+        std::fs::write(fixture.0.join(".env"), "SECRET=1").unwrap();
+        std::fs::write(fixture.0.join(".DS_Store"), "meta").unwrap();
+        std::fs::write(fixture.0.join("beta/cover.png"), [1, 2, 3]).unwrap();
+        for index in 0..400 {
+            std::fs::write(fixture.0.join(format!("alpha/a-{index:03}.md")), "a").unwrap();
+            std::fs::write(fixture.0.join(format!("beta/b-{index:03}.md")), "b").unwrap();
+        }
+        let full = preview(&fixture.root(), 0).unwrap();
+        assert_eq!(full.files.len(), 800);
+        assert_eq!(full.skipped, 4);
+
+        let cancel_first = AtomicBool::new(false);
+        let first =
+            preview_with_progress(&fixture.root(), 0, 0, &cancel_first, |visited, _, _, _| {
+                if visited >= 250 {
+                    cancel_first.store(true, Ordering::SeqCst);
+                }
+            })
+            .unwrap();
+        assert!(first.cancelled);
+        assert!(first.truncated);
+        assert!(first.total_entries >= 250 && first.total_entries < full.total_entries);
+
+        let cancel_second = AtomicBool::new(false);
+        let second = preview_with_progress(
+            &fixture.root(),
+            0,
+            first.total_entries,
+            &cancel_second,
+            |visited, _, _, _| {
+                if visited >= first.total_entries + 250 {
+                    cancel_second.store(true, Ordering::SeqCst);
+                }
+            },
+        )
+        .unwrap();
+        assert!(second.cancelled);
+        assert!(second.total_entries > first.total_entries);
+
+        let third = preview_with_progress(
+            &fixture.root(),
+            0,
+            second.total_entries,
+            &AtomicBool::new(false),
+            |_, _, _, _| {},
+        )
+        .unwrap();
+        assert!(!third.cancelled);
+        assert!(!third.truncated);
+        assert_eq!(third.total_entries, full.total_entries);
+
+        let mut combined_paths: Vec<String> = first
+            .files
+            .iter()
+            .chain(second.files.iter())
+            .chain(third.files.iter())
+            .map(|file| file.path.clone())
+            .collect();
+        combined_paths.sort();
+        let mut expected_paths: Vec<String> =
+            full.files.iter().map(|file| file.path.clone()).collect();
+        expected_paths.sort();
+        assert_eq!(combined_paths, expected_paths);
+        assert_eq!(first.skipped + second.skipped + third.skipped, full.skipped);
+        let sum_reason = |pick: fn(&SkippedReasons) -> usize| {
+            first.skipped_reasons.as_ref().map_or(0, pick)
+                + second.skipped_reasons.as_ref().map_or(0, pick)
+                + third.skipped_reasons.as_ref().map_or(0, pick)
+        };
+        let expected_reasons = full.skipped_reasons.unwrap();
+        assert_eq!(sum_reason(|r| r.ignored), expected_reasons.ignored);
+        assert_eq!(sum_reason(|r| r.secret), expected_reasons.secret);
+        assert_eq!(sum_reason(|r| r.unreadable), expected_reasons.unreadable);
+        assert_eq!(sum_reason(|r| r.time), expected_reasons.time);
     }
 }

@@ -7,7 +7,8 @@ import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/action
 import { artifactSubjectId, type ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { AgentRunRef, AgentRunView, AgentStepBoard } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { KNOWLEDGE_PROVIDER_ID, knowledgeActions } from "@molis-ai/molis-work-contracts/services/knowledge";
-import { ensureSystemAgentService, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { ensureSystemAgentService, ModelProviderStore, molisWorkHostProjectReference, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { createFileSecretStore, LocalSqliteStorage, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import {
   renderCodingRoundMaterials,
   renderEnvChecklist,
@@ -620,7 +621,7 @@ test("C12, C13, C14: Coding round materials structured failure recovery, mid-rou
 test("BL-051, BL-182: subagent attempt budget tracking, exhaustion guard, +3 budget extension, and retry source provenance", { timeout: 60_000 }, async t => {
   let parentDispatched = false;
   let subagentTurn = 0;
-  const { host, home, project, workspaceId, call } = await codingProductHost(t, (req) => {
+  const { host, home, project, workspaceId, call, providerRequests } = await codingProductHost(t, (req) => {
     const text = JSON.stringify(req.messages);
     const isChild = text.includes("CHILD_CHECK");
     if (!isChild && !parentDispatched) {
@@ -693,6 +694,20 @@ test("BL-051, BL-182: subagent attempt budget tracking, exhaustion guard, +3 bud
   assert.equal(initialList[0]!.budget?.attempt, 1);
   assert.equal(initialList[0]!.budget?.max_attempts, SUBAGENT_DEFAULT_MAX_ATTEMPTS);
 
+  // Switch the global default model before retrying to prove retry inherits parent's frozen model rather than drifting to the new default.
+  const credentialRef = withConnectorConnections(home, store => store.list()[0]!.credential_ref!);
+  const db = new LocalSqliteStorage(join(home, "projects", "catalog.db"));
+  try {
+    new ModelProviderStore({ db: db.db, secrets: runWithMolisWorkHome(home, () => createFileSecretStore()) }).upsert({
+      provider_id: "fixture", display_name: "Controlled SSE", base_url: "https://1.1.1.1/v1/messages", api_format: "anthropic-messages",
+      credential_ref: credentialRef,
+      models: [{ model_id: "drifted-default-model", enabled: true }, { model_id: "fixture-model", enabled: true }],
+    });
+  } finally {
+    db.close();
+  }
+  const reqCountBeforeRetry = providerRequests.length;
+
   // Retry 1 (attempt 2 of 2) with check-failed source via Coding's control-subagent route.
   const retry1 = await call<{ ok: boolean; subagent: { budget: { attempt: number; max_attempts: number; retry_source?: string; prior_attempts?: unknown[] } } }>(
     project.project_id,
@@ -705,6 +720,8 @@ test("BL-051, BL-182: subagent attempt budget tracking, exhaustion guard, +3 bud
   assert.equal(retry1.body.subagent.budget.retry_source, "check-failed");
   assert.equal(retry1.body.subagent.budget.prior_attempts?.length, 1);
   await settleChild(parentEnded.ref, childId);
+  const retryModels = providerRequests.slice(reqCountBeforeRetry).map(raw => (JSON.parse(raw) as { model?: string }).model);
+  assert.ok(retryModels.length >= 1 && retryModels.every(m => m === "fixture-model"), `expected frozen fixture-model on retry, got ${JSON.stringify(retryModels)}`);
 
   // Attempt 3 without extending budget is refused (budget exhausted at 2/2).
   const overBudget = await call<{ error: string }>(

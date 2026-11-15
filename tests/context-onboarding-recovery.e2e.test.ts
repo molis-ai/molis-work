@@ -221,9 +221,39 @@ test("ONB-36, ONB-38, ONB-39, ONB-40, ONB-42, C2, C3, C6: real browser upload pe
   const { data: deltaShot } = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId);
   await writeFile(new URL("onboarding-scope-delta-320.png", output), Buffer.from(deltaShot, "base64"));
 
-  // M4 & C5: a native directory at days=0 whose entries were all excluded by ignore/binary/secret rules says no-supported-files-filtered, NOT time-range empty!
+  // M4, C4 & C5: (1) a native directory at days=0 whose entries were all excluded by ignore/binary/secret rules says no-supported-files-filtered, NOT time-range empty;
+  // (2) a cancelled native directory scan (`cancelled: true`, `total_entries: 250`) offers "继续清点" and invokes `context_directory_preview` with `resume_offset: 250`, merging files & skipped counts without duplicating!
   await command("Page.addScriptToEvaluateOnNewDocument", {
-    source: "globalThis.__TAURI__ = { core: { invoke: async (cmd) => cmd === 'context_directory_status' ? [{ id: 'custom', state: 'ready', path: '/tmp/only-node-modules' }] : ({}) } };",
+    source: `(() => {
+      globalThis.__previewCalls = [];
+      globalThis.__TAURI__ = {
+        core: {
+          invoke: async (cmd, args = {}) => {
+            if (cmd === 'context_directory_status') {
+              return [
+                { id: 'custom', state: 'ready', path: '/tmp/only-node-modules' },
+                { id: 'downloads', state: 'ready', path: '/tmp/large-downloads' },
+              ];
+            }
+            if (cmd === 'context_directory_preview') {
+              globalThis.__previewCalls.push(args);
+              if (args.id === 'downloads' && args.resume_offset === 250) {
+                return {
+                  files: [{ path: 'beta/b-1.md', size: 240, modified_ms: 2000, identity: '2' }],
+                  skipped: 2,
+                  total_entries: 500,
+                  skipped_reasons: { ignored: 1, secret: 1, unreadable: 0, time: 0 },
+                  ignored_rules: ['node_modules'],
+                  truncated: false,
+                  cancelled: false,
+                };
+              }
+            }
+            return {};
+          },
+        },
+      };
+    })()`,
   }, sessionId);
   const filteredId = await evaluate<string>(`(async () => {
     const jid = crypto.randomUUID();
@@ -231,19 +261,36 @@ test("ONB-36, ONB-38, ONB-39, ONB-40, ONB-42, C2, C3, C6: real browser upload pe
     await molisWorkRequest('/api/onboarding/context/' + jid + '/selection', {
       body: {
         previewed: true,
-        sources: [{
-          kind: 'custom',
-          selected: true,
-          days: 0,
-          path: '/tmp/only-node-modules',
-          metadata: {
-            files: [],
-            skipped: 3,
-            total_entries: 3,
-            skipped_reasons: { ignored: 3, secret: 0, unreadable: 0 },
-            truncated: false,
+        sources: [
+          {
+            kind: 'custom',
+            selected: true,
+            days: 0,
+            path: '/tmp/only-node-modules',
+            metadata: {
+              files: [],
+              skipped: 3,
+              total_entries: 3,
+              skipped_reasons: { ignored: 3, secret: 0, unreadable: 0 },
+              truncated: false,
+            },
           },
-        }],
+          {
+            kind: 'downloads',
+            selected: true,
+            days: 30,
+            path: '/tmp/large-downloads',
+            metadata: {
+              files: [{ path: 'alpha/a-1.md', size: 120, modified_ms: 1000, identity: '1' }],
+              skipped: 1,
+              total_entries: 250,
+              skipped_reasons: { ignored: 1, secret: 0, unreadable: 0, time: 0 },
+              ignored_rules: ['.DS_Store'],
+              truncated: true,
+              cancelled: true,
+            },
+          },
+        ],
       },
     });
     return jid;
@@ -251,8 +298,16 @@ test("ONB-36, ONB-38, ONB-39, ONB-40, ONB-42, C2, C3, C6: real browser upload pe
   await b.navigate(() => command("Page.navigate", { url: `${b.origin}/onboarding?journey=${encodeURIComponent(filteredId)}` }, sessionId));
   await waitFor("document.querySelector('[data-ob-view=model]') && document.querySelector('[data-action=model-back]')");
   await click("[data-action=model-back]");
-  await waitFor("document.querySelector('[data-ob-view=preview]') && document.querySelector('[data-group=custom]')");
+  await waitFor("document.querySelector('[data-ob-view=preview]') && document.querySelector('[data-group=custom]') && document.querySelector('[data-continue-dir=downloads]')");
   const customNote = await evaluate<string>("document.querySelector('[data-group=custom]')?.textContent || ''");
   assert.match(customNote, /没有可读取的文本材料/);
   assert.equal(customNote.includes("这个时间范围没有支持的文件"), false);
+
+  await click("[data-continue-dir=downloads]");
+  await waitFor("!document.querySelector('[data-continue-dir=downloads]') && document.querySelector('[data-group=downloads]')?.textContent.includes('beta/b-1.md')");
+  const previewCalls = await evaluate<Array<{ id: string; days: number; resume_offset?: number }>>("globalThis.__previewCalls");
+  assert.deepEqual(previewCalls, [{ id: "downloads", days: 30, resume_offset: 250 }]);
+  const downloadsText = await evaluate<string>("document.querySelector('[data-group=downloads]')?.textContent || ''");
+  assert.ok(downloadsText.includes("alpha/a-1.md") && downloadsText.includes("beta/b-1.md"), "merged files retain prior and resumed entries");
+  assert.ok(downloadsText.includes("2/2"), `expected 2/2 merged files in downloads group, saw: ${downloadsText}`);
 });

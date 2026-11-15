@@ -73,6 +73,7 @@ export interface ContextSource {
     files: ContextFileMetadata[];
     skipped: number;
     truncated: boolean;
+    cancelled?: boolean;
     total_entries?: number;
     skipped_reasons?: ContextSkippedReasons;
     ignored_rules?: string[];

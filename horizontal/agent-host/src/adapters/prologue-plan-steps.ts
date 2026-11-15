@@ -6,7 +6,6 @@ import type {
   AgentStepAmendment,
   AgentStepBoard,
   AgentStepOwner,
-  AgentStepProgressSummary,
   AgentStoryPoints,
   AgentTurnView,
 } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -14,6 +13,14 @@ import type { AgentInputRef } from "@molis-ai/molis-work-contracts/services/agen
 import type { AgentCollaborationPort } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import { isValidFibonacciStoryPoints } from "../execution-plan.js";
 import { checkOrigin } from "../input-origin.js";
+import {
+  applyUnknownCommandOutcomes,
+  computeWeightedStepBoardProgress,
+  type ReconciledStepEntry,
+  type ReconciledStepMap,
+} from "./prologue-plan-progress.js";
+
+export { applyUnknownCommandOutcomes, computeWeightedStepBoardProgress, type ReconciledStepEntry, type ReconciledStepMap };
 
 type SdkBoard = ReturnType<Runtime["boards"]["get"]>;
 type TaskNode = SdkBoard["nodes"][number];
@@ -50,31 +57,69 @@ export const fullId = (place: PlanPlace, id: string) => `${place.prefix}.${id}`;
 /** A node's id within the plan, or undefined when it is not one of this plan's. */
 export const localId = (place: PlanPlace, id: string) => id.startsWith(`${place.prefix}.`) ? id.slice(place.prefix.length + 1) : undefined;
 
-/** A plan step: one of the confirmed plan's, or one a person inserted, under this plan's prefix. */
-function planStep(node: TaskNode, place: PlanPlace): boolean {
-  const local = localId(place, node.id);
+const RERUN_LOCAL_RE = /^rerun--(.+)--(\d+)$/;
+function parseRerunLocal(local: string | undefined): { stepKey: string; seq: number } | undefined {
+  if (!local) return undefined;
+  const match = RERUN_LOCAL_RE.exec(local);
+  return match ? { stepKey: match[1]!, seq: Number(match[2]!) } : undefined;
+}
+function canonicalLocalId(place: PlanPlace, id: string): string | undefined {
+  const local = localId(place, id);
+  return parseRerunLocal(local)?.stepKey ?? local;
+}
+function isBasePlanLocal(local: string | undefined, place: PlanPlace): local is string {
   return local !== undefined && (place.plan.steps.some(step => step.id === local) || local.startsWith("user-"));
+}
+
+/** A plan step: one of the confirmed plan's, one a person inserted, or its rerun replacement, under this plan's prefix. */
+function planStep(node: TaskNode, place: PlanPlace): boolean {
+  return isBasePlanLocal(canonicalLocalId(place, node.id), place);
+}
+function stepChain(board: SdkBoard, place: PlanPlace, stepKey: string): TaskNode[] {
+  const orig = board.nodes.find(node => node.id === fullId(place, stepKey));
+  const reruns = board.nodes
+    .flatMap(node => { const parsed = parseRerunLocal(localId(place, node.id)); return parsed?.stepKey === stepKey ? [{ node, seq: parsed.seq }] : []; })
+    .sort((a, b) => a.seq - b.seq)
+    .map(item => item.node);
+  return orig ? [orig, ...reruns] : reruns;
+}
+function activePlanNodes(board: SdkBoard, place: PlanPlace): TaskNode[] {
+  return board.nodes
+    .filter(node => isBasePlanLocal(localId(place, node.id), place))
+    .map(node => stepChain(board, place, localId(place, node.id)!).at(-1)!);
+}
+export function activeNodeId(board: SdkBoard, place: PlanPlace, stepKey: string): string {
+  return stepChain(board, place, stepKey).at(-1)?.id ?? fullId(place, stepKey);
 }
 const planNodes = (board: SdkBoard, place: PlanPlace) => board.nodes.filter(node => planStep(node, place));
 
 /** Every plan step has ended (epic containers without direct work settle when all their children settle). */
-export function finished(board: SdkBoard, place: PlanPlace, reconciledSteps?: Record<string, { action: "confirm-done" | "rerun"; note: string; at_ms: number }>): boolean {
+export function finished(
+  board: SdkBoard,
+  place: PlanPlace,
+  reconciledSteps?: ReconciledStepMap,
+  unknownStepIds?: ReadonlySet<string>,
+): boolean {
   if (board.terminal) return true;
-  const nodes = planNodes(board, place);
+  const nodes = activePlanNodes(board, place);
   const byParent = new Map<string, TaskNode[]>();
   for (const node of nodes) {
-    if (node.parent && node.parent !== place.prefix) {
-      const list = byParent.get(node.parent) ?? [];
+    const pKey = node.parent && node.parent !== place.prefix ? canonicalLocalId(place, node.parent) : undefined;
+    if (pKey) {
+      const list = byParent.get(pKey) ?? [];
       list.push(node);
-      byParent.set(node.parent, list);
+      byParent.set(pKey, list);
     }
   }
   const nodeDone = (node: TaskNode): boolean => {
-    const metrics = parseNodeMetrics(node, place, reconciledSteps);
+    const stepKey = canonicalLocalId(place, node.id)!;
+    if (unknownStepIds?.has(stepKey)) return false;
+    const chain = stepChain(board, place, stepKey);
+    const metrics = parseNodeMetrics(chain, place, reconciledSteps);
     if (metrics.unknown_outcome) return false;
     if (node.state === "succeeded" || node.state === "cancelled") return true;
-    const children = byParent.get(node.id);
-    return Boolean(children?.length) && node.reports.length === 0 && children!.every(nodeDone);
+    const children = byParent.get(stepKey);
+    return Boolean(children?.length) && chain.every(item => item.reports.length === 0) && children!.every(nodeDone);
   };
   return nodes.every(nodeDone);
 }
@@ -87,17 +132,29 @@ function planVersion(board: SdkBoard, place: PlanPlace, reconciledSteps?: Reconc
 
 /** The plan's own step title for a confirmed step, the person's title for an inserted one. */
 function title(node: TaskNode, place: PlanPlace): string {
-  return place.plan.steps.find(step => step.id === localId(place, node.id))?.title ?? node.title;
+  return place.plan.steps.find(step => step.id === canonicalLocalId(place, node.id))?.title ?? node.title;
 }
 
 /** Dependencies first, the confirmed plan order (then insertion order) breaking ties. */
 function executionOrder(board: SdkBoard, place: PlanPlace): TaskNode[] {
-  const rank = (id: string) => { const index = place.plan.steps.findIndex(step => step.id === localId(place, id)); return index < 0 ? place.plan.steps.length + board.nodes.findIndex(node => node.id === id) : index; };
-  const pending = new Map(planNodes(board, place).map(node => [node.id, node])), ordered: TaskNode[] = [];
+  const rank = (id: string) => {
+    const canonical = canonicalLocalId(place, id);
+    const index = place.plan.steps.findIndex(step => step.id === canonical);
+    const baseFull = canonical ? fullId(place, canonical) : id;
+    return index < 0 ? place.plan.steps.length + board.nodes.findIndex(node => node.id === baseFull) : index;
+  };
+  const active = activePlanNodes(board, place);
+  const activeByCanonical = new Map(active.map(node => [canonicalLocalId(place, node.id)!, node.id]));
+  const pending = new Map(active.map(node => [node.id, node])), ordered: TaskNode[] = [];
   while (pending.size) {
     // Among steps that are equally available, the live chain reads first and skipped steps trail it.
     const key = (node: TaskNode) => (node.state === "cancelled" ? 1_000_000 : 0) + rank(node.id);
-    const next = [...pending.values()].filter(node => node.dependsOn.every(dep => !pending.has(dep))).sort((a, b) => key(a) - key(b))[0]
+    const depsReady = (node: TaskNode) => node.dependsOn.every(dep => {
+      const depKey = canonicalLocalId(place, dep);
+      if (!depKey || depKey === canonicalLocalId(place, node.id)) return true;
+      return !pending.has(activeByCanonical.get(depKey) ?? dep);
+    });
+    const next = [...pending.values()].filter(depsReady).sort((a, b) => key(a) - key(b))[0]
       ?? [...pending.values()].sort((a, b) => key(a) - key(b))[0]!;
     ordered.push(next); pending.delete(next.id);
   }
@@ -159,20 +216,24 @@ function reportNote(runtime: Runtime, report: Report, session: string): string {
 }
 
 /** One step in a line, by its id on the board (what the round's tools take): what it is, where it stands, who holds it, the latest word. */
-export function stepLine(runtime: Runtime, node: TaskNode, place: PlanPlace, session: string, alive?: (session: string) => boolean): string {
+export function stepLine(runtime: Runtime, node: TaskNode, place: PlanPlace, session: string, alive?: (session: string) => boolean, unknownStepIds?: ReadonlySet<string>): string {
   const last = node.reports.at(-1), owner = claimOf(runtime, node, session, alive);
   const by = last && reportBy(runtime, last, session)?.label;
   const latest = last ? `；最近：${by ? by + "：" : ""}${reportNote(runtime, last, session).slice(0, 120)}` : "";
-  return `- ${node.id}「${title(node, place).slice(0, 60)}」${STATE_WORDS[node.state]}（${node.state}），负责：${owner.label}${latest}`;
+  const canonical = canonicalLocalId(place, node.id);
+  const unknown = Boolean(canonical && unknownStepIds?.has(canonical));
+  const stateText = unknown ? `${STATE_WORDS["needs-reconciliation"]}（needs-reconciliation，命令结果未知待核对）` : `${STATE_WORDS[node.state]}（${node.state}）`;
+  return `- ${node.id}「${title(node, place).slice(0, 60)}」${stateText}，负责：${owner.label}${latest}`;
 }
 
 /** The plan at a glance, as a round starts: every step with its holder, and the ones no one holds. */
-export function summary(runtime: Runtime, board: SdkBoard, place: PlanPlace, session: string, alive?: (session: string) => boolean): string {
-  const nodes = executionOrder(board, place), open = nodes.filter(node => !node.assignee && !ENDED.includes(node.state));
+export function summary(runtime: Runtime, board: SdkBoard, place: PlanPlace, session: string, alive?: (session: string) => boolean, unknownStepIds?: ReadonlySet<string>): string {
+  const nodes = executionOrder(board, place);
+  const open = nodes.filter(node => !node.assignee && (!ENDED.includes(node.state) || Boolean(unknownStepIds?.has(canonicalLocalId(place, node.id) ?? ""))));
   // Read by the Host as the round starts, so it is newer than anything said earlier in the conversation: a person may
   // have reassigned, skipped or finished steps in between.
   return [`任务图现状（第 ${board.version} 版，宿主在这一轮开始时读取）。它比之前对话里提到的任务图状态更新：用户可能在两轮之间改派、跳过或完成了步骤。被问到谁在做哪一步、哪一步是什么状态时，以这里为准：`,
-    ...nodes.map(node => stepLine(runtime, node, place, session, alive)),
+    ...nodes.map(node => stepLine(runtime, node, place, session, alive, unknownStepIds)),
     ...(open.length ? [`没人认领：${open.map(node => node.id).join("、")}`] : [])].join("\n");
 }
 
@@ -181,8 +242,6 @@ const HUMAN_CLEAR_ESTIMATE_RE = /^用户清除点数估算(?:（理由：(.+)）
 const INSERT_ESTIMATE_RE = /^用户插入：.+?（估算 (\d+) 点(?:，理由：([^）]+))?）/;
 const AGENT_ESTIMATE_RE = /(?:^|[；;\n])\s*点数估算：(\d+)\s*点(?:（理由：([^）]+)）)?/;
 const PROGRESS_UPDATE_RE = /(?:^|[；;\n])\s*进度(?:更新)?[（(](\d{1,3})%[)）]：(.+)$/;
-
-export type ReconciledStepMap = Record<string, { action: "confirm-done" | "rerun"; note: string; at_ms: number }>;
 
 interface ParsedNodeMetrics {
   parent_id?: string;
@@ -195,10 +254,11 @@ interface ParsedNodeMetrics {
   unknown_outcome?: true;
 }
 
-function parseNodeMetrics(node: TaskNode, place: PlanPlace, reconciledSteps?: ReconciledStepMap): ParsedNodeMetrics {
-  const local = localId(place, node.id);
+function parseNodeMetrics(chain: readonly TaskNode[], place: PlanPlace, reconciledSteps?: ReconciledStepMap): ParsedNodeMetrics {
+  const origNode = chain[0]!, activeNode = chain.at(-1)!;
+  const local = canonicalLocalId(place, origNode.id);
   const confirmed = local ? place.plan.steps.find(step => step.id === local) : undefined;
-  const parentLocal = node.parent && node.parent !== place.prefix ? localId(place, node.parent) : undefined;
+  const parentLocal = origNode.parent && origNode.parent !== place.prefix ? canonicalLocalId(place, origNode.parent) : undefined;
   const parentId = confirmed?.parent_id ?? parentLocal;
   let storyPoints: AgentStoryPoints | null | undefined = confirmed?.story_points;
   let estimateSource: AgentEstimateSource | undefined = confirmed?.estimate_source ?? (confirmed?.story_points != null ? "agent" : undefined);
@@ -206,62 +266,68 @@ function parseNodeMetrics(node: TaskNode, place: PlanPlace, reconciledSteps?: Re
   let reportedProgress: number | undefined;
   let progressBasis: string | undefined;
   let scopeRemoved = false;
-  let unknownOutcome = node.state === "needs-reconciliation";
+  let unknownOutcome = false;
 
-  for (const entry of node.reports) {
-    const note = entry.note.trim();
-    if (note.startsWith("用户移出本轮范围：")) scopeRemoved = true;
-    if (note.startsWith("命令结果未知：") || note.startsWith("结果未知，待核对")) unknownOutcome = true;
-    if (note.startsWith("用户核对完成：") || note.startsWith("用户决定重新执行：")) unknownOutcome = false;
-    const humanEst = HUMAN_ESTIMATE_RE.exec(note);
-    if (humanEst) {
-      const candidate = Number(humanEst[1]);
-      if (isValidFibonacciStoryPoints(candidate)) {
-        storyPoints = candidate;
-        estimateSource = "human";
-        estimateReason = humanEst[2]?.trim() || undefined;
-      }
-      continue;
-    }
-    const humanClear = HUMAN_CLEAR_ESTIMATE_RE.exec(note);
-    if (humanClear) {
-      storyPoints = null;
-      estimateSource = "human";
-      estimateReason = humanClear[1]?.trim() || undefined;
-      continue;
-    }
-    const insertedEst = INSERT_ESTIMATE_RE.exec(note);
-    if (insertedEst) {
-      const candidate = Number(insertedEst[1]);
-      if (isValidFibonacciStoryPoints(candidate)) {
-        storyPoints = candidate;
-        estimateSource = "human";
-        estimateReason = insertedEst[2]?.trim() || estimateReason;
-      }
-    }
-    if (estimateSource !== "human") {
-      const agentEst = AGENT_ESTIMATE_RE.exec(note);
-      if (agentEst) {
-        const candidate = Number(agentEst[1]);
+  for (const chainNode of chain) {
+    for (const entry of chainNode.reports) {
+      const note = entry.note.trim();
+      if (note.startsWith("用户移出本轮范围：")) scopeRemoved = true;
+      if (note.startsWith("命令结果未知：") || note.startsWith("结果未知，待核对")) unknownOutcome = true;
+      if (note.startsWith("用户核对完成：")) unknownOutcome = false;
+      if (note.startsWith("用户决定重新执行：")) { unknownOutcome = false; reportedProgress = undefined; progressBasis = undefined; }
+      const humanEst = HUMAN_ESTIMATE_RE.exec(note);
+      if (humanEst) {
+        const candidate = Number(humanEst[1]);
         if (isValidFibonacciStoryPoints(candidate)) {
           storyPoints = candidate;
-          estimateSource = "agent";
-          estimateReason = agentEst[2]?.trim() || estimateReason;
+          estimateSource = "human";
+          estimateReason = humanEst[2]?.trim() || undefined;
+        }
+        continue;
+      }
+      const humanClear = HUMAN_CLEAR_ESTIMATE_RE.exec(note);
+      if (humanClear) {
+        storyPoints = null;
+        estimateSource = "human";
+        estimateReason = humanClear[1]?.trim() || undefined;
+        continue;
+      }
+      const insertedEst = INSERT_ESTIMATE_RE.exec(note);
+      if (insertedEst) {
+        const candidate = Number(insertedEst[1]);
+        if (isValidFibonacciStoryPoints(candidate)) {
+          storyPoints = candidate;
+          estimateSource = "human";
+          estimateReason = insertedEst[2]?.trim() || estimateReason;
         }
       }
-    }
-    const progressMatch = PROGRESS_UPDATE_RE.exec(note);
-    if (progressMatch) {
-      const pct = Number(progressMatch[1]);
-      if (Number.isFinite(pct) && pct >= 0 && pct <= 100) {
-        reportedProgress = Math.min(0.99, Math.max(0, pct / 100));
-        progressBasis = progressMatch[2]?.trim() || undefined;
+      if (estimateSource !== "human") {
+        const agentEst = AGENT_ESTIMATE_RE.exec(note);
+        if (agentEst) {
+          const candidate = Number(agentEst[1]);
+          if (isValidFibonacciStoryPoints(candidate)) {
+            storyPoints = candidate;
+            estimateSource = "agent";
+            estimateReason = agentEst[2]?.trim() || estimateReason;
+          }
+        }
+      }
+      const progressMatch = PROGRESS_UPDATE_RE.exec(note);
+      if (progressMatch) {
+        const pct = Number(progressMatch[1]);
+        if (Number.isFinite(pct) && pct >= 0 && pct <= 100) {
+          reportedProgress = Math.min(0.99, Math.max(0, pct / 100));
+          progressBasis = progressMatch[2]?.trim() || undefined;
+        }
       }
     }
   }
 
-  if (local && reconciledSteps?.[local]) unknownOutcome = false;
-  const effectiveProgress = node.state === "succeeded" && !unknownOutcome ? 1 : reportedProgress;
+  const saved = local ? reconciledSteps?.[local] : undefined;
+  if (saved?.action === "confirm-done") unknownOutcome = false;
+  else if (saved?.action === "rerun" && chain.length === 1 && activeNode.state === "succeeded") unknownOutcome = true;
+  if (activeNode.state === "needs-reconciliation") unknownOutcome = true;
+  const effectiveProgress = activeNode.state === "succeeded" && !unknownOutcome ? 1 : reportedProgress;
   return {
     ...(parentId ? { parent_id: parentId } : {}),
     ...(storyPoints !== undefined ? { story_points: storyPoints } : {}),
@@ -271,83 +337,6 @@ function parseNodeMetrics(node: TaskNode, place: PlanPlace, reconciledSteps?: Re
     ...(progressBasis ? { progress_basis: progressBasis } : {}),
     ...(scopeRemoved ? { scope_removed: true as const } : {}),
     ...(unknownOutcome ? { unknown_outcome: true as const } : {}),
-  };
-}
-
-/**
- * Leaf-only Fibonacci story-point weighted progress (`Σ(sᵢ × pᵢ) / Σsᵢ`, CHO-29..33):
- * - Parent nodes (`id` referenced by any child's `parent_id`) never double-count on top of their children (CHO-31).
- * - Scope-removed leaves (`scope_removed` / `cancelled`) leave the active denominator while keeping history (CHO-32),
- *   whereas unfinished steps on a stopped/failed round stay in the denominator.
- * - Unestimated leaves are counted separately without inventing default story points, and `weighted_percent` is capped
- *   at `99` whenever any active leaf (estimated or unestimated) is not `succeeded` (CHO-33).
- */
-export function computeWeightedStepBoardProgress(
-  nodes: ReadonlyArray<{
-    readonly id: string;
-    readonly state: AgentStepBoard["nodes"][number]["state"];
-    readonly parent_id?: string;
-    readonly story_points?: AgentStoryPoints | null;
-    readonly progress?: number;
-    readonly scope_removed?: boolean;
-    readonly unknown_outcome?: boolean;
-  }>,
-): AgentStepProgressSummary {
-  const parentIds = new Set<string>();
-  for (const node of nodes) {
-    if (node.parent_id) parentIds.add(node.parent_id);
-  }
-  let completedPointsRaw = 0;
-  let totalPoints = 0;
-  let estimatedLeaves = 0;
-  let unestimatedLeaves = 0;
-  let completedUnestimatedLeaves = 0;
-  let removedScopeLeaves = 0;
-  let removedScopePoints = 0;
-  let anyActiveUnsucceeded = false;
-
-  for (const node of nodes) {
-    if (parentIds.has(node.id)) continue;
-    const removed = Boolean(node.scope_removed);
-    if (removed) {
-      removedScopeLeaves += 1;
-      if (isValidFibonacciStoryPoints(node.story_points)) removedScopePoints += node.story_points;
-      continue;
-    }
-    const done = node.state === "succeeded" && !node.unknown_outcome;
-    if (!done) anyActiveUnsucceeded = true;
-    const leafProgress = done
-      ? 1
-      : typeof node.progress === "number" && Number.isFinite(node.progress)
-        ? Math.min(0.99, Math.max(0, node.progress))
-        : 0;
-    if (isValidFibonacciStoryPoints(node.story_points)) {
-      estimatedLeaves += 1;
-      totalPoints += node.story_points;
-      completedPointsRaw += node.story_points * leafProgress;
-    } else {
-      unestimatedLeaves += 1;
-      if (done) completedUnestimatedLeaves += 1;
-    }
-  }
-
-  const completedPoints = Math.round(completedPointsRaw * 100) / 100;
-  const rawPercent = totalPoints === 0 ? null : Math.round((completedPointsRaw / totalPoints) * 1000) / 10;
-  const weightedPercent = rawPercent === null
-    ? null
-    : anyActiveUnsucceeded
-      ? (rawPercent >= 100 ? 99 : Math.max(0, rawPercent))
-      : Math.min(100, Math.max(0, rawPercent));
-
-  return {
-    weighted_percent: weightedPercent,
-    completed_points: completedPoints,
-    total_points: totalPoints,
-    estimated_leaves: estimatedLeaves,
-    unestimated_leaves: unestimatedLeaves,
-    completed_unestimated_leaves: completedUnestimatedLeaves,
-    removed_scope_leaves: removedScopeLeaves,
-    removed_scope_points: removedScopePoints,
   };
 }
 
@@ -362,11 +351,12 @@ export function shape(
 ): AgentStepBoard {
   const missing = place.plan.steps.find(step => !board.nodes.some(node => node.id === fullId(place, step.id)));
   if (missing) throw new Error("原步骤图与确认计划不一致");
-  const local = (id: string) => localId(place, id) ?? id;
-  const shapedNodes = executionOrder(board, place).map(node => {
-    const id = local(node.id);
-    const metrics = parseNodeMetrics(node, place, reconciledSteps);
-    const baseReports = node.reports.map(report => {
+  const shapedNodes = executionOrder(board, place).map(activeNode => {
+    const id = canonicalLocalId(place, activeNode.id) ?? activeNode.id;
+    const chain = stepChain(board, place, id);
+    const origNode = chain[0] ?? activeNode;
+    const metrics = parseNodeMetrics(chain, place, reconciledSteps);
+    const baseReports = chain.flatMap(entry => entry.reports).map(report => {
       const by = reportBy(runtime, report, session);
       return {
         note: reportNote(runtime, report, session),
@@ -377,10 +367,11 @@ export function shape(
       };
     });
     const savedRec = reconciledSteps?.[id];
+    const unreplacedSucceededRerun = savedRec?.action === "rerun" && chain.length === 1 && activeNode.state === "succeeded";
     const hasRecReport = baseReports.some(r =>
       (r.note.trim().startsWith("用户核对完成：") || r.note.trim().startsWith("用户决定重新执行："))
       && (!savedRec || r.at_ms >= savedRec.at_ms - 1000));
-    const reports = savedRec && !hasRecReport
+    const reports = savedRec && !hasRecReport && !unreplacedSucceededRerun
       ? [
         ...baseReports,
         {
@@ -392,13 +383,13 @@ export function shape(
       : baseReports;
     return {
       id,
-      state: node.state,
+      state: activeNode.state,
       reports,
-      owner: claimOf(runtime, node, session, alive),
-      title: title(node, place),
-      depends_on: node.dependsOn.flatMap(dep => localId(place, dep) ?? []),
+      owner: claimOf(runtime, activeNode, session, alive),
+      title: title(activeNode, place),
+      depends_on: [...new Set(activeNode.dependsOn.flatMap(dep => { const c = canonicalLocalId(place, dep); return c && c !== id ? [c] : []; }))],
       ...(id.startsWith("user-") ? { inserted: true } : {}),
-      ...(node.origins?.length ? { origins: inputRefs(node.origins) } : {}),
+      ...(origNode.origins?.length ? { origins: inputRefs(origNode.origins) } : {}),
       ...metrics,
     };
   });
@@ -408,87 +399,6 @@ export function shape(
     terminal: finished(board, place, reconciledSteps),
     progress_summary: computeWeightedStepBoardProgress(shapedNodes),
     nodes: shapedNodes,
-  };
-}
-
-function isCommandWithUnknownOutcome(
-  item: { readonly name: string; readonly state: string; readonly output?: string },
-  runEnded: boolean,
-): boolean {
-  if (item.name !== "run-command" && item.name !== "start-command") return false;
-  if (item.state === "unknown") return true;
-  if (runEnded && item.state === "started") return true;
-  if (item.state !== "completed") return false;
-  return !/^exit (-?\d+|cancelled|timed-out)\b/.test(item.output ?? "");
-}
-
-/**
- * Project command receipts with unknown outcomes onto the step board (BL-222):
- * any step during which a command ended without a known exit code (`exit N`, `cancelled`, `timed-out`)
- * is marked `unknown_outcome: true` (unless reconciled afterward by a human) and excluded from step/point completion.
- */
-export function applyUnknownCommandOutcomes(
-  view: {
-    readonly phase: string;
-    readonly activity: ReadonlyArray<{ readonly name: string; readonly state: string; readonly output?: string; readonly at?: string | null }>;
-  },
-  stepBoard: AgentStepBoard,
-  reconciledSteps?: ReconciledStepMap,
-): AgentStepBoard {
-  const runEnded = ["completed", "failed", "stopped", "cancelled", "reconcile-required"].includes(view.phase);
-  const unknownCmds = view.activity.filter(item => isCommandWithUnknownOutcome(item, runEnded));
-  if (!unknownCmds.length && !stepBoard.nodes.some(node => node.unknown_outcome)) return stepBoard;
-
-  const parentIds = new Set(stepBoard.nodes.flatMap(node => node.parent_id ? [node.parent_id] : []));
-  const candidates = stepBoard.nodes.filter(node =>
-    !parentIds.has(node.id) && !node.scope_removed && !["not-started", "ready", "cancelled"].includes(node.state));
-
-  const flaggedIds = new Set<string>(stepBoard.nodes.filter(node => node.unknown_outcome).map(node => node.id));
-  for (const cmd of unknownCmds) {
-    if (!candidates.length) break;
-    const cmdMs = cmd.at ? Date.parse(cmd.at) : Number.NaN;
-    let target = candidates.find(node => node.state === "needs-reconciliation" || node.state === "running");
-    if (Number.isFinite(cmdMs)) {
-      const spanning = candidates.filter(node => {
-        const times = node.reports.map(r => r.at_ms).filter(t => Number.isFinite(t));
-        if (!times.length) return false;
-        const first = Math.min(...times);
-        const last = Math.max(...times);
-        return cmdMs >= first - 50 && cmdMs <= last + 5_000;
-      });
-      if (spanning.length) target = spanning.at(-1);
-      else {
-        const startedBefore = candidates.filter(node => node.reports.some(r => r.at_ms <= cmdMs + 50));
-        if (startedBefore.length) target = startedBefore.at(-1);
-      }
-    }
-    target ??= candidates.at(-1);
-    if (!target) continue;
-    const reconciledInReports = target.reports.some(r => {
-      const note = r.note.trim();
-      if (!note.startsWith("用户核对完成：") && !note.startsWith("用户决定重新执行：")) return false;
-      return !Number.isFinite(cmdMs) || r.at_ms >= cmdMs;
-    });
-    const reconciledSaved = reconciledSteps?.[target.id] !== undefined
-      && (!Number.isFinite(cmdMs) || reconciledSteps[target.id]!.at_ms >= cmdMs);
-    if (!reconciledInReports && !reconciledSaved) {
-      flaggedIds.add(target.id);
-    }
-  }
-
-  if (!flaggedIds.size) return stepBoard;
-  const nextNodes = stepBoard.nodes.map(node => flaggedIds.has(node.id)
-    ? {
-      ...node,
-      unknown_outcome: true as const,
-      ...(node.progress === 1 ? { progress: undefined } : {}),
-    }
-    : node);
-  return {
-    ...stepBoard,
-    terminal: false,
-    progress_summary: computeWeightedStepBoardProgress(nextNodes),
-    nodes: nextNodes,
   };
 }
 
@@ -505,14 +415,18 @@ async function reconcileAmendedStep(options: {
   note: string;
   expectedVersion: number;
   person: { kind: "human"; id: string };
-  node: (id: string) => TaskNode;
+  roundSession?: ExactRef<"session">;
+  dependents: (id: string) => string[];
+  exactNode: (id: string) => TaskNode;
+  replaced: (deps: readonly string[], from: string, to: readonly string[]) => string[];
   report: (nodeId: string, note: string, to?: TaskNode["state"]) => Promise<void>;
+  rewire: (nodeId: string, dependsOn: string[]) => Promise<void>;
   setBoard: (next: SdkBoard) => void;
   onReconcile?: (stepId: string, entry: { action: "confirm-done" | "rerun"; note: string; at_ms: number }) => Promise<void>;
 }): Promise<void> {
-  const { runtime, place, target, action, note, expectedVersion, person, node, report, setBoard, onReconcile } = options;
+  const { runtime, place, target, action, note, expectedVersion, person, roundSession, dependents, exactNode, replaced, report, rewire, setBoard, onReconcile } = options;
   const ref = place.ref;
-  const stepKey = localId(place, target.id) ?? target.id;
+  const stepKey = canonicalLocalId(place, target.id) ?? target.id;
   const nowMs = Math.max(Date.now(), expectedVersion + 1);
   if (action === "confirm-done") {
     if (target.state === "cancelled" || target.state === "not-started") {
@@ -523,19 +437,40 @@ async function reconcileAmendedStep(options: {
     } else if (target.state === "needs-reconciliation" || target.state === "blocked" || target.state === "waiting") {
       await report(target.id, "用户开始核对", "ready");
     }
-    if (node(target.id).state === "ready") await report(target.id, "用户核对中", "running");
-    if (node(target.id).state === "running") await report(target.id, `用户核对完成：${note}`, "succeeded");
+    if (exactNode(target.id).state === "ready") await report(target.id, "用户核对中", "running");
+    if (exactNode(target.id).state === "running") await report(target.id, `用户核对完成：${note}`, "succeeded");
     await onReconcile?.(stepKey, { action: "confirm-done", note, at_ms: nowMs });
     return;
   }
   if (target.state === "cancelled") throw new Error("已跳过的步骤不能直接重新执行");
-  if (target.state === "failed") {
+  if (target.state === "succeeded") {
+    const seq = stepChain(runtime.boards.get(ref), place, stepKey).length;
+    const rerunId = fullId(place, `rerun--${stepKey}--${seq}`);
+    const after = dependents(target.id);
+    const holder = target.assignee?.kind === "human" ? target.assignee : (roundSession ?? target.assignee);
+    setBoard(await runtime.boards.addNode({
+      ref,
+      expectedVersion: runtime.boards.get(ref).version,
+      node: {
+        id: rerunId,
+        title: title(target, place),
+        parent: target.parent ?? place.prefix,
+        dependsOn: [target.id],
+        onFailure: "block-for-human",
+        ...(holder ? { assignee: holder } : {}),
+      },
+    }));
+    await report(rerunId, `用户决定重新执行：${note}`);
+    for (const nextId of after) await rewire(nextId, replaced(exactNode(nextId).dependsOn, target.id, [rerunId]));
+  } else if (target.state === "failed") {
     setBoard(await runtime.boards.retry({ ref, expectedVersion: runtime.boards.get(ref).version, nodeId: target.id, note: `用户决定重新执行：${note}`, atMs: nowMs, human: person }));
   } else if (target.state === "running") {
     await report(target.id, "标记待重新执行", "needs-reconciliation");
     await report(target.id, `用户决定重新执行：${note}`, "ready");
   } else if (target.state === "needs-reconciliation" || target.state === "blocked" || target.state === "waiting") {
     await report(target.id, `用户决定重新执行：${note}`, "ready");
+  } else {
+    await report(target.id, `用户决定重新执行：${note}`);
   }
   await onReconcile?.(stepKey, { action: "rerun", note, at_ms: nowMs });
 }
@@ -596,7 +531,15 @@ export async function amendPlan(
   }
   if (planVersion(board, place, reconciledSteps) !== expectedVersion) throw new Error("任务图刚刚有更新，请刷新后再调整");
   const text = (value: string, label: string, max: number) => { const trimmed = value.trim(); if (!trimmed || trimmed.length > max) throw new Error(`${label}不能为空，且不超过 ${max} 字`); return trimmed; };
-  const node = (id: string) => { const found = board.nodes.find(entry => entry.id === id) ?? board.nodes.find(entry => entry.id === fullId(place, id)); if (!found || !planStep(found, place)) throw new Error("找不到这个步骤"); return found; };
+  const exactNode = (id: string) => { const found = board.nodes.find(entry => entry.id === id); if (!found || !planStep(found, place)) throw new Error("找不到这个步骤"); return found; };
+  const node = (id: string) => {
+    const exact = board.nodes.find(entry => entry.id === id);
+    if (exact && planStep(exact, place)) return stepChain(board, place, canonicalLocalId(place, exact.id)!).at(-1)!;
+    const canonical = isBasePlanLocal(id, place) ? id : canonicalLocalId(place, id);
+    const active = canonical ? stepChain(board, place, canonical).at(-1) : undefined;
+    if (!active) throw new Error("找不到这个步骤");
+    return active;
+  };
   const person = { kind: "human" as const, id: actor };
   // A person's decision stands over whoever holds the step, and is recorded as theirs.
   const report = async (nodeId: string, note: string, to?: TaskNode["state"]) => {
@@ -605,11 +548,11 @@ export async function amendPlan(
   // Each change rewires only the steps it touches: a step still waiting behind a failure stays waiting until a
   // person decides about that failure, whatever else is changed around it.
   const rewire = async (nodeId: string, dependsOn: string[]) => {
-    if (JSON.stringify(node(nodeId).dependsOn) === JSON.stringify(dependsOn)) return;
+    if (JSON.stringify(exactNode(nodeId).dependsOn) === JSON.stringify(dependsOn)) return;
     board = await runtime.boards.rewire({ ref, expectedVersion: runtime.boards.get(ref).version, nodeId, dependsOn });
   };
   // Only steps that have not started can be rewired; a finished or skipped step keeps the edges it ran with.
-  const dependents = (id: string) => planNodes(board, place).filter(entry => entry.dependsOn.includes(id) && (entry.state === "not-started" || entry.state === "ready")).map(entry => entry.id);
+  const dependents = (id: string) => activePlanNodes(board, place).filter(entry => entry.dependsOn.includes(id) && (entry.state === "not-started" || entry.state === "ready")).map(entry => entry.id);
   const replaced = (deps: readonly string[], from: string, to: readonly string[]) => [...new Set(deps.flatMap(dep => dep === from ? to : [dep]))];
   const order = executionOrder(board, place).map(entry => entry.id);
   const target = "node" in amendment ? node(amendment.node) : undefined;
@@ -631,7 +574,7 @@ export async function amendPlan(
         throw new Error("故事点只能选择正整数斐波那契档位（1、2、3、5、8、13、21、34……）");
       }
       const parentNode = amendment.parent_id ? node(amendment.parent_id).id : (anchor.parent ?? place.prefix);
-      const id = fullId(place, `user-${planNodes(board, place).filter(entry => localId(place, entry.id)!.startsWith("user-")).length + 1}`), after = dependents(anchor.id);
+      const id = fullId(place, `user-${activePlanNodes(board, place).filter(entry => canonicalLocalId(place, entry.id)!.startsWith("user-")).length + 1}`), after = dependents(anchor.id);
       const holder = amendment.mine ? person : roundSession;
       if (amendment.origin !== undefined && !roundSession) throw new Error("这一轮没有会话记录，新步骤不能指向补充");
       const origins = amendment.origin === undefined ? {} : { origins: [{ session: roundSession!.id, input: amendment.origin }] };
@@ -662,11 +605,11 @@ export async function amendPlan(
       break;
     }
     case "remove-scope": {
-      await removeStepFromScope({ runtime, ref, target: target!, reason: text(amendment.reason, "移出范围原因", 300), person, dependents, node, replaced, report, rewire, setBoard: next => { board = next; } });
+      await removeStepFromScope({ runtime, ref, target: target!, reason: text(amendment.reason, "移出范围原因", 300), person, dependents, node: exactNode, replaced, report, rewire, setBoard: next => { board = next; } });
       break;
     }
     case "reconcile": {
-      await reconcileAmendedStep({ runtime, place, target: target!, action: amendment.action, note: text(amendment.note, "核对说明", 500), expectedVersion, person, node, report, setBoard: next => { board = next; }, onReconcile });
+      await reconcileAmendedStep({ runtime, place, target: target!, action: amendment.action, note: text(amendment.note, "核对说明", 500), expectedVersion, person, roundSession, dependents, exactNode, replaced, report, rewire, setBoard: next => { board = next; }, onReconcile });
       break;
     }
     case "unblock": {

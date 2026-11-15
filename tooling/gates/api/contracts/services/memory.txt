@@ -122,6 +122,11 @@ export interface MemoryChange {
     text: string;
     by: "person" | "policy" | "maintenance" | "assistant";
     rule: string | null;
+    policy?: {
+        policy: string;
+        version: number;
+    };
+    trigger_evidence?: MemoryEvidence[];
     reason: string | null;
     work: {
         work_id: string;

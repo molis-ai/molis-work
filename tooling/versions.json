@@ -1247,6 +1247,7 @@
     "policy.memory.gate": 1,
     "policy.memory.plugin-write": 1,
     "policy.memory.taxonomy": 1,
+    "policy.memory.upkeep": 1,
     "product.release": "0.1.0",
     "prompt.alchemist.copilot": 2,
     "prompt.alchemist.cross-check": 2,

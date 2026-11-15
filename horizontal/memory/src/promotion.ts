@@ -153,10 +153,13 @@ export class MemoryPromotion {
       if (this.mark(caller.actor_id, request.operation_id)?.phase === "closed" || this.ports.ledger.marker("", `memory-forgotten:${entry.memory_id}`)
         || !this.sourceAllowed(caller.actor_id, mark.scope, mark.owner, mark.sources)) throw memoryErrors.conflict("自动记忆已遗忘，不能补回旧记录");
       if (!this.ports.ledger.change(change_id)) {
+        const trigger_evidence = facts.evidence.length ? facts.evidence
+          : mark.sources.map(source => ({ kind: "said", ref: { kind: "memory-source", id: source.event_id, revision: source.version }, at: mark.at }));
         this.ports.ledger.addRevision(entry.memory_id, { version: entry.version, change: mark.before_version ? "replaced" : "created", by: "policy", at: mark.at });
         this.ports.ledger.saveChange({ change_id, operation_id: request.operation_id, applied_version: entry.version, actor_id: caller.actor_id,
           scope: mark.scope, owner: mark.owner, project_id: mark.scope === "personal" ? null : holder.project_id, memory_id: entry.memory_id,
           kind: mark.before_version ? "auto_replaced" : "auto_kept", text: entry.text, by: "policy", rule: MEMORY_GATE_RULE,
+          policy: { policy: request.policy, version: request.version }, ...(trigger_evidence.length ? { trigger_evidence } : {}),
           reason: "两份独立的本人原始表态，经当前规则复核", work: holder.work ?? null, at: mark.at, undoable: true, state: "active",
           undo: mark.before_version ? { action: "restore", version: mark.before_version } : { action: "remove" } });
       }

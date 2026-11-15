@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { AgentMemoryMeta } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { MEMORY_FORMAL_KINDS, type MemoryCandidate, type MemoryCandidateRecord, type MemoryChange, type MemoryChangeRecord, type MemoryExportPackage, type MemoryFormalKind, type MemoryRevision, type MemoryRevisionView, type MemoryScope } from "@molis-ai/molis-work-contracts/services/memory";
+import { MEMORY_FORMAL_KINDS, type MemoryCandidate, type MemoryCandidateRecord, type MemoryChange, type MemoryChangeRecord, type MemoryExportPackage, type MemoryFormalKind, type MemoryRevision, type MemoryRevisionView } from "@molis-ai/molis-work-contracts/services/memory";
 import { completeRevisionSnapshot } from "./classification.js";
 import { memoryErrors } from "./errors.js";
 import { fromAppliesWhen } from "./facts.js";
@@ -16,12 +16,6 @@ export function useTitle(caller: MemoryCaller, usedFor?: string): string {
   if (caller.work) return `工作「${caller.work.title.slice(0, 40)}」`;
   if (label) return label;
   return caller.consumer === "plugin" && caller.plugin_id ? `插件 ${caller.plugin_id}` : CONSUMER_LABELS[caller.consumer];
-}
-
-/** One fingerprint for what a clear will remove across its Prologue scopes (a single scope keeps Prologue's own). */
-export function joinedFingerprint(parts: ReadonlyArray<{ scope: MemoryScope; owner: string; count: number; fingerprint: string }>): string {
-  const counted = parts.filter((part, index) => index === 0 || part.count > 0);
-  return counted.length === 1 ? counted[0]!.fingerprint : counted.map(part => `${part.scope}:${part.owner}=${part.fingerprint}`).join("|");
 }
 
 export function candidateView(record: MemoryCandidateRecord): MemoryCandidate {

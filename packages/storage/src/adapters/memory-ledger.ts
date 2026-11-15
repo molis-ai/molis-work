@@ -200,8 +200,8 @@ export function openMemoryLedger(options: { homeDirectory: string; storageOwner?
       assertCurrent: () => { if (closed) throw new Error("记忆账本已经关闭"); } }) : undefined;
   } catch (error) { db.close(); throw error; }
   const retention = createMemoryLedgerRetention(db, work => ledger.transaction(work), () => ledger.forgetting.read());
-  const visibleChange = (record: MemoryChangeRecord): MemoryChangeRecord => record.memory_id && retention.isForgotten(record.memory_id)
-    ? { ...record, text: "", reason: null, undoable: false, undo: null } : record;
+  const visibleChange = ({ trigger_evidence, ...record }: MemoryChangeRecord): MemoryChangeRecord => record.memory_id && retention.isForgotten(record.memory_id)
+    ? { ...record, text: "", reason: null, undoable: false, undo: null } : { ...record, ...(trigger_evidence !== undefined ? { trigger_evidence } : {}) };
   const ledger: MemoryLedgerPort = {
     forgetting: {
       read: () => { if (closed) throw new Error("记忆账本已经关闭"); return forgetting?.read() ?? inspectMemoryForgetting(options.homeDirectory); },
@@ -242,7 +242,7 @@ export function openMemoryLedger(options: { homeDirectory: string; storageOwner?
       return record ? visibleChange(record) : null;
     },
     saveChange: record => ledger.transaction(() => {
-      if (record.memory_id && (record.text || record.reason || record.undoable || record.undo)) retention.assertNotForgotten(record.memory_id);
+      if (record.memory_id && (record.text || record.reason || record.trigger_evidence?.length || record.undoable || record.undo)) retention.assertNotForgotten(record.memory_id);
       db.prepare("INSERT INTO memory_changes(change_id,actor_id,memory_id,at,body) VALUES (?,?,?,?,?) ON CONFLICT(change_id) DO UPDATE SET memory_id=excluded.memory_id, body=excluded.body")
         .run(record.change_id, record.actor_id, record.memory_id, record.at, JSON.stringify(record));
     }),

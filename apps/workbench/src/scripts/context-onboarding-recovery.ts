@@ -17,26 +17,13 @@ export const CONTEXT_ONBOARDING_RECOVERY_PART = String.raw`
     return native && journey ? picked().find(s => directory(s) && s.metadata?.cancelled && !s.references?.length) || null : null;
   }
   function mergeDirMetadata(prev, next) {
-    const seenPaths = new Set(), mergedFiles = [];
-    for (const f of [...(prev?.files || []), ...(next?.files || [])]) {
-      if (!f?.path || seenPaths.has(f.path)) continue;
-      seenPaths.add(f.path);
-      mergedFiles.push(f);
-    }
-    mergedFiles.sort((a, b) => ((b.modified_ms || 0) - (a.modified_ms || 0)) || (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
-    const pr = prev?.skipped_reasons || {}, nr = next?.skipped_reasons || {};
-    const skipped = (prev?.skipped || 0) + (next?.skipped || 0);
+    const seen = new Set(), files = [];
+    for (const f of [...(prev?.files || []), ...(next?.files || [])]) if (f?.path && !seen.has(f.path)) { seen.add(f.path); files.push(f); }
+    files.sort((a, b) => ((b.modified_ms || 0) - (a.modified_ms || 0)) || (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+    const pr = prev?.skipped_reasons || {}, nr = next?.skipped_reasons || {}, skipped = (prev?.skipped || 0) + (next?.skipped || 0);
     const reasons = { ignored: (pr.ignored || 0) + (nr.ignored || 0), secret: (pr.secret || 0) + (nr.secret || 0), unreadable: (pr.unreadable || 0) + (nr.unreadable || 0), time: (pr.time || 0) + (nr.time || 0) };
     const rules = [...new Set([...(prev?.ignored_rules || []), ...(next?.ignored_rules || [])])].slice(0, 24);
-    return {
-      files: mergedFiles,
-      skipped,
-      truncated: Boolean(next?.truncated),
-      cancelled: Boolean(next?.cancelled),
-      total_entries: Math.max(prev?.total_entries || 0, next?.total_entries || 0),
-      ...(skipped > 0 ? { skipped_reasons: reasons } : {}),
-      ...(rules.length ? { ignored_rules: rules } : {}),
-    };
+    return { files, skipped, truncated: Boolean(next?.truncated), cancelled: Boolean(next?.cancelled), total_entries: Math.max(prev?.total_entries || 0, next?.total_entries || 0), ...(skipped > 0 ? { skipped_reasons: reasons } : {}), ...(rules.length ? { ignored_rules: rules } : {}) };
   }
   async function metadata(s, resumeOffset = 0) {
     if (s.references?.length) return;
@@ -58,69 +45,37 @@ export const CONTEXT_ONBOARDING_RECOVERY_PART = String.raw`
       counting = null;
     }
   }
-  function uploadDb() {
-    if (typeof indexedDB === 'undefined') return Promise.resolve(null);
-    return new Promise(resolve => {
+  async function withUploads(mode, run) {
+    if (typeof indexedDB === 'undefined') return;
+    const db = await new Promise(res => {
       try {
         const req = indexedDB.open('molis-onboarding-uploads', 1);
         req.onupgradeneeded = () => { if (!req.result.objectStoreNames.contains('uploads')) req.result.createObjectStore('uploads', { keyPath: 'key' }); };
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => resolve(null);
-      } catch { resolve(null); }
+        req.onsuccess = () => res(req.result);
+        req.onerror = () => res(null);
+      } catch { res(null); }
+    });
+    if (!db) return;
+    await new Promise(res => {
+      try { const tx = db.transaction('uploads', mode); run(tx.objectStore('uploads')); tx.oncomplete = tx.onerror = tx.onabort = () => res(); }
+      catch { res(); }
     });
   }
   async function saveUploadFiles(kind, list, partial) {
     if (partial) partialRestoredKinds.add(kind); else partialRestoredKinds.delete(kind);
-    const db = await uploadDb(); if (!db || !journey) return;
-    await new Promise(resolve => {
-      try {
-        const tx = db.transaction('uploads', 'readwrite');
-        tx.objectStore('uploads').put({ key: journey.id + ':' + kind, files: list, partial: Boolean(partial) });
-        tx.oncomplete = tx.onerror = tx.onabort = () => resolve();
-      } catch { resolve(); }
-    });
+    if (journey) await withUploads('readwrite', st => st.put({ key: journey.id + ':' + kind, files: list, partial: Boolean(partial) }));
   }
   async function dropUploadFiles(kind) {
     partialRestoredKinds.delete(kind);
-    const db = await uploadDb(); if (!db || !journey) return;
-    await new Promise(resolve => {
-      try {
-        const tx = db.transaction('uploads', 'readwrite');
-        tx.objectStore('uploads').delete(journey.id + ':' + kind);
-        tx.oncomplete = tx.onerror = tx.onabort = () => resolve();
-      } catch { resolve(); }
-    });
+    if (journey) await withUploads('readwrite', st => st.delete(journey.id + ':' + kind));
   }
   async function clearJourneyUploads(id) {
     partialRestoredKinds.clear();
-    const db = await uploadDb(); if (!db || !id) return;
-    await new Promise(resolve => {
-      try {
-        const tx = db.transaction('uploads', 'readwrite'), store = tx.objectStore('uploads'), req = store.openCursor();
-        req.onsuccess = () => { const cur = req.result; if (!cur) return; if (String(cur.key).startsWith(id + ':')) cur.delete(); cur.continue(); };
-        tx.oncomplete = tx.onerror = tx.onabort = () => resolve();
-      } catch { resolve(); }
-    });
+    if (id) await withUploads('readwrite', st => { const r = st.openCursor(); r.onsuccess = () => { const c = r.result; if (!c) return; if (String(c.key).startsWith(id + ':')) c.delete(); c.continue(); }; });
   }
   async function restoreUploadFiles() {
     partialRestoredKinds.clear();
-    const db = await uploadDb(); if (!db || !journey) return;
-    await new Promise(resolve => {
-      try {
-        const tx = db.transaction('uploads', 'readonly'), req = tx.objectStore('uploads').openCursor();
-        req.onsuccess = () => {
-          const cur = req.result; if (!cur) return;
-          const k = String(cur.key), prefix = journey.id + ':';
-          if (k.startsWith(prefix)) {
-            const srcKind = k.slice(prefix.length);
-            if (Array.isArray(cur.value?.files) && cur.value.files.length) uploads.set(srcKind, cur.value.files);
-            if (cur.value?.partial) partialRestoredKinds.add(srcKind);
-          }
-          cur.continue();
-        };
-        tx.oncomplete = tx.onerror = tx.onabort = () => resolve();
-      } catch { resolve(); }
-    });
+    if (journey) await withUploads('readonly', st => { const p = journey.id + ':', r = st.openCursor(); r.onsuccess = () => { const c = r.result; if (!c) return; const k = String(c.key); if (k.startsWith(p)) { const sk = k.slice(p.length); if (Array.isArray(c.value?.files) && c.value.files.length) uploads.set(sk, c.value.files); if (c.value?.partial) partialRestoredKinds.add(sk); } c.continue(); }; });
   }
   function skipRuleName(path) {
     const parts = String(path || '').split('/');
@@ -166,7 +121,7 @@ export const CONTEXT_ONBOARDING_RECOVERY_PART = String.raw`
       }
     } else for (; index < total; index++) take(list[index]);
     const stoppedEarly = index < total;
-    if (!chosen.length && total > 0 && !stoppedEarly) throw new Error(globalThis.t.text("workbench.context-onboarding.no-supported-files-found"));
+    if (!chosen.length && total > 0 && !stoppedEarly) throw new Error(readText("workbench.context-onboarding.no-supported-files-found"));
     const s = source(kind);
     if (s.kind !== 'directory' && !resumeFrom && uploads.has(s.kind)) {
       const had = uploads.get(s.kind);
@@ -195,22 +150,13 @@ export const CONTEXT_ONBOARDING_RECOVERY_PART = String.raw`
     return '<ul class="mw-file-list is-receipts">' + picked().map(s => {
       const heldN = s.held_secrets?.length || 0;
       const state = docState(s), label = s.error ? "workbench.context-onboarding.not-read" : heldN && !s.references?.length ? "workbench.context-onboarding.secret-awaiting-choice" : s.references ? "workbench.context-onboarding.read" : journey.phase === 'reading' ? "workbench.context-onboarding.waiting" : sourceStatus(s);
-      const detail = s.error || (s.references ? globalThis.t.text("workbench.context-onboarding.n-n-saved", {n:s.references.length}) + (s.skipped ? ' · ' + globalThis.t.text("workbench.context-onboarding.n-skipped", {n:s.skipped}) : '') + (heldN ? ' · ' + globalThis.t.text("workbench.context-onboarding.n-held-secret", {n:heldN}) : '') : s.reading ? globalThis.t.text("workbench.context-onboarding.k-n", {k:Math.min(s.reading.done + 1, s.reading.total), n:s.reading.total}) : '');
-      return fileRow({name:globalThis.t.text(names[s.kind]), chip:'<span class="mw-file-kind" data-slot="file-kind">' + glyph(sourceIcons[s.kind]) + '</span>', size:detail, state:status(readText(label), state === 'done' ? 'done' : state === 'failed' ? 'blocked' : heldN ? 'attention' : 'idle', null, state === 'done' || state === 'failed' ? state : journey.phase === 'reading' ? 'waiting' : state === 'ready' ? 'ready' : 'idle')});
+      const detail = s.error || (s.references ? readText("workbench.context-onboarding.n-n-saved", {n:s.references.length}) + (s.skipped ? ' · ' + readText("workbench.context-onboarding.n-skipped", {n:s.skipped}) : '') + (heldN ? ' · ' + readText("workbench.context-onboarding.n-held-secret", {n:heldN}) : '') : s.reading ? readText("workbench.context-onboarding.k-n", {k:Math.min(s.reading.done + 1, s.reading.total), n:s.reading.total}) : '');
+      return fileRow({name:readText(names[s.kind]), chip:'<span class="mw-file-kind" data-slot="file-kind">' + glyph(sourceIcons[s.kind]) + '</span>', size:detail, state:status(readText(label), state === 'done' ? 'done' : state === 'failed' ? 'blocked' : heldN ? 'attention' : 'idle', null, state === 'done' || state === 'failed' ? state : journey.phase === 'reading' ? 'waiting' : state === 'ready' ? 'ready' : 'idle')});
     }).join('') + '</ul>' + picked().map(issues).join('');
   }
-  function mrTrack(step, stopAt, isErr, labelText, tone) {
-    const ariaLabel = stopAt
-      ? globalThis.t.text("workbench.context-onboarding.mr-track-stopped-aria", { step, stop: stopAt, state: labelText })
-      : globalThis.t.text("workbench.context-onboarding.mr-track-aria", { step, state: labelText });
-    return recParts.renderMaterialsTrack({
-      step,
-      ...(stopAt ? { stopAt } : {}),
-      ...(isErr ? { error: true } : {}),
-      label: labelText,
-      tone: tone || 'idle',
-      ariaLabel,
-    });
+  function mrTrack(step, stopAt, isErr, label, tone) {
+    const ariaLabel = stopAt ? readText("workbench.context-onboarding.mr-track-stopped-aria", { step, stop: stopAt, state: label }) : readText("workbench.context-onboarding.mr-track-aria", { step, state: label });
+    return recParts.renderMaterialsTrack({ step, ...(stopAt ? { stopAt } : {}), ...(isErr ? { error: true } : {}), label, tone: tone || 'idle', ariaLabel });
   }
   function verificationPanel() {
     const srcs = picked();
@@ -251,9 +197,9 @@ export const CONTEXT_ONBOARDING_RECOVERY_PART = String.raw`
     const attentionCount = heldRows.length + issueRows.length;
     const unusedRows = refRows.filter(x => x.r.duplicate_of || (journey.summary && !x.r.used_in_summary));
     const filterBar = '<div class="ob-mr-bar">' + toggles(readText("workbench.context-onboarding.mr-filter-label"), [
-      { label: globalThis.t.text("workbench.context-onboarding.mr-filter-all", { n: heldRows.length + issueRows.length + refRows.length }), current: mrFilter === 'all', attrs: { 'data-mr-filter': 'all' } },
-      { label: globalThis.t.text("workbench.context-onboarding.mr-filter-attention", { n: attentionCount }), current: mrFilter === 'attention', attrs: { 'data-mr-filter': 'attention' } },
-      { label: globalThis.t.text("workbench.context-onboarding.mr-filter-unused", { n: unusedRows.length }), current: mrFilter === 'unused', attrs: { 'data-mr-filter': 'unused' } },
+      { label: readText("workbench.context-onboarding.mr-filter-all", { n: heldRows.length + issueRows.length + refRows.length }), current: mrFilter === 'all', attrs: { 'data-mr-filter': 'all' } },
+      { label: readText("workbench.context-onboarding.mr-filter-attention", { n: attentionCount }), current: mrFilter === 'attention', attrs: { 'data-mr-filter': 'attention' } },
+      { label: readText("workbench.context-onboarding.mr-filter-unused", { n: unusedRows.length }), current: mrFilter === 'unused', attrs: { 'data-mr-filter': 'unused' } },
     ]) + '</div>';
     const items = [];
     if (mrFilter === 'all' || mrFilter === 'attention') {
@@ -262,7 +208,7 @@ export const CONTEXT_ONBOARDING_RECOVERY_PART = String.raw`
         const vars = namesList?.length ? namesList.join(', ') : readText("workbench.context-onboarding.mr-secret-content");
         items.push(fileRow({ cls: 'is-issue', name: h.path, size: readText(names[s.kind]) + ' · ' + size(h.size_bytes || 0), state: mrTrack(2, 3, false, readText("workbench.context-onboarding.secret-awaiting-choice"), 'attention') })
           + recParts.renderMaterialIssueRow({
-            reason: globalThis.t.text("workbench.context-onboarding.mr-secret-why", { vars }),
+            reason: readText("workbench.context-onboarding.mr-secret-why", { vars }),
             actions: [
               { variant: 'secondary', size: 'sm', label: readText("workbench.context-onboarding.secret-strip"), attrs: { 'data-secret-key': h.key, 'data-secret-decision': 'strip' } },
               { variant: 'ghost', size: 'sm', label: readText("workbench.context-onboarding.secret-exclude"), attrs: { 'data-secret-key': h.key, 'data-secret-decision': 'exclude' } },
@@ -287,7 +233,7 @@ export const CONTEXT_ONBOARDING_RECOVERY_PART = String.raw`
       const noteParts = [readText(names[s.kind]), size(r.original?.size_bytes || r.text?.bytes || 0)];
       if (r.recognized_by_content) noteParts.push(readText("workbench.context-onboarding.mr-by-content"));
       if (r.secret_mode === 'strip') noteParts.push(readText("workbench.context-onboarding.mr-secret-stripped"));
-      if (dup) noteParts.push(globalThis.t.text("workbench.context-onboarding.mr-duplicate-of", { path: r.duplicate_of }));
+      if (dup) noteParts.push(readText("workbench.context-onboarding.mr-duplicate-of", { path: r.duplicate_of }));
       const stLabel = dup ? readText("workbench.context-onboarding.mr-duplicate")
         : r.secret_mode === 'strip' ? readText("workbench.context-onboarding.mr-secret-stripped")
         : r.recognized_by_content ? readText("workbench.context-onboarding.mr-by-content")
@@ -295,14 +241,14 @@ export const CONTEXT_ONBOARDING_RECOVERY_PART = String.raw`
         : readText("workbench.context-onboarding.read");
       items.push(fileRow({ name: r.path || r.title, size: noteParts.join(' · '), state: mrTrack(step, stopAt, false, stLabel, dup ? 'quiet' : 'done') }));
     }
-    if (shownRefs.length > 200) items.push('<li class="ob-more-row"><small class="ob-quiet">' + esc(globalThis.t.text("workbench.context-onboarding.n-more-files-included", { n: shownRefs.length - 200 })) + '</small></li>');
+    if (shownRefs.length > 200) items.push('<li class="ob-more-row"><small class="ob-quiet">' + esc(readText("workbench.context-onboarding.n-more-files-included", { n: shownRefs.length - 200 })) + '</small></li>');
     const ruleSummary = (skippedIgnored + skippedSecret + skippedUnreadable) > 0
       ? collapsible(
-          globalThis.t.text("workbench.context-onboarding.mr-skipped-summary", { n: skippedIgnored + skippedSecret + skippedUnreadable }),
+          readText("workbench.context-onboarding.mr-skipped-summary", { n: skippedIgnored + skippedSecret + skippedUnreadable }),
           '<p class="cx-source-meta">' + [
-            skippedIgnored ? globalThis.t.text("workbench.context-onboarding.mr-skipped-ignored", { n: skippedIgnored, rules: [...ruleNames].join(', ') || 'node_modules, .git, dist' }) : '',
-            skippedSecret ? globalThis.t.text("workbench.context-onboarding.mr-skipped-secret", { n: skippedSecret }) : '',
-            skippedUnreadable ? globalThis.t.text("workbench.context-onboarding.mr-skipped-binary", { n: skippedUnreadable }) : '',
+            skippedIgnored ? readText("workbench.context-onboarding.mr-skipped-ignored", { n: skippedIgnored, rules: [...ruleNames].join(', ') || 'node_modules, .git, dist' }) : '',
+            skippedSecret ? readText("workbench.context-onboarding.mr-skipped-secret", { n: skippedSecret }) : '',
+            skippedUnreadable ? readText("workbench.context-onboarding.mr-skipped-binary", { n: skippedUnreadable }) : '',
           ].filter(Boolean).map(esc).join(' · ') + '</p>'
         )
       : '';
@@ -314,11 +260,11 @@ export const CONTEXT_ONBOARDING_RECOVERY_PART = String.raw`
     const modelChanged = Boolean(journey.model && config.model && journey.model !== config.model);
     if (!d && !(modelChanged && (journey.last_read_paths?.length || journey.stale_summary))) return '';
     const rows = [];
-    if (d?.added_count) rows.push({ kind: 'add', glyph: 'plus', title: globalThis.t.text("workbench.context-onboarding.delta-added", { n: d.added_count }), detail: (d.added || []).slice(0, 3).join(', ') });
-    if (d?.removed_count) rows.push({ kind: 'rem', glyph: 'x', title: globalThis.t.text("workbench.context-onboarding.delta-removed", { n: d.removed_count }), detail: (d.removed || []).slice(0, 3).join(', ') });
+    if (d?.added_count) rows.push({ kind: 'add', glyph: 'plus', title: readText("workbench.context-onboarding.delta-added", { n: d.added_count }), detail: (d.added || []).slice(0, 3).join(', ') });
+    if (d?.removed_count) rows.push({ kind: 'rem', glyph: 'x', title: readText("workbench.context-onboarding.delta-removed", { n: d.removed_count }), detail: (d.removed || []).slice(0, 3).join(', ') });
     const reused = d ? d.reused : (journey.last_read_paths?.length || 0);
-    if (reused > 0) rows.push({ kind: 'keep', glyph: 'check', title: globalThis.t.text("workbench.context-onboarding.delta-reused", { n: reused }), detail: readText("workbench.context-onboarding.delta-no-reread") });
-    if (modelChanged) rows.push({ kind: 'redo', glyph: 'refresh', title: globalThis.t.text("workbench.context-onboarding.delta-model-changed", { model: config.model }), detail: readText("workbench.context-onboarding.delta-summary-redone") });
+    if (reused > 0) rows.push({ kind: 'keep', glyph: 'check', title: readText("workbench.context-onboarding.delta-reused", { n: reused }), detail: readText("workbench.context-onboarding.delta-no-reread") });
+    if (modelChanged) rows.push({ kind: 'redo', glyph: 'refresh', title: readText("workbench.context-onboarding.delta-model-changed", { model: config.model }), detail: readText("workbench.context-onboarding.delta-summary-redone") });
     else if (d && (d.added_count || d.removed_count)) rows.push({ kind: 'redo', glyph: 'refresh', title: readText("workbench.context-onboarding.delta-summary-redone") });
     if (!rows.length) return '';
     return recParts.renderScopeDeltaCard({ title: readText("workbench.context-onboarding.delta-title"), items: rows });
@@ -333,7 +279,7 @@ export const CONTEXT_ONBOARDING_RECOVERY_PART = String.raw`
   function lateNotice() {
     const l = journey.late_ignored;
     if (!l) return '';
-    return '<div class="ob-notice" data-slot="late-ignored">' + glyph('clock') + '<span>' + esc(globalThis.t.text("workbench.context-onboarding.late-result-ignored", { model: l.model || readText("workbench.context-onboarding.previous-model") })) + '</span></div>';
+    return '<div class="ob-notice" data-slot="late-ignored">' + glyph('clock') + '<span>' + esc(readText("workbench.context-onboarding.late-result-ignored", { model: l.model || readText("workbench.context-onboarding.previous-model") })) + '</span></div>';
   }
   function failureGuidance() {
     if (journey.phase !== 'failed' || journey.needs_model || !journey.failure_kind) return '';

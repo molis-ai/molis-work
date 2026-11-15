@@ -112,6 +112,8 @@ export class AssistantContinuations {
       if (this.stopped.signal.aborted) return;
       const view = await this.view(work).catch(() => undefined), next = view?.continuation;
       if (!view?.wait || !next || next.state !== "eligible" || !next.auto) continue;
+      // The Host asking itself: `startFor` finds the work by project and session and never reads `owner`, which names a plugin's
+      // installation only on a runtime's own ask.
       await this.startFor({ runtime_id: RUNTIME, project_id: owner(work), session_id: work.session_id!, owner: { plugin_id: "", install_id: "" },
         request_key: next.request_key, wait_id: view.wait.wait_id, graph_id: next.graph_id, node_id: next.node_id }).catch(() => undefined);
     }
@@ -174,5 +176,4 @@ export class AssistantContinuations {
       return { refused: { code: typeof code === "string" ? code.slice(0, 64) : "assistant.start_failed", note: (error instanceof Error ? error.message : String(error)).slice(0, 200) } };
     } finally { this.end(work.work_id); }
   }
-
 }

@@ -17,6 +17,8 @@
  * (`molis-work:attention-unreachable`, as of the last read) and connected again, twice as long after each loss (up to two minutes);
  * a hidden page keeps no stream (N54).
  */
+import { objectLinkAt } from "@molis-ai/molis-work-contracts/platform/object-link";
+
 export const ATTENTION_FACTORY_SCRIPT = `(host) => {
   const { translate: readText, projectId, openItem, route } = host;
   if (document.body.dataset.paneEmbedded === "true") return;
@@ -26,11 +28,11 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
   let tasks = [], key = "", reading = false, again = false;
   const node = (tag, text, className) => { const value = document.createElement(tag); if (text !== undefined) value.textContent = text; if (className) value.className = className; return value; };
   const when = (at) => { const date = new Date(at); return Number.isNaN(date.getTime()) ? "" : globalThis.t.text("common.generated.formatted", { value: { kind: "date", at: date.toISOString(), style: "time" } }); };
+  const linkAt = (${objectLinkAt.toString()});
   const hrefFor = (task) => {
-    const url = new URL("/projects/" + encodeURIComponent(task.project_id) + "/", location.origin);
-    url.searchParams.set("openPlugin", task.open ? task.open.surface : task.origin.surface); if (task.open && task.open.id) { url.searchParams.set("openItem", task.open.id); url.searchParams.set("openTitle", task.open.title); }
-    const desktop = new URLSearchParams(location.search).get("desktop"); if (desktop) url.searchParams.set("desktop", desktop);
-    return url.pathname + url.search;
+    const place = task.open && task.open.id ? { surface: task.open.surface, id: task.open.id, title: task.open.title } : { surface: task.open ? task.open.surface : task.origin.surface };
+    const desktop = new URLSearchParams(location.search).get("desktop"); if (desktop) place.params = { desktop };
+    return linkAt("/projects/" + encodeURIComponent(task.project_id), place);
   };
   const render = () => {
     if (!tab || !list) return;

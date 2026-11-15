@@ -69,12 +69,13 @@ export function installEventCards(host: WorkBarHost, line: EventCardLine): { mou
     const paint = () => {
       const event = line.event(card.subject), said = event ? line.facts(event) : uiText.text("workbench.work-line.not-on-line-now");
       if (facts.textContent !== said) { facts.textContent = said; facts.title = said; }
-      // A parked card names its event as the line does now (its owner's mark is the line's own drawing, never what was stored).
+      // A parked card names its event as the line does now (its owner's mark is the line's own drawing, never what was stored);
+      // an event no longer on the person's line, or one they can no longer read, shows no name at all (WLN-28).
       const now = name && event ? line.press(event) : null;
-      if (name && now && named !== now.mark + now.title) {
-        named = now.mark + now.title;
-        const title = document.createElement("strong"); title.textContent = title.title = now.title;
-        name.innerHTML = now.mark; name.append(title);
+      if (name && named !== (now ? now.mark + now.title : "")) {
+        named = now ? now.mark + now.title : "";
+        if (!now) name.replaceChildren();
+        else { const title = document.createElement("strong"); title.textContent = title.title = now.title; name.innerHTML = now.mark; name.append(title); }
       }
       // What the tasks behind it ask stands first; words being written into 「改一下」 stay through a redraw.
       const asked = line.decisions(card.subject);
@@ -95,7 +96,8 @@ export function installEventCards(host: WorkBarHost, line: EventCardLine): { mou
 
   // Parked cards (WLN-14): kept open in the side panel's 「对话」 page, the latest on top; the same card, so a press there is the press in the dialog.
   let parked: Array<{ card: EventCardOpen; slot: HTMLElement; handle: EventCardHandle }> = [];
-  const keep = () => { try { localStorage.setItem(key, JSON.stringify(parked.map(one => one.card))); } catch { /* this viewer's convenience only */ } };
+  // Only which events were parked is kept, never their names: after a reload a card is named once the line shows its event again (WLN-28).
+  const keep = () => { try { localStorage.setItem(key, JSON.stringify(parked.map(one => ({ subject: one.card.subject, composed: one.card.composed })))); } catch { /* this viewer's convenience only */ } };
   // The page is offered while a card is parked, and until the person leaves it once it is empty.
   const showSide = () => { if (tab) tab.hidden = parked.length === 0 && tab.getAttribute("aria-selected") !== "true"; if (side) side.dataset.empty = String(parked.length === 0); };
   // A composed display is read while it can be seen: the cards read theirs when the page they stand on is shown.
@@ -124,8 +126,8 @@ export function installEventCards(host: WorkBarHost, line: EventCardLine): { mou
     else if (target?.closest("[data-event-close]")) leave(at);
   });
   try {
-    const saved = JSON.parse(localStorage.getItem(key) ?? "[]") as EventCardOpen[];
-    for (const card of [...saved].reverse()) if (card?.subject?.kind && card.subject.id && typeof card.title === "string") park({ subject: { kind: card.subject.kind, id: card.subject.id }, title: card.title, mark: "", composed: card.composed === true }, false);
+    const saved = JSON.parse(localStorage.getItem(key) ?? "[]") as Array<Partial<EventCardOpen>>;
+    for (const card of [...saved].reverse()) if (typeof card?.subject?.kind === "string" && typeof card.subject.id === "string") park({ subject: { kind: card.subject.kind, id: card.subject.id }, title: "", mark: "", composed: card.composed === true }, false);
   } catch { /* nothing was parked */ }
 
   return { mount: (slot, card) => draw(slot, card, false), park: card => park(card), paint() { for (const paint of live) paint(); } };

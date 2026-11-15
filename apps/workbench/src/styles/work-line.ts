@@ -34,9 +34,9 @@ const SHEET = `
 @media (min-width:761px){html body.immersive-workbench:not(.arrival-page){--desktop-titlebar-height:44px}}
 ${SHELL} .workbench-bar[data-work-bar]{display:block}
 ${TOP}{position:relative;gap:6px;padding:0 var(--sheet-inset,14px) 0 8px;--dock-btn:30px}
-${TOP}>.dock-pins{order:1;flex:0 1 auto;height:36px;margin:0 2px;padding:3px;gap:2px;border-radius:11px;background:color-mix(in srgb,var(--ink) 4%,transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--ink) 6%,transparent)}
+${TOP}>.dock-pins{order:1;flex:0 1 auto;height:36px;margin:0 2px;padding:3px;gap:2px;border-radius:calc(var(--r-control,8px) + 3px);background:color-mix(in srgb,var(--ink) 4%,transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--ink) 6%,transparent)}
 ${TOP}>.dock-pins::before,${TOP} .dock-pin[aria-current]::after,${TOP}>.plugin-picker::after{content:none}
-${TOP} .dock-pin{border-radius:8px}
+${TOP} .dock-pin{border-radius:var(--r-control,8px)}
 ${TOP} .dock-pin:hover{transform:none}
 ${TOP} .dock-pin svg{width:17px;height:17px}
 .dock-pin-name{display:none}
@@ -88,6 +88,7 @@ ${TOP}>.titlebar-end{order:8;flex:none;display:flex;align-items:center;gap:8px;m
 @media (max-width:600px){
   ${TOP}>.side-strip{flex:none;max-width:calc(var(--dock-btn)*2)}
   ${SHELL} .immersive-workspace:not(.is-plugin-directory-empty) .workbench-header .titlebar-end .immersive-show-directory,
+  /* The design system hides the strip's directory buttons with !important (craft-finish-assistant.ts): only !important shows one again. */
   ${SHELL} .is-directory-drawer-open .workbench-header .titlebar-end .navigator-directory-toggle{display:inline-grid!important;place-items:center;order:-1;width:44px;min-width:44px;height:44px;min-height:44px;padding:0;border:0;background:transparent;box-shadow:none;color:var(--ink-soft)}
   ${SHELL} .immersive-workspace.is-directory-drawer-open .workbench-header .titlebar-end .immersive-show-directory{display:none!important}
 }
@@ -123,7 +124,7 @@ ${PRESSABLE}>svg{flex:none;width:14px;height:14px}
 /* The head: which work item the line belongs to, and how many of its events wait for the person. */
 .work-line-head{flex:0 1 auto;min-width:calc(2em + 60px);gap:7px;height:34px;max-width:200px;padding:0 8px 0 9px;border:1px solid var(--line-strong);border-radius:var(--r-control,8px);background:var(--paper);color:var(--ink);font-size:13px;font-weight:600}
 .work-line-head-name{min-width:0;${ELLIPSIS}}
-.work-line-count{flex:none;display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--amber-soft);color:var(--amber);font-size:11px;font-weight:600;font-variant-numeric:tabular-nums}
+.work-line-count{flex:none;display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:var(--amber-soft);color:var(--amber);font-size:11px;font-weight:600;font-variant-numeric:tabular-nums}
 /* The way to the events the left wing cannot hold: how many lie out of sight, one step back per press. */
 .work-line-earlier{gap:1px;height:28px;padding:0 7px 0 3px;border:1px solid var(--line-strong);border-radius:var(--r-control,8px);background:var(--paper);color:var(--ink-soft);font-size:11px;font-variant-numeric:tabular-nums}
 .work-line-earlier[data-attn]{border-color:var(--amber)}
@@ -132,7 +133,7 @@ ${PRESSABLE}>svg{flex:none;width:14px;height:14px}
 :is(.work-line-earlier,.work-line-earlier-attn)[hidden]{display:none}
 .work-line-latest{position:absolute;right:0;padding:0 6px}
 /* An event: one thing on the line, registered by a plugin or the Assistant. Its state is a word as well as a look; the tasks behind it show as a ring and a count. */
-.work-event{gap:7px;height:32px;max-width:300px;padding:0 10px 0 6px;border:0;border-radius:16px;background:var(--paper);box-shadow:inset 0 0 0 1px var(--line-strong);color:var(--ink);font-size:12px;font-weight:500}
+.work-event{gap:7px;height:32px;max-width:300px;padding:0 10px 0 6px;border:0;border-radius:999px;background:var(--paper);box-shadow:inset 0 0 0 1px var(--line-strong);color:var(--ink);font-size:12px;font-weight:500}
 .work-line-wing[data-wing="past"] .work-event{max-width:min(300px,calc(100% - 4px))}
 .work-event[data-cut]{opacity:0;pointer-events:none}
 .work-event[aria-current]{box-shadow:inset 0 0 0 1.5px var(--ink)}
@@ -329,7 +330,7 @@ html[data-craft-still] ${ANIMATED}{animation:none}
 @container work-line (max-width:959px){
   .work-line-row{grid-template-columns:minmax(0,3fr) auto minmax(0,1fr);grid-template-rows:44px auto;row-gap:6px;height:auto}
   .work-line-row::before{top:22px}
-  .work-line-now{grid-column:2;grid-row:1;position:relative;display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:11px;background:var(--action);color:var(--action-ink);font-size:11px;font-weight:600}
+  .work-line-now{grid-column:2;grid-row:1;position:relative;display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:999px;background:var(--action);color:var(--action-ink);font-size:11px;font-weight:600}
   .work-line-slot{grid-column:1/-1;grid-row:2;align-self:auto;justify-self:center;width:min(100%,640px)}
 }
 /* A phone (the line is 540px or less): one track above the composer that slides sideways and rests on whole capsules, the head and any unreadable source fixed at its start. */
@@ -350,7 +351,7 @@ html[data-craft-still] ${ANIMATED}{animation:none}
   .work-line-now{flex:none}
   .work-line-row .work-line-wing .work-line-head{height:44px;min-width:44px;justify-content:center}
   .work-line-head-name,.work-event-note{display:none}
-  .work-event,.work-line-wing[data-wing="past"] .work-event{height:44px;max-width:min(240px,var(--cap-max,240px));border-radius:22px}
+  .work-event,.work-line-wing[data-wing="past"] .work-event{height:44px;max-width:min(240px,var(--cap-max,240px))}
   .work-line-wing[data-wing="past"] .work-line-run>:last-child{max-width:min(240px,var(--near-max,240px))}
   /* The closed dialog's row is above the input here too: it is the end of the track, over nothing of the work, and the events stop before it. */
   [data-assistant-island]>.work-reply-mini{bottom:calc(100% + 6px);height:48px;padding:0 0 0 4px;border-radius:0;background:var(--desk);box-shadow:-6px 0 6px -2px var(--desk);animation:none}
@@ -383,7 +384,6 @@ html[data-craft-still] ${ANIMATED}{animation:none}
   ${TOP}>.dock-pins{height:44px;padding:0;gap:0}
   ${TOP} .plugin-picker-trigger{width:44px;height:44px}
   .work-line-row .work-line-wing .work-line-head,.work-event,.work-line-earlier{height:44px;min-width:44px}
-  .work-event{border-radius:22px}
   /* Its glyphs are 44px each: where the strip runs short they slide in their own box before anything is pushed off the window. */
   ${TOP}>.side-strip{flex-shrink:1;padding-block:2px;margin-block:-2px;overflow-x:auto;justify-content:safe flex-end}
 }

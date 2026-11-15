@@ -7481,7 +7481,13 @@
     "workbench.skill-authoring.error-body": "Say how to do it.",
     "workbench.skill-authoring.error-body-long": "The body is over the limit: at most {ml} lines and {mc} characters. Move reference material into attached files (an imported skill can carry them).",
     "workbench.skill-authoring.error-description": "Say when to use it, or AI can’t tell whether to pick it.",
-    "workbench.skill-authoring.error-long": "At most {n} characters.",
+    "workbench.skill-authoring.error-long": {
+      "plural_arg": "n",
+      "forms": {
+        "one": "At most {n} character.",
+        "other": "At most {n} characters."
+      }
+    },
     "workbench.skill-authoring.error-name": "A name is needed.",
     "workbench.skill-authoring.error-name-taken": "“My skills” already has one with this name.",
     "workbench.skill-authoring.for": "For",

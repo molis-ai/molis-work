@@ -29,7 +29,7 @@ test("RAC-2090 Goals' page rules reach the workbench sheet once, from its regist
 
 test("RAC-2091 the rules of Goals' settings pages reach both sheets that draw settings, once each", () => {
   const rules = goals.settingsStylesheet!;
-  assert.match(rules, /\[data-project-rules-form\]|\.planning-/u);
+  assert.match(rules, /\.project-rules-/u);
   assert.equal(pluginSettingsStyles(), rules, "Goals is the one plugin with settings rules");
   for (const sheet of [renderMolisWorkWorkbenchStylesheet(), renderMolisWorkSettingsStylesheet()]) assert.equal(count(sheet, rules), 1);
 });
@@ -45,7 +45,9 @@ test("RAC-2092 the Goals page script takes each factory from the registration, b
 
 test("RAC-2093 Goals' settings scripts run from the registration's settings client", () => {
   const settings = goals.settingsClient!;
-  for (const binder of ["molisWorkBindProjectRules", "molisWorkBindPlanningSettings", "molisWorkBindPlanningAdoption"]) assert.match(settings, new RegExp(binder, "u"));
+  // Batch 41 (41-2): the planning settings pages left Goals with the method library; the project rules page is what remains.
+  assert.match(settings, /molisWorkBindProjectRules/u);
+  assert.doesNotMatch(settings, /molisWorkBindPlanning/u);
   assert.ok(pluginSettingsClients().includes(settings));
   assert.equal(count(workbenchClientSource(), settings), 1);
 });

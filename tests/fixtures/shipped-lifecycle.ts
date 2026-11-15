@@ -33,9 +33,8 @@ export interface Shipped {
   /**
    * A dual-instance plugin: by default the Home half holds what the person writes and is the one the walk follows (its
    * `home`-scope actions); each project's own half is a second installation that the Home half's uninstall does not touch.
-   * `"project"` is the other way round: the data lives in the project half (Goals), and the Home half is the second installation.
    */
-  readonly dual?: true | "project";
+  readonly dual?: true;
   /**
    * A project plugin that is not personal: taking it out of the project stops the project's installation (`disabled`) and adding it
    * back runs it again, where a personal plugin's installation keeps running whoever may reach it (apps/local-host/src/project-plugin-enablement.ts).
@@ -92,7 +91,7 @@ export function viewOf(served: Served, project: TestProject, plugin: Pick<Shippe
     routes,
     platform: async () => { const running = await platform(); assert.ok(running, `${plugin.key}: the ${plugin.scope} platform runs`); return running; },
     /** The plugin's actions the person may call in the project now: those of the half the walk follows, or of the scope asked for. */
-    async callable(scope: "home" | "project" | undefined = plugin.dual === "project" ? "project" : plugin.dual ? "home" : undefined) {
+    async callable(scope: "home" | "project" | undefined = plugin.dual ? "home" : undefined) {
       const views = await served.host.actionClient(project.reference).discover(await served.host.localPersonContext(project.reference));
       return views.filter(view => view.provider.plugin_id === plugin.plugin_id && view.availability.available && (scope === undefined || view.action.scope === scope))
         .map(view => `${view.capability_id}@${view.version}`).sort();
@@ -206,11 +205,7 @@ export async function walk(plugin: Shipped, host: Partial<HostOptions> = {}) {
       const rows = listed.consents.filter(row => row.kind === "always_on");
       assert.ok(rows.length > 0 && rows.every(row => row.revoked_at !== null), `${plugin.key}: the agreement stays revoked, the Host does not agree again`);
     }
-    if (plugin.dual === "project") {
-      const homeHalf = await served.host.homePlugins!.ready();
-      const other = homeHalf.runtime.list().find(item => item.plugin_id === plugin.plugin_id);
-      assert.ok(other && other.state === "running", `${plugin.key}: the Home half is another installation, still there`);
-    } else if (plugin.dual) assert.ok((await at.callable("project")).length > 0, `${plugin.key}: the project's own half is another installation, still there`);
+    if (plugin.dual) assert.ok((await at.callable("project")).length > 0, `${plugin.key}: the project's own half is another installation, still there`);
   } catch (error) {
     walkFailure = { error };
     throw error;

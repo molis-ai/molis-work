@@ -39,8 +39,8 @@ async function open(t: TestContext, answer: (request: Request) => { status?: num
     input_bindings: [], policy_bindings: [], events: [], feed: { sources: [], feed_items: [], inbox_entries: [], runs: [], out_rules: [] },
   };
   const guidance = { entries: [], inactive_entries: [], revisions: [], virtual_document: "", runtime_prompt_prefix: "" };
-  const html = runWithLocale("zh", () => renderer.renderMolisWorkProjectSettingsHub(view, guidance, [], "", false, section));
-  const guidanceHtml = guidanceFlow ? runWithLocale("zh", () => renderer.renderMolisWorkProjectGuidanceSettings(view, guidance, [])) : html;
+  const html = runWithLocale("zh", () => renderer.renderMolisWorkProjectSettingsHub(view, guidance, "", false, section));
+  const guidanceHtml = guidanceFlow ? runWithLocale("zh", () => renderer.renderMolisWorkProjectGuidanceSettings(view, guidance)) : html;
   const server = createServer(async (request, response) => {
     requests.push({ method: request.method ?? "GET", url: request.url ?? "/" }); visits.push(request.url ?? "/");
     const path = new URL(request.url!, "http://local").pathname;

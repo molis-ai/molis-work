@@ -37,7 +37,14 @@ function reasonCause(reason: string | null | undefined, count: number): string {
   if (reason === "recording_paused") return readText("workbench.settings-work-records.cause-paused");
   if (reason === "manual_cleanup" || reason === "cleanup") return readText("workbench.settings-work-records.cause-manual-cleanup");
   if (reason === "retention_expired" || reason === "auto_cleanup") return readText("workbench.settings-work-records.cause-auto-cleanup");
-  if (reason === "storage_failed" || reason === "write_failed") return readText("workbench.settings-work-records.cause-storage-failed", { count: fmtNum(count || 1) });
+  if (reason === "storage_failed" || reason === "write_failed" || reason === "store_unavailable") return readText("workbench.settings-work-records.cause-storage-failed", { count: fmtNum(count || 1) });
+  if (reason === "queue_full") return readText("workbench.settings-work-records.cause-queue-full", { count: fmtNum(count || 1) });
+  if (reason === "plugin_data_cleared") return readText("workbench.settings-work-records.cause-plugin-cleared");
+  if (reason === "report_quota") return readText("workbench.settings-work-records.cause-report-quota", { count: fmtNum(count || 1) });
+  if (reason === "evidence_key") return readText("workbench.settings-work-records.cause-evidence-key", { count: fmtNum(count || 1) });
+  if (reason === "unknown_exit") return readText("workbench.settings-work-records.cause-unknown-exit");
+  if (reason === "exit_failed" || reason === "record_failed") return readText("workbench.settings-work-records.cause-record-failed", { count: fmtNum(count || 1) });
+  if (reason === "fact_not_owned") return readText("workbench.settings-work-records.cause-fact-not-owned", { count: fmtNum(count || 1) });
   if (reason === "not_connected") return readText("workbench.settings-work-records.cause-not-connected");
   if (reason === "image_resources_not_kept") return readText("workbench.settings-work-records.cause-image-refs");
   if (reason === "child_stream_not_followed") return readText("workbench.settings-work-records.cause-subagent-stream");
@@ -62,6 +69,7 @@ function reasonCause(reason: string | null | undefined, count: number): string {
 function stateEffect(state: string): string {
   if (state === "lost") return readText("workbench.settings-work-records.effect-lost");
   if (state === "expired") return readText("workbench.settings-work-records.effect-expired");
+  if (state === "purged") return readText("workbench.settings-work-records.effect-purged");
   if (state === "truncated") return readText("workbench.settings-work-records.effect-truncated");
   if (state === "redacted") return readText("workbench.settings-work-records.effect-redacted");
   if (state === "not_connected") return readText("workbench.settings-work-records.effect-not-connected");
@@ -78,6 +86,7 @@ function stateBadge(state: string): string {
   if (state === "truncated") return statusHtml(readText("workbench.catalog-work-records.status-truncated"), "attention");
   if (state === "redacted") return statusHtml(readText("workbench.settings-work-records.st-redacted"), "hold");
   if (state === "expired") return statusHtml(readText("workbench.catalog-work-records.status-cleared"), "hold");
+  if (state === "purged") return statusHtml(readText("workbench.settings-work-records.st-purged"), "hold");
   return statusHtml(readText("workbench.settings-work-records.st-unavailable"), "attention");
 }
 
@@ -140,7 +149,7 @@ export function renderGapsTab(S: WorkRecordsState): string {
     };
   });
 
-  const hasExpiredOnly = gaps.some((g) => g.state === "expired") && !gaps.some((g) => g.state === "lost");
+  const hasExpiredOnly = gaps.some((g) => g.state === "expired") && !gaps.some((g) => g.state === "lost" || g.state === "unavailable" || g.state === "purged");
   const sinceWord = cov.recording.complete_since ? fmtDate(cov.recording.complete_since, "month-day") : "";
   const headSub = sinceWord
     ? readText("workbench.settings-work-records.cov-sub-since", { since: sinceWord, count: fmtNum(notConnRows.length) })

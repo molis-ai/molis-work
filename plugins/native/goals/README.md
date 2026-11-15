@@ -31,15 +31,15 @@ Host 注入各 Module 的公开端口，Goals 用 `createGoalsApplication` 在�
 
 ## 接入与边界
 
-`goalsActions` 当前提供 65 项 project 动作（2026-10-07 从构建产物数出），由 Manifest 声明并在项目动作服务中注册，其中 59 项可按授权供 MCP 使用，6 项仅供受保护的用户操作；另有 2 项 Home 动作 `personalPlanningActions`（见下文个人方法）：
+`goalsActions` 的项目动作由 Manifest 声明并在项目动作服务中注册。调用方从动作目录读取当前版本、受众和权限。本人通过平台的受保护入口审批。
 
 - 本地管理：`goals.board.initialize`（输入只有 `idempotency_key`，项目的名字是项目目录的，Goals 的看板不再记它，S8），只接受可信 management 用户上下文。CLI 与管理 MCP 经宿主造的管理动作端口调用这一动作，已登记且连接到 Home 的项目转交常驻宿主，身份由宿主定为本机这个人（`LOCAL_PERSON_ACTOR_ID`），输入不带 `actor_id`；普通 MCP/Agent/插件不获管理权。原初始化回执与禁止覆盖保持。V3 导入已删（2026-10-04，用户决定不留旧数据入口）。
 - 目录、创建、便笺：`goals.list`、`goals.create`、`goals.note`。
 - 对象上下文、搜索与片段：`goals.subject.read`（目标上下文，供调用者明确引用）、`goals.search.entries`（系统搜索条目）、`goals.fragment.offers`（按选中的片段准备本插件真实动作的参数，不执行）。这三项与 `goals.list`、`goals.note` 同样向已安装插件开放。
 - 资料与成果输入：`goals.inputs.bind`、`goals.inputs.release`、`goals.inputs.list` 把文档、演示稿、问卷、数据表、Shelf 材料等记为目标的绑定资料，不复制、不移动原对象；`goals.inputs.confirm` 由拥有来源的插件（目前是 Feed 的「升格为 Goal」）调用，让 Goals 记下：这条来源按确认时内容的摘要，是这个目标的输入（重复确认返回原记录，写的是 Goals 自己的回执，记在调用者的身份下）。它是普通的 Goals 命令（权限 `goals:write`，受众 user、agent、workflow、mcp，声明 `authorship: "session"`），可单独授权、被 MCP 与内置 Agent 直接调用；只有用户（本人）调用时记为已确认，助理、Agent、工作流和外部工具调用只记为待确认（`proposed`）。本人直接调用 Feed 的升格、Feed 经动作目录转来的调用（S-43）也算本人：Goals 只看 Host 在委托调用上设的 `delegated_by`、`delegated_audience`，不看输入；场景运行、两跳委托和 Feed 自己的定时调用不算（`personAsked`，`goals.create` 的创建渠道同样只许本人指定），与成果库的条目一样；待确认的输入由本人在 Goals 里认可（`goals.inputs.accept`，受众只有 user，`proposed` 记为 `confirmed`）或用 `goals.inputs.release` 移除（它也能停用来源材料的输入；已确认的来源输入只有用户能移除，其他调用者只能撤回待确认的提议），Goal 的输入列表写「待确认／已确认」并给「认可这条输入」「移除」两个按钮（页面经 `POST /api/plugins/io.molis.work.goals/goals/{id}/inputs`）；本人对一条还在待确认的来源再调 `goals.inputs.confirm` 会被拒绝（`goals.input_proposed`），要先认可；Goals 不核对来源是否存在，也不核对摘要真伪，只收严格形状的输入：摘要必须是 `sha256:` 加 64 位小写十六进制，理由 1–300 字，名称与来源标识各 1–200 字，来源种类目前只有 `feed_item`；`goals.deliverables.add`、`.remove`、`.list`、`.pin`、`.candidates` 与 `goals.artifact_inputs.add`、`.remove`、`.list`、`.pin` 把成果库里的一版记为目标的交付物或输入，或把资料当前内容固定成新的一版再记入。助理、Coding、工作流或 MCP 调用时只记为提议（附理由），等用户确认；移除已确认的条目只有用户能做。
-- 结构提案：`goals.tree.submit`、`goals.tree.read`、`goals.tree.check`、`goals.tree.decide`。提交只保存提案，检查保存检查结果并回滚预检变更；审批为受保护的用户操作。已决定的提案保持可读。
+- 结构提案使用 `goals.tree.submit`、`goals.tree.read`、`goals.tree.check`、`goals.tree.review` 和 `goals.tree.decide`。提交只保存提案，检查保存检查结果并回滚预检变更。平台先读取提案当前是否可审批，再将本人确认的选择交给 Goals 执行。已决定的提案保持可读。
 - 目标生命周期：`goals.active.set`、`goals.archive.set`、`goals.trash.set`、`goals.trash.list`。当前目标不启动工作；归档须已完成；回收站操作须明确确认，保留阻塞、完整历史及关系恢复结果。
-- 关系与规则：`goals.relations.list`、`goals.relations.add`、`goals.relations.deactivate`、`goals.policy.history`、`goals.policy.resolve`、`goals.policy.save`。三项查询可按授权供 MCP 使用；建立/解除关系与保存项目默认规则是受保护的用户操作。模型需使用结构提案。
+- MCP 可按授权调用 `goals.relations.list` 和 `goals.policy.resolve` 查询关系列表和生效规则。本人可用 `goals.relations.add` 和 `goals.relations.deactivate` 建立或解除关系，模型走结构提案。
 - 项目长期说明：`goals.guidance.read`、`goals.guidance.add`、`goals.guidance.update`。读取完整修订与提示词；新增/编辑/停用/恢复保留明确确认、原因、确认摘要、原去重及幂等回执。
 - 工作记录与状态写入：`goals.events.configure`、`goals.events.report`、`goals.progress.record`、`goals.concerns.apply`、`goals.decisions.request`、`goals.decisions.cite`、`goals.agreement.set`、`goals.closure.submit`、`goals.work.resume`。
 - 项目规划：`goals.planning.impact`、`goals.planning.graph.check`。只剩关系图检查与影响分析；规划方法是技能目录里的技能，不归 Goals（第 41 批）。
@@ -80,13 +80,13 @@ Goals 消费统一授权管理页的项目审批规则。「完成前必须你�
 
 生命周期的 Web API、CLI 当前目标与回收站组合动作已转入动作。删除/恢复固定操作方向，拒绝输入 trashed 覆盖；work_state 从本次原回执生成，后续排队写入不会改写它。`goals.active.set` 只收 goal_id、reason、idempotency_key，身份和项目由已授权连接绑定；删除与恢复共享同一授权；原领域数据和回执保留。
 
-目标树的动作、CLI、Web 审批与管理 `goal_tree_decide` 共用四个动作，原 Submission/Query/Check/Decision owner 保留幂等、事务、基线冲突及修订语义。新输入只允许 goal/create、relation/create|deactivate；part_of 为子目标到父目标，depends_on 为消费目标到前置目标。修订条目须使用新的稳定 item_id，修订后的提案仍需审批。schema 位于插件，不另维护 MCP 业务 schema。
+Goals 的原动作处理目标树的提交、查询、检查和决定，保留幂等、事务、基线冲突及修订语义。新输入只允许 goal/create、relation/create|deactivate。part_of 为子目标到父目标，depends_on 为消费目标到前置目标。修订条目须使用新的稳定 item_id，修订后的提案仍需审批。原提案的业务 schema 由插件维护。
 
 结构与事件决定由平台通用入口记录。Web、CLI `review-request`／`review-decide` 和管理 MCP `molis_work_v1_review_request`／`molis_work_v1_review_decide` 使用同一已阅请求、选择和重放键，原动作在实际提交时核对一次许可。本人、项目与原操作出处由 Host 提供。Goals 继续拥有提案条目、事件、逐项结果和物化效果。升级前的决定保留原出处供追溯。
 
 动作提交的 submitted_session_id 从可信 ActionCallContext.runtime_session_id 注入，经常驻网关保持，插件 Agent 的一轮取宿主在启动时核过归属的那条会话（审计作者 `agent:<runtime_id>:<会话>`，幂等按会话分开）；管理入口背后没有 Runtime 会话，提案记 `submitted_session_id: null`。业务输入不能覆盖它。原始用户身份和整组提示由 user_action 提供，审计 Runtime 身份不能替代用户。
 
-关系写入仍走 Goals 的公开动作。项目规则的创建、撤回和历史查询由统一授权管理页调用平台审批服务。Goals 的详情读取适用规则，显示生效结论和授权管理页入口。
+项目规则的创建、撤回和历史查询由统一授权管理页调用 `project.approvals.rules.read@1` 和 `project.approvals.rules.change@1`。Goals 的详情读取适用规则，显示生效结论和授权管理页入口。
 
 第 41 批（2026-11-14）起 Goals 没有方法库，也没有 Home 那一半：方法目录、读取、保存、个人方法和事件配置里的「采用」都已删除，`planning` 只剩关系图检查（`goals.planning.graph.check`）与影响分析（`goals.planning.impact`）。Goals 私有库 v3→v4 的升级段删掉 `planning_method_packs` 表和 `goal_event_config_versions.adopted_planning_json` 列；原 Home 库 `goals/goals.db` 在升级轮里连目录删除（宿主的 `REMOVED_HOME_STORES`）。
 

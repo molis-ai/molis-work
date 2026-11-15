@@ -12,7 +12,7 @@ import {
 import { EXTERNAL_SESSION_NATIVE_ID_PATTERN, type ExternalToolEntry } from "@molis-ai/molis-work-contracts/platform/external-tools";
 import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
 import { cutCharacters, cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
-import { SessionSourceFailure, type AdapterReadOutput, type SessionDirectoryEntry, type SessionsPorts } from "../ports.js";
+import { readSessionSourceFailure, type AdapterReadOutput, type SessionDirectoryEntry, type SessionsPorts } from "../ports.js";
 
 export function isValidNativeId(value: string): boolean;
 export function isValidNativeId(value: unknown): value is string;
@@ -277,7 +277,7 @@ export async function readJsonlLines(
     }
   } catch (error) {
     if (signal.aborted) throw error;
-    const retryable = error instanceof SessionSourceFailure ? error.retryable : true;
+    const retryable = readSessionSourceFailure(error)?.retryable ?? true;
     stopped = { code: "sessions.read_failed", retryable };
   } finally {
     try { await reader.cancel(); } catch { /* ignore */ }

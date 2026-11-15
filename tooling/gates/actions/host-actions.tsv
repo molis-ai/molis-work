@@ -519,6 +519,8 @@ sessions.list	1	system.sessions	query	query	home	read	concurrent	agent,mcp,plugi
 sessions.project_ai_read.set	1	system.sessions	command	operation	home	write	-	user	sessions:manage	-	-	-	4e9ab6c0fa75	72e5122b9fe6	-
 sessions.scope.read	1	system.sessions	query	query	home	read	concurrent	user	sessions:read	-	-	-	7ac73011d25d	9cd6b477aa0a	-
 sessions.scope.set	1	system.sessions	command	operation	home	write	-	user	sessions:manage	-	-	-	8c2adb964831	9cd6b477aa0a	-
+sessions.search.entries	1	system.sessions	query	query	home	read	concurrent	user	sessions:read	external_session	molis.search.entries.window.v1	molis.search.entries.page.v1	09d161bb4729	501913bfa17f	41f2d283e1ca
+sessions.subject.read	1	system.sessions	query	query	home	read	concurrent	user	sessions:read	external_session	molis.subject-reference.v1	molis.subject-context.v1	ab53aeec266b	07aea27d3e00	-
 sessions.tool.search	1	system.sessions	query	query	home	read	concurrent	user	sessions:read	-	-	-	48f7bbd21c54	8300476b7d17	-
 skills.authored.draft	1	plugin-install	query	query	home	read	concurrent	user	model:invoke,skills:manage	-	-	-	71a0cee5c094	917835056041	613063238287
 skills.authored.read	1	system.skills	query	query	home	read	-	user	skills:manage	-	-	-	b2bd8b4691b6	b16ef802e673	-

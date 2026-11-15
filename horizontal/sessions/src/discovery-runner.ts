@@ -15,7 +15,7 @@ import {
 } from "./attribution.js";
 import type { SessionDirectoryIdentity } from "./git-files.js";
 import {
-  SessionSourceFailure,
+  sessionSourceFailure,
   sourceStatusFromFailure,
   type AdapterDiscoveryBatch,
   type AdapterSourceContext,
@@ -50,14 +50,14 @@ export function resolveLocalToolRoot(tool: ExternalToolEntry, ports: SessionsPor
 
 function assertCloudConnectionActive(connectionId: string | null, ports: SessionsPorts): void {
   if (!connectionId) {
-    throw new SessionSourceFailure("connection_removed", "Missing cloud connection", false);
+    throw sessionSourceFailure("connection_removed", "Missing cloud connection", false);
   }
   const currentConn = ports.connections.current(connectionId);
   if (!currentConn) {
-    throw new SessionSourceFailure("connection_removed", "Cloud connection removed", false);
+    throw sessionSourceFailure("connection_removed", "Cloud connection removed", false);
   }
   if (!currentConn.enabled) {
-    throw new SessionSourceFailure("login_expired", "Cloud connection disabled or expired", false);
+    throw sessionSourceFailure("login_expired", "Cloud connection disabled or expired", false);
   }
 }
 

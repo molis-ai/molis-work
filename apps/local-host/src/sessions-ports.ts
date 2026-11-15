@@ -22,8 +22,8 @@ import {
 } from "@molis-ai/molis-work-contracts/services/sessions";
 import type { PrologueStructuredRequest } from "@molis-ai/molis-work-service-agent-host";
 import {
-  SessionSourceFailure,
   identifySessionDirectory,
+  sessionSourceFailure,
   type SessionAttributionSuggester,
   type SessionCommandResult,
   type SessionDirectoryIdentity,
@@ -167,18 +167,18 @@ async function resolveVerifiedToolBinary(
     : (tool.detect?.commands?.length ? tool.detect.commands : tool.terminal ? [tool.terminal.command] : []);
   const found = findExecutableOnPath(candidates, searchPath);
   if (!found) {
-    throw new SessionSourceFailure("tool_missing", `本机未找到 ${tool.display_name} 可执行文件`, false);
+    throw sessionSourceFailure("tool_missing", `本机未找到 ${tool.display_name} 可执行文件`, false);
   }
 
   let realBinary: string;
   try {
     realBinary = await fs.realpath(found);
   } catch {
-    throw new SessionSourceFailure("tool_missing", `无法解析 ${tool.display_name} 可执行文件路径`, false);
+    throw sessionSourceFailure("tool_missing", `无法解析 ${tool.display_name} 可执行文件路径`, false);
   }
 
   if (tool.detect?.real_path_pattern && !new RegExp(tool.detect.real_path_pattern, "u").test(realBinary)) {
-    throw new SessionSourceFailure("tool_missing", `${tool.display_name} 可执行文件路径不匹配已核对的发行形态`, false);
+    throw sessionSourceFailure("tool_missing", `${tool.display_name} 可执行文件路径不匹配已核对的发行形态`, false);
   }
 
   const childEnv = minimalToolEnv(tool, homeRoot, searchPath, sourceEnv);
@@ -193,12 +193,12 @@ async function resolveVerifiedToolBinary(
       signal.throwIfAborted();
       const err = error as { killed?: boolean; code?: string | number };
       if (err.killed || err.code === "ETIMEDOUT") {
-        throw new SessionSourceFailure("timed_out", `检查 ${tool.display_name} 版本超时`, true);
+        throw sessionSourceFailure("timed_out", `检查 ${tool.display_name} 版本超时`, true);
       }
-      throw new SessionSourceFailure("version_mismatch", `无法读取 ${tool.display_name} 版本信息`, false);
+      throw sessionSourceFailure("version_mismatch", `无法读取 ${tool.display_name} 版本信息`, false);
     }
     if (!new RegExp(tool.detect.version_pattern, "u").test(versionOut)) {
-      throw new SessionSourceFailure("version_mismatch", `${tool.display_name} 当前版本输出不匹配已核对格式`, false);
+      throw sessionSourceFailure("version_mismatch", `${tool.display_name} 当前版本输出不匹配已核对格式`, false);
     }
   }
   return { binary: realBinary, env: childEnv };
@@ -221,10 +221,10 @@ async function runExecFileCapture(
     signal.throwIfAborted();
     const err = error as { code?: string | number; killed?: boolean; stdout?: string; stderr?: string };
     if (err.killed || err.code === "ETIMEDOUT") {
-      throw new SessionSourceFailure("timed_out", "外部工具命令执行超时", true);
+      throw sessionSourceFailure("timed_out", "外部工具命令执行超时", true);
     }
     if (err.code === "ERR_CHILD_PROCESS_STDIO_MAXBUFFER") {
-      throw new SessionSourceFailure("read_error", "外部工具命令输出超出大小上限", false);
+      throw sessionSourceFailure("read_error", "外部工具命令输出超出大小上限", false);
     }
     if (typeof err.code === "number") {
       return {
@@ -233,7 +233,7 @@ async function runExecFileCapture(
         exit_code: err.code,
       };
     }
-    throw new SessionSourceFailure("read_error", "外部工具命令执行失败", true);
+    throw sessionSourceFailure("read_error", "外部工具命令执行失败", true);
   }
 }
 
@@ -286,7 +286,7 @@ function createHostConnectionsPort(
       return { choices, connect_service_id: serviceId };
     },
     async request(_connectionId: string, _request: SessionServiceRequest, _signal: AbortSignal): Promise<SessionServiceResponse> {
-      throw new SessionSourceFailure("read_error", "当前没有使用直连 HTTP 会话接口的外部工具适配", false);
+      throw sessionSourceFailure("read_error", "当前没有使用直连 HTTP 会话接口的外部工具适配", false);
     },
     async command(connectionId: string, entry: ExternalToolId, argv: readonly string[], signal: AbortSignal): Promise<SessionCommandResult> {
       const tool = findTool(entry);
@@ -294,17 +294,17 @@ function createHostConnectionsPort(
       assertReadOnlyToolArgv(tool, argv);
 
       const connection = withConnectorConnections(homeDirectory, store => store.get(connectionId), true);
-      if (!connection) throw new SessionSourceFailure("connection_removed", "所选服务连接已不存在", false);
+      if (!connection) throw sessionSourceFailure("connection_removed", "所选服务连接已不存在", false);
       if (!connection.enabled || connection.disconnected_at || connection.auth_method !== "cli") {
-        throw new SessionSourceFailure("login_expired", "所选官方 CLI 连接已停用或已断开", false);
+        throw sessionSourceFailure("login_expired", "所选官方 CLI 连接已停用或已断开", false);
       }
       const config = withConnectorProtocols(homeDirectory, store => store.get<CliProtocolRecord>(connectionId), true);
       if (!config || config.protocol !== "cli") {
-        throw new SessionSourceFailure("login_expired", "请重新连接官方 CLI", false);
+        throw sessionSourceFailure("login_expired", "请重新连接官方 CLI", false);
       }
       const cliSpec = CONNECTOR_CLIS[connection.service_id];
       if (!cliSpec || cliSpec.binary !== config.binary) {
-        throw new SessionSourceFailure("login_expired", "官方 CLI 连接配置无效", false);
+        throw sessionSourceFailure("login_expired", "官方 CLI 连接配置无效", false);
       }
 
       const launch = config.installation_id ? managedCliLaunch(homeDirectory, config.installation_id) : undefined;
@@ -315,21 +315,21 @@ function createHostConnectionsPort(
 
       const verifyIdentityFingerprint = async (): Promise<void> => {
         const currentConn = withConnectorConnections(homeDirectory, store => store.get(connectionId), true);
-        if (!currentConn) throw new SessionSourceFailure("connection_removed", "读取期间服务连接已被移除", false);
+        if (!currentConn) throw sessionSourceFailure("connection_removed", "读取期间服务连接已被移除", false);
         if (!currentConn.enabled || currentConn.disconnected_at || currentConn.updated_at !== connection.updated_at) {
-          throw new SessionSourceFailure("login_expired", "读取期间服务连接状态已变化", false);
+          throw sessionSourceFailure("login_expired", "读取期间服务连接状态已变化", false);
         }
         const idRes = await runExecFileCapture(binary, cliSpec.identity, cwd, env, signal);
-        if (idRes.exit_code !== 0) throw new SessionSourceFailure("login_expired", `${cliSpec.binary} 登录已失效，请重新登录`, false);
+        if (idRes.exit_code !== 0) throw sessionSourceFailure("login_expired", `${cliSpec.binary} 登录已失效，请重新登录`, false);
         let parsed: unknown;
         try {
           parsed = JSON.parse(idRes.stdout);
         } catch {
-          throw new SessionSourceFailure("login_expired", `无法验证 ${cliSpec.binary} 当前登录账号`, false);
+          throw sessionSourceFailure("login_expired", `无法验证 ${cliSpec.binary} 当前登录账号`, false);
         }
         const fingerprint = computeCliFingerprint(connection.service_id, parsed);
         if (!fingerprint || fingerprint !== config.fingerprint) {
-          throw new SessionSourceFailure("account_changed", `${cliSpec.binary} 当前登录账号已切换，请重新核对连接`, false);
+          throw sessionSourceFailure("account_changed", `${cliSpec.binary} 当前登录账号已切换，请重新核对连接`, false);
         }
       };
 

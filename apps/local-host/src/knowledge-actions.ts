@@ -1,6 +1,6 @@
 import { prepareKnowledgeDispatch, type KnowledgeCatalogAccess, type PreparedKnowledgeCatalog } from "./knowledge-dispatch.js";
 import type { AgentSessionLifecycleCapability } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { SUBJECT_REFERENCE_TYPE, SUBJECT_STATE_TYPE, isSubjectReader, isSearchEntriesSource, searchRevisionOf, type ActionSubjectState } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, SUBJECT_REFERENCE_TYPE, SUBJECT_STATE_TYPE, actionReachesAudience, isSubjectReader, isSearchEntriesSource, searchRevisionOf, type ActionSubjectState } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ActionCallContext, ActionExecutionContext, ActionHandlerBinding, ActionProviderRegistration, ActionReference, ActionSubject, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import {
@@ -153,6 +153,22 @@ async function querySubjectState(access: KnowledgeAccess, subject: ActionSubject
   } catch { return "unknown"; }
 }
 
+const allowedForPlugin = (view: ActionView) =>
+  !(isSubjectReader(view.action) || isSearchEntriesSource(view.action)) || actionReachesAudience(view.action, view.capability_id, "plugin");
+
+function pluginKnowledgeClient(client: HostActionClient): HostActionClient {
+  return {
+    discover: async caller => (await client.discover(caller)).filter(allowedForPlugin),
+    discoverMatching: async (caller, select) => (await matchingActions(client, caller, select)).filter(allowedForPlugin),
+    invoke: async (caller, reference, input) => {
+      const target = (await client.discover(caller)).find(view => view.capability_id === reference.capability_id
+        && view.version === reference.version && (!reference.provider_id || view.provider.provider_id === reference.provider_id));
+      if (target && !allowedForPlugin(target)) throw new ActionError("actions.forbidden", "插件不能代读仅限本人的对象来源");
+      return client.invoke(caller, reference, input);
+    },
+  };
+}
+
 /**
  * Host wiring for project knowledge (specs/project-knowledge): the provider `system.knowledge` over the system search it rides
  * on, the Home's card store, and organizing in the background. It is registered and closed together with search
@@ -224,7 +240,7 @@ export function createKnowledgeHost(ports: KnowledgeHostPorts): KnowledgeHost {
     const asked: KnowledgeAccess = { client: ports.clientFor(caller), caller, workspace: caller, beforeEffect: caller.beforeEffect };
     if (caller.audience !== "plugin" || !caller.project_id || !caller.permissions.includes(KNOWLEDGE_READ_PERMISSION) || !ports.ownerContext) return asked;
     const owner = await ports.ownerContext(caller.project_id), origin = { ...action, provider_id: KNOWLEDGE_PROVIDER_ID };
-    return { ...asked, reader: { ...owner, ...(caller.signal ? { signal: caller.signal } : {}),
+    return { ...asked, client: pluginKnowledgeClient(asked.client), reader: { ...owner, ...(caller.signal ? { signal: caller.signal } : {}),
       validate_authority: async reference => { await caller.validate_authority?.(origin); await owner.validate_authority?.(reference); },
       assert_authority_current: (reference, permissions) => { caller.assert_authority_current?.(origin); owner.assert_authority_current?.(reference, permissions); } } };
   };

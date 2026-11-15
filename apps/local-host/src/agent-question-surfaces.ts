@@ -23,15 +23,19 @@ export function hostQuestionTypes(
   return first.filter(type => rest.every(surface => surface.includes(type)));
 }
 
-type Declared = Parameters<typeof isSubjectReader>[0] & { subject_kinds: readonly string[]; search_source?: { kinds: ReadonlyArray<{ kind: string; title: string }> } };
+type Declared = Parameters<typeof isSubjectReader>[0] & {
+  audiences: readonly string[];
+  subject_kinds: readonly string[];
+  search_source?: { kinds: ReadonlyArray<{ kind: string; title: string }> };
+};
 
 /**
  * One plugin's kinds a reference question may ask for (T2, AC-28-1), each with the name the plugin gives it: a kind the
- * plugin lists for search and also reads back, since a pick is found by search and named by its owner's reader (S-26).
+ * plugin lists for search and also reads back for `agent`, since a pick is found by search and named by its owner's reader (S-26).
  */
 export function pluginReferenceKinds(plugin_id: string, installation: string, actions: readonly Declared[]): ReferenceKindCandidate[] {
-  const read = new Set(actions.filter(action => isSubjectReader(action)).flatMap(action => action.subject_kinds));
-  return actions.flatMap(action => action.search_source?.kinds ?? []).filter(entry => read.has(entry.kind)).map(entry => ({ plugin_id, installation, kind: entry.kind, title: entry.title }));
+  const read = new Set(actions.filter(action => isSubjectReader(action) && action.audiences.includes("agent")).flatMap(action => action.subject_kinds));
+  return actions.filter(action => action.audiences.includes("agent")).flatMap(action => action.search_source?.kinds ?? []).filter(entry => read.has(entry.kind)).map(entry => ({ plugin_id, installation, kind: entry.kind, title: entry.title }));
 }
 
 /**

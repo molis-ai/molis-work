@@ -1,5 +1,5 @@
 import { personalInputText } from "../memory/memory-source-identity.js";
-import type { AgentRunView, AgentSessionView, AgentRuntimeAdapter, AgentRunRef, AgentOriginalInputRef } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { isTerminalAgentPhase, type AgentRunView, type AgentSessionView, type AgentRuntimeAdapter, type AgentRunRef, type AgentOriginalInputRef } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { HostOfferedOriginalInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentAnswerControl } from "@molis-ai/molis-work-contracts/services/agent-interaction";
 import { AGENT_INPUT_KEY_PATTERN, type AgentInputSend, type AgentInputsPort, type AgentSteerMode, type AgentSteerReceipt } from "@molis-ai/molis-work-contracts/services/agent-inputs";
@@ -7,6 +7,7 @@ import type { AssistantContextSnapshot, AssistantMaterial, AssistantSendInput, A
 import type { WebLocale } from "../web-locale.js";
 import { textFieldId } from "../agent-question-card.js";
 import { assistantErrors } from "./assistant-errors.js";
+import { carriesExternalSessionInput } from "./assistant-external-sessions.js";
 import type { StoredWork } from "./assistant-store.js";
 
 /** What became of a Send that reached a round already under way, or one that had just ended (its words wait for the next). */
@@ -126,6 +127,11 @@ export class AssistantInputs {
    * To answer, `round` is the run as read (a session's summary has not read a questionnaire's questions yet).
    */
   async deliver(round: AgentRunView, text: string, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, port: RunningRoundPort, intent: SendIntent = {}): Promise<RoundInputOutcome> {
+    if (carriesExternalSessionInput(materials, context)) {
+      throw assistantErrors.state(isTerminalAgentPhase(round.phase)
+        ? "这一轮刚结束，留给下一轮的话不能带外部会话内容：直接再发一次，就会在只限本轮的新一轮里带上"
+        : "这一轮还在进行，外部会话内容只在单独的新一轮里可见（不会留在后续轮次历史里）：请等这一轮结束后再发，或先停止这一轮");
+    }
     if (intent.target === "answer") {
       const found = composerQuestion(round.awaiting_input), question = found && !found.field ? found.question : undefined;
       if (round.phase !== "awaiting-input" || !question) throw assistantErrors.stale("这一轮已经不在等你回答问题；这句话没有发送");

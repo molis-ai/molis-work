@@ -1,6 +1,6 @@
 import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
 import {
-  SessionSourceFailure,
+  sessionSourceFailure,
   type AdapterDiscoveryBatch,
   type AdapterSourceContext,
   type ExternalSessionSourceAdapter,
@@ -15,7 +15,7 @@ function extractItemsArray(parsed: unknown): unknown[] {
     if (Array.isArray(parsed.items)) return parsed.items;
     if (Array.isArray(parsed.data)) return parsed.data;
   }
-  throw new SessionSourceFailure("parse_error", "Unexpected JSON shape from droid search", false);
+  throw sessionSourceFailure("parse_error", "Unexpected JSON shape from droid search", false);
 }
 
 export const droidAdapter: ExternalSessionSourceAdapter = {
@@ -25,17 +25,17 @@ export const droidAdapter: ExternalSessionSourceAdapter = {
     if (cursor !== null) return { sessions: [], skipped_count: 0, next_cursor: null, total: 0 };
     const spec = context.tool.sessions.discover;
     if (spec.via !== "command") {
-      throw new SessionSourceFailure("version_mismatch", "Unexpected discover spec for droid", false);
+      throw sessionSourceFailure("version_mismatch", "Unexpected discover spec for droid", false);
     }
     const res = await context.ports.commands.run(context.entry_id, spec.argv, signal);
     if (res.exit_code !== 0) {
-      throw new SessionSourceFailure("read_error", res.stderr || "droid search exited with error", true);
+      throw sessionSourceFailure("read_error", res.stderr || "droid search exited with error", true);
     }
     let parsed: unknown;
     try {
       parsed = JSON.parse(res.stdout || "[]");
     } catch {
-      throw new SessionSourceFailure("parse_error", "Invalid JSON from droid search", false);
+      throw sessionSourceFailure("parse_error", "Invalid JSON from droid search", false);
     }
     const items = extractItemsArray(parsed);
     const sessions = [];
@@ -79,18 +79,18 @@ export const droidAdapter: ExternalSessionSourceAdapter = {
   async searchTool(context, query, limit, signal): Promise<{ native_ids: string[]; skipped_count: number }> {
     const spec = context.tool.sessions.search;
     if (spec.via !== "command") {
-      throw new SessionSourceFailure("version_mismatch", "Droid search capability not configured", false);
+      throw sessionSourceFailure("version_mismatch", "Droid search capability not configured", false);
     }
     const argv = spec.argv.map(part => (part === "{query}" ? query : part));
     const res = await context.ports.commands.run(context.entry_id, argv, signal);
     if (res.exit_code !== 0) {
-      throw new SessionSourceFailure("read_error", res.stderr || "droid search failed", true);
+      throw sessionSourceFailure("read_error", res.stderr || "droid search failed", true);
     }
     let parsed: unknown;
     try {
       parsed = JSON.parse(res.stdout || "[]");
     } catch {
-      throw new SessionSourceFailure("parse_error", "Invalid JSON from droid search", false);
+      throw sessionSourceFailure("parse_error", "Invalid JSON from droid search", false);
     }
     const items = extractItemsArray(parsed);
     const ids: string[] = [];

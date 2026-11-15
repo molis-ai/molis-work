@@ -4,14 +4,25 @@ import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { EXTERNAL_TOOLS, externalTool } from "@molis-ai/molis-work-contracts/platform/external-tools";
-import type { ExternalSessionRow } from "@molis-ai/molis-work-contracts/services/sessions";
-import { assertReadOnlyToolArgv, createHostSessionsPorts } from "@molis-ai/molis-work-app-local-host";
+import { KNOWLEDGE_PROVIDER_ID, KNOWLEDGE_READ_PERMISSION, knowledgeActions } from "@molis-ai/molis-work-contracts/services/knowledge";
+import { SESSIONS_PROVIDER_ID, sessionsActions, type ExternalSessionRow } from "@molis-ai/molis-work-contracts/services/sessions";
 import {
-  SessionSourceFailure,
+  MolisWorkLocalHost,
+  assertReadOnlyToolArgv,
+  createHostSessionsPorts,
+  hostReferenceKinds,
+  molisWorkHostProjectReference,
+  projectReferenceKinds,
+} from "@molis-ai/molis-work-app-local-host";
+import {
   SessionsService,
   identifySessionDirectory,
+  readSessionSourceFailure,
+  sessionSourceFailure,
   type SessionProjectSnapshot,
   type SessionsPorts,
 } from "@molis-ai/molis-work-service-sessions";
@@ -68,7 +79,7 @@ test("S-sessions-read-roots 1: symlinked root, ancestor, subdirectory or file un
 
     await assert.rejects(
       () => portsB.files.open(realRoot, "projects/p1/sym-file.jsonl", AbortSignal.any([])),
-      (err: unknown) => err instanceof SessionSourceFailure && err.kind === "read_error",
+      (err: unknown) => readSessionSourceFailure(err)?.kind === "read_error",
     );
 
     // Also verify unapproved sources trigger zero directory reads.
@@ -109,7 +120,7 @@ test("S-sessions-read-roots 2: non-regular files and paths escaping the declared
     for (const bad of ["../outside.jsonl", "../../outside.jsonl", "/etc/passwd", "projects/../../outside.jsonl", "bad\0name.jsonl"]) {
       await assert.rejects(
         () => ports.files.open(realRoot, bad, AbortSignal.any([])),
-        (err: unknown) => err instanceof SessionSourceFailure && err.kind === "read_error",
+        (err: unknown) => readSessionSourceFailure(err)?.kind === "read_error",
       );
     }
 
@@ -120,7 +131,7 @@ test("S-sessions-read-roots 2: non-regular files and paths escaping the declared
     try {
       await assert.rejects(
         () => ports.files.open(realRoot, "projects/p1/ipc.jsonl", AbortSignal.any([])),
-        (err: unknown) => err instanceof SessionSourceFailure && err.kind === "read_error",
+        (err: unknown) => readSessionSourceFailure(err)?.kind === "read_error",
       );
     } finally {
       await new Promise<void>(resolve => server.close(() => resolve()));
@@ -224,7 +235,7 @@ test("S-sessions-read-only-commands 2: subprocess environment strips injection v
     }
     assert.equal(seenEnv.HOME, userHome);
 
-    // Oversized stdout (> 8 MiB) is killed and converted to SessionSourceFailure("read_error").
+    // Oversized stdout (> 8 MiB) is killed and converted to sessionSourceFailure("read_error").
     const floodQwen = [
       `#!${process.execPath}`,
       `if (process.argv.includes("--version")) { console.log("qwen-code 0.14.0"); process.exit(0); }`,
@@ -235,7 +246,7 @@ test("S-sessions-read-only-commands 2: subprocess environment strips injection v
 
     await assert.rejects(
       () => ports.commands.run("qwen-code", ["sessions", "list", "--json"], AbortSignal.any([])),
-      (err: unknown) => err instanceof SessionSourceFailure && err.kind === "read_error",
+      (err: unknown) => readSessionSourceFailure(err)?.kind === "read_error",
     );
   });
 });
@@ -374,7 +385,7 @@ test("S-sessions-recheck-before-return 2: disabling or switching a connector acc
         request: async () => ({ status: 404, headers: {}, body: "" }),
         command: async (_connId, _entry, argv) => {
           if (accountSwitched) {
-            throw new SessionSourceFailure("account_changed", "GitHub CLI 当前登录账号已变为另一账号", false);
+            throw sessionSourceFailure("account_changed", "GitHub CLI 当前登录账号已变为另一账号", false);
           }
           if (argv.includes("list")) {
             return { exit_code: 0, stderr: "", stdout: JSON.stringify([{ id: "task-9", name: "Remote task", state: "completed", updatedAt: "2026-11-10T03:00:00Z" }]) };
@@ -680,6 +691,96 @@ test("S-sessions-person-decides 2: model attribution suggestions never write ses
       svc.close();
     }
   });
+});
+
+test("S-sessions-person-decides 5: plugins with knowledge:read cannot proxy-read external_session via Knowledge, and reference kinds never list external_session", async t => {
+  assert.equal(hostReferenceKinds().some(entry => entry.kind === "external_session"), false, "hostReferenceKinds excludes personal-only external_session");
+  const baseTmp = process.platform === "darwin" ? "/tmp" : tmpdir();
+  const root = await realpath(await mkdtemp(path.join(baseTmp, "ms-")));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  {
+    const userHome = path.join(root, "user");
+    const repoDir = path.join(root, "repo");
+    for (const d of [userHome, repoDir]) await mkdir(d, { recursive: true });
+    const claudeDir = path.join(userHome, ".claude", "projects", "p1");
+    await mkdir(claudeDir, { recursive: true });
+    await writeFile(
+      path.join(claudeDir, "sess-priv.jsonl"),
+      `${JSON.stringify({ sessionId: "sess-priv", cwd: repoDir, timestamp: "2026-11-12T01:00:00Z", message: { role: "user", content: "Private architecture notes" } })}\n`,
+    );
+
+    let capturedPlugin: HostPluginCaller | undefined;
+    const { openTestHome } = await import("./fixtures/test-home.js");
+    const home = await openTestHome(t, {
+      catalogPolicy: false,
+      host: {
+        sessions: { homeRoot: userHome, env: {} },
+        actionAvailability: caller => {
+          if (caller.audience === "plugin" && caller.host_plugin?.plugin_id === "io.molis.work.coding") {
+            capturedPlugin = caller.host_plugin;
+          }
+          return { available: true };
+        },
+      },
+    });
+    const proj = await home.createProject("Alpha", ["coding"]);
+    const ref = proj.reference;
+    const personProjectCaller = await home.host.localPersonContext(ref);
+    await home.web.get(`/projects/${proj.project_id}/api/plugins/io.molis.work.coding/goals`);
+    assert.ok(capturedPlugin, "captured real Host-issued Coding plugin caller holding knowledge:read");
+
+    const svc = home.host.sessions!.service;
+    const s0 = await svc.scopeRead({}, PERSON);
+    await svc.scopeSet({ expected_revision: s0.scope_revision, sources: [{ entry_id: "claude-code", allowed: true, directories: { mode: "all" } }] }, PERSON);
+    await svc.waitForDiscoveryIdle();
+    const sessionKey = (await svc.list({ view: "all" }, PERSON)).sessions[0]!.session_key;
+
+    const projectClient = home.host.actionClient(ref);
+    const views = await projectClient.discover(personProjectCaller);
+    assert.equal(
+      projectReferenceKinds(views, undefined, new Set()).some(entry => entry.kind === "external_session"),
+      false,
+      "projectReferenceKinds excludes external_session even when sessions.search.entries and sessions.subject.read are registered",
+    );
+
+    // Person can read `sessions.subject.read` directly, proving the session is live and readable by the local person.
+    const direct = await projectClient.invoke(personProjectCaller, { ...sessionsActions.subject, provider_id: SESSIONS_PROVIDER_ID }, { subject_id: sessionKey });
+    assert.ok(direct && typeof direct === "object");
+
+    // Real running Coding plugin caller holding `knowledge:read`: can call `knowledge.list`, yet CANNOT proxy-read `external_session`
+    // through `knowledge.read`, `outline`, `grep`, or `search` whether `project_ai_read` is OFF or ON!
+    const pluginCaller: ActionCallContext = {
+      actor_id: capturedPlugin.actor_id,
+      project_id: capturedPlugin.project_id,
+      audience: "plugin",
+      permissions: [KNOWLEDGE_READ_PERMISSION],
+      plugin_install_id: capturedPlugin.install_id,
+      host_plugin: capturedPlugin,
+    };
+    const listed = await projectClient.invoke(pluginCaller, { ...knowledgeActions.list, provider_id: KNOWLEDGE_PROVIDER_ID }, {}) as { pieces: Array<{ subject: { kind: string } }> };
+    assert.equal(listed.pieces.some(p => p.subject.kind === "external_session"), false);
+
+    for (const [rev, allowAi] of [[0, false], [0, true]] as const) {
+      if (allowAi) {
+        await svc.projectAiReadSet({ allowed: true, expected_revision: rev }, { ...PERSON, project_id: proj.project_id });
+      }
+      await assert.rejects(
+        () => projectClient.invoke(pluginCaller, { ...knowledgeActions.read, provider_id: KNOWLEDGE_PROVIDER_ID }, { subject: { kind: "external_session", id: sessionKey } }),
+        (err: unknown) => err instanceof ActionError && (err.code === "knowledge.unreadable" || err.code === "actions.subject_unavailable" || err.code === "actions.forbidden"),
+      );
+      await assert.rejects(
+        () => projectClient.invoke(pluginCaller, { ...knowledgeActions.outline, provider_id: KNOWLEDGE_PROVIDER_ID }, { subject: { kind: "external_session", id: sessionKey } }),
+        (err: unknown) => err instanceof ActionError && (err.code === "knowledge.unreadable" || err.code === "actions.subject_unavailable" || err.code === "actions.forbidden"),
+      );
+      const grepRes = await projectClient.invoke(
+        pluginCaller,
+        { ...knowledgeActions.grep, provider_id: KNOWLEDGE_PROVIDER_ID },
+        { pattern: "Private", subjects: [{ kind: "external_session", id: sessionKey }] },
+      ) as { matches: unknown[]; unread: Array<{ subject: { id: string } }> };
+      assert.equal(grepRes.matches.length, 0);
+      assert.deepEqual(grepRes.unread.map(item => item.subject.id), [sessionKey]);
+    }
+  }
 });
 
 test("S-sessions-git-files-only 1: worktree resolution reads only .git, commondir and gitdir text files and never executes git", async () => {

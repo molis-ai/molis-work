@@ -55,7 +55,8 @@ export {
 } from "./schema.js";
 export { identifySessionDirectory, type IdentifySessionDirectoryOptions, type SessionDirectoryIdentity } from "./git-files.js";
 export {
-  SessionSourceFailure,
+  readSessionSourceFailure,
+  sessionSourceFailure,
   sourceStatusFromFailure,
   type CodexThreadListResponse,
   type CodexThreadReadResponse,
@@ -67,6 +68,7 @@ export {
   type SessionProjectSnapshot,
   type SessionServiceRequest,
   type SessionServiceResponse,
+  type SessionSourceFailureInfo,
   type SessionSuggestDraft,
   type SessionSuggestDraftItem,
   type SessionSuggestGroupMaterial,

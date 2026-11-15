@@ -14,9 +14,7 @@ export interface HostSessions {
 }
 
 /**
- * Registers the `system.sessions` Home provider and owns the Home's `external-sessions.db` handle while the Host runs.
- * Note (`contract-design` §10.2): `sessions.search.entries@1` and `sessions.subject.read@1` stay unregistered until S-4
- * closes the Search, Knowledge, and Assistant guardrails.
+ * Registers all 12 `sessions.*` actions under the `system.sessions` Home provider and owns the Home's `external-sessions.db` handle while the Host runs.
  */
 export function createHostSessions(
   homeDirectory: string,
@@ -37,6 +35,8 @@ export function createHostSessions(
     sessionsActions.attributionSet as ActionDefinition<unknown, unknown>,
     sessionsActions.attributionSuggest as ActionDefinition<unknown, unknown>,
     sessionsActions.toolSearch as ActionDefinition<unknown, unknown>,
+    sessionsActions.searchEntries as ActionDefinition<unknown, unknown>,
+    sessionsActions.subject as ActionDefinition<unknown, unknown>,
     sessionsActions.connectorUsages as ActionDefinition<unknown, unknown>,
   ];
 
@@ -50,6 +50,8 @@ export function createHostSessions(
     bindActionHandler(sessionsActions.attributionSet, (input, caller) => service.attributionSet(input, caller)),
     bindActionHandler(sessionsActions.attributionSuggest, (input, caller) => service.attributionSuggest(input, caller)),
     bindActionHandler(sessionsActions.toolSearch, (input, caller) => service.toolSearch(input, caller)),
+    bindActionHandler(sessionsActions.searchEntries, (input, caller) => service.searchEntries(input, caller)),
+    bindActionHandler(sessionsActions.subject, (input, caller) => service.subjectRead(input, caller)),
     bindActionHandler(sessionsActions.connectorUsages, (input, caller) => service.connectorUsages(input, caller)),
   ];
 

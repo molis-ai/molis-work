@@ -288,13 +288,10 @@ export interface AssistantWork {
   created_at: string;
   updated_at: string;
   archived: boolean;
-  /**
-   * The Character the person chose to carry this work's rounds: an exact published version, in force from the next
-   * round on. Absent means the Assistant itself. Only project work can have one (Characters are published per project).
-   */
+  /** The Character the person chose to carry this work's rounds: an exact published version, in force from the next round on.
+   * Absent means the Assistant itself. Only project work can have one (Characters are published per project). */
   character?: AssistantCharacter;
-  /** Set on a work another work delegated: which one, and what it was asked to deliver. */
-  /** `taken_back_at`: the person took this part back into the work that delegated it (it stopped; what it made stays). */
+  /** Set on a work another work delegated: which one, what it was asked to deliver, and (`taken_back_at`) when the person took this part back into it (it stopped; what it made stays). */
   delegated_by?: { work_id: string; title: string; acceptance: string; taken_back_at?: string };
   /** The person's cap on this work's tokens (input plus output, its sub-tasks included). Absent means no cap of its own. */
   budget_tokens?: number;

@@ -3,7 +3,12 @@ import type { StateRingState } from "@molis-ai/molis-work-contracts/platform/ui"
 import type { BackgroundTaskRow, BackgroundTasksReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
 import type { AgentActionClient } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
+import { createHash } from "node:crypto";
+import { isTerminalAgentPhase, type AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { assistantErrors } from "./assistant-errors.js";
+import { mainWorkOf } from "./assistant-line-actions.js";
+import { assistantWords } from "./assistant-saved-text.js";
+import type { AssistantStore, StoredWork } from "./assistant-store.js";
 
 /**
  * Tasks no conversation started report to the scope's Assistant once they end (specs/work-line contract-design §9; user decision
@@ -90,6 +95,57 @@ export class AssistantTaskReports {
       if (answer === "later") later = true; else this.#told.add(key);
     }
     if (later) this.#pending.add(projectId); else this.#pending.delete(projectId);
+  }
+}
+
+interface ReportRoundPorts {
+  store: Pick<AssistantStore, "list" | "noticeRaised" | "raiseNotice">;
+  actorId: string;
+  /** The main conversation's session: a round going, or a recovery, means it is busy. */
+  session(work: StoredWork): Promise<{ recovery?: unknown; latest_run: { phase: AgentRunView["phase"] } | null }>;
+  /** Where the conversation's own continuation stands: an eligible one is its next round's, a report never takes it. */
+  continuation(work: StoredWork): Promise<string | undefined>;
+  /** Start the round that only reports, as the Host (`report_only`). */
+  start(work: StoredWork, text: string): Promise<unknown>;
+}
+
+/**
+ * A task no conversation started has ended and reports to the Assistant (`reports_to: "assistant"`): the person is told once (a
+ * notice, kept across restarts by its key), and the project's main conversation with the Assistant gets one round that only
+ * reports and advises (`reportOnlyAuthority`, the read-only report role). A project without a main conversation is not read at
+ * all, and an end from before the main conversation existed is not told to it.
+ */
+export class AssistantReportRounds {
+  constructor(private readonly ports: ReportRoundPorts) {}
+
+  #main(projectId: string): StoredWork | undefined {
+    const main = mainWorkOf(this.ports.store, this.ports.actorId, { kind: "project", project_id: projectId }, null);
+    return main && !main.archived ? main : undefined;
+  }
+
+  /** Whether a project has a main conversation a report could go to. */
+  reportsTo(projectId: string): boolean { return this.#main(projectId) !== undefined; }
+
+  async report(report: TaskReport): Promise<"reported" | "later" | "none"> {
+    const main = this.#main(report.project_id), { row, end } = report, failed = end === "failed";
+    if (!main || Date.parse(row.updated_at) < Date.parse(main.created_at)) return "none";
+    const key = `task-report-${createHash("sha256").update(JSON.stringify([report.project_id, row.id, end, row.updated_at])).digest("base64url").slice(0, 32)}`;
+    if (this.ports.store.noticeRaised(this.ports.actorId, key)) return "none";
+    if (main.session_id) {
+      const session = await this.ports.session(main);
+      if (session.recovery || (session.latest_run && !isTerminalAgentPhase(session.latest_run.phase))) return "later";
+      if (await this.ports.continuation(main) === "eligible") return "later";
+    }
+    const step = row.step ? `：${row.step.text}` : "";
+    try {
+      await this.ports.start(main, `（Molis 转告）后台任务「${row.title}」${failed ? "没有办成" : "已经办完"}${step}。这项任务由「${row.origin.title}」发起，不是从这段对话派出的。请用一两句话向用户汇报结果，需要时给出建议；这一轮只汇报，不接着做、不派新任务、不做任何改动。`);
+    } catch (error) {
+      // A round began in between: the report waits for it. Any other refusal (no model, budget) leaves the person told only.
+      if (["assistant.state", "assistant.busy", "agent.session_busy"].includes(String((error as { code?: unknown } | undefined)?.code))) return "later";
+    }
+    this.ports.store.raiseNotice(this.ports.actorId, { kind: failed ? "failed" : "completed", work_id: main.work_id, work_title: main.title,
+      text: assistantWords(`workbench.assistant-notice.task-report-${end}`, { title: row.title, from: row.origin.title }) }, key);
+    return "reported";
   }
 }
 

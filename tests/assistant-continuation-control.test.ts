@@ -210,7 +210,7 @@ for (const change of ["close", "latest-input"] as const) test(`ASC-18 ASC-34: a 
       directory: { canonical_path: directory, realpath_verified: true }, title: change });
     const work = store.create({ actor_id: "user", title: change, scope: { kind: "personal" }, origin: null });
     const saved = store.update("user", work.work_id, null, { session_id: session.session_id });
-    store.observe("user", work.work_id, "running");
+    store.observed.set("user", work.work_id, "running");
     service.continuations.watch(saved, { runtime_id: "prologue", session_id: session.session_id, run_id: "finished-round" });
     // Freeze the read after the terminal notification; the production callback still owns the eventual write.
     (await observer.promise)({ phase: "completed" } as never);
@@ -218,7 +218,7 @@ for (const change of ["close", "latest-input"] as const) test(`ASC-18 ASC-34: a 
     if (change === "close") service.continuations.close();
     else store.update("user", work.work_id, null, { continuation_hold: "paused", draft: "Newest intent" });
     release.resolve(); await new Promise(resolve => setImmediate(resolve));
-    assert.equal(store.observed("user", work.work_id), "running", "the obsolete observation must not be committed");
+    assert.equal(store.observed.of("user", work.work_id), "running", "the obsolete observation must not be committed");
     assert.deepEqual(service.notices.notices(null), [], "there is no false completed notification");
     if (change === "latest-input") assert.equal(store.get("user", work.work_id).draft, "Newest intent");
   } finally { release.resolve(); service.continuations.close(); await adapter.close(); db.close(); await rm(directory, { recursive: true, force: true }); }

@@ -30,11 +30,8 @@ import { assertRoundToAddress, inputsOf, withdrawInput } from "./assistant-input
 import { checkLanding } from "./assistant-landing.js";
 import { reaskMaterial, reaskTask } from "./assistant-reask.js";
 import { readComposerMaterials, sendScope } from "./assistant-composer-materials.js";
-import { MAIN_TITLE, eventServes, lineEventsFor, mainSendInput, mainWorkOf } from "./assistant-line-actions.js";
-import type { TaskReport } from "./assistant-task-reports.js";
-import { assistantWords } from "./assistant-saved-text.js";
-import { isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { createHash } from "node:crypto";
+import { MAIN_TITLE, eventServes, lineEventsFor, mainSendInput } from "./assistant-line-actions.js";
+import { AssistantReportRounds } from "./assistant-task-reports.js";
 import { checkHeldImages, checkMaterials } from "./assistant-send-materials.js";
 import { RUNTIME, MAX_TEXT, sessionRef, checkText, assertSendCurrent, type AssistantServicePorts, type AssistantCaller } from "./assistant-service-shared.js";
 import { stateOf, titleFrom, recoveryView, type CapabilityTitles } from "./assistant-present.js";
@@ -86,6 +83,8 @@ export class AssistantService {
   readonly memory: AssistantMemoryBridge;
   readonly budget: AssistantBudget;
   readonly notices: AssistantNotices;
+  /** Tasks no conversation started, reported in the project's main conversation once they end (`reports_to: "assistant"`). */
+  readonly reports: AssistantReportRounds;
   constructor(private readonly store: AssistantStore, private readonly ports: AssistantServicePorts, private readonly actorId: string,
     private readonly now = () => new Date()) {
     this.continuations = new AssistantContinuations({ store, actorId, host: () => ports.host(), holdSetups: ports.holdSetups,
@@ -130,6 +129,9 @@ export class AssistantService {
     this.memory = new AssistantMemoryBridge(store, ports, actorId, this.recalled, this.chosenMemory, this.memorySourceWithdrawals, { assistantPart: (...a) => this.reads.assistantPart(...a), continuations: this.continuations });
     this.budget = new AssistantBudget(store, ports, actorId, now, { read: (...a) => this.read(...a), delegations: this.delegations });
     this.notices = new AssistantNotices(store, ports, actorId, now, { assistantPart: (...a) => this.reads.assistantPart(...a), workObjects: (...a) => this.reads.workObjects(...a), continuations: this.continuations, followUps: this.followUps, jobs: this.jobs, delegations: this.delegations });
+    this.reports = new AssistantReportRounds({ store, actorId, session: async work => (await this.ports.host()).adapter(RUNTIME).readSession(sessionRef(work)),
+      continuation: async work => (await this.continuations.view(work).catch(() => undefined))?.continuation?.state,
+      start: (work, text) => this.hostStarted(() => this.dispatcher.dispatch(work, text, [], null, undefined, "host", undefined, undefined, undefined, { byHost: true, report_only: true })) });
   }
 
   async list(): Promise<AssistantWork[]> {
@@ -188,45 +190,7 @@ export class AssistantService {
         return carried ? (await (await this.dispatcher.executorOf(work, carried.plugin_id)).read(carried.session_id, 1).catch(() => null))?.runs.at(-1)?.ref : undefined; } }, workId, since, timeoutMs, signal);
   }
 
-  /**
-   * A task no conversation started has ended and reports to the Assistant (`reports_to: "assistant"`): the person is told once (a
-   * notice, kept across restarts by its key), and the project's main conversation with the Assistant gets one round that only
-   * reports and advises — it reads, and starts nothing and changes nothing (`report_only`). A project with no main conversation yet
-   * has the notice only; a main conversation answering now is reported to once its round ends.
-   */
-  /** Whether a project has a main conversation a report could go to: without one its table is not read for reports at all. */
-  reportsTo(projectId: string): boolean {
-    const main = mainWorkOf(this.store, this.actorId, { kind: "project", project_id: projectId }, null);
-    return Boolean(main && !main.archived);
-  }
-
-  async reportTask(report: TaskReport): Promise<"reported" | "later" | "none"> {
-    const main = mainWorkOf(this.store, this.actorId, { kind: "project", project_id: report.project_id }, null);
-    if (!main || main.archived) return "none";
-    const { row, end } = report, failed = end === "failed";
-    // An end from before the main conversation existed is not news to it: its table was not read then (`reportsTo`), and is not told now.
-    if (Date.parse(row.updated_at) < Date.parse(main.created_at)) return "none";
-    const key = `task-report-${createHash("sha256").update(JSON.stringify([report.project_id, row.id, end, row.updated_at])).digest("base64url").slice(0, 32)}`;
-    if (this.store.noticeRaised(this.actorId, key)) return "none";
-    if (main.session_id) {
-      const session = await (await this.ports.host()).adapter(RUNTIME).readSession(sessionRef(main));
-      if (session.recovery || (session.latest_run && !isTerminalAgentPhase(session.latest_run.phase))) return "later";
-      // A continuation the conversation may take up is its own: a report never takes it (the next round of the session would).
-      if ((await this.continuations.view(main).catch(() => undefined))?.continuation?.state === "eligible") return "later";
-    }
-    const step = row.step ? `：${row.step.text}` : "";
-    try {
-      await this.hostStarted(() => this.dispatcher.dispatch(main, `（Molis 转告）后台任务「${row.title}」${failed ? "没有办成" : "已经办完"}${step}。这项任务由「${row.origin.title}」发起，不是从这段对话派出的。请用一两句话向用户汇报结果，需要时给出建议；这一轮只汇报，不接着做、不派新任务、不做任何改动。`,
-        [], null, undefined, "host", undefined, undefined, undefined, { byHost: true, report_only: true }));
-    } catch (error) {
-      // A round began in between: the report waits for it. Any other refusal (no model, budget) leaves the person told only.
-      if (["assistant.state", "assistant.busy", "agent.session_busy"].includes(String((error as { code?: unknown } | undefined)?.code))) return "later";
-    }
-    this.store.raiseNotice(this.actorId, { kind: failed ? "failed" : "completed", work_id: main.work_id, work_title: main.title,
-      text: assistantWords(`workbench.assistant-notice.task-report-${end}`, { title: row.title, from: row.origin.title }) }, key);
-    return "reported";
-  }
-
+  
   /**
    * Work the Host starts by itself runs in a language scope of its own, the one last used as of now, so it does not keep the language of the
    * page whose request its async chain happened to begin in (FSS-69).

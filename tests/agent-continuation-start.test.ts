@@ -3,9 +3,8 @@ import test from "node:test";
 import type { AgentContinuationStartAnswer, AgentContinuationStartRequest, AgentContinuationStarter } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import { ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import { HOST_AGENT_CONTINUATION_READY_EVENT } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
-import { agentContinuationStarts, continuationForwarder } from "@molis-ai/molis-work-app-local-host";
-import { createCollaborationHost, createContinuationStarts } from "../horizontal/agent-host/dist/adapters/prologue-collaboration.js";
+import { agentContinuationStarts, continuationForwarder, type ContinuationStartHost } from "@molis-ai/molis-work-app-local-host";
+import { createCollaborationHost, createContinuationStarts } from "@molis-ai/molis-work-service-agent-host";
 
 // specs/work-line/spec.md, result return (user decisions 2026-11-15): the runtime asks the Home's one starter to start a continuation
 // that may go on by itself; the Assistant starts its own sessions, a plugin's are told to the installation that owns them.
@@ -44,10 +43,10 @@ test("S-continuation-start the runtime's start ask names the owner the session i
 /** An Agent Host as the hub sees it: which runtimes are registered, and the one starter each serves. */
 function fakeHost() {
   const runtimes: string[] = [], served: AgentContinuationStarter[] = [];
-  const host = {
+  const host: ContinuationStartHost = {
     descriptors: () => runtimes.map(runtime_id => ({ runtime_id })),
     adapter: (id: string) => { if (!runtimes.includes(id)) throw new Error(`no runtime ${id}`); return { collaboration: { serveStarts: (starter: AgentContinuationStarter) => { served.push(starter); return () => {}; } } }; },
-  } as unknown as AgentHost;
+  };
   return { host, runtimes, served, ask: (request: AgentContinuationStartRequest) => served.at(-1)!(request) };
 }
 const request = (owner: { plugin_id: string; install_id: string }, project_id = "p"): AgentContinuationStartRequest => ({ runtime_id: "prologue", project_id, session_id: "s1", owner,

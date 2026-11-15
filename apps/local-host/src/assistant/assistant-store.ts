@@ -8,7 +8,8 @@ import { applySqliteBaseline, type openHomeSqliteDatabase, type SqliteBaseline, 
 import { CONTEXT_LEDGER_SCHEMA } from "@molis-ai/molis-work-module-context-ledger";
 import { AssistantRelations } from "./assistant-relations.js";
 import { AssistantUsageLedger } from "./assistant-usage-ledger.js";
-import type { AssistantCharacter, AssistantContextSnapshot, AssistantUnsettledChange, AssistantNotice, AssistantRule, AssistantWorkState, AssistantExecutor, AssistantMaterial, AssistantScope, AssistantSurfaceRef, AssistantWork, AssistantUndoable } from "@molis-ai/molis-work-contracts/services/assistant";
+import { AssistantObservedStates } from "./assistant-observed-states.js";
+import type { AssistantCharacter, AssistantContextSnapshot, AssistantUnsettledChange, AssistantNotice, AssistantRule, AssistantExecutor, AssistantMaterial, AssistantScope, AssistantSurfaceRef, AssistantWork, AssistantUndoable } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { eachListener } from "../host-log.js";
 import { attentionChanged } from "../attention-changes.js";
@@ -168,6 +169,8 @@ export class AssistantStore {
   readonly usage: AssistantUsageLedger;
   /** The person's timed rounds on their works (the follow-ups collaborator's table). */
   readonly followUps: AssistantFollowUpRecords;
+  /** The state the Host last saw each work in. */
+  readonly observed: AssistantObservedStates;
 
   /** Who hears that a work's stored facts changed (record, rounds, cards, follow-ups, jobs, undos, usage): the page's wait. */
   readonly #changes = new Set<(workId: string) => void>();
@@ -178,6 +181,7 @@ export class AssistantStore {
     this.requests = new AssistantRequests(db, now);
     this.usage = new AssistantUsageLedger(db);
     this.followUps = new AssistantFollowUpRecords(db, workId => this.#changed(workId));
+    this.observed = new AssistantObservedStates(db);
   }
 
   onChange(listener: (workId: string) => void): () => void {
@@ -324,17 +328,6 @@ export class AssistantStore {
     const like = (value: string) => `${value.replace(/[\\%_]/g, character => `\\${character}`)}%`;
     return Number(this.db.prepare(`UPDATE assistant_notices SET state=? WHERE actor_id=? AND state='new' AND dedupe LIKE ? ESCAPE '\\'${keep ? " AND dedupe NOT LIKE ? ESCAPE '\\'" : ""}`)
       .run(state, actorId, like(prefix), ...(keep ? [like(keep)] : [])).changes);
-  }
-
-  /** The state the Host last saw a work in (kept apart from the work, so noticing never conflicts with the person's edits). */
-  observed(actorId: string, workId: string): AssistantWorkState | null {
-    const row = this.db.prepare("SELECT state FROM assistant_observed WHERE actor_id=? AND work_id=?").get(actorId, workId);
-    return row ? String(row.state) as AssistantWorkState : null;
-  }
-
-  observe(actorId: string, workId: string, state: AssistantWorkState): void {
-    const changed = this.db.prepare("INSERT INTO assistant_observed(actor_id,work_id,state) VALUES (?,?,?) ON CONFLICT(actor_id,work_id) DO UPDATE SET state=excluded.state WHERE state <> excluded.state").run(actorId, workId, state).changes;
-    if (changed) attentionChanged(null);
   }
 
   /** Changes left running when a round ended, newest last; `untold` only those the next round has not been told of. */

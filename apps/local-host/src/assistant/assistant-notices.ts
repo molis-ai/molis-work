@@ -27,7 +27,7 @@ export type AssistantNoticesLinks = Pick<AssistantWorkReads, "assistantPart" | "
  * other collaborators come through `link`.
  */
 export class AssistantNotices {
-  constructor(private readonly store: Pick<AssistantStore, "activeSince" | "get" | "list" | "observe" | "observed" | "openNotices" | "raiseNotice" | "relations" | "rounds" | "rules" | "setSetting" | "setting" | "settleNotices">, private readonly ports: AssistantServicePorts, private readonly actorId: string, private readonly now: () => Date, private readonly link: AssistantNoticesLinks) {}
+  constructor(private readonly store: Pick<AssistantStore, "activeSince" | "get" | "list" | "observed" | "openNotices" | "raiseNotice" | "relations" | "rounds" | "rules" | "setSetting" | "setting" | "settleNotices">, private readonly ports: AssistantServicePorts, private readonly actorId: string, private readonly now: () => Date, private readonly link: AssistantNoticesLinks) {}
 
   /**
    * A change of a work's state is what raises a notice — failed, waiting on the person, done — once per round and kind.
@@ -35,9 +35,9 @@ export class AssistantNotices {
    * awaited stops asking. Notices never start anything.
    */
   notice(work: StoredWork, state: AssistantWorkState): void {
-    const before = this.store.observed(this.actorId, work.work_id);
+    const before = this.store.observed.of(this.actorId, work.work_id);
     if (before === state) return;
-    this.store.observe(this.actorId, work.work_id, state);
+    this.store.observed.set(this.actorId, work.work_id, state);
     if (before === null) return;
     if (!["waiting-input", "waiting-review"].includes(state)) this.store.settleNotices(this.actorId, { work_id: work.work_id, kinds: ["needs-decision"] }, "resolved");
     if (state === "running") this.store.settleNotices(this.actorId, { work_id: work.work_id, kinds: ["failed", "completed"] }, "resolved");

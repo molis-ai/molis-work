@@ -2,7 +2,7 @@ import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { pluginInstallRecords } from "../plugin-install-records.js";
 import { HomeConsentLedger } from "../home-plugin-store.js";
 import { assistantLineRegistration, assistantLineSource, personTaskTable } from "./assistant-line-actions.js";
-import { AssistantTaskReports } from "./assistant-task-reports.js";
+import { AssistantTaskReports, type AssistantReportRounds } from "./assistant-task-reports.js";
 import { onAttentionChangeOf } from "../attention-changes.js";
 import { homeAggregatePorts } from "../home-aggregate.js";
 import { assistantRelatedRegistration, relatedWorks, type RelatedWorksSource } from "./assistant-related-action.js";
@@ -94,6 +94,22 @@ function pageRoundLanguage(ports: Pick<AssistantHttpPorts, "homeDirectory">): { 
 
 /** Half-written answers to a work's questions, kept with the work. */
 const questionDrafts = (store: AssistantStore) => new AssistantQuestionDrafts({ store, actorId: WEB_ACTOR, fail: (code, message) => assistantErrors[code.slice("assistant.".length) as keyof typeof assistantErrors](message) });
+
+/**
+ * Tasks no conversation started report to the Assistant once they end (`reports_to: "assistant"`), read where something changed.
+ * Only a project open now is read (the Home never opens one to read it), kept open while it is, in the language last used.
+ */
+function watchTaskReports(ports: AssistantHttpPorts, tableOf: (projectId: string) => ReturnType<ReturnType<typeof personTaskTable>>, rounds: AssistantReportRounds): AssistantTaskReports {
+  const aggregate = homeAggregatePorts(ports.localHost);
+  const reports = new AssistantTaskReports({ changes: onAttentionChangeOf, reportsTo: projectId => rounds.reportsTo(projectId), report: report => rounds.report(report),
+    table: async projectId => {
+      const reference = aggregate.openProjects().find(one => one.project_id === projectId);
+      const read = reference && await aggregate.whileOpen(reference, () => runBackgroundWorkIn(ports.homeDirectory, () => tableOf(projectId)));
+      return read ?? { tasks: [], issues: [] };
+    } });
+  reports.start();
+  return reports;
+}
 
 /** One Assistant per Home. Its store is opened once and lives as long as the Host that serves it. */
 const services = new WeakMap<MolisWorkLocalHost, { home: string; service: AssistantService; store: AssistantStore; threads: AssistantThreads; surroundings: ReturnType<typeof assistantSurroundings>; reports: AssistantTaskReports }>();
@@ -248,17 +264,7 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
     client: project => ports.localHost.actionClient(project), caller: project => localWebActionContext(ports.localHost, project, LOCAL_OWNER_PERMISSIONS),
     alive: () => ports.localHost.lifecycle() === "running",
   });
-  // Tasks no conversation started report here once they end (`reports_to: "assistant"`), read where something changed.
-  // Only a project open now is read (the Home never opens one to read it), kept open while it is, in the language last used.
-  const aggregate = homeAggregatePorts(ports.localHost), tableOf = personTaskTable(ports.projectReference, personClient);
-  const openTable = async (projectId: string) => {
-    const reference = aggregate.openProjects().find(one => one.project_id === projectId);
-    const read = reference && await aggregate.whileOpen(reference, () => runBackgroundWorkIn(ports.homeDirectory, () => tableOf(projectId)));
-    return read ?? { tasks: [], issues: [] };
-  };
-  const reports = new AssistantTaskReports({ table: openTable, changes: onAttentionChangeOf, reportsTo: projectId => service.reportsTo(projectId), report: report => service.reportTask(report) });
-  reports.start();
-  const entry = { home: ports.homeDirectory, service, store, threads, surroundings, reports };
+  const entry = { home: ports.homeDirectory, service, store, threads, surroundings, reports: watchTaskReports(ports, personTaskTable(ports.projectReference, personClient), service.reports) };
   services.set(ports.localHost, entry);
   // The runtime looks at the background jobs these works follow with the work's own authority, from its first look on.
   registerWorkAuthority(ports.localHost, at => service.jobs.authority(at));

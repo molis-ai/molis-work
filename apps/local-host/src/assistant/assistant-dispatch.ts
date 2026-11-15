@@ -3,7 +3,7 @@ import type { MethodHandoff } from "./assistant-signed-materials.js";
 import { threadReplyMaterials } from "./assistant-thread-types.js";
 import type { AssistantContinuations } from "./assistant-continuations.js";
 import type { AgentHost, AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
-import { isTerminalAgentPhase, type AgentRunRef, type AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { isTerminalAgentPhase, type AgentRunRef, type AgentRunView, type AgentSessionRef, type AgentSessionView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { requireSynchronous, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AssistantDelegations } from "./assistant-delegation.js";
 import { ASSISTANT_INSTALL_ID, ASSISTANT_PLUGIN_ID, type AssistantUnsettledChange, type AssistantContextSnapshot, type AssistantMaterial, type AssistantRound, type AssistantSendResult, type AssistantWorkView, type AssistantHandover, type AssistantExecutorOffer } from "@molis-ai/molis-work-contracts/services/assistant";
@@ -39,11 +39,6 @@ const HANDOVER_OBJECTS = 3, HANDOVER_OBJECT_CHARS = 6000;
 
 export type AssistantDispatchLinks = Pick<AssistantWorkReads, "assistantPart" | "workObjects" | "stateSafely" | "publicWork"> & Pick<AssistantRoundMaterials, "readSubject" | "roundMaterials"> & Pick<AssistantBudget, "assertBudget" | "workUsage"> & Pick<AssistantMemoryBridge, "memoryForRound"> & Pick<AssistantNotices, "notice"> & { read(workId: string): Promise<AssistantWorkView>; continuations: Pick<AssistantContinuations, "withdraw" | "watch">; delegations: Pick<AssistantDelegations, "startPlaced"> };
 
-/**
- * Who runs a work's rounds and how one starts: the Assistant's own round, or the executor plugin's session it is
- * handed to, with what was really sent and what a stopped round left running. Only its ports reach the Host; the other
- * collaborators come through `link`.
- */
 /** Stop a round and wait (a bounded while) until it has ended. */
 async function stopAndWait(adapter: { control(ref: AgentRunRef, control: { kind: "stop" }): Promise<unknown>; observe(ref: AgentRunRef, listener: (view: { phase: AgentRunView["phase"] }) => void): () => void }, ref: AgentRunRef): Promise<void> {
   await adapter.control(ref, { kind: "stop" }).catch(() => undefined);
@@ -56,10 +51,31 @@ async function stopAndWait(adapter: { control(ref: AgentRunRef, control: { kind:
   });
 }
 
+type ReportTurnAdapter = Parameters<typeof stopAndWait>[0] & { readSession(ref: AgentSessionRef): Promise<AgentSessionView> };
+
+/**
+ * A round that only reports holds read-only authority, so the two never mix: a report never reaches a round under way (it waits for
+ * that round's end), and a person's words never join a report: it is stopped (a bounded wait) and their own round starts.
+ */
+async function reportTurn(adapter: ReportTurnAdapter, ref: AgentSessionRef, session: AgentSessionView, reportRuns: ReadonlySet<string>, reportOnly: boolean): Promise<AgentSessionView> {
+  const running = session.latest_run && !isTerminalAgentPhase(session.latest_run.phase) ? session.latest_run.ref : undefined;
+  if (!running) return session;
+  if (reportOnly) throw assistantErrors.state("这段对话正在回答，汇报等它这一轮结束");
+  if (!reportRuns.has(running.run_id)) return session;
+  await stopAndWait(adapter, running);
+  const after = await adapter.readSession(ref);
+  if (after.latest_run && !isTerminalAgentPhase(after.latest_run.phase)) throw assistantErrors.state("汇报的那一轮还没停下，稍等再发");
+  return after;
+}
+
+/**
+ * Who runs a work's rounds and how one starts: the Assistant's own round, or the executor plugin's session it is
+ * handed to, with what was really sent and what a stopped round left running. Only its ports reach the Host; the other
+ * collaborators come through `link`.
+ */
 export class AssistantDispatch {
   constructor(private readonly store: Pick<AssistantStore, "addRound" | "get" | "markTold" | "relations" | "rounds" | "saveUnsettled" | "update">, private readonly ports: AssistantServicePorts, private readonly actorId: string, private readonly now: () => Date, private readonly starting: Map<string, string>, private readonly titles: Map<string, CapabilityTitles>, private readonly recalled: Map<string, string>, private readonly chosenMemory: Map<string, Awaited<ReturnType<MemoryService["forRun"]>>>, private readonly link: AssistantDispatchLinks) {}
-  /** The rounds started only to report, while this Host runs: what a person's Send must not join. */
-  readonly reportRuns = new Set<string>();
+  /** The rounds started only to report, while this Host runs: what a person's Send must not join. */ private readonly reportRuns = new Set<string>();
 
   /** Where the person's words to a round under way go: its open question, or a supplement. */
   private readonly inputs = new AssistantInputs(MAX_TEXT);
@@ -205,7 +221,6 @@ export class AssistantDispatch {
     const namedSkills = [...new Map(materials.flatMap(item => item.kind === "method" && item.method?.kind === "skill"
       ? [[JSON.stringify(item.method.ref), item.method.ref] as const] : [])).values()];
     const autoSkills = intent?.auto_skills !== false;
-    // A round that only reports reads, and does nothing else: its authority is cut down here, whatever its words say.
     const roundAuthority = async () => { const authority = await this.ports.authority(work, undefined, replyLocale, namedSkills, autoSkills); return intent?.report_only ? reportOnlyAuthority(authority) : authority; };
     let base = await roundAuthority();
     const original_input = !work.delegated_by && !work.reply_target ? intent?.original_input : undefined;
@@ -226,20 +241,11 @@ export class AssistantDispatch {
       base = await roundAuthority(); authority = startAuthority();
     }
     assertSendCurrent(stillCurrent);
-    let session = await adapter.readSession(sessionRef(work));
-    // A round that only reports holds read-only authority: a person's words never join it. It is stopped, and their own round starts.
-    if (!intent?.report_only && session.latest_run && !isTerminalAgentPhase(session.latest_run.phase) && this.reportRuns.has(session.latest_run.ref.run_id)) {
-      await stopAndWait(adapter, session.latest_run.ref);
-      session = await adapter.readSession(sessionRef(work));
-      if (session.latest_run && !isTerminalAgentPhase(session.latest_run.phase)) throw assistantErrors.state("汇报的那一轮还没停下，稍等再发");
-      assertSendCurrent(stillCurrent);
-    }
+    const session = await reportTurn(adapter, sessionRef(work), await adapter.readSession(sessionRef(work)), this.reportRuns, Boolean(intent?.report_only));
     if (session.recovery) throw assistantErrors.needs_check(session.recovery.reason, { action: recoveryAction([session.latest_run && await adapter.read(session.latest_run.ref).catch(() => null)]) });
     assertSendCurrent(stillCurrent);
     const latest = session.latest_run;
     assertRoundToAddress(Boolean(latest), intent?.delivery);
-    // A report is a round of its own: it never reaches a round under way, which carries that round's authority.
-    if (intent?.report_only && latest && !isTerminalAgentPhase(latest.phase)) throw assistantErrors.state("这段对话正在回答，汇报等它这一轮结束");
     if (latest && (!isTerminalAgentPhase(latest.phase) || intent?.about || addressesRound(intent?.delivery))) {
       if (latest.phase === "reconcile-required") throw assistantErrors.needs_check("上一轮有结果未确认的操作，需要先核对", { action: "打开这项工作核对" });
       const outcome = await this.inputs.deliver(intent?.target === "answer" ? await adapter.read(latest.ref) : latest, text, materials, context, { answer: control => adapter.control(latest.ref, control), send: async input => {
@@ -309,12 +315,11 @@ export class AssistantDispatch {
     this.chosenMemory.delete(work.work_id);
     this.starting.delete(work.work_id);
     this.link.continuations.watch(work, handle.ref);
-    // A report says so by its own notice: the round is not news of the conversation's own (its start settles nothing, its end tells nothing).
     return this.result(work, "started", handle.ref.run_id, stillCurrent, intent?.draftCurrent, Boolean(intent?.report_only));
   }
 
   private async result(work: StoredWork, outcome: AssistantSendResult["outcome"], runId: string, current?: () => boolean, draftCurrent?: () => boolean, quiet = false): Promise<AssistantSendResult> {
-    // A round that started is seen as running from here: however soon it ends, its end is news (a new work included).
+    // A round that started is seen as running from here: however soon it ends, its end is news (a new work included). A report's is not.
     if (outcome === "started" && !quiet) this.link.notice(work, "running");
     // Only this Send's unchanged draft is consumed; a later saved draft stays while the work moves to the top.
     const updated = !current || current() ? this.store.update(this.actorId, work.work_id, null, !draftCurrent || draftCurrent() ? { draft: "" } : {}) : this.store.get(this.actorId, work.work_id);

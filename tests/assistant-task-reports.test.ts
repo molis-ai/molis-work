@@ -3,11 +3,10 @@ import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
 import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { BackgroundTaskRow, BackgroundTasksReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
+import type { AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
 import { backgroundTaskRow } from "@molis-ai/molis-work-service-mainline";
-import { AssistantService, AssistantStore, AssistantTaskReports, reportOnlyAuthority, type TaskReport } from "@molis-ai/molis-work-app-local-host";
-import { ASSISTANT_AGENT, ASSISTANT_REPORT_ROLE_ID } from "../apps/local-host/dist/assistant/assistant-agent.js";
-import { roundStartInput } from "../apps/local-host/dist/assistant/assistant-round-start.js";
+import { ASSISTANT_AGENT, ASSISTANT_REPORT_ROLE_ID, AssistantReportRounds, AssistantService, AssistantStore, AssistantTaskReports, reportOnlyAuthority, roundStartInput, type TaskReport } from "@molis-ai/molis-work-app-local-host";
 
 // specs/work-line contract-design §9 and spec.md (user decision 2026-11-15): a task no conversation started marks its row
 // `reports_to: "assistant"`; once the table shows it ended, the scope's Assistant runs one round in the main conversation that
@@ -18,7 +17,7 @@ const ORIGIN = { surface: "demo", title: "示例", icon: "list" };
 const task = (over: Record<string, unknown> = {}) => ({ subject: { kind: "demo_task", id: "t1" }, title: "整理周报", state: "done", details: [], waiting: false, updated_at: "2026-11-15T10:00:00.000Z",
   executor: { kind: "plugin", label: "示例" }, serves: [], scope: "project", commands: [], decisions: [], open: null, reports_to: "assistant", ...over });
 const row = (over: Record<string, unknown> = {}) => backgroundTaskRow(task(over), SOURCE, ORIGIN, ["demo_task"])!;
-const table = (...tasks: BackgroundTaskRow[]): BackgroundTasksReadResult => ({ tasks, issues: [] } as unknown as BackgroundTasksReadResult);
+const table = (...tasks: BackgroundTaskRow[]): BackgroundTasksReadResult => ({ tasks, issues: [] });
 
 test("PWA-155 a row may say it reports to the Assistant, and says nothing else there", () => {
   assert.equal(row().reports_to, "assistant");
@@ -69,14 +68,14 @@ test("PWA-157 a main conversation busy answering is reported to once its round e
   assert.equal(asked.length, 2, "and once reported, not again");
 });
 
-const view = (id: string, operation: "query" | "command") => ({ capability_id: id, version: 1, operation, provider: { provider_id: "plugin:demo" }, action: { title: id } }) as unknown as ActionView;
+const view = (id: string, operation: "query" | "command") => ({ capability_id: id, version: 1, operation, provider: { provider_id: "plugin:demo" }, action: { title: id } }) as ActionView;
 
 test("PWA-156 the report's round reads and does nothing else: no command, no sub-task, no proposal, no delivery, no memory", async () => {
   const invoked: string[] = [];
   const full = { manifest: {}, prompts: {}, authorizedDirectories: [], actions: async () => ({
     discover: async () => [view("demo.read", "query"), view("demo.write", "command")],
     delegate: {}, deliver: {}, memory: { list: async () => [] }, offer: async () => ({ offer_id: "o" }), direct: () => true,
-    invoke: async (reference: { capability_id: string }) => { invoked.push(reference.capability_id); return { ok: true }; } }) } as unknown as AgentStartAuthority;
+    invoke: async (reference: { capability_id: string }) => { invoked.push(reference.capability_id); return { ok: true }; } }) } as AgentStartAuthority;
   const client = await reportOnlyAuthority(full).actions!("prologue");
   assert.deepEqual((await client.discover()).map(one => one.capability_id), ["demo.read"], "only what reads is offered");
   for (const missing of ["delegate", "deliver", "memory", "offer"] as const) assert.equal(client[missing], undefined, `${missing} is not given`);
@@ -98,44 +97,56 @@ test("PWA-156 the report's round runs as a read-only role with no host tools, an
 
 test("PWA-155 PWA-157 the Assistant tells the person once and starts one round that only reports, in the project's main conversation", async () => {
   const db = new DatabaseSync(":memory:"), store = new AssistantStore(db);
-  let latest: { phase: string } | null = null;
-  const host = { adapter: () => ({ readSession: async () => ({ latest_run: latest }) }) };
-  const service = new AssistantService(store, { pages: async () => ["home"], host: async () => host as never, authority: async () => { throw new Error("not reached"); } }, "user");
-  const started: Array<{ text: string; intent: unknown }> = [];
-  (service as unknown as { dispatcher: { dispatch(...args: unknown[]): Promise<unknown> } }).dispatcher.dispatch = async (...args) => { started.push({ text: args[1] as string, intent: args[9] }); return {}; };
+  let latest: { phase: AgentRunView["phase"] } | null = null, continuation: string | undefined, refuse: Error | undefined;
+  const started: string[] = [];
+  const rounds = (on: AssistantStore) => new AssistantReportRounds({ store: on, actorId: "user", session: async () => ({ latest_run: latest }), continuation: async () => continuation,
+    start: async (_work, text) => { if (refuse) throw refuse; started.push(text); } });
+  const reportRounds = rounds(store);
   // Ends after the main conversation exists (an end from before it is not news to it, below).
   const later = (minutes: number) => new Date(Date.now() + minutes * 60_000).toISOString();
   const report: TaskReport = { project_id: "p", row: row({ updated_at: later(1) }), end: "done" };
   try {
-    assert.equal(service.reportsTo("p"), false);
-    assert.equal(await service.reportTask(report), "none", "no main conversation in the project yet: nothing to report to");
+    assert.equal(reportRounds.reportsTo("p"), false);
+    assert.equal(await reportRounds.report(report), "none", "no main conversation in the project yet: nothing to report to");
     const main = store.create({ actor_id: "user", title: "主对话", scope: { kind: "project", project_id: "p" }, project_ref: { project_id: "p", storage_key: "memory:p" }, origin: null, main: true });
     store.update("user", main.work_id, null, { session_id: "s-main" });
-    assert.equal(service.reportsTo("p"), true);
-    assert.equal(await service.reportTask({ project_id: "p", row: row({ subject: { kind: "demo_task", id: "t0" }, updated_at: "2020-01-01T00:00:00.000Z" }), end: "done" }), "none",
+    assert.equal(reportRounds.reportsTo("p"), true);
+    assert.equal(await reportRounds.report({ project_id: "p", row: row({ subject: { kind: "demo_task", id: "t0" }, updated_at: "2020-01-01T00:00:00.000Z" }), end: "done" }), "none",
       "a task that ended before the main conversation existed is not told to it");
     latest = { phase: "running" };
-    assert.equal(await service.reportTask(report), "later", "answering now: later");
+    assert.equal(await reportRounds.report(report), "later", "answering now: later");
     latest = { phase: "completed" };
-    const views = service.continuations as unknown as { view(work: unknown): Promise<unknown> }, view = views.view.bind(views);
-    views.view = async () => ({ continuation: { state: "eligible" } });
-    assert.equal(await service.reportTask(report), "later", "a continuation the conversation may take up is left to it");
-    views.view = view;
-    assert.equal(await service.reportTask(report), "reported");
+    continuation = "eligible";
+    assert.equal(await reportRounds.report(report), "later", "a continuation the conversation may take up is left to it");
+    continuation = undefined;
+    assert.equal(await reportRounds.report(report), "reported");
     assert.equal(started.length, 1);
-    assert.deepEqual(started[0]!.intent, { byHost: true, report_only: true }, "a round that only reports");
-    assert.match(started[0]!.text, /整理周报[\s\S]*只汇报/u);
+    assert.match(started[0]!, /整理周报[\s\S]*只汇报/u);
     const notices = () => (db.prepare("SELECT kind, work_id FROM assistant_notices").all() as Array<{ kind: string; work_id: string }>).map(one => [one.kind, one.work_id]);
     assert.deepEqual(notices(), [["completed", main.work_id]]);
     // A round that began in between: the report waits for it, nothing is marked told.
     const other: TaskReport = { project_id: "p", row: row({ subject: { kind: "demo_task", id: "t9" }, updated_at: later(2) }), end: "failed" };
-    (service as unknown as { dispatcher: { dispatch(): Promise<unknown> } }).dispatcher.dispatch = async () => { throw Object.assign(new Error("busy"), { code: "assistant.state" }); };
-    assert.equal(await service.reportTask(other), "later");
+    refuse = Object.assign(new Error("busy"), { code: "assistant.state" });
+    assert.equal(await reportRounds.report(other), "later");
     assert.equal(notices().length, 1);
+    refuse = undefined;
     // Restarted: the same end is not reported again.
-    const again = new AssistantService(new AssistantStore(db), { pages: async () => ["home"], host: async () => host as never, authority: async () => { throw new Error("not reached"); } }, "user");
-    try { assert.equal(await again.reportTask(report), "none"); } finally { again.continuations.close(); }
+    assert.equal(await rounds(new AssistantStore(db)).report(report), "none");
     assert.equal(started.length, 1);
     assert.equal(notices().length, 1);
+  } finally { db.close(); }
+});
+
+test("PWA-156 the Assistant starts a report as the Host, with a round that only reports", async () => {
+  const db = new DatabaseSync(":memory:"), store = new AssistantStore(db);
+  const host = { adapter: () => ({ readSession: async () => ({ latest_run: null }) }) };
+  const service = new AssistantService(store, { pages: async () => ["home"], host: async () => host as never, authority: async () => { throw new Error("not reached"); } }, "user");
+  const intents: unknown[] = [];
+  service.dispatcher.dispatch = async (...args: Parameters<typeof service.dispatcher.dispatch>) => { intents.push(args[9]); return {} as never; };
+  try {
+    const main = store.create({ actor_id: "user", title: "主对话", scope: { kind: "project", project_id: "p" }, project_ref: { project_id: "p", storage_key: "memory:p" }, origin: null, main: true });
+    store.update("user", main.work_id, null, { session_id: "s-main" });
+    assert.equal(await service.reports.report({ project_id: "p", row: row({ updated_at: new Date(Date.now() + 60_000).toISOString() }), end: "done" }), "reported");
+    assert.deepEqual(intents, [{ byHost: true, report_only: true }], "as the Host, a round that only reports");
   } finally { service.continuations.close(); db.close(); }
 });

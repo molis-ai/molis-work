@@ -1,5 +1,4 @@
-import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
-import type { AgentContinuationStartAnswer, AgentContinuationStartRequest } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
+import type { AgentCollaborationPort, AgentContinuationStartAnswer, AgentContinuationStartRequest } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import { ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import { HOST_AGENT_CONTINUATION_READY_EVENT, type HostAgentContinuationReadyPayload } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginHostEvents } from "@molis-ai/molis-work-plugin-runtime";
@@ -23,13 +22,19 @@ export interface AgentContinuationStarts {
   observeProject(projectId: string, listener: (request: AgentContinuationStartRequest) => void): () => void;
 }
 
-const HUBS = new WeakMap<AgentHost, { hub: AgentContinuationStarts; serve(): void }>();
+/** What the hub needs of the Agent Host: its registered runtimes, and the continuation port each may have. */
+export interface ContinuationStartHost {
+  descriptors(): ReadonlyArray<{ runtime_id: string }>;
+  adapter(runtimeId: string): { collaboration?: Pick<AgentCollaborationPort, "serveStarts"> };
+}
+
+const HUBS = new WeakMap<ContinuationStartHost, { hub: AgentContinuationStarts; serve(): void }>();
 
 /**
  * The Home's continuation starts for `host`. The Prologue runtime registers on its first use (agent-host-composition.ts), which
  * calls this again then; the starter is served once, as soon as the runtime is there.
  */
-export function agentContinuationStarts(host: AgentHost): AgentContinuationStarts {
+export function agentContinuationStarts(host: ContinuationStartHost): AgentContinuationStarts {
   const known = HUBS.get(host);
   if (known) { known.serve(); return known.hub; }
   let assistant: ((request: AgentContinuationStartRequest) => Promise<AgentContinuationStartAnswer>) | undefined;

@@ -160,7 +160,15 @@ export function recordingStateOf(
   };
 }
 
-export function settingsViewOf(db: DatabaseSync, stored: StoredObservationSettings): ObservationSettingsView {
+export function settingsViewOf(
+  db: DatabaseSync,
+  stored: StoredObservationSettings,
+  evaluationHolds: ObservationSettingsView["evaluation_holds"] = {
+    count: 0,
+    bytes: 0,
+    retention_days: DEFAULT_EVALUATION_RETENTION_DAYS,
+  },
+): ObservationSettingsView {
   const { requirements, shortfall } = retentionRequirementsOf(stored.retention_mode);
   return {
     recording: recordingStateOf(db, stored),
@@ -176,6 +184,6 @@ export function settingsViewOf(db: DatabaseSync, stored: StoredObservationSettin
       } : {}),
     },
     space_reminder_bytes: stored.space_reminder_bytes,
-    evaluation_holds: { count: 0, bytes: 0, retention_days: DEFAULT_EVALUATION_RETENTION_DAYS },
+    evaluation_holds: evaluationHolds,
   };
 }

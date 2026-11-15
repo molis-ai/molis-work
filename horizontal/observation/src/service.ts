@@ -3,6 +3,7 @@ import { observationActions, type ObservationCleanupResult, type ObservationFact
 import { defineAction } from "@molis-ai/molis-work-plugin-sdk";
 import { sweepExpiredRecords } from "./cleanup.js";
 import { exitRecord, exitSkips, type ExitAction, type ExitObservation } from "./exit.js";
+import { handleHoldsList, handleHoldsPut, handleHoldsRelease } from "./holds.js";
 import type { ObservationKeys } from "./keys.js";
 import type { PluginPurge } from "./lifecycle.js";
 import { handleCleanupApply, handleCleanupPreview, handleSettingsGet, handleSettingsSet, handleSpaceGet } from "./management-actions.js";
@@ -66,7 +67,7 @@ export class ObservationLayer {
     return { definition, handler };
   }
 
-  /** All public actions of `system.observation`: `report@1` plus the eight read and management actions (contract-design §4, §16.2). */
+  /** All public actions of `system.observation`: `report@1` plus the read, management, clean-up, and evaluation-hold actions (contract-design §4, §16.2; evaluation-path-design §2). */
   actions(shellEntry: (caller: ActionCallContext) => void): {
     readonly definitions: readonly ActionDefinition[];
     readonly handlers: readonly ActionHandlerBinding[];
@@ -82,6 +83,9 @@ export class ObservationLayer {
       defineAction(observationActions.spaceGet, (caller) => handleSpaceGet(deps, caller)),
       defineAction(observationActions.cleanupPreview, (caller, input) => handleCleanupPreview(deps, caller, input)),
       defineAction(observationActions.cleanupApply, (caller, input) => handleCleanupApply(deps, caller, input)),
+      defineAction(observationActions.holdsPut, (caller, input) => handleHoldsPut(deps, caller, input)),
+      defineAction(observationActions.holdsRelease, (caller, input) => handleHoldsRelease(deps, caller, input)),
+      defineAction(observationActions.holdsList, (caller, input) => handleHoldsList(deps, caller, input)),
     ];
     return {
       definitions: bound.map((item) => item.definition as ActionDefinition),

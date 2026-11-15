@@ -1,8 +1,26 @@
 # Prologue SDK 构建来源
 
-本目录沿用 [AGENTS.md](../../AGENTS.md) 的受控包规则。当前唯一运行依赖为 `prologue-sdk-0.0.0-rc.1.tgz`（第 31 批 Memory P1 于 2026-11-14 换到 `4a4d1d3c8cc5840f4abe522e748abaee588db7de`，基于上游 main `4493a5eb`）；第 28 批换上的官方构建（`c764d970`）、更早的官方构建（`5cbf2601`）与被它换下的 `window31` 自定义包、main 在 #2020 采用的 `memory-p0` 第二版（1,428,464 字节，上游 #113）与更早的 `memory-p0` 第一版、`final103-bridge` 已从本目录删除，记录与重建来源见 `patch-history.json` 与 Git 历史。
+本目录沿用 [AGENTS.md](../../AGENTS.md) 的受控包规则。当前唯一运行依赖为 `prologue-sdk-0.0.0-rc.1.tgz`（第 32 批于 2026-11-15 换到上游 main 的官方构建 `0a0dfdfa507f463efdce14611dcbfbf1506ac5d2`，PR #124 结果回流与 #125 评审跟进）；第 31 批的 Memory P1 构建（`4a4d1d3c`）、第 28 批换上的官方构建（`c764d970`）、更早的官方构建（`5cbf2601`）与被它换下的 `window31` 自定义包、main 在 #2020 采用的 `memory-p0` 第二版（1,428,464 字节，上游 #113）与更早的 `memory-p0` 第一版、`final103-bridge` 已从本目录删除，记录与重建来源见 `patch-history.json` 与 Git 历史。
 
-## 当前包：memory-p1 4a4d1d3c（2026-11-14，第 31 批换）
+## 当前包：official main 0a0dfdfa（2026-11-15，第 32 批换）
+
+当前包为 **1,469,632 字节**，SHA-256 `625bcf745c6375eba81af5985370777880fb6aa73a85a8390e9fb6b7b8b0c944`。来源为上游 `molis-ai/molis-prologue` 的 **main 合并提交 `0a0dfdfa507f463efdce14611dcbfbf1506ac5d2`**（PR [#125](https://github.com/molis-ai/molis-prologue/pull/125)，在 `e0625b62e349f49b31d70adcd631e885683c9724`、PR [#124](https://github.com/molis-ai/molis-prologue/pull/124) 之上），没有 vendor 补丁、没有脏文件。上一份的来源 `4a4d1d3c` 是 PR #122 合并前的分支提交，它的 `packages/sdk` 与 main 上的合并 `188d9f6c` 逐文件相同；这一份比它多三项，都在 main 上：
+
+- #123：记忆导入重试只补自己没做完的那几条，记忆列表按作用域缓存，公开面快照同步。Molis 不调记忆的批量导入，行为不变。
+- #124（第 32 批，用户批准改上游，并定「Prologue 可以合入 main，用 main」）：结果回流（[切片](https://github.com/molis-ai/molis-prologue/blob/0a0dfdfa507f463efdce14611dcbfbf1506ac5d2/docs/slices/result-return.md)）。
+  - 一个会话同时只起一轮：还有一跑在跑或正在开时开跑在关口被拒（`SESSION_RUN_ACTIVE`），不出网、不开跑。
+  - 接续：会话正忙时先不请 App 起跑，空下来再问；`startContinuation` 可以答 `{ later: { code, note? } }`，接续回 `eligible`（不 `blocked`），会话下一轮结束后再问，App 也能随时用请求键自己起。
+  - 等待：`node` 条件可选 `asks: { since? }`（持有会话开了问题也算这一项有了结果，带问题引用）；`any + settled` 改成先落定的那个就定；等的那一步要对账时等待立刻 `needs-reconciliation`。`PendingLedger` 加 `openOf`、`subscribe`。
+  - 后台叫醒：绑定步骤的顶层跑正常收工时，还在跑的后台孩子成了这一步的等待（`any + settled`、带 `asks`），孩子结束或开口时经接续把这一步叫醒。
+- #125（第 32 批，#124 只读评审的跟进）：几个孩子里第一个结束就叫醒，不等齐；在父亲最后一轮里结束、没被提醒过的孩子也叫醒；跑结束后才挂、已有结果的等待按自己的结果落（`WaitRegistry.arm` 的 `runEnded`）；App 起跑因会话正忙失败按 `later` 算；`since` 取这一跑开始的时刻；问的是最新开着的问题。
+
+对 Molis 的影响与采用写在第 32 批的 PR 与 [事项线需求书](../../specs/work-line/spec.md)：Molis 实现 `startContinuation`（助理自己起；插件的会话由宿主发事件、插件自己起，先答 `later`），删掉 25 秒的长轮询与 `agent.collaboration.await`。
+
+重建：在该提交的两个独立检出里各自 `pnpm install --frozen-lockfile --offline --ignore-scripts`、`pnpm build`、`pnpm -C packages/sdk pack --pack-destination <外部目录>`；两份包逐字节相同。质量证据（PR 头 `e16a2041`，`packages/sdk` 与合并后相同）：`public-api`、`quality-ratchet`、`check-doc-links`、`clean-consumer` 通过；SDK 的全部非 live 用例加稳定的 live 筛选，262 个文件、3407 条用例通过。本批先试打过 `e0625b62` 的包，没有提交：#125 的评审跟进先合入了。上游 CI 没有跑到步骤（main 上同样如此），不声称它已绿。
+
+上一份（`4a4d1d3c`，1,463,621 字节，SHA-256 `1264b32b65e66adce32ae83c935abc85c46bcae4b77520470d2e265bab87c8bb`）在 `patch-history.json` 里记作 `prologue-sdk-0.0.0-rc.1-memory-p1-4a4d1d3c.tgz`，可从 Molis `a20d260dfe` 取回；下面它那一节保留原样。
+
+## 上一份：memory-p1 4a4d1d3c（2026-11-14，第 31 批换）
 
 当前包为 **1,463,621 字节**，SHA-256 `1264b32b65e66adce32ae83c935abc85c46bcae4b77520470d2e265bab87c8bb`。来源为 `molis-ai/molis-prologue` 基于公开 main `4493a5eb418af29a253d38499682dc2be99697b1`（PR #121 `018947ae58` 与 PR #120 `7e2de40bca`）构建的 **Memory P1 提交 `4a4d1d3c8cc5840f4abe522e748abaee588db7de`**，没有 vendor 补丁、没有脏文件。比上一份（`c764d970`）包含 PR #120/#121（含空 `resident` 零读取零授权回执、开场召回收任务语境、会话检索覆盖）以及 Memory P1 三项能力与通用对象适用条件：
 
@@ -444,8 +462,8 @@ shasum -a 256 /absolute/path/to/prologue-sdk-0.0.0-rc.1-side-panel-memory.tgz   
 26 份补丁（合计 2,791,897 字节）是历史包的重建材料。重建当前包用不着它们（当前包不加任何补丁），按决定从树里删掉；Git 历史不改写。记录在 [`patch-history.json`](patch-history.json)：
 
 - `patches`：26 项，每项有 `bytes`、`sha256`、`gitBlob`（补丁在 Git 里的对象号）、`base`（基线提交）、`commit`（补丁重建出其树的上游提交，没有则为 `null`）、`sourceKind`、`source`、`summary`，以及它产出的包 `package`（文件名、字节数、SHA-256、`gitBlob`）；
-- `packagesWithoutPatch`：38 个没有补丁的历史包（文件名、字节数、SHA-256、`gitBlob`、提交、说明），含本次换掉的 attachment-order、之前的 after-write-check-marker、after-write-check-key、after-write-check、parked-run、app-wait-ends-step、mcp-schema-annotations、app-tools-waits 与 mcp-refresh，以及 2026-10-12 换掉的 dirty 候选 a0-s1 和 adoption-receipts-fields、2026-10-13 换掉的 adoption-receipts-handling 与 main 上的 computer-use、2026-10-14 换掉的 interim-p1-cu，同日换掉的 interim-p1-cu-image，2026-10-15 换掉的 interim-p1-cu-image-acceptance，2026-10-16 换掉的 collaboration、found-tools 与 find-tools-deferral，2026-10-17 换掉的 parameter-branches 与 reference-kinds，以及随 #472 进入 main 历史的 molis-adoption、2026-11-12 换下的 memory-p0 第一版（记录名 `prologue-sdk-0.0.0-rc.1-memory-p0-107.tgz`）与第二版（main #2020 采用的同名包，1,428,464 字节，上游 #113 `770a2e27`）、final103-bridge，以及 2026-11-13 由官方 main 包换下的 window31、同日第 28 批由 `c764d970` 官方包换下的 `5cbf2601` 官方包（记录名 `prologue-sdk-0.0.0-rc.1-main-5cbf2601.tgz`），与 2026-11-14 第 31 批换下的 `c764d970` 官方包（记录名 `prologue-sdk-0.0.0-rc.1-main-c764d970.tgz`）；换掉的 side-panel-memory 包记在 `patches` 里 `side-panel-memory.patch` 的 `package`；
-- `upstream`：54 个 Prologue 提交的审计（2026-10-25 对当时的 main `f1753ec8fa2cbca45667e60e101b93702acc6640` 复核 42 个；2026-11-12/13 补入 `1cc80b05`、`4537a570`、主线合并提交 `1c0654b7`、写后检查身份修复 `5cbf2601`、测试补充 `bdf80c6f` 与第二版 memory-p0 的来源 `770a2e27`；第 28 批补入 `14e13911`（#117）与 `c764d970`（#119）；第 31 批再补入 `7e2de40b`（#120）、`018947ae`、`4493a5eb`（#121）与当前包来源 `4a4d1d3c8cc5840f4abe522e748abaee588db7de`；`checkedOn` 为 2026-11-14，`mainHead` 为 `4493a5eb418af29a253d38499682dc2be99697b1`）：历史 `08b84296`、`923e5a40`、`4007a93c` 与当前 `ba75c9f8` 四个过渡源不是 main 祖先，其余主线提交均为祖先；当前 ba75 是本节说明的 base2c7 + final103 适配，不是 main 升级。更早 `21cdfbf8`、`d4a2f41b` 是 Molis 提交，不是 Prologue 提交。
+- `packagesWithoutPatch`：39 个没有补丁的历史包（文件名、字节数、SHA-256、`gitBlob`、提交、说明），含本次换掉的 attachment-order、之前的 after-write-check-marker、after-write-check-key、after-write-check、parked-run、app-wait-ends-step、mcp-schema-annotations、app-tools-waits 与 mcp-refresh，以及 2026-10-12 换掉的 dirty 候选 a0-s1 和 adoption-receipts-fields、2026-10-13 换掉的 adoption-receipts-handling 与 main 上的 computer-use、2026-10-14 换掉的 interim-p1-cu，同日换掉的 interim-p1-cu-image，2026-10-15 换掉的 interim-p1-cu-image-acceptance，2026-10-16 换掉的 collaboration、found-tools 与 find-tools-deferral，2026-10-17 换掉的 parameter-branches 与 reference-kinds，以及随 #472 进入 main 历史的 molis-adoption、2026-11-12 换下的 memory-p0 第一版（记录名 `prologue-sdk-0.0.0-rc.1-memory-p0-107.tgz`）与第二版（main #2020 采用的同名包，1,428,464 字节，上游 #113 `770a2e27`）、final103-bridge，以及 2026-11-13 由官方 main 包换下的 window31、同日第 28 批由 `c764d970` 官方包换下的 `5cbf2601` 官方包（记录名 `prologue-sdk-0.0.0-rc.1-main-5cbf2601.tgz`），2026-11-14 第 31 批换下的 `c764d970` 官方包（记录名 `prologue-sdk-0.0.0-rc.1-main-c764d970.tgz`），与 2026-11-15 第 32 批换下的 Memory P1 包（记录名 `prologue-sdk-0.0.0-rc.1-memory-p1-4a4d1d3c.tgz`）；换掉的 side-panel-memory 包记在 `patches` 里 `side-panel-memory.patch` 的 `package`；
+- `upstream`：58 个 Prologue 提交的审计（2026-10-25 对当时的 main `f1753ec8fa2cbca45667e60e101b93702acc6640` 复核 42 个；2026-11-12/13 补入 `1cc80b05`、`4537a570`、主线合并提交 `1c0654b7`、写后检查身份修复 `5cbf2601`、测试补充 `bdf80c6f` 与第二版 memory-p0 的来源 `770a2e27`；第 28 批补入 `14e13911`（#117）与 `c764d970`（#119）；第 31 批再补入 `7e2de40b`（#120）、`018947ae`、`4493a5eb`（#121）与上一份包的来源 `4a4d1d3c8cc5840f4abe522e748abaee588db7de`；第 32 批补入 `188d9f6c`（#122）、`3825662d`（#123）、`e0625b62`（#124）与当前包来源 `0a0dfdfa507f463efdce14611dcbfbf1506ac5d2`（#125）；`checkedOn` 为 2026-11-15，`mainHead` 为 `0a0dfdfa507f463efdce14611dcbfbf1506ac5d2`）：历史 `08b84296`、`923e5a40`、`4007a93c`、`ba75c9f8` 四个过渡源与 #122 合并前的分支提交 `4a4d1d3c` 不是 main 祖先，其余主线提交均为祖先；当前 ba75 是本节说明的 base2c7 + final103 适配，不是 main 升级。更早 `21cdfbf8`、`d4a2f41b` 是 Molis 提交，不是 Prologue 提交。
 
 怎么取回并核对：
 

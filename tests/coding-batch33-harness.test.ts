@@ -20,12 +20,16 @@ import {
   renderTaskAttemptBudget,
 } from "@molis-ai/molis-work-design-system";
 import {
+  buildEnvironmentChecklistHtml,
+  buildRoundMaterialsHtml,
   codingHistoryDigest,
   codingTimelineWords,
   createCodingTimeline,
+  formatBoardProgressSummary,
   historySummaryMaterial,
   isValidFibonacciStoryPoints,
   parseCodingPlan,
+  stepPointsBadge,
 } from "@molis-ai/molis-work-plugin-coding";
 import {
   applyUnknownCommandOutcomes,
@@ -36,9 +40,6 @@ import {
   SUBAGENT_DEFAULT_MAX_ATTEMPTS,
   withPinnedKnowledgeRevision,
 } from "@molis-ai/molis-work-service-agent-host";
-import { formatBoardProgressSummary, stepPointsBadge } from "../plugins/native/coding/src/browser/taskboard-steps.js";
-import { buildEnvironmentChecklistHtml } from "../plugins/native/coding/src/browser/main/configuration.js";
-import { buildRoundMaterialsHtml } from "../plugins/native/coding/src/browser/main/run-block.js";
 import { cogniaModelResponse, cogniaScriptedResponse } from "./fixtures/cognia-model-response.js";
 import { codingProductHost } from "./fixtures/coding-product-host.js";
 import { withPageText } from "./fixtures/page-text.js";
@@ -240,7 +241,7 @@ test("B1, B5 & B7: withPinnedKnowledgeRevision gateway pinning, client progress 
   assert.equal(sameOk.expected_revision, "rev-initial");
   assert.throws(
     () => withPinnedKnowledgeRevision(knowledgeReadRef, { subject: { kind: "artifact", id: "art-1@1" }, expected_revision: "rev-other" }, pinnedMap),
-    (err: { code?: string }) => err.code === "knowledge.revision_changed",
+    (err: { code?: string }) => err.code === "agent.pinned_revision_mismatch",
   );
 
   const packs = chinesePagePacks("coding");

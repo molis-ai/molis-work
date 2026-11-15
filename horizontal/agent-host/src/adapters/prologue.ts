@@ -50,6 +50,46 @@ export type {
   PrologueStartInput,
 } from "./prologue-ports.js";
 
+async function readOpenStepCounts(
+  readStepBoard: PrologueRuntimePort["readStepBoard"],
+  planned: AgentRunRef | undefined,
+): Promise<AgentSessionStatus["steps"]> {
+  if (!planned || !readStepBoard) return undefined;
+  try {
+    const board = await readStepBoard(planned);
+    const open = board && !board.terminal ? board.nodes.filter(node => !["succeeded", "failed", "cancelled"].includes(node.state)) : [];
+    const count = (kind: string) => open.filter(node => node.owner?.kind === kind).length;
+    return open.length ? { mine: count("person"), subtasks: count("subtask"), unowned: count("none") } : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function hydrateStartCommandReceipts(
+  readCommandOutput: PrologueRuntimePort["readCommandOutput"],
+  run: AgentRunRef,
+  view: AgentRunView,
+): Promise<void> {
+  if (!readCommandOutput || !view.command_outputs?.length) return;
+  const knownOutputs = new Set(view.command_outputs.map(ref => ref.call_id));
+  await Promise.all(view.activity.map(async item => {
+    if (item.name !== "start-command" || !knownOutputs.has(item.call_id) || /^exit \S+/.test(item.output ?? "")) return;
+    try {
+      const receipt = await readCommandOutput(run.session_id, { run_id: run.run_id, call_id: item.call_id });
+      const header = receipt.exit_code !== null
+        ? `exit ${receipt.exit_code}`
+        : receipt.timed_out || receipt.stop_reason === "timed-out"
+          ? "exit timed-out"
+          : receipt.cancelled || receipt.stop_reason === "cancelled"
+            ? "exit cancelled"
+            : "exit none";
+      item.output = item.output ? `${header}\n${item.output}` : header;
+    } catch {
+      // Receipt unreadable stays unknown; never synthesize success.
+    }
+  }));
+}
+
 /**
  * The only seam to Prologue.
  *
@@ -174,15 +214,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     const latest = record?.runs.at(-1);
     const planned = record ? [...record.runs].reverse().find(ref => this.#store.requireRun(ref.run_id).view.frozen.execution_plan) : projected?.planned;
     // Who holds the unfinished steps of the latest planned round: a directory shows what waits on the person.
-    let steps: AgentSessionStatus["steps"];
-    if (planned && this.#runtime.readStepBoard) {
-      try {
-        const board = await this.#runtime.readStepBoard(planned);
-        const open = board && !board.terminal ? board.nodes.filter(node => !["succeeded", "failed", "cancelled"].includes(node.state)) : [];
-        const count = (kind: string) => open.filter(node => node.owner?.kind === kind).length;
-        if (open.length) steps = { mine: count("person"), subtasks: count("subtask"), unowned: count("none") };
-      } catch { /* an unreadable graph shows no counts, never made-up ones */ }
-    }
+    const steps = await readOpenStepCounts(this.#runtime.readStepBoard, planned);
     // A live run may end while the step graph is being read; sample its phase at return.
     const facts = record ?? projected!;
     const phase = record ? (latest ? this.#store.requireRun(latest.run_id).view.phase : null)
@@ -235,25 +267,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     const record = this.#store.requireRun(run.run_id);
     await this.#memoryUsage.record(record, session.owner);
     const view = structuredClone(record.view);
-    if (this.#runtime.readCommandOutput && view.command_outputs?.length) {
-      const knownOutputs = new Set(view.command_outputs.map(ref => ref.call_id));
-      await Promise.all(view.activity.map(async item => {
-        if (item.name !== "start-command" || !knownOutputs.has(item.call_id) || /^exit \S+/.test(item.output ?? "")) return;
-        try {
-          const receipt = await this.#runtime.readCommandOutput!(run.session_id, { run_id: run.run_id, call_id: item.call_id });
-          const header = receipt.exit_code !== null
-            ? `exit ${receipt.exit_code}`
-            : receipt.timed_out || receipt.stop_reason === "timed-out"
-              ? "exit timed-out"
-              : receipt.cancelled || receipt.stop_reason === "cancelled"
-                ? "exit cancelled"
-                : "exit none";
-          item.output = item.output ? `${header}\n${item.output}` : header;
-        } catch {
-          // Receipt unreadable stays unknown; never synthesize success.
-        }
-      }));
-    }
+    await hydrateStartCommandReceipts(this.#runtime.readCommandOutput, run, view);
     if (view.frozen.execution_plan) {
       try {
         view.step_board = await this.#runtime.readStepBoard?.(run);

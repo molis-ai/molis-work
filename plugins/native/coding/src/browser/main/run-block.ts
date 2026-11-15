@@ -1,8 +1,9 @@
-import { renderCodingRoundMaterials, type MwCodingRoundMaterialItem, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { setContentHtml } from "@molis-ai/molis-work-plugin-sdk/browser";
+import { buildRoundMaterialsHtml } from "../../recovery-client.js";
 import { el } from "../dom.js";
 import { changesBlock, changesRow } from "./boundary.js";
 import { buildEnvironmentChecklistHtml } from "./configuration.js";
+export { buildRoundMaterialsHtml };
 import { terminal } from "./composer-state.js";
 import { showReviews } from "./helpers.js";
 import { offerApproval } from "./report.js";
@@ -65,95 +66,6 @@ function entryNodes(page: Page, block: HTMLElement, run: RunView, all: readonly 
     }
   }
   return ordered;
-}
-
-export function buildRoundMaterialsHtml(run: Pick<RunView, "frozen" | "activity">): string {
-  const raw = run.frozen?.text_materials || [];
-  const inline = raw.filter(item => !item.material_id.startsWith("coding-materials-overflow"));
-  const overflow = raw.find(item => item.material_id.startsWith("coding-materials-overflow"))?.overflow_materials || [];
-  if (!inline.length && !overflow.length) return "";
-  const wasContinuedRead = (item: { readonly material_id?: string; readonly title?: string; readonly source_artifact_id?: string }): boolean => {
-    const tokens = [item.source_artifact_id, item.material_id, item.title].filter((entry): entry is string => Boolean(entry && entry.length >= 2));
-    if (!tokens.length) return false;
-    return (run.activity || []).some(act => {
-      if (act.state !== "completed") return false;
-      const isReadTool = act.name === "read" || act.name.includes("knowledge.read") || act.name === "molis-action" || act.name.startsWith("knowledge");
-      if (!isReadTool) return false;
-      const hay = `${act.target || ""}\n${act.output || ""}`;
-      return tokens.some(tok => hay.includes(tok));
-    });
-  };
-  const pinned = uiText.text("coding.material.pinned-note");
-  const items: MwCodingRoundMaterialItem[] = [];
-  for (const item of inline) {
-    const ver = item.read_revision ? " · #" + item.read_revision : item.source_version !== undefined ? " · v" + item.source_version : "";
-    const name = (item.title || item.material_id) + ver;
-    const clipped = item.delivery === "clipped" || item.delivery === "truncated";
-    if ((clipped || item.delivery === "on-demand") && wasContinuedRead(item)) {
-      items.push({
-        state: "done",
-        name,
-        how: uiText.text("coding.material.delivery.continued-how"),
-        statusLabel: uiText.text("coding.material.delivery.continued"),
-        statusTone: "progress",
-      });
-    } else if (clipped) {
-      items.push({
-        state: "partial",
-        name,
-        how: uiText.text("coding.material.delivery.truncated") + " · " + pinned,
-        statusLabel: uiText.text("coding.material.status.truncated"),
-        statusTone: "attention",
-      });
-    } else if (item.delivery === "on-demand") {
-      items.push({
-        state: "material",
-        name,
-        how: uiText.text("coding.material.delivery.on-demand") + " · " + pinned,
-        statusLabel: uiText.text("coding.material.status.on-demand"),
-        statusTone: "quiet",
-      });
-    } else {
-      items.push({
-        state: "done",
-        name,
-        how: uiText.text("coding.material.delivery.inline") + " · " + pinned,
-        statusLabel: uiText.text("coding.material.status.inline"),
-        statusTone: "done",
-      });
-    }
-  }
-  for (const item of overflow) {
-    const ver = item.read_revision ? " · #" + item.read_revision : item.source_version !== undefined ? " · v" + item.source_version : "";
-    const name = (item.title || item.material_id || "") + ver;
-    if (wasContinuedRead(item)) {
-      items.push({
-        state: "done",
-        name,
-        how: uiText.text("coding.material.delivery.continued-how"),
-        statusLabel: uiText.text("coding.material.delivery.continued"),
-        statusTone: "progress",
-      });
-    } else {
-      items.push({
-        state: "material",
-        name,
-        how: uiText.text("coding.material.delivery.on-demand") + " · " + pinned,
-        statusLabel: uiText.text("coding.material.status.on-demand"),
-        statusTone: "quiet",
-      });
-    }
-  }
-  const hasDeferred = overflow.length > 0 || inline.some(item => item.delivery === "clipped" || item.delivery === "truncated" || item.delivery === "on-demand");
-  return renderCodingRoundMaterials({
-    title: uiText.text("coding.material.round-title"),
-    summaryLabel: overflow.length
-      ? uiText.text("coding.material.round-overflow-summary", { inline: inline.length, rest: overflow.length })
-      : uiText.text("coding.material.round-summary", { count: inline.length + overflow.length }),
-    summaryTone: hasDeferred ? "progress" : "done",
-    items,
-    footer: { title: uiText.text("coding.material.footer.title"), detail: uiText.text("coding.material.footer.detail") },
-  });
 }
 
 function placeEnvChecklist(page: Page, block: HTMLElement, ordered: HTMLElement[], last: boolean) {

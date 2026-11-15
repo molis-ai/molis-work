@@ -44,6 +44,37 @@ export const codingExecutionRules: readonly PolicyRule[] = [
   { source: "runtime", effect: "ask", match: { what: "other", labelPrefix: "" } },
 ];
 
+function registerConfirmedPlanScopeHook(
+  runtime: Runtime,
+  original: (run: AgentRunRef) => Promise<PrologueStepBinding | undefined>,
+  projectBoard?: (session: string) => Promise<string | undefined>,
+): string {
+  const hook = "molis-confirmed-plan-scope";
+  runtime.hooks.register({ id: hook, event: "tool-before", blocking: true, handler: async context => {
+    if (!context.toolName?.startsWith("board-") || context.toolName === "board-wait") return { kind: "allow" };
+    const denied = { kind: "deny" as const, why: "只能读取或回报本项目的任务图，不能访问其他任务图或改写计划" };
+    const asked = context.input as { board?: unknown; node?: unknown } | undefined;
+    if (context.toolName === "board-report" && (asked?.node === PROJECT_STEP || isBlock(String(asked?.node)) || isPlanStep(String(asked?.node)))) return { kind: "deny", why: "这一步是会话或计划所在的位置，不用报告；请报告计划里的步骤" };
+    if (!["board-read", "board-report"].includes(context.toolName) || !context.origin?.session) return denied;
+    if (context.toolName === "board-report" && typeof asked?.node === "string" && asked.node.startsWith(`${blockId({ id: context.origin.session })}.`)) {
+      const own = `${blockId({ id: context.origin.session })}.`, rest = asked.node.slice(own.length);
+      if (/^p\d+\./.test(rest)) {
+        const attempt = context.origin.run ? await original({ session_id: context.origin.session, run_id: context.origin.run }).catch(() => undefined) : undefined;
+        if (placeOf(attempt)?.prefix !== own + rest.slice(0, rest.indexOf("."))) return { kind: "deny", why: "这是本会话之前那一轮计划的步骤；要接着做，请用户点「继续计划」" };
+      }
+    }
+    const shared = projectBoard ? await projectBoard(context.origin.session).catch(() => undefined) : undefined;
+    if (shared && asked?.board === shared) return { kind: "allow" };
+    if (typeof asked?.board !== "string") return denied;
+    let other: SdkBoard | undefined;
+    try { other = runtime.boards.get({ kind: "task-board", id: asked.board, revision: 1 } as ExactRef<"task-board">); } catch { other = undefined; }
+    const mine = (node: { assignee?: { kind: string; id: string } | undefined }) => node.assignee?.kind === "session" && node.assignee.id === context.origin!.session;
+    if (other && (asked.node === undefined ? context.toolName === "board-read" && other.nodes.some(mine) : other.nodes.some(node => node.id === asked.node && mine(node)))) return { kind: "allow" };
+    return denied;
+  } });
+  return hook;
+}
+
 /**
  * The SDK owns all graph mutations; this seam only places confirmed plans on the project's board, scopes what a round
  * may read and report, and gives the person's changes to the SDK as board operations.
@@ -60,35 +91,7 @@ export function createPrologueTaskBoards(runtime: Runtime, original: (run: Agent
   alive?: (session: string) => boolean,
   /** Persist a human reconciliation decision on a step whose command ended with an unknown outcome (BL-222). */
   onReconcileStep?: (run: AgentRunRef, stepId: string, entry: { action: "confirm-done" | "rerun"; note: string; at_ms: number }) => Promise<void>) {
-  const hook = "molis-confirmed-plan-scope";
-  runtime.hooks.register({ id: hook, event: "tool-before", blocking: true, handler: async context => {
-    if (!context.toolName?.startsWith("board-") || context.toolName === "board-wait") return { kind: "allow" };
-    const denied = { kind: "deny" as const, why: "只能读取或回报本项目的任务图，不能访问其他任务图或改写计划" };
-    const asked = context.input as { board?: unknown; node?: unknown } | undefined;
-    // The step a session stands on, a plan's own step and the project's root are the Host's: they say where work is, not
-    // what it did.
-    if (context.toolName === "board-report" && (asked?.node === PROJECT_STEP || isBlock(String(asked?.node)) || isPlanStep(String(asked?.node)))) return { kind: "deny", why: "这一步是会话或计划所在的位置，不用报告；请报告计划里的步骤" };
-    if (!["board-read", "board-report"].includes(context.toolName) || !context.origin?.session) return denied;
-    // An earlier plan of this session is the person's to take up again (「继续计划」): a round reports on its own plan's
-    // steps in its block, not on another plan's.
-    if (context.toolName === "board-report" && typeof asked?.node === "string" && asked.node.startsWith(`${blockId({ id: context.origin.session })}.`)) {
-      const own = `${blockId({ id: context.origin.session })}.`, rest = asked.node.slice(own.length);
-      if (/^p\d+\./.test(rest)) {
-        const attempt = context.origin.run ? await original({ session_id: context.origin.session, run_id: context.origin.run }).catch(() => undefined) : undefined;
-        if (placeOf(attempt)?.prefix !== own + rest.slice(0, rest.indexOf("."))) return { kind: "deny", why: "这是本会话之前那一轮计划的步骤；要接着做，请用户点「继续计划」" };
-      }
-    }
-    // The project's board: read, and reported on where the SDK lets this session (steps it holds, its own binding).
-    const shared = projectBoard ? await projectBoard(context.origin.session).catch(() => undefined) : undefined;
-    if (shared && asked?.board === shared) return { kind: "allow" };
-    // A board where this session holds a step (a subtask's own session): read, and reported on at that step.
-    if (typeof asked?.board !== "string") return denied;
-    let other: SdkBoard | undefined;
-    try { other = runtime.boards.get({ kind: "task-board", id: asked.board, revision: 1 } as ExactRef<"task-board">); } catch { other = undefined; }
-    const mine = (node: { assignee?: { kind: string; id: string } | undefined }) => node.assignee?.kind === "session" && node.assignee.id === context.origin!.session;
-    if (other && (asked.node === undefined ? context.toolName === "board-read" && other.nodes.some(mine) : other.nodes.some(node => node.id === asked.node && mine(node)))) return { kind: "allow" };
-    return denied;
-  } });
+  const hook = registerConfirmedPlanScopeHook(runtime, original, projectBoard);
   /*
    * Live rounds following their plan. A change someone else made to one of its steps (a subtask's report, a step handed
    * back) is told to the round once things settle for a moment, as one short note.

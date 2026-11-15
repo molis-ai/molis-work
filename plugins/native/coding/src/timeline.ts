@@ -391,13 +391,7 @@ export function createCodingTimeline(words: TimelineWords) {
     const took = stoppedAt && duration(run.started_at, stoppedAt) ? uiText.text("coding.round.took", { duration: duration(run.started_at, stoppedAt) }) : "";
     const extra = endedRoundExtras(run, edited.size, commands.length, lastCommand, lastEnd, left, stalled, took);
     const { tone, title, ringState, digestGrid } = extra;
-    const facts = [
-      took,
-      edited.size ? tally(KIND.edit!, edited.size) : uiText.text("coding.round.no-edits"),
-      dispatched && tally(KIND["dispatch-subagent"]!, dispatched),
-      commands.length ? tally(KIND["run-command"]!, commands.length) : "",
-      lastCommand ? uiText.text("coding.round.last-command", { command: lastCommand.target || uiText.text("coding.round.command"), end: endLabel(lastEnd ?? "unknown") }) : "", ...extra.extraFacts,
-    ].filter(Boolean);
+    const facts = [took, edited.size ? tally(KIND.edit!, edited.size) : uiText.text("coding.round.no-edits"), dispatched && tally(KIND["dispatch-subagent"]!, dispatched), commands.length ? tally(KIND["run-command"]!, commands.length) : "", lastCommand ? uiText.text("coding.round.last-command", { command: lastCommand.target || uiText.text("coding.round.command"), end: endLabel(lastEnd ?? "unknown") }) : "", ...extra.extraFacts].filter(Boolean);
     // A reason that only restates the title ("已停止" under "这一轮已停止") adds nothing. "已停止" is the runtime's own
     // default reason for a stop, so it restates the title in every language.
     const stated = (run.stop_reason ?? "").trim(), restates = stated !== "" && (title.includes(stated.replace(/^已/, "")) || (tone === "stopped" && stated === "已停止"));

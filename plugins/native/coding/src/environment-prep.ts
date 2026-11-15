@@ -191,7 +191,7 @@ async function inspectRootDirectory(
           found.ports = ports;
           if (knownScripts.length || ports.length) {
             const parts = [
-              knownScripts.length ? codingText("coding.env.scripts.summary", { scripts: knownScripts.join(" / ") }) : "",
+              knownScripts.length ? codingText("coding.env.scripts.summary", { scriptList: knownScripts.join(" / ") }) : "",
               ports.length ? codingText("coding.env.scripts.ports", { ports: ports.join(", ") }) : "",
             ].filter(Boolean);
             items.push({ id: "scripts", label: scriptsLabel, status: "ok", detail: parts.join(" · ") });

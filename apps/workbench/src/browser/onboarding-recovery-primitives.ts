@@ -7,7 +7,7 @@ import {
   renderScopeDeltaCard,
 } from "@molis-ai/molis-work-plugin-sdk/ui";
 
-(globalThis as unknown as Record<string, unknown>).molisRecoveryParts = {
+const recoveryParts = {
   fileKindExtension,
   renderFileKind,
   renderMaterialsFunnel,
@@ -15,3 +15,9 @@ import {
   renderMaterialIssueRow,
   renderScopeDeltaCard,
 };
+
+declare global {
+  var molisRecoveryParts: typeof recoveryParts | undefined;
+}
+
+globalThis.molisRecoveryParts = recoveryParts;

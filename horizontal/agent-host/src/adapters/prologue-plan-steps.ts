@@ -497,6 +497,81 @@ function inputRefs(refs: readonly { session: string; input: string }[]): AgentIn
   return refs.map(ref => ({ session_id: ref.session, input_id: ref.input }));
 }
 
+async function reconcileAmendedStep(options: {
+  runtime: Runtime;
+  place: PlanPlace;
+  target: TaskNode;
+  action: "confirm-done" | "rerun";
+  note: string;
+  expectedVersion: number;
+  person: { kind: "human"; id: string };
+  node: (id: string) => TaskNode;
+  report: (nodeId: string, note: string, to?: TaskNode["state"]) => Promise<void>;
+  setBoard: (next: SdkBoard) => void;
+  onReconcile?: (stepId: string, entry: { action: "confirm-done" | "rerun"; note: string; at_ms: number }) => Promise<void>;
+}): Promise<void> {
+  const { runtime, place, target, action, note, expectedVersion, person, node, report, setBoard, onReconcile } = options;
+  const ref = place.ref;
+  const stepKey = localId(place, target.id) ?? target.id;
+  const nowMs = Math.max(Date.now(), expectedVersion + 1);
+  if (action === "confirm-done") {
+    if (target.state === "cancelled" || target.state === "not-started") {
+      throw new Error("这一步还未执行或已跳过，不能核对为已完成");
+    }
+    if (target.state === "failed") {
+      setBoard(await runtime.boards.retry({ ref, expectedVersion: runtime.boards.get(ref).version, nodeId: target.id, note: "用户开始核对", atMs: nowMs, human: person }));
+    } else if (target.state === "needs-reconciliation" || target.state === "blocked" || target.state === "waiting") {
+      await report(target.id, "用户开始核对", "ready");
+    }
+    if (node(target.id).state === "ready") await report(target.id, "用户核对中", "running");
+    if (node(target.id).state === "running") await report(target.id, `用户核对完成：${note}`, "succeeded");
+    await onReconcile?.(stepKey, { action: "confirm-done", note, at_ms: nowMs });
+    return;
+  }
+  if (target.state === "cancelled") throw new Error("已跳过的步骤不能直接重新执行");
+  if (target.state === "failed") {
+    setBoard(await runtime.boards.retry({ ref, expectedVersion: runtime.boards.get(ref).version, nodeId: target.id, note: `用户决定重新执行：${note}`, atMs: nowMs, human: person }));
+  } else if (target.state === "running") {
+    await report(target.id, "标记待重新执行", "needs-reconciliation");
+    await report(target.id, `用户决定重新执行：${note}`, "ready");
+  } else if (target.state === "needs-reconciliation" || target.state === "blocked" || target.state === "waiting") {
+    await report(target.id, `用户决定重新执行：${note}`, "ready");
+  }
+  await onReconcile?.(stepKey, { action: "rerun", note, at_ms: nowMs });
+}
+
+async function removeStepFromScope(options: {
+  runtime: Runtime;
+  ref: ExactRef<"task-board">;
+  target: TaskNode;
+  reason: string;
+  person: { kind: "human"; id: string };
+  dependents: (id: string) => string[];
+  node: (id: string) => TaskNode;
+  replaced: (deps: readonly string[], from: string, to: readonly string[]) => string[];
+  report: (nodeId: string, note: string, to?: TaskNode["state"]) => Promise<void>;
+  rewire: (nodeId: string, dependsOn: string[]) => Promise<void>;
+  setBoard: (next: SdkBoard) => void;
+}): Promise<void> {
+  const { runtime, ref, target, reason, person, dependents, node, replaced, report, rewire, setBoard } = options;
+  if (["running", "succeeded", "cancelled"].includes(target.state)) {
+    throw new Error(target.state === "running" ? "这一步正在执行，先暂停或等它回报后再移出范围" : "这一步已经结束，不需要移出范围");
+  }
+  const after = dependents(target.id);
+  if (target.state === "failed") {
+    setBoard(await runtime.boards.retry({
+      ref,
+      expectedVersion: runtime.boards.get(ref).version,
+      nodeId: target.id,
+      note: `用户移出本轮范围（原为失败步骤）：${reason}`,
+      atMs: Date.now(),
+      human: person,
+    }));
+  }
+  await report(target.id, `用户移出本轮范围：${reason}`, "cancelled");
+  for (const id of after) await rewire(id, replaced(node(id).dependsOn, target.id, target.dependsOn));
+}
+
 /**
  * A person's change to the running plan, made only with SDK board operations: skipped and inserted steps, decisions and
  * moves are recorded as reports on the board, so the graph itself is the record. The person's version is the plan's
@@ -587,53 +662,11 @@ export async function amendPlan(
       break;
     }
     case "remove-scope": {
-      const reason = text(amendment.reason, "移出范围原因", 300);
-      if (["running", "succeeded", "cancelled"].includes(target!.state)) {
-        throw new Error(target!.state === "running" ? "这一步正在执行，先暂停或等它回报后再移出范围" : "这一步已经结束，不需要移出范围");
-      }
-      const after = dependents(target!.id);
-      if (target!.state === "failed") {
-        board = await runtime.boards.retry({
-          ref,
-          expectedVersion: runtime.boards.get(ref).version,
-          nodeId: target!.id,
-          note: `用户移出本轮范围（原为失败步骤）：${reason}`,
-          atMs: Date.now(),
-          human: person,
-        });
-      }
-      await report(target!.id, `用户移出本轮范围：${reason}`, "cancelled");
-      for (const id of after) await rewire(id, replaced(node(id).dependsOn, target!.id, target!.dependsOn));
+      await removeStepFromScope({ runtime, ref, target: target!, reason: text(amendment.reason, "移出范围原因", 300), person, dependents, node, replaced, report, rewire, setBoard: next => { board = next; } });
       break;
     }
     case "reconcile": {
-      const note = text(amendment.note, "核对说明", 500);
-      const stepKey = localId(place, target!.id) ?? target!.id;
-      const nowMs = Math.max(Date.now(), expectedVersion + 1);
-      if (amendment.action === "confirm-done") {
-        if (target!.state === "cancelled" || target!.state === "not-started") {
-          throw new Error("这一步还未执行或已跳过，不能核对为已完成");
-        }
-        if (target!.state === "failed") {
-          board = await runtime.boards.retry({ ref, expectedVersion: runtime.boards.get(ref).version, nodeId: target!.id, note: "用户开始核对", atMs: nowMs, human: person });
-        } else if (target!.state === "needs-reconciliation" || target!.state === "blocked" || target!.state === "waiting") {
-          await report(target!.id, "用户开始核对", "ready");
-        }
-        if (node(target!.id).state === "ready") await report(target!.id, "用户核对中", "running");
-        if (node(target!.id).state === "running") await report(target!.id, `用户核对完成：${note}`, "succeeded");
-        await onReconcile?.(stepKey, { action: "confirm-done", note, at_ms: nowMs });
-      } else {
-        if (target!.state === "cancelled") throw new Error("已跳过的步骤不能直接重新执行");
-        if (target!.state === "failed") {
-          board = await runtime.boards.retry({ ref, expectedVersion: runtime.boards.get(ref).version, nodeId: target!.id, note: `用户决定重新执行：${note}`, atMs: nowMs, human: person });
-        } else if (target!.state === "running") {
-          await report(target!.id, "标记待重新执行", "needs-reconciliation");
-          await report(target!.id, `用户决定重新执行：${note}`, "ready");
-        } else if (target!.state === "needs-reconciliation" || target!.state === "blocked" || target!.state === "waiting") {
-          await report(target!.id, `用户决定重新执行：${note}`, "ready");
-        }
-        await onReconcile?.(stepKey, { action: "rerun", note, at_ms: nowMs });
-      }
+      await reconcileAmendedStep({ runtime, place, target: target!, action: amendment.action, note: text(amendment.note, "核对说明", 500), expectedVersion, person, node, report, setBoard: next => { board = next; }, onReconcile });
       break;
     }
     case "unblock": {

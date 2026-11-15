@@ -1,6 +1,6 @@
 # Coding 与 Agent 工作流优化需求书
 
-状态：需求已整理（2026-10-15），2026-10-24 补充 TaskBoard 斐波那契 Story Point 与整体进度估计（R14）；2026-10-27 用户确定 R1 的 A 方案：默认联动，临时查看别处不改变执行目录（BL-023），并确定每项目多个输入目录、一个可修改的固定输出目录，输入输出可相同；见[整合方案](../product-flow-governance/workspace-and-materials-design.md)。2026-11-04 用户选定第 12 批的目录、规则和模式、恢复、计划卡与任务板四块界面（§11）。2026-10-15 那次交付为需求与职责划分；此后按批次实现，见下一段与各批批次文件。目标完成程度为**内部完整**：真实目录、真实模型、完整任务、异常恢复和关键界面可以顺畅试用；不以工程测试通过代替产品实操或用户认可。2026-11-14：[第 12 批](../post-anticorruption-roadmap/reference/batches/12.md)（[#2061](https://github.com/molis-ai/molis-work/pull/2061)）交付了计划卡与任务板编号、前台命令结局按回执写（BL-161、BL-164，BL-222 余后台部分）、CHO-04（找不到执行方时分开说原因）、CHO-06 的项目规则信任与来源（目录库第 4 版、`set_instructions`、规则菜单、设置开关，一轮读到的规则冻结在这一轮里；子任务继承信任等上游 SDK）；CHO-38 未交付，本人验收未做。
+状态：需求已整理（2026-10-15），2026-10-24 补充 TaskBoard 斐波那契 Story Point 与整体进度估计（R14）；2026-10-27 用户确定 R1 的 A 方案：默认联动，临时查看别处不改变执行目录（BL-023），并确定每项目多个输入目录、一个可修改的固定输出目录，输入输出可相同；见[整合方案](../product-flow-governance/workspace-and-materials-design.md)。2026-11-04 用户选定第 12 批的目录、规则和模式、恢复、计划卡与任务板四块界面，以及第 33 批的环境、预算与重试、重启接续、本轮结果和轮次材料清单界面（§11）。2026-10-15 那次交付为需求与职责划分；此后按批次实现，见下一段与各批批次文件。目标完成程度为**内部完整**：真实目录、真实模型、完整任务、异常恢复和关键界面可以顺畅试用；不以工程测试通过代替产品实操或用户认可。2026-11-14：[第 12 批](../post-anticorruption-roadmap/reference/batches/12.md)（[#2061](https://github.com/molis-ai/molis-work/pull/2061)）交付了计划卡与任务板编号、前台命令结局按回执写（BL-161、BL-164，BL-222 余后台部分）、CHO-04（找不到执行方时分开说原因）、CHO-06 的项目规则信任与来源（目录库第 4 版、`set_instructions`、规则菜单、设置开关，一轮读到的规则冻结在这一轮里；子任务继承信任等上游 SDK）；CHO-38 未交付，本人验收未做。2026-11-15：[第 33 批](../post-anticorruption-roadmap/reference/batches/33.md)（[#2082](https://github.com/molis-ai/molis-work/pull/2082)）交付了 R4 上下文窗口与结构化历史保留（CHO-08～10）、R5 四节收尾报告卡与中断/未知命令对账及步骤进度扣除（CHO-11～12、BL-222、BL-540）、R6 本轮开头展开的环境准备清单与独立工作树（CHO-13）、R14 无上界斐波那契估点修订与叶子加权进度（CHO-29～35）、子任务尝试额度与重试来源（BL-051、BL-182）以及 Coding 轮次材料清单与版本钉住读取（C12～C14）；本人验收集中记于 [BL-batch33-acceptance](../backlog/BL-batch33-acceptance.md)。
 
 需求统筹：本会话 Codex；Coding、平台及 Prologue 实现负责人待分配。输入回执与用户纠正继续由 **Claude「正在做｜输入回执与任务关联」**负责，不重新分配。本文是本轮优化的总合同，既有产品合同与专门需求保持各自所有权。
 
@@ -340,7 +340,7 @@ node scripts/check-spec-coverage.mjs
 | 2026-11-04 | **代码理解工具（A4、CLS-01～03）**：过程里一行「代码理解 · N 种语言好了」，展开写每种语言用的哪个、哪个版本、从哪来；缺了就下载到 Molis 自己的工具目录，不改项目依赖和全局安装，遵守项目的联网限制。没准备好时自动展开，接 04 的恢复块：别的照做，这次查不了的写「没查」，不说成「没有错误」；下载失败把半截的删掉、不当成能用；重启后核对工具目录，完整就不重下 | 用户选 A。否掉 B（输入框底栏状态签，出问题只靠颜色和一行提示）、C（文件栏底部语言面板，窄屏看不到） |
 | 2026-11-04 | **写后检查与格式化（A4-2）**：审查卡标题下面一行检查结果：有没有新错误、格式化了几处，各带来源；有新错误时下面逐条列出（错误码、行号、说明），主按钮变成「先让 Coding 修」；能切「看格式化前」对比。这次没查（工具没准备好）写「这次没查错误」；格式化失败就按写的原样给你看并写明原因。格式化在审查之前做完，你批的就是写进去的那一版 | 用户选 A。否掉 B（错误说明插进差异里出错的行，改动大时要滚着找）、C（审查卡底部检查分区，看完差异才知道有没有问题） |
 | 2026-11-04 | **Coding 一轮里的材料（第 33 批第 2 项）**：发出后本轮下面一张材料清单，每份一行写读了多少——在读、全文、前 12,000 字要时接着读（接着读了就更新）、读不到、用开始时的版本；读不到时这一轮不开始，12 的恢复块接在清单下面：说是哪一份、为什么（被删、授权关了），保留你的话和其余材料，「去掉这份再开始」后接着读其余的、不用重写；一轮中途材料被改，本轮接着用开始时的版本、下一轮用新的；每轮上限 30 份时只读要用的，清单写「已读 N 份，其余要时再读」 | 用户先看了可走一遍的切片（[docs/design/materials-recovery](../../docs/design/materials-recovery/README.md)「走一遍」）后选 **A**。否掉 B 输入框里的材料签带状态（省地方，但一轮开始后对话里不留记录）、C 文件栏里的「本轮材料」（跨轮可见，但窄屏收进抽屉、和本轮内容分开）。「用开始时的版本」要求 `knowledge.read` 接着读时钉住版本，现在没有（第 33 批核账 C13） |
-| 2026-11-14 | **第 33 批页面资源与首屏一次性许可**：批准 `coding.js`（+17,036 B）、`coding.css`（+2,385 B）、`arrival.css`（+4,822 B）、`/onboarding` 内联脚本（+20,960 B）及工作台中英文词包换内容寻址路径的一次性许可（`tooling/gates/page-asset-allowances/batch-33.json`） | 用户在第 33 批主会话弹窗选择「批准（推荐）」。六个恢复闭环部件抽入 `packages/design-system` 共用原语并补入组件板 `#recovery-closures`，工作台首屏冷启动仅 +1,184 B（zh）／+1,233 B（en），热启动 +0 B |
+| 2026-11-15 | **第 33 批页面资源与首屏一次性许可**：批准 `coding.js`（+33,016 B）、`coding.css`（+750 B）、`workbench.css`（+4,409 B）、`arrival.css`（+5,167 B）、`/onboarding` 内联脚本（+31,304 B）及工作台中英文词包换内容寻址路径的一次性许可（`tooling/gates/page-asset-allowances/batch-33.json`） | 用户 2026-11-14 初次批准，并于 2026-11-15 评审返修补齐定样 A 实件与共用原语真实接入后在主会话弹窗批准更新。六个恢复闭环部件由 `packages/design-system` 与 `packages/plugin-sdk/ui` 提供并由 `apps/workbench` 与 `plugins/native/coding` 真实消费；同时将 `agentHostCapabilities` 拆出 `contracts/services/agent-host.ts`，使客户端按需 tree-shake 省下 74 KB，工作台首屏热启动 +0 B |
 
 <a id="batch-33-preflight"></a>
 
@@ -357,7 +357,7 @@ node scripts/check-spec-coverage.mjs
 | 5 包与依赖 | 数据形状归 `packages/contracts`；组件板标本与 UI 原语归 `packages/design-system` 与 `packages/plugin-sdk`；运行时适配归 `horizontal/agent-host`；资料版本校验归 `horizontal/knowledge`；引导服务与界面归 `apps/local-host` 与 `apps/workbench`；Coding 业务与界面归 `plugins/native/coding` |
 | 6 表与存储 | 不改 SQLite 表结构，不升库版本；Onboarding 旅程与 Coding 计划/会话沿现有持久化载荷扩展现行字段 |
 | 7 兼容与迁移 | 只认现行取值，不加历史兼容或迁移兜底 |
-| 8 安全边界 | 在 `docs/system/SECURITY-INVARIANTS.md` 登记并配直接断言拒绝的测试：① 疑似含密钥的材料默认脱敏（只发变量名去掉值）或不发，未经用户显式选 `raw` 绝不向模型外发原始秘密值；② `knowledge.read` 带 `expected_revision` 与当前版本不一致时直接拒绝（`C13`）；③ 结果未知的命令与中断动作在恢复前拒绝当成已完成或自动重放（`CHO-12`、`BL-222`） |
+| 8 安全边界 | 在 `docs/system/SECURITY-INVARIANTS.md` 登记并配直接断言拒绝的测试：① 疑似含密钥的材料默认脱敏（只发变量名去掉值）或不发，未经用户显式选 `raw` 绝不向模型外发原始秘密值（`S-onboarding-secret-hold`）；② `knowledge.read` 带 `expected_revision` 与当前版本不一致时直接拒绝，且动作工具与业务网关统一拦截跨轮次/中途改版漂移并返回 `agent.pinned_revision_mismatch`（`S-41`、`C13`）；③ 结果未知的命令与中断动作在恢复前拒绝当成已完成或自动重放，所在步骤不计入完成进度（`CHO-12`、`BL-222`） |
 | 9 调用次数 | 大目录清点分批可取消，不逐文件请求；修改材料范围只增量读取新增文件，复用未变文件的 `references`（`ONB-40`、`C7`）；Coding 材料超 30 份时按需懒读（`C14`） |
 | 10 升级与数据 | 重启或丢回执后，Onboarding 采用先核对已建项目、文稿、待办与接手状态（`ONB-45`、`C10`）；Coding 恢复用宿主进程启动时间判断运行中断（不用插件内 `process.uptime()`，`BL-540`），幂等接续不重复写 |
 | 11 成果与过程项 | 不新增成果类型；Coding 报告与计划沿既有成果类型，引导产出经 Pages 与 Todo 公开动作写入 |
@@ -366,10 +366,10 @@ node scripts/check-spec-coverage.mjs
 | 14 冲突面 | 在 `.claude/worktrees/batch-33`（`batch/33`）独立推进；先落组件板标本与 `33-1`，同步 `origin/main`（含在途 `#2074`）后落 `33-2`，全批单 PR 交付 |
 | 15 全局最优 | **插件**：估点、尝试额度、资料钉住版本读取走公共合同；**平台**：窗口缩放、宿主启动时间与 `knowledge.read` 版本校验在平台层统一收口；**助理**：跨入口共用同一套窗口、子代理恢复与材料交接；**各类平台能力**：动作目录、知识库、工作树与设计系统标本各归其主；**后续开发**：第 34/35 批直接复用大清单、五格核对、错误分类与 Coding 环境/报告闭环 |
 
-### 12.1 第 33 批验证与证据分级（2026-11-14）
+### 12.1 第 33 批验证与证据分级（2026-11-15）
 
-- **工程通过：** `tests/coding-batch33-harness.test.ts`（8/8，覆盖 `CHO-08～13`、`CHO-29～35`、`C12～C14`、`BL-051`、`BL-182`、`BL-222`、`BL-540`）、`tests/security-invariants-knowledge.test.ts`（9/9，含 `expected_revision` 版本漂移拒绝）、`tests/agent-host-actions.test.ts`（15/15）、`tests/agent-host.test.ts`（19/19）及公开合同与门禁全绿。
-- **实操（自动化浏览器）：** `tests/coding-workbench.e2e.test.ts`（2/2，覆盖 1360／1024／390、深色与文件面同步）、`tests/coding-inputs.e2e.test.ts`（1/1）、`tests/context-onboarding-recovery.e2e.test.ts`（2/2，覆盖 `/__ui/catalog#recovery-closures` 1440／1024／390／320 浅深双色布局零溢出审计）。
+- **工程通过：** `tests/coding-batch33-harness.test.ts`（9/9，覆盖 `CHO-08～13`、`CHO-29～35`、`C12～C14`、`BL-051`、`BL-182`、`BL-222`、`BL-540`，含计划进度汇总无 `NaN`、0..1 折扣进度百分数换算、失败尾步 `remove-scope` 与 `skip` 区分、含未知结局命令的步骤扣除、子任务重试保留父轮冻结模型与额度条/历次记录、业务网关钉版本拒绝、环境准备清单与轮次材料清单共用原语渲染）、`tests/security-invariants-knowledge.test.ts`（10/10，含 `S-41` `expected_revision` 版本漂移拒绝与未授权优先拒绝不探版本）、`tests/coding-onboarding-take.test.ts`（1/1）、`tests/sdk-ui-markup.test.ts`（8/8，覆盖恢复闭环原语双语渲染无裸中文）、`tests/ui-text-locale-files.test.ts`（21/21）及公开合同、健康门禁与页面资源/首屏预算全绿。
+- **实操（自动化浏览器）：** `tests/coding-workbench.e2e.test.ts`（2/2，覆盖 1360／1024／390、深色与文件面同步）、`tests/context-onboarding-recovery.e2e.test.ts`（2/2，覆盖 `/__ui/catalog#recovery-closures` 中英文、1440／1024／390／320 浅深双色零溢出与无裸中文审计）。
 - **本人验收：** 未执行，集中登记于 [BL-batch33-acceptance](../backlog/BL-batch33-acceptance.md)。
 
 

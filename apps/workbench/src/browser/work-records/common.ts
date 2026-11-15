@@ -70,8 +70,7 @@ export const fmtDate = (iso: string | null | undefined, style: "month-day" | "da
   return Number.isFinite(d.getTime()) ? readText("common.generated.formatted", { value: { kind: "date", at: d.toISOString(), style } }) : String(iso);
 };
 
-export const fmtNum = (n: number): string =>
-  readText("common.generated.formatted", { value: { kind: "number", number: Number(n) || 0, style: "decimal" } });
+export const fmtNum = (n: number) => ({ kind: "number" as const, number: Number(n) || 0, style: "decimal" as const });
 
 export const fmtBytes = (bytes: number): string => {
   const b = Number(bytes) || 0;

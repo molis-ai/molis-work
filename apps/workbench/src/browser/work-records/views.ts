@@ -48,7 +48,7 @@ export function renderScopeTab(S: WorkRecordsState): string {
         + btnHtml(readText("workbench.settings-work-records.resume-btn"), { v: "primary", attrs: { "data-wr-act": "resume" }, disabled: S.busy }),
     );
   } else if (rec.state === "catching_up") {
-    const readCount = fmtNum(rec.catch_up_progress?.read_count || 0);
+    const readCount = readText("common.generated.formatted", { value: fmtNum(rec.catch_up_progress?.read_count || 0) });
     top = alertHtml("info", esc(readText("workbench.settings-work-records.catchup-title")), esc(readText("workbench.settings-work-records.catchup-body")));
     recRow = settingHtml("wr-rec", readText("workbench.settings-work-records.catchup-row-title"), readText("workbench.settings-work-records.catchup-row-note"), statusHtml(readCount, "progress"));
   } else {

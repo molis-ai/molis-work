@@ -8710,14 +8710,26 @@
     "workbench.settings-work-records.need-weekly": "Weekly report evidence",
     "workbench.settings-work-records.need-compare": "Two-month comparison",
     "workbench.settings-work-records.need-eval": "Raw records behind evaluation samples",
-    "workbench.settings-work-records.need-days": "Needs the last {days} days",
+    "workbench.settings-work-records.need-days": {
+      "plural_arg": "days",
+      "forms": {
+        "one": "Needs the last {days} day",
+        "other": "Needs the last {days} days"
+      }
+    },
     "workbench.settings-work-records.st-kept": "Kept",
     "workbench.settings-work-records.st-will-lose": "Will be lost",
     "workbench.settings-work-records.short-warn-title": "This period is shorter than reports and comparisons need",
     "workbench.settings-work-records.short-warn-body": "After saving, older records are cleared — nothing is silently kept longer.",
     "workbench.settings-work-records.short-use-anyway": "Use {period} anyway",
     "workbench.settings-work-records.short-keep-instead": "Keep instead",
-    "workbench.settings-work-records.clean-done-title": "Cleared {count} records · {size} freed",
+    "workbench.settings-work-records.clean-done-title": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "Cleared {count} record · {size} freed",
+        "other": "Cleared {count} records · {size} freed"
+      }
+    },
     "workbench.settings-work-records.clean-done-body": "That period shows as Cleared by retention in look-back and evaluation and is never replaced by current content. Originals, Pages versions and saved briefs remain.",
     "workbench.settings-work-records.see-gaps": "See gaps",
     "workbench.settings-work-records.see-space": "See space",
@@ -8728,7 +8740,13 @@
     "workbench.settings-work-records.choose-btn": "Choose…",
     "workbench.settings-work-records.samples-heading": "Evaluation samples",
     "workbench.settings-work-records.samples-row-title": "Samples kept for evaluation",
-    "workbench.settings-work-records.samples-row-note": "Have their own period ({days} days) and aren’t affected by the clean-up above; you’ll be asked before they expire.",
+    "workbench.settings-work-records.samples-row-note": {
+      "plural_arg": "days",
+      "forms": {
+        "one": "Have their own period ({days} day) and aren’t affected by the clean-up above; you’ll be asked before they expire.",
+        "other": "Have their own period ({days} days) and aren’t affected by the clean-up above; you’ll be asked before they expire."
+      }
+    },
     "workbench.settings-work-records.samples-badge": "{count}",
     "workbench.settings-work-records.dlg-title": "Clear work records",
     "workbench.settings-work-records.dlg-desc": "See how much and what it affects before deciding.",
@@ -8741,20 +8759,44 @@
     "workbench.settings-work-records.dlg-project": "Project",
     "workbench.settings-work-records.dlg-all-projects": "All projects",
     "workbench.settings-work-records.dlg-kinds": "Which records",
-    "workbench.settings-work-records.dlg-count": "about {count} records",
+    "workbench.settings-work-records.dlg-count": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "about {count} record",
+        "other": "about {count} records"
+      }
+    },
     "workbench.settings-work-records.dlg-apply": "Clear {size}",
     "workbench.settings-work-records.impact-timeline": "Reports for that period will show their evidence as cleared",
     "workbench.settings-work-records.impact-compare": "Comparisons across that period will no longer be available",
     "workbench.settings-work-records.impact-originals": "Originals, Pages versions and saved briefs remain",
-    "workbench.settings-work-records.impact-samples": "{count} evaluation samples stay under their own period",
+    "workbench.settings-work-records.impact-samples": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "{count} evaluation sample stays under its own period",
+        "other": "{count} evaluation samples stay under their own period"
+      }
+    },
     "workbench.settings-work-records.goto-clean": "Clean up",
     "workbench.settings-work-records.change-reminder": "Change reminder",
-    "workbench.settings-work-records.loss-alert-title": "{count} records were not saved due to disk or write failure",
+    "workbench.settings-work-records.loss-alert-title": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "{count} record was not saved due to disk or write failure",
+        "other": "{count} records were not saved due to disk or write failure"
+      }
+    },
     "workbench.settings-work-records.loss-alert-body": "The work itself took effect; only its record is missing. Look-back and evaluation mark it as Lost.",
     "workbench.settings-work-records.rem-near-title": "Close to your reminder: {used} / {limit}",
     "workbench.settings-work-records.rem-over-title": "Past your reminder: {used} / {limit}",
     "workbench.settings-work-records.rem-over-body": "Still recording; nothing is deleted automatically.",
-    "workbench.settings-work-records.space-delta": "Since {since} · {count} projects",
+    "workbench.settings-work-records.space-delta": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "Since {since} · {count} project",
+        "other": "Since {since} · {count} projects"
+      }
+    },
     "workbench.settings-work-records.space-delta-empty": "No saved work records yet",
     "workbench.settings-work-records.decrease": "Decrease",
     "workbench.settings-work-records.increase": "Increase",
@@ -8768,7 +8810,13 @@
     "workbench.settings-work-records.expiry-row-note": "{mode}. Set separately from the reminder.",
     "workbench.settings-work-records.goto-settings": "Change",
     "workbench.settings-work-records.cov-cleared-title": "Earlier records were cleared by your retention rule",
-    "workbench.settings-work-records.cov-attn-title": "{count} need attention",
+    "workbench.settings-work-records.cov-attn-title": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "{count} needs attention",
+        "other": "{count} need attention"
+      }
+    },
     "workbench.settings-work-records.cov-ok-title": "Everything connected is complete",
     "workbench.settings-work-records.cov-sub-since": "Complete since {since} · {count} not connected yet",
     "workbench.settings-work-records.cov-sub-plain": "{count} not connected yet",
@@ -8802,7 +8850,13 @@
     "workbench.settings-work-records.cause-paused": "Recording was paused during this window",
     "workbench.settings-work-records.cause-manual-cleanup": "You cleared records for this window manually",
     "workbench.settings-work-records.cause-auto-cleanup": "Cleared automatically by your retention period",
-    "workbench.settings-work-records.cause-storage-failed": "Disk or database write failed; {count} records were not saved",
+    "workbench.settings-work-records.cause-storage-failed": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "Disk or database write failed; {count} record was not saved",
+        "other": "Disk or database write failed; {count} records were not saved"
+      }
+    },
     "workbench.settings-work-records.cause-not-connected": "This source is not connected to work records yet",
     "workbench.settings-work-records.cause-image-refs": "Images shown to a round exist only at runtime and are kept by reference",
     "workbench.settings-work-records.cause-subagent-stream": "Subagents record start, end, requests and actions rather than internal stream events",
@@ -8819,8 +8873,20 @@
     "workbench.settings-work-records.cause-dwell-minute": "Dwell and scroll are summed per object per minute",
     "workbench.settings-work-records.cause-large-step": "Oversized step results record byte size on the handoff",
     "workbench.settings-work-records.cause-report-self": "The reporting channel itself is not recorded recursively",
-    "workbench.settings-work-records.cause-truncated": "{count} oversized items kept their prefix and digest only",
-    "workbench.settings-work-records.cause-redacted": "Credentials in {count} calls were replaced with key names",
+    "workbench.settings-work-records.cause-truncated": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "{count} oversized item kept its prefix and digest only",
+        "other": "{count} oversized items kept their prefix and digest only"
+      }
+    },
+    "workbench.settings-work-records.cause-redacted": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "Credentials in {count} call were replaced with key names",
+        "other": "Credentials in {count} calls were replaced with key names"
+      }
+    },
     "workbench.settings-work-records.cause-generic": "Recorded under this version’s collection rules",
     "workbench.settings-work-records.effect-lost": "Work in this window took effect, but its steps cannot be looked up",
     "workbench.settings-work-records.effect-expired": "Shown as Cleared by retention in look-back and evaluation; originals and saved briefs remain",

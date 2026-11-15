@@ -656,6 +656,7 @@ export interface WorkLineEvent extends WorkEvent {
 
 export interface WorkLineReadResult {
     events: WorkLineEvent[];
+    table: BackgroundTasksReadResult;
     issues: MainlineIssue[];
 }
 

@@ -54,7 +54,9 @@ test("WLN-37, WLN-38 mainline.line.read puts an installed plugin's events on the
   assert.equal(by("due-soon").waiting, true, "the owner's own word that it waits is kept");
   // Who registered it rides with the event; no progress of a task is copied into the line.
   assert.equal(by("active").source.capability_id, "homebg.events"); assert.deepEqual(by("active").origin, SOURCE);
-  assert.doesNotMatch(JSON.stringify(line), /任务 t-run|updated_at/);
+  assert.doesNotMatch(JSON.stringify(line.events), /任务 t-run|updated_at/);
+  // The task table the line was placed with comes beside it, the same rows a read of the table gives (N42: one read for both).
+  assert.deepEqual(line.table, await client.invoke(person(a.project_id), mainlineActions.tasks, {}), "the table beside the line is the task table itself");
   assert.deepEqual(plugin.state.eventCalls.at(-1), { project: a.project_id, query_only: true }, "the registrant is asked read-only, in the caller's project");
 
   // An Agent reads the same registrants through its own client (the Assistant's read of the line). A task provider answers only the
@@ -71,7 +73,7 @@ test("WLN-37 a registrant that is off says nothing, one that cannot answer or an
   const a = rig.project("A"), client = rig.host.actionClient(a), me = person(a.project_id);
 
   const off = rig.project("Off"), before = plugin.state.eventCalls.length;
-  assert.deepEqual(await rig.host.actionClient(off).invoke(person(off.project_id), mainlineActions.line, WINDOW), { events: [], issues: [] });
+  assert.deepEqual(await rig.host.actionClient(off).invoke(person(off.project_id), mainlineActions.line, WINDOW), { events: [], table: { tasks: [], issues: [] }, issues: [] });
   assert.equal(plugin.state.eventCalls.length, before, "a registrant that is off is not called");
 
   const issuesOf = async () => (await client.invoke(me, mainlineActions.line, WINDOW)).issues.map(issue => [issue.source.capability_id, issue.code]);
@@ -93,7 +95,7 @@ test("WLN-37 a registrant that is off says nothing, one that cannot answer or an
 
   // The refusals.
   const asked = plugin.state.eventCalls.length;
-  assert.deepEqual(await client.invoke(person(a.project_id, [MAINLINE_READ_PERMISSION]), mainlineActions.line, WINDOW), { events: [], issues: [] });
+  assert.deepEqual(await client.invoke(person(a.project_id, [MAINLINE_READ_PERMISSION]), mainlineActions.line, WINDOW), { events: [], table: { tasks: [], issues: [] }, issues: [] });
   assert.equal(plugin.state.eventCalls.length, asked, "the registrant was not asked on behalf of a caller that may not read it");
   await assert.rejects(client.invoke(person(a.project_id, ["homebg:read"]), mainlineActions.line, WINDOW), code("actions.forbidden"), "the read itself needs its own permission");
   await assert.rejects(client.invoke(me, mainlineActions.line, { ...WINDOW, now: "2026-11-16T00:00:00.000Z" }), code("actions.input_invalid"), "a window that does not hold its own now");

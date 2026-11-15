@@ -133,7 +133,8 @@ async function serveAttention(t: TestContext, sources: AttentionSources) {
 test("W4-10-01 QA-022 a reader that fails nulls only its own part of the attention read", async t => {
   const tasks = [{ project_id: "project-a", session_id: "session-1", state: "waiting" }];
   const told = (surface: string | null) => [{ notice_id: "notice-1", kind: "reminder", surface }];
-  const line = { events: [{ id: "event-1" }], issues: [] }, table = { tasks: [{ id: "task-1" }], issues: [] };
+  const table = { tasks: [{ id: "task-1" }], issues: [] }, line = { events: [{ id: "event-1" }], table, issues: [] };
+  let lineReads = 0;
   const exact: Attention = { background_tasks: tasks, notices: told("todo"), plugin_events_pending: 3, board_cursor: 41, line, tasks: table };
   const failing = { current: null as keyof Attention | null, rejects: false };
   const fail = (part: keyof Attention) => failing.current === part && (failing.rejects ? "rejects" : "throws");
@@ -148,14 +149,17 @@ test("W4-10-01 QA-022 a reader that fails nulls only its own part of the attenti
     notices: surface => Promise.resolve(answer("notices", told(surface))),
     pluginEventsPending: () => Promise.resolve(answer("plugin_events_pending", 3)),
     boardCursor: () => answer("board_cursor", 41) as number,
-    mainline: { line: () => Promise.resolve(answer("line", line)), tasks: () => Promise.resolve(answer("tasks", table)) },
+    mainline: { line: () => { lineReads++; return Promise.resolve(answer("line", line)); } },
   });
   assert.deepEqual(await read("/api/attention?surface=todo"), exact);
+  // N42: the task panel's table is the one the line was placed with; one read of the line answers both.
+  assert.equal(lineReads, 1, "the line is read once for the line and the task panel");
   assert.deepEqual((await read()).notices, told(null), "no surface asked about is the Home's notices");
-  for (const part of Object.keys(exact) as Array<keyof Attention>) {
+  for (const part of (Object.keys(exact) as Array<keyof Attention>).filter(name => name !== "tasks")) {
     for (const rejects of part === "board_cursor" ? [false] : [false, true]) {
       failing.current = part; failing.rejects = rejects;
-      assert.deepEqual(await read("/api/attention?surface=todo"), { ...exact, [part]: null }, `${part} ${rejects ? "rejected" : "threw"}: only it is null`);
+      // The task table comes with the line: an unreadable line leaves the panel with what it last showed, too.
+      assert.deepEqual(await read("/api/attention?surface=todo"), { ...exact, [part]: null, ...(part === "line" ? { tasks: null } : {}) }, `${part} ${rejects ? "rejected" : "threw"}: only it is null`);
     }
   }
   failing.current = null;

@@ -20,7 +20,7 @@ export interface AttentionSources {
    * not for a plugin's page). The bottom line, its waiting count and the task panel paint from this one read: none of them has a
    * beat of its own (specs/work-line contract-design §11).
    */
-  mainline?: { line(): Promise<unknown>; tasks(): Promise<unknown> } | null;
+  mainline?: { line(): Promise<{ table: unknown }> } | null;
   /**
    * Hear that something this page shows may have changed (`attention-changes.ts`): the page's one stream (`GET /api/attention/events`)
    * says so with no content, and the page reads `/api/attention` again. The returned function stops it.
@@ -43,11 +43,12 @@ export async function handleAttentionHttp(request: IncomingMessage, response: Se
   };
   const surface = url.searchParams.get("surface") || null;
   const absent = Promise.resolve(null), mainline = sources.mainline;
-  const [background_tasks, notices, plugin_events_pending, board_cursor, line, tasks] = await Promise.all([
+  const [background_tasks, notices, plugin_events_pending, board_cursor, line] = await Promise.all([
     sources.backgroundTasks ? part(() => sources.backgroundTasks!()) : absent, part(() => sources.notices(surface)),
     sources.pluginEventsPending ? part(() => sources.pluginEventsPending!()) : Promise.resolve(0), sources.boardCursor ? part(() => sources.boardCursor!()) : absent,
-    mainline ? part(() => mainline.line()) : absent, mainline ? part(() => mainline.tasks()) : absent]);
-  sendLocalWebJson(response, 200, { background_tasks, notices, plugin_events_pending, board_cursor, line, tasks });
+    mainline ? part(() => mainline.line()) : absent]);
+  // The task panel's table is the one the line was placed with: read once, sent beside the line it came with.
+  sendLocalWebJson(response, 200, { background_tasks, notices, plugin_events_pending, board_cursor, line, tasks: line ? line.table : null });
   return true;
 }
 

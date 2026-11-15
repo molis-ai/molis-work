@@ -63,6 +63,7 @@ output: {
     line_state?: StateRingState; waiting: boolean;    // 线上显示的状态；它或背后的任务等你
     tasks: { running: number; waiting: number; refs: ActionSubject[] };  // 背后的任务，取自总表
   }>;
+  table: { tasks: BackgroundTaskRow[]; issues: [...] };  // 排线用的那份总表（与 background.tasks.read 同形）：页面画线与任务面板只读一次（2026-11-15 评审，N42）
   issues: Array<{ source: ActionReference; title: string; code: string }>;  // 读不到的来源：只有标题和错误码
 }
 ```
@@ -70,7 +71,7 @@ output: {
 实现时定下的几点（2026-11-14，已随代码落地，`horizontal/mainline/src/index.ts` 的 `readWorkLine`、`gatherWorkEvents`）：
 
 - **排法。** 主人的 `placement` 定在哪一翼（已发生→已办，进行中→现在旁边，今天→接下来）；背后有任务在办或等你时，不管主人放在哪都移到「现在」旁边。翼内：已办按发生时间，新的靠近现在；接下来按 `scheduled_at`（没有就按 `occurred_at`），早的靠近现在；现在旁边等你的在前，其余按时间新的在前。
-- **显示的状态。** 背后有任务等你显示「等你处理」，有任务在办显示「进行」，否则是主人给的 `state`；任务结束后事件回到主人的位置和状态，`refs` 里仍列着它（WLN-38）。任务的进度、标题不抄进线读取的返回。
+- **显示的状态。** 背后有任务等你显示「等你处理」，有任务在办显示「进行」，否则是主人给的 `state`；任务结束后事件回到主人的位置和状态，`refs` 里仍列着它（WLN-38）。任务的进度、标题不抄进事件；总表随线原样放在 `table` 里，不另加工。
 - **读不到的来源只给错误码。** 登记方自己写的错误信息不进返回（首页事项的那份读取照旧显示提供方的话，是它自己的事）。在项目里停用的登记方不算问题、也不调用。
 - **与首页事项共用一段。** 逐家调用、限时（每家 5 秒）、核对事件 id 不重复和对象种类在声明里，是 `gatherWorkEvents` 一段；`home.events.read` 改调它（并行、带时限），建议合并、插件是否在项目里的判断、读取后复查来源是否撤回仍留在首页那边。
 - **Agent 读到的线没有背后的任务。** 任务提供方的读取按 S-49 只回答本人，所以 `mainline.line.read` 以 Agent、工作流、MCP 身份调用时，事件照常给出、都在主人放的位置，`tasks` 是空的；`background.tasks.read` 因此只给本人。助理要知道自己派出的任务办到哪，靠结果回流（§9）和它自己的记录，不靠读总表。要不要让任务读取也回答 Agent，是动 S-49 的事，留到结果回流那一步和用户确认。**2026-11-15 用户定了：允许助理的 Agent 读。** 做法不动提供方（它们仍只回答本人，`mainline.line.read` 给 Agent 的 `tasks` 仍是空的）：助理多一个只给自己 Agent 的只读动作 `assistant.background.read@1`，由助理服务以本人身份在这一轮所在的项目里读 `background.tasks.read`，交给 Agent 一份抄本——名字、状态、步骤、谁在办、为哪个事件办、在问什么——不带命令和回答动作；只认助理自己的一轮（宿主写的 `skill_round`），别的 Agent、工作流、MCP、页面和个人范围的一轮都拒（S-49）。

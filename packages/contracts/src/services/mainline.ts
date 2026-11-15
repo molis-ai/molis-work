@@ -53,7 +53,8 @@ export interface WorkLineEvent extends WorkEvent {
    */
   tasks: { running: number; waiting: number; refs: ActionSubject[] };
 }
-export interface WorkLineReadResult { events: WorkLineEvent[]; issues: MainlineIssue[] }
+/** The line, with the task table its events were placed with (the caller's own rows and the table's own issues: one read for both). */
+export interface WorkLineReadResult { events: WorkLineEvent[]; table: BackgroundTasksReadResult; issues: MainlineIssue[] }
 
 /** One command of one row, as the reader was given it. It is run only if the provider, asked again, still offers exactly this. */
 export interface BackgroundTaskCommandRequest { source: Required<ActionReference>; subject: ActionSubject; command: BackgroundTaskCommand }
@@ -133,16 +134,18 @@ export const WORK_LINE_EVENT_SCHEMA = { ...WORK_EVENT_SCHEMA, properties: { ...W
   required: [...WORK_EVENT_SCHEMA.required, "id", "source", "origin", "wing", "rank", "waiting", "tasks"] };
 
 const metadata = { scope: "project" as const, scheduling: "concurrent" as const, subject_kinds: [] };
+const TASK_TABLE_SCHEMA = { type: "object", properties: { tasks: { type: "array", items: BACKGROUND_TASK_ROW_SCHEMA }, issues: { type: "array", items: ISSUE_SCHEMA } }, required: ["tasks", "issues"], additionalProperties: false } as const;
+
 export const mainlineActions = {
   /**
    * The line of one project: every registrant asked once in parallel, the task table read once in the same call, each event placed
-   * and ordered. The Assistant and an outside Agent read this same answer; there is no second, textual form of it.
+   * and ordered; the task table comes with it, so a page that shows both reads once. The Assistant and an outside Agent read this same answer; there is no second, textual form of it.
    */
   line: { capability_id: "mainline.line.read", version: /* @version action.mainline.line.read */ 1, operation: "query", action: { ...metadata,
     title: "事项线", description: "从这个项目里已授权的登记方读取当前窗口里的事件，标出每件在线上的位置、先后和背后在办或等你的任务（只算调用方自己读得到的任务）；只读，不会执行事件上的动作。",
     kind: "query", effect: "read", audiences: ["user", "agent", "workflow", "mcp"], permissions: [MAINLINE_READ_PERMISSION],
     input_schema: inputSchemaFor<WorkEventWindow>()(WORK_EVENT_WINDOW_SCHEMA),
-    output_schema: { type: "object", properties: { events: { type: "array", items: WORK_LINE_EVENT_SCHEMA }, issues: { type: "array", items: ISSUE_SCHEMA } }, required: ["events", "issues"], additionalProperties: false } } } as ActionDefinition<WorkEventWindow, WorkLineReadResult>,
+    output_schema: { type: "object", properties: { events: { type: "array", items: WORK_LINE_EVENT_SCHEMA }, table: TASK_TABLE_SCHEMA, issues: { type: "array", items: ISSUE_SCHEMA } }, required: ["events", "table", "issues"], additionalProperties: false } } } as ActionDefinition<WorkEventWindow, WorkLineReadResult>,
   /**
    * What waits on the person, merged at read time from the line and the task table of the same call, each object once. What the
    * Attention entries and missed runs say reaches it through their registrants and task providers, not through a read of its own.
@@ -172,7 +175,7 @@ export const mainlineActions = {
     // The providers answer the person alone (S-49), so only the person has anything to read here.
     kind: "query", effect: "read", audiences: ["user"], permissions: [MAINLINE_READ_PERMISSION],
     input_schema: inputSchemaFor<Record<string, never>>()({ type: "object", properties: {}, additionalProperties: false }),
-    output_schema: { type: "object", properties: { tasks: { type: "array", items: BACKGROUND_TASK_ROW_SCHEMA }, issues: { type: "array", items: ISSUE_SCHEMA } }, required: ["tasks", "issues"], additionalProperties: false } } } as ActionDefinition<Record<string, never>, BackgroundTasksReadResult>,
+    output_schema: TASK_TABLE_SCHEMA } } as ActionDefinition<Record<string, never>, BackgroundTasksReadResult>,
   /**
    * Stop, pause or resume a task: the provider is asked again, and the command is run only if the task still offers exactly it.
    * The command's action is then called as the caller, so its own audience, permissions and diagnostics apply; only the person may ask.

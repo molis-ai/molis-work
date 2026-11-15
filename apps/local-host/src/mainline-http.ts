@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { mainlineActions } from "@molis-ai/molis-work-contracts/services/mainline";
+import { mainlineActions, type WorkLineReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
 import { SHELF_ADMIT_ACTION } from "@molis-ai/molis-work-module-shelf/contract";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { bindLocalWebActions } from "./local-web-actions.js";
@@ -24,15 +24,15 @@ const ROUTES = new Map<string, ActionDefinition>([
 const DAY = 86_400_000;
 
 /**
- * The line and the task table for the page's one attention read (`attention-http.ts`): each is read as the person, in the window the
- * bottom line shows (thirty days back, two ahead). A plugin's page gets neither, as on the routes below.
+ * The line, with the task table it was placed with, for the page's one attention read (`attention-http.ts`) and the event card's
+ * check: one `mainline.line.read@1` as the person, in the window the bottom line shows (thirty days back, two ahead), so the table
+ * is read once for both (N42). A plugin's page gets neither, as on the routes below.
  */
-export function mainlineAttention(request: IncomingMessage, host: MolisWorkLocalHost, project: LocalHostProjectReference): { line(): Promise<unknown>; tasks(): Promise<unknown> } | null {
+export function mainlineAttention(request: IncomingMessage, host: MolisWorkLocalHost, project: LocalHostProjectReference): { line(): Promise<WorkLineReadResult> } | null {
   if (pluginPageRequest(request)) return null;
   const client = bindLocalWebActions(host, project, LOCAL_OWNER_PERMISSIONS);
   return {
-    line: () => { const now = Date.now(); return client.invoke(mainlineActions.line as ActionDefinition, { from: new Date(now - 30 * DAY).toISOString(), to: new Date(now + 2 * DAY).toISOString(), now: new Date(now).toISOString() }); },
-    tasks: () => client.invoke(mainlineActions.tasks as ActionDefinition, {}),
+    line: () => { const now = Date.now(); return client.invoke(mainlineActions.line, { from: new Date(now - 30 * DAY).toISOString(), to: new Date(now + 2 * DAY).toISOString(), now: new Date(now).toISOString() }); },
   };
 }
 

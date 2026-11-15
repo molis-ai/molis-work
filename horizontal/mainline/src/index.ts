@@ -223,11 +223,6 @@ const sameSubject = (a: ActionSubject, b: ActionSubject) => a.kind === b.kind &&
  * first. A registrant that is off in the project says nothing; one that cannot answer is an issue by its code (WLN-37, WLN-38).
  */
 export async function readWorkLine(caller: ActionCallContext, client: ActionClient, window: WorkEventWindow): Promise<WorkLineReadResult> {
-  return (await lineAndTable(caller, client, window)).line;
-}
-
-/** The line and the task rows it was placed with, from one discovery and one round of reads. */
-async function lineAndTable(caller: ActionCallContext, client: ActionClient, window: WorkEventWindow): Promise<{ line: WorkLineReadResult; tasks: BackgroundTaskRow[] }> {
   assertWorkEventWindow(window);
   const reader: ActionCallContext = { ...caller, query_only: true };
   const directory = await client.discover(reader);
@@ -252,16 +247,16 @@ async function lineAndTable(caller: ActionCallContext, client: ActionClient, win
     events.filter(event => event.wing === wing).sort((a, b) => order[wing](a, b) || a.id.localeCompare(b.id)).forEach((event, rank) => { event.rank = rank; });
   }
   const WINGS = ["done", "now", "next"];
-  return { line: { events: events.sort((a, b) => WINGS.indexOf(a.wing) - WINGS.indexOf(b.wing) || a.rank - b.rank), issues: [...issues, ...table.issues] }, tasks: table.tasks };
+  return { events: events.sort((a, b) => WINGS.indexOf(a.wing) - WINGS.indexOf(b.wing) || a.rank - b.rank), table, issues: [...issues, ...table.issues] };
 }
 
 /**
- * `attention.waiting.read@1`: what waits on the person, from the same line and task table a line read uses, each object once
+ * `attention.waiting.read@1`: what waits on the person, from one line read and the task table that comes with it, each object once
  * (WLN-39). An event that waits is one item, with the task that waits behind it when one does; a waiting task that serves no event
  * of the line is its own item. Newest first.
  */
 export async function readWaiting(caller: ActionCallContext, client: ActionClient, window: WorkEventWindow): Promise<WaitingReadResult> {
-  const { line, tasks } = await lineAndTable(caller, client, window);
+  const line = await readWorkLine(caller, client, window), tasks = line.table.tasks;
   const waitingTasks = tasks.filter(task => task.waiting), onLine = new Set(line.events.map(event => subjectKey(event.subject)));
   const items: WaitingItem[] = line.events.filter(event => event.waiting).map(event => {
     const task = waitingTasks.find(candidate => candidate.serves.some(served => sameSubject(served, event.subject)));

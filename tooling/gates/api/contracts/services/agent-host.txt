@@ -221,6 +221,8 @@ export interface AgentDraftTextResult {
     } | null;
 }
 
+export type AgentEstimateSource = "agent" | "human";
+
 export interface AgentEvidenceCheck {
     owner_plugin_id: string;
     run: AgentRunRef;
@@ -247,6 +249,10 @@ export interface AgentExecutionPlan {
         title: string;
         acceptance: string;
         depends_on?: string[];
+        parent_id?: string;
+        story_points?: AgentStoryPoints | null;
+        estimate_source?: AgentEstimateSource;
+        estimate_reason?: string;
     }>;
 }
 
@@ -280,6 +286,7 @@ export interface AgentFrozenRole {
     compaction?: {
         prompt: AgentPromptText;
         above_tokens: number;
+        window_ratio?: number;
     };
     ending_review?: {
         prompt: AgentPromptText;
@@ -374,9 +381,22 @@ export interface AgentImageMaterial {
     media_type: string;
 }
 
+export interface AgentMaterialChecklistItem {
+    title: string;
+    material_ref?: MaterialRef;
+    read_revision?: string;
+    delivery: "full" | "clipped" | "on-demand";
+    total_chars?: number;
+    delivered_chars?: number;
+}
+
 export interface AgentMaterialOrigin {
     material_ref?: MaterialRef;
     read_revision?: string;
+    delivery?: "full" | "clipped" | "on-demand";
+    total_chars?: number;
+    delivered_chars?: number;
+    overflow_materials?: AgentMaterialChecklistItem[];
 }
 
 export interface AgentMcpCallResult {
@@ -630,36 +650,6 @@ export interface AgentMemoryCapability {
     update(input: AgentMemoryLocation & AgentMemoryMutation & {
         change: AgentMemoryChange;
     }): Promise<AgentMemoryEntry>;
-    history(input: AgentMemoryLocation & {
-        limit?: number;
-        before_version?: number;
-        signal?: AbortSignal;
-    }): Promise<{
-        memory_id: string;
-        scope: AgentMemoryEntry["scope"];
-        owner: string;
-        current_version: number;
-        pruned_through_version?: number;
-        revisions: Array<{
-            version: number;
-            text: string;
-            origin: string;
-            tags: string[];
-            meta: AgentMemoryMeta;
-            key?: {
-                domain: string;
-                key: string;
-            };
-            created_at_ms: number;
-            updated_at_ms: number;
-            restored_from_version?: number;
-            note?: string;
-        }>;
-    }>;
-    restore(input: AgentMemoryLocation & AgentMemoryMutation & {
-        version: number;
-        note?: string;
-    }): Promise<AgentMemoryEntry>;
     renew(input: AgentMemoryLocation & AgentMemoryMutation & {
         expires_at_ms: number;
     }): Promise<AgentMemoryEntry>;
@@ -695,18 +685,6 @@ export interface AgentMemoryCapability {
         reasons: string[];
         redacted: string;
     }>;
-    exportScope?(input: {
-        scope: AgentMemoryEntry["scope"];
-        owner: string;
-        signal?: AbortSignal;
-    }): Promise<unknown>;
-    importScope?(input: {
-        scope: AgentMemoryEntry["scope"];
-        owner: string;
-        pack: unknown;
-        max_entries?: number;
-        signal?: AbortSignal;
-    }): Promise<unknown>;
     previewBatch(input: {
         scope: AgentMemoryEntry["scope"];
         owner: string;
@@ -925,11 +903,7 @@ export interface AgentMemoryMeta {
     applies_when?: {
         plugins?: string[];
         object_kinds?: string[];
-        objects?: Array<{
-            plugin_id: string;
-            kind: string;
-            id: string;
-        }>;
+        goals?: string[];
         task?: string;
         from_ms?: number;
         until_ms?: number;
@@ -1001,10 +975,6 @@ export interface AgentMemoryPageQuery {
 export type AgentMemoryPreviewMutation = {
     kind: "update";
     change: AgentMemoryChange;
-} | {
-    kind: "restore";
-    version: number;
-    note?: string;
 } | {
     kind: "pause" | "disable";
     reason: string;
@@ -1355,11 +1325,7 @@ export interface AgentRecalledMemory {
     facts?: {
         plugins?: string[];
         object_kinds?: string[];
-        objects?: Array<{
-            plugin_id: string;
-            kind: string;
-            id: string;
-        }>;
+        goals?: string[];
     };
     usage?: {
         title: string;
@@ -1511,6 +1477,7 @@ export interface AgentRunBudget {
     max_output_tokens?: number;
     max_total_tokens?: number;
     max_duration_ms?: number;
+    context_window_tokens?: number;
 }
 
 export type AgentRunControl = {
@@ -1876,6 +1843,7 @@ export type AgentStepAmendment = {
     acceptance: string;
     mine?: true;
     origin?: string;
+    story_points?: import("services/agent-host-start").AgentStoryPoints | null;
 } | {
     kind: "unblock";
     node: string;
@@ -1893,12 +1861,27 @@ export type AgentStepAmendment = {
     node: string;
     state: "succeeded" | "failed";
     note: string;
+} | {
+    kind: "estimate";
+    node: string;
+    story_points: import("services/agent-host-start").AgentStoryPoints | null;
+    reason?: string;
+} | {
+    kind: "progress";
+    node: string;
+    progress: number;
+    basis: string;
+} | {
+    kind: "remove-scope";
+    node: string;
+    reason: string;
 };
 
 export interface AgentStepBoard {
     project_id: string;
     version: number;
     terminal: boolean;
+    progress_summary?: AgentStepProgressSummary;
     nodes: Array<{
         id: string;
         state: "not-started" | "ready" | "running" | "waiting" | "succeeded" | "failed" | "cancelled" | "blocked" | "needs-reconciliation";
@@ -1912,8 +1895,15 @@ export interface AgentStepBoard {
         owner?: AgentStepOwner;
         title?: string;
         depends_on?: string[];
+        parent_id?: string;
         inserted?: boolean;
         origins?: import("@molis-ai/molis-work-contracts/services/agent-inputs").AgentInputRef[];
+        story_points?: import("services/agent-host-start").AgentStoryPoints | null;
+        estimate_source?: import("services/agent-host-start").AgentEstimateSource;
+        estimate_reason?: string;
+        progress?: number;
+        progress_basis?: string;
+        scope_removed?: true;
     }>;
 }
 
@@ -1925,6 +1915,43 @@ export interface AgentStepOwner {
     actor_id?: string;
     expired?: true;
 }
+
+export interface AgentStepProgressSummary {
+    weighted_percent: number | null;
+    completed_points: number;
+    total_points: number;
+    estimated_leaves: number;
+    unestimated_leaves: number;
+    completed_unestimated_leaves: number;
+    removed_scope_leaves: number;
+    removed_scope_points: number;
+}
+
+export type AgentStoryPoints = number;
+
+export interface AgentSubagentAttemptSummary {
+    attempt: number;
+    run_id: string;
+    state: AgentSubagentState;
+    source?: AgentSubagentRetrySource;
+    reason?: string;
+    usage?: AgentRunUsage;
+    error?: string;
+}
+
+export interface AgentSubagentBudgetView {
+    attempt: number;
+    max_attempts: number;
+    max_turns?: number;
+    max_total_tokens?: number;
+    used_tokens?: number;
+    exhausted?: true;
+    retry_source?: AgentSubagentRetrySource;
+    retry_reason?: string;
+    prior_attempts?: AgentSubagentAttemptSummary[];
+}
+
+export type AgentSubagentRetrySource = "check-failed" | "model-error" | "user-requested";
 
 export type AgentSubagentState = "running" | "completed" | "failed" | "cancelled" | "reconcile-required";
 
@@ -1948,6 +1975,8 @@ export interface AgentSubagentView {
     state: AgentSubagentState;
     result: string | null;
     workspace_path: string | null;
+    node_id?: string;
+    budget?: AgentSubagentBudgetView;
 }
 
 export interface AgentSubagentWorkspace {
@@ -1959,6 +1988,13 @@ export interface AgentSubagentsCapability {
     workspaces?: true;
     list(run: AgentRunRef): Promise<AgentSubagentView[]>;
     cancel(run: AgentRunRef, subagentId: string, actorId: string): Promise<void>;
+    retry?(run: AgentRunRef, subagentId: string, options: {
+        actor_id: string;
+        source: AgentSubagentRetrySource;
+        reason?: string;
+        extend_attempts?: number;
+    }): Promise<AgentSubagentView>;
+    extendBudget?(run: AgentRunRef, subagentId: string, extraAttempts: number, actorId: string): Promise<AgentSubagentView>;
 }
 
 export type AgentTextMaterial = {
@@ -2134,6 +2170,10 @@ export interface BuilderAgentRecord {
     output: string;
     configuredModel: string;
     reportedModels: string[];
+    thinking?: 'adaptive';
+    reasoningEffort?: 'low' | 'medium' | 'high';
+    maxOutputTokens?: number;
+    windowTokens?: number;
     sessionId?: string;
     runId?: string;
     phase: 'running' | 'completed' | 'failed' | 'cancelled' | 'interrupted';
@@ -2157,6 +2197,7 @@ export interface BuilderAgentRequest {
     }[];
     operationIds?: readonly string[];
     writable?: readonly string[];
+    reasoningEffort?: 'low' | 'medium' | 'high';
     signal?: AbortSignal;
     checks?(operationIds: readonly string[], signal: AbortSignal): Promise<unknown>;
     onActivity?(activity: BuilderAgentActivity): void;
@@ -2168,6 +2209,8 @@ export interface BuilderSkill {
     name: string;
     body: string;
 }
+
+export declare const FIBONACCI_STORY_POINTS: readonly [1, 2, 3, 5, 8, 13, 21, 34, 55];
 
 export interface InferenceTokenCount {
     readonly source: InferenceUsageSource;
@@ -2202,6 +2245,12 @@ export declare const agentHostCapabilities: {
     readonly createSession: ActionDefinition<[runtimeId: string, input: AgentCreateSessionInput], AgentSessionRef>;
     readonly listSubagents: ActionDefinition<[session: AgentSessionRef, run: AgentRunRef], AgentSubagentView[]>;
     readonly cancelSubagent: ActionDefinition<[session: AgentSessionRef, run: AgentRunRef, subagentId: string], void>;
+    readonly retrySubagent: ActionDefinition<[session: AgentSessionRef, run: AgentRunRef, subagentId: string, options: {
+        source?: AgentSubagentRetrySource;
+        reason?: string;
+        extend_attempts?: number;
+        only_extend?: true;
+    }], AgentSubagentView>;
     readonly readSessionLifecycle: ActionDefinition<[session: AgentSessionRef], AgentSessionLifecycleView>;
     readonly archiveSession: ActionDefinition<[session: AgentSessionRef], AgentSessionLifecycleView>;
     readonly unarchiveSession: ActionDefinition<[session: AgentSessionRef], AgentSessionLifecycleView>;
@@ -2333,6 +2382,7 @@ interface AgentFrozenStartFields {
     model_context?: {
         window_tokens: number;
         prompt_includes_cache: boolean;
+        stated_window_tokens?: number;
     };
     history?: "digest";
     thinking?: "adaptive";

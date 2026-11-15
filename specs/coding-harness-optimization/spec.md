@@ -340,3 +340,28 @@ node scripts/check-spec-coverage.mjs
 | 2026-11-04 | **代码理解工具（A4、CLS-01～03）**：过程里一行「代码理解 · N 种语言好了」，展开写每种语言用的哪个、哪个版本、从哪来；缺了就下载到 Molis 自己的工具目录，不改项目依赖和全局安装，遵守项目的联网限制。没准备好时自动展开，接 04 的恢复块：别的照做，这次查不了的写「没查」，不说成「没有错误」；下载失败把半截的删掉、不当成能用；重启后核对工具目录，完整就不重下 | 用户选 A。否掉 B（输入框底栏状态签，出问题只靠颜色和一行提示）、C（文件栏底部语言面板，窄屏看不到） |
 | 2026-11-04 | **写后检查与格式化（A4-2）**：审查卡标题下面一行检查结果：有没有新错误、格式化了几处，各带来源；有新错误时下面逐条列出（错误码、行号、说明），主按钮变成「先让 Coding 修」；能切「看格式化前」对比。这次没查（工具没准备好）写「这次没查错误」；格式化失败就按写的原样给你看并写明原因。格式化在审查之前做完，你批的就是写进去的那一版 | 用户选 A。否掉 B（错误说明插进差异里出错的行，改动大时要滚着找）、C（审查卡底部检查分区，看完差异才知道有没有问题） |
 | 2026-11-04 | **Coding 一轮里的材料（第 33 批第 2 项）**：发出后本轮下面一张材料清单，每份一行写读了多少——在读、全文、前 12,000 字要时接着读（接着读了就更新）、读不到、用开始时的版本；读不到时这一轮不开始，12 的恢复块接在清单下面：说是哪一份、为什么（被删、授权关了），保留你的话和其余材料，「去掉这份再开始」后接着读其余的、不用重写；一轮中途材料被改，本轮接着用开始时的版本、下一轮用新的；每轮上限 30 份时只读要用的，清单写「已读 N 份，其余要时再读」 | 用户先看了可走一遍的切片（[docs/design/materials-recovery](../../docs/design/materials-recovery/README.md)「走一遍」）后选 **A**。否掉 B 输入框里的材料签带状态（省地方，但一轮开始后对话里不留记录）、C 文件栏里的「本轮材料」（跨轮可见，但窄屏收进抽屉、和本轮内容分开）。「用开始时的版本」要求 `knowledge.read` 接着读时钉住版本，现在没有（第 33 批核账 C13） |
+
+<a id="batch-33-preflight"></a>
+
+## 12. 开工前检查（路线书第 33 批：Coding 与材料恢复闭环）
+
+2026-11-14 按[需求开发流程](../post-anticorruption-roadmap/reference/development-workflow.md) §2 作答，覆盖 `33-1`（Coding 任务与环境恢复：R4、R5、R6、R14 及 BL-051、BL-182、BL-222、BL-540）与 `33-2`（材料、大清单与重启接续：ONB-35～46、C1～C14，并行项「34 的历史来源样本核查」）。
+
+| # | 结论 |
+| --- | --- |
+| 1 事实主人 | `33-1`：Coding 拥有计划（含步骤斐波那契点数 `story_points`）、验证报告、环境准备清单与轮次报告卡；`horizontal/agent-host` 与 Prologue 拥有 Session/Run、上下文窗口解析与压缩阈值、TaskBoard 节点进展与子代理尝试记录（`attempts`、额度与重试原因、`source: "host"`）；工作树归 `modules/workspace-artifacts` 与 Host。`33-2`：Onboarding 旅程、分批清点、增量范围读取、疑似密钥文件策略与模型错误分类归 `apps/local-host` 的 `context-onboarding-service`；采用后文稿归 Pages、待办归 Todo、资料与版本钉住读取归 `horizontal/knowledge`（`knowledge.read` 增 `expected_revision`）；Coding 轮次材料清单与超 30 份按需懒读归 Coding 与 Agent Host 冻结记录 |
+| 2 插件同等待遇 | Coding 走与其他插件相同的 `packages/contracts` 与 `packages/plugin-sdk` 公开接口；`knowledge.read` 的 `expected_revision` 与 `agent-host` 的点数汇总、尝试额度、宿主启动时间经公共合同提供，不开插件私路 |
+| 3 能力注册 | `knowledge.read@1` 在 `packages/contracts/src/services/knowledge.ts` 扩展可选输入 `expected_revision`；不新增特权动作，可信身份与项目作用域从调用上下文获取 |
+| 4 合同 | 扩展 `packages/contracts/src/services/agent-host.ts`（`AgentStepBoard` 节点点数/进度/加权汇总、`AgentSubagentView` 尝试次数/额度/原因与 `source: "host"`、宿主启动时间）、`packages/contracts/src/services/knowledge.ts`（`KnowledgeReadRequest.expected_revision`）、`packages/contracts/src/services/context-onboarding.ts` 与 `materials.ts`（五格进度统计、疑似密钥文件处理选项、增量范围变更记录、模型错误分类）。同步更新 `pnpm api:update` 与 `pnpm actions:update` |
+| 5 包与依赖 | 数据形状归 `packages/contracts`；组件板标本与 UI 原语归 `packages/design-system` 与 `packages/plugin-sdk`；运行时适配归 `horizontal/agent-host`；资料版本校验归 `horizontal/knowledge`；引导服务与界面归 `apps/local-host` 与 `apps/workbench`；Coding 业务与界面归 `plugins/native/coding` |
+| 6 表与存储 | 不改 SQLite 表结构，不升库版本；Onboarding 旅程与 Coding 计划/会话沿现有持久化载荷扩展现行字段 |
+| 7 兼容与迁移 | 只认现行取值，不加历史兼容或迁移兜底 |
+| 8 安全边界 | 在 `docs/system/SECURITY-INVARIANTS.md` 登记并配直接断言拒绝的测试：① 疑似含密钥的材料默认脱敏（只发变量名去掉值）或不发，未经用户显式选 `raw` 绝不向模型外发原始秘密值；② `knowledge.read` 带 `expected_revision` 与当前版本不一致时直接拒绝（`C13`）；③ 结果未知的命令与中断动作在恢复前拒绝当成已完成或自动重放（`CHO-12`、`BL-222`） |
+| 9 调用次数 | 大目录清点分批可取消，不逐文件请求；修改材料范围只增量读取新增文件，复用未变文件的 `references`（`ONB-40`、`C7`）；Coding 材料超 30 份时按需懒读（`C14`） |
+| 10 升级与数据 | 重启或丢回执后，Onboarding 采用先核对已建项目、文稿、待办与接手状态（`ONB-45`、`C10`）；Coding 恢复用宿主进程启动时间判断运行中断（不用插件内 `process.uptime()`，`BL-540`），幂等接续不重复写 |
+| 11 成果与过程项 | 不新增成果类型；Coding 报告与计划沿既有成果类型，引导产出经 Pages 与 Todo 公开动作写入 |
+| 12 页面、外壳与文字 | 复用 `/onboarding` 到达外壳与 Coding 工作台，不新增整页例外；定样已由用户选定（`33-1` 四块选 A，`33-2` 选 B + A + A），组件板新增标本先补入 `/__ui/catalog` 并由只读评审子代理合审；界面短句统一走 `t(...)` |
+| 13 错误 | Onboarding 模型失败按连接、认证（401/403）、限流/配额（429）、超时、超上下文、输出不可用分类并给恢复路径（`ONB-41`、`C9`）；Coding 环境准备失败、基线既有失败（「改之前就有」）、改后未跑检查或版本不匹配分别明确提示（`CHO-11..13`） |
+| 14 冲突面 | 在 `.claude/worktrees/batch-33`（`batch/33`）独立推进；先落组件板标本与 `33-1`，同步 `origin/main`（含在途 `#2074`）后落 `33-2`，全批单 PR 交付 |
+| 15 全局最优 | **插件**：估点、尝试额度、资料钉住版本读取走公共合同；**平台**：窗口缩放、宿主启动时间与 `knowledge.read` 版本校验在平台层统一收口；**助理**：跨入口共用同一套窗口、子代理恢复与材料交接；**各类平台能力**：动作目录、知识库、工作树与设计系统标本各归其主；**后续开发**：第 34/35 批直接复用大清单、五格核对、错误分类与 Coding 环境/报告闭环 |
+

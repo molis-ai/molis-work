@@ -6,7 +6,7 @@ import type { AgentRuntimeAdapter, AgentRuntimeDescriptor, AgentRuntimeCapabilit
 import type { AgentReviewQueueApi, AgentReviewRequest, AgentReviewReceipt } from "./agent-host-reviews.js";
 import type { ActionDefinition, ActionView } from "../platform/actions.js";
 import type { AgentCreateSessionInput, AgentStartInput } from "./agent-host-start.js";
-import type { AgentSubagentView, AgentMcpServerView, AgentMcpServerInput, AgentRecoveryReport, AgentCheckpoint } from "./agent-host-ports.js";
+import type { AgentSubagentView, AgentSubagentRetrySource, AgentMcpServerView, AgentMcpServerInput, AgentRecoveryReport, AgentCheckpoint } from "./agent-host-ports.js";
 export type {AgentSavedHistoryMessage,AgentSavedHistoryRun,AgentSavedHistoryView} from './agent-history.js';
 import type { AgentProjectWork, AgentProjectWorkOverlap, AgentSessionMessage, AgentPeopleMessageInput, AgentPeopleMessageAction, AgentMessageAttachment, AgentBackgroundTask } from "./agent-host-session.js";
 import type { AgentSessionView, AgentSessionStatus, AgentRunHandle, AgentRunView, AgentRunControl, AgentCommandOutputRef, AgentCommandOutput, AgentEvidenceCheck, AgentEvidenceCheckRequest } from "./agent-host-run-view.js";
@@ -31,11 +31,12 @@ export type {
   AgentSessionWriteObservation,
   AgentSessionLifecycleView,
 } from "./agent-host-runtime.js";
-export { agentTextMaterialContent, AGENT_REASONING_EFFORTS, parseAgentRunBudget } from "./agent-host-start.js";
+export { agentTextMaterialContent, AGENT_REASONING_EFFORTS, FIBONACCI_STORY_POINTS, parseAgentRunBudget } from "./agent-host-start.js";
 export type {
   AgentWorkingDirectory,
   AgentWorkspace,
   AgentTextMaterial,
+  AgentMaterialChecklistItem,
   AgentMaterialOrigin,
   AgentImageMaterial,
   AgentFrozenSkill,
@@ -43,6 +44,8 @@ export type {
   AgentMcpToolRef,
   AgentMcpSourceRef,
   AgentReasoningEffort,
+  AgentStoryPoints,
+  AgentEstimateSource,
   AgentRunBudget,
   AgentExecutionPlan,
   AgentFrozenCharacter,
@@ -72,6 +75,7 @@ export type {
   AgentBackgroundTask,
   AgentBackgroundCapability,
   AgentStepOwner,
+  AgentStepProgressSummary,
   AgentStepBoard,
   AgentStepAmendment,
 } from "./agent-host-session.js";
@@ -127,6 +131,9 @@ export type {
   AgentMcpToolDescriptor,
   AgentMcpCallResult,
   AgentSubagentState,
+  AgentSubagentRetrySource,
+  AgentSubagentAttemptSummary,
+  AgentSubagentBudgetView,
   AgentSubagentView,
   AgentSubagentsCapability,
   AgentRecoveryReport,
@@ -318,14 +325,28 @@ const usageOutput = shape(["tokens"], { tokens: shape(["input", "output"], { inp
   context: shape(["tokens", "coverage"], { tokens: number, coverage }) });
 const questionOutput = shape(["pending_id", "kind", "prompt", "options"], { pending_id: string, pending_revision: number, sequence: number, kind: string, prompt: string,
   options: list(shape(["value", "label"], { value: string, label: string })), questions: objects, answerable: { type: "boolean" }, parked: { const: true }, unavailable_reason: string });
-const stepBoardOutput = shape(["project_id", "version", "terminal", "nodes"], { project_id: string, version: number, terminal: { type: "boolean" }, nodes: list(shape(["id", "state", "reports"], {
-  id: string, state: { enum: ["not-started", "ready", "running", "waiting", "succeeded", "failed", "cancelled", "blocked", "needs-reconciliation"] },
-  reports: list(shape(["note", "at_ms"], { note: string, at_ms: number, by: shape(["kind", "label"], { kind: { enum: ["session", "subtask", "person", "handover", "other"] }, label: string, title: string }), inputs: objects })),
-  owner: shape(["kind", "label"], { kind: { enum: ["session", "subtask", "person", "none", "other"] }, label: string, title: string, subagent_id: string, actor_id: string, expired: { const: true } }),
-  title: string, depends_on: strings, inserted: { type: "boolean" }, origins: objects })) });
+const stepBoardOutput = shape(["project_id", "version", "terminal", "nodes"], { project_id: string, version: number, terminal: { type: "boolean" },
+  progress_summary: shape(["weighted_percent", "completed_points", "total_points", "estimated_leaves", "unestimated_leaves", "completed_unestimated_leaves", "removed_scope_leaves", "removed_scope_points"], {
+    weighted_percent: { type: ["number", "null"] }, completed_points: number, total_points: number, estimated_leaves: number, unestimated_leaves: number,
+    completed_unestimated_leaves: number, removed_scope_leaves: number, removed_scope_points: number }),
+  nodes: list(shape(["id", "state", "reports"], {
+    id: string, state: { enum: ["not-started", "ready", "running", "waiting", "succeeded", "failed", "cancelled", "blocked", "needs-reconciliation"] },
+    reports: list(shape(["note", "at_ms"], { note: string, at_ms: number, by: shape(["kind", "label"], { kind: { enum: ["session", "subtask", "person", "handover", "other"] }, label: string, title: string }), inputs: objects })),
+    owner: shape(["kind", "label"], { kind: { enum: ["session", "subtask", "person", "none", "other"] }, label: string, title: string, subagent_id: string, actor_id: string, expired: { const: true } }),
+    title: string, depends_on: strings, parent_id: string, inserted: { type: "boolean" }, origins: objects,
+    story_points: { enum: [1, 2, 3, 5, 8, 13, 21, 34, 55, null] }, estimate_source: { enum: ["agent", "human"] }, estimate_reason: string,
+    progress: number, progress_basis: string, scope_removed: { const: true } })) });
 const memoryRef = shape(["memory_id", "version"], { memory_id: string, version: number });
+const materialDelivery = { enum: ["full", "clipped", "on-demand"] } as const;
+const materialChars = { type: "integer", minimum: 0, maximum: Number.MAX_SAFE_INTEGER } as const;
+const materialOverflowItem = { type: "object", required: ["title", "delivery"], additionalProperties: false, properties: {
+  title: { type: "string", maxLength: 2000 }, material_ref: MATERIAL_REF_SCHEMA, read_revision: { type: "string", minLength: 1, maxLength: 200 },
+  delivery: materialDelivery, total_chars: materialChars, delivered_chars: materialChars,
+  source_artifact_id: { type: "string", minLength: 1, maxLength: 200 }, source_version: { type: "integer", minimum: 1, maximum: Number.MAX_SAFE_INTEGER } } } as const;
 const materialFields = { material_id: { type: "string", minLength: 1, maxLength: 240 }, title: { type: "string", maxLength: 2000 },
-  material_ref: MATERIAL_REF_SCHEMA, read_revision: { type: "string", minLength: 1, maxLength: 200 } } as const;
+  material_ref: MATERIAL_REF_SCHEMA, read_revision: { type: "string", minLength: 1, maxLength: 200 },
+  delivery: materialDelivery, total_chars: materialChars, delivered_chars: materialChars,
+  overflow_materials: { type: "array", maxItems: 200, items: materialOverflowItem } } as const;
 const materialSource = { source_artifact_id: { type: "string", minLength: 1, maxLength: 200 },
   source_version: { type: "integer", minimum: 1, maximum: Number.MAX_SAFE_INTEGER } } as const;
 const frozenOutput = shape(["role_id", "role_version", "execution", "model_id", "prompts", "skills", "mcp_tools", "host_tools", "text_materials", "budget"], {
@@ -343,7 +364,7 @@ const frozenOutput = shape(["role_id", "role_version", "execution", "model_id", 
     { type: "object", required: ["material_id", "source_artifact_id", "source_version"], additionalProperties: false, properties: { ...materialFields, ...materialSource } },
   ] }),
   compaction: shape(["prompt_id", "version", "above_tokens"], { prompt_id: string, version: number, above_tokens: number }),
-  model_context: shape(["window_tokens", "prompt_includes_cache"], { window_tokens: number, prompt_includes_cache: { type: "boolean" } }),
+  model_context: shape(["window_tokens", "prompt_includes_cache"], { window_tokens: number, prompt_includes_cache: { type: "boolean" }, stated_window_tokens: number }),
   history: { const: "digest" }, thinking: { const: "adaptive" }, reasoning_effort: { enum: ["low", "medium", "high"] } });
 const offerOutput = shape(["offer_id", "title", "summary", "reference", "offered_at"], { offer_id: string, title: string, summary: string, offered_at: string, input: {}, editable: strings,
   reference: shape(["capability_id", "version", "provider_id"], { capability_id: string, version: number, provider_id: string }),
@@ -374,7 +395,8 @@ const reviewRequestOutput = { type: "object", required: ["review_id", "run", "pr
 const subagentOutput = { type: "object", required: ["subagent_id", "parent_run", "role_id", "task", "state", "result", "workspace_path"], additionalProperties: false, properties: {
   child_run: runRefOutput, activity: list(activityOutput), usage: usageOutput, host_tools: strings, error: { type: "string" }, subagent_id: { type: "string" }, parent_run: runRefOutput,
   role_id: { type: "string" }, role_name: { type: "string" }, task: { type: "string" }, continuation_task: { anyOf: [
-    shape(["status", "text"], { status: { const: "available" }, text: string }), shape(["status"], { status: { const: "unavailable" } })] }, state: { type: "string" }, result: { type: ["string", "null"] }, workspace_path: { type: ["string", "null"] } } } as const;
+    shape(["status", "text"], { status: { const: "available" }, text: string }), shape(["status"], { status: { const: "unavailable" } })] }, state: { type: "string" }, result: { type: ["string", "null"] }, workspace_path: { type: ["string", "null"] },
+  node_id: { type: "string" }, budget: object } } as const;
 /** A directory the Host granted, a fixed Artifact version: what a start names, never a raw path or a live object. */
 const runtimeOutput = { type: "object", required: ["runtime_id", "display_name", "provider_version", "capabilities"], additionalProperties: false, properties: {
   runtime_id: { type: "string" }, display_name: { type: "string" }, provider_version: { type: "string" }, capabilities: object,
@@ -400,7 +422,9 @@ const startInput = { type: "object", required: ["session", "task", "role_id"], a
   action_tools: { type: "array", maxItems: 500, items: { type: "object", required: ["capability_id", "version", "provider_id"], additionalProperties: false, properties: { capability_id: entryId, version: count, provider_id: entryId } } },
   action_gateway: { type: "boolean" }, character_skill_ids: ids(200),
   execution_plan: { type: "object", required: ["source", "title", "steps"], additionalProperties: false, properties: { source: artifactInput, title: text(2000),
-    steps: { type: "array", maxItems: 500, items: { type: "object", required: ["id", "title", "acceptance"], additionalProperties: false, properties: { id: entryId, title: text(2000), acceptance: text(1_000_000), depends_on: ids(500) } } } } },
+    steps: { type: "array", maxItems: 500, items: { type: "object", required: ["id", "title", "acceptance"], additionalProperties: false, properties: {
+      id: entryId, title: text(2000), acceptance: text(1_000_000), depends_on: ids(500), parent_id: entryId,
+      story_points: { enum: [1, 2, 3, 5, 8, 13, 21, 34, 55, null] }, estimate_source: { enum: ["agent", "human"] }, estimate_reason: text(2000) } } } } },
   continue_step_board_of: entryId, queued_work_id: entryId, queued: { anyOf: [{ enum: ["carry", "leave"] }, ids(500)] }, session_title: text(2000), browser: { const: false },
   history: { enum: ["session", "digest"] },
   subagent_workspaces: { type: "array", maxItems: 50, items: { type: "object", required: ["worktree_id", "directory"], additionalProperties: false, properties: { worktree_id: entryId, directory: directoryInput } } },
@@ -417,7 +441,7 @@ const startInput = { type: "object", required: ["session", "task", "role_id"], a
   skills: { type: "array", maxItems: SKILL_REFS_MAX, items: skillRefSchema }, auto_skills: { const: false },
   mcp_tools: { type: "array", maxItems: 500, items: { type: "object", required: ["server", "tool", "version", "configuration_version"], additionalProperties: false, properties: { ...mcpRef, tool: entryId, version: entryId } } },
   mcp_sources: { type: "array", maxItems: 200, items: { type: "object", required: ["server", "configuration_version"], additionalProperties: false, properties: mcpRef } },
-  budget: { type: "object", additionalProperties: false, properties: { max_turns: count, max_output_tokens: count, max_total_tokens: count, max_duration_ms: { type: "integer", minimum: 1, maximum: 2_147_483_647 } } },
+  budget: { type: "object", additionalProperties: false, properties: { max_turns: count, max_output_tokens: count, max_total_tokens: count, max_duration_ms: { type: "integer", minimum: 1, maximum: 2_147_483_647 }, context_window_tokens: count } },
   workspace: workspaceKind, directory: directoryInput } } as const;
 /** Offered to plugins only, which reach them through `services.actions` once their Manifest consumes them; nothing else needed. */
 const mcpServerInput = { type: "object", required: ["expected_version", "label", "enabled", "timeout_ms", "transport"], additionalProperties: false, properties: {
@@ -465,6 +489,16 @@ export const agentHostCapabilities = {
     action: { title: "停下一个子任务", description: "本人停下自己会话里一轮派出的一个子任务。", kind: "operation", ...pluginOnly,
       input_schema: { type: "array", minItems: 3, maxItems: 3, items: [sessionRef, runRef, entryId], additionalItems: false } },
   } as ActionDefinition<[session: AgentSessionRef, run: AgentRunRef, subagentId: string], void>,
+  /** Retry an ended subtask within its attempt budget, or extend its attempt budget (BL-051). */
+  retrySubagent: {
+    capability_id: "agent.subagents.retry", version: /* @version action.agent.subagents.retry */ 1, operation: "command",
+    action: { title: "重试子任务或增加额度", description: "在尝试额度内沿原子会话继续一个已结束的子任务，并记录重试来源；额度用尽时须先显式增加次数。", kind: "operation", ...pluginOnly,
+      output_schema: subagentOutput,
+      input_schema: { type: "array", minItems: 4, maxItems: 4, additionalItems: false, items: [sessionRef, runRef, entryId,
+        { type: "object", additionalProperties: false, properties: {
+          source: { enum: ["check-failed", "model-error", "user-requested"] }, reason: text(2000),
+          extend_attempts: { type: "integer", minimum: 1, maximum: 10 }, only_extend: { const: true } } }] } },
+  } as ActionDefinition<[session: AgentSessionRef, run: AgentRunRef, subagentId: string, options: { source?: AgentSubagentRetrySource; reason?: string; extend_attempts?: number; only_extend?: true }], AgentSubagentView>,
   readSessionLifecycle: {
     capability_id: "agent.session.lifecycle.read", version: /* @version action.agent.session.lifecycle.read */ 1, operation: "query",
     action: { title: "读取会话归档状态", description: "读取或改变调用插件自己的原执行会话，不新建会话或修改记忆期限。", kind: "query", ...pluginOnly,

@@ -39,12 +39,28 @@ type AgentMaterialSource =
   | { source_artifact_id: string; source_version: number }
   | { source_artifact_id?: never; source_version?: never };
 
+export interface AgentMaterialChecklistItem {
+  title: string;
+  material_ref?: MaterialRef;
+  read_revision?: string;
+  delivery: "full" | "clipped" | "on-demand";
+  total_chars?: number;
+  delivered_chars?: number;
+}
+
 /**
  * Where a piece the person chose came from, kept with the round that received it (materials-ui-contract §2): the exact reference,
  * a live one carrying the revision read for this round, and that revision. A round from before they were kept has neither, and
  * says the source version was not recorded; it is never guessed from the file as it is now.
  */
-export interface AgentMaterialOrigin { material_ref?: MaterialRef; read_revision?: string }
+export interface AgentMaterialOrigin {
+  material_ref?: MaterialRef;
+  read_revision?: string;
+  delivery?: "full" | "clipped" | "on-demand";
+  total_chars?: number;
+  delivered_chars?: number;
+  overflow_materials?: AgentMaterialChecklistItem[];
+}
 
 export type AgentTextMaterial = {
   material_id: string;
@@ -118,11 +134,18 @@ export type AgentReasoningEffort = "low" | "medium" | "high";
 
 export const AGENT_REASONING_EFFORTS: readonly AgentReasoningEffort[] = ["low", "medium", "high"];
 
+export const FIBONACCI_STORY_POINTS = [1, 2, 3, 5, 8, 13, 21, 34, 55] as const;
+/** Positive deduplicated Fibonacci story-point estimate (`1, 2, 3, 5, 8, 13, 21, 34, 55, ...`, CHO-29). */
+export type AgentStoryPoints = number;
+export type AgentEstimateSource = "agent" | "human";
+
 export interface AgentRunBudget {
   max_turns?: number;
   max_output_tokens?: number;
   max_total_tokens?: number;
   max_duration_ms?: number;
+  /** Optional Host/session cap narrowing the model's context window (CHO-08). */
+  context_window_tokens?: number;
 }
 
 /** Runtime limits are explicit positive safe integers; omitted values keep SDK defaults. */
@@ -130,7 +153,7 @@ export function parseAgentRunBudget(value: AgentRunBudget | undefined): AgentRun
   if (value === undefined) return undefined;
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("执行预算格式无效");
   const budget: AgentRunBudget = {};
-  for (const field of ["max_turns", "max_output_tokens", "max_total_tokens", "max_duration_ms"] as const) {
+  for (const field of ["max_turns", "max_output_tokens", "max_total_tokens", "max_duration_ms", "context_window_tokens"] as const) {
     const limit = value[field];
     if (limit === undefined) continue;
     if (!Number.isSafeInteger(limit) || limit < 1 || field === "max_duration_ms" && limit > 2_147_483_647) throw new Error(`执行预算 ${field} 必须为有效的正整数`);
@@ -144,7 +167,16 @@ export interface AgentExecutionPlan {
   source: ArtifactReference;
   title: string;
   /** `depends_on` names earlier steps this one waits for; absent, a step waits for the one before it. */
-  steps: Array<{ id: string; title: string; acceptance: string; depends_on?: string[] }>;
+  steps: Array<{
+    id: string;
+    title: string;
+    acceptance: string;
+    depends_on?: string[];
+    parent_id?: string;
+    story_points?: AgentStoryPoints | null;
+    estimate_source?: AgentEstimateSource;
+    estimate_reason?: string;
+  }>;
 }
 
 /**
@@ -196,10 +228,10 @@ interface AgentFrozenStartFields {
   /** The ending review's prompt (D1②), the person's edit included; absent when the Agent declares none. */
   ending_review?: { prompt_id: string; version: number; user_revision?: number };
   /**
-   * The window this Run was packed against (the model's own, capped by the runtime), and whether the provider's input
-   * count already includes cached prompt tokens. Absent on runs started before it was recorded.
+   * The window this Run was packed against (the model's own, narrowed only by an explicit budget cap), and whether the provider's input
+   * count already includes cached prompt tokens. `stated_window_tokens` is recorded when a budget cap narrowed the model's stated window.
    */
-  model_context?: { window_tokens: number; prompt_includes_cache: boolean };
+  model_context?: { window_tokens: number; prompt_includes_cache: boolean; stated_window_tokens?: number };
   /** Present when this Run started from the Host's digest of earlier rounds instead of their verbatim history. */
   history?: "digest";
   /** Present when the model was asked to think before answering (the provider's setting when the Run started). */
@@ -368,7 +400,7 @@ export interface AgentFrozenRole {
   version: number;
   execution: AgentRoleExecution;
   /** Separate selection prompt: never composed into the executing role. */
-  compaction?: { prompt: AgentPromptText; above_tokens: number };
+  compaction?: { prompt: AgentPromptText; above_tokens: number; window_ratio?: number };
   /** Separate review prompt, the same: never composed into the executing role. */
   ending_review?: { prompt: AgentPromptText };
   /** Prompt bodies in composition order. */

@@ -58,9 +58,10 @@ export function renderBarStatus(options: { glyph?: PluginIconName; spin?: boolea
 
 /** A file's kind as a small chip: its extension, in the colour of its kind (the five `--mark-*` tones). */
 export function renderFileKind(name: string): string {
-  // A name with no extension (“README”, “.env”) is plain text.
+  // A name with no extension (“README”, “.env”) is plain text; a dotfile with a second suffix (`.env.local`) uses its first segment.
+  const dotfile = /^\.([^.]+)\.[^.]+$/u.exec(name);
   const dot = name.lastIndexOf(".");
-  const extension = (dot > 0 ? name.slice(dot + 1) : "txt").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 4) || "txt";
+  const extension = (dotfile ? dotfile[1]! : dot > 0 ? name.slice(dot + 1) : "txt").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 4) || "txt";
   return `<span class="mw-file-kind mw-file-kind--${extension}" data-slot="file-kind">${escapeHtml(extension.toUpperCase())}</span>`;
 }
 

@@ -206,16 +206,23 @@ export interface AgentCollaborationReviseInput { runtime_id: string; session_id:
 /** A step of the round's plan: a confirmed step (`step-N`) or one a person inserted (`user-N`). */
 const STEP = { type: "string", pattern: "^(step|user)-\\d{1,3}$" } as const;
 const WORDS = (maxLength: number) => ({ type: "string", minLength: 1, maxLength, pattern: "\\S" }) as const;
+const STORY_POINTS = { enum: [1, 2, 3, 5, 8, 13, 21, 34, 55, null] } as const;
 /** One person's change, each kind with exactly its own fields (`AgentStepAmendment`). */
 const AMENDMENT = { oneOf: [
   { type: "object", required: ["kind", "node", "reason"], additionalProperties: false, properties: { kind: { const: "skip" }, node: STEP, reason: WORDS(300) } },
   { type: "object", required: ["kind", "after", "title", "acceptance"], additionalProperties: false,
-    properties: { kind: { const: "insert" }, after: STEP, title: WORDS(120), acceptance: WORDS(300), mine: { const: true }, origin: { type: "string", minLength: 1, maxLength: 200 } } },
+    properties: { kind: { const: "insert" }, after: STEP, title: WORDS(120), acceptance: WORDS(300), mine: { const: true }, origin: { type: "string", minLength: 1, maxLength: 200 }, story_points: STORY_POINTS } },
   { type: "object", required: ["kind", "node", "note"], additionalProperties: false, properties: { kind: { const: "unblock" }, node: STEP, note: WORDS(500) } },
   { type: "object", required: ["kind", "node", "direction"], additionalProperties: false, properties: { kind: { const: "move" }, node: STEP, direction: { enum: ["up", "down"] } } },
   { type: "object", required: ["kind", "node", "to"], additionalProperties: false, properties: { kind: { const: "assign" }, node: STEP, to: { enum: ["me", "session"] } } },
   { type: "object", required: ["kind", "node", "state", "note"], additionalProperties: false,
     properties: { kind: { const: "resolve" }, node: STEP, state: { enum: ["succeeded", "failed"] }, note: WORDS(500) } },
+  { type: "object", required: ["kind", "node", "story_points"], additionalProperties: false,
+    properties: { kind: { const: "estimate" }, node: STEP, story_points: STORY_POINTS, reason: WORDS(500) } },
+  { type: "object", required: ["kind", "node", "progress", "basis"], additionalProperties: false,
+    properties: { kind: { const: "progress" }, node: STEP, progress: { type: "number", minimum: 0, maximum: 1 }, basis: WORDS(500) } },
+  { type: "object", required: ["kind", "node", "reason"], additionalProperties: false,
+    properties: { kind: { const: "remove-scope" }, node: STEP, reason: WORDS(300) } },
 ] } as const;
 
 /** Read and control the project's waits; waiting for a continuation to be ready is the `agentHostCapabilities.awaitContinuations` action. */

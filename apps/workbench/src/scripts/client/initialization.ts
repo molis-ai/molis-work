@@ -163,6 +163,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       openPlugin: (...args) => tabWorkspace?.openPlugin(...args), hideDirectory: () => immersiveNavigation?.hideDirectory(), showToast,
     });
     ${pluginWorkbenchClientBootstrap(undefined, true)}
+    document.addEventListener("click", (event) => { const btn = event.target?.closest?.("[data-sessions-open-scope]"); if (btn) void deferredClients.loadBundle("sessions").then(() => globalThis.molisOpenSessionsScope?.(btn.dataset.sessionsOpenScope === "project_ai_read" ? "project_ai_read" : "tools", { overlay: !btn.closest('[data-work-surface="sessions"]') })); });
     assistantIsland = (${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ translate: readText, showToast, route, headers: () => molisWorkControlHeaders(), interaction, receipts,
       positions: projectPositions, positionRead,
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title), pluginTitle: (plugin) => tabWorkspace?.pluginTitle(plugin),

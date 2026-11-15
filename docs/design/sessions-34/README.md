@@ -1,6 +1,6 @@
 # 外部会话来源差异与接入边界：可点的定样（路线书第 34 批）
 
-状态：定样待确认（2026-11-15）。确认后写入 [Sessions 重做 §8](../../../specs/sessions-rebuild/spec.md#8-决策记录)，再实施工作台界面片（S-5）。
+状态：用户已定（2026-11-15）——四处均选推荐方案 **A**，已写入 [Sessions 重做 §8](../../../specs/sessions-rebuild/spec.md#8-决策记录)，进入工作台界面片（S-5）实施。
 
 这是参考原型，不是产品界面。第 22 批已定下外部会话的四个大流程（发现会话 **B** 按时间排加来源条、归属建议 **B** 待归类集中处理、查看历史 **A** 原文对话、项目 AI 读取 **A** Sheet 分两页；见 [sessions-sources](../sessions-sources/README.md)），本批直接复用，不再重问。本原型只针对 [第 34 批](../../../specs/post-anticorruption-roadmap/reference/batches/34.md) 要求「先定样」的四处差异与第 22 批转交项出样：
 

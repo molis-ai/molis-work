@@ -78,6 +78,30 @@ export {
 } from "./ports.js";
 export type { SessionsCaller } from "./runtime-view.js";
 
+export interface SessionsListReadiness {
+  readonly ready: boolean;
+  readonly has_allowed_source: boolean;
+  readonly project_ai_read_allowed: boolean;
+  readonly next_step: "open_scope" | "open_project_ai_read" | null;
+}
+
+/**
+ * Evaluates the two-step scene/list readiness contract (`contract-design` §6.5) from `sessions.scope.read@1` (`include_counts: false`).
+ * Step 1: at least one available adapter source is allowed (`open_scope`).
+ * Step 2: the current project's AI read permit is allowed (`open_project_ai_read`).
+ */
+export function evaluateSessionsListReadiness(scope: ExternalSessionScopeView): SessionsListReadiness {
+  const hasAllowedSource = scope.sources.some((source) => source.allowed && source.adapter === "available");
+  const projectAiReadAllowed = scope.project_ai_reads.find((row) => row.current)?.allowed === true;
+  if (!hasAllowedSource) {
+    return { ready: false, has_allowed_source: false, project_ai_read_allowed: projectAiReadAllowed, next_step: "open_scope" };
+  }
+  if (!projectAiReadAllowed) {
+    return { ready: false, has_allowed_source: true, project_ai_read_allowed: false, next_step: "open_project_ai_read" };
+  }
+  return { ready: true, has_allowed_source: true, project_ai_read_allowed: true, next_step: null };
+}
+
 export class SessionsService {
   private readonly store: SessionsStore;
   private readonly discovery: DiscoveryCoordinator;

@@ -105,10 +105,21 @@ export const ASSISTANT_PROCESS_FACTORY_SCRIPT = String.raw`(input) => {
     const head = tag === "P" ? node : node.firstElementChild, words = activityLine(item);
     node.dataset.state = head.dataset.state = item.state;
     if (head.dataset.text !== words || head.dataset.glyph !== item.state) { head.dataset.text = words; head.dataset.glyph = item.state; head.replaceChildren(verbGlyph(item), el("span", "", words)); }
-    const said = raw(item), signature = JSON.stringify([shown, said]);
+    const aiPermitBlocked = item.state === "failed" && String(item.capability_id || "").startsWith("sessions.") && /sessions\.project_ai_read_off|open_project_ai_read/.test(String(item.detail || "")) && !round.dismissedProjectAiRead;
+    const said = raw(item), signature = JSON.stringify([shown, said, aiPermitBlocked]);
     if (tag === "DETAILS" && node.dataset.facts !== signature) {
       node.dataset.facts = signature;
       const rows = shown.map(([label, value, original]) => { const row = el("p"), content = el("span", "", value); if (original) content.translate = false; row.append(el("span", "assistant-activity-label", label), content); return row; });
+      if (aiPermitBlocked) {
+        if (!node.dataset.aiPermitOpened) { node.dataset.aiPermitOpened = "1"; node.open = true; }
+        const prompt = el("div", "mw-alert"); prompt.dataset.tone = "info"; prompt.dataset.aiPermitPrompt = "true";
+        const copy = el("span", "", globalThis.t.text("workbench.assistant-process.sessions-ai-read-prompt"));
+        const actions = el("span", "mw-empty__actions");
+        const openBtn = el("button", "mw-btn mw-btn--secondary mw-btn--sm", globalThis.t.text("workbench.assistant-process.sessions-ai-read-open")); openBtn.type = "button"; openBtn.dataset.sessionsOpenScope = "project_ai_read";
+        const skipBtn = el("button", "mw-btn mw-btn--ghost mw-btn--sm", globalThis.t.text("workbench.assistant-process.sessions-ai-read-skip")); skipBtn.type = "button";
+        skipBtn.addEventListener("click", () => { round.dismissedProjectAiRead = true; round.querySelectorAll("[data-ai-permit-prompt]").forEach((p) => p.remove()); });
+        actions.append(openBtn, skipBtn); prompt.append(copy, actions); rows.unshift(prompt);
+      }
       if (said) { const fold = el("details", "assistant-activity-raw"), content = el("p", "", said); content.translate = false; fold.append(el("summary", "", globalThis.t.text("workbench.assistant-process.original-message")), content); rows.push(fold); }
       node.lastElementChild.replaceChildren(...rows);
     }

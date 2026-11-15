@@ -2,6 +2,7 @@ import { UI_VIEW_GROUPS, UI_VIEW_HUES, UI_VIEW_RAILS, UI_VIEW_SLOTS } from "@mol
 import type { DirectoryView, PluginDirectory, PluginDirectoryEntry } from "@molis-ai/molis-work-ui-host";
 import { registeredIconNames } from "@molis-ai/molis-work-design-system";
 import { ARTIFACT_NAVIGATION } from "./artifacts/navigation.js";
+import { SESSIONS_NAVIGATION } from "./sessions/navigation.js";
 
 export type { PluginDirectory, PluginDirectoryEntry } from "@molis-ai/molis-work-ui-host";
 
@@ -115,7 +116,10 @@ export interface ClientDirectoryEntry {
 
 export function clientPluginDirectory(directory: PluginDirectory, offered: readonly string[] = []): ClientDirectoryEntry[] {
   const place = (id: string) => { const at = offered.indexOf(id); return at < 0 ? {} : { order: at }; };
-  return [{ id: ARTIFACT_NAVIGATION.id, accepts_objects: true, hue: ARTIFACT_NAVIGATION.hue, ...place(ARTIFACT_NAVIGATION.id) }, ...directory.map(entry => ({
+  return [
+    { id: ARTIFACT_NAVIGATION.id, accepts_objects: true, hue: ARTIFACT_NAVIGATION.hue, ...place(ARTIFACT_NAVIGATION.id) },
+    { id: SESSIONS_NAVIGATION.id, accepts_objects: false, hue: SESSIONS_NAVIGATION.hue, ...place(SESSIONS_NAVIGATION.id) },
+    ...directory.map(entry => ({
     id: entry.id,
     accepts_objects: entry.ui.views.some(view => view.accepts_objects === true),
     hue: entry.ui.views.find(view => view.hue !== undefined)?.hue ?? null,

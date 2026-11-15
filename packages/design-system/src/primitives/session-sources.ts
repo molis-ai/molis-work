@@ -7,6 +7,17 @@
 import { cx, escapeHtml, icon, renderAttrs, renderButton, renderStatusMark, type AttrValue, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderProjectMonogram } from "../monogram.js";
 
+/** Who face (`mw-who`): round for a person, square for an AI, shared by the board's collaboration parts and external transcripts. */
+export const WHO_STYLES = `
+  .mw-who { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--wash); color: var(--ink-soft); font-size: 11px; font-weight: 500; line-height: 1; flex: none; }
+  .mw-who[data-kind="ai"] { border-radius: 6px; background: var(--ink); color: var(--paper); }
+  .mw-who[data-assistant] { background: var(--accent-soft); color: var(--accent); }
+  .mw-who svg { width: 12px; height: 12px; }
+  .mw-who--lg { width: 32px; height: 32px; font-size: 13px; }
+  .mw-who--lg[data-kind="ai"] { border-radius: 8px; }
+  .mw-who--lg svg { width: 16px; height: 16px; }
+`;
+
 export const SESSION_SOURCE_STYLES = `
   /* 1 · Project permit row: the project's mark, its name with badges, one line of what it means, the control on the right, and
      under the line the row's own receipt (saving, on, off, not saved), so the outcome stays where the switch was pressed. The receipt
@@ -131,7 +142,7 @@ export interface MwTranscriptOptions {
   /** Words to mark where they appear in what you and the tool said (the in-session search); matched without regard to case. */
   readonly highlight?: string;
   /** More history above: a button that reads it, or, while it is being read, the loading line with placeholders. */
-  readonly earlier?: { readonly label: string; readonly loading?: boolean };
+  readonly earlier?: { readonly label: string; readonly loading?: boolean; readonly attrs?: Record<string, AttrValue> };
 }
 
 function marked(text: string, term: string | undefined): string {
@@ -159,7 +170,7 @@ export function renderTranscript(options: MwTranscriptOptions): string {
   const earlier = options.earlier
     ? `<div class="mw-transcript__earlier">${options.earlier.loading
       ? `<p class="mw-loading" role="status">${escapeHtml(options.earlier.label)}</p>${["62%", "84%", "48%"].map((width) => `<span class="mw-skeleton" style="--w: ${width}"></span>`).join("")}`
-      : renderButton({ label: options.earlier.label, variant: "ghost", size: "sm", icon: "chevron-up" })}</div>`
+      : renderButton({ label: options.earlier.label, variant: "ghost", size: "sm", icon: "chevron-up", attrs: options.earlier.attrs })}</div>`
     : "";
   return `<div class="mw-transcript" data-slot="transcript">${earlier}<ol class="mw-transcript__log" aria-label="${escapeHtml(options.label)}">${options.entries.map((entry) => transcriptEntry(entry, options)).join("")}</ol></div>`;
 }

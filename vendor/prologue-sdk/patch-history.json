@@ -10,8 +10,8 @@
   "upstream": {
     "repository": "https://github.com/molis-ai/molis-prologue",
     "checkedOn": "2026-11-15",
-    "mainHead": "0a0dfdfa507f463efdce14611dcbfbf1506ac5d2",
-    "statement": "2026-10-25 在当时的准确上游 main f1753ec8fa2cbca45667e60e101b93702acc6640 上对 42 个 commitsChecked 逐个执行 git merge-base --is-ancestor：除已换掉的 08b84296、923e5a40、4007a93c 三个历史过渡源及当时的 ba75c9f8 之外，其余均为 main 祖先。2026-11-12/13 又补入 1cc80b05（上一份正式源码）、4537a570（Slice-31 窗口的自建分支包来源）、1c0654b7（PR #114 的主线合并）、5cbf2601（PR #115：写后检查带 Session/Run）、bdf80c6f（测试补充）与 770a2e27（PR #113：Memory V0 的 pause/disable 同问题重放；main #2020 采用的 memory-p0 第二版来源），2026-11-13 第 28 批又补入 14e13911（PR #117 合并，PR #116 之后）与 c764d970（PR #119：onModelRequest），2026-11-14 第 31 批补入 7e2de40b（PR #120 合并）、018947ae 与 4493a5eb（PR #121 合并：空常驻零读取零授权、开场召回收任务语境、会话检索覆盖）及 4a4d1d3c（Memory P1：有界版本历史与恢复、导出包 v2 与通用对象适用条件，当前包来源）；commitsChecked 共 54 条，mainHead 为 4493a5eb。当前包基于 main 4493a5eb 构建；38 个没有补丁的历史包记录与 26 份补丁保持，后续可按 Git blob 取回。当前 final103-bridge 依赖来自公开固定分支 feature/node-storage-final103-bridge 的 ba75c9f8437018904b24dabeaaef6ded8054add5，不是 main 祖先：基点 2c7feba5（PR60），只移植 PR103 定稿 6523abb47..513237d2 的功能；4e018e1a 保旧普通分页/读取及旧合同，ba75 只修导航。按 accepted WO #1267/6395049480 作为过渡包采用，不带 PR61–101、PR104 或旧 42。旧 42 只曾作为本 PR 候选验证、未正式合入，不将其伪记为已采用的历史包。2026-11-15 第 32 批补入 188d9f6c（PR #122 合并：它的 packages/sdk 与 4a4d1d3c 逐文件相同；4a4d1d3c 是合并前的分支提交，不是 main 祖先）、3825662d（PR #123）、e0625b62（PR #124 合并：结果回流）与 0a0dfdfa（PR #125 合并：结果回流的评审跟进，当前包来源）；commitsChecked 共 58 条，mainHead 为 0a0dfdfa；换下的 4a4d1d3c 包记入没有补丁的历史包，共 39 个。",
+    "mainHead": "02a11ac5a566eab4afe15e5562240fdd11f5c9a4",
+    "statement": "2026-10-25 在当时的准确上游 main f1753ec8fa2cbca45667e60e101b93702acc6640 上对 42 个 commitsChecked 逐个执行 git merge-base --is-ancestor：除已换掉的 08b84296、923e5a40、4007a93c 三个历史过渡源及当时的 ba75c9f8 之外，其余均为 main 祖先。2026-11-12/13 又补入 1cc80b05（上一份正式源码）、4537a570（Slice-31 窗口的自建分支包来源）、1c0654b7（PR #114 的主线合并）、5cbf2601（PR #115：写后检查带 Session/Run）、bdf80c6f（测试补充）与 770a2e27（PR #113：Memory V0 的 pause/disable 同问题重放；main #2020 采用的 memory-p0 第二版来源），2026-11-13 第 28 批又补入 14e13911（PR #117 合并，PR #116 之后）与 c764d970（PR #119：onModelRequest），2026-11-14 第 31 批补入 7e2de40b（PR #120 合并）、018947ae 与 4493a5eb（PR #121 合并：空常驻零读取零授权、开场召回收任务语境、会话检索覆盖）及 4a4d1d3c（Memory P1：有界版本历史与恢复、导出包 v2 与通用对象适用条件，当前包来源）；commitsChecked 共 54 条，mainHead 为 4493a5eb。当前包基于 main 4493a5eb 构建；38 个没有补丁的历史包记录与 26 份补丁保持，后续可按 Git blob 取回。当前 final103-bridge 依赖来自公开固定分支 feature/node-storage-final103-bridge 的 ba75c9f8437018904b24dabeaaef6ded8054add5，不是 main 祖先：基点 2c7feba5（PR60），只移植 PR103 定稿 6523abb47..513237d2 的功能；4e018e1a 保旧普通分页/读取及旧合同，ba75 只修导航。按 accepted WO #1267/6395049480 作为过渡包采用，不带 PR61–101、PR104 或旧 42。旧 42 只曾作为本 PR 候选验证、未正式合入，不将其伪记为已采用的历史包。2026-11-15 第 32 批补入 188d9f6c（PR #122 合并：它的 packages/sdk 与 4a4d1d3c 逐文件相同；4a4d1d3c 是合并前的分支提交，不是 main 祖先）、3825662d（PR #123）、e0625b62（PR #124 合并：结果回流）、0a0dfdfa（PR #125 合并：结果回流的评审跟进）与 02a11ac5（PR #126 合并：会话在请 App 起跑时变了，占用不再卡住；当前包来源）；commitsChecked 共 59 条，mainHead 为 02a11ac5；换下的 4a4d1d3c 包记入没有补丁的历史包，共 39 个。",
     "commitsChecked": [
       "03c6ba0b24ddd46ff1cd0f604e3e2bcb134687c2",
       "07ad08a11e3b4a01b9fe877dedff1efba6f4833c",
@@ -70,7 +70,8 @@
       "188d9f6ce33b26905494fc57508d10b8015af857",
       "3825662d16e04f8f1163bb840f2ce1eefc3d6d43",
       "e0625b62e349f49b31d70adcd631e885683c9724",
-      "0a0dfdfa507f463efdce14611dcbfbf1506ac5d2"
+      "0a0dfdfa507f463efdce14611dcbfbf1506ac5d2",
+      "02a11ac5a566eab4afe15e5562240fdd11f5c9a4"
     ]
   },
   "patches": [
@@ -854,7 +855,7 @@
       "sha256": "1264b32b65e66adce32ae83c935abc85c46bcae4b77520470d2e265bab87c8bb",
       "gitBlob": "7d21c4f8f8df74d9f61401e58b141dfe9bd2a535",
       "commit": "4a4d1d3c8cc5840f4abe522e748abaee588db7de",
-      "description": "第 31 批换上的 Memory P1 构建（上游 4a4d1d3c，内容即 PR #122 的合并 188d9f6c），文件名同为 prologue-sdk-0.0.0-rc.1.tgz，这里加提交号区分；2026-11-15 第 32 批（结果回流）由官方 main e0625b62 构建换下。tgz 在 Molis a20d260dfe 的 main 上入库。"
+      "description": "第 31 批换上的 Memory P1 构建（上游 4a4d1d3c，内容即 PR #122 的合并 188d9f6c），文件名同为 prologue-sdk-0.0.0-rc.1.tgz，这里加提交号区分；2026-11-15 第 32 批（结果回流）由官方 main 构建换下（02a11ac5，PR #126；本批分支上先用过 0a0dfdfa 的构建，没进 main）。tgz 在 Molis a20d260dfe 的 main 上入库。"
     }
   ],
   "notes": [

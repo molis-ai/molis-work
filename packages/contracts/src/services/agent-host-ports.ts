@@ -82,6 +82,30 @@ export interface AgentMcpCallResult { text: string; truncated: boolean }
 
 export type AgentSubagentState = "running" | "completed" | "failed" | "cancelled" | "reconcile-required";
 
+export type AgentSubagentRetrySource = "check-failed" | "model-error" | "user-requested";
+
+export interface AgentSubagentAttemptSummary {
+  attempt: number;
+  run_id: string;
+  state: AgentSubagentState;
+  source?: AgentSubagentRetrySource;
+  reason?: string;
+  usage?: AgentRunUsage;
+  error?: string;
+}
+
+export interface AgentSubagentBudgetView {
+  attempt: number;
+  max_attempts: number;
+  max_turns?: number;
+  max_total_tokens?: number;
+  used_tokens?: number;
+  exhausted?: true;
+  retry_source?: AgentSubagentRetrySource;
+  retry_reason?: string;
+  prior_attempts?: AgentSubagentAttemptSummary[];
+}
+
 export interface AgentSubagentView {
   child_run?: AgentRunRef;
   activity?: AgentToolActivity[];
@@ -100,6 +124,8 @@ export interface AgentSubagentView {
   state: AgentSubagentState;
   result: string | null;
   workspace_path: string | null;
+  node_id?: string;
+  budget?: AgentSubagentBudgetView;
 }
 
 export interface AgentSubagentsCapability {
@@ -107,6 +133,8 @@ export interface AgentSubagentsCapability {
   workspaces?: true;
   list(run: AgentRunRef): Promise<AgentSubagentView[]>;
   cancel(run: AgentRunRef, subagentId: string, actorId: string): Promise<void>;
+  retry?(run: AgentRunRef, subagentId: string, options: { actor_id: string; source: AgentSubagentRetrySource; reason?: string; extend_attempts?: number }): Promise<AgentSubagentView>;
+  extendBudget?(run: AgentRunRef, subagentId: string, extraAttempts: number, actorId: string): Promise<AgentSubagentView>;
 }
 
 /**

@@ -79,6 +79,9 @@ export async function stageContextText(home: string, id: string, text: string): 
 export async function readStagedText(home: string, id: string, text: StagedText): Promise<string> {
   return readFile(staged(home, id, "texts", text.sha256), "utf8");
 }
+export async function hasStagedText(home: string, id: string, text: StagedText): Promise<boolean> {
+  return Boolean((await stat(staged(home, id, "texts", text.sha256)).catch(() => null))?.isFile());
+}
 
 /** A batch's note, by the digest of the batch it was made from; null until it is made. */
 export async function readStagedNote(home: string, id: string, key: string): Promise<string | null> {

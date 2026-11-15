@@ -1,5 +1,7 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { setContentHtml } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { codingIntentOptions } from "../../composer-labels.js";
+import { buildEnvironmentChecklistHtml } from "../../recovery-parts.js";
 import { el, errorMessage } from "../dom.js";
 import { renderDirectory } from "./directory.js";
 import { controls } from "./controls.js";
@@ -8,6 +10,7 @@ import { api, status } from "./request.js";
 import { surfaceChanged } from "./select.js";
 import type { StateRead } from "./shapes.js";
 import { showWorkspace } from "./workspace.js";
+export { buildEnvironmentChecklistHtml };
 
 /** Puts the session's remembered start (intent, model, directory, effort) back on the composer. */
 export function applyConfiguration(page: Page) {
@@ -74,11 +77,13 @@ export function drawIntents(page: Page, result: StateRead) {
 /** The directories the person may run rounds in, as the composer's choice. */
 function drawWorkspaces(page: Page, result: StateRead) {
   const { q } = page, { s } = page;
+  const prevWorking = s.workspaceId || "";
   const selected = result.workspaces.find(item => item.workspace_id === s.workspaceId) || result.workspace || (result.workspaces.length === 1 ? result.workspaces[0] : null);
   if (!s.configurations.get(s.current)) s.workspaceId = selected?.workspace_id || "";
   showWorkspace(page, selected?.canonical_path, uiText.text("coding.workspace.choose-first"));
   const choice = q<HTMLSelectElement>("[data-coding-workspace-choice]"), key = JSON.stringify(result.workspaces);
-  if (choice.dataset.options !== key) {
+  const workspacesChanged = choice.dataset.options !== key;
+  if (workspacesChanged) {
     choice.replaceChildren(...result.workspaces.map(item => {
       const option = el("option", item.canonical_path);
       option.value = item.workspace_id;
@@ -88,6 +93,22 @@ function drawWorkspaces(page: Page, result: StateRead) {
     choice.value = s.workspaceId;
   }
   if (!q<HTMLDialogElement>("[data-coding-workspace-dialog]").open) choice.value = s.workspaceId;
+  if (workspacesChanged || prevWorking !== s.workspaceId) page.refs.filesFace?.follow(s.workspaceId);
+}
+
+export function drawEnvironmentReadiness(page: Page, readiness: StateRead["environment_readiness"]) {
+  page.q("[data-coding-composer]").querySelector("[data-coding-env-bar]")?.remove();
+  const mounted = page.turns.querySelector<HTMLElement>("[data-coding-env-checklist]");
+  if (!mounted) return;
+  const html = buildEnvironmentChecklistHtml(readiness);
+  if (!html) {
+    mounted.remove();
+    return;
+  }
+  if (mounted.dataset.html !== html) {
+    mounted.dataset.html = html;
+    setContentHtml(mounted, html);
+  }
 }
 
 async function readState(page: Page) {
@@ -99,6 +120,7 @@ async function readState(page: Page) {
   retitle(page, s.current, before, s.current && result.sessions.find(item => item.session_id === s.current)?.title);
   composerModels.fill(result.models);
   drawWorkspaces(page, result);
+  drawEnvironmentReadiness(page, result.environment_readiness);
   drawIntents(page, result);
   applyConfiguration(page);
   renderDirectory(page);

@@ -9,6 +9,8 @@ import type { MemoryCaller } from "./service.js";
 
 /** The longest memory text, in characters. */
 export const MAX_TEXT = 400;
+/** The Molis memory package envelope version; the SDK export payload is versioned separately. */
+export const MEMORY_PACKAGE_VERSION = /* @version format.memory.export */ 1 as const;
 
 /** What a work's memory use is called in 最近用于: the work, the caller's own label, or the consumer. */
 export function useTitle(caller: MemoryCaller, usedFor?: string): string {
@@ -78,7 +80,7 @@ export function readPackage(pack: unknown): MemoryExportPackage["entries"] {
   if (!pack || typeof pack !== "object") refuse("不是记忆包");
   const value = pack as Partial<MemoryExportPackage>;
   if (value.format !== "molis.memory") refuse("格式不认识");
-  if (value.version !== /* @version format.memory.export */ 1) refuse(`版本 ${String(value.version)} 不认识`);
+  if (value.version !== MEMORY_PACKAGE_VERSION) refuse(`版本 ${String(value.version)} 不认识`);
   if (!Array.isArray(value.entries) || value.entries.length > 2000) refuse("条目缺失或太多");
   return value.entries!.map((item, index) => {
     const at = `第 ${index + 1} 条`;

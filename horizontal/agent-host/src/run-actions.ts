@@ -44,6 +44,24 @@ export function registerRunActions<C extends Call>(register: Register<C>, ports:
       await context.invocation.beforeEffect(); context.invocation.assertAuthorityCurrent();
       await port.cancel(run, childId, caller.actor_id);
     }),
+    register(agentHostCapabilities.retrySubagent, async (context, [session, run, childId, options]) => {
+      await requireRun(context, session, run);
+      const caller = pluginFor(context), port = ports.agentHost(context).adapter(session.runtime_id).subagents;
+      if (!caller) throw denied();
+      if (options?.only_extend === true) {
+        if (!port?.extendBudget) throw agentErrors.capability_unavailable("当前运行时未接通子任务预算扩展");
+        await context.invocation.beforeEffect(); context.invocation.assertAuthorityCurrent();
+        return port.extendBudget(run, childId, options.extend_attempts ?? 1, caller.actor_id);
+      }
+      if (!port?.retry) throw agentErrors.capability_unavailable("当前运行时未接通子任务重试");
+      await context.invocation.beforeEffect(); context.invocation.assertAuthorityCurrent();
+      return port.retry(run, childId, {
+        ...(options?.reason ? { reason: options.reason } : {}),
+        ...(options?.extend_attempts ? { extend_attempts: options.extend_attempts } : {}),
+        source: options?.source ?? "user-requested",
+        actor_id: caller.actor_id,
+      });
+    }),
     // The project's work and its release, as far as it is the caller's own (project-work-scope.ts); no one else's.
     register(agentHostCapabilities.readProjectWork, async (context, [runtimeId, probe]) => {
       const caller = pluginFor(context), adapter = ports.agentHost(context).adapter(runtimeId);

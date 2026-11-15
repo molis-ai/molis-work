@@ -4,6 +4,15 @@
 
 ## [Unreleased]
 
+### 工作记录：历史查询与记录管理（2026-11-15，#2084、#2088）
+
+- **公共动作**：`system.observation` 新增 8 个 `@1` 动作：只读 `records.query`／`evidence.get`／`coverage.get`，本人管理 `settings.get/set`／`space.get`／`cleanup.preview/apply`；按受众、用途开关、S-74 与模拟来源隔离裁决；支持当时证据快照解封、主人版本引用核对、`after_seq` 增量与迟到标记。既有 `observation.report@1` 形状不变，合同成熟度升为 `implemented`。
+- **设置界面**：全局设置「个人 → 工作记录」四个页签（记了什么、保留与清理、占用、覆盖与缺口）、暂停／恢复、用途开关、保留期限缩短提示、手动清理预览与执行、容量提醒；按需资源 `/assets/molis-work-work-records.js`；`observation` 库升级失败只阻断该设置页。
+- **组件板**：`#kind-mark`（五种 `--mark-*` 色相与独立字形）与 `#category-bar`（比例轨道与零值图例），组件板与产品页共用 `@molis-ai/molis-work-design-system/work-records`。
+- **合后小修 #2088**：`purged`/全部写入缺口原因的徽章、影响说明与横幅判定；收敛 5 个包内未跨文件 `export` 与 6 个不可达短名分支；同步 `CALL-CHAINS.md`、observation spec §10、design README 与 29.md 的旧字面量/合入号。
+- **合后审计收口**：OCL-05 的主人对版本引用比较当前 revision，改写后标 `unverified`；OCL-13 的默认模拟隔离扩到 `assistant`／`evaluation`／`export`（本机回看保留并标注来源）；覆盖横幅考虑 unavailable/redacted entry；保留需求改从服务端 `requirements` 取。
+- **未完成/待验收**：本人实物与连续工作走查（`BL-work-records-acceptance`）；评测样本留存与回放归第 30 批。
+
 ### Work Brief 首页与简报核心（2026-11-14，#2077）
 
 - **首页主区内容**：插件可在呈现声明里写 `presentation.overview.lead: { view_id }`，`surfaces.compose@1` 的 `home` 描述多一个 `kind: "lead"` 的组；首页把该主区视图收进主区，细栏「看基础首页／回到」只是页面状态，移除/停用/打不开回基础首页。第三方插件同一条合同，不按插件名分支。
@@ -75,7 +84,7 @@
 
 ### 升级须知（需要动手）
 
-- **第 31 批：记忆适用情境 `applies.goal_ids` 改为 `applies.objects`，导出包拒绝旧 `goal_ids`（阶段一不留兼容）**（#2081 及复查修复，2026-11-15）：`memory.save@1`、`memory.propose@1`、`memory.change@1`、`memory.list@1`、`memory.get@1`、`memory.export@1`、`memory.import@1` 的适用条件删掉 `goal_ids`，改为通用关联对象 `objects: [{ plugin_id, kind, id }]`；固定构造旧字段的调用方与工作流绑定要改用 `objects`，带 `applies.goal_ids` 的旧导出包在导入预检即整包拒绝。`memory/memory.db` 由升级链自动走 `2 → 3` 清洗重复历史正文，无需手工操作。
+- **第 31 批：记忆适用情境 `applies.goal_ids` 改为 `applies.objects`，导出包拒绝旧 `goal_ids`（阶段一不留兼容）**（#2081 及复查修复，2026-11-15）：`memory.write@1`、`memory.change@1`、`memory.recall@1`、`memory.list@1`、`memory.page@1`、`memory.candidates.list@1`、`memory.candidates.accept@1`、`memory.candidates.discard@1`、`memory.history@1` 的适用条件删掉 `goal_ids`，改为通用关联对象 `objects: [{ plugin_id, kind, id }]`；固定构造旧字段的调用方与工作流绑定要改用 `objects`，带 `applies.goal_ids` 的旧导出包在导入预检即整包拒绝。`memory/memory.db` 由升级链自动走 `2 → 3` 清洗重复历史正文，无需手工操作。
 
 - **第 41 批：Skill 选用、规划方法变成系统技能包、在设置里写自己的技能**（[#2078](https://github.com/molis-ai/molis-work/pull/2078) + 收尾 [#2083](https://github.com/molis-ai/molis-work/pull/2083)，2026-11-15；阶段一在原版本改，没有读取兼容）：Goals 的 `goals.planning.catalog/read/save/apply/personal.list/personal.save` 六个动作删除，MCP 同名工具随之消失；工作流、固定引用或外部 Runtime 里固定了这些动作的要重选。`goals.events.configure` 不再收 `adopted_planning`、`adopt_default_requirement_ids`；`goals.snapshot.read`／`goals.document.read` 不再带方法。取舍是「规划与拆解」成为随系统自带的技能包（`plugins/content/planning-methods`，37 个），由宿主里的助理和 Coding 按任务选用；`skills.catalog.list`／`skills.body.read` 不是 MCP 工具，外部 Runtime 读不到。Goals 项目库 3→4 删 `planning_method_packs` 表和 `adopted_planning_json` 列；旧 Home 库 `goals/goals.db` 在升级轮连目录删除，**升级前先用旧版程序做完整备份**。新动作 `skills.authored.read/save/remove/draft@1` 只给本人，插件 Agent 轮也能用「依据」面板（`SkillPickConsumer` 含 `agent`），自写技能是每个范围一个内容包（`io.molis.work.my-skills.project`／`.home`），走和本机导入同一条安装路径。页面资源：`/assets/molis-work-kit.js` +16,528 字节（用户批准 +15.8 KB，整改多 714 B 后认可）；工作台英文词包换内容寻址路径、四个页面英文冷启动各 +26 B（用户 2026-11-15 批准）；合后审计修第三方 agent 受众，插件框脚本再 +17 B、八个首屏冷启动各 +17 B（另立 `skill-selection-b41-audit.json`，无新增资源）。
 

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
-import { ActionError, SUBJECT_CONTEXT_TYPE, SUBJECT_REFERENCE_TYPE, objectLink, objectLinkAt, objectLinkTemplate, validActionResultView, type ActionCallContext, type ActionClient, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, defineSubjectContextAction, objectLink, objectLinkAt, objectLinkTemplate, validActionResultView, type ActionCallContext, type ActionClient, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { mainlineActions } from "@molis-ai/molis-work-contracts/services/mainline";
 import { openObject } from "@molis-ai/molis-work-service-mainline";
 
@@ -47,15 +47,15 @@ test("WLN-11 no product source joins a workbench address by hand: objectLink is 
   assert.deepEqual(joined, [], "write the address with objectLink / objectLinkAt / objectLinkTemplate (contracts platform/object-link, or the plugin SDK)");
 });
 
-const CALLER = { actor_id: "person", project_id: "p1" } as unknown as ActionCallContext;
+const CALLER: ActionCallContext = { actor_id: "person", audience: "user", project_id: "p1", permissions: [] };
 function reader(kind: string, available = true): ActionView {
-  return { capability_id: `${kind}.context.read`, version: 1, provider: { provider_id: `io.example.${kind}`, title: kind, kind: "plugin" },
-    action: { input_type: SUBJECT_REFERENCE_TYPE, output_type: SUBJECT_CONTEXT_TYPE, subject_kinds: [kind], scope: "project" },
-    availability: available ? { available: true } : { available: false, code: "actions.plugin_disabled", reason: "这个插件没有开启" } } as unknown as ActionView;
+  return { ...defineSubjectContextAction(`${kind}.context.read`, 1, kind, `读 ${kind}`, []), provider: { provider_id: `io.example.${kind}`, title: kind, kind: "plugin" },
+    availability: available ? { available: true } : { available: false, code: "actions.plugin_disabled", reason: "这个插件没有开启" } };
 }
 function clientOf(views: ActionView[], read: (subjectId: string) => unknown): { client: ActionClient; calls: Array<[string, unknown]> } {
   const calls: Array<[string, unknown]> = [];
-  return { calls, client: { discover: async () => views, invoke: async (_caller: ActionCallContext, action: { capability_id: string }, input: { subject_id: string }) => { calls.push([action.capability_id, input]); return read(input.subject_id); } } as unknown as ActionClient };
+  const client: ActionClient = { discover: async () => views, invoke: async (_caller, action, input) => { const asked = input as { subject_id: string }; calls.push([action.capability_id, asked]); return read(asked.subject_id); } };
+  return { calls, client };
 }
 
 test("WLN-11 objects.open@1 asks the owner's reader as the caller: its place is the target, an object without a page has none, and what the caller cannot read gives no place", async () => {

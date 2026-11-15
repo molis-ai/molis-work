@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { mainlineActions } from "@molis-ai/molis-work-contracts/services/mainline";
+import { SHELF_ADMIT_ACTION } from "@molis-ai/molis-work-module-shelf/contract";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { bindLocalWebActions } from "./local-web-actions.js";
 import { pluginPageRequest } from "./plugin-page-authority.js";
@@ -16,6 +17,8 @@ const ROUTES = new Map<string, ActionDefinition>([
   ["tasks/command", mainlineActions.command as ActionDefinition],
   ["tasks/decide", mainlineActions.decide as ActionDefinition],
   ["open", mainlineActions.open as ActionDefinition],
+  // 「放到 Shelf」 on a card of something done (WLN-11): Shelf's own action, as the person; what is put there is what the page shows.
+  ["shelve", SHELF_ADMIT_ACTION as ActionDefinition],
 ]);
 
 const DAY = 86_400_000;

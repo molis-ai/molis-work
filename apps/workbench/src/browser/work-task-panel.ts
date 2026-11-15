@@ -8,8 +8,8 @@
 import type { ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { StateRingState, UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { BackgroundTaskRow, BackgroundTasksReadResult, WorkLineEvent } from "@molis-ai/molis-work-contracts/services/mainline";
-import { renderButton, t as uiText, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { renderPlaceMenu, renderTaskCard, renderReplyMini, renderTaskDecision, renderTaskFloat, renderTaskMark, renderTaskPanel, renderTaskRow, type TaskRowView } from "../work-line-parts.js";
+import { escapeHtml, renderButton, t as uiText, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { renderPlaceMenu, renderTaskCard, renderReplyMini, renderReplyPeek, renderTaskDecision, renderTaskFloat, renderTaskMark, renderTaskPanel, renderTaskRow, type TaskRowView } from "../work-line-parts.js";
 import type { LineEventPress, WorkBarHost } from "./work-bar.js";
 import { installWorkLineLayout } from "./work-line-layout.js";
 
@@ -73,18 +73,37 @@ function installDecisionAnswers(host: WorkBarHost, request: TaskPanelLine["reque
   return { answer, revising: (task: BackgroundTaskRow, id: string) => revising === asked(task, id), busy: (task: BackgroundTaskRow, id: string) => deciding.has(asked(task, id)) };
 }
 
-/** With the dialog closed its way in stays above the input (WLN-35): the task mark and the button that opens the dialog. */
+/**
+ * With the dialog closed its way in stays above the input (WLN-35): the latest reply of the conversation in front with the task
+ * mark and the button that opens the dialog, until the person presses the work, then only the mark and the button. A reply that
+ * comes while it is closed is shown again. A phone keeps to the mark: its line has no room above the input for more.
+ */
 function installDialogRow(panel: string, paint: () => void): void {
   const island = document.querySelector<HTMLElement>("[data-assistant-island]"), dialog = island?.querySelector<HTMLElement>("[data-assistant-panel]");
+  const thread = island?.querySelector<HTMLElement>("[data-assistant-thread]"), narrow = matchMedia("(max-width:760px)");
   if (!island || !dialog) return;
-  const mini = () => {
-    const row = island.querySelector("[data-reply-mini]");
+  let folded = "", shown = "";
+  const latest = () => { const said = thread?.querySelectorAll<HTMLElement>(".assistant-msg--assistant"); return said?.length ? said[said.length - 1]!.dataset.text?.trim() ?? "" : ""; };
+  // Whose words they are: the Character whose conversation is in front, else the Assistant.
+  const who = () => { const tab = island.querySelector<HTMLElement>(".assistant-tab[data-current][data-character]"), name = tab?.querySelector(".assistant-tab-title")?.textContent?.trim();
+    return name ? { name, character: true } : { name: uiText.text("workbench.common.assistant") }; };
+  const row = () => {
+    const peek = island.querySelector<HTMLElement>("[data-reply-peek]"), mini = island.querySelector("[data-reply-mini]"), said = dialog.hidden && !narrow.matches ? latest() : "";
     // A phone's line stands the row at the end of its track (the sheet reads this mark and leaves the track room for it).
-    island.closest("[data-work-line]")?.toggleAttribute("data-mini", dialog.hidden);
-    if (!dialog.hidden) row?.remove();
-    else if (!row) { island.insertAdjacentHTML("beforeend", renderReplyMini(renderTaskMark({ count: 0, panel }))); paint(); }
+    island.closest("[data-work-line]")?.toggleAttribute("data-mini", dialog.hidden && !(said && said !== folded));
+    if (!dialog.hidden && (peek || mini)) { peek?.remove(); mini?.remove(); shown = ""; return; }
+    if (!dialog.hidden) return;
+    if (said && said !== folded) {
+      if (peek && shown !== said) peek.querySelector<HTMLElement>(".work-reply-peek-body")!.textContent = said;
+      else if (!peek) { mini?.remove(); island.insertAdjacentHTML("beforeend", renderReplyPeek({ who: who(), body: escapeHtml(said), mark: renderTaskMark({ count: 0, panel }) })); paint(); }
+      shown = said;
+    } else if (!mini) { peek?.remove(); shown = ""; island.insertAdjacentHTML("beforeend", renderReplyMini(renderTaskMark({ count: 0, panel }))); paint(); }
   };
-  new MutationObserver(mini).observe(dialog, { attributes: true, attributeFilter: ["hidden"] }); mini();
+  new MutationObserver(row).observe(dialog, { attributes: true, attributeFilter: ["hidden"] });
+  if (thread) new MutationObserver(() => { if (dialog.hidden) row(); }).observe(thread, { childList: true, subtree: true, attributes: true, attributeFilter: ["data-text"] });
+  // The person went back to the work: the reply folds away, and stays away until another comes.
+  document.addEventListener("pointerdown", event => { if (shown && event.target instanceof Element && !event.target.closest("[data-work-bar],[data-work-task-float]")) { folded = shown; row(); } }, true);
+  narrow.addEventListener("change", row); row();
 }
 
 /** In a decision's field Enter sends the words and Escape puts the field away, neither reaching the dialog or the panel; elsewhere Escape closes the panel (`close` says whether it was open). */

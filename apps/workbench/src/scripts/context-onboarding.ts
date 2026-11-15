@@ -1,5 +1,4 @@
-import { codeRootFile, contextFileSkip } from "@molis-ai/molis-work-contracts/services/materials";
-import { objectLinkAt } from "@molis-ai/molis-work-contracts/platform/object-link";
+import { codeRootFile, contextFileSkip } from "@molis-ai/molis-work-contracts/services/materials"; import { objectLinkAt } from "@molis-ai/molis-work-contracts/platform/object-link";
 import { CONTEXT_ONBOARDING_BLANK_NAME_PART } from "./context-onboarding-blank-name.js"; import { CONTEXT_ONBOARDING_TAKE_PART } from "./context-onboarding-take.js";
 
 // The arrival frame draws the existing Home journey: sources, scope, reading and naming.
@@ -511,8 +510,7 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
     if(name)journey.summary.title=name.value;if(body)journey.summary.body=body.value;
   }
   function projectLocation() {
-    const take = journey.adoption && journey.adoption.take, opened = journey.take_result && journey.take_result.open; // a folder handed to a plugin: go on there, in what it opened. With todos added, start from one; otherwise from the overview.
-    const home = '/projects/'+encodeURIComponent(journey.project_id);
+    const take = journey.adoption && journey.adoption.take, opened = journey.take_result && journey.take_result.open, home = '/projects/'+encodeURIComponent(journey.project_id); // a folder handed to a plugin: go on there, in what it opened. With todos added, start from one; otherwise from the overview.
     if (take) return route(objectLinkAt(home, opened ? { surface: take.project_plugin_id, id: opened.item_id, title: opened.title } : { surface: take.project_plugin_id }));
     if (journey.todo && journey.todo.added && journey.todo.added.length) return route(objectLinkAt(home, { surface: 'todo' }));
     return route(objectLinkAt(home, { surface: 'pages', id: journey.document_id || '', title: (journey.adoption?.title || journey.summary?.title || globalThis.t.text("workbench.context-onboarding.project"))+' · '+globalThis.t.text("workbench.context-onboarding.work-summary") }));

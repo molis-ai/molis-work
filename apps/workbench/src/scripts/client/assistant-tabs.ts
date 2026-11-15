@@ -20,6 +20,8 @@ export const ASSISTANT_TABS_PART = String.raw`  /* ─── Tabs ────�
       if (mark) wrap.dataset.mark = mark;
       const cur = id === front;
       if (id === "main" || workById(id)?.main) wrap.dataset.main = "";
+      // A Character's own conversation says so: the reply left above the input when the dialog is closed is marked as its (WLN-40).
+      if (workById(id)?.character) wrap.dataset.character = "";
       if (cur) wrap.setAttribute("data-current", "");
       const main = el("button", "assistant-tab-main"); main.type = "button"; main.setAttribute("role", "tab");
       main.setAttribute("aria-selected", String(cur)); main.tabIndex = cur ? 0 : -1;

@@ -312,10 +312,26 @@ export function renderEventCard(card: { readonly id: string; readonly facts: str
   return `<article class="work-card" data-event-card="${id}"${card.parked ? " data-parked" : ""}><div class="work-card-head">${name}<span class="work-card-facts" title="${escapeHtml(card.facts)}">${escapeHtml(card.facts)}</span>${buttons}</div>${card.body}</article>`;
 }
 
+/**
+ * What the card of something done offers (WLN-11): the result in its owner's own words where the owner declared no display, the
+ * way to open it as a tab, and the way to put it on the Shelf (said as done once it is there).
+ */
+export function renderCardResult(result: { readonly id: string; readonly preview: string; readonly open: boolean; readonly shelf: "" | "busy" | "done" }): string {
+  const say = (key: string) => uiText.text(`workbench.work-line.${key}`), id = escapeHtml(result.id);
+  return `${result.preview ? `<div class="work-card-quote work-card-preview">${escapeHtml(result.preview)}</div>` : ""}<div class="work-card-actions">`
+    + (result.open ? renderButton({ variant: "secondary", size: "sm", icon: "external", label: say("open-as-tab"), attrs: { "data-event-open": id } }) : "")
+    + renderButton({ variant: "secondary", size: "sm", icon: result.shelf === "done" ? "check" : "bookmark", label: say(result.shelf === "done" ? "on-shelf" : "put-on-shelf"), attrs: { "data-event-shelve": id, ...(result.shelf ? { disabled: "" } : {}) } }) + "</div>";
+}
+
+/** How it was done, under what was done: the rows of the tasks behind a finished event, folded until asked for (WLN-11). */
+export function renderCardProcess(rows: string): string {
+  return `<details class="work-card-section work-card-process"><summary>${uiText("workbench.work-line.process")}</summary>${rows}</details>`;
+}
+
 /** With the dialog closed: the latest reply above the composer, with the task mark and the way to open the dialog. Only the reply itself is announced. */
 export function renderReplyPeek(peek: { readonly who: { readonly name: string; readonly character?: boolean }; readonly returned?: string; readonly body: string; readonly mark: string }): string {
   return `<div class="work-reply-peek" data-reply-peek><div class="work-reply-peek-head">${renderReplyWho(peek.who)}<span>${escapeHtml(peek.who.name)}</span>${peek.returned ? renderReplyReturned(peek.returned) : ""}<span class="work-reply-peek-fill"></span>${peek.mark}`
-    + `${iconButton("chevron-up", uiText.text("workbench.work-line.open-conversation"), { "data-dialog-open": "" })}</div><div role="status">${peek.body}</div></div>`;
+    + `${iconButton("chevron-up", uiText.text("workbench.work-line.open-conversation"), { "data-dialog-open": "" })}</div><div class="work-reply-peek-body" role="status">${peek.body}</div></div>`;
 }
 
 /** Once the person has clicked the work surface the reply folds away: only the task mark and the way to open the dialog stay. */

@@ -244,6 +244,10 @@ ${W} ${BUTTON_GROUNDS} .mw-btn--secondary:not(:disabled){border-color:var(--line
 .work-card-section{display:flex;flex-direction:column;gap:4px;padding:8px;border:1px solid var(--line);border-radius:var(--r-row,8px)}
 .work-card-section>h4{margin:0 0 2px;padding:0 2px;color:var(--muted);font-size:11px;font-weight:500}
 .work-card-actions{display:flex;align-items:center;gap:6px;min-width:0}
+.work-card-result{display:flex;flex-direction:column;gap:8px}
+.work-card-preview{max-height:9.9em;overflow:hidden;white-space:pre-line;overflow-wrap:anywhere}
+.work-card-process>summary{padding:0 2px;color:var(--muted);font-size:11px;font-weight:500;cursor:pointer}
+.work-card-process[open]>summary{margin-bottom:2px}
 .work-card-decisions{display:flex;flex-direction:column;gap:8px}
 .work-accept{display:flex;align-items:center;gap:8px;min-width:0;padding:8px 10px;border:1px solid var(--line);border-radius:var(--r-row,8px)}
 .work-accept>.work-reqs-sum{flex:1}
@@ -300,7 +304,9 @@ html body.immersive-workbench[data-acceptance-open=true] [data-plugin-stage]{mar
 .work-reply-peek-head{display:flex;align-items:center;gap:6px;min-width:0;color:var(--muted);font-size:11px;white-space:nowrap}
 .work-reply-peek-fill{flex:1 1 auto}
 .work-reply-peek p{margin:0}
-[data-assistant-island]>.work-reply-mini{position:absolute;z-index:49;right:0;bottom:calc(100% + 8px + var(--next-row,0px) + var(--context-row,0px))}
+[data-assistant-island]>:is(.work-reply-mini,.work-reply-peek){position:absolute;z-index:49;right:0;bottom:calc(100% + 8px + var(--next-row,0px) + var(--context-row,0px))}
+[data-assistant-island]>.work-reply-peek{left:0}
+.work-reply-peek-body{max-height:4.95em;overflow:hidden;overflow-wrap:anywhere}
 .work-reply-mini{align-self:flex-end;display:inline-flex;align-items:center;gap:2px;padding:4px;border-radius:var(--r-card,12px);background:var(--popover);box-shadow:var(--lift-2);animation:craft-rise-from-bar var(--dur-hover) var(--ease-quint)}
 /* A dialog tab is as wide as its name (96 to 184), and the strip scrolls: an event's tab has to say which event it is. */
 ${W} .assistant-tabs[data-work-tabs] .assistant-tab{flex:0 0 auto;width:auto;min-width:96px;max-width:184px}
@@ -358,6 +364,7 @@ html[data-craft-still] ${ANIMATED}{animation:none}
   :is(.work-task-panel-head,.work-card-head,.work-reply-peek-head,.work-reply-mini) .mw-btn.mw-btn--icon-only{width:44px;height:44px;min-width:44px}
   ${BUTTON_GROUNDS} .mw-btn{min-width:44px;min-height:44px}
   .work-task-row-main{min-height:48px}
+  .work-card-process>summary{min-height:44px;align-content:center}
   /* Where the right side's glyphs slide, its always-there entry (a Home tool with a chord) leads the row and stays at its edge. */
   ${TOP}>.side-strip>.tab-item:has(>[data-side-keys]){order:-1;position:sticky;inset-inline-start:0;z-index:1;background:var(--nav-bg)}
 }

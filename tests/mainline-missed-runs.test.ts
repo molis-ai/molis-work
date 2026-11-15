@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ActionError, defineRunDecisionAction, defineRunsOverviewAction, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, defineRunDecisionAction, defineRunsOverviewAction, type ActionCallContext, type ActionClient, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { decideBackgroundTask, readBackgroundTasks, runBackgroundTaskCommand } from "@molis-ai/molis-work-service-mainline";
 import { readFileSync } from "node:fs";
 import { createImagesActionHandlers, imagesActions, type ImageJob } from "@molis-ai/molis-work-plugin-images";
@@ -12,16 +12,17 @@ import { installTextForTest, parseLocalePack } from "@molis-ai/molis-work-plugin
  * what is pressed on a row is the owner's own action, read again in that call.
  */
 
-const CALLER = { actor_id: "person", audience: "user", project_id: "p1", permissions: [] } as unknown as ActionCallContext;
-const view = (definition: ActionDefinition<never, unknown>, provider: string, available = true): ActionView => ({ ...definition, provider: { provider_id: provider, title: provider, kind: "plugin" },
-  availability: available ? { available: true } : { available: false, code: "actions.plugin_disabled", reason: "这个插件没有开启" } }) as unknown as ActionView;
-const overview = (provider: string, scope: "project" | "home" = "project") => view(defineRunsOverviewAction(`${provider}.runs.overview`, 1, "运行概况", [`${provider}:read`], scope) as never, provider);
-const decision = (provider: string) => view(defineRunDecisionAction(`${provider}.runs.decide`, 2, "处理错过的", [`${provider}:write`], "project") as never, provider);
+const CALLER: ActionCallContext = { actor_id: "person", audience: "user", project_id: "p1", permissions: [] };
+const view = (definition: Pick<ActionView, "capability_id" | "version" | "operation" | "action">, provider: string, available = true): ActionView => ({ ...definition, provider: { provider_id: provider, title: provider, kind: "plugin" },
+  availability: available ? { available: true } : { available: false, code: "actions.plugin_disabled", reason: "这个插件没有开启" } });
+const overview = (provider: string, scope: "project" | "home" = "project") => view(defineRunsOverviewAction(`${provider}.runs.overview`, 1, "运行概况", [`${provider}:read`], scope), provider);
+const decision = (provider: string) => view(defineRunDecisionAction(`${provider}.runs.decide`, 2, "处理错过的", [`${provider}:write`], "project"), provider);
 const run = (id: string, extra: Record<string, unknown> = {}) => ({ run_id: id, title: `每天 ${id}`, due_at: "2026-11-14T01:00:00.000Z", missed_at: "2026-11-14T01:00:00.000Z", project_id: "p1", open: { surface: "schedule", id }, needs: [], ...extra });
 type Call = [capability: string, input: unknown, queryOnly: boolean];
 function clientOf(views: ActionView[], answer: (capability: string, input: unknown) => unknown): { client: ActionClient; calls: Call[] } {
   const calls: Call[] = [];
-  return { calls, client: { discover: async () => views, invoke: async (caller: ActionCallContext, action: { capability_id: string }, input: unknown) => { calls.push([action.capability_id, input, caller.query_only === true]); return answer(action.capability_id, input); } } as unknown as ActionClient };
+  const client: ActionClient = { discover: async () => views, invoke: async (caller, action, input) => { calls.push([action.capability_id, input, caller.query_only === true]); return answer(action.capability_id, input); } };
+  return { calls, client };
 }
 const code = (expected: string) => (error: unknown) => error instanceof ActionError && error.code === expected;
 
@@ -81,7 +82,7 @@ test("WLN-39 another plugin's long task: an image still generating is a row in t
   const asked: string[] = [];
   const handlers = createImagesActionHandlers({ service: () => ({ listJobs: (projectId: string) => { asked.push(projectId); return jobs; } }) } as never);
   const tasks = handlers.find(handler => handler.capability_id === imagesActions.backgroundTasks.capability_id)!;
-  const { client, calls } = clientOf([view(imagesActions.backgroundTasks as never, "io.molis.work.images")], (capability, input) => capability === imagesActions.backgroundTasks.capability_id ? tasks.handle(CALLER as never, input) : { job: job("j1", "cancelled") });
+  const { client, calls } = clientOf([view(imagesActions.backgroundTasks, "io.molis.work.images")], (capability, input) => capability === imagesActions.backgroundTasks.capability_id ? tasks.handle(CALLER as never, input) : { job: job("j1", "cancelled") });
 
   const read = await readBackgroundTasks(CALLER, client);
   assert.deepEqual([read.issues, read.tasks.map(row => [row.subject.kind, row.subject.id, row.state, row.waiting, row.title])], [[], [["image_job", "j1", "generating", false, "一张图 j1"]]], "only what is still running is a task");

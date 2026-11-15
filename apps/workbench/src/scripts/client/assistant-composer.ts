@@ -106,6 +106,9 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   };
   // Every method and capability is listed (the menu scrolls); the composer's "/" narrows them by the words typed after it.
   const commands = () => [
+    // 手边 (specs/work-line §4.2): the side pages plugins keep things on, one press from the input; what is picked there goes with the next send.
+    ...(project ? Array.from(document.querySelectorAll("[data-side-tabs] :is([data-side-tab='files'],[data-side-tab][data-side-plugin]:not([data-side-context-owner]):not([data-side-keys]))")).map((tab) => ({ slash: readText("workbench.work-line.at-hand"), icon: "sidebar",
+      label: tab.getAttribute("aria-label") || "", hint: readText("workbench.work-line.at-hand-hint"), run: () => document.dispatchEvent(new CustomEvent("molis:side-open", { detail: { tab: tab.dataset.sideTab } })) })) : []),
     // Each kind keeps the glyph Coding gives the same kind (its ＋), so a method or a capability looks the same wherever it is added.
     ...startersFor().map((starter) => ({ slash: readText("workbench.context-onboarding.begin"), icon: "sparkles", label: starter.label + (starter.kind ? " · " + starter.kind : ""), ...(starter.hint ? { hint: starter.hint } : {}),
       run: () => { if (useStarter(starter)) input.focus(); } })),

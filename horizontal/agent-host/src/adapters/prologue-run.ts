@@ -55,6 +55,14 @@ import { ensureStopGuard, guardRound, watchRoundFacts } from "./prologue-stop-gu
 const ROUND_DEFAULT_TURNS = 8;
 /** One model call's wait for its answer to start, and between its parts, when the round has no time budget. */
 const MODEL_CALL_TIMEOUT_MS = 180_000;
+
+/** The SDK's terminal run events, including a guardrail stop and a circuit break. */
+const TERMINAL_RUN_EVENT_TYPES = ["completed", "failed", "cancelled", "tripped", "circuit-tripped"] as const;
+type TerminalRunEventType = typeof TERMINAL_RUN_EVENT_TYPES[number];
+const isTerminalRunEvent = (type: string): type is TerminalRunEventType => (TERMINAL_RUN_EVENT_TYPES as readonly string[]).includes(type);
+/** Cleanup uses the project-work/surface vocabulary: only a normal finish or a person's cancellation are distinct. */
+const cleanupEnd = (type: TerminalRunEventType): "completed" | "failed" | "cancelled" =>
+  type === "completed" ? "completed" : type === "cancelled" ? "cancelled" : "failed";
 // Codes the runtime raises before it creates a run: nothing ran, so the attempt is a settled refusal. The session's
 // checks before any write (a run parked on a question, one being recovered or handed over, a parked set it could not
 // read back) are among them.
@@ -423,7 +431,7 @@ function watchChild(deps: RunDeps, input: PrologueStartInput, index: SessionInde
      */
     state.activeRuns.set(observed.run.ref.id, { live: () => ["prepared", "running"].includes(observed.run.state), steer: async text => { await observed.control.steer({ text }); } });
     state.liveSessions.set(observed.childSession.ref.id, observed.run.ref.id);
-    observed.run.subscribe(event => { if (["completed", "failed", "cancelled"].includes(event.type) && state.liveSessions.get(observed.childSession.ref.id) === observed.run.ref.id) state.liveSessions.delete(observed.childSession.ref.id); });
+    observed.run.subscribe(event => { if (isTerminalRunEvent(event.type) && state.liveSessions.get(observed.childSession.ref.id) === observed.run.ref.id) state.liveSessions.delete(observed.childSession.ref.id); });
     // SDK493 invokes this observer only for this claim's newly created child. Its held driver has not started.
     // subscribe replays the initial opening synchronously; peer/carried input is never this canonical caller.
     const opening: import("@prologue/sdk").ModelEvent[] = [];
@@ -594,21 +602,22 @@ async function afterStart(deps: RunDeps, input: PrologueStartInput, index: Sessi
 }
 
 /** When the round ends: its actions and step board let go, the page released, its project work ended and its messages settled. */
-function roundEnded(deps: RunDeps, started: Started, session: Session, stepBoard: { ref: { id: string } } | undefined, type: "completed" | "failed" | "cancelled", actionController: AbortController): void {
+function roundEnded(deps: RunDeps, started: Started, session: Session, stepBoard: { ref: { id: string } } | undefined, type: TerminalRunEventType, actionController: AbortController): void {
   const { state } = deps;
   const surfaceHost = deps.surfaces();
+  const end = cleanupEnd(type);
   actionController.abort(); state.actionControllers.delete(started.run.ref.id); state.dispatchChecks.delete(started.run.ref.id);
   if (stepBoard) deps.stepBoards.unfollow(started.run.ref.id);
-  deps.workGraphs.ended(started.run.ref, session.ref, type);
+  deps.workGraphs.ended(started.run.ref, session.ref, end);
   if (state.liveSessions.get(session.ref.id) === started.run.ref.id) state.liveSessions.delete(session.ref.id);
   // The side panel stops saying the Assistant is using the page the moment its round is over, and this run's app approvals are dropped.
-  if (surfaceHost) { void surfaceHost.release(session.ref.id, type === "cancelled" ? "stopped" : type).catch(() => undefined); surfaceHost.releaseRun(started.run.ref); } state.runRefs.delete(started.run.ref.id);
+  if (surfaceHost) { void surfaceHost.release(session.ref.id, end === "cancelled" ? "stopped" : end).catch(() => undefined); surfaceHost.releaseRun(started.run.ref); } state.runRefs.delete(started.run.ref.id);
   const work = state.runWork.get(started.run.ref.id);
-  if (work) { state.runWork.delete(started.run.ref.id); void deps.projectWork.end(work.project, work.id, type === "cancelled" ? "stopped" : type).catch(() => undefined); }
+  if (work) { state.runWork.delete(started.run.ref.id); void deps.projectWork.end(work.project, work.id, end === "cancelled" ? "stopped" : end).catch(() => undefined); }
   // A round that finished normally saw every message given to it; unanswered requests are settled.
-  if (work && type === "completed") void deps.messages.settle(session.ref.id).catch(() => undefined);
-  // One that failed will not answer the requests someone waits on; they are ended so the waiting session wakes.
-  if (work && type === "failed") void deps.messages.failed(session.ref.id).catch(() => undefined);
+  if (work && end === "completed") void deps.messages.settle(session.ref.id).catch(() => undefined);
+  // One that failed or was stopped by a guardrail will not answer the requests someone waits on; they are ended so the waiting session wakes.
+  if (work && end === "failed") void deps.messages.failed(session.ref.id).catch(() => undefined);
 }
 
 /** The run and its controls as the adapter sees them; stopping saves the person's intent before the SDK stops the run. */
@@ -632,7 +641,7 @@ function roundHandle(deps: RunDeps, input: PrologueStartInput, at: {
       ref: { id: started.run.ref.id },
       subscribe: (listener: (event: PrologueEvent) => void) =>
         started.run.subscribe(withInteractionRepairLimit(stopForHost, (event) => {
-          if (event.type === "completed" || event.type === "failed" || event.type === "cancelled") roundEnded(deps, started, at.session, at.stepBoard, event.type, actionController);
+          if (isTerminalRunEvent(event.type)) roundEnded(deps, started, at.session, at.stepBoard, event.type, actionController);
           if (event.type === "command-receipt") {
             const events = deps.state.commandEvents.get(started.run.ref.id) ?? [];
             if (!events.some(saved => sameRef(saved.receiptRef, event.receiptRef))) events.push(event);
@@ -740,7 +749,7 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
   });
   watchRoundFacts(state, started.run);
   // The language servers this round started belong to it: they go when it ends, however it ends.
-  if (codeIntelligence !== undefined) started.run.subscribe(event => { if (event.type === "completed" || event.type === "failed" || event.type === "cancelled") void codeIntelligence.close().catch(() => undefined); });
+  if (codeIntelligence !== undefined) started.run.subscribe(event => { if (isTerminalRunEvent(event.type)) void codeIntelligence.close().catch(() => undefined); });
   const stopping: { current: Promise<void> | undefined } = { current: undefined };
   // Every child this round dispatches is let out only after the round's own check passes again (the Runtime asks).
   state.dispatchChecks.set(started.run.ref.id, dispatchGuard);

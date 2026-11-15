@@ -98,11 +98,13 @@ function conflictsOf(store: BriefStore, briefId: string, claims: readonly Claim[
 async function shownTo(version: BriefVersion, views: readonly ActionView[], reads: Map<string, SubjectRead>): Promise<BriefVersion> {
   const offered = overviewReaders(views);
   const readable = (subject: ActionSubject) => reads.get(briefSubjectKey(subject))?.state === "ok";
+  // The gap keeps its kind (gone from the owner, or unreadable here); only the title and the frozen words are withheld.
+  const gap = (subject: ActionSubject): "gone" | "unreadable" => reads.get(briefSubjectKey(subject))?.state === "gone" ? "gone" : "unreadable";
   return { ...version,
     sources: version.sources.map(row => offered.get(row.plugin_id)?.some(view => view.availability.available)
       ? { ...row, subjects: row.subjects.filter(readable) } : { plugin_id: row.plugin_id, name: row.name, read: "unauthorized", subjects: [], turn: "idle" }),
     claims: version.claims.map(claim => ({ ...claim, cites: claim.cites.map(cite => readable(cite.subject) ? cite
-      : { subject: cite.subject, owner_plugin_id: "", revision: "", title: "", read_at: cite.read_at, gap: "unreadable" as const }) })),
+      : { subject: cite.subject, owner_plugin_id: "", revision: "", title: "", read_at: cite.read_at, gap: gap(cite.subject) }) })),
     attention: version.attention.filter(item => readable(item.subject)),
     next: version.next.map(option => option.subject && !readable(option.subject) ? { ...option, subject: undefined } : option) };
 }

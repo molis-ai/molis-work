@@ -1,0 +1,7 @@
+{
+  "reason": "第 19 批合后审计修复让 work-brief.js 增 39 字节：下一步的冲突保护与页面状态代码；没有新增资源，也没有修改已采用的 batch-19-work-brief.json。",
+  "review": "第 19 批合后独立审计修复（2026-11-15）；记录与复验见 specs/post-anticorruption-roadmap/reference/batches/19.md 的「合后独立审计修复」小节。",
+  "assets": {
+    "/assets/molis-work-plugins/work-brief.js": 39
+  }
+}

@@ -186,7 +186,7 @@ Home 库 `work-brief`，第 1 版，不分区：`briefs`、`brief_versions`、`b
 
 - **正文平铺。** 存的不是 `BriefSection[]`，是 `{ sources, claims, attention, next }` 四个数组（`model.ts` 的 `BriefBody`）：四段的次序是页面的事，存成分段只多一层判别。`Cite` 多 `owner_plugin_id` 和读不到时的 `gap`（`changed`／`gone`／`unreadable`），不存主人的状态词。下一步的处置多一个 `running`（执行中）。
 - **概况动作的受众加 `workflow`。** `definePresentationOverviewAction` 原来只给 `user`；持有 `actions:delegate` 的插件经目录是以工作流受众到达的，读不到任何概况。现在是 `["user", "workflow"]`，权限检查不变（仍是原调用者的权限）。注意这不只对持有 `actions:delegate` 的插件开放：任何以工作流受众到达、且原调用者有相应权限的调用都读得到概况。这是对所有声明概况的插件生效的合同改动，动作快照随之更新。
-- **页面以本人身份调用自己的动作。** 插件页面经页面动作入口（`/api/host/plugin-page-actions`）调本安装自己的动作，原来只带安装自己的授权，动作里再经目录读别的插件时什么都读不到（来源全是「未授权」，刷新与下一步执行不了）。用户 2026-11-14 弹窗定：读写都放开——安装持有 `actions:delegate` 时，这次调用是页面上本人的调用，与插件自己的路由同一条规则（2026-10-20 的决定）。页面自己仍只叫得到本安装的动作；没有该授权的安装不变。登记在 S-43，拒绝测试 `tests/security-invariants-plugin-action-delegation.test.ts` 的两条 WBR-06。
+- **页面以本人身份调用自己的动作。** 插件页面经页面动作入口（`/api/host/plugin-page-actions`）调本安装自己的动作，原来只带安装自己的授权，动作里再经目录读别的插件时什么都读不到（来源全是「未授权」，刷新与下一步执行不了）。用户 2026-11-14 弹窗定：读写都放开——安装持有 `actions:delegate` 时，这次调用是页面上本人的调用，与插件自己的路由同一条规则（2026-10-20 的决定）。页面自己仍只叫得到本安装的动作；没有该授权的安装不变。登记在 S-43，拒绝测试 `tests/security-invariants-plugin-action-delegation.test.ts` 的四条 WBR-06（含跨项目的页面 id、声明了但未授予 `actions:delegate`）。
 - **首页主区的盒子是页面的定位容器。** 被收进首页的主区页面按它的容器定位；`.home-lead` 没有定位时页面会盖住上面的细栏（「看基础首页」点不到），挂载位也偏一个细栏的高度。
 - **下一步的卡片用 SDK 的通用卡片。** 页面在 iframe 里，SDK `/ui` 没有操作卡的渲染（在 design-system 里，iframe 取不到），所以下一步用 `renderCard` 画：标题、来自哪个插件、原因、作用对象、一个主按钮。执行规则仍是 SDK 的操作卡规则（`runActionCard`、`sweepActionCard`），在服务端。
 - **个人简报。** 用户 2026-11-14 定：个人简报是个人事项的集合汇总，每项带「项目」或「个人」标签，项目的项带跳到对应项目的链接。Home 那一半读各项目简报现行版里要你处理的项和没处置的下一步（`projects:reach`，可不授予：不给时只有个人范围的事项，并说明不完整）。

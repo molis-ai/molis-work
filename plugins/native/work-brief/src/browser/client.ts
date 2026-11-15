@@ -146,7 +146,9 @@ async function nextStep(page: BriefPage, action: string, optionId: string): Prom
     return;
   }
   if (action === "hand-next") {
-    await write(page, "work-brief.next.set", { ...input, state: "handed" });
+    const answer = await write(page, "work-brief.next.set", { ...input, state: "handed" });
+    // A conflict means the brief moved under this page and the mark was not written; the shell must not delegate the old step.
+    if (!answer) return;
     // The platform's delegation message: the Assistant takes the step with the brief as what it is about; only the person's press sent it.
     window.dispatchEvent(new CustomEvent("molis:assistant-message", { detail: { message_id: `work-brief-${optionId}`, purpose: "delegate", source: { surface: "work-brief", title: text("page.title") },
       object: { kind: "brief", id: brief.brief_id, title: brief.title || text("page.title"), version: head.version?.version ?? null }, text: `${option.text}\n${option.why}` } }));

@@ -43,9 +43,8 @@ export const GOALS_PROJECT_DATABASE: PluginDatabaseDeclaration = {
 };
 
 /** Batch 41's v4, with the original approvals and without the former planning tables or config adoption. */
-export const GOALS_APPROVAL_TRANSFER_SOURCE = 4;
 const GOALS_PROJECT_DATABASE_V4 = {
-  store_name: "goals", version: GOALS_APPROVAL_TRANSFER_SOURCE,
+  store_name: "goals", version: /* @version database.goals_project_database_v4 */ 4 as const,
   schema: approvalSchema(GOALS_EVENT_STATE_SQL),
   read_permission: "storage:private", write_permission: "storage:private",
   // 1 → 2 (2026-11-11, evidence contract): what a judgment checked and how far Goals found it backed, and the version a conclusion was about.
@@ -75,7 +74,9 @@ const GOALS_PROJECT_DATABASE_V4 = {
     `,
     reduces_rows: ["planning_method_packs"],
   }],
-};
+} satisfies PluginDatabaseDeclaration;
+
+export const GOALS_APPROVAL_TRANSFER_SOURCE = GOALS_PROJECT_DATABASE_V4.version;
 
 /** Each source shape has its own verified ledger, including the corresponding sync tracking. */
 const GOALS_PROJECT_DATABASE_V2 = {

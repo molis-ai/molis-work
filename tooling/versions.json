@@ -1096,6 +1096,7 @@
     "database.form_database": 1,
     "database.functions_store_baseline": 1,
     "database.goals_project_database": 5,
+    "database.goals_project_database_v4": 4,
     "database.home.catalog": 4,
     "database.home_plugin_runtime_baseline": 1,
     "database.images_database": 1,

@@ -71,10 +71,10 @@ export async function productRows() {
     ...host.PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => entry.manifest.databases?.project).map(({ manifest }) => {
       const result = row(`projects/*/molis-work.db#${manifest.plugin_id}`, manifest.plugin_id, manifest.databases.project);
       const transfer = GOALS_APPROVAL_TRANSFER;
-      if (manifest.plugin_id === transfer.pluginId && result.version === transfer.to
-        && host.projectApprovalUpgrade?.from === transfer.from && host.projectApprovalUpgrade.run
+      if (manifest.plugin_id === transfer.pluginId && result.version === transfer.goalsTo
+        && host.PROJECT_DATABASE_BASELINE.version === transfer.to && host.projectApprovalUpgrade?.from === transfer.from && host.projectApprovalUpgrade.run
         && host.PROJECT_DATABASE_BASELINE.upgrades?.includes(host.projectApprovalUpgrade)) {
-        result.froms = [...new Set([...result.froms, transfer.from])].sort((a, b) => a - b);
+        result.froms = [...new Set([...result.froms, transfer.goalsFrom])].sort((a, b) => a - b);
       }
       return result;
     }),

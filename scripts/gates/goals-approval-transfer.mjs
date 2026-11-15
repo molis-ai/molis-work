@@ -8,7 +8,9 @@ export const GOALS_APPROVAL_TRANSFER = Object.freeze({
   pluginId: "io.molis.work.goals",
   projectStore: "projects/*/molis-work.db",
   goalsStore: "projects/<project_id>/molis-work.db#goals",
+  // The platform migration runs once, independent of the version on the Goals owner ledger.
   from: 3, to: 4,
+  goalsFrom: 4, goalsTo: 5,
   syncEntry: "sync.collection.goals.project_goals",
   syncManifest: "plugins/native/goals/src/manifest.ts",
 });

@@ -182,23 +182,25 @@ function declaredSteps(file, source, name) {
 // What is wrong with the 维护 cell of a row whose version went up, once the origin is registered.
 function upgradePointerProblems(entry, definition, read) {
   const transfer = GOALS_APPROVAL_TRANSFER;
-  if (entry.place === transfer.goalsStore && entry.from === transfer.from && entry.to === transfer.to && definition === transfer.goalsDefinition) {
+  const joint = entry.place === transfer.goalsStore && entry.from === transfer.goalsFrom && entry.to === transfer.goalsTo && definition === transfer.goalsDefinition;
+  if (joint) {
     if (!hasGoalsApprovalTransfer(read)) return [`${SPEC_FILE}: ${entry.place} needs the project library's verified approval transfer from ${entry.from}`];
     definition = transfer.projectDefinition;
   }
   const name = `\`${entry.place}\` ${entry.from} → ${entry.to}`;
-  const wanted = `\`${definition}#${entry.from}→${entry.to}\``;
+  const stepFrom = joint ? transfer.from : entry.from, stepTo = joint ? transfer.to : entry.to;
+  const wanted = `\`${definition}#${stepFrom}→${stepTo}\``;
   const pointer = UPGRADE_POINTER.exec(entry.maintenance);
   if (!pointer) return [`${SPEC_FILE}: the row ${name} needs ${wanted} in its 维护 cell, found「${entry.maintenance}」`];
   if (pointer[1] !== definition) return [`${SPEC_FILE}: the row ${name} points at ${pointer[1]}, but the checklist defines this library at ${definition}`];
-  if (Number(pointer[2]) !== entry.from || Number(pointer[3]) !== entry.to) return [`${SPEC_FILE}: the row ${name} points at the step ${pointer[2]}→${pointer[3]}`];
+  if (Number(pointer[2]) !== stepFrom || Number(pointer[3]) !== stepTo) return [`${SPEC_FILE}: the row ${name} points at the step ${pointer[2]}→${pointer[3]}`];
   const [file, constant] = definition.split("#");
   const source = read(file);
   if (source === null) return [`${SPEC_FILE}: the row ${name} points at ${file}, which does not exist`];
   const declared = declaredSteps(file, source, constant);
   if (declared.why) return [`${SPEC_FILE}: the row ${name}: ${declared.why}`];
   const problems = [];
-  for (let from = entry.from; from < entry.to; from += 1) {
+  for (let from = stepFrom; from < stepTo; from += 1) {
     if (!declared.froms.includes(from)) problems.push(`${SPEC_FILE}: the row ${name}: ${definition} has no upgrade step with \`from: ${from}\``);
   }
   return problems;

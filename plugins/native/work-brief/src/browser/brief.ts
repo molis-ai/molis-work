@@ -63,8 +63,8 @@ function footnotes(page: BriefPage, claim: Claim, index: number, names: Map<stri
 }
 
 function citeCard(cite: Cite, names: Map<string, string>): string {
-  // A basis this person cannot read now carries no title: only the gap is said.
-  if (!cite.title) return renderPopover({ preview: true, className: "wb-pop", body: `<p class="wb-pop-note">${esc(text("cite.unreadable"))}</p>` });
+  // A basis this person cannot read now carries no title: only the gap is said, and "gone" is not "no permission".
+  if (!cite.title) return renderPopover({ preview: true, className: "wb-pop", body: `<p class="wb-pop-note">${esc(text(cite.gap === "gone" ? "cite.gone" : "cite.unreadable"))}</p>` });
   const owner = names.get(cite.owner_plugin_id) ?? cite.owner_plugin_id;
   const gap = cite.gap === "gone" || cite.gap === "unreadable" ? `<p class="wb-pop-note">${esc(text(`cite.${cite.gap}`))}</p>` : slot("cite", cite.subject);
   return renderPopover({ preview: true, className: "wb-pop", body: `${renderPreviewCard({ title: cite.title, body: text("cite.from", { owner, time: when(cite.read_at) }) })}<div class="wb-pop-foot">${gap}</div>` });

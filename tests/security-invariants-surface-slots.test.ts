@@ -48,6 +48,10 @@ test("IUI-07 IUI-08 IUI-10 IUI-13: Inbox's real mount has one current trusted re
   await read(await post(reserve), 403);
   const empty = await read<Receipt>(await post({ ...reserve, mount_id: 2, subjects: [] }));
   const absent = await read<Receipt>(await post({ ...reserve, mount_id: 3, subjects: [{ kind: "feed_item", id: "not-in-this-project" }] }));
+  // One page may keep twenty object cells, not four: the risk page can hold twenty links and already has three here.
+  const many = [];
+  for (let mountId = 4; mountId <= 8; mountId += 1) many.push(await read<Receipt>(await post({ ...reserve, mount_id: mountId })));
+  for (const record of many) await read(await post({ intent: "close", slot: record.slot }));
   assert.deepEqual(empty.heights, slot.heights);
   assert.deepEqual(absent.heights, slot.heights);
   for (const record of [empty, absent]) {

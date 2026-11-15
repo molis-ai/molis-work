@@ -1,26 +1,31 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
-import type { UiPageWorkspaces } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { UiPageInstructionSettings, UiPageWorkspaces } from "@molis-ai/molis-work-contracts/platform/ui";
 import { pageDialogs } from "./dialogs.js";
 import type { FrameDown, FrameScope, FrameUp, Translate } from "./types.js";
 
+interface WorkspaceAnswer { workspace?: { workspace_id: string }; instructions?: UiPageInstructionSettings }
 export function childWorkspaces(port: MessagePort, scope: FrameScope): UiPageWorkspaces {
   let sequence = 0;
-  const pending = new Map<number, { resolve(value?: { workspace_id: string }): void; reject(error: Error): void }>();
+  const pending = new Map<number, { resolve(value: WorkspaceAnswer): void; reject(error: Error): void }>();
   scope.own(() => { for (const entry of pending.values()) entry.reject(new Error("View closed")); pending.clear(); });
   port.addEventListener("message", (event: MessageEvent<FrameDown>) => {
     const message = event.data; if (message.type !== "workspace-result") return;
     const entry = pending.get(message.id); pending.delete(message.id);
-    if (message.error) entry?.reject(Object.assign(new Error(message.error), { status: message.status })); else entry?.resolve(message.workspace);
+    if (message.error) entry?.reject(Object.assign(new Error(message.error), { status: message.status })); else entry?.resolve({ workspace: message.workspace, instructions: message.instructions });
   });
-  const call = (operation: "add" | "set_output" | "read_instructions", value: string) => new Promise<{ workspace_id: string } | undefined>((resolve, reject) => {
+  const call = (operation: "add" | "set_output" | "read_instructions", value: string) => new Promise<WorkspaceAnswer>((resolve, reject) => {
     if (!scope.alive) { reject(new Error("View closed")); return; }
     const id = ++sequence; pending.set(id, { resolve, reject });
     port.postMessage({ type: "workspace", id, operation, value } satisfies FrameUp);
   });
   return {
-    add: async path => { const workspace = await call("add", path); if (!workspace) throw new Error("Workspace unavailable"); return workspace; },
+    add: async path => { const workspace = (await call("add", path)).workspace; if (!workspace) throw new Error("Workspace unavailable"); return workspace; },
     setOutput: async workspaceId => { await call("set_output", workspaceId); },
-    readInstructions: async () => { await call("read_instructions", "on"); },
+    readInstructions: async () => {
+      const instructions = (await call("read_instructions", "on")).instructions;
+      if (!instructions) throw new Error("Instructions unavailable");
+      return instructions;
+    },
   };
 }
 
@@ -71,11 +76,11 @@ export function pageWorkspaces(port: MessagePort, scope: FrameScope, pageId: str
         if (!output || !await dialogs.confirm(uiText.text("common.workspaces.allow-plugin-read-instructions", { plugin, project, folder: output.display_name }))) throw new Error(uiText.text("common.workspaces.cancelled"));
       } else if (!await dialogs.confirm(uiText.text("common.workspaces.allow-plugin-link-folder-project-project-path", { plugin, project, path: message.value }))) throw new Error(uiText.text("common.workspaces.cancelled"));
       scope.assertCurrent(); if (!scope.visible) throw new Error(uiText.text("common.workspaces.cancelled"));
-      const result = await molisWorkRequest<{ workspace?: { workspace_id: string } }>(route("/api/host/plugin-page-workspaces"), {
+      const result = await molisWorkRequest<{ workspace?: { workspace_id: string }; instructions?: UiPageInstructionSettings }>(route("/api/host/plugin-page-workspaces"), {
         body: { operation: message.operation, value: message.value }, headers: { "x-molis-context-page": pageId }, scope, signal: visible.signal,
         fallback: uiText.text("common.workspaces.unable-link-workspace"),
       });
-      scope.assertCurrent(); port.postMessage({ type: "workspace-result", id: message.id, workspace: result.workspace } satisfies FrameDown);
+      scope.assertCurrent(); port.postMessage({ type: "workspace-result", id: message.id, workspace: result.workspace, instructions: result.instructions } satisfies FrameDown);
     } catch (error) {
       if (scope.alive) port.postMessage({ type: "workspace-result", id: message.id,
         error: error instanceof Error ? error.message : String(error),

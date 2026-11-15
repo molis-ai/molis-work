@@ -76,7 +76,7 @@ Goals 原按请求决定、逐项树案、无请求的明确本人决定都要�
 
 目的是让没有 Goals 的项目也能走本人审批，同时保留 Goals 已有记录。影响 32-2、39-1、44-1、Goals 及平台库版本。[#2069](https://github.com/molis-ai/molis-work/pull/2069) 已交共用形状。两条管理工具和 CLI 原审批命令由文档中同一组通用读取与决定入口替换，调用方查原请求并提交原选择。认领板的写入经自动审批拒绝，跨批提醒仍待补发。
 
-升级说明已备好，待 [#2075](https://github.com/molis-ai/molis-work/pull/2075) 交回变更记录文件后登记。使用 `molis_work_v1_event_decide`、`molis_work_v1_goal_tree_decide` 或 CLI `goal-tree-decide` 的脚本，应先用 `molis_work_v1_review_request` 或 `review-request` 读取原审查请求，再用 `molis_work_v1_review_decide` 或 `review-decide` 提交当前引用、选项和本次请求键。原 `goals.policy.history@1` 和 `goals.policy.save@1` 的固定调用应改用平台的 `project.approvals.rules.read@1` 和 `project.approvals.rules.change@1`。现有决定与审批规则由正常升级入口移交，页面从「授权与审批」管理。[管理 CLI](../../docs/cli-and-development.md) · [本机宿主入口](../../docs/platform/LOCAL-HOST.md)
+旧的管理 CLI、MCP 与固定审批动作改法已写入升级说明。现有决定与审批规则由正常升级入口移交，页面从「授权与审批」管理。[升级说明](../../docs/releases/CHANGELOG.md) · [管理 CLI](../../docs/cli-and-development.md) · [本机宿主入口](../../docs/platform/LOCAL-HOST.md)
 
 ## 5. 证据
 

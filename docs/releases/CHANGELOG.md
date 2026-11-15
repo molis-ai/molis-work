@@ -16,6 +16,14 @@
 - **组件板设计语言一章补英文**：`workbench.catalog.language.*` 170 个键进中英词包，四个章节函数经 `say` 翻译；隔离构建的页面资源仍通过（无新资源、无单项 >10 KB）。
 - **运行正文身份核对**：新增 `tests/security-invariants-running-plugin-text.test.ts`，用 Host 的公开读取入口覆盖发行物签名、安装号、状态、插件、世代、版本、签名与 Manifest 摘要不一致时的拒绝。
 
+### 风险插件基础完整路径（2026-11-14，#2058）
+
+- **新插件「风险」**：风险独立记录（标题、描述、影响 × 可能性、处置、负责人、状态、进展、通用关联对象），项目总览按状态分组、已关闭收起，两栏详情与从别处点开先进右栏、可展开整页；Goal 的顾虑可以引用任意对象（`cited_subjects`），但 Goals 只存 `{kind,id}`，不复制风险。风险插件不调 AI。
+- **复查**：详情里安排一次性复查，Schedule 登记一次性对象任务，到点由后台助理看一轮，结果留在 Schedule；改期、暂停、取消、关闭归档不另建任务，停用/撤权后的迟到结果不写业务记录。复查段只显示最后一轮结论，没有历次结果与“采纳/不采纳”（[BL-risk-review-history-adopt](../../specs/backlog/BL-risk-review-history-adopt.md)）。
+- **合同与存储**：Goals 项目库 2→3（`cited_subjects_json`），Schedule 项目库 2→3（`repeat`、`run_at`、`subject_kind`、`subject_id`）；Goals 顾虑、`Schedule.tasks.*`、Manifest `opens_items` 与 SDK `renderSeverityGrid` 都在原版本 @1 上改，没有读取兼容。旧 `concern_opened` 缺 `cited_subjects` 读作“没有引用对象”，是该可选字段的缺省。
+- **页面资源**：新增按需下发的 `risk.js` 46,453 字节；合后审计整改再追加 2,909（合计 49,362）；三张样式各 +1,275；`workbench.js` 原 1,238、整改相对 ddd7ba3f 再 +534；`plugin-frame.js` 原 +82、整改再 +1（合计 +83）；`schedule.js` +376（用户 2026-11-13 批准新增资源；整改首屏冷启动追加 +1/+535 见 `17-audit-followups.json`）。
+- **未完成/待验收**：RISK-05 侧栏展开、RISK-06 实物与历次结果取舍、RISK-09 真没装 Goals；第 19 批 Work Brief 的简报侧接入。
+
 ### 首页公共能力与智能呈现第一片（2026-11-13，#2017）
 
 - **组合服务**：新增 `horizontal/surfaces` 的 `surfaces.compose@1`／`surfaces.correct@1`，按插件 Manifest 的呈现声明做确定组合；宿主只装配，SDK 只留作者与平台共用的声明/描述校验。不调模型，不按插件名分支。
@@ -58,6 +66,8 @@
 - 平台内部createUiRequest工厂显式接收共享UI_HOST_CLIENT_CODES；序列化脚本与所有平台调用方已更新。外部插件仍使用现有SDK页面端口。
 
 ### 升级须知（需要动手）
+
+- **第 39 批把项目审批移到平台。** 调用管理 MCP `molis_work_v1_event_decide`、`molis_work_v1_goal_tree_decide` 或 CLI `goal-tree-decide` 的脚本，先用 `molis_work_v1_review_request` 或 `review-request` 读取原请求，再用 `molis_work_v1_review_decide` 或 `review-decide` 提交当前审查引用、选项与本次请求键。读取或修改原 `goals.policy.history@1`、`goals.policy.save@1` 的调用改用 `project.approvals.rules.read@1`、`project.approvals.rules.change@1`。调用 `agent.reviews.decide@1` 时带上原审查的 `reference.version` 作为 `version`。页面从「授权与审批」查看原决定和修改规则。正常升级把项目库从 v3 升到 v4，把 Goals 私有库从 v1～v4 升到 v5，保留原记录和归属。使用同步的项目按已确认的交接窗口升级。[管理 CLI](../cli-and-development.md) · [项目审批移交](../../specs/agent-approval/trusted-decisions-design.md)
 
 - **第 06 批：Files 插件删除，资料改走 `system.materials`；旧布局第 2 版项目库要先采用**（[#2009](https://github.com/molis-ai/molis-work/pull/2009)，2026-11-13）：内置 Files 插件与 `files.*` 六个动作删除，项目文件夹的浏览、阅读、固定快照、选区和 Diff 前后两版改由平台资料服务；Diff/Text Stats 的默认来源改为 `system.materials`，原来指向 Files 的默认连线在本人到插件设置「同意默认来源」之前不再生效。页面、工作流、Agent 或 MCP 里固定了 `files.*` 动作、`io.molis.work.files` 安装或 Files 事件/游标的引用要重选或随采用退役。旧布局第 2 版项目库在升级后普通打开会被拒绝，要在同步设置的过程项四步（或维护窗口的采用程序）里先采用再打开；真实 Home 的采用由用户另授权。`molis-work:knowledge-pick` 的 `selected` 改为 `{ ref, title }`、`knowledge-picked` 改为 `outcome + items`，发送方与监听方同批更新，没有读取兼容。
 

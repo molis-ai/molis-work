@@ -32,12 +32,13 @@ export function codingOnboarding(a: CodingActivation): void {
     const projectId = a.context.project_id!, sessionId = sessionFor(projectId, input.request_id);
     const storage = a.context.services!.storage!, materials = materialSelection(input.materials);
     // The next round's draft holds what onboarding brought, as a delegated session's does; each piece is read when that round starts.
-    const keepMaterials = async () => { if (materials.length && storage.get(`materials:${sessionId}`) === undefined) { await beforeWrite(); storage.set(`materials:${sessionId}`, JSON.stringify(materials)); } };
-    const existing = execution.sessions.list(projectId).find(record => record.session_id === sessionId);
-    if (existing) { await keepMaterials(); return { open: { item_id: existing.session_id, title: existing.title } }; }
-    // Coding works where the project writes: the folder must be its output now, as the platform set it just before.
+    const keepMaterials = async () => { if (materials.length && storage.get(`materials:${sessionId}`) == null) { await beforeWrite(); storage.set(`materials:${sessionId}`, JSON.stringify(materials)); } };
+    // Coding works where the project writes: the folder must be its output now, as the platform set it just before. Checked on every
+    // call, including a retry, so a take that names another folder cannot find a session made for one that was its output then.
     const output = (await projectDirectories(api)).directories.find(folder => folder.roles.includes("output"));
     if (output?.workspace_id !== input.code_root.workspace_id) throw onboardingErrors.onboarding_root_mismatch("这个文件夹现在不是项目的输出，Coding 不接手");
+    const existing = execution.sessions.list(projectId).find(record => record.session_id === sessionId);
+    if (existing) { await keepMaterials(); return { open: { item_id: existing.session_id, title: existing.title } }; }
     const runtime = requireProjectRuntime(await runtimeDirectory(codingActions(a.context, beforeWrite), api));
     const record = await execution.sessions.create(beforeWrite, { project_id: projectId, session_id: sessionId, title: t.text("coding.onboarding.session-title"),
       runtime_id: runtime.runtime_id, at: new Date().toISOString() });

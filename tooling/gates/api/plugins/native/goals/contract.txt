@@ -891,7 +891,7 @@ export type GoalEventSystemPayload = {
     statement: string;
     scope: GoalEventScope;
     blocks_closure: boolean;
-    cited_subjects: GoalCitedSubject[];
+    cited_subjects?: GoalCitedSubject[];
 } | {
     operation: "concern_resolved" | "concern_accepted" | "concern_overturned";
     concern_id: string;

@@ -1,7 +1,7 @@
 import type { MaterialRef } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import type {} from "@molis-ai/molis-work-plugin-sdk";
 import type { HostReviewFactory } from "./review-slots.js";
-import type { UiRequest, UiClientScope, UiClientTranslate, UiPluginClientHost, UiPageView, UiPageReviewQuery, UiPageReviewOutcome, UiPageMessage, UiPageTerminal, UiTerminalCommand, UiTerminalEvent } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { UiRequest, UiClientScope, UiClientTranslate, UiPluginClientHost, UiPageView, UiPageReviewQuery, UiPageReviewOutcome, UiPageMessage, UiPageTerminal, UiTerminalCommand, UiTerminalEvent, UiPageInstructionSettings } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { ContextUp, ContextDown } from "./context.js";
 import type { PresentationMessage } from "./presentation.js";
 import type { UiClientMount, UiViewSelection, UiConnectionSlotChoice, UiFrameAssetReference } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -147,7 +147,7 @@ export type FrameDown =
   | { type: "review-size"; id: number; height: number }
   | { type: "review-shown"; id: number; error?: string }
   | { type: "review-decided"; id: number; outcome: UiPageReviewOutcome }
-  | { type: "workspace-result"; id: number; workspace?: { workspace_id: string }; error?: string; status?: number }
+  | { type: "workspace-result"; id: number; workspace?: { workspace_id: string }; instructions?: UiPageInstructionSettings; error?: string; status?: number }
   | { type: "embedded"; id: number; error?: string }
   | TaskGrantsDown | ConnectionNeedDown | ReturnDown | ComposerDown | SurfaceSlotDown
   | { type: "focus" } | FrameAnswer | ContextDown | { type: "state"; visible: boolean; theme: Record<string, string> }

@@ -58,6 +58,19 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     let immersiveNavigation = null;
     let frameContainer = null;
     let tabWorkspace = null;
+    // A side view's own frame cannot reach the tab workspace: its "open on the stage" (expand, review grants) posts here,
+    // from the side frame only, with the asking plugin as the origin so the workbench does not send it back to the side.
+    addEventListener("message", event => {
+      if (event.origin !== location.origin || event.data?.type !== "molis:side-main-open") return;
+      const from = event.data.from, plugin = event.data.plugin, itemId = event.data.itemId, title = event.data.title;
+      if (typeof from !== "string" || !/^[a-z][a-z0-9-]{0,100}$/u.test(from)
+        || typeof plugin !== "string" || !/^[a-z][a-z0-9-]{0,100}$/u.test(plugin)
+        || typeof itemId !== "string" || !itemId || itemId.length > 1000
+        || (title !== undefined && (typeof title !== "string" || title.length > 1000))) return;
+      const source = event.source;
+      if (!source || ![...document.querySelectorAll("#side-panel iframe[data-side-frame]")].some(frame => frame.contentWindow === source)) return;
+      tabWorkspace?.openItem(plugin, itemId, title, undefined, { from });
+    });
     const paneMessages = ${PANE_MESSAGES_SCRIPT};
     const settingsReturn = molisWorkSettingsReturn({ translate: readText, projectId: state.project?.project_id || "", prefix: routePrefix,
       tabWorkspace: () => tabWorkspace, showToast: (...args) => showToast(...args), setDirectory: (...args) => setDesktopDirectory(...args) });

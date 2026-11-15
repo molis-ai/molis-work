@@ -140,8 +140,8 @@ export async function pluginFrameBrowser(t: TestContext, browser: Browser, surfa
   }
   // `at: "start"` takes the point 1px inside the target's left edge instead of its centre: in a text block that puts the caret before its
   // first character, where a centre click puts it after the text a short line ends with.
-  async function withPoint<T>(target: string, consume: (position: {x:number; y:number}, delivered: () => Promise<boolean>) => Promise<T>, at: "center" | "start" = "center"): Promise<T> {
-    const deadline = Date.now() + 10000;
+  async function withPoint<T>(target: string, consume: (position: {x:number; y:number}, delivered: () => Promise<boolean>) => Promise<T>, at: "center" | "start" = "center", timeoutMs = 10000): Promise<T> {
+    const deadline = Date.now() + timeoutMs;
     const remaining = () => Math.max(1, deadline - Date.now());
     // The page's own wait for a hittable target ends this much before the protocol call's, so its reason is reported.
     const pageMargin = 500;
@@ -262,7 +262,7 @@ export async function pluginFrameBrowser(t: TestContext, browser: Browser, surfa
       throw new Error("Input was not delivered to plugin frame: " + target + "; covered=" + JSON.stringify(covered) + inputDeliveryDetails(await inputDeliveryValues(browser)));
     } catch (error) {
       // Within the margin the budget is spent; the page's reason ("hidden, disabled or covered: …") stays as the cause.
-      const failure = Date.now() >= deadline - pageMargin ? new Error("Input was not delivered to plugin frame within 10000ms: " + target + inputDeliveryDetails(await inputDeliveryValues(browser)), {cause:error}) : error;
+      const failure = Date.now() >= deadline - pageMargin ? new Error(`Input was not delivered to plugin frame within ${timeoutMs}ms: ` + target + inputDeliveryDetails(await inputDeliveryValues(browser)), {cause:error}) : error;
       failures.push(failure);
       throw failure;
     } finally {
@@ -284,7 +284,7 @@ export async function pluginFrameBrowser(t: TestContext, browser: Browser, surfa
   async function point(target: string, at: "center" | "start" = "center"): Promise<{ x: number; y: number }> {
     return withPoint(target, async position => position, at);
   }
-  async function click(target: string, clickCount = 1, at: "center" | "start" = "center"): Promise<void> {
+  async function click(target: string, clickCount = 1, at: "center" | "start" = "center", timeoutMs = 10000): Promise<void> {
     for (let count = 1; count <= clickCount; count++) {
       await withPoint(target, async (position, delivered) => {
         const input = {...position, button: "left", clickCount: count};
@@ -292,7 +292,7 @@ export async function pluginFrameBrowser(t: TestContext, browser: Browser, surfa
         finally { await browser.command("Input.dispatchMouseEvent", {type:"mouseReleased", ...input}, browser.sessionId); }
         // Never retry after a press: a side effect may already have happened on the wrong element.
         if (!await delivered()) throw new Error("Input was not delivered to plugin frame: " + target + "; pointerdown/pointerup target mismatch");
-      }, at);
+      }, at, timeoutMs);
     }
   }
   async function command<T = Record<string, unknown>>(method: string, params: Record<string, unknown> = {}): Promise<T> {

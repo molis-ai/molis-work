@@ -383,6 +383,16 @@ export interface MainlineIssue {
     code: string;
 }
 
+export interface ObjectOpenRequest {
+    subject: ActionSubject;
+}
+
+export interface ObjectOpenResult {
+    subject: ActionSubject;
+    title: string;
+    target: OpenTarget | null;
+}
+
 export interface TaskPlaceRequest {
     task: ActionSubject;
     to: {
@@ -652,6 +662,7 @@ export declare const mainlineActions: {
     place: ActionDefinition<TaskPlaceRequest, TaskPlaceResult>;
     tasks: ActionDefinition<Record<string, never>, BackgroundTasksReadResult>;
     command: ActionDefinition<BackgroundTaskCommandRequest, BackgroundTaskCommandResult>;
+    open: ActionDefinition<ObjectOpenRequest, ObjectOpenResult>;
     decide: ActionDefinition<BackgroundTaskDecideRequest, BackgroundTaskDecideResult>;
 };
 

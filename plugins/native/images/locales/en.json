@@ -14,6 +14,10 @@
     "images.account.reselect": "After changing the API base URL or format, choose the account connection again.",
     "images.account.saved": "Account connection saved; the key is managed in Connectors.",
     "images.account.unavailable": "Connection unavailable",
+    "images.background.generating": "Generating with {model}",
+    "images.background.open": "Open Images",
+    "images.background.stop-summary": "Stop waiting on this computer; the vendor may still generate or charge",
+    "images.capability-library.images-jobs-start-v1.title": "Generate image",
     "images.compose.cost": "Generating an image calls the selected provider, which may charge for usage.",
     "images.compose.example": "For example: A desk at dawn, coffee and an open book, sunlight from the left, film photography, warm tones.",
     "images.compose.generate": "Generate image",
@@ -98,7 +102,6 @@
     "images.status.retry-help": "Reuse the prompt and adjust the connection to try again. Generating again submits a new request.",
     "images.status.running": "Generating",
     "images.status.succeeded": "Generated",
-    "images.status.waiting": "Waiting for the service to generate an image. You can leave this page and return later.",
-    "images.capability-library.images-jobs-start-v1.title": "Generate image"
+    "images.status.waiting": "Waiting for the service to generate an image. You can leave this page and return later."
   }
 }

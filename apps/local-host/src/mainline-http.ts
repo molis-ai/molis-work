@@ -15,6 +15,7 @@ const ROUTES = new Map<string, ActionDefinition>([
   ["tasks", mainlineActions.tasks as ActionDefinition],
   ["tasks/command", mainlineActions.command as ActionDefinition],
   ["tasks/decide", mainlineActions.decide as ActionDefinition],
+  ["open", mainlineActions.open as ActionDefinition],
 ]);
 
 const DAY = 86_400_000;

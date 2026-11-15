@@ -2996,6 +2996,14 @@ export declare const OPEN_TARGET_SCHEMA: {
     }];
 };
 
+export interface ObjectLinkPlace {
+    surface: string;
+    id?: string | null;
+    title?: string;
+    params?: Readonly<Record<string, string>>;
+    fragment?: string;
+}
+
 export interface OpenTarget {
     kind: "item" | "group" | "surface";
     surface: string;
@@ -7100,6 +7108,12 @@ export declare function nextPinnedVersion(input: {
     pending: number | null;
     head: ArtifactLineHead | null;
 }): number;
+
+export declare const objectLink: (projectId: string, to: ActionSubject | ObjectLinkPlace) => string;
+
+export declare function objectLinkAt(prefix: string, to: ActionSubject | ObjectLinkPlace, template?: boolean): string;
+
+export declare const objectLinkTemplate: (to: ObjectLinkPlace) => string;
 
 export declare function objectOrMissing<T>(read: () => T): T | null;
 

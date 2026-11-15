@@ -271,6 +271,7 @@ export type { MaterialSource } from "@molis-ai/molis-work-contracts/services/mat
 export type { MaterialSourceContent } from "@molis-ai/molis-work-contracts/services/materials";
 export type { MaterialUpload } from "@molis-ai/molis-work-contracts/services/materials";
 export type { MissedRun } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { ObjectLinkPlace } from "@molis-ai/molis-work-contracts/platform/object-link";
 export type { OpenTarget } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export declare const PAGE_ROUTE_LIMITS: Readonly<{
@@ -888,6 +889,9 @@ export declare function nullableSchema<const S>(schema: S): {
     }];
 };
 
+export { objectLink } from "@molis-ai/molis-work-contracts/platform/object-link";
+export { objectLinkAt } from "@molis-ai/molis-work-contracts/platform/object-link";
+export { objectLinkTemplate } from "@molis-ai/molis-work-contracts/platform/object-link";
 export { objectOrMissing } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export declare function objectSchema<const P extends Readonly<Record<string, unknown>>, const R extends readonly string[] = readonly (keyof P & string)[]>(properties: P, required?: R): {

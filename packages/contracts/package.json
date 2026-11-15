@@ -78,6 +78,10 @@
       "types": "./dist/platform/kernel.d.ts",
       "import": "./dist/platform/kernel.js"
     },
+    "./platform/object-link": {
+      "types": "./dist/platform/object-link.d.ts",
+      "import": "./dist/platform/object-link.js"
+    },
     "./platform/loopback": {
       "types": "./dist/platform/loopback.d.ts",
       "import": "./dist/platform/loopback.js"

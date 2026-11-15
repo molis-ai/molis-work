@@ -93,7 +93,8 @@ export type { SearchEntry, SearchEntriesInput, SearchEntriesPage, SearchOpenTarg
 /** Intelligent surfaces: the owner's values for the fields its presentation declaration shows, and the plugin's overview (`/presentation` has the checks). */
 export { definePresentationValuesAction, bindPresentationValuesHandler, isPresentationValuesAction, definePresentationOverviewAction, PRESENTATION_VALUES_AUDIENCES } from "@molis-ai/molis-work-contracts/platform/presentation";
 export type { PresentationValuesInput, PresentationValues, PresentationValueItem, PresentationOverview } from "@molis-ai/molis-work-contracts/platform/presentation";
-export type { WorkEventWindow, WorkEvent, WorkEventCollection, OpenTarget } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { WorkEventWindow, WorkEvent, WorkEventCollection, OpenTarget, ObjectLinkPlace } from "@molis-ai/molis-work-contracts/platform/actions";
+export { objectLink, objectLinkAt, objectLinkTemplate } from "@molis-ai/molis-work-contracts/platform/object-link";
 export type { BackgroundTask, BackgroundTaskCollection, BackgroundTaskCommand, BackgroundTaskExecutor, BackgroundTaskPhrase, TaskServesBindInput, TaskServesInput, TaskServesResult, TaskServesRole } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { ActionSubject, ActionSubjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { ActionExecutionContext, ActionExecutionPolicy, ActionResultView, ActionResultPresentation, ActionDefinition, ActionCallContext, ActionHandlerBinding, ActionSceneDefinition, ActionSceneHandlerBinding,

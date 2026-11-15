@@ -31,6 +31,8 @@ export interface WorkBarHost {
   toNow(): void;
   openItem(surface: string, id: string, title: string): void;
   openSurface(surface: string): void;
+  /** An object known only by reference opens where its owner's reader says (`objects.open@1`); false when it has no page or cannot be read. */
+  openObject?(subject: ActionSubject): Promise<boolean>;
   /** The platform's composed displays, for an event card's body: the page part and the read it asks through. */
   positions?(): PositionViews | null | undefined;
   positionRead?(path: string, body: unknown, signal: AbortSignal): Promise<unknown>;

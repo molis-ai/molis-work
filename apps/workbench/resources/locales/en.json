@@ -4408,6 +4408,7 @@
     "workbench.index.visible-project": "Visible in the project",
     "workbench.initialization.couldn-t-change-plugin-state": "Couldn’t change plugin state",
     "workbench.initialization.loading": "Loading…",
+    "workbench.initialization.object-has-no-page": "This object has no page to open",
     "workbench.initialization.page-does-not-exist-path": "This page does not exist: {path}",
     "workbench.initialization.project-reference": "Project reference",
     "workbench.initialization.project-reference-could-not-be-opened": "The project reference could not be opened",

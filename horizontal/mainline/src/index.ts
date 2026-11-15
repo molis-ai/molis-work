@@ -1,11 +1,12 @@
 import { isDeepStrictEqual } from "node:util";
-import { ActionError, BACKGROUND_TASKS_OUTPUT_TYPE, TASK_SERVES_RELATION, WORK_EVENTS_INPUT_TYPE, WORK_EVENTS_OUTPUT_TYPE, assertWorkEventWindow, type ActionCallContext, type ActionClient, type ActionReference,
+import { ActionError, BACKGROUND_TASKS_OUTPUT_TYPE, TASK_SERVES_RELATION, WORK_EVENTS_INPUT_TYPE, WORK_EVENTS_OUTPUT_TYPE, assertWorkEventWindow, resolveActionSubject, type ActionCallContext, type ActionClient, type ActionReference,
   type ActionSubject, type ActionView, type BackgroundTask, type BackgroundTaskAnswer, type BackgroundTaskCollection, type BackgroundTaskCommand, type BackgroundTaskDecision, type BackgroundTaskPhrase, type OpenTarget, type TaskServesRole, type WorkEvent,
   type WorkEventCollection, type WorkEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 import { STATE_RING_FAMILIES, type StateRingState } from "@molis-ai/molis-work-contracts/platform/ui";
-import { mainlineErrors, type BackgroundTaskCommandRequest, type BackgroundTaskCommandResult, type BackgroundTaskDecideRequest, type BackgroundTaskDecideResult, type BackgroundTaskRow, type BackgroundTasksReadResult, type MainlineIssue, type TaskPlaceRequest, type TaskPlaceResult,
+import { mainlineErrors, type BackgroundTaskCommandRequest, type BackgroundTaskCommandResult, type BackgroundTaskDecideRequest, type BackgroundTaskDecideResult, type BackgroundTaskRow, type BackgroundTasksReadResult, type MainlineIssue, type ObjectOpenRequest, type ObjectOpenResult, type TaskPlaceRequest, type TaskPlaceResult,
   type WaitingItem, type WaitingReadResult, type WorkLineEvent, type WorkLineReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
 import { createExecutionLifetime, isHomeAggregateQuery } from "@molis-ai/molis-work-plugin-sdk";
+import { MISSED_RUN_KIND, isRunDecisionOf, isRunsSource, missedRunTasks, missedRunsWindow } from "./missed-runs.js";
 
 // The mainline service (specs/work-line §5–§6): it finds a project's event registrants and task providers in the caller's own
 // directory, asks each once and checks every row before a page draws it. Nothing is stored: every call asks again, so a caller
@@ -82,7 +83,9 @@ export function backgroundTaskRows(output: unknown, source: Required<ActionRefer
   return tasks.flatMap(task => { const row = backgroundTaskRow(task, source, origin, kinds); return row ? [row] : []; });
 }
 
-const isTaskSource = (view: ActionView) => view.action.output_type === BACKGROUND_TASKS_OUTPUT_TYPE && isHomeAggregateQuery(view);
+const isTaskProvider = (view: ActionView) => view.action.output_type === BACKGROUND_TASKS_OUTPUT_TYPE && isHomeAggregateQuery(view);
+/** What the table reads: the task providers, and the owners of what runs on its own, whose missed runs wait on the person (WLN-39). */
+const isTaskSource = (view: ActionView) => isTaskProvider(view) || isRunsSource(view);
 const referenceOf = (view: ActionView): Required<ActionReference> => ({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id });
 const same = (a: ActionReference, b: Required<ActionReference>) => a.capability_id === b.capability_id && a.version === b.version && a.provider_id === b.provider_id;
 
@@ -93,19 +96,26 @@ async function beforeDeadline<T>(signal: AbortSignal | undefined, work: (signal:
   finally { lifetime.dispose(); }
 }
 
+/** One source asked once, read-only and bounded: its rows after the check, or null when the answer as a whole cannot be read. */
+async function rowsFrom(caller: ActionCallContext, client: Pick<ActionClient, "invoke">, view: ActionView, views: readonly ActionView[]): Promise<BackgroundTaskRow[] | null> {
+  const source = referenceOf(view), ask = (input: unknown) => beforeDeadline(caller.signal, signal => client.invoke({ ...caller, query_only: true, signal }, source, input));
+  if (isTaskProvider(view)) return backgroundTaskRows(await ask({}), source, view.action.subject_kinds ?? []);
+  const decide = views.find(other => isRunDecisionOf(other, source));
+  return backgroundTaskRows(missedRunTasks(await ask(missedRunsWindow()), decide && referenceOf(decide)), source, [MISSED_RUN_KIND]);
+}
+
 /**
  * `background.tasks.read@1`: every task provider of the caller's project, found once and asked in parallel, each call read-only and
  * bounded. A provider that is off in the project has nothing to report; one that cannot answer is an issue, by its code.
  */
 export async function readBackgroundTasks(caller: ActionCallContext, client: ActionClient, discovered?: readonly ActionView[]): Promise<BackgroundTasksReadResult> {
   const reader: ActionCallContext = { ...caller, query_only: true };
-  const sources = (discovered ?? await client.discover(reader)).filter(isTaskSource);
-  const answers = await Promise.all(sources.map(async (view): Promise<{ tasks: BackgroundTaskRow[]; issues: MainlineIssue[] }> => {
+  const views = discovered ?? await client.discover(reader);
+  const answers = await Promise.all(views.filter(isTaskSource).map(async (view): Promise<{ tasks: BackgroundTaskRow[]; issues: MainlineIssue[] }> => {
     const source = referenceOf(view), issue = (code: string) => ({ tasks: [], issues: [{ source, title: view.action.title, code }] });
     if (!view.availability.available) return view.availability.code === "actions.plugin_disabled" ? { tasks: [], issues: [] } : issue(view.availability.code);
     try {
-      const output = await beforeDeadline(caller.signal, signal => client.invoke({ ...reader, signal }, source, {}));
-      const rows = backgroundTaskRows(output, source, view.action.subject_kinds ?? []);
+      const rows = await rowsFrom(caller, client, view, views);
       return rows ? { tasks: rows, issues: [] } : issue("actions.output_invalid");
     } catch (error) {
       caller.signal?.throwIfAborted();
@@ -121,10 +131,10 @@ export async function readBackgroundTasks(caller: ActionCallContext, client: Act
  * in this call. The action is then called as the caller, so its own authorization and diagnostics apply.
  */
 export async function runBackgroundTaskCommand(caller: ActionCallContext, client: ActionClient, request: BackgroundTaskCommandRequest): Promise<BackgroundTaskCommandResult> {
-  const view = (await client.discover(caller)).find(candidate => isTaskSource(candidate) && same(request.source, referenceOf(candidate)));
+  const views = await client.discover(caller), view = views.find(candidate => isTaskSource(candidate) && same(request.source, referenceOf(candidate)));
   if (!view?.availability.available) throw mainlineErrors.source_changed("这个任务的提供方已不可用，请重新读取后台任务");
   const source = referenceOf(view);
-  const rows = backgroundTaskRows(await beforeDeadline(caller.signal, signal => client.invoke({ ...caller, query_only: true, signal }, source, {})), source, view.action.subject_kinds ?? []);
+  const rows = await rowsFrom(caller, client, view, views);
   const task = rows?.find(row => row.subject.kind === request.subject.kind && row.subject.id === request.subject.id);
   const asked = { ...request.command, action: { ...request.command.action, provider_id: request.command.action.provider_id ?? source.provider_id } };
   const command = task?.commands.find(offered => isDeepStrictEqual(offered, asked));
@@ -143,10 +153,10 @@ export async function runBackgroundTaskCommand(caller: ActionCallContext, client
  */
 export async function decideBackgroundTask(caller: ActionCallContext, client: ActionClient, request: BackgroundTaskDecideRequest): Promise<BackgroundTaskDecideResult> {
   if ((request.role === "revise") !== (typeof request.note === "string" && request.note.trim().length > 0)) throw mainlineErrors.note_invalid("「改一下」要写上怎么改；同意和拒绝不带修改意见");
-  const view = (await client.discover(caller)).find(candidate => isTaskSource(candidate) && same(request.source, referenceOf(candidate)));
+  const views = await client.discover(caller), view = views.find(candidate => isTaskSource(candidate) && same(request.source, referenceOf(candidate)));
   if (!view?.availability.available) throw mainlineErrors.source_changed("这个任务的提供方已不可用，请重新读取后台任务");
   const source = referenceOf(view);
-  const rows = backgroundTaskRows(await beforeDeadline(caller.signal, signal => client.invoke({ ...caller, query_only: true, signal }, source, {})), source, view.action.subject_kinds ?? []);
+  const rows = await rowsFrom(caller, client, view, views);
   const task = rows?.find(row => row.subject.kind === request.subject.kind && row.subject.id === request.subject.id);
   const answer = task?.decisions.find(decision => decision.id === request.decision)?.answers.find(offered => offered.role === request.role);
   if (!answer) throw mainlineErrors.decision_changed("任务已不再问这一件，或不再给出这种回答，请重新读取后再操作");
@@ -298,4 +308,14 @@ export async function placeTask(caller: ActionCallContext, client: ActionClient,
   const done = to.kind === "event" ? serves.length === 1 && sameSubject(serves[0]!, to.subject!) : to.kind === "none" ? serves.length === 0 : serves.length === 1;
   if (!done) throw mainlineErrors.owner_answer_invalid("任务的主人没有按要求记下去处，请重新读取后再试");
   return { task, serves };
+}
+
+/**
+ * Where an object opens (`objects.open@1`): the one reader of its kind is asked as the caller, and what it says under `open` is
+ * the place, named as the reader names the object. An object the caller cannot read throws what the reader throws; nothing is kept.
+ */
+export async function openObject(caller: ActionCallContext, client: ActionClient, request: ObjectOpenRequest): Promise<ObjectOpenResult> {
+  const { context } = await resolveActionSubject(client, caller, request.subject);
+  const title = context.title.trim().slice(0, 1000) || request.subject.id.slice(0, 1000);
+  return { subject: context.subject, title, target: context.open ? { kind: "item", surface: context.open.surface, id: context.open.id, title, label: "打开" } : null };
 }

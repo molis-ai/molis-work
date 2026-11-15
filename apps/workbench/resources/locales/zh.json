@@ -4122,6 +4122,7 @@
     "workbench.index.visible-project": "项目内可见",
     "workbench.initialization.couldn-t-change-plugin-state": "插件状态未能更改",
     "workbench.initialization.loading": "正在读取…",
+    "workbench.initialization.object-has-no-page": "这个对象没有可打开的页面",
     "workbench.initialization.page-does-not-exist-path": "找不到这个页面：{path}",
     "workbench.initialization.project-reference": "项目内引用",
     "workbench.initialization.project-reference-could-not-be-opened": "项目内引用无法打开",

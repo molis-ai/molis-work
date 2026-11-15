@@ -14,6 +14,10 @@
     "images.account.reselect": "修改 API 基址或协议后，请重新选择账号连接。",
     "images.account.saved": "账号连接已保存；密钥在 Connectors 中管理。",
     "images.account.unavailable": "连接不可用",
+    "images.background.generating": "正在用 {model} 生成",
+    "images.background.open": "打开图片",
+    "images.background.stop-summary": "停止本机等待；厂商可能仍在生成或计费",
+    "images.capability-library.images-jobs-start-v1.title": "生成图片",
     "images.compose.cost": "点击生成将调用所选服务，费用由该厂商按实际用量收取。",
     "images.compose.example": "例如：清晨的书桌，一杯咖啡和翻开的书，阳光从左侧照入，胶片摄影，暖色调。",
     "images.compose.generate": "生成图片",
@@ -98,7 +102,6 @@
     "images.status.retry-help": "可以复用提示词，调整服务配置后再次生成。再次生成会发起新的请求。",
     "images.status.running": "生成中",
     "images.status.succeeded": "已生成",
-    "images.status.waiting": "正在等待服务生成图片，可以离开此页后再回来查看。",
-    "images.capability-library.images-jobs-start-v1.title": "生成图片"
+    "images.status.waiting": "正在等待服务生成图片，可以离开此页后再回来查看。"
   }
 }

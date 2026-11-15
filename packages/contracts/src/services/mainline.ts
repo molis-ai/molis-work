@@ -95,6 +95,10 @@ export interface TaskPlaceRequest { task: ActionSubject; to: { kind: "event" | "
 export interface TaskPlaceResult { task: ActionSubject; serves: ActionSubject[] }
 
 /** The service's refusals. */
+/** `objects.open@1`: where an object opens on the workbench, as its owner's reader says to this caller; `target` is null when it has no page of its own. */
+export interface ObjectOpenRequest { subject: ActionSubject }
+export interface ObjectOpenResult { subject: ActionSubject; title: string; target: OpenTarget | null }
+
 export const mainlineErrors = defineErrorCodes("mainline", {
   /** The provider a row came from no longer answers this caller. */
   source_changed: "conflict",
@@ -182,6 +186,17 @@ export const mainlineActions = {
    * Answer what a task asks: the provider is asked again, and the answer is run only if the task still asks exactly this and still
    * offers it. The answer's action is the provider's own and is called as the caller; only the person may ask.
    */
+  /**
+   * Where an object opens (specs/work-line/contract-design.md §7): asked of the reader its owner declared, as the caller, so an
+   * object the caller cannot read gives no place. A notification, a reminder, a search hit, a result named on a card and an
+   * address written from a reference (`objectLink`) all open through it.
+   */
+  open: { capability_id: "objects.open", version: /* @version action.objects.open */ 1, operation: "query", action: { ...metadata,
+    title: "对象打开到哪里", description: "按对象主人声明的读取器，读出这个对象在工作台上打开到哪个位置；调用方读不到的对象不给位置，对象没有自己的页面时位置为空；只读。",
+    kind: "query", effect: "read", audiences: ["user", "agent", "workflow", "mcp"], permissions: [MAINLINE_READ_PERMISSION],
+    input_schema: inputSchemaFor<ObjectOpenRequest>()({ type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA }, required: ["subject"], additionalProperties: false } as const),
+    output_schema: { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, title: { type: "string", minLength: 1, maxLength: 1000 }, target: { anyOf: [{ type: "null" }, OPEN_TARGET_SCHEMA] } },
+      required: ["subject", "title", "target"], additionalProperties: false } } } as ActionDefinition<ObjectOpenRequest, ObjectOpenResult>,
   decide: { capability_id: "background.tasks.decide", version: /* @version action.background.tasks.decide */ 1, operation: "command", action: { ...metadata,
     title: "回答后台任务要你定的事", description: "重新读取任务的提供方，确认它仍在问这一件、仍给出这种回答后，以本人身份调用它写明的动作；同意、改一下或拒绝只作用于这一个问题。",
     kind: "operation", effect: "write", audiences: ["user"], permissions: [MAINLINE_CONTROL_PERMISSION],

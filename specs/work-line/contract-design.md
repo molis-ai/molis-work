@@ -170,6 +170,7 @@ interface OpenTarget { kind: "item" | "group" | "surface"; surface: string; id: 
 - `OpenTarget` 就是今天的首页打开目标，提到公共位置；事件、任务、通知、搜索以后都带它。
 - 迁掉十二处手拼地址（审查列的九处，加 `context-onboarding.ts`、创作台的 `agent-surface.ts`、Shelf 的 `contract.ts`）。其余几种引用形状在各自主人下一次改合同时并过来，本批不动。
 - 这一节在第 2 项交付的子分支里先落（要求认可的挂载对象用它）。
+- **实现时的调整（2026-11-15，已随代码落地）。** `ActionSubject` 没有加 `owner`、`project_id`、`revision`：主人由读取器的 `subject_kinds` 唯一确定（同一种对象有两个可用读取器时拒绝，不任选），项目是调用所在的项目，版本由读取器当场给，三个字段现在都没有读的人，加了只会多一份可以写错的事实；哪一批真要跨项目或钉版本引用时再加。地址的写法是 `objectLink(projectId, 位置或对象引用)`、`objectLinkAt(prefix, …)`、`objectLinkTemplate(…)`（`packages/contracts/src/platform/object-link.ts`，SDK 转出）：知道界面与条目时写 `?openPlugin=&openItem=`，只知道对象引用时写 `?openObject=<kind>&openItem=<id>`，页面再调 `objects.open@1`。`objects.open@1` 在 `system.mainline`（`horizontal/mainline` 的 `openObject`）：按调用方自己的目录找到这种对象唯一的读取器，以调用方身份读一次，读取器给的 `open` 就是位置，没有自己页面的对象位置为空；工作台的门是 `/api/mainline/open`（插件页面被拒，S-work-line-person-doors）。十二处手拼地址都已改用这组函数，`tests/object-link.test.ts` 拦新的手拼。
 
 ## 8. 呈现形态
 

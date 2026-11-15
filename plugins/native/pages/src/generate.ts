@@ -1,7 +1,7 @@
 import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { PAGES_GENERATE_FROM_MATERIALS } from "./prompts.js";
 import type { PagesBody, PagesGenerationRecord } from "./contract.js";
-import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { objectLink, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginModelResult } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PagesStores } from "./store.js";
 import { pagesErrors } from "./error.js";
@@ -44,7 +44,7 @@ export async function generatePagesFromMaterials(stores: PagesStores, caller: Pi
     const appendix = request.inputs.map((item, index) => {
       const link = item.url && /^https?:\/\//.test(item.url) ? `\n[打开研究包](${item.url.replaceAll("(", "%28").replaceAll(")", "%29")})` : "";
       const page = item.provenance.find(ref => ref.kind === "pages_document" && typeof ref.id === "string" && item.entry_id === `pages:${ref.id}`);
-      const back = `/projects/${encodeURIComponent(request.project_id)}/?${page ? `openPlugin=pages&openItem=${encodeURIComponent(String(page.id))}` : `openPlugin=inbox&openItem=${encodeURIComponent(item.entry_id)}`}`;
+      const back = objectLink(request.project_id, page ? { surface: "pages", id: String(page.id) } : { surface: "inbox", id: item.entry_id });
       const boundary = item.provenance.some(ref => ref.truncated === true) ? "\n材料范围：已截断的节选，并非完整原文。" : "";
       return `### 材料 ${index + 1}：${item.title}\n来源：${item.source_label} · 采用版本 ${item.revision}${boundary}${link}\n[${page ? "返回 Pages 原文" : "返回 Inbox 材料"}](${back})\n\n${item.body}`;
     }).join("\n\n");

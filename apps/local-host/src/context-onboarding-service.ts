@@ -16,7 +16,7 @@ import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { assertOnboardingWritable, completeMolisWorkOnboarding } from "./onboarding.js";
 import { descriptionFromSummary, setProjectDescription } from "./project-arrival.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
-import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { LOCAL_PERSON_ACTOR_ID, objectLink } from "@molis-ai/molis-work-contracts/platform/actions";
 import { hostLog } from "./host-log.js";
 import { artifactSubjectId, type ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { ONBOARDING_TAKE_MATERIALS_MAX, type OnboardingCodeRootTake, type OnboardingTakeResult } from "@molis-ai/molis-work-contracts/platform/plugin-onboarding";
@@ -535,7 +535,7 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
           }
           if (ref.artifact) handed.push({ version: ref.artifact, title: ref.title });
         }
-        const sources = refs.map(r => `[${r.label}] [${r.title.replace(/[\[\]]/gu, "")}](/projects/${journey.project_id}/?openPlugin=pages&openItem=${r.documents![0]}&openTitle=${encodeURIComponent(r.title)}) · ${r.path} · 版本 ${r.version}`).join("\n\n");
+        const sources = refs.map(r => `[${r.label}] [${r.title.replace(/[\[\]]/gu, "")}](${objectLink(journey.project_id, { surface: "pages", id: r.documents![0]!, title: r.title })}) · ${r.path} · 版本 ${r.version}`).join("\n\n");
         // The page is the person's, written in the interface language they made the project in (user decision 2026-10-15).
         const text = journey.adoption!.body + (sources ? "\n\n## " + uiText.text("workbench.context-onboarding-service.sources") + "\n\n" + sources : "");
         const summaryTitle = uiText.text("workbench.context-onboarding-service.title-work-summary", { title: journey.adoption!.title });

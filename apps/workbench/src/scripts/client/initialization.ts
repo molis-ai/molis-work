@@ -75,7 +75,16 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       startPage: () => tabWorkspace?.startPage, openBeside: (plugin) => tabWorkspace?.openBeside(plugin),
       registerCover: (kind, open) => tabWorkspace?.registerCover?.(kind, open),
     });
-    const workLine = document.body.hasAttribute('data-pane-embedded') ? null : globalThis.molisWorkBar?.({ route, openEvent: (event) => assistantIsland?.openEvent(event), toNow: () => assistantIsland?.toNow(), parked: (subject) => assistantIsland?.parked(subject), dialog: (open) => assistantIsland?.dialog(open),
+    // An object named by reference (an address written by objectLink, a result named on a card): its owner's reader says where it opens (the object-open action).
+    const openObject = (subject) => molisWorkRequest(route("/api/mainline/open"), { body: { subject } }).then((found) => {
+      const to = found && found.target;
+      if (!to) { showToast(readText("workbench.initialization.object-has-no-page")); return false; }
+      if (to.kind === "surface" || !to.id) openSurfaceEntry(to.surface); else tabWorkspace?.openItem(to.surface, to.id, to.title);
+      return true;
+    }).catch((error) => { showToast(error, true); return false; });
+    { const asked = new URL(location.href), kind = asked.searchParams.get("openObject"), id = asked.searchParams.get("openItem");
+      if (kind && id && !asked.searchParams.has("openPlugin")) { asked.searchParams.delete("openObject"); asked.searchParams.delete("openItem"); history.replaceState(history.state, "", asked); void openObject({ kind, id }); } }
+    const workLine = document.body.hasAttribute('data-pane-embedded') ? null : globalThis.molisWorkBar?.({ route, openObject, openEvent: (event) => assistantIsland?.openEvent(event), toNow: () => assistantIsland?.toNow(), parked: (subject) => assistantIsland?.parked(subject), dialog: (open) => assistantIsland?.dialog(open),
       positions: () => projectPositions, positionRead: (path, body, signal) => molisWorkRequest(route(path), { body, signal }),
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title), openSurface: (plugin) => openSurfaceEntry(plugin) });
     (${ATTENTION_FACTORY_SCRIPT})({ translate: readText, route, projectId: state.project?.project_id,

@@ -337,10 +337,18 @@ result_view: {
   text_pointer: "/note/excerpt",
   link: {
     label: "打开笔记",
-    href_template: "/projects/{project_id}/?openPlugin=notes&openItem={/note/id}&openTitle={/note/title}",
+    href_template: objectLinkTemplate({ surface: "notes", id: "{/note/id}", title: "{/note/title}" }),
   },
 }
 ```
+
+工作台的地址只用 SDK 的这组函数写，不手拼 `?openPlugin=…&openItem=…`（`tests/object-link.test.ts` 会拦）：
+
+- `objectLink(projectId, { surface, id?, title?, params?, fragment? })`：项目里某个界面、其中一项；`params` 是这个界面自己从地址里读的参数。
+- `objectLink(projectId, { kind, id })`：只知道对象引用时这样写；打开时工作台用系统动作 `objects.open@1` 向对象主人的读取器问它开在哪里（读取器返回的 `open`），读不到的人打不开。
+- `objectLinkTemplate({ … })`：同一个地址作为 `href_template`，`{project_id}` 与 `{/指针}` 原样保留。
+- `objectLinkAt(prefix, …)`：手里已有路由前缀时用。
+
 
 操作卡在成功返回后也保存同一有界展示快照；助理与 Coding 的卡片重开不会重跑原动作或改用新版声明。`ActionCardPorts.projectId` 由卡片 owner 的可信项目作用域提供，不能从卡片输入或动作输出取。卡片只保存声明选取的展示字段，站内链接按导航打开原请求或成果；失败、未知结果与后台未完成的工作没有成功入口。
 

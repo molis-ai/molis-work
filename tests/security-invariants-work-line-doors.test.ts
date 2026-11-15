@@ -32,6 +32,7 @@ test("S-work-line-person-doors WLN-39 PWA-144: a plugin's page gets nothing thro
     ["/api/mainline/tasks/command", { ...task, command: { capability_id: "x.stop", version: 1, provider_id: "io.molis.work.example.things" } }],
     ["/api/mainline/tasks/decide", { ...task, decision: "q1", role: "approve" }],
     ["/api/mainline/place", { task: SUBJECT.subject, to: { kind: "none" } }],
+    ["/api/mainline/open", { subject: SUBJECT.subject }],
     ["/api/mainline/event/surfaces", { subject: SUBJECT.subject }],
     ["/api/acceptance/read", { subject: SUBJECT }],
     ["/api/acceptance/decide", { subject: SUBJECT, version: "v1", accepts: [{ id: "r1", version: 1 }], returns: [] }],

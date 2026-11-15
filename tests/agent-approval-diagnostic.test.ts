@@ -1,8 +1,16 @@
 import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import test from "node:test";
+import { promisify } from "node:util";
 import { inspectAgentApprovals } from "../scripts/agent-approval-diagnostic.mjs";
 import { APPROVAL_CHECK, mergeGroupMembers, publishAgentApprovals, publishMergeGroupApprovals } from "../scripts/agent-approval-publisher.mjs";
+import { EMPTY_TREE_OID } from "../scripts/agent-approval-squash-proof.mjs";
+
+const execFileAsync = promisify(execFile);
 
 const api = "https://git.example.test";
 const repository = "example/work";
@@ -22,6 +30,30 @@ const review = (id: number, account: typeof author, state: string, day: number, 
 const comment = (id: number, account: typeof author, body: string, day = 5) =>
   ({ id, node_id: "comment-" + id, user: account, body, created_at: date(day), updated_at: date(day) });
 
+interface QueueEntryNode {
+  id: string;
+  position: number;
+  state: string;
+  enqueuedAt?: string;
+  baseCommit: { oid: string };
+  headCommit: {
+    oid: string;
+    committedDate?: string;
+    messageHeadline?: string;
+    tree?: { oid: string };
+    parents: { totalCount: number; nodes: Array<{ oid: string }> };
+  };
+  pullRequest: {
+    number: number;
+    state: string;
+    baseRefName: string;
+    headRefOid: string;
+    repository: { databaseId: number };
+    commits?: { nodes: Array<{ commit: { oid: string; committedDate: string; pushedDate: string | null } }> };
+    timelineItems?: { totalCount: number; pageInfo: { hasPreviousPage: boolean }; nodes: Array<{ __typename: string; createdAt: string }> };
+  };
+}
+
 function fixture() {
   const policy = Buffer.from(JSON.stringify({ required_approvals: 2, agent_ids: [agent.id], excluded_ids: [excluded.id], agent_check_app_ids: [17] }));
   const blob = createHash("sha1").update("blob " + policy.length + "\0").update(policy).digest("hex");
@@ -31,7 +63,7 @@ function fixture() {
     head: { sha: head, ref: "trusted/please-merge", repo: { id: 24, full_name: "fork/work" } } };
   const commit = { sha: old, author: agent, committer: author, commit: { verification: { verified: true } } };
   const second = { ...commit, sha: head, author };
-  const queueEntry = (number: number, position: number, original: string, predecessor: string, merge: string) => ({
+  const queueEntry = (number: number, position: number, original: string, predecessor: string, merge: string): QueueEntryNode => ({
     id: "entry-" + number, position, state: "AWAITING_CHECKS", baseCommit: { oid: predecessor },
     headCommit: { oid: merge, parents: { totalCount: 2, nodes: [{ oid: predecessor }, { oid: original }] } },
     pullRequest: { number, state: "OPEN", baseRefName: "main", headRefOid: original, repository: { databaseId: 23 } },
@@ -40,7 +72,7 @@ function fixture() {
     mergeQueue: { configuration: { mergeMethod: "MERGE" }, entries: { totalCount: 2, pageInfo: { hasNextPage: false, hasPreviousPage: false },
       nodes: [queueEntry(pull, 1, head, base, firstMerge), queueEntry(otherPull, 2, otherHead, firstMerge, groupHead)] } } };
   const state = { pr, commits: [commit, second], configured: true, corruptBlob: false, missingTree: false, truncateCompare: false,
-    branchSha: base, queue, otherPr: { ...pr, id: 12, number: otherPull, commits: 1, head: { ...pr.head, sha: otherHead } },
+    branchSha: base, groupHead, queue, otherPr: { ...pr, id: 12, number: otherPull, commits: 1, head: { ...pr.head, sha: otherHead } },
     otherReviews: [] as ReturnType<typeof review>[],
     reviews: [] as ReturnType<typeof review>[], comments: [] as ReturnType<typeof comment>[], edited: new Set<number>(),
     permissions: new Map([author, reviewer, writer, forkAuthor, agent, excluded, bot].map(account => [account.login,
@@ -85,12 +117,12 @@ function fixture() {
       saved.body = JSON.parse(String(options.body)).body;
       return response(saved);
     }
-    if (route === "statuses/" + head && options?.method === "POST") {
+    if (route === "statuses/" + state.pr.head.sha && options?.method === "POST") {
       const saved = { ...JSON.parse(String(options.body)), creator: bot };
       state.statuses.unshift(saved);
       return response(saved);
     }
-    if (route === "statuses/" + groupHead && options?.method === "POST") {
+    if (route === "statuses/" + state.groupHead && options?.method === "POST") {
       const saved = { ...JSON.parse(String(options.body)), creator: bot };
       state.groupStatuses.unshift(saved);
       return response(saved);
@@ -99,25 +131,27 @@ function fixture() {
     if (route === "pulls/" + pull) return response(state.pr);
     if (route === "pulls/" + otherPull) return response(state.otherPr);
     if (route === "git/ref/heads/main") return response({ ref: "refs/heads/main", object: { type: "commit", sha: state.branchSha } });
-    if (route === "git/commits/" + base) return response({ sha: base, tree: { sha: tree } });
+    if (route === "git/commits/" + state.branchSha) return response({ sha: state.branchSha, tree: { sha: tree } });
     if (route === "git/trees/" + tree) return state.missingTree ? new Response(null, { status: 404 }) :
       response({ sha: tree, truncated: false, tree: [{ path: ".github", mode: "040000", type: "tree", sha: github }] });
     if (route === "git/trees/" + github) return response({ sha: github, truncated: false, tree: state.configured
       ? [{ path: "agent-approval.json", mode: "100644", type: "blob", sha: blob, size: policy.length }] : [] });
     if (route === "git/blobs/" + blob) return response({ sha: blob, encoding: "base64", size: policy.length,
       content: (state.corruptBlob ? Buffer.alloc(policy.length, 32) : policy).toString("base64") });
-    const comparison = "compare/" + state.pr.base.sha + "..." + head + "?per_page=100";
+    const comparison = "compare/" + state.pr.base.sha + "..." + state.pr.head.sha + "?per_page=100";
     if (route === comparison) return response({ commits: state.commits.slice(0, 1) }, state.truncateCompare ? undefined : comparison + "&page=2");
     if (route === comparison + "&page=2") return response({ commits: state.commits.slice(1) });
-    if (route === "compare/" + state.otherPr.base.sha + "..." + otherHead + "?per_page=100") return response({ commits: [{ ...commit, sha: otherHead }] });
+    if (route === "compare/" + state.otherPr.base.sha + "..." + state.otherPr.head.sha + "?per_page=100") {
+      return response({ commits: [{ ...commit, sha: state.otherPr.head.sha }] });
+    }
     if (route === "pulls/" + pull + "/reviews?per_page=100") return response(state.reviews);
     if (route === "pulls/" + otherPull + "/reviews?per_page=100") return response(state.otherReviews);
     if (route === "issues/" + pull + "/comments?per_page=100") return response([...state.comments, ...state.publishedComments]);
     if (route === "issues/" + otherPull + "/comments?per_page=100") return response([]);
-    if (route === "commits/" + head + "/statuses?per_page=100") return response(state.statuses);
-    if (route === "commits/" + groupHead + "/statuses?per_page=100") return response(state.groupStatuses);
-    if (route === "commits/" + head + "/check-runs?per_page=100&filter=all") return response({ check_runs: state.checks });
-    if (route === "commits/" + otherHead + "/check-runs?per_page=100&filter=all") return response({ check_runs: [] });
+    if (route === "commits/" + state.pr.head.sha + "/statuses?per_page=100") return response(state.statuses);
+    if (route === "commits/" + state.groupHead + "/statuses?per_page=100") return response(state.groupStatuses);
+    if (route === "commits/" + state.pr.head.sha + "/check-runs?per_page=100&filter=all") return response({ check_runs: state.checks });
+    if (route === "commits/" + state.otherPr.head.sha + "/check-runs?per_page=100&filter=all") return response({ check_runs: [] });
     if (route === "commits/" + head.slice(0, 12)) return state.resolved ? response({ sha: state.resolved }) : new Response(null, { status: 404 });
     const match = /^collaborators\/([^/]+)\/permission$/.exec(route);
     if (match) return response(state.permissions.get(match[1]!));
@@ -129,7 +163,90 @@ function fixture() {
     publish: (repositoryId = 23, targetBranch = "main") => publishAgentApprovals({ repository, repositoryId, pull, appId: app, appBotId: bot.id, targetBranch,
       token: "app-fixture", api, fetch: fetchFixture }),
     members: (groupBase = firstMerge) => mergeGroupMembers({ ...group, groupBase }),
-    publishGroup: () => publishMergeGroupApprovals({ ...group, appId: app, appBotId: bot.id }) };
+    publishGroup: (extra: Record<string, unknown> = {}) =>
+      publishMergeGroupApprovals({ ...group, groupHead: state.groupHead, appId: app, appBotId: bot.id, ...extra }) };
+}
+
+async function squashFixture(cleanup: (fn: () => Promise<void>) => void) {
+  const dir = await mkdtemp(path.join(tmpdir(), "molis-squash-fixture-"));
+  cleanup(() => rm(dir, { recursive: true, force: true }));
+  const git = async (args: string[], stamp = "2026-10-01T12:00:00Z") => {
+    const { stdout } = await execFileAsync("git", ["-C", dir, "-c", "core.hooksPath=/dev/null", ...args], {
+      env: {
+        PATH: process.env.PATH ?? "", HOME: dir, GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: "/dev/null",
+        GIT_AUTHOR_NAME: "Test", GIT_AUTHOR_EMAIL: "test@example.test", GIT_AUTHOR_DATE: stamp,
+        GIT_COMMITTER_NAME: "Test", GIT_COMMITTER_EMAIL: "test@example.test", GIT_COMMITTER_DATE: stamp,
+      },
+    });
+    return stdout.trim();
+  };
+  await git(["init", "-b", "main", "--quiet"]);
+  await git(["config", "merge.poison.driver", "false"]);
+  await writeFile(path.join(dir, ".gitattributes"), "shared.txt merge=poison\n", "utf8");
+  await writeFile(path.join(dir, "shared.txt"), "one\ntwo\nthree\n", "utf8");
+  await git(["add", ".gitattributes", "shared.txt"]);
+  await git(["commit", "-m", "initial", "--quiet"], date(1));
+  const realBase = await git(["rev-parse", "HEAD"]);
+  await git(["checkout", "-b", "pr-9", "--quiet"]);
+  await writeFile(path.join(dir, "shared.txt"), "pr9-unapproved\ntwo\nthree\n", "utf8");
+  await git(["commit", "-am", "unapproved", "--quiet"], date(2));
+  const unapproved9 = await git(["rev-parse", "HEAD"]);
+  await writeFile(path.join(dir, "shared.txt"), "pr9-approved\ntwo\nthree\n", "utf8");
+  await git(["commit", "-am", "approved", "--quiet"], date(3));
+  const approved9 = await git(["rev-parse", "HEAD"]);
+  await git(["commit", "--allow-empty", "-m", "late empty", "--quiet"], date(7));
+  const lateSameTree9 = await git(["rev-parse", "HEAD"]);
+  await git(["checkout", "-b", "pr-11", realBase, "--quiet"]);
+  await writeFile(path.join(dir, "shared.txt"), "one\ntwo\npr11-approved\n", "utf8");
+  await git(["commit", "-am", "other approved", "--quiet"], date(4));
+  const approved11 = await git(["rev-parse", "HEAD"]);
+
+  const synthSquash = async (parentSha: string, prHeadSha: string, prNumber: number, stamp: string) => {
+    const mergedTree = await git([`--attr-source=${EMPTY_TREE_OID}`, "-c", "core.attributesfile=/dev/null", "merge-tree", "--write-tree", parentSha, prHeadSha], stamp);
+    const oid = await git(["commit-tree", mergedTree, "-p", parentSha, "-m", `feat: change (#${prNumber})`], stamp);
+    return { oid, tree: mergedTree, stamp };
+  };
+  const first = await synthSquash(realBase, approved9, pull, "2026-10-05T12:00:00Z");
+  const second = await synthSquash(first.oid, approved11, otherPull, "2026-10-05T12:00:05Z");
+  const swappedFirst = await synthSquash(realBase, unapproved9, pull, "2026-10-05T12:00:00Z");
+  const swappedSecond = await synthSquash(swappedFirst.oid, approved11, otherPull, "2026-10-05T12:00:05Z");
+
+  const baseFixture = fixture();
+  const { state } = baseFixture;
+  state.branchSha = realBase;
+  state.pr.base.sha = realBase;
+  state.pr.head.sha = approved9;
+  state.commits = [{ ...state.commits[0]!, sha: unapproved9 }, { ...state.commits[1]!, sha: approved9 }];
+  state.otherPr.base.sha = realBase;
+  state.otherPr.head.sha = approved11;
+  state.groupHead = second.oid;
+  const squashEntry = (number: number, position: number, predecessor: string, headSha: string, committedAt: string, sq: { oid: string; tree: string; stamp: string }): QueueEntryNode => ({
+    id: "entry-" + number, position, state: "AWAITING_CHECKS", enqueuedAt: sq.stamp, baseCommit: { oid: predecessor },
+    headCommit: {
+      oid: sq.oid, committedDate: sq.stamp, messageHeadline: `feat: change (#${number})`,
+      tree: { oid: sq.tree }, parents: { totalCount: 1, nodes: [{ oid: predecessor }] },
+    },
+    pullRequest: {
+      number, state: "OPEN", baseRefName: "main", headRefOid: headSha, repository: { databaseId: 23 },
+      commits: { nodes: [{ commit: { oid: headSha, committedDate: committedAt, pushedDate: committedAt } }] },
+      timelineItems: { totalCount: 1, pageInfo: { hasPreviousPage: false }, nodes: [{ __typename: "HeadRefForcePushedEvent", createdAt: date(2) }] },
+    },
+  });
+  state.queue = {
+    databaseId: 23, nameWithOwner: repository, target: { target: { oid: realBase } }, group: { target: { oid: second.oid } },
+    mergeQueue: {
+      configuration: { mergeMethod: "SQUASH" },
+      entries: {
+        totalCount: 2, pageInfo: { hasNextPage: false, hasPreviousPage: false },
+        nodes: [squashEntry(pull, 1, realBase, approved9, date(3), first), squashEntry(otherPull, 2, first.oid, approved11, date(4), second)],
+      },
+    },
+  };
+  return {
+    ...baseFixture, dir, realBase, unapproved9, approved9, lateSameTree9, approved11, first, second, swappedFirst, swappedSecond,
+    publishSquash: (gitDirectory: string | null = dir, groupBase = first.oid) =>
+      baseFixture.publishGroup({ groupBase, ...(gitDirectory ? { gitDirectory } : {}) }),
+  };
 }
 
 test("APR-01/02/04: counts current write permissions and two distinct accounts, including the PR author", async () => {
@@ -358,4 +475,70 @@ test("APR-06: withdrawal observed just after publishing clears the queued pass",
   };
   await assert.rejects(publishGroup, /Queued approvals changed/);
   assert.deepEqual(state.groupStatuses.map(status => status.state), ["pending", "success"]);
+});
+
+test("APR-06: proves every queued squash entry against its original PR head tree and neutralizes custom merge drivers", async t => {
+  const { state, approved9, approved11, publishSquash } = await squashFixture(fn => t.after(fn));
+  state.reviews = [review(1, author, "APPROVED", 1, approved9), review(2, reviewer, "APPROVED", 2, approved9)];
+  state.otherReviews = [review(3, author, "APPROVED", 3, approved11)];
+  assert.equal((await publishSquash()).published, "failure");
+  assert.equal(state.groupStatuses[0]?.state, "failure");
+  state.otherReviews.push(review(4, reviewer, "APPROVED", 4, approved11));
+  assert.equal((await publishSquash()).published, "success");
+  assert.equal(state.groupStatuses[0]?.state, "success");
+});
+
+test("APR-06: squash proof refuses swapped PR heads, post-enqueue force-pushes and post-queue commits", async t => {
+  const { state, approved9, lateSameTree9, approved11, first, second, swappedFirst, swappedSecond, publishSquash } =
+    await squashFixture(fn => t.after(fn));
+  state.reviews = [review(1, author, "APPROVED", 1, approved9), review(2, reviewer, "APPROVED", 2, approved9)];
+  state.otherReviews = [review(3, author, "APPROVED", 3, approved11), review(4, reviewer, "APPROVED", 4, approved11)];
+  const nodes = state.queue.mergeQueue.entries.nodes;
+
+  await assert.rejects(() => publishSquash(null), /does not prove the exact original/);
+
+  nodes[0]!.headCommit.oid = swappedFirst.oid;
+  nodes[0]!.headCommit.tree = { oid: swappedFirst.tree };
+  nodes[1]!.baseCommit.oid = swappedFirst.oid;
+  nodes[1]!.headCommit.oid = swappedSecond.oid;
+  nodes[1]!.headCommit.tree = { oid: swappedSecond.tree };
+  nodes[1]!.headCommit.parents.nodes = [{ oid: swappedFirst.oid }];
+  state.groupHead = swappedSecond.oid;
+  state.queue.group.target.oid = swappedSecond.oid;
+  await assert.rejects(() => publishSquash(undefined, swappedFirst.oid), /does not prove the exact original/);
+  nodes[0]!.headCommit.oid = first.oid;
+  nodes[0]!.headCommit.tree = { oid: first.tree };
+  nodes[1]!.baseCommit.oid = first.oid;
+  nodes[1]!.headCommit.oid = second.oid;
+  nodes[1]!.headCommit.tree = { oid: second.tree };
+  nodes[1]!.headCommit.parents.nodes = [{ oid: first.oid }];
+  state.groupHead = second.oid;
+  state.queue.group.target.oid = second.oid;
+
+  nodes[0]!.pullRequest.timelineItems = {
+    totalCount: 2, pageInfo: { hasPreviousPage: false },
+    nodes: [{ __typename: "HeadRefForcePushedEvent", createdAt: date(2) }, { __typename: "HeadRefForcePushedEvent", createdAt: first.stamp }],
+  };
+  await assert.rejects(() => publishSquash(), /does not prove the exact original/);
+  nodes[0]!.pullRequest.timelineItems = {
+    totalCount: 1, pageInfo: { hasPreviousPage: false }, nodes: [{ __typename: "HeadRefForcePushedEvent", createdAt: date(2) }],
+  };
+
+  state.pr.head.sha = lateSameTree9;
+  state.pr.commits = 3;
+  state.commits.push({ ...state.commits[1]!, sha: lateSameTree9 });
+  state.reviews = [review(1, author, "APPROVED", 1, lateSameTree9), review(2, reviewer, "APPROVED", 2, lateSameTree9)];
+  nodes[0]!.pullRequest.headRefOid = lateSameTree9;
+  nodes[0]!.pullRequest.commits = { nodes: [{ commit: { oid: lateSameTree9, committedDate: date(7), pushedDate: date(7) } }] };
+  await assert.rejects(() => publishSquash(), /does not prove the exact original/);
+
+  state.pr.head.sha = approved9;
+  state.pr.commits = 2;
+  state.commits.pop();
+  state.reviews = [review(1, author, "APPROVED", 1, approved9), review(2, reviewer, "APPROVED", 2, approved9)];
+  nodes[0]!.pullRequest.headRefOid = approved9;
+  nodes[0]!.pullRequest.commits = { nodes: [{ commit: { oid: approved9, committedDate: date(3), pushedDate: date(3) } }] };
+  nodes[0]!.headCommit.messageHeadline = "feat: change (#999)";
+  await assert.rejects(() => publishSquash(), /does not prove the exact original/);
+  assert.equal(state.groupStatuses.length, 0);
 });

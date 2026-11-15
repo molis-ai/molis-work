@@ -144,9 +144,9 @@ APR-06 的具体接入要求为：可信 base 的检查器在 PR 检查和 `merg
 
 2026-11-15 只读核对 Molis Work。`main` 当前要求由 GitHub Actions 发布的 `Verify`，队列配置为 ALLGREEN、SQUASH。实际队列先以 #2064、#2079 的顺序生成合并组，随后改为 #2079、#2064。当前检查器从 [MergeQueueEntry](https://docs.github.com/en/graphql/reference/pulls#mergequeueentry) 读取条目、原 PR、base/head 和真实父提交，已在真实组 `605696e3` 上核对两项原 PR 与 SHA。GitHub 的 [队列规则](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue)与该观察一致。 [原组 #2079](https://github.com/molis-ai/molis-work/actions/runs/43631979571) · [改组后 #2064](https://github.com/molis-ai/molis-work/actions/runs/43633067092)
 
-检查器校验实时目标分支头、组引用、完整队列前缀与父提交链，按同一个目标分支头的政策检查各 PR 原头。原 PR 返回的历史 base 只用于还原提交集合。发布还须证明队列组包含所审的精确原头。双父提交的队列可以逐项核原头为第二父提交，已有隔离用例；正式仓采用 squash，只有前一队列提交一个父提交，活跃条目返回的 PR 当前头没有生成时的冻结证明，当前实现仅作成员诊断并保持待核对。补齐可信证明或改用已批准的其他队列设置前，真实 squash 组不能发布通过。
+检查器校验实时目标分支头、组引用、完整队列前缀与父提交链，按同一个目标分支头的政策检查各 PR 原头。原 PR 返回的历史 base 只用于还原提交集合。发布还须证明队列组包含所审的精确原头。双父提交的队列可以逐项核原头为第二父提交，已有隔离用例；squash 队列只有前一队列提交一个父提交，`scripts/agent-approval-squash-proof.mjs` 在隔离裸仓库中禁用自定义合并驱动、钩子与外部配置，逐项核对队列提交单父节点、树哈希、无属性三路合并树（`git --attr-source=4b825dc642cb6eb9a060e54bf8d69288fbee4904 merge-tree --write-tree`）、提交标题编号、入队及推送时间戳与强推时间线；仅靠实时 API 头而无 Git 树证明时继续拒绝发布通过。已在正式仓真实组 `605696e3`（前序 `#2079` `844c7329`、原头 `#2064` `2043a261`）和隔离双成员用例验证逐字节树一致与换头／强推／晚提交拒绝。
 
-上述两个真实合并组的 GitHub Actions run 与 Check Suite 的 `pull_requests` 均为空。#2064 与 #2079 的历史入队和出队事件也没有提交编号。改组后的提交 `605696e3` 只有一个 Git 父节点，GitHub 的提交关联查询仅返回已合并的 #2064。现有来源可用于诊断组成员与顺序，发布组检查所需的原头证明仍缺。
+上述两个真实合并组的 GitHub Actions run 与 Check Suite 的 `pull_requests` 均为空。#2064 与 #2079 的历史入队和出队事件也没有提交编号。改组后的提交 `605696e3` 只有一个 Git 父节点，GitHub 的提交关联查询仅返回已合并的 #2064；因此原头证明不依赖这些关联查询，而以 GraphQL 队列条目时序加隔离 Git 三路合并树核验，仍待在已批准的真实队列环境中完成事件接入、状态发布与合并实测。
 
 发布器重算前把自己的旧通过设为待核对，在写入前后重读原批准与权限。缺证据、无策略或事实变化时保持待核对。正式接入仍需可信 runner 按审批、PR 和合并组变化及时重算受影响的提交，使用独立 App 的发布身份并验收。GitHub 的状态写入没有原子条件提交，外部变动能否及时中止合并需在真实队列实测。正式接入仍由用户批准。
 

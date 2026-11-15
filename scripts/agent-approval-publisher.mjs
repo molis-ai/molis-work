@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { createHash } from "node:crypto";
 import { approvalGithubRepository, branchHead, inspectAgentApprovals } from "./agent-approval-diagnostic.mjs";
+import { proveSquashGroup, resolveOptionalGitDirectory } from "./agent-approval-squash-proof.mjs";
 import { isMainScript } from "./script-paths.mjs";
 
 const queues = new Map();
@@ -19,8 +20,16 @@ const queueQuery = `query($owner: String!, $repo: String!, $branch: String!, $ta
       entries(first: 100) {
         totalCount pageInfo { hasNextPage hasPreviousPage }
         nodes {
-          id state position baseCommit { oid } headCommit { oid parents(first: 3) { totalCount nodes { oid } } }
-          pullRequest { number state baseRefName headRefOid repository { databaseId } }
+          id state position enqueuedAt baseCommit { oid }
+          headCommit { oid committedDate messageHeadline tree { oid } parents(first: 3) { totalCount nodes { oid } } }
+          pullRequest {
+            number state baseRefName headRefOid repository { databaseId }
+            commits(last: 1) { nodes { commit { oid committedDate pushedDate } } }
+            timelineItems(last: 20, itemTypes: [HEAD_REF_FORCE_PUSHED_EVENT]) {
+              totalCount pageInfo { hasPreviousPage }
+              nodes { __typename ... on HeadRefForcePushedEvent { createdAt } }
+            }
+          }
         }
       }
     }
@@ -159,7 +168,7 @@ export async function mergeGroupMembers({ repository, repositoryId, targetBranch
   const index = nodes.findIndex(entry => entry?.headCommit?.oid === groupHead);
   if (index < 0) throw new Error("The merge-group commit is absent from the active queue");
   const byPull = new Set(), byEntry = new Set(), commits = new Set([root]);
-  const members = [];
+  const members = [], squash = [];
   const parentCount = method === "MERGE" ? 2 : 1;
   let base = root;
   for (const entry of nodes.slice(0, index + 1)) {
@@ -174,15 +183,24 @@ export async function mergeGroupMembers({ repository, repositoryId, targetBranch
       throw new Error("The active queue does not prove every member of this merge group");
     }
     members.push({ entry: entry.id, pull: pr.number, head: pr.headRefOid, queueCommit: head.oid });
+    if (method === "SQUASH") {
+      squash.push({
+        entry: entry.id, pull: pr.number, base, head: pr.headRefOid, queueCommit: head.oid,
+        queueTree: head.tree?.oid ?? null, enqueuedAt: entry.enqueuedAt ?? null,
+        headCommittedAt: head.committedDate ?? null, messageHeadline: head.messageHeadline ?? null,
+        prCommit: pr.commits?.nodes?.[0]?.commit ?? null, forcePushes: pr.timelineItems ?? null,
+      });
+    }
     byPull.add(pr.number); byEntry.add(entry.id); commits.add(head.oid);
     base = head.oid;
   }
   if (groupBase !== root && groupBase !== nodes[index].baseCommit.oid) throw new Error("The merge-group event base no longer matches the queue");
-  return { base: root, head: groupHead, method, members };
+  return method === "SQUASH" ? { base: root, head: groupHead, method, members, squash } : { base: root, head: groupHead, method, members };
 }
 
 /** Only the group SHA receives this status. Each original PR is checked against the same trusted branch policy. */
-export function publishMergeGroupApprovals({ appId, appBotId, token, api = "https://api.github.com", fetch = globalThis.fetch, ...group }) {
+export function publishMergeGroupApprovals({ appId, appBotId, token, api = "https://api.github.com", fetch = globalThis.fetch,
+  gitDirectory, gitOrigin, ...group }) {
   const { repository, repositoryId, targetBranch, groupHead, groupRef, groupBase } = group;
   if (![repositoryId, appId, appBotId].every(id) || !branchName(targetBranch) || !branchName(groupRef) || ![groupHead, groupBase].every(sha)
     || !groupRef.startsWith("refs/heads/gh-readonly-queue/" + targetBranch + "/")) {
@@ -198,7 +216,7 @@ export function publishMergeGroupApprovals({ appId, appBotId, token, api = "http
       const readGroup = () => mergeGroupMembers({ ...group, token, api, fetch });
       const original = await readGroup();
       if (original.method !== "MERGE") {
-        throw new Error("The squash group does not prove the exact original pull request versions");
+        await proveSquashGroup(original, { token, gitDirectory, gitOrigin });
       }
       const approvals = () => Promise.all(original.members.map(({ pull, head }) => inspectAgentApprovals({
         repository, pull, token, publisher: { app: appId, bot: appBotId }, requirePolicy: true, api, fetch,
@@ -221,11 +239,18 @@ export function publishMergeGroupApprovals({ appId, appBotId, token, api = "http
 if (isMainScript(import.meta.url)) {
   try {
     const [repository, repositoryId, pull, appId, appBotId, ...rest] = process.argv.slice(2);
-    const common = { repository, repositoryId: Number(repositoryId), appId: Number(appId), appBotId: Number(appBotId), token: process.env.GITHUB_TOKEN };
+    const common = {
+      repository, repositoryId: Number(repositoryId), appId: Number(appId), appBotId: Number(appBotId),
+      token: process.env.GITHUB_TOKEN, api: process.env.GITHUB_API_URL || undefined,
+    };
     let output;
     if (pull === "merge-group" && rest.length === 4) {
       const [targetBranch, groupRef, groupHead, groupBase] = rest;
-      output = await publishMergeGroupApprovals({ ...common, targetBranch, groupRef, groupHead, groupBase });
+      const gitDirectory = process.env.MOLIS_APPROVAL_GIT_DIR || await resolveOptionalGitDirectory(process.env.GITHUB_WORKSPACE);
+      const serverOrigin = process.env.GITHUB_SERVER_URL || (!process.env.GITHUB_API_URL ? "https://github.com" : "");
+      const gitOrigin = process.env.MOLIS_APPROVAL_GIT_ORIGIN
+        || (serverOrigin && /^[a-z0-9_.-]+\/[a-z0-9_.-]+$/i.test(repository ?? "") ? new URL(`/${repository}.git`, serverOrigin).href : undefined);
+      output = await publishMergeGroupApprovals({ ...common, targetBranch, groupRef, groupHead, groupBase, gitDirectory, gitOrigin });
     } else if (rest.length === 1 && /^\d+$/.test(pull ?? "")) {
       output = await publishAgentApprovals({ ...common, pull: Number(pull), targetBranch: rest[0] });
     } else {

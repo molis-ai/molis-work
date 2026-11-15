@@ -7,8 +7,7 @@ import { goalsActions } from "../actions.js";
 
 const HTTP_ALLOWED: Record<string, readonly string[]> = {
   "event-configure": [
-    "idempotency_key", "expected_version", "expected_agreement_version",
-    "types", "adopted_planning", "adopt_default_requirement_ids", "requirement_bindings",
+    "idempotency_key", "expected_version", "types", "requirement_bindings",
   ],
   "event-report": ["idempotency_key", "events", "progress"],
   "event-progress": ["idempotency_key", "based_on_cursor", "summary", "next_step", "next_actor"],
@@ -77,13 +76,6 @@ const EVENT_WRITERS = {
     ...common,
     expected_version: Number(body.expected_version),
     types: Array.isArray(body.types) ? body.types as never : undefined,
-    adopted_planning: Array.isArray(body.adopted_planning) ? body.adopted_planning as never : undefined,
-    adopt_default_requirement_ids: Array.isArray(body.adopt_default_requirement_ids)
-      ? body.adopt_default_requirement_ids.map((value) => String(value))
-      : undefined,
-    expected_agreement_version: body.expected_agreement_version == null
-      ? undefined
-      : requiredInt(body.expected_agreement_version, "expected_agreement_version"),
     requirement_bindings: Array.isArray(body.requirement_bindings) ? body.requirement_bindings as never : undefined,
   }),
   "event-report": (actions, common, body) => actions.invoke(goalsActions.report, {

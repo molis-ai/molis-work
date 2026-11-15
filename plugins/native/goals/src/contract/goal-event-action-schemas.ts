@@ -18,15 +18,12 @@ export const recordedReviewStatus: ActionSchema = enumeration(goalDecompositionR
 const strings = array(text), maybeText = nullable(text), maybeCount = nullable(count);
 const actorKind = enumeration(["user", "runtime", null]);
 const workStatus = enumeration(goalEventWorkStatuses), concernStatus = enumeration(goalEventConcernStatuses);
-const verdict = enumeration(goalEventJudgmentVerdicts), planningSource = enumeration(["built_in", "personal", "project"]);
-const method = object({ method_id: text, version: count, source: planningSource, name: text }, ["method_id", "version", "source"]);
-const planningRequirement = object({ kind: { const: "planning" }, template_requirement_id: text, methods: array(method) });
-const requirementSource: ActionSchema = { anyOf: [planningRequirement, object({ kind: { const: "create_input" } }),
+const verdict = enumeration(goalEventJudgmentVerdicts);
+const requirementSource: ActionSchema = { anyOf: [object({ kind: { const: "create_input" } }),
   object({ kind: { const: "imported_acceptance_criterion" }, decision_method: recordedDecisionMethod, pass_condition: text }),
   object({ kind: { const: "imported_human_approval" }, policy_binding_ids: strings })] };
-const fieldSource = object({ kind: enumeration(["local", "planning"]), method_id: text, label: text }, ["kind"]);
-const typeSource = object({ kind: enumeration(goalEventTypeSourceKinds), method_id: text, method_version: count, label: text,
-  contributing_methods: array(method) }, ["kind"]);
+const fieldSource = object({ kind: enumeration(["local"]), label: text }, ["kind"]);
+const typeSource = object({ kind: enumeration(goalEventTypeSourceKinds), label: text }, ["kind"]);
 const field = object({ field_id: text, name: text, purpose: text, format: enumeration(goalEventFieldFormats), required: boolean, source: fieldSource },
   ["field_id", "name", "purpose", "format", "required"]);
 export const eventType = object({ type_id: text, version: count, name: text, purpose: text, semantic_family: enumeration(goalEventSemanticFamilies),
@@ -36,8 +33,7 @@ const extraRequirement = object({ requirement_id: text, statement: text, bound_t
   support_valid_after_seq: count }, ["requirement_id", "statement", "created_in_config_version", "actor_id", "human_decision_required", "current_status", "revision", "support_valid_after_seq"]);
 const requirementInput = object({ requirement_id: text, statement: text, bound_type_id: text, human_decision_required: boolean, source: requirementSource }, ["requirement_id", "statement"]);
 export const binding = object({ type_id: text, requirement_id: text });
-const adopted = object({ method_id: text, version: count, source: planningSource });
-const configFields = { types: array(eventType), adopted_planning: array(adopted), extra_requirements: array(extraRequirement), requirement_bindings: array(binding) };
+const configFields = { types: array(eventType), extra_requirements: array(extraRequirement), requirement_bindings: array(binding) };
 export const goalConfigSchema = object({ project_id: text, goal_id: text, version: count, ...configFields, updated_at: maybeText, updated_by: maybeText });
 export const scope = object({ requirement_ids: strings, event_ids: strings, concern_ids: strings, action: maybeText });
 export const artifactSource = object({ artifact_id: text, version: count, title: text, origin: object({ plugin_id: text, item_id: text }) });
@@ -81,7 +77,7 @@ const conclusion = object({ decision_id: text, actor_id: text, verdict: enumerat
 const requirement = object({ requirement_id: text, goal_id: text, statement: text,
   origin: object({ kind: enumeration(["goal_event_requirement", "imported_acceptance_criterion", "imported_human_approval", "create_input"]),
     decision_method: recordedDecisionMethod, pass_condition: text, config_version: count,
-    planning: planningRequirement, policy_binding_ids: strings }, ["kind"]), bound_type_ids: strings, human_decision_required: boolean,
+    policy_binding_ids: strings }, ["kind"]), bound_type_ids: strings, human_decision_required: boolean,
   current_report: nullable(requirementReport), user_conclusion: nullable(conclusion), currently_satisfied: boolean,
   satisfied_by: enumeration([...goalEventSatisfactionGrounds, null]), conclusion_superseded: boolean });
 

@@ -23,6 +23,7 @@ import { registration as scheduleRegistration } from "@molis-ai/molis-work-plugi
 import { registration as shelfRegistration } from "@molis-ai/molis-work-plugin-shelf/registration";
 import { registration as textStatsRegistration } from "@molis-ai/molis-work-plugin-text-stats/registration";
 import { registration as todoRegistration } from "@molis-ai/molis-work-plugin-todo/registration";
+import { registration as workBriefRegistration } from "@molis-ai/molis-work-plugin-work-brief/registration";
 import { registration as workflowsRegistration } from "@molis-ai/molis-work-plugin-workflows/registration";
 
 /** Every plugin this build ships, in catalog order, as the platform reads them (apps/local-host/src/plugin-registry.ts). */
@@ -50,4 +51,5 @@ export const PLATFORM_PLUGIN_REGISTRATIONS: readonly (PluginRegistration & { rea
   { ...diffRegistration, package_name: "@molis-ai/molis-work-plugin-diff" },
   { ...textStatsRegistration, package_name: "@molis-ai/molis-work-plugin-text-stats" },
   { ...riskRegistration, package_name: "@molis-ai/molis-work-plugin-risk" },
+  { ...workBriefRegistration, package_name: "@molis-ai/molis-work-plugin-work-brief" },
 ];

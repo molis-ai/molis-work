@@ -5,7 +5,6 @@ import { dirname, join } from "node:path";
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 import { bindDatabaseSpace, ensureStorageSpace } from "@molis-ai/molis-work-storage";
 import { homeStores } from "@molis-ai/molis-work-app-local-host";
-import { BUILTIN_PLANNING_METHOD_PACKS } from "./goals-modules.js";
 
 interface Seed { table: string; values: Record<string, SQLInputValue>; field: string }
 export interface SnapshotFact { file: string; table: string; field: string; key: string; id: SQLInputValue; expected: SQLInputValue }
@@ -14,11 +13,8 @@ const at = "2026-10-24T00:00:00.000Z", id = "snapshot-retained", actor = "snapsh
 /** Real owner tables, not extra probe tables; expected user facts are independent of the snapshot implementation. */
 function libraryFacts(project: string): Record<string, Seed> {
   const title = "Retained user fact with Unicode 文本", body = JSON.stringify({ text: title });
-  const method = { ...BUILTIN_PLANNING_METHOD_PACKS[0]!, method_id: id, name: title, scope: "personal", version: 3,
-    enabled: true, created_at: at, updated_at: at };
   return {
     sync: { table: "sync_stream_cursors", values: { namespace: id, cursor: 7 }, field: "cursor" },
-    goals: { table: "personal_planning_method_packs", values: { method_id: id, version: 3, enabled: 1, pack_json: JSON.stringify(method), created_at: at, updated_at: at }, field: "pack_json" },
     "plugin-runtime": { table: "plugin_private_values", values: { install_id: id, item_key: "user-note", item_value: body }, field: "item_value" },
     assistant: { table: "assistant_settings", values: { actor_id: actor, key: "display", revision: 4, value: JSON.stringify({ compact: false }) }, field: "value" },
     placement: { table: "placement_titles", values: { kind: "goal", id, title, seen_at: at }, field: "title" },
@@ -43,6 +39,7 @@ function libraryFacts(project: string): Record<string, Seed> {
     form: { table: "forms", values: { id, title, description: "Kept survey", status: "draft", questions_json: JSON.stringify([{ id: "q", type: "text", title: "Question" }]), created_at: at, updated_at: at, version: 2, project_id: project }, field: "questions_json" },
     dataset: { table: "datasets", values: { id, title, description: "Kept dataset", status: "draft", columns_json: JSON.stringify([{ id: "name", title: "Name", type: "text" }]), rows_json: JSON.stringify([{ name: "Retained row" }]), created_at: at, updated_at: at, version: 3, project_id: project }, field: "rows_json" },
     ppt: { table: "presentations", values: { id, title, description: "Kept deck", color_primary: "#123456", color_background: "#ffffff", color_text: "#111111", slides_json: JSON.stringify([{ id: "slide", title: "Retained slide" }]), created_at: at, updated_at: at, version: 2, project_id: project }, field: "slides_json" },
+    "work-brief": { table: "briefs", values: { id, project_id: project, scope: "home", title, created_at: at, updated_at: at }, field: "title" },
     workflows: { table: "workflows", values: { workflow_id: id, project_id: project, title, chain_json: "[]", revision: 3, created_at: at, updated_at: at }, field: "title" },
     "feed-content": { table: "feed_content_holds", values: { content_ref: "molis-work-feed/sha256/" + "5".repeat(64), project_id: project, source_id: id }, field: "source_id" },
     observation: { table: "records", values: { record_id: id, owner_kind: "plugin", owner_id: "io.snapshot.fixture", fact: "io.snapshot.fixture.saved", outcome: "succeeded", actor_id: actor,

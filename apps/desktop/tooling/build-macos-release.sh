@@ -8,7 +8,12 @@ fi
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
-VERSION="$(node -p "require('$REPO_ROOT/package.json').version")"
+VERSION="$(node -p 'require(process.argv[1]).version' "$REPO_ROOT/package.json")"
+PROFILE="${MOLIS_WORK_RELEASE_PROFILE:-dev}"
+PROFILE_READER="$REPO_ROOT/tooling/release/profile.mjs"
+APP_NAME="$(node "$PROFILE_READER" --profile "$PROFILE" --app-name)"
+TAURI_SETTINGS="$(node "$PROFILE_READER" --profile "$PROFILE" --tauri)"
+SIGNING_IDENTITY="$(node "$PROFILE_READER" --profile "$PROFILE" --signing-identity)"
 node "$REPO_ROOT/scripts/verify-release-versions.mjs"
 
 case "$(uname -m)" in
@@ -20,25 +25,26 @@ esac
 export MOLIS_WORK_MACOS_ARCH="$RELEASE_ARCH"
 # Do not let Tauri auto-select an unrelated local development certificate.
 # A caller-supplied release identity is preserved; local builds are explicitly ad-hoc.
-export APPLE_SIGNING_IDENTITY="${APPLE_SIGNING_IDENTITY:--}"
+export MOLIS_WORK_RELEASE_PROFILE="$PROFILE"
+export APPLE_SIGNING_IDENTITY="${APPLE_SIGNING_IDENTITY:-$SIGNING_IDENTITY}"
 pnpm --dir "$REPO_ROOT" build
 bash "$SCRIPT_DIR/prepare-macos-runtime.sh"
 
-(cd "$REPO_ROOT/apps/desktop" && "$REPO_ROOT/node_modules/.bin/tauri" build --bundles app,dmg --ci)
+(cd "$REPO_ROOT/apps/desktop" && "$REPO_ROOT/node_modules/.bin/tauri" build --bundles app,dmg --ci --config "$TAURI_SETTINGS")
 
 BUNDLE_ROOT="$REPO_ROOT/apps/desktop/src-tauri/target/release/bundle"
-APP_PATH="$BUNDLE_ROOT/macos/Molis Work.app"
+APP_PATH="$BUNDLE_ROOT/macos/$APP_NAME.app"
 DMG_PATH="$(find "$BUNDLE_ROOT/dmg" -maxdepth 1 -type f -name '*.dmg' -print -quit)"
 if [[ ! -d "$APP_PATH" || -z "$DMG_PATH" || ! -f "$DMG_PATH" ]]; then
-  echo "Tauri did not produce the expected Molis Work.app and DMG." >&2
+  echo "Tauri did not produce the expected $APP_NAME.app and DMG." >&2
   exit 1
 fi
 codesign --verify --deep --strict --verbose=2 "$APP_PATH"
 
 OUTPUT_DIR="$REPO_ROOT/release/macos"
 mkdir -p "$OUTPUT_DIR"
-OUTPUT_DMG="$OUTPUT_DIR/Molis Work-${VERSION}-macos-${RELEASE_ARCH}.dmg"
-OUTPUT_ZIP="$OUTPUT_DIR/Molis Work-${VERSION}-macos-${RELEASE_ARCH}.app.zip"
+OUTPUT_DMG="$OUTPUT_DIR/$APP_NAME-${VERSION}-macos-${RELEASE_ARCH}.dmg"
+OUTPUT_ZIP="$OUTPUT_DIR/$APP_NAME-${VERSION}-macos-${RELEASE_ARCH}.app.zip"
 rm -f "$OUTPUT_DMG" "$OUTPUT_ZIP" "$OUTPUT_DMG.sha256" "$OUTPUT_ZIP.sha256"
 cp "$DMG_PATH" "$OUTPUT_DMG"
 ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$OUTPUT_ZIP"

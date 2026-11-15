@@ -5,7 +5,7 @@ import { SKILL_LIMITS, SKILL_RESOURCE_FOLDERS, type PluginMethodDeclaration, typ
 import type { LocalPackageSignInput } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import { completeContentPackagePayload } from "./content-package.js";
 import { refuseDeclarations } from "./declaration-problems.js";
-import { packagePathProblem } from "./skill-declarations.js";
+import { packagePathProblem, translatedBodyLocale } from "./skill-declarations.js";
 import { frontmatterWritesAppliesTo, skillDeclarationFromFrontmatter } from "./skill-frontmatter.js";
 
 // A Skills folder made into a content package (specs/skill-packs/contract-design.md §3, §4.1, §6): what CLI `pack-content` packs
@@ -47,8 +47,11 @@ export function skillFromFolder(files: ReadonlyMap<string, Uint8Array>, options:
   let markdown: string;
   try { markdown = new TextDecoder("utf-8", { fatal: true }).decode(body); } catch { return refuseDeclarations([{ path: CONTENT_PACKAGE_FILES.body, reason: "不是 UTF-8 文字" }]); }
   const problems: PluginDeclarationProblem[] = [], resources: Array<{ path: string; role: SkillResourceRole; bytes: Uint8Array }> = [];
+  const translations: Array<{ locale: string; path: string; bytes: Uint8Array }> = [];
   for (const [path, bytes] of [...files].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)) {
     if (path === CONTENT_PACKAGE_FILES.body) continue;
+    const locale = path.includes("/") ? null : translatedBodyLocale(path);
+    if (locale) { translations.push({ locale, path, bytes }); continue; }
     const escape = packagePathProblem(path), role = ROLES.find(([, folder]) => path.startsWith(`${folder}/`))?.[0];
     if (escape) problems.push({ path, reason: escape });
     else if (!role) problems.push({ path, reason: `不在 ${ROLES.map(([, folder]) => `${folder}/`).join("、")} 下：只有这几处的文件能随技能带上` });
@@ -59,8 +62,11 @@ export function skillFromFolder(files: ReadonlyMap<string, Uint8Array>, options:
   const { skill_id } = skillDeclarationFromFrontmatter(markdown, options), folder = `${CONTENT_PACKAGE_FILES.skills}/${skill_id}`;
   const declared: SkillResourceDeclaration[] = resources.map(({ path, role, bytes }) => ({ path: `${folder}/${path}`, role, media_type: mediaTypeOf(path),
     bytes: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex") }));
-  const declaration = skillDeclarationFromFrontmatter(markdown, { ...options, ...(declared.length ? { resources: declared } : {}) });
-  return { declaration, applies_to_written: frontmatterWritesAppliesTo(markdown), files: new Map([[`${folder}/${CONTENT_PACKAGE_FILES.body}`, body], ...resources.map(({ path, bytes }): [string, Uint8Array] => [`${folder}/${path}`, bytes])]) };
+  const read = skillDeclarationFromFrontmatter(markdown, { ...options, ...(declared.length ? { resources: declared } : {}) });
+  // A translation is the body alone: what a Skill is called and when to pick it are the package's language files' to say.
+  const declaration = translations.length ? { ...read, locales: translations.map(item => item.locale) } : read;
+  return { declaration, applies_to_written: frontmatterWritesAppliesTo(markdown), files: new Map([[`${folder}/${CONTENT_PACKAGE_FILES.body}`, body],
+    ...translations.map(({ path, bytes }): [string, Uint8Array] => [`${folder}/${path}`, bytes]), ...resources.map(({ path, bytes }): [string, Uint8Array] => [`${folder}/${path}`, bytes])]) };
 }
 
 /** Who and what the package is; its Skills come from `skillFromFolder`. */

@@ -79,7 +79,7 @@ export interface SurfaceExclusion {
 export type SurfaceGenericOperation = (typeof SURFACE_GENERIC_OPERATIONS)[number];
 
 export interface SurfaceGroup {
-    kind: "attention" | "continue" | "plugin" | "slot";
+    kind: "attention" | "continue" | "plugin" | "slot" | "lead";
     owner_plugin_id?: string;
     state: "ok" | "unreadable" | "stale" | "disabled" | "undeclared";
     read_at?: string;
@@ -93,6 +93,10 @@ export interface SurfaceGroup {
         label?: OwnedTextRef;
     };
     plugin_card?: SurfacePluginCard;
+    lead?: {
+        installation: SurfaceInstallationRef;
+        view_id: string;
+    };
     title?: OwnedTextRef;
     items: SurfaceItem[];
 }

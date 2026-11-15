@@ -2,7 +2,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { ActionError, type ActionReference, type ActionRegistryPort } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginErrors, type PluginInstanceRecord, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { pluginManifestDigest, readPluginReleaseManifest, type PluginRuntimeDatabase } from "@molis-ai/molis-work-plugin-runtime";
-import { sandboxOperationActions } from "@molis-ai/molis-work-plugin-sdk";
+import { sandboxOperationActions, sandboxUpgradeOperation } from "@molis-ai/molis-work-plugin-sdk";
 import { presentationCatalog, validatePresentationDeclaration } from "@molis-ai/molis-work-plugin-sdk/presentation";
 import { HomeLine } from "./home-line.js";
 import { fixtureDeclarationsFor } from "./home-side.js";
@@ -89,7 +89,8 @@ function installedActions(catalog: SurfaceInstallCatalog, candidate: PluginManif
       throw pluginErrors.declaration_invalid(`读不到已装插件 ${record.plugin_id} 的呈现动作声明`);
     }
     if (kept.packaged.manifest.kind !== "app") return [];
-    return sandboxOperationActions({ contract: kept.design.contract, buildId: kept.buildId, version: kept.version, title: kept.design.title, scope });
+    return sandboxOperationActions({ contract: kept.design.contract, buildId: kept.buildId, version: kept.version, title: kept.design.title, scope,
+      upgradeOperation: sandboxUpgradeOperation(kept.packaged.manifest), hasProjectDatabase: !!kept.packaged.manifest.databases?.project });
   });
 }
 

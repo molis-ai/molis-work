@@ -11,7 +11,6 @@ import { t as uiText, say } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { pageTextScript } from "./fixtures/page-text.js";
 import { ChromeHarness } from "@molis-ai/molis-work-test-kit/browser";
 import { assertGoalsDictionaryMove, expectedGoalsDictionaryMove } from "./fixtures/goals-dictionary-move.js";
-import { BUILTIN_PLANNING_METHOD_PACKS } from "@molis-ai/molis-work-plugin-goals/module";
 import * as renderers from "./workbench-renderer-fixture.js";
 import type { MolisWorkWebView } from "./workbench-renderer-fixture.js";
 
@@ -36,9 +35,8 @@ function viewFor(locale: "zh" | "en"): MolisWorkWebView {
   const localized = (goal: MolisWorkWebView["goals"][number]) => ({ ...goal, ...englishWords[goal.goal.goal_id] });
   return { ...view, goals: view.goals.map(localized), archived_goals: view.archived_goals.map(localized), trashed_goals: view.trashed_goals.map(localized) };
 }
-const methods = BUILTIN_PLANNING_METHOD_PACKS.map(pack => ({ ...pack }));
 const guidance = { entries: [], inactive_entries: [], revisions: [], virtual_document: "", runtime_prompt_prefix: "" };
-const SECTIONS = ["general", "guidance", "planning", "rules"] as const;
+const SECTIONS = ["general", "guidance", "rules"] as const;
 
 type Draw = (view: MolisWorkWebView) => string;
 const pages: Record<string, Draw> = {
@@ -62,13 +60,8 @@ const pages: Record<string, Draw> = {
   "document-archive": (view) => renderers.renderGoalDocumentFragment(view, "GRAPH", "archive") ?? "(none)",
   "document-trash": (view) => renderers.renderGoalDocumentFragment(view, "AUTO-CONNECT", "trash") ?? "(none)",
   "document-missing": (view) => renderers.renderGoalDocumentFragment(view, "NO-SUCH", "current") ?? "(none)",
-  "planning-library-personal": () => renderers.renderMolisWorkPlanningLibrary(methods, null, TOKEN, false, [PROJECT], ["goals"]),
-  "planning-library-project": (view) => renderers.renderMolisWorkPlanningSettings(view, methods, TOKEN, false),
-  "planning-method-detail": () => renderers.renderMolisWorkPlanningMethodPage(methods[0]!, "detail", "personal", null, TOKEN, false),
-  "planning-method-edit": () => renderers.renderMolisWorkPlanningMethodPage(methods[0]!, "edit", "project", PROJECT, TOKEN, false),
-  "planning-method-new": () => renderers.renderMolisWorkPlanningMethodPage(null, "new", "personal", null, TOKEN, false),
-  ...Object.fromEntries(SECTIONS.map(section => [`settings-${section}`, (view: MolisWorkWebView) => renderers.renderMolisWorkProjectSettingsHub(view, guidance, methods, TOKEN, false, section)])),
-  ...Object.fromEntries(SECTIONS.map(section => [`settings-${section}-embedded`, (view: MolisWorkWebView) => renderers.renderMolisWorkProjectSettingsHub(view, guidance, methods, TOKEN, false, section, section)])),
+  ...Object.fromEntries(SECTIONS.map(section => [`settings-${section}`, (view: MolisWorkWebView) => renderers.renderMolisWorkProjectSettingsHub(view, guidance, TOKEN, false, section)])),
+  ...Object.fromEntries(SECTIONS.map(section => [`settings-${section}-embedded`, (view: MolisWorkWebView) => renderers.renderMolisWorkProjectSettingsHub(view, guidance, TOKEN, false, section, section)])),
 };
 
 // A page is 0.4 to 1.4 MB with the shell's own styles and scripts in it, so what is recorded is a SHA-256 and a length, not the text, and of
@@ -132,6 +125,21 @@ const pages: Record<string, Draw> = {
 // it, the composer at rest carries ` data-rest` (+10 characters in every page-*), and the English placeholder is 「Ask the assistant…」
 // (16 fewer than 「…to do something…」): zh +10, en −6 on all 16, checked against the drawn pages. No Goals markup or JSON changed;
 // the 16 were recorded with MOLIS_WORK_GOLDEN_RECORD=1 and the other 50 records did not change.
+// Batch 41 (41-2, 用户 2026-11-14: the planning methods are Skills of the catalog and nothing of Goals): the 14 planning records
+// (library, method detail/new/edit, the settings planning page and its embedded form, in two languages) went with the pages. Of the
+// 52 left, 30 changed and 22 did not. Checked on the whole drawn pages against the checkout before the change: the six document-*
+// and the eight refresh-* lose the empty line the document template left where the adopted-method block was (−9 characters); the 16
+// page-* lose, besides that, the settings directory's planning entry, and the eight page-current*/page-archive ones the 「Work
+// planning」 button with its pane. The 24 page-* and refresh-* records were already stale on main 4417d2bcd3 (page-* +155 en / +166 zh,
+// refresh-* +169 en / +146 zh; this test fails there, and the pages it draws are the ones this branch drew before 41-2, line for
+// line), so their new records carry that difference as well. Recorded with MOLIS_WORK_GOLDEN_RECORD=1.
+// Batch 41 merged with main 7a4c7f982d (batches 12, 17 and 28 landed there): the 16 page-* records were stale again on that main (this
+// test fails there on those 16 and on the eight refresh-*, +2163 zh on page-current; this branch draws the same pages less the planning
+// entry 41-2 removed, +1997 zh / +2185 en against its own records). No Goals markup of this batch changed with the merge; the 16 were
+// recorded with MOLIS_WORK_GOLDEN_RECORD=1 and the other 36 records did not change.
+// Batch 41 merged with main 4e2d506adc (batch 19, Work Brief): both sides had recorded the 16 page-* records, main for its new plugin in the
+// switcher and Home plugin list (+2193 zh / +2403 en on every page), this branch for the removed planning entry. No Goals markup of this
+// batch changed with the merge; the 16 were recorded with MOLIS_WORK_GOLDEN_RECORD=1 and the other 36 records did not change.
 // Batch 08 (Skills): all 66 normalized draws were checked against the old records before updating. Removing only the new
 // Skills navigation restores every old hash and length: 16 whole pages have two directory buttons (706 zh / 722 en characters),
 // six personal planning records one link (92 zh / 96 en), and twelve project planning/settings records one link with its line
@@ -195,6 +203,9 @@ const pages: Record<string, Draw> = {
 // row (and the closeout's shell wording), so every whole-page record moved by +2185 en / +1997 zh; the 50 fragment records did
 // not change. The 16 whole pages were re-recorded with MOLIS_WORK_GOLDEN_RECORD=1 on the merge of main 7a4c7f982d; they are
 // the shell's reviewed additions, not a Goals markup change.
+// Batch 19 (Work Brief plugin): the shell gained the Work Brief plugin's rail tile and settings row, so every whole-page record
+// moved by +2403 en / +2193 zh; the 50 fragment records did not change. The 16 whole pages were re-recorded with
+// MOLIS_WORK_GOLDEN_RECORD=1 on the merge of main 653cf456d4; not a Goals markup change.
 // The hashes below come from the checked draws with RECORD unset. The independent text and data assertions stay in place.
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }

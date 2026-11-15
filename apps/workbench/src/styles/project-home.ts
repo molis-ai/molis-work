@@ -15,6 +15,14 @@ export const PROJECT_HOME_STYLES = PRESENTATION_FORM_STYLES + `
 .inbox-object-title .mw-presentation__tag strong{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere}
   .immersive-plugin-stage > .immersive-home, .tab-pane-body > .immersive-home { container-type: inline-size; padding: 0; min-block-size: 0; block-size: 100%; overflow: hidden; display: flex; flex-direction: column; position: relative; }
   .immersive-home .home-scroll { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; width: 100%; max-width: 1280px; margin: 0 auto; padding: clamp(1rem, 4cqi, 3.5rem); }
+  /* A plugin's page as the home: it takes the whole surface, under one thin line that leads back to the groups. */
+  .immersive-home[data-home-leading] .home-scroll { display: none; }
+  /* The adopted surface positions itself against its holder: this box is that holder, so the page never covers the line above it. */
+  .immersive-home .home-lead { position: relative; flex: 1; min-block-size: 0; display: flex; flex-direction: column; }
+  .immersive-home .home-lead[hidden], .immersive-home .home-lead-bar[hidden] { display: none; }
+  .immersive-home .home-lead > * { flex: 1; min-block-size: 0; inline-size: 100%; }
+  .immersive-home .home-lead-bar { flex: none; display: flex; align-items: center; justify-content: flex-end; gap: .2rem .7rem; flex-wrap: wrap; min-block-size: 2rem; padding: .2rem clamp(.6rem, 2cqi, 1.2rem); color: var(--muted); font-size: var(--type-note-size, 12px); line-height: var(--type-note-line-height, 1.6); }
+  .immersive-home .home-lead-bar p { margin: 0; margin-inline-end: auto; overflow-wrap: anywhere; }
   /* Where am I: the page's kind as a quiet line, then the project's own name. */
   .immersive-home .home-heading { display: grid; gap: .25rem; }
   .immersive-home .home-heading h1 { margin: 0; font-family: var(--type-display-font); font-size: var(--type-display-size); line-height: max(var(--type-display-line-height), 1.3); overflow-wrap: anywhere; text-wrap: balance; }

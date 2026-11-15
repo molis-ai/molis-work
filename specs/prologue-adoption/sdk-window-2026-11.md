@@ -12,7 +12,7 @@
 | --- | --- | --- |
 | 换包 | 「都由本会话处理」：本会话在 `molis-ai/molis-prologue` 写上游改动、建包、换 `vendor/prologue-sdk` | 同时批了红线里的「改上游」与「换 `vendor/prologue-sdk`」；不走别的会话或上游团队 |
 | LSP 归属 | 放宿主侧（插件包＋执行器接缝），不进 SDK | [Coding A4／A4-1](../coding-plugin/next-requirements.md) 改写：不再要求 Manifest `lsp_servers` 与 SDK LSP 客户端；Molis 宿主侧提供官方编码包声明的执行器 |
-| Memory P1 | 前置未满足（Memory P0 仍是草稿 PR #2020，短合同 BL-memory-p1-contract 未冻结） | 交付项 2 停在「待认领」，本批只做交付项 1；[决定 36](../post-anticorruption-roadmap/reference/decisions.md#decision-36) 不变 |
+| Memory P1 | 2026-11-14 Memory P0（#2020）合入后，用户批准在本批一并完成交付项 2 并冻结 P1 短合同 | 交付项 2 随本批完成：SDK 有界版本历史与恢复（MEM-10）、导出包 v2 与有界批量导入（MEM-11）、历史正文单一写主人与账本基线 2→3（MEM-19、MEM-40）、通用关联对象引用 `objects`（决定 42）及上游 #121 空 `resident` 零读取零授权 |
 
 上游四项合成三项（LSP 移出后）：A 有界子代理（App 模式）、B Skill 自动选用、C 子代理续跑与写后检查。
 

@@ -7,7 +7,6 @@ import {
   GOAL_EVENT_EVIDENCE_MAX,
   goalEventSemanticFamilies,
   goalEventTypeSourceKinds,
-  type GoalEventAdoptedPlanningRef,
   type GoalEventExtraRequirementInput,
   type GoalEventFieldDefinition,
   type GoalEventRequirementSource,
@@ -39,7 +38,7 @@ const TYPE_KEYS = new Set(["type_id", "version", "name", "purpose", "semantic_fa
 const FIELD_KEYS = new Set(["field_id", "name", "purpose", "format", "required", "source"]);
 const REQUIREMENT_KEYS = new Set(["requirement_id", "statement", "bound_type_id", "human_decision_required", "source"]);
 const REQUIREMENT_SOURCE_KEYS = new Set([
-  "kind", "template_requirement_id", "methods", "decision_method", "pass_condition", "policy_binding_ids",
+  "kind", "decision_method", "pass_condition", "policy_binding_ids",
 ]);
 
 const REPORT_PROGRESS_KEYS = new Set(["summary", "next_step", "next_actor"]);
@@ -99,27 +98,10 @@ function normalizeTypeSource(source: GoalEventTypeSource | undefined, actorId: s
     throw goalErrors["goals.event_config.invalid_source"]("事件类型来源无效");
   }
   const normalized: GoalEventTypeSource = { kind };
-  if (source?.method_id != null) {
-    normalized.method_id = assertConfigText(requiredText(source.method_id, "goals.event_config.invalid_source", "规划方法 ID 不能为空"), "规划方法 ID");
-  }
-  if (source?.method_version != null) {
-    if (!Number.isInteger(source.method_version) || source.method_version < 1) {
-      throw goalErrors["goals.event_config.invalid_source"]("规划方法版本必须是正整数");
-    }
-    normalized.method_version = source.method_version;
-  }
   if (source?.label != null) {
     normalized.label = assertConfigText(source.label, "类型来源说明");
   }
-  if (source?.contributing_methods?.length) {
-    normalized.contributing_methods = source.contributing_methods.map((method) => ({
-      method_id: assertConfigText(requiredText(method.method_id, "goals.event_config.invalid_source", "规划方法 ID 不能为空"), "规划方法 ID"),
-      version: method.version,
-      source: method.source,
-      ...(method.name ? { name: assertConfigText(method.name, "规划方法名称") } : {}),
-    }));
-  }
-  if (!normalized.label) normalized.label = kind === "runtime" ? `Runtime · ${actorId}` : kind === "planning" ? "工作规划" : "当前 Goal 局部定义";
+  if (!normalized.label) normalized.label = kind === "runtime" ? `Runtime · ${actorId}` : "当前 Goal 局部定义";
   return normalized;
 }
 
@@ -178,11 +160,10 @@ function normalizeField(field: GoalEventFieldDefinition, index: number): GoalEve
   const source = field.source
     ? {
         kind: field.source.kind,
-        ...(field.source.method_id ? { method_id: assertConfigText(field.source.method_id, "字段来源") } : {}),
         ...(field.source.label ? { label: assertConfigText(field.source.label, "字段来源说明") } : {}),
       }
     : { kind: "local" as const };
-  if (source.kind !== "local" && source.kind !== "planning") {
+  if (source.kind !== "local") {
     throw goalErrors["goals.event_config.invalid_field_source"](`字段 ${fieldId} 的来源无效`);
   }
   return {
@@ -225,29 +206,6 @@ export function sameTypeShape(
   return JSON.stringify(typeShape(left)) === JSON.stringify(typeShape(right));
 }
 
-export function normalizeAdoptedPlanning(
-  input: GoalEventAdoptedPlanningRef[] | undefined,
-  previous: GoalEventAdoptedPlanningRef[],
-): GoalEventAdoptedPlanningRef[] {
-  const incoming = input ?? previous;
-  const seen = new Set<string>();
-  const normalized: GoalEventAdoptedPlanningRef[] = [];
-  for (const item of incoming) {
-    const methodId = requiredText(item.method_id, "goals.event_config.invalid_planning", "采用的规划方法 ID 不能为空").trim();
-    if (!Number.isInteger(item.version) || item.version < 1) {
-      throw goalErrors["goals.event_config.invalid_planning"]("采用的规划版本必须是正整数");
-    }
-    if (!["built_in", "personal", "project"].includes(item.source)) {
-      throw goalErrors["goals.event_config.invalid_planning"]("采用的规划来源无效");
-    }
-    const key = `${item.source}:${methodId}:${item.version}`;
-    if (seen.has(key)) throw goalErrors["goals.event_config.duplicate_planning"](`重复采用规划: ${methodId}`);
-    seen.add(key);
-    normalized.push({ method_id: methodId, version: item.version, source: item.source });
-  }
-  return normalized;
-}
-
 export function normalizeNewRequirement(input: GoalEventExtraRequirementInput): GoalEventExtraRequirementInput {
   if (input == null || typeof input !== "object" || Array.isArray(input)) {
     throw goalErrors["goals.event_config.invalid_requirement"]("新增要求必须是对象");
@@ -284,21 +242,7 @@ function normalizeRequirementSource(source: GoalEventRequirementSource): GoalEve
       policy_binding_ids: Array.isArray(source.policy_binding_ids) ? source.policy_binding_ids.map(String) : [],
     };
   }
-  if (source.kind !== "planning") throw goalErrors["goals.event_config.invalid_requirement_source"]("局部要求来源无效");
-  const templateId = requiredText(source.template_requirement_id, "goals.event_config.invalid_requirement_source", "规划要求必须保留模板 ID").trim();
-  if (!Array.isArray(source.methods) || source.methods.length === 0) {
-    throw goalErrors["goals.event_config.invalid_requirement_source"]("规划要求必须保留来源方法");
-  }
-  return {
-    kind: "planning",
-    template_requirement_id: templateId,
-    methods: source.methods.map((method) => ({
-      method_id: requiredText(method.method_id, "goals.event_config.invalid_requirement_source", "规划方法 ID 不能为空").trim(),
-      version: method.version,
-      source: method.source,
-      ...(method.name ? { name: method.name } : {}),
-    })),
-  };
+  throw goalErrors["goals.event_config.invalid_requirement_source"]("局部要求来源无效");
 }
 
 export function normalizeBinding(input: GoalEventRequirementBinding): GoalEventRequirementBinding {

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
-import { GOALS_HOME_DATABASE, GOALS_PLUGIN_ID, GOALS_PROJECT_DATABASE, goalsManifest } from "@molis-ai/molis-work-plugin-goals";
+import { GOALS_PLUGIN_ID, GOALS_PROJECT_DATABASE, goalsManifest } from "@molis-ai/molis-work-plugin-goals";
 import { actionPermissionDeclarations } from "@molis-ai/molis-work-contracts/platform/actions";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import {
@@ -26,7 +26,7 @@ const GOALS_TABLES = [
   "goal_event_requirement_bindings", "goal_event_requirement_conclusions", "goal_event_requirements", "goal_event_state_owners",
   "goal_event_trusted_decisions", "goal_event_types", "goal_event_work_status", "goal_relations", "goal_trash_records",
   "goal_trash_relation_records", "goal_tree_proposal_decisions", "goal_tree_proposal_items", "goal_tree_proposals",
-  "goal_work_event_judgments", "goal_work_events", "goals", "input_bindings", "planning_method_packs", "policy_bindings",
+  "goal_work_event_judgments", "goal_work_events", "goals", "input_bindings", "policy_bindings",
   "project_guidance_entries", "project_guidance_revisions",
 ];
 
@@ -46,10 +46,9 @@ const tableNames = (db: DatabaseSync) => listSqliteObjects(db).filter(object => 
 
 test("PLIB-12 Goals' Manifest declares its project library: the plugin entry's declaration passes the SDK shape check", () => {
   const manifest = parsePluginManifest(structuredClone(goalsManifest));
-  // The same Manifest also declares the person's planning library in the Home (PG-094 S13), for the plugin's Home half.
-  assert.deepEqual(manifest.databases, { project: GOALS_PROJECT_DATABASE, home: GOALS_HOME_DATABASE });
+  assert.deepEqual(manifest.databases, { project: GOALS_PROJECT_DATABASE });
   assert.equal(GOALS_PROJECT_DATABASE.store_name, "goals");
-  assert.equal(GOALS_PROJECT_DATABASE.version, 3);
+  assert.equal(GOALS_PROJECT_DATABASE.version, 4);
   // A plugin's own tables in the library are its private storage (D23), and the Manifest declares that permission.
   assert.equal(GOALS_PROJECT_DATABASE.read_permission, "storage:private");
   assert.equal(GOALS_PROJECT_DATABASE.write_permission, "storage:private");
@@ -72,13 +71,13 @@ test("PLIB-12 on an empty library the declaration passes the SQL rules, creates 
     assert.deepEqual(tableNames(db), GOALS_TABLES);
     assert.equal(first.record.plugin_id, GOALS_PLUGIN_ID);
     assert.equal(first.record.store_name, "goals");
-    assert.equal(first.record.version, 3);
+    assert.equal(first.record.version, 4);
     assert.equal(first.record.created_at, "2026-10-20T01:00:00.000Z");
     // The ledger names every table and index the declaration made, none of SQLite's own.
     assert.ok(first.record.objects.length > GOALS_TABLES.length);
     for (const table of GOALS_TABLES) assert.ok(first.record.objects.includes(table), table);
     const rows = db.prepare("SELECT plugin_id, store_name, version FROM plugin_project_databases").all();
-    assert.deepEqual(rows.map(row => ({ ...row })), [{ plugin_id: GOALS_PLUGIN_ID, store_name: "goals", version: 3 }]);
+    assert.deepEqual(rows.map(row => ({ ...row })), [{ plugin_id: GOALS_PLUGIN_ID, store_name: "goals", version: 4 }]);
     assert.equal(db.isTransaction, false);
   } finally { db.close(); }
 });

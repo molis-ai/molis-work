@@ -13,7 +13,7 @@ const USER_OUTCOME = "可恢复；历史与关联处理记录会保留";
 function view(): MolisWorkWebView {
   return {
     snapshot: { board: { project_id: PROJECT, title: "Collection test", active_goal_id: null, created_at: AT, updated_at: AT },
-      cursor: 0, goals: [], relations: [], goal_tree_proposals: [], planning_method_packs: [], project_guidance: [] },
+      cursor: 0, goals: [], relations: [], goal_tree_proposals: [], project_guidance: [] },
     project: { project_id: PROJECT, display_name: "Collection test" }, projects: [{ project_id: PROJECT, display_name: "Collection test" }],
     route_prefix: `/projects/${PROJECT}`, demo: false, active_goal_id: null,
     goals: [], archived_goals: [], trashed_goals: [], enabled_plugins: ["goals"],

@@ -6,6 +6,8 @@
 
 验收编号沿用 `UPG-01`～`UPG-21`；本文新增的检查用 `UPG1-` 前缀，在 §13 列出。
 
+[第 26 批 U4](../post-anticorruption-roadmap/reference/batches/26.md#batch-26-item-5) 已采用本节共同 SQL 规则处理签名安装包。下文的 U1 试行安装拒绝保留为历史设计证据；当前安装预览校验升级段，确认换版才执行。
+
 ## 0. 给人讲清楚
 
 现在程序一改库的结构，旧 Home 就打不开，只能重建。做完这件事以后，新程序启动时先看一眼每个库的版本：旧的就一步步升上来，升之前留一份原样的备份，升完检查，查出问题就放回备份；只有这一个库暂时不能用，别的照常。比程序还新的库，不读也不写。平时启动几乎没有额外开销，因为只有换了版本才扫一遍。
@@ -681,6 +683,7 @@ U1 的机制代码（U1-a～c）本身不改库的版本；随本批同一次合
 
 ### 15.2 跟进（不在 U1）
 
+- **已经没有的库（第 41 批，用户 2026-11-14 定）**：一个库连同它的主人不再存在时（Goals 的 Home 库 `goals/goals.db`，方法变成技能后没有主人），不写升级段，也不留读取代码；目录名登记在 `apps/local-host/src/home-upgrade.ts` 的 `REMOVED_HOME_STORES`，升级轮在列库之前把它连目录删掉（否则离线快照会因未登记条目报 `unknown_data`）。删除不可恢复，所以往这张表里加一项要先经用户确认，并记进 `docs/system/CONTRACT-CHANGES.md`。测试 `tests/home-upgrade.test.ts`「SKL-41-2」。
 - `computer/` 不在 `homeStores()` 里：现有 Home 有这个目录时，离线快照报 `unknown_data`。`config/external-mcp-actions.json`、`config/connector-mcp-actions.json` 同样没登记。这是现成缺陷，和升级无关，主会话记 BL；U2 的覆盖面也要管它们。
 - `HOME-DATA.md` 与代码对不上的几处（核账第二节）在 U1-c 顺手只改升级相关的一行，其余另算。
 

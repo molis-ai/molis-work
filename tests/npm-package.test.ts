@@ -40,7 +40,6 @@ test("npm staging packs workspace assets without host binaries or modifying the 
     const packedLicense = async (prefix: string) => (await exec("tar", ["-xOf", path.join(output, packed.filename), `package/${prefix}LICENSE`])).stdout;
     assert.equal(await packedLicense(""), license); // CSL-03: read the actual npm archive, not only staging.
     const files = new Set<string>(packed.files.map((file: { path: string }) => file.path));
-    assert.ok(files.has("node_modules/@molis-ai/molis-work-plugin-goals/methods/industries/industry-developer-tools.md"));
     assert.ok(files.has("node_modules/@molis-ai/molis-work-plugin-cli/bin/molis-work-plugin.mjs"));
     assert.ok(files.has("dist/cli/main.js"));
     assert.ok(files.has("skills/goal-advance/SKILL.md"));

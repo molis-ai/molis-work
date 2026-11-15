@@ -1,4 +1,3 @@
-export * from "./personal-planning-actions.js";
 export * from "./decision-view.js";
 export * from "./actions.js";
 export type { InitializeBoardOutput } from "./library-actions.js";
@@ -12,9 +11,7 @@ export * from "./proposal-ui-model.js";
 export { hostEventDecisionAuthority } from "./goal-event-application.js";
 export { createGoalsPlugin } from "./plugin.js";
 export { assessGoalReport, type GoalEvidenceArtifact, type GoalEvidencePorts, type GoalEvidenceRunCheck } from "./evidence-check.js";
-export { createHomeGoalsPlugin } from "./home-plugin.js";
 export { goalAdvancePrompt, goalsTerminalActions } from "./terminal-actions.js";
-export { GOALS_HOME_DATABASE } from "./home-database.js";
 export { createGoalsApplication, type GoalsApplication, type GoalsApplicationPorts } from "./goals-application.js";
 export { managementEvidence, evidenceText } from "./management-evidence.js";
 export * from "./goal-entry-contract.js";
@@ -49,11 +46,6 @@ export { mergeGoalHistoryItems, pageHistoryItems, mapJournalHistoryItems, isNewW
 export { renderHistoryItemBody, renderWorkEventBody, formatEventTime } from "./event-history-body.js";
 export * from "./context-ui-model.js";
 export * from "./context-ui.js";
-export * from "./planning-ui-model.js";
-export * from "./planning-ui.js";
-export * from "./planning-client.js";
-export * from "./planning-styles.js";
-export * from "./planning-routes.js";
 export { GOALS_PAGE_ROUTES } from "./page-routes.js";
 export { PROJECT_RULES_CLIENT_SCRIPT } from "./project-policy-client.js";
 export { PROJECT_RULES_SETTINGS_STYLES } from "./project-policy-styles.js";

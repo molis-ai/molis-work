@@ -907,7 +907,6 @@
     "decisions": []
    }
   ],
-  "planning_method_packs": [],
   "project_guidance": []
  },
  "project": null,
@@ -1079,8 +1078,7 @@
        }
       ],
       "extra_requirements": [],
-      "requirement_bindings": [],
-      "adopted_planning": []
+      "requirement_bindings": []
      },
      "at": "2026-10-30T09:00:00.000Z"
     },
@@ -2023,8 +2021,7 @@
        }
       ],
       "extra_requirements": [],
-      "requirement_bindings": [],
-      "adopted_planning": []
+      "requirement_bindings": []
      },
      "at": "2026-10-30T09:00:00.000Z"
     },
@@ -2459,8 +2456,7 @@
        }
       ],
       "extra_requirements": [],
-      "requirement_bindings": [],
-      "adopted_planning": []
+      "requirement_bindings": []
      },
      "at": "2026-10-30T09:00:00.000Z"
     },
@@ -2684,8 +2680,7 @@
        }
       ],
       "extra_requirements": [],
-      "requirement_bindings": [],
-      "adopted_planning": []
+      "requirement_bindings": []
      },
      "at": "2026-10-30T09:00:00.000Z"
     },
@@ -2911,8 +2906,7 @@
        }
       ],
       "extra_requirements": [],
-      "requirement_bindings": [],
-      "adopted_planning": []
+      "requirement_bindings": []
      },
      "at": "2026-10-30T09:00:00.000Z"
     },
@@ -4080,8 +4074,7 @@
        }
       ],
       "extra_requirements": [],
-      "requirement_bindings": [],
-      "adopted_planning": []
+      "requirement_bindings": []
      },
      "at": "2026-10-30T09:00:00.000Z"
     },
@@ -4313,8 +4306,7 @@
        }
       ],
       "extra_requirements": [],
-      "requirement_bindings": [],
-      "adopted_planning": []
+      "requirement_bindings": []
      },
      "at": "2026-10-30T09:00:00.000Z"
     },
@@ -4578,8 +4570,7 @@
      }
     ],
     "extra_requirements": [],
-    "requirement_bindings": [],
-    "adopted_planning": []
+    "requirement_bindings": []
    },
    "at": "2026-10-30T09:00:00.000Z"
   },
@@ -4694,8 +4685,7 @@
      }
     ],
     "extra_requirements": [],
-    "requirement_bindings": [],
-    "adopted_planning": []
+    "requirement_bindings": []
    },
    "at": "2026-10-30T09:00:00.000Z"
   },
@@ -4760,8 +4750,7 @@
      }
     ],
     "extra_requirements": [],
-    "requirement_bindings": [],
-    "adopted_planning": []
+    "requirement_bindings": []
    },
    "at": "2026-10-30T09:00:00.000Z"
   },
@@ -4838,8 +4827,7 @@
      }
     ],
     "extra_requirements": [],
-    "requirement_bindings": [],
-    "adopted_planning": []
+    "requirement_bindings": []
    },
    "at": "2026-10-30T09:00:00.000Z"
   },
@@ -4919,8 +4907,7 @@
      }
     ],
     "extra_requirements": [],
-    "requirement_bindings": [],
-    "adopted_planning": []
+    "requirement_bindings": []
    },
    "at": "2026-10-30T09:00:00.000Z"
   },
@@ -5000,8 +4987,7 @@
      }
     ],
     "extra_requirements": [],
-    "requirement_bindings": [],
-    "adopted_planning": []
+    "requirement_bindings": []
    },
    "at": "2026-10-30T09:00:00.000Z"
   },
@@ -5157,8 +5143,7 @@
      }
     ],
     "extra_requirements": [],
-    "requirement_bindings": [],
-    "adopted_planning": []
+    "requirement_bindings": []
    },
    "at": "2026-10-30T09:00:00.000Z"
   },

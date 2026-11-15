@@ -137,6 +137,7 @@ export class MemoryBatch {
   private async closeGroup(caller: MemoryCaller, action: Plan["action"], group: Group, result: AgentMemoryClearResult,
     backend: MemoryBackendPort, save: () => void): Promise<void> {
     const entries = action === "disable" ? await backend.list(group.scope, group.owner) : [];
+    const fallbackTexts = new Map<string, string>();
     const closed: MemoryBatchResult["items"] = [];
     for (const original of group.preview.items) {
       const item = result.items.find(one => one.memory_id === original.memory_id);
@@ -144,8 +145,17 @@ export class MemoryBatch {
       let known = action === "remove";
       if (action === "disable" && item.outcome === "completed") {
         const entry = entries.find(one => one.memory_id === original.memory_id && one.version === item.version);
-        const revision = this.ports.ledger.revisions(original.memory_id).find(one => one.version === original.version);
-        known = entry !== undefined || revision !== undefined;
+        if (entry) {
+          known = true;
+        } else {
+          const history = await backend.history({ scope: group.scope, owner: group.owner, memory_id: original.memory_id, ...(caller.signal ? { signal: caller.signal } : {}) }).catch(() => null);
+          const canonical = history?.revisions.find(one => one.version === item.version) ?? history?.revisions.find(one => one.version === original.version);
+          const revision = this.ports.ledger.revisions(original.memory_id).find(one => one.version === original.version);
+          if (canonical && revision) {
+            fallbackTexts.set(original.memory_id, canonical.text);
+            known = true;
+          }
+        }
       }
       closed.push({ memory_id: item.memory_id, outcome: item.outcome, forgetting: action === "remove" ? "accepted" : "not-accepted",
         cleanup: finished(item.outcome) ? known ? "complete" : "needs-reconcile" : "pending" });
@@ -155,11 +165,9 @@ export class MemoryBatch {
       for (const item of closed) if (finished(item.outcome) && item.cleanup === "complete") {
         const actual = result.items.find(one => one.memory_id === item.memory_id)!;
         if (action === "remove") this.ports.ledger.forget(item.memory_id, "related");
-        const original = group.preview.items.find(one => one.memory_id === item.memory_id)!;
         const entry = entries.find(one => one.memory_id === item.memory_id && one.version === actual.version);
-        const revision = this.ports.ledger.revisions(item.memory_id).find(one => one.version === original.version);
         this.ports.record(caller, { scope: group.scope, owner: group.owner, memory_id: item.memory_id, action,
-          text: action === "remove" ? "" : entry?.text ?? revision!.text, ...(actual.version === undefined ? {} : { version: actual.version }) });
+          text: action === "remove" ? "" : entry?.text ?? fallbackTexts.get(item.memory_id) ?? "", ...(actual.version === undefined ? {} : { version: actual.version }) });
       }
       group.results = closed; save();
     });

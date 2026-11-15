@@ -1,3 +1,4 @@
+import type { STATE_VOCABULARIES } from "../platform/state-vocabulary.js";
 import { defineErrorCodes } from "../platform/action-errors.js";
 import type { ContractDescriptor } from "../platform/package.js";
 export type { ConnectorCheckObservation, ConnectorCallObservation, ConnectorObservations, ConnectorConnectionStatus } from "./connector-status.js";
@@ -258,7 +259,7 @@ export const CONNECTOR_ACCOUNT_ORIGINS: Readonly<Record<string, readonly string[
 
 /** A single account or API credential managed at Home scope. Never contains plaintext. */
 export type ConnectorConnectionAuthMethod = "oauth" | "token" | "cli" | "mcp" | "none";
-export type ConnectorConnectionState = "connected" | "reauth_required" | "disconnected";
+export type ConnectorConnectionState = keyof typeof STATE_VOCABULARIES.connectorConnection.states;
 
 export interface ConnectorConnectionRecord {
   readonly connection_id: string;

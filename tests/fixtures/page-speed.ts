@@ -9,8 +9,8 @@
 
 /** The median of the workload on the development Mac it was measured on (Apple M5, Chrome for Testing 153: 83–87 ms over five tests), in milliseconds. */
 export const REFERENCE_WORKLOAD_MS = 85;
-/** A factor past this means the machine is overloaded, not slow; the bound stops growing so a real regression still shows. */
-const MAX_SLOWDOWN = 8;
+/** A factor past this means the machine is overloaded, not slow; the bound stops growing so a real regression still shows. The CI range measured in #2046 is 3–5; 6 leaves margin without letting a 5×-slower machine hide a further 2× regression. */
+const MAX_SLOWDOWN = 6;
 
 const WORKLOAD = `(() => {
   const runs = [];

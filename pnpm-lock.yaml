@@ -169,6 +169,9 @@ importers:
       '@molis-ai/molis-work-plugin-todo':
         specifier: workspace:*
         version: link:plugins/native/todo
+      '@molis-ai/molis-work-plugin-work-brief':
+        specifier: workspace:*
+        version: link:plugins/native/work-brief
       '@molis-ai/molis-work-plugin-workflows':
         specifier: workspace:*
         version: link:plugins/native/workflows
@@ -446,6 +449,9 @@ importers:
       '@molis-ai/molis-work-plugin-todo':
         specifier: workspace:*
         version: link:../../plugins/native/todo
+      '@molis-ai/molis-work-plugin-work-brief':
+        specifier: workspace:*
+        version: link:../../plugins/native/work-brief
       '@molis-ai/molis-work-plugin-workflows':
         specifier: workspace:*
         version: link:../../plugins/native/workflows
@@ -630,6 +636,9 @@ importers:
       '@molis-ai/molis-work-plugin-todo':
         specifier: workspace:*
         version: link:../../plugins/native/todo
+      '@molis-ai/molis-work-plugin-work-brief':
+        specifier: workspace:*
+        version: link:../../plugins/native/work-brief
       '@molis-ai/molis-work-plugin-workflows':
         specifier: workspace:*
         version: link:../../plugins/native/workflows
@@ -1334,6 +1343,19 @@ importers:
         specifier: ^0.28.2
         version: 0.28.2
 
+  plugins/native/work-brief:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../../packages/contracts
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../../../packages/plugin-sdk
+    devDependencies:
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
+
   plugins/native/workflows:
     dependencies:
       '@molis-ai/molis-work-contracts':
@@ -1775,7 +1797,7 @@ packages:
     resolution: {integrity: sha512-rDS5/31E9HfPl/CIzGrn0DOlvBbXFseQ5URJ9sYMfstbKLD/c6Gm9vmRzRGDdAXyOIL4zmO37lc9RIwYqVruZw==}
 
   '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1.tgz':
-    resolution: {integrity: sha512-abzPdvg1O8KT090R6FdbriXKHffbSgzFClBst7Wa3T1cR65a5abDnQiU2II725SYKC5jZVxXVVOc0okyMYI5sw==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1.tgz}
+    resolution: {integrity: sha512-rlf7SZrtqvxTNKgnrVfSb1eRN0f/IE5/pJXeTUgv6vSD7Ge5PUokooScnkthapHm+eu+EwqIbKnpsMb7Wkzw5w==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1.tgz}
     version: 0.0.0-rc.1
 
   '@protobufjs/aspromise@1.1.2':

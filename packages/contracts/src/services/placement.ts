@@ -1,3 +1,4 @@
+import type { STATE_VOCABULARIES } from "../platform/state-vocabulary.js";
 import type { ContractDescriptor } from "../platform/package.js";
 import type { ActionDefinition, ActionSubject } from "../platform/actions.js";
 
@@ -30,7 +31,7 @@ export interface PlacementLocation {
   access: PlacementAccess;
   access_label: string;
 }
-export type PlacementObjectState = "ok" | "missing" | "unavailable";
+export type PlacementObjectState = keyof typeof STATE_VOCABULARIES.placementObject.states;
 export type PlacementAssociationType = "used_in" | "goal" | "derived_from" | "derived_into" | "copied_from" | "copied_into";
 export interface PlacementAssociation {
   /** Ledger key for links the system owns; null for relations the owner plugin keeps (a document's Goal). */

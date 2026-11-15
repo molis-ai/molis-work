@@ -215,6 +215,27 @@ test("the resume prompt's buttons are renderButton's secondary text buttons, and
   assert.match(gone, /data-return-bar-back[^>]*><span data-slot="button-label">Close settings<\/span><\/button>/u, "closing the settings has no back arrow");
 });
 
+// SKL-11: the line a round's page draws and the panel the shell opens from it are the SDK's markup, for the Assistant and any plugin.
+test("SKL-11: the Skill line says each Skill once with who chose it and carries what the panel opens with; the panel's actions are menu items", () => {
+  const words = { used: "用了", auto: "自动选的", named: "你点名的", none: "这一轮没用技能", choose: "选一个" };
+  const picks = [{ ref: { skill_id: "a" }, name: "会议<纪要>", picked: "named" as const }, { ref: { skill_id: "b" }, name: "周报", picked: "auto" as const }];
+  const line = sdkUi.renderSkillLine({ picks, round: 'r"1', words });
+  const buttons = [...line.matchAll(/<button[^>]*data-skill-pick="(\d*)"[^>]*>([\s\S]*?)<\/button>/g)].map(found => [found[1], found[2]!.replace(/<[^>]*>/g, "").trim()]);
+  assert.deepEqual(buttons, [["0", "会议&lt;纪要&gt; · 你点名的"], ["1", "周报 · 自动选的"]]);
+  assert.match(line, /class="mw-skill-line"[^>]*data-skill-round="r&quot;1"/, "the round's mark is escaped");
+  assert.equal(line.match(/data-skill-picks="([^"]*)"/)![1], JSON.stringify(picks).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"), "the exact picks ride on the line");
+  assert.ok([...line.matchAll(/<button[^>]*>/g)].every(found => /aria-haspopup="dialog"/.test(found[0]) && /aria-expanded="false"/.test(found[0])), "each button says it opens a panel");
+  const none = sdkUi.renderSkillLine({ picks: [], round: "r2", words });
+  assert.match(none, /这一轮没用技能/); assert.match(none, /data-skill-pick=""/, "「选一个」 names no Skill");
+
+  const why = sdkUi.renderSkillWhy({ title: "周报", reason: "任务提到 <周报>", facts: [["来自", "写作包 1.0.0"]],
+    groups: [{ label: "这一轮", actions: [{ id: "redo", label: "换一个重做", detail: "同一句话再来一轮" }, { id: "plain", label: "这次不用技能" }] }, { label: "换成", actions: [], empty: "没有别的可用技能" }] });
+  assert.match(why, /<h4>周报<\/h4>/); assert.match(why, /任务提到 &lt;周报&gt;/); assert.match(why, /<dt>来自<\/dt><dd>写作包 1\.0\.0<\/dd>/);
+  assert.deepEqual([...why.matchAll(/data-skill-why-action="([^"]*)"/g)].map(found => found[1]), ["redo", "plain"]);
+  assert.equal((why.match(/role="menuitem"/g) ?? []).length, 2, "each action is a menu item");
+  assert.match(why, /role="menu" aria-label="换成">[\s\S]*没有别的可用技能/, "a group with nothing to offer says so");
+});
+
 test("RISK-01 the severity grid lights one place, reads without colour, and carries only the caller's words", async () => {
   const { renderSeverityGrid } = await import("@molis-ai/molis-work-plugin-sdk/ui");
   const lit = (html: string) => [...html.matchAll(/<i( class="is-lit")?><\/i>/g)].map((cell) => Boolean(cell[1]));

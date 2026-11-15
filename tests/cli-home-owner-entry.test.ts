@@ -56,7 +56,7 @@ test("RAC-105-S-08 PG094-CLI-01: owned CLI Hosts initialize and reopen external 
   }
 });
 
-test("PG094-CLI-02 PG094-CLI-03 a Home-free project runs Goals, refuses actual personal-method adoption without partial facts, and remains usable", async t => {
+test("PG094-CLI-02 PG094-CLI-03 a Home-free project runs Goals and creates no substitute Home", async t => {
   const root = await mkdtemp(join(tmpdir(), "cli-personal-unavailable-")), home = join(root, "unused-home"), database = join(root, "standalone", "project.db");
   const host = createMolisWorkLocalHost({ completeText: null }), projectId = "no-home-personal";
   t.after(async () => { await host.close(); await rm(root, { recursive: true, force: true }); });
@@ -65,12 +65,6 @@ test("PG094-CLI-02 PG094-CLI-03 a Home-free project runs Goals, refuses actual p
   const reference = molisWorkHostProjectReference({ databasePath: database, projectId });
   const actions = managementGoals(host.actionClient(reference), projectId);
   await actions.invoke(goalsActions.create, { goal_id: "retained", title: "Keep this project fact", idempotency_key: "retained" });
-  const facts = () => host.withProject(reference, runtime => Object.fromEntries(
-    ["boards", "goals", "planning_method_packs", "events", "idempotency_records"].map(table => [table, runtime.store.db.prepare(`SELECT * FROM ${table}`).all()])));
-  const before = await facts();
-  await assert.rejects(actions.invoke(goalsActions.planningApply, { method_id: "domain-software-development", user_confirmed: true }),
-    { code: "goals.planning.personal_unavailable" });
-  assert.deepEqual(await facts(), before, "a failed production planning command saved no method, Goal, event or idempotency fact");
   assert.ok((await actions.invoke(goalsActions.snapshot, {})).goals.some(goal => goal.goal_id === "retained"));
   await assert.rejects(stat(home), { code: "ENOENT" }, "no substitute Home was created");
 });

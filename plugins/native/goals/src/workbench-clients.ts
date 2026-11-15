@@ -4,8 +4,6 @@ import { GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT } from "./event-document-cli
 import { GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT } from "./momentum-client.js";
 import { GOALS_NAVIGATION_CLIENT_FACTORY_SCRIPT } from "./navigation-client.js";
 import { GOALS_PANELS_CLIENT_FACTORY_SCRIPT } from "./panels-client.js";
-import { PLANNING_ADOPTION_CLIENT_SCRIPT, PLANNING_SETTINGS_CLIENT_SCRIPT } from "./planning-client.js";
-import { PLANNING_SETTINGS_STYLES } from "./planning-styles.js";
 import { GOALS_POLICY_CLIENT_FACTORY_SCRIPT } from "./policy-client.js";
 import { PROJECT_RULES_CLIENT_SCRIPT } from "./project-policy-client.js";
 import { PROJECT_RULES_SETTINGS_STYLES } from "./project-policy-styles.js";
@@ -34,6 +32,6 @@ export const GOALS_PAGE_CLIENTS = {
   goalsTree: GOALS_TREE_CLIENT_FACTORY_SCRIPT,
 } as const;
 
-/** The project's rules and the planning methods, as settings pages: their rules and the script that binds their forms. */
-export const GOALS_SETTINGS_STYLESHEET = `${PROJECT_RULES_SETTINGS_STYLES}${PLANNING_SETTINGS_STYLES}`;
-export const GOALS_SETTINGS_CLIENT_SCRIPT = [PROJECT_RULES_CLIENT_SCRIPT, PLANNING_SETTINGS_CLIENT_SCRIPT, PLANNING_ADOPTION_CLIENT_SCRIPT].map((script) => script.trim()).join("\n");
+/** The project's rules, as a settings page: its style rules and the script that binds its form. */
+export const GOALS_SETTINGS_STYLESHEET = PROJECT_RULES_SETTINGS_STYLES;
+export const GOALS_SETTINGS_CLIENT_SCRIPT = PROJECT_RULES_CLIENT_SCRIPT.trim();

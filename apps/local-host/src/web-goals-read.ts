@@ -32,7 +32,7 @@ import { builtinMarketDirectory, mergePluginDirectories, runningPluginDirectory 
 
 /** The page still opens without the installed plugins' entries; why they are missing is written. */
 /** The project settings page each path opens; `/settings` alone opens 常规. */
-const SETTINGS_SECTIONS = new Map((["workspaces", "guidance", "memory", "knowledge", "plugins", "kit", "grants", "rules", "planning", "general"] as const)
+const SETTINGS_SECTIONS = new Map((["workspaces", "guidance", "memory", "knowledge", "plugins", "kit", "grants", "rules", "general"] as const)
   .map(section => [`/settings/${section}` as string, section] as const)).set("/settings", "general");
 const noInstalledStages = (error: unknown): [] => { hostLog.warn("plugins", "installed_stages_unavailable", error); return []; };
 async function projectSettingsRequirements(homeDirectory: string | undefined, store: LocalProjectDatabase, projectId: string, withCatalog: LocalWebCatalogRunner) {
@@ -83,7 +83,8 @@ async function withProjectPluginSurfaces(view: GoalsWebView, input: {
   const installed = await installedPluginStages({ store, projectId: input.projectId, homeDirectory, routePrefix: view.route_prefix,
     models: async () => homeDirectory ? configuredModelChoices(homeDirectory) : [], actorId: LOCAL_PERSON_ACTOR_ID, actions: pluginServices.actions,
     ...(pluginServices.dependencyCheck ? { dependencyCheck: pluginServices.dependencyCheck } : {}) }).catch(noInstalledStages);
-  return { ...view, plugin_stages: [...(view.plugin_stages ?? []), ...installed.map(item => item.stage)],
+  return { ...view, plugin_stages: [...(view.plugin_stages ?? []), ...installed.flatMap(item => item.stage ? [item.stage] : [])],
+    unavailable_plugin_stages: [...(view.unavailable_plugin_stages ?? []), ...installed.flatMap(item => item.unavailable ? [item.unavailable] : [])],
     plugin_directory: mergePluginDirectories(builtin.directory, view.plugin_directory ?? [], installed.map(item => item.directory), builtinMarketDirectory(homeDirectory)) };
 }
 export function createLocalGoalsReadHttp(ports: {
@@ -106,20 +107,18 @@ export function createLocalGoalsReadHttp(ports: {
         return true;
       }
       const embed = url.searchParams.get("embed") === "1";
-      let methods, guidance, policy;
+      let guidance, policy;
       try {
         // A project without Goals has none of Goals' settings pages (RAC-400). Whether Goals is here is the project's plugin list; a Goals read
         // refused in a project that has Goals is that refusal, shown with its code and operation number, not a project without Goals.
         if (await goalsHere()) {
-          [methods, guidance, policy] = await Promise.all([actions.invoke(goalsActions.planningRead, {}).then(value => value.methods),
-            actions.invoke(goalsActions.guidanceRead, {}), actions.invoke(goalsActions.policyHistory, {})]);
+          [guidance, policy] = await Promise.all([actions.invoke(goalsActions.guidanceRead, {}), actions.invoke(goalsActions.policyHistory, {})]);
         }
       }
       catch (error) { sendJson(response, actionHttpStatus(error), actionErrorBody(error)); return true; }
       const html = renderMolisWorkProjectSettingsHub(
         { ...view, project: { ...view.project, plugin_requirements: await projectSettingsRequirements(homeDirectory, store, view.project.project_id, withMolisWorkProjectCatalog) }, policy_bindings: policy?.bindings ?? [] },
         guidance ?? null,
-        methods ?? [],
         controlToken,
         isDesktopShellRequest(request, url),
         open,

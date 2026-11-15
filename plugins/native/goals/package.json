@@ -38,7 +38,6 @@
   "files": [
     "dist",
     "locales",
-    "methods",
     "README.md"
   ],
   "scripts": {
@@ -60,7 +59,6 @@
       "goals.momentum-ui.v1",
       "goals.document-ui.v1",
       "goals.context-ui.v1",
-      "goals.planning-ui.v1",
       "goals.status-ui.v1",
       "goals.factors-ui.v1",
       "goals.dialogs-ui.v1",

@@ -150,7 +150,8 @@ test("memory is one system.memory provider in the shared directory: the person m
   }
   const ledger = openMemoryLedger({ homeDirectory: home });
   try {
-    assert.ok(ledger.revisions(kept.memory!.memory_id)[0]!.snapshot, "canonical restore information remains in the ledger");
+    assert.equal(history.revisions[0]!.snapshot_available, true);
+    assert.deepEqual(Object.keys(ledger.revisions(kept.memory!.memory_id)[0]!).sort(), ["at", "by", "change", "version"], "MEM-19: ledger retains only lightweight change attribution without duplicate text or snapshot");
     const accepted = ledger.changesOf(kept.memory!.memory_id).find(change => change.kind === "accepted")!;
     assert.ok(accepted.operation_id); assert.equal(accepted.applied_version, kept.memory!.version);
   } finally { ledger.close(); }

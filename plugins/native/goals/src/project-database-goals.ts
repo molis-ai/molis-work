@@ -145,17 +145,6 @@ export const GOALS_TABLES_SQL = `
   );
   CREATE INDEX project_guidance_revisions_project_idx
     ON project_guidance_revisions(project_id, guidance_id, revision DESC);
-
-  CREATE TABLE planning_method_packs (
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    method_id TEXT NOT NULL,
-    version INTEGER NOT NULL,
-    enabled INTEGER NOT NULL CHECK (enabled IN (0, 1)),
-    pack_json TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    PRIMARY KEY (project_id, method_id)
-  );
 `;
 
 /**

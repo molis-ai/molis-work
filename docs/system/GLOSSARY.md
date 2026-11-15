@@ -228,7 +228,7 @@
 
 **其余三种「方法」（必须写全名）**
 
-- 规划方法（planning method）：Goals 拥有、规划时可选采用的方法包（类型 `PlanningMethodPack` 在 `plugins/native/goals/src/contract/goals.ts`，解析与内置包在 `plugins/native/goals/src/module/planning/method-packs.ts`），按「项目 > 个人 > 内置冷启包」生效；内置包是 `plugins/native/goals/methods/` 下的 Markdown。
+- 规划方法（planning method）：拆解与规划用的方法，是技能目录里随系统自带的一包技能（`plugins/content/planning-methods`，37 个，给个人助理用，默认「自动」；用户 2026-11-14 定，第 41 批）。和 Goals 没有关系：助理用它拆解，结果要不要写进 Goals 由助理用 Goals 自己的动作决定。Goals 只留图检查与变更影响（`goals.planning.graph.check`、`goals.planning.impact`），不存、不采用方法。旧称：Goals 的方法库、个人方法、`PlanningMethodPack`（已删）。
 - 研究方法（research method）：炼金术士里用户确认保存、可在新研究里沿用的做法，代码里叫 playbook（`memory.playbook.*`，`plugins/native/alchemist/src/studio/shared/contracts/actions.ts`）。
 - 连接方式（connection method）：一个服务可用的授权途径，`ConnectorMethodOption`（`kind` 为 `oauth`、`cli`、`token`、`mcp`，`packages/contracts/src/services/connector-host.ts`）。
 
@@ -323,6 +323,18 @@
 | 项目 | `project` |
 | 插件 | `plugin` |
 | 讨论 | `discussion` |
+
+### 2.8 状态
+
+| 术语 | 含义 |
+| --- | --- |
+| 公开状态词汇 | 平台能力对其消费者使用的一组状态 ID 和家族，来自 [contracts 词表](../platform/STATE-VOCABULARY.md) |
+| 状态家族 | 状态环的语义类别，例如进行中、需核对，与业务状态 ID 各有各的用途 |
+| 状态机声明 | Manifest 的 `state_machines`，包含机器 ID、版本、状态及其家族、初始态和终态 |
+| `machine_id` | 一台机器的稳定 ID，由插件 ID 和一个本地名组成 |
+| 兑现 | 运行实现提供与清单一致的状态机；核对由[第 47 批](../../specs/post-anticorruption-roadmap/reference/batches/47.md)接入 |
+| 登记 | 从定义和已安装发行包的 Manifest 读取出来的机器元数据投影 |
+| 流水账 | 状态主人为中断恢复或幂等留在自身库里的操作记录 |
 
 ## 3. 插件的名字
 
@@ -529,7 +541,6 @@ B　说工作者本身的（做事、用自己的权限、请求授权和提问�
 - 设计系统的「组件板」、Goals 的「看板」视图及其 CSS：不指项目。
 - `agent.skills.*` 宿主能力 id、`skill_id`、`AgentSkill*` 类型：与本表的 Skill 一致，不用改。
 - 类型名 `HostCapabilityDescriptor`、`CapabilityRegistry`：本表把 capability 定义为注册表条目，这两个名字与定义一致。
-- Goals 里规划方法的 `method_id`（`plugins/native/goals`（含 `src/module/`）、`apps/local-host/src/web-planning.ts` 以及 Goals 的库表与事件）：它指规划方法，写在 Goals 的库和事件里，建议不改；读到 `method_id` 时看所在包：助理一侧是 Skill（R-B5），Goals 一侧是规划方法。
 - 构建期 UI 描述和内置插件的 `contribution_id` 里的 `.native.` 段（3.3 第 4 条）：贡献 id 的命名空间，不是插件 id。
 - R-B 里用户不确认改名的项，在这里补一行。
 - R-B1 `capability_id`：保持原名——就是动作的 id；写在工作流步骤、MCP 授权、判断规则、场景绑定、Character 的动作范围里，改名收益小而数据和外部授权都要动。

@@ -87,4 +87,31 @@ test("a pinned memory that writes a system or fence marker reaches the model wit
   assert.deepEqual(context.references.map(ref => ({ memory_id: ref.memory_id, version: ref.version })), expected);
   assert.ok(context.references.every(ref => ref.receipt_id), "the dispatch receipt retains its retrieval identity");
   assert.equal((await bound.list("user", caller.actor_id)).find(entry => entry.memory_id === memory.memory_id)?.text, written, "the stored memory keeps its words");
+
+  // MEM-64 P2-02: with no resident refs configured, startAgentRun performs zero resident reads and still records the recall receipt.
+  const handleTaskOnly = await adapter.start({
+    ...owner,
+    session,
+    workspace: "none",
+    role_id: "reader",
+    task: "Check release notes convention",
+    role: {
+      ...role,
+      memory: {
+        ...role.memory,
+        pinned: [],
+        task: true,
+        query: "CHANGELOG",
+      },
+    },
+  });
+  let viewTaskOnly: AgentRunView;
+  for (const until = Date.now() + 20_000;; await new Promise(resolve => setTimeout(resolve, 10))) {
+    viewTaskOnly = await adapter.read(handleTaskOnly.ref);
+    if (["completed", "failed", "cancelled", "stopped"].includes(viewTaskOnly.phase)) break;
+    if (Date.now() > until) assert.fail(`run did not finish: ${viewTaskOnly.phase}`);
+  }
+  assert.equal(viewTaskOnly.phase, "completed");
+  assert.deepEqual(viewTaskOnly.memory_recalled?.injected, expected);
+  assert.equal(viewTaskOnly.memory_recalled?.contexts?.[0]?.status, "response-observed");
 });

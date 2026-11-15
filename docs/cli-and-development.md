@@ -64,6 +64,8 @@ goal-tree-propose | goal-tree-read | goal-tree-check | goal-tree-decide
 
 `molis-work demo remove --confirm` 先问这个 Home 的常驻服务：常驻服务应答时，由它的删除服务来删（项目里的终端还开着就拒绝，和设置页一样；删除记在本机这个人名下），地址按环境变量 `MOLIS_WORK_WEB_URL` > Home 的 `run/endpoint.json` > `http://127.0.0.1:4173` 找（与桌面、启动器同一套）。Home 里没有控制令牌、或那个地址没人应答，命令才在自己的进程里删；应答的是别的 Home 的服务、或终端还开着，命令报错退出，示例项目原样保留。`molis-work uninstall` 先停掉常驻服务，再在自己的进程里清示例项目。
 
+插件作者可以用 `molis-work plugin validate` 检查 Manifest、文件和声明。声明了 `state_machines` 时输出相应机器清单。检查只读包元数据。写法见[状态机 Skill](../skills/molis-plugin-dev/state-machine.md)。
+
 ## 项目结构
 
 > 仓库是插件基座加多插件的 Monorepo：包清单以 `scripts/workspace-packages.mjs` 为准，当前数量由 `pnpm workspace:check` 输出；成熟度按 [SSOT-MATRIX](SSOT-MATRIX.md) §2 的四个词（`production`、`experimental`、`slice`、`absent`）标注，其中 `absent` 只用于尚未建包的目标路径。根包只装配产品启动器，不导出代码。真实状态和 owner 见 [架构 SSOT 索引](SSOT-MATRIX.md)。

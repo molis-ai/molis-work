@@ -3,10 +3,12 @@ import { PLUGIN_INSTALL_PROVIDER_ID } from "@molis-ai/molis-work-contracts/platf
 import { PLUGIN_INSTALL_WRITE, type PluginInstalledPermissionView, type PluginInstalledView, type PluginPublisherPin, type PluginUninstallResult, type PluginUninstallTarget, type ProjectPluginInstalledView } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 export { PLUGIN_INSTALL_PROVIDER_ID };
 import { SKILL_LIMITS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
-import { SKILL_INSTALL_PREVIEW_SCHEMA, skillImportActions } from "@molis-ai/molis-work-contracts/services/skills";
+import { SKILL_INSTALL_PREVIEW_SCHEMA, skillAuthoringActions, skillImportActions, type SkillAuthoredFields } from "@molis-ai/molis-work-contracts/services/skills";
 import { PROJECT_INSTALLATION } from "@molis-ai/molis-work-contracts/services/surface-composition";
 import { assertHomePluginPermissionSettingsEntry, assertPluginConsentSettingsEntry, assertPluginPermissionSettingsEntry } from "./plugin-consent-settings-entry.js";
 import type { BundledPluginList, PluginInstallPreviewInput, PluginInstallPreviewResult, PluginInstallService, ProjectPackageControl } from "./plugin-install-service.js";
+import type { ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { SkillAuthoringService } from "./skill-authoring.js";
 import type { SkillImportService } from "./skill-import.js";
 
 // Installing a plugin from a signed package, as the person's own act (ac-trust T2, specs/archive/repository-anti-corruption/slices/ac-trust-install.md
@@ -82,14 +84,15 @@ export const pluginInstallActions = {
         jobs: { type: "array", items: { type: "object", required: ["job_id", "reason", "permissions"], properties: { job_id: text, reason: text, permissions: { type: "array", items: text } }, additionalProperties: false } },
         declarations: { type: "array", items: { type: "object", required: ["kind", "subject", "summary"], properties: { kind: text, subject: text, summary: text }, additionalProperties: false } } } } } } } } as ActionDefinition<PluginInstallPreviewInput, PluginInstallPreviewResult>,
   bundled: { capability_id: "plugins.bundled.list", version: /* @version action.plugins.bundled.list */ 1, operation: "query", action: { ...metadata, scope: "home",
-    title: "查看随安装包带上的插件", description: "列出这个安装包随带的插件包（如官方技能包）：ID、版本、名称、说明、装到个人空间还是项目，以及签名它的发布者和本人是否已固定或撤销这个发布者。每次都重新读、重新验签；读不了或验签不过的单列出原因。只读：不安装、不固定发布者、不登记技能、不留设置；要装，就把 ID 和版本交给 plugins.install.preview 的 bundled，和别的包同一条预览、确认的路。装没装看 plugins.installed.list 与 plugins.home.installed.list。",
+    title: "查看随安装包带上的插件", description: "列出这个安装包随带的插件包（如官方技能包）：ID、版本、名称、说明、装到个人空间还是项目，以及签名它的发布者和本人是否已固定或撤销这个发布者；随包带上但没有签名的（signed_here），安装时由这个 Home 用自己的发布身份签名，key_id 是那个身份的（还没有身份时为空）。每次都重新读、重新验签；读不了或验签不过的单列出原因。只读：不安装、不固定发布者、不登记技能、不留设置；要装，就把 ID 和版本交给 plugins.install.preview 的 bundled，和别的包同一条预览、确认的路。装没装看 plugins.installed.list 与 plugins.home.installed.list。",
     kind: "query", effect: "read", permissions: [PLUGIN_INSTALL_READ],
     input_schema: { type: "object", properties: {}, additionalProperties: false },
     output_schema: { type: "object", additionalProperties: false, required: ["plugins", "refused"], properties: {
       plugins: { type: "array", items: { type: "object", additionalProperties: false, required: ["plugin_id", "version", "name", "summary", "runtime_scope", "publisher"], properties: {
         plugin_id: text, version: text, name: text, summary: { type: ["string", "null"] }, runtime_scope: { enum: ["home", "project"] },
         publisher: { type: "object", additionalProperties: false, required: ["publisher_id", "key_id", "pinned_label", "revoked"], properties: {
-          publisher_id: text, key_id: text, pinned_label: { type: ["string", "null"] }, revoked: { type: "boolean" } } } } } },
+          publisher_id: text, key_id: { type: "string" }, pinned_label: { type: ["string", "null"] }, revoked: { type: "boolean" } } },
+        signed_here: { const: true } } } },
       refused: { type: "array", items: { type: "object", additionalProperties: false, required: ["file", "code", "message"], properties: { file: text, code: text, message: text } } } } } } } as ActionDefinition<Record<string, never>, BundledPluginList>,
   confirm: { capability_id: "plugins.install.confirm", version: /* @version action.plugins.install.confirm */ 1, operation: "command", action: { ...metadata, scope: "project",
     title: "确认安装插件包", description: "安装一次预览里看过的包：确认它要的权限；这个发布者还没被固定时，给出名称才会固定它（固定是本人对这个发布者的信任，之后它签的包都按这个信任安装）。预览用过一次就作废。",
@@ -174,8 +177,19 @@ export const pluginControlActions = {
 };
 
 /** Importing Skills from this machine is installing the content package the import makes, so this provider offers it too (batch 08, 08-8). */
-export const pluginInstallDefinitions = (imports?: SkillImportService) =>
-  [...Object.values(pluginInstallActions), ...Object.values(pluginControlActions), ...imports ? Object.values(skillImportActions) : []] as ActionDefinition[];
+export const pluginInstallDefinitions = (imports?: SkillImportService, authoring?: SkillAuthoring) =>
+  [...Object.values(pluginInstallActions), ...Object.values(pluginControlActions), ...imports ? Object.values(skillImportActions) : [],
+    ...authoring ? [skillAuthoringActions.save, skillAuthoringActions.remove, skillAuthoringActions.draft] : []] as ActionDefinition[];
+
+/**
+ * Writing Skills of one's own (batch 41): saving and removing are installing and taking off the scope's package of own Skills, so this
+ * provider offers them; drafting asks the text model and writes nothing. `skills.authored.read` is the catalog's (`system.skills`).
+ */
+export interface SkillAuthoring {
+  service: SkillAuthoringService;
+  draft(intent: string, caller: Parameters<ActionHandlerBinding["handle"]>[0]): Promise<SkillAuthoredFields>;
+  draftAvailability(): ActionAvailability;
+}
 
 export function pluginInstallPerson(caller: Parameters<ActionHandlerBinding["handle"]>[0]): { project_id: string; actor_id: string } {
   if (!caller.user_action) throw new ActionError("actions.forbidden", "安装插件只接受本人在界面或命令行里的操作");
@@ -183,7 +197,7 @@ export function pluginInstallPerson(caller: Parameters<ActionHandlerBinding["han
   return { project_id: caller.project_id, actor_id: caller.actor_id };
 }
 
-export function pluginInstallHandlers(service: PluginInstallService, imports?: SkillImportService): ActionHandlerBinding[] {
+export function pluginInstallHandlers(service: PluginInstallService, imports?: SkillImportService, authoring?: SkillAuthoring): ActionHandlerBinding[] {
   return [
     { capability_id: pluginInstallActions.preview.capability_id, version: pluginInstallActions.preview.version, handle: async (caller, input) => {
       const who = pluginInstallPerson(caller); await caller.beforeEffect();
@@ -245,6 +259,20 @@ export function pluginInstallHandlers(service: PluginInstallService, imports?: S
         const who = pluginInstallPerson(caller); await caller.beforeEffect();
         return imports.confirm(input, who, caller);
       }),
+    ] : [],
+    ...authoring ? [
+      bindActionHandler(skillAuthoringActions.save, async (input, caller) => {
+        const who = pluginInstallPerson(caller); await caller.beforeEffect();
+        return authoring.service.save(input, who, caller);
+      }),
+      bindActionHandler(skillAuthoringActions.remove, async (input, caller) => {
+        // Removing the last one takes the package off, which is the project settings door's alone (S-94); so every removal asks that door.
+        assertPluginPermissionSettingsEntry(caller);
+        const who = pluginInstallPerson(caller); await caller.beforeEffect();
+        return authoring.service.remove(input, who, caller);
+      }),
+      { ...bindActionHandler(skillAuthoringActions.draft, async (input, caller) => { pluginInstallPerson(caller); return authoring.draft(input.intent, caller); }),
+        availability: () => authoring.draftAvailability() },
     ] : [],
   ];
 }

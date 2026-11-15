@@ -29,7 +29,7 @@ export interface GoalsApplicationPorts {
  */
 export function createGoalsApplication(ports: GoalsApplicationPorts) {
   const { goals, governance, clock } = ports;
-  const goalEvents = new GoalEventApplication({ query: goals.query, commands: goals.commands, events: goals.events, planning: goals.planning,
+  const goalEvents = new GoalEventApplication({ query: goals.query, commands: goals.commands, events: goals.events,
     recordTrustedDecision: input => governance.eventDecisions.record(input) });
   const goalTree = new GoalTreeQueryApplication({ goals: goals.query, governance });
   const goalDecisionAttention = new GoalDecisionAttentionSync({ attention: ports.attention, owner: GOALS_PLUGIN_ID,

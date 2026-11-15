@@ -102,7 +102,6 @@ function renderMolisWorkRefreshFragment(
   const stageList = goalsTreeRenderer.renderGoalStageList(view, collection, renderGoalProposals(view));
   const goalStage = showTui ? `<div class="goal-canvas-shell" data-goal-canvas-shell data-record-owner="goals" data-board-view="list">
     ${stageList}
-    <section class="goal-work-planning-pane" data-goal-work-planning aria-label="${uiText("goals.workbench-stage.work-planning")}"></section>
     <section class="goal-work-rules-pane settings-stage" data-goal-work-rules aria-label="${uiText("goals.workbench-stage.work-rules")}"></section>
     ${renderMomentumPlaceholder()}
     ${renderGoalKanban(view, selected?.goal.goal_id || "", view.goals)}
@@ -112,7 +111,6 @@ function renderMolisWorkRefreshFragment(
       <button class="mw-toggle" type="button" data-board-view-tab="canvas" aria-pressed="false" aria-label="${uiText("goals.workbench-stage.canvas")}" title="${uiText("goals.workbench-stage.canvas")}">${icon("network")}<span class="goal-board-switch-label">${uiText("goals.workbench-stage.canvas")}</span></button>
       <button class="mw-toggle" type="button" data-board-view-tab="kanban" aria-pressed="false" aria-label="${uiText("goals.workbench-stage.board")}" title="${uiText("goals.workbench-stage.board")}">${icon("columns")}<span class="goal-board-switch-label">${uiText("goals.workbench-stage.board")}</span></button>
     </div>
-    <button class="mw-btn mw-btn--ghost goal-work-planning-toggle" type="button" data-open-work-planning aria-pressed="false" data-craft-tip="${uiText("goals.workbench-stage.work-planning")}">${icon("workflow")}<span>${uiText("goals.workbench-stage.work-planning")}</span></button>
     <button class="mw-btn mw-btn--ghost goal-work-planning-toggle" type="button" data-open-work-rules aria-pressed="false" data-craft-tip="${uiText("goals.workbench-stage.work-rules")}">${icon("shield")}<span>${uiText("goals.workbench-stage.work-rules")}</span></button></div>
     <section class="goal-node-workspace" data-goal-node-workspace aria-label="${uiText("goals.workbench-stage.goal-workspace")}" hidden>
       ${renderImmersiveGoalHeader(selected?.goal.title || "", primitives)}

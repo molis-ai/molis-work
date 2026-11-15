@@ -126,7 +126,7 @@ test("MCP grants are exact for client, project, Home, provider, version and acce
   assert.throws(() => createMcpActionGrant(caller.actor_id, null, project, true), { code: "actions.project_required" });
   // The owner's audience rule. Through the access settings a view of another audience never gets here (the directory the route reads
   // does not list it, so the request is refused as unknown: goals-decision-actions, goals-tree-actions, goals-configuration-actions,
-  // personal-planning-actions), so it is pinned at its owner: a client holds a grant only for an action that reaches its own audience.
+  // personal-planning-actions, gone with the method library in batch 41), so it is pinned at its owner: a client holds a grant only for an action that reaches its own audience.
   const mine = (audiences: ActionView["action"]["audiences"]): ActionView => ({ ...project, action: { ...project.action, audiences } });
   assert.throws(() => createMcpActionGrant(caller.actor_id, "a", mine(["user"]), true), { code: "mcp.grant_invalid" }, "an action for the person alone is not grantable to an MCP client");
   assert.throws(() => createMcpActionGrant("agent:prologue", "a", mine(["mcp"]), true), { code: "mcp.grant_invalid" }, "an internal Agent's identity needs an action that reaches Agents");

@@ -1919,6 +1919,11 @@
     "coding.rules.foot": "Rules can only constrain Coding; they never give it more permissions. A changed instruction file applies from the next round.",
     "coding.call.find-symbol": "Find symbol",
     "coding.call.find-symbol.doing": "Finding a symbol",
-    "coding.onboarding.session-title": "From getting started"
+    "coding.onboarding.session-title": "From getting started",
+    "coding.skills.used": "Used",
+    "coding.skills.auto": "picked by AI",
+    "coding.skills.named": "named by you",
+    "coding.skills.none": "No skill was used this round",
+    "coding.skills.choose": "Choose one"
   }
 }

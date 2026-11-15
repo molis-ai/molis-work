@@ -33,6 +33,7 @@ import {
   historySummaryMaterial,
   isValidFibonacciStoryPoints,
   parseCodingPlan,
+  parseStepProgressPercent,
   stepPointsBadge,
 } from "@molis-ai/molis-work-plugin-coding";
 import {
@@ -102,7 +103,15 @@ function makeFakeBlock(): FakeNode {
 }
 
 test("Batch 33 component catalog specimens (#recovery-closures) and ENV file mark render decided shapes", () => {
-  // CHO-11, CHO-12, CHO-13, CHO-35, ONB-38, C12, C14
+  // CHO-11, CHO-12, CHO-13, CHO-35, CHO-31..33, ONB-38, C12, C14
+  assert.equal(parseStepProgressPercent("0"), 0, "0% maps to 0 fraction");
+  assert.equal(parseStepProgressPercent("1"), 0.01, "1% maps to 0.01 fraction rather than 99%");
+  assert.equal(parseStepProgressPercent("50"), 0.5);
+  assert.equal(parseStepProgressPercent("99%"), 0.99);
+  assert.equal(parseStepProgressPercent("12.5%"), 0.125);
+  for (const invalid of ["", "   ", "abc", "-5", "100", "120"]) {
+    assert.equal(parseStepProgressPercent(invalid), null, `invalid progress "${invalid}" must return null`);
+  }
   const catalogHtml = withPageText("zh", [], renderPrimitiveCatalog);
   assert.ok(catalogHtml.includes("href=\"#recovery-closures\""), "recovery-closures is indexed in catalog navigation");
   assert.ok(catalogHtml.includes("id=\"recovery-closures\""), "missing catalog section recovery-closures");

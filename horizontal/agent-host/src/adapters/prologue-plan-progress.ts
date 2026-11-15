@@ -162,17 +162,27 @@ export function applyUnknownCommandOutcomes(
       r.note.trim().startsWith("用户核对完成：") && (!Number.isFinite(cmdMs) || r.at_ms >= cmdMs));
     const confirmSaved = reconciledSteps?.[target.id]?.action === "confirm-done"
       && (!Number.isFinite(cmdMs) || reconciledSteps[target.id]!.at_ms >= cmdMs);
-    const rerunTimes = target.reports
-      .filter(r => r.note.trim().startsWith("用户决定重新执行：") && (!Number.isFinite(cmdMs) || r.at_ms >= cmdMs))
-      .map(r => r.at_ms);
+    let lastRerunIdx = -1;
+    for (let i = target.reports.length - 1; i >= 0; i--) {
+      const r = target.reports[i]!;
+      if (r.note.trim().startsWith("用户决定重新执行：") && (!Number.isFinite(cmdMs) || r.at_ms >= cmdMs)) {
+        lastRerunIdx = i;
+        break;
+      }
+    }
     const savedRerunAt = reconciledSteps?.[target.id]?.action === "rerun"
       && (!Number.isFinite(cmdMs) || reconciledSteps[target.id]!.at_ms >= cmdMs)
       ? reconciledSteps[target.id]!.at_ms
       : undefined;
-    const latestRerunAt = Math.max(-Infinity, ...rerunTimes, ...(savedRerunAt !== undefined ? [savedRerunAt] : []));
-    const rerunAccounted = Number.isFinite(latestRerunAt) && (
-      target.state !== "succeeded"
-      || target.reports.some(r => !r.note.trim().startsWith("用户决定重新执行：") && r.at_ms > latestRerunAt)
+    const latestRerunAt = Math.max(
+      -Infinity,
+      ...(lastRerunIdx >= 0 ? [target.reports[lastRerunIdx]!.at_ms] : []),
+      ...(savedRerunAt !== undefined ? [savedRerunAt] : []),
+    );
+    const hasPostRerunCompletion = (lastRerunIdx >= 0 && lastRerunIdx < target.reports.length - 1)
+      || (Number.isFinite(latestRerunAt) && target.reports.some(r => !r.note.trim().startsWith("用户决定重新执行：") && r.at_ms > latestRerunAt));
+    const rerunAccounted = (lastRerunIdx >= 0 || Number.isFinite(latestRerunAt)) && (
+      target.state !== "succeeded" || hasPostRerunCompletion
     );
     if (!confirmInReports && !confirmSaved && !rerunAccounted) {
       flaggedIds.add(target.id);

@@ -2,6 +2,7 @@ import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { el } from "./dom.js";
 import type { Amendment, StepNode } from "./shapes.js";
 import { svg } from "./taskboard-format.js";
+import { parseStepProgressPercent } from "./taskboard-steps.js";
 import type { BoardRow, RowEdit, RowView } from "./taskboard-types.js";
 
 /** An input of the inline form: its name, placeholder, longest text, starting value and whether it may be left empty. */
@@ -13,7 +14,7 @@ interface Question {
   /** A labelled checkbox after the inputs, off by default. */
   readonly check?: readonly [name: string, label: string];
   readonly submit: string;
-  readonly build: (texts: readonly string[], checked: boolean) => Amendment;
+  readonly build: (texts: readonly string[], checked: boolean) => Amendment | null;
 }
 
 /** What the tools of one step row share. */
@@ -101,9 +102,11 @@ function ask(tools: Tools, question: Question) {
   ports.lifetime.listen(form, "submit", async event => {
     event.preventDefault();
     if (texts.some((input, idx) => !question.fields[idx]?.[4] && !input.value.trim())) return;
+    const built = question.build(texts.map(input => input.value.trim()), box?.checked ?? false);
+    if (!built) return;
     ok.disabled = true;
     delete board.dataset.editing;
-    await change(tools, question.build(texts.map(input => input.value.trim()), box?.checked ?? false));
+    await change(tools, built);
   });
   entry.after(form);
   texts[0]?.focus();
@@ -154,13 +157,16 @@ function stepTools(tools: Tools) {
       },
     }));
     if (node.state !== "succeeded") {
-      const initPct = node.progress !== undefined && node.progress > 0 ? String(Math.round(node.progress * 100)) : "";
+      const initPct = node.progress !== undefined ? String(Math.round(node.progress * 100)) : "";
       add(tools, uiText.text("coding.board.progress-edit"), "edit", () => ask(tools, {
-        fields: [["percent", uiText.text("coding.board.progress-percent"), 4, initPct], ["basis", uiText.text("coding.board.progress-basis-input"), 300, node.progress_basis || ""]],
+        fields: [["percent", uiText.text("coding.board.progress-percent"), 6, initPct], ["basis", uiText.text("coding.board.progress-basis-input"), 300, node.progress_basis || ""]],
         submit: uiText.text("coding.board.progress-save"),
         build: ([pctText, basis]) => {
-          const raw = Number(pctText);
-          const fraction = Number.isFinite(raw) ? Math.max(0.01, Math.min(0.99, raw > 1 ? raw / 100 : raw)) : 0;
+          const fraction = parseStepProgressPercent(pctText ?? "");
+          if (fraction === null) {
+            tools.view.ports.status(uiText.text("coding.board.progress-percent"), true);
+            return null;
+          }
           return { kind: "progress", node: node.id, progress: fraction, basis: basis! };
         },
       }));

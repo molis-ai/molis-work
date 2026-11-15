@@ -150,7 +150,7 @@ Prologue Node 接上宿主审查队列时声明子任务能力 `partial`。同�
 
 工作树准备、选择、成果整合与 TaskBoard 叶子节点斐波那契加权汇总（`computeWeightedStepBoardProgress`，持久化 `skipped` 标记与跨轮次未结束/失败/待核对运行中未知命令步骤的 `unknown_outcome` 对账）已接入 Coding；现有正式角色仍需完成调用方的目录授权与用户保存分工后才开放并行写入。
 
-`agent.subagents.list` / `agent.subagents.cancel` / `agent.subagents.retry` 先核对项目、安装、原 Session 与 Run，再读取、停止或按父轮冻结模型配置重试/扩充子任务额度（`retry` / `extend-budget` 在占用活跃执行槽位前完成状态与额度校验）。SDK 登记与原事件拥有状态、正文、活动和用量；Host 只额外保存角色来源、尝试预算与历次尝试记录，关闭重启不自动重派。成功结束与用户接受分别记录，后者由消费插件拥有。完整报告通过原 SDK `await-subagents` 的 `reportOffset` 分页读取最后一段结果，默认回传明确为摘要。本轮冻结材料的 `read_revision` 由 `prologueActionTools` 与 `prologueActionGateway` 在 `knowledge.read@1` 及 `materials.read@1` 统一强制校验（`S-41`），防止中途改版混读。
+`agent.subagents.list` / `agent.subagents.cancel` / `agent.subagents.retry` 先核对项目、安装、原 Session 与 Run，再读取、停止或按父轮冻结模型配置重试/扩充子任务额度（`retry` / `extend-budget` 在派发续跑前完成存在性、状态与额度校验，并持久化尝试来源与登记）。SDK 登记与原事件拥有状态、正文、活动和用量；Host 只额外保存角色来源、尝试预算与历次尝试记录，关闭重启不自动重派。成功结束与用户接受分别记录，后者由消费插件拥有。完整报告通过原 SDK `await-subagents` 的 `reportOffset` 分页读取最后一段结果，默认回传明确为摘要。本轮冻结材料的 `read_revision` 由 `prologueActionTools` 与 `prologueActionGateway` 在 `knowledge.read@1` 及 `materials.read@1` 统一强制校验（`S-41`），防止中途改版混读。
 
 ReviewQueue.observeSettlement 是 Host 投影通知口：只通知执行 owner 新记录的成功、失败或未知回执，重复 settle 与 Prologue 恢复历史不重复通知。监听错误不改写已提交 Effect，也不触发执行重试；消费者必须按项目过滤并自行释放。插件发起的 Host 操作，监听者另收到发起时记下的 `ReviewAuthority`（只在本进程里，不写进审查记录）；它的 `holds()` 说那次激活是否还在。宿主据此把 `host.review.settled@1` 只发给发起的那个安装（X-6，S-54，`apps/local-host/src/review-settlement-events.ts`）；没有发起安装的（Agent 自己的改动、恢复出来的审查）不发。
 

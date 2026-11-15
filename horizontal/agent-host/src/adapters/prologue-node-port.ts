@@ -21,7 +21,7 @@ import { codingExecutionRules } from "./prologue-taskboard.js";
 import type { PrologueAdapterOptions, PrologueRuntimePort } from "./prologue.js";
 import { PROLOGUE_RUNTIME_ID } from "./prologue-adapter-capabilities.js";
 import { agentErrors } from "../errors.js";
-import { MAX_COMPOSED_INSTRUCTION_CHARS, readResource, sameRef, stageTextResource, type CommandEvent, type DispatchGuard, type NodeHost, type PrologueNodeAdapterOptions, type RoundState } from "./prologue-node-kit.js";
+import { MAX_COMPOSED_INSTRUCTION_CHARS, readResource, sameRef, stageTextResource, unexecutedApprovalCallOf, type CommandEvent, type DispatchGuard, type NodeHost, type PrologueNodeAdapterOptions, type RoundState } from "./prologue-node-kit.js";
 import { SESSION_INDEX_SCHEMA, type SessionIndexStore } from "./prologue-session-index.js";
 import type { createPrologueMemoryAuthority } from "./prologue-memory-authority.js";
 
@@ -470,17 +470,7 @@ export function createNodePort(deps: PortDeps): PrologueRuntimePort {
       state.modelRequests.add(heard); return () => { state.modelRequests.delete(heard); };
     },
     unexecutedApprovalCall(run, waiting) {
-      if (waiting.effect_revision === undefined || waiting.pending_revision === undefined) return undefined;
-      const effectRef = { kind: "effect" as const, id: waiting.effect_id, revision: waiting.effect_revision };
-      const effect = runtime.effects.get(effectRef), pending = effect?.pending, origin = effect?.proposal.origin;
-      if (!effect || !pending || !sameRef(effect.ref, effectRef) || pending.kind !== "effect-approval"
-        || pending.ref.id !== waiting.pending_id || pending.ref.revision !== waiting.pending_revision
-        || !pending.effectRef || !sameRef(pending.effectRef, effectRef) || pending.state === "settled"
-        || !["awaiting-approval", "cancelled", "denied"].includes(effect.state)
-        || origin?.session !== run.session_id || origin.run !== run.run_id
-        || pending.origin?.session !== run.session_id || pending.origin.run !== run.run_id
-        || pending.origin?.toolCall !== origin.toolCall) return undefined;
-      return origin.toolCall;
+      return unexecutedApprovalCallOf(runtime, run, waiting);
     },
     readStepBoard: run => stepBoards.read(run),
     messages: { read: (project, sessionId) => messages.read(project, sessionId), cancel: (project, id) => messages.cancel(project, id),

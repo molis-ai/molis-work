@@ -2010,7 +2010,7 @@
     "coding.skills.choose": "Choose one",
     "coding.board.progress-basis-input": "Progress basis (e.g. 2/4 tests passing)",
     "coding.board.progress-edit": "Log progress",
-    "coding.board.progress-percent": "Completion percent (1-99)",
+    "coding.board.progress-percent": "Completion percent (0-99)",
     "coding.board.progress-save": "Save progress",
     "coding.board.reconcile-confirm": "Confirm done",
     "coding.board.reconcile-confirm-note": "Check note (confirm operation finished)",

@@ -256,6 +256,21 @@ interface ParsedNodeMetrics {
   unknown_outcome?: true;
 }
 
+function isUnreplacedPreRerunSuccess(chain: readonly TaskNode[], saved: ReconciledStepEntry | undefined): boolean {
+  if (saved?.action !== "rerun" || chain.length !== 1) return false;
+  const activeNode = chain[0]!;
+  if (activeNode.state !== "succeeded") return false;
+  let lastRerunIdx = -1;
+  for (let i = activeNode.reports.length - 1; i >= 0; i--) {
+    if (activeNode.reports[i]!.note.trim().startsWith("用户决定重新执行：")) {
+      lastRerunIdx = i;
+      break;
+    }
+  }
+  if (lastRerunIdx >= 0) return lastRerunIdx >= activeNode.reports.length - 1;
+  return !activeNode.reports.some(r => r.atMs > saved.at_ms);
+}
+
 function parseNodeMetrics(
   chain: readonly TaskNode[],
   place: PlanPlace,
@@ -334,7 +349,7 @@ function parseNodeMetrics(
 
   const saved = local ? reconciledSteps?.[local] : undefined;
   if (saved?.action === "confirm-done") unknownOutcome = false;
-  else if (saved?.action === "rerun" && chain.length === 1 && activeNode.state === "succeeded") unknownOutcome = true;
+  else if (isUnreplacedPreRerunSuccess(chain, saved)) unknownOutcome = true;
   if (local && unknownStepIds?.has(local)) unknownOutcome = true;
   if (activeNode.state === "needs-reconciliation") unknownOutcome = true;
   const effectiveProgress = activeNode.state === "succeeded" && !unknownOutcome ? 1 : reportedProgress;
@@ -379,7 +394,7 @@ export function shape(
       };
     });
     const savedRec = reconciledSteps?.[id];
-    const unreplacedSucceededRerun = savedRec?.action === "rerun" && chain.length === 1 && activeNode.state === "succeeded";
+    const unreplacedSucceededRerun = isUnreplacedPreRerunSuccess(chain, savedRec);
     const hasRecReport = baseReports.some(r =>
       (r.note.trim().startsWith("用户核对完成：") || r.note.trim().startsWith("用户决定重新执行："))
       && (!savedRec || r.at_ms >= savedRec.at_ms - 1000));

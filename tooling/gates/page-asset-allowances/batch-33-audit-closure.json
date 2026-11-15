@@ -1,7 +1,7 @@
 {
-  "reason": "第 33 批合后五维审计收口（2026-11-15）：补齐任务板未知命令对账控件（confirm-done / rerun）与手动百分比进度更新控件（0..100% + basis）、welcome 首屏按所选目录（?workspace_id=...）展示环境准备清单并隔离异目录/隔离分支轮次、编辑步骤时保留并重排树形 parent 层级、按叶子节点统一进度口径与子任务主轮在线 steer 重试；同时清掉 19 个无用词条与服务端预翻译字段。按需插件脚本 `/assets/molis-work-plugins/coding.js` 356,649 → 358,711 B（+2,062 B，低于 10 KB），其余静态资源 0 B 或缩小，无新增资源。",
-  "review": "fix/33-audit-followups，对 origin/main c067437460a154fd87b3a555a5ed49728ae00d1f 隔离构建实测；记录见 specs/post-anticorruption-roadmap/reference/batches/33.md。",
+  "reason": "第 33 批合后五维审计收口（2026-11-15）：补齐任务板未知命令对账控件（confirm-done / rerun）与手动百分比进度更新控件（0..99% + basis，含 parseStepProgressPercent 严格校验）、welcome 首屏按所选目录（?workspace_id=...）展示环境准备清单并隔离异目录/隔离分支轮次、编辑步骤时保留并重排树形 parent 层级、按叶子节点统一进度口径与子任务主轮在线 steer 重试；同时清掉 19 个无用词条与服务端预翻译字段。按需插件脚本 `/assets/molis-work-plugins/coding.js` 356,649 → 358,890 B（+2,241 B，低于 10 KB），其余静态资源 0 B 或缩小，无新增资源。",
+  "review": "fix/33-audit-followups，对 origin/main f164bd12960c07882fd4be1d6c643aaa823acdcc 隔离构建实测；记录见 specs/post-anticorruption-roadmap/reference/batches/33.md。",
   "assets": {
-    "/assets/molis-work-plugins/coding.js": 2062
+    "/assets/molis-work-plugins/coding.js": 2241
   }
 }

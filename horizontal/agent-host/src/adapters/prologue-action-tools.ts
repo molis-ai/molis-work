@@ -34,9 +34,10 @@ function knowledgeSubjectHashRef(subject: ActionSubject): string {
 /** Build round-pinned revisions from text materials so mid-round `knowledge.read` on the same piece cannot silently mix two revisions (C13). */
 export function pinnedMaterialRevisions(materials: readonly AgentTextMaterial[] | undefined): ReadonlyMap<string, string> {
   const map = new Map<string, string>();
-  const pinOne = (entry: { material_id?: string; material_ref?: AgentTextMaterial["material_ref"]; source_artifact_id?: string; source_version?: number; read_revision?: string }) => {
+  const pinOne = (entry: { material_id?: string; subject?: ActionSubject; material_ref?: AgentTextMaterial["material_ref"]; source_artifact_id?: string; source_version?: number; read_revision?: string }) => {
     const rev = entry.read_revision ?? (entry.material_ref?.pin.mode === "current" ? entry.material_ref.pin.read_revision : undefined);
-    let subject: ActionSubject | undefined = entry.material_ref?.subject
+    let subject: ActionSubject | undefined = entry.subject
+      ?? entry.material_ref?.subject
       ?? (entry.source_artifact_id && entry.source_version !== undefined
         ? { kind: "artifact", id: `${entry.source_artifact_id}@${entry.source_version}` }
         : undefined);

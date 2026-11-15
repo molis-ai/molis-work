@@ -1872,7 +1872,7 @@
     "coding.skills.choose": "选一个",
     "coding.board.progress-basis-input": "已完成依据（如 2/4 测试通过）",
     "coding.board.progress-edit": "记录进度",
-    "coding.board.progress-percent": "完成百分比（1-99）",
+    "coding.board.progress-percent": "完成百分比（0-99）",
     "coding.board.progress-save": "保存进度",
     "coding.board.reconcile-confirm": "确认已完成",
     "coding.board.reconcile-confirm-note": "核对说明（确认操作已完成）",

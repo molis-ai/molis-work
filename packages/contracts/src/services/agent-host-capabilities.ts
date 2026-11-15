@@ -111,12 +111,14 @@ const stepBoardOutput = shape(["project_id", "version", "terminal", "nodes"], { 
 const memoryRef = shape(["memory_id", "version"], { memory_id: string, version: number });
 const materialDelivery = { enum: ["full", "clipped", "on-demand"] } as const;
 const materialChars = { type: "integer", minimum: 0, maximum: Number.MAX_SAFE_INTEGER } as const;
+const materialSubject = { type: "object", required: ["kind", "id"], additionalProperties: false,
+  properties: { kind: { type: "string", minLength: 1, maxLength: 200 }, id: { type: "string", minLength: 1, maxLength: 16_584 } } } as const;
 const materialOverflowItem = { type: "object", required: ["title", "delivery"], additionalProperties: false, properties: {
-  material_id: { type: "string", minLength: 1, maxLength: 240 },
+  material_id: { type: "string", minLength: 1, maxLength: 240 }, subject: materialSubject,
   title: { type: "string", maxLength: 2000 }, material_ref: MATERIAL_REF_SCHEMA, read_revision: { type: "string", minLength: 1, maxLength: 200 },
   delivery: materialDelivery, total_chars: materialChars, delivered_chars: materialChars,
   source_artifact_id: { type: "string", minLength: 1, maxLength: 200 }, source_version: { type: "integer", minimum: 1, maximum: Number.MAX_SAFE_INTEGER } } } as const;
-const materialFields = { material_id: { type: "string", minLength: 1, maxLength: 240 }, title: { type: "string", maxLength: 2000 },
+const materialFields = { material_id: { type: "string", minLength: 1, maxLength: 240 }, subject: materialSubject, title: { type: "string", maxLength: 2000 },
   material_ref: MATERIAL_REF_SCHEMA, read_revision: { type: "string", minLength: 1, maxLength: 200 },
   delivery: materialDelivery, total_chars: materialChars, delivered_chars: materialChars,
   overflow_materials: { type: "array", maxItems: 200, items: materialOverflowItem } } as const;

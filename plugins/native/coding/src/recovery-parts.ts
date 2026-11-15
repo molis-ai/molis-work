@@ -72,6 +72,7 @@ export interface CodingRoundMaterialsRunInput {
     readonly text_materials?: readonly {
       readonly material_id: string;
       readonly title?: string;
+      readonly subject?: { readonly kind: string; readonly id: string };
       readonly material_ref?: { readonly subject?: { readonly kind: string; readonly id: string } };
       readonly source_artifact_id?: string;
       readonly source_version?: number;
@@ -88,6 +89,15 @@ export interface CodingRoundMaterialsRunInput {
     readonly target?: string;
     readonly output?: string;
   }[];
+}
+
+/** Parses an inline manual step-progress percentage (`0..99`, optional trailing `%`) into a `0..0.99` fraction, or `null` when invalid. */
+export function parseStepProgressPercent(rawText: string): number | null {
+  const cleaned = rawText.trim().replace(/%$/u, "").trim();
+  if (!cleaned) return null;
+  const pct = Number(cleaned);
+  if (!Number.isFinite(pct) || pct < 0 || pct > 99) return null;
+  return Math.round(pct * 100) / 10_000;
 }
 
 export function skippedStep(node: { readonly skipped?: boolean }): boolean {
@@ -404,7 +414,13 @@ export function buildEnvironmentChecklistHtml(readiness: CodingEnvironmentReadin
 
 function wasMaterialContinuedRead(
   activity: CodingRoundMaterialsRunInput["activity"],
-  item: { readonly material_id?: string; readonly title?: string; readonly source_artifact_id?: string; readonly material_ref?: { readonly subject?: { readonly id: string } } },
+  item: {
+    readonly material_id?: string;
+    readonly title?: string;
+    readonly source_artifact_id?: string;
+    readonly subject?: { readonly id: string };
+    readonly material_ref?: { readonly subject?: { readonly id: string } };
+  },
 ): boolean {
   const tokenSet = new Set<string>();
   const addToken = (candidate: string | undefined, minLength: number) => {
@@ -419,7 +435,7 @@ function wasMaterialContinuedRead(
     const colon = beforeRev?.indexOf(":") ?? -1;
     if (beforeRev && colon > 0) addToken(beforeRev.slice(colon + 1), 4);
   }
-  addToken(item.material_ref?.subject?.id, 4);
+  addToken(item.subject?.id ?? item.material_ref?.subject?.id, 4);
   addToken(item.title, 6);
   const tokens = [...tokenSet];
   if (!tokens.length) return false;

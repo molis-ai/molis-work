@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
@@ -11,6 +11,7 @@ import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import {
   MolisWorkLocalHost,
   molisWorkHostProjectReference,
+  startContextJourney,
   waitContextJourney,
 } from "@molis-ai/molis-work-app-local-host";
 import { artifactsActions } from "@molis-ai/molis-work-module-artifacts";
@@ -85,7 +86,7 @@ async function setupOnboardingHarness(t: TestContext) {
     return result.versions ?? [];
   }
 
-  return { dir, model, served, seenWireBodies, stageFile, listProjectArtifacts };
+  return { dir, host, model, served, seenWireBodies, stageFile, listProjectArtifacts };
 }
 
 test("S-onboarding-secret-hold unapproved secret-like files stay held locally and never reach the model or project stores", async t => {
@@ -266,6 +267,10 @@ test("S-onboarding-secret-hold exclude drops the held secret file and byte edits
   }
   for (const secretPath of [
     "config/client_secret_web.json",
+    "config/service_account.json",
+    "config/service-account-prod.json",
+    "config/secrets.prod.yaml",
+    ".env.example.local",
     "auth.json",
     ".npmrc",
     ".netrc",
@@ -274,4 +279,151 @@ test("S-onboarding-secret-hold exclude drops the held secret file and byte edits
   ]) {
     assert.equal(contextFileSkip(secretPath), "secret", `${secretPath} must classify as secret in contextFileSkip`);
   }
+  for (const safeTemplate of [".env.example", ".env.sample", ".env.template"]) {
+    assert.equal(contextFileSkip(safeTemplate), null, `${safeTemplate} must be allowed as safe template in contextFileSkip`);
+  }
+
+  // Verify the Host onboarding document classifier matches the exact same filename rules end-to-end:
+  const ruleId = randomUUID();
+  await served.web.post("/api/onboarding/context", { id: ruleId });
+  const ruleFiles = await Promise.all([
+    stageFile(ruleId, "config/service_account.json", "{\"project_id\":\"demo\"}"),
+    stageFile(ruleId, "config/secrets.prod.yaml", "region: us-east-1\n"),
+    stageFile(ruleId, ".env.example.local", "PORT=3000\n"),
+    stageFile(ruleId, ".env.example", "OPENAI_API_KEY=your_api_key_here\nPORT=3000\n"),
+    stageFile(ruleId, ".env.sample", "PORT=3000\n"),
+    stageFile(ruleId, ".env.template", "PORT=3000\n"),
+  ]);
+  await served.web.post(`/api/onboarding/context/${ruleId}/selection`, {
+    sources: [{ kind: "files", selected: true, files: ruleFiles.map(f => ({ path: f.path, staged: f.staged })) }],
+  });
+  await served.web.post(`/api/onboarding/context/${ruleId}/start`, {});
+  await waitContextJourney(dir, ruleId);
+  const ruleView = await served.web.get<JourneyView>(`/api/onboarding/context/${ruleId}`);
+  const ruleSource = ruleView.sources.find(s => s.kind === "files")!;
+  const heldPaths = new Set((ruleSource.held_secrets ?? []).map(h => h.path));
+  const refPaths = new Set((ruleSource.references ?? []).map(r => r.path));
+  assert.equal(heldPaths.has("config/service_account.json"), true);
+  assert.equal(heldPaths.has("config/secrets.prod.yaml"), true);
+  assert.equal(heldPaths.has(".env.example.local"), true);
+  assert.equal(refPaths.has(".env.example") && !heldPaths.has(".env.example"), true);
+  assert.equal(refPaths.has(".env.sample") && !heldPaths.has(".env.sample"), true);
+  assert.equal(refPaths.has(".env.template") && !heldPaths.has(".env.template"), true);
+});
+
+test("S-onboarding-secret-hold rejected beforeEffect leaves zero staged text files on disk and running decideContextSecret never strands journey in failed", async t => {
+  // AGENTS.md beforeEffect + S-onboarding-secret-hold
+  const { dir, host, served, stageFile } = await setupOnboardingHarness(t);
+  const id = randomUUID();
+  await served.web.post("/api/onboarding/context", { id });
+  const dotEnv = await stageFile(id, ".env.local", SECRET_ENV);
+  await served.web.post(`/api/onboarding/context/${id}/selection`, {
+    sources: [{ kind: "files", selected: true, files: [{ path: dotEnv.path, staged: dotEnv.staged }] }],
+  });
+  await served.web.post(`/api/onboarding/context/${id}/start`, {});
+  await waitContextJourney(dir, id);
+  const firstPass = await served.web.get<JourneyView>(`/api/onboarding/context/${id}`);
+  const held = firstPass.sources.find(s => s.kind === "files")?.held_secrets?.[0];
+  assert.ok(held);
+
+  const textsDir = join(dir, "context-onboarding", "journeys", id, "texts");
+  const listTexts = async () => readdir(textsDir).catch(() => [] as string[]);
+  assert.deepEqual(await listTexts(), [], "no text file exists before secret approval");
+
+  const realHomeClient = host.homeActionClient.bind(host);
+  let revokeAtBeforeEffect = false;
+  host.homeActionClient = () => {
+    const inner = realHomeClient();
+    return {
+      ...inner,
+      invoke: (caller, ref, input) => {
+        if (!revokeAtBeforeEffect || ref.capability_id !== "onboarding.context.secret") {
+          return inner.invoke(caller, ref, input);
+        }
+        let checkCount = 0;
+        return inner.invoke({
+          ...caller,
+          validate_authority: async target => {
+            checkCount += 1;
+            await caller.validate_authority?.(target);
+            if (checkCount >= 2) throw new Error("caller_revoked_before_effect");
+          },
+        }, ref, input);
+      },
+    };
+  };
+
+  revokeAtBeforeEffect = true;
+  try {
+    for (const decision of ["raw", "strip"] as const) {
+      const res = await fetch(`${served.origin}/api/onboarding/context/${encodeURIComponent(id)}/secret`, {
+        method: "POST",
+        headers: {
+          origin: served.origin,
+          "content-type": "application/json",
+          "x-molis-work-control-token": served.controlToken,
+          "x-molis-work-idempotency-key": randomUUID(),
+        },
+        body: JSON.stringify({ key: held.key, decision }),
+      });
+      assert.equal(res.status, 400);
+      const errBody = await res.json() as { error?: string };
+      assert.match(String(errBody.error ?? ""), /caller_revoked_before_effect/);
+      assert.deepEqual(await listTexts(), [], `rejected beforeEffect on ${decision} must write zero files into texts/`);
+    }
+  } finally {
+    revokeAtBeforeEffect = false;
+  }
+  const unchanged = await served.web.get<JourneyView>(`/api/onboarding/context/${id}`);
+  assert.equal(unchanged.sources.find(s => s.kind === "files")?.held_secrets?.length, 1);
+
+  // Now test while an active organize pass is running (`wasRunning === true`) with `reorganize: false`:
+  const idRun = randomUUID();
+  await served.web.post("/api/onboarding/context", { id: idRun });
+  const readme = await stageFile(idRun, "README.md", "# 公开说明\n普通项目介绍。");
+  const envRun = await stageFile(idRun, ".env.local", SECRET_ENV);
+  await served.web.post(`/api/onboarding/context/${idRun}/selection`, {
+    sources: [{
+      kind: "files",
+      selected: true,
+      files: [{ path: readme.path, staged: readme.staged }, { path: envRun.path, staged: envRun.staged }],
+    }],
+  });
+  await served.web.post(`/api/onboarding/context/${idRun}/start`, {});
+  await waitContextJourney(dir, idRun);
+  const readyRun = await served.web.get<JourneyView>(`/api/onboarding/context/${idRun}`);
+  const heldRun = readyRun.sources.find(s => s.kind === "files")!.held_secrets![0]!;
+
+  let releaseModel!: () => void;
+  const gate = new Promise<void>(resolve => { releaseModel = resolve; });
+  await served.web.post(`/api/onboarding/context/${idRun}/reopen`, {});
+  await served.web.post(`/api/onboarding/context/${idRun}/selection`, {
+    sources: [{
+      kind: "files",
+      selected: true,
+      files: [{ path: readme.path, staged: readme.staged }, { path: envRun.path, staged: envRun.staged }],
+    }],
+  });
+  const slowModel = async () => ({
+    runtimeLabel: "slow-fixture",
+    completeText: async () => {
+      await gate;
+      return "# 项目背景\n已合并脱敏材料 [S1] [S2]";
+    },
+  });
+  startContextJourney(dir, idRun, { model: slowModel });
+  for (let i = 0; i < 40; i++) {
+    const cur = await served.web.get<JourneyView>(`/api/onboarding/context/${idRun}`);
+    if (cur.sources.find(s => s.kind === "files")?.held_secrets?.length) break;
+    await new Promise(r => setTimeout(r, 10));
+  }
+  const duringRun = await served.web.post<JourneyView>(`/api/onboarding/context/${idRun}/secret`, {
+    key: heldRun.key,
+    decision: "strip",
+    reorganize: false,
+  });
+  assert.notEqual(duringRun.phase, "failed", "decideContextSecret while running must resume cleanly instead of stranding journey in failed");
+  releaseModel();
+  const settled = await waitContextJourney(dir, idRun);
+  assert.equal(settled.phase, "review");
 });

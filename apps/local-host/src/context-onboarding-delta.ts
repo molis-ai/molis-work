@@ -1,4 +1,8 @@
-import { prepareContextDocument } from "./context-onboarding-documents.js";
+import {
+  readHeldSecretMaterialInMemory,
+  stagePreparedHeldSecretReference,
+  type PreparedHeldSecretInMemory,
+} from "./context-onboarding-documents.js";
 import { includedContextFiles } from "./context-onboarding-sources.js";
 import type {
   ContextJourney,
@@ -207,14 +211,14 @@ export function deduplicateSelectedReferences(selectedSources: readonly ContextS
   return unique;
 }
 
-/** Prepares stripped/raw material outside store mutation so cancelled callers never write business state (`S-onboarding-secret-hold`). */
+/** Prepares stripped/raw material in memory without disk or store writes so cancelled callers leave zero trace (`S-onboarding-secret-hold`). */
 export async function prepareHeldSecretDecision(
   home: string,
   journey: Readonly<ContextJourney>,
   secretKey: string,
   decision: SecretSendDecision,
   signal?: AbortSignal,
-): Promise<{ readonly prepared?: Awaited<ReturnType<typeof prepareContextDocument>> }> {
+): Promise<{ readonly prepared?: PreparedHeldSecretInMemory }> {
   signal?.throwIfAborted();
   let heldItem: HeldSecretMaterial | undefined;
   for (const s of journey.sources) {
@@ -222,16 +226,17 @@ export async function prepareHeldSecretDecision(
     if (heldItem) break;
   }
   if (!heldItem || decision === "exclude") return {};
-  const prepared = await prepareContextDocument(
-    home,
-    journey.id,
-    heldItem.kind,
-    { path: heldItem.path, staged: heldItem.sha256 },
-    signal,
-    { ...(journey.secret_decisions ?? {}), [secretKey]: decision },
-  );
+  const prepared = await readHeldSecretMaterialInMemory(home, journey.id, heldItem, decision, signal);
   signal?.throwIfAborted();
   return { prepared };
+}
+
+export async function stageHeldSecretDecision(
+  home: string,
+  journeyId: string,
+  prepared: PreparedHeldSecretInMemory,
+): Promise<Awaited<ReturnType<typeof stagePreparedHeldSecretReference>>> {
+  return stagePreparedHeldSecretReference(home, journeyId, prepared);
 }
 
 /** Commits a user's `strip` | `raw` | `exclude` choice to a held secret material (`C2`, `S-onboarding-secret-hold`). */
@@ -239,7 +244,7 @@ export function commitHeldSecretDecision(
   journey: ContextJourney,
   secretKey: string,
   decision: SecretSendDecision,
-  prepared?: Awaited<ReturnType<typeof prepareContextDocument>>,
+  staged?: Awaited<ReturnType<typeof stagePreparedHeldSecretReference>>,
 ): void {
   journey.secret_decisions = { ...(journey.secret_decisions ?? {}), [secretKey]: decision };
   let heldSource: ContextSource | null = null;
@@ -258,13 +263,13 @@ export function commitHeldSecretDecision(
       break;
     }
   }
-  if (!heldSource || decision === "exclude" || !prepared) return;
-  if ("reference" in prepared) {
-    if (heldSource.references) heldSource.references.push(prepared.reference);
-    else if (heldSource.reading) heldSource.reading.references.push(prepared.reference);
-    else heldSource.references = [prepared.reference];
-  } else if ("issue" in prepared) {
-    (heldSource.issues ??= []).push(prepared.issue);
+  if (!heldSource || decision === "exclude" || !staged) return;
+  if ("reference" in staged) {
+    if (heldSource.references) heldSource.references.push(staged.reference);
+    else if (heldSource.reading) heldSource.reading.references.push(staged.reference);
+    else heldSource.references = [staged.reference];
+  } else if ("issue" in staged) {
+    (heldSource.issues ??= []).push(staged.issue);
     heldSource.skipped = heldSource.issues.length;
   }
 }

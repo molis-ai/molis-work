@@ -672,7 +672,6 @@ export interface AgentMemoryCapability {
             };
             created_at_ms: number;
             updated_at_ms: number;
-            restored_from_version?: number;
             note?: string;
         }>;
     }>;

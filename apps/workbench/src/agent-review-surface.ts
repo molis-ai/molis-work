@@ -219,7 +219,7 @@ export function reviewSourceSummary(row: Pick<AgentReviewRow, "request" | "recei
     phase: uiText.text(reviewMark(row, phase).label),
     decision: decided ? uiText.text(receipt.status === "approved" ? "workbench.authorization.review-approved" : "workbench.authorization.review-rejected") : null,
     source: decided ? uiText.text(source ? "workbench.agent-review.source-" + source.kind : "workbench.agent-review.source-unrecorded") : null,
-    person: source?.kind === "person" ? source.actor_id : source?.kind === "policy" ? source.set_by : source?.delegation.grantor_id ?? null,
+    person: decided && source?.kind === "person" ? source.actor_id : null,
     at: receipt?.decided_at ?? row.request.requested_at,
     detail: receipt?.decision_save_error ?? receipt?.delivery_error ?? receipt?.effect_uncertain ?? receipt?.effect_error ?? null,
   };

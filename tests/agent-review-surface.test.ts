@@ -11,6 +11,7 @@ import {
   leakedMarkup,
   renderAgentReviewSurface,
   reviewPhase,
+  reviewSourceSummary,
   type AgentReviewPrimitives,
   type AgentReviewRow,
 } from "@molis-ai/molis-work-app-workbench";
@@ -62,13 +63,37 @@ function receipt(overrides: Partial<AgentReviewRow["receipt"] & object> = {}) {
 }
 
 test("APR-12: persisted person and policy sources are distinct; historical actor text cannot invent a person source", () => {
-  const person = renderAgentReviewSurface({ rows: [row({ receipt: receipt({ source: { kind: "person", actor_id: "user" } }) })], primitives: p });
+  const personRow = row({ receipt: receipt({ source: { kind: "person", actor_id: "user" } }) });
+  const person = renderAgentReviewSurface({ rows: [personRow], primitives: p });
   assert.match(person, /data-review-source="person"/); assert.match(person, /本人决定/);
+  assert.equal(reviewSourceSummary(personRow).person, "user");
+  assert.equal(reviewSourceSummary(row({ receipt: receipt() })).person, null);
   const policy = renderAgentReviewSurface({ rows: [row({ receipt: receipt({ source: { kind: "policy", owner: "agent.session-rule", id: "rule", revision: 1, set_by: "user", set_at: "2026-09-19T14:00:00Z" } }) })], primitives: p });
   assert.match(policy, /data-review-source="policy"/); assert.match(policy, /自动策略/); assert.doesNotMatch(policy, /本人决定/);
   const history = renderAgentReviewSurface({ rows: [row({ receipt: receipt({ note: "approved by a human" }) })], primitives: p });
   assert.match(history, /data-review-source="unrecorded"/); assert.match(history, /来源未记录/);
   assert.match(person, /data-agent-review-version="shown-version"/);
+});
+
+test("APR-12: approval history shows the recorded automatic source in both languages", () => {
+  const delegation = { id: "grant", revision: 2, work_epoch: "work-epoch", grantor_id: "original-grantor" };
+  const sources = [
+    [{ kind: "delegation", delegation }, "沿用授权", "Delegated authority"],
+    [{ kind: "policy", owner: "agent.session-rule", id: "rule", revision: 1, set_by: "original-grantor", set_at: "2026-09-19T14:00:00Z" },
+      "自动策略", "Automatic policy"],
+    [{ kind: "ai", delegation, assessment: { id: "assessment", version: "assessment-version", provider_id: "fixture.evaluator", model_id: "fixture-model" },
+      reason: "Recorded low-risk assessment" }, "AI 代批", "AI approval"],
+  ] as const;
+  for (const [source, zh, en] of sources) {
+    const recorded = row({ receipt: receipt({ source, decided_by: "original-grantor" }) });
+    for (const [locale, label] of [["zh", zh], ["en", en]] as const) runWithLocale(locale, () => {
+      const summary = reviewSourceSummary(recorded);
+      assert.equal(summary.person, null, source.kind);
+      assert.equal(summary.source, label);
+      const html = renderAgentReviewSurface({ rows: [recorded], primitives: p });
+      assert.ok(html.includes(`data-review-source="${source.kind}">${label}</span>`));
+    });
+  }
 });
 
 test("批准之后、真实回执之前，是「已批准，执行结果待确认」，不是「已完成」", () => {

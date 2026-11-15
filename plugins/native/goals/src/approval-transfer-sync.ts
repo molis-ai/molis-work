@@ -1,7 +1,7 @@
 // Original project_goals@1 declarations held by the verified Goals project libraries.
 import type { SyncSectionsDeclaration, PluginSyncDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-sync";
 import { syncSectionsTracking } from "@molis-ai/molis-work-plugin-sdk";
-import type { GoalsApprovalSource } from "./project-database.js";
+import { GOALS_APPROVAL_TRANSFER_SOURCE, type GoalsApprovalSource } from "./project-database.js";
 
 const EVIDENCE_COLUMNS_FROM = 2;
 const CITED_SUBJECTS_FROM = 3;
@@ -62,7 +62,7 @@ export function goalsApprovalTransferSync(version: GoalsApprovalSource): PluginS
     introduced.set("goal_event_requirement_conclusions", ["checked_artifact_id", "checked_version"]);
   }
   if (version >= CITED_SUBJECTS_FROM) introduced.delete("goal_event_concerns");
-  const withoutPlanning = version === 4;
+  const withoutPlanning = version === GOALS_APPROVAL_TRANSFER_SOURCE;
   if (withoutPlanning) introduced.set("goal_event_config_versions", ["adopted_planning_json"]);
   const original = { ...sections, business: sections.business.map(section => ({
     ...section,

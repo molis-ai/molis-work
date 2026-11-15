@@ -43,8 +43,9 @@ export const GOALS_PROJECT_DATABASE: PluginDatabaseDeclaration = {
 };
 
 /** Batch 41's v4, with the original approvals and without the former planning tables or config adoption. */
-const GOALS_PROJECT_DATABASE_V4: PluginDatabaseDeclaration = {
-  store_name: "goals", version: 4,
+export const GOALS_APPROVAL_TRANSFER_SOURCE = 4;
+const GOALS_PROJECT_DATABASE_V4 = {
+  store_name: "goals", version: GOALS_APPROVAL_TRANSFER_SOURCE,
   schema: approvalSchema(GOALS_EVENT_STATE_SQL),
   read_permission: "storage:private", write_permission: "storage:private",
   // 1 → 2 (2026-11-11, evidence contract): what a judgment checked and how far Goals found it backed, and the version a conclusion was about.
@@ -85,7 +86,7 @@ const GOALS_PROJECT_DATABASE_V3 = {
 };
 
 export const GOALS_APPROVAL_TRANSFER_BASELINES = {
-  1: GOALS_PROJECT_DATABASE_V1, 2: GOALS_PROJECT_DATABASE_V2, 3: GOALS_PROJECT_DATABASE_V3, 4: GOALS_PROJECT_DATABASE_V4,
+  1: GOALS_PROJECT_DATABASE_V1, 2: GOALS_PROJECT_DATABASE_V2, 3: GOALS_PROJECT_DATABASE_V3,
+  [GOALS_APPROVAL_TRANSFER_SOURCE]: GOALS_PROJECT_DATABASE_V4,
 } satisfies Readonly<Record<number, PluginDatabaseDeclaration>>;
 export type GoalsApprovalSource = keyof typeof GOALS_APPROVAL_TRANSFER_BASELINES;
-export const GOALS_APPROVAL_TRANSFER_SOURCE = GOALS_PROJECT_DATABASE_V4.version;

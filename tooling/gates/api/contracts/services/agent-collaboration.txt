@@ -32,7 +32,7 @@ export type AgentCollaborationObservation = "pending" | "satisfied" | "failed" |
 
 export interface AgentCollaborationPort {
     read(project: string, sessionId?: string): Promise<AgentCollaborationSessionView[]>;
-    awaitReady(project: string, timeoutMs: number, exclude?: string[], signal?: AbortSignal): Promise<AgentCollaborationSessionView[]>;
+    serveStarts(starter: AgentContinuationStarter): () => void;
     control(project: string, control: AgentCollaborationControl, actorId: string): Promise<AgentCollaborationSessionView>;
     revise(run: AgentRunRef, amendment: AgentStepAmendment, expectedVersion: number, actorId: string): Promise<AgentStepBoard>;
     works?: AgentWorkGraphPort;
@@ -78,6 +78,36 @@ export interface AgentCollaborationWait {
 }
 
 export type AgentCollaborationWaitState = "waiting" | "satisfied" | "failed" | "expired" | "cancelled" | "needs-reconciliation";
+
+export type AgentContinuationStartAnswer = {
+    run: AgentRunRef;
+} | {
+    refused: {
+        code: string;
+        note?: string;
+    };
+} | {
+    later: {
+        code: string;
+        note?: string;
+    };
+};
+
+export interface AgentContinuationStartRequest {
+    runtime_id: string;
+    project_id: string;
+    session_id: string;
+    owner: {
+        plugin_id: string;
+        install_id: string;
+    };
+    request_key: string;
+    wait_id: string;
+    graph_id: string;
+    node_id: string;
+}
+
+export type AgentContinuationStarter = (request: AgentContinuationStartRequest) => Promise<AgentContinuationStartAnswer>;
 
 export type AgentContinuationState = "armed" | "eligible" | "claimed" | "started" | "blocked" | "cancelled" | "needs-reconciliation";
 

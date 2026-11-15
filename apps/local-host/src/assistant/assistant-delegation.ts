@@ -20,7 +20,7 @@ import { identity } from "./assistant-relations.js";
  * no cap on how many a work hands out in all: a main conversation stands for as long as its scope, and what it spends is
  * bounded by the usage caps.
  */
-const DELEGATION_LIMITS = { active: 5, followUps: 2, autoRounds: 8 } as const;
+export const DELEGATION_LIMITS = { active: 5, followUps: 2, autoRounds: 8 } as const;
 const RUNTIME = "prologue";
 const ENDED: readonly string[] = ["succeeded", "failed", "cancelled"];
 /** A part's steps on its delegating work's graph: the one it was handed out as, and those under it (follow-ups, the person's rounds). */

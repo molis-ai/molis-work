@@ -97,11 +97,43 @@ export type AgentCollaborationControl =
    */
   | { kind: "continue-now"; wait_id: string; note?: string };
 
+/**
+ * A continuation that may go on by itself now (its wait is over, it is `auto`, its session has no round going or starting):
+ * which session, under which request key, from which wait, and the installation that owns the session.
+ */
+export interface AgentContinuationStartRequest {
+  runtime_id: string;
+  project_id: string;
+  session_id: string;
+  owner: { plugin_id: string; install_id: string };
+  request_key: string;
+  wait_id: string;
+  graph_id: string;
+  node_id: string;
+}
+
+/**
+ * The starter's answer. `run`: a round of the session was started under the request key. `refused`: it should not go on by
+ * itself (no authority, out of budget, the work stopped); the continuation is held for the person with the code. `later`:
+ * not now (a person's round is being sent, or the owner starts it itself); it stays eligible, is asked again once the
+ * session's next round ends, and the owner may start it under the key at any time.
+ */
+export type AgentContinuationStartAnswer =
+  | { run: AgentRunRef }
+  | { refused: { code: string; note?: string } }
+  | { later: { code: string; note?: string } };
+
+export type AgentContinuationStarter = (request: AgentContinuationStartRequest) => Promise<AgentContinuationStartAnswer>;
+
 /** The Agent Host runtime's side: the project's waits and continuations, read and controlled; the views are always read anew. */
 export interface AgentCollaborationPort {
   read(project: string, sessionId?: string): Promise<AgentCollaborationSessionView[]>;
-  /** Continuations that are eligible, or held for a person, but for `exclude` (request keys); waits up to `timeoutMs` for one. */
-  awaitReady(project: string, timeoutMs: number, exclude?: string[], signal?: AbortSignal): Promise<AgentCollaborationSessionView[]>;
+  /**
+   * Who starts a continuation once it may go on by itself (specs/work-line/spec.md, result return): the runtime asks
+   * `starter` each time, and only when the session has no round going or starting. One starter at a time; the returned
+   * function withdraws it. Without one, every ask is answered `later` and the continuation stays eligible.
+   */
+  serveStarts(starter: AgentContinuationStarter): () => void;
   control(project: string, control: AgentCollaborationControl, actorId: string): Promise<AgentCollaborationSessionView>;
   /** A person changes a round's plan on the graph; `expectedVersion` is the board version they saw. */
   revise(run: AgentRunRef, amendment: AgentStepAmendment, expectedVersion: number, actorId: string): Promise<AgentStepBoard>;
@@ -218,7 +250,7 @@ const AMENDMENT = { oneOf: [
     properties: { kind: { const: "resolve" }, node: STEP, state: { enum: ["succeeded", "failed"] }, note: WORDS(500) } },
 ] } as const;
 
-/** Read and control the project's waits; waiting for a continuation to be ready is the `agentHostCapabilities.awaitContinuations` action. */
+/** Read and control the project's waits. A plugin hears that one of its sessions may go on as the host event `host.agent.continuation.ready@1`. */
 export const agentCollaborationActions = {
   read: {
     capability_id: "agent.collaboration.read", version: /* @version action.agent.collaboration.read */ 1, operation: "query",

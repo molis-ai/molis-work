@@ -10,7 +10,6 @@ import type { AgentSubagentView, AgentMcpServerView, AgentMcpServerInput, AgentR
 export type {AgentSavedHistoryMessage,AgentSavedHistoryRun,AgentSavedHistoryView} from './agent-history.js';
 import type { AgentProjectWork, AgentProjectWorkOverlap, AgentSessionMessage, AgentPeopleMessageInput, AgentPeopleMessageAction, AgentMessageAttachment, AgentBackgroundTask } from "./agent-host-session.js";
 import type { AgentSessionView, AgentSessionStatus, AgentRunHandle, AgentRunView, AgentRunControl, AgentCommandOutputRef, AgentCommandOutput, AgentEvidenceCheck, AgentEvidenceCheckRequest } from "./agent-host-run-view.js";
-import type { AgentCollaborationSessionView } from "./agent-collaboration.js";
 import { SKILL_REFS_MAX, skillRefSchema } from "./skill-ref-schema.js";
 // Declared by domain in the agent-host-*.ts files beside this one (W5-09); this subpath exports all of them.
 export { AGENT_RUNTIME_CAPABILITIES, defaultAgentRuntime, hostsAgentSessions, isTerminalAgentPhase, resolveProjectRuntime } from "./agent-host-runtime.js";
@@ -556,20 +555,6 @@ export const agentHostCapabilities = {
         properties: { session: sessionRef, directory: { type: "string", minLength: 1, maxLength: 4096 }, task: { type: "string", minLength: 1, maxLength: 1_000_000 }, after: entryId,
           title: { type: "string", maxLength: 2000 } } }] } },
   } as ActionDefinition<[runtimeId: string, input: { session: AgentSessionRef; directory: string; task: string; after: string; title?: string }], AgentProjectWork>,
-  /**
-   * Continuations of the calling plugin's own sessions that are ready to go on, or held for the person, but for `exclude`
-   * (request keys); waits up to `timeoutMs` for one, as `waitRun` waits (concurrent, a ceiling, dropped if cancelled).
-   * Reading and controlling them are the actions in agent-collaboration.
-   */
-  awaitContinuations: {
-    capability_id: "agent.collaboration.await", version: /* @version action.agent.collaboration.await */ 1, operation: "query",
-    action: { title: "等会话接续", description: "等调用插件自己的会话里有一个能接着走或等人处理的接续；到时没有就回空表。", kind: "query", ...pluginOnly,
-      scheduling: "concurrent", execution: { timeout_ms: 30_000 },
-      input_schema: { type: "array", minItems: 2, maxItems: 3, additionalItems: false,
-        items: [runtimeId, { type: "integer", minimum: 0, maximum: 25_000 }, ids(200)] },
-      output_schema: { type: "array", items: { type: "object", required: ["session_id"], additionalProperties: false, properties: {
-        session_id: { type: "string" }, wait: object, continuation: object } } } },
-  } as ActionDefinition<[runtimeId: string, timeoutMs: number, exclude?: string[]], AgentCollaborationSessionView[]>,
   /** The project's background commands; one session's when named. */
   readBackground: {
     capability_id: "agent.background.read", version: /* @version action.agent.background.read */ 1, operation: "query",

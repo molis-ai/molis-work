@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { codingAgentManifest, codingPrompts } from "@molis-ai/molis-work-plugin-coding";
 import type { AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { readyWithin } from "./fixtures/continuation-ready.js";
 
 const response = (text: string, tool?: { name: string; input: unknown }) => {
   const events: string[] = [], emit = (type: string, value: any) => events.push(`event: ${type}\ndata: ${JSON.stringify({ type, ...value })}\n\n`);
@@ -90,14 +91,14 @@ test("sessions in one project see each other's work: overlaps before a round sta
     // Started anyway: the wait that would have started it is gone, so A ending starts nothing more.
     const dropped = (await adapter.collaboration!.read("b", sessionB.session_id))[0]!;
     assert.deepEqual([dropped.wait, dropped.continuation], [undefined, undefined], JSON.stringify(dropped));
-    assert.deepEqual(await adapter.collaboration!.awaitReady("b", 0), []);
+    assert.deepEqual(await readyWithin(adapter.collaboration!, "b", 0), []);
     assert.deepEqual(itemB.paths, ["src/label.ts"]);
     releaseA();
     for (const deadline = Date.now() + 10_000; (await work.read("b")).items.some(item => item.state === "running");) {
       if (Date.now() > deadline) throw new Error("A never ended"); await new Promise(resolve => setTimeout(resolve, 20));
     }
     assert.deepEqual((await work.read("b")).items.map(item => [item.title, item.state]), [["标签加前缀", "done"], ["改标签格式", "done"]]);
-    assert.deepEqual(await adapter.collaboration!.awaitReady("b", 0), [], "A ending starts nothing more");
+    assert.deepEqual(await readyWithin(adapter.collaboration!, "b", 0), [], "A ending starts nothing more");
     void (a.ref as AgentRunRef);
   } finally { releaseA(); await adapter.close(); await rm(root, { recursive: true, force: true }); }
 });

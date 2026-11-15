@@ -85,6 +85,7 @@ export class AssistantService {
   constructor(private readonly store: AssistantStore, private readonly ports: AssistantServicePorts, private readonly actorId: string,
     private readonly now = () => new Date()) {
     this.continuations = new AssistantContinuations({ store, actorId, host: () => ports.host(), holdSetups: ports.holdSetups,
+      notify: (work, text, key) => void this.store.raiseNotice(actorId, { kind: "needs-decision", work_id: work.work_id, work_title: work.title, text }, key),
       start: (work, text, current, continued_from) => this.hostStarted(() => this.dispatcher.dispatch(work, text, [], null, undefined, "host", current, undefined, undefined, { byHost: true, continued_from })),
       changed: async (work, alive) => { const current = store.get(actorId, work.work_id), state = await this.reads.stateSafely(current); if (alive() && store.get(actorId, work.work_id).revision === current.revision) this.notices.notice(current, state); void this.delegations.roundEnded(current).catch(() => undefined); } });
     this.jobs = new AssistantJobs({ store, actorId, host: () => ports.host(), actions: async work => (await ports.authority(work)).actions?.(RUNTIME) });

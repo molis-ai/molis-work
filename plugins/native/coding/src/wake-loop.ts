@@ -59,7 +59,11 @@ export function codingWakeLoop<Execution>(deps: CodingWakeDeps<Execution>) {
   /** The session's open wait; none when the Host keeps no task graph. */
   const openWaitOf = async (record: CodingSessionRecord) => record.runtime_session_id
     ? openWait((await hostActions().invoke(collaboration.read, { runtime_id: record.runtime_id, session_id: record.runtime_session_id }).catch(() => ({ sessions: [] }))).sessions[0]) : undefined;
-  const waitView = (view: CodingWaitView) => waitViewOf(view, noteOf(view.wait.wait_id));
+  /**
+   * A continuation held for the person says why from the wait itself: the runtime asks to start only one that may go on by itself,
+   * so no word comes for a held one. A kept note is the one an automatic start that failed left.
+   */
+  const waitView = (view: CodingWaitView) => waitViewOf(view, noteOf(view.wait.wait_id) ?? holdReason(view));
   /** The round a wait goes on to, from the body of the round that waited, or the round the person queued. */
   const wakeBody = (record: CodingSessionRecord, view: CodingWaitView, person = false) => {
     const saved = storage()?.get(`last-start:${record.session_id}`);
@@ -89,9 +93,23 @@ export function codingWakeLoop<Execution>(deps: CodingWakeDeps<Execution>) {
       return "held";
     } finally { deps.busy.delete(found.session_id); }
   };
+  /** The Host's word that one of this installation's sessions may go on (`host.agent.continuation.ready@1`), by runtime. */
+  const heard = new Map<string, Set<() => void>>();
+  const hearNext = (runtimeId: string, signal: AbortSignal) => new Promise<void>(resolve => {
+    const listeners = heard.get(runtimeId) ?? new Set(); heard.set(runtimeId, listeners);
+    const done = () => { listeners.delete(done); signal.removeEventListener("abort", done); resolve(); };
+    listeners.add(done); signal.addEventListener("abort", done, { once: true });
+  });
+  /** Continuations ready to go on or held for the person, but for `held` (request keys), and the ones the runtime still claims. */
+  const readyOf = async (runtimeId: string, held: ReadonlySet<string>) => {
+    const views = (await hostActions().invoke(collaboration.read, { runtime_id: runtimeId })).sessions;
+    return { claimed: new Set(views.flatMap(view => view.continuation?.state === "claimed" ? [view.continuation.request_key] : [])),
+      ready: views.flatMap(view => view.continuation && ["eligible", "blocked", "needs-reconciliation"].includes(view.continuation.state) && !held.has(view.continuation.request_key) ? openWait(view) ?? [] : []) };
+  };
   /**
-   * One runtime's loop: it waits for a continuation to be ready (no polling of what the waits wait on) and takes it up, until the
-   * job stops. Its pauses are timers the job's signal clears: stopping the plugin aborts the signal before `stop()` runs, so no
+   * One runtime's loop: it reads what may go on now, takes it up, and then waits for the Host's word that another may (no polling
+   * of what the waits wait on, and no timer: `host.agent.continuation.ready@1` ends the wait), until the job stops. The word comes
+   * while the runtime still holds its claim for a moment: a continuation it names that is not eligible yet is read again shortly. Its pauses are timers the job's signal clears: stopping the plugin aborts the signal before `stop()` runs, so no
    * pause of a stopped activation fires and reaches a platform service (BL-411).
    *
    * A loop that `recovery` started (the activation found sessions tied to an Agent run) did not wait for the runtime to be ready: its
@@ -102,11 +120,12 @@ export function codingWakeLoop<Execution>(deps: CodingWakeDeps<Execution>) {
   const loop = async (control: PluginJobControl, execution: Execution, runtimeId: string, recovery: boolean) => {
     const api = context.services!.actions!, pause = (ms: number) => rest(ms, undefined, { signal: control.signal, ref: false });
     const held = new Set<string>();
-    let served = false;
+    let served = false, settling = 0;
     // Transient read failures back off while the job runs; a Host without a task graph ends the loop.
     for (let failures = 0; !control.signal.aborted;) {
-      let ready: CodingWaitView[];
-      try { ready = (await context.services!.actions!.invoke(agent.awaitContinuations, [runtimeId, 25_000, [...held]], { signal: control.signal, beforeEffect: control.beforeEffect })).flatMap(view => openWait(view) ?? []); failures = 0; served = true; }
+      const next = hearNext(runtimeId, control.signal);
+      let ready: CodingWaitView[], claimed: ReadonlySet<string>;
+      try { ({ ready, claimed } = await readyOf(runtimeId, held)); failures = 0; served = true; }
       catch (error) {
         if (error && typeof error === "object" && "code" in error && error.code === "agent.capability_unavailable") return;
         if (recovery && !served) return;
@@ -120,12 +139,25 @@ export function codingWakeLoop<Execution>(deps: CodingWakeDeps<Execution>) {
         if ((outcome === "held" || outcome === "not-ours" || outcome === "refused") && view.continuation) held.add(view.continuation.request_key);
         if (outcome === "later") later = true;
       }
+      // A continuation the Host just named that the runtime still claims (it is giving the claim back) is read again shortly.
+      const named = expected.get(runtimeId);
+      for (const key of [...named ?? []]) if (!claimed.has(key)) named!.delete(key);
       if (later) await pause(2_000);
+      else if (named?.size && settling < 20) { settling += 1; await pause(250); }
+      else { settling = 0; expected.delete(runtimeId); await next; }
     }
   };
+  /** Continuations the Host just named, by runtime: the runtime may still claim them when they are first read. */
+  const expected = new Map<string, Set<string>>();
   const jobs = wakeJob(context, loop);
   /** Ask for `runtimeId`'s loop; nothing when one runs. */
   const wakeLoop = (_api: Capabilities, execution: Execution, runtimeId: string, recovery = false) => jobs.wake(execution, runtimeId, recovery);
+  /** The Host said a session of this installation may go on: the runtime's loop reads again (and is started when none runs). */
+  const continuationReady = (execution: Execution, runtimeId: string, requestKey: string) => {
+    const named = expected.get(runtimeId) ?? new Set(); named.add(requestKey); expected.set(runtimeId, named);
+    for (const listener of [...heard.get(runtimeId) ?? []]) listener();
+    jobs.wake(execution, runtimeId, false);
+  };
   /** The person gives the wait up: a request it waited on is withdrawn, a queued round's project work item goes. */
   const cancel = async (record: CodingSessionRecord, view: CodingWaitView, beforeWrite: CodingBeforeWrite) => {
     const actions = codingActions(context, beforeWrite);
@@ -147,7 +179,7 @@ export function codingWakeLoop<Execution>(deps: CodingWakeDeps<Execution>) {
   };
   /** Keep the round the person queued, by the wait that will start it. */
   const keepQueued = (waitId: string, body: Record<string, unknown>, workId: string) => storage()!.set(`queued:${waitId}`, JSON.stringify({ body, work_id: workId }));
-  return { openWaits, openWaitOf, waitView, wakeLoop, keep: jobs.keep, cancel, goOn, keepQueued };
+  return { openWaits, openWaitOf, waitView, wakeLoop, continuationReady, keep: jobs.keep, cancel, goOn, keepQueued };
 }
 
 /**

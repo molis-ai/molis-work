@@ -60,10 +60,10 @@ test("following a live round: answers at once when behind, gathers quick deltas,
 
 });
 
-test("a cancelled wait lets go at once: following a round and waiting for continuations both end when the call's signal aborts", async () => {
+test("a cancelled wait lets go at once: following a round ends when the call's signal aborts", async () => {
   const session = { runtime_id: "live", session_id: "s" }, run = { session_id: "s", run_id: "r" };
   const view: AgentRunView = { ref: run, phase: "running", turns: [], activity: [], usage: { tokens: { input: 0, output: 0 } }, awaiting_input: [] } as never;
-  const listeners = new Set<(view: AgentRunView) => void>(), heard: Array<AbortSignal | undefined> = [];
+  const listeners = new Set<(view: AgentRunView) => void>();
   const capabilities = emptyCapabilityMatrix(); capabilities["session.create"] = "supported";
   const adapter: AgentRuntimeAdapter = {
     descriptor: { runtime_id: "live", display_name: "live", provider_version: "1", capabilities },
@@ -75,11 +75,7 @@ test("a cancelled wait lets go at once: following a round and waiting for contin
     async readCommandOutput() { throw new Error("unused"); },
     collaboration: {
       async read() { return []; }, async control() { throw new Error("unused"); }, async revise() { throw new Error("unused"); },
-      awaitReady: (_project, timeoutMs, _exclude, signal) => new Promise(resolve => {
-        heard.push(signal);
-        const timer = setTimeout(() => resolve([]), timeoutMs);
-        signal?.addEventListener("abort", () => { clearTimeout(timer); resolve([]); }, { once: true });
-      }),
+      serveStarts: () => () => {},
     },
   };
   const host = new AgentHost(); host.register(adapter);
@@ -98,12 +94,4 @@ test("a cancelled wait lets go at once: following a round and waiting for contin
   await assert.rejects(pending, error => error === closing);
   assert.ok(Date.now() - started < 1_000, "it ends when cancelled, not at its 25 s timeout");
   assert.equal(listeners.size, 0, "the cancelled wait lets go of the round");
-
-  const awaiting = new AbortController(), begun = Date.now();
-  const ready = handlers.get(agentHostCapabilities.awaitContinuations.capability_id)!({ project_id: "b" }, ["live", 25_000, []], invocation(awaiting.signal));
-  await new Promise(resolve => setTimeout(resolve, 20));
-  assert.equal(heard[0], awaiting.signal, "the call's signal reaches the runtime's wait");
-  awaiting.abort(closing);
-  await assert.rejects(ready, error => error === closing);
-  assert.ok(Date.now() - begun < 1_000, "waiting for continuations ends when cancelled, not at its 25 s timeout");
 });

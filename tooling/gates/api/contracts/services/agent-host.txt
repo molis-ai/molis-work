@@ -2294,7 +2294,6 @@ export declare const agentHostCapabilities: {
         after: string;
         title?: string;
     }], AgentProjectWork>;
-    readonly awaitContinuations: ActionDefinition<[runtimeId: string, timeoutMs: number, exclude?: string[]], AgentCollaborationSessionView[]>;
     readonly readBackground: ActionDefinition<[runtimeId: string, sessionId?: string], AgentBackgroundTask[]>;
     readonly stopBackground: ActionDefinition<[runtimeId: string, taskId: string], boolean>;
     readonly releaseProjectRound: ActionDefinition<[runtimeId: string, workId: string, note: string], void>;

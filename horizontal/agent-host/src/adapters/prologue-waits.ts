@@ -62,9 +62,6 @@ const waitView = async (runtime: Runtime, sessions: WaitSessions, wait: HeldWait
  */
 export function createPrologueWaits(runtime: Runtime, sessions: WaitSessions) {
   const now = async () => (await runtime.readClock()).wallTimeMs;
-  const listeners = new Set<() => void>();
-  const changed = () => { for (const listener of [...listeners]) listener(); };
-  const unsubscribe = [runtime.waits.subscribe(changed), runtime.boards.subscribe(event => { if (event.type === "wait") changed(); })];
   const inProject = async (project: string, sessionId: string) => (await sessions.project(sessionId)) === project;
   const nodeOf = (board: string, node: string) => boardNode(runtime, board, node);
   const continuationOf = (wait: HeldWait): AgentContinuationView | undefined => {
@@ -98,30 +95,14 @@ export function createPrologueWaits(runtime: Runtime, sessions: WaitSessions) {
     for (const id of ids) if (await inProject(project, id)) out.push(await sessionView(id));
     return out;
   };
-  const ready = async (project: string, exclude: readonly string[]) => (await read(project))
-    .filter(view => view.continuation && ["eligible", "blocked", "needs-reconciliation"].includes(view.continuation.state) && !exclude.includes(view.continuation.request_key));
   const owned = async (project: string, waitId: string) => {
     const wait = runtime.waits.get(waitId);
     if (!wait || !(await inProject(project, wait.session.id))) throw agentErrors.collaboration_unknown("这个等待不属于这个项目");
     return wait;
   };
   // A person's plan change (`revise`) is the step boards' own; the adapter adds it.
-  const collaboration: Omit<AgentCollaborationPort, "revise"> = {
+  const collaboration: Omit<AgentCollaborationPort, "revise" | "serveStarts"> = {
     read,
-    async awaitReady(project, timeoutMs, exclude = [], signal) {
-      // A change is not yet a continuation that may go on (a wait's look, another project's step): look again until one
-      // is, the time is up, or the caller stops.
-      for (const deadline = Date.now() + timeoutMs; ;) {
-        const found = await ready(project, exclude), left = deadline - Date.now();
-        if (found.length || left <= 0 || signal?.aborted) return found;
-        await new Promise<void>(resolve => {
-          const done = () => { clearTimeout(timer); listeners.delete(done); signal?.removeEventListener("abort", done); resolve(); };
-          const timer = setTimeout(done, left);
-          listeners.add(done);
-          signal?.addEventListener("abort", done);
-        });
-      }
-    },
     async control(project, control: AgentCollaborationControl, actorId) {
       const wait = await owned(project, control.wait_id), at = await now();
       if (wait.state !== "waiting") {
@@ -182,6 +163,5 @@ export function createPrologueWaits(runtime: Runtime, sessions: WaitSessions) {
       for (const wait of runtime.waits.list({ session: sessionId })) if (wait.state === "waiting" && wait.by === "app" && wait.scope.board === at.board && wait.scope.node === at.node)
         await runtime.waits.cancel(wait.ref.id, nowMs, "等待中的那一轮已开始");
     },
-    close() { for (const off of unsubscribe) off(); changed(); },
   };
 }

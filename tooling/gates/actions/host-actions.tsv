@@ -62,7 +62,6 @@ agent.background.read	1	platform	query	query	project	read	-	plugin	-	-	-	-	2510e
 agent.background.stop	1	platform	command	operation	project	write	-	plugin	-	-	-	-	bf58ebfac373	7cb541e84f22	-
 agent.checkpoints.list	1	platform	query	query	project	read	-	plugin	-	-	-	-	39ce5b1e5db9	19a16bfbd1e4	-
 agent.checkpoints.prepare-rewind	1	platform	command	operation	project	write	-	plugin	-	-	-	-	f6bb363ae891	2dbbb8357c18	-
-agent.collaboration.await	1	platform	query	query	project	read	concurrent	plugin	-	-	-	-	f612561cc3c7	a96ec18f8989	046efc93b6ac
 agent.collaboration.control	1	platform	command	operation	project	write	concurrent	plugin	-	-	-	-	c68b8987c37d	b16327ef33ed	-
 agent.collaboration.read	1	platform	query	query	project	read	concurrent	plugin	-	-	-	-	d0bfd70f551b	7cfc6db4ee5d	-
 agent.collaboration.revise	1	platform	command	operation	project	write	concurrent	plugin	-	-	-	-	9f29e12ebc0a	516b9424763a	-

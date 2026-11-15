@@ -7,6 +7,7 @@ import { PAGE_PLUGINS_WITHOUT_SELECTION } from "@molis-ai/molis-work-app-workben
 import type { GoalsWebView } from "./web-view.js";
 import { builtinPluginByManifestId, shownProjectPlugins } from "./plugin-registry.js";
 import { observeReviewSettlements } from "./review-settlement-events.js";
+import { agentContinuationStarts } from "./agent-continuation-starts.js";
 import { bindLocalWebActions, localWebActionContext, type LocalWebEntry } from "./local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import type { bindGoalsWebActions } from "./goal-callers.js";
@@ -61,7 +62,7 @@ export interface ProjectRuntimeContext extends ProjectRequestContext {
 }
 
 /** The services every project plugin surface is given: the unified action client, the Home, its plugins and settled reviews. */
-type ProjectPluginServices = Pick<ProjectPluginSurfacePorts, "dependencyCheck" | "actions" | "homeDirectory" | "homePlugins" | "observeReviewSettlements">;
+type ProjectPluginServices = Pick<ProjectPluginSurfacePorts, "dependencyCheck" | "actions" | "homeDirectory" | "homePlugins" | "observeReviewSettlements" | "observeContinuations">;
 
 export function projectRequestContext(context: WebRequestContext, options: ResolvedWebBoardOptions): ProjectRequestContext {
   const { localHost, composition, serverOptions } = context;
@@ -159,6 +160,7 @@ export function projectPluginServices({ localHost, hostReference, options, agent
     // These ports are used while the project Runtime starts. Re-entering its public preparation would wait on that same start.
     actions: { registry: localHost.actionRegistry(hostReference), client: { ...localHost.actionClient(hostReference, false), ...localHost.syncActionClient(hostReference) }, scenes: localHost.sceneClient(hostReference), project_id: hostReference.project_id, inspect: caller => localHost.inspectActions(caller, hostReference) },
     observeReviewSettlements: listener => observeReviewSettlements(agentHost.reviews, options.projectId, listener),
+    observeContinuations: listener => agentContinuationStarts(agentHost).observeProject(options.projectId, listener),
     homeDirectory: serverOptions.homeDirectory,
     homePlugins: localHost.homePlugins,
     dependencyCheck: hostDependencyCheck(localHost.client(hostReference)),

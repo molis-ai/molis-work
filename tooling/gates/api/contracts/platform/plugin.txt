@@ -2672,6 +2672,8 @@ export interface FragmentTarget {
     readonly truncated?: boolean;
 }
 
+export declare const HOST_AGENT_CONTINUATION_READY_EVENT = "host.agent.continuation.ready";
+
 export declare const HOST_CONNECTIONS_OBSERVE_PERMISSION = "connections:observe";
 
 export declare const HOST_CONNECTION_CHANGED_EVENT = "host.connection.changed";
@@ -2717,6 +2719,13 @@ export interface HomeStoreDeclaration {
         readonly file?: string;
         readonly partition?: "project";
     };
+}
+
+export interface HostAgentContinuationReadyPayload {
+    runtime_id: string;
+    session_id: string;
+    request_key: string;
+    wait_id: string;
 }
 
 export interface HostConnectionChangedPayload {

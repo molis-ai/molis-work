@@ -2,7 +2,7 @@ import { agentErrors } from "./errors.js";
 import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentCallPorts, Call, Register } from "./capability-ports.js";
 import { projectWorkScope } from "./project-work-scope.js";
-import { awaitOwnContinuations, waitForRunChange } from "./run-wait.js";
+import { waitForRunChange } from "./run-wait.js";
 
 /**
  * Following, waiting on and controlling the caller's own rounds, their subtasks, and the project's queued work as far as it
@@ -49,20 +49,6 @@ export function registerRunActions<C extends Call>(register: Register<C>, ports:
       const caller = pluginFor(context), adapter = ports.agentHost(context).adapter(runtimeId);
       if (!caller) throw denied();
       return adapter.projectWork ? projectWorkScope(adapter, runtimeId, ports.projectId(context), caller).read(probe) : { items: [], overlaps: [] };
-    }),
-    // Like waitRun: one of the caller's places to wait, only its own sessions' continuations. Another plugin's that are ready
-    // join `exclude` and the wait goes on, so they neither show nor end the wait early.
-    register(agentHostCapabilities.awaitContinuations, async (context, [runtimeId, timeoutMs, exclude = []]) => {
-      const caller = pluginFor(context), adapter = ports.agentHost(context).adapter(runtimeId);
-      if (!caller) throw denied();
-      if (!adapter.collaboration) throw agentErrors.capability_unavailable("当前运行时没有等待与接续");
-      const collaboration = adapter.collaboration, release = waits.hold(caller.install_id);
-      try {
-        const own = await awaitOwnContinuations((left, skipped, signal) => collaboration.awaitReady(ports.projectId(context), left, skipped, signal),
-          view => readScopedSession(context, { runtime_id: runtimeId, session_id: view.session_id }).then(() => true, () => false), timeoutMs, exclude, context.invocation.signal);
-        await context.invocation.beforeEffect(); context.invocation.assertAuthorityCurrent();
-        return own;
-      } finally { release(); }
     }),
     register(agentHostCapabilities.queueProjectRound, async (context, [runtimeId, input]) => {
       if (input.session.runtime_id !== runtimeId) throw agentErrors.session_unknown("排队请求与会话所在的运行时不一致");

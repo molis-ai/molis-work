@@ -5,6 +5,8 @@ import { artifactSubjectId, type ArtifactReference } from "@molis-ai/molis-work-
 import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { codingSdkRuntime, codingToolResponse } from "./fixtures/coding-sdk-runtime.js";
 import { cogniaModelResponse } from "./fixtures/cognia-model-response.js";
+import { readyWithin } from "./fixtures/continuation-ready.js";
+import { HOST_AGENT_CONTINUATION_READY_EVENT } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 const configuration = { intent: "execute", workspace_id: "work", provider_id: "fixture", model_id: "fixture" };
 type Started = { run: { ref: AgentRunRef } };
@@ -75,7 +77,7 @@ test("revocation after an actual SDK send flush preserves the outbox but returns
 // W2-18-CODING-BACKGROUND-01: real SDK command observation, owner cache preservation on failure, and recovery.
 test("a failed SDK background read preserves the last actual command observation and marks it unreadable", { timeout: 30_000 }, async t => {
   const fixture = await codingSdkRuntime(t); await fixture.create("A"); let turn = 0;
-  t.mock.method(globalThis, "fetch", async () => ++turn === 1 ? codingToolResponse("start-command", { executable: process.execPath, argv: ["-e", "setTimeout(()=>{},30000)"] }) : cogniaModelResponse("The command is running in the background."));
+  t.mock.method(globalThis, "fetch", async () => ++turn === 1 ? codingToolResponse("start-command", { executable: "node", argv: ["-e", "setTimeout(()=>{},30000)"] }) : cogniaModelResponse("The command is running in the background."));
   const started = body<Started>(await fixture.call("/sessions/A/runs", { ...configuration, task: "Start a controlled background command.", intent: "execute" }));
   await until("command approval did not appear", () => fixture.reviews.list(DEMO_PROJECT_ID, "pending").length > 0);
   for (const review of fixture.reviews.list(DEMO_PROJECT_ID, "pending")) await fixture.reviews.respond({ review_id: review.review_id, actor_id: "web-user", decision: "approve" });
@@ -90,10 +92,10 @@ test("a failed SDK background read preserves the last actual command observation
 });
 
 // W2-18-CODING-WAKE-01: a persisted real SDK wait wakes on activation alone, despite four consecutive read failures.
-// W5-01 C2 (expected change): Coding no longer waits for the Host's `ready()` before it starts the loop, so the loop's first read is the
-// one that starts the runtime. A first read that fails ends a loop the activation started (W5-01-CODING-31, tests/coding-input-ports.test.ts);
-// a loop whose first read was answered keeps retrying. So the four failures here come after one answered read (nothing ready at that
-// instant); before this change the Host's `ready()` was that answer.
+// The loop's first read is the one that starts the runtime; a first read that fails ends a loop the activation started
+// (W5-01-CODING-31, tests/coding-input-ports.test.ts), and a loop whose first read was answered keeps retrying. Since batch 32
+// the loop waits for the Host's word between reads (`host.agent.continuation.ready@1`, no polling): here the first read
+// answers nothing ready at that instant, the word comes, and the four failures come after it.
 // The command ends while the plugin is stopped, so the wait is over on the record before the SDK reopens: a finished
 // fact may start the next round by itself (specs/prologue-adoption §4.6.4). A command the restart cut off is not one: its
 // result is unknown, so the step is held for the person (needs-reconciliation) and nothing is started.
@@ -102,7 +104,7 @@ test("Coding activation resumes a persisted SDK wait without opening a page and 
   t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
     const wire = typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array);
     const messages = JSON.stringify(JSON.parse(wire).messages); requests.push(messages); turn++;
-    if (turn === 1) return codingToolResponse("start-command", { executable: process.execPath, argv: ["-e", "setTimeout(()=>{},4000)"] });
+    if (turn === 1) return codingToolResponse("start-command", { executable: "node", argv: ["-e", "setTimeout(()=>{},4000)"] });
     if (turn === 2) { const task = messages.match(/started (\S+) in the background/)?.[1]; assert.ok(task); return codingToolResponse("await-commands", { handles: [task], park: true, reason: "Wait for the controlled command." }); }
     return cogniaModelResponse(turn === 3 ? "Parked without polling." : "WOKE_FROM_PERSISTED_COMMAND");
   });
@@ -115,15 +117,26 @@ test("Coding activation resumes a persisted SDK wait without opening a page and 
   await fixture.reopenSdk(); const persisted = (await fixture.adapter.collaboration!.read(DEMO_PROJECT_ID))[0]!;
   assert.deepEqual([persisted.wait?.wait_id, persisted.wait?.state, persisted.continuation?.state], [parked[0]!.wait_id, "satisfied", "eligible"], "the wait is over on the record");
   assert.equal(turn, 3, "reopening asks no model");
-  const original = fixture.adapter.collaboration!.awaitReady.bind(fixture.adapter.collaboration), entered = Promise.withResolvers<void>(); let failures = 0, reads = 0;
-  t.mock.method(fixture.adapter.collaboration!, "awaitReady", async (...args) => { if (reads++ === 0) return []; if (failures < 4) { failures++; entered.resolve(); throw new Error("transient owner read failure"); } return original(...args); });
-  await fixture.platform.supervisor.restart("io.molis.work.coding"); await entered.promise;
+  // The loop's reads of the project's waits (no session named): one answered with nothing, then four that fail, then the record.
+  const original = fixture.adapter.collaboration!.read.bind(fixture.adapter.collaboration), answered = Promise.withResolvers<void>(), entered = Promise.withResolvers<void>(); let failures = 0, reads = 0;
+  t.mock.method(fixture.adapter.collaboration!, "read", async (project: string, sessionId?: string) => {
+    if (sessionId !== undefined) return original(project, sessionId);
+    if (reads++ === 0) { answered.resolve(); return []; }
+    if (failures < 4) { failures++; entered.resolve(); throw new Error("transient owner read failure"); }
+    return original(project);
+  });
+  await fixture.platform.supervisor.restart("io.molis.work.coding"); await answered.promise;
+  // The Host's word that the session may go on (what the Home's starter does for the runtime's start request): the loop reads again.
+  const restarted = fixture.platform.supervisor.state("io.molis.work.coding")!;
+  assert.ok(fixture.platform.hostEvents.notify({ plugin_id: "io.molis.work.coding", install_id: restarted.install_id! }, { event_type_id: HOST_AGENT_CONTINUATION_READY_EVENT, type_version: 1,
+    payload: { runtime_id: "prologue", session_id: persisted.session_id, request_key: persisted.continuation!.request_key, wait_id: persisted.wait!.wait_id }, correlation_id: persisted.continuation!.request_key }));
+  await entered.promise;
   // No HTTP/directory/session read starts this work: only the new plugin activation owns the loop.
   await until("activation stopped retrying or failed to resume the persisted wait", () => turn >= 4, 70_000);
   assert.equal(failures, 4); assert.match(requests[3]!, /the wait on your step is over/); assert.match(requests[3]!, /Wait for the controlled command/);
   // Taken up once: the round that went on holds it, and nothing is left to go on.
   await until("the wake did not take its wait up", async () => (await fixture.adapter.collaboration!.read(DEMO_PROJECT_ID))[0]?.wait === undefined);
-  assert.deepEqual(await fixture.adapter.collaboration!.awaitReady(DEMO_PROJECT_ID, 0), []);
+  assert.deepEqual(await readyWithin(fixture.adapter.collaboration!, DEMO_PROJECT_ID, 0), []);
 });
 
 // W2-18-CODING-REPORT-01: current SDK inserted graph -> user verdict -> immutable report, including SDK reopening.

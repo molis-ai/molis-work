@@ -2,7 +2,7 @@ import { memoryLearningActions } from "@molis-ai/molis-work-contracts/services/m
 import { searchActions, SEARCH_READ_PERMISSION } from "@molis-ai/molis-work-contracts/services/search";
 import { CHARACTER_ARTIFACT_TYPE, characterPluginActions } from "@molis-ai/molis-work-contracts/modules/characters";
 import { workspaceReadActions, writerDirectoryCapabilities, writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
-import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { HOST_AGENT_CONTINUATION_READY_EVENT, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities, agentOfferActions } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentCollaborationActions } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import { agentInputActions } from "@molis-ai/molis-work-contracts/services/agent-inputs";
@@ -142,7 +142,8 @@ export const codingManifest: PluginManifest = {
       { event_type_id: CODING_WORKSPACE_INVALIDATED_EVENT, type_version: /* @version event.io.molis.work.coding.workspace-invalidated */ 1 },
       { event_type_id: CODING_PREFERENCE_EVENT, type_version: /* @version event.io.molis.work.coding.preference */ 1 },
     ],
-    subscribes: [],
+    // What the Host tells Coding alone: one of its sessions may go on by itself now (result return).
+    subscribes: [{ event_type_id: HOST_AGENT_CONTINUATION_READY_EVENT, type_version: /* @version event.host.agent.continuation.ready */ 1 }],
   },
   agent: codingAgentManifest,
   databases: { project: CODING_PROJECT_DATABASE },

@@ -105,8 +105,9 @@ export const ASSISTANT_PERMISSIONS_PART = String.raw`
       if (!button) return;
       const work = getWork();
       if (!work || work.executor.kind !== "assistant" || work.archived || work.reply_target) return;
-      const review = button.dataset.assistantPermissionOpen ? view?.reviews?.find(row => row.review_id === button.dataset.assistantPermissionOpen) : undefined;
-      if (button.dataset.assistantPermissionOpen && !review) return;
+      const reviewId = button.dataset.assistantPermissionOpen;
+      const review = reviewId ? view?.reviews?.find(row => row.review_id === reviewId) : undefined;
+      if (reviewId && !review) return;
       openPermission = { work, review };
       busy = false; snapshot = null; selection = null; form.reset();
       if (review) form.querySelector("[name=mode][value=automatic]").checked = true;

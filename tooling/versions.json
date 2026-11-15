@@ -911,6 +911,7 @@
     "action.search.status": 1,
     "action.sessions.attribution.set": 1,
     "action.sessions.attribution.suggest": 1,
+    "action.sessions.connector.usages": 1,
     "action.sessions.discovery.run": 1,
     "action.sessions.history.read": 1,
     "action.sessions.list": 1,

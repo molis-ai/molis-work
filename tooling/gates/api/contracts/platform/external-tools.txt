@@ -114,21 +114,28 @@ export declare const EXTERNAL_TOOLS: readonly [{
     };
     readonly sessions: {
         readonly discover: {
-            readonly via: "protocol";
-            readonly protocol: "claude-agent-sdk";
-            readonly method: "listSessions";
+            readonly via: "local_record";
+            readonly root: {
+                readonly base: "home";
+                readonly segments: readonly [".claude", "projects"];
+            };
+            readonly format: "internal";
             readonly trust: "official";
         };
         readonly list: {
-            readonly via: "protocol";
-            readonly protocol: "claude-agent-sdk";
-            readonly method: "listSessions";
-            readonly trust: "official";
+            readonly via: "gap";
+            readonly gap: "interactive_only";
+            readonly note: string;
+            readonly fallback: "export" | "return_to_tool";
+            readonly trust: "official" | "third_party";
         };
         readonly read: {
-            readonly via: "protocol";
-            readonly protocol: "claude-agent-sdk";
-            readonly method: "getSessionMessages";
+            readonly via: "local_record";
+            readonly root: {
+                readonly base: "home";
+                readonly segments: readonly [".claude", "projects"];
+            };
+            readonly format: "internal";
             readonly trust: "official";
         };
         readonly search: {
@@ -166,7 +173,7 @@ export declare const EXTERNAL_TOOLS: readonly [{
         };
     };
     readonly checked: {
-        readonly on: "2026-11-05";
+        readonly on: "2026-11-15";
     };
 }, {
     readonly id: "cursor";
@@ -440,28 +447,27 @@ export declare const EXTERNAL_TOOLS: readonly [{
             readonly gap: "unverified";
             readonly note: string;
             readonly fallback: "export" | "return_to_tool";
-            readonly trust: "unverified";
+            readonly trust: "help";
         };
         readonly list: {
             readonly via: "gap";
             readonly gap: "unverified";
             readonly note: string;
             readonly fallback: "export" | "return_to_tool";
-            readonly trust: "unverified";
+            readonly trust: "help";
         };
         readonly read: {
-            readonly via: "gap";
-            readonly gap: "unverified";
-            readonly note: string;
-            readonly fallback: "export" | "return_to_tool";
-            readonly trust: "unverified";
+            readonly via: "command";
+            readonly argv: readonly ["export", "{session_id}"];
+            readonly output: "text";
+            readonly trust: "help";
         };
         readonly search: {
             readonly via: "gap";
             readonly gap: "unverified";
             readonly note: string;
             readonly fallback: "export" | "return_to_tool";
-            readonly trust: "unverified";
+            readonly trust: "help";
         };
         readonly resume: {
             readonly via: "command";
@@ -484,16 +490,15 @@ export declare const EXTERNAL_TOOLS: readonly [{
             readonly trust: "unverified";
         };
         readonly export: {
-            readonly via: "gap";
-            readonly gap: "unverified";
-            readonly note: string;
-            readonly fallback: "export" | "return_to_tool";
-            readonly trust: "unverified";
+            readonly via: "command";
+            readonly argv: readonly ["export", "{session_id}"];
+            readonly output: "text";
+            readonly trust: "help";
         };
     };
     readonly checked: {
-        readonly on: "2026-11-05";
-        readonly version: "1.0.70";
+        readonly on: "2026-11-15";
+        readonly version: "1.0.77";
     };
 }, {
     readonly id: "codex-ide";
@@ -920,11 +925,13 @@ export declare const EXTERNAL_TOOLS: readonly [{
     };
     readonly sessions: {
         readonly discover: {
-            readonly via: "gap";
-            readonly gap: "unverified";
-            readonly note: string;
-            readonly fallback: "export" | "return_to_tool";
-            readonly trust: "unverified";
+            readonly via: "local_record";
+            readonly root: {
+                readonly base: "home";
+                readonly segments: readonly [".gemini", "tmp"];
+            };
+            readonly format: "internal";
+            readonly trust: "official";
         };
         readonly list: {
             readonly via: "gap";
@@ -978,7 +985,7 @@ export declare const EXTERNAL_TOOLS: readonly [{
         };
     };
     readonly checked: {
-        readonly on: "2026-11-05";
+        readonly on: "2026-11-15";
     };
 }, {
     readonly id: "antigravity-cli";
@@ -1270,21 +1277,21 @@ export declare const EXTERNAL_TOOLS: readonly [{
     readonly sessions: {
         readonly discover: {
             readonly via: "command";
-            readonly argv: readonly ["agent-task", "list"];
-            readonly output: "text";
-            readonly trust: "official";
+            readonly argv: readonly ["agent-task", "list", "--json", "completedAt,createdAt,id,name,pullRequestNumber,pullRequestState,pullRequestTitle,pullRequestUrl,repository,state,updatedAt,user", "-L", "100"];
+            readonly output: "json";
+            readonly trust: "help";
         };
         readonly list: {
             readonly via: "command";
-            readonly argv: readonly ["agent-task", "list"];
-            readonly output: "text";
-            readonly trust: "official";
+            readonly argv: readonly ["agent-task", "list", "--json", "completedAt,createdAt,id,name,pullRequestNumber,pullRequestState,pullRequestTitle,pullRequestUrl,repository,state,updatedAt,user", "-L", "100"];
+            readonly output: "json";
+            readonly trust: "help";
         };
         readonly read: {
             readonly via: "command";
             readonly argv: readonly ["agent-task", "view", "{session_id}", "--log"];
             readonly output: "text";
-            readonly trust: "official";
+            readonly trust: "help";
         };
         readonly resume: {
             readonly via: "gap";
@@ -1323,7 +1330,8 @@ export declare const EXTERNAL_TOOLS: readonly [{
         };
     };
     readonly checked: {
-        readonly on: "2026-11-05";
+        readonly on: "2026-11-15";
+        readonly version: "2.103.3";
     };
 }, {
     readonly id: "cursor-editor";
@@ -2442,11 +2450,13 @@ export declare const EXTERNAL_TOOLS: readonly [{
     };
     readonly sessions: {
         readonly discover: {
-            readonly via: "gap";
-            readonly gap: "unverified";
-            readonly note: string;
-            readonly fallback: "export" | "return_to_tool";
-            readonly trust: "unverified";
+            readonly via: "local_record";
+            readonly root: {
+                readonly base: "home";
+                readonly segments: readonly [".qoder-cn", "projects"];
+            };
+            readonly format: "internal";
+            readonly trust: "official";
         };
         readonly list: {
             readonly via: "gap";
@@ -2500,7 +2510,7 @@ export declare const EXTERNAL_TOOLS: readonly [{
         };
     };
     readonly checked: {
-        readonly on: "2026-11-05";
+        readonly on: "2026-11-15";
     };
 }, {
     readonly id: "qoder-cn-ide";
@@ -3083,11 +3093,13 @@ export declare const EXTERNAL_TOOLS: readonly [{
             readonly trust: "official" | "third_party";
         };
         readonly read: {
-            readonly via: "gap";
-            readonly gap: "unverified";
-            readonly note: string;
-            readonly fallback: "export" | "return_to_tool";
-            readonly trust: "unverified";
+            readonly via: "local_record";
+            readonly root: {
+                readonly base: "home";
+                readonly segments: readonly [".kimi-code", "sessions"];
+            };
+            readonly format: "internal";
+            readonly trust: "official";
         };
         readonly resume: {
             readonly via: "command";
@@ -3125,7 +3137,7 @@ export declare const EXTERNAL_TOOLS: readonly [{
         };
     };
     readonly checked: {
-        readonly on: "2026-11-05";
+        readonly on: "2026-11-15";
     };
 }, {
     readonly id: "zcode";

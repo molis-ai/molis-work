@@ -103,13 +103,23 @@ export function codingContinuation(input: ContinuationInput): { task: string; in
       else if (!settled && receipt?.status !== "approved") commands.push(`未运行：${line}`);
     }
   }
-  for (const entry of run.activity) {
-    const output = entry.name === "run-command" ? outputs.get(entry.call_id) : undefined;
+  let lastEditIndex = -1, lastPassedCommandIndex = -1;
+  run.activity.forEach((entry, idx) => {
+    if (["edit", "write"].includes(entry.name) && entry.state === "completed") lastEditIndex = idx;
+    const output = (entry.name === "run-command" || entry.name === "start-command") ? outputs.get(entry.call_id) : undefined;
     if (output === null) commands.push(`回执无法读取，结果未知：${clip(entry.target, 200)}`);
     if (output) {
       const state = output.timed_out ? "超时" : output.cancelled ? "已取消" : output.exit_code === null ? "退出码未知" : `exit ${output.exit_code}`;
+      if (!output.timed_out && !output.cancelled && output.exit_code === 0) lastPassedCommandIndex = idx;
       commands.push(`已运行：${clip(output.command, 200)} → ${state}`);
+    } else if ((entry.name === "run-command" || entry.name === "start-command") && entry.state === "completed" && output === undefined) {
+      const code = /^exit (-?\d+)/.exec(entry.output ?? "")?.[1];
+      if (code === "0") lastPassedCommandIndex = idx;
+      else if (!code) commands.push(`退出状态未知，请先核对：${clip(entry.target, 200)}`);
     }
+  });
+  if (lastEditIndex >= 0 && lastPassedCommandIndex >= 0 && lastEditIndex > lastPassedCommandIndex) {
+    commands.push("注意：最后一次通过的检查之后又改动过文件，该检查只代表改动前的旧状态，继续时需重新验证");
   }
   const reads = [...new Set(run.activity.filter(entry => ["read", "read-file"].includes(entry.name) && entry.state === "completed" && entry.target).map(entry => entry.target))];
   const unfinished = run.activity.filter(entry => entry.state === "started" || entry.state === "unknown")

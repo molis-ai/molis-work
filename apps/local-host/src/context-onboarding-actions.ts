@@ -1,6 +1,6 @@
 import type { Readable } from "node:stream";
 import { withContextJourneys } from "./context-onboarding-store.js";
-import { adoptContextJourney, reopenContextJourney, selectContextSources, stageContextFile, startContextJourney, updateContextDraft,
+import { adoptContextJourney, decideContextSecret, reopenContextJourney, selectContextSources, stageContextFile, startContextJourney, updateContextDraft,
   type ContextOnboardingPorts } from "./context-onboarding-service.js";
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { webEntryDoor, webEntryProvider } from "./web-entry-actions.js";
@@ -54,6 +54,22 @@ export const contextOnboardingActions = {
     title: "采用整理结果", description: "首次引导：固定确认的内容，建项目并把内容存进 Pages、成果库与 Todo。",
     input_schema: { type: "object", properties: { journey, body }, required: ["journey", "body"], additionalProperties: false } },
   (entry, input) => adoptContextJourney(entry.home, input.journey, { ...input.body }, entry.ports)),
+  secret: door.define({ capability_id: "onboarding.context.secret", version: /* @version action.onboarding.context.secret */ 1, scope,
+    title: "决定疑似密钥材料的发送方式", description: "首次引导：对默认拦截的疑似密钥材料选择只发变量名、原样发送或不发。",
+    input_schema: { type: "object", properties: {
+      journey,
+      body: {
+        type: "object",
+        required: ["key", "decision"],
+        additionalProperties: false,
+        properties: {
+          key: { type: "string", minLength: 1, maxLength: 500 },
+          decision: { enum: ["strip", "raw", "exclude"] },
+          reorganize: { type: "boolean" },
+        },
+      },
+    }, required: ["journey", "body"], additionalProperties: false } },
+  async (entry, input) => structuredClone(await decideContextSecret(entry.home, input.journey, { ...input.body }, entry.ports))),
 };
 
 export const contextOnboardingProvider = () => webEntryProvider("system.onboarding", "首次引导", Object.values(contextOnboardingActions));

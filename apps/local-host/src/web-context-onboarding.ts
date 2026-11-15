@@ -27,7 +27,7 @@ export function createContextOnboardingHttp(ports: ContextOnboardingPorts, host:
         const input = await readNativePluginJsonBody(req);
         json(res, 201, await door.invoke(as(), actions.create.definition, { id: String(input.id ?? "") })); return true;
       }
-      const match = url.pathname.match(/^\/api\/onboarding\/context\/([a-z0-9-]+)(?:\/(selection|start|adopt|draft|reopen|files)|\/text\/([0-9a-f]{64}))?$/u);
+      const match = url.pathname.match(/^\/api\/onboarding\/context\/([a-z0-9-]+)(?:\/(selection|start|adopt|draft|reopen|files|secret)|\/text\/([0-9a-f]{64}))?$/u);
       if (!match) { json(res, 404, { error: "找不到这项整理操作" }); return true; }
       const id = match[1]!;
       // One chosen file per request, as the raw body (no size limit, user 2026-10-22); the selection names it by the digest returned.
@@ -43,6 +43,7 @@ export function createContextOnboardingHttp(ports: ContextOnboardingPorts, host:
       else if (req.method === "POST" && match[2] === "start") json(res, 202, await door.invoke(as(), actions.start.definition, { journey: id }));
       else if (req.method === "POST" && match[2] === "draft") json(res, 200, await door.invoke(as(), actions.draft.definition, { journey: id, body: await readNativePluginJsonBody(req) }));
       else if (req.method === "POST" && match[2] === "adopt") json(res, 200, await door.invoke(as(), actions.adopt.definition, { journey: id, body: await readNativePluginJsonBody(req) }));
+      else if (req.method === "POST" && match[2] === "secret") json(res, 200, await door.invoke(as(), actions.secret.definition, { journey: id, body: await readNativePluginJsonBody(req) }));
       else json(res, 405, { error: "不支持这项整理操作" });
     } catch (error) { json(res, 400, { error: error instanceof Error ? error.message : "整理请求失败，请重试" }); }
     return true;

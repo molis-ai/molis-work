@@ -104,6 +104,8 @@ export interface AgentPromptDeclaration {
 export interface AgentCompactionDeclaration {
   prompt_id: string;
   above_tokens: number;
+  /** Optional share of the effective context window (0 < ratio < 1) above which compaction runs (CHO-08). */
+  window_ratio?: number;
 }
 
 /**

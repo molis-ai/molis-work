@@ -21,7 +21,7 @@ export interface DraftPlan {
     readonly title: string;
     readonly change_reason?: string;
     readonly blockers?: unknown;
-    readonly steps: readonly { readonly title: string; readonly acceptance: string }[];
+    readonly steps: readonly { readonly title: string; readonly acceptance: string; readonly parent?: number; readonly story_points?: number; readonly estimate_source?: "agent" | "human"; readonly estimate_reason?: string }[];
   };
 }
 
@@ -102,7 +102,8 @@ export interface BoardRow {
   readonly title: string;
   readonly hint?: string;
   readonly state: StateMark;
-  readonly progress: { readonly done: number; readonly total: number } | null;
+  readonly progress: { readonly done: number; readonly total: number; readonly percent?: number; readonly text?: string } | null;
+  readonly points?: { readonly text: string; readonly title: string; readonly pending?: boolean } | null;
   readonly deps?: readonly Dependency[];
   readonly executor: Executor | null;
   readonly time?: RowTime | null;

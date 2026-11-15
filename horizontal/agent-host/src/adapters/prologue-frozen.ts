@@ -5,6 +5,39 @@ import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-ag
 import { type PrologueModelConfiguration } from "./prologue.js";
 
 /**
+ * Effective context window for a Run (CHO-08): uses the model's stated `context_tokens` (or `defaultWindow` when omitted),
+ * narrowed only by an explicit Host/session `budgetCap` (`budget.context_window_tokens`), never clamped to `defaultWindow`.
+ */
+export function effectiveContextWindow(
+  statedWindow: number | undefined,
+  defaultWindow: number | undefined,
+  budgetCap?: number,
+): { window_tokens: number; stated_window_tokens?: number; window_unknown?: true } | undefined {
+  const base = statedWindow ?? defaultWindow;
+  const windowTokens = base !== undefined
+    ? (budgetCap !== undefined ? Math.min(base, budgetCap) : base)
+    : budgetCap;
+  if (windowTokens === undefined) return undefined;
+  const windowUnknown = statedWindow === undefined && budgetCap === undefined;
+  return {
+    window_tokens: windowTokens,
+    ...(statedWindow !== undefined && statedWindow !== windowTokens ? { stated_window_tokens: statedWindow } : {}),
+    ...(windowUnknown ? { window_unknown: true as const } : {}),
+  };
+}
+
+export function effectiveCompactionAboveTokens(
+  compaction: { above_tokens: number; window_ratio?: number },
+  windowTokens: number | undefined,
+  windowUnknown?: boolean,
+): number {
+  if (compaction.window_ratio !== undefined && windowTokens !== undefined && !windowUnknown) {
+    return Math.max(1, Math.floor(windowTokens * compaction.window_ratio));
+  }
+  return compaction.above_tokens;
+}
+
+/**
  * What a Run is frozen with at its start: the role, its prompts and tools, the model and how it is asked, its materials,
  * plan, budget and workspace. Recorded once and shown as history; nothing here is looked up again later.
  */
@@ -16,6 +49,12 @@ export function freezeRunStart(input: { request: AgentStartRequest; role: NonNul
   if (request.reasoning_effort !== undefined && model.reasoning_effort !== true) {
     throw agentErrors.capability_unavailable(`模型设置里没有标注「${model.model}」可调思考力度；没有发出。可以在模型设置里确认后再选，或不选力度直接发送`);
   }
+  const resolvedWindow = defaultWindow !== undefined || model.context_tokens !== undefined || request.budget?.context_window_tokens !== undefined
+    ? effectiveContextWindow(model.context_tokens, defaultWindow, request.budget?.context_window_tokens)
+    : undefined;
+  const compactionAboveTokens = role.compaction
+    ? effectiveCompactionAboveTokens(role.compaction, resolvedWindow?.window_tokens, resolvedWindow?.window_unknown)
+    : undefined;
   return {
     ...(role.subagent_workspaces ? { subagent_workspaces: structuredClone(role.subagent_workspaces) } : {}),
     ...(role.directories ? { directories: structuredClone(role.directories) } : {}),
@@ -26,7 +65,7 @@ export function freezeRunStart(input: { request: AgentStartRequest; role: NonNul
     execution: role.execution,
     ...(callId ? { call_id: callId } : {}),
     model_id: model.model,
-    ...(role.compaction ? { compaction: { prompt_id: role.compaction.prompt.prompt_id, version: role.compaction.prompt.version, above_tokens: role.compaction.above_tokens } } : {}),
+    ...(role.compaction ? { compaction: { prompt_id: role.compaction.prompt.prompt_id, version: role.compaction.prompt.version, above_tokens: compactionAboveTokens! } } : {}),
     ...(role.ending_review ? { ending_review: { prompt_id: role.ending_review.prompt.prompt_id, version: role.ending_review.prompt.version,
       ...(role.ending_review.prompt.user_revision !== undefined ? { user_revision: role.ending_review.prompt.user_revision } : {}) } } : {}),
     prompts: role.prompts.map((prompt) => ({
@@ -44,8 +83,16 @@ export function freezeRunStart(input: { request: AgentStartRequest; role: NonNul
     host_tools: [...role.host_tools],
     text_materials: textMaterials.map(material => {
       // Where each piece came from and the revision read for this round stay with the round; a reopened round shows them as they were.
-      const item = { material_id: material.material_id, title: material.title,
-        ...(material.material_ref ? { material_ref: structuredClone(material.material_ref) } : {}), ...(material.read_revision ? { read_revision: material.read_revision } : {}) };
+      const item = {
+        material_id: material.material_id,
+        title: material.title,
+        ...(material.material_ref ? { material_ref: structuredClone(material.material_ref) } : {}),
+        ...(material.read_revision ? { read_revision: material.read_revision } : {}),
+        ...(material.delivery ? { delivery: material.delivery } : {}),
+        ...(material.total_chars !== undefined ? { total_chars: material.total_chars } : {}),
+        ...(material.delivered_chars !== undefined ? { delivered_chars: material.delivered_chars } : {}),
+        ...(material.overflow_materials?.length ? { overflow_materials: structuredClone(material.overflow_materials) } : {}),
+      };
       return material.source_artifact_id === undefined ? item : { ...item, source_artifact_id: material.source_artifact_id, source_version: material.source_version };
     }),
     ...(imageMaterials.length ? { image_materials: imageMaterials.map(({ material_id, title, media_type }) => ({ material_id, title, media_type })) } : {}),
@@ -54,8 +101,8 @@ export function freezeRunStart(input: { request: AgentStartRequest; role: NonNul
     ...(request.history === "digest" ? { history: "digest" as const } : {}),
     ...(model.thinking ? { thinking: model.thinking } : {}),
     ...(request.reasoning_effort ? { reasoning_effort: request.reasoning_effort } : {}),
-    ...(defaultWindow ? { model_context: {
-      window_tokens: Math.min(model.context_tokens ?? defaultWindow, defaultWindow),
+    ...(resolvedWindow && (defaultWindow !== undefined || model.context_tokens !== undefined || request.budget?.context_window_tokens !== undefined) ? { model_context: {
+      ...resolvedWindow,
       prompt_includes_cache: promptIncludesCache(model.protocol),
     } } : {}),
     budget: request.execution_plan ? { ...request.budget, max_turns: request.budget?.max_turns ?? 8 + request.execution_plan.steps.length * 3 } : request.budget ?? null,
@@ -66,7 +113,7 @@ export function freezeRunStart(input: { request: AgentStartRequest; role: NonNul
 /** Validate the exact materials before any model or SDK run is started. */
 export function validateRunAttachments(request: AgentStartRequest, supportsImages: boolean) {
   const textMaterials = request.text_materials ?? [];
-  if (textMaterials.length > 30 || new Set(textMaterials.map(item => item.material_id)).size !== textMaterials.length) throw new Error("材料过多或选择重复");
+  if (textMaterials.length > 36 || new Set(textMaterials.map(item => item.material_id)).size !== textMaterials.length) throw new Error("材料过多或选择重复");
   textMaterials.forEach(agentTextMaterialContent);
   const imageMaterials = request.image_materials ?? [];
   if (imageMaterials.length > 6 || new Set(imageMaterials.map(item => item.material_id)).size !== imageMaterials.length

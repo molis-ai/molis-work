@@ -1,4 +1,4 @@
-import { dateArg, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { dateArg, renderRoundReportCard, type MwRoundReportCheck, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 /**
  * How one round reads in the conversation: each tool call is a row that says what it touched and how it
  * ended, consecutive calls fold into one summary, and a round closes with what actually happened.
@@ -30,9 +30,10 @@ export interface TimelineRun {
   activity: TimelineActivity[];
   usage?: { tokens?: { input?: number; output?: number } };
   stop_reason?: string | null;
-  step_board?: { terminal: boolean; nodes: Array<{ state: string }> };
+  step_board?: { terminal: boolean; nodes: Array<{ state: string; scope_removed?: boolean; unknown_outcome?: boolean }> };
   turns?: Array<{ kind: string; text: string; at?: string | null }>;
   turn_changes?: TimelineTurnChanges[];
+  code_revision?: string | null;
   /** The after-write checks whose receipts the round holds, by the write's call id; absent when the reader did not look. */
   write_checks?: TimelineWriteCheck[];
 }
@@ -72,9 +73,10 @@ export function retitleCodingWaits(scope: Element) {
  * inferred beyond the receipt (BL-222). Null when the item is not a finished command.
  */
 function commandEnd(item: TimelineActivity): CommandEnd | null {
-  if (item.name !== "run-command" || item.state !== "completed") return null;
+  if ((item.name !== "run-command" && item.name !== "start-command") || item.state !== "completed") return null;
   const line = /^exit (\S+)/.exec(item.output ?? "")?.[1];
   if (line && /^-?\d+$/.test(line)) return Number(line);
+  if (item.name === "start-command") return "unknown";
   return line === "cancelled" ? "cancelled" : line === "timed-out" ? "timed-out" : line === "none" ? "signal" : "unknown";
 }
 const endLabel = (end: CommandEnd): string => typeof end === "number"
@@ -82,6 +84,125 @@ const endLabel = (end: CommandEnd): string => typeof end === "number"
   : { cancelled: uiText.text("coding.timeline.end.cancelled"), "timed-out": uiText.text("coding.timeline.end.timed-out"),
     signal: uiText.text("coding.timeline.end.signal"), unknown: uiText.text("coding.timeline.end.unknown") }[end];
 const endTone = (end: CommandEnd) => end === 0 ? "ok" : end === "cancelled" ? "quiet" : end === "unknown" || end === "signal" ? "unknown" : "failed";
+
+function endedRoundExtras(
+  run: TimelineRun,
+  editedSize: number,
+  commandsCount: number,
+  lastCommand: TimelineActivity | undefined,
+  lastEnd: CommandEnd | null,
+  left: number,
+  stalled: boolean,
+  stoppedAtLabel: string,
+) {
+  const unknownCmds = run.activity.filter(item => (item.name === "run-command" || item.name === "start-command")
+    && (item.state === "unknown" || item.state === "started" || (item.state === "completed" && (commandEnd(item) === "unknown" || commandEnd(item) === "signal")))).length;
+  let firstEditAt = -1, lastEditAt = -1, lastPassAt = -1, failBeforeEdit = false;
+  run.activity.forEach((item, idx) => {
+    if (["edit", "write"].includes(item.name) && item.state === "completed") { if (firstEditAt < 0) firstEditAt = idx; lastEditAt = idx; }
+    const end = commandEnd(item);
+    if (end === 0) lastPassAt = idx;
+    else if ((typeof end === "number" && end !== 0 || end === "timed-out" || item.state === "failed" && (item.name === "run-command" || item.name === "start-command")) && firstEditAt < 0) failBeforeEdit = true;
+  });
+  const staleCheck = lastEditAt >= 0 && lastPassAt >= 0 && lastEditAt > lastPassAt;
+  const tone = run.phase === "completed" ? left || stalled || unknownCmds > 0 ? "partial" : "done" : run.phase === "failed" || run.phase === "reconcile-required" ? "failed" : "stopped";
+  const title = {
+    done: uiText.text("coding.round.done"),
+    partial: stalled ? uiText.text("coding.round.stalled") : left ? uiText.text("coding.round.plan-left", { count: left }) : uiText.text("coding.round.done-unknown-cmd", { count: unknownCmds }),
+    failed: run.phase === "reconcile-required" ? uiText.text("coding.round.reconcile") : uiText.text("coding.round.failed"),
+    stopped: uiText.text("coding.round.stopped"),
+  }[tone];
+  const extraFacts = [
+    unknownCmds > 0 ? uiText.text("coding.round.unknown-cmd-note", { count: unknownCmds }) : "",
+    staleCheck ? uiText.text("coding.round.stale-check") : "",
+    failBeforeEdit && editedSize > 0 ? uiText.text("coding.round.pre-existing-fail") : "",
+  ];
+  const showDigest = editedSize > 0 || commandsCount > 0 || unknownCmds > 0 || left > 0 || run.phase === "reconcile-required";
+  const deliveredText = editedSize ? uiText.text("coding.round.card.delivered-files", { count: editedSize }) : uiText.text("coding.round.no-edits");
+  const verifiedText = staleCheck
+    ? uiText.text("coding.round.stale-check")
+    : unknownCmds > 0
+      ? uiText.text("coding.round.unknown-cmd-note", { count: unknownCmds })
+      : lastCommand
+        ? uiText.text("coding.round.last-command", { command: lastCommand.target || uiText.text("coding.round.command"), end: endLabel(lastEnd ?? "unknown") })
+        : uiText.text("coding.round.card.no-verify");
+  const remainingText = left > 0
+    ? uiText.text("coding.round.plan-left", { count: left })
+    : unknownCmds > 0 || run.phase === "reconcile-required"
+      ? uiText.text("coding.round.card.reconcile-left")
+      : run.phase !== "completed"
+        ? uiText.text("coding.round.card.interrupted-left")
+        : uiText.text("coding.round.card.nothing-left");
+  const lastCheckpoint = run.turn_changes?.at(-1)?.files?.at(-1)?.checkpoint_id;
+  const whereText = lastCheckpoint
+    ? uiText.text("coding.round.card.where-checkpoint", { count: editedSize })
+    : editedSize
+      ? uiText.text("coding.round.card.where-dirty", { count: editedSize })
+      : uiText.text("coding.round.card.where-clean");
+  const codeRevision = run.code_revision || (lastCommand?.at ? /^\d{4}-\d{2}-\d{2}T(\d{2}:\d{2})/.exec(lastCommand.at)?.[1] : undefined) || undefined;
+  const delivered: MwRoundReportCheck[] = [
+    { state: editedSize > 0 ? "done" : "idle", text: deliveredText, quiet: !editedSize },
+    { state: lastCheckpoint ? "done" : editedSize > 0 ? "partial" : "idle", text: whereText, quiet: !editedSize },
+  ];
+  const verified: MwRoundReportCheck[] = staleCheck
+    ? [{
+        state: "stale",
+        text: verifiedText,
+        ...(codeRevision ? { codeRevision } : {}),
+        status: { label: uiText.text("coding.round.card.result-stale"), tone: "attention" },
+        ...(lastCommand ? { action: { label: uiText.text("coding.round.card.rerun-check"), variant: "secondary", attrs: { "data-coding-rerun-checks": run.ref.run_id } } } : {}),
+      }]
+    : unknownCmds > 0
+      ? [{ state: "verify", text: verifiedText, ...(codeRevision ? { codeRevision } : {}) }]
+      : lastCommand
+        ? [{
+            state: lastEnd === 0 ? "done" : "failed",
+            text: verifiedText,
+            ...(codeRevision ? { codeRevision } : {}),
+            ...(failBeforeEdit && editedSize > 0 ? { badge: { label: uiText.text("coding.round.pre-existing-fail"), tone: "warning" } } : {}),
+          }]
+        : [{ state: "idle", text: verifiedText, quiet: true }];
+  const remaining: MwRoundReportCheck[] = [
+    {
+      state: left > 0 || unknownCmds > 0 || run.phase !== "completed" ? "verify" : "done",
+      text: remainingText,
+      quiet: left === 0 && unknownCmds === 0 && run.phase === "completed",
+    },
+  ];
+  const cleanup: MwRoundReportCheck[] | undefined = commandsCount > 0
+    ? [{ state: "done", text: uiText.text("coding.round.card.cleanup-commands", { count: commandsCount }), quiet: true }]
+    : undefined;
+  const statusTone = run.phase === "reconcile-required" || unknownCmds > 0
+    ? "attention"
+    : tone === "done"
+      ? "done"
+      : tone === "partial"
+        ? "progress"
+        : tone === "failed"
+          ? "blocked"
+          : "quiet";
+  const digestGrid = showDigest
+    ? renderRoundReportCard({
+        statusLabel: title,
+        statusTone,
+        finishedAtLabel: stoppedAtLabel,
+        headings: {
+          delivered: uiText.text("coding.round.card.delivered"),
+          verified: uiText.text("coding.round.card.verified"),
+          remaining: uiText.text("coding.round.card.remaining"),
+          ...(commandsCount > 0 ? { cleanup: uiText.text("coding.round.card.cleanup") } : {}),
+        },
+        codeRevisionTitle: uiText.text("coding.round.card.code-version-title"),
+        delivered,
+        verified,
+        remaining,
+        ...(cleanup ? { cleanup } : {}),
+        attrs: { "data-coding-round-digest": "" },
+      })
+    : "";
+  const ringState = run.phase === "reconcile-required" || unknownCmds > 0 ? "verify" : tone === "done" ? "round-ended" : tone === "partial" && !stalled ? "partial" : tone === "failed" ? "failed" : "stopped";
+  return { tone, title, ringState, digestGrid, extraFacts };
+}
 
 export function createCodingTimeline(words: TimelineWords) {
   const TERMINAL = ["completed", "failed", "stopped", "cancelled", "reconcile-required"];
@@ -252,30 +373,25 @@ export function createCodingTimeline(words: TimelineWords) {
       return;
     }
     const edited = new Set(run.activity.filter(item => ["edit", "write"].includes(item.name) && item.state === "completed" && item.target).map(item => item.target));
-    const commands = run.activity.filter(item => item.name === "run-command" && item.state === "completed"), dispatched = run.activity.filter(item => item.name === "dispatch-subagent" && item.state === "completed").length;
+    const commands = run.activity.filter(item => (item.name === "run-command" || item.name === "start-command") && item.state === "completed"), dispatched = run.activity.filter(item => item.name === "dispatch-subagent" && item.state === "completed").length;
     const lastCommand = commands.at(-1), lastEnd = lastCommand ? commandEnd(lastCommand) : null;
-    // A plan round is only done when its plan is: an ended round with steps left says so and offers to continue.
-    const left = run.step_board && !run.step_board.terminal ? run.step_board.nodes.filter(node => !["succeeded", "cancelled"].includes(node.state)).length : 0;
-    const completedFraction = run.step_board?.nodes.length ? run.step_board.nodes.filter(node => node.state === "succeeded").length / run.step_board.nodes.length : undefined;
+    const activeNodes = run.step_board?.nodes.filter(node => !node.scope_removed) ?? [];
+    const left = run.step_board && !run.step_board.terminal ? activeNodes.filter(node => node.unknown_outcome || !["succeeded", "cancelled"].includes(node.state)).length : 0;
+    const completedFraction = activeNodes.length ? activeNodes.filter(node => node.state === "succeeded" && !node.unknown_outcome).length / activeNodes.length : undefined;
     // A round that ended on an announcement ("我先读……") without calling a single tool did nothing; it says so plainly
     const said = [...(run.turns ?? [])].reverse().find(turn => turn.kind === "assistant")?.text.trim() ?? "";
     // Thinking is not doing: a round whose only activity is the model's reasoning still did nothing.
     const acted = run.activity.some(item => item.name !== "reasoning");
     const stalled = latest && run.phase === "completed" && !acted && said.length < 160 && /^(好的[，,]?\s*)?(我先|我来|我会|让我|现在开始|接下来我|首先我)/.test(said);
-    const tone = run.phase === "completed" ? left || stalled ? "partial" : "done" : run.phase === "failed" || run.phase === "reconcile-required" ? "failed" : "stopped";
-    const title = { done: uiText.text("coding.round.done"), partial: stalled ? uiText.text("coding.round.stalled") : uiText.text("coding.round.plan-left", { count: left }), failed: run.phase === "reconcile-required" ? uiText.text("coding.round.reconcile") : uiText.text("coding.round.failed"), stopped: uiText.text("coding.round.stopped") }[tone];
     // A round cut off by a restart has no end time. Its last recorded moment is when it stopped; measuring to now
     // would keep the card changing every second, and each redraw replaces its buttons under the pointer. A recovered
     // round may have kept no moment after its start at all, and then it shows no duration rather than "0 s".
     const stoppedAt = run.ended_at ?? [...run.activity.map(item => item.at), ...(run.turns ?? []).map(turn => turn.at)]
       .filter((at): at is string => typeof at === "string" && (!run.started_at || at > run.started_at)).sort().at(-1);
-    const facts = [
-      stoppedAt && duration(run.started_at, stoppedAt) && uiText.text("coding.round.took", { duration: duration(run.started_at, stoppedAt) }),
-      edited.size ? tally(KIND.edit!, edited.size) : uiText.text("coding.round.no-edits"),
-      dispatched && tally(KIND["dispatch-subagent"]!, dispatched),
-      commands.length ? tally(KIND["run-command"]!, commands.length) : "",
-      lastCommand ? uiText.text("coding.round.last-command", { command: lastCommand.target || uiText.text("coding.round.command"), end: endLabel(lastEnd ?? "unknown") }) : "",
-    ].filter(Boolean);
+    const took = stoppedAt && duration(run.started_at, stoppedAt) ? uiText.text("coding.round.took", { duration: duration(run.started_at, stoppedAt) }) : "";
+    const extra = endedRoundExtras(run, edited.size, commands.length, lastCommand, lastEnd, left, stalled, took);
+    const { tone, title, ringState, digestGrid } = extra;
+    const facts = [took, edited.size ? tally(KIND.edit!, edited.size) : uiText.text("coding.round.no-edits"), dispatched && tally(KIND["dispatch-subagent"]!, dispatched), commands.length ? tally(KIND["run-command"]!, commands.length) : "", lastCommand ? uiText.text("coding.round.last-command", { command: lastCommand.target || uiText.text("coding.round.command"), end: endLabel(lastEnd ?? "unknown") }) : "", ...extra.extraFacts].filter(Boolean);
     // A reason that only restates the title ("已停止" under "这一轮已停止") adds nothing. "已停止" is the runtime's own
     // default reason for a stop, so it restates the title in every language.
     const stated = (run.stop_reason ?? "").trim(), restates = stated !== "" && (title.includes(stated.replace(/^已/, "")) || (tone === "stopped" && stated === "已停止"));
@@ -291,8 +407,8 @@ export function createCodingTimeline(words: TimelineWords) {
       : stalled ? `<button class="mw-btn mw-btn--primary" type="button" data-coding-nudge="${escape(run.ref.run_id)}">${svg("play")}${escape(uiText.text("coding.round.nudge"))}</button>` : "";
     const files = edited.size ? `<ul class="coding-run-files">${[...edited].slice(0, 8).map(path => `<li>${svg("edit")}<code>${escape(path)}</code></li>`).join("")}${edited.size > 8 ? `<li>${escape(uiText.text("coding.round.more-files", { count: edited.size - 8 }))}</li>` : ""}</ul>` : "";
     const html = `<div class="coding-run-card" data-tone="${tone}">
-      <header><span class="coding-run-mark" aria-hidden="true" data-mw-state="${run.phase === "reconcile-required" ? "verify" : tone === "done" ? "round-ended" : tone === "partial" && !stalled ? "partial" : tone === "failed" ? "failed" : "stopped"}"${completedFraction === undefined ? "" : ` data-ring-progress="${completedFraction}"`}></span><strong>${escape(title)}</strong><span class="coding-run-round">${escape(uiText.text("coding.turn.number", { number: index + 1 }))}</span></header>
-      <p class="coding-run-facts">${facts.map(escape).join(" · ")}</p>${stalled ? `<p class="coding-run-reason">${escape(uiText.text("coding.round.stalled-why"))}</p>` : reason}${files}
+      <header><span class="coding-run-mark" aria-hidden="true" data-mw-state="${ringState}"${completedFraction === undefined ? "" : ` data-ring-progress="${completedFraction}"`}></span><strong>${escape(title)}</strong><span class="coding-run-round">${escape(uiText.text("coding.turn.number", { number: index + 1 }))}</span></header>
+      <p class="coding-run-facts">${facts.map(escape).join(" · ")}</p>${digestGrid}${stalled ? `<p class="coding-run-reason">${escape(uiText.text("coding.round.stalled-why"))}</p>` : reason}${files}
       <div class="coding-run-actions">${resume}${edited.size ? `<button class="mw-btn" type="button" data-coding-change-open="${escape(run.ref.run_id)}" data-coding-card-open>${svg("columns")}${escape(uiText.text("coding.round.changes"))}</button>` : ""}${edited.size && run.phase === "completed" ? `<button class="mw-btn mw-btn--ghost" type="button" data-coding-commit-round="${escape(run.ref.run_id)}">${svg("git-branch")}${escape(uiText.text("coding.round.commit"))}</button>` : ""}<button class="mw-btn mw-btn--ghost" type="button" data-coding-report-open="${escape(run.ref.run_id)}" data-coding-card-open>${svg("file")}${escape(uiText.text("coding.report.label"))}</button></div>
     </div>`;
     if (footer.dataset.html !== html) { const again = Boolean(footer.dataset.html); footer.innerHTML = html; if (again) footer.firstElementChild?.setAttribute("data-settled", ""); footer.dataset.html = html; footer.dataset.state = "ended"; }

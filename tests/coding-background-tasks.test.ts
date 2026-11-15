@@ -137,8 +137,9 @@ test("W5-01-CODING-51 stopping and starting Coding again is not a Home restart: 
   const row = attention.background_tasks.find(item => item.id === "r1");
   assert.deepEqual(row && [row.state, row.waiting, row.standing], ["running", false, [{ text: "进行中" }]],
     "the round goes on in the Home's agent host; only the Home process starting would cut it");
-  // The boundary the answer takes is the Home process's start, not the activation's.
-  assert.match(source("plugins/native/coding/src/plugin.ts"), /new Date\(Date\.now\(\) - process\.uptime\(\) \* 1000\)\.toISOString\(\)/);
+  // BL-540: the boundary comes from the platform's Home Host startup timestamp (`context.host_started_at`), never `process`.
+  assert.match(source("plugins/native/coding/src/plugin.ts"), /context\.host_started_at/);
+  assert.doesNotMatch(source("plugins/native/coding/src/plugin.ts"), /\bprocess\./);
 });
 
 test("W5-01-CODING-34 Coding's reader lists the sessions that are active or hold the person's open steps, tolerates a column it cannot parse, and writes nothing", { timeout: 60_000 }, async t => {

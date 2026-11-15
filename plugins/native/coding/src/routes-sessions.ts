@@ -17,6 +17,7 @@ import { codingSkillChoices } from "./skill-choices.js";
 import { codingInputPatch } from "./inputs.js";
 import type { CodingSessionRecord } from "./store.js";
 import { projectDirectories, projectFolders } from "./project-folders.js";
+import { inspectCodingEnvironment } from "./environment-prep.js";
 import { ActionError, defineErrorCodes, parseExactActionReferences, searchEntriesPage } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginRouteBinding } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities as agent, isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -63,14 +64,30 @@ const readState = async (a: CodingActivation, api: Capabilities, execution: Codi
   const mcp = library && supports(library, "mcp") ? await actions.invoke(agent.listMcp, [library.runtime_id]) : [];
   const folders = await unlessMissing(projectDirectories(api), null);
   const shown = await Promise.all(sessions.map(async record => ({ ...record, execution_state: await executionState(actions, record) })));
+  const outputWorkspace = folders?.directories.find(folder => folder.roles.includes("output")) ?? null;
+  const hasRunningSession = shown.some(item => item.state === "running" || item.state === "waiting-approval" || item.state === "waiting-answer");
+  let environment_readiness = null;
+  if (outputWorkspace?.realpath_verified) {
+    const cacheKey = `${outputWorkspace.workspace_id}:${hasRunningSession ? "live" : "idle"}`;
+    const cached = a.environmentChecks.get(cacheKey);
+    const pending = cached && Date.now() - cached.at < 15_000
+      ? cached.value
+      : (() => {
+          const next = inspectCodingEnvironment(context, outputWorkspace.workspace_id, hasRunningSession, beforeWrite).catch(() => null);
+          a.environmentChecks.set(cacheKey, { at: Date.now(), value: next });
+          return next;
+        })();
+    environment_readiness = await pending;
+  }
   return { sessions: shown, skills: await codingSkillChoices(a, actions), mcp, models: execution.models.list(),
     // The Runtime a new session runs on; the page reads the role matrix of the open session's Runtime, or this one when none is open.
     project_runtime_id: library?.runtime_id ?? null,
     // Where the page's new rounds run unless the person picks another folder on the page: the project's output (SSC-17). Which folder
     // the page shows is the page's own state, never a setting (specs/shared-sources-and-surfaces §4).
     // A host without workspace settings offers none of these: sessions still list and open, and a round asks for a directory.
-    workspace: folders?.directories.find(folder => folder.roles.includes("output")) ?? null,
+    workspace: outputWorkspace,
     workspaces: folders?.directories ?? [],
+    ...(environment_readiness ? { environment_readiness } : {}),
     // Whether the next round reads the output's instruction files, and if not why (batch12-design §3.7): the rules menu's buttons.
     ...(folders ? { instructions: folders.instructions } : {}),
     runtimes: await Promise.all(runtimes.map(async (runtime) => ({ ...runtime,

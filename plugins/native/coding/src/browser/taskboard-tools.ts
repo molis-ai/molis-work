@@ -4,8 +4,8 @@ import type { Amendment, StepNode } from "./shapes.js";
 import { svg } from "./taskboard-format.js";
 import type { BoardRow, RowEdit, RowView } from "./taskboard-types.js";
 
-/** An input of the inline form: its name, placeholder and longest text. */
-type TextField = readonly [name: string, placeholder: string, max: number];
+/** An input of the inline form: its name, placeholder, longest text, starting value and whether it may be left empty. */
+type TextField = readonly [name: string, placeholder: string, max: number, value?: string, optional?: boolean];
 
 /** What an inline form asks, and the change its answers make. */
 interface Question {
@@ -53,12 +53,13 @@ async function change({ view, edit }: Tools, amendment: Amendment) {
 
 /** The inline form's inputs: a text input per field and the checkbox. */
 function drawInputs(form: HTMLFormElement, question: Question) {
-  const texts = question.fields.map(([name, placeholder, max]) => {
+  const texts = question.fields.map(([name, placeholder, max, value, optional]) => {
     const input = el("input", "", "mw-input");
     input.name = name;
     input.placeholder = placeholder;
     input.maxLength = max;
-    input.required = true;
+    input.required = !optional;
+    input.value = value || "";
     form.append(input);
     return input;
   });
@@ -99,7 +100,7 @@ function ask(tools: Tools, question: Question) {
   });
   ports.lifetime.listen(form, "submit", async event => {
     event.preventDefault();
-    if (texts.some(input => !input.value.trim())) return;
+    if (texts.some((input, idx) => !question.fields[idx]?.[4] && !input.value.trim())) return;
     ok.disabled = true;
     delete board.dataset.editing;
     await change(tools, question.build(texts.map(input => input.value.trim()), box?.checked ?? false));
@@ -131,6 +132,21 @@ function stepTools(tools: Tools) {
     skip(node.state === "failed" ? uiText.text("coding.board.pass-over") : uiText.text("coding.board.skip"));
   }
   if (node.state !== "cancelled") {
+    add(tools, uiText.text("coding.board.estimate"), "edit", () => ask(tools, {
+      fields: [["points", uiText.text("coding.board.estimate-points"), 10, node.story_points !== undefined ? String(node.story_points) : "", true], ["reason", uiText.text("coding.board.estimate-reason"), 300, node.estimate_reason || "", true]],
+      submit: uiText.text("coding.board.estimate-ok"),
+      build: ([pts, reason]) => {
+        const cleaned = (pts ?? "").trim();
+        const parsed = !cleaned || cleaned === "0" || cleaned === "-" ? null : Number(cleaned);
+        return { kind: "estimate", node: node.id, story_points: parsed, ...(reason ? { reason } : {}) };
+      },
+    }));
+    if (node.state !== "succeeded") {
+      add(tools, uiText.text("coding.board.remove-scope"), "x", () => ask(tools, {
+        fields: [["reason", uiText.text("coding.board.remove-scope-reason"), 300]], submit: uiText.text("coding.board.remove-scope"),
+        build: ([reason]) => ({ kind: "remove-scope", node: node.id, reason: reason! }),
+      }));
+    }
     add(tools, uiText.text("coding.board.insert"), "plus", () => ask(tools, {
       fields: [["title", uiText.text("coding.board.insert-title"), 120], ["acceptance", uiText.text("coding.board.insert-acceptance"), 300]], check: ["mine", uiText.text("coding.board.mine")], submit: uiText.text("coding.board.insert-ok"),
       build: ([title, acceptance], mine) => ({ kind: "insert", after: node.id, title: title!, acceptance: acceptance!, ...(mine ? { mine: true as const } : {}) }),

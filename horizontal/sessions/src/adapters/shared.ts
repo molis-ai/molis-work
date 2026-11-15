@@ -403,9 +403,93 @@ export async function walkFilesUnderRoot(
   return { files, skipped };
 }
 
+type JsonlRecordKind = "housekeeping" | "sidechain" | "session_header" | "message" | "unsupported_version" | "other";
+
+const HOUSEKEEPING_TYPES = new Set(["summary", "file-history-snapshot", "queue-operation"]);
+const KNOWN_MESSAGE_TYPES = new Set(["user", "human", "assistant", "model", "tool", "system"]);
+
+export function classifyJsonlRecord(obj: Record<string, unknown>): JsonlRecordKind {
+  const schemaVer = typeof obj.schemaVersion === "number"
+    ? obj.schemaVersion
+    : typeof obj.schema_version === "number"
+      ? obj.schema_version
+      : undefined;
+  if (schemaVer !== undefined && schemaVer > 1) return "unsupported_version";
+  if (obj.isSidechain === true) return "sidechain";
+  const type = typeof obj.type === "string" ? obj.type : undefined;
+  if (type && HOUSEKEEPING_TYPES.has(type)) return "housekeeping";
+  if (type === "session") return "session_header";
+  if (isRecord(obj.message) || typeof obj.role === "string" || (type !== undefined && KNOWN_MESSAGE_TYPES.has(type))) {
+    return "message";
+  }
+  if (type !== undefined) return "unsupported_version";
+  return "other";
+}
+
+function appendMessageBlocks(
+  content: readonly unknown[],
+  rawRole: string | undefined,
+  at: string | null,
+  entries: ExternalSessionEntry[],
+  toolUseIndex: Map<string, number>,
+  push: (entry: Omit<ExternalSessionEntry, "position" | "truncated">) => number,
+): void {
+  for (const block of content) {
+    if (!isRecord(block)) continue;
+    const blockType = typeof block.type === "string" ? block.type : "";
+    // Never emit hidden reasoning / thinking blocks (contract-design §6.3).
+    if (blockType === "thinking" || blockType === "redacted_thinking" || blockType === "reasoning") continue;
+    if (blockType === "image" || blockType === "document" || blockType === "audio" || blockType === "file") {
+      push({ role: "note", at, text: "[附件未读取]" });
+      continue;
+    }
+    if (blockType === "text" && typeof block.text === "string") {
+      if (!block.text.trim()) continue;
+      push({ role: rawRole === "user" || rawRole === "human" ? "you" : "tool", at, text: block.text });
+      continue;
+    }
+    if (blockType === "tool_use" || blockType === "toolCall") {
+      const name = typeof block.name === "string" ? block.name : "tool";
+      const summary = block.input !== undefined ? JSON.stringify(block.input) : block.arguments !== undefined ? JSON.stringify(block.arguments) : name;
+      const idx = push({ role: "tool_step", at, text: summary, step: { name, status: "unknown" } });
+      const id = typeof block.id === "string" ? block.id : undefined;
+      if (id) toolUseIndex.set(id, idx);
+      continue;
+    }
+    if (blockType === "tool_result") {
+      const toolUseId = typeof block.tool_use_id === "string" ? block.tool_use_id : undefined;
+      const isError = block.is_error === true;
+      const resultText = typeof block.content === "string"
+        ? block.content
+        : Array.isArray(block.content)
+          ? block.content.filter(isRecord).map(c => (typeof c.text === "string" ? c.text : "")).filter(Boolean).join("\n")
+          : "";
+      if (toolUseId && toolUseIndex.has(toolUseId)) {
+        const prevIdx = toolUseIndex.get(toolUseId)!;
+        const prev = entries[prevIdx]!;
+        const combined = resultText ? `${prev.text}\n${resultText}` : prev.text;
+        const truncated = truncateEntryText(combined);
+        entries[prevIdx] = {
+          ...prev,
+          text: truncated.text,
+          truncated: prev.truncated || truncated.truncated,
+          step: { name: prev.step?.name ?? "tool", status: isError ? "failed" : "ok" },
+        };
+      } else {
+        push({
+          role: "tool_step",
+          at,
+          text: resultText || "(tool result)",
+          step: { name: "tool", status: isError ? "failed" : "ok" },
+        });
+      }
+    }
+  }
+}
+
 /**
  * Shared parser for JSONL message-style local session logs (Claude Code, Qoder CN, Kimi Code, MiniMax Code).
- * Preserves append-stable byte offsets, omits `thinking` / reasoning blocks, turns attachments into `note`, and pairs tool steps.
+ * Preserves append-stable byte offsets, omits `thinking` / reasoning / sidechain blocks, turns attachments into `note`, and pairs tool steps.
  */
 export function parseMessageJsonlLines(lines: readonly JsonlLineRecord[], initialStopped: { code: string; retryable: boolean } | null): ParsedTranscriptResult {
   const entries: ExternalSessionEntry[] = [];
@@ -414,6 +498,7 @@ export function parseMessageJsonlLines(lines: readonly JsonlLineRecord[], initia
   let partialStop: { code: string; at: string | null; retryable: boolean } | null = null;
   let nonEmptyLines = 0;
   let parseErrors = 0;
+  let unsupportedRecords = 0;
 
   for (const record of lines) {
     const trimmed = record.line.trim();
@@ -436,10 +521,23 @@ export function parseMessageJsonlLines(lines: readonly JsonlLineRecord[], initia
     }
     if (!isRecord(obj)) continue;
 
+    const kind = classifyJsonlRecord(obj);
+    if (kind === "housekeeping" || kind === "sidechain") continue;
+    if (kind === "unsupported_version") {
+      unsupportedRecords++;
+      if (entries.length > 0) {
+        partialStop = {
+          code: "sessions.version_unreadable",
+          at: entries[entries.length - 1]!.position,
+          retryable: false,
+        };
+        break;
+      }
+      continue;
+    }
+
     const at = normalizeIsoTimestamp(obj.timestamp ?? obj.created_at ?? obj.time);
     const type = typeof obj.type === "string" ? obj.type : undefined;
-    if (type === "summary" || type === "file-history-snapshot" || type === "queue-operation") continue;
-
     const msg = isRecord(obj.message) ? obj.message : obj;
     const rawRole = typeof msg.role === "string" ? msg.role : type;
     const content = msg.content;
@@ -467,61 +565,11 @@ export function parseMessageJsonlLines(lines: readonly JsonlLineRecord[], initia
     }
 
     if (Array.isArray(content)) {
-      for (const block of content) {
-        if (!isRecord(block)) continue;
-        const blockType = typeof block.type === "string" ? block.type : "";
-        // Never emit hidden reasoning / thinking blocks (contract-design §6.3).
-        if (blockType === "thinking" || blockType === "redacted_thinking" || blockType === "reasoning") continue;
-        if (blockType === "image" || blockType === "document" || blockType === "audio" || blockType === "file") {
-          push({ role: "note", at, text: "[附件未读取]" });
-          continue;
-        }
-        if (blockType === "text" && typeof block.text === "string") {
-          if (!block.text.trim()) continue;
-          push({ role: rawRole === "user" || rawRole === "human" ? "you" : "tool", at, text: block.text });
-          continue;
-        }
-        if (blockType === "tool_use" || blockType === "toolCall") {
-          const name = typeof block.name === "string" ? block.name : "tool";
-          const summary = block.input !== undefined ? JSON.stringify(block.input) : block.arguments !== undefined ? JSON.stringify(block.arguments) : name;
-          const idx = push({ role: "tool_step", at, text: summary, step: { name, status: "unknown" } });
-          const id = typeof block.id === "string" ? block.id : undefined;
-          if (id) toolUseIndex.set(id, idx);
-          continue;
-        }
-        if (blockType === "tool_result") {
-          const toolUseId = typeof block.tool_use_id === "string" ? block.tool_use_id : undefined;
-          const isError = block.is_error === true;
-          const resultText = typeof block.content === "string"
-            ? block.content
-            : Array.isArray(block.content)
-              ? block.content.filter(isRecord).map(c => (typeof c.text === "string" ? c.text : "")).filter(Boolean).join("\n")
-              : "";
-          if (toolUseId && toolUseIndex.has(toolUseId)) {
-            const prevIdx = toolUseIndex.get(toolUseId)!;
-            const prev = entries[prevIdx]!;
-            const combined = resultText ? `${prev.text}\n${resultText}` : prev.text;
-            const truncated = truncateEntryText(combined);
-            entries[prevIdx] = {
-              ...prev,
-              text: truncated.text,
-              truncated: prev.truncated || truncated.truncated,
-              step: { name: prev.step?.name ?? "tool", status: isError ? "failed" : "ok" },
-            };
-          } else {
-            push({
-              role: "tool_step",
-              at,
-              text: resultText || "(tool result)",
-              step: { name: "tool", status: isError ? "failed" : "ok" },
-            });
-          }
-        }
-      }
+      appendMessageBlocks(content, rawRole, at, entries, toolUseIndex, push);
     }
   }
 
-  if (entries.length === 0 && nonEmptyLines > 0 && parseErrors === nonEmptyLines) {
+  if (entries.length === 0 && nonEmptyLines > 0 && (parseErrors === nonEmptyLines || unsupportedRecords > 0)) {
     return {
       entries: [],
       activity: "unknown",
@@ -552,6 +600,9 @@ export function extractJsonlMetadata(lines: readonly JsonlLineRecord[], fallback
   lastActivityAt: string;
   forkedFrom: string | null;
   validJsonCount: number;
+  hasSessionContent: boolean;
+  sidechainOnly: boolean;
+  unsupportedVersionCount: number;
 } {
   let sessionId: string | null = null;
   let title: string | null = null;
@@ -560,6 +611,9 @@ export function extractJsonlMetadata(lines: readonly JsonlLineRecord[], fallback
   let lastActivityAt: string | null = null;
   let forkedFrom: string | null = null;
   let validJsonCount = 0;
+  let hasSessionContent = false;
+  let sidechainCount = 0;
+  let unsupportedVersionCount = 0;
 
   for (const record of lines) {
     const trimmed = record.line.trim();
@@ -572,6 +626,19 @@ export function extractJsonlMetadata(lines: readonly JsonlLineRecord[], fallback
     }
     if (!isRecord(obj)) continue;
     validJsonCount++;
+
+    const kind = classifyJsonlRecord(obj);
+    if (kind === "sidechain") {
+      sidechainCount++;
+      continue;
+    }
+    if (kind === "unsupported_version") {
+      unsupportedVersionCount++;
+      continue;
+    }
+    if (kind === "session_header" || kind === "message") {
+      hasSessionContent = true;
+    }
 
     if (!sessionId) {
       const candidateId = obj.sessionId ?? obj.session_id ?? (obj.type === "session" ? obj.id : undefined);
@@ -620,5 +687,8 @@ export function extractJsonlMetadata(lines: readonly JsonlLineRecord[], fallback
     lastActivityAt: lastActivityAt ?? normalizeIsoTimestamp(undefined, fallbackMtimeMs) ?? new Date(0).toISOString(),
     forkedFrom,
     validJsonCount,
+    hasSessionContent,
+    sidechainOnly: !hasSessionContent && sidechainCount > 0,
+    unsupportedVersionCount,
   };
 }

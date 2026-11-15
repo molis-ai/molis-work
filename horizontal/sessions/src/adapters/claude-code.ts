@@ -1,5 +1,11 @@
 import { sessionsErrors } from "@molis-ai/molis-work-contracts/services/sessions";
-import type { AdapterDiscoveryBatch, AdapterReadOutput, AdapterSourceContext, ExternalSessionSourceAdapter } from "../ports.js";
+import {
+  sessionSourceFailure,
+  type AdapterDiscoveryBatch,
+  type AdapterReadOutput,
+  type AdapterSourceContext,
+  type ExternalSessionSourceAdapter,
+} from "../ports.js";
 import {
   buildCliResumeTarget,
   extractJsonlMetadata,
@@ -33,6 +39,8 @@ export const claudeCodeAdapter: ExternalSessionSourceAdapter = {
     const batchFiles = jsonlFiles.slice(startOffset, startOffset + DISCOVERY_BATCH_SIZE);
 
     let skippedCount = startOffset === 0 ? walked.skipped : 0;
+    let unsupportedVersionFiles = 0;
+    let benignEmptyOrSidechainFiles = 0;
     const sessions = [];
 
     for (const item of batchFiles) {
@@ -46,7 +54,12 @@ export const claudeCodeAdapter: ExternalSessionSourceAdapter = {
         const stream = await context.ports.files.open(context.root, item.relative, signal);
         const { lines } = await readJsonlLines(stream, signal, DISCOVERY_SCAN_BYTES);
         const meta = extractJsonlMetadata(lines, item.entry.mtime_ms);
-        if (meta.validJsonCount === 0) {
+        if (meta.validJsonCount === 0 || meta.sidechainOnly || !meta.hasSessionContent) {
+          if (!meta.hasSessionContent && meta.unsupportedVersionCount > 0) {
+            unsupportedVersionFiles++;
+          } else if (meta.validJsonCount > 0) {
+            benignEmptyOrSidechainFiles++;
+          }
           skippedCount++;
           continue;
         }
@@ -67,6 +80,16 @@ export const claudeCodeAdapter: ExternalSessionSourceAdapter = {
     }
 
     const nextOffset = startOffset + batchFiles.length;
+    if (
+      startOffset === 0 &&
+      nextOffset >= jsonlFiles.length &&
+      sessions.length === 0 &&
+      unsupportedVersionFiles > 0 &&
+      benignEmptyOrSidechainFiles === 0
+    ) {
+      throw sessionSourceFailure("version_mismatch", "Claude Code 会话记录版本暂不支持解析", false);
+    }
+
     return {
       sessions,
       skipped_count: skippedCount,

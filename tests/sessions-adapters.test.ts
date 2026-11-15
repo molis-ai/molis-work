@@ -43,18 +43,30 @@ test("SRB-01 SRB-02 SRB-10 local file adapters (Claude, Gemini, Pi, Qoder, Kimi,
     await mkdir(userHome, { recursive: true });
     await mkdir(repoDir, { recursive: true });
 
-    // 1. Claude Code + skipped subagents + attachment + >64KB oversized message
+    // 1. Claude Code + skipped subagents/sidechains/snapshot-shells + attachment + >64KB oversized message
     const claudeDir = path.join(userHome, ".claude", "projects", "repo-slug");
     await mkdir(path.join(claudeDir, "subagents"), { recursive: true });
     await writeFile(
       path.join(claudeDir, "subagents", "sub-ignored.jsonl"),
       `${JSON.stringify({ sessionId: "sub-ignored", cwd: repoDir, timestamp: "2026-11-10T01:00:00Z", message: { role: "user", content: "subagent" } })}\n`,
     );
+    await writeFile(
+      path.join(claudeDir, "sidechain-only.jsonl"),
+      `${JSON.stringify({ sessionId: "sidechain-only", isSidechain: true, cwd: repoDir, timestamp: "2026-11-10T01:00:10Z", message: { role: "user", content: "sidechain subagent task" } })}\n`,
+    );
+    await writeFile(
+      path.join(claudeDir, "snapshot-shell.jsonl"),
+      [
+        JSON.stringify({ type: "file-history-snapshot", messageId: "snap-1", snapshot: {} }),
+        JSON.stringify({ type: "summary", summary: "Shell summary without messages" }),
+      ].join("\n") + "\n",
+    );
     const bigText = `HEAD-${"x".repeat(70_000)}-TAIL`;
     await writeFile(
       path.join(claudeDir, "claude-main-1.jsonl"),
       [
         JSON.stringify({ sessionId: "claude-main-1", cwd: repoDir, timestamp: "2026-11-10T01:01:00Z", message: { role: "user", content: [{ type: "text", text: "Hello Claude" }, { type: "image", source: { data: "AAAA" } }] } }),
+        JSON.stringify({ sessionId: "claude-main-1", isSidechain: true, cwd: repoDir, timestamp: "2026-11-10T01:01:30Z", message: { role: "assistant", content: "Sidechain internal chatter" } }),
         JSON.stringify({ sessionId: "claude-main-1", cwd: repoDir, timestamp: "2026-11-10T01:02:00Z", message: { role: "assistant", content: bigText } }),
       ].join("\n") + "\n",
     );
@@ -153,6 +165,7 @@ test("SRB-01 SRB-02 SRB-10 local file adapters (Claude, Gemini, Pi, Qoder, Kimi,
 
       const claudeRow = rows.find(r => r.tool.entry_id === "claude-code")!;
       const claudeHist1 = await svc.historyRead({ session_key: claudeRow.session_key }, PERSON);
+      assert.equal(claudeHist1.entries.some(e => e.text.includes("Sidechain internal chatter")), false);
       assert.ok(claudeHist1.entries.some(e => e.text === "[附件未读取]"));
       const truncatedEntry = claudeHist1.entries.find(e => e.truncated);
       assert.ok(truncatedEntry && Buffer.byteLength(truncatedEntry.text, "utf8") <= 64 * 1024);
@@ -336,6 +349,47 @@ test("SRB-01 SRB-07 SRB-12 SRB-13 command/protocol/cloud adapters (Codex + subag
       for (const call of recordedCmds) {
         assert.equal(call.argv.some(arg => ["resume", "exec", "delete", "create", "apply"].includes(arg)), false);
       }
+    } finally {
+      svc.close();
+    }
+  });
+});
+
+test("SRB-13 Claude Code reports unreadable_version source state instead of silent empty list when session files use unsupported schema version", async () => {
+  await withRoot(async root => {
+    const homeDir = path.join(root, "home");
+    const userHome = path.join(root, "user");
+    const claudeDir = path.join(userHome, ".claude", "projects", "future-repo");
+    await mkdir(homeDir, { recursive: true });
+    await mkdir(claudeDir, { recursive: true });
+    await writeFile(
+      path.join(claudeDir, "future-v99.jsonl"),
+      `${JSON.stringify({ schemaVersion: 99, type: "claude_v99_envelope", sessionId: "future-v99" })}\n`,
+    );
+
+    const base = createHostSessionsPorts(homeDir, () => undefined, () => {}, { homeRoot: userHome, env: {} });
+    const ports: SessionsPorts = {
+      ...base,
+      projects: { read: async op => op(EMPTY_SNAPSHOT) },
+      directories: { identify: p => identifySessionDirectory(p, { homeRoot: userHome }) },
+    };
+
+    const svc = new SessionsService(homeDir, ports);
+    try {
+      const s0 = await svc.scopeRead({}, PERSON);
+      await svc.scopeSet(
+        {
+          expected_revision: s0.scope_revision,
+          sources: [{ entry_id: "claude-code", allowed: true, directories: { mode: "all" } }],
+        },
+        PERSON,
+      );
+      await svc.waitForDiscoveryIdle();
+
+      const listed = await svc.list({ view: "all", limit: 20 }, PERSON);
+      assert.equal(listed.sessions.length, 0);
+      const claudeSource = listed.sources.find(s => s.entry_id === "claude-code");
+      assert.equal(claudeSource?.state, "version_unreadable");
     } finally {
       svc.close();
     }

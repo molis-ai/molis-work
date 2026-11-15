@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { el } from "../dom.js";
 import { changesBlock, changesRow } from "./boundary.js";
 import { terminal } from "./composer-state.js";
@@ -64,12 +65,61 @@ function entryNodes(page: Page, block: HTMLElement, run: RunView, all: readonly 
   return ordered;
 }
 
+function placeRoundMaterials(block: HTMLElement, run: RunView, ordered: HTMLElement[]) {
+  const raw = run.frozen?.text_materials || [];
+  const inline = raw.filter(item => !item.material_id.startsWith("coding-materials-overflow"));
+  const overflow = raw.find(item => item.material_id.startsWith("coding-materials-overflow"))?.overflow_materials || [];
+  if (!inline.length && !overflow.length) {
+    block.querySelector(":scope > [data-coding-round-materials]")?.remove();
+    return;
+  }
+  let box = block.querySelector<HTMLDetailsElement>(":scope > [data-coding-round-materials]");
+  const sig = JSON.stringify([inline, overflow]);
+  if (!box) {
+    box = el("details", "", "coding-round-materials");
+    box.dataset.codingRoundMaterials = "";
+  }
+  if (box.dataset.signature !== sig) {
+    box.dataset.signature = sig;
+    const total = inline.length + overflow.length;
+    const summary = el("summary");
+    summary.append(
+      el("strong", overflow.length
+        ? uiText.text("coding.material.round-overflow-summary", { inline: inline.length, rest: overflow.length })
+        : uiText.text("coding.material.round-summary", { count: total })),
+      el("span", uiText.text("coding.material.pinned-note")),
+    );
+    const list = el("ul");
+    for (const item of inline) {
+      const mode = item.delivery === "clipped" || item.delivery === "truncated"
+        ? uiText.text("coding.material.delivery.truncated")
+        : item.delivery === "on-demand"
+          ? uiText.text("coding.material.delivery.on-demand")
+          : uiText.text("coding.material.delivery.inline");
+      const ver = item.read_revision ? " · #" + item.read_revision : item.source_version !== undefined ? " · v" + item.source_version : "";
+      list.append(el("li", (item.title || item.material_id) + ver + " — " + mode));
+    }
+    for (const item of overflow) {
+      const ver = item.read_revision ? " · #" + item.read_revision : item.source_version !== undefined ? " · v" + item.source_version : "";
+      list.append(el("li", (item.title || item.material_id || "") + ver + " — " + uiText.text("coding.material.delivery.on-demand")));
+    }
+    box.replaceChildren(summary, list);
+  }
+  const userIdx = ordered.findIndex(node => node.dataset.kind === "user");
+  ordered.splice(userIdx >= 0 ? userIdx + 1 : 0, 0, box);
+}
+
 /** The plan sits right under the task it came from, and the subtasks right after the step that sent them. */
 function placeCards(page: Page, block: HTMLElement, run: RunView, all: readonly RunView[], ordered: HTMLElement[], stand: GraphStand) {
   const { s } = page, { planProgress, subagentCards } = page.refs, last = run === all.at(-1);
+  placeRoundMaterials(block, run, ordered);
   if (stand.laterOnSameGraph) block.querySelector(":scope > .coding-plan-progress")?.remove();
   const planCard = stand.laterOnSameGraph ? null : planProgress.render(run, stand.entry, last && !terminal(run.phase), last || stand.latest);
-  if (planCard) ordered.splice(ordered.findIndex(node => node.dataset.kind === "user") + 1, 0, planCard);
+  if (planCard) {
+    const afterIdx = ordered.findIndex(node => node.hasAttribute("data-coding-round-materials"));
+    const userIdx = ordered.findIndex(node => node.dataset.kind === "user");
+    ordered.splice((afterIdx >= 0 ? afterIdx : userIdx) + 1, 0, planCard);
+  }
   const children = subagentCards.render(run, s.subagentGroups.find(group => group.run_id === run.ref.run_id));
   if (children) {
     const at = ordered.map(node => node.classList.contains("coding-activity") && Boolean(node.querySelector('[data-kind="dispatch-subagent"]'))).lastIndexOf(true);

@@ -2,7 +2,7 @@ import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { stepActorText } from "./step-actor.js";
 import type { PlanEntry, StepNode } from "./shapes.js";
 import { clip, firstLine, oneLine, when } from "./taskboard-format.js";
-import { settled, skipped, stepOf } from "./taskboard-steps.js";
+import { formatBoardProgressSummary, scopeRemoved, settled, skipped, stepOf, stepPointsBadge } from "./taskboard-steps.js";
 import type { Board, BoardChild, BoardGroup, BoardRow, BoardRun, BoardSubagents, Executor, StateMark, TreeInput } from "./taskboard-types.js";
 import type { Translate } from "./types.js";
 
@@ -90,10 +90,11 @@ function doerOf({ input: { translate: readText, ports }, executor }: StepScope, 
 /** A step's state: the person's verdict, their skip, their own mark, else the graph's; a running step draws as its round is. */
 function stepState({ input: { words }, run, entry, board }: StepScope, node: StepNode): { state: StateMark; decided: string | null } {
   const verdict = entry.verdicts?.[node.id], decided = verdict && verdict.board_version === board.version ? verdict.status : null;
+  const removed: StateMark | null = scopeRemoved(node) ? [uiText.text("coding.board.state.removed"), "cancelled", "quiet"] : null;
   // A step you hold ends by your own mark, not by a model's report.
   const yours: StateMark | null = node.owner?.kind === "person" && (node.state === "succeeded" || node.state === "failed")
     ? (node.state === "succeeded" ? [uiText.text("coding.board.state.you-done"), "done", "done"] : [uiText.text("coding.board.state.you-failed"), "failed", "blocked"]) : null;
-  const state = decided === "accepted" ? words.state.accepted! : decided === "needs-work" ? words.state["needs-work"]! : skipped(node) ? words.state.skipped! : yours || words.state[node.state] || words.state.pending!;
+  const state = decided === "accepted" ? words.state.accepted! : decided === "needs-work" ? words.state["needs-work"]! : removed || (skipped(node) ? words.state.skipped! : yours || words.state[node.state] || words.state.pending!);
   if (node.state !== "running" || decided) return { state, decided };
   const mark = node.owner?.kind === "person" ? "doing" : LIVE_PHASES.includes(run.phase) ? "running" : HELD_PHASES.includes(run.phase) ? words.phase[run.phase]![1] : "doing";
   return { state: [state[0], mark, state[2]], decided };
@@ -109,12 +110,17 @@ function stepRow(scope: StepScope, node: StepNode, position: number): BoardRow {
   const step = stepOf(entry.plan, node), { state, decided } = stepState(scope, node);
   const deps = (node.depends_on || []).map(dep => board.nodes.find(other => other.id === dep)).filter((dep): dep is StepNode => Boolean(dep))
     .map(dep => ({ title: stepOf(entry.plan, dep).title, ready: settled(dep), blocked: ["failed", "blocked"].includes(dep.state) }));
-  const mine = (placed.get(node.id) || []).map(item => childRow(input, run, item)), last = node.reports.at(-1), holder = node.owner;
+  const childSteps = board.nodes.map((other, idx) => ({ other, idx })).filter(({ other }) => other.parent_id === node.id).map(({ other, idx }) => stepRow(scope, other, idx));
+  const mine = [...childSteps, ...(placed.get(node.id) || []).map(item => childRow(input, run, item))], last = node.reports.at(-1), holder = node.owner;
   const held = holder?.kind === "subtask" ? children.find(item => item.child.subagent_id === holder.subagent_id)?.child : undefined;
   const done = mine.length ? mine.filter(row => ["done", "accepted"].includes(row.state[2])).length : settled(node) || decided === "accepted" ? 1 : 0;
+  const pts = stepPointsBadge(board.nodes, node, entry.plan);
+  const hasAnyPoints = board.nodes.some(other => other.story_points !== undefined) || Boolean(entry.plan?.content.steps.some(s => s.story_points !== undefined));
+  const discounted = !mine.length && node.progress !== undefined && node.progress > 0 && node.state !== "succeeded" ? { percent: node.progress, text: node.progress + "%" } : {};
   return {
     key: "step-" + id + "-" + node.id, label: node.inserted ? uiText.text("coding.board.inserted") : "S" + (position + 1), title: step.title,
-    hint: stepHint(readText, step.acceptance, holder ? stepActorText(readText, holder) : "", last), state, progress: { done, total: mine.length || 1 }, deps,
+    hint: stepHint(readText, step.acceptance, holder ? stepActorText(readText, holder) : "", last), state, progress: { done, total: mine.length || 1, ...discounted },
+    points: !pts.pending || hasAnyPoints ? pts : null, deps,
     executor: doerOf(scope, holder, held), time: last ? when(last.at_ms) : null, target: { kind: "step", run_id: id, step_id: node.id }, children: mine, node,
     ...(editable ? { edit: { board, runId: id, position, live } } : {}),
   };
@@ -151,17 +157,23 @@ function roundRow(input: TreeInput, index: number, entry: PlanEntry | undefined,
   if (!entry && !children.length && !plans.some(item => item.run_id === id)) return null;
   const board = entry?.board, nodes = board?.nodes || [], executor = executorOf(input, run), { placed, loose } = placeChildren(nodes, children);
   const live = Boolean(board && !board.terminal && OPEN_PHASES.includes(run.phase));
-  const steps = entry && board ? nodes.map((node, position) => stepRow({ input, run, entry, board, executor, children, placed, live, editable: canChange(input, span, board, live) }, node, position)) : [];
-  // A skipped step leaves the count altogether: it is neither done nor still to do.
-  const doneSteps = nodes.filter(node => settled(node) && !skipped(node)).length, counted = nodes.filter(node => !skipped(node)).length;
+  const scope: StepScope | null = entry && board ? { input, run, entry, board, executor, children, placed, live, editable: canChange(input, span, board, live) } : null;
+  const nodeIds = new Set(nodes.map(node => node.id));
+  const steps = scope ? nodes.map((node, position) => ({ node, position })).filter(({ node }) => !node.parent_id || !nodeIds.has(node.parent_id)).map(({ node, position }) => stepRow(scope, node, position)) : [];
+  // A skipped or scope-removed step leaves the count altogether: it is neither done nor still to do.
+  const doneSteps = nodes.filter(node => node.state === "succeeded").length, counted = nodes.filter(node => !skipped(node) && !scopeRemoved(node)).length;
   const asked = ports.ownTask(run.turns?.find(turn => turn.kind === "user" && !turn.steer)?.text || "");
   const name = entry?.plan?.content.title || clip(firstLine(run.task ?? asked), 90) || uiText.text("coding.turn.number", { number: index + 1 });
   const first = runs[span[0]!]!, turns = span.map(at => "#" + (at + 1));
+  const weighted = board?.progress_summary;
+  const roundProgress = nodes.length
+    ? { done: doneSteps, total: counted || nodes.length, ...(weighted?.weighted_percent !== null && weighted?.weighted_percent !== undefined ? { percent: weighted.weighted_percent, text: weighted.weighted_percent + "%" } : {}) }
+    : children.length ? { done: children.filter(item => item.child.state === "completed").length, total: children.length } : null;
   return {
     key: "run-" + id, label: span.length > 1 ? "#" + (span[0]! + 1) + "–" + (index + 1) : "#" + (index + 1), title: name,
-    hint: [entry ? uiText.text("coding.board.plan-revision", { revision: entry.revision ?? "?" }) : "", span.length > 1 ? uiText.text("coding.board.continued-turns", { turns: turns.join(uiText.text("coding.list.joiner")) }) : ""].filter(Boolean).join("\n"),
+    hint: [entry ? uiText.text("coding.board.plan-revision", { revision: entry.revision ?? "?" }) : "", formatBoardProgressSummary(weighted), span.length > 1 ? uiText.text("coding.board.continued-turns", { turns: turns.join(uiText.text("coding.list.joiner")) }) : ""].filter(Boolean).join("\n"),
     state: input.words.phase[run.phase] || unknown(readText),
-    progress: nodes.length ? { done: doneSteps, total: counted || nodes.length } : children.length ? { done: children.filter(item => item.child.state === "completed").length, total: children.length } : null,
+    progress: roundProgress,
     executor, time: when(first.started_at), target: { kind: "run", run_id: id }, children: [...steps, ...loose.map(item => childRow(input, run, item))], note: entry?.error || group?.error || "",
   };
 }
@@ -198,7 +210,9 @@ function planGroup({ data, words }: TreeInput): BoardGroup | null {
   if (!plan || plans.some(entry => entry.revision === plan.revision && entry.board)) return null;
   const steps: BoardRow[] = plan.content.steps.map((step, index) => ({
     key: "plan-" + index, label: "S" + (index + 1), title: step.title, hint: uiText.text("coding.board.acceptance", { acceptance: step.acceptance }), state: words.state.pending!,
-    progress: { done: 0, total: 1 }, executor: null, target: { kind: "plan" }, children: [],
+    progress: { done: 0, total: 1 },
+    points: step.story_points !== undefined ? { text: uiText.text("coding.board.points", { points: step.story_points }), title: step.estimate_reason || "" } : null,
+    executor: null, target: { kind: "plan" }, children: [],
   }));
   const state: StateMark = plan.content.blockers ? [uiText.text("coding.board.plan.blocked"), "blocked", "blocked"] : plan.confirmed ? [uiText.text("coding.board.plan.confirmed"), "ready", "ready"] : [uiText.text("coding.board.plan.unconfirmed"), "approval", "attention"];
   const row: BoardRow = { key: "plan", label: uiText.text("coding.board.plan"), title: plan.content.title, hint: plan.content.change_reason || "", state, progress: { done: 0, total: steps.length }, executor: null, target: { kind: "plan" }, children: steps };

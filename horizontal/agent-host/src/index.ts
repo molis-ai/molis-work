@@ -37,6 +37,11 @@ import {
 } from "./run-start.js";
 
 export { AgentReviewQueue } from "./reviews.js";
+export { isValidFibonacciStoryPoints, FIBONACCI_STORY_POINTS } from "./execution-plan.js";
+export { computeWeightedStepBoardProgress } from "./adapters/prologue-plan-steps.js";
+export { effectiveContextWindow, effectiveCompactionAboveTokens } from "./adapters/prologue-frozen.js";
+export { SUBAGENT_DEFAULT_MAX_ATTEMPTS } from "./adapters/prologue-subagents.js";
+export { SUBAGENT_KEY_PATTERN } from "./adapters/prologue-collaboration.js";
 export { reviewPresentation, reviewText, type ReviewWord, type ReviewWords } from "./review-presentation.js";
 export type { AgentRoundSkillCatalog, AgentSkillSource } from "./round-skills.js";
 export type { AgentHostWorktree } from "./run-start.js";

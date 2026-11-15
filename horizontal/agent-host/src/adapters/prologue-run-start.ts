@@ -89,7 +89,7 @@ function startInput(request: AgentStartRequest, role: FrozenRole, model: Prologu
       instructions: role.prompts.map((prompt) => prompt.body).join("\n\n"),
       tools: [...role.host_tools],
     },
-    ...(role.compaction ? { compaction: { prompt: role.compaction.prompt.body, above_tokens: role.compaction.above_tokens } } : {}), ...(role.ending_review ? { ending_review: { prompt: role.ending_review.prompt.body } } : {}),
+    ...(role.compaction ? { compaction: { prompt: role.compaction.prompt.body, above_tokens: provenance.frozen.compaction?.above_tokens ?? role.compaction.above_tokens } } : {}), ...(role.ending_review ? { ending_review: { prompt: role.ending_review.prompt.body } } : {}),
     task: request.task,
     ...(role.memory ? { memory: structuredClone(role.memory) } : {}),
     ...(role.subagents ? { subagents: structuredClone(role.subagents) } : {}),

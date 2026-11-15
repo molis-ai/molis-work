@@ -19,7 +19,7 @@ export async function openMaterials(page: Page) {
     return;
   }
   if (s.current !== id || ticket !== s.materialTicket) return;
-  document.dispatchEvent(new CustomEvent("molis-work:knowledge-pick", { detail: { request_id: "coding:" + id + ":" + ticket, selected: structuredClone((s.materialSelections.get(id) || []).filter(hasRef)), max: 30 } }));
+  document.dispatchEvent(new CustomEvent("molis-work:knowledge-pick", { detail: { request_id: "coding:" + id + ":" + ticket, selected: structuredClone((s.materialSelections.get(id) || []).filter(hasRef)), max: 200 } }));
 }
 
 /** The picker shows pieces by their exact reference; a recorded piece kept from before has none, and choosing again replaces it. */

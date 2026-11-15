@@ -179,6 +179,9 @@ function agentCompactionProblems(agent: AgentManifest, promptIds: ReadonlySet<st
   if (!Number.isSafeInteger(compaction.above_tokens) || compaction.above_tokens < 1) {
     problems.push("Agent 压缩阈值无效");
   }
+  if (compaction.window_ratio !== undefined && (typeof compaction.window_ratio !== "number" || !Number.isFinite(compaction.window_ratio) || compaction.window_ratio <= 0 || compaction.window_ratio >= 1)) {
+    problems.push("Agent 压缩窗口比例无效");
+  }
   return problems;
 }
 

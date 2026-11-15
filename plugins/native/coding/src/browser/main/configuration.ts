@@ -74,11 +74,13 @@ export function drawIntents(page: Page, result: StateRead) {
 /** The directories the person may run rounds in, as the composer's choice. */
 function drawWorkspaces(page: Page, result: StateRead) {
   const { q } = page, { s } = page;
+  const prevWorking = s.workspaceId || "";
   const selected = result.workspaces.find(item => item.workspace_id === s.workspaceId) || result.workspace || (result.workspaces.length === 1 ? result.workspaces[0] : null);
   if (!s.configurations.get(s.current)) s.workspaceId = selected?.workspace_id || "";
   showWorkspace(page, selected?.canonical_path, uiText.text("coding.workspace.choose-first"));
   const choice = q<HTMLSelectElement>("[data-coding-workspace-choice]"), key = JSON.stringify(result.workspaces);
-  if (choice.dataset.options !== key) {
+  const workspacesChanged = choice.dataset.options !== key;
+  if (workspacesChanged) {
     choice.replaceChildren(...result.workspaces.map(item => {
       const option = el("option", item.canonical_path);
       option.value = item.workspace_id;
@@ -88,6 +90,59 @@ function drawWorkspaces(page: Page, result: StateRead) {
     choice.value = s.workspaceId;
   }
   if (!q<HTMLDialogElement>("[data-coding-workspace-dialog]").open) choice.value = s.workspaceId;
+  if (workspacesChanged || prevWorking !== s.workspaceId) page.refs.filesFace?.follow(s.workspaceId);
+}
+
+function drawEnvironmentReadiness(page: Page, readiness: StateRead["environment_readiness"]) {
+  const composer = page.q("[data-coding-composer]"), contextBar = page.q("[data-coding-context]");
+  let bar = composer.querySelector<HTMLDetailsElement>("[data-coding-env-bar]");
+  if (!readiness || !readiness.workspace_id) {
+    bar?.remove();
+    return;
+  }
+  const key = JSON.stringify(readiness);
+  if (bar && bar.dataset.signature === key) return;
+  const wasOpen = bar?.open ?? false;
+  if (!bar) {
+    bar = el("details", "", "coding-env-bar");
+    bar.dataset.codingEnvBar = "";
+    composer.insertBefore(bar, contextBar);
+  }
+  const ready = readiness.status === "ready";
+  bar.dataset.signature = key;
+  bar.dataset.ready = String(ready);
+  bar.open = wasOpen;
+  const gitShort = readiness.is_git_repo
+    ? uiText.text("coding.env.git-branch", { branch: readiness.branch || "HEAD", dirty: readiness.dirty_count })
+    : uiText.text("coding.env.not-git");
+  const depsShort = !readiness.deps_manager
+    ? uiText.text("coding.env.deps-none")
+    : readiness.deps_installed
+      ? uiText.text("coding.env.deps-ok", { manager: readiness.deps_manager })
+      : uiText.text("coding.env.deps-missing", { manager: readiness.deps_manager });
+  const summary = el("summary");
+  summary.append(
+    el("strong", ready ? uiText.text("coding.env.ready") : uiText.text("coding.env.needs-prep")),
+    el("span", gitShort),
+    el("span", depsShort),
+  );
+  if (readiness.script_names.length) summary.append(el("span", uiText.text("coding.env.scripts-count", { count: readiness.script_names.length })));
+  if (readiness.env_keys.length) summary.append(el("span", uiText.text("coding.env.keys-count", { count: readiness.env_keys.length })));
+  if (readiness.worktrees.active) summary.append(el("span", uiText.text("coding.env.worktrees-count", { count: readiness.worktrees.active })));
+  const list = el("ul");
+  list.append(el("li", uiText.text("coding.env.git-detail", { summary: readiness.is_git_repo ? gitShort : uiText.text("coding.env.not-git") })));
+  list.append(el("li", depsShort));
+  if (readiness.script_names.length) {
+    const ports = readiness.ports.length ? " · " + uiText.text("coding.env.ports", { ports: readiness.ports.join(", ") }) : "";
+    list.append(el("li", uiText.text("coding.env.scripts-detail", { script_names: readiness.script_names.join(", ") }) + ports));
+  }
+  if (readiness.env_template) {
+    list.append(el("li", uiText.text("coding.env.example-keys", { file: readiness.env_template, keys: readiness.env_keys.join(", ") || uiText.text("coding.plan.none") })));
+  }
+  if (readiness.worktrees.active) {
+    list.append(el("li", uiText.text("coding.env.worktrees-detail", { count: readiness.worktrees.active })));
+  }
+  bar.replaceChildren(summary, list);
 }
 
 async function readState(page: Page) {
@@ -99,6 +154,7 @@ async function readState(page: Page) {
   retitle(page, s.current, before, s.current && result.sessions.find(item => item.session_id === s.current)?.title);
   composerModels.fill(result.models);
   drawWorkspaces(page, result);
+  drawEnvironmentReadiness(page, result.environment_readiness);
   drawIntents(page, result);
   applyConfiguration(page);
   renderDirectory(page);

@@ -50,7 +50,7 @@ export const codingAgentManifest: AgentManifest = {
     { role_id: "coding-builder", version: /* @version role.coding-builder */ 2, name: "独立实现", parent_role_ids: ["writers"], execution: "workspace-write", host_tools: ["read-file", "list", "search", "write", "edit-file", "run-command"] },
   ] },
   mcp: true,
-  compaction: { prompt_id: "coding-compaction", above_tokens: 12_000 },
+  compaction: { prompt_id: "coding-compaction", above_tokens: 12_000, window_ratio: 0.4 },
   // A writable round that called no tool has its last words checked against the round's facts (D1②): the person's
   // 2026-09-28 decision to continue an ending that only announces covers Coding too.
   ending_review: { prompt_id: "coding-ending-review" },
@@ -128,7 +128,7 @@ export const codingAgentManifest: AgentManifest = {
     },
   ],
   prompts: [
-    { prompt_id: "coding-planner", version: /* @version prompt.coding-planner */ 2 },
+    { prompt_id: "coding-planner", version: /* @version prompt.coding-planner */ 3 },
     { prompt_id: "coding-compaction", version: /* @version prompt.coding-compaction */ 1 },
     { prompt_id: "coding-ending-review", version: /* @version prompt.coding-ending-review */ 2 },
     // The product's own constraints, shared by every role. Its own layer so a
@@ -147,7 +147,7 @@ export const codingAgentManifest: AgentManifest = {
 /** The prompt bodies this package ships. The Host composes a role from these. */
 export const codingPrompts: readonly AgentPromptText[] = [
   {
-    prompt_id: "coding-planner", version: /* @version prompt.coding-planner */ 2,
+    prompt_id: "coding-planner", version: /* @version prompt.coding-planner */ 3,
     ...promptBody("coding-planner"),
   },
   {

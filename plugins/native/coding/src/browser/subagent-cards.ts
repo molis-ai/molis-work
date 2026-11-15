@@ -157,16 +157,63 @@ function stopButton(ports: SubagentCardPorts, run: CardsRun, child: Child) {
   });
 }
 
-/** What the parent is asked to do again for a failed or stopped child. A dispatch key already used names the same dispatch and returns the stopped result instead of running again. */
-const retryRequest = (role: string, child: Child) => "请重新派出子任务「" + role + "」，沿用原分工，并用一个没用过的 idempotencyKey（原来的标识会被当成同一次派出，直接返回已停止的结果，不会重跑）" + (child.error ? "；上次没有完成的原因：" + child.error : "") + "。原分工：\n" + (child.task || "");
+function drawBudget(node: HTMLElement, child: Child) {
+  let box = node.querySelector<HTMLElement>(".coding-child-budget");
+  const budget = child.budget;
+  if (!budget) {
+    box?.remove();
+    return;
+  }
+  if (!box) {
+    box = el("div", "", "coding-child-budget");
+    box.dataset.codingChildBudget = "";
+    part(node, ".coding-child-foot").before(box);
+  }
+  box.dataset.exhausted = String(Boolean(budget.exhausted));
+  const reasons: Readonly<Record<string, string>> = {
+    verification_failed: uiText.text("coding.card.budget.reason.verification"),
+    provider_error: uiText.text("coding.card.budget.reason.provider"),
+    user_requested: uiText.text("coding.card.budget.reason.user"),
+  };
+  box.replaceChildren(
+    el("strong", uiText.text("coding.card.budget.count", { attempt: budget.attempt, max: budget.max_attempts })),
+  );
+  if (budget.retry_reason && reasons[budget.retry_reason]) {
+    box.append(el("span", reasons[budget.retry_reason]!));
+  }
+  if (budget.exhausted) {
+    box.append(el("span", uiText.text("coding.card.budget.exhausted")));
+  }
+}
+
+/** What the parent is asked to do again for a failed or stopped child when no Host budget record is attached. */
+const retryRequest = (role: string, child: Child) => uiText.text("coding.card.retry-prompt", {
+  role,
+  reason: child.error ? uiText.text("coding.card.retry-reason-suffix", { error: child.error }) : "",
+  task: child.task || "",
+});
 
 /**
- * A failed or stopped child is sent again by the parent, never re-run behind its back: a live parent is asked through the
- * supplemental channel; an ended one gets the request in the composer, sent only when the person chooses.
+ * Retries a failed or stopped child: when tracked by the Host's attempt budget, dispatches within that budget (or offers +3 attempts
+ * when exhausted); otherwise steers a live parent with `source: "host"` (BL-182) or prefills the composer.
  */
 function retryButton(ports: SubagentCardPorts, run: CardsRun, child: Child) {
   const { lifetime, api, current, status, refresh } = ports;
   return button(uiText.text("coding.card.retry"), async retry => {
+    if (child.budget && !child.budget.exhausted) {
+      retry.disabled = true;
+      const id = current();
+      try {
+        await api("/sessions/" + encodeURIComponent(id) + "/runs/" + encodeURIComponent(run.ref.run_id) + "/subagents/" + encodeURIComponent(child.subagent_id), "POST", { action: "retry" });
+        status(uiText.text("coding.card.retry-asked"));
+      } catch (error) {
+        if (!lifetime.alive) return;
+        status(errorMessage(error), true);
+        retry.disabled = false;
+      }
+      if (id === current()) await refresh();
+      return;
+    }
     const ask = retryRequest(ports.roleName(child.role_id) || child.role_name, child);
     if (!ports.parentLive(run)) {
       ports.prefill(ask);
@@ -176,7 +223,7 @@ function retryButton(ports: SubagentCardPorts, run: CardsRun, child: Child) {
     retry.disabled = true;
     const id = current();
     try {
-      await api("/sessions/" + encodeURIComponent(id) + "/control", "POST", { kind: "steer", run_id: run.ref.run_id, text: ask });
+      await api("/sessions/" + encodeURIComponent(id) + "/control", "POST", { kind: "steer", source: "host", run_id: run.ref.run_id, text: ask });
       status(uiText.text("coding.card.retry-asked"));
     } catch (error) {
       if (!lifetime.alive) return;
@@ -187,9 +234,26 @@ function retryButton(ports: SubagentCardPorts, run: CardsRun, child: Child) {
   });
 }
 
+function extendBudgetButton(ports: SubagentCardPorts, run: CardsRun, child: Child) {
+  const { lifetime, api, current, status, refresh } = ports;
+  return button(uiText.text("coding.card.extend-budget"), async extend => {
+    extend.disabled = true;
+    const id = current();
+    try {
+      await api("/sessions/" + encodeURIComponent(id) + "/runs/" + encodeURIComponent(run.ref.run_id) + "/subagents/" + encodeURIComponent(child.subagent_id), "POST", { action: "extend-budget", extend_attempts: 3 });
+      status(uiText.text("coding.card.budget-extended"));
+    } catch (error) {
+      if (!lifetime.alive) return;
+      status(errorMessage(error), true);
+      extend.disabled = false;
+    }
+    if (id === current()) await refresh();
+  });
+}
+
 /** The buttons a child in its state is offered, drawn again only when what they depend on changed. */
 function drawFoot(ports: SubagentCardPorts, node: HTMLElement, run: CardsRun, child: Child, edited: readonly string[]) {
-  const foot = part(node, ".coding-child-foot"), key = JSON.stringify([child.state, child.verdict?.status, child.integration_available, edited.length > 0]);
+  const foot = part(node, ".coding-child-foot"), key = JSON.stringify([child.state, child.verdict?.status, child.integration_available, edited.length > 0, child.budget?.attempt, child.budget?.max_attempts, child.budget?.exhausted]);
   if (foot.dataset.key === key) return;
   foot.dataset.key = key;
   foot.replaceChildren();
@@ -202,7 +266,10 @@ function drawFoot(ports: SubagentCardPorts, node: HTMLElement, run: CardsRun, ch
   const ended = ["failed", "cancelled"].includes(child.state);
   // A child that ended badly may still have written real work in its own directory; the person looks before deciding.
   if (ended && child.integration_available && edited.length) add(button(uiText.text("coding.sub.look"), () => ports.openInPanel(child.subagent_id)));
-  if (ended) add(retryButton(ports, run, child));
+  if (ended) {
+    if (child.budget?.exhausted) add(extendBudgetButton(ports, run, child));
+    else add(retryButton(ports, run, child));
+  }
 }
 
 function card(ports: SubagentCardPorts, section: HTMLElement, run: CardsRun, child: Child) {
@@ -219,6 +286,7 @@ function card(ports: SubagentCardPorts, section: HTMLElement, run: CardsRun, chi
   drawChanged(ports.translate, node, child, edited);
   drawResult(ports.translate, node, child);
   drawError(ports, node, child);
+  drawBudget(node, child);
   drawFoot(ports, node, run, child, edited);
 }
 

@@ -37,12 +37,54 @@ const clip = (text: string, size: number) => {
 const changedFiles = (run: AgentRunView) =>
   [...new Set(run.activity.filter(item => ["edit", "write"].includes(item.name) && item.state === "completed" && item.target).map(item => item.target!))];
 
+function commandReceiptEnd(item: AgentRunView["activity"][number]): "ok" | "failed" | "unknown" | null {
+  if (!["run-command", "start-command"].includes(item.name)) return null;
+  if (item.state === "failed") return "failed";
+  if (item.state !== "completed") return "unknown";
+  if (item.name === "start-command") return "unknown";
+  const line = /^exit (\S+)/.exec(item.output ?? "")?.[1];
+  if (line && /^-?\d+$/.test(line)) return Number(line) === 0 ? "ok" : "failed";
+  return line === "timed-out" ? "failed" : "unknown";
+}
+
+function roundVerificationFacts(run: AgentRunView): {
+  failedCommands: string[];
+  unknownCommands: string[];
+  staleAfterEdit: boolean;
+  unfinishedSteps: string[];
+} {
+  const failedCommands: string[] = [];
+  const unknownCommands: string[] = [];
+  let lastPassIndex = -1;
+  let lastEditIndex = -1;
+  run.activity.forEach((item, idx) => {
+    if (["edit", "write"].includes(item.name) && item.state === "completed") lastEditIndex = idx;
+    const end = commandReceiptEnd(item);
+    if (end === "ok") lastPassIndex = idx;
+    else if (end === "failed") failedCommands.push(clip(item.target || item.name, 140));
+    else if (end === "unknown") unknownCommands.push(clip(item.target || item.name, 140));
+  });
+  const staleAfterEdit = lastEditIndex >= 0 && lastPassIndex >= 0 && lastEditIndex > lastPassIndex;
+  const unfinishedSteps = (run.step_board?.nodes ?? [])
+    .filter(node => !["succeeded", "cancelled"].includes(node.state))
+    .map(node => `${node.title ? `「${clip(node.title, 60)}」` : node.id}（${node.state}）`);
+  return { failedCommands, unknownCommands, staleAfterEdit, unfinishedSteps };
+}
+
 function round(run: AgentRunView, number: number, detailed: boolean): string {
   const asked = originalTask(run), answer = [...run.turns].reverse().find(turn => turn.kind === "assistant")?.text ?? "";
   const files = changedFiles(run);
-  const lines = [`第 ${number} 轮（${PHASE[run.phase] ?? run.phase}）`, `- 要求：${clip(asked, detailed ? 1500 : 300)}`];
+  const verify = roundVerificationFacts(run);
+  const phaseLabel = run.phase === "completed"
+    ? (verify.unknownCommands.length ? "本轮结束，含待核对结果" : verify.unfinishedSteps.length ? "本轮结束，计划未做完" : PHASE.completed)
+    : (PHASE[run.phase] ?? run.phase);
+  const lines = [`第 ${number} 轮（${phaseLabel}）`, `- 要求：${clip(asked, detailed ? 1500 : 300)}`];
   if (answer.trim()) lines.push(`- 结论：${clip(answer, detailed ? 3000 : 600)}`);
   if (files.length) lines.push(`- 改动文件：${files.slice(0, 20).join("、")}${files.length > 20 ? ` 等 ${files.length} 个` : ""}`);
+  if (verify.failedCommands.length) lines.push(`- 失败命令：${verify.failedCommands.slice(0, 8).join(" | ")}`);
+  if (verify.unknownCommands.length) lines.push(`- 结果未知（待核对，不视作已完成）：${verify.unknownCommands.slice(0, 8).join(" | ")}`);
+  if (verify.staleAfterEdit) lines.push(`- 验证提醒：最后一次通过的检查之后又改过文件，旧检查不算最新验证`);
+  if (verify.unfinishedSteps.length) lines.push(`- 未完成计划步骤：${verify.unfinishedSteps.slice(0, 10).join(", ")}${verify.unfinishedSteps.length > 10 ? ` 等 ${verify.unfinishedSteps.length} 步` : ""}`);
   if (run.phase !== "completed" && run.stop_reason) lines.push(`- 结束原因：${clip(run.stop_reason, 200)}`);
   return lines.join("\n");
 }

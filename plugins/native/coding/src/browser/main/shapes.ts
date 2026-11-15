@@ -122,7 +122,24 @@ export interface FrozenSetup {
   readonly mcp_sources?: readonly { readonly server: string; readonly server_label?: string; readonly configuration_version: number }[];
   readonly character?: { readonly title: string; readonly reference: { readonly version: number } };
   readonly host_tools?: readonly string[];
-  readonly text_materials: readonly { readonly material_id: string; readonly title?: string; readonly source_artifact_id?: string; readonly source_version?: number; readonly read_revision?: string }[];
+  readonly text_materials: readonly {
+    readonly material_id: string;
+    readonly title?: string;
+    readonly source_artifact_id?: string;
+    readonly source_version?: number;
+    readonly read_revision?: string;
+    readonly delivery?: "full" | "clipped" | "on-demand" | "inline" | "truncated";
+    readonly total_chars?: number;
+    readonly delivered_chars?: number;
+    readonly overflow_materials?: readonly {
+      readonly material_id?: string;
+      readonly title: string;
+      readonly source_artifact_id?: string;
+      readonly source_version?: number;
+      readonly read_revision?: string;
+      readonly total_chars?: number;
+    }[];
+  }[];
   readonly compaction?: { readonly above_tokens: number; readonly version: number };
   readonly model_context?: { readonly window_tokens?: number };
   /** The prompts the round was composed with; `project` ones are the project's own instructions (the rules menu's first group). */
@@ -286,6 +303,21 @@ export interface StateRead {
   readonly project_runtime_id?: string;
   /** Whether the next round reads the output's instruction files, and if not the first thing to change (`ProjectDirectories.instructions`). */
   readonly instructions?: { readonly off: boolean; readonly trusted: boolean; readonly why_not?: "default_output" | "off" | "not_chosen" };
+  readonly environment_readiness?: {
+    readonly workspace_id: string;
+    readonly status: "ready" | "attention";
+    readonly branch: string | null;
+    readonly dirty_count: number;
+    readonly is_git_repo: boolean;
+    readonly deps_manager: string | null;
+    readonly deps_installed: boolean;
+    readonly script_names: readonly string[];
+    readonly ports: readonly number[];
+    readonly env_template: string | null;
+    readonly env_keys: readonly string[];
+    readonly worktrees: { readonly active: number; readonly problem_count: number; readonly cleanup_count: number };
+    readonly checked_at: string;
+  } | null;
   readonly [field: string]: unknown;
 }
 

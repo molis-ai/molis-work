@@ -11,7 +11,7 @@ export { codingContinuation, originalTask, requestText, CONTINUATION_MARKER, MEN
 export { createCodingCodePaint } from "./code-paint-client.js";
 export { commitDraftMaterial, commitMessageFrom } from "./commit-draft.js";
 export { planMaterial, planTask } from "./plans.js";
-export { executionSteps, parseCodingPlan } from "./plan-content.js";
+export { executionSteps, isValidFibonacciStoryPoints, parseCodingPlan } from "./plan-content.js";
 export { mentionedPaths, attachMentions, workspaceFileIndex, symbolsIn, symbolBlock } from "./mentions.js";
 export { codingHistoryDigest, historySummaryMaterial, summaryDigest, nextHistoryMode, digestTask, HISTORY_DIGEST_MARKER, HISTORY_DIGEST_RATIO, MODEL_DIGEST_HEAD } from "./history-digest.js";
 export { writeCheckCache, type CodingWriteCheck } from "./write-checks.js";

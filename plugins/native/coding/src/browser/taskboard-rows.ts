@@ -20,11 +20,12 @@ function drawProgress(_L: Translate, progress: BoardRow["progress"]): HTMLElemen
     node.classList.add("is-empty");
     return node;
   }
+  const pct = progress.percent !== undefined ? progress.percent : Math.round(progress.done / Math.max(1, progress.total) * 100);
   const track = el("i"), fill = el("b");
   track.setAttribute("aria-hidden", "true");
-  fill.style.setProperty("--board-progress", Math.round(progress.done / Math.max(1, progress.total) * 100) + "%");
+  fill.style.setProperty("--board-progress", pct + "%");
   track.append(fill);
-  node.append(el("span", progress.done + "/" + progress.total), track);
+  node.append(el("span", progress.text || (progress.done + "/" + progress.total)), track);
   node.setAttribute("aria-label", uiText.text("coding.board.progress", { done: progress.done, total: progress.total }));
   return node;
 }
@@ -126,6 +127,12 @@ export function drawRow(view: RowView, row: BoardRow, depth: number, owner: stri
   main.append(el("strong", row.title));
   ports.lifetime.listen(main, "click", () => void ports.navigate(owner, row.target).catch(error => ports.status(errorMessage(error), true)));
   lead.append(main);
+  if (row.points) {
+    const badge = el("span", row.points.text, "coding-plan-points");
+    if (row.points.title) badge.title = row.points.title;
+    if (row.points.pending) badge.dataset.pending = "true";
+    lead.append(badge);
+  }
   // A step a person added for a supplement links back to its receipt in the conversation.
   const source = row.node ? ports.from(row.node) : null;
   if (source) lead.append(source);

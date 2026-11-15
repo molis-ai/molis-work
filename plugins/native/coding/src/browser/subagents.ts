@@ -25,6 +25,15 @@ export interface Child {
   readonly integration_available?: boolean;
   /** The run the subagent is executing (while it runs). */
   readonly child_run?: { readonly run_id: string };
+  readonly retry_of?: string;
+  readonly budget?: {
+    readonly attempt: number;
+    readonly max_attempts: number;
+    readonly remaining_attempts: number;
+    readonly exhausted: boolean;
+    readonly retry_reason?: "verification_failed" | "provider_error" | "user_requested";
+    readonly prior_attempts?: readonly { readonly subagent_id: string; readonly attempt: number; readonly state: string; readonly error?: string; readonly retry_reason?: string }[];
+  };
   readonly verdict?: { readonly status: string; readonly notes?: string; readonly revision?: number };
 }
 
@@ -144,19 +153,24 @@ const assignment = (_panel: Panel, child: Child, opened: ReadonlySet<string | un
 };
 
 /** The person's verdict on a subagent, or a request to stop it, then the session read again. */
-const act = async (panel: Panel, id: string, group: SubagentGroup, child: Child, action: "stop" | "accepted" | "needs-work", notes = "") => {
+const act = async (panel: Panel, id: string, group: SubagentGroup, child: Child, action: "stop" | "accepted" | "needs-work" | "retry" | "extend-budget", notes = "") => {
   const { ports, pending } = panel, { lifetime, api, current, status, refresh } = ports;
   if (pending.has(child.subagent_id)) return;
   pending.add(child.subagent_id);
   panel.stale();
   try {
-    await api("/sessions/" + encodeURIComponent(id) + "/runs/" + encodeURIComponent(group.run_id) + "/subagents/" + encodeURIComponent(child.subagent_id), "POST", { action, notes, expected_revision: child.verdict?.revision ?? 0 });
-    if (action !== "stop") {
+    const payload = action === "extend-budget"
+      ? { action, extend_attempts: 3 }
+      : action === "retry" || action === "stop"
+        ? { action }
+        : { action, notes, expected_revision: child.verdict?.revision ?? 0 };
+    await api("/sessions/" + encodeURIComponent(id) + "/runs/" + encodeURIComponent(group.run_id) + "/subagents/" + encodeURIComponent(child.subagent_id), "POST", payload);
+    if (action === "accepted" || action === "needs-work") {
       try { sessionStorage.removeItem(draftKey(child.subagent_id)); } catch { /* storage closed: nothing was kept */ }
     }
     if (action === "needs-work") await ports.prepareRework(id, group.run_id, child, notes);
     if (current() === id) {
-      status(action === "needs-work" ? uiText.text("coding.sub.rework-saved") : action === "stop" ? uiText.text("coding.sub.stop-asked") : uiText.text("coding.sub.verdict-saved"));
+      status(action === "needs-work" ? uiText.text("coding.sub.rework-saved") : action === "stop" ? uiText.text("coding.sub.stop-asked") : action === "extend-budget" ? uiText.text("coding.card.budget-extended") : action === "retry" ? uiText.text("coding.card.retry-asked") : uiText.text("coding.sub.verdict-saved"));
       await refresh();
     }
   } catch (error) {
@@ -190,9 +204,13 @@ function offers(panel: Panel, row: HTMLElement, id: string, group: SubagentGroup
   const { ports, pending } = panel, busy = pending.has(child.subagent_id);
   if (child.state === "running") row.append(button(panel, uiText.text("coding.sub.stop"), () => act(panel, id, group, child, "stop"), busy));
   // Ended badly but wrote files in its own directory: the work may be whole or partial, so it is shown, never assumed.
-  if (["failed", "cancelled"].includes(child.state) && child.integration_available && (child.activity || []).some(item => WRITES.includes(item.name) && item.state === "completed")) {
-    row.append(el("p", uiText.text("coding.sub.partial")));
-    row.append(button(panel, uiText.text("coding.sub.look"), () => ports.openIntegration(id, group.run_id, child), busy));
+  if (["failed", "cancelled"].includes(child.state)) {
+    if (child.integration_available && (child.activity || []).some(item => WRITES.includes(item.name) && item.state === "completed")) {
+      row.append(el("p", uiText.text("coding.sub.partial")));
+      row.append(button(panel, uiText.text("coding.sub.look"), () => ports.openIntegration(id, group.run_id, child), busy));
+    }
+    if (child.budget?.exhausted) row.append(button(panel, uiText.text("coding.card.extend-budget"), () => act(panel, id, group, child, "extend-budget"), busy));
+    else if (child.budget) row.append(button(panel, uiText.text("coding.card.retry"), () => act(panel, id, group, child, "retry"), busy));
   }
   if (child.state !== "completed") return;
   if (child.integration_available) row.append(button(panel, uiText.text("coding.sub.integrate"), () => ports.openIntegration(id, group.run_id, child), busy));
@@ -203,6 +221,13 @@ function offers(panel: Panel, row: HTMLElement, id: string, group: SubagentGroup
 
 /** What the subagent reported, then what it did and used. */
 function outcome(panel: Panel, row: HTMLElement, child: Child) {
+  if (child.budget) {
+    const line = [
+      uiText.text("coding.card.budget.count", { attempt: child.budget.attempt, max: child.budget.max_attempts }),
+      child.budget.exhausted ? uiText.text("coding.card.budget.exhausted") : "",
+    ].filter(Boolean).join(" · ");
+    row.append(el("p", line));
+  }
   if (child.result) row.append(resultBox(child));
   if (child.error) row.append(el("p", uiText.text("coding.sub.error", { error: child.error })));
   for (const activity of child.activity || []) row.append(el("p", activity.name + " · " + activity.state));

@@ -39,6 +39,12 @@ export interface SessionIndex {
     original_input_ref?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentOriginalInputRef;
     /** Only this parent attempt owns these exact new-child generation facts. */
     child_openings?: ChildOpeningFact[];
+    /** Per-subagent attempt ceilings and retry origins recorded under the parent attempt (BL-051). */
+    subagent_budgets?: Record<string, { max_attempts: number }>;
+    subagent_attempt_sources?: Record<string, import("@molis-ai/molis-work-contracts/services/agent-host").AgentSubagentRetrySource>;
+    subagent_attempt_reasons?: Record<string, string>;
+    subagent_retry_tasks?: Record<string, string>;
+    subagent_nodes?: Record<string, string>;
     /** Trusted applicability facts for this attempt; body-free and never inferred from the model's query. */
     memory_context?: { class_restrictions?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentMemoryClassPolicy; consumer: string; current_scene: string; facts?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecalledMemory["facts"]; usage?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecalledMemory["usage"] };
     /** The round's after-write checks, by the SDK's key for each: which checker answered (prologue-after-write.ts). */

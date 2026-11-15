@@ -1,7 +1,18 @@
 import type { ExactRef, Runtime } from "@prologue/sdk";
-import type { AgentExecutionPlan, AgentRunRef, AgentStepAmendment, AgentStepBoard, AgentStepOwner, AgentTurnView } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type {
+  AgentEstimateSource,
+  AgentExecutionPlan,
+  AgentRunRef,
+  AgentStepAmendment,
+  AgentStepBoard,
+  AgentStepOwner,
+  AgentStepProgressSummary,
+  AgentStoryPoints,
+  AgentTurnView,
+} from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentInputRef } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 import type { AgentCollaborationPort } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
+import { isValidFibonacciStoryPoints } from "../execution-plan.js";
 import { checkOrigin } from "../input-origin.js";
 
 type SdkBoard = ReturnType<Runtime["boards"]["get"]>;
@@ -46,9 +57,24 @@ function planStep(node: TaskNode, place: PlanPlace): boolean {
 }
 const planNodes = (board: SdkBoard, place: PlanPlace) => board.nodes.filter(node => planStep(node, place));
 
-/** Every plan step has ended. */
+/** Every plan step has ended (epic containers without direct work settle when all their children settle). */
 export function finished(board: SdkBoard, place: PlanPlace): boolean {
-  return board.terminal || planNodes(board, place).every(node => ENDED.includes(node.state));
+  if (board.terminal) return true;
+  const nodes = planNodes(board, place);
+  const byParent = new Map<string, TaskNode[]>();
+  for (const node of nodes) {
+    if (node.parent && node.parent !== place.prefix) {
+      const list = byParent.get(node.parent) ?? [];
+      list.push(node);
+      byParent.set(node.parent, list);
+    }
+  }
+  const nodeDone = (node: TaskNode): boolean => {
+    if (ENDED.includes(node.state)) return true;
+    const children = byParent.get(node.id);
+    return Boolean(children?.length) && node.reports.length === 0 && children!.every(nodeDone);
+  };
+  return nodes.every(nodeDone);
 }
 
 /** The plan's version: when one of its own steps last changed. What other sessions do on the board does not move it. */
@@ -147,19 +173,205 @@ export function summary(runtime: Runtime, board: SdkBoard, place: PlanPlace, ses
     ...(open.length ? [`没人认领：${open.map(node => node.id).join("、")}`] : [])].join("\n");
 }
 
+const HUMAN_ESTIMATE_RE = /^用户重估点数：(\d+) 点(?:（理由：(.+)）)?$/;
+const HUMAN_CLEAR_ESTIMATE_RE = /^用户清除点数估算(?:（理由：(.+)）)?$/;
+const INSERT_ESTIMATE_RE = /^用户插入：.+（估算 (\d+) 点）/;
+const AGENT_ESTIMATE_RE = /(?:^|[；;\n])\s*点数估算：(\d+)\s*点(?:（理由：([^）]+)）)?/;
+const PROGRESS_UPDATE_RE = /(?:^|[；;\n])\s*进度(?:更新)?[（(](\d{1,3})%[)）]：(.+)$/;
+
+interface ParsedNodeMetrics {
+  parent_id?: string;
+  story_points?: AgentStoryPoints | null;
+  estimate_source?: AgentEstimateSource;
+  estimate_reason?: string;
+  progress?: number;
+  progress_basis?: string;
+  scope_removed?: true;
+}
+
+function parseNodeMetrics(node: TaskNode, place: PlanPlace): ParsedNodeMetrics {
+  const local = localId(place, node.id);
+  const confirmed = local ? place.plan.steps.find(step => step.id === local) : undefined;
+  const parentLocal = node.parent && node.parent !== place.prefix ? localId(place, node.parent) : undefined;
+  const parentId = confirmed?.parent_id ?? parentLocal;
+  let storyPoints: AgentStoryPoints | null | undefined = confirmed?.story_points;
+  let estimateSource: AgentEstimateSource | undefined = confirmed?.estimate_source ?? (confirmed?.story_points != null ? "agent" : undefined);
+  let estimateReason: string | undefined = confirmed?.estimate_reason;
+  let reportedProgress: number | undefined;
+  let progressBasis: string | undefined;
+  let scopeRemoved = node.state === "cancelled";
+
+  for (const entry of node.reports) {
+    const note = entry.note.trim();
+    if (note.startsWith("用户移出本轮范围：") || note.startsWith("用户跳过：")) scopeRemoved = true;
+    const humanEst = HUMAN_ESTIMATE_RE.exec(note);
+    if (humanEst) {
+      const candidate = Number(humanEst[1]);
+      if (isValidFibonacciStoryPoints(candidate)) {
+        storyPoints = candidate;
+        estimateSource = "human";
+        estimateReason = humanEst[2]?.trim() || undefined;
+      }
+      continue;
+    }
+    const humanClear = HUMAN_CLEAR_ESTIMATE_RE.exec(note);
+    if (humanClear) {
+      storyPoints = null;
+      estimateSource = "human";
+      estimateReason = humanClear[1]?.trim() || undefined;
+      continue;
+    }
+    const insertedEst = INSERT_ESTIMATE_RE.exec(note);
+    if (insertedEst) {
+      const candidate = Number(insertedEst[1]);
+      if (isValidFibonacciStoryPoints(candidate)) {
+        storyPoints = candidate;
+        estimateSource = "human";
+      }
+    }
+    if (estimateSource !== "human") {
+      const agentEst = AGENT_ESTIMATE_RE.exec(note);
+      if (agentEst) {
+        const candidate = Number(agentEst[1]);
+        if (isValidFibonacciStoryPoints(candidate)) {
+          storyPoints = candidate;
+          estimateSource = "agent";
+          estimateReason = agentEst[2]?.trim() || estimateReason;
+        }
+      }
+    }
+    const progressMatch = PROGRESS_UPDATE_RE.exec(note);
+    if (progressMatch) {
+      const pct = Number(progressMatch[1]);
+      if (Number.isFinite(pct) && pct >= 0 && pct <= 100) {
+        reportedProgress = Math.min(0.99, Math.max(0, pct / 100));
+        progressBasis = progressMatch[2]?.trim() || undefined;
+      }
+    }
+  }
+
+  const effectiveProgress = node.state === "succeeded" ? 1 : reportedProgress;
+  return {
+    ...(parentId ? { parent_id: parentId } : {}),
+    ...(storyPoints !== undefined ? { story_points: storyPoints } : {}),
+    ...(estimateSource ? { estimate_source: estimateSource } : {}),
+    ...(estimateReason ? { estimate_reason: estimateReason } : {}),
+    ...(effectiveProgress !== undefined ? { progress: effectiveProgress } : {}),
+    ...(progressBasis ? { progress_basis: progressBasis } : {}),
+    ...(scopeRemoved ? { scope_removed: true as const } : {}),
+  };
+}
+
+/**
+ * Leaf-only Fibonacci story-point weighted progress (`Σ(sᵢ × pᵢ) / Σsᵢ`, CHO-29..33):
+ * - Parent nodes (`id` referenced by any child's `parent_id`) never double-count on top of their children (CHO-31).
+ * - Scope-removed leaves (`scope_removed` / `cancelled`) leave the active denominator while keeping history (CHO-32),
+ *   whereas unfinished steps on a stopped/failed round stay in the denominator.
+ * - Unestimated leaves are counted separately without inventing default story points, and `weighted_percent` is capped
+ *   at `99` whenever any active leaf (estimated or unestimated) is not `succeeded` (CHO-33).
+ */
+export function computeWeightedStepBoardProgress(
+  nodes: ReadonlyArray<{
+    readonly id: string;
+    readonly state: AgentStepBoard["nodes"][number]["state"];
+    readonly parent_id?: string;
+    readonly story_points?: AgentStoryPoints | null;
+    readonly progress?: number;
+    readonly scope_removed?: boolean;
+  }>,
+): AgentStepProgressSummary {
+  const parentIds = new Set<string>();
+  for (const node of nodes) {
+    if (node.parent_id) parentIds.add(node.parent_id);
+  }
+  let completedPointsRaw = 0;
+  let totalPoints = 0;
+  let estimatedLeaves = 0;
+  let unestimatedLeaves = 0;
+  let completedUnestimatedLeaves = 0;
+  let removedScopeLeaves = 0;
+  let removedScopePoints = 0;
+  let anyActiveUnsucceeded = false;
+
+  for (const node of nodes) {
+    if (parentIds.has(node.id)) continue;
+    const removed = Boolean(node.scope_removed) || node.state === "cancelled";
+    if (removed) {
+      removedScopeLeaves += 1;
+      if (isValidFibonacciStoryPoints(node.story_points)) removedScopePoints += node.story_points;
+      continue;
+    }
+    if (node.state !== "succeeded") anyActiveUnsucceeded = true;
+    const leafProgress = node.state === "succeeded"
+      ? 1
+      : typeof node.progress === "number" && Number.isFinite(node.progress)
+        ? Math.min(0.99, Math.max(0, node.progress))
+        : 0;
+    if (isValidFibonacciStoryPoints(node.story_points)) {
+      estimatedLeaves += 1;
+      totalPoints += node.story_points;
+      completedPointsRaw += node.story_points * leafProgress;
+    } else {
+      unestimatedLeaves += 1;
+      if (node.state === "succeeded") completedUnestimatedLeaves += 1;
+    }
+  }
+
+  const completedPoints = Math.round(completedPointsRaw * 100) / 100;
+  const rawPercent = totalPoints === 0 ? null : Math.round((completedPointsRaw / totalPoints) * 1000) / 10;
+  const weightedPercent = rawPercent === null
+    ? null
+    : anyActiveUnsucceeded
+      ? (rawPercent >= 100 ? 99 : Math.max(0, rawPercent))
+      : Math.min(100, Math.max(0, rawPercent));
+
+  return {
+    weighted_percent: weightedPercent,
+    completed_points: completedPoints,
+    total_points: totalPoints,
+    estimated_leaves: estimatedLeaves,
+    unestimated_leaves: unestimatedLeaves,
+    completed_unestimated_leaves: completedUnestimatedLeaves,
+    removed_scope_leaves: removedScopeLeaves,
+    removed_scope_points: removedScopePoints,
+  };
+}
+
 /** The plan as the person and the Coding page see it: the plan's own ids, the plan's own version. */
 export function shape(runtime: Runtime, board: SdkBoard, place: PlanPlace, session: string, alive?: (session: string) => boolean): AgentStepBoard {
   const missing = place.plan.steps.find(step => !board.nodes.some(node => node.id === fullId(place, step.id)));
   if (missing) throw new Error("原步骤图与确认计划不一致");
   const local = (id: string) => localId(place, id) ?? id;
-  return { project_id: board.ref.id, version: planVersion(board, place), terminal: finished(board, place),
-    nodes: executionOrder(board, place).map(node => ({ id: local(node.id), state: node.state,
-      reports: node.reports.map(report => { const by = reportBy(runtime, report, session);
-        return { note: reportNote(runtime, report, session), at_ms: report.atMs, ...(by ? { by } : {}), ...(report.handover ? { handover: true as const } : {}),
-          ...(report.inputs?.length ? { inputs: inputRefs(report.inputs) } : {}) }; }),
+  const shapedNodes = executionOrder(board, place).map(node => {
+    const metrics = parseNodeMetrics(node, place);
+    return {
+      id: local(node.id),
+      state: node.state,
+      reports: node.reports.map(report => {
+        const by = reportBy(runtime, report, session);
+        return {
+          note: reportNote(runtime, report, session),
+          at_ms: report.atMs,
+          ...(by ? { by } : {}),
+          ...(report.handover ? { handover: true as const } : {}),
+          ...(report.inputs?.length ? { inputs: inputRefs(report.inputs) } : {}),
+        };
+      }),
       owner: claimOf(runtime, node, session, alive),
-      title: title(node, place), depends_on: node.dependsOn.flatMap(dep => localId(place, dep) ?? []), ...(local(node.id).startsWith("user-") ? { inserted: true } : {}),
-      ...(node.origins?.length ? { origins: inputRefs(node.origins) } : {}) })) };
+      title: title(node, place),
+      depends_on: node.dependsOn.flatMap(dep => localId(place, dep) ?? []),
+      ...(local(node.id).startsWith("user-") ? { inserted: true } : {}),
+      ...(node.origins?.length ? { origins: inputRefs(node.origins) } : {}),
+      ...metrics,
+    };
+  });
+  return {
+    project_id: board.ref.id,
+    version: planVersion(board, place),
+    terminal: finished(board, place),
+    progress_summary: computeWeightedStepBoardProgress(shapedNodes),
+    nodes: shapedNodes,
+  };
 }
 
 /** The inputs a report is about, as the runtime recorded them (pointers only; the session owns the inputs). */
@@ -210,19 +422,51 @@ export async function amendPlan(runtime: Runtime, place: PlanPlace, amendment: A
     case "insert": {
       const anchor = node(amendment.after);
       const heading = text(amendment.title, "步骤", 120), acceptance = text(amendment.acceptance, "完成条件", 300);
+      if (amendment.story_points !== undefined && !isValidFibonacciStoryPoints(amendment.story_points)) {
+        throw new Error("故事点只能选择斐波那契档位（1、2、3、5、8、13）");
+      }
       const id = fullId(place, `user-${planNodes(board, place).filter(entry => localId(place, entry.id)!.startsWith("user-")).length + 1}`), after = dependents(anchor.id);
-      // An inserted step is the round's to do, or the person's own when they take it on. One added for a supplement points
-      // at it: the board records the pointer, the session keeps the input. The round's own ledger is read once more right
-      // before the board takes the step, with no wait between, so one taken back in the meantime is refused and nothing
-      // is written. The SDK queues the write behind any earlier one on the same board; taken back while it waits there
-      // counts as taken back after: the step stays, and the receipt shows the input withdrawn.
       const holder = amendment.mine ? person : roundSession;
       if (amendment.origin !== undefined && !roundSession) throw new Error("这一轮没有会话记录，新步骤不能指向补充");
       const origins = amendment.origin === undefined ? {} : { origins: [{ session: roundSession!.id, input: amendment.origin }] };
       if (amendment.origin !== undefined) checkOrigin(amendment.origin, ledger());
-      board = await runtime.boards.addNode({ ref, expectedVersion: runtime.boards.get(ref).version, node: { id, title: heading, parent: place.prefix, dependsOn: [anchor.id], onFailure: "block-for-human", ...(holder ? { assignee: holder } : {}), ...origins } });
-      await report(id, `用户插入：${heading}；完成条件：${acceptance}${amendment.mine ? "；由用户处理" : ""}`);
+      board = await runtime.boards.addNode({ ref, expectedVersion: runtime.boards.get(ref).version, node: { id, title: heading, parent: anchor.parent ?? place.prefix, dependsOn: [anchor.id], onFailure: "block-for-human", ...(holder ? { assignee: holder } : {}), ...origins } });
+      const pointsSuffix = amendment.story_points !== undefined ? `（估算 ${amendment.story_points} 点）` : "";
+      await report(id, `用户插入：${heading}${pointsSuffix}；完成条件：${acceptance}${amendment.mine ? "；由用户处理" : ""}`);
       for (const next of after) await rewire(next, replaced(node(next).dependsOn, anchor.id, [id]));
+      break;
+    }
+    case "estimate": {
+      if (amendment.story_points !== null && !isValidFibonacciStoryPoints(amendment.story_points)) {
+        throw new Error("故事点只能选择斐波那契档位（1、2、3、5、8、13）或清空未估点");
+      }
+      const reason = amendment.reason?.trim() ? `（理由：${text(amendment.reason, "调整理由", 300)}）` : "";
+      await report(target!.id, amendment.story_points === null ? `用户清除点数估算${reason}` : `用户重估点数：${amendment.story_points} 点${reason}`);
+      break;
+    }
+    case "progress": {
+      if (typeof amendment.progress !== "number" || !Number.isFinite(amendment.progress) || amendment.progress < 0 || amendment.progress > 1) {
+        throw new Error("步骤进度必须在 0 到 1 之间");
+      }
+      if (ENDED.includes(target!.state)) throw new Error("这一步已经结束，不能再更新中间进度");
+      const basis = text(amendment.basis, "进度依据", 300);
+      const pct = Math.min(99, Math.max(0, Math.round(amendment.progress * 100)));
+      await report(target!.id, `进度更新（${pct}%）：${basis}`);
+      break;
+    }
+    case "remove-scope": {
+      const reason = text(amendment.reason, "移出范围原因", 300);
+      if (["running", "succeeded", "cancelled"].includes(target!.state)) {
+        throw new Error(target!.state === "running" ? "这一步正在执行，先暂停或等它回报后再移出范围" : "这一步已经结束，不需要移出范围");
+      }
+      const after = dependents(target!.id);
+      if (target!.state === "failed") {
+        if (after[0]) await report(after[0], `用户决定越过失败的「${title(target!, place)}」：${reason}`);
+        else throw new Error("后面没有步骤，不需要越过");
+      } else {
+        await report(target!.id, `用户移出本轮范围：${reason}`, "cancelled");
+      }
+      for (const id of after) await rewire(id, replaced(node(id).dependsOn, target!.id, target!.dependsOn));
       break;
     }
     case "unblock": {

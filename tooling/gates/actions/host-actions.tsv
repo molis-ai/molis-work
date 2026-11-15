@@ -197,6 +197,15 @@ connectors.usages.read	1	system.connectors	query	query	home	read	concurrent	agen
 connectors.usages.switch	1	system.connectors	command	operation	home	write	concurrent	user	connectors:management:write	connector	-	-	e252a0385cf9	c74bb0f81d27	-
 contextual.draft_reference.issue	1	system.home	command	operation	project	write	-	user	ui:drafts	-	-	-	81c1bd043b3e	6cf4e7c19469	-
 contextual.draft_reference.take	1	system.home	command	operation	project	write	-	user	ui:drafts	-	-	-	17591f24942d	499784f3137f	-
+evaluation.metrics.summarize	1	system.evaluation	query	query	home	read	-	user	-	-	-	-	dd22a1bbffe6	86224427dae9	-
+evaluation.reviews.record	1	system.evaluation	command	operation	home	write	-	user	-	-	-	-	0a34c174496c	e5e431c3603a	-
+evaluation.runs.compare	1	system.evaluation	query	query	home	read	-	user	-	-	-	-	7bde71e2cc87	a7b39b3308b1	-
+evaluation.runs.execute	1	system.evaluation	command	operation	home	write	concurrent	user	-	-	-	-	02cf81ef98c4	b5b6b080ee48	-
+evaluation.runs.get	1	system.evaluation	query	query	home	read	-	user	-	-	-	-	4cdbf370c558	a2c799262a3c	-
+evaluation.runs.list	1	system.evaluation	query	query	home	read	-	user	-	-	-	-	49b3d2340124	16582bf17d8e	-
+evaluation.samples.list	1	system.evaluation	query	query	home	read	-	user	-	-	-	-	eb39c2cfc11f	80f89dce90a9	-
+evaluation.samples.put	1	system.evaluation	command	operation	home	write	concurrent	user	-	-	-	-	129a4897a2ff	4c5145ebe635	-
+evaluation.samples.remove	1	system.evaluation	command	operation	home	write	concurrent	user	-	-	-	-	5f89ca572ed0	a523d3b2ef1c	-
 functions.authoring.catalog	1	system.functions	query	query	home	read	-	agent,mcp,user,workflow	functions:manage	-	-	-	d746974fa9af	3fb77bfd3549	-
 functions.authoring.configure	1	system.functions	command	operation	home	write	-	agent,mcp,user,workflow	functions:manage	-	-	-	edd82b576d7e	c4c6715b3c37	-
 functions.authoring.create	1	system.functions	command	operation	home	write	-	agent,mcp,plugin,user,workflow	functions:manage	-	-	-	5c778898fba7	d0e7a29830c7	-
@@ -290,6 +299,9 @@ observation.cleanup.apply	1	system.observation	command	operation	home	write	-	us
 observation.cleanup.preview	1	system.observation	query	query	home	read	-	user	-	-	-	-	fefb39d10136	067a217839a8	-
 observation.coverage.get	1	system.observation	query	query	home	read	-	agent,mcp,plugin,user,workflow	-	-	-	-	d169d8f10a55	801d69e1cca6	-
 observation.evidence.get	1	system.observation	query	query	home	read	-	agent,mcp,plugin,user,workflow	-	-	-	-	1dca006bd12e	078f139a0992	-
+observation.holds.list	1	system.observation	query	query	home	read	-	user	-	-	-	-	814623c6d0a4	c9fc92c80ac9	-
+observation.holds.put	1	system.observation	command	operation	home	write	-	user	-	-	-	-	7c8d670f04aa	bcb38438feb1	-
+observation.holds.release	1	system.observation	command	operation	home	write	-	user	-	-	-	-	ab8a98c36542	befa352c4966	-
 observation.records.query	1	system.observation	query	query	home	read	-	agent,mcp,plugin,user,workflow	-	-	-	-	24c9ca4a6bad	898c0c919f4f	-
 observation.report	1	system.observation	command	operation	home	write	-	plugin,user	-	-	-	-	0dd034973bce	8cfd08f953ae	eeb2d5d6b907
 observation.settings.get	1	system.observation	query	query	home	read	-	user	-	-	-	-	d746974fa9af	74d3467b1094	-

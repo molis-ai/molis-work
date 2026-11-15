@@ -14,10 +14,13 @@ export interface PluginPurge {
   readonly project_id?: string;
 }
 
-/** Delete one project's records, their evidence links, its coverage rows and stretches (contract-design §6). Bodies are collected after. */
+/** Delete one project's records, holds, their evidence links, its coverage rows and stretches (contract-design §6; OCL-12: project deletion overrides evaluation holds). Bodies are collected after. */
 export function clearProjectRows(db: DatabaseSync, projectId: string): void {
   db.exec("BEGIN IMMEDIATE");
   try {
+    db.prepare("DELETE FROM evaluation_hold_records WHERE seq IN (SELECT seq FROM records WHERE project_id = ?)").run(projectId);
+    db.prepare("DELETE FROM evaluation_hold_records WHERE hold_id IN (SELECT hold_id FROM evaluation_holds WHERE project_id = ?)").run(projectId);
+    db.prepare("DELETE FROM evaluation_holds WHERE project_id = ?").run(projectId);
     db.prepare("DELETE FROM record_evidence WHERE seq IN (SELECT seq FROM records WHERE project_id = ?)").run(projectId);
     db.prepare("DELETE FROM records WHERE project_id = ?").run(projectId);
     db.prepare("DELETE FROM coverage WHERE project_id = ?").run(projectId);
@@ -30,9 +33,9 @@ export function clearProjectRows(db: DatabaseSync, projectId: string): void {
 }
 
 /**
- * Clear a plugin's data (contract-design §6): the records it owns go; the action-call records of calls it answered (`provider_id`) or made
- * (`install_id`) stay as who called what and how it ended, with every piece of evidence turned into `missing: purged`. The stretch is kept in
- * the coverage register under the plugin, so a reader sees the content was cleared, not lost or expired.
+ * Clear a plugin's data (contract-design §6; OCL-12: plugin purge overrides evaluation holds): the records it owns go; the action-call
+ * records of calls it answered (`provider_id`) or made (`install_id`) stay as who called what and how it ended, with every piece of evidence
+ * turned into `missing: purged`. The stretch is kept in the coverage register under the plugin, so a reader sees the content was cleared, not lost or expired.
  */
 export function purgePluginRows(db: DatabaseSync, purge: PluginPurge, now: string): void {
   const owner = `plugin:${purge.plugin_id}`;
@@ -40,6 +43,7 @@ export function purgePluginRows(db: DatabaseSync, purge: PluginPurge, now: strin
   const scope = purge.project_id === undefined ? "" : " AND project_id = ?", scoped = purge.project_id === undefined ? [] : [purge.project_id];
   db.exec("BEGIN IMMEDIATE");
   try {
+    db.prepare(`UPDATE evaluation_hold_records SET seq = NULL WHERE seq IN (SELECT seq FROM records WHERE owner_kind = 'plugin' AND owner_id = ?${scope})`).run(purge.plugin_id, ...scoped);
     db.prepare(`DELETE FROM record_evidence WHERE seq IN (SELECT seq FROM records WHERE owner_kind = 'plugin' AND owner_id = ?${scope})`).run(purge.plugin_id, ...scoped);
     const owned = db.prepare(`DELETE FROM records WHERE owner_kind = 'plugin' AND owner_id = ?${scope}`).run(purge.plugin_id, ...scoped).changes;
     const calls = db.prepare(`SELECT seq, evidence FROM records WHERE (provider_id IN (${marks(purge.provider_ids)}) OR install_id IN (${marks(purge.install_ids)}))${scope}`)

@@ -10,22 +10,13 @@ import {
 import { classifyRecordKind } from "./classification.js";
 import { observationErrors } from "./errors.js";
 import { collectUnreferenced } from "./evidence.js";
+import { activeHeldSampleCountForSeqs, activeHeldSeqSet } from "./holds.js";
 import { readStoredSettings, retentionDaysOf, writeStoredSettings } from "./management-state.js";
-import { rowsAs } from "./queries.js";
+import { BLOB_STORED_BYTES_SQL, RECORD_ROW_BYTES_SQL, rowsAs } from "./queries.js";
+
+export { BLOB_STORED_BYTES_SQL, RECORD_ROW_BYTES_SQL };
 
 const DAY_MS = 86_400_000;
-
-export const RECORD_ROW_BYTES_SQL = `
-  (64
-   + LENGTH(CAST(record_id AS BLOB))
-   + LENGTH(CAST(fact AS BLOB))
-   + LENGTH(CAST(subjects AS BLOB))
-   + LENGTH(CAST(conditions AS BLOB))
-   + LENGTH(CAST(detail AS BLOB))
-   + LENGTH(CAST(evidence AS BLOB)))
-`;
-
-export const BLOB_STORED_BYTES_SQL = `(32 + LENGTH(CAST(digest AS BLOB)) + LENGTH(body))`;
 
 function parseIsoTimestamp(raw: string, endOfDayForDateOnly = false): string {
   const trimmed = raw.trim();
@@ -110,8 +101,12 @@ interface CandidateRow {
   readonly row_bytes: number;
 }
 
-function selectMatchingCandidates(db: DatabaseSync, resolved: ResolvedCleanupScope): CandidateRow[] {
-  if (resolved.kinds.length === 0) return [];
+function selectMatchingCandidates(
+  db: DatabaseSync,
+  resolved: ResolvedCleanupScope,
+  nowIso: string,
+): { readonly deletable: CandidateRow[]; readonly heldSampleCount: number } {
+  if (resolved.kinds.length === 0) return { deletable: [], heldSampleCount: 0 };
   const where: string[] = [];
   const params: (string | number)[] = [];
   if (resolved.resolved_since !== undefined) {
@@ -134,18 +129,36 @@ function selectMatchingCandidates(db: DatabaseSync, resolved: ResolvedCleanupSco
     ORDER BY seq
   `).all(...params));
 
-  if (resolved.kinds.length === OBSERVATION_RECORD_KINDS.length) return rows;
-  const kindSet = new Set<ObservationRecordKind>(resolved.kinds);
-  return rows.filter((row) => kindSet.has(classifyRecordKind({
-    owner_kind: row.owner_kind,
-    owner_id: row.owner_id,
-    fact: row.fact,
-    entry: row.entry,
-    audience: row.audience,
-    source_class: row.source_class,
-    provider_id: row.provider_id,
-    ...(row.operation ? { operation: row.operation } : {}),
-  })));
+  const kindFiltered = resolved.kinds.length === OBSERVATION_RECORD_KINDS.length
+    ? rows
+    : (() => {
+        const kindSet = new Set<ObservationRecordKind>(resolved.kinds);
+        return rows.filter((row) => kindSet.has(classifyRecordKind({
+          owner_kind: row.owner_kind,
+          owner_id: row.owner_id,
+          fact: row.fact,
+          entry: row.entry,
+          audience: row.audience,
+          source_class: row.source_class,
+          provider_id: row.provider_id,
+          ...(row.operation ? { operation: row.operation } : {}),
+        })));
+      })();
+
+  const heldSeqs = activeHeldSeqSet(db, nowIso);
+  if (heldSeqs.size === 0) {
+    return { deletable: kindFiltered, heldSampleCount: 0 };
+  }
+  const heldInScopeSeqs: number[] = [];
+  const deletable: CandidateRow[] = [];
+  for (const row of kindFiltered) {
+    if (heldSeqs.has(row.seq)) heldInScopeSeqs.push(row.seq);
+    else deletable.push(row);
+  }
+  return {
+    deletable,
+    heldSampleCount: activeHeldSampleCountForSeqs(db, heldInScopeSeqs, nowIso),
+  };
 }
 
 function measureUnreferencedBlobs(db: DatabaseSync, seqs: readonly number[]): { count: number; bytes: number } {
@@ -176,7 +189,7 @@ function measureUnreferencedBlobs(db: DatabaseSync, seqs: readonly number[]): { 
 
 export function previewCleanup(db: DatabaseSync, input: ObservationCleanupScopeInput, now: Date): ObservationCleanupPreview {
   const resolved = resolveCleanupScope(input, now);
-  const matching = selectMatchingCandidates(db, resolved);
+  const { deletable: matching, heldSampleCount } = selectMatchingCandidates(db, resolved, now.toISOString());
   const recordBytes = matching.reduce((sum, row) => sum + row.row_bytes, 0);
   const unref = measureUnreferencedBlobs(db, matching.map((row) => row.seq));
   const stored = readStoredSettings(db);
@@ -192,12 +205,12 @@ export function previewCleanup(db: DatabaseSync, input: ObservationCleanupScopeI
       business_objects: true,
       pages_versions: true,
       saved_briefs: true,
-      evaluation_samples_count: 0,
+      evaluation_samples_count: heldSampleCount,
     },
     impacts: [
       { impact: "timeline_expired_gap", affected: matching.length > 0 },
       { impact: "comparison_basis_lost", affected: comparisonAffected },
-      { impact: "evaluation_samples_kept", affected: stored.uses.evaluation },
+      { impact: "evaluation_samples_kept", affected: stored.uses.evaluation || heldSampleCount > 0 },
     ],
   };
 }
@@ -268,8 +281,8 @@ function executeCleanupCandidates(
 
 export function applyCleanup(db: DatabaseSync, input: ObservationCleanupScopeInput, now: Date): ObservationCleanupResult {
   const resolved = resolveCleanupScope(input, now);
-  const matching = selectMatchingCandidates(db, resolved);
   const cleaned_at = now.toISOString();
+  const { deletable: matching } = selectMatchingCandidates(db, resolved, cleaned_at);
   const earliestMatched = matching.reduce<string>((min, row) => (row.occurred_at < min ? row.occurred_at : min), resolved.resolved_until);
   return executeCleanupCandidates(db, matching, {
     project_id: input.project_id ?? "",
@@ -283,12 +296,14 @@ export function applyCleanup(db: DatabaseSync, input: ObservationCleanupScopeInp
 
 /**
  * Automatic retention sweep (OCL-12): when `retention_mode` is a day period (`365`, `180`, `90`, `30`), remove expired records
- * in one transaction, collect unreferenced snapshots, and record an `expired` stretch (`retention_expired`). Never runs for `keep` or `manual`.
+ * not protected by active evaluation holds in one transaction, collect unreferenced snapshots, and record an `expired` stretch
+ * (`retention_expired`). Never runs for `keep` or `manual`.
  */
 export function sweepExpiredRecords(db: DatabaseSync, now: Date): ObservationCleanupResult | null {
   const stored = readStoredSettings(db);
   const days = retentionDaysOf(stored.retention_mode);
   if (days === null) return null;
+  const nowIso = now.toISOString();
   const cutoff = new Date(now.getTime() - days * DAY_MS).toISOString();
   const resolved: ResolvedCleanupScope = {
     resolved_until: cutoff,
@@ -296,7 +311,7 @@ export function sweepExpiredRecords(db: DatabaseSync, now: Date): ObservationCle
     kinds: [...OBSERVATION_RECORD_KINDS],
     scope: { time_range: "custom", before: cutoff, resolved_until: cutoff, kinds: [...OBSERVATION_RECORD_KINDS] },
   };
-  const matching = selectMatchingCandidates(db, resolved);
+  const { deletable: matching } = selectMatchingCandidates(db, resolved, nowIso);
   if (matching.length === 0) return null;
   const earliestMatched = matching.reduce<string>((min, row) => (row.occurred_at < min ? row.occurred_at : min), cutoff);
   return executeCleanupCandidates(db, matching, {
@@ -305,6 +320,6 @@ export function sweepExpiredRecords(db: DatabaseSync, now: Date): ObservationCle
     ended_at: cutoff,
     reason: "retention_expired",
     entry: "host",
-    cleaned_at: now.toISOString(),
+    cleaned_at: nowIso,
   });
 }

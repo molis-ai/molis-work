@@ -27,7 +27,7 @@ function notePlugin() {
   const pluginId = "io.molis.work.example.approval-notes", permission = "storage:private";
   let wait: (() => Promise<void>) | undefined;
   let holdNextRead: (() => Promise<void>) | undefined;
-  let replaceEvidence: ((offer: TrustedReviewOffer) => TrustedReviewOffer) | undefined;
+  let mapOffer: ((offer: TrustedReviewOffer) => TrustedReviewOffer) | undefined;
   const libraries = new Map<string, NonNullable<NonNullable<Parameters<PluginDefinition["start"]>[0]["services"]>["project_database"]>>();
   const ports = (projectId: string | null | undefined) => libraries.get(projectId ?? "") ?? assert.fail("project instance was never started");
   const read = { capability_id: "approval-notes.review", version: 1 };
@@ -57,7 +57,7 @@ function notePlugin() {
         choices: [{ id: "accept", label: { literal: "Approve note" }, availability: row.accepted === null ? { available: true }
           : { available: false, code: "actions.conflict", reason: { literal: "Already approved" } }, accepts: [], returns: [] }], expires_at: null },
       commands: { accept: { id: row.id, version: row.revision, text: row.body } } } satisfies TrustedReviewOffer;
-    return replaceEvidence ? replaceEvidence(offer) : offer;
+    return mapOffer ? mapOffer(offer) : offer;
   });
   const manifest: PluginManifest = { plugin_id: pluginId, schema_version: 1, host_api_version: 1, version: "1.0.0",
     name: "Approval notes", kind: "app", publisher: { publisher_id: "example", signature: "approval-notes-fixture" },
@@ -73,7 +73,7 @@ function notePlugin() {
   return { definition, apply, pluginId,
     wait(value?: () => Promise<void>) { wait = value; },
     nextRead(value?: () => Promise<void>) { holdNextRead = value; },
-    evidence(value?: typeof replaceEvidence) { replaceEvidence = value; },
+    present(value?: typeof mapOffer) { mapOffer = value; },
   };
 }
 
@@ -129,17 +129,35 @@ test("APR-17/18 S-17 the real Web and management MCP reach one original review i
     { ...originalOwner, provider_id: "other-provider" },
     { ...originalOwner, installation_generation: "other-generation" },
   ]) {
-    fixture.evidence(offer => ({ ...offer, request: { ...offer.request, requirements: [{
+    fixture.present(offer => ({ ...offer, request: { ...offer.request, requirements: [{
       id: "evidence-scope", version: "1", target: webReview.target, statement: "Review checked note", requires_person: true,
       evidence: [{ target: { ...webReview.target, owner: otherOwner }, tier: "machine_checked" }],
     }] } }));
     await assert.rejects(read("web"), { code: "actions.input_invalid" });
   }
-  fixture.evidence();
+  fixture.present();
   assert.deepEqual(await read("web"), webReview);
   assert.deepEqual((await mcp<ReviewRequest>("molis_work_v1_review_request", lookup("web"))).reference, webReview.reference);
   assert.deepEqual(await env.web.post(prefix() + "/request", { reference: webReview.reference }), webReview);
   await assert.rejects(env.web.post(prefix(other.project_id) + "/request", { reference: webReview.reference }), { code: "actions.missing" });
+
+  // APR-16 checks how both entry points read and refuse an expired original request.
+  fixture.present(offer => ({ ...offer, request: { ...offer.request, expires_at: "2000-01-01T00:00:00.000Z" } }));
+  try {
+    const expired = await read("stale"), byReference = { reference: expired.reference };
+    assert.equal(expired.summary, "Before change");
+    assert.equal(expired.decision, undefined);
+    assert.deepEqual(expired.choices.map(choice => choice.availability), [
+      { available: false, code: "actions.expired", reason: { literal: "原决定请求已过期" } },
+    ]);
+    assert.deepEqual(await env.web.post(prefix() + "/request", byReference), expired);
+    assert.deepEqual(await mcp<ReviewRequest>("molis_work_v1_review_request", byReference), expired);
+    const expiredCommand = { ...byReference, choice_id: "accept", request_key: "expired" };
+    await assert.rejects(env.web.post(prefix() + "/decide", expiredCommand), { code: "actions.expired" });
+    await assert.rejects(mcp("molis_work_v1_review_decide", expiredCommand), { code: "actions.expired" });
+    assert.equal(await env.host.withProject(ref, runtime => projectReviewDecisions(runtime.store.db, pid).forRequest(expired.reference.id)), null);
+  } finally { fixture.present(); }
+
   await assert.rejects(env.web.post(prefix(other.project_id) + "/decide", webCommand), { code: "actions.missing" });
   await assert.rejects(env.web.post(prefix() + "/decide", { ...webCommand, actor_id: LOCAL_PERSON_ACTOR_ID }), { code: "actions.input_invalid" });
   await assert.rejects(env.web.post(prefix() + "/decide", { ...webCommand,

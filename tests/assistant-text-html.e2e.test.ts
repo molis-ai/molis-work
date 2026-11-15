@@ -97,14 +97,23 @@ test("PAS-15 / BBA-02: Host text streams, keeps reading state, copies exact code
   await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
   await waitFor("!document.querySelector('[data-assistant-panel]').hidden");
 
+  // APR-10 checks the stored result before and after the review action in the isolated browser.
+  const savedTodos = (title: string) => {
+    const todos = openTodoStore(homeDirectory);
+    try { return todos.list({ projectId, projectIds: [], actor: "user", actorId: "web-user" }).filter(item => item.title === title).length; }
+    finally { todos.close(); }
+  };
+  const reviewButtons = "[...document.querySelectorAll('[data-review] [data-assistant-decision]')]";
   for (const decision of ["reject", "approve"]) {
-    model.review(`投影测试-${decision}`);
+    const title = `投影测试-${decision}`;
+    model.review(title);
     await click("[data-assistant-new]");
     await click("[data-assistant-composer] .mw-composer__input");
-    await command("Input.insertText", { text: `添加待办：投影测试-${decision}` }, sessionId);
+    await command("Input.insertText", { text: `添加待办：${title}` }, sessionId);
     await click("[data-assistant-composer] [data-composer-send]");
-    await waitFor("document.querySelector('[data-review] [data-assistant-decision]')", 30_000);
-    assert.match(await evaluate<string>("document.querySelector('[data-review]').textContent"), new RegExp(`投影测试-${decision}`));
+    await waitFor(`${reviewButtons}.length === 2`, 30_000);
+    assert.match(await evaluate<string>("document.querySelector('[data-review]').textContent"), new RegExp(title));
+    assert.equal(savedTodos(title), 0, "APR-10: the pending operation has not written its Todo");
     const action = `[data-assistant-decision=${decision}]`;
     if (decision === "reject") {
       // Hold only this review request: failure restores the same card's decisions and exposes the original diagnostic.
@@ -112,22 +121,20 @@ test("PAS-15 / BBA-02: Host text streams, keeps reading state, copies exact code
         window.fetch=(url,init)=>String(url).includes('/reviews/') ? new Promise((resolve,reject)=>{window.reviewAttempts++; window.failReview=()=>reject(new Error('review transport unavailable'))}) : original(url,init); })()`);
       await click(action);
       await waitFor("window.reviewAttempts === 1");
-      assert.equal(await evaluate("[...document.querySelectorAll('[data-review] .assistant-card-actions button')].every(button=>button.getAttribute('aria-disabled')==='true')"), true);
+      assert.deepEqual(await evaluate(`${reviewButtons}.map(button=>[button.dataset.assistantDecision,button.getAttribute('aria-disabled')])`), [["approve", "true"], ["reject", "true"]]);
+      assert.equal(await evaluate("(()=>{const button=document.querySelector('[data-review] [data-assistant-permission-open]');return !!button&&!button.disabled&&!button.hasAttribute('aria-disabled');})()"), true);
       await click("[data-assistant-decision=approve]");
       assert.equal(await evaluate("window.reviewAttempts"), 1, "another press cannot send a second decision while the card is busy");
       await evaluate("window.failReview()");
-      await waitFor("document.querySelector('.assistant-problem')?.textContent.includes('不知道这次操作有没有完成，请刷新后核对') && [...document.querySelectorAll('[data-review] .assistant-card-actions button')].every(button=>!button.hasAttribute('aria-disabled'))");
+      await waitFor(`document.querySelector('.assistant-problem')?.textContent.includes('不知道这次操作有没有完成，请刷新后核对') && ${reviewButtons}.length === 2 && ${reviewButtons}.every(button=>!button.hasAttribute('aria-disabled'))`);
       assert.equal(await evaluate("document.activeElement.dataset.assistantDecision"), "approve", "the error preserves where focus moved during the request");
       await evaluate("window.restoreReviewFetch()");
+      assert.equal(savedTodos(title), 0, "the interrupted decision did not write a Todo");
     }
     await click(action);
     await waitFor("!document.querySelector('[data-review]')", 30_000);
     assert.equal(await evaluate("document.activeElement.matches('[data-assistant-composer] .mw-composer__input')"), true);
     await waitFor(`fetch(${JSON.stringify(api + '/works')}).then(r=>r.json()).then(b=>b.works.find(w=>w.work_id===${CURRENT_WORK})?.state==='completed')`, 30_000);
-    const todos = openTodoStore(homeDirectory);
-    try {
-      assert.equal(todos.list({ projectId, projectIds: [], actor: "user", actorId: "web-user" }).filter(item => item.title === `投影测试-${decision}`).length, decision === "approve" ? 1 : 0,
-        "a real approval persists exactly one todo; a rejection persists none");
-    } finally { todos.close(); }
+    assert.equal(savedTodos(title), decision === "approve" ? 1 : 0, "a real approval persists exactly one Todo and a rejection persists none");
   }
 });

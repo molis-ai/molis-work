@@ -1,6 +1,6 @@
 import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
 import {
-  SessionSourceFailure,
+  sessionSourceFailure,
   type AdapterDiscoveryBatch,
   type AdapterSourceContext,
   type ExternalSessionSourceAdapter,
@@ -14,17 +14,17 @@ export const qwenCodeAdapter: ExternalSessionSourceAdapter = {
     if (cursor !== null) return { sessions: [], skipped_count: 0, next_cursor: null, total: 0 };
     const spec = context.tool.sessions.discover;
     if (spec.via !== "command") {
-      throw new SessionSourceFailure("version_mismatch", "Unexpected discover spec for qwen-code", false);
+      throw sessionSourceFailure("version_mismatch", "Unexpected discover spec for qwen-code", false);
     }
     const res = await context.ports.commands.run(context.entry_id, spec.argv, signal);
     if (res.exit_code !== 0) {
-      throw new SessionSourceFailure("read_error", res.stderr || "qwen sessions list failed", true);
+      throw sessionSourceFailure("read_error", res.stderr || "qwen sessions list failed", true);
     }
     let parsed: unknown;
     try {
       parsed = JSON.parse(res.stdout || "[]");
     } catch {
-      throw new SessionSourceFailure("parse_error", "Invalid JSON from qwen sessions list", false);
+      throw sessionSourceFailure("parse_error", "Invalid JSON from qwen sessions list", false);
     }
     const items = Array.isArray(parsed)
       ? parsed
@@ -36,7 +36,7 @@ export const qwenCodeAdapter: ExternalSessionSourceAdapter = {
             ? parsed.data
             : null;
     if (!items) {
-      throw new SessionSourceFailure("parse_error", "Expected session list array from qwen", false);
+      throw sessionSourceFailure("parse_error", "Expected session list array from qwen", false);
     }
 
     const sessions = [];

@@ -1231,7 +1231,7 @@ C-2、C-3 只有定义，宿主还没登记，所以不动 `tooling/gates/action
 | 37 | 动作总数 | 批次文件、需求 §7 第 3 项都写 10 个；对象读取器没算，第 6.4 节要它 | 合同里 11 个，加第 30 行是 12 个；批次文件与需求 §7 已改 |
 | 38 | `sessions.suggestion_unavailable` | 第 9.3 节声明了，但第 8.4 节写模型没配或失败时逐条 `status: "failed"`，现在没有路径抛它 | 第 34 批核实无整次抛错路径，已从 `sessionsErrors` 与第 9.3 节删去（共 14 个错误码） |
 | 39 | 搜索结果的打开位置 | `search_source` 和 `open` 要写一个界面位置，入口随第 03 批，还没定 | 先写 `sessions`，片 S-5 按确认的入口位置对齐 |
-| 40 | 插件经 Knowledge 读到外部会话（S-4） | `knowledge.search` 只留当前项目的结果，外部会话进不来；但 `knowledge.read`、`outline`、`grep` 没有这道过滤，以本人身份代插件读，能到 `sessions.subject.read@1`（第 6.4 节） | 已在登记读取器前堵住：`apps/local-host/src/knowledge-actions.ts` 替插件代读对象读取器时要求 `action.audiences.includes("plugin")`，拒绝测试在 `S-sessions-person-decides` |
+| 40 | 插件经 Knowledge 读到外部会话（S-4） | `knowledge.search` 只留当前项目的结果，外部会话进不来；但 `knowledge.read`、`outline`、`grep` 没有这道过滤，以本人身份代插件读，能到 `sessions.subject.read@1`（第 6.4 节） | 已在登记读取器前堵住：`apps/local-host/src/knowledge-actions.ts` 替插件代读对象读取器和搜索来源时按 `actionReachesAudience(action, capabilityId, "plugin")` 过滤，拒绝测试在 `S-sessions-person-decides` |
 | 41 | 引用种类（S-4） | `projectReferenceKinds`、`pluginReferenceKinds` 会把 `external_session` 自动列进引用种类，不用谁新加入口（第 6.4 节） | 已在登记读取器前堵住：`apps/local-host/src/agent-question-surfaces.ts` 只把 `action.audiences.includes("agent")` 的对象读取器纳入引用种类，拒绝测试在 `S-sessions-person-decides` |
 | 42 | 本人亲手给的算不算 AI 读 | 第 7.4 节原来没写这种情况。`readReferences` 的注释写本人亲手选就放行，这和第 7.4 节的许可有张力 | **已定并落地（用户 2026-11-07）：** 本人明确动作给的内容放行、标不可信、只进这一轮，不记成工作对象（不调 `linkSent`、不进 `landing`），后面轮次不再带着 |
 | 43 | `sessions.tool.search@1` 的 `query` 前导空白 | schema 放过前导空白，只拦空白之后的 `-` | 已定：服务在校验和替换 `{query}` 前 `trim()` 去首尾空白，避免空白改变工具搜索结果或让 `-` 漏检 |

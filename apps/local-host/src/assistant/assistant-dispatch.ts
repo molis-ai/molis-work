@@ -20,6 +20,7 @@ import type { MemoryService } from "@molis-ai/molis-work-service-memory";
 import { WorkExecutor, executorProviders, offerExecutors, type ExecutorControl } from "./assistant-executor.js";
 import type { ExecutorHanded } from "./assistant-executor-input.js";
 import { AssistantInputs, addressesRound, assertRoundToAddress, inputsOf, type SendIntent } from "./assistant-inputs.js";
+import { carriesExternalSessionInput, stripExternalSessionPersistence } from "./assistant-external-sessions.js";
 import { ownerOf, roundStartInput } from "./assistant-round-start.js";
 import { recoveryAction } from "./assistant-parked-answer.js";
 import { RUNTIME, MAX_TEXT, sessionRef, HANDOVER_MARK, assertSendCurrent, type AssistantServicePorts, type AssistantCaller, type RoundMaterials } from "./assistant-service-shared.js";
@@ -143,6 +144,7 @@ export class AssistantDispatch {
   /** A work carried by a plugin: its round starts, continues or is answered in the plugin's own session. */
   async executorDispatch(work: StoredWork, text: string, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, mode?: string, writtenBy?: StoredRound["written_by"], stillCurrent?: () => boolean, intent?: SendIntent, beforeStart?: () => Promise<void>, assertBeforeStart?: () => void, handoff?: MethodHandoff): Promise<AssistantSendResult> {
     if (materials.some(item => item.kind === "image")) throw assistantErrors.unsupported("这项工作的执行方暂时不能带图片；可以把图里的要点写成文字再发");
+    if (carriesExternalSessionInput(materials, context)) throw assistantErrors.unsupported("这项工作由执行方插件承担，不能附带仅限本轮可见的外部会话内容；请交给助理执行，或去掉外部会话内容后再发");
     // The Skills the person chose go to the executor by their exact references, named by the Host on its `run.start` (§2.3); the
     // round replies in this round's language (§2.4). Neither is text in the task.
     const skills = [...new Map(materials.flatMap(item => item.kind === "method" && item.method?.kind === "skill" ? [[JSON.stringify(item.method.ref), item.method.ref] as const] : [])).values()];
@@ -276,7 +278,8 @@ export class AssistantDispatch {
     }
     await beforeStart?.();
     this.store.markTold(this.actorId, prepared.told);
-    this.store.addRound(work.work_id, { run_id: handle.ref.run_id, text, materials, context, started_at: startedAt, ...(writtenBy ? { written_by: writtenBy } : {}), ...(work.character ? { character: { ...work.character } } : {}),
+    const persisted = stripExternalSessionPersistence(materials, context);
+    this.store.addRound(work.work_id, { run_id: handle.ref.run_id, text, materials: persisted.materials, context: persisted.context, started_at: startedAt, ...(writtenBy ? { written_by: writtenBy } : {}), ...(work.character ? { character: { ...work.character } } : {}),
       ...(spent.budget_tokens === null ? {} : { work_budget: spent.budget_tokens }), ...(this.recalled.get(work.work_id) ? { memory_receipt: this.recalled.get(work.work_id)! } : {}) });
     this.recalled.delete(work.work_id);
     this.chosenMemory.delete(work.work_id);

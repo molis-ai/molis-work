@@ -4,7 +4,7 @@
 
 ## 1. 核查对象与依据
 
-对照 [Coding 插件方案 §4.2](spec.md#42-代码智能与分析工具) 与第 31 批已落地的代码智能底座：
+对照 [Coding 下一阶段需求 §A4 代码智能](next-requirements.md#a4-代码智能) 与第 31 批已落地的代码智能底座：
 
 - 平台底座：`horizontal/agent-host/src/code-intelligence/index.ts`、`lsp-client.ts`、`tool-fetcher.ts`
 - 受管二进制下载先例：`apps/local-host/src/connector-native-release.ts`（GitHub Release 压缩包 + SHA-256 摘要校验 + Home 受管安装目录）

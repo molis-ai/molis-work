@@ -1,7 +1,8 @@
+import type { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { sessionsErrors, type ExternalSessionActivity, type ExternalSessionEntry } from "@molis-ai/molis-work-contracts/services/sessions";
 import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
 import {
-  SessionSourceFailure,
+  sessionSourceFailure,
   type AdapterDiscoveryBatch,
   type AdapterReadOutput,
   type AdapterSourceContext,
@@ -15,12 +16,12 @@ import {
   paginateAndSearchTranscript,
 } from "./shared.js";
 
-function classifyGhFailure(stderr: string): SessionSourceFailure {
+function classifyGhFailure(stderr: string): ActionError {
   const lower = stderr.toLowerCase();
   if (lower.includes("auth login") || lower.includes("not logged in") || lower.includes("authentication") || lower.includes("http 401")) {
-    return new SessionSourceFailure("login_expired", stderr || "GitHub CLI login expired", false);
+    return sessionSourceFailure("login_expired", stderr || "GitHub CLI login expired", false);
   }
-  return new SessionSourceFailure("read_error", stderr || "GitHub CLI agent-task command failed", true);
+  return sessionSourceFailure("read_error", stderr || "GitHub CLI agent-task command failed", true);
 }
 
 function mapCopilotState(raw: unknown): ExternalSessionActivity {
@@ -116,11 +117,11 @@ export const copilotCodingAgentAdapter: ExternalSessionSourceAdapter = {
   async discoverPage(context: AdapterSourceContext, cursor: string | null, signal: AbortSignal): Promise<AdapterDiscoveryBatch> {
     if (cursor !== null) return { sessions: [], skipped_count: 0, next_cursor: null, total: 0 };
     if (!context.connection_id) {
-      throw new SessionSourceFailure("connection_removed", "Missing GitHub CLI connection", false);
+      throw sessionSourceFailure("connection_removed", "Missing GitHub CLI connection", false);
     }
     const discoverSpec = context.tool.sessions.discover;
     if (discoverSpec.via !== "command") {
-      throw new SessionSourceFailure("version_mismatch", "Unexpected discover spec for copilot-coding-agent", false);
+      throw sessionSourceFailure("version_mismatch", "Unexpected discover spec for copilot-coding-agent", false);
     }
 
     const result = await context.ports.connections.command(context.connection_id, context.entry_id, discoverSpec.argv, signal);
@@ -132,10 +133,10 @@ export const copilotCodingAgentAdapter: ExternalSessionSourceAdapter = {
     try {
       parsed = JSON.parse(result.stdout || "[]");
     } catch {
-      throw new SessionSourceFailure("parse_error", "Invalid JSON from gh agent-task list", false);
+      throw sessionSourceFailure("parse_error", "Invalid JSON from gh agent-task list", false);
     }
     if (!Array.isArray(parsed)) {
-      throw new SessionSourceFailure("parse_error", "Expected JSON array from gh agent-task list", false);
+      throw sessionSourceFailure("parse_error", "Expected JSON array from gh agent-task list", false);
     }
 
     const sessions = [];
@@ -205,7 +206,7 @@ export const copilotCodingAgentAdapter: ExternalSessionSourceAdapter = {
         throw sessionsErrors.not_found("外部会话不存在或已被移除");
       }
       if (lower.includes("auth login") || lower.includes("authentication") || lower.includes("http 401")) {
-        throw new SessionSourceFailure("login_expired", "GitHub CLI 登录状态已失效", false);
+        throw sessionSourceFailure("login_expired", "GitHub CLI 登录状态已失效", false);
       }
       throw sessionsErrors.read_failed("读取 Copilot 编码 Agent 任务日志失败");
     }

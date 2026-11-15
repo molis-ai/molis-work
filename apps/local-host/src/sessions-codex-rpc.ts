@@ -12,7 +12,7 @@ import {
 } from "@molis-ai/molis-work-contracts/services/sessions";
 import { cutCharacters } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import {
-  SessionSourceFailure,
+  sessionSourceFailure,
   type CodexThreadListResponse,
   type CodexThreadReadResponse,
   type SessionsPorts,
@@ -96,17 +96,17 @@ async function callCodexAppServer<T>(
     signal.addEventListener("abort", onAbort, { once: true });
 
     const timer = setTimeout(() => {
-      fail(new SessionSourceFailure("timed_out", "Codex app-server 响应超时", true));
+      fail(sessionSourceFailure("timed_out", "Codex app-server 响应超时", true));
     }, COMMAND_TIMEOUT_MS);
     timer.unref?.();
 
-    child.on("error", () => fail(new SessionSourceFailure("read_error", "无法启动 Codex app-server", true)));
+    child.on("error", () => fail(sessionSourceFailure("read_error", "无法启动 Codex app-server", true)));
 
     child.stdout.setEncoding("utf8");
     child.stdout.on("data", (chunk: string) => {
       totalBytes += Buffer.byteLength(chunk, "utf8");
       if (totalBytes > COMMAND_MAX_BUFFER_BYTES) {
-        fail(new SessionSourceFailure("read_error", "Codex app-server 输出超过上限", false));
+        fail(sessionSourceFailure("read_error", "Codex app-server 输出超过上限", false));
         return;
       }
       buffer += chunk;
@@ -120,19 +120,19 @@ async function callCodexAppServer<T>(
         try {
           msg = JSON.parse(line) as Record<string, unknown>;
         } catch {
-          fail(new SessionSourceFailure("parse_error", "Codex app-server 返回了非法 JSON", false));
+          fail(sessionSourceFailure("parse_error", "Codex app-server 返回了非法 JSON", false));
           return;
         }
         if (msg.id === 1) {
           if (msg.error) {
-            fail(new SessionSourceFailure("version_mismatch", "Codex app-server 初始化失败", false));
+            fail(sessionSourceFailure("version_mismatch", "Codex app-server 初始化失败", false));
             return;
           }
           child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", method: "initialized", params: {} })}\n`);
           child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id: 2, method, params })}\n`);
         } else if (msg.id === 2) {
           if (msg.error) {
-            fail(new SessionSourceFailure("read_error", "Codex app-server 读取失败", false));
+            fail(sessionSourceFailure("read_error", "Codex app-server 读取失败", false));
             return;
           }
           succeed(msg.result as T);
@@ -142,7 +142,7 @@ async function callCodexAppServer<T>(
     });
 
     child.on("close", () => {
-      if (!settled) fail(new SessionSourceFailure("read_error", "Codex app-server 提前退出", true));
+      if (!settled) fail(sessionSourceFailure("read_error", "Codex app-server 提前退出", true));
     });
 
     child.stdin.write(

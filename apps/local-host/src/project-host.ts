@@ -258,7 +258,7 @@ export class MolisWorkLocalHost {
         close: (runtime, reference) => closeProjectRuntime(runtime, () => options.onRuntimeClose?.(reference), () => closeProjectSchedulers(this, runtime, reference), () => this.homePlugins?.stopProjectJobs(runtime.project_id)),
       },
     });
-    if (options.homeDirectory) { this.observation = createHostObservation(options.homeDirectory, hostObservationPorts(options.homeDirectory, this, this.host, () => this.catalogRunner)); this.sessions = createHostSessions(options.homeDirectory, () => this.catalogRunner, () => this.search?.changed(SESSIONS_PROVIDER_ID, null), { clock: options.clock, ...options.sessions }); }
+    if (options.homeDirectory) { this.observation = createHostObservation(options.homeDirectory, hostObservationPorts(options.homeDirectory, this, this.host, () => this.catalogRunner)); this.sessions = createHostSessions(options.homeDirectory, () => this.catalogRunner, () => this.search?.clearProvider(SESSIONS_PROVIDER_ID, null), { clock: options.clock, ...options.sessions }); }
     this.synchronization = projectSyncAccess(this.host);
     this.surfaceHome = projectSurfaceHome(this.host, this, options.homeDirectory, readCatalog);
     const position = projectSurfaceContext(this.host, this, options.homeDirectory, readCatalog);

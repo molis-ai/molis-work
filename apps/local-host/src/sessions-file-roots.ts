@@ -3,7 +3,12 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { Readable } from "node:stream";
 import type { ExternalToolPath } from "@molis-ai/molis-work-contracts/platform/external-tools";
-import { SessionSourceFailure, type SessionDirectoryEntry, type SessionsPorts } from "@molis-ai/molis-work-service-sessions";
+import {
+  readSessionSourceFailure,
+  sessionSourceFailure,
+  type SessionDirectoryEntry,
+  type SessionsPorts,
+} from "@molis-ai/molis-work-service-sessions";
 
 function isInsideRoot(realRoot: string, candidate: string): boolean {
   return candidate === realRoot || candidate.startsWith(realRoot + path.sep);
@@ -61,15 +66,15 @@ export function safeResolveEnvRoot(
 
 function validateRelativeInput(root: string, relative: string): void {
   if (!root || root.includes("\0") || relative.includes("\0")) {
-    throw new SessionSourceFailure("read_error", "拒绝读取非法外部会话路径", false);
+    throw sessionSourceFailure("read_error", "拒绝读取非法外部会话路径", false);
   }
   if (relative === "") return;
   if (path.isAbsolute(relative) || /^[A-Za-z]:/u.test(relative)) {
-    throw new SessionSourceFailure("read_error", "外部会话路径不能使用绝对路径", false);
+    throw sessionSourceFailure("read_error", "外部会话路径不能使用绝对路径", false);
   }
   const segments = relative.split(/[\\/]+/u);
   if (segments.includes("..")) {
-    throw new SessionSourceFailure("read_error", "外部会话路径不能跳出声明的数据根目录", false);
+    throw sessionSourceFailure("read_error", "外部会话路径不能跳出声明的数据根目录", false);
   }
 }
 
@@ -84,12 +89,12 @@ export async function resolveContainedTarget(
     realRoot = await fs.realpath(root);
   } catch (error) {
     if (allowMissing && (error as NodeJS.ErrnoException)?.code === "ENOENT") return null;
-    throw new SessionSourceFailure("read_error", "外部工具数据目录不存在或无法读取", false);
+    throw sessionSourceFailure("read_error", "外部工具数据目录不存在或无法读取", false);
   }
 
   const lexical = relative ? path.resolve(realRoot, relative) : realRoot;
   if (!isInsideRoot(realRoot, lexical)) {
-    throw new SessionSourceFailure("read_error", "外部会话路径超出了声明的数据根目录", false);
+    throw sessionSourceFailure("read_error", "外部会话路径超出了声明的数据根目录", false);
   }
 
   let lstat;
@@ -97,7 +102,7 @@ export async function resolveContainedTarget(
     lstat = await fs.lstat(lexical);
   } catch (error) {
     if (allowMissing && (error as NodeJS.ErrnoException)?.code === "ENOENT") return null;
-    throw new SessionSourceFailure("read_error", "外部会话记录不存在或无法读取", false);
+    throw sessionSourceFailure("read_error", "外部会话记录不存在或无法读取", false);
   }
 
   if (lstat.isSymbolicLink()) {
@@ -105,10 +110,10 @@ export async function resolveContainedTarget(
     try {
       realTarget = await fs.realpath(lexical);
     } catch {
-      throw new SessionSourceFailure("read_error", "拒绝跟随指向无效或根外目标的符号链接", false);
+      throw sessionSourceFailure("read_error", "拒绝跟随指向无效或根外目标的符号链接", false);
     }
     if (!isInsideRoot(realRoot, realTarget)) {
-      throw new SessionSourceFailure("read_error", "拒绝跟随跳出声明根目录的符号链接", false);
+      throw sessionSourceFailure("read_error", "拒绝跟随跳出声明根目录的符号链接", false);
     }
     return { realRoot, realTarget };
   }
@@ -118,10 +123,10 @@ export async function resolveContainedTarget(
     realTarget = await fs.realpath(lexical);
   } catch (error) {
     if (allowMissing && (error as NodeJS.ErrnoException)?.code === "ENOENT") return null;
-    throw new SessionSourceFailure("read_error", "外部会话路径无法解析", false);
+    throw sessionSourceFailure("read_error", "外部会话路径无法解析", false);
   }
   if (!isInsideRoot(realRoot, realTarget)) {
-    throw new SessionSourceFailure("read_error", "拒绝读取声明根目录之外的路径", false);
+    throw sessionSourceFailure("read_error", "拒绝读取声明根目录之外的路径", false);
   }
   return { realRoot, realTarget };
 }
@@ -142,7 +147,7 @@ export function createHostSessionFilesPort(homeRoot: string, sourceEnv: NodeJS.P
         entries = await fs.readdir(resolved.realTarget, { withFileTypes: true });
       } catch (error) {
         if ((error as NodeJS.ErrnoException)?.code === "ENOENT") return [];
-        throw new SessionSourceFailure("read_error", "读取外部工具会话目录失败", false);
+        throw sessionSourceFailure("read_error", "读取外部工具会话目录失败", false);
       }
       const result: SessionDirectoryEntry[] = [];
       for (const dirent of entries) {
@@ -176,38 +181,38 @@ export function createHostSessionFilesPort(homeRoot: string, sourceEnv: NodeJS.P
         return { size: st.size, mtime_ms: st.mtimeMs };
       } catch (error) {
         if ((error as NodeJS.ErrnoException)?.code === "ENOENT") return null;
-        throw new SessionSourceFailure("read_error", "读取外部会话文件状态失败", false);
+        throw sessionSourceFailure("read_error", "读取外部会话文件状态失败", false);
       }
     },
     async open(root: string, relative: string, signal: AbortSignal): Promise<ReadableStream<Uint8Array>> {
       signal.throwIfAborted();
       const resolved = await resolveContainedTarget(root, relative, false);
-      if (!resolved) throw new SessionSourceFailure("read_error", "外部会话记录不存在", false);
+      if (!resolved) throw sessionSourceFailure("read_error", "外部会话记录不存在", false);
       let lst;
       try {
         lst = lstatSync(resolved.realTarget);
       } catch {
-        throw new SessionSourceFailure("read_error", "外部会话记录无法打开", false);
+        throw sessionSourceFailure("read_error", "外部会话记录无法打开", false);
       }
       if (!lst.isFile() || lst.isSymbolicLink()) {
-        throw new SessionSourceFailure("read_error", "外部会话记录不是普通文件", false);
+        throw sessionSourceFailure("read_error", "外部会话记录不是普通文件", false);
       }
       let handle: fs.FileHandle;
       try {
         handle = await fs.open(resolved.realTarget, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
       } catch {
-        throw new SessionSourceFailure("read_error", "外部会话记录无法安全打开", false);
+        throw sessionSourceFailure("read_error", "外部会话记录无法安全打开", false);
       }
       try {
         const fst = await handle.stat();
         if (!fst.isFile() || fst.dev !== lst.dev || fst.ino !== lst.ino) {
           await handle.close();
-          throw new SessionSourceFailure("read_error", "外部会话记录不是已核实的普通文件", false);
+          throw sessionSourceFailure("read_error", "外部会话记录不是已核实的普通文件", false);
         }
       } catch (error) {
-        if (error instanceof SessionSourceFailure) throw error;
+        if (readSessionSourceFailure(error)) throw error;
         await handle.close().catch(() => {});
-        throw new SessionSourceFailure("read_error", "外部会话记录状态核对失败", false);
+        throw sessionSourceFailure("read_error", "外部会话记录状态核对失败", false);
       }
       const nodeStream = handle.createReadStream();
       signal.addEventListener("abort", () => nodeStream.destroy(), { once: true });

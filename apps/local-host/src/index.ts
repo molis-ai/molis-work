@@ -328,6 +328,7 @@ export { purgeAssistantProject } from "./assistant/assistant-project-purge.js";
 export { logMemoryLearning, prologueMemoryBackend } from "./memory/memory-host.js";
 export { memoryRuntimePolicy, type MemoryForgettingPhase, type MemoryRuntimePolicyOwner } from "./memory/memory-runtime-policy.js";
 export { memorySources, type MemorySourceOwner } from "./memory/memory-sources.js";
+export { memoryInputSnapshots } from "./memory/memory-source-identity.js";
 export { memoryExtractor } from "./memory/memory-extractor.js";
 export { registerMemoryProjectDeletion } from "./memory/memory-project-deletion.js";
 export { COMPUTER_RECORD_FILE, ComputerRecords } from "./computer/computer-records.js";

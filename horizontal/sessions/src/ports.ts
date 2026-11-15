@@ -1,12 +1,14 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ProjectSelection, ProjectWorkspaceDirectoryRecord } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { RuntimeContextBindingRecord } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 import type { ExternalToolEntry, ExternalToolId, ExternalToolPath } from "@molis-ai/molis-work-contracts/platform/external-tools";
-import type {
-  ExternalSessionActivity,
-  ExternalSessionConnectionChoice,
-  ExternalSessionEntry,
-  ExternalSessionHistoryInput,
-  ExternalSessionSourceStatus,
+import {
+  sessionsErrors,
+  type ExternalSessionActivity,
+  type ExternalSessionConnectionChoice,
+  type ExternalSessionEntry,
+  type ExternalSessionHistoryInput,
+  type ExternalSessionSourceStatus,
 } from "@molis-ai/molis-work-contracts/services/sessions";
 import type { SessionDirectoryIdentity } from "./git-files.js";
 
@@ -16,25 +18,51 @@ export interface SessionProjectSnapshot {
   bindings: readonly RuntimeContextBindingRecord[];
 }
 
-export type SessionPortFailureKind =
-  | "tool_missing"
-  | "version_mismatch"
-  | "timed_out"
-  | "read_error"
-  | "parse_error"
-  | "login_expired"
-  | "connection_removed"
-  | "account_changed";
+export const SESSION_PORT_FAILURE_KINDS = [
+  "tool_missing",
+  "version_mismatch",
+  "timed_out",
+  "read_error",
+  "parse_error",
+  "login_expired",
+  "connection_removed",
+  "account_changed",
+] as const;
 
-export class SessionSourceFailure extends Error {
-  constructor(
-    readonly kind: SessionPortFailureKind,
-    message: string,
-    readonly retryable = kind === "timed_out" || kind === "read_error",
-  ) {
-    super(message);
-    this.name = "SessionSourceFailure";
+export type SessionPortFailureKind = (typeof SESSION_PORT_FAILURE_KINDS)[number];
+
+export interface SessionSourceFailureInfo {
+  readonly kind: SessionPortFailureKind;
+  readonly message: string;
+  readonly retryable: boolean;
+}
+
+export function sessionSourceFailure(
+  kind: SessionPortFailureKind,
+  message: string,
+  retryable = kind === "timed_out" || kind === "read_error",
+): ActionError {
+  const details = { failure_kind: kind, retryable };
+  if (kind === "login_expired" || kind === "connection_removed" || kind === "account_changed") {
+    return sessionsErrors.needs_login(message, details);
   }
+  if (kind === "version_mismatch" || kind === "parse_error") {
+    return sessionsErrors.version_unreadable(message, details);
+  }
+  return sessionsErrors.read_failed(message, details);
+}
+
+export function readSessionSourceFailure(error: unknown): SessionSourceFailureInfo | null {
+  if (!(error instanceof ActionError) || !error.details) return null;
+  const kind = error.details.failure_kind;
+  if (typeof kind !== "string" || !(SESSION_PORT_FAILURE_KINDS as readonly string[]).includes(kind)) {
+    return null;
+  }
+  const typedKind = kind as SessionPortFailureKind;
+  const retryable = typeof error.details.retryable === "boolean"
+    ? error.details.retryable
+    : (typedKind === "timed_out" || typedKind === "read_error");
+  return { kind: typedKind, message: error.message, retryable };
 }
 
 export interface SessionCommandResult {
@@ -209,19 +237,20 @@ export interface ExternalSessionSourceAdapter {
 }
 
 export function sourceStatusFromFailure(failure: unknown): ExternalSessionSourceStatus {
-  if (failure instanceof SessionSourceFailure) {
-    switch (failure.kind) {
+  const info = readSessionSourceFailure(failure);
+  if (info) {
+    switch (info.kind) {
       case "login_expired":
       case "connection_removed":
       case "account_changed":
-        return { state: "needs_login", reason: failure.kind };
+        return { state: "needs_login", reason: info.kind };
       case "version_mismatch":
       case "parse_error":
-        return { state: "version_unreadable", reason: failure.kind };
+        return { state: "version_unreadable", reason: info.kind };
       case "tool_missing":
       case "timed_out":
       case "read_error":
-        return { state: "failed", reason: failure.kind };
+        return { state: "failed", reason: info.kind };
     }
   }
   return { state: "failed", reason: "read_error" };

@@ -1,6 +1,6 @@
 import { sessionsErrors } from "@molis-ai/molis-work-contracts/services/sessions";
 import {
-  SessionSourceFailure,
+  sessionSourceFailure,
   type AdapterDiscoveryBatch,
   type AdapterReadOutput,
   type AdapterSourceContext,
@@ -20,7 +20,7 @@ export const codexAdapter: ExternalSessionSourceAdapter = {
 
   async discoverPage(context: AdapterSourceContext, cursor: string | null, signal: AbortSignal): Promise<AdapterDiscoveryBatch> {
     if (!context.ports.protocols) {
-      throw new SessionSourceFailure("tool_missing", "Codex app-server protocol port is not configured");
+      throw sessionSourceFailure("tool_missing", "Codex app-server protocol port is not configured");
     }
     const response = await context.ports.protocols.codexThreadList(context.root ?? "", cursor, signal);
     const sessions = [];

@@ -23,7 +23,7 @@ import {
   type StoredAttributionDecision,
 } from "./attribution.js";
 import { type DiscoveryCoordinator, resolveLocalToolRoot } from "./discovery.js";
-import { SessionSourceFailure, type SessionProjectSnapshot, type SessionsPorts } from "./ports.js";
+import { readSessionSourceFailure, type SessionProjectSnapshot, type SessionsPorts } from "./ports.js";
 import {
   materializeSuggestion,
   type SessionsStore,
@@ -400,25 +400,26 @@ export function rethrowAdapterError(
   store: SessionsStore,
   ports: SessionsPorts,
 ): never {
-  if (error instanceof ActionError) throw error;
-  if (error instanceof SessionSourceFailure) {
-    if (error.kind === "account_changed" || error.kind === "login_expired") {
+  const failure = readSessionSourceFailure(error);
+  if (failure) {
+    if (failure.kind === "account_changed" || failure.kind === "login_expired") {
       const existing = store.getSource(entryId, locationKey);
       store.upsertSource({
-        entry_id: entryId, location_key: locationKey, state: "needs_login", reason: error.kind,
+        entry_id: entryId, location_key: locationKey, state: "needs_login", reason: failure.kind,
         progress_cursor: null, progress_read: existing?.progress_read ?? 0,
         progress_total: existing?.progress_total ?? null, session_count: existing?.session_count ?? 0,
         skipped_count: existing?.skipped_count ?? 0, completed_at: existing?.completed_at ?? null,
         checked_at: nowIso(ports),
       });
     }
-    if (error.kind === "login_expired" || error.kind === "connection_removed" || error.kind === "account_changed") {
-      throw sessionsErrors.needs_login(error.message);
+    if (failure.kind === "login_expired" || failure.kind === "connection_removed" || failure.kind === "account_changed") {
+      throw sessionsErrors.needs_login(failure.message);
     }
-    if (error.kind === "version_mismatch" || error.kind === "parse_error") {
-      throw sessionsErrors.version_unreadable(error.message);
+    if (failure.kind === "version_mismatch" || failure.kind === "parse_error") {
+      throw sessionsErrors.version_unreadable(failure.message);
     }
-    throw sessionsErrors.read_failed(error.message);
+    throw sessionsErrors.read_failed(failure.message);
   }
+  if (error instanceof ActionError) throw error;
   throw error;
 }

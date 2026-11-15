@@ -108,7 +108,7 @@ export const ASSISTANT_SIDE_PATH_PART = String.raw`  /* 路径: a line from who 
           catch (error) { toggle.checked = !toggle.checked; toggle.disabled = false; host.showToast?.(error); }
         });
         row.append(copy, control);
-        content = content ? group("", content, row) : row;
+        if (content) { const list = el("div", "assistant-group-list"); list.append(content, row); content = list; } else content = row;
       }
       paintBlock(node, globalThis.t.text("workbench.assistant-side-path.path"), "workflow", content,
         steps.length ? globalThis.t.text("workbench.assistant-side-path.steps-count", { done: stepsDone, total: steps.length }) : children.length ? globalThis.t.text("workbench.assistant-side-path.sub-task-count", { done, total: children.length }) : "",

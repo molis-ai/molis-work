@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   evaluationActions,
   type EvaluationMetricsSummary,
@@ -106,13 +107,15 @@ export async function runCanonicalEvaluationInHome(
   const env = await bootAndSeedEvaluationWorkload(home, model);
   try {
     const suite = buildCanonicalEvaluationSuite(env.ids);
-    const homeClient = env.host.homeActionClient();
+    const rawHomeClient = env.host.homeActionClient();
+    const invokeHome = async <Input, Output>(action: ActionDefinition<Input, Output>, input: Input): Promise<Output> =>
+      (await rawHomeClient.invoke(await env.homeCaller(), action, input)) as Output;
 
     for (const item of suite) {
-      await homeClient.invoke(await env.homeCaller(), evaluationActions.samplesPut, item.sample);
+      await invokeHome(evaluationActions.samplesPut, item.sample);
     }
 
-    await homeClient.invoke(await env.homeCaller(), observationActions.cleanupApply, {
+    await invokeHome(observationActions.cleanupApply, {
       time_range: "before_7d",
       project_id: env.ids.holdProjectId,
     });
@@ -127,16 +130,20 @@ export async function runCanonicalEvaluationInHome(
     const outcomes: EvaluationCaseOutcome[] = [];
     let selfCertRunId = "";
     let replayRunV1Id = "";
+    let replayRunV1BlockedCount = 0;
 
     for (const item of suite) {
-      const run = await homeClient.invoke(await env.homeCaller(), evaluationActions.runsExecute, {
+      const run = await invokeHome(evaluationActions.runsExecute, {
         sample_id: item.sample.sample_id,
         execution_kind: item.executionKind ?? defaultExecKind,
         model_run_info: modelRunInfo,
         ...(item.replayScenarioId ? { replay_scenario_id: item.replayScenarioId } : {}),
       });
       if (item.sample.sample_id === "ec-02-no-self-cert") selfCertRunId = run.run_id;
-      if (item.sample.sample_id === "ec-18-replay-compare") replayRunV1Id = run.run_id;
+      if (item.sample.sample_id === "ec-18-replay-compare") {
+        replayRunV1Id = run.run_id;
+        replayRunV1BlockedCount = run.replay?.blocked_external_effects.length ?? 0;
+      }
 
       const reasonsMatch = item.expectedUnknownReasons
         ? item.expectedUnknownReasons.every((reason) => run.unknown_reasons.includes(reason))
@@ -155,28 +162,28 @@ export async function runCanonicalEvaluationInHome(
       });
     }
 
-    const replayRunV2 = await homeClient.invoke(await env.homeCaller(), evaluationActions.runsExecute, {
+    const replayRunV2 = await invokeHome(evaluationActions.runsExecute, {
       sample_id: "ec-18-replay-compare",
       execution_kind: "isolated_replay",
       replay_scenario_id: env.ids.replayScenarioV2,
       model_run_info: modelRunInfo,
     });
-    const comparison = await homeClient.invoke(await env.homeCaller(), evaluationActions.runsCompare, {
+    const comparison = await invokeHome(evaluationActions.runsCompare, {
       baseline_run_id: replayRunV1Id,
       candidate_run_id: replayRunV2.run_id,
     });
 
-    const auditBefore = await homeClient.invoke(await env.homeCaller(), observationActions.recordsQuery, {
+    const auditBefore = await invokeHome(observationActions.recordsQuery, {
       use: "evaluation",
       project_id: env.ids.mainProjectId,
     });
-    const reviewed = await homeClient.invoke(await env.homeCaller(), evaluationActions.reviewsRecord, {
+    const reviewed = await invokeHome(evaluationActions.reviewsRecord, {
       run_id: selfCertRunId,
       expectation_id: "exp-human-ref",
       verdict: "passed",
       rationale: "人工核对确认底层动作失败被如实捕获，历史工作记录未发生任何改写。",
     });
-    const auditAfter = await homeClient.invoke(await env.homeCaller(), observationActions.recordsQuery, {
+    const auditAfter = await invokeHome(observationActions.recordsQuery, {
       use: "evaluation",
       project_id: env.ids.mainProjectId,
     });
@@ -185,26 +192,27 @@ export async function runCanonicalEvaluationInHome(
       && auditAfter.records.length === auditBefore.records.length;
 
     // Verify replay records never pollute real-work assistant/default queries in `replayProjectId` (OCL-13, EC-18).
-    const realReplayQuery = await homeClient.invoke(await env.homeCaller(), observationActions.recordsQuery, {
+    const realReplayQuery = await invokeHome(observationActions.recordsQuery, {
       use: "assistant",
       project_id: env.ids.replayProjectId,
     });
     const replayIsolated = realReplayQuery.records.length === 0;
 
-    const validationMetrics = await homeClient.invoke(await env.homeCaller(), evaluationActions.metricsSummarize, {
+    const validationMetrics = await invokeHome(evaluationActions.metricsSummarize, {
       purpose: "validation",
     });
-    const tuningMetrics = await homeClient.invoke(await env.homeCaller(), evaluationActions.metricsSummarize, {
+    const tuningMetrics = await invokeHome(evaluationActions.metricsSummarize, {
       purpose: "tuning",
     });
 
     const replaySummary = summarizeComparison(comparison);
+    const blockedEffectsCount = replayRunV1BlockedCount + (replayRunV2.replay?.blocked_external_effects.length ?? 0);
     const allMatched =
       outcomes.every((c) => c.matched_expectation)
       && replayRunV2.effective_verdict === "passed"
       && replaySummary.improved_stages.includes("materials")
       && replayIsolated
-      && env.blockedExternalEffects.length >= 2
+      && blockedEffectsCount >= 2
       && humanReviewOk;
 
     return {
@@ -213,7 +221,7 @@ export async function runCanonicalEvaluationInHome(
       api_format: model.apiFormat,
       all_expectations_matched: allMatched,
       replay_isolated_from_real_audit: replayIsolated,
-      blocked_external_effects_count: env.blockedExternalEffects.length,
+      blocked_external_effects_count: blockedEffectsCount,
       human_review_applied_without_mutation: humanReviewOk,
       cases: outcomes,
       replay_comparison: replaySummary,
@@ -227,7 +235,7 @@ export async function runCanonicalEvaluationInHome(
         validation: validationMetrics,
         tuning: tuningMetrics,
         replay_isolated: replayIsolated,
-        blocked_effects: env.blockedExternalEffects.length,
+        blocked_effects: blockedEffectsCount,
         human_review_ok: humanReviewOk,
       }),
     };

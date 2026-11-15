@@ -101,15 +101,27 @@ export async function readObservationCoverage(
   return await client.invoke(nestedCaller, obsRef(observationActions.coverageGet), coverageInput) as ObservationCoverageGetOutput;
 }
 
-export async function placeEvaluationSampleHold(
+export async function resolveSampleHoldRecordIds(
   client: ActionClient,
   nestedCaller: ActionCallContext,
-  sample: Pick<EvaluationSampleInput, "sample_id" | "version" | "title" | "project_id" | "query" | "window" | "hold_expires_at" | "pinned_record_ids">,
-  explicitIds?: readonly string[],
+  sample: Pick<EvaluationSampleInput, "project_id" | "query" | "window" | "pinned_record_ids">,
+): Promise<readonly string[]> {
+  if (sample.pinned_record_ids !== undefined) {
+    if (sample.pinned_record_ids.length === 0) {
+      await readObservationCoverage(client, nestedCaller, sample);
+    }
+    return sample.pinned_record_ids;
+  }
+  const records = await queryAllObservationRecords(client, nestedCaller, effectiveQueryForSample(sample));
+  return records.map((r) => r.record_id);
+}
+
+export async function commitEvaluationSampleHold(
+  client: ActionClient,
+  nestedCaller: ActionCallContext,
+  sample: Pick<EvaluationSampleInput, "sample_id" | "version" | "title" | "project_id" | "hold_expires_at">,
+  recordIds: readonly string[],
 ): Promise<{ readonly holdId: string | null; readonly heldCount: number }> {
-  const recordIds = explicitIds ?? sample.pinned_record_ids ?? (
-    await queryAllObservationRecords(client, nestedCaller, effectiveQueryForSample(sample))
-  ).map((r) => r.record_id);
   if (recordIds.length === 0) {
     return { holdId: null, heldCount: 0 };
   }

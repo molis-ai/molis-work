@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import {
   retainActionAuthority,
+  type ActionCallContext,
   type ActionClient,
   type ActionExecutionContext,
   type ActionReference,
@@ -20,9 +21,9 @@ import type {
 } from "@molis-ai/molis-work-contracts/services/observation";
 import { evaluationErrors } from "./errors.js";
 import {
+  commitEvaluationSampleHold,
   effectiveQueryForSample,
   fetchObservationEvidenceMap,
-  placeEvaluationSampleHold,
   queryAllObservationRecords,
   readObservationCoverage,
 } from "./observation-bridge.js";
@@ -38,7 +39,7 @@ import {
 export interface RunExecutionContext {
   readonly caller: ActionExecutionContext;
   readonly origin: ActionReference;
-  readonly client: ActionClient;
+  readonly clientFor: (caller: ActionCallContext) => ActionClient;
   readonly sample: EvaluationSampleView;
   readonly input: EvaluationRunExecuteInput;
   readonly scenarios: ReadonlyMap<string, EvaluationReplayScenario>;
@@ -50,13 +51,15 @@ export async function executeSampleEvaluationRun(ctx: RunExecutionContext): Prom
   readonly runView: EvaluationRunView;
   readonly outcomeCounts: Readonly<Partial<Record<ObservationOutcome, number>>>;
 }> {
-  const { caller, origin, client, sample, input } = ctx;
+  const { caller, origin, clientFor, sample, input } = ctx;
+  const client = clientFor(caller);
   const startedMs = Date.now();
   const executionKind = input.execution_kind ?? "evidence_audit";
-  const nested = retainActionAuthority(caller, origin);
+  const readNested = retainActionAuthority(caller, origin);
 
   let replayReceipt: EvaluationReplayReceipt | undefined;
   let records: readonly ObservationQueriedRecord[];
+  let missingPinnedCount = 0;
 
   if (executionKind === "isolated_replay") {
     const scenarioId = input.replay_scenario_id ?? sample.sample_id;
@@ -64,7 +67,7 @@ export async function executeSampleEvaluationRun(ctx: RunExecutionContext): Prom
     if (!scenario || !ctx.runInReplayScope) {
       throw evaluationErrors.replay_unavailable(`隔离回放场景 ${scenarioId} 未登记或当前环境未启用回放作用域`);
     }
-    const priorReplay = await queryAllObservationRecords(client, nested, {
+    const priorReplay = await queryAllObservationRecords(client, readNested, {
       ...(sample.project_id !== undefined ? { project_id: sample.project_id } : { all_projects: true }),
       include_simulated: true,
       source_classes: ["replay"],
@@ -78,12 +81,12 @@ export async function executeSampleEvaluationRun(ctx: RunExecutionContext): Prom
       sample,
       caller,
       origin,
-      baseClient: client,
+      clientFor,
       runInReplayScope: ctx.runInReplayScope,
     });
     records = await queryAllObservationRecords(
       client,
-      nested,
+      readNested,
       effectiveQueryForSample(sample, {
         after_seq: maxSeqBefore,
         include_simulated: true,
@@ -102,14 +105,30 @@ export async function executeSampleEvaluationRun(ctx: RunExecutionContext): Prom
       : sample.query.source_classes === undefined && sample.query.include_simulated === undefined
         ? { include_simulated: false }
         : {};
-    records = await queryAllObservationRecords(client, nested, effectiveQueryForSample(sample, extra));
+    const queried = await queryAllObservationRecords(client, readNested, effectiveQueryForSample(sample, extra));
+    if (sample.pinned_record_ids !== undefined) {
+      const pinnedSet = new Set(sample.pinned_record_ids);
+      records = queried.filter((r) => pinnedSet.has(r.record_id));
+      const foundIds = new Set(records.map((r) => r.record_id));
+      missingPinnedCount = Array.from(pinnedSet).filter((id) => !foundIds.has(id)).length;
+    } else {
+      records = queried;
+    }
   }
 
-  const evidenceByRecord = await fetchObservationEvidenceMap(client, nested, records);
-  const coverage = await readObservationCoverage(client, nested, sample);
+  const evidenceByRecord = await fetchObservationEvidenceMap(client, readNested, records);
+  const coverage = await readObservationCoverage(client, readNested, sample);
 
   const evaluatedAt = ctx.nowIso();
-  const { unknownReasons: runCoverageUnknowns, limitations } = deriveRunCoverageUnknowns(coverage, sample, evaluatedAt);
+  const baseCoverage = deriveRunCoverageUnknowns(coverage, sample, evaluatedAt);
+  const hasCoverageGapReason = baseCoverage.unknownReasons.some((r) => r.startsWith("coverage_gap_"));
+  const runCoverageUnknowns: readonly EvaluationUnknownReason[] = missingPinnedCount > 0 && !hasCoverageGapReason
+    ? Array.from(new Set<EvaluationUnknownReason>([...baseCoverage.unknownReasons, "evidence_missing"]))
+    : baseCoverage.unknownReasons;
+  const limitations: readonly string[] = missingPinnedCount > 0
+    ? [...baseCoverage.limitations, `样本固定的 ${missingPinnedCount} 条工作记录在采集层已缺失`]
+    : baseCoverage.limitations;
+
   const funnel = computeFunnelCounts(records);
   const observedConditions = extractObservedConditions(records);
   const outcomeCounts = countWorkOutcomes(records);
@@ -140,10 +159,18 @@ export async function executeSampleEvaluationRun(ctx: RunExecutionContext): Prom
       : "passed";
 
   caller.signal?.throwIfAborted();
-  await caller.beforeEffect?.();
+  await caller.beforeEffect();
 
   if (input.hold_records && records.length > 0) {
-    await placeEvaluationSampleHold(client, nested, sample, records.map((r) => r.record_id));
+    const writeNested = retainActionAuthority(caller, origin, caller.beforeEffect);
+    await commitEvaluationSampleHold(
+      client,
+      writeNested,
+      sample,
+      records.map((r) => r.record_id),
+    );
+    caller.signal?.throwIfAborted();
+    await caller.beforeEffect();
   }
 
   const durationMs = Math.max(0, Date.now() - startedMs);

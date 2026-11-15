@@ -17,6 +17,8 @@ import { dirname, resolve } from "node:path";
 import type { ModelApiFormat } from "@molis-ai/molis-work-contracts/modules/model-providers";
 import {
   EvaluationCliUsageError,
+  assertEnvEvaluationHomeSafe,
+  assertIsolatedScratchHome,
   redactEvaluationValue,
   withIsolatedEvaluationHome,
 } from "./evaluation/home-guard.mjs";
@@ -144,11 +146,13 @@ async function executeCli(argv: readonly string[]): Promise<number> {
     return 0;
   }
 
+  assertEnvEvaluationHomeSafe(options.requestedHome);
+  if (options.requestedHome) {
+    assertIsolatedScratchHome(options.requestedHome);
+  }
+
   const inlineApiKey = process.env.GEMINI_API_KEY?.trim() || process.env.MOLIS_EVAL_API_KEY?.trim() || "";
   if (options.mode === "live" && !inlineApiKey) {
-    if (options.requestedHome) {
-      await withIsolatedEvaluationHome({ requestedHome: options.requestedHome, keepHome: options.keepHome }, async () => undefined);
-    }
     if (options.requireLive) {
       process.stderr.write("REFUSED: --mode live --require-live 需要提供 GEMINI_API_KEY 或 MOLIS_EVAL_API_KEY。\n");
       return 2;

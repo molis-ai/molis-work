@@ -75,8 +75,14 @@ function sampleFixture(overrides: Partial<EvaluationSampleInput> = {}): Evaluati
 function setupHarness(t: test.TestContext) {
   const directory = mkdtempSync(join(tmpdir(), "sec-eval-"));
   const observation = createHostObservation(directory);
+  let cancelBeforeEffectCapability: string | null = null;
   const service = new ActionService(undefined, {
     observed: (caller, action, value) => observation.observed(caller, action, value),
+    beforeEffect: (_caller, reference) => {
+      if (cancelBeforeEffectCapability !== null && reference.capability_id === cancelBeforeEffectCapability) {
+        throw new ActionError("actions.cancelled", `并发操作在落库前已取消：${reference.capability_id}`);
+      }
+    },
   });
   service.registerProvider(observation.provider);
   const evaluation = new EvaluationService({
@@ -90,7 +96,15 @@ function setupHarness(t: test.TestContext) {
     observation.close();
     rmSync(directory, { recursive: true, force: true });
   });
-  return { directory, service, observation, evaluation };
+  return {
+    directory,
+    service,
+    observation,
+    evaluation,
+    setCancelBeforeEffect: (capabilityId: string | null) => {
+      cancelBeforeEffectCapability = capabilityId;
+    },
+  };
 }
 
 test("S-evaluation-isolation 1: evaluation actions refuse non-person and delegated callers", async (t) => {
@@ -116,12 +130,32 @@ test("S-evaluation-isolation 1: evaluation actions refuse non-person and delegat
   );
 });
 
-test("S-evaluation-isolation 2: frozen sample versions refuse any spec mutation without bumping version", async (t) => {
-  const { service } = setupHarness(t);
-  const first = await service.invoke(person(), evaluationActions.samplesPut, sampleFixture());
-  assert.equal(first.created, true);
+test("S-evaluation-isolation 2: frozen sample versions refuse any spec or pinned_record_ids mutation without corrupting existing holds", async (t) => {
+  const { service, observation } = setupHarness(t);
+  await service.invoke(pluginCaller("notes"), observationActions.report, {
+    facts: [
+      { fact: "notes.saved", outcome: "succeeded" },
+      { fact: "notes.other_saved", outcome: "succeeded" },
+    ],
+  });
+  observation.layer.flush();
+  const queriedNotes = await service.invoke(person(), observationActions.recordsQuery, {
+    all_projects: true,
+    fact: "notes.saved",
+  });
+  const queriedOther = await service.invoke(person(), observationActions.recordsQuery, {
+    all_projects: true,
+    fact: "notes.other_saved",
+  });
+  const recA = queriedNotes.records[0]!.record_id;
+  const recB = queriedOther.records[0]!.record_id;
 
-  const idempotent = await service.invoke(person(), evaluationActions.samplesPut, sampleFixture());
+  const frozenInput = sampleFixture({ hold_records: true, pinned_record_ids: [recA] });
+  const first = await service.invoke(person(), evaluationActions.samplesPut, frozenInput);
+  assert.equal(first.created, true);
+  assert.equal(first.sample.held_record_count, 1);
+
+  const idempotent = await service.invoke(person(), evaluationActions.samplesPut, frozenInput);
   assert.equal(idempotent.created, false);
   assert.equal(idempotent.sample.frozen_digest, first.sample.frozen_digest);
 
@@ -129,15 +163,33 @@ test("S-evaluation-isolation 2: frozen sample versions refuse any spec mutation 
     service.invoke(
       person(),
       evaluationActions.samplesPut,
-      sampleFixture({ initial_intent: "偷偷修改后的意图但没升版本号" }),
+      sampleFixture({
+        initial_intent: "偷偷修改后的意图但没升版本号",
+        hold_records: true,
+        query: { all_projects: true, fact: "notes.other_saved" },
+        pinned_record_ids: [recB],
+      }),
+    ),
+    refused("evaluation.sample_version_immutable"),
+  );
+  await assert.rejects(
+    service.invoke(
+      person(),
+      evaluationActions.samplesPut,
+      sampleFixture({ hold_records: true, pinned_record_ids: [recB] }),
     ),
     refused("evaluation.sample_version_immutable"),
   );
 
+  // Verify the original hold in observation.db was NOT overwritten by either rejected mutation attempt.
+  const holdsAfterRejected = await service.invoke(person(), observationActions.holdsList, {});
+  assert.equal(holdsAfterRejected.holds.length, 1);
+  assert.deepEqual(holdsAfterRejected.holds[0]?.record_ids, [recA]);
+
   const bumped = await service.invoke(
     person(),
     evaluationActions.samplesPut,
-    sampleFixture({ version: 2, initial_intent: "升到版本 2 后更新意图" }),
+    sampleFixture({ version: 2, initial_intent: "升到版本 2 后更新意图", hold_records: true, pinned_record_ids: [recB] }),
   );
   assert.equal(bumped.created, true);
   assert.equal(bumped.sample.version, 2);
@@ -360,6 +412,26 @@ test("S-evaluation-isolation 5: human reviews preserve automated verdicts and ne
   assert.equal(reviewed.run.expectation_results[0]?.automated_verdict, "unknown");
   assert.equal(reviewed.run.expectation_results[0]?.effective_verdict, "failed");
 
+  // Multi-round reviews: overriding to passed and then back to unknown restores original automated unknown_reasons from immutable run_json.
+  const approvedOverride = await service.invoke(person(), evaluationActions.reviewsRecord, {
+    run_id: initialRun.run_id,
+    verdict: "passed",
+    rationale: "二审补充上下文后暂予通过",
+  });
+  assert.equal(approvedOverride.run.effective_verdict, "passed");
+  assert.deepEqual(approvedOverride.run.failed_stages, []);
+  assert.deepEqual(approvedOverride.run.unknown_reasons, []);
+
+  const revertedToUnknown = await service.invoke(person(), evaluationActions.reviewsRecord, {
+    run_id: initialRun.run_id,
+    verdict: "unknown",
+    rationale: "撤回二审结论，退回待复核并保留原始未知原因链",
+  });
+  assert.equal(revertedToUnknown.run.automated_verdict, "unknown");
+  assert.equal(revertedToUnknown.run.effective_verdict, "unknown");
+  assert.deepEqual(revertedToUnknown.run.unknown_reasons, ["awaiting_human_review"]);
+  assert.equal(revertedToUnknown.run.human_reviews.length, 3);
+
   const afterObs = await service.invoke(person(), observationActions.recordsQuery, {
     all_projects: true,
     fact: "notes.saved",
@@ -368,27 +440,59 @@ test("S-evaluation-isolation 5: human reviews preserve automated verdicts and ne
   assert.deepEqual(businessRows, [{ id: "doc-1", body: "原始业务正文" }]);
 });
 
-test("S-evaluation-isolation 6: cancelled or revoked beforeEffect calls write zero evaluation samples, runs or reviews", async (t) => {
-  const { service, observation } = setupHarness(t);
+test("S-evaluation-isolation 6: cancelled or revoked beforeEffect calls write zero evaluation samples, holds, runs or reviews", async (t) => {
+  const { service, observation, setCancelBeforeEffect } = setupHarness(t);
   await service.invoke(pluginCaller("notes"), observationActions.report, {
     facts: [{ fact: "notes.saved", outcome: "succeeded" }],
   });
   observation.layer.flush();
 
+  // 1. Pre-aborted signal writes nothing.
   const controller = new AbortController();
   controller.abort(new ActionError("actions.cancelled", "调用已取消"));
   const cancelledCaller = person({ signal: controller.signal });
 
   await assert.rejects(
-    service.invoke(cancelledCaller, evaluationActions.samplesPut, sampleFixture({ sample_id: "aborted-sample" })),
+    service.invoke(cancelledCaller, evaluationActions.samplesPut, sampleFixture({ sample_id: "aborted-sample", hold_records: true })),
+    refused("actions.cancelled"),
   );
-  const samplesAfterAbort = await service.invoke(person(), evaluationActions.samplesList, {});
-  assert.deepEqual(samplesAfterAbort.samples, []);
+  assert.deepEqual((await service.invoke(person(), evaluationActions.samplesList, {})).samples, []);
+  assert.deepEqual((await service.invoke(person(), observationActions.holdsList, {})).holds, []);
 
-  await service.invoke(person(), evaluationActions.samplesPut, sampleFixture({ sample_id: "kept-sample" }));
+  // 2. Post-read `beforeEffect` cancellation on `samples.put` (with `hold_records: true`) writes zero samples AND zero observation holds.
+  setCancelBeforeEffect("evaluation.samples.put");
   await assert.rejects(
-    service.invoke(cancelledCaller, evaluationActions.runsExecute, { sample_id: "kept-sample" }),
+    service.invoke(person(), evaluationActions.samplesPut, sampleFixture({ sample_id: "before-effect-sample", hold_records: true })),
+    refused("actions.cancelled"),
   );
-  const runsAfterAbort = await service.invoke(person(), evaluationActions.runsList, { sample_id: "kept-sample" });
-  assert.deepEqual(runsAfterAbort.runs, []);
+  setCancelBeforeEffect(null);
+  assert.deepEqual((await service.invoke(person(), evaluationActions.samplesList, {})).samples, []);
+  assert.deepEqual((await service.invoke(person(), observationActions.holdsList, {})).holds, []);
+
+  // 3. Post-read `beforeEffect` cancellation on `runs.execute` (with `hold_records: true`) writes zero runs AND zero observation holds.
+  await service.invoke(person(), evaluationActions.samplesPut, sampleFixture({ sample_id: "kept-sample" }));
+  setCancelBeforeEffect("evaluation.runs.execute");
+  await assert.rejects(
+    service.invoke(person(), evaluationActions.runsExecute, { sample_id: "kept-sample", hold_records: true }),
+    refused("actions.cancelled"),
+  );
+  setCancelBeforeEffect(null);
+  assert.deepEqual((await service.invoke(person(), evaluationActions.runsList, { sample_id: "kept-sample" })).runs, []);
+  assert.deepEqual((await service.invoke(person(), observationActions.holdsList, {})).holds, []);
+
+  // 4. `beforeEffect` cancellation on `reviews.record` writes zero reviews.
+  const validRun = await service.invoke(person(), evaluationActions.runsExecute, { sample_id: "kept-sample" });
+  setCancelBeforeEffect("evaluation.reviews.record");
+  await assert.rejects(
+    service.invoke(person(), evaluationActions.reviewsRecord, {
+      run_id: validRun.run_id,
+      verdict: "failed",
+      rationale: "被取消的复查不应写入",
+    }),
+    refused("actions.cancelled"),
+  );
+  setCancelBeforeEffect(null);
+  const reread = await service.invoke(person(), evaluationActions.runsGet, { run_id: validRun.run_id });
+  assert.deepEqual(reread.human_reviews, []);
+  assert.equal(reread.verdict_source, "automated");
 });

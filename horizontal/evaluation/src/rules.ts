@@ -138,19 +138,41 @@ function evalEvidenceText(rule: EvaluationDeterministicRule, matched: readonly O
       else if (item.status === "missing") missingReasons.add(unknownReasonForMissingEvidence(item.reason));
     }
   }
-  if (texts.length === 0) {
-    const reasons = missingReasons.size > 0 ? Array.from(missingReasons) : ["evidence_missing" as const];
-    return { verdict: "unknown", unknownReasons: reasons, rationale: "匹配记录的证据快照不可用或已被清理，归入未知而非失败", pointers: pointersFor(matched, ctx.evidenceByRecord) };
-  }
   const combined = texts.join("\n");
-  for (const term of rule.contains_all ?? []) {
-    if (!combined.includes(term)) {
-      return { verdict: "failed", unknownReasons: [], rationale: `证据内容缺少预期片段「${term}」`, pointers: pointersFor(matched, ctx.evidenceByRecord) };
+  if (texts.length > 0) {
+    for (const forbidden of rule.forbids_any ?? []) {
+      if (combined.includes(forbidden)) {
+        return { verdict: "failed", unknownReasons: [], rationale: `证据内容出现了禁止片段「${forbidden}」`, pointers: pointersFor(matched, ctx.evidenceByRecord) };
+      }
     }
   }
-  for (const forbidden of rule.forbids_any ?? []) {
-    if (combined.includes(forbidden)) {
-      return { verdict: "failed", unknownReasons: [], rationale: `证据内容出现了禁止片段「${forbidden}」`, pointers: pointersFor(matched, ctx.evidenceByRecord) };
+  if (texts.length === 0) {
+    const reasons = missingReasons.size > 0
+      ? Array.from(missingReasons)
+      : ctx.runCoverageUnknowns.length > 0
+        ? ctx.runCoverageUnknowns
+        : (["evidence_missing"] as const);
+    return { verdict: "unknown", unknownReasons: reasons, rationale: "匹配记录的证据快照不可用或已被清理，归入未知而非失败", pointers: pointersFor(matched, ctx.evidenceByRecord) };
+  }
+  for (const term of rule.contains_all ?? []) {
+    if (!combined.includes(term)) {
+      if (missingReasons.size > 0 || ctx.runCoverageUnknowns.includes("window_incomplete")) {
+        const reasons = Array.from(
+          new Set<EvaluationUnknownReason>([
+            ...missingReasons,
+            ...(ctx.runCoverageUnknowns.includes("window_incomplete") ? (["window_incomplete"] as const) : []),
+          ]),
+        );
+        return {
+          verdict: "unknown",
+          unknownReasons: reasons,
+          rationale: missingReasons.size > 0
+            ? `部分匹配记录的证据快照缺失，无法排除其包含预期片段「${term}」`
+            : `观察窗口尚未结束，暂未见到预期证据片段「${term}」`,
+          pointers: pointersFor(matched, ctx.evidenceByRecord),
+        };
+      }
+      return { verdict: "failed", unknownReasons: [], rationale: `证据内容缺少预期片段「${term}」`, pointers: pointersFor(matched, ctx.evidenceByRecord) };
     }
   }
   return { verdict: "passed", unknownReasons: [], rationale: "证据快照内容符合预期约束", pointers: pointersFor(matched, ctx.evidenceByRecord) };
@@ -163,13 +185,21 @@ function evalDeterministic(rule: EvaluationDeterministicRule, ctx: RuleEvaluatio
   const matched = filterRecords(ctx.records, rule);
   switch (rule.check) {
     case "record_count": {
+      if (rule.max_count !== undefined && matched.length > rule.max_count) {
+        return { verdict: "failed", unknownReasons: [], rationale: `匹配记录 ${matched.length} 条，超过上限 ${rule.max_count} 条`, pointers: pointersFor(matched, ctx.evidenceByRecord) };
+      }
       const min = rule.min_count ?? 1;
       if (matched.length === 0 && min > 0) return absentVerdict(ctx, rule.fact ?? "记录数量检查");
       if (matched.length < min) {
+        if (ctx.runCoverageUnknowns.length > 0) {
+          return {
+            verdict: "unknown",
+            unknownReasons: ctx.runCoverageUnknowns,
+            rationale: `因覆盖受限或观察窗口尚未结束，当前仅观察到 ${matched.length}/${min} 条记录`,
+            pointers: pointersFor(matched, ctx.evidenceByRecord),
+          };
+        }
         return { verdict: "failed", unknownReasons: [], rationale: `匹配记录 ${matched.length} 条，少于预期 ${min} 条`, pointers: pointersFor(matched, ctx.evidenceByRecord) };
-      }
-      if (rule.max_count !== undefined && matched.length > rule.max_count) {
-        return { verdict: "failed", unknownReasons: [], rationale: `匹配记录 ${matched.length} 条，超过上限 ${rule.max_count} 条`, pointers: pointersFor(matched, ctx.evidenceByRecord) };
       }
       return { verdict: "passed", unknownReasons: [], rationale: `匹配记录 ${matched.length} 条，满足数量范围`, pointers: pointersFor(matched, ctx.evidenceByRecord) };
     }
@@ -204,6 +234,14 @@ function evalDeterministic(rule: EvaluationDeterministicRule, ctx: RuleEvaluatio
       if (linked.length >= min && (withParent.length > 0 || new Set(linked.map((r) => r.work.call_id)).size === 1)) {
         return { verdict: "passed", unknownReasons: [], rationale: `${linked.length} 条记录保持完整调用链关联`, pointers: pointersFor(linked, ctx.evidenceByRecord) };
       }
+      if (linked.length === matched.length && linked.length < min && ctx.runCoverageUnknowns.length > 0) {
+        return {
+          verdict: "unknown",
+          unknownReasons: ctx.runCoverageUnknowns,
+          rationale: `调用链已观察到 ${linked.length}/${min} 条记录，等待覆盖补齐或观察窗口结束`,
+          pointers: pointersFor(linked, ctx.evidenceByRecord),
+        };
+      }
       return { verdict: "failed", unknownReasons: [], rationale: "调用链缺少共享 call_id 或合法的 parent_invocation_id", pointers: pointersFor(matched, ctx.evidenceByRecord) };
     }
     case "no_self_certifying_success": {
@@ -225,8 +263,24 @@ function evalDeterministic(rule: EvaluationDeterministicRule, ctx: RuleEvaluatio
     case "funnel_stage_separation": {
       const f = ctx.funnel;
       if (ctx.records.length === 0) return absentVerdict(ctx, "呈现至采用漏斗核对");
+      if (rule.max_count !== undefined && f.undone_or_reworked > rule.max_count) {
+        return {
+          verdict: "failed",
+          unknownReasons: [],
+          rationale: `采用漏斗撤销重做超出上限（呈现=${f.presented}, 采用=${f.adopted}, 撤销重做=${f.undone_or_reworked} > ${rule.max_count}）`,
+          pointers: pointersFor(ctx.records, ctx.evidenceByRecord),
+        };
+      }
       const minAdopted = rule.min_count ?? 1;
-      if (f.adopted < minAdopted || (rule.max_count !== undefined && f.undone_or_reworked > rule.max_count)) {
+      if (f.adopted < minAdopted) {
+        if (ctx.runCoverageUnknowns.length > 0) {
+          return {
+            verdict: "unknown",
+            unknownReasons: ctx.runCoverageUnknowns,
+            rationale: `观察窗口未结束或存在覆盖缺口，暂未收齐采用反馈（呈现=${f.presented}, 查看=${f.viewed}, 选用=${f.selected}, 采用=${f.adopted}/${minAdopted}）`,
+            pointers: pointersFor(ctx.records, ctx.evidenceByRecord),
+          };
+        }
         return {
           verdict: "failed",
           unknownReasons: [],
@@ -293,10 +347,24 @@ function evalEvaluatorRule(rule: EvaluationEvaluatorRule, ctx: RuleEvaluationCon
       return { verdict: "failed", unknownReasons: [], rationale: `[${rule.evaluator_id}@${rule.evaluator_version}] 触发禁止动作事实 ${forbidden}（准则：${rule.rubric}）`, pointers: pointersFor([hit], ctx.evidenceByRecord) };
     }
   }
+  const allItems = ctx.records.flatMap((r) => ctx.evidenceByRecord.get(r.record_id) ?? []);
+  const availableTexts = allItems.flatMap((item) => (item.status === "available" ? [item.text] : []));
+  const missingReasons = new Set<EvaluationUnknownReason>();
+  for (const item of allItems) {
+    if (item.status === "missing") missingReasons.add(unknownReasonForMissingEvidence(item.reason));
+  }
+  const body = availableTexts.join("\n");
+  if (availableTexts.length > 0) {
+    for (const bad of rule.forbidden_evidence_terms ?? []) {
+      if (body.includes(bad)) {
+        return { verdict: "failed", unknownReasons: [], rationale: `[${rule.evaluator_id}@${rule.evaluator_version}] 产出包含失真或禁止表述「${bad}」`, pointers: pointersFor(ctx.records, ctx.evidenceByRecord) };
+      }
+    }
+  }
   for (const required of rule.required_facts ?? []) {
     if (!ctx.records.some((r) => r.fact === required)) {
       if (ctx.runCoverageUnknowns.length > 0) {
-        return { verdict: "unknown", unknownReasons: ctx.runCoverageUnknowns, rationale: `[${rule.evaluator_id}@${rule.evaluator_version}] 覆盖缺口导致无法确认事实 ${required}`, pointers: [] };
+        return { verdict: "unknown", unknownReasons: ctx.runCoverageUnknowns, rationale: `[${rule.evaluator_id}@${rule.evaluator_version}] 覆盖缺口或窗口未完导致无法确认事实 ${required}`, pointers: [] };
       }
       return { verdict: "failed", unknownReasons: [], rationale: `[${rule.evaluator_id}@${rule.evaluator_version}] 缺少关键事实 ${required}（准则：${rule.rubric}）`, pointers: pointersFor(ctx.records, ctx.evidenceByRecord) };
     }
@@ -305,6 +373,9 @@ function evalEvaluatorRule(rule: EvaluationEvaluatorRule, ctx: RuleEvaluationCon
     const observedSkills = new Set(ctx.records.flatMap((r) => (r.conditions.skills ?? []).map((s) => s.id)));
     const missingSkill = rule.required_skill_ids.find((id) => !observedSkills.has(id));
     if (missingSkill) {
+      if (ctx.runCoverageUnknowns.length > 0) {
+        return { verdict: "unknown", unknownReasons: ctx.runCoverageUnknowns, rationale: `[${rule.evaluator_id}@${rule.evaluator_version}] 覆盖缺口或窗口未完，暂未见到预期 Skill ${missingSkill}`, pointers: pointersFor(ctx.records, ctx.evidenceByRecord) };
+      }
       return { verdict: "failed", unknownReasons: [], rationale: `[${rule.evaluator_id}@${rule.evaluator_version}] 未装载预期 Skill ${missingSkill}`, pointers: pointersFor(ctx.records, ctx.evidenceByRecord) };
     }
   }
@@ -313,6 +384,14 @@ function evalEvaluatorRule(rule: EvaluationEvaluatorRule, ctx: RuleEvaluationCon
     if (posture !== rule.expected_posture) {
       const variationTag = `${posture ?? "none"}_for_${rule.expected_posture}`;
       if (!variations.includes(variationTag) && !variations.includes(`allow_${posture ?? "none"}`)) {
+        if (rule.expected_posture !== "quiet" && (posture === undefined || posture === "quiet") && ctx.runCoverageUnknowns.length > 0) {
+          return {
+            verdict: "unknown",
+            unknownReasons: ctx.runCoverageUnknowns,
+            rationale: `[${rule.evaluator_id}@${rule.evaluator_version}] 观察窗口未完或存在缺口，尚未观察到目标姿态 ${rule.expected_posture}`,
+            pointers: pointersFor(ctx.records, ctx.evidenceByRecord),
+          };
+        }
         return {
           verdict: "failed",
           unknownReasons: [],
@@ -325,26 +404,44 @@ function evalEvaluatorRule(rule: EvaluationEvaluatorRule, ctx: RuleEvaluationCon
   if (rule.acceptable_outcomes?.length) {
     const allowedOutcomes = new Set(rule.acceptable_outcomes);
     if (!ctx.records.some((r) => allowedOutcomes.has(r.outcome))) {
+      const hasHardFailure = ctx.records.some((r) => r.outcome === "failed" || r.outcome === "refused");
+      if (!hasHardFailure && ctx.runCoverageUnknowns.length > 0) {
+        return {
+          verdict: "unknown",
+          unknownReasons: ctx.runCoverageUnknowns,
+          rationale: `[${rule.evaluator_id}@${rule.evaluator_version}] 观察窗口尚未结束或覆盖受限，暂未收齐可接受结局`,
+          pointers: pointersFor(ctx.records, ctx.evidenceByRecord),
+        };
+      }
       return { verdict: "failed", unknownReasons: [], rationale: `[${rule.evaluator_id}@${rule.evaluator_version}] 记录结局均不在可接受集合内`, pointers: pointersFor(ctx.records, ctx.evidenceByRecord) };
     }
   }
-  if (rule.required_evidence_terms?.length || rule.forbidden_evidence_terms?.length) {
-    const allItems = ctx.records.flatMap((r) => ctx.evidenceByRecord.get(r.record_id) ?? []);
-    const texts = allItems.flatMap((item) => (item.status === "available" ? [item.text] : []));
-    const missing = allItems.find((item) => item.status === "missing");
-    if (texts.length === 0 && missing) {
-      const reason = unknownReasonForMissingEvidence(missing.reason);
-      return { verdict: "unknown", unknownReasons: [reason], rationale: `[${rule.evaluator_id}@${rule.evaluator_version}] 关键证据缺失（${missing.reason}），不作失败处理`, pointers: pointersFor(ctx.records, ctx.evidenceByRecord) };
+  if (rule.required_evidence_terms?.length) {
+    if (availableTexts.length === 0) {
+      const reasons = missingReasons.size > 0
+        ? Array.from(missingReasons)
+        : ctx.runCoverageUnknowns.length > 0
+          ? ctx.runCoverageUnknowns
+          : (["evidence_missing"] as const);
+      return { verdict: "unknown", unknownReasons: reasons, rationale: `[${rule.evaluator_id}@${rule.evaluator_version}] 关键证据缺失或尚未生成，不作失败处理`, pointers: pointersFor(ctx.records, ctx.evidenceByRecord) };
     }
-    const body = texts.join("\n");
-    for (const term of rule.required_evidence_terms ?? []) {
+    for (const term of rule.required_evidence_terms) {
       if (!body.includes(term) && !variations.some((alt) => body.includes(alt))) {
+        if (missingReasons.size > 0 || ctx.runCoverageUnknowns.includes("window_incomplete")) {
+          const reasons = Array.from(
+            new Set<EvaluationUnknownReason>([
+              ...missingReasons,
+              ...(ctx.runCoverageUnknowns.includes("window_incomplete") ? (["window_incomplete"] as const) : []),
+            ]),
+          );
+          return {
+            verdict: "unknown",
+            unknownReasons: reasons,
+            rationale: `[${rule.evaluator_id}@${rule.evaluator_version}] 部分证据快照缺失或观察窗口未完，无法确认是否包含要点「${term}」`,
+            pointers: pointersFor(ctx.records, ctx.evidenceByRecord),
+          };
+        }
         return { verdict: "failed", unknownReasons: [], rationale: `[${rule.evaluator_id}@${rule.evaluator_version}] 产出缺少要点「${term}」且未命中允许的等价表述`, pointers: pointersFor(ctx.records, ctx.evidenceByRecord) };
-      }
-    }
-    for (const bad of rule.forbidden_evidence_terms ?? []) {
-      if (body.includes(bad)) {
-        return { verdict: "failed", unknownReasons: [], rationale: `[${rule.evaluator_id}@${rule.evaluator_version}] 产出包含失真或禁止表述「${bad}」`, pointers: pointersFor(ctx.records, ctx.evidenceByRecord) };
       }
     }
   }
@@ -357,9 +454,37 @@ function evalEvaluatorRule(rule: EvaluationEvaluatorRule, ctx: RuleEvaluationCon
   };
 }
 
+function hasResolvedEvidence(pointers: readonly EvaluationEvidencePointer[]): boolean {
+  return pointers.some(
+    (ptr) => ptr.snapshot !== undefined || (ptr.owner_ref !== undefined && ptr.owner_resolvable !== "missing"),
+  );
+}
+
+function applyRequiredEvidenceGuard(expectation: EvaluationExpectation, raw: RawVerdict): RawVerdict {
+  if (!expectation.required_evidence || raw.verdict !== "passed" || hasResolvedEvidence(raw.pointers)) {
+    return raw;
+  }
+  const pointerMissingReasons = raw.pointers.flatMap((ptr) =>
+    ptr.missing_reason ? [unknownReasonForMissingEvidence(ptr.missing_reason)] : [],
+  );
+  const reasons: readonly EvaluationUnknownReason[] = pointerMissingReasons.length > 0
+    ? Array.from(new Set<EvaluationUnknownReason>(pointerMissingReasons))
+    : ["evidence_missing"];
+  return {
+    verdict: "unknown",
+    unknownReasons: reasons,
+    rationale: `预期声明必须附带可核对证据，但匹配记录缺少可用证据快照或可解析对象引用（原判定：${raw.rationale}）`,
+    pointers: raw.pointers,
+  };
+}
+
 export function evaluateExpectation(expectation: EvaluationExpectation, ctx: RuleEvaluationContext): EvaluationExpectationResult {
   const schemaRevision = String(servicesEvaluationContract.schemaVersion);
   if (expectation.source === "human_reference") {
+    const pointers = pointersFor(ctx.records, ctx.evidenceByRecord);
+    const reasons: readonly EvaluationUnknownReason[] = expectation.required_evidence && !hasResolvedEvidence(pointers)
+      ? ["awaiting_human_review", "evidence_missing"]
+      : ["awaiting_human_review"];
     return {
       expectation_id: expectation.expectation_id,
       stage: expectation.stage,
@@ -369,13 +494,13 @@ export function evaluateExpectation(expectation: EvaluationExpectation, ctx: Rul
       automated_verdict: "unknown",
       effective_verdict: "unknown",
       verdict_source: "automated",
-      unknown_reasons: ["awaiting_human_review"],
+      unknown_reasons: reasons,
       rationale: `待人工依据准则复查：${expectation.rule.guidance}`,
-      evidence_refs: pointersFor(ctx.records, ctx.evidenceByRecord),
+      evidence_refs: pointers,
     };
   }
   if (expectation.source === "evaluator") {
-    const raw = evalEvaluatorRule(expectation.rule, ctx);
+    const raw = applyRequiredEvidenceGuard(expectation, evalEvaluatorRule(expectation.rule, ctx));
     return {
       expectation_id: expectation.expectation_id,
       stage: expectation.stage,
@@ -390,7 +515,7 @@ export function evaluateExpectation(expectation: EvaluationExpectation, ctx: Rul
       evidence_refs: raw.pointers,
     };
   }
-  const raw = evalDeterministic(expectation.rule, ctx);
+  const raw = applyRequiredEvidenceGuard(expectation, evalDeterministic(expectation.rule, ctx));
   return {
     expectation_id: expectation.expectation_id,
     stage: expectation.stage,

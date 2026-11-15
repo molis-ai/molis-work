@@ -2,6 +2,7 @@ import {
   retainActionAuthority,
   type ActionCallContext,
   type ActionClient,
+  type ActionExecutionContext,
   type ActionReference,
   type ActionView,
 } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -32,12 +33,17 @@ const EXTERNAL_CAPABILITY_PATTERNS = [
 
 function isExternalEffectCapability(capabilityId: string, view: ActionView | undefined): string | null {
   if (view) {
+    if (view.action.external === true && view.action.effect !== "read") {
+      return "isolated_replay_blocks_external_declared_action";
+    }
     if (view.provider.kind === "mcp" && view.action.effect === "write") {
       return "isolated_replay_blocks_external_mcp_write";
     }
     if (
       view.action.effect === "write"
-      && view.action.permissions.some((perm) => perm.startsWith("network.") || perm.startsWith("connector."))
+      && view.action.permissions.some(
+        (perm) => perm.startsWith("network.") || perm.startsWith("network:") || perm.startsWith("connector.") || perm.startsWith("connectors:"),
+      )
     ) {
       return "isolated_replay_blocks_external_permissioned_write";
     }
@@ -57,20 +63,23 @@ export async function executeIsolatedReplay(options: {
   readonly replayId: string;
   readonly scenario: EvaluationReplayScenario;
   readonly sample: EvaluationSampleView;
-  readonly caller: ActionCallContext;
+  readonly caller: ActionExecutionContext;
   readonly origin: ActionReference;
-  readonly baseClient: ActionClient;
+  readonly clientFor: (caller: ActionCallContext) => ActionClient;
   readonly runInReplayScope: <T>(fn: () => Promise<T>) => Promise<T>;
 }): Promise<{
   readonly blockedExternalEffects: EvaluationReplayReceipt["blocked_external_effects"];
 }> {
   const blocked: { readonly capability_id: string; readonly reason: string }[] = [];
-  const retainedCaller = retainActionAuthority(options.caller, options.origin);
-  let cachedDirectory: readonly ActionView[] | undefined;
+  const retainedCaller = retainActionAuthority(options.caller, options.origin, options.caller.beforeEffect);
+  const cachedDirectories = new Map<string, readonly ActionView[]>();
 
   const lookupView = async (ctx: ActionCallContext, ref: ActionReference): Promise<ActionView | undefined> => {
+    const scopeKey = ctx.project_id ?? "";
+    let cachedDirectory = cachedDirectories.get(scopeKey);
     if (!cachedDirectory) {
-      cachedDirectory = await options.baseClient.discover(ctx);
+      cachedDirectory = await options.clientFor(ctx).discover(ctx);
+      cachedDirectories.set(scopeKey, cachedDirectory);
     }
     return cachedDirectory.find(
       (item) => item.capability_id === ref.capability_id
@@ -80,7 +89,7 @@ export async function executeIsolatedReplay(options: {
   };
 
   const guardedClient: ActionClient = {
-    discover: (ctx) => options.baseClient.discover(ctx),
+    discover: (ctx) => options.clientFor(ctx).discover(ctx),
     invoke: async (ctx, action, input) => {
       const view = await lookupView(ctx, action);
       const blockReason = isExternalEffectCapability(action.capability_id, view);
@@ -90,7 +99,7 @@ export async function executeIsolatedReplay(options: {
           `隔离回放禁止触发外部副作用动作 ${action.capability_id}（${blockReason}）`,
         );
       }
-      return options.runInReplayScope(() => options.baseClient.invoke(ctx, action, input));
+      return options.runInReplayScope(() => options.clientFor(ctx).invoke(ctx, action, input));
     },
   };
 

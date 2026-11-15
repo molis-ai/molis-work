@@ -745,3 +745,203 @@ test("Host composition: MolisWorkLocalHost lazily opens evaluation.db, evaluates
   assert.equal(remainingHomeSamples.samples.length, 1);
   assert.equal(remainingHomeSamples.samples[0]?.sample_id, "home-level-sample");
 });
+
+test("PWA-55 PWA-56 OCL-08 OCL-14: incomplete observation window, partial missing snapshots, pinned_record_ids and required_evidence yield unknown without masking hard violations", async (t) => {
+  const fx = createEvaluationFixture(t);
+
+  // 1. Opportunity presented (`presented = 1, adopted = 0`) while `evaluated_at < observation_cutoff_at` -> `unknown` (`window_incomplete`), NOT `failed`.
+  await fx.reportShell("p1", [
+    { fact: "ui.suggestion.presented", outcome: "waiting", work: { work_ref: "work-open-window" } },
+  ]);
+  fx.layer.flush();
+
+  await fx.service.invoke(person(), evaluationActions.samplesPut, {
+    sample_id: "open-window-presented",
+    version: 1,
+    title: "已呈现但尚未到观察截止时间的机会样本",
+    purpose: "validation",
+    work_mode: "assistant",
+    project_id: "p1",
+    initial_intent: "观察截止前未收齐采用结果须记为 unknown",
+    query: { project_id: "p1", work_ref: "work-open-window" },
+    window: { observation_cutoff_at: "2026-12-01T00:00:00.000Z" },
+    expectations: [
+      {
+        expectation_id: "exp-funnel-pending",
+        stage: "delivery",
+        description: "等待用户采用反馈",
+        source: "deterministic",
+        rule: { check: "funnel_stage_separation", min_count: 1, max_count: 0 },
+      },
+      {
+        expectation_id: "exp-count-pending",
+        stage: "interaction",
+        description: "等待至少 2 条交互记录",
+        source: "deterministic",
+        rule: { check: "record_count", fact: "ui.suggestion.presented", min_count: 2 },
+      },
+      {
+        expectation_id: "exp-eval-pending",
+        stage: "execution",
+        description: "等待最终完成结局",
+        source: "evaluator",
+        rule: {
+          evaluator_id: "eval.pending-outcome",
+          evaluator_version: "1.0.0",
+          rubric: "完成后应达到 succeeded 结局",
+          acceptable_outcomes: ["succeeded"],
+        },
+      },
+    ],
+  });
+
+  const pendingRun = await fx.service.invoke(person(), evaluationActions.runsExecute, { sample_id: "open-window-presented" });
+  assert.equal(pendingRun.effective_verdict, "unknown", "open cutoff window with pending adoption must be unknown, not failed");
+  assert.deepEqual(pendingRun.failed_stages, []);
+  assert.equal(pendingRun.unknown_reasons.includes("window_incomplete"), true);
+  assert.equal(pendingRun.expectation_results.every((r) => r.effective_verdict === "unknown"), true);
+
+  // Hard violation inside an open window (e.g. user already undid the suggestion) still fails immediately.
+  await fx.reportShell("p1", [
+    { fact: "ui.outcome.undone", outcome: "succeeded", work: { work_ref: "work-open-window" } },
+  ]);
+  fx.layer.flush();
+  const hardViolatedRun = await fx.service.invoke(person(), evaluationActions.runsExecute, { sample_id: "open-window-presented" });
+  assert.equal(hardViolatedRun.effective_verdict, "failed");
+  assert.deepEqual(hardViolatedRun.failed_stages, ["delivery"]);
+
+  // 2. Multi-record sample where one record's evidence is missing (`truncated`) while another remains available -> `unknown` for missing required term, `failed` for forbidden term.
+  await fx.service.invoke(pluginCaller("pages", "p2"), observationActions.report, {
+    facts: [
+      {
+        fact: "pages.multi_snap",
+        outcome: "succeeded",
+        occurred_at: "2026-09-01T08:00:00.000Z",
+        work: { work_ref: "work-partial-missing" },
+        evidence: [{ role: "body", ref: { kind: "missing", reason: "truncated" } }],
+      },
+      {
+        fact: "pages.multi_snap",
+        outcome: "succeeded",
+        occurred_at: "2026-11-15T09:50:00.000Z",
+        work: { work_ref: "work-partial-missing" },
+        evidence: [{ role: "body", ref: { kind: "content", media_type: "text/plain", text: "第二版：简短补充说明" } }],
+      },
+    ],
+  });
+  fx.layer.flush();
+
+  await fx.service.invoke(person(), evaluationActions.samplesPut, {
+    sample_id: "partial-missing-evidence",
+    version: 1,
+    title: "多记录部分快照缺失样本",
+    purpose: "validation",
+    work_mode: "manual_plugin",
+    project_id: "p2",
+    initial_intent: "部分证据快照缺失时未命中正词判 unknown",
+    query: { project_id: "p2", work_ref: "work-partial-missing" },
+    expectations: [
+      {
+        expectation_id: "exp-det-partial",
+        stage: "delivery",
+        description: "核对关键风险推演",
+        source: "deterministic",
+        rule: { check: "evidence_text", fact: "pages.multi_snap", evidence_role: "body", contains_all: ["关键风险推演"] },
+      },
+      {
+        expectation_id: "exp-eval-partial",
+        stage: "materials",
+        description: "评测器核对关键风险推演",
+        source: "evaluator",
+        rule: {
+          evaluator_id: "eval.partial-evidence",
+          evaluator_version: "1.0.0",
+          rubric: "需覆盖关键风险推演",
+          required_evidence_terms: ["关键风险推演"],
+        },
+      },
+    ],
+  });
+
+  const partialRun = await fx.service.invoke(person(), evaluationActions.runsExecute, { sample_id: "partial-missing-evidence" });
+  assert.equal(partialRun.effective_verdict, "unknown");
+  assert.deepEqual(partialRun.failed_stages, []);
+  assert.equal(partialRun.unknown_reasons.includes("evidence_missing"), true);
+  assert.equal(partialRun.expectation_results.every((r) => r.effective_verdict === "unknown"), true);
+
+  await fx.service.invoke(person(), evaluationActions.samplesPut, {
+    sample_id: "partial-missing-evidence",
+    version: 2,
+    title: "多记录部分缺失但命中禁用词样本",
+    purpose: "validation",
+    work_mode: "manual_plugin",
+    project_id: "p2",
+    initial_intent: "可用快照已命中禁用词时即使另一条缺失仍直接判 failed",
+    query: { project_id: "p2", work_ref: "work-partial-missing" },
+    expectations: [
+      {
+        expectation_id: "exp-det-forbidden-hit",
+        stage: "delivery",
+        description: "禁用词在现存快照中已命中",
+        source: "deterministic",
+        rule: { check: "evidence_text", fact: "pages.multi_snap", evidence_role: "body", forbids_any: ["简短补充"] },
+      },
+    ],
+  });
+  const forbiddenHitRun = await fx.service.invoke(person(), evaluationActions.runsExecute, {
+    sample_id: "partial-missing-evidence",
+    sample_version: 2,
+  });
+  assert.equal(forbiddenHitRun.effective_verdict, "failed");
+  assert.deepEqual(forbiddenHitRun.failed_stages, ["delivery"]);
+
+  // 3. `pinned_record_ids` filters out unpinned records, and `required_evidence: true` without concrete evidence yields `unknown: ["evidence_missing"]`.
+  await fx.service.invoke(pluginCaller("todo", "p2"), observationActions.report, {
+    facts: [
+      { fact: "todo.bare", outcome: "succeeded", work: { work_ref: "work-pin-req" } },
+      { fact: "todo.bare", outcome: "failed", work: { work_ref: "work-pin-req" } },
+    ],
+  });
+  fx.layer.flush();
+  const bareRecords = await fx.service.invoke(person(), observationActions.recordsQuery, {
+    project_id: "p2",
+    work_ref: "work-pin-req",
+  });
+  const succeededBareId = bareRecords.records.find((r) => r.outcome === "succeeded")!.record_id;
+
+  await fx.service.invoke(person(), evaluationActions.samplesPut, {
+    sample_id: "pinned-and-required-evidence",
+    version: 1,
+    title: "固定记录过滤与必带证据守卫",
+    purpose: "validation",
+    work_mode: "manual_plugin",
+    project_id: "p2",
+    initial_intent: "仅评估 pinned_record_ids 并在缺少快照或对象引用时报 evidence_missing",
+    query: { project_id: "p2", work_ref: "work-pin-req" },
+    pinned_record_ids: [succeededBareId],
+    expectations: [
+      {
+        expectation_id: "exp-only-pinned",
+        stage: "execution",
+        description: "未固定的失败记录不应计入",
+        source: "deterministic",
+        rule: { check: "record_count", fact: "todo.bare", outcomes: ["failed"], min_count: 0, max_count: 0 },
+      },
+      {
+        expectation_id: "exp-needs-evidence",
+        stage: "delivery",
+        description: "要求具备可核对证据但记录无快照",
+        source: "deterministic",
+        required_evidence: true,
+        rule: { check: "record_count", fact: "todo.bare", outcomes: ["succeeded"], min_count: 1 },
+      },
+    ],
+  });
+
+  const pinnedRun = await fx.service.invoke(person(), evaluationActions.runsExecute, { sample_id: "pinned-and-required-evidence" });
+  assert.equal(pinnedRun.observed_conditions.record_count, 1);
+  assert.equal(pinnedRun.expectation_results[0]?.effective_verdict, "passed");
+  assert.equal(pinnedRun.expectation_results[1]?.effective_verdict, "unknown");
+  assert.deepEqual(pinnedRun.expectation_results[1]?.unknown_reasons, ["evidence_missing"]);
+  assert.equal(pinnedRun.effective_verdict, "unknown");
+});

@@ -45,13 +45,10 @@ export interface WithIsolatedHomeOptions {
   readonly keepHome?: boolean;
 }
 
-export async function withIsolatedEvaluationHome<T>(
-  options: WithIsolatedHomeOptions,
-  fn: (home: string) => Promise<T>,
-): Promise<{ readonly home: string; readonly kept: boolean; readonly result: T }> {
+export function assertEnvEvaluationHomeSafe(requestedHome?: string): void {
   const realHome = resolveRealProductHome();
   const envHome = process.env.MOLIS_WORK_HOME?.trim();
-  if (!options.requestedHome && envHome) {
+  if (!requestedHome && envHome) {
     const resolvedEnvHome = resolveHomeDirectory(envHome);
     if (isSameOrInside(realHome, resolvedEnvHome) || isSameOrInside(resolvedEnvHome, realHome)) {
       throw new EvaluationCliUsageError(
@@ -59,6 +56,13 @@ export async function withIsolatedEvaluationHome<T>(
       );
     }
   }
+}
+
+export async function withIsolatedEvaluationHome<T>(
+  options: WithIsolatedHomeOptions,
+  fn: (home: string) => Promise<T>,
+): Promise<{ readonly home: string; readonly kept: boolean; readonly result: T }> {
+  assertEnvEvaluationHomeSafe(options.requestedHome);
   const home = options.requestedHome
     ? assertIsolatedScratchHome(options.requestedHome)
     : resolveHomeDirectory(mkdtempSync(join(tmpdir(), "molis-eval-home-")));

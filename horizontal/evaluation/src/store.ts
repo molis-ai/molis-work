@@ -89,6 +89,7 @@ export function frozenDigestOfSample(sample: EvaluationSampleInput): string {
     case_ref: sample.case_ref ?? null,
     initial_intent: sample.initial_intent,
     query: sample.query,
+    pinned_record_ids: sample.pinned_record_ids ?? null,
     window: sample.window ?? null,
     opportunity_basis: sample.opportunity_basis ?? null,
     baseline_conditions: sample.baseline_conditions ?? null,
@@ -134,9 +135,9 @@ export function applyReviewsToRun(base: EvaluationRunView, reviews: readonly Eva
   const expectationResults = base.expectation_results.map((item) => {
     const override = byExpectation.get(item.expectation_id);
     if (!override) return item;
-    const unknownReasons = override.verdict === "unknown"
-      ? item.unknown_reasons
-      : item.unknown_reasons.filter((reason) => reason !== "awaiting_human_review");
+    const unknownReasons: readonly EvaluationUnknownReason[] = override.verdict === "unknown"
+      ? (item.unknown_reasons.length > 0 ? item.unknown_reasons : ["awaiting_human_review"])
+      : [];
     return {
       ...item,
       effective_verdict: override.verdict,
@@ -147,11 +148,18 @@ export function applyReviewsToRun(base: EvaluationRunView, reviews: readonly Eva
   const nonReviewRunUnknowns = base.unknown_reasons.filter((reason) => reason !== "awaiting_human_review");
   if (latestRunReview) {
     const failedStages = latestRunReview.verdict === "failed"
-      ? Array.from(new Set([...expectationResults.filter((r) => r.effective_verdict === "failed").map((r) => r.stage), ...(latestRunReview.stage ? [latestRunReview.stage] : [])]))
-      : latestRunReview.verdict === "passed"
-        ? []
-        : expectationResults.filter((r) => r.effective_verdict === "failed").map((r) => r.stage);
-    const unknownReasons = latestRunReview.verdict === "unknown" ? base.unknown_reasons : [];
+      ? Array.from(
+          new Set([
+            ...expectationResults.filter((r) => r.effective_verdict === "failed").map((r) => r.stage),
+            ...(latestRunReview.stage ? [latestRunReview.stage] : base.failed_stages),
+          ]),
+        )
+      : [];
+    const expUnknowns = expectationResults.flatMap((r) => (r.effective_verdict === "unknown" ? r.unknown_reasons : []));
+    const preservedUnknowns = Array.from(new Set<EvaluationUnknownReason>([...base.unknown_reasons, ...expUnknowns]));
+    const unknownReasons: readonly EvaluationUnknownReason[] = latestRunReview.verdict === "unknown"
+      ? (preservedUnknowns.length > 0 ? preservedUnknowns : ["awaiting_human_review"])
+      : [];
     return {
       ...base,
       effective_verdict: latestRunReview.verdict,
@@ -221,6 +229,17 @@ export class EvaluationStore {
     }
   }
 
+  assertSampleImmutable(input: EvaluationSampleInput): void {
+    if (!this.db && !existsSync(homeSqlitePath(this.home, EVALUATION_STORE))) return;
+    const db = this.open();
+    const existing = rowsAs<Pick<StoredSampleRow, "frozen_digest">>(
+      db.prepare("SELECT frozen_digest FROM evaluation_samples WHERE sample_id = ? AND version = ?").all(input.sample_id, input.version),
+    )[0];
+    if (existing && existing.frozen_digest !== frozenDigestOfSample(input)) {
+      throw evaluationErrors.sample_version_immutable(`样本 ${input.sample_id}@${input.version} 已冻结，修改预期或条件须升版本号`);
+    }
+  }
+
   putSample(input: EvaluationSampleInput, hold: { readonly holdId: string | null; readonly heldCount: number }, now: string): EvaluationSamplePutOutput {
     const db = this.open();
     const digest = frozenDigestOfSample(input);
@@ -264,6 +283,7 @@ export class EvaluationStore {
   }
 
   getSample(sampleId: string, version?: number): EvaluationSampleView | null {
+    if (!this.db && !existsSync(homeSqlitePath(this.home, EVALUATION_STORE))) return null;
     const db = this.open();
     const row = version !== undefined
       ? rowsAs<StoredSampleRow>(db.prepare("SELECT * FROM evaluation_samples WHERE sample_id = ? AND version = ?").all(sampleId, version))[0]
@@ -293,6 +313,19 @@ export class EvaluationStore {
       latest.push(sampleViewOf(row));
     }
     return latest;
+  }
+
+  inspectSampleRemoval(sampleId: string, version?: number): { readonly versions: readonly number[]; readonly holdIds: readonly string[] } {
+    if (!this.db && !existsSync(homeSqlitePath(this.home, EVALUATION_STORE))) {
+      return { versions: [], holdIds: [] };
+    }
+    const db = this.open();
+    const rows = version !== undefined
+      ? rowsAs<StoredSampleRow>(db.prepare("SELECT * FROM evaluation_samples WHERE sample_id = ? AND version = ?").all(sampleId, version))
+      : rowsAs<StoredSampleRow>(db.prepare("SELECT * FROM evaluation_samples WHERE sample_id = ? ORDER BY version ASC").all(sampleId));
+    if (rows.length === 0) return { versions: [], holdIds: [] };
+    const holdIds = Array.from(new Set(rows.flatMap((row) => (row.hold_id ? [row.hold_id] : []))));
+    return { versions: rows.map((row) => Number(row.version)), holdIds };
   }
 
   removeSample(sampleId: string, version?: number): { readonly removedVersions: readonly number[]; readonly holdIds: readonly string[] } {
@@ -332,6 +365,25 @@ export class EvaluationStore {
     );
   }
 
+  private loadReviewsByRunIds(db: DatabaseSync, runIds: readonly string[]): ReadonlyMap<string, readonly EvaluationHumanReview[]> {
+    const grouped = new Map<string, EvaluationHumanReview[]>();
+    const chunkSize = 400;
+    for (let offset = 0; offset < runIds.length; offset += chunkSize) {
+      const chunk = runIds.slice(offset, offset + chunkSize);
+      const placeholders = chunk.map(() => "?").join(", ");
+      const reviewRows = rowsAs<StoredReviewRow>(
+        db.prepare(`SELECT * FROM evaluation_reviews WHERE run_id IN (${placeholders}) ORDER BY created_at ASC, rowid ASC`).all(...chunk),
+      );
+      for (const row of reviewRows) {
+        const bucket = grouped.get(row.run_id);
+        const view = reviewViewOf(row);
+        if (bucket) bucket.push(view);
+        else grouped.set(row.run_id, [view]);
+      }
+    }
+    return grouped;
+  }
+
   private hydrateRun(db: DatabaseSync, row: StoredRunRow): EvaluationRunView {
     const base = JSON.parse(row.run_json) as EvaluationRunView;
     const reviews = rowsAs<StoredReviewRow>(
@@ -361,7 +413,8 @@ export class EvaluationStore {
     const rows = rowsAs<StoredRunRow>(
       db.prepare(`SELECT * FROM evaluation_runs ${where} ORDER BY evaluated_at DESC, rowid DESC LIMIT ?`).all(...params, limit),
     );
-    return rows.map((row) => this.hydrateRun(db, row));
+    const reviewsByRun = this.loadReviewsByRunIds(db, rows.map((row) => row.run_id));
+    return rows.map((row) => applyReviewsToRun(JSON.parse(row.run_json) as EvaluationRunView, reviewsByRun.get(row.run_id) ?? []));
   }
 
   queryRunsForMetrics(filter: EvaluationMetricsSummarizeInput): {
@@ -380,8 +433,9 @@ export class EvaluationStore {
     const rows = rowsAs<StoredRunRow>(
       db.prepare(`SELECT * FROM evaluation_runs WHERE ${clauses.join(" AND ")} ORDER BY evaluated_at ASC, rowid ASC`).all(...params),
     );
+    const reviewsByRun = this.loadReviewsByRunIds(db, rows.map((row) => row.run_id));
     const runs = rows.map((row) => ({
-      view: this.hydrateRun(db, row),
+      view: applyReviewsToRun(JSON.parse(row.run_json) as EvaluationRunView, reviewsByRun.get(row.run_id) ?? []),
       outcomeCounts: JSON.parse(row.outcome_counts) as Readonly<Partial<Record<ObservationOutcome, number>>>,
     }));
     const sampleClauses = ["purpose = ?"];
@@ -421,8 +475,8 @@ export class EvaluationStore {
         review.created_at,
       );
       const updated = this.hydrateRun(db, row);
-      db.prepare("UPDATE evaluation_runs SET effective_verdict = ?, verdict_source = ?, run_json = ? WHERE run_id = ?")
-        .run(updated.effective_verdict, updated.verdict_source, JSON.stringify(updated), review.run_id);
+      db.prepare("UPDATE evaluation_runs SET effective_verdict = ?, verdict_source = ? WHERE run_id = ?")
+        .run(updated.effective_verdict, updated.verdict_source, review.run_id);
       db.exec("COMMIT");
       return updated;
     } catch (error) {

@@ -55,6 +55,14 @@ test("BL-328 S-evaluation-isolation: evaluation CLI refuses real ~/.molis-work a
   assert.equal(nested.code, 2);
   assert.match(nested.stderr, /REFUSED:/u);
   assert.equal(existsSync(join(realHome, "scratch-eval-child")), false);
+
+  const envLiveNoKey = await runEvalCli(["--mode", "live"], {
+    MOLIS_WORK_HOME: realHome,
+    GEMINI_API_KEY: undefined,
+    MOLIS_EVAL_API_KEY: undefined,
+  });
+  assert.equal(envLiveNoKey.code, 2);
+  assert.match(envLiveNoKey.stderr, /REFUSED:/u);
 });
 
 test(

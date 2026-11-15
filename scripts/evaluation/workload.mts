@@ -1,7 +1,9 @@
 import {
+  ActionError,
   LOCAL_PERSON_ACTOR_ID,
   bindActionClient,
   type ActionCallContext,
+  type ActionReference,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { ModelApiFormat } from "@molis-ai/molis-work-contracts/modules/model-providers";
@@ -41,7 +43,6 @@ export interface BootedEvaluationEnvironment {
   readonly host: MolisWorkLocalHost;
   readonly homeCaller: () => Promise<ActionCallContext>;
   readonly ids: SuiteContextIds;
-  readonly blockedExternalEffects: string[];
   close(): Promise<void>;
 }
 
@@ -152,7 +153,7 @@ async function seedMainProjectCases(
     markdown: "初稿：梳理工作记录与预期规则",
   });
   assistantSink
-    .bind({ kind: "background", entry: "workbench", actor_id: LOCAL_PERSON_ACTOR_ID, project_id: mainRef.project_id, call_id: pagesCallId })
+    .bind({ kind: "background", entry: "background", actor_id: LOCAL_PERSON_ACTOR_ID, project_id: mainRef.project_id, call_id: pagesCallId })
     .record({
       fact: "assistant.work",
       stage: "document_created",
@@ -172,7 +173,7 @@ async function seedMainProjectCases(
     markdown: `修订稿：第二版行动方案\n\n${aiDraft.text}`,
   });
   assistantSink
-    .bind({ kind: "background", entry: "workbench", actor_id: LOCAL_PERSON_ACTOR_ID, project_id: mainRef.project_id, call_id: pagesCallId })
+    .bind({ kind: "background", entry: "background", actor_id: LOCAL_PERSON_ACTOR_ID, project_id: mainRef.project_id, call_id: pagesCallId })
     .record({
       fact: "assistant.work",
       stage: "document_revised",
@@ -212,10 +213,10 @@ async function seedMainProjectCases(
   const quietWorkRef = "work-eval-quiet";
   const unexposedWorkRef = "work-eval-unexposed";
   assistantSink
-    .bind({ kind: "background", entry: "workbench", actor_id: LOCAL_PERSON_ACTOR_ID, project_id: mainRef.project_id })
+    .bind({ kind: "background", entry: "background", actor_id: LOCAL_PERSON_ACTOR_ID, project_id: mainRef.project_id })
     .record({ fact: "assistant.work", stage: "opportunity.evaluated", outcome: "no_action", occurred_at: new Date().toISOString(), work: { work_ref: quietWorkRef }, detail: { posture: "quiet" } });
   assistantSink
-    .bind({ kind: "background", entry: "workbench", actor_id: LOCAL_PERSON_ACTOR_ID, project_id: mainRef.project_id })
+    .bind({ kind: "background", entry: "background", actor_id: LOCAL_PERSON_ACTOR_ID, project_id: mainRef.project_id })
     .record({ fact: "assistant.work", stage: "opportunity.prepared", outcome: "no_action", occurred_at: new Date().toISOString(), work: { work_ref: unexposedWorkRef } });
 
   const createdTodo = await mainClient.invoke(todoActions.create, { title: "核对留存豁免快照", placement: "project" });
@@ -223,7 +224,7 @@ async function seedMainProjectCases(
   const primaryWorkRef = "work-eval-primary";
   const secondaryWorkRef = "work-eval-secondary";
   assistantSink
-    .bind({ kind: "background", entry: "workbench", actor_id: LOCAL_PERSON_ACTOR_ID, project_id: mainRef.project_id, call_id: "call-eval-primary" })
+    .bind({ kind: "background", entry: "background", actor_id: LOCAL_PERSON_ACTOR_ID, project_id: mainRef.project_id, call_id: "call-eval-primary" })
     .record({
       fact: "assistant.work",
       stage: "completed",
@@ -233,7 +234,7 @@ async function seedMainProjectCases(
       subjects: [{ kind: "todo_item", id: createdTodo.item.id, version: createdTodo.item.revision }],
     });
   assistantSink
-    .bind({ kind: "background", entry: "workbench", actor_id: LOCAL_PERSON_ACTOR_ID, project_id: mainRef.project_id, call_id: "call-eval-secondary" })
+    .bind({ kind: "background", entry: "background", actor_id: LOCAL_PERSON_ACTOR_ID, project_id: mainRef.project_id, call_id: "call-eval-secondary" })
     .record({
       fact: "assistant.work",
       stage: "completed",
@@ -261,7 +262,6 @@ function seedHoldAndReplayCases(
   home: string,
   host: MolisWorkLocalHost,
   projects: CatalogProjectRefs,
-  blockedExternalEffects: string[],
   cleanupDisposers: Array<() => void>,
 ) {
   const obsLayer = host.observation!.layer;
@@ -290,27 +290,40 @@ function seedHoldAndReplayCases(
     });
   obsLayer.flush();
 
+  const externalConnectorRef: ActionReference = {
+    capability_id: "connectors.cli.connect",
+    version: REV,
+    provider_id: "system.connectors",
+  };
   const replayScenarioV1 = "scenario-ec18-baseline";
   const replayScenarioV2 = "scenario-ec18-improved";
   cleanupDisposers.push(
     registerEvaluationReplayScenario(home, replayScenarioV1, async (ctx) => {
-      try {
-        ctx.guardExternalSideEffect("connector.send_external_webhook");
-      } catch (error) {
-        blockedExternalEffects.push(error instanceof Error ? error.message : String(error));
-      }
       const replayCaller = await host.localPersonContext(projects.replayRef);
-      await host.actionClient(projects.replayRef).invoke(replayCaller, todoActions.list, {});
+      try {
+        await ctx.client.invoke(replayCaller, externalConnectorRef, { connector_id: "eval-webhook" });
+        throw new Error("隔离回放未拦截外部连接写动作 connectors.cli.connect");
+      } catch (error) {
+        if (!(error instanceof ActionError) || error.code !== "evaluation.replay_external_effect_blocked") {
+          throw error;
+        }
+      }
+      await ctx.client.invoke(replayCaller, todoActions.list, {});
       obsLayer.flush();
     }),
   );
   cleanupDisposers.push(
     registerEvaluationReplayScenario(home, replayScenarioV2, async (ctx) => {
+      const replayCaller = await host.localPersonContext(projects.replayRef);
       try {
-        ctx.guardExternalSideEffect("connector.send_external_webhook");
+        await ctx.client.invoke(replayCaller, externalConnectorRef, { connector_id: "eval-webhook" });
+        throw new Error("隔离回放未拦截外部连接写动作 connectors.cli.connect");
       } catch (error) {
-        blockedExternalEffects.push(error instanceof Error ? error.message : String(error));
+        if (!(error instanceof ActionError) || error.code !== "evaluation.replay_external_effect_blocked") {
+          throw error;
+        }
       }
+      await ctx.client.invoke(replayCaller, todoActions.list, {});
       agentSink
         .bind({ kind: "background", entry: "agent", actor_id: LOCAL_PERSON_ACTOR_ID, project_id: projects.replayRef.project_id })
         .record({
@@ -333,7 +346,6 @@ export async function bootAndSeedEvaluationWorkload(
   let standIn: StandInModelServer | undefined;
   let host: MolisWorkLocalHost | undefined;
   const cleanupDisposers: Array<() => void> = [];
-  const blockedExternalEffects: string[] = [];
 
   try {
     if (model.mode === "stand-in") {
@@ -366,12 +378,11 @@ export async function bootAndSeedEvaluationWorkload(
     await activeHost.withProject(projects.replayRef, () => undefined);
 
     const mainSeeded = await seedMainProjectCases(activeHost, system, projects.mainRef);
-    const holdReplaySeeded = seedHoldAndReplayCases(home, activeHost, projects, blockedExternalEffects, cleanupDisposers);
+    const holdReplaySeeded = seedHoldAndReplayCases(home, activeHost, projects, cleanupDisposers);
 
     return {
       host: activeHost,
       homeCaller: () => activeHost.localPersonContext(),
-      blockedExternalEffects,
       ids: {
         mainProjectId: projects.mainRef.project_id,
         holdProjectId: projects.holdRef.project_id,

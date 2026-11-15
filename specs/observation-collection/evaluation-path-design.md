@@ -77,7 +77,7 @@ CREATE INDEX evaluation_hold_records_seq ON evaluation_hold_records (seq);
 CREATE INDEX evaluation_hold_records_record ON evaluation_hold_records (record_id);
 ```
 
-- **有效留存（active hold）**：`expires_at IS NULL OR expires_at > :nowIso`。默认留存天数采用 `OBSERVATION_RETENTION_NEEDS.evaluation_samples`（180 天），调用方可传显式 `expires_at` 或 `null`（长期回归样本留存）。
+- **有效留存（active hold）**：`expires_at IS NULL OR expires_at > :nowIso`。默认留存天数采用 `OBSERVATION_RETENTION_NEEDS.evaluation_samples`（120 天），调用方可传显式 `expires_at` 或 `null`（长期回归样本留存）。
 - **清理豁免（`OCL-12`、`EC-16`）**：
   - `previewCleanup` 与 `applyCleanup` 在筛选候选记录时，将处于有效留存内的 `seq` 从待删集合剔除，按去重 `sample_id` 计入 `preserved.evaluation_samples_count`；因为留存记录本身不被删除，`record_evidence` 仍引用其 `evidence_blobs`，`collectUnreferenced` 自然保留对应加密证据快照，重评时仍可解封。
   - `sweepExpiredRecords`（自动保留期清扫）同样跳过处于有效留存内的 `seq`。

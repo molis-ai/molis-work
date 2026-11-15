@@ -35,7 +35,11 @@ import {
 import { defineAction } from "@molis-ai/molis-work-plugin-sdk";
 import { compareEvaluationRuns, summarizeEvaluationMetrics } from "./comparison-and-metrics.js";
 import { evaluationErrors } from "./errors.js";
-import { placeEvaluationSampleHold, releaseEvaluationSampleHolds } from "./observation-bridge.js";
+import {
+  commitEvaluationSampleHold,
+  releaseEvaluationSampleHolds,
+  resolveSampleHoldRecordIds,
+} from "./observation-bridge.js";
 import type { EvaluationReplayScenario } from "./replay.js";
 import { executeSampleEvaluationRun } from "./run-executor.js";
 import { EvaluationStore } from "./store.js";
@@ -110,28 +114,44 @@ export class EvaluationService {
     assertPersonCaller(caller);
     validateWindow(input.window);
     caller.signal?.throwIfAborted();
-    let hold: { readonly holdId: string | null; readonly heldCount: number } = { holdId: null, heldCount: 0 };
-    if (input.hold_records) {
-      const nested = retainActionAuthority(caller, originOf(caller, evaluationActions.samplesPut));
-      hold = await placeEvaluationSampleHold(this.options.clientFor(caller), nested, input);
-    }
+    this.store.assertSampleImmutable(input);
+    const origin = originOf(caller, evaluationActions.samplesPut);
+    const client = this.options.clientFor(caller);
+    const holdRecordIds = input.hold_records
+      ? await resolveSampleHoldRecordIds(client, retainActionAuthority(caller, origin), input)
+      : undefined;
     caller.signal?.throwIfAborted();
-    await caller.beforeEffect?.();
+    await caller.beforeEffect();
+    this.store.assertSampleImmutable(input);
+    let hold: { readonly holdId: string | null; readonly heldCount: number } = { holdId: null, heldCount: 0 };
+    if (input.hold_records && holdRecordIds && holdRecordIds.length > 0) {
+      const writeNested = retainActionAuthority(caller, origin, caller.beforeEffect);
+      hold = await commitEvaluationSampleHold(client, writeNested, input, holdRecordIds);
+      caller.signal?.throwIfAborted();
+      await caller.beforeEffect();
+    }
     return this.store.putSample(input, hold, this.nowIso());
   }
 
   async removeSample(caller: ActionExecutionContext, input: EvaluationSampleRemoveInput): Promise<EvaluationSampleRemoveOutput> {
     assertPersonCaller(caller);
     caller.signal?.throwIfAborted();
-    await caller.beforeEffect?.();
-    const { removedVersions, holdIds } = this.store.removeSample(input.sample_id, input.version);
-    const releasedHoldIds = input.release_holds !== false && holdIds.length > 0
+    const pending = this.store.inspectSampleRemoval(input.sample_id, input.version);
+    await caller.beforeEffect();
+    caller.signal?.throwIfAborted();
+    if (pending.versions.length === 0) {
+      return { removed_versions: [], released_hold_ids: [] };
+    }
+    const releasedHoldIds = input.release_holds !== false && pending.holdIds.length > 0
       ? await releaseEvaluationSampleHolds(
           this.options.clientFor(caller),
-          retainActionAuthority(caller, originOf(caller, evaluationActions.samplesRemove)),
-          holdIds,
+          retainActionAuthority(caller, originOf(caller, evaluationActions.samplesRemove), caller.beforeEffect),
+          pending.holdIds,
         )
       : [];
+    caller.signal?.throwIfAborted();
+    await caller.beforeEffect();
+    const { removedVersions } = this.store.removeSample(input.sample_id, input.version);
     return { removed_versions: removedVersions, released_hold_ids: releasedHoldIds };
   }
 
@@ -149,13 +169,14 @@ export class EvaluationService {
     const { runView, outcomeCounts } = await executeSampleEvaluationRun({
       caller,
       origin: originOf(caller, evaluationActions.runsExecute),
-      client: this.options.clientFor(caller),
+      clientFor: (c) => this.options.clientFor(c),
       sample,
       input,
       scenarios: this.scenarios,
       ...(this.options.runInReplayScope ? { runInReplayScope: this.options.runInReplayScope } : {}),
       nowIso: () => this.nowIso(),
     });
+    caller.signal?.throwIfAborted();
     this.store.insertRun(runView, outcomeCounts);
     return runView;
   }
@@ -163,7 +184,8 @@ export class EvaluationService {
   async recordReview(caller: ActionExecutionContext, input: EvaluationReviewRecordInput): Promise<EvaluationReviewRecordOutput> {
     assertPersonCaller(caller);
     caller.signal?.throwIfAborted();
-    await caller.beforeEffect?.();
+    await caller.beforeEffect();
+    caller.signal?.throwIfAborted();
     const review: EvaluationHumanReview = {
       review_id: `evalrev-${randomUUID()}`,
       run_id: input.run_id,

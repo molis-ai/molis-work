@@ -171,7 +171,7 @@ test("APR-07/12: Git source read-back closes an undelivered live SDK approval wi
   const next = await f.prepare("after-source-read-back"); assert.notEqual(next.review_id, review.review_id);
 });
 
-test("APR-07/12: Git receipt recovery keeps an unknown operation and close waits for the accepted check", async t => {
+for (const operation of ["git-index", "git-worktree"] as const) test(`APR-07/11/12: ${operation} retains an unreadable receipt and close waits for the in-process check`, async t => {
   const f = await liveGitDecision(t), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   let unknown = true, hold = false, executed = 0, closed = false;
   const inspect = f.sdk.effects.inspectDispatch.bind(f.sdk.effects);
@@ -181,10 +181,17 @@ test("APR-07/12: Git receipt recovery keeps an unknown operation and close waits
   });
   let refreshing: Promise<void> | undefined, closing: Promise<void> | undefined;
   try {
-    const review = await f.prepare("receipt-recovery", async () => { executed++; });
-    await f.ports.queue.respond({ review_id: review.review_id, version: review.reference.version, decision: "approve", actor_id: "person" });
+    const execute = async () => { executed++; };
+    const review = operation === "git-index" ? await f.prepare("receipt-recovery", execute) : await f.reviews.prepare({
+      project_id: "board", workspace_id: "workspace", operation_id: "worktree-receipt-recovery", operation_kind: operation,
+      proposal_fingerprint: reviewProposalVersion({ workspace: "workspace", operation }),
+      document: { kind: "tool-operation", tool: "git-worktree-create", summary: "Prepare the original worktree", fields: [] },
+    }, { authority: held, check: async () => {}, execute });
+    const approval = { review_id: review.review_id, version: review.reference.version, decision: "approve" as const, actor_id: "person" };
+    await f.ports.queue.respond(approval);
     assert.ok(f.ports.queue.receipt(review.review_id)?.effect_uncertain);
     await f.ports.queue.refresh("board"); assert.ok(f.ports.queue.receipt(review.review_id)?.effect_uncertain);
+    await assert.rejects(f.ports.queue.respond(approval), { code: "agent.review_already_decided" });
     unknown = false; hold = true;
     refreshing = f.ports.queue.refresh("board"); await entered.promise;
     closing = f.reviews.close().then(() => { closed = true; });

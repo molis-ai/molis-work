@@ -242,6 +242,10 @@
       "types": "./dist/services/observation.d.ts",
       "import": "./dist/services/observation.js"
     },
+    "./services/evaluation": {
+      "types": "./dist/services/evaluation.d.ts",
+      "import": "./dist/services/evaluation.js"
+    },
     "./services/surface-composition": {
       "types": "./dist/services/surface-composition.d.ts",
       "import": "./dist/services/surface-composition.js"

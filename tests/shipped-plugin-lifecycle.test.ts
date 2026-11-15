@@ -3,7 +3,7 @@ import { projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-
 // (tests/probe-plugin.test.ts, W4-01), walked by the shipped plugins that run on Plugin Runtime: Todo and Jelly on the Home
 // supervisor, Pages and 灵光 on each project's. The walk itself is tests/fixtures/shipped-lifecycle.ts (the other plugins' files
 // use it too: tests/shipped-plugin-lifecycle-*.test.ts); this file keeps the four producers it was written for and RAC-1034.
-// Goals has migrated too (its walk is RAC-1230 below, BL-756): 常开, and its Home half is another installation. Alchemist is passed over (2026-10-23).
+// Goals has migrated too (its walk is RAC-1230 below, BL-756): 常开; it has had no Home half since batch 41 (41-2). Alchemist is passed over (2026-10-23).
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -32,9 +32,9 @@ const SHIPPED: Record<string, Shipped> = {
   lingguang: { key: "lingguang", plugin_id: "io.molis.work.lingguang", scope: "project",
     write: (web, routes, title) => web.post(`${routes}/sparks`, { title, body: "材料" }),
     titles: async (web, routes) => titlesOf((await web.get<{ sparks: Array<{ title: string }> }>(`${routes}/sparks`)).sparks) },
-  // Goals 常开: the project cannot take it out, the walk takes the Home agreement back to uninstall, and each project's own half is
-  // the installation this walk follows while the Home half keeps running (a second installation of the same plugin).
-  goals: { key: "goals", plugin_id: "io.molis.work.goals", scope: "project", always_on: true, dual: "project",
+  // Goals 常开: the project cannot take it out, and the walk takes the Home agreement back to uninstall. One installation per project:
+  // its Home half (the method library) left in batch 41 (41-2).
+  goals: { key: "goals", plugin_id: "io.molis.work.goals", scope: "project", always_on: true,
     write: (web, routes, title) => web.post(`${routes}/goals`, { title }),
     titles: async (web, routes) => titlesOf((await web.get<{ goals: Array<{ title: string }> }>(`${routes}/goals/directory`)).goals) },
 };
@@ -44,7 +44,7 @@ test("RAC-1031 W6-02 Jelly on the Home supervisor: added, removed and added back
 test("RAC-1032 W6-02 Pages on a project's supervisor: added, removed and added back, revoked, upgraded and uninstalled", { timeout: 180_000 }, () => walk(SHIPPED.pages!));
 test("RAC-1033 W6-02 灵光 on a project's supervisor: added, removed and added back, revoked, upgraded and uninstalled", { timeout: 180_000 }, () => walk(SHIPPED.lingguang!));
 
-test("RAC-1230 W6-02 Goals on a project's supervisor: 常开, the Home half is another installation, the data stays through the uninstall and the restart", { timeout: 180_000 }, () => walk(SHIPPED.goals!));
+test("RAC-1230 W6-02 Goals on a project's supervisor: 常开, the data stays through the uninstall and the restart", { timeout: 180_000 }, () => walk(SHIPPED.goals!));
 
 test("SPC-C08 W6-02 lifecycle shutdown waits for a project Catalog policy read before the same Home can reopen", { timeout: 30_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "shipped-lifecycle-catalog-close-"));

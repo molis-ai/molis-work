@@ -36,7 +36,8 @@ export function skillWhySection(say: Say): string {
   const others = renderSkillWhy({ groups: [{ actions: [{ id: "back", label: "‹ " + say("common.control.back") }] },
     { label: pick("others"), actions: [{ id: "notes", label: notes, detail: pick("state-manual") + " · " + say("workbench.catalog-skill-selection.notes-when") }] }] });
   const empty = renderSkillWhy({ groups: [{ label: pick("others"), actions: [], empty: pick("no-others") }] });
-  const failed = why + `<div class="mw-alert" role="alert"><p>${pick("failed")}</p><button type="button" class="mw-btn mw-btn--secondary mw-btn--sm">${say("common.control.retry")}</button></div>`;
+  // The same panel drawn a second time on the board names its own items (UIC-04: no described item's id twice on a page).
+  const failed = why.replaceAll('"skill-why-', '"skill-why-failed-') + `<div class="mw-alert" role="alert"><p>${pick("failed")}</p><button type="button" class="mw-btn mw-btn--secondary mw-btn--sm">${say("common.control.retry")}</button></div>`;
   return section("skill-why", say("workbench.catalog-skill-selection.skill-why"), `<div class="mw-catalog__specimens">
     ${specimen(say("workbench.catalog-skill-selection.why-and-what-to-do"), panel(why))}
     ${specimen(say("workbench.catalog-skill-selection.use-another"), panel(others))}

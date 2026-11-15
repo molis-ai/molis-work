@@ -255,7 +255,7 @@ test("project guidance keeps runtime notes on the title hint instead of the page
       runs: [],
       out_rules: [],
     },
-  } as MolisWorkWebView, { entries: [], inactive_entries: [], revisions: [], virtual_document: "", runtime_prompt_prefix: "" }, []);
+  } as MolisWorkWebView, { entries: [], inactive_entries: [], revisions: [], virtual_document: "", runtime_prompt_prefix: "" });
   assert.match(html, /id="guidance-title">项目说明/);
   assert.match(html, /settings-heading-title[\s\S]*id="guidance-title"/);
   assert.match(html, /class="mw-hint"/);

@@ -35,7 +35,7 @@ async function browserOpening(t: TestContext) {
   const personalHtml = renderer.renderMolisWorkSettings(settings("memory"));
   const carrierHtml = renderer.renderMolisWorkSettings(settings("appearance"));
   const projectHtml = renderer.renderMolisWorkProjectSettingsHub(view,
-    { entries: [], inactive_entries: [], revisions: [], virtual_document: "", runtime_prompt_prefix: "" }, [], "", false, "memory");
+    { entries: [], inactive_entries: [], revisions: [], virtual_document: "", runtime_prompt_prefix: "" }, "", false, "memory");
   let requested: string[] = [], firstRead = Promise.withResolvers<void>();
   const server = createServer((request, response) => {
     const url = new URL(request.url!, "http://local");

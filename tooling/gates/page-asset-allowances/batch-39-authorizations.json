@@ -18,18 +18,19 @@
   ],
   "assets": {
     "/assets/molis-work-arrival.css": 1612,
-    "/assets/molis-work-capabilities.js": 13074,
+    "/assets/molis-work-capabilities.js": 13057,
     "/assets/molis-work-kit.js": 576,
-    "/assets/molis-work-plugin-frame.js": 3968,
-    "/assets/molis-work-settings.css": 1320,
-    "/assets/molis-work-workbench.js": 2970
+    "/assets/molis-work-plugin-frame.js": 4704,
+    "/assets/molis-work-plugins/coding.js": 714,
+    "/assets/molis-work-settings.css": 1695,
+    "/assets/molis-work-workbench.js": 2932
   },
   "pages": {
-    "arrival-empty/zh": { "cold": 7228, "warm": 0 },
-    "arrival-empty/en": { "cold": 7295, "warm": 0 },
-    "workbench-default/zh": { "cold": 15948, "warm": 7362 },
-    "workbench-default/en": { "cold": 16061, "warm": 7408 },
-    "workbench-all-plugins/zh": { "cold": 15948, "warm": 7362 },
-    "workbench-all-plugins/en": { "cold": 16061, "warm": 7408 }
+    "arrival-empty/zh": { "cold": 8328, "warm": 0 },
+    "arrival-empty/en": { "cold": 8384, "warm": 0 },
+    "workbench-default/zh": { "cold": 17010, "warm": 7362 },
+    "workbench-default/en": { "cold": 17112, "warm": 7408 },
+    "workbench-all-plugins/zh": { "cold": 17010, "warm": 7362 },
+    "workbench-all-plugins/en": { "cold": 17112, "warm": 7408 }
   }
 }

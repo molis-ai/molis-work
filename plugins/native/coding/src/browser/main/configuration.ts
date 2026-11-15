@@ -12,11 +12,13 @@ import { showWorkspace } from "./workspace.js";
 /** Puts the session's remembered start (intent, model, directory, effort) back on the composer. */
 export function applyConfiguration(page: Page) {
   const { q } = page, { composerModels } = page.refs, { s } = page;
-  const config = s.configurations.get(s.current);
+  const config = s.configurations.get(s.current), unstarted = !s.runtimeSessionId && !s.allRuns.length;
   if (config) {
+    const model = unstarted && s.state.models[0];
+    const defaultWorkspace = unstarted ? s.state.workspace?.workspace_id || (s.state.workspaces?.length === 1 ? s.state.workspaces[0]!.workspace_id : "") : "";
     s.intent = config.intent || "discuss";
-    composerModels.choose(config.provider_id && config.model_id ? JSON.stringify([config.provider_id, config.model_id]) : "");
-    s.workspaceId = config.workspace_id ?? "";
+    composerModels.choose(config.provider_id && config.model_id ? JSON.stringify([config.provider_id, config.model_id]) : model ? JSON.stringify([model.provider_id, model.model_id]) : "");
+    s.workspaceId = config.workspace_id || defaultWorkspace;
     composerModels.apply(config);
   }
   s.worktree = config?.worktree ?? null;
@@ -75,7 +77,16 @@ export function drawIntents(page: Page, result: StateRead) {
 function drawWorkspaces(page: Page, result: StateRead) {
   const { q } = page, { s } = page;
   const selected = result.workspaces.find(item => item.workspace_id === s.workspaceId) || result.workspace || (result.workspaces.length === 1 ? result.workspaces[0] : null);
-  if (!s.configurations.get(s.current)) s.workspaceId = selected?.workspace_id || "";
+  const config = s.current ? s.configurations.get(s.current) : undefined;
+  if (!config) s.workspaceId = selected?.workspace_id || "";
+  else if (!s.runtimeSessionId && !s.allRuns.length) {
+    const model = result.models[0], workspace = !config.workspace_id && selected?.workspace_id, pickModel = !config.provider_id && !config.model_id && model;
+    if (workspace || pickModel) {
+      const id = s.current;
+      s.configurations.set(id, { ...config, ...(workspace ? { workspace_id: workspace } : {}), ...(pickModel ? { provider_id: model.provider_id, model_id: model.model_id } : {}) });
+      void page.refs.draft.flush().then(() => surfaceChanged(page, id)).catch(() => {});
+    }
+  }
   showWorkspace(page, selected?.canonical_path, uiText.text("coding.workspace.choose-first"));
   const choice = q<HTMLSelectElement>("[data-coding-workspace-choice]"), key = JSON.stringify(result.workspaces);
   if (choice.dataset.options !== key) {
@@ -98,6 +109,9 @@ async function readState(page: Page) {
   s.stateLoaded = true;
   retitle(page, s.current, before, s.current && result.sessions.find(item => item.session_id === s.current)?.title);
   composerModels.fill(result.models);
+  if (s.current && !s.configurations.get(s.current) && !composerModels.value() && result.models[0]) {
+    composerModels.choose(JSON.stringify([result.models[0].provider_id, result.models[0].model_id]));
+  }
   drawWorkspaces(page, result);
   drawIntents(page, result);
   applyConfiguration(page);

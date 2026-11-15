@@ -14,8 +14,7 @@ const GLOBAL_SETTINGS_PATH = /^\/(?:settings|capabilities)(\/|$)/;
 /** `settingsPrefix` is the project's prefix for one of its own settings pages, empty for a global one. On a 能力 page
  * `project` is the scope it shows, so it stays in the page's address. */
 function sendToWorkbench(response: ServerResponse, routePrefix: string, settingsPrefix: string, asked: URL, desktop: boolean): void {
-  if (!asked.pathname.startsWith("/capabilities")
-    && (asked.pathname !== "/settings/authorizations" || asked.searchParams.get("view") !== "project-rules")) asked.searchParams.delete("project");
+  if (!asked.pathname.startsWith("/capabilities") && asked.pathname !== "/settings/authorizations") asked.searchParams.delete("project");
   asked.searchParams.delete("desktop");
   const settingsPath = encodeURIComponent(settingsPrefix + asked.pathname + asked.search + asked.hash);
   response.writeHead(302, { location: `${routePrefix}/?settingsPath=${settingsPath}${desktop ? "&desktop=1" : ""}`, "cache-control": "no-store" });

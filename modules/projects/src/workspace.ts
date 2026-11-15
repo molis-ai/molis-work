@@ -85,10 +85,10 @@ export class ProjectWorkspaceService {
     };
   }
 
-  /** The original person-linked inputs and membership identities, with the same project directory revision. */
+  /** The original person-linked directories (inputs and non-default output) and membership identities, with the same project directory revision. */
   personInputDirectories(projectId: string) {
-    const { rows, revision } = this.directoryObservation(projectId);
-    const folders = rows.filter(row => row.person_bound && row.realpath_verified && row.roles.includes("input"))
+    const { id, rows, revision } = this.directoryObservation(projectId), defaultOutput = projectOutputId(this.repository.db, id);
+    const folders = rows.filter(row => row.person_bound && row.realpath_verified && (row.roles.includes("input") || (row.roles.includes("output") && row.workspace_id !== defaultOutput)))
       .map(row => ({ id: row.workspace_id, title: row.display_name, path: row.canonical_path, membership: row.membership_id, changed: row.updated_at }));
     return { revision, folders };
   }

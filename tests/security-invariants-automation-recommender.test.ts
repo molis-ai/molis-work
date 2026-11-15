@@ -62,6 +62,20 @@ test("AUT-01–05: cold project uses its authorized folder, a bounded parser and
   assert.ok(report.groups.every(group => group.suggestions.length <= 2));
   await assert.rejects(access(preferencesPath(fixture.home)), { code: "ENOENT" });
   assert.equal(await readFile(join(own, "package.json"), "utf8"), packageText);
+
+  // Onboarding binds the chosen workspace via set_output (without adding an input role); recommendations must still scan it.
+  const onboarded = await fixture.createProject("Onboarding output workspace project");
+  const onboardFolder = join(fixture.home, "onboard-output");
+  await mkdir(onboardFolder);
+  await writeFile(join(onboardFolder, "package.json"), JSON.stringify({ devDependencies: { vitest: "1.0.0" } }));
+  await fixture.host.ensureWebCatalog(fixture.home, openMolisWorkProjectCatalog).withCatalog({ homeDirectory: fixture.home }, owner => {
+    const beforeDirs = owner.projectDirectories(onboarded.project_id);
+    owner.changeDirectories({ project_id: onboarded.project_id, actor_id: LOCAL_PERSON_ACTOR_ID, expected_revision: beforeDirs.revision,
+      change: { kind: "set_output", target: { workspace_path: onboardFolder } } });
+  });
+  const onboardReport = await scan(fixture, onboarded);
+  assert.ok(!onboardReport.gaps.some(gap => gap.code === "no-workspace"));
+  assert.ok(onboardReport.evidence.some(row => row.path === "package.json" && row.signals.includes("tests")));
 });
 
 test("AUT-01/05: a directory removed during its original read cannot produce or save a report", { timeout: 40_000 }, async t => {

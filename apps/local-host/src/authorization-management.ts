@@ -67,6 +67,14 @@ async function listAuthorizations(ports: AuthorizationManagementPorts, filter: A
   });
   let runtimeRules: Promise<AuthorizationEntry[]> | undefined;
   const rules = () => runtimeRules ??= agents().then(async host => host.reviews.permissions.list(await uses()));
+  let actionTitles: Promise<ReadonlyMap<string, { title: string; provider: string }>> | undefined;
+  const titles = () => actionTitles ??= (async () => {
+    const ref = ports.contextProject ? ports.projects.get(ports.contextProject) : undefined;
+    const catalog = await ports.host.inspectPreparedActionMetadata(
+      { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: ref?.project_id ?? null, audience: "user", permissions: [] }, ref);
+    return new Map(catalog.map(view => [JSON.stringify([view.capability_id, view.version, view.provider.provider_id]),
+      { title: view.action.title, provider: view.provider.title }]));
+  })().catch(() => new Map());
   const reads: Record<AuthorizationOwner, () => Promise<readonly AuthorizationEntry[]>> = {
     "work-delegation": async () => {
       const owner = (await agents()).workDelegations("prologue");
@@ -77,16 +85,16 @@ async function listAuthorizations(ports: AuthorizationManagementPorts, filter: A
     "session-command": async () => (await rules()).filter(row => row.owner === "session-command"),
     "task-grant": async () => taskEntries(ports, await saved, filter, caller),
     "mcp-client": async () => {
-      const preference = await saved, names = await labels;
+      const preference = await saved, names = await labels, known = await titles();
       const rows = preference.action_grants.filter(row => !parseTaskGrantSubject(row.client_id) && (!filter.client_id || row.client_id === filter.client_id));
-      const entries = rows.map(row => mcpAuthorization(row, undefined, names.get(row.client_id)));
+      const entries = rows.map(row => mcpAuthorization(row, known.get(JSON.stringify([row.capability_id, row.version, row.provider_id]))?.title, names.get(row.client_id)));
       if (filter.client_id && filter.project_id !== undefined && names.has(filter.client_id)) entries.push(...await defaultMcpAuthorizations(ports.host,
         preference, filter.project_id ? ports.projects.get(filter.project_id) : undefined, filter.client_id, names.get(filter.client_id)!));
       return entries;
     },
     "assistant-policy": async () => {
-      const policies = ports.assistant().actionPolicies(LOCAL_PERSON_ACTOR_ID);
-      return [...new Set([...policies.disabled, ...policies.confirmation])].map(key => assistantPolicyEntry(key, policies.forAction(key)));
+      const policies = ports.assistant().actionPolicies(LOCAL_PERSON_ACTOR_ID), known = await titles();
+      return [...new Set([...policies.disabled, ...policies.confirmation])].map(key => assistantPolicyEntry(key, policies.forAction(key), undefined, known.get(key)));
     },
   };
   const owners = AUTHORIZATION_OWNERS.filter(owner => !filter.owners?.length || filter.owners.includes(owner));

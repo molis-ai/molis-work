@@ -62,17 +62,29 @@ test("H1/APR-12: the authorization manager shows the original source, revokes th
       await page.click(rows);
       await page.wait(`!!document.querySelector(${JSON.stringify(detail + " h2")})`);
       assert.equal(await page.evaluate(`document.querySelector(${JSON.stringify(rows)})?.getAttribute("aria-current")`), "true");
+      assert.equal(await page.evaluate("document.querySelectorAll('.authorization-tools [data-mw-select-picker]').length"), 3);
+      assert.doesNotMatch(await page.evaluate<string>(`document.querySelector(${JSON.stringify(rows + " strong")})?.textContent ?? ""`), /^todo\.items\.create$/);
+      if (width === 1440) {
+        const spread = await page.evaluate<number>(`(() => {
+          const visible = [...document.querySelector('.authorization-tools').children].filter(el => el.getClientRects().length > 0);
+          const mids = visible.map(el => { const r = el.getBoundingClientRect(); return r.top + r.height / 2; });
+          return Math.max(...mids) - Math.min(...mids);
+        })()`);
+        assert.ok(spread < 8, `toolbar controls sit on one row at 1440px (got delta ${spread})`);
+      }
       if (width === 390) assert.equal(await page.evaluate(`document.activeElement.matches(${JSON.stringify(detail)})`), true);
       await capture(`grants-${locale}-${width}-${theme}`);
       await page.click('[data-authorization-view="reviews"]');
+      assert.equal(await page.evaluate("document.querySelector('.authorization-owner-select')?.getClientRects().length ?? 0"), 0);
+      await page.wait(`!document.querySelector('[data-authorization-list][aria-busy]') && document.querySelector(${JSON.stringify(list)})?.textContent.includes('Review a note title')`);
       await selectProject();
-      await page.wait(`document.querySelector(${JSON.stringify(list)})?.textContent.includes('Review a note title')`);
+      await page.wait(`!document.querySelector('[data-authorization-list][aria-busy]') && document.querySelector(${JSON.stringify(list)})?.textContent.includes('Review a note title')`);
       await page.click(rows);
       assert.match(await page.evaluate<string>(`document.querySelector(${JSON.stringify(detail)})?.innerText`), locale === "en" ? /person|human/i : /本人|人工/);
       await capture(`source-${locale}-${width}-${theme}`);
       await page.evaluate("(() => { const select = document.querySelector('[data-authorization-project]'); select.value = ''; })()");
       await page.click('[data-authorization-view="grants"]');
-      await page.wait(`!!document.querySelector(${JSON.stringify(rows)})`);
+      await page.wait(`!document.querySelector('[data-authorization-list][aria-busy]') && !!document.querySelector(${JSON.stringify(rows)})`);
     }
   }
 
@@ -147,6 +159,7 @@ test("H1/APR-11: choose Pages permissions, narrow them in the manager, and revok
     const path = `/settings/authorizations?project=${encodeURIComponent(projectId)}`;
     await go(language ? `/locale?lang=${language}&next=${encodeURIComponent(path)}` : path);
     await waitFor(`!!document.querySelector(${JSON.stringify(row)})`);
+    assert.equal(await evaluate("document.querySelector('[data-authorization-project]')?.value"), projectId);
     await click(row);
   };
   await openManager("en");

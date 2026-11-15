@@ -102,10 +102,10 @@ export async function readTaskAuthorization(home: string, host: MolisWorkLocalHo
 }
 
 type Policy = NonNullable<Awaited<ReturnType<typeof assistantActionPolicyView>>>;
-export function assistantPolicyEntry(key: string, policy: Pick<Policy, "enabled" | "confirm_always" | "expected">, view?: Policy): AuthorizationDetail {
+export function assistantPolicyEntry(key: string, policy: Pick<Policy, "enabled" | "confirm_always" | "expected">, view?: Policy, meta?: { title: string; provider: string }): AuthorizationDetail {
   const enabled = policy.enabled, confirm = policy.confirm_always;
-  return { owner: "assistant-policy", id: key, expected: policy.expected, project_id: null, title: view?.title ?? String(parsedArray(key)[0] ?? ""),
-    actor: "助理", scope: [view?.provider ?? String(parsedArray(key)[2] ?? "")], mode: "confirm", lifetime: "ongoing", expires_at: null,
+  return { owner: "assistant-policy", id: key, expected: policy.expected, project_id: null, title: view?.title ?? meta?.title ?? String(parsedArray(key)[0] ?? ""),
+    actor: "助理", scope: [view?.provider ?? meta?.provider ?? String(parsedArray(key)[2] ?? "")], mode: "confirm", lifetime: "ongoing", expires_at: null,
     status: enabled ? "restricted" : "revoked", source, recent_use_at: null, changes: enabled ? ["disable", ...view?.reversible && !confirm ? ["confirm" as const] : []] : [],
     ...(view ? { action: { capability_id: view.capability_id, version: view.version, provider_id: view.provider_id } } : {}) };
 }

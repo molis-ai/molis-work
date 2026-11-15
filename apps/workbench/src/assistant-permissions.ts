@@ -25,18 +25,18 @@ export function renderAssistantPermissions() {
   });
 }
 
-export const AUTHORIZATION_LAYOUT_STYLES = `
-.assistant-permission-dialog { width: min(690px, calc(100% - 24px)); }
-.assistant-permission-dialog .mw-form__body { overflow: auto; }
-.authorization-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: var(--space-4, 16px); align-items: start; }
-.authorization-detail { border: 1px solid var(--line); border-radius: var(--radius-control); padding: var(--space-4, 16px); min-width: 0; overflow-wrap: anywhere; }
-.authorization-detail h3, .authorization-detail h4 { margin: 0 0 8px; }
-.authorization-detail pre { max-height: 12em; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
-.authorization-detail fieldset { margin-top: 12px; }
-.authorization-detail p, .assistant-permission-dialog [data-permission-mode-note] { color: var(--muted); }
-.authorization-detail label:has(input[type=checkbox]) { display: flex; align-items: center; min-height: 44px; gap: 8px; }
-@media (max-width: 600px) { .authorization-layout { grid-template-columns: 1fr; } }
-`;
+export const AUTHORIZATION_LAYOUT_STYLES = [
+  ".assistant-permission-dialog{width:min(690px,calc(100% - 24px))}",
+  ".assistant-permission-dialog .mw-form__body{overflow:auto}",
+  ".authorization-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:var(--space-4,16px);align-items:start}",
+  ".authorization-detail{border:1px solid var(--line);border-radius:var(--radius-control);padding:var(--space-4,16px);min-width:0;overflow-wrap:anywhere}",
+  ".authorization-detail :is(h3,h4){margin:0 0 8px}",
+  ".authorization-detail pre{max-height:12em;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}",
+  ".authorization-detail fieldset{margin-top:12px}",
+  ".authorization-detail p,.assistant-permission-dialog [data-permission-mode-note]{color:var(--muted)}",
+  ".authorization-detail label:has(input[type=checkbox]){display:flex;align-items:center;min-height:44px;gap:8px}",
+  "@media(max-width:600px){.authorization-layout{grid-template-columns:1fr}}",
+].join("");
 
 /** Uses the same permission layout for an exact command or tool proposal in the Host's review surface. */
 export function renderReviewPermission() {

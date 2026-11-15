@@ -9,13 +9,8 @@ globalThis.molisWorkOpenAutomation = (project, trigger) => {
   const save = part("save"), retry = part("retry");
   const saveLabel = key => { save.querySelector("[data-slot=button-label]").textContent = text(key); };
   const setStatus = key => { status.textContent = key ? text(key) : ""; };
-  let request, report, entry, sending = false, documentId;
-  const node = (tag, content, className) => {
-    const element = document.createElement(tag);
-    if (content) element.textContent = content;
-    if (className) element.className = className;
-    return element;
-  };
+  let request, report, entry, sending = false, navigating = false, documentId;
+  const node = (tag, textContent, className) => Object.assign(document.createElement(tag), textContent ? { textContent } : {}, className ? { className } : {});
   const actionClass = variant => "mw-btn mw-btn--" + variant + " mw-btn--sm";
   const link = (label, path, fields) => Object.assign(node("a", text(label), actionClass("secondary")), {
     href: path + "?" + new URLSearchParams(fields),
@@ -147,10 +142,18 @@ globalThis.molisWorkOpenAutomation = (project, trigger) => {
     saveLabel("save");
     dialog.showModal(); void load();
   }
+  result.onclick = event => {
+    if (event.target.closest?.("a") && !(event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button)) {
+      navigating = true;
+      document.querySelector("[data-assistant-panel]:not([hidden]) [data-assistant-panel-close]")?.click();
+      queueMicrotask(() => dialog.close());
+    }
+  };
   dialog.querySelector("[data-dialog-close]").onclick = () => dialog.close();
   dialog.addEventListener("close", () => {
     request?.abort();
-    entry?.trigger.focus(); entry = undefined; report = undefined; sending = false;
+    if (!navigating) entry?.trigger.focus();
+    navigating = false; entry = undefined; report = undefined; sending = false;
     result.replaceChildren();
   });
   return open;

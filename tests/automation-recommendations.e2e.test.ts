@@ -125,8 +125,22 @@ test("AUT-01/06/07/08: suggestions open on all three surfaces and the suggested 
   await page.wait("document.querySelector('[data-assistant-automation]')?.checkVisibility()");
   await page.click("[data-assistant-automation]");
   await loaded();
-  await page.click(dialog + " [data-dialog-close]");
-  await page.wait("!document.querySelector('[data-automation-dialog]').open");
+  await page.click(suggestion + " summary");
+  await page.click(suggestion + " a");
+  await page.wait(`!document.querySelector('${dialog}').open && document.querySelector('[data-assistant-panel]')?.hidden && !!document.querySelector('[data-kit-skill] fieldset')`);
+  await page.click('[data-kit-skill] input[value=manual]');
+  await page.wait("document.querySelector('[data-kit-skill] input[value=manual]').checked && !document.querySelector('[data-kit-skill] fieldset').disabled");
+  await page.click("[data-return-bar-back]");
+  await page.wait("!document.querySelector('[data-settings-return-bar]')");
+  await page.evaluate("document.dispatchEvent(new CustomEvent('molis:assistant-open', { detail: { new: true } }))");
+  await page.wait(`!document.querySelector('[data-assistant-panel]')?.hidden && document.querySelector(${JSON.stringify(input)})?.checkVisibility()`);
+  await page.click(input);
+  await page.command("Input.insertText", { text: "/" });
+  await page.wait(`[...document.querySelectorAll(${JSON.stringify(visibleCommands)})].some(row => row.textContent.includes('review-tests'))`);
+  await go(kitPath);
+  await page.wait("document.querySelector('[data-kit-skill] input[value=manual]')?.checked");
+  await page.click('[data-kit-skill] input[value=off]');
+  await page.wait("document.querySelector('[data-kit-skill] input[value=off]').checked && !document.querySelector('[data-kit-skill] fieldset').disabled");
 
   await go(base + "/?openPlugin=plugin-builder");
   await studio.waitFor("document.querySelector('[data-automation-open]')?.checkVisibility()");

@@ -65,22 +65,29 @@ export async function handleAuthorizationManagementHttp(context: WebRequestConte
     }
     if (history) {
       if (request.method !== "GET") { sendLocalWebJson(response, 405, { error: "不支持此方法" }); return true; }
-      if (!url.searchParams.has("project")) throw new ActionError("actions.input_invalid", "请选择要查看的项目或个人空间");
       await context.agentReady();
-      const queue = context.agentHost.reviews, scope = projectId ?? ASSISTANT_PERSONAL_OWNER;
-      await queue.refresh(scope);
-      const candidates = queue.list(scope);
-      const project = projectId ? projects.get(projectId) : undefined;
-      const platform = project ? await host.withProject(project, runtime => {
-        const decisions = projectReviewDecisions(runtime.store.db, project.project_id);
-        return { rows: decisions.recent(historyLimit).map(record => projectDecisionSource(project.project_id, record)), total: decisions.count() };
-      }) : { rows: [], total: 0 };
+      const queue = context.agentHost.reviews;
+      const scopes = url.searchParams.has("project") ? [projectId ?? ASSISTANT_PERSONAL_OWNER] : [ASSISTANT_PERSONAL_OWNER, ...projects.keys()];
+      await Promise.all(scopes.map(scope => queue.refresh(scope).catch(() => undefined)));
+      const seenReviews = new Set<string>();
+      const candidates = scopes.flatMap(scope => queue.list(scope)).filter(review => !seenReviews.has(review.review_id) && Boolean(seenReviews.add(review.review_id)));
+      const targetProjects = url.searchParams.has("project") ? (projectId ? [projects.get(projectId)!] : []) : [...projects.values()];
+      let platformTotal = 0;
+      const platformRows: ReturnType<typeof reviewSourceSummary>[] = [];
+      for (const project of targetProjects) {
+        const part = await host.withProject(project, runtime => {
+          const decisions = projectReviewDecisions(runtime.store.db, project.project_id);
+          return { rows: decisions.recent(historyLimit).map(record => projectDecisionSource(project.project_id, record)), total: decisions.count() };
+        });
+        platformTotal += part.total;
+        platformRows.push(...part.rows);
+      }
       const rows = [...candidates.slice(-historyLimit).map(review => reviewSourceSummary({
         request: review, receipt: queue.receipt(review.review_id) ?? undefined,
-      })), ...platform.rows]
+      })), ...platformRows]
         .sort((a, b) => b.at.localeCompare(a.at)).slice(0, historyLimit);
       control.assertCurrent();
-      sendLocalWebJson(response, 200, { rows, omitted: Math.max(candidates.length + platform.total - rows.length, 0) });
+      sendLocalWebJson(response, 200, { rows, omitted: Math.max(candidates.length + platformTotal - rows.length, 0) });
       return true;
     }
     if (!assistant) throw new ActionError("actions.service_unavailable", "授权管理暂时不可用");

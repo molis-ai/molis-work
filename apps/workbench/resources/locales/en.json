@@ -8886,6 +8886,7 @@
     "workbench.settings-work-records.st-na": "Not applicable",
     "workbench.settings-work-records.st-by-rule": "Not recorded by rule",
     "workbench.settings-work-records.st-redacted": "Redacted",
+    "workbench.settings-work-records.st-purged": "Data cleared",
     "workbench.settings-work-records.st-unavailable": "Unavailable",
     "workbench.settings-work-records.src-workbench": "Workbench shell",
     "workbench.settings-work-records.src-gateway": "Action gateway",
@@ -8903,6 +8904,43 @@
       "forms": {
         "one": "Disk or database write failed; {count} record was not saved",
         "other": "Disk or database write failed; {count} records were not saved"
+      }
+    },
+    "workbench.settings-work-records.cause-queue-full": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "Write queue was full; {count} record was not saved",
+        "other": "Write queue was full; {count} records were not saved"
+      }
+    },
+    "workbench.settings-work-records.cause-plugin-cleared": "Cleared when you removed this plugin’s data",
+    "workbench.settings-work-records.cause-report-quota": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "Daily reporting limit reached; {count} record was skipped",
+        "other": "Daily reporting limit reached; {count} records were skipped"
+      }
+    },
+    "workbench.settings-work-records.cause-evidence-key": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "Local evidence key was unavailable; {count} body could not be sealed",
+        "other": "Local evidence key was unavailable; {count} bodies could not be sealed"
+      }
+    },
+    "workbench.settings-work-records.cause-unknown-exit": "The previous Host run exited before flushing queued records",
+    "workbench.settings-work-records.cause-record-failed": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "Internal recording error; {count} record was not queued",
+        "other": "Internal recording error; {count} records were not queued"
+      }
+    },
+    "workbench.settings-work-records.cause-fact-not-owned": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "{count} fact outside the caller’s prefix was rejected",
+        "other": "{count} facts outside the caller’s prefix were rejected"
       }
     },
     "workbench.settings-work-records.cause-not-connected": "This source is not connected to work records yet",
@@ -8938,6 +8976,7 @@
     "workbench.settings-work-records.cause-generic": "Recorded under this version’s collection rules",
     "workbench.settings-work-records.effect-lost": "Work in this window took effect, but its steps cannot be looked up",
     "workbench.settings-work-records.effect-expired": "Shown as Cleared by retention in look-back and evaluation; originals and saved briefs remain",
+    "workbench.settings-work-records.effect-purged": "Plugin data was cleared at your request; call records stay without their content",
     "workbench.settings-work-records.effect-truncated": "The full oversized body cannot be re-read from work records",
     "workbench.settings-work-records.effect-redacted": "Secrets are never stored on disk; normal look-back is unaffected",
     "workbench.settings-work-records.effect-not-connected": "Work done here does not appear in look-back or evaluation yet",

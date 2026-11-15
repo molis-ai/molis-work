@@ -537,8 +537,9 @@ export class MemoryService {
         this.ports.ledger.addRevision(updated.memory_id, { version: updated.version, change: "replaced", by: automatic ? "policy" : "person", at });
         if (!automatic) disownAutomatic(this.ports.ledger, updated.memory_id);
         return this.recordChange(caller, { kind: automatic ? "auto_replaced" : "replaced", scope: input.scope, owner: where.owner, memory_id: updated.memory_id, text,
-          applied_version: updated.version, by: automatic ? "policy" : "person", rule: automatic ? rule : null, reason: input.why ? `依据：${input.why}` : null,
-          undo: automatic || said ? { action: "restore", version: before } : null });
+          applied_version: updated.version, by: automatic ? "policy" : "person", rule: automatic ? rule : null,
+          ...(automatic ? { policy: { policy: policy.policy, version: policy.version }, ...(meta.evidence.length ? { trigger_evidence: meta.evidence } : {}) } : {}),
+          reason: input.why ? `依据：${input.why}` : null, undo: automatic || said ? { action: "restore", version: before } : null });
       });
       return { outcome: "replaced", reason: said ? "已替换旧的那条，旧版本保留在历史里，可以撤销" : "已替换旧的那条，旧版本保留在历史里", applies_text: appliesText,
         memory: this.scopeCommands.item({ scope: input.scope, owner: where.owner, project: where.project, entry: updated, meta }), candidate: null, change_id: change.change_id };
@@ -579,18 +580,14 @@ export class MemoryService {
       if (automatic && input.candidate_id) this.markCandidateKept(caller.actor_id, input.candidate_id, entry.memory_id);
       return this.recordChange(caller, { kind, scope: input.scope, owner: where.owner, memory_id: entry.memory_id, text,
         applied_version: creation.result?.version ?? entry.version, by: automatic ? "policy" : "person", rule: automatic ? rule : null,
+        ...(automatic ? { policy: { policy: policy.policy, version: policy.version }, ...(meta.evidence.length ? { trigger_evidence: meta.evidence } : {}) } : {}),
         reason: input.why ? `依据：${input.why}` : input.said ? `你说：“${input.said.slice(0, 80)}”` : null, undo: automatic || said ? { action: "remove" } : null });
     });
     return { outcome: "written", reason: automatic ? `${input.source === "plugin" ? rule : `自动记住（${rule}）`}，可以撤销` : said ? "已记住，可以撤销" : "已记住", applies_text: appliesText,
       memory: this.scopeCommands.item({ scope: input.scope, owner: where.owner, project: where.project, entry, meta }), candidate: null, change_id: change.change_id };
-
   }
 
-  /**
-   * Change, switch off, restore, move or delete one memory (spec §6.5). The person does all of it; the Assistant only
-   * switches one off on their request (its own change, which they can take back). `undoing` is undo's own: taking a
-   * change back is not the person editing, so it leaves the automatic records alone.
-   */
+  /** Change, switch off, restore, move or delete one memory (spec §6.5). `undoing` leaves automatic records alone. */
   async change(caller: MemoryCaller, request: MemoryChangeRequest, undoing = false): Promise<MemoryChangeResult> {
     const { signal, ...identity } = this.operations.caller(caller);
     caller = Object.freeze({ ...structuredClone(identity), ...(signal ? { signal } : {}) });
@@ -921,8 +918,9 @@ export class MemoryService {
     if (record.state === "undone") return { change: changeView(record) };
     const holder: MemoryCaller = { ...caller, project_id: record.scope === "project" ? record.owner : caller.project_id };
     const finish = (removing = false) => {
-      const undone: MemoryChangeRecord = { ...(this.ports.ledger.change(changeId) ?? record), state: "undone", undoable: false,
-        ...(removing ? { text: "", reason: null, undo: null } : {}) };
+      const { trigger_evidence, ...current } = this.ports.ledger.change(changeId) ?? record;
+      const undone: MemoryChangeRecord = { ...current, state: "undone", undoable: false,
+        ...(removing ? { text: "", reason: null, undo: null } : trigger_evidence ? { trigger_evidence } : {}) };
       this.ports.ledger.saveChange(undone);
       return { change: changeView(undone) };
     };
@@ -1081,7 +1079,7 @@ export class MemoryService {
         if (mergedAway.has(a.entry.memory_id) || mergedAway.has(b.entry.memory_id)) return;
         if (a.meta.source === "auto" && b.meta.source === "auto" && a.meta.kind === b.meta.kind && a.meta.created_at !== null && b.meta.created_at !== null) {
           const [keep, drop] = a.meta.created_at <= b.meta.created_at ? [a, b] : [b, a];
-          if (await this.maintenance.merge(holder, keep, drop)) { report.merged += 1; mergedAway.add(drop.entry.memory_id); }
+          if (await this.maintenance.merge(holder, keep, drop, why)) { report.merged += 1; mergedAway.add(drop.entry.memory_id); }
         } else raise(a, b, "duplicate", why);
       };
       const list = active();
@@ -1106,7 +1104,7 @@ export class MemoryService {
       for (const one of located.filter(item => !mergedAway.has(item.entry.memory_id) && item.meta.state === "active" && item.meta.source === "auto")) {
         const used = this.ports.ledger.lastUse(one.entry.memory_id)?.at ?? one.meta.created_at;
         if (used !== null && now.getTime() - Date.parse(used) > 90 * day
-          && await this.maintenance.state(holder, one, "unused", "disable", "90 天没有用到", "auto_disabled", { action: "enable" })) report.unused += 1;
+          && await this.maintenance.state(holder, one, "unused", "disable", "90 天没有用到", "auto_disabled", { action: "enable" }, used)) report.unused += 1;
       }
     }
     this.ports.ledger.setMarker(caller.actor_id, "upkeep", report, at);
@@ -1240,10 +1238,11 @@ export class MemoryService {
   }
 
   private recordChange(caller: MemoryCaller, input: { kind: MemoryChangeKind; scope: MemoryScope; owner: string; memory_id: string | null; text: string;
-    by: MemoryChange["by"]; rule: string | null; reason: string | null; undo: MemoryUndoPlan | null; applied_version?: number }): MemoryChangeRecord {
+    by: MemoryChange["by"]; rule: string | null; policy?: MemoryChange["policy"]; trigger_evidence?: MemoryEvidence[]; reason: string | null; undo: MemoryUndoPlan | null; applied_version?: number }): MemoryChangeRecord {
     const record: MemoryChangeRecord = { change_id: caller.operation_id ? `change-${caller.operation_id}:${input.kind}:${input.memory_id ?? input.scope}` : `change-${this.newId()}`,
       ...(caller.operation_id ? { operation_id: caller.operation_id } : {}), ...(input.applied_version !== undefined ? { applied_version: input.applied_version } : {}), actor_id: caller.actor_id, owner: input.owner, kind: input.kind, memory_id: input.memory_id,
-      scope: input.scope, project_id: input.scope === "project" ? input.owner : null, text: input.text, by: input.by, rule: input.rule, reason: input.reason,
+      scope: input.scope, project_id: input.scope === "project" ? input.owner : null, text: input.text, by: input.by, rule: input.rule,
+      ...(input.policy ? { policy: input.policy } : {}), ...(input.trigger_evidence?.length ? { trigger_evidence: input.trigger_evidence } : {}), reason: input.reason,
       work: caller.work ?? null, at: this.now().toISOString(), undoable: !!input.undo, state: "active", undo: input.undo };
     const existing = this.ports.ledger.change(record.change_id);
     if (existing && input.kind !== "cleared") return existing;

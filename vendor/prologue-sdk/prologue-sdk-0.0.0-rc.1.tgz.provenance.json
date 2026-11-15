@@ -9,17 +9,17 @@
   "source": {
     "repository": "git+https://github.com/molis-ai/molis-prologue.git",
     "path": "packages/sdk",
-    "commit": "4a4d1d3c8cc5840f4abe522e748abaee588db7de",
+    "commit": "3825662d16e04f8f1163bb840f2ce1eefc3d6d43",
     "dirty": false,
     "dirtyPaths": [],
     "patches": [],
-    "note": "Batch 31 Memory P1 build (feat/memory-p1, commit 4a4d1d3c8cc5840f4abe522e748abaee588db7de) on top of public main 4493a5eb418af29a253d38499682dc2be99697b1 (PR #121, PR #120 018947ae, PR #119 c764d970, PR #117 14e13911, and PR #115 5cbf2601); adds bounded revision history and restore (MEM-10, MEM-19), export v2 with state/meta and bounded batch import (MEM-11), and generic object applicability (appliesWhen.objects), with no vendor patch and no dirty files."
+    "note": "Batch 31 Memory P1 official public main build (commit 3825662d16e04f8f1163bb840f2ce1eefc3d6d43, PR #123 and PR #122 188d9f6ce33b26905494fc57508d10b8015af857 on top of public main 4493a5eb418af29a253d38499682dc2be99697b1, PR #121 018947ae, PR #120 7e2de40b, PR #119 c764d970, PR #117 14e13911, and PR #115 5cbf2601); adds bounded revision history and restore (MEM-10, MEM-19), export v2 with hardened state/meta reconciliation and bounded batch import (MEM-11), and generic object applicability (appliesWhen.objects), with no vendor patch and no dirty files."
   },
   "artifact": {
     "file": "prologue-sdk-0.0.0-rc.1.tgz",
-    "bytes": 1463621,
-    "sha256": "1264b32b65e66adce32ae83c935abc85c46bcae4b77520470d2e265bab87c8bb",
-    "integrity": "sha512-rlf7SZrtqvxTNKgnrVfSb1eRN0f/IE5/pJXeTUgv6vSD7Ge5PUokooScnkthapHm+eu+EwqIbKnpsMb7Wkzw5w=="
+    "bytes": 1464450,
+    "sha256": "95e1d3bd8455eb45baeebc2dcba95bd19399f26dfd43db08cd29fa3af7566d70",
+    "integrity": "sha512-UURGHogGmbiJ9YhZPEW7w8hPbn50rLfMGDO/mmxostHV/JNMjB2PxkAGYvdx0PMBH7+nt9b9oHilVkYKWeztWw=="
   },
   "build": {
     "node": "24.14.0",
@@ -27,13 +27,13 @@
     "platform": "darwin",
     "architecture": "arm64",
     "steps": [
-      "Use commit 4a4d1d3c8cc5840f4abe522e748abaee588db7de on top of public main 4493a5eb418af29a253d38499682dc2be99697b1.",
+      "Extract official main 3825662d16e04f8f1163bb840f2ce1eefc3d6d43 via git archive into two independent clean directories.",
       "pnpm install --frozen-lockfile --offline --ignore-scripts (existing store).",
       "node scripts/public-api.mjs, node scripts/quality-ratchet.mjs, node scripts/check-doc-links.mjs, and node scripts/clean-consumer.mjs pass against that tree.",
       "pnpm build; pnpm -C packages/sdk pack --pack-destination <isolated-directory>.",
       "Molis Work installs this archive through horizontal/agent-host's file: dependency; the lockfile records the same integrity."
     ],
-    "packedOn": "2026-11-14",
-    "note": "Built for Batch 31 (SDK Window 1 / Memory P1: the user approved the upstream change). It replaces the c764d970 official main build, recorded in patch-history.json."
+    "packedOn": "2026-11-15",
+    "note": "Built from official public main 3825662d16e04f8f1163bb840f2ce1eefc3d6d43 for Batch 31 post-merge hardening (PR #122 + PR #123). Replaces the 4a4d1d3c Memory P1 branch build recorded in patch-history.json."
   }
 }

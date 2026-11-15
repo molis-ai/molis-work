@@ -6,18 +6,18 @@ import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { MEMORY_LEDGER_BASELINE, describeSqliteSchema, openMemoryLedger, ensureStorageSpace, readDatabaseSpace } from "@molis-ai/molis-work-storage";
 
-// The ledger moved to version 2 when memories moved to Prologue's indexed store (#2020); the schema itself is unchanged.
+// The ledger moved to version 2 in #2020 and version 3 in Memory P1 (pure 4-key revision attribution); the SQLite DDL is unchanged.
 const current = MEMORY_LEDGER_BASELINE.version, newer = current + 1;
 
 const sql = readFileSync(new URL("./fixtures/home-store-schemas/memory.sql", import.meta.url), "utf8");
 const shape = (bound = false) => { const db = new DatabaseSync(":memory:"); try { db.exec(sql); if (bound) db.exec("CREATE TABLE molis_storage_space (singleton INTEGER PRIMARY KEY CHECK(singleton=1), space_id TEXT NOT NULL, descriptor TEXT NOT NULL)"); return describeSqliteSchema(db); } finally { db.close(); } };
-test("RAC-2372 memory ledger creates and reopens unchanged current complete schema at its current version (2)", () => {
+test("RAC-2372 memory ledger creates and reopens unchanged current complete schema at its current version (3)", () => {
   const home = mkdtempSync(join(tmpdir(), "clean-memory-baseline-"));
   try {
     openMemoryLedger({ homeDirectory: home }).close(); openMemoryLedger({ homeDirectory: home }).close();
     const db = new DatabaseSync(join(home, "memory", "memory.db"), { readOnly: true });
     try {
-      assert.equal(current, 2);
+      assert.equal(current, 3);
       assert.equal(db.prepare("PRAGMA user_version").get()!.user_version, current);
       assert.deepEqual(describeSqliteSchema(db), shape(true));
       assert.deepEqual(readDatabaseSpace(db), ensureStorageSpace(home));

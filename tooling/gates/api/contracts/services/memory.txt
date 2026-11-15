@@ -122,6 +122,11 @@ export interface MemoryChange {
     text: string;
     by: "person" | "policy" | "maintenance" | "assistant";
     rule: string | null;
+    policy?: {
+        policy: string;
+        version: number;
+    };
+    trigger_evidence?: MemoryEvidence[];
     reason: string | null;
     work: {
         work_id: string;
@@ -350,6 +355,7 @@ export interface MemoryLedgerPort {
     }): void;
     revisions(memoryId: string): MemoryRevision[];
     addRevision(memoryId: string, revision: MemoryRevision): void;
+    pruneRevisions?(memoryId: string, throughVersion: number): void;
     candidates(actorId: string): MemoryCandidateRecord[];
     saveCandidate(record: MemoryCandidateRecord): void;
     dropCandidate(candidateId: string): void;

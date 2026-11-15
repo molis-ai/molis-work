@@ -88,7 +88,41 @@ test("a pinned memory that writes a system or fence marker reaches the model wit
   assert.ok(context.references.every(ref => ref.receipt_id), "the dispatch receipt retains its retrieval identity");
   assert.equal((await bound.list("user", caller.actor_id)).find(entry => entry.memory_id === memory.memory_id)?.text, written, "the stored memory keeps its words");
 
-  // MEM-64 P2-02: with no resident refs configured, startAgentRun performs zero resident reads and still records the recall receipt.
+  // MEM-64 P2-02: with no resident refs configured, startAgentRun performs zero resident reads/authorization checks and still records the recall receipt.
+  let ownerReadsDuringEmptyResident = 0;
+  let prefsReadsDuringEmptyResident = 0;
+  const origOwners = ledger.owners.bind(ledger);
+  const origPrefs = ledger.prefs.bind(ledger);
+  t.mock.method(ledger, "owners", (projectId: string) => { ownerReadsDuringEmptyResident += 1; return origOwners(projectId); });
+  t.mock.method(ledger, "prefs", (actorId: string, key: string) => { prefsReadsDuringEmptyResident += 1; return origPrefs(actorId, key); });
+  const handleEmptyResident = await adapter.start({
+    ...owner,
+    session,
+    workspace: "none",
+    role_id: "reader",
+    task: "Check release notes without task or resident recall",
+    role: {
+      ...role,
+      memory: {
+        ...role.memory,
+        pinned: [],
+        task: false,
+      },
+    },
+  });
+  let viewEmptyResident: AgentRunView;
+  for (const until = Date.now() + 20_000;; await new Promise(resolve => setTimeout(resolve, 10))) {
+    viewEmptyResident = await adapter.read(handleEmptyResident.ref);
+    if (["completed", "failed", "cancelled", "stopped"].includes(viewEmptyResident.phase)) break;
+    if (Date.now() > until) assert.fail(`run did not finish: ${viewEmptyResident.phase}`);
+  }
+  assert.equal(viewEmptyResident.phase, "completed");
+  assert.equal(ownerReadsDuringEmptyResident, 0, "MEM-64: empty resident refs + task=false triggers zero scope/owner authorization reads");
+  assert.equal(prefsReadsDuringEmptyResident, 0, "MEM-64: empty resident refs + task=false triggers zero preference reads");
+  assert.deepEqual(viewEmptyResident.memory_recalled?.injected, []);
+  assert.equal(viewEmptyResident.memory_recalled?.contexts?.[0]?.status, "response-observed");
+
+  // With empty resident refs and task=true, task recall still executes and records the recall receipt.
   const handleTaskOnly = await adapter.start({
     ...owner,
     session,

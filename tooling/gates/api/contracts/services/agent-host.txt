@@ -715,18 +715,6 @@ export interface AgentMemoryCapability {
         reasons: string[];
         redacted: string;
     }>;
-    exportScope?(input: {
-        scope: AgentMemoryEntry["scope"];
-        owner: string;
-        signal?: AbortSignal;
-    }): Promise<unknown>;
-    importScope?(input: {
-        scope: AgentMemoryEntry["scope"];
-        owner: string;
-        pack: unknown;
-        max_entries?: number;
-        signal?: AbortSignal;
-    }): Promise<unknown>;
     previewBatch(input: {
         scope: AgentMemoryEntry["scope"];
         owner: string;

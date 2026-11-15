@@ -31,7 +31,7 @@ export interface StoredObservationSettings {
   };
 }
 
-export const DEFAULT_STORED_SETTINGS: StoredObservationSettings = {
+const DEFAULT_STORED_SETTINGS: StoredObservationSettings = {
   paused: false,
   uses: { assistant: true, evaluation: true, export: false },
   retention_mode: "keep",
@@ -94,7 +94,7 @@ export function retentionDaysOf(mode: ObservationRetentionMode): number | null {
   }
 }
 
-export function retentionRequirementsOf(mode: ObservationRetentionMode): {
+function retentionRequirementsOf(mode: ObservationRetentionMode): {
   readonly requirements: readonly ObservationRetentionRequirement[];
   readonly shortfall: boolean;
 } {

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { mkdtemp } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
@@ -10,7 +11,7 @@ import type { AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-
 import { MEMORY_PERMISSIONS, memoryActions, type MemoryChangeResult, type MemoryHistoryResponse, type MemoryPageResponse, type MemoryWriteResult } from "@molis-ai/molis-work-contracts/services/memory";
 import { MemoryService } from "@molis-ai/molis-work-service-memory";
 import { ensureSystemAgentService, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
-import { openMemoryLedger } from "@molis-ai/molis-work-storage";
+import { acquireStorageOwner, openMemoryLedger } from "@molis-ai/molis-work-storage";
 import { person } from "./fixtures/home-runtime.js";
 import { openTestHome, serveTestHost } from "./fixtures/test-home.js";
 import { codingProductHost } from "./fixtures/coding-product-host.js";
@@ -132,44 +133,65 @@ test("complete history discloses a short-to-long decision, cancels without writi
   } finally { await served?.close(); await reopened.close(); }
 });
 
-// Explicit ledger boundary fixture, NOT a normal new-Home history source, an old Home, import-v1 or migration.
+// Explicit canonical boundary fixture (unclassified historical v1), NOT a normal new-Home history source, an old Home, import-v1 or migration.
 test("an existing missing-snapshot ledger revision offers only confirmed text adoption and preserves current facts", { timeout: 120_000 }, async t => {
   let chrome: ChromeHarness | undefined; t.after(async () => { await chrome?.close(); });
   const env = await openTestHome(t), project = await env.createProject("缺快照边界夹具");
-  const client = bindActionClient(env.host.actionClient(project.reference), () => person(MEMORY_PERMISSIONS, project.project_id));
+  let client = bindActionClient(env.host.actionClient(project.reference), () => person(MEMORY_PERMISSIONS, project.project_id));
   await client.invoke(memoryActions.write, { scope: "project", text: "正常当前记忆用于建立项目owner", kind: "convention" });
-  const system = ensureSystemAgentService(env.host, env.home); await system.ready;
-  const raw = system.agentHost.adapter("prologue").memory!.withCaller({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: project.project_id,
-    person: true, consumer: "ui", purpose: "management", current_scene: "common" });
-  const expiry = new Date(Date.now() + 2 * 86_400_000).toISOString();
-  const initial = await raw.write({ scope: "project", owner: project.project_id, operation_id: randomUUID(), text: "边界夹具的旧文字", origin: "明确的边界来源",
-    meta: { kind: "convention", source: "manual", classification: { scenes: ["coding"], lifecycle: "short-term" }, expires_at_ms: Date.parse(expiry), approved_by: { by: "person" } } });
+  await env.close(); await env.host.close();
+  const requireSdk = createRequire(new URL("../horizontal/agent-host/package.json", import.meta.url));
+  const { createRuntime } = await import(requireSdk.resolve("@prologue/sdk"));
+  const { createNodeHost } = await import(requireSdk.resolve("@prologue/sdk/node"));
+  const storageOwner = acquireStorageOwner(join(env.home, "agent-runtime"));
+  let seedHost: ReturnType<typeof createNodeHost> | undefined;
+  let seedRuntime: Awaited<ReturnType<typeof createRuntime>> | undefined;
+  const initial = { memory_id: "boundary", version: 1, text: "边界夹具的旧文字" };
+  try {
+    seedHost = createNodeHost({ storageRoot: join(env.home, "agent-runtime"), exclusiveOwner: true, memoryStorageFormat: "indexed-v1" });
+    seedRuntime = await createRuntime({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, host: seedHost });
+    const nowMs = Date.now(), scopeKey = `owner.project-${project.project_id}`;
+    await seedRuntime.store.commit({ kind: "memories", id: `${scopeKey}.${initial.memory_id}.v1`, expectedVersion: 0,
+      metadata: { scope: scopeKey, rowId: initial.memory_id, version: 1, state: "active", shape: 8 },
+      secureBody: new TextEncoder().encode(JSON.stringify({ id: initial.memory_id, scope: "project", owner: project.project_id, version: 1,
+        text: initial.text, origin: "明确的边界来源", tags: [], tombstoned: false,
+        meta: { kind: "convention", source: "manual", approvedBy: { by: "person" } }, createdAtMs: nowMs, updatedAtMs: nowMs })) });
+  } finally { await seedRuntime?.shutdown(); await seedHost?.closeStorage(); storageOwner.release(); }
   // Only add a record that does not exist. Never replace a revision or alter the current SDK entry through storage.
   const ledger = openMemoryLedger({ homeDirectory: env.home });
   try { assert.deepEqual(ledger.revisions(initial.memory_id), []); ledger.addRevision(initial.memory_id, { version: initial.version,
-    text: initial.text, kind: "convention", applies: {}, change: "created", by: "person", at: new Date().toISOString() }); }
+    change: "created", by: "person", at: new Date().toISOString() }); }
   finally { ledger.close(); }
-  const changed = (await client.invoke(memoryActions.change, { memory_id: initial.memory_id, expected_version: initial.version, action: "update", text: "当前正文与限定条件",
-    applies: { task: "仅处理当前边界样本" } })).memory!;
-  await client.invoke(memoryActions.change, { memory_id: changed.memory_id, expected_version: changed.version, action: "disable" });
-  const before = (await items(client)).find(one => one.memory_id === initial.memory_id)!;
-  const f = await browserFor(t, browser => { chrome = browser; });
-  await navigate(f.page, env.origin + `/projects/${project.project_id}/settings/memory`); await history(f.page, initial.memory_id, initial.version);
-  const selector = revision(initial.memory_id, initial.version), text = await f.page.evaluate<string>(`document.querySelector('${selector}').innerText`);
-  assert.ok(text.includes("历史分类与期限未知")); assert.ok(text.includes("使用这段旧文字")); assert.equal(text.includes("回到这一版"), false);
-  await confirm(f.page, selector, false); assert.equal(f.deliveries.length, 0); assert.deepEqual((await items(client)).find(one => one.memory_id === initial.memory_id), before);
-  await f.page.click(selector + " button"); await f.page.wait("document.querySelector('[data-memory-confirm-yes]')");
-  const decision = await f.page.evaluate<string>("document.querySelector('.memory-confirm').innerText");
-  assert.ok(decision.includes("只采用旧正文")); assert.ok(decision.includes("Coding · 短期 → Coding · 短期"));
-  await f.page.screenshot(join(f.directory, "missing-snapshot-text-only-decision.png"));
-  await f.page.click("[data-memory-confirm-yes]"); await f.page.wait("document.querySelector('[data-settings-toast]')?.textContent.includes('已采用旧文字')"); await ready(f.page);
-  const after = (await items(client)).find(one => one.memory_id === initial.memory_id)!;
-  assert.deepEqual({ ...after, text: before.text, version: before.version, updated_at: before.updated_at }, before);
-  assert.equal(after.text, initial.text); assert.equal(after.version, before.version + 1);
-  const body = JSON.parse(f.deliveries[0]!.body); assert.equal(f.deliveries.length, 1); assert.equal(body.action, "update");
-  assert.equal(body.text, initial.text); assert.equal(body.expected_version, before.version); assert.equal(body.version, undefined);
-  assert.deepEqual(Object.keys(body).sort(), ["action", "expected_version", "memory_id", "operation_id", "text"]);
-  assert.equal((await client.invoke(memoryActions.history, { memory_id: initial.memory_id })).revisions[0]!.snapshot_available, false);
+  const reopened = new MolisWorkLocalHost({ homeDirectory: env.home, completeText: null });
+  let served: Awaited<ReturnType<typeof serveTestHost>> | undefined;
+  try {
+    served = await serveTestHost(null, { home: env.home, host: reopened });
+    client = bindActionClient(reopened.actionClient(project.reference), () => person(MEMORY_PERMISSIONS, project.project_id));
+    const expiry = new Date(Date.now() + 2 * 86_400_000).toISOString();
+    const changed = (await client.invoke(memoryActions.change, { memory_id: initial.memory_id, expected_version: initial.version, action: "reclassify",
+      text: "当前正文与限定条件", kind: "convention", applies: { task: "仅处理当前边界样本" },
+      classification: { scenes: ["coding"], lifecycle: "short-term" }, expires_at: expiry })).memory!;
+    await client.invoke(memoryActions.change, { memory_id: changed.memory_id, expected_version: changed.version, action: "disable" });
+    const before = (await items(client)).find(one => one.memory_id === initial.memory_id)!;
+    const f = await browserFor(t, browser => { chrome = browser; });
+    await navigate(f.page, served.origin + `/projects/${project.project_id}/settings/memory`); await history(f.page, initial.memory_id, initial.version);
+    const selector = revision(initial.memory_id, initial.version), text = await f.page.evaluate<string>(`document.querySelector('${selector}').innerText`);
+    assert.ok(text.includes("历史分类与期限未知")); assert.ok(text.includes("使用这段旧文字")); assert.equal(text.includes("回到这一版"), false);
+    await confirm(f.page, selector, false); assert.equal(f.deliveries.length, 0); assert.deepEqual((await items(client)).find(one => one.memory_id === initial.memory_id), before);
+    await f.page.click(selector + " button"); await f.page.wait("document.querySelector('[data-memory-confirm-yes]')");
+    const decision = await f.page.evaluate<string>("document.querySelector('.memory-confirm').innerText");
+    assert.ok(decision.includes("只采用旧正文")); assert.ok(decision.includes("Coding · 短期 → Coding · 短期"));
+    await f.page.screenshot(join(f.directory, "missing-snapshot-text-only-decision.png"));
+    await f.page.click("[data-memory-confirm-yes]"); await f.page.wait("document.querySelector('[data-settings-toast]')?.textContent.includes('已采用旧文字')"); await ready(f.page);
+    const after = (await items(client)).find(one => one.memory_id === initial.memory_id)!;
+    assert.deepEqual({ ...after, text: before.text, version: before.version, updated_at: before.updated_at }, before);
+    assert.equal(after.text, initial.text); assert.equal(after.version, before.version + 1);
+    const body = JSON.parse(f.deliveries[0]!.body); assert.equal(f.deliveries.length, 1); assert.equal(body.action, "update");
+    assert.equal(body.text, initial.text); assert.equal(body.expected_version, before.version); assert.equal(body.version, undefined);
+    assert.deepEqual(Object.keys(body).sort(), ["action", "expected_version", "memory_id", "operation_id", "text"]);
+    assert.equal((await client.invoke(memoryActions.history, { memory_id: initial.memory_id })).revisions[0]!.snapshot_available, false);
+    await f.page.command("Page.navigate", { url: "about:blank" }); await f.page.wait("location.href === 'about:blank'");
+  } finally { await served?.close(); await reopened.close(); }
 });
 
 // Real Coding business owner + Runtime Session binding, not a Session identity supplied by a URL.

@@ -101,7 +101,7 @@ export function entryOf(origin: Origin): ObservationEntry {
 }
 
 /** The prefix an owner's fact names start with: a plugin's `plugin_id`, the shell's `ui`, a service's from the contract. */
-export const ownerPrefix = (owner: ObservationOwner): string =>
+const ownerPrefix = (owner: ObservationOwner): string =>
   owner.kind === "plugin" ? owner.id : owner.kind === "shell" ? OBSERVATION_SERVICE_PREFIXES.shell : OBSERVATION_SERVICE_PREFIXES[owner.id];
 
 /** Whether a fact name is under the owner's own prefix (contract-design §4). */

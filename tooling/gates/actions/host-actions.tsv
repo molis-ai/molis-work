@@ -259,9 +259,9 @@ memory.batch.preview	1	system.memory	query	query	home	read	-	user	memory:configu
 memory.candidates.accept	1	system.memory	command	operation	home	write	-	user	memory:write	-	-	-	8cf8239eb8fe	414b1b27a409	-
 memory.candidates.discard	1	system.memory	command	operation	home	write	-	user	memory:write	-	-	-	9b895ae078a5	4d0f81a41c2f	-
 memory.candidates.list	1	system.memory	query	query	home	read	-	user	memory:read	-	-	-	b28a55099e67	c157901e5e0e	-
-memory.change	1	system.memory	command	operation	home	write	-	user	memory:write	-	-	-	21bbfe345e38	8d44fcb5b15c	-
-memory.changes.list	1	system.memory	query	query	home	read	-	user	memory:read	-	-	-	fa96e8cd4628	3279ee061c31	-
-memory.changes.undo	1	system.memory	command	operation	home	write	-	user	memory:write	-	-	-	07865821fd07	50f1ede11a60	-
+memory.change	1	system.memory	command	operation	home	write	-	user	memory:write	-	-	-	21bbfe345e38	1f807b7f8daf	-
+memory.changes.list	1	system.memory	query	query	home	read	-	user	memory:read	-	-	-	fa96e8cd4628	04ebb6fe3735	-
+memory.changes.undo	1	system.memory	command	operation	home	write	-	user	memory:write	-	-	-	07865821fd07	34495f9932b9	-
 memory.export	1	system.memory	query	query	home	read	-	user	memory:export	-	-	-	fa7432c0eaf4	7ffbdcc0ada2	-
 memory.history	1	system.memory	query	query	home	read	-	user	memory:read	-	-	-	d5966af3318e	e771af1c87da	-
 memory.import	1	system.memory	command	operation	home	write	-	user	memory:export	-	-	-	7800d94ff697	a0809c153e83	-

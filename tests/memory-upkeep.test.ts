@@ -115,15 +115,51 @@ test("export has a version and no secrets or absolute paths; importing twice add
       ...exportedWithState,
       entries: [{ ...exportedDisabled, text: "旧字段不兼容", applies: { goal_ids: ["g1"] } }],
     }),
-    /第 1 条的适用情境损坏/,
+    /第 1 条的适用情境损坏.*旧版 goal_ids 已退役/,
+  );
+  await assert.rejects(
+    memory.importScope(person(), "project", {
+      ...exportedWithState,
+      entries: [{ ...exportedDisabled, state: { disabled: { reason: "   ", at: "2026-09-30T08:00:00.000Z" } } }],
+    }),
+    /状态说明损坏/,
+  );
+  await assert.rejects(
+    memory.importScope(person(), "project", {
+      ...exportedWithState,
+      entries: [{ ...exportedDisabled, state: { disabled: { reason: "x".repeat(201), at: "2026-09-30T08:00:00.000Z" } } }],
+    }),
+    /状态说明损坏/,
+  );
+  await assert.rejects(
+    memory.importScope(person(), "project", {
+      ...exportedWithState,
+      entries: [{
+        ...exportedDisabled,
+        state: {
+          disabled: { reason: "停用", at: "2026-09-30T08:00:00.000Z" },
+          paused: { reason: "暂停", at: "2026-09-30T08:00:00.000Z" },
+        },
+      }],
+    }),
+    /同时带停用和暂停/,
+  );
+  await assert.rejects(
+    memory.importScope(person(), "project", {
+      ...exportedWithState,
+      entries: [{ ...exportedDisabled, state: { disabled: { reason: "停用", at: "2026-09-30T08:00:00.000Z", extra: true } } }],
+    }),
+    /状态字段损坏/,
   );
   assert.deepEqual(
-    await memory.importScope(person(), "project", { ...exportedWithState, entries: [exportedDisabled] }),
+    await memory.importScope({ ...person(), operation_id: "import-disabled-op" }, "project", { ...exportedWithState, entries: [exportedDisabled] }),
     { written: 1, skipped: 0, refused: 0 },
   );
   const importedDisabled = (await memory.list(person(), { scope: "project" })).items.find(item => item.text === "文档评审先看结构")!;
   assert.equal(importedDisabled.state, "disabled");
   assert.deepEqual(importedDisabled.applies.objects, [{ plugin_id: "io.molis.work.pages", kind: "doc", id: "doc-42" }]);
+  const disableOpMarker = env.ledger().marker(LOCAL_PERSON_ACTOR_ID, `memory-operation:import-disabled-op:import:0:disabled:${importedDisabled.memory_id}`);
+  assert.partialDeepStrictEqual(disableOpMarker?.body, { phase: "committed", kind: "disabled" });
 });
 
 test("upkeep switches off expired and long-unused automatic memories, merges automatic duplicates, hands the person's own to them, and every step is undoable", { timeout: 60_000 }, async t => {
@@ -508,6 +544,11 @@ test("merge undo only recreates the removed item and leaves a later human surviv
   const keep = await env.automatic(memory, "undo-a", "project", "发布前先跑全量回归", "convention");
   const drop = await env.automatic(memory, "undo-b", "project", "发布之前先跑全量回归", "convention");
   await memory.upkeep(person(), { projects: ["project-a"], tidy: async () => ({ duplicates: [[keep.memory_id, drop.memory_id]], conflicts: [] }) });
+  // MEM-19: committed upkeep markers never retain merge plaintext in memory_markers.
+  for (const row of env.ledger().listMarkers(LOCAL_PERSON_ACTOR_ID, { prefix: "memory-operation:upkeep:", limit: 50 })) {
+    const serialized = JSON.stringify(row.body);
+    assert.doesNotMatch(serialized, /发布前先跑全量回归|发布之前先跑全量回归/);
+  }
   const merge = (await memory.changes(person())).find(change => change.kind === "merged")!;
   await memory.change(person(), { memory_id: keep.memory_id, action: "update", text: "人工新决定：先做发布审阅" });
   const before = (await env.raw().list("project", "project-a")).find(entry => entry.memory_id === keep.memory_id)!;
@@ -555,6 +596,11 @@ for (const failure of ["final-receipt", "creation-history"] as const) test(`recr
   const drop = await env.automatic(memory, "receipt-drop", "project", "发布之前先跑全量回归", "convention");
   const sources = env.ledger().marker(LOCAL_PERSON_ACTOR_ID, `memory-source-links:${drop.memory_id}`)!.body;
   await memory.upkeep(person(), { projects: ["project-a"], tidy: async () => ({ duplicates: [[keep.memory_id, drop.memory_id]], conflicts: [] }) });
+  // MEM-19: committed upkeep markers never retain merge plaintext in memory_markers.
+  for (const row of env.ledger().listMarkers(LOCAL_PERSON_ACTOR_ID, { prefix: "memory-operation:upkeep:", limit: 50 })) {
+    const serialized = JSON.stringify(row.body);
+    assert.doesNotMatch(serialized, /发布前先跑全量回归|发布之前先跑全量回归/);
+  }
   const merge = (await memory.changes(person())).find(change => change.kind === "merged")!;
   const save = env.ledger().saveChange.bind(env.ledger());
   const fault = t.mock.method(env.ledger(), "saveChange", (record: Parameters<typeof save>[0]) => {
@@ -612,6 +658,11 @@ for (const later of ["edit", "forget"] as const) test(`recreate undo after an in
   const keep = await env.automatic(memory, "later-keep", "project", "发布前先跑全量回归", "convention");
   const drop = await env.automatic(memory, "later-drop", "project", "发布之前先跑全量回归", "convention");
   await memory.upkeep(person(), { projects: ["project-a"], tidy: async () => ({ duplicates: [[keep.memory_id, drop.memory_id]], conflicts: [] }) });
+  // MEM-19: committed upkeep markers never retain merge plaintext in memory_markers.
+  for (const row of env.ledger().listMarkers(LOCAL_PERSON_ACTOR_ID, { prefix: "memory-operation:upkeep:", limit: 50 })) {
+    const serialized = JSON.stringify(row.body);
+    assert.doesNotMatch(serialized, /发布前先跑全量回归|发布之前先跑全量回归/);
+  }
   const merge = (await memory.changes(person())).find(change => change.kind === "merged")!;
   const save = env.ledger().saveChange.bind(env.ledger());
   const fault = t.mock.method(env.ledger(), "saveChange", (record: Parameters<typeof save>[0]) => {
@@ -632,4 +683,95 @@ for (const later of ["edit", "forget"] as const) test(`recreate undo after an in
     await assert.rejects(memory.undo({ ...person(), operation_id: "retry-after-forget" }, merge.change_id), /遗忘|删除/);
   }
   assert.deepEqual(await env.raw().list("project", "project-a"), before, "retry neither changes the later decision nor creates a second copy");
+});
+
+test("MEM-10 MEM-19 automatic changes record structured policy version and trigger_evidence, stay undoable across multi-day upkeep windows, and scrub trigger_evidence on forgetting", { timeout: 60_000 }, async t => {
+  const clock = { now: new Date("2026-09-01T08:00:00.000Z") };
+  const env = await memoryHome(t, clock);
+  const memory = await env.open();
+
+  // 1. Automatic promotion (gate) records structured policy + source trigger_evidence; undoing removal scrubs trigger_evidence.
+  const promoted = await env.automatic(memory, "auto-gate-ev", "project", "接口错误码统一用小写下划线", "convention");
+  const gateChange = (await memory.changes(person())).find(item => item.memory_id === promoted.memory_id && item.kind === "auto_kept")!;
+  assert.deepEqual(gateChange.policy, { policy: "memory.write-gate", version: 1 });
+  assert.equal(gateChange.rule, "自动记住 · 规则 v1");
+  assert.ok(gateChange.trigger_evidence && gateChange.trigger_evidence.length >= 2);
+  assert.ok(gateChange.trigger_evidence!.every(ev => ev.kind === "said" && typeof ev.ref === "object" && ev.ref?.kind === "memory-source"));
+  const undoneGate = await memory.undo({ ...person(), operation_id: "undo-auto-gate-ev" }, gateChange.change_id);
+  assert.equal(undoneGate.change.state, "undone");
+  assert.equal(undoneGate.change.text, "");
+  assert.equal(undoneGate.change.trigger_evidence, undefined);
+
+  // 2. Upkeep (Dreaming) automatic changes: paused, resumed, merged, expired, unused all carry policy + trigger_evidence.
+  const anchored = (await keep(memory, assistant("work-obj"), {
+    scope: "project",
+    text: "接口契约参考规范页",
+    said: "接口契约参考规范页",
+    rests_on: { kind: "page", id: "spec-page-7" },
+  })).memory!;
+  const expiring = (await memory.write(person(), {
+    scope: "project",
+    text: "九月中旬冻结旧接口",
+    kind: "fact",
+    expires_at: "2026-09-10T00:00:00.000Z",
+  })).memory!;
+  const keepDup = await env.automatic(memory, "dup-keep-ev", "project", "所有日志统一输出结构化 JSON", "convention");
+  clock.now = new Date("2026-09-02T08:00:00.000Z");
+  const dropDup = await env.automatic(memory, "dup-drop-ev", "project", "所有日志统一输出结构化的 JSON", "convention");
+
+  clock.now = new Date("2026-09-15T08:00:00.000Z");
+  const firstPass = await memory.upkeep(person(), {
+    projects: ["project-a"],
+    objectState: async ref => ref.id === "spec-page-7" ? "missing" : "ok",
+    tidy: async () => ({ duplicates: [[keepDup.memory_id, dropDup.memory_id]], conflicts: [] }),
+  });
+  assert.equal(firstPass.paused, 1);
+  assert.equal(firstPass.expired, 1);
+  assert.equal(firstPass.merged, 1);
+
+  clock.now = new Date("2026-09-20T08:00:00.000Z");
+  const secondPass = await memory.upkeep(person(), {
+    projects: ["project-a"],
+    objectState: async () => "ok",
+  });
+  assert.equal(secondPass.resumed, 1);
+
+  // Advance >90 days: SDK count-based history has no TTL, so the merged automatic memory turns unused and BOTH unused + earlier merge remain undoable.
+  clock.now = new Date("2026-12-25T08:00:00.000Z");
+  const thirdPass = await memory.upkeep(person(), { projects: ["project-a"] });
+  assert.equal(thirdPass.unused, 1);
+
+  const changes = await memory.changes(person(), { limit: 50 });
+  const pausedChange = changes.find(item => item.memory_id === anchored.memory_id && item.kind === "paused")!;
+  const resumedChange = changes.find(item => item.memory_id === anchored.memory_id && item.kind === "resumed")!;
+  const expiredChange = changes.find(item => item.memory_id === expiring.memory_id && item.kind === "auto_disabled")!;
+  const mergedChange = changes.find(item => item.memory_id === keepDup.memory_id && item.kind === "merged")!;
+  const unusedChange = changes.find(item => item.memory_id === keepDup.memory_id && item.kind === "auto_disabled")!;
+
+  for (const auto of [pausedChange, resumedChange, expiredChange, mergedChange, unusedChange]) {
+    assert.equal(auto.rule, "整理 · 规则 v1");
+    assert.deepEqual(auto.policy, { policy: "memory.upkeep", version: 1 });
+    assert.ok(auto.trigger_evidence && auto.trigger_evidence.length >= 1, `missing trigger_evidence on ${auto.kind}`);
+  }
+  assert.equal(pausedChange.trigger_evidence![0]!.kind, "object");
+  assert.equal(resumedChange.trigger_evidence![0]!.kind, "object");
+  assert.equal(expiredChange.trigger_evidence![0]!.kind, "expiry");
+  assert.deepEqual(mergedChange.trigger_evidence![0]!.ref, { kind: "memory", id: dropDup.memory_id, revision: String(dropDup.version), project_id: "project-a" });
+  assert.equal(unusedChange.trigger_evidence![0]!.kind, "unused");
+
+  // Multi-day undo: undo unused disable (>90 days after creation), then undo the earlier merge.
+  assert.equal((await memory.undo({ ...person(), operation_id: "undo-unused-after-90d" }, unusedChange.change_id)).change.state, "undone");
+  assert.equal((await memory.undo({ ...person(), operation_id: "undo-merge-after-90d" }, mergedChange.change_id)).change.state, "undone");
+  assert.equal((await memory.list(person(), { scope: "project" })).items.filter(item => item.text.includes("结构化")).length, 2);
+
+  // Removing a memory scrubs trigger_evidence alongside text and reason in recent changes.
+  const latestAnchored = (await memory.list(person(), { scope: "project" })).items.find(item => item.memory_id === anchored.memory_id)!;
+  await memory.change({ ...person(), operation_id: "forget-anchored-ev" }, { action: "remove", memory_id: anchored.memory_id, expected_version: latestAnchored.version });
+  const afterForget = (await memory.changes(person(), { limit: 50 })).filter(item => item.memory_id === anchored.memory_id);
+  assert.ok(afterForget.length >= 2);
+  for (const scrubbed of afterForget) {
+    assert.equal(scrubbed.text, "");
+    assert.equal(scrubbed.reason, null);
+    assert.equal(scrubbed.trigger_evidence, undefined);
+  }
 });

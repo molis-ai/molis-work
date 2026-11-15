@@ -62,8 +62,6 @@ export function prologueMemoryBackend(source: () => Promise<AgentMemoryCapabilit
     applyBatch: async input => (await store()).applyBatch(input),
     previewScope: async (scope, owner) => (await store()).previewScope(prologueScope(scope), owner),
     clearScope: async input => (await store()).clearScope({ ...input, scope: prologueScope(input.scope) }),
-    exportScope: async input => (await store()).exportScope?.({ ...input, scope: prologueScope(input.scope) }),
-    importScope: async input => (await store()).importScope?.({ ...input, scope: prologueScope(input.scope) }),
     candidates: {
       form: async ({ slots, context, ...input }) => (await store()).candidates.form({ ...input,
         ...(slots ? { slots: slots.map(slot => ({ ...slot, scope: prologueScope(slot.scope) })) } : {}),

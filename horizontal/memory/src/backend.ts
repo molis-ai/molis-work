@@ -39,8 +39,6 @@ export interface MemoryBackendPort {
   remove(input: Formal): Promise<void>;
   candidates: MemoryCandidatePort;
   screen?(text: string): Promise<{ hold: boolean; reasons: string[]; redacted: string }>;
-  exportScope?(input: { scope: MemoryScope; owner: string; signal?: AbortSignal }): Promise<unknown>;
-  importScope?(input: { scope: MemoryScope; owner: string; pack: unknown; max_entries?: number; signal?: AbortSignal }): Promise<unknown>;
   previewBatch(input: Scoped<Parameters<AgentMemoryCapability["previewBatch"]>[0]>): Promise<AgentMemoryBatchPreview>;
   applyBatch(input: Parameters<AgentMemoryCapability["applyBatch"]>[0]): Promise<AgentMemoryClearResult>;
   previewScope(scope: MemoryScope, owner: string): Promise<AgentMemoryScopePreview>;

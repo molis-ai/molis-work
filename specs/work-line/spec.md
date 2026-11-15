@@ -1,6 +1,6 @@
 # 事项线：在一条线上办事
 
-状态：需求已整理（2026-11-12；2026-11-14 用户改方向，见 §12），尚未实现；正式定样随第 32 批做。把工作台底部做成当前事项的一条线：左边是办过的，中间是现在（输入框），右边是接下来。线是平台能力：线上的每一项叫事件，由插件和助理按同一份登记放上来——一条到期的待办、一个会、一个 Coding 会话、一份交回的结果、一件值得跟的交办、一个建议；点一个事件它移到中间，展开成一张卡，在卡上点、或接着说就能把它办完。后台任务是事件背后的执行，不是线上的东西：一个事件背后可以有零到多个任务，也有不属于任何事件的任务；全部任务在输入框上方的后台任务面板里。说完一句话，助理（或你选的 Character）先马上回应，能后台办的派到后台，再写明这件事的去处；任务的结果回到它，由它按上下文判断并推进。线头切换事项。线不是新的事实：它把各插件的登记、任务板、工作记录和呈现声明读出来排在一起。需求维护：Claude（本机）；实现按 §9 的批次由各批主会话做。
+状态：第一片已随第 32 批实现（[#2093](https://github.com/molis-ai/molis-work/pull/2093)，WLN-01～18、WLN-27～40，证据见 §14；WLN-19 只交了标本）；WLN-19～26 与事项容器在后续批次（36、37、53）。需求 2026-11-12 整理，2026-11-14 用户改方向，见 §12。把工作台底部做成当前事项的一条线：左边是办过的，中间是现在（输入框），右边是接下来。线是平台能力：线上的每一项叫事件，由插件和助理按同一份登记放上来——一条到期的待办、一个会、一个 Coding 会话、一份交回的结果、一件值得跟的交办、一个建议；点一个事件它移到中间，展开成一张卡，在卡上点、或接着说就能把它办完。后台任务是事件背后的执行，不是线上的东西：一个事件背后可以有零到多个任务，也有不属于任何事件的任务；全部任务在输入框上方的后台任务面板里。说完一句话，助理（或你选的 Character）先马上回应，能后台办的派到后台，再写明这件事的去处；任务的结果回到它，由它按上下文判断并推进。线头切换事项。线不是新的事实：它把各插件的登记、任务板、工作记录和呈现声明读出来排在一起。需求维护：Claude（本机）；实现按 §9 的批次由各批主会话做。
 
 验收编号见 §11，前缀 `WLN`。
 
@@ -449,7 +449,33 @@
 
 ## 14. 证据
 
-尚无。实现后按片记录：工程通过、实操、本人验收分开记。
+**第 32 批（第一片，[#2093](https://github.com/molis-ai/molis-work/pull/2093)，2026-11-15）。** 工程通过：下表用例、健康门禁、页面资源与 CI 全量（结果在 PR 上）。实操：主会话在 dev 环境 1440／1024／390、中英文、深浅色走完交错路径（交办两件、问另一个问题、补充第一件、第二件要你定、第一件交回后接着派、回到对话）与「每步先问我」。本人验收未做，见 [BL-b32-acceptance](../backlog/BL-b32-acceptance.md)；用例只证明一部分的几处见 [BL-b32-acceptance-test-gaps](../backlog/BL-b32-acceptance-test-gaps.md)。
+
+| 编号 | 证据（`tests/` 下） |
+| --- | --- |
+| WLN-01、02、04、05、29 | `work-line-shell.e2e` |
+| WLN-03 | `work-line-event-tab.e2e`、`work-line-layout.e2e`、`work-line-specimens` |
+| WLN-06 | `assistant-process-info.e2e`、`assistant-send-intent.e2e`、`assistant-work-per-project.e2e` |
+| WLN-07、13、14 | `work-line-event-tab.e2e` |
+| WLN-08、09 | `work-line-event-tab.e2e`、`work-line-specimens`、`assistant-delegation`（09） |
+| WLN-10 | `assistant-line`、`mainline-background-tasks`、`mainline-missed-runs` |
+| WLN-11 | `object-link`、`work-line-done-card.e2e`、`work-line-specimens` |
+| WLN-12、15、33 | `assistant-main-conversation`（12 另有 `work-line-event-tab.e2e`） |
+| WLN-16 | `bottom-bar-zones.e2e`、`desktop-tui`、`goals-page-golden` |
+| WLN-17 | `attention-route`、`work-line-event-tab.e2e`、`work-line-specimens` |
+| WLN-18 | `bottom-bar-zones.e2e`、`work-line-event-tab.e2e`、`work-line-layout.e2e` |
+| WLN-28 | `work-line-specimens` |
+| WLN-19（本批只交标本，不验） | `work-line-specimens` |
+| WLN-27 | `attention-route`（宿主推、页面再读；插件库无改动不报） |
+| WLN-30 | 人工，见 BL-b32-acceptance |
+| WLN-31 | `assistant-text-html.e2e`（回应在一轮结束前流出）；三个时刻分开计时见 BL-b32-acceptance-test-gaps |
+| WLN-32 | `assistant-delegation`、`mainline-place`、`work-line-event-tab.e2e`（本批不验「另一件事项」） |
+| WLN-34 | `assistant-line`、`attention-route`、`coding-background-tasks` |
+| WLN-35 | `work-line-done-card.e2e`、`work-line-layout.e2e`、`work-line-specimens` |
+| WLN-36 | `work-line-event-tab.e2e`、`work-line-specimens`（本批不验别的事项的任务） |
+| WLN-37、38 | `assistant-line`、`coding-work-events`、`mainline-line-read` |
+| WLN-39 | `assistant-line`、`board-assistant.e2e`、`coding-work-events`、`mainline-line-read` |
+| WLN-40 | `assistant-character`、`assistant-line`、`work-line-event-tab.e2e` |
 
 ## 15. 开工前检查（第 32 批，2026-11-14）
 

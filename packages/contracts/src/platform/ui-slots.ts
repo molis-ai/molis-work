@@ -1,5 +1,8 @@
 import type { FormKind } from "./presentation.js";
 
+/** How many object cells one page may keep mounted at once. The risk page can hold twenty links; other pages keep within this too. */
+export const SURFACE_SLOTS_MAX = 20;
+
 // The places a contribution opens for other plugins' content, published through the `platform/ui` subpath like `ui-text.ts`. A
 // contribution lists them in `UiContributionDeclaration.slots`; the composition service reads what a slot takes (specs/surface-composition).
 

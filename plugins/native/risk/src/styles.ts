@@ -15,6 +15,8 @@ export const RISK_STYLES = `
 .rk-count{color:var(--muted);font-size:var(--type-note-size,12px);font-weight:var(--weight-body)}
 .rk-filters{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin-bottom:12px}
 .rk-filter{display:inline-flex;align-items:center;gap:6px;font-size:var(--type-note-size,12px);color:var(--muted);white-space:nowrap}
+.rk-chip{display:inline-flex;align-items:center;gap:2px;max-width:240px;padding:2px 2px 2px 8px;border:1px solid var(--line);border-radius:999px;background:var(--surface-soft);font-size:var(--type-note-size,12px);color:var(--ink)}
+.rk-chip>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rk-filters .rk-count{margin-left:auto}
 .rk-group+.rk-group,.rk-closed{margin-top:16px}
 .rk .mw-items{width:100%}

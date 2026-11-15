@@ -9,7 +9,14 @@ import { SCHEDULE_BRIEF_ROLE, SCHEDULE_READER_ROLE } from "./roles.js";
  */
 export const SCHEDULE_TASK_GRANT_ACTIONS = [agentTaskGrantActions.list, agentTaskGrantActions.clear] as const;
 
-/** How the page shows one task's reads: counts only, since the categories' own words are the providers' and the platform's to show. */
+/** One category a task holds, by the provider and group that owns it, without the provider's words. */
+export interface ScheduleTaskReadGroup {
+  provider_id: string;
+  group_id: string | null;
+  status: "granted" | "needs_confirmation" | "unavailable" | "removed";
+}
+
+/** How a plugin shows one task's reads: counts plus the categories' owners and states (no provider words). */
 export interface ScheduleTaskReads {
   task_id: string;
   /** Categories the person turned on for the task, whatever their state now. */
@@ -18,6 +25,8 @@ export interface ScheduleTaskReads {
   needs_confirmation: number;
   unavailable: number;
   removed: number;
+  /** The same categories by owner, so a provider can find its own group without knowing the others' words. */
+  groups: ScheduleTaskReadGroup[];
 }
 
 /** A task with categories reads data (the `brief` role, under its own subject); one without reads project files (`reader`). */
@@ -29,7 +38,8 @@ export function scheduleTaskReads(result: TaskGrantListResult): ScheduleTaskRead
   return result.subjects.filter(subject => subject.categories.length > 0).map(subject => {
     const count = (status: TaskGrantSubject["categories"][number]["status"]) => subject.categories.filter(category => category.status === status).length;
     return { task_id: subject.key, categories: subject.categories.length, granted: count("granted"), needs_confirmation: count("needs_confirmation"),
-      unavailable: count("unavailable"), removed: count("removed") };
+      unavailable: count("unavailable"), removed: count("removed"),
+      groups: subject.categories.map(category => ({ provider_id: category.provider_id, group_id: category.group_id ?? null, status: category.status })) };
   });
 }
 

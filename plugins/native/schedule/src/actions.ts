@@ -18,8 +18,11 @@ const task = object({ task_id: id, title: text, instructions: text, hour: { type
   last_run_at: nullableText, last_error: nullableText, created_at: text, updated_at: text, turns: { type: "array", items: turn }, clock_label: text, next_due_at: nullableText,
   repeat: { enum: ["daily", "none"] }, run_at: nullableText, subject: { anyOf: [{ type: "null" }, object({ kind: id, id })] } });
 const subject = object({ kind: { type: "string", minLength: 1, maxLength: 100 }, id: { type: "string", minLength: 1, maxLength: 400 } });
+const readGroup = object({ provider_id: id, group_id: nullableText, status: { enum: ["granted", "needs_confirmation", "unavailable", "removed"] } },
+  ["provider_id", "group_id", "status"]);
 const reads = object({ task_id: id, categories: { type: "integer" }, granted: { type: "integer" }, needs_confirmation: { type: "integer" },
-  unavailable: { type: "integer" }, removed: { type: "integer" } });
+  unavailable: { type: "integer" }, removed: { type: "integer" }, groups: { type: "array", items: readGroup } },
+["task_id", "categories", "granted", "needs_confirmation", "unavailable", "removed", "groups"]);
 const reminder = object({ text, plugin_id: id, plugin_title: text, needs_confirmation: { type: "boolean" },
   installation: { anyOf: [{ type: "null" }, object({ installation_id: id, generation: id, title: text, version: text, publisher: text })] } });
 // Jobs belong to other plugins' wakeups; their recurrence and last result stay owned by the scheduler service.

@@ -19,6 +19,8 @@ type Candidate = { kind: string; id: string; label: string; plugin_title: string
 let linkSlots: { dispose(): void } | null = null;
 let searchTimer: ReturnType<typeof setTimeout> | undefined;
 let searchSeq = 0;
+let linkedTimer: ReturnType<typeof setTimeout> | undefined;
+let linkedSeq = 0;
 
 function draw(page: RiskPage): void {
   const { state, body } = page;
@@ -29,6 +31,7 @@ function draw(page: RiskPage): void {
     : state.view === "idle" ? renderEmpty({ icon: "shield", title: text("side.idle"), body: text("side.idle-body") }) : renderRecord(page);
   placeLinks(page);
   if (state.pop === "link") body.querySelector<HTMLInputElement>("#rk-link-query")?.focus();
+  else if (state.pop === "linked") body.querySelector<HTMLInputElement>("#rk-linked-query")?.focus();
   else if (state.pop === "review") body.querySelector<HTMLInputElement>("#rk-review-focus")?.focus();
   else if (focused) body.querySelector<HTMLElement>(`[data-rk-focus="${CSS.escape(focused)}"]`)?.focus();
 }
@@ -152,7 +155,8 @@ async function setStatus(page: RiskPage, status: RiskStatus): Promise<void> {
   if (!answer) { page.render(); return; }
   await reread(page, text("record.status-set", { status: text(`status.${status}`) }));
   // Closing archives the review; when Schedule could not be reached, the task is left and the person is told.
-  if (answer.review_left?.task_id) page.toast(text("review.left"), true);
+  // `task_id: null` means the archive could not even read the review; the person still needs to look in Schedule.
+  if (answer.review_left) page.toast(text("review.left"), true);
   await loadReview(page);
 }
 
@@ -202,6 +206,29 @@ function searchLinks(page: RiskPage, query: string): void {
   }), 200);
 }
 
+function searchLinked(page: RiskPage, query: string): void {
+  clearTimeout(linkedTimer);
+  const list = page.body.querySelector<HTMLElement>('[data-rk-found="linked"]');
+  if (!list) return;
+  if (!query.trim()) { list.innerHTML = ""; return; }
+  const kinds = [...new Set(page.state.rows.flatMap(risk => risk.links.filter(link => page.host.surfaceFor(link.kind)).map(link => link.kind)))].slice(0, 8);
+  if (!kinds.length) { list.innerHTML = `<li class="rk-muted">${esc(text("filter.no-kind"))}</li>`; return; }
+  const seq = ++linkedSeq;
+  linkedTimer = setTimeout(() => page.run(async () => {
+    let found: Candidate[];
+    try { found = (await page.call<{ candidates: Candidate[] }>("search.references", { kinds, query: query.trim(), limit: 8 })).candidates; }
+    catch (error) {
+      if (seq !== linkedSeq) return;
+      list.innerHTML = `<li class="rk-muted">${esc(error instanceof Error && error.message ? error.message : text("error.failed"))}</li>`;
+      return;
+    }
+    if (seq !== linkedSeq) return;
+    list.innerHTML = found.length ? found.map(item => `<li class="mw-item rk-found__item" role="button" tabindex="0" data-rk-act="set-linked"
+      data-rk-value="${esc(`${item.kind}\n${item.id}`)}" data-rk-label="${esc(item.label)}"><span><strong>${esc(item.label)}</strong><small>${
+      esc(item.plugin_title)}</small></span></li>`).join("") : `<li class="rk-muted">${esc(text("filter.no-object"))}</li>`;
+  }), 200);
+}
+
 const subjectOf = (value: string) => { const [kind = "", id = ""] = value.split("\n"); return { kind, id }; };
 
 async function onAct(page: RiskPage, action: string, value: string, element: HTMLElement): Promise<void> {
@@ -212,8 +239,13 @@ async function onAct(page: RiskPage, action: string, value: string, element: HTM
     case "new": setDraft(blankDraft()); state.view = "new"; page.render(); page.body.querySelector<HTMLInputElement>('input[name="title"]')?.focus(); return;
     case "reload": await loadOverview(page); return;
     case "more": await loadOverview(page, true); return;
-    case "clear-filter": state.filter = { ...state.filter, impact: "", owner_name: "", linked: "" }; await loadOverview(page); return;
+    case "clear-filter": state.filter = { ...state.filter, impact: "", owner_name: "", linked: "", linkedSubject: null, linkedLabel: "" }; await loadOverview(page); return;
     case "filter-status": state.filter.status = value as typeof state.filter.status; await loadOverview(page); return;
+    case "pick-linked": state.pop = state.pop === "linked" ? "" : "linked"; page.render();
+      if (state.pop) page.body.querySelector<HTMLInputElement>("#rk-linked-query")?.focus(); return;
+    case "clear-linked": state.filter.linkedSubject = null; state.filter.linkedLabel = ""; state.pop = ""; await loadOverview(page); return;
+    case "set-linked": state.filter.linkedSubject = subjectOf(value); state.filter.linkedLabel = element.dataset.rkLabel ?? ""; state.filter.linked = "";
+      state.pop = ""; await loadOverview(page); return;
     case "draft-impact": case "draft-likelihood": {
       const form = element.closest("form");
       if (form) readDraft(form);
@@ -251,6 +283,7 @@ function onSubmit(page: RiskPage, event: SubmitEvent): void {
   else if (kind === "edit") page.run(() => saveEdit(page, form));
   else if (kind === "review") page.run(() => schedule(page, form, event.submitter));
   else if (kind === "link-search") searchLinks(page, (form.elements.namedItem("query") as HTMLInputElement).value);
+  else if (kind === "linked-search") searchLinked(page, (form.elements.namedItem("query") as HTMLInputElement).value);
   else if (kind === "note" && risk) {
     const input = form.elements.namedItem("note") as HTMLInputElement;
     const note = input.value.trim();
@@ -298,16 +331,21 @@ export function mountRisk(host: RiskHost): void {
     const filter = page.state.filter;
     if (select.dataset.rkFilter === "impact") filter.impact = select.value as RiskLevel | "";
     else if (select.dataset.rkFilter === "owner_name") filter.owner_name = select.value;
-    else if (select.dataset.rkFilter === "linked") filter.linked = select.value === "some" || select.value === "none" ? select.value : "";
+    else if (select.dataset.rkFilter === "linked") {
+      filter.linked = select.value === "some" || select.value === "none" ? select.value : "";
+      filter.linkedSubject = null;
+      filter.linkedLabel = "";
+    }
     page.run(() => loadOverview(page));
   });
   scope.listen(body, "input", event => {
     const input = event.target as HTMLInputElement;
     if (input.form?.dataset.rkForm === "link-search") searchLinks(page, input.value);
+    else if (input.form?.dataset.rkForm === "linked-search") searchLinked(page, input.value);
   });
   scope.listen(body, "submit", event => onSubmit(page, event as SubmitEvent));
   scope.listen(root, "molis-work:select-item", event => onSelectItem(page, event));
-  scope.own(() => { linkSlots?.dispose(); clearTimeout(searchTimer); });
+  scope.own(() => { linkSlots?.dispose(); clearTimeout(searchTimer); clearTimeout(linkedTimer); });
   if (page.side) { page.state.view = "idle"; page.render(); }
   scope.whenVisible(() => {
     if (page.state.view === "overview") page.run(() => loadOverview(page));

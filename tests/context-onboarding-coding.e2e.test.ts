@@ -50,6 +50,18 @@ test("ONB-44 ONB-46 a code folder ticked at review becomes Coding's working fold
   await navigate(() => command("Page.navigate", { url: `${origin}/onboarding?mode=new-project&journey=${id}` }, sessionId));
   const box = "[data-take='io.molis.work.coding']";
   await waitFor(`Boolean(document.querySelector(${JSON.stringify(box)}))`);
+  // Evidence for the review step at the widths the batch asks for; the screenshots stay in the ignored QA directory.
+  const shot = async (name: string) => {
+    const directory = join(process.cwd(), ".impeccable/qa/review/context-onboarding-take"); await mkdir(directory, { recursive: true });
+    const image = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId);
+    await writeFile(join(directory, `${name}.png`), Buffer.from(image.data, "base64"));
+  };
+  for (const [width, height] of [[1440, 900], [1024, 768], [390, 844]] as const) {
+    await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: width < 600 }, sessionId);
+    await new Promise(resolve => setTimeout(resolve, 300));
+    await shot(`zh-light-${width}-review`);
+  }
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   const folderName = folder.split("/").at(-1)!;
   assert.equal(await evaluate(`document.querySelector(${JSON.stringify(box)}).checked`), false, "not ticked by itself: a material folder is not made a working folder unasked");
   assert.match(String(await evaluate(`document.querySelector(${JSON.stringify(box)}).closest('label').textContent`)), new RegExp(`Coding.*${folderName}`));
@@ -64,4 +76,22 @@ test("ONB-44 ONB-46 a code folder ticked at review becomes Coding's working fold
   assert.ok(adopted.take_result?.open?.item_id, "Coding answered the take with the session it opened");
   assert.equal(adopted.take_result?.materials, 3, "the README, the pasted note and the accepted summary");
   assert.deepEqual(adopted.summary!.references.map(ref => [ref.path, Boolean(ref.artifact), Boolean(ref.documents?.length)]), [["README.md", true, true], ["网页内容.md", true, true]]);
+});
+
+test("BCD-17: if the take did not happen, the completion page says the project and materials are kept and why nothing was handed over", { timeout: 120_000 }, async t => {
+  const browser = await openGoalBrowser(t, true); if (!browser) return;
+  const { command, sessionId, navigate, waitFor, evaluate, origin, homeDirectory } = browser;
+  const id = randomUUID();
+  withContextJourneys(homeDirectory, store => {
+    const journey = store.create(id);
+    journey.phase = "complete";
+    journey.project_id = `project-${id}`;
+    journey.adoption = { title: "Kept", body: "Kept body", blank: false, take: { plugin_id: "io.molis.work.coding", project_plugin_id: "coding", code_root: "/tmp/kept" } };
+    journey.take_result = { open: null, materials: 0, of: 2, not_taken: "moved" };
+    return store.save(journey);
+  });
+  await navigate(() => command("Page.navigate", { url: `${origin}/onboarding?mode=new-project&journey=${id}` }, sessionId));
+  await waitFor(`Boolean(document.querySelector('[data-ob-view="take-not-taken"]'))`, 20_000);
+  assert.match(String(await evaluate("document.body.textContent")), /输出文件夹变了/);
+  assert.ok(await evaluate("Boolean(document.querySelector('[data-action=take-continue]'))"));
 });

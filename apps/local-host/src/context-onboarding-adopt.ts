@@ -127,7 +127,7 @@ export async function importAdoptedMaterialsAndSummary(options: {
     title: journey.adoption!.title,
     body: journey.adoption!.body,
     blank: journey.adoption!.blank,
-    todo_selected: journey.adoption!.todo_selected,
+    todo_selected: journey.adoption!.todo_selected ?? [],
   })).digest("hex");
   const summary = (await actions.invoke(importDocuments, {
     request_id: id + ":summary",

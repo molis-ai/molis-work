@@ -74,7 +74,7 @@ test("BFP-01 BL-131: updating 20 Inbox suggestions reads the page once and says 
         if (!window.__bfp.shown && count() >= ${ENTRIES}) window.__bfp.shown = performance.now(); }).observe(document.body, { subtree: true, childList: true, characterData: true }); })()`);
     const before = requests.length;
     const start = await evaluate<number>("performance.now()");
-    await click(".inbox-next-config [data-inbox-evaluate]");
+    await click(".inbox-next-config [data-inbox-evaluate]", 1, "center", 30_000);
     await waitFor(`window.__bfp.notice && window.__bfp.shown`, 30_000);
     const result = await evaluate<{ notice: number; shown: number; at: number }>("window.__bfp");
     await new Promise(resolve => setTimeout(resolve, 1500)); // let a late second read show up if there is one

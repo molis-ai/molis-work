@@ -1,6 +1,6 @@
 # 12 · Coding 执行定样（目录、规则和模式、恢复、计划卡与任务板）
 
-**状态**：用户已选定（2026-11-04）：目录 C，规则和模式、恢复、计划卡与任务板都是 A；记在 [Coding 与 Agent 工作流优化需求书 §11](../../../specs/coding-harness-optimization/spec.md#11-决策记录)。原型里选定的方案标 ✓、打开时默认就是它。产品代码等第 12 批的前置（04、06、07、09、11）都合入后再写。里面全是示例数据。
+**状态**：用户已选定（2026-11-04）：目录 C，规则和模式、恢复、计划卡与任务板都是 A；记在 [Coding 与 Agent 工作流优化需求书 §11](../../../specs/coding-harness-optimization/spec.md#11-决策记录)。原型里选定的方案标 ✓、打开时默认就是它。第 12 批已按此实现（2026-11-14，`bd3e22358a`）；里面全是示例数据。
 
 这是路线书[第 12 批](../../../specs/post-anticorruption-roadmap/reference/batches/12.md)「先定样：目录／规则／恢复；复用 03、04」的样张。核账见 `specs/coding-harness-optimization/audit-2026-11-batch12.md`（PR #1759）。
 
@@ -106,4 +106,4 @@ node docs/design/kit/build.mjs
 
 第 12 批 Coding 执行的可点定样：目录（执行目录、临时查看、冻结、输出不见了）、规则和模式（只读提示与切换、规则来源）、恢复（失败、结果未知、取消、超时、被系统结束、重启后、等待前一步，沿用 04 的恢复框架）、计划卡与任务板按位置编号；每块 A／B／C 三个方案，中英文、浅深色
 
-用户已选定（2026-11-04：目录 C，其余 A，记在 [Coding 需求书 §11](../../../specs/coding-harness-optimization/spec.md#11-决策记录)）；产品未实现；里面是示例数据
+用户已选定（2026-11-04：目录 C，其余 A，记在 [Coding 需求书 §11](../../../specs/coding-harness-optimization/spec.md#11-决策记录)）；第 12 批已实现；里面是示例数据

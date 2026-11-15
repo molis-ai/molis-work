@@ -734,7 +734,11 @@ async function handToTaker(home: string, journey: ContextJourney, handed: readon
     const client = await ports.take(home, journey.project_id, taker.take);
     answered = await client.invoke(taker.take as ActionDefinition<OnboardingCodeRootTake, OnboardingTakeResult>,
       { request_id: `onboarding:${journey.id}:take`, code_root: { workspace_id: output.workspace_id }, materials });
-  } catch { return notTaken("refused"); }
+  } catch (error) {
+    // A plugin's own refusal is final; a temporary failure or cancellation can be retried and is not called a refusal.
+    const refused = error instanceof ActionError && (error.kind === "conflict" || error.kind === "forbidden");
+    return notTaken(refused ? "refused" : "unavailable");
+  }
   done({ open: answered.open, materials: materials.length, of: handed.length });
 }
 

@@ -38,20 +38,21 @@ const define = <O>() => <const S extends ActionSchema>(name: string, version: nu
   return definition;
 };
 
-const listInput = object({ status: { enum: ["open", "closed", "all"] }, impact: level, owner_name: text(RISK_LIMITS.owner_name), linked: subject, unlinked: { type: "boolean" },
-  limit: { type: "integer", minimum: 1, maximum: RISK_PAGE.max }, cursor: text(400) }, []);
+const listInput = object({ status: { enum: ["open", "closed", "all"] }, impact: level, owner_name: text(RISK_LIMITS.owner_name), keyword: text(200), linked: subject,
+  unlinked: { type: "boolean" }, limit: { type: "integer", minimum: 1, maximum: RISK_PAGE.max }, cursor: text(400) }, []);
 const editable = { title: text(RISK_LIMITS.title), statement: text(RISK_LIMITS.statement), impact: level, likelihood: level, treatment: text(RISK_LIMITS.treatment),
   owner_name: nullableSchema(text(RISK_LIMITS.owner_name)) } as const;
 
 export const riskActions = {
   list: define<{ risks: RiskRow[]; owners: string[]; next_cursor: string | null }>()("list", /* @version action.risk.list */ 1, "风险列表",
-    `读当前项目的风险，默认只列未关闭的（status: open 含缓解中与已接受），可按影响、负责人、关联的某个对象（linked：kind 与 id，如一个 Goal）、没关联任何对象（unlinked: true）或有关联（unlinked: false）筛；owners 是本项目可选的负责人。每页默认 ${RISK_PAGE.default} 条、最多 ${RISK_PAGE.max} 条，next_cursor 取下一页。`,
+    `读当前项目的风险，默认只列未关闭的（status: open 含缓解中与已接受），可按标题、描述或处置里的关键词（keyword）、影响、负责人、关联的某个对象（linked：kind 与 id，如一个 Goal）、没关联任何对象（unlinked: true）或有关联（unlinked: false）筛；owners 是本项目可选的负责人。每页默认 ${RISK_PAGE.default} 条、最多 ${RISK_PAGE.max} 条，next_cursor 取下一页。`,
     "query", listInput, object({ risks: array(row), owners: array(text(RISK_LIMITS.owner_name)), next_cursor: nullableSchema(text(400)) })),
   get: define<{ risk: RiskRecord; links: RiskLink[]; events: RiskEvent[] }>()("get", /* @version action.risk.get */ 1, "读取风险",
     "读一条风险的内容、关联对象和进展时间线（新的在前）。", "query", object({ risk_id: id }), object({ risk, links: array(link), events: array(event) })),
   create: define<{ risk: RiskRecord }>()("create", /* @version action.risk.create */ 1, "记一条风险",
-    `在当前项目记一条风险：标题、描述、影响与可能性（high／medium／low），可带应对、负责人（自由文字）和关联对象（最多 ${RISK_LIMITS.links} 个）。新风险是「打开」状态。`,
-    "command", object({ ...editable, links: { ...array(subject), maxItems: RISK_LIMITS.links } }, ["title", "statement", "impact", "likelihood"]), changed, { result: true }),
+    `在当前项目记一条风险：标题、描述、影响与可能性（high／medium／low），可带应对、负责人（自由文字）和关联对象（最多 ${RISK_LIMITS.links} 个，每一个先经它主人的读取器核对在、调用者读得到）。新风险是「打开」状态。`,
+    "command", object({ ...editable, links: { ...array(subject), maxItems: RISK_LIMITS.links } }, ["title", "statement", "impact", "likelihood"]), changed,
+    { concurrent: true, result: true }),
   update: define<{ risk: RiskRecord }>()("update", /* @version action.risk.update */ 1, "修改风险",
     "按读到的 revision 改风险的字段，只改给出的；风险刚被别处改过时以 risk.conflict 拒绝，details.current 带当前内容；已关闭的风险以 risk.closed 拒绝，重新打开后再改。",
     "command", object({ risk_id: id, expected_revision: revision, ...editable }, ["risk_id", "expected_revision"]), changed, { result: true }),
@@ -80,11 +81,25 @@ export interface RiskActionPorts {
 
 export function createRiskActionHandlers(ports: RiskActionPorts): ActionHandlerBinding[] {
   const { read, write } = ports;
+  // Both ways of putting an object on a risk go through its owner's reader, as the caller; a missing or unreadable object is a
+  // refusal, not a dead id stored in the link table.
+  const checkSubject = async (linked: ActionSubject, caller: ActionCallContext): Promise<void> => {
+    try { await ports.readSubject(linked, caller); }
+    catch (error) {
+      if (error instanceof ActionError && (error.code === "actions.forbidden" || error.code === "actions.dependency_missing"
+        || error.code === "actions.missing" || error.code.endsWith(".not_found")))
+        throw riskErrors.invalid("要关联的对象不存在或读不到", { subject: linked });
+      throw error;
+    }
+  };
   return [
     bindActionHandler(riskActions.list, ({ limit, cursor, ...filter }) => read(store => ({ ...store.list(filter, { limit, cursor }), owners: store.owners() }))),
     bindActionHandler(riskActions.get, ({ risk_id }) => read(store => ({ risk: store.get(risk_id), links: store.links(risk_id), events: store.events(risk_id) }))),
-    bindActionHandler(riskActions.create, ({ links, ...fields }, caller) => write(caller, (store, tx) => ({
-      risk: store.create(tx, { ...fields, treatment: fields.treatment ?? "", owner_name: fields.owner_name ?? null, links: links ?? [] }, caller.actor_id, ports.now()) }))),
+    bindActionHandler(riskActions.create, async ({ links, ...fields }, caller) => {
+      for (const linked of links ?? []) await checkSubject(linked, caller);
+      return write(caller, (store, tx) => ({ risk: store.create(tx, { ...fields, treatment: fields.treatment ?? "", owner_name: fields.owner_name ?? null,
+        links: links ?? [] }, caller.actor_id, ports.now()) }));
+    }),
     bindActionHandler(riskActions.update, ({ risk_id, expected_revision, ...changes }, caller) => write(caller, (store, tx) => ({
       risk: store.update(tx, risk_id, expected_revision, changes, caller.actor_id, ports.now()) }))),
     bindActionHandler(riskActions.setStatus, async ({ risk_id, expected_revision, status: next, note }, caller) => {
@@ -97,12 +112,7 @@ export function createRiskActionHandlers(ports: RiskActionPorts): ActionHandlerB
     bindActionHandler(riskActions.addLink, async ({ risk_id, subject: linked }, caller) => {
       if (linked.kind === RISK_KIND && linked.id === risk_id) throw riskErrors.invalid("风险不能关联它自己");
       read(store => store.get(risk_id));
-      try { await ports.readSubject(linked, caller); }
-      catch (error) {
-        if (error instanceof ActionError && (error.code === "actions.forbidden" || error.code === "actions.dependency_missing" || error.code.endsWith(".not_found")))
-          throw riskErrors.invalid("要关联的对象不存在或读不到", { subject: linked });
-        throw error;
-      }
+      await checkSubject(linked, caller);
       return write(caller, (store, tx) => { store.link(tx, risk_id, linked, caller.actor_id, ports.now()); return { links: store.links(risk_id, tx) }; });
     }),
     bindActionHandler(riskActions.removeLink, ({ risk_id, subject: linked }, caller) => write(caller, (store, tx) => {

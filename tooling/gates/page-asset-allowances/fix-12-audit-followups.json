@@ -1,0 +1,67 @@
+{
+  "reason": "第 12 批合后审计整改（2026-11-14）：Coding 规则菜单的「读取这个文件夹的说明文件」改为直接用宿主回执，不再整页重读（coding.js +11）；composer/plugin-frame 的承接设置回执桥（plugin-frame.js +160）。两项都是很小的现有界面接线，没有新资源，单项远低于 10 KB。",
+  "review": "本次修复按审计发现执行；增长由 page-assets 与 first-screen 对 ddd7ba3f 的隔离构建实测（coding.js +11、plugin-frame.js +160；首屏到达页冷 +1618/+1613、热 +1280，选择页与工作台页冷 +343/+338），没有新增资源，单项远低于 10 KB；随修复分支评审。",
+  "assets": {
+    "/assets/molis-work-plugin-frame.js": 160,
+    "/assets/molis-work-plugins/coding.js": 11
+  },
+  "pages": {
+    "arrival-empty/zh": {
+      "cold": 1618,
+      "warm": 1280
+    },
+    "arrival-empty/en": {
+      "cold": 1613,
+      "warm": 1280
+    },
+    "chooser/zh": {
+      "cold": 343,
+      "warm": 0
+    },
+    "chooser/en": {
+      "cold": 338,
+      "warm": 0
+    },
+    "workbench-default/zh": {
+      "cold": 343,
+      "warm": 0
+    },
+    "workbench-default/en": {
+      "cold": 338,
+      "warm": 0
+    },
+    "workbench-all-plugins/zh": {
+      "cold": 343,
+      "warm": 0
+    },
+    "workbench-all-plugins/en": {
+      "cold": 338,
+      "warm": 0
+    }
+  },
+  "userApproval": "用户 2026-11-14 要求修复第 12 批合后审计发现的问题；本项是修复中的 5 个提示词，只让工作台语言包内容地址变化，没有新增资源或页面。",
+  "entryApprovals": [
+    {
+      "pages": [
+        "arrival-empty",
+        "chooser",
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "zh",
+      "entry": "/assets/locale/workbench.zh.<digest>.js",
+      "change": "new"
+    },
+    {
+      "pages": [
+        "arrival-empty",
+        "chooser",
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "en",
+      "entry": "/assets/locale/workbench.en.<digest>.js",
+      "change": "new"
+    }
+  ]
+}

@@ -138,7 +138,9 @@ test("SKL-11: an Assistant round that used no Skill says so above its reply, and
     return { text: line.innerText.replace(/\\s+/g, ' ').trim(), beforeReply: !!reply && !!(line.compareDocumentPosition(reply) & Node.DOCUMENT_POSITION_FOLLOWING) }; })()`);
   assert.deepEqual(line, { text: "这一轮没用技能 选一个", beforeReply: true });
   await click("[data-assistant-thread] .mw-skill-line [data-skill-pick]");
-  await waitFor("document.querySelector('[data-skill-why]')?.innerText.includes('这里没有别的可用技能。')", 10_000);
+  // The Skills that come with the system (规划与拆解, batch 41-2) are in every Home, so the panel offers them; the empty state is the board's specimen.
+  await waitFor("document.querySelectorAll('[data-skill-why] [data-skill-why-action]').length > 0", 10_000);
+  assert.doesNotMatch(await evaluate<string>("document.querySelector('[data-skill-why]').innerText"), /这里没有别的可用技能。/);
   const near = await evaluate<boolean>(`(() => { const button = document.querySelector('[data-assistant-thread] .mw-skill-line [data-skill-pick]').getBoundingClientRect(), panel = document.querySelector('[data-skill-why]').getBoundingClientRect();
     return Math.abs(panel.left - button.left) <= 16 || panel.right <= innerWidth; })()`);
   assert.equal(near, true, "the panel opens by the button");

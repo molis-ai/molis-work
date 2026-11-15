@@ -36,7 +36,7 @@ export const isPermission = (error: unknown) => {
 };
 
 function initialState(): RiskPageState {
-  return { view: "overview", filter: { status: "open", impact: "", owner_name: "", linked: "" }, rows: [], anyClosed: false, owners: [], next: null, overviewError: "",
+  return { view: "overview", filter: { status: "open", impact: "", owner_name: "", linked: "", linkedSubject: null, linkedLabel: "" }, rows: [], anyClosed: false, owners: [], next: null, overviewError: "",
     loading: true, record: null, recordError: "", review: null, reviewError: "", readOnly: false, recordId: "", editing: false, conflict: null, pop: "", busy: false };
 }
 

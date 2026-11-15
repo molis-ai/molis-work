@@ -228,10 +228,10 @@ describe("the records of this repository", () => {
     assert.ok(json(`${folder}/patch-history.json`).upstream.commitsChecked.includes(provenance.source.commit),
       "the upstream audit lists the current package's source commit");
     // The official main 3825662d package it replaced is recorded under its commit, and so is the 4a4d1d3c branch build before it.
-    const official = json(`${folder}/patch-history.json`).packagesWithoutPatch.find((one: { file: string }) => one.file === "prologue-sdk-0.0.0-rc.1-main-3825662d.tgz");
-    assert.ok(official, "the batch-31 official main build is recorded after replacement");
-    assert.equal(official.gitBlob, "8cbec7f6a80fa7d2c756990924becca78a660467");
-    assert.equal(official.commit, "3825662d16e04f8f1163bb840f2ce1eefc3d6d43");
+    const replacedOfficial = json(`${folder}/patch-history.json`).packagesWithoutPatch.find((one: { file: string }) => one.file === "prologue-sdk-0.0.0-rc.1-main-3825662d.tgz");
+    assert.ok(replacedOfficial, "the batch-31 official main build is recorded after replacement");
+    assert.equal(replacedOfficial.gitBlob, "8cbec7f6a80fa7d2c756990924becca78a660467");
+    assert.equal(replacedOfficial.commit, "3825662d16e04f8f1163bb840f2ce1eefc3d6d43");
     const p1 = json(`${folder}/patch-history.json`).packagesWithoutPatch.find((one: { file: string }) => one.file === "prologue-sdk-0.0.0-rc.1-b31-4a4d1d3c.tgz");
     assert.ok(p1, "the batch-31 Memory P1 branch build is recorded after replacement");
     assert.equal(p1.sha256, "1264b32b65e66adce32ae83c935abc85c46bcae4b77520470d2e265bab87c8bb");

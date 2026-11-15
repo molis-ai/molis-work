@@ -32,7 +32,7 @@ test("RAC-2091 and APR-19 project rule settings use the shared authorization sty
   assert.equal(goals.settingsStylesheet, undefined);
   assert.doesNotMatch(pluginSettingsStyles(), /\.project-rules-page|\[data-authorization-rule-form\]/u);
   for (const sheet of [renderMolisWorkWorkbenchStylesheet(), renderMolisWorkSettingsStylesheet()]) {
-    assert.match(sheet, /\[data-authorization-layout\]\s*\{[^}]*grid-template-columns/u);
+    assert.equal([...sheet.matchAll(/\[data-authorization-layout\]\s*\{[^}]*grid-template-columns/gu)].length, 1);
     assert.doesNotMatch(sheet, /\.project-rules-page|\[data-project-rules-form\]/u);
   }
 });
@@ -49,11 +49,11 @@ test("RAC-2092 the Goals page script takes each factory from the registration, b
 
 test("RAC-2093 and APR-19 project rule updates use the same client as authorization settings", () => {
   assert.equal(goals.settingsClient, undefined);
-  for (const code of [pluginSettingsClients(), workbenchClientSource(), renderMolisWorkCapabilitiesClientScript()]) {
-    assert.doesNotMatch(code, /molisWorkBindProjectRules|molisWorkBindPlanningSettings|molisWorkBindPlanningAdoption/u);
-  }
   const script = renderMolisWorkCapabilitiesClientScript();
-  assert.match(script, /globalThis\.molisWorkBindAuthorizationSettings\s*=/u);
+  for (const code of [pluginSettingsClients(), workbenchClientSource(), script]) {
+    assert.doesNotMatch(code, /molisWorkBindProjectRules|molisWorkBindPlanning/u);
+  }
+  assert.equal([...script.matchAll(/globalThis\.molisWorkBindAuthorizationSettings\s*=/gu)].length, 1);
   assert.match(script, /\/api\/settings\/authorizations/u);
   assert.match(script, /\/project-rules/u);
 });

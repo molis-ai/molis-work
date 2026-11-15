@@ -224,7 +224,7 @@ ${BUTTON_STYLES}
   .mw-resume-prompt { display: grid; gap: 8px; animation: craft-rise var(--dur-arrive) var(--ease-quint) both; }
   @media (prefers-reduced-motion: reduce) { .mw-resume-prompt { animation: none; } }
   /* The Skills one round used (specs/prologue-strategies/skill.md §10): a line above the reply, each Skill a bounded button; it wraps, never cuts a name. */
-  .mw-skill-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+  .mw-skill-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
   .mw-skill-line > span { white-space: nowrap; }
   .mw-skill-line .mw-btn { max-width: 100%; }
   /* Its 「依据」 panel, the shell's: why the Skill was used, then what to do about it — this round, and from now on. */

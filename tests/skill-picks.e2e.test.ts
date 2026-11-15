@@ -138,8 +138,10 @@ test("SKL-11: an Assistant round that used no Skill says so above its reply, and
     return { text: line.innerText.replace(/\\s+/g, ' ').trim(), beforeReply: !!reply && !!(line.compareDocumentPosition(reply) & Node.DOCUMENT_POSITION_FOLLOWING) }; })()`);
   assert.deepEqual(line, { text: "这一轮没用技能 选一个", beforeReply: true });
   await click("[data-assistant-thread] .mw-skill-line [data-skill-pick]");
-  await waitFor("document.querySelector('[data-skill-why] [role=menuitem]')", 10_000);
-  assert.match(await evaluate<string>("document.querySelector('[data-skill-why]').innerText"), /AI 与数据产品/u);
+  await waitFor("document.querySelector('[data-skill-why] [role=menuitem][data-skill-why-action]')", 10_000);
+  const choicesText = await evaluate<string>("document.querySelector('[data-skill-why]').innerText");
+  assert.match(choicesText, /AI 与数据产品/u);
+  assert.doesNotMatch(choicesText, /这里没有别的可用技能。/u);
   const near = await evaluate<boolean>(`(() => { const button = document.querySelector('[data-assistant-thread] .mw-skill-line [data-skill-pick]').getBoundingClientRect(), panel = document.querySelector('[data-skill-why]').getBoundingClientRect();
     return Math.abs(panel.left - button.left) <= 16 || panel.right <= innerWidth; })()`);
   assert.equal(near, true, "the panel opens by the button");

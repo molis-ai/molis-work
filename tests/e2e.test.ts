@@ -351,12 +351,8 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
       assert.match(installedPlanning, /Plan useful outcomes and real dependencies/);
       assert.match(installedPlanning, /goals\.tree\.submit/);
       assert.match(installedPlanning, /Only that real consumption justifies consumer depends_on provider/);
-      const installedIndustryMethod = await readFile(
-        join(userHome, ".codex", "skills", "goal-advance", "methods", "industries", "industry-education.md"),
-        "utf8",
-      );
-      assert.match(installedIndustryMethod, /method_id: industry-education/);
-      assert.match(installedIndustryMethod, /## 必须覆盖/);
+      // Batch 41 (41-2): the planning methods are Skills of the catalog; the installed Skill carries no method library.
+      await assert.rejects(readFile(join(userHome, ".codex", "skills", "goal-advance", "methods", "industries", "industry-education.md"), "utf8"), { code: "ENOENT" });
 
       const claudePlanResponse = await post(origin, token, "/api/settings/runtimes/claude-code/plan", { action: "connect" });
       assert.equal(claudePlanResponse.status, 200);

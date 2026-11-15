@@ -108,7 +108,7 @@ test("settings serve complete category pages; the project gear opens them in the
   browser.server?.on("request", observePane);
   t.after(() => { browser.server?.off("request", observePane); });
   const prefix = `/projects/${projectId}`;
-  for (const [path, content] of [["", "data-project-rename"], ["/general", "data-project-rename"], ["/guidance", "data-guidance-form"], ["/planning", "data-planning-search"]]) {
+  for (const [path, content] of [["", "data-project-rename"], ["/general", "data-project-rename"], ["/guidance", "data-guidance-form"]]) {
     const response = await fetch(origin + prefix + "/settings" + path);
     assert.equal(response.status, 200);
     const html = await response.text();
@@ -243,7 +243,7 @@ test("settings serve complete category pages; the project gear opens them in the
   assert.ok(Math.abs(globalPage.offset) <= 24, "global settings column is centered, offset " + globalPage.offset);
 });
 
-test("work planning opens from the Goal list and is absent from project settings", { timeout: 60_000 }, async t => {
+test("work planning is in neither project settings nor the Goal list (batch 41-2: the methods are Skills of the catalog)", { timeout: 60_000 }, async t => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { origin, projectId, command, sessionId, evaluate, navigate, click, waitFor } = browser;
@@ -255,12 +255,12 @@ test("work planning opens from the Goal list and is absent from project settings
   await waitFor("!document.body.classList.contains('settings-page') && document.querySelector('[data-tab-workspace]')?.dataset.exclusive==='project-settings' && !!document.querySelector('[data-work-surface=project-settings] [data-project-rename]')");
   assert.equal(await evaluate("document.querySelector('[data-directory-panel=project-settings] [data-settings-section=\"planning\"]') == null"), true);
   await click('[data-plugin-id="goals"]');
-  await waitFor("!!document.querySelector('[data-open-work-planning]')");
-  await click("[data-open-work-planning]");
-  await waitFor("document.querySelector('[data-goal-canvas-shell]')?.dataset.goalPlanning === 'open' && !!document.querySelector('[data-goal-work-planning] .work-planning')");
+  await waitFor("document.body.dataset.desktopSurface === 'goals' && !!document.querySelector('[data-goal-canvas-shell]')");
+  assert.equal(await evaluate("document.querySelector('[data-open-work-planning], [data-goal-work-planning]') == null"), true);
+  assert.equal((await fetch(origin + prefix + "/settings/planning")).status, 404);
 });
 
-test("project settings preserve edits on failed saves, record guidance versions, and combine planning search with filters", { timeout: 60_000 }, async t => {
+test("project settings preserve edits on failed saves and retain guidance and approval rule changes", { timeout: 60_000 }, async t => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { origin, projectId, command, sessionId, evaluate, navigate, click, waitFor, reloadPage } = browser;

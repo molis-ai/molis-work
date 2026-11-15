@@ -3,7 +3,7 @@ import type { InteractionValues } from "@molis-ai/molis-work-plugin-sdk/page-glo
 import { renderInteractionNextSteps } from "@molis-ai/molis-work-design-system";
 import type { AssistantCard, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import { assistantTextHtml, assistantReviewHtml, readAssistantReviewWords } from "@molis-ai/molis-work-app-workbench";
-import { escapeHtml, say as uiSay } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { escapeHtml, renderSkillLine, say as uiSay } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { agentQuestionHtml } from "../agent-question-card.js";
 import { interactionNextSteps, type NextStep, type NextStepSay } from "../agent-next-steps.js";
 import { composerQuestion } from "./assistant-inputs.js";
@@ -67,6 +67,13 @@ export function drawAssistantReply(body: unknown, ports: { say: (text: string, v
         // A closed question is asked again by a new round of the Assistant's own; an executor plugin's work has questions of the plugin's own.
         const reask = candidate.work.executor.kind !== "plugin";
         for (const question of round.awaiting_input) Object.assign(question, { html: agentQuestionHtml(question, ports.say, drafts[question.pending_id], undefined, reask), ...(question !== words?.question ? {} : words.field ? { draft_from_composer: words.field } : { from_composer: true }) });
+      }
+      // The Skills each round used, one line above its reply (SKL-11). A round still under way that has read none yet says nothing:
+      // 「这一轮没用技能」 is true only once it ended. The page opens the shell's panel from the line's buttons.
+      for (const round of candidate.rounds) {
+        if (round.skills && (round.skills.length || round.ended_at)) Object.assign(round, { skills_html: renderSkillLine({ picks: round.skills, round: round.run_id, words: {
+          used: ports.say("workbench.skill-picks.used"), auto: ports.say("workbench.skill-picks.auto"), named: ports.say("workbench.skill-picks.named"),
+          none: ports.say("workbench.skill-picks.none"), choose: ports.say("workbench.skill-picks.choose") } }) });
       }
       for (const round of candidate.rounds) for (const turn of round.turns) {
         if (turn.kind === "assistant") Object.assign(turn, { html: assistantTextHtml(turn.text, candidate.objects, ports.say) });

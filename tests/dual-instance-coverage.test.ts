@@ -6,7 +6,7 @@ import { MolisWorkLocalHost, molisWorkHostProjectReference, runningProjectPlatfo
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createFeedHomePlugin, createFeedPlugin, FEED_PLUGIN_ID } from "@molis-ai/molis-work-plugin-feed";
 import { createHomeShelfPlugin, createShelfPlugin, SHELF_PLUGIN_ID } from "@molis-ai/molis-work-plugin-shelf";
-import { createHomeGoalsPlugin, createGoalsPlugin, GOALS_PLUGIN_ID } from "@molis-ai/molis-work-plugin-goals";
+import { createHomeWorkBriefPlugin, createWorkBriefPlugin, WORK_BRIEF_PLUGIN_ID } from "@molis-ai/molis-work-plugin-work-brief";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
@@ -26,9 +26,9 @@ import { dualPlugin } from "./fixtures/dual-plugin.js";
  * here fails the first test, so a newly marked plugin is covered from the PR that marks it (Shelf from its S2, Feed from its flip).
  */
 const SHIPPED: ReadonlyArray<{ readonly plugin_id: string; home(): PluginDefinition; project(): PluginDefinition }> = [
-  { plugin_id: GOALS_PLUGIN_ID, home: createHomeGoalsPlugin, project: createGoalsPlugin },
   { plugin_id: SHELF_PLUGIN_ID, home: createHomeShelfPlugin, project: createShelfPlugin },
   { plugin_id: FEED_PLUGIN_ID, home: createFeedHomePlugin, project: createFeedPlugin },
+  { plugin_id: WORK_BRIEF_PLUGIN_ID, home: createHomeWorkBriefPlugin, project: createWorkBriefPlugin },
 ];
 
 const PROJECT = "coverage-project";

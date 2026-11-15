@@ -85,6 +85,11 @@ export interface PresentationOverviewDeclaration {
   readonly note?: TextRef;
   /** Where the person may start from, at most 3, each one of this Manifest's own actions; the action's `start` only picks among these. */
   readonly start?: readonly { readonly capability_id: string; readonly version: number; readonly open?: PresentationStartForm }[];
+  /**
+   * The project home's main content: this Manifest's own main-area view (`navigator` or `stage`). While the plugin runs, the home shows
+   * that view whole and the person can switch back to the basic home (specs/work-brief/contract-design.md §2).
+   */
+  readonly lead?: { readonly view_id: string };
 }
 
 /** An input form on this Manifest's own stage. The Host checks that the form is bound to the declared start action. */

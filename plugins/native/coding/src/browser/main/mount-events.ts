@@ -4,6 +4,7 @@ import { renderGoalFace, renderGoalRows } from "./goals.js";
 import { applyConfiguration, refreshState, rememberConfiguration } from "./configuration.js";
 import { controls, drawComposer } from "./controls.js";
 import { onClick } from "./click.js";
+import { bindSkillRedo } from "./click-round.js";
 import { renderDirectory } from "./directory.js";
 import { loadEarlier } from "./live.js";
 import { renderMethods } from "./methods.js";
@@ -106,6 +107,7 @@ export function mountSessionEvents(page: Page) {
 export function mountControlEvents(page: Page) {
   const { directory, lifetime, q, root, s, turns } = page;
   lifetime.listen(root, "click", event => { void onClick(page, event as MouseEvent); });
+  bindSkillRedo(page);
   lifetime.listen(part(directory, "[data-coding-search]"), "input", () => renderDirectory(page));
   // Late growth (a review card loading, a group opening) keeps a following reader at the newest line.
   lifetime.observe(new MutationObserver(() => { if (!s.reportRun) s.follow.pin(); }), turns, { childList: true, subtree: true, characterData: true });

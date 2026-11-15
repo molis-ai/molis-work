@@ -9,7 +9,8 @@ import { registeredBuiltinText } from "../ui-text-provider.js";
 import { withPassiveSyncExecution } from '../passive-sync-execution.js';
 import { prepareStudioAction } from "./storage.js";
 import { publicBuild, publicRelease } from './authoring-view.js';
-import { renderPluginDocumentShell, type PluginDirectoryEntry } from "@molis-ai/molis-work-app-workbench";
+import { renderPluginDocumentShell, type PluginDirectoryEntry, type UnavailablePluginStage } from "@molis-ai/molis-work-app-workbench";
+import { describePluginTablesRefusal, rollbackHrefFor } from "../home-unavailable-owners.js";
 import { installedPageSelection, pluginPagesFor, pluginPageRequest } from "../plugin-page-authority.js";
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { join } from 'node:path';
@@ -187,20 +188,37 @@ function html(response: ServerResponse, body: string) {
 }
 
 /** An installed plugin's stage in the workbench, the name it was published under, and what its Manifest declares (the page's plugin directory). */
-export interface InstalledPluginStage { pluginId: string; surface: string; label: string; stage: string; directory: PluginDirectoryEntry }
+export interface InstalledPluginStage {
+  pluginId: string; surface: string; label: string; directory: PluginDirectoryEntry;
+  stage?: string; unavailable?: UnavailablePluginStage;
+}
 /**
  * The project's installed agent-built plugins as workbench stages beside the built-in ones. Each stage frames the
  * plugin's installed page (host renderer, sandboxed backend) and loads only when opened. A disabled or quarantined
- * plugin has no entry until it is enabled again in the studio.
+ * plugin's failed database upgrade keeps the Host's upgrade card with its own directory entry.
  */
 export async function installedPluginStages(options: AgentStudioOptions): Promise<InstalledPluginStage[]> {
   if (!options.homeDirectory) return [];
-  const installed = await ensureInstalledPlugins({ ...options, homeDirectory: options.homeDirectory }), prefix = options.routePrefix ?? '';
-  return installed.records().filter(item => item.state === 'running' && !installed.recoveryErrors.has(item.plugin_id)).flatMap(item => {
+  const home = options.homeDirectory;
+  const installed = await ensureInstalledPlugins({ ...options, homeDirectory: home }), prefix = options.routePrefix ?? '';
+  return installed.records().flatMap((item): InstalledPluginStage[] => {
     const release = installed.releaseFor(item.plugin_id);
-    if (!installedStageReleaseMatches(item, release, installed.platform.supervisor.manifest(item.plugin_id))) return [];
+    if (!release) return [];
     const surface = installedStageSurface(release), words = installedPluginWords(release), label = words.name;
     const directory: PluginDirectoryEntry = { id: surface, plugin_id: item.plugin_id, chosen: false, ...words };
+    if ((item.state === 'disabled' || item.state === 'crashed') && item.last_error_code && release.packaged?.manifest.databases?.project &&
+        release.packaged.manifest.ui.views?.some(view => view.slot === 'stage')) {
+      const failure = installed.recoveryErrors.get(item.plugin_id);
+      const code = item.last_error_code;
+      const upgrade = describePluginTablesRefusal(home, item.plugin_id, options.store.path, { code });
+      if (upgrade) return [{ pluginId: item.plugin_id, surface, label, directory, unavailable: {
+        surface, label, scope: 'project', reason: failure ?? '', plugin_id: item.plugin_id, code,
+        upgrade: { title: label, reason: upgrade.reason, diagnostic_id: upgrade.diagnostic_id, rollback_href: rollbackHrefFor(home, upgrade.reason),
+          reload_href: upgrade.reason === 'upgrade_activation_failed' ? `${prefix}/settings/plugins` : null },
+      } }];
+    }
+    if (item.state !== 'running' || installed.recoveryErrors.has(item.plugin_id)
+        || !installedStageReleaseMatches(item, release, installed.platform.supervisor.manifest(item.plugin_id))) return [];
     return [{ pluginId: item.plugin_id, surface, label, directory, stage: installedStageSection({ pluginId: item.plugin_id, surface, label, prefix, installation: installedStageIdentity("project", item) }) }];
   });
 }

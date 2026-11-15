@@ -167,13 +167,13 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
       void memoryHostFor(ports.localHost)?.learnLater({ actor_id: WEB_ACTOR, work_id: work.work_id, run_id, session_id: work.session_id, sources })
         .catch(error => hostLog.warn("memory", "learning_not_queued", error));
     },
-    authority: async (work, origin, locale, namedSkills) => work.reply_target ? { manifest: ASSISTANT_AGENT, prompts: ASSISTANT_PROMPTS, authorizedDirectories: [], beforeDispatch: () => threads.authorize(work) } : ({ ...assistantAuthority(ports.localHost, work, () => store.disabledActions(WEB_ACTOR), (offer, views) => service.offers.recordOffer(work, offer, views),
+    authority: async (work, origin, locale, namedSkills, autoSkills) => work.reply_target ? { manifest: ASSISTANT_AGENT, prompts: ASSISTANT_PROMPTS, authorizedDirectories: [], beforeDispatch: () => threads.authorize(work) } : ({ ...assistantAuthority(ports.localHost, work, () => store.disabledActions(WEB_ACTOR), (offer, views) => service.offers.recordOffer(work, offer, views),
       (view, input, output) => service.outcomes.recordResult(work, view, input, output, origin?.source !== "card"), service.delegation(work),
       (view, call) => service.dispatcher.trackUnsettled(work, `${view.provider.title} · ${view.action.title}`, call), service.memory.memoryTools(work), () => store.confirmAlways(WEB_ACTOR),
       view => service.dispatcher.noteDispatched(work, view), () => {
         const snapshot = store.rounds(work.work_id).at(-1)?.context;
         return snapshot ? { url: null, title: snapshot.source.title ?? snapshot.source.surface, provenance: "client_reported" } : undefined;
-      }, locale, namedSkills),
+      }, locale, namedSkills, autoSkills),
       project_prompts: await assistantProjectPrompts(ports.localHost, work),
       // The platform memory, under the Assistant's switch: re-read and injected by the runtime as data.
       memory: task => service.memory.memoryForRound(work, task),
@@ -298,12 +298,12 @@ const of = (entry: AssistantPageEntry) => assistantServiceFor(entry.ports);
 
 /** The Assistant panel's writes (CALL-CHAINS §10.1.1): each the same call of its owner the route made before, now an action only this panel's door reaches. */
 export const assistantPanelActions = {
-  send: panel("send", /* @version action.assistant.panel.send */ 1, "发送一条输入", ofPanel, (entry, { body }) => {
+  send: panel("send", /* @version action.assistant.panel.send */ 1, "发送一条输入", ofPanel, (entry, { body }, caller) => {
     checkSendRequest(body);
     return of(entry).service.send(pageBody<AssistantSendInput>(body), { ...entry.language(), ...scoped(entry),
       ...(!body.written_by && body.reask === undefined && typeof body.text === "string" && typeof body.request_id === "string" ? { original_input: {
         input_id: body.request_id, text: body.text, written_by: "person" as const, occurred_at: new Date().toISOString(), install_id: ASSISTANT_INSTALL_ID,
-      } } : {}) });
+      } } : {}) }, undefined, () => { caller.signal?.throwIfAborted(); return true; });
   }, true),
   cards: panel("cards", /* @version action.assistant.panel.cards */ 1, "放下页面准备的操作卡", ofPanel, (entry, { body }) => of(entry).service.offers.offerFromPage(pageBody<AssistantPageCardInput>(body), scoped(entry))),
   attachments: panel("attachments", /* @version action.assistant.panel.attachments */ 1, "读出带来的文档", ofPanel,
@@ -328,24 +328,25 @@ export const assistantPanelActions = {
     { to: pageBody<Pick<AssistantHandover, "to">>(input.body).to, ...(typeof input.body.mode === "string" ? { mode: input.body.mode } : {}) })),
   recovery: panel("works.recovery", /* @version action.assistant.panel.works.recovery */ 1, "关闭中断的一轮", ofWork, async (entry, input): Promise<object> => typeof input.body.run_id === "string"
     ? of(entry).service.closeInterrupted(input.work_id, { run_id: input.body.run_id, version: Number(input.body.version) }) : of(entry).service.recovery(input.work_id)),
-  // A closed archive request stops only its own remaining writes; committed facts stay with their original owners.
+  // A closed request aborts this action's signal; archive checks it around its own remaining writes, as send/answer/redo do.
   archive: panel("works.archive", /* @version action.assistant.panel.works.archive */ 1, "归档或恢复工作", ofWork,
     async (entry, input, caller) => ({ work: await of(entry).service.archive(input.work_id, input.body.archived !== false, {
       beforeEffect: async () => { caller.signal?.throwIfAborted(); await caller.beforeEffect?.(); caller.signal?.throwIfAborted(); },
       assert_current: () => caller.signal?.throwIfAborted() }) })),
   review: panel("works.review", /* @version action.assistant.panel.works.review */ 1, "批准或拒绝工作里的待审操作", ofItem, (entry, input) => of(entry).service.outcomes.decide(input.work_id,
     { review_id: input.item, decision: pageBody<{ decision: "approve" | "reject" }>(input.body).decision, ...(typeof input.body.note === "string" ? { note: input.body.note } : {}) })),
-  answer: panel("works.answer", /* @version action.assistant.panel.works.answer */ 1, "回答待答的问题", ofWork, (entry, input) => answerQuestion(entry, input.work_id, input.body), true),
+  answer: panel("works.answer", /* @version action.assistant.panel.works.answer */ 1, "回答待答的问题", ofWork, (entry, input, caller) => answerQuestion(entry, input.work_id, input.body, caller), true),
   questionDraft: panel("works.question_draft", /* @version action.assistant.panel.works.question_draft */ 1, "保存问题的草稿", ofWork, (entry, input) => ({ ok: true,
     ...questionDrafts(of(entry).store).save(input.work_id, String(input.body.pending_id ?? ""), input.body.values, input.body.draft_revision) }), false, true),
   runCard: panel("works.cards.run", /* @version action.assistant.panel.works.cards.run */ 1, "执行一张操作卡", ofItem,
     (entry, input) => of(entry).service.offers.runCard(input.work_id, input.item, { revision: Number(input.body.revision), values: input.body.values })),
   dismissCard: panel("works.cards.dismiss", /* @version action.assistant.panel.works.cards.dismiss */ 1, "收起一张操作卡", ofItem, (entry, input) => of(entry).service.offers.dismissCard(input.work_id, input.item)),
-  redoCard: panel("works.cards.redo", /* @version action.assistant.panel.works.cards.redo */ 1, "重新准备一张操作卡", ofItem, (entry, input) => {
+  redoCard: panel("works.cards.redo", /* @version action.assistant.panel.works.cards.redo */ 1, "重新准备一张操作卡", ofItem, (entry, input, caller) => {
     // A stale card is prepared again only when asked: the request goes in as the page's words, nothing runs in its place.
     const card = of(entry).service.offers.card(input.work_id, input.item);
     return of(entry).service.send({ work_id: input.work_id, request_id: randomUUID(), text: uiText.text("workbench.assistant-http.suggestion-title-did-not-run-why-read-latest",
-      { title: card.title, why: card.outcome || uiText.text("workbench.assistant-http.data-changed-after-was-suggested") }) }, { ...entry.language(), ...scoped(entry) }, "page");
+      { title: card.title, why: card.outcome || uiText.text("workbench.assistant-http.data-changed-after-was-suggested") }) }, { ...entry.language(), ...scoped(entry) }, "page",
+      () => { caller.signal?.throwIfAborted(); return true; });
   }, true),
 };
 export const assistantPanelProvider = () => webEntryProvider("system.assistant-panel", "助理面板", Object.values(assistantPanelActions));
@@ -356,14 +357,13 @@ const named = <T>(table: Readonly<Record<string, T>>, key: string | undefined): 
 /** The panel's write a POST names, called as the person through the panel's door; undefined when the path is not one of them. */
 async function panelWrite(parts: readonly string[], body: Readonly<Record<string, unknown>>, ports: AssistantHttpPorts & { projectRef?: LocalHostProjectReference },
   request: IncomingMessage, response?: ServerResponse): Promise<{ result: unknown } | undefined> {
-  const call: WebEntryCall<AssistantPageEntry> = { host: ports.localHost, request, entry: { ports, language: () => pageRoundLanguage(ports) } };
-  const run = async <I>(definition: ActionDefinition<I, unknown>, input: I) => {
-    // Only archiving ends with the request: a closed archive request stops its own remaining writes (the other writes keep their behaviour).
-    if (!response || definition !== assistantPanelActions.archive.definition) return { result: await door.invoke(call, definition, input) };
-    const ended = new AbortController(), stop = () => ended.abort(); response.once("close", stop);
-    try { return { result: await door.invoke({ ...call, signal: ended.signal }, definition, input) }; }
-    finally { response.off("close", stop); }
-  };
+  // Every panel write carries the request's signal; the owner methods that wait for a model or another service check it before their
+  // effect, and a closed page therefore cannot leave an answer or a card behind.
+  const ended = new AbortController();
+  const stop = () => { if (!response?.writableEnded) ended.abort(); };
+  response?.once("close", stop);
+  const call: WebEntryCall<AssistantPageEntry> = { host: ports.localHost, request, entry: { ports, language: () => pageRoundLanguage(ports) }, signal: ended.signal };
+  const run = async <I>(definition: ActionDefinition<I, unknown>, input: I) => ({ result: await door.invoke(call, definition, input) });
   const a = assistantPanelActions;
   if (parts.length === 1) {
     const top = named<Panel<typeof ofPanel>>({ send: a.send, cards: a.cards, attachments: a.attachments, notices: a.notices }, parts[0]);
@@ -549,14 +549,15 @@ function writeDrawn(ports: AssistantHttpPorts, response: ServerResponse, result:
 }
 
 /** An answer as the question card's fields hold it (specs/ai-interaction-experience A1): it becomes the Runtime's answer, and its draft goes once the answer is taken. */
-async function answerQuestion(entry: AssistantPageEntry, workId: string, body: Readonly<Record<string, unknown>>) {
+async function answerQuestion(entry: AssistantPageEntry, workId: string, body: Readonly<Record<string, unknown>>, caller: ActionExecutionContext) {
   const { service, store } = assistantServiceFor(entry.ports);
   const answer = body.values === undefined ? {} : questionAnswer(body.values);
   if (!answer) throw assistantErrors.invalid("请先回答再提交");
   const view = await service.outcomes.answer(workId, { run_id: String(body.run_id ?? ""), pending_id: String(body.pending_id ?? ""),
     ...(body.pending_revision !== undefined ? { pending_revision: Number(body.pending_revision) } : {}), ...(typeof body.text === "string" ? { text: body.text } : {}),
     ...(Array.isArray(body.answers) ? { answers: pageBody<Pick<Parameters<typeof service.outcomes.answer>[1], "answers">>(body).answers } : {}), ...answer },
-    { ...entry.language(), ...(entry.ports.projectRef ? { project_ref: entry.ports.projectRef } : {}) }).catch(async (error: { code?: string; message?: string; problems?: unknown }) => {
+    { ...entry.language(), ...(entry.ports.projectRef ? { project_ref: entry.ports.projectRef } : {}),
+      beforeStart: async () => { caller.signal?.throwIfAborted(); }, assertBeforeStart: () => { caller.signal?.throwIfAborted(); } }).catch(async (error: { code?: string; message?: string; problems?: unknown }) => {
     // A questionnaire answer the Runtime refused: each question's reason goes beside its own field.
     if (error?.code !== "agent.answer_invalid") throw error;
     // Read back with the questions it answered, so each line can name the limit it crossed.
@@ -585,6 +586,7 @@ function checkSendRequest(body: Record<string, unknown>): void {
         // A page marks the words it wrote itself ("page"); the marks of the Host's and the Assistant's own rounds are set in code and cannot be claimed from outside.
         if (body.written_by !== undefined && body.written_by !== "page") throw assistantErrors.invalid("written_by 只能是 page");
         if (body.target !== undefined && body.target !== "answer" && body.target !== "steer") throw assistantErrors.invalid("target 只能是 answer 或 steer");
+        if (body.auto_skills !== undefined && body.auto_skills !== false) throw assistantErrors.invalid("auto_skills 只能是 false（这一轮不用自动技能）");
         // A re-ask names a closed question of an existing work, and is not an answer: refused before any work is made or touched.
         if (body.reask !== undefined && (!body.work_id || body.target === "answer" || body.about !== undefined)) throw assistantErrors.invalid("重新问只能用在已有的工作上，不能同时作为回答或指向一条输入");
         // A correction names the input it corrects, in a work that has one; it is a supplement, never an answer. Only the id's

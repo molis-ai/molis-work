@@ -55,13 +55,14 @@ export function retainInitializationCleanup(reason: unknown, dispose: () => Prom
 const owners = new WeakMap<object, { home: string; owner: StorageOwner; released: boolean; resources: Set<() => Promise<void>> }>();
 
 /** A live effect may use only the lease that this Host already holds. */
-export function assertCurrentHomeStorageOwner(host: object, directory: string): void {
+export function assertCurrentHomeStorageOwner(host: object, directory: string): StorageOwner {
   const held = owners.get(host);
   if (!held || held.released) throw hostErrors.closed("Local Host 未持有 Home 存储所有权");
   if (realpathSync(directory) !== held.home) throw new ActionError("actions.home_mismatch", "Host 不能绑定到另一个 Home");
   const lockDirectory = agentRuntimeDirectory(held.home);
   assertStorageOwner(lockDirectory, held.owner);
   assertNoPendingHomeRestore(lockDirectory);
+  return held.owner;
 }
 
 /**

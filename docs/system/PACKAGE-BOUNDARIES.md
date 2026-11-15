@@ -224,6 +224,8 @@ Repository 仅内部可见是目标约束；当前 Goals/Artifacts 等 public en
 
 ## 7. 现行包清单
 
+状态词汇的 contracts 子路径是 `/platform/state-vocabulary`；SDK 的 `/state-machine` 依赖此层的状态声明与家族合同。插件库、状态转换和写入归事实主人。
+
 包登记的唯一事实源是 `scripts/workspace-packages.mjs`；本表记录层、代码判定的状态及人工审查。`node scripts/gates/package-inventory.mjs --check` 与健康门禁读取本表，作为不比较 merge-base 的绝对规则：每个登记包恰好一行，层、状态与代码一致，各列符合取值规则。增删包、插件迁到 Plugin Runtime 或 import 可达性改变后，同一 PR 更新对应行。
 
 `node scripts/gates/package-inventory.mjs --table` 重新量机器列，也重新建议计划深度，并默认输出「待审」。更新时须按包路径保留既有「计划深度」「审查」及审查证据，不能整表覆盖人工结论。数字列只检查写法，不逐次比较实测值；要刷新数字时才重测。
@@ -310,6 +312,7 @@ Repository 仅内部可见是目标约束；当前 Goals/Artifacts 等 public en
 | `plugins/native/shelf` | 内置插件 | 62 | 6,298 | `styles.ts` 647 | 2 | 3 | 2 | Runtime | 中 | 已审 |
 | `plugins/native/text-stats` | 内置插件 | 16 | 553 | `core.ts` 105 | 2 | 2 | 2 | Runtime | 浅 | 已审 |
 | `plugins/native/todo` | 内置插件 | 49 | 5,225 | `organize.ts` 328 | 3 | 2 | 2 | Runtime | 中 | 待审 |
+| `plugins/native/work-brief` | 内置插件 | 26 | 2,059 | `browser/client.ts` 241 | 2 | 2 | 2 | Runtime | 中 | 待审 |
 | `plugins/native/workflows` | 内置插件 | 44 | 4,602 | `model.ts` 438 | 2 | 2 | 2 | Runtime | 中 | 待审 |
 | `plugins/official-integrations/catalog` | 官方接入 | 10 | 2,184 | `catalog.ts` 1,013 | 1 | 2 | 1 | 在用 | 中 | 已审 |
 | `plugins/official-integrations/github` | 官方接入 | 6 | 960 | `provider.ts` 592 | 1 | 2 | 1 | 在用 | 浅 | 已审 |

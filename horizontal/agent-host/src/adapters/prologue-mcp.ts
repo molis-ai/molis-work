@@ -164,7 +164,7 @@ async function connectConfiguration(state: McpState, { saved }: Held, connection
     await state.assertDirectory(saved);
     const root = await runtime.workspace.authorize({ path: saved.directory!.canonical_path });
     await dispatch(); await state.assertDirectory(saved);
-    await runtime.connectMcp({ ref: conn.ref, signal: abort.signal, transport: { kind: "stdio", rootRef: root.ref, executable: saved.executable!, argv: saved.argv!, cwd: ".", requestTimeoutMs: saved.timeout_ms, envAllowlist: [] } });
+    await runtime.connectMcp({ ref: conn.ref, signal: abort.signal, transport: { kind: "stdio", rootRef: root.ref, executable: saved.executable!, argv: saved.argv!, cwd: ".", requestTimeoutMs: saved.timeout_ms } });
   } else {
     if (saved.credential_ref) throw new Error("这个 MCP 的凭据没有持久保存，请重新填写认证信息或选择已有连接");
     let credentialRef: ExactRef<"credential"> | undefined;

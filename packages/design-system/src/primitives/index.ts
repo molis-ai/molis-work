@@ -59,6 +59,8 @@ export {
   renderIconCounts,
   renderStateRows,
   renderUsage,
+  renderTextCount,
+  renderLeaveBar,
   type NowMenu,
   type PickRow,
 } from "./capability-pack.js";

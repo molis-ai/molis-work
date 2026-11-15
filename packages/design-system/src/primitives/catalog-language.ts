@@ -1,31 +1,28 @@
 import { icon, renderButton, renderStatusMark, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { section, specimen } from "./catalog-parts.js";
+import type { Say } from "./catalog-composer.js";
 
 // The board's opening chapter: the design language the rest of the board is built from. What every screen answers, which colours
 // may meet and what each one means, where each zone of the workbench stands, and (in the motion section) which change gets
 // which motion. The specimens are made of the same tokens and controls as the product, so a change to a token shows here first.
 
-const three = [
-  ["01", "我在哪", "项目和事项的名字常驻在同一个位置。页面的标题是对象自己的名字，不是页面的种类。"],
-  ["02", "现在怎样", "先摆要你处理的和出了例外的。一切正常的用灰字，一句话带过，不占首屏。"],
-  ["03", "下一步", "一屏只有一个墨蓝主操作，用动词开头。同一种动作再出现时退成浅底。"],
-] as const;
-
-const rules = [
-  ["冷色是系统，暖色是你", "身份、导航、焦点和进行中都在蓝灰里。整块界面上唯一的暖色是「轮到你」，所以它不用加粗也看得见。"],
-  ["一屏一个墨蓝", "墨蓝只给主操作和选中。雾蓝只指路：焦点、链接、进行中，从不填按钮。"],
-  ["层次靠明度，不靠线", "桌面、工作面、内层块、洗底四级。一组内容只画一圈边，组里用发丝线，不给每一行各画一个框。"],
-  ["动效只说明变化", "到达、换了地方、前进后退、新来一条、轮到你、完成，各有一种，都用同一组时长和曲线。没有变化就不动。"],
-  ["正常的事一句话", "没有等你的事、都已保存、都在正常运行，用灰字一句话带过，不占首屏，也不配图标装饰。颜色和位置留给例外。"],
-] as const;
-
 /** 设计语言：每一屏回答什么，五条搭配规则。 */
-export function languageSection(): string {
-  const cards = three.map(([no, title, body]) => `<article class="mw-lang-card"><small>${no}</small><strong>${title}</strong><p>${body}</p></article>`).join("");
-  const list = rules.map(([title, body]) => `<li><strong>${title}</strong><span>${body}</span></li>`).join("");
-  return section("language", "设计原则", `<div class="mw-catalog__specimens">
-    ${specimen("每一屏先回答三个问题", `<div class="mw-lang-three">${cards}</div>`)}
-    ${specimen("五条搭配规则", `<ol class="mw-lang-rules">${list}</ol>`)}
+export function languageSection(say: Say): string {
+  const cards = [
+    ["01", say("workbench.catalog.language.where-am-i"), say("workbench.catalog.language.where-am-i-body")],
+    ["02", say("workbench.catalog.language.how-things-stand"), say("workbench.catalog.language.how-things-stand-body")],
+    ["03", say("workbench.catalog.language.what-next"), say("workbench.catalog.language.what-next-body")],
+  ].map(([no, title, body]) => `<article class="mw-lang-card"><small>${no}</small><strong>${title}</strong><p>${body}</p></article>`).join("");
+  const list = [
+    [say("workbench.catalog.language.rule-cool-is-the-system-warm-is-you"), say("workbench.catalog.language.rule-cool-is-the-system-warm-is-you-body")],
+    [say("workbench.catalog.language.rule-one-ink-blue-per-screen"), say("workbench.catalog.language.rule-one-ink-blue-per-screen-body")],
+    [say("workbench.catalog.language.rule-depth-by-lightness-not-lines"), say("workbench.catalog.language.rule-depth-by-lightness-not-lines-body")],
+    [say("workbench.catalog.language.rule-motion-only-explains-change"), say("workbench.catalog.language.rule-motion-only-explains-change-body")],
+    [say("workbench.catalog.language.rule-normal-things-get-one-line"), say("workbench.catalog.language.rule-normal-things-get-one-line-body")],
+  ].map(([title, body]) => `<li><strong>${title}</strong><span>${body}</span></li>`).join("");
+  return section("language", say("workbench.catalog.language.principles"), `<div class="mw-catalog__specimens">
+    ${specimen(say("workbench.catalog.language.every-screen-answers-three-questions"), `<div class="mw-lang-three">${cards}</div>`)}
+    ${specimen(say("workbench.catalog.language.five-pairing-rules"), `<ol class="mw-lang-rules">${list}</ol>`)}
   </div>`);
 }
 
@@ -33,106 +30,101 @@ type Tone = "idle" | "progress" | "attention" | "hold" | "blocked" | "done";
 const row = (tone: Tone, glyph: PluginIconName, state: string, title: string, note: string, action = "", attrs = "") =>
   `<div class="mw-lang-row"${attrs}>${renderStatusMark({ label: state, tone, icon: glyph })}<strong>${title}</strong><span>${note}</span>${action}</div>`;
 
-const temperature = [
-  ["--action", "墨蓝", "你做的", "主操作、选中的选项、提示气泡", "状态、链接、装饰"],
-  ["--accent", "雾蓝", "你在哪、正在发生", "焦点、链接、进行中、未读点", "填按钮"],
-  ["--tone-attention", "琥珀", "轮到你", "等你决定、验收、回答", "插件身份、装饰、普通提醒"],
-  ["--tone-hold", "青", "等别人", "已交出去、等对方回复", "进行中"],
-  ["--tone-blocked", "红", "走不通", "阻塞、失败、危险操作", "未读、强调"],
-  ["--tone-done", "绿", "落定了", "完成、已连接、已保存", "主操作"],
-  ["--tone-idle", "灰", "歇着", "可开始、归档、常态", "需要人看见的事"],
-] as const;
-
-const surfaces = [["--page", "Desk"], ["--paper", "Surface"], ["--surface-soft", "Soft"], ["--rail", "Wash"]] as const;
-const inks = [
-  ["--ink", "Ink · 正文"], ["--ink-soft", "Soft · 次级"], ["--muted", "Muted · 说明"], ["--faint", "Faint · 提示"],
-  ["--accent", "Mist blue · 链接"], ["--tone-attention", "Attention · 轮到你"], ["--tone-blocked", "Blocked · 阻塞"], ["--tone-done", "Done · 完成"],
-] as const;
 const ownerHues = [["blue", "target"], ["indigo", "inbox"], ["purple", "rss"], ["slate", "library"], ["steel", "file"]] as const;
 
 /** 色彩搭配：角色放在一起看、颜色的温度、字在面上的实测对比度、插件身份色。 */
-export function pairingSection(): string {
+export function pairingSection(say: Say): string {
   const stage = `<div class="mw-lang-stage">
     <div class="mw-lang-sheet">
-      <header><small>项目首页</small><h3>FlyLeaf-V0.1</h3></header>
+      <header><small>${say("workbench.catalog.language.project-home")}</small><h3>FlyLeaf-V0.1</h3></header>
       <div class="mw-lang-list">
-        ${row("attention", "status-needs-you", "等你验收", "首版范围说明", "昨天 22:14 · Pages", renderButton({ label: "验收", variant: "primary", size: "sm" }))}
-        ${row("progress", "status-progress", "进行中", "打磨首次使用", "助理在办 · 第 2 步，共 4 步", renderButton({ label: "看进展", variant: "secondary", size: "sm" }))}
-        ${row("hold", "status-waiting", "等别人", "确认首批内测名单", "已发给 Lin")}
-        ${row("blocked", "status-blocked", "读取失败", "导入用户访谈", "本地服务没有响应", renderButton({ label: "再试一次", variant: "secondary", size: "sm" }))}
-        ${row("done", "status-done", "已完成", "完成阅读页原型", "9 月 29 日")}
+        ${row("attention", "status-needs-you", say("workbench.catalog.language.state-needs-your-review"), say("workbench.catalog.language.first-release-scope"), say("workbench.catalog.language.yesterday-2214-pages"), renderButton({ label: say("workbench.catalog.language.review"), variant: "primary", size: "sm" }))}
+        ${row("progress", "status-progress", say("workbench.catalog.language.state-in-progress"), say("workbench.catalog.language.polish-the-first-run"), say("workbench.catalog.language.assistant-step-2-of-4"), renderButton({ label: say("workbench.catalog.language.view-progress"), variant: "secondary", size: "sm" }))}
+        ${row("hold", "status-waiting", say("workbench.catalog.language.state-waiting-on-someone"), say("workbench.catalog.language.confirm-the-first-beta-list"), say("workbench.catalog.language.sent-to-lin"))}
+        ${row("blocked", "status-blocked", say("workbench.catalog.language.state-could-not-read"), say("workbench.catalog.language.import-user-interviews"), say("workbench.catalog.language.local-service-not-responding"), renderButton({ label: say("workbench.catalog.language.try-again"), variant: "secondary", size: "sm" }))}
+        ${row("done", "status-done", say("workbench.catalog.language.state-done"), say("workbench.catalog.language.finish-reading-page-prototype"), say("workbench.catalog.language.september-29"))}
       </div>
-      <p class="mw-lang-note">说明用灰字。<a href="#pairing">链接是雾蓝</a>，键盘焦点是 2px 雾蓝描边：<input class="mw-input" value="按 Tab 到这里看" aria-label="焦点示例"></p>
+      <p class="mw-lang-note">${say("workbench.catalog.language.notes-are-grey")}<a href="#pairing">${say("workbench.catalog.language.links-are-mist-blue")}</a>${say("workbench.catalog.language.keyboard-focus-is-a-2px-mist-blue-ring")}<input class="mw-input" value="${say("workbench.catalog.language.tab-to-see-focus")}" aria-label="${say("workbench.catalog.language.focus-example")}"></p>
     </div>
-    <aside class="mw-lang-soft"><small>内层块</small><span class="mw-lang-wash">洗底</span><span class="mw-lang-wash">洗底</span></aside>
+    <aside class="mw-lang-soft"><small>${say("workbench.catalog.language.inner-block")}</small><span class="mw-lang-wash">${say("workbench.catalog.language.wash")}</span><span class="mw-lang-wash">${say("workbench.catalog.language.wash")}</span></aside>
   </div>`;
-  const table = temperature.map(([token, name, meaning, use, never]) =>
+  const table = [
+    ["--action", say("workbench.catalog.language.ink-blue"), say("workbench.catalog.language.what-you-do"), say("workbench.catalog.language.use-primary-action-selected-option-tooltip"), say("workbench.catalog.language.never-a-status-a-link-decoration")],
+    ["--accent", say("workbench.catalog.language.mist-blue"), say("workbench.catalog.language.where-you-are-what-is-happening"), say("workbench.catalog.language.use-focus-links-progress-unread"), say("workbench.catalog.language.never-filling-a-button")],
+    ["--tone-attention", say("workbench.catalog.language.amber"), say("workbench.catalog.language.your-turn"), say("workbench.catalog.language.use-waiting-for-your-decision-review-answer"), say("workbench.catalog.language.never-plugin-identity-decoration-notice")],
+    ["--tone-hold", say("workbench.catalog.language.cyan"), say("workbench.catalog.language.someone-elses-turn"), say("workbench.catalog.language.use-handed-over-waiting-for-a-reply"), say("workbench.catalog.language.never-work-in-progress")],
+    ["--tone-blocked", say("workbench.catalog.language.red"), say("workbench.catalog.language.it-cannot-go-on"), say("workbench.catalog.language.use-blocked-failed-destructive"), say("workbench.catalog.language.never-unread-emphasis")],
+    ["--tone-done", say("workbench.catalog.language.green"), say("workbench.catalog.language.settled"), say("workbench.catalog.language.use-completed-connected-saved"), say("workbench.catalog.language.never-a-primary-action")],
+    ["--tone-idle", say("workbench.catalog.language.grey"), say("workbench.catalog.language.at-rest"), say("workbench.catalog.language.use-ready-archived-normal"), say("workbench.catalog.language.never-anything-to-notice")],
+  ].map(([token, name, meaning, use, never]) =>
     `<tr><td><i class="mw-lang-dot" style="background:var(${token})"></i>${name}<code>${token}</code></td><td>${meaning}</td><td>${use}</td><td>${never}</td></tr>`).join("");
+  const surfaces = [["--page", say("workbench.catalog.language.surface-desk")], ["--paper", say("workbench.catalog.language.surface-surface")], ["--surface-soft", say("workbench.catalog.language.surface-soft")], ["--rail", say("workbench.catalog.language.surface-wash")]] as const;
+  const inks = [
+    ["--ink", say("workbench.catalog.language.ink-body")], ["--ink-soft", say("workbench.catalog.language.ink-secondary")], ["--muted", say("workbench.catalog.language.ink-caption")], ["--faint", say("workbench.catalog.language.ink-hint")],
+    ["--accent", say("workbench.catalog.language.ink-link")], ["--tone-attention", say("workbench.catalog.language.ink-your-turn")], ["--tone-blocked", say("workbench.catalog.language.ink-blocked")], ["--tone-done", say("workbench.catalog.language.ink-done")],
+  ] as const;
+  const sample = say("workbench.catalog.language.text-sample-aa");
   const matrix = inks.map(([ink, label]) => `<tr><th scope="row">${label}</th>${surfaces.map(([surface]) =>
-    `<td style="background:var(${surface});color:var(${ink})" data-lang-contrast><span>文字 Aa</span><small></small></td>`).join("")}</tr>`).join("");
+    `<td style="background:var(${surface});color:var(${ink})" data-lang-contrast data-lang-low-label="${say("workbench.catalog.language.contrast-low")}"><span>${sample}</span><small></small></td>`).join("")}</tr>`).join("");
   const tiles = ownerHues.map(([hue, glyph]) =>
     `<span class="mw-lang-tile" style="--h:var(--hue-${hue});--s:var(--hue-${hue}-soft)"><i>${icon(glyph)}</i><span>${hue}</span></span>`).join("");
-  return section("pairing", "色彩搭配", `<div class="mw-catalog__specimens">
-    ${specimen("角色放在一起看 · 一屏一个墨蓝，唯一的暖色是轮到你", stage)}
-    ${specimen("颜色的温度 · 每种颜色只有一个意思", `<div class="mw-lang-scroll"><table class="mw-table mw-lang-table"><thead><tr><th>颜色</th><th>意思</th><th>用在</th><th>不用在</th></tr></thead><tbody>${table}</tbody></table></div>`)}
-    ${specimen("字在面上 · 当前主题的实测对比度，4.5 以上才用来写字", `<div class="mw-lang-scroll"><table class="mw-lang-matrix"><thead><tr><th></th>${surfaces.map(([, name]) => `<th scope="col">${name}</th>`).join("")}</tr></thead><tbody>${matrix}</tbody></table></div>`)}
-    ${specimen("插件身份色 · 只取冷色，带温度的颜色留给状态", `<div class="mw-lang-tiles">${tiles}</div>`)}
+  return section("pairing", say("workbench.catalog.language.pairing"), `<div class="mw-catalog__specimens">
+    ${specimen(say("workbench.catalog.language.roles-together-one-ink-blue-per-screen"), stage)}
+    ${specimen(say("workbench.catalog.language.colour-temperature"), `<div class="mw-lang-scroll"><table class="mw-table mw-lang-table"><thead><tr><th>${say("workbench.catalog.language.colour")}</th><th>${say("workbench.catalog.language.meaning")}</th><th>${say("workbench.catalog.language.use-for")}</th><th>${say("workbench.catalog.language.never-for")}</th></tr></thead><tbody>${table}</tbody></table></div>`)}
+    ${specimen(say("workbench.catalog.language.text-on-surfaces"), `<div class="mw-lang-scroll"><table class="mw-lang-matrix"><thead><tr><th></th>${surfaces.map(([, name]) => `<th scope="col">${name}</th>`).join("")}</tr></thead><tbody>${matrix}</tbody></table></div>`)}
+    ${specimen(say("workbench.catalog.language.plugin-identity-colours"), `<div class="mw-lang-tiles">${tiles}</div>`)}
   </div>`);
 }
-
-const zones = [
-  ["标题栏", "我在哪", "桌面色，不抬升", "标签移动 250ms"],
-  ["工作面", "现在怎样", "工作面色 --paper，--sheet-shadow", "内容到达 420ms；同一个对象走过去"],
-  ["右侧", "手边的参考", "工作面色，与工作面同级", "侧板从右缘滑入 420ms"],
-  ["底栏", "下一步", "桌面上的抬升件，--lift-1 / --lift-2", "菜单从栏升起；轮到你时一圈暖色环，一次"],
-  ["浮层", "临时的一件事", "--popover，--lift-3", "从触发它的控件长出，原路收回"],
-] as const;
 
 /** 布局分区：桌面上每个区回答哪个问题，用哪一层面、哪一种动效。 */
-export function zonesSection(): string {
+export function zonesSection(say: Say): string {
   const diagram = `<div class="mw-lang-zones" aria-hidden="true">
-    <div class="mw-lang-zones__title"><i></i><i></i><b>FlyLeaf-V0.1 / 打磨首次使用</b><span>Pages</span><span>待办</span><em>标题栏 · 我在哪</em></div>
-    <div class="mw-lang-zones__sheet"><em>工作面 · 现在怎样</em><u></u><u></u><u></u><u></u></div>
-    <div class="mw-lang-zones__side"><em>右侧 · 手边的参考</em><u></u><u></u></div>
-    <div class="mw-lang-zones__line"><span class="is-done"></span><span class="is-done"></span><span class="is-you"></span><b>现在 · 输入框</b><span></span><span></span><em>底栏 · 下一步</em></div>
+    <div class="mw-lang-zones__title"><i></i><i></i><b>${say("workbench.catalog.language.zones-diagram-title")}</b><span>Pages</span><span>${say("workbench.catalog.language.todo")}</span><em>${say("workbench.catalog.language.zones-diagram-titlebar")}</em></div>
+    <div class="mw-lang-zones__sheet"><em>${say("workbench.catalog.language.zones-diagram-work-surface")}</em><u></u><u></u><u></u><u></u></div>
+    <div class="mw-lang-zones__side"><em>${say("workbench.catalog.language.zones-diagram-right-side")}</em><u></u><u></u></div>
+    <div class="mw-lang-zones__line"><span class="is-done"></span><span class="is-done"></span><span class="is-you"></span><b>${say("workbench.catalog.language.zones-diagram-composer")}</b><span></span><span></span><em>${say("workbench.catalog.language.zones-diagram-bottom-bar")}</em></div>
   </div>`;
-  const table = zones.map(([zone, answers, surface, motion]) => `<tr><td><strong>${zone}</strong></td><td>${answers}</td><td>${surface}</td><td>${motion}</td></tr>`).join("");
-  return section("zones", "布局分区", `<div class="mw-catalog__specimens">
-    ${specimen("桌面上的四个区 · 上面说在哪，中间说怎样，下面是下一步", diagram)}
-    ${specimen("每个区用哪一层面、哪一种动效", `<div class="mw-lang-scroll"><table class="mw-table mw-lang-table"><thead><tr><th>分区</th><th>回答</th><th>面与抬升</th><th>动效</th></tr></thead><tbody>${table}</tbody></table></div>
-      <p class="mw-catalog__hint">底栏上按事项排的节点是方向稿（事项线，specs/work-line），这里只定它用哪一层面和哪一种动效；现行底栏的实件见「底栏与浮层」。</p>`)}
+  const table = [
+    [say("workbench.catalog.language.zone-titlebar"), say("workbench.catalog.language.where-am-i"), say("workbench.catalog.language.surface-desk-no-lift"), say("workbench.catalog.language.motion-tab-moves-250ms")],
+    [say("workbench.catalog.language.zone-work-surface"), say("workbench.catalog.language.how-things-stand"), say("workbench.catalog.language.surface-paper-sheet-shadow"), say("workbench.catalog.language.motion-content-arrives-420ms")],
+    [say("workbench.catalog.language.zone-right-side"), say("workbench.catalog.language.reference-at-hand"), say("workbench.catalog.language.surface-paper-level-with-sheet"), say("workbench.catalog.language.motion-edge-sheet-slides-420ms")],
+    [say("workbench.catalog.language.zone-bottom-bar"), say("workbench.catalog.language.what-next"), say("workbench.catalog.language.surface-lifted-from-desk"), say("workbench.catalog.language.motion-menus-rise-amber-ring")],
+    [say("workbench.catalog.language.zone-floating-layer"), say("workbench.catalog.language.one-temporary-thing"), say("workbench.catalog.language.surface-popover-lift-3"), say("workbench.catalog.language.motion-grows-from-control")],
+  ].map(([zone, answers, surface, motion]) => `<tr><td><strong>${zone}</strong></td><td>${answers}</td><td>${surface}</td><td>${motion}</td></tr>`).join("");
+  return section("zones", say("workbench.catalog.language.zones"), `<div class="mw-catalog__specimens">
+    ${specimen(say("workbench.catalog.language.four-zones-on-the-desk"), diagram)}
+    ${specimen(say("workbench.catalog.language.which-surface-and-motion-per-zone"), `<div class="mw-lang-scroll"><table class="mw-table mw-lang-table"><thead><tr><th>${say("workbench.catalog.language.zone")}</th><th>${say("workbench.catalog.language.answers")}</th><th>${say("workbench.catalog.language.surface-and-lift")}</th><th>${say("workbench.catalog.language.motion")}</th></tr></thead><tbody>${table}</tbody></table></div>
+      <p class="mw-catalog__hint">${say("workbench.catalog.language.bottom-bar-work-line-note")}</p>`)}
   </div>`);
 }
 
-const grammar = [
-  ["出现", "上浮 7px 同时淡入", "420ms · quint", "craft-rise"],
-  ["再次显示", "淡入", "130ms · quint", "craft-fade-in"],
-  ["同一个对象换了地方", "对象自己走过去，其余淡入", "420ms · quint", "molisCraft.carry"],
-  ["前进 / 返回", "从来的那一侧滑入 16px", "420ms · quint", "molisCraft.turn"],
-  ["新来一条", "一次雾蓝洗底", "640ms · quint", "molisCraft.land"],
-  ["轮到你", "一圈暖色环向外散开，一次", "640ms · quint", "molisCraft.ask"],
-  ["完成", "对勾落定，一次庆祝", "640ms · spring", "molisCraft.celebrate"],
-  ["按下", "缩到 .97 再弹回", "130ms · spring", "mw-btn"],
-  ["菜单与浮层", "从触发处长出，原路收回", "进 250ms · 出 130ms", "craft-drop"],
-] as const;
-
 /** 动效语法：哪一种变化用哪一种动效，以及三种新动效的可点标本。接在「动效标本」一节的开头。 */
-export function motionGrammarSpecimens(): string {
-  const table = grammar.map(([change, motion, clock, name]) => `<tr><td><strong>${change}</strong></td><td>${motion}</td><td>${clock}</td><td><code>${name}</code></td></tr>`).join("");
+export function motionGrammarSpecimens(say: Say): string {
+  const table = [
+    [say("workbench.catalog.language.something-appears"), say("workbench.catalog.language.rises-7px-while-fading-in"), say("workbench.catalog.language.clock-420ms-quint"), "craft-rise"],
+    [say("workbench.catalog.language.shown-again"), say("workbench.catalog.language.fades-in"), say("workbench.catalog.language.clock-130ms-quint"), "craft-fade-in"],
+    [say("workbench.catalog.language.same-object-somewhere-else"), say("workbench.catalog.language.object-travels-rest-cross-fades"), say("workbench.catalog.language.clock-420ms-quint"), "molisCraft.carry"],
+    [say("workbench.catalog.language.forward-back"), say("workbench.catalog.language.slides-16px-from-origin"), say("workbench.catalog.language.clock-420ms-quint"), "molisCraft.turn"],
+    [say("workbench.catalog.language.a-new-row"), say("workbench.catalog.language.one-mist-blue-wash"), say("workbench.catalog.language.clock-640ms-quint"), "molisCraft.land"],
+    [say("workbench.catalog.language.it-becomes-your-turn"), say("workbench.catalog.language.one-amber-ring-once"), say("workbench.catalog.language.clock-640ms-quint"), "molisCraft.ask"],
+    [say("workbench.catalog.language.completed"), say("workbench.catalog.language.mark-lands-one-celebration"), say("workbench.catalog.language.clock-640ms-spring"), "molisCraft.celebrate"],
+    [say("workbench.catalog.language.pressed"), say("workbench.catalog.language.gives-to-97-and-springs-back"), say("workbench.catalog.language.clock-130ms-spring"), "mw-btn"],
+    [say("workbench.catalog.language.menu-or-floating-layer"), say("workbench.catalog.language.grows-from-control-closes-back"), say("workbench.catalog.language.clock-in-250ms-out-130ms"), "craft-drop"],
+  ].map(([change, motion, clock, name]) => `<tr><td><strong>${change}</strong></td><td>${motion}</td><td>${clock}</td><td><code>${name}</code></td></tr>`).join("");
   const demo = (id: string, label: string) => renderButton({ label, variant: "secondary", size: "sm", attrs: { "data-lang-demo": id } });
-  const titles = ["让第一次使用的人顺利完成一轮目标协作", "把布局、文字和交互收成一个完整的体验", "让信息流更适合专注阅读"];
+  const titles = [say("workbench.catalog.language.first-run-goal-collaboration"), say("workbench.catalog.language.one-coherent-experience"), say("workbench.catalog.language.focus-friendly-feed")];
   return `
-      ${specimen("动效语法 · 一种变化对应一种动效", `<div class="mw-lang-scroll"><table class="mw-table mw-lang-table"><thead><tr><th>变化</th><th>动效</th><th>时长与曲线</th><th>名字</th></tr></thead><tbody>${table}</tbody></table></div>`)}
-      ${specimen("同一个对象换了地方 · 420ms", `<div class="mw-lang-carry" data-lang-carry>
+      ${specimen(say("workbench.catalog.language.motion-grammar"), `<div class="mw-lang-scroll"><table class="mw-table mw-lang-table"><thead><tr><th>${say("workbench.catalog.language.change")}</th><th>${say("workbench.catalog.language.motion")}</th><th>${say("workbench.catalog.language.duration-and-curve")}</th><th>${say("workbench.catalog.language.name")}</th></tr></thead><tbody>${table}</tbody></table></div>`)}
+      ${specimen(say("workbench.catalog.language.same-object-somewhere-else-420ms"), `<div class="mw-lang-carry" data-lang-carry>
         <ul>${titles.map(title => `<li><button type="button" data-lang-carry-open>${title}</button></li>`).join("")}</ul>
-        <article hidden>${renderButton({ label: "返回列表", variant: "ghost", size: "sm", icon: "back", attrs: { "data-lang-carry-back": "" } })}<h3 data-lang-carry-title></h3><p>列表里的标题走到详情的标题位置，人不用重新找它在哪。</p></article>
+        <article hidden>${renderButton({ label: say("workbench.catalog.language.back-to-list"), variant: "ghost", size: "sm", icon: "back", attrs: { "data-lang-carry-back": "" } })}<h3 data-lang-carry-title></h3><p>${say("workbench.catalog.language.carry-explanation")}</p></article>
       </div>`)}
-      ${specimen("前进 / 返回 · 420ms", `<div class="mw-motion-stack"><div class="mw-craft-row">${demo("back", "返回")}${demo("forward", "前进")}</div><div class="mw-lang-page" data-lang-page>第 1 页</div></div>`)}
-      ${specimen("轮到你 · 640ms，一次", `<div class="mw-motion-stack"><div class="mw-craft-row">${demo("ask", "助理办完一步，等你验收")}</div>
+      ${specimen(say("workbench.catalog.language.forward-back-420ms"), `<div class="mw-motion-stack"><div class="mw-craft-row">${demo("back", say("workbench.catalog.language.back"))}${demo("forward", say("workbench.catalog.language.forward"))}</div><div class="mw-lang-page" data-lang-page><span data-page-prefix>${say("workbench.catalog.language.page-prefix")}</span><span data-page-number>1</span><span data-page-suffix>${say("workbench.catalog.language.page-suffix")}</span></div></div>`)}
+      ${specimen(say("workbench.catalog.language.your-turn-640ms-once"), `<div class="mw-motion-stack"><div class="mw-craft-row">${demo("ask", say("workbench.catalog.language.assistant-finished-a-step"))}</div>
         <div class="mw-lang-list mw-lang-list--edge"><div class="mw-lang-row" data-lang-ask>
-          <span data-lang-ask-state="progress">${renderStatusMark({ label: "进行中", tone: "progress", icon: "status-progress" })}</span>
-          <span data-lang-ask-state="attention" hidden>${renderStatusMark({ label: "等你验收", tone: "attention", icon: "status-needs-you" })}</span>
-          <strong>首版范围说明</strong><span>状态先换，环只散开一次；之后靠琥珀色自己留在那里。</span></div></div></div>`)}`;
+          <span data-lang-ask-state="progress">${renderStatusMark({ label: say("workbench.catalog.language.state-in-progress"), tone: "progress", icon: "status-progress" })}</span>
+          <span data-lang-ask-state="attention" hidden>${renderStatusMark({ label: say("workbench.catalog.language.state-needs-your-review"), tone: "attention", icon: "status-needs-you" })}</span>
+          <strong>${say("workbench.catalog.language.first-release-scope")}</strong><span>${say("workbench.catalog.language.ask-note")}</span></div></div></div>`)}`;
 }
 
 export const LANGUAGE_BOARD_STYLES = `
@@ -177,7 +169,7 @@ export const LANGUAGE_BOARD_STYLES = `
   .mw-lang-matrix td { padding: 8px 10px; border-radius: var(--r-control); box-shadow: inset 0 0 0 1px var(--line); }
   .mw-lang-matrix td span { display: block; font-size: 13px; }
   .mw-lang-matrix td small { font-size: 11px; font-variant-numeric: tabular-nums; }
-  .mw-lang-matrix td[data-lang-low] small::after { content: " · 不写字"; }
+  .mw-lang-matrix td[data-lang-low] small::after { content: " · " attr(data-lang-low-label); }
   .mw-lang-tiles { display: flex; flex-wrap: wrap; gap: 12px; }
   .mw-lang-tile { display: grid; grid-template-columns: auto auto; align-items: center; gap: 8px; padding: 6px 12px 6px 6px; border-radius: var(--r-row); background: var(--s); color: var(--ink-soft); font-size: 12px; }
   .mw-lang-tile i { display: grid; place-items: center; inline-size: 28px; block-size: 28px; border-radius: var(--r-control); background: var(--paper); color: var(--h); }

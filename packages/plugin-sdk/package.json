@@ -34,6 +34,10 @@
       "types": "./dist/presentation.d.ts",
       "import": "./dist/presentation.js"
     },
+    "./state-machine": {
+      "types": "./dist/state-machine.d.ts",
+      "import": "./dist/state-machine.js"
+    },
     "./ui": {
       "types": "./dist/ui.d.ts",
       "import": "./dist/ui.js"

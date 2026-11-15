@@ -99,7 +99,13 @@ test("SKP-10: the round hands its consumer and frozen named list to the action c
     actor_id: "tester", task: "读一下", role_id: "reader", directory: { canonical_path: DIRECTORY, realpath_verified: true }, skills: [named],
     action_tools: [{ capability_id: "skills.body.read", version: 1, provider_id: "system.skills" }] };
   await host.start("probe", request, authority);
-  assert.deepEqual(seen, [{ consumer: "coding", named: [named] }], "a workspace role's round is Coding's, with its frozen named list and nothing else");
+  const round = seen[0]?.round;
+  assert.match(round ?? "", /^[0-9a-f-]{36}$/u, "SKL-02: the round carries its own number, which the catalog counts its automatic picks under");
+  assert.deepEqual(seen, [{ consumer: "coding", named: [named], round }], "a workspace role's round is Coding's, with its frozen named list, its number and nothing else");
+  seen.length = 0;
+  await host.start("probe", { ...request, auto_skills: false }, authority);
+  assert.equal(seen[0]?.auto, false, "SKL-11: 「这次不用技能」 reaches the catalog as the round's own word");
+  assert.notEqual(seen[0]?.round, round, "each round has its own number");
 });
 
 /** The round requests the model actually received: those offering tools (the ending review and drafts carry none). */

@@ -143,3 +143,24 @@ test("MEM-40 UPG2: an old memory folder name that is a link is refused, and neit
   assert.equal(pending(home), true, "the marker stays for a start that can finish");
   assert.equal(existsSync(forgetting(home)), false);
 });
+
+test("MEM-19: memory_revisions stores only lightweight change attribution ({ version, change, by, at }) and never duplicate text or snapshot", async t => {
+  const { openMemoryLedger } = await import("@molis-ai/molis-work-storage");
+  const home = scratch(t);
+  await start(home);
+  const ledger = openMemoryLedger({ homeDirectory: home });
+  t.after(() => ledger.close());
+  ledger.addRevision("m-attr", { version: 1, change: "created", by: "person", at: "2026-11-14T00:00:00.000Z" });
+  const db = new DatabaseSync(homeSqlitePath(home, MEMORY_LEDGER_STORE));
+  try {
+    const raw = JSON.parse(String(db.prepare("SELECT body FROM memory_revisions WHERE memory_id='m-attr' AND version=1").get()!.body));
+    assert.deepEqual(raw, { version: 1, change: "created", by: "person", at: "2026-11-14T00:00:00.000Z" });
+    assert.equal("text" in raw, false);
+    assert.equal("snapshot" in raw, false);
+    db.exec(`INSERT INTO memory_revisions VALUES ('m-attr', 2, '{"version":2,"text":"legacy","snapshot":{"origin":"x"},"change":"edited","by":"person","at":"2026-11-14T01:00:00.000Z"}')`);
+  } finally { db.close(); }
+  assert.deepEqual(ledger.revisions("m-attr"), [
+    { version: 1, change: "created", by: "person", at: "2026-11-14T00:00:00.000Z" },
+    { version: 2, change: "edited", by: "person", at: "2026-11-14T01:00:00.000Z" },
+  ]);
+});

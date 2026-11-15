@@ -1,6 +1,6 @@
 import type { InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import type { AgentPromptRegistration, AgentRoleRegistration } from "@molis-ai/molis-work-contracts/services/agent-definitions";
-import { CONTEXTUAL_DRAFT, CONTEXTUAL_NEXT, CONTEXTUAL_SURFACE, INFORMATION_PLANNER, KNOWLEDGE_LOCATE, KNOWLEDGE_ORGANIZE, MEMORY_EXTRACT, MEMORY_TIDY, ONBOARDING_NOTES, ONBOARDING_PROPOSAL } from "./system-prompts.js";
+import { CONTEXTUAL_DRAFT, CONTEXTUAL_NEXT, CONTEXTUAL_SURFACE, INFORMATION_PLANNER, KNOWLEDGE_LOCATE, KNOWLEDGE_ORGANIZE, MEMORY_EXTRACT, MEMORY_TIDY, ONBOARDING_NOTES, ONBOARDING_PROPOSAL, SKILL_DRAFT } from "./system-prompts.js";
 import { BUILDER_CHOICE_INSTRUCTIONS, BUILDER_PLUGIN_ID, BUILDER_PROMPTS, BUILDER_PROMPT_TITLES, builderPromptVersion, type BuilderPromptName } from "@molis-ai/molis-work-plugin-builder";
 import { ALCHEMIST_INSTRUCTIONS } from "../alchemist-prologue.js";
 
@@ -12,7 +12,7 @@ import { ALCHEMIST_INSTRUCTIONS } from "../alchemist-prologue.js";
  */
 export const BUILTIN_INSTRUCTIONS: readonly InstructionPrompt[] = [
   ...BUILDER_CHOICE_INSTRUCTIONS, ...ALCHEMIST_INSTRUCTIONS, ONBOARDING_NOTES, ONBOARDING_PROPOSAL, INFORMATION_PLANNER, MEMORY_EXTRACT, MEMORY_TIDY,
-  CONTEXTUAL_NEXT, CONTEXTUAL_SURFACE, CONTEXTUAL_DRAFT, KNOWLEDGE_ORGANIZE, KNOWLEDGE_LOCATE,
+  CONTEXTUAL_NEXT, CONTEXTUAL_SURFACE, CONTEXTUAL_DRAFT, KNOWLEDGE_ORGANIZE, KNOWLEDGE_LOCATE, SKILL_DRAFT,
 ];
 
 /**
@@ -41,6 +41,6 @@ export const BUILTIN_INLINE_AGENT_ROLES: ReadonlyArray<{ owner_id: string; role:
 export const SYSTEM_INSTRUCTION_SOURCES: Readonly<Record<string, { module: string; title: string }>> = {
   "system:onboarding": { module: "onboarding", title: "项目上手" }, "system:information": { module: "information", title: "信息助手" },
   "system:memory": { module: "memory", title: "记忆" }, "system:contextual": { module: "contextual", title: "选区推荐" },
-  "system:knowledge": { module: "knowledge", title: "项目资料" },
+  "system:knowledge": { module: "knowledge", title: "项目资料" }, "system:skills": { module: "skills", title: "技能" },
   [BUILDER_PLUGIN_ID]: { module: "plugin-builder", title: "插件创作工作台" },
 };

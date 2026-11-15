@@ -53,7 +53,6 @@ const HOME_PROBES: Probe[] = [
   { method: "POST", path: "/api/agent/reviews/decide", body: {} },
   { method: "GET", path: "/api/projects" },
   { method: "GET", path: "/api/search/status" },
-  { method: "GET", path: "/api/settings/planning-methods" },
   // The unified input's sources and draft sweep (specs/unified-input-voice §3.3/§3.4), the skill and kit pages, and the person's
   // own status: the answers are pinned by their keys (or error code), so a moved handler shows up here.
   { method: "POST", path: "/api/composer/sources", body: { layer: "ai" } },
@@ -98,8 +97,6 @@ const PROJECT_PROBES: Probe[] = [
   { method: "GET", path: "/workspaces", html: true },
   { method: "GET", path: "/api/sessions" },
   { method: "GET", path: "/settings/general", html: true },
-  { method: "GET", path: "/settings/planning", html: true },
-  { method: "GET", path: "/api/settings/planning-methods" },
   { method: "GET", path: "/health" },
   { method: "GET", path: "/api/runtime-availability" },
   { method: "GET", path: "/desktop/pty-client.js" },

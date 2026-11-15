@@ -3,35 +3,32 @@ import type { GoalRecord } from "./contract/goals.js";
 import { goalAction } from "./action-contract.js";
 import { text, identifier, object, array, boolean, enumeration, goalStateSchema, goalHistoryPageSchema, eventType } from "./contract/goal-actions.js";
 import { goalRelationSchema } from "./configuration-actions.js";
-import { planningMethodSchema } from "./contract/goal-actions.js";
 import { createGoalEventDocumentView, type GoalEventDocumentView, type GoalEventDocumentPorts } from "./event-document-model.js";
-import type { GoalsPlanningActionPorts } from "./planning-actions.js";
 import type { GoalHistoryQueryPorts } from "./history-query.js";
 
 const strings = array(text);
 export const goalDocumentAction = goalAction<{ goal_id: string }, GoalEventDocumentView>("goals.document.read", /* @version action.goals.document.read */ 1, "读取目标正文",
-  "读取指定目标的当前状态、完整历史首屏及游标、原始说明、关系和可选规划方法；保留归档及回收站历史，不启动工作或变更已采用要求", "query",
+  "读取指定目标的当前状态、完整历史首屏及游标、原始说明和关系；保留归档及回收站历史，不启动工作或变更已采用要求", "query",
   object({ goal_id: identifier }), object({ state: goalStateSchema, timeline: goalHistoryPageSchema,
     description: object({ title: text, outcome: text, why: text, business_logic: text, in_scope: strings, out_of_scope: strings,
       constraints: strings, required_inputs: strings, promised_outputs: strings }),
-    relations: array(goalRelationSchema), planning_methods: array(planningMethodSchema),
+    relations: array(goalRelationSchema),
     transfer: object({ available: boolean, kind: enumeration(["resume_cancelled", "reopen_event_completed", null]) }), types: array(eventType) }));
 
 interface GoalDocumentPorts {
   goal(goalId: string): GoalRecord;
   events: GoalEventDocumentPorts;
   history: GoalHistoryQueryPorts;
-  planning: GoalsPlanningActionPorts["planning"];
 }
 
-export function readGoalDocument(projectId: string, ports: GoalDocumentPorts, goalId: string, locale?: string): GoalEventDocumentView {
+export function readGoalDocument(projectId: string, ports: GoalDocumentPorts, goalId: string): GoalEventDocumentView {
     const goal = ports.goal(goalId);
     const snapshot = ports.history.snapshot();
     return createGoalEventDocumentView({ projectId, goal, ports: ports.events, snapshot,
       relations: snapshot.relations.filter(r => r.from_goal_id === goalId || r.to_goal_id === goalId),
-      events: ports.history.journalEvents(), planning_methods: ports.planning.effectiveMethods(projectId, locale) });
+      events: ports.history.journalEvents() });
 }
 
 export function createGoalDocumentActionHandler(projectId: string, ports: GoalDocumentPorts): ActionHandlerBinding {
-  return { ...goalDocumentAction, handle: (caller, input) => readGoalDocument(projectId, ports, (input as { goal_id: string }).goal_id, caller.locale) };
+  return { ...goalDocumentAction, handle: (_caller, input) => readGoalDocument(projectId, ports, (input as { goal_id: string }).goal_id) };
 }

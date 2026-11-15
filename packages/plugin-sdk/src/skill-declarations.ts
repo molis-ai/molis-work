@@ -3,6 +3,7 @@ import {
   type AgentSkillDeclaration, type PluginMethodDeclaration, type SkillResourceDeclaration,
 } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { CONTENT_PACKAGE_FILES, type PluginDeclarationProblem } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { LOCALE_TAG } from "@molis-ai/molis-work-contracts/platform/ui";
 import { quoted, validToken, validVersion } from "./declaration-problems.js";
 
 // The checks a Skill declaration gets (specs/skill-packs/contract-design.md §4.2), in Manifest `methods` and in `agent.skills`.
@@ -13,11 +14,11 @@ const SHA256 = /^[0-9a-f]{64}$/u;
 const MEDIA_TYPE = /^[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*$/iu;
 const RESOURCE_ROLES = Object.keys(SKILL_RESOURCE_FOLDERS) as Array<keyof typeof SKILL_RESOURCE_FOLDERS>;
 /** Only a method offered to other Agents says who may pick it and how a person names it; the Plugin's own Agent picks its own. */
-const METHODS_ONLY = ["applies_to", "user_invocable", "argument_hint", "native_only_reason"] as const;
+const METHODS_ONLY = ["applies_to", "user_invocable", "argument_hint", "native_only_reason", "locales"] as const;
 /** Every key a method in Manifest `methods` may write; any other is refused by name, so a signed package carries nothing unread. */
 const METHOD_KEYS: ReadonlySet<string> = new Set<keyof PluginMethodDeclaration>([
   "skill_id", "version", "name", "summary", "tools", "description", "when_to_use", "when_not_to_use", "applies_to", "user_invocable",
-  "argument_hint", "native_only_reason", "body", "resources", "connector_categories",
+  "argument_hint", "native_only_reason", "body", "locales", "resources", "connector_categories",
 ]);
 
 type Where = "methods" | "agent";
@@ -34,6 +35,24 @@ function boundedText(value: unknown, limit: number): boolean {
 /** Where a Skill's body is in its package: `skills/<skill_id>/SKILL.md`, the only place it may be. */
 export function skillBodyPath(skillId: string): string {
   return `${CONTENT_PACKAGE_FILES.skills}/${skillId}/${CONTENT_PACKAGE_FILES.body}`;
+}
+
+/** Where a Skill's body in another language is: `SKILL.<locale>.md` beside the default one, by convention, never a written path. */
+export function skillTranslationPath(skillId: string, locale: string): string {
+  return `${CONTENT_PACKAGE_FILES.skills}/${skillId}/${translatedBodyName(locale)}`;
+}
+
+/** `SKILL.md` as `SKILL.<locale>.md`. */
+export function translatedBodyName(locale: string): string {
+  return CONTENT_PACKAGE_FILES.body.replace(/\.md$/u, `.${locale}.md`);
+}
+
+/** Which language a file beside `SKILL.md` is the body in, or null when it is not a translation of it. */
+export function translatedBodyLocale(name: string): string | null {
+  const stem = CONTENT_PACKAGE_FILES.body.replace(/\.md$/u, "");
+  if (!name.startsWith(`${stem}.`) || !name.endsWith(".md")) return null;
+  const locale = name.slice(stem.length + 1, -3);
+  return LOCALE_TAG.test(locale) ? locale : null;
 }
 
 /** Why a package path is not a plain path inside the package: absolute, `..`, `.`, an empty segment, a drive, a backslash or NUL. */
@@ -86,6 +105,8 @@ export function skillFieldProblems(skill: AgentSkillDeclaration, where: Where): 
     if (skill.applies_to !== undefined && !(SKILL_APPLIES_TO as readonly unknown[]).includes(skill.applies_to)) say(`的 applies_to 只能是 ${SKILL_APPLIES_TO.join("、")}`);
     if (skill.user_invocable !== undefined && typeof skill.user_invocable !== "boolean") say("的 user_invocable 只能是布尔值");
     if (skill.argument_hint !== undefined && !boundedText(skill.argument_hint, SKILL_LIMITS.argumentHintChars)) say(`的 argument_hint 限 1～${SKILL_LIMITS.argumentHintChars} 字`);
+    if (skill.locales !== undefined && (!Array.isArray(skill.locales) || !skill.locales.length || skill.locales.some(locale => typeof locale !== "string" || !LOCALE_TAG.test(locale))
+      || new Set(skill.locales).size !== skill.locales.length)) say("的 locales 必须是不重复的语言标记（如 en），只列译文");
   }
   if (skill.native_only_reason !== undefined && !boundedText(skill.native_only_reason, 512)) say("的 native_only_reason 限 1～512 字");
   if (skill.description !== undefined && !boundedText(skill.description, SKILL_LIMITS.descriptionChars)) say(`的 description 限 1～${SKILL_LIMITS.descriptionChars} 字`);

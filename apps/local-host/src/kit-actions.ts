@@ -6,6 +6,8 @@ import { KIT_AGENT_TOOLS_PROVIDER_ID, KIT_PROVIDER_ID, KIT_READ_PERMISSION, kitC
 import type { AgentMcpLibrary } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { comparePluginVersions } from "@molis-ai/molis-work-plugin-sdk";
 import { agentDefinitionsActionProvider } from "./agent-definitions/kit-report.js";
+import { systemSkillPackWords } from "./agent-definitions/skill-catalog-host.js";
+import { systemPackInstallId, systemSkillPacks } from "./agent-definitions/system-skill-packs.js";
 import { HomeConsentLedger } from "./home-plugin-store.js";
 import { agentMcpKitProvider, mcpAccessKitProvider } from "./kit-mcp-reports.js";
 import { localPublisherKeyId } from "./plugin-builder/publisher-identity.js";
@@ -68,7 +70,7 @@ export const pluginsKitReport = defineKitReportAction("plugins.kit.report", /* @
  * One header per installation the call reaches, from its install record: enabled or disabled, and those taken off with their data
  * kept. Its content package can be exported when it is one the Host keeps as installed (a signed package with only declarations).
  */
-export async function pluginKitHeaders(home: string, source: ProjectPluginHost, caller: ActionCallContext): Promise<KitReport> {
+export async function pluginKitHeaders(home: string, source: ProjectPluginHost, caller: ActionCallContext, systemSkillsDirectory?: string): Promise<KitReport> {
   const { reference, installations } = await scopeInstallations(source, caller);
   const context = { localKey: localPublisherKeyId(home), pins: new Map(new HomeConsentLedger(home).publishers().map(pin => [pin.key_id, pin])), locale: caller.locale };
   // A sandbox package's earlier releases are still kept as they were signed, so a header can say which version it last upgraded from
@@ -99,5 +101,11 @@ export async function pluginKitHeaders(home: string, source: ProjectPluginHost, 
   });
   const gone = (await keptUninstalled(source, reference)).filter(record => !live.some(pack => pack.source.install_id === record.install_id))
     .map(record => ({ source: kitPluginSource(record, undefined, context), description: "", status: "uninstalled" as const }));
-  return { entries: [], packs: [...live, ...gone] };
+  // The Skill packs that come with the system have no installation; each is a pack of its own, always there (batch 41).
+  const system = systemSkillPacks(systemSkillsDirectory).map(pack => {
+    const { name, summary } = systemSkillPackWords(pack, caller.locale), { plugin_id, version } = pack.manifest;
+    return { source: { kind: "plugin" as const, plugin_id, title: name, version, install_id: systemPackInstallId(plugin_id), publisher_label: "Molis Work", trust: "host" as const },
+      description: (summary ?? "").slice(0, 2000), status: "enabled" as const };
+  });
+  return { entries: [], packs: [...live, ...gone, ...system] };
 }

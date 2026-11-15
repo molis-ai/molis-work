@@ -39,6 +39,8 @@ export interface LspClient {
 }
 
 const MAX_HEADER = 8 * 1024;
+/** A frame body is somebody else's process's word: bound it so a broken or hostile server cannot make the Host buffer without limit. */
+const MAX_BODY = 16 * 1024 * 1024;
 const DEFAULT_TIMEOUT_MS = 15_000;
 
 /** Start one server for one root. `cwd` is where the server resolves its project files. */
@@ -80,6 +82,11 @@ function connect(child: ChildProcess, spec: LanguageServerSpec & { readonly time
       if (length === undefined) { failAll(new Error("the language server sent a frame without Content-Length")); buffer = buffer.subarray(headerEnd + 4); continue; }
       const size = Number(length);
       const start = headerEnd + 4;
+      if (!Number.isSafeInteger(size) || size < 0 || size > MAX_BODY) {
+        failAll(new Error(`the language server sent a frame body of ${length} bytes; the maximum is ${MAX_BODY}`));
+        buffer = Buffer.alloc(0);
+        continue;
+      }
       if (buffer.length < start + size) return;
       const body = buffer.subarray(start, start + size).toString("utf8");
       buffer = buffer.subarray(start + size);
@@ -96,6 +103,7 @@ function connect(child: ChildProcess, spec: LanguageServerSpec & { readonly time
     }
   });
   child.stderr!.on("data", (chunk: Buffer) => { stderr = (stderr + chunk.toString("utf8")).slice(-4_000); });
+  child.stdin!.on("error", () => { alive = false; });
   child.on("exit", () => { alive = false; failAll(new Error(`the language server exited${stderr ? `: ${stderr.trim().split("\n").at(-1)}` : ""}`)); });
   child.on("error", (error) => { alive = false; failAll(new Error(`the language server could not start: ${error.message}`)); });
   const request = <T>(method: string, params: unknown, timeoutMs = spec.timeoutMs): Promise<T> => new Promise<T>((resolve, reject) => {

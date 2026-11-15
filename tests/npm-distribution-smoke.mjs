@@ -35,7 +35,6 @@ try {
     import assert from 'node:assert/strict';
     import { openSqliteConnection } from '@molis-ai/molis-work-storage';
     import { MolisWorkPtyHost } from '@molis-ai/molis-work-service-runtime-host';
-    import { loadBuiltinPlanningMethodPacks } from '@molis-ai/molis-work-plugin-goals/module';
     const file = process.env.MOLIS_WORK_HOME + '-native.db';
     let db = openSqliteConnection(file);
     db.exec('CREATE TABLE probe(value TEXT)');
@@ -50,8 +49,7 @@ try {
       catch (error) { clearTimeout(timer); reject(error); }
     });
     assert.match(output, /molis-work-pty-ok/);
-    assert.equal(loadBuiltinPlanningMethodPacks().find(item => item.method_id === 'industry-developer-tools').name, '开发者工具');
-    console.log('native persistence, real PTY and planning assets passed');
+    console.log('native persistence and real PTY passed');
   `;
   await run(process.execPath, ["--input-type=module", "-e", probe], product);
   const installed = JSON.parse((await install([])).stdout);

@@ -8,6 +8,7 @@ export type { TokenCount as PrologueTokenCount } from "@prologue/sdk";
 import type {
   AgentRunOffer,
   AgentRunPhase,
+  AgentRunSkillRead,
   AgentRunUsage,
   AgentRunView,
   AgentToolActivity,
@@ -16,6 +17,7 @@ import type {
   AgentTurnView,
 } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { SUGGEST_TOOL_PREFIX } from "./prologue-action-tools.js";
+import { isSkillReadCall, rememberSkillReads } from "./prologue-skill-reads.js";
 import { updateUsage, USAGE_HANDLERS } from "./prologue-stream-usage.js";
 
 /**
@@ -127,6 +129,9 @@ export interface PrologueStreamState {
   turn_changes: AgentTurnChanges[];
   /** What the round suggested, each as its own suggest tool recorded it in its result (never the model's account of it). */
   offers: AgentRunOffer[];
+  /** The catalog reads still under way, by call id, and the Skill bodies the round's reads returned (the catalog's own answers). */
+  skill_read_calls: Set<string>;
+  skill_reads: AgentRunSkillRead[];
   /** While the Run sleeps on its own: when it wakes. */
   sleeping_until?: string;
   /** While a model call waits to try again: when, and why. */
@@ -156,6 +161,8 @@ export function emptyPrologueStreamState(): PrologueStreamState {
     streaming_at: null,
     turn_changes: [],
     offers: [],
+    skill_read_calls: new Set(),
+    skill_reads: [],
   };
 }
 
@@ -321,6 +328,7 @@ function noteToolCall(state: PrologueStreamState, event: Extract<PrologueEvent, 
   const call = event.call;
   closeStreaming(state);
   const named = call.name === "ask-user" ? askedOf(call.input) ?? target(call.input) : target(call.input);
+  if (isSkillReadCall(call.name, call.input)) state.skill_read_calls.add(call.id);
   state.activity.push({
     call_id: call.id,
     name: call.name,
@@ -340,6 +348,7 @@ function noteToolResult(state: PrologueStreamState, event: Extract<PrologueEvent
   const listed = event.name === "surface-list" && rememberDesktopSurfaces(state, event.text);
   if (event.name === "surface-observe" && prior.target === DESKTOP_STEP) rememberDesktopObservation(state, event.text);
   if (event.name.startsWith(SUGGEST_TOOL_PREFIX) && event.outcome === "returned") rememberOffer(state, event.text);
+  if (state.skill_read_calls.delete(event.callId) && event.outcome === "returned") rememberSkillReads(state.skill_reads, event.text);
   state.activity[index] = {
     ...prior,
     state: event.outcome === "failed" ? "failed" : event.outcome === "returned" ? "completed" : "unknown",
@@ -689,7 +698,7 @@ export function applyRunEvent(state: PrologueStreamState, event: PrologueEvent, 
  * step list, the files each turn wrote, a wait it sleeps in. A fact that no longer holds is not carried forward.
  */
 export function withRunFacts(state: PrologueStreamState, ended: boolean, view: AgentRunView): AgentRunView {
-  const { memory_recalled: _memory, todo: _todo, turn_changes: _changes, sleeping_until: _asleep, retry_wait: _retry, model_switch: _switch, offers: _offers, ...rest } = view;
+  const { memory_recalled: _memory, todo: _todo, turn_changes: _changes, sleeping_until: _asleep, retry_wait: _retry, model_switch: _switch, offers: _offers, skill_reads: _reads, ...rest } = view;
   const requested = ended ? undefined : state.model_requested;
   return {
     ...rest,
@@ -697,6 +706,7 @@ export function withRunFacts(state: PrologueStreamState, ended: boolean, view: A
     ...(state.todo?.length ? { todo: state.todo.map(item => ({ ...item })) } : {}),
     ...(state.turn_changes.length ? { turn_changes: structuredClone(state.turn_changes) } : {}),
     ...(state.offers.length ? { offers: structuredClone(state.offers) } : {}),
+    ...(state.skill_reads.length ? { skill_reads: structuredClone(state.skill_reads) } : {}),
     ...(state.sleeping_until !== undefined && !ended ? { sleeping_until: state.sleeping_until } : {}),
     ...(state.retry_wait && !ended ? { retry_wait: { ...state.retry_wait } } : {}),
     ...(state.model_now || requested ? { model_switch: { ...(state.model_now ? { now: state.model_now } : {}), ...(requested ? { requested } : {}) } } : {}),

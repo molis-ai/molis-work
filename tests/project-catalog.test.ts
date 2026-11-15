@@ -941,22 +941,6 @@ test("a plugin terminal record binds its work context to the project and aliases
   });
 });
 
-// RAC-2374 RAC-800: current structural refusal retained when the offline personal-method move was removed.
-test("RAC-800 a current catalog refuses a personal planning table without dropping it", async () => {
-  await withTemporaryDirectory(async directory => {
-    const home = join(directory, "home"), catalog = await openMolisWorkProjectCatalog({ homeDirectory: home }); catalog.close();
-    const file = join(home, "projects", "catalog.db"), db = openTestSqlite(file);
-    assert.equal(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'personal_planning_method_packs'").get(), undefined);
-    db.exec("CREATE TABLE personal_planning_method_packs (method_id TEXT PRIMARY KEY, version INTEGER, enabled INTEGER, pack_json TEXT, created_at TEXT, updated_at TEXT)");
-    db.close();
-    await assert.rejects(() => openMolisWorkProjectCatalog({ homeDirectory: home }), (error: { code?: string; message?: string }) =>
-      error.code === "catalog.unsupported_schema" && /personal_planning_method_packs/.test(error.message ?? ""));
-    const kept = openTestSqlite(file, { readonly: true });
-    try { assert.ok(kept.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'personal_planning_method_packs'").get()); }
-    finally { kept.close(); }
-  });
-});
-
 // RAC-2834/2835/2836: use public commits; inspect alias rows only after the owner closes.
 test("RAC-2834 RAC-2836 S-103 invalid sessions leave no alias or binding, including an existing binding", async () => {
   await withTemporaryDirectory(async directory => {

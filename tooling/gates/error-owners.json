@@ -30,6 +30,13 @@
       ],
       "reason": "The independent author-only personal sync example owns its note validation and unavailable-storage failures."
     },
+    "state_machines": {
+      "paths": [
+        "packages/plugin-sdk/src/state-machine.ts",
+        "packages/plugin-sdk/src/state-machine-declaration.ts"
+      ],
+      "reason": "The shared state machine SDK owns invalid declarations and rejected transitions."
+    },
     "storage": {
       "paths": [
         "packages/storage/src/project-replica*.ts",

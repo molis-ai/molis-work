@@ -66,7 +66,9 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
       if (catalogMode === "seeded" || catalogMode === "user") {
         const project = await catalog.createProject({ display_name: "目录交互验证", actor_id: "browser-test" });
         if (catalogMode === "seeded") {
-          for (const plugin_id of PROJECT_SCOPED_PLUGIN_IDS) {
+          // Work Brief fills the project's home with its brief (WBR-22), so the seeded project keeps the basic home the journeys
+          // here walk; the tests of Work Brief add it themselves (tests/work-brief-page.e2e.test.ts), as the demo project does.
+          for (const plugin_id of PROJECT_SCOPED_PLUGIN_IDS.filter(id => id !== "work-brief")) {
             catalog.addProjectPlugin({ project_id: project.project_id, plugin_id, actor_id: "browser-test" });
           }
         }

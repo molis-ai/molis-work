@@ -177,11 +177,6 @@
         "lingguang.ts"
       ]
     },
-    "goals/goals.db": {
-      "cases": [
-        "goals-home.ts"
-      ]
-    },
     "feed-content/feed-content.db": {
       "none": "正文只在 Feed 真的拉到内容时写，要联网；金样不联网，这个库只有结构和空间行，没有业务行（feed.ts 写的是项目那一半）"
     },

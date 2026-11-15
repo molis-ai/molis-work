@@ -6,12 +6,12 @@ import { section, specimen } from "./catalog-parts.js";
 import type { Say } from "./catalog-composer.js";
 import { statusLine } from "./catalog-skill-packs.js";
 import {
-  CAPABILITY_PACK_STYLES, renderCells, renderDetailTrail, renderIconCounts, renderItemGroup, renderNowBlock, renderPickRow, renderStateRows, renderUsage, type NowMenu,
+  CAPABILITY_PACK_STYLES, renderCells, renderDetailTrail, renderIconCounts, renderItemGroup, renderLeaveBar, renderNowBlock, renderPickRow, renderStateRows, renderTextCount, renderUsage, type NowMenu,
 } from "./capability-pack.js";
 
 export const CAPABILITY_PACK_BOARD_STYLES = CAPABILITY_PACK_STYLES + `
-  .mw-catalog :is([data-primitive="now-block"], [data-primitive="item-group"], [data-primitive="cell-grid"], [data-primitive="detail-trail"], [data-primitive="icon-counts"], [data-primitive="state-rows"], [data-primitive="usage-figure"]) .mw-catalog__specimens { grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); align-items: start; }
-  .mw-catalog :is([data-primitive="now-block"], [data-primitive="item-group"], [data-primitive="cell-grid"], [data-primitive="detail-trail"], [data-primitive="icon-counts"], [data-primitive="state-rows"], [data-primitive="usage-figure"]) .mw-catalog__row { display: grid; gap: 10px; min-width: 0; }
+  .mw-catalog :is([data-primitive="now-block"], [data-primitive="item-group"], [data-primitive="cell-grid"], [data-primitive="detail-trail"], [data-primitive="icon-counts"], [data-primitive="state-rows"], [data-primitive="usage-figure"], [data-primitive="text-count"], [data-primitive="leave-bar"]) .mw-catalog__specimens { grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); align-items: start; }
+  .mw-catalog :is([data-primitive="now-block"], [data-primitive="item-group"], [data-primitive="cell-grid"], [data-primitive="detail-trail"], [data-primitive="icon-counts"], [data-primitive="state-rows"], [data-primitive="usage-figure"], [data-primitive="text-count"], [data-primitive="leave-bar"]) .mw-catalog__row { display: grid; gap: 10px; min-width: 0; }
   .mw-catalog [data-primitive="icon-counts"] .mw-items { width: 100%; }
   .mw-catalog :is([data-primitive="sticky-detail"], [data-primitive="state-rows"]) .mw-catalog__specimens { grid-template-columns: minmax(0, 1fr); }
   .mw-catalog [data-primitive="sticky-detail"] .mw-catalog__row { display: block; }
@@ -130,6 +130,24 @@ export function usageSection(say: Say): string {
     ${specimen(say("workbench.catalog-kit.recent-uses-the-number-the-last-use"), renderUsage({ figure: 12, head: say("workbench.catalog-kit.n-recent-n-use-uses", { n: 12 }), last: say("workbench.catalog-kit.last-used-yesterday-17-40-assistant"), scope: say("workbench.catalog-kit.each-prompt-keeps-its-last-200-uses") }))}
     ${specimen(say("workbench.catalog-kit.last-use-only-no-number"), renderUsage({ head: say("workbench.kit.last-use"), last: say("workbench.catalog-kit.last-used-3-days-ago-coding"), scope: say("workbench.catalog-kit.for-tools-only-the-time-of-the") }))}
     ${specimen(say("workbench.kit.unused-records"), renderUsage({ head: say("workbench.kit.unused-records") }))}
+  </div>`);
+}
+
+/* 9, 10 · Writing a Skill of one's own (batch 41): the count under a long text field, and the bar that asks before unsaved work is left. */
+export function textCountSection(say: Say): string {
+  const field = (over: boolean) => `<div class="mw-field"><textarea class="mw-textarea" data-slot="textarea" rows="3" aria-label="${escapeHtml(say("workbench.skill-authoring.body"))}"${over ? ' aria-invalid="true"' : ""}>${escapeHtml(say("workbench.catalog-kit.sample-skill-body"))}</textarea>${
+    renderTextCount({ hint: say("workbench.skill-authoring.body-hint"), count: say("workbench.skill-authoring.count", over ? { l: 512, ml: 500, c: 20480, mc: 20000 } : { l: 14, ml: 500, c: 186, mc: 20000 }), over })}</div>`;
+  return section("text-count", say("workbench.catalog-kit.text-count"), `<div class="mw-catalog__specimens">
+    ${specimen(say("workbench.catalog-kit.within-the-limit"), field(false))}
+    ${specimen(say("workbench.catalog-kit.over-the-limit"), field(true))}
+  </div>`);
+}
+
+export function leaveBarSection(say: Say): string {
+  const actions = renderButton({ label: say("workbench.skill-authoring.leave-save"), variant: "primary", size: "sm" }) + renderButton({ label: say("workbench.skill-authoring.discard"), variant: "secondary", size: "sm" })
+    + renderButton({ label: say("workbench.skill-authoring.leave-stay"), variant: "ghost", size: "sm" });
+  return section("leave-bar", say("workbench.catalog-kit.leave-bar"), `<div class="mw-catalog__specimens">
+    ${specimen(say("workbench.catalog-kit.asked-once-above-the-form"), renderLeaveBar({ text: say("workbench.skill-authoring.leave-title", { n: say("workbench.catalog-skill-packs.write-the-weekly-review") }), actions }))}
   </div>`);
 }
 

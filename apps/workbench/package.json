@@ -57,6 +57,7 @@
     "@molis-ai/molis-work-plugin-shelf": "workspace:*",
     "@molis-ai/molis-work-plugin-text-stats": "workspace:*",
     "@molis-ai/molis-work-plugin-todo": "workspace:*",
+    "@molis-ai/molis-work-plugin-work-brief": "workspace:*",
     "@molis-ai/molis-work-plugin-workflows": "workspace:*",
     "@molis-ai/molis-work-ui-host": "workspace:*",
     "@xterm/addon-fit": "^0.11.0",

@@ -1,12 +1,14 @@
 import type { AgentMemoryMeta } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { MEMORY_FORMAL_KINDS, type MemoryChangeRequest, type MemoryRevision } from "@molis-ai/molis-work-contracts/services/memory";
+import { MEMORY_FORMAL_KINDS, type MemoryChangeRequest } from "@molis-ai/molis-work-contracts/services/memory";
 import { memoryErrors } from "./errors.js";
 import type { MemoryCaller } from "./service.js";
 
 /** A historical fact only; current authority, expiry and Session access remain SDK decisions. */
-export function completeRevisionSnapshot(revision: MemoryRevision): boolean {
-  const meta = revision.snapshot?.meta, classification = meta?.classification;
-  if (!meta || typeof revision.snapshot?.origin !== "string" || !classification || !MEMORY_FORMAL_KINDS.some(kind => kind === meta.kind)
+export function completeRevisionSnapshot(revision: { origin?: string; meta?: AgentMemoryMeta; snapshot?: { origin: string; meta: AgentMemoryMeta } }): boolean {
+  const origin = revision.snapshot ? revision.snapshot.origin : revision.origin;
+  const meta = revision.snapshot ? revision.snapshot.meta : revision.meta;
+  const classification = meta?.classification;
+  if (!meta || typeof origin !== "string" || !classification || !MEMORY_FORMAL_KINDS.some(kind => kind === meta.kind)
     || !Array.isArray(classification.scenes) || !classification.scenes.length || classification.scenes.length > 3
     || new Set(classification.scenes).size !== classification.scenes.length || classification.scenes.some(scene => !["coding", "assistant", "common"].includes(scene))
     || !["long-term", "short-term", "session"].includes(classification.lifecycle)) return false;

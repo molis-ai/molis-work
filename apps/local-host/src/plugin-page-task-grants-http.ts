@@ -8,6 +8,10 @@ import type { WebRequestContext } from "./web-route-table.js";
 
 const KEY = new RegExp(TASK_GRANT_SUBJECT_KEY_PATTERN, "u");
 
+/** The person this authenticated page request belongs to, as the Host's own local entry builds them, for the life of the page. */
+export const pagePerson = (context: WebRequestContext, project: LocalHostProjectReference | undefined, signal: AbortSignal): Promise<ActionCallContext> =>
+  localWebActionContext(context.localHost, project, LOCAL_OWNER_PERMISSIONS, signal);
+
 /**
  * The platform's reads area on a page's task (specs/proactive-assistant/task-grants-platform-area.md §2.3): only the trusted
  * shell reaches it, with its own page header and without the frame bridge's (`plugin-page-authority.ts`, `taskGrantsChoice`).
@@ -24,7 +28,7 @@ export async function pageTaskGrants(context: WebRequestContext, project: LocalH
     throw new ActionError("actions.input_invalid", "读取授权请求无效");
   const plugin_install_id = page.taskGrantsInstall(), key = body.key;
   await page.beforeEffect();
-  const original = await localWebActionContext(context.localHost, project, LOCAL_OWNER_PERMISSIONS, page.signal);
+  const original = await pagePerson(context, project, page.signal);
   // The page must still be current at each of the action's own checks, and just before it writes.
   const caller: ActionCallContext = { ...original,
     validate_authority: async (...args) => { await original.validate_authority?.(...args); await page.beforeEffect(); },

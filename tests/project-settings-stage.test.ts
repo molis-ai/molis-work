@@ -23,12 +23,10 @@ test("project settings workbench paths include workspace settings and existing c
   assert.equal(projectSettingsPageFromPath("/settings/workspaces"), "workspaces");
   assert.equal(projectSettingsPageFromPath("/settings/guidance"), "guidance");
   assert.equal(projectSettingsPageFromPath("/settings/rules"), "rules");
-  assert.equal(projectSettingsPageFromPath("/settings/planning"), "planning");
-  assert.equal(projectSettingsPageFromPath("/settings/planning/new"), null);
-  assert.equal(projectSettingsPageFromPath("/settings/planning/method-a"), null);
+  assert.equal(projectSettingsPageFromPath("/settings/planning"), null);
   assert.equal(projectSettingsPageFromPath("/settings/appearance"), null);
   assert.equal(isProjectSettingsWorkbenchPath("/settings/rules"), true);
-  assert.equal(isProjectSettingsWorkbenchPath("/settings/planning/new"), false);
+  assert.equal(isProjectSettingsWorkbenchPath("/settings/planning"), false);
   assert.equal(projectSettingsPath("general"), "/settings");
   assert.equal(projectSettingsPath("rules"), "/settings/rules");
 });
@@ -84,8 +82,8 @@ test("user settings left nav is grouped single-line categories", () => {
     web_service: webService,
     diagnostics,
   });
-  assert.match(withGoals, /href="\/settings\/planning"/);
-  assert.match(withGoals, />Goals</);
+  // Goals has no page in the global settings: the planning methods are Skills of the catalog (batch 41).
+  assert.doesNotMatch(withGoals, /href="\/settings\/planning"/);
   assert.match(html, /settings-navigation--codex[\s\S]*#icon-sun/);
   assert.doesNotMatch(html, /界面与语言<\/strong>/);
   assert.doesNotMatch(html, /只影响当前设备<\/small>/);
@@ -143,7 +141,7 @@ test("workbench project gear opens a directory of categories and an exclusive se
       goals: [],
       relations: [],
       goal_tree_proposals: [],
-      planning_method_packs: [],
+      
     },
     project: { project_id: "project-1", display_name: "工作台" },
     projects: [{ project_id: "project-1", display_name: "工作台" }],
@@ -220,7 +218,6 @@ test("switching a settings category resets the stage body to the top", () => {
   assert.match(PROJECT_SETTINGS_PAGE_STYLES, /overflow-anchor: none/);
   assert.doesNotMatch(PROJECT_SETTINGS_PAGE_STYLES, /:has\(> \.project-rules-document:not\(\[hidden\]\)\)/);
   assert.match(PROJECT_SETTINGS_PAGE_STYLES, /:has\(\.guidance-editor:not\(\[hidden\]\)\)/);
-  assert.match(PROJECT_SETTINGS_PAGE_STYLES, /:has\(> \.planning-edit:not\(\[hidden\]\)\)/);
 });
 
 test("project guidance keeps runtime notes on the title hint instead of the page floor", () => {
@@ -237,7 +234,7 @@ test("project guidance keeps runtime notes on the title hint instead of the page
       goals: [],
       relations: [],
       goal_tree_proposals: [],
-      planning_method_packs: [],
+      
     },
     project: { project_id: "project-1", display_name: "工作台" },
     projects: [{ project_id: "project-1", display_name: "工作台" }],

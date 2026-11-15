@@ -1,6 +1,6 @@
 import type { MaterialRef } from "../platform/project-materials.js";
 import type { SignedAgentReference, SignedAgentInstallation, SkillRef } from "./agent-definitions.js";
-import type { SkillCatalogEntry } from "./skills.js";
+import type { SkillCatalogEntry, SkillPick } from "./skills.js";
 import type { AssistantMemoryCandidate, AssistantRoundMemory } from "./assistant-memory.js";
 export type { AssistantMemory, AssistantMemoryCandidate, AssistantMemoryPrefs, AssistantRoundMemory } from "./assistant-memory.js";
 import type { AssistantCard, AssistantPreparedCard } from "./assistant-cards.js";
@@ -338,9 +338,12 @@ export interface AssistantRound {
    */
   model?: { model_id: string; now?: string; window_tokens?: number };
   stop_reason?: string;
+  /** Why it stopped without reading the person's language: "person" for the person's own stop, "host" for a Host/runtime stop. */
+  stop_reason_code?: "person" | "host";
   /** While a model call of this round waits to try again: when and why, as the runtime said (the page counts down to it). */
   retry_wait?: AgentRetryWait;
   ended_at: string | null;
+  /** The Skills this round used (SKL-11): the person's, then those it read by itself. Empty: none. Absent: a plugin's Agent ran it, or no record. */ skills?: SkillPick[];
   /** The memories this round was given, and the ones that matched but did not fit (specs/archive/memory-system §7.3). Deleted ones are not listed. */
   memories_used?: { used: AssistantRoundMemory[]; omitted: Array<AssistantRoundMemory & { reason: "budget" | "limit" }>;
     uncertain?: AssistantRoundMemory[]; unverified?: true; recording_error?: "memory.receipt_unrecorded" };
@@ -521,6 +524,7 @@ export interface AssistantSendInput extends Pick<AgentInputSend, "about"> {
    */
   delivery?: AgentSteerMode;
   reask?: AgentQuestionReask;
+  /** `false`: 「这次不用技能」 (SKL-11) — the round this Send starts picks no Skill by itself; named ones still go. That round only; no setting changes. */ auto_skills?: false;
   /** Identifies the content of this attempt when recovering a lost Send with the same request_id. Echoed only for the attempt that claimed it. */
   submission_id?: string;
   /** Draft revision paired with the text read or saved by the page. A delayed Send cannot replace a newer saved draft. */
@@ -741,6 +745,8 @@ export interface AssistantRoundDiagnostics {
   phase: AgentRunPhase | "unknown";
   /** The runtime's own reason, not rewritten for the person. */
   stop_reason: string | null;
+  /** Why it stopped without reading the person's language. */
+  stop_reason_code?: "person" | "host";
   /** Frozen at the start; null when the runtime no longer has the run. */
   frozen: {
     model_id: string;

@@ -22,12 +22,12 @@ CREATE TABLE skill_uses (
 );
 CREATE INDEX skill_uses_by_skill ON skill_uses(install_id, skill_id, at);`;
 
-/** A stored setting: never `off`, which is the absence of a row. */
+/** A stored setting. `off` is the absence of a row, except for a Skill that starts in another state (a system pack's): there `off` is the person's choice and is kept. */
 export type SkillSetting = {
   scope_ref: string;
   install_id: string;
   skill_id: string;
-  state: Exclude<SkillState, "off">;
+  state: SkillState;
   enabled_at: string;
   enabled_by: string;
   revision: number;
@@ -67,10 +67,10 @@ export class SkillSettingsStore {
    * row; enabling from `off` records when and by whom, and switching between `auto` and `manual` keeps that.
    * SQLite allocates the new revision before the upsert, so a removed setting never reuses an active revision.
    */
-  set(scopeRef: string, installId: string, skillId: string, state: SkillState, expected: number, actorId: string): "ok" | "conflict" {
+  set(scopeRef: string, installId: string, skillId: string, state: SkillState, expected: number, actorId: string, keepOff = false): "ok" | "conflict" {
     const current = this.setting(scopeRef, installId, skillId);
     if ((current?.revision ?? 0) !== expected) return "conflict";
-    if (state === "off") {
+    if (state === "off" && !keepOff) {
       this.db.prepare("DELETE FROM skill_settings WHERE scope_ref = ? AND install_id = ? AND skill_id = ?").run(scopeRef, installId, skillId);
       return "ok";
     }

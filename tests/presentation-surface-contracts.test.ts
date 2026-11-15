@@ -125,7 +125,7 @@ const presenting = (presentation: unknown, actions: unknown[] = ownActions) => m
 const withObject = (part: Record<string, unknown>) => ({ objects: [{ ...noteObject, ...part }] });
 const withOverview = (part: Record<string, unknown>) => ({ ...declaration, overview: { ...declaration.overview, ...part } });
 
-test("SSC-06: a right declaration parses for every plugin alike, and an author's own check of it finds nothing; a Manifest without one is unchanged", () => {
+test("IUI-01 SSC-06: a right declaration parses for every plugin alike, and an author's own check of it finds nothing; a Manifest without one is unchanged", () => {
   assert.equal(presenting(declaration), "");
   assert.deepEqual(parsePluginManifest(declarationManifest({ actions: ownActions, presentation: declaration })).presentation, declaration);
   assert.deepEqual(validatePresentationDeclaration({ plugin_id: DECLARATION_PLUGIN_ID, actions: ownActions, presentation: declaration }), []);
@@ -158,7 +158,7 @@ test("SCS-09 values declarations refuse metered, external and model-backed reads
   }
 });
 
-test("SSC-06: a wrong declaration is refused at install and the author is told which item is wrong", () => {
+test("IUI-01 SSC-06: a wrong declaration is refused at install and the author is told which item is wrong", () => {
   const at = "presentation.objects[0]";
   const fields = noteObject.fields;
   const refused: ReadonlyArray<readonly [unknown, string, unknown[]?]> = [

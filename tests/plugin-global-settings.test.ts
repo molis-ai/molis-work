@@ -273,8 +273,7 @@ test("settings catalog lists registered settings-pages and ignores Feed, Inbox, 
   assert.equal(shelf?.plugin_id, "io.molis.work.shelf");
   assert.equal(shelf?.contribution_id, SHELF_SETTINGS_UI_CONTRIBUTION_ID);
   assert.equal(shelf?.label, "Shelf");
-  assert.deepEqual(listPluginSettingsNavItems(shownProjectPlugins(["goals"])).map((item) => item.section_id), ["shelf", "planning"]);
-  assert.equal(listPluginSettingsNavItems(shownProjectPlugins(["goals"])).find((item) => item.section_id === "planning")?.label, "Goals");
+  assert.deepEqual(listPluginSettingsNavItems(shownProjectPlugins(["goals"])).map((item) => item.section_id), ["shelf"]);
   assert.equal(live.some((item) => item.section_id === "mcp"), false);
   assert.equal(live.some((item) => item.section_id === "functions"), false);
 });
@@ -398,7 +397,7 @@ for (const declared of [true, false]) {
       const html = renderMolisWorkWeb({
         snapshot: { board: { project_id: "p1", title: "Settings", active_goal_id: null,
           created_at: "2026-10-31T00:00:00.000Z", updated_at: "2026-10-31T00:00:00.000Z" },
-          cursor: 0, goals: [], relations: [], goal_tree_proposals: [], planning_method_packs: [] },
+          cursor: 0, goals: [], relations: [], goal_tree_proposals: [] },
         project: { project_id: "p1", display_name: "Settings" }, projects: [{ project_id: "p1", display_name: "Settings" }],
         route_prefix: "/projects/p1", demo: false, active_goal_id: null, goals: [], archived_goals: [], trashed_goals: [], counts: {},
         input_bindings: [], policy_bindings: [], events: [], feed: { sources: [], feed_items: [], inbox_entries: [], runs: [], out_rules: [] },
@@ -445,12 +444,11 @@ test("workbench settings directory and standalone settings list the same grouped
   // 本机目录 (PG-049) is the platform's page of local-folder permissions, under 本机. The AI group is 模型设置 · 助理 · 角色 · 能力包
   // (specs/capability-pack/spec.md decision 3): 技能 merged into 能力包, and 提示词 is opened from a prompt's detail there.
   // 更新 (upgrade-continuity U3 §5.4) is under 系统; 运行 (resident-runtime-design §5, RES-11) is the desktop app's own and listed only there.
-  assert.deepEqual(sectionOrder, ["appearance", "directories", "memory", "sync", "models", "assistant", "characters", "kit", "runtimes", "library", "connections", "access", "history", "update", "diagnostics", "shelf", "planning"]);
+  assert.deepEqual(sectionOrder, ["appearance", "directories", "memory", "sync", "models", "assistant", "characters", "kit", "runtimes", "library", "connections", "access", "history", "update", "diagnostics", "shelf"]);
   const inDesktop = renderSettingsDirectorySection(directoryPrimitives, shownProjectPlugins(["goals"]), true);
   assert.deepEqual([...inDesktop.matchAll(/data-settings-section="([^"]+)"/g)].map((match) => match[1]).slice(13, 16), ["running", "update", "diagnostics"], "RES-11 运行 in the desktop");
   assert.doesNotMatch(withGoals, /data-settings-cover/);
   assert.deepEqual([...withGoals.matchAll(/class="settings-directory-group"[^>]*>([^<]+)</g)].map((match) => match[1]), ["本机", "个人", "AI", "工具与接入", "系统", "插件"]);
-  assert.match(withGoals, />Goals</);
   assert.doesNotMatch(directory, /Gmail|Inbox/);
   const html = renderMolisWorkSettings({
     section: "shelf",

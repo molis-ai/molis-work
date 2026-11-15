@@ -86,8 +86,8 @@ test("RAC-777 the Host’s onboarding names the draft kinds in both languages wi
 });
 
 test("RAC-778 Goals scripts read owner keys; the platform Artifact text remains in the workbench resource", async () => {
-  const { PLANNING_SETTINGS_CLIENT_SCRIPT, PLANNING_ADOPTION_CLIENT_SCRIPT, PROJECT_RULES_CLIENT_SCRIPT } = await import("@molis-ai/molis-work-plugin-goals");
-  for (const script of [PLANNING_SETTINGS_CLIENT_SCRIPT, PLANNING_ADOPTION_CLIENT_SCRIPT, PROJECT_RULES_CLIENT_SCRIPT]) {
+  const { PROJECT_RULES_CLIENT_SCRIPT } = await import("@molis-ai/molis-work-plugin-goals");
+  for (const script of [PROJECT_RULES_CLIENT_SCRIPT]) {
     assert.match(script, /goals\./u);
     assert.doesNotMatch(script, /\b(?:LF|LFor|MOLIS_WORK_PLUGIN_WORDS)\b/u);
   }

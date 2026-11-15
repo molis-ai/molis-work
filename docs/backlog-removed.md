@@ -9,17 +9,20 @@
 | BL-041、BL-102、BL-112、BL-138、BL-910、BL-958 | 第 27 批验收集中跟踪 | 第 27 批 #2010 收成 [BL-batch27-acceptance](../specs/backlog/BL-batch27-acceptance.md)；原条目删除 |
 | BL-091、BL-096、BL-103、BL-131、BL-367、BL-569、BL-701、BL-803、BL-819、BL-821、BL-901、BL-911、BL-913、BL-914、BL-915、BL-918、BL-919、BL-920 | 已完成并删除 | 第 27 批 #2010（`539d2d7d46`，2026-11-12）；验收余项见 BL-batch27-acceptance |
 | BL-plugin-dev-state-dir-before-locale-check、BL-catalog-specimen-default-margin | 已完成并删除 | 第 14 批登记的两条小缺口，2026-11-13 14／27 收口 PR 修掉；见 [14.md 合入记录](../specs/post-anticorruption-roadmap/reference/batches/14.md#实现进度与合入记录) |
+| BL-goals-methods-as-skills | 已完成并删除 | 第 41 批第 2 项：规划与拆解方法是随系统自带的技能包，Goals 不再有方法库；见 [41.md](../specs/post-anticorruption-roadmap/reference/batches/41.md) |
 | BL-376 | 已并入 BL-377 | [BACKLOG.md](../specs/BACKLOG.md) 顶部说明；Alchemist 由 [BL-377](../specs/backlog/BL-377.md) 整体重做，编号不复用 |
 | BL-928 | 已完成并删除 | 真实 Home 干净重建，2026-11-07 #1914（`d125b36f5c`） |
 | BL-linux-ci-browser-reds | 已完成并删除 | 2026-11-13 #2044 放宽首页截止、#2046 修其余 Linux 浏览器用例；批次 15 已记「BL 已删」 |
 | BL-side-files-merged-reads | 已完成并删除 | 第 06 批 N52 已并入并完成；批次 06 与依赖表保留历史说明 |
-| BL-1074 | 已完成并删除 | [#2029](https://github.com/molis-ai/molis-work/pull/2029) 修复跨进程插件框架不跟随页面 reduced-motion；原生 Linux no-fail-fast full suite [43546443501](https://github.com/molis-ai/molis-work/actions/runs/43546443501) 的 shard 21 首轮 `coding-question-card.e2e` 6/6，无 CDP 超时；2026-11-14 删除 |
+| BL-1074 | 已完成并删除 | [#2029](https://github.com/molis-ai/molis-work/pull/2029) 修复跨进程插件框架不跟随页面 reduced-motion；原生 Linux no-fail-fast full suite [43546443501](https://github.com/molis-ai/molis-work/actions/runs/43546443501) 的 shard 21 首轮 `coding-question-card.e2e` 6/6，无 CDP 超时；该 run 整体仍红在 shard 7／17（合并基线既有）与 shard 26 的 `workbench-frame-container.e2e`（该用例没有设页面 reduce，新逻辑只多一次页面读取，重试仍红，需在合并后的 main 上另核）；2026-11-14 删除 |
 | BL-golden-prompt-uses-flaky、BL-materials-object-link | 已完成并删除 | 第 06 批合后审计（2026-11-13）：golden-prompt 偶发由生成期屏蔽知识整理 2 秒定时器稳定（`tests/golden-home.test.ts` 42/42）；资料对象链接恢复（`tests/appearance-side-windows.e2e.test.ts` 3/3，页面资源许可 +155 B）；见 [06.md 合入记录](../specs/post-anticorruption-roadmap/reference/batches/06.md#batch-06-audit) |
 | BL-1071 | 已关闭；两个历史事项曾同号 | 2026-11-07 #1921 删除 S-102 的条目；Memory 的 SDK 采用随 [#2020](https://github.com/molis-ai/molis-work/pull/2020) 合入。编号不再复用 |
 | BL-memory-p0-closure | 已完成并删除 | Memory P0 经 [#2020](https://github.com/molis-ai/molis-work/pull/2020) 合入；继续跟踪的事项已列在 [BACKLOG](../specs/BACKLOG.md) |
+| BL-memory-p1-contract | 已完成并删除 | 第 31 批「SDK 窗口一」完成 Memory P1 合同四问拍板并落地 SDK / Host 接线；见 [31.md](../specs/post-anticorruption-roadmap/reference/batches/31.md) |
 | BL-1076、BL-1077 | 已按用户决定关闭 | 随 [#2020](https://github.com/molis-ai/molis-work/pull/2020) 合入；[本人走查](../specs/backlog/BL-memory-own-app-walkthrough.md)另列，历史真实 Home 影响仍未知 |
 | BL-161、BL-164 | 已完成并删除 | 第 12 批第一项（`4d8bc20bf2`）：计划卡与任务板按位置编号、「未开始」统一为「等待前一步」；见 [12.md 合入记录](../specs/post-anticorruption-roadmap/reference/batches/12.md) |
 | BL-feed-wake-resets-page、BL-assistant-card-press-scrolls | 已修复并删除 | 随 [#2020](https://github.com/molis-ai/molis-work/pull/2020) 合入，Feed FBR-07/FSS-35 与助理 AC-05 在[最终 Linux 全量](https://github.com/molis-ai/molis-work/actions/runs/43467505571)首轮通过 |
+| BL-skill-hand-and-tools-consumers | 已关闭并删除 | 第 41 批：`find-skills`／`read-skill` 没有消费者，从 Molis 工具目录删掉，原因记在 `RUNTIME_TOOLS_NOT_OFFERED`；见 [Skill 策略 §10](../specs/prologue-strategies/skill.md) |
 | BL-coding-skill-auto | 已完成并删除 | 2026-11-11 第 09 批审计整改补做，见 [specs/README](../specs/README.md) 与 [第 09 批](../specs/post-anticorruption-roadmap/reference/batches/09.md) |
 
 其余在 git 历史中曾经出现、后来随事项完成或总表迁移删除的编号，按同一规则处理：先查对应 PR/提交，不为历史编号新建文件，也不复用编号。

@@ -14,7 +14,7 @@ const GOALS_PACKAGE = /@molis-ai\/molis-work-plugin-goals\b/u;
 /** Who takes each remaining name out: T-117 owns remaining view types; settings forwards existing facts without Goals presentation types. */
 const WORKBENCH_FILES_NAMING_GOALS: ReadonlyArray<readonly [string, string]> = [
   ["page-view.ts", "T-117 (PG-064): existing BoardSnapshot and GoalPolicyHistoryRecord facts from Goals /contract"],
-  ["project-settings-pages.ts", "Existing ProjectGuidanceView and PlanningMethodPack facts from Goals /contract"],
+  ["project-settings-pages.ts", "Existing ProjectGuidanceView facts from Goals /contract"],
 ];
 
 const sourceFiles = (directory: URL): string[] => readdirSync(directory, { withFileTypes: true }).flatMap(entry =>
@@ -29,7 +29,7 @@ test("RAC-2685 the workbench files that name the Goals package are exactly the w
 
 test("RAC-2685 the host's route handlers match pages with the declared routes and import none of Goals' matchers", () => {
   const removed = ["resolveGoalsReadRoute", "resolveGoalsPageRoute", "matchGoalsPlanningRoute"];
-  for (const name of ["web-goals-read.ts", "web-planning.ts", "web-owner-unavailable.ts"]) {
+  for (const name of ["web-goals-read.ts", "web-owner-unavailable.ts"]) {
     const text = readFileSync(new URL(`apps/local-host/src/${name}`, ROOT), "utf8");
     for (const matcher of removed) assert.equal(text.includes(matcher), false, `${name} names ${matcher}`);
     assert.equal(text.includes("GOALS_PAGE_ROUTES"), false, `${name} reads Goals' declarations instead of the Host's matcher`);

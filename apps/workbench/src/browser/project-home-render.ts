@@ -24,6 +24,10 @@ const controlKey = (owner: string, suffix: string) => owner + ":" + suffix;
 export const homeButton = (key: string, label: string, primary = false) =>
   renderButton({ label, variant: primary ? "primary" : "secondary", attrs: { "data-home-control": key } });
 export const homeWord = (key: string) => home(key);
+/** The words of the bar over a plugin's page on the home; the name is the owner's display name. */
+export const homeLeadWord = (key: string, name: string): string => say.text({ owner: "workbench", key: "workbench.home." + key,
+  args: [{ name: "name", kind: "text", text: name }] });
+export const homeLeadName = (data: SurfaceHomeDisplay) => data.lead ? ownerOf(data, data.lead.owner_plugin_id).name : "";
 export const presentationWord = common;
 export { correctionText as surfaceCorrectionWord };
 

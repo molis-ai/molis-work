@@ -2,6 +2,7 @@ import type { SurfaceHomeDisplay, SurfaceHomeRowDisplay } from "@molis-ai/molis-
 import { ActionError, findSubjectReader, isSubjectReader, type ActionSubject, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PresentationValues, PresentationValuesInput } from "@molis-ai/molis-work-contracts/platform/presentation";
 import type { SurfaceDescription, SurfaceGroup, SurfaceItem } from "@molis-ai/molis-work-contracts/services/surface-composition";
+import { canonicalJsonText } from "@molis-ai/molis-work-plugin-sdk";
 import { isPresentationValuesReader, presentationFormFields } from "@molis-ai/molis-work-plugin-sdk/presentation";
 import { readSurfaceValues } from "@molis-ai/molis-work-service-surfaces";
 import type { HomeDirectoryEntry } from "./surface-home-directory.js";
@@ -94,14 +95,25 @@ function surfaceActionGroups(sample: HomeReadSample, groups: readonly SurfaceGro
   return groups.map(group => ({ ...group, items: group.items.map(item => ({ ...item, actions: item.actions.filter(action => action.ref !== "hand_off") })) }));
 }
 
-export async function projectHomeDisplay(sample: HomeReadSample, signal: AbortSignal, invoke: ReadValues): Promise<SurfaceHomeDisplay> {
+/** The lead group's page as a stage navigation, or nothing when the shown release is no longer the one in the directory. */
+function leadDisplay(sample: HomeReadSample, navigation: (entry: HomeDirectoryEntry, lead: NonNullable<SurfaceGroup["lead"]>) => unknown): Pick<SurfaceHomeDisplay, "lead"> {
+  const group = sample.description.groups.find(group => group.kind === "lead");
+  const lead = group?.lead, owner = group?.owner_plugin_id;
+  const entry = lead && sample.catalog.entries.find(entry => entry.plugin.plugin_id === owner && entry.record.state === "running"
+    && entry.route?.view_id === lead.view_id && canonicalJsonText(entry.installation, "null") === canonicalJsonText(lead.installation, "null"));
+  return lead && owner && entry ? { lead: { owner_plugin_id: owner, target: navigation(entry, lead) } } : {};
+}
+
+export async function projectHomeDisplay(sample: HomeReadSample, signal: AbortSignal, invoke: ReadValues,
+  navigation: (entry: HomeDirectoryEntry, lead: NonNullable<SurfaceGroup["lead"]>) => unknown): Promise<SurfaceHomeDisplay> {
   const { description, catalog } = sample;
   const ids = new Set(description.groups.flatMap(group => [...(group.owner_plugin_id ? [group.owner_plugin_id] : []),
     ...group.items.map(item => item.owner_plugin_id)]));
   const owners = Object.fromEntries(catalog.entries.filter(entry => ids.has(entry.plugin.plugin_id))
     .map(entry => [entry.plugin.plugin_id, entry.display]));
   const rows = await displayRows(sample, description.groups.flatMap(group => group.items), signal, invoke);
-  return { ...description, groups: [...surfaceActionGroups(sample, description.groups)], ...(sample.position ? { position: sample.position } : {}), display: { owners, rows } };
+  return { ...description, groups: [...surfaceActionGroups(sample, description.groups)], ...(sample.position ? { position: sample.position } : {}),
+    ...leadDisplay(sample, navigation), display: { owners, rows } };
 }
 
 /** Keep private unreadable subjects out of the response, including disabled counts and stale handles. */

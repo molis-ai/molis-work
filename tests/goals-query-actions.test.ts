@@ -59,7 +59,6 @@ test("Goals query actions preserve full bodies, cursor order, scope and live pol
     assert.equal(document.description.title, "保持原始记录");
     assert.equal(document.description.outcome, "分页能读到全部原文");
     assert.equal(document.timeline.items[0]?.event_id, noteIds.at(-1));
-    assert.ok(document.planning_methods.length > 0);
     assert.deepEqual(document.transfer, { available: false, kind: null });
     await assert.rejects(actions.invoke(goalsActions.document, { goal_id: "MISSING" }));
     await assert.rejects(actions.invoke(goalsActions.document, { goal_id, project_id: "foreign" } as never), { code: "actions.input_invalid" });

@@ -175,7 +175,7 @@ function view(goals: WebGoalView[], activeGoalId: string | null): MolisWorkWebVi
       goals: goals.map((item) => item.goal),
       relations: [],
       goal_tree_proposals: [],
-      planning_method_packs: [],
+      
     },
     project: PROJECT,
     projects: [PROJECT],

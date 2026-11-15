@@ -9,7 +9,7 @@ import { LocalMcpServer, projectActionAvailability, availableProjectPluginIds, s
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import type { ActionCallContext, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { todoActions } from "@molis-ai/molis-work-plugin-todo";
-import { personalPlanningActions } from "@molis-ai/molis-work-plugin-goals";
+import { FEED_PLUGIN_ID } from "@molis-ai/molis-work-plugin-feed";
 import { openTestHome, type TestHome, type TestProject } from "./fixtures/test-home.js";
 import { grantHomeProbe, homeProbe } from "./fixtures/home-runtime.js";
 
@@ -104,15 +104,18 @@ test("RAC-580 S-72 the availability both the action directory and discovery use 
 
 test("PG094-HOME-02 S-72 only a genuine Home Runtime provider bypasses the project list, consistently for live and discovery", async t => {
   const home = await openTestHome(t, { catalogPolicy: false });
-  const project = await home.createProject("Installed Goals");
+  const project = await home.createProject("Installed Feed");
+  // Feed is a project plugin (not personal) whose Home half provides actions: the only kind of provider the bypass is for.
+  await unhide(home, project, "feed");
   assert.equal(await home.host.configurePersonalPlanning(home.home, withMolisWorkProjectCatalog)({ homeDirectory: home.home }, catalog =>
-    catalog.projectPluginMembership(project.project_id).plugins.includes("goals")), true);
-  const homeCaller = { ...callerIn(null), permissions: ["goals:read", "goals:write"] };
-  const action = (await home.host.homeActionClient().discover(homeCaller))
-    .find(candidate => candidate.capability_id === personalPlanningActions.list.capability_id);
-  assert.ok(action, "the provider comes from the actual Home Runtime directory");
-  assert.ok(action.provider.plugin_install_id);
-  assert.equal(action.provider.project_id, undefined);
+    catalog.projectPluginMembership(project.project_id).plugins.includes("feed")), true);
+  const homeCaller = callerIn(null);
+  // Feed's Home actions are for its own project half (audience `plugin`), so no person's discovery lists them: the provider is written
+  // the way the Runtime stamps it, from the Home installation the Host actually runs.
+  await home.host.homePlugins!.ready();
+  const installed = home.host.homePlugins!.installation(FEED_PLUGIN_ID);
+  assert.equal(installed?.state, "running", "the provider comes from the actual Home Runtime installation");
+  const action: Pick<ActionView, "provider"> = { provider: { provider_id: FEED_PLUGIN_ID, plugin_id: FEED_PLUGIN_ID, plugin_install_id: installed!.install_id, title: "Feed", kind: "plugin" } };
   const availability = projectActionAvailability(home.host.configurePersonalPlanning(home.home, withMolisWorkProjectCatalog), home.home);
   const check = async (caller: ActionCallContext, candidate: Pick<ActionView, "provider">, available: boolean) => {
     assert.equal((await availability(caller, candidate)).available, available);

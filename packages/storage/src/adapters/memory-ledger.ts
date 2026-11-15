@@ -29,9 +29,9 @@ import { openBaselineHomeSqlite, type SqliteBaseline } from "../sqlite-baseline.
 
 /**
  * The Host's memory ledger (specs/archive/memory-system §5.1): what the platform knows around Prologue memory entries —
- * history, notes on candidates, recent changes, switches, interface-signal counts, uses, owners, pairs and per-person
- * markers. The text and facts of a memory live on its Prologue entry; the ledger keeps an earlier version's text only as
- * that entry's history, and forgets it with the entry.
+ * revision change attribution, notes on candidates, recent changes, switches, interface-signal counts, uses, owners, pairs and per-person
+ * markers. The text, versions and bounded revision history live on the Prologue entry; the ledger keeps only the lightweight change attribution
+ * (`{ version, change, by, at }`) per revision, and forgets it with the entry.
  */
 export const MEMORY_LEDGER_STORE = "memory";
 const FORGETTING_PENDING = "memory-generation:forgetting-pending";
@@ -193,20 +193,20 @@ export function openMemoryLedger(options: { homeDirectory: string; storageOwner?
     },
     forget: retention.forget,
     forgetScopes: retention.forgetScopes,
-    revisions: memoryId => retention.isForgotten(memoryId) ? [] : db.prepare("SELECT body FROM memory_revisions WHERE memory_id=? ORDER BY version").all(memoryId)
-      .map(row => JSON.parse(String(row.body)) as MemoryRevision),
+    revisions: memoryId => retention.isForgotten(memoryId)
+      ? []
+      : db.prepare("SELECT body FROM memory_revisions WHERE memory_id=? ORDER BY version").all(memoryId).map(row => {
+          const raw = JSON.parse(String(row.body)) as MemoryRevision;
+          return { version: raw.version, change: raw.change, by: raw.by, at: raw.at };
+        }),
     addRevision: (memoryId, revision) => ledger.transaction(() => {
       retention.assertNotForgotten(memoryId);
-      const before = parse<MemoryRevision>(db.prepare("SELECT body FROM memory_revisions WHERE memory_id=? AND version=?").get(memoryId, revision.version));
-      if (before) {
-        if (!isDeepStrictEqual({ text: before.text, kind: before.kind, applies: before.applies, snapshot: before.snapshot },
-          { text: revision.text, kind: revision.kind, applies: revision.applies, snapshot: revision.snapshot })) {
-          throw Object.assign(new Error("同一记忆版本的历史内容不能被重写"), { code: "memory.conflict" });
-        }
-        return;
-      }
+      // Historical text and snapshots stay in Prologue's single encrypted record; the ledger keeps only change attribution.
+      const stored: MemoryRevision = { version: revision.version, change: revision.change, by: revision.by, at: revision.at };
+      const before = parse<MemoryRevision>(db.prepare("SELECT body FROM memory_revisions WHERE memory_id=? AND version=?").get(memoryId, stored.version));
+      if (before) return;
       db.prepare("INSERT INTO memory_revisions(memory_id,version,body) VALUES (?,?,?)")
-        .run(memoryId, revision.version, JSON.stringify(revision));
+        .run(memoryId, stored.version, JSON.stringify(stored));
     }),
     candidates: actorId => db.prepare("SELECT body FROM memory_candidates WHERE actor_id=? ORDER BY rowid").all(actorId)
       .map(row => JSON.parse(String(row.body)) as MemoryCandidateRecord),

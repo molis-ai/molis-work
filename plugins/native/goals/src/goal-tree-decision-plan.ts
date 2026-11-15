@@ -10,7 +10,7 @@ import type { GoalTreeMaterializationApplication } from "./goal-tree-materializa
 /** Validate the exact user decision against current owner facts before any materialization. */
 export class GoalTreeDecisionPlan {
   constructor(private readonly ports: {
-    goals: { query: Pick<GoalsQueryApi, "getGoal" | "snapshot">; planning: Pick<GoalsPlanningApi, "effectiveMethods" | "projectComposition" | "proposalGraphIssues"> };
+    goals: { query: Pick<GoalsQueryApi, "getGoal" | "snapshot">; planning: Pick<GoalsPlanningApi, "proposalGraphIssues"> };
     query: GoalTreeQueryApplication; inputs: GoalTreeInputReader; normalizer: GoalTreeDecisionNormalizer;
     conflicts: GoalTreeMaterializationConflicts; materialization: GoalTreeMaterializationApplication;
   }) {}

@@ -158,6 +158,12 @@ export interface AgentRetryWait {
   attempt: number;
 }
 
+/** One Skill body a Run read from the catalog: the exact reference and the name it had then. */
+export interface AgentRunSkillRead {
+  ref: import("./agent-definitions.js").SkillRef;
+  name: string;
+}
+
 export interface AgentRunView {
   /** Original trusted Run policy; absent means it cannot authorize a memory operation. */
   readonly class_restrictions?: import("./agent-host-memory.js").AgentMemoryClassPolicy;
@@ -168,6 +174,9 @@ export interface AgentRunView {
   step_board_error?: string;
   ref: AgentRunRef;
   phase: AgentRunPhase;
+  /** Why a stopped Run stopped, without reading the person's language: "person" for the person's stop, "host" for the Host,
+   *  a guardrail or the runtime. Absent while the Run has not stopped. */
+  readonly stop_reason_code?: "person" | "host";
   frozen: AgentFrozenStart;
   turns: AgentTurnView[];
   activity: AgentToolActivity[];
@@ -211,6 +220,12 @@ export interface AgentRunView {
    * The caller that shows them owns what becomes of each (specs/ai-interaction-experience D25). Absent: none.
    */
   offers?: readonly AgentRunOffer[];
+  /**
+   * The Skill bodies this Run's own tool calls read from the catalog (`skills.body.read`), in the order it read them, each once: the
+   * Host's record from the Run's own events, never from what the model said. Which of them the person named is the frozen
+   * `skills[].named` (or the caller's own record of the round); the rest the AI picked (SKL-11). Absent: none.
+   */
+  skill_reads?: readonly AgentRunSkillRead[];
   started_at: string;
   ended_at: string | null;
 }

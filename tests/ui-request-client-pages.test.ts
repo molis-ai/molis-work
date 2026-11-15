@@ -28,7 +28,7 @@ const diagnostics = { home_directory: "/tmp", installation_state: "ready" as con
 const projectView = {
   snapshot: {
     board: { project_id: "board-1", title: "工作台", active_goal_id: null, created_at: "2026-09-17T00:00:00.000Z", updated_at: "2026-09-17T00:00:00.000Z" },
-    cursor: 0, goals: [], relations: [], goal_tree_proposals: [], planning_method_packs: [],
+    cursor: 0, goals: [], relations: [], goal_tree_proposals: [], 
   },
   project: { project_id: "project-1", display_name: "工作台" },
   projects: [{ project_id: "project-1", display_name: "工作台" }],
@@ -56,31 +56,9 @@ test("the global settings pages carry the request helper", () => {
 });
 
 test("the project settings pages carry the request helper", () => {
-  assertCarriesHelper("project guidance", renderer.renderMolisWorkProjectGuidanceSettings(projectView, guidance, [], TOKEN));
-  assertCarriesHelper("project settings hub", renderer.renderMolisWorkProjectSettingsHub(projectView, guidance, [], TOKEN));
-  // The planning pages are drawn by a shared page frame, which embeds the helper only for a page that changes something:
-  // the method editor does, the read-only library does not.
-  assertCarriesHelper("planning method (new)", renderer.renderMolisWorkPlanningMethodPage(null, "new", "personal", null, TOKEN));
-  const library = renderer.renderMolisWorkPlanningLibrary([], null, TOKEN);
-  assert.equal(count(library, UI_REQUEST_CLIENT_SCRIPT), 0, "the read-only library asks for nothing");
-  assert.doesNotMatch(library, OWN_HEADERS_FUNCTION);
+  assertCarriesHelper("project guidance", renderer.renderMolisWorkProjectGuidanceSettings(projectView, guidance, TOKEN));
+  assertCarriesHelper("project settings hub", renderer.renderMolisWorkProjectSettingsHub(projectView, guidance, TOKEN));
 });
-
-nodeTest("FSS-36 standalone planning clients receive only their Goals words before startup", () => runWithLocale("en", () => {
-  const project = renderer.renderMolisWorkProjectSettingsHub(projectView, guidance, [], TOKEN, false, "planning");
-  const editor = renderer.renderMolisWorkPlanningMethodPage(null, "new", "personal", null, TOKEN);
-  for (const page of [project, editor]) {
-    const pack = /<script type="application\/json" data-ui-page-text>([^<]+)<\/script>/.exec(page);
-    assert.ok(pack && pack.index < page.indexOf("data-ui-language-resource"));
-    assert.match(page, /data-ui-language-resource src="\/assets\/locale\/workbench\.en\.[a-f0-9]+\.js"/);
-    const [{ slot, producer, packs }] = JSON.parse(pack[1]!);
-    assert.deepEqual([slot, producer], ["settings:planning", "io.molis.work.goals"]);
-    assert.deepEqual(packs.map(({ owner, locale }: { owner: string; locale: string }) => [owner, locale]), [["io.molis.work.goals", "en"]]);
-    const words = packs[0].messages;
-    assert.equal(words["goals.planning-client.fill-least-one-planning-step"], "Fill in at least one planning step.");
-    assert.ok(Object.keys(words).every(key => key.startsWith("goals.planning-client.")));
-  }
-}));
 
 test("the update page and the first-run and new-project journey carry the request helper", () => {
   for (const mode of ["update", "first_run", "new_project"] as const) {

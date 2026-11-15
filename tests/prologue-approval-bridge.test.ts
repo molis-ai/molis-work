@@ -145,7 +145,7 @@ test("a failure answering the execution owner is reported, not swallowed", async
 
 test("failed durable rejection feedback does not wake the SDK or pretend the decision was delivered", async () => {
   const ledger = pendingLedger(), queue = new AgentReviewQueue({ decisions: reviewDecisionStorage().store, now: () => new Date("2026-09-19T00:00:00.000Z") });
-  const bridge = new PrologueApprovalBridge({ queue, pendings: ledger.port,
+  const bridge = new PrologueApprovalBridge({ queue, pendings: ledger.port, now: () => new Date("2026-09-19T00:00:00.000Z"),
     recordDecision: async (_pending, receipt) => { assert.equal(receipt.note, "修改第 2 行"); throw new Error("反馈保存失败"); } });
   bridge.mirror({ pending: ledger.pending, run: RUN, owner: { project_id: BOARD, plugin_id: PLUGIN }, kind: "text-edit", document, reference: REFERENCE, approval: APPROVAL });
   const receipt = await bridge.decide({ review_id: "prologue:pending-1", version: "proposal-1", decision: "reject", actor_id: "user", note: "修改第 2 行" });
@@ -166,8 +166,8 @@ test("a pending the execution owner already closed cannot be approved here", asy
     (error: unknown) => {
       // I6-01: an expired SDK pending remains refused and no answer is sent.
       assert.ok(error instanceof ActionError);
-      assert.equal(error.code, "agent.pending_not_open");
-      assert.equal(error.message, "这笔待批已经结束，请刷新后按当前状态处理");
+      assert.equal(error.code, "agent.review_already_decided");
+      assert.match(error.message, /不能接受这项决定.*刷新/u);
       assert.equal(error.kind, "invalid");
       assert.equal(actionHttpStatus(error), 400);
       return true;
@@ -248,8 +248,10 @@ test("an open restored pending without a live waiter cannot receive approval", a
   const ledger = pendingLedger();
   const { queue, bridge } = bridgeFor({ ...ledger.port, canAnswer: () => false });
   const request = bridge.mirror({ pending: ledger.pending, run: RUN, owner: { project_id: BOARD, plugin_id: PLUGIN }, kind: "text-edit", document, reference: REFERENCE, approval: APPROVAL });
-  await assert.rejects(queue.respond({ review_id: request.review_id, version: request.reference.version, decision: "approve", actor_id: "user" }), /原执行已中断/);
+  await assert.rejects(queue.respond({ review_id: request.review_id, version: request.reference.version, decision: "approve", actor_id: "user" }),
+    { code: "agent.review_already_decided" });
   assert.equal(queue.receipt(request.review_id)?.status, "cancelled");
+  assert.match(queue.receipt(request.review_id)?.note ?? "", /原执行等待已结束/u);
   assert.deepEqual(ledger.answers, []);
 });
 
@@ -308,7 +310,8 @@ test("withdrawn and expired reviews retain their original receipt without restor
     assert.deepEqual(ledger.answers, [], "withdrawal never answers or dispatches the old effect");
     const receipt = queue.receipt(request.review_id)!;
     assert.equal(receipt.status, state === "expired" ? "expired" : "cancelled");
-    assert.deepEqual(recorded[1], { receipt });
+    // This port writes human delivery. Cancellation/expiry is kept by the original runtime's refresh, covered by the real Pages run.
+    assert.deepEqual(recorded, [{ request }]);
     const restored = new AgentReviewQueue({ decisions: reviewDecisionStorage().store, now: () => new Date("2026-09-20T00:00:00.000Z") });
     restored.restoreDecision(request, receipt);
     assert.deepEqual(restored.get(request.review_id), request);

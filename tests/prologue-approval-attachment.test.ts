@@ -109,6 +109,7 @@ function startRequest(roleId: string): AgentStartRequest {
 function bridgeFor(pendings = pendingLedger().port): PrologueApprovalBridge {
   return new PrologueApprovalBridge({
     queue: new AgentReviewQueue({ decisions: reviewDecisionStorage().store, now: () => new Date("2026-09-19T00:00:00.000Z") }),
+    now: () => new Date("2026-09-19T00:00:00.000Z"),
     pendings,
   });
 }
@@ -135,7 +136,7 @@ test("没挂审批桥时，写入如实申报为不支持", () => {
 test("挂上审批桥之后写入才算支持；命令不跟着变，因为回执没有来源", () => {
   const queue = new AgentReviewQueue({ decisions: reviewDecisionStorage().store, now: () => new Date("2026-09-19T00:00:00.000Z") });
   const bridge = new PrologueApprovalBridge({
-    queue, pendings: pendingLedger().port,
+    queue, pendings: pendingLedger().port, now: () => new Date("2026-09-19T00:00:00.000Z"),
   });
   const { adapter } = adapterFor(bridge);
   assert.equal(adapter.descriptor.capabilities["text-edit"], "supported");
@@ -179,7 +180,7 @@ test("Run 停下来等的副作用，会先出现在宿主审查队列里", asyn
   const ledger = pendingLedger();
   const queue = new AgentReviewQueue({ decisions: reviewDecisionStorage().store, now: () => new Date("2026-09-19T00:00:00.000Z") });
   const bridge = new PrologueApprovalBridge({
-    queue, pendings: ledger.port,
+    queue, pendings: ledger.port, now: () => new Date("2026-09-19T00:00:00.000Z"),
   });
   const { adapter, emit } = adapterFor(bridge);
   await adapter.createSession({ project_id: BOARD, plugin_id: PLUGIN, install_id: "install", actor_id: "user", title: "改重试次数" });
@@ -248,7 +249,7 @@ test("a long command stops saying awaiting-review only after SDK accepts the dec
     const accepted = new Promise<void>(resolve => { release = resolve; });
     ledger.port.answer = async () => { await accepted; if (deliveryFails) throw new Error("delivery unknown"); return { authorized: true }; };
     const queue = new AgentReviewQueue({ decisions: reviewDecisionStorage().store, now: () => new Date("2026-09-19T00:00:00Z") });
-    const bridge = new PrologueApprovalBridge({ queue, pendings: ledger.port });
+    const bridge = new PrologueApprovalBridge({ queue, pendings: ledger.port, now: () => new Date("2026-09-19T00:00:00.000Z") });
     const { adapter, emit } = adapterFor(bridge);
     await adapter.createSession({ project_id: BOARD, plugin_id: PLUGIN, install_id: "install", actor_id: "user", title: "long command" });
     const host = new AgentHost();host.register(adapter);

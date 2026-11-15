@@ -235,8 +235,15 @@ test("APR-11 ASC-51/52: stopping the original work closes its permission across 
   const pending = await until("original pending", () => f.reviews().find(row => row.status === "pending"));
   const stopped = await f.service.control(work.work_id, { kind: "stop" });
   assert.equal(stopped.work.state, "stopped");
-  assert.notEqual(f.agents.agentHost.reviews.receipt(pending.review_id)?.status, "approved");
+  await f.agents.agentHost.reviews.refresh(f.projectId);
+  const originalReceipt = f.agents.agentHost.reviews.receipt(pending.review_id);
+  assert.equal(originalReceipt?.status, "cancelled");
+  assert.equal(originalReceipt?.source, undefined);
   const next = await f.reopen();
+  await next.agents.ready;
+  await next.agents.agentHost.reviews.refresh(f.projectId);
+  const recoveredReceipt = next.agents.agentHost.reviews.receipt(pending.review_id);
+  assert.deepEqual(recoveredReceipt, originalReceipt, "the SDK owner's original closed receipt survives a Home restart");
   const where = { work_id: work.work_id, lifetime: "work" as const, choices: [] };
   assert.equal((await next.person.invoke(agentDelegationActions.prepare, where)).lifecycle, "ended");
   await assert.rejects(next.service.send({ work_id: work.work_id, text: "Continue without reopening", request_id: "scope-stop-0002" }, { project_ref: f.reference }),

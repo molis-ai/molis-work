@@ -100,9 +100,9 @@ Goals 消费统一授权管理页的项目审批规则。「完成前必须你�
 
 问题的解决/推翻提交后续事件 `supporting_event_ids` 或已有可信用户决定，拒绝时保留输入。Goal 规则只展示现行项目默认和事件记录中的完成要求。要求修改沿事件表单，项目默认沿统一授权管理页。
 
-- 负责 Goals 的导航、界面、命令与组合，以及 Goals 与 Governance 的项目私有表声明（Manifest 的 `databases.project`、`src/project-database.ts`，S8、PG-020）。`src/module/` 拥有 Goal 约定、要求、工作事件、关注项、关系图、规则生效计算、生命周期、项目指导、关系图检查与影响分析。`src/governance/` 拥有 Goal Tree 结构提案和物化结果。
-- 平台拥有审批规则、可信决定记录和终端进程。Goals 只提供工作终端动作与推进提示（`src/terminal-actions.ts`）。拆解与规划方法归自带技能包（`plugins/content/planning-methods`），由助理选用。Goals 支持跨模块来源引用，Artifact、Project 与 Session 的事实归各自主人。Goals 的项目表读写登记见 `tooling/gates/table-owners.json`。
-- 公开入口为 `@molis-ai/molis-work-plugin-goals`。Goal、事件、状态、动作和治理协作的类型与 schema 在 `@molis-ai/molis-work-plugin-goals/contract`，平台合同在 `@molis-ai/molis-work-contracts/platform/plugin`。CLI、MCP、Coding、Feed 按动作 id 与版本调用，按需就地声明字段。宿主与工作台沿现有依赖边界取类型。
+- 负责：Goals 的导航、界面、命令与组合，以及 Goals 与 Governance 的项目私有表声明（Manifest 的 `databases.project`、`src/project-database.ts`，S8、PG-020）。`src/module/` 拥有 Goal 约定、要求、工作事件、关注项、关系图、规则生效计算、生命周期、项目指导、关系图检查与影响分析。`src/governance/` 拥有 Goal Tree 结构提案和物化结果。
+- 不负责：平台拥有审批规则、可信决定记录和终端进程。Goals 提供工作终端动作与推进提示（`src/terminal-actions.ts`）。拆解与规划方法归自带技能包（`plugins/content/planning-methods`），由助理选用。Goals 支持跨模块来源引用。Artifact、Project 与 Session 的事实归各自主人。Goals 的项目表读写登记见 `tooling/gates/table-owners.json`。
+- 公开入口：`@molis-ai/molis-work-plugin-goals`。Goal、事件、状态、动作和治理协作的类型与 schema 在 `@molis-ai/molis-work-plugin-goals/contract`，平台合同在 `@molis-ai/molis-work-contracts/platform/plugin`。CLI、MCP、Coding、Feed 按动作 id 与版本调用，按需就地声明字段。宿主与工作台沿现有依赖边界取类型。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`。方向：只依赖合同、SDK 与声明过的 Service/UI 包；不导入 Module 实现包，也不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1、2 节）。
 - 不变量：
   - 状态变化只经 `src/module/` 的公开入口，页面不另算完成。

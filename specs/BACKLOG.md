@@ -18,7 +18,7 @@
 
 ## 1. 待你验收
 
-按[第 01 批本人试用单](post-anticorruption-roadmap/reference/acceptance-01.md)逐项试：已有实现与前置条件分别写明。BL-010／013 尚待对应实现，BL-929 的真实 Home 已重建、待你试；BL-001 已委托，BL-017 已接受已有验证、个人账号路径未实测。第 16 批外观/首屏/组件板本人验收见 [BL-b16-appearance-acceptance](backlog/BL-b16-appearance-acceptance.md)；第 19 批 Work Brief 本人验收见 [BL-b19-work-brief-acceptance](backlog/BL-b19-work-brief-acceptance.md)。不要把本节整体当作可立即验收或已获认可。
+按[第 01 批本人试用单](post-anticorruption-roadmap/reference/acceptance-01.md)逐项试：已有实现与前置条件分别写明。BL-010／013 尚待对应实现，BL-929 的真实 Home 已重建、待你试；BL-001 已委托，BL-017 已接受已有验证、个人账号路径未实测。第 16 批外观/首屏/组件板本人验收见 [BL-b16-appearance-acceptance](backlog/BL-b16-appearance-acceptance.md)；第 19 批 Work Brief 本人验收见 [BL-b19-work-brief-acceptance](backlog/BL-b19-work-brief-acceptance.md)；第 33 批 Coding 与材料恢复闭环本人验收见 [BL-batch33-acceptance](backlog/BL-batch33-acceptance.md)。不要把本节整体当作可立即验收或已获认可。
 
 
 ## 2. 待你决定

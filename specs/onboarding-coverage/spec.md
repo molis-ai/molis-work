@@ -443,7 +443,11 @@ node scripts/check-spec-coverage.mjs
 
 <a id="batch-33-preflight"></a>
 
-## 12. 开工前检查（路线书第 33 批：材料、大清单与重启接续）
+## 12. 开工前检查与验证（路线书第 33 批：材料、大清单与重启接续）
 
-2026-11-14 开工前检查，覆盖 `33-2`（ONB-35～46、C1～C14、BL-106、BL-107）与同批 `33-1`；完整 15 项结论合记于 [Coding 与 Agent 工作流优化需求书 §12](../coding-harness-optimization/spec.md#batch-33-preflight)。
+2026-11-14 开工前检查，覆盖 `33-2`（ONB-35～46、C1～C14）与同批 `33-1`；完整 15 项结论合记于 [Coding 与 Agent 工作流优化需求书 §12](../coding-harness-optimization/spec.md#batch-33-preflight)。`BL-106`、`BL-107` 留归后续第 45／57 批按原排期处理，不随本批关闭。
+
+- **工程通过：** `tests/context-onboarding-batch33.test.ts`（4/4，覆盖 `ONB-35～46`、`C1～C11`）、`tests/security-invariants-onboarding-secrets.test.ts`（3/3，覆盖 `S-onboarding-secret-hold` 疑似密钥文件阻断外发）、`tests/context-onboarding.test.ts`（60/60）、`tests/context-onboarding-todo.test.ts`（31/31）。
+- **实操（自动化浏览器）：** `tests/context-onboarding-recovery.e2e.test.ts`（2/2，覆盖组件板 `#recovery-closures` 1440／1024／390／320 浅深双色布局审计，以及 `/onboarding` 浏览器上传 IndexedDB 跨刷新保留、疑似密钥选择、五格核对漏斗与增量改范围卡）、`tests/onboarding-journey.e2e.test.ts`（14/14）、`tests/context-onboarding-action-copy.e2e.test.ts`（1/1）。
+- **本人验收：** 未执行（含 `ONB-49[人工]`），集中登记于 [BL-batch33-acceptance](../backlog/BL-batch33-acceptance.md)。
 

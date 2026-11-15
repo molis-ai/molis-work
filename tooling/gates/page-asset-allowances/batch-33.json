@@ -1,0 +1,76 @@
+{
+  "reason": "第 33 批 Coding 与材料恢复闭环（CHO-08～13、CHO-29～35、ONB-35～46、C1～C14、BL-051、BL-182、BL-222、BL-540）。① Coding 页面脚本与样式（coding.js +17,036 B、coding.css +2,385 B）：工作目录环境准备条（Git／依赖／脚本端口／.env 样例变量名核对／独立工作树）、TaskBoard 斐波那契故事点修订与叶子节点加权进度、子任务尝试预算条与「再给 3 次」及重试来源 source:\"host\"、四节收尾报告卡（交付／验证／未完成／已清理）与改后未跑检查区分、轮次材料清单与已删除／无权限结构化恢复及超 30 份按需懒读目录。② 到达与引导页（/onboarding 内联脚本 +20,960 B、arrival.css +4,822 B）：组件板 #recovery-closures 六个恢复闭环共用原语（.mw-rc-*、.mw-mr-*）随到达样式表下发，浏览器上传文件经 IndexedDB 跨刷新恢复、五格材料核对漏斗与问题筛选、疑似含密钥文件三选一外发控制、增量改范围「这次只做这些」卡与旧摘要失效提示、模型错误分类恢复。③ 工作台语言包（workbench.zh.<digest>.js／workbench.en.<digest>.js）：引导与组件板标本新增中英文词条换内容寻址路径，工作台首屏冷启动仅 +1,184 B（zh）／+1,233 B（en），热启动 +0 B。",
+  "review": "specs/coding-harness-optimization/spec.md §11～12、specs/onboarding-coverage/spec.md §10～12 与分支 batch/33 的 PR 评审。本机对照 merge-base 隔离构建实测（node scripts/gates/page-assets.mjs --base origin/main、node scripts/gates/first-screen.mjs --base origin/main）。六个恢复闭环部件已抽入 design-system 原语并登记组件板标本（/__ui/catalog#recovery-closures），无重复私有实现。",
+  "userApproval": "用户 2026-11-14 在第 33 批主会话弹窗选择「(Recommended) 批准本次第 33 批页面资源与首屏一次性许可（写入 tooling/gates/page-asset-allowances/batch-33.json）」：批准 coding.js (+17,036 B)、coding.css (+2,385 B)、arrival.css (+4,822 B)、/onboarding 内联脚本 (+20,960 B) 及工作台中英文词包换内容寻址路径的首屏与页面资源一次性许可。",
+  "entryApprovals": [
+    {
+      "pages": [
+        "arrival-empty"
+      ],
+      "locale": "both",
+      "entry": "/onboarding",
+      "change": "growth"
+    },
+    {
+      "pages": [
+        "arrival-empty",
+        "chooser",
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "zh",
+      "entry": "/assets/locale/workbench.zh.<digest>.js",
+      "change": "new"
+    },
+    {
+      "pages": [
+        "arrival-empty",
+        "chooser",
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "en",
+      "entry": "/assets/locale/workbench.en.<digest>.js",
+      "change": "new"
+    }
+  ],
+  "assets": {
+    "/assets/molis-work-arrival.css": 4822,
+    "/assets/molis-work-plugins/coding.css": 2385,
+    "/assets/molis-work-plugins/coding.js": 17036
+  },
+  "pages": {
+    "arrival-empty/zh": {
+      "cold": 26966,
+      "warm": 20960
+    },
+    "arrival-empty/en": {
+      "cold": 27015,
+      "warm": 20960
+    },
+    "chooser/zh": {
+      "cold": 6006,
+      "warm": 0
+    },
+    "chooser/en": {
+      "cold": 6055,
+      "warm": 0
+    },
+    "workbench-default/zh": {
+      "cold": 1184,
+      "warm": 0
+    },
+    "workbench-default/en": {
+      "cold": 1233,
+      "warm": 0
+    },
+    "workbench-all-plugins/zh": {
+      "cold": 1184,
+      "warm": 0
+    },
+    "workbench-all-plugins/en": {
+      "cold": 1233,
+      "warm": 0
+    }
+  }
+}

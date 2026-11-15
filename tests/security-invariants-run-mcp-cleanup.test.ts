@@ -108,7 +108,7 @@ test("APR-07/08/11: a real MCP pipe reuses an exact work authorization after res
   let { adapter, queue } = await open();
   t.after(async () => { await adapter.close(); await rm(root, { recursive: true, force: true }); });
   const saved = await adapter.mcpLibrary!.save(owner, { expected_version: 0, label: "Original pipe", enabled: true, transport: "stdio", timeout_ms: 5000,
-    directory, executable: process.execPath, argv: ["notes.mjs"] });
+    directory, executable: "node", argv: ["notes.mjs"] });
   await adapter.mcpLibrary!.control(owner, saved.id, "connect");
   const session = await adapter.createSession({ ...owner, directory, title: "Review external notes" });
   const subject = { kind: "work" as const, project_id: owner.project_id, actor_id: owner.actor_id, work: { owner_id: owner.plugin_id, id: session.session_id },

@@ -158,7 +158,7 @@ APR-06 的具体接入要求为：可信 base 的检查器在 PR 检查和 `merg
 
 在同一 PR 依次记录缺票时的必需检查与合并拒绝、当前头的真人批准、合成新提交使旧票失效、再次批准，以及固定说明的原评论编号。私有 Team 仓用来收集必需检查证据；真实 merge group 的全组检查和本人投票仍待在有队列能力的已授权环境完成。 [分支保护](https://docs.github.com/en/rest/branches/branch-protection#update-status-check-protection) · [合并队列规则](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/managing-a-branch-protection-rule)
 
-本机等价检查从可信 checkout 启动。试验仓需要先在测试 PR 取得一次 App 发布的成功状态，再把该 App 选为必需的来源。真实批准、push 和再次批准可用同一 PR 依次核验。以下位置和标识由可信 runner 配置，PR 或评论正文不参与配置。正式 runner 读取 GitHub 合并组事件中的原始参数，固定允许发布的 repo 和目标分支。App 的短时安装凭据由运行环境注入。
+本机检查从可信 checkout 启动。试验 PR 首次收到 App 发布的失败状态后，已用分支保护的 `checks` 字段把该 App 固定为必需来源。真实批准、push 和再次批准可用同一 PR 依次核验。用户批准试验结束时生成一把替换钥，撤销本次试验用钥并清除两把钥的本机文件。以下位置和标识由可信 runner 配置。正式 runner 读取 GitHub 合并组事件的原始参数，固定允许发布的 repo 和目标分支。App 的短时安装凭据由运行环境注入。
 
 ```sh
 node scripts/agent-approval-publisher.mjs OWNER/REPO REPO_ID PR APP_ID APP_BOT_ID TARGET_BRANCH

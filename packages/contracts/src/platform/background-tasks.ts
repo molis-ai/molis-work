@@ -14,8 +14,8 @@ import { OPEN_TARGET_SCHEMA, WORK_EVENT_SOURCE_SCHEMA, type OpenTarget } from ".
 export const BACKGROUND_TASKS_INPUT_TYPE = /* @version type.molis.background-tasks.query "molis.background-tasks.query.v{version}" */ "molis.background-tasks.query.v1";
 export const BACKGROUND_TASKS_OUTPUT_TYPE = /* @version type.molis.background-tasks.collection "molis.background-tasks.collection.v{version}" */ "molis.background-tasks.collection.v1";
 
-/** A sentence the page may have a translation for; `{n}` in it is `count`. */
-export interface BackgroundTaskPhrase { text: string; count?: number }
+/** A sentence in the provider's own words, whole: the page shows it as written. */
+export interface BackgroundTaskPhrase { text: string }
 
 /** What the person may do to a task: an action through the gateway with the input the provider wrote, so it is authorized and leaves its diagnostic line like any call. */
 export interface BackgroundTaskCommand { role: "stop" | "pause" | "resume"; action: ActionReference; input: Record<string, unknown>; summary: string }
@@ -78,7 +78,7 @@ export interface BackgroundTaskCollection {
 const text = { type: "string" };
 const id = { ...text, minLength: 1, maxLength: 200 };
 const instant = { ...id, format: "date-time" };
-const phrase = { type: "object", properties: { text: { ...id, maxLength: 200 }, count: { type: "integer", minimum: 0 } }, required: ["text"], additionalProperties: false };
+const phrase = { type: "object", properties: { text: { ...id, maxLength: 200 } }, required: ["text"], additionalProperties: false };
 const command = (roles: readonly string[]) => ({ type: "object", properties: { role: { enum: roles }, action: ACTION_REFERENCE_SCHEMA, input: { type: "object" }, summary: { ...text, maxLength: 1000 } },
   required: ["role", "action", "input", "summary"], additionalProperties: false });
 export const BACKGROUND_TASK_DECISION_SCHEMA = { type: "object", properties: { id, ask: { ...id, maxLength: 1000 }, why: { ...id, maxLength: 1000 },
@@ -119,8 +119,8 @@ const SERVES_WORDS: Record<TaskServesRole, string> = {
   list: "读取一个后台任务此刻为哪些事件办；只读。", bind: "把一个后台任务改为只为给定的事件办；不改任务的授权、预算与数据范围，任务不停、不重做。",
   release: "让一个后台任务不再属于任何事件；任务照常进行。", create: "把一个后台任务登记成线上的一个新事件；任务照常进行。",
 };
-export function defineTaskServesAction<Role extends TaskServesRole>(role: Role, capabilityId: string, version: number, kinds: string[], title: string, permissions: string[]):
-  ActionDefinition<Role extends "bind" ? TaskServesBindInput : TaskServesInput, TaskServesResult> {
+export function defineTaskServesAction<R extends TaskServesRole>(role: R, capabilityId: string, version: number, kinds: string[], title: string, permissions: string[]):
+  ActionDefinition<R extends "bind" ? TaskServesBindInput : TaskServesInput, TaskServesResult> {
   const reads = role === "list";
   const input = role === "bind"
     ? inputSchemaFor<TaskServesBindInput>()({ type: "object", properties: { task: ACTION_SUBJECT_SCHEMA, event: ACTION_SUBJECT_SCHEMA }, required: ["task", "event"], additionalProperties: false } as const)
@@ -128,5 +128,5 @@ export function defineTaskServesAction<Role extends TaskServesRole>(role: Role, 
   return { capability_id: capabilityId, version, operation: reads ? "query" : "command", action: { title, description: SERVES_WORDS[role], kind: reads ? "query" : "operation", scope: "project",
     effect: reads ? "read" : "write", audiences: ["user", "agent"], permissions, subject_kinds: kinds,
     placement_relation: { relation: TASK_SERVES_RELATION, role, ...(role === "list" ? { target: { kind: "work_event", noun: "事件" } } : {}) },
-    input_schema: input, output_schema: servesResult } } as ActionDefinition<Role extends "bind" ? TaskServesBindInput : TaskServesInput, TaskServesResult>;
+    input_schema: input, output_schema: servesResult } } as ActionDefinition<R extends "bind" ? TaskServesBindInput : TaskServesInput, TaskServesResult>;
 }

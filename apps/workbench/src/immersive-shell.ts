@@ -151,6 +151,10 @@ export function renderPluginRail(
     return renderButton({ variant: kept ? "primary" : "secondary", size: "sm", icon: "pin", iconOnly: true, className: "dock-keep", disabled: !owned,
       label: uiText.text("workbench.immersive-shell.keep-dock-name", { name: plugin.label }), attrs: { "data-dock-choice": plugin.id, "aria-pressed": String(kept), title: uiText.text("workbench.immersive-shell.keep-dock") } });
   };
+  // 「在旁边打开」: the pointer's way to what ⌥↵ on the tile does (PFG-23). Every tile has it, so adding or removing a plugin
+  // changes no markup; it answers only for a plugin of the project.
+  const besideButton = (plugin: { id: string; label: string }, owned: boolean) => renderButton({ variant: "secondary", size: "sm", icon: "columns", iconOnly: true, className: "rail-beside", disabled: !owned,
+    label: uiText.text("workbench.immersive-shell.open-beside-name", { name: plugin.label }), attrs: { "data-rail-beside": plugin.id, title: uiText.text("workbench.immersive-shell.open-beside") } });
   // One button, two states: a plus while the plugin is not in the project, a red trash can once it is. Both glyphs are in the
   // button, so a change of state is the tile's class and nothing more; the stylesheet shows the one that fits. A 常开 plugin stays.
   const toggleButton = (plugin: { id: string; label: string }, owned: boolean, along: readonly string[]) => {
@@ -179,7 +183,7 @@ export function renderPluginRail(
     const main = owned ? link(plugin, zone, mark)
       : `<button class="immersive-plugin-link plugin-rail-item" type="button" data-rail-zone="${zone}" aria-disabled="true" tabindex="-1" aria-label="${uiText("workbench.immersive-shell.name-not-added", { name: plugin.label })}">${icon(plugin.glyph)}<span>${label}</span>${hint}${mark}</button>`;
     // The group goes on the tile so the bar can put a kept 个人 plugin in the right tray (07-1 S4b).
-    return `<div class="plugin-rail-tile${owned ? "" : " is-available"}${kept ? " is-kept" : ""}" data-plugin-tile="${plugin.id}"${plugin.group ? ` data-rail-group="${plugin.group}"` : ""}${along.length ? ` data-along="${escapeHtml(named(along))}"` : ""}${dependents.length ? ` data-dependents="${escapeHtml(named(dependents))}"` : ""}>${main}<span class="plugin-rail-ops" role="group" aria-label="${label}">${pinButton(plugin, owned)}${installed ? "" : toggleButton(plugin, owned, along)}</span></div>`;
+    return `<div class="plugin-rail-tile${owned ? "" : " is-available"}${kept ? " is-kept" : ""}" data-plugin-tile="${plugin.id}"${plugin.group ? ` data-rail-group="${plugin.group}"` : ""}${along.length ? ` data-along="${escapeHtml(named(along))}"` : ""}${dependents.length ? ` data-dependents="${escapeHtml(named(dependents))}"` : ""}>${main}<span class="plugin-rail-ops" role="group" aria-label="${label}">${besideButton(plugin, owned)}${pinButton(plugin, owned)}${installed ? "" : toggleButton(plugin, owned, along)}</span></div>`;
   };
   const subgroup = (label: string, buttons: string) => buttons ? `<p class="plugin-rail-subgroup" data-rail-zone="more">${label}</p>${buttons}` : "";
   const home = link({ id: "home", surface: "home", label: uiText.text("workbench.immersive-shell.project-home"), glyph: "home", hint: uiText.text(RAIL_HOME_HINT) }, "core");

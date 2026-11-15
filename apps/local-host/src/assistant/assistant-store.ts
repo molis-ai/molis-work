@@ -87,7 +87,8 @@ export interface StoredWork extends Omit<AssistantWork, "state" | "delegated_by"
    * On a delegated work: the step it was handed out as on its delegating work's graph, that work's title when it asked,
    * what it was asked to deliver, and when the person took it back. Which work asked and its follow-ups are on the graph.
    */
-  delegated_by?: { graph_id: string; node_id: string; title: string; acceptance: string; taken_back_at?: string };
+  /** `requirements`: how many item-by-item requirements were hung on it when it was handed over (`modules/acceptance` keeps them). */
+  delegated_by?: { graph_id: string; node_id: string; title: string; acceptance: string; taken_back_at?: string; requirements?: number };
   /** Half-written answers to the questions its rounds wait on, by pending id, as the question card's fields hold them. Never shown as the work. */
   question_drafts?: Record<string, Record<string, unknown>>;
   /** The person's explicit choice to hold automatic continuation; the SDK still owns the actual wait. */

@@ -1122,10 +1122,6 @@ export declare const BACKGROUND_TASK_COLLECTION_SCHEMA: {
                                 minLength: number;
                                 type: string;
                             };
-                            count: {
-                                type: string;
-                                minimum: number;
-                            };
                         };
                         required: string[];
                         additionalProperties: boolean;
@@ -1140,10 +1136,6 @@ export declare const BACKGROUND_TASK_COLLECTION_SCHEMA: {
                                     maxLength: number;
                                     minLength: number;
                                     type: string;
-                                };
-                                count: {
-                                    type: string;
-                                    minimum: number;
                                 };
                             };
                             required: string[];
@@ -1505,10 +1497,6 @@ export declare const BACKGROUND_TASK_SCHEMA: {
                     minLength: number;
                     type: string;
                 };
-                count: {
-                    type: string;
-                    minimum: number;
-                };
             };
             required: string[];
             additionalProperties: boolean;
@@ -1523,10 +1511,6 @@ export declare const BACKGROUND_TASK_SCHEMA: {
                         maxLength: number;
                         minLength: number;
                         type: string;
-                    };
-                    count: {
-                        type: string;
-                        minimum: number;
                     };
                 };
                 required: string[];
@@ -1827,7 +1811,6 @@ export interface BackgroundTaskExecutor {
 
 export interface BackgroundTaskPhrase {
     text: string;
-    count?: number;
 }
 
 export interface BoundActionClient {
@@ -6992,7 +6975,7 @@ export declare function defineSubjectOffersAction(capabilityId: string, version:
     offers: SubjectActionOffer[];
 }>;
 
-export declare function defineTaskServesAction<Role extends TaskServesRole>(role: Role, capabilityId: string, version: number, kinds: string[], title: string, permissions: string[]): ActionDefinition<Role extends "bind" ? TaskServesBindInput : TaskServesInput, TaskServesResult>;
+export declare function defineTaskServesAction<R extends TaskServesRole>(role: R, capabilityId: string, version: number, kinds: string[], title: string, permissions: string[]): ActionDefinition<R extends "bind" ? TaskServesBindInput : TaskServesInput, TaskServesResult>;
 
 export declare function defineWorkEventsAction(capabilityId: string, version: number, kinds: string[], title: string, permissions: string[]): ActionDefinition<WorkEventWindow, WorkEventCollection>;
 

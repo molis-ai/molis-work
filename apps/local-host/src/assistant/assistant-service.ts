@@ -6,7 +6,8 @@ import { assistantFailure } from "./assistant-error.js";
 import { AssistantContinuations } from "./assistant-continuations.js";
 import { controlAssistantWork } from "./assistant-work-control.js";
 import { AssistantFollowUps } from "./assistant-followups.js";
-import type { AgentDelegation } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentDelegation, AgentDelivery } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { ACCEPTANCE_PROVIDER_ID } from "@molis-ai/molis-work-contracts/modules/acceptance";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { runBackgroundWork } from "../web-locale.js";
 import { say } from "@molis-ai/molis-work-plugin-sdk/ui";
@@ -104,6 +105,11 @@ export class AssistantService {
       lastReply: async work => [...((await this.reads.assistantPart(work)).rounds.at(-1)?.turns ?? [])].reverse().find(turn => turn.kind === "assistant" && turn.text?.trim())?.text?.trim(),
       read: workId => this.read(workId),
       lineEvents: async work => lineEventsFor(await (await ports.authority(work)).actions?.(RUNTIME)),
+      // As the work itself: its own authority (an action the person switched off for the Assistant is refused here too) and its session.
+      acceptance: async (work, signal) => {
+        const actions = await (await ports.authority(work)).actions?.(RUNTIME);
+        return actions ? { invoke: async (action, input) => await actions.invoke({ capability_id: action.capability_id, version: action.version, provider_id: ACCEPTANCE_PROVIDER_ID }, input, signal) as never } : undefined;
+      },
       notify: (work, text, key) => void this.store.raiseNotice(actorId, { kind: "needs-decision", work_id: work.work_id, work_title: work.title, text }, key),
       // A start the Host writes happens once per key: a repeated settle finds it claimed.
       dispatch: async (work, text, materials, writtenBy, request, stillCurrent) => {
@@ -313,6 +319,8 @@ export class AssistantService {
     return this.read(workId);
   }
 
+  /** A delegated work's delivery report, when it was handed requirements (assistant-delegation.ts). */
+  delivery(work: StoredWork): AgentDelivery | undefined { return this.delegations.delivery(work); }
   /** The delegation tools of a round of `parent` (assistant-delegation.ts). */
   delegation(parent: StoredWork): AgentDelegation | undefined { return this.delegations.of(parent); }
 

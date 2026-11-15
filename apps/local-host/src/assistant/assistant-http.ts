@@ -174,7 +174,7 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
       view => service.dispatcher.noteDispatched(work, view), () => {
         const snapshot = store.rounds(work.work_id).at(-1)?.context;
         return snapshot ? { url: null, title: snapshot.source.title ?? snapshot.source.surface, provenance: "client_reported" } : undefined;
-      }, locale, namedSkills),
+      }, locale, namedSkills, service.delivery(work)),
       project_prompts: await assistantProjectPrompts(ports.localHost, work),
       // The platform memory, under the Assistant's switch: re-read and injected by the runtime as data.
       memory: task => service.memory.memoryForRound(work, task),

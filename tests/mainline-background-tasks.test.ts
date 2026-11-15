@@ -19,7 +19,7 @@ const person = (projectId: string, permissions: readonly string[] = [MAINLINE_RE
   ({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: projectId, permissions: [...permissions], ...change });
 
 test("WLN-39 background.tasks.read lists the project's task providers through the caller's own client: rows keep their provider, a provider off in the project says nothing, one that cannot answer is an issue by its code, and what the caller may not read is not asked", { timeout: 60_000 }, async t => {
-  const plugin = backgroundPlugin(project => ({ source: SOURCE, tasks: [task(`job-${project}`, { step: { text: "跑了 {n} 项", count: 3 }, serves: [{ kind: "note", id: "n1" }] }), task("late", { updated_at: "2026-11-14T09:00:00.000Z" }, [])] }));
+  const plugin = backgroundPlugin(project => ({ source: SOURCE, tasks: [task(`job-${project}`, { step: { text: "跑了 3 项" }, serves: [{ kind: "note", id: "n1" }] }), task("late", { updated_at: "2026-11-14T09:00:00.000Z" }, [])] }));
   const rig = await backgroundRig(t, plugin, ["A", "Off"], { off: ["Off"] });
   const a = rig.project("A"), client = rig.host.actionClient(a);
   const read = await client.invoke(person(a.project_id), mainlineActions.tasks, {});
@@ -27,7 +27,7 @@ test("WLN-39 background.tasks.read lists the project's task providers through th
   assert.deepEqual(read.tasks.map(row => row.subject.id), ["late", `job-${a.project_id}`], "newest first");
   const row = read.tasks[1]!;
   assert.equal(row.source.capability_id, "homebg.tasks"); assert.deepEqual(row.origin, SOURCE);
-  assert.deepEqual(row.serves, [{ kind: "note", id: "n1" }]); assert.deepEqual(row.step, { text: "跑了 {n} 项", count: 3 });
+  assert.deepEqual(row.serves, [{ kind: "note", id: "n1" }]); assert.deepEqual(row.step, { text: "跑了 3 项" });
   assert.deepEqual(row.commands.map(command => command.action), [{ capability_id: "homebg.stop", version: 1, provider_id: row.source.provider_id }], "a command is pinned to the provider that answered");
   assert.deepEqual(plugin.state.calls.at(-1), { project: a.project_id, query_only: true }, "the provider is asked read-only, in the caller's project");
 

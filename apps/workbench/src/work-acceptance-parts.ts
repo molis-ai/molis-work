@@ -23,12 +23,13 @@ function standing(item: AcceptanceRequirementState): { ring: StateRingState; bad
   return { ring: "done", badge: badge(say(item.carried ? "carried" : "machine-checked", { version: on }), "success"), why: item.carried ? say("carried-why") : "" };
 }
 
-const checkLine = (check: AcceptanceCheck) => `<p class="work-req-note" title="${escapeHtml(check.observed)}">${escapeHtml(say(check.kind === "hands_on" ? "hands-on" : "engineering"))}：${escapeHtml(check.method)}</p>`;
+const checkLine = (check: AcceptanceCheck) => `<p class="work-req-note" title="${escapeHtml(check.observed)}">${escapeHtml(say("check-line", { kind: say(check.kind === "hands_on" ? "hands-on" : "engineering"), method: check.method }))}</p>`;
 const evidence = (check: AcceptanceCheck | null) => !check?.evidence.length ? "" : `<div class="work-req-evidence">${check.evidence.map(reference =>
   `<span class="work-req-chip">${icon(reference.kind === "artifact_version" ? "file" : "terminal")}${escapeHtml(reference.kind === "artifact_version" ? say("evidence-artifact", { version: reference.version }) : say("evidence-command"))}</span>`).join("")}</div>`;
 
-function historyLine(entry: AcceptanceHistoryEntry): string {
-  const words = entry.type === "requirement" ? say(entry.requirement_version === 1 ? "history-asked" : entry.by_person ? "history-changed-by-you" : "history-changed", { text: entry.statement })
+// The first requirement entry of an item is what was asked; the later ones are its changes (the history is in time order).
+function historyLine(entry: AcceptanceHistoryEntry, _index: number, all: AcceptanceHistoryEntry[]): string {
+  const words = entry.type === "requirement" ? say(all.find(one => one.type === "requirement") === entry ? "history-asked" : entry.by_person ? "history-changed-by-you" : "history-changed", { text: entry.statement })
     : entry.type === "delivery" ? say(entry.touched ? "history-delivered" : "history-delivered-untouched", { version: entry.version })
     : entry.type === "check" ? `${entry.checked_version} · ${say(entry.gap ? `gap-${entry.gap}` : entry.verdict === "contradicts" ? "gap-contradicted" : entry.tier === "machine_checked" ? "history-machine" : "gap-self_only")}`
     : `${entry.version} · ${say(entry.decision === "accepted" ? "history-accepted" : "history-returned", { note: entry.note ?? "" })}`;
@@ -79,5 +80,5 @@ export function renderRequirementColumn(view: AcceptanceView, ui: RequirementCol
     + `<p class="work-reqs-sum">${renderAcceptanceSummary(view)}</p>`
     + (ui.error ? `<p class="mw-alert mw-alert--danger" role="alert">${escapeHtml(ui.error)}</p>` : "")
     + `<div class="work-reqs-list"${ui.busy ? ' aria-busy="true"' : ""}>${view.requirements.map(item => card(item, item.id === lead, ui)).join("")}</div>`
-    + (view.changes ? `<p class="work-reqs-round"><strong>${escapeHtml(say("round-changes"))}</strong>${escapeHtml(say("round-touched", { n: moved.length, items: moved.join("、") }))}${view.changes.summary ? ` ${escapeHtml(view.changes.summary)}` : ""}</p>` : "");
+    + (view.changes ? `<p class="work-reqs-round"><strong>${escapeHtml(say("round-changes"))}</strong>${escapeHtml(say("round-touched", { n: moved.length, items: moved.join(uiText.text("common.list.separator")) }))}${view.changes.summary ? ` ${escapeHtml(view.changes.summary)}` : ""}</p>` : "");
 }

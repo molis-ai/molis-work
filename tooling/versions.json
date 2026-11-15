@@ -1395,7 +1395,7 @@
     "protocol.prologue.after-write-tool": 1,
     "protocol.prologue.gateway-tool": 1,
     "protocol.prologue.implementation.node-port": "1.0.0",
-    "protocol.prologue.pack.action-gateway": "1.0.0",
+    "protocol.prologue.pack.action-gateway": "1.1.0",
     "protocol.prologue.pack.action-tools": "1.0.0",
     "protocol.prologue.pack.plugin-checks": "1.0.0",
     "protocol.prologue.plugin-check-tool": 1,

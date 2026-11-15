@@ -45,6 +45,7 @@ export function installAcceptance(route: (path: string) => string, request: UiRe
     column.querySelector<HTMLTextAreaElement>("textarea")?.focus();
   };
   const show = (key: string | null, from?: HTMLElement) => {
+    const was = open;
     open = key; ui = { returning: null, editing: null, busy: false, error: "" };
     if (key) {
       const panel = document.querySelector<HTMLElement>("[data-assistant-panel]");
@@ -53,7 +54,11 @@ export function installAcceptance(route: (path: string) => string, request: UiRe
       if (panel && !watched) { watched = true; new MutationObserver(() => { if (open && !panel.hidden) { open = null; back = false; opener = null; draw(); } }).observe(panel, { attributes: true, attributeFilter: ["hidden"] }); }
       draw(); column.querySelector("[data-lead]")?.scrollIntoView({ block: "nearest" });
       column.querySelector<HTMLElement>("[data-lead] [data-acceptance-accept], [data-acceptance-close]")?.focus();
-    } else { draw(); if (back) dialog(true); back = false; opener?.focus(); opener = null; }
+    } else { draw(); if (back) dialog(true); back = false; 
+      // Back where it was opened from: the same button, the one drawn in its place since, or (its panel gone) what opens the task panel.
+      const again = opener?.isConnected ? opener : [...document.querySelectorAll<HTMLElement>("[data-acceptance-open]")].find(one => one.dataset.acceptanceOpen === was && one.getClientRects().length > 0);
+      (again ?? document.querySelector<HTMLElement>("[data-task-mark]"))?.focus(); opener = null;
+    }
   };
   /** One write as the person; whatever happens the column shows what stands afterwards, with the refusal's own words when there is one. */
   const act = async (work: (now: { target: AcceptanceTarget; view: AcceptanceView }) => Promise<AcceptanceView>) => {
@@ -100,10 +105,15 @@ export function installAcceptance(route: (path: string) => string, request: UiRe
       let html = "", gone = false;
       const paint = () => {
         const next = targets().map(target => known.get(keyOf(target))).map(now => now ? renderAcceptanceOverview(now.view, keyOf(now.target)) : "").join("");
-        if (next !== html) { html = next; slot.hidden = !next; slot.innerHTML = next; }
+        if (next === html) return;
+        // Drawn again while the way in has the focus, the new one takes it.
+        const held = slot.contains(document.activeElement);
+        html = next; slot.hidden = !next; slot.innerHTML = next;
+        if (held) slot.querySelector<HTMLElement>("[data-acceptance-open]")?.focus();
       };
       slots.add(paint);
-      return { update() { void Promise.all(targets().map(target => read(target).catch(() => undefined))).then(() => { if (!gone) paint(); }); }, destroy() { gone = true; slots.delete(paint); } };
+      // What is known already is shown at once (a card drawn again does not blink); the read then brings what stands now.
+      return { update() { paint(); void Promise.all(targets().map(target => read(target).catch(() => undefined))).then(() => { if (!gone) paint(); }); }, destroy() { gone = true; slots.delete(paint); } };
     },
     // What stands may have moved (a report came in, rework was delivered): the open column is read again, unless the person is writing in it.
     refresh() {

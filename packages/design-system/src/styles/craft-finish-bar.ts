@@ -429,7 +429,7 @@ export const CRAFT_BAR_STYLES = `
   html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-items .plugin-rail-tile:is(:hover, :has(:focus-visible), .is-confirming) > .plugin-rail-item[data-rail-zone] { padding-right: var(--tile-yield, 72px); }
   html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-ops { position: absolute; top: 0; right: 6px; bottom: 0; display: flex; align-items: center; gap: 4px; pointer-events: none; }
   /* The two buttons are the floor's size (--control-h: 32px, 28px compact; 44px on touch, in touch-targets.ts), and the row gives up their room. */
-  .plugin-picker-popover { --ops-btn: var(--control-h, 32px); --tile-yield: calc(var(--ops-btn) * 2 + 16px); }
+  .plugin-picker-popover { --ops-btn: var(--control-h, 32px); --tile-yield: calc(var(--ops-btn) * 3 + 20px); }
   html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-ops > .mw-btn {
     width: var(--ops-btn); min-width: var(--ops-btn); min-height: var(--ops-btn);
     opacity: 0; transform: translateX(8px) scale(.92);

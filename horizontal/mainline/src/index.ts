@@ -18,8 +18,7 @@ const record = (value: unknown): value is Record<string, unknown> => typeof valu
 const codeOf = (error: unknown) => error instanceof ActionError ? error.code : "actions.execution_failed";
 
 function phraseOf(value: unknown): BackgroundTaskPhrase | null {
-  if (!record(value) || !text(value.text, 200) || (value.count !== undefined && !Number.isSafeInteger(value.count))) return null;
-  return { text: value.text, ...(value.count === undefined ? {} : { count: value.count as number }) };
+  return record(value) && text(value.text, 200) && Object.keys(value).length === 1 ? { text: value.text } : null;
 }
 function subjectOf(value: unknown): ActionSubject | null {
   return record(value) && text(value.kind, 200) && text(value.id, 200) ? { kind: value.kind, id: value.id } : null;

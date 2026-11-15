@@ -35,7 +35,7 @@ test("底栏：输入法组合中按 ⌘↵ 只确认候选、不发送；组合
   const { command, sessionId, evaluate, waitFor, navigate, origin, projectId } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId, 20_000));
-  await waitFor("document.querySelector('[data-dock] [data-assistant-composer] .mw-composer__input')");
+  await waitFor("document.querySelector('[data-work-bar] [data-assistant-composer] .mw-composer__input')");
   const works = async () => (await evaluate<number>(`fetch(${JSON.stringify(`/projects/${projectId}/api/assistant/works`)}).then(r => r.json()).then(b => b.works.length)`));
   const before = await works();
   await evaluate("(() => { const input = document.querySelector('[data-assistant-composer] .mw-composer__input'); window.__keys = []; input.addEventListener('keydown', e => window.__keys.push([e.key, e.keyCode, e.isComposing]), true); input.focus(); })()");

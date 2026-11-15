@@ -28,7 +28,7 @@ const QUIET = ".work-event:not([data-attn],[aria-current])";
 const BUTTON_GROUNDS = ":is(.work-reply-placed,.work-reply-actions,.work-task-row,.work-task-banner,.work-task-facts,.work-card-actions)";
 const ANIMATED = ":is(.work-event[data-fresh],.work-task-panel,.work-reply-placed,.work-reply-peek,.work-reply-mini)";
 
-export const WORK_LINE_STYLES = `
+const SHEET = `
 /* The shell around the line (WLN-16). The bottom is the line and nothing else; the plugins chosen to stay, the start page's ＋,
    the person's own plugins and the project stand in the top strip, which is 44px tall for them. */
 @media (min-width:761px){html body.immersive-workbench:not(.arrival-page){--desktop-titlebar-height:44px}}
@@ -42,10 +42,14 @@ ${TOP} .dock-pin svg{width:17px;height:17px}
 .dock-pin-name{display:none}
 ${TOP} .dock-pin[aria-current]{display:inline-flex;align-items:center;gap:6px;width:auto;max-width:160px;padding:0 10px 0 8px;font:inherit;font-size:12px;font-weight:500}
 ${TOP} .dock-pin[aria-current]>.dock-pin-name{display:block;${ELLIPSIS}}
-${TOP} .dock-pin.is-fixed{margin-right:0}
+${TOP} .dock-pin.is-fixed{flex:none;margin-right:0}
 ${TOP} .dock-pin.is-fixed::before{content:none}
-/* The tabs take what they need and ＋ follows them; the strip's own ＋ (a list of plugins to open) is the start page now. */
-${TOP}>[data-titlebar-tabs]{flex:0 1 auto;min-width:120px}
+/* The tabs take what they need and ＋ follows them; the strip's own ＋ (a list of plugins to open) is the start page now.
+   What they need is written by the script that shares their widths (--tabs-hug: every tab at its own width; --tabs-floor:
+   every tab at its narrowest), so the strip's box never hangs on the widths that script then gives the tabs. Where the strip
+   runs short the tabs narrow first, down to that floor while it leaves the rest of the strip 500px (the right side's glyphs slide in what is left); then the kept plugins
+   fold; then the tabs slide. */
+${TOP}>[data-titlebar-tabs]{flex:0 1000 var(--tabs-hug,auto);min-width:clamp(120px,var(--tabs-floor,120px),100% - 500px)}
 ${TOP}>.desktop-titlebar-drag{flex:1 1 0;width:auto;min-width:0}
 ${TOP} .tab-add-button{display:none}
 ${TOP}>.plugin-picker{order:2;position:static;flex:none;max-width:none;padding:0}
@@ -56,13 +60,38 @@ ${TOP} .plugin-picker-current{display:none}
 ${TOP} .plugin-picker-popover:not([hidden]){animation:craft-fade-in var(--dur-hover) var(--ease-quint) both}
 ${TOP}>.bar-own{order:5;height:36px;gap:2px}
 ${TOP}>.titlebar-end{order:8;flex:none;display:flex;align-items:center;gap:8px;margin-left:2px}
-/* A phone: the strip's first row is the way back, the pinned plugins (44px targets, no tray), the right side's glyphs, the layout button and the project; the tabs and ＋ are its second row. */
+/* A phone: two rows and never more, in the order a wide window reads them. The first is the way back, the kept plugins (glyphs
+   alone, no tray: they take what the row has left and fold into +N, down to 项目首页 alone on the narrowest), the right side's glyphs (all of them from 601px; two at 600px and under, the rest
+   slide), the layout button and the project. The second is the tab strip as a phone draws it (the switch, the current tab,
+   全部标签; 52px, VUX-31), ＋ and the person's own plugins, which fold into their own +N. The break between the rows is the strip's own. */
 @media (max-width:760px){
-  ${TOP}{--dock-btn:44px;padding:0 8px}
-  ${TOP}>.dock-pins{height:44px;margin:0;padding:0;gap:0;background:none;box-shadow:none}
-  ${TOP}>.titlebar-end{order:1;margin-left:auto}
+  ${TOP}{--dock-btn:44px;padding:0 4px;gap:0}
+  ${TOP}::before{content:"";order:4;flex:0 0 100%;height:0}
+  ${TOP}>.workspace-history{order:0;gap:0;padding:0}
+  ${TOP}>.dock-pins{order:1;flex:1 1 0;min-width:var(--dock-btn);height:44px;margin:0;padding:0;gap:0;overflow:hidden;background:none;box-shadow:none}
+  ${TOP} .dock-pin[aria-current]{width:var(--dock-btn);padding:0;justify-content:center}
+  ${TOP} .dock-pin[aria-current]>.dock-pin-name{display:none}
+  ${TOP}>.side-strip{order:2;flex:1 1 var(--dock-btn);min-width:var(--dock-btn);max-width:max-content;justify-content:flex-start}
+  ${TOP}>.titlebar-layout{order:2;padding:0}
+  ${TOP}>.titlebar-end{order:3;margin-left:0;gap:0}
+  ${TOP}>.titlebar-end>.workspace-chrome{margin-left:0}
+  ${TOP}>[data-titlebar-tabs]{order:5;flex:1 1 0;min-width:0}
+  ${TOP}>.plugin-picker{order:6}
+  ${TOP}>.bar-own{order:7;flex:0 1 auto;min-width:var(--dock-btn);max-width:max(var(--dock-btn),100% - 330px);height:44px;gap:0;overflow:hidden}
+  ${TOP}>.bar-own:not(:has([data-dock-pin])){display:none}
+  ${TOP}>.desktop-titlebar-drag{display:none}
   ${TOP} .plugin-picker-trigger{width:44px;height:44px}
 }
+/* 600px and under: the right side shows two whole glyphs (its always-there one and one more; the rest slide). A page with a directory gets its drawer's button before the project, as the foot had it; the kept plugins
+   make the room, down to 项目首页 alone, and the start page lists every one of them. Under 360px the row cannot hold all of
+   that, so the way forward goes (the way back stays). */
+@media (max-width:600px){
+  ${TOP}>.side-strip{flex:none;max-width:calc(var(--dock-btn)*2)}
+  ${SHELL} .immersive-workspace:not(.is-plugin-directory-empty) .workbench-header .titlebar-end .immersive-show-directory,
+  ${SHELL} .is-directory-drawer-open .workbench-header .titlebar-end .navigator-directory-toggle{display:inline-grid!important;place-items:center;order:-1;width:44px;min-width:44px;height:44px;min-height:44px;padding:0;border:0;background:transparent;box-shadow:none;color:var(--ink-soft)}
+  ${SHELL} .immersive-workspace.is-directory-drawer-open .workbench-header .titlebar-end .immersive-show-directory{display:none!important}
+}
+@media (max-width:359px){${TOP} [data-workspace-history="forward"]{display:none}}
 /* The line: what happened on the left, the composer in the middle, what comes next on the right. Its height is constant.
    The left wing holds what is in progress and what waits for the person, so it keeps 420px before the right one grows: the
    composer is centred from 1444px up and sits a little right of centre below that. */
@@ -141,6 +170,7 @@ ${PRESSABLE}>svg{flex:none;width:14px;height:14px}
    where there is no room beside it (work-line-layout.ts measures and says which). It never moves the work surface. */
 .work-task-float{position:fixed;z-index:60;top:var(--dialog-top,auto);left:calc(var(--dialog-right,0px) + 12px);display:flex;max-width:calc(100% - 20px)}
 .work-task-float[data-place="over"]{top:calc(var(--dialog-top,0px) + 52px);left:auto;right:var(--dialog-inset,18px)}
+.work-task-float[data-place="closed"]{top:auto;left:auto;right:calc(var(--dialog-inset,18px) - 8px);bottom:calc(var(--line-clear,0px) + 52px)}
 .work-task-float[data-place="over"] .work-task-panel{max-height:min(56vh,480px,var(--dialog-room,480px))}
 /* The task panel: a list, or one task's card with a way back. */
 .work-task-panel{display:flex;flex-direction:column;width:340px;max-width:100%;max-height:min(56vh,480px);overflow:hidden;border-radius:var(--r-card,12px);background:var(--popover);box-shadow:var(--lift-3);animation:craft-rise ${MOVE}}
@@ -217,6 +247,9 @@ ${W} ${BUTTON_GROUNDS} .mw-btn--secondary:not(:disabled){border-color:var(--line
 .work-card-decisions{display:flex;flex-direction:column;gap:8px}
 .work-accept{display:flex;align-items:center;gap:8px;min-width:0;padding:8px 10px;border:1px solid var(--line);border-radius:var(--r-row,8px)}
 .work-accept>.work-reqs-sum{flex:1}
+/* A task's card is narrow: the three readings take a row of their own and the way in stands under them, so none is cut. */
+[data-task-acceptance]>.work-accept{flex-wrap:wrap}
+[data-task-acceptance]>.work-accept>.work-reqs-sum{flex:1 0 100%}
 .work-reqs{position:fixed;z-index:30;inset:var(--acceptance-top,var(--desktop-titlebar-height,32px)) auto var(--acceptance-bottom,var(--dock-h,48px)) var(--sheet-inset,14px);width:var(--acceptance-w,320px);display:flex;flex-direction:column;gap:8px;padding:10px;border:1px solid var(--line);border-radius:var(--r-card,12px);background:var(--paper);box-shadow:var(--lift-2);overflow:hidden}
 html body.immersive-workbench[data-acceptance-open=true] [data-plugin-stage]{margin-left:calc(var(--acceptance-w,320px) + var(--side-gap,8px))}
 .work-reqs-head{display:flex;align-items:center;gap:8px;min-width:0;white-space:nowrap}
@@ -267,6 +300,7 @@ html body.immersive-workbench[data-acceptance-open=true] [data-plugin-stage]{mar
 .work-reply-peek-head{display:flex;align-items:center;gap:6px;min-width:0;color:var(--muted);font-size:11px;white-space:nowrap}
 .work-reply-peek-fill{flex:1 1 auto}
 .work-reply-peek p{margin:0}
+[data-assistant-island]>.work-reply-mini{position:absolute;z-index:49;right:0;bottom:calc(100% + 8px + var(--next-row,0px) + var(--context-row,0px))}
 .work-reply-mini{align-self:flex-end;display:inline-flex;align-items:center;gap:2px;padding:4px;border-radius:var(--r-card,12px);background:var(--popover);box-shadow:var(--lift-2);animation:craft-rise-from-bar var(--dur-hover) var(--ease-quint)}
 /* A dialog tab is as wide as its name (96 to 184), and the strip scrolls: an event's tab has to say which event it is. */
 ${W} .assistant-tabs[data-work-tabs] .assistant-tab{flex:0 0 auto;width:auto;min-width:96px;max-width:184px}
@@ -300,22 +334,44 @@ html[data-craft-still] ${ANIMATED}{animation:none}
   .work-line-run{flex:none;overflow:visible}
   .work-line-earlier{display:none}
   .work-line-now{flex:none}
-  .work-line-head{height:44px;min-width:0}
+  .work-line-row .work-line-wing .work-line-head{height:44px;min-width:44px;justify-content:center}
   .work-line-head-name,.work-event-note{display:none}
   .work-event,.work-line-wing[data-wing="past"] .work-event{height:44px;max-width:min(240px,var(--cap-max,240px));border-radius:22px}
   .work-line-wing[data-wing="past"] .work-line-run>:last-child{max-width:min(240px,var(--near-max,240px))}
+  /* The closed dialog's row is above the input here too: it is the end of the track, over nothing of the work, and the events stop before it. */
+  [data-assistant-island]>.work-reply-mini{bottom:calc(100% + 6px);height:48px;padding:0 0 0 4px;border-radius:0;background:var(--desk);box-shadow:-6px 0 6px -2px var(--desk);animation:none}
+  .work-line[data-mini] .work-line-track{margin-inline-end:96px}
 }
 @media (max-width:760px){
   ${W} .assistant-tabs[data-work-tabs] .assistant-tab:not([data-current]){display:flex}
   ${W} .assistant-tabs[data-work-tabs] .assistant-tab{min-width:72px;max-width:132px}
   ${W} .assistant-tabs[data-work-tabs] .assistant-tab[data-current]{max-width:220px}
+  .work-task-float,.work-task-float[data-place="over"]{top:auto;right:10px;bottom:calc(var(--line-clear,0px) + 10px);left:10px;max-width:none}
+  .work-task-panel{flex:1 1 auto;width:auto;max-height:62vh}
+  .work-task-row>.mw-btn{display:none}
+}
+/* Pressed by a finger: a phone's width, or any window whose pointer is coarse (a phone held sideways, a tablet). Everything on
+   the strip and the line is a 44px target there, whatever the width. */
+@media (max-width:760px),(pointer:coarse){
   .work-task-mark{height:36px;min-width:36px;justify-content:center}
   .work-task-mark::after{content:"";position:absolute;inset:-4px}
   :is(.work-task-panel-head,.work-card-head,.work-reply-peek-head,.work-reply-mini) .mw-btn.mw-btn--icon-only{width:44px;height:44px;min-width:44px}
   ${BUTTON_GROUNDS} .mw-btn{min-width:44px;min-height:44px}
-  .work-task-float,.work-task-float[data-place="over"]{top:auto;right:10px;bottom:calc(var(--line-clear,0px) + 10px);left:10px;max-width:none}
-  .work-task-panel{flex:1 1 auto;width:auto;max-height:62vh}
   .work-task-row-main{min-height:48px}
-  .work-task-row>.mw-btn{display:none}
+  /* Where the right side's glyphs slide, its always-there entry (a Home tool with a chord) leads the row and stays at its edge. */
+  ${TOP}>.side-strip>.tab-item:has(>[data-side-keys]){order:-1;position:sticky;inset-inline-start:0;z-index:1;background:var(--nav-bg)}
+}
+/* A dialog tab with 44px marks in it keeps room for its title. */
+@media (pointer:coarse) and (min-width:761px){${W} .assistant-tabs[data-work-tabs] .assistant-tab{min-width:128px}}
+@media (pointer:coarse){
+  ${TOP}{--dock-btn:44px}
+  ${TOP}>.dock-pins{height:44px;padding:0;gap:0}
+  ${TOP} .plugin-picker-trigger{width:44px;height:44px}
+  .work-line-row .work-line-wing .work-line-head,.work-event,.work-line-earlier{height:44px;min-width:44px}
+  .work-event{border-radius:22px}
+  /* Its glyphs are 44px each: where the strip runs short they slide in their own box before anything is pushed off the window. */
+  ${TOP}>.side-strip{flex-shrink:1;padding-block:2px;margin-block:-2px;overflow-x:auto;justify-content:safe flex-end}
 }
 `;
+/** The sheet as the page gets it: the notes above are for whoever reads this file. */
+export const WORK_LINE_STYLES = SHEET.replace(/\/\*[\s\S]*?\*\/\s*/g, "");

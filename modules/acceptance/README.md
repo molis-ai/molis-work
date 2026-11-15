@@ -10,6 +10,12 @@
 
 用户在要求栏里认可一项、退回一项（写原因）：页面把这次选择连同每项要求的版本和正在看的交付版本交给 `acceptance.decide@1`，其中任何一项在显示之后变过，整次不生效。返工交回第 4 版时写明动了哪几项：没动到的沿用它所依据的那一版的核验和认可，动到的回到「待核、待定」；上一轮没通过也没定的项不会因为没动到而算完成。
 
+## 插件和页面怎样用
+
+- **插件给自己的对象挂要求。** 在 Manifest 的权限里声明 `acceptance:report`（要读回状态再加 `acceptance:read`），经动作服务调用 `acceptance.requirements.set@1`、`acceptance.deliveries.record@1`、`acceptance.reports.submit@1`，`subject` 写 `{ provider_id: 自己的提供方, subject: { kind, id } }`。不用声明任何界面：这个对象只要是事项线上的事件，或是为某个事件办的后台任务，事件卡上就会出现逐项概况和「逐项审阅」。认可与退回不在插件手里，`acceptance.decide@1` 插件调不了。
+- **助理的后台任务。** 助理交办时随 `delegate-work` 写要求，任务用 `report-delivery` 交回；宿主以这项任务自己的身份调用上面三个动作，对象固定是任务自己（`io.molis.work.assistant.rules` 的 `assistant_work`），模型给不了别的对象（S-assistant-delivery-own-object）。写法在 `apps/local-host/src/assistant/assistant-delegation.ts`，验证 `tests/assistant-delegation-acceptance.test.ts`。
+- **工作台页面。** 事件卡的概况和要求栏走本人入口 `/api/acceptance/{read,decide,requirements}`（`apps/local-host/src/acceptance-http.ts`，S-work-line-person-doors），画法在 `apps/workbench/src/work-acceptance-parts.ts`，行为记在[事项线需求书](../../specs/work-line/spec.md) §6.5「逐项概况与要求栏」。
+
 ## 从哪里读代码
 
 | 文件 | 用途 |

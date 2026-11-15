@@ -38,7 +38,6 @@ const KINDS: Record<string, string> = {
   ".workspace-history-button": "history",
   ".tab-item-trigger": "tab",
   ".tab-item-close": "tab close",
-  ".tab-add-button": "open plugin",
   // 07-1 S3: at 760px and under the strip leads with 主区｜右侧 and always shows 全部标签, in the one row it paints first.
   ".tab-pane-switch > .mw-toggle": "main or side",
   "[data-tab-all]": "all tabs",
@@ -52,9 +51,16 @@ const KINDS: Record<string, string> = {
   "[data-assistant-composer] .mw-composer__controls :is([data-composer-control], .mw-select-picker__trigger)": "composer control",
   "[data-assistant-composer] [data-compose-menu-toggle]": "delivery toggle",
   "[data-assistant-composer] [data-composer-stop]": "stop",
+  // The work line (specs/work-line §4): its head, the events on it, the way to earlier ones and back to now; and above the
+  // input while the dialog is closed, the task mark and the button that opens the conversation.
+  ".work-line-head": "line head",
+  ".work-event": "line event",
+  ".work-line-earlier": "line paging",
+  ".work-task-mark": "task mark",
+  "[data-dialog-open]": "open conversation",
 };
 /** The parts of the Assistant's composer that exist only in some states; the base screens do not show them. */
-const LINE_KINDS = ["work chip clear", "strip chip", "attention chip", "composer more", "composer control", "delivery toggle", "stop"];
+const LINE_KINDS = ["work chip clear", "strip chip", "attention chip", "composer more", "composer control", "delivery toggle", "stop", "line event", "line paging"];
 
 /** Shows the bell of the Assistant's composer as the island paints it when a notice waits (it hides it otherwise). */
 const OPTIONAL_CHIPS = ["[data-assistant-attention]"];
@@ -122,17 +128,21 @@ const LINE_FIT = `(() => {
  * one another, so the room it needs is an exact sum of them. */
 const ROW_FIT = `(() => {
   const vw = document.documentElement.clientWidth;
-  const boxes = [...document.querySelectorAll(".workbench-bar :is(.bar-start, .bar-end) :is(button, summary, input, textarea, [role=tab], a[href])")]
-    .filter(el => el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) && !el.closest("[hidden], [inert], .plugin-picker-popover, [data-dock-overflow], .navigator-project-menu-popover"))
+  // The strip's two rows (specs/work-line §6.5): the kept plugins, the layout button and the project on the first; ＋ and the
+  // person's own on the second. The tab strip and the side's glyph row scroll inside their own boxes and are measured by the
+  // layout audit, so they are left out here.
+  const boxes = [...document.querySelectorAll(".workbench-header[data-dock] :is(button, summary, input, textarea, [role=tab], a[href])")]
+    .filter(el => el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) && !el.closest("[hidden], [inert], .plugin-picker-popover, [data-dock-overflow], .navigator-project-menu-popover, [data-titlebar-tabs], .side-strip"))
     .map(el => ({ name: el.getAttribute("aria-label") || el.textContent.trim().slice(0, 12), box: el.getBoundingClientRect() }))
     .filter(item => item.box.width >= 2)
-    .sort((a, b) => a.box.left - b.box.left);
+    .sort((a, b) => Math.round(a.box.top / 20) - Math.round(b.box.top / 20) || a.box.left - b.box.left);
   let overlap = 0, where = "";
   for (let index = 1; index < boxes.length; index++) {
+    if (Math.round(boxes[index - 1].box.top / 20) !== Math.round(boxes[index].box.top / 20)) continue;
     const over = boxes[index - 1].box.right - boxes[index].box.left;
     if (over > overlap) { overlap = over; where = boxes[index - 1].name + " / " + boxes[index].name; }
   }
-  const outside = boxes.length ? Math.max(0, -boxes[0].box.left, boxes[boxes.length - 1].box.right - vw) : 0;
+  const outside = Math.max(0, ...boxes.map(item => Math.max(-item.box.left, item.box.right - vw)));
   return { count: boxes.length, vw, overlap: Math.round(overlap * 10) / 10, where, outside: Math.round(outside * 10) / 10, width: boxes.reduce((sum, item) => sum + item.box.width, 0) };
 })()`;
 
@@ -143,12 +153,12 @@ const DOCK_FOLD = `(async () => {
   const pins = [...document.querySelectorAll("[data-dock-pins] [data-dock-pin]")];
   const hidden = pins.filter(pin => pin.hidden).map(pin => pin.dataset.dockPin).sort();
   const all = pins.map(pin => pin.dataset.dockPin).sort();
-  const more = document.querySelector("[data-dock-more]");
+  const more = document.querySelector("[data-dock-pins] [data-dock-more]");
   const shown = !!more?.isConnected && more.checkVisibility();
   let listed = [];
   if (shown) {
     more.click(); await wait(200);
-    listed = [...document.querySelectorAll("[data-dock-overflow] [data-dock-pin]")].map(row => row.dataset.dockPin).sort();
+    listed = [...([...document.querySelectorAll("[data-dock-overflow]")].find(list => !list.hidden)?.querySelectorAll("[data-dock-pin]") ?? [])].map(row => row.dataset.dockPin).sort();
     more.click(); await wait(100);
   }
   const toggle = document.querySelector("[data-plugin-picker-toggle]");
@@ -168,7 +178,7 @@ const POPOVER_CONTENTS: Array<[string, string, string, string[]]> = [
   ["the notices", "[data-assistant-attention]", "[data-assistant-notices]", ["[data-notice-action=open]", "[data-notice-action=dismiss]", "summary"]],
   ["the plugin switcher", "[data-plugin-picker-toggle]", "[data-plugin-picker-popover]", ["[data-dock-choice]", "[data-plugin-toggle]"]],
   ["the project menu", ".navigator-project-selector", ".navigator-project-menu-popover", [".navigator-project-option", ".navigator-project-manage"]],
-  ["the Dock's list", "[data-dock-more]", "[data-dock-overflow]", [".dock-overflow-item"]],
+  ["the Dock's list", "[data-dock-pins] [data-dock-more]", "[data-dock-overflow]:not([hidden])", [".dock-overflow-item"]],
   ["a suggestion", "", "[data-assistant-next-row]", ["[data-step-offer]"]],
 ];
 /** What a list holds for a touch pointer that a fine pointer shows only under the cursor or on focus. */
@@ -276,17 +286,18 @@ const STRIP_MENUS = `(async () => {
 })()`;
 
 /** The tab bar of the opened Assistant panel, opened from the receiver's name on the composer (a current work is the state that has one). */
-type PanelHeader = { shown: boolean; height: number; title: number; controls: Array<{ label: string; w: number; h: number; inside: boolean }> };
+type PanelHeader = { shown: boolean; height: number; title: number; whole: boolean; controls: Array<{ label: string; w: number; h: number; inside: boolean }> };
 const PANEL_HEADER = `(async () => {
   const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-  document.querySelector("[data-assistant-composer] [data-composer-receiver]")?.click(); await wait(800);
+  document.querySelector("[data-reply-mini] [data-dialog-open]")?.click(); await wait(800);
   const panel = document.querySelector("[data-assistant-panel]"), bar = panel.querySelector(".assistant-tabbar"), box = panel.getBoundingClientRect();
   const controls = [...bar.querySelectorAll("button, [role=tab]")].filter(el => el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })).map(el => {
-    const b = el.getBoundingClientRect();
-    return { label: el.getAttribute("aria-label") || String(el.className).split(" ")[0], w: Math.round(b.width), h: Math.round(b.height), inside: b.left >= box.left - 1 && b.right <= box.right + 1 };
+    // The tabs slide in their own box (specs/work-line §4.4): one that is slid out of view is cut by that box, which is what must stay inside.
+    const b = el.getBoundingClientRect(), at = (el.closest("[data-assistant-tabs]") ?? el).getBoundingClientRect();
+    return { label: el.getAttribute("aria-label") || String(el.className).split(" ")[0], w: Math.round(b.width), h: Math.round(b.height), inside: at.left >= box.left - 1 && at.right <= box.right + 1 };
   });
   const title = panel.querySelector(".assistant-tab[data-current] .assistant-tab-title");
-  const out = { shown: !panel.hidden, height: Math.round(bar.getBoundingClientRect().height), title: title ? Math.round(title.clientWidth) : 0, controls };
+  const out = { shown: !panel.hidden, height: Math.round(bar.getBoundingClientRect().height), title: title ? Math.round(title.clientWidth) : 0, whole: !!title && title.scrollWidth <= title.clientWidth + 1, controls };
   panel.querySelector("[data-assistant-panel-close]").click(); await wait(200);
   return out;
 })()`;
@@ -317,7 +328,7 @@ const PANEL_HOST_CONTROLS = assistantTextHtml('[link](https://example.test) 「�
   options: [{ value: 'one', label: '继续整理' }], allows_free_text: true }, text => text);
 const PANEL_BODY = `(async () => {
   const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-  document.querySelector("[data-assistant-composer] [data-composer-receiver]")?.click(); await wait(800);
+  document.querySelector("[data-reply-mini] [data-dialog-open]")?.click(); await wait(800);
   const panel = document.querySelector("[data-assistant-panel]");
   const sizes = (root) => [...root.querySelectorAll("button, summary, a[href], input, select, textarea, [role=tab]")]
     .filter(el => el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) && !el.closest("[data-test-made]"))
@@ -652,7 +663,7 @@ function windowsOf(browser: Browser, scheme: "light" | "dark", touch: boolean) {
         const itemBox = item.getBoundingClientRect(), opsBox = ops.getBoundingClientRect();
         return { floor: parseFloat(getComputedStyle(popover).getPropertyValue("--control-h")), tileHeight: Math.round(box.height),
           buttons: [...ops.querySelectorAll(":scope > button")].map(button => { const b = button.getBoundingClientRect();
-            return { label: button.hasAttribute("data-dock-choice") ? "pin" : "add or remove", w: Math.round(b.width), h: Math.round(b.height), shown: parseFloat(getComputedStyle(button).opacity) > 0 && getComputedStyle(button).transform === "none",
+            return { label: button.hasAttribute("data-dock-choice") ? "pin" : button.hasAttribute("data-rail-beside") ? "open beside" : "add or remove", w: Math.round(b.width), h: Math.round(b.height), shown: parseFloat(getComputedStyle(button).opacity) > 0 && getComputedStyle(button).transform === "none",
               inside: b.top >= box.top - 0.5 && b.bottom <= box.bottom + 0.5 && b.right <= box.right + 0.5 }; }),
           textRoom: Math.round((opsBox.left - (itemBox.right - parseFloat(getComputedStyle(item).paddingRight))) * 10) / 10 };
       })()`);
@@ -752,29 +763,33 @@ for (const scheme of ["light", "dark"] as const) {
     // One button at the bar's end instead of three (side-shelf §3.1) leaves every width room for 项目首页 and the "+N" button,
     // even beside the directory button at 320px. Should the row ever run short, the "+N" gives way and the check above holds
     // the dropped buttons to the switcher's list.
-    for (const width of [390, 375, 360, 350, 320]) assert.equal(moreShown[`${width} the project's settings`], true, `${width}px holds the widest row with 项目首页 and the "+N" button`);
-    assert.equal(moreShown["320 home"], true, "without the directory button the row holds the \"+N\" button even at 320px");
+    // The strip's first row (specs/work-line §6.5) holds the way back and forward, the kept plugins, two of the right side's
+    // glyphs, the layout button and the project: every width has room for 项目首页 and the "+N" button (under 360px the way
+    // forward gives up its place for them).
+    for (const width of [390, 375, 360, 350, 320]) assert.equal(moreShown[`${width} home`], true, `${width}px home: the row holds 项目首页 and the "+N" button`);
+    // A page with a directory puts its drawer's button on that row too, and the kept plugins make the room for it.
+    for (const width of [390, 375, 360, 350, 320]) assert.equal(moreShown[`${width} the project's settings`], false, `${width}px settings: 项目首页 stands alone beside the directory button`);
 
     // The Dock's "+N" list is measured where it has to exist. The popovers loops below skip it in a window that holds every pin, which is
-    // right for a wide one but would let the 44px check of its items pass over nothing; the 320px home is the scene that always overflows
-    // (the four pins above plus 项目首页 do not fit beside the "+N" button), so it asserts the list itself and cannot reach a skip.
-    await w.open(320, 568, HOME[1], HOME[2]);
+    // right for a wide one but would let the 44px check of its items pass over nothing; the 360px home is the narrowest scene that keeps the button
+    // (the pins above do not fit beside 项目首页 and the "+N" button), so it asserts the list itself and cannot reach a skip.
+    await w.open(360, 740, HOME[1], HOME[2]);
     const folded = await w.dockFold();
-    assert.ok(folded.hidden.length > 0, `320px home: the Dock folds some pins (${JSON.stringify(folded)})`);
-    assert.equal(folded.more, true, `320px home: and draws the "+N" button for them (${JSON.stringify(folded)})`);
-    assert.deepEqual(folded.listed, folded.hidden, `320px home: the "+N" list holds exactly the pins the row folded (${JSON.stringify(folded)})`);
+    assert.ok(folded.hidden.length > 0, `360px home: the Dock folds some pins (${JSON.stringify(folded)})`);
+    assert.equal(folded.more, true, `360px home: and draws the "+N" button for them (${JSON.stringify(folded)})`);
+    assert.deepEqual(folded.listed, folded.hidden, `360px home: the "+N" list holds exactly the pins the row folded (${JSON.stringify(folded)})`);
     assert.deepEqual([...folded.pins.filter(pin => !folded.hidden.includes(pin)), ...folded.listed].sort(), folded.pins,
-      `320px home: the pins on the row plus the pins in the list are the whole set, none lost and none twice (${JSON.stringify(folded)})`);
-    for (const pin of ["home", "goals", "inbox", "feed", "pages"]) assert.ok(folded.pins.includes(pin), `320px home: the Dock drew ${pin} (${JSON.stringify(folded)})`);
+      `360px home: the pins on the row plus the pins in the list are the whole set, none lost and none twice (${JSON.stringify(folded)})`);
+    for (const pin of ["home", "goals", "inbox", "feed", "pages"]) assert.ok(folded.pins.includes(pin), `360px home: the Dock drew ${pin} (${JSON.stringify(folded)})`);
     const dockList = (await w.popovers(44))["the Dock's list"];
-    assert.ok(dockList, "320px home: the \"+N\" button is there to open the Dock's list");
-    assert.equal(dockList.shown, true, "320px home: the Dock's list opens");
-    assert.deepEqual(dockList.missing, [], "320px home: the Dock's list holds its items");
-    assert.ok(dockList.items.length > 0, "320px home: the Dock's report is not empty");
-    assert.deepEqual(dockList.items.map(item => item.pin).sort(), folded.hidden, "320px home: the report's items are the pins the row folded");
-    assert.deepEqual(dockList.items.filter(item => item.h < 44).map(item => `${item.pin} ${item.h}px`), [], "320px home: every item of the Dock's list is a 44px target");
-    assert.deepEqual(dockList.small, [], "320px home: and nothing else in it is smaller");
-    t.diagnostic(`the Dock's "+N" list at 320px held ${dockList.items.length} items (${dockList.items.map(item => `${item.pin} ${item.h}px`).join(", ")}) beside ${folded.pins.length - folded.hidden.length} pins on the row`);
+    assert.ok(dockList, "360px home: the \"+N\" button is there to open the Dock's list");
+    assert.equal(dockList.shown, true, "360px home: the Dock's list opens");
+    assert.deepEqual(dockList.missing, [], "360px home: the Dock's list holds its items");
+    assert.ok(dockList.items.length > 0, "360px home: the Dock's report is not empty");
+    assert.deepEqual(dockList.items.map(item => item.pin).sort(), folded.hidden, "360px home: the report's items are the pins the row folded");
+    assert.deepEqual(dockList.items.filter(item => item.h < 44).map(item => `${item.pin} ${item.h}px`), [], "360px home: every item of the Dock's list is a 44px target");
+    assert.deepEqual(dockList.small, [], "360px home: and nothing else in it is smaller");
+    t.diagnostic(`the Dock's "+N" list at 360px held ${dockList.items.length} items (${dockList.items.map(item => `${item.pin} ${item.h}px`).join(", ")}) beside ${folded.pins.length - folded.hidden.length} pins on the row`);
     assert.deepEqual(Object.values(KINDS).filter(kind => !LINE_KINDS.includes(kind) && !seen.has(kind)), [], "the three screens showed every kind of control, so none went unmeasured");
 
     // The Assistant's composer stays a 44px input with room to type, and its ＋ and send keep their size while typing.
@@ -854,11 +869,12 @@ for (const scheme of ["light", "dark"] as const) {
     for (const [width, height] of [[320, 568], [360, 740], [390, 844], [852, 393], [1024, 768]] as const) {
       await w.open(width, height, "", "true");
       const header = await w.panelHeader();
-      assert.equal(header.shown, true, `the panel opens from the receiver's name at ${width}`);
+      assert.equal(header.shown, true, `the panel opens from 展开对话, above the input, at ${width}`);
       assert.ok(header.controls.length >= 5, `the panel's tab bar has its tab, close mark and four buttons at ${width} (${JSON.stringify(header.controls)})`);
       assert.deepEqual(header.controls.filter(control => Math.min(control.w, control.h) < 44).map(control => `${control.label} ${control.w}×${control.h}`), [], `panel header · ${width}: every control is a 44px target`);
       assert.deepEqual(header.controls.filter(control => !control.inside).map(control => control.label), [], `panel header · ${width}: and none leaves the panel`);
-      assert.ok(header.title >= 40, `panel header · ${width}: the work's tab keeps room for a title (${header.title}px)`);
+      // The main conversation's tab is named by who is spoken to (specs/work-line §4.4): a short name shown whole is room enough.
+      assert.ok(header.title >= 40 || header.whole, `panel header · ${width}: the current tab keeps room for a title (${header.title}px)`);
     }
     // The opened panel's body is 44px too: the details of the work (its blocks, actions and the hint to add a file), the list of all works,
     // and each kind of control the island can put into a thread or into the details of a work. A kind this test has not seen the
@@ -949,7 +965,7 @@ for (const scheme of ["light", "dark"] as const) {
     for (const [kind, report] of Object.entries(ops)) {
       assert.ok(report, `1280: the switcher lists ${kind}`);
       assert.equal(report.floor, 32, "1280: standard density, whose floor is 32px");
-      assert.equal(report.buttons.length, 2, `1280: ${kind} shows a pin and an add or remove button`);
+      assert.equal(report.buttons.length, 3, `1280: ${kind} shows open beside, a pin and an add or remove button`);
       assert.deepEqual(report.buttons.filter(button => !button.shown).map(button => button.label), [], `1280: ${kind}: both show while the mouse is on its row`);
       assert.deepEqual(report.buttons.filter(button => Math.min(button.w, button.h) < report.floor).map(button => `${button.label} ${button.w}×${button.h}`), [], `1280: ${kind}: each is at least the ${report.floor}px floor`);
       assert.deepEqual(report.buttons.filter(button => !button.inside).map(button => button.label), [], `1280: ${kind}: and sits inside its row (${report.tileHeight}px tall)`);

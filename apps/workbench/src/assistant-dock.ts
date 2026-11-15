@@ -19,7 +19,7 @@ export function renderAssistantDock(primitives: { readText(value: string): strin
       <section class="assistant-panel" id="assistant-panel" data-assistant-panel aria-label="${uiText("workbench.assistant-dock.assistant")}" hidden>
         <template data-assistant-glyphs>${ASSISTANT_GLYPHS.map((name) => `<span data-glyph="${name}">${icon(name)}</span>`).join("")}</template>
         <header class="assistant-tabbar">
-          <div class="assistant-tabs" data-assistant-tabs data-overflow-fade role="tablist" aria-label="${uiText("workbench.assistant-dock.open-work")}"></div>
+          <div class="assistant-tabs" data-assistant-tabs data-work-tabs data-overflow-fade role="tablist" aria-label="${uiText("workbench.assistant-dock.open-work")}"></div>
           <button class="assistant-tab-new" type="button" data-assistant-new aria-label="${uiText("workbench.assistant-dock.start-new-piece-work")}" title="${uiText("workbench.assistant-dock.start-new-piece-work")}">${icon("plus")}</button>
           <span class="assistant-tabbar-actions">
             ${renderTaskMark({ count: 0, panel: "work-task-panel" })}

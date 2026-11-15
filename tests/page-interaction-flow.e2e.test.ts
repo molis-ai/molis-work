@@ -80,22 +80,29 @@ test("the bar toggles back, covers close four ways, and history walks covers and
   await click("[data-cover-close]");
   await waitFor(`${exclusive} === ''`);
 
-  // The bar's trays: at every desktop width what folds stays inside the left tray, and neither tray runs under the composer.
+  // The strip and the line (specs/work-line §4.1): at every width what the kept plugins fold stays inside their tray, nothing in the
+  // strip or on the line lies over its neighbour, and both stay inside the window.
   for (const width of [601, 825, 1041, 1100, 1440]) {
     await command("Emulation.setDeviceMetricsOverride", { width, height: 800, deviceScaleFactor: 1, mobile: false }, sessionId);
     await waitFor("innerWidth === " + width);
-    const geometry = await evaluate<{ fold: number; start: number; centre: number; centreEnd: number; side: number; end: number }>(`new Promise(resolve => setTimeout(() => {
-      const box = selector => document.querySelector(selector).getBoundingClientRect();
-      const shown = [...document.querySelectorAll('.bar-start :is([data-dock-pin]:not([hidden]), [data-dock-more])')].map(node => node.getBoundingClientRect().right);
-      resolve({ fold: Math.max(...shown), start: box('.workbench-bar .bar-start').right, centre: box('.workbench-bar .bar-center').left,
-        // 07-1 S4b: the right group is the person's own tray (hidden while it holds nothing) and the project; its first shown part.
-        centreEnd: box('.workbench-bar .bar-center').right, side: Math.min(...[...document.querySelectorAll('.workbench-bar .bar-end > *')].filter(node => node.getClientRects().length).map(node => node.getBoundingClientRect().left)),
-        end: box('.workbench-bar .bar-end').right });
+    const geometry = await evaluate<{ fold: number; tray: number; over: string[]; out: string[]; scroll: boolean }>(`new Promise(resolve => setTimeout(() => {
+      const shown = node => node.getClientRects().length > 0, name = node => node.className.split(' ')[0] || node.tagName.toLowerCase();
+      const pins = [...document.querySelectorAll('[data-dock-pins] :is([data-dock-pin]:not([hidden]), [data-dock-more])')].filter(shown).map(node => node.getBoundingClientRect().right);
+      const rows = [[...document.querySelector('.workbench-header[data-dock]').children], [...document.querySelectorAll('[data-work-line] .work-line-wing, [data-work-line] .work-line-slot')]];
+      const over = [], out = [];
+      for (const row of rows) {
+        const boxes = row.filter(shown).map(node => [name(node), node.getBoundingClientRect()]);
+        for (const [label, box] of boxes) if (box.left < -0.5 || box.right > innerWidth + 0.5) out.push(label);
+        boxes.forEach(([a, one], index) => boxes.slice(index + 1).forEach(([b, other]) => {
+          if (Math.min(one.right, other.right) - Math.max(one.left, other.left) > 0.5 && Math.min(one.bottom, other.bottom) - Math.max(one.top, other.top) > 0.5) over.push(a + ' × ' + b);
+        }));
+      }
+      resolve({ fold: Math.max(...pins), tray: document.querySelector('[data-dock-pins]').getBoundingClientRect().right, over, out, scroll: document.documentElement.scrollWidth > innerWidth });
     }, 250))`);
-    assert.ok(geometry.fold <= geometry.start + 0.5, `${width}: the Dock's last shown entry stays inside its tray`);
-    assert.ok(geometry.start <= geometry.centre, `${width}: the left tray ends before the composer`);
-    assert.ok(geometry.centreEnd <= geometry.side, `${width}: the composer ends before the right group (${JSON.stringify(geometry)})`);
-    assert.ok(geometry.end <= width, `${width}: the bar stays inside the window`);
+    assert.ok(geometry.fold <= geometry.tray + 0.5, `${width}: the last kept plugin shown stays inside its tray (${geometry.fold} > ${geometry.tray})`);
+    assert.deepEqual(geometry.over, [], `${width}: nothing in the strip or on the line lies over its neighbour`);
+    assert.deepEqual(geometry.out, [], `${width}: the strip and the line stay inside the window`);
+    assert.equal(geometry.scroll, false, `${width}: the page does not scroll sideways`);
   }
 });
 

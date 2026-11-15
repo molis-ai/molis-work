@@ -1400,8 +1400,8 @@ test("PA-22: gateway tools say they read only when they change nothing; the Host
   assert.deepEqual(Object.entries(kinds).filter(([, kind]) => kind === "safe-read").map(([name]) => name).sort(),
     ["check-delegated-work", "find-capabilities", "list-memories", "read-capability"]);
   for (const name of ["suggest-action", "delegate-work", "follow-up-delegated-work", "stop-delegated-work", "remember", "forget-memory", "suggest-memory",
-    "change-capability", "change-reversible"]) assert.equal(kinds[name], "mutate-external", name);
-  assert.deepEqual([...HOST_GOVERNED_TOOLS].sort(), ["delegate-work", "follow-up-delegated-work", "forget-memory", "remember", "stop-delegated-work", "suggest-action", "suggest-memory"]);
+    "report-delivery", "change-capability", "change-reversible"]) assert.equal(kinds[name], "mutate-external", name);
+  assert.deepEqual([...HOST_GOVERNED_TOOLS].sort(), ["delegate-work", "follow-up-delegated-work", "forget-memory", "remember", "report-delivery", "stop-delegated-work", "suggest-action", "suggest-memory"]);
 });
 
 // Adoption §6.0f: the gateway's tools stay the same few (BL-145), and the capabilities a round found ride on their `input`:

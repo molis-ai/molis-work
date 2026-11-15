@@ -1,6 +1,6 @@
 import { BUSINESS_HOST_TOOLS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import type { KitToolOrigin } from "@molis-ai/molis-work-contracts/platform/kit-report";
-import { DELEGATION_TOOLS, GATEWAY_TOOLS, MEMORY_TOOLS } from "./adapters/prologue-action-gateway.js";
+import { DELEGATION_TOOLS, DELIVERY_TOOLS, GATEWAY_TOOLS, MEMORY_TOOLS } from "./adapters/prologue-action-gateway.js";
 import { STEP_TOOLS } from "./execution-plan.js";
 
 // Every tool an Agent round can be given, in one place (specs/capability-pack/contract-design.md §5): the names roles' `host_tools`
@@ -77,6 +77,7 @@ export const AGENT_TOOLS: readonly AgentToolEntry[] = [
   host(DELEGATION_TOOLS.check, "gateway", false, "Check a delegated work."),
   host(DELEGATION_TOOLS.follow, "gateway", true, "Tell a delegated work something more."),
   host(DELEGATION_TOOLS.stop, "gateway", true, "Stop a delegated work."),
+  host(DELIVERY_TOOLS.report, "gateway", true, "Report what a delegated work delivers against its requirements."),
   host(MEMORY_TOOLS.remember, "gateway", true, "Keep a memory for the person."),
   host(MEMORY_TOOLS.list, "gateway", false, "List the person's memories."),
   host(MEMORY_TOOLS.forget, "gateway", true, "Forget one of the person's memories."),

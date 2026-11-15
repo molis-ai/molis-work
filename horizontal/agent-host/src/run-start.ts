@@ -337,6 +337,7 @@ export async function frozenGateway(source: ActionSource, workspace: string): Pr
     ...(granted.check ? { check: (ref: ExactActionReference, input: unknown) => granted.check!(ref, input) } : {}),
     ...(granted.offer ? { offer: (offer: AgentActionOffer) => { validateCharacter?.(); return granted.offer!(offer); } } : {}),
     ...(granted.delegate ? { delegate: granted.delegate } : {}),
+    ...(granted.deliver ? { deliver: granted.deliver } : {}),
     ...(granted.memory ? { memory: granted.memory } : {}), ...(granted.reader ? { reader: granted.reader } : {}),
     // Which changes may run without a confirmation stays the caller's call (a declared undo, the person's setting).
     ...(granted.direct ? { direct: (view: ActionView) => granted.direct!(view) } : {}),

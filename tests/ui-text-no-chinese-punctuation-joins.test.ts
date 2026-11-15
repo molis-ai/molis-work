@@ -97,7 +97,6 @@ const EMBEDDED_JOIN_ALLOWED: ReadonlyArray<{ readonly file: RegExp; readonly rea
  * may not grow and a new file may not appear, and a fall must be written down here (the last test fails while it is stale).
  */
 const JOINED_BASELINE: Readonly<Record<string, number>> = {
-  "apps/local-host/src/assistant/assistant-delegation.ts": 1,
   "apps/local-host/src/assistant/assistant-directory.ts": 4,
   "apps/local-host/src/assistant/assistant-followups.ts": 2,
   "apps/local-host/src/assistant/assistant-present.ts": 2,

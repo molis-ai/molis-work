@@ -85,6 +85,7 @@ test("WLN-03 WLN-07 WLN-08 WLN-12 WLN-13: an event of the line opens as a tab of
   assert.match(String(await evaluate("document.querySelector('[data-work-task-float] .work-task-row').textContent")), /先问预算.*给王总回电话/u, "the row names the event it is done for");
   await click("[data-work-task-float] [data-task-open]");
   await waitFor(`${CARD} && document.activeElement?.matches('[data-task-panel-list]')`);
+  assert.equal(await evaluate(`${CARD}.querySelector('[data-task-acceptance]').hidden`), true, "PWA-146: a task nothing is asked of says nothing about requirements");
   assert.match(String(await evaluate(`${CARD}.querySelector('.work-task-facts').textContent`)), /为哪个事件给王总回电话/u);
   await click("[data-work-task-float] [data-place-change]");
   await waitFor("document.querySelector('[data-place-menu]')");
@@ -108,6 +109,28 @@ test("WLN-03 WLN-07 WLN-08 WLN-12 WLN-13: an event of the line opens as a tab of
   await writeFile(new URL("task-panel-1440.png", shot), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
   await click("[data-work-task-float] [data-task-panel-close]");
   await waitFor("!document.querySelector('[data-work-task-float]')");
+
+  // PWA-145 PWA-146: what is asked of a task hangs on the task itself. Its card in the panel sums the requirements up in the same
+  // three readings an event's card does, and 「逐项审阅」 opens the column on the task — a task done for no event gets there too.
+  const asked = await evaluate<{ status: number; body: unknown }>(`fetch(${JSON.stringify(`/projects/${projectId}/api/acceptance/requirements`)}, { method: 'POST',
+    headers: { 'content-type': 'application/json', ...(globalThis.molisWorkControlHeaders?.() || {}) },
+    body: ${JSON.stringify(JSON.stringify({ subject: { provider_id: "io.molis.work.assistant.rules", subject: { kind: "assistant_work", id: made[0]!.work_id } },
+      requirements: [{ id: "r1", statement: "先问清预算上限", requires_person: false }, { id: "r2", statement: "回电前给你看一眼要点", requires_person: true }] }))} }).then(async response => ({ status: response.status, body: await response.json().catch(() => ({})) }))`);
+  assert.equal(asked.status, 200, JSON.stringify(asked.body));
+  await click("[data-task-mark]");
+  await waitFor("document.querySelector('[data-work-task-float] [data-task-open]')");
+  await click("[data-work-task-float] [data-task-open]");
+  await waitFor(`${CARD} && !${CARD}.querySelector('[data-task-acceptance]').hidden`, 15_000);
+  assert.match(String(await evaluate(`${CARD}.querySelector('[data-task-acceptance]').textContent`)), /0\/2.*逐项审阅/su, "the card counts what is asked of the task");
+  assert.equal(await evaluate(`(() => { const card = ${CARD}.getBoundingClientRect(), part = ${CARD}.querySelector('[data-task-acceptance]').getBoundingClientRect(); const sum = ${CARD}.querySelector('[data-task-acceptance] .work-reqs-sum'); return part.left >= card.left && part.right <= card.right + 0.5 && ${CARD}.scrollWidth <= ${CARD}.clientWidth + 1 && sum.scrollWidth <= sum.clientWidth + 1; })()`), true, "the summary fits the card and none of its readings is cut");
+  await writeFile(new URL("task-card-requirements-1440.png", shot), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
+  await click("[data-work-task-float] [data-acceptance-open]");
+  await waitFor("!document.querySelector('[data-work-task-float]') && !document.querySelector('[data-acceptance-column]').hidden && document.querySelectorAll('[data-acceptance-column] [data-requirement]').length === 2", 15_000);
+  assert.match(String(await evaluate("document.querySelector('[data-acceptance-column]').textContent")), /先问清预算上限.*回电前给你看一眼要点/su, "the column goes through the task's own requirements");
+  // The panel went when the column opened, so Escape gives the focus to what opens the panel again.
+  await evaluate("document.querySelector('[data-acceptance-column]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))");
+  await waitFor("document.querySelector('[data-acceptance-column]').hidden");
+  assert.equal(await evaluate("document.activeElement?.hasAttribute('data-task-mark')"), true);
 
   // Closing the tab goes back to now.
   await click(".assistant-tab[data-current] .assistant-tab-close");

@@ -37,8 +37,9 @@ test("project workbench adds tabs without replacing existing ones and keeps spli
   await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelector('.tab-item[aria-current]')?.dataset.tabKind === 'plugin'");
   await click("[data-dock-pin=home]");
   await waitFor("document.body.dataset.desktopSurface === 'home' && !document.querySelector(':is([data-titlebar-tabs], [data-tab-strip]) .tab-item[aria-current]')");
-  // 07-S2: the project home left the tabs for the Dock; the strip's ＋ stays fully right of the history buttons.
-  assert.equal(await evaluate("(() => { const add = document.querySelector('[data-titlebar-tabs] .tab-add-button')?.getBoundingClientRect(); const hist = document.querySelector('.workspace-history')?.getBoundingClientRect(); return Boolean(add && hist && add.left + 1 >= hist.right - 1); })()"), true, "the strip's ＋ stays fully to the right of history buttons");
+  // 07-S2: the project home left the tabs for the kept plugins; ＋ (the start page, beside the tabs since the work line took the
+  // foot: specs/work-line §6.5) stays fully right of the history buttons.
+  assert.equal(await evaluate("(() => { const add = document.querySelector('.immersive-titlebar [data-plugin-picker-toggle]')?.getBoundingClientRect(); const hist = document.querySelector('.workspace-history')?.getBoundingClientRect(); return Boolean(add && hist && add.left + 1 >= hist.right - 1); })()"), true, "the strip's ＋ stays fully to the right of history buttons");
   assert.equal(await evaluate("document.querySelector('.tab-item[data-tab-kind=mother]')"), null);
   assert.equal(await evaluate("document.querySelectorAll('[data-tab-pane]').length"), 1);
   assert.equal(await evaluate("document.querySelector('[data-work-surface=home]')?.hidden"), false);
@@ -83,8 +84,8 @@ test("project workbench adds tabs without replacing existing ones and keeps spli
   await evaluate("document.querySelector('[data-tab-id=\"" + coreTabId + "\"] .tab-item-trigger')?.focus()");
   await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Delete", windowsVirtualKeyCode: 46 }, sessionId);
   await waitFor("!document.querySelector('.tab-item[data-tab-kind=item][data-item-id=CORE]')");
-  await click('[data-titlebar-tabs] [data-tab-add]');
-  await click('[data-tab-menu-action=open-feed]');
+  // The top strip's ＋ is the start page (specs/work-line §6.5): a plugin opens from its tile there, beside the tabs already open.
+  await click('[data-plugin-strip] [data-plugin-id="feed"]');
   await waitFor("document.body.dataset.desktopSurface === 'feed' && document.querySelector('.tab-item[aria-current][data-tab-kind=plugin][data-plugin=feed]')");
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await evaluate("document.querySelector('[data-board-view-tab=list]')?.click()");

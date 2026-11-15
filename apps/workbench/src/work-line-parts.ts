@@ -254,7 +254,7 @@ export function renderTaskCard(card: TaskCardView): string {
     + `<header class="work-task-panel-head">${renderOwnerMark(card.owner)}<span class="work-task-panel-title" title="${escapeHtml(card.title)}">${escapeHtml(card.title)}</span>${iconButton("back", uiText.text("workbench.work-line.back-to-list"), { "data-task-panel-list": "" })}${iconButton("x", uiText.text("workbench.work-line.close"), { "data-task-panel-close": "" })}</header>`
     + `<div class="work-task-panel-body" data-card>${card.decisions ?? ""}<dl class="work-task-facts">${fact("state", card.state, ring(card.ring))}</dd>${fact("who", card.who)}</dd>`
     + `${fact("for-event", card.serves)}${renderButton({ variant: "secondary", size: "sm", label: uiText.text("workbench.work-line.change"), attrs: { "data-place-change": card.id, "aria-haspopup": "menu" } })}</dd>`
-    + `${fact("returns-to", card.returnsTo)}</dd></dl>`
+    + `${fact("returns-to", card.returnsTo)}</dd></dl><div data-task-acceptance hidden></div>`
     + `<div class="work-card-section"><h4>${uiText("workbench.work-line.steps")}</h4>${steps}</div>${card.actions ? `<div class="work-card-actions">${card.actions}</div>` : ""}</div></section>`;
 }
 

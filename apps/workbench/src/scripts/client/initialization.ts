@@ -72,6 +72,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       leavePlugin: (plugin) => tabWorkspace?.leavePlugin?.(plugin) === true,
       open: (plugin, origin) => openSurfaceEntry(plugin, origin),
       shownPlugin: () => tabWorkspace?.shownPlugin?.() || null,
+      startPage: () => tabWorkspace?.startPage, openBeside: (plugin) => tabWorkspace?.openBeside(plugin),
       registerCover: (kind, open) => tabWorkspace?.registerCover?.(kind, open),
     });
     const workLine = document.body.hasAttribute('data-pane-embedded') ? null : globalThis.molisWorkBar?.({ route, openEvent: (event) => assistantIsland?.openEvent(event), toNow: () => assistantIsland?.toNow(), parked: (subject) => assistantIsland?.parked(subject), dialog: (open) => assistantIsland?.dialog(open),

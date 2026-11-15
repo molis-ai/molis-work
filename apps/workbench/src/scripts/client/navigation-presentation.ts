@@ -64,8 +64,44 @@ export const DOCK_SCRIPT = `(readText, projectId, host = {}) => {
     const label = globalThis.t.text("workbench.navigation-presentation.switch-plugin-now-now", { now: names.join(globalThis.t.text("common.list.separator")) });
     if (pickerToggle && pickerToggle.getAttribute('aria-label') !== label) pickerToggle.setAttribute('aria-label', label);
   };
+  // The start page says what the tab strip's own ＋ list did (PFG-23, PFG-24; specs/work-line §6.5): where a plugin already
+  // open is, seen from the focused column; "beside" on ⌥↵ or the tile's own button; and what was just closed, last.
+  const MAC_KEYS = /Mac|iP/.test(navigator.platform);
+  const dressStart = () => {
+    const page = host.startPage?.();
+    for (const tile of pickerPopover.querySelectorAll('.plugin-rail-tile')) {
+      const link = tile.querySelector('[data-plugin-id]'), place = (link && page?.placeOf(link.dataset.pluginId)) || '';
+      let mark = tile.querySelector('.plugin-rail-where');
+      if (!place) { mark?.remove(); } else {
+        if (!mark) { mark = document.createElement('span'); mark.className = 'plugin-rail-where'; link.append(mark); }
+        if (mark.textContent !== place) mark.textContent = place;
+      }
+      link?.setAttribute('aria-keyshortcuts', 'Alt+Enter');
+      const beside = tile.querySelector('[data-rail-beside]');
+      // (A tile patched after a change of membership has the server's title again: the key is said each time.)
+      if (beside) beside.title = beside.title.replace(/ \\(.*\\)$/, '') + ' (' + (MAC_KEYS ? '⌥↵' : 'Alt+Enter') + ')';
+    }
+    const closed = page?.recent() || [];
+    let box = pickerPopover.querySelector('[data-rail-recent]');
+    if (!closed.length) { box?.remove(); return; }
+    if (!box) { box = document.createElement('div'); box.className = 'plugin-rail-recent'; box.dataset.railRecent = ''; pickerPopover.append(box); }
+    const title = document.createElement('p'), rows = document.createElement('div');
+    title.className = 'plugin-rail-subgroup'; title.id = 'plugin-rail-recent-title'; title.textContent = globalThis.t.text("workbench.navigation-presentation.recently-closed");
+    rows.className = 'plugin-rail-items'; rows.setAttribute('role', 'group'); rows.setAttribute('aria-labelledby', title.id);
+    closed.forEach((entry, index) => {
+      const row = document.createElement('button'), name = document.createElement('span'), glyph = glyphOf(entry.plugin);
+      row.type = 'button'; row.className = 'immersive-plugin-link plugin-rail-item'; row.dataset.railZone = 'recent'; row.dataset.railReopen = String(index);
+      name.textContent = entry.title; row.title = entry.title;
+      if (glyph) row.append(glyph);
+      row.append(name);
+      if (!index) { const keys = document.createElement('kbd'); keys.textContent = MAC_KEYS ? '⌘⇧T' : 'Ctrl+Shift+T'; row.append(keys); row.setAttribute('aria-keyshortcuts', MAC_KEYS ? 'Meta+Shift+T' : 'Control+Shift+T'); }
+      rows.append(row);
+    });
+    box.replaceChildren(title, rows);
+  };
   const setPicker = (open) => {
     if (!pickerPopover || !pickerToggle) return;
+    if (open) dressStart();
     pickerPopover.hidden = !open;
     toast?.toggleAttribute('data-plugin-picker-open', open);
     pickerToggle.setAttribute('aria-expanded', String(open));
@@ -93,6 +129,14 @@ export const DOCK_SCRIPT = `(readText, projectId, host = {}) => {
   // node it started on, so it is a click.
   const put = (...chips) => { const next = current.cloneNode(); next.append(...chips); if (!next.isEqualNode(current)) current.replaceChildren(...chips); };
   let paintQueued = false;
+  // 项目首页 never folds and never shrinks: its tray is at least as wide as it is (with its name while it is the current one),
+  // and the tabs beside the tray give the room. Set after the pin is painted, outside the refit, and only when it changed.
+  const holdHome = () => {
+    const tray = dock.querySelector('[data-dock-pins]'), home = tray?.querySelector('[data-dock-pin]');
+    if (!home) return;
+    const style = getComputedStyle(tray), need = Math.ceil(home.offsetWidth + parseFloat(style.paddingLeft) + parseFloat(style.paddingRight)) + 'px';
+    if (tray.style.minWidth !== need) tray.style.minWidth = need;
+  };
   const paintCurrent = () => {
     if (paintQueued || !current) return;
     paintQueued = true;
@@ -108,6 +152,7 @@ export const DOCK_SCRIPT = `(readText, projectId, host = {}) => {
         current.parentElement?.classList.remove('is-split');
         dock.querySelectorAll('[data-dock-pin][aria-current]').forEach((button) => button.removeAttribute('aria-current'));
         trays.forEach((tray) => tray.more.classList.remove('has-current'));
+        holdHome();
         return;
       }
       const entries = shown();
@@ -120,6 +165,7 @@ export const DOCK_SCRIPT = `(readText, projectId, host = {}) => {
         if (on) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current');
       });
       trays.forEach((tray) => tray.more.classList.toggle('has-current', [...tray.pins.querySelectorAll('[data-dock-pin][hidden]')].some((pin) => pin.hasAttribute('aria-current'))));
+      holdHome();
     });
   };
 
@@ -131,8 +177,14 @@ export const DOCK_SCRIPT = `(readText, projectId, host = {}) => {
   const personal = new Set([...dock.querySelectorAll('[data-plugin-tile][data-rail-group="personal"]')].map((tile) => tile.dataset.pluginTile));
   // A plugin that did not start keeps its place and its stage says why; wherever it is named here it carries the amber point.
   const failed = (id) => Boolean(document.querySelector('[data-work-surface="' + CSS.escape(id) + '"]${UNAVAILABLE_STAGE}'));
-  const warn = (node, id) => { if (failed(id) && !node.querySelector(':scope > .nav-warn-dot')) node.insertAdjacentHTML('beforeend', '<span class="nav-warn-dot" aria-hidden="true"></span>'); };
-  rail().forEach((item) => warn(item, item.dataset.pluginId));
+  // A pin says so in its own name; an entry that reads its plugin's name aloud gets the words on the point (say).
+  const warn = (node, id, say) => {
+    if (!failed(id) || node.querySelector(':scope > .nav-warn-dot')) return;
+    const dot = document.createElement('span'); dot.className = 'nav-warn-dot';
+    if (say) { dot.setAttribute('role', 'img'); dot.setAttribute('aria-label', globalThis.t.text("workbench.navigation-presentation.didn-t-start")); } else dot.setAttribute('aria-hidden', 'true');
+    node.append(dot);
+  };
+  rail().forEach((item) => warn(item, item.dataset.pluginId, true));
   const readPins = () => {
     try { const value = JSON.parse(localStorage.getItem(PINS_KEY) || 'null'); if (Array.isArray(value)) return value.filter((id) => typeof id === 'string'); } catch {}
     return DEFAULT_PINS.slice();
@@ -299,9 +351,13 @@ export const DOCK_SCRIPT = `(readText, projectId, host = {}) => {
     paintDock();
   });
   // The bar's width is the window's; watching it (not the Dock itself) keeps folding from feeding back into itself. The right
-  // group too: a directory button joins it after the first fit. And the switcher, whose name (a long plugin name) takes room
+  // group and the strip's end too: a directory button joins the end after the first fit. And the switcher, whose name (a long plugin name) takes room
   // from the pins.
-  if (pins && 'ResizeObserver' in window) { const watcher = new ResizeObserver(() => fit()); for (const node of [dock, dock.querySelector('[data-titlebar-tabs]'), dock.querySelector('.plugin-picker'), own]) if (node) watcher.observe(node); }
+  // The refit waits for the next frame: what it folds moves the tabs it is watching, and a change made while the sizes are being
+  // delivered would be reported as a loop.
+  let refitting = false;
+  const refit = () => { if (refitting) return; refitting = true; requestAnimationFrame(() => { refitting = false; fit(); }); };
+  if (pins && 'ResizeObserver' in window) { const watcher = new ResizeObserver(refit); for (const node of [dock, dock.querySelector('.titlebar-end'), dock.querySelector('[data-titlebar-tabs]'), dock.querySelector('.plugin-picker'), own]) if (node) watcher.observe(node); }
 
   const searchKey = dock.querySelector('.plugin-picker-search kbd');
   if (searchKey && !/Mac|iPhone|iPad/.test(navigator.platform)) searchKey.textContent = 'Ctrl K';
@@ -314,6 +370,9 @@ export const DOCK_SCRIPT = `(readText, projectId, host = {}) => {
     const target = event.target?.nodeType === 1 ? event.target : null;
     if (!target) return;
     if (target.closest('[data-plugin-picker-toggle]')) { setPicker(pickerPopover?.hidden !== false); return; }
+    const beside = target.closest('[data-rail-beside]'), reopen = target.closest('[data-rail-reopen]');
+    if (beside) { setPicker(false); host.openBeside?.(beside.dataset.railBeside); return; }
+    if (reopen) { setPicker(false); host.startPage?.()?.reopen(Number(reopen.dataset.railReopen)); return; }
     const moreOf = target.closest('[data-dock-more]'), tray = moreOf && trays.find((candidate) => candidate.more === moreOf);
     if (tray) { closeOverflows(tray); tray.setOverflow(tray.overflow.hidden); return; }
     const pin = target.closest('[data-dock-pin]');
@@ -346,6 +405,12 @@ export const DOCK_SCRIPT = `(readText, projectId, host = {}) => {
     const inSearch = event.target?.nodeType === 1 && event.target.closest('[data-global-search-dialog]');
     if (pickerPopover && !pickerPopover.hidden && !inSearch && !(event.target?.nodeType === 1 && picker?.contains(event.target))) setPicker(false);
     if (!(event.target?.nodeType === 1 && event.target.closest('[data-dock-overflow], [data-dock-more]'))) closeOverflows();
+  });
+  // ⌥↵ on a tile opens its plugin beside what is showing (PFG-23).
+  pickerPopover?.addEventListener('keydown', (event) => {
+    const tile = event.key === 'Enter' && event.altKey && event.target?.nodeType === 1 ? event.target.closest('.plugin-rail-tile [data-plugin-id]') : null;
+    if (!tile) return;
+    event.preventDefault(); setPicker(false); host.openBeside?.(tile.dataset.pluginId);
   });
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape' || event.defaultPrevented) return;

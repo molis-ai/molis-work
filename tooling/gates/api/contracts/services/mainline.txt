@@ -79,10 +79,6 @@ export declare const BACKGROUND_TASK_ROW_SCHEMA: {
                     minLength: number;
                     type: string;
                 };
-                count: {
-                    type: string;
-                    minimum: number;
-                };
             };
             required: string[];
             additionalProperties: boolean;
@@ -97,10 +93,6 @@ export declare const BACKGROUND_TASK_ROW_SCHEMA: {
                         maxLength: number;
                         minLength: number;
                         type: string;
-                    };
-                    count: {
-                        type: string;
-                        minimum: number;
                     };
                 };
                 required: string[];

@@ -40,6 +40,11 @@ test("PWA-144 PWA-145 PWA-146: the event's card sums up its requirements in thre
     await setViewport(width, height, width < 600);
     await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
     await waitFor(`document.querySelector(${JSON.stringify(PRESS)})`, 20_000);
+    // On a phone the line is a track that slides: the event is reached as the keyboard reaches it, and rests whole in the track.
+    if (width < 600) {
+      await evaluate(`document.querySelector(${JSON.stringify(PRESS)}).focus()`);
+      await waitFor(`(() => { const track = document.querySelector('[data-work-line] .work-line-track').getBoundingClientRect(), at = document.querySelector(${JSON.stringify(PRESS)}).getBoundingClientRect(); return at.left >= track.left - 1 && at.right <= track.right + 1; })()`);
+    }
     await click(PRESS);
     await waitFor("window.__acceptance.some(one => one.door === 'read')", 15_000);
   };

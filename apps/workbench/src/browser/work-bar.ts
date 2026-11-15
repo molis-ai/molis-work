@@ -134,7 +134,7 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
   };
   const unreadable = (issues: readonly MainlineIssue[]) => [...new Set(issues.map(issue => issue.title))].map(renderLineUnreadable).join("");
 
-  const panel = installTaskPanel(host, { events: () => events.values(), press, keyOf, hue, again, request, repaint: () => cards.paint() });
+  const panel = installTaskPanel(host, { events: () => events.values(), press, keyOf, hue, again, request, repaint: () => cards.paint(), acceptance: (slot, target) => acceptance.overview(slot, () => [target]) });
 
   const eventOf = (subject: ActionSubject) => [...events.values()].find(one => keyOf(one.subject) === keyOf(subject));
   // Requirements hang on the event's own object or on the tasks done for it; the card asks about both.

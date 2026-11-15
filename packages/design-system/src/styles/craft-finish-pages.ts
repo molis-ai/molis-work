@@ -36,11 +36,12 @@ export const CRAFT_PAGES_STYLES = `  /* A phone: two rows at the foot, the Assis
     html ${SHELL} .immersive-workspace.is-directory-drawer-open .workbench-bar .bar-end .immersive-show-directory { display: none !important; }
     html ${SHELL} .workbench-bar .bar-end :is(.immersive-show-directory, .navigator-directory-toggle) svg { width: 20px; height: 20px; stroke-width: 1.6; }
     html ${SHELL} .workbench-bar .bar-end :is(.immersive-show-directory, .navigator-directory-toggle):hover { background: var(--nav-hover); color: var(--ink); }
-    html ${SHELL} .workbench-bar .plugin-picker-popover { position: fixed; left: 10px; right: 10px; bottom: calc(var(--dock-h) + 6px); width: auto; }
-    html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items { grid-template-columns: minmax(0, 1fr); }
-    html ${SHELL} .workbench-bar .plugin-picker-head .plugin-picker-search { flex-basis: 100%; height: 44px; }
-    html ${SHELL} .workbench-bar .plugin-picker-extend { flex: 1 1 100%; }
-    html ${SHELL} .workbench-bar .plugin-picker-extend .plugin-picker-extend-btn { flex: 1 1 0; justify-content: center; }
+    /* The start page drops from the strip's two rows and ends above the line. */
+    html ${SHELL} .workbench-header .plugin-picker-popover { left: 10px; right: 10px; top: calc(var(--desktop-titlebar-height) + var(--tab-strip-h) + 12px); width: auto; max-height: calc(100dvh - var(--desktop-titlebar-height) - var(--tab-strip-h) - var(--dock-h, 116px) - 24px); }
+    html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-items { grid-template-columns: minmax(0, 1fr); }
+    html ${SHELL} .workbench-header .plugin-picker-head .plugin-picker-search { flex-basis: 100%; height: 44px; }
+    html ${SHELL} .workbench-header .plugin-picker-extend { flex: 1 1 100%; }
+    html ${SHELL} .workbench-header .plugin-picker-extend .plugin-picker-extend-btn { flex: 1 1 0; justify-content: center; }
     ${SHELL} .assistant-panel { position: fixed; left: 10px; right: 10px; bottom: calc(var(--dock-h) + 6px + var(--next-row, 0px) + var(--context-row, 0px)); width: auto; height: min(70dvh, 560px); }
     /* The next steps' band, from the panel's edge down to the input, is the bar's own ground: the page does not show between the steps. */
     ${ASSIST} .bar-center > .assistant-next-row { inset: auto -8px 100%; max-width: none; padding: 8px 8px 6px; background: var(--desk); }

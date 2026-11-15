@@ -45,7 +45,7 @@ function harness() {
     // The project's whole table as the person reads it: the Assistant's rows and another provider's, with what can be done to them.
     table: async project => { tables.push(project); return { issues: [{ source: { capability_id: "broken.tasks", version: 1, provider_id: "broken" }, title: "坏掉的提供方", code: "broken.secret_detail" }], tasks: [
       { id: "row-1", source: { capability_id: "coding.background.tasks", version: 1, provider_id: "coding" }, origin: { surface: "coding", title: "Coding", icon: "code" }, subject: { kind: "coding_session", id: "s1" }, title: "修登录",
-        state: "running", step: { text: "跑了 {n} 项", count: 3 }, details: [], waiting: false, updated_at: at(48), executor: { kind: "plugin", label: "Coding" }, serves: [{ kind: "coding_session", id: "s1" }], scope: "project",
+        state: "running", step: { text: "跑了 3 项" }, details: [], waiting: false, updated_at: at(48), executor: { kind: "plugin", label: "Coding" }, serves: [{ kind: "coding_session", id: "s1" }], scope: "project",
         commands: [{ role: "stop", action: { capability_id: "coding.background.stop", version: 1, provider_id: "coding" }, input: { session_id: "s1", task_id: "t1" }, summary: "停止 dev server" }], decisions: [], open: null },
       { id: "row-2", source: { capability_id: "assistant.background.tasks", version: 1, provider_id: "io.molis.work.assistant.rules" }, origin: { surface: "assistant", title: "助理", icon: "assistant" }, subject: subject("tracked"), title: "整理访谈",
         state: "approval", details: [], waiting: true, updated_at: at(47), executor: { kind: "assistant", label: "助理" }, serves: [subject("tracked")], scope: "project", commands: [],

@@ -190,7 +190,7 @@ const fixtureTask = (extra: Record<string, unknown> = {}, commands: unknown[] = 
   updated_at: "2026-10-01T10:00:00.000Z", executor: { kind: "plugin", label: "示例" }, serves: [], scope: "project", commands, decisions: [], open: null, ...extra });
 
 test("W5-01-CODING-36 the Home lists what any plugin declares for it: another plugin's tasks show on its own surface, in the projects where it is on and open, and nothing else is asked", { timeout: 60_000 }, async t => {
-  const task = (project: string, updated: string) => fixtureTask({ subject: { kind: "homebg_task", id: `job-${project}` }, title: "导出", updated_at: updated, step: { text: "跑了 {n} 项", count: 3 },
+  const task = (project: string, updated: string) => fixtureTask({ subject: { kind: "homebg_task", id: `job-${project}` }, title: "导出", updated_at: updated, step: { text: "跑了 3 项" },
     serves: [{ kind: "note", id: "n1" }], open: { kind: "item", surface: "example", id: `job-${project}`, title: "导出", label: "打开" } },
     [{ role: "stop", action: { capability_id: "homebg.stop", version: 1 }, input: { job: "j1" }, summary: "导出到文件" }]);
   const plugin = backgroundPlugin(() => ({ source: SOURCE, tasks: [] }));
@@ -200,8 +200,8 @@ test("W5-01-CODING-36 the Home lists what any plugin declares for it: another pl
 
   const rows = await homeBackgroundTasks(homeAggregatePorts(rig.host), rig.catalog);
   assert.deepEqual(rows.map(row => [row.project_name, row.origin, row.subject.id, row.state, row.waiting, row.step, row.serves, row.open?.id]), [
-    ["B", SOURCE, `job-${b}`, "running", false, { text: "跑了 {n} 项", count: 3 }, [{ kind: "note", id: "n1" }], `job-${b}`],
-    ["A", SOURCE, `job-${a}`, "running", false, { text: "跑了 {n} 项", count: 3 }, [{ kind: "note", id: "n1" }], `job-${a}`],
+    ["B", SOURCE, `job-${b}`, "running", false, { text: "跑了 3 项" }, [{ kind: "note", id: "n1" }], `job-${b}`],
+    ["A", SOURCE, `job-${a}`, "running", false, { text: "跑了 3 项" }, [{ kind: "note", id: "n1" }], `job-${a}`],
   ], "the plugin the Home has never heard of is listed, newest first; the project where it is off and the one never opened are not");
   assert.deepEqual(rows.map(row => row.commands), rows.map(row => [{ role: "stop", action: { capability_id: "homebg.stop", version: 1, provider_id: row.source.provider_id }, input: { job: "j1" }, summary: "导出到文件" }]),
     "its command is its own action, pinned to the provider the answer came from");

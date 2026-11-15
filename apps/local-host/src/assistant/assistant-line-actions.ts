@@ -68,7 +68,7 @@ export const ASSISTANT_TASK_TABLE_ACTION = own({ capability_id: "assistant.backg
 /** The reading copy of the table: what a row says, never what can be done to it. */
 export function assistantTaskTable(table: BackgroundTasksReadResult): AssistantTaskTable {
   return { tasks: table.tasks.map(task => ({ subject: { kind: task.subject.kind, id: task.subject.id }, title: task.title, state: task.state,
-    ...(task.step ? { step: task.step.text.replace("{n}", String(task.step.count ?? "")) } : {}), waiting: task.waiting, who: task.executor.label, from: task.origin.title,
+    ...(task.step ? { step: task.step.text } : {}), waiting: task.waiting, who: task.executor.label, from: task.origin.title,
     serves: task.serves.map(one => ({ kind: one.kind, id: one.id })), asks: task.decisions.map(decision => decision.ask), updated_at: task.updated_at })),
     unreadable: table.issues.map(issue => issue.title) };
 }
@@ -104,6 +104,8 @@ const WORDS: Readonly<Record<AssistantWorkState, string>> = { idle: "还没开�
 const ENDED_SHOWN = 20;
 
 const subjectOf = (work: StoredWork): ActionSubject => ({ kind: ASSISTANT_WORK_KIND, id: work.work_id });
+/** A work as the object its requirements hang on (`modules/acceptance`): the name its task row carries on the page. */
+export const acceptanceSubjectOf = (work: StoredWork): { provider_id: string; subject: ActionSubject } => ({ provider_id: PROVIDER, subject: subjectOf(work) });
 const openOf = (work: StoredWork): OpenTarget => ({ kind: "item", surface: SOURCE.surface, id: work.work_id, title: work.title || "助理工作", label: "打开" });
 /** A work that is an event on the line in its own right: one the person started for one thing (not said about another event), or a background task registered as one. */
 const isEvent = (work: StoredWork) => !work.main && !work.reply_target && (work.delegated_by ? work.line_event === true : !work.serves?.length);

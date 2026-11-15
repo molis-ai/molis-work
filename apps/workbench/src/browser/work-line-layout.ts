@@ -181,6 +181,14 @@ function installTrack(track: HTMLElement): void {
     turned = 0;
     track.scrollBy({ left: target.getBoundingClientRect().left - edge });
   }, { passive: false });
+  // A capsule that takes the focus rests whole. The browser brings it in by the shortest way and then snaps to the nearest
+  // stop, which can be the capsule before it: a short one after a wide one would be left outside the track.
+  track.addEventListener("focusin", (event) => {
+    const item = event.target instanceof Element ? event.target.closest<HTMLElement>(".work-line-run > .work-event") : null;
+    if (!item || !slides()) return;
+    const box = track.getBoundingClientRect(), at = item.getBoundingClientRect(), edge = box.left + leadWidth();
+    if (at.left < edge - 1 || at.right > box.right + 1) track.scrollBy({ left: at.left - edge, behavior: "instant" });
+  });
   rest(); new ResizeObserver(rest).observe(track);
   new MutationObserver(rest).observe(track, { childList: true, subtree: true });
 }
@@ -215,8 +223,9 @@ function installFloat(float: HTMLElement): void {
     const found = (frame ?? document).querySelector<HTMLElement>(".work-line[data-work-line]");
     if (found !== line) { if (line) watch.unobserve(line); line = found; if (line) watch.observe(line); }
     const within = frame?.getBoundingClientRect() ?? new DOMRect(0, 0, document.documentElement.clientWidth, document.documentElement.clientHeight);
-    const box = dialog.getBoundingClientRect(), panel = float.firstElementChild?.getBoundingClientRect();
-    float.dataset.place = within.right - box.right >= (panel?.width ?? 340) + 12 ? "beside" : "over";
+    const shut = dialog.hidden, box = (shut ? dialog.parentElement ?? dialog : dialog).getBoundingClientRect(), panel = float.firstElementChild?.getBoundingClientRect();
+    // With the dialog closed the panel stands above the input, its right edge on the composer's (WLN-35).
+    float.dataset.place = shut ? "closed" : within.right - box.right >= (panel?.width ?? 340) + 12 ? "beside" : "over";
     float.style.setProperty("--dialog-top", `${box.top - within.top}px`);
     float.style.setProperty("--dialog-right", `${box.right - within.left}px`);
     float.style.setProperty("--dialog-inset", `${within.right - box.right + 8}px`);
@@ -227,6 +236,7 @@ function installFloat(float: HTMLElement): void {
   };
   place();
   watch.observe(dialog); watch.observe(frame ?? document.documentElement);
+  new MutationObserver(place).observe(dialog, { attributes: true, attributeFilter: ["hidden"] });
   // The viewport growing taller or shorter moves a dialog fixed to its bottom without resizing anything watched.
   window.addEventListener("resize", place, { passive: true });
 }

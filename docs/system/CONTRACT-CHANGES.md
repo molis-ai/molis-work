@@ -1,5 +1,7 @@
 # 合同变更流程
 
+2026-11-14 第 12 批合后审计：`UiPageWorkspaces.readInstructions()` 的返回从 `Promise<void>` 改为 `Promise<UiPageInstructionSettings>`（`off`/`trusted`/`why_not`，与 `ProjectDirectories.instructions` 同形），工作台框桥把回执交给页面，Coding 直接更新规则菜单而不再整页重读；`contracts/platform/ui` 的 API 快照随改。阶段一原地改，不保留旧返回值读取；调用方只有本仓库的工作台框桥与 Coding。
+
 2026-11-05索引Home增量：Memory ledger现行索引采用格式为2，DDL/业务行不变，仅授权隔离的真正空容器建2；Home恢复journal现行schema为1（#1837 统一起点；用户 2026-11-12 定保持 1），形状和原phase不变，但旧App不得按旧路径权限回滚新索引材料。普通打开拒绝旧/未来版本、不兜底；旧Home的记忆账本只经下方「当前保留机制」登记的 1 → 2 升级段进入第 2 版。生产/冷维护显式 `indexed-v1`，snapshot新增SDK共享DB及精确侧车拒入/目标reset；MemoryRestoreSdkPort签名不变，purge材料语义为SDK已确认的现存权威文件，不能假设一条独占一文件或删除共享DB。公开API没有因此新增类型；原API快照由统筹核对。新容器不得交旧App或改版本回退，回退使用原隔离树和原Home。
 
 状态：现行（2026-10-08 入库；同日用户定了读取兼容的起点；2026-10-29 用户定 1.0.0 之前都是开发版本）。分两个阶段：现在在**阶段一，不留兼容期**；**阶段二，读取兼容**从第一个装到开发机之外的版本开始，这个版本不早于 1.0.0。
@@ -298,4 +300,13 @@ Casebook 已于 2026-10-10 按用户决定删除，不再有对外合同 id；�
   - **改形状**：`molis-work:knowledge-pick` 的 `selected` 从 `{ kind, id, title }` 改为 `{ ref: MaterialRef, title }`，`molis-work:knowledge-picked` 从 `picks` 改为 `outcome + items`；`knowledge.cards` 的 `limit` 上限 200→500 并新增 `subjects`；`PluginInstalledView.pending_defaults` 必填、由宿主给；`PluginArtifactClient.join` 接受 `PluginProjectRowTransaction`；新增 `PluginDatabase.transactionProjectRow` 与 `PluginProjectRowsDeclaration.artifact_join`；新增 `ActionSceneClient.discoverScenesFor`、`PluginSceneClient.discoverScenesFor`、`ActionSceneSelection`；`AgentMaterialOrigin`／`AgentTextMaterial` 扩展；Goals 合同新增 `material_snapshot` 引用。都在原版本 @1 上改，动作与 API 快照随之刷新。
   - **SDK 只增**：`/browser` 新增 `pluginRequest`、`requiredQuery`、`textCell`、`isAbort`、`codeOf`；index 新增 `zonedParts`、`isTimeZone`、`projectRouteFields`；`/whole-units` 新增 `cutWithEllipsis`。
   - **存储与采用**：项目库同版本采用（`process_items_adopted` 日志）只在 1→2 新布局与 2→3 现行库上；同版本例外只有 `tooling/gates/schemas/same-version-exceptions.json` 的一条（v3 那对哈希）；旧布局 v2 普通打开拒绝，采用程序换日志后在同一事务走完 2→3；真实 Home 采用另授权。见上文「当前保留机制」的 Files 退役一条。
+
+- **第 17 批：风险插件、Goals 顾虑引用任意对象、侧栏 `opens_items`、Schedule 一次性对象任务**（[#2058](https://github.com/molis-ai/molis-work/pull/2058)，`3b296a6337`，2026-11-14；阶段一在原版本改，不留兼容）：
+  - **新插件**：`io.molis.work.risk` 声明 16 个 `risk.*@1` 动作（记录、读取、列表、状态、关联、进展、复查、搜索、读取器、呈现），项目库 `risk` 第 1 版；插件不调 AI，复查只登记 Schedule 任务。
+  - **Goals 顾虑**：`goals.concerns.apply@1` 输入与 `concern_opened` 系统载荷多可选 `cited_subjects`（至多 8 个 `{kind,id}`，只在 open 时收）；`GoalEventConcernView` 多 `cited_subjects`；`GoalEventUnmetReason` 删 `risk_id`，Goals 里恒为空的 `blocking_risks` 死路径删除。Goals 项目库 2→3，加 `cited_subjects_json TEXT NOT NULL DEFAULT '[]'`；同步列清单和导入校验一起改，格式版本不升。
+  - **Manifest**：`UiViewDeclaration` 多可选 `opens_items`（只 `side` 视图、一个插件至多一个）；SDK Manifest 检查在 `packages/plugin-sdk/src/manifest.ts`。
+  - **SDK `/ui`**：新增 `renderSeverityGrid`，样式在 design-system `primitives.ts`。
+  - **Schedule**：`schedule.tasks.create@1`／`update@1` 多可选 `repeat`、`at`、`subject`；`tasks.list@1` 多可选 `subject`，按对象筛时输出 `reads`（含每个类别的 provider/group/state）；任务库 2→3 加四列；便携格式在原版本加列并校验；一次性任务跑完即停、错过的运行不补跑。
+  - **风险复查方法**：`method.risk-review` 正文改用 `risk.list` 的 `keyword`／`linked` 查同一件事，版本 1→2；固定引用这个方法的调用方按新版本取。
+  - **调用方影响**：`risk.list@1` 原版本内把 `goal_id` 换成 `linked`，`unlinked` 改为“没关联任何对象/有关联”；风险写动作的受众含 `plugin`；Goals/Schedule 库升级只由升级链做；没有读取兼容，旧 `concern_opened` 缺 `cited_subjects` 是可选字段的缺省，不是旧形状兜底。页面资源许可见 `tooling/gates/page-asset-allowances/17-risk-plugin.json`。
 - **首页主区内容：Manifest 的 `presentation.overview.lead`，`surfaces.compose@1` 的 `lead` 组**（第 19 批，WBR-22／23，2026-11-14）：声明了首页概况的插件可以再写 `lead: { view_id }`，指向本 Manifest 自己 navigator 或 stage 槽位的一个视图；装了它的项目，首页主区显示这个视图，细栏可切回基础首页，打不开或移除后回基础首页。`surfaces.compose@1` 版本不变，`home` 描述里可能多一个 `kind: "lead"` 的组（带 `lead` 与 `owner_plugin_id`，状态只有 ok，不放条目）：按 `SurfaceGroup.kind` 穷举分支的调用方要认这个值，重排描述时不能改写它。概况动作（`definePresentationOverviewAction`）的受众同时加了 `workflow`：持有 `actions:delegate` 的插件可经目录读别的插件的概况，权限检查不变。

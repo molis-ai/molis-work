@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, mkdtemp, realpath, rm } from "node:fs/promises";
+import { DatabaseSync } from "node:sqlite";
+import { artifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -31,7 +33,8 @@ test("BCD-18 Coding's onboarding take is the person's alone, takes only the proj
   const owner: ActionCallContext = { actor_id: "web-user", project_id: project.project_id, audience: "user", permissions: ["artifact:read", "artifact:write", "storage:private"] };
   const take = codingManifest.actions!.find(row => row.capability_id === "coding.onboarding.take")!;
   assert.deepEqual(take.action.audiences, ["user"]);
-  const input = { request_id: "onboarding:j1:take", code_root: { workspace_id: output.workspace_id }, materials: [] };
+  const material = { ref: { subject: { kind: "artifact", id: artifactSubjectId({ artifact_id: "material-1", version: 1 }) }, pin: { mode: "fixed" as const, version: { artifact_id: "material-1", version: 1 } } }, title: "Material" };
+  const input = { request_id: "onboarding:j1:take", code_root: { workspace_id: output.workspace_id }, materials: [material] };
 
   // Not the person: an Agent or an MCP client cannot hand Coding a folder.
   for (const audience of ["agent", "mcp"] as const)
@@ -46,5 +49,14 @@ test("BCD-18 Coding's onboarding take is the person's alone, takes only the proj
   assert.ok(first.open.item_id && first.open.title);
   const again = await client.invoke(owner, take, input) as { open: { item_id: string } };
   assert.equal(again.open.item_id, first.open.item_id, "the same take opens the same session");
+  // The materials are the session's next-round draft, by exact reference; a retry does not write them again.
+  const db = new DatabaseSync(project.database_path);
+  try {
+    const stored = (db.prepare("SELECT item_value FROM plugin_private_values WHERE item_key = ?").get(`materials:${first.open.item_id}`) as { item_value: string } | undefined)?.item_value;
+    assert.deepEqual(JSON.parse(stored ?? "[]"), [material], "the next round gets the fixed material");
+  } finally { db.close(); }
+  // A retry that names a different folder cannot find the session made for the output: the output check runs on every call.
+  await assert.rejects(client.invoke(owner, take, { ...input, code_root: { workspace_id: "elsewhere" } }),
+    (error: { code?: string }) => error.code === "coding.onboarding_root_mismatch", "a retry cannot bypass the output check");
   assert.deepEqual((await state()).map(row => row.session_id), [first.open.item_id]);
 });

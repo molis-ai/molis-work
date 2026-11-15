@@ -17,11 +17,11 @@ export interface OnboardingTaker {
 /**
  * The plugins that take `kind` from onboarding, by their Manifests' `onboarding.takes` and nothing else: the plugins this build ships
  * (read from their installed Manifest when one is in effect, so an upgrade shows) and the plugins installed on this Host, as the
- * 成果库 reads its producers. Personal plugins are not added to a project, so they take nothing.
+ * 成果库 reads its producers. A personal registration is still a project plugin (Pages and Todo are), so it is offered when it declares one.
  */
 export function onboardingTakers(kind: "code_root"): OnboardingTaker[] {
   const effective = installedArtifacts.effective(), byId = new Map(effective.map(manifest => [manifest.plugin_id, manifest] as const)), known = installedArtifacts.known();
-  const shipped = PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => entry.personal !== true).flatMap(entry => {
+  const shipped = PLATFORM_PLUGIN_REGISTRATIONS.flatMap(entry => {
     const installed = byId.get(entry.manifest.plugin_id);
     return installed ? [[installed, entry.project_plugin_id] as const] : known.has(entry.manifest.plugin_id) ? [] : [[entry.manifest, entry.project_plugin_id] as const];
   });

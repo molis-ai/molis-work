@@ -1,7 +1,8 @@
 import { modelPromptText, type ModelPromptInput } from "@molis-ai/molis-work-contracts/platform/model-prompts";
-import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { MolisWorkLocalHost, homeAgentDefinitions, molisWorkHostProjectReference, onboardingTakers } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, homeAgentDefinitions, installedArtifacts, molisWorkHostProjectReference, onboardingTakers } from "@molis-ai/molis-work-app-local-host";
+import { codingManifest } from "@molis-ai/molis-work-plugin-coding";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
@@ -845,8 +846,9 @@ test('ONB-37 a code folder\'s source, config, scripts, docs and files with no or
   const taken = ['src/main.ts', 'src/app.tsx', 'lib/util.js', 'tool.py', 'src/lib.rs', 'cmd/main.go', 'App.java', 'core.c', 'core.hpp', 'View.swift', 'scripts/run.sh',
     'index.html', 'site.css', 'config.yaml', 'Cargo.toml', 'pom.xml', 'package.json', 'README', 'LICENSE', 'Makefile', 'Dockerfile', '.gitignore', 'notes.weird-suffix', 'docs/guide.md', 'paper.pdf', 'brief.docx', 'yarn.lock'];
   assert.deepEqual(taken.filter(path => contextFileSkip(path) !== null), [], 'ONB-37: every readable kind is taken, whatever its suffix');
-  assert.deepEqual(['node_modules/x/index.js', 'dist/app.js', '.git/config', 'src/.cache/a.txt', '.DS_Store'].map(contextFileSkip), ['ignored', 'ignored', 'ignored', 'ignored', 'ignored']);
-  assert.deepEqual(['.env', '.env.local', 'certs/server.pem', 'id_rsa'].map(contextFileSkip), ['secret', 'secret', 'secret', 'secret'], 'secrets are not sent because their folder was chosen');
+  assert.deepEqual(['node_modules/x/index.js', 'dist/app.js', '.git/config', 'src/.cache/a.txt', '.DS_Store', '.gitignore/note.txt'].map(contextFileSkip), ['ignored', 'ignored', 'ignored', 'ignored', 'ignored', 'ignored']);
+  assert.deepEqual(['.env', '.env.local', 'certs/server.pem', 'id_rsa', 'credentials.json', 'credentials.prod.json', 'service-account-prod.json', 'secrets.yaml', 'prod.tfstate', 'prod.tfvars'].map(contextFileSkip),
+    ['secret', 'secret', 'secret', 'secret', 'secret', 'secret', 'secret', 'secret', 'secret', 'secret'], 'secrets are not sent because their folder was chosen');
   assert.deepEqual(['logo.png', 'demo.mp4', 'bundle.zip', 'app.wasm', 'old.xlsx'].map(contextFileSkip), ['unreadable', 'unreadable', 'unreadable', 'unreadable', 'unreadable']);
   // The Host checks a selection with the same rule: a code file and a file with no suffix are accepted, a secret is refused.
   const metadata = (paths: string[]) => ({ files: paths.map(path => ({ path, size: 1, modified_ms: 1, identity: 'upload' })), skipped: 0, truncated: false });
@@ -865,11 +867,14 @@ test('ONB-44, BCD-16, BCD-17: the person\'s own code folder goes only to a plugi
   assert.deepEqual(onboardingTakers('code_root').map(taker => [taker.plugin_id, taker.take.capability_id, taker.take.action.audiences]), [['io.molis.work.coding', 'coding.onboarding.take', ['user']]]);
   // BCD-16: onboarding's Host code, page script and words name no plugin that takes a folder.
   const sourcesOf = (dir: string, match: RegExp) => readdirSync(dir).filter(name => match.test(name)).map(name => [name, readFileSync(join(dir, name), 'utf8')] as const);
-  for (const [name, text] of [...sourcesOf('apps/local-host/src', /onboarding.*\.ts$/), ...sourcesOf('apps/workbench/src/scripts', /^context-onboarding.*\.ts$/)])
-    assert.doesNotMatch(text, /\bcoding\b/i, name + ' names a plugin');
+  const scanned = [...sourcesOf('apps/local-host/src', /onboarding.*\.ts$/), ...sourcesOf('apps/workbench/src/scripts', /^context-onboarding.*\.ts$/)];
+  assert.ok(scanned.length >= 10, 'the scan still has files to check');
+  for (const [name, text] of scanned) assert.doesNotMatch(text, /\bcoding\b/i, name + ' names a plugin');
   for (const locale of ['zh', 'en']) {
     const words = Object.entries(JSON.parse(readFileSync(`apps/workbench/resources/locales/${locale}.json`, 'utf8')).messages as Record<string, string>);
-    for (const [key, text] of words.filter(([key]) => key.startsWith('workbench.context-onboarding.'))) assert.doesNotMatch(key + ' ' + String(text), /\bcoding\b/i, key);
+    const onboarding = words.filter(([key]) => key.startsWith('workbench.context-onboarding.'));
+    assert.ok(onboarding.length >= 200, `${locale} still has onboarding words to check`);
+    for (const [key, text] of onboarding) assert.doesNotMatch(key + ' ' + String(text), /\bcoding\b/i, key);
   }
 
   const dir = await home(t), folder = join(dir, 'my-app');
@@ -888,7 +893,8 @@ test('ONB-44, BCD-16, BCD-17: the person\'s own code folder goes only to a plugi
     selectContextSources(dir, id, { sources: [{ kind: 'custom', selected: true, path: folder, metadata: meta(['package.json', 'README.md']),
       files: [await staged(dir, id, 'package.json', '{"name":"my-app"}'), await staged(dir, id, 'README.md', '# My app\nShip the login page')] }] });
     startContextJourney(dir, id, ports); const ready = await waitContextJourney(dir, id); assert.equal(ready.phase, 'review', ready.error ?? '');
-    return adoptContextJourney(dir, id, { title: pick ? 'Ticked' : 'Not ticked', body: ready.summary!.body, ...pick ? { take: pick } : {} }, ports);
+    return adoptContextJourney(dir, id, { title: pick ? 'Ticked' : 'Not ticked', body: ready.summary!.body,
+      ...pick ? { take: pick, code_root: '/tmp/not-the-folder', workspace_path: '/tmp/not-the-folder' } : {} }, ports);
   };
   const unticked = await journeyOf(undefined), ticked = await journeyOf('test.taker');
   assert.equal(ticked.phase, 'complete', ticked.error ?? ''); assert.deepEqual(ticked.adoption?.take, { plugin_id: 'test.taker', project_plugin_id: declared.project_plugin_id, code_root: folder, output_set: true });
@@ -908,12 +914,19 @@ test('ONB-44, BCD-16, BCD-17: the person\'s own code folder goes only to a plugi
   // BCD-17: a repeat does not call the taker again; a plugin that declares nothing, or a round with no such folder, is refused.
   assert.equal((await adoptContextJourney(dir, ticked.id, { take: 'test.taker' }, ports)).phase, 'complete'); assert.equal(calls.length, 1);
   // A taker that refuses does not hold the round: the project and materials are made, it completes, and says nothing was handed.
-  const refusing = { ...ports, take: async (): Promise<BoundActionClient> => ({ discover: () => [], invoke: async () => { throw new Error('not now'); } }) };
+  const refusing = { ...ports, take: async (): Promise<BoundActionClient> => ({ discover: () => [], invoke: async () => { throw new ActionError('actions.conflict', 'not now', { kind: 'conflict' }); } }) };
   const refusedId = randomUUID(); withContextJourneys(dir, s => s.create(refusedId));
   selectContextSources(dir, refusedId, { sources: [{ kind: 'custom', selected: true, path: folder, metadata: meta(['package.json']), files: [await staged(dir, refusedId, 'package.json', '{"name":"my-app"}')] }] });
   startContextJourney(dir, refusedId, refusing); const refusedReady = await waitContextJourney(dir, refusedId);
   const refused = await adoptContextJourney(dir, refusedId, { title: 'Refused', body: refusedReady.summary!.body, take: 'test.taker' }, refusing);
   assert.equal(refused.phase, 'complete', refused.error ?? ''); assert.deepEqual(refused.take_result, { open: null, materials: 0, of: refused.take_result!.of, not_taken: 'refused' });
+  // A transient failure is not a refusal: the round completes, but says it could not hand over rather than that the plugin said no.
+  const transient = { ...ports, take: async (): Promise<BoundActionClient> => ({ discover: () => [], invoke: async () => { throw new Error('not now'); } }) };
+  const transientId = randomUUID(); withContextJourneys(dir, s => s.create(transientId));
+  selectContextSources(dir, transientId, { sources: [{ kind: 'custom', selected: true, path: folder, metadata: meta(['package.json']), files: [await staged(dir, transientId, 'package.json', '{"name":"my-app"}')] }] });
+  startContextJourney(dir, transientId, transient); const transientReady = await waitContextJourney(dir, transientId);
+  const unavailable = await adoptContextJourney(dir, transientId, { title: 'Unavailable', body: transientReady.summary!.body, take: 'test.taker' }, transient);
+  assert.equal(unavailable.phase, 'complete', unavailable.error ?? ''); assert.equal(unavailable.take_result?.not_taken, 'unavailable');
   // Only the folder the person picked goes (BCD-17): a round that failed after the folder became the output, and whose output the person
   // changed before retrying, completes without handing anything over.
   const movedId = randomUUID(), elsewhere = join(dir, 'elsewhere'); await mkdir(elsewhere); withContextJourneys(dir, s => s.create(movedId));
@@ -940,4 +953,21 @@ test('ONB-44, BCD-16, BCD-17: the person\'s own code folder goes only to a plugi
   selectContextSources(dir, plain, { sources: [{ kind: 'directory', selected: true, files: [await staged(dir, plain, 'brief.md', '# Brief\nLaunch')] }] });
   startContextJourney(dir, plain, ports); const ready = await waitContextJourney(dir, plain);
   await assert.rejects(adoptContextJourney(dir, plain, { title: 'x', body: ready.summary!.body, take: 'test.taker' }, ports), /不能这样交出去/);
+});
+
+
+test("BCD-16-onboarding-takers: a test plugin that declares a code root is found by its Manifest, and one that does not declare takes nothing", () => {
+  const take = codingManifest.actions!.find(action => action.capability_id === "coding.onboarding.take")!;
+  const declaring = {
+    ...codingManifest, plugin_id: "test.onboarding.taker", name: "Test taker",
+    actions: [...(codingManifest.actions ?? []), { ...take, capability_id: "test.onboarding.take" }],
+    onboarding: { takes: [{ kind: "code_root" as const, capability_id: "test.onboarding.take", version: 1 }] },
+  };
+  const notDeclaring = { ...declaring, plugin_id: "test.onboarding.other", name: "Other", onboarding: undefined };
+  const stop = installedArtifacts.watch({ effectiveManifests: () => [declaring, notDeclaring], knownPluginIds: () => [], alive: () => true });
+  try {
+    const ids = onboardingTakers("code_root").map(taker => taker.plugin_id);
+    assert.ok(ids.includes("test.onboarding.taker"), "the declaring test plugin appears in the review list");
+    assert.ok(!ids.includes("test.onboarding.other"), "a plugin with no declaration takes nothing");
+  } finally { stop(); }
 });

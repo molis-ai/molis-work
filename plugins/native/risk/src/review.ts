@@ -2,7 +2,7 @@ import { createActionDefinition, nullableSchema, objectSchema as object } from "
 import { ActionError, bindActionHandler, type ActionExecutionContext, type ActionHandlerBinding, type ActionReference, type ActionSchema,
   type InferActionInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import { riskErrors } from "./error.js";
-import { RISK_KIND } from "./identity.js";
+import { RISK_KIND, RISK_PLUGIN_ID } from "./identity.js";
 import { RISK_LIMITS } from "./model.js";
 import type { RiskStore } from "./store.js";
 
@@ -25,7 +25,8 @@ interface ScheduleTask {
   task_id: string; title: string; instructions: string; enabled: boolean; run_at: string | null; last_run_at: string | null; last_error: string | null;
   turns: { kind: string; text: string; important: boolean; created_at: string }[];
 }
-interface ScheduleReads { task_id: string; categories: number; granted: number; needs_confirmation: number; unavailable: number; removed: number }
+interface ScheduleReadGroup { provider_id: string; group_id: string | null; status: "granted" | "needs_confirmation" | "unavailable" | "removed" }
+interface ScheduleReads { task_id: string; categories: number; granted: number; needs_confirmation: number; unavailable: number; removed: number; groups: ScheduleReadGroup[] }
 
 export interface RiskReview {
   task_id: string;
@@ -37,8 +38,10 @@ export interface RiskReview {
   result: { text: string; important: boolean; at: string } | null;
   /** The round did not finish (Schedule's sentence), shown apart from a result that says nothing changed. */
   failure: string | null;
-  /** What the person let the task read (counts); null when the platform could not say. No categories means it reads no risk. */
-  reads: { categories: number; granted: number; needs_confirmation: number; unavailable: number; removed: number } | null;
+  /** What the person let the task read; null when the platform could not say. `risk` is this plugin's own group, so another
+   * category being granted does not read as permission to read the risk. */
+  reads: { categories: number; granted: number; needs_confirmation: number; unavailable: number; removed: number;
+    risk: "granted" | "needs_confirmation" | "unavailable" | "removed" | "none" } | null;
 }
 
 const id = { type: "string", minLength: 1, maxLength: 200, pattern: "\\S" } as const;
@@ -46,7 +49,8 @@ const count = { type: "integer", minimum: 0 } as const;
 const review = object({ task_id: id, at: nullableSchema({ type: "string" }), state: { enum: ["scheduled", "paused", "done"] }, focus: { type: "string" },
   last_run_at: nullableSchema({ type: "string" }), result: nullableSchema(object({ text: { type: "string" }, important: { type: "boolean" }, at: { type: "string" } })),
   failure: nullableSchema({ type: "string" }),
-  reads: nullableSchema(object({ categories: count, granted: count, needs_confirmation: count, unavailable: count, removed: count })) });
+  reads: nullableSchema(object({ categories: count, granted: count, needs_confirmation: count, unavailable: count, removed: count,
+    risk: { enum: ["granted", "needs_confirmation", "unavailable", "removed", "none"] } }, ["categories", "granted", "needs_confirmation", "unavailable", "removed", "risk"])) });
 
 const define = <O>() => <const S extends ActionSchema>(name: string, version: number, title: string, description: string, operation: "query" | "command", input: S, output: ActionSchema) =>
   createActionDefinition<InferActionInput<S>, O>(`risk.review.${name}`, operation, {
@@ -94,34 +98,51 @@ export function toRiskReview(task: ScheduleTask, reads: readonly ScheduleReads[]
   const answer = [...task.turns].reverse().find(turn => turn.kind === "assistant");
   const failed = task.turns.at(-1)?.kind === "system" && task.last_error ? task.turns.at(-1)!.text : null;
   const due = task.run_at ? Date.parse(task.run_at) : Number.NaN;
-  // Off before its time is paused, whatever ran earlier (a review run, rescheduled, then paused, can still resume); off once its time has passed is done.
-  const waiting = Number.isNaN(due) ? !task.last_run_at && !failed : due > now;
-  const state = task.enabled ? "scheduled" : waiting ? "paused" : "done";
+  // Off before its time is paused, whatever ran earlier (a review run, rescheduled, then paused, can still resume); off after its time is done only if it ran or failed.
+  const neverRan = !task.last_run_at && !failed;
+  const waiting = Number.isNaN(due) ? neverRan : due > now;
+  // A one-off task switched off before its time and left past it never ran: it is paused (and can be rescheduled), not "reviewed".
+  const state = task.enabled ? "scheduled" : waiting || neverRan ? "paused" : "done";
   const counted = reads ? reads.find(item => item.task_id === task.task_id) : undefined;
+  const riskGroup = (counted?.groups ?? []).find(group => group.provider_id === RISK_PLUGIN_ID && group.group_id === "risk")?.status ?? "none";
   return { task_id: task.task_id, at: task.run_at, state, focus: task.instructions, last_run_at: task.last_run_at,
     result: answer ? { text: answer.text, important: answer.important, at: answer.created_at } : null, failure: failed,
     reads: reads === null ? null : { categories: counted?.categories ?? 0, granted: counted?.granted ?? 0, needs_confirmation: counted?.needs_confirmation ?? 0,
-      unavailable: counted?.unavailable ?? 0, removed: counted?.removed ?? 0 } };
+      unavailable: counted?.unavailable ?? 0, removed: counted?.removed ?? 0, risk: riskGroup } };
 }
 
 /**
  * After a risk is closed: its reviews are archived, so nothing wakes about a closed risk. Runs after the close has committed; what did
  * not go through is returned for the caller to say (`review_left`), never undoing the close. A project without Schedule has none.
  */
-export async function archiveRiskReviews(ports: RiskReviewPorts, riskId: string): Promise<{ task_id: string | null } | undefined> {
-  let tasks: ScheduleTask[];
-  try { tasks = (await ask<{ tasks: ScheduleTask[] }>(ports, SCHEDULE_TASKS.list, { subject: { kind: RISK_KIND, id: riskId } })).tasks; }
-  catch (error) {
-    // No Schedule in the project: there is no review to leave behind.
-    if (error instanceof ActionError && error.code === "risk.review_unavailable") return undefined;
-    return { task_id: null };
-  }
-  for (const task of tasks) {
-    // One that did not go through is reported to the caller as review_left; the close stays.
-    try { await ports.schedule(SCHEDULE_TASKS.archive, { task_id: task.task_id }); }
-    catch { return { task_id: task.task_id }; }
-  }
-  return undefined;
+export function archiveRiskReviews(ports: RiskReviewPorts, riskId: string): Promise<{ task_id: string | null } | undefined> {
+  // Shares the review write lock: a schedule that read the risk just before the close either goes first (then this archives its task)
+  // or sees the close in its own risk read and refuses. Either way no review is left behind for a closed risk.
+  return oneAtATime(riskId, async () => {
+    let tasks: ScheduleTask[];
+    try { tasks = (await ask<{ tasks: ScheduleTask[] }>(ports, SCHEDULE_TASKS.list, { subject: { kind: RISK_KIND, id: riskId } })).tasks; }
+    catch (error) {
+      // No Schedule in the project: there is no review to leave behind.
+      if (error instanceof ActionError && error.code === "risk.review_unavailable") return undefined;
+      return { task_id: null };
+    }
+    for (const task of tasks) {
+      // One that did not go through is reported to the caller as review_left; the close stays.
+      try { await ports.schedule(SCHEDULE_TASKS.archive, { task_id: task.task_id }); }
+      catch { return { task_id: task.task_id }; }
+    }
+    return undefined;
+  });
+}
+
+/** One review write per risk at a time in this plugin instance: two concurrent schedules must not create two tasks. */
+const reviewWrites = new Map<string, Promise<unknown>>();
+async function oneAtATime<T>(riskId: string, work: () => Promise<T>): Promise<T> {
+  const previous = reviewWrites.get(riskId);
+  const run = (previous ? previous.catch(() => undefined) : Promise.resolve()).then(work);
+  reviewWrites.set(riskId, run);
+  try { return await run; }
+  finally { if (reviewWrites.get(riskId) === run) reviewWrites.delete(riskId); }
 }
 
 export function createRiskReviewHandlers(ports: RiskReviewPorts): ActionHandlerBinding[] {
@@ -146,7 +167,7 @@ export function createRiskReviewHandlers(ports: RiskReviewPorts): ActionHandlerB
         throw error;
       }
     }),
-    bindActionHandler(riskReviewActions.schedule, async ({ risk_id, at, focus }, caller) => {
+    bindActionHandler(riskReviewActions.schedule, async ({ risk_id, at, focus }, caller) => oneAtATime(risk_id, async () => {
       const risk = ports.read(store => store.get(risk_id));
       if (risk.status === "closed") throw riskErrors.closed("这条风险已关闭，重新打开后才能安排复查");
       const words = focus?.trim() || risk.statement.trim() || risk.title;
@@ -158,20 +179,20 @@ export function createRiskReviewHandlers(ports: RiskReviewPorts): ActionHandlerB
       const review = await current(risk_id);
       if (!review) throw riskErrors.review_unavailable("Schedule 没有留下这次复查");
       return { review };
-    }),
-    bindActionHandler(riskReviewActions.enabled, async ({ risk_id, enabled }, caller) => {
+    })),
+    bindActionHandler(riskReviewActions.enabled, async ({ risk_id, enabled }, caller) => oneAtATime(risk_id, async () => {
       const found = await existing(risk_id);
       await beforeEffect(caller);
       await ask(ports, SCHEDULE_TASKS.enabled, { task_id: found.task_id, enabled });
       return { review: (await current(risk_id)) ?? found };
-    }),
-    bindActionHandler(riskReviewActions.cancel, async ({ risk_id }, caller) => {
+    })),
+    bindActionHandler(riskReviewActions.cancel, async ({ risk_id }, caller) => oneAtATime(risk_id, async () => {
       ports.read(store => store.get(risk_id));
       const found = await current(risk_id);
       if (!found) return { cancelled: false };
       await beforeEffect(caller);
       await ask(ports, SCHEDULE_TASKS.archive, { task_id: found.task_id });
       return { cancelled: true };
-    }),
+    })),
   ];
 }

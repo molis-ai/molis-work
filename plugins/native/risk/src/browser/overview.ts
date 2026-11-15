@@ -1,4 +1,4 @@
-import { escapeHtml as esc, icon, renderAlert, renderButton, renderEmpty, renderFrame } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { escapeHtml as esc, icon, renderAlert, renderButton, renderEmpty, renderFrame, renderPopover } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { act, choices, severityGrid, statusMark, text } from "./parts.js";
 import type { RiskPage, RiskRow, RiskStatus } from "./types.js";
 
@@ -8,18 +8,19 @@ const PAGE_SIZE = 100;
 
 export async function loadOverview(page: RiskPage, more = false): Promise<void> {
   const { state } = page;
-  const { status, impact, owner_name, linked } = state.filter;
+  const { status, impact, owner_name, linked, linkedSubject } = state.filter;
   state.loading = !more;
   if (!more) page.render();
   try {
     const answer = await page.call<{ risks: RiskRow[]; owners: string[]; next_cursor: string | null }>("risk.list", {
-      status, limit: PAGE_SIZE, ...(impact ? { impact } : {}), ...(owner_name ? { owner_name } : {}), ...(linked ? { unlinked: linked === "none" } : {}),
+      status, limit: PAGE_SIZE, ...(impact ? { impact } : {}), ...(owner_name ? { owner_name } : {}),
+      ...(linkedSubject ? { linked: linkedSubject } : linked ? { unlinked: linked === "none" } : {}),
       ...(more && state.next ? { cursor: state.next } : {}) });
     state.rows = more ? [...state.rows, ...answer.risks] : answer.risks;
     state.owners = answer.owners;
     state.next = answer.next_cursor;
     // No open risk under the default view is not no risk: a project whose risks are all closed still reaches them (RISK-04).
-    state.anyClosed = !more && !answer.risks.length && status === "open" && !impact && !owner_name && !linked
+    state.anyClosed = !more && !answer.risks.length && status === "open" && !impact && !owner_name && !linked && !linkedSubject
       ? (await page.call<{ risks: RiskRow[] }>("risk.list", { status: "closed", limit: 1 })).risks.length > 0 : false;
     state.overviewError = "";
   } catch (error) {
@@ -31,20 +32,39 @@ export async function loadOverview(page: RiskPage, more = false): Promise<void> 
 }
 
 const filtered = (page: RiskPage) => {
-  const { impact, owner_name, linked } = page.state.filter;
-  return Boolean(impact || owner_name || linked);
+  const { impact, owner_name, linked, linkedSubject } = page.state.filter;
+  return Boolean(impact || owner_name || linked || linkedSubject);
 };
+
+/** The kinds already linked on screen that an installed plugin still opens: no dead kind, no raw kind. */
+const linkedKinds = (page: RiskPage): string[] =>
+  [...new Set(page.state.rows.flatMap(risk => risk.links.filter(link => page.host.surfaceFor(link.kind)).map(link => link.kind)))].slice(0, 8);
+
+function linkFilterPicker(): string {
+  return renderPopover({ preview: true, className: "rk-pop rk-pop--form", body: `<form data-rk-form="linked-search"><label class="rk-label" for="rk-linked-query">${
+    esc(text("filter.find-linked"))}</label><input class="mw-input mw-input--sm" id="rk-linked-query" name="query" maxlength="200" autocomplete="off"
+      placeholder="${esc(text("filter.search-hint"))}"></form><ul class="mw-items rk-found" data-rk-found="linked"></ul>` });
+}
 
 function filterBar(page: RiskPage, count: number): string {
   const { filter, owners } = page.state;
+  const kinds = linkedKinds(page);
   const select = (label: string, key: string, value: string, options: readonly [string, string][]) =>
     `<label class="rk-filter"><span>${esc(label)}</span><select class="mw-select mw-select--sm" data-slot="select" data-rk-filter="${key}">${options
       .map(([option, name]) => `<option value="${esc(option)}"${option === value ? " selected" : ""}>${esc(name)}</option>`).join("")}</select></label>`;
+  const chosen = filter.linkedSubject
+    ? `<span class="rk-chip"><span>${esc(filter.linkedLabel)}</span><button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-rk-act="clear-linked"
+        aria-label="${esc(text("filter.clear-linked"))}">${icon("x")}</button></span>`
+    : "";
+  const pick = kinds.length || filter.linkedSubject
+    ? `<span class="rk-anchor">${act(text("filter.choose-linked"), "pick-linked", { variant: "ghost", icon: "search", value: "" })}${page.state.pop === "linked"
+      ? linkFilterPicker() : ""}</span>` : "";
   return `<div class="rk-filters">${choices(text("filter.status"), "filter-status", [{ value: "open", label: text("filter.open") },
     { value: "all", label: text("filter.all") }, { value: "closed", label: text("filter.closed") }], filter.status)}
     ${select(text("field.impact"), "impact", filter.impact, [["", text("filter.any")], ["high", text("level.high")], ["medium", text("level.medium")], ["low", text("level.low")]])}
     ${owners.length || filter.owner_name ? select(text("field.owner"), "owner_name", filter.owner_name, [["", text("filter.any")], ...owners.map(owner => [owner, owner] as [string, string])]) : ""}
     ${select(text("filter.linked"), "linked", filter.linked, [["", text("filter.any")], ["some", text("filter.some-links")], ["none", text("filter.no-links")]])}
+    ${chosen}${pick}
     <span class="rk-count">${esc(text("overview.count", { count }))}</span></div>`;
 }
 

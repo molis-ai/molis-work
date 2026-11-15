@@ -87,7 +87,9 @@ export function contextFileSkip(path: string): "ignored" | "secret" | "unreadabl
   if (parts.slice(0, -1).some(part => part.startsWith(".") || ignoredFolders.includes(part.toLowerCase()))) return "ignored";
   // Hidden files that only say how a project is kept; any other hidden file may hold a credential and is not sent.
   const hiddenKept = [".gitignore", ".gitattributes", ".editorconfig", ".dockerignore", ".prettierrc", ".eslintrc", ".nvmrc", ".node-version", ".tool-versions"];
-  if (/^\.env(\..*)?$/u.test(name) || /\.(pem|key|p12|pfx|keystore|jks)$/u.test(name) || /^id_(rsa|ed25519|ecdsa|dsa)(\.pub)?$/u.test(name)) return "secret";
+  if (/^\.env(\..*)?$/u.test(name) || /\.(pem|key|p12|pfx|keystore|jks)$/u.test(name) || /^id_(rsa|ed25519|ecdsa|dsa)(\.pub)?$/u.test(name)
+    || /^credentials.*\.json$/u.test(name) || /^service-account.*\.json$/u.test(name) || /^secrets?\.[a-z0-9]+$/u.test(name)
+    || /\.tfstate(\..*)?$/u.test(name) || /\.tfvars$/u.test(name)) return "secret";
   if (name.startsWith(".") && !hiddenKept.some(kept => name === kept || name.startsWith(kept + "."))) return "ignored";
   const extension = /\.([a-z0-9]+)$/u.exec(name)?.[1] ?? "";
   const unreadable = ["png", "jpg", "jpeg", "gif", "webp", "bmp", "tif", "tiff", "heic", "heif", "ico", "icns", "psd", "sketch", "fig",

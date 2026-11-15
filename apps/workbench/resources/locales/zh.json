@@ -8140,6 +8140,8 @@
     "workbench.work-line.decision-send": "发回去",
     "workbench.work-line.go-decide": "去定",
     "workbench.work-line.in-progress": "在办",
+    "workbench.work-line.checking": "正在核对",
+    "workbench.work-line.checking-as-of": "正在核对 · 截至 {time}",
     "workbench.work-line.open-as-tab": "打开",
     "workbench.work-line.put-on-shelf": "放到 Shelf",
     "workbench.work-line.on-shelf": "已放到 Shelf",

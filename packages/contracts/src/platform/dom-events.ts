@@ -224,6 +224,11 @@ export const DOM_EVENTS = [
     summary: "Read what waits on the person again now: the person acted on a notice or on the work line, or a work of the Assistant's changed state.",
   },
   {
+    name: "molis-work:attention-unreachable", kind: "announcement", owner: "attention", on: "document",
+    detail: "{ since }: when this page last read it, an ISO time, or null when it never has",
+    summary: "The page's read of what waits on the person did not get through (not a gone project): the work line and the task panel keep what they showed and say it is being checked (WLN-05, WLN-29).",
+  },
+  {
     name: "molis-work:character-coding", kind: "request", owner: "coding", on: "window",
     detail: "{ reference, title, task, workspace_id, skill_ids }",
     summary: "Open a new Coding session prepared from a Character run (the fixed role package and the task). Sent by the Characters page.",

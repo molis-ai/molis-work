@@ -73,7 +73,7 @@ test("WLN-15: what is said at 「现在」 goes to one standing main conversatio
   assert.equal(store.list("web-user").filter(work => work.main).length, 3, "the refused send opened nothing");
 });
 
-test("WLN-12: what is said in an event's tab starts one work done for that event; an event the line does not show, or the main conversation, is refused and opens nothing", { timeout: 90_000 }, async t => {
+test("WLN-12 WLN-33: what is said in an event's tab starts one work done for that event; an event the line does not show, or the main conversation, is refused and opens nothing", { timeout: 90_000 }, async t => {
   const todo = { kind: "todo_item", id: "t1" };
   const { service, store, done } = await fixture(t, [todo]);
   const board = { project_id: "board", storage_key: "memory:board" };

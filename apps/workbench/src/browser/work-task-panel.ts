@@ -118,12 +118,12 @@ function installDecisionKeys(close: () => boolean): void {
   }, true);
 }
 
-export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take(result: BackgroundTasksReadResult): void; place(subject: ActionSubject): void; rows(subject: ActionSubject): string; decisions(subject: ActionSubject): string; subjects(subject: ActionSubject): { provider_id: string; subject: ActionSubject }[] } {
+export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take(result: BackgroundTasksReadResult): void; offline(since: string | null): void; place(subject: ActionSubject): void; rows(subject: ActionSubject): string; decisions(subject: ActionSubject): string; subjects(subject: ActionSubject): { provider_id: string; subject: ActionSubject }[] } {
   const { keyOf, press, hue, again, request } = line, events = { values: () => [...line.events()], get: (id: string) => [...line.events()].find(one => one.id === id) };
   const PANEL = "work-task-panel";
   // `carded`: the task whose card stands in the panel's place (WLN-36); `placing`: its 「改」 menu is open.
   // `wanted`: the task asked for from outside the panel (「改」 under a reply), shown as soon as the table has it.
-  let tasks: BackgroundTaskRow[] = [], float: HTMLElement | null = null, tasksShown = "", carded = "", placing = false, wanted = "";
+  let tasks: BackgroundTaskRow[] = [], float: HTMLElement | null = null, tasksShown = "", carded = "", placing = false, wanted = "", offlineSince: string | null = null;
   let accepting: { update(): void; destroy(): void } | undefined;
   const answers = installDecisionAnswers(host, request, { task: id => tasks.find(one => one.id === id), repaint: () => repaint(), again, failed: error => failed(error), go: task => go(task) });
   /** The decisions of these tasks in order, the first carrying the primary button; `named`: say which task asks, where the card is not its own. */
@@ -156,12 +156,12 @@ export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take
     const counts = { needsYou: live.filter(asks).length, failed: live.filter(task => !asks(task) && FAILED.has(task.state)).length, working: 0 };
     counts.working = live.length - counts.needsYou - counts.failed;
     for (const mark of document.querySelectorAll("[data-task-mark]"))
-      mark.outerHTML = renderTaskMark({ count: live.length, panel: PANEL, expanded: Boolean(float), ...(live[0] ? { lead: live[0].state } : {}), needsYou: counts.needsYou > 0, failed: counts.failed > 0 });
+      mark.outerHTML = renderTaskMark({ count: live.length, panel: PANEL, expanded: Boolean(float), ...(live[0] ? { lead: live[0].state } : {}), needsYou: counts.needsYou > 0, failed: counts.failed > 0, offline: offlineSince !== null });
     const asked = wanted ? tasks.find(task => keyOf(task.subject) === wanted) : undefined;
     if (asked) { carded = asked.id; placing = true; wanted = ""; }
     const shown = tasks.find(task => task.id === carded);
     if (!shown) { carded = ""; placing = false; }
-    if (float) { const on = float; keepNote(on, () => { on.innerHTML = shown ? card(shown) : renderTaskPanel({ id: PANEL, live: live.map(row), returned: [], counts }); }); installWorkLineLayout(document); }
+    if (float) { const on = float; keepNote(on, () => { on.innerHTML = shown ? card(shown) : renderTaskPanel({ id: PANEL, live: live.map(row), returned: [], counts, ...(offlineSince === null ? {} : { offlineSince }) }); }); installWorkLineLayout(document); }
     // A task's card sums up the requirements hung on the task itself: a task done for no event has no event card to say it.
     accepting?.destroy(); accepting = undefined;
     const slot = shown ? float?.querySelector<HTMLElement>("[data-task-acceptance]") : null;
@@ -192,6 +192,7 @@ export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take
     const target = event.target instanceof Element ? event.target : null;
     if (target?.closest("[data-task-mark]")) { showTasks(!float); return; }
     if (target?.closest("[data-dialog-open]")) { host.dialog?.(true); return; }
+    if (target?.closest("[data-task-reconnect]")) { again(); return; }
     const decision = target?.closest<HTMLElement>("[data-task-decision]");
     if (decision && target) { answers.answer(decision, target); return; }
     // 「在办」 on an event's card (in the dialog or parked in the side panel): the same task, so the same stop, and its card in the panel.
@@ -231,6 +232,7 @@ export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take
 
   return {
     take: takeTasks,
+    offline(since) { if (since === offlineSince) return; offlineSince = since; paintTasks(); },
     // The tasks done for one event, as its card lists them (WLN-09): what waits on the person first, each with the way to decide or to stop.
     rows: subject => [...tasks].filter(task => task.serves.some(one => keyOf(one) === keyOf(subject))).sort((a, b) => weight(a) - weight(b) || b.updated_at.localeCompare(a.updated_at))
       .map(task => { const { serves: _serves, control, ...rest } = row(task); return renderTaskRow({ ...rest, ...(asks(task) && task.open && !task.decisions.length ? { control: "decide" as const } : control ? { control } : {}) }); }).join(""),

@@ -176,7 +176,7 @@ test("with no role chosen, the Assistant hands a part to a professional role by 
   } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
 
-test("WLN-40: said to a Character, the words go to its own main conversation; a task it hands to the background is done by it and comes back to it; the Assistant's main conversation is another work", { timeout: 90_000 }, async t => {
+test("WLN-40 PWA-158: said to a Character, the words go to its own main conversation; a task it hands to the background is done by it and comes back to it; the Assistant's main conversation is another work", { timeout: 90_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-character-main-"));
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
   const project = { project_id: "project", storage_key: "memory:project" };

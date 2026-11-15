@@ -388,6 +388,10 @@ export const CRAFT_ASSISTANT_STYLES = `  /* 概况: the state, what it is doing 
   ${ASSIST} .assistant-composer > .mw-composer[data-rest] { grid-column: 2; }
   ${ASSIST} .assistant-composer > .mw-composer[data-rest] ~ .assistant-attention { position: relative; top: auto; right: auto; grid-column: 1; }
   ${ASSIST} .assistant-composer > .assistant-answer { grid-column: 1 / -1; }
+  /* Written in, the receiver row is the composer's foot (the shared composer, batch 10): the count stands just after the
+     receiver there, not over the text at the top right. */
+  ${ASSIST} .assistant-composer > .mw-composer:not([data-rest]) .mw-composer__to { anchor-name: --assistant-receiver; }
+  ${ASSIST} .assistant-composer > .mw-composer:not([data-rest]) ~ .assistant-attention { position-anchor: --assistant-receiver; top: anchor(center); right: auto; left: calc(anchor(right) + 6px); translate: 0 -50%; }
   ${ASSIST} .assistant-attention svg { width: 14px; height: 14px; }
   ${ASSIST} .assistant-attention:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
   ${ASSIST} .assistant-notices { left: auto; right: 0; gap: 8px; }

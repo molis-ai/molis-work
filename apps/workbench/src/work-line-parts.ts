@@ -65,6 +65,12 @@ export function renderLineUnreadable(source: string): string {
   return `<button type="button" class="work-event" data-work-line-retry data-state="unreadable" data-attn aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">${icon("circle-alert")}${text("work-event-name", source)}${text("work-event-state", uiText.text("workbench.work-line.unreadable-retry"))}${icon("refresh")}</button>`;
 }
 
+/** What the line shows is the last it knew and is being checked (WLN-29): since when, and a press asks again. */
+export function renderLineChecking(since: string): string {
+  const label = since ? uiText.text("workbench.work-line.checking-as-of", { time: since }) : uiText.text("workbench.work-line.checking");
+  return `<button type="button" class="work-event" data-work-line-checking data-state="verify" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">${icon("refresh")}${text("work-event-name", label)}</button>`;
+}
+
 /** The line's head (WLN-19): the work item the line belongs to, its state ring when it has one, and how many of its events wait for the person. With a `menu` (the id of the menu it opens, empty while that menu is not mounted) it opens that menu; without one (a project's own line, which has nothing to switch to yet) a press goes to what the line belongs to. */
 export function renderLineHead(head: { readonly name: string; readonly waiting: number; readonly ring?: StateRingState; readonly menu?: string }): string {
   const waiting = head.waiting > 0 ? `<span class="work-line-count" aria-hidden="true">${head.waiting}</span>` : "";

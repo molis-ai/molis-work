@@ -241,6 +241,32 @@ function installFloat(float: HTMLElement): void {
   window.addEventListener("resize", place, { passive: true });
 }
 
+/** The work surface and the side: what stands above the line in the shell. */
+const ABOVE = ":scope>:is([data-plugin-stage],[data-side-panel],.side-panel-divider)";
+
+/**
+ * The line keeps its height (WLN-01): an input written past one line grows up out of it, and what it then lies over (the work
+ * surface, the side, the divider between them) gives up the same height at its foot (WLN-02). Where the line is one row the
+ * sheet holds it at the bar's height and the composer's slot stands out above it; where the line stands above the composer the
+ * row grows with it and the shell makes the room itself, so nothing rises there.
+ */
+function installRise(slot: HTMLElement): void {
+  const bar = slot.closest<HTMLElement>("[data-work-bar]"), shell = bar?.parentElement, row = slot.parentElement;
+  if (!bar || !shell || !row) return;
+  const measure = () => {
+    const rise = Math.max(0, Math.round(slot.offsetHeight - row.clientHeight)), box = slot.getBoundingClientRect();
+    shell.style.setProperty("--line-rise", `${rise}px`);
+    for (const part of shell.querySelectorAll<HTMLElement>(ABOVE)) {
+      const at = part.getBoundingClientRect();
+      part.toggleAttribute("data-line-yield", rise > 0 && at.width > 0 && at.left < box.right && at.right > box.left);
+    }
+  };
+  measure();
+  const watch = new ResizeObserver(measure);
+  watch.observe(slot); watch.observe(row);
+  window.addEventListener("resize", measure, { passive: true });
+}
+
 const installed = new WeakSet<Element>();
 
 export function installWorkLineLayout(root: ParentNode = document): void {
@@ -256,4 +282,5 @@ export function installWorkLineLayout(root: ParentNode = document): void {
   each("[data-work-line-track]", installTrack);
   each(".assistant-tabs[data-work-tabs]", installTabs);
   each("[data-work-task-float]", installFloat);
+  each(".work-line-slot", installRise);
 }

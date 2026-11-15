@@ -77,7 +77,7 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
   // 15 seconds (N54). It is kept by address: the project chooser's route follows the project chosen, and another one is asked.
   const gone = new Set();
   const BEAT = 15000, LONGEST = 120000;
-  let beat = 0, wait = BEAT;
+  let beat = 0, wait = BEAT, heard = null;
   // The beat keeps going past a gone address: the chooser's route may follow another project by the next beat (N54).
   const schedule = () => { clearTimeout(beat); if (!document.hidden) beat = setTimeout(read, wait); };
   const read = async () => {
@@ -92,11 +92,11 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
       const rows = data.background_tasks, next = JSON.stringify(rows);
       if (Array.isArray(rows) && next !== key) { key = next; tasks = rows; render(); }
       document.dispatchEvent(new CustomEvent("molis-work:attention", { detail: Object.assign(data, { started }) }));
-      wait = BEAT;
+      wait = BEAT; heard = new Date().toISOString();
     } catch (error) {
       // Any other failure keeps what it showed and is asked again on a later beat.
       if (error && error.status === 404) gone.add(route("/api/attention"));
-      else wait = Math.min(wait * 2, LONGEST);
+      else { wait = Math.min(wait * 2, LONGEST); document.dispatchEvent(new CustomEvent("molis-work:attention-unreachable", { detail: { since: heard } })); }
     }
     finally { reading = false; if (again) void read(); else schedule(); }
   };

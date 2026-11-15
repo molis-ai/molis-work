@@ -8742,6 +8742,8 @@
     "workbench.work-line.decision-send": "Send back",
     "workbench.work-line.go-decide": "Decide",
     "workbench.work-line.in-progress": "In progress",
+    "workbench.work-line.checking": "Checking",
+    "workbench.work-line.checking-as-of": "Checking · as of {time}",
     "workbench.work-line.open-as-tab": "Open",
     "workbench.work-line.put-on-shelf": "Put on Shelf",
     "workbench.work-line.on-shelf": "On the Shelf",

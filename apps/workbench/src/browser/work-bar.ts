@@ -15,8 +15,8 @@
 import type { ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { StateRingState, UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { BackgroundTasksReadResult, MainlineIssue, WorkLineEvent, WorkLineReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
-import { t as uiText, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { renderLineEvent, renderLineUnreadable, renderOwnerMark, renderReplyPlaced, type LineEventState, type LineEventView } from "../work-line-parts.js";
+import { format, t as uiText, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { renderLineChecking, renderLineEvent, renderLineUnreadable, renderOwnerMark, renderReplyPlaced, type LineEventState, type LineEventView } from "../work-line-parts.js";
 import { installAcceptance } from "./work-acceptance.js";
 import { installEventCards, type EventCardHandle, type EventCardOpen, type PositionViews } from "./work-event-card.js";
 import { ASKS, FAILED, installTaskPanel } from "./work-task-panel.js";
@@ -91,6 +91,14 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
   let events = new Map<string, WorkLineEvent>(), shown = "", focused = "";
   const keyOf = (subject: ActionSubject) => `${subject.kind}:${subject.id}`;
   const again = () => document.dispatchEvent(new CustomEvent("molis-work:attention-refresh"));
+  // The last line this tab knew, kept for this tab only: after a reload it stands at once, said to be checked, until the read confirms it (WLN-29).
+  const kept = `molis.work-line.last:${document.body.dataset.projectId ?? ""}`;
+  let knownAt: string | null = null;
+  const checking = (since: string | null) => {
+    for (const chip of lead.querySelectorAll("[data-work-line-checking]")) chip.remove();
+    line.toggleAttribute("data-checking", since !== null);
+    if (since !== null) lead.insertAdjacentHTML("beforeend", renderLineChecking(since ? format.date(since, "time") : ""));
+  };
 
   const view = (event: WorkLineEvent, fresh: boolean): LineEventView => {
     const state = stateOf(event), behind = event.tasks.running + event.tasks.waiting, quiet = state === "" || state === "running" || state === "queued";
@@ -172,11 +180,23 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
   // A part the read could not get is null: the line and the mark keep what they showed.
   document.addEventListener("molis-work:attention", event => {
     const { line: read, tasks: table } = (event as CustomEvent<{ line?: WorkLineReadResult | null; tasks?: BackgroundTasksReadResult | null }>).detail ?? {};
-    if (read) draw(read);
+    if (read) { draw(read); checking(null); knownAt = new Date().toISOString(); try { sessionStorage.setItem(kept, JSON.stringify({ at: knownAt, line: read })); } catch { /* a convenience of this tab */ } }
     if (table) panel.take(table);
+    panel.offline(null);
     cards.paint();
     acceptance.refresh();
   });
+  // Not heard: what is shown stays, said to be as of the last read; nothing is redone or restarted from here (WLN-05, WLN-29).
+  document.addEventListener("molis-work:attention-unreachable", event => {
+    // Not heard since this page opened: as of the line it kept.
+    const since = (event as CustomEvent<{ since?: string | null }>).detail?.since ?? knownAt;
+    checking(since ?? ""); panel.offline(since ? format.date(since, "time") : "");
+  });
+  lead.addEventListener("click", event => { if (event.target instanceof Element && event.target.closest("[data-work-line-checking]")) again(); });
+  try {
+    const last = JSON.parse(sessionStorage.getItem(kept) ?? "null") as { at: string; line: WorkLineReadResult } | null;
+    if (last?.line && Array.isArray(last.line.events)) { draw(last.line); knownAt = last.at; checking(last.at); }
+  } catch { /* nothing kept */ }
   return {
     event(subject) { const found = eventOf(subject); return found ? press(found) : null; },
     card: cards.mount,

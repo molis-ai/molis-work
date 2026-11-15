@@ -96,7 +96,7 @@ ${TOP}>.titlebar-end{order:8;flex:none;display:flex;align-items:center;gap:8px;m
    The left wing holds what is in progress and what waits for the person, so it keeps 420px before the right one grows: the
    composer is centred from 1444px up and sits a little right of centre below that. */
 .work-line{min-width:0;container:work-line/inline-size}
-.work-line-row{position:relative;display:grid;grid-template-columns:minmax(min(420px,40%),1fr) minmax(320px,540px) minmax(200px,1fr);grid-template-rows:minmax(0,1fr);align-items:center;gap:12px;min-width:0}
+.work-line-row{position:relative;display:grid;grid-template-columns:minmax(min(420px,40%),1fr) minmax(320px,540px) minmax(200px,1fr);grid-template-rows:minmax(0,1fr);align-items:center;gap:12px;min-width:0;height:var(--dock-min,62px)}
 .work-line-row::before{content:"";position:absolute;left:0;right:0;top:50%;height:1px;background:var(--line-strong);pointer-events:none}
 .work-line-track{display:contents}
 .work-line-now{display:none}
@@ -104,6 +104,8 @@ ${TOP}>.titlebar-end{order:8;flex:none;display:flex;align-items:center;gap:8px;m
 .work-line-wing[data-wing="past"]{grid-column:1;grid-row:1;container:work-wing/inline-size}
 .work-line-wing[data-wing="next"]{grid-column:3;grid-row:1}
 .work-line-slot{grid-column:2;grid-row:1;position:relative;align-self:end;min-width:0}
+/* What a multi-line input lies over gives up its height at its foot (WLN-02; the rise is measured in browser/work-line-layout.ts). */
+${SHELL} [data-line-yield]{margin-bottom:var(--line-rise,0px)}
 .work-line-run{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:8px;height:44px;padding:0 2px;overflow-x:auto;overflow-y:hidden}
 /* The line with its wings (it is more than 540px wide itself, whatever the window): the events' stretch of the left wing keeps 200px where the wing has it (the head's name shortens first), snaps to whole capsules, and makes room at its end for the way back to now once paged back. */
 @container work-line (min-width:541px){
@@ -257,7 +259,7 @@ ${W} ${BUTTON_GROUNDS} .mw-btn--secondary:not(:disabled){border-color:var(--line
 .work-reqs{position:fixed;z-index:30;inset:var(--acceptance-top,var(--desktop-titlebar-height,32px)) auto var(--acceptance-bottom,var(--dock-h,48px)) var(--sheet-inset,14px);width:var(--acceptance-w,320px);display:flex;flex-direction:column;gap:8px;padding:10px;border:1px solid var(--line);border-radius:var(--r-card,12px);background:var(--paper);box-shadow:var(--lift-2);overflow:hidden}
 html body.immersive-workbench[data-acceptance-open=true] [data-plugin-stage]{margin-left:calc(var(--acceptance-w,320px) + var(--side-gap,8px))}
 .work-reqs-head{display:flex;align-items:center;gap:8px;min-width:0;white-space:nowrap}
-.work-reqs-head>strong{font-size:14px}
+.work-reqs-head>strong{font-size:15px}
 .work-reqs-head>span,.work-req-meta>span:last-child{min-width:0;${ELLIPSIS};color:var(--muted);font-size:12px}
 .work-reqs-fill{flex:1}
 .work-reqs-sum{display:flex;gap:12px;margin:0;min-width:0;overflow-x:auto;scrollbar-width:none;white-space:nowrap;color:var(--ink-soft);font-size:12px}
@@ -273,8 +275,8 @@ html body.immersive-workbench[data-acceptance-open=true] [data-plugin-stage]{mar
 .work-req-note{${ELLIPSIS}}
 .work-req-why{padding:4px 8px;border-radius:var(--r-tag,6px);background:var(--amber-soft);color:var(--ink);font-size:12px}
 .work-req-evidence{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}
-.work-req-chip{flex:none;display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 8px;border:1px solid var(--line-strong);border-radius:var(--r-tag,6px);background:var(--soft);font-size:11.5px;white-space:nowrap}
-.work-req-history{color:var(--muted);font-size:11.5px}
+.work-req-chip{flex:none;display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 8px;border:1px solid var(--line-strong);border-radius:var(--r-tag,6px);background:var(--soft);font-size:12px;white-space:nowrap}
+.work-req-history{color:var(--muted);font-size:12px}
 .work-req-history>summary{display:inline-flex;align-items:center;gap:5px;min-height:24px;cursor:pointer;list-style:none;white-space:nowrap}
 .work-req-history>summary::-webkit-details-marker{display:none}
 .work-req-history>ol{margin:4px 0 0;padding:6px 8px;list-style:none;border:1px solid var(--line);border-radius:var(--r-control,8px)}
@@ -319,7 +321,7 @@ html[data-craft-still] ${ANIMATED}{animation:none}
 }
 /* Under 960px of its own width the line stands above the composer, in two rows: the same two wings with now between them, then the composer. Three columns would leave the event next to now too little room for its name. */
 @container work-line (max-width:959px){
-  .work-line-row{grid-template-columns:minmax(0,3fr) auto minmax(0,1fr);grid-template-rows:44px auto;row-gap:6px}
+  .work-line-row{grid-template-columns:minmax(0,3fr) auto minmax(0,1fr);grid-template-rows:44px auto;row-gap:6px;height:auto}
   .work-line-row::before{top:22px}
   .work-line-now{grid-column:2;grid-row:1;position:relative;display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:11px;background:var(--action);color:var(--action-ink);font-size:11px;font-weight:600}
   .work-line-slot{grid-column:1/-1;grid-row:2;align-self:auto;justify-self:center;width:min(100%,640px)}

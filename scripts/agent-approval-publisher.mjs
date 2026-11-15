@@ -66,15 +66,16 @@ async function recheckStatus(github, appBotId, head, refresh) {
 
 function checkText(result) {
   const voters = rows => rows.map(vote => `@${vote.login}`).sort().join(", ");
+  const expired = result.expired?.map(vote => `@${vote.login} · \`${vote.sha}\``).join(", ");
+  const stale = expired && `已过期：${expired}`;
   switch (result.state) {
     case "awaiting-approvals": {
       const names = voters(result.counted);
-      const stale = result.expired.map(vote => `@${vote.login} · \`${vote.sha}\``).join(", ");
       return [`缺 ${result.missing} 票。本次需要 ${result.required} 位有写权限的人批准。`,
-        names && `本版已批准：${names}`, stale && `已过期：${stale}`, `请在当前版本留下批准，或发一条 \`/approve ${result.head}\`。`].filter(Boolean).join("\n\n");
+        names && `本版已批准：${names}`, stale, `请在当前版本留下批准，或发一条 \`/approve ${result.head}\`。`].filter(Boolean).join("\n\n");
     }
     case "votes-met":
-      return `已取得本版所需的 ${result.required} 票。批准人：${voters(result.counted)}。`;
+      return [`已取得本版所需的 ${result.required} 票。批准人：${voters(result.counted)}。`, stale].filter(Boolean).join("\n\n");
     case "human":
       return "本次提交的来源核验通过。当前政策未要求 Agent 人审票。";
     default:

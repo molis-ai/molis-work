@@ -229,7 +229,20 @@ test("APR-06: the independent publisher reuses only its own sticky comment and f
   assert.equal((await publish()).published, "success");
   assert.equal(state.publishedComments.length, 1);
   assert.match(state.publishedComments[0]!.body, /@author, @reviewer/u);
+  assert.ok(state.publishedComments[0]!.body.includes("已过期：@author · `" + old + "`"));
   assert.equal(state.statuses[0]?.state, "success");
+});
+
+test("APR-01/06: verified person-only changes pass the required check without votes", async () => {
+  const { state, requests, publish } = fixture();
+  state.commits[0] = { ...state.commits[0]!, author };
+  const result = { state: "human", head, base, branch: "main", pull, published: "success" };
+  assert.deepEqual(await publish(), result);
+  assert.deepEqual(await publish(), result);
+  assert.equal(state.statuses[0]?.state, "success");
+  assert.equal(state.publishedComments.length, 1);
+  assert.ok(state.publishedComments[0]!.body.includes("当前政策未要求 Agent 人审票。"));
+  assert.equal([...requests.keys()].some(key => key.startsWith("collaborators/")), false);
 });
 
 test("APR-06: a different repository or a withdrawn vote cannot publish a stale result", async () => {

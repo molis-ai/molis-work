@@ -335,7 +335,6 @@ export interface AgentMemoryCapability {
       key?: { domain: string; key: string };
       created_at_ms: number;
       updated_at_ms: number;
-      restored_from_version?: number;
       note?: string;
     }>;
   }>;

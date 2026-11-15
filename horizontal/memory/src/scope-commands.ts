@@ -11,7 +11,7 @@ import { memoryErrors } from "./errors.js";
 import { belongsToMemorySession } from "./classification.js";
 import { fromEntryMeta } from "./facts.js";
 import { isExpired, personOnly, placeOf, visibleTo } from "./places.js";
-import { packageFingerprint, readPackage } from "./shapes.js";
+import { MEMORY_PACKAGE_VERSION, packageFingerprint, readPackage } from "./shapes.js";
 
 export interface Located { scope: MemoryScope; owner: string; entry: MemoryBackendEntry; meta: MemoryMetaRecord; project?: string | null }
 type ClearPlan = { scope: MemoryScope; owner: string; parts: Array<{ scope: MemoryScope; owner: string } & AgentMemoryScopePreview>;
@@ -261,7 +261,7 @@ export class MemoryScopeCommands {
     }
     if (selected.some(one => this.ports.hidden(one.scope, one.owner, one.entry.memory_id)))
       throw memoryErrors.conflict("导出期间记忆已被遗忘，没有生成记忆包");
-    return { format: "molis.memory", version: /* @version format.memory.export */ 1, exported_at: this.ports.now().toISOString(), scope, entries, redactions: [...redactions].map(([kind, count]) => ({ kind, count })) };
+    return { format: "molis.memory", version: MEMORY_PACKAGE_VERSION, exported_at: this.ports.now().toISOString(), scope, entries, redactions: [...redactions].map(([kind, count]) => ({ kind, count })) };
   }
 
   /**

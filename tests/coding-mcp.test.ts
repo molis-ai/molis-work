@@ -17,7 +17,7 @@ test("MCP real stdio handshake, version selection, revocation and persisted conf
   let adapter:Awaited<ReturnType<typeof open>>|undefined;
   try{
     await writeFile(join(root,'server.mjs'),MCP_FIXTURE);adapter=await open();let library=adapter.mcpLibrary!;
-    const input={expected_version:0,label:'Local MCP',transport:'stdio' as const,enabled:true,timeout_ms:5000,directory:{canonical_path:root,realpath_verified:true},executable:process.execPath,argv:['server.mjs']};
+    const input={expected_version:0,label:'Local MCP',transport:'stdio' as const,enabled:true,timeout_ms:5000,directory:{canonical_path:root,realpath_verified:true},executable:'node',argv:['server.mjs']};
     const saved=await library.save(owner,input);assert.equal(saved.version,1);assert.equal(saved.health,'disconnected');
     await assert.rejects(library.control(other,saved.id,'connect'),/当前项目/);
     await library.control(owner,saved.id,'connect');const connected=(await library.list(owner))[0]!;

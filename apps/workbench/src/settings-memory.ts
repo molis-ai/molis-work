@@ -117,7 +117,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     const L = globalThis.t.text;
     let scope = root.dataset.memoryScope === "project" ? "project" : "personal";
     const project = root.dataset.project || "";
-    const params = new URLSearchParams(context ? context.search : location.search);
+    const params = new URLSearchParams((context || location).search);
     const kind = params.get("memory_session_kind"), sessionId = params.get("memory_session_id");
     const sessionMode = params.has("memory_session_kind") || params.has("memory_session_id");
     const validTarget = !sessionMode || ["coding", "assistant"].includes(kind) && sessionId && sessionId.trim() && sessionId.length <= 200
@@ -129,7 +129,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     const $ = (selector) => root.querySelector(selector);
     const part = name => $("[data-memory-" + name + "]");
     const unread = globalThis.t.text("workbench.settings-memory.reading-did-not-finish-reload-try-again");
-    const el = (tag, className, text) => { const node = document.createElement(tag); if (className) node.className = className; if (text !== undefined && text !== null) node.textContent = text; return node; };
+    const el = (tag, className, text) => { const node = document.createElement(tag); if (className) node.className = className; if (text != null) node.textContent = text; return node; };
     const button = (text, variant, label) => { const node = el("button", "mw-btn " + (variant || "mw-btn--ghost") + " mw-btn--sm", text); node.type = "button"; if (label) node.setAttribute("aria-label", label); return node; };
     // Whichever way a dialog closes, focus goes back to the element the person used: focus they have genuinely moved
     // somewhere visible stands, but a stale hidden remnant (the menu item a closed fold hides, the old dialog's own
@@ -138,11 +138,11 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     // Shown is more than a box: the focus a closing dialog hands back can still carry geometry from menu content its
     // fold has already closed, so every closed details ancestor decides — only a detail's own first summary line shows.
     const shown = (element) => {
-      if (!element || !element.isConnected || !element.getClientRects().length || element.closest("[hidden]")) return null;
+      if (!element?.isConnected || !element.getClientRects().length || element.closest("[hidden]")) return null;
       for (let ancestor = element.parentElement; ancestor; ancestor = ancestor.parentElement) {
         if (ancestor.tagName !== "DETAILS" || ancestor.open) continue;
-        const summary = Array.prototype.find.call(ancestor.children, (child) => child.tagName === "SUMMARY");
-        if (!summary || !summary.contains(element)) return null;
+        const summary = [...ancestor.children].find((child) => child.tagName === "SUMMARY");
+        if (!summary?.contains(element)) return null;
       }
       return element;
     };
@@ -210,19 +210,18 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       disabled: "workbench.settings-memory.switch-off", auto_disabled: "workbench.settings-memory.switched-off-automatically", enabled: "workbench.settings-memory.switch", paused: "workbench.settings-memory.paused", resumed: "workbench.settings-memory.resumed", removed: "workbench.settings-memory.delete", accepted: "workbench.settings-memory.accepted-2", imported: "workbench.settings-memory.imported", cleared: "workbench.settings-memory.cleared" };
     const day = (iso) => { const date = new Date(iso); return !iso || isNaN(date) ? "" : (date.getMonth() + 1) + "/" + date.getDate(); };
     const appliesText = (applies, itemScope, classification) => {
+      const sep = globalThis.t.text("common.list.separator");
       const parts = classification?.lifecycle === "session" ? [globalThis.t.text("workbench.settings-memory.within-session")] : [];
-      if (applies && applies.plugin_ids && applies.plugin_ids.length) parts.push(globalThis.t.text("workbench.settings-memory.plugins-list", { list: applies.plugin_ids.join(globalThis.t.text("common.list.separator")) }));
-      if (applies && applies.object_kinds && applies.object_kinds.length) parts.push(globalThis.t.text("workbench.settings-memory.object-list", { list: applies.object_kinds.join(globalThis.t.text("common.list.separator")) }));
+      if (applies?.plugin_ids?.length) parts.push(globalThis.t.text("workbench.settings-memory.plugins-list", { list: applies.plugin_ids.join(sep) }));
+      if (applies?.object_kinds?.length) parts.push(globalThis.t.text("workbench.settings-memory.object-list", { list: applies.object_kinds.join(sep) }));
       // Associated objects: Goals by name when their plugin can still read them; other objects by plugin/kind:id.
-      if (applies && applies.objects && applies.objects.length) {
-        const goals = applies.objects.filter(obj => obj.plugin_id === "io.molis.work.goals" && obj.kind === "goal");
-        const others = applies.objects.filter(obj => !(obj.plugin_id === "io.molis.work.goals" && obj.kind === "goal"));
-        if (goals.length) parts.push("Goal " + goals.map((obj) => {
-          const title = data && data.labels && data.labels.goals ? data.labels.goals[obj.id] : null; return title ? globalThis.t.text("workbench.settings-memory.goal-title", { title }) : globalThis.t.text("workbench.settings-memory.goal-that-can-no-longer-be-read"); }).join(globalThis.t.text("common.list.separator")));
-        if (others.length) parts.push(globalThis.t.text("workbench.settings-memory.object-list", { list: others.map(obj => obj.plugin_id + "/" + obj.kind + ":" + obj.id).join(globalThis.t.text("common.list.separator")) }));
-      }
-      if (applies && applies.task) parts.push(applies.task);
-      if (applies && applies.until) parts.push(globalThis.t.text("workbench.settings-memory.until-date", { date: applies.until.slice(0, 10) }));
+      const goals = applies?.objects?.filter(o => o.plugin_id === "io.molis.work.goals" && o.kind === "goal") || [];
+      const others = applies?.objects?.filter(o => !(o.plugin_id === "io.molis.work.goals" && o.kind === "goal")) || [];
+      if (goals.length) parts.push("Goal " + goals.map(o => {
+        const title = data?.labels?.goals?.[o.id]; return title ? globalThis.t.text("workbench.settings-memory.goal-title", { title }) : globalThis.t.text("workbench.settings-memory.goal-that-can-no-longer-be-read"); }).join(sep));
+      if (others.length) parts.push(globalThis.t.text("workbench.settings-memory.object-list", { list: others.map(o => o.plugin_id + "/" + o.kind + ":" + o.id).join(sep) }));
+      if (applies?.task) parts.push(applies.task);
+      if (applies?.until) parts.push(globalThis.t.text("workbench.settings-memory.until-date", { date: applies.until.slice(0, 10) }));
       return parts.length ? parts.join(" · ") : globalThis.t.text(itemScope === "character" ? "workbench.settings-memory.work-character-does-project" : scope === "project" ? "workbench.settings-memory.all-work-project" : "workbench.settings-memory.all-work");
     };
     let data = null, busy = false, removing = false, reading = false, readFailed = false, reader, currentCursor, previous = [], pairsOpened = false;
@@ -347,7 +346,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
         const input = JSON.stringify([path, payload]);
         if (!previous || previous.input !== input || !pendingCommands.has(previous.id)) {
           const id = crypto.randomUUID();
-          previous = Object.freeze({ id, input, path, body: JSON.stringify(Object.assign({}, payload, { operation_id: id })), title: commandTitle(path, payload) });
+          previous = Object.freeze({ id, input, path, body: JSON.stringify({ ...payload, operation_id: id }), title: commandTitle(path, payload) });
         }
         return dispatch(previous);
       };
@@ -499,20 +498,19 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       L, el, button, paint, run, ask, fail, api, mutation, day, appliesText, CLASS, KIND, FORMAL_KIND, sessionMode, params,
       scope: () => scope, busy: () => busy, reader: () => reader, removing: () => removing });
 
+    const BATCH_STATES = { completed: "workbench.settings-memory.done", "already-absent": "workbench.settings-memory.removed", conflict: "workbench.settings-memory.version-conflicts", "not-executed": "workbench.settings-memory.not-run-yet", unknown: "workbench.settings-memory.outcome-unknown" };
     function paintSessionResults(items) {
       const list = part("batch-results"); list.replaceChildren(); list.hidden = !items.length;
-      const states = { completed: "workbench.settings-memory.done", "already-absent": "workbench.settings-memory.removed", conflict: "workbench.settings-memory.version-conflicts", "not-executed": "workbench.settings-memory.not-run-yet", unknown: "workbench.settings-memory.outcome-unknown" };
       for (const [index, item] of items.entries()) {
         const row = el("li", "settings-muted", globalThis.t.text("workbench.settings-memory.version") + " " + (index + 1) + " " + globalThis.t.text("workbench.settings-memory.items") + " · " + globalThis.t.text(item.kind === "memory-candidate" ? "workbench.settings-memory.pending-candidate" : "workbench.settings-memory.saved-memory")
-          + " · " + globalThis.t.text(states[item.outcome]) + " · " + globalThis.t.text(item.forgetting === "accepted" ? "workbench.settings-memory.forgetting-accepted" : "workbench.settings-memory.forgetting-not-accepted") + " · " + globalThis.t.text(item.cleanup === "complete" ? "workbench.settings-memory.cleanup-complete" : item.cleanup === "pending" ? "workbench.settings-memory.cleanup-pending" : "workbench.settings-memory.needs-checking"));
+          + " · " + globalThis.t.text(BATCH_STATES[item.outcome]) + " · " + globalThis.t.text(item.forgetting === "accepted" ? "workbench.settings-memory.forgetting-accepted" : "workbench.settings-memory.forgetting-not-accepted") + " · " + globalThis.t.text(item.cleanup === "complete" ? "workbench.settings-memory.cleanup-complete" : item.cleanup === "pending" ? "workbench.settings-memory.cleanup-pending" : "workbench.settings-memory.needs-checking"));
         row.dataset.memorySessionItem = item.kind + ":" + (item.kind === "memory-candidate" ? item.candidate_id : item.memory_id); list.append(row);
       }
     }
     function paintBatchResults(items) {
       batchPositions.clear(); items.forEach((item, index) => batchPositions.set(item.memory_id, index + 1));
       const list = part("batch-results"); list.replaceChildren(); list.hidden = !items.length;
-      const states = { completed: "workbench.settings-memory.done", "already-absent": "workbench.settings-memory.removed", conflict: "workbench.settings-memory.version-conflicts", "not-executed": "workbench.settings-memory.not-run-yet", unknown: "workbench.settings-memory.outcome-unknown" };
-      for (const [index, item] of items.entries()) list.append(el("li", "settings-muted", globalThis.t.text("workbench.settings-memory.version") + " " + (index + 1) + " " + globalThis.t.text("workbench.settings-memory.items") + " · " + globalThis.t.text(states[item.outcome] || "workbench.settings-memory.needs-checking")
+      for (const [index, item] of items.entries()) list.append(el("li", "settings-muted", globalThis.t.text("workbench.settings-memory.version") + " " + (index + 1) + " " + globalThis.t.text("workbench.settings-memory.items") + " · " + globalThis.t.text(BATCH_STATES[item.outcome] || "workbench.settings-memory.needs-checking")
         + (item.cleanup === "needs-reconcile" ? " · " + globalThis.t.text("workbench.settings-memory.needs-checking") : "")));
     }
     function paintSelection() {

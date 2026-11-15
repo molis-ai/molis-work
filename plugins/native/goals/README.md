@@ -22,7 +22,7 @@ Host 注入各 Module 的公开端口，Goals 用 `createGoalsApplication` 在�
 | [src/goal-query-application.ts](src/goal-query-application.ts) | 目标读取 |
 | [src/goal-tree-decision.ts](src/goal-tree-decision.ts) | 目标树确认 |
 | [src/document-collection.ts](src/document-collection.ts) | 文档列表投影 |
-| [src/page/index.ts](src/page/index.ts) | Goals 页面的绘制（子路径 `./page`，T-116）：Goal 文档、三种片段、设置与规划页、终端面板、舞台与外壳页眉；工作台只经 `createGoalsPage(ports)` 交出 Goals 不拥有的部分（挂载、翻译、日期、成果引用、终端面板），不再持有 Goals 的渲染器 |
+| [src/page/index.ts](src/page/index.ts) | Goals 页面的绘制（子路径 `./page`，T-116）：Goal 文档、三种片段、设置页、终端面板、舞台与外壳页眉；工作台只经 `createGoalsPage(ports)` 交出 Goals 不拥有的部分（挂载、翻译、日期、成果引用、终端面板），不再持有 Goals 的渲染器 |
 | [src/http/index.ts](src/http/index.ts) | 页面操作的路由处理 `goalsRoutes`：[src/manifest.ts](src/manifest.ts) 的 `routes` 每声明一条，这里一个处理（PG094-09）；页面经插件前缀 `/api/plugins/io.molis.work.goals/<路径>` 调它们，Runtime 分发核对安装授权（S-15），宿主不再有旧地址 `/api/<路径>` 的改写 |
 
 可对照现有调用方 [src/plugin.ts](src/plugin.ts) 阅读装配方式。
@@ -31,7 +31,7 @@ Host 注入各 Module 的公开端口，Goals 用 `createGoalsApplication` 在�
 
 ## 接入与边界
 
-`goalsActions` 当前提供 65 项 project 动作（2026-10-07 从构建产物数出），由 Manifest 声明并在项目动作服务中注册，其中 59 项可按授权供 MCP 使用，6 项仅供受保护的用户操作；另有 2 项 Home 动作 `personalPlanningActions`（见下文个人方法）：
+`goalsActions` 当前提供 61 项 project 动作（2026-10-07 从构建产物数出，第 41 批删去四个方法动作后为 61），由 Manifest 声明并在项目动作服务中注册；没有 Home 动作（原 `personalPlanningActions` 两个已随方法库删除）：
 
 - 本地管理：`goals.board.initialize`（输入只有 `idempotency_key`，项目的名字是项目目录的，Goals 的看板不再记它，S8），只接受可信 management 用户上下文。CLI 与管理 MCP 经宿主造的管理动作端口调用这一动作，已登记且连接到 Home 的项目转交常驻宿主，身份由宿主定为本机这个人（`LOCAL_PERSON_ACTOR_ID`），输入不带 `actor_id`；普通 MCP/Agent/插件不获管理权。原初始化回执与禁止覆盖保持。V3 导入已删（2026-10-04，用户决定不留旧数据入口）。
 - 目录、创建、便笺：`goals.list`、`goals.create`、`goals.note`。
@@ -72,7 +72,7 @@ W3-07 PR-5 删除了余下十个 Goals typed 桥及注册/出口：初始化、�
 
 请求或引用决定不等于作出用户决定。普通动作不接受 actor/authority 等身份授权字段；项目规划保存/采用的 user_confirmed 只保留原业务确认前提，不产生用户决定权；用户验收、放宽约定和接受风险仍执行原领域校验。标准公共动作拒绝未授权调用，管理模式也不能自填用户作者。
 
-项目规划的动作、Web API、方法详情/编辑以及设置总页的实际读取入口已使用共同动作。网页复制、编辑和采用保留完整事件类型及默认要求；个人模板和项目方法保持独立版本与数据。
+项目规划的方法详情/编辑、规划页与设置规划页已随第 41 批删除；项目库升级段与 Home 库删除见下文。
 
 长期说明的 Web API、项目设置、动作、MCP、Work 提示词和 Agent 项目层共用动作。Agent 使用原修订数标识说明版本，编辑同一条也产生新的冻结版本。说明写入已成功而后续列表读取被拒绝时，HTTP 返回保存回执及独立刷新错误；不把已保存操作报成失败。长期说明变更的 user_confirmed 保留原业务确认前提，不产生用户决定权。
 

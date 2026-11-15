@@ -11,6 +11,8 @@ const shaped = (value: unknown): value is SkillPick => {
   catch { return false; }
 };
 const number = (value: unknown) => typeof value === "number" && Number.isFinite(value);
+// The three audiences a Skill line belongs to; kept local so the frame bundle does not pull the whole Skill contract.
+const pickConsumer = (value: unknown): value is "assistant" | "coding" | "agent" => value === "assistant" || value === "coding" || value === "agent";
 
 /**
  * The 「依据」 panel for a plugin frame (specs/prologue-strategies/skill.md §10). The frame asks with the same `molis:skill-pick-open`
@@ -29,7 +31,7 @@ export function pageSkillPicks(port: MessagePort, scope: FrameScope, frame: HTML
   });
   return (message: PickUp): void => {
     const { box } = message;
-    if (!text(message.reply, 200) || (message.consumer !== "assistant" && message.consumer !== "coding") || !Array.isArray(message.picks) || message.picks.length > 40
+    if (!text(message.reply, 200) || !pickConsumer(message.consumer) || !Array.isArray(message.picks) || message.picks.length > 40
       || !message.picks.every(shaped) || !(message.index === null || (Number.isSafeInteger(message.index) && message.index >= 0 && message.index < message.picks.length))
       || !box || ![box.x, box.y, box.width, box.height].every(number)) return;
     // A frame cannot open a panel over the page by itself: only for a press the person just made in a view they can see.

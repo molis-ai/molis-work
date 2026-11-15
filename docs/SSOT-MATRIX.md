@@ -143,7 +143,7 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 
 | 目标 package | 产品能力 | 当前来源 | 包成熟度 | 迁移 / 实现 Goal | 归属 |
 | --- | --- | --- | --- | --- | --- |
-| `plugins/native/goals` | Goals 内置插件的产品 UI：每个项目都带，拥有 Goal 的事实；原 Goals 与 Governance 模块并入本包的 `src/module/` 与 `src/governance/`（S9-3） | 当前事件意图、约定、报告、树决定，以及事件与 Journal 组成的历史；逐项依据也归这里（每条判断核对的确切交付版本、方法、证据引用与 Goals 核出的可信层级，用户结论针对的版本；第 24-3 批，不另建任务中心或验收事实库；命令回执的事实仍归 `horizontal/agent-host`，成果版本仍归 `modules/artifacts`，Goals 只存引用）；目录直接读当前状态；页面（项目页、片段、设置与规划页）由包内 `./page` 绘制，Workbench 只交外壳端口并注册贡献，不另算完成 | `production` | GW/DD/EX/Cutover；事件工作流收敛 | 内置插件：@yijunw0212 |
+| `plugins/native/goals` | Goals 内置插件的产品 UI：每个项目都带，拥有 Goal 的事实；原 Goals 与 Governance 模块并入本包的 `src/module/` 与 `src/governance/`（S9-3） | 当前事件意图、约定、报告、树决定，以及事件与 Journal 组成的历史；逐项依据也归这里（每条判断核对的确切交付版本、方法、证据引用与 Goals 核出的可信层级，用户结论针对的版本；第 24-3 批，不另建任务中心或验收事实库；命令回执的事实仍归 `horizontal/agent-host`，成果版本仍归 `modules/artifacts`，Goals 只存引用）；目录直接读当前状态；页面（项目页、片段、设置）由包内 `./page` 绘制，Workbench 只交外壳端口并注册贡献，不另算完成 | `production` | GW/DD/EX/Cutover；事件工作流收敛 | 内置插件：@yijunw0212 |
 | `plugins/native/inbox` | Inbox 一级入口与 Attention 处置 UI | 目录/详情只读 Attention；完成/忽略走 setStatus；`inbox.next` 沿用 Functions 绑定与显式重判，建议成稿/核查不自动执行；Host 将选中 Feed 材料交给 Pages，收据归 Pages，文稿可返回材料；缺片：Inbox/Feed 拆插件切片 2–3；后续：切片 2–3 计划 | `slice` | Inbox/Feed 拆插件切片 2–3；`specs/archive/functions-system-capability/spec.md`；`specs/archive/feed-inbox-pages-loop/validation.md` | 内置插件：@yijunw0212 |
 | `plugins/native/risk` | 项目风险：记录、关联、进展与总览 | 风险记录、关联对象、进展时间线，列表、读取器、搜索、呈现与首页概况；复查由 Schedule 的一次性对象任务承载，风险不调 AI；Goal 的顾虑可引用风险。缺片：RISK-06 的历次结果与采纳（[BL-risk-review-history-adopt](../specs/backlog/BL-risk-review-history-adopt.md)）；RISK-05/06/09 的本人验收 | `experimental` | `specs/risk-plugin/spec.md` | 内置插件：@yijunw0212 |
 | `plugins/native/work-brief` | 项目简报与个人简报：现在怎么样、要你处理什么、下一步 | 简报及其版本、每句的依据、人工修改、待处理的提案、下一步的处置、固定版本（发成成果）、个人事项汇总；别的插件的内容只经它们公开的概况、读取器和动作读，不存副本；首页主区内容（`presentation.overview.lead`）；缺片：决定卡（等 39-2）、定时刷新走 Schedule、周期报告／living page／使用回顾／交互式报告页等后续片 | `experimental` | `specs/work-brief/spec.md` | 内置插件：@yijunw0212 |
@@ -213,6 +213,8 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 | 技能声明和正文 | 提供技能的插件 | Manifest 的 methods 和已验签正文/资源；内置声明由原注册提供 |
 | 当前范围的目录与读取 | apps/local-host 的 Agent definitions | system.skills 的四个动作，每次投影安装、声明与授权；manual 只认宿主冻结点名 |
 | 技能自动/仅手动状态、接受后的使用记录 | apps/local-host 的 Agent definitions | agent-definitions 库第 2 版的 skill_settings、skill_uses；项目与 home 分开，off 不留行；卸载删除状态、保留历史 |
+| 随系统自带的技能包 | 宿主构建产物 | `plugins/content/<包>/pack-content.json` 的 `system`；构建产物 `apps/local-host/dist/system-skills/`；不安装、不验签、不固定发布者，和安装包共用同一目录 |
+| 自己写的技能 | 每范围一个内容包 + 已装记录的发布者签名 | `io.molis.work.my-skills.project`／`.home`；正文与声明在签名内容包，`skill_settings` 只存状态；认主只看已装记录的发布者签名 |
 
 助理和 Coding 都只读这一份目录（第 09 批）：Coding 旧的方法发现、安装和 Prologue 存储里的 `molis-coding-method` 已删，不迁移。
 

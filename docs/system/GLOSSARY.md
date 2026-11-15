@@ -38,7 +38,8 @@
 | 能力包（kit） | 做一类事要用的东西放在一起看：技能、MCP、工具，以及搭配的角色和角色的提示词。是现算的聚合视图，不存：一个插件的安装就是一个包，另有「Molis Work 自带」和「你的角色」两个；条目由各自的事实主人上报，`horizontal/kit` 只汇总、拼包（`kit.catalog.list@1`）。定义见 2.3 | 能力包（设置 › 能力包；英文 AI kits） | 技能包（那是只带技能的内容插件）、套件、方法库；`kit` 只用在代码、路由和键里 |
 | 提示词改写文件 | 本人对提示词的改写导出成的文件（`format: "molis.prompt-overrides"`），导回时逐条看过、版本对得上才套用；是用户自己的数据，不是包，从不安装，也不随内容包走 | 能力包「导入文件」里的「提示词改写」 | 把它算进内容包；「提示词包」 |
 | Skill 目录 | 一个范围（某个项目，或个人空间）里装着的全部 Skill，每项带精确引用 `SkillRef`、在这个范围的状态（关、自动、仅手动）和能不能用；归宿主的 Agent 定义登记，由 `system.skills` 的 `skills.catalog.list@1` 等动作读写（`packages/contracts/src/services/skills.ts`，`specs/skill-packs/contract-design.md` 第 8 节）。助理和 Coding 读同一份，不各存名单 | 设置里「技能」一节 | 共同目录（指它时；共同目录是动作目录的旧称，不指 Skill）、方法目录、平台方法目录 |
-| 规划方法 | Goals 里可选采用的规划方法包 | 规划方法 | 方法包（method pack） |
+| 规划方法 | 技能目录里随系统自带的技能包（`plugins/content/planning-methods`，37 个）；和 Goals 没有关系 | 规划方法、规划与拆解 | Goals 的方法库、方法包（method pack） |
+| 我的技能 | 本人在能力包页新建／修改、用这台电脑的发布身份签名的一个内容包（项目与个人空间各一个）；与从本机导入的同类 | 能力包页的「我的技能」 | 个人方法库、自建方法 |
 | 研究方法 | 炼金术士里用户确认保存、可沿用的研究做法 | 研究方法 | playbook |
 | 连接方式 | 一个服务的授权途径（OAuth、命令行、令牌、MCP） | 连接方式 | method（代码里的 `ConnectorMethod*`） |
 | Agent | 多轮、带工具、按角色运行并受审查的 AI 工作者；外部的叫外部 Agent，是在外部 Runtime 里运行的工作者 | 内置 Agent、外部 Agent（另有「原生 Agent」等写法，见 U6） | 把 Claude Code、Codex 这类产品叫 Agent（它们是 Runtime） |

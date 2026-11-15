@@ -465,7 +465,8 @@ export type GoalEventSystemPayload =
       statement: string;
       scope: GoalEventScope;
       blocks_closure: boolean;
-      cited_subjects: GoalCitedSubject[];
+      /** Absent in events written before batch 17; that means the concern cites no object. */
+      cited_subjects?: GoalCitedSubject[];
     }
   | {
       operation: "concern_resolved" | "concern_accepted" | "concern_overturned";

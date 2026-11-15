@@ -1,5 +1,6 @@
-import type { AgentRunUsage, AgentMcpServerView as McpServer, AgentMcpSourceRef as McpSourceRef, AgentMcpToolRef as McpToolRef } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentRunInstructions, AgentRunUsage, AgentMcpServerView as McpServer, AgentMcpSourceRef as McpSourceRef, AgentMcpToolRef as McpToolRef } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
+import type { ProjectDirectories } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { RunCard } from "../actions.js";
 import type { CharacterRef } from "../characters.js";
 import type { ModelChoice } from "../composer-model.js";
@@ -128,7 +129,7 @@ export interface FrozenSetup {
   /** The prompts the round was composed with; `project` ones are the project's own instructions (the rules menu's first group). */
   readonly prompts?: readonly { readonly prompt_id: string; readonly version: number; readonly layer: string; readonly user_revision?: number }[];
   /** The repository's instruction files the round was given, recorded once it started; absent on a round from before (batch12-design §3.6). */
-  readonly instructions?: { readonly trusted: boolean; readonly files: readonly { readonly path: string; readonly chars: number; readonly truncated: boolean; readonly sha256: string }[] };
+  readonly instructions?: AgentRunInstructions;
 }
 
 /** A round as the session read gives it: loaded in full, or a summary of the rounds the page has not opened. */
@@ -285,7 +286,7 @@ export interface StateRead {
   readonly runtimes: readonly { readonly runtime_id: string; readonly roles: readonly { readonly role_id: string; readonly available: boolean }[] }[];
   readonly project_runtime_id?: string;
   /** Whether the next round reads the output's instruction files, and if not the first thing to change (`ProjectDirectories.instructions`). */
-  readonly instructions?: { readonly off: boolean; readonly trusted: boolean; readonly why_not?: "default_output" | "off" | "not_chosen" };
+  instructions?: ProjectDirectories["instructions"];
   readonly [field: string]: unknown;
 }
 

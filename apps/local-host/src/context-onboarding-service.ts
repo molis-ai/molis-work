@@ -541,7 +541,9 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
         const summaryTitle = uiText.text("workbench.context-onboarding-service.title-work-summary", { title: journey.adoption!.title });
         // Pages holds 80 whole characters of a title: a longer one is cut by pageTitle, and the project's name then leads the body instead.
         const summaryText = [...summaryTitle].length > 80 ? `${uiText.text("workbench.context-onboarding-service.project-title", { title: journey.adoption!.title })}\n\n${text}` : text;
-        const summary = (await actions.invoke(importDocuments, { request_id: id + ":summary", request_hash: createHash("sha256").update(JSON.stringify(journey.adoption)).digest("hex"), documents: [{ title: pageTitle(summaryTitle), body: summaryText ? await pageBody(summaryText) : { type: "doc", content: [{ type: "paragraph" }] } }] })).documents[0]!;
+        // Only what the person accepted: the take's mutable bookkeeping (`output_set`) is not part of the import's identity.
+        const imported = { title: journey.adoption!.title, body: journey.adoption!.body, blank: journey.adoption!.blank, todo_selected: journey.adoption!.todo_selected ?? [] };
+        const summary = (await actions.invoke(importDocuments, { request_id: id + ":summary", request_hash: createHash("sha256").update(JSON.stringify(imported)).digest("hex"), documents: [{ title: pageTitle(summaryTitle), body: summaryText ? await pageBody(summaryText) : { type: "doc", content: [{ type: "paragraph" }] } }] })).documents[0]!;
         journey.document_id = summary.id;
         if (text.trim()) {
           const artifact = await actions.invoke(artifactsActions.importFile, { source: "file", filename: "summary.md", title: summaryTitle.length <= 200 ? summaryTitle : cutHead(summaryTitle, 199) + "…",
@@ -587,7 +589,11 @@ async function handToTaker(home: string, journey: ContextJourney, handed: readon
     const client = await ports.take(home, journey.project_id, taker.take);
     answered = await client.invoke(taker.take as ActionDefinition<OnboardingCodeRootTake, OnboardingTakeResult>,
       { request_id: `onboarding:${journey.id}:take`, code_root: { workspace_id: output.workspace_id }, materials });
-  } catch { return notTaken("refused"); }
+  } catch (error) {
+    // A plugin's own refusal is final; a temporary failure or cancellation can be retried and is not called a refusal.
+    const refused = error instanceof ActionError && (error.kind === "conflict" || error.kind === "forbidden");
+    return notTaken(refused ? "refused" : "unavailable");
+  }
   done({ open: answered.open, materials: materials.length, of: handed.length });
 }
 

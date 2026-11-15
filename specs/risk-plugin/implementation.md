@@ -1,6 +1,6 @@
 # 风险插件：实施方案、开工前检查与合同设计稿（第 17 批）
 
-状态：设计稿第 2 版，公共合同台与 D 轨设计合审通过（2026-11-13，头 `0f622090ff`，见 §8）；实现中。行为与验收以[原需求](spec.md)为准，界面以[定样决定](spec.md#design-decisions)与原型 [`docs/design/risk-plugin`](../../docs/design/risk-plugin/README.md) 为准。
+状态：设计稿第 2 版，公共合同台与 D 轨设计合审通过（2026-11-13，头 `0f622090ff`，见 §8）；已随第 17 批 [#2058](https://github.com/molis-ai/molis-work/pull/2058) 合入 main（`3b296a6337`），收尾与合后审计整改见批次文件与 §10。行为与验收以[原需求](spec.md)为准，界面以[定样决定](spec.md#design-decisions)与原型 [`docs/design/risk-plugin`](../../docs/design/risk-plugin/README.md) 为准。
 
 ## 1. 这一片说什么（需求开发流程 §2.1）
 
@@ -67,17 +67,17 @@
 
 | 动作 | 种类 | 输入 → 输出 |
 | --- | --- | --- |
-| `risk.list@1` | query | `{ status?: "open"\|"closed"\|"all"（默认 open）, impact?, owner_name?, goal_id?, unlinked?, limit?（默认 100，最多 200）, cursor? }` → `{ risks: RiskRow[], owners: string[], next_cursor }`；`RiskRow` = 风险字段 + `links` |
+| `risk.list@1` | query | `{ status?: "open"\|"closed"\|"all"（默认 open）, impact?, owner_name?, keyword?, linked?: {kind,id}, unlinked?, limit?（默认 100，最多 200）, cursor? }` → `{ risks: RiskRow[], owners: string[], next_cursor }`；`RiskRow` = 风险字段 + `links` |
 | `risk.get@1` | query | `{ risk_id }` → `{ risk, links, events }` |
 | `risk.subject.read@1` | query | 标准对象读取器（`defineSubjectContextAction`），`open: { surface: "risk", id }` |
 | `risk.search.entries@1` | query | 标准搜索来源，未关闭与已关闭都列，摘要 |
 | `risk.presentation.values@1`、`risk.presentation.overview@1` | query | 15 的呈现取值与概况；概况给未关闭风险数与最该看的几条 |
-| `risk.create@1` | command | `{ title, statement, impact, likelihood, treatment?, owner_name?, links? }` → `{ risk }`；`result_subject` 指向新风险 |
+| `risk.create@1` | command，`concurrent` | `{ title, statement, impact, likelihood, treatment?, owner_name?, links? }` → `{ risk }`；`links` 每个先经对象读取器核对在、读得到；`result_subject` 指向新风险 |
 | `risk.update@1` | command | `{ risk_id, expected_revision, title?, statement?, impact?, likelihood?, treatment?, owner_name? }` → `{ risk }`；版本不对报 `risk.conflict` 附当前内容（页面两边对照，不覆盖）；已关闭报 `risk.closed` |
 | `risk.status.set@1` | command，`concurrent` | `{ risk_id, expected_revision, status, note? }` → `{ risk, review_left? }`；关闭提交后归档这条风险的复查任务（委托 Schedule）；归档没成功时返回 `review_left`，页面提示并可重试（`risk.review.cancel@1`）；重新打开不自动恢复复查 |
 | `risk.links.add@1`／`risk.links.remove@1` | command，`concurrent` | `{ risk_id, subject }` → `{ links }`（加之前用读取器核一次这个对象在、读得到） |
 | `risk.notes.add@1` | command | `{ risk_id, text }` → `{ event }` |
-| `risk.review.get@1` | query，`concurrent` | `{ risk_id }` → `{ state: "ok"\|"unavailable", review }`：委托 Schedule `tasks.list`（按对象 `{ kind: "risk", id }` 筛）；`review` 是这条风险的那一个复查（时间、`scheduled`／`paused`／`done`、focus、上一轮结果或没跑成的原因分开给、这个任务的读取授权计数，平台说不出时为 null），没安排过为 null；项目没启用 Schedule 或调用者够不到它时 `state: "unavailable"`（目录不区分这两种）。实现时改：一条风险只有一个复查，不返回任务列表（见 §9） |
+| `risk.review.get@1` | query，`concurrent` | `{ risk_id }` → `{ state: "ok"\|"unavailable", review }`：委托 Schedule `tasks.list`（按对象 `{ kind: "risk", id }` 筛）；`review` 是这条风险的那一个复查（时间、`scheduled`／`paused`／`done`、focus、上一轮结果或没跑成的原因分开给、这个任务的读取授权计数与 `risk` 组状态，平台说不出时为 null），没安排过为 null；项目没启用 Schedule 或调用者够不到它时 `state: "unavailable"`（目录不区分这两种）。实现时改：一条风险只有一个复查，不返回任务列表（见 §9） |
 | `risk.review.schedule@1` | command，`concurrent` | `{ risk_id, at, focus? }` → `{ review }`：没有复查就新建、有就改到新时间并重新打开（同一个任务，不另建）；Schedule 的一次性对象任务，标题是风险标题、说明是人写的 `focus`（不写时用风险的描述，都是用户的原话，不存译文）、对象是这条风险；已关闭的风险以 `risk.closed` 拒绝，过去的时间以 Schedule 的 `schedule.task_invalid` 拒绝 |
 | `risk.review.enabled@1`、`risk.review.cancel@1` | command，`concurrent` | `{ risk_id, enabled }`／`{ risk_id }`：只动按对象筛出的这条风险的任务（不收 `task_id`，所以碰不到别的任务），再委托 Schedule 暂停／恢复、归档；过了时间的复查恢复被 Schedule 拒绝，要重新安排；没有复查时 cancel 返回 `cancelled: false` |
 
@@ -85,7 +85,7 @@ Manifest：`permissions` 含 `actions:delegate`（转调 Schedule、读取器核
 
 方法 `risk-review`（Skill）：见 §3「助理」。风险插件不登记指令、不声明 Agent。
 
-同步：本批不进个人空间同步（风险是新对象，同步集合与便携格式要单独设计与验收）；记 BL「风险进同步」，主人风险插件。
+同步：本批不进个人空间同步（风险是新对象，同步集合与便携格式要单独设计与验收）；记 [BL-risk-sync](../backlog/BL-risk-sync.md)，主人风险插件。
 
 ### 4.2 Goals：顾虑引用对象
 
@@ -107,7 +107,7 @@ Manifest：`permissions` 含 `actions:delegate`（转调 Schedule、读取器核
 
 ### 4.5 Schedule：一次性的对象任务
 
-- 用词沿用提醒与定时操作的：`schedule.tasks.create@1`／`tasks.update@1` 加 `repeat: "daily" | "none"`（默认 daily）与 `at`（`repeat: "none"` 时必填，date-time）；加可选 `subject: { kind, id }`（这个任务关心的对象）。`tasks.list@1` 加可选输入 `subject` 按对象筛，输出每个任务带 `repeat`、`run_at`、`subject`；给了 `subject` 时另带 `reads`（`ScheduleTaskReads` 的计数：开了几类、已授权、待确认、不可用、已移除，只含列出的任务；平台说不出时不带，不当成「没开」），Schedule 这次请求读一次平台的授权列表，风险一侧不另调；不给 `subject` 时输出不变。不加 `plugin` 受众。
+- 用词沿用提醒与定时操作的：`schedule.tasks.create@1`／`tasks.update@1` 加 `repeat: "daily" | "none"`（默认 daily）与 `at`（`repeat: "none"` 时必填，date-time）；加可选 `subject: { kind, id }`（这个任务关心的对象）。`tasks.list@1` 加可选输入 `subject` 按对象筛，输出每个任务带 `repeat`、`run_at`、`subject`；给了 `subject` 时另带 `reads`（`ScheduleTaskReads` 的计数与每个类别的 provider/group/state：开了几类、已授权、待确认、不可用、已移除，只含列出的任务；平台说不出时不带，不当成「没开」），Schedule 这次请求读一次平台的授权列表，风险一侧不另调；不给 `subject` 时输出不变。不加 `plugin` 受众。
 - 库升一版：任务表加 `repeat`（默认 `daily`）、`run_at`、`subject_kind`、`subject_id`；一次性任务的 `hour`、`minute` 取 `at` 的本地时分（两列仍 NOT NULL，列表显示用），排期只看 `run_at`。升级段只加列；金样存每个旧版本。
 - 同步便携格式 `format.schedule.portable` 逐列校验任务列：加四列并校验（`repeat` 与 `run_at` 成对、对象两列同空同有）；格式版本照 Goals 2026-11-11 加列的先例不升（统一起点后只有登记了升级链的持久格式能高于 1，`initial-versions.mjs`；阶段一在原版本改）。
 - 一次性任务跑完一次就停（不再排期，`enabled` 置否，记录与结果保留）；错过的一次性运行按 `missed-runs.ts` 现行规则记给人看、不补跑，任务随之结束。
@@ -179,3 +179,8 @@ Manifest：`permissions` 含 `actions:delegate`（转调 Schedule、读取器核
    - **风险页面的只读判断**：只有动作的 forbidden 码（`actions.*` 的 403，不含未登录与非本 Home）才把记录变只读；宿主自己的 403（控制令牌、来源）不算。
    - **调用预算许可**：许可只能点名真变大的计数；补了「删掉已采用的许可」与「点名没变大的计数」两种拒绝用例，`tooling/gates/README.md` 写上两份文件的规则。
    - `updateTask` 为找一条任务读全部任务，记 [BL-schedule-update-task-lookup](../backlog/BL-schedule-update-task-lookup.md)。
+10. 合后独立审计整改（2026-11-14，见批次文件 17.md「合后独立审计整改」）：`risk.create` 的关联逐个走读取器；`risk.notes.add` 对已关闭拒绝；`ScheduleTaskReads` 带 provider/group/state，风险页只看自己的 `risk` 组；复查写按风险串行化；页面每页对象格上限 20；总览可从已有关联对象里精确筛选；`concern_opened` 的 `cited_subjects` 改为可选；`risk-review` 方法改用 `risk.list` 的 `keyword`。行为与验收以原需求与 17.md 为准。
+
+11. 合后整修（2026-11-14）：侧栏文档里的插件帧原先没有 `openItem` 宿主，侧栏的「展开成整页」和「去开授权」点了没有动作；补 `molis:side-main-open`（只接受侧栏帧，带发起插件），主区打开同一条风险或 Schedule 任务，`risk-page.e2e` 增展开断言。复查任务被暂停后过了约定时间且从未跑过，原先被算成「已复查」，现为「已暂停」，可改期。无 Goals 时侧栏空闲文案不再提 Goal；关联对象筛选只列已装插件能打开的种类。
+
+12. 方法版本：`method.risk-review` 正文改用 `risk.list` 的 `keyword`／`linked` 查同一件事，版本 1→2（`tooling/versions.json`、`src/methods.ts`）；固定引用按新版本取。

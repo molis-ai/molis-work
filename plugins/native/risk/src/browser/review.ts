@@ -48,8 +48,9 @@ function reads(page: RiskPage, review: RiskReview): string {
   const grants = review.reads;
   const go = page.state.readOnly ? [] : [{ label: text("review.grant"), icon: "key" as const, attrs: { "data-rk-act": "review-grants", "data-rk-value": review.task_id } }];
   if (!grants) return `<p class="rk-muted">${esc(text("review.reads-unknown"))}</p>`;
-  if (!grants.granted) return renderAlert({ tone: "warning", title: text("review.no-reads"), body: text("review.no-reads-body"), actions: go });
-  if (grants.needs_confirmation || grants.removed || grants.unavailable) return renderAlert({ tone: "warning", title: text("review.reads-attention"), body: text("review.reads-attention-body"), actions: go });
+  // The task's other categories do not read the risk: only this plugin's own group does.
+  if (grants.risk === "none" || grants.risk === "removed") return renderAlert({ tone: "warning", title: text("review.no-reads"), body: text("review.no-reads-body"), actions: go });
+  if (grants.risk === "needs_confirmation" || grants.risk === "unavailable") return renderAlert({ tone: "warning", title: text("review.reads-attention"), body: text("review.reads-attention-body"), actions: go });
   return `<p class="rk-muted">${esc(text("review.reads-ok"))}</p>`;
 }
 

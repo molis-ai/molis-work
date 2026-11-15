@@ -47,20 +47,17 @@ export interface RunExecutionContext {
   readonly nowIso: () => string;
 }
 
-export async function executeSampleEvaluationRun(ctx: RunExecutionContext): Promise<{
-  readonly runView: EvaluationRunView;
-  readonly outcomeCounts: Readonly<Partial<Record<ObservationOutcome, number>>>;
+async function collectEvaluationRecords(
+  ctx: RunExecutionContext,
+  client: ActionClient,
+  readNested: ActionCallContext,
+  executionKind: NonNullable<EvaluationRunExecuteInput["execution_kind"]>,
+): Promise<{
+  readonly records: readonly ObservationQueriedRecord[];
+  readonly replayReceipt?: EvaluationReplayReceipt;
+  readonly missingPinnedCount: number;
 }> {
   const { caller, origin, clientFor, sample, input } = ctx;
-  const client = clientFor(caller);
-  const startedMs = Date.now();
-  const executionKind = input.execution_kind ?? "evidence_audit";
-  const readNested = retainActionAuthority(caller, origin);
-
-  let replayReceipt: EvaluationReplayReceipt | undefined;
-  let records: readonly ObservationQueriedRecord[];
-  let missingPinnedCount = 0;
-
   if (executionKind === "isolated_replay") {
     const scenarioId = input.replay_scenario_id ?? sample.sample_id;
     const scenario = ctx.scenarios.get(scenarioId);
@@ -84,7 +81,7 @@ export async function executeSampleEvaluationRun(ctx: RunExecutionContext): Prom
       clientFor,
       runInReplayScope: ctx.runInReplayScope,
     });
-    records = await queryAllObservationRecords(
+    const records = await queryAllObservationRecords(
       client,
       readNested,
       effectiveQueryForSample(sample, {
@@ -93,28 +90,50 @@ export async function executeSampleEvaluationRun(ctx: RunExecutionContext): Prom
         source_classes: ["replay"],
       }),
     );
-    replayReceipt = {
-      replay_id: replayId,
-      source_class: "replay",
-      blocked_external_effects: executed.blockedExternalEffects,
-      replay_record_ids: records.map((r) => r.record_id),
+    return {
+      records,
+      missingPinnedCount: 0,
+      replayReceipt: {
+        replay_id: replayId,
+        source_class: "replay",
+        blocked_external_effects: executed.blockedExternalEffects,
+        replay_record_ids: records.map((r) => r.record_id),
+      },
     };
-  } else {
-    const extra: Partial<ObservationQueryInput> = executionKind === "simulated"
-      ? { include_simulated: true }
-      : sample.query.source_classes === undefined && sample.query.include_simulated === undefined
-        ? { include_simulated: false }
-        : {};
-    const queried = await queryAllObservationRecords(client, readNested, effectiveQueryForSample(sample, extra));
-    if (sample.pinned_record_ids !== undefined) {
-      const pinnedSet = new Set(sample.pinned_record_ids);
-      records = queried.filter((r) => pinnedSet.has(r.record_id));
-      const foundIds = new Set(records.map((r) => r.record_id));
-      missingPinnedCount = Array.from(pinnedSet).filter((id) => !foundIds.has(id)).length;
-    } else {
-      records = queried;
-    }
   }
+
+  const extra: Partial<ObservationQueryInput> = executionKind === "simulated"
+    ? { include_simulated: true }
+    : sample.query.source_classes === undefined && sample.query.include_simulated === undefined
+      ? { include_simulated: false }
+      : {};
+  const queried = await queryAllObservationRecords(client, readNested, effectiveQueryForSample(sample, extra));
+  if (sample.pinned_record_ids === undefined) {
+    return { records: queried, missingPinnedCount: 0 };
+  }
+  const pinnedSet = new Set(sample.pinned_record_ids);
+  const records = queried.filter((r) => pinnedSet.has(r.record_id));
+  const foundIds = new Set(records.map((r) => r.record_id));
+  const missingPinnedCount = Array.from(pinnedSet).filter((id) => !foundIds.has(id)).length;
+  return { records, missingPinnedCount };
+}
+
+export async function executeSampleEvaluationRun(ctx: RunExecutionContext): Promise<{
+  readonly runView: EvaluationRunView;
+  readonly outcomeCounts: Readonly<Partial<Record<ObservationOutcome, number>>>;
+}> {
+  const { caller, origin, clientFor, sample, input } = ctx;
+  const client = clientFor(caller);
+  const startedMs = Date.now();
+  const executionKind = input.execution_kind ?? "evidence_audit";
+  const readNested = retainActionAuthority(caller, origin);
+
+  const { records, replayReceipt, missingPinnedCount } = await collectEvaluationRecords(
+    ctx,
+    client,
+    readNested,
+    executionKind,
+  );
 
   const evidenceByRecord = await fetchObservationEvidenceMap(client, readNested, records);
   const coverage = await readObservationCoverage(client, readNested, sample);

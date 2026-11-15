@@ -154,7 +154,11 @@ export class SkillCatalog {
       if (!skill) throw skillErrors.authored_unknown("这个技能已经不是目录里的当前版本，请刷新后再试");
       try { skill.assertCurrent(); } catch { throw skillErrors.authored_unknown("这个技能已经不是目录里的当前版本，请刷新后再试"); }
       const d = skill.declaration, words = skill.display ?? d;
-      const body = skill.body.replace(/^\uFEFF?---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/u, "").replace(/\r\n?/gu, "\n").trim();
+      // An imported package keeps a frontmatter block before the body; a Skill written in settings is stored as the body itself,
+      // so a leading horizontal rule is content and is not stripped (BL-skill-authoring-b41-followups ②).
+      const authored = skill.pack.plugin_id === SKILL_AUTHORED_PLUGIN_IDS[skill.pack.scope];
+      const body = (authored ? skill.body : skill.body.replace(/^\uFEFF?---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/u, ""))
+        .replace(/\r\n?/gu, "\n").trim();
       return { skill_id: ref.skill_id, version: ref.version, scope: skill.pack.scope, mine: skill.pack.plugin_id === SKILL_AUTHORED_PLUGIN_IDS[skill.pack.scope] && skill.pack.trust === "home_local",
         name: words.name, description: words.description ?? "", applies_to: d.applies_to, body,
         ...(words.when_not_to_use ? { when_not_to_use: words.when_not_to_use } : {}), ...(d.argument_hint ? { argument_hint: d.argument_hint } : {}) };
@@ -165,9 +169,7 @@ export class SkillCatalog {
     return this.withSnapshot(caller, (skills, settings) => {
       const skill = skills.find(item => item.ref.install_id === ref.install_id && item.ref.skill_id === ref.skill_id);
       const round = caller.skill_round;
-      // A resource is its Skill's: reading one is choosing that Skill, so it counts as the body does.
-      const reason = this.refusal(skill, ref, caller, settings.get(settingKey(ref.install_id, ref.skill_id)))
-        ?? (round?.round && !round.named.some(named => isDeepStrictEqual(named, ref)) ? this.pick(skill!, caller, round.round) : undefined);
+      const reason = this.refusal(skill, ref, caller, settings.get(settingKey(ref.install_id, ref.skill_id)));
       if (reason) throw skillErrors.read_refused("这个技能当前不能读取", { reason });
       const resource = skill!.declaration.resources?.find(item => item.path === path);
       if (!resource) throw skillErrors.resource_undeclared("技能没有声明这个附带文件");
@@ -176,6 +178,11 @@ export class SkillCatalog {
       catch { throw skillErrors.read_refused("技能的附带文件无法读取", { reason: "resource_invalid" }); }
       if (bytes.length !== resource.bytes || createHash("sha256").update(bytes).digest("hex") !== resource.sha256)
         throw skillErrors.read_refused("技能的附带文件与声明不符", { reason: "resource_invalid" });
+      // A resource is its Skill's: reading one is choosing that Skill, so it counts as the body does — but only once the
+      // resource itself is known to be readable and unchanged. A refused read never takes one of the round's choices or
+      // writes a use (S-skill-catalog).
+      const chosen = round?.round && !round.named.some(named => isDeepStrictEqual(named, ref)) ? this.pick(skill!, caller, round.round) : undefined;
+      if (chosen) throw skillErrors.read_refused("这个技能当前不能读取", { reason: chosen });
       const encoding = resource.media_type.startsWith("text/") || resource.media_type === "application/json" ? "utf8" : "base64";
       return { ref, ...resource, encoding, content: bytes.toString(encoding) };
     });

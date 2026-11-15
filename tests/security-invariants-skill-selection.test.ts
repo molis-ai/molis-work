@@ -60,6 +60,22 @@ test("SKL-11: a round the person asked to run without automatic Skills reads onl
   });
 });
 
+test("S-skill-catalog: a refused resource read takes no choice and records no use", async () => {
+  const home = await mkdtemp(join(tmpdir(), "skill-selection-resource-"));
+  try {
+    const definitions = homeAgentDefinitions(home), skills = ["a", "b", "c", "d"].map(skillOf), a = skills[0]!;
+    a.declaration.resources = [{ path: "skills/a/references/x.md", role: "reference", media_type: "text/markdown", bytes: 3, sha256: "0".repeat(64) }];
+    for (const skill of skills) definitions.skills.set("project-a", "install", skill.ref.skill_id, "auto", 0, "person");
+    const catalog = new SkillCatalog({ definitions, withSkills: async (_caller, use) => use(skills), resource: () => { throw new Error("the file is missing"); }, publishers: () => new Map() });
+    const round = agent({ consumer: "assistant", named: [], round: "resource-round" });
+    await assert.rejects(catalog.readResource(round, a.ref, "skills/a/references/x.md"),
+      (error: { details?: { reason?: string } }) => error.details?.reason === "resource_invalid");
+    assert.equal(definitions.skills.uses("install", "a").length, 0, "a refused resource read is no use");
+    assert.deepEqual(await outcome(catalog, round, skills[1]!, skills[2]!, skills[3]!), ["ok", "ok", "ok"],
+      "the refused read did not take one of the round's three choices");
+  } finally { await rm(home, { recursive: true, force: true }); }
+});
+
 test("SKL-02: a read that is no round's own (no round number) is neither counted nor recorded", async () => {
   await withCatalog(async (catalog, [a, b, c, d], definitions) => {
     // The freeze of a round's list and the person's preview read with a `skill_round` that carries no number.

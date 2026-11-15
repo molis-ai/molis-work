@@ -101,8 +101,16 @@ test("SKL-41-2-AU-02 removing one of the person's Skills keeps the rest; removin
     await assert.rejects(h.post("remove", { scope: "project", skill_id: a.skill_id, expected_version: 2 }), refused("skills.authored_conflict"));
     // Outside the settings door — the action called directly, even by the person — nothing is removed.
     await assert.rejects(h.client.invoke(h.person, ref(skillAuthoringActions.remove), { scope: "project", skill_id: a.skill_id, expected_version: 1 }), refused("actions.forbidden"));
-    for (const audience of ["agent", "plugin"] as const) {
-      await assert.rejects(h.client.invoke({ ...h.person, audience }, ref(skillAuthoringActions.save), { ...fields("gamma"), scope: "project" }), (error: unknown) => error instanceof ActionError);
+    // Every authored action is the person's alone: no Agent, plugin, workflow or MCP caller can save, remove or draft.
+    for (const audience of ["agent", "plugin", "workflow", "mcp"] as const) {
+      for (const [action, input] of [
+        [skillAuthoringActions.save, { ...fields("gamma"), scope: "project" }],
+        [skillAuthoringActions.remove, { scope: "project", skill_id: a.skill_id, expected_version: 1 }],
+        [skillAuthoringActions.draft, { intent: "帮我写一个技能" }],
+      ] as const) {
+        await assert.rejects(h.client.invoke({ ...h.person, audience }, ref(action), input), (error: unknown) => error instanceof ActionError,
+          `${action.capability_id} must be refused for ${audience}`);
+      }
     }
     assert.equal((await h.mine()).length, 2);
 
@@ -153,6 +161,18 @@ test("SKL-41-2-AU-04 a package of the same id from another publisher is not the 
     await assert.rejects(h.post("remove", { scope: "project", skill_id: "foreign", expected_version: entry.ref.version }), refused("skills.authored_unknown"));
     assert.deepEqual((await h.mine()).map(skill => skill.ref.skill_id), ["foreign"], "nothing was rewritten or taken off");
     assert.equal((await h.installed()).length, 1);
+  } finally { await h.close(); }
+});
+
+test("SKL-41-2-AU-07 reading an authored Skill back keeps a leading horizontal rule as the body's own text", mac, async () => {
+  const h = await harness();
+  try {
+    const saved = await h.post<SkillAuthoredSaveResult>("save", { ...fields("横线开头", { body: "---\n\n# 正文\n" }), scope: "project" });
+    const [entry] = await h.mine();
+    assert.ok(entry);
+    const read = await h.source(entry);
+    assert.equal(saved.skill_id, read.skill_id);
+    assert.equal(read.body, "---\n\n# 正文", "the authored body is not treated as frontmatter");
   } finally { await h.close(); }
 });
 

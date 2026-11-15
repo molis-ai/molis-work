@@ -12,7 +12,7 @@
 4. **归档**：已完成、已被取代或只等用户验收的历史 spec；按开头判定读，剩余事项看它指向的待办。
 5. **相关族**：同一产品方向下暂未合并的 spec，先看文末「相关 spec 族」，不要当重复需求。
 
-截至 2026-11-13：53 个在做的、11 个现行规范、386 个归档目录、514 条待办。
+截至 2026-11-13：53 个在做的、11 个现行规范、386 个归档目录；待办条数以 `backlog-index` 现算为准。
 
 ## 在做的
 
@@ -27,7 +27,7 @@
 
 - [state-machine-platform](state-machine-platform/spec.md)：状态与状态机的平台能力——平台能力状态统一登记、插件声明状态与迁移、启动兑现、只读登记、统一家族显示、可选的插件自管流水账；内置先强制、第三方先提示、对外开放后的阶段二第三方也强制，创作台生成必须申报，公开家族照搬现有 21 类。2026-11-08 需求已整理、用户就十二项方向拍板，并确认按 §13 并入路线书 26-7／27-6／47-2／48-5、迁移进统一待办；尚未实现。
 
-- [plugin-equal-standing](plugin-equal-standing/spec.md)：插件同等地位收口——Goals 减负（项目指导、可信决定、规划方法搬出，平台合同去掉 Goal 一等概念，宿主与工作台去私路，Goals 可移除），并清掉 Feed、Coding、Inbox、Todo、Pages、灵光、Images 在平台里被点名的地方；只保留此前定过的平台部件（Shelf、成果库、Sessions、创作台、Alchemist、Characters）。2026-11-13 需求已整理、用户已拍板 D1～D8（新项目不默认装 Goals，删桌面胶囊、CLI 的 Goals 命令与 `goal-advance` Skill；要求—证据—认可与工作终端抽成平台能力），排期为路线书第 44 批（原 44～89 顺延为 45～90；可信决定并进 39、规划方法并进 41），并含对路线书后续批次与已合入代码的复查（§9a）；尚未实现。
+- [plugin-equal-standing](plugin-equal-standing/spec.md)：插件同等地位收口——Goals 减负（项目指导、可信决定、规划方法搬出，平台合同去掉 Goal 一等概念，宿主与工作台去私路，Goals 可移除），并清掉 Feed、Coding、Inbox、Todo、Pages、灵光、Images 在平台里被点名的地方；只保留此前定过的平台部件（Shelf、成果库、Sessions、创作台、Alchemist、Characters）。2026-11-13 需求已整理、用户已拍板 D1～D8（新项目不默认装 Goals，删桌面胶囊、CLI 的 Goals 命令与 `goal-advance` Skill；要求—证据—认可与工作终端抽成平台能力），排期为路线书第 44 批（原 44～89 顺延为 45～90；可信决定并进 39、规划方法并进 41），并含对路线书后续批次与已合入代码的复查（§9a）；片 4 已随第 41 批 #2078 完成，其余尚未实现。
 
 - [unified-account](unified-account/spec.md)：WORK-01 至 WORK-09 的本地隔离实现与 V2 账号统一已完成，并随 [#2013](https://github.com/molis-ai/molis-work/pull/2013)、[#2021](https://github.com/molis-ai/molis-work/pull/2021)、[#2025](https://github.com/molis-ai/molis-work/pull/2025) 合入 main（2026-11-11；合入提交 `ef06fed603`、`93eb5590ac`、`4d025ff4c6`）；真实存量迁移、外部服务与最终全量回归仍待补验。
 

@@ -22,7 +22,8 @@ const ds = await load('packages/design-system/dist/index.js');
 // 组件板的文字走 t()（第 16 批起）：页面之外画它，先装上工作台自己的中文词表。
 const uiText = await load('packages/plugin-sdk/dist/ui.js');
 const localeFile = resolve(repo, 'apps/workbench/resources/locales/zh.json');
-const pack = uiText.parseLocalePack(await readFile(localeFile, 'utf8'), { file: localeFile });
+const words = await readFile(localeFile, 'utf8');
+const pack = uiText.parseLocalePack(words, { file: localeFile });
 if (!pack.ok) throw new Error(`读不了 ${localeFile}`);
 const restoreText = uiText.installTextForTest({ locale: 'zh', packs: [pack.value] });
 const page = catalog.renderMolisWorkPrimitiveCatalog();

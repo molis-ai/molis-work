@@ -38,7 +38,7 @@ import { contextOnboardingProvider } from "./context-onboarding-actions.js";
 import { agentReviewProvider } from "./agent-review-http.js";
 import { assistantPanelProvider } from "./assistant/assistant-http.js";
 import { ActionCallLog } from "./action-call-log.js";
-import { createHostObservation, type HostObservation } from "./observation-host.js";
+import { createHostObservation, hostObservationPorts, type HostObservation } from "./observation-host.js";
 import { connectorAccountActionProvider } from "./connector-account-actions.js";
 import { HomeConsentLedger } from "./home-plugin-store.js";
 import { pluginConsentProvider } from "./installed-plugin-consent-actions.js";
@@ -254,7 +254,7 @@ export class MolisWorkLocalHost {
         close: (runtime, reference) => closeProjectRuntime(runtime, () => options.onRuntimeClose?.(reference), () => closeProjectSchedulers(this, runtime, reference), () => this.homePlugins?.stopProjectJobs(runtime.project_id)),
       },
     });
-    if (options.homeDirectory) this.observation = createHostObservation(options.homeDirectory);
+    if (options.homeDirectory) this.observation = createHostObservation(options.homeDirectory, hostObservationPorts(options.homeDirectory, this, this.host, () => this.catalogRunner));
     this.synchronization = projectSyncAccess(this.host);
     this.surfaceHome = projectSurfaceHome(this.host, this, options.homeDirectory, readCatalog);
     const position = projectSurfaceContext(this.host, this, options.homeDirectory, readCatalog);

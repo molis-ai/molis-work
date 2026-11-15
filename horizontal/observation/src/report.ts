@@ -37,6 +37,14 @@ export function handleReport(options: ReportOptions, caller: ActionCallContext, 
   const { owner, reporter } = reporterOf(caller, options.shellEntry);
   const bytes = contentBytes(input);
   if (bytes > OBSERVATION_LIMITS.report_content_bytes) throw observationErrors.report_too_large("这次上报的内容超过 1 MiB，请分几次上报");
+  // While paused, drop without consuming the reporter's daily quota or writing a `lost` stretch (§16.3.6). Ownership errors still report.
+  if (options.writer.isPaused()) {
+    const rejected: { index: number; code: string }[] = [];
+    input.facts.forEach((fact, index) => {
+      if (!factOwned(owner, fact.fact)) rejected.push({ index, code: "observation.fact_not_owned" });
+    });
+    return { accepted: 0, rejected };
+  }
   const quotaKey = { owner: ownerName(owner), fact: "observation.report", entry: entryOf(caller), project_id: "" };
   if (!options.writer.admit(reporter, quotaKey, input.facts.length, bytes)) throw observationErrors.report_quota_exceeded("今天的上报已达上限，明天再记");
   const rejected: { index: number; code: string }[] = [];

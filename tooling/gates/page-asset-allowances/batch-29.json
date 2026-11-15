@@ -1,0 +1,68 @@
+{
+  "reason": "第 29 批历史查询与记录管理：「设置 › 工作记录」四个页签与手动清理对话框（apps/workbench/src/browser/work-records/）拆为单独按需资源 /assets/molis-work-work-records.js（47,283 B，gzip 14,627 B，仅打开该设置节时加载；内含组件板种类色标记与分类条部件及本页样式），共用样式表零增长；工作台脚本仅含 441 B 加载器、全局搜索定位修复与离页队列循环排空修复（+586 B），项目选择搜索脚本共享定位修复（+130 B）；约 115 条中英文稳定键（含 11 条英文单复数形式 FSS-39）进入工作台启动词包，词包内容寻址路径更新。同步 main f1512d52cf 后按独立构建实测首屏冷轮各页 +4,606～5,674 B、热轮 0～383 B。",
+  "review": "batch/29（第 29 批历史查询与记录管理），定样依据 docs/design/work-records/README.md，组件板标本已过 D 轨合审。",
+  "userApproval": "用户 2026-11-14 在第 29 批主会话弹窗里选推荐方案放行：新增按需资源 /assets/molis-work-work-records.js（仅打开「设置 › 工作记录」时加载）及工作台启动词包内容寻址入口更新（首屏各页冷轮 +4.4～5.7 KB、热轮 ≤383 B；补齐英文单复数形式 FSS-39 并同步 main f1512d52cf 后英文冷轮 +4,606～5,574 B，仍在同一已批 4.4～5.7 KB 区间内且低于中文冷轮，按实测登记）。",
+  "assets": {
+    "/assets/molis-work-work-records.js": 47283,
+    "/assets/molis-work-workbench.js": 586,
+    "/assets/molis-work-chooser-search.js": 130
+  },
+  "entryApprovals": [
+    {
+      "pages": [
+        "arrival-empty",
+        "chooser",
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "zh",
+      "entry": "/assets/locale/workbench.zh.<digest>.js",
+      "change": "new"
+    },
+    {
+      "pages": [
+        "arrival-empty",
+        "chooser",
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "en",
+      "entry": "/assets/locale/workbench.en.<digest>.js",
+      "change": "new"
+    }
+  ],
+  "pages": {
+    "arrival-empty/zh": {
+      "cold": 4705,
+      "warm": 0
+    },
+    "arrival-empty/en": {
+      "cold": 4606,
+      "warm": 0
+    },
+    "chooser/zh": {
+      "cold": 4705,
+      "warm": 0
+    },
+    "chooser/en": {
+      "cold": 4606,
+      "warm": 0
+    },
+    "workbench-default/zh": {
+      "cold": 5674,
+      "warm": 383
+    },
+    "workbench-default/en": {
+      "cold": 5574,
+      "warm": 383
+    },
+    "workbench-all-plugins/zh": {
+      "cold": 5674,
+      "warm": 383
+    },
+    "workbench-all-plugins/en": {
+      "cold": 5574,
+      "warm": 383
+    }
+  }
+}

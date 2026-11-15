@@ -4,9 +4,9 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
+import { AgentHost, AgentReviewQueue, PrologueAgentAdapter, createPrologueNodeAdapter, type PrologueEvent, type PrologueRuntimePort } from "@molis-ai/molis-work-service-agent-host";
 import { codingAgentManifest, codingPrompts } from "@molis-ai/molis-work-plugin-coding";
-import type { AgentRunHandle, AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentRunHandle, AgentRunView, AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ObservationRecorder } from "@molis-ai/molis-work-contracts/services/observation";
 import { ObservationLayer, observationKeys, readRecords, snapshotText } from "@molis-ai/molis-work-service-observation";
@@ -191,4 +191,80 @@ test("OCL-01 OCL-05 OCL-09: a subagent's start, end and every request it sent ar
     assert.equal(ref?.kind === "snapshot" ? snapshotText(db, keys, ref.digest) : undefined, childBodies[index], "what was kept is what the model received");
   }
   assert.ok(parent.filter(record => record.fact === "agent.model_request").every(record => record.detail.parent_run_id === undefined), "the round's own requests name no parent");
+});
+
+test("OCL-01 OCL-05: a nested grandchild subagent's model request routes along its lineage to the nearest followed ancestor round", async t => {
+  const secrets = new Map<string, string>(), home = await mkdtemp(join(tmpdir(), "observation-grandchild-"));
+  const keys = observationKeys({ get: key => secrets.get(key) ?? null, createIfAbsent: (key, value) => { if (secrets.has(key)) return false; secrets.set(key, value); return true; } }, () => false);
+  const layer = new ObservationLayer({ home, env: { platformVersion: "0.test", now: () => new Date(), projectClass: () => "user" }, keys: () => keys, flushDelayMs: 5 });
+  t.after(async () => { layer.close(); await rm(home, { recursive: true, force: true }); });
+
+  type RequestListener = NonNullable<Parameters<NonNullable<PrologueRuntimePort["listenModelRequests"]>>[0]>;
+  let onModelRequest: RequestListener | undefined;
+  const runListeners = new Set<(event: PrologueEvent) => void>();
+  const runtime: PrologueRuntimePort = {
+    sessions: { create: async () => ({ ref: { id: "session-parent" } }) },
+    listenModelRequests(listen) { onModelRequest = listen; return () => { onModelRequest = undefined; }; },
+    async startAgentRun() {
+      return {
+        run: { ref: { id: "run-parent" }, subscribe(listener) { runListeners.add(listener); return () => runListeners.delete(listener); }, async cancel() {} },
+        control: { state: "running", stop() {}, pause() {}, resume() {}, async steer() { return { steerId: "s1", replayed: false }; }, subscribe() { return () => {}; } },
+      };
+    },
+    async shutdown() { return {}; },
+  };
+  const adapter = new PrologueAgentAdapter({
+    runtime,
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }),
+    observeRun: start => layer.sink("agent").bind({
+      kind: "background", entry: "agent", actor_id: start.owner.actor_id,
+      project_id: start.owner.project_id, install_id: start.owner.install_id,
+      ...(start.call_id ? { call_id: start.call_id } : {}),
+    }),
+  });
+  await adapter.createSession({ ...owner, directory: { canonical_path: "/tmp/ws", realpath_verified: true }, title: "Nested lineage" });
+  await adapter.start({
+    ...owner, session: { session_id: "session-parent", runtime_id: "prologue" },
+    directory: { canonical_path: "/tmp/ws", realpath_verified: true },
+    role_id: "reader", task: "Coordinate two levels",
+    role: { role_id: "reader", version: 1, execution: "read-only", host_tools: [], prompts: [{ prompt_id: "p", version: 1, body: "Read." }] },
+  } as AgentStartRequest, { call_id: "call-nested-1" });
+  assert.ok(onModelRequest);
+
+  const grandchildBody = JSON.stringify({ model: "fixture", messages: [{ role: "user", content: "GRANDCHILD_TASK_BODY" }] });
+  onModelRequest({
+    sessionId: "session-grandchild",
+    runId: "run-grandchild",
+    callId: "mc-grandchild-1",
+    protocol: "anthropic-compatible",
+    model: "fixture",
+    status: "response-observed",
+    body: new TextEncoder().encode(grandchildBody),
+    attachments: 0,
+  } as never, () => ["run-child", "run-parent"]);
+
+  // An unrelated run with no followed ancestor in the store leaves nothing.
+  onModelRequest({
+    sessionId: "session-stranger",
+    runId: "run-stranger",
+    callId: "mc-stranger-1",
+    protocol: "anthropic-compatible",
+    model: "fixture",
+    status: "response-observed",
+    body: new TextEncoder().encode('{"stranger":true}'),
+    attachments: 0,
+  } as never, () => ["run-unfollowed"]);
+
+  layer.flush();
+  const db = layer.writer.database()!.db;
+  const grandchildRecords = readRecords(db, { run_id: "run-grandchild" });
+  assert.equal(grandchildRecords.length, 1, "recorded under the grandchild's own run_id via the nearest followed ancestor");
+  const [req] = grandchildRecords;
+  assert.deepEqual(
+    [req!.fact, req!.project_id, req!.install_id, req!.work.call_id, req!.work.run_id, req!.detail.parent_run_id, req!.subjects],
+    ["agent.model_request", project, owner.install_id, "call-nested-1", "run-grandchild", "run-child", [{ kind: "agent_session", id: "session-grandchild" }]],
+  );
+  const snap = req!.evidence.find(item => item.role === "request")?.ref;
+  assert.equal(snap?.kind === "snapshot" ? snapshotText(db, keys, snap.digest) : undefined, grandchildBody);
+  assert.deepEqual(readRecords(db, { run_id: "run-stranger" }), [], "unfollowed lineage records nothing");
 });

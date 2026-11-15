@@ -1,5 +1,5 @@
 import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
-import type { SkillCatalogEntry, SkillPick, SkillState } from "@molis-ai/molis-work-contracts/services/skills";
+import type { SkillCatalogEntry, SkillPick, SkillPickConsumer, SkillState } from "@molis-ai/molis-work-contracts/services/skills";
 import { renderSkillWhy, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 /**
@@ -9,7 +9,7 @@ import { renderSkillWhy, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui"
  */
 export interface SkillPickRequest {
   reply: string;
-  consumer: "assistant" | "coding";
+  consumer: SkillPickConsumer;
   picks: SkillPick[];
   index: number | null;
   box: { x: number; y: number; width: number; height: number };

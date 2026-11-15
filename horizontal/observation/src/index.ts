@@ -1,7 +1,7 @@
-// The package's public entries. Host assembly uses these; the read-back functions are exported for the observation tests only
-// until batch 29 turns them into read actions with their own audience rules (contract-design §1).
+// The package's public entries. Host assembly uses `ObservationLayer` and its nine registered actions; the low-level read-back
+// functions remain available for direct storage tests (contract-design §1, §16).
 export { OBSERVATION_HOME_STORE } from "./schema.js";
-export { withObservationSource, currentObservationSource, type ObservationScopeClass } from "./source-scope.js";
+export { withObservationSource, currentObservationSource } from "./source-scope.js";
 export { observationKeys, OBSERVATION_EVIDENCE_KEY_REF, OBSERVATION_DIGEST_KEY_REF } from "./keys.js";
 export { type ObservationEnvironment } from "./records.js";
 export { type ExitAction, type ExitObservation } from "./exit.js";

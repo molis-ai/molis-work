@@ -10,7 +10,7 @@
 - 做完一条就删掉对应条目文件，在提交说明里写编号。不改编号，不复用编号。
 - 只抽取与归并，不重新设计需求。几处说法冲突的，列在「待你决定」。
 
-新增条目使用 `BL-<语义名称>.md`，不争抢连续编号；旧编号不改、不复用。每个文件保留分组和原来的八列信息。统一查看：`node scripts/backlog-index.mjs`（摘要、分组计数、`--group/--type/--priority/--owner/--list` 筛选）或 `node scripts/gates/backlog-rows.mjs --report`（原始逐条）；不提交重复汇总表。以下各节保留分组说明，正文都在独立条目里。当前 514 条；计数由 `backlog-index` 现算。已删除、已并入或只在分支的历史编号见 [REMOVED.md](../docs/backlog-removed.md)。
+新增条目使用 `BL-<语义名称>.md`，不争抢连续编号；旧编号不改、不复用。每个文件保留分组和原来的八列信息。统一查看：`node scripts/backlog-index.mjs`（摘要、分组计数、`--group/--type/--priority/--owner/--list` 筛选）或 `node scripts/gates/backlog-rows.mjs --report`（原始逐条）；不提交重复汇总表。以下各节保留分组说明，正文都在独立条目里。条数以 `backlog-index` 现算为准。已删除、已并入或只在分支的历史编号见 [REMOVED.md](../docs/backlog-removed.md)。
 
 类型：**待你验收**（做完了、等用户本人试用）、**待你决定**（要用户拍板）、**未实现**、**部分实现**、**明确后续做**（原 spec 写明了留到以后）、**已知缺口**（实现里如实标注的限制）。
 
@@ -18,7 +18,7 @@
 
 ## 1. 待你验收
 
-按[第 01 批本人试用单](post-anticorruption-roadmap/reference/acceptance-01.md)逐项试：已有实现与前置条件分别写明。BL-010／013 尚待对应实现，BL-929 的真实 Home 已重建、待你试；BL-001 已委托，BL-017 已接受已有验证、个人账号路径未实测。第 16 批外观/首屏/组件板本人验收见 [BL-b16-appearance-acceptance](backlog/BL-b16-appearance-acceptance.md)；第 19 批 Work Brief 本人验收见 [BL-b19-work-brief-acceptance](backlog/BL-b19-work-brief-acceptance.md)；第 33 批 Coding 与材料恢复闭环本人验收见 [BL-batch33-acceptance](backlog/BL-batch33-acceptance.md)。不要把本节整体当作可立即验收或已获认可。
+按[第 01 批本人试用单](post-anticorruption-roadmap/reference/acceptance-01.md)逐项试：已有实现与前置条件分别写明。BL-010／013 尚待对应实现，BL-929 的真实 Home 已重建、待你试；BL-001 已委托，BL-017 已接受已有验证、个人账号路径未实测。第 16 批外观/首屏/组件板本人验收见 [BL-b16-appearance-acceptance](backlog/BL-b16-appearance-acceptance.md)；第 19 批 Work Brief 本人验收见 [BL-b19-work-brief-acceptance](backlog/BL-b19-work-brief-acceptance.md)；第 41 批 Skill 选用与自写技能见 [BL-b41-acceptance](backlog/BL-b41-acceptance.md)；第 33 批 Coding 与材料恢复闭环本人验收见 [BL-batch33-acceptance](backlog/BL-batch33-acceptance.md)。不要把本节整体当作可立即验收或已获认可。
 
 
 ## 2. 待你决定

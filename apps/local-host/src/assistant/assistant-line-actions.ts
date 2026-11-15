@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { bindActionHandler, defineBackgroundTasksAction, inputSchemaFor, defineTaskServesAction, defineWorkEventsAction, withinWorkEventWindow, assertWorkEventWindow,
   type ActionDefinition, type ActionHandlerBinding, type ActionSubject, type BackgroundTask, type BackgroundTaskCollection, type BackgroundTaskDecision, type OpenTarget,
   type TaskServesBindInput, type TaskServesInput, type TaskServesResult, type WorkEvent, type WorkEventCollection, type WorkEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -23,7 +24,8 @@ import type { AssistantStore, StoredWork } from "./assistant-store.js";
  */
 const PROVIDER = "io.molis.work.assistant.rules";
 export const ASSISTANT_WORK_KIND = "assistant_work";
-const SOURCE = { surface: "assistant", title: "助理", icon: "assistant" } as const;
+/** Who registered the Assistant's events and tasks, named in the reader's language. */
+const sourceNamed = () => ({ surface: "assistant", title: uiText.text("workbench.assistant-line.assistant"), icon: "assistant" }) as const;
 const own = <I, O>(definition: ActionDefinition<I, O>): ActionDefinition<I, O> => ({ ...definition, provider_id: PROVIDER });
 interface AssistantStopInput { work_id: string }
 interface AssistantDecideInput { work_id: string; review_id: string; decision: "approve" | "reject"; note?: string }
@@ -97,16 +99,16 @@ const UNDER_WAY: readonly AssistantWorkState[] = ["running", "waiting-input", "w
 const WAITS_ON_PERSON: readonly AssistantWorkState[] = ["waiting-input", "waiting-review", "needs-check"];
 const RING: Readonly<Record<AssistantWorkState, StateRingState>> = { idle: "idle", running: "running", "waiting-input": "answer", "waiting-review": "approval", paused: "paused",
   completed: "done", failed: "failed", stopped: "stopped", "needs-check": "verify" };
-/** The state as one phrase; the page has a translation for each. */
-const WORDS: Readonly<Record<AssistantWorkState, string>> = { idle: "还没开始", running: "正在办", "waiting-input": "等你回答", "waiting-review": "等你确认", paused: "已暂停",
-  completed: "办完了", failed: "没有办成", stopped: "已停止", "needs-check": "需要你核对" };
+/** The state as one phrase, said in the reader's language when the line or the table is read (not kept). */
+const words = (state: AssistantWorkState) => uiText.text(`workbench.assistant-line.state-${state}`);
+const nameOf = (work: StoredWork) => work.title || uiText.text("workbench.assistant-line.untitled");
 /** How many ended works the line is told of at most; what is under way is always told. */
 const ENDED_SHOWN = 20;
 
 const subjectOf = (work: StoredWork): ActionSubject => ({ kind: ASSISTANT_WORK_KIND, id: work.work_id });
 /** A work as the object its requirements hang on (`modules/acceptance`): the name its task row carries on the page. */
 export const acceptanceSubjectOf = (work: StoredWork): { provider_id: string; subject: ActionSubject } => ({ provider_id: PROVIDER, subject: subjectOf(work) });
-const openOf = (work: StoredWork): OpenTarget => ({ kind: "item", surface: SOURCE.surface, id: work.work_id, title: work.title || "助理工作", label: "打开" });
+const openOf = (work: StoredWork): OpenTarget => ({ kind: "item", surface: "assistant", id: work.work_id, title: nameOf(work), label: uiText.text("workbench.assistant-line.open") });
 /** A work that is an event on the line in its own right: one the person started for one thing (not said about another event), or a background task registered as one. */
 const isEvent = (work: StoredWork) => !work.main && !work.reply_target && (work.delegated_by ? work.line_event === true : !work.serves?.length);
 /** A work that can be a row of the task table: anything but the conversation itself and a reply into someone's thread. */
@@ -121,7 +123,7 @@ const servesOf = (work: StoredWork): ActionSubject[] => isEvent(work) ? [subject
 
 export function assistantWorkEvents(works: ReadonlyArray<{ work: StoredWork; state: AssistantWorkState }>, window: WorkEventWindow): WorkEvent[] {
   const events = works.filter(({ work }) => isEvent(work)).map(({ work, state }): WorkEvent & { under_way: boolean } => ({
-    event_id: work.work_id, subject: subjectOf(work), title: work.title || "助理工作", summary: WORDS[state], content: "", facts: [], category: "personal",
+    event_id: work.work_id, subject: subjectOf(work), title: nameOf(work), summary: words(state), content: "", facts: [], category: "personal",
     placement: UNDER_WAY.includes(state) ? "active" : "occurred", occurred_at: work.updated_at, state: RING[state],
     // What waits on the person is said by the task table's row for the same work, so the line counts it once.
     needs_attention: false, open: openOf(work), under_way: UNDER_WAY.includes(state) }));
@@ -132,24 +134,25 @@ export function assistantWorkEvents(works: ReadonlyArray<{ work: StoredWork; sta
 
 /** The held effects of a work as what its row asks (WLN-10): one decision an effect, by the review's own id, so an answer reaches that effect only. */
 function decisionsOf(work: StoredWork, reviews: readonly AssistantPendingReview[]): BackgroundTaskDecision[] {
-  const action = { capability_id: ASSISTANT_LINE_ACTIONS.decide.capability_id, version: ASSISTANT_LINE_ACTIONS.decide.version }, name = work.title || "助理工作";
+  const action = { capability_id: ASSISTANT_LINE_ACTIONS.decide.capability_id, version: ASSISTANT_LINE_ACTIONS.decide.version }, name = nameOf(work);
   return reviews.slice(0, 10).map(review => {
-    const input = (decision: "approve" | "reject") => ({ work_id: work.work_id, review_id: review.review_id, decision }), what = review.summary.slice(0, 200) || "这一步操作";
-    return { id: review.review_id, ask: review.summary.slice(0, 1000) || "要你确认的一步操作", why: "这一步会改动内容，照你的设置先问你",
-      changes: review.fields.slice(0, 20).map(field => ({ label: field.label.slice(0, 200) || "内容", value: field.value.slice(0, 2000) })),
-      answers: [{ role: "approve", action, input: input("approve"), summary: `同意「${name}」里的这一步：${what}` },
-        { role: "revise", action, input: input("reject"), summary: `不照这样做「${name}」里的这一步，按你说的改：${what}` },
-        { role: "reject", action, input: input("reject"), summary: `拒绝「${name}」里的这一步：${what}` }] };
+    const input = (decision: "approve" | "reject") => ({ work_id: work.work_id, review_id: review.review_id, decision });
+    const said = { name, what: review.summary.slice(0, 200) || uiText.text("workbench.assistant-line.this-step") };
+    return { id: review.review_id, ask: review.summary.slice(0, 1000) || uiText.text("workbench.assistant-line.step-to-approve"), why: uiText.text("workbench.assistant-line.why-ask"),
+      changes: review.fields.slice(0, 20).map(field => ({ label: field.label.slice(0, 200) || uiText.text("workbench.assistant-line.content"), value: field.value.slice(0, 2000) })),
+      answers: [{ role: "approve", action, input: input("approve"), summary: uiText.text("workbench.assistant-line.approve-step", said) },
+        { role: "revise", action, input: input("reject"), summary: uiText.text("workbench.assistant-line.revise-step", said) },
+        { role: "reject", action, input: input("reject"), summary: uiText.text("workbench.assistant-line.reject-step", said) }] };
   });
 }
 
 export function assistantBackgroundTasks(works: ReadonlyArray<{ work: StoredWork; state: AssistantWorkState; reviews?: readonly AssistantPendingReview[] }>): BackgroundTask[] {
   return works.filter(({ work, state }) => isTask(work) && UNDER_WAY.includes(state)).map(({ work, state, reviews }): BackgroundTask => ({
-    subject: subjectOf(work), title: work.title || "助理工作", state: RING[state], step: { text: WORDS[state] }, details: [], waiting: WAITS_ON_PERSON.includes(state),
+    subject: subjectOf(work), title: nameOf(work), state: RING[state], step: { text: words(state) }, details: [], waiting: WAITS_ON_PERSON.includes(state),
     started_at: work.created_at, updated_at: work.updated_at,
-    executor: work.executor.kind === "plugin" ? { kind: "plugin", label: work.executor.title } : work.character ? { kind: "character", label: work.character.title } : { kind: "assistant", label: "助理" },
+    executor: work.executor.kind === "plugin" ? { kind: "plugin", label: work.executor.title } : work.character ? { kind: "character", label: work.character.title } : { kind: "assistant", label: uiText.text("workbench.assistant-line.assistant") },
     serves: servesOf(work), scope: "project",
-    commands: state === "paused" ? [] : [{ role: "stop", action: { capability_id: ASSISTANT_LINE_ACTIONS.stop.capability_id, version: ASSISTANT_LINE_ACTIONS.stop.version }, input: { work_id: work.work_id }, summary: `停止「${work.title || "助理工作"}」` }],
+    commands: state === "paused" ? [] : [{ role: "stop", action: { capability_id: ASSISTANT_LINE_ACTIONS.stop.capability_id, version: ASSISTANT_LINE_ACTIONS.stop.version }, input: { work_id: work.work_id }, summary: uiText.text("workbench.assistant-line.stop-work", { title: nameOf(work) }) }],
     decisions: decisionsOf(work, reviews ?? []), open: openOf(work) }));
 }
 
@@ -175,9 +178,9 @@ export function assistantLineRegistration(source: () => AssistantLineSource): { 
   return { definitions, handlers: [
     bindActionHandler(A.events, async (window, caller): Promise<WorkEventCollection> => {
       assertWorkEventWindow(window);
-      return { source: { ...SOURCE }, events: assistantWorkEvents(await source().works(project(caller)), window) };
+      return { source: sourceNamed(), events: assistantWorkEvents(await source().works(project(caller)), window) };
     }),
-    bindActionHandler(A.tasks, async (_input, caller): Promise<BackgroundTaskCollection> => ({ source: { ...SOURCE }, tasks: assistantBackgroundTasks(await source().works(project(caller))) })),
+    bindActionHandler(A.tasks, async (_input, caller): Promise<BackgroundTaskCollection> => ({ source: sourceNamed(), tasks: assistantBackgroundTasks(await source().works(project(caller))) })),
     bindActionHandler(A.stop, async (input, caller) => {
       const work = await task(caller, { kind: ASSISTANT_WORK_KIND, id: input.work_id });
       await caller.beforeEffect(); caller.signal?.throwIfAborted();

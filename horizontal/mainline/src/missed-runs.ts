@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { RUN_DECISION_INPUT_TYPE, RUN_DECISION_OUTPUT_TYPE, RUNS_OVERVIEW_INPUT_TYPE, RUNS_OVERVIEW_OUTPUT_TYPE, type ActionReference, type ActionView, type RunsWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 import { isHomeAggregateQuery } from "@molis-ai/molis-work-plugin-sdk";
 
@@ -29,10 +30,10 @@ export function missedRunTasks(output: unknown, decide: Required<ActionReference
   const answer = (role: "approve" | "reject", run: unknown, decision: "run_now" | "skip", summary: string) =>
     ({ role, action: { capability_id: decide!.capability_id, version: decide!.version }, input: { run_id: run, decision }, summary });
   return { source: { surface: output.source.surface, title: owner, icon: "clock" }, tasks: output.missed.filter(record).map(run => ({
-    subject: { kind: MISSED_RUN_KIND, id: run.run_id }, title: run.title, state: "answer", waiting: true, updated_at: run.missed_at, step: { text: "错过了，没有运行" }, details: [],
+    subject: { kind: MISSED_RUN_KIND, id: run.run_id }, title: run.title, state: "answer", waiting: true, updated_at: run.missed_at, step: { text: uiText.text("workbench.mainline.missed-step") }, details: [],
     executor: { kind: "plugin", label: owner }, serves: [], scope: "project", commands: [],
-    decisions: decide ? [{ id: "missed", ask: "这一次到点时没有运行，现在补做一次吗？", changes: [],
-      answers: [answer("approve", run.run_id, "run_now", "现在做一次"), answer("reject", run.run_id, "skip", "跳过这一次")] }] : [],
-    open: record(run.open) ? { kind: "item", surface: run.open.surface, id: run.open.id, title: run.title, label: "打开" } : null,
+    decisions: decide ? [{ id: "missed", ask: uiText.text("workbench.mainline.missed-ask"), changes: [],
+      answers: [answer("approve", run.run_id, "run_now", uiText.text("workbench.mainline.run-now")), answer("reject", run.run_id, "skip", uiText.text("workbench.mainline.skip-once"))] }] : [],
+    open: record(run.open) ? { kind: "item", surface: run.open.surface, id: run.open.id, title: run.title, label: uiText.text("workbench.mainline.open") } : null,
   })) };
 }

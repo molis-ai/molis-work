@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { isDeepStrictEqual } from "node:util";
 import { ActionError, BACKGROUND_TASKS_OUTPUT_TYPE, TASK_SERVES_RELATION, WORK_EVENTS_INPUT_TYPE, WORK_EVENTS_OUTPUT_TYPE, assertWorkEventWindow, resolveActionSubject, type ActionCallContext, type ActionClient, type ActionReference,
   type ActionSubject, type ActionView, type BackgroundTask, type BackgroundTaskAnswer, type BackgroundTaskCollection, type BackgroundTaskCommand, type BackgroundTaskDecision, type BackgroundTaskPhrase, type OpenTarget, type TaskServesRole, type WorkEvent,
@@ -313,5 +314,5 @@ export async function placeTask(caller: ActionCallContext, client: ActionClient,
 export async function openObject(caller: ActionCallContext, client: ActionClient, request: ObjectOpenRequest): Promise<ObjectOpenResult> {
   const { context } = await resolveActionSubject(client, caller, request.subject);
   const title = context.title.trim().slice(0, 1000) || request.subject.id.slice(0, 1000);
-  return { subject: context.subject, title, target: context.open ? { kind: "item", surface: context.open.surface, id: context.open.id, title, label: "打开" } : null };
+  return { subject: context.subject, title, target: context.open ? { kind: "item", surface: context.open.surface, id: context.open.id, title, label: uiText.text("workbench.mainline.open") } : null };
 }

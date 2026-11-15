@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ASSISTANT_LINE_ACTIONS, ASSISTANT_TASK_TABLE_ACTION, ASSISTANT_WORK_KIND, assistantLineRegistration, type AssistantLineSource } from "@molis-ai/molis-work-app-local-host";
+import { ASSISTANT_LINE_ACTIONS, ASSISTANT_TASK_TABLE_ACTION, ASSISTANT_WORK_KIND, assistantLineRegistration, installHostUiText, runWithLocale, type AssistantLineSource } from "@molis-ai/molis-work-app-local-host";
 import { BACKGROUND_TASKS_OUTPUT_TYPE, WORK_EVENTS_OUTPUT_TYPE, TASK_SERVES_RELATION, type ActionCallContext, type BackgroundTaskCollection, type TaskServesResult, type WorkEventCollection } from "@molis-ai/molis-work-contracts/platform/actions";
 import { isWorkEventSource } from "@molis-ai/molis-work-service-mainline";
 
@@ -61,6 +61,25 @@ function harness() {
   return { registration, invoke, placed, stopped, asked, decided, tables, effects: () => effects };
 }
 const subject = (id: string) => ({ kind: ASSISTANT_WORK_KIND, id });
+installHostUiText();
+
+// Text on the line and in the table is said in the reader's language when it is read; nothing of it is kept (AGENTS.md 界面文字).
+test("WLN-37 WLN-39: the Assistant's events and task rows are worded in the reader's language", async () => {
+  const { invoke } = harness();
+  const read = (locale: "zh" | "en") => runWithLocale(locale, async () => ({
+    events: await invoke<WorkEventCollection>(ASSISTANT_LINE_ACTIONS.events.capability_id, WINDOW),
+    tasks: await invoke<BackgroundTaskCollection>(ASSISTANT_LINE_ACTIONS.tasks.capability_id, {}),
+  }));
+  const zh = await read("zh"), en = await read("en");
+  assert.equal(zh.events.source.title, "助理"); assert.equal(en.events.source.title, "Assistant");
+  const step = (answer: typeof en, id: string) => answer.tasks.tasks.find(task => task.subject.id === id)!;
+  assert.equal(step(zh, "errand").step?.text, "正在办"); assert.equal(step(en, "errand").step?.text, "Working on it");
+  assert.equal(step(en, "tracked").decisions[0]!.why, "This step changes content, so it asks you first, as you set it");
+  assert.equal(step(en, "errand").commands[0]!.summary, "Stop “查一下汇率”", "the person's own words stay as written");
+  const text = JSON.stringify(en);
+  for (const own of ["查一下汇率", "整理访谈", "季度报告", "发布计划", "补发布说明", "先问预算", "把访谈整理成三段", "访谈纪要", "三段", "改 notes.md", "标题", "正文", "严格的编辑"]) assert.ok(text.includes(own) || !own, own);
+  assert.doesNotMatch(text.replace(/查一下汇率|整理访谈|季度报告|发布计划|补发布说明|先问预算|把访谈整理成三段|访谈纪要|三段|改 notes\.md|标题|正文|严格的编辑|查了天气/g, ""), /[\u4e00-\u9fff]/, "nothing the Host words is left in Chinese");
+});
 
 test("WLN-37: the Assistant registers its events and tasks by the same typed actions as any plugin, on its own provider", () => {
   const A = ASSISTANT_LINE_ACTIONS;

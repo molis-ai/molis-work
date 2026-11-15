@@ -25,8 +25,12 @@ function clientOf(views: ActionView[], answer: (capability: string, input: unkno
   return { calls, client };
 }
 const code = (expected: string) => (error: unknown) => error instanceof ActionError && error.code === expected;
+/** The shell's words (the missed run's step, question and answers are said in the reader's language), with any plugin's own packs. */
+const packOf = (file: string) => { const pack = parseLocalePack(readFileSync(new URL(`../${file}`, import.meta.url), "utf8"), { file }); assert.ok(pack.ok); return pack.value; };
+const withText = (t: { after(fn: () => void): void }, ...files: string[]) => t.after(installTextForTest({ locale: "zh", packs: ["apps/workbench/resources/locales/zh.json", ...files].map(packOf) }));
 
-test("WLN-39 what runs on its own and was missed is a task that waits on the person: read from the project's runs owners by type, in the task shape, with 「现在做一次」 and 「跳过」 as the owner's own decision action; what is ahead is not a task", async () => {
+test("WLN-39 what runs on its own and was missed is a task that waits on the person: read from the project's runs owners by type, in the task shape, with 「现在做一次」 and 「跳过」 as the owner's own decision action; what is ahead is not a task", async t => {
+  withText(t);
   const answers: Record<string, unknown> = {
     "schedule.runs.overview": { source: { surface: "schedule", title: "定时任务" }, upcoming: [run("ahead", { due_at: "2026-11-20T01:00:00.000Z" })], missed: [run("r1"), run("r2", { open: null }), { run_id: "", title: 7 }, "nonsense"] },
     "feed.runs.overview": { source: { surface: "feed", title: "Feed" }, upcoming: [], missed: [run("pull", { missed_at: "2026-11-14T03:00:00.000Z" })] },
@@ -54,7 +58,8 @@ test("WLN-39 what runs on its own and was missed is a task that waits on the per
   assert.deepEqual([partial.tasks.length, partial.issues.map(issue => [issue.source.capability_id, issue.code])], [2, [["feed.runs.overview", "actions.output_invalid"]]]);
 });
 
-test("WLN-39, WLN-10 answering a missed run asks its owner again and runs the owner's decision as the person: 「现在做一次」 and 「跳过」 carry that run only, and a run no longer missed is refused with nothing called", async () => {
+test("WLN-39, WLN-10 answering a missed run asks its owner again and runs the owner's decision as the person: 「现在做一次」 and 「跳过」 carry that run only, and a run no longer missed is refused with nothing called", async t => {
+  withText(t);
   let missed: unknown[] = [run("r1")];
   const { client, calls } = clientOf([overview("schedule"), decision("schedule")], capability => capability === "schedule.runs.overview" ? { source: { surface: "schedule", title: "定时任务" }, upcoming: [], missed } : { state: "started" });
   const source = { capability_id: "schedule.runs.overview", version: 1, provider_id: "schedule" }, subject = { kind: "scheduled_run", id: "r1" };
@@ -75,9 +80,7 @@ test("WLN-39, WLN-10 answering a missed run asks its owner again and runs the ow
 test("WLN-39 another plugin's long task: an image still generating is a row in the one shape, and its stop is Images' own 「停止本机等待」 for that job, run after asking Images again", async t => {
   const job = (id: string, status: ImageJob["status"]): ImageJob => ({ id, project_id: "p1", request_id: `q-${id}`, connection_id: "c1", connection_name: "示例", api_format: "openai-images", model: "img-1", prompt: `一张图 ${id}`, size: "1024x1024",
     aspect_ratio: "1:1", status, images: [], error: "", created_at: "2026-11-14T02:00:00.000Z", finished_at: status === "running" ? null : "2026-11-14T02:01:00.000Z" });
-  const pack = parseLocalePack(readFileSync(new URL("../plugins/native/images/locales/zh.json", import.meta.url), "utf8"), { file: "plugins/native/images/locales/zh.json" });
-  assert.ok(pack.ok);
-  t.after(installTextForTest({ locale: "zh", packs: [pack.value] }));
+  withText(t, "plugins/native/images/locales/zh.json");
   let jobs = [job("j1", "running"), job("j2", "succeeded"), job("j3", "failed")];
   const asked: string[] = [];
   const handlers = createImagesActionHandlers({ service: () => ({ listJobs: (projectId: string) => { asked.push(projectId); return jobs; } }) } as never);

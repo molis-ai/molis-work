@@ -61,6 +61,7 @@
 | 记忆 | `memory/memory.db` | 3 | `user_version` | `packages/storage/src/adapters/memory-ledger.ts#MEMORY_LEDGER_BASELINE` | 低版本升级（1 → 2 清掉旧记忆的账本记录，保留开关并补空的按类别限制，下次启动永久删除两个旧布局记忆目录并建新的空遗忘文件；2 → 3 清洗 `memory_revisions` 只留 `{version, change, by, at}` 无正文归因并清掉非 `pending` 的 `memory_markers` 里的 `merge` 暂态字段，收紧读取校验；真实 Home 先备份），高版本拒绝；新Home创建完整reviewed偏好，不重设已有设置 |
 | 项目资料 | `knowledge/knowledge.db` | 1 | `user_version` | `packages/storage/src/adapters/knowledge-cards.ts#KNOWLEDGE_CARDS_BASELINE` | 低版本升级，高版本拒绝 |
 | 工作记录 | `observation/observation.db` | 1 | `user_version` | `horizontal/observation/src/schema.ts#OBSERVATION_BASELINE` | 低版本升级，高版本拒绝（第 28 批新建，从版本 1 起） |
+| 外部会话 | `external-sessions/external-sessions.db` | 1 | `user_version` | `horizontal/sessions/src/schema.ts#EXTERNAL_SESSIONS_BASELINE` | 低版本升级，高版本拒绝（第 34 批新建，从版本 1 起） |
 | Form | `form/form.db` | 1 | `user_version` | `plugins/native/form/src/database.ts#FORM_DATABASE` | 低版本升级，高版本拒绝 |
 | 放置 | `placement/placement.db` | 1 | `user_version` | `apps/local-host/src/placement-actions.ts#PLACEMENT_BASELINE` | 低版本升级，高版本拒绝 |
 | Agent 定义 | `agent-definitions/agent-definitions.db` | 2 | `user_version` | `apps/local-host/src/agent-definitions/agent-definitions.ts#AGENT_DEFINITIONS_BASELINE` | 低版本升级，高版本拒绝 |

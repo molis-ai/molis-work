@@ -15,6 +15,7 @@ import {preflightProjectCatalog,projectPluginRequirements} from './project-catal
 import { ManagedProjectDeletion } from "./managed-project-deletion.js";
 import { advanceReadCheckGeneration } from "@molis-ai/molis-work-plugin-runtime";
 import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
+import { notifySessionsDirectoriesChanged } from "./sessions-live.js";
 import { DemoProjectLifecycle } from "./demo-project-lifecycle.js";
 import { exists } from "./project-file-paths.js";
 import { type CreateMolisWorkProjectInput } from "./project-catalog-contract.js";
@@ -253,7 +254,7 @@ export class MolisWorkProjectCatalog {
       this.commit, projectDeletedHooksFor(homeDirectory),
     );
     // A terminal record binds a runtime's work context and journals into the project.
-    this.terminalPanels = new PluginTerminalPanels(db, { bind: terminalContextBinder(this.runtimeContexts),
+    this.terminalPanels = new PluginTerminalPanels(db, { bind: terminalContextBinder(this.runtimeContexts, homeDirectory),
       appendProjectEvent: (projectId: string, type: string, actorId: string, payload: Record<string, unknown>) => this.projects.lifecycle.appendEvent(projectId, type, actorId, payload) });
   }
 
@@ -361,13 +362,13 @@ export class MolisWorkProjectCatalog {
   rejectRuntimeContextSuggestion(
     input: RejectRuntimeContextSuggestionInput,
   ): MolisWorkRuntimeContextSuggestionRejectionResult { return this.runtimeContexts.commands.rejectRuntimeContextSuggestion(input); }
-  bindRuntimeContext(input: BindRuntimeWorkContextInput): MolisWorkRuntimeContextResolution { return this.runtimeContexts.commands.bindRuntimeContext(input); }
-  unbindRuntimeContext(input: UnbindRuntimeWorkContextInput): MolisWorkRuntimeContextUnbindResult { return this.runtimeContexts.commands.unbindRuntimeContext(input); }
+  bindRuntimeContext(input: BindRuntimeWorkContextInput): MolisWorkRuntimeContextResolution { return notifyAfter(this.homeDirectory, this.runtimeContexts.commands.bindRuntimeContext(input)); }
+  unbindRuntimeContext(input: UnbindRuntimeWorkContextInput): MolisWorkRuntimeContextUnbindResult { return notifyAfter(this.homeDirectory, this.runtimeContexts.commands.unbindRuntimeContext(input)); }
   async createProjectAndBindRuntimeContext(input: CreateAndBindRuntimeContextInput, beforeEffect: () => void = () => undefined): Promise<MolisWorkRuntimeContextResolution> {
-    return this.runtimeContexts.createProjectAndBindRuntimeContext(input, {
+    return notifyAfterAsync(this.homeDirectory, this.runtimeContexts.createProjectAndBindRuntimeContext(input, {
       registerProject: (record, eventType, actorId) => { beforeEffect(); this.projects.lifecycle.register(record, eventType, actorId); },
       provisionCreatedProject: (input, commit) => this.projectFiles.provisionCreatedProject(input, commit, beforeEffect),
-    });
+    }));
   }
   listRuntimeContextBindingEvents(
     context?: RuntimeWorkContext, page?: RuntimeContextBindingPage,
@@ -412,31 +413,31 @@ export class MolisWorkProjectCatalog {
   }
 
   addWorkspaceProject(input: AddWorkspaceProjectInput): MolisWorkWorkspaceDirectoryRecord {
-    return this.projects.commands.addWorkspaceProject(input);
+    return notifyAfter(this.homeDirectory, this.projects.commands.addWorkspaceProject(input));
   }
 
   /** One change of `projects.directories.*`, from the revision the person read. */
   changeDirectories(input: ChangeDirectoriesInput): ProjectDirectories {
-    return this.projects.commands.changeDirectories(input);
+    return notifyAfter(this.homeDirectory, this.projects.commands.changeDirectories(input));
   }
-  async createProject(input: CreateMolisWorkProjectInput): Promise<MolisWorkProjectRecord> { return this.projectFiles.createProject(input); }
+  async createProject(input: CreateMolisWorkProjectInput): Promise<MolisWorkProjectRecord> { return notifyAfterAsync(this.homeDirectory, this.projectFiles.createProject(input)); }
   /** The personal space exists once it is first used; creating it again returns the same one. */
-  async ensurePersonalSpace(actorId = LOCAL_PERSON_ACTOR_ID): Promise<MolisWorkProjectRecord> { return this.personalProjects.ensurePersonalSpace(actorId); }
-  async ensureDemoProject(input: ManageMolisWorkDemoProjectInput): Promise<MolisWorkDemoProjectResult> { return this.demoProjects.ensureDemoProject(input); }
-  async resetDemoProject(input: ManageMolisWorkDemoProjectInput): Promise<MolisWorkDemoProjectResult> { return this.demoProjects.resetDemoProject(input); }
-  async removeDemoProject(input: DeleteMolisWorkProjectInput): Promise<MolisWorkProjectDeletionResult> { return this.demoProjects.removeDemoProject(input); }
+  async ensurePersonalSpace(actorId = LOCAL_PERSON_ACTOR_ID): Promise<MolisWorkProjectRecord> { return notifyAfterAsync(this.homeDirectory, this.personalProjects.ensurePersonalSpace(actorId)); }
+  async ensureDemoProject(input: ManageMolisWorkDemoProjectInput): Promise<MolisWorkDemoProjectResult> { return notifyAfterAsync(this.homeDirectory, this.demoProjects.ensureDemoProject(input)); }
+  async resetDemoProject(input: ManageMolisWorkDemoProjectInput): Promise<MolisWorkDemoProjectResult> { return notifyAfterAsync(this.homeDirectory, this.demoProjects.resetDemoProject(input)); }
+  async removeDemoProject(input: DeleteMolisWorkProjectInput): Promise<MolisWorkProjectDeletionResult> { return notifyAfterAsync(this.homeDirectory, this.demoProjects.removeDemoProject(input)); }
 
   listProjectDeletions(): MolisWorkProjectDeletionRecord[] {
     return this.projects.query.listProjectDeletions();
   }
   async deleteProject(input: DeleteMolisWorkProjectInput): Promise<MolisWorkProjectDeletionResult> {
     if (input.project_id === PERSONAL_SPACE_PROJECT_ID) throw catalogErrors.personal_space("个人空间不能删除；可以把里面的内容移到项目或逐个删除");
-    return this.projectDeletion.deleteProject(input);
+    return notifyAfterAsync(this.homeDirectory, this.projectDeletion.deleteProject(input));
   }
 
   renameProject(projectId: string, displayName: string, actorId: string, expectedDisplayName: string): MolisWorkProjectRecord {
     if (projectId === PERSONAL_SPACE_PROJECT_ID) throw catalogErrors.personal_space("个人空间不能改名");
-    return this.projects.commands.renameProject(projectId, displayName, actorId, expectedDisplayName);
+    return notifyAfter(this.homeDirectory, this.projects.commands.renameProject(projectId, displayName, actorId, expectedDisplayName));
   }
 
   /** Persisted page projection; callers must keep using listProjectPlugins for availability and command guards. */
@@ -445,6 +446,9 @@ export class MolisWorkProjectCatalog {
   }
 }
 
+const notifyAfter = <T>(home: string, value: T): T => (notifySessionsDirectoriesChanged(home), value);
+const notifyAfterAsync = async <T>(home: string, pending: Promise<T>): Promise<T> => notifyAfter(home, await pending);
+
 const contextBindingValidation = createRuntimeProjectBindingValidation({
   normalizeProjectWorkspace,
 });
@@ -452,13 +456,14 @@ export const { normalizeRuntimeWorkContext } = contextBindingValidation;
 const { normalizeRuntimeWorkspaceContext } = contextBindingValidation;
 
 /** A terminal's runtime work context belongs to its project for this session; called inside the catalog's transaction. */
-function terminalContextBinder(runtimeContexts: ReturnType<typeof createRuntimeContextModule>) {
+function terminalContextBinder(runtimeContexts: ReturnType<typeof createRuntimeContextModule>, homeDirectory: string) {
   return (input: { runtime_id: string; stable_work_context_id: string; project_id: string; actor_id: string; cwd?: string }): void => {
     const workspace = input.cwd ? normalizeRuntimeWorkspaceContext({ canonical_path: input.cwd, realpath_verified: false }) : undefined;
     runtimeContexts.commands.bindRuntimeContextInTransaction({
       normalized: { runtime_id: input.runtime_id, stable_work_context_id: input.stable_work_context_id, ...(workspace ? { workspace } : {}) },
       projectId: input.project_id, actorId: input.actor_id, rebindConfirmed: true, bindingScope: "session",
     });
+    notifySessionsDirectoriesChanged(homeDirectory);
   };
 }
 

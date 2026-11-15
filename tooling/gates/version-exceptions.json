@@ -1160,11 +1160,5 @@
     "name": "version",
     "values": { "1": 1 },
     "reason": "LSP 的 textDocument/didOpen 起始版本号，协议字段；不是产品、合同或库结构的版本，Molis 不比较它。"
-  },
-  {
-    "file": "horizontal/memory/src/shapes.ts",
-    "name": "MEMORY_PACKAGE_VERSION",
-    "values": { "1": 1 },
-    "reason": "Molis memory package envelope format version, tied to format.memory.export; not a product or self-owned release version."
   }
 ]

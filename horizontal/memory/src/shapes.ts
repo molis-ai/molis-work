@@ -10,7 +10,7 @@ import type { MemoryCaller } from "./service.js";
 /** The longest memory text, in characters. */
 export const MAX_TEXT = 400;
 /** The Molis memory package envelope version; the SDK export payload is versioned separately. */
-export const MEMORY_PACKAGE_VERSION = 1 as const;
+export const MEMORY_PACKAGE_VERSION = /* @version format.memory.export */ 1 as const;
 
 /** What a work's memory use is called in 最近用于: the work, the caller's own label, or the consumer. */
 export function useTitle(caller: MemoryCaller, usedFor?: string): string {

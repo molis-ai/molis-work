@@ -1,6 +1,6 @@
 # Sessions：外部 AI 工作导入、持续跟进与会话接续
 
-状态：需求草案（2026-10-28）；用户已定覆盖国内外主流公司的 AI 开发工具，不限 Codex 与 Claude Code；冷启动导入、持续了解进展、直接控制外部会话三类场景都要；工具接入并获准读取后，自动发现范围内已有会话，无需逐个导入，查看历史不启动执行。已有明确的目录／仓库与项目关联时自动归入，关系不明确或有多个候选时由 AI 建议、用户确认或改选，不自动新建项目。跨工具交接时由用户选择停止原任务后接手，或保留原任务并行继续。场景、厂商、自动发现、项目归属及交接选择已定，交互与接入细节待继续梳理；尚未实现或验收。2026-11-04 第 22 批定样已定：发现按时间排加来源条、待归类集中处理、历史看原文对话（§8）。本轮交付为概念方案与需求记录，先不开发。负责人：Codex（需求维护），实现待分配。
+状态：需求与合同已定，第 34 批实现中（2026-11-15）；用户已定覆盖国内外主流公司的 AI 开发工具，不限 Codex 与 Claude Code；冷启动导入、持续了解进展、直接控制外部会话三类场景都要；工具接入并获准读取后，自动发现范围内已有会话，无需逐个导入，查看历史不启动执行。已有明确的目录／仓库与项目关联时自动归入，关系不明确或有多个候选时由 AI 建议、用户确认或改选，不自动新建项目。跨工具交接时由用户选择停止原任务后接手，或保留原任务并行继续。2026-11-04～11-12 第 22 批定样与来源／历史读取合同（#2001、#2038）已合入：发现按时间排加来源条、待归类集中处理、历史看原文对话（§8）。第 34 批落地 `horizontal/sessions` 服务、10 家真实来源适配、归属与 AI 建议、搜索与工作台界面；恢复／发送／交接与持续跟进仍在第 59／60 批范围内，未接通入口按产品与地区保留缺口。负责人：Codex（需求维护），第 34 批实现：Antigravity（本机）。
 
 2026-10-28 排期调整：防腐收尾后，阶段 1·C 盘点国内外主流产品／入口及历史读取合同；阶段 2·C/F 接通自动发现、历史读取、项目归属和 Onboarding 的已有工作接续；阶段 3·C 完成持续跟进、直接控制与跨工具交接。按产品／入口逐项保留三类能力的覆盖与缺口，不因历史切片前移缩小厂商范围或把整个需求标为完成。来源适配接同一[观测和采集层](../observation-collection/spec.md)，本轮不开发、实现仍待分配。
 
@@ -156,24 +156,37 @@
 
 ## 7. 开工前检查
 
-第 22 批（[需求开发流程 §4](../post-anticorruption-roadmap/reference/development-workflow.md)）。本批现在只做定样与只读核查；下表回答的是合同与服务开工时的安排，统筹审过再开工。
+第 22 批定样与合同检查已随 #2001、#2038 完成；第 34 批（[需求开发流程 §4](../post-anticorruption-roadmap/reference/development-workflow.md)）开工前逐项复核如下：
 
 | # | 项 | 回答 |
 | --- | --- | --- |
-| 1 | 事实主人 | 原生会话与执行状态归外部工具；会话目录、来源状态、读取范围（含每个项目的 AI 读取许可）、归属与依据是平台事实，归新的 Sessions 平台服务；项目与目录关系归项目主人，经它的公开合同读（§1.3），不另存一份；持续跟进的记录归观测和采集层 |
+| 1 | 事实主人 | 原生会话与执行状态归外部工具；会话目录、来源状态、读取范围（含每个项目的 AI 读取许可）、归属与依据是平台事实，归新的 Sessions 平台服务（`horizontal/sessions`）；项目与目录关系归项目主人，经它的公开合同读（§1.3），不另存一份；持续跟进的记录归观测和采集层 |
 | 2 | 插件同等待遇 | 平台服务，不是插件；场景和插件经动作目录调用，不开私路 |
-| 3 | 能力注册 | 第 22 批 11 个动作（列表、读取，读取范围的读与写、项目 AI 读取许可、发现、归属的决定与建议、两个搜索、搜索结果的对象读取器；服务片 S-1 再加连接使用方，共 12 个；以后的恢复、发送、交接另加），各注册一次，页面、工作流、Agent、MCP 共用；身份与项目取自调用上下文；读外部工具与调模型的动作声明 `scheduling: "concurrent"` |
-| 4 | 合同 | 改：外部工具登记表、会话身份、上面 11 个动作（[合同设计](contract-design.md) §4～§8）；现在不留兼容期，一片合同 PR 改完这一片的所有消费者，分四片单独先开（合同设计 §10.1：登记表与派生、读取、归属与搜索，加改 Projects 的目录来源） |
-| 5 | 放在哪个包 | 登记表与动作合同在 `packages/contracts`；服务是 `horizontal/` 下的新包，宿主只装配（用户 2026-11-01 定） |
-| 6 | 表与存储 | 会话目录索引、来源进度、读取范围、项目 AI 读取许可、单条归属由新包建表、只它读写；新库只留当前基线，版本不符就拒绝，不写迁移链（[合同变更流程](../../docs/system/CONTRACT-CHANGES.md)），用户决定的表怎样跨版本保留跟第 05 批的升级规则；原生记录不复制，只存能回到来源的索引 |
+| 3 | 能力注册 | 共 12 个动作（`sessions.list`、`history.read`、`scope.read`、`scope.set`、`project_ai_read.set`、`discovery.run`、`attribution.set`、`attribution.suggest`、`search.entries`、`subject.read`、`tool.search`、`connector.usages`；以后的恢复、发送、交接另加），由 `system.sessions` 各注册一次，页面、工作流、Agent、MCP 共用；身份与项目取自调用上下文；读外部工具与调模型的动作声明 `scheduling: "concurrent"` |
+| 4 | 合同 | 沿用第 22 批已合入的 `platform/external-tools` 与 `services/sessions`（[合同设计](contract-design.md) §4～§8），本批按第 12 节第 30、38 行补 `sessions.connector.usages@1`、删无路径抛出的 `sessions.suggestion_unavailable`，并按实装复核更新 `external-tools.ts` 的 `claude-code`、`grok-build`、`gemini-cli`、`copilot-coding-agent`、`qoder-cn`、`kimi-code` |
+| 5 | 放在哪个包 | 登记表与动作合同在 `packages/contracts`；服务在 `horizontal/sessions`（`@molis-ai/molis-work-service-sessions`），宿主 `apps/local-host/src/sessions-actions.ts` 与 `sessions-ports.ts` 只做端口注入与动作登记（用户 2026-11-01 定） |
+| 6 | 表与存储 | `external-sessions/external-sessions.db` 第 1 版基线，8 张表（索引、目录缓存、来源进度、读取范围、项目 AI 读取许可、单条归属、AI 建议缓存、元数据）由 `horizontal/sessions` 建表、只它读写；版本不符就拒绝，不写迁移链（[合同变更流程](../../docs/system/CONTRACT-CHANGES.md)）；不用退役目录 `sessions/`；原生记录不复制 |
 | 7 | 兼容与迁移 | 不加；工具 id 沿用现值，存量 `runtime_id` 照样有效 |
-| 8 | 安全边界 | 碰：读本机目录（只读允许的根目录，沿角色导入做法）、子进程调外部工具的正式命令（参数校验沿 S-103 的会话 ID 规则）、提示注入（会话原文进模型时按不可信内容处理）、读 `.git` 文件认仓库（绝不运行 git）。读取权与归属分开：每个项目一个 AI 读取许可，默认关，开一次长期有效，只有本人能改；Agent、工作流、生成页面读列表和原文都要它，且只到当前项目已归属的会话（含自动归入，不含工具报的绑定）；MCP 另需逐客户端授权；待归类与全部只有本人；团队项目先不开放。开工时在安全不变量表加行并写「拒绝」测试 |
-| 9 | 调用次数 | 一次打开列表一个请求，带回本页条目与来源状态；原文按页读；发现在后台按来源逐步进行；页面只在有来源在读且页面可见时询问，逐步拉长，隐藏即停、失败退避、读完即停（对抗式审查 N54） |
-| 10 | 升级与数据 | 索引可由原工具重建；读取范围、项目 AI 读取许可、单条归属与「先不归」是用户决定，升级后保留 |
-| 11 | 成果与过程项 | 会话不进成果库；冷启动整理出的背景、决定按各自主人的流程写入 |
-| 12 | 页面与外壳 | 列表与历史挂在工作台位置上，不出整页；入口位置随第 03 批工作台定样 |
-| 13 | 错误 | 新错误码用 `defineErrorCodes("sessions", …)` 声明；「需要登录」「这一版读不了」「没读成」「暂不支持」是不同的码，都不报成空列表 |
-| 14 | 冲突面 | 合同改动在 C1 合同队列；工作终端的 `RECIPES` 改为从登记表读，碰宿主文件 `apps/local-host/src/plugin-terminal-runtimes.ts`，另有手写名单七处（[合同设计](contract-design.md) §4.4），由 C 轨写手落；其中 `apps/desktop/src/web-host.ts` 归 F 轨，按轨道规则 7；目录来源一片改 `modules/projects`、动 `modules/projects.txt` 快照，由 C 轨写手认领、请 Module 主人评审 |
+| 8 | 安全边界 | 登记并守住 6 条语义名不变量：`S-sessions-read-roots`、`S-sessions-read-only-commands`、`S-sessions-recheck-before-return`、`S-sessions-untrusted-text`、`S-sessions-person-decides`、`S-sessions-git-files-only`，测试在 `tests/security-invariants-external-sessions.test.ts`；在登记 `sessions.search.entries@1` 与 `sessions.subject.read@1` 前先堵住插件经 Knowledge 代读、引用种类泄露与助理非明确动作带入三条路径 |
+| 9 | 调用次数 | 一次打开列表一个请求，带回本页条目与来源状态；原文按页读；发现在后台按来源逐步进行（全局并发 2、同来源 1）；页面只在有来源在读且页面可见时询问，2 秒起逐步拉长至 15 秒，隐藏即停、失败退避、读完即停（对抗式审查 N54） |
+| 10 | 升级与数据 | 索引可由原工具重建；读取范围、项目 AI 读取许可、单条归属与「先不归」是用户决定；项目删除经 `ProjectDataDeclaration` 清掉该项目的 AI 读取许可与指向该项目的建议，保留单条决定以显示 `project_gone` |
+| 11 | 成果与过程项 | 会话不进成果库，也不是过程项；冷启动整理出的背景、决定按各自主人的流程写入 |
+| 12 | 页面与外壳 | 列表与历史挂在工作台位置上，不出整页；来源差异、云端去连接与 `account_changed` 出路、助理明确动作提示与项目设置目录来源区分先出样确认后再落 S-5 产品界面 |
+| 13 | 错误 | 14 个错误码用 `defineErrorCodes("sessions", …)` 在合同中一处声明，在 `tooling/gates/error-owners.json` 登记主人；「需要登录」「这一版读不了」「没读成」「暂不支持」分码表达，绝不报成空列表 |
+| 14 | 界面文字与外观 | 新增界面全部走 `t("<主人>.<位置>.<元素>", 参数)`，中英双语词条齐备，日期数字走 `format`，样式只用设计系统语义令牌；`.mw-setting`／`.mw-who` 迁入产品样式表 |
+| 15 | 冲突面 | 在 `#1743` 认领 `services/sessions.txt`、`modules/private-work-context.txt`、`platform/external-tools.ts`、`sessions.*` 动作快照与 `database.external_sessions_database`；避开在途批次占用的 `horizontal/knowledge/src/index.ts`、`platform/actions.ts` 与 `services/assistant.ts`，S-4 守卫落在宿主接线层 |
+
+### 7.1 平台已有能力核对（流程 §4.1）
+
+对照 [`docs/reviews/platform-capability-audit-2026-11-14.md`](../../docs/reviews/platform-capability-audit-2026-11-14.md) 第 1 节：
+
+| 要做的事 | 复用的平台能力 | 不重造什么 |
+| --- | --- | --- |
+| 跨会话搜索与结果打开 | `defineSearchEntriesAction`、`defineSubjectContextAction`、`horizontal/search` 的 `markChanged` | 不自建第二套全局搜索索引或原文库 |
+| 云端工具账号与连接引用 | `connector-host`（含 `cli` 连接指纹核对）与 `defineConnectorUsagesAction`（`sessions.connector.usages@1`） | 不在 Sessions 里存 OAuth 令牌或另做连接管理 |
+| AI 归属建议调模型 | `horizontal/agent-host` 的 `hostTextGeneration`、系统提示词登记表 `system-prompts.ts`、S-13 JSON 围栏与 `plugin-sdk` 密钥脱敏 | 服务包不直接依赖 `@prologue/sdk`，也不自写 HTTP 调模型 |
+| 项目与目录关系、删除清理 | `ProjectsQueryApi.listWorkspaceDirectory()`（含 `person_project_ids`）、`modules/private-work-context` 只读绑定、`ProjectDataDeclaration`（`project-deleted-owners.ts`） | 不另建 Sessions 专属项目目录表或删除钩子 |
+| 界面控件与布局 | `@molis-ai/molis-work-design-system` 的 Sheet、Tabs、Switch、Badge、Button 与第 22 批已入组件板的 `.mw- transcript`／`.mw-setting`／`.mw-who` | 不手写平行按钮、弹窗或硬编码色值 |
 
 ## 8. 决策记录
 

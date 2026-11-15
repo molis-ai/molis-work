@@ -1,0 +1,20 @@
+{
+  "reason": "第 41 批合入后修 main 上的红（PR #2083）：英文词条 workbench.skill-authoring.error-long 原来写成「At most {n} characters.」，不带数量的复数形式，违反 FSS-39（tests/fill-message.test.ts 在 main 上红）。改成 plural_arg + one／other 两种形式后，工作台英文词包内容变了，换了内容寻址路径。",
+  "review": "PR #2083。CI 的首屏预算对照 main ddd7ba3f80 实测：四个页面的英文冷启动各 +26 B，中文不变，没有别的资源变化。",
+  "userApproval": "用户 2026-11-15 在第 41 批主会话弹窗选择「批准（推荐）」：批准工作台英文词包换内容寻址路径，四个页面英文首屏冷启动各 +26 字节。",
+  "entryApprovals": [
+    {
+      "pages": ["arrival-empty", "chooser", "workbench-default", "workbench-all-plugins"],
+      "locale": "en",
+      "entry": "/assets/locale/workbench.en.<digest>.js",
+      "change": "new"
+    }
+  ],
+  "assets": {},
+  "pages": {
+    "arrival-empty/en": { "cold": 26, "warm": 0 },
+    "chooser/en": { "cold": 26, "warm": 0 },
+    "workbench-default/en": { "cold": 26, "warm": 0 },
+    "workbench-all-plugins/en": { "cold": 26, "warm": 0 }
+  }
+}

@@ -23,6 +23,7 @@ import type { AssistantStore, StoredRound, StoredWork } from "./assistant-store.
 import { AssistantJobs } from "./assistant-jobs.js";
 import { AGENT_STEER_MODES } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 import { assistantErrors } from "./assistant-errors.js";
+import { renameWork } from "./assistant-work-title.js";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { MemoryChange } from "@molis-ai/molis-work-contracts/services/memory";
 import type { MemoryService } from "@molis-ai/molis-work-service-memory";
@@ -289,7 +290,7 @@ export class AssistantService {
   }
 
   async rename(workId: string, revision: number, title: string): Promise<AssistantWork> {
-    const work = this.store.update(this.actorId, workId, revision, { title: checkText(title, "标题", 120).trim() });
+    const work = renameWork(this.store, this.actorId, workId, revision, title);
     return this.reads.publicWork(work, await this.reads.stateSafely(work));
   }
 

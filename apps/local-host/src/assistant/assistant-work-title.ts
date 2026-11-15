@@ -1,7 +1,9 @@
 import type { TextArg } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { AssistantNotice } from "@molis-ai/molis-work-contracts/services/assistant";
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
-import type { StoredWork } from "./assistant-store.js";
+import type { AssistantStore, StoredWork } from "./assistant-store.js";
+import { assistantErrors } from "./assistant-errors.js";
+import { checkText } from "./assistant-service-shared.js";
 
 type Named = Pick<StoredWork, "title" | "main" | "character">;
 
@@ -32,4 +34,10 @@ export function filledNotice<N extends Pick<AssistantNotice, "work_title" | "tex
   if (notice.work_title || !work?.main) return notice;
   const name = workTitle(work), text = notice.text;
   return { ...notice, work_title: name, text: "original" in text ? (text.label ? { ...text, label: filledArgs(text.label, name) } : text) : filledArgs(text, name) };
+}
+
+/** The person names a work. A main conversation is named by who it is with, so a new name for it would be stored and never shown: refused. */
+export function renameWork(store: Pick<AssistantStore, "get" | "update">, actorId: string, workId: string, revision: number, title: string): StoredWork {
+  if (store.get(actorId, workId).main) throw assistantErrors.invalid("主对话按对话方命名，不能改名");
+  return store.update(actorId, workId, revision, { title: checkText(title, "标题", 120).trim() });
 }

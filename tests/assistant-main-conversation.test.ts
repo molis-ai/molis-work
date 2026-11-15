@@ -57,6 +57,9 @@ test("WLN-15: what is said at 「现在」 goes to one standing main conversatio
   const noticeIn = (locale: "zh" | "en") => runWithLocale(locale, () => service.notices.notices(null).find(one => one.work_id === first.work.work_id)!);
   assert.deepEqual([noticeIn("zh").work_title, noticeIn("en").work_title], ["与助理的对话", "Conversation with the Assistant"]);
   assert.deepEqual(noticeIn("en").text, { owner: "workbench", key: "workbench.assistant-notice.completed", args: [{ name: "title", kind: "text", text: "Conversation with the Assistant" }] });
+  // A new name for it would be stored and never shown (who it is with names it): the person's rename is refused, the stored title stays empty.
+  await assert.rejects(service.rename(first.work.work_id, store.get("web-user", first.work.work_id).revision, "我的主对话"), /主对话按对话方命名/);
+  assert.equal(store.get("web-user", first.work.work_id).title, "");
   await done(first.work.work_id, 1);
   assert.match(requests[0]!, /这是你和用户的主对话/, "the round is told how a main conversation works");
   // Said again without naming a work: the same conversation.

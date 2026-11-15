@@ -73,9 +73,10 @@ export interface BackgroundTask {
    * or failed state — the Assistant runs one round in that scope's main conversation that only reports and advises. That round
    * has no authority to carry the task on: it may read, but it starts no task and runs no command. A row that leaves the table
    * without having been shown ended is not reported, so a provider keeps an ended row a short while for it to be seen (and lists it
-   * in an ended state: the panel shows it among what just came back, the Home's list of unfinished work leaves it out). A task a
-   * conversation sent out returns to that conversation: one whose provider cannot tell who started it may still say this, and a
-   * job a conversation follows as its own is not reported to the Assistant again.
+   * in an ended state: the panel shows it among what just came back; the Home's list of unfinished work leaves out one that ended
+   * well, in `BACKGROUND_TASK_DONE_STATES`, and keeps a failed one). A task a conversation sent out returns to that conversation:
+   * one whose provider cannot tell who started it may still say this, and a job a conversation follows as its own is not reported
+   * to the Assistant again.
    */
   reports_to?: "assistant";
 }

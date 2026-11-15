@@ -74,3 +74,38 @@ test("每种操作类型都有中文说法，不直接把内部 kind 甩给用�
     assert.doesNotMatch(html, new RegExp(`coding-review-kind">${kind}<`), `${kind} 不该原样显示`);
   }
 });
+
+test("A4-1 Coding index → 审查卡：从符号索引定位定义与引用后进入待审卡片摘要，仅指向宿主审查面", { timeout: 30_000 }, async () => {
+  const { mkdirSync, mkdtempSync, rmSync, writeFileSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const { fileURLToPath } = await import("node:url");
+  const { createCodeIntelligence, languageServersFrom } = await import("@molis-ai/molis-work-service-agent-host");
+  const root = mkdtempSync(join(tmpdir(), "molis-coding-index-review-"));
+  const fakeLsp = join(fileURLToPath(new URL(".", import.meta.url)), "fixtures/fake-lsp-server.mjs");
+  try {
+    mkdirSync(join(root, "src"), { recursive: true });
+    writeFileSync(join(root, "src/a.ts"), "export function greet(): string {\n  return 'hi';\n}\n\nexport const x = greet();\n");
+    process.env.FAKE_LSP_LOG = join(root, "server.log");
+    const intelligence = createCodeIntelligence({
+      servers: languageServersFrom({ servers: [{ extensions: [".ts"], command: process.execPath, args: [fakeLsp], languageId: "typescript" }] }),
+      rootPath: root,
+    });
+    const indexed = await intelligence.symbolIndex({ args: { path: "src/a.ts", symbol: "greet" } } as never);
+    await intelligence.close();
+    assert.match(indexed, /symbol greet in src\/a\.ts/);
+    assert.match(indexed, /a\.ts:3:10/);
+    const html = renderPendingReviewCard({
+      pending: [{ review_id: "r-index-1", kind: "text-edit", summary: `基于符号索引（${indexed.split("\n")[0]}）更新 src/a.ts:3:10` }],
+      review_href: "/reviews",
+      primitives: p,
+    });
+    assert.match(html, /symbol greet in src\/a\.ts/);
+    assert.match(html, /src\/a\.ts:3:10/);
+    assert.match(html, /href="\/reviews"/);
+    assert.deepEqual(html.match(/<(button|input)\b[^>]*>/g) ?? [], []);
+  } finally {
+    delete process.env.FAKE_LSP_LOG;
+    rmSync(root, { recursive: true, force: true });
+  }
+});

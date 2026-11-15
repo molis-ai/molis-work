@@ -566,7 +566,8 @@ test("W3-02-G1-03 memory: recalled for this situation when the directory has it;
   const recalled = await recallForJudgment(f, { directory: "memory-a", actions });
   assert.deepEqual(recalled, { state: "ok", items: [{ kind: "preference", text: "周报里风险写在最前面" }] });
   const asked = calls.find(call => call.capability_id === "memory.recall")!.input;
-  assert.deepEqual(asked.situation, { plugin_id: "io.molis.work.pages", object_kind: "pages_document", goal_id: "G1" });
+  assert.deepEqual(asked.situation, { plugin_id: "io.molis.work.pages", object_kind: "pages_document",
+    objects: [{ plugin_id: "io.molis.work.pages", kind: "pages_document", id: "d1" }, { plugin_id: "io.molis.work.goals", kind: "goal", id: "G1" }] });
   assert.ok(asked.query.startsWith("风险 我们认为") && asked.limit <= 8 && asked.budget_chars <= 1000);
   assert.deepEqual(await recallForJudgment(f, { directory: "memory-b", actions: { ...actions, discover: async () => views.slice(0, 2) } }), { state: "ok", items: [] }, "no memory here, nothing recalled");
 

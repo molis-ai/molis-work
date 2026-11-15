@@ -82,14 +82,15 @@ for (const strategy of ["keyword", "vector-fallback"] as const) test(`${strategy
       { text: "Release checklist: BETA_ONLY", goal: "goal-b", object: "document" }]) {
       entries.push(await backend.withCaller(person).write({ scope: "project", owner: project, text: item.text, origin: "person", operation_id: item.goal,
         meta: { kind: "convention", source: "manual", approved_by: { by: "person" }, classification: { scenes: ["coding"], lifecycle: "long-term" },
-          applies_when: { plugins: [coding], goals: [item.goal], object_kinds: [item.object] } } }));
+          applies_when: { plugins: [coding], objects: [{ plugin_id: "io.molis.work.goals", kind: "goal", id: item.goal }], object_kinds: [item.object] } } }));
     }
     const sessionOwner = { project_id: project, plugin_id: coding, install_id: "coding", actor_id: caller.actor_id };
     const session = await adapter.createSession({ ...sessionOwner, workspace: "none", role_id: "reader", title: "Memory context" });
     const run = async (goal: string, object: string) => {
-      const recipe = await service.forRun({ ...caller, work: { work_id: "work-context", title: "Release preparation" } }, { query: "Release checklist", situation: { goal_id: goal, object_kind: object } });
+      const associated = [{ plugin_id: "io.molis.work.goals", kind: "goal", id: goal }];
+      const recipe = await service.forRun({ ...caller, work: { work_id: "work-context", title: "Release preparation" } }, { query: "Release checklist", situation: { objects: associated, object_kind: object } });
       assert.ok(recipe); assert.equal(recipe.task, true); assert.equal(recipe.skip, false); assert.deepEqual(recipe.pinned, []);
-      assert.deepEqual(recipe.facts, { plugins: [coding], goals: [goal], object_kinds: [object] });
+      assert.deepEqual(recipe.facts, { plugins: [coding], objects: associated, object_kinds: [object] });
       return finished(adapter, await adapter.start({ ...sessionOwner, session, workspace: "none", role_id: "reader", task: "Release checklist", history: "digest",
         role: { role_id: "reader", version: 1, workspace: "none", execution: "read-only", host_tools: [], prompts: [], memory: recipe } }));
     };
@@ -153,7 +154,7 @@ for (const strategy of ["keyword", "vector-fallback"] as const) test(`${strategy
     assert.equal(service.uses({ work_id: "work-context" }).length, 2);
     assert.notEqual(second.ref.run_id, first.ref.run_id);
     const recipe = await service.forRun({ ...caller, work: { work_id: "refused-work", title: "Refused release" } },
-      { query: "Release checklist", situation: { goal_id: "goal-a", object_kind: "file" } });
+      { query: "Release checklist", situation: { objects: [{ plugin_id: "io.molis.work.goals", kind: "goal", id: "goal-a" }], object_kind: "file" } });
     assert.ok(recipe);
     let finalFenceChecks = 0;
     const refused = await finished(adapter, await adapter.start({ ...sessionOwner, session, workspace: "none", role_id: "reader", task: "Release checklist",

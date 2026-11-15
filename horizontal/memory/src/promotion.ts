@@ -134,8 +134,7 @@ export class MemoryPromotion {
       if (request.before && !this.ports.ledger.revisions(mark.memory_id).some(item => item.version === request.before!.version)) {
         const facts = fromEntryMeta({ ...request.before, scope });
         if (!facts) throw memoryErrors.conflict("原记忆事实不完整，不能准备自动替换的撤销");
-        this.ports.ledger.addRevision(mark.memory_id, { version: request.before.version, text: request.before.text, kind: facts.kind, applies: facts.applies,
-          snapshot: { origin: request.before.origin, meta: request.before.meta }, change: "replaced", by: "policy", at: mark.at });
+        this.ports.ledger.addRevision(mark.memory_id, { version: request.before.version, change: "replaced", by: "policy", at: mark.at });
       }
       if (!old) this.ports.ledger.setMarker(caller.actor_id, journalKey(request.operation_id), mark, mark.at);
       this.link(caller.actor_id, mark.memory_id, mark.sources);
@@ -154,8 +153,7 @@ export class MemoryPromotion {
       if (this.mark(caller.actor_id, request.operation_id)?.phase === "closed" || this.ports.ledger.marker("", `memory-forgotten:${entry.memory_id}`)
         || !this.sourceAllowed(caller.actor_id, mark.scope, mark.owner, mark.sources)) throw memoryErrors.conflict("自动记忆已遗忘，不能补回旧记录");
       if (!this.ports.ledger.change(change_id)) {
-        this.ports.ledger.addRevision(entry.memory_id, { version: entry.version, text: entry.text, kind: facts.kind, applies: facts.applies,
-          snapshot: { origin: entry.origin, meta: entry.meta }, change: mark.before_version ? "replaced" : "created", by: "policy", at: mark.at });
+        this.ports.ledger.addRevision(entry.memory_id, { version: entry.version, change: mark.before_version ? "replaced" : "created", by: "policy", at: mark.at });
         this.ports.ledger.saveChange({ change_id, operation_id: request.operation_id, applied_version: entry.version, actor_id: caller.actor_id,
           scope: mark.scope, owner: mark.owner, project_id: mark.scope === "personal" ? null : holder.project_id, memory_id: entry.memory_id,
           kind: mark.before_version ? "auto_replaced" : "auto_kept", text: entry.text, by: "policy", rule: MEMORY_GATE_RULE,

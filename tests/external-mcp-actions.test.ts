@@ -39,7 +39,7 @@ test("ASC-01 ASC-02 ASC-32: a connected external MCP tool is one directory actio
   const notes = async () => (await readFile(join(home, "mcp-notes.jsonl"), "utf8").catch(() => "")).trim().split("\n").filter(Boolean).map(line => JSON.parse(line).note);
   try {
     const saved = await library.save(owner, { expected_version: 0, label: "笔记服务", transport: "stdio", enabled: true, timeout_ms: 5000,
-      directory: { canonical_path: home, realpath_verified: true }, executable: process.execPath, argv: ["server.mjs"] });
+      directory: { canonical_path: home, realpath_verified: true }, executable: "node", argv: ["server.mjs"] });
     await library.control(owner, saved.id, "connect");
     await directory.sync(runtime, "prologue", library, owner);
 

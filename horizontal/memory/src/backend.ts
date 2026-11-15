@@ -27,6 +27,8 @@ export interface MemoryBackendPort {
   page(input: Scoped<AgentMemoryPageQuery>): Promise<Omit<AgentMemoryPage, "items"> & { items: MemoryBackendEntry[] }>;
   write(input: Scoped<Parameters<AgentMemoryCapability["write"]>[0]>): Promise<MemoryBackendEntry>;
   update(input: Formal & { change: AgentMemoryChange }): Promise<MemoryBackendEntry>;
+  history(input: Scoped<Parameters<AgentMemoryCapability["history"]>[0]>): Promise<Omit<Awaited<ReturnType<AgentMemoryCapability["history"]>>, "scope"> & { scope: MemoryScope }>;
+  restore(input: Formal & { version: number; note?: string }): Promise<MemoryBackendEntry>;
   renew(input: Formal & { expires_at_ms: number }): Promise<MemoryBackendEntry>;
   setMeta(input: Formal & { meta: AgentMemoryMeta }): Promise<MemoryBackendEntry>;
   pause(input: Formal & { reason: string }): Promise<MemoryBackendEntry>;
@@ -37,6 +39,8 @@ export interface MemoryBackendPort {
   remove(input: Formal): Promise<void>;
   candidates: MemoryCandidatePort;
   screen?(text: string): Promise<{ hold: boolean; reasons: string[]; redacted: string }>;
+  exportScope?(input: { scope: MemoryScope; owner: string; signal?: AbortSignal }): Promise<unknown>;
+  importScope?(input: { scope: MemoryScope; owner: string; pack: unknown; max_entries?: number; signal?: AbortSignal }): Promise<unknown>;
   previewBatch(input: Scoped<Parameters<AgentMemoryCapability["previewBatch"]>[0]>): Promise<AgentMemoryBatchPreview>;
   applyBatch(input: Parameters<AgentMemoryCapability["applyBatch"]>[0]): Promise<AgentMemoryClearResult>;
   previewScope(scope: MemoryScope, owner: string): Promise<AgentMemoryScopePreview>;

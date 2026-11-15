@@ -72,9 +72,12 @@ export function createMemoryLedgerRetention(db: ReturnType<typeof openHomeSqlite
       }
       // A late ledger receipt cannot put back forgotten history. Operation markers contain identity only.
       for (const row of db.prepare("SELECT actor_id, key, body FROM memory_markers WHERE key LIKE 'memory-operation:%'").all()) {
-        const mark = JSON.parse(String(row.body)) as { memory_id?: string; result?: { memory_id?: string } };
-        if (mark.memory_id === memoryId || mark.result?.memory_id === memoryId) db.prepare("UPDATE memory_markers SET body=? WHERE actor_id=? AND key=?")
-          .run(JSON.stringify({ ...mark, phase: "closed" }), String(row.actor_id), String(row.key));
+        const mark = JSON.parse(String(row.body)) as { memory_id?: string; drop?: { memory_id?: string }; result?: { memory_id?: string }; merge?: unknown };
+        if (mark.memory_id === memoryId || mark.drop?.memory_id === memoryId || mark.result?.memory_id === memoryId) {
+          const { merge: _merge, ...rest } = mark;
+          db.prepare("UPDATE memory_markers SET body=? WHERE actor_id=? AND key=?")
+            .run(JSON.stringify({ ...rest, phase: "closed" }), String(row.actor_id), String(row.key));
+        }
       }
     }),
     forgetScopes: input => transaction(() => {
@@ -94,9 +97,12 @@ export function createMemoryLedgerRetention(db: ReturnType<typeof openHomeSqlite
       for (const key of input.prefs_keys) db.prepare("DELETE FROM memory_prefs WHERE key=?").run(key);
       for (const key of input.marker_keys) if (!key.startsWith("memory-forgotten:")) db.prepare("DELETE FROM memory_markers WHERE key=?").run(key);
       for (const row of db.prepare("SELECT actor_id,key,body FROM memory_markers WHERE key LIKE 'memory-operation:%'").all()) {
-        const mark = JSON.parse(String(row.body)) as { scope?: string; owner?: string };
-        if (gone.has(JSON.stringify([mark.scope, mark.owner]))) db.prepare("UPDATE memory_markers SET body=? WHERE actor_id=? AND key=?")
-          .run(JSON.stringify({ ...mark, phase: "closed" }), String(row.actor_id), String(row.key));
+        const mark = JSON.parse(String(row.body)) as { scope?: string; owner?: string; merge?: unknown };
+        if (gone.has(JSON.stringify([mark.scope, mark.owner]))) {
+          const { merge: _merge, ...rest } = mark;
+          db.prepare("UPDATE memory_markers SET body=? WHERE actor_id=? AND key=?")
+            .run(JSON.stringify({ ...rest, phase: "closed" }), String(row.actor_id), String(row.key));
+        }
       }
       for (const prefix of input.signal_prefixes) db.prepare("DELETE FROM memory_signal_events WHERE substr(key, 1, ?)=?").run(prefix.length, prefix);
     }),

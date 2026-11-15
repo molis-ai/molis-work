@@ -165,7 +165,7 @@ test("text and metadata update is one CAS; ledger repair replays its old version
     await env.service.change(caller("edit-b"), { action: "update", memory_id: id, expected_version: 2, text: "A newer human edit" });
     await assert.rejects(env.service.change(who, request));
     assert.equal((await env.raw.list("personal", who.actor_id))[0]!.text, "A newer human edit");
-    assert.equal(env.ledger.revisions(id).find(row => row.version === 2)!.text, request.text);
+    assert.equal((await env.raw.history!({ scope: "personal", owner: who.actor_id, memory_id: id }))?.revisions.find(row => row.version === 2)!.text, request.text);
   } finally { await env.close(); }
 });
 
@@ -1284,7 +1284,7 @@ test("an append receipt arriving after an observed deletion cannot restore histo
     await assert.rejects(env.service.write(caller("late-create"), { scope: "personal", text: "A later-forgotten preference", kind: "preference" }));
     assert.deepEqual(await env.raw.list("personal", "memory-owner"), []);
     assert.deepEqual(env.ledger.forgetting.read().decisions, decisions);
-    assert.throws(() => env.ledger.addRevision(held.memory_id, { version: 1, text: "A later-forgotten preference", kind: "preference", applies: {}, change: "created", by: "person", at: "2026-10-23T00:00:00Z" }), /已经删除/);
+    assert.throws(() => env.ledger.addRevision(held.memory_id, { version: 1, change: "created", by: "person", at: "2026-10-23T00:00:00Z" }), /已经删除/);
     assert.deepEqual(env.ledger.revisions(held.memory_id), []);
   } finally { release(); await env.close(); }
 });

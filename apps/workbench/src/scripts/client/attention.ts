@@ -111,7 +111,6 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
       const reply = await molisWorkRequest(address, { as: "response", signal: connection.signal, headers: { accept: "text/event-stream" } });
       if (reply.status === 404) { gone.add(route("/api/attention")); return; }
       if (reply.status !== 200 || !reply.body) throw new Error("no stream");
-      delay = 1000; lost = false;
       const reader = reply.body.getReader(), decoder = new TextDecoder();
       let buffer = "";
       for (;;) {
@@ -119,7 +118,8 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
         buffer += decoder.decode(part.value, { stream: true });
         for (let end = buffer.indexOf("\\n\\n"); end >= 0; end = buffer.indexOf("\\n\\n")) {
           const block = buffer.slice(0, end); buffer = buffer.slice(end + 2);
-          if (/^event: changed$/m.test(block)) void read();
+          // The stream opens with a word: only then is the Host there, so one that answers and closes at once keeps backing off.
+          if (/^event: changed$/m.test(block)) { delay = 1000; lost = false; void read(); }
         }
       }
     } catch { /* told below */ }

@@ -5,7 +5,11 @@ import { createServer } from "node:http";
 import test, { type TestContext } from "node:test";
 import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { setTimeout as pause } from "node:timers/promises";
-import { attentionChanged, handleAttentionHttp, onAttentionChange, type AttentionSources } from "@molis-ai/molis-work-app-local-host";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { attentionChanged, DEMO_PROJECT_ID, handleAttentionHttp, LocalProjectDatabase, onAttentionChange, openPluginProjectLibrary, seedDemoBoard, type AttentionSources } from "@molis-ai/molis-work-app-local-host";
+import { CodingSessionStore, codingManifest } from "@molis-ai/molis-work-plugin-coding";
 import { LOCAL_JOURNAL_SCHEMA_SQL, LocalSqliteJournal } from "@molis-ai/molis-work-storage";
 import { CODING_FILE_CHANGED_EVENT } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { SqlitePluginEventsRepository, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
@@ -201,6 +205,28 @@ test("WLN-27 the attention stream says changed once on opening and on each chang
   a.close(); home.close();
   for (let i = 0; i < 100 && listening; i++) await pause(10);
   assert.equal(listening, 0, "a page that goes stops hearing");
+});
+
+// WLN-27: a plugin's transaction that changes no row is no change (Schedule reconciles every five seconds; each word was one
+// more read of every open page). A transaction that writes a row is one.
+test("WLN-27 a plugin library transaction says changed only when it changed a row", async t => {
+  const root = await mkdtemp(join(tmpdir(), "wln27-library-")), dbPath = join(root, "project.db");
+  t.after(() => rm(root, { recursive: true, force: true }));
+  seedDemoBoard(dbPath);
+  const store = new LocalProjectDatabase(dbPath);
+  const library = openPluginProjectLibrary({ db: store.db, path: store.path }, codingManifest, () => {}, { install_id: "wln27", installation_generation: "1" });
+  t.after(async () => { await library.close(); store.close(); });
+  let heard = 0;
+  const stop = onAttentionChange(DEMO_PROJECT_ID, () => { heard++; });
+  t.after(stop);
+  const settle = () => new Promise<void>(resolve => setImmediate(resolve));
+  await library.client.transaction(async () => {}, tx => tx.run("UPDATE coding_inputs SET draft=draft WHERE project_id=?", ["no-such-project"]));
+  await settle();
+  assert.equal(heard, 0, "a transaction that touched no row");
+  const sessions = new CodingSessionStore(library.client);
+  await sessions.create(async () => {}, { project_id: DEMO_PROJECT_ID, session_id: "wln27", title: "说一次", runtime_id: "prologue", at: new Date().toISOString() });
+  await settle();
+  assert.equal(heard, 1, "a transaction that wrote a row");
 });
 
 /** The stream route alone over loopback: `open` reads its `changed` words as they come. */

@@ -30,7 +30,7 @@ export interface PluginDatabaseConnections<Connection extends PluginDatabaseConn
   /** What each statement passes after the keyword filters, on the connection that will run it; a library in the Home has nothing more. */
   perform?<T>(connection: Connection, sql: string, parameters: readonly PluginSqlValue[], mode: "read" | "write", execute: () => T): T;
   check?(connection: Connection, sql: string, parameters: readonly PluginSqlValue[], mode: "read" | "write"): void;
-  /** Told after a transaction committed (the Host's change word to its pages, WLN-27); never fails the write. */
+  /** Told after a transaction that changed rows committed (the Host's change word to its pages, WLN-27); never fails the write. */
   committed?(): void;
 }
 
@@ -109,14 +109,17 @@ export function pluginDatabaseClient<Connection extends PluginDatabaseConnection
         if (!connections.inTransaction()) throw new ActionError("actions.forbidden", "事务已被数据库回滚，不能继续访问");
         permitWrite();
       };
-      let savepoints = 0;
+      // A transaction that touched no row is no change to tell the pages about (Schedule reconciles every few seconds).
+      let savepoints = 0, wrote = false;
       const handle: PluginDatabaseTransaction | PluginProjectDatabaseTransaction = Object.freeze({ ...reads(writer, check),
           ...(journal ? { journal: journal.writer(check) } : {}),
           run(sql: string, parameters: readonly PluginSqlValue[] = []) {
             check();
             assertWriteStatement(sql);
             connections.check?.(writer, sql, parameters, "write");
-            return perform(writer, sql, parameters, "write", () => prepared(writer, sql).run(...parameters) as { changes: number | bigint });
+            const result = perform(writer, sql, parameters, "write", () => prepared(writer, sql).run(...parameters) as { changes: number | bigint });
+            if (Number(result.changes) > 0) wrote = true;
+            return result;
           },
           // The point's name is the platform's: nothing the plugin passes reaches the SQL text.
           savepoint<T>(body: () => { readonly keep: boolean; readonly value: T }): T {
@@ -146,7 +149,7 @@ export function pluginDatabaseClient<Connection extends PluginDatabaseConnection
         requireSynchronous(result, "插件数据库事务必须同步完成，不能包含异步等待");
         check();
         writer.exec("COMMIT");
-        try { connections.committed?.(); } catch { /* the write is done */ }
+        if (wrote) try { connections.committed?.(); } catch { /* the write is done */ }
       } catch (error) {
         try { if (connections.inTransaction()) writer.exec("ROLLBACK"); }
         catch (rollbackError) { hostLog.error("plugin_database", "rollback_failed", rollbackError); }

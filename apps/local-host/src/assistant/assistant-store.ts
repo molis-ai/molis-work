@@ -311,12 +311,13 @@ export class AssistantStore {
 
   /** Mark notices seen, dismissed or resolved: one, or every open one of a work (optionally only of some kinds). */
   settleNotices(actorId: string, target: { notice_id?: string; work_id?: string; kinds?: readonly string[] }, state: Exclude<StoredNotice["state"], "new">): number {
-    attentionChanged(null);
-    if (target.notice_id) return Number(this.db.prepare("UPDATE assistant_notices SET state=? WHERE actor_id=? AND notice_id=? AND state='new'").run(state, actorId, target.notice_id).changes);
-    if (!target.work_id) return 0;
     const kinds = target.kinds?.length ? target.kinds : null;
-    return Number(this.db.prepare(`UPDATE assistant_notices SET state=? WHERE actor_id=? AND work_id=? AND state='new'${kinds ? ` AND kind IN (${kinds.map(() => "?").join(",")})` : ""}`)
-      .run(state, actorId, target.work_id, ...(kinds ?? [])).changes);
+    const settled = target.notice_id ? Number(this.db.prepare("UPDATE assistant_notices SET state=? WHERE actor_id=? AND notice_id=? AND state='new'").run(state, actorId, target.notice_id).changes)
+      : !target.work_id ? 0
+      : Number(this.db.prepare(`UPDATE assistant_notices SET state=? WHERE actor_id=? AND work_id=? AND state='new'${kinds ? ` AND kind IN (${kinds.map(() => "?").join(",")})` : ""}`)
+        .run(state, actorId, target.work_id, ...(kinds ?? [])).changes);
+    if (settled) attentionChanged(null);
+    return settled;
   }
 
   /**
@@ -324,10 +325,11 @@ export class AssistantStore {
    * `connection:<id>:`), leaving those that start with `keep` when it is given. The keys stay, so a key already used never raises again.
    */
   settleNoticesByDedupe(actorId: string, prefix: string, state: Exclude<StoredNotice["state"], "new">, keep?: string): number {
-    attentionChanged(null);
     const like = (value: string) => `${value.replace(/[\\%_]/g, character => `\\${character}`)}%`;
-    return Number(this.db.prepare(`UPDATE assistant_notices SET state=? WHERE actor_id=? AND state='new' AND dedupe LIKE ? ESCAPE '\\'${keep ? " AND dedupe NOT LIKE ? ESCAPE '\\'" : ""}`)
+    const settled = Number(this.db.prepare(`UPDATE assistant_notices SET state=? WHERE actor_id=? AND state='new' AND dedupe LIKE ? ESCAPE '\\'${keep ? " AND dedupe NOT LIKE ? ESCAPE '\\'" : ""}`)
       .run(state, actorId, like(prefix), ...(keep ? [like(keep)] : [])).changes);
+    if (settled) attentionChanged(null);
+    return settled;
   }
 
   /** Changes left running when a round ended, newest last; `untold` only those the next round has not been told of. */

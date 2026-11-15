@@ -232,4 +232,6 @@ BL-360 工程证据：`agent-review-decisions.test.ts` 验证逐决定可用性�
 
 合入第 41 批后的候选与 Auth 源码 `3cef81ac6433da41b7e7a80f3a6c512f77454418` 一起跑过 `scripts/account-installation.test.mjs`。专用 Chromium 连接动态回环端口上的实际安装宿主、Auth Worker 与临时 D1，测试手机验证码由本机模拟投递。登录、A/B/A 切换读回原项目、重复登录、重启恢复、旧会话拒绝和退出后重新登录均通过。固定 dev 端口上的本人体验仍待用户通知测试窗口。
 
+补验 APR-07／08／11 时，原 HTTP 设置入口按已读取的授权版本撤权。问卷写入、Home 判断规则和 Goals 便笺三条真实调用均拒绝在途旧授权，并核对原业务记录。Coding 路由测试核对先结束原工作授权，再归档执行会话；重试可补齐本地归档，重复请求仍拒绝。对应测试为 `tests/mcp-effect-authority.test.ts`、`tests/mcp-scene-effect-authority.test.ts`、`tests/goals-mcp-actions.test.ts` 和 `tests/coding-session-effect-control.test.ts`。
+
 截至 2026-11-15，项目审批与迁移已完成上述隔离验证，最终提交仍需补齐验收及复审。整批完成还取决于 APR-15 的第 32-2 批入口及本人认可、GitHub App 发布及真实队列、最终产品实操与用户验收。#2069 的 [full-suite](https://github.com/molis-ai/molis-work/actions/runs/43586585774) 和[合并队列 CI](https://github.com/molis-ai/molis-work/actions/runs/43588084577) 仅覆盖先交的共用合同。

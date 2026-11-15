@@ -5,6 +5,7 @@ import { ActionError, bindActionClient, retainActionAuthority, type ActionDefini
 import { recordedCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import { readMcpToolPreference } from "@molis-ai/molis-work-app-local-host";
 import { formActions } from "@molis-ai/molis-work-plugin-form";
+import { revokeMcpAction } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { openFormStore } from "./fixtures/plugin-home-stores.js";
 import type { FormRecord } from "@molis-ai/molis-work-plugin-form/contract";
 import { openTestHome } from "./fixtures/test-home.js";
@@ -105,7 +106,11 @@ for (const nested of [false, true]) test(nested
     // A premature rejection/success cannot masquerade as entering the intended production interleaving.
     const settled = pending.then(() => { throw new Error("Operation settled before the later availability barrier"); });
     await Promise.race([entered.promise, settled]);
-    await home.revoke(clientId, project.project_id, [target]);
+    // The settings page already has the selected grant's generation when the person presses Revoke.
+    // Loading a new directory here would wait on the test's own held availability check.
+    await revokeMcpAction(home.web, { clientId, projectId: project.project_id, action: {
+      ...exact, expected: { expected_generation: exact.generation },
+    } });
     const afterGrants = (await readMcpToolPreference(home.home)).action_grants.filter(grant => grant.client_id === clientId && grant.project_id === project.project_id);
     assert.equal(afterGrants.find(grant => grant.capability_id === target.capability_id)?.enabled, false);
     assert.equal(afterGrants.find(grant => grant.capability_id === peer.capability_id)?.enabled, true);

@@ -179,7 +179,7 @@ test("BCD-05 BCD-08 BCD-10 BCD-14 the rules menu shows what each round was given
   await b.navigate(() => command("Page.navigate", { url: `${b.origin}/locale?lang=zh&next=${encodeURIComponent(`/projects/${projectId}/?openPlugin=coding`)}` }, sessionId));
   await b.waitFor(`document.querySelector('[data-work-surface="coding"]')?.dataset.uiClientState === 'ready'`, 20_000);
   await child.click(`${coding} [data-coding-session="${session}"]`);
-  await b.waitFor(`Boolean(document.querySelector(${JSON.stringify(RULES)}))`, 20_000);
+  await b.waitFor(`${CODING_TAKEN} && !document.querySelector('${CODING_COMPOSER} .mw-composer__input').disabled && Boolean(document.querySelector(${JSON.stringify(RULES)}))`, 20_000);
   assert.equal(await label(), "规则", "an unrecorded round counts nothing");
   const unrecorded = await openMenu();
   assert.match(unrecorded, /这一轮没有记录规则来源/);

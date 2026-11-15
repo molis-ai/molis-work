@@ -105,7 +105,7 @@ test("OCL-08 OCL-11 OCL-12 OCL-13 OCL-14 OCL-15 OCL-16 PWA-111 PWA-112: Global S
     .bind({ kind: "background", entry: "agent", actor_id: LOCAL_PERSON_ACTOR_ID, project_id: projectId!, call_id: "seed-ai-1" })
     .record({ fact: "agent.run", stage: "started", outcome: "succeeded", occurred_at: recentAt, work: { run_id: "run-seed-1" } });
   layer.sink("scheduler")
-    .bind({ kind: "background", entry: "scheduler", actor_id: LOCAL_PERSON_ACTOR_ID, project_id: projectId!, call_id: "seed-sched-1" })
+    .bind({ kind: "background", entry: "schedule", actor_id: LOCAL_PERSON_ACTOR_ID, project_id: projectId!, call_id: "seed-sched-1" })
     .record({ fact: "scheduler.wakeup", outcome: "succeeded", occurred_at: recentAt });
   layer.flush();
 
@@ -221,7 +221,8 @@ test("OCL-08 OCL-11 OCL-12 OCL-13 OCL-14 OCL-15 OCL-16 PWA-111 PWA-112: Global S
   const ref = molisWorkHostProjectReference({ databasePath: browser.databasePath, projectId: projectId! });
   const personCaller = await localHost.localPersonContext(ref);
   const client = localHost.actionClient(ref);
-  const goalsBeforeCleanup = (await client.invoke(personCaller, goalsActions.list, { limit: 100 })).goals.length;
+  const countGoals = async () => ((await client.invoke(personCaller, goalsActions.list, { limit: 100 })) as { goals: readonly unknown[] }).goals.length;
+  const goalsBeforeCleanup = await countGoals();
   assert.ok(goalsBeforeCleanup > 0);
   await click('[data-wr-act="openDlg"]');
   await waitFor("document.querySelector('[data-wr-dialog]')?.open === true", 10_000);
@@ -237,7 +238,7 @@ test("OCL-08 OCL-11 OCL-12 OCL-13 OCL-14 OCL-15 OCL-16 PWA-111 PWA-112: Global S
   }
   await click('[data-wr-act="applyDlg"]');
   await waitFor("!document.querySelector('[data-wr-dialog]')?.open && !!document.querySelector('[data-wr-goto=\"gaps\"]')", 15_000);
-  assert.equal((await client.invoke(personCaller, goalsActions.list, { limit: 100 })).goals.length, goalsBeforeCleanup, "manual clean-up never deletes business objects");
+  assert.equal(await countGoals(), goalsBeforeCleanup, "manual clean-up never deletes business objects");
 
   // Jump from post-cleanup banner to Tab 4 (gaps) and verify expired gap + filter toggles + collapsibles.
   await click('[data-wr-goto="gaps"]');
@@ -298,6 +299,91 @@ test("OCL-08 OCL-11 OCL-12 OCL-13 OCL-14 OCL-15 OCL-16 PWA-111 PWA-112: Global S
     const shot = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId);
     await writeFile(join(shots, "settings-work-records-space-1440-zh-light.png"), Buffer.from(shot.data, "base64"));
   }
+
+  // 3. Verify `purged` state badge/effect and all writer/report/sink gap reasons render localized copy in zh and en (zero snake_case or generic fallback).
+  layer.purgePlugin({
+    plugin_id: "io.molis.work.native.workflows",
+    install_ids: ["inst-wf-seed"],
+    provider_ids: ["io.molis.work.native.workflows"],
+    project_id: projectId!,
+  });
+  const gapKey = { owner: "service:gateway", fact: "action.call", entry: "host" as const, project_id: projectId! };
+  layer.writer.gap(gapKey, "lost", "queue_full", 3);
+  layer.writer.gap(gapKey, "lost", "store_unavailable", 2);
+  layer.writer.gap({ owner: "shell", fact: "ui.open", entry: "workbench", project_id: projectId! }, "lost", "report_quota", 5);
+  layer.writer.gap(gapKey, "unavailable", "evidence_key", 1);
+  layer.writer.gap({ owner: "observation", fact: "*", entry: "host", project_id: "" }, "lost", "unknown_exit", 1);
+  layer.writer.gap(gapKey, "lost", "exit_failed", 1);
+  layer.writer.gap({ owner: "service:agent", fact: "agent.run", entry: "host", project_id: projectId! }, "lost", "record_failed", 2);
+  layer.writer.gap({ owner: "service:agent", fact: "other.fact", entry: "host", project_id: projectId! }, "lost", "fact_not_owned", 1);
+  layer.flush();
+
+  await setLocale("zh");
+  await openSettings(1440);
+  await click('[data-wr-tab="gaps"]');
+  await waitFor("document.querySelector('[data-wr-tab=\"gaps\"]')?.classList.contains('is-active')", 10_000);
+  const purgedInfo = await evaluate<{ key: string; panelText: string }>(`(() => {
+    const items = [...document.querySelectorAll('[data-wr-panel] .mw-item')];
+    const purgedRow = items.find((el) => el.textContent?.includes('你在清除插件数据时一并清掉了这段内容'));
+    return {
+      key: purgedRow?.querySelector('[data-wr-open]')?.getAttribute('data-wr-open') ?? '',
+      panelText: document.querySelector('[data-wr-panel]')?.textContent ?? '',
+    };
+  })()`);
+  assert.ok(purgedInfo.key, `purged plugin row is rendered in Coverage & gaps (saw: ${purgedInfo.panelText.slice(0, 500)})`);
+  await click(`[data-wr-open=${JSON.stringify(purgedInfo.key)}]`);
+  await waitFor("document.querySelector('[data-wr-panel]')?.textContent?.includes('插件数据已按你的选择清除；调用过谁保留记录，内容不再重看')", 10_000);
+  const zhAllGapsText = await evaluate<string>("document.querySelector('[data-wr-panel]')?.textContent ?? ''");
+  for (const expected of [
+    "已清除",
+    "你在清除插件数据时一并清掉了这段内容",
+    "插件数据已按你的选择清除；调用过谁保留记录，内容不再重看",
+    "待写队列已满，3 条没能保存",
+    "磁盘或数据库写入失败，2 条没能保存",
+    "超过当日上报上限，5 条未接收",
+    "本机证据密钥暂不可用，1 处正文未能封存",
+    "上次宿主异常退出前待写队列未刷完",
+    "记录组装异常，1 条未能入队",
+    "记录组装异常，2 条未能入队",
+    "上报名称不在来源允许的前缀内，1 条已拦截",
+  ]) {
+    assert.ok(zhAllGapsText.includes(expected), `zh gaps renders "${expected}"`);
+  }
+  assert.ok(!zhAllGapsText.includes("按当前版本采集规则记录"), "zh gaps never falls back to cause-generic for known reasons");
+  assert.ok(!/plugin_data_cleared|queue_full|store_unavailable|report_quota|evidence_key|unknown_exit|exit_failed|record_failed|fact_not_owned/u.test(zhAllGapsText), "zh gaps leaks zero raw snake_case reason codes");
+
+  await setLocale("en");
+  await openSettings(1440);
+  await click('[data-wr-tab="gaps"]');
+  await waitFor("document.querySelector('[data-wr-tab=\"gaps\"]')?.classList.contains('is-active')", 10_000);
+  const enPurgedExpandKey = await evaluate<string>(`(() => {
+    const items = [...document.querySelectorAll('[data-wr-panel] .mw-item')];
+    const purgedRow = items.find((el) => el.textContent?.includes('Cleared when you removed this plugin’s data'));
+    return purgedRow?.querySelector('[data-wr-open]')?.getAttribute('data-wr-open') ?? '';
+  })()`);
+  assert.ok(enPurgedExpandKey, "en purged plugin row is rendered in Coverage & gaps");
+  await click(`[data-wr-open=${JSON.stringify(enPurgedExpandKey)}]`);
+  await waitFor("document.querySelector('[data-wr-panel]')?.textContent?.includes('Plugin data was cleared at your request; call records stay without their content')", 10_000);
+  const enSeenGaps = await evaluate<{ words: string }>(PAGE_INSPECT);
+  assert.ok(enSeenGaps);
+  assert.equal(enSeenGaps.words.match(/[\u3400-\u9fff]+/gu)?.join(" ") ?? "", "", "en gaps with purged & writer gaps: zero untranslated Chinese");
+  for (const expected of [
+    "Data cleared",
+    "Cleared when you removed this plugin’s data",
+    "Plugin data was cleared at your request; call records stay without their content",
+    "Write queue was full; 3 records were not saved",
+    "Disk or database write failed; 2 records were not saved",
+    "Daily reporting limit reached; 5 records were skipped",
+    "Local evidence key was unavailable; 1 body could not be sealed",
+    "The previous Host run exited before flushing queued records",
+    "Internal recording error; 1 record was not queued",
+    "Internal recording error; 2 records were not queued",
+    "1 fact outside the caller’s prefix was rejected",
+  ]) {
+    assert.ok(enSeenGaps.words.includes(expected), `en gaps renders "${expected}"`);
+  }
+  assert.ok(!enSeenGaps.words.includes("Recorded under this version’s collection rules"), "en gaps never falls back to cause-generic for known reasons");
+  assert.ok(!/plugin_data_cleared|queue_full|store_unavailable|report_quota|evidence_key|unknown_exit|exit_failed|record_failed|fact_not_owned/u.test(enSeenGaps.words), "en gaps leaks zero raw snake_case reason codes");
 });
 
 test("OCL-07 OCL-10 EC-13: real browser Global Search locate highlights the chosen same-title Goal in DOM and records ui.locate returned on workbench history back", { timeout: 120_000 }, async (t) => {

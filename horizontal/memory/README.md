@@ -147,7 +147,7 @@ SDK 已提交而历史事务失败时，保留原操作，重试或重开后由 
 | [src/scope-commands.ts](src/scope-commands.ts) | 授权范围读取与视图、固定清空、当前格式导出/导入；导入复用 Service 写门 |
 | [src/prefs.ts](src/prefs.ts) | 开关的默认值、四预设配方、补全与使用方权限 |
 | [src/preferences.ts](src/preferences.ts) | 有效偏好读写、项目继承与助理设置映射；持久化仍经原 ledger |
-| [src/policy.ts](src/policy.ts) | 自动批准规则版本与低风险类型门；只决定自动提议是否仍需本人认可 |
+| [src/policy.ts](src/policy.ts) | 自动批准与整理维护的策略标识与版本号（`MEMORY_GATE_*`、`MEMORY_UPKEEP_*`）及低风险类型门；只决定自动提议是否仍需本人认可，并写入每条自动改动的 `policy` |
 | [src/text.ts](src/text.ts) | 召回关键词、同文判断（`sameWords`：同样的话，由 `fold` 折叠后相等；`sameText`：去掉标点的粗略相等，只用来给建议去重）、秘密形状与像指令的文字（确定性规则） |
 | [src/spoken.ts](src/spoken.ts) | `theirWords`：记作“用户亲口说的”（来源 `said`）的核对，内容是不是本人写过的某一整条消息（只容许 `fold` 的差别：大小写、全角半角、引号样式、空白和最后一个句号），记下来的是那条消息本身；`quotedFrom`：引文是不是本人说过的一段话（工作结束时提炼出的建议用它区分“明说”和“推断”，不决定“亲口说的”） |
 
@@ -208,10 +208,10 @@ pnpm --filter @molis-ai/molis-work-service-memory build
 - 不变量：
   - 正式记忆缺少依据、批准者或原时间时投影为 `null`；未知证据类别和原引用保持原值，状态编辑和恢复不补造事实。新写与候选的依据、证据输入保持严格。导出不含证据正文；未知依据往返，导入缺少原批准事实仍未知。缺时间不获新近权重、不能据此执行 90 天自动停用。见当前 Memory 策略 spec §9.4。
   - 前台控制按调用贯穿 SDK 的异步准备、实际 storage 提交和同步 owner 账本；后台维护使用自身授权。被拒绝的后续写入不反抹已经提交的 SDK 事实，部分失败明确报出并可重开核对。
-  - 模型只提议不批准：自动写入由确定性的写入门决定，规则版本写进来源与最近变动。
+  - 模型只提议不批准：自动写入由确定性的写入门决定，自动记住与整理维护的每条自动改动都把结构化策略标识与版本（`policy`）和触发证据（`trigger_evidence`）写进最近变动。
   - 单次行为、仅靠推断的内容、背景事实、经验、像指令的文字、形似秘密的文字都不会被自动写入；只有偏好/约定可通过重复证据与开关门自动晋升，推断不能覆盖用户明确说过的。
   - 停用、暂停、过期、不适用的记忆不会被召回；某使用方的开关关掉后它拿不到记忆。
-  - 删除后存储、旁表（历史、使用记录）、最近变动的正文、重启之后都不再带出该条。
+  - 删除与遗忘后存储、旁表（无正文四键历史归因、使用记录）、最近变动的正文与触发证据（`text`、`reason`、`trigger_evidence`、`undo`）、操作标记里的暂态字段、重启之后都不再带出该条。
   - 模型说“和之前那条一样”（`same_as`）只是指路：写入门只按文字认同文，否则新的话单独成一条建议，两条都留给本人，不替它自动记住别的，也不丢掉新的。“同样的话”（`sameWords`）只容许下面 `fold` 列出的差别；逗号、问号和符号都会改变意思（“不，要发给他”和“不要发给他”，“金额>1000”和“金额<1000”），所以不算同文，也不拿相似度去认。写入、替换、认可建议、从工作提炼时判断“是不是已经记着”都按这条；只有建议和建议之间“同文只提一次”仍用去掉标点的 `sameText`，那只是少打扰本人，不决定记了什么。
   - 记作“用户亲口说的”（来源 `said`）只有一条规则，确定性、不问模型（[src/spoken.ts](src/spoken.ts) 的 `theirWords`）：要记的内容必须就是本人写过的某一整条消息的全文——每一句都在，不多一个字、不少一个字、不改顺序，不用两条消息拼，不加项目名，也不借被纠正的那条记忆（`replaces`）的词。拿来对的是宿主保存的本人原话，不是模型交来的引文（引文只是指路）：助理的工具把本人在这项工作里自己打的消息交给写入门（`MemoryService.write` 的第三个参数 `originals`，只有宿主自己的代码能传，动作传不了；[assistant-memory-tools.ts](../../apps/local-host/src/assistant/assistant-memory-tools.ts)）。**记下来的是那条消息本身**：本人怎么写就怎么存，正文、依据和出处都是它，不是模型交来的版本（存之前的长度、秘密和像指令的文字也都按它查）。
   - 开头的“记住”“请记住”“帮我记住”“remember (that)”是对助理的要求，不是要记的内容：核对和存下的都是去掉这个开头之后的那条消息（[src/spoken.ts](src/spoken.ts) 的 `REMEMBER_OPENING`，用户 2026-11-13 批准）。只去开头，后面一个字不动；“记住了”“记得”这类不是要求的不去。
@@ -232,7 +232,7 @@ pnpm --filter @molis-ai/molis-work-service-memory build
   - 项目被删除时 `purgeProjectMemories` 清掉该项目及其角色的记忆（存储里的条目与候选）和账本里与之相关的一切（修订、使用、变动、候选记录、成对提示、开关、界面计数）；角色的范围从账本记下的所有者和候选记录上的项目找到。原删除回执固定 scope 集合、SDK 预览、候选版本和子操作；复用 `MemoryForgetting` 的最终写观察与独立事实接受；先完成全部固定 scope 的接受，再开始任何范围的原 SDK 物理清理，避免首范围清理失败使后继角色缺少恢复屏障。各 scope 的 Storage 接受分别持久化，不承诺跨 scope 或文件与 SDK 原子事务；后继接受失败时，已有决定保留、尚未接受范围不称已遗忘，原回执 pending 且本次尚未执行 SDK 清理。候选独存及 SDK 已清但 ledger 残留的身份、来源也被保留，不能因当前列表为空漏掉旧副本；恢复旧 Home 不恢复这些身份。清理失败或接受后取消仍拒读，原回执 pending 并按原选择重试；最终账本清理和原操作完成标记同事务，完成后的旧操作不会清掉后来新身份。演示重置保留项目，若清理期间出现未选中的新身份，最终只读复查和同 Runtime 写观察会在 ledger 清空前拒绝，不能把新身份加进旧计划。Home 没有 SDK 业务文件时仍不启动 Runtime，只清原 ledger；无原存储 owner 不能接受非空身份，无法核验版本不能猜测。删除项目就是本人的确认，不另加确认。直接回归：`tests/home-restore-project-forgetting.test.ts`、`tests/project-memory-forgetting-concurrency.test.ts`、`tests/project-deletion-memory.test.ts`。
   - 个人记忆的出处不写项目里的工作名；个人记忆只归本人。
 - 改动后必跑：`node scripts/run-tests.mjs tests/memory-presets.test.ts tests/memory-initialization.test.ts tests/memory-runtime-policy.test.ts tests/memory-plugin-save.test.ts tests/memory-use-receipts.test.ts tests/prologue-memory-run-context.test.ts tests/memory-service.test.ts tests/memory-learning.test.ts tests/memory-unknown-facts.test.ts tests/memory-upkeep.test.ts tests/memory-actions.test.ts tests/assistant-memory.test.ts tests/memory-text.test.ts tests/memory-spoken.test.ts tests/memory-scopes.test.ts tests/memory-mcp.test.ts tests/project-deletion-memory.test.ts tests/assistant-memory-error-model.test.ts`
-- 相关手册：[specs/archive/memory-system/spec.md](../../specs/archive/memory-system/spec.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+- 相关手册：[specs/prologue-memory-strategy/spec.md](../../specs/prologue-memory-strategy/spec.md)、[specs/archive/memory-system/spec.md](../../specs/archive/memory-system/spec.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 范围读取在 Backend 返回后开启无等待、无外部 callback 的同步过滤阶段，从 Storage 原 `forgetting.read` 取得当前事实，每条仍按 scope/owner/身份检查；阶段尾重走原 owner 读门并比较完整事实，变化或无法核验即拒绝。仅第一条通过遗忘、Session 和元数据筛选的记录读取设置，按完整 actor/scope/project 键在本阶段共享，每条分类独立判断，尾部重读已用设置并比较；空列表或全被前置筛选排除时不读设置。
 

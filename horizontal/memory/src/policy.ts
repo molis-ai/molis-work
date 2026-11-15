@@ -6,6 +6,11 @@ export const MEMORY_GATE_POLICY = "memory.write-gate";
 export const MEMORY_GATE_VERSION = /* @version policy.memory.gate */ 1;
 export const MEMORY_GATE_RULE = `自动记住 · 规则 v${MEMORY_GATE_VERSION}`;
 
+/** Automatic maintenance (upkeep / Dreaming) changes record their structured policy version alongside triggering evidence. */
+export const MEMORY_UPKEEP_POLICY = "memory.upkeep";
+export const MEMORY_UPKEEP_VERSION = /* @version policy.memory.upkeep */ 1;
+export const MEMORY_UPKEEP_RULE = `整理 · 规则 v${MEMORY_UPKEEP_VERSION}`;
+
 /** Read-side unknown facts cannot enter formation as asserted evidence. */
 export function assertFormationFacts(basis: MemoryBasis, evidence: readonly MemoryEvidenceInput[] = []): void {
   if (!["explicit", "repeated", "inferred"].includes(basis) || evidence.some(item => !item

@@ -80,12 +80,12 @@ async function versionOneHome(t: TestContext) {
   return home;
 }
 
-test("MEM-15 MEM-40 UPG2: the memory ledger's 1 → 2 step clears the old memories' facts, keeps every switch and owner title, and adds an empty class list", () => {
+test("MEM-15 MEM-40 UPG2: the memory ledger's 1 → 3 chain clears the old memories' facts, keeps every switch and owner title, and adds an empty class list", () => {
   const db = new DatabaseSync(":memory:");
   try {
     db.exec(MEMORY_LEDGER_BASELINE.schema);
     fillVersionOne(db);
-    assert.deepEqual(runSqliteUpgrade(db, MEMORY_LEDGER_STORE, MEMORY_LEDGER_BASELINE), { from: 1, to: 2 });
+    assert.deepEqual(runSqliteUpgrade(db, MEMORY_LEDGER_STORE, MEMORY_LEDGER_BASELINE), { from: 1, to: 3 });
     for (const table of CONTENT.filter(table => table !== "memory_markers")) assert.equal(count(db, table), 0, table);
     assert.deepEqual(db.prepare("SELECT actor_id, key FROM memory_markers").all().map(row => ({ ...row })), [{ actor_id: "", key: PENDING }]);
     assert.deepEqual(db.prepare("SELECT body FROM memory_prefs").all().map(row => JSON.parse(String(row.body))), [upgradedPrefs()]);
@@ -98,7 +98,7 @@ test("MEM-40 UPG2: a version-1 Home starts the new memory generation with an emp
   await start(home);
   for (const kind of OLD_KINDS) assert.equal(existsSync(join(records(home), kind)), false, `${kind}: the old file-layout folder is gone`);
   assert.deepEqual(runtimeTree(home).filter(path => before.includes(path)), before, "no other runtime entry is removed");
-  assert.equal(ledgerVersion(home), 2);
+  assert.equal(ledgerVersion(home), 3);
   assert.equal(pending(home), false, "the marker is spent once the file is written");
   assert.deepEqual(JSON.parse(readFileSync(forgetting(home), "utf8")), { format_version: 1, decisions: [] });
   const db = new DatabaseSync(homeSqlitePath(home, MEMORY_LEDGER_STORE), { readOnly: true });
@@ -128,7 +128,7 @@ test("MEM-40: a current Home that lost its forgetting file without the upgrade's
   unlinkSync(forgetting(home));
   assert.throws(() => new MolisWorkLocalHost({ homeDirectory: home, completeText: null }), { code: "memory.forgetting_invalid" });
   assert.equal(existsSync(forgetting(home)), false);
-  assert.equal(ledgerVersion(home), 2);
+  assert.equal(ledgerVersion(home), 3);
 });
 
 test("MEM-40 UPG2: an old memory folder name that is a link is refused, and neither the link nor its target is removed", async t => {
@@ -144,23 +144,44 @@ test("MEM-40 UPG2: an old memory folder name that is a link is refused, and neit
   assert.equal(existsSync(forgetting(home)), false);
 });
 
-test("MEM-19: memory_revisions stores only lightweight change attribution ({ version, change, by, at }) and never duplicate text or snapshot", async t => {
+test("MEM-19 UPG2: the memory ledger's 2 → 3 step scrubs duplicate text/snapshots from memory_revisions and non-pending merge markers, and v3 strictly rejects uncleaned rows", async t => {
   const { openMemoryLedger } = await import("@molis-ai/molis-work-storage");
+  const db = new DatabaseSync(":memory:");
+  try {
+    db.exec(MEMORY_LEDGER_BASELINE.schema);
+    db.exec(`
+      PRAGMA user_version = 2;
+      INSERT INTO memory_revisions VALUES ('m-v2', 1, '{"version":1,"text":"重复正文","kind":"convention","snapshot":{"origin":"person"},"change":"created","by":"person","at":"2026-11-14T00:00:00.000Z"}');
+      INSERT INTO memory_markers VALUES ('person', 'upkeep-done', '2026-11-14T00:00:00.000Z', '{"phase":"committed","merge":{"removed":{"text":"旧正文"}}}');
+      INSERT INTO memory_markers VALUES ('person', 'upkeep-pending', '2026-11-14T00:00:00.000Z', '{"phase":"pending","merge":{"removed":{"text":"待恢复"}}}');
+    `);
+    assert.deepEqual(runSqliteUpgrade(db, MEMORY_LEDGER_STORE, MEMORY_LEDGER_BASELINE), { from: 2, to: 3 });
+    const scrubbedRev = JSON.parse(String(db.prepare("SELECT body FROM memory_revisions WHERE memory_id='m-v2' AND version=1").get()!.body));
+    assert.deepEqual(scrubbedRev, { version: 1, change: "created", by: "person", at: "2026-11-14T00:00:00.000Z" });
+    const doneMarker = JSON.parse(String(db.prepare("SELECT body FROM memory_markers WHERE key='upkeep-done'").get()!.body));
+    assert.deepEqual(doneMarker, { phase: "committed" });
+    const pendingMarker = JSON.parse(String(db.prepare("SELECT body FROM memory_markers WHERE key='upkeep-pending'").get()!.body));
+    assert.deepEqual(pendingMarker, { phase: "pending", merge: { removed: { text: "待恢复" } } });
+  } finally {
+    db.close();
+  }
+
   const home = scratch(t);
   await start(home);
   const ledger = openMemoryLedger({ homeDirectory: home });
   t.after(() => ledger.close());
   ledger.addRevision("m-attr", { version: 1, change: "created", by: "person", at: "2026-11-14T00:00:00.000Z" });
-  const db = new DatabaseSync(homeSqlitePath(home, MEMORY_LEDGER_STORE));
-  try {
-    const raw = JSON.parse(String(db.prepare("SELECT body FROM memory_revisions WHERE memory_id='m-attr' AND version=1").get()!.body));
-    assert.deepEqual(raw, { version: 1, change: "created", by: "person", at: "2026-11-14T00:00:00.000Z" });
-    assert.equal("text" in raw, false);
-    assert.equal("snapshot" in raw, false);
-    db.exec(`INSERT INTO memory_revisions VALUES ('m-attr', 2, '{"version":2,"text":"legacy","snapshot":{"origin":"x"},"change":"edited","by":"person","at":"2026-11-14T01:00:00.000Z"}')`);
-  } finally { db.close(); }
+  ledger.addRevision("m-attr", { version: 2, change: "edited", by: "person", at: "2026-11-14T01:00:00.000Z" });
+  ledger.pruneRevisions?.("m-attr", 1);
   assert.deepEqual(ledger.revisions("m-attr"), [
-    { version: 1, change: "created", by: "person", at: "2026-11-14T00:00:00.000Z" },
     { version: 2, change: "edited", by: "person", at: "2026-11-14T01:00:00.000Z" },
   ]);
+
+  const rawDb = new DatabaseSync(homeSqlitePath(home, MEMORY_LEDGER_STORE));
+  try {
+    rawDb.exec(`INSERT INTO memory_revisions VALUES ('m-attr', 3, '{"version":3,"text":"unscrubbed","change":"edited","by":"person","at":"2026-11-14T02:00:00.000Z"}')`);
+  } finally {
+    rawDb.close();
+  }
+  assert.throws(() => ledger.revisions("m-attr"), { code: "storage.memory.invalid" });
 });

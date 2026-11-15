@@ -352,8 +352,6 @@ export interface AgentMemoryCapability {
   recall(input: { scope: AgentMemoryEntry["scope"]; owner: string; keywords?: string[]; text?: string; kinds?: string[]; limit?: number }): Promise<Array<{ entry: AgentMemoryEntry; score: number }>>;
   candidates: AgentMemoryCandidateCapability;
   screen?(text: string): Promise<{ hold: boolean; reasons: string[]; redacted: string }>;
-  exportScope?(input: { scope: AgentMemoryEntry["scope"]; owner: string; signal?: AbortSignal }): Promise<unknown>;
-  importScope?(input: { scope: AgentMemoryEntry["scope"]; owner: string; pack: unknown; max_entries?: number; signal?: AbortSignal }): Promise<unknown>;
   previewBatch(input: { scope: AgentMemoryEntry["scope"]; owner: string; action: "disable" | "remove"; operation_id: string;
     items: readonly { memory_id: string; version: number }[]; signal?: AbortSignal }): Promise<AgentMemoryBatchPreview>;
   applyBatch(input: { preview: AgentMemoryBatchPreview; signal?: AbortSignal }): Promise<AgentMemoryClearResult>;

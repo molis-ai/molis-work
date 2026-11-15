@@ -8,12 +8,7 @@ export type { MemorySessionTarget, MemorySessionBinding, MemorySessionClearPrevi
 export type { MemorySessionPurgeSelection, MemorySessionPurgeTarget, MemorySessionPurgePage } from "./memory-session.js";
 export type { MemoryManagementKind, MemoryManagementItem, MemoryPageFilter, MemoryPageRequest, MemoryPageResponse } from "./memory-queries.js";
 
-/**
- * The platform memory (specs/archive/memory-system): what the person and each project want remembered, shared by the
- * Assistant, Agent runs, plugins, interface suggestions (Jev judgments) and external AI clients through one
- * set of `memory.*` actions and one set of switches. Text, versions, deletion and isolation belong to Prologue
- * Memory; the Host Memory Service owns policy, the write gate, recall orchestration and the settings pages.
- */
+/** Platform memory (`specs/prologue-memory-strategy/spec.md`): Prologue Memory owns encrypted text, versions, deletion and isolation; Host Memory Service owns policy, write gate, recall orchestration and settings pages. */
 export const servicesMemoryContract = {
   contractId: /* @version contract.io.molis.work.service.memory "io.molis.work.service.memory.v{version}" */ "io.molis.work.service.memory.v1",
   kind: "service",
@@ -30,10 +25,7 @@ export const MEMORY_CONFIGURE_PERMISSION = "memory:configure";
 export const MEMORY_EXPORT_PERMISSION = "memory:export";
 export const MEMORY_PERMISSIONS = [MEMORY_READ_PERMISSION, MEMORY_RECALL_PERMISSION, MEMORY_WRITE_PERMISSION, MEMORY_CONFIGURE_PERMISSION, MEMORY_EXPORT_PERMISSION] as const;
 
-/**
- * Whose it is: the person's own (every project), one project's (only there), or one Character's (only in work that
- * Character carries, in its project; its switches are that project's).
- */
+/** Whose it is: personal (every project), project (only there), or Character (only in work that Character carries). */
 export type MemoryScope = "personal" | "project" | "character";
 /** What it is. Decides whether it may be written automatically, how it weighs in recall and who may read it. */
 export type MemoryKind = "preference" | "convention" | "fact" | "experience";
@@ -185,10 +177,14 @@ export interface MemoryChange {
   project_id: string | null;
   /** The memory's text at the change; empty once the memory is deleted. */
   text: string;
-  /** Who made it: the person, the write gate's policy, upkeep, or the Assistant on the person's request (it only ever switches a memory off). */
+  /** Who made it: the person, the write gate's policy, upkeep, or the Assistant on the person's request. */
   by: "person" | "policy" | "maintenance" | "assistant";
-  /** The gate rule behind an automatic change, e.g. "自动记住 · 规则 v1". */
+  /** The gate or upkeep rule behind an automatic change, e.g. "自动记住 · 规则 v1" or "整理 · 规则 v1". */
   rule: string | null;
+  /** Structured policy name and version behind an automatic change (`by: "policy" | "maintenance"`). */
+  policy?: { policy: string; version: number };
+  /** Bounded triggering evidence behind an automatic change; scrubbed once the memory is deleted. */
+  trigger_evidence?: MemoryEvidence[];
   /** Why, in words: 依据：你两次这样要求. */
   reason: string | null;
   work: { work_id: string; title: string } | null;
@@ -538,7 +534,8 @@ const candidateSchema = { type: "object", properties: {
   additionalProperties: false };
 const changeSchema = { type: "object", properties: {
   change_id: text, kind: text, memory_id: nullableText, scope: scopeSchema, project_id: nullableText, text, by: { enum: ["person", "policy", "maintenance", "assistant"] },
-  rule: nullableText, reason: nullableText, work: workRef, at: text, undoable: { type: "boolean" }, state: { enum: ["active", "undone"] }, moved_to: { enum: ["personal", "project"] } },
+  rule: nullableText, policy: { type: "object", properties: { policy: text, version: { type: "integer", minimum: 1 } }, required: ["policy", "version"], additionalProperties: false },
+  trigger_evidence: { type: "array", items: evidenceSchema }, reason: nullableText, work: workRef, at: text, undoable: { type: "boolean" }, state: { enum: ["active", "undone"] }, moved_to: { enum: ["personal", "project"] } },
   required: ["change_id", "kind", "memory_id", "scope", "project_id", "text", "by", "rule", "reason", "work", "at", "undoable", "state"], additionalProperties: false };
 export const memoryClassRestrictionsSchema = { type: "array", items: { type: "object", properties: {
   selector: { type: "object", properties: { consumer: { enum: [...MEMORY_CONSUMERS] }, current_scene: { enum: [...MEMORY_SCENES] },
@@ -808,6 +805,7 @@ export interface MemoryLedgerPort {
     prefs_keys: readonly string[]; signal_prefixes: readonly string[]; marker_keys: readonly string[] }): void;
   revisions(memoryId: string): MemoryRevision[];
   addRevision(memoryId: string, revision: MemoryRevision): void;
+  pruneRevisions?(memoryId: string, throughVersion: number): void;
   /** The Host's notes about candidates (why, from which work, why held back); the candidates themselves are Prologue's. */
   candidates(actorId: string): MemoryCandidateRecord[];
   saveCandidate(record: MemoryCandidateRecord): void;
@@ -824,7 +822,6 @@ export interface MemoryLedgerPort {
   recordUses(uses: readonly MemoryUseRecord[]): void;
   lastUse(memoryId: string): MemoryUseRecord | null;
   uses(filter: { receipt_id?: string; work_id?: string; memory_id?: string; limit?: number }): MemoryUseRecord[];
-  /** Scopes that hold memories besides the person's and the projects' (Characters), with their project and name. */
   /** Owners that stand for something (a Character in a project): its id, as the owner is only a short storage key. */
   owners(projectId: string): Array<{ scope: MemoryScope; owner: string; title: string; subject: string | null }>;
   noteOwner(input: { scope: MemoryScope; owner: string; project_id: string | null; title: string; subject?: string | null }): void;

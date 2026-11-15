@@ -54,9 +54,9 @@ export function createMemoryLedgerRetention(db: ReturnType<typeof openHomeSqlite
         .run(forgottenKey(memoryId), new Date().toISOString(), JSON.stringify({ memory_id: memoryId, state: "forgotten" }));
       db.prepare("DELETE FROM memory_revisions WHERE memory_id=?").run(memoryId);
       db.prepare("DELETE FROM memory_uses WHERE memory_id=?").run(memoryId);
-      // Recent changes stay (what happened, when), but no longer carry the deleted text.
+      // Recent changes stay (what happened, when), but no longer carry the deleted text or triggering evidence.
       for (const row of db.prepare("SELECT change_id, body FROM memory_changes WHERE memory_id=?").all(memoryId)) {
-        const change = JSON.parse(String(row.body)) as MemoryChangeRecord;
+        const { trigger_evidence: _evidence, ...change } = JSON.parse(String(row.body)) as MemoryChangeRecord;
         db.prepare("UPDATE memory_changes SET body=? WHERE change_id=?").run(JSON.stringify({ ...change, text: "", reason: null, undoable: false, undo: null, ...(options?.moved_to ? { moved_to: options.moved_to } : {}) }), String(row.change_id));
       }
       // A pair that named it shows no copy of it any more.
@@ -72,9 +72,9 @@ export function createMemoryLedgerRetention(db: ReturnType<typeof openHomeSqlite
       }
       // A late ledger receipt cannot put back forgotten history. Operation markers contain identity only.
       for (const row of db.prepare("SELECT actor_id, key, body FROM memory_markers WHERE key LIKE 'memory-operation:%'").all()) {
-        const mark = JSON.parse(String(row.body)) as { memory_id?: string; drop?: { memory_id?: string }; result?: { memory_id?: string }; merge?: unknown };
+        const mark = JSON.parse(String(row.body)) as { memory_id?: string; drop?: { memory_id?: string }; result?: { memory_id?: string }; merge?: unknown; trigger_evidence?: unknown };
         if (mark.memory_id === memoryId || mark.drop?.memory_id === memoryId || mark.result?.memory_id === memoryId) {
-          const { merge: _merge, ...rest } = mark;
+          const { merge: _merge, trigger_evidence: _evidence, ...rest } = mark;
           db.prepare("UPDATE memory_markers SET body=? WHERE actor_id=? AND key=?")
             .run(JSON.stringify({ ...rest, phase: "closed" }), String(row.actor_id), String(row.key));
         }
@@ -97,9 +97,9 @@ export function createMemoryLedgerRetention(db: ReturnType<typeof openHomeSqlite
       for (const key of input.prefs_keys) db.prepare("DELETE FROM memory_prefs WHERE key=?").run(key);
       for (const key of input.marker_keys) if (!key.startsWith("memory-forgotten:")) db.prepare("DELETE FROM memory_markers WHERE key=?").run(key);
       for (const row of db.prepare("SELECT actor_id,key,body FROM memory_markers WHERE key LIKE 'memory-operation:%'").all()) {
-        const mark = JSON.parse(String(row.body)) as { scope?: string; owner?: string; merge?: unknown };
+        const mark = JSON.parse(String(row.body)) as { scope?: string; owner?: string; merge?: unknown; trigger_evidence?: unknown };
         if (gone.has(JSON.stringify([mark.scope, mark.owner]))) {
-          const { merge: _merge, ...rest } = mark;
+          const { merge: _merge, trigger_evidence: _evidence, ...rest } = mark;
           db.prepare("UPDATE memory_markers SET body=? WHERE actor_id=? AND key=?")
             .run(JSON.stringify({ ...rest, phase: "closed" }), String(row.actor_id), String(row.key));
         }

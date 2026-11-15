@@ -39,7 +39,9 @@ export function workRecordsFactory(host: { readonly route: (path: string) => str
     clearTimeout(timer); timer = undefined;
     if (!queue.length) return;
     lastSent = Date.now();
-    void molisWorkRequest(host.route("/api/observation/ui"), { body: { facts: queue.splice(0, 100) }, keepalive: leaving === true }).catch(() => undefined);
+    do {
+      void molisWorkRequest(host.route("/api/observation/ui"), { body: { facts: queue.splice(0, 100) }, keepalive: leaving === true }).catch(() => undefined);
+    } while (leaving === true && queue.length);
     if (queue.length) schedule();
   };
   // A page left open offline keeps at most this many; the rest of that stretch is not recorded.

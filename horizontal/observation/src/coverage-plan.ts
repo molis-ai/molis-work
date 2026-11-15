@@ -66,4 +66,5 @@ export const OBSERVATION_COVERAGE_PLAN: readonly CoveragePlanEntry[] = [
   { owner: "plugin:io.molis.work.native.workflows", fact: "io.molis.work.native.workflows.step", entries: ["plugin"], state: "complete" },
   { owner: "plugin:io.molis.work.native.workflows", fact: "io.molis.work.native.workflows.step.action_result", entries: ["plugin"], state: "by_rule", reason: "large_action_result_size_only" },
   { owner: "observation", fact: "observation.report", entries: ["workbench", "plugin"], state: "not_applicable", reason: "report_channel_itself" },
+  { owner: "service:gateway", fact: "action.call.evaluation_service", entries: ["cli", "host"], state: "not_applicable", reason: "evaluation_runner_itself" },
 ];

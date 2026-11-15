@@ -89,3 +89,23 @@ CREATE TABLE records (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
   );
+  CREATE TABLE evaluation_holds (
+    hold_id TEXT PRIMARY KEY,
+    owner TEXT NOT NULL,
+    sample_id TEXT NOT NULL,
+    project_id TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    expires_at TEXT,
+    note TEXT
+  );
+  CREATE INDEX evaluation_holds_sample ON evaluation_holds (sample_id);
+  CREATE INDEX evaluation_holds_project ON evaluation_holds (project_id);
+  CREATE TABLE evaluation_hold_records (
+    hold_id TEXT NOT NULL,
+    record_id TEXT NOT NULL,
+    seq INTEGER,
+    PRIMARY KEY (hold_id, record_id)
+  );
+  CREATE INDEX evaluation_hold_records_seq ON evaluation_hold_records (seq);
+  CREATE INDEX evaluation_hold_records_record ON evaluation_hold_records (record_id);

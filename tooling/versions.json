@@ -1107,7 +1107,7 @@
     "database.ledger_baseline": 1,
     "database.lingguang_database": 1,
     "database.memory_ledger_baseline": 3,
-    "database.observation_baseline": 1,
+    "database.observation_baseline": 2,
     "database.original_files_baseline": 1,
     "database.pages_database": 1,
     "database.placement_baseline": 1,

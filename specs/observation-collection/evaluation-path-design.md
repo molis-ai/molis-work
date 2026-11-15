@@ -64,28 +64,27 @@ CREATE TABLE evaluation_holds (
   expires_at TEXT,
   note TEXT
 );
-CREATE INDEX evaluation_holds_by_sample ON evaluation_holds(sample_id);
-CREATE INDEX evaluation_holds_by_project ON evaluation_holds(project_id) WHERE project_id IS NOT NULL;
+CREATE INDEX evaluation_holds_sample ON evaluation_holds (sample_id);
+CREATE INDEX evaluation_holds_project ON evaluation_holds (project_id);
 
 CREATE TABLE evaluation_hold_records (
-  hold_id TEXT NOT NULL REFERENCES evaluation_holds(hold_id) ON DELETE CASCADE,
+  hold_id TEXT NOT NULL,
   record_id TEXT NOT NULL,
-  seq INTEGER NOT NULL,
-  project_id TEXT,
+  seq INTEGER,
   PRIMARY KEY (hold_id, record_id)
 );
-CREATE INDEX evaluation_hold_records_by_seq ON evaluation_hold_records(seq);
-CREATE INDEX evaluation_hold_records_by_project ON evaluation_hold_records(project_id) WHERE project_id IS NOT NULL;
+CREATE INDEX evaluation_hold_records_seq ON evaluation_hold_records (seq);
+CREATE INDEX evaluation_hold_records_record ON evaluation_hold_records (record_id);
 ```
 
-- **有效留存（active hold）**：`expires_at IS NULL OR expires_at > :nowIso`。默认留存天数采用 `OBSERVATION_RETENTION_NEEDS.evaluation_samples`（120 天），调用方可传显式 `expires_at` 或 `null`（长期回归样本留存）。
+- **有效留存（active hold）**：`expires_at IS NULL OR expires_at > :nowIso`。默认留存天数采用 `OBSERVATION_RETENTION_NEEDS.evaluation_samples`（180 天），调用方可传显式 `expires_at` 或 `null`（长期回归样本留存）。
 - **清理豁免（`OCL-12`、`EC-16`）**：
-  - `previewCleanup` 与 `applyCleanup` 在筛选候选记录时，将处于有效留存内的 `seq` 从待删集合剔除，计入 `preserved.evaluation_samples_count`；因为留存记录本身不被删除，`record_evidence` 仍引用其 `evidence_blobs`，`sweepUnreferencedBlobs` 自然保留对应加密证据快照，重评时仍可解封。
+  - `previewCleanup` 与 `applyCleanup` 在筛选候选记录时，将处于有效留存内的 `seq` 从待删集合剔除，按去重 `sample_id` 计入 `preserved.evaluation_samples_count`；因为留存记录本身不被删除，`record_evidence` 仍引用其 `evidence_blobs`，`collectUnreferenced` 自然保留对应加密证据快照，重评时仍可解封。
   - `sweepExpiredRecords`（自动保留期清扫）同样跳过处于有效留存内的 `seq`。
-  - `settings.get@1` 的 `evaluation_holds` 字段实时统计有效留存覆盖的去重记录条数 `count` 与其关联行及独占快照字节数 `bytes`。
+  - `settings.get@1` 的 `evaluation_holds` 字段实时统计有效留存覆盖的去重评测样本数 `count` 与其关联行及证据快照字节数 `bytes`。
 - **用户删除权优先（`OCL-12`）**：
   - 删除项目（`clearProject`）删除该 `project_id` 下的 `evaluation_hold_records` 与项目专属 `evaluation_holds`，原项目记录与快照照常彻底清除。
-  - 卸载并清除插件数据（`purgePlugin`）删除被清除记录对应的 `evaluation_hold_records`，已清除插件的内容不因评测留存残留。
+  - 卸载并清除插件数据（`purgePlugin`）将被清除记录对应的 `evaluation_hold_records.seq` 置空并解除 `record_evidence` 引用，已清除插件的内容与快照不因评测留存残留。
 
 ### 3.2 新增公开动作（`system.observation`）
 

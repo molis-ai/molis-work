@@ -226,7 +226,7 @@ Prologue 提供无 UI 的公共合同，不包含 Molis Work 文案、组件、W
 - 不能把 `child_run` 一律交给普通 `agent.session.read` / `agent.run.read` / 输入接口。现 [watchChild](../../horizontal/agent-host/src/adapters/prologue-run.ts)只为有宿主审查需要的子任务保存独立 Host 索引；主目录的只读子任务等情况直接返回。[通用 Session 恢复](../../horizontal/agent-host/src/adapters/prologue-recovery.ts)要求原索引，[输入动作](../../horizontal/agent-host/src/session-actions.ts)又先经 `requireRun` 核对归属。[会话协调](../../horizontal/agent-host/src/adapters/prologue-node-parts.ts)另有从父索引证明无独立索引子任务归属的路径，但这不自动赋予普通历史/输入接口同样能力。
 - 已有输入动作通过 `trustedSupplementInput` 取得可信原件并返回原回执；[deliverSteer](../../horizontal/agent-host/src/adapters/prologue-inputs.ts)在运行结束或 `after-run` 时只把输入排入原 Session，**不会启动下一次执行**。因此「已排队」与「继续已开始」必须分开；不能用成功回执证明 SAI-05 接续已完成。
 
-对 58 的影响：公共读写接缝必须能表达上述原生历史、回执、不可用原因和显式继续；合同核对时用无独立 Host 索引的只读子任务以及有索引的写入子任务分别验证。若公共 Host 投影不足，在本节确定最小通用补口后实现；不先补造索引或把私有 SDK 账本交给浏览器。对 59 的影响：消费者真实接入仍须证明两类子任务的历史、输入、已结束续跑和重启路径，不能以普通会话路径通过代替。43-1 的助理业务派发归属不变。以上是接入限制及验证范围，未冻结新方法名，也未开始产品实现。
+对 58 的影响：公共读写接缝必须能表达上述原生历史、回执、不可用原因和显式继续；合同核对时用无独立 Host 索引的只读子任务以及有索引的写入子任务分别验证。若公共 Host 投影不足，在本节确定最小通用补口后实现；不先补造索引或把私有 SDK 账本交给浏览器。对 59 的影响：消费者真实接入仍须证明两类子任务的历史、输入、已结束续跑和重启路径，不能以普通会话路径通过代替。43-1 的助理业务派发归属不变。以上是接入限制及验证范围，未冻结新的 Host 方法名。
 
 ### 11.6 公共组件合同稿（2026-11-16，代码前评审）
 
@@ -234,13 +234,13 @@ Prologue 提供无 UI 的公共合同，不包含 Molis Work 文案、组件、W
 
 | 导出／输入 | 合同 |
 | --- | --- |
-| `MwSubtaskConversationView`（SDK `ui`） | owner 已确认的 `target`（稳定、不复用的 UI 键）、`title`、`parent`/`children`（键与标题）、`status`（现行状态环值与已翻译短句）、可选 `summary`；`messages` 为按顺序的稳定消息 id、user/assistant/notice、已消毒 HTML 与可选回执文字；可折叠 `details` 保留稳定 id。可选 `actions` 是原 owner 声明的具名动作，不从状态猜允许的操作。`running` 与 `inputUnavailable` 只呈现 owner 的当前输入能力。 |
+| `MwSubtaskConversationView`（SDK `ui`） | owner 已确认的 `target`（稳定、不复用的逻辑 UI 键）、`binding`（owner 给的精确执行引用／预期代次，不由组件解析）、`title`、`parent`/`children`（键与标题）、`status`（现行状态环值与已翻译短句）、可选 `summary`；`messages` 为按顺序的稳定消息 id、user/assistant/notice、`content: { text: string } | { html: string }` 与可选回执文字；可折叠 `details` 保留稳定 id。可选 `actions` 是原 owner 声明的具名动作，不从状态猜允许的操作。`running` 与 `inputUnavailable` 只呈现 owner 的当前输入能力；`pending?: { id, message, check }` 来自原 owner 未决记录，`check` 为查询原操作的具名动作。`binding` 与 `action.ref` 均为不可解释的字符串，owner 负责提供和核对。 |
 | `renderSubtaskConversation`（SDK `ui`） | 画浮窗内部的身份/返回/关闭/控制、可滚动消息、读取提示与输入挂载槽；不负责再开窗口，也不寻找或替换主助理 DOM。复用现行状态环、按钮、统一输入和富文本样式。文字由调用方翻译；模型文字须经现行富文本消毒后才给 HTML 字段。 |
-| `createSubtaskConversation(root, options)`（SDK `browser`） | `open(target)` 只读取，不启动；`refresh()` 只重读；`close()` 释放读取/订阅与子输入，保留本实例的阅读位置；`destroy()` 再释放本实例所有监听。外壳掌握右侧浮窗的位置和任务卡内容，`onBack(parent)`/`onClose()` 负责回到原位置；组件内部可打开同一公开树里的子级。主输入从不传入此函数。 |
-| `source.read(target, signal)` / `source.subscribe(target, invalidate, signal)` | 每个可见子任务一个读取/订阅；订阅只通知失效，重读合并并发通知。切换时中止旧读取并释放旧订阅，过期结果不得覆盖当前任务。读取失败保留此前的同目标内容并提供重读，首次失败不当成空历史或任务完成。不能将其他目标内容作为读取失败的兜底。 |
-| `source.composer(view)` | 返回该已读视图的现行 `ComposerOptions`（AI 模式，停止/继续走独立 control 动作），包含固定接收者、同目标复用的草稿 adapter、发送与未知结果 `check`。组件只挂载/刷新原统一输入，不另实现输入法或请求回执状态机；发送闭包绑定给定 target，不能回头读取当前选择。源对象应在服务端复查目标当前权限和代次。 |
-| `source.act(target, action, signal)` | 用户点击某个声明的动作才调用，target/action 在点击时冻结；动作进行中就地反馈，失败保留内容并显示可重试的原因；结果未知提供查询，不能自动重复启动。停止、继续、问题回答、审批分别由 owner 的具名动作承接，聊天提交不走此入口。控制完成只重读真实状态，不自行把状态改为成功。 |
-| 历史、过程与已有卡片 | 消息 id 来自原历史，不用文字或数组位置做身份。HTML 内容变化按已有流式补丁方式更新，未变化节点保留；过程按稳定 id 保存展开状态。问题、审批和成果可通过已登记具名动作打开原卡片；普通对话不隐式批准或整合。历史较长时 owner 可给「读取更早」动作，更新同一视图时保留屏上锚点。 |
+| `createSubtaskConversation(root, options)`（SDK `browser`） | `open(target)` 只读取，不启动；`refresh()` 只重读；`close()` 释放读取/订阅与子输入 handle，但保留同一个挂载 DOM 节点及本实例的阅读位置；`destroy()` 再释放本实例所有监听。外壳掌握右侧浮窗的位置和任务卡内容，`onBack(parent)`/`onClose()` 负责回到原位置；组件内部可打开同一公开树里的子级。主输入从不传入此函数。 |
+| `source.read(target, signal)` / `source.subscribe(target, invalidate, signal)` | 每个可见子任务一个读取/订阅；`subscribe` 返回 `Promise<() => void>`，就绪后才首读，重连就绪须再 invalidate。首读/读取中的通知合并为一次补读。`read` 返回 `{ state: "available", view } | { state: "denied", reason }`；denied 立即清除本目标缓存和 DOM、停用输入。临时读取失败仅保留此前同目标内容并可重读。每次 open 的代次与 signal 使 A→B→A 的旧回调也失效。 |
+| `source.composer(view)` | 返回该已读视图的 `ComposerOptions` AI 变体（`draft.adapter` 必填且同 target 对象稳定，停止/继续走独立动作）。每次新 submit 调用前捕获当时已读 view 及其对应 options，既有请求不随 read 更新。接收者固定、无 reset/choose，`placement` 固定 local。组件保留同一个挂载根，刷新不重建输入；跨对象重挂由现行 composer 以原根+adapter 保留未决回执。适配器必须将未确认的中断作为 unknown 返回并按原 request_id 查询；只有确知未受理才 failed。持久 pending 经 read 恢复时 hold，新草稿由 owner 按提交版本结算。 |
+| `source.act(view, action, requestId, signal)` | 用户点击结构化动作才调用，完整 view/binding、action.ref 和新 requestId 在点击时冻结。返回 `{ state: "applied" } | { state: "not-applied", reason } | { state: "unknown", check: () => Promise<SubtaskActionOutcome> }`。仅已证实未受理可重试；unknown 查询沿原操作引用，不凭当前运行状态推断成功。意外 rejection 视为未知并要求重新读取 owner 的 pending，不能重发；owner 必须在执行前登记原操作，撤权/代次变化在服务端拒绝。结果只触发重读，不猜业务状态。 |
+| 历史、过程与已有卡片 | 消息 id 来自原历史，不用文字或数组位置做身份。HTML 内容变化按已有流式补丁方式更新，未变化节点保留；过程按稳定 id 保存展开状态。浏览器首次与更新都用 SDK 现行 `contentHtml` 过滤正文后交流式补丁，正文内的 `data-subtask-*` 钩子全部被移除；点击还须位于独立动作/导航区域。字符串渲染器 HTML 分支只接 owner 已经清洗的可信 HTML，默认纯文本分支无 Markdown 依赖。问题、审批和成果可通过已登记具名动作打开原卡片；普通对话不隐式批准或整合。历史较长时 owner 可给「读取更早」动作，更新同一视图时保留屏上锚点。 |
 | 测试与边界 | 两个独立 owner 适配器分别提供助理 Work 形状与 SDK 子任务形状，测试只通过上述公共入口，不 import 两个业务插件。制造读/发/切换/关闭/撤权及迟到回执交错，检查实际 callback 目标、调用次数、草稿和 DOM；不会把模拟 reply 当作真实模型处理。第三方干净包消费者应只装 contracts+SDK。 |
 
 实现路径：组件板先用 `apps/workbench/src/subtask-conversation-specimen.ts` 与其私有部件/样式落定样，D 轨通过后将同一部件移入 `packages/plugin-sdk/src/ui/subtask-conversation.ts`、浏览器生命周期置于 `packages/plugin-sdk/src/browser/subtask-conversation.ts`，由现有 `ui.ts`/`browser.ts` 出口暴露。样式归 design-system，标本改用公开导出；无新浏览器资源或平台全局函数，消费者按需 bundle SDK 浏览器入口并使用已有 `molisComposer`。不在 Workbench/Coding 分别复制一套组件。

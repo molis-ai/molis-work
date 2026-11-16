@@ -65,10 +65,14 @@ export class AuthenticationProtocol {
       t.expiresAt = new Date(Math.min(Date.parse(t.expiresAt), Date.parse(String(data.expiresAt)))).toISOString();
       t.nextStep = "NONE"; t.status = "CONSUMED"; return { operationReady: true };
     }
+    return this.acceptLogin(t, data, control);
+  }
+  async acceptLogin(t: AuthenticationTransaction, data: Record<string, unknown>, control: AccountCallControl) {
     if (data.kind !== "LOGIN_CODE" || data.state !== t.state || !t.attempt) throw accountErrors.upstream_invalid("Invalid login result");
     t.status = "CONSUMED"; t.nextStep = "NONE";
-    const tokens = await this.service(t).invoke("exchangeToken", { body: { grantType: "authorization_code", clientId: this.config.clientId, code: data.code, redirectUri: this.config.redirectAllowlist[0], codeVerifier: t.verifier } }, control);
-    const account = await this.sessions.completeLogin(t.attempt, tokens.data, control);
+    const { initiatorProofRef: _proof, ...tokenControl } = control;
+    const tokens = await this.service(t).invoke("exchangeToken", { body: { grantType: "authorization_code", clientId: this.config.clientId, code: data.code, redirectUri: this.config.redirectAllowlist[0], codeVerifier: t.verifier } }, tokenControl);
+    const account = await this.sessions.completeLogin(t.attempt, tokens.data, tokenControl);
     t.finished = true; return { account };
   }
   async submit(t: AuthenticationTransaction, input: Record<string, unknown>, control: AccountCallControl): Promise<unknown> {
@@ -94,9 +98,9 @@ export class AuthenticationProtocol {
     else if (step === "EMAIL_SIGNUP") {
       if (!t.verification || String(input.email).trim().toLowerCase() !== t.address?.trim().toLowerCase()) throw accountErrors.forbidden("Email does not match the verified address");
       await this.call(t, "signUpEmail", { email: input.email, password: input.password, verificationProof: t.verification }, control); t.verification = undefined;
-    } else if (step === "PHONE_LOGIN") {
+    } else if (step === "CODE_LOGIN") {
       if (!t.verification) throw accountErrors.forbidden("Phone verification is required");
-      await this.call(t, "signInPhone", { verificationProof: t.verification }, control); t.verification = undefined;
+      await this.call(t, "signInCode", { verificationProof: t.verification }, control); t.verification = undefined;
     } else if (step === "COMPLETE") return this.complete(t, control);
     else throw accountErrors.invalid_request("Authentication step not supported");
     return this.sync(t, control);

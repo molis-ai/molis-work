@@ -39,13 +39,19 @@ export const ASSISTANT_CONTEXT_STRIP_FACTORY_SCRIPT = String.raw`(input) => {
       return go;
     }
     const node = el("span", "assistant-strip-chip" + (item.optional ? " is-optional" : "") + (item.landing ? " is-landing" : ""));
-    node.title = item.note || (item.optional ? readText("workbench.assistant-context-strip.not-added-assistant-can-t-see-work-won") : item.auto ? readText("workbench.assistant-context-strip.page") : readText("workbench.assistant-context-strip.added"));
+    node.title = item.disabledReason || item.note || (item.optional ? readText("workbench.assistant-context-strip.not-added-assistant-can-t-see-work-won") : item.auto ? readText("workbench.assistant-context-strip.page") : readText("workbench.assistant-context-strip.added"));
     const label = el("span", "assistant-strip-label", item.label);
     // The arrow and the short name are for the eye; a screen reader hears the whole sentence (「放进去的位置：…」).
     if (item.landing) { const arrow = el("span", "", "→"); arrow.setAttribute("aria-hidden", "true"); label.setAttribute("aria-hidden", "true"); node.append(arrow, el("span", "mw-sr-only", item.note)); }
     node.append(label);
-    if (item.optional) node.append(el("span", "assistant-strip-note", readText("workbench.assistant-context-strip.not-added")), act("+", readText("workbench.assistant-context-strip.add-title", { title: item.label }), () => input.add(item)));
-    else node.append(act("×", readText("workbench.assistant-context-strip.leave-out-title", { title: item.label }), () => { if (item.landing) { left = landing.object.id; paint(); } else input.drop(item); }));
+    if (item.optional) {
+      const plus = act("+", readText("workbench.assistant-context-strip.add-title", { title: item.label }), () => input.add(item));
+      if (item.addDisabled) { plus.disabled = true; plus.title = item.disabledReason || ""; }
+      node.append(el("span", "assistant-strip-note", item.disabledReason || readText("workbench.assistant-context-strip.not-added")), plus);
+    } else {
+      if (item.inlineNote) node.append(el("span", "assistant-strip-note", item.inlineNote));
+      if (!item.infoOnly) node.append(act("×", readText("workbench.assistant-context-strip.leave-out-title", { title: item.label }), () => { if (item.landing) { left = landing.object.id; paint(); } else input.drop(item); }));
+    }
     return node;
   };
   // Where a thing would be put on the left, as its owner reported it (molis:surface-landing): one chip after the rest, there
@@ -81,7 +87,7 @@ export const ASSISTANT_CONTEXT_STRIP_FACTORY_SCRIPT = String.raw`(input) => {
     const shown = items.length > 0 && (input.open() || strip.contains(document.activeElement) || input.focused() || items.some((item) => item.put));
     strip.hidden = !shown;
     if (!shown) return;
-    const look = (item) => JSON.stringify([item.label, item.optional, item.note]);
+    const look = (item) => JSON.stringify([item.label, item.optional, item.note, item.inlineNote, item.addDisabled, item.disabledReason, item.infoOnly]);
     const next = JSON.stringify(items.map((item) => [item.key, look(item)]));
     if (next === signature) return;
     signature = next;

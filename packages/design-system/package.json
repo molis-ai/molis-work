@@ -25,6 +25,10 @@
     "./work-records": {
       "types": "./dist/primitives/work-records.d.ts",
       "import": "./dist/primitives/work-records.js"
+    },
+    "./session-sources": {
+      "types": "./dist/primitives/session-sources.d.ts",
+      "import": "./dist/primitives/session-sources.js"
     }
   },
   "files": [

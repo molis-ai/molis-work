@@ -637,6 +637,90 @@
               "$ref": "#/$defs/S256Challenge"
             },
             "purpose": {
+              "const": "LOGIN"
+            },
+            "method": {
+              "const": "ACCOUNT_PASSWORD"
+            }
+          },
+          "required": [
+            "clientId",
+            "redirectUri",
+            "state",
+            "codeChallenge",
+            "codeChallengeMethod",
+            "initiatorChallenge",
+            "purpose",
+            "method"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "clientId": {
+              "$ref": "#/$defs/Id"
+            },
+            "redirectUri": {
+              "$ref": "#/$defs/HttpUrl"
+            },
+            "state": {
+              "type": "string",
+              "minLength": 16,
+              "maxLength": 512
+            },
+            "codeChallenge": {
+              "$ref": "#/$defs/S256Challenge"
+            },
+            "codeChallengeMethod": {
+              "const": "S256"
+            },
+            "initiatorChallenge": {
+              "$ref": "#/$defs/S256Challenge"
+            },
+            "purpose": {
+              "const": "LOGIN"
+            },
+            "method": {
+              "const": "EMAIL_CODE"
+            }
+          },
+          "required": [
+            "clientId",
+            "redirectUri",
+            "state",
+            "codeChallenge",
+            "codeChallengeMethod",
+            "initiatorChallenge",
+            "purpose",
+            "method"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "clientId": {
+              "$ref": "#/$defs/Id"
+            },
+            "redirectUri": {
+              "$ref": "#/$defs/HttpUrl"
+            },
+            "state": {
+              "type": "string",
+              "minLength": 16,
+              "maxLength": 512
+            },
+            "codeChallenge": {
+              "$ref": "#/$defs/S256Challenge"
+            },
+            "codeChallengeMethod": {
+              "const": "S256"
+            },
+            "initiatorChallenge": {
+              "$ref": "#/$defs/S256Challenge"
+            },
+            "purpose": {
               "const": "EMAIL_SIGNUP"
             },
             "method": {
@@ -2983,6 +3067,7 @@
         "PASSWORD_LOGIN",
         "EMAIL_SIGNUP",
         "PHONE_LOGIN",
+        "CODE_LOGIN",
         "START_PROVIDER",
         "WAIT_PROVIDER",
         "COMPLETE",
@@ -3042,6 +3127,7 @@
                 "PASSWORD_LOGIN",
                 "EMAIL_SIGNUP",
                 "PHONE_LOGIN",
+                "CODE_LOGIN",
                 "START_PROVIDER",
                 "WAIT_PROVIDER"
               ]
@@ -3203,20 +3289,47 @@
       "additionalProperties": false
     },
     "PasswordLoginRequest": {
-      "type": "object",
-      "properties": {
-        "email": {
-          "$ref": "#/$defs/Email"
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "email": {
+              "$ref": "#/$defs/Email"
+            },
+            "password": {
+              "$ref": "#/$defs/LoginPassword"
+            }
+          },
+          "required": [
+            "email",
+            "password"
+          ],
+          "additionalProperties": false
         },
-        "password": {
-          "$ref": "#/$defs/LoginPassword"
+        {
+          "type": "object",
+          "properties": {
+            "identifier": {
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/Email"
+                },
+                {
+                  "$ref": "#/$defs/Phone"
+                }
+              ]
+            },
+            "password": {
+              "$ref": "#/$defs/LoginPassword"
+            }
+          },
+          "required": [
+            "identifier",
+            "password"
+          ],
+          "additionalProperties": false
         }
-      },
-      "required": [
-        "email",
-        "password"
-      ],
-      "additionalProperties": false
+      ]
     },
     "EmailSignupRequest": {
       "type": "object",
@@ -3249,6 +3362,331 @@
         "verificationProof"
       ],
       "additionalProperties": false
+    },
+    "CodeLoginRequest": {
+      "type": "object",
+      "properties": {
+        "verificationProof": {
+          "$ref": "#/$defs/OpaqueSecret"
+        }
+      },
+      "required": [
+        "verificationProof"
+      ],
+      "additionalProperties": false
+    },
+    "LoginContext": {
+      "type": "object",
+      "properties": {
+        "clientId": {
+          "$ref": "#/$defs/Id"
+        },
+        "redirectUri": {
+          "$ref": "#/$defs/HttpUrl"
+        },
+        "state": {
+          "type": "string",
+          "minLength": 16,
+          "maxLength": 512
+        },
+        "codeChallenge": {
+          "$ref": "#/$defs/S256Challenge"
+        },
+        "codeChallengeMethod": {
+          "const": "S256"
+        },
+        "initiatorChallenge": {
+          "$ref": "#/$defs/S256Challenge"
+        }
+      },
+      "required": [
+        "clientId",
+        "redirectUri",
+        "state",
+        "codeChallenge",
+        "codeChallengeMethod",
+        "initiatorChallenge"
+      ],
+      "additionalProperties": false
+    },
+    "LoginPasswordRequest": {
+      "type": "object",
+      "properties": {
+        "clientId": {
+          "$ref": "#/$defs/Id"
+        },
+        "redirectUri": {
+          "$ref": "#/$defs/HttpUrl"
+        },
+        "state": {
+          "type": "string",
+          "minLength": 16,
+          "maxLength": 512
+        },
+        "codeChallenge": {
+          "$ref": "#/$defs/S256Challenge"
+        },
+        "codeChallengeMethod": {
+          "const": "S256"
+        },
+        "initiatorChallenge": {
+          "$ref": "#/$defs/S256Challenge"
+        },
+        "identifier": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/Email"
+            },
+            {
+              "$ref": "#/$defs/Phone"
+            }
+          ]
+        },
+        "password": {
+          "$ref": "#/$defs/LoginPassword"
+        }
+      },
+      "required": [
+        "clientId",
+        "redirectUri",
+        "state",
+        "codeChallenge",
+        "codeChallengeMethod",
+        "initiatorChallenge",
+        "identifier",
+        "password"
+      ],
+      "additionalProperties": false
+    },
+    "SendLoginVerificationRequest": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "clientId": {
+              "$ref": "#/$defs/Id"
+            },
+            "redirectUri": {
+              "$ref": "#/$defs/HttpUrl"
+            },
+            "state": {
+              "type": "string",
+              "minLength": 16,
+              "maxLength": 512
+            },
+            "codeChallenge": {
+              "$ref": "#/$defs/S256Challenge"
+            },
+            "codeChallengeMethod": {
+              "const": "S256"
+            },
+            "initiatorChallenge": {
+              "$ref": "#/$defs/S256Challenge"
+            },
+            "purpose": {
+              "const": "LOGIN"
+            },
+            "channel": {
+              "const": "EMAIL"
+            },
+            "address": {
+              "$ref": "#/$defs/Email"
+            }
+          },
+          "required": [
+            "clientId",
+            "redirectUri",
+            "state",
+            "codeChallenge",
+            "codeChallengeMethod",
+            "initiatorChallenge",
+            "purpose",
+            "channel",
+            "address"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "clientId": {
+              "$ref": "#/$defs/Id"
+            },
+            "redirectUri": {
+              "$ref": "#/$defs/HttpUrl"
+            },
+            "state": {
+              "type": "string",
+              "minLength": 16,
+              "maxLength": 512
+            },
+            "codeChallenge": {
+              "$ref": "#/$defs/S256Challenge"
+            },
+            "codeChallengeMethod": {
+              "const": "S256"
+            },
+            "initiatorChallenge": {
+              "$ref": "#/$defs/S256Challenge"
+            },
+            "purpose": {
+              "const": "LOGIN"
+            },
+            "channel": {
+              "const": "SMS"
+            },
+            "address": {
+              "$ref": "#/$defs/Phone"
+            }
+          },
+          "required": [
+            "clientId",
+            "redirectUri",
+            "state",
+            "codeChallenge",
+            "codeChallengeMethod",
+            "initiatorChallenge",
+            "purpose",
+            "channel",
+            "address"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "LoginVerification": {
+      "type": "object",
+      "properties": {
+        "verificationId": {
+          "$ref": "#/$defs/Id"
+        },
+        "expiresAt": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "retryAfterSeconds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600
+        }
+      },
+      "required": [
+        "verificationId",
+        "expiresAt",
+        "retryAfterSeconds"
+      ],
+      "additionalProperties": false
+    },
+    "LoginCodeRequest": {
+      "type": "object",
+      "properties": {
+        "verificationId": {
+          "$ref": "#/$defs/Id"
+        },
+        "code": {
+          "type": "string",
+          "minLength": 6,
+          "maxLength": 6,
+          "pattern": "^[0-9]{6}$"
+        }
+      },
+      "required": [
+        "verificationId",
+        "code"
+      ],
+      "additionalProperties": false
+    },
+    "LoginResult": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "LOGIN_CODE"
+        },
+        "code": {
+          "$ref": "#/$defs/OpaqueSecret"
+        },
+        "state": {
+          "type": "string",
+          "minLength": 16,
+          "maxLength": 512
+        },
+        "expiresAt": {
+          "$ref": "#/$defs/Timestamp"
+        }
+      },
+      "required": [
+        "kind",
+        "code",
+        "state",
+        "expiresAt"
+      ],
+      "additionalProperties": false
+    },
+    "ProductLoginPasswordRequest": {
+      "type": "object",
+      "properties": {
+        "identifier": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/Email"
+            },
+            {
+              "$ref": "#/$defs/Phone"
+            }
+          ]
+        },
+        "password": {
+          "$ref": "#/$defs/LoginPassword"
+        }
+      },
+      "required": [
+        "identifier",
+        "password"
+      ],
+      "additionalProperties": false
+    },
+    "ProductSendVerificationRequest": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "purpose": {
+              "const": "LOGIN"
+            },
+            "channel": {
+              "const": "EMAIL"
+            },
+            "address": {
+              "$ref": "#/$defs/Email"
+            }
+          },
+          "required": [
+            "purpose",
+            "channel",
+            "address"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "purpose": {
+              "const": "LOGIN"
+            },
+            "channel": {
+              "const": "SMS"
+            },
+            "address": {
+              "$ref": "#/$defs/Phone"
+            }
+          },
+          "required": [
+            "purpose",
+            "channel",
+            "address"
+          ],
+          "additionalProperties": false
+        }
+      ]
     },
     "VerifiedResult": {
       "type": "object",
@@ -3816,6 +4254,63 @@
         "role",
         "status",
         "version"
+      ],
+      "additionalProperties": false
+    },
+    "TenantMember": {
+      "type": "object",
+      "properties": {
+        "membershipId": {
+          "$ref": "#/$defs/Id"
+        },
+        "tenantId": {
+          "$ref": "#/$defs/Id"
+        },
+        "userId": {
+          "$ref": "#/$defs/Id"
+        },
+        "role": {
+          "$ref": "#/$defs/TenantRole"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "ACTIVE",
+            "LEFT",
+            "REMOVED"
+          ]
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 120
+        },
+        "email": {
+          "oneOf": [
+            {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 254,
+              "format": "email"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "membershipId",
+        "tenantId",
+        "userId",
+        "role",
+        "status",
+        "version",
+        "displayName",
+        "email"
       ],
       "additionalProperties": false
     },
@@ -5705,7 +6200,7 @@
         "items": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/Membership"
+            "$ref": "#/$defs/TenantMember"
           },
           "minItems": 0,
           "maxItems": 100
@@ -6159,6 +6654,50 @@
             },
             "method": {
               "const": "GITHUB"
+            }
+          },
+          "required": [
+            "purpose",
+            "method"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "returnTo": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2048,
+              "format": "local-path"
+            },
+            "purpose": {
+              "const": "LOGIN"
+            },
+            "method": {
+              "const": "ACCOUNT_PASSWORD"
+            }
+          },
+          "required": [
+            "purpose",
+            "method"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "returnTo": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2048,
+              "format": "local-path"
+            },
+            "purpose": {
+              "const": "LOGIN"
+            },
+            "method": {
+              "const": "EMAIL_CODE"
             }
           },
           "required": [
@@ -6972,6 +7511,7 @@
                 "PASSWORD_LOGIN",
                 "EMAIL_SIGNUP",
                 "PHONE_LOGIN",
+                "CODE_LOGIN",
                 "START_PROVIDER",
                 "WAIT_PROVIDER"
               ]
@@ -7115,6 +7655,33 @@
           "type": "object",
           "properties": {
             "step": {
+              "const": "PASSWORD_LOGIN"
+            },
+            "identifier": {
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/Email"
+                },
+                {
+                  "$ref": "#/$defs/Phone"
+                }
+              ]
+            },
+            "password": {
+              "$ref": "#/$defs/LoginPassword"
+            }
+          },
+          "required": [
+            "step",
+            "identifier",
+            "password"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "step": {
               "const": "EMAIL_SIGNUP"
             },
             "email": {
@@ -7128,6 +7695,18 @@
             "step",
             "email",
             "password"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "step": {
+              "const": "CODE_LOGIN"
+            }
+          },
+          "required": [
+            "step"
           ],
           "additionalProperties": false
         },
@@ -8551,6 +9130,102 @@
         }
       ]
     },
+    "ManagementHandoffRequest": {
+      "type": "object",
+      "properties": {
+        "redirectUri": {
+          "$ref": "#/$defs/HttpUrl"
+        },
+        "initiatorChallenge": {
+          "$ref": "#/$defs/OpaqueSecret"
+        }
+      },
+      "required": [
+        "redirectUri",
+        "initiatorChallenge"
+      ],
+      "additionalProperties": false
+    },
+    "ManagementHandoffApproval": {
+      "type": "object",
+      "properties": {
+        "handoffId": {
+          "$ref": "#/$defs/Id"
+        },
+        "initiatorProof": {
+          "$ref": "#/$defs/OpaqueSecret"
+        }
+      },
+      "required": [
+        "handoffId",
+        "initiatorProof"
+      ],
+      "additionalProperties": false
+    },
+    "ManagementHandoffView": {
+      "type": "object",
+      "properties": {
+        "handoffId": {
+          "$ref": "#/$defs/Id"
+        },
+        "redirectUrl": {
+          "$ref": "#/$defs/HttpUrl"
+        },
+        "expiresAt": {
+          "$ref": "#/$defs/Timestamp"
+        }
+      },
+      "required": [
+        "handoffId",
+        "redirectUrl",
+        "expiresAt"
+      ],
+      "additionalProperties": false
+    },
+    "ProductLoginResult": {
+      "type": "object",
+      "properties": {
+        "account": {
+          "$ref": "#/$defs/AccountView"
+        }
+      },
+      "required": [
+        "account"
+      ],
+      "additionalProperties": false
+    },
+    "LoginResultResponse": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/LoginResult"
+        },
+        "requestId": {
+          "$ref": "#/$defs/Id"
+        }
+      },
+      "required": [
+        "data",
+        "requestId"
+      ],
+      "additionalProperties": false
+    },
+    "LoginVerificationResponse": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/LoginVerification"
+        },
+        "requestId": {
+          "$ref": "#/$defs/Id"
+        }
+      },
+      "required": [
+        "data",
+        "requestId"
+      ],
+      "additionalProperties": false
+    },
     "TransactionCreatedResponse": {
       "type": "object",
       "properties": {
@@ -8668,6 +9343,22 @@
       "properties": {
         "data": {
           "$ref": "#/$defs/ProviderStartResult"
+        },
+        "requestId": {
+          "$ref": "#/$defs/Id"
+        }
+      },
+      "required": [
+        "data",
+        "requestId"
+      ],
+      "additionalProperties": false
+    },
+    "ManagementHandoffViewResponse": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/ManagementHandoffView"
         },
         "requestId": {
           "$ref": "#/$defs/Id"
@@ -9340,6 +10031,22 @@
       "properties": {
         "data": {
           "$ref": "#/$defs/EntitlementCheckResult"
+        },
+        "requestId": {
+          "$ref": "#/$defs/Id"
+        }
+      },
+      "required": [
+        "data",
+        "requestId"
+      ],
+      "additionalProperties": false
+    },
+    "ProductLoginResultResponse": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/ProductLoginResult"
         },
         "requestId": {
           "$ref": "#/$defs/Id"

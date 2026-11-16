@@ -5,6 +5,7 @@ import type { ExternalSessionCapability, ExternalToolEntry, ExternalToolId, Exte
 import type { ContractDescriptor } from "../platform/package.js";
 import { defineSearchEntriesAction, searchRevisionOf, searchText, type SearchEntry } from "../platform/search-sources.js";
 import type { ProjectSelection } from "../modules/projects.js";
+import { defineConnectorUsagesAction, type ConnectorUsage, type ConnectorUsagesInput } from "./connector-usages.js";
 
 /**
  * Sessions (specs/sessions-rebuild/contract-design.md): what a person did in other AI tools, listed and read where they are kept.
@@ -21,7 +22,7 @@ export const servicesSessionsContract = {
   contractId: /* @version contract.io.molis.work.service.sessions "io.molis.work.service.sessions.v{version}" */ "io.molis.work.service.sessions.v1",
   kind: "service",
   schemaVersion: /* @version contract.io.molis.work.service.sessions */ 1,
-  maturity: "contract-only",
+  maturity: "partial",
   ssot: "specs/sessions-rebuild/contract-design.md",
 } as const satisfies ContractDescriptor;
 
@@ -403,7 +404,6 @@ export const sessionsErrors = /* @__PURE__ */ defineErrorCodes("sessions", {
   project_unavailable: "invalid",
   attribution_conflict: "conflict",
   cursor_invalid: "invalid",
-  suggestion_unavailable: "unavailable",
   too_many_groups: "too_large",
 });
 
@@ -503,6 +503,8 @@ const attributionDecision = { anyOf: [
 
 /** The index reader the search asks when a result is opened, which rechecks the scope. It gives what is indexed and never the text, so it needs no `sessions:history`. */
 const subjectReader = defineSubjectContextAction("sessions.subject.read", /* @version action.sessions.subject.read */ 1, EXTERNAL_SESSION_SUBJECT_KIND, EXTERNAL_SESSION_SUBJECT_TITLE, [SESSIONS_READ_PERMISSION], "home");
+/** Reports which cloud connections the person's read scope references, for the person alone so another caller cannot probe accounts across projects. */
+const connectorUsages = defineConnectorUsagesAction("sessions.connector.usages", /* @version action.sessions.connector.usages */ 1, "外部会话读取范围使用的连接", [SESSIONS_READ_PERMISSION], "home");
 
 const query = { kind: "query" as const, scope: "home" as const, scheduling: "concurrent" as const, effect: "read" as const, subject_kinds: [] as string[] };
 const everyAudience = ["user", "agent", "workflow", "mcp", "plugin"] as ("user" | "agent" | "workflow" | "mcp" | "plugin")[];
@@ -571,4 +573,5 @@ export const sessionsActions = {
       query: { type: "string", minLength: 1, maxLength: EXTERNAL_SESSION_QUERY_MAX_CHARS, pattern: "^\\s*[^\\s-]" },
       limit: { type: "integer", minimum: 1, maximum: EXTERNAL_SESSION_LIST_MAX } }, required: ["entry_id", "location_key", "query"], additionalProperties: false },
     output_schema: { type: "object", properties: { sessions: { type: "array", items: personRow }, skipped_count: count, trust: untrusted }, required: ["sessions", "skipped_count", "trust"], additionalProperties: false } } } as ActionDefinition<ExternalSessionToolSearchInput, ExternalSessionToolSearchOutput>,
+  connectorUsages: { ...connectorUsages, action: { ...connectorUsages.action, audiences: personal, scheduling: "concurrent" as const } } as ActionDefinition<ConnectorUsagesInput, { usages: ConnectorUsage[] }>,
 };

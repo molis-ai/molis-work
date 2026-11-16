@@ -568,3 +568,34 @@ test("WORK09-01: personal SecretStore, native capability and browser cookie cann
   assert.equal(createLazyFileSecretStore(f.home).get(reference), saved, "no credential migration or deletion");
   assert.equal(await readFile(nativePath, "utf8"), native, "the prior file is retained without being accepted");
 });
+
+// Login command consolidation preserves Host-only proof ownership and cancellation.
+test("S-unified-account-credentials: login verification IDs reject injected authority and superseded or cancelled attempts", { timeout: 60_000 }, async t => {
+  let calls = 0;
+  const centralId = randomBytes(16).toString("hex");
+  const f = await fixture(t, origin => ({ environment: environment(origin), fetch: async (url, init) => {
+    calls++;
+    assert.ok(String(url).endsWith("/api/v2/auth/verification-codes"));
+    const body = JSON.parse(String(init?.body));
+    assert.equal(body.clientId, environment(origin).clientId);
+    assert.equal(body.redirectUri, origin + "/account/callback");
+    assert.ok(new Headers(init?.headers).get("X-Auth-Initiator-Proof"));
+    return Response.json({ requestId: randomBytes(16).toString("hex"), data: { verificationId: centralId, expiresAt: new Date(Date.now()+300_000).toISOString(), retryAfterSeconds: 60 } });
+  } }));
+  const send = (path: string, body: unknown, extra = {}) => post(f.origin, path, { ...writeHeaders(f.headers), ...extra }, body);
+  const path = "/api/account/auth/verification-codes", body = { purpose: "LOGIN", channel: "SMS", address: "+8613800000000" };
+  assert.equal((await send(path, body, { "sec-fetch-site": "cross-site" })).status, 403);
+  assert.equal((await send(path, { ...body, clientId: "injected" })).status, 400);
+  assert.equal(calls, 0);
+  const first = await send(path, body);
+  assert.equal(first.status, 200);
+  const id = first.body.data.verificationId;
+  assert.notEqual(id, centralId);
+  assert.ok(!first.text.includes(centralId) && !first.text.includes("proof"));
+  const second = await send(path, body);
+  assert.equal(second.status, 200);
+  assert.equal((await send("/api/account/auth/login/code", { verificationId: id, code: "123456" })).status, 404);
+  assert.equal((await send("/api/account/auth/transactions/" + second.body.data.verificationId + "/cancel", {})).status, 200);
+  assert.equal((await send("/api/account/auth/login/code", { verificationId: second.body.data.verificationId, code: "123456" })).status, 409);
+  assert.equal(calls, 2, "superseded and cancelled codes never reach Auth");
+});

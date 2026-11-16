@@ -15,15 +15,17 @@ import { servicesSurfaceCompositionContract } from "@molis-ai/molis-work-contrac
 const later: ReadonlyArray<[string, ContractDescriptor]> = [
   ["services/home", servicesHomeContract],
   ["services/blueprints", servicesBlueprintsContract],
-  ["services/sessions", servicesSessionsContract],
 ];
 const root = join(import.meta.dirname, "..");
 
-// Batch 15 implemented the composition service (`system.surfaces` in horizontal/surfaces): its contract is partial, not contract-only.
+// Batch 15 implemented the composition service (`system.surfaces` in horizontal/surfaces) and Batch 34 implemented external session history (`system.sessions` in horizontal/sessions): both contracts are partial, not contract-only.
 test("the composition contract says its provider runs now, and names an SSOT that exists", () => {
   assert.equal(servicesSurfaceCompositionContract.kind, "service");
   assert.equal(servicesSurfaceCompositionContract.maturity, "partial");
   assert.ok(existsSync(join(root, servicesSurfaceCompositionContract.ssot)));
+  assert.equal(servicesSessionsContract.kind, "service");
+  assert.equal(servicesSessionsContract.maturity, "partial");
+  assert.ok(existsSync(join(root, servicesSessionsContract.ssot)));
 });
 
 test("the contract-first services say so in their descriptor, and each names an SSOT that exists", () => {

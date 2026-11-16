@@ -1,0 +1,63 @@
+{
+  "reason": "PR #2094 统一登录交互和文案；仅许可本次 CI 实测首屏请求增量与现有中英文词包的新内容哈希路径。",
+  "review": "https://github.com/molis-ai/molis-work/actions/runs/43738222255/job/132886059417；资产压缩已减少 139 B，未改门禁规则或共享阈值。",
+  "entryApprovals": [
+    {
+      "pages": [
+        "arrival-empty",
+        "chooser",
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "zh",
+      "entry": "/assets/locale/workbench.zh.<digest>.js",
+      "change": "new"
+    },
+    {
+      "pages": [
+        "arrival-empty",
+        "chooser",
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "en",
+      "entry": "/assets/locale/workbench.en.<digest>.js",
+      "change": "new"
+    }
+  ],
+  "pages": {
+    "arrival-empty/zh": {
+      "cold": 894,
+      "warm": 0
+    },
+    "arrival-empty/en": {
+      "cold": 809,
+      "warm": 0
+    },
+    "chooser/zh": {
+      "cold": 1578,
+      "warm": 684
+    },
+    "chooser/en": {
+      "cold": 1493,
+      "warm": 684
+    },
+    "workbench-default/zh": {
+      "cold": 1267,
+      "warm": 0
+    },
+    "workbench-default/en": {
+      "cold": 1182,
+      "warm": 0
+    },
+    "workbench-all-plugins/zh": {
+      "cold": 1267,
+      "warm": 0
+    },
+    "workbench-all-plugins/en": {
+      "cold": 1182,
+      "warm": 0
+    }
+  },
+  "userApproval": "2026-11-16 用户明确回复「批准本次精确许可」：仅 Work #2094 本次现有中英文语言包新哈希路径、各页首次加载 783–1578 B、选择页再次加载 684 B，其余再次加载零增量；不修改共享门禁阈值。 2026-11-16 用户明确回复「批准本次额外 26 B」：与最新 main 合并后，仅英文首次加载补充 26 B，到达页 809 B、选择页 1493 B、默认/全部插件工作台各 1182 B；中文与再次加载许可不变。"
+}

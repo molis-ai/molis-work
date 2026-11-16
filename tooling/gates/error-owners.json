@@ -384,9 +384,11 @@
     },
     "sessions": {
       "paths": [
+        "horizontal/sessions/",
+        "apps/local-host/src/sessions-*",
         "packages/contracts/src/services/sessions.ts"
       ],
-      "reason": "The Sessions service contract declares sessions.* once, so the shell and callers can tell the refusals apart; horizontal/sessions/ joins when the service package is created."
+      "reason": "The Sessions horizontal service, its Host action/port adapters, and its service contract own sessions.* refusals."
     },
     "shelf": {
       "paths": [

@@ -60,6 +60,7 @@ import { recordAssistantWorkStep } from "./assistant-work-records.js";
 import { cancelConnectorAuthorizationsForSession, holdConnectorAuthorizationsForSession } from "../connector-authorization-status.js";
 import { retainConnectorSetupsForSession } from "../connector-setup-retain.js";
 import { assistantSetupMaterial } from "./assistant-setup-material.js";
+import { currentRoundPageContext } from "./assistant-external-sessions.js";
 import { pageChoices } from "./assistant-pages.js";
 import { hostLog } from "../host-log.js";
 import { assistantConnectionCard } from "./assistant-connection-card.js";
@@ -209,7 +210,7 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
       (view, input, output) => service.outcomes.recordResult(work, view, input, output, origin?.source !== "card"), service.delegation(work),
       (view, call) => service.dispatcher.trackUnsettled(work, `${view.provider.title} · ${view.action.title}`, call), service.memory.memoryTools(work), () => store.confirmAlways(WEB_ACTOR),
       view => service.dispatcher.noteDispatched(work, view), () => {
-        const snapshot = store.rounds(work.work_id).at(-1)?.context;
+        const snapshot = currentRoundPageContext(store.rounds(work.work_id).at(-1)?.context);
         return snapshot ? { url: null, title: snapshot.source.title ?? snapshot.source.surface, provenance: "client_reported" } : undefined;
       }, locale, namedSkills, service.delivery(work), autoSkills, (key, automatic) => store.policies.hold(WEB_ACTOR, key, automatic)),
       project_prompts: await assistantProjectPrompts(ports.localHost, work),

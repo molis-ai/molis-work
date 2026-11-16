@@ -1,6 +1,6 @@
 # Horizontal Services
 
-`horizontal/` 目录下有 **17 个包**，分两类（定义见[系统架构 §3](../system/ARCHITECTURE.md)，逐包清单见 [SSOT-MATRIX §6](../SSOT-MATRIX.md)）：5 个横向运行服务和 12 个平台产品服务。
+`horizontal/` 目录下有 **18 个包**，分两类（定义见[系统架构 §3](../system/ARCHITECTURE.md)，逐包清单见 [SSOT-MATRIX §6](../SSOT-MATRIX.md)）：5 个横向运行服务和 13 个平台产品服务。
 
 **横向运行服务**是多种业务都会复用的可靠运行能力。它保存 cursor、lease、retry、process handle 等可恢复技术状态，但不拥有正式业务事实，也不替 Module 做业务决定。
 
@@ -24,6 +24,7 @@
 - [Appearance](../../horizontal/appearance/README.md)：Home 的外观选择、应用与撤销，以及没有页面的工作所用的最近语言。
 - [Surfaces](../../horizontal/surfaces/README.md)：按调用方、位置和对象排出确定呈现组合，并保存本人的位置纠正；合同见 [surface-composition](../../specs/surface-composition/spec.md) §2、§3、§14。
 - [Kit](../../horizontal/kit/README.md)：现算某个范围里的能力包，给条目盖来源与所属的包、读出包状态；不存注册表。
+- [Sessions](sessions.md)：在本人打开的读取范围内发现外部 AI 开发工具的会话，按来源实时只读正文、做项目归属与模型归属建议，供个人检索与个人助理单轮显式引用；不存对话正文，不发消息，不管理运行进程。
 - [项目自动化建议](automation-recommender.md)：只读扫描与推荐偏好，报告由 Pages 保存。
 - [项目审批](../../horizontal/project-approvals/README.md)：保存受保护入口的本人决定及项目审批规则。
 

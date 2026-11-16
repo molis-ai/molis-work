@@ -10,6 +10,7 @@ import { rm } from "node:fs/promises";
 import { memoryErrors, purgeProjectMemories } from "@molis-ai/molis-work-service-memory";
 import { clearObservationProjectFile } from "@molis-ai/molis-work-service-observation";
 import { clearEvaluationProjectFile } from "@molis-ai/molis-work-service-evaluation";
+import { clearExternalSessionsProjectFile, sessionsProjectData } from "@molis-ai/molis-work-service-sessions";
 import { randomUUID } from "node:crypto";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MEMORY_LEDGER_STORE, TEXT_SEARCH_STORE, clearKnowledgeProject, hasStorageBusinessFiles, homeSqlitePartitionDirectory, homeSqlitePath, openMemoryLedger } from "@molis-ai/molis-work-storage";
@@ -34,6 +35,8 @@ export const SEARCH_OWNER = { id: "search", label: null } as const;
 /** The work records of the project (observation-collection §6): a running Host's layer takes this id over, to drop its queue too. */
 export const OBSERVATION_OWNER = { id: "observation", label: { key: "workbench.project-deletion.observation" } } as const;
 export const EVALUATION_OWNER = { id: "evaluation", label: null } as const;
+/** External sessions' per-project AI read permit and filing suggestions (sessions-rebuild §8.5); a running Host updates its open index too. */
+export const EXTERNAL_SESSIONS_OWNER = { id: "external-sessions", label: sessionsProjectData.label } as const;
 
 /**
  * Memory is kept in the Agent runtime, which one process of the Home owns: the executor, the resident Web Host. A
@@ -143,6 +146,7 @@ export function homeProjectOwners(home: string): ProjectDeletedOwner[] {
     { id: "automation-recommendations", label: null, clear: projectId => forgetAutomationPreferences(home, projectId) },
     { ...OBSERVATION_OWNER, clear: projectId => { clearObservationProjectFile(home, projectId); } },
     { ...EVALUATION_OWNER, clear: projectId => { clearEvaluationProjectFile(home, projectId); } },
+    { ...EXTERNAL_SESSIONS_OWNER, clear: projectId => { clearExternalSessionsProjectFile(home, projectId); } },
     // Their services exist only in a Host: here they wait for it (the Host's own owners take these ids over while it runs).
     memoryOwnerWithoutService(home),
     searchOwnerWithoutService(home),

@@ -1,4 +1,4 @@
-import { renderPluginFrameClientScript, pluginWorkbenchClientAsset, pluginOnDemandStylesheet, renderMolisWorkCapabilitiesClientScript, renderMolisWorkCharactersClientScript, renderMolisWorkKnowledgeClientScript, renderMolisWorkKitClientScript, renderMolisWorkWorkRecordsClientScript, renderMolisWorkChooserSearchClientScript } from "@molis-ai/molis-work-app-workbench";
+import { renderPluginFrameClientScript, pluginWorkbenchClientAsset, pluginOnDemandStylesheet, renderMolisWorkCapabilitiesClientScript, renderMolisWorkCharactersClientScript, renderMolisWorkSessionsClientScript, renderMolisWorkKnowledgeClientScript, renderMolisWorkKitClientScript, renderMolisWorkWorkRecordsClientScript, renderMolisWorkChooserSearchClientScript } from "@molis-ai/molis-work-app-workbench";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import { createRequire } from "node:module";
@@ -152,6 +152,9 @@ export function createLocalWebAssets(ports: {
         // 角色 is the Host's page since CHR-1; its client keeps the address its plugin pack had (D5, BL-378).
         : pathname === "/assets/molis-work-plugins/characters.js"
         ? { body: renderMolisWorkCharactersClientScript(), contentType: "text/javascript; charset=utf-8" }
+        // 外部会话 (`sessions`) is a Host surface loaded on demand when opened or when its Read Scope overlay is called.
+        : pathname === "/assets/molis-work-plugins/sessions.js"
+        ? { body: renderMolisWorkSessionsClientScript(), contentType: "text/javascript; charset=utf-8" }
         : pathname === "/assets/molis-work-arrival.css"
           ? { body: renderMolisWorkArrivalStylesheet(), contentType: "text/css; charset=utf-8" }
         : pathname === "/assets/molis-work-settings.css"

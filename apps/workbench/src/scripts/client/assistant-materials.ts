@@ -11,8 +11,11 @@ export const ASSISTANT_MATERIALS_PART = String.raw`  /* ─── Sending ──
   let files = [];
   // The files and picks on the composer's own strip, as 待发送 names them; the composer part fills it in once the composer is there.
   let stripPending = () => [];
+  let externalMentions = () => [];
   const removed = new Set();
   const visible = (node) => Boolean(node && node.isConnected && node.getClientRects().length && !node.closest("[hidden]"));
+  const isExternalSessionObj = (obj) => Boolean(obj && obj.kind === "external_session");
+  const runningRoundNow = () => { const w = typeof getWork === "function" ? getWork() : null; return Boolean(w && typeof isLive === "function" && isLive(w.state)); };
   const noteSurface = (target) => {
     if (target?.nodeType !== 1 || island.contains(target)) return;
     const surf = target.closest("[data-assistant-context]");
@@ -26,8 +29,10 @@ export const ASSISTANT_MATERIALS_PART = String.raw`  /* ─── Sending ──
     const nodeEl = node && (node.nodeType === 1 ? node : node.parentElement);
     if (!nodeEl || island.contains(nodeEl)) return;
     const text = cur.isCollapsed ? "" : cur.toString().trim();
-    if (!text) { sel = null; paintMats(); return; }
-    sel = { text: text.slice(0, 8000), truncated: text.length > 8000, surface: nodeEl.closest("[data-assistant-context]") };
+    if (!text) { sel = null; joined.delete("selection"); paintMats(); return; }
+    const extSurf = Boolean(nodeEl.closest("[data-work-surface='sessions']"));
+    sel = { text: text.slice(0, 8000), truncated: text.length > 8000, surface: nodeEl.closest("[data-assistant-context]"), externalSession: extSurf };
+    if (extSurf) joined.delete("selection");
     removed.delete("selection");
     paintMats();
   });
@@ -66,7 +71,8 @@ export const ASSISTANT_MATERIALS_PART = String.raw`  /* ─── Sending ──
     const ctx = pageCtx();
     if (!ctx || !ctx.object || removed.has("object")) return null;
     const object = ctx.object;
-    return { object, context:ctx, related: belongsToWork(object), included: holds(object) };
+    if (isExternalSessionObj(object)) return { object, context: ctx, related: false, included: joined.has(objectKey(object)), externalSession: true };
+    return { object, context:ctx, related: belongsToWork(object), included: holds(object), externalSession: false };
   };
   const clip = (text, size) => text.length > size ? text.slice(0, size - 1) + "…" : text;
   /** The materials this Send would carry, each named and removable; page items are marked as coming from the page. */
@@ -74,32 +80,53 @@ export const ASSISTANT_MATERIALS_PART = String.raw`  /* ─── Sending ──
     const ctx = pageCtx();
     const items = [];
     const page = pageObject();
+    const live = runningRoundNow();
+    const runningWhy = live ? readText("workbench.assistant-context-strip.external-session-running-wait") : "";
+    const untrustedOnce = readText("workbench.assistant-context-strip.external-session-untrusted-once");
+    const summaryOnce = readText("workbench.assistant-context-strip.external-session-summary-once");
+    const summaryHint = readText("workbench.assistant-context-strip.external-session-summary-hint");
     // The page's object is named once; the sentence around it is the translation's own, so it keeps its own colon.
     // Not added, it is offered — unless something handed over from it already brings it along.
     const name = page && (page.object.title || page.object.id), label = page && readText("workbench.assistant-materials.viewing-title", { title: name });
-    if (page && page.included) items.push({ key: "object", label, object: page.object, auto: !joined.has(objectKey(page.object)), note: page.related ? readText("workbench.assistant-materials.objects-work") : "" });
-    else if (page && !files.some((file) => file.object && objectKey(file.object) === objectKey(page.object))) items.push({ key: "object", label, optional: true });
-    if (page && page.included && ctx.unsaved && ctx.draft_text && !removed.has("draft")) items.push({ key: "draft", label: readText("workbench.assistant-materials.unsaved-edits"), auto: true });
-    if (page) relatedWorks(page.object).filter((row) => row.work_id !== curId).slice(0, 2)
+    if (page && page.included) items.push({ key: "object", label, object: page.object, auto: !joined.has(objectKey(page.object)), put: page.externalSession,
+      inlineNote: page.externalSession ? (live ? runningWhy : untrustedOnce) : "", note: page.externalSession ? (live ? runningWhy : untrustedOnce) : page.related ? readText("workbench.assistant-materials.objects-work") : "" });
+    else if (page && !files.some((file) => file.object && objectKey(file.object) === objectKey(page.object))) items.push({ key: "object", label, optional: true,
+      ...(page.externalSession && live ? { addDisabled: true, disabledReason: runningWhy } : {}) });
+    if (page && page.included && !page.externalSession && ctx.unsaved && ctx.draft_text && !removed.has("draft")) items.push({ key: "draft", label: readText("workbench.assistant-materials.unsaved-edits"), auto: true });
+    if (page && !page.externalSession) relatedWorks(page.object).filter((row) => row.work_id !== curId).slice(0, 2)
       .forEach((row) => items.push({ key: "work:" + row.work_id, label: readText("workbench.assistant-materials.belongs-work-named", { title: row.title }), optional: true, work: row }));
-    if (sel && !removed.has("selection")) items.push({ key: "selection", label: readText("workbench.assistant-materials.selection-named", { text: clip(sel.text.replace(/\s+/g, " "), 28) }), auto: true });
-    files.forEach((file) => items.push({ key: "file:" + file.material_id, label: (file.reference ? readText("workbench.assistant-materials.quote-named", { title: file.title }) : file.title), auto: false, put: true }));
+    if (sel && !removed.has("selection")) {
+      const selLabel = readText("workbench.assistant-materials.selection-named", { text: clip(sel.text.replace(/\s+/g, " "), 28) });
+      if (sel.externalSession) {
+        if (joined.has("selection")) items.push({ key: "selection", label: selLabel, auto: false, put: true, inlineNote: live ? runningWhy : untrustedOnce, note: live ? runningWhy : untrustedOnce });
+        else items.push({ key: "selection", label: selLabel, optional: true, ...(live ? { addDisabled: true, disabledReason: runningWhy } : {}) });
+      } else items.push({ key: "selection", label: selLabel, auto: true });
+    }
+    files.forEach((file) => {
+      const extRef = isExternalSessionObj(file.object);
+      items.push({ key: "file:" + file.material_id, label: (file.reference ? readText("workbench.assistant-materials.quote-named", { title: file.title }) : file.title), auto: false, put: true,
+        ...(extRef ? { inlineNote: live ? runningWhy : summaryOnce, note: live ? runningWhy : summaryHint } : {}) });
+    });
+    externalMentions().forEach((mention) => {
+      items.push({ key: "ext-mention:" + mention.id, label: "@" + mention.title, infoOnly: true, put: true, inlineNote: live ? runningWhy : summaryOnce, note: live ? runningWhy : summaryHint });
+    });
     return items;
   };
-  /** Leaves an item out of this Send: a page object the person added goes back to optional; the rest are removed. */
+  /** Leaves an item out of this Send: a page object or external-session selection the person added goes back to optional; the rest are removed. */
   function dropMaterial(item) {
     const page = item.key === "object" ? pageObject() : null;
     if (page && joined.has(objectKey(page.object))) joined.delete(objectKey(page.object));
+    else if (item.key === "selection" && sel && sel.externalSession && joined.has("selection")) joined.delete("selection");
     else if (item.key.startsWith("file:")) files = files.filter((file) => "file:" + file.material_id !== item.key); else removed.add(item.key);
   }
   const stripNode = island.querySelector("[data-assistant-context-strip]");
   const sideContext = (${ASSISTANT_SIDE_CONTEXT_FACTORY_SCRIPT})({ readText, el, kinds: MATERIAL_KIND, tile, glyph, group, sideAct, paintBlock, keepFocus, sidePanelHere, sidePreview, readBack, readImage, openObject, objectState, objectTitle, objectDetail, objectGlyph, surfaceName, addFiles,
     current: () => (view && view.work.work_id === curId ? view : null), pickFile, expired: EXPIRED_IMAGE, block: () => blocks.materials,
-    pending: () => materialsNow().filter((item) => !item.optional).map((item) => ({ kind: item.key === "draft" ? "text" : item.key === "selection" ? "selection" : item.key.startsWith("file:") ? (files.find((file) => "file:" + file.material_id === item.key) || {}).kind || "file" : "object", title: item.label })).concat(stripPending()) });
+    pending: () => materialsNow().filter((item) => !item.optional && !item.infoOnly).map((item) => ({ kind: item.key === "draft" ? "text" : item.key === "selection" ? "selection" : item.key.startsWith("file:") ? (files.find((file) => "file:" + file.material_id === item.key) || {}).kind || "file" : "object", title: item.label })).concat(stripPending()) });
   const surroundings = (${ASSISTANT_SIDE_SURROUNDINGS_FACTORY_SCRIPT})({ readText, el, card, group, stack, paintBlock, keepFocus, api, environmentBlock: () => blocks.environment, toolsBlock: () => blocks.tools });
   const usagePane = (${ASSISTANT_SIDE_USAGE_FACTORY_SCRIPT})({ readText, el, progress, api, toast: (error) => host.showToast?.(error), box: () => usageBox, current: () => (view && view.work.work_id === curId ? view : null), adopt: (next) => { view = next; render(); } });
   contextStrip = stripNode && (${ASSISTANT_CONTEXT_STRIP_FACTORY_SCRIPT})({ strip: stripNode, readText, el, items: materialsNow, open: () => Boolean(panel && !panel.hidden), focused: () => document.activeElement === input,
-    add: () => { const page = pageObject(); if (page) joined.add(objectKey(page.object)); paintMats(); },
+    add: (item) => { if (item && item.addDisabled) return; if (item && item.key === "selection") joined.add("selection"); else { const page = pageObject(); if (page) joined.add(objectKey(page.object)); } paintMats(); },
     drop: (item) => { dropMaterial(item); paintMats(); },
     go: (work) => { void switchTo(work.work_id); input.focus(); } });
   function paintMats() { sideContext.paint(); paintEmpty(); contextStrip?.paint(); }
@@ -109,14 +136,14 @@ export const ASSISTANT_MATERIALS_PART = String.raw`  /* ─── Sending ──
     const ctx = pageCtx();
     const cur = document.querySelector("[data-plugin-picker-current]");
     const active = document.querySelector(".plugin-rail-items [aria-current][data-plugin-id]");
-    const surf = (ctx && ctx.plugin_id) || (active && active.dataset.pluginId) || "home";
+    const surf = (sel && sel.externalSession && joined.has("selection")) ? "sessions" : (ctx && ctx.plugin_id) || (active && active.dataset.pluginId) || "home";
     const named = cur ? cur.querySelector(".plugin-picker-chip.is-focused") || cur.querySelector(".plugin-picker-chip") || cur : null;
     const title = (ctx && ctx.surface_title) || (named ? named.textContent.trim() : "");
     const res = { source: Object.assign({ surface:surf }, ctx && ctx.plugin_id ? { plugin_id: ctx.plugin_id } : {}, title ? { title } : {}), captured_at: new Date().toISOString() };
     const page = pageObject();
     if (page && page.included) res.object = page.object;
-    if (ctx && ctx.unsaved && page && page.included) res.unsaved = true;
-    if (sel && !removed.has("selection")) res.selection = { text: sel.text, truncated: sel.truncated };
+    if (ctx && ctx.unsaved && page && page.included && !page.externalSession) res.unsaved = true;
+    if (sel && !removed.has("selection") && (!sel.externalSession || joined.has("selection"))) res.selection = { text: sel.text, truncated: sel.truncated };
     return Object.assign(res, contextStrip ? contextStrip.carried() : {});
   };
   const sendMaterials = () => {

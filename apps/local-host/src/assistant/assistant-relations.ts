@@ -3,6 +3,7 @@ import type { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import type { ContextAccess, ContextEdge, ObjectRef } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import { ASSISTANT_RELATIONS, type AssistantContextSnapshot, type AssistantMaterial, type AssistantRelation, type AssistantScope } from "@molis-ai/molis-work-contracts/services/assistant";
+import { hasExternalSessionContext, isExternalSessionMaterial } from "./assistant-external-sessions.js";
 import { hostLog } from "../host-log.js";
 
 /** The Home SQLite handle, as the storage package opens it (the App boundary does not import `node:sqlite`). */
@@ -31,9 +32,9 @@ export function revisionOf(version: string | number | undefined): string | null 
 export function linkSent(relations: AssistantRelations, work: { work_id: string; scope: AssistantScope }, materials: AssistantMaterial[], context: AssistantContextSnapshot | null): void {
   const id = identity(work);
   try {
-    if (context?.object) relations.link(id, "origin", { kind: context.object.kind, id: context.object.id, revision: revisionOf(context.object.version) }, "工作从这个对象开始");
+    if (context?.object && !hasExternalSessionContext(context)) relations.link(id, "origin", { kind: context.object.kind, id: context.object.id, revision: revisionOf(context.object.version) }, "工作从这个对象开始");
     for (const material of materials) {
-      if (!material.object) continue;
+      if (!material.object || isExternalSessionMaterial(material)) continue;
       relations.link(id, "material", { kind: material.object.kind, id: material.object.id, revision: material.draft ? null : revisionOf(material.object.version) },
         material.explicit ? "用户把它加入这一轮" : "用户保留了当前页面的这个对象");
     }

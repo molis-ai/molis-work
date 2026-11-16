@@ -42,6 +42,10 @@
       "reason": "安装器写的收据，生成在构建好的工作区上跑，没有运行安装器；快照也排除它"
     },
     {
+      "path": "external-sessions/external-sessions.db",
+      "reason": "第 34 批新增的外部会话索引与许可 Home 库；现有金样（0.1.1-dev.4）生成于第 34 批之前。回放时由 tests/golden-writes/external-sessions.ts 创建并验证项目 AI 读取许可读写；下次重铸金样后纳入快照。"
+    },
+    {
       "path": "feed/evidence/blobs/**",
       "reason": "Feed 抓到外部内容才写，金样不联网（UPG2-06）"
     },
@@ -128,6 +132,11 @@
     "context-onboarding/context-onboarding.db": {
       "cases": [
         "context-onboarding.ts"
+      ]
+    },
+    "external-sessions/external-sessions.db": {
+      "cases": [
+        "external-sessions.ts"
       ]
     },
     "plugin-originals/plugin-originals.db": {

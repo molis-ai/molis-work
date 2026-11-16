@@ -1,6 +1,6 @@
 # 第 36 批第 2 项合同设计稿：事项容器、事项来源与主线服务
 
-状态：设计稿（2026-11-15），待评审；评审后提交到 `batch/36`，再写合同与实现。需求在[主线](spec.md) §2、§5、§6 与[事项线](../work-line/spec.md) §5、§6（第二片）；本批交合同与服务，切换器、列表菜单与按事项的工作台状态在第 37 批第 2 项。主线服务包第 32 批已建（线读取、安放、后台任务，不存东西），本批在它上面加事项容器与存储。
+状态：设计稿（2026-11-15），已评审（M1～M7 已改入）。需求在[主线](spec.md) §2、§5、§6 与[事项线](../work-line/spec.md) §5、§6（第二片）；本批交合同与服务，切换器、列表菜单与按事项的工作台状态在第 37 批第 2 项。主线服务包第 32 批已建（线读取、安放、后台任务，不存东西），本批在它上面加事项容器与存储。
 
 验收：MLN-12、MLN-13、MLN-14、MLN-18、MLN-22，以及本稿 §9 的 MLC-01～MLC-12（服务层，界面验收随第 37 批）。
 
@@ -50,23 +50,28 @@ interface Mainline {
 - **事项只是容器（MLN-22）。** 合同里只有名字、由哪个对象变成、装了什么、排在哪；没有状态流、负责人、截止、评论。已完成只是排列的一部分（收进「已完成」折叠区），不是事项的状态：由插件对象变成的事项是否「完成」向主人读，用户确认后才收进去。
 - **每人每项目一条主线**，本人、项目从调用上下文取；第一次读时给出默认三组、空事项。
 - **一个对象只变成一件事项**：同一 `source` 再「设为事项」返回已有那件。
-- 名字最多 120 字；分组最多 20 个；一条主线最多 500 件事项（含已完成）；一件事项最多装 500 个对象。超出时拒绝并说明（`mainline.limit`）。
+- 名字最多 120 字；分组最多 20 个；一条主线最多 500 件**未完成**事项；一件事项最多装 500 个对象。超出时拒绝并说明（`mainline.limit`）。已完成的不计入上限，读取只给最近 100 件和总数。
+- **当前事项按人与项目各一件**，不按窗口；每个窗口自己的工作台状态归第 37 批。最近切过的列表后写为准。
 
 ## 3. 动作（`system.mainline`，项目范围）
 
-本人、Agent、MCP 都能调（MLN-13）；工作流只能读。写动作带 `expected_revision`，排列冲突回 `mainline.conflict` 并带当前主线。权限：读 `mainline:read`，写 `mainline:arrange`（新）。
+本人、Agent、MCP 都能调（MLN-13）；工作流只能读。改排列的写动作（移动、改组、完成、移出、改名、变成）带 `expected_revision`，排列冲突回 `mainline.conflict` 并带当前主线；只追加的写（新建事项、`holds` 的新建与放进）和切换不带，免得两个窗口互相冲突。权限：读 `mainline:read`，写 `mainline:arrange`（新）；宿主像给角色的权限一样把它加进本机本人的权限，Agent 与 MCP 经同一套授权取得，不另开名单。
+
+**要等别的主人的写（评审 M1）。** `items.create` 的 `from`／`create_as`、`items.convert`、`holds.bind`／`holds.create` 要先以调用方身份读或建来源对象，都声明 `scheduling: "concurrent"`，返回后先 `beforeEffect()` 再提交主线这边。新建来源对象的输入带 `request_id`（由主线服务从调用的请求 id 派生），来源主人按它重放同一个对象；主线这边按来源唯一索引幂等，所以取消或冲突后重试不会多出一个 Goal。
 
 | 动作 | 输入 → 输出 | 说明 |
 | --- | --- | --- |
 | `mainline.read@1`（查询） | `{}` → `{ mainline, sources }` | `sources` 是这个调用方目录里声明了事项来源的种类：`[{ kind, owner, create: boolean, next: boolean }]`，供「设为事项」「建成 xx」 |
-| `mainline.items.create@1` | `{ expected_revision, name } \| { expected_revision, from: ActionSubject } \| { expected_revision, create_as: { kind, name } }`，可带 `group_id` → `{ mainline, item }` | 起个名字；把对象设为事项（先以调用方身份读一次对象，读不到就拒）；「建成 xx」以调用方身份调来源的新建动作，再把新对象设为事项。默认放进第一组的最后 |
+| `mainline.read@1`（查询） | `{ counts?: true }` → `{ mainline, counts? }` | 主线；带 `counts` 时一次给出每件事项与每组的等你、在跑数（评审 M2：切换器不按事项逐个读线，MLN-17、MLN-23、WLN-19） |
+| `mainline.subject.read@1`（查询） | 平台的主体读取形状 | `work_item` 作为主体：轻量事项给名字，由对象变成的给来源对象的标题（以调用方身份读）；placement、搜索、组合服务按它认事项（评审 M3） |
+| `mainline.items.create@1` | `{ name } \| { from: ActionSubject } \| { create_as: { kind, name } }`，可带 `group_id`、`request_id` → `{ mainline, item }` | 起个名字；把对象设为事项（先以调用方身份读一次对象，读不到就拒）；「建成 xx」以调用方身份调来源的新建动作，再把新对象设为事项。默认放进第一组的最后 |
 | `mainline.items.convert@1` | `{ expected_revision, item_id, kind }` → `{ mainline, item }` | 「变成 xx」：在来源里新建对象并和轻量事项绑上，装的东西不变，名字改向来源读（MLN-21 在第 37 批走界面） |
 | `mainline.items.rename@1` | `{ expected_revision, item_id, name }` | 只对轻量事项 |
 | `mainline.items.move@1` | `{ expected_revision, item_id, group_id, index, pinned? }` | 组内拖动、移到别的组、固定在前 |
 | `mainline.items.complete@1` | `{ expected_revision, item_id, completed: boolean }` | 收进已完成、撤销、放回 |
 | `mainline.items.remove@1` | `{ expected_revision, item_id }` | 从主线移出：删容器和它的「装进」关联，不删装的对象、不删来源对象（MLN-10） |
 | `mainline.groups.edit@1` | `{ expected_revision, op: "add" \| "rename" \| "delete" \| "move", ... }` | 删组时组里的事项并到相邻的组（前一组，没有前一组就后一组），一件不丢（MLN-04） |
-| `mainline.switch@1` | `{ expected_revision, item_id: string \| null }` | 切换当前事项；`null` 是不选事项；更新最近切过 |
+| `mainline.switch@1` | `{ item_id: string \| null }` | 切换当前事项；`null` 是不选事项；更新最近切过 |
 | `mainline.items.contents@1`（查询） | `{ item_id }` → `{ held: ActionSubject[], related: [{ source, subjects }], issues }` | 「这件事的东西」：装进的对象，加上来源插件声明的自家关联（以调用方身份调一次）；只给引用，标题与形态由组合服务取 |
 
 **「装进事项」的 placement 关联**（批次文件：用 placement 已有的 `placement_relation` 声明写，声明方是主线服务）。主线服务在自己的提供方上声明关联 `holds` 的五步，输入输出照 `defineTaskServesAction` 的写法在合同里固定：
@@ -79,7 +84,7 @@ interface Mainline {
 | `candidates` | `mainline.holds.candidates@1` | `{ subject }` → `{ items: [{ subject, current }] }`：「放进事项」可选的事项，当前事项在前 |
 | `create` | `mainline.holds.create@1` | `{ subject, name }` → `{ items }`：新建一件轻量事项并放进去 |
 
-放进之前以调用方身份读一次这个对象（`resolveActionSubject`），读不到就拒（`mainline.subject_unreadable`），所以不能把读不到的东西装进来。placement 的服务代码今天按 Goal 关联写（第 32 批记过），通用化留第 44 批；本批只用同一份声明合同，不为事项另写关联名或通道。
+放进之前以调用方身份读一次这个对象（`resolveActionSubject`），读不到就拒（`mainline.subject_unreadable`），所以不能把读不到的东西装进来。placement 的服务代码今天按 Goal 关联写（第 32 批记过）。为免第 44 批再对两种形状（评审 M4），本批在 `platform/placement.ts` 加按角色通用的关联动作定义器（`definePlacementRelationAction(role, …)`：`list`／`bind`／`release`／`candidates`／`create`，主体与目标都是 `ActionSubject`），`holds` 用它；Goals 的 `goal` 关联照旧，第 44 批改 placement 服务读多个关联名、让对象菜单的「放进事项」经 placement 走时再换。本批不为事项另写关联名或通道。
 
 ## 4. 事项来源声明
 
@@ -103,7 +108,7 @@ interface PresentationObject {
 - 三个引用都是 `capability_id@version`，必须是本 Manifest 自己的、形状对得上的动作；SDK 的 `validatePresentationDeclaration` 检查，作者和平台跑同一份（`parsePluginManifest`）。装上的插件与内置插件同一条路，宿主没有按插件名的分支（MLN-14）。
 - **完成信号**（主线 §5 的一行）不另声明：完成就是状态映射到 done 家族；变化经第 32 批的「等你」读取那一个订阅送到页面（事项线合同设计稿 §11），不另起事件。
 - 动作形状（`platform/work-items.ts`，SDK 转出）：
-  - `create`：`{ name }` → `{ subject }`。
+  - `create`：`{ name, request_id }` → `{ subject }`；同一 `request_id` 返回同一个对象。
   - `related`：`{ subject }` → `{ subjects: ActionSubject[] }`，最多 200 个。
   - `next`：`{ subjects: ActionSubject[] }` → `{ items: [{ subject, next: null | { text: string; waiting_on?: string; start?: { action: ExactActionReference; input: Record<string, unknown> } } }] }`：一次批量；`text` 是动词开头的短句，`waiting_on` 是「还差什么、在等谁」（本批文件设计语言建议）；`start` 只能是来源自己的动作。
 - 主线服务读声明：宿主从同一份可信目录交给它（同组合服务的 `SurfacePlugin`），插件不能自报别家的种类。
@@ -116,7 +121,7 @@ interface PresentationObject {
   - 来源有 `next` 的，下一步作为一个建议事件放在「接下来」的最前（`suggestion` 种类，`open` 为来源对象）；
   - 背后任务照第 32 批：任务总表里为这些事件办的，以及装进这件事项的任务。
   - 时间角色：沿用呈现声明已有的 `due_at`（排在）、`happened_at`（发生于），不新增角色；日程的「开始于」随第 53 批接日程时再看（事项线合同设计稿 §8 已定）。
-- **安放的两种新去处。** `mainline.place@1` 的 `to.kind` 加 `item`（带 `item`：放进另一件事项）和 `no_item`（不归事项：从所有事项里拿出）。任务进事项就是 `holds` 关联绑上任务对象，不改它为哪个事件办，也不改它的授权、预算、数据范围。
+- **安放的两种新去处。** `mainline.place@1` 的输入加一个与 `to` 并列的 `item`（评审 M5：「为哪个事件办」和「在哪件事项里」是两个维度）：`{ kind: "item", item_id }` 放进另一件事项——同时解除它在别的事项里的「装进」，所以只出现在一条线上；`{ kind: "none" }` 不归事项，从所有事项里拿出。任务进事项就是 `holds` 关联绑上任务对象，不改它为哪个事件办，也不改它的授权、预算、数据范围。
 
 ## 6. 存储（`mainline/mainline.sqlite`，`horizontal/mainline` 的 Home 库）
 
@@ -136,7 +141,7 @@ CREATE INDEX mainline_holds_subject ON mainline_holds (owner_actor_id, project_i
 - 存的只有：轻量事项的名字、来源引用、装进的引用、排列（MLN-12）；查不到插件对象的标题、状态或正文。测试按列名与内容核对。
 - 删除项目：在宿主的项目删除主人表里加一项，删掉这个项目的三张表的行（同 Characters 的 `charactersProjectData`）。
 - 同步：主线是个人数据，个人同步合同落地之前只在本机（主线 §6）。
-- 库版本从 1 开始（新库），登记进 `home-stores.ts` 与版本表。
+- 库版本从 1 开始（新库），登记进 `home-stores.ts`、版本表、`docs/system/HOME-DATA.md` 与 `tooling/gates/table-owners.json`（表主人核对）。
 
 ## 7. 记录（MLN-18）
 
@@ -177,4 +182,6 @@ CREATE INDEX mainline_holds_subject ON mainline_holds (owner_actor_id, project_i
 | MLC-09 | 一个装上的沙箱插件在呈现声明写 `item` 后与内置插件一样出现在 `sources`，可设为事项、可给下一步（MLN-14、WLN-22 服务部分） |
 | MLC-10 | 线读取按事项只给这件事项里的事件、带时间角色的装进对象与来源的下一步；没装 Goals 时照常（WLN-21、WLN-22 服务部分） |
 | MLC-11 | 安放到另一件事项、不归事项：只改「装进」关联，任务不停、不重做（WLN-32、WLN-36 服务部分） |
+| MLC-13 | 等别的主人的写：取消或冲突后用同一请求重试只得到一个来源对象；`next.start` 指向别家提供方的被拒；`mainline.read` 带 `counts` 一次给出每件与每组的数（调用次数） |
+| MLC-14 | `work_item` 作为主体能读出名字；放进另一件事项后只在那一件里 |
 | MLC-12 | 放进、移动、切换、完成各留一条工作记录，带操作者与事项引用，无正文（MLN-18）；合同里没有状态流、负责人、截止、评论字段（MLN-22） |

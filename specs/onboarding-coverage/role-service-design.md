@@ -1,6 +1,6 @@
 # 第 36 批第 1 项设计稿：角色的保存、生效与恢复
 
-状态：设计稿（2026-11-15），待评审；评审后提交到 `batch/36`，再写合同与实现。合同形状沿[提前角色层次合同](role-scope-contract.md)（#1995 已合入），本稿补服务、存储、动作、执行冻结和消费者的改法。界面照[方案 C 定样](../../docs/design/role-scope/README.md)，不重出样。
+状态：设计稿（2026-11-15），已评审（R1～R8 已改入）；用户 2026-11-15 同意角色库 1 → 2 只建表升级。合同形状沿[提前角色层次合同](role-scope-contract.md)（#1995 已合入），本稿补服务、存储、动作、执行冻结和消费者的改法。界面照[方案 C 定样](../../docs/design/role-scope/README.md)，不重出样。
 
 依据：[Onboarding §3.9、§3.11、§3.12、§10](spec.md)、[PF-A11](../product-flow-governance/audit-2026-10-27.md)、[第 36 批第 1 项](../post-anticorruption-roadmap/reference/batches/36.md#batch-36-item-1)与本批核账。验收：ONB-17、ONB-31、PFG-19，RSC-C01～C04 的运行时部分，以及本稿 §9 的 ROLE-01～ROLE-14。
 
@@ -18,7 +18,7 @@
 
 ## 2. 存储：`characters/characters.sqlite` 1 → 2
 
-只新增表，升级步骤只建表（`upgrades: [{ from: 1, sql }]`，同 `agent_definitions` 1→2 的写法），不搬数据、不加兼容读取：
+只新增表，升级步骤只建表（`upgrades: [{ from: 1, sql }]`，同 `agent_definitions` 1→2、`observation` 1→2 的写法），不搬数据、不加兼容读取。只建表的升级段也是升级逻辑：用户 2026-11-15 同意，登记在 `docs/system/CONTRACT-CHANGES.md`「当前保留机制」；由 U1 升级执行，普通打开仍拒绝旧版本；补一份第 1 版金样验 1 → 2 回放。
 
 ```sql
 CREATE TABLE character_versions (            -- 个人原件的固定版本，只增不改
@@ -31,25 +31,26 @@ CREATE TABLE character_members (             -- 项目成员：当前配置，re
   sections TEXT NOT NULL, origin TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
 CREATE UNIQUE INDEX character_members_live ON character_members (owner_actor_id, project_id, character_id) WHERE state != 'removed';
 CREATE TABLE character_member_versions (     -- 成员的固定版本：只存两节的模式与覆盖值，跟随的节由原件版本给
-  member_id TEXT NOT NULL, member_version INTEGER NOT NULL, saved_at TEXT NOT NULL, sections TEXT NOT NULL,
+  member_id TEXT NOT NULL, member_version INTEGER NOT NULL, original_version INTEGER NOT NULL, saved_at TEXT NOT NULL, sections TEXT NOT NULL,
   PRIMARY KEY (member_id, member_version));
 CREATE TABLE character_defaults (            -- 两层默认：project_id 为 '' 是个人默认
   owner_actor_id TEXT NOT NULL, project_id TEXT NOT NULL, selection TEXT NOT NULL, updated_at TEXT NOT NULL,
   PRIMARY KEY (owner_actor_id, project_id));
 CREATE TABLE character_adoptions (           -- 模板采用回执：同键重放原结果
-  owner_actor_id TEXT NOT NULL, scope TEXT NOT NULL, request_id TEXT NOT NULL, receipt TEXT NOT NULL, created_at TEXT NOT NULL,
+  owner_actor_id TEXT NOT NULL, scope TEXT NOT NULL, request_id TEXT NOT NULL, request_digest TEXT NOT NULL, receipt TEXT NOT NULL, created_at TEXT NOT NULL,
   PRIMARY KEY (owner_actor_id, scope, request_id));
 ```
 
 - **原件版本。** `content` 是 `CharacterRoleContent`：`title`、`instructions`、`host_tools`、`action_tools?`、`import_snapshot?`（与 `CharacterDraft` 的内容字段同义，`null`／省略／空表各自的意思不变）。草稿仍是可编辑稿，`revision` 照旧做冲突凭据；新建和每次内容有变的保存在同一个事务里写一版。没有任何版本的草稿（升级前就有、或从另一台设备同步来的）在列表里标「还没保存成版本」，保存一次才能被选，不在升级时代为补版本（不新增迁移逻辑）。
 - **成员的两节。** `sections` 是 `{ work_style: Section; capabilities: Section }`，`Section = { mode: "follow" } | { mode: "override"; based_on_original_version; value; acknowledged_original_version }`。`work_style` 的值是 `instructions`；`capabilities` 的值是 `host_tools` 与 `action_tools`。读出的 `original_changed` 是现算的：原件当前版本里这一节与 `acknowledged_original_version` 那版不同。标题始终沿原件。
-- **成员版本。** 每次成员保存（覆盖一节、恢复跟随、恢复某个版本、首次加入）都写一版 `member_version`；`revision` 是不透明串（`<member_version>.<随机>`），复用采用时换新串而不加 `member_version`（合同 §3）。「保持本项目的」只改 `acknowledged_original_version` 与 `revision`，不加版本（正文不变）。
+- **成员版本。** 一个成员版本与保存时原件的当前版本成对（`original_version`），引用写成 `ProjectCharacterVersionRef`；每次成员保存（覆盖一节、恢复跟随、恢复某个版本、首次加入）都写一版 `member_version`；`revision` 是不透明串（`<member_version>.<随机>`），复用采用时换新串而不加 `member_version`（合同 §3）。「保持本项目的」只改 `acknowledged_original_version` 与 `revision`，不加版本（正文不变）。
+- **采用回执。** `scope` 是 `personal` 或项目 id；`request_digest` 是请求正文的摘要，同键不同内容拒绝（`conflict`），同键同内容重放原回执。
 - **同步。** 现有的草稿复制（`character_drafts` 的同步触发器）不动；新表在个人同步（服务端批）落地之前只在本机，同主线 §6 的写法。
 - 一张表只由 Characters 读写；表主人登记照 `tooling/gates/table-owners.json` 的现行口径核对（同一个库，不需要新增共写登记）。
 
 ## 3. 动作
 
-全部在 Characters 的提供方上声明一次（`modules/characters/src/actions.ts`），本人、项目从调用上下文取。读动作 `audiences: user, agent, workflow, mcp, plugin`；写动作 `user, agent, mcp`（助理和外部 Agent 也能替你改角色，但都经同一组动作和授权）。项目层的动作在项目里调用，个人层的也能在个人范围调用。
+新动作在合同里定义一次（`characterRoleActions`，Coding 与第三方插件从那里找），Characters 的提供方绑定（`modules/characters/src/action-bindings.ts`）；本人、项目从调用上下文取。Characters 的提供方按项目注册，个人空间也是一个项目分区，所以全部动作 `scope: "project"`，`projectLayerOf` 把个人空间读成「没有项目层」；已声明的 `roles.read`、`from_template` 由 `home` 改为 `project`（阶段一原位改），受众不变（`user`）。读动作 `audiences: user, agent, workflow, mcp, plugin`；写动作 `user, agent, mcp`（助理和外部 Agent 也能替你改角色，但都经同一组动作和授权）。全部 `permissions: []`：角色是本人自己的设定，归属由提供方的本人核对拦（`actions.owner_mismatch`），不再借 `artifact:read`；只有「存进成果库」和用发布物运行本机 Agent 的几个动作照旧要 `artifact:*`。
 
 | 动作 | 输入 → 输出 | 说明 |
 | --- | --- | --- |
@@ -64,9 +65,11 @@ CREATE TABLE character_adoptions (           -- 模板采用回执：同键重�
 | `characters.members.save@1`（新） | `{ member_id, expected_revision, expected_original_version, work_style?, capabilities? }` → `{ role }` | 只覆盖给出的节，另一节保留原模式 |
 | `characters.members.section@1`（新） | `{ member_id, section, expected_revision, expected_original_version, to: "follow" \| "keep" }` → `{ role }` | 恢复跟随（新版本）或保持本项目的（只确认差异） |
 | `characters.members.state@1`（新） | `{ member_id, expected_revision, state: "active" \| "disabled" \| "removed" }` → `{ role }` | 移出本项目只解除成员，原件保留 |
-| `characters.versions.restore@1`（新） | `{ version: CharacterRoleVersionRef, expected_revision, expected_original_version? }` → `{ role }` | 存成新的一版，不盖掉之后的修改；历史上跟随的节如今取不到当时内容时，在项目里覆盖该节还原（合同 §2 表） |
+| `characters.versions.restore@1`（新） | 两支闭合：原件 `{ version: PersonalCharacterVersionRef, expected_revision: number }`；成员 `{ version: ProjectCharacterVersionRef, expected_revision: string, expected_original_version }` → `{ role }` | 存成新的一版，不盖掉之后的修改；历史上跟随的节如今取不到当时内容时，在项目里覆盖该节还原（合同 §2 表） |
 | `characters.defaults.set@1`（新） | `CharacterDefaultSelection` → `{ defaults }` | 个人层只收个人原件，项目层收成员、助理或 `null`（沿用） |
-| `characters.roles.resolve@1`（新，查询） | `{ selection?: CharacterTaskSelection }` → `{ effective, character?: CharacterRoleSnapshot }` | 任务开始时调用一次：给有效值和固定下来的正文；读不到或不能用时拒绝并说原因 |
+| `characters.roles.resolve@1`（新，查询） | `{ selection?: CharacterTaskSelection }` → `{ effective, selection, title? }` | 任务开始时调用一次：给有效值、要存在任务上的稳定选择（`CharacterTaskSelection`）和标题；不给正文（插件不需要角色的指令）；本次另选不能用时拒绝并说原因 |
+| `characters.kit.report@1`（改） | 不变 | 能力包目录的「你的角色」：每个原件一条（作用范围 Home，用量 = 几个项目在用），本项目每个成员一条（作用范围本项目，来源写跟随／改过哪一节，版本 `member_version`）；来源字段沿 `kit-report` 现有的 `role` 引用，不改合同 |
+| `characters.usages@1`（改） | 不变 | 某个能力在哪些角色里被用：读原件当前版本和本项目成员的有效内容，不再读发布物 |
 
 `characters.list@1` 与 `characters.runnable@1` 删去（合同阶段一，一个 PR 改完消费者）：它们只服务「先发布、再按发布物选」，新的选法由 `roles.list`／`roles.resolve` 给。`characters.publish@1` 保留，作用改述为「把当前原件存进成果库」。`characters.launch@1`、`execution@1`、`publications.file@1` 用发布物运行本机 Agent，属于本机运行的高级路径，照旧。
 
@@ -86,12 +89,14 @@ CREATE TABLE character_adoptions (           -- 模板采用回执：同键重�
 
 ## 5. 执行：冻结与之后各轮
 
-- `AgentStartRequest.character` 由 `ArtifactReference` 改为 `CharacterRoleVersionRef`；Manifest 的 `characters` 声明由 `{ selection: "optional-exact-artifact", scope: "project-owner" }` 改为 `{ selection: "optional-role-version", scope: "owner" }`（个人与项目都可，本人从上下文取），SDK 校验同改。
-- `AgentFrozenCharacter` 改为：`{ role: CharacterRoleVersionRef; character_id; title; instructions; host_tools; action_tools?; import_snapshot?; project_id: string | null; owner_actor_id; saved_at }`。`content_digest`、`producer`、`published_at`、`reference` 是成果库发布物的字段，去掉。运行记录里旧形状的 `character` 是历史，只按现行形状显示，不为旧值写兜底；显示只用 `title` 与版本（个人 `v n`，项目 `本项目 v m · 原件 v n`）。
-- 宿主的 `resolveCharacter(ref, actorId, projectId)` 读 Characters：成员只在本项目里查，原件只查本人；内容由原件版本加成员版本的覆盖重建。
+- **调用方只给稳定选择，不给版本。** `AgentStartRequest.character` 由 `ArtifactReference` 改为 `CharacterTaskSelection | null`（个人原件、本项目成员或「助理自己」）；Manifest 的 `characters` 声明由 `{ selection: "optional-exact-artifact", scope: "project-owner" }` 改为 `{ selection: "optional-role", scope: "owner" }`（个人与项目都可，本人从上下文取），SDK 校验同改。
+- **版本由宿主钉住（评审 R1）。** 一轮开始时 Agent Host 先看同一会话里上一轮冻结的角色：选择相同（同一个原件或成员）就沿用那一版，只核它还读得到；没有、或选择变了，就由宿主的 `resolveCharacter(selection, actorId)` 请 Characters 现在解析——停用、没保存过版本、不在本项目的都在这里拒绝。所以调用方（Coding、第三方插件、助理）没法拿旧版本或停用角色开新任务。
+- `AgentFrozenCharacter` 改为：`{ version: CharacterRoleVersionRef; selection; character_id; title; instructions; host_tools; action_tools?; import_snapshot?; project_id: string | null; owner_actor_id; saved_at }`。`project_id` 是成员所在的项目，个人原件为 `null`（请求本身的 `project_id` 照旧是这一轮所在的分区，个人空间也是分区 id）。`content_digest`、`producer`、`published_at`、`reference` 是成果库发布物的字段，去掉；字段名用 `version` 不用 `role`，免得与 `role_id` 混。运行记录里旧形状的 `character` 是历史，只按现行形状显示，不为旧值写兜底；显示只用 `title` 与版本（个人 `v n`，项目 `本项目 v m · 原件 v n`）。
+- 宿主的 `resolveCharacter` 与 `characterVersion(ref, actorId)` 读 Characters：成员只在本项目里查，原件只查本人；内容由原件版本加成员版本的覆盖重建。提示词层的版本号取原件版本（`prompt_id: character-<character_id>`）。
 - **之后各轮**：守卫只核这个版本还读得到（成员没被移出、原件没被删除），不核停用；固定版本不可变，所以不再比较内容。能力被撤由原有的能力核对拦下，这一轮停在原处（`role_execution_exceeded`／授权拒绝），不换版本。
-- **谁冻结**。助理：一件工作开始时，或用户另选角色后从下一轮起，调 `roles.resolve` 得到版本存在工作上（`StoredWork.character` 改为 `{ role: CharacterRoleVersionRef; selected: CharacterTaskSelection; title }`），之后各轮用同一版本。Coding：每个会话的选择存稳定引用（`CharacterTaskSelection`），会话第一轮解析并固定，之后各轮沿用；换选从下一轮起。主对话按对话对方（稳定引用）各一件，换版本不另起一件。
-- 委派给专业角色：委派工具的 `character` 参数改为按 `roles.list` 里的名字或稳定引用找，找不到或不能用就拒绝（照旧不换成别的）。
+- **角色记忆**：键由 `reference.artifact_id` 改为 `character_id`，仍在 `characterOwner(项目, …)` 之下，同一原件在两个项目的记忆各自独立（ONB-17）；个人工作里用原件时没有项目，角色记忆不开（只用个人记忆）。
+- **谁选**。助理：一件工作开始时调 `roles.resolve` 得到稳定选择存在工作上（`StoredWork.character` 改为 `{ selection: CharacterTaskSelection; title }`），之后各轮带同一选择，宿主钉住版本；用户另选从下一轮起。Coding：每个会话存稳定选择，同样由宿主钉版本。主对话按对话对方（稳定选择）各一件。`services/assistant` 的 `AssistantCharacterRef`、`AssistantCharacterChoice`、`AssistantRound.character` 与发送请求的 `character` 同改为稳定选择加标题。
+- 委派给专业角色：委派工具的 `character` 参数改为 `roles.list` 给出的稳定引用（`personal:<id>`／`project:<id>`）；按名字找到多于一个时拒绝并列出候选，找不到或不能用就拒绝（照旧不换成别的）。
 
 ## 6. 界面（方案 C，照定样）
 
@@ -112,23 +117,24 @@ CREATE TABLE character_adoptions (           -- 模板采用回执：同键重�
 | 1 事实主人 | Characters 拥有原件、版本、成员、默认与采用回执；成果库只在「存进成果库」时持有发布物；运行记录归 Agent Host，冻结的是角色版本引用和正文 |
 | 2 插件同等待遇 | Coding 与助理同经 `roles.list`／`roles.resolve`；第三方插件在 Manifest 声明 `characters` 即同样能选角色 |
 | 3 能力注册 | 新动作在 Characters 一处声明，页面、助理、MCP 同用；不另写名单 |
-| 4 合同 | `modules/characters`、`services/agent-host-start`、`platform/plugin-agent` 按原版本改（阶段一），一个 PR 改完消费者；跑 `api:update`、`actions:update`、`versions:generate` |
+| 4 合同 | `modules/characters`、`services/agent-host-start`、`services/assistant`、`platform/plugin-agent` 按原版本改（阶段一），一个 PR 改完消费者；跑 `api:update`、`actions:update`、`versions:generate` |
 | 5 包边界 | 存储与解析在 `modules/characters`；宿主只装配与冻结；Agent Host 不读 Characters 的库 |
 | 6 表与存储 | 新表都在 Characters 自己的库；库 1→2，升级只建表 |
-| 7 兼容与迁移 | 不新增：不补版本、不读旧形状；旧运行记录与旧选择按现行形状读，读不出就是「这个版本不能用了，另选」这一条现行路径 |
+| 7 兼容与迁移 | 新增一条：角色库 1 → 2 只建表的升级段（用户 2026-11-15 同意，登记进「当前保留机制」）。不补版本、不读旧形状；旧运行记录与旧选择按现行形状读，读不出就是「这个版本不能用了，另选」这一条现行路径 |
 | 8 安全边界 | 引用按本人与本项目查归属；跨项目或别人的引用一律 `not_found`；选角色不授权。新增 `S-character-role-scope`：跨项目成员引用、伪造本人、超出执行方式的工具三种拒绝各有测试 |
 | 9 调用次数 | 选择器、设置页一次 `roles.list`；开始任务一次 `roles.resolve`；每轮守卫只读一次版本存在；去掉今天按发布物逐个 `runnable` 的 N 次请求 |
 | 10 升级与数据 | 库版本 1→2，金样随 `pnpm` 的升级回放重生；没有版本的旧草稿保存一次才可选 |
 | 11 成果与过程项 | 不新增成果类型；`character.definition.v1` 只由「存进成果库」产生 |
 | 12 页面、外壳与文字 | 不出整页：设置页里的一节、抽屉和就地展开；文字走 `t()`，存下来的是键和参数 |
 | 13 错误 | 沿 `characterErrors`，冲突带当前值供看差异 |
-| 14 冲突面 | Characters、assistant、Coding 的角色部分、Agent Host 的冻结、工作台角色页；第 34 批 PR 只碰 `tests/characters-appearance.test.ts`，按依赖顺序合并 |
+| 14 冲突面 | Characters、assistant、Coding 的角色部分、Agent Host 的冻结与角色记忆键、工作台角色页、项目删除（成员、成员版本、项目默认、项目层回执随项目删）；第 34 批 PR 只碰 `tests/characters-appearance.test.ts`，按依赖顺序合并 |
 | 15 全局最优 | 插件：Coding 与第三方同一份声明与动作；平台：一处解析、一种冻结；助理：主对话与委派用同一份可选列表；平台能力：来源阶梯以后给记忆、运行时、模型共用；后续：第 45 批助理团直接用成员与采用回执 |
 
 ## 8. 偏离与留后
 
 - 本批文件的「粒度」写层次合同切小 PR 先合：#1995 已合，本批不再单开。
 - 旧运行记录里的成果库式 `character` 只显示标题，不再显示版本与发布者；不为它写兜底（§5）。
+- PFG-19 的「判断规则」那一半不在本批：判断规则的保存与固定版本由各自主人（规则所在插件）按同一做法补，本批只做角色。
 - 新表暂不进同步复制，随个人同步（服务端批）补，记 `BL-character-roles-sync`。
 
 ## 9. 验收
@@ -148,4 +154,6 @@ CREATE TABLE character_adoptions (           -- 模板采用回执：同键重�
 | ROLE-11 | 别的项目或别人的成员、版本引用一律拒绝（`S-character-role-scope`）；选角色不扩权：超出执行方式的工具在选择时就标不能选、开始时拒绝 |
 | ROLE-12 | 模板采用：新建与复用、同请求重放原回执、复用使原创建者的解除凭据失效、并发解除与复用只有一个成功（RSC-C03 运行时部分） |
 | ROLE-13 | 一次 `roles.list` 给出选择器与设置页要的全部；开始任务只一次 `roles.resolve`（调用次数） |
+| ROLE-15 | 能力包目录读到原件（Home、几个项目在用）与本项目成员（本项目、跟随／改过哪一节）；`usages` 按有效内容报 |
+| ROLE-16 | 调用方不能钉版本：停用的角色开新会话被拒；同一会话沿用上一轮的版本；成员引用与原件不配对被拒（`S-character-role-scope`） |
 | ROLE-14 | [界面] 选择器、项目设置、全局设置、抽屉照方案 C 定样，三宽、中英、深浅，键盘与焦点照 README 的焦点规则；本人看实物验收 |

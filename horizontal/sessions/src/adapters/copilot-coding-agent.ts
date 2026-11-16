@@ -16,10 +16,23 @@ import {
   paginateAndSearchTranscript,
 } from "./shared.js";
 
-function classifyGhFailure(stderr: string): ActionError {
+function isGhPermissionOrLoginFailure(stderr: string): boolean {
   const lower = stderr.toLowerCase();
-  if (lower.includes("auth login") || lower.includes("not logged in") || lower.includes("authentication") || lower.includes("http 401")) {
-    return sessionSourceFailure("login_expired", stderr || "GitHub CLI login expired", false);
+  return lower.includes("auth login")
+    || lower.includes("not logged in")
+    || lower.includes("authentication")
+    || lower.includes("http 401")
+    || lower.includes("http 403")
+    || lower.includes("resource not accessible")
+    || lower.includes("insufficient")
+    || lower.includes("missing required scopes")
+    || lower.includes("needs the \"repo\" scope")
+    || lower.includes("needs the 'repo' scope");
+}
+
+function classifyGhFailure(stderr: string): ActionError {
+  if (isGhPermissionOrLoginFailure(stderr)) {
+    return sessionSourceFailure("login_expired", stderr || "GitHub CLI login expired or missing repo scope", false);
   }
   return sessionSourceFailure("read_error", stderr || "GitHub CLI agent-task command failed", true);
 }
@@ -205,8 +218,8 @@ export const copilotCodingAgentAdapter: ExternalSessionSourceAdapter = {
       if (lower.includes("not found") || lower.includes("could not find") || lower.includes("http 404")) {
         throw sessionsErrors.not_found("外部会话不存在或已被移除");
       }
-      if (lower.includes("auth login") || lower.includes("authentication") || lower.includes("http 401")) {
-        throw sessionSourceFailure("login_expired", "GitHub CLI 登录状态已失效", false);
+      if (isGhPermissionOrLoginFailure(result.stderr)) {
+        throw sessionSourceFailure("login_expired", "GitHub CLI 登录状态已失效，或缺少 repo 权限", false);
       }
       throw sessionsErrors.read_failed("读取 Copilot 编码 Agent 任务日志失败");
     }

@@ -1,5 +1,5 @@
 import { sessionsErrors } from "@molis-ai/molis-work-contracts/services/sessions";
-import type { AdapterDiscoveryBatch, AdapterReadOutput, AdapterSourceContext, ExternalSessionSourceAdapter } from "../ports.js";
+import { sessionSourceFailure, type AdapterDiscoveryBatch, type AdapterReadOutput, type AdapterSourceContext, type ExternalSessionSourceAdapter } from "../ports.js";
 import {
   buildCliResumeTarget,
   extractJsonlMetadata,
@@ -34,6 +34,7 @@ export const minimaxCodeAdapter: ExternalSessionSourceAdapter = {
     const batch = candidates.slice(startOffset, startOffset + DISCOVERY_BATCH_SIZE);
 
     let skippedCount = startOffset === 0 ? walked.skipped : 0;
+    let unsupportedVersionFiles = 0;
     const sessions = [];
 
     for (const item of batch) {
@@ -51,6 +52,11 @@ export const minimaxCodeAdapter: ExternalSessionSourceAdapter = {
           skippedCount++;
           continue;
         }
+        if (!meta.hasSessionContent) {
+          if (meta.unsupportedVersionCount > 0) unsupportedVersionFiles++;
+          skippedCount++;
+          continue;
+        }
         const nativeId = meta.sessionId && isValidNativeId(meta.sessionId) ? meta.sessionId : stem;
         sessions.push({
           native_id: nativeId,
@@ -65,6 +71,10 @@ export const minimaxCodeAdapter: ExternalSessionSourceAdapter = {
         if (signal.aborted) throw error;
         skippedCount++;
       }
+    }
+
+    if (startOffset === 0 && sessions.length === 0 && unsupportedVersionFiles > 0) {
+      throw sessionSourceFailure("version_mismatch", "MiniMax Code 会话记录版本暂不支持解析", false);
     }
 
     const nextOffset = startOffset + batch.length;

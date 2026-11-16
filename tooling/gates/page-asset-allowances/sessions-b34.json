@@ -1,6 +1,6 @@
 {
-  "reason": "第 34 批 Sessions 历史实现（SRB-01～16、BL-177、#batch-34-item-1）。① 按需懒加载外部会话交互脚本（/assets/molis-work-plugins/sessions.js +46,254 B）：仅在用户切换到「外部会话」工作表面或点项目内「读取范围」抽屉时按需加载，不进到达页、项目选择器与工作台首屏脚本。② 工作台样式表（/assets/molis-work-workbench.css +14,331 B）：按批次文件要求将组件板 Setting Row（.mw-setting、.mw-settings）、Who（.mw-who）与外部会话原文／项目许可行（SESSION_SOURCE_STYLES）搬入产品样式表（约 4.8 KB），并补齐外部会话列表／读取范围抽屉／原文阅读／待归类卡片、项目设置「工具带入 · 待确认」徽章及个人助理本轮不可信外部会话上下文条样式（约 9.5 KB）。③ 工作台与搜索脚本（/assets/molis-work-workbench.js +3,647 B、/assets/molis-work-chooser-search.js +11 B、arrival.css +2 B、settings.css +2 B）：项目目录「确认连入」、全局搜索 external_session 类型跳转及个人助理本轮不可信材料候选签。④ 工作台双语语言包（workbench.zh.<digest>.js／workbench.en.<digest>.js）：50 条外部工具登记、9 类来源状态、读取范围两栏、AI 归属建议与安全边界双语词条。",
-  "review": "specs/sessions-rebuild/spec.md §8、specs/sessions-rebuild/contract-design.md 与 docs/design/sessions-34/ 四块定样 A 核对。Sessions 交互脚本拆为独立按需包 /assets/molis-work-plugins/sessions.js，首屏热启动无脚本整包混入；组件板既有 .mw-setting / .mw-who / .mw-session-* 原语统一从 @molis-ai/molis-work-design-system 引入无私有重复样式。本机对照最新 origin/main 隔离构建实测（node scripts/gates/page-assets.mjs --base origin/main、node scripts/gates/first-screen.mjs --base origin/main）。",
+  "reason": "第 34 批 Sessions 历史实现（SRB-01～16、BL-177、#batch-34-item-1）。① 按需懒加载外部会话交互脚本（/assets/molis-work-plugins/sessions.js 合后审计实测 +47,129 B；原批准额 46,254 B）：仅在用户切换到「外部会话」工作表面或点项目内「读取范围」抽屉时按需加载，不进到达页、项目选择器与工作台首屏脚本。② 工作台样式表（/assets/molis-work-workbench.css +14,331 B）：按批次文件要求将组件板 Setting Row（.mw-setting、.mw-settings）、Who（.mw-who）与外部会话原文／项目许可行（SESSION_SOURCE_STYLES）搬入产品样式表（约 4.8 KB），并补齐外部会话列表／读取范围抽屉／原文阅读／待归类卡片、项目设置「工具带入 · 待确认」徽章及个人助理本轮不可信外部会话上下文条样式（约 9.5 KB）。③ 工作台与搜索脚本（/assets/molis-work-workbench.js +3,647 B、/assets/molis-work-chooser-search.js +11 B、arrival.css +2 B、settings.css +2 B）：项目目录「确认连入」、全局搜索 external_session 类型跳转及个人助理本轮不可信材料候选签。④ 工作台双语语言包（workbench.zh.<digest>.js／workbench.en.<digest>.js）：50 条外部工具登记、9 类来源状态、读取范围两栏、AI 归属建议与安全边界双语词条。",
+  "review": "specs/sessions-rebuild/spec.md §8、specs/sessions-rebuild/contract-design.md 与 docs/design/sessions-34/ 四块定样 A 核对。Sessions 交互脚本拆为独立按需包 /assets/molis-work-plugins/sessions.js，首屏热启动无脚本整包混入；组件板既有 .mw-setting / .mw-who / .mw-session-* 原语统一从 @molis-ai/molis-work-design-system 引入无私有重复样式。本机对照最新 origin/main 隔离构建实测（node scripts/gates/page-assets.mjs --base origin/main、node scripts/gates/first-screen.mjs --base origin/main）。 合后审计修复（未知 schema/Kimi 双格式/gh 403/建议依据/云端 account_changed）使按需包增至 47,129 B，仍低于单次 10 KB 涨幅门槛；用户于 2026-11-15 批准的额度为 46,254 B。",
   "userApproval": "用户于 2026-11-15 在主会话弹窗选择「(Recommended) 批准登记 tooling/gates/page-asset-allowances/sessions-b34.json（按需懒加载 sessions.js +46,254 B 不进首屏；workbench.css +14,331 B 含批次要求的 Setting Row / Who / Session Sources 原语入表与表面样式；workbench.js +3,647 B；workbench.zh/en 语言包更新；工作台首屏冷启动 +29,066 B / 热启动 +7,305 B）」。",
   "entryApprovals": [
     {
@@ -43,7 +43,7 @@
     "/assets/molis-work-chooser-search.js": 11,
     "/assets/molis-work-workbench.js": 3647,
     "/assets/molis-work-workbench.css": 14331,
-    "/assets/molis-work-plugins/sessions.js": 46254
+    "/assets/molis-work-plugins/sessions.js": 47129
   },
   "pages": {
     "arrival-empty/zh": {

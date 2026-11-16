@@ -46,8 +46,14 @@ function renderUnfiledCard(row: ExternalSessionRow, input: UnfiledRenderInput): 
   const selectedProject = chosenProjectId(row, input.projects, input.dirtyChoices, suggestion);
   const suggestedId = suggestion?.status === "ready" ? suggestion.project?.project_id ?? "" : "";
   const title = row.title?.trim() || row.tool.display_name;
+  const evidence = suggestion?.status === "ready" && suggestion.evidence.length > 0
+    ? `<div class="sessions-unfiled-evidence"><span>${uiText("workbench.sessions.ai-suggestion-evidence")}</span><ul>${suggestion.evidence.map(item => `<li>${escapeHtml(item.text)}</li>`).join("")}</ul></div>`
+    : "";
+  const alternatives = suggestion?.status === "ready" && suggestion.alternatives.length > 0
+    ? `<p class="sessions-unfiled-alternatives">${uiText("workbench.sessions.ai-suggestion-alternatives", { projects: suggestion.alternatives.map(project => project.display_name).join("、") })}</p>`
+    : "";
   const suggestLine = suggestion?.status === "ready" && suggestion.project
-    ? `<p class="sessions-unfiled-suggest">${uiText("workbench.sessions.ai-suggested-project", { project: suggestion.project.display_name })} · ${escapeHtml(suggestion.reason)}</p>`
+    ? `<p class="sessions-unfiled-suggest">${uiText("workbench.sessions.ai-suggested-project", { project: suggestion.project.display_name })} · ${escapeHtml(suggestion.reason)}</p>${evidence}${alternatives}`
     : suggestion?.status === "failed"
       ? `<p class="sessions-unfiled-suggest">${uiText("workbench.sessions.ai-suggest-unavailable")}</p>`
       : `<p class="sessions-unfiled-suggest">${row.attribution.state === "unfiled" ? uiText(UNFILED_REASONS[row.attribution.reason]) : uiText("workbench.sessions.unfiled-no-relation")}</p>`;

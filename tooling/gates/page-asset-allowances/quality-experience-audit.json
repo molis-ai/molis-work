@@ -1,40 +1,40 @@
 {
-  "reason": "资料导入保留剩余及处理中新增的选择，失败条目不阻塞未处理文件，重试按实际队列显示结果；沿用原有界面与服务，无新增依赖，实际脚本净增166字节。",
+  "reason": "资料导入保留剩余及处理中新增的选择，失败条目不阻塞未处理文件，重试按实际队列显示结果；沿用原有界面与服务，无新增依赖。2026-11-16以main 0dceaca09为基线的CI #8036实测脚本净增96 B、首屏最大冷增197 B/热增38 B。同步账号词包后的新基线中，到达/选择页冷增比旧测量各多6 B；按原已批准冷增最多261 B/热增最多38 B校正逐入口记录，同时将其他额度收紧到本次实测。",
   "review": "specs/quality-experience-audit/spec.md#资源增量审阅",
   "assets": {
-    "/assets/molis-work-knowledge.js": 166
+    "/assets/molis-work-knowledge.js": 96
   },
   "pages": {
     "arrival-empty/zh": {
-      "cold": 48,
+      "cold": 54,
       "warm": 0
     },
     "arrival-empty/en": {
-      "cold": 57,
+      "cold": 63,
       "warm": 0
     },
     "chooser/zh": {
-      "cold": 48,
+      "cold": 54,
       "warm": 0
     },
     "chooser/en": {
-      "cold": 57,
+      "cold": 63,
       "warm": 0
     },
     "workbench-default/zh": {
-      "cold": 235,
+      "cold": 171,
       "warm": 21
     },
     "workbench-default/en": {
-      "cold": 261,
+      "cold": 197,
       "warm": 38
     },
     "workbench-all-plugins/zh": {
-      "cold": 235,
+      "cold": 171,
       "warm": 21
     },
     "workbench-all-plugins/en": {
-      "cold": 261,
+      "cold": 197,
       "warm": 38
     }
   },

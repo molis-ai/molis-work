@@ -3,11 +3,10 @@
   const K = window.mwKit, W = window.prototypeWorkLine, esc = K.escapeHtml;
   const query = new URLSearchParams(location.search);
   let lang = query.get('lang') === 'en' ? 'en' : 'zh';
-  let scheme = query.get('scheme') === 'B' ? 'B' : 'A';
   let theme = query.get('theme') === 'dark' ? 'dark' : 'light';
   let selected = query.get('task') || 'parent', fault = 'normal', handle;
   const tx = pair => pair[lang === 'en' ? 1 : 0];
-  const key = 'molis-prototype-58-v2:';
+  const key = 'molis-prototype-58-v3:';
   const drafts = new Map(), reading = new Map(), expanded = new Set(), pending = new Map();
   const base = {
     parent: { name: ['准备墨问西东内测发布', 'Prepare Mowen for private beta'], role: ['个人助理', 'Personal assistant'], state: 'running',
@@ -30,8 +29,7 @@
   try { const saved = JSON.parse(localStorage.getItem(key + 'state') || 'null'); if (saved) for (const id of Object.keys(base)) if (saved[id]) Object.assign(tasks[id], saved[id]); } catch { /* Demo may start fresh. */ }
   if (!tasks[selected]) selected = 'parent';
   const siblings = ['research', 'copy', 'check'];
-  const visited = new Set(selected === 'parent' ? [] : [selected]);
-  let panelOpen = query.has('panel'), panelMode = query.get('panel') === 'list' ? 'list' : 'task', dialogOpen = true;
+  let panelOpen = selected !== 'parent' || query.has('panel'), panelMode = selected !== 'parent' ? 'conversation' : query.get('panel') === 'list' ? 'list' : 'task', dialogOpen = true;
   const stateLabels = {
     running: ['进行中', 'Working'], answer: ['等你回答', 'Needs your answer'], 'round-ended': ['本轮结束', 'Round ended'],
     failed: ['未完成', 'Could not finish'], stopped: ['已停止', 'Stopped'], interrupted: ['已中断', 'Interrupted'],
@@ -39,7 +37,7 @@
   };
   const status = id => stateLabels[tasks[id].state] || stateLabels.running;
   const save = () => localStorage.setItem(key + 'state', JSON.stringify(tasks));
-  function rememberView() { const url = new URL(location.href); for (const [k,v] of Object.entries({ task: selected, scheme, lang, theme })) url.searchParams.set(k,v); history.replaceState(null,'',url); }
+  function rememberView() { const url = new URL(location.href); url.searchParams.delete('scheme'); for (const [k,v] of Object.entries({ task: selected, lang, theme })) url.searchParams.set(k,v); history.replaceState(null,'',url); }
   const btn = (label, action, options = {}) => K.renderButton({ label: tx(label), variant: 'secondary', size: 'sm', attrs: { 'data-action': action }, ...options });
   const ring = id => K.renderStateRing({ state: tasks[id].state, label: tx(status(id)) });
   const badge = id => K.renderBadge({ label: tx(status(id)), tone: ['failed', 'answer', 'approval'].includes(tasks[id].state) ? 'warning' : 'neutral' });
@@ -48,7 +46,6 @@
   function prototypeBar() {
     const option = (v, label, current) => `<option value="${v}" ${v === current ? 'selected' : ''}>${esc(tx(label))}</option>`;
     document.getElementById('prototype').innerHTML = `<b>${tx(['58 · 子任务对话样稿', '58 · Subtask conversation prototype'])}</b>
-      <label>${tx(['面板内', 'Inside dialog'])}<select id="scheme">${option('A', ['A 同面板标签', 'A Shared dialog tabs'], scheme)}${option('B', ['B 对话内聚焦', 'B Focus within dialog'], scheme)}</select></label>
       <label><select id="fault" aria-label="${tx(['演示状态', 'Demo state'])}">${Object.entries({ normal: ['正常', 'Normal'], failed: ['发送失败', 'Send fails'], unknown: ['发送结果未知', 'Send outcome unknown'], unreadable: ['读取失败', 'Read fails'], revoked: ['子任务已收回', 'Subtask reassigned'], interrupted: ['重启后中断', 'Interrupted after restart'], approval: ['等待审批', 'Awaiting approval'], long: ['长对话', 'Long conversation'] }).map(([v,l]) => option(v,l,fault)).join('')}</select></label>
       ${btn(['后台来一条更新', 'Background update'], 'background')}
       ${btn(lang === 'zh' ? ['EN', 'EN'] : ['中文', '中文'], 'language')}
@@ -75,31 +72,36 @@
   function row(id) {
     return `<button class="task-link" data-task="${id}">${ring(id)}<span>${esc(tx(tasks[id].name))}</span><small>${esc(tx(status(id)))}</small>${icon('chevron-right')}</button>`;
   }
-  function tabHtml(id) {
-    const t=tasks[id], current=selected===id || (scheme==='B' && id==='parent');
-    return `<div class="assistant-tab" ${current ? 'data-current="true"' : ''}><button type="button" class="assistant-tab-main" role="tab" aria-selected="${current}" data-task="${id}" title="${esc(tx(t.name))}">${id==='parent' ? icon('sparkles') : ring(id)}<span class="assistant-tab-title">${esc(tx(id==='parent' ? ['助理','Assistant'] : t.name))}</span>${t.unread ? K.renderBadge({label:tx(['新','New']),tone:'info'}) : ''}</button>${id==='parent' ? '' : `<button class="assistant-tab-close" data-close-task="${id}" aria-label="${tx(['关闭子任务对话','Close subtask conversation'])}">${icon('x')}</button>`}</div>`;
-  }
   function drawCard() {
     const panel=document.getElementById('assistant-panel'); if(!panel)return;
-    const id=selected,t=tasks[id], child=id!=='parent';
     panel.hidden=!dialogOpen;
     const mark=W.renderTaskMark({count:3,lead:'answer',needsYou:true,expanded:panelOpen,panel:'tasks-popover'});
-    const source=child ? `<div class="subtask-strip"><div class="source">${scheme==='B' ? btn(['回主对话','Main chat'],'parent',{icon:'chevron-left',variant:'ghost'}) : icon('git-branch')}<span>${tx(['来自','From'])} · ${esc(tx(tasks.parent.name))}</span></div><div class="control">${['running','answer','approval'].includes(t.state) ? btn(['停止','Stop'],'stop') : t.state!=='unavailable' ? btn(['继续','Continue'],'continue') : ''}</div></div>` : '';
-    panel.innerHTML=`<header class="assistant-tabbar"><div class="assistant-tabs" data-work-tabs role="tablist" aria-label="${tx(['对话对象','Conversations'])}">${tabHtml('parent')}${scheme==='A' ? [...visited].map(tabHtml).join('') : ''}</div><span class="assistant-tabbar-actions">${mark}<button class="dock-window-action" data-action="minimize" aria-label="${tx(['收起助理','Minimize assistant'])}">${icon('chevron-down')}</button></span></header>${source}<div class="local-feedback" id="local-feedback">${['stopped','failed','interrupted'].includes(t.state) ? K.renderAlert({tone:'warning',title:tx(t.state==='stopped'?['已停止','Stopped']:['本次未完成','This attempt did not finish']),body:tx(['对话与旧结果已保留。点「继续」会开始新尝试。','Messages and earlier results are kept. Continue starts a new attempt.'])}) : t.state==='unavailable' ? K.renderAlert({tone:'warning',title:tx(['这一步已收回','This step was reassigned']),body:tx(['保留可读历史；请回主对话查看当前负责人。','You can read the history. Return to the main chat for the current owner.'])}) : ''}</div><div class="assistant-body"><div class="assistant-main"><div class="assistant-thread" id="message-list" tabindex="0" role="log" aria-label="${tx(child?['子任务对话','Subtask conversation']:['助理主对话','Main assistant conversation'])}"></div></div></div><div class="latest-row" id="latest-row"></div>`;
-    drawMessages();
-    const scroller=document.getElementById('message-list'); scroller.scrollTop=reading.get(id)||0;
-    scroller.addEventListener('scroll',()=>reading.set(id,scroller.scrollTop),{passive:true});
+    // Child navigation never replaces the main conversation or its scroll container.
+    if(!panel.querySelector('#main-messages')) {
+      panel.innerHTML=`<header class="assistant-tabbar"><div class="assistant-tabs" data-work-tabs><div class="assistant-tab" data-current="true"><button class="assistant-tab-main" data-action="main-chat">${icon('sparkles')}<span class="assistant-tab-title">${tx(['助理','Assistant'])}</span></button></div></div><span class="assistant-tabbar-actions">${mark}<button class="dock-window-action" data-action="minimize" aria-label="${tx(['收起助理','Minimize assistant'])}">${icon('chevron-down')}</button></span></header><div class="assistant-body"><div class="assistant-main"><div class="assistant-thread" id="main-messages" tabindex="0" role="log" aria-label="${tx(['助理主对话','Main assistant conversation'])}"></div></div></div>`;
+      drawMessages('parent');
+      const main=panel.querySelector('#main-messages');main.scrollTop=reading.get('parent')||0;
+      main.addEventListener('scroll',()=>reading.set('parent',main.scrollTop),{passive:true});
+    }
     const peek=document.getElementById('peek');peek.hidden=dialogOpen;
-    peek.innerHTML=`<span>${esc(tx(t.role))} · ${tx(['有进展，点开继续看','Updates available'])}</span>${btn(['展开对话','Open conversation'],'expand')}${mark}`;
-    drawTaskFloat();
-    requestAnimationFrame(()=>{placeFloat();panel.querySelector('.assistant-tab[data-current]')?.scrollIntoView({block:'nearest',inline:'nearest'});});
+    peek.innerHTML=`<span>${tx(['个人助理','Personal assistant'])} · ${tx(['有进展，点开继续看','Updates available'])}</span>${btn(['展开对话','Open conversation'],'expand')}${mark}`;
+    drawTaskFloat(); requestAnimationFrame(placeFloat);
+  }
+  function childDialog() {
+    const id=selected,t=tasks[id];
+    const feedback=['stopped','failed','interrupted'].includes(t.state) ? K.renderAlert({tone:'warning',title:tx(t.state==='stopped'?['已停止','Stopped']:['本次未完成','This attempt did not finish']),body:tx(['对话与旧结果已保留。点「继续」会开始新尝试。','Messages and earlier results are kept. Continue starts a new attempt.'])}) : t.state==='unavailable' ? K.renderAlert({tone:'warning',title:tx(['这一步已收回','This step was reassigned']),body:tx(['保留可读历史；请回任务卡查看当前负责人。','You can read the history. Return to the task card for the current owner.'])}) : '';
+    return `<section class="work-task-panel subtask-dialog" id="tasks-popover" role="region" aria-label="${esc(tx(t.name))}"><header class="subtask-float-head">${btn(t.parent?['返回上级子任务','Back to parent subtask']:['返回任务卡','Back to task card'],'parent',{icon:'chevron-left',iconOnly:true,variant:'ghost'})}<strong>${esc(tx(t.role))}</strong>${btn(['关闭','Close'],'close-float',{icon:'x',iconOnly:true,variant:'ghost'})}</header><div class="subtask-strip"><div class="source">${icon('git-branch')}<span>${esc(tx(tasks[t.parent||'parent'].name))}</span></div><div class="control">${['running','answer','approval'].includes(t.state) ? btn(['停止','Stop'],'stop') : t.state!=='unavailable' ? btn(['继续','Continue'],'continue') : ''}</div></div><div class="local-feedback">${feedback}</div><div class="subtask-thread" id="message-list" tabindex="0" role="log" aria-label="${tx(['子任务对话','Subtask conversation'])}"></div><div class="latest-row" id="latest-row"></div></section>`;
   }
   function drawTaskFloat() {
     const root=document.getElementById('task-float'); if(!root)return;
     document.querySelectorAll('.work-task-mark').forEach(mark=>mark.setAttribute('aria-expanded',String(panelOpen)));
     root.hidden=!panelOpen;
     if(!panelOpen)return;
-    if(panelMode==='list') {
+    if(panelMode==='conversation' && selected!=='parent') {
+      root.innerHTML=childDialog();drawMessages();
+      const scroller=document.getElementById('message-list');scroller.scrollTop=reading.get(selected)||0;
+      const id=selected;scroller.addEventListener('scroll',()=>reading.set(id,scroller.scrollTop),{passive:true});
+    } else if(panelMode==='list') {
       root.innerHTML=W.renderTaskPanel({id:'tasks-popover',live:[{id:'parent',title:tx(tasks.parent.name),ring:'running',step:tx(['邀请文案与体验核对正在推进','Invitation and experience checks underway']),serves:tx(['内测发布','Private beta'])}],returned:[]});
     } else {
       root.innerHTML=W.renderTaskCard({id:'parent',panel:'tasks-popover',title:tx(tasks.parent.name),owner:{name:tx(['助理','Assistant']),glyph:'sparkles',hue:'blue'},ring:'running',state:tx(['进行中','Working']),who:tx(['个人助理','Personal assistant']),serves:tx(['内测发布','Private beta']),returnsTo:tx(['助理主对话','Main assistant conversation']),steps:siblings.map(id=>({name:tx(tasks[id].name),at:tasks[id].state==='round-ended'?'done':'current',ring:tasks[id].state,who:tx(tasks[id].role)})),actions:btn(['回主对话','Main conversation'],'main-chat')});
@@ -112,6 +114,7 @@
     if(!panel.hidden){panel.style.height='';const box=panel.getBoundingClientRect(),bar=document.getElementById('prototype').getBoundingClientRect();panel.style.height=Math.min(box.height,Math.max(180,box.bottom-bar.bottom-52))+'px';}
     const top=panel.hidden?-340:panel.offsetTop+(innerWidth<=1250?42:0);
     float.style.top=top+'px';float.style.setProperty('--panel-height',panel.clientHeight+'px');
+    float.style.setProperty('--float-height',Math.max(180,panel.clientHeight-(innerWidth<=1250?42:0))+'px');
     document.getElementById('desktop').style.top=document.getElementById('prototype').getBoundingClientRect().height+'px';
   }
 
@@ -120,9 +123,9 @@
     if (who === 'receipt') return `<div class="receipt" data-message="${index}">${esc(tx(content))}</div>`;
     return `<div class="assistant-round"><div class="assistant-msg assistant-msg--${who==='user'?'user':'assistant'}" data-message="${index}">${who==='assistant'?`<div class="message-meta"><strong>${esc(tx(tasks[id].role))}</strong></div>`:''}<p>${esc(tx(content))}</p></div></div>`;
   }
-  function drawMessages() {
-    const list = document.getElementById('message-list'); if (!list) return;
-    const id = selected, t = tasks[id];
+  function drawMessages(id = selected) {
+    const list = document.getElementById(id==='parent'?'main-messages':'message-list'); if (!list) return;
+    const t = tasks[id];
     if (id === 'parent') { list.innerHTML = messageHtml(['user',['帮我准备第一轮内测邀请。文案和首次体验一起看看。','Help prepare the first beta invitation. Review the copy and first-use experience together.']], id, 0) + t.messages.map((m,i)=>messageHtml(m,id,i+1)).join('') + `<button class="task-link" data-action="open-task">${ring('parent')}<span>${esc(tx(t.name))}</span><small>${tx(['看任务 · 3 步','View task · 3 steps'])}</small>${icon('chevron-right')}</button>`; return; }
     if (fault === 'unreadable') { list.innerHTML = K.renderAlert({ tone: 'warning', title: tx(['暂时读不到对话', 'The conversation could not load']), body: tx(['任务仍在原处。重试只重新读取，不会重新派出子任务。', 'The task is still here. Retry reads it again without starting work.']), actions: [{ label: tx(['重新读取', 'Retry reading']), variant: 'secondary', attrs: { 'data-action': 'reload' } }] }); return; }
     const history = fault === 'long' ? Array.from({ length: 30 }, (_, i) => ['assistant', [`第 ${i + 1} 项核对：保留已确认的内容，继续核对手机上的阅读与播放。`, `Check ${i + 1}: preserve the confirmed content and continue checking mobile reading and playback.`]]) : [];
@@ -133,9 +136,9 @@
     if (!tasks[id]) return;
     const field = document.querySelector('#composer textarea');
     if (field) localStorage.setItem(key + 'draft:' + selected, field.value);
-    handle?.destroy(); selected = id; if(id!=='parent')visited.add(id); dialogOpen=true; tasks[id].unread = false; if(innerWidth<=1250)panelOpen=false; save(); rememberView();
-    drawCard(); mountComposer();
-    if (focus) document.querySelector(`.assistant-tabs [data-task="${scheme==='B'?'parent':id}"]`)?.focus();
+    handle?.destroy(); selected=id; dialogOpen=true; panelOpen=true;panelMode=id==='parent'?'task':'conversation';tasks[id].unread=false;save();rememberView();
+    drawCard();mountComposer();
+    if(focus)document.querySelector(id==='parent'?'#task-float [data-task]':'#task-float [data-action=parent]')?.focus();
   }
   function adapter(id) {
     if (!drafts.has(id)) drafts.set(id, { read: async () => localStorage.getItem(key + 'draft:' + id) || '', write: async text => localStorage.setItem(key + 'draft:' + id, text) });
@@ -177,31 +180,34 @@
     if (['stopped','failed','interrupted','unavailable'].includes(t.state)) handle.hold(tx(['当前不能发送，已保留草稿', 'Sending is unavailable; your draft is kept']));
   }
   function updateVisible(id) {
-    if (selected !== id) { tasks[id].unread = true; save(); drawTaskFloat(); const tab=document.querySelector(`.assistant-tabs [data-task="${id}"]`); if(tab&&!tab.querySelector('.mw-badge'))tab.insertAdjacentHTML('beforeend',K.renderBadge({label:tx(['新','New']),tone:'info'})); return; }
-    const list = document.getElementById('message-list'); if (!list) return;
-    const y = list.scrollTop, bottom = list.scrollHeight - y - list.clientHeight < 45;
-    drawMessages(); list.scrollTop = bottom ? list.scrollHeight : y;
-    document.getElementById('latest-row').innerHTML = bottom ? '' : btn(['有新消息 ↓', 'New message ↓'], 'latest');
+    if(id!==selected && id!=='parent') { tasks[id].unread=true;save();if(panelMode!=='conversation')drawTaskFloat();return; }
+    const list=document.getElementById(id==='parent'?'main-messages':'message-list');if(!list)return;
+    const y=list.scrollTop,bottom=list.scrollHeight-y-list.clientHeight<45;
+    drawMessages(id);list.scrollTop=bottom?list.scrollHeight:y;
+    if(id!=='parent')document.getElementById('latest-row').innerHTML=bottom?'':btn(['有新消息 ↓','New message ↓'],'latest');
+  }
+  function closeFloat() {
+    if(selected!=='parent')navigate('parent',false);
+    panelOpen=false;drawTaskFloat();document.querySelector('#assistant-panel .work-task-mark')?.focus();
   }
   document.addEventListener('click', event => {
-    const close=event.target.closest('[data-close-task]');if(close){visited.delete(close.dataset.closeTask);if(selected===close.dataset.closeTask)navigate('parent');else drawCard();return;}
-    if(event.target.closest('.work-task-mark')){panelOpen=!panelOpen;panelMode='list';drawTaskFloat();return;}
-    if(event.target.closest('[data-task-panel-close]')){panelOpen=false;drawTaskFloat();return;}
+    if(event.target.closest('.work-task-mark')){if(panelOpen)return closeFloat();panelOpen=true;panelMode='list';drawTaskFloat();return;}
+    if(event.target.closest('[data-task-panel-close]'))return closeFloat();
     if(event.target.closest('[data-task-panel-list]')){panelMode='list';drawTaskFloat();return;}
     if(event.target.closest('[data-task-open]')){panelMode='task';drawTaskFloat();return;}
     if(event.target.closest('[data-work-line-head]')||event.target.closest('.work-event')){panelOpen=true;panelMode='task';dialogOpen=true;drawCard();return;}
     const task = event.target.closest('[data-task]'); if (task) return navigate(task.dataset.task);
     const action = event.target.closest('[data-action]')?.dataset.action; if (!action) return;
     const t = tasks[selected];
-    if(action==='open-task'){panelOpen=true;panelMode='task';return drawCard();}
-    if(action==='main-chat'){panelOpen=false;return navigate('parent');}
-    if(action==='minimize'){dialogOpen=false;panelOpen=false;return drawCard();}
+    if(action==='open-task')return navigate('parent');
+    if(action==='main-chat'||action==='close-float')return closeFloat();
+    if(action==='minimize'){closeFloat();dialogOpen=false;return drawCard();}
     if(action==='expand'){dialogOpen=true;return drawCard();}
     if (action === 'parent') return navigate(t.parent || 'parent');
     if (action === 'previous' || action === 'next') return navigate(siblings[siblings.indexOf(selected) + (action === 'next' ? 1 : -1)]);
     if (action === 'language') { lang = lang === 'zh' ? 'en' : 'zh'; return frame(); }
     if (action === 'theme') { theme = theme === 'light' ? 'dark' : 'light'; return frame(); }
-    if (action === 'reset') { Object.keys(localStorage).filter(k => k.startsWith(key)).forEach(k => localStorage.removeItem(k)); location.href = location.pathname + '?scheme=' + scheme + '&lang=' + lang + '&theme=' + theme; return; }
+    if (action === 'reset') { Object.keys(localStorage).filter(k => k.startsWith(key)).forEach(k => localStorage.removeItem(k)); location.href = location.pathname + '?panel=task&lang=' + lang + '&theme=' + theme; return; }
     if (action === 'background') { const id = selected === 'research' ? 'copy' : 'research'; tasks[id].messages.push(['assistant', ['补充核对完成，已把新的来源附在原结果后。', 'An additional check is complete; the source is attached to the earlier result.']]); return updateVisible(id); }
     if (action === 'latest') { const list = document.getElementById('message-list'); list.scrollTop = list.scrollHeight; document.getElementById('latest-row').innerHTML = ''; return; }
     if (action === 'reload') { fault = 'normal'; prototypeBar(); return drawMessages(); }
@@ -213,7 +219,6 @@
     }
   });
   document.addEventListener('change', event => {
-    if (event.target.id === 'scheme') { scheme = event.target.value; rememberView(); return drawCard(); }
     if (event.target.id === 'fault') {
       fault = event.target.value;
       if (selected === 'parent') navigate('copy', false);
@@ -225,14 +230,8 @@
     }
   });
   document.addEventListener('keydown', event => {
-    if(event.defaultPrevented || event.isComposing)return;
-    if(event.key==='Escape' && panelOpen){panelOpen=false;drawTaskFloat();document.querySelector('#assistant-panel .work-task-mark')?.focus();event.preventDefault();return;}
-    const tab=event.target.closest('.assistant-tab-main');
-    if(tab && ['ArrowLeft','ArrowRight'].includes(event.key)){
-      const list=scheme==='A'?['parent',...visited]:['parent'];
-      const i=list.indexOf(tab.dataset.task), next=(i+(event.key==='ArrowRight'?1:-1)+list.length)%list.length;
-      navigate(list[next]);event.preventDefault();
-    }
+    if(event.defaultPrevented||event.isComposing)return;
+    if(event.key==='Escape'&&panelOpen){closeFloat();event.preventDefault();}
   });
   document.getElementById('icons').innerHTML = window.mwKitSprite;
   const client = document.createElement('script'); client.textContent = window.mwKitClient; document.body.appendChild(client);
